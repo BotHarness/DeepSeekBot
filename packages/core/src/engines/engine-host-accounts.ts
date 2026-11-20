@@ -10,19 +10,23 @@ import { CodexEngineSession, spawnCodexTransport } from './codex-engine.js';
 import { detectCodex, startCodexLogin, type CodexStatus } from './codex-status.js';
 import { readEngineAccount, requireSubscription, statusReport } from './engine-account.js';
 import type { EngineHostOptions } from './engine-host.js';
-import type { EngineQuotaView, EngineStatusReport } from './engine-host-types.js';
+import type { EngineStatusReport } from './engine-host-types.js';
+import {
+  engineQuotaLimit,
+  engineQuotaView,
+  recordEngineQuota,
+  type EngineQuotaView,
+} from './engine-quota.js';
 import {
   EngineRefusal,
   type EngineChoice,
   type EngineEvent,
   type EngineId,
   type EngineModel,
-  type EngineQuota,
   type EngineSession,
 } from './engine-session.js';
 import type { EngineStore, StoredEngineAccount } from './engine-store.js';
 
-const LIMIT_REST_MS = 60 * 60_000;
 const MODELS_TTL_MS = 5 * 60_000;
 
 export class EngineHostAccounts {
@@ -176,30 +180,11 @@ export class EngineHostAccounts {
   }
 
   limit(engine: EngineId, accountId?: string): { account: string; until: string } | undefined {
-    const quota = this.#store.quota(engine, accountId);
-    if (quota?.limited !== true) return undefined;
-    const until =
-      quota.resetsAt !== undefined && Number.isFinite(Date.parse(quota.resetsAt))
-        ? Date.parse(quota.resetsAt)
-        : Date.parse(quota.observedAt) + LIMIT_REST_MS;
-    if (!(until > this.#now())) return undefined;
-    return { account: quota.account ?? engine, until: new Date(until).toISOString() };
+    return engineQuotaLimit(engine, this.#store.quota(engine, accountId), this.#now());
   }
 
   quota(engine: EngineId, accountId?: string): EngineQuotaView | undefined {
-    const quota = this.#store.quota(engine, accountId);
-    if (quota === undefined) return undefined;
-    const limit = this.limit(engine, accountId);
-    const current =
-      quota.resetsAt === undefined || Date.parse(quota.resetsAt) > this.#now()
-        ? quota.usedPercent
-        : undefined;
-    return {
-      ...(current === undefined ? {} : { usedPercent: current }),
-      ...(quota.resetsAt === undefined ? {} : { resetsAt: quota.resetsAt }),
-      ...(limit === undefined ? {} : { limitedUntil: limit.until }),
-      observedAt: quota.observedAt,
-    };
+    return engineQuotaView(engine, this.#store.quota(engine, accountId), this.#now());
   }
 
   #now(): number {
@@ -212,23 +197,11 @@ export class EngineHostAccounts {
     account: string,
     event: Extract<EngineEvent, { kind: 'rate-limit' }>,
   ) {
-    const previous = this.#store.quota(engine, accountId);
-    const resetsAt =
-      event.resetsAt !== undefined
-        ? new Date(event.resetsAt * 1000).toISOString()
-        : event.limited && previous?.limited === true && previous.account === account
-          ? previous.resetsAt
-          : undefined;
-    const usedPercent =
-      event.usedPercent ?? (event.limited ? 100 : undefined) ?? previous?.usedPercent;
-    const quota: EngineQuota = {
-      account,
-      ...(usedPercent === undefined ? {} : { usedPercent }),
-      ...(resetsAt === undefined ? {} : { resetsAt }),
-      limited: event.limited,
-      observedAt: new Date(this.#now()).toISOString(),
-    };
-    this.#store.rememberQuota(engine, quota, accountId);
+    this.#store.rememberQuota(
+      engine,
+      recordEngineQuota(account, event, this.#store.quota(engine, accountId), this.#now()),
+      accountId,
+    );
   }
 
   #codexStatus(account: StoredEngineAccount): Promise<CodexStatus | ClaudeStatus> {

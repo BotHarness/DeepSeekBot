@@ -33,6 +33,7 @@ const defaultHost: GitProbeHost = {
       stdio: ['ignore', 'pipe', 'pipe'],
       timeout: 5_000,
       windowsHide: true,
+      shell: false,
     }),
 };
 

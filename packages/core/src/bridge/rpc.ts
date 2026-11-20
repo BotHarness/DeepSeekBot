@@ -171,6 +171,7 @@ import type {
   AssignmentGroupOption,
   AssignmentModelOption,
   ModelPreset,
+  ModelPresetUsage,
   ModelPresetEngine,
   ModelRoute,
   PersonaBotModelPlan,
@@ -1314,8 +1315,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.modelFavoriteSet({ choice, favorite }));
   }
 
-  modelPresets(): { presets: ModelPreset[] } {
-    return unwrap(this.methods.modelPresets({}));
+  modelPresets(includeUsage?: boolean): { presets: ModelPreset[]; usage?: ModelPresetUsage[] } {
+    return unwrap(this.methods.modelPresets({ includeUsage }));
+  }
+
+  modelPresetDelete(id: string, expectedRevision: number, confirmed: boolean): { id: string } {
+    return unwrap(this.methods.modelPresetDelete({ id, expectedRevision, confirmed }));
   }
 
   modelPresetCreate(
@@ -3634,6 +3639,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'modelPresets',
   'modelPresetCreate',
   'modelPresetUpdate',
+  'modelPresetDelete',
   'modelPresetApply',
   'modelGroups',
   'modelGroup',

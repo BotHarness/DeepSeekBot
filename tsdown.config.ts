@@ -138,6 +138,8 @@ function sourceBuildStamp(): { revision: string; dirty: boolean } | null {
         timeout: 2_000,
         maxBuffer: 1024 * 1024,
         stdio: ['ignore', 'pipe', 'ignore'],
+        shell: false,
+        windowsHide: true,
       }).trim();
     return {
       revision: git(['rev-parse', 'HEAD']),

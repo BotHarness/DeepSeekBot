@@ -43,7 +43,7 @@ function ffmpeg(args: string[]): Promise<void> {
     execFile(
       'ffmpeg',
       args,
-      { windowsHide: true, timeout: 300_000, maxBuffer: 4 * 1024 * 1024 },
+      { windowsHide: true, timeout: 300_000, maxBuffer: 4 * 1024 * 1024, shell: false },
       (error) => {
         if (error === null) return resolve();
         if ((error as NodeJS.ErrnoException).code === 'ENOENT')

@@ -502,7 +502,8 @@ function statusText(snapshot: ReleaseNotesSnapshot, t: BotHarnessTranslate): str
       });
     case 'unavailable':
       return t('release.status.unavailable', { version });
-    default:
+    case 'idle':
+    case 'checking':
       return t('release.status.checking', { version });
   }
 }
@@ -566,7 +567,8 @@ function releaseView(snapshot: ReleaseNotesSnapshot): {
         tone: 'warning',
         title: 'release.panel.problem',
       };
-    default:
+    case 'idle':
+    case 'checking':
       return {
         state: 'checking',
         icon: 'package',

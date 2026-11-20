@@ -229,6 +229,8 @@ describe('Tob native Shell scoped CLI leases', () => {
           })
         : promisify(execFile)('/bin/sh', ['-c', spec.command], {
             env: { ...process.env, ...supplied.env },
+            shell: false,
+            windowsHide: true,
           }));
       expect(JSON.parse(child.stdout)).toMatchObject({
         ok: true,

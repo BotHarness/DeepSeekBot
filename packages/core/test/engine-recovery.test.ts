@@ -1,17 +1,28 @@
 import { chmodSync, writeFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 
-import { createUserMessage } from '@deepseek-ai/dsh-llm';
-import { Session, SessionId } from '@deepseek-ai/dsh-session';
+import { createSystemMessage, createUserMessage } from '@deepseek-ai/dsh-llm';
+import { KNOWN_SESSION_EVENT_TYPES, Session, SessionId } from '@deepseek-ai/dsh-session';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { CodexEngineSession, type CodexTransport } from '../src/engines/codex-engine.js';
 import { codexLoginUrl, startCodexLogin } from '../src/engines/codex-status.js';
 import { openEngineDshSession } from '../src/engines/engine-dsh-session.js';
 import { createEngineGateway, type EngineGateway } from '../src/engines/engine-gateway.js';
-import { EngineHost } from '../src/engines/engine-host.js';
+import {
+  EngineHost,
+  type EngineHostOptions,
+  type EngineTurnRequest,
+} from '../src/engines/engine-host.js';
 import { engineLaunch } from '../src/engines/engine-launch.js';
+import { EngineTurnLog } from '../src/engines/engine-log.js';
 import { EngineRefusal } from '../src/engines/engine-session.js';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { createCore } from '../src/plugin.js';
+import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
+import { summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
+import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { memoryDsh } from './fixtures/engine-dsh.js';
 import { createTempRoot } from './helpers.js';
 import { inboxFixture } from './inbox-fixture.js';
@@ -93,7 +104,10 @@ afterEach(async () => {
   await Promise.all(gateways.splice(0).map((gateway) => gateway.close()));
 });
 
-function hostWith(next: () => FakeCodex) {
+function hostWith(
+  next: () => FakeCodex,
+  options: Pick<EngineHostOptions, 'idleMs' | 'routingGroupEffort'> = {},
+) {
   const dsh = memoryDsh();
   const gateway = createEngineGateway();
   gateways.push(gateway);
@@ -106,6 +120,7 @@ function hostWith(next: () => FakeCodex) {
     sessions: () => dsh.store,
     persistence: () => dsh.persistence,
     releaseGraceMs: 50,
+    ...options,
     observe: (_bot, _session, state) => states.push(state),
     openCodex: () => {
       const codex = next();
@@ -211,6 +226,78 @@ describe('Codex Engine Session stop and timeouts', () => {
 });
 
 describe('Engine Host recovery', () => {
+  it('closes the idle engine and resumes the same native ID on the next Inbox batch', async () => {
+    const { host, opened, request } = hostWith(() => fakeCodex(), { idleMs: 20 });
+    try {
+      await host.runTurn(request());
+      await vi.waitFor(() => expect(opened[0]?.closed).toBe(true));
+
+      await host.runTurn({ ...request(), input: 'Second Inbox batch' });
+      expect(
+        opened[1]?.sent.find((frame) => frame['method'] === 'thread/resume')?.['params'],
+      ).toMatchObject({ threadId: 'thread-new' });
+    } finally {
+      await host.close();
+    }
+  });
+
+  it('reopens an engine-first Session after its native continuation', async () => {
+    const fromCli = createRequire(import.meta.resolve('@deepseek-ai/dsh/package.json'));
+    const fromBase = createRequire(fromCli.resolve('@deepseek-ai/dsh-base/package.json'));
+    const fromPersistence = createRequire(
+      fromBase.resolve('@deepseek-ai/dsh-session-persistence-jsonl/package.json'),
+    );
+    const {
+      restoreReleasedV4Artifact,
+    }: {
+      restoreReleasedV4Artifact(artifact: unknown, knownEventTypes: ReadonlySet<string>): unknown;
+    } = await import(fromPersistence.resolve('@deepseek-ai/dsh-session-format-v3-to-v4'));
+
+    const session = Session.create(SessionId('engine-first-reopen'));
+    const engine = new EngineTurnLog(
+      { session, flush: async () => undefined },
+      'codex',
+      'ChatGPT pro',
+      'Write a note and report its path.',
+    );
+    engine.accept({ kind: 'tool-call', callId: 'write', name: 'shell', arguments: '{}' });
+    engine.accept({ kind: 'tool-result', callId: 'write', text: 'note.txt', isError: false });
+    await engine.end({ status: 'failed', message: 'Usage limit reached' });
+
+    session.append('turn/start', { turn: 2 });
+    session.append('step/start', { turn: 2, step: 1 });
+    const head = session.eventAt(session.surface.nodes[0]!);
+    session.append(
+      'system/message',
+      { turn: 2, step: 1, message: createSystemMessage('Native Agent prompt') },
+      head?.type === 'system/message'
+        ? {
+            surfaceOp: { op: 'replace', startSeq: head.seq, endSeq: head.seq },
+            sourceEventSeqs: [head.seq],
+          }
+        : { surfaceOp: 'append' },
+    );
+    session.append('step/end', { turn: 2, step: 1 });
+    session.append('turn/end', { turn: 2, reason: { kind: 'completed' } });
+
+    const events = session.snapshotEvents();
+    expect(() =>
+      restoreReleasedV4Artifact(
+        {
+          header: { ...session.header, delegationDepth: 0 },
+          inheritedEventCount: session.inheritedEventCount,
+          events,
+        },
+        KNOWN_SESSION_EVENT_TYPES,
+      ),
+    ).not.toThrow();
+    expect(
+      events.flatMap((event) =>
+        event.type === 'tool/result' ? [event.data.message.toolCallId] : [],
+      ),
+    ).toEqual(['write']);
+  });
+
   it('seeds only a new thread and gives the returning native Session the engine messages', async () => {
     let starts = 0;
     const { host, opened, request, dsh } = hostWith(() =>
@@ -323,6 +410,129 @@ describe('Engine Host recovery', () => {
     await host.close();
   });
 
+  it('rebuilds an Orchestrator thread with saved history and announces it in Session detail', async () => {
+    const { host, opened, request, dsh } = hostWith(() =>
+      fakeCodex({ 'thread/resume': () => ({ error: 'thread not found' }) }),
+    );
+    const readRecoveryContext = vi.fn(() => [
+      { label: 'Channel records', text: 'A recent Channel message said coral.' },
+    ]);
+    const run = {
+      ...request(),
+      instructions: 'Core Memory says the number is 37.',
+      readRecoveryContext,
+    };
+    try {
+      await host.runTurn({ ...run, input: 'The previous Inbox batch said orchid.' });
+      expect(readRecoveryContext).not.toHaveBeenCalled();
+      await host.release(run.sessionId);
+      await host.runTurn({ ...run, input: 'Current Inbox batch: what do you remember?' });
+
+      expect(readRecoveryContext).toHaveBeenCalledOnce();
+      const second = opened[1];
+      expect(second?.methods().filter((method) => /^thread\//u.test(method))).toEqual([
+        'thread/resume',
+        'thread/start',
+      ]);
+      expect(
+        second?.sent.find((frame) => frame['method'] === 'thread/start')?.['params'],
+      ).toMatchObject({ developerInstructions: 'Core Memory says the number is 37.' });
+      expect(
+        second?.sent.find((frame) => frame['method'] === 'turn/start')?.['params'],
+      ).toMatchObject({
+        input: [
+          {
+            text: expect.stringMatching(/coral[\s\S]*orchid[\s\S]*Current Inbox batch/u),
+          },
+        ],
+      });
+      const transcript = summarizeSessionTranscript({
+        sessionId: run.sessionId,
+        events: dsh.stored.get(run.sessionId)!.events,
+      });
+      expect(transcript.items).toContainEqual(
+        expect.objectContaining({
+          kind: 'input',
+          source: 'system',
+          text: 'Engine session rebuilt from saved context.',
+        }),
+      );
+    } finally {
+      await host.close();
+    }
+  });
+
+  it('rebuilds with Group history excerpts while leaving an unread admission pending', async () => {
+    const { host, opened } = hostWith(() =>
+      fakeCodex({ 'thread/resume': () => ({ error: 'thread not found' }) }),
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: new FakeAgentHost({ kind: 'completed' }),
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => {},
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      engines: host,
+    });
+    const excerpt = 'Unread Group history. '.padEnd(600, 'x');
+    const tail = 'Full message tail remains unread.';
+    const core = createCore({
+      dshHome: createTempRoot('engine-recovery-channel-'),
+      agents: {
+        runOrchestrator: async (run) => {
+          if (run.inboundChannelId === undefined) throw new Error('Group Channel expected');
+          const channelId = run.inboundChannelId;
+          await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
+            id: 'unread',
+            at: '2026-09-25T00:00:00.000Z',
+            author: { kind: 'human' },
+            body: excerpt + tail,
+          });
+          core.runtime.admitGroupMessage(channelId, 'unread');
+          host.store.rememberNativeSession(run.sessionId, 'codex', 'lost-thread', 'ChatGPT pro');
+          await adapter.runOrchestrator(run);
+        },
+        runAssignment: (run) => adapter.runAssignment(run),
+        requestAssignment: (run) => adapter.requestAssignment(run),
+        close: () => adapter.close(),
+      },
+    });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Engine recovery',
+        members: ['ada'],
+      });
+      core.channels.setGroupWakePolicy(group.id, 'ada', {
+        mode: 'silent',
+        count: 2,
+        intervalSeconds: 3600,
+      });
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
+        id: 'mention',
+        at: '2026-09-25T00:00:01.000Z',
+        author: { kind: 'human' },
+        body: '@Ada review the plan',
+        mentions: [{ botSlug: 'ada', label: 'Ada', start: 0, end: 4 }],
+      });
+      core.runtime.admitGroupMessage(group.id, 'mention');
+      await core.runtime.whenIdle();
+
+      expect(opened).toHaveLength(1);
+      expect(opened[0]?.methods()).toContain('thread/resume');
+      expect(opened[0]?.methods()).toContain('thread/start');
+      const input = opened[0]?.sent.find((frame) => frame['method'] === 'turn/start')?.['params'];
+      expect(input).toMatchObject({ input: [{ text: expect.stringContaining(excerpt) }] });
+      expect(JSON.stringify(input)).not.toContain(tail);
+      expect(core.channels.message(group.id, 'unread')?.deliveries).toEqual([
+        { botSlug: 'ada', state: 'pending' },
+      ]);
+    } finally {
+      await host.close();
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it('reopens and resumes the thread after Codex exits between turns', async () => {
     const { host, opened, request } = hostWith(() => fakeCodex());
     await host.runTurn(request());
@@ -384,22 +594,52 @@ describe('Engine Host recovery', () => {
     await host.close();
   });
 
-  it('refuses a turn queued behind a release instead of running it on the closed Session', async () => {
-    const { host, request } = hostWith(() =>
-      fakeCodex({
-        'turn/start': (_params, codex) => {
-          setTimeout(() => codex.notify('turn/completed', { turn: { status: 'completed' } }), 40);
-          return { result: { turn: { id: 'turn-1' } } };
-        },
-      }),
-    );
-    const first = host.runTurn(request());
-    await vi.waitFor(() => expect(host.isLive('orchestrator-ada')).toBe(true));
-    const queued = host.runTurn(request());
-    await host.release('orchestrator-ada');
-    await first.catch(() => undefined);
-    await expect(queued).rejects.toBeInstanceOf(EngineRefusal);
-  });
+  it.each(['direct', 'routing-group'] as const)(
+    'refuses a %s turn queued behind a release',
+    async (lane) => {
+      const { host, request } = hostWith(
+        () =>
+          fakeCodex({
+            'model/list': () => ({
+              result: {
+                data: [
+                  {
+                    id: 'gpt-6.2-sol',
+                    displayName: 'GPT-6.2-Sol',
+                    supportedReasoningEfforts: [{ reasoningEffort: 'high' }],
+                  },
+                ],
+                nextCursor: null,
+              },
+            }),
+            'turn/start': (_params, codex) => {
+              setTimeout(
+                () => codex.notify('turn/completed', { turn: { status: 'completed' } }),
+                40,
+              );
+              return { result: { turn: { id: 'turn-1' } } };
+            },
+          }),
+        { routingGroupEffort: () => 'high' },
+      );
+      const turn = (): EngineTurnRequest => ({
+        ...request(),
+        ...(lane === 'routing-group'
+          ? { target: { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol' } }
+          : {}),
+      });
+      const first = host.runTurn(turn()).catch(() => undefined);
+      try {
+        await vi.waitFor(() => expect(host.isLive('orchestrator-ada')).toBe(true));
+        const queued = expect(host.runTurn(turn())).rejects.toBeInstanceOf(EngineRefusal);
+        await host.release('orchestrator-ada');
+        await first;
+        await queued;
+      } finally {
+        await host.close();
+      }
+    },
+  );
 
   it('starts nothing for a turn waiting on a release when the Host shuts down', async () => {
     const { host, opened, request } = hostWith(() =>

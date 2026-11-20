@@ -36,6 +36,7 @@ class Fixture {
     );
     execFileSync(compiler, ['/nologo', `/out:${join(home, 'tailscale.exe')}`, fixture], {
       windowsHide: true,
+      shell: false,
     });
     await writeFile(
       driver,
@@ -60,6 +61,7 @@ writeFileSync(process.argv[3], JSON.stringify(await module.detectPhoneRoutes({ p
         ...process.env,
         PATH: `${home}${delimiter}${process.env['PATH'] ?? ''}`,
       },
+      shell: false,
     });
     try {
       const code = await new Promise<number | null>((resolve, reject) => {

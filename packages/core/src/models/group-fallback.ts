@@ -1,6 +1,9 @@
+import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
+import { EngineRefusal, type EngineId } from '../engines/engine-session.js';
 import { createMemoryFallbackOverrides, type FallbackOverrideStore } from './fallback-overrides.js';
 import type { ModelRoute, PersonaBotModelPlan } from './presets.js';
 import type { RestingRoute, RestReason, RouteRests } from './route-rest.js';
+import type { RoutingTarget } from './routing-groups.js';
 
 type RouteKey = Pick<ModelRoute, 'provider' | 'model'>;
 
@@ -22,6 +25,17 @@ export type GroupPick =
   | { kind: 'exhausted'; rests: RestingRoute[] }
   | { kind: 'missing' };
 
+export interface SubscriptionRest {
+  engine: EngineId;
+  account: string;
+  until: string;
+}
+
+export type MixedGroupPick =
+  | { kind: 'target'; target: RoutingTarget }
+  | { kind: 'exhausted'; rests: RestingRoute[]; subscription?: SubscriptionRest }
+  | { kind: 'unavailable' };
+
 export interface GroupFallback {
   route(sessionId: string): ModelRoute | undefined;
   choose(
@@ -31,6 +45,17 @@ export interface GroupFallback {
   ): Promise<ModelSwitch | RoutesExhausted | undefined>;
   start(botSlug: string, sessionId: string): Promise<void>;
   pick(botSlug: string, groupId: string, effort?: string): Promise<GroupPick>;
+  pickMixedOrchestrator(
+    botSlug: string,
+    attempted?: ReadonlySet<string>,
+  ): Promise<MixedGroupPick | undefined>;
+  isMixed(groupId: string): boolean;
+  pickMixedAssignment(
+    botSlug: string,
+    groupId: string,
+    effort?: string,
+    attempted?: ReadonlySet<string>,
+  ): Promise<MixedGroupPick | undefined>;
   inherited(): string | undefined;
   inheritedEffort(): string | undefined;
 }
@@ -38,11 +63,37 @@ export interface GroupFallback {
 const same = (left: RouteKey, right: RouteKey) =>
   left.provider === right.provider && left.model === right.model;
 
+export function routingTargetRestKey(target: RoutingTarget): string {
+  return target.kind === 'engine'
+    ? JSON.stringify(['engine', engineAccountKey(target.engine, target.accountId)])
+    : JSON.stringify(['route', target.route.provider, target.route.model]);
+}
+
+export function unavailableRoutingEngine(error: unknown): boolean {
+  return (
+    error instanceof EngineRefusal &&
+    [
+      'engine-not-installed',
+      'engine-account-not-found',
+      'engine-signed-out',
+      'engine-not-subscription',
+      'unknown-model',
+      'unknown-effort',
+    ].includes(error.code)
+  );
+}
+
 export function createGroupFallback(options: {
   plan(botSlug: string): PersonaBotModelPlan | undefined;
   inheritedGroup?(): string | undefined;
   inheritedEffort?(): string | undefined;
   routes(groupId: string): ModelRoute[];
+  engines?: {
+    targets(groupId: string): RoutingTarget[];
+    allowed(botSlug: string): boolean;
+    limit(engine: EngineId, accountId?: string): Omit<SubscriptionRest, 'engine'> | undefined;
+  };
+  allowsGroup?(botSlug: string, groupId: string): boolean;
   rests: Pick<RouteRests, 'restingUntil'>;
   requireAllowed(botSlug: string, route: ModelRoute): void;
   validate(route: ModelRoute): Promise<void>;
@@ -72,6 +123,89 @@ export function createGroupFallback(options: {
       return undefined;
     }
   };
+  const isUsable = async (botSlug: string, route: ModelRoute): Promise<boolean> => {
+    try {
+      options.requireAllowed(botSlug, route);
+      await options.validate(route);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  const targetsOf = (groupId: string): RoutingTarget[] => {
+    try {
+      return options.engines?.targets(groupId) ?? [];
+    } catch {
+      return [];
+    }
+  };
+  const pickMixed = async (
+    botSlug: string,
+    groupId: string,
+    effort?: string,
+    attempted?: ReadonlySet<string>,
+  ): Promise<MixedGroupPick | undefined> => {
+    const engines = options.engines;
+    if (engines === undefined) return undefined;
+    const targets = targetsOf(groupId);
+    if (!targets.some((target) => target.kind === 'engine')) return undefined;
+    if (options.allowsGroup?.(botSlug, groupId) === false) return { kind: 'unavailable' };
+    const enginesAllowed = engines.allowed(botSlug);
+    const rests: RestingRoute[] = [];
+    let unavailable = false;
+    let subscription: SubscriptionRest | undefined;
+    const restingEngines = new Set<string>();
+    const restingRoutes = new Set<string>();
+    for (const target of targets) {
+      if (target.kind === 'engine') {
+        if (!enginesAllowed) {
+          unavailable = true;
+          continue;
+        }
+        const key = routingTargetRestKey(target);
+        const limit = engines.limit(target.engine, target.accountId);
+        if (limit === undefined) {
+          if (!attempted?.has(key)) return { kind: 'target', target };
+          unavailable = true;
+          continue;
+        }
+        if (!restingEngines.has(key)) {
+          restingEngines.add(key);
+          if (subscription === undefined || limit.until < subscription.until)
+            subscription = { engine: target.engine, ...limit };
+          rests.push({
+            provider: target.engine,
+            model: limit.account,
+            until: limit.until,
+            reason: 'quota',
+          });
+        }
+        continue;
+      }
+      const rest = options.rests.restingUntil(target.route);
+      if (rest !== undefined) {
+        const key = JSON.stringify([rest.provider, rest.model]);
+        if (!restingRoutes.has(key)) {
+          restingRoutes.add(key);
+          rests.push(rest);
+        }
+        continue;
+      }
+      if (!attempted?.has(routingTargetRestKey(target)) && (await isUsable(botSlug, target.route)))
+        return {
+          kind: 'target',
+          target: { kind: 'route', route: await withEffort(target.route, effort) },
+        };
+      unavailable = true;
+    }
+    return !unavailable && rests.length > 0
+      ? {
+          kind: 'exhausted',
+          rests: rests.sort((left, right) => left.until.localeCompare(right.until)),
+          ...(subscription === undefined ? {} : { subscription }),
+        }
+      : { kind: 'unavailable' };
+  };
   return {
     inherited: () => options.inheritedGroup?.(),
     inheritedEffort: () => options.inheritedEffort?.(),
@@ -97,7 +231,8 @@ export function createGroupFallback(options: {
     },
     async choose(botSlug, sessionId, failed) {
       const group = routesOf(botSlug);
-      if (group === undefined) return undefined;
+      if (group === undefined || options.allowsGroup?.(botSlug, group.groupId) === false)
+        return undefined;
       const rests: RestingRoute[] = [failed];
       for (const route of group.routes) {
         if (same(route, failed)) continue;
@@ -106,12 +241,7 @@ export function createGroupFallback(options: {
           rests.push(rest);
           continue;
         }
-        try {
-          options.requireAllowed(botSlug, route);
-          await options.validate(route);
-        } catch {
-          continue;
-        }
+        if (!(await isUsable(botSlug, route))) continue;
         const next = await withEffort(route, effortOf(botSlug));
         overrides.set(sessionId, { botSlug, groupId: group.groupId, route: next });
         return {
@@ -126,15 +256,10 @@ export function createGroupFallback(options: {
     },
     async start(botSlug, sessionId) {
       const group = routesOf(botSlug);
-      if (group === undefined) return;
+      if (group === undefined || options.allowsGroup?.(botSlug, group.groupId) === false) return;
       for (const route of group.routes) {
         if (options.rests.restingUntil(route) !== undefined) return;
-        try {
-          options.requireAllowed(botSlug, route);
-          await options.validate(route);
-        } catch {
-          continue;
-        }
+        if (!(await isUsable(botSlug, route))) continue;
         overrides.set(sessionId, {
           botSlug,
           groupId: group.groupId,
@@ -144,6 +269,7 @@ export function createGroupFallback(options: {
       }
     },
     async pick(botSlug, groupId, effort) {
+      if (options.allowsGroup?.(botSlug, groupId) === false) return { kind: 'missing' };
       let modelRoutes: ModelRoute[];
       try {
         modelRoutes = options.routes(groupId);
@@ -157,15 +283,17 @@ export function createGroupFallback(options: {
           rests.push(rest);
           continue;
         }
-        try {
-          options.requireAllowed(botSlug, route);
-          await options.validate(route);
-        } catch {
-          continue;
-        }
+        if (!(await isUsable(botSlug, route))) continue;
         return { kind: 'route', route: await withEffort(route, effort) };
       }
       return { kind: 'exhausted', rests };
     },
+    pickMixedOrchestrator(botSlug, attempted) {
+      const groupId = groupOf(botSlug);
+      if (groupId === undefined || options.engines === undefined) return Promise.resolve(undefined);
+      return pickMixed(botSlug, groupId, effortOf(botSlug), attempted);
+    },
+    isMixed: (groupId) => targetsOf(groupId).some((target) => target.kind === 'engine'),
+    pickMixedAssignment: pickMixed,
   };
 }

@@ -131,6 +131,7 @@ const SOURCE_TRIGGERS: Record<string, SessionTranscriptTrigger> = {
   schedule: 'schedule',
   'tool-jobs': 'job',
   'cordis-host-runner': 'plugin',
+  'botharness-engine-rebuild': 'plugin',
 };
 
 export function transcriptTrigger(source: Record<string, unknown>): SessionTranscriptTrigger {

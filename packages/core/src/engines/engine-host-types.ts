@@ -1,8 +1,12 @@
+import type { RoutingGroupEngineMember } from '@botharness/host-protocol/subscription-engine';
+
 import type { Session } from '@deepseek-ai/dsh-session';
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 
 import type { ClaudeStatus } from './claude-status.js';
 import type { CodexStatus } from './codex-status.js';
+import type { EngineContextRecord } from './engine-context.js';
+import type { EngineQuotaView } from './engine-quota.js';
 import type { EngineId, EngineWorkspaceMode } from './engine-session.js';
 import type { EngineRole } from './engine-store.js';
 
@@ -24,12 +28,18 @@ export interface EngineTool {
 export interface EngineTurnRequest {
   botSlug: string;
   role?: EngineRole;
+  target?: RoutingGroupEngineMember;
+  groupEffort?: string;
+  continuingFromNativeRoute?: true;
   cwd?: string;
+  sessionCwd?: string;
   workspaceMode?(): EngineWorkspaceMode;
+  releaseNativeSession?(): Promise<boolean>;
   sessionId: string;
   channelId: string | undefined;
   input: string;
   instructions: string;
+  readRecoveryContext?(): readonly EngineContextRecord[] | undefined;
   tools: readonly EngineTool[];
   execute(
     name: string,
@@ -81,12 +91,7 @@ export interface EngineSessionDescription {
   quota?: EngineQuotaView;
 }
 
-export interface EngineQuotaView {
-  usedPercent?: number;
-  resetsAt?: string;
-  limitedUntil?: string;
-  observedAt: string;
-}
+export type { EngineQuotaView } from './engine-quota.js';
 
 export interface EngineStatusReport {
   displayName: string;

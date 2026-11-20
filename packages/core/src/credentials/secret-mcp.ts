@@ -13,6 +13,8 @@ import {
 } from './secret-command.js';
 import { SECRET_PLACEHOLDER } from './references.js';
 
+import { ACTIVE_FIBER_STATE } from '../runtime/cordis-fiber-state.js';
+
 export const SECRET_MCP_START_TIMEOUT_MS = 120_000;
 export const rememberedStarts = new Set<symbol>();
 export const SECRET_MCP_KEEP = 'BOTHARNESS_MCP_KEEP';
@@ -22,7 +24,7 @@ export const SECRET_MCP_LAUNCHER = [
   'const env = {};',
   'for (const name of keep) if (name && process.env[name] !== undefined) env[name] = process.env[name];',
   'const argv = process.argv.slice(1);',
-  "const child = spawn(argv[0], argv.slice(1), { env, stdio: 'inherit' });",
+  "const child = spawn(argv[0], argv.slice(1), { env, stdio: 'inherit', shell: false, windowsHide: true });",
   "for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(signal, () => child.kill(signal));",
   "child.on('error', () => process.exit(127));",
   "child.on('exit', (code, signal) => process.exit(code === null ? (signal ? 1 : 0) : code));",
@@ -200,7 +202,7 @@ export class SecretMcpServers {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const started = await Promise.race([
       fiber.await().then(
-        () => (fiber.state === 2 ? 'started' : 'stopped'),
+        () => (fiber.state === ACTIVE_FIBER_STATE ? 'started' : 'stopped'),
         () => 'failed' as const,
       ),
       new Promise<'timeout'>((resolve) => {

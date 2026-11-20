@@ -70,8 +70,9 @@ export function spawnCodexTransport(options: CodexProcessOptions): CodexTranspor
     cwd: options.cwd,
     env: spec.env,
     stdio: ['pipe', 'pipe', 'pipe'],
-    windowsHide: true,
     ...(target.windowsVerbatimArguments === true ? { windowsVerbatimArguments: true } : {}),
+    shell: false,
+    windowsHide: true,
   });
   const listeners: Array<(message: unknown) => void> = [];
   const exits: Array<(detail: string) => void> = [];

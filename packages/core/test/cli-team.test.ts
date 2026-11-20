@@ -52,6 +52,12 @@ async function host(
       const value =
         input.method === 'botharness/channelGet'
           ? {
+              channel: {
+                id: input.payload.args.channelId,
+                type: 'group',
+                name: 'Team',
+                members: [],
+              },
               policyRevision: 'a'.repeat(64),
               policy: {
                 addMembers: 'everyone',
@@ -301,6 +307,14 @@ describe('Team CLI', () => {
       args: ['roles', 'update', 'member', '--models', 'all'],
       method: 'roleUpdate',
       payload: { roleId: 'member', models: { kind: 'all' } },
+    },
+    {
+      args: ['roles', 'update', 'member', '--model-providers', 'go', '--models', 'exact/model'],
+      method: 'roleUpdate',
+      payload: {
+        roleId: 'member',
+        models: { kind: 'only', providers: ['go'], routes: ['exact/model'] },
+      },
     },
   ])('dispatches M10 $method normally and through --as', async ({ args, method, payload }) => {
     const f = await host();

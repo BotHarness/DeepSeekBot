@@ -287,7 +287,13 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
       'evidence-prefix': { type: 'string' },
     },
   });
-  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  const git = (...args) =>
+    execFileSync('git', args, {
+      cwd: root,
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    }).trim();
   const report = verificationReport({
     commit: git('rev-parse', 'HEAD'),
     dirty: git('status', '--porcelain').length > 0,

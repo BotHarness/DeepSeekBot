@@ -1,3 +1,4 @@
+import { Script } from 'node:vm';
 import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -44,7 +45,7 @@ describe('locked downstream theme composition', () => {
     );
     expect(adapted).toContain('this.adjustFontSizes(delta)');
     expect(source).not.toContain('__botharnessWindowZoomCompatibility');
-    expect(() => new Function(adapted)).not.toThrow();
+    expect(() => new Script(`(function () {\n${adapted}\n})`)).not.toThrow();
   });
 });
 

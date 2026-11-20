@@ -1089,11 +1089,14 @@ deepseekbot engine use <bot> none --role orchestrator
 deepseekbot engine use <bot> codex|claude|none --role assignment [--account <account-id>] [--model <id>] [--effort <level>]
 ```
 
-`engine list` 返回 `{engines: [{engine, displayName, available, reason?}]}`；`engine status` 另加 `installed`、`version` 和 `login`（Codex 为 `chatgpt`，Claude Code 为 `subscription`，以及 `api-key`、`signed-out` 或 `unknown`），并以 `{botSlug, role, engine}` 列出 `selections`。`reason` 为 `not-installed`、`signed-out`、`not-subscription` 或 `login-unknown`。Cloud 或 VPS Host（`subscriptionEngines: false`，或 `DEEPSEEKBOT_HOST_KIND=cloud|vps`）不列出任何引擎。`engine login codex` 在 Host 电脑上为 Bot 的 Codex 目录启动 `codex login`，`engine login claude` 为 Bot 的 Claude 配置目录启动 `claude auth login --claudeai`；两者都返回 `{engine, started, url?}`。在浏览器里用 ChatGPT 或 Claude 订阅账号完成登录。`engine use` 返回 `{bot, role, engine, fallback?, model?, effort?}`；`none` 让 Bot 回到 DSH 模型。每轮开始前 Host 读取引擎账号，只接受订阅：Codex 要求 ChatGPT 登录，Claude Code 要求账号带订阅类型且密钥来源为 `none`（否则拒绝：`engine-not-subscription`、`engine-signed-out`）。Claude Code 运行时不加载任何设置来源，使用 `--strict-mcp-config`，并去掉所有服务商密钥变量；`init` 报告使用 API key 的一轮会停止。Claude Code 的 `canUseTool` 请求和 Codex 的审批请求一样变成工具审批卡片，回答会回到 Claude。引擎通过本机 MCP 网关调用 Bot 工具，网关令牌绑定到该 Bot、该 Session 和当前 Channel；引擎自己的最终文本不会发出。拒绝码：`unknown-bot`、`unknown-engine`、`engine-unavailable`、`invalid-input` 和 `usage`。
+`engine list` 返回 `{engines: [{engine, displayName, available, reason?}]}`；`engine status` 另加 `installed`、`version` 和 `login`（Codex 为 `chatgpt`，Claude Code 为 `subscription`，以及 `api-key`、`signed-out` 或 `unknown`），并以 `{botSlug, role, engine}` 列出 `selections`。`reason` 为 `not-installed`、`signed-out`、`not-subscription` 或 `login-unknown`。Cloud 或 VPS Host（`subscriptionEngines: false`，或 `DEEPSEEKBOT_HOST_KIND=cloud|vps`）不列出任何引擎。`engine login codex` 在 Host 电脑上为 Bot 的 Codex 目录启动 `codex login`，`engine login claude` 为 Bot 的 Claude 配置目录启动 `claude auth login --claudeai`；两者都返回 `{engine, started, url?}`。在浏览器里用 ChatGPT 或 Claude 订阅账号完成登录。`engine use` 返回 `{bot, role, engine, fallback?, model?, effort?}`；`none` 清除显式引擎选择，恢复 Bot 的 Orchestrator 模型选择，包括已配置的路由组。每轮开始前 Host 读取引擎账号，只接受订阅：Codex 要求 ChatGPT 登录，Claude Code 要求账号带订阅类型且密钥来源为 `none`（否则拒绝：`engine-not-subscription`、`engine-signed-out`）。Claude Code 运行时不加载任何设置来源，使用 `--strict-mcp-config`，并去掉所有服务商密钥变量；`init` 报告使用 API key 的一轮会停止。Claude Code 的 `canUseTool` 请求和 Codex 的审批请求一样变成工具审批卡片，回答会回到 Claude。引擎通过本机 MCP 网关调用 Bot 工具，网关令牌绑定到该 Bot、该 Session 和当前 Channel；引擎自己的最终文本不会发出。拒绝码：`unknown-bot`、`unknown-engine`、`engine-unavailable`、`invalid-input` 和 `usage`。
 
 Host Owner 和具有 `modelSources.manage` 权限的 Human 可以列出、添加、重命名、移除及登录订阅账号。每个 Codex 账号都有 Host 管理的独立目录。已有 Codex 选择和 `codex` 参数仍指向 `codex-default`，该账号沿用原目录。Claude Code 保留单账号。修改列表前先用 `engine accounts` 读取 `revision`。过期版本返回 `engine-account-conflict`。账号仍被 Bot、模型预设或路由组使用时，移除会返回 `engine-account-in-use` 并列出引用。移除成功后也会删除账号目录。状态查询、模型列表和登录可指定账号 ID。用 `engine use --account` 为 Bot 的任一角色选择账号。登录状态、模型缓存和额度按账号保存。账号不存在或已移除时返回 `engine-account-not-found`。切换账号会依据现有 DSH Session 上下文启动新引擎线程。
 
 新的引擎会话会带上 Bot 原 Session 中有大小限制的上下文。如果已有压缩摘要，也会带上当前摘要。后续轮次恢复该引擎会话。运行 `engine use <bot> none --role orchestrator` 切回 DSH 模型后，会在同一个 Session 中继续，并能看到引擎执行的轮次。
+新的引擎会话会带上 Bot 原 Session 中有大小限制的上下文。如果已有压缩摘要，也会带上当前摘要。后续轮次恢复该引擎会话。清除显式引擎选择后，DSH 目标可以在同一个 Session 中继续，并读取引擎执行的轮次。
+
+Orchestrator 的引擎进程空闲 30 秒后关闭。Assignment 的引擎进程在工作结束时关闭，之后释放 Host 的 Assignment 并发名额。下一条 DM 或 Assignment Request 按已保存的原生 ID 恢复。原生会话丢失时，Host 用 Bot Inbox、当前 Channel 的近期消息、Memory 和已保存的 Session 上下文重建 Orchestrator。Assignment 从目录条目、已保存的请求和 Session 事件重建。用 `session-transcript <bot-id> --session <session-id>` 查看重建通知。Assignment 所需记录缺失时，Orchestrator 会在 Bot Inbox 收到失败报告。目录条目仍存在时，`assignment` 也会显示失败。
 
 `engine models codex|claude` 向已登录的引擎查询订阅可用的模型，返回 `{engine, models: [{id, name, description?, efforts: [{id, name}], defaultEffort?, isDefault?}]}`：Claude Code 来自 Agent SDK 的 `supportedModels()`（`default`、`sonnet`、`opus`、`haiku` 等别名，effort 从 `low` 到 `max`），Codex 来自 app-server 的 `model/list`（不含隐藏模型）。Host 为此启动引擎时不接 Bot 工具网关，和一轮对话一样拒绝非订阅登录，列表缓存五分钟。`engine use <bot> <engine> --model <id> [--effort <level>]` 让 Orchestrator 用该模型和 effort 运行：Claude Code 通过 query 的 `model` 和 `effort` 传入，Codex 通过 `thread/start` 的 `model` 以及 `turn/start` 的 `model` 和 `effort` 传入。Host 先用 `engine models` 核对（`unknown-model`、`unknown-effort`）；只给 `--effort` 时作用于引擎的默认模型。`engine use` 返回这两项，`selections` 也列出 `model` 和 `effort`；不给时 Bot 回到引擎自己的默认。如果正在运行的引擎 Session 用的是另一个引擎、模型或 effort，下一轮前会关闭它，并以新的选择恢复同一段引擎对话。
 
@@ -1180,6 +1183,8 @@ deepseekbot model-plan-customize <bot-id> --orchestrator-provider deepseek --orc
 printf '%s' "$ASSIGNMENTS_JSON" | deepseekbot model-plan-assignments-set <bot-id> --plan-stdin
 deepseekbot model-plan-inherit <bot-id>
 deepseekbot model-preset-update <preset-id> --name Nightly --orchestrator-effort high
+deepseekbot model-presets --include-usage
+deepseekbot model-preset-delete <preset-id> --expected-revision <revision> --confirm
 deepseekbot model-groups
 deepseekbot model-group <group-id>
 printf '%s' '{"members":[{"kind":"model","provider":"opencode-go","model":"deepseek-v4.1-flash"},{"kind":"model","provider":"deepseek","model":"deepseek-v4.1-flash"}]}' | deepseekbot model-group-create --name Flash --members-stdin
@@ -1204,17 +1209,30 @@ deepseekbot group-activity <group-channel>
 
 ### 路由组
 
-**Routing Group（路由组）**是 Host 范围内带名称的有序成员列表。成员可以是 DSH 路由 `{"kind":"model","provider":"<provider>","model":"<id>"}`（可附带 `reasoningEffort`）、嵌套路由组 `{"kind":"group","id":"<id>"}` 或[订阅引擎](#订阅引擎) `{"kind":"engine","engine":"codex"}`（可附带 `model` 和 `accountId`）。`engine` 接受 `codex` 或 `claude`。`engine models codex|claude` 可以列出已登录引擎的模型 ID。
+**Routing Group（路由组）**是 Host 范围内带名称的有序成员列表。成员可以是 DSH 路由 `{"kind":"model","provider":"<provider>","model":"<id>"}`（可附带 `reasoningEffort`）、嵌套路由组 `{"kind":"group","id":"<id>"}` 或[订阅引擎](#订阅引擎) `{"kind":"engine","engine":"codex"}`（可附带 `model`、`reasoningEffort` 和 `accountId`）。`engine` 接受 `codex` 或 `claude`。`engine models codex|claude` 列出已登录引擎的模型和支持的推理强度。Claude Code 提供解析后的模型 ID 时，使用该 ID。已保存但未指定模型的成员跟随订阅当前的默认模型。
 
-`model-group-create` 和 `model-group-update` 从 `--members-stdin` 读取 `{"members":[...]}`。Host 校验名称和成员是否重复、DSH 模型是否已注册、引擎 ID 是否有效，以及嵌套路由组关系。包含循环或展开后没有任何 DSH 模型的路由组会被拒绝（`routing-group-cycle`、`routing-group-empty-group`）。引擎模型 ID 会作为配置保存。运行时继续从组内选择 DSH 模型。路由组选用引擎的进度见 [#4574](https://github.com/BotHarness/DeepSeekBot/issues/4574)。
+```bash
+printf '%s\n' '{"members":[{"kind":"engine","engine":"codex","model":"gpt-5.4","reasoningEffort":"high"},{"kind":"model","provider":"deepseek-official","model":"deepseek-v4-pro"}]}' |
+  deepseekbot model-group-create --name "Daily routing" --members-stdin
+```
 
-`model-groups` 列出已保存的成员和当前休息中的 DSH 路由。`model-group <id>` 返回有序的 `group.members` 和展开、去重后的 DSH `routes`。`model-group-delete` 拒绝删除正在使用的组（`routing-group-in-use`）。`model-plan-customize --orchestrator-group <id>` 会将该组设为 Bot 的 Orchestrator 选择。Host 按 Bot 所有者的角色校验 DSH 路由，再选择第一条已就绪的路由。方案中 `orchestrator` 显示该路由，`orchestratorGroupId` 显示所选组。重新选择单个路由会清除组。组的写入和预设一样核对 revision。
+`model-group-create` 和 `model-group-update` 从 `--members-stdin` 读取 `{"members":[...]}`。Host 校验名称和成员是否重复、DSH 模型是否已注册、引擎 ID 是否有效，以及嵌套路由组关系。包含循环或展开后没有任何 DSH 模型的路由组会被拒绝（`routing-group-cycle`、`routing-group-empty-group`）。引擎可以排在首位。展开后的组仍需包含一个 DSH 模型。引擎成员指定推理强度时必须提供模型 ID。Host 根据已登录引擎的模型目录校验新设的强度，拒绝模型不支持的档位。已下架的模型成员仍可编辑。
 
-当 Orchestrator 选择为 Routing Group 的 Bot 遇到额度用完、凭据被拒，或限流超过重试等待时，失败的请求结束，Host 把该 Session 切到组内下一个未在休息、所有者角色允许、且凭据就绪的成员，然后继续这一轮。失败的路由在整个 Host 上休息（额度用完则休息到重置，凭据和限流失败休息几分钟），因此使用同一组的其他 Bot 会直接从下一个成员开始，不会先失败一次。Channel 中会出现一条系统消息，带有 `modelSwitch: {botSlug, botName, sessionId, from, to, reason, until?}`；它是通知，不计入未读，也不会通知任何人。只有当所有成员都在休息时 Bot 才会暂停，暂停通知的 `turnStop.rests` 列出每条路由及其重置时间。已切换的 Session 在这一轮剩下的部分继续使用备用路由；前面成员的休息结束后，下一轮开始时会回到该成员，并记录一条 `reason: "returned"` 的 `modelSwitch`。如果该成员再次失败，它会重新开始休息，Session 再次切换。
+`model-groups` 列出已保存的成员和当前休息中的 DSH 路由。`model-group <id>` 返回有序的 `group.members` 和展开、去重后的 DSH `routes`。`model-group-delete` 拒绝删除正在使用的组（`routing-group-in-use`）。用 `model-plan-customize <bot> --orchestrator-group <id>` 为 Bot 选择路由组。方案中的 `orchestrator` 保留一条 DSH 路由，`orchestratorGroupId` 记录所选组。重新选择单个路由会清除组。组的写入和预设一样核对 revision。
+
+启用订阅引擎的本地 Host 会在每轮开始时为 Orchestrator 选择混合路由组中第一个未在休息的目标。Host 会检查 DSH 候选路由是否符合所有者的角色权限、凭据是否就绪。订阅引擎沿用订阅登录检查，并使用成员中保存的可选模型 ID。成员明确设置的推理强度优先于组的共享强度。仅当引擎模型支持共享档位时才会使用该档位。模型选择器仅在组内每条路由都获得授权时显示该组。混合路由组仅供本地 Host 所有者使用。Orchestrator 显式设置的 `engine use` 优先，并沿用自身的 `--fallback` 设置。
+
+混合路由组的目标额度用完时，Orchestrator 会在同一个 DSH Session 自动切到下一个就绪的目标，继续处理原请求。继续时会使用 Session 中已记录的工具调用和结果，跳过本次请求已尝试的目标，并拦截对同一 Source Event 已成功发送的重复回复。新引擎线程会收到有长度限制的 Session 上下文。引擎在整个 Host 上休息到自报的重置时间，未报告时间时休息一小时。用 `deepseekbot engine status` 查看引擎的 `quota.limitedUntil`，用 `deepseekbot model-groups` 查看 DSH 路由的休息状态，用 `deepseekbot channel-timeline <channel>` 查看切换通知。只有所有目标都在休息时，Channel 才会显示带 `turnStop.routingGroup` 和 `turnStop.rests` 的额度卡片，休息列表按重置时间排序。首次重置后可发送消息重试，也可在 Bot 方案中指定一个已就绪的路由。
+
+仅包含 DSH 模型的组在额度用完、凭据被拒或限流超过重试等待时，沿用原有的路由回退流程。Channel 用 `modelSwitch: {botSlug, botName, sessionId, from, to, reason, until?}` 记录切换。该系统消息不发送提醒，也不计入未读。
 
 在 `model-preset-create`、`model-preset-update`、`model-plan-set` 和 `model-plan-assignments-set` 上加 `--assignment-models open`，Assignment 可以使用任何模型：Orchestrator 可以在 Bot 所有者角色允许、且提供方已配置 API key 的任何模型上创建 Assignment，Assignment 也可以用这些模型启动 Subagent。Assignment 默认模型仍然必填，没有指定模型时仍用它。`--assignment-models listed` 回到 Assignment 模型列表。`model-plan-assignments-set` 和 `model-preset-update` 不带这个参数时保持原设置；`model-plan-set` 会替换整个方案，不带这个参数时回到列出的模型。此时 `list_assignment_models` 和 `list_bot_subagent_models` 还会返回 `openModels`，列出每个模型的目录名称和推理强度。
 
-`model-plan-assignments-set` 还接受 `"assignmentGroups":["<group-id>",...]` 和可选的 `"assignmentDefaultGroupId"`（必须是其中之一）；传空列表会清除，不传则保持当前的组。每个组里的路由都必须是 Bot 所有者角色允许的模型。之后 `create_assignment` 可以用 `group` 代替 `provider`/`model`；两者都不传时使用默认组。Assignment 从组内第一个未在休息、被允许且凭据就绪的成员开始，并在整个生命周期内保留这个组：该路由用完时，失败的 Turn 结束，Session 切到下一个可用成员，Bot 的 DM 中出现一条 `modelSwitch` 通知，Host 在新的 Turn 中继续工作。之后的每次请求（不指定模型的 `send_assignment_request`，或恢复的 Session）会先回到休息已结束的前面成员。所有成员都在休息时，`create_assignment` 会被拒绝，并列出每条路由及其重置时间。`list_assignment_models` 返回 `assignmentGroups` 及其成员，并给当前正在休息的路由加上 `restingUntil`；`list_bot_subagent_models` 用 `groups` 返回同样的组，`bot_subagent` 接受 `group`，从第一个可用成员启动子 Agent（Subagent 运行期间不会切换模型）。
+`model-plan-assignments-set` 还接受 `"assignmentGroups":["<group-id>",...]` 和可选的 `"assignmentDefaultGroupId"`（必须是其中之一）；传空列表会清除，不传则保持当前的组。每个组里的路由都必须是 Bot 所有者角色允许的模型。之后 `create_assignment` 可以用 `group` 代替 `provider`/`model`；两者都不传时使用默认组。Assignment 从组内第一个未在休息、被允许且凭据就绪的成员开始，并在整个生命周期内保留这个组：该路由用完时，失败的 Turn 结束，Session 切到下一个可用成员，Bot 的 DM 中出现一条 `modelSwitch` 通知，Host 在新的 Turn 中继续工作。之后的混合路由组请求（不指定模型的 `send_assignment_request`）从第一个可用成员开始，包括已结束休息的靠前成员。所有成员都在休息时，`create_assignment` 会被拒绝，并列出每条路由及其重置时间。`list_assignment_models` 在 `assignmentGroups` 中列出 DSH 和订阅引擎成员，并用 `restingUntil` 标出休息中的成员。可通过 `deepseekbot bot-tool <bot> list_assignment_models` 查看。要指定组，在 `deepseekbot bot-tool <bot> create_assignment --args-stdin` 的 JSON 参数中加入 `"group":"<group-id>"`。该 Session 使用选中的混合路由组，而非 Bot 单独配置的 Assignment 引擎。用 `assignment <bot> --session <session-id>`、`session-transcript <bot> --session <session-id>` 和 `channel-timeline <channel>` 查看结果。
+
+DSH Subagent 从已授权组内的第一个可用 DSH 成员启动。`list_bot_subagent_models` 在 `groups` 中列出这些成员，`bot_subagent` 和 `bot_subagent_fork` 接受组 ID。Subagent 在运行期间保留选中的路由。
+
+在线模式下，`home-model-set` 以及路由组和模型预设的写入均由 Host 校验 `models.configure`。内置 Admin 默认拥有此权限。`model-presets --include-usage` 返回使用数量以及调用者可见的 Bot 名称。删除时请提供列表中的预设版本和 `--confirm`。Bot 会保留已应用的模型方案。应用预设仍遵循既有 Bot 管理和模型使用权限。
 
 在线 Human CLI 的 `home-model-set` 支持 `--orchestrator-effort` 和 `--expected-revision`；后者对应 `model-catalog.defaultRevision`，省略时先读取当前默认模型 revision，同时带上 `model-catalog.defaultGroupRevision`：若其他客户端在此期间改了默认路由组，会返回 `routing-group-stale-revision`，不会被覆盖。`model-preset-apply` 可通过 `--expected-revision` 约束 Bot 计划、`--preset-revision` 约束预设；省略这些参数时保留原有 Human 行为。受限 Tob 调用必须明确传入对应 revision，不能借省略参数跳过已审核快照。
 
@@ -1621,7 +1639,7 @@ deepseekbot model-preset-apply <bot-id> --preset <preset-id> --expected-revision
 
 `model-catalog` 返回可用模型及 `default`／`defaultRevision`；读取 model-plan 返回 Bot 计划的 revision。修改 Host 默认模型保留其他 Bot 的独立配置。Customize 修改 Orchestrator 并保留 Assignment 选择；inherit 让 Bot 恢复跟随 Host 默认值。Host 在准备操作和执行前均检查模型可用性：不可用路由返回 `model-unavailable`，已审核 revision 发生变化返回 `stale-setting`。需要修复的旧计划返回 `legacy-model-repair-required`，不会静默重写。凭据配置仍使用原生私密输入和既有凭据界面；Tob 只获取目录／就绪状态，不获取密钥值。
 
-预设的创建、读取、更新和应用复用既有 preset owner。受限 `model-preset-create --name <name>` 与 `model-preset-update <preset-id> --name <name> --expected-revision <revision>` 必须显式提供 `--orchestrator-provider`、`--orchestrator-model`、`--assignment-provider`、`--assignment-model`；可选 effort 参数和包含 `{"assignmentModels":[...]}` 的 `--plan-stdin` 沿用既有格式。受限更新要求完整的目标名称与模型路由，Human 命令仍可局部更新。应用预设同时校验 Bot 和 preset revision。当前没有预设删除 owner 或命令，本片不新增删除操作，也不宣称完整 preset CRUD。
+预设的创建、读取、更新和应用复用既有 preset owner。受限 `model-preset-create --name <name>` 与 `model-preset-update <preset-id> --name <name> --expected-revision <revision>` 必须显式提供 `--orchestrator-provider`、`--orchestrator-model`、`--assignment-provider`、`--assignment-model`；可选 effort 参数和包含 `{"assignmentModels":[...]}` 的 `--plan-stdin` 沿用既有格式。受限更新要求完整的目标名称与模型路由，Human 命令仍可局部更新。应用预设同时校验 Bot 和 preset revision。在线 Human CLI 支持删除模型预设。
 
 `settings` 列出支持的命名空间；`settings botharness-client` 只返回以下四个实时运行字段：
 
@@ -2185,8 +2203,14 @@ deepseekbot members purge bob --token-stdin --confirm < purge-token.txt
 deepseekbot usage members --period week [--as <username>]
 deepseekbot roles update <roleId> --models all [--as <username>]
 deepseekbot roles update <roleId> --models provider/model,provider/model [--as <username>]
+deepseekbot roles update <roleId> --model-providers <provider-id>,<provider-id> [--models <provider-id>/<model-id>] [--as <username>]
 deepseekbot models allowed [--as <username>]
 ```
+
+`roles create` 与 `roles update` 用这两个选项替换模型授权。`--model-providers` 授权指定提供商 ID
+的所有模型，包括以后新增的模型。同一命令加上 `--models` 可同时授权具体模型。指定任一选项时，省略的列表
+视为空。单独使用 `--models all` 可恢复全部模型。`roles list` 在受限角色中返回 `models.providers` 和
+`models.routes`，`models allowed` 返回调用者各角色模型授权的并集。
 
 ### Tobs Connect 本机公网自检
 

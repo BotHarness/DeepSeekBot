@@ -1,3 +1,4 @@
+import { Button } from './ds/button.js';
 import {
   useState,
   useSyncExternalStore,
@@ -11,7 +12,7 @@ import { Tooltip } from './ds/tooltip.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { DockPanelRegistry } from './dock-panels.js';
 import { hooked } from './ds/hooked.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 export interface PinnedPanelBadge {
@@ -161,17 +162,16 @@ export function PinnedPanelCards({
             side={collapsed ? 'right' : 'bottom'}
             delayMs={400}
           >
-            <button
+            <Button
               type="button"
-              {...hooked(
-                'bh-pinned-panel',
+              className="bh-pinned-panel"
+              xstyle={[
                 styles.card,
                 collapsed && styles.railCard,
                 open && styles.open,
-                collapsed && open && styles.railOpen,
                 run === undefined && styles.disabled,
                 dragging === panel.id && styles.dragging,
-              )}
+              ]}
               data-pinned-panel={panel.id}
               data-dragging={dragging === panel.id ? 'true' : undefined}
               data-bh-tour={tourOf?.(panel.id)}
@@ -254,7 +254,7 @@ export function PinnedPanelCards({
               ) : mark.count > 0 || mark.dot ? (
                 <span {...stylex.props(styles.dot)} data-pinned-panel-dot="" />
               ) : null}
-            </button>
+            </Button>
           </Tooltip>
         );
         return card;
@@ -286,14 +286,6 @@ const styles = stylex.create({
     justifyContent: 'center',
     height: '40px',
     padding: 0,
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: 'transparent',
-    outline: {
-      default: 'none',
-      ':focus-visible': `${border.focus} solid ${color.accent}`,
-    },
-    outlineOffset: '-2px',
     borderRadius: radius.md,
     cornerShape: 'round',
     color: color.muted,
@@ -302,26 +294,17 @@ const styles = stylex.create({
       ':hover': color.selected,
     },
     cursor: 'pointer',
-    transitionDuration: '120ms',
-    transitionProperty: 'background-color, color, border-color',
-    '@media (prefers-reduced-motion: reduce)': {
-      transitionDuration: '0s',
-    },
   },
   railCard: {
     width: '36px',
     height: '36px',
   },
   open: {
-    borderColor: color.accent,
     color: color.accentText,
     backgroundColor: {
       default: color.accentTint,
       ':hover': color.accentTint,
     },
-  },
-  railOpen: {
-    borderColor: 'transparent',
   },
   disabled: {
     opacity: 0.45,

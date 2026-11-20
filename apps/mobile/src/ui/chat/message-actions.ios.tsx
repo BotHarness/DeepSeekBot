@@ -180,7 +180,10 @@ function SheetContent({
         accessibilityLabel(menuLabel(target)),
       ]}
     >
-      <Text modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(theme.color.muted)]}>
+      <Text
+        testID="message-menu-time"
+        modifiers={[font({ textStyle: 'footnote' }), foregroundStyle(theme.color.muted)]}
+      >
         {menuTime(message.at, new Date())}
       </Text>
       {menuReactions(target, readOnly) ? (

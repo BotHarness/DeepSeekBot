@@ -122,11 +122,9 @@ const ALLOWANCES: readonly Allowance[] = [
       '48px',
     ],
     selectors: [
-      '.bh-section-head',
       '.bh-channel-row',
       '.bh-name-input',
       '.bh-search-open',
-      '.bh-rail-divider',
       '.bh-rail-preview-icon',
       '.bh-composer',
       '.bh-composer-with-footer',

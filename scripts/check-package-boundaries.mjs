@@ -112,6 +112,7 @@ function clientHostBaselineErrors(root, files, baseline) {
     cwd: root,
     encoding: 'utf8',
     windowsHide: true,
+    shell: false,
   });
   if (prior.status !== 0 && !/does not exist in|exists on disk, but not in/u.test(prior.stderr)) {
     const message = `${CLIENT_HOST_BASELINE}: cannot read the baseline at ${base} to check that it only shrinks; fetch it or set BASELINE_BASE to the PR base commit`;
@@ -135,7 +136,7 @@ export function checkPackageBoundaries(root) {
   const files = execFileSync(
     'git',
     ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-    { cwd: root, encoding: 'utf8', windowsHide: true },
+    { cwd: root, encoding: 'utf8', windowsHide: true, shell: false },
   )
     .split('\0')
     .filter((file) => file && existsSync(resolve(root, file)));

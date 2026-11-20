@@ -199,6 +199,7 @@ function failureSummary(
       return t('failure.contextWindow');
     case 'OUTPUT_TOKEN_LIMIT':
       return t('failure.outputLimit');
+    case undefined:
     default:
       return t('failure.generic');
   }

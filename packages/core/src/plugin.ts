@@ -2,6 +2,7 @@ import { engineAccountKey } from '@botharness/host-protocol/subscription-engine'
 import { requireModelSources } from './models/provider-bridge.js';
 import { createRouteRests } from './models/route-rest.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
+import { mountCardContextLive } from './channels/card-context-live.js';
 import { contextSources } from './runtime/context-sources.js';
 import { toolEffects } from './workspaces/tool-effects.js';
 import { reconcilePublicBotMemories } from './workspaces/bot-memory-placement.js';
@@ -11,7 +12,7 @@ import { WorkspaceSpaces } from './workspaces/spaces.js';
 import { defaultSpaceMemoryPath, relocateSpaceMemories } from './workspaces/space-memory.js';
 import { questionAnswerReceipts } from './channels/question-answer-receipts.js';
 import { TeamError } from './team/error.js';
-import { requireBotModel } from './team/models.js';
+import { botIsHostOwner, botModelFilter, requireBotModel } from './team/models.js';
 import { createMemberTobOperations } from './tob/member-operations.js';
 import { botOwner, ownsBot, privateBotRegistry } from './team/bot-access.js';
 import { privateBotCreations } from './bots/creation.js';
@@ -165,6 +166,7 @@ import { createCompanionFeed, COMPANION_PATH, type CompanionFeed } from './compa
 
 import type { Context } from '@deepseek-ai/cordis';
 import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent';
+import type {} from '@deepseek-ai/dsh-agent-loop';
 import type { Session, SessionSeq } from '@deepseek-ai/dsh-session';
 import { renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt';
 import type {} from '@deepseek-ai/dsh-tools';
@@ -1859,9 +1861,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const tobCliInvocation = new ModelFreeTobCliInvocation();
   const sessionLive = new SessionLiveStreams();
   const engineGateway = createEngineGateway();
+  const localEngines = subscriptionEnginesAllowed(config, process.env);
   const engineHost = new EngineHost({
     root: join(dshHome, 'botharness', 'engines'),
-    local: subscriptionEnginesAllowed(config, process.env),
+    local: localEngines,
     gateway: engineGateway,
     accountsChanged: () => core.live.publishResourceChanged('model-providers'),
     accountUses: (id) => {
@@ -1879,6 +1882,14 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           )
           .map((group) => `Routing Group ${group.name} (${group.id})`),
       ];
+    },
+    routingGroupEffort: (slug) => {
+      const plan = core.registry.get(slug)?.modelPlan;
+      return plan === undefined
+        ? core.routingGroups.defaultGroup().effort
+        : plan.orchestratorGroupId === undefined
+          ? undefined
+          : plan.orchestratorGroupEffort;
     },
     changed: () => core.live.publishRosterCommitted(),
     sessionIdsForBot: (slug) =>
@@ -1941,6 +1952,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     onGenuiDiagnostic: (event) => recordGenuiPreviewDiagnostic(diagnosticEvents, event),
     genuiAttachmentContext: ctx,
     agents: ctx.agents,
+    releaseNativeAgent: (agent) => ctx.get('agentLoop')?.releaseIdleAgent?.(agent),
     promptText: (sessionId) => core.prompts.textForSession(sessionId),
     defaultModel,
     observeTurnFailure: (provider, code) => providerCredentials.observe(provider, code),
@@ -1950,17 +1962,21 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ),
     turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
+    modelFilter: (slug) => botModelFilter(core.team, core.registry.get(slug)),
     assignmentGroups: {
-      pick: (botSlug, groupId, effort) => groupFallback.pick(botSlug, groupId, effort),
-      describe: (groupId) => {
+      pick: (botSlug, groupId, effort) =>
+        groupFallback.isMixed(groupId)
+          ? groupFallback
+              .pickMixedAssignment(botSlug, groupId, effort)
+              .then((pick) => pick ?? { kind: 'missing' })
+          : groupFallback.pick(botSlug, groupId, effort),
+      describe: (groupId, slug) => {
         const group = core.routingGroups.get(groupId);
-        if (group === undefined) return undefined;
-        try {
-          return { name: group.name, routes: core.routingGroups.routes(groupId) };
-        } catch {
-          return undefined;
-        }
+        const targets = allowedGroupTargets(slug, groupId);
+        if (group !== undefined && targets !== undefined)
+          return { name: group.name, routes: core.routingGroups.routes(groupId), targets };
       },
+      engineRestingUntil: (engine, accountId) => engineHost.limit(engine, accountId)?.until,
       restingUntil: (route) => routeRests.restingUntil(route),
       inherited: () => core.routingGroups.defaultGroup().groupId,
       inheritedEffort: () => core.routingGroups.defaultGroup().effort,
@@ -1997,7 +2013,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           list: () =>
             (core.registry.get(slug)?.modelPlan?.assignmentGroups ?? []).flatMap((groupId) => {
               const group = core.routingGroups.get(groupId);
-              if (group === undefined) return [];
+              if (group === undefined || allowedGroupTargets(slug, groupId) === undefined)
+                return [];
               return [
                 {
                   group: groupId,
@@ -2259,11 +2276,34 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   let imCommandServices: import('./messaging/im-commands.js').ImCommandServices | undefined;
   let botNetwork: import('./runtime/bot-network.js').BotNetworkPort | undefined;
   const routeRests = createRouteRests();
+  const canUseRoutingEngine = (slug: string): boolean => {
+    const bot = core.registry.get(slug);
+    return localEngines && bot !== undefined && botIsHostOwner(core.team, bot);
+  };
+  function allowedGroupTargets(slug: string, groupId: string) {
+    try {
+      const targets = core.routingGroups.targets(groupId);
+      const allowed = botModelFilter(core.team, core.registry.get(slug));
+      return targets.every((target) =>
+        target.kind === 'route' ? allowed(target.route) : canUseRoutingEngine(slug),
+      )
+        ? targets
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  }
   const groupFallback = createGroupFallback({
     plan: (botSlug) => core.registry.get(botSlug)?.modelPlan,
     inheritedGroup: () => core.routingGroups.defaultGroup().groupId,
     inheritedEffort: () => core.routingGroups.defaultGroup().effort,
     routes: (groupId) => core.routingGroups.routes(groupId),
+    engines: {
+      targets: (groupId) => core.routingGroups.targets(groupId),
+      allowed: canUseRoutingEngine,
+      limit: (engine, accountId) => engineHost.limit(engine, accountId),
+    },
+    allowsGroup: (slug, id) => allowedGroupTargets(slug, id) !== undefined,
     rests: routeRests,
     requireAllowed: (botSlug, route) =>
       requireBotModel(core.team, core.registry.get(botSlug), route),
@@ -2798,18 +2838,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       }
       const modelOwner = core.ownership.resolve(agent.session.id);
       if (modelOwner) {
-        const selection = agentAdapter.modelSelection(agent.session.id) ?? agent.options;
-        if (selection.provider && selection.model) {
-          try {
-            requireBotModel(core.team, core.registry.get(modelOwner.botSlug), {
-              provider: selection.provider,
-              model: selection.model,
-            });
-          } catch (error) {
-            if (!(error instanceof TeamError)) throw error;
-            turnRefusals.set(agent.session.id, error);
-            return { kind: 'reject' };
-          }
+        try {
+          requireBotModel(core.team, core.registry.get(modelOwner.botSlug), modelSelection);
+        } catch (error) {
+          if (!(error instanceof TeamError)) throw error;
+          turnRefusals.set(agent.session.id, error);
+          return { kind: 'reject' };
         }
       }
       const repairs = new Set<BotSessionRepair>();
@@ -3929,6 +3963,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     ...(modelProviders === undefined ? {} : { modelProviders }),
     subscriptionEngines: engineHost,
     engineAccounts: engineHost,
+    localSubscriptionEngines: localEngines,
     routingGroupEngineOptions: () => routingGroupEngineOptions(engineHost),
     releaseEngineQuotaHold: (slug) => void core.runtime.releaseQuotaHold?.(slug),
     modelFavorites: core.modelFavorites,
@@ -4120,6 +4155,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   };
   const invocationBridgeMethods = createBridgeMethodsForHumans(bridgeDeps);
   const bridgeMethods = invocationBridgeMethods(OWNER_HUMAN_CONTEXT);
+  ctx.effect(
+    () =>
+      mountCardContextLive(ctx, core, toolApproval, userQuestions, (slug, id) => {
+        const request =
+          id === undefined ? undefined : liveAgent(id)?.session.requestHeader?.()?.config;
+        const route =
+          request ??
+          core.registry.get(slug)?.modelPlan?.orchestrator ??
+          defaultModel?.currentSelection();
+        return [route?.provider, route?.model, request?.maxTokens, compactionPolicy()];
+      }),
+    'botharness: card and context changes',
+  );
   imCommandServices = {
     botDisplayName: (slug) =>
       core.registry.get(slug)?.displayName ?? core.registry.getHistorical(slug)?.displayName,

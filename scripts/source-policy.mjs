@@ -232,6 +232,8 @@ export async function scanRepository(root, only) {
     execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard', '-z'], {
       cwd: root,
       maxBuffer: 64 * 1024 * 1024,
+      shell: false,
+      windowsHide: true,
     })
       .toString('utf8')
       .split('\0')

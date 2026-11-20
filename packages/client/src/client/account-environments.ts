@@ -1,3 +1,4 @@
+import { observeResource } from './messaging-defaults-live.js';
 import { accountRelationshipStatusSchema } from '../../../core/src/devices/relationship-contract.js';
 import type { RemoteHosts } from './remote-hosts.js';
 import { relationshipRequest } from './relationships.js';
@@ -15,7 +16,6 @@ export function startAccountEnvironments(options: {
   const retryAt = new Map<string, number>();
   let generation: string | undefined;
   let nextDiscovery = 0;
-  let timer: ReturnType<typeof setTimeout> | undefined;
   const renewCooldown = (id: string) => {
     retryAt.delete(id);
     if (retryAt.size >= 32) {
@@ -24,7 +24,101 @@ export function startAccountEnvironments(options: {
     }
     retryAt.set(id, Date.now() + 30_000);
   };
-  const poll = async () => {
+  type AccountStatus = ReturnType<typeof accountRelationshipStatusSchema.parse>;
+  const attempted = new Set<string>();
+  let reading = false;
+  let current: Exclude<AccountStatus, { state: 'signed-out' }> | undefined;
+  const drain = (): void => {
+    const status = current;
+    if (lifetime.signal.aborted || reading || status === undefined) return;
+    for (const relationship of status.relationships) {
+      if (pending.size + learning.size >= 2) break;
+      if (
+        relationship.state !== 'active' ||
+        !relationship.accountOrigin ||
+        relationship.automaticEnrollmentSuppressed ||
+        pending.has(relationship.id) ||
+        attempted.has(relationship.id) ||
+        (retryAt.get(relationship.id) ?? 0) > Date.now()
+      )
+        continue;
+      const saved = options.sources
+        .getSnapshot()
+        .hosts.find((item) => item.host.hostId === relationship.peer.id);
+      if (saved) {
+        const origin = relationship.accountOrigin.officialOrigin;
+        if (
+          origin &&
+          relationship.peer.routes.includes(origin) &&
+          !saved.host.routes.includes(origin) &&
+          saved.host.encryption?.hostKey === relationship.peer.publicKey &&
+          !saved.host.encryption.privateRelay &&
+          !learning.has(relationship.id)
+        ) {
+          attempted.add(relationship.id);
+          learning.add(relationship.id);
+          const learnedGeneration = status.generation;
+          const started = Date.now();
+          void options.sources
+            .learnRelationshipRoutes(
+              {
+                ...relationship.peer,
+                routes: [origin],
+              },
+              undefined,
+              'merge-existing',
+            )
+            .then(() => {
+              if (!lifetime.signal.aborted && generation === learnedGeneration)
+                logClient('network', 'account-route-refresh-complete', {
+                  initiator: 'background',
+                  durationMs: Math.max(0, Date.now() - started),
+                });
+            })
+            .catch((error) => {
+              if (!lifetime.signal.aborted && generation === learnedGeneration)
+                logClient(
+                  'network',
+                  'account-route-learning-refused',
+                  {
+                    initiator: 'background',
+                    refusal:
+                      error instanceof Error && error.message === 'relationship-route-limit'
+                        ? 'relationship-route-limit'
+                        : 'route-update-refused',
+                    durationMs: Math.max(0, Date.now() - started),
+                  },
+                  'warn',
+                );
+            })
+            .finally(() => {
+              learning.delete(relationship.id);
+              if (!lifetime.signal.aborted && generation === learnedGeneration)
+                renewCooldown(relationship.id);
+              drain();
+            });
+        }
+        continue;
+      }
+      const abort = new AbortController();
+      const enrollmentGeneration = status.generation;
+      attempted.add(relationship.id);
+      pending.set(relationship.id, abort);
+      void options.sources
+        .enrollRelationship(relationship, options.clientName, abort.signal, {
+          accountGeneration: status.generation,
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          if (pending.get(relationship.id) === abort) pending.delete(relationship.id);
+          if (!lifetime.signal.aborted && generation === enrollmentGeneration)
+            renewCooldown(relationship.id);
+          drain();
+        });
+    }
+  };
+  const reconcile = async () => {
+    reading = true;
     try {
       const discover = Date.now() >= nextDiscovery;
       if (discover) nextDiscovery = Date.now() + 30_000;
@@ -41,101 +135,30 @@ export function startAccountEnvironments(options: {
         retryAt.clear();
         generation = nextGeneration;
       }
-      if (status.state !== 'signed-out') {
+      current = status.state === 'signed-out' ? undefined : status;
+      attempted.clear();
+      if (current !== undefined) {
         const activeIds = new Set(status.relationships.map((item) => item.id));
         for (const id of retryAt.keys()) if (!activeIds.has(id)) retryAt.delete(id);
         for (const [id, abort] of pending)
           if (!activeIds.has(id)) abort.abort('relationship-retired');
-        for (const relationship of status.relationships) {
-          if (pending.size + learning.size >= 2) break;
-          if (
-            relationship.state !== 'active' ||
-            !relationship.accountOrigin ||
-            relationship.automaticEnrollmentSuppressed ||
-            pending.has(relationship.id) ||
-            (retryAt.get(relationship.id) ?? 0) > Date.now()
-          )
-            continue;
-          const saved = options.sources
-            .getSnapshot()
-            .hosts.find((item) => item.host.hostId === relationship.peer.id);
-          if (saved) {
-            const origin = relationship.accountOrigin.officialOrigin;
-            if (
-              origin &&
-              relationship.peer.routes.includes(origin) &&
-              !saved.host.routes.includes(origin) &&
-              saved.host.encryption?.hostKey === relationship.peer.publicKey &&
-              !saved.host.encryption.privateRelay &&
-              !learning.has(relationship.id)
-            ) {
-              learning.add(relationship.id);
-              const learnedGeneration = status.generation;
-              const started = Date.now();
-              void options.sources
-                .learnRelationshipRoutes(
-                  {
-                    ...relationship.peer,
-                    routes: [origin],
-                  },
-                  undefined,
-                  'merge-existing',
-                )
-                .then(() => {
-                  if (!lifetime.signal.aborted && generation === learnedGeneration)
-                    logClient('network', 'account-route-refresh-complete', {
-                      initiator: 'background',
-                      durationMs: Math.max(0, Date.now() - started),
-                    });
-                })
-                .catch((error) => {
-                  if (!lifetime.signal.aborted && generation === learnedGeneration)
-                    logClient(
-                      'network',
-                      'account-route-learning-refused',
-                      {
-                        initiator: 'background',
-                        refusal:
-                          error instanceof Error && error.message === 'relationship-route-limit'
-                            ? 'relationship-route-limit'
-                            : 'route-update-refused',
-                        durationMs: Math.max(0, Date.now() - started),
-                      },
-                      'warn',
-                    );
-                })
-                .finally(() => {
-                  learning.delete(relationship.id);
-                  if (!lifetime.signal.aborted && generation === learnedGeneration)
-                    renewCooldown(relationship.id);
-                });
-            }
-            continue;
-          }
-          const abort = new AbortController();
-          const enrollmentGeneration = status.generation;
-          pending.set(relationship.id, abort);
-          void options.sources
-            .enrollRelationship(relationship, options.clientName, abort.signal, {
-              accountGeneration: status.generation,
-            })
-            .catch(() => undefined)
-            .finally(() => {
-              if (pending.get(relationship.id) === abort) pending.delete(relationship.id);
-              if (!lifetime.signal.aborted && generation === enrollmentGeneration)
-                renewCooldown(relationship.id);
-            });
-        }
       }
     } catch {
     } finally {
-      if (!lifetime.signal.aborted) timer = setTimeout(() => void poll(), 2500);
+      reading = false;
+      drain();
     }
   };
-  void poll();
+  const stop = observeResource(
+    (change) => change.resource === 'relationships' || change.resource === 'account',
+    reconcile,
+    10_000,
+    30_000,
+    true,
+  );
   return () => {
     lifetime.abort();
-    clearTimeout(timer);
+    stop();
     for (const abort of pending.values()) abort.abort('owner-disposed');
     pending.clear();
     learning.clear();

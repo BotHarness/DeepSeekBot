@@ -191,6 +191,8 @@ function queryRoadmapProjectPage({ cursor }) {
     cwd: ROOT,
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    shell: false,
+    windowsHide: true,
   });
   if (result.error || result.status !== 0) {
     const detail = result.stderr ?? '';

@@ -4,6 +4,7 @@ import {
   isEngineId,
   type EngineAccountIdentity,
   type EngineId,
+  type EngineModelView,
 } from '@botharness/host-protocol/subscription-engine';
 import { useRef, useState } from 'react';
 
@@ -39,13 +40,7 @@ export interface EnginesView {
   selections: EngineSelectionView[];
 }
 
-export interface EngineModelView {
-  id: string;
-  name: string;
-  efforts: { id: string; name: string }[];
-  defaultEffort?: string;
-  isDefault?: boolean;
-}
+export type { EngineModelView } from '@botharness/host-protocol/subscription-engine';
 
 export interface EngineApi {
   read(): Promise<EnginesView>;
@@ -60,7 +55,6 @@ export interface EngineApi {
 }
 
 const ENGINES = './api/botharness/engines';
-const ROLES: readonly string[] = ['orchestrator', 'assignment'];
 const REASONS: readonly string[] = [
   'host-not-local',
   'not-installed',
@@ -113,12 +107,11 @@ export function parseEngines(value: unknown): EnginesView {
       return entry !== undefined &&
         typeof entry['botSlug'] === 'string' &&
         isEngineId(engine) &&
-        typeof role === 'string' &&
-        ROLES.includes(role)
+        (role === 'orchestrator' || role === 'assignment')
         ? [
             {
               botSlug: entry['botSlug'],
-              role: role as EngineRole,
+              role,
               engine,
               ...(typeof entry['accountId'] === 'string' ? { accountId: entry['accountId'] } : {}),
               ...(typeof entry['model'] === 'string' ? { model: entry['model'] } : {}),

@@ -1,3 +1,5 @@
+import { createGroupChannel } from '@botharness/host-client/channel-management';
+import { HostAnswerInvalid } from '@botharness/host-client/host-answer';
 import {
   createHostClient,
   deviceRefusal,
@@ -40,6 +42,8 @@ export function channelCreationTransport(
       } catch (error) {
         const refusal = deviceRefusal(error);
         if (refusal) throw new Error(refusal, { cause: error });
+        if (creation && error instanceof HostAnswerInvalid)
+          throw new Error('invalid-response', { cause: error });
         if (error instanceof MethodRefused) {
           if (
             creation &&
@@ -120,31 +124,12 @@ export function channelCreationTransport(
         operation.hostId,
         operation.deviceId,
         async (client) => {
-          const result = await client.call<unknown>('channelCreate', {
+          const channel = await createGroupChannel(client, {
             name: operation.name,
             members: operation.members,
             operationKey: operation.operationKey,
           });
-          if (
-            typeof result !== 'object' ||
-            result === null ||
-            !('channel' in result) ||
-            typeof result.channel !== 'object' ||
-            result.channel === null ||
-            !('id' in result.channel) ||
-            typeof result.channel.id !== 'string' ||
-            !('receipt' in result) ||
-            typeof result.receipt !== 'object' ||
-            result.receipt === null ||
-            !('operationKey' in result.receipt) ||
-            result.receipt.operationKey !== operation.operationKey ||
-            !('status' in result.receipt) ||
-            result.receipt.status !== 'completed' ||
-            !('channelId' in result.receipt) ||
-            result.receipt.channelId !== result.channel.id
-          )
-            throw new MethodRefused('invalid-response', 'Invalid Channel result');
-          return result.channel.id;
+          return channel.id;
         },
         true,
       );

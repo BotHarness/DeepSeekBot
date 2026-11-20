@@ -28,7 +28,7 @@ const styles = stylex.create({
 
 type AccountDialog =
   | { kind: 'add'; revision: number }
-  | { kind: 'rename' | 'remove'; revision: number; id: string; name: string };
+  | { kind: 'rename' | 'remove'; revision: number; id: string; name: string; title: string };
 
 function signInStatus(status: EngineStatusView, label: string, t: BotHarnessTranslate): string {
   if (status.available) return t('modelProviders.signedIn');
@@ -191,7 +191,13 @@ export function SubscriptionAccounts({
                               variant="outline"
                               aria-label={t('modelProviders.renameAccountTitle', { name: title })}
                               onClick={() =>
-                                open({ kind: 'rename', id: accountId, name: title, revision })
+                                open({
+                                  kind: 'rename',
+                                  id: accountId,
+                                  name: status.accountName ?? brand,
+                                  title,
+                                  revision,
+                                })
                               }
                             >
                               {t('modelProviders.renameAccount')}
@@ -200,7 +206,13 @@ export function SubscriptionAccounts({
                               variant="outline"
                               aria-label={t('modelProviders.removeTitle', { name: title })}
                               onClick={() =>
-                                open({ kind: 'remove', id: accountId, name: title, revision })
+                                open({
+                                  kind: 'remove',
+                                  id: accountId,
+                                  name: status.accountName ?? brand,
+                                  title,
+                                  revision,
+                                })
                               }
                             >
                               {t('modelProviders.remove')}
@@ -229,7 +241,7 @@ export function SubscriptionAccounts({
       </div>
       {dialog === undefined ? null : dialog.kind === 'remove' ? (
         <ConfirmDialog
-          title={t('modelProviders.removeTitle', { name: dialog.name })}
+          title={t('modelProviders.removeTitle', { name: dialog.title })}
           description={t('modelProviders.removeAccountWarning')}
           labels={labels}
           confirmLabel={t('modelProviders.remove')}
@@ -243,7 +255,7 @@ export function SubscriptionAccounts({
           title={
             dialog.kind === 'add'
               ? t('modelProviders.addAccount')
-              : t('modelProviders.renameAccountTitle', { name: dialog.name })
+              : t('modelProviders.renameAccountTitle', { name: dialog.title })
           }
           labels={labels}
           submitLabel={t('modelProviders.save')}

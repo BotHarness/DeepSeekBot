@@ -31,7 +31,11 @@ const cli = async (command, args = [], patch) => {
   const child = execFile(
     process.execPath,
     ['packages/deepseekbot/dist/deepseekbot.mjs', command, '--host', url.origin, ...args],
-    { env: { ...process.env, DEEPSEEKBOT_HOST_TOKEN: url.searchParams.get('token') } },
+    {
+      env: { ...process.env, DEEPSEEKBOT_HOST_TOKEN: url.searchParams.get('token') },
+      shell: false,
+      windowsHide: true,
+    },
   );
   child.stdin.end(patch === undefined ? '' : JSON.stringify(patch));
   return new Promise((resolve, reject) => {
@@ -130,7 +134,11 @@ try {
   const bot = await rpc('get', { slug: created.bot.id });
   const memory = bot.bot.memoryDir;
   const git = (...args) =>
-    execFileSync('git', ['-C', memory, ...args], { encoding: 'utf8' }).trim();
+    execFileSync('git', ['-C', memory, ...args], {
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    }).trim();
   writeFileSync(
     resolve(memory, 'appearance-note.md'),
     '# Appearance note\nFirst committed version.\n',

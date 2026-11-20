@@ -44,6 +44,11 @@ it('picks the first eligible DSH model from a mixed Routing Group', async () => 
       ],
     });
     const checked: ModelRoute[] = [];
+    expect(groups.targets(mixed.id)).toEqual([
+      { kind: 'engine', engine: 'codex', model: 'gpt-5.4' },
+      { kind: 'engine', engine: 'claude' },
+      { kind: 'route', route: DEEPSEEK },
+    ]);
     const fallback = createGroupFallback({
       plan: () => undefined,
       routes: (id) => groups.routes(id),

@@ -37,6 +37,8 @@ it.each([
           cwd: root,
           env: { ...process.env, DEEPSEEKBOT_APP_VARIANT: variant, EXPO_NO_TELEMETRY: '1' },
           encoding: 'utf8',
+          shell: false,
+          windowsHide: true,
         },
       ),
     );

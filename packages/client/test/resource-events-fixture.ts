@@ -1,5 +1,5 @@
 import { installTypedLive, type TypedLive } from '../src/client/messaging-defaults-live.js';
-import type { LiveResource } from '../../core/src/channels/resource-events.js';
+import type { ScopedResource, UnscopedResource } from '../../core/src/channels/resource-events.js';
 
 export function resourceEvents() {
   let roster: Parameters<TypedLive['roster']>[0] | undefined;
@@ -15,8 +15,11 @@ export function resourceEvents() {
     activity: () => () => {},
   });
   return {
-    emit(resource: LiveResource) {
-      roster?.resource?.({ resource, revision: ++revision });
+    emit(change: UnscopedResource | ScopedResource) {
+      roster?.resource?.({
+        ...(typeof change === 'string' ? { resource: change } : change),
+        revision: ++revision,
+      });
     },
     reconnect() {
       roster?.interrupted();

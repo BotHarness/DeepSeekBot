@@ -13,6 +13,7 @@ import {
   MEMBER_BOT_METHODS,
   MEMBER_BOT_IMPORT_METHODS,
   MEMBER_APPROVAL_METHODS,
+  MODEL_CONFIGURATION_METHODS,
 } from './member-methods.js';
 import { ownsBot } from './bot-access.js';
 import { TeamError } from './error.js';
@@ -96,6 +97,21 @@ export function guardHumanBridge(
             return refuse('member-suspended');
         }
         const input = object(payload);
+        if (!owner && MODEL_CONFIGURATION_METHODS.has(property)) {
+          if (
+            property === 'onboardingModel' &&
+            (input['globalDefault'] !== true || input['slug'] !== undefined)
+          )
+            return refuse('permission-required');
+          try {
+            if (!deps.team)
+              return refuse('permission-required', { permission: 'models.configure' });
+            deps.team.roles.require(human, 'models.configure');
+          } catch (error) {
+            if (error instanceof TeamError) return refuse(error.code, error.details);
+            throw error;
+          }
+        }
         if (
           deps.team &&
           [

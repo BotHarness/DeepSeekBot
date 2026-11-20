@@ -356,6 +356,7 @@ export const CLI_EFFECTS = {
   'model-plan-set': { effects: write, brokerRead: false },
   'model-preset-apply': { effects: write, brokerRead: false },
   'model-preset-create': { effects: write, brokerRead: false },
+  'model-preset-delete': { effects: destructive, brokerRead: false },
   'model-preset-update': { effects: write, brokerRead: false },
   'model-presets': { effects: read, brokerRead: true },
   'model-groups': { effects: read, brokerRead: true },
@@ -583,6 +584,8 @@ function familyEffects(
           return values['from-git'] ? externalWrite : write;
         case 'delete':
           return destructive;
+        case undefined:
+          return undefined;
         default:
           return botAccessEffects(action, values);
       }

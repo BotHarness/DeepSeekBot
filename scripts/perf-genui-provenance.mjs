@@ -4,7 +4,8 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 export function genuiDirtySourceHashes(root) {
-  const git = (...args) => execFileSync('git', args, { cwd: root }).toString();
+  const git = (...args) =>
+    execFileSync('git', args, { cwd: root, shell: false, windowsHide: true }).toString();
   const paths = new Set([
     ...git('diff', '--name-only', '--diff-filter=d', '-z', 'HEAD').split('\0'),
     ...git('ls-files', '--others', '--exclude-standard', '-z').split('\0'),

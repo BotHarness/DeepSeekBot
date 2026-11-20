@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   bridgeMethodsFrom,
+  bridgeMethodsFromSharedReaders,
   botToolNamesFrom,
   checkCliParity,
   routePathsFrom,
@@ -108,4 +109,28 @@ it('requires the dedicated cloud-work runner rather than accepting the generic b
   expect(checkCliParity({ surfaces, baseline, cliSource: "{ command: 'cloud-work' }" })).toEqual(
     [],
   );
+});
+
+it('counts only the named Host reader imported by a CLI command', () => {
+  const cliSource = `
+    import { readDm as openDm, type OptionalRead } from '@botharness/host-client/channel-management';
+    export const dm = (host, slug) => openDm(host, { slug });
+  `;
+  const readerMethods = bridgeMethodsFromSharedReaders(
+    [cliSource],
+    () => `
+    export async function readDm(host, args) { return host.call('channelDm', args); }
+    export async function readChannels(host) { return host.call('channels', {}); }
+    export async function OptionalRead(host) { return host.call('optionalMethod', {}); }
+  `,
+  );
+  expect([...readerMethods]).toEqual(['channelDm']);
+  expect(
+    checkCliParity({
+      surfaces: { bridge: ['channelDm'], routes: [], tools: [] },
+      cliSource,
+      readerMethods,
+      baseline: { bridge: {}, routes: {}, tools: {} },
+    }),
+  ).toEqual([]);
 });

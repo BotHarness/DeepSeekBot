@@ -22,6 +22,8 @@ assert(
 const common = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
   cwd: root,
   encoding: 'utf8',
+  shell: false,
+  windowsHide: true,
 }).trim();
 const qa = join(dirname(common), '.humanlayer/device-qa/windows');
 const lease = JSON.parse(readFileSync(join(qa, 'active.json'), 'utf8'));
@@ -43,6 +45,8 @@ const call = (...command) =>
     timeout: 35000,
     maxBuffer: 16 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'],
+    shell: false,
+    windowsHide: true,
   });
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 const bounds = (node) => (node?.bounds?.match(/\d+/g) ?? []).map(Number);
@@ -81,6 +85,8 @@ function capture(name) {
     execFileSync(adb, ['-s', serial, 'exec-out', 'screencap', '-p'], {
       timeout: 15000,
       maxBuffer: 16 * 1024 * 1024,
+      shell: false,
+      windowsHide: true,
     }),
   );
   return nodes(xml);
@@ -208,7 +214,7 @@ try {
     const recording = spawn(
       adb,
       ['-s', serial, 'shell', 'screenrecord', '--time-limit', '5', remote],
-      { stdio: 'ignore' },
+      { stdio: 'ignore', shell: false, windowsHide: true },
     );
     const finished = new Promise((done, reject) => {
       recording.on('error', reject);
@@ -243,7 +249,13 @@ try {
         'rgb24',
         'pipe:1',
       ],
-      { timeout: 30000, maxBuffer: 100 * 1024 * 1024, stdio: ['ignore', 'pipe', 'pipe'] },
+      {
+        timeout: 30000,
+        maxBuffer: 100 * 1024 * 1024,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
+        windowsHide: true,
+      },
     );
     const [, , right, bottom] = bounds(field);
     const x = Math.round(((right - 24) * w) / width);

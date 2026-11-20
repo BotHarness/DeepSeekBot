@@ -48,7 +48,9 @@ describe('mobile Bot avatars', () => {
 
   it('resolves a DM if the roster has no DM id yet', async () => {
     const { host, client } = await setup();
-    host.methods.set('channelDm', () => ({ channel: { id: 'dm-created' } }));
+    host.methods.set('channelDm', () => ({
+      channel: { id: 'dm-created', type: 'dm', name: 'Ada', members: ['ada'] },
+    }));
     await setBotAvatar(client, { slug: 'ada', displayName: 'Ada' }, null);
     expect(host.calls[0]).toEqual({
       method: 'channelDm',

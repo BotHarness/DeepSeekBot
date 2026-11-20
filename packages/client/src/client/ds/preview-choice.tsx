@@ -46,7 +46,7 @@ const styles = stylex.create({
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
     textAlign: 'center',
-    cursor: 'pointer',
+    cursor: { default: 'pointer', ':disabled': 'default' },
     outline: { default: 'none', ':focus-visible': `${border.focus} solid ${accent.focus}` },
     outlineOffset: '2px',
     transitionProperty: 'background-color',
@@ -122,8 +122,10 @@ export function PreviewChoices<T extends string>({
   options,
   onChange,
   variant = 'illustration',
+  disabled = false,
 }: {
   readonly label: string;
+  readonly disabled?: boolean;
   readonly variant?: 'illustration' | 'icon' | 'glyph';
   readonly value: T | undefined;
   readonly options: readonly PreviewChoiceOption<T>[];
@@ -147,6 +149,7 @@ export function PreviewChoices<T extends string>({
             type="button"
             role="radio"
             aria-checked={checked}
+            disabled={disabled}
             aria-label={variant === 'glyph' ? option.label : undefined}
             {...option.data}
             onClick={() => onChange(option.id)}

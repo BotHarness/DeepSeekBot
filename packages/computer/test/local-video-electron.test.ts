@@ -81,6 +81,8 @@ console.log('PASS: two starts, zero downloads, ASAR support unchanged');
       const { stdout } = await promisify(execFile)(electron!, [join(directory, 'run.mjs')], {
         env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' },
         timeout: 10_000,
+        shell: false,
+        windowsHide: true,
       });
       expect(stdout).toContain('PASS: two starts, zero downloads, ASAR support unchanged');
     } finally {

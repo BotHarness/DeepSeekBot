@@ -21,6 +21,8 @@ function finalConfig(variant) {
       },
       encoding: 'utf8',
       maxBuffer: 10 * 1024 * 1024,
+      shell: false,
+      windowsHide: true,
     }),
   );
 }

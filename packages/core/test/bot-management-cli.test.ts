@@ -59,7 +59,17 @@ async function host(handler: (method: string, args: Record<string, unknown>) => 
       calls.push({ method, args: input.payload.args });
       const result =
         method === 'channelDm'
-          ? { ok: true, value: { channel: { id: 'dm-' + String(input.payload.args.slug) } } }
+          ? {
+              ok: true,
+              value: {
+                channel: {
+                  id: 'dm-' + String(input.payload.args.slug),
+                  type: 'dm',
+                  name: String(input.payload.args.slug),
+                  members: [String(input.payload.args.slug)],
+                },
+              },
+            }
           : handler(method, input.payload.args);
       if (result === 'lost-response') {
         res.destroy();

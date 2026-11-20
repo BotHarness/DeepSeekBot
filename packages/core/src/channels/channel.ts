@@ -415,6 +415,7 @@ export interface ChannelTurnStop {
   failures?: number;
   rests?: ChannelTurnStopRest[];
   engine?: ChannelTurnStopEngine;
+  routingGroup?: true;
   target?: ChannelTurnStopTarget;
 }
 
@@ -1302,6 +1303,7 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
         stop['cause'] !== 'quota') ||
       (stop['rests'] !== undefined && !isChannelTurnStopRests(stop['rests'])) ||
       (stop['engine'] !== undefined && !isChannelTurnStopEngine(stop['engine'])) ||
+      (stop['routingGroup'] !== undefined && stop['routingGroup'] !== true) ||
       (stop['failures'] !== undefined &&
         (typeof stop['failures'] !== 'number' || !Number.isInteger(stop['failures']))) ||
       (stop['target'] !== undefined && !isChannelTurnStopTarget(stop['target']))

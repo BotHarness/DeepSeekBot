@@ -162,6 +162,7 @@ export const MESSAGING_OPTIONS = {
 } as const;
 
 export const MODELS_USAGE_OPTIONS = {
+  'include-usage': { type: 'boolean' },
   template: { type: 'string' },
   endpoint: { type: 'string' },
   'key-stdin': { type: 'boolean' },
@@ -266,6 +267,7 @@ export const TEAM_OPTIONS = {
   reason: { type: 'string' },
   audience: { type: 'string' },
   models: { type: 'string' },
+  'model-providers': { type: 'string' },
   'human-id': { type: 'string' },
   post: { type: 'string' },
   'add-members': { type: 'string' },

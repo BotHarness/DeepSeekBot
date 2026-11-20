@@ -2,6 +2,7 @@ import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 import {
   engineAccountKey,
   type NamedEngineAccount,
+  type RoutingGroupEngineMember,
 } from '@botharness/host-protocol/subscription-engine';
 
 import { randomUUID } from 'node:crypto';
@@ -29,8 +30,11 @@ import {
   sdkClaudeQuery,
 } from './claude-engine.js';
 import { type ClaudeStatus, detectClaude } from './claude-status.js';
-import { resolveEngineCommand } from './engine-launch.js';
-import { buildEngineContextSeed } from './engine-context.js';
+import {
+  buildEngineContextSeed,
+  type EngineContextRecord,
+  savedAssignmentRequest,
+} from './engine-context.js';
 import {
   type EngineSessionPersistence,
   type EngineSessionStore,
@@ -43,6 +47,17 @@ import {
   type EngineGrant,
   engineGatewayResult,
 } from './engine-gateway.js';
+import {
+  ENGINE_GATEWAY_TOOLS,
+  type EngineTurnRequest,
+  type EngineTurnOutcome,
+  type EngineToolApproval,
+  type EngineToolContext,
+  type EngineSessionState,
+  type EngineApprovalRequest,
+  type EngineSessionDescription,
+} from './engine-host-types.js';
+import { resolveEngineCommand } from './engine-launch.js';
 import { EngineTurnLog } from './engine-log.js';
 import {
   ENGINE_DEFINITIONS,
@@ -53,6 +68,7 @@ import {
   type EngineWorkspaceMode,
   EngineLimitError,
   EngineRefusal,
+  routingGroupEngineChoice,
 } from './engine-session.js';
 import {
   createEngineStore,
@@ -61,18 +77,7 @@ import {
   engineStorePath,
 } from './engine-store.js';
 
-import {
-  ENGINE_GATEWAY_TOOLS,
-  type EngineTurnRequest,
-  type EngineTurnOutcome,
-  type EngineToolApproval,
-  type EngineToolContext,
-  type EngineSessionState,
-  type EngineApprovalRequest,
-  type EngineSessionDescription,
-  type EngineQuotaView,
-  type EngineStatusReport,
-} from './engine-host-types.js';
+export { engineGatewayResult };
 
 export {
   ENGINE_GATEWAY_TOOLS,
@@ -95,6 +100,7 @@ export interface EngineHostOptions {
   claudeCommand?: string;
   env?: Readonly<Record<string, string | undefined>>;
   gateway: EngineGateway;
+  routingGroupEffort?(botSlug: string): string | undefined;
   sessions(): EngineSessionStore | undefined;
   persistence(): EngineSessionPersistence | undefined;
   sessionIdsForBot?(botSlug: string): readonly string[];
@@ -103,6 +109,7 @@ export interface EngineHostOptions {
   accountUses?(id: string): readonly string[];
   observe?(botSlug: string, sessionId: string, state: EngineSessionState, role: EngineRole): void;
   approve?(request: EngineApprovalRequest): Promise<ApprovalOutcome>;
+  idleMs?: number;
   releaseGraceMs?: number;
   now?: () => number;
   openCodex?(options: CodexProcessOptions): CodexTransport;
@@ -136,6 +143,7 @@ interface LiveEngineSession {
   dsh: OpenedEngineDshSession;
   nativeId: string;
   seed: string | undefined;
+  rebuilt: boolean;
   turn: TurnScope | undefined;
   stop: AbortController | undefined;
   closing: boolean;
@@ -143,7 +151,10 @@ interface LiveEngineSession {
   recover: boolean;
   accountChecked: boolean;
   running: Promise<void>;
+  idleTimer?: NodeJS.Timeout | undefined;
 }
+
+const ORCHESTRATOR_IDLE_MS = 30_000;
 
 function choiceKey(engine: EngineId | undefined, choice: EngineChoice): string | undefined {
   return engine === undefined
@@ -246,6 +257,27 @@ export class EngineHost {
     return choiceKey(this.engineFor(botSlug, role), this.store.choice(botSlug, role));
   }
 
+  #directSelection(request: EngineTurnRequest) {
+    const role = request.role ?? 'orchestrator';
+    return {
+      engine: this.engineFor(request.botSlug, role),
+      choice: this.store.choice(request.botSlug, role),
+    };
+  }
+
+  async #routingGroupSelection(request: EngineTurnRequest, target: RoutingGroupEngineMember) {
+    const groupEffort =
+      request.role === 'assignment'
+        ? request.groupEffort
+        : this.#options.routingGroupEffort?.(request.botSlug);
+    const shared = target.reasoningEffort === undefined ? groupEffort : undefined;
+    const models =
+      shared === undefined
+        ? []
+        : await this.models(target.engine, target.accountId).catch(() => []);
+    return { engine: target.engine, choice: routingGroupEngineChoice(target, shared, models) };
+  }
+
   use(
     botSlug: string,
     role: EngineRole,
@@ -320,14 +352,17 @@ export class EngineHost {
     return !(this.fallsBack(botSlug, role) && this.limit(engine, accountId) !== undefined);
   }
 
-  assertAssignmentAccount(botSlug: string): void {
-    const engine = this.engineFor(botSlug, 'assignment');
+  assertAssignmentAccount(botSlug: string, target?: RoutingGroupEngineMember): void {
+    const engine = this.#options.local
+      ? (target?.engine ?? this.engineFor(botSlug, 'assignment'))
+      : undefined;
     if (engine === undefined)
       throw new EngineRefusal(
         'engine-unavailable',
         'This Bot does not run its Assignments on a Subscription Engine',
       );
-    const { accountId } = this.store.choice(botSlug, 'assignment');
+    const accountId =
+      target === undefined ? this.store.choice(botSlug, 'assignment').accountId : target.accountId;
     this.resolveAccount(engine, accountId);
     const limited = this.limit(engine, accountId);
     if (limited !== undefined) throw new EngineLimitError(engine, limited.account, limited.until);
@@ -393,11 +428,15 @@ export class EngineHost {
       throw new EngineRefusal('engine-unavailable', 'This engine Assignment is already running');
     const steering = new AssignmentSteering(() => !signal.aborted && !this.#closed);
     this.#assignmentSteering.set(sessionId, steering);
-    return steering.run(
-      request.input,
-      (input, continuation) => this.#runTurn({ ...request, input }, steering, continuation),
-      () => this.#assignmentSteering.delete(sessionId),
-    );
+    try {
+      return await steering.run(
+        request.input,
+        (input, continuation) => this.#runTurn({ ...request, input }, steering, continuation),
+        () => this.#assignmentSteering.delete(sessionId),
+      );
+    } finally {
+      await this.release(sessionId);
+    }
   }
 
   async #runTurn(
@@ -407,7 +446,9 @@ export class EngineHost {
   ): Promise<EngineTurnOutcome> {
     const role = request.role ?? 'orchestrator';
     this.#roles.set(request.sessionId, role);
-    const selected = this.engineFor(request.botSlug, role);
+    const target = this.#options.local ? request.target : undefined;
+    const direct = this.#directSelection(request);
+    const selected = target?.engine ?? direct.engine;
     if (selected === undefined)
       throw new EngineRefusal(
         'engine-unavailable',
@@ -418,7 +459,7 @@ export class EngineHost {
     if (request.signal.aborted) return {};
     const selectedAccount = this.resolveAccount(
       selected,
-      this.store.choice(request.botSlug, role).accountId,
+      target === undefined ? direct.choice.accountId : target.accountId,
     );
     const limited = this.limit(selected, selectedAccount.id);
     if (limited !== undefined) throw new EngineLimitError(selected, limited.account, limited.until);
@@ -428,11 +469,14 @@ export class EngineHost {
       const opened = this.limit(engine, live.accountId);
       if (opened !== undefined) throw new EngineLimitError(engine, opened.account, opened.until);
     }
+    clearTimeout(live.idleTimer);
+    live.idleTimer = undefined;
     const accountChecked = live.accountChecked;
     live.accountChecked = false;
     const previous = live.running;
     let finish!: () => void;
-    live.running = new Promise((resolve) => (finish = resolve));
+    const running = new Promise<void>((resolve) => (finish = resolve));
+    live.running = running;
     const current = () => !live.closing && this.#live.get(request.sessionId) === live;
     let broken = false;
     let reopen = false;
@@ -475,6 +519,10 @@ export class EngineHost {
           live.botSlug,
         );
         const log = new EngineTurnLog(live.dsh, engine, live.account, input);
+        if (live.rebuilt) {
+          log.rebuilt();
+          live.rebuilt = false;
+        }
         outcome.turn = log.turn;
         let limitedNow = false;
         scope.context = {
@@ -538,7 +586,8 @@ export class EngineHost {
           if (last !== undefined) outcome.endSeq = Number(last.seq);
           if (end.status === 'failed') {
             const limit = limitedNow ? this.limit(engine, live.accountId) : undefined;
-            if (limit !== undefined) throw new EngineLimitError(engine, limit.account, limit.until);
+            if (limit !== undefined)
+              throw new EngineLimitError(engine, limit.account, limit.until, true);
             if (steered?.replacing !== true || !current())
               throw new EngineRefusal('engine-failed', end.message);
           }
@@ -549,7 +598,7 @@ export class EngineHost {
         }
       }
     } finally {
-      if (current())
+      if (current() && live.running === running)
         this.#setState(
           request.sessionId,
           {
@@ -561,13 +610,18 @@ export class EngineHost {
           live.botSlug,
         );
       finish();
-      if (current()) {
+      if (current() && live.running === running) {
         const selectionChanged =
+          request.target === undefined &&
           live.configuration !==
-          sessionKey(this.choiceFor(request.botSlug, role), request.cwd, live.workspaceMode);
+            sessionKey(this.choiceFor(request.botSlug, role), request.cwd, live.workspaceMode);
         if (broken || live.engine.ended || selectionChanged) {
           if (broken || live.engine.ended) live.recover = true;
           void this.release(request.sessionId);
+        } else if (role === 'orchestrator') {
+          live.idleTimer = setTimeout(() => {
+            if (current() && live.running === running) void this.release(request.sessionId);
+          }, this.#options.idleMs ?? ORCHESTRATOR_IDLE_MS).unref();
         }
       }
     }
@@ -682,6 +736,7 @@ export class EngineHost {
 
   async #dispose(sessionId: string, live: LiveEngineSession): Promise<void> {
     live.closing = true;
+    clearTimeout(live.idleTimer);
     this.#live.delete(sessionId);
     this.#states.delete(sessionId);
     this.#options.observe?.(live.botSlug, sessionId, 'idle', this.#role(sessionId));
@@ -722,23 +777,37 @@ export class EngineHost {
 
   async #open(request: EngineTurnRequest): Promise<LiveEngineSession> {
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
-    const live = this.#live.get(request.sessionId);
-    const role = request.role ?? 'orchestrator';
-    let mode: EngineWorkspaceMode;
-    try {
-      mode = workspaceModeFor(request);
-    } catch (error) {
-      if (live !== undefined) await this.release(request.sessionId);
-      throw error;
+    const { cwd, sessionId } = request;
+    const live = this.#live.get(sessionId);
+    const target = this.#options.local ? request.target : undefined;
+    let routed: { engine: EngineId; choice: EngineChoice } | undefined;
+    if (live !== undefined) {
+      let mode: EngineWorkspaceMode;
+      try {
+        mode = workspaceModeFor(request);
+      } catch (error) {
+        await this.release(sessionId);
+        throw error;
+      }
+      if (target !== undefined) {
+        routed = await this.#routingGroupSelection(request, target);
+        if (live.closing)
+          throw new EngineRefusal('engine-unavailable', 'This engine Session was released');
+      }
+      const initial = routed ?? this.#directSelection(request);
+      const selected = sessionKey(choiceKey(initial.engine, initial.choice), cwd, mode);
+      if (!live.engine.ended && live.configuration === selected) return live;
+      await this.release(sessionId);
     }
-    const selected = sessionKey(this.choiceFor(request.botSlug, role), request.cwd, mode);
-    if (live !== undefined && !live.engine.ended && live.configuration === selected) return live;
-    if (live !== undefined) await this.release(request.sessionId);
-    await this.#releasing.get(request.sessionId);
+    await this.#releasing.get(sessionId);
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
-    const engineId = this.engineFor(request.botSlug, role);
-    const choice = this.store.choice(request.botSlug, role);
-    const key = sessionKey(choiceKey(engineId, choice), request.cwd, mode);
+    if (target !== undefined && routed === undefined) {
+      routed = await this.#routingGroupSelection(request, target);
+      if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
+    }
+    const mode = workspaceModeFor(request);
+    const { engine: engineId, choice } = routed ?? this.#directSelection(request);
+    const key = sessionKey(choiceKey(engineId, choice), cwd, mode);
     const pending = this.#opening.get(request.sessionId);
     if (pending !== undefined) {
       if (this.#openingConfiguration.get(request.sessionId) === key) return pending;
@@ -787,8 +856,15 @@ export class EngineHost {
       if (sessions === undefined || persistence === undefined)
         throw new EngineRefusal('engine-unavailable', 'DSH Session Persistence is unavailable');
       const cwd = request.cwd ?? join(this.#options.root, 'workdirs', botSlug);
+      const sessionCwd = request.sessionCwd ?? cwd;
       if (request.cwd === undefined) mkdirSync(cwd, { recursive: true });
       await this.#options.gateway.start();
+      request.signal.throwIfAborted();
+      const releasedNative = await request.releaseNativeSession?.();
+      if (releasedNative) {
+        request.signal.throwIfAborted();
+        dsh = await openEngineDshSession(sessions, persistence, sessionId, sessionCwd);
+      }
       const tools: EngineGatewayTool[] = request.tools
         .filter((tool) => ENGINE_GATEWAY_TOOLS.has(tool.name))
         .map((tool) => ({
@@ -817,10 +893,33 @@ export class EngineHost {
         engineAccountKey(stored.engine, stored.accountId) === accountId
           ? stored.nativeId
           : undefined;
+      let recovery: readonly EngineContextRecord[] | undefined;
+      const restore = async () => {
+        dsh ??= await openEngineDshSession(sessions, persistence, sessionId, sessionCwd);
+        const records = request.readRecoveryContext?.();
+        if (request.role !== 'assignment') return records ?? [];
+        const priorRequest = savedAssignmentRequest(dsh.session, stored?.lastTurn);
+        if (records === undefined || priorRequest === undefined)
+          throw new EngineRefusal(
+            'engine-recovery-unavailable',
+            'The engine session was lost and the saved Assignment records are incomplete.',
+          );
+        return [...records, { label: 'Latest saved Assignment Request', text: priorRequest }];
+      };
       if (resume !== undefined && stored?.lastTurn !== undefined) {
-        dsh = await openEngineDshSession(sessions, persistence, sessionId, cwd);
-        const last = dsh.session.snapshotEvents().findLast((event) => event.type === 'turn/start');
-        if (last?.data.turn !== stored.lastTurn) resume = undefined;
+        dsh ??= await openEngineDshSession(sessions, persistence, sessionId, sessionCwd);
+        const lastTurn = dsh.session
+          .snapshotEvents()
+          .findLast((event) => event.type === 'turn/start')?.data.turn;
+        if (lastTurn !== stored.lastTurn) {
+          resume = undefined;
+          const nativeContinuation =
+            request.continuingFromNativeRoute &&
+            releasedNative &&
+            lastTurn !== undefined &&
+            lastTurn > stored.lastTurn;
+          if (!nativeContinuation) recovery = await restore();
+        }
       }
       const gatewayEndpoint = { url: grant.url, token: grant.token };
       const contextSeed = () => holder.live?.seed;
@@ -866,10 +965,11 @@ export class EngineHost {
       } catch (error) {
         if (!(error instanceof EngineRefusal && error.code === 'engine-thread-gone')) throw error;
         resume = undefined;
+        recovery = await restore();
         nativeId = await opened.start();
       }
       this.#rememberModel(botSlug, opened.engine, opened.model);
-      dsh ??= await openEngineDshSession(sessions, persistence, sessionId, cwd);
+      dsh ??= await openEngineDshSession(sessions, persistence, sessionId, sessionCwd);
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
       const live: LiveEngineSession = {
         botSlug,
@@ -881,7 +981,11 @@ export class EngineHost {
         grant,
         dsh,
         nativeId,
-        seed: resume === undefined ? buildEngineContextSeed(dsh.session) : undefined,
+        seed:
+          resume === undefined
+            ? buildEngineContextSeed(dsh.session, undefined, recovery)
+            : undefined,
+        rebuilt: recovery !== undefined,
         turn: undefined,
         stop: undefined,
         closing: false,

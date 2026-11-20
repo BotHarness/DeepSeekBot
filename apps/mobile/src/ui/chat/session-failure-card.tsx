@@ -125,6 +125,7 @@ export function SessionFailureCard({
             symbol="refresh"
             tone="primary"
             busy={continued.pending === 'continue'}
+            variant="card-solid"
             testID="session-continue"
             disabled={busy}
             onPress={() => void continuation.continueTurn()}
@@ -135,6 +136,7 @@ export function SessionFailureCard({
             label={t.sessionRecovery.autoContinueCancel}
             symbol="x"
             busy={continued.pending === 'cancel'}
+            variant="card-solid"
             testID="session-auto-continue-cancel"
             disabled={busy}
             onPress={() => void continuation.cancelAuto()}
@@ -146,6 +148,7 @@ export function SessionFailureCard({
               label={t.sessionRecovery.compact}
               symbol="archive"
               busy={state.pending === 'compact'}
+              variant="card-solid"
               testID="session-compact"
               disabled={busy}
               onPress={() => void maintenance.run('compact')}
@@ -154,6 +157,7 @@ export function SessionFailureCard({
               label={t.sessionRecovery.newSession}
               symbol="plus"
               busy={state.pending === 'new-session'}
+              variant="card-solid"
               testID="session-new"
               disabled={busy}
               onPress={() => void maintenance.run('new-session')}

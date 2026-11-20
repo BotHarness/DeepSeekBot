@@ -128,6 +128,7 @@ export const bridgeMethodInventory = [
   'modelPresets',
   'modelPresetCreate',
   'modelPresetUpdate',
+  'modelPresetDelete',
   'modelPresetApply',
   'modelGroups',
   'modelGroup',

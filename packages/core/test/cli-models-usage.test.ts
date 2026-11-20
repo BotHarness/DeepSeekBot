@@ -56,7 +56,17 @@ async function host(
           rpcId: body.rpcId,
           result:
             method === 'channelDm'
-              ? { ok: true, value: { channel: { id: 'dm-' + String(body.payload.args.slug) } } }
+              ? {
+                  ok: true,
+                  value: {
+                    channel: {
+                      id: 'dm-' + String(body.payload.args.slug),
+                      type: 'dm',
+                      name: String(body.payload.args.slug),
+                      members: [String(body.payload.args.slug)],
+                    },
+                  },
+                }
               : handler(method, body.payload.args),
         }),
       );
@@ -103,6 +113,38 @@ const noGroups = {
 };
 
 describe('Model commands', () => {
+  it('lists preset usage and requires a confirmed revision for deletion', async () => {
+    const live = await host((method) => ({
+      ok: true,
+      value: method === 'modelPresets' ? { presets: [], usage: [] } : { id: 'preset-1' },
+    }));
+    expect((await invoke(['model-presets', '--include-usage'], live.url)).json).toMatchObject({
+      usage: [],
+    });
+    expect(
+      (await invoke(['model-preset-delete', 'preset-1', '--expected-revision', '2'], live.url))
+        .json,
+    ).toMatchObject({ error: { code: 'usage' } });
+    expect(
+      (await invoke(['model-preset-delete', 'preset-1', '--confirm'], live.url)).json,
+    ).toMatchObject({ error: { code: 'usage' } });
+    expect(
+      (
+        await invoke(
+          ['model-preset-delete', 'preset-1', '--confirm', '--expected-revision', '2'],
+          live.url,
+        )
+      ).json,
+    ).toMatchObject({ id: 'preset-1' });
+    expect(live.calls).toEqual([
+      { method: 'modelPresets', args: { includeUsage: true } },
+      {
+        method: 'modelPresetDelete',
+        args: { id: 'preset-1', expectedRevision: 2, confirmed: true },
+      },
+    ]);
+  });
+
   it('reads the model catalog from the live Host', async () => {
     const live = await host(() => ({
       ok: true,
@@ -513,7 +555,7 @@ describe('Model commands', () => {
 describe('Routing Group commands', () => {
   const go = { kind: 'model', provider: 'opencode-go', model: 'flash' };
   const deepseek = { kind: 'model', provider: 'deepseek', model: 'flash' };
-  const codex = { kind: 'engine', engine: 'codex', model: 'gpt-5.4' };
+  const codex = { kind: 'engine', engine: 'codex', model: 'gpt-5.4', reasoningEffort: 'high' };
   const claude = { kind: 'engine', engine: 'claude' };
   const group = { id: 'g1', name: 'Flash', revision: 2, mode: 'order', members: [codex, go] };
 

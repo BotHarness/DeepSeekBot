@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { parseRoleModels, updateRole } from '../src/client/team-roles-bridge.js';
-import { loadMemberUsage, modelChoices } from '../src/client/team-usage.js';
+import {
+  parseRole,
+  parseRoleModels,
+  roleAllowsProvider,
+  updateRole,
+} from '../src/client/team-roles-bridge.js';
+import { loadMemberUsage } from '../src/client/team-usage.js';
 
 describe('Team usage and model allowlists client', () => {
   it('reads per-member usage sorted by total, dropping malformed rows', async () => {
@@ -37,30 +42,40 @@ describe('Team usage and model allowlists client', () => {
     expect(parseRoleModels(undefined)).toEqual({ kind: 'all' });
     expect(parseRoleModels({ kind: 'only', routes: ['p/m', 3] })).toEqual({
       kind: 'only',
+      providers: [],
       routes: ['p/m'],
     });
     const call = vi.fn(async () => ({
       ok: true as const,
-      value: { role: { roleId: 'r1', name: 'Design', models: { kind: 'only', routes: ['p/m'] } } },
+      value: {
+        role: {
+          roleId: 'r1',
+          name: 'Design',
+          models: { kind: 'only', providers: ['q'], routes: ['p/m'] },
+        },
+      },
     }));
     const role = await updateRole(call, {
       roleId: 'r1',
-      models: { kind: 'only', routes: ['p/m'] },
+      models: { kind: 'only', providers: ['q'], routes: ['p/m'] },
     });
     expect(call).toHaveBeenCalledWith(
       'roleUpdate',
-      { roleId: 'r1', models: { kind: 'only', routes: ['p/m'] } },
+      { roleId: 'r1', models: { kind: 'only', providers: ['q'], routes: ['p/m'] } },
       undefined,
     );
-    expect(role.models).toEqual({ kind: 'only', routes: ['p/m'] });
+    expect(role.models).toEqual({ kind: 'only', providers: ['q'], routes: ['p/m'] });
   });
 
-  it('lists each provider/model route once', () => {
-    expect(
-      modelChoices([
-        { provider: 'p', providerName: 'P', model: 'm', modelName: 'M', efforts: [] },
-        { provider: 'p', providerName: 'P', model: 'm', modelName: 'M', efforts: [] },
-      ]),
-    ).toEqual([{ route: 'p/m', label: 'P · M' }]);
+  it('shows provider access for exact grants, whole providers and all models', () => {
+    const mixed = parseRole({
+      roleId: 'r1',
+      name: 'Design',
+      models: { kind: 'only', routes: ['p/m'], providers: ['q'] },
+    })!;
+    expect(roleAllowsProvider(mixed, 'p')).toBe(true);
+    expect(roleAllowsProvider(mixed, 'q')).toBe(true);
+    expect(roleAllowsProvider(mixed, 'p-2')).toBe(false);
+    expect(roleAllowsProvider({ ...mixed, models: { kind: 'all' } }, 'r')).toBe(true);
   });
 });

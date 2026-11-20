@@ -133,6 +133,10 @@ export const RULES = [
     'Core source; the docs site also reads it for reference pages',
     true,
   ),
+  related(
+    'packages/client/src/client/ds/{README.md,catalogue.json}',
+    'Desktop design-system component catalogue',
+  ),
   related('packages/*/src/**', 'Package source'),
   full(
     'packages/core/test/fixtures/profile-backup/**',
@@ -212,6 +216,9 @@ export const RULES = [
   related('.github/workflows/readme-status.yml', 'README status collection and publication'),
   related('docs/assets/readme/pixel/source/**', 'README renderer source geometry and licenses'),
   related('scripts/fixtures/**', 'Script test fixtures'),
+  related('scripts/ui-rule-composition.mjs', 'Desktop UI component and settings composition lint'),
+  related('scripts/ui-rule-controls.mjs', 'Desktop UI icon and accessibility lint'),
+  related('scripts/ui-rule-styles.mjs', 'Desktop UI lint and autofix'),
   related('scripts/lint-rules/**', 'Repository oxlint rules'),
   related('scripts/product-provider/**', 'Product provider scripts'),
   related('scripts/perf-budgets/**', 'Performance budgets, checked by the timeline budget job'),
@@ -259,10 +266,8 @@ export const RULES = [
     RELEASE,
   ),
   none('.github/workflows/*.yml', 'Other repository workflows'),
-  related(
-    'design/tokens/**',
-    'Tobs design token source, generated into the client and checked by lint',
-  ),
+  related('design/tokens/**', 'Tobs design tokens used by the client, mobile and docs site', true),
+  none('design/tokens.css', 'Shared colour aliases bundled by the docs site', true),
   none('{prototype,dsh_research,design}/**', 'Prototypes and research notes'),
   none('*.md', 'Root prose'),
   none(
@@ -314,6 +319,8 @@ export function trackedFiles(root = ROOT) {
     cwd: root,
     encoding: 'utf8',
     maxBuffer: 1 << 26,
+    shell: false,
+    windowsHide: true,
   })
     .split('\0')
     .filter(Boolean);
@@ -519,7 +526,8 @@ export function parseGitChanges(text) {
 }
 
 export function gitChanges(base, root = ROOT) {
-  const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
+  const git = (...args) =>
+    execFileSync('git', args, { cwd: root, encoding: 'utf8', shell: false, windowsHide: true });
   const mergeBase = git('merge-base', base, 'HEAD').trim();
   const changes = parseGitChanges(git('diff', '--name-status', '-M', mergeBase));
   for (const path of git('ls-files', '--others', '--exclude-standard').split('\n').filter(Boolean))

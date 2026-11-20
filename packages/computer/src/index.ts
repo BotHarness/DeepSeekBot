@@ -239,8 +239,9 @@ export function createProcessRunner(): ComputerRuntimeRunner {
       }
       const child = spawn(argv[0] ?? '', argv.slice(1), {
         stdio: ['ignore', 'pipe', 'pipe'],
-        windowsHide: true,
         ...(options?.env === undefined ? {} : { env: { ...process.env, ...options.env } }),
+        shell: false,
+        windowsHide: true,
       });
       let stdout = '';
       let stderr = '';
@@ -1147,6 +1148,7 @@ export function apply(ctx: Context, config: ComputerRuntimeConfig): void {
             windowsHide: false,
             detached: true,
             stdio: 'ignore',
+            shell: false,
           });
           await new Promise<void>((resolve, reject) => {
             child.once('spawn', () => {

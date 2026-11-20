@@ -29,7 +29,7 @@
 | Global panel materials | no | `scripts/e2e-global-materials.mjs` | [global-materials.md](global-materials.md) |
 | Protected Tob DM and mobile pull-to-Tob (management, models, runtime, privacy and updates), plus typed CLI admission | yes for model reply; no for typed CLI approval | `scripts/e2e-tob-home.mjs`, `scripts/e2e-tob-model-runtime.mjs`, `scripts/e2e-tob-bot-management.mjs`, `scripts/e2e-tob-channel-management.mjs`, `scripts/e2e-tob-group-settings.mjs`, `scripts/e2e-tob-group-decisions.mjs`, `scripts/e2e-tob-delegation.mjs` | [tob-home.md](tob-home.md) |
 | DSH Session list Bot folders | for fresh execution | `scripts/e2e-bot-session-folders.mjs` | [bot-session-folders.md](bot-session-folders.md) |
-| Session context across a Subscription Engine switch | yes | `verify-app` isolated Host and `deepseekbot engine use` | [engine-session-context.md](engine-session-context.md) |
+| Subscription Engine Session context, idle resume and lost-session recovery | yes | `verify-app` isolated Host and `deepseekbot engine use` | [engine-session-context.md](engine-session-context.md) |
 
 One file per user-facing feature. Each file has four sections: `Sub-features`, `How to get to it (user POV)`, `Driving it with verify-app`, and `Gotchas`.
 
@@ -38,7 +38,8 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Bot mode entry and the default DeepSeek Bot                                                        | no                         | `scripts/e2e-bot-mode-sidebar.mjs`, `scripts/e2e-panel-workspace.mjs`, `scripts/e2e-bot-mode-exit.mjs`                                                                   | [bot-mode.md](bot-mode.md)                           |
 | Bot mode dock (desktop layout, unified Sessions, Channel header, Profile, settings, files and Inbox) | no | `scripts/e2e-panel-workspace.mjs`, `scripts/e2e-channel-sessions.mjs`, `scripts/e2e-bot-subpanels.mjs`, `scripts/e2e-browser-computer-subpanels.mjs`, `scripts/e2e-panel-size-persistence.mjs`, `scripts/e2e-panel-resize-stability.mjs`, `scripts/e2e-nested-channel-panels.mjs`, `scripts/e2e-channel-sessions-desktop.mjs`, `scripts/e2e-bot-mode-sidebar.mjs`, `scripts/e2e-subpanel-drag.mjs`, `scripts/e2e-avatar-scroll.mjs` | [bot-mode-dock.md](bot-mode-dock.md) |
 | Composer main/task model settings, presets and Orchestrator shortcuts | yes, for reply evidence | none | [orchestrator-model-switch.md](orchestrator-model-switch.md) |
-| Model providers and permission | yes, for reply evidence | `scripts/e2e-team-security.mjs` (C3) | [model-providers.md](model-providers.md) |
+| Model Presets and shared configuration | no | `scripts/e2e-team-security.mjs` (C4) | [model-presets.md](model-presets.md) |
+| Model providers and permission | yes, for reply evidence | `scripts/e2e-team-security.mjs` (C2 and C3) | [model-providers.md](model-providers.md) |
 | Subscription Engines in Routing Groups | no | `verify-app` model settings and `deepseekbot model-group-create` / `model-group-update` | [routing-group-engine-members.md](routing-group-engine-members.md) |
 | Native model settings handoff | no | `verify-app` settings path | [native-settings-handoff.md](native-settings-handoff.md) |
 | Live IM Bot pickers | no | `verify-app` settings path | [im-bot-pickers.md](im-bot-pickers.md) |

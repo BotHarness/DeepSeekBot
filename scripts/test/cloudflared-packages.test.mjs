@@ -46,7 +46,10 @@ function fixtureEntries(root) {
   const source = join(root, 'source');
   mkdirSync(source);
   writeFileSync(join(source, 'cloudflared'), binary);
-  execFileSync('tar', ['-czf', join(source, 'mac.tgz'), '-C', source, 'cloudflared']);
+  execFileSync('tar', ['-czf', join(source, 'mac.tgz'), '-C', source, 'cloudflared'], {
+    shell: false,
+    windowsHide: true,
+  });
   const archive = readFileSync(join(source, 'mac.tgz'));
   const entries = cloudflaredPackages
     .filter((entry) => ['darwin-arm64', 'linux-x64'].includes(entry.platform))

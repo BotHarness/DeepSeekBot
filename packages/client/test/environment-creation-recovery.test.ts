@@ -9,7 +9,13 @@ import {
 
 describe('creation outcome recovery', () => {
   it('replays a lost Channel response with the same operation key and original input', async () => {
-    const records = new Map<string, { channel: { id: string; type: string; name: string } }>();
+    const records = new Map<
+      string,
+      {
+        channel: { id: string; type: string; name: string; members: string[] };
+        receipt: { operationKey: string; channelId: string; status: string };
+      }
+    >();
     let creations = 0;
     let loseReply = true;
     const call = vi.fn(async (method: string, args?: Record<string, unknown>) => {
@@ -22,7 +28,14 @@ describe('creation outcome recovery', () => {
       let receipt = records.get(args.operationKey);
       if (!receipt) {
         creations += 1;
-        receipt = { channel: { id: 'created-once', type: 'group', name: args.name } };
+        receipt = {
+          channel: { id: 'created-once', type: 'group', name: args.name, members: [] },
+          receipt: {
+            operationKey: args.operationKey,
+            channelId: 'created-once',
+            status: 'completed',
+          },
+        };
         records.set(args.operationKey, receipt);
       }
       if (loseReply) {
@@ -73,7 +86,7 @@ describe('creation outcome recovery', () => {
     const records = new Map<string, { bot: { slug: string; displayName: string } }>();
     const call = vi.fn(async (method: string, args?: Record<string, unknown>) => {
       if (method === 'channelDm')
-        return { channel: { id: 'dm-only', type: 'dm', name: 'Original' } };
+        return { channel: { id: 'dm-only', type: 'dm', name: 'Original', members: ['only-bot'] } };
       if (
         method !== 'create' ||
         typeof args?.operationKey !== 'string' ||

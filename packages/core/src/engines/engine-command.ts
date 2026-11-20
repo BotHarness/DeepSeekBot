@@ -29,8 +29,9 @@ export function runEngineCommand(
       {
         env: spec.env,
         timeout: 15_000,
-        windowsHide: true,
         ...(spec.windowsVerbatimArguments === true ? { windowsVerbatimArguments: true } : {}),
+        shell: false,
+        windowsHide: true,
       },
       (error, stdout, stderr) => {
         const code = error !== null && 'code' in error ? error.code : undefined;
@@ -67,8 +68,9 @@ export function startEngineLogin(
       env: spec.env,
       stdio: ['ignore', 'pipe', 'pipe'],
       ...(target.signal === undefined ? {} : { signal: target.signal }),
-      windowsHide: true,
       ...(spec.windowsVerbatimArguments === true ? { windowsVerbatimArguments: true } : {}),
+      shell: false,
+      windowsHide: true,
     });
     let tail = '';
     let settled = false;

@@ -253,6 +253,7 @@ export function FilterPicker({
   value,
   onSelect,
   closeOnSelect,
+  onBrowse,
   filters,
   filtersLabel,
   allFilter,
@@ -272,6 +273,7 @@ export function FilterPicker({
   value: string;
   onSelect(value: string): void;
   closeOnSelect: boolean;
+  onBrowse?: (() => void) | undefined;
   filters: readonly FilterPickerFilter[];
   filtersLabel: string;
   allFilter: FilterPickerFilter;
@@ -446,7 +448,10 @@ export function FilterPicker({
                 aria-label={entry.label}
                 title={entry.label}
                 onClick={() => {
-                  if (filter !== entry.key) entry.onActivate?.();
+                  if (filter !== entry.key) {
+                    entry.onActivate?.();
+                    onBrowse?.();
+                  }
                   setFilter(entry.key);
                   setActive(undefined);
                   setHeld(undefined);
@@ -477,6 +482,7 @@ export function FilterPicker({
               autoComplete="off"
               onChange={(event) => {
                 setQuery(event.target.value);
+                onBrowse?.();
                 setActive(undefined);
               }}
               onKeyDown={onKeyDown}

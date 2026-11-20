@@ -9,9 +9,21 @@ import type { SettingsRowProps } from '../src/ui/primitives/settings-row-model';
 import { t } from '../src/ui/strings';
 import { ModelGroupPickerRow } from '../src/ui/chat/model-picker-row';
 import { RoutingGroupEditorRoute } from '../src/ui/chat/routing-group-editor';
+import { RoutingGroupMemberRow } from '../src/ui/chat/routing-group-member-row';
 
-const { back } = vi.hoisted(() => ({ back: vi.fn() }));
-vi.mock('react-native', () => import('./react-native-shim'));
+const { back, device } = vi.hoisted(() => ({ back: vi.fn(), device: { fontScale: 1 } }));
+vi.mock('react-native', async () => {
+  const shim = await import('./react-native-shim');
+  return {
+    ...shim,
+    Dimensions: {
+      ...shim.Dimensions,
+      get: () => ({ ...shim.useWindowDimensions(), fontScale: device.fontScale }),
+    },
+  };
+});
+vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('expo-router', async () => {
   const { useEffect } = await import('react');
   return {
@@ -26,6 +38,7 @@ vi.mock('expo-router', async () => {
 vi.mock('../src/ui/chat/sheet', () => ({
   SHEET_GROUP: 'sheet',
   Sheet: ({ children }: { children: ReactNode }) => <div role="dialog">{children}</div>,
+  SheetActions: ({ children }: { children: ReactNode }) => <div>{children}</div>,
   SheetNote: ({ children }: { children: ReactNode }) => <span>{children}</span>,
   SheetCallout: ({ children }: { children: ReactNode }) => <div role="alert">{children}</div>,
   SheetLoading: () => <span role="status" />,
@@ -61,12 +74,12 @@ vi.mock('../src/ui/primitives/settings-row', () => ({
         data-testid={testID}
         data-tone={tone}
       >
-        {leading}
+        {leading === undefined ? null : <span data-row-slot="leading">{leading}</span>}
         {title}
-        <span>{detail}</span>
-        {trailing}
+        <span data-row-slot="detail">{detail}</span>
+        {trailing === undefined ? null : <span data-row-slot="trailing">{trailing}</span>}
       </button>
-      {accessory}
+      {accessory === undefined ? null : <div data-row-slot="accessory">{accessory}</div>}
     </div>
   ),
 }));
@@ -88,10 +101,12 @@ vi.mock('../src/ui/primitives/sheet-save-button', () => ({
     </button>
   ),
 }));
-vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
+vi.mock('../src/ui/primitives/system-symbol', () => ({
+  SystemSymbol: ({ name }: { name: { ios: string } }) => <span data-symbol={name.ios} />,
+}));
 vi.mock('../src/ui/primitives/row-icon', () => ({ RowIcon: () => null }));
 vi.mock('../src/ui/primitives/swipe-row', () => ({
-  SwipeRow: ({ children }: { children: ReactNode }) => children,
+  SwipeRow: ({ children }: { children: ReactNode }) => <div data-member-row>{children}</div>,
 }));
 vi.mock('../src/ui/primitives/search-field', async () => {
   const { TextInput } = await import('./react-native-shim');
@@ -112,6 +127,17 @@ const model = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
 const entry = { ...model, modelName: 'DeepSeek V4.1 Flash', providerName: 'OpenCode Go' };
 const codex = { kind: 'engine', engine: 'codex', model: 'gpt-5.4' } as const;
 const claude = { kind: 'engine', engine: 'claude' } as const;
+const codexModel = {
+  id: 'gpt-5.4',
+  name: 'GPT-5.4',
+  isDefault: true,
+  defaultEffort: 'medium',
+  efforts: [
+    { id: 'medium', name: 'Medium' },
+    { id: 'high', name: 'High' },
+  ],
+};
+const sonnetModel = { id: 'claude-sonnet-5-5', name: 'Sonnet', isDefault: true, efforts: [] };
 const dsh = { kind: 'model', ...model } as const;
 const group = { id: 'daily', name: 'Daily', revision: 2, members: [dsh, claude], routes: [model] };
 const catalog = { models: [entry], groups: [group] } satisfies ModelCatalogAnswer;
@@ -119,6 +145,7 @@ const catalog = { models: [entry], groups: [group] } satisfies ModelCatalogAnswe
 let view: HTMLDivElement;
 let root: Root;
 beforeEach(() => {
+  device.fontScale = 1;
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   view = document.createElement('div');
   document.body.append(view);
@@ -151,6 +178,98 @@ async function typeInto(testID: string, value: string) {
   });
 }
 
+const engineRow = {
+  name: 'GPT-6.2-Sol',
+  title: 'GPT-6.2-Sol',
+  brand: 'openai',
+  detail: `Codex · ${t.routingGroup.engineRow.subscription('ChatGPT')} · High`,
+  isDefault: true,
+  unavailable: false,
+} as const;
+
+it('gives the editor engine title and details the trailing space at default text size', async () => {
+  await act(async () =>
+    root.render(
+      <RoutingGroupMemberRow
+        index={1}
+        name={engineRow.name}
+        title={engineRow.title}
+        detail={undefined}
+        brand={undefined}
+        engineRow={engineRow}
+        engineReason={undefined}
+        usable
+        moveUp={() => {}}
+        moveDown={undefined}
+        remove={() => {}}
+      />,
+    ),
+  );
+  const row = view.querySelector('[data-member-row]');
+  expect(row?.querySelector('button')?.textContent).toBe(
+    `2. GPT-6.2-Sol${engineRow.detail} · ${t.routingGroup.defaultTag}`,
+  );
+  expect(row?.querySelector('[data-row-slot="detail"]')?.textContent).toBe(
+    `${engineRow.detail} · ${t.routingGroup.defaultTag}`,
+  );
+  expect(
+    row
+      ?.querySelector('[data-row-slot="leading"] [data-model-brand="openai"]')
+      ?.parentElement?.querySelector('[data-testid="external-engine-badge"]')
+      ?.getAttribute('aria-label'),
+  ).toBe(t.routingGroup.externalEngine);
+  expect(row?.querySelector('[data-row-slot="trailing"]')).toBeNull();
+  expect(
+    button('routing-group-member-1-remove')
+      .closest('[data-row-slot]')
+      ?.getAttribute('data-row-slot'),
+  ).toBe('accessory');
+});
+
+it.each([1.6, 3.12])('puts all member controls below the text at scale %s', async (fontScale) => {
+  device.fontScale = fontScale;
+  const up = vi.fn();
+  const down = vi.fn();
+  const remove = vi.fn();
+  await act(async () =>
+    root.render(
+      <>
+        {['V4.1 Flash', 'Daily', engineRow.name].map((name, index) => (
+          <RoutingGroupMemberRow
+            key={name}
+            index={index}
+            name={name}
+            title={name}
+            detail={index === 0 ? entry.providerName : t.routingGroup.group}
+            brand={index === 0 ? 'deepseek' : undefined}
+            engineRow={index === 2 ? engineRow : undefined}
+            engineReason={undefined}
+            usable
+            moveUp={up}
+            moveDown={down}
+            remove={remove}
+          />
+        ))}
+      </>,
+    ),
+  );
+  const rows = [...view.querySelectorAll('[data-member-row]')];
+  expect(rows).toHaveLength(3);
+  for (const [index, row] of rows.entries()) {
+    const [label, controls] = row.children;
+    expect(label?.textContent).toMatch(new RegExp(`^${index + 1}\\. `, 'u'));
+    expect(label?.querySelector('[data-row-slot="accessory"]')).toBeNull();
+    for (const action of ['up', 'down', 'remove']) {
+      const testID = `routing-group-member-${index}-${action}`;
+      expect(controls?.contains(button(testID))).toBe(true);
+      await click(testID);
+    }
+  }
+  expect(up).toHaveBeenCalledTimes(3);
+  expect(down).toHaveBeenCalledTimes(3);
+  expect(remove).toHaveBeenCalledTimes(3);
+});
+
 it('shows the current model on the phone group row and announces all full member names', async () => {
   const mixed = { ...group, members: [dsh, codex, claude] };
   await act(async () =>
@@ -181,38 +300,63 @@ it('shows the current model on the phone group row and announces all full member
   expect(row.querySelector('[data-model-brand="deepseek"]')).not.toBeNull();
 });
 
-it('adds a ready engine model, moves it, removes the default engine and saves the ordered members', async () => {
+it('uses separate source chips, searches both engines and saves a model with effort', async () => {
+  const editable = { ...group, members: [dsh, claude] };
   const call = vi.fn(async (method: string, args?: Record<string, unknown>) => {
     if (method === 'modelCatalog')
       return args?.['includeRoutingGroupEngines'] === true
         ? {
             ...catalog,
             routingGroupEngines: [
-              { engine: 'codex', available: true, models: [{ id: 'gpt-5.4', name: 'GPT-5.4' }] },
-              { engine: 'claude', available: false, reason: 'signed-out' },
+              { engine: 'codex', available: true, models: [codexModel] },
+              { engine: 'claude', available: true, models: [sonnetModel] },
             ],
           }
         : catalog;
-    if (method === 'modelGroup' || method === 'modelGroupUpdate') return { group };
+    if (method === 'modelGroup' || method === 'modelGroupUpdate') return { group: editable };
     throw new Error(`Unexpected Host call ${method}`);
   });
-  const editable = { ...group, members: [dsh] };
-  const editorCall = vi.fn((method: string, args?: Record<string, unknown>) =>
-    method === 'modelGroup' ? Promise.resolve({ group: editable }) : call(method, args),
-  );
-  await act(async () =>
-    root.render(<RoutingGroupEditorRoute client={{ call: editorCall }} id={group.id} />),
-  );
+  await act(async () => root.render(<RoutingGroupEditorRoute client={{ call }} id={group.id} />));
+  expect(view.textContent).toMatch(/Sonnet.*Default/u);
+  expect(
+    view.querySelector(
+      '[data-member-row] [data-row-slot="leading"] [data-model-brand="claude"] + [data-testid="external-engine-badge"]',
+    ),
+  ).not.toBeNull();
   await click('routing-group-add-member');
-  await click('routing-member-filter-engines');
-  expect(button('routing-member-engine-claude-default').disabled).toBe(true);
-  expect(button('routing-member-engine-claude-default').textContent).toContain(
-    t.routingGroup.engineUnavailable['signed-out'],
-  );
-  await click('routing-member-engine-codex-default');
-  await click('routing-group-add-member');
-  await click('routing-member-filter-engines');
+  await click('routing-member-filter-claude');
+  const claudeOption = button('routing-member-engine-claude-claude-sonnet-5-5');
+  expect(claudeOption.textContent).toContain(t.routingGroup.defaultTag);
+  expect(claudeOption.getAttribute('aria-label')).toContain(t.routingGroup.externalEngine);
+  expect(
+    claudeOption.querySelector(
+      '[data-row-slot="leading"] [data-model-brand="claude"] + [data-testid="external-engine-badge"]',
+    ),
+  ).not.toBeNull();
+  expect(view.querySelector('[data-testid="routing-member-engine-codex-gpt-5.4"]')).toBeNull();
+  await click('routing-member-filter-codex');
+  const codexOption = button('routing-member-engine-codex-gpt-5.4');
+  expect(codexOption.textContent).toContain(t.routingGroup.defaultTag);
+  expect(codexOption.getAttribute('aria-label')).toContain(t.routingGroup.externalEngine);
+  expect(
+    codexOption.querySelector(
+      '[data-row-slot="leading"] [data-model-brand="openai"] + [data-testid="external-engine-badge"]',
+    ),
+  ).not.toBeNull();
+  expect(codexOption.querySelector('[data-row-slot="trailing"] [data-symbol]')).toBeNull();
+  expect(
+    view.querySelector('[data-testid="routing-member-engine-claude-claude-sonnet-5-5"]'),
+  ).toBeNull();
+  await click('routing-member-filter-all');
+  await typeInto('routing-group-member-search', 'Codex GPT-5.4');
+  expect(
+    view.querySelector('[data-testid="routing-member-engine-claude-claude-sonnet-5-5"]'),
+  ).toBeNull();
   await click('routing-member-engine-codex-gpt-5.4');
+  expect(view.querySelector('[aria-label="Medium"]')?.getAttribute('aria-selected')).toBe('true');
+  await act(async () => view.querySelector<HTMLButtonElement>('[aria-label="High"]')?.click());
+  await click('routing-member-confirm');
+  expect(view.textContent).toMatch(/GPT-5.4.*High/u);
   await click('routing-group-member-2-up');
   await click('routing-group-member-2-remove');
   await click('routing-group-save');
@@ -220,7 +364,7 @@ it('adds a ready engine model, moves it, removes the default engine and saves th
     id: 'daily',
     expectedRevision: 2,
     name: 'Daily',
-    members: [dsh, codex],
+    members: [dsh, { ...codex, reasoningEffort: 'high' }],
   });
   expect(back).toHaveBeenCalledOnce();
 });
@@ -244,7 +388,7 @@ it.each(['signed-out', 'not-installed'] as const)(
       '1. V4.1 FlashOpenCode Go',
       `2. Nested${t.routingGroup.group}`,
       `3. GPT-5.4Codex · ${t.routingGroup.engineRow.subscription('ChatGPT')}`,
-      `4. ${t.routingGroup.engineRow.defaultModel('Claude Code')}Claude Code · ${t.routingGroup.engineRow.subscription('Claude')} · ${t.routingGroup.engineUnavailable[reason]}`,
+      `4. ${t.routingGroup.engineRow.defaultModel('Claude Code')}Claude Code · ${t.routingGroup.engineRow.subscription('Claude')} · ${t.routingGroup.unavailable} · ${t.routingGroup.engineUnavailable[reason]}`,
     ]);
     expect(rows[3]?.getAttribute('data-tone')).toBe('muted');
     expect(button('routing-group-member-3-remove').disabled).toBe(false);
@@ -268,7 +412,7 @@ it('retries the engine catalog in place, searches across fields and keeps the dr
   await act(async () => root.render(<RoutingGroupEditorRoute client={{ call }} id={group.id} />));
   await typeInto('routing-group-name', 'Renamed draft');
   await click('routing-group-add-member');
-  await click('routing-member-filter-engines');
+  await click('routing-member-filter-codex');
   await typeInto('routing-group-member-search', 'Codex GPT-5.4');
   expect(view.querySelector('[role="alert"]')?.textContent).toBe(t.routingGroup.enginesUnavailable);
   const retry = [...view.querySelectorAll('button')].find(
@@ -298,7 +442,7 @@ it('shows a successful empty catalog without a retry action', async () => {
   );
   await act(async () => root.render(<RoutingGroupEditorRoute client={{ call }} id={group.id} />));
   await click('routing-group-add-member');
-  await click('routing-member-filter-engines');
+  await click('routing-member-filter-codex');
   expect(view.querySelector('[role="dialog"]')?.textContent).toContain(t.routingGroup.noEngines);
   expect(view.querySelector('[role="alert"]')).toBeNull();
   expect(view.querySelector('[role="dialog"]')?.textContent).not.toContain(t.tryAgain);
@@ -319,16 +463,23 @@ it('refreshes availability when the engine filter reopens and keeps the last cho
   await act(async () => root.render(<RoutingGroupEditorRoute client={{ call }} id={group.id} />));
   await typeInto('routing-group-name', 'Renamed draft');
   await click('routing-group-add-member');
-  await click('routing-member-filter-engines');
-  const engine = 'routing-member-engine-claude-default';
-  expect(button(engine).disabled).toBe(true);
-  await click('routing-member-filter-models');
-  await click('routing-member-filter-engines');
+  await click('routing-member-filter-claude');
+  expect(view.querySelector('[role="dialog"]')?.textContent).toContain(
+    t.routingGroup.engineUnavailable['signed-out'],
+  );
+  await click('routing-member-filter-all');
+  await click('routing-member-filter-claude');
   expect(readEngines).toHaveBeenCalledTimes(2);
-  expect(button(engine).disabled).toBe(true);
-  await act(async () => fresh.resolve([{ engine: 'claude', available: true, models: [] }]));
-  expect(button(engine).disabled).toBe(false);
-  expect(button(engine).textContent).not.toContain(t.routingGroup.engineUnavailable['signed-out']);
+  expect(view.querySelector('[role="dialog"]')?.textContent).toContain(
+    t.routingGroup.engineUnavailable['signed-out'],
+  );
+  await act(async () =>
+    fresh.resolve([{ engine: 'claude', available: true, models: [sonnetModel] }]),
+  );
+  expect(button('routing-member-engine-claude-claude-sonnet-5-5').disabled).toBe(false);
+  expect(view.querySelector('[role="dialog"]')?.textContent).not.toContain(
+    t.routingGroup.engineUnavailable['signed-out'],
+  );
   expect(view.querySelector('[data-testid="routing-group-name"]')).toHaveProperty(
     'value',
     'Renamed draft',

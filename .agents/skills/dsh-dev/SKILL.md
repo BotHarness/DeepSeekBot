@@ -5,6 +5,16 @@ description: Use when developing, running, or debugging BotHarness against a loc
 
 # DSH development & debugging
 
+### Engine-first Session replay after native continuation (#4574)
+
+The DSH 0.2.2-rc.1 Session reader requires a protected `system/message` at the
+first model-visible position when a Session has a native system prompt. An
+engine-first Session could answer through DSH while live and then fail to reopen
+with `system/message requires a protected first surface head`. The engine ledger
+now records an empty system message before the first input. The native Agent can
+replace that head with its rendered prompt. Validate a persisted read after Host
+restart because an in-memory transcript can succeed with the invalid log.
+
 ### File reference cleanup after Agent disposal (#4559)
 
 On DSH `0.2.2-rc.1`, switching an active native Agent to an engine exposed a warning from
@@ -13,6 +23,16 @@ the native `dsh-file-reference-local` Plugin. Its `agent/disposed` listener call
 Fiber teardown. The pinned workspace and managed AX runtime patch that listener to normalize
 the return before handling asynchronous errors. Verify the disposal edge on a running Host
 using the diagnostic log. A successful engine reply alone does not establish clean disposal.
+
+### Borrowed Agent handoff to a Subscription Engine (#4645)
+
+On DSH `0.2.2-rc.1`, disposing the Agent's scoped Fiber leaves its Agent and
+Session registrations live. A borrowed Agent also lacks the owner's `AgentHandle`.
+The pinned AgentLoop patch exposes `releaseIdleAgent` to run that exact Agent's
+normal teardown. It refuses active or queued work and seals native input while
+the writer closes. The managed AX runtime applies the same patch. A Host without
+the release capability can still switch Agents BotHarness owns through their
+handles. A borrowed Agent on that Host must finish under its native owner.
 
 ### Native Session identity across an isolated CLI and a worktree Plugin (#4144)
 
@@ -145,6 +165,14 @@ For an admitted application-owned request, keep the canonical BotRuntime owner a
 After every isolated launch, Client reload and relevant UI action, read the real browser console and DOM yourself before accepting the result; do not wait for Human-copied errors. Read [the Client diagnostic loop](../../../docs/dev/guides/client-startup-diagnostics.md) for the agent-runnable reader, bounded attempt history, background-tab/freshness limits and native RC1 reproductions. Treat API health, Client shell evidence and browser-control failures as separate signals. Preserve first failure and each retry; recovery by reload does not establish a fix.
 
 Ordinary localhost pages do not open the application-defined development-refresh SSE. Add `?botharness-dev-reload=1` only while iterating on Client builds, then remove it for first-run or long-request UX verification.
+
+### Native Settings dialog identity (#4703)
+
+During a handoff, the outgoing dialog can still be mounted when the native Settings navigation
+starts. In Chinese, the outgoing Model Choice picker and the native Models section both read `模型`.
+Find the DSH Settings dialog via `data-shortcut-modal="settings"` and look up the section in its
+navigation. In a Web check, require the native Models heading and Add model provider action,
+then close the dialog and confirm the Bot view returns.
 
 ## Prime directive: `/api` belongs to the API gateway
 

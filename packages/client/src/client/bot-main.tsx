@@ -38,6 +38,7 @@ import { OnboardingMemoryNavigation } from './onboarding-memory.js';
 import { useTimelineSlots, useTimelineWindow, type TimelineWindow } from './timeline-window.js';
 import { OnboardingOverlay } from './onboarding-view.js';
 import { BotIntro } from './bot-intro.js';
+import type { BotSettings } from './bot-settings.js';
 import type { Wallpaper } from './wallpaper.js';
 import type { VoiceDictationPort } from './composer-dictation.js';
 import {
@@ -52,7 +53,9 @@ import { useDmComposerContext } from './dm-composer-context.js';
 import { useGroupComposerContext } from './group-composer-context.js';
 import type { WindowCompanions } from './window-companions.js';
 import { COMPANION_READ_INSET } from './companion-surface.js';
-import { BridgeCallError, parseAllBotPreview } from './bridge.js';
+import { parseAllBotPreview } from '@botharness/host-client/channel-management';
+import { BridgeCallError } from './bridge.js';
+import type { BridgeCall } from './bridge.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
 import { ComposerSendKeyContext } from './composer-send-key.js';
 import { ConversationFileDropOverlay, useConversationFileDrop } from './conversation-file-drop.js';
@@ -4795,6 +4798,8 @@ export function BotMain({
 
 export function BotPanel({
   appearance,
+  call,
+  botSettings,
   wallpaper,
   openCompactSidebar,
   workspace,
@@ -4811,6 +4816,8 @@ export function BotPanel({
   t,
 }: {
   openCompactSidebar?: Parameters<typeof CompactNavigationHeader>[0]['openSidebar'] | undefined;
+  call?: BridgeCall | undefined;
+  botSettings?: Pick<BotSettings, 'open' | 'subscribe' | 'getSnapshot'> | undefined;
   prefs?: Pick<BotModePrefs, 'source'> | undefined;
   actions: BridgeActions;
   companion?: WindowCompanions | undefined;
@@ -4840,7 +4847,14 @@ export function BotPanel({
     <>
       <span ref={modeMount} hidden aria-hidden="true" />
       <OnboardingOverlay actions={actions} companion={companion} t={t} />
-      <BotIntro actions={actions} appearance={appearance} wallpaper={wallpaper} t={t} />
+      <BotIntro
+        actions={actions}
+        call={call}
+        botSettings={botSettings}
+        appearance={appearance}
+        wallpaper={wallpaper}
+        t={t}
+      />
       {releaseNotes === undefined ? null : (
         <ReleaseNotesAnnouncement controller={releaseNotes} t={t} deferred={deferRelease} />
       )}

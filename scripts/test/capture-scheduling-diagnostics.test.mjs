@@ -28,6 +28,8 @@ it('preloads into a separate Node process and writes a readable PID-scoped bound
           BOTHARNESS_SCHEDULING_DIAGNOSTICS: '1',
           BOTHARNESS_SCHEDULING_REPORT: prefix,
         },
+        shell: false,
+        windowsHide: true,
       },
     );
     const text = await readFile(`${prefix}.${result.stdout}.json`, 'utf8');

@@ -138,7 +138,7 @@ describe('confinement probe', () => {
           return spawnSync(
             '/bin/sh',
             ['-c', script.replace(/command -v \w+$/u, 'command -v addgroup')],
-            { encoding: 'utf8', env: { PATH: '/usr/bin:/bin' } },
+            { encoding: 'utf8', env: { PATH: '/usr/bin:/bin' }, shell: false, windowsHide: true },
           );
         return { status: 0, stdout: 'routed', error: undefined };
       }) as unknown as typeof spawnSync;
@@ -307,6 +307,8 @@ describe.skipIf(!status.filesystem)('member Bot Shell under bwrap', () => {
       encoding: 'utf8',
       timeout: 30_000,
       env: { ...process.env, OPENCODE_GO_API_KEY: 'sk-test', DSH_HOME: f.dsh },
+      shell: false,
+      windowsHide: true,
     });
     return { ...result, f, enforcement: confined.enforcement };
   };

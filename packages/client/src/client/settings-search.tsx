@@ -72,6 +72,12 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'modelProviders.subscriptions',
     'modelProviders.accountEngine',
   ],
+  'model-presets': [
+    'modelPreset.name',
+    'modelPreset.orchestrator',
+    'modelPreset.assignment',
+    'routingGroups.title',
+  ],
   models: [
     'models.section.default',
     'models.section.context',
@@ -335,6 +341,7 @@ const SECTION_LABELS: Readonly<Record<string, BotHarnessKey>> = {
   shortcuts: 'shortcuts.title',
   'model-providers': 'botSettings.section.modelProviders',
   models: 'botSettings.section.models',
+  'model-presets': 'botSettings.section.modelPresets',
   messaging: 'botSettings.section.messaging',
   prompts: 'botSettings.section.prompts',
   voice: 'botSettings.section.voice',
@@ -355,6 +362,8 @@ const SECTION_ALIASES: Readonly<Record<string, string>> = {
   appearance: '外观 皮肤 主题 theme skin look',
   shortcuts: '快捷键 键位 热键 hotkey keybinding',
   models: '模型 model',
+  'model-presets':
+    '模型预设 主模型 副模型 编排 任务 model preset model choice orchestrator assignment routing group',
   prompts: '提示词 预设 prompt preset',
   voice: '语音 麦克风 voice microphone speech',
   notifications: '提醒 alert',

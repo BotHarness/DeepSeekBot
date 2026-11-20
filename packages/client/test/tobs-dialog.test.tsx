@@ -13,7 +13,11 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   },
 }));
 
+import { Button } from '../src/client/ds/button.js';
 import { Dialog } from '../src/client/ds/dialog.js';
+import { trackDialogInput } from '../src/client/ds/dialog-input.js';
+import { FormDialog } from '../src/client/ds/form-dialog.js';
+import { PanelDialog } from '../src/client/ds/panel-dialog.js';
 
 let host: HTMLDivElement;
 let root: Root;
@@ -77,4 +81,69 @@ it('renders nothing while closed', () => {
   render(false);
   expect(document.querySelector('[role="dialog"]')).toBeNull();
   expect(layer.calls.every((call) => !call.open)).toBe(true);
+});
+
+it('opens the PanelDialog without the pointer fade after keyboard input', () => {
+  const untrack = trackDialogInput(document);
+  const renderPanel = () => {
+    act(() =>
+      root.render(<PanelDialog title="Channel details" closeLabel="Close" onClose={vi.fn()} />),
+    );
+    return ['[role="dialog"]', '[data-tobs-dialog-scrim]'].map(
+      (selector) => document.querySelector(selector)?.className,
+    );
+  };
+  try {
+    document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    const pointer = renderPanel();
+    act(() => root.render(null));
+
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    const keyboard = renderPanel();
+
+    expect(keyboard.every((classes, index) => classes !== pointer[index])).toBe(true);
+    document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    expect(renderPanel()).toEqual(keyboard);
+  } finally {
+    untrack();
+  }
+});
+
+it('renders exactly one primary action in the standard form dialog', () => {
+  act(() =>
+    root.render(
+      <>
+        <div data-reference-actions>
+          <Button variant="primary">Primary sample</Button>
+          <Button variant="outline">Outline sample</Button>
+        </div>
+        <FormDialog
+          title="Connection"
+          inline
+          labels={{ cancel: 'Cancel', close: 'Close' }}
+          submitLabel="Save"
+          onSubmit={vi.fn()}
+          onCancel={vi.fn()}
+          secondary={<Button variant="outline">Reset</Button>}
+        >
+          <label>
+            Server <input name="server" />
+          </label>
+        </FormDialog>
+      </>,
+    ),
+  );
+  const reference = host.querySelectorAll('[data-reference-actions] button');
+  expect(reference).toHaveLength(2);
+  const primaryOnly = [...reference.item(0).classList].filter(
+    (name) => !reference.item(1).classList.contains(name),
+  );
+  expect(primaryOnly.length).toBeGreaterThan(0);
+  const actions = [...host.querySelectorAll('section[aria-label="Connection"] button')];
+  expect(actions.map((button) => button.textContent)).toEqual(['Reset', 'Cancel', 'Save']);
+  expect(
+    actions
+      .filter((button) => primaryOnly.every((name) => button.classList.contains(name)))
+      .map((button) => button.textContent),
+  ).toEqual(['Save']);
 });

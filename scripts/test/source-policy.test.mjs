@@ -148,6 +148,7 @@ describe('source policy', () => {
         cwd: root,
         encoding: 'utf8',
         windowsHide: true,
+        shell: false,
       });
       expect(result.status).toBe(1);
       expect(result.stderr).toContain(`${relativePath}:2:19 comment`);
@@ -169,6 +170,7 @@ describe('source policy', () => {
           cwd: root,
           encoding: 'utf8',
           windowsHide: true,
+          shell: false,
         });
       expect(run(clean).status).toBe(0);
       const result = run(clean, bad);

@@ -37,19 +37,24 @@ export interface RoutingGroupEngineMember {
   engine: EngineId;
   model?: string;
   accountId?: string;
+  reasoningEffort?: string;
 }
 
 export function isRoutingGroupEngineMember(value: unknown): value is RoutingGroupEngineMember {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const member = value as Record<string, unknown>;
-  const { model, accountId } = member;
+  const { model, accountId, reasoningEffort } = member;
   return (
     member['kind'] === 'engine' &&
     isEngineId(member['engine']) &&
     (model === undefined || (typeof model === 'string' && model.trim().length > 0)) &&
     (accountId === undefined || (typeof accountId === 'string' && accountId.trim().length > 0)) &&
-    Object.keys(member).every(
-      (key) => key === 'kind' || key === 'engine' || key === 'model' || key === 'accountId',
+    (reasoningEffort === undefined ||
+      (typeof model === 'string' &&
+        typeof reasoningEffort === 'string' &&
+        reasoningEffort.trim() !== '')) &&
+    Object.keys(member).every((key) =>
+      ['kind', 'engine', 'model', 'accountId', 'reasoningEffort'].includes(key),
     )
   );
 }
@@ -60,13 +65,26 @@ export const ROUTING_GROUP_ENGINE_UNAVAILABLE_REASONS = [
   'signed-out',
   'not-subscription',
   'login-unknown',
+  'models-unavailable',
 ] as const;
 
 export type RoutingGroupEngineUnavailable =
   (typeof ROUTING_GROUP_ENGINE_UNAVAILABLE_REASONS)[number];
 
+export interface EngineModelView {
+  id: string;
+  name: string;
+  efforts: { id: string; name: string }[];
+  defaultEffort?: string;
+  isDefault?: boolean;
+}
+
+export interface RoutingGroupEngineModel extends EngineModelView {
+  aliases?: string[];
+}
+
 export type RoutingGroupEngineOptions = { engine: EngineId } & EngineAccountIdentity &
   (
-    | { available: true; models: { id: string; name: string }[] }
+    | { available: true; models: RoutingGroupEngineModel[] }
     | { available: false; reason: RoutingGroupEngineUnavailable }
   );

@@ -1,3 +1,5 @@
+import { hooked } from './ds/hooked.js';
+import { profileStyles } from './ds/profile-panel.js';
 import { Icon } from './ds/icon.js';
 import { paintBotName } from './bot-primary-color.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
@@ -128,11 +130,13 @@ export function OverviewUsageView({
   return (
     <section
       ref={mount}
-      className="bh-profile-card bh-overview-usage"
+      {...hooked('bh-profile-card bh-overview-usage', profileStyles.card)}
       aria-label={t('overviewUsage.title')}
     >
-      <header className="bh-profile-card-head">
-        <h3 className="bh-profile-card-label">{t('overviewUsage.title')}</h3>
+      <header {...hooked('bh-profile-card-head', profileStyles.cardHead)}>
+        <h3 {...hooked('bh-profile-card-label', profileStyles.cardLabel)}>
+          {t('overviewUsage.title')}
+        </h3>
         <div className="bh-overview-usage-controls">
           <div className="bh-usage-grouping" role="group" aria-label={t('overviewUsage.range')}>
             {usageOverviewPeriods.map((range) => (

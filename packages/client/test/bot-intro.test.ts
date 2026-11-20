@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { type PropsWithChildren } from 'react';
+import { type MouseEvent, type PropsWithChildren } from 'react';
 import { type Root } from 'react-dom/client';
 import { type OnboardingSnapshot } from '../../core/src/onboarding/types.js';
 import { act, createElement } from 'react';
@@ -23,14 +23,30 @@ vi.mock('../src/client/modal.js', () => ({
 vi.mock('../src/client/model-picker.js', () => ({
   ModelPicker: ({
     title,
+    choice,
     onChange,
-  }: {
-    title: string;
-    onChange(choice: { key: string; effort: string }): void;
-  }) =>
-    createElement('span', {
+    subscription,
+    disabled,
+  }: Parameters<typeof import('../src/client/model-picker.js').ModelPicker>[0]) =>
+    createElement('button', {
+      type: 'button',
+      disabled,
       'data-picker': title,
-      onClick: () => onChange({ key: JSON.stringify(['p', 'task']), effort: '' }),
+      'data-choice': choice.key,
+      'data-effort': choice.effort,
+      'data-subscription-model': subscription?.choice?.model,
+      onClick: (event: MouseEvent<HTMLButtonElement>) => {
+        const model = event.currentTarget.dataset['selectSubscription'];
+        if (model !== undefined) {
+          if (subscription?.models.codex?.some(({ id }) => id === model))
+            subscription.onChange({ engine: 'codex', model });
+          return;
+        }
+        onChange({
+          key: JSON.stringify(['p', 'task']),
+          effort: event.currentTarget.dataset['selectEffort'] ?? '',
+        });
+      },
     }),
 }));
 vi.mock('../src/client/wallpaper-library.js', () => ({
@@ -62,11 +78,14 @@ vi.mock('../src/client/connections-dialog.js', () => ({
 import type { BridgeActions } from '../src/client/actions.js';
 import { Appearance } from '../src/client/appearance.js';
 import { BotIntro } from '../src/client/bot-intro.js';
+import type { BridgeCall, ModelCatalogView } from '../src/client/bridge.js';
 import { cachedGithubStars, fetchGithubStars } from '../src/client/community-links.js';
 import { receiveTobMessages, requestTobMessage } from '../src/client/tob-requests.js';
 import { en, zh, zhTranslate } from '../src/client/locale.js';
 import { ONBOARDING_PERSONAS, PERSONA_TEMPLATES } from '../src/client/onboarding-personas.js';
 import { INTRO_STEPS, OnboardingController, onboardingFor } from '../src/client/onboarding.js';
+import { setTeamModeSnapshot } from '../src/client/team-state.js';
+import { resourceEvents } from './resource-events-fixture.js';
 
 const fresh: OnboardingSnapshot = {
   profileId: 'intro',
@@ -86,6 +105,14 @@ function actionsFor(receipts: OnboardingSnapshot[] = [fresh]) {
     onboardingModel: vi.fn(async () => {}),
     telemetryEvent: vi.fn(),
   };
+}
+
+function deferred<T>() {
+  let resolve: (value: T) => void = () => {};
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
 }
 
 beforeEach(() => {
@@ -184,6 +211,449 @@ describe('intro modal', () => {
   });
   afterEach(() => {
     act(() => root.unmount());
+    vi.unstubAllGlobals();
+  });
+
+  const goModel = {
+    provider: 'opencode-go',
+    providerName: 'OpenCode Go',
+    model: 'deepseek-v4.1-flash',
+    modelName: 'DeepSeek V4.1 Flash',
+    efforts: [],
+  };
+
+  const testModel = (id: string) => ({
+    provider: 'p',
+    providerName: 'P',
+    model: id,
+    modelName: id,
+    efforts: [],
+  });
+  const ownerViewer = { humanId: 'owner', kind: 'owner', owner: true } as const;
+  const step = () => container.querySelector('[data-intro-step]')?.getAttribute('data-intro-step');
+  const button = (name: string) =>
+    [...container.querySelectorAll('button')].find(
+      (candidate) => (candidate.getAttribute('aria-label') ?? candidate.textContent) === name,
+    );
+  const click = async (name: string) => {
+    const target = button(name);
+    if (target === undefined) throw new Error(`No button named ${name}`);
+    await act(async () => target.click());
+  };
+  const pickModel = async (key: 'onboarding.model' | 'modelPreset.assignment') => {
+    const picker = container.querySelector<HTMLElement>(`[data-picker="${zhTranslate(key)}"]`);
+    if (picker === null) throw new Error(`No picker named ${key}`);
+    await act(async () => picker.click());
+  };
+  const providerKey = () =>
+    container.querySelector<HTMLInputElement>('input[aria-label="API key"]');
+  const fillProviderKey = async () => {
+    const input = providerKey();
+    if (input === null) throw new Error('No API key field');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
+        input,
+        'test-key',
+      );
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  };
+  async function mountModelStep(
+    actions: BridgeActions,
+    options: Partial<Pick<Parameters<typeof BotIntro>[0], 'call' | 'botSettings'>> = {},
+  ) {
+    const controller = onboardingFor(actions);
+    await controller.enter();
+    controller.openIntro();
+    controller.setIntroStep(INTRO_STEPS.indexOf('model'));
+    await act(async () =>
+      root.render(createElement(BotIntro, { actions, ...options, t: zhTranslate })),
+    );
+  }
+
+  async function openModelStep({
+    configured = false,
+    owner = true,
+    models = [goModel],
+    receipt = fresh,
+    fetcher = vi.fn(async () =>
+      Response.json({
+        engines: [{ engine: 'codex', installed: true, available: false, reason: 'signed-out' }],
+        selections: [],
+      }),
+    ),
+  }: {
+    configured?: boolean;
+    owner?: boolean;
+    models?: ModelCatalogView['models'];
+    receipt?: OnboardingSnapshot;
+    fetcher?: typeof fetch;
+  } = {}) {
+    vi.stubGlobal('fetch', fetcher);
+    let connected = configured;
+    const modelCatalog = vi.fn(async () => ({ models: connected ? models : [] }));
+    const actions = {
+      ...actionsFor([receipt]),
+      modelCatalog,
+    } as unknown as BridgeActions;
+    const call = vi.fn<BridgeCall>(async (method) => {
+      if (method === 'modelProviderAdd') {
+        connected = true;
+        return {
+          ok: true,
+          value: { id: 'opencode-go', keyStored: true, modelCount: 1, testReply: 'ok' },
+        };
+      }
+      return { ok: true, value: { revision: 2, providers: [] } };
+    });
+    setTeamModeSnapshot(call, {
+      enabled: !owner,
+      ownerPasswordSet: false,
+      insecureHttpAllowed: false,
+      memberUrls: [],
+      isolation: 'trial',
+      viewer: {
+        humanId: owner ? 'owner' : 'member',
+        kind: owner ? 'owner' : 'member',
+        displayName: owner ? 'Owner' : 'Member',
+        mustChangePassword: false,
+        owner,
+        permissions: [],
+        roleIds: [],
+      },
+    });
+    let settingsOpen = false;
+    const listeners = new Set<() => void>();
+    const setSettingsOpen = (open: boolean) => {
+      settingsOpen = open;
+      for (const notify of listeners) notify();
+    };
+    const openProviders = vi.fn(() => setSettingsOpen(true));
+    const botSettings = {
+      open: openProviders,
+      getSnapshot: () => ({ open: settingsOpen, sectionId: undefined }),
+      subscribe: (notify: () => void) => {
+        listeners.add(notify);
+        return () => {
+          listeners.delete(notify);
+        };
+      },
+    };
+    await mountModelStep(actions, { call, botSettings });
+    return { actions, button, call, click, modelCatalog, openProviders, setSettingsOpen };
+  }
+
+  it('shows the picker and the connected providers row for a configured DSH route', async () => {
+    const { button, click, openProviders } = await openModelStep({ configured: true });
+    expect(
+      container.querySelector(`[data-picker="${zhTranslate('onboarding.model')}"]`),
+    ).toBeTruthy();
+    const row = button('模型提供商');
+    expect(row?.textContent ?? '').toContain('OpenCode Go');
+    expect(row?.querySelector('[data-model-brand="opencode"]')).toBeTruthy();
+    await click('模型提供商');
+    expect(openProviders).toHaveBeenCalledWith('model-providers');
+  });
+
+  it('restores the model draft and revalidates its effort after Settings closes', async () => {
+    const models = [
+      testModel('main'),
+      { ...testModel('task'), efforts: [{ id: 'high', name: 'High' }] },
+    ];
+    const { modelCatalog, setSettingsOpen } = await openModelStep({ configured: true, models });
+    const picker = () =>
+      container.querySelector<HTMLElement>(`[data-picker="${zhTranslate('onboarding.model')}"]`);
+    picker()?.setAttribute('data-select-effort', 'high');
+    await pickModel('onboarding.model');
+    await click(zhTranslate('botSettings.section.modelProviders'));
+    expect(picker()).toBeNull();
+    const initialReads = modelCatalog.mock.calls.length;
+    await act(async () => setSettingsOpen(false));
+    expect(modelCatalog).toHaveBeenCalledTimes(initialReads + 1);
+    expect(picker()?.dataset['choice']).toBe(JSON.stringify(['p', 'task']));
+    expect(picker()?.dataset['effort']).toBe('high');
+    await click(zhTranslate('botSettings.section.modelProviders'));
+    modelCatalog.mockResolvedValueOnce({ models: [testModel('main'), testModel('task')] });
+    await act(async () => setSettingsOpen(false));
+    expect(modelCatalog).toHaveBeenCalledTimes(initialReads + 2);
+    expect(picker()?.dataset['choice']).toBe(JSON.stringify(['p', 'task']));
+    expect(picker()?.dataset['effort']).toBe('');
+  });
+
+  it('requires a new choice when the selected subscription model disappears in Settings', async () => {
+    const savedModel = { id: 'saved', name: 'Saved', efforts: [] };
+    let subscriptionModels = [savedModel, { id: 'selected', name: 'Selected', efforts: [] }];
+    const { setSettingsOpen } = await openModelStep({
+      configured: true,
+      receipt: { ...fresh, defaultBotSlug: 'tob' },
+      fetcher: async (_url, init) =>
+        init?.method === 'POST'
+          ? Response.json({ models: subscriptionModels })
+          : Response.json({
+              engines: [{ engine: 'codex', installed: true, available: true }],
+              selections: [
+                { botSlug: 'tob', role: 'orchestrator', engine: 'codex', model: 'saved' },
+              ],
+            }),
+    });
+    const picker = () =>
+      container.querySelector<HTMLElement>(`[data-picker="${zhTranslate('onboarding.model')}"]`);
+    expect(picker()?.dataset['subscriptionModel']).toBe('saved');
+    picker()?.setAttribute('data-select-subscription', 'selected');
+    await pickModel('onboarding.model');
+    expect(picker()?.dataset['subscriptionModel']).toBe('selected');
+    await click(zhTranslate('botSettings.section.modelProviders'));
+    subscriptionModels = [savedModel];
+    await act(async () => setSettingsOpen(false));
+    expect(button(zhTranslate('intro.next'))?.disabled).toBe(true);
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      zhTranslate('intro.model.subscriptionUnavailable'),
+    );
+    expect(picker()?.dataset['subscriptionModel']).toBe('selected');
+    picker()?.setAttribute('data-select-subscription', 'saved');
+    await pickModel('onboarding.model');
+    await click(zhTranslate('intro.next'));
+    expect(step()).toBe('phone');
+  });
+
+  it.each([
+    { configured: false, models: [] },
+    { configured: true, models: [{ ...goModel, restingUntil: '2026-11-22T00:00:00Z' }] },
+  ])(
+    'offers a key or subscription with no usable model (configured: $configured)',
+    async (setup) => {
+      const { button } = await openModelStep(setup);
+      expect(container.querySelector('[data-picker]')).toBeNull();
+      expect(button('填 API key')).toBeTruthy();
+      expect(button('登录订阅')).toBeTruthy();
+    },
+  );
+
+  it('disables model edits and Model Providers during Next and restores them after a failed save', async () => {
+    const { actions, openProviders } = await openModelStep({
+      configured: true,
+      receipt: { ...fresh, defaultBotSlug: 'tob' },
+    });
+    const modelSave = deferred<void>();
+    vi.mocked(actions.onboardingModel).mockImplementationOnce(async () => {
+      await modelSave.promise;
+      throw new Error('Save failed');
+    });
+    const controls = () => [
+      container.querySelector<HTMLButtonElement>(
+        `[data-picker="${zhTranslate('onboarding.model')}"]`,
+      ),
+      container.querySelector<HTMLButtonElement>(
+        `[data-picker="${zhTranslate('modelPreset.assignment')}"]`,
+      ),
+      button(zhTranslate('botSettings.section.modelProviders')),
+    ];
+    await click(zhTranslate('intro.next'));
+    expect(controls().map((control) => control?.disabled)).toEqual([true, true, true]);
+    await click(zhTranslate('botSettings.section.modelProviders'));
+    expect(openProviders).not.toHaveBeenCalled();
+    await act(async () => modelSave.resolve());
+    expect(step()).toBe('model');
+    expect(controls().map((control) => control?.disabled)).toEqual([false, false, false]);
+  });
+
+  it('keeps provider controls unavailable to a member without permission', async () => {
+    const { button, call } = await openModelStep({ owner: false });
+    expect(button('填 API key')).toBeUndefined();
+    expect(button('登录订阅')).toBeUndefined();
+    expect(container.textContent).toContain('所有者还没有连接模型。');
+    expect(call).not.toHaveBeenCalledWith('modelProviders', expect.anything(), expect.anything());
+  });
+
+  it('continues to the picker in the same step after adding a key inline', async () => {
+    const { click, call } = await openModelStep();
+    await click('填 API key');
+    await fillProviderKey();
+    await click('保存');
+    expect(call).toHaveBeenCalledWith(
+      'modelProviderAdd',
+      expect.objectContaining({ expectedRevision: 2 }),
+      undefined,
+    );
+    expect(container.textContent).toContain('API key 已保存');
+    expect(container.textContent).toContain('已列出 1 个模型');
+    expect(container.textContent).toContain('测试回复成功');
+    const receiptClose = [...container.querySelectorAll<HTMLButtonElement>('section button')].find(
+      (button) => button.textContent === '关闭',
+    );
+    if (receiptClose === undefined) throw new Error('Receipt close action is missing');
+    await act(async () => receiptClose.click());
+    expect(container.querySelector('[data-intro-step="model"] [data-picker]')).toBeTruthy();
+  });
+
+  it('blocks navigation while the provider save is pending and shows its receipt', async () => {
+    const { call } = await openModelStep();
+    await click('填 API key');
+    const save = deferred<Awaited<ReturnType<BridgeCall>>>();
+    call.mockImplementationOnce(() => save.promise);
+    await fillProviderKey();
+    await click('保存');
+    for (const key of ['intro.next', 'intro.back', 'intro.skip', 'common.close'] as const)
+      expect(button(zhTranslate(key))?.disabled).toBe(true);
+    expect(button(`1 ${zhTranslate('intro.step.welcome')}`)?.disabled).toBe(true);
+    await click(zhTranslate('intro.next'));
+    expect(step()).toBe('model');
+    await act(async () => {
+      save.resolve({
+        ok: true,
+        value: { id: 'opencode-go', keyStored: true, modelCount: 1, testReply: 'ok' },
+      });
+    });
+    expect(container.textContent).toContain('测试回复成功');
+    expect(button(zhTranslate('intro.next'))?.disabled).toBe(false);
+  });
+
+  it('keeps the inline draft and retries with the new revision after a conflict', async () => {
+    const { call } = await openModelStep();
+    await click('填 API key');
+    await fillProviderKey();
+    const refresh = deferred<Awaited<ReturnType<BridgeCall>>>();
+    call
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: 'provider-conflict', message: 'Conflict', details: {} },
+      })
+      .mockImplementationOnce(() => refresh.promise);
+    await click('保存');
+    expect(button('保存')?.disabled).toBe(true);
+    expect(providerKey()?.value).toBe('test-key');
+    await act(async () => refresh.resolve({ ok: true, value: { revision: 3, providers: [] } }));
+    await click('保存');
+    expect(call).toHaveBeenLastCalledWith(
+      'modelProviderAdd',
+      expect.objectContaining({ expectedRevision: 3, key: 'test-key' }),
+      undefined,
+    );
+  });
+
+  it('retries a failed viewer lookup while keeping the draft and Skip available', async () => {
+    const viewer = deferred<Awaited<ReturnType<BridgeCall>>>();
+    const call = vi
+      .fn<BridgeCall>(() => viewer.promise)
+      .mockResolvedValueOnce({
+        ok: false,
+        error: { code: 'unavailable', message: 'Unavailable', details: {} },
+      });
+    const base = actionsFor();
+    const modelCatalog = vi.fn(async () => ({ models: [testModel('main'), testModel('task')] }));
+    const actions = {
+      ...base,
+      modelCatalog,
+    } as unknown as BridgeActions;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Response.json({ engines: [], selections: [] })),
+    );
+    await mountModelStep(actions, { call });
+    await pickModel('onboarding.model');
+    expect(container.querySelector('[role="alert"]')?.textContent).toBe(
+      zhTranslate('intro.model.viewerLoadFailed'),
+    );
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(button(zhTranslate('intro.next'))?.disabled).toBe(true);
+    expect(button(zhTranslate('intro.skip'))?.disabled).toBe(false);
+    await click(zhTranslate('intro.next'));
+    expect(step()).toBe('model');
+    expect(base.onboardingModel).not.toHaveBeenCalled();
+    await click(zhTranslate('team.retry'));
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(call).toHaveBeenLastCalledWith('teamMode', {}, undefined);
+    expect(modelCatalog).toHaveBeenCalledOnce();
+    expect(button(zhTranslate('intro.next'))?.disabled).toBe(true);
+    await act(async () => viewer.resolve({ ok: true, value: { viewer: ownerViewer } }));
+    await click(zhTranslate('intro.next'));
+    expect(base.onboardingModel).toHaveBeenCalledWith(
+      undefined,
+      0,
+      { provider: 'p', model: 'task' },
+      true,
+    );
+    expect(step()).toBe('phone');
+  });
+
+  it('rejects an Assignment draft removed by a catalog refresh before either write', async () => {
+    const events = resourceEvents();
+    try {
+      const base = actionsFor([{ ...fresh, defaultBotSlug: 'tob' }]);
+      const modelCatalog = vi.fn(async () => ({ models: [testModel('main'), testModel('task')] }));
+      const setModelPlan = vi.fn(async () => ({}));
+      const actions = {
+        ...base,
+        modelCatalog,
+        modelPlanState: vi.fn(async () => ({ revision: 0 })),
+        setModelPlan,
+      } as unknown as BridgeActions;
+      await mountModelStep(actions);
+      const advanced = container.querySelector<HTMLDetailsElement>('[data-intro-model-advanced]')!;
+      await act(async () => {
+        advanced.open = true;
+        advanced.dispatchEvent(new Event('toggle'));
+      });
+      await pickModel('modelPreset.assignment');
+      modelCatalog.mockClear();
+      modelCatalog.mockResolvedValue({ models: [testModel('main')] });
+      await act(async () => {
+        events.emit('model-providers');
+        await vi.waitFor(() => expect(modelCatalog).toHaveBeenCalled());
+      });
+      await click(zhTranslate('intro.next'));
+      expect(base.onboardingModel).not.toHaveBeenCalled();
+      expect(setModelPlan).not.toHaveBeenCalled();
+      expect(step()).toBe('model');
+      await click(zhTranslate('intro.model.useMainForAssignment'));
+      await click(zhTranslate('intro.next'));
+      expect(base.onboardingModel).toHaveBeenCalledOnce();
+      expect(setModelPlan).not.toHaveBeenCalled();
+      expect(step()).toBe('phone');
+    } finally {
+      events.dispose();
+    }
+  });
+
+  it('waits for a successful engine read before saving an explicit API choice', async () => {
+    const read = deferred<Response>();
+    const fetcher = vi.fn(async (_url: string, init?: RequestInit) =>
+      init?.method === 'POST' ? Response.json({}) : read.promise,
+    );
+    vi.stubGlobal('fetch', fetcher);
+    const base = actionsFor([{ ...fresh, defaultBotSlug: 'tob' }]);
+    const actions = {
+      ...base,
+      modelCatalog: vi.fn(async () => ({
+        models: [testModel('main'), testModel('task')],
+        default: { provider: 'p', model: 'main' },
+      })),
+    } as unknown as BridgeActions;
+    const call = vi.fn<BridgeCall>(async () => ({ ok: true, value: { viewer: ownerViewer } }));
+    await mountModelStep(actions, { call });
+    await pickModel('onboarding.model');
+    await click(zhTranslate('intro.next'));
+    expect(base.onboardingModel).not.toHaveBeenCalled();
+    expect(step()).toBe('model');
+    await act(async () => read.resolve(new Response(null, { status: 503 })));
+    await click(zhTranslate('intro.next'));
+    expect(base.onboardingModel).not.toHaveBeenCalled();
+    fetcher.mockResolvedValueOnce(
+      Response.json({
+        engines: [],
+        selections: [{ botSlug: 'tob', role: 'orchestrator', engine: 'codex' }],
+      }),
+    );
+    await click(zhTranslate('engine.reload'));
+    await click(zhTranslate('intro.next'));
+    expect(base.onboardingModel).toHaveBeenCalledOnce();
+    expect(fetcher).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        body: JSON.stringify({ action: 'use', bot: 'tob', role: 'orchestrator', engine: null }),
+      }),
+    );
+    expect(step()).toBe('phone');
   });
 
   it('skips without connection work and returns from the shared dialog before explicit Continue', async () => {

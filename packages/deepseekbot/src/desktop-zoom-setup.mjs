@@ -48,12 +48,7 @@ export function configureDesktopZoom(options) {
   } finally {
     try {
       const own = fstatSync(file, { bigint: true });
-      let current;
-      try {
-        current = lstatSync(lock, { bigint: true });
-      } catch (error) {
-        if (error.code !== 'ENOENT') throw error;
-      }
+      const current = lstatSync(lock, { bigint: true, throwIfNoEntry: false });
       if (current?.ino === own.ino && current?.dev === own.dev) unlinkSync(lock);
     } finally {
       closeSync(file);
@@ -67,9 +62,14 @@ function configureProfileZoom({
   dsh = 'dsh',
   desktopApp,
   platform = process.platform,
-  run = (executable, args, options) => execFileSync(executable, args, options),
+  run = (executable, args, options) =>
+    execFileSync(executable, args, { ...options, shell: false, windowsHide: true }),
   processes = () =>
-    execFileSync('/bin/ps', ['-axo', 'command='], { windowsHide: true, encoding: 'utf8' }),
+    execFileSync('/bin/ps', ['-axo', 'command='], {
+      windowsHide: true,
+      encoding: 'utf8',
+      shell: false,
+    }),
   windowsProcesses = () => desktopZoomWindowsProcesses(),
 }) {
   if (!['enable', 'disable'].includes(action)) refuse('desktop-zoom-setup-action-required');
@@ -240,7 +240,11 @@ function writeState(path, value) {
 }
 function otherProcesses(pid) {
   return () =>
-    execFileSync('/bin/ps', ['-axo', 'pid=,command='], { windowsHide: true, encoding: 'utf8' })
+    execFileSync('/bin/ps', ['-axo', 'pid=,command='], {
+      windowsHide: true,
+      encoding: 'utf8',
+      shell: false,
+    })
       .split('\n')
       .map((line) => /^\s*(\d+)\s(.*)$/.exec(line))
       .filter((match) => match && Number(match[1]) !== pid)
@@ -259,7 +263,12 @@ export function relaunchDesktopApp(
       : desktopApp;
   const [command, args] =
     platform === 'darwin' ? ['/usr/bin/open', [target]] : ['explorer.exe', [target]];
-  launch(command, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+  launch(command, args, {
+    detached: true,
+    stdio: 'ignore',
+    shell: false,
+    windowsHide: true,
+  }).unref();
 }
 export async function configureDesktopZoomAfterQuit({
   state,

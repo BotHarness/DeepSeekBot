@@ -93,7 +93,7 @@ it('identifies a real separate process without treating metadata as proof of liv
   `,
       root,
     ],
-    { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
+    { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], shell: false },
   );
   const exited = once(child, 'exit');
   try {

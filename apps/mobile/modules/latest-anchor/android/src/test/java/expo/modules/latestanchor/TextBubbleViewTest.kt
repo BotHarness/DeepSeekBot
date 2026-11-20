@@ -41,7 +41,7 @@ class TextBubbleViewTest {
     val activity = Robolectric.buildActivity(Activity::class.java).setup().visible().get()
     val view = TextBubbleView(activity)
     activity.setContentView(FrameLayout(activity).apply { addView(view) })
-    val layout = TextBubbleLayout(TextRow("item:m", true, true, true, "hello", "09:30"), TextRowStyle.from(style)!!, 1200, view.resources.displayMetrics.density)
+    val layout = TextBubbleLayout(TextRow("item:m", true, true, true, "hello"), TextRowStyle.from(style)!!, 1200, view.resources.displayMetrics.density)
     view.layout = layout
     view.actions = actions
     val width = layout.frame.width().toInt()

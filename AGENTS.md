@@ -4,10 +4,9 @@
 
 BotHarness — a [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) (DSH) plugin layer that gives agents a persistent identity: **PersonaBots** with a persona and file-based memory that spans sessions, chats, and workspaces. **DeepSeekBot** is its first app (sidebar roster, delegation, IM adapters).
 
-- DSH official docs (source of truth when DSH behavior/APIs are in question): <https://deepseek-harness.github.io/deepseek-harness/> — plugin authoring, packaging and install under `/develop/basic/` (`/publish` documents `dsh plugin`, bundle/profile manifests and layer order); CLI behavior reference upstream at `apps/cli/reference/README.md`.
-- Product language: `GLOSSARY.md` (English) and `GLOSSARY.zh.md` (Chinese); integrated target architecture: `docs/architecture/botharness-architecture.md`; durable choices and rationale: `docs/decisions/`. The old platform spec and app PRD are archived drafts.
-- IM adapter base: [dsh-im](https://github.com/xmanrui/dsh-im) (multi-bot + settings UI). Reliability patterns from [dsh-lark-link](https://github.com/amlyczz/dsh-lark-link); group/thread routing from [dsh-lark-bridge](https://github.com/imetn/dsh-lark-bridge).
-- Current architecture baseline: ADR-0035–0045 and the living architecture; delivery status and sequencing live in GitHub Issues and Projects.
+- [DSH docs](https://deepseek-harness.github.io/deepseek-harness/) own DSH APIs and behavior. See `/develop/basic/` for authoring and publishing, and upstream `apps/cli/reference/README.md` for the CLI.
+- [Glossary](GLOSSARY.md) ([中文](GLOSSARY.zh.md)), [living architecture](docs/architecture/botharness-architecture.md), and [decisions](docs/decisions/) own product language and architecture. ADR-0035–0045 set the baseline. GitHub Issues and Projects track delivery.
+- IM precedents: [dsh-im](https://github.com/xmanrui/dsh-im) for adapters, [dsh-lark-link](https://github.com/amlyczz/dsh-lark-link) for reliability, [dsh-lark-bridge](https://github.com/imetn/dsh-lark-bridge) for routing.
 
 ## Commands
 
@@ -27,9 +26,7 @@ Use `pnpm test:changed` for CI-selected tests against `origin/main` and `pnpm te
 - Use TypeScript ESM and Vitest in `packages/*/test/`. Universal invariants get a fast-check `*.property.test.ts` named for the decision. Replay failures with the printed seed and path.
 - Use stable migration IDs and preserve ledger order when resolving collisions. Follow [named schema migrations](docs/agents/schema-migrations.md).
 - Use Node `.mjs` for repo scripts. [Lint and toolchain](docs/agents/development-scripts.md#lint-backlog-and-toolchain) covers the shell and spawn checks.
-- Memory terminology lives in `GLOSSARY.md`; durable memory choices live in ADR-0002/0003/0004/0012/0014/0021 and are integrated into the living architecture.
-- Record new decisions in the matching `docs/decisions/<topic>.md` section and integrate them into the living architecture.
-- Living architecture doc: `docs/architecture/botharness-architecture.md` (inline mermaid) — update it when modules, data flow, or boundaries change; it syncs to the docs site (`apps/docs`, botharness.ai) via `scripts/sync-docs.mjs`.
+- Record new decisions in `docs/decisions/<topic>.md` and update the [living architecture](docs/architecture/botharness-architecture.md) for changes to modules, data flow or boundaries.
 - Edit docs site sources and regenerate. Follow [docs site maintenance](docs/agents/docs-site-maintenance.md) for Markdown, diagrams, OG cards and local previews.
 - Follow [vendored skills](docs/agents/vendored-skills.md) before adding or syncing skills. Edit first-party skills in place and update third-party skills through their pinned upstream.
 - Follow [tracer-bullet delivery](docs/agents/issue-tracker.md#tracer-bullet-delivery) for production-shaped cross-layer slices, sequencing and Human feedback.
@@ -55,12 +52,12 @@ For Discord and Lark message and reaction tests, use the signed-in Codex in-app 
 
 ### Domain docs
 
-Single-context layout: root `GLOSSARY.md` + `docs/decisions/`. Root `GLOSSARY.md` is the sole authority for BotHarness product terms such as PersonaBot, Channel, Source Event, Bot Inbox, Orchestrator Session, and Assignment Session; product runtime relationships live under `docs/architecture/`. See `docs/agents/domain.md`.
+[Glossary](GLOSSARY.md) owns product terms. Follow [domain docs](docs/agents/domain.md) when changing terminology, decisions or architecture.
 
 ## Task runbooks
 
 - **Issue tracker and labels** — [issues](docs/agents/issue-tracker.md) and [triage roles](docs/agents/triage-labels.md).
-- **Live DSH Host** — Launch an isolated verified Host with `node scripts/dev-instance.mjs --home <isolated-DSH_HOME> --port <n>`. For starts, restarts, Client reloads and shared credential reuse see [local DSH Hosts](docs/agents/dev-instance.md) and [`dsh-dev`](.agents/skills/dsh-dev/SKILL.md). Check a real DM reply before declaring a model key missing. Follow [AX model setup](docs/agents/ax-model.md) for `opencode-go`.
+- **Live DSH Host** — Follow [local DSH Hosts](docs/agents/dev-instance.md), [AX model setup](docs/agents/ax-model.md), and [dsh-dev](.agents/skills/dsh-dev/SKILL.md) for isolation, reloads and credential reuse. Verify a real DM reply before declaring a model key missing.
 - **DSH/Cordis plans and implementation** — Start with [`dsh-plugin-dev`](.agents/skills/dsh-plugin-dev/SKILL.md), its Context and Decision Tree. Use DSH terms for platform seams and the product glossary for BotHarness concepts. Verify the chosen API against upstream and a running Host. Record diagnosed traps in [`dsh-dev`](.agents/skills/dsh-dev/SKILL.md).
 - **DSH upgrade or compatibility qualification** — Follow [the DSH upgrade workflow](docs/agents/dsh-upgrade.md) for the admission floor, runtime and platform matrix, and release handoff.
 - **Running behavior and PR captures** — Use [`verify-deepseekbot`](.agents/skills/verify-deepseekbot/SKILL.md). Update affected feature-map journeys and run them. Use `verify-app observe` for failed or surprising drives.
@@ -76,31 +73,39 @@ Single-context layout: root `GLOSSARY.md` + `docs/decisions/`. Root `GLOSSARY.md
 
 ## Guardrails
 
-`pnpm lint` runs local checks, and CI runs the PR and scheduled checks. The table comes from [the registry](scripts/guardrails.json).
+[Rule registry](scripts/guardrails.json) records each check and its fix.
 
 <!-- guardrail-table:start -->
 
-| Rule                 | Enforced by                                                      |
-| -------------------- | ---------------------------------------------------------------- |
-| `floating-promise`   | [lint-ratchet.mjs](scripts/lint-ratchet.mjs)                     |
-| `bug-patterns`       | [lint-ratchet.mjs](scripts/lint-ratchet.mjs)                     |
-| `spawn-options`      | [lint-ratchet.mjs](scripts/lint-ratchet.mjs)                     |
-| `no-api-intercept`   | [lint-ratchet.mjs](scripts/lint-ratchet.mjs)                     |
-| `package-no-console` | [lint-ratchet.mjs](scripts/lint-ratchet.mjs)                     |
-| `pr-provenance`      | [check-pr-provenance.mjs](scripts/check-pr-provenance.mjs)       |
-| `pr-needs-human`     | [check-needs-human.mjs](scripts/check-needs-human.mjs)           |
-| `source-policy`      | [check-source-policy.mjs](scripts/check-source-policy.mjs)       |
-| `tobs-design-tokens` | [check-design-tokens.mjs](scripts/check-design-tokens.mjs)       |
-| `tobs-token-outputs` | [generate-tokens.mjs](scripts/generate-tokens.mjs)               |
-| `regression-proof`   | [check-regression-proof.mjs](scripts/check-regression-proof.mjs) |
-| `pr-body`            | [check-pr-body.mjs](scripts/check-pr-body.mjs)                   |
-| `file-length`        | [health.mjs](scripts/health.mjs)                                 |
-| `tsc-exclude`        | [health.mjs](scripts/health.mjs)                                 |
-| `agent-prose`        | [health.mjs](scripts/health.mjs)                                 |
-| `feature-sources`    | [check-feature-map.mjs](scripts/check-feature-map.mjs)           |
-| `ai-review`          | [.coderabbit.yaml](.coderabbit.yaml)                             |
-| `ui-monkey`          | [health.yml](.github/workflows/health.yml)                       |
-| `perf-trend`         | [health-trend.mjs](scripts/health-trend.mjs)                     |
-| `host-readers`       | [check-host-readers.mjs](scripts/check-host-readers.mjs)         |
+| Rule                        | Enforced by                                                      |
+| --------------------------- | ---------------------------------------------------------------- |
+| `floating-promise`          | [lint-ratchet.mjs](scripts/lint-ratchet.mjs)                     |
+| `bug-patterns`              | [lint-ratchet.mjs](scripts/lint-ratchet.mjs)                     |
+| `spawn-options`             | [lint-ratchet.mjs](scripts/lint-ratchet.mjs)                     |
+| `no-api-intercept`          | [lint-ratchet.mjs](scripts/lint-ratchet.mjs)                     |
+| `package-no-console`        | [lint-ratchet.mjs](scripts/lint-ratchet.mjs)                     |
+| `pr-provenance`             | [check-pr-provenance.mjs](scripts/check-pr-provenance.mjs)       |
+| `pr-needs-human`            | [check-needs-human.mjs](scripts/check-needs-human.mjs)           |
+| `source-policy`             | [check-source-policy.mjs](scripts/check-source-policy.mjs)       |
+| `tobs-design-tokens`        | [check-design-tokens.mjs](scripts/check-design-tokens.mjs)       |
+| `tobs-style-literals`       | [check-ui-rules.mjs](scripts/check-ui-rules.mjs)                 |
+| `tobs-breakpoint-tokens`    | [check-ui-rules.mjs](scripts/check-ui-rules.mjs)                 |
+| `tobs-motion-tokens`        | [check-ui-rules.mjs](scripts/check-ui-rules.mjs)                 |
+| `tobs-icon-source`          | [check-ui-rules.mjs](scripts/check-ui-rules.mjs)                 |
+| `tobs-control-names`        | [check-ui-rules.mjs](scripts/check-ui-rules.mjs)                 |
+| `tobs-focus-disabled`       | [check-ui-rules.mjs](scripts/check-ui-rules.mjs)                 |
+| `tobs-component-catalogue`  | [check-ui-rules.mjs](scripts/check-ui-rules.mjs)                 |
+| `tobs-settings-composition` | [check-ui-rules.mjs](scripts/check-ui-rules.mjs)                 |
+| `tobs-token-outputs`        | [generate-tokens.mjs](scripts/generate-tokens.mjs)               |
+| `regression-proof`          | [check-regression-proof.mjs](scripts/check-regression-proof.mjs) |
+| `pr-body`                   | [check-pr-body.mjs](scripts/check-pr-body.mjs)                   |
+| `file-length`               | [health.mjs](scripts/health.mjs)                                 |
+| `tsc-exclude`               | [health.mjs](scripts/health.mjs)                                 |
+| `agent-prose`               | [health.mjs](scripts/health.mjs)                                 |
+| `feature-sources`           | [check-feature-map.mjs](scripts/check-feature-map.mjs)           |
+| `ai-review`                 | [.coderabbit.yaml](.coderabbit.yaml)                             |
+| `ui-monkey`                 | [health.yml](.github/workflows/health.yml)                       |
+| `perf-trend`                | [health-trend.mjs](scripts/health-trend.mjs)                     |
+| `host-readers`              | [check-host-readers.mjs](scripts/check-host-readers.mjs)         |
 
 <!-- guardrail-table:end -->

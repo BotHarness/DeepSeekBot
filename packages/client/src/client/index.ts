@@ -179,6 +179,7 @@ import { sessionBotReference } from './mentions.js';
 import { en, LOCALE_NS, zh } from './locale.js';
 import { registerModeShadow, registerShadowEntry } from './mode.js';
 import { browserSystemMotionSource, mountMotionPolicyAttribute } from './motion-preference.js';
+import { trackDialogInput } from './ds/dialog-input.js';
 import { defaultStorage, loadRosterConfig } from './roster-config.js';
 import { mountDevClientRefresh } from './dev-client-refresh.js';
 import { saveHmrView, takeHmrView } from './hmr-view.js';
@@ -320,6 +321,7 @@ export function apply(ctx: ClientContext): void {
     return { profileId: value.profileId };
   };
   const actions: BridgeActions = createActions(call, store, {
+    openModelPresets: () => botSettings.open(BOT_SETTINGS_SECTIONS.modelPresets),
     ...(member ? {} : { nativeFiles: createNativeHostFiles(ctx.remote.session) }),
     fileOpenPreferences: createFileOpenPreferences({
       storage,
@@ -708,6 +710,10 @@ export function apply(ctx: ClientContext): void {
   ctx.effect(
     () => prefs.attachSystemMotion(browserSystemMotionSource()),
     'botharness: system motion preference',
+  );
+  ctx.effect(
+    () => (typeof document === 'undefined' ? () => {} : trackDialogInput(document)),
+    'botharness: dialog input modality',
   );
   ctx.effect(() => {
     if (typeof document === 'undefined') return () => {};
@@ -1275,6 +1281,8 @@ export function apply(ctx: ClientContext): void {
         key: PANEL_ID,
         locale: LOCALE_NS,
         inject: () => ({
+          call,
+          botSettings,
           actions,
           companion,
           channelSidebar,

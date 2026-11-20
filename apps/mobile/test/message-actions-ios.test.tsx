@@ -134,3 +134,34 @@ it('does not offer a source page when the caller cannot open one', () => {
   );
   expect(native.actions.has(t.selectCopy)).toBe(false);
 });
+
+it('renders an older message date and time as readable sheet text', () => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(new Date(2026, 10, 13, 15));
+  const at = new Date(2026, 10, 12, 9, 30);
+  try {
+    const html = renderToStaticMarkup(
+      <MessageActions
+        target={{
+          message: { ...message, at: at.toISOString() },
+          anchor: { x: 0, y: 0, width: 1, height: 1 },
+          group: { first: true, last: true },
+        }}
+        onClose={() => {}}
+        onReact={() => {}}
+        onCopy={() => {}}
+        onShareText={() => {}}
+      />,
+    );
+    expect(html).toContain(
+      new Intl.DateTimeFormat(undefined, {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      }).format(at),
+    );
+  } finally {
+    vi.useRealTimers();
+  }
+});

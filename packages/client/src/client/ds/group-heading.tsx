@@ -1,7 +1,8 @@
 import { Icon } from './icon.js';
-import type { ReactElement, ReactNode } from 'react';
+import type { ComponentPropsWithoutRef, ReactElement, ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
+import { hooked } from './hooked.js';
 import { border, color, radius, size, space, text } from './tokens.stylex.js';
 
 const styles = stylex.create({
@@ -34,8 +35,8 @@ const styles = stylex.create({
   chevron: {
     display: 'inline-flex',
     flexShrink: 0,
-    transition: 'transform 150ms var(--ds-ease-in-out, ease)',
   },
+  transition: { transition: 'transform 150ms var(--ds-ease-in-out, ease)' },
   collapsed: { transform: 'rotate(-90deg)' },
   label: {
     flexGrow: 1,
@@ -63,8 +64,11 @@ export function GroupHeading({
   expanded,
   onToggle,
   summary = false,
+  animateChevron = true,
   quiet = false,
   flush = false,
+  button,
+  xstyle,
 }: {
   readonly label: ReactNode;
   readonly count: ReactNode;
@@ -73,14 +77,21 @@ export function GroupHeading({
   readonly expanded?: boolean;
   readonly onToggle?: (() => void) | undefined;
   readonly summary?: boolean;
+  readonly animateChevron?: boolean;
   readonly quiet?: boolean;
   readonly flush?: boolean | undefined;
+  readonly button?: Omit<ComponentPropsWithoutRef<'button'>, 'type' | 'style' | 'onClick'>;
+  readonly xstyle?: stylex.StyleXStyles;
 }): ReactElement {
   const chevron = (
     <span
       aria-hidden="true"
       data-panel-chevron=""
-      {...stylex.props(styles.chevron, expanded === false && styles.collapsed)}
+      {...stylex.props(
+        styles.chevron,
+        animateChevron && styles.transition,
+        expanded === false && styles.collapsed,
+      )}
     >
       <Icon name="chevron-down" size={14} />
     </span>
@@ -122,12 +133,20 @@ export function GroupHeading({
     );
   return (
     <button
+      {...button}
       type="button"
       data-group-heading=""
       title={title}
       aria-expanded={expanded}
       onClick={onToggle}
-      {...stylex.props(styles.heading, flush && styles.flush, styles.toggle, quiet && styles.quiet)}
+      {...hooked(
+        button?.className ?? '',
+        styles.heading,
+        flush && styles.flush,
+        styles.toggle,
+        quiet && styles.quiet,
+        xstyle,
+      )}
     >
       {chevron}
       {content}

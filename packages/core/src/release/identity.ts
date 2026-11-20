@@ -40,6 +40,7 @@ function developmentIdentity(moduleUrl: string): ReleaseIdentity {
         timeout: 2_000,
         maxBuffer: 1024 * 1024,
         stdio: ['ignore', 'pipe', 'ignore'],
+        shell: false,
       }).trim();
     if (realpathSync(git(['rev-parse', '--show-toplevel'])) !== realpathSync(root)) {
       return { kind: 'unknown', reason: 'metadata-invalid' };

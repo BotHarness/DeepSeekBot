@@ -101,7 +101,11 @@ it('reads engine status and models only for the opted-in Routing Group catalog',
     value: {
       models: [],
       routingGroupEngines: [
-        { engine: 'codex', available: true, models: [{ id: 'gpt-5.4', name: 'GPT-5.4' }] },
+        {
+          engine: 'codex',
+          available: true,
+          models: [{ id: 'gpt-5.4', name: 'GPT-5.4', efforts: [] }],
+        },
         { engine: 'claude', available: false, reason: 'signed-out' },
       ],
     },

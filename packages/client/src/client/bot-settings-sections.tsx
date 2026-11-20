@@ -1,6 +1,9 @@
 import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import { BOT_SETTINGS_SECTIONS } from './bot-settings.js';
 import { LOCALE_NS } from './locale.js';
+import { ModelPresetsSettings } from './model-presets-settings.js';
+import { canConfigureModels } from './team-bridge.js';
+import { useTeamMode } from './team-state.js';
 import { ModelProvidersSettings } from './model-providers-settings.js';
 import { WindowZoomSettings } from './window-zoom-settings.js';
 import { WindowZoomSetup } from './window-zoom-setup.js';
@@ -165,23 +168,29 @@ export function GeneralSection(props: SectionProps<GeneralSectionFace>): ReactEl
 export function ModelsSection(
   props: SectionProps<BotModePrefsFace & { actions: BridgeActions; call: BridgeCall }>,
 ): ReactElement {
+  const viewer = useTeamMode(props.call)?.viewer;
+  const canConfigure = canConfigureModels(viewer);
   return (
     <Rows>
       <SettingsSection title={props.t('models.section.default')}>
-        <DefaultModelSettings actions={props.actions} t={props.t} />
+        <DefaultModelSettings actions={props.actions} canConfigure={canConfigure} t={props.t} />
       </SettingsSection>
-      <RoutingGroupSettings actions={props.actions} t={props.t} />
-      <SettingsSection title={props.t('models.section.mode')}>
-        <BotModeDefaultSetting actions={props.actions} t={props.t} />
-      </SettingsSection>
-      <BotModeTemplateSettings actions={props.actions} t={props.t} />
-      <SettingsSection title={props.t('models.section.context')}>
-        <IdleCompactionSetting call={props.call} t={props.t} />
-        <CompactionThresholdSetting call={props.call} t={props.t} />
-      </SettingsSection>
-      <SettingsSection title={props.t('models.section.run')}>
-        <AssignmentConcurrencyRow {...props} />
-      </SettingsSection>
+      <RoutingGroupSettings actions={props.actions} canConfigure={canConfigure} t={props.t} />
+      {viewer?.owner === true ? (
+        <>
+          <SettingsSection title={props.t('models.section.mode')}>
+            <BotModeDefaultSetting actions={props.actions} t={props.t} />
+          </SettingsSection>
+          <BotModeTemplateSettings actions={props.actions} t={props.t} />
+          <SettingsSection title={props.t('models.section.context')}>
+            <IdleCompactionSetting call={props.call} t={props.t} />
+            <CompactionThresholdSetting call={props.call} t={props.t} />
+          </SettingsSection>
+          <SettingsSection title={props.t('models.section.run')}>
+            <AssignmentConcurrencyRow {...props} />
+          </SettingsSection>
+        </>
+      ) : null}
     </Rows>
   );
 }
@@ -357,6 +366,19 @@ export function registerModelSettingsSections(
         inject: () => ({ ...botModePrefsFace(prefs), actions, call }),
       },
       ModelsSection,
+    ),
+  );
+  settingsCtx.slots.inject('botharness.settings.section', () =>
+    settingsCtx.slots.register(
+      {
+        name: 'botharness.settings.section',
+        id: BOT_SETTINGS_SECTIONS.modelPresets,
+        order: 11,
+        label: () => t('botSettings.section.modelPresets'),
+        locale: LOCALE_NS,
+        inject: () => ({ call, actions }),
+      },
+      ModelPresetsSettings,
     ),
   );
   settingsCtx.slots.inject('botharness.settings.section', () =>

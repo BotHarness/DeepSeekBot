@@ -17,9 +17,10 @@ export type ModelChoice =
   | { kind: 'group'; id: string };
 
 export type RoutingGroupMember = ModelChoice | RoutingGroupEngineMember;
+export type RoutingTarget = { kind: 'route'; route: ModelRoute } | RoutingGroupEngineMember;
 
 export const ROUTING_GROUP_MEMBER_SHAPES =
-  '{kind:"model",provider,model,reasoningEffort?}, {kind:"group",id} or {kind:"engine",engine,model?,accountId?}';
+  '{kind:"model",provider,model,reasoningEffort?}, {kind:"group",id} or {kind:"engine",engine,model?,reasoningEffort?,accountId?}';
 
 export interface RoutingGroup {
   id: string;
@@ -62,6 +63,7 @@ export interface RoutingGroupStore {
   update(id: string, input: RoutingGroupInput & { expectedRevision: number }): RoutingGroup;
   delete(id: string, expectedRevision: number): RoutingGroup;
   routes(id: string): ModelRoute[];
+  targets(id: string): RoutingTarget[];
   defaultGroup(): RoutingGroupDefault;
   setDefaultGroup(
     groupId: string | undefined,
@@ -117,6 +119,9 @@ function memberRecord(member: RoutingGroupMember): RoutingGroupMember {
       engine: member.engine,
       ...(member.accountId === undefined ? {} : { accountId: member.accountId }),
       ...(member.model === undefined ? {} : { model: member.model.trim() }),
+      ...(member.reasoningEffort === undefined
+        ? {}
+        : { reasoningEffort: member.reasoningEffort.trim() }),
     };
   return {
     kind: 'model',
@@ -131,7 +136,9 @@ function memberRecord(member: RoutingGroupMember): RoutingGroupMember {
 export function memberLabel(member: RoutingGroupMember): string {
   if (member.kind === 'engine') {
     const account = engineAccountKey(member.engine, member.accountId);
-    return member.model === undefined ? account : `${account}/${member.model}`;
+    return member.model === undefined
+      ? account
+      : `${account}/${member.model}${member.reasoningEffort ? ` (${member.reasoningEffort})` : ''}`;
   }
   return member.kind === 'group'
     ? `group ${member.id}`
@@ -142,7 +149,16 @@ export function expandRoutingGroup(
   id: string,
   groups: ReadonlyMap<string, Pick<RoutingGroup, 'id' | 'name' | 'members'>>,
 ): ModelRoute[] {
-  const routes: ModelRoute[] = [];
+  return expandRoutingTargets(id, groups).flatMap((target) =>
+    target.kind === 'route' ? [target.route] : [],
+  );
+}
+
+export function expandRoutingTargets(
+  id: string,
+  groups: ReadonlyMap<string, Pick<RoutingGroup, 'id' | 'name' | 'members'>>,
+): RoutingTarget[] {
+  const targets: RoutingTarget[] = [];
   const seen = new Set<string>();
   const visit = (groupId: string, path: string[]): void => {
     const group = groups.get(groupId);
@@ -163,21 +179,22 @@ export function expandRoutingGroup(
         visit(member.id, [...path, groupId]);
         continue;
       }
-      if (member.kind === 'engine') continue;
-      const key = JSON.stringify([member.provider, member.model, member.reasoningEffort ?? '']);
+      const key = JSON.stringify(
+        member.kind === 'engine'
+          ? [member.kind, engineAccountKey(member.engine, member.accountId), member.model]
+          : [member.kind, member.provider, member.model, member.reasoningEffort],
+      );
       if (seen.has(key)) continue;
       seen.add(key);
-      routes.push({
-        provider: member.provider,
-        model: member.model,
-        ...(member.reasoningEffort === undefined
-          ? {}
-          : { reasoningEffort: member.reasoningEffort }),
-      });
+      if (member.kind === 'engine') targets.push(member);
+      else {
+        const { kind: _kind, ...route } = member;
+        targets.push({ kind: 'route', route });
+      }
     }
   };
   visit(id, []);
-  return routes;
+  return targets;
 }
 
 export interface RoutingGroupStoreOptions {
@@ -379,6 +396,9 @@ export function createRoutingGroupStore(options: RoutingGroupStoreOptions): Rout
     },
     routes(id) {
       return expandRoutingGroup(id, byId(read()));
+    },
+    targets(id) {
+      return expandRoutingTargets(id, byId(read()));
     },
   };
 }

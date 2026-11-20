@@ -30,7 +30,7 @@ function fromKeychain() {
     const value = execFileSync(
       'security',
       ['find-generic-password', '-s', KEYCHAIN_SERVICE, '-w'],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], shell: false, windowsHide: true },
     ).trim();
     return value.length === 0 ? undefined : { source: `Keychain:${KEYCHAIN_SERVICE}`, value };
   } catch {

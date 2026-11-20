@@ -1,3 +1,5 @@
+import * as stylex from '@stylexjs/stylex';
+import { rosterStyles } from './ds/roster-styles.js';
 import { Icon } from './ds/icon.js';
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 
@@ -72,8 +74,8 @@ export const NEW_SECTION_MOVE_TARGET = 'new-section';
 const CHANNEL_NAME_MAX = 200;
 function checkedTargetLabel(text: string): ReactElement {
   return (
-    <span className="bh-move-checked">
-      <span className="bh-move-checked-text">{text}</span>
+    <span {...stylex.props(rosterStyles.menuLabel)}>
+      <span {...stylex.props(rosterStyles.truncate)}>{text}</span>
       <Icon name="check" />
     </span>
   );

@@ -2732,7 +2732,8 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
     const catalog = z
       .array(z.object({ id: z.string(), group: z.string() }).strict())
       .parse(await f.invoke('permissionCatalog'));
-    expect(catalog).toHaveLength(17);
+    expect(catalog).toHaveLength(18);
+    expect(catalog).toContainEqual({ id: 'models.configure', group: 'compute' });
     expect(catalog).toContainEqual({ id: 'modelSources.manage', group: 'compute' });
     expect(f.team.mode(owner).viewer).toMatchObject({
       owner: true,
@@ -2745,7 +2746,8 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
       permissions: ['dm.humans'],
     });
     const builtins = f.team.roles.list(owner);
-    expect(builtins.find((r) => r.builtin === 'admin')?.permissions).toHaveLength(15);
+    expect(builtins.find((r) => r.builtin === 'admin')?.permissions).toHaveLength(16);
+    expect(builtins.find((r) => r.builtin === 'admin')?.permissions).toContain('models.configure');
     expect(builtins.find((r) => r.builtin === 'admin')?.permissions).not.toContain(
       'privateContent.view',
     );
@@ -3029,7 +3031,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
         const human = actorKind === 'owner' ? owner : f.human;
         const models =
           actorKind === 'restricted-manager'
-            ? { kind: 'only' as const, routes: ['provider/allowed'] }
+            ? { kind: 'only' as const, providers: [], routes: ['provider/allowed'] }
             : { kind: 'all' as const };
         const peer =
           actorKind === 'owner'
@@ -3048,7 +3050,9 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
         expect(f.team.roles.update(human, created.roleId, { models }).role.models).toEqual(models);
         f.team.roles.set(human, f.alice.member.humanId, [created.roleId]);
         expect(f.team.mode(humanContext(f.alice.member.humanId)).viewer.models).toEqual(
-          models.kind === 'all' ? { all: true } : { all: false, routes: models.routes },
+          models.kind === 'all'
+            ? { all: true }
+            : { all: false, providers: models.providers, routes: models.routes },
         );
         const member = await f.team.createMember(human, 'delegated-models', 'Delegated', [
           created.roleId,

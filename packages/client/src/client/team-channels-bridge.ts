@@ -1,4 +1,5 @@
-import type { BridgeCall } from './bridge.js';
+import { readChannel } from '@botharness/host-client/channel-management';
+import { bridgeHost, type BridgeCall } from './bridge.js';
 import { list, record, strings, unwrap } from './team-bridge.js';
 
 export type ChannelVisibility =
@@ -93,7 +94,7 @@ export async function loadChannelAccess(
   channelId: string,
   signal?: AbortSignal,
 ): Promise<ChannelAccess | undefined> {
-  return parseChannelAccess(await unwrap(call, 'channelGet', { channelId }, signal));
+  return parseChannelAccess(await readChannel(bridgeHost(call, signal), channelId));
 }
 
 export async function setChannelVisibility(

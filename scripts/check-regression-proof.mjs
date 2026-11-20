@@ -63,7 +63,12 @@ export function proof(head, base) {
 }
 
 function git(args) {
-  return execFileSync('git', args, { cwd: ROOT, encoding: 'utf8', windowsHide: true });
+  return execFileSync('git', args, {
+    cwd: ROOT,
+    encoding: 'utf8',
+    windowsHide: true,
+    shell: false,
+  });
 }
 
 function vitest(files, out) {

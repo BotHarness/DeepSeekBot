@@ -153,6 +153,8 @@ describe('machine-local reusable IM test Apps', () => {
         encoding: 'utf8',
         timeout: 15_000,
         env: { ...process.env, BOTHARNESS_IM_TEST_APPS_ENV: options.path },
+        shell: false,
+        windowsHide: true,
       },
     );
     expect(result.status).toBe(0);
@@ -212,6 +214,8 @@ describe('machine-local reusable IM test Apps', () => {
             BOTHARNESS_IM_TEST_APPS_ENV: options.path,
             BOTHARNESS_IM_TEST_APPS_NO_OPEN: '1',
           },
+          shell: false,
+          windowsHide: true,
         },
       );
     const result = run(['', 'QA2', '', '', 'y', token, '', '', '', '', 'y', ''].join('\n'));
@@ -261,6 +265,8 @@ describe('machine-local reusable IM test Apps', () => {
           BOTHARNESS_IM_TEST_APPS_ENV: options.path,
           BOTHARNESS_IM_TEST_APPS_NO_OPEN: '1',
         },
+        shell: false,
+        windowsHide: true,
       },
     );
     expect(result.status, result.stdout + result.stderr).toBe(0);
@@ -305,6 +311,8 @@ describe('machine-local reusable IM test Apps', () => {
           BOTHARNESS_IM_TEST_APPS_ENV: options.path,
           BOTHARNESS_IM_TEST_APPS_NO_OPEN: '1',
         },
+        shell: false,
+        windowsHide: true,
       },
     );
     expect(result.status).toBe(1);
@@ -345,6 +353,8 @@ describe('machine-local reusable IM test Apps', () => {
       encoding: 'utf8',
       timeout: 15_000,
       env: { ...process.env, BOTHARNESS_IM_TEST_APPS_ENV: options.path },
+      shell: false,
+      windowsHide: true,
     });
     expect(result.error).toBeUndefined();
     expect(result.status).toBe(0);
@@ -417,6 +427,8 @@ describe('machine-local reusable IM test Apps', () => {
       encoding: 'utf8',
       timeout: 15_000,
       env: { ...process.env, BOTHARNESS_IM_TEST_APPS_ENV: options.path },
+      shell: false,
+      windowsHide: true,
     });
     expect(result.status).toBe(0);
     const listed = JSON.parse(result.stdout).apps;

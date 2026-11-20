@@ -399,6 +399,39 @@ export interface ProfileActivity {
   modelUsageStatus: 'ready' | 'unavailable';
 }
 
+export type AssignmentActivity = 'working' | 'idle' | 'error' | 'stopping' | 'stopped';
+export type AssignmentReportState =
+  | 'progress'
+  | 'completed'
+  | 'blocked'
+  | 'waiting-human'
+  | 'failed';
+
+export interface AssignmentReportInput {
+  state: AssignmentReportState;
+  summary: string;
+
+  expectsReply?: boolean;
+}
+
+export interface AssignmentReport extends AssignmentReportInput {
+  at: string;
+}
+
+export interface ChannelAssignmentSummary {
+  sessionId: string;
+  botSlug: string;
+  title: string;
+  description: string;
+  activity: AssignmentActivity;
+  latestReport?: AssignmentReport;
+  modelRoute?: { provider: string; model: string; reasoningEffort?: string };
+  subagentCount?: number;
+  archivedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface ChannelListItem {
   id: string;
   createdAt?: string;
@@ -429,10 +462,18 @@ export interface WireGroupJoinRequest {
   status: 'pending' | 'accepted' | 'declined' | 'cancelled';
 }
 
+export type RosterResourceChange = {
+  resource: string;
+  revision: number;
+  channelId?: string;
+  messageId?: string;
+  slug?: string;
+};
+
 export type RosterLiveFrame =
   | { type: 'skills'; change: { botSlugs: string[]; channelIds: string[] } }
   | { type: 'attention' }
-  | { type: 'resource'; change: { resource: string; revision: number } }
+  | { type: 'resource'; change: RosterResourceChange }
   | { type: 'baseline'; placements: unknown[] }
   | { type: 'changed' }
   | { type: 'latest'; channelId: string; message: WireMessage }

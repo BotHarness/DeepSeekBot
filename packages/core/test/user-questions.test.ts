@@ -1,65 +1,17 @@
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import { humanContext, OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { Context } from '@deepseek-ai/cordis';
-import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Agent } from '@deepseek-ai/dsh-agent';
-
-import { createChannelStore } from '../src/channels/store.js';
 import {
   ChannelUserQuestions,
   registerChannelUserQuestions,
   type TimedQuestionPort,
 } from '../src/channels/user-questions.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
-import { createTempRoot, createTestOwnership } from './helpers.js';
 
-const sessionId = 'botharness-orchestrator-question-test';
-const channelId = 'dm-ada';
-const questions = [
-  {
-    id: 'memory-branch',
-    question: 'Which Memory branch should I switch to?',
-    options: [
-      { label: 'main', description: 'Current branch' },
-      { label: 'history-qa', description: 'Earlier memory' },
-    ],
-  },
-];
-
-function fixture(role: 'orchestrator' | 'assignment' = 'orchestrator', timed?: TimedQuestionPort) {
-  const channels = createChannelStore({
-    rootDir: join(createTempRoot('bh-question-'), 'channels'),
-  });
-  channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
-  const ownership = createTestOwnership({ [sessionId]: { botSlug: 'ada', rootRole: role } });
-  const agent = { session: { id: sessionId, header: { cwd: '/tmp/memory' } } } as Agent;
-  let live = true;
-  const warn = vi.fn();
-  const states = createBotStateTracker();
-  states.setSessionState('ada', sessionId, 'working', undefined, 'orchestrator');
-  const answerer = new ChannelUserQuestions(
-    channels,
-    ownership,
-    (candidate) => candidate === agent && live,
-    warn,
-    (slug, count) => states.setQuestionCount(slug, count),
-    timed,
-  );
-  return {
-    channels,
-    ownership,
-    agent,
-    answerer,
-    warn,
-    states,
-    setLive: (value: boolean) => {
-      live = value;
-    },
-  };
-}
+import { channelId, fixture, questions, sessionId } from './fixtures/user-questions.js';
 
 describe('native DSH questions in a PersonaBot DM', () => {
   it('publishes only committed requests and accepted answers, while a broken observer cannot settle the owner', async () => {
@@ -470,7 +422,7 @@ describe('native timed question card continuation', () => {
     state.answerer.close();
   });
 
-  it('also waits for native settlement when the answer arrives before the deadline', async () => {
+  it('notifies subscribers of a deferred native answer before settlement', async () => {
     const answer = { answers: [{ id: 'memory-branch', selected: ['main'] }] };
     let native: ReturnType<TimedQuestionPort['read']> = { state: 'open' };
     const port: TimedQuestionPort = { read: () => native, answer: vi.fn(() => true) };
@@ -482,10 +434,17 @@ describe('native timed question card continuation', () => {
     } as Parameters<ChannelUserQuestions['ask']>[0]);
     await vi.waitFor(() => expect(state.channels.readMessages(channelId)).toHaveLength(1));
     const id = state.channels.readMessages(channelId)[0]!.id;
+    const statusChanged = vi.fn(({ messageId }: { messageId: string }) =>
+      state.answerer.status('ada', messageId),
+    );
+    const unsubscribe = state.answerer.subscribeStatus(statusChanged);
     expect(await state.answerer.answer('ada', id, answer, OWNER_HUMAN_CONTEXT)).toBe(true);
     expect(await wait).toEqual(answer);
     expect(state.channels.readMessages(channelId)).toHaveLength(1);
     expect(state.answerer.status('ada', id)).toBe('submitted');
+    expect(statusChanged).toHaveBeenCalledExactlyOnceWith({ channelId, messageId: id });
+    expect(statusChanged).toHaveReturnedWith('submitted');
+    unsubscribe();
     expect(port.answer).not.toHaveBeenCalled();
     native = { state: 'answered', answer };
     await state.answerer.reconcileSession(sessionId);
@@ -575,11 +534,17 @@ describe('native timed question card continuation', () => {
     const state = await continued();
     const discard = vi.fn();
     state.port.discardAnswer = discard;
+    const changes: string[] = [];
+    const off = state.answerer.subscribeStatus((card) => {
+      expect(card).toEqual({ channelId, messageId: state.id });
+      changes.push(state.answerer.status('ada', state.id));
+    });
     expect(await state.answerer.answer('ada', state.id, state.answer, OWNER_HUMAN_CONTEXT)).toBe(
       true,
     );
     state.answerer.discardReply(sessionId, 'other-call');
     expect(state.answerer.status('ada', state.id)).toBe('submitted');
+    expect(changes).toEqual(['submitted']);
     state.answerer.discardReply(sessionId, 'original');
     expect(discard).toHaveBeenCalledWith(sessionId, 'original');
     expect(state.answerer.status('ada', state.id)).toBe('pending');
@@ -592,6 +557,8 @@ describe('native timed question card continuation', () => {
     expect(
       state.channels.readMessages(channelId)[0]?.userQuestionResolution?.decidedBy?.humanId,
     ).toBe(OWNER_HUMAN_CONTEXT.humanId);
+    expect(changes).toEqual(['submitted', 'pending', 'submitted', 'answered']);
+    off();
     state.answerer.close();
   });
 

@@ -58,17 +58,16 @@ import {
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-function patchPinnedFileReference(source, runtime, version) {
+function patchPinnedRuntime(source, runtime, version) {
   if (version !== '0.2.2-rc.1') return source;
-  const patch = 'patches/@deepseek-ai__dsh-file-reference-local@0.2.2-rc.1.patch';
-  const destination = join(runtime, patch);
-  mkdirSync(dirname(destination), { recursive: true });
-  copyFileSync(join(repoRoot, patch), destination);
   const document = parseDocument(source);
-  document.setIn(
-    ['patchedDependencies', '@deepseek-ai/dsh-file-reference-local@0.2.2-rc.1'],
-    patch,
-  );
+  for (const name of ['dsh-agent-loop', 'dsh-file-reference-local']) {
+    const patch = `patches/@deepseek-ai__${name}@${version}.patch`;
+    const destination = join(runtime, patch);
+    mkdirSync(dirname(destination), { recursive: true });
+    copyFileSync(join(repoRoot, patch), destination);
+    document.setIn(['patchedDependencies', `@deepseek-ai/${name}@${version}`], patch);
+  }
   return String(document);
 }
 
@@ -334,7 +333,14 @@ async function launch(options) {
       ...options.trustedHosts.flatMap((host) => ['--trusted-host', host]),
       '--no-open',
     ],
-    { env, cwd: runtime, detached: true, stdio: ['ignore', logFd, logFd] },
+    {
+      env,
+      cwd: runtime,
+      detached: true,
+      stdio: ['ignore', logFd, logFd],
+      shell: false,
+      windowsHide: true,
+    },
   );
   child.ownedProcessGroup = process.platform !== 'win32';
   closeSync(logFd);
@@ -445,7 +451,7 @@ async function main() {
           );
         writeFileSync(
           runtimeWorkspace,
-          patchPinnedFileReference(
+          patchPinnedRuntime(
             withoutAxRuntimePatch(readFileSync(runtimeWorkspace, 'utf8')),
             options.runtime,
             version,
