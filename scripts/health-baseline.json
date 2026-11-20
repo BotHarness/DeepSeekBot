@@ -46,7 +46,6 @@
     "packages/client/test/model-preset-profile.test.ts",
     "packages/client/test/remote-hosts.test.ts",
     "packages/client/test/window-companion-view.test.ts",
-    "packages/computer/src/index.ts",
     "packages/computer/src/local-video-owner.ts",
     "packages/computer/test/docker-provider.test.ts",
     "packages/computer/test/local-video-owner.test.ts",
