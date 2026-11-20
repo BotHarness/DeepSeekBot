@@ -35,6 +35,7 @@ type Phase =
       kind: 'pending';
       request: QuestionRequest;
       busy?: boolean;
+      choice?: string;
       error?: string;
     }
   | { kind: 'settled'; status: 'decided' | 'expired'; mine: boolean };
@@ -165,10 +166,10 @@ export function QuestionCard({
   const { request } = phase;
   const single = request.questions.length === 1 ? request.questions[0] : undefined;
   const answer = buildAnswer(request.questions, drafts);
-  const instant = single !== undefined && single.multiSelect !== true;
-  const typed = Object.values(drafts).some((draft) => draft.custom.trim() !== '');
+  const singleAnswer = single !== undefined && single.multiSelect !== true;
+  const instant = singleAnswer && !!single.options?.length;
   const editingQuestion = request.questions.find((question) => question.id === editing);
-  const submit = async (answer: QuestionAnswer | undefined) => {
+  const submit = async (answer: QuestionAnswer | undefined, choice?: string) => {
     if (
       answer === undefined ||
       submission.pending ||
@@ -178,7 +179,7 @@ export function QuestionCard({
     )
       return;
     submission.pending = true;
-    setPhase({ kind: 'pending', request, busy: true });
+    setPhase({ kind: 'pending', request, busy: true, ...(choice === undefined ? {} : { choice }) });
     try {
       const result = await port.answer(answer);
       if (!submission.active || current.current !== submission) return;
@@ -205,7 +206,7 @@ export function QuestionCard({
         category={single?.header ?? category}
         status={t.needsYou}
         title={single?.question ?? t.asks(botName)}
-        busy={instant && phase.busy === true}
+        busy={singleAnswer && phase.busy === true}
         focused={focused}
         wide={wide}
         {...(phase.error === undefined ? {} : { error: phase.error })}
@@ -218,17 +219,19 @@ export function QuestionCard({
               <QuestionFields
                 key={question.id}
                 question={question}
-                draft={drafts[question.id] ?? emptyDraft()}
+                draft={
+                  phase.choice === undefined
+                    ? (drafts[question.id] ?? emptyDraft())
+                    : { selected: [phase.choice], custom: '' }
+                }
                 heading={single === undefined}
                 disabled={phase.busy === true}
                 inChat={replyInChat && single !== undefined}
-                {...(expandInput ? { onExpand: () => setEditing(question.id) } : {})}
+                {...(expandInput || instant ? { onExpand: () => setEditing(question.id) } : {})}
                 {...(instant
                   ? {
                       onPick: (label: string) =>
-                        void submit({
-                          answers: [{ id: question.id, selected: [label] }],
-                        }),
+                        void submit({ answers: [{ id: question.id, selected: [label] }] }, label),
                     }
                   : {})}
                 onChange={(next) => setDrafts((current) => ({ ...current, [question.id]: next }))}
@@ -237,7 +240,7 @@ export function QuestionCard({
           </CardGroup>
         }
       >
-        {instant && !typed ? null : (
+        {singleAnswer && (instant || answer === undefined) ? null : (
           <CardButtons>
             <Button
               symbol="check"
@@ -256,7 +259,8 @@ export function QuestionCard({
         <DraftEditor
           value={drafts[editingQuestion.id]?.custom ?? ''}
           placeholder={editingQuestion.options?.length ? t.otherAnswer : t.typeAnswer}
-          canSend={false}
+          showSend={instant}
+          canSend={instant && answer !== undefined && phase.busy !== true}
           onChange={(text) =>
             setDrafts((current) => ({
               ...current,
@@ -267,7 +271,10 @@ export function QuestionCard({
               ),
             }))
           }
-          onSend={() => setEditing(undefined)}
+          onSend={() => {
+            setEditing(undefined);
+            void submit(answer);
+          }}
           onClose={() => setEditing(undefined)}
         />
       )}

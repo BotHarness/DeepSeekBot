@@ -1,7 +1,7 @@
 import fc from 'fast-check';
 import { expect, it } from 'vitest';
 
-import { cardChoiceColors } from '../src/ui/design/controls';
+import { cardChoiceColors, questionGroupOutline } from '../src/ui/design/controls';
 import { contrast, resolveTheme } from '../src/ui/design/resolve-theme';
 
 it('preserves readable card choices with arbitrary Bot accents', () => {
@@ -10,6 +10,9 @@ it('preserves readable card choices with arbitrary Bot accents', () => {
       const accent = '#' + rgb.toString(16).padStart(6, '0');
       for (const scheme of ['light', 'dark'] as const) {
         const theme = resolveTheme(scheme, { accent });
+        expect(
+          contrast(questionGroupOutline(theme), theme.layer.raised.fill),
+        ).toBeGreaterThanOrEqual(3);
         const resting = cardChoiceColors(theme, 'primary');
         for (const state of ['rest', 'pressed', 'disabled', 'selected-disabled'] as const) {
           const paint = cardChoiceColors(theme, 'primary', state);

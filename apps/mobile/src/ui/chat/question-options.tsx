@@ -2,10 +2,11 @@ import { Pressable, View } from 'react-native';
 
 import { toggleOption, type QuestionDraft } from '@botharness/host-client/requests';
 import type { QuestionItem } from '@botharness/host-protocol/wire';
-import { cardChoiceColors } from '../design/controls';
+import { cardChoiceColors, questionGroupOutline } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
+import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
+import { CheckIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { letter } from './question-letter';
 
@@ -29,7 +30,7 @@ function Option({
   const t = useStrings();
   const theme = useDesignTheme();
   const tone = chosen ? 'primary' : 'secondary';
-  const state = disabled ? (chosen ? 'selected-disabled' : 'disabled') : 'rest';
+  const state = disabled && !chosen ? 'disabled' : 'rest';
   const colors = cardChoiceColors(theme, tone, state);
   const pressedColors = cardChoiceColors(theme, tone, 'pressed');
   const badge = theme.type.body.line * theme.fontScale + space.x2;
@@ -52,12 +53,13 @@ function Option({
           gap: space.x4,
           paddingHorizontal: space.x4,
           paddingVertical: space.x3,
-          borderRadius: radius.round,
           backgroundColor: paint.fill,
         };
       }}
     >
       <View
+        testID={chosen ? 'question-option-check' : undefined}
+        accessible={false}
         style={{
           width: badge,
           height: badge,
@@ -65,9 +67,13 @@ function Option({
           justifyContent: 'center',
         }}
       >
-        <Text variant="meta" strong style={{ color: colors.ink }}>
-          {letter(index)}
-        </Text>
+        {chosen ? (
+          <CheckIcon size={theme.type.meta.line * theme.fontScale} color={colors.ink} />
+        ) : (
+          <Text variant="meta" strong style={{ color: colors.ink }}>
+            {letter(index)}
+          </Text>
+        )}
       </View>
       <View style={{ flexShrink: 1, gap: space.x1 }}>
         <Text style={{ color: colors.ink }}>{label}</Text>
@@ -94,10 +100,23 @@ export function QuestionOptions({
   onChange(next: QuestionDraft): void;
   onPick?(label: string): void;
 }) {
+  const theme = useDesignTheme();
   const options = question.options ?? [];
   const multiple = question.multiSelect === true;
   return options.length > 0 ? (
-    <View accessibilityLabel={question.question} style={{ gap: space.x2 }}>
+    <View
+      testID="question-options"
+      accessibilityLabel={question.question}
+      style={{
+        gap: edge.hairline,
+        backgroundColor: theme.layer.raised.fill,
+        borderColor: questionGroupOutline(theme),
+        borderStyle: 'dashed',
+        borderWidth: edge.hairline,
+        borderRadius: radius.md,
+        overflow: 'hidden',
+      }}
+    >
       {options.map((option, index) => (
         <Option
           key={option.label}

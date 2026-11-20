@@ -117,6 +117,10 @@ export function cardChoiceColors(
   return { fill, ink: readable(preferred, fill) };
 }
 
+export function questionGroupOutline(theme: DesignTheme): string {
+  return readableColor(theme.color.muted, theme.layer.raised.fill, 3);
+}
+
 export type SwitchColors = {
   trackOn: string;
   trackOff: string;

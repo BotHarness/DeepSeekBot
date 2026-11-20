@@ -96,6 +96,20 @@ function expectCapsule(control: HTMLButtonElement, rest: string, pressed = rest)
   }
 }
 
+function expectOption(control: HTMLButtonElement, rest: string, pressed = rest) {
+  for (const [state, fill] of [
+    ['rest', rest],
+    ['pressed', pressed],
+  ]) {
+    const style = JSON.parse(control.getAttribute(`data-${state}-style`) ?? '{}');
+    expect(style).toMatchObject({
+      minHeight: theme.touch,
+      minWidth: theme.touch,
+      backgroundColor: fill,
+    });
+  }
+}
+
 describe('ActionCard on Android', () => {
   it('is one Material 3 card in one Host, with its buttons drawn in the same Compose tree', async () => {
     const allow = vi.fn();
@@ -255,11 +269,13 @@ describe('question options on Android', () => {
     );
     const rows = [...view.querySelectorAll<HTMLButtonElement>('button[role="radio"]')];
     expect(rows).toHaveLength(2);
+    expect(rows[0]!.parentElement).toBe(view.querySelector('[data-testid="question-options"]'));
+    expect(rows[1]!.parentElement).toBe(rows[0]!.parentElement);
     expect(rows[0]!.closest('[data-compose="RNHostView"]')).not.toBeNull();
     expect(rows[0]!.getAttribute('aria-label')).toBe(t.option('A', 'main'));
     expect(rows[0]!.textContent).toContain('The default branch');
     expect(rows[1]!.getAttribute('aria-checked')).toBe('false');
-    expectCapsule(
+    expectOption(
       rows[0]!,
       cardChoiceColors(theme, 'secondary').fill,
       cardChoiceColors(theme, 'secondary', 'pressed').fill,
@@ -288,7 +304,9 @@ describe('question options on Android', () => {
       'true',
       'false',
     ]);
-    expectCapsule(
+    expect(checkboxes[0]!.querySelector('[data-testid="question-option-check"]')).not.toBeNull();
+    expect(checkboxes[1]!.querySelector('[data-testid="question-option-check"]')).toBeNull();
+    expectOption(
       checkboxes[0]!,
       cardChoiceColors(theme, 'primary').fill,
       cardChoiceColors(theme, 'primary', 'pressed').fill,
@@ -312,8 +330,8 @@ describe('question options on Android', () => {
       ),
     );
     expect(checkboxes.every((checkbox) => checkbox.disabled)).toBe(true);
-    expectCapsule(checkboxes[0]!, cardChoiceColors(theme, 'primary', 'selected-disabled').fill);
-    expectCapsule(checkboxes[1]!, cardChoiceColors(theme, 'secondary', 'disabled').fill);
+    expectOption(checkboxes[0]!, cardChoiceColors(theme, 'primary').fill);
+    expectOption(checkboxes[1]!, cardChoiceColors(theme, 'secondary', 'disabled').fill);
     await act(async () => checkboxes[1]!.click());
     expect(change).not.toHaveBeenCalled();
   });
