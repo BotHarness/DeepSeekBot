@@ -79,7 +79,6 @@
     "packages/core/src/runtime/dsh-bot-agent-adapter.ts",
     "packages/core/src/runtime/human-attention.ts",
     "packages/core/src/team/service.ts",
-    "packages/core/src/voice/calls.ts",
     "packages/core/src/voice/providers.ts",
     "packages/core/src/workspaces/tool-approval.ts",
     "packages/core/test/assignment-collaboration.test.ts",
