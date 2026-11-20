@@ -188,6 +188,9 @@ describe('Market panel', () => {
       await withPanel(
         async () => ({ bots: [] }),
         async ({ host }) => {
+          const tabs = host.querySelector('[role="tablist"][aria-label="市场"]');
+          expect(tabs?.closest('[data-market-panel]')).not.toBeNull();
+          expect(tabs?.closest('header')).toBeNull();
           expect(button(host, t('market.panel.upload')).closest('header')).not.toBeNull();
           expect(button(host, t('market.mine.open'))).toBeTruthy();
           await click(host, t('market.avatar.title'));
@@ -819,7 +822,7 @@ describe('Market panel', () => {
     const panel = createMarketPanel({} as BridgeActions, {} as DockPanelRegistry, zhTranslate);
     expect(panel).toMatchObject({
       id: MARKET_PANEL,
-      title: 'Bot 市场',
+      title: '市场',
       icon: 'store',
       scope: 'global',
     });

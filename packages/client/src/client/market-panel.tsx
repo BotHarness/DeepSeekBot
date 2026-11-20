@@ -10,6 +10,7 @@ import type { BridgeActions } from './actions.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { SegmentedControl } from './ds/segmented.js';
+import { space } from './ds/tokens.stylex.js';
 import { MarketAvatars } from './market-avatars.js';
 import { joinClass } from './ds/class-name.js';
 import { useTeamMode } from './team-state.js';
@@ -35,7 +36,7 @@ import {
 
 const styles = stylex.create({
   stack: { display: 'flex', flexDirection: 'column' },
-  tabs: { flexShrink: 0 },
+  tabs: { flexShrink: 0, marginBlockStart: space.x4, marginInline: space.x4 },
   panel: { flexGrow: 1, flexBasis: 0, minHeight: 0 },
 });
 
@@ -90,18 +91,6 @@ function MarketHeaderAction({
   const uploadLabel = t(section === 'bots' ? 'market.panel.upload' : 'market.avatar.publish');
   return (
     <>
-      <SegmentedControl
-        id="bh-market-section"
-        value={section}
-        options={[
-          { value: 'bots', label: t('market.avatar.bots') },
-          { value: 'avatars', label: t('market.avatar.title') },
-        ]}
-        label={t('market.title')}
-        controlsPanel
-        className={stylex.props(styles.tabs).className}
-        onChange={navigation.select}
-      />
       {section === 'bots' && (
         <Tooltip label={t('market.mine.open')} side="bottom" delayMs={500}>
           <IconButton
@@ -214,6 +203,18 @@ function MarketPanelView({
       data-market-panel
       ref={listen}
     >
+      <SegmentedControl
+        id="bh-market-section"
+        value={section}
+        options={[
+          { value: 'bots', label: t('market.avatar.bots') },
+          { value: 'avatars', label: t('market.avatar.title') },
+        ]}
+        label={t('market.panel.title')}
+        controlsPanel
+        className={stylex.props(styles.tabs).className}
+        onChange={navigation.select}
+      />
       <div
         {...stylex.props(styles.panel)}
         id="bh-market-section-avatars-panel"
@@ -382,7 +383,7 @@ export function createMarketPanel(
   const navigation = createMarketNavigation();
   return {
     id: MARKET_PANEL,
-    title: t('market.title'),
+    title: t('market.panel.title'),
     icon: 'store',
     scope: 'global',
     order: 500,

@@ -1701,7 +1701,7 @@ describe('bot sidebar rows', () => {
     const markup = renderSidebar();
     const menu = openSidebarMenu(zhTranslate('roster.new.label'));
 
-    expect(rowNames(menu)).toEqual(['创建 Bot', '创建频道', '创建频道分组', 'Bot 市场']);
+    expect(rowNames(menu)).toEqual(['创建 Bot', '创建频道', '创建频道分组', '市场']);
     expect(menu.querySelector('[role=menuitem]')?.getAttribute('aria-disabled')).not.toBe('true');
     expect(menu.querySelector('[role=menuitem]')?.hasAttribute('aria-haspopup')).toBe(false);
     expect(markup).toContain('还没有 Bot');
