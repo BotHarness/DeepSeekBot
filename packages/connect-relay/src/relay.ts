@@ -1,11 +1,22 @@
 import { createActivityRegistry, type ActivitySender } from './live-activity.js';
 import type { AccessTokenVerifier } from './auth.js';
-import { RecordQuotaError, type TunnelApi, type TunnelRecord } from './cloudflare.js';
+import { RecordQuotaError, type TunnelApi } from './cloudflare.js';
 import type { D1Database } from './d1.js';
 import type { EmailCode } from './email-code.js';
 import type { PasswordAuth } from './password-auth.js';
 import { ONLINE, pickVictim, pickZone, type EvictionTier, type PoolTunnel } from './pool.js';
 import { logWorker } from './worker-log.js';
+
+import { createBotNetworkHandlers } from './relay-bot-network.js';
+import { type HostRow, HOST_ID, TEST_LABEL_PREFIX, randomHostId, validName } from './relay-host.js';
+import { failure, json, readBody } from './relay-http.js';
+import { createOfferHandler } from './relay-offers.js';
+import { createRelayReclaimer } from './relay-reconcile.js';
+
+export { TEST_LABEL_PREFIX, randomHostId } from './relay-host.js';
+export { OFFER_PATH, SIGNATURE_HEADER } from './relay-offers.js';
+export type { ReconcileReport } from './relay-reconcile.js';
+export { hmac } from './relay-signatures.js';
 
 export interface RelayOptions {
   activitySender?: ActivitySender;
@@ -50,132 +61,7 @@ interface PoolStatus {
   guaranteedMinutes: number;
 }
 
-interface HostRow {
-  id: string;
-  account: string;
-  name: string;
-  created_at: string;
-  tunnel_id: string | null;
-  tunnel_created_at: string | null;
-  dns_record_id: string | null;
-  origin_port: number | null;
-  bot_host_id: string | null;
-  bot_public_key: string | null;
-  session_id: string | null;
-  zone: string | null;
-  label?: string | null;
-  last_used_at: string | null;
-  evicted_at: string | null;
-  waiting_since: string | null;
-  refused_at: string | null;
-  cleanup_at: string | null;
-  tunnel_status: string | null;
-  tunnel_inactive_since: string | null;
-}
-
-export interface ReconcileReport {
-  reclaimed: string[];
-  vanished: string[];
-  repaired: string[];
-  staleRecords: number;
-  orphanRecords: number;
-  orphanTunnels: number;
-  deletedAccountHosts: string[];
-  failures: number;
-  budgetExhausted: boolean;
-}
-
-const HOST_ID = /^h[a-z2-7]{12}$/u;
-const HOST_LABEL = /^(h[a-z2-7]{12})\.(.+)$/u;
 const USE_STEP_MS = 60_000;
-const VERIFIER_HASH = /^[A-Za-z0-9_-]{43}$/u;
-const OFFER_TIMEOUT_MS = 10_000;
-export const OFFER_PATH = '/botharness-device/channel';
-export const SIGNATURE_HEADER = 'x-botharness-relay-signature';
-
-function base64Url(bytes: ArrayBuffer): string {
-  return btoa(String.fromCharCode(...new Uint8Array(bytes)))
-    .replaceAll('+', '-')
-    .replaceAll('/', '_')
-    .replace(/=+$/u, '');
-}
-
-export async function hmac(key: string, message: string): Promise<string> {
-  const imported = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(key),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign'],
-  );
-  return base64Url(await crypto.subtle.sign('HMAC', imported, new TextEncoder().encode(message)));
-}
-
-async function verifyBotProof(key: string, proof: unknown, statement: string): Promise<boolean> {
-  if (typeof proof !== 'string' || !/^[A-Za-z0-9_-]{43}$/u.test(proof)) return false;
-  const imported = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(key),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['verify'],
-  );
-  const signature = Uint8Array.from(
-    atob(proof.replaceAll('-', '+').replaceAll('_', '/') + '='),
-    (c) => c.charCodeAt(0),
-  );
-  return crypto.subtle.verify('HMAC', imported, signature, new TextEncoder().encode(statement));
-}
-
-function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
-  });
-}
-
-function failure(status: number, code: string, cause?: string): Response {
-  return json(status, { error: cause === undefined ? { code } : { code, cause } });
-}
-
-async function readBody(
-  request: Request,
-  limit?: number,
-): Promise<Record<string, unknown> | undefined> {
-  try {
-    let body: unknown;
-    if (limit === undefined) body = await request.json();
-    else {
-      const reader = request.body?.getReader();
-      if (reader === undefined) return undefined;
-      const decoder = new TextDecoder();
-      let text = '';
-      let size = 0;
-      try {
-        for (;;) {
-          const chunk = await reader.read();
-          if (chunk.done) break;
-          size += chunk.value.byteLength;
-          if (size > limit) {
-            await reader.cancel();
-            return undefined;
-          }
-          text += decoder.decode(chunk.value, { stream: true });
-        }
-        text += decoder.decode();
-      } finally {
-        reader.releaseLock();
-      }
-      body = JSON.parse(text);
-    }
-    return typeof body === 'object' && body !== null && !Array.isArray(body)
-      ? (body as Record<string, unknown>)
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
 class RelayFull extends Error {
   constructor(
     readonly reason: 'pool-full' | 'zone-full' | 'queued',
@@ -199,26 +85,6 @@ const time = (value: string | null | undefined): number => {
 function changes(result: unknown): number {
   const value = result as { changes?: number; meta?: { changes?: number } } | null;
   return value?.meta?.changes ?? value?.changes ?? 0;
-}
-
-export const TEST_LABEL_PREFIX = 'hzzzz';
-
-export function randomHostId(): string {
-  const alphabet = 'abcdefghijklmnopqrstuvwxyz234567';
-  for (;;) {
-    const bytes = crypto.getRandomValues(new Uint8Array(12));
-    const id = `h${Array.from(bytes, (byte) => alphabet[byte % 32]).join('')}`;
-    if (!id.startsWith(TEST_LABEL_PREFIX)) return id;
-  }
-}
-
-function validName(value: unknown): value is string {
-  return (
-    typeof value === 'string' &&
-    value.trim().length > 0 &&
-    [...value].length <= 64 &&
-    ![...value].some((char) => char.charCodeAt(0) < 32 || char.charCodeAt(0) === 127)
-  );
 }
 
 export function createRelay(options: RelayOptions) {
@@ -643,111 +509,14 @@ export function createRelay(options: RelayOptions) {
     };
   };
 
-  const registerBotNetwork = async (row: HostRow, request: Request) => {
-    if (options.hostKey === undefined) return failure(503, 'bot-network-unavailable');
-    const body = await readBody(request, 4096);
-    const { hostId, publicKey, issuedAt, proof } = body ?? {};
-    if (
-      typeof hostId !== 'string' ||
-      !/^[a-zA-Z0-9_-]{1,128}$/u.test(hostId) ||
-      typeof publicKey !== 'string' ||
-      !/^[a-f0-9]{64}$/u.test(publicKey) ||
-      typeof issuedAt !== 'string' ||
-      issuedAt.length > 40
-    )
-      return failure(400, 'invalid-bot-identity');
-    if (
-      typeof proof !== 'string' ||
-      !/^[A-Za-z0-9_-]{43}$/u.test(proof) ||
-      !(Math.abs(now().getTime() - Date.parse(issuedAt)) <= 60_000)
-    )
-      return failure(403, 'bot-host-proof-invalid');
-    const statement = JSON.stringify({
-      purpose: 'bot-network-registration-v1',
-      connectHostId: row.id,
-      hostId,
-      publicKey,
-      issuedAt,
-    });
-    if (!(await verifyBotProof(await options.hostKey(row.id), proof, statement)))
-      return failure(403, 'bot-host-proof-invalid');
-    if (row.bot_host_id != null && (row.bot_host_id !== hostId || row.bot_public_key !== publicKey))
-      return failure(409, 'bot-host-identity-conflict');
-    const duplicate = await db
-      .prepare('SELECT id FROM hosts WHERE account = ? AND bot_host_id = ? AND id != ?')
-      .bind(row.account, hostId, row.id)
-      .first();
-    if (duplicate !== null) return failure(409, 'bot-host-identity-conflict');
-    try {
-      const updated = changes(
-        await db
-          .prepare(`UPDATE hosts SET bot_host_id = ?, bot_public_key = ?
-        WHERE id = ? AND account = ? AND (bot_host_id IS NULL OR (bot_host_id = ? AND bot_public_key = ?))`)
-          .bind(hostId, publicKey, row.id, row.account, hostId, publicKey)
-          .run(),
-      );
-      if (updated === 0) return failure(409, 'bot-host-identity-conflict');
-    } catch {
-      const conflict = await db
-        .prepare('SELECT id FROM hosts WHERE account = ? AND bot_host_id = ? AND id != ?')
-        .bind(row.account, hostId, row.id)
-        .first();
-      return conflict === null
-        ? failure(503, 'bot-network-unavailable')
-        : failure(409, 'bot-host-identity-conflict');
-    }
-    const registered = await owned(row.id, row.account);
-    return registered === null
-      ? failure(404, 'host-not-found')
-      : json(200, { host: view(registered) });
-  };
-
-  const botNetworkGrant = async (sender: HostRow, request: Request) => {
-    if (options.hostKey === undefined) return failure(503, 'bot-network-unavailable');
-    if (sender.bot_host_id == null || sender.bot_public_key == null)
-      return failure(409, 'bot-host-unregistered');
-    const { recipientId, issuedAt, nonce, proof } = (await readBody(request, 4096)) ?? {};
-    if (
-      typeof recipientId !== 'string' ||
-      !HOST_ID.test(recipientId) ||
-      typeof issuedAt !== 'string' ||
-      issuedAt.length > 40 ||
-      typeof nonce !== 'string' ||
-      !/^[a-zA-Z0-9_-]{32,128}$/u.test(nonce)
-    )
-      return failure(400, 'invalid-bot-peer');
-    const statement = JSON.stringify({
-      purpose: 'bot-network-grant-v1',
-      connectHostId: sender.id,
-      recipientId,
-      issuedAt,
-      nonce,
-    });
-    if (
-      !(Math.abs(now().getTime() - Date.parse(issuedAt)) <= 60_000) ||
-      !(await verifyBotProof(await options.hostKey(sender.id), proof, statement))
-    )
-      return failure(403, 'bot-host-proof-invalid');
-    const recipient = await owned(recipientId, sender.account);
-    if (recipient === null || recipient.bot_host_id == null || recipient.bot_public_key == null)
-      return failure(404, 'host-not-found');
-    const identity = (row: HostRow) => ({
-      id: row.id,
-      hostId: row.bot_host_id,
-      publicKey: row.bot_public_key,
-    });
-    const payload = JSON.stringify({
-      purpose: 'bot-network-peer-v1',
-      account: sender.account,
-      sender: identity(sender),
-      recipient: identity(recipient),
-      issuedAt: now().toISOString(),
-      nonce,
-    });
-    return json(200, {
-      grant: { payload, signature: await hmac(await options.hostKey(recipient.id), payload) },
-    });
-  };
+  const { registerBotNetwork, botNetworkGrant } = createBotNetworkHandlers({
+    options,
+    db,
+    now,
+    owned,
+    view,
+    changes,
+  });
 
   const unlink = async (row: HostRow) => {
     if (row.tunnel_id !== null) await tunnels.deleteTunnel(row.tunnel_id);
@@ -782,72 +551,7 @@ export function createRelay(options: RelayOptions) {
     return json(200, { deleted: true });
   };
 
-  const requestOffer = async (row: HostRow, account: string, request: Request) => {
-    if (options.hostKey === undefined) return failure(503, 'offer-unavailable');
-    const body = await readBody(request);
-    const verifierHash = body?.['verifierHash'];
-    if (typeof verifierHash !== 'string' || !VERIFIER_HASH.test(verifierHash))
-      return failure(400, 'invalid-verifier');
-    const name = body?.['name'];
-    if (name !== undefined && !validName(name)) return failure(400, 'invalid-device-name');
-    await touch(row.id, now().getTime());
-    if (row.tunnel_id === null) return failure(409, 'host-offline', 'no-tunnel');
-    const payload = JSON.stringify({
-      hostId: row.id,
-      account,
-      verifierHash,
-      ...(name === undefined ? {} : { name: name.trim() }),
-      issuedAt: now().toISOString(),
-    });
-    const signature = await hmac(await options.hostKey(row.id), payload);
-    if (body?.['identitySource'] === 'client')
-      return json(200, {
-        identitySource: 'client',
-        enrollment: { body: payload, signature },
-        expiresAt: new Date(now().getTime() + 5 * 60 * 1000).toISOString(),
-        hostname: hostname(row),
-      });
-    let reply: Response;
-    try {
-      reply = await (options.fetchHost ?? fetch)(`https://${hostname(row)}${OFFER_PATH}`, {
-        method: 'GET',
-        signal: AbortSignal.timeout(OFFER_TIMEOUT_MS),
-      });
-    } catch (error) {
-      return failure(
-        409,
-        'host-offline',
-        (error as { name?: unknown } | null)?.name === 'TimeoutError' ? 'timeout' : 'unreachable',
-      );
-    }
-    if (reply.status >= 500) return failure(409, 'host-offline', `http-${reply.status}`);
-    const answer = (await reply.json().catch(() => undefined)) as
-      | {
-          encryption?: { protocol?: unknown; publicKey?: unknown };
-          host?: { id?: unknown; name?: unknown };
-        }
-      | undefined;
-    if (
-      reply.status !== 200 ||
-      answer?.encryption?.protocol !== 'connect-noise-xk-v1' ||
-      typeof answer.encryption.publicKey !== 'string' ||
-      !/^[0-9a-f]{64}$/u.test(answer.encryption.publicKey) ||
-      typeof answer.host?.id !== 'string' ||
-      typeof answer.host.name !== 'string'
-    )
-      return failure(
-        502,
-        'host-refused',
-        reply.status === 200 ? 'bad-offer' : `http-${reply.status}`,
-      );
-    return json(200, {
-      enrollment: { body: payload, signature },
-      encryption: answer.encryption,
-      expiresAt: new Date(now().getTime() + 5 * 60 * 1000).toISOString(),
-      hostname: hostname(row),
-      host: { id: answer.host.id, name: answer.host.name },
-    });
-  };
+  const requestOffer = createOfferHandler({ options, now, touch, hostname });
 
   const bearerToken = (request: Request) =>
     /^Bearer (\S+)$/u.exec(request.headers.get('authorization') ?? '')?.[1];
@@ -1134,261 +838,22 @@ export function createRelay(options: RelayOptions) {
     return json(200, { deleted: true });
   };
 
-  const reclaim = async (): Promise<ReconcileReport> => {
-    await db
-      .prepare('DELETE FROM live_activities WHERE expires_at <= ?')
-      .bind(now().getTime())
-      .run();
-    const report: ReconcileReport = {
-      reclaimed: [],
-      vanished: [],
-      repaired: [],
-      staleRecords: 0,
-      orphanRecords: 0,
-      orphanTunnels: 0,
-      deletedAccountHosts: [],
-      failures: 0,
-      budgetExhausted: false,
-    };
-    const { results: rows } = await db
-      .prepare(
-        `SELECT hosts.*, EXISTS (SELECT 1 FROM deleted_accounts WHERE deleted_accounts.account = hosts.account) AS account_deleted
-          FROM hosts WHERE tunnel_id IS NOT NULL OR dns_record_id IS NOT NULL
-          ORDER BY cleanup_at IS NOT NULL, cleanup_at, tunnel_created_at, id`,
-      )
-      .all<HostRow & { account_deleted: number }>();
-    const listed = await tunnels.listTunnels();
-    const recordsByZone = new Map<string, TunnelRecord[]>();
-    for (const zone of zones) {
-      try {
-        recordsByZone.set(zone, await tunnels.listRecords(zone));
-      } catch {
-        report.failures += 1;
-      }
-    }
-    const at = now().getTime();
-    const window = options.reclaimAfterMs;
-    const old = (stamp: string | null | undefined) => {
-      const parsed = time(stamp);
-      return !Number.isFinite(parsed) || at - parsed >= window;
-    };
-    const rowByLabel = new Map(rows.map((row) => [row.label ?? row.id, row]));
-    const recordsFor = (row: HostRow) =>
-      (recordsByZone.get(zoneOf(row)) ?? []).filter(
-        (record) => record.name.toLowerCase() === hostname(row),
-      );
-    let budget = budgetPerRun;
-    const spend = (cost: number) => {
-      if (budget < cost) {
-        report.budgetExhausted = true;
-        return false;
-      }
-      budget -= cost;
-      return true;
-    };
-    const failed = async (row: HostRow) => {
-      report.failures += 1;
-      await db
-        .prepare('UPDATE hosts SET cleanup_at = ? WHERE id = ?')
-        .bind(new Date(at).toISOString(), row.id)
-        .run()
-        .catch(() => undefined);
-    };
-    const dropRecords = async (row: HostRow, records: readonly TunnelRecord[]) => {
-      for (const record of records) await tunnels.deleteRecord(zoneOf(row), record.id);
-    };
-
-    for (const row of rows) {
-      if (row.tunnel_id === null) continue;
-      const state = listed.states.get(row.tunnel_id);
-      if (state === undefined) continue;
-      if (
-        state.status !== row.tunnel_status ||
-        (state.inactiveSince ?? null) !== row.tunnel_inactive_since
-      ) {
-        await db
-          .prepare(
-            'UPDATE hosts SET tunnel_status = ?, tunnel_inactive_since = ? WHERE id = ? AND tunnel_id = ?',
-          )
-          .bind(state.status, state.inactiveSince ?? null, row.id, row.tunnel_id)
-          .run();
-        row.tunnel_status = state.status;
-        row.tunnel_inactive_since = state.inactiveSince ?? null;
-      }
-    }
-
-    for (const row of rows) {
-      if (row.tunnel_id === null || listed.states.has(row.tunnel_id) || !listed.complete) continue;
-      if (!old(row.tunnel_created_at)) continue;
-      const records = recordsFor(row);
-      if (!spend(records.length)) break;
-      try {
-        await dropRecords(row, records);
-        await clearTunnel(row.id, row.tunnel_id);
-        report.vanished.push(row.id);
-        row.tunnel_id = null;
-        row.dns_record_id = null;
-      } catch {
-        await failed(row);
-      }
-    }
-
-    for (const row of rows) {
-      if (row.tunnel_id === null || row.account_deleted) continue;
-      const state = listed.states.get(row.tunnel_id);
-      if (state === undefined || !ONLINE.has(state.status)) continue;
-      if (!recordsByZone.has(zoneOf(row))) continue;
-      const records = recordsFor(row);
-      const kept =
-        records.find((record) => record.id === row.dns_record_id) ??
-        records.find((record) => record.target === row.tunnel_id) ??
-        records[0];
-      const extras = records.filter((record) => record !== kept);
-      if (kept?.target === row.tunnel_id && kept.id === row.dns_record_id && extras.length === 0)
-        continue;
-      if (!spend(2 + extras.length)) break;
-      try {
-        const id = await tunnels.pointHostname(zoneOf(row), hostname(row), row.tunnel_id, kept?.id);
-        await dropRecords(row, extras);
-        await db
-          .prepare('UPDATE hosts SET dns_record_id = ? WHERE id = ? AND tunnel_id = ?')
-          .bind(id, row.id, row.tunnel_id)
-          .run();
-        row.dns_record_id = id;
-        report.repaired.push(row.id);
-        log('connect-dns-repaired', { host: row.id, zone: zoneOf(row) });
-      } catch {
-        await failed(row);
-      }
-    }
-
-    for (const row of rows) {
-      if (row.tunnel_id === null) continue;
-      const state = listed.states.get(row.tunnel_id);
-      if (state === undefined) continue;
-      const deleted = Boolean(row.account_deleted);
-      if (!deleted) {
-        if (ONLINE.has(state.status)) continue;
-        if (!old(state.inactiveSince ?? row.tunnel_created_at)) continue;
-      }
-      const records = recordsFor(row);
-      const ownRecord =
-        row.dns_record_id !== null && !records.some((record) => record.id === row.dns_record_id)
-          ? 1
-          : 0;
-      if (!spend(2 + records.length + ownRecord)) break;
-      try {
-        await tunnels.deleteTunnel(row.tunnel_id);
-        await dropRecords(row, records);
-        if (ownRecord) await tunnels.deleteRecord(zoneOf(row), row.dns_record_id as string);
-        if (deleted) {
-          await db.prepare('DELETE FROM live_activities WHERE host_id = ?').bind(row.id).run();
-          await db.prepare('DELETE FROM hosts WHERE id = ?').bind(row.id).run();
-          report.deletedAccountHosts.push(row.id);
-          rowByLabel.delete(row.label ?? row.id);
-        } else {
-          await clearTunnel(row.id, row.tunnel_id);
-          report.reclaimed.push(row.id);
-        }
-        row.tunnel_id = null;
-        row.dns_record_id = null;
-      } catch {
-        await failed(row);
-      }
-    }
-
-    for (const zone of zones) {
-      const records = recordsByZone.get(zone);
-      if (records === undefined) continue;
-      for (const record of records) {
-        const match = HOST_LABEL.exec(record.name.toLowerCase());
-        if (match === null || match[2] !== zone || !ownsLabel(match[1] as string)) continue;
-        const row = rowByLabel.get(match[1] as string);
-        const live =
-          row !== undefined &&
-          zoneOf(row) === zone &&
-          row.tunnel_id !== null &&
-          (row.dns_record_id === record.id || row.dns_record_id === null) &&
-          record.target === row.tunnel_id;
-        if (live) continue;
-        if (row?.tunnel_id != null && zoneOf(row) === zone) continue;
-        if (!old(record.createdAt)) continue;
-        if (!spend(1)) break;
-        try {
-          await tunnels.deleteRecord(zone, record.id);
-          if (row !== undefined) {
-            await db
-              .prepare(
-                'UPDATE hosts SET dns_record_id = NULL WHERE id = ? AND tunnel_id IS NULL AND dns_record_id = ?',
-              )
-              .bind(row.id, record.id)
-              .run();
-            report.staleRecords += 1;
-          } else report.orphanRecords += 1;
-        } catch {
-          report.failures += 1;
-        }
-      }
-    }
-
-    for (const row of rows) {
-      if (row.tunnel_id !== null || row.dns_record_id === null) continue;
-      const zoneRecordsListed = recordsByZone.get(zoneOf(row));
-      if (zoneRecordsListed === undefined) continue;
-      if (zoneRecordsListed.some((record) => record.id === row.dns_record_id)) continue;
-      await db
-        .prepare(
-          'UPDATE hosts SET dns_record_id = NULL WHERE id = ? AND tunnel_id IS NULL AND dns_record_id = ?',
-        )
-        .bind(row.id, row.dns_record_id)
-        .run();
-    }
-
-    if (listed.complete) {
-      const referenced = new Set(
-        rows.flatMap((row) => (row.tunnel_id === null ? [] : [row.tunnel_id])),
-      );
-      for (const [tunnelId, state] of listed.states) {
-        if (referenced.has(tunnelId) || !state.name?.startsWith(TUNNEL_PREFIX)) continue;
-        if (!old(state.createdAt)) continue;
-        if (!spend(2)) break;
-        try {
-          await tunnels.deleteTunnel(tunnelId);
-          report.orphanTunnels += 1;
-        } catch {
-          report.failures += 1;
-        }
-      }
-    }
-
-    if (
-      report.reclaimed.length +
-        report.vanished.length +
-        report.repaired.length +
-        report.staleRecords +
-        report.orphanRecords +
-        report.orphanTunnels +
-        report.deletedAccountHosts.length +
-        report.failures >
-        0 ||
-      report.budgetExhausted
-    )
-      log('connect-reconcile', {
-        reclaimed: report.reclaimed.length,
-        vanished: report.vanished.length,
-        repaired: report.repaired.length,
-        staleRecords: report.staleRecords,
-        orphanRecords: report.orphanRecords,
-        orphanTunnels: report.orphanTunnels,
-        deletedAccountHosts: report.deletedAccountHosts.length,
-        failures: report.failures,
-        budgetExhausted: report.budgetExhausted,
-        tunnels: listed.states.size,
-        listComplete: listed.complete,
-      });
-    poolChanged();
-    return report;
-  };
+  const reclaim = createRelayReclaimer({
+    db,
+    tunnels,
+    zones,
+    options,
+    now,
+    time,
+    ownsLabel,
+    budgetPerRun,
+    TUNNEL_PREFIX,
+    zoneOf,
+    hostname,
+    log,
+    clearTunnel,
+    poolChanged,
+  });
 
   return { fetch: route, reclaim };
 }
