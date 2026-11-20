@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { resourceEvents } from './resource-events-fixture.js';
 import { mountAppearanceFixture } from './appearance-fixture.js';
 import { type ReactNode } from 'react';
 import { type BotHarnessTranslate } from '../src/client/locale.js';
@@ -951,11 +952,13 @@ describe('Tool approval card', () => {
     const container = document.createElement('div');
     document.body.append(container);
     const root = createRoot(container);
-    const toolApprovalExecutionState = vi
+    const live = resourceEvents();
+    const toolApprovalState = vi
       .fn()
-      .mockResolvedValueOnce('waiting-capacity')
-      .mockResolvedValueOnce('running');
-    const actions = { toolApprovalExecutionState } as unknown as BridgeActions;
+      .mockResolvedValueOnce({ status: 'expired', execution: 'waiting-capacity' })
+      .mockRejectedValueOnce(new Error('read timed out'))
+      .mockResolvedValue({ status: 'expired', execution: 'running' });
+    const actions = { toolApprovalState } as unknown as BridgeActions;
     const message: ChannelMessage = {
       id: 'approval-capacity',
       at: '2026-10-09T00:00:00Z',
@@ -988,16 +991,27 @@ describe('Tool approval card', () => {
       )!;
       expect(selected.disabled).toBe(true);
       expect(selected.getAttribute('aria-pressed')).toBe('true');
+      const change = {
+        resource: 'tool-approval',
+        channelId: 'dm-ada',
+        messageId: message.id,
+      } as const;
+      await act(async () => vi.advanceTimersByTimeAsync(9000));
+      expect(toolApprovalState).toHaveBeenCalledTimes(1);
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(1000);
+        live.emit(change);
+        await vi.advanceTimersByTimeAsync(25);
+      });
+      expect(container.textContent).toContain('等待运行名额');
+      await act(async () => {
+        live.emit(change);
+        await vi.advanceTimersByTimeAsync(25);
       });
       expect(container.textContent).not.toContain('等待运行名额');
       expect(container.textContent).toContain('终端 · 已允许');
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(5000);
-      });
-      expect(toolApprovalExecutionState).toHaveBeenCalledTimes(2);
+      expect(toolApprovalState).toHaveBeenCalledTimes(3);
     } finally {
+      live.dispose();
       await act(async () => root.unmount());
       container.remove();
       vi.useRealTimers();
@@ -1041,6 +1055,7 @@ describe('Tool approval card', () => {
       expect(container.textContent).toContain('允许这次');
       await act(async () => {
         publishWorkspaceGrantChange('ada', actions);
+        await new Promise((resolve) => setTimeout(resolve, 30));
       });
       expect(toolApprovalStatus).toHaveBeenCalledTimes(2);
       expect(container.textContent).not.toContain('允许这次');

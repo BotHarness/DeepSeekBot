@@ -96,6 +96,7 @@ export interface DevicePairing {
   offerStatus(receipt: string): OfferStatus;
   claimRelationshipOffer(offer: string): boolean;
   clearOffers(): void;
+  stopOfferExpiry(): void;
   redeem(input: {
     offer: string;
     name?: string;
@@ -210,6 +211,25 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
   >();
   const settled = new Map<string, OfferStatus>();
   const streams = new Map<string, Set<() => void>>();
+  let expiry: ReturnType<typeof setTimeout> | undefined;
+
+  const stopOfferExpiry = (): void => {
+    clearTimeout(expiry);
+    expiry = undefined;
+  };
+  const scheduleOfferExpiry = (): void => {
+    if (expiry !== undefined || options.onChange === undefined || offers.size === 0) return;
+    const next = Math.min(...Array.from(offers.values(), (offer) => offer.expiresAt));
+    expiry = setTimeout(
+      () => {
+        expiry = undefined;
+        sweep();
+        scheduleOfferExpiry();
+      },
+      Math.max(1, next - now()),
+    );
+    expiry.unref();
+  };
 
   const settle = (
     receipt: string,
@@ -307,12 +327,16 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
 
   return {
     host,
+    stopOfferExpiry,
 
     createOffer(binding) {
       sweep();
+      let displacedKey = false;
       while (offers.size >= MAX_OPEN_OFFERS) {
         const oldest = offers.keys().next().value!;
-        settle(offers.get(oldest)!.receipt, { state: 'superseded' });
+        const displaced = offers.get(oldest)!;
+        settle(displaced.receipt, { state: 'superseded' });
+        displacedKey ||= displaced.publicKey !== undefined;
         offers.delete(oldest);
       }
       const offer = token(24);
@@ -325,6 +349,8 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
         humanId: ownerHumanId(),
         ...(binding?.humanId === undefined ? {} : { memberHumanId: binding.humanId }),
       });
+      scheduleOfferExpiry();
+      if (displacedKey) changed();
       record({ phase: 'offer-created' });
       return { offer, expiresAt: iso(expiresAt), receipt };
     },
@@ -336,6 +362,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
         record({ phase: 'offer-refused' });
       }
       offers.clear();
+      stopOfferExpiry();
       changed();
     },
 
@@ -418,8 +445,10 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
           open.publicKey === publicKey &&
           /^[0-9a-f]{64}$/u.test(publicKey)
         ) {
-          open.approved = true;
-          changed();
+          if (open.approved !== true) {
+            open.approved = true;
+            changed();
+          }
           return true;
         }
       }

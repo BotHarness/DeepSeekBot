@@ -135,6 +135,22 @@
       "baseline": "scripts/ui-rules-baseline.json"
     },
     {
+      "id": "tobs-component-catalogue",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "compose an existing ds/ primitive; for a new export, record what it replaces in ds/catalogue.json and regenerate with pnpm lint:fix.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-settings-composition",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "use one title, optional short description and control per SettingsRow, and one primary action per dialog.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
       "id": "tobs-token-outputs",
       "layer": "L2 lint",
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4283",

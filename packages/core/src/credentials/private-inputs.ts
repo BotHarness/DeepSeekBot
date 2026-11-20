@@ -1376,6 +1376,7 @@ export class PrivateInputs {
           this.#configuredCard(channelId, messageId)?.scope.botCreatedAt ===
           card.scope.botCreatedAt,
       );
+      this.#publish(card.scope.botSlug);
       this.deps.log('account-revoked', {
         botSlug: card.scope.botSlug,
         requestId: card.grantId,

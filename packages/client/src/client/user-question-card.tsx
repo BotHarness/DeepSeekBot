@@ -1,4 +1,6 @@
 import * as stylex from '@stylexjs/stylex';
+import { observeHostResource } from './messaging-defaults-live.js';
+import { useMessageHost } from './message-host.js';
 import { Input } from './ds/input.js';
 import { ActionButton, ActionGroup } from './ds/action-button.js';
 import { hooked } from './ds/hooked.js';
@@ -30,7 +32,7 @@ export function UserQuestionCard({
   inset = false,
 }: {
   message: ChannelMessage;
-  actions: Pick<BridgeActions, 'userQuestionStatus' | 'answerUserQuestion'>;
+  actions: Pick<BridgeActions, 'requestHost' | 'userQuestionStatus' | 'answerUserQuestion'>;
   hostScoped?: boolean;
   inset?: boolean;
   channelId?: string | undefined;
@@ -39,6 +41,7 @@ export function UserQuestionCard({
   companionTarget?: CompanionRequestTarget | undefined;
 }): ReactElement {
   const store = useConversationStore();
+  const host = useMessageHost()?.client;
   const developerMode = useContext(MessageDeveloperMode);
   const request = message.userQuestionRequest!;
   const botSlug = message.author.kind === 'bot' ? message.author.slug : undefined;
@@ -72,33 +75,46 @@ export function UserQuestionCard({
   const questionMount = useMountedResource<HTMLDivElement>(() => {
     mounted.current = true;
     let active = true;
-    let retry: ReturnType<typeof setTimeout> | undefined;
+    let stop: (() => void) | undefined;
     if (resolution !== undefined) {
       setStatus(resolution);
     } else if (botSlug !== undefined) {
-      if (companionTarget) setStatus('loading');
+      if (companionTarget && statusRetry === 0) setStatus('loading');
       setStatusError(false);
-      const refresh = (): void => {
-        void actions.userQuestionStatus(cardChannelId, message.id).then(
-          (value) => {
-            if (active) {
-              setStatus(value);
-              if (value === 'submitted') retry = setTimeout(refresh, 800);
-            }
-          },
-          () => {
+      stop = observeHostResource(
+        (change) =>
+          change.resource === 'user-question' &&
+          change.channelId === cardChannelId &&
+          change.messageId === message.id,
+        async () => {
+          try {
+            const value = await actions.userQuestionStatus(cardChannelId, message.id);
+            if (!active) return;
+            setStatus(value);
+            setStatusError(false);
+            if (value === 'answered' || value === 'expired') stop?.();
+          } catch {
             if (active) setStatusError(true);
-          },
-        );
-      };
-      refresh();
+          }
+        },
+        host ?? actions.requestHost?.(),
+      );
     }
     return () => {
       active = false;
       mounted.current = false;
-      clearTimeout(retry);
+      stop?.();
     };
-  }, [actions, botSlug, message.id, resolution, statusRetry, companionTarget?.live]);
+  }, [
+    actions,
+    botSlug,
+    cardChannelId,
+    host,
+    message.id,
+    resolution,
+    statusRetry,
+    companionTarget?.live,
+  ]);
 
   const choose = (id: string, label: string, multiSelect: boolean): void => {
     setSelected((current) => {

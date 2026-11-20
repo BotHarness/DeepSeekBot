@@ -429,10 +429,18 @@ export interface WireGroupJoinRequest {
   status: 'pending' | 'accepted' | 'declined' | 'cancelled';
 }
 
+export type RosterResourceChange = {
+  resource: string;
+  revision: number;
+  channelId?: string;
+  messageId?: string;
+  slug?: string;
+};
+
 export type RosterLiveFrame =
   | { type: 'skills'; change: { botSlugs: string[]; channelIds: string[] } }
   | { type: 'attention' }
-  | { type: 'resource'; change: { resource: string; revision: number } }
+  | { type: 'resource'; change: RosterResourceChange }
   | { type: 'baseline'; placements: unknown[] }
   | { type: 'changed' }
   | { type: 'latest'; channelId: string; message: WireMessage }

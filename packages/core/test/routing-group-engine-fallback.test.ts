@@ -201,6 +201,7 @@ function setup(options: {
   enginesAllowed?: boolean;
   codexRecording?: typeof LIMIT;
   claudeRecording?: typeof CLAUDE_REPLY;
+  idleMs?: number;
   nativeReply?: string;
   beforeEngineLimit?(engine: string, clock: { now: number }): void;
   inherited?: boolean;
@@ -250,6 +251,7 @@ function setup(options: {
     root: join(root, 'engines'),
     local: true,
     gateway,
+    ...(options.idleMs === undefined ? {} : { idleMs: options.idleMs }),
     now: () => clock.now,
     sessions: () => dsh.store,
     persistence: () => dsh.persistence,
@@ -487,6 +489,50 @@ it('keeps the manual engine use switch working after a native turn', async () =>
   );
 });
 
+it('seeds a returning engine after a native quota turn without logging a rebuild', async () => {
+  const model = new NativeReplay(true);
+  const runtime = await nativeRuntime(model);
+  const bot = setup({
+    members: [CODEX],
+    nativeFirst: true,
+    nativeRuntime: runtime,
+    codexRecording: CODEX_REPLY,
+  });
+  bot.routeRests.rest(API, bot.clock.now + 1_000, 'quota');
+  await bot.message('first', 'Remember orchid');
+  const sessionId = bot.sessionId();
+  expect(bot.host.store.nativeSession(sessionId)).toMatchObject({ engine: 'codex', lastTurn: 1 });
+
+  bot.clock.now += 1_001;
+  await bot.message('second', 'Read the Channel before replying');
+
+  expect(bot.sessionId()).toBe(sessionId);
+  expect(bot.codex).toHaveLength(2);
+  expect(bot.codex[1]?.mismatches).toEqual([]);
+  expect(bot.codex[1]?.sent.find((request) => request['method'] === 'turn/start')).toMatchObject({
+    params: {
+      input: [
+        {
+          text: expect.stringMatching(
+            /Tool result \(native-read\)[\s\S]+Continue from where you stopped/u,
+          ),
+        },
+      ],
+    },
+  });
+  const events = bot.dsh.stored.get(sessionId)?.events ?? [];
+  expect(events.flatMap((event) => (event.type === 'turn/start' ? [event.data.turn] : []))).toEqual(
+    [1, 2, 3],
+  );
+  expect(
+    events.flatMap((event) => (event.type === 'user/message' ? [event.data.source.kind] : [])),
+  ).not.toContain('botharness-engine-rebuild');
+  expect(bot.sendStatus('second')).toMatchObject({
+    state: 'handled',
+    replies: [{ body: 'Hello from Codex' }],
+  });
+});
+
 it('answers the first Human message on DSH when the engine hits quota before output', async () => {
   const bot = setup({ members: [CODEX], nativeReply: 'Orchid noted.' });
   await bot.message('first', 'My lucky word is orchid');
@@ -617,6 +663,41 @@ it('starts mixed-group engines in read-only mode across quota continuation', asy
     },
   ]);
   expect(bot.claude.prompts).toEqual([expect.stringContaining('Check the granted workspace')]);
+});
+
+it('closes the old engine on a quota switch and gives the next engine its own idle deadline', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  const bot = setup({
+    members: [CODEX, CLAUDE],
+    idleMs: 100,
+    beforeEngineLimit: (engine) => {
+      if (engine === 'claude') vi.advanceTimersByTime(60);
+    },
+  });
+  try {
+    await bot.message('first', 'Continue across the quota limit');
+    const sessionId = bot.sessionId();
+    expect(bot.codex[0]?.closed).toBe(true);
+    expect(bot.claude.prompts).toEqual([
+      expect.stringContaining('Continue from where you stopped'),
+    ]);
+    expect(bot.claude.options[0]?.resume).toBeUndefined();
+    expect([...bot.dsh.stored.keys()]).toEqual([sessionId]);
+    const events = bot.dsh.stored.get(sessionId)?.events ?? [];
+    expect(
+      events.flatMap((event) => (event.type === 'user/message' ? [event.data.source.kind] : [])),
+    ).not.toContain('botharness-engine-rebuild');
+
+    await vi.advanceTimersByTimeAsync(40);
+    expect(bot.host.isLive(sessionId)).toBe(true);
+    expect(bot.claude.closed).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(60);
+    expect(bot.host.isLive(sessionId)).toBe(false);
+    expect(bot.claude.closed).toBe(1);
+  } finally {
+    vi.useRealTimers();
+  }
 });
 
 it('blocks a second reply when the engine delivered one before quota', async () => {

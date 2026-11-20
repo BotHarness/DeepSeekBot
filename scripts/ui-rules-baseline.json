@@ -1398,6 +1398,57 @@
     "packages/client/src/client/ds/tooltip.tsx": ["BaseTooltip.Trigger"],
     "packages/client/src/client/ds/work-row.tsx": ["button"]
   },
+  "catalogue": {},
+  "duplicateComponent": {
+    "packages/client/src/client/activity-list-controls.tsx": ["ActivityListSourceButton"],
+    "packages/client/src/client/bot-sidebar.tsx": ["BotModelMenu"],
+    "packages/client/src/client/call-rail-button.tsx": ["CallRailButton"],
+    "packages/client/src/client/channel-sidebar-builtins.tsx": ["BotInboxItemRow"],
+    "packages/client/src/client/channel-sidebar-tabs.tsx": ["ChannelSidebarViewsMenu"],
+    "packages/client/src/client/dm-composer-usage.tsx": ["DmComposerUsagePopover"],
+    "packages/client/src/client/environment-panel.tsx": ["EnvironmentRow"],
+    "packages/client/src/client/header-session-stop.tsx": ["SessionStopPopover"],
+    "packages/client/src/client/host-file-menu.tsx": ["HostFileActionButton", "HostFileOpenButton"],
+    "packages/client/src/client/market-files.tsx": ["FileRow"],
+    "packages/client/src/client/marketplace.tsx": ["MarketplaceRow"],
+    "packages/client/src/client/memory-reader-parts.tsx": [
+      "MemoryDiffWrapButton",
+      "MemoryViewIconButton"
+    ],
+    "packages/client/src/client/message-attachment.tsx": ["AttachmentRow"],
+    "packages/client/src/client/messaging-grant.tsx": ["MessagingGrantRow"],
+    "packages/client/src/client/mobile-apps.tsx": ["MobileAppsPopover"],
+    "packages/client/src/client/name-input.tsx": ["NameInput"],
+    "packages/client/src/client/pairing-settings.tsx": ["PairingRow"],
+    "packages/client/src/client/reachable-post.tsx": ["ReachablePostDialog"],
+    "packages/client/src/client/sidebar-card.tsx": ["SidebarCardRow"],
+    "packages/client/src/client/workspace-grants-entry.tsx": ["FolderRow"]
+  },
+  "settingsRow": {
+    "packages/client/src/client/account-profile-settings.tsx": ["multiple controls"],
+    "packages/client/src/client/appearance-panel-settings.tsx": ["multiple controls"],
+    "packages/client/src/client/approval-template-library.tsx": ["multiple controls"],
+    "packages/client/src/client/channel-access-settings.tsx": ["multiple controls"],
+    "packages/client/src/client/channel-personal-settings.tsx": ["multiple controls"],
+    "packages/client/src/client/group-management-settings.tsx": ["multiple controls"],
+    "packages/client/src/client/human-avatar-settings.tsx": ["multiple controls"],
+    "packages/client/src/client/human-name-settings.tsx": ["multiple controls"],
+    "packages/client/src/client/im-apps-section.tsx": ["multiple controls"],
+    "packages/client/src/client/keyboard-settings.tsx": ["multiple controls"],
+    "packages/client/src/client/relationship-settings.tsx": [
+      "multiple controls",
+      "multiple description lines"
+    ],
+    "packages/client/src/client/shortcut-help.tsx": ["multiple controls"],
+    "packages/client/src/client/voice-settings.tsx": ["multiple controls", "multiple controls"],
+    "packages/client/src/client/window-zoom-settings.tsx": ["multiple controls"],
+    "packages/client/src/client/workspace-grants-entry.tsx": ["multiple controls"]
+  },
+  "primaryAction": {
+    "packages/client/src/client/bot-intro.tsx": ["Modal"],
+    "packages/client/src/client/diagnostic-logs-dialog.tsx": ["PanelDialog"],
+    "packages/client/src/client/messaging-grant.tsx": ["PanelDialog"]
+  },
   "jsxCopy": {
     "apps/mobile/src/ui/widgets/call-activity.tsx": ["Hang Up", "取消静音", "挂断", "静音"],
     "apps/mobile/src/ui/widgets/request-activity.tsx": ["更新于"],

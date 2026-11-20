@@ -1,3 +1,4 @@
+import type { HostClient } from '@botharness/host-client/client';
 import {
   SKILL_CATALOG_CHANGED_EVENT,
   type SkillCatalogChange,
@@ -431,12 +432,16 @@ export function observeHumanAttention(refresh: () => void): () => void {
   };
 }
 
+type ResourceSelector = LiveResource | ((change: ResourceChange) => boolean);
+
 export function observeResource(
-  resource: LiveResource,
+  resource: ResourceSelector,
   refresh: () => void | Promise<void>,
   recoveryMs = 10_000,
   safetyMs = 60_000,
   readOnMount = false,
+  host?: HostClient,
+  subscribeInvalidation?: (invalidate: () => void) => () => void,
 ): () => void {
   let disposed = false;
   let pending: ReturnType<typeof setTimeout> | undefined;
@@ -469,7 +474,11 @@ export function observeResource(
     pending = setTimeout(() => void read(), 25);
   };
   const changed = (change?: ResourceChange): void => {
-    if (change === undefined || change.resource === resource) invalidate();
+    if (
+      change === undefined ||
+      (typeof resource === 'string' ? change.resource === resource : resource(change))
+    )
+      invalidate();
   };
   const health = (healthy: boolean): void => {
     if (lastHealth === healthy) return;
@@ -477,13 +486,37 @@ export function observeResource(
     stopFallback?.();
     stopFallback = visibleInterval(invalidate, healthy ? safetyMs : recoveryMs);
   };
-  resourceListeners.set(changed, health);
-  health(rosterHealthy);
-  try {
-    ensureSource();
-  } catch {
-    health(false);
+  let stopSource: () => void;
+  if (host) {
+    const connectionHealth = () =>
+      health(host.onResource !== undefined && host.getSnapshot().connection.status === 'connected');
+    const offHealth = host.onResource === undefined ? undefined : host.subscribe(connectionHealth);
+    const offResource = host.onResource?.((name, value) => {
+      if (name === undefined) changed();
+      else {
+        const change = parseResourceChange(value ?? { resource: name, revision: 0 });
+        if (change !== undefined) changed(change);
+      }
+    });
+    connectionHealth();
+    stopSource = () => {
+      offResource?.();
+      offHealth?.();
+    };
+  } else {
+    resourceListeners.set(changed, health);
+    health(rosterHealthy);
+    try {
+      ensureSource();
+    } catch {
+      health(false);
+    }
+    stopSource = () => {
+      resourceListeners.delete(changed);
+      releaseUnusedSource();
+    };
   }
+  const stopInvalidation = subscribeInvalidation?.(invalidate);
   if (readOnMount) {
     clearTimeout(pending);
     void read();
@@ -493,9 +526,26 @@ export function observeResource(
     disposed = true;
     clearTimeout(pending);
     stopFallback?.();
-    resourceListeners.delete(changed);
-    releaseUnusedSource();
+    stopInvalidation?.();
+    stopSource();
   };
+}
+
+export function observeHostResource(
+  resource: ResourceSelector,
+  refresh: () => void | Promise<void>,
+  host?: HostClient,
+  subscribeInvalidation?: (invalidate: () => void) => () => void,
+): () => void {
+  return observeResource(
+    resource,
+    refresh,
+    undefined,
+    undefined,
+    true,
+    host,
+    subscribeInvalidation,
+  );
 }
 
 export function subscribeSkillCatalog(channelId: string, listener: () => void): () => void {
