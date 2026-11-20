@@ -457,7 +457,7 @@ it('filters subscription models by engine and exposes only applicable actions', 
   expect(onSelect).toHaveBeenCalledExactlyOnceWith('engine-signin:claude');
 });
 
-it('announces the current target and the full saved member order without displaying the backup engines', async () => {
+it('distinguishes the next available model from the executing target', async () => {
   const front = catalog[0]!;
   const groups: ModelCatalogGroupView[] = [
     {
@@ -474,10 +474,19 @@ it('announces the current target and the full saved member order without display
   ];
   await render({ items: catalogMenuItems(catalog, zhTranslate, groups) });
   const option = document.body.querySelector('[data-picker-option="group:mixed"]');
-  expect(option?.textContent).toContain('当前：V4.1 Flash');
+  expect(option?.textContent).toContain('下一个可用：V4.1 Flash');
   expect(option?.textContent).not.toMatch(/Codex|Claude/);
   expect(option?.getAttribute('aria-label')).toBe(
-    'Mixed · 当前：DeepSeek V4.1 Flash · OpenCode Go · GPT-5.4 · Codex · ChatGPT 订阅 · DeepSeek V4.1 Flash · OpenCode Go · Claude Code 默认模型 · Claude Code · Claude 订阅',
+    'Mixed · 下一个可用：DeepSeek V4.1 Flash · OpenCode Go · GPT-5.4 · Codex · ChatGPT 订阅 · DeepSeek V4.1 Flash · OpenCode Go · Claude Code 默认模型 · Claude Code · Claude 订阅',
   );
   expect(option?.querySelector('[data-model-brand="deepseek"]')).not.toBeNull();
+
+  const items = catalogMenuItems(catalog, zhTranslate, groups, {
+    groupId: 'mixed',
+    target: { kind: 'engine', engine: 'claude', model: 'claude-opus-5-5', reasoningEffort: 'high' },
+  });
+  const running = items.find((item) => item.group === 'mixed');
+  expect(running).toMatchObject({ hintBrand: 'claude', tag: '外部引擎' });
+  expect(running?.hint).toMatch(/^当前：/u);
+  expect(running?.hintLabel).toContain('Claude Code · high');
 });

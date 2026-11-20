@@ -1,3 +1,4 @@
+import { isTurnTargetPath, type TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { ModelPresetEngines } from '@botharness/host-client/model-plans';
 import { parseToolEffects } from '../../../core/src/workspaces/tool-effects-contract.js';
 import {
@@ -3975,7 +3976,7 @@ export type SessionTranscriptItem =
       trigger?: SessionTranscriptTrigger;
       envelope?: SessionTranscriptEnvelope;
     }
-  | { kind: 'reply'; text: string; at: string; live?: true }
+  | { kind: 'reply'; text: string; at: string; live?: true; turnTargets?: TurnTarget[] }
   | {
       kind: 'reasoning';
       text: string;
@@ -4002,6 +4003,7 @@ export type SessionTranscriptItem =
       at: string;
       message?: string;
       usage?: SessionTurnUsage;
+      turnTargets?: TurnTarget[];
     };
 
 export type SessionToolKind =
@@ -4146,6 +4148,8 @@ function parseTranscriptItem(value: unknown): SessionTranscriptItem | undefined 
   const at = item?.['at'];
   const text = item?.['text'];
   if (item === undefined || typeof at !== 'string') return undefined;
+  const path = item['turnTargets'];
+  const attribution = isTurnTargetPath(path) ? { turnTargets: path } : {};
   switch (item['kind']) {
     case 'input':
       return typeof text === 'string' && typeof item['turn'] === 'number'
@@ -4164,7 +4168,7 @@ function parseTranscriptItem(value: unknown): SessionTranscriptItem | undefined 
           }
         : undefined;
     case 'reply':
-      return typeof text === 'string' ? { kind: 'reply', text, at } : undefined;
+      return typeof text === 'string' ? { kind: 'reply', text, at, ...attribution } : undefined;
     case 'reasoning': {
       const durationMs = finite(item['durationMs']);
       return typeof text === 'string'
@@ -4210,6 +4214,7 @@ function parseTranscriptItem(value: unknown): SessionTranscriptItem | undefined 
             at,
             ...(typeof item['message'] === 'string' ? { message: item['message'] } : {}),
             ...(usage === undefined ? {} : { usage }),
+            ...attribution,
           }
         : undefined;
     }

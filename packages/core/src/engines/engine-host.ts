@@ -1,3 +1,4 @@
+import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 
 import { randomUUID } from 'node:crypto';
@@ -15,14 +16,7 @@ import {
   spawnCodexTransport,
 } from './codex-engine.js';
 import { type CodexStatus, detectCodex, startCodexLogin } from './codex-status.js';
-import {
-  CLAUDE_MIN_VERSION,
-  type ClaudeEngineOptions,
-  type ClaudeQueryFactory,
-  ClaudeEngineSession,
-  olderThan,
-  sdkClaudeQuery,
-} from './claude-engine.js';
+import { type ClaudeQueryFactory, openClaudeEngineSession } from './claude-engine.js';
 import { type ClaudeStatus, detectClaude, startClaudeLogin } from './claude-status.js';
 import {
   buildEngineContextSeed,
@@ -52,7 +46,6 @@ import {
   type EngineSessionDescription,
   type EngineStatusReport,
 } from './engine-host-types.js';
-import { resolveEngineCommand } from './engine-launch.js';
 import { EngineTurnLog } from './engine-log.js';
 import {
   engineQuotaLimit,
@@ -107,6 +100,7 @@ export interface EngineHostOptions {
   sessions(): EngineSessionStore | undefined;
   persistence(): EngineSessionPersistence | undefined;
   sessionIdsForBot?(botSlug: string): readonly string[];
+  observeTurnTarget?(sessionId: string, turn: number, target: TurnTarget): void;
   changed?(): void;
   observe?(botSlug: string, sessionId: string, state: EngineSessionState, role: EngineRole): void;
   approve?(request: EngineApprovalRequest): Promise<ApprovalOutcome>;
@@ -131,6 +125,7 @@ interface TurnScope {
 interface LiveEngineSession {
   botSlug: string;
   configuration: string;
+  choice: EngineChoice;
   workspaceMode: EngineWorkspaceMode;
   engine: EngineSession;
   account: string;
@@ -398,44 +393,13 @@ export class EngineHost {
             (this.#options.openCodex ?? spawnCodexTransport)({ ...this.#codex, cwd }),
             { cwd, instructions: '' },
           )
-        : await this.#claudeSession({ cwd, instructions: '' });
+        : await openClaudeEngineSession(this.#claude, this.#options, { cwd, instructions: '' });
     try {
       requireSubscription(await readEngineAccount(session));
       return await session.models();
     } finally {
       await session.close().catch(() => undefined);
     }
-  }
-
-  async #claudeSession(
-    options: { cwd: string; instructions: string; resume?: string } & Pick<
-      ClaudeEngineOptions,
-      'gateway' | 'model' | 'effort' | 'permissionMode' | 'contextSeed' | 'workspaceMode'
-    >,
-  ): Promise<ClaudeEngineSession> {
-    const claude = this.#claude;
-    const executable = resolveEngineCommand(claude.command, { env: claude.env ?? process.env });
-    if (executable === undefined)
-      throw new EngineRefusal(
-        'engine-not-installed',
-        'Claude Code is not installed on this computer',
-      );
-    const { version } = await (this.#options.detectClaude ?? detectClaude)({
-      ...claude,
-      command: executable,
-    });
-    if (version === undefined || olderThan(version, CLAUDE_MIN_VERSION))
-      throw new EngineRefusal(
-        'engine-unavailable',
-        `Claude Code ${version ?? 'of an unknown version'} cannot run a Bot here. Update it to ${CLAUDE_MIN_VERSION} or newer`,
-      );
-    return new ClaudeEngineSession({
-      query: this.#options.openClaude ?? sdkClaudeQuery,
-      executable,
-      home: claude.home,
-      ...(claude.env === undefined ? {} : { env: claude.env }),
-      ...options,
-    });
   }
 
   steerAssignment(sessionId: string, text: string): boolean {
@@ -520,7 +484,14 @@ export class EngineHost {
         const stop = new AbortController();
         live.stop = stop;
         const signal = AbortSignal.any([request.signal, stop.signal]);
-        const scope: TurnScope = { channelId: request.channelId, execute: request.execute, signal };
+        const scope: TurnScope = {
+          channelId: request.channelId,
+          execute: (...args) => {
+            observeTarget();
+            return request.execute(...args);
+          },
+          signal,
+        };
         live.turn = scope;
         this.#setState(
           request.sessionId,
@@ -528,6 +499,27 @@ export class EngineHost {
           live.botSlug,
         );
         const log = new EngineTurnLog(live.dsh, engine, live.account, input);
+        let previousTarget: Extract<TurnTarget, { kind: 'engine' }> | undefined;
+        const observeTarget = () => {
+          const model = live.engine.model ?? live.choice.model;
+          const effort = live.engine.reasoningEffort ?? live.choice.effort;
+          if (
+            previousTarget !== undefined &&
+            model === previousTarget.model &&
+            effort === previousTarget.reasoningEffort
+          )
+            return;
+          const target: TurnTarget = {
+            kind: 'engine',
+            engine,
+            ...(model === undefined ? {} : { model }),
+            ...(effort === undefined ? {} : { reasoningEffort: effort }),
+          };
+          previousTarget = target;
+          if (request.observeTurnTarget !== undefined)
+            request.observeTurnTarget(log.turn, 0, target);
+          else this.#options.observeTurnTarget?.(request.sessionId, log.turn, target);
+        };
         if (live.rebuilt) {
           log.rebuilt();
           live.rebuilt = false;
@@ -550,10 +542,12 @@ export class EngineHost {
             ),
         };
         try {
+          observeTarget();
           const sending = live.engine.send(input, {
             signal,
             verbatimInput: continuation,
             onEvent: (event) => {
+              observeTarget();
               log.accept(event);
               if (event.kind === 'text') outcome.text = event.text;
               if (event.kind === 'tool-call') delete outcome.text;
@@ -570,6 +564,7 @@ export class EngineHost {
               ? undefined
               : await steering.duringTurn({ sending, engine: live.engine, signal, stop, log });
           const end = steered?.end ?? (await sending);
+          observeTarget();
           if (role === 'orchestrator')
             this.#rememberModel(request.botSlug, engine, live.engine.model);
           try {
@@ -905,7 +900,7 @@ export class EngineHost {
           ...choice,
         });
       } else {
-        opened = await this.#claudeSession({
+        opened = await openClaudeEngineSession(this.#claude, this.#options, {
           cwd,
           instructions: request.instructions,
           contextSeed,
@@ -940,6 +935,7 @@ export class EngineHost {
       const live: LiveEngineSession = {
         botSlug,
         configuration: key,
+        choice,
         workspaceMode: mode,
         engine: opened,
         account: label,

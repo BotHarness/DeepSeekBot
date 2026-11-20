@@ -1,3 +1,4 @@
+import { MessageTurnTargets } from './message-turn-targets';
 import { RowIcon } from '../primitives/row-icon';
 import { Fragment, useRef, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
@@ -258,7 +259,7 @@ function MessageMenu({
   );
   const reactions = menuReactions(target, readOnly);
   const time = menuTime(message.at, new Date());
-  const hasMenu = time !== '' || actions.length > 0;
+  const hasMenu = time !== '' || actions.length > 0 || message.turnTargets !== undefined;
   const sizes = menuSizes(theme, actions.length, reactions);
   const top = insets.top + space.x3;
   const bottom = height - insets.bottom - space.x3;
@@ -381,6 +382,11 @@ function MessageMenu({
                 >
                   {time}
                 </Text>
+              )}
+              {message.turnTargets === undefined ? null : (
+                <View style={{ paddingHorizontal: space.x5, paddingBottom: space.x2 }}>
+                  <MessageTurnTargets targets={message.turnTargets} />
+                </View>
               )}
               {actions.map((action, index) => (
                 <Fragment key={actionId(action)}>

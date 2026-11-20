@@ -54,7 +54,7 @@ export const INBOX_COMMANDS = [
   },
   {
     command: 'session-transcript',
-    description: "read a root Session's history: inputs, replies, reasoning and public tool steps",
+    description: "read a root Session's history, with reply targets and public tool steps",
   },
   {
     command: 'session-live',

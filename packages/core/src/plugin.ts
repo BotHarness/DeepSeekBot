@@ -1,3 +1,4 @@
+import { recordTurnTarget } from './runtime/turn-targets.js';
 import { createRouteRests } from './models/route-rest.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
 import { mountCardContextLive } from './channels/card-context-live.js';
@@ -1871,6 +1872,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         : plan.orchestratorGroupId === undefined
           ? undefined
           : plan.orchestratorGroupEffort;
+    },
+    observeTurnTarget: (sessionId, turn, target) => {
+      const owner = core.ownership.resolve(sessionId);
+      if (owner === undefined) return;
+      recordTurnTarget(
+        attachOperationalModule(core.operationalDatabase, 'bot-runtime'),
+        sessionId,
+        {
+          turn,
+          step: 0,
+          request: String(turn),
+          target,
+        },
+      );
     },
     changed: () => core.live.publishRosterCommitted(),
     sessionIdsForBot: (slug) =>
@@ -4135,7 +4150,13 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           request ??
           core.registry.get(slug)?.modelPlan?.orchestrator ??
           defaultModel?.currentSelection();
-        return [route?.provider, route?.model, request?.maxTokens, compactionPolicy()];
+        return [
+          route?.provider,
+          route?.model,
+          request?.maxTokens,
+          compactionPolicy(),
+          core.runtime.currentTurnTarget?.(slug),
+        ];
       }),
     'botharness: card and context changes',
   );

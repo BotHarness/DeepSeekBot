@@ -1,3 +1,5 @@
+import { detectClaude, type ClaudeCommandOptions } from './claude-status.js';
+import { resolveEngineCommand } from './engine-launch.js';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 
@@ -696,4 +698,39 @@ export class ClaudeEngineSession implements EngineSession {
         `Claude Code turn ended with ${text(message['subtype']) || 'an error'}`,
     });
   }
+}
+
+export async function openClaudeEngineSession(
+  claude: ClaudeCommandOptions,
+  hooks: {
+    detectClaude?(options: ClaudeCommandOptions): ReturnType<typeof detectClaude>;
+    openClaude?: ClaudeQueryFactory;
+  },
+  options: { cwd: string; instructions: string; resume?: string } & Pick<
+    ClaudeEngineOptions,
+    'gateway' | 'model' | 'effort' | 'permissionMode' | 'contextSeed' | 'workspaceMode'
+  >,
+): Promise<ClaudeEngineSession> {
+  const executable = resolveEngineCommand(claude.command, { env: claude.env ?? process.env });
+  if (executable === undefined)
+    throw new EngineRefusal(
+      'engine-not-installed',
+      'Claude Code is not installed on this computer',
+    );
+  const { version } = await (hooks.detectClaude ?? detectClaude)({
+    ...claude,
+    command: executable,
+  });
+  if (version === undefined || olderThan(version, CLAUDE_MIN_VERSION))
+    throw new EngineRefusal(
+      'engine-unavailable',
+      `Claude Code ${version ?? 'of an unknown version'} cannot run a Bot here. Update it to ${CLAUDE_MIN_VERSION} or newer`,
+    );
+  return new ClaudeEngineSession({
+    query: hooks.openClaude ?? sdkClaudeQuery,
+    executable,
+    home: claude.home,
+    ...(claude.env === undefined ? {} : { env: claude.env }),
+    ...options,
+  });
 }

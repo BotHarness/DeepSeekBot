@@ -1,3 +1,4 @@
+import { isTurnTargetPath, type TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { HostClient, RemoteSource } from './client';
 import { genuiDocumentOf, type GenuiDocument, type GenuiDocumentReply } from './genui/document';
 import { forgetGenuiDocumentViews } from './genui/view';
@@ -163,6 +164,7 @@ export interface ReplyThumbnail {
 }
 
 export interface ConversationMessage {
+  turnTargets?: TurnTarget[];
   source?: JournalEntry;
   voice?: MessageVoice;
   sessionFailure?: import('./session-failure').SessionFailure;
@@ -692,6 +694,7 @@ function present(
         }),
     attachments,
     ...(voice === undefined ? {} : { voice }),
+    ...(isTurnTargetPath(message.turnTargets) ? { turnTargets: message.turnTargets } : {}),
     ...(genuiDocument === undefined ? {} : { genuiDocument }),
     ...(card === undefined ? {} : { card }),
     ...(resolves === undefined ? {} : { resolves }),

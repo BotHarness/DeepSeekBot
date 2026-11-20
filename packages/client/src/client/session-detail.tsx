@@ -1,3 +1,4 @@
+import { TurnTargetLabel } from './turn-target-label.js';
 import { createContext, useContext, useRef, useState, type ReactElement } from 'react';
 
 import { createPortal } from 'react-dom';
@@ -477,6 +478,10 @@ function TurnBlock({
           {...(foldable ? { expanded: open, onToggle: () => setOpen(!open) } : {})}
         />
       ) : null}
+      {end?.turnTargets === undefined ||
+      visible.some((segment) => segment.kind === 'reply') ? null : (
+        <TurnTargetLabel targets={end.turnTargets} t={t} />
+      )}
       {end?.message === undefined ? null : (
         <div {...stylex.props(styles.quiet, styles.bad)}>{end.message}</div>
       )}
@@ -489,6 +494,9 @@ function TurnBlock({
             {...stylex.props(styles.reply)}
           >
             <MessageMarkdown text={segment.item.text} t={t} />
+            {segment.item.turnTargets === undefined ? null : (
+              <TurnTargetLabel targets={segment.item.turnTargets} t={t} />
+            )}
           </div>
         ) : (
           <ProcessGroup

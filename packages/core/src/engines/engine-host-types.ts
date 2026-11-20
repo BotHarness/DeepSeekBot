@@ -1,3 +1,4 @@
+import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { RoutingGroupEngineMember } from '@botharness/host-protocol/subscription-engine';
 
 import type { Session } from '@deepseek-ai/dsh-session';
@@ -29,6 +30,7 @@ export interface EngineTurnRequest {
   botSlug: string;
   role?: EngineRole;
   target?: RoutingGroupEngineMember;
+  observeTurnTarget?(turn: number, step: number, target: TurnTarget): void;
   continuingFromNativeRoute?: true;
   cwd?: string;
   sessionCwd?: string;

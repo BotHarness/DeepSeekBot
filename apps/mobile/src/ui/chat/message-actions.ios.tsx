@@ -1,3 +1,4 @@
+import { MessageTurnTargets } from './message-turn-targets';
 import {
   BottomSheet,
   Button,
@@ -186,6 +187,11 @@ function SheetContent({
       >
         {menuTime(message.at, new Date())}
       </Text>
+      {message.turnTargets === undefined ? null : (
+        <RNHostView matchContents={{ vertical: true }}>
+          <MessageTurnTargets targets={message.turnTargets} />
+        </RNHostView>
+      )}
       {menuReactions(target, readOnly) ? (
         <ScrollView
           axes="horizontal"

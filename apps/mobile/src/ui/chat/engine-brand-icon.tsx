@@ -11,13 +11,15 @@ export function EngineBrandIcon({
   brand,
   color,
   label,
+  size: preferredSize,
 }: {
   brand: ModelBrand;
   color: ColorValue;
   label?: string;
+  size?: number;
 }) {
   const theme = useDesignTheme();
-  const size = theme.type.title.line;
+  const size = preferredSize ?? theme.type.title.line;
   const badgeSize = Math.round(size * 0.55);
   return (
     <View style={{ position: 'relative', flexShrink: 0 }}>

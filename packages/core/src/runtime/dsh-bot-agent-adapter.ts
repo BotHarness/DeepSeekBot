@@ -1171,6 +1171,9 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       run.inputAccepted?.();
       await engines.runTurn({
         botSlug: run.bot.slug,
+        ...(run.observeTurnTarget === undefined
+          ? {}
+          : { observeTurnTarget: run.observeTurnTarget }),
         ...(run.routingTarget?.kind === 'engine' ? { target: run.routingTarget } : {}),
         ...(run.continuingFromNativeRoute ? { continuingFromNativeRoute: true } : {}),
         ...(sessionCwd === undefined ? {} : { sessionCwd }),
@@ -1905,6 +1908,23 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       if (borrowed && disposeFiles !== undefined) borrowedDisposers.push(disposeFiles);
       const disposeSelection = installNativeModelSelection(agentCtx, agent, selection);
       if (borrowed) borrowedDisposers.push(disposeSelection);
+      const disposeTarget = agentCtx.on('agent/assistant-stream', (event) => {
+        const { frame } = event;
+        if (event.agent !== agent || frame.type !== 'start') return;
+        const active = this.#runs.get(agent.session.id);
+        if (active?.role !== 'orchestrator') return;
+        const config = agent.session.requestHeader()?.config;
+        if (config !== undefined)
+          active.run.observeTurnTarget?.(frame.turn, frame.step, {
+            kind: 'dsh',
+            provider: config.provider,
+            model: config.model,
+          });
+      });
+      if (borrowed)
+        borrowedDisposers.push(() => {
+          disposeTarget();
+        });
       const registerTool = (tool: Parameters<typeof agentCtx.tools.register>[0]) => {
         if (run.tobCli && TOB_CLI_ONLY_TOOLS.has(tool.name)) return () => undefined;
         const dispose = agentCtx.tools.register(tool);

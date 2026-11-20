@@ -1,3 +1,4 @@
+import { summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
 import { join } from 'node:path';
 
 import { Context } from '@deepseek-ai/cordis';
@@ -99,7 +100,10 @@ afterEach(async () => {
 class NativeReplay extends LlmAdapter {
   readonly requests: GenerateOptions[] = [];
 
-  constructor(private readonly hitQuota: boolean) {
+  constructor(
+    private readonly hitQuota: boolean,
+    private readonly reply?: string,
+  ) {
     super();
   }
 
@@ -115,14 +119,23 @@ class NativeReplay extends LlmAdapter {
       yield { type: 'finish', reason: { kind: 'stop' } };
       return;
     }
+    const reply = this.reply;
+    if (reply !== undefined) {
+      yield { type: 'block-start', index: 0, blockType: 'text' };
+      yield { type: 'block-end', index: 0, block: { type: 'text', text: reply } };
+    }
     const block = {
       type: 'tool-call' as const,
       id: ToolCallId('native-read'),
-      name: 'channel_read',
-      arguments: JSON.stringify({ channel_id: dmChannelId('ada') }),
+      name: reply === undefined ? 'channel_read' : 'bot_send_message',
+      arguments: JSON.stringify({
+        channel_id: dmChannelId('ada'),
+        ...(reply === undefined ? {} : { body: reply }),
+      }),
     };
-    yield { type: 'block-start', index: 0, blockType: block.type };
-    yield { type: 'block-end', index: 0, block };
+    const index = reply === undefined ? 0 : 1;
+    yield { type: 'block-start', index, blockType: block.type };
+    yield { type: 'block-end', index, block };
     yield { type: 'finish', reason: { kind: 'tool-calls' } };
   }
 }
@@ -367,6 +380,30 @@ function setup(options: {
     channelMessages: () => core.channels.readMessages(channel.id),
     sendStatus: (messageId: string) => core.channels.humanSendStatus?.(channel.id, messageId),
     held: () => core.runtime.heldCause?.('ada'),
+    current: () => core.runtime.currentTurnTarget?.('ada'),
+    async reopen(id: string) {
+      await core.runtime.close();
+      await host.close();
+      core.operationalDatabase.close();
+      const reopened = createCore({ dshHome: root });
+      try {
+        const writer = await dsh.persistence.open(SessionId(id), 'write');
+        const { events } = await writer.read();
+        await writer.close();
+        return {
+          messages: reopened.channels.readMessages(channel.id),
+          current: reopened.runtime.currentTurnTarget?.('ada'),
+          transcript: summarizeSessionTranscript({
+            sessionId: id,
+            events,
+            segments: reopened.runtime.sessionTurnTargets?.(id) ?? [],
+          }).items,
+        };
+      } finally {
+        await reopened.runtime.close();
+        reopened.operationalDatabase.close();
+      }
+    },
   };
 }
 
@@ -843,3 +880,97 @@ it('continues using the existing ordered DSH-only default group', async () => {
   expect(bot.codex).toEqual([]);
   expect(bot.claude.prompts).toEqual([]);
 });
+
+it.each([
+  ['DSH only', [], { kind: 'dsh', ...API }],
+  ['Codex then DSH', [{ ...CODEX, reasoningEffort: 'high' }], { kind: 'dsh', ...API }],
+] as const)(
+  'records the reply path and restores Current after reopening: %s',
+  async (_name, members, current) => {
+    const text = 'The orchid is noted.';
+    const actual = await nativeRuntime(new NativeReplay(false, text));
+    const bot = setup({ members: [...members], nativeRuntime: actual });
+    await bot.message('attributed', 'Please remember the orchid.');
+    const sessionId = bot.sessionId();
+    const turnTargets = [
+      ...members.map((target) => expect.objectContaining({ ...target, model: expect.any(String) })),
+      current,
+    ];
+    expect(bot.current()).toEqual(current);
+    expect(bot.channelMessages()).toContainEqual(
+      expect.objectContaining({ body: text, turnTargets }),
+    );
+
+    const reopened = await bot.reopen(sessionId);
+    expect(reopened.current).toEqual(current);
+    expect(reopened.messages).toContainEqual(expect.objectContaining({ body: text, turnTargets }));
+    expect(reopened.transcript).toContainEqual(
+      expect.objectContaining({ kind: 'reply', text, turnTargets }),
+    );
+  },
+);
+
+it.each([
+  ['Codex', CODEX_REPLY, [CODEX], 'codex'],
+  ['Codex then Claude Code', LIMIT, [CODEX, CLAUDE], 'claude'],
+] as const)(
+  'records the executing engine after reopening: %s',
+  async (_name, codexRecording, members, engine) => {
+    const text = 'Hello from Claude';
+    const claudeRecording: typeof CLAUDE_REPLY = [
+      ...CLAUDE_REPLY.slice(0, -1),
+      {
+        kind: 'message',
+        msg: {
+          type: 'assistant',
+          message: {
+            id: 'attributed-claude',
+            model: CLAUDE.model,
+            content: [
+              { type: 'text', text },
+              {
+                type: 'tool_use',
+                id: 'attributed-send',
+                name: 'mcp__deepseekbot__bot_send_message',
+                input: { channel_id: dmChannelId('ada'), body: text },
+              },
+            ],
+          },
+        },
+      },
+      {
+        kind: 'message',
+        msg: {
+          type: 'user',
+          message: {
+            content: [
+              {
+                type: 'tool_result',
+                tool_use_id: 'attributed-send',
+                content: [{ type: 'text', text: '<gateway>' }],
+              },
+            ],
+          },
+        },
+      },
+      CLAUDE_REPLY.at(-1)!,
+    ];
+    const bot = setup({ members: [...members], codexRecording, claudeRecording });
+    await bot.message('attributed', 'Please answer.');
+    const sessionId = bot.sessionId();
+    const targets = members.map((member) =>
+      expect.objectContaining({ kind: 'engine', engine: member.engine, model: expect.any(String) }),
+    );
+    expect(bot.current()).toMatchObject({ kind: 'engine', engine });
+    expect(bot.channelMessages()).toContainEqual(expect.objectContaining({ turnTargets: targets }));
+
+    const reopened = await bot.reopen(sessionId);
+    expect(reopened.current).toMatchObject({ kind: 'engine', engine });
+    expect(reopened.messages).toContainEqual(expect.objectContaining({ turnTargets: targets }));
+    expect(reopened.transcript.at(-1)).toMatchObject({ kind: 'turn-end', turnTargets: targets });
+    if (engine === 'claude')
+      expect(reopened.transcript).toContainEqual(
+        expect.objectContaining({ kind: 'reply', text, turnTargets: targets }),
+      );
+  },
+);

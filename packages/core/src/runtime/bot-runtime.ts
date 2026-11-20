@@ -1,3 +1,10 @@
+import type { TurnTarget } from '@botharness/host-protocol/turn-target';
+import {
+  lastTurnTarget,
+  readTurnTargets,
+  recordTurnTarget,
+  type TurnTargetSegment,
+} from './turn-targets.js';
 import { HarnessError } from '@deepseek-ai/dsh-llm';
 import {
   assertQuoteTargets,
@@ -403,6 +410,7 @@ export interface OrchestratorAssignmentAccess {
 
 export interface OrchestratorAgentRun {
   routingTarget?: RoutingTarget;
+  observeTurnTarget?(turn: number, step: number, target: TurnTarget): void;
   continuingFromNativeRoute?: true;
   inputAccepted?(): void;
   speakerPolicy?(
@@ -772,6 +780,7 @@ export interface BotReactionResult {
 }
 
 export interface OrchestratorServiceTurn {
+  replyTargets?: () => readonly TurnTarget[];
   modelContent?: string;
   sessionId: string;
   channelId: string | undefined;
@@ -1016,6 +1025,8 @@ export interface BotRuntime {
   listAssignments(botSlug: string): AssignmentSummary[];
   latestAssignmentActivity?(): ReadonlyMap<string, number>;
   currentOrchestratorSessionId?(botSlug: string): string | undefined;
+  currentTurnTarget?(botSlug: string): TurnTarget | undefined;
+  sessionTurnTargets?(sessionId: string): TurnTargetSegment[];
   replaceOrchestrator?<T>(botSlug: string, body: () => T): Promise<OrchestratorReplacement<T>>;
   startFreshOrchestrator?(botSlug: string, assertCurrent?: () => void): Promise<'started' | 'busy'>;
   turnRunning?(botSlug: string): boolean;
@@ -5811,6 +5822,15 @@ class BotRuntimeImplementation implements BotRuntime {
     );
   }
 
+  currentTurnTarget(botSlug: string): TurnTarget | undefined {
+    const sessionId = this.currentOrchestratorSessionId(botSlug);
+    return sessionId === undefined ? undefined : lastTurnTarget(this.#database, sessionId);
+  }
+
+  sessionTurnTargets(sessionId: string): TurnTargetSegment[] {
+    return readTurnTargets(this.#database, sessionId);
+  }
+
   currentOrchestratorSessionId(botSlug: string): string | undefined {
     return this.#ownership
       .rootsFor(botSlug, 'orchestrator')
@@ -7324,7 +7344,19 @@ class BotRuntimeImplementation implements BotRuntime {
         ['usage'],
       );
       const envelope = this.#speakerInput(bot.slug, orchestrator.sessionId, [...turnSources], body);
+      const request = randomUUID();
+      const segments: TurnTargetSegment[] = [];
+      const observeTurnTarget = (turn: number, step: number, target: TurnTarget): void => {
+        const previous = segments.at(-1);
+        if (previous?.turn === turn && JSON.stringify(previous.target) === JSON.stringify(target))
+          return;
+        const segment = { turn, step, request, target };
+        recordTurnTarget(this.#database, orchestrator.sessionId, segment);
+        if (previous?.turn === turn && previous.step === step) segments.pop();
+        segments.push(segment);
+      };
       const run: OrchestratorAgentRun & { triage: OrchestratorInboxTriage } = {
+        observeTurnTarget,
         ...(tobCliTurn === undefined ? {} : { tobCliTurn }),
         setExecutionReady: (ready) => {
           if (ready) {
@@ -7385,6 +7417,7 @@ class BotRuntimeImplementation implements BotRuntime {
           observeMemory,
           observeReads: true,
           modelContent: body + '\n' + inbox,
+          replyTargets: () => segments.map((segment) => segment.target),
         }),
       };
       if (routingTarget === undefined) await this.#agents.runOrchestrator(run);
@@ -7620,6 +7653,7 @@ class BotRuntimeImplementation implements BotRuntime {
       (ref) => turn.importedFiles.set(attachmentIdentity(ref), ref),
       turn.observeReads,
       turn.modelContent,
+      turn.replyTargets,
     );
     return {
       ...(this.#team
@@ -8583,6 +8617,7 @@ class BotRuntimeImplementation implements BotRuntime {
     onImport?: (ref: ChannelAttachmentRef) => void,
     observeReads = true,
     modelContent?: string,
+    replyTargets?: () => readonly TurnTarget[],
   ): OrchestratorChannelAccess {
     const actorHuman = humanContext(botOwner(this.#registry.get(botSlug)!));
     const reviewOwner = sessionId.startsWith('direct-')
@@ -9760,6 +9795,8 @@ class BotRuntimeImplementation implements BotRuntime {
         return result;
       },
       send: async (input) => {
+        const targets = replyTargets?.().slice(-MAX_MIXED_GROUP_ATTEMPTS);
+        const attribution = targets?.length ? { turnTargets: targets } : {};
         if (input.replySourceEventId !== undefined) {
           const reply = replySource(input.replySourceEventId);
           if (
@@ -9873,6 +9910,7 @@ class BotRuntimeImplementation implements BotRuntime {
                   sourceEventId,
                 body: input.body,
                 beforeSend,
+                ...attribution,
                 ...(input.deliveryKey === undefined ? {} : { deliveryKey: input.deliveryKey }),
               })
             ).message;
@@ -9892,6 +9930,7 @@ class BotRuntimeImplementation implements BotRuntime {
             beforeSend: input.deliveryKey === undefined ? beforeSend : () => undefined,
             ...(input.deliveryKey === undefined ? {} : { afterSend: beforeSend }),
             body: input.body,
+            ...attribution,
             replyTo: input.replyTo,
             quotes: input.quotes,
             attachments: input.attachments,
@@ -9917,6 +9956,7 @@ class BotRuntimeImplementation implements BotRuntime {
             beforeSend: input.deliveryKey === undefined ? beforeSend : () => undefined,
             ...(input.deliveryKey === undefined ? {} : { afterSend: beforeSend }),
             body: input.body,
+            ...attribution,
             replyTo: input.replyTo,
             quotes: input.quotes,
             attachments: input.attachments,
@@ -9995,6 +10035,7 @@ class BotRuntimeImplementation implements BotRuntime {
           ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
           ...(input.quotes?.length ? { quotes: input.quotes } : {}),
           ...this.#perf(sessionId, body),
+          ...attribution,
           ...(input.genui === undefined ? {} : { genui: input.genui }),
           ...(input.sessionLinks === undefined ? {} : { sessionLinks: input.sessionLinks }),
         };
@@ -10054,6 +10095,7 @@ class BotRuntimeImplementation implements BotRuntime {
     beforeSend: () => void;
     afterSend?: () => void;
     body: string;
+    turnTargets?: TurnTarget[];
     replyTo?: string | undefined;
     quotes?: ChannelQuote[] | undefined;
     attachments?: ChannelAttachmentRef[] | undefined;
@@ -10142,6 +10184,7 @@ class BotRuntimeImplementation implements BotRuntime {
       id: messageId,
       at: this.#now().toISOString(),
       author: { kind: 'bot', slug: botSlug },
+      ...(input.turnTargets === undefined ? {} : { turnTargets: input.turnTargets }),
       body,
       botCausation: this.#botCausation(
         input.replySourceEventId ??
@@ -10489,6 +10532,7 @@ class BotRuntimeImplementation implements BotRuntime {
     sessionId: string;
     sourceEventId: string | undefined;
     body: string;
+    turnTargets?: TurnTarget[];
     beforeSend: () => void;
     deliveryKey?: string;
   }): Promise<{ channelId: string; message: ChannelMessage }> {
@@ -10509,6 +10553,7 @@ class BotRuntimeImplementation implements BotRuntime {
       id: this.#deliveryMessageId(input.sessionId, input.deliveryKey),
       at: this.#now().toISOString(),
       author: { kind: 'bot', slug: botSlug },
+      ...(input.turnTargets === undefined ? {} : { turnTargets: input.turnTargets }),
       body: input.body,
       botCausation: causation,
     };
@@ -10571,6 +10616,7 @@ class BotRuntimeImplementation implements BotRuntime {
     beforeSend: () => void;
     afterSend?: () => void;
     body: string;
+    turnTargets?: TurnTarget[];
     replyTo?: string | undefined;
     quotes?: ChannelQuote[] | undefined;
     attachments?: ChannelAttachmentRef[] | undefined;
@@ -10618,6 +10664,7 @@ class BotRuntimeImplementation implements BotRuntime {
       id: messageId,
       at: this.#now().toISOString(),
       author: { kind: 'bot', slug: botSlug },
+      ...(input.turnTargets === undefined ? {} : { turnTargets: input.turnTargets }),
       body: input.body,
       botCausation,
       ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
