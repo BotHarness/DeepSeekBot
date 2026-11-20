@@ -39,7 +39,7 @@
     "packages/links-cli/src",
     "packages/connect-relay/src",
     "packages/*/test",
-    "apps/mobile/test",
+    "apps/mobile/test/host",
     "*.config.ts"
   ],
   "exclude": [
@@ -71,23 +71,13 @@
     "apps/mobile/test/quick-action-routing.test.ts",
     "apps/mobile/test/incoming-share.test.ts",
     "apps/mobile/test/recent-chats.test.ts",
-    "apps/mobile/test/swipe-chat-target.test.ts",
     "apps/mobile/test/grant-request-card.test.ts",
     "apps/mobile/test/attention-actions.test.ts",
     "apps/mobile/test/host-session-unpair.test.ts",
     "apps/mobile/test/host-session-multiple.test.ts",
     "apps/mobile/test/host-session-background.test.ts",
-    "apps/mobile/test/host-session-ios-call-resume.test.ts",
-    "apps/mobile/test/host-session-ios-in-app.test.ts",
     "apps/mobile/test/conversation-cache-host.test.ts",
     "apps/mobile/test/native-conversation-cache.test.ts",
-    "apps/mobile/test/reanimated-shim.ts",
-    "apps/mobile/test/motion-springs.test.ts",
-    "apps/mobile/test/back-owner.test.ts",
-    "apps/mobile/test/viewer-header.test.tsx",
-    "apps/mobile/test/chats-search-results.test.ts",
-    "apps/mobile/test/workspace-panel-root.test.ts",
-    "apps/mobile/test/platform-tokens.test.ts",
-    "apps/mobile/test/**/*.tsx"
+    "apps/mobile/test/chats-search-results.test.ts"
   ]
 }
