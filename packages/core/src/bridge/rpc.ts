@@ -1,3 +1,4 @@
+import * as avatarsRpc from '../features/avatars/rpc.js';
 import * as skillsRpc from '../features/skills/rpc.js';
 import * as schedulesRpc from '../features/schedules/rpc.js';
 import * as promptsRpc from '../features/prompts/rpc.js';
@@ -2043,26 +2044,22 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   botAvatarSet(channelId: string, avatar: string | null): AdminResult<{ bot: PersonaBotDetail }> {
-    return unwrap(this.methods.botAvatarSet({ channelId, avatar }));
+    return avatarsRpc.botAvatarSet(this.methods, channelId, avatar);
   }
 
   partLibraryList(): { parts: PartLibraryEntry[] } {
-    return unwrap(this.methods.partLibraryList());
+    return avatarsRpc.partLibraryList(this.methods);
   }
 
   partLibraryExport(id?: string, part?: unknown): { fileName: string; data: string } {
-    return unwrap(
-      this.methods.partLibraryExport(
-        part !== undefined ? { part } : id === undefined ? {} : { id },
-      ),
-    );
+    return avatarsRpc.partLibraryExport(this.methods, id, part);
   }
 
   partLibraryImport(data: string): {
     added: PartLibraryEntry[];
     refused: { name: string; reason: string }[];
   } {
-    return unwrap(this.methods.partLibraryImport({ data }));
+    return avatarsRpc.partLibraryImport(this.methods, data);
   }
 
   partLibraryImportImage(
@@ -2071,26 +2068,26 @@ export class BotharnessBridgeService extends TypertRemoteService {
     colors: number,
     name: string,
   ): { entry: PartLibraryEntry } {
-    return unwrap(this.methods.partLibraryImportImage({ data, slot, colors, name }));
+    return avatarsRpc.partLibraryImportImage(this.methods, data, slot, colors, name);
   }
 
   partLibraryAdd(part: unknown, name: string, parent?: string): { entry: PartLibraryEntry } {
-    return unwrap(this.methods.partLibraryAdd({ part, name, parent }));
+    return avatarsRpc.partLibraryAdd(this.methods, part, name, parent);
   }
 
   botBannerSet(channelId: string, banner: unknown): AdminResult<{ bot: PersonaBotDetail }> {
-    return unwrap(this.methods.botBannerSet({ channelId, banner }));
+    return avatarsRpc.botBannerSet(this.methods, channelId, banner);
   }
 
   botAppearanceSet(channelId: string, recipe: unknown): AdminResult<{ bot: PersonaBotDetail }> {
-    return unwrap(this.methods.botAppearanceSet({ channelId, recipe }));
+    return avatarsRpc.botAppearanceSet(this.methods, channelId, recipe);
   }
 
   botPrimaryColorSet(
     channelId: string,
     primaryColor: unknown,
   ): AdminResult<{ bot: PersonaBotDetail }> {
-    return unwrap(this.methods.botPrimaryColorSet({ channelId, primaryColor }));
+    return avatarsRpc.botPrimaryColorSet(this.methods, channelId, primaryColor);
   }
 
   async channels(): Promise<{ channels: ChannelListItem[] }> {

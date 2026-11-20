@@ -107,7 +107,7 @@
   },
   "packages/client/src/client/bridge.ts": {
     "../../../core/src/attachments/ref.js": 1,
-    "../../../core/src/bots/avatar-appearance.js": 2,
+    "../../../core/src/bots/avatar-appearance.js": 1,
     "../../../core/src/bots/part-library.js": 1,
     "../../../core/src/bots/primary-color.js": 1,
     "../../../core/src/bridge/composer-recovery.js": 1,
