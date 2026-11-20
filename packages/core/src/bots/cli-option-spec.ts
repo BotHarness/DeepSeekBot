@@ -403,6 +403,7 @@ export const LIVE_OPTIONS = {
   'route-id': { type: 'string' },
   'args-stdin': { type: 'boolean' },
   'code-stdin': { type: 'boolean' },
+  grantable: { type: 'boolean' },
   'cause-event': { type: 'string' },
   session: { type: 'string' },
   turns: { type: 'string' },

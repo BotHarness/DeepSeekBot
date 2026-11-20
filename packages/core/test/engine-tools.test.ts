@@ -336,6 +336,7 @@ describe('engine route Bot tools', () => {
       }),
       {
         host: {} as EngineRouteDeps['host'],
+        engineSelection: vi.fn(),
         botExists: (slug) => slug === 'ada',
         tools: async () => [todoTool()],
         runTool: async (_bot, tool) => {

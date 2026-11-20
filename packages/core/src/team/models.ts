@@ -1,10 +1,17 @@
-import { humanContext } from '../humans/context.js';
+import { humanContext, OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { PersonaBotRecord } from '../bots/persona-bot.js';
 import type { ModelRoute } from '../models/presets.js';
 import type { TeamService } from './service.js';
 import { requireEngineAccountGrant } from './roles.js';
 import { TeamError } from './error.js';
-import { allowsModel } from './permissions.js';
+import { allowsEngineAccount, allowsModel } from './permissions.js';
+
+export function engineAccountFilter(team: TeamService | undefined, human: HumanContext) {
+  const grants = team?.roles.modelsAllowed(human);
+  return grants === undefined
+    ? () => human.humanId === OWNER_HUMAN_CONTEXT.humanId
+    : (id: string) => allowsEngineAccount(grants, id);
+}
 
 function ownerOf(team: TeamService, bot: PersonaBotRecord) {
   return humanContext(bot.ownerHumanId ?? team.ownerContext().humanId);

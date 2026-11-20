@@ -168,6 +168,7 @@ import { createEngineToolGate, type EngineDeviceTools } from './engines/engine-t
 import type { EngineSessionPersistence, EngineSessionStore } from './engines/engine-dsh-session.js';
 import { readEnginePersona, subscriptionEnginesAllowed } from './engines/engine-plugin.js';
 import { ENGINES_PATH, engineRouteFetch } from './engines/engine-route.js';
+import { createEngineSelectionBridge } from './engines/engine-selection-bridge.js';
 import { createHash } from 'node:crypto';
 import { createCompanionFeed, COMPANION_PATH, type CompanionFeed } from './companions/feed.js';
 
@@ -4536,6 +4537,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           requestBody: 'buffered',
           fetch: (request) =>
             engineRouteFetch(request, {
+              ...createEngineSelectionBridge(team.ownerContext(), bridgeDeps),
               host: engineHost,
               authorizeLogin: () => requireModelSources(team.ownerContext(), team),
               botExists: (slug) => core.registry.get(slug) !== undefined,
@@ -4550,7 +4552,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                   );
                 return found.run(args, AbortSignal.timeout(120_000));
               },
-              releaseQuotaHold: (slug) => void core.runtime.releaseQuotaHold?.(slug),
               approvals: () =>
                 core.registry
                   .list()

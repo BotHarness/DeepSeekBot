@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createEngineGateway } from '../src/engines/engine-gateway.js';
 import { EngineHost } from '../src/engines/engine-host.js';
+import { engineRouteFetch } from '../src/engines/engine-route.js';
 import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { createModelPresetStore } from '../src/models/presets.js';
 import { routingGroupEngineOptions } from '../src/models/routing-group-engine-options.js';
@@ -123,16 +124,20 @@ describe('Team subscription grants', () => {
       value: { engines: [], selections: [] },
     });
     expect(f.detectCodex).not.toHaveBeenCalled();
+    expect(await f.methods.engineSelection({ action: 'status', engine: f.work.id })).toMatchObject(
+      refusal(f.work.id),
+    );
     expect(await f.methods.engineSelection({ action: 'models', engine: f.work.id })).toMatchObject(
       refusal(f.work.id),
     );
     expect(await f.methods.engineSelection(use)).toMatchObject(refusal(f.work.id));
     expect(f.models).not.toHaveBeenCalled();
     f.grant(f.work.id);
-    expect(await f.methods.engineSelection({ action: 'accounts' })).toMatchObject({
+    expect(await f.methods.engineAccounts({ grantable: true })).toMatchObject({
       ok: true,
       value: { accounts: [{ id: f.work.id, name: 'Work' }] },
     });
+    expect(f.detectCodex).not.toHaveBeenCalled();
     expect(await f.methods.engineSelection({ action: 'models', engine: f.work.id })).toMatchObject({
       ok: true,
       value: { engine: 'codex', models: [{ id: 'gpt-test' }] },
@@ -177,6 +182,57 @@ describe('Team subscription grants', () => {
         model: undefined,
       }),
     ).toMatchObject({ ok: true });
+  });
+
+  it('serves the same selection through Owner RPC and the HTTP route', async () => {
+    const f = fixture();
+    const url = 'http://host/api/botharness/engines';
+    const deps = {
+      host: f.host,
+      botExists: (slug: string) => f.registry.get(slug) !== undefined,
+      engineSelection: f.ownerMethods.engineSelection,
+    };
+    const post = (body: object) =>
+      engineRouteFetch(new Request(url, { method: 'POST', body: JSON.stringify(body) }), deps);
+    const use = {
+      action: 'use',
+      bot: 'ada',
+      role: 'orchestrator',
+      engine: 'codex',
+      accountId: f.work.id,
+      model: 'gpt-test',
+    };
+    const denied = await post(use);
+    expect(denied.status).toBe(403);
+    expect(await denied.json()).toEqual({
+      error: { code: 'model-not-allowed', message: 'model-not-allowed' },
+    });
+    expect(f.host.store.selections()).toEqual([]);
+    const unknown = await post({ ...use, bot: 'missing' });
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toEqual({
+      error: { code: 'unknown-bot', message: 'Unknown PersonaBot' },
+    });
+
+    f.grant(f.work.id);
+    const used = await post(use);
+    expect(used.status).toBe(200);
+    expect(await f.ownerMethods.engineSelection(use)).toEqual({
+      ok: true,
+      value: await used.json(),
+    });
+    for (const action of ['status', 'models']) {
+      const payload = { action, engine: f.work.id };
+      const response = await post(payload);
+      expect(response.status).toBe(200);
+      const body = await response.json();
+      if (action === 'status') {
+        expect(body.approvals).toEqual([]);
+        expect(body.selections).toMatchObject([{ botSlug: 'ada', accountId: f.work.id }]);
+        delete body.approvals;
+      }
+      expect(await f.ownerMethods.engineSelection(payload)).toEqual({ ok: true, value: body });
+    }
   });
 
   it('checks each nested Routing Group and every Model Plan and Preset account before writes', async () => {
@@ -270,7 +326,7 @@ describe('Team subscription grants', () => {
   it('keeps subscription accounts local even after the role is granted', async () => {
     const f = fixture(false);
     f.grant(f.work.id);
-    expect(await f.methods.engineSelection({ action: 'accounts' })).toMatchObject({
+    expect(await f.methods.engineAccounts({ grantable: true })).toMatchObject({
       ok: true,
       value: { accounts: [] },
     });

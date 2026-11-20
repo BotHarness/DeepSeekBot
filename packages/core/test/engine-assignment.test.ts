@@ -17,6 +17,7 @@ import {
   type EngineTurnRequest,
 } from '../src/engines/engine-host.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
+import { ownerEngineSelection } from './engine-route-fixture.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createCore } from '../src/plugin.js';
 import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
@@ -368,6 +369,7 @@ describe('Assignments on a Subscription Engine', () => {
 
   it('chooses the Assignment engine through the route and the CLI', async () => {
     const { host } = hostSetup([assignmentRecording(true)]);
+    const botExists = (slug: string) => slug === 'ada';
     const route = async (body: Record<string, unknown>) =>
       (await (
         await engineRouteFetch(
@@ -375,7 +377,7 @@ describe('Assignments on a Subscription Engine', () => {
             method: 'POST',
             body: JSON.stringify(body),
           }),
-          { host, botExists: (slug) => slug === 'ada' },
+          { host, botExists, ...ownerEngineSelection(host, botExists) },
         )
       ).json()) as Record<string, unknown>;
     expect(

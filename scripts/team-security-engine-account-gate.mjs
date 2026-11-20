@@ -17,7 +17,16 @@ export function runEngineAccountGrantGate(s, fx, check) {
     );
   const grant = (id) =>
     s.cli(['roles', 'update', roleId, '--models', 'all', '--engine-accounts', id]);
+  const grantable = () => s.cli(['engine', 'accounts', '--grantable'], { as });
   try {
+    check('member account list is empty before a grant', grantable().accounts?.length === 0);
+    for (const action of ['status', 'models']) {
+      const result = s.cli(['engine', action, account], { as, allowFail: true });
+      check(
+        `member engine ${action} requires an account grant`,
+        result?.error?.code === 'model-not-allowed',
+      );
+    }
     const denied = use(fx.bots.bob, 'codex', account);
     check(
       'all API models do not grant a subscription',
@@ -25,6 +34,12 @@ export function runEngineAccountGrantGate(s, fx, check) {
       denied,
     );
     grant(account);
+    check(
+      'member account list contains exactly the granted account',
+      grantable()
+        .accounts?.map(({ id }) => id)
+        .join(',') === account,
+    );
     const allowed = s.cli(['models', 'allowed'], { as });
     check(
       'role grants the exact account id',

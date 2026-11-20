@@ -1111,6 +1111,7 @@ deepseekbot engine approvals
 deepseekbot engine tools <bot> [--query memory]
 echo '{"path":"MEMORY.md"}' | deepseekbot engine tool <bot> memory_read --args-stdin
 deepseekbot engine accounts
+deepseekbot engine accounts --grantable
 deepseekbot engine account-add codex|claude --name <name> --expected-revision <r>
 deepseekbot engine account-rename <account-id> --name <name> --expected-revision <r>
 deepseekbot engine account-remove <account-id> --expected-revision <r> --confirm
@@ -1132,6 +1133,8 @@ A new engine thread starts with bounded context from the Bot’s existing Sessio
 An Orchestrator engine process closes after 30 idle seconds. An Assignment engine process closes when its work settles, before it releases its slot in the Host's Assignment Concurrency Limit. The next DM or Assignment Request resumes the saved native ID. If the engine reports that the native session is gone, the Host rebuilds an Orchestrator from its Bot Inbox, recent messages from the current Channel, Memory and saved Session context. Assignment recovery uses its Directory entry, saved Requests and Session events. Read `session-transcript <bot-id> --session <session-id>` to see the rebuild notice. If required Assignment records are missing, `assignment` shows the failure when the Directory entry is available, and the Orchestrator receives a failed Assignment Report in its Bot Inbox.
 
 The Host Owner and Humans with `modelSources.manage` can list, add, rename, remove and sign in to subscription accounts. Each Codex or Claude Code account has its own Bot-owned config directory. Existing choices and the engine names `codex` and `claude` still resolve to their original directories, under account IDs `codex-default` and `claude`. Read `revision` from `engine accounts` before changing the list. A stale revision returns `engine-account-conflict`. A Bot selection, Model Preset or Routing Group that uses the account prevents removal with `engine-account-in-use` and the references. Successful removal also deletes the account’s local home. Use the named account ID for status, models and login, and `engine use --account` to choose it for either Bot role. Sign-in state, model cache and quota belong to the account. A removed or missing account returns `engine-account-not-found`. Switching accounts starts a new native thread with the existing DSH Session context.
+
+Use `engine accounts --grantable` to list the accounts granted to the signed-in Human, for example when choosing IDs to delegate to another Host Role. This view skips subscription status probes.
 
 If the Claude browser callback cannot reach the Host and the browser shows an authorization code, use **Paste authorization code** in Model providers or run `engine login claude --code-stdin` with that code on stdin. Use the same `--account` as the sign-in command. A running Claude Code login must request a code on stdin. The Host returns `engine-code-not-requested` if the CLI has not offered the prompt and `engine-login-not-pending` if sign-in has ended or has not started. Success returns `{"submitted":true}` once stdin accepts the code. Check `engine status` for the sign-in result.
 

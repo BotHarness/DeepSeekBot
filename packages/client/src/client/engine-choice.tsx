@@ -179,9 +179,7 @@ export async function loadGrantableEngineAccounts(
   call: BridgeCall,
   signal: AbortSignal,
 ): Promise<NamedEngineAccount[]> {
-  const value = await bridgeHost(call, signal).call('engineSelection', {
-    request: { action: 'accounts' },
-  });
+  const value = await bridgeHost(call, signal).call('engineAccounts', { grantable: true });
   const accounts = record(value)?.['accounts'];
   if (!Array.isArray(accounts)) throw new Error('Invalid subscription accounts');
   return accounts.flatMap((raw): NamedEngineAccount[] => {

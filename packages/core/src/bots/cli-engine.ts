@@ -27,7 +27,11 @@ export const ENGINE_COMMANDS = [
     description:
       'run an engine-only Bot tool such as memory_write without the model (engine tool <bot> memory_read --args-stdin)',
   },
-  { command: 'engine-accounts', description: 'list subscription accounts and their revision' },
+  {
+    command: 'engine-accounts',
+    description:
+      'list subscription accounts and their revision, or use --grantable to list accounts granted to the caller',
+  },
   { command: 'engine-account-add', description: 'add a named Codex or Claude Code account' },
   { command: 'engine-account-rename', description: 'rename a subscription account' },
   { command: 'engine-account-remove', description: 'remove an unused account and its home' },
@@ -106,12 +110,15 @@ export async function runEngineCommand(
     effort?: string;
     'args-stdin'?: boolean;
     'code-stdin'?: boolean;
+    grantable?: boolean;
   },
   connect: Connect,
   readStdin: () => Promise<string> = async () => '',
 ): Promise<unknown> {
   if (values['code-stdin'] && (command !== 'engine-login' || rest[0] !== 'claude'))
     throw new CliLiveError('usage', '--code-stdin requires engine login claude.');
+  if (values.grantable && command !== 'engine-accounts')
+    throw new CliLiveError('usage', '--grantable requires engine accounts.');
   if (command === 'engine-list' || command === 'engine-status') {
     if (rest.length > (command === 'engine-status' ? 1 : 0))
       throw new CliLiveError('usage', 'engine status accepts one optional engine or account ID.');
@@ -189,7 +196,7 @@ export async function runEngineCommand(
     if (command === 'engine-accounts') {
       if (rest.length)
         throw new CliLiveError('usage', 'engine accounts takes no positional arguments.');
-      return rpc('engineAccounts', {});
+      return rpc('engineAccounts', values.grantable ? { grantable: true } : {});
     }
     if (rest.length !== 1 || !rest[0])
       throw new CliLiveError('usage', `${command} needs one engine or account ID.`);

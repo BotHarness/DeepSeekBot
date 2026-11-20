@@ -156,6 +156,7 @@ describe('named Codex subscription accounts', () => {
       {
         host,
         botExists: () => false,
+        engineSelection: vi.fn(),
         authorizeLogin: () => requireModelSources(member, undefined),
       },
     );
@@ -197,6 +198,18 @@ describe('named Codex subscription accounts', () => {
       expectedRevision: 1,
       confirm: true,
     });
+  });
+
+  it('lets the CLI request the grant-filtered account list', async () => {
+    const value = { accounts: [{ id: 'codex-work', name: 'Work', engine: 'codex' }] };
+    const rpc = vi.fn(async () => value);
+    await expect(
+      runEngineCommand('engine-accounts', [], { grantable: true }, async () => ({
+        rpc,
+        http: vi.fn(),
+      })),
+    ).resolves.toEqual(value);
+    expect(rpc).toHaveBeenCalledWith('engineAccounts', { grantable: true });
   });
 });
 
