@@ -33,7 +33,7 @@ import {
   type EngineStatusView,
 } from './engine-choice.js';
 import { engineName } from './session-engine.js';
-import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
+import { EngineBrandIcon, ModelBrandIcon, TargetBrandIcon } from './model-brand.js';
 import { setModelFavorite, useModelFavorites } from './model-favorites.js';
 
 export interface ModelMenuItem extends ComboboxOption {
@@ -49,6 +49,7 @@ export interface ModelMenuItem extends ComboboxOption {
   readonly checked?: boolean | undefined;
   readonly tag?: string;
   readonly hintBrand?: ModelBrand | undefined;
+  readonly hintExternal?: true;
   readonly hintLabel?: string | undefined;
 }
 
@@ -230,7 +231,7 @@ export function catalogMenuItems(
         brand: undefined,
         group: group.id,
         hintBrand: target?.brand ?? (restful === undefined ? brand : undefined),
-        ...(target?.external ? { tag: t('engine.externalLabel') } : {}),
+        ...(target?.external ? { hintExternal: true as const } : {}),
         hintLabel: [
           target !== undefined
             ? t('modelMenu.groupCurrent', { model: target.name })
@@ -440,12 +441,20 @@ export function ModelMenu({
           label: item.name,
           hint: item.hint,
           hintLabel:
-            item.engine === undefined || item.hint === undefined
+            (item.engine === undefined && !item.hintExternal) || item.hint === undefined
               ? item.hintLabel
               : `${item.hintLabel ?? item.hint} · ${t('engine.externalLabel')}`,
           ...(item.hintBrand === undefined
             ? {}
-            : { hintIcon: <ModelBrandIcon brand={item.hintBrand} size={12} /> }),
+            : {
+                hintIcon: (
+                  <TargetBrandIcon
+                    brand={item.hintBrand}
+                    external={item.hintExternal === true}
+                    size={12}
+                  />
+                ),
+              }),
           disabled: item.disabled,
           search: [item.value, item.tag ?? ''],
           searchByTerms: item.engine !== undefined,

@@ -5,8 +5,6 @@ import type {
 import type { SessionEngine, SessionEngineQuota } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 
-export const ENGINE_MARKER_ICON = 'puzzle';
-
 export function shortTime(at: string): string {
   return new Date(at).toLocaleString(undefined, {
     month: 'short',
@@ -74,12 +72,11 @@ export function sessionEngineText(engine: SessionEngine, t: BotHarnessTranslate)
 }
 
 export function engineChipLabel(
-  engine: { engine: string; quota?: SessionEngineQuota },
+  model: string,
+  quota: SessionEngineQuota | undefined,
   t: BotHarnessTranslate,
 ): string {
-  const name = engineName(engine.engine);
-  const quota = engine.quota;
-  if (quota?.limitedUntil !== undefined) return `${name} · ${t('sessions.engineLimitedShort')}`;
-  if (quota?.usedPercent === undefined) return name;
-  return `${name} · ${Math.round(quota.usedPercent)}%`;
+  if (quota?.limitedUntil !== undefined) return `${model} · ${t('sessions.engineLimitedShort')}`;
+  if (quota?.usedPercent === undefined) return model;
+  return `${model} · ${Math.round(quota.usedPercent)}%`;
 }

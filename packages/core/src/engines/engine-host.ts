@@ -456,6 +456,7 @@ export class EngineHost {
           const target: TurnTarget = {
             kind: 'engine',
             engine,
+            account: live.account,
             ...(model === undefined ? {} : { model }),
             ...(effort === undefined ? {} : { reasoningEffort: effort }),
           };

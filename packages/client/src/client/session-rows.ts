@@ -21,6 +21,7 @@ export interface PersonaBotSessionRow {
   archived?: true;
   triageOpenCount?: number;
   modelRoute?: { provider: string; model: string; reasoningEffort?: string };
+  currentTarget?: OwnedSessionSummary['currentTarget'];
   engine?: {
     engine: string;
     account?: string;
@@ -114,6 +115,7 @@ export function personaBotSessionRows(
         ...((item.modelRoute ?? item.assignmentModelRoute) === undefined
           ? {}
           : { modelRoute: (item.modelRoute ?? item.assignmentModelRoute)! }),
+        ...(item.currentTarget === undefined ? {} : { currentTarget: item.currentTarget }),
         ...(item.engine === undefined
           ? {}
           : {

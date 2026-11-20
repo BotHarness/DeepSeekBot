@@ -5,6 +5,7 @@ import {
   recordTurnTarget,
   type TurnTargetSegment,
 } from './turn-targets.js';
+import { GROUP_MENTION_REMINDER } from './inbound-envelope.js';
 import type {
   AssignmentActivity,
   AssignmentReport,
@@ -1020,6 +1021,7 @@ export interface BotRuntime {
   latestAssignmentActivity?(): ReadonlyMap<string, number>;
   currentOrchestratorSessionId?(botSlug: string): string | undefined;
   currentTurnTarget?(botSlug: string): TurnTarget | undefined;
+  sessionTurnTarget?(sessionId: string): TurnTarget | undefined;
   sessionTurnTargets?(sessionId: string): TurnTargetSegment[];
   replaceOrchestrator?<T>(botSlug: string, body: () => T): Promise<OrchestratorReplacement<T>>;
   startFreshOrchestrator?(botSlug: string, assertCurrent?: () => void): Promise<'started' | 'busy'>;
@@ -4774,7 +4776,7 @@ class BotRuntimeImplementation implements BotRuntime {
       message?.mentions ?? [],
       message?.author.kind === 'human' ? message.skillInvocations : undefined,
     );
-    return `[Bot Inbox: direct Group mention from ${sender}]\nChannel: ${channelId}\nMessage ID: ${messageId}\nMessage: ${text}\n${this.#promptText(botSlug)('group-mention-hint')}`;
+    return `[Bot Inbox: direct Group mention from ${sender}]\nChannel: ${channelId}\nMessage ID: ${messageId}\nMessage: ${text}\n${GROUP_MENTION_REMINDER}\n${this.#promptText(botSlug)('group-mention-hint')}`;
   }
 
   #inboundChannelMessage(
@@ -5829,7 +5831,11 @@ class BotRuntimeImplementation implements BotRuntime {
 
   currentTurnTarget(botSlug: string): TurnTarget | undefined {
     const sessionId = this.currentOrchestratorSessionId(botSlug);
-    return sessionId === undefined ? undefined : lastTurnTarget(this.#database, sessionId);
+    return sessionId === undefined ? undefined : this.sessionTurnTarget(sessionId);
+  }
+
+  sessionTurnTarget(sessionId: string): TurnTarget | undefined {
+    return lastTurnTarget(this.#database, sessionId);
   }
 
   sessionTurnTargets(sessionId: string): TurnTargetSegment[] {

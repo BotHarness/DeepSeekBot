@@ -5,7 +5,11 @@ import type { ToolCallKind } from '@deepseek-ai/dsh-tools';
 
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import type { DshSessionEvent } from '../sessions/source.js';
-import { type InboundEnvelope, parseInboundEnvelope } from './inbound-envelope.js';
+import {
+  inboundEnvelopeBody,
+  type InboundEnvelope,
+  parseInboundEnvelope,
+} from './inbound-envelope.js';
 import { isPublicToolDetail } from '../state/tool-activity.js';
 import { sessionDirectBody } from './session-direct-message.js';
 import type { AssignmentTimelineStatus, PublicToolCall } from './assignment-timeline.js';
@@ -293,11 +297,14 @@ export function summarizeSessionTranscript(input: {
       if (typeof kind === 'string' && CONTEXT_SOURCES.has(kind)) continue;
       const raw = rawJoined(blocks(data), 'text');
       const direct = sessionDirectBody(raw);
-      const text = direct === undefined ? clip(raw).replace(HOST_BLOCK, '').trim() : clip(direct);
       const human = direct !== undefined || kind === undefined || kind === 'user';
-      const parsed = direct === undefined && human ? parseInboundEnvelope(text) : undefined;
+      const parsed = direct === undefined && human ? parseInboundEnvelope(raw.trim()) : undefined;
+      const text = clip(
+        direct ??
+          (parsed === undefined ? raw.replace(HOST_BLOCK, '') : inboundEnvelopeBody(parsed)),
+      );
       const envelope =
-        parsed === undefined || parsed.body.trim() === ''
+        parsed === undefined
           ? undefined
           : {
               kind: parsed.kind,
@@ -307,7 +314,7 @@ export function summarizeSessionTranscript(input: {
       if (text !== '')
         items.push({
           kind: 'input',
-          text: envelope === undefined ? text : parsed!.body.trim(),
+          text,
           at,
           turn: Math.max(turn, 1),
           source: human ? 'user' : 'system',

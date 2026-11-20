@@ -47,7 +47,7 @@ import { FavoriteButton } from '../primitives/favorite-button';
 import { modelFamilyKey, restingNotice } from './composer-labels';
 import { AllowedEffortLinks, AllowedEffortPage } from './allowed-efforts';
 import { GroupNotes } from './group-notes';
-import { PickerLink, RouteIcon } from './model-route-label';
+import { CurrentEngineModel, PickerLink, RouteIcon } from './model-route-label';
 import { EffortBar, GroupEffortBar, GroupEffortLink, GroupEfforts } from './model-effort';
 import {
   effortChoices,
@@ -534,7 +534,11 @@ export function ModelsView({
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode="on-drag"
           ListHeaderComponent={
-            picker === 'allowed' ? <SheetNote>{t.modelSettings.allowedHint}</SheetNote> : undefined
+            picker === 'allowed' ? (
+              <SheetNote>{t.modelSettings.allowedHint}</SheetNote>
+            ) : picker === 'orchestrator' && scope.kind === 'bot' && currentGroup === undefined ? (
+              <CurrentEngineModel value={value} />
+            ) : undefined
           }
           ListEmptyComponent={<SheetNote>{t.modelSettings.noResults}</SheetNote>}
           renderItem={({ item: row, index }) => {
@@ -782,16 +786,26 @@ export function ModelsView({
           title={scope.kind === 'global' ? t.modelSettings.global : t.modelSettings.title}
           on={SHEET_GROUP}
         >
-          <PickerLink
-            label={scope.kind === 'global' ? t.modelSettings.global : t.modelSettings.orchestrator}
-            detail={
-              orchestratorGroup !== undefined
-                ? `${orchestratorGroup} · ${routeLabel(value, routes.orchestrator)}`
-                : routeEffortLabel(value, routes.orchestrator)
-            }
-            leading={<RouteIcon value={value} route={routes.orchestrator} />}
-            onPress={models.busy ? undefined : () => openPicker('orchestrator')}
-          />
+          {scope.kind === 'bot' && value.currentTarget?.kind === 'engine' ? (
+            <CurrentEngineModel
+              value={value}
+              heading={t.modelSettings.orchestrator}
+              onPress={models.busy ? undefined : () => openPicker('orchestrator')}
+            />
+          ) : (
+            <PickerLink
+              label={
+                scope.kind === 'global' ? t.modelSettings.global : t.modelSettings.orchestrator
+              }
+              detail={
+                orchestratorGroup !== undefined
+                  ? `${orchestratorGroup} · ${routeLabel(value, routes.orchestrator)}`
+                  : routeEffortLabel(value, routes.orchestrator)
+              }
+              leading={<RouteIcon value={value} route={routes.orchestrator} />}
+              onPress={models.busy ? undefined : () => openPicker('orchestrator')}
+            />
+          )}
           {orchestratorGroup === undefined ? null : (
             <GroupEffortLink
               value={value}

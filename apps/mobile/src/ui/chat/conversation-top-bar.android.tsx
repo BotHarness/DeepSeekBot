@@ -32,8 +32,7 @@ import type { ConversationTopBarProps } from './conversation-top-bar';
 import { ChatHeaderSurface } from './chat-header-surface.android';
 import { GroupMark } from './group-mark';
 import { HeaderBotStack } from './header-bot-stack';
-import { ModelBrandIcon } from './model-brand-icon';
-import { EngineBrandIcon } from './engine-brand-icon';
+import { ModelTargetIcon } from './model-target-icon';
 
 const MODEL_LABEL_CHARS = 12;
 
@@ -246,46 +245,47 @@ export function ConversationTopBar({
                         <Row
                           verticalAlignment="center"
                           horizontalArrangement={{ spacedBy: space.x1 }}
-                          modifiers={[testID('chat-header-model')]}
+                          modifiers={
+                            shownModel.external
+                              ? [weight(1), testID('chat-header-model')]
+                              : [testID('chat-header-model')]
+                          }
                         >
                           <RNHostView modifiers={[size(modelIcon, modelIcon)]}>
                             <View
                               accessible={false}
                               importantForAccessibility="no-hide-descendants"
                             >
-                              {shownModel.external ? (
-                                <EngineBrandIcon
-                                  brand={shownModel.brand}
-                                  size={modelIcon}
-                                  color={theme.color.muted}
-                                />
-                              ) : (
-                                <ModelBrandIcon
-                                  brand={shownModel.brand}
-                                  size={modelIcon}
-                                  color={theme.color.muted}
-                                />
-                              )}
+                              <ModelTargetIcon
+                                target={shownModel}
+                                size={modelIcon}
+                                color={theme.color.muted}
+                              />
                             </View>
                           </RNHostView>
                           <Text
                             color={theme.color.muted}
                             style={{ typography: 'bodySmall' }}
                             maxLines={1}
+                            overflow="ellipsis"
                           >
-                            {`${clipModel(shownModel.short)} ·`}
+                            {shownModel.external
+                              ? shownModel.short
+                              : `${clipModel(shownModel.short)} ·`}
                           </Text>
                         </Row>
                       )}
-                      <Text
-                        modifiers={[weight(1)]}
-                        color={theme.color.muted}
-                        style={{ typography: 'bodySmall' }}
-                        maxLines={1}
-                        overflow="ellipsis"
-                      >
-                        {status}
-                      </Text>
+                      {shownModel?.external ? null : (
+                        <Text
+                          modifiers={[weight(1)]}
+                          color={theme.color.muted}
+                          style={{ typography: 'bodySmall' }}
+                          maxLines={1}
+                          overflow="ellipsis"
+                        >
+                          {status}
+                        </Text>
+                      )}
                     </Row>
                   )}
                 </Column>

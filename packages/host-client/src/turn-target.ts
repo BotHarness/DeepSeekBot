@@ -44,3 +44,25 @@ export function turnTargetLabel(
     external: false as const,
   };
 }
+
+export function sessionHeaderTargetLabel(
+  target: TurnTarget,
+  catalog?: readonly ModelCatalogEntry[],
+) {
+  const model = turnTargetLabel(target, catalog);
+  if (target.kind === 'dsh') return model;
+  const account = target.account
+    ?.replace(/^Claude (?=(?:Pro|Max)\b)/iu, '')
+    .replace(
+      /\b(plus|pro|max)\b/giu,
+      (plan) => plan.charAt(0).toUpperCase() + plan.slice(1).toLowerCase(),
+    );
+  const short = [ENGINE_DEFINITIONS[target.engine].displayName, account]
+    .filter(Boolean)
+    .join(' · ');
+  return {
+    ...model,
+    short,
+    name: target.model === undefined ? short : `${short} · ${model.short}`,
+  };
+}

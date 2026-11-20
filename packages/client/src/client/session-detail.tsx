@@ -1,6 +1,5 @@
 import { TurnTargetLabel, useTurnTargetCatalog } from './turn-target-label.js';
 import { createContext, useContext, useRef, useState, type ReactElement } from 'react';
-import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
 
 import {
@@ -33,14 +32,14 @@ import { sessionEngineText } from './session-engine.js';
 import { useMountedResource } from './mounted-resource.js';
 import { cachedSessionDetail, rememberSessionDetail } from './session-detail-cache.js';
 import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
-import { SessionHeaderSlot } from './session-header-slot.js';
+import { SessionDetailHeaderChips } from './session-detail-header.js';
+import { SessionTargetChip } from './session-target-chip.js';
 import { SessionJump } from './session-jump.js';
 import { quotedRequest, quoteSourceId, SessionQuoteToolbar } from './session-quotes.js';
 import { ChangedFiles } from './session-changed-files.js';
 import type { SelectedSkill } from './skill-refs.js';
 import { DiffStat, ToolDetailView } from './session-tool-detail-view.js';
 import { TurnNav } from './session-turn-nav.js';
-import { SessionProgressChips } from './session-progress-view.js';
 import {
   clockText,
   detailDefaults,
@@ -96,14 +95,6 @@ const styles = stylex.create({
     flexDirection: 'column',
     height: '100%',
     minHeight: 0,
-  },
-  chips: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: space.x2,
-    paddingInline: space.x4,
-    paddingBottom: space.x3,
   },
   panel: {
     marginInline: space.x4,
@@ -600,7 +591,6 @@ export function SessionDetail({
   const [sendError, setSendError] = useState<string | undefined>();
   const [revision, setRevision] = useState(0);
   const [away, setAway] = useState(false);
-  const chipSlot = useContext(SessionHeaderSlot);
   const [skillOptions, setSkillOptions] = useState<readonly SkillCatalogEntry[]>([]);
   const [skills, setSkills] = useState<SelectedSkill[]>([]);
   const { catalog, mount: catalogMount } = useTurnTargetCatalog(actions, transcript?.items);
@@ -824,17 +814,17 @@ export function SessionDetail({
     transcript === undefined ? [] : transcriptBlocks(mergeLive(transcript.items, live), running);
   const toggle = (key: 'goal' | 'todos') =>
     setOpen((current) => (current === key ? undefined : key));
-  const chips =
-    goal === undefined && todos === undefined ? null : (
-      <SessionProgressChips goal={goal} todos={todos} open={open} toggle={toggle} t={t} />
-    );
   return (
     <div ref={catalogMount} data-session-detail={sessionId} {...stylex.props(styles.root)}>
-      {chips === null ? null : chipSlot === null ? (
-        <div {...stylex.props(styles.chips)}>{chips}</div>
-      ) : (
-        createPortal(chips, chipSlot)
-      )}
+      <SessionDetailHeaderChips
+        transcript={transcript}
+        catalog={catalog}
+        goal={goal}
+        todos={todos}
+        open={open}
+        toggle={toggle}
+        t={t}
+      />
       {open === 'goal' && goal !== undefined ? (
         <div data-session-panel="goal" {...stylex.props(styles.panel)}>
           <div>{goal.objective}</div>
@@ -900,6 +890,10 @@ export function SessionDetail({
             {...stylex.props(styles.quiet, styles.center)}
           >
             {sessionEngineText(transcript.engine, t)}
+            {transcript.currentTarget?.kind === 'engine' &&
+            transcript.currentTarget.model !== undefined ? (
+              <SessionTargetChip target={transcript.currentTarget} models={catalog} t={t} />
+            ) : null}
           </div>
         )}
         {transcript !== undefined && failed ? (

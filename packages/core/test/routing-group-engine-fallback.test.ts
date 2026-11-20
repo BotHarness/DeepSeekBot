@@ -590,11 +590,11 @@ it.each([
     const targets = members.map((member) =>
       expect.objectContaining({ kind: 'engine', engine: member.engine, model: expect.any(String) }),
     );
-    expect(bot.current()).toMatchObject({ kind: 'engine', engine });
+    expect(bot.current()).toMatchObject({ kind: 'engine', engine, account: expect.any(String) });
     expect(bot.channelMessages()).toContainEqual(expect.objectContaining({ turnTargets: targets }));
 
     const reopened = await bot.reopen(sessionId);
-    expect(reopened.current).toMatchObject({ kind: 'engine', engine });
+    expect(reopened.current).toMatchObject({ kind: 'engine', engine, account: expect.any(String) });
     expect(reopened.messages).toContainEqual(expect.objectContaining({ turnTargets: targets }));
     expect(reopened.transcript.at(-1)).toMatchObject({ kind: 'turn-end', turnTargets: targets });
     if (engine === 'claude')

@@ -386,16 +386,28 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
   });
 
   it('prints the Host’s ordered reply targets in the Session transcript', async () => {
+    const currentTarget = {
+      kind: 'engine',
+      engine: 'codex',
+      account: 'ChatGPT Pro',
+      model: 'gpt-6-astra',
+    };
     const turnTargets = [
       { kind: 'engine', engine: 'codex', model: 'gpt-6-astra', reasoningEffort: 'high' },
       { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
     ];
     const live = await host(() => ({
       ok: true,
-      value: { items: [{ kind: 'reply', text: 'Done', turnTargets }], omitted: 0, running: false },
+      value: {
+        currentTarget,
+        items: [{ kind: 'reply', text: 'Done', turnTargets }],
+        omitted: 0,
+        running: false,
+      },
     }));
     const result = await invoke(['session-transcript', 'ada', '--session', 'orch-1'], live.url);
     expect(result.code).toBe(0);
+    expect(result.json.currentTarget).toEqual(currentTarget);
     expect(result.json.items).toEqual([{ kind: 'reply', text: 'Done', turnTargets }]);
   });
 

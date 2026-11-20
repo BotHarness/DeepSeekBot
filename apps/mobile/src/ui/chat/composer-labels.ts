@@ -1,4 +1,4 @@
-import { turnTargetLabel } from '@botharness/host-client/turn-target';
+import { sessionHeaderTargetLabel } from '@botharness/host-client/turn-target';
 import {
   currentModel,
   type BotModel,
@@ -34,11 +34,11 @@ export type HeaderModel = { short: string; name: string } & (
 export function headerModel(model: Loadable<BotModel>): HeaderModel | undefined {
   if (model.status !== 'ready') return undefined;
   const { route, name, group } = currentModel(model.value);
+  const target = model.value.currentTarget;
+  if (target !== undefined && (target.kind === 'engine' || group !== undefined))
+    return sessionHeaderTargetLabel(target, model.value.models);
   if (group !== undefined) {
-    const target = model.value.currentTarget;
-    return target === undefined
-      ? { brand: undefined, short: group, name: group }
-      : turnTargetLabel(target, model.value.models);
+    return { brand: undefined, short: group, name: group };
   }
   if (route === undefined || name === undefined) return undefined;
   const brand = modelBrand({ provider: route.provider, model: route.model, name });

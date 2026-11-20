@@ -17,7 +17,7 @@ import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { modelEntryLabel, restingLabel } from './composer-labels';
-import { EngineBrandIcon } from './engine-brand-icon';
+import { ModelTargetIcon } from './model-target-icon';
 import { ModelBrandIcon } from './model-brand-icon';
 import { shortModelName } from './model-route-text';
 import { SHEET_GROUP } from './sheet';
@@ -88,7 +88,13 @@ export function ModelEnginePickerRow({
       {...actions}
       selected={selected}
       on={SHEET_GROUP}
-      leading={<EngineBrandIcon brand={row.brand} color={theme.color.fg} />}
+      leading={
+        <ModelTargetIcon
+          target={{ brand: row.brand, external: true }}
+          size={theme.type.title.line}
+          color={theme.color.fg}
+        />
+      }
       trailing={
         isDefault || selected ? (
           <View
@@ -166,7 +172,7 @@ export function ModelGroupPickerRow({
   const executed = currentTarget === undefined ? undefined : turnTargetLabel(currentTarget, models);
   const current =
     executed !== undefined
-      ? t.modelSettings.groupCurrent(executed.name)
+      ? t.modelSettings.groupCurrent(executed.short)
       : restful !== undefined
         ? restingLabel(restful)
         : front === undefined
@@ -178,7 +184,7 @@ export function ModelGroupPickerRow({
       on={SHEET_GROUP}
       accessibilityLabel={[
         group.name,
-        current,
+        executed === undefined ? current : t.modelSettings.groupCurrent(executed.name),
         executed?.external ? t.routingGroup.externalEngine : undefined,
         ...members,
         note,
@@ -186,10 +192,8 @@ export function ModelGroupPickerRow({
         .filter(Boolean)
         .join(', ')}
       leading={
-        executed?.external ? (
-          <EngineBrandIcon brand={executed.brand} color={color} />
-        ) : executed !== undefined ? (
-          <ModelBrandIcon brand={executed.brand} size={theme.type.title.line} color={color} />
+        executed !== undefined ? (
+          <ModelTargetIcon target={executed} size={theme.type.title.line} color={color} />
         ) : front === undefined || restful !== undefined ? (
           <RowIcon name="model" size={theme.type.title.line} color={color} />
         ) : (

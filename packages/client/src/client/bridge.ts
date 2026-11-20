@@ -144,7 +144,11 @@ import {
   isChannelTurnStopEngine,
   isChannelTurnStopRests,
 } from '../../../core/src/channels/turn-stop.js';
-import { isTurnTargetPath, type TurnTarget } from '@botharness/host-protocol/turn-target';
+import {
+  isTurnTarget,
+  isTurnTargetPath,
+  type TurnTarget,
+} from '@botharness/host-protocol/turn-target';
 import { isChannelModelSwitch } from '../../../core/src/channels/model-switch.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
@@ -2547,6 +2551,7 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
     const reportState = record['assignmentReportState'];
     const executionWait = record['assignmentExecutionWait'];
     const engine = parseSessionEngine(record['engine']);
+    const currentTarget = record['currentTarget'];
     return [
       {
         sessionId,
@@ -2597,6 +2602,7 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
           ? { modelRoute: parseSessionModelRoute(record['modelRoute'])! }
           : {}),
         ...(engine === undefined ? {} : { engine }),
+        ...(isTurnTarget(currentTarget) ? { currentTarget } : {}),
         ...(typeof record['agentPreset'] === 'string' && record['agentPreset'].length > 0
           ? { agentPreset: record['agentPreset'] }
           : {}),
@@ -3985,6 +3991,7 @@ export interface SessionTranscript {
   running: boolean;
   seq: number;
   engine?: SessionEngine;
+  currentTarget?: TurnTarget;
 }
 
 function parseSessionEngine(value: unknown): SessionEngine | undefined {
@@ -4308,6 +4315,7 @@ export async function loadSessionTranscript(
   if (value === undefined || !Array.isArray(items))
     throw new Error('invalid sessionTranscript response');
   const engine = parseSessionEngine(value['engine']);
+  const currentTarget = value['currentTarget'];
   return {
     role: value['role'] === 'orchestrator' ? 'orchestrator' : 'assignment',
     items: parseItems(items),
@@ -4315,6 +4323,7 @@ export async function loadSessionTranscript(
     running: value['running'] === true,
     seq: finite(value['seq']) ?? 0,
     ...(engine === undefined ? {} : { engine }),
+    ...(isTurnTarget(currentTarget) ? { currentTarget } : {}),
   };
 }
 

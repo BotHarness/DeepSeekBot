@@ -1,3 +1,5 @@
+import type { TurnTarget } from '@botharness/host-protocol/turn-target';
+import { sessionTarget } from './session-target.js';
 import {
   createEngineAccountBridge,
   type EngineAccountBridgeMethods,
@@ -788,6 +790,7 @@ export interface OwnedSessionSummary {
   assignmentModelRoute?: ModelRoute;
   modelRoute?: ModelRoute;
   engine?: { engine: string; account?: string; quota?: SessionEngineQuota };
+  currentTarget?: TurnTarget;
   agentPreset?: string;
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
@@ -1110,9 +1113,15 @@ export interface BridgeMethods
     }>
   >;
   sessionProgress(payload: unknown): Promise<BridgeResult<{ sessions: SessionProgressEntry[] }>>;
-  sessionTranscript(
-    payload: unknown,
-  ): Promise<BridgeResult<{ sessionId: string; role: SessionRootRole } & SessionTranscript>>;
+  sessionTranscript(payload: unknown): Promise<
+    BridgeResult<
+      {
+        sessionId: string;
+        role: SessionRootRole;
+        currentTarget?: TurnTarget;
+      } & SessionTranscript
+    >
+  >;
   sessionLive(payload: unknown): Promise<BridgeResult<{ sessionId: string } & SessionLiveSnapshot>>;
   sessionToolDetail(
     payload: unknown,
@@ -4906,7 +4915,11 @@ function buildBridgeMethods(
           ? modelFailure(error)
           : invalidInput('model-unavailable');
       }
-      const currentTarget = deps.runtime?.currentTurnTarget?.(slug);
+      const sessionId = deps.runtime?.currentOrchestratorSessionId?.(slug);
+      const currentTarget = sessionTarget(
+        deps.runtime?.currentTurnTarget?.(slug),
+        sessionId === undefined ? undefined : deps.describeEngineSession?.(sessionId),
+      );
       const executed = currentTarget === undefined ? {} : { currentTarget };
       if (deps.modelReadiness !== undefined && (!deps.team || deps.team.isOwner(human))) {
         try {
@@ -10024,16 +10037,19 @@ function buildBridgeMethods(
       if (read === undefined) return unavailable();
       const log = await read(sessionId);
       const engine = deps.describeEngineSession?.(sessionId);
+      const segments = deps.runtime?.sessionTurnTargets?.(sessionId) ?? [];
+      const currentTarget = sessionTarget(segments.at(-1)?.target, engine);
       return {
         ok: true,
         value: {
           sessionId,
           role: owner.rootRole,
-          ...(engine === undefined ? {} : { engine }),
+          ...(engine === undefined || currentTarget?.kind === 'dsh' ? {} : { engine }),
+          ...(currentTarget === undefined ? {} : { currentTarget }),
           ...summarizeSessionTranscript({
             sessionId,
             events: log?.events ?? [],
-            segments: deps.runtime?.sessionTurnTargets?.(sessionId) ?? [],
+            segments,
             describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
           }),
         },
@@ -10938,9 +10954,14 @@ function buildBridgeMethods(
       const sessions = roots.map((root) => {
         const assignment = assignments.get(root.sessionId);
         const subagentCount = subagentCounts.get(root.sessionId);
-        const engine = deps.describeEngineSession?.(root.sessionId);
+        const described = deps.describeEngineSession?.(root.sessionId);
+        const currentTarget = sessionTarget(
+          deps.runtime?.sessionTurnTarget?.(root.sessionId),
+          described,
+        );
+        const engine = currentTarget?.kind === 'dsh' ? undefined : described;
         const modelRoute =
-          engine !== undefined
+          engine !== undefined || currentTarget?.kind === 'engine'
             ? undefined
             : (deps.usage?.latestRoute(root.sessionId) ??
               (root.rootRole === 'assignment'
@@ -10979,6 +11000,7 @@ function buildBridgeMethods(
             ? {}
             : { assignmentModelRoute: assignment.modelRoute }),
           ...(modelRoute === undefined ? {} : { modelRoute }),
+          ...(currentTarget === undefined ? {} : { currentTarget }),
           ...(engine === undefined
             ? {}
             : {

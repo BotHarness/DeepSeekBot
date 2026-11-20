@@ -3,7 +3,7 @@ import { useRef, useState, type ReactElement } from 'react';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { PickerTrigger } from './ds/picker-trigger.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
+import { TargetBrandIcon } from './model-brand.js';
 import { ModelMenu, type ModelMenuEffort, type ModelMenuItem } from './model-menu.js';
 
 export function ModelTrigger({
@@ -43,22 +43,40 @@ export function ModelTrigger({
         icon={
           current?.group !== undefined ? (
             <ChannelSidebarIcon name="git-branch" size={16} />
-          ) : current?.model === undefined ? undefined : current.engine !== undefined ? (
-            <EngineBrandIcon brand={current.brand} size={16} />
-          ) : (
-            <ModelBrandIcon brand={current.brand} size={16} />
+          ) : current?.model === undefined ? undefined : (
+            <TargetBrandIcon
+              brand={current.brand}
+              external={current.engine !== undefined}
+              size={16}
+            />
           )
         }
         hint={current?.hint}
         hintIcon={
           current?.hintBrand === undefined ? undefined : (
-            <ModelBrandIcon brand={current.hintBrand} size={12} />
+            <TargetBrandIcon
+              brand={current.hintBrand}
+              external={current.hintExternal === true}
+              size={12}
+            />
           )
         }
         invalid={invalid}
         disabled={disabled}
         expanded={open}
-        accessibleLabel={current === undefined ? label : `${label} · ${current.name}`}
+        accessibleLabel={
+          current === undefined
+            ? label
+            : [
+                label,
+                current.name,
+                current.engine !== undefined || current.hintExternal
+                  ? t('engine.externalLabel')
+                  : undefined,
+              ]
+                .filter(Boolean)
+                .join(' · ')
+        }
         title={current?.name}
         onClick={() => setOpen((shown) => !shown)}
       />

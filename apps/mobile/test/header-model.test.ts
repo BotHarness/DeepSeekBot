@@ -11,6 +11,37 @@ const model = (value: Partial<BotModel>): BotModel => ({
 });
 
 describe('chat header model', () => {
+  it('shows the engine and account of a direct Session regardless of its configured DSH route', () => {
+    expect(
+      headerModel({
+        status: 'ready',
+        value: model({
+          currentTarget: {
+            kind: 'engine',
+            engine: 'codex',
+            account: 'ChatGPT Pro',
+            model: 'gpt-6-astra',
+          },
+        }),
+      }),
+    ).toMatchObject({ brand: 'openai', external: true, short: 'Codex · ChatGPT Pro' });
+  });
+
+  it('shows the executing engine of a mixed group and switches to the native target after fallback', () => {
+    const value = model({ defaultGroupId: 'mixed' });
+    expect(
+      headerModel({
+        status: 'ready',
+        value: { ...value, currentTarget: { kind: 'engine', engine: 'claude', account: 'Max' } },
+      }),
+    ).toMatchObject({ brand: 'claude', external: true, short: 'Claude Code · Max' });
+    expect(
+      headerModel({
+        status: 'ready',
+        value: { ...value, currentTarget: { kind: 'dsh', provider: 'lab', model: 'fallback' } },
+      }),
+    ).toMatchObject({ external: false, short: 'fallback' });
+  });
   it('shows the family logo and the name without its family prefix, like the desktop chip', () => {
     expect(
       headerModel({

@@ -16,6 +16,8 @@
 - An idle Orchestrator and a settled Assignment release their child process. The next turn resumes the saved native ID.
 - If the native session is lost, an existing Session detail row announces the rebuild. An Assignment with missing saved records reports failure to its Orchestrator.
 - Returning to a DSH model resumes the same DSH Session with the engine turns in its model-visible history.
+- `session-model-presentation`: A Subscription Engine Session header shows the engine and subscription account with its brand and External engine badge. The Sessions row, Session detail, and model picker show the short model name and the same badge. For a mixed Routing Group, the running or last-used target controls the label. Compare it to `currentTarget` in `bot-sessions`, `session-transcript`, and `model-plan`. On a paired phone, check the Bot title capsule and model picker in both themes and at large text size.
+- `session-human-input`: Send a DM and a Group mention to an engine-backed Bot. Open its Orchestrator Session from Sessions and check that the title and each input use the Human text. Repeat with a message steered into an active turn and compare to the inputs in `session-transcript`.
 
 ## How to get to it (user POV)
 

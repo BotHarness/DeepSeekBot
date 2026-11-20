@@ -2,7 +2,13 @@ import { isEngineId, type EngineId } from './subscription-engine';
 
 export type TurnTarget =
   | { kind: 'dsh'; provider: string; model: string }
-  | { kind: 'engine'; engine: EngineId; model?: string; reasoningEffort?: string };
+  | {
+      kind: 'engine';
+      engine: EngineId;
+      account?: string;
+      model?: string;
+      reasoningEffort?: string;
+    };
 
 const nonBlank = (value: unknown): value is string =>
   typeof value === 'string' && value.trim().length > 0;
@@ -17,6 +23,7 @@ export function isTurnTarget(value: unknown): value is TurnTarget {
     value.kind === 'engine' &&
     'engine' in value &&
     isEngineId(value.engine) &&
+    (!('account' in value) || nonBlank(value.account)) &&
     (!('model' in value) || nonBlank(value.model)) &&
     (!('reasoningEffort' in value) || nonBlank(value.reasoningEffort))
   );

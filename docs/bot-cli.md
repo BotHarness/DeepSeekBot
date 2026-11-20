@@ -684,6 +684,8 @@ The `activity*` commands were named `inbox*` before #3321; the old names still w
 
 `session-transcript` includes `turnTargets` on replies and turn endings when attribution is available. Targets appear in execution order. The final entry produced the reply. DSH entries carry `provider` and `model`. Subscription Engine entries carry `engine` and any model and reasoning effort the Host could establish. `model-plan <bot-id>` also includes `currentTarget` for the Bot’s current Orchestrator Session after its first execution.
 
+`bot-sessions` and `session-transcript` report the running or last-used `currentTarget` when known. For Subscription Engine targets it includes `engine`, the public subscription label in `account`, and the executing `model` when known. For a native target it includes `provider` and `model`, including when a mixed Routing Group falls back to a DSH model.
+
 ### Schedules on a live Host
 
 ```bash

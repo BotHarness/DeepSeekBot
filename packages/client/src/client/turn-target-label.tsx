@@ -9,7 +9,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import type { BridgeActions } from './actions.js';
 import type { SessionTranscriptItem } from './bridge.js';
 import { useMountedResource } from './mounted-resource.js';
-import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
+import { TargetBrandIcon } from './model-brand.js';
 import { routingGroupEngineCopy } from './model-menu.js';
 
 const styles = stylex.create({
@@ -43,11 +43,7 @@ export function TurnTargetLabel({
         return (
           <span key={index} title={label.name} {...stylex.props(styles.target)}>
             {index === 0 ? null : <span>→</span>}
-            {label.external ? (
-              <EngineBrandIcon brand={label.brand} size={14} label={t('engine.externalLabel')} />
-            ) : (
-              <ModelBrandIcon brand={label.brand} size={14} />
-            )}
+            <TargetBrandIcon {...label} size={14} externalLabel={t('engine.externalLabel')} />
             <span>{[label.short, label.effort].filter(Boolean).join(' · ')}</span>
           </span>
         );
