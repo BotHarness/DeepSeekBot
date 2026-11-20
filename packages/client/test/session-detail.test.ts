@@ -71,9 +71,16 @@ const transcript = (role: SessionTranscript['role'], running = false): SessionTr
   ],
 });
 
-it('shows the localized engine effort next to the model in an attributed reply', async () => {
+it('shows the localized engine effort next to the catalog model name in an attributed reply', async () => {
   const current = transcript('orchestrator');
   const host = await render({
+    routingGroupEngines: async () => [
+      {
+        engine: 'codex',
+        available: true,
+        models: [{ id: 'gpt-6.2-sol', name: 'GPT-6.2-Sol', efforts: [] }],
+      },
+    ],
     sessionTranscript: async () => ({
       ...current,
       items: current.items.map((item) =>
