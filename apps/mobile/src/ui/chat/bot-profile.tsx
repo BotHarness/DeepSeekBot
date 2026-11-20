@@ -778,6 +778,7 @@ export function BotProfilePage({
             hasAvatar={bot.avatarUrl !== undefined}
             portrait={<BotAvatar bot={bot} size={32} ring={false} corner={radius.sm} />}
             testID="bot-avatar-settings"
+            showTilties
           />,
         ),
         settingsHeading('channels', t.profileSection.channels),
