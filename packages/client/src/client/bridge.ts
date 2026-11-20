@@ -1,3 +1,14 @@
+import { bridgeHost, BridgeCallError, unwrap, type BridgeCall } from './bridge-transport.js';
+export { bridgeHost, BridgeCallError, unwrap, type BridgeCall } from './bridge-transport.js';
+export {
+  loadBotSchedules,
+  createBotSchedule,
+  updateBotSchedule,
+  deleteBotSchedule,
+  loadBotScheduleHistory,
+  runBotScheduleNow,
+  previewBotSchedule,
+} from './features/schedules/bridge.js';
 import * as people from '@botharness/host-client/people';
 import * as accessReaders from '@botharness/host-client/access-readers';
 import * as rosterReaders from '@botharness/host-client/roster-readers';
@@ -47,7 +58,6 @@ import {
   parseFailureProgress,
 } from '@botharness/host-client/shared/turn-continuation';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
-import type { HostClient } from '@botharness/host-client/client';
 import {
   browseHostFolders,
   loadWorkspaceOptions as loadHostWorkspaceOptions,
@@ -106,15 +116,6 @@ import {
   type ModelPreset,
   type ModelRoute,
 } from '@botharness/host-client/model-plans';
-import {
-  createSchedule,
-  deleteSchedule,
-  loadScheduleHistory,
-  loadSchedules,
-  previewSchedule,
-  runScheduleNow,
-  updateSchedule,
-} from '@botharness/host-client/schedules';
 import * as channelHost from '@botharness/host-client/channel-messages';
 import * as channels from '@botharness/host-client/channel-management';
 import { HostAnswerInvalid } from '@botharness/host-client/host-answer';
@@ -178,13 +179,6 @@ import type {
   MessagingIdentityInput,
 } from '../../../core/src/messaging/identity.js';
 import type { OverviewMemory } from '../../../core/src/memory/overview.js';
-import type {
-  BotSchedule,
-  BotScheduleChange,
-  BotScheduleFiring,
-  BotScheduleInput,
-  BotScheduleTrigger,
-} from '../../../core/src/schedules/bot-schedules.js';
 import {
   parseMarketplaceDetail,
   parseAuthoredBots,
@@ -286,17 +280,6 @@ import {
   type TopOrderEntry,
 } from './roster.js';
 
-export class BridgeCallError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-    readonly details?: unknown,
-  ) {
-    super(message);
-    this.name = 'BridgeCallError';
-  }
-}
-
 export interface BridgeRpc {
   call(
     channel: string,
@@ -305,12 +288,6 @@ export interface BridgeRpc {
     signal?: AbortSignal,
   ): Promise<ConnectionRpcResult<unknown>>;
 }
-
-export type BridgeCall = (
-  endpoint: string,
-  payload: Record<string, unknown>,
-  signal?: AbortSignal,
-) => Promise<ConnectionRpcResult<unknown>>;
 
 export type ModelRouteView = ModelRoute;
 export type AssignmentModelOptionView = AssignmentModelOption;
@@ -640,55 +617,7 @@ export type {
   BotScheduleFiring as BotScheduleFiringView,
   BotScheduleInput,
   BotScheduleTrigger,
-} from '../../../core/src/schedules/bot-schedules.js';
-
-export async function loadBotSchedules(call: BridgeCall, slug: string): Promise<BotSchedule[]> {
-  return loadSchedules(bridgeHost(call), slug);
-}
-
-export async function createBotSchedule(
-  call: BridgeCall,
-  slug: string,
-  input: BotScheduleInput,
-): Promise<BotSchedule> {
-  return createSchedule(bridgeHost(call), slug, input);
-}
-
-export async function updateBotSchedule(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-  change: BotScheduleChange,
-): Promise<BotSchedule> {
-  return updateSchedule(bridgeHost(call), slug, id, change);
-}
-
-export async function deleteBotSchedule(call: BridgeCall, slug: string, id: string): Promise<void> {
-  await deleteSchedule(bridgeHost(call), slug, id);
-}
-
-export async function loadBotScheduleHistory(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-): Promise<BotScheduleFiring[]> {
-  return loadScheduleHistory(bridgeHost(call), slug, id);
-}
-
-export async function runBotScheduleNow(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-): Promise<BotScheduleFiring> {
-  return runScheduleNow(bridgeHost(call), slug, id);
-}
-
-export async function previewBotSchedule(
-  call: BridgeCall,
-  trigger: BotScheduleTrigger,
-): Promise<string[]> {
-  return previewSchedule(bridgeHost(call), trigger);
-}
+} from '@botharness/host-client/schedules';
 
 export async function setBotSourcePolicy(
   call: BridgeCall,
@@ -761,25 +690,6 @@ function stringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === 'string')
     : [];
-}
-
-export function bridgeHost(call: BridgeCall, signal?: AbortSignal): Pick<HostClient, 'call'> {
-  return {
-    call: async <T>(method: string, args: Record<string, unknown> = {}) =>
-      (await unwrap(call, method, args, signal)) as T,
-  };
-}
-
-export async function unwrap(
-  call: BridgeCall,
-  endpoint: string,
-  payload: Record<string, unknown>,
-  signal?: AbortSignal,
-): Promise<unknown> {
-  const result = await call(endpoint, payload, signal);
-  if (!result.ok)
-    throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
-  return result.value;
 }
 
 export type BotPrimaryColorChoice = { mode: 'automatic' } | { mode: 'custom'; color: string };
