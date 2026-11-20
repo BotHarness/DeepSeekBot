@@ -1,5 +1,6 @@
 import { createRouteRests } from './models/route-rest.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
+import { mountCardContextLive } from './channels/card-context-live.js';
 import { contextSources } from './runtime/context-sources.js';
 import { toolEffects } from './workspaces/tool-effects.js';
 import { reconcilePublicBotMemories } from './workspaces/bot-memory-placement.js';
@@ -163,6 +164,7 @@ import { createCompanionFeed, COMPANION_PATH, type CompanionFeed } from './compa
 
 import type { Context } from '@deepseek-ai/cordis';
 import { assembleContextFor, type Agent } from '@deepseek-ai/dsh-agent';
+import type {} from '@deepseek-ai/dsh-agent-loop';
 import type { Session, SessionSeq } from '@deepseek-ai/dsh-session';
 import { renderContextSections, renderPrompt } from '@deepseek-ai/dsh-system-prompt';
 import type {} from '@deepseek-ai/dsh-tools';
@@ -1857,9 +1859,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const tobCliInvocation = new ModelFreeTobCliInvocation();
   const sessionLive = new SessionLiveStreams();
   const engineGateway = createEngineGateway();
+  const localEngines = subscriptionEnginesAllowed(config, process.env);
   const engineHost = new EngineHost({
     root: join(dshHome, 'botharness', 'engines'),
-    local: subscriptionEnginesAllowed(config, process.env),
+    local: localEngines,
     gateway: engineGateway,
     changed: () => core.live.publishRosterCommitted(),
     sessionIdsForBot: (slug) =>
@@ -1922,6 +1925,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     onGenuiDiagnostic: (event) => recordGenuiPreviewDiagnostic(diagnosticEvents, event),
     genuiAttachmentContext: ctx,
     agents: ctx.agents,
+    releaseNativeAgent: (agent) => ctx.get('agentLoop')?.releaseIdleAgent?.(agent),
     promptText: (sessionId) => core.prompts.textForSession(sessionId),
     defaultModel,
     observeTurnFailure: (provider, code) => providerCredentials.observe(provider, code),
@@ -2245,6 +2249,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     inheritedGroup: () => core.routingGroups.defaultGroup().groupId,
     inheritedEffort: () => core.routingGroups.defaultGroup().effort,
     routes: (groupId) => core.routingGroups.routes(groupId),
+    engines: {
+      targets: (groupId) => core.routingGroups.targets(groupId),
+      canRoute: (botSlug) => localEngines && engineHost.engineFor(botSlug) === undefined,
+      allowed: (botSlug) => {
+        const bot = core.registry.get(botSlug);
+        return (
+          bot !== undefined &&
+          core.team.roles.modelsAllowed(
+            humanContext(bot.ownerHumanId ?? core.team.ownerContext().humanId),
+          ).all
+        );
+      },
+      limit: (engine) => engineHost.limit(engine),
+    },
     rests: routeRests,
     requireAllowed: (botSlug, route) =>
       requireBotModel(core.team, core.registry.get(botSlug), route),
@@ -4100,6 +4118,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   };
   const invocationBridgeMethods = createBridgeMethodsForHumans(bridgeDeps);
   const bridgeMethods = invocationBridgeMethods(OWNER_HUMAN_CONTEXT);
+  ctx.effect(
+    () =>
+      mountCardContextLive(ctx, core, toolApproval, userQuestions, (slug, id) => {
+        const request =
+          id === undefined ? undefined : liveAgent(id)?.session.requestHeader?.()?.config;
+        const route =
+          request ??
+          core.registry.get(slug)?.modelPlan?.orchestrator ??
+          defaultModel?.currentSelection();
+        return [route?.provider, route?.model, request?.maxTokens, compactionPolicy()];
+      }),
+    'botharness: card and context changes',
+  );
   imCommandServices = {
     botDisplayName: (slug) =>
       core.registry.get(slug)?.displayName ?? core.registry.getHistorical(slug)?.displayName,

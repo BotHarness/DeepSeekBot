@@ -1,15 +1,22 @@
 #!/usr/bin/env node
 
-import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync } from 'node:child_process';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { catalogueExports, desktopComposition, renderCatalogue } from './ui-rule-composition.mjs';
+import { desktopControls, fixDesktopIcons } from './ui-rule-controls.mjs';
+import { desktopStyles, fixDesktopStyles } from './ui-rule-styles.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
 const { parse } = require('@babel/parser');
 
 export const BASELINE = join(root, 'scripts/ui-rules-baseline.json');
+const DS = 'packages/client/src/client/ds';
+const CATALOGUE = `${DS}/README.md`;
+const CATALOGUE_DATA = `${DS}/catalogue.json`;
 const SCAN = ['packages/client/src', 'apps/mobile/app', 'apps/mobile/src/ui'];
 const MOBILE = /^apps\/mobile\//u;
 const PRESSABLE = /^(?:Pressable|Touchable\w*)$/u;
@@ -29,6 +36,58 @@ const WORD = /\p{L}{2,}/u;
 const FILE_NAME = /^[\w-]+\.[a-z]{1,5}$/iu;
 
 export const RULES = {
+  styleLiteral: {
+    help: 'replace the literal with a matching role from ds/tobs.stylex.ts; run pnpm lint:fix for nearby px tokens',
+    section: 'G1 rule 1, dsh-ui § Tokens over literals',
+  },
+  breakpoint: {
+    help: 'use the medium or expanded token from ds/tobs.stylex.ts in the media query; pnpm lint:fix can migrate px queries',
+    section: 'G1 rule 2, #4282 decision 8',
+  },
+  motionToken: {
+    help: 'use duration and easing roles from ds/tobs.stylex.ts; run pnpm lint:fix for recognized values',
+    section: 'G1 rule 6, docs/agents/ui-design.md § Component names and motion',
+  },
+  reducedMotion: {
+    help: 'disable or shorten the motion in a prefers-reduced-motion override on the same style',
+    section: 'G1 rule 6, docs/agents/ui-design.md § Component names and motion',
+  },
+  iconSource: {
+    help: 'use ds/Icon with a Lucide glyph name; run pnpm lint:fix for mapped DSH JSX imports',
+    section: 'G1 rule 3, docs/agents/ui-design.md § Design rule 2',
+  },
+  accessibleName: {
+    help: 'give the icon-only control a localized aria-label or aria-labelledby reference',
+    section: 'G1 rule 4, docs/agents/ui-design.md § Design rules 2 and 6',
+  },
+  statusLabel: {
+    help: 'pair the status with a localized label; use aria-hidden for a decorative duplicate of an existing label',
+    section: 'G1 rule 4, docs/agents/ui-design.md § Design rules 2 and 6',
+  },
+  focusVisible: {
+    help: 'apply a StyleX block with a visible :focus-visible ring using the focus token',
+    section: 'G1 rule 5, docs/agents/ui-design.md § Design rule 6',
+  },
+  disabledStyle: {
+    help: 'apply a distinct disabled style with :disabled, data-disabled, or aria-disabled',
+    section: 'G1 rule 5, docs/agents/ui-design.md § Design rule 6',
+  },
+  catalogue: {
+    help: 'record what each export replaces in ds/catalogue.json, remove retired entries and regenerate ds/README.md with pnpm lint:fix',
+    section: 'G1 rule 7, docs/agents/ui-design.md § Design rule 7',
+  },
+  duplicateComponent: {
+    help: 'compose or extend the matching primitive in ds/README.md and give product components a distinct name',
+    section: 'G1 rule 7, docs/agents/ui-design.md § Design rule 7',
+  },
+  settingsRow: {
+    help: 'give each SettingsRow one title, one optional short description and one control; move additional controls to another row',
+    section: 'G1 rule 11, docs/decisions/desktop-ui.md § Tobs owns Bot mode’s design system',
+  },
+  primaryAction: {
+    help: 'keep one primary Button per dialog, including its built-in submit action; use an outline button for secondary actions',
+    section: 'G1 rule 11, docs/decisions/desktop-ui.md § Tobs owns Bot mode’s design system',
+  },
   jsxCopy: {
     help: 'move visible text into locale.ts (Web) or strings.ts (mobile)',
     section: 'docs/agents/ui-copy.md § Where copy lives',
@@ -68,7 +127,7 @@ function literalTexts(node) {
   return [];
 }
 
-function walk(node, visit) {
+export function walk(node, visit) {
   if (!node || typeof node.type !== 'string') return;
   visit(node);
   for (const key of Object.keys(node)) {
@@ -80,8 +139,7 @@ function walk(node, visit) {
   }
 }
 
-export function jsxCopy(source, file) {
-  const ast = parse(source, { sourceType: 'module', plugins: ['typescript', 'jsx'] });
+export function jsxCopy(source, file, ast = parseSource(source, file)) {
   const found = [];
   const add = (text, line) => {
     if (isCopy(text))
@@ -103,8 +161,7 @@ export function jsxCopy(source, file) {
   return found.sort((a, b) => a.line - b.line);
 }
 
-export function pressables(source, file) {
-  const ast = parse(source, { sourceType: 'module', plugins: ['typescript', 'jsx'] });
+export function pressables(source, file, ast = parseSource(source, file)) {
   const sized = TOUCH_TOKEN.test(source);
   const found = [];
   walk(ast.program, (node) => {
@@ -125,21 +182,91 @@ export function pressables(source, file) {
   return found.sort((a, b) => a.line - b.line);
 }
 
+export function parseSource(source, file) {
+  return parse(source, {
+    sourceType: 'module',
+    plugins: file.endsWith('.ts') ? ['typescript'] : ['typescript', 'jsx'],
+  });
+}
+
 function files(directory) {
   return readdirSync(join(root, directory), { withFileTypes: true }).flatMap((entry) => {
     const path = `${directory}/${entry.name}`;
     if (entry.isDirectory()) return files(path);
-    return entry.name.endsWith('.tsx') && !SKIP.test(path) ? [path] : [];
+    const extensions = MOBILE.test(path) ? /\.tsx$/u : /\.(?:ts|tsx)$/u;
+    return extensions.test(path) && !entry.name.endsWith('.d.ts') && !SKIP.test(path) ? [path] : [];
   });
 }
 
-export function scan() {
-  return SCAN.flatMap(files)
+export function readCatalogueExports() {
+  return files(DS).flatMap((file) => {
+    const source = readFileSync(join(root, file), 'utf8');
+    return catalogueExports(parseSource(source, file), file, walk);
+  });
+}
+
+function checkCatalogue(components, write) {
+  const metadata = JSON.parse(readFileSync(join(root, CATALOGUE_DATA), 'utf8'));
+  const { markdown, missing, stale } = renderCatalogue(components, metadata);
+  const path = join(root, CATALOGUE);
+  const found = [
+    ...missing,
+    ...stale.map((text) => ({
+      rule: 'catalogue',
+      file: CATALOGUE_DATA,
+      line: 1,
+      text: `retired export ${text}`,
+    })),
+  ];
+  if (found.length) return found;
+  if (existsSync(path) && readFileSync(path, 'utf8') === markdown) return [];
+  if (write) writeFileSync(path, markdown);
+  else
+    found.push({
+      rule: 'catalogue',
+      file: CATALOGUE,
+      line: 1,
+      text: 'generated catalogue is stale',
+    });
+  return found;
+}
+
+export function scan(fix = false) {
+  const components = readCatalogueExports();
+  const catalogue = checkCatalogue(components, fix);
+  if (fix && catalogue.length) return catalogue;
+  const catalogueNames = new Set(components.map(({ name }) => name));
+  const sourceFindings = SCAN.flatMap(files)
     .sort()
     .flatMap((file) => {
-      const source = readFileSync(join(root, file), 'utf8');
-      return [...jsxCopy(source, file), ...(MOBILE.test(file) ? pressables(source, file) : [])];
+      const path = join(root, file);
+      let source = readFileSync(path, 'utf8');
+      let ast = parseSource(source, file);
+      if (MOBILE.test(file))
+        return [...jsxCopy(source, file, ast), ...pressables(source, file, ast)];
+      let styles = desktopStyles(source, file, ast, walk);
+      if (fix) {
+        let next = styles.some(({ edit }) => edit)
+          ? fixDesktopStyles(source, file, ast, styles)
+          : source;
+        if (next !== source) ast = parseSource(next, file);
+        if (next.includes('@deepseek-ai/dsh-client-ui')) next = fixDesktopIcons(next, file, ast);
+        if (next !== source) {
+          ast = parseSource(next, file);
+          source = next;
+          writeFileSync(path, source);
+          styles = desktopStyles(source, file, ast, walk);
+        }
+      }
+      const copy = file.endsWith('.tsx') ? jsxCopy(source, file, ast) : [];
+      return [
+        ...copy,
+        ...styles,
+        ...desktopControls(source, file, ast, walk),
+        ...desktopComposition(file, ast, walk, catalogueNames),
+      ];
     });
+  return [...catalogue, ...sourceFindings];
 }
 
 export function findings(found) {
@@ -151,7 +278,7 @@ export function findings(found) {
       .map((rule) => [
         rule,
         Object.fromEntries(
-          Object.keys(byRule[rule])
+          Object.keys(byRule[rule] ?? {})
             .sort()
             .map((file) => [file, byRule[rule][file].sort()]),
         ),
@@ -189,10 +316,63 @@ export function compare(found, baseline) {
   return { problems, stale };
 }
 
+export function baselineGrowth(current, previous) {
+  const found = [];
+  for (const [rule, files] of Object.entries(previous)) {
+    if (!Object.hasOwn(current, rule)) {
+      found.push(
+        `missing baseline key ${rule}; keep an empty object when the last finding is fixed`,
+      );
+      continue;
+    }
+    for (const [file, list] of Object.entries(current[rule])) {
+      const allowed = counts(files[file] ?? []);
+      for (const [text, count] of counts(list))
+        if (count > (allowed.get(text) ?? 0)) found.push(`${rule} ${file} "${text}"`);
+    }
+  }
+  return found;
+}
+
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
-  const found = scan();
-  const current = findings(found);
   const baseline = JSON.parse(readFileSync(BASELINE, 'utf8'));
+  const base = process.argv.find((arg) => arg.startsWith('--base='))?.slice('--base='.length);
+  if (base !== undefined) {
+    const previous = JSON.parse(
+      execFileSync('git', ['show', `${base}:scripts/ui-rules-baseline.json`], {
+        cwd: root,
+        encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
+      }),
+    );
+    const grown = baselineGrowth(baseline, previous);
+    for (const finding of grown) console.error(`ui rules: baseline grew: ${finding}`);
+    if (grown.length) process.exit(1);
+    console.log('UI rules baseline only shrank.');
+    process.exit(0);
+  }
+  if (process.argv.includes('--write-catalogue')) {
+    const found = checkCatalogue(readCatalogueExports(), true);
+    for (const line of compare(found, {}).problems) console.error(`ui rules: ${line}`);
+    process.exit(found.length ? 1 : 0);
+  }
+  const fix = process.argv.includes('--fix');
+  const found = scan(fix);
+  if (fix && !process.argv.includes('--write')) {
+    const problems = compare(
+      found.filter(({ rule }) => rule === 'catalogue'),
+      {},
+    ).problems;
+    for (const line of problems) console.error(`ui rules: ${line}`);
+    if (problems.length) process.exit(1);
+    console.log(
+      'Applied desktop UI autofixes. Run the checker and use --write to clear fixed baseline entries.',
+    );
+    process.exit(0);
+  }
+  const present = findings(found);
+  const current = Object.fromEntries(Object.keys(RULES).map((rule) => [rule, present[rule] ?? {}]));
   const { problems, stale } = compare(found, baseline);
   const write = process.argv.includes('--write');
   if (write) {

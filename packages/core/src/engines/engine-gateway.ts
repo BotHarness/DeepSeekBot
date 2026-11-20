@@ -2,32 +2,6 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-export function engineGatewayResult(value: unknown): EngineGatewayCallResult {
-  if (typeof value === 'string') return { text: value, isError: false };
-  const content =
-    typeof value === 'object' &&
-    value !== null &&
-    Array.isArray((value as { content?: unknown }).content)
-      ? ((value as { content: unknown[] }).content.filter(
-          (part) =>
-            typeof part === 'object' &&
-            part !== null &&
-            (((part as { type?: unknown }).type === 'text' &&
-              typeof (part as { text?: unknown }).text === 'string') ||
-              ((part as { type?: unknown }).type === 'image' &&
-                typeof (part as { data?: unknown }).data === 'string' &&
-                typeof (part as { mimeType?: unknown }).mimeType === 'string')),
-        ) as EngineGatewayCallResult['content'])
-      : undefined;
-  if (content !== undefined && content.length > 0)
-    return {
-      text: content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n'),
-      content,
-      isError: (value as { isError?: unknown }).isError === true,
-    };
-  return { text: JSON.stringify(value) ?? 'null', isError: false };
-}
-
 export interface EngineGatewayTool {
   name: string;
   description: string;
@@ -67,6 +41,32 @@ export interface EngineGateway {
   start(): Promise<string>;
   grant(spec: EngineGrantSpec): EngineGrant;
   close(): Promise<void>;
+}
+
+export function engineGatewayResult(value: unknown): EngineGatewayCallResult {
+  if (typeof value === 'string') return { text: value, isError: false };
+  const content =
+    typeof value === 'object' &&
+    value !== null &&
+    Array.isArray((value as { content?: unknown }).content)
+      ? ((value as { content: unknown[] }).content.filter(
+          (part) =>
+            typeof part === 'object' &&
+            part !== null &&
+            (((part as { type?: unknown }).type === 'text' &&
+              typeof (part as { text?: unknown }).text === 'string') ||
+              ((part as { type?: unknown }).type === 'image' &&
+                typeof (part as { data?: unknown }).data === 'string' &&
+                typeof (part as { mimeType?: unknown }).mimeType === 'string')),
+        ) as EngineGatewayCallResult['content'])
+      : undefined;
+  if (content !== undefined && content.length > 0)
+    return {
+      text: content.flatMap((part) => (part.type === 'text' ? [part.text] : [])).join('\n'),
+      content,
+      isError: (value as { isError?: unknown }).isError === true,
+    };
+  return { text: JSON.stringify(value) ?? 'null', isError: false };
 }
 
 const OUT_OF_SCOPE_ARGUMENTS = ['human_id', 'bot_id', 'binding_id', 'conversation_id', 'grant_id'];

@@ -6,6 +6,7 @@ import { isSessionActivityName } from '../state/tool-activity.js';
 import {
   type ContentBlock,
   createAssistantMessage,
+  createSystemMessage,
   createToolResultMessage,
   createUserMessage,
   ToolCallId,
@@ -14,6 +15,12 @@ import type { Session, SessionEvent } from '@deepseek-ai/dsh-session';
 import { type ApprovalOutcome, ApprovalRequestId } from '@deepseek-ai/dsh-user-approval';
 
 import type { EngineEvent, EngineId, EngineTurnEnd } from './engine-session.js';
+
+declare module '@deepseek-ai/dsh-llm' {
+  interface MessageSourceMap {
+    'botharness-engine-rebuild': { kind: 'botharness-engine-rebuild' };
+  }
+}
 
 type AssistantBlock = Extract<ContentBlock, { type: 'text' | 'reasoning' | 'tool-call' }>;
 
@@ -50,6 +57,13 @@ export class EngineTurnLog {
     const session = target.session;
     session.append('turn/start', { turn: this.#turn });
     session.append('step/start', { turn: this.#turn, step: this.#step });
+    if (session.surface.nodes.length === 0) {
+      session.append(
+        'system/message',
+        { turn: this.#turn, step: this.#step, message: createSystemMessage('') },
+        { surfaceOp: 'append' },
+      );
+    }
     const message = this.input(input);
     const current = events.findLast((event) => event.type === 'session/title');
     if (
@@ -69,6 +83,17 @@ export class EngineTurnLog {
 
   get turn(): number {
     return this.#turn;
+  }
+
+  rebuilt(): void {
+    this.#target.session.append(
+      'user/message',
+      createUserMessage({
+        content: [{ type: 'text', text: 'Engine session rebuilt from saved context.' }],
+        source: { kind: 'botharness-engine-rebuild' },
+      }),
+      { surfaceOp: 'append' },
+    );
   }
 
   input(text: string) {

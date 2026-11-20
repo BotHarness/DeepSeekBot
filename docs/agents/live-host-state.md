@@ -19,6 +19,13 @@ Use the existing helpers for each client.
 2. Publish from the owning change path. For database-backed changes, subscribe to the matching commit topics as in [the Host plugin](../../packages/core/src/plugin.ts). Have periodic sweeps skip writes when nothing is due. See `dueCleanup` in [relationship enrollments](../../packages/core/src/devices/relationship-enrollments.ts).
 3. Subscribe with `observeResource` (Web) or `onResource` (phone). Test refresh on the event, reconnect, and foreground return. Verify that a healthy idle stream triggers only the slow safety refresh.
 
+For a request shown in both a Channel and Activity, scope the invalidation to its Channel and
+message IDs and deliver it through the existing roster stream. Check the request's visibility
+for each Human. For composer context, scope the signal to the Bot and send it only to its active
+owner. Carry only the reference and revision. The client always reads the current state through
+the existing authorized method. Use the source Host's roster when the card belongs to a remote
+environment.
+
 ## When a short timer is right
 
 Some state has no event source, such as a QR scan in another app, an OS signal the client cannot subscribe to, or a DOM the page does not own. For repeated reconnect attempts, use backoff, for example starting at 1 s and doubling up to 60 s.

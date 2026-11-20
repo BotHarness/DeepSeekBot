@@ -25,6 +25,7 @@ import type { ChannelMessage, HumanAttentionItem } from './store.js';
 
 export type HostRequestActions = Pick<
   BridgeActions,
+  | 'requestHost'
   | 'toolApprovalStatus'
   | 'toolApprovalState'
   | 'toolApprovalExecutionState'
@@ -58,6 +59,7 @@ export function createHostRequestActions(options: {
   const approval = (channelId: string, messageId: string) =>
     request(() => loadApproval(options.client(), options.ref(channelId, messageId)));
   return {
+    requestHost: options.client,
     async toolApprovalStatus(channelId, messageId) {
       const { status } = await approval(channelId, messageId);
       return status === 'pending' || status === 'stopped' ? status : 'expired';
@@ -67,6 +69,7 @@ export function createHostRequestActions(options: {
       return {
         status: value.status === 'pending' || value.status === 'stopped' ? value.status : 'expired',
         ...(value.expiresAt === undefined ? {} : { expiresAt: value.expiresAt }),
+        ...(value.execution === undefined ? {} : { execution: value.execution }),
       };
     },
     async toolApprovalExecutionState(channelId, messageId) {

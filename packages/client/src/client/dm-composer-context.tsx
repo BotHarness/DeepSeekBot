@@ -1,3 +1,5 @@
+import { observeHostResource } from './messaging-defaults-live.js';
+import { useMessageHost } from './message-host.js';
 import { useScopedState } from './scoped-state.js';
 import {
   useCallback,
@@ -413,36 +415,33 @@ function DmComposerContextView({
   const [grantError, setGrantError] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
   const [inspect, setInspect] = useState<{ slug: string; view: BotPromptView }>();
-  const [context, setContext] = useState<Awaited<ReturnType<BridgeActions['botContext']>>>();
+  const [reading, setContext] = useState<{
+    slug: string;
+    value: Awaited<ReturnType<BridgeActions['botContext']>>;
+  }>();
+  const context = reading?.slug === bot.slug ? reading.value : undefined;
   const usageTrigger = useRef<HTMLButtonElement | null>(null);
+  const host = useMessageHost()?.client;
   const usageMount = useMountedResource<HTMLButtonElement>(
     (node) => {
       usageTrigger.current = node;
       let active = true;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      setContext(undefined);
-      const refresh = async () => {
-        try {
+      const stop = observeHostResource(
+        (change) => change.resource === 'bot-context' && change.slug === bot.slug,
+        async () => {
           const value = await actions.botContext(bot.slug);
-          if (active) setContext(value);
-        } catch {
-          if (active) setContext(undefined);
-        } finally {
-          if (active)
-            timer = setTimeout(() => {
-              void refresh();
-            }, 5000);
-        }
-      };
-      void refresh();
+          if (active) setContext({ slug: bot.slug, value });
+        },
+        host,
+      );
       return () => {
         active = false;
-        clearTimeout(timer);
+        stop();
         usageTrigger.current = null;
         setUsageOpen(false);
       };
     },
-    [actions, bot.slug, route?.provider, route?.model],
+    [actions, bot.slug, host],
   );
   const subscribeGrants = useCallback(
     (listener: () => void) => subscribeWorkspaceGrantChanges(bot.slug, listener, actions),

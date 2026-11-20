@@ -87,6 +87,70 @@
       "baseline": "scripts/design-token-baseline.json"
     },
     {
+      "id": "tobs-style-literals",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "replace literal colour and pixel dimensions with contextual roles from ds/tobs.stylex.ts; pnpm lint:fix snaps unambiguous dimensions within 2px.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-breakpoint-tokens",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "use the generated medium or expanded breakpoint in viewport queries; pnpm lint:fix migrates raw px thresholds.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-motion-tokens",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "use duration and easing roles from ds/tobs.stylex.ts and override the same motion for prefers-reduced-motion; pnpm lint:fix migrates recognized values.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-icon-source",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "render product icons from ds/Icon; pnpm lint:fix rewrites mapped DSH JSX icons.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-control-names",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "give icon-only actions and meaningful status indicators a localized accessible name.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-focus-disabled",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "apply distinct focus-visible and disabled styles at the interactive ds/ control.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-component-catalogue",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "compose an existing ds/ primitive; for a new export, record what it replaces in ds/catalogue.json and regenerate with pnpm lint:fix.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-settings-composition",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "use one title, optional short description and control per SettingsRow, and one primary action per dialog.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
       "id": "tobs-token-outputs",
       "layer": "L2 lint",
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4283",

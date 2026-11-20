@@ -133,6 +133,10 @@ export const RULES = [
     'Core source; the docs site also reads it for reference pages',
     true,
   ),
+  related(
+    'packages/client/src/client/ds/{README.md,catalogue.json}',
+    'Desktop design-system component catalogue',
+  ),
   related('packages/*/src/**', 'Package source'),
   full(
     'packages/core/test/fixtures/profile-backup/**',
@@ -212,6 +216,9 @@ export const RULES = [
   related('.github/workflows/readme-status.yml', 'README status collection and publication'),
   related('docs/assets/readme/pixel/source/**', 'README renderer source geometry and licenses'),
   related('scripts/fixtures/**', 'Script test fixtures'),
+  related('scripts/ui-rule-composition.mjs', 'Desktop UI component and settings composition lint'),
+  related('scripts/ui-rule-controls.mjs', 'Desktop UI icon and accessibility lint'),
+  related('scripts/ui-rule-styles.mjs', 'Desktop UI lint and autofix'),
   related('scripts/lint-rules/**', 'Repository oxlint rules'),
   related('scripts/product-provider/**', 'Product provider scripts'),
   related('scripts/perf-budgets/**', 'Performance budgets, checked by the timeline budget job'),

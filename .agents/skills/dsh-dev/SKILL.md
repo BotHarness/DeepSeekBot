@@ -5,6 +5,16 @@ description: Use when developing, running, or debugging BotHarness against a loc
 
 # DSH development & debugging
 
+### Engine-first Session replay after native continuation (#4574)
+
+The DSH 0.2.2-rc.1 Session reader requires a protected `system/message` at the
+first model-visible position when a Session has a native system prompt. An
+engine-first Session could answer through DSH while live and then fail to reopen
+with `system/message requires a protected first surface head`. The engine ledger
+now records an empty system message before the first input. The native Agent can
+replace that head with its rendered prompt. Validate a persisted read after Host
+restart because an in-memory transcript can succeed with the invalid log.
+
 ### File reference cleanup after Agent disposal (#4559)
 
 On DSH `0.2.2-rc.1`, switching an active native Agent to an engine exposed a warning from
@@ -13,6 +23,16 @@ the native `dsh-file-reference-local` Plugin. Its `agent/disposed` listener call
 Fiber teardown. The pinned workspace and managed AX runtime patch that listener to normalize
 the return before handling asynchronous errors. Verify the disposal edge on a running Host
 using the diagnostic log. A successful engine reply alone does not establish clean disposal.
+
+### Borrowed Agent handoff to a Subscription Engine (#4645)
+
+On DSH `0.2.2-rc.1`, disposing the Agent's scoped Fiber leaves its Agent and
+Session registrations live. A borrowed Agent also lacks the owner's `AgentHandle`.
+The pinned AgentLoop patch exposes `releaseIdleAgent` to run that exact Agent's
+normal teardown. It refuses active or queued work and seals native input while
+the writer closes. The managed AX runtime applies the same patch. A Host without
+the release capability can still switch Agents BotHarness owns through their
+handles. A borrowed Agent on that Host must finish under its native owner.
 
 ### Native Session identity across an isolated CLI and a worktree Plugin (#4144)
 

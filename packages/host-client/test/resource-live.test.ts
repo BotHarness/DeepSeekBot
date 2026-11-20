@@ -24,7 +24,11 @@ it('tells phones which Host resource changed and when a fresh baseline arrives',
   });
   const seen: Array<string | undefined> = [];
   const live: string[] = [];
-  const off = client.onResource!((resource) => seen.push(resource));
+  const changes: unknown[] = [];
+  const off = client.onResource!((resource, change) => {
+    seen.push(resource);
+    changes.push(change);
+  });
   client.onLive((source) => live.push(source));
   client.start();
   await until(() => seen.length > 0);
@@ -35,6 +39,15 @@ it('tells phones which Host resource changed and when a fresh baseline arrives',
   });
   await until(() => seen.length > 1);
   expect(seen).toEqual([undefined, 'private-inputs']);
+  const scoped = {
+    resource: 'tool-approval',
+    revision: 1,
+    channelId: 'dm-ada',
+    messageId: 'request',
+  };
+  host.push('botharness/followRoster', { type: 'resource', change: scoped });
+  await until(() => seen.length > 2);
+  expect(changes.at(-1)).toEqual(scoped);
   expect(live).toEqual([]);
   off();
   host.push('botharness/followRoster', {
@@ -42,5 +55,5 @@ it('tells phones which Host resource changed and when a fresh baseline arrives',
     change: { resource: 'private-inputs', revision: 5 },
   });
   await new Promise((resolve) => setTimeout(resolve, 20));
-  expect(seen).toHaveLength(2);
+  expect(seen).toHaveLength(3);
 });

@@ -299,6 +299,7 @@ export interface ChannelMessage {
     failures?: number;
     rests?: import('../../../core/src/channels/turn-stop.js').ChannelTurnStopRest[];
     engine?: import('../../../core/src/channels/turn-stop.js').ChannelTurnStopEngine;
+    routingGroup?: true;
     botSlug?: string;
   };
   modelSwitch?: import('../../../core/src/channels/model-switch.js').ChannelModelSwitch;
