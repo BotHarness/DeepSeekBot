@@ -134,7 +134,14 @@ export function desktopNoticeKind(
       const channel = channels.find((candidate) => candidate.id === item.channelId);
       return channel?.type === 'dm' && channel.botSlug !== undefined ? 'bot-reply' : undefined;
     }
-    default:
+    case 'assignment-blocked':
+    case 'assignment-report':
+    case 'auto-rejection':
+    case 'bot-dm-message':
+    case 'bot-message-needs-repair':
+    case 'group-join-request':
+    case 'pairing-request':
+    case 'takeover-request':
       return undefined;
   }
 }

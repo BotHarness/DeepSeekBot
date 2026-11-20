@@ -7,23 +7,23 @@ import type {
   BridgeMethods,
   ChannelListItem as HostChannel,
   PersonaBotSummary as HostBot,
-} from '../../../packages/core/src/bridge/methods.js';
-import type { ChannelMessage as HostMessage } from '../../../packages/core/src/channels/channel.js';
-import type { ChannelUserQuestions } from '../../../packages/core/src/channels/user-questions.js';
-import type { ChannelTimelinePage as HostTimelinePage } from '../../../packages/core/src/channels/timeline.js';
+} from '../../../../packages/core/src/bridge/methods.js';
+import type { ChannelMessage as HostMessage } from '../../../../packages/core/src/channels/channel.js';
+import type { ChannelUserQuestions } from '../../../../packages/core/src/channels/user-questions.js';
+import type { ChannelTimelinePage as HostTimelinePage } from '../../../../packages/core/src/channels/timeline.js';
 import type {
   HumanAttentionItem as HostAttentionItem,
   HumanAttentionPage as HostAttentionPage,
-} from '../../../packages/core/src/runtime/human-attention.js';
-import type { ToolApprovalDecision as HostDecision } from '../../../packages/core/src/workspaces/tool-approval.js';
+} from '../../../../packages/core/src/runtime/human-attention.js';
+import type { ToolApprovalDecision as HostDecision } from '../../../../packages/core/src/workspaces/tool-approval.js';
 import type {
   ActivityLiveFrame as HostActivity,
   ChannelLiveFrame as HostChannelFrame,
   RosterLiveFrame as HostRoster,
-} from '../../../packages/core/src/channels/live.js';
-import type { ChannelSendStatus as HostSendStatus } from '../../../packages/core/src/channels/store.js';
-import type { ChannelJournalPage as HostJournalPage } from '../../../packages/core/src/channels/timeline.js';
-import type { AggregatedState as HostState } from '../../../packages/core/src/state/bot-state.js';
+} from '../../../../packages/core/src/channels/live.js';
+import type { ChannelSendStatus as HostSendStatus } from '../../../../packages/core/src/channels/store.js';
+import type { ChannelJournalPage as HostJournalPage } from '../../../../packages/core/src/channels/timeline.js';
+import type { AggregatedState as HostState } from '../../../../packages/core/src/state/bot-state.js';
 import type {
   ActivityLiveFrame,
   AggregatedState,

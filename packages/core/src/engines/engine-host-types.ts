@@ -29,6 +29,7 @@ export interface EngineTurnRequest {
   botSlug: string;
   role?: EngineRole;
   target?: RoutingGroupEngineMember;
+  groupEffort?: string;
   continuingFromNativeRoute?: true;
   cwd?: string;
   sessionCwd?: string;

@@ -115,6 +115,7 @@ function telemetryFailure(error: unknown): {
     case 'zip-file-unavailable':
     case 'zip-preview-invalid':
       return { outcome: 'refused', reason: 'source-invalid' };
+    case undefined:
     default:
       return { outcome: 'unknown', reason: 'unknown' };
   }

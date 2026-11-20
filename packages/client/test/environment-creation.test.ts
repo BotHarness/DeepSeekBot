@@ -15,6 +15,11 @@ import {
 const local = { id: 'local', name: 'A', online: true };
 const remote = { id: 'remote-b', name: 'B', online: true };
 
+const createdGroup = {
+  channel: { id: 'same-id', type: 'group', name: 'Remote only', members: [] },
+  receipt: { operationKey: 'operation-1', channelId: 'same-id', status: 'completed' },
+};
+
 describe('explicit creation target', () => {
   it('requires a choice for All until a target was used, and fixes a single Host scope', () => {
     expect(initialCreationHost('all', [local, remote], undefined)).toBeUndefined();
@@ -114,7 +119,7 @@ describe('captured remote creation owner', () => {
       open,
     });
     const pending = owner.channel('Remote only');
-    finish?.({ channel: { id: 'same-id', type: 'group', name: 'Remote only' } });
+    finish?.(createdGroup);
     await pending;
     expect(call).toHaveBeenCalledExactlyOnceWith('channelCreate', {
       name: 'Remote only',
@@ -132,9 +137,7 @@ describe('captured remote creation owner', () => {
   it('does not open a late result after the captured Client was removed or replaced', async () => {
     let current = true;
     const open = vi.fn();
-    const call = vi
-      .fn<HostClient['call']>()
-      .mockResolvedValue({ channel: { id: 'same-id', type: 'group', name: 'Remote only' } });
+    const call = vi.fn<HostClient['call']>().mockResolvedValue(createdGroup);
     const owner = remoteCreationOwner({
       hostId: remote.id,
       key: () => 'operation-1',
@@ -155,7 +158,9 @@ describe('captured remote creation owner', () => {
     const call = vi
       .fn<HostClient['call']>()
       .mockResolvedValueOnce({ bot: { slug: 'equal-bot', displayName: 'Remote bot' } })
-      .mockResolvedValueOnce({ channel: { id: 'same-id', type: 'dm', name: 'Remote bot' } })
+      .mockResolvedValueOnce({
+        channel: { id: 'same-id', type: 'dm', name: 'Remote bot', members: ['equal-bot'] },
+      })
       .mockResolvedValueOnce({});
     const open = vi.fn();
     const owner = remoteCreationOwner({
@@ -212,7 +217,9 @@ describe('captured remote creation owner', () => {
           reason: 'auth',
         },
       })
-      .mockResolvedValueOnce({ channel: { id: 'dm-imported', type: 'dm', name: 'Imported' } });
+      .mockResolvedValueOnce({
+        channel: { id: 'dm-imported', type: 'dm', name: 'Imported', members: ['imported'] },
+      });
     const open = vi.fn();
     const owner = remoteCreationOwner({
       hostId: remote.id,
@@ -242,9 +249,7 @@ describe('captured remote creation owner', () => {
   });
 
   it('retries post-create synchronization without creating a second Channel', async () => {
-    const call = vi
-      .fn<HostClient['call']>()
-      .mockResolvedValue({ channel: { id: 'same-id', type: 'group', name: 'Remote only' } });
+    const call = vi.fn<HostClient['call']>().mockResolvedValue(createdGroup);
     const refresh = vi
       .fn<() => Promise<void>>()
       .mockRejectedValueOnce(new Error('refresh failed'))
@@ -274,7 +279,9 @@ describe('captured remote creation owner', () => {
     const call = vi
       .fn<HostClient['call']>()
       .mockResolvedValueOnce({ bot: { slug: 'created-once', displayName: 'Remote' } })
-      .mockResolvedValueOnce({ channel: { id: 'dm-created-once', type: 'dm', name: 'Remote' } })
+      .mockResolvedValueOnce({
+        channel: { id: 'dm-created-once', type: 'dm', name: 'Remote', members: ['created-once'] },
+      })
       .mockRejectedValueOnce(new Error('assignment failed'))
       .mockResolvedValueOnce({});
     const owner = remoteCreationOwner({

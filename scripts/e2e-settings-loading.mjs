@@ -30,20 +30,20 @@ const onboarding = measure('onboarding').then(
   () => ({ ok: true }),
   (error) => ({ ok: false, error }),
 );
-try {
-  await new Promise((resolve) => setTimeout(resolve, 50));
-  const results = await Promise.allSettled(
-    ['approvalTemplates', 'promptPresets', 'voiceProviders'].map(measure),
-  );
-  const failure = results.find((result) => result.status === 'rejected');
-  if (failure) throw failure.reason;
-} finally {
-  const settled = await onboarding;
-  const result = JSON.stringify({ budgetMs: 500, measurements }, null, 2);
-  if (process.env.BH_E2E_RESULT) writeFileSync(process.env.BH_E2E_RESULT, result + '\n');
-  console.log(result);
-  if (!settled.ok) throw settled.error;
+await new Promise((resolve) => setTimeout(resolve, 50));
+const results = await Promise.allSettled(
+  ['approvalTemplates', 'promptPresets', 'voiceProviders'].map(measure),
+);
+const settled = await onboarding;
+const result = JSON.stringify({ budgetMs: 500, measurements }, null, 2);
+if (process.env.BH_E2E_RESULT) writeFileSync(process.env.BH_E2E_RESULT, result + '\n');
+console.log(result);
+const failure = results.find((result) => result.status === 'rejected');
+if (failure && !settled.ok) {
+  throw new AggregateError([failure.reason, settled.error], 'Settings reads and onboarding failed');
 }
+if (failure) throw failure.reason;
+if (!settled.ok) throw settled.error;
 const preparation = measurements.find((row) => row.method === 'onboarding');
 const settings = measurements.filter((row) => row.method !== 'onboarding');
 assert.ok(

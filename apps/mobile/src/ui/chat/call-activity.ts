@@ -38,7 +38,8 @@ export function callToneColor(color: CallActivityPalette, tone: CallBubbleTone):
       return color.warning;
     case 'ended':
       return color.danger;
-    default:
+    case 'connecting':
+    case 'muted':
       return color.muted;
   }
 }

@@ -43,6 +43,7 @@ const cli = (args) =>
           DEEPSEEKBOT_HOST: origin.origin,
           DEEPSEEKBOT_HOST_TOKEN: secret,
         },
+        shell: false,
       },
     ),
   );

@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
@@ -403,17 +404,24 @@ describe('client apply', () => {
     store.setMode('dsh');
     const specs: Spec[] = [];
     apply(createScoped(specs, [], true) as never);
+    const inject = (spec: Spec | undefined): unknown => {
+      assert.ok(
+        spec?.inject,
+        `Expected an injection for ${spec?.id ?? spec?.name ?? 'the missing slot'}`,
+      );
+      return spec.inject();
+    };
     const overlay = specs.find((spec) => spec.id === 'botharness-bot-settings');
-    const { botSettings } = overlay?.inject?.() as {
+    const { botSettings } = inject(overlay) as {
       botSettings: { getSnapshot(): { open: boolean; sectionId?: string }; close(): void };
     };
     const panel = specs.find((spec) => spec.name === 'sidebar.panellist');
-    (panel?.inject?.() as { openSettings(): void }).openSettings();
+    (inject(panel) as { openSettings(): void }).openSettings();
     expect(botSettings.getSnapshot().open).toBe(true);
 
     botSettings.close();
     const companion = specs.find((spec) => spec.id === 'botharness-window-companion');
-    (companion?.inject?.() as { openSettings(): void }).openSettings();
+    (inject(companion) as { openSettings(): void }).openSettings();
     expect(botSettings.getSnapshot()).toMatchObject({
       open: true,
       sectionId: 'companions',
@@ -423,9 +431,7 @@ describe('client apply', () => {
 
     botSettings.close();
     const main = specs.find((spec) => spec.name === 'main' && spec.key === PANEL_ID);
-    (
-      main?.inject?.() as { telemetryNotice: { openSettings(): void } }
-    ).telemetryNotice.openSettings();
+    (inject(main) as { telemetryNotice: { openSettings(): void } }).telemetryNotice.openSettings();
     expect(botSettings.getSnapshot()).toMatchObject({
       open: true,
       sectionId: 'data-privacy',
@@ -435,7 +441,7 @@ describe('client apply', () => {
 
     botSettings.close();
     const native = specs.find((spec) => spec.name === 'settings.section');
-    (native?.inject?.() as { openBotSettings(): void }).openBotSettings();
+    (inject(native) as { openBotSettings(): void }).openBotSettings();
     expect(botSettings.getSnapshot().open).toBe(true);
   });
 

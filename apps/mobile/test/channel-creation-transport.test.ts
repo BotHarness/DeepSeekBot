@@ -39,7 +39,7 @@ it('creates on the chosen Host through the authenticated client with only eligib
       operationKey: 'mobile-test-channel',
     });
     return answer({
-      channel: { id: 'group-team', members: ['ada', 'bo'] },
+      channel: { id: 'group-team', type: 'group', name: 'Team', members: ['ada', 'bo'] },
       receipt: {
         operationKey: 'mobile-test-channel',
         channelId: 'group-team',
