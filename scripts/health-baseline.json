@@ -73,7 +73,6 @@
     "packages/core/src/devices/mount.ts",
     "packages/core/src/memory/accepted.ts",
     "packages/core/src/messaging/dsh-im.ts",
-    "packages/core/src/messaging/inbound.ts",
     "packages/core/src/messaging/outbound.ts",
     "packages/core/src/plugin.ts",
     "packages/core/src/purge/owner.ts",
