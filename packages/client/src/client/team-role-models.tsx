@@ -31,14 +31,15 @@ const styles = stylex.create({
   },
   provider: { backgroundColor: layer.well, borderRadius: style.radiusControl },
   row: {
-    display: 'flex',
+    display: 'grid',
+    gridTemplateColumns: 'auto minmax(0, 1fr) auto',
     alignItems: 'center',
     gap: space.x2,
     minWidth: 0,
     paddingInline: space.x3,
     paddingBlock: space.x1,
   },
-  disclosure: { marginInlineStart: 'auto', paddingInline: space.x2 },
+  disclosure: { paddingInline: space.x2 },
   routes: {
     display: 'flex',
     flexDirection: 'column',
