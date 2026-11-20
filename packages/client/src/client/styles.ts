@@ -2307,6 +2307,7 @@ html[data-botharness-motion='full'] .bh-skeleton-line {
 .bh-avatar-options { display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: ${space.x3}; }
 .bh-avatar-option { aspect-ratio: 1; padding: ${space.x1}; border: ${border.focus} solid transparent; border-radius: ${radius.md}; background: transparent; cursor: pointer; }
 .bh-avatar-option span, .bh-avatar-option svg { display: block; width: 100%; height: 100%; }
+.bh-avatar-option img { display: block; width: 100%; height: 100%; border-radius: ${radius.round}; }
 .bh-avatar-option:hover { border-color: var(--tobs-line-edge); }
 .bh-avatar-option[aria-pressed='true'] { border-color: var(--tobs-ink-primary); }
 .bh-avatar-hidden-note { grid-column: 1 / -1; margin: 0; color: var(--tobs-ink-secondary); font-size: ${text.bodySize}; }

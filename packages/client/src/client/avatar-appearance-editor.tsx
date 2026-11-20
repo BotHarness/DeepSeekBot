@@ -1,7 +1,12 @@
 import { Icon } from './ds/icon.js';
 import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
-import { useMemo, useState, type ReactElement } from 'react';
+import { SegmentedControl } from './ds/segmented.js';
+import { useId, useMemo, useState, type ReactElement } from 'react';
+import {
+  TILTIES_COLLECTIONS,
+  type TiltiesCollectionId,
+} from '@botharness/host-client/tilties-avatars';
 
 import {
   AVATAR_COLORS,
@@ -399,6 +404,7 @@ export function AvatarAppearanceEditor({
   channelId,
   onSave,
   onUpload,
+  onChooseImage,
   onRemoveImage,
   imageBusy = false,
   library,
@@ -408,11 +414,16 @@ export function AvatarAppearanceEditor({
   channelId: string;
   onSave(channelId: string, recipe: AvatarRecipe): Promise<boolean>;
   onUpload?: (() => void) | undefined;
+  onChooseImage?: ((image: string) => void) | undefined;
   onRemoveImage?: (() => void) | undefined;
   imageBusy?: boolean | undefined;
   library?: PartLibraryActions | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const collectionControlId = useId();
+  const [tiltiesOpen, setTiltiesOpen] = useState(false);
+  const [collection, selectCollection] = useState<TiltiesCollectionId>('pioneers');
+  const portraits = TILTIES_COLLECTIONS.find(({ id }) => id === collection)?.portraits ?? [];
   const [parts, setParts] = useState<PartLibraryEntry[]>();
   const [originFilter, setOriginFilter] = useState<OriginFilter>('all');
   const [libraryNote, setLibraryNote] = useState<string>();
@@ -932,6 +943,58 @@ export function AvatarAppearanceEditor({
                   </button>
                 )}
               </section>
+              {onChooseImage === undefined ? null : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    type="button"
+                    aria-expanded={tiltiesOpen}
+                    disabled={imageBusy}
+                    onClick={() => setTiltiesOpen(!tiltiesOpen)}
+                  >
+                    {t('profile.avatar.tilties')}
+                  </Button>
+                  {tiltiesOpen ? (
+                    <>
+                      <SegmentedControl
+                        id={collectionControlId}
+                        label={t('profile.avatar.collections')}
+                        options={TILTIES_COLLECTIONS.map(({ id, en, zh }) => ({
+                          value: id,
+                          label: t('profile.avatar.tiltiesName', { en, zh }),
+                        }))}
+                        value={collection}
+                        onChange={selectCollection}
+                        disabled={imageBusy}
+                      />
+                      <div
+                        className="bh-avatar-options"
+                        role="group"
+                        aria-label={t('profile.avatar.tilties')}
+                      >
+                        {portraits.map(({ id, en, zh, image }) => {
+                          const label = t('profile.avatar.tiltiesName', { en, zh });
+                          return (
+                            <button
+                              key={id}
+                              type="button"
+                              className="bh-avatar-option"
+                              aria-label={label}
+                              title={label}
+                              data-tilties-avatar={id}
+                              disabled={imageBusy}
+                              onClick={() => onChooseImage(image)}
+                            >
+                              <img src={image} alt="" decoding="async" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </>
+                  ) : null}
+                </>
+              )}
               {onUpload === undefined ||
               bot.avatar === undefined ||
               onRemoveImage === undefined ? null : (
