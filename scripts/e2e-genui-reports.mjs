@@ -31,13 +31,21 @@ const runId = new Date().toISOString().replace(/[:.]/g, '-');
 const out = resolve(root, values.out ?? `.humanlayer/tasks/genui-3685/e2e-${runId}`);
 mkdirSync(out, { recursive: true });
 const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
-const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+const git = (...args) =>
+  execFileSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  }).trim();
 const manifest = {
   runId,
   scope: 'Synthetic Web DM catalog/interaction E2E, not installed native or Human acceptance',
   sourceSha: git('rev-parse', 'HEAD'),
   branch: git('branch', '--show-current'),
-  diffSha256: digest(execFileSync('git', ['diff', 'HEAD'], { cwd: root })),
+  diffSha256: digest(
+    execFileSync('git', ['diff', 'HEAD'], { cwd: root, shell: false, windowsHide: true }),
+  ),
   lockSha256: digest(readFileSync(join(root, 'pnpm-lock.yaml'))),
   clientSha256: digest(readFileSync(join(root, 'packages/client/lib/client.js'))),
   hostSha256: digest(readFileSync(join(root, 'packages/core/dist/index.mjs'))),

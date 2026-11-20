@@ -154,7 +154,7 @@ async function capture(
         ...(interruptAfterStart ? ['--run', 'printf profile-started'] : []),
         ...args,
       ],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
+      { stdio: ['ignore', 'pipe', 'pipe'], shell: false, windowsHide: true },
     );
     let stdout = '',
       stderr = '';

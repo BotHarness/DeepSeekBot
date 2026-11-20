@@ -28,7 +28,8 @@ export function callAudioDeviceSymbol(
       return 'car.fill';
     case 'airplay':
       return 'airplayaudio';
-    default:
+    case 'speaker':
+    case undefined:
       return 'speaker.wave.2.fill';
   }
 }

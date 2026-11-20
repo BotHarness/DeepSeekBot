@@ -147,7 +147,13 @@ describe('complete script inventory and honest denominators', () => {
       ['scripts/verification-report.mjs', '--json'],
     ]) {
       const result = JSON.parse(
-        execFileSync(process.execPath, args, { cwd: repo, encoding: 'utf8', timeout: 15000 }),
+        execFileSync(process.execPath, args, {
+          cwd: repo,
+          encoding: 'utf8',
+          timeout: 15000,
+          shell: false,
+          windowsHide: true,
+        }),
       );
       expect(result.ok).toBe(true);
     }

@@ -163,6 +163,8 @@ class Suite {
         DEEPSEEKBOT_HOST: this.url.origin,
         DEEPSEEKBOT_HOST_TOKEN: this.url.searchParams.get('token') ?? '',
       },
+      shell: false,
+      windowsHide: true,
     });
     let value;
     if (result.error) {
@@ -365,6 +367,8 @@ export async function main(argv = process.argv.slice(2)) {
     execFileSync(process.execPath, ['scripts/verify-app.mjs', command, '--name', options.name], {
       cwd: ROOT,
       stdio: 'inherit',
+      shell: false,
+      windowsHide: true,
     });
   if (options.launch) verify('launch');
   const suite = options.list ? undefined : new Suite(options);
@@ -954,6 +958,8 @@ export async function main(argv = process.argv.slice(2)) {
       const source = execFileSync('git', ['rev-parse', 'HEAD'], {
         cwd: ROOT,
         encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
       }).trim();
       const passed = suite.results.filter((item) => item.result === 'pass').length;
       const report = {

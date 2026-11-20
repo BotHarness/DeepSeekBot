@@ -65,6 +65,8 @@ function verifyApp(args) {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
     timeout: 900_000,
+    shell: false,
+    windowsHide: true,
   });
   if (result.status !== 0) throw new Error(`verify-app ${args[0]} failed`);
   return JSON.parse(result.stdout);

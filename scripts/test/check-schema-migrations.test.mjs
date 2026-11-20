@@ -31,7 +31,7 @@ describe('append-only migration guard', () => {
   it('checks the merged snapshot even when source and local hashes are edited together', () => {
     const root = mkdtempSync(join(tmpdir(), 'bh-migration-guard-'));
     const git = (...args) =>
-      execFileSync('git', args, { cwd: root, stdio: 'pipe', windowsHide: true });
+      execFileSync('git', args, { cwd: root, stdio: 'pipe', windowsHide: true, shell: false });
     try {
       mkdirSync(join(root, 'packages/core/src/database'), { recursive: true });
       mkdirSync(join(root, 'scripts'));

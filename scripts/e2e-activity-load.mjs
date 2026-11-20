@@ -138,7 +138,11 @@ const metrics = async () =>
     (await cdp.send('Performance.getMetrics')).metrics.map((x) => [x.name, x.value]),
   );
 const proof = {
-  sourceHead: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+  sourceHead: execFileSync('git', ['rev-parse', 'HEAD'], {
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  }).trim(),
   baseline,
   channels: 24,
   messagesPerRound: 240,

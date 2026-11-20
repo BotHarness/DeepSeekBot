@@ -410,7 +410,16 @@ export class FakeHost {
     if (method === 'channelDm')
       return (args) => {
         const channel = this.channel(`dm-${String(args['slug'])}`);
-        return { channel: { id: channel.id, type: 'dm', botSlug: args['slug'] } };
+        const slug = String(args['slug']);
+        return {
+          channel: {
+            id: channel.id,
+            type: 'dm',
+            name: args['displayName'] ?? slug,
+            members: [slug],
+            botSlug: slug,
+          },
+        };
       };
     if (method === 'channelChangeCursor')
       return () => {

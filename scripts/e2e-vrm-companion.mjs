@@ -308,7 +308,10 @@ try {
     ]).finally(() => clearTimeout(timer));
     if (!closed && ownPid) {
       await browser.disconnect();
-      await promisify(execFile)('taskkill', ['/PID', String(ownPid), '/T', '/F']).catch(() => {});
+      await promisify(execFile)('taskkill', ['/PID', String(ownPid), '/T', '/F'], {
+        shell: false,
+        windowsHide: true,
+      }).catch(() => {});
     }
   } else await browser.close();
 }

@@ -1,3 +1,4 @@
+import { openBotDm } from '@botharness/host-client/channel-management';
 import { loadProfileActivity } from './bot-activity';
 import { loadSchedules } from '@botharness/host-client/schedules';
 import {
@@ -181,12 +182,10 @@ function settle<T>(work: Promise<T>): Promise<ProfilePart<T>> {
 
 export function dmChannel(client: HostClient, bot: ProfileBotRef): Promise<string> {
   if (bot.dmChannelId !== undefined) return Promise.resolve(bot.dmChannelId);
-  return client
-    .call<{ channel: { id: string } }>('channelDm', {
-      slug: bot.slug,
-      ...(bot.displayName === undefined ? {} : { displayName: bot.displayName }),
-    })
-    .then((result) => result.channel.id);
+  return openBotDm(client, {
+    slug: bot.slug,
+    ...(bot.displayName === undefined ? {} : { displayName: bot.displayName }),
+  }).then((channel) => channel.id);
 }
 
 function snapshotOf(client: HostClient, channelId: string): Promise<MemorySnapshot> {

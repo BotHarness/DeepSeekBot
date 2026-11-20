@@ -3,6 +3,9 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { parse } from '@babel/parser';
+
+import { hostMethods } from './check-host-readers.mjs';
 
 import { checkUiInventory, INVENTORY_PATH, readUiSurfaces } from './cli-ui-inventory.mjs';
 
@@ -15,6 +18,51 @@ export function bridgeMethodsFrom(rpcSource) {
     if (names.includes('sessions')) return names;
   }
   return [];
+}
+
+export function bridgeMethodsFromSharedReaders(cliSources, readReader) {
+  const prefix = '@botharness/host-client/';
+  const exportsByModule = new Map();
+  const methods = new Set();
+  const statements = (source) =>
+    parse(source, { sourceType: 'module', plugins: ['typescript'] }).program.body;
+
+  for (const source of cliSources) {
+    for (const statement of statements(source)) {
+      if (
+        statement.type !== 'ImportDeclaration' ||
+        statement.importKind === 'type' ||
+        !statement.source.value.startsWith(prefix)
+      )
+        continue;
+      const module = statement.source.value.slice(prefix.length);
+      if (!exportsByModule.has(module)) {
+        const reader = readReader(module);
+        exportsByModule.set(
+          module,
+          new Map(
+            statements(reader).flatMap((node) => {
+              const fn = node.type === 'ExportNamedDeclaration' ? node.declaration : undefined;
+              return fn?.type === 'FunctionDeclaration' && fn.id !== null
+                ? [[fn.id.name, hostMethods(reader.slice(fn.start, fn.end), module + '.ts')]]
+                : [];
+            }),
+          ),
+        );
+      }
+      const readers = exportsByModule.get(module);
+      for (const specifier of statement.specifiers) {
+        if (
+          specifier.type !== 'ImportSpecifier' ||
+          specifier.importKind === 'type' ||
+          specifier.imported.type !== 'Identifier'
+        )
+          continue;
+        for (const method of readers.get(specifier.imported.name) ?? []) methods.add(method);
+      }
+    }
+  }
+  return methods;
 }
 
 export function routePathsFrom(sources) {
@@ -52,14 +100,16 @@ function runnerExemption(kind, surface, reason, cliSource) {
   );
 }
 
-export function checkCliParity({ surfaces, cliSource, baseline }) {
+export function checkCliParity({ surfaces, cliSource, baseline, readerMethods = new Set() }) {
   const errors = [];
   for (const kind of ['bridge', 'routes', 'tools']) {
     const label = LABELS[kind];
     const recorded = baseline[kind] ?? {};
     const present = new Set(surfaces[kind]);
+    const hasCommand = (surface) =>
+      covered(kind, surface, cliSource) || (kind === 'bridge' && readerMethods.has(surface));
     for (const surface of surfaces[kind]) {
-      if (covered(kind, surface, cliSource) || Object.hasOwn(recorded, surface)) continue;
+      if (hasCommand(surface) || Object.hasOwn(recorded, surface)) continue;
       errors.push(
         `${label} ${surface} has no deepseekbot command; add one, or record an exemption with a reason in ${BASELINE}`,
       );
@@ -67,10 +117,7 @@ export function checkCliParity({ surfaces, cliSource, baseline }) {
     for (const surface of Object.keys(recorded).sort()) {
       if (!present.has(surface))
         errors.push(`${label} ${surface} no longer exists; remove it from ${BASELINE}`);
-      else if (
-        covered(kind, surface, cliSource) &&
-        !runnerExemption(kind, surface, recorded[surface], cliSource)
-      )
+      else if (hasCommand(surface) && !runnerExemption(kind, surface, recorded[surface], cliSource))
         errors.push(`${label} ${surface} is covered by the CLI now; remove it from ${BASELINE}`);
       else if (typeof recorded[surface] !== 'string' || recorded[surface].trim() === '')
         errors.push(
@@ -107,10 +154,13 @@ function main(root) {
     .flatMap(sourceFiles)
     .map((file) => readFileSync(file, 'utf8'));
   const cliDirectory = join(root, 'packages/core/src/bots');
-  const cliSource = readdirSync(cliDirectory)
+  const cliSources = readdirSync(cliDirectory)
     .filter((name) => /^(cli.*|bot-create-cli)\.ts$/.test(name))
-    .map((name) => readFileSync(join(cliDirectory, name), 'utf8'))
-    .join('\n');
+    .map((name) => readFileSync(join(cliDirectory, name), 'utf8'));
+  const cliSource = cliSources.join('\n');
+  const readerMethods = bridgeMethodsFromSharedReaders(cliSources, (module) =>
+    read(`packages/host-client/src/${module}.ts`),
+  );
   const surfaces = {
     bridge: bridgeMethodsFrom(read('packages/core/src/bridge/rpc.ts')),
     routes: routePathsFrom(hostSources),
@@ -120,7 +170,7 @@ function main(root) {
   const uiSurfaces = readUiSurfaces(root);
   const inventory = JSON.parse(read(INVENTORY_PATH));
   const errors = [
-    ...checkCliParity({ surfaces, cliSource, baseline }),
+    ...checkCliParity({ surfaces, cliSource, baseline, readerMethods }),
     ...checkUiInventory(uiSurfaces, inventory, cliSource),
   ];
   if (errors.length > 0) {

@@ -20,6 +20,7 @@ export function localSetupFailure(code: string | undefined, t: ComputerTranslate
       return t('local.error.target');
     case 'request-failed':
       return t('local.error.request');
+    case undefined:
     default:
       return t('local.error.setup');
   }

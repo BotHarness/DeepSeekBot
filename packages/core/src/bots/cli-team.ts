@@ -1,3 +1,4 @@
+import { readChannel } from '@botharness/host-client/channel-management';
 export { TEAM_OPTIONS } from './cli-option-spec.js';
 import { botVisibilitySchema, rolePolicySchema } from '../team/bot-contract.js';
 
@@ -520,7 +521,7 @@ export async function runTeamCommand(
     if (action === 'policy' && argument && rest.length === 2) {
       const snapshot = z
         .object({ policy: channelPolicySchema, policyRevision: channelPolicyRevisionSchema })
-        .parse(await rpc('channelGet', { channelId: argument }));
+        .parse(await readChannel({ call: (method, args = {}) => rpc(method, args) }, argument));
       const policy = channelPolicySchema.safeParse({
         ...snapshot.policy,
         ...(values.post === undefined ? {} : { post: values.post }),

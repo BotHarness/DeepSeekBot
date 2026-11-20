@@ -22,6 +22,8 @@ if (args.includes('--instance') && !args.includes('--paired'))
 const common = execFileSync('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
   cwd: root,
   encoding: 'utf8',
+  shell: false,
+  windowsHide: true,
 }).trim();
 const qa = join(dirname(common), '.humanlayer/device-qa/windows');
 const lease = JSON.parse(readFileSync(join(qa, 'active.json'), 'utf8'));
@@ -39,7 +41,12 @@ const out = join(qa, 'evidence', batch, lease.lane);
 mkdirSync(out, { recursive: true });
 const prefix = join(out, label);
 const call = (...command) =>
-  execFileSync(adb, ['-s', serial, ...command], { encoding: 'utf8', timeout: 15000 });
+  execFileSync(adb, ['-s', serial, ...command], {
+    encoding: 'utf8',
+    timeout: 15000,
+    shell: false,
+    windowsHide: true,
+  });
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 const proof = [];
 const bounds = (value) => (value.match(/\d+/g) ?? []).map(Number);
@@ -94,7 +101,11 @@ async function waitFor(read, timeout = 60000) {
 function capture(suffix, xml) {
   writeFileSync(
     `${prefix}-${suffix}.png`,
-    execFileSync(adb, ['-s', serial, 'exec-out', 'screencap', '-p'], { timeout: 15000 }),
+    execFileSync(adb, ['-s', serial, 'exec-out', 'screencap', '-p'], {
+      timeout: 15000,
+      shell: false,
+      windowsHide: true,
+    }),
   );
   writeFileSync(`${prefix}-${suffix}.xml`, xml);
 }

@@ -57,6 +57,7 @@ export async function prepareZipImportProof({ root, home, port, sourceSlug, rpc,
         timeout: 45_000,
         maxBuffer: 1024 * 1024,
         windowsHide: true,
+        shell: false,
       },
     );
     if (result.error || result.status !== 0)

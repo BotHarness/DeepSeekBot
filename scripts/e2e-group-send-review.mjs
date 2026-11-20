@@ -576,9 +576,15 @@ async function main() {
     protocol,
     protocolHash: digest(protocol),
     mode: formal ? 'fixed-pilot' : 'diagnostic-excluded-from-pilot',
-    candidate: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+    candidate: execFileSync('git', ['rev-parse', 'HEAD'], {
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    }).trim(),
     worktreeDiffHash: createHash('sha256')
-      .update(execFileSync('git', ['diff', 'HEAD'], { maxBuffer: 20e6 }))
+      .update(
+        execFileSync('git', ['diff', 'HEAD'], { maxBuffer: 20e6, shell: false, windowsHide: true }),
+      )
       .digest('hex'),
     pairs: [],
     humanAcceptance: 'pending',

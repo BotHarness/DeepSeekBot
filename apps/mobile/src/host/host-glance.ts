@@ -29,7 +29,8 @@ export function liveGlance(connection: ConnectionState, inbox: InboxSnapshot): H
       return { status: 'checking' };
     case 'refused':
       return { status: 'refused', refusal: connection.code };
-    default:
+    case 'stopped':
+    case 'unreachable':
       return { status: 'offline' };
   }
 }

@@ -1,3 +1,4 @@
+import { readAllBotPreview } from '@botharness/host-client/channel-management';
 import { useHeaderStatus } from './use-header-status';
 import type { ChatPlace } from './chat-place';
 
@@ -1015,8 +1016,7 @@ function ChatConversation({
     const key = membersKey;
     if (client === undefined || channelId === undefined || key === undefined) return;
     if (allPreview?.key === key) return;
-    client
-      .call<WireAllBotPreview>('channelAllBotPreview', { channelId })
+    readAllBotPreview(client, channelId)
       .then((preview) => setAllPreview({ key, preview }))
       .catch(() => undefined);
   };
