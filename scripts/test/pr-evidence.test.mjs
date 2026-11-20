@@ -253,7 +253,13 @@ describe('Git evidence policy regression guard', () => {
 
   it('detects force-added, modified, renamed and committed evidence but permits legacy deletions', () => {
     const root = directory();
-    const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+    const git = (...args) =>
+      execFileSync('git', args, {
+        cwd: root,
+        encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
+      }).trim();
     const set = (path, text) => {
       const filename = join(root, path);
       mkdirSync(join(filename, '..'), { recursive: true });

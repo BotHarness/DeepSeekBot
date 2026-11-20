@@ -71,7 +71,8 @@ describe('README status collection', () => {
   });
   it('counts merged history and continues past an old-dated commit, excluding future and unmerged commits', async () => {
     const cwd = mkdtempSync(join(tmpdir(), 'readme-history-'));
-    const git = (args) => execFileSync('git', args, { cwd, encoding: 'utf8' }).trim();
+    const git = (args) =>
+      execFileSync('git', args, { cwd, encoding: 'utf8', shell: false, windowsHide: true }).trim();
     try {
       git(['init', '-b', 'main']);
       git(['config', 'user.name', 'README test']);
@@ -81,6 +82,8 @@ describe('README status collection', () => {
           cwd,
           env: { ...process.env, GIT_AUTHOR_DATE: date, GIT_COMMITTER_DATE: date },
           stdio: 'ignore',
+          shell: false,
+          windowsHide: true,
         });
       commit('2026-09-01T00:00:00Z', 'old root');
       git(['checkout', '-b', 'feature']);
@@ -95,6 +98,8 @@ describe('README status collection', () => {
           GIT_COMMITTER_DATE: '2026-10-02T00:00:00Z',
         },
         stdio: 'ignore',
+        shell: false,
+        windowsHide: true,
       });
       commit('2026-10-21T00:00:00Z', 'future');
       git(['update-ref', 'refs/remotes/origin/main', 'HEAD']);

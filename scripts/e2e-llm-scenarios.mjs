@@ -475,6 +475,8 @@ export const SCENARIOS = [
         execFileSync('git', ['-c', 'user.name=e2e', '-c', 'user.email=e2e@local', ...args], {
           cwd: memory,
           encoding: 'utf8',
+          shell: false,
+          windowsHide: true,
         });
       git('add', '-A');
       git('commit', '-q', '-m', 'e2e share fixture');
@@ -731,6 +733,8 @@ function changedSince(ref) {
   return execFileSync('git', ['diff', '--name-only', `${ref}...HEAD`], {
     cwd: repoRoot,
     encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
   })
     .split('\n')
     .filter(Boolean);
@@ -1338,6 +1342,8 @@ function verifyApp(args) {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'inherit'],
     timeout: 900_000,
+    shell: false,
+    windowsHide: true,
   });
   if (result.status !== 0) throw new Error(`verify-app ${args[0]} failed`);
   return JSON.parse(result.stdout);
@@ -1408,6 +1414,8 @@ async function main() {
       commit: execFileSync('git', ['rev-parse', 'HEAD'], {
         cwd: repoRoot,
         encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
       }).trim(),
       ...(changed === undefined ? {} : { changedFrom: options.changedFrom }),
       scenarios: results,

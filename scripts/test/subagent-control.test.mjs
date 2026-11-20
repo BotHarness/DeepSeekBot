@@ -12,6 +12,8 @@ describe('native subagent control compatibility', () => {
       cwd: fileURLToPath(new URL('../..', import.meta.url)),
       encoding: 'utf8',
       timeout: 10_000,
+      shell: false,
+      windowsHide: true,
     });
     expect(JSON.parse(output)).toEqual({
       tools: 'registered once per scope',

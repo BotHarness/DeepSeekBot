@@ -1135,17 +1135,17 @@
       "path": "scripts/e2e-genui-documents.mjs",
       "category": "mapped",
       "behaviors": ["web.genui.reports"],
-      "reason": "Synthetic HTML journey through the shared packaged Worker/VM runtime and CSP script-disabled mirror (sandbox keeps allow-scripts for WebKit listeners), nine scenes, visible native keyboard controls, canonical private-state/CAS recovery and attributable Human continuation. Readable Human body and Host-derived context metadata are checked separately. Refreshed/stateless content must actually render. Fault mode observes actual routed Worker snapshots, requires explicit refusal on replay, checks stale-lease fencing after remount, and separately injects save/commit response faults before scoped purge. Window-message probes have no presentation authority. Optional bounded execution traces diagnose rather than qualify performance. Full containment, foreground performance and installed-native qualification remain open.",
+      "reason": "Synthetic HTML journey through the shared packaged Worker/VM runtime and CSP script-disabled mirror (sandbox keeps allow-scripts for WebKit listeners), nine scenes, visible native keyboard controls, canonical private-state/CAS recovery and attributable Human continuation. Readable Human body and Host-derived context metadata are checked separately. Refreshed/stateless content must actually render. Fault mode observes actual routed Worker snapshots, requires explicit refusal on replay, checks stale-lease fencing after remount, and separately injects save/commit response faults before scoped purge. Window-message probes have no presentation authority. Optional bounded execution traces diagnose rather than qualify performance. Full containment, foreground performance and installed-native qualification remain open. L-4 makes direct-argv process options explicit.",
       "task": 3711,
-      "sha256": "73fdf70ac9e6bdc53a25a45e079107b9d5f4729168900f5606acb4e25506a28f"
+      "sha256": "bc10bd662bf6e19057066d5d0132c660fca4859aa0d34a2eedd03956e29748fa"
     },
     {
       "path": "scripts/e2e-genui-reports.mjs",
       "category": "mapped",
       "behaviors": ["web.genui.reports"],
-      "reason": "Synthetic headed Web DM catalog and interaction journey through canonical Tool, Host view and ordinary Human-message owners; screenshots and provenance retained per scene.",
+      "reason": "Synthetic headed Web DM catalog and interaction journey through canonical Tool, Host view and ordinary Human-message owners; screenshots and provenance retained per scene. L-4 makes direct-argv process options explicit.",
       "task": 3685,
-      "sha256": "9e3e8022d28dd58a4faff879f82b238b0de302bbe8f9961bdcaadbf16b437b4c"
+      "sha256": "c38241d77b4fecd99484162e9767435794dc9b1e5e0979905d2de676b264c32a"
     },
     {
       "path": "scripts/e2e-zip-import-proof.mjs",
@@ -1175,9 +1175,9 @@
       "path": "scripts/e2e-bot-session-folders.mjs",
       "category": "mapped",
       "behaviors": ["desktop.sessions.bot-folders"],
-      "reason": "Prepared isolated Host with explicit Bot-owned roots; verifies product icon, Bot avatars, independent folding, reload, native navigation and retained cwd, with optional owned-Host restart.",
+      "reason": "Prepared isolated Host with explicit Bot-owned roots; verifies product icon, Bot avatars, independent folding, reload, native navigation and retained cwd, with optional owned-Host restart. L-4 makes direct-argv process options explicit.",
       "task": 1997,
-      "sha256": "df0d4696321bab94ea2364c4c32b768fef20104757d2321bd68e73fdc87bb46b"
+      "sha256": "5ac60cbef82f12a31d18b3cfc370f705679e8a0ec5e40c068b57e2dea0d8ac0f"
     },
     {
       "path": "scripts/e2e-activity-entry.mjs",
@@ -1191,9 +1191,9 @@
       "path": "scripts/e2e-activity-idle.mjs",
       "category": "mapped",
       "behaviors": ["desktop.activity-center.idle-personabot"],
-      "reason": "Own verify-app instance, public create/activity/attention CLI, accessible card actions, immutable attempt and visual receipt.",
+      "reason": "Own verify-app instance, public create/activity/attention CLI, accessible card actions, immutable attempt and visual receipt. L-4 makes direct-argv process options explicit.",
       "task": 1972,
-      "sha256": "24706d308ee4d019d81249368013b2367ae81248d10386a8449af9df449b4f5e"
+      "sha256": "e8e041b1249cf48034a093ec1004ffa21a5f1cceee2142be9ce65e28b07f18a7"
     },
     {
       "path": "scripts/e2e-activity-overview.mjs",
@@ -1431,9 +1431,9 @@
       "path": "scripts/e2e-browser-container.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.lifecycle"],
-      "reason": "Needs explicitly named task-owned container, fixture server and model; verifies query/open effects only at authorized phase. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Needs explicitly named task-owned container, fixture server and model; verifies query/open effects only at authorized phase. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. L-4 makes direct-argv process options explicit.",
       "task": 1976,
-      "sha256": "8496d954fe23e98c2e9cacaa83ec7b7366c37ad3f38803e53fef40f5fccd18ea"
+      "sha256": "3ba3e13db0f0ed953e356ea781b257c902d3c21871e958ab4e8a10269889f8f0"
     },
     {
       "path": "scripts/e2e-browser-editability.mjs",
@@ -1472,8 +1472,8 @@
       "category": "mapped",
       "behaviors": ["desktop.browser.open-observe-stop"],
       "task": 2012,
-      "reason": "One disposable Bot on an isolated Host; deterministic loopback fixture; real panel lifecycle and same-owner CLI/direct tools; cold start must pass without reconnect; no model.",
-      "sha256": "f2ecf326adba03de7c862189de7ac24e751b760319168de1ebb02fc6fa5b5e7c"
+      "reason": "One disposable Bot on an isolated Host; deterministic loopback fixture; real panel lifecycle and same-owner CLI/direct tools; cold start must pass without reconnect; no model. L-4 makes direct-argv process options explicit.",
+      "sha256": "b6ab6e083b18a944b8279a7578b79f3f0fc5a2cdb324133f49e290cb89fb6934"
     },
     {
       "path": "scripts/e2e-browser-multitab.mjs",
@@ -1519,9 +1519,9 @@
       "path": "scripts/e2e-browser-profiles.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.browser.lifecycle"],
-      "reason": "Shared/work account fixture, model and separate UI proof; verifies profile persistence and login isolation across idle/resume. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Shared/work account fixture, model and separate UI proof; verifies profile persistence and login isolation across idle/resume. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. L-4 makes direct-argv process options explicit.",
       "task": 1976,
-      "sha256": "f978f7d0e45d8828133d8ae81d1c769d7a44da9b225e5c0539ad65db4872e398"
+      "sha256": "84aabb72fbb9d0bc65b0b7a67300dace296295d1a5ab3107a1005de9916cb8ab"
     },
     {
       "path": "scripts/e2e-browser-refusal-audit.mjs",
@@ -1679,9 +1679,9 @@
       "path": "scripts/e2e-computer-settings.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.computer.lifecycle"],
-      "reason": "Task volume/archive and UI proof required; export/restore bytes and coded refusals; native system picker remains Human QA.",
+      "reason": "Task volume/archive and UI proof required; export/restore bytes and coded refusals; native system picker remains Human QA. L-4 makes direct-argv process options explicit.",
       "task": 1977,
-      "sha256": "6661bd465031f07117ca6bbbe40ac8d5c23efb142a6e8cc49d41572643b7068a"
+      "sha256": "ea9590d8f658ec189ead6297e256cce73b3027464b014a9b7a8a095c02f3ddaf"
     },
     {
       "path": "scripts/e2e-concurrent-activity.mjs",
@@ -1703,25 +1703,25 @@
       "path": "scripts/e2e-device-full-client.mjs",
       "category": "historical-regression",
       "behaviors": ["phone.full-client"],
-      "reason": "Task paired device and browser; DM full-client composer, revoked stream closure, device401 and unaffected operator200.",
+      "reason": "Task paired device and browser; DM full-client composer, revoked stream closure, device401 and unaffected operator200. L-4 makes direct-argv process options explicit.",
       "task": 1967,
-      "sha256": "8e175b1e54f68e283b315b373e143f8927fe0f1839f3f8f4583e90141c17842e"
+      "sha256": "80dfc91d8a506cce85056e4e56c3be4f418d384d50e377f598e03485c794e40b"
     },
     {
       "path": "scripts/e2e-device-pairing.mjs",
       "category": "mapped",
       "behaviors": ["phone.pairing"],
-      "reason": "Task home/port; pairing API one-use/revocation/stream proof and log-redaction checks; no native UI claim.",
+      "reason": "Task home/port; pairing API one-use/revocation/stream proof and log-redaction checks; no native UI claim. L-4 makes direct-argv process options explicit.",
       "task": 1967,
-      "sha256": "11b5335dd05a7817cc077a8eae19ab7fb1492172dad2d0be11df21209fe9c87b"
+      "sha256": "d7ca70113a52deba2c364a94c2f202b3d9a20444b9767505356b84961b3ff01b"
     },
     {
       "path": "scripts/e2e-device-viewers.mjs",
       "category": "historical-regression",
       "behaviors": ["phone.viewers"],
-      "reason": "Regular-user browser and task Browser/Computer; paired viewer filesystem isolation and revoke closes mux/frames.",
+      "reason": "Regular-user browser and task Browser/Computer; paired viewer filesystem isolation and revoke closes mux/frames. L-4 makes direct-argv process options explicit.",
       "task": 1977,
-      "sha256": "62153d852a44c8b6d7d2d95ddade3255928a60985f0fd2b909b17c560e773e21"
+      "sha256": "ef5d9ac80f96fa7b5f61b99b7898a986890df4967f64d94baa104cd92d830e19"
     },
     {
       "path": "scripts/e2e-dm-activity.mjs",
@@ -1751,9 +1751,9 @@
       "path": "scripts/e2e-fresh-profile-install.mjs",
       "category": "historical-regression",
       "behaviors": ["product.fresh-install"],
-      "reason": "Exact artifacts through both Bundles; configurable published upgrade (1.4.1 historical default; --upgrade-from for current published release), optional --dsh-version and --upgrade-only select explicitly scoped rows; upgrade and removal/replacement preserve Bot configuration, DM history and SOUL/MEMORY across restart; shared CLI writes/refusals; no Client check. Scoped Tobs package identity is @botharness/tobs; the executable stays tobs.",
+      "reason": "Exact artifacts through both Bundles; configurable published upgrade (1.4.1 historical default; --upgrade-from for current published release), optional --dsh-version and --upgrade-only select explicitly scoped rows; upgrade and removal/replacement preserve Bot configuration, DM history and SOUL/MEMORY across restart; shared CLI writes/refusals; no Client check. Scoped Tobs package identity is @botharness/tobs; the executable stays tobs. L-4 makes direct-argv process options explicit.",
       "task": 2744,
-      "sha256": "8db1eae639d0cd9e06de801ecbd1a4ce0b365f65796e80fff77e01abecb4db98"
+      "sha256": "a7a2e88ac2d42b80883747cebc2e689b1ee6b54d61008201e0eae51b3e587e44"
     },
     {
       "path": "scripts/e2e-grant-attention.mjs",
@@ -1871,9 +1871,9 @@
       "path": "scripts/e2e-harvest.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.group.attention"],
-      "reason": "Own isolated Host and real model; digest must emit exactly one reply. Prior model timeout is historical failure, not current pass or proven script defect.",
+      "reason": "Own isolated Host and real model; digest must emit exactly one reply. Prior model timeout is historical failure, not current pass or proven script defect. L-4 makes direct-argv process options explicit.",
       "task": 1967,
-      "sha256": "387a1d628654f74a922fe879e9cc20a98f3b71ea5fb35ae301a8c0d1339fb56e"
+      "sha256": "22172591638c18e5c7d0eeb7316f55285290b0da2febd4baecf21c846db06e26"
     },
     {
       "path": "scripts/e2e-hidden-channel-search.mjs",
@@ -2454,17 +2454,17 @@
       "path": "scripts/e2e-install-review.mjs",
       "category": "mapped",
       "behaviors": ["marketplace.install-review"],
-      "reason": "Real model: a local Marketplace serves a Bot with a planted exfiltration/injection comment and a clean Bot to an isolated Host; asserts the planted file is flagged, the clean Bot is not, a review creates no Bot and --review --confirm installs.",
+      "reason": "Real model: a local Marketplace serves a Bot with a planted exfiltration/injection comment and a clean Bot to an isolated Host; asserts the planted file is flagged, the clean Bot is not, a review creates no Bot and --review --confirm installs. L-4 makes direct-argv process options explicit.",
       "task": 3063,
-      "sha256": "b90f665d540d7cfb6a916a9e7022eee8697ffec79407d377ea0168e37f1dc3de"
+      "sha256": "1d2553eb616729ed5ff53669f2bb627c1acf2869a0b1bcc8aa550a97b6084099"
     },
     {
       "path": "scripts/e2e-llm-scenarios.mjs",
       "category": "mapped",
       "behaviors": ["desktop.dm.reply", "desktop.group.mention"],
-      "reason": "Real model DM/mention scenarios; exact committed DM oracle rejects failure cards; retain full histories and unknown usage for paired send-review evaluation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. #2872 re-audit: adds review-rounds (repeated Bot-to-Bot mention wakes) and long-task-reports (receipt, progress and result timing against Memory file writes around a one-minute step) and department-task (four Bots in an all-messages Group start, collaborate to a final plan and go quiet); classification unchanged. #3060 re-audit: adds tob-share-draft-secret (Tob reviews a Share Draft in its DM, asks about a planted key with ask_user_question, drops it on the answer, and the source Memory repository stays unchanged); tolerates messages without an author. #3296 re-audit: adds dm-reply-schema-filled (the model fills every optional bot_send_message field with an empty value; reads the Bot Session tool calls and requires the schema-filled call to commit a DM reply, not be refused); classification unchanged. #3377 re-audit: adds browser-youtube-search (Browser Access on, a DM asks the Bot to search YouTube; passes when its current Bot Browser tab is the youtube.com/results page for the query and it replied; keeps browser calls, final tabs and Host logs/diagnostics), marked external so it runs only when named and never in the default or changed-from selection; classification unchanged.",
+      "reason": "Real model DM/mention scenarios; exact committed DM oracle rejects failure cards; retain full histories and unknown usage for paired send-review evaluation. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. #2872 re-audit: adds review-rounds (repeated Bot-to-Bot mention wakes) and long-task-reports (receipt, progress and result timing against Memory file writes around a one-minute step) and department-task (four Bots in an all-messages Group start, collaborate to a final plan and go quiet); classification unchanged. #3060 re-audit: adds tob-share-draft-secret (Tob reviews a Share Draft in its DM, asks about a planted key with ask_user_question, drops it on the answer, and the source Memory repository stays unchanged); tolerates messages without an author. #3296 re-audit: adds dm-reply-schema-filled (the model fills every optional bot_send_message field with an empty value; reads the Bot Session tool calls and requires the schema-filled call to commit a DM reply, not be refused); classification unchanged. #3377 re-audit: adds browser-youtube-search (Browser Access on, a DM asks the Bot to search YouTube; passes when its current Bot Browser tab is the youtube.com/results page for the query and it replied; keeps browser calls, final tabs and Host logs/diagnostics), marked external so it runs only when named and never in the default or changed-from selection; classification unchanged. L-4 makes direct-argv process options explicit.",
       "task": 3377,
-      "sha256": "a5c5b73821d32c7b937001d7f1fd91ddf20d0b3ac671d399e9881a4b8463bebd"
+      "sha256": "a098c70fcfcd16f1ac060b4f596cb442d133875b8b66ab8821c69bb14aea5e37"
     },
     {
       "path": "scripts/e2e-tob-channel-management.mjs",
@@ -2486,17 +2486,17 @@
       "path": "scripts/e2e-group-send-review.mjs",
       "category": "mapped",
       "behaviors": ["desktop.group.send-review"],
-      "reason": "Task-owned isolated paired pilot with whole Group/DM history, silent cancellation, revoked-source continuation check, explicit Inbox completion, versioned multi-turn ingest supplement and complete usage; Human acceptance remains separate. Native export also includes inbox_snooze arguments/results for bounded review and deferred-resume assessment (#2055). #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Task-owned isolated paired pilot with whole Group/DM history, silent cancellation, revoked-source continuation check, explicit Inbox completion, versioned multi-turn ingest supplement and complete usage; Human acceptance remains separate. Native export also includes inbox_snooze arguments/results for bounded review and deferred-resume assessment (#2055). #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. L-4 makes direct-argv process options explicit.",
       "task": 2053,
-      "sha256": "795715f31d9989c039c68dfc22a72d2e614a6c5c8b13345c79bc0e55ee3d8cf6"
+      "sha256": "0b6c3ad758c52e52b9f13df4844867dbbbcd3feb6f71f554c1b8bd30c11df65d"
     },
     {
       "path": "scripts/e2e-group-peer-review.mjs",
       "category": "mapped",
       "behaviors": ["desktop.group.send-review"],
-      "reason": "Real two-Bot peer-answer triplets with accepted Bi and original B0, full histories and all-Bot usage; missed race windows and Human acceptance remain explicit.",
+      "reason": "Real two-Bot peer-answer triplets with accepted Bi and original B0, full histories and all-Bot usage; missed race windows and Human acceptance remain explicit. L-4 makes direct-argv process options explicit.",
       "task": 2054,
-      "sha256": "f39b2cdc6af7be38ee79867702c22a3947bb961a38346afdaf9ed3167f4719d7"
+      "sha256": "ad1347c81ff5fdb1b4fee20fa6233efe03b808f70a81596543ea5cd376082f02"
     },
     {
       "path": "scripts/e2e-tob-group-settings.mjs",
@@ -2518,9 +2518,9 @@
       "path": "scripts/e2e-group-busy-review.mjs",
       "category": "mapped",
       "behaviors": ["desktop.group.send-review"],
-      "reason": "Real DSH busy-Group triplets with full records and all-Bot costs. v3 bounds outcome time and waits for original, observed and snoozed canonical Inbox responsibility before early settlement; preserves frozen older cohorts, unknown future cost and separate semantic judgment. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Real DSH busy-Group triplets with full records and all-Bot costs. v3 bounds outcome time and waits for original, observed and snoozed canonical Inbox responsibility before early settlement; preserves frozen older cohorts, unknown future cost and separate semantic judgment. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. L-4 makes direct-argv process options explicit.",
       "task": 2055,
-      "sha256": "fc67fab47d8be6e580dd0346c3c738b96caab11b3927e2bd75c696c9d21ccc74"
+      "sha256": "67055fbaaba3015f0485b3c244bfeefebfc8b35df8065c61f815573b91b4ab44"
     },
     {
       "path": "scripts/e2e-group-responsibility.mjs",
@@ -2534,9 +2534,9 @@
       "path": "scripts/e2e-memory-diff-wrap.mjs",
       "category": "mapped",
       "behaviors": ["memory.diff-wrap"],
-      "reason": "Isolated synthetic Memory repository; real Client checks both diff entry points, wrap/scroll switching, five-digit gutters, narrow panes, light/dark themes and browser errors. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
+      "reason": "Isolated synthetic Memory repository; real Client checks both diff entry points, wrap/scroll switching, five-digit gutters, narrow panes, light/dark themes and browser errors. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged. L-4 makes direct-argv process options explicit.",
       "task": 3089,
-      "sha256": "51ff7e018f008ef2542336b59b0a4fa9638ab2abafd40c011b1368efb35db004"
+      "sha256": "9b3a863fb290670afe244609e296028c181651bd7ca83ad84d3e99bf365a1c1a"
     },
     {
       "path": "scripts/e2e-activity-approve-sync.mjs",
@@ -2550,9 +2550,9 @@
       "path": "scripts/e2e-activity-load.mjs",
       "category": "mapped",
       "behaviors": ["desktop.activity-center.inline-tool-approval"],
-      "reason": "Sequential main/candidate real Host load: 24 silent Groups, public direct channel_send, three 240-message rounds, query/coalescing/latency/long-task/heap and idle-recovery evidence. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Sequential main/candidate real Host load: 24 silent Groups, public direct channel_send, three 240-message rounds, query/coalescing/latency/long-task/heap and idle-recovery evidence. #2435 re-audit: obsolete sending names migrated to bot_send_message; explicit reaction/source targeting updated where used. Timeline slot re-audit: the latest-block selector follows the chunked slot markup. Journey classification unchanged; this hash is not runtime qualification. L-4 makes direct-argv process options explicit.",
       "task": 2230,
-      "sha256": "07a97a0743b998e206f73d5d9500fe872f1674917a7206a2db8ed8e0d5b50e7a"
+      "sha256": "932939ce9addbcfcaa7a94e50c7676eabd4fc8fe441e2ebc1069dfddfad7bd04"
     },
     {
       "path": "scripts/e2e-memory-images.mjs",
@@ -2574,9 +2574,9 @@
       "path": "scripts/e2e-memory-formats.mjs",
       "category": "mapped",
       "behaviors": ["desktop.memory.image-formats"],
-      "reason": "Matched main/candidate current/Markdown/working/history/narrow images, genuine pixels and animation advancement, version/MIME original-byte exports and rejected SVG external-resource loads. #3092 re-audit: Simple keeps Messages open without a Messages switch; the step clicks it only when present. Classification unchanged. #4288 follows the sidebar drawer at compact width and retains the legacy list entry for before captures.",
+      "reason": "Matched main/candidate current/Markdown/working/history/narrow images, genuine pixels and animation advancement, version/MIME original-byte exports and rejected SVG external-resource loads. #3092 re-audit: Simple keeps Messages open without a Messages switch; the step clicks it only when present. Classification unchanged. #4288 follows the sidebar drawer at compact width and retains the legacy list entry for before captures. L-4 makes direct-argv process options explicit.",
       "task": 3092,
-      "sha256": "bde3350d965c41608087e5b038db45941e66c65ea83c222eb0022bbeab20ae96"
+      "sha256": "f08336468c48d433b7f0949ff2d3972c3662af31517b317b5c3815148527b170"
     },
     {
       "path": "scripts/e2e-vrm-companion.mjs",
@@ -2588,9 +2588,9 @@
     },
     {
       "path": "scripts/e2e-desktop-zoom-launch.mjs",
-      "sha256": "01b194480a51560a5d896b47fdcdd805de9d9f6e9092eac4d1ab8600ee72ab33",
+      "sha256": "d01a3a501946663c91d6de81e86ed10d6dfad43d3e845d75b218857d44508c18",
       "category": "mapped",
-      "reason": "Release labels are recorded as evidence rather than launch/cleanup gates; platform, ownership and actual protocol checks remain. Audited isolated native launcher with explicit closed-Desktop package setup and a bounded wait for fresh process-bound CLI metadata; package install, readiness and native acceptance remain separate.",
+      "reason": "Release labels are recorded as evidence rather than launch/cleanup gates; platform, ownership and actual protocol checks remain. Audited isolated native launcher with explicit closed-Desktop package setup and a bounded wait for fresh process-bound CLI metadata; package install, readiness and native acceptance remain separate. L-4 makes direct-argv process options explicit.",
       "task": 2713,
       "behaviors": ["desktop.window-zoom"]
     },
@@ -2614,17 +2614,17 @@
       "path": "scripts/e2e-local-appearance.mjs",
       "category": "mapped",
       "behaviors": ["desktop.local-appearance"],
-      "reason": "Runs actual scoped theme controls, local persistence and explicit Client-targeted CLI against an isolated Host; no model call.",
+      "reason": "Runs actual scoped theme controls, local persistence and explicit Client-targeted CLI against an isolated Host; no model call. L-4 makes direct-argv process options explicit.",
       "task": 2258,
-      "sha256": "3c537cae092c4ffbfc2f4138e92a541ed9f6249ae0032abf55c45e6e27c33d39"
+      "sha256": "d7bc18a9c58f45295835dc9fdf9e49e978fbb23d5e3e7b8b0a9daea44bb908e0"
     },
     {
       "path": "scripts/e2e-global-materials.mjs",
       "category": "mapped",
       "behaviors": ["desktop.global-materials"],
-      "reason": "Real mode/material UI and CLI, reload, native isolation and controlled background pixel proof of blur. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged.",
+      "reason": "Real mode/material UI and CLI, reload, native isolation and controlled background pixel proof of blur. #3089 re-audit: Home removed; steps enter Tob Mode or open the target panel from the rail instead of Home. Classification unchanged. L-4 makes direct-argv process options explicit.",
       "task": 3089,
-      "sha256": "ecc2ec3fb6b8df39cc21cfdc996823f8b81cc99b046faa9d0a78d84b2f50692f"
+      "sha256": "58951a3420a354d168f980aaba014f65d6d241f27f03c1cc875a640bb7960ec9"
     },
     {
       "path": "scripts/e2e-panel-appearance.mjs",
@@ -2646,9 +2646,9 @@
       "path": "scripts/e2e-image-wallpaper.mjs",
       "category": "mapped",
       "behaviors": ["desktop.image-wallpaper"],
-      "reason": "Real upload/crop, original-byte persistence, resize, failure preservation, DSH isolation and directed CLI.",
+      "reason": "Real upload/crop, original-byte persistence, resize, failure preservation, DSH isolation and directed CLI. L-4 makes direct-argv process options explicit.",
       "task": 2262,
-      "sha256": "bcb665331b74fcd5b8a70401373f155039c76ae45cb56300eb98dad76b10fe45"
+      "sha256": "1b41a0081a2f6657730dcd6642690e9ae01a82a36eebfeef4b2bc95a407d7af2"
     },
     {
       "path": "scripts/e2e-video-wallpaper.mjs",
@@ -2662,9 +2662,9 @@
       "path": "scripts/e2e-appearance-recovery.mjs",
       "category": "mapped",
       "behaviors": ["desktop.appearance-recovery"],
-      "reason": "Real current-mode clear, confirmed image/video reset, failure preservation/partial retry, preview cleanup, CLI and independent Client isolation.",
+      "reason": "Real current-mode clear, confirmed image/video reset, failure preservation/partial retry, preview cleanup, CLI and independent Client isolation. L-4 makes direct-argv process options explicit.",
       "task": 2264,
-      "sha256": "64beca39aa30762dd1f18038d33504d2e302e7a74949131e0f84b1bbde598167"
+      "sha256": "4be6fb8b2bd782fff22355008a1bcd34c3883bb93bbe982f0b7d082417f072b7"
     },
     {
       "path": "scripts/e2e-message-history-mask.mjs",
@@ -2684,9 +2684,9 @@
     },
     {
       "path": "scripts/e2e-desktop-zoom-windows.mjs",
-      "sha256": "ce7697d6a8dc0a516c9a3f92144fa2164f789ba8e1263e545a558737e51d287b",
+      "sha256": "29019f44609fc637ef29fc5fc60a193a0f532bc32020e6dbc0bc928f94105e93",
       "category": "mapped",
-      "reason": "Release labels are recorded as evidence rather than launch/cleanup gates; platform, ownership and actual protocol checks remain. Audited explicit same-root Windows native lifecycle: exact executable/user-data/PID and loopback listener checks, immutable package checks, closed-app setup and fresh per-boot metadata. Readiness does not qualify keyboard, guests, DPI or Human QA.",
+      "reason": "Release labels are recorded as evidence rather than launch/cleanup gates; platform, ownership and actual protocol checks remain. Audited explicit same-root Windows native lifecycle: exact executable/user-data/PID and loopback listener checks, immutable package checks, closed-app setup and fresh per-boot metadata. Readiness does not qualify keyboard, guests, DPI or Human QA. L-4 makes direct-argv process options explicit.",
       "task": 2713,
       "behaviors": ["desktop.window-zoom"]
     },
