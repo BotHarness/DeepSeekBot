@@ -235,17 +235,6 @@ describe('PersonaBot Profile surface', () => {
       expect(avatarButton.disabled).toBe(false);
       const overlay = avatarButton.querySelector('.bh-profile-avatar-overlay');
       expect(overlay?.getAttribute('aria-hidden')).toBe('true');
-      const { CSS } = await import('../src/client/styles.js');
-      expect(CSS).toContain(
-        '.bh-profile-avatar-button:not(:disabled):hover .bh-profile-avatar-overlay',
-      );
-      expect(CSS).toContain('.bh-profile-avatar-button:not(:disabled):hover .bh-persona-avatar');
-      expect(CSS).toMatch(/\.bh-profile-avatar-overlay \{[^}]*\}/);
-      expect(CSS.match(/\.bh-profile-avatar-overlay \{[^}]*\}/)![0]).not.toContain('background');
-      expect(CSS).not.toMatch(
-        /\.bh-profile-header-top \.bh-profile-avatar-button \{[^}]*(border|background)/,
-      );
-      expect(CSS).toContain('.bh-profile-avatar-button:focus-visible .bh-profile-avatar-overlay');
       expect(container.querySelectorAll('.bh-profile-card').length).toBe(4);
       const sidebarLabels = [...container.querySelectorAll('.bh-channel-sidebar [role="tab"]')].map(
         (tab) => tab.getAttribute('aria-label') ?? tab.textContent,

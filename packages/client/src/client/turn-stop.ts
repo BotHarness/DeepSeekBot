@@ -6,6 +6,9 @@ export function turnStopText(
   stop: NonNullable<ChannelMessage['turnStop']>,
   t: BotHarnessTranslate,
 ): string {
+  const rest = stop.cause === 'quota' ? stop.rests?.[0] : undefined;
+  if (stop.routingGroup === true && rest !== undefined)
+    return t('turn.stoppedRoutingGroup', { name: stop.botName, until: shortTime(rest.until) });
   if (stop.cause === 'quota' && stop.engine !== undefined)
     return t('turn.stoppedEngineLimit', {
       name: stop.botName,
@@ -13,7 +16,6 @@ export function turnStopText(
       account: stop.engine.account,
       until: shortTime(stop.engine.until),
     });
-  const rest = stop.cause === 'quota' ? stop.rests?.[0] : undefined;
   if (rest !== undefined)
     return t('turn.stoppedQuota', {
       name: stop.botName,

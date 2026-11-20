@@ -1,4 +1,4 @@
-import { NavItem } from './ds/nav-item.js';
+import { NavGroupHeading, NavItem } from './ds/nav-item.js';
 import { Button } from './ds/button.js';
 import { remoteChannelRows } from './environment-channels.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
@@ -702,9 +702,7 @@ export function RemoteHostRows({
       <>
         {pins.size > 0 ? (
           <div className="bh-section">
-            <div className="bh-section-head">
-              <span className="bh-section-name">{t('pin.title')}</span>
-            </div>
+            <NavGroupHeading label={t('pin.title')} first />
             <RemoteHostRows
               remote={remote}
               query={query}
@@ -731,9 +729,7 @@ export function RemoteHostRows({
             key={section.id}
             data-environment-section={JSON.stringify([remote.host.hostId, section.id])}
           >
-            <div className="bh-section-head">
-              <span className="bh-section-name">{section.name}</span>
-            </div>
+            <NavGroupHeading label={section.name} first />
             <RemoteHostRows
               remote={remote}
               query={query}
@@ -751,10 +747,7 @@ export function RemoteHostRows({
   }
   return (
     <div className="bh-section" data-remote-section={remote.host.hostId}>
-      <div className="bh-section-head">
-        <span className="bh-section-name">{name}</span>
-        <span className="bh-section-count">{visible.length}</span>
-      </div>
+      <NavGroupHeading label={name} trailing={visible.length} first />
       {list}
     </div>
   );

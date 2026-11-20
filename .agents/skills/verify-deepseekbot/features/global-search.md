@@ -34,6 +34,8 @@ node scripts/verify-app.mjs shot search-open-setting --name <n> --bot-mode --loc
 
 The first shows the 外观讨论 conversation and the 界面设置 section under 设置; the second shows Bot settings open on 界面设置 with the 主题 row highlighted.
 
+Open with Alt+K and verify the dialog and scrim appear immediately. Press Escape, then click the search button in the Workspace Control Rail and verify that both fade in. Focus that same button and press Enter to verify that keyboard activation also skips the fade. Compare `animationName` on the popup and scrim while each dialog is open.
+
 ## Gotchas
 
 - Headless capture cannot prove the Electron key path. On a real Desktop, check that Option/Alt+K opens the search while Command/Ctrl+K opens DSH's own session search.

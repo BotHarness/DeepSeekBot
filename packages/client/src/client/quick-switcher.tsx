@@ -10,14 +10,15 @@ import {
   type ReactElement,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { ShortcutKeys } from '@deepseek-ai/dsh-client-ui-primitives';
+import { KeyCombo } from './ds/kbd.js';
 
 import { PersonaBotAvatar, type PersonaBotActivityState } from './avatar.js';
 import type { MessageSearchHit, MessageSearchPage } from './bridge.js';
 import { isBotDmChannel } from './channel-kind.js';
 import { searchSnippet } from './conversation-search.js';
 import { GroupChannelIcon } from './group-avatar-stack.js';
-import { border, color, dialog, radius, size, space, text } from './ds/tokens.stylex.js';
+import { color, dialog, radius, size, space, text } from './ds/tokens.stylex.js';
+import { layer } from './ds/tobs.stylex.js';
 import { formatRelativeTime } from './labels.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -26,7 +27,7 @@ import type { ShortcutBindings } from './shortcut-bindings.js';
 import { useMountedResource } from './mounted-resource.js';
 import { rankQuickSwitcher, type QuickSwitcherEntry } from './quick-switcher-rank.js';
 import type { SettingsSearchResult } from './settings-search.js';
-import type { QuickSwitcherLauncher } from './quick-switcher-launcher.js';
+import type { QuickSwitcherLauncher, QuickSwitcherSource } from './quick-switcher-launcher.js';
 import type { BotSummary, ChannelMessage } from './store.js';
 
 const styles = stylex.create({
@@ -123,9 +124,6 @@ const styles = stylex.create({
     marginTop: space.x3,
     paddingTop: space.x3,
     paddingInline: space.x4,
-    borderTopWidth: border.hairline,
-    borderTopStyle: 'solid',
-    borderTopColor: color.divider,
     color: color.subtle,
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
@@ -136,9 +134,7 @@ const styles = stylex.create({
   },
   settingIcon: {
     boxSizing: 'border-box',
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.divider,
+    backgroundColor: layer.well,
   },
   hint: {
     display: 'inline-flex',
@@ -199,6 +195,7 @@ interface MessageResults {
 const NO_MESSAGES: MessageResults = { query: '', hits: [], loading: false };
 
 export interface QuickSwitcherProps {
+  source?: QuickSwitcherSource;
   entries: readonly QuickSwitcherEntry[];
   settings?: QuickSwitcherSettings | undefined;
   messages?: QuickSwitcherMessages | undefined;
@@ -211,6 +208,7 @@ export interface QuickSwitcherProps {
 }
 
 export function QuickSwitcher({
+  source,
   entries,
   settings,
   messages,
@@ -406,6 +404,7 @@ export function QuickSwitcher({
   return (
     <Modal
       open
+      animate={source === 'shortcut' ? false : undefined}
       headless
       title={t('quickSwitcher.title')}
       onClose={onClose}
@@ -540,19 +539,19 @@ export function QuickSwitcher({
       ) : null}
       <div {...stylex.props(styles.footer)} aria-hidden="true">
         <span {...stylex.props(styles.hint)}>
-          <ShortcutKeys keys={['↑', '↓']} />
+          <KeyCombo keys={['↑', '↓']} />
           {t('quickSwitcher.hint.move')}
         </span>
         <span {...stylex.props(styles.hint)}>
-          <ShortcutKeys keys={['Enter']} />
+          <KeyCombo keys={['Enter']} />
           {t('quickSwitcher.hint.open')}
         </span>
         <span {...stylex.props(styles.hint)}>
-          <ShortcutKeys keys={['Esc']} />
+          <KeyCombo keys={['Esc']} />
           {t('quickSwitcher.hint.close')}
         </span>
         <span {...stylex.props(styles.hint)}>
-          <ShortcutKeys keys={[shortcutBindings.text('quick-switcher')]} />
+          <KeyCombo keys={[shortcutBindings.text('quick-switcher')]} />
           {t('quickSwitcher.hint.toggle')}
         </span>
       </div>

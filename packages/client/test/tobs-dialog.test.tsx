@@ -14,6 +14,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
 }));
 
 import { Dialog } from '../src/client/ds/dialog.js';
+import { trackDialogInput } from '../src/client/ds/dialog-input.js';
+import { PanelDialog } from '../src/client/ds/panel-dialog.js';
 
 let host: HTMLDivElement;
 let root: Root;
@@ -77,4 +79,30 @@ it('renders nothing while closed', () => {
   render(false);
   expect(document.querySelector('[role="dialog"]')).toBeNull();
   expect(layer.calls.every((call) => !call.open)).toBe(true);
+});
+
+it('opens the PanelDialog without the pointer fade after keyboard input', () => {
+  const untrack = trackDialogInput(document);
+  const renderPanel = () => {
+    act(() =>
+      root.render(<PanelDialog title="Channel details" closeLabel="Close" onClose={vi.fn()} />),
+    );
+    return ['[role="dialog"]', '[data-tobs-dialog-scrim]'].map(
+      (selector) => document.querySelector(selector)?.className,
+    );
+  };
+  try {
+    document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    const pointer = renderPanel();
+    act(() => root.render(null));
+
+    document.body.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+    const keyboard = renderPanel();
+
+    expect(keyboard.every((classes, index) => classes !== pointer[index])).toBe(true);
+    document.body.dispatchEvent(new MouseEvent('pointerdown', { bubbles: true }));
+    expect(renderPanel()).toEqual(keyboard);
+  } finally {
+    untrack();
+  }
 });
