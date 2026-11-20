@@ -10,7 +10,7 @@ import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '..
 import type { BotSourcePolicyStore } from '../runtime/source-policy.js';
 import type { MessagingGrant } from './outbound.js';
 import { MessagingError, type MessagingInboundEvent, type MessagingProvider } from './provider.js';
-import type { InboundMessaging } from './inbound-contract.js';
+import type { InboundMessaging } from './inbound-types.js';
 import { createInboundSources } from './inbound-sources.js';
 import { createInboundContext } from './inbound-context.js';
 import { createInboundGrantReceiver } from './inbound-grant-receiver.js';
@@ -26,7 +26,7 @@ export type {
   ExternalSource,
   InboxSourceShare,
   InboundMessaging,
-} from './inbound-contract.js';
+} from './inbound-types.js';
 export type InboundMessagingOptions = {
   onQuestionAction?(
     providerId: string,

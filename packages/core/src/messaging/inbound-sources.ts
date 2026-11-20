@@ -22,7 +22,7 @@ import type {
   ExternalSource,
   ExternalContextResult,
   InboundMessaging,
-} from './inbound-contract.js';
+} from './inbound-types.js';
 import type { StatementSync } from 'node:sqlite';
 import type { InboundMessagingOptions } from './inbound.js';
 

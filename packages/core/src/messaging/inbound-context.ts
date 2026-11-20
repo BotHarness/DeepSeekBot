@@ -15,7 +15,7 @@ import type {
   ExternalContextRead,
   ExternalContextResult,
   InboundMessaging,
-} from './inbound-contract.js';
+} from './inbound-types.js';
 import type { StatementSync } from 'node:sqlite';
 
 export function createInboundContext(wiring: {

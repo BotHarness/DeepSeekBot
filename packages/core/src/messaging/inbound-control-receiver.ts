@@ -14,7 +14,7 @@ import {
   type MessagingProvider,
   type MessagingReplyRoute,
 } from './provider.js';
-import type { InboundMessaging } from './inbound-contract.js';
+import type { InboundMessaging } from './inbound-types.js';
 import type { InboundMessagingOptions } from './inbound.js';
 
 export function createInboundControlReceiver(wiring: {
