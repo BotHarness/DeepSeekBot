@@ -51,6 +51,8 @@ async function startWith(f: ReturnType<typeof fixture>, kind: 'volume' | 'bind')
             'chown() { if [ "$1" = "-R" ]; then shift; shift; command chown -R "$(id -u):$(id -g)" "$@"; else shift; command chown "$(id -u):$(id -g)" "$@"; fi; }; ';
           const result = spawnSync('sh', ['-c', userCompatibility + sedCompatibility + script], {
             encoding: 'utf8',
+            shell: false,
+            windowsHide: true,
           });
           return { code: result.status ?? 1, stdout: result.stdout, stderr: result.stderr };
         }

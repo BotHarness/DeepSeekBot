@@ -124,6 +124,7 @@ function gitClone(url: string, destination: string, timeoutMs: number) {
       GCM_INTERACTIVE: 'Never',
       GIT_SSH_COMMAND: process.env['GIT_SSH_COMMAND'] ?? 'ssh -oBatchMode=yes',
     },
+    shell: false,
   });
 }
 
@@ -201,6 +202,7 @@ export async function previewMemoryRepository(input: {
           GCM_INTERACTIVE: 'Never',
           GIT_SSH_COMMAND: process.env['GIT_SSH_COMMAND'] ?? 'ssh -oBatchMode=yes',
         },
+        shell: false,
       },
     );
     const commit = /^((?:[a-f0-9]{40}|[a-f0-9]{64}))\s+HEAD(?:\r?\n|$)/u.exec(stdout)?.[1];
@@ -241,6 +243,7 @@ export async function memoryRepositoryMatchesCommit(
       timeout: 10000,
       maxBuffer: 4096,
       windowsHide: true,
+      shell: false,
     });
     return stdout.trim() === commit;
   } catch {

@@ -237,6 +237,7 @@ function defaultRun(command: string, args: readonly string[]): string {
     windowsHide: true,
     encoding: 'utf8',
     timeout: 10_000,
+    shell: false,
   }) as string;
 }
 

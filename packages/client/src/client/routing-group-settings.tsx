@@ -370,9 +370,11 @@ function MemberEditor({
 
 export function RoutingGroupSettings({
   actions,
+  canConfigure,
   t,
 }: {
   actions: GroupActions;
+  canConfigure: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [library, setLibrary] = useState<Library>();
@@ -414,7 +416,7 @@ export function RoutingGroupSettings({
   };
 
   const dialog = (() => {
-    if (library === undefined) return null;
+    if (!canConfigure || library === undefined) return null;
     if (deleting !== undefined)
       return (
         <ConfirmDialog
@@ -518,23 +520,27 @@ export function RoutingGroupSettings({
           <Note>{t('modelPreset.loading')}</Note>
         ) : (
           <>
-            <SettingsRow
-              title={t('routingGroups.new')}
-              description={library.groups.length === 0 ? t('routingGroups.empty') : undefined}
-              data={{ 'data-routing-group-new': '' }}
-              control={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setError(undefined);
-                    setEditor({ mode: 'create', name: '', members: [] });
-                  }}
-                >
-                  {t('routingGroups.create')}
-                </Button>
-              }
-            />
+            {canConfigure ? (
+              <SettingsRow
+                title={t('routingGroups.new')}
+                description={library.groups.length === 0 ? t('routingGroups.empty') : undefined}
+                data={{ 'data-routing-group-new': '' }}
+                control={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setError(undefined);
+                      setEditor({ mode: 'create', name: '', members: [] });
+                    }}
+                  >
+                    {t('routingGroups.create')}
+                  </Button>
+                }
+              />
+            ) : library.groups.length === 0 ? (
+              <Note>{t('routingGroups.empty')}</Note>
+            ) : null}
             {library.groups.map((group) => (
               <SettingsRow
                 key={group.id}
@@ -542,22 +548,24 @@ export function RoutingGroupSettings({
                 data={{ 'data-routing-group': group.id }}
                 description={<MemberChain group={group} library={library} t={t} />}
                 control={
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    aria-label={t('routingGroups.editTitle', { name: group.name })}
-                    onClick={() => {
-                      setError(undefined);
-                      setEditor({
-                        mode: 'edit',
-                        group,
-                        name: group.name,
-                        members: group.members,
-                      });
-                    }}
-                  >
-                    {t('routingGroups.edit')}
-                  </Button>
+                  canConfigure ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      aria-label={t('routingGroups.editTitle', { name: group.name })}
+                      onClick={() => {
+                        setError(undefined);
+                        setEditor({
+                          mode: 'edit',
+                          group,
+                          name: group.name,
+                          members: group.members,
+                        });
+                      }}
+                    >
+                      {t('routingGroups.edit')}
+                    </Button>
+                  ) : undefined
                 }
               />
             ))}

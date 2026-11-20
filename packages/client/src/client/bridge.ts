@@ -1,4 +1,3 @@
-import type { ModelPresetEngines } from '@botharness/host-client/model-plans';
 import { parseToolEffects } from '../../../core/src/workspaces/tool-effects-contract.js';
 import {
   approvalTemplateDeletionPreviewSchema,
@@ -73,13 +72,11 @@ export type {
 } from '@botharness/host-client/memory';
 import {
   applyModelPreset as applyHostModelPreset,
-  createModelPreset as createHostModelPreset,
   customizeModelPlan as customizeHostModelPlan,
   loadModelCatalog as loadHostModelCatalog,
   loadModelPlanState as loadHostModelPlanState,
   loadModelPresets as loadHostModelPresets,
   setModelPlan as setHostModelPlan,
-  updateModelPreset as updateHostModelPreset,
   type AssignmentGroupOption,
   type AssignmentModelOption,
   type ModelPlan,
@@ -466,41 +463,6 @@ export async function deleteRoutingGroup(
   expectedRevision: number,
 ): Promise<RoutingGroupView> {
   return routingGroupOf(await unwrap(call, 'modelGroupDelete', { id, expectedRevision }));
-}
-
-export async function createModelPreset(
-  call: BridgeCall,
-  name: string,
-  orchestrator: ModelRouteView,
-  assignmentDefault: ModelRouteView,
-  assignmentModels?: AssignmentModelOptionView[],
-  openAssignmentModels?: boolean,
-  groups?: ModelPlanGroupsView,
-  engines?: ModelPresetEngines,
-): Promise<ModelPresetView> {
-  return createHostModelPreset(bridgeHost(call), {
-    name,
-    ...engines,
-    ...groupPayload(orchestrator, groups),
-    assignmentDefault,
-    ...(assignmentModels === undefined ? {} : { assignmentModels }),
-    ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-  });
-}
-
-export async function updateModelPreset(
-  call: BridgeCall,
-  id: string,
-  expectedRevision: number,
-  name: string,
-  orchestrator: ModelRouteView,
-  assignmentDefault: ModelRouteView,
-): Promise<ModelPresetView> {
-  return updateHostModelPreset(bridgeHost(call), id, expectedRevision, {
-    name,
-    orchestrator,
-    assignmentDefault,
-  });
 }
 
 export async function applyModelPreset(

@@ -90,7 +90,7 @@ function unpackWithTar(platform: NodeJS.Platform, env: NodeJS.ProcessEnv) {
       execFile(
         systemTar(platform, env),
         ['-xzf', archive, '-C', destination],
-        { windowsHide: true, maxBuffer: 1024 * 1024 },
+        { windowsHide: true, maxBuffer: 1024 * 1024, shell: false },
         (error, _stdout, stderr) =>
           error === null ? resolve() : reject(new Error(String(stderr).trim() || error.message)),
       );

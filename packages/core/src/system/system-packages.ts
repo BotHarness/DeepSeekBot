@@ -23,6 +23,7 @@ export function createSpawnRunner(): SystemCommandRunner {
       const child = spawn(argv[0] ?? '', argv.slice(1), {
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
       });
       let stdout = '';
       let stderr = '';

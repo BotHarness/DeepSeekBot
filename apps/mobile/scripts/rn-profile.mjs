@@ -215,7 +215,8 @@ try {
     throw error;
   }
   t0 = Date.now();
-  if (typeof args.run === 'string') child = spawn('sh', ['-c', args.run], { stdio: 'inherit' });
+  if (typeof args.run === 'string')
+    child = spawn('sh', ['-c', args.run], { stdio: 'inherit', shell: false, windowsHide: true });
 
   let lastCount = 0;
   let lastChange = Date.now();

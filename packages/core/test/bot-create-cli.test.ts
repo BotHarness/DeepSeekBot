@@ -58,6 +58,7 @@ function git(args: string[], cwd: string, env: Record<string, string> = {}): voi
     env: { ...process.env, ...env },
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    shell: false,
   });
 }
 

@@ -7,6 +7,8 @@ const hasXvfb = (() => {
   try {
     execFileSync('sh', ['-c', 'command -v Xvfb && command -v openbox && command -v dbus-daemon'], {
       stdio: 'ignore',
+      shell: false,
+      windowsHide: true,
     });
     return true;
   } catch {
@@ -71,7 +73,7 @@ describe('Linux Local Computer display', () => {
       const server = spawn(
         'Xvfb',
         ['-displayfd', '3', '-screen', '0', '800x600x24', '-nolisten', 'tcp'],
-        { stdio: ['ignore', 'ignore', 'ignore', 'pipe'] },
+        { stdio: ['ignore', 'ignore', 'ignore', 'pipe'], shell: false, windowsHide: true },
       );
       const number = await new Promise<string>((resolve) =>
         server.stdio[3]?.once('data', (chunk: Buffer) => resolve(chunk.toString().trim())),

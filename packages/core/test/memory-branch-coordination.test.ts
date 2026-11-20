@@ -22,7 +22,12 @@ import { createTempRoot, FIXED_NOW } from './helpers.js';
 import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
 
 function git(root: string, ...args: string[]): string {
-  return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  return execFileSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  }).trim();
 }
 
 async function admit(runtime: BotRuntime, channelId: string, messageId: string, body: string) {

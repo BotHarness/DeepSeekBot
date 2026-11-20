@@ -13,6 +13,7 @@ import {
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { engineWorkspaceScenario } from './e2e-team-security-engines.mjs';
+import { runModelConfigurationGate } from './team-security-model-configuration-gate.mjs';
 import { runModelProviderGate } from './team-security-model-provider-gate.mjs';
 import {
   buildShellIsolationProbe,
@@ -942,6 +943,9 @@ export async function main(argv = process.argv.slice(2)) {
         await runModelProviderGate(s, { as, password: fx.webCredentials.get(as) }, check);
       },
     );
+    await define('C4', 'Shared model settings require models.configure', async (check) => {
+      runModelConfigurationGate(s, { member: fx.users.bob, tag }, check);
+    });
   } catch (error) {
     process.stdout.write(`setup failed: ${error?.message ?? error}\n`);
     exit = 1;

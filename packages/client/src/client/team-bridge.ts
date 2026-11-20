@@ -27,6 +27,10 @@ export function canManageModelProviders(viewer: TeamViewer | undefined): boolean
   );
 }
 
+export function canConfigureModels(viewer: TeamViewer | undefined): boolean {
+  return viewer?.owner === true || viewer?.permissions.includes('models.configure') === true;
+}
+
 export type TeamMemberStatus = 'active' | 'suspended' | 'deactivated';
 
 export interface TeamMember {

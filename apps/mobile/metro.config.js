@@ -7,6 +7,8 @@ function git(...args) {
     return execFileSync('git', args, {
       cwd: __dirname,
       stdio: ['ignore', 'pipe', 'ignore'],
+      shell: false,
+      windowsHide: true,
     })
       .toString()
       .trim();

@@ -1003,7 +1003,12 @@ describe('mobile creation recovery through device admission', () => {
       if (kind === 'git') {
         const directory = createTempRoot('gateway-git-source-');
         const git = (...args: string[]) =>
-          execFileSync('git', args, { cwd: directory, encoding: 'utf8', windowsHide: true }).trim();
+          execFileSync('git', args, {
+            cwd: directory,
+            encoding: 'utf8',
+            windowsHide: true,
+            shell: false,
+          }).trim();
         git('init', '--quiet');
         git('config', 'user.name', 'Fixture');
         git('config', 'user.email', 'fixture@example.test');

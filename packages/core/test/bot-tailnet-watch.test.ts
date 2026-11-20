@@ -18,6 +18,8 @@ function alive(pid: number): boolean {
   try {
     const state = execFileSync('ps', ['-o', 'stat=', '-p', String(pid)], {
       encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
     }).trim();
     return state !== '' && !state.startsWith('Z');
   } catch {
@@ -31,6 +33,7 @@ it.each(['immediate', 'after-error'] as const)(
     const child = spawn(`${process.execPath}.botharness-missing`, [], {
       stdio: ['ignore', 'pipe', 'ignore'],
       windowsHide: true,
+      shell: false,
     });
     const kill = vi.spyOn(child, 'kill').mockReturnValue(false);
     const closed = new Promise<void>((resolve) => child.once('close', () => resolve()));
@@ -58,6 +61,7 @@ it('does not finish disposal until its owned subprocess has exited', async () =>
   const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
     stdio: ['ignore', 'pipe', 'ignore'],
     windowsHide: true,
+    shell: false,
   });
   let exited = false;
   child.once('close', () => {

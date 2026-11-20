@@ -263,6 +263,12 @@ function isAssignmentGroups(groups: unknown, defaultId: unknown): boolean {
   );
 }
 
+export interface ModelPresetUsage {
+  presetId: string;
+  count: number;
+  botNames: string[];
+}
+
 export interface ModelPresetStore {
   list(): ModelPreset[];
   get(id: string): ModelPreset | undefined;
@@ -288,6 +294,7 @@ export interface ModelPresetStore {
       engines?: ModelPresetEngineInput;
     },
   ): ModelPreset | undefined;
+  delete(id: string, expectedRevision: number): boolean;
 }
 
 export function isModelRoute(value: unknown): value is ModelRoute {
@@ -700,6 +707,17 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
       };
       write(updated);
       return updated;
+    },
+    delete(id, expectedRevision) {
+      return port.transaction(
+        (database) =>
+          database
+            .prepare(
+              "DELETE FROM model_presets WHERE id = ? AND json_extract(body, '$.revision') = ?",
+            )
+            .run(id, expectedRevision).changes !== 0,
+        ['model-presets'],
+      );
     },
   };
 }

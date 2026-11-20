@@ -185,6 +185,7 @@ async function attachToDisplay(options: {
           windowsHide: true,
           stdio: ['ignore', 'pipe', 'pipe'],
           env: { PATH: source['PATH'] ?? '', HOME: source['HOME'] ?? '', DISPLAY: display },
+          shell: false,
         }),
       );
       children.push(bus);
@@ -198,6 +199,7 @@ async function attachToDisplay(options: {
         windowsHide: true,
         stdio: 'ignore',
         env: { ...source, DISPLAY: display, ...env },
+        shell: false,
       }),
     );
     const running = !(await exitsWithin(manager, LOCAL_WINDOW_MANAGER_SETTLE_MS));
@@ -272,6 +274,7 @@ export async function ensureLocalDisplay(options: {
       spawn(xvfb, ['-displayfd', '3', '-screen', '0', LOCAL_DISPLAY_SCREEN, '-nolisten', 'tcp'], {
         windowsHide: true,
         stdio: ['ignore', 'ignore', 'pipe', 'pipe'],
+        shell: false,
       }),
     );
     children.push(server);
@@ -283,6 +286,7 @@ export async function ensureLocalDisplay(options: {
           windowsHide: true,
           stdio: ['ignore', 'pipe', 'pipe'],
           env: { PATH: path ?? '', HOME: source['HOME'] ?? '', DISPLAY: display },
+          shell: false,
         }),
       );
       children.push(bus);
@@ -296,6 +300,7 @@ export async function ensureLocalDisplay(options: {
         windowsHide: true,
         stdio: 'ignore',
         env: { ...source, DISPLAY: display, ...env },
+        shell: false,
       }),
     );
     children.push(manager);

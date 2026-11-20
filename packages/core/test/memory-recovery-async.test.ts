@@ -32,7 +32,12 @@ it(
   async () => {
     const { root, database, memory, context } = fixture();
     const git = (...args: string[]) =>
-      execFileSync('git', args, { cwd: root, windowsHide: true, encoding: 'utf8' }).trim();
+      execFileSync('git', args, {
+        cwd: root,
+        windowsHide: true,
+        encoding: 'utf8',
+        shell: false,
+      }).trim();
     try {
       writeFileSync(join(root, 'note.md'), 'staged\n');
       git('add', 'note.md');
@@ -80,7 +85,13 @@ it('unwinds temporary index and leaves no checkpoint when a yielded Git step fai
         expect(memory.history('atlas')).toEqual([]);
         return;
       }
-      step = steps.next(execFileSync('git', step.value.args, step.value.options));
+      step = steps.next(
+        execFileSync('git', step.value.args, {
+          ...step.value.options,
+          shell: false,
+          windowsHide: true,
+        }),
+      );
     }
     throw new Error('Expected a temporary-index Git step');
   } finally {

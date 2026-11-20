@@ -115,8 +115,9 @@ export function spawnClaudeProcess(
     env,
     signal: options.signal,
     stdio: ['pipe', 'pipe', 'pipe'],
-    windowsHide: true,
     ...(target.windowsVerbatimArguments === true ? { windowsVerbatimArguments: true } : {}),
+    shell: false,
+    windowsHide: true,
   });
   child.stderr.on('data', (chunk: Buffer) => onStderr(chunk.toString('utf8')));
   child.on('error', () => undefined);

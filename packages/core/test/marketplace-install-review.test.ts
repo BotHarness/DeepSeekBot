@@ -166,7 +166,9 @@ it('keeps a staged clone when Windows will not delete its temp folder (#3294)', 
   const source = mkdtempSync(join(tmpdir(), 'install-review-source-'));
   try {
     const git = (...args: string[]) =>
-      execFileSync('git', args, { cwd: source, stdio: 'pipe' }).toString().trim();
+      execFileSync('git', args, { cwd: source, stdio: 'pipe', shell: false, windowsHide: true })
+        .toString()
+        .trim();
     git('init', '--quiet');
     writeFileSync(join(source, 'persona.md'), 'I write things down.');
     git('add', '.');
@@ -177,7 +179,11 @@ it('keeps a staged clone when Windows will not delete its temp folder (#3294)', 
       gitUrl: 'https://github.com/owner/helper.git',
       commit: head,
       clone: async ({ destination }) => {
-        execFileSync('git', ['clone', '--quiet', source, destination], { stdio: 'pipe' });
+        execFileSync('git', ['clone', '--quiet', source, destination], {
+          stdio: 'pipe',
+          shell: false,
+          windowsHide: true,
+        });
         return { ok: true };
       },
       remove: (path) => {
