@@ -299,19 +299,15 @@ export async function createRosterSection(host: HostCall, name: string): Promise
   if (typeof id !== 'string' || id.length === 0 || typeof label !== 'string')
     throw new HostAnswerInvalid('sectionCreate returned an invalid Section.');
   const channelIds = section?.['channelIds'];
-  return {
-    id,
-    name: label,
-    channelIds: Array.isArray(channelIds)
-      ? [
-          ...new Set(
-            channelIds.filter(
-              (value): value is string => typeof value === 'string' && value.length > 0,
-            ),
-          ),
-        ]
-      : [],
-  };
+  if (
+    channelIds !== undefined &&
+    !(
+      Array.isArray(channelIds) &&
+      channelIds.every((value) => typeof value === 'string' && value.length > 0)
+    )
+  )
+    throw new HostAnswerInvalid('sectionCreate returned invalid Section membership.');
+  return { id, name: label, channelIds: channelIds === undefined ? [] : [...new Set(channelIds)] };
 }
 
 export async function assignRosterChannel(

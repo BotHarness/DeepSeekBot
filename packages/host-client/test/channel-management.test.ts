@@ -1,7 +1,11 @@
 import type { ChannelAssignmentSummary, ChannelListItem } from '@botharness/host-protocol/wire';
 import { expect, it } from 'vitest';
 
-import { readChannelAssignments, readChannels } from '../src/channel-management';
+import {
+  createRosterSection,
+  readChannelAssignments,
+  readChannels,
+} from '../src/channel-management';
 import { HostAnswerInvalid } from '../src/host-answer';
 
 const at = '2026-11-20T00:00:00Z';
@@ -96,4 +100,24 @@ it.each<[string, unknown]>([
   await expect(
     readChannelAssignments({ call: async () => ({ assignments }) }, channel.id),
   ).rejects.toBeInstanceOf(HostAnswerInvalid);
+});
+
+it('rejects malformed Section membership instead of replacing it', async () => {
+  const answer = (channelIds: unknown) => ({
+    call: async () => ({ section: { id: 'section-1', name: 'Work', channelIds } }),
+  });
+  await expect(createRosterSection(answer(['group-team']) as never, 'Work')).resolves.toEqual({
+    id: 'section-1',
+    name: 'Work',
+    channelIds: ['group-team'],
+  });
+  await expect(createRosterSection(answer(undefined) as never, 'Work')).resolves.toEqual({
+    id: 'section-1',
+    name: 'Work',
+    channelIds: [],
+  });
+  for (const invalid of [[42], ['group-team', ''], 'group-team', null])
+    await expect(createRosterSection(answer(invalid) as never, 'Work')).rejects.toBeInstanceOf(
+      HostAnswerInvalid,
+    );
 });
