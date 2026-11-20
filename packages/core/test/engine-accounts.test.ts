@@ -55,7 +55,7 @@ describe('named Codex subscription accounts', () => {
       { botSlug: 'ada', engine: 'codex', role: 'orchestrator', model: 'gpt' },
       { botSlug: 'ada', engine: 'codex', role: 'assignment' },
     ]);
-    const account = host.addAccount('Work', 0);
+    const account = host.addAccount('codex', 'Work', 0);
     expect(host.quota('codex')).toMatchObject({ usedPercent: 15 });
     expect(host.quota('codex', account.id)).toBeUndefined();
     expect(createEngineStore(path).accounts()).toMatchObject({
@@ -69,7 +69,7 @@ describe('named Codex subscription accounts', () => {
   it('fences changes and deletes the selected home only after a committed removal', () => {
     const accountUses = vi.fn((): string[] => ['Model Preset Daily', 'Routing Group Primary']);
     const { root, host } = setup({ accountUses });
-    const account = host.addAccount('Work', 0);
+    const account = host.addAccount('codex', 'Work', 0);
     const home = join(root, 'codex', 'accounts', account.id);
     mkdirSync(home, { recursive: true });
     expect(() => host.renameAccount(account.id, 'Other', 0)).toThrow('changed');
@@ -90,7 +90,7 @@ describe('named Codex subscription accounts', () => {
 
   it('keeps the home and revision if the file commit fails', () => {
     const { root, host } = setup();
-    const account = host.addAccount('Work', 0);
+    const account = host.addAccount('codex', 'Work', 0);
     const home = join(root, 'codex', 'accounts', account.id);
     mkdirSync(home, { recursive: true });
     const path = engineStorePath(root);
@@ -105,7 +105,7 @@ describe('named Codex subscription accounts', () => {
     const detectCodex = vi.fn(async () => ({ installed: true, login: 'signed-out' as const }));
     const startCodexLogin = vi.fn(async () => ({ url: 'https://auth.openai.com/example' }));
     const { root, host } = setup({ detectCodex, startCodexLogin });
-    const account = host.addAccount('Work', 0);
+    const account = host.addAccount('codex', 'Work', 0);
     const result = await Promise.all([host.status(), host.status(account.id)]);
     expect(result[1]).toMatchObject([{ accountId: account.id, accountName: 'Work' }]);
     expect(detectCodex).toHaveBeenCalledTimes(2);
@@ -122,7 +122,7 @@ describe('named Codex subscription accounts', () => {
 
   it('refuses a missing Assignment account before admission even when another account exists', () => {
     const { host } = setup();
-    const other = host.addAccount('Work', 0);
+    const other = host.addAccount('codex', 'Work', 0);
     host.removeAccount(other.id, 1);
     host.store.select('ada', 'assignment', 'codex', { accountId: other.id });
     expect(() => host.assertAssignmentAccount('ada')).toThrow('was not found');
@@ -140,6 +140,7 @@ describe('named Codex subscription accounts', () => {
         bridge.engineAccountRename,
         bridge.engineAccountRemove,
         bridge.engineAccountLogin,
+        bridge.engineAccountSubmitCode,
       ]) {
         await expect(method({})).resolves.toMatchObject({
           ok: false,
@@ -195,6 +196,177 @@ describe('named Codex subscription accounts', () => {
       id: 'codex-new',
       expectedRevision: 1,
       confirm: true,
+    });
+  });
+});
+
+describe('named Claude Code subscription accounts', () => {
+  it('keeps the S3a Claude home, selections and quota, and persists independent named accounts', async () => {
+    const { root, host } = setup();
+    const path = engineStorePath(root);
+    const home = join(root, 'claude', 'home');
+    mkdirSync(home, { recursive: true });
+    writeFileSync(
+      path,
+      JSON.stringify({
+        version: 1,
+        bots: { ada: { orchestrator: 'claude', assignment: { engine: 'claude' } } },
+        sessions: { prior: { engine: 'claude', nativeId: 'legacy-thread' } },
+        quota: { claude: { limited: false, usedPercent: 15, observedAt: '2026-11-20T00:00:00Z' } },
+        subscriptionAccounts: {
+          revision: 3,
+          accounts: [{ id: DEFAULT_CODEX_ACCOUNT, engine: 'codex', name: 'Personal' }],
+        },
+      }),
+    );
+    const account = host.addAccount('claude', 'Work', 3);
+    expect(host.store.resolveAccount('claude')).toEqual({
+      id: 'claude',
+      engine: 'claude',
+      name: 'Claude Code',
+      homeDir: 'claude/home',
+    });
+    expect(host.store.resolveAccount('claude', account.id)).toMatchObject({
+      homeDir: `claude/accounts/${account.id}`,
+    });
+    expect(() => host.resolveAccount('codex', account.id)).toThrow('was not found');
+    expect(host.store.nativeSession('prior')).toMatchObject({ nativeId: 'legacy-thread' });
+    expect(host.quota('claude')).toMatchObject({ usedPercent: 15 });
+    expect(host.quota('claude', account.id)).toBeUndefined();
+    expect(() => host.removeAccount('claude', 4)).toThrow('Bot ada');
+
+    host.use('ada', 'orchestrator', 'claude', { accountId: account.id });
+    host.use('ada', 'assignment', 'claude', { accountId: account.id });
+    host.store.rememberQuota(
+      'claude',
+      { limited: false, usedPercent: 25, observedAt: '2026-11-20T00:00:00Z' },
+      account.id,
+    );
+    const reopened = createEngineStore(path);
+    expect(reopened.accounts()).toMatchObject({
+      revision: 4,
+      accounts: [{ id: DEFAULT_CODEX_ACCOUNT }, { id: 'claude' }, { id: account.id }],
+    });
+    expect(reopened.quota('claude', account.id)?.usedPercent).toBe(25);
+    expect(reopened.choice('ada', 'orchestrator').accountId).toBe(account.id);
+    expect(reopened.choice('ada', 'assignment').accountId).toBe(account.id);
+    expect(host.removeAccount('claude', 4)).toEqual({ id: 'claude' });
+    expect(existsSync(home)).toBe(false);
+    expect(() => createEngineStore(path).resolveAccount('claude')).toThrow('was not found');
+  });
+
+  it.skipIf(process.platform === 'win32')(
+    'forwards code via stdin only to the waiting account',
+    async () => {
+      const claudeCommand = join(createTempRoot('claude-login-'), 'claude');
+      writeFileSync(
+        claudeCommand,
+        `#!/bin/sh
+[ "$*" = 'auth login --claudeai' ] || exit 1
+echo 'https://claude.ai/oauth/authorize?fixture=1'
+if [ -f "$CLAUDE_CONFIG_DIR/callback-only" ]; then
+  read -r unused
+  exit 1
+fi
+printf 'Paste code here if prompted > ' >&2
+IFS= read -r code
+case "$CLAUDE_CONFIG_DIR" in
+  */home) [ "$code" = 'personal-fixture#state' ] || exit 1 ;;
+  *) [ "$code" = 'work-fixture#state' ] || exit 1 ;;
+esac
+touch "$CLAUDE_CONFIG_DIR/received"
+`,
+        { mode: 0o700 },
+      );
+      const { root, host } = setup({ claudeCommand });
+      const bridge = createEngineAccountBridge(OWNER_HUMAN_CONTEXT, { engineAccounts: host });
+      const account = host.addAccount('claude', 'Work', 0);
+      const workHome = join(root, 'claude', 'accounts', account.id);
+      const defaultHome = join(root, 'claude', 'home');
+      try {
+        await expect(
+          bridge.engineAccountSubmitCode({ id: account.id, code: 'fixture' }),
+        ).resolves.toMatchObject({
+          ok: false,
+          error: { code: 'engine-login-not-pending' },
+        });
+        await Promise.all([host.login('claude'), host.login('claude', account.id)]);
+        await expect(host.login('claude', account.id)).rejects.toMatchObject({
+          code: 'engine-account-busy',
+        });
+        expect(() => host.removeAccount(account.id, 1)).toThrow('still running');
+        await expect(
+          bridge.engineAccountSubmitCode({ id: account.id, code: 'first\nsecond' }),
+        ).resolves.toMatchObject({
+          ok: false,
+          error: { code: 'invalid-input' },
+        });
+        await vi.waitFor(async () => {
+          await expect(
+            bridge.engineAccountSubmitCode({ id: account.id, code: 'work-fixture#state' }),
+          ).resolves.toEqual({
+            ok: true,
+            value: { submitted: true },
+          });
+        });
+        await vi.waitFor(() => expect(existsSync(join(workHome, 'received'))).toBe(true));
+        expect(existsSync(join(defaultHome, 'received'))).toBe(false);
+        await expect(
+          bridge.engineAccountSubmitCode({ id: 'claude', code: 'personal-fixture#state' }),
+        ).resolves.toMatchObject({ ok: true });
+        await vi.waitFor(() => expect(existsSync(join(defaultHome, 'received'))).toBe(true));
+        await vi.waitFor(async () => {
+          await expect(
+            bridge.engineAccountSubmitCode({ id: account.id, code: 'work-fixture#state' }),
+          ).resolves.toMatchObject({
+            ok: false,
+            error: { code: 'engine-login-not-pending' },
+          });
+        });
+
+        writeFileSync(join(workHome, 'callback-only'), '');
+        await host.login('claude', account.id);
+        await expect(
+          bridge.engineAccountSubmitCode({ id: account.id, code: 'work-fixture#state' }),
+        ).resolves.toMatchObject({
+          ok: false,
+          error: {
+            code: 'engine-code-not-requested',
+            message: expect.stringContaining('browser callback'),
+          },
+        });
+      } finally {
+        await host.close();
+      }
+    },
+  );
+
+  it('submits the CLI code from stdin and returns only the acknowledgement', async () => {
+    const rpc = vi.fn(async (method: string) =>
+      method === 'engineAccountLogin'
+        ? { started: true, engine: 'claude' }
+        : { submitted: true, extra: 'fixture' },
+    );
+    const connect = async () => ({ rpc, http: vi.fn() });
+    const readStdin = vi.fn(async () => ' fixture#state\n');
+    await expect(
+      runEngineCommand(
+        'engine-login',
+        ['claude'],
+        { 'code-stdin': true, account: 'claude-work' },
+        connect,
+        readStdin,
+      ),
+    ).resolves.toEqual({ submitted: true });
+    expect(readStdin).toHaveBeenCalledOnce();
+    expect(rpc).toHaveBeenCalledWith('engineAccountSubmitCode', {
+      id: 'claude-work',
+      code: 'fixture#state',
+    });
+    await runEngineCommand('engine-login', ['claude'], { account: 'claude-work' }, connect);
+    expect(rpc).toHaveBeenLastCalledWith('engineAccountLogin', {
+      id: 'claude-work',
+      engine: 'claude',
     });
   });
 });

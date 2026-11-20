@@ -82,6 +82,7 @@ export async function runModelProviderGate(s, { as, password }, check) {
       ['engineAccountRename', { id: accountId, name: 'M15', expectedRevision: accountRevision }],
       ['engineAccountRemove', { id: accountId, confirm: true, expectedRevision: accountRevision }],
       ['engineAccountLogin', { id: accountId }],
+      ['engineAccountSubmitCode', { id: 'claude', code: 'm15-fixture' }],
       [
         'modelProviderAdd',
         { template: 'opencode-go', name: 'M15', key: testKey, expectedRevision },

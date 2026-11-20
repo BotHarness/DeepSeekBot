@@ -8,6 +8,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () =>
 import { ModelProvidersSettings } from '../src/client/model-providers-settings.js';
 import type { BridgeCall } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
+import { menuItem, typeInto } from './primitive-mocks.js';
 
 it('renders the provider name, masked key and provider brand', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -239,13 +240,7 @@ it('lists named subscription accounts and adds, renames and removes one', async 
     }
   });
   const page = subscriptionTestPage(call);
-  const fillName = async (value: string) => {
-    const field = page.nameField();
-    await act(async () => {
-      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(field, value);
-      field.dispatchEvent(new Event('input', { bubbles: true }));
-    });
-  };
+  const fillName = (value: string) => typeInto(page.nameField(), value);
   try {
     await page.render();
     expect(page.host.textContent).toContain('Codex · Personal');
@@ -283,6 +278,100 @@ it('lists named subscription accounts and adds, renames and removes one', async 
     expect(page.host.textContent).toContain('Codex · Personal');
   } finally {
     await page.close();
+  }
+});
+
+it('adds a named Claude Code account and submits a manual code from its sign-in row', async () => {
+  const open = vi.spyOn(window, 'open').mockReturnValue(null);
+  const accounts = new Map([['claude', 'Claude Code']]);
+  let acceptCode = false;
+  const call = vi.fn<BridgeCall>(async (method, args) => {
+    switch (method) {
+      case 'teamMode':
+        return { ok: true, value: { enabled: true, viewer: { kind: 'owner', humanId: 'owner' } } };
+      case 'modelProviders':
+        return { ok: true, value: { revision: 1, providers: [] } };
+      case 'engineAccounts':
+        return {
+          ok: true,
+          value: {
+            revision: accounts.size,
+            engines: [...accounts].map(([accountId, accountName]) => ({
+              engine: 'claude',
+              accountId,
+              accountName,
+              installed: true,
+              available: false,
+              reason: 'signed-out',
+            })),
+            selections: [],
+          },
+        };
+      case 'engineAccountAdd':
+        accounts.set('claude-work', String(args['name']));
+        return { ok: true, value: { id: 'claude-work' } };
+      case 'engineAccountLogin':
+        return { ok: true, value: { url: 'https://claude.ai/fixture' } };
+      case 'engineAccountSubmitCode':
+        return acceptCode
+          ? { ok: true, value: { submitted: true } }
+          : {
+              ok: false,
+              error: {
+                code: 'engine-code-not-requested',
+                message: 'process detail',
+                details: {},
+              },
+            };
+      default:
+        throw new Error('Unexpected bridge method ' + method);
+    }
+  });
+  const page = subscriptionTestPage(call);
+  try {
+    await page.render();
+    expect(page.host.textContent).not.toContain('Claude Code · Claude Code');
+    expect(page.button('登录 Claude Code')?.textContent).toBe('登录');
+    await page.click('添加账号');
+    await page.click('订阅引擎', true);
+    await act(async () => menuItem('Claude Code').click());
+    await typeInto(page.nameField(), 'Work');
+    await page.click('保存', true);
+    expect(call).toHaveBeenCalledWith(
+      'engineAccountAdd',
+      { engine: 'claude', name: 'Work', expectedRevision: 1 },
+      undefined,
+    );
+    const login = page.button('登录 Claude Code · Work');
+    expect(login?.textContent).toBe('登录');
+    const row = login?.closest('li');
+    expect(row?.querySelector('input')).toBeNull();
+    await page.click('登录 Claude Code · Work');
+    expect(call).toHaveBeenCalledWith('engineAccountLogin', { id: 'claude-work' }, undefined);
+    const field = row?.querySelector('input[aria-label="粘贴授权码"]');
+    if (!(field instanceof HTMLInputElement)) throw new Error('No authorization code field');
+    expect(field.type).toBe('password');
+    expect(page.button('登录 Claude Code')?.disabled).toBe(true);
+    expect(page.button('提交授权码')?.disabled).toBe(true);
+    await typeInto(field, ' fixture#state ');
+    await page.click('提交授权码');
+    expect(call).toHaveBeenLastCalledWith(
+      'engineAccountSubmitCode',
+      { id: 'claude-work', code: 'fixture#state' },
+      undefined,
+    );
+    expect(field.value).toBe('');
+    expect(row?.querySelector('[role="alert"]')?.textContent).toBe(
+      zhTranslate('modelProviders.codeUnavailable'),
+    );
+    acceptCode = true;
+    await typeInto(field, 'new-fixture#state');
+    await page.click('提交授权码');
+    expect(field.value).toBe('');
+    expect(row?.textContent).toContain(zhTranslate('modelProviders.codeSubmitted'));
+  } finally {
+    await page.close();
+    open.mockRestore();
   }
 });
 

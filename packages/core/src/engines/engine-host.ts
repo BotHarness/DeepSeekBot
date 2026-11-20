@@ -22,7 +22,7 @@ import {
 } from './codex-engine.js';
 import type { CodexStatus } from './codex-status.js';
 import type { ClaudeQueryFactory } from './claude-engine.js';
-import type { ClaudeStatus } from './claude-status.js';
+import type { ClaudeStatus, startClaudeLogin } from './claude-status.js';
 import {
   buildEngineContextSeed,
   type EngineContextRecord,
@@ -114,7 +114,7 @@ export interface EngineHostOptions {
   }): Promise<{ url?: string }>;
   openClaude?: ClaudeQueryFactory;
   detectClaude?(options: { command: string; home: string }): Promise<ClaudeStatus>;
-  startClaudeLogin?(options: { command: string; home: string }): Promise<{ url?: string }>;
+  startClaudeLogin?: typeof startClaudeLogin;
 }
 
 interface TurnScope {
@@ -211,8 +211,8 @@ export class EngineHost {
   target(id: string): NamedEngineAccount {
     return this.#accounts.target(id);
   }
-  addAccount(name: string, revision: number) {
-    return this.#accounts.addAccount(name, revision);
+  addAccount(engine: EngineId, name: string, revision: number) {
+    return this.#accounts.addAccount(engine, name, revision);
   }
   renameAccount(id: string, name: string, revision: number) {
     return this.#accounts.renameAccount(id, name, revision);
@@ -225,6 +225,9 @@ export class EngineHost {
   }
   login(engine: EngineId, id?: string) {
     return this.#accounts.login(engine, id);
+  }
+  submitClaudeCode(id: string, code: string) {
+    return this.#accounts.submitClaudeCode(id, code);
   }
   models(engine: EngineId, id?: string) {
     return this.#accounts.models(engine, id);
@@ -899,7 +902,7 @@ export class EngineHost {
           ...choice,
         });
       } else {
-        opened = await this.#accounts.openClaudeSession({
+        opened = await this.#accounts.openClaudeSession(selectedAccount, {
           cwd,
           instructions: request.instructions,
           contextSeed,

@@ -1293,8 +1293,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.engineAccountRemove({ id, expectedRevision, confirm }));
   }
 
-  engineAccountLogin(id: string) {
-    return unwrapAsync(this.methods.engineAccountLogin({ id }));
+  engineAccountLogin(id: string, engine?: string) {
+    return unwrapAsync(this.methods.engineAccountLogin({ id, engine }));
+  }
+
+  engineAccountSubmitCode(id: string, code: string) {
+    return unwrapAsync(this.methods.engineAccountSubmitCode({ id, code }));
   }
 
   modelCatalog(includeRoutingGroupEngines?: boolean): Promise<{
@@ -3635,6 +3639,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'engineAccountRename',
   'engineAccountRemove',
   'engineAccountLogin',
+  'engineAccountSubmitCode',
   'modelFavoriteSet',
   'modelPresets',
   'modelPresetCreate',

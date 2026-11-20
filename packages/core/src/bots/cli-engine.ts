@@ -1,3 +1,4 @@
+import { isEngineId } from '@botharness/host-protocol/subscription-engine';
 import { CliLiveError } from './cli-live-error.js';
 
 export const ENGINE_COMMANDS = [
@@ -27,13 +28,12 @@ export const ENGINE_COMMANDS = [
       'run an engine-only Bot tool such as memory_write without the model (engine tool <bot> memory_read --args-stdin)',
   },
   { command: 'engine-accounts', description: 'list subscription accounts and their revision' },
-  { command: 'engine-account-add', description: 'add a named Codex subscription account' },
-  { command: 'engine-account-rename', description: 'rename a Codex subscription account' },
-  { command: 'engine-account-remove', description: 'remove an unused Codex account and its home' },
+  { command: 'engine-account-add', description: 'add a named Codex or Claude Code account' },
+  { command: 'engine-account-rename', description: 'rename a subscription account' },
+  { command: 'engine-account-remove', description: 'remove an unused account and its home' },
   {
     command: 'engine-login',
-    description:
-      'start the Bot engine sign-in on the Host computer and print its URL (engine login codex|claude)',
+    description: 'start sign-in on the Host or submit a Claude Code authorization code from stdin',
   },
   {
     command: 'engine-models',
@@ -97,10 +97,13 @@ export async function runEngineCommand(
     model?: string;
     effort?: string;
     'args-stdin'?: boolean;
+    'code-stdin'?: boolean;
   },
   connect: Connect,
   readStdin: () => Promise<string> = async () => '',
 ): Promise<unknown> {
+  if (values['code-stdin'] && (command !== 'engine-login' || rest[0] !== 'claude'))
+    throw new CliLiveError('usage', '--code-stdin requires engine login claude.');
   if (command === 'engine-list' || command === 'engine-status') {
     if (rest.length > (command === 'engine-status' ? 1 : 0))
       throw new CliLiveError('usage', 'engine status accepts one optional engine or account ID.');
@@ -183,7 +186,24 @@ export async function runEngineCommand(
       throw new CliLiveError('usage', `${command} needs one engine or account ID.`);
     const [id] = rest;
     if (command === 'engine-login') {
-      const result = await rpc('engineAccountLogin', { id });
+      if (values.account !== undefined && (!isEngineId(id) || values.account.trim() === ''))
+        throw new CliLiveError(
+          'usage',
+          '--account needs an account ID and a codex or claude engine.',
+        );
+      const accountId = values.account ?? id;
+      if (values['code-stdin']) {
+        const code = (await readStdin()).trim();
+        if (!/^[!-~]{1,2048}$/u.test(code))
+          throw new CliLiveError('usage', '--code-stdin needs one authorization code on stdin.');
+        const result = await rpc('engineAccountSubmitCode', { id: accountId, code });
+        if (!isObject(result) || result['submitted'] !== true) throw protocolError();
+        return { submitted: true };
+      }
+      const result = await rpc(
+        'engineAccountLogin',
+        values.account === undefined ? { id } : { id: accountId, engine: id },
+      );
       if (!isObject(result) || result['started'] !== true || typeof result['engine'] !== 'string')
         throw protocolError();
       return result;

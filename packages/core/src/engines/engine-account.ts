@@ -1,4 +1,4 @@
-import { DEFAULT_CODEX_ACCOUNT } from '@botharness/host-protocol/subscription-engine';
+import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import type { ClaudeStatus } from './claude-status.js';
 import type { CodexStatus } from './codex-status.js';
 import type { EngineQuotaView, EngineStatusReport } from './engine-host-types.js';
@@ -32,8 +32,8 @@ export async function readEngineAccount(session: EngineSession): Promise<EngineA
 
 export function requireSubscription(account: EngineAccount, accountId?: string): string {
   const hint =
-    account.engine === 'codex' && accountId !== undefined && accountId !== DEFAULT_CODEX_ACCOUNT
-      ? `Sign the Bot in with your ChatGPT subscription: run \`deepseekbot engine login ${accountId}\` on this computer.`
+    accountId !== undefined && accountId !== engineAccountKey(account.engine)
+      ? `Sign in to this subscription account: run \`deepseekbot engine login ${accountId}\` on this computer.`
       : SIGN_IN_HINTS[account.engine];
   if (account.kind === 'subscription')
     return account.engine === 'codex'

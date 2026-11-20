@@ -4,7 +4,6 @@ import {
   type useSubscriptionEngines,
 } from './engine-choice.js';
 import { EngineBrandIcon } from './model-brand.js';
-import { engineName } from './session-engine.js';
 import { SubscriptionAccounts } from './subscription-accounts.js';
 import { useState, type ReactElement } from 'react';
 
@@ -27,7 +26,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { observeResource } from './messaging-defaults-live.js';
 import { ModelBrandIcon } from './model-brand.js';
-import { shortTime } from './session-engine.js';
+import { engineAccountTitle, engineName, shortTime } from './session-engine.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { roleLabel } from './team-roles.js';
 import { canManage, loadRoles, roleAllowsProvider, type TeamRole } from './team-roles-bridge.js';
@@ -131,7 +130,7 @@ export function ModelProviderSubscriptions({
         {(engines.view?.engines ?? []).map((status) => {
           const { engine: id, accountId, accountName } = status;
           const brand = engineName(id);
-          const name = accountName === undefined ? brand : `${brand} · ${accountName}`;
+          const name = engineAccountTitle(id, accountName);
           const key = engineModelKey(id, accountId);
           return (
             <SidebarCardRow
@@ -146,11 +145,14 @@ export function ModelProviderSubscriptions({
                   <Button
                     variant="outline"
                     disabled={engines.signingIn !== undefined}
+                    aria-label={
+                      engines.signingIn === key
+                        ? undefined
+                        : t('engine.signInLabel', { engine: name })
+                    }
                     onClick={() => engines.signIn(id, accountId)}
                   >
-                    {engines.signingIn === key
-                      ? t('engine.signingIn')
-                      : t('engine.signInLabel', { engine: name })}
+                    {engines.signingIn === key ? t('engine.signingIn') : t('modelProviders.signIn')}
                   </Button>
                 ) : undefined
               }

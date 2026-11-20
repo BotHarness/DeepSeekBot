@@ -1,4 +1,4 @@
-import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
+import { engineAccountKey, type EngineId } from '@botharness/host-protocol/subscription-engine';
 import { requireModelSources } from './models/provider-bridge.js';
 import { createRouteRests } from './models/route-rest.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
@@ -1868,8 +1868,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     gateway: engineGateway,
     accountsChanged: () => core.live.publishResourceChanged('model-providers'),
     accountUses: (id) => {
-      const uses = (choice: { engine: string; accountId?: string } | undefined) =>
-        choice?.engine === 'codex' && engineAccountKey('codex', choice.accountId) === id;
+      const uses = (choice: { engine: EngineId; accountId?: string } | undefined) =>
+        choice !== undefined && engineAccountKey(choice.engine, choice.accountId) === id;
       return [
         ...core.modelPresets
           .list()

@@ -54,6 +54,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'engineAccountRename',
   'engineAccountRemove',
   'engineAccountLogin',
+  'engineAccountSubmitCode',
   'modelFavoriteSet',
   'usageByMember',
   'overviewUsage',
