@@ -1,20 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { join } from 'node:path';
-import { createTestRegistry, registryDatabase } from './registry-fixture.js';
-import { createTempRoot, createTestOwnership } from './helpers.js';
-import { attachOperationalModule } from '../src/database/owner.js';
-import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
-import { TeamService } from '../src/team/service.js';
-import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
+import { createTempRoot, trackTestOwner } from './helpers.js';
+import { now, permitted, teamModelFixture } from './team-model-fixture.js';
+import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
+import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
-import { createBotStateTracker } from '../src/state/bot-state.js';
-import { createTestRosterStore } from './roster-fixture.js';
 import { createUsageProjection } from '../src/usage/usage.js';
 import { requireBotModel } from '../src/team/models.js';
-import { createRoutingGroupStore } from '../src/models/routing-groups.js';
-import type { ModelCatalogEntry } from '../src/models/catalog.js';
-import { createModelPresetStore } from '../src/models/presets.js';
-import { createOpenAssignmentRoutes } from '../src/models/open-assignments.js';
 import { createModelRouteReadiness } from '../src/models/readiness.js';
 import { MEMBER_METHODS } from '../src/team/member-methods.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
@@ -25,106 +16,14 @@ import {
   type OrchestratorAssignmentAccess,
 } from '../src/runtime/bot-runtime.js';
 import { createTestWorkspaceGrants, TEST_GRANT_ID } from './workspace-grant-fixture.js';
-import { mountOperationalDatabase } from '../src/database/owner.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
-import { trackTestOwner } from './helpers.js';
 
-const permitted = { provider: 'provider', model: 'allowed' };
 const denied = { provider: 'provider', model: 'denied' };
 const option = { ...denied, allowedEfforts: [''], defaultEffort: '' };
-const now = new Date('2026-11-14T12:00:00Z');
-function fixture() {
-  const root = createTempRoot('team-usage-models-');
-  const registry = createTestRegistry({ rootDir: root });
-  const db = registryDatabase(root);
-  const database = attachOperationalModule(db, 'team');
-  const channels = createSqliteChannelStore({ database, rootDir: join(root, 'channels') });
-  const team = new TeamService(database, channels);
-  const member = humanContext('member-id');
-  database.transaction(
-    (db) => {
-      db.prepare(
-        "INSERT INTO humans (human_id, display_name, status, created_at) VALUES (?, 'Member', 'active', ?)",
-      ).run(member.humanId, now.toISOString());
-      db.prepare("INSERT INTO human_roles VALUES (?, 'member')").run(member.humanId);
-      db.prepare('UPDATE team_settings SET enabled = 1').run();
-    },
-    ['team'],
-  );
-  registry.create({ slug: 'ada', displayName: 'Ada', ownerHumanId: member.humanId });
-  registry.create({ slug: 'bob', displayName: 'Bob' });
-  const ownership = createTestOwnership({ session: { botSlug: 'ada', rootRole: 'orchestrator' } });
-  const usage = createUsageProjection({
-    database: db,
-    ownership,
-    now: () => now,
-    botOwner: (slug) => registry.get(slug)?.ownerHumanId ?? team.ownerContext().humanId,
-  });
-  const catalog = {
-    list: vi.fn(async (): Promise<ModelCatalogEntry[]> => [
-      {
-        ...permitted,
-        providerName: 'Provider',
-        modelName: 'Allowed',
-        efforts: [],
-        credential: 'missing',
-      },
-    ]),
-    validate: vi.fn(async () => {}),
-    defaultRoute: () => permitted,
-  };
-  const deps = {
-    registry,
-    channels,
-    team,
-    usage,
-    ownership,
-    states: createBotStateTracker(),
-    roster: createTestRosterStore({ database: db }),
-    modelCatalog: catalog,
-    routingGroups: createRoutingGroupStore({ database: db }),
-  };
-  const methods = createBridgeMethods(member, deps);
-  const ownerMethods = createBridgeMethods(owner, deps);
-  const restrict = () =>
-    team.roles.update(owner, 'member', { models: { kind: 'only', routes: ['provider/allowed'] } });
-  const fold = (seq: number, total: number) =>
-    usage.handleSessionEvent('session', {
-      type: 'assistant/message',
-      seq,
-      time: now.getTime() + seq,
-      data: {
-        message: { source: permitted },
-        usage: {
-          inputTokens: total,
-          outputTokens: 0,
-          cacheReadTokens: 0,
-          cacheWriteTokens: 0,
-          totalTokens: total,
-        },
-      },
-    });
-  return {
-    root,
-    channels,
-    database,
-    db,
-    registry,
-    team,
-    member,
-    methods,
-    ownerMethods,
-    usage,
-    catalog,
-    deps,
-    restrict,
-    fold,
-  };
-}
 
 describe('M10 member usage and role models', () => {
   it('attributes an actual member DM root turn and its Assignment creator, refusing default and Session route changes', async () => {
-    const f = fixture();
+    const f = teamModelFixture();
     const ownership = createSessionOwnership(attachOperationalModule(f.db, 'session-ownership'));
     const usage = createUsageProjection({
       ownership,
@@ -295,7 +194,7 @@ describe('M10 member usage and role models', () => {
   });
 
   it('attributes new Assignment turns to the requesting Human while steering retains the running turn', async () => {
-    const f = fixture();
+    const f = teamModelFixture();
     const ownership = createSessionOwnership(attachOperationalModule(f.db, 'session-ownership'));
     const usage = createUsageProjection({
       database: f.db,
@@ -444,7 +343,7 @@ describe('M10 member usage and role models', () => {
   });
 
   it('bounds report and model policy reads with 1000 members and records surrounding-query timings', () => {
-    const f = fixture();
+    const f = teamModelFixture();
     const day = f.usage.overview('today').end;
     f.database.transaction(
       (db) => {
@@ -493,7 +392,7 @@ describe('M10 member usage and role models', () => {
   });
 
   it('persists model restrictions through roleCreate and preserves creation permissions', async () => {
-    const f = fixture();
+    const f = teamModelFixture();
     const models = { kind: 'only', providers: [], routes: ['provider/allowed'] };
     const created = await f.ownerMethods.roleCreate({
       name: 'Restricted',
@@ -537,7 +436,7 @@ describe('M10 member usage and role models', () => {
   });
 
   it('defaults existing and new Roles to all; unions Roles; protects Admin; Owner remains unrestricted', async () => {
-    const f = fixture();
+    const f = teamModelFixture();
     expect(f.team.roles.list(owner).every((role) => role.models.kind === 'all')).toBe(true);
     const role = f.team.roles.create(owner, 'Extra', []).role;
     expect(role.models).toEqual({ kind: 'all' });
@@ -576,171 +475,10 @@ describe('M10 member usage and role models', () => {
     ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
   });
 
-  it('unions provider and route grants and projects only complete allowed Routing Groups', async () => {
-    const f = fixture();
-    const exact = { provider: 'second', model: 'exact' };
-    const outside = { provider: 'second', model: 'other' };
-    const added = { provider: permitted.provider, model: 'added/later' };
-    const entry = (route: { provider: string; model: string }): ModelCatalogEntry => ({
-      ...route,
-      providerName: route.provider,
-      modelName: route.model,
-      efforts: [],
-    });
-    f.catalog.list.mockResolvedValue([entry(permitted), entry(exact), entry(outside)]);
-    f.team.roles.update(owner, 'member', {
-      models: { kind: 'only', providers: [permitted.provider], routes: [] },
-    });
-    const supplement = f.team.roles.create(owner, 'Supplement', ['models.use'], {
-      kind: 'only',
-      providers: ['third', permitted.provider],
-      routes: ['second/exact'],
-    }).role;
-    f.team.roles.set(owner, f.member.humanId, ['member', supplement.roleId]);
-    expect(f.team.roles.modelsAllowed(f.member)).toEqual({
-      all: false,
-      providers: ['provider', 'third'],
-      routes: ['second/exact'],
-    });
-    const group = (name: string, other: typeof exact) =>
-      f.deps.routingGroups.create({
-        name,
-        members: [
-          { kind: 'model', ...permitted },
-          { kind: 'model', ...other },
-        ],
-      });
-    const usable = group('Usable', exact);
-    group('Denied', outside);
-    const allowanceReads = vi.spyOn(f.team.roles, 'modelsAllowed');
-    const catalog = async () => {
-      const result = await f.methods.modelCatalog({});
-      if (!result.ok) throw new Error(result.error.code);
-      expect(result.value.groups?.map(({ id }) => id)).toEqual([usable.id]);
-      return result.value.models.map(({ provider, model }) => `${provider}/${model}`);
-    };
-    expect(await catalog()).toEqual(['provider/allowed', 'second/exact']);
-    f.catalog.list.mockResolvedValue([
-      entry(permitted),
-      entry(exact),
-      entry(outside),
-      entry(added),
-    ]);
-    expect(await catalog()).toEqual(['provider/allowed', 'second/exact', 'provider/added/later']);
-    expect(allowanceReads).toHaveBeenCalledTimes(2);
-    expect(() => f.team.roles.requireModel(f.member, added)).not.toThrow();
-    expect(() => f.team.roles.requireModel(f.member, outside)).toThrow(
-      expect.objectContaining({ code: 'model-not-allowed' }),
-    );
-    expect(() =>
-      f.team.roles.requireModel(f.member, { provider: 'provider-2', model: 'added/later' }),
-    ).toThrow(expect.objectContaining({ code: 'model-not-allowed' }));
-  });
-
-  it('lets a delegated role manager grant exact routes from their provider but not widen an exact grant', () => {
-    const f = fixture();
-    const role = f.team.roles.create(owner, 'Managers', ['roles.manage', 'members.manage'], {
-      kind: 'only',
-      providers: ['provider'],
-      routes: ['second/exact'],
-    }).role;
-    f.team.roles.set(owner, f.member.humanId, [role.roleId]);
-    const exact = f.team.roles.create(f.member, 'Exact', [], {
-      kind: 'only',
-      routes: ['provider/one', 'second/exact'],
-    }).role;
-    const provider = f.team.roles.update(f.member, exact.roleId, {
-      models: { kind: 'only', providers: ['provider'], routes: [] },
-    }).role;
-    expect(f.team.roles.validateAssignments(f.member, [provider.roleId])).toEqual([
-      provider.roleId,
-    ]);
-    const widened = { kind: 'only' as const, providers: ['second'], routes: [] };
-    const outside = f.team.roles.create(owner, 'Outside', [], widened).role;
-    for (const attempt of [
-      () => f.team.roles.create(f.member, 'Invalid provider grant', [], widened),
-      () => f.team.roles.update(f.member, provider.roleId, { models: widened }),
-      () => f.team.roles.validateAssignments(f.member, [outside.roleId]),
-    ])
-      expect(attempt).toThrow(
-        expect.objectContaining({ code: 'model-not-allowed', details: { route: 'second/*' } }),
-      );
-  });
-
-  it('checks provider grants for preset application, plan writes and both turn preparations', async () => {
-    const f = fixture();
-    const own = { provider: 'provider', model: 'new' };
-    const outside = { provider: 'other', model: 'new' };
-    const refusal = {
-      code: 'model-not-allowed',
-      details: { route: 'other/new' },
-    };
-    const optionOf = (route: typeof own) => ({
-      ...route,
-      allowedEfforts: [''],
-      defaultEffort: '',
-    });
-    const planOf = (assignmentDefault: typeof own) => ({
-      orchestrator: own,
-      assignmentDefault,
-      assignmentModels: [optionOf(assignmentDefault)],
-      openAssignmentModels: true as const,
-    });
-    f.team.roles.update(owner, 'member', {
-      permissions: ['models.use'],
-      models: { kind: 'only', providers: ['provider'], routes: [] },
-    });
-    const modelPresets = createModelPresetStore({ database: f.db, rootDir: f.root });
-    const methods = createBridgeMethods(f.member, { ...f.deps, modelPresets });
-    const good = modelPresets.create({ name: 'Allowed', ...planOf(own) });
-    const bad = modelPresets.create({ name: 'Outside', ...planOf(outside) });
-    expect(await methods.modelPresetApply({ slug: 'ada', presetId: bad.id })).toMatchObject({
-      ok: false,
-      error: refusal,
-    });
-    expect(
-      await methods.modelPlanSet({ slug: 'ada', expectedRevision: 0, ...planOf(outside) }),
-    ).toMatchObject({ ok: false, error: refusal });
-    expect(await methods.modelPresetApply({ slug: 'ada', presetId: good.id })).toMatchObject({
-      ok: true,
-    });
-    expect(
-      await methods.modelPlanAssignmentsSet({
-        slug: 'ada',
-        expectedRevision: 1,
-        ...planOf(outside),
-      }),
-    ).toMatchObject({ ok: false, error: refusal });
-    const requireAllowed = (slug: string, route: typeof own) =>
-      requireBotModel(f.team, f.registry.get(slug), route);
-    const readiness = createModelRouteReadiness(f.registry, f.catalog, requireAllowed);
-    for (const role of ['orchestrator', 'assignment'] as const) {
-      await expect(readiness.prepare('ada', role, own)).resolves.toBeUndefined();
-      await expect(readiness.prepare('ada', role, outside)).rejects.toMatchObject(refusal);
-    }
-    const newlyAdded = { provider: own.provider, model: 'another/new' };
-    f.catalog.list.mockResolvedValue(
-      [own, newlyAdded, outside].map((route) => ({
-        ...route,
-        providerName: route.provider,
-        modelName: route.model,
-        efforts: [],
-      })),
-    );
-    const choices = createOpenAssignmentRoutes({
-      catalog: f.catalog,
-      plan: (slug) => f.registry.get(slug)?.modelPlan,
-      requireAllowed,
-    });
-    expect(await choices.list('ada')).toMatchObject([newlyAdded]);
-    await expect(choices.require('ada', newlyAdded)).resolves.toBeUndefined();
-    await expect(choices.require('ada', outside)).rejects.toMatchObject(refusal);
-  });
-
   it.each(['today', 'week', 'month', 'quarter'] as const)(
     'reconciles %s across mixed attributed and legacy rows, including deleted Humans',
     (period) => {
-      const f = fixture();
+      const f = teamModelFixture();
       f.usage.handleSessionEvent('session', {
         type: 'turn/start',
         seq: 1,
@@ -805,7 +543,7 @@ describe('M10 member usage and role models', () => {
   );
 
   it('keeps same-millisecond root turns attributed to their own Human across replay', async () => {
-    const f = fixture();
+    const f = teamModelFixture();
     f.database.transaction(
       (db) => {
         db.prepare('INSERT INTO usage_turn_humans VALUES (?, ?, ?, ?)').run(
@@ -855,7 +593,7 @@ describe('M10 member usage and role models', () => {
   });
 
   it('marks legacy only inside the requested period and keeps partial bucket reconciliation', () => {
-    const f = fixture();
+    const f = teamModelFixture();
     f.database.transaction(
       (db) => {
         db.prepare(
@@ -875,7 +613,7 @@ describe('M10 member usage and role models', () => {
   it.each(['Bot model plan', 'Assignment default', 'Tob', 'turn start'] as const)(
     'refuses %s for a member-owned Bot and permits an Owner-owned Bot',
     async (path) => {
-      const f = fixture();
+      const f = teamModelFixture();
       f.restrict();
       const select = async (slug: string) => {
         if (path === 'turn start') {
@@ -925,7 +663,7 @@ describe('M10 member usage and role models', () => {
   );
 
   it('refuses a Routing Group with a member the Bot owner may not use, and allows it for the Owner', async () => {
-    const f = fixture();
+    const f = teamModelFixture();
     f.restrict();
     const group = f.deps.routingGroups.create({
       name: 'Mixed',
@@ -952,7 +690,7 @@ describe('M10 member usage and role models', () => {
   });
 
   it('retains a disallowed setting and marks get/list; does not disclose catalog credentials', async () => {
-    const f = fixture();
+    const f = teamModelFixture();
     expect(
       await f.ownerMethods.modelPlanSet({
         slug: 'ada',
@@ -997,7 +735,7 @@ describe('M10 member usage and role models', () => {
   });
 
   it('excludes Routing Groups with a credential-gated route from the member catalog', async () => {
-    const f = fixture();
+    const f = teamModelFixture();
     const available = { provider: 'provider', model: 'available' };
     f.catalog.list.mockResolvedValue([
       ...(await f.catalog.list()),
@@ -1127,49 +865,8 @@ describe('M10 member usage and role models', () => {
   });
 });
 
-it('migrates route-only Host Roles with identical route grants and leaves all grants intact', () => {
-  const home = createTempRoot('role-model-providers-migration-');
-  const migrations = BOT_HARNESS_SCHEMA_PLAN.migrations;
-  const before = trackTestOwner(
-    mountOperationalDatabase({
-      dshHome: home,
-      schemaPlan: defineSchemaPlan(
-        migrations.slice(
-          0,
-          migrations.findIndex(({ id }) => id === 'role-model-providers'),
-        ),
-      ),
-    }),
-  );
-  const models = { kind: 'only', routes: ['p/nested/model', 'p/another'] };
-  attachOperationalModule(before, 'team').transaction((db) =>
-    db
-      .prepare("UPDATE host_roles SET models_json = ? WHERE role_id = 'member'")
-      .run(JSON.stringify(models)),
-  );
-  before.close();
-  const after = trackTestOwner(
-    mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
-  );
-  expect(after.mode).toBe('ready');
-  const database = attachOperationalModule(after, 'team');
-  expect(
-    database.read((db) =>
-      db.prepare('SELECT role_id, models_json FROM host_roles ORDER BY role_id').all(),
-    ),
-  ).toEqual([
-    { role_id: 'admin', models_json: '{"kind":"all"}' },
-    { role_id: 'member', models_json: JSON.stringify({ ...models, providers: [] }) },
-  ]);
-  expect(
-    database.read((db) =>
-      db.prepare("SELECT id FROM schema_migrations WHERE id = 'role-model-providers'").get(),
-    ),
-  ).toEqual({ id: 'role-model-providers' });
-});
-
 it('keeps provider list and writes behind the explicitly granted management permission', async () => {
-  const { deps, team, member } = fixture();
+  const { deps, team, member } = teamModelFixture();
   const modelProviders = {
     list: vi.fn(async () => ({ providers: [] })),
     add: vi.fn(),
