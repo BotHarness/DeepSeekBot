@@ -1,9 +1,9 @@
 import * as stylex from '@stylexjs/stylex';
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
-import { turnTargetLabel } from '@botharness/host-client/turn-target';
+import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
 import { ink, space, type } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BridgeActions } from './actions.js';
@@ -31,7 +31,7 @@ export function TurnTargetLabel({
   t,
 }: {
   targets: readonly TurnTarget[] | undefined;
-  catalog: readonly ModelCatalogEntry[] | undefined;
+  catalog: TurnTargetCatalog;
   t: BotHarnessTranslate;
 }) {
   if (targets === undefined) return null;
@@ -52,18 +52,45 @@ export function TurnTargetLabel({
   );
 }
 
+export function useTurnTargetEngines<T extends Element>(actions: BridgeActions, needed: boolean) {
+  const [catalog, setCatalog] = useState<{
+    host: BridgeActions;
+    engines: Awaited<ReturnType<BridgeActions['routingGroupEngines']>>;
+  }>();
+  const engines = catalog?.host === actions ? catalog.engines : undefined;
+  const mount = useMountedResource<T>(() => {
+    if (!needed || engines !== undefined || actions.routingGroupEngines === undefined) return;
+    let active = true;
+    void actions.routingGroupEngines().then(
+      (engines) => {
+        if (active) setCatalog({ host: actions, engines });
+      },
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, [actions, needed, engines]);
+  return { engines, mount };
+}
+
 export function useTurnTargetCatalog(
   actions: BridgeActions,
+  current: TurnTarget | undefined,
   items: readonly SessionTranscriptItem[] | undefined,
 ) {
   const [catalog, setCatalog] = useState<{ host: BridgeActions; models: ModelCatalogEntry[] }>();
-  const needsCatalog =
-    catalog?.host !== actions &&
+  const hasTarget = (matches: (target: TurnTarget) => boolean) =>
+    (current !== undefined && matches(current)) ||
     items?.some(
       (item) =>
-        (item.kind === 'reply' || item.kind === 'turn-end') &&
-        item.turnTargets?.some((target) => target.kind === 'dsh'),
-    );
+        (item.kind === 'reply' || item.kind === 'turn-end') && item.turnTargets?.some(matches),
+    ) === true;
+  const engine = useTurnTargetEngines<HTMLDivElement>(
+    actions,
+    hasTarget((target) => target.kind === 'engine' && target.model !== undefined),
+  );
+  const needsCatalog = catalog?.host !== actions && hasTarget((target) => target.kind === 'dsh');
   const catalogMount = useMountedResource<HTMLDivElement>(() => {
     if (!needsCatalog) return;
     let active = true;
@@ -77,5 +104,17 @@ export function useTurnTargetCatalog(
       active = false;
     };
   }, [actions, needsCatalog]);
-  return { catalog: catalog?.host === actions ? catalog.models : undefined, mount: catalogMount };
+  return {
+    catalog: {
+      models: catalog?.host === actions ? catalog.models : undefined,
+      engines: engine.engines,
+    },
+    mount: useCallback(
+      (node: HTMLDivElement | null) => {
+        catalogMount(node);
+        engine.mount(node);
+      },
+      [catalogMount, engine.mount],
+    ),
+  };
 }

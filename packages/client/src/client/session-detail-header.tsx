@@ -1,7 +1,7 @@
 import * as stylex from '@stylexjs/stylex';
 import { useContext } from 'react';
 import { createPortal } from 'react-dom';
-import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
+import type { TurnTargetCatalog } from '@botharness/host-client/turn-target';
 
 import type { SessionGoal, SessionTodo, SessionTranscript } from './bridge.js';
 import { space } from './ds/tokens.stylex.js';
@@ -31,7 +31,7 @@ export function SessionDetailHeaderChips({
   t,
 }: {
   transcript: SessionTranscript | undefined;
-  catalog: readonly ModelCatalogEntry[] | undefined;
+  catalog: TurnTargetCatalog;
   goal: SessionGoal | undefined;
   todos: SessionTodo[] | undefined;
   open: 'goal' | 'todos' | undefined;
@@ -51,7 +51,7 @@ export function SessionDetailHeaderChips({
       <SessionTargetChip
         target={transcript?.currentTarget}
         engine={transcript?.engine}
-        models={catalog}
+        catalog={catalog}
         header
         t={t}
       />

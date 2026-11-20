@@ -1,5 +1,8 @@
-import { sessionHeaderTargetLabel, turnTargetLabel } from '@botharness/host-client/turn-target';
-import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
+import {
+  sessionHeaderTargetLabel,
+  turnTargetLabel,
+  type TurnTargetCatalog,
+} from '@botharness/host-client/turn-target';
 import { isEngineId } from '@botharness/host-protocol/subscription-engine';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 
@@ -14,14 +17,14 @@ export function SessionTargetChip({
   target,
   engine,
   route,
-  models,
+  catalog,
   header,
   t,
 }: {
   target?: TurnTarget | undefined;
   engine?: Omit<SessionEngine, 'state'> | undefined;
   route?: SessionModelRoute | undefined;
-  models?: readonly ModelCatalogEntry[] | undefined;
+  catalog?: TurnTargetCatalog | undefined;
   header?: boolean;
   t: BotHarnessTranslate;
 }) {
@@ -38,11 +41,13 @@ export function SessionTargetChip({
         : { kind: 'dsh', provider: route.provider, model: route.model });
   if (selected === undefined) return null;
   const label = header
-    ? sessionHeaderTargetLabel(selected, models)
-    : turnTargetLabel(selected, models, routingGroupEngineCopy(t));
+    ? sessionHeaderTargetLabel(selected, catalog)
+    : turnTargetLabel(selected, catalog, routingGroupEngineCopy(t));
   const nativeModel =
     selected.kind === 'dsh'
-      ? models?.find((item) => item.provider === selected.provider && item.model === selected.model)
+      ? catalog?.models?.find(
+          (item) => item.provider === selected.provider && item.model === selected.model,
+        )
       : undefined;
   const nativeRoute =
     selected.kind === 'dsh' &&
@@ -63,7 +68,10 @@ export function SessionTargetChip({
   const title =
     selected.kind === 'dsh'
       ? modelRouteText(nativeRoute ?? selected)
-      : [sessionHeaderTargetLabel(selected, models).name, engineQuotaText(engine?.quota, t)]
+      : [
+          header ? label.name : sessionHeaderTargetLabel(selected, catalog).name,
+          engineQuotaText(engine?.quota, t),
+        ]
           .filter(Boolean)
           .join(' · ');
   return (

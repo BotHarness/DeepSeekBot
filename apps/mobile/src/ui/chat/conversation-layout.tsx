@@ -194,7 +194,7 @@ export function renderConversation({
     setViewing,
     actionsFor,
     setActionsFor,
-    menuModels,
+    menuCatalog,
     selectionScope,
     sourceMessage,
     selectSource,
@@ -688,7 +688,7 @@ export function renderConversation({
             />
             <MessageActions
               target={actionsFor}
-              catalog={menuModels}
+              catalog={menuCatalog}
               readOnly={botDm || !online}
               onClose={() => setActionsFor(undefined)}
               onReact={(message, emoji, active) => react(message.id, emoji, active)}

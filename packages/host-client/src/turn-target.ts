@@ -1,38 +1,48 @@
 import {
   ENGINE_DEFINITIONS,
   engineEffortName,
+  type RoutingGroupEngineOptions,
 } from '@botharness/host-protocol/subscription-engine';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import {
-  routingGroupEnginePresentation,
+  engineCatalogModel,
   type ModelCatalogEntry,
   type RoutingGroupEngineCopy,
 } from './model-catalog';
 import { modelBrand, modelShortName } from './shared/model-brand';
 
+export interface TurnTargetCatalog {
+  models?: readonly ModelCatalogEntry[] | undefined;
+  engines?: readonly RoutingGroupEngineOptions[] | undefined;
+}
+
 export function turnTargetLabel(
   target: TurnTarget,
-  catalog: readonly ModelCatalogEntry[] = [],
+  catalog?: TurnTargetCatalog,
   copy?: Pick<RoutingGroupEngineCopy, 'effort'>,
 ) {
   if (target.kind === 'engine') {
-    const { brand, title, name } = routingGroupEnginePresentation(target, {
-      defaultModel: (engine) => engine,
-      subscription: (source) => source,
-    });
     const engine = ENGINE_DEFINITIONS[target.engine].displayName;
+    const { model } = target;
+    const entry =
+      model === undefined
+        ? undefined
+        : engineCatalogModel(catalog?.engines ?? [], { ...target, model });
+    const name = entry?.name ?? model ?? engine;
+    const brand = modelBrand({ model, name }) ?? (target.engine === 'codex' ? 'openai' : 'claude');
+    const short = entry === undefined ? name : modelShortName(name, brand);
     const effort = target.reasoningEffort;
     const effortName =
       effort === undefined || copy === undefined ? effort : engineEffortName(effort, copy.effort);
     return {
       brand,
-      short: title,
+      short: /^[0-9]|^$/u.test(short) ? name : short,
       effort: effortName,
       name: [name, name === engine ? undefined : engine, effortName].filter(Boolean).join(' · '),
       external: true as const,
     };
   }
-  const entry = catalog.find(
+  const entry = catalog?.models?.find(
     (item) => item.provider === target.provider && item.model === target.model,
   );
   const model = entry?.modelName ?? target.model;
@@ -45,10 +55,7 @@ export function turnTargetLabel(
   };
 }
 
-export function sessionHeaderTargetLabel(
-  target: TurnTarget,
-  catalog?: readonly ModelCatalogEntry[],
-) {
+export function sessionHeaderTargetLabel(target: TurnTarget, catalog?: TurnTargetCatalog) {
   const model = turnTargetLabel(target, catalog);
   if (target.kind === 'dsh') return model;
   const account = target.account

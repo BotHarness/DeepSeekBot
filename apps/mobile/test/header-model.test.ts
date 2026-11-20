@@ -20,11 +20,23 @@ describe('chat header model', () => {
             kind: 'engine',
             engine: 'codex',
             account: 'ChatGPT Pro',
-            model: 'gpt-6-astra',
+            model: 'gpt-6.2-sol',
           },
+          engines: [
+            {
+              engine: 'codex',
+              available: true,
+              models: [{ id: 'gpt-6.2-sol', name: 'GPT-6.2-Sol', efforts: [] }],
+            },
+          ],
         }),
       }),
-    ).toMatchObject({ brand: 'openai', external: true, short: 'Codex · ChatGPT Pro' });
+    ).toMatchObject({
+      brand: 'openai',
+      external: true,
+      short: 'Codex · ChatGPT Pro',
+      name: 'Codex · ChatGPT Pro · GPT-6.2-Sol',
+    });
   });
 
   it('shows the executing engine of a mixed group and switches to the native target after fallback', () => {

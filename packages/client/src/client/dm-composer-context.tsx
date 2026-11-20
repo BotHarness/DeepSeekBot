@@ -1,4 +1,5 @@
-import { turnTargetLabel } from '@botharness/host-client/turn-target';
+import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
+import { isEngineId } from '@botharness/host-protocol/subscription-engine';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import { observeHostResource, observeResource } from './messaging-defaults-live.js';
 import { useMessageHost } from './message-host.js';
@@ -65,6 +66,7 @@ import {
   presetMenuItems,
 } from './model-menu.js';
 import { ContextRing } from './context-ring.js';
+import { useTurnTargetEngines } from './turn-target-label.js';
 
 const styles = stylex.create({});
 
@@ -216,10 +218,15 @@ export function useDmComposerContext({
       unsubscribe();
     };
   }, [actions, channelId, modelSlug, plan?.revision, modelHost]);
-  if (bot === undefined || bot.deleted || channelId === undefined) return;
-  const data = modelData?.slug === bot.slug ? modelData : undefined;
+  const data = modelData?.slug === bot?.slug ? modelData : undefined;
   const catalog = data?.catalog;
   const planState = data?.state;
+  const { engines, mount: engineMount } = useTurnTargetEngines<HTMLSpanElement>(
+    actions,
+    (planState?.currentTarget?.kind === 'engine' && planState.currentTarget.model !== undefined) ||
+      bot?.orchestratorRunner?.model !== undefined,
+  );
+  if (bot === undefined || bot.deleted || channelId === undefined) return;
   const modelStatus: 'loading' | 'ready' | 'unavailable' =
     data === undefined
       ? plan?.orchestrator === undefined
@@ -346,6 +353,7 @@ export function useDmComposerContext({
     content: (
       <>
         <span ref={modelMount} aria-hidden="true" style={{ display: 'contents' }} />
+        <span ref={engineMount} hidden />
         <DmComposerContextView
           key={scopeKey ?? bot.slug}
           footerSettings={footerSettings}
@@ -361,6 +369,7 @@ export function useDmComposerContext({
           panel={panel?.slug === bot.slug ? panel.kind : undefined}
           onClose={() => setPanel(undefined)}
           models={catalog?.models ?? []}
+          engines={engines}
           groups={catalog?.groups ?? []}
           presets={data?.presets ?? []}
           sourcePresetId={plan?.sourcePresetId}
@@ -400,6 +409,7 @@ function DmComposerContextView({
   panel,
   onClose,
   models,
+  engines,
   groups,
   presets,
   sourcePresetId,
@@ -425,6 +435,7 @@ function DmComposerContextView({
   panel: 'model' | 'workspace' | undefined;
   onClose(): void;
   models: readonly ModelCatalogEntryView[];
+  engines: TurnTargetCatalog['engines'];
   groups: readonly ModelCatalogGroupView[];
   presets: readonly ModelPresetView[];
   sourcePresetId: string | undefined;
@@ -513,20 +524,33 @@ function DmComposerContextView({
     );
   const brand = modelBrand({ provider: route?.provider, model: route?.model, name: modelName });
   const runner = bot.orchestratorRunner;
+  const runnerTarget =
+    runner !== undefined && isEngineId(runner.engine) && runner.model !== undefined
+      ? turnTargetLabel(
+          {
+            kind: 'engine',
+            engine: runner.engine,
+            model: runner.model,
+            ...(runner.account === undefined ? {} : { account: runner.account }),
+          },
+          { engines },
+        )
+      : undefined;
   const runnerBrand =
     runner === undefined
       ? undefined
-      : modelBrand({
+      : (runnerTarget?.brand ??
+        modelBrand({
           provider: runner.engine,
           model: runner.model ?? runner.engine,
           name: runner.model ?? runner.displayName,
-        });
+        }));
   const runnerChipLabel =
     runner === undefined
       ? ''
       : runner.model === undefined
         ? runner.displayName
-        : modelShortName(runner.model, runnerBrand);
+        : (runnerTarget?.short ?? runner.model);
   const runnerLabel =
     runner === undefined
       ? ''
@@ -543,7 +567,7 @@ function DmComposerContextView({
   const executed =
     group === undefined || currentTarget === undefined
       ? undefined
-      : turnTargetLabel(currentTarget, models);
+      : turnTargetLabel(currentTarget, { models, engines });
   const chipName = executed?.name ?? (group === undefined ? modelLabel : group.name);
   const modelEfforts =
     currentEntry === undefined || group !== undefined
@@ -649,7 +673,7 @@ function DmComposerContextView({
             collapseLabel
             icon={<EngineBrandIcon brand={runnerBrand} />}
             label={runnerChipLabel}
-            title={runner.model === undefined ? runnerLabel : `${runnerLabel} · ${runner.model}`}
+            title={runner.model === undefined ? runnerLabel : `${runnerLabel} · ${runnerChipLabel}`}
             tabIndex={-1}
             disabled
             aria-label={`${t('entry.model')} · ${bot.displayName} · ${runnerLabel}`}
@@ -687,7 +711,7 @@ function DmComposerContextView({
               groups,
               groupId === undefined || currentTarget === undefined
                 ? undefined
-                : { groupId, target: currentTarget },
+                : { groupId, target: currentTarget, engines },
             ),
           ]}
           value={

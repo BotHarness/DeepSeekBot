@@ -50,6 +50,7 @@ import {
   TodoProgressChip,
 } from './session-progress-view.js';
 import { SessionTargetChip } from './session-target-chip.js';
+import { useTurnTargetEngines } from './turn-target-label.js';
 
 const PROGRESS_SESSIONS = 30;
 const PROGRESS_REFRESH_MS = 60_000;
@@ -202,6 +203,12 @@ function SessionsPanel({
     };
   }, [actions, botSlug, progressIds, anyRunning, signature, conversationRevision, reload]);
   const [models, setModels] = useState<readonly ModelCatalogEntryView[]>([]);
+  const { engines, mount: engineMount } = useTurnTargetEngines<HTMLSpanElement>(
+    actions,
+    statusRows.some(
+      (row) => row.currentTarget?.kind === 'engine' && row.currentTarget.model !== undefined,
+    ),
+  );
   const catalogMount = useMountedResource<HTMLDivElement>(() => {
     let live = true;
     void Promise.resolve(actions.modelCatalog?.()).then(
@@ -479,7 +486,7 @@ function SessionsPanel({
                     target={row.currentTarget}
                     engine={row.engine}
                     route={row.modelRoute}
-                    models={models}
+                    catalog={{ models, engines }}
                     t={t}
                   />
                   {row.mode === undefined ? null : (
@@ -552,6 +559,7 @@ function SessionsPanel({
 
   return (
     <div data-sessions="" ref={rootRef}>
+      <span ref={engineMount} hidden />
       {owned.status === 'loading' && rows.length === 0 ? (
         <LoadingSkeleton kind="sidebar" label={t('sessions.loading')} />
       ) : null}

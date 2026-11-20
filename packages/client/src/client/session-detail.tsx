@@ -10,7 +10,7 @@ import {
   type SessionDetailLevel,
   type SessionFoldedReplies,
 } from '@botharness/host-client/shared/bot-mode-settings';
-import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
+import type { TurnTargetCatalog } from '@botharness/host-client/turn-target';
 
 import type { BridgeActions } from './actions.js';
 import type {
@@ -224,7 +224,7 @@ function LiveClock({ from, t }: { from: string; t: BotHarnessTranslate }): React
 
 interface DetailContext {
   actions: BridgeActions;
-  catalog: readonly ModelCatalogEntry[] | undefined;
+  catalog: TurnTargetCatalog;
   botSlug: string;
   sessionId: string;
   t: BotHarnessTranslate;
@@ -593,7 +593,11 @@ export function SessionDetail({
   const [away, setAway] = useState(false);
   const [skillOptions, setSkillOptions] = useState<readonly SkillCatalogEntry[]>([]);
   const [skills, setSkills] = useState<SelectedSkill[]>([]);
-  const { catalog, mount: catalogMount } = useTurnTargetCatalog(actions, transcript?.items);
+  const { catalog, mount: catalogMount } = useTurnTargetCatalog(
+    actions,
+    transcript?.currentTarget,
+    transcript?.items,
+  );
   const running = transcript?.running === true || live.length > 0;
   const mount = useMountedResource<HTMLDivElement>(
     (node) => {
@@ -892,7 +896,7 @@ export function SessionDetail({
             {sessionEngineText(transcript.engine, t)}
             {transcript.currentTarget?.kind === 'engine' &&
             transcript.currentTarget.model !== undefined ? (
-              <SessionTargetChip target={transcript.currentTarget} models={catalog} t={t} />
+              <SessionTargetChip target={transcript.currentTarget} catalog={catalog} t={t} />
             ) : null}
           </div>
         )}

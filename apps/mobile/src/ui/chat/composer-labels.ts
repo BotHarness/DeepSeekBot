@@ -36,7 +36,7 @@ export function headerModel(model: Loadable<BotModel>): HeaderModel | undefined 
   const { route, name, group } = currentModel(model.value);
   const target = model.value.currentTarget;
   if (target !== undefined && (target.kind === 'engine' || group !== undefined))
-    return sessionHeaderTargetLabel(target, model.value.models);
+    return sessionHeaderTargetLabel(target, model.value);
   if (group !== undefined) {
     return { brand: undefined, short: group, name: group };
   }

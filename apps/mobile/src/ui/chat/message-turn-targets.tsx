@@ -1,7 +1,6 @@
 import { View } from 'react-native';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
-import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
-import { turnTargetLabel } from '@botharness/host-client/turn-target';
+import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
 
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
@@ -16,7 +15,7 @@ export function MessageMenuHeader({
 }: {
   time: string;
   targets: readonly TurnTarget[];
-  catalog: readonly ModelCatalogEntry[] | undefined;
+  catalog: TurnTargetCatalog | undefined;
 }) {
   const theme = useDesignTheme();
   const t = useStrings();

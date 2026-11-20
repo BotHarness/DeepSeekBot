@@ -67,7 +67,7 @@ export function CurrentEngineModel({
   const t = useStrings();
   const target = value.currentTarget;
   if (target?.kind !== 'engine') return null;
-  const label = turnTargetLabel(target, value.models, t.routingGroup.engineRow);
+  const label = turnTargetLabel(target, value, t.routingGroup.engineRow);
   return (
     <SettingsRow
       on={SHEET_GROUP}

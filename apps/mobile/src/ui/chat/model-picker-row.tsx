@@ -1,4 +1,4 @@
-import { turnTargetLabel } from '@botharness/host-client/turn-target';
+import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import {
   modelCatalogGroupMemberLabels,
@@ -146,6 +146,7 @@ export function ModelGroupPickerRow({
   front,
   currentTarget,
   models,
+  engines,
   groups,
   usable,
   showCount,
@@ -156,6 +157,7 @@ export function ModelGroupPickerRow({
   front: ModelCatalogEntry | undefined;
   currentTarget?: TurnTarget | undefined;
   models: readonly ModelCatalogEntry[];
+  engines?: TurnTargetCatalog['engines'];
   groups: readonly ModelCatalogGroup[];
   usable: boolean;
   showCount: boolean;
@@ -169,7 +171,8 @@ export function ModelGroupPickerRow({
   const frontLabel = t.modelSettings.groupFront(
     front === undefined ? (group.routes[0]?.model ?? '') : shortModelName(front),
   );
-  const executed = currentTarget === undefined ? undefined : turnTargetLabel(currentTarget, models);
+  const executed =
+    currentTarget === undefined ? undefined : turnTargetLabel(currentTarget, { models, engines });
   const current =
     executed !== undefined
       ? t.modelSettings.groupCurrent(executed.short)

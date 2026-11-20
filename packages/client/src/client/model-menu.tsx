@@ -1,4 +1,4 @@
-import { turnTargetLabel } from '@botharness/host-client/turn-target';
+import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import { useState, type ReactElement, type RefObject } from 'react';
 
@@ -148,7 +148,7 @@ export function catalogMenuItems(
   catalog: readonly ModelCatalogEntryView[],
   t: BotHarnessTranslate,
   groups: readonly ModelCatalogGroupView[] = [],
-  executed?: { groupId: string; target: TurnTarget },
+  executed?: { groupId: string; target: TurnTarget; engines?: TurnTargetCatalog['engines'] },
 ): ModelMenuItem[] {
   const unusable = (entry: ModelCatalogEntryView) =>
     entry.credential !== undefined || entry.restingUntil !== undefined;
@@ -200,7 +200,9 @@ export function catalogMenuItems(
         routingGroupEngineCopy(t),
       );
       const target =
-        executed?.groupId === group.id ? turnTargetLabel(executed.target, catalog) : undefined;
+        executed?.groupId === group.id
+          ? turnTargetLabel(executed.target, { models: catalog, engines: executed.engines })
+          : undefined;
       const restful = group.restingUntil;
       const currentName =
         entry === undefined ? (front?.model ?? '') : `${entry.modelName} · ${entry.providerName}`;

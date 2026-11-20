@@ -633,6 +633,7 @@ export function ModelsView({
                         : undefined
                     }
                     models={value.models}
+                    engines={value.engines}
                     groups={value.groups ?? []}
                     usable={usable}
                     showCount={picker !== 'orchestrator'}

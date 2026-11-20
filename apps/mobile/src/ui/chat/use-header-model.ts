@@ -1,4 +1,6 @@
 import { loadModelPlanState } from '@botharness/host-client/model-plans';
+import { loadRoutingGroupEngines } from '@botharness/host-client/model-catalog';
+import type { TurnTargetCatalog } from '@botharness/host-client/turn-target';
 import { useMemo, useState, type RefCallback } from 'react';
 import type { ViewInstance } from 'react-native';
 
@@ -27,8 +29,10 @@ export function useHeaderModel(
     if (client === undefined || slug === undefined || settings === undefined || !focused) return;
     let current = true;
     let generation = 0;
+    let engines: TurnTargetCatalog['engines'];
     void settings.loadModel().then(
       (value) => {
+        engines ??= value.engines;
         if (current) setState({ key: settings, model: { status: 'ready', value } });
       },
       (error: unknown) => {
@@ -39,7 +43,14 @@ export function useHeaderModel(
       if (change?.resource !== 'bot-context' || change.slug !== slug) return;
       const revision = ++generation;
       void loadModelPlanState(client, slug).then(
-        ({ currentTarget }) => {
+        async ({ currentTarget }) => {
+          if (!current || revision !== generation) return;
+          if (
+            engines === undefined &&
+            currentTarget?.kind === 'engine' &&
+            currentTarget.model !== undefined
+          )
+            engines = await loadRoutingGroupEngines(client).catch(() => undefined);
           if (!current || revision !== generation) return;
           setState((snapshot) => {
             if (snapshot?.key !== settings || snapshot.model.status !== 'ready') return snapshot;
@@ -50,6 +61,7 @@ export function useHeaderModel(
                 status: 'ready',
                 value: {
                   ...value,
+                  ...(engines === undefined ? {} : { engines }),
                   ...(currentTarget === undefined ? {} : { currentTarget }),
                 },
               },
