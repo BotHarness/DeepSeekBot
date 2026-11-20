@@ -62,7 +62,7 @@ export function readReleaseSourceState(directory) {
       '--porcelain=v1',
       '--untracked-files=all',
     ],
-    { cwd: directory, encoding: 'utf8' },
+    { cwd: directory, encoding: 'utf8', shell: false, windowsHide: true },
   )
     .split('\n')
     .filter(Boolean);
@@ -98,6 +98,8 @@ export function assertCleanReleaseSource(plan) {
 function tarText(directory, artifact, path) {
   return execFileSync('tar', ['-xOf', join(directory, artifact.filename), `package/${path}`], {
     encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
   });
 }
 
@@ -196,6 +198,8 @@ export function verifyRelease(directory, expected = {}) {
     if (!artifact) throw new Error(`Missing release artifact: ${name}`);
     const files = execFileSync('tar', ['-tzf', join(directory, artifact.filename)], {
       encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
     })
       .trim()
       .split(/\r?\n/);
@@ -253,13 +257,17 @@ export function verifyPackedCli(
       if (!entry) throw new Error(`Missing CLI package: ${name}`);
       const destination = join(modules, name);
       mkdirSync(destination, { recursive: true });
-      execFileSync('tar', [
-        '-xzf',
-        join(directory, entry.artifact.filename),
-        '-C',
-        destination,
-        '--strip-components=1',
-      ]);
+      execFileSync(
+        'tar',
+        [
+          '-xzf',
+          join(directory, entry.artifact.filename),
+          '-C',
+          destination,
+          '--strip-components=1',
+        ],
+        { shell: false, windowsHide: true },
+      );
     }
     const core = packages.find(({ artifact }) => artifact.name === '@botharness/core');
     for (const name of Object.keys(core.manifest.dependencies ?? {})) {
@@ -287,6 +295,8 @@ export function verifyPackedCli(
         timeout: 15_000,
         maxBuffer: 1024 * 1024,
         stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
+        windowsHide: true,
       },
     );
     if (!output.includes('tobs:')) throw new Error('Packed CLI did not return its help');
@@ -304,6 +314,8 @@ export function verifyPackedCli(
         encoding: 'utf8',
         timeout: 15_000,
         stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
+        windowsHide: true,
       },
     );
     if (aliasOutput !== output) throw new Error('Tobs CLI differs from the legacy implementation');
@@ -389,7 +401,13 @@ export async function reusePublishedProvider(
   try {
     writeFileSync(temporary, bytes);
     const entry = (path) =>
-      JSON.parse(execFileSync('tar', ['-xOf', temporary, `package/${path}`], { encoding: 'utf8' }));
+      JSON.parse(
+        execFileSync('tar', ['-xOf', temporary, `package/${path}`], {
+          encoding: 'utf8',
+          shell: false,
+          windowsHide: true,
+        }),
+      );
     verifyProviderArchive(
       { bytes, manifest: entry('package.json'), provenance: entry('PROVENANCE.json') },
       plan,
@@ -499,6 +517,8 @@ async function main() {
           sourceSha: execFileSync('git', ['rev-parse', 'HEAD'], {
             cwd: root,
             encoding: 'utf8',
+            shell: false,
+            windowsHide: true,
           }).trim(),
           ...sourceState,
           providerSource: productImProvider.upstream.source,
@@ -564,6 +584,8 @@ async function main() {
           cwd: directory,
           env,
           stdio: ['ignore', 'pipe', 'pipe'],
+          shell: false,
+          windowsHide: true,
         },
       );
       let stdout = '';

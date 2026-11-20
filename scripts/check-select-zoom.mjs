@@ -125,7 +125,7 @@ try {
                   return execFileSync(
                     'git',
                     ['show', `${baseline}:packages/client/src/client/ds/select.tsx`],
-                    { cwd: root, encoding: 'utf8' },
+                    { cwd: root, encoding: 'utf8', shell: false, windowsHide: true },
                   );
               },
             },

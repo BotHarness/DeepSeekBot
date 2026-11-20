@@ -54,7 +54,7 @@ function renderDiagram(source, output, theme) {
       '-p',
       PUPPETEER_CONFIG,
     ],
-    { cwd: ROOT, stdio: 'inherit' },
+    { cwd: ROOT, stdio: 'inherit', shell: false, windowsHide: true },
   );
   pinIntrinsicSize(output);
 }

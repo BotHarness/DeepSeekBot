@@ -30,7 +30,10 @@ if (process.argv.includes('--baseline')) {
   entry = resolve(bundle, 'wallpaper-layer.ts');
   writeFileSync(
     entry,
-    execFileSync('git', ['show', 'origin/main:packages/client/src/client/wallpaper-layer.ts']),
+    execFileSync('git', ['show', 'origin/main:packages/client/src/client/wallpaper-layer.ts'], {
+      shell: false,
+      windowsHide: true,
+    }),
   );
   for (const name of ['wallpaper-playback.ts', 'wallpaper-store.ts'])
     copyFileSync(resolve('packages/client/src/client', name), resolve(bundle, name));
@@ -48,7 +51,7 @@ const [packageManager, packageArguments] = pnpmCommand([
   '--out-dir',
   bundle,
 ]);
-execFileSync(packageManager, packageArguments, { stdio: 'pipe' });
+execFileSync(packageManager, packageArguments, { stdio: 'pipe', shell: false, windowsHide: true });
 const code = readFileSync(resolve(bundle, 'wallpaper-layer.js'), 'utf8');
 const browser = await puppeteer.launch({ headless: true, args: ['--no-sandbox'] });
 const results = [];

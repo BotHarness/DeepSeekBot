@@ -244,6 +244,8 @@ function git(...arguments_) {
   return execFileSync('git', ['rev-parse', ...arguments_], {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
+    shell: false,
+    windowsHide: true,
   }).trim();
 }
 
@@ -364,7 +366,7 @@ async function main(argv) {
         worktree,
         '--im-provider',
       ],
-      { stdio: 'inherit' },
+      { stdio: 'inherit', shell: false, windowsHide: true },
     );
     if (result.error) throw result.error;
     process.exitCode = result.status ?? 1;

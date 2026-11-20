@@ -91,8 +91,15 @@ export function syncSkill({ target = DEFAULT_TARGET, check = false, release = fa
   }
   if (!release) return drift;
 
-  const git = (args) => execFileSync('git', args, { cwd: target, stdio: 'inherit' });
-  const gitOut = (args) => execFileSync('git', args, { cwd: target, encoding: 'utf8' }).trim();
+  const git = (args) =>
+    execFileSync('git', args, { cwd: target, stdio: 'inherit', shell: false, windowsHide: true });
+  const gitOut = (args) =>
+    execFileSync('git', args, {
+      cwd: target,
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    }).trim();
   git(['add', '-A']);
   if (gitOut(['status', '--porcelain']) !== '') {
     git([

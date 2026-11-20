@@ -333,7 +333,14 @@ async function launch(options) {
       ...options.trustedHosts.flatMap((host) => ['--trusted-host', host]),
       '--no-open',
     ],
-    { env, cwd: runtime, detached: true, stdio: ['ignore', logFd, logFd] },
+    {
+      env,
+      cwd: runtime,
+      detached: true,
+      stdio: ['ignore', logFd, logFd],
+      shell: false,
+      windowsHide: true,
+    },
   );
   child.ownedProcessGroup = process.platform !== 'win32';
   closeSync(logFd);

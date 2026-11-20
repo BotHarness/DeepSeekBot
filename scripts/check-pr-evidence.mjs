@@ -15,7 +15,8 @@ export function evidenceViolations(paths) {
 }
 
 export function changedPaths(root, base = 'HEAD') {
-  const git = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
+  const git = (args) =>
+    execFileSync('git', args, { cwd: root, encoding: 'utf8', shell: false, windowsHide: true });
   const commit = git(['rev-parse', '--verify', `${base}^{commit}`]).trim();
   return [
     ...git(['diff', '--name-only', '-z', '--diff-filter=ACMRTUXB', commit, '--']).split('\0'),

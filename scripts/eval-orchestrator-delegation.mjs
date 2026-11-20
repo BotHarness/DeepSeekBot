@@ -709,6 +709,7 @@ async function main() {
       cwd: repoRoot,
       encoding: 'utf8',
       windowsHide: true,
+      shell: false,
     }).trim(),
     model: options.orchestratorModel
       ? `${options.model}, Orchestrator ${options.orchestratorModel}`
