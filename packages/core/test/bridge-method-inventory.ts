@@ -120,6 +120,7 @@ export const bridgeMethodInventory = [
   'modelProviderEdit',
   'modelProviderRemove',
   'engineAccounts',
+  'engineSelection',
   'engineAccountAdd',
   'engineAccountRename',
   'engineAccountRemove',
