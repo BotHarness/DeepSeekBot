@@ -13,7 +13,6 @@
     "packages/browser/src/index.ts",
     "packages/browser/src/runtime/browser.ts",
     "packages/browser/src/tool/provider.ts",
-    "packages/browser/src/viewer-local.ts",
     "packages/browser/test/browser-tools.test.ts",
     "packages/browser/test/runtime.test.ts",
     "packages/client/src/client/activity-list-view.tsx",
