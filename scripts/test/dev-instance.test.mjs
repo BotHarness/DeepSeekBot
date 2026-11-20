@@ -79,6 +79,8 @@ describe('development Home ownership and startup failure', () => {
       const home = mkdtempSync(join(tmpdir(), 'dsh-home-lease-'));
       const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
         stdio: 'ignore',
+        shell: false,
+        windowsHide: true,
       });
       try {
         const lease = acquireHome(home);
@@ -110,6 +112,8 @@ describe('development Home ownership and startup failure', () => {
     async (reason) => {
       const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
         stdio: 'ignore',
+        shell: false,
+        windowsHide: true,
       });
       try {
         await expect(
@@ -146,7 +150,7 @@ describe('development Home ownership and startup failure', () => {
         '-e',
         `import { acquireHome } from ${JSON.stringify(module)}; acquireHome(${JSON.stringify(home)});`,
       ],
-      { stdio: 'ignore' },
+      { stdio: 'ignore', shell: false, windowsHide: true },
     );
     try {
       await once(child, 'exit');
@@ -198,10 +202,12 @@ describe('development Home ownership and startup failure', () => {
   it.each([false, true])(
     'releases descendant ports when Host early-exit is %s',
     async (earlyExit) => {
-      const source = `const { spawn } = require('node:child_process'); const child = spawn(process.execPath, ['-e', "const server=require('node:net').createServer(); server.listen(0,'127.0.0.1',()=>process.send({port:server.address().port,pid:process.pid}));"], {stdio:['ignore','ignore','ignore','ipc']}); child.on('message', value=>process.send(value)); setInterval(()=>{},1000);`;
+      const source = `const { spawn } = require('node:child_process'); const child = spawn(process.execPath, ['-e', "const server=require('node:net').createServer(); server.listen(0,'127.0.0.1',()=>process.send({port:server.address().port,pid:process.pid}));"], {stdio:['ignore','ignore','ignore','ipc'],shell:false,windowsHide:true}); child.on('message', value=>process.send(value)); setInterval(()=>{},1000);`;
       const child = spawn(process.execPath, ['-e', source], {
         detached: true,
         stdio: ['ignore', 'ignore', 'ignore', 'ipc'],
+        shell: false,
+        windowsHide: true,
       });
       child.ownedProcessGroup = process.platform !== 'win32';
       let descendant;
@@ -240,7 +246,11 @@ describe('development Home ownership and startup failure', () => {
     },
   );
   it('reports early exit instead of waiting for the token deadline', async () => {
-    const child = spawn(process.execPath, ['-e', 'process.exit(1)'], { stdio: 'ignore' });
+    const child = spawn(process.execPath, ['-e', 'process.exit(1)'], {
+      stdio: 'ignore',
+      shell: false,
+      windowsHide: true,
+    });
     await expect(
       verifyStartedHost(child, async (check) => {
         await once(child, 'exit');

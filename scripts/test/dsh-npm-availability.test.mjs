@@ -105,6 +105,7 @@ describe('exact DSH npm distribution availability', () => {
       const result = spawnSync(process.execPath, [script, ...args], {
         encoding: 'utf8',
         windowsHide: true,
+        shell: false,
       });
       expect(result.status).toBe(2);
       expect(result.stdout).toBe('');

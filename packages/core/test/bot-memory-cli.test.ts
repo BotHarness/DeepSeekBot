@@ -60,7 +60,12 @@ async function host(
       calls.push(call);
       const answer =
         call.path === 'channelDm'
-          ? { json: { ok: true, value: { channel: { id: 'dm-ada' } } } }
+          ? {
+              json: {
+                ok: true,
+                value: { channel: { id: 'dm-ada', type: 'dm', name: 'Ada', members: ['ada'] } },
+              },
+            }
           : route(call);
       if (rpc) {
         res.setHeader('content-type', 'application/json');
@@ -131,7 +136,12 @@ describe('Agent memory commands against a live Host', () => {
       methods.push(method);
       if (!refused && method === 'channelDm') {
         expect(call.body).toMatchObject({ args: { slug: 'ada' } });
-        return { json: { ok: true, value: { channel: { id: participantDm } } } };
+        return {
+          json: {
+            ok: true,
+            value: { channel: { id: participantDm, type: 'dm', name: 'Ada', members: ['ada'] } },
+          },
+        };
       }
       if (!refused && method !== 'memoryMove' && method !== 'memoryFileTarget')
         expect(call.body).toMatchObject({ args: { channelId: participantDm } });

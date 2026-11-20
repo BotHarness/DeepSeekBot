@@ -368,7 +368,16 @@ it('keeps a pending create on B when the browsing scope changes to A', async () 
   await render();
   expect(document.querySelector('select')?.value).toBe('remote-b');
   expect(document.querySelector('select')?.disabled).toBe(true);
-  await act(async () => finish?.({ channel: { id: 'same-id', type: 'group', name: 'Only B' } }));
+  await act(async () =>
+    finish?.({
+      channel: { id: 'same-id', type: 'group', name: 'Only B', members: [] },
+      receipt: {
+        operationKey: fixture.call.mock.calls[0]?.[1]?.['operationKey'],
+        channelId: 'same-id',
+        status: 'completed',
+      },
+    }),
+  );
   expect(fixture.call).toHaveBeenCalledExactlyOnceWith('channelCreate', {
     name: 'Only B',
     members: [],

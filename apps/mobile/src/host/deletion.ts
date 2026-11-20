@@ -1,3 +1,7 @@
+import {
+  deleteGroupChannel,
+  removeRosterSection,
+} from '@botharness/host-client/channel-management';
 import type { HostClient } from '@botharness/host-client/client';
 import type {
   PersonaBotDeletionPreview,
@@ -101,13 +105,7 @@ export async function deleteGroupOrSection(
   target: DeletionTarget,
 ): Promise<void> {
   if (target.kind === 'bot') throw new Error('Bot deletion requires a reviewed preview');
-  const group = target.kind === 'group';
-  const response = record(
-    await client.call(
-      group ? 'channelGroupDelete' : 'sectionRemove',
-      group ? { channelId: target.id } : { sectionId: target.id },
-    ),
-  );
-  if (response[group ? 'deleted' : 'removed'] !== true)
+  if (target.kind === 'group') return deleteGroupChannel(client, target.id);
+  if (!(await removeRosterSection(client, target.id)))
     throw new Error('Deletion was not confirmed');
 }

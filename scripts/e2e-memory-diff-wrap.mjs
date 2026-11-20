@@ -38,7 +38,7 @@ else {
         'user.email=diff-qa@example.invalid',
         ...args,
       ],
-      { encoding: 'utf8' },
+      { encoding: 'utf8', shell: false, windowsHide: true },
     ).trim();
   mkdirSync(join(memory, 'research'), { recursive: true });
   const body = [

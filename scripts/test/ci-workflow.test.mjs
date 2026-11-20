@@ -31,6 +31,8 @@ const passes = (needs, iosHardwareSend = 'false') =>
   spawnSync(process.execPath, ['-e', script], {
     encoding: 'utf8',
     env: { ...process.env, NEEDS: JSON.stringify(needs), IOS_HARDWARE_SEND_TESTS: iosHardwareSend },
+    shell: false,
+    windowsHide: true,
   }).status === 0;
 
 describe('required CI aggregate', () => {

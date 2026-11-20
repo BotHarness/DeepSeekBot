@@ -9,12 +9,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   attachOperationalModule,
   mountOperationalDatabase,
-} from '../../../packages/core/src/database/owner.js';
-import { BOT_HARNESS_SCHEMA_PLAN } from '../../../packages/core/src/database/schema-plan.js';
-import { createDeviceGateway } from '../../../packages/core/src/devices/gateway.js';
-import { createDevicePairing } from '../../../packages/core/src/devices/pairing.js';
-import { createPushDelivery, type ExpoMessage } from '../../../packages/core/src/push/delivery.js';
-import { createDevicePushHttp } from '../../../packages/core/src/push/http.js';
+} from '../../../../packages/core/src/database/owner.js';
+import { BOT_HARNESS_SCHEMA_PLAN } from '../../../../packages/core/src/database/schema-plan.js';
+import { createDeviceGateway } from '../../../../packages/core/src/devices/gateway.js';
+import { createDevicePairing } from '../../../../packages/core/src/devices/pairing.js';
+import {
+  createPushDelivery,
+  type ExpoMessage,
+} from '../../../../packages/core/src/push/delivery.js';
+import { createDevicePushHttp } from '../../../../packages/core/src/push/http.js';
 import {
   parseSavedHosts,
   selectHost,
@@ -32,13 +35,13 @@ import {
   decideFromPush,
   registerApprovalCategories,
   removeFromPush,
-} from '../src/host/push-actions';
+} from '../../src/host/push-actions';
 import {
   createPushSession,
   type NotificationsPort,
   type PermissionState,
-} from '../src/host/push-session';
-import { nodeCarrier } from './node-carrier';
+} from '../../src/host/push-session';
+import { nodeCarrier } from '../node-carrier';
 
 const host = (id: string): SavedHost => ({
   hostId: id,

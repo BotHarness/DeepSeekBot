@@ -47,7 +47,11 @@ const cliRaw = async (command, args = [], input) => {
   const child = execFile(
     process.execPath,
     ['packages/deepseekbot/dist/deepseekbot.mjs', command, '--host', u.origin, ...args],
-    { env: { ...process.env, DEEPSEEKBOT_HOST_TOKEN: u.searchParams.get('token') } },
+    {
+      env: { ...process.env, DEEPSEEKBOT_HOST_TOKEN: u.searchParams.get('token') },
+      shell: false,
+      windowsHide: true,
+    },
   );
   child.stdin.end(input === undefined ? '' : JSON.stringify(input));
   return new Promise((r, j) => {

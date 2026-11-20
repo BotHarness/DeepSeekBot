@@ -30,6 +30,8 @@ function run(command, args, options) {
     maxBuffer: 64 * 1024 * 1024,
     timeout: 900_000,
     ...options,
+    shell: false,
+    windowsHide: true,
   });
   return {
     status: result.status,
@@ -45,6 +47,8 @@ async function boot({ dsh, runtime, env, port, log }) {
     env,
     detached: true,
     stdio: ['ignore', fd, fd],
+    shell: false,
+    windowsHide: true,
   });
   const stop = async () => {
     try {

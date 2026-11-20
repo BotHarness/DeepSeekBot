@@ -9,7 +9,7 @@ it('qualifies private relay admission, ciphertext forwarding and durable ownersh
       '--test',
       fileURLToPath(new URL('../../deploy/private-relay/server-check.mjs', import.meta.url)),
     ],
-    { encoding: 'utf8', windowsHide: true, timeout: 15_000 },
+    { encoding: 'utf8', windowsHide: true, timeout: 15_000, shell: false },
   );
   expect(output).toContain('fail 0');
 });
