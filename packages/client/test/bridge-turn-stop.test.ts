@@ -145,6 +145,39 @@ it('shows a subscription limit card with a one-tap switch to the API model (#449
   ).toBeUndefined();
 });
 
+it('shows the group exhaustion card with the first reset and no direct engine switch', () => {
+  const firstReset = '2026-11-18T16:00:00.000Z';
+  const engineReset = '2026-11-18T20:00:00.000Z';
+  const parsed = parseChannelMessage({
+    id: 'group-stopped',
+    at: '2026-11-18T14:00:00.000Z',
+    body: '',
+    author: { kind: 'system' },
+    turnStop: {
+      botSlug: 'ada',
+      botName: 'Ada',
+      humanName: 'Human',
+      sessionId: 's-1',
+      held: true,
+      cause: 'quota',
+      routingGroup: true,
+      rests: [
+        { provider: 'deepseek', model: 'flash', until: firstReset },
+        { provider: 'codex', model: 'ChatGPT pro', until: engineReset },
+      ],
+      engine: { engine: 'codex', account: 'ChatGPT pro', until: engineReset },
+    },
+  });
+  expect(parsed?.turnStop?.routingGroup).toBe(true);
+  const stop = parsed!.turnStop!;
+  const html = renderToStaticMarkup(
+    createElement(TurnStopLine, { messageId: 'group-stopped', stop, t: enTranslate }),
+  );
+  expect(html).toContain('all Routing Group targets are resting');
+  expect(html).toContain('data-engine-limit="codex"');
+  expect(html).not.toContain('Switch to API model');
+});
+
 it('names the quota left, or the limit, where the engine is shown (#4493)', () => {
   const quota = parseSessionEngineQuota({
     usedPercent: 79.4,

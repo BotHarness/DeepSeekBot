@@ -24,7 +24,6 @@ import {
   sdkClaudeQuery,
 } from './claude-engine.js';
 import { type ClaudeStatus, detectClaude, startClaudeLogin } from './claude-status.js';
-import { resolveEngineCommand } from './engine-launch.js';
 import { buildEngineContextSeed } from './engine-context.js';
 import {
   type EngineSessionPersistence,
@@ -38,26 +37,6 @@ import {
   type EngineGrant,
   engineGatewayResult,
 } from './engine-gateway.js';
-import { EngineTurnLog } from './engine-log.js';
-import {
-  ENGINE_DEFINITIONS,
-  type EngineChoice,
-  type EngineEvent,
-  type EngineId,
-  type EngineModel,
-  type EngineQuota,
-  type EngineSession,
-  type EngineWorkspaceMode,
-  EngineLimitError,
-  EngineRefusal,
-} from './engine-session.js';
-import {
-  createEngineStore,
-  type EngineRole,
-  type EngineStore,
-  engineStorePath,
-} from './engine-store.js';
-
 import {
   ENGINE_GATEWAY_TOOLS,
   type EngineTurnRequest,
@@ -67,9 +46,36 @@ import {
   type EngineSessionState,
   type EngineApprovalRequest,
   type EngineSessionDescription,
-  type EngineQuotaView,
   type EngineStatusReport,
 } from './engine-host-types.js';
+import { resolveEngineCommand } from './engine-launch.js';
+import { EngineTurnLog } from './engine-log.js';
+import {
+  engineQuotaLimit,
+  engineQuotaView,
+  recordEngineQuota,
+  type EngineQuotaView,
+} from './engine-quota.js';
+import {
+  ENGINE_DEFINITIONS,
+  type EngineChoice,
+  type EngineEvent,
+  type EngineId,
+  type EngineModel,
+  type EngineSession,
+  type EngineWorkspaceMode,
+  EngineLimitError,
+  EngineRefusal,
+  requireOfferedEngineChoice,
+} from './engine-session.js';
+import {
+  createEngineStore,
+  type EngineRole,
+  type EngineStore,
+  engineStorePath,
+} from './engine-store.js';
+
+export { engineGatewayResult };
 
 export {
   ENGINE_GATEWAY_TOOLS,
@@ -134,7 +140,6 @@ interface LiveEngineSession {
   running: Promise<void>;
 }
 
-const LIMIT_REST_MS = 60 * 60_000;
 const MODELS_TTL_MS = 5 * 60_000;
 
 function choiceKey(engine: EngineId | undefined, choice: EngineChoice): string | undefined {
@@ -204,8 +209,18 @@ export class EngineHost {
     return this.store.selection(botSlug, role);
   }
 
-  choiceFor(botSlug: string, role: EngineRole = 'orchestrator'): string | undefined {
-    return choiceKey(this.engineFor(botSlug, role), this.store.choice(botSlug, role));
+  #turnSelection(request: EngineTurnRequest) {
+    const role = request.role ?? 'orchestrator';
+    const target = request.target;
+    if (target !== undefined && role === 'orchestrator' && this.#options.local)
+      return {
+        engine: target.engine,
+        choice: target.model === undefined ? {} : { model: target.model },
+      };
+    return {
+      engine: this.engineFor(request.botSlug, role),
+      choice: this.store.choice(request.botSlug, role),
+    };
   }
 
   use(
@@ -275,30 +290,11 @@ export class EngineHost {
   }
 
   limit(engine: EngineId): { account: string; until: string } | undefined {
-    const quota = this.store.quota(engine);
-    if (quota?.limited !== true) return undefined;
-    const until =
-      quota.resetsAt !== undefined && Number.isFinite(Date.parse(quota.resetsAt))
-        ? Date.parse(quota.resetsAt)
-        : Date.parse(quota.observedAt) + LIMIT_REST_MS;
-    if (!(until > this.#now())) return undefined;
-    return { account: quota.account ?? engine, until: new Date(until).toISOString() };
+    return engineQuotaLimit(engine, this.store.quota(engine), this.#now());
   }
 
   quota(engine: EngineId): EngineQuotaView | undefined {
-    const quota = this.store.quota(engine);
-    if (quota === undefined) return undefined;
-    const limit = this.limit(engine);
-    const current =
-      quota.resetsAt === undefined || Date.parse(quota.resetsAt) > this.#now()
-        ? quota.usedPercent
-        : undefined;
-    return {
-      ...(current === undefined ? {} : { usedPercent: current }),
-      ...(quota.resetsAt === undefined ? {} : { resetsAt: quota.resetsAt }),
-      ...(limit === undefined ? {} : { limitedUntil: limit.until }),
-      observedAt: quota.observedAt,
-    };
+    return engineQuotaView(engine, this.store.quota(engine), this.#now());
   }
 
   describe(sessionId: string): EngineSessionDescription | undefined {
@@ -323,23 +319,10 @@ export class EngineHost {
   }
 
   #record(engine: EngineId, account: string, event: Extract<EngineEvent, { kind: 'rate-limit' }>) {
-    const previous = this.store.quota(engine);
-    const resetsAt =
-      event.resetsAt !== undefined
-        ? new Date(event.resetsAt * 1000).toISOString()
-        : event.limited && previous?.limited === true && previous.account === account
-          ? previous.resetsAt
-          : undefined;
-    const usedPercent =
-      event.usedPercent ?? (event.limited ? 100 : undefined) ?? previous?.usedPercent;
-    const quota: EngineQuota = {
-      account,
-      ...(usedPercent === undefined ? {} : { usedPercent }),
-      ...(resetsAt === undefined ? {} : { resetsAt }),
-      limited: event.limited,
-      observedAt: new Date(this.#now()).toISOString(),
-    };
-    this.store.rememberQuota(engine, quota);
+    this.store.rememberQuota(
+      engine,
+      recordEngineQuota(account, event, this.store.quota(engine), this.#now()),
+    );
   }
 
   async status(): Promise<EngineStatusReport[]> {
@@ -368,27 +351,7 @@ export class EngineHost {
   }
 
   async validateChoice(engine: EngineId, choice: EngineChoice): Promise<void> {
-    const models = await this.models(engine);
-    if (choice.model === undefined && choice.effort === undefined) return;
-    const picked =
-      choice.model === undefined
-        ? (models.find((entry) => entry.isDefault === true) ?? models[0])
-        : models.find((entry) => entry.id === choice.model);
-    if (picked === undefined)
-      throw new EngineRefusal(
-        'unknown-model',
-        `${choice.model ?? 'The default model'} is not offered by this ${engine} subscription. List them with deepseekbot engine models ${engine}`,
-      );
-    if (
-      choice.effort !== undefined &&
-      !picked.efforts.some((option) => option.id === choice.effort)
-    )
-      throw new EngineRefusal(
-        'unknown-effort',
-        picked.efforts.length === 0
-          ? `${picked.id} takes no effort level`
-          : `${picked.id} takes effort ${picked.efforts.map((option) => option.id).join(', ')}`,
-      );
+    requireOfferedEngineChoice(engine, choice, await this.models(engine));
   }
 
   async models(engine: EngineId): Promise<EngineModel[]> {
@@ -482,7 +445,7 @@ export class EngineHost {
   ): Promise<EngineTurnOutcome> {
     const role = request.role ?? 'orchestrator';
     this.#roles.set(request.sessionId, role);
-    const selected = this.engineFor(request.botSlug, role);
+    const selected = this.#turnSelection(request).engine;
     if (selected === undefined)
       throw new EngineRefusal(
         'engine-unavailable',
@@ -602,7 +565,8 @@ export class EngineHost {
           if (last !== undefined) outcome.endSeq = Number(last.seq);
           if (end.status === 'failed') {
             const limit = limitedNow ? this.limit(engine) : undefined;
-            if (limit !== undefined) throw new EngineLimitError(engine, limit.account, limit.until);
+            if (limit !== undefined)
+              throw new EngineLimitError(engine, limit.account, limit.until, true);
             if (steered?.replacing !== true || !current())
               throw new EngineRefusal('engine-failed', end.message);
           }
@@ -762,21 +726,23 @@ export class EngineHost {
   async #open(request: EngineTurnRequest): Promise<LiveEngineSession> {
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
     const live = this.#live.get(request.sessionId);
-    const role = request.role ?? 'orchestrator';
-    let mode: EngineWorkspaceMode;
-    try {
-      mode = workspaceModeFor(request);
-    } catch (error) {
-      if (live !== undefined) await this.release(request.sessionId);
-      throw error;
+    if (live !== undefined) {
+      let mode: EngineWorkspaceMode;
+      try {
+        mode = workspaceModeFor(request);
+      } catch (error) {
+        await this.release(request.sessionId);
+        throw error;
+      }
+      const initial = this.#turnSelection(request);
+      const selected = sessionKey(choiceKey(initial.engine, initial.choice), request.cwd, mode);
+      if (!live.engine.ended && live.configuration === selected) return live;
+      await this.release(request.sessionId);
     }
-    const selected = sessionKey(this.choiceFor(request.botSlug, role), request.cwd, mode);
-    if (live !== undefined && !live.engine.ended && live.configuration === selected) return live;
-    if (live !== undefined) await this.release(request.sessionId);
     await this.#releasing.get(request.sessionId);
     if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
-    const engineId = this.engineFor(request.botSlug, role);
-    const choice = this.store.choice(request.botSlug, role);
+    const mode = workspaceModeFor(request);
+    const { engine: engineId, choice } = this.#turnSelection(request);
     const key = sessionKey(choiceKey(engineId, choice), request.cwd, mode);
     const pending = this.#opening.get(request.sessionId);
     if (pending !== undefined) {
@@ -818,8 +784,14 @@ export class EngineHost {
       if (sessions === undefined || persistence === undefined)
         throw new EngineRefusal('engine-unavailable', 'DSH Session Persistence is unavailable');
       const cwd = request.cwd ?? join(this.#options.root, 'workdirs', botSlug);
+      const sessionCwd = request.sessionCwd ?? cwd;
       if (request.cwd === undefined) mkdirSync(cwd, { recursive: true });
       await this.#options.gateway.start();
+      request.signal.throwIfAborted();
+      if (await request.releaseNativeSession?.()) {
+        request.signal.throwIfAborted();
+        dsh = await openEngineDshSession(sessions, persistence, sessionId, sessionCwd);
+      }
       const tools: EngineGatewayTool[] = request.tools
         .filter((tool) => ENGINE_GATEWAY_TOOLS.has(tool.name))
         .map((tool) => ({
@@ -845,7 +817,7 @@ export class EngineHost {
       const stored = this.store.nativeSession(sessionId);
       let resume = stored?.engine === engineId ? stored.nativeId : undefined;
       if (resume !== undefined && stored?.lastTurn !== undefined) {
-        dsh = await openEngineDshSession(sessions, persistence, sessionId, cwd);
+        dsh ??= await openEngineDshSession(sessions, persistence, sessionId, sessionCwd);
         const last = dsh.session.snapshotEvents().findLast((event) => event.type === 'turn/start');
         if (last?.data.turn !== stored.lastTurn) resume = undefined;
       }
@@ -892,7 +864,7 @@ export class EngineHost {
         nativeId = await opened.start();
       }
       this.#rememberModel(botSlug, opened.engine, opened.model);
-      dsh ??= await openEngineDshSession(sessions, persistence, sessionId, cwd);
+      dsh ??= await openEngineDshSession(sessions, persistence, sessionId, sessionCwd);
       if (this.#closed) throw new EngineRefusal('engine-unavailable', 'The Host is shutting down');
       const live: LiveEngineSession = {
         botSlug,

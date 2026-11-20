@@ -524,7 +524,7 @@ export function renderSite(colors = siteColors()) {
   )}\n`;
 }
 
-const camel = (parts) =>
+export const camel = (parts) =>
   parts
     .join('-')
     .replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase())
@@ -612,6 +612,18 @@ export function renderStylex(tokens = webTokens()) {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(`  ${name}: ${literal(value)},`);
   }
+  groups.set(
+    'breakpoint',
+    Object.entries(tokens.breakpoints).map(([name, value]) => `  ${name}: ${literal(value)},`),
+  );
+  groups.set(
+    'media',
+    Object.entries(tokens.breakpoints).flatMap(([name, value]) =>
+      ['min', 'max'].map(
+        (bound) => `  ${camel([bound, name])}: ${literal(`@media (${bound}-width: ${value})`)},`,
+      ),
+    ),
+  );
   const blocks = [...groups]
     .map(
       ([group, lines]) => `export const ${camel([group])} = stylex.defineConsts({

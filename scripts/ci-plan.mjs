@@ -212,6 +212,7 @@ export const RULES = [
   related('.github/workflows/readme-status.yml', 'README status collection and publication'),
   related('docs/assets/readme/pixel/source/**', 'README renderer source geometry and licenses'),
   related('scripts/fixtures/**', 'Script test fixtures'),
+  related('scripts/ui-rule-styles.mjs', 'Desktop UI lint and autofix'),
   related('scripts/lint-rules/**', 'Repository oxlint rules'),
   related('scripts/product-provider/**', 'Product provider scripts'),
   related('scripts/perf-budgets/**', 'Performance budgets, checked by the timeline budget job'),
