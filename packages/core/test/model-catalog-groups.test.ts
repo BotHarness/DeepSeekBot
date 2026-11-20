@@ -76,7 +76,11 @@ describe('modelCatalog lists Routing Groups and rest state (#4421)', () => {
       isOwner: () => false,
       member: () => ({ status: 'active' }),
       roles: {
-        modelsAllowed: () => ({ all: false, routes: [`${flash.provider}/${flash.model}`] }),
+        modelsAllowed: () => ({
+          all: false,
+          providers: [],
+          routes: [`${flash.provider}/${flash.model}`],
+        }),
       },
     };
     const answer = await methods([], { team }).modelCatalog({});

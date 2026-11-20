@@ -74,7 +74,10 @@ function extractedBinary(entry, archive) {
   if (!entry.asset.name.endsWith('.tgz')) return readFileSync(archive);
   const temporary = mkdtempSync(join(dirname(archive), '.extract-'));
   try {
-    execFileSync('tar', ['-xzf', archive, '-C', temporary, entry.executable]);
+    execFileSync('tar', ['-xzf', archive, '-C', temporary, entry.executable], {
+      shell: false,
+      windowsHide: true,
+    });
     return readFileSync(join(temporary, entry.executable));
   } finally {
     rmSync(temporary, { recursive: true, force: true });

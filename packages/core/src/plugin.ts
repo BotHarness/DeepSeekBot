@@ -10,7 +10,7 @@ import { WorkspaceSpaces } from './workspaces/spaces.js';
 import { defaultSpaceMemoryPath, relocateSpaceMemories } from './workspaces/space-memory.js';
 import { questionAnswerReceipts } from './channels/question-answer-receipts.js';
 import { TeamError } from './team/error.js';
-import { requireBotModel } from './team/models.js';
+import { botModelFilter, requireBotModel } from './team/models.js';
 import { createMemberTobOperations } from './tob/member-operations.js';
 import { botOwner, ownsBot, privateBotRegistry } from './team/bot-access.js';
 import { privateBotCreations } from './bots/creation.js';
@@ -1943,6 +1943,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ),
     turnRefusal: (sessionId) => turnRefusals.get(sessionId),
     resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
+    modelFilter: (slug) => botModelFilter(core.team, core.registry.get(slug)),
     assignmentGroups: {
       pick: (botSlug, groupId, effort) => groupFallback.pick(botSlug, groupId, effort),
       describe: (groupId) => {
@@ -2805,18 +2806,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       }
       const modelOwner = core.ownership.resolve(agent.session.id);
       if (modelOwner) {
-        const selection = agentAdapter.modelSelection(agent.session.id) ?? agent.options;
-        if (selection.provider && selection.model) {
-          try {
-            requireBotModel(core.team, core.registry.get(modelOwner.botSlug), {
-              provider: selection.provider,
-              model: selection.model,
-            });
-          } catch (error) {
-            if (!(error instanceof TeamError)) throw error;
-            turnRefusals.set(agent.session.id, error);
-            return { kind: 'reject' };
-          }
+        try {
+          requireBotModel(core.team, core.registry.get(modelOwner.botSlug), modelSelection);
+        } catch (error) {
+          if (!(error instanceof TeamError)) throw error;
+          turnRefusals.set(agent.session.id, error);
+          return { kind: 'reject' };
         }
       }
       const repairs = new Set<BotSessionRepair>();

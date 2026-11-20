@@ -273,6 +273,8 @@ async function launch(options, paths) {
     encoding: 'utf8',
     timeout: 600_000,
     maxBuffer: 4 * 1024 * 1024,
+    shell: false,
+    windowsHide: true,
   });
   if (result.error) throw new Error(`dev-instance.mjs did not complete: ${result.error.message}`);
   const start = (result.stdout ?? '').indexOf('{');

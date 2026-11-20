@@ -265,6 +265,7 @@ export const TEAM_OPTIONS = {
   reason: { type: 'string' },
   audience: { type: 'string' },
   models: { type: 'string' },
+  'model-providers': { type: 'string' },
   'human-id': { type: 'string' },
   post: { type: 'string' },
   'add-members': { type: 'string' },

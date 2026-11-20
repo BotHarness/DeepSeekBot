@@ -308,6 +308,14 @@ describe('Team CLI', () => {
       method: 'roleUpdate',
       payload: { roleId: 'member', models: { kind: 'all' } },
     },
+    {
+      args: ['roles', 'update', 'member', '--model-providers', 'go', '--models', 'exact/model'],
+      method: 'roleUpdate',
+      payload: {
+        roleId: 'member',
+        models: { kind: 'only', providers: ['go'], routes: ['exact/model'] },
+      },
+    },
   ])('dispatches M10 $method normally and through --as', async ({ args, method, payload }) => {
     const f = await host();
     expect((await run(f.url, args)).status).toBe(0);

@@ -667,6 +667,7 @@ function cli(env) {
       windowsHide: true,
       timeout,
       maxBuffer: 64 * 1024 * 1024,
+      shell: false,
     });
     return JSON.parse(stdout);
   };

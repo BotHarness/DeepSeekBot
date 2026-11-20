@@ -4068,7 +4068,7 @@ describe('Bot Schedule Tools', () => {
 });
 
 describe('Assignment Routing Groups (#4420)', () => {
-  it('lists groups with resting members and creates an Assignment on the first usable member', async () => {
+  it.each([true, false])('filters Assignment choices (%s)', async (allowBoth) => {
     const spent = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
     const pro = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
     const until = '2026-11-18T00:00:00.000Z';
@@ -4078,6 +4078,10 @@ describe('Assignment Routing Groups (#4420)', () => {
       sourcePresetName: '',
       orchestrator: pro,
       assignmentDefault: pro,
+      assignmentModels: [
+        { ...pro, allowedEfforts: [''], defaultEffort: '' },
+        { ...spent, allowedEfforts: [''], defaultEffort: '' },
+      ],
       assignmentGroups: ['g'],
       assignmentDefaultGroupId: 'g',
       appliedAt: BOT.createdAt,
@@ -4131,6 +4135,7 @@ describe('Assignment Routing Groups (#4420)', () => {
       agents: host,
       defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
       resolveModelPlan: () => plan,
+      modelFilter: () => (route) => allowBoth || route.provider === pro.provider,
       orchestratorCwd: () => '/memory/ada',
       ensureWorkspace: () => undefined,
       assignmentGroups: {
@@ -4192,18 +4197,23 @@ describe('Assignment Routing Groups (#4420)', () => {
     });
     try {
       const parsed = (await Promise.all(calls)).map((value) => JSON.parse(String(value)));
-      expect(parsed[0]).toMatchObject({
-        assignmentDefault: pro,
-        assignmentGroups: [
+      expect(parsed[0]).toMatchObject({ assignmentDefault: pro });
+      expect(
+        parsed[0].assignmentModels.map(({ provider }: { provider: string }) => provider),
+      ).toEqual(allowBoth ? [pro.provider, spent.provider] : [pro.provider]);
+      if (allowBoth) {
+        expect(parsed[0].assignmentGroups).toMatchObject([
           {
             group: 'g',
             name: 'Fallback',
             default: true,
             members: [{ ...spent, restingUntil: until }, pro],
           },
-        ],
-      });
-      expect(parsed[0].assignmentGroups[0].restingUntil).toBeUndefined();
+        ]);
+        expect(parsed[0].assignmentGroups[0].restingUntil).toBeUndefined();
+      } else {
+        expect(parsed[0]).not.toHaveProperty('assignmentGroups');
+      }
       expect(parsed[3].error).toContain('Routing Group other is not allowed');
       expect(parsed[4]).toMatchObject({ outcome: 'refused' });
       expect(parsed[4].message).toContain(`opencode-go/deepseek-v4.1-flash until ${until}`);

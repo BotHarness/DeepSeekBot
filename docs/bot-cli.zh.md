@@ -2193,8 +2193,14 @@ deepseekbot members purge bob --token-stdin --confirm < purge-token.txt
 deepseekbot usage members --period week [--as <username>]
 deepseekbot roles update <roleId> --models all [--as <username>]
 deepseekbot roles update <roleId> --models provider/model,provider/model [--as <username>]
+deepseekbot roles update <roleId> --model-providers <provider-id>,<provider-id> [--models <provider-id>/<model-id>] [--as <username>]
 deepseekbot models allowed [--as <username>]
 ```
+
+`roles create` 与 `roles update` 用这两个选项替换模型授权。`--model-providers` 授权指定提供商 ID
+的所有模型，包括以后新增的模型。同一命令加上 `--models` 可同时授权具体模型。指定任一选项时，省略的列表
+视为空。单独使用 `--models all` 可恢复全部模型。`roles list` 在受限角色中返回 `models.providers` 和
+`models.routes`，`models allowed` 返回调用者各角色模型授权的并集。
 
 ### Tobs Connect 本机公网自检
 

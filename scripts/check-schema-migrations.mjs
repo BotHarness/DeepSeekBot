@@ -127,6 +127,7 @@ export function checkSchemaMigrations(root = ROOT) {
         cwd: root,
         stdio: 'ignore',
         windowsHide: true,
+        shell: false,
       });
       return true;
     } catch {
@@ -139,6 +140,7 @@ export function checkSchemaMigrations(root = ROOT) {
         cwd: root,
         encoding: 'utf8',
         windowsHide: true,
+        shell: false,
       }),
     );
     errors.push(...checkMigrationPrefix(snapshot, merged));
