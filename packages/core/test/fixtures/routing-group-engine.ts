@@ -17,7 +17,7 @@ import { SessionId, SessionStore } from '@deepseek-ai/dsh-session';
 import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection';
 import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt';
 import { ToolRuntime } from '@deepseek-ai/dsh-tools';
-import { afterEach, expect, vi } from 'vitest';
+import { afterEach, expect, vi, type Mock } from 'vitest';
 
 import { dmChannelId } from '../../src/channels/channel.js';
 import { attachOperationalModule } from '../../src/database/owner.js';
@@ -43,7 +43,9 @@ export const RESETS_AT = new Date(1_795_027_200_000).toISOString();
 export const API = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
 export const CODEX = { kind: 'engine', engine: 'codex', model: 'gpt-6-astra' } as const;
 export const CLAUDE = { kind: 'engine', engine: 'claude', model: 'claude-opus-5-5' } as const;
-export const LIMIT = readCodexRecording(join(import.meta.dirname, 'codex-limit-turn.jsonl'));
+export const LIMIT: ReturnType<typeof readCodexRecording> = readCodexRecording(
+  join(import.meta.dirname, 'codex-limit-turn.jsonl'),
+);
 const CODEX_DM = readCodexRecording(join(import.meta.dirname, 'codex-dm-turn.jsonl'));
 export const CLAUDE_REPLY = readClaudeRecording(
   join(import.meta.dirname, 'claude-dm-turn.jsonl'),
@@ -205,7 +207,7 @@ export async function nativeRuntime(model: NativeReplay, beforeWriterClose?: () 
   };
 }
 
-export const CODEX_REPLY = CODEX_DM.map((line) => {
+export const CODEX_REPLY: ReturnType<typeof readCodexRecording> = CODEX_DM.map((line) => {
   const params = line.msg['params'];
   if (params === null || typeof params !== 'object' || !('item' in params)) return line;
   const item = params.item;
@@ -254,7 +256,7 @@ export function setup(options: {
     status: async () => 'ok' as const,
   };
   const dsh = options.nativeRuntime?.dsh ?? memoryDsh();
-  const replies = vi.fn();
+  const replies: Mock<(reply: unknown) => void> = vi.fn();
   const native = new FakeAgentHost(undefined, {
     restoreSession: (id) =>
       (dsh.stored.get(id)?.events ?? []).map((event) => ({
