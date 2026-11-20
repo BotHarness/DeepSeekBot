@@ -1,5 +1,5 @@
 import * as stylex from '@stylexjs/stylex';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
@@ -80,17 +80,27 @@ export function useTurnTargetCatalog(
   items: readonly SessionTranscriptItem[] | undefined,
 ) {
   const [catalog, setCatalog] = useState<{ host: BridgeActions; models: ModelCatalogEntry[] }>();
-  const hasTarget = (matches: (target: TurnTarget) => boolean) =>
-    (current !== undefined && matches(current)) ||
-    items?.some(
-      (item) =>
-        (item.kind === 'reply' || item.kind === 'turn-end') && item.turnTargets?.some(matches),
-    ) === true;
-  const engine = useTurnTargetEngines<HTMLDivElement>(
-    actions,
-    hasTarget((target) => target.kind === 'engine' && target.model !== undefined),
-  );
-  const needsCatalog = catalog?.host !== actions && hasTarget((target) => target.kind === 'dsh');
+  const needsEngines = useMemo(() => {
+    const hasEngineModel = (target: TurnTarget) =>
+      target.kind === 'engine' && target.model !== undefined;
+    return (
+      (current !== undefined && hasEngineModel(current)) ||
+      items?.some(
+        (item) =>
+          (item.kind === 'reply' || item.kind === 'turn-end') &&
+          item.turnTargets?.some(hasEngineModel),
+      ) === true
+    );
+  }, [current, items]);
+  const engine = useTurnTargetEngines<HTMLDivElement>(actions, needsEngines);
+  const needsCatalog =
+    catalog?.host !== actions &&
+    (current?.kind === 'dsh' ||
+      items?.some(
+        (item) =>
+          (item.kind === 'reply' || item.kind === 'turn-end') &&
+          item.turnTargets?.some((target) => target.kind === 'dsh'),
+      ));
   const catalogMount = useMountedResource<HTMLDivElement>(() => {
     if (!needsCatalog) return;
     let active = true;

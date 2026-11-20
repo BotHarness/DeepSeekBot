@@ -468,7 +468,7 @@ it('distinguishes the next available model from the executing target', async () 
       members: [
         { kind: 'engine', engine: 'codex', model: 'gpt-5.4' },
         { kind: 'model', provider: front.provider, model: front.model },
-        { kind: 'engine', engine: 'claude' },
+        { kind: 'engine', engine: 'claude', model: 'claude-opus-5-5' },
       ],
     },
   ];
@@ -477,19 +477,28 @@ it('distinguishes the next available model from the executing target', async () 
   expect(option?.textContent).toContain('下一个可用：V4.1 Flash');
   expect(option?.textContent).not.toMatch(/Codex|Claude/);
   expect(option?.getAttribute('aria-label')).toBe(
-    'Mixed · 下一个可用：DeepSeek V4.1 Flash · OpenCode Go · GPT-5.4 · Codex · ChatGPT 订阅 · DeepSeek V4.1 Flash · OpenCode Go · Claude Code 默认模型 · Claude Code · Claude 订阅',
+    'Mixed · 下一个可用：DeepSeek V4.1 Flash · OpenCode Go · GPT-5.4 · Codex · ChatGPT 订阅 · DeepSeek V4.1 Flash · OpenCode Go · claude-opus-5-5 · Claude Code · Claude 订阅',
   );
   expect(option?.querySelector('[data-model-brand="deepseek"]')).not.toBeNull();
 
   const items = catalogMenuItems(catalog, zhTranslate, groups, {
     groupId: 'mixed',
     target: { kind: 'engine', engine: 'claude', model: 'claude-opus-5-5', reasoningEffort: 'high' },
+    engines: [
+      {
+        engine: 'claude',
+        available: true,
+        models: [{ id: 'claude-opus-5-5', name: 'Opus 5.5', efforts: [] }],
+      },
+    ],
   });
   const running = items.find((item) => item.group === 'mixed');
   expect(running).toMatchObject({ hintBrand: 'claude', hintExternal: true });
   expect(running?.tag).toBeUndefined();
-  expect(running?.hint).toMatch(/^当前：/u);
-  expect(running?.hintLabel).toContain('Claude Code · high');
+  expect(running?.hint).toBe('当前：Opus 5.5');
+  expect(running?.hintLabel).toContain('Opus 5.5 · Claude Code · high');
+  expect(running?.hintLabel).toContain('Opus 5.5 · Claude Code · Claude 订阅');
+  expect(running?.hintLabel).not.toContain('claude-opus-5-5');
 });
 
 it('gives the same Codex model a separate row and hint for each named account', () => {

@@ -198,6 +198,7 @@ export function catalogMenuItems(
         catalog,
         groups,
         routingGroupEngineCopy(t),
+        executed?.engines,
       );
       const target =
         executed?.groupId === group.id

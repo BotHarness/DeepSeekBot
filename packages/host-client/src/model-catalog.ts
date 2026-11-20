@@ -262,6 +262,7 @@ export function modelCatalogGroupMemberLabels(
   models: readonly ModelCatalogEntry[],
   groups: readonly ModelCatalogGroup[],
   copy: RoutingGroupEngineCopy,
+  engines?: readonly RoutingGroupEngineOptions[],
 ): string[] {
   return (group.members ?? group.routes.map((route) => ({ kind: 'model' as const, ...route }))).map(
     (member) => {
@@ -269,7 +270,23 @@ export function modelCatalogGroupMemberLabels(
         case 'group':
           return groups.find((group) => group.id === member.id)?.name ?? member.id;
         case 'engine': {
-          const row = routingGroupEnginePresentation(member, copy);
+          const status = engines?.find(
+            (option) => option.engine === member.engine && option.accountId === member.accountId,
+          );
+          const model = member.model;
+          const entry =
+            model === undefined || engines === undefined
+              ? undefined
+              : engineCatalogModel(status === undefined ? engines : [status], {
+                  engine: member.engine,
+                  model,
+                });
+          const row = routingGroupEnginePresentation(
+            member,
+            copy,
+            entry?.name,
+            status?.accountName,
+          );
           return `${row.name} · ${row.detail}`;
         }
         case 'model': {

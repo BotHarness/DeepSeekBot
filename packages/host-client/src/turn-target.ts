@@ -25,9 +25,9 @@ export function turnTargetLabel(
     const engine = ENGINE_DEFINITIONS[target.engine].displayName;
     const { model } = target;
     const entry =
-      model === undefined
+      model === undefined || catalog?.engines === undefined
         ? undefined
-        : engineCatalogModel(catalog?.engines ?? [], { ...target, model });
+        : engineCatalogModel(catalog.engines, { ...target, model });
     const name = entry?.name ?? model ?? engine;
     const brand = modelBrand({ model, name }) ?? (target.engine === 'codex' ? 'openai' : 'claude');
     const short = entry === undefined ? name : modelShortName(name, brand);

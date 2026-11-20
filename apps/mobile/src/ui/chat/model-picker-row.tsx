@@ -167,7 +167,13 @@ export function ModelGroupPickerRow({
   const theme = useDesignTheme();
   const restful = group.restingUntil;
   const color = usable ? theme.color.fg : theme.color.muted;
-  const members = modelCatalogGroupMemberLabels(group, models, groups, t.routingGroup.engineRow);
+  const members = modelCatalogGroupMemberLabels(
+    group,
+    models,
+    groups,
+    t.routingGroup.engineRow,
+    engines,
+  );
   const frontLabel = t.modelSettings.groupFront(
     front === undefined ? (group.routes[0]?.model ?? '') : shortModelName(front),
   );
