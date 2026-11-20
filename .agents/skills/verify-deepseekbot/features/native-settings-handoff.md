@@ -14,7 +14,7 @@
 
 ## Sub-features
 
-- The onboarding model chooser and model-failure cards open the Models section of DSH settings.
+- The onboarding Model Choice picker and model-failure cards open the Models section of DSH settings.
 - DSH settings temporarily reveals its sidebar controls. Closing DSH settings restores Bot navigation and preserves the conversation and any unsent draft.
 
 ## How to get to it (user POV)
@@ -32,6 +32,6 @@
 
 ## Gotchas
 
-- The Chinese model picker is also named `模型`. Identify Models using the provider action within DSH settings.
+- The Chinese Model Choice picker is also named `模型`. Identify Models using the provider action within DSH settings.
 - Account menu can open DSH settings when the sidebar does not show a direct trigger. Keep shortcut keycaps out of its accessible name.
 - The early DM preflight holds the draft without a model call. Capture open and close before adding fixture Bots, as roster changes can advance onboarding.

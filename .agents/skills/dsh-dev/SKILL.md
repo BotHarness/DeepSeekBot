@@ -169,7 +169,7 @@ Ordinary localhost pages do not open the application-defined development-refresh
 ### Native Settings dialog identity (#4703)
 
 During a handoff, the outgoing dialog can still be mounted when the native Settings navigation
-starts. In Chinese, the outgoing model picker and the native Models section both read `模型`.
+starts. In Chinese, the outgoing Model Choice picker and the native Models section both read `模型`.
 Find the DSH Settings dialog via `data-shortcut-modal="settings"` and look up the section in its
 navigation. In a Web check, require the native Models heading and Add model provider action,
 then close the dialog and confirm the Bot view returns.
