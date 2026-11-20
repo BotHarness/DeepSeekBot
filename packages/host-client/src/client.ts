@@ -1,3 +1,4 @@
+import { readChannels } from './channel-management';
 import type { HostMemberIdentity } from './member-identity';
 import { readComputerAvailability } from './computer-availability';
 import {
@@ -981,8 +982,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
   };
 
-  const fullChannelList = (): Promise<ChannelListItem[]> =>
-    call<{ channels: ChannelListItem[] }>('channels').then((result) => result.channels);
+  const fullChannelList = (): Promise<ChannelListItem[]> => readChannels({ call });
 
   const unlessRefused = <T>(work: Promise<T>): Promise<T | undefined> =>
     work.catch((error: unknown) => {

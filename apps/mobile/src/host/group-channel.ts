@@ -1,3 +1,8 @@
+import {
+  decideGroupJoin,
+  deleteGroupChannel,
+  readChannelAssignments,
+} from '@botharness/host-client/channel-management';
 import { workRows, type ProfileAssignment } from './bot-profile';
 import type {
   HostClient,
@@ -72,8 +77,6 @@ export interface GroupActions {
   disband(): Promise<void>;
 }
 
-export class GroupDisbandRefused extends Error {}
-
 export function groupActions(client: HostClient, channelId: string): GroupActions {
   const change = async (method: string, args: Record<string, unknown>): Promise<void> => {
     await client.call<unknown>(method, { channelId, ...args });
@@ -82,13 +85,15 @@ export function groupActions(client: HostClient, channelId: string): GroupAction
   return {
     invite: (botSlug) => change('channelGroupInvite', { botSlug }),
     cancelInvite: (invitationId) => change('channelGroupInviteCancel', { invitationId }),
-    decideJoin: (requestId, accept) => change('channelGroupJoinDecide', { requestId, accept }),
+    async decideJoin(requestId, accept) {
+      await decideGroupJoin(client, { channelId, requestId, accept });
+      await client.refresh().catch(() => undefined);
+    },
     removeMember: (botSlug) => change('channelGroupMemberRemove', { botSlug }),
     rename: (name) => change('channelRename', { name: name.trim().slice(0, GROUP_NAME_MAX) }),
     setAvatar: (avatar) => change('channelGroupAvatarSet', { avatar }),
     async disband() {
-      const answer = await client.call<{ deleted?: unknown }>('channelGroupDelete', { channelId });
-      if (answer?.deleted !== true) throw new GroupDisbandRefused('The group was not disbanded.');
+      await deleteGroupChannel(client, channelId);
       await client.refresh().catch(() => undefined);
     },
   };
@@ -98,9 +103,5 @@ export async function loadGroupAssignments(
   client: HostClient,
   channelId: string,
 ): Promise<ProfileAssignment[]> {
-  const { assignments } = await client.call<{ assignments: ProfileAssignment[] }>(
-    'channelAssignments',
-    { channelId },
-  );
-  return workRows(assignments);
+  return workRows(await readChannelAssignments(client, channelId));
 }

@@ -1,3 +1,11 @@
+import type {
+  AssignmentActivity,
+  AssignmentReport,
+  AssignmentReportInput,
+  AssignmentReportState,
+  ChannelAssignmentSummary,
+} from '@botharness/host-protocol/wire';
+
 import { HarnessError } from '@deepseek-ai/dsh-llm';
 import {
   assertQuoteTargets,
@@ -221,25 +229,15 @@ import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js
 import { DEFAULT_PROMPT_LIMITS, type PromptLimits } from '../prompts/prompt-limits.js';
 import { isBotSubagentModelTool } from './subagent-model-tools.js';
 
-export type AssignmentActivity = 'working' | 'idle' | 'error' | 'stopping' | 'stopped';
-export type AssignmentReportState =
-  | 'progress'
-  | 'completed'
-  | 'blocked'
-  | 'waiting-human'
-  | 'failed';
+export type {
+  AssignmentActivity,
+  AssignmentReport,
+  AssignmentReportInput,
+  AssignmentReportState,
+  ChannelAssignmentSummary,
+} from '@botharness/host-protocol/wire';
+
 export type AssignmentRequestMode = 'next-step' | 'next-turn';
-
-export interface AssignmentReportInput {
-  state: AssignmentReportState;
-  summary: string;
-
-  expectsReply?: boolean;
-}
-
-export interface AssignmentReport extends AssignmentReportInput {
-  at: string;
-}
 
 export interface AssignmentOpenAsk {
   sourceEventId: string;
@@ -299,20 +297,6 @@ const BOT_BUSY = {
 export interface NativeSessionArchive {
   archiveSession(sessionId: string): Promise<void>;
   unarchiveSession(sessionId: string): Promise<void>;
-}
-
-export interface ChannelAssignmentSummary {
-  sessionId: string;
-  botSlug: string;
-  title: string;
-  description: string;
-  activity: AssignmentActivity;
-  latestReport?: AssignmentReport;
-  modelRoute?: ModelRoute;
-  subagentCount?: number;
-  archivedAt?: string;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface AssignmentDetail extends AssignmentSummary {

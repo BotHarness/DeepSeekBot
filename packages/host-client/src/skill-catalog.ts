@@ -4,16 +4,10 @@ import {
   type SkillCatalogEntry,
   type SkillOwner,
 } from '../../core/src/skills/entries';
-import type { HostClient } from './client';
+import { HostAnswerInvalid, record, type HostCall } from './host-answer';
 import type { WireSkillInvocation } from '@botharness/host-protocol/wire';
 
 const SKILL_NAME = /^[a-z0-9]+(?:-[a-z0-9]+)*$/u;
-
-function record(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
 
 export function skillOwnerOf(value: unknown): SkillOwner | undefined {
   const owner = record(value);
@@ -54,9 +48,9 @@ export function skillInvocationsOf(body: string, value: unknown): WireSkillInvoc
   });
 }
 
-export function skillCatalogOf(value: unknown): SkillCatalogEntry[] {
+function skillCatalogOf(value: unknown): SkillCatalogEntry[] {
   const skills = record(value)?.['skills'];
-  if (!Array.isArray(skills)) throw new Error('invalid channelSkillCatalog response');
+  if (!Array.isArray(skills)) throw new HostAnswerInvalid('invalid channelSkillCatalog response');
   return skills.flatMap((entry) => {
     const item = record(entry);
     const name = item?.['name'];
@@ -69,13 +63,14 @@ export function skillCatalogOf(value: unknown): SkillCatalogEntry[] {
       owner === undefined
     )
       return [];
-    return [{ name, description, owner }];
+    const path = item?.['path'];
+    return [{ name, description, owner, ...(typeof path === 'string' ? { path } : {}) }];
   });
 }
 
 export async function loadSkillCatalog(
-  client: Pick<HostClient, 'call'>,
+  client: HostCall,
   channelId: string,
 ): Promise<SkillCatalogEntry[]> {
-  return skillCatalogOf(await client.call<unknown>('channelSkillCatalog', { channelId }));
+  return skillCatalogOf(await client.call('channelSkillCatalog', { channelId }));
 }

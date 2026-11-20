@@ -1692,6 +1692,10 @@ it('routes decisions, questions, joins, snooze and clear to the owning Host and 
   host.methods.set('userQuestionAnswer', () => ({}));
   host.methods.set('channelGroupJoinDecide', (args) => ({
     channel: {
+      id: args.channelId,
+      type: 'group',
+      name: 'Same Group',
+      members: [],
       joinRequests: [{ id: args.requestId, status: args.accept ? 'accepted' : 'declined' }],
     },
   }));

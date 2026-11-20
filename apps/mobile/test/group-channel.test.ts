@@ -116,7 +116,9 @@ describe('Group Channel info', () => {
       'channelRename',
       'channelGroupAvatarSet',
     ])
-      fake.methods.set(method, () => ({ channel: { id: channelId } }));
+      fake.methods.set(method, () => ({
+        channel: { id: channelId, type: 'group', name: 'Launch crew', members: [] },
+      }));
     fake.methods.set('channelGroupDelete', () => ({ deleted: true }));
     const actions = groupActions(await connected(fake), channelId);
     fake.calls.length = 0;

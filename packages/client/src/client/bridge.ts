@@ -95,6 +95,9 @@ import {
   updateSchedule,
 } from '@botharness/host-client/schedules';
 import * as channelHost from '@botharness/host-client/channel-messages';
+import * as channels from '@botharness/host-client/channel-management';
+import { HostAnswerInvalid } from '@botharness/host-client/host-answer';
+import { loadSkillCatalog } from '@botharness/host-client/skill-catalog';
 import {
   loadGenuiDocumentView as loadGenuiDocumentViewFrom,
   parseGenuiDocumentView as parseHostGenuiDocumentView,
@@ -256,7 +259,6 @@ import type {
 } from './store.js';
 import { quoteRefOf } from './store.js';
 import {
-  parseRosterSection,
   parseRosterSnapshot,
   type RosterSection,
   type RosterSnapshot,
@@ -1091,15 +1093,6 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
   };
 }
 
-export function parseChannelRecords(value: unknown): ChannelSummary[] {
-  const channels = asRecord(value)?.['channels'];
-  if (!Array.isArray(channels)) return [];
-  return channels.flatMap((entry) => {
-    const channel = parseChannelRecord(entry);
-    return channel === undefined ? [] : [channel];
-  });
-}
-
 function parseAuthor(value: unknown): ChannelAuthor | undefined {
   const record = asRecord(value);
   if (record === undefined) return undefined;
@@ -1405,7 +1398,7 @@ export async function loadChannelSkillCatalog(
   call: BridgeCall,
   channelId: string,
 ): Promise<SkillCatalogEntry[]> {
-  return skillCatalogEntries(await unwrap(call, 'channelSkillCatalog', { channelId }));
+  return loadSkillCatalog(bridgeHost(call), channelId);
 }
 
 export async function loadSessionSkillCatalog(
@@ -2978,7 +2971,10 @@ export async function loadChannels(
   call: BridgeCall,
   signal?: AbortSignal,
 ): Promise<ChannelSummary[]> {
-  return parseChannelRecords(await unwrap(call, 'channels', {}, signal));
+  return (await channels.readChannels(bridgeHost(call, signal))).flatMap((entry) => {
+    const channel = parseChannelRecord(entry);
+    return channel === undefined ? [] : [channel];
+  });
 }
 
 export async function loadComposerIdentity(
@@ -3049,10 +3045,7 @@ export async function openDmChannel(
   displayName: string,
   signal?: AbortSignal,
 ): Promise<ChannelSummary> {
-  const value = await unwrap(call, 'channelDm', { slug, displayName }, signal);
-  const channel = parseChannelRecord(asRecord(value)?.['channel']);
-  if (channel === undefined) throw new Error('invalid channelDm response');
-  return channel;
+  return presentChannel(await channels.openBotDm(bridgeHost(call, signal), { slug, displayName }));
 }
 
 export async function createGroupChannel(
@@ -3061,19 +3054,17 @@ export async function createGroupChannel(
   signal?: AbortSignal,
   operationKey?: string,
 ): Promise<ChannelSummary> {
-  const value = await unwrap(
-    call,
-    'channelCreate',
-    {
-      name,
-      members: [],
-      ...(operationKey === undefined ? {} : { operationKey }),
-    },
-    signal,
-  );
-  const channel = parseChannelRecord(asRecord(value)?.['channel']);
+  const channel = await channels.createGroupChannel(bridgeHost(call, signal), {
+    name,
+    members: [],
+    ...(operationKey === undefined ? {} : { operationKey }),
+  });
+  return presentChannel(channel);
+}
 
-  if (channel === undefined) throw new Error('invalid channelCreate response');
+function presentChannel(value: unknown): ChannelSummary {
+  const channel = parseChannelRecord(value);
+  if (channel === undefined) throw new HostAnswerInvalid('Invalid Channel result');
   return channel;
 }
 
@@ -3462,11 +3453,8 @@ export async function setChannelHumanName(
   channelId: string,
   nickname: string | null,
 ): Promise<ChannelSummary> {
-  const value = asRecord(await unwrap(call, 'channelHumanNameSet', { channelId, nickname }));
-  const channel = parseChannelRecord(value?.['channel']);
-  if (channel === undefined || channel.id !== channelId)
-    throw new Error('invalid channelHumanNameSet response');
-  return channel;
+  const { channel } = await channels.setChannelHumanName(bridgeHost(call), channelId, nickname);
+  return presentChannel(channel);
 }
 
 export async function setGroupAvatar(
@@ -3662,16 +3650,12 @@ export async function decideGroupJoin(
   requestId: string,
   accept: boolean,
 ): Promise<ChannelSummary> {
-  const value = asRecord(
-    await unwrap(call, 'channelGroupJoinDecide', {
-      channelId,
-      requestId,
-      accept,
-    }),
-  );
-  const channel = parseChannelRecord(value?.['channel']);
-  if (channel === undefined) throw new Error('invalid channelGroupJoinDecide response');
-  return channel;
+  const channel = await channels.decideGroupJoin(bridgeHost(call), {
+    channelId,
+    requestId,
+    accept,
+  });
+  return presentChannel(channel);
 }
 
 export async function removeGroupMember(
@@ -3692,25 +3676,7 @@ export async function loadChannelAssignments(
   call: BridgeCall,
   channelId: string,
 ): Promise<ChannelAssignmentSummary[]> {
-  const value = asRecord(await unwrap(call, 'channelAssignments', { channelId }));
-  const assignments = value?.['assignments'];
-  if (
-    !Array.isArray(assignments) ||
-    assignments.some(
-      (row) =>
-        typeof row?.sessionId !== 'string' ||
-        typeof row.botSlug !== 'string' ||
-        typeof row.title !== 'string' ||
-        typeof row.description !== 'string' ||
-        !ASSIGNMENT_ACTIVITIES.includes(row.activity) ||
-        typeof row.updatedAt !== 'string' ||
-        (row.latestReport !== undefined &&
-          (!ASSIGNMENT_REPORT_STATES.includes(row.latestReport?.state) ||
-            typeof row.latestReport.summary !== 'string')),
-    )
-  )
-    throw new Error('invalid channelAssignments response');
-  return assignments;
+  return channels.readChannelAssignments(bridgeHost(call), channelId);
 }
 
 const SUBAGENT_LANE_STATES = ['running', 'done', 'failed', 'cancelled', 'idle'];
@@ -4615,7 +4581,7 @@ export async function setGroupWakePolicy(
 }
 
 export async function deleteGroupChannel(call: BridgeCall, channelId: string): Promise<void> {
-  await unwrap(call, 'channelGroupDelete', { channelId });
+  await channels.deleteGroupChannel(bridgeHost(call), channelId);
 }
 export interface TimelinePage {
   entries: ChannelMessage[];
@@ -4846,32 +4812,9 @@ export async function loadAllBotPreview(
   call: BridgeCall,
   channelId: string,
 ): Promise<AllBotPreview> {
-  const value = parseAllBotPreview(await unwrap(call, 'channelAllBotPreview', { channelId }));
-  if (value === undefined) throw new Error('invalid channelAllBotPreview response');
-  return value;
+  return channels.readAllBotPreview(bridgeHost(call), channelId);
 }
-export function parseAllBotPreview(raw: unknown): AllBotPreview | undefined {
-  const value = asRecord(raw);
-  if (
-    typeof value?.['revision'] !== 'string' ||
-    !Array.isArray(value['recipients']) ||
-    !value['recipients'].every((item: unknown) => {
-      const row = asRecord(item);
-      return typeof row?.['botSlug'] === 'string' && typeof row['label'] === 'string';
-    })
-  )
-    return undefined;
-  return {
-    revision: value['revision'],
-    recipients: value['recipients'].map((item) => {
-      const row = asRecord(item)!;
-      return {
-        botSlug: row['botSlug'] as string,
-        label: row['label'] as string,
-      };
-    }),
-  };
-}
+
 export async function sendChannelMessage(
   call: BridgeCall,
   channelId: string,
@@ -6096,10 +6039,7 @@ export async function createRosterSection(
   name: string,
   signal?: AbortSignal,
 ): Promise<RosterSection> {
-  const value = await unwrap(call, 'sectionCreate', { name }, signal);
-  const section = parseRosterSection(asRecord(value)?.['section']);
-  if (section === undefined) throw new Error('invalid sectionCreate response');
-  return section;
+  return channels.createRosterSection(bridgeHost(call, signal), name);
 }
 
 export async function renameRosterSection(
@@ -6116,7 +6056,7 @@ export async function removeRosterSection(
   sectionId: string,
   signal?: AbortSignal,
 ): Promise<void> {
-  await unwrap(call, 'sectionRemove', { sectionId }, signal);
+  await channels.removeRosterSection(bridgeHost(call, signal), sectionId);
 }
 
 export async function assignRosterChannel(
@@ -6126,7 +6066,7 @@ export async function assignRosterChannel(
   index?: number,
   signal?: AbortSignal,
 ): Promise<void> {
-  await unwrap(call, 'channelAssign', { channelId, sectionId, index }, signal);
+  await channels.assignRosterChannel(bridgeHost(call, signal), { channelId, sectionId, index });
 }
 
 export async function reorderRosterSections(
@@ -6167,7 +6107,7 @@ export async function setChannelMute(
   muted: boolean,
   signal?: AbortSignal,
 ): Promise<void> {
-  await unwrap(call, 'channelMuteSet', { channelId, muted }, signal);
+  await channels.setChannelMuted(bridgeHost(call, signal), channelId, muted);
 }
 
 export interface MemoryVersion extends MemoryVersionName {

@@ -52,6 +52,12 @@ async function host(
       const value =
         input.method === 'botharness/channelGet'
           ? {
+              channel: {
+                id: input.payload.args.channelId,
+                type: 'group',
+                name: 'Team',
+                members: [],
+              },
               policyRevision: 'a'.repeat(64),
               policy: {
                 addMembers: 'everyone',

@@ -41,7 +41,17 @@ async function host(handler: (method: string, args: Record<string, unknown>) => 
           rpcId: body.rpcId,
           result:
             method === 'channelDm'
-              ? { ok: true, value: { channel: { id: 'dm-' + String(body.payload.args.slug) } } }
+              ? {
+                  ok: true,
+                  value: {
+                    channel: {
+                      id: 'dm-' + String(body.payload.args.slug),
+                      type: 'dm',
+                      name: String(body.payload.args.slug),
+                      members: [String(body.payload.args.slug)],
+                    },
+                  },
+                }
               : handler(method, body.payload.args),
         }),
       );

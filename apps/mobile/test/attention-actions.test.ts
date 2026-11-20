@@ -106,6 +106,9 @@ function host(): FakeHost {
   fake.methods.set('channelGroupJoinDecide', (args) => ({
     channel: {
       id: 'group-launch',
+      type: 'group',
+      name: 'Launch',
+      members: [],
       joinRequests: [{ id: 'r1', status: args['accept'] === true ? 'accepted' : 'declined' }],
     },
   }));
@@ -283,7 +286,13 @@ describe('Phone actions for Inbox items', () => {
   it('keeps a join request open when the computer does not confirm it', async () => {
     const fake = host();
     fake.methods.set('channelGroupJoinDecide', () => ({
-      channel: { id: 'group-launch', joinRequests: [{ id: 'r1', status: 'pending' }] },
+      channel: {
+        id: 'group-launch',
+        type: 'group',
+        name: 'Launch',
+        members: [],
+        joinRequests: [{ id: 'r1', status: 'pending' }],
+      },
     }));
     const target = connect(fake);
     await expect(decideJoinRequest(target, 'group-launch', 'r1', false)).rejects.toThrow(
