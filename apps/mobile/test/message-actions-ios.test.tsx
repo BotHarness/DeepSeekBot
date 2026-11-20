@@ -7,6 +7,10 @@ const native = vi.hoisted(() => ({
   dismiss: () => {},
   actions: new Map<string, () => void>(),
 }));
+vi.mock('react-native-svg', () => ({
+  default: ({ children }: { children: ReactNode }) => createElement('svg', null, children),
+  Path: () => createElement('path'),
+}));
 vi.mock('react-native', () => ({
   Platform: { OS: 'ios' },
   useWindowDimensions: () => ({ height: 874 }),

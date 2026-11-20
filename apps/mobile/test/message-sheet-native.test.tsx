@@ -27,6 +27,10 @@ const labelOf = (modifiers?: Modifier[]) =>
   modifiers?.find((modifier) => modifier.label !== undefined)?.label ??
   modifiers?.find((modifier) => modifier.description !== undefined)?.description;
 
+vi.mock('react-native-svg', () => ({
+  default: ({ children }: { children: ReactNode }) => createElement('svg', null, children),
+  Path: () => createElement('path'),
+}));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return {
@@ -259,6 +263,20 @@ describe('message sheet groups', () => {
 });
 
 describe('iOS message sheet', () => {
+  it('shows the execution path beneath the time in the message action sheet', () => {
+    const message: ConversationMessage = {
+      ...bot,
+      turnTargets: [
+        { kind: 'engine', engine: 'codex', model: 'gpt-6-astra', reasoningEffort: 'high' },
+        { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+      ],
+    };
+    mount(ios.MessageActions, { target: { message, anchor, group } });
+    const attribution = host?.querySelector('[data-testid="message-menu-turn-targets"]');
+    expect(attribution?.textContent).toContain(t.routingGroup.externalEngine);
+    expect(attribution?.textContent).toMatch(/high.*→.*v4.1 flash/u);
+  });
+
   it('presents a fitted native sheet with a grabber, a reaction row and icon-led actions', () => {
     mount(ios.MessageActions, { target: { message: bot, anchor, group } });
     const sheet = host?.querySelector('[role="dialog"]');
