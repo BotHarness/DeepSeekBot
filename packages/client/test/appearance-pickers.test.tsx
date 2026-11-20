@@ -65,3 +65,26 @@ it('marks the chosen scheme and applies a palette to both modes', () => {
   expect(modes.light.primary).toBeUndefined();
   expect(checked()).toContain('appearance.forestGreen');
 });
+
+it('keeps wallpaper materials while selecting either palette', () => {
+  let raw: string | null = null;
+  let n = 0;
+  const appearance = new Appearance(
+    { getItem: () => raw, setItem: (_key, value) => void (raw = value) },
+    () => 'light',
+    () => `prefs-${++n}`,
+  );
+  for (const mode of ['light', 'dark'] as const)
+    appearance.update({
+      mode,
+      materials: { header: { opacity: 80 }, body: { opacity: 50, blur: 2 } },
+    });
+  applyPreset(appearance, 'classic-blue');
+  for (const mode of ['light', 'dark'] as const) {
+    const materials = appearance.getSnapshot().config.modes[mode].materials;
+    expect(materials?.header?.opacity).toBe(80);
+    expect(materials?.body).toMatchObject({ opacity: 50, blur: 2 });
+  }
+  applyPreset(appearance, 'mist-purple');
+  expect(appearance.getSnapshot().config.modes.light.materials?.body?.opacity).toBe(50);
+});

@@ -1,6 +1,6 @@
 # Ask-secret CLI candidate: runtime evidence
 
-This records the opt-in candidate for [#1380](https://github.com/BotHarness/DeepSeekBot/issues/1380), under [Spec #1378](https://github.com/BotHarness/DeepSeekBot/issues/1378). It does not close the issue or accept [proposed ADR-0164](../adr/0164-private-input-candidate-separates-native-storage-from-qualified-execution.md). [The runnable guide](../dev/guides/private-input-cli.md) describes the dedicated Profile and synthetic fixture.
+This records the opt-in candidate for [#1380](https://github.com/BotHarness/DeepSeekBot/issues/1380), under [Spec #1378](https://github.com/BotHarness/DeepSeekBot/issues/1378). It does not close the issue or accept [proposed ADR-0164](../decisions/secrets.md#adr-0164). [The runnable guide](../dev/guides/private-input-cli.md) describes the dedicated Profile and synthetic fixture.
 
 ## Observed behavior
 

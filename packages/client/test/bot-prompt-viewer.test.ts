@@ -1,20 +1,20 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type BotPromptView } from '../src/client/bot-prompt-viewer.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    IconInfoOutlineRegular: () => null,
-    Tag: ({ children }: { children?: ReactNode }) => createElement('span', null, children),
-    Tooltip: ({ children }: { children?: ReactNode }) => children,
   };
 });
 
 import type { BridgeActions } from '../src/client/actions.js';
-import { BotPromptViewer, type BotPromptView } from '../src/client/bot-prompt-viewer.js';
+import { BotPromptViewer } from '../src/client/bot-prompt-viewer.js';
 import { zhTranslate } from '../src/client/locale.js';
 
 let host: HTMLDivElement;

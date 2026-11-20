@@ -1,5 +1,5 @@
 import { useSyncExternalStore, type ReactElement } from 'react';
-import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { SettingsRow } from './ds/settings-row.js';
 import { PillButton } from './ds/pill-button.js';
 import { Select } from './ds/select.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -30,7 +30,7 @@ function ZoomRows({ owner, t }: { owner: WindowZoom; t: BotHarnessTranslate }): 
     } catch {}
   };
   return (
-    <SettingsSection>
+    <>
       <SettingsRow
         title={t('zoom.current')}
         description={t('zoom.current.description')}
@@ -72,6 +72,6 @@ function ZoomRows({ owner, t }: { owner: WindowZoom; t: BotHarnessTranslate }): 
       />
       <p>{t('zoom.numpadUnavailable')}</p>
       {state.error ? <p role="alert">{t('zoom.failed')}</p> : null}
-    </SettingsSection>
+    </>
   );
 }

@@ -1,32 +1,12 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ChannelSidebarEntryProps } from '../src/client/channel-sidebar.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronRightOutlineRegular: () => null,
-  Menu: ({ open, anchor, children }: { open: boolean; anchor: ReactNode; children: ReactNode }) =>
-    createElement(
-      'div',
-      null,
-      anchor,
-      open ? createElement('div', { role: 'menu' }, children) : null,
-    ),
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  MenuSurface: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('div', props, children),
-  MenuItemButton: ({
-    onSelect,
-    children,
-    disabled,
-    icon,
-  }: {
-    onSelect: () => void;
-    children: ReactNode;
-    disabled?: boolean;
-    icon?: ReactNode;
-  }) => createElement('button', { role: 'menuitem', onClick: onSelect, disabled }, icon, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 import { ChannelSidebarSettings } from '../src/client/channel-sidebar-settings.js';
 import { TerminologySettings } from './support/terminology-settings.js';
@@ -73,9 +53,11 @@ function mount(slug: string | null = 'settings-qa', settings = true) {
   return container;
 }
 function click(container: HTMLElement, label: string) {
-  const button = [...container.querySelectorAll('button')].find(
-    (n) => n.textContent === label || n.getAttribute('aria-label') === label,
-  );
+  const button = [
+    ...(label === 'sidebar.settings' ? container : document.body).querySelectorAll<HTMLElement>(
+      'button, [role="menuitem"]',
+    ),
+  ].find((n) => n.textContent === label || n.getAttribute('aria-label') === label);
   expect(button).toBeDefined();
   act(() => button!.click());
 }
@@ -93,13 +75,14 @@ describe('registered Channel sidebar display settings', () => {
     const first = mount('memory-qa-one');
     const second = mount('memory-qa-two');
     click(first, 'sidebar.settings');
-    click(second, 'sidebar.settings');
     click(first, 'entry.memoryEvolution · memory.terminology');
-    click(second, 'entry.memoryEvolution · memory.terminology');
     click(first, 'memory.terms.git');
+    click(first, 'sidebar.settings');
+    click(second, 'sidebar.settings');
+    click(second, 'entry.memoryEvolution · memory.terminology');
     expect(channelSidebarPrefs.getSnapshot().memoryTerminology).toBe('git');
     expect(createChannelSidebarPrefs(localStorage).getSnapshot().memoryTerminology).toBe('git');
-    const selected = [...second.querySelectorAll('button')].find(
+    const selected = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
       (n) => n.textContent === 'memory.terms.git',
     );
     expect(selected?.querySelector('svg')).not.toBeNull();
@@ -107,9 +90,9 @@ describe('registered Channel sidebar display settings', () => {
   it('offers a disabled empty state when current visible entries have no settings', () => {
     const container = mount(null, false);
     click(container, 'sidebar.settings');
-    const item = container.querySelector('[role=menuitem]');
+    const item = document.body.querySelector('[role=menuitem]');
     expect(item?.textContent).toBe('sidebar.settings.empty');
-    expect(item?.hasAttribute('disabled')).toBe(true);
+    expect(item?.getAttribute('aria-disabled')).toBe('true');
     expect(container.textContent).not.toContain('sessions.all');
   });
 });

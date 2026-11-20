@@ -3,13 +3,13 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  MenuSurface: ({ children }: { children: ReactNode }) => children,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 import { BubbleBadges, keptReactions } from '../src/client/bubble-badges.js';
 import { zhTranslate } from '../src/client/locale.js';
+import { CSS } from '../src/client/styles.js';
 import type { ChannelReaction } from '../src/client/store.js';
 
 const reaction = (emoji: string, count = 1): ChannelReaction => ({
@@ -52,6 +52,11 @@ const finish = (element: Element | null) =>
     element?.dispatchEvent(event);
   });
 
+const start = (element: Element | null) =>
+  act(async () => {
+    element?.dispatchEvent(new Event('animationstart', { bubbles: true }));
+  });
+
 const motion = (selector: string) =>
   container.querySelector<HTMLElement>(selector)?.dataset['badgeMotion'];
 
@@ -79,6 +84,7 @@ describe('BubbleBadges', () => {
     await render([reaction('👍')], ['ada']);
     expect(motion('[data-reaction="👍"]')).toBe('enter');
     expect(motion('[data-message-reading]')).toBe('enter');
+    await start(container.querySelector('[data-message-reading]'));
 
     await render([], []);
     expect(motion('[data-reaction="👍"]')).toBe('leave');
@@ -94,11 +100,47 @@ describe('BubbleBadges', () => {
     expect(container.querySelector('.bh-bubble-badges')).toBeNull();
   });
 
-  it('brings a leaving badge back when it returns before the exit ends', async () => {
+  it('drops a reading chip that ends before it fades in, and holds a shown one', async () => {
+    await render([], []);
+    await render([], ['ada']);
+    expect(motion('[data-message-reading]')).toBe('enter');
+    await render([], []);
+    expect(container.querySelector('[data-message-reading]')).toBeNull();
+    expect(CSS).toMatch(/\.bh-reading\[data-badge-motion='enter'\] \{\s*animation-delay: 300ms;/);
+    expect(CSS).toMatch(/\.bh-reading\[data-badge-motion='leave'\] \{\s*animation-delay: 800ms;/);
+  });
+
+  it('keeps a shown reading chip in place when reading resumes before it leaves', async () => {
     await render([], ['ada']);
     await render([], []);
     expect(motion('[data-message-reading]')).toBe('leave');
     await render([], ['ada']);
+    expect(motion('[data-message-reading]')).toBeUndefined();
+    await render([], []);
+    await render([], ['bob']);
+    expect(motion('[data-message-reading]')).toBeUndefined();
+  });
+
+  it('keeps the reading entrance running until it ends', async () => {
+    await render([], []);
+    await render([], ['ada']);
+    await start(container.querySelector('[data-message-reading]'));
     expect(motion('[data-message-reading]')).toBe('enter');
+    await render([], ['ada', 'bob']);
+    expect(motion('[data-message-reading]')).toBe('enter');
+    await finish(container.querySelector('[data-message-reading]'));
+    expect(motion('[data-message-reading]')).toBeUndefined();
+    await render([], ['ada']);
+    expect(motion('[data-message-reading]')).toBeUndefined();
+  });
+
+  it('keeps a faded-in reading chip in place when reading resumes', async () => {
+    await render([], []);
+    await render([], ['ada']);
+    await start(container.querySelector('[data-message-reading]'));
+    await render([], []);
+    expect(motion('[data-message-reading]')).toBe('leave');
+    await render([], ['ada']);
+    expect(motion('[data-message-reading]')).toBeUndefined();
   });
 });

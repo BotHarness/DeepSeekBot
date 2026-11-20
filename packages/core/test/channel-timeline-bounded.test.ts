@@ -1,8 +1,11 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 import { createAttachmentStore } from '../src/attachments/store.js';
 import { isChannelMessage, type ChannelMessage } from '../src/channels/channel.js';
+import { CHANNEL_NOTICE_FIELDS } from '../src/channels/channel-notice.js';
+import { createChannelLiveHub, type ChannelLiveFrame } from '../src/channels/live.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { pageChannelTimeline, type ChannelTimelineRequest } from '../src/channels/timeline.js';
 import {
@@ -29,11 +32,25 @@ function fixture() {
   );
   const database = attachOperationalModule(owner, 'channels');
   const files = createAttachmentStore({ rootDir: join(root, 'attachments') });
-  const metrics = { reads: 0, rows: 0 };
+  const metrics = { reads: 0, rows: 0, statements: [] as string[] };
   const observed: OperationalDatabaseModulePort = {
     module: database.module,
     read(query) {
-      const result = database.read(query);
+      const result = database.read((db) =>
+        query(
+          new Proxy(db, {
+            get(target, key) {
+              if (key === 'prepare')
+                return (sql: string) => {
+                  metrics.statements.push(sql);
+                  return target.prepare(sql);
+                };
+              const value = Reflect.get(target, key) as unknown;
+              return typeof value === 'function' ? value.bind(target) : value;
+            },
+          }),
+        ),
+      );
       metrics.reads++;
       metrics.rows += Array.isArray(result) ? result.length : Number(result !== undefined);
       return result;
@@ -45,9 +62,13 @@ function fixture() {
     rootDir: join(root, 'channels'),
     attachments: files,
   });
-  const channel = channels.createGroup({ name: 'Bounded timeline', members: ['ada'] });
+  const channel = channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Bounded timeline',
+    members: ['ada'],
+  });
   let revision = 0;
   const seed = (...entries: ChannelMessage[]) => {
+    revision = channels.revision(channel.id);
     database.transaction((db) => {
       const event = db.prepare(`
         INSERT INTO source_events
@@ -112,7 +133,10 @@ describe('SQLite bounded timeline hydration', () => {
   it('keeps existence tied to placement even for fallback and shared source messages', () => {
     const current = fixture();
     current.seed(message('shared'));
-    const other = current.channels.createGroup({ name: 'Other', members: ['ada'] });
+    const other = current.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Other',
+      members: ['ada'],
+    });
     current.database.transaction((db) => {
       db.prepare('UPDATE source_events SET payload_json = ? WHERE message_id = ?').run(
         'null',
@@ -148,7 +172,11 @@ describe('SQLite bounded timeline hydration', () => {
       ] satisfies ChannelTimelineRequest[]) {
         current.metrics.reads = 0;
         current.metrics.rows = 0;
-        const page = current.channels.readHumanTimeline(current.channel.id, request);
+        const page = current.channels.readHumanTimeline(
+          OWNER_HUMAN_CONTEXT,
+          current.channel.id,
+          request,
+        );
         expect(page?.entries).toHaveLength(request.direction === 'around' ? 41 : 50);
         expect(current.metrics.reads).toBeLessThanOrEqual(65);
         expect(current.metrics.rows).toBeLessThanOrEqual(180);
@@ -216,7 +244,9 @@ describe('SQLite bounded timeline hydration', () => {
     for (const request of requests) {
       const expected = pageChannelTimeline(current.channel.id, all, request);
       expect(current.channels.readTimeline(current.channel.id, request)).toEqual(expected);
-      expect(current.channels.readHumanTimeline(current.channel.id, request)).toEqual(expected);
+      expect(
+        current.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, current.channel.id, request),
+      ).toEqual(expected);
     }
     const collected: ChannelMessage[] = [];
     let page = current.channels.readTimeline(current.channel.id)!;
@@ -231,7 +261,36 @@ describe('SQLite bounded timeline hydration', () => {
     expect(collected).toEqual(all);
   });
 
-  it('keeps off-page dependencies inside the Human visibility boundary', () => {
+  it('compares a retried quote with its stored excerpt after the target is removed', async () => {
+    const current = fixture();
+    current.seed(message('target', { body: 'Ship on Friday' }));
+    const quoting = message('quoting', {
+      author: { kind: 'human' },
+      body: 'Still on?',
+      quotes: [{ messageId: 'target', text: 'Ship on Friday' }],
+    });
+    const append = (candidate: ChannelMessage) =>
+      current.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, current.channel.id, candidate);
+    expect((await append(quoting)).status).toBe('appended');
+    current.database.transaction((db) =>
+      db
+        .prepare("DELETE FROM channel_placements WHERE channel_id = ? AND message_id = 'target'")
+        .run(current.channel.id),
+    );
+    expect(current.channels.message(current.channel.id, 'quoting')?.quotes).toEqual([
+      { messageId: 'target', preview: null },
+    ]);
+    expect(current.channels.storedQuotes(current.channel.id, 'quoting')).toEqual([
+      { messageId: 'target', text: 'Ship on Friday' },
+    ]);
+    expect((await append(quoting)).status).toBe('existing');
+    expect(
+      (await append({ ...quoting, quotes: [{ messageId: 'target', text: 'Ship on Monday' }] }))
+        .status,
+    ).toBe('conflict');
+  });
+
+  it('keeps off-page dependencies inside the Human visibility boundary', async () => {
     const current = fixture();
     current.seed(
       message('hidden-target', { body: 'Never reveal this earlier body' }),
@@ -243,7 +302,10 @@ describe('SQLite bounded timeline hydration', () => {
       message('before-3'),
       message('before-4'),
       message('before-5'),
-      message('visible-reply', { replyTo: 'hidden-target' }),
+      message('visible-reply', {
+        replyTo: 'hidden-target',
+        quotes: [{ messageId: 'hidden-target', text: 'earlier body' }],
+      }),
       message('visible-grant', { grantRequest: true }),
       message('resolved-grant', { grantRequest: true }),
       ...Array.from({ length: 250 }, (_, index) => message(`middle-${index}`)),
@@ -264,10 +326,61 @@ describe('SQLite bounded timeline hydration', () => {
       olderLimit: 0,
       newerLimit: 2,
     } as const;
-    const page = current.channels.readHumanTimeline(current.channel.id, request)!;
+    const page = current.channels.readHumanTimeline(
+      OWNER_HUMAN_CONTEXT,
+      current.channel.id,
+      request,
+    )!;
     expect(page.hasOlder).toBe(false);
     expect(page.hasNewer).toBe(true);
     expect(page.entries[0]?.replyToPreview).toBeNull();
+    expect(page.entries[0]?.quotes).toEqual([{ messageId: 'hidden-target', preview: null }]);
+    const journal = current.channels.readHumanJournalPage(OWNER_HUMAN_CONTEXT, current.channel.id, {
+      through: page.entries[0]!.channelRevision!,
+      limit: 1,
+    })!;
+    const journalReply = journal.entries.find((entry) => entry.message.id === 'visible-reply')!;
+    expect(journalReply.message.replyToPreview).toBeNull();
+    expect(journalReply.message.quotes).toEqual([{ messageId: 'hidden-target', preview: null }]);
+    const hub = createChannelLiveHub(current.channels);
+    const abort = new AbortController();
+    const frames = hub
+      .followChannel(OWNER_HUMAN_CONTEXT, current.channel.id, 0, abort.signal)
+      [Symbol.asyncIterator]();
+    expect((await frames.next()).value).toMatchObject({ type: 'opened' });
+    const before = current.channels.revision(current.channel.id);
+    current.seed(
+      message('late-quote', {
+        replyTo: 'hidden-target',
+        quotes: [{ messageId: 'hidden-target' }],
+      }),
+    );
+    const [committed] = current.channels.messagesAfter(current.channel.id, before)!;
+    expect(committed!.message.quotes?.[0]?.preview?.body).toBe('Never reveal this earlier body');
+    hub.publishCommitted(committed!);
+    let live = (await frames.next()).value;
+    while (live?.type !== 'entry') live = (await frames.next()).value;
+    abort.abort();
+    hub.close();
+    expect(live).toMatchObject({ type: 'entry' });
+    expect(live!.type === 'entry' && live!.entry.message.quotes).toEqual([
+      { messageId: 'hidden-target', preview: null },
+    ]);
+    const reopened = new AbortController();
+    const baselineHub = createChannelLiveHub(current.channels);
+    const opened: ChannelLiveFrame | void = (
+      await baselineHub
+        .followChannel(OWNER_HUMAN_CONTEXT, current.channel.id, 1, reopened.signal)
+        [Symbol.asyncIterator]()
+        .next()
+    ).value;
+    reopened.abort();
+    baselineHub.close();
+    expect(opened).toMatchObject({ type: 'opened' });
+    const baseline = opened?.type === 'opened' ? opened.page?.entries : undefined;
+    expect(baseline?.map((entry) => entry.message.id)).toEqual(['late-quote']);
+    expect(baseline?.[0]?.message.replyToPreview).toBeNull();
+    expect(baseline?.[0]?.message.quotes).toEqual([{ messageId: 'hidden-target', preview: null }]);
     expect(page.entries[1]?.grantRequestResolved).toBe(false);
     expect(page.entries[2]?.grantRequestResolved).toBe(true);
     const plain = current.channels.readTimeline(current.channel.id, request)!;
@@ -278,13 +391,13 @@ describe('SQLite bounded timeline hydration', () => {
       around: 'hidden-target',
     })!;
     expect(
-      current.channels.readHumanTimeline(current.channel.id, {
+      current.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, current.channel.id, {
         direction: 'newer',
         cursor: hidden.olderCursor!,
       }),
     ).toBeUndefined();
     expect(
-      current.channels.readHumanTimeline(current.channel.id, {
+      current.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, current.channel.id, {
         direction: 'around',
         around: 'hidden-target',
       }),
@@ -292,7 +405,9 @@ describe('SQLite bounded timeline hydration', () => {
     current.database.transaction((db) =>
       db.prepare('DELETE FROM channel_human_members WHERE channel_id = ?').run(current.channel.id),
     );
-    expect(current.channels.readHumanTimeline(current.channel.id)).toBeUndefined();
+    expect(
+      current.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, current.channel.id),
+    ).toBeUndefined();
   });
 
   it('keeps cursor positions stable across sparse revisions and later appends', () => {
@@ -381,7 +496,9 @@ describe('SQLite bounded timeline hydration', () => {
     });
     current.metrics.reads = 0;
     current.metrics.rows = 0;
-    const page = current.channels.readHumanTimeline(current.channel.id, { limit: 2 })!;
+    const page = current.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, current.channel.id, {
+      limit: 2,
+    })!;
     expect(page).toEqual(expected);
     expect(current.metrics.reads).toBeLessThanOrEqual(15);
     expect(current.metrics.rows).toBeLessThanOrEqual(25);
@@ -393,11 +510,45 @@ describe('SQLite bounded timeline hydration', () => {
     });
     expect(page.entries[0]?.replyToPreview?.body).toContain('...');
     expect(retained()).toEqual(envelope);
-    await current.channels.markRead(current.channel.id, 'with-file');
+    await current.channels.markRead(OWNER_HUMAN_CONTEXT, current.channel.id, 'with-file');
     expect(
-      current.channels.readHumanTimeline(current.channel.id, { limit: 2 })?.entries[0]
-        ?.humanReceipts?.[0]?.state,
+      current.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, current.channel.id, { limit: 2 })
+        ?.entries[0]?.humanReceipts?.[0]?.state,
     ).toBe('read');
+  });
+
+  it('adds a media hint with a current thumbnail to reply previews in every read path', async () => {
+    const current = fixture();
+    const png = await current.files.upload({
+      data: (async function* () {
+        yield new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 0]);
+      })(),
+      name: 'photo.png',
+    });
+    current.seed(
+      message('album', { body: '', attachments: [png, png] }),
+      message('spoken', { voice: { state: 'ready', attachment: 'voice', durationMs: 7000 } }),
+      message('reply-album', { author: { kind: 'human' }, replyTo: 'album' }),
+      message('reply-spoken', { author: { kind: 'human' }, replyTo: 'spoken' }),
+    );
+    const expected = [
+      {
+        author: { kind: 'bot', slug: 'ada' },
+        body: '',
+        media: { kind: 'image', count: 2, thumbnail: current.files.current(png) },
+      },
+      {
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'spoken',
+        media: { kind: 'voice', durationMs: 7000 },
+      },
+    ];
+    const previews = (entries: readonly ChannelMessage[] | undefined) =>
+      entries?.filter((entry) => entry.replyTo !== undefined).map((entry) => entry.replyToPreview);
+    expect(previews(current.channels.readTimeline(current.channel.id)?.entries)).toEqual(expected);
+    expect(previews(current.channels.readMessages(current.channel.id).toReversed())).toEqual(
+      expected,
+    );
   });
 
   it('refuses NaN window sizes instead of loading all history', () => {
@@ -420,7 +571,7 @@ describe('SQLite bounded timeline hydration', () => {
     expect(current.channels.readTimeline(current.channel.id)).toEqual(
       pageChannelTimeline(current.channel.id, []),
     );
-    expect(current.channels.readHumanTimeline('dm-missing')).toBeUndefined();
+    expect(current.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, 'dm-missing')).toBeUndefined();
     expect(current.channels.readTimeline('../invalid')).toEqual(
       pageChannelTimeline('../invalid', []),
     );
@@ -433,5 +584,262 @@ describe('SQLite bounded timeline hydration', () => {
         pageChannelTimeline(current.channel.id, all, request),
       );
     }
+  });
+
+  it('keeps message lookup, page reads, journal pages, tail commits and appends flat as history grows', async () => {
+    const current = fixture();
+    const samples: { reads: number; rows: number }[][] = [];
+    for (const count of [50, 240, 2000]) {
+      current.seed(
+        ...Array.from({ length: count }, (_, index) =>
+          message(`grow-${count}-${index}`, index === 0 ? {} : { replyTo: `grow-${count}-0` }),
+        ),
+      );
+      const revision = current.channels.revision(current.channel.id);
+      const measure = (run: () => unknown) => {
+        current.metrics.reads = 0;
+        current.metrics.rows = 0;
+        run();
+        return { reads: current.metrics.reads, rows: current.metrics.rows };
+      };
+      samples.push([
+        measure(() =>
+          expect(current.channels.message(current.channel.id, `grow-${count}-1`)).toBeDefined(),
+        ),
+        measure(() =>
+          expect(current.channels.readMessages(current.channel.id, { limit: 50 })).toHaveLength(50),
+        ),
+        measure(() =>
+          expect(
+            current.channels.readMessages(current.channel.id, {
+              before: `grow-${count}-30`,
+              limit: 20,
+            }),
+          ).toHaveLength(20),
+        ),
+        measure(() =>
+          expect(
+            current.channels.readHumanJournalPage(OWNER_HUMAN_CONTEXT, current.channel.id, {
+              through: revision,
+              limit: 50,
+            })?.entries,
+          ).toHaveLength(50),
+        ),
+        measure(() =>
+          expect(current.channels.messagesAfter(current.channel.id, revision - 3)).toHaveLength(3),
+        ),
+      ]);
+      current.metrics.reads = 0;
+      current.metrics.rows = 0;
+      await current.channels.appendMessage(OWNER_HUMAN_CONTEXT, current.channel.id, {
+        id: `append-${count}`,
+        at: timestamp,
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'tail',
+        replyTo: `grow-${count}-0`,
+      });
+      samples.at(-1)!.push({ reads: current.metrics.reads, rows: current.metrics.rows });
+      expect(
+        current.channels.message(current.channel.id, `append-${count}`)?.replyToPreview,
+      ).toMatchObject({ body: `grow-${count}-0` });
+    }
+    for (const sample of samples.slice(1))
+      sample.forEach((cost, index) => {
+        expect(cost.reads).toBeLessThanOrEqual(samples[0]![index]!.reads + 2);
+        expect(cost.rows).toBeLessThanOrEqual(samples[0]![index]!.rows + 2);
+      });
+    for (const cost of samples.flat()) expect(cost.rows).toBeLessThanOrEqual(120);
+  });
+
+  it('matches timeline projection for lookups, page reads, journal pages and tail commits', () => {
+    const current = fixture();
+    current.seed(
+      ...Array.from({ length: 260 }, (_, index) =>
+        message(`entry-${index}`, {
+          at: new Date(Date.parse(timestamp) - (index % 7) * 1000).toISOString(),
+          ...(index % 13 === 0 ? { botCreateAction: { botSlug: 'bea', displayName: 'Bea' } } : {}),
+          ...(index % 17 === 0 ? { replyTo: 'entry-1' } : {}),
+          ...(index % 41 === 5 ? { grantRequest: true } : {}),
+        }),
+      ),
+      message('resolution', {
+        author: { kind: 'human' },
+        replyTo: 'entry-5',
+        grantRequestResolution: { requestMessageId: 'entry-5', grantId: 'grant-5' },
+      }),
+    );
+    current.database.transaction((db) =>
+      db
+        .prepare('UPDATE source_events SET payload_json = ? WHERE message_id = ?')
+        .run('null', 'entry-27'),
+    );
+    const all: ChannelMessage[] = [];
+    let page = current.channels.readTimeline(current.channel.id, { limit: 37 })!;
+    for (;;) {
+      all.unshift(...page.entries);
+      if (!page.hasOlder) break;
+      page = current.channels.readTimeline(current.channel.id, {
+        direction: 'older',
+        cursor: page.olderCursor!,
+        limit: 37,
+      })!;
+    }
+    expect(all).toHaveLength(261);
+    expect(all.find((entry) => entry.id === 'entry-5')?.grantRequestResolved).toBe(true);
+    expect(all.find((entry) => entry.id === 'entry-46')?.grantRequestResolved).toBe(false);
+    for (const entry of all)
+      expect(current.channels.message(current.channel.id, entry.id)).toEqual(entry);
+    expect(current.projectedHistory()).toEqual(all);
+    const revision = current.channels.revision(current.channel.id);
+    const journal: ChannelMessage[] = [];
+    let before: number | undefined;
+    for (;;) {
+      const entries = current.channels.readHumanJournalPage(
+        OWNER_HUMAN_CONTEXT,
+        current.channel.id,
+        {
+          through: revision,
+          limit: 37,
+          ...(before === undefined ? {} : { before }),
+        },
+      )!;
+      for (const entry of entries.entries)
+        expect(entry.revision).toBe(entry.message.channelRevision);
+      journal.unshift(...entries.entries.map((entry) => entry.message));
+      if (!entries.hasOlder) break;
+      before = entries.entries[0]!.revision;
+    }
+    expect(journal).toEqual(all);
+    expect(
+      current.channels.messagesAfter(current.channel.id, 0)?.map((entry) => entry.message),
+    ).toEqual(all);
+    expect(current.channels.messagesAfter(current.channel.id, revision)).toEqual([]);
+    expect(current.channels.messagesAfter(current.channel.id, revision + 1)).toBeUndefined();
+    expect(
+      current.channels.readHumanJournalPage(OWNER_HUMAN_CONTEXT, current.channel.id, {
+        through: revision + 1,
+      }),
+    ).toBeUndefined();
+    expect(current.channels.readMessages(current.channel.id, { before: 'missing' })).toEqual([]);
+    expect(current.channels.message(current.channel.id, 'missing')).toBeUndefined();
+    expect(current.channels.readMessages(current.channel.id, { limit: 2.5 })).toEqual(
+      all.slice(-3).reverse(),
+    );
+  });
+
+  it('resolves grant requests only from resolutions placed in the same Channel', () => {
+    const current = fixture();
+    current.seed(message('grant', { grantRequest: true }));
+    const other = current.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Other',
+      members: ['ada'],
+    });
+    const resolution = (id: string) =>
+      message(id, {
+        author: { kind: 'human' },
+        replyTo: 'grant',
+        grantRequestResolution: { requestMessageId: 'grant', grantId: 'grant-id' },
+      });
+    current.database.transaction((db) => {
+      const { body, ...envelope } = resolution('elsewhere');
+      db.prepare(`INSERT INTO source_events
+        (source_event_id, source_kind, channel_id, message_id, body, created_at, payload_json)
+        VALUES ('elsewhere-source', 'human-message', ?, 'elsewhere', ?, ?, ?)`).run(
+        other.id,
+        body,
+        timestamp,
+        JSON.stringify(envelope),
+      );
+      db.prepare(`INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id)
+        VALUES (?, 1, 'elsewhere-source', 'elsewhere')`).run(other.id);
+    });
+    expect(current.channels.message(current.channel.id, 'grant')?.grantRequestResolved).toBe(false);
+    expect(current.channels.grantRequestResolution?.(current.channel.id, 'grant')).toBeUndefined();
+    current.seed(resolution('here'));
+    expect(current.channels.message(current.channel.id, 'grant')?.grantRequestResolved).toBe(true);
+    expect(current.channels.grantRequestResolution?.(current.channel.id, 'grant')?.id).toBe('here');
+  });
+
+  it('finds the latest message past any number of trailing notices with one indexed row', () => {
+    const current = fixture();
+    current.seed(message('real'));
+    for (const count of [50, 2000]) {
+      current.seed(
+        ...Array.from({ length: count }, (_, index) =>
+          message(`post-${count}-${index}`, {
+            botChannelPost: { channelId: current.channel.id, messageId: 'real' },
+          }),
+        ),
+      );
+      current.metrics.statements.length = 0;
+      expect(current.channels.latestMessage(current.channel.id)?.id).toBe('real');
+    }
+    const latest = current.metrics.statements.find((sql) =>
+      sql.includes('ORDER BY p.revision DESC'),
+    );
+    expect(
+      current.database.read((db) =>
+        db
+          .prepare(`EXPLAIN QUERY PLAN ${latest!}`)
+          .all()
+          .map((row) => String((row as { detail: string }).detail)),
+      ),
+    ).toContainEqual(expect.stringContaining('USING INDEX channel_placements_latest_message'));
+  });
+
+  it('marks every notice field and payload rewrite on the placement', () => {
+    const current = fixture();
+    const notices = {
+      botDmAction: { channelId: current.channel.id, messageId: 'm', recipientBotSlug: 'bea' },
+      botCreateAction: { botSlug: 'bea', displayName: 'Bea' },
+      botChannelPost: { channelId: current.channel.id, messageId: 'm' },
+      memoryCommit: { botSlug: 'ada', sha: 'a'.repeat(40), message: 'm', files: [] },
+      toolAutoApproval: { outcome: 'approved' },
+      toolAutoApprovalPause: { until: timestamp },
+      modelSwitch: { botSlug: 'ada', from: {}, to: {} },
+    } satisfies Record<(typeof CHANNEL_NOTICE_FIELDS)[number], object>;
+    expect(Object.keys(notices).sort()).toEqual([...CHANNEL_NOTICE_FIELDS].sort());
+    const flags = () =>
+      Object.fromEntries(
+        (
+          current.database.read((db) =>
+            db
+              .prepare('SELECT message_id, notice FROM channel_placements WHERE channel_id = ?')
+              .all(current.channel.id),
+          ) as Array<{ message_id: string; notice: number }>
+        ).map((row) => [row.message_id, row.notice]),
+      );
+    current.database.transaction((db) => {
+      const event = db.prepare(`INSERT INTO source_events
+        (source_event_id, source_kind, channel_id, message_id, body, created_at, payload_json)
+        VALUES (?, 'bot-message', ?, ?, '', ?, ?)`);
+      const placement = db.prepare(`INSERT INTO channel_placements
+        (channel_id, revision, source_event_id, message_id) VALUES (?, ?, ?, ?)`);
+      [...Object.entries(notices), ['plain', undefined] as const].forEach(
+        ([field, value], index) => {
+          event.run(
+            `${field}-source`,
+            current.channel.id,
+            field,
+            timestamp,
+            JSON.stringify({
+              author: { kind: 'bot', slug: 'ada' },
+              ...(value ? { [field]: value } : {}),
+            }),
+          );
+          placement.run(current.channel.id, index + 1, `${field}-source`, field);
+        },
+      );
+    });
+    expect(flags()).toEqual({
+      ...Object.fromEntries(CHANNEL_NOTICE_FIELDS.map((field) => [field, 1])),
+      plain: 0,
+    });
+    current.database.transaction((db) =>
+      db
+        .prepare('UPDATE source_events SET payload_json = ? WHERE message_id = ?')
+        .run('{"botCreateAction":null}', 'botCreateAction'),
+    );
+    expect(flags().botCreateAction).toBe(0);
   });
 });

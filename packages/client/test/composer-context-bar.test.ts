@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { act, createElement as h, createRef, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { act, createElement as h, createRef } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import {
   ComposerContextBar,
@@ -10,6 +12,7 @@ import {
   defaultFooterPreferences,
   saveFooterPreferences,
 } from '../src/client/composer-footer-preferences.js';
+import { ComposerContextPlacementContext } from '../src/client/composer-context-placement.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 
 vi.mock('../src/client/ds/panel-dialog.js', () => ({
@@ -35,25 +38,8 @@ vi.mock('../src/client/ds/panel-dialog.js', () => ({
       h('button', { onClick: onClose }, 'close'),
     ),
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({ children, size: _size, ...props }: { children: ReactNode; size: string }) =>
-    h('button', props, children),
-  Switch: ({
-    checked,
-    label,
-    onChange,
-  }: {
-    checked: boolean;
-    label: string;
-    onChange(value: boolean): void;
-  }) =>
-    h('input', {
-      type: 'checkbox',
-      role: 'switch',
-      'aria-label': label,
-      checked,
-      onChange: () => onChange(!checked),
-    }),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 let host: HTMLDivElement;
 let root: Root;
@@ -172,4 +158,71 @@ it('collapses even when all items are hidden from keyboard arrangement mode', as
   await act(async () => handle.current!.open());
   await act(async () => host.querySelector<HTMLInputElement>('[role=switch]')!.click());
   expect(host.querySelector<HTMLElement>('[data-composer-context]')!.hidden).toBe(true);
+});
+
+it('joins the items into one header chip that keeps their actions and drops the layout editor', async () => {
+  saveFooterPreferences({
+    ...defaultFooterPreferences(),
+    left: ['model', 'workspace'],
+    right: ['usage'],
+  });
+  await act(async () =>
+    root.render(
+      h(
+        ComposerContextPlacementContext.Provider,
+        { value: 'header' },
+        h(ComposerContextBar, {
+          label: 'footer',
+          t,
+          settingsRef: handle,
+          trailing: h('button', { 'data-composer-chip': 'usage' }, 'usage'),
+          children: [
+            h('button', { key: 'w', 'data-composer-chip': 'workspace' }, 'workspace'),
+            h('button', { key: 'm', 'data-composer-chip': 'model', onClick: clicked }, 'model'),
+          ],
+        }),
+      ),
+    ),
+  );
+  const chip = host.querySelector<HTMLElement>('[data-composer-context-placement="header"]')!;
+  expect(
+    [...chip.querySelectorAll('[data-footer-item]')].map((item) =>
+      item.getAttribute('data-footer-item'),
+    ),
+  ).toEqual(['model', 'workspace', 'usage']);
+  expect(host.querySelectorAll('[data-composer-context]')).toHaveLength(1);
+  await act(async () =>
+    chip.querySelector<HTMLButtonElement>('[data-composer-chip="model"]')!.click(),
+  );
+  expect(clicked).toHaveBeenCalledOnce();
+  await act(async () =>
+    chip
+      .querySelector('[data-composer-chip="usage"]')!
+      .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+  );
+  expect(dialog()?.getAttribute('aria-label')).toBe(t('composerHeader.settings'));
+  expect(
+    [...host.querySelectorAll('button')].some((b) => b.textContent === t('footer.layout')),
+  ).toBe(false);
+});
+
+it('keeps untagged items in a header chip that cannot be customized', async () => {
+  await act(async () =>
+    root.render(
+      h(
+        ComposerContextPlacementContext.Provider,
+        { value: 'header' },
+        h(ComposerContextBar, {
+          label: 'footer',
+          trailing: h('button', null, 'usage'),
+          children: h('button', null, 'Choose model'),
+        }),
+      ),
+    ),
+  );
+  const chip = host.querySelector<HTMLElement>('[data-composer-context-placement="header"]')!;
+  expect([...chip.querySelectorAll('button')].map((button) => button.textContent)).toEqual([
+    'Choose model',
+    'usage',
+  ]);
 });

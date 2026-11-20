@@ -4,7 +4,7 @@ import { z } from 'zod';
 import type { DatabaseSync } from 'node:sqlite';
 import { MessagingError } from './provider.js';
 
-export const messagingDefaultsPlatform = z.enum(['feishu', 'slack', 'discord', 'weixin']);
+export const messagingDefaultsPlatform = z.enum(['feishu', 'slack', 'discord', 'weixin', 'qq']);
 export type MessagingDefaultsPlatform = z.infer<typeof messagingDefaultsPlatform>;
 
 export const messagingDefaultsInput = z
@@ -54,7 +54,7 @@ export function messagingDefaults<Platform extends string = 'feishu'>(
         platform: key as Platform,
         collection: key === 'weixin' ? 'all' : 'mentions',
         wake: key === 'weixin' ? 'immediate' : 'digest',
-        count: 5,
+        count: 10,
         intervalSeconds: 30,
         identityEnabled: true,
         ...(key === 'weixin' ? { typingEnabled: true } : {}),

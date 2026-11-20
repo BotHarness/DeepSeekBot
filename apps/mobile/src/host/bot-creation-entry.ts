@@ -1,4 +1,4 @@
-import type { createBotCreationController } from './bot-creation';
+import type { createBotCreationController } from '@botharness/host-client/bot-creation';
 
 export type CreationEntrySource = 'blank' | 'git' | 'zip';
 type Controller = ReturnType<typeof createBotCreationController>;

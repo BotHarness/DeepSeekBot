@@ -1,12 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
-import { ConnectChannel } from '../../../packages/core/src/devices/noise/channel';
-import { noisePublicKey } from '../../../packages/core/src/devices/noise/xk';
+import { ConnectChannel } from '@botharness/host-protocol/noise/channel';
+import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { LOCAL_VIDEO_PATH } from '../../../packages/computer/src/local-video-contract';
 import { createLocalVideoClient } from '../../../packages/computer/src/local-video-client';
-import { createHostClient } from '../src/host/client';
-import { encryptedCarrier } from '../src/host/encrypted-carrier';
-import type { HostSocketEvents } from '../src/host/carrier';
+import { createHostClient } from '@botharness/host-client/client';
+import { encryptedCarrier } from '@botharness/host-client/encrypted-carrier';
+import type { HostSocketEvents } from '@botharness/host-protocol/carrier';
 
 const origin = 'http://192.168.1.20:39101';
 const path = '/botharness-device' + LOCAL_VIDEO_PATH;

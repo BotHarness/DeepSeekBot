@@ -3,11 +3,11 @@ import * as Device from 'expo-device';
 import { File, Paths } from 'expo-file-system';
 import { Platform } from 'react-native';
 import { locale } from '../ui/strings';
-import { createMobileTelemetry } from './mobile-telemetry';
+import { createMobileTelemetry } from '@botharness/host-client/telemetry/mobile-telemetry';
 import { createPostHogSender } from './posthog-sender';
-import { isUuid } from './schema';
-import { deviceTelemetryContext } from './device-context';
-import { setFeatureSink } from './features';
+import { isUuid } from '@botharness/host-client/telemetry/schema';
+import { deviceTelemetryContext } from '@botharness/host-client/telemetry/device-context';
+import { setFeatureSink } from '@botharness/host-client/telemetry/features';
 
 const mode = process.env.EXPO_PUBLIC_MOBILE_TELEMETRY;
 const qaRun = process.env.EXPO_PUBLIC_MOBILE_TELEMETRY_QA_RUN;

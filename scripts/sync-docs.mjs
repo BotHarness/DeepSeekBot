@@ -477,6 +477,20 @@ export const PAGES = [
     },
   },
   {
+    slug: 'docs/environment-creation',
+    order: 26,
+    en: {
+      source: 'docs/environment-creation.md',
+      title: 'Create in an environment',
+      description: 'Choose the owning computer for Bots, Channels and Sections.',
+    },
+    zh: {
+      source: 'docs/environment-creation.zh.md',
+      title: '在指定环境创建',
+      description: '明确选择 Bot、频道和分组所属的电脑。',
+    },
+  },
+  {
     slug: 'docs/share-bot',
     order: 26,
     en: {
@@ -517,6 +531,78 @@ export const PAGES = [
       source: 'docs/update-deepseekbot.zh.md',
       title: '更新 DeepSeekBot',
       description: '在 Bot 设置里安装新版本 DeepSeekBot，并重启 DSH。',
+    },
+  },
+  {
+    slug: 'docs/private-connect',
+    order: 15,
+    en: {
+      source: 'docs/private-connect.md',
+      title: 'Choose a private connection',
+      description:
+        'Choose Named Tunnel, your own HTTPS ingress or a Docker relay, with agent setup prompts.',
+    },
+    zh: {
+      source: 'docs/private-connect.zh.md',
+      title: '选择私有连接',
+      description: '选择 Named Tunnel、自带 HTTPS 入口或 Docker Relay，含 agent 部署提示词。',
+    },
+  },
+  {
+    slug: 'docs/private-named-tunnel',
+    order: 15,
+    en: {
+      source: 'docs/private-named-tunnel.md',
+      title: 'Cloudflare Named Tunnel',
+      description: 'Set up your own fixed tunnel, manually or with your agent.',
+    },
+    zh: {
+      source: 'docs/private-named-tunnel.zh.md',
+      title: 'Cloudflare Named Tunnel',
+      description: '手动或通过自己的 agent 配置固定隧道。',
+    },
+  },
+  {
+    slug: 'docs/private-relay',
+    order: 15,
+    en: {
+      source: 'docs/private-relay.md',
+      title: 'Docker private relay',
+      description: 'Deploy a multi-Host relay on your server, manually or with your agent.',
+    },
+    zh: {
+      source: 'docs/private-relay.zh.md',
+      title: 'Docker 私有 Relay',
+      description: '手动或通过 agent 在自己的服务器上部署多 Host 中继。',
+    },
+  },
+  {
+    slug: 'docs/private-ingress',
+    order: 15,
+    en: {
+      source: 'docs/private-ingress.md',
+      title: 'Bring your own proxy or tunnel',
+      description:
+        'Connect phones through your own HTTPS proxy or tunnel using the ingress standard.',
+    },
+    zh: {
+      source: 'docs/private-ingress.zh.md',
+      title: '使用自己的代理或隧道',
+      description: '按入站标准，通过自己的 HTTPS 代理或隧道连接手机。',
+    },
+  },
+  {
+    slug: 'docs/private-relay-standard',
+    order: 15,
+    en: {
+      source: 'docs/private-relay-standard.md',
+      title: 'Private relay standard',
+      description: 'Wire protocol and conformance test for relays that serve several computers.',
+    },
+    zh: {
+      source: 'docs/private-relay-standard.zh.md',
+      title: '私有中继标准',
+      description: '服务多台电脑的中继线上协议和一致性测试。',
     },
   },
   {
@@ -601,14 +687,14 @@ export const PAGES = [
     slug: 'dev/design/context',
     order: 2,
     en: {
-      source: 'CONTEXT.md',
+      source: 'GLOSSARY.md',
       title: 'BotHarness Product Context',
       description: 'Canonical BotHarness product terms, distinct from DSH and Cordis vocabulary',
       lang: 'en',
       configuredTitle: true,
     },
     zh: {
-      source: 'CONTEXT.zh.md',
+      source: 'GLOSSARY.zh.md',
       title: 'BotHarness 产品术语',
       description: 'BotHarness 产品专有词汇；与 DSH、Cordis 术语分开',
       configuredTitle: true,
@@ -715,6 +801,10 @@ export const PAGES = [
 ];
 
 const LINK_REWRITES = [
+  [
+    /\]\((?:\.\.\/){1,2}decisions\/([a-z0-9-]+)\.md(#[\w-]+)?\)/g,
+    `](${GITHUB_BLOB}docs/decisions/$1.md$2)`,
+  ],
   [/\]\((?:\.\.\/){1,2}adr\/([0-9]{4}-[a-z0-9-]+)\.md\)/g, '](/dev/adr/$1)'],
   [
     /\]\((?:\.\.\/){1,2}architecture\/botharness-architecture\.md\)/g,
@@ -1068,6 +1158,35 @@ function syncReference() {
 }
 
 function syncAdr() {
+  const topics = readdirSync(join(ROOT, 'docs', 'decisions'))
+    .filter((file) => /^[a-z0-9-]+\.md$/.test(file))
+    .sort()
+    .flatMap((file) => {
+      const { frontmatter: metadata, body } = stripFrontmatter(readText(`docs/decisions/${file}`));
+      if (!/^Publish: true$/m.test(metadata)) return [];
+      const slug = file.replace(/\.md$/, '');
+      const title = titleFrom(body, slug);
+      const content = prepare(body).replace(
+        /\]\(((?:\.\.?\/)*[a-zA-Z0-9_./-]+)(#[\w-]+)?\)/g,
+        (link, target, anchor = '') => {
+          if (target.startsWith('/')) return link;
+          const path = relative(ROOT, resolve(ROOT, 'docs', 'decisions', target))
+            .split(sep)
+            .join('/');
+          return `](${GITHUB_BLOB}${path}${target.endsWith('/') ? '/' : ''}${anchor})`;
+        },
+      );
+      const page = `dev/adr/${slug}.mdx`;
+      writeText(`docs/${page}`, frontmatter({ title, order: 0 }) + content);
+      writeText(
+        `docs-zh/${page}`,
+        frontmatter({ title, order: 0, untranslated: true }) +
+          content.replaceAll('](/dev/', '](/zh/dev/'),
+      );
+      return [{ slug, title }];
+    });
+  const topicList = (prefix) =>
+    topics.map(({ slug, title }) => `- [${title}](${prefix}/dev/adr/${slug})`).join('\n');
   const directory = join(ROOT, 'docs', 'adr');
   const files = readdirSync(directory)
     .filter((name) => /^\d{4}-[a-z0-9-]+\.md$/.test(name))
@@ -1093,21 +1212,21 @@ function syncAdr() {
     'docs/dev/adr/index.mdx',
     frontmatter({
       title: 'Architecture decisions',
-      description: 'Decision history, status, and rationale for BotHarness architecture',
+      description: 'Current topic decisions and numbered records for BotHarness architecture',
       order: DEV_SECTION_ORDER.adr,
     }) +
-      'ADRs explain why an architectural choice was made. Read the status before treating a decision as current; the [living architecture](/dev/design/architecture) is the integrated current view.\n\n' +
-      `<details>\n<summary>All decisions (${entries.length})</summary>\n\n${indexList}\n\n</details>\n`,
+      'Topic documents describe the current decisions. Check the status of a numbered record before relying on it. See the [living architecture](/dev/design/architecture) for how the system fits together.\n\n' +
+      `${topicList('')}\n\n<details>\n<summary>Numbered decisions (${entries.length})</summary>\n\n${indexList}\n\n</details>\n`,
   );
   writeText(
     'docs-zh/dev/adr/index.mdx',
     frontmatter({
       title: 'Architecture decisions',
-      description: 'BotHarness 架构决策的历史、状态与理由',
+      description: 'BotHarness 当前架构决策与编号记录',
       order: DEV_SECTION_ORDER.adr,
     }) +
-      'ADR 解释一项架构取舍为什么成立。把决策当作当前约束前，应先查看状态；[living architecture](/zh/dev/design/architecture) 是整合后的当前视图。\n\n' +
-      `<details>\n<summary>全部决策（${entries.length}）</summary>\n\n${indexListZh}\n\n</details>\n`,
+      '主题文档说明当前决策。引用编号记录前，请查看其状态。[现行架构](/zh/dev/design/architecture) 说明系统如何协作。\n\n' +
+      `${topicList('/zh')}\n\n<details>\n<summary>编号决策（${entries.length}）</summary>\n\n${indexListZh}\n\n</details>\n`,
   );
   process.stdout.write(`adr: index -> ${entries.length} decision(s)\n`);
   for (const entry of entries) {

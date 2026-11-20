@@ -2,12 +2,19 @@ import { randomUUID } from 'node:crypto';
 import { appendFileSync, readFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { setTimeout as delay } from 'node:timers/promises';
+import { requestListener } from '../../../scripts/request-listener.mjs';
 
 const args = process.argv.slice(2);
 const option = (name) => args[args.indexOf(name) + 1];
 const port = Number(option('--port'));
 const control = option('--control');
 const log = args.includes('--log') ? option('--log') : undefined;
+const workload = args.includes('--workload')
+  ? readFileSync(option('--workload'), 'utf8')
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line).body)
+  : [];
 if (
   !args.includes('--port') ||
   !Number.isInteger(port) ||
@@ -17,7 +24,7 @@ if (
   !control
 )
   throw new Error(
-    'Usage: stream-replay.mjs --port <port> --control <private-json> [--log <jsonl>]',
+    'Usage: stream-replay.mjs --port <port> --control <private-json> [--log <jsonl>] [--workload <jsonl>]',
   );
 
 const paragraph =
@@ -56,183 +63,194 @@ const record = (value) => {
   if (log) appendFileSync(log, JSON.stringify({ ...value, at: Date.now() }) + '\n');
 };
 const consumed = new Set();
-const server = createServer(async (req, res) => {
-  try {
-    if (req.method === 'GET' && req.url === '/health') {
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(
-        JSON.stringify({
-          ok: true,
-          intervalMs: 32,
-          chunkGraphemes: 80,
-          profiles: {
-            gentle: { intervalMs: 100, chunkGraphemes: 3 },
-            rhythm: { intervalMs: 100, chunkGraphemes: [140, 18, 3, 8], pausesMs: [800, 600] },
-          },
-          fixtures: Object.fromEntries(
-            Object.entries(fixtures).map(([name, body]) => [name, body.length]),
-          ),
-        }),
-      );
-      return;
-    }
-    if (req.method !== 'POST' || req.url !== '/v1/chat/completions') {
-      res.writeHead(404).end();
-      return;
-    }
-    const parts = [];
-    let bytes = 0;
-    for await (const part of req) {
-      bytes += part.length;
-      if (bytes > 4 * 1024 * 1024) {
-        res.writeHead(413).end();
+const server = createServer(
+  requestListener(async (req, res) => {
+    try {
+      if (req.method === 'GET' && req.url === '/health') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
+          JSON.stringify({
+            ok: true,
+            intervalMs: 32,
+            chunkGraphemes: 80,
+            profiles: {
+              gentle: { intervalMs: 100, chunkGraphemes: 3 },
+              rhythm: { intervalMs: 100, chunkGraphemes: [140, 18, 3, 8], pausesMs: [800, 600] },
+            },
+            fixtures: Object.fromEntries(
+              Object.entries(fixtures).map(([name, body]) => [name, body.length]),
+            ),
+          }),
+        );
         return;
       }
-      parts.push(part);
-    }
-    const request = JSON.parse(Buffer.concat(parts));
-    const config = JSON.parse(readFileSync(control, 'utf8'));
-    if (
-      !/^[a-z0-9-]+$/i.test(config.slug) ||
-      !Object.hasOwn(fixtures, config.fixture ?? 'prose') ||
-      (config.runId !== undefined &&
-        (typeof config.runId !== 'string' || !/^[a-z0-9-]{1,128}$/i.test(config.runId)))
-    )
-      throw new Error('INVALID_REPLAY_CONTROL');
-    const fixture = config.fixture ?? 'prose';
-    const intervalMs = ['gentle', 'rhythm'].includes(fixture) ? 100 : 32;
-    const chunkGraphemes = fixture === 'gentle' ? 3 : 80;
-    const tool = (request.tools ?? []).find((entry) => entry.function?.name === 'bot_send_message');
-    const done =
-      !config.runId ||
-      consumed.has(config.runId) ||
-      request.messages.at(-1)?.role === 'tool' ||
-      !tool;
-    if (!done) {
-      consumed.add(config.runId);
-      if (consumed.size > 64) consumed.delete(consumed.values().next().value);
-    }
-    const body = fixtures[fixture];
-    const id = 'qa_replay_' + randomUUID();
-    const argumentsText = JSON.stringify({ channel_id: 'dm-' + config.slug, body });
-    const toolCalls = [
-      { id, type: 'function', function: { name: 'bot_send_message', arguments: argumentsText } },
-    ];
-    if (!request.stream) {
-      res.writeHead(200, { 'content-type': 'application/json' });
-      res.end(
-        JSON.stringify({
-          id,
-          object: 'chat.completion',
-          created: 1,
-          model: 'qa-replay',
-          choices: [
-            {
-              index: 0,
-              message: {
-                role: 'assistant',
-                content: done ? 'Done' : null,
-                ...(done ? {} : { tool_calls: toolCalls }),
-              },
-              finish_reason: done ? 'stop' : 'tool_calls',
-            },
-          ],
-        }),
+      if (req.method !== 'POST' || req.url !== '/v1/chat/completions') {
+        res.writeHead(404).end();
+        return;
+      }
+      const parts = [];
+      let bytes = 0;
+      for await (const part of req) {
+        bytes += part.length;
+        if (bytes > 4 * 1024 * 1024) {
+          res.writeHead(413).end();
+          return;
+        }
+        parts.push(part);
+      }
+      const request = JSON.parse(Buffer.concat(parts));
+      const config = JSON.parse(readFileSync(control, 'utf8'));
+      if (
+        !/^[a-z0-9-]+$/i.test(config.slug) ||
+        (config.workload === undefined
+          ? !Object.hasOwn(fixtures, config.fixture ?? 'prose')
+          : !Number.isInteger(config.workload) || workload[config.workload] === undefined) ||
+        (config.runId !== undefined &&
+          (typeof config.runId !== 'string' || !/^[a-z0-9-]{1,128}$/i.test(config.runId)))
+      )
+        throw new Error('INVALID_REPLAY_CONTROL');
+      const fixture = config.workload === undefined ? (config.fixture ?? 'prose') : 'workload';
+      const intervalMs = ['gentle', 'rhythm'].includes(fixture) ? 100 : 32;
+      const chunkGraphemes = fixture === 'gentle' ? 3 : 80;
+      const tool = (request.tools ?? []).find(
+        (entry) => entry.function?.name === 'bot_send_message',
       );
-      return;
-    }
-    const started = performance.now();
-    let chunks = 0,
-      maxLagMs = 0;
-    const chunkTimesMs = [];
-    record({
-      event: 'start',
-      id,
-      fixture,
-      reply: !done,
-      intervalMs,
-      chunkGraphemes: fixture === 'rhythm' ? null : chunkGraphemes,
-    });
-    res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
-    res.flushHeaders();
-    const send = (delta, finish_reason = null) =>
-      res.write(
-        'data: ' +
+      const done =
+        !config.runId ||
+        consumed.has(config.runId) ||
+        request.messages.at(-1)?.role === 'tool' ||
+        !tool;
+      if (!done) {
+        consumed.add(config.runId);
+        if (consumed.size > 64) consumed.delete(consumed.values().next().value);
+      }
+      const body = config.workload === undefined ? fixtures[fixture] : workload[config.workload];
+      const id = 'qa_replay_' + randomUUID();
+      const argumentsText = JSON.stringify({ channel_id: 'dm-' + config.slug, body });
+      const toolCalls = [
+        { id, type: 'function', function: { name: 'bot_send_message', arguments: argumentsText } },
+      ];
+      if (!request.stream) {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(
           JSON.stringify({
             id,
-            object: 'chat.completion.chunk',
+            object: 'chat.completion',
             created: 1,
             model: 'qa-replay',
-            choices: [{ index: 0, delta, finish_reason }],
-          }) +
-          '\n\n',
-      );
-    if (done) {
-      send({ role: 'assistant', content: 'Done' });
-      send({}, 'stop');
-    } else {
-      send({
-        role: 'assistant',
-        tool_calls: [
-          { index: 0, id, type: 'function', function: { name: 'bot_send_message', arguments: '' } },
-        ],
+            choices: [
+              {
+                index: 0,
+                message: {
+                  role: 'assistant',
+                  content: done ? 'Done' : null,
+                  ...(done ? {} : { tool_calls: toolCalls }),
+                },
+                finish_reason: done ? 'stop' : 'tool_calls',
+              },
+            ],
+          }),
+        );
+        return;
+      }
+      const started = performance.now();
+      let chunks = 0,
+        maxLagMs = 0;
+      const chunkTimesMs = [];
+      record({
+        event: 'start',
+        id,
+        fixture,
+        reply: !done,
+        intervalMs,
+        chunkGraphemes: fixture === 'rhythm' ? null : chunkGraphemes,
       });
-      const graphemes = Array.from(
-        new Intl.Segmenter('und', { granularity: 'grapheme' }).segment(argumentsText),
-        (entry) => entry.segment,
-      );
-      let due = started;
-      for (let offset = 0; offset < graphemes.length;) {
-        if (fixture === 'rhythm' && (chunks === 4 || chunks === 12))
-          due += chunks === 4 ? 800 : 600;
-        const count =
-          fixture === 'rhythm'
-            ? chunks === 0
-              ? 140
-              : chunks < 4
-                ? 18
-                : chunks < 12
-                  ? 3
-                  : 8
-            : chunkGraphemes;
-        await delay(Math.max(0, due - performance.now()));
-        if (res.destroyed) break;
-        maxLagMs = Math.max(maxLagMs, performance.now() - due);
-        if (chunkTimesMs.length < 64) chunkTimesMs.push(Math.round(performance.now() - started));
+      res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache' });
+      res.flushHeaders();
+      const send = (delta, finish_reason = null) =>
+        res.write(
+          'data: ' +
+            JSON.stringify({
+              id,
+              object: 'chat.completion.chunk',
+              created: 1,
+              model: 'qa-replay',
+              choices: [{ index: 0, delta, finish_reason }],
+            }) +
+            '\n\n',
+        );
+      if (done) {
+        send({ role: 'assistant', content: 'Done' });
+        send({}, 'stop');
+      } else {
         send({
+          role: 'assistant',
           tool_calls: [
             {
               index: 0,
-              function: { arguments: graphemes.slice(offset, offset + count).join('') },
+              id,
+              type: 'function',
+              function: { name: 'bot_send_message', arguments: '' },
             },
           ],
         });
-        chunks++;
-        offset += count;
-        due += intervalMs;
+        const graphemes = Array.from(
+          new Intl.Segmenter('und', { granularity: 'grapheme' }).segment(argumentsText),
+          (entry) => entry.segment,
+        );
+        let due = started;
+        for (let offset = 0; offset < graphemes.length;) {
+          if (fixture === 'rhythm' && (chunks === 4 || chunks === 12))
+            due += chunks === 4 ? 800 : 600;
+          const count =
+            fixture === 'rhythm'
+              ? chunks === 0
+                ? 140
+                : chunks < 4
+                  ? 18
+                  : chunks < 12
+                    ? 3
+                    : 8
+              : chunkGraphemes;
+          await delay(Math.max(0, due - performance.now()));
+          if (res.destroyed) break;
+          maxLagMs = Math.max(maxLagMs, performance.now() - due);
+          if (chunkTimesMs.length < 64) chunkTimesMs.push(Math.round(performance.now() - started));
+          send({
+            tool_calls: [
+              {
+                index: 0,
+                function: { arguments: graphemes.slice(offset, offset + count).join('') },
+              },
+            ],
+          });
+          chunks++;
+          offset += count;
+          due += intervalMs;
+        }
+        if (!res.destroyed) send({}, 'tool_calls');
       }
-      if (!res.destroyed) send({}, 'tool_calls');
+      if (!res.destroyed) {
+        res.write('data: [DONE]\n\n');
+        res.end();
+      }
+      record({
+        event: 'end',
+        id,
+        fixture,
+        reply: !done,
+        characters: done ? 4 : body.length,
+        chunks,
+        elapsedMs: performance.now() - started,
+        maxLagMs,
+        chunkTimesMs,
+      });
+    } catch {
+      if (!res.headersSent) res.writeHead(400, { 'content-type': 'application/json' });
+      res.end(JSON.stringify({ error: { message: 'INVALID_REPLAY_REQUEST' } }));
     }
-    if (!res.destroyed) {
-      res.write('data: [DONE]\n\n');
-      res.end();
-    }
-    record({
-      event: 'end',
-      id,
-      fixture,
-      reply: !done,
-      characters: done ? 4 : body.length,
-      chunks,
-      elapsedMs: performance.now() - started,
-      maxLagMs,
-      chunkTimesMs,
-    });
-  } catch {
-    if (!res.headersSent) res.writeHead(400, { 'content-type': 'application/json' });
-    res.end(JSON.stringify({ error: { message: 'INVALID_REPLAY_REQUEST' } }));
-  }
-});
+  }),
+);
 server.listen(port, '127.0.0.1', () =>
   console.log(JSON.stringify({ listening: server.address().port })),
 );

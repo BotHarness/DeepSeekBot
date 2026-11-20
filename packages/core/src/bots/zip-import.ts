@@ -42,12 +42,47 @@ function reference(input: BotZipImportReference): BotImportReference {
   };
 }
 
-export function createBotZipImport(options: {
+interface BotZipImportOptions {
   uploads: BotZipUploads;
   imports: BotImportsService;
   registry: PersonaBotRegistry;
   log?: (event: Record<string, string | number>) => void;
-}) {
+}
+
+export function createBotZipImport(options: BotZipImportOptions): BotZipImportService {
+  return {
+    ...buildBotZipImport(options),
+    withContext(
+      imports: BotImportsService,
+      registry: PersonaBotRegistry,
+      uploadKey: (key: string) => string,
+    ) {
+      return createBotZipImport({
+        ...options,
+        imports,
+        registry,
+        uploads: {
+          begin(input) {
+            return {
+              ...options.uploads.begin({ ...input, uploadKey: uploadKey(input.uploadKey) }),
+              uploadKey: input.uploadKey,
+            };
+          },
+          chunk(input) {
+            return {
+              ...options.uploads.chunk({ ...input, uploadKey: uploadKey(input.uploadKey) }),
+              uploadKey: input.uploadKey,
+            };
+          },
+          read: (input) =>
+            options.uploads.read({ ...input, uploadKey: uploadKey(input.uploadKey) }),
+        },
+      });
+    },
+  };
+}
+
+function buildBotZipImport(options: BotZipImportOptions) {
   const { uploads, imports, registry } = options;
   const report = (phase: string, started: number, error?: unknown): void => {
     try {
@@ -151,4 +186,10 @@ export function createBotZipImport(options: {
   };
 }
 
-export type BotZipImportService = ReturnType<typeof createBotZipImport>;
+export type BotZipImportService = ReturnType<typeof buildBotZipImport> & {
+  withContext(
+    imports: BotImportsService,
+    registry: PersonaBotRegistry,
+    uploadKey: (key: string) => string,
+  ): BotZipImportService;
+};

@@ -1,13 +1,12 @@
-import type { ConnectionState } from '../../host/client';
+import type { ConnectionState } from '@botharness/host-client/client';
 import { ConnectionProgress, useConnectionProgress } from '../primitives/connection-progress';
 import { useIsFocused } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useState, type ReactNode } from 'react';
 import { Platform, Pressable, View, type ViewInstance } from 'react-native';
-import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { ConversationEnvironment } from '../../host/conversation-environments';
-import { hostColorInk } from '../design/host-look';
+import { hostColorInk } from '@botharness/host-client/ui/design/host-look';
 import { materialSearchHeight, searchAppBarHeight } from '../design/material-search';
 import { useDesignTheme } from '../design/theme';
 import { chatList, space } from '../design/tokens';
@@ -17,11 +16,12 @@ import { useStrings } from '../strings';
 import { ChatsIcon, ChevronDownIcon, ChevronLeftIcon, CloudIcon } from './icons';
 import { HostGlyph } from './host-tile';
 import { focusOn, hostDrawer, openHostDrawer, useHostDrawerOpen } from './host-drawer';
-import { CollapsingToolbar, useChromeProgress } from './scroll-chrome';
+import { FixedToolbar } from './fixed-toolbar';
 
 export function HomeHeader({
   environment,
   connection,
+  disruptedSince,
   actions,
   search,
   bar,
@@ -31,15 +31,16 @@ export function HomeHeader({
 }: {
   environment: ConversationEnvironment;
   connection?: ConnectionState | undefined;
+  disruptedSince?: number | undefined;
   actions?: ReactNode;
   search?: ReactNode;
   bar?: ReactNode;
   barActions?: ReactNode;
   onWorkspaces?: (() => void) | undefined;
-  children: ReactNode | ((headerTravel: number) => ReactNode);
+  children: ReactNode;
 }) {
   const t = useStrings();
-  const connectionLabel = useConnectionProgress(connection?.status);
+  const connectionLabel = useConnectionProgress(connection?.status, false, disruptedSince);
   const theme = useDesignTheme();
   const focused = useIsFocused();
   const drawerOpen = useHostDrawerOpen();
@@ -51,11 +52,6 @@ export function HomeHeader({
     : insets.top + space.x2 * 2 + materialSearchHeight(theme.fontScale);
   const [measuredHeight, setMeasuredHeight] = useState(0);
   const height = Math.max(minimumHeight, measuredHeight);
-  const travel = android ? Math.max(0, height - insets.top) : 0;
-  const progress = useChromeProgress();
-  const pageStyle = useAnimatedStyle(() => ({
-    transform: [{ translateY: -travel * progress.get() }],
-  }));
   const chip = useMounted<ViewInstance>((node) => {
     hostDrawer.setReturnFocus(() => focusOn(node));
     return () => hostDrawer.setReturnFocus(undefined);
@@ -135,7 +131,8 @@ export function HomeHeader({
                 variant="title"
                 strong
                 accessibilityRole="header"
-                numberOfLines={Platform.OS === 'android' ? 1 : undefined}
+                numberOfLines={theme.largeText ? 2 : 1}
+                ellipsizeMode="tail"
                 style={{ flexShrink: 1 }}
               >
                 {environment.title}
@@ -151,7 +148,6 @@ export function HomeHeader({
       )}
     </View>
   );
-  const content = typeof children === 'function' ? children(travel) : children;
   return (
     <View
       style={{
@@ -163,12 +159,8 @@ export function HomeHeader({
       {focused ? <StatusBar style={theme.scheme === 'dark' ? 'light' : 'dark'} /> : null}
       {android ? (
         <>
-          <Animated.View style={[{ flex: 1, marginTop: height, marginBottom: -travel }, pageStyle]}>
-            {content}
-          </Animated.View>
-          <CollapsingToolbar travel={travel} height={height}>
-            {header}
-          </CollapsingToolbar>
+          <View style={{ flex: 1, marginTop: height }}>{children}</View>
+          <FixedToolbar height={height}>{header}</FixedToolbar>
           <View
             pointerEvents="none"
             style={{
@@ -184,7 +176,7 @@ export function HomeHeader({
       ) : (
         <>
           {header}
-          {content}
+          {children}
         </>
       )}
     </View>

@@ -1,5 +1,10 @@
-import type { HostClient } from './client';
-import { HostAnswerInvalid } from './bot-settings';
+import {
+  readToolApprovalRules,
+  revokeToolApprovalRule,
+} from '@botharness/host-client/approval-readers';
+import type { WireApprovalRule } from '@botharness/host-protocol/wire';
+import type { HostClient } from '@botharness/host-client/client';
+import { HostAnswerInvalid } from '@botharness/host-client/bot-settings';
 
 export type ApprovalOutcome =
   | 'allowed-once'
@@ -25,7 +30,7 @@ export interface ApprovalHistoryPage {
   nextCursor?: string;
 }
 
-export type ApprovalRuleKind = 'exact' | 'tool' | 'all-opaque' | 'secret-cli';
+export type ApprovalRuleKind = WireApprovalRule['kind'];
 
 export interface ApprovalRule {
   id: string;
@@ -45,7 +50,6 @@ const OUTCOMES: readonly string[] = [
   'allowed-always-all',
   'rejected',
 ];
-const KINDS: readonly string[] = ['exact', 'tool', 'all-opaque', 'secret-cli'];
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -88,34 +92,6 @@ function entry(value: unknown): ApprovalHistoryEntry | undefined {
   };
 }
 
-function rule(value: unknown): ApprovalRule | undefined {
-  const row = record(value);
-  if (
-    row === undefined ||
-    !text(row['id']) ||
-    !role(row['role']) ||
-    !KINDS.includes(row['kind'] as string) ||
-    !text(row['toolName']) ||
-    !text(row['input']) ||
-    !text(row['createdAt']) ||
-    row['revokedAt'] !== undefined
-  )
-    return undefined;
-  const count = row['autoApprovedCount'];
-  return {
-    id: row['id'],
-    role: row['role'],
-    kind: row['kind'] as ApprovalRuleKind,
-    toolName: row['toolName'],
-    input: row['input'],
-    createdAt: row['createdAt'],
-    ...(typeof count === 'number' && Number.isSafeInteger(count) && count >= 0
-      ? { autoApprovedCount: count }
-      : {}),
-    external: row['externalCreator'] !== undefined,
-  };
-}
-
 function list<T>(rows: unknown, parse: (value: unknown) => T | undefined): T[] {
   return Array.isArray(rows)
     ? rows.flatMap((row) => {
@@ -146,9 +122,19 @@ export async function loadApprovalHistory(
 }
 
 export async function loadApprovalRules(client: HostClient, slug: string): Promise<ApprovalRule[]> {
-  const rows = record(await client.call<unknown>('toolApprovalRules', { slug }))?.['rules'];
-  if (!Array.isArray(rows)) throw new HostAnswerInvalid('toolApprovalRules returned no list.');
-  return list(rows, rule);
+  const { rules } = await readToolApprovalRules(client, slug);
+  return rules
+    .filter((rule) => rule.revokedAt === undefined)
+    .map(({ id, role, kind, toolName, input, createdAt, autoApprovedCount, externalCreator }) => ({
+      id,
+      role,
+      kind,
+      toolName,
+      input,
+      createdAt,
+      ...(autoApprovedCount === undefined ? {} : { autoApprovedCount }),
+      external: externalCreator !== undefined,
+    }));
 }
 
 export async function revokeApprovalRule(
@@ -156,7 +142,5 @@ export async function revokeApprovalRule(
   slug: string,
   id: string,
 ): Promise<void> {
-  const answer = record(await client.call<unknown>('toolApprovalRuleRevoke', { slug, id }));
-  if (record(answer?.['rule']) === undefined)
-    throw new HostAnswerInvalid('toolApprovalRuleRevoke returned no rule.');
+  await revokeToolApprovalRule(client, slug, id);
 }

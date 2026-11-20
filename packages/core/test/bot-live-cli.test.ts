@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -22,40 +23,55 @@ async function host(
 ) {
   const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
   let logins = 0;
-  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    if (req.method === 'GET') {
-      logins += 1;
-      if (
-        new URL(req.url!, 'http://localhost').searchParams.get('token') !== 'private-test-token'
-      ) {
-        res.writeHead(403).end();
+  const server = createServer(
+    requestListener(async (req: IncomingMessage, res: ServerResponse) => {
+      if (req.method === 'GET') {
+        logins += 1;
+        if (
+          new URL(req.url!, 'http://localhost').searchParams.get('token') !== 'private-test-token'
+        ) {
+          res.writeHead(403).end();
+          return;
+        }
+        if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+        res.writeHead(302, { location: '/' }).end();
         return;
       }
-      if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-      res.writeHead(302, { location: '/' }).end();
-      return;
-    }
-    expect(req.headers.cookie).toBe('authority=signed');
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const body = JSON.parse(Buffer.concat(chunks).toString());
-    expect(body.type).toBe('client-request');
-    expect(req.url).toBe(`/api/${body.method}`);
-    const method = body.method.replace('botharness/', '');
-    calls.push({ method, args: body.payload.args });
-    res.setHeader('content-type', 'application/json');
-    if (stallBody) {
-      res.write('{');
-      return;
-    }
-    res.end(
-      JSON.stringify({
-        type: 'server-response',
-        rpcId: body.rpcId,
-        result: handler(method, body.payload.args),
-      }),
-    );
-  });
+      expect(req.headers.cookie).toBe('authority=signed');
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      expect(body.type).toBe('client-request');
+      expect(req.url).toBe(`/api/${body.method}`);
+      const method = body.method.replace('botharness/', '');
+      calls.push({ method, args: body.payload.args });
+      res.setHeader('content-type', 'application/json');
+      if (stallBody) {
+        res.write('{');
+        return;
+      }
+      res.end(
+        JSON.stringify({
+          type: 'server-response',
+          rpcId: body.rpcId,
+          result:
+            method === 'channelDm'
+              ? {
+                  ok: true,
+                  value: {
+                    channel: {
+                      id: 'dm-' + String(body.payload.args.slug),
+                      type: 'dm',
+                      name: String(body.payload.args.slug),
+                      members: [String(body.payload.args.slug)],
+                    },
+                  },
+                }
+              : handler(method, body.payload.args),
+        }),
+      );
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -79,6 +95,192 @@ async function invoke(argv: string[], url?: string, stdin = '', token = 'private
 }
 
 describe('live CLI over the authenticated DSH carrier', () => {
+  it.each(['--bot', '--channel'])(
+    'ranks Skills by owner display name and slug over the live carrier with %s',
+    async (flag) => {
+      const skills = [
+        { name: 'description', description: 'Alice workflow', owner: { kind: 'host' } },
+        { name: 'review', description: '', owner: { kind: 'bot', botSlug: 'reviewer' } },
+        { name: 'alice-report', description: '', owner: { kind: 'host' } },
+        { name: 'pdf', description: '', owner: { kind: 'bot', botSlug: 'reviewer' } },
+        { name: 'bob-notes', description: '', owner: { kind: 'bot', botSlug: 'bob' } },
+      ];
+      const live = await host((method) => ({
+        ok: true,
+        value:
+          method === 'list'
+            ? {
+                bots: [
+                  { slug: 'reviewer', displayName: 'Alice' },
+                  { slug: 'bob', displayName: 'Bob' },
+                ],
+              }
+            : { skills },
+      }));
+      const target = flag === '--bot' ? 'reviewer' : 'group-team';
+      for (const [query, names] of [
+        ['ALICE', ['alice-report', 'review', 'pdf', 'description']],
+        ['viewer', ['review', 'pdf']],
+      ] as const) {
+        const result = await invoke(['skills-list', flag, target, '--query', query], live.url);
+        expect(result.code).toBe(0);
+        expect(result.json.channelId).toBe(flag === '--bot' ? 'dm-reviewer' : target);
+        expect(result.json.skills.map((entry: { name: string }) => entry.name)).toEqual(names);
+      }
+      expect(live.calls.filter((call) => call.method === 'list')).toHaveLength(2);
+    },
+  );
+
+  it('keeps an unfiltered Skill listing to one catalog RPC', async () => {
+    const live = await host(() => ({ ok: true, value: { skills: [] } }));
+    const result = await invoke(['skills-list', '--channel', 'group-team'], live.url);
+    expect(result.code).toBe(0);
+    expect(result.json.skills).toEqual([]);
+    expect(live.calls).toEqual([
+      { method: 'channelSkillCatalog', args: { channelId: 'group-team' } },
+    ]);
+  });
+
+  it('sends repeated Skill names with distinct owners and spans', async () => {
+    const live = await host((method) => ({
+      ok: true,
+      value:
+        method === 'get'
+          ? { bot: { displayName: 'Ada' } }
+          : method === 'channelSend'
+            ? { message: { id: 'human-33333333-3333-4333-8333-333333333333' } }
+            : { state: 'handled', replies: [{ id: 'reply', body: 'ok' }] },
+    }));
+    const sent = await invoke(
+      ['send', 'ada', '--body', '/pdf /pdf', '--skill', 'host/pdf', '--skill', 'bot:ada/pdf'],
+      live.url,
+    );
+    expect(sent.code).toBe(0);
+    expect(live.calls.find((call) => call.method === 'channelSend')?.args).toMatchObject({
+      body: '/pdf /pdf',
+      skillInvocations: [
+        { name: 'pdf', owner: { kind: 'host' }, start: 0, end: 4 },
+        { name: 'pdf', owner: { kind: 'bot', botSlug: 'ada' }, start: 5, end: 9 },
+      ],
+    });
+  });
+
+  it('surfaces the Host oversized Skill refusal without retrying the send', async () => {
+    const error = {
+      code: 'skill-too-large',
+      message:
+        'Skill /pdf exceeds the 64000-character invocation limit. Shorten the Skill and try again.',
+    };
+    const live = await host((method) =>
+      method === 'channelSend'
+        ? { ok: false, error }
+        : { ok: true, value: { bot: { displayName: 'Ada' } } },
+    );
+    const sent = await invoke(['send', 'ada', '--body', '/pdf', '--skill', 'host/pdf'], live.url);
+    expect(sent.code).not.toBe(0);
+    expect(sent.json.error).toMatchObject(error);
+    expect(live.calls.filter((call) => call.method === 'channelSend')).toHaveLength(1);
+    expect(live.calls.some((call) => call.method === 'channelSendStatus')).toBe(false);
+  });
+
+  it('uses existing commands for v2 document state and continuation without expanding CLI input limits', async () => {
+    const live = await host(() => ({ ok: true, value: { version: 0, state: {} } }));
+    const state = { version: 1, values: { selected: 'alpha', count: 2, expanded: true } };
+    const save = { snapshotId: 'html-1', expectedVersion: 0, state };
+    expect(
+      (
+        await invoke(
+          ['genui-view-save', 'dm-ada', '--message-id', 'html-message', '--genui-stdin'],
+          live.url,
+          JSON.stringify(save),
+        )
+      ).code,
+    ).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelGenuiViewSave',
+      args: { channelId: 'dm-ada', messageId: 'html-message', ...save },
+    });
+    const request = {
+      body: 'Continue this document',
+      genuiReply: {
+        version: 2,
+        messageId: 'html-message',
+        snapshotId: 'html-1',
+        intent: 'continue',
+        state,
+      },
+    };
+    const id = 'human-11111111-1111-4111-8111-111111111111';
+    expect(
+      (
+        await invoke(
+          ['genui-submit', 'dm-ada', '--message-id', id, '--genui-stdin'],
+          live.url,
+          JSON.stringify(request),
+        )
+      ).code,
+    ).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelSend',
+      args: { channelId: 'dm-ada', messageId: id, ...request },
+    });
+    const count = live.calls.length;
+    const invalid = { ...save, state: { version: 1, values: { nested: { invalid: true } } } };
+    expect(
+      (
+        await invoke(
+          ['genui-view-save', 'dm-ada', '--message-id', 'html-message', '--genui-stdin'],
+          live.url,
+          JSON.stringify(invalid),
+        )
+      ).code,
+    ).not.toBe(0);
+    expect(live.calls).toHaveLength(count);
+  });
+  it('uses the same online GenUI view and ordinary-message operations', async () => {
+    const live = await host(() => ({ ok: true, value: { version: 0, state: {} } }));
+    const view = await invoke(['genui-view', 'dm-ada', '--message-id', 'report-1'], live.url);
+    expect(view.code).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelGenuiView',
+      args: { channelId: 'dm-ada', messageId: 'report-1' },
+    });
+    const state = {
+      filter: '',
+      sortColumnId: null,
+      sortDirection: 'asc',
+      view: 'table',
+      selectedIds: ['alpha'],
+      expandedId: null,
+    };
+    const saved = await invoke(
+      ['genui-view-save', 'dm-ada', '--message-id', 'report-1', '--genui-stdin'],
+      live.url,
+      JSON.stringify({ snapshotId: 'snapshot-1', expectedVersion: 0, state }),
+    );
+    expect(saved.code).toBe(0);
+    expect(live.calls.at(-1)?.method).toBe('channelGenuiViewSave');
+    const request = {
+      body: 'Compare these',
+      genuiReply: {
+        messageId: 'report-1',
+        snapshotId: 'snapshot-1',
+        selectedIds: ['alpha'],
+        intent: 'continue',
+      },
+    };
+    const id = 'human-11111111-1111-4111-8111-111111111111';
+    const submitted = await invoke(
+      ['genui-submit', 'dm-ada', '--message-id', id, '--genui-stdin'],
+      live.url,
+      JSON.stringify(request),
+    );
+    expect(submitted.code).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelSend',
+      args: { channelId: 'dm-ada', messageId: id, ...request },
+    });
+  });
   it('classifies an interrupted response body as a transport failure', async () => {
     const live = await host(() => ({}), true);
     const result = await invoke(['release-info', '--timeout', '0.1'], live.url);
@@ -166,6 +368,54 @@ describe('live CLI over the authenticated DSH carrier', () => {
       replyTo: 'bot-earlier',
     });
     const blank = await invoke(['send', 'ada', '--body', 'x', '--reply-to', ' '], live.url);
+    expect(blank.code).not.toBe(0);
+  });
+
+  it('sends whole and partial quotes with repeated --quote', async () => {
+    const live = await host((method) => ({
+      ok: true,
+      value:
+        method === 'get'
+          ? { bot: { displayName: 'Ada' } }
+          : method === 'channelSend'
+            ? { message: { id: 'human-44444444-4444-4444-8444-444444444444' } }
+            : { state: 'handled', replies: [{ id: 'reply', body: 'ok' }] },
+    }));
+    const sent = await invoke(
+      [
+        'send',
+        'ada',
+        '--body',
+        'both?',
+        '--message-id',
+        'human-44444444-4444-4444-8444-444444444444',
+        '--quote',
+        'bot-earlier',
+        '--quote',
+        'human-first::the export fix',
+        '--quote-note',
+        '',
+        '--quote-note',
+        'still Friday?',
+      ],
+      live.url,
+    );
+    expect(sent.code).toBe(0);
+    expect(live.calls.find((call) => call.method === 'channelSend')?.args).toEqual({
+      channelId: 'dm-ada',
+      body: 'both?',
+      messageId: 'human-44444444-4444-4444-8444-444444444444',
+      quotes: [
+        { messageId: 'bot-earlier' },
+        { messageId: 'human-first', text: 'the export fix', note: 'still Friday?' },
+      ],
+    });
+    const extra = await invoke(
+      ['send', 'ada', '--body', 'x', '--quote', 'id', '--quote-note', 'a', '--quote-note', 'b'],
+      live.url,
+    );
+    expect(extra.code).not.toBe(0);
+    const blank = await invoke(['send', 'ada', '--body', 'x', '--quote', 'id::  '], live.url);
     expect(blank.code).not.toBe(0);
   });
 

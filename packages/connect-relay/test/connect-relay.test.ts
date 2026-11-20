@@ -1,179 +1,224 @@
-import { readdirSync, readFileSync } from 'node:fs';
-import { DatabaseSync, type SQLInputValue } from 'node:sqlite';
+import { describe, expect, it, vi } from 'vitest';
 
-import { describe, expect, it } from 'vitest';
+import { createAccessTokenVerifier } from '../src/auth.js';
+import { createCloudflareApi, GATEWAY_PATH } from '../src/cloudflare.js';
+import { hmac } from '../src/relay.js';
+import {
+  marketplaceAuthorDeleter,
+  workosSessionRevoker,
+  workosUserDeleter,
+} from '../src/worker.js';
+import { CLIENT_ID, encode, ISSUER, setup, signer } from './support.js';
 
-import { createAccessTokenVerifier, type Jwk } from '../src/auth.js';
-import { createCloudflareApi, GATEWAY_PATH, type TunnelApi } from '../src/cloudflare.js';
-import type { D1Database, D1PreparedStatement, D1Value } from '../src/d1.js';
-import { createRelay, hmac, type RelayOptions } from '../src/relay.js';
-import { marketplaceAuthorDeleter, workosUserDeleter } from '../src/worker.js';
-
-const CLIENT_ID = 'client_01TEST';
-const ISSUER = `https://api.workos.com/user_management/${CLIENT_ID}`;
-
-function localD1(): D1Database {
-  const sqlite = new DatabaseSync(':memory:');
-  const migrations = new URL('../migrations/', import.meta.url);
-  for (const file of readdirSync(migrations).sort())
-    sqlite.exec(readFileSync(new URL(file, migrations), 'utf8'));
-  const statement = (query: string, values: D1Value[]): D1PreparedStatement => ({
-    bind: (...next) => statement(query, next),
-    first: <T>() =>
-      Promise.resolve(
-        (sqlite.prepare(query).get(...(values as SQLInputValue[])) ?? null) as T | null,
-      ),
-    all: <T>() =>
-      Promise.resolve({
-        results: sqlite.prepare(query).all(...(values as SQLInputValue[])) as T[],
-      }),
-    run: () => Promise.resolve(sqlite.prepare(query).run(...(values as SQLInputValue[]))),
-  });
-  return { prepare: (query) => statement(query, []) };
-}
-
-const encode = (value: unknown) =>
-  Buffer.from(typeof value === 'string' ? value : JSON.stringify(value)).toString('base64url');
-
-async function signer() {
-  const pair = (await crypto.subtle.generateKey(
-    {
-      name: 'RSASSA-PKCS1-v1_5',
-      modulusLength: 2048,
-      publicExponent: new Uint8Array([1, 0, 1]),
-      hash: 'SHA-256',
-    },
-    true,
-    ['sign', 'verify'],
-  )) as CryptoKeyPair;
-  const jwk = (await crypto.subtle.exportKey('jwk', pair.publicKey)) as Jwk;
-  const sign = async (claims: Record<string, unknown>, kid = 'key-1') => {
-    const body = `${encode({ alg: 'RS256', kid })}.${encode(claims)}`;
-    const signature = await crypto.subtle.sign(
-      'RSASSA-PKCS1-v1_5',
-      pair.privateKey,
-      new TextEncoder().encode(body),
-    );
-    return `${body}.${Buffer.from(signature).toString('base64url')}`;
-  };
-  return { keys: [{ ...jwk, kid: 'key-1', alg: 'RS256' }], sign };
-}
-
-class FakeTunnels implements TunnelApi {
-  tunnels = new Map<
-    string,
-    { name: string; status: string; inactiveSince?: string; ingress?: unknown }
-  >();
-  records = new Map<string, { name: string; target: string }>();
-  failCreate = false;
-  listComplete = true;
-  listCalls = 0;
-  deleteCalls = 0;
-  #next = 0;
-  async createTunnel(name: string) {
-    if (this.failCreate) throw new Error('cloudflare down');
-    const id = `tunnel-${(this.#next += 1)}`;
-    this.tunnels.set(id, { name, status: 'inactive' });
-    return id;
-  }
-  async tunnelToken(tunnelId: string) {
-    return `token-for-${tunnelId}`;
-  }
-  async tunnelState(tunnelId: string) {
-    const tunnel = this.tunnels.get(tunnelId);
-    return (
-      tunnel && {
-        status: tunnel.status,
-        ...(tunnel.inactiveSince ? { inactiveSince: tunnel.inactiveSince } : {}),
-      }
-    );
-  }
-  async listTunnels() {
-    this.listCalls += 1;
-    const states = new Map<string, { status: string; inactiveSince?: string }>();
-    for (const [id, tunnel] of this.tunnels)
-      states.set(id, {
-        status: tunnel.status,
-        ...(tunnel.inactiveSince ? { inactiveSince: tunnel.inactiveSince } : {}),
+describe('partial tunnel provisioning recovery', () => {
+  it.each([false, true])(
+    'never leaves a tunnel without DNS when the record fails (repoint=%s)',
+    async (repoint) => {
+      const { call, tunnels } = await setup();
+      const registered = await call('POST', '/v1/hosts', {
+        as: 'user_alice',
+        body: { name: 'Recovery QA' },
       });
-    return { states, complete: this.listComplete };
-  }
-  async configureIngress(tunnelId: string, hostname: string, originPort: number) {
-    const tunnel = this.tunnels.get(tunnelId);
-    if (tunnel) tunnel.ingress = { hostname, originPort };
-  }
-  async deleteTunnel(tunnelId: string) {
-    this.deleteCalls += 1;
-    this.tunnels.delete(tunnelId);
-  }
-  async pointHostname(hostname: string, tunnelId: string, recordId?: string) {
-    const id = recordId && this.records.has(recordId) ? recordId : `record-${hostname}`;
-    this.records.set(id, { name: hostname, target: `${tunnelId}.cfargotunnel.com` });
-    return id;
-  }
-  async deleteRecord(recordId: string) {
-    this.records.delete(recordId);
-  }
-}
+      const id = registered.body.host.id;
+      const provision = () =>
+        call('POST', `/v1/hosts/${id}/tunnel`, {
+          as: 'user_alice',
+          body: { originPort: 3000 },
+        });
+      if (repoint) {
+        expect((await provision()).status).toBe(200);
+        tunnels.tunnels.clear();
+      }
+      tunnels.failDns = true;
+      expect((await provision()).status).toBe(502);
+      expect((await provision()).status).toBe(502);
+      expect(tunnels.tunnels.size).toBe(0);
+      expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body.hosts[0].tunnel).toBe(
+        false,
+      );
+      tunnels.failDns = false;
+      const done = await provision();
+      expect(done.status).toBe(200);
+      expect(tunnels.tunnels.size).toBe(1);
+      const tunnelId = [...tunnels.tunnels.keys()][0]!;
+      expect([...tunnels.records.values()].map(({ name, target }) => ({ name, target }))).toEqual([
+        { name: `${id}.deepseekbot.dev`, target: `${tunnelId}.cfargotunnel.com` },
+      ]);
+      expect(tunnels.tunnels.get(tunnelId)?.ingress).toEqual({
+        hostname: `${id}.deepseekbot.dev`,
+        originPort: 3000,
+      });
+    },
+  );
+});
 
-const BASE32 = 'abcdefghijklmnopqrstuvwxyz234567';
-
-async function setup(
-  allowedUsers: string[] = ['user_alice', 'user_bob'],
-  extra: Partial<RelayOptions> = {},
-) {
-  const { keys, sign } = await signer();
-  let clock = Date.parse('2026-10-20T12:00:00Z');
-  let ids = 0;
-  const tunnels = new FakeTunnels();
-  const relay = createRelay({
-    db: localD1(),
-    verifier: createAccessTokenVerifier({
+describe('linked computer sessions', () => {
+  it('validates optional sid without accepting malformed claims or expired tokens', async () => {
+    const { keys, sign } = await signer();
+    const verifier = createAccessTokenVerifier({
       clientId: CLIENT_ID,
       keys: async () => keys,
-      now: () => clock,
-    }),
-    tunnels,
-    clientId: CLIENT_ID,
-    zone: 'deepseekbot.dev',
-    allowedUsers,
-    maxHosts: 5,
-    maxTunnels: 900,
-    reclaimAfterMs: 5 * 60 * 1000,
-    now: () => new Date(clock),
-    hostId: () => {
-      ids += 1;
-      return `haaaaaaaaaa${BASE32[Math.floor(ids / 32)]}${BASE32[ids % 32]}`;
-    },
-    ...extra,
+      now: () => 100_000,
+    });
+    const claims = { sub: 'user_alice', iss: ISSUER, exp: 200 };
+    expect(await verifier.verify(await sign(claims))).toEqual({ account: 'user_alice' });
+    expect(await verifier.verify(await sign({ ...claims, sid: 'session_alpha' }))).toEqual({
+      account: 'user_alice',
+      sessionId: 'session_alpha',
+    });
+    for (const sid of [null, 1, '', 'bad', {}, 'session_bad value']) {
+      expect(await verifier.verify(await sign({ ...claims, sid }))).toBeUndefined();
+    }
+    expect(
+      await verifier.verify(await sign({ ...claims, exp: 99, sid: 'session_alpha' })),
+    ).toBeUndefined();
   });
-  const tokenFor = (sub: string, claims: Record<string, unknown> = {}) =>
-    sign({ sub, iss: ISSUER, exp: clock / 1000 + 300, ...claims });
-  const call = async (
-    method: string,
-    path: string,
-    options: { as?: string; token?: string; body?: unknown } = {},
-  ) => {
-    const token = options.token ?? (options.as ? await tokenFor(options.as) : undefined);
-    const response = await relay.fetch(
-      new Request(`https://connect.botharness.ai${path}`, {
-        method,
-        headers: token ? { authorization: `Bearer ${token}` } : {},
-        ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }),
-      }),
+
+  it('frees a slot, rejects self and cross-account revoke, and tombstones every target route', async () => {
+    const removed: string[] = [];
+    const { call, tokenFor, tunnels } = await setup(undefined, {
+      revokeSession: async (sessionId) => {
+        removed.push(sessionId);
+      },
+    });
+    const caller = await tokenFor('user_alice', { sid: 'session_caller' });
+    const target = await tokenFor('user_alice', { sid: 'session_target' });
+    const current = await call('POST', '/v1/hosts', { token: caller, body: { name: 'Current' } });
+    const other = await call('POST', '/v1/hosts', { token: target, body: { name: 'Other' } });
+    const otherId = other.body.host.id;
+    await call('POST', `/v1/hosts/${otherId}/tunnel`, {
+      token: target,
+      body: { originPort: 3000 },
+    });
+    for (let index = 0; index < 3; index += 1)
+      await call('POST', '/v1/hosts', { token: caller, body: { name: `Extra ${index}` } });
+    expect(
+      (await call('POST', '/v1/hosts', { token: caller, body: { name: 'Sixth' } })).body.error.code,
+    ).toBe('host-limit');
+    expect(
+      (await call('POST', `/v1/hosts/${current.body.host.id}/revoke`, { token: caller })).body.error
+        .code,
+    ).toBe('current-host');
+    expect((await call('POST', `/v1/hosts/${otherId}/revoke`, { as: 'user_bob' })).status).toBe(
+      404,
     );
-    return { status: response.status, body: (await response.json()) as Record<string, any> };
-  };
-  return {
-    relay,
-    tunnels,
-    sign,
-    tokenFor,
-    call,
-    advance: (ms: number) => (clock += ms),
-    at: () => new Date(clock).toISOString(),
-  };
-}
+    expect(
+      (await call('POST', `/v1/hosts/${otherId}/revoke`, { as: 'user_alice' })).body.error.code,
+    ).toBe('session-unknown');
+    expect(await call('POST', `/v1/hosts/${otherId}/revoke`, { token: caller })).toEqual({
+      status: 200,
+      body: { deleted: true, sessionKnown: true, sessionRevoked: true },
+    });
+    expect(removed).toEqual(['session_target']);
+    expect(tunnels.records.size).toBe(0);
+    expect(tunnels.tunnels.size).toBe(0);
+    for (const [method, path] of [
+      ['GET', '/v1/hosts'],
+      ['POST', '/v1/hosts'],
+      ['POST', `/v1/hosts/${otherId}/tunnel`],
+      ['DELETE', '/v1/account'],
+    ]) {
+      expect(
+        await call(method!, path!, {
+          token: target,
+          body: method === 'POST' ? { name: 'Return' } : undefined,
+        }),
+      ).toEqual({ status: 401, body: { error: { code: 'session-revoked' } } });
+    }
+    expect(
+      (await call('POST', '/v1/hosts', { token: caller, body: { name: 'Sixth' } })).status,
+    ).toBe(201);
+    const listed = await call('GET', '/v1/hosts', { token: caller });
+    expect(listed.body.hosts).toHaveLength(5);
+    expect(listed.body.hosts[0].sessionKnown).toBe(true);
+    expect(JSON.stringify(listed)).not.toMatch(
+      /session_id|session_caller|session_target|relayKey|refresh_token/u,
+    );
+    expect((await call('POST', `/v1/hosts/${otherId}/revoke`, { token: caller })).status).toBe(404);
+  });
+
+  it('enforces tombstones even when WorkOS fails or is not configured', async () => {
+    for (const revokeSession of [
+      undefined,
+      async () => {
+        throw new Error('offline');
+      },
+    ]) {
+      const { call, tokenFor } = await setup(
+        undefined,
+        revokeSession === undefined ? {} : { revokeSession },
+      );
+      const caller = await tokenFor('user_alice', { sid: 'session_caller' });
+      const target = await tokenFor('user_alice', { sid: 'session_target' });
+      const registered = await call('POST', '/v1/hosts', {
+        token: target,
+        body: { name: 'Other' },
+      });
+      expect(
+        (await call('POST', `/v1/hosts/${registered.body.host.id}/revoke`, { token: caller })).body,
+      ).toEqual({ deleted: true, sessionKnown: true, sessionRevoked: false });
+      expect((await call('GET', '/v1/hosts', { token: target })).body.error.code).toBe(
+        'session-revoked',
+      );
+    }
+  });
+
+  it('reports legacy unlink honestly and rebinds a reused registration after re-login', async () => {
+    const { call, tokenFor } = await setup();
+    const caller = await tokenFor('user_alice', { sid: 'session_caller' });
+    const target = await tokenFor('user_alice', { sid: 'session_target' });
+    const legacy = await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Legacy' } });
+    expect(legacy.body.host.sessionKnown).toBe(false);
+    expect(
+      (await call('POST', `/v1/hosts/${legacy.body.host.id}/revoke`, { token: caller })).body,
+    ).toEqual({ deleted: true, sessionKnown: false, sessionRevoked: false });
+    const online = await call('POST', '/v1/hosts', {
+      as: 'user_alice',
+      body: { name: 'Online legacy' },
+    });
+    await call('POST', `/v1/hosts/${online.body.host.id}/tunnel`, {
+      token: target,
+      body: { originPort: 3000 },
+    });
+    expect(
+      (await call('POST', `/v1/hosts/${online.body.host.id}/revoke`, { token: target })).body.error
+        .code,
+    ).toBe('current-host');
+    await call('POST', `/v1/hosts/${online.body.host.id}/tunnel`, {
+      token: caller,
+      body: { originPort: 3000 },
+    });
+    expect((await call('GET', '/v1/hosts', { token: caller })).body.hosts[0].sessionKnown).toBe(
+      true,
+    );
+    expect(
+      (await call('POST', `/v1/hosts/${online.body.host.id}/revoke`, { token: caller })).body.error
+        .code,
+    ).toBe('current-host');
+    expect(
+      (await call('DELETE', `/v1/hosts/${online.body.host.id}`, { token: target })).body,
+    ).toEqual({ deleted: true });
+    expect((await call('GET', '/v1/hosts', { token: target })).status).toBe(200);
+  });
+
+  it('calls only the targeted WorkOS API and accepts an already-ended session', async () => {
+    for (const status of [200, 404]) {
+      const revoke = workosSessionRevoker('private-key', async (input, init) => {
+        expect(input).toBe('https://api.workos.com/user_management/sessions/revoke');
+        expect(new Headers(init?.headers).get('authorization')).toBe('Bearer private-key');
+        expect(JSON.parse(String(init?.body))).toEqual({ session_id: 'session_target' });
+        return new Response(null, { status });
+      });
+      await expect(revoke('session_target')).resolves.toBeUndefined();
+    }
+    await expect(
+      workosSessionRevoker(
+        'key',
+        async () => new Response(null, { status: 503 }),
+      )('session_target'),
+    ).rejects.toThrow('workos 503');
+  });
+});
 
 describe('Connect relay accounts', () => {
   it('publishes the WorkOS client the Host signs in with', async () => {
@@ -185,6 +230,7 @@ describe('Connect relay accounts', () => {
         deviceAuthorizationEndpoint: 'https://api.workos.com/user_management/authorize/device',
         tokenEndpoint: 'https://api.workos.com/user_management/authenticate',
         zone: 'deepseekbot.dev',
+        zones: ['deepseekbot.dev'],
       },
     });
   });
@@ -219,17 +265,20 @@ describe('Connect relay accounts', () => {
     });
     expect(await call('GET', '/v1/hosts', { as: 'user_alice' })).toEqual({
       status: 200,
-      body: { hosts: [] },
+      body: {
+        hosts: [],
+        pool: { capacity: 195, inUse: 0, free: 195, waiting: 0, guaranteedMinutes: 30 },
+      },
     });
     const open = await setup([]);
-    expect(await open.call('GET', '/v1/hosts', { as: 'user_mallory' })).toEqual({
+    expect(await open.call('GET', '/v1/hosts', { as: 'user_mallory' })).toMatchObject({
       status: 200,
       body: { hosts: [] },
     });
   });
 
-  it('links at most five Hosts per account and keeps accounts apart', async () => {
-    const { call } = await setup();
+  it('links at most three Hosts per account and keeps accounts apart', async () => {
+    const { call } = await setup(undefined, { maxHosts: 3 });
     expect((await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: '' } })).status).toBe(
       400,
     );
@@ -243,16 +292,20 @@ describe('Connect relay accounts', () => {
           hostname: 'haaaaaaaaaaab.deepseekbot.dev',
           createdAt: '2026-10-20T12:00:00.000Z',
           tunnel: false,
+          sessionKnown: false,
+          state: 'offline',
         },
       },
     });
-    for (let index = 0; index < 4; index += 1)
+    for (let index = 0; index < 2; index += 1)
       await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: `Host ${index}` } });
-    expect(await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Sixth' } })).toEqual({
-      status: 409,
-      body: { error: { code: 'host-limit' } },
-    });
-    expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body['hosts']).toHaveLength(5);
+    expect(await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Fourth' } })).toEqual(
+      {
+        status: 409,
+        body: { error: { code: 'host-limit' } },
+      },
+    );
+    expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body['hosts']).toHaveLength(3);
     expect(await call('GET', '/v1/hosts', { as: 'user_bob' })).toMatchObject({
       body: { hosts: [] },
     });
@@ -387,7 +440,7 @@ describe('Connect relay tunnels', () => {
       name: 'dsb-haaaaaaaaaaab',
       ingress: { hostname: 'haaaaaaaaaaab.deepseekbot.dev', originPort: 41001 },
     });
-    expect([...tunnels.records.values()]).toEqual([
+    expect([...tunnels.records.values()]).toMatchObject([
       { name: 'haaaaaaaaaaab.deepseekbot.dev', target: 'tunnel-1.cfargotunnel.com' },
     ]);
     const again = await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
@@ -402,7 +455,45 @@ describe('Connect relay tunnels', () => {
     });
   });
 
-  it('reclaims tunnels left offline and recreates them on the same hostname', async () => {
+  it('lists a Host as connected from the cached tunnel status without calling Cloudflare', async () => {
+    const { call, relay, tunnels } = await setup();
+    await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
+    await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Laptop' } });
+    const listed = async () => (await call('GET', '/v1/hosts', { as: 'user_alice' })).body['hosts'];
+    expect((await listed())[0]).not.toHaveProperty('connected');
+    await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
+      as: 'user_alice',
+      body: { originPort: 41001 },
+    });
+    expect((await listed())[0]).toMatchObject({ tunnel: true, connected: false });
+    tunnels.tunnels.get('tunnel-1')!.status = 'healthy';
+    await relay.reclaim();
+    const calls = tunnels.apiCalls;
+    const after = await listed();
+    expect(after[0]).toMatchObject({ tunnel: true, connected: true });
+    expect(after[1]).toMatchObject({ tunnel: false });
+    expect(after[1]).not.toHaveProperty('connected');
+    expect(tunnels.apiCalls).toBe(calls);
+  });
+
+  it('checks a not-yet-online tunnel when the account lists its Hosts', async () => {
+    const { call, tunnels } = await setup();
+    await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
+    await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
+      as: 'user_alice',
+      body: { originPort: 41001 },
+    });
+    tunnels.tunnels.get('tunnel-1')!.status = 'healthy';
+    const listed = async (query = '') =>
+      (await call('GET', `/v1/hosts${query}`, { as: 'user_alice' })).body['hosts'];
+    expect((await listed('?host=haaaaaaaaaaab&idle=0'))[0]).toMatchObject({ connected: false });
+    expect((await listed())[0]).toMatchObject({ connected: true, state: 'connected' });
+    const calls = tunnels.apiCalls;
+    expect((await listed())[0]).toMatchObject({ connected: true });
+    expect(tunnels.apiCalls).toBe(calls);
+  });
+
+  it('reclaims tunnels left offline and recreates them on a fresh hostname', async () => {
     const { call, relay, tunnels, advance, at } = await setup();
     await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Studio' } });
     await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Laptop' } });
@@ -416,10 +507,10 @@ describe('Connect relay tunnels', () => {
     });
     const online = tunnels.tunnels.get('tunnel-1');
     if (online) online.status = 'healthy';
-    expect(await relay.reclaim()).toEqual({ reclaimed: [] });
+    expect((await relay.reclaim()).reclaimed).toEqual([]);
 
     advance(6 * 60 * 1000);
-    expect(await relay.reclaim()).toEqual({ reclaimed: ['haaaaaaaaaaac'] });
+    expect((await relay.reclaim()).reclaimed).toEqual(['haaaaaaaaaaac']);
     expect([...tunnels.tunnels.keys()]).toEqual(['tunnel-1']);
 
     if (online) {
@@ -427,24 +518,22 @@ describe('Connect relay tunnels', () => {
       online.inactiveSince = at();
     }
     advance(60 * 1000);
-    expect(await relay.reclaim()).toEqual({ reclaimed: [] });
+    expect((await relay.reclaim()).reclaimed).toEqual([]);
     advance(5 * 60 * 1000);
-    expect(await relay.reclaim()).toEqual({ reclaimed: ['haaaaaaaaaaab'] });
+    expect((await relay.reclaim()).reclaimed).toEqual(['haaaaaaaaaaab']);
     expect(tunnels.tunnels.size).toBe(0);
 
     const back = await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
       as: 'user_alice',
       body: { originPort: 41001 },
     });
-    expect(back.body).toEqual({
-      hostname: 'haaaaaaaaaaab.deepseekbot.dev',
-      token: 'token-for-tunnel-3',
-    });
-    expect(tunnels.records.get('record-haaaaaaaaaaab.deepseekbot.dev')).toEqual({
-      name: 'haaaaaaaaaaab.deepseekbot.dev',
+    expect(back.body.token).toBe('token-for-tunnel-3');
+    expect(back.body.hostname).toMatch(/^h[a-z2-7]{12}\.deepseekbot\.dev$/u);
+    expect(back.body.hostname).not.toBe('haaaaaaaaaaab.deepseekbot.dev');
+    expect(tunnels.recordFor(back.body.hostname)).toMatchObject({
       target: 'tunnel-3.cfargotunnel.com',
     });
-    expect(tunnels.records.size).toBe(2);
+    expect(tunnels.records.size).toBe(1);
   });
 
   it('forgets a tunnel deleted outside the relay and unlinks Hosts with their DNS', async () => {
@@ -455,12 +544,14 @@ describe('Connect relay tunnels', () => {
       body: { originPort: 41001 },
     });
     tunnels.tunnels.delete('tunnel-1');
-    expect(await relay.reclaim()).toEqual({ reclaimed: [] });
+    expect((await relay.reclaim()).reclaimed).toEqual([]);
     advance(6 * 60 * 1000);
     tunnels.listComplete = false;
-    expect(await relay.reclaim()).toEqual({ reclaimed: [] });
+    expect((await relay.reclaim()).vanished).toEqual([]);
     tunnels.listComplete = true;
-    expect(await relay.reclaim()).toEqual({ reclaimed: ['haaaaaaaaaaab'] });
+    const forgotten = await relay.reclaim();
+    expect(forgotten.vanished).toEqual(['haaaaaaaaaaab']);
+    expect(tunnels.records.size).toBe(0);
     await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
       as: 'user_alice',
       body: { originPort: 41001 },
@@ -472,6 +563,96 @@ describe('Connect relay tunnels', () => {
     expect(tunnels.tunnels.size).toBe(0);
     expect(tunnels.records.size).toBe(0);
     expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body['hosts']).toEqual([]);
+  });
+
+  it.each(['tunnel', 'dns'])(
+    'retries a Host deletion after a %s failure without deleting other Hosts',
+    async (stage) => {
+      const { call, tunnels } = await setup();
+      const target = '/v1/hosts/haaaaaaaaaaab';
+      for (const { account, name, id } of [
+        { account: 'user_alice', name: 'Target', id: 'haaaaaaaaaaab' },
+        { account: 'user_alice', name: 'Keep same account', id: 'haaaaaaaaaaac' },
+        { account: 'user_bob', name: 'Keep other account', id: 'haaaaaaaaaaad' },
+      ]) {
+        await call('POST', '/v1/hosts', { as: account, body: { name } });
+        expect(
+          (
+            await call('POST', `/v1/hosts/${id}/tunnel`, {
+              as: account,
+              body: { originPort: 41001 },
+            })
+          ).status,
+        ).toBe(200);
+      }
+      const aliceBefore = await call('GET', '/v1/hosts', { as: 'user_alice' });
+      const bobBefore = await call('GET', '/v1/hosts', { as: 'user_bob' });
+      const deleteTunnel = tunnels.deleteTunnel.bind(tunnels);
+      const deleteRecord = tunnels.deleteRecord.bind(tunnels);
+      let unavailable = true;
+      tunnels.deleteTunnel = async (tunnelId) => {
+        if (unavailable && stage === 'tunnel') throw new Error('synthetic tunnel failure');
+        await deleteTunnel(tunnelId);
+      };
+      tunnels.deleteRecord = async (zone, recordId) => {
+        if (unavailable && stage === 'dns') throw new Error('synthetic DNS failure');
+        await deleteRecord(zone, recordId);
+      };
+
+      expect(await call('DELETE', target, { as: 'user_alice' })).toEqual({
+        status: 502,
+        body: { error: { code: 'upstream-unavailable' } },
+      });
+      expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body.hosts).toEqual(
+        aliceBefore.body.hosts,
+      );
+      expect((await call('GET', '/v1/hosts', { as: 'user_bob' })).body.hosts).toEqual(
+        bobBefore.body.hosts,
+      );
+      expect(tunnels.tunnels.has('tunnel-1')).toBe(stage === 'tunnel');
+      expect(tunnels.records.size).toBe(3);
+
+      unavailable = false;
+      expect(await call('DELETE', target, { as: 'user_alice' })).toEqual({
+        status: 200,
+        body: { deleted: true },
+      });
+      expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body.hosts).toEqual([
+        aliceBefore.body.hosts[1],
+      ]);
+      expect((await call('GET', '/v1/hosts', { as: 'user_bob' })).body.hosts).toEqual(
+        bobBefore.body.hosts,
+      );
+      expect([...tunnels.tunnels.keys()]).toEqual(['tunnel-2', 'tunnel-3']);
+      expect([...tunnels.records.values()].map((record) => record.target)).toEqual([
+        'tunnel-2.cfargotunnel.com',
+        'tunnel-3.cfargotunnel.com',
+      ]);
+      const deleteCalls = tunnels.deleteCalls;
+      expect((await call('DELETE', target, { as: 'user_alice' })).status).toBe(404);
+      expect(tunnels.deleteCalls).toBe(deleteCalls);
+      expect(tunnels.tunnels.size).toBe(2);
+      expect(tunnels.records.size).toBe(2);
+    },
+  );
+
+  it('refuses missing, expired and other-account deletion grants without changing resources', async () => {
+    const { call, tunnels, tokenFor } = await setup();
+    const target = '/v1/hosts/haaaaaaaaaaab';
+    await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Target' } });
+    await call('POST', `${target}/tunnel`, {
+      as: 'user_alice',
+      body: { originPort: 41001 },
+    });
+    const before = await call('GET', '/v1/hosts', { as: 'user_alice' });
+    const expired = await tokenFor('user_alice', { exp: 0 });
+    expect((await call('DELETE', target)).status).toBe(401);
+    expect((await call('DELETE', target, { token: expired })).status).toBe(401);
+    expect((await call('DELETE', target, { as: 'user_bob' })).status).toBe(404);
+    expect(await call('GET', '/v1/hosts', { as: 'user_alice' })).toEqual(before);
+    expect(tunnels.deleteCalls).toBe(0);
+    expect(tunnels.tunnels.size).toBe(1);
+    expect(tunnels.records.size).toBe(1);
   });
 
   it('caps reclaim attempts when the upstream deletes fail', async () => {
@@ -495,7 +676,7 @@ describe('Connect relay tunnels', () => {
     expect(attempts).toBeLessThanOrEqual(15);
   });
 
-  it('lists tunnels once per run and reclaims at most fifteen', async () => {
+  it('lists tunnels once per run and stays within the call budget', async () => {
     const accounts = ['user_a', 'user_b', 'user_c', 'user_d'];
     const { call, relay, tunnels, advance } = await setup(accounts);
     for (const account of accounts)
@@ -509,13 +690,18 @@ describe('Connect relay tunnels', () => {
     expect(tunnels.tunnels.size).toBe(20);
     tunnels.listCalls = 0;
     advance(6 * 60 * 1000);
-    expect((await relay.reclaim()).reclaimed).toHaveLength(15);
-    expect([tunnels.listCalls, tunnels.deleteCalls, tunnels.tunnels.size]).toEqual([1, 15, 5]);
-    expect((await relay.reclaim()).reclaimed).toHaveLength(5);
+    const before = tunnels.apiCalls;
+    const first = await relay.reclaim();
+    expect(first.reclaimed).toHaveLength(10);
+    expect(first.budgetExhausted).toBe(true);
+    expect([tunnels.listCalls, tunnels.deleteCalls, tunnels.tunnels.size]).toEqual([1, 10, 10]);
+    expect(tunnels.apiCalls - before).toBeLessThanOrEqual(2 + 30);
+    expect((await relay.reclaim()).reclaimed).toHaveLength(10);
     expect(tunnels.tunnels.size).toBe(0);
+    expect(tunnels.records.size).toBe(0);
     tunnels.listCalls = 0;
-    expect(await relay.reclaim()).toEqual({ reclaimed: [] });
-    expect(tunnels.listCalls).toBe(0);
+    expect((await relay.reclaim()).reclaimed).toEqual([]);
+    expect(tunnels.listCalls).toBe(1);
   });
 
   it('reports Cloudflare failures without leaving a half-linked tunnel', async () => {
@@ -544,7 +730,7 @@ describe('Connect relay tunnels', () => {
     const tunnel = (path: string, as: string) =>
       call('POST', `/v1/hosts/${path}/tunnel`, { as, body: { originPort: 41001 } });
     expect((await tunnel('haaaaaaaaaaab', 'user_alice')).status).toBe(200);
-    expect(await tunnel('haaaaaaaaaaac', 'user_bob')).toEqual({
+    expect(await tunnel('haaaaaaaaaaac', 'user_bob')).toMatchObject({
       status: 503,
       body: { error: { code: 'relay-full' } },
     });
@@ -609,6 +795,31 @@ describe('Connect relay phone offers', () => {
     expect(enrollment.signature).toBe(await hmac(tunnel.body['relayKey'], enrollment.body));
   });
 
+  it('authorizes a client-side attempt without probing an offline connector, scoped to the account', async () => {
+    const probe = vi.fn(async () => {
+      throw new Error('Relay cannot reach Host');
+    });
+    const { call, row } = await linked(probe);
+    await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
+      as: 'user_alice',
+      body: { originPort: 41001 },
+    });
+    expect((await row('haaaaaaaaaaab'))?.tunnel_status).not.toBe('healthy');
+    const body = { verifierHash: VERIFIER_HASH, identitySource: 'client' };
+    expect(
+      (await call('POST', '/v1/hosts/haaaaaaaaaaab/offer', { as: 'user_bob', body })).status,
+    ).toBe(404);
+    const result = await call('POST', '/v1/hosts/haaaaaaaaaaab/offer', { as: 'user_alice', body });
+    expect(result.status).toBe(200);
+    expect(result.body).toMatchObject({
+      identitySource: 'client',
+      hostname: 'haaaaaaaaaaab.deepseekbot.dev',
+      enrollment: { body: expect.any(String), signature: expect.any(String) },
+    });
+    expect(result.body.host).toBeUndefined();
+    expect(probe).not.toHaveBeenCalled();
+  });
+
   it('refuses offers for other accounts, bad verifiers and unreachable Hosts', async () => {
     let answer: () => Promise<Response> = async () => {
       throw new Error('offline');
@@ -617,7 +828,7 @@ describe('Connect relay phone offers', () => {
     const offer = (as: string, body: unknown) =>
       call('POST', '/v1/hosts/haaaaaaaaaaab/offer', { as, body });
     expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).body).toEqual({
-      error: { code: 'host-offline' },
+      error: { code: 'host-offline', cause: 'no-tunnel' },
     });
     await call('POST', '/v1/hosts/haaaaaaaaaaab/tunnel', {
       as: 'user_alice',
@@ -627,10 +838,22 @@ describe('Connect relay phone offers', () => {
     expect((await offer('user_alice', { verifierHash: 'short' })).body).toEqual({
       error: { code: 'invalid-verifier' },
     });
-    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).status).toBe(409);
+    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).body).toEqual({
+      error: { code: 'host-offline', cause: 'unreachable' },
+    });
+    answer = async () => {
+      throw new DOMException('timed out', 'TimeoutError');
+    };
+    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).body).toEqual({
+      error: { code: 'host-offline', cause: 'timeout' },
+    });
+    answer = async () => new Response('bad gateway', { status: 530 });
+    expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).body).toEqual({
+      error: { code: 'host-offline', cause: 'http-530' },
+    });
     answer = async () => Response.json({ code: 'relay-signature-invalid' }, { status: 401 });
     expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).body).toEqual({
-      error: { code: 'host-refused' },
+      error: { code: 'host-refused', cause: 'http-401' },
     });
     answer = async () => Response.json({ offer: 'x', expiresAt: 'y', host: { name: 'Other' } });
     expect((await offer('user_alice', { verifierHash: VERIFIER_HASH })).status).toBe(502);
@@ -648,13 +871,111 @@ describe('Connect relay phone offers', () => {
 });
 
 describe('Cloudflare API client', () => {
+  it('records bounded upstream codes without credentials or response text', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const api = createCloudflareApi({
+        token: 'private-token',
+        accountId: 'private-account',
+        zones: [{ name: 'deepseekbot.dev', id: 'private-zone' }],
+        fetcher: async () =>
+          Response.json(
+            {
+              success: false,
+              errors: [
+                null,
+                'private-text',
+                { code: 'private-code' },
+                { code: 1004, message: 'private-hostname' },
+                ...Array.from({ length: 20 }, () => ({ code: 10000 })),
+              ],
+            },
+            { status: 403 },
+          ),
+      });
+      await expect(
+        api.pointHostname('deepseekbot.dev', 'private-hostname', 'private-tunnel'),
+      ).rejects.toMatchObject({
+        status: 403,
+      });
+      expect(warn.mock.calls).toEqual([
+        [
+          JSON.stringify({
+            event: 'connect-upstream-error',
+            method: 'POST',
+            resource: 'dns',
+            status: 403,
+            codes: [1004, 10000, 10000, 10000, 10000, 10000, 10000, 10000],
+          }),
+        ],
+      ]);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it.each([
+    { stage: 'connections', path: '/accounts/acct/cfd_tunnel/target/connections' },
+    { stage: 'tunnel', path: '/accounts/acct/cfd_tunnel/target' },
+    { stage: 'dns', path: '/zones/zone/dns_records/target' },
+  ])(
+    'preserves a $stage deletion failure and permits retry for the same resource',
+    async ({ stage, path }) => {
+      let upstreamStatus = 503;
+      const requests: string[] = [];
+      const api = createCloudflareApi({
+        token: 'cf-token',
+        accountId: 'acct',
+        zones: [{ name: 'deepseekbot.dev', id: 'zone' }],
+        fetcher: async (input, init) => {
+          const requestPath = new URL(String(input)).pathname.replace('/client/v4', '');
+          requests.push(`${init?.method} ${requestPath}`);
+          const status = requestPath === path ? upstreamStatus : 200;
+          return Response.json({ success: status === 200, result: null }, { status });
+        },
+      });
+      const remove = () =>
+        stage === 'dns'
+          ? api.deleteRecord('deepseekbot.dev', 'target')
+          : api.deleteTunnel('target');
+      await expect(remove()).rejects.toMatchObject({ status: 503 });
+      const expectedRequestsUntilFailure =
+        stage === 'dns'
+          ? ['DELETE /zones/zone/dns_records/target']
+          : stage === 'connections'
+            ? ['DELETE /accounts/acct/cfd_tunnel/target/connections']
+            : [
+                'DELETE /accounts/acct/cfd_tunnel/target/connections',
+                'DELETE /accounts/acct/cfd_tunnel/target',
+              ];
+      expect(requests).toEqual(expectedRequestsUntilFailure);
+
+      upstreamStatus = 200;
+      requests.length = 0;
+      await expect(remove()).resolves.toBeUndefined();
+      expect(requests).toEqual(
+        stage === 'dns'
+          ? ['DELETE /zones/zone/dns_records/target']
+          : [
+              'DELETE /accounts/acct/cfd_tunnel/target/connections',
+              'DELETE /accounts/acct/cfd_tunnel/target',
+            ],
+      );
+
+      upstreamStatus = 404;
+      requests.length = 0;
+      await expect(remove()).resolves.toBeUndefined();
+      expect(requests).toEqual(expectedRequestsUntilFailure);
+    },
+  );
+
   it('lists the tunnels in pages and reports when it stopped early', async () => {
     const urls: string[] = [];
     const pages = { total: 2 };
     const api = createCloudflareApi({
       token: 'cf-token',
       accountId: 'acct',
-      zoneId: 'zone',
+      zones: [{ name: 'deepseekbot.dev', id: 'zone' }],
       fetcher: async (input) => {
         const url = new URL(String(input));
         urls.push(`${url.pathname}${url.search}`);
@@ -680,12 +1001,12 @@ describe('Cloudflare API client', () => {
       complete: true,
     });
     expect(urls[0]).toBe(
-      '/client/v4/accounts/acct/cfd_tunnel?is_deleted=false&per_page=100&page=1',
+      '/client/v4/accounts/acct/cfd_tunnel?is_deleted=false&per_page=1000&page=1',
     );
     urls.length = 0;
     pages.total = 30;
     expect((await api.listTunnels()).complete).toBe(false);
-    expect(urls).toHaveLength(10);
+    expect(urls).toHaveLength(3);
   });
 
   it('limits the remote ingress to the device gateway and authenticates with the token', async () => {
@@ -693,7 +1014,7 @@ describe('Cloudflare API client', () => {
     const api = createCloudflareApi({
       token: 'cf-token',
       accountId: 'acct',
-      zoneId: 'zone',
+      zones: [{ name: 'deepseekbot.dev', id: 'zone' }],
       fetcher: async (input, init) => {
         requests.push({
           method: init?.method ?? 'GET',
@@ -726,7 +1047,9 @@ describe('Cloudflare API client', () => {
     });
     expect(new RegExp(GATEWAY_PATH).test('/botharness-device/pair')).toBe(true);
     expect(new RegExp(GATEWAY_PATH).test('/api/botharness/devices')).toBe(false);
-    expect(await api.pointHostname('hx.deepseekbot.dev', 'tid', 'gone')).toBe('new-record');
+    expect(await api.pointHostname('deepseekbot.dev', 'hx.deepseekbot.dev', 'tid', 'gone')).toBe(
+      'new-record',
+    );
     expect(requests.slice(1).map((request) => `${request.method} ${request.url}`)).toEqual([
       'PUT https://api.cloudflare.com/client/v4/zones/zone/dns_records/gone',
       'POST https://api.cloudflare.com/client/v4/zones/zone/dns_records',
@@ -953,4 +1276,141 @@ describe('Connect Live Activity delivery registrations', () => {
       ).status,
     ).toBe(410);
   });
+});
+
+describe('Connect Bot network registration', () => {
+  it('publishes a Host-proven Bot identity only in its authenticated account directory', async () => {
+    const hostKey = async (id: string) => `private-test-key-${id}`;
+    const { call, at } = await setup(['user_alice', 'user_bob'], { hostKey });
+    const linked = await call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'Mac' } });
+    const id = linked.body.host.id;
+    const identity = { hostId: 'stable-mac', publicKey: 'a'.repeat(64), issuedAt: at() };
+    const proof = await hmac(
+      await hostKey(id),
+      JSON.stringify({ purpose: 'bot-network-registration-v1', connectHostId: id, ...identity }),
+    );
+    expect(
+      (
+        await call('POST', `/v1/hosts/${id}/bot-network`, {
+          as: 'user_bob',
+          body: { ...identity, proof },
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await call('POST', `/v1/hosts/${id}/bot-network`, {
+          as: 'user_alice',
+          body: { ...identity, proof: 'invalid' },
+        })
+      ).status,
+    ).toBe(403);
+    expect(
+      await call('POST', `/v1/hosts/${id}/bot-network`, {
+        as: 'user_alice',
+        body: { ...identity, proof },
+      }),
+    ).toMatchObject({
+      status: 200,
+      body: { host: { id, botNetwork: { hostId: 'stable-mac', publicKey: 'a'.repeat(64) } } },
+    });
+    expect((await call('GET', '/v1/hosts', { as: 'user_alice' })).body.hosts).toEqual([
+      expect.objectContaining({
+        id,
+        botNetwork: { hostId: 'stable-mac', publicKey: 'a'.repeat(64) },
+      }),
+    ]);
+    expect((await call('GET', '/v1/hosts', { as: 'user_bob' })).body.hosts).toEqual([]);
+  });
+});
+
+it('issues only recipient-bound Bot capability proofs for two current Hosts in the same account', async () => {
+  const hostKey = async (id: string) => `private-test-key-${id}`;
+  const { call, at } = await setup(['user_alice', 'user_bob'], { hostKey });
+  const register = async (name: string, as: string) => {
+    const id = (await call('POST', '/v1/hosts', { as, body: { name } })).body.host.id;
+    const identity = {
+      hostId: name,
+      publicKey: (name === 'left' ? 'a' : 'b').repeat(64),
+      issuedAt: at(),
+    };
+    const proof = await hmac(
+      await hostKey(id),
+      JSON.stringify({ purpose: 'bot-network-registration-v1', connectHostId: id, ...identity }),
+    );
+    expect(
+      (await call('POST', `/v1/hosts/${id}/bot-network`, { as, body: { ...identity, proof } }))
+        .status,
+    ).toBe(200);
+    return { id, hostId: name, publicKey: identity.publicKey };
+  };
+  const left = await register('left', 'user_alice');
+  const right = await register('right', 'user_alice');
+  const foreign = await register('foreign', 'user_bob');
+  const grant = async (recipientId: string) => {
+    const input = { recipientId, issuedAt: at(), nonce: 'n'.repeat(32) };
+    const proof = await hmac(
+      await hostKey(left.id),
+      JSON.stringify({ purpose: 'bot-network-grant-v1', connectHostId: left.id, ...input }),
+    );
+    return call('POST', `/v1/hosts/${left.id}/bot-network/grant`, {
+      as: 'user_alice',
+      body: { ...input, proof },
+    });
+  };
+  expect((await grant(foreign.id)).status).toBe(404);
+  const issued = await grant(right.id);
+  expect(issued.status).toBe(200);
+  const payload = JSON.parse(issued.body.grant.payload);
+  expect(payload).toEqual({
+    purpose: 'bot-network-peer-v1',
+    account: 'user_alice',
+    sender: left,
+    recipient: right,
+    issuedAt: at(),
+    nonce: 'n'.repeat(32),
+  });
+  expect(issued.body.grant.signature).toBe(
+    await hmac(await hostKey(right.id), issued.body.grant.payload),
+  );
+  await call('DELETE', `/v1/hosts/${right.id}`, { as: 'user_alice' });
+  expect((await grant(right.id)).status).toBe(404);
+});
+
+it('bounds Bot credentials per owned Host without consuming Human account write capacity', async () => {
+  let humanAllowed = true;
+  const budgets = new Map<string, number>();
+  const hostKey = async (id: string) => `key-${id}`;
+  const f = await setup(['user_alice', 'user_bob'], {
+    hostKey,
+    limit: async () => humanAllowed,
+    limitBot: async (account, host) => {
+      const key = JSON.stringify([account, host]);
+      const count = (budgets.get(key) ?? 0) + 1;
+      budgets.set(key, count);
+      return count <= 1;
+    },
+  });
+  const ids = [];
+  for (const name of ['one', 'two'])
+    ids.push(
+      (await f.call('POST', '/v1/hosts', { as: 'user_alice', body: { name } })).body.host.id,
+    );
+  humanAllowed = false;
+  const register = async (id: string, as = 'user_alice') => {
+    const body = { hostId: `stable-${id}`, publicKey: 'a'.repeat(64), issuedAt: f.at() };
+    const proof = await hmac(
+      await hostKey(id),
+      JSON.stringify({ purpose: 'bot-network-registration-v1', connectHostId: id, ...body }),
+    );
+    return f.call('POST', `/v1/hosts/${id}/bot-network`, { as, body: { ...body, proof } });
+  };
+  expect((await register(ids[0]!, 'user_bob')).status).toBe(404);
+  expect((await register(ids[0]!)).status).toBe(200);
+  expect((await register(ids[0]!)).status).toBe(429);
+  expect((await register(ids[1]!)).status).toBe(200);
+  expect(budgets.size).toBe(2);
+  expect(
+    (await f.call('POST', '/v1/hosts', { as: 'user_alice', body: { name: 'three' } })).status,
+  ).toBe(429);
 });

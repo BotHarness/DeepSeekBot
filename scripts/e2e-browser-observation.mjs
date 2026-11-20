@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
+import { requestListener } from './request-listener.mjs';
 
 const mode = process.argv[2];
 assert.equal(process.argv.length, 3);
@@ -16,33 +17,35 @@ if (mode === '--serve') {
   let item = 'Original item';
   let count = 0;
   let confirmed = '';
-  createServer(async (request, response) => {
-    const path = new URL(request.url, fixture).pathname;
-    if (path === '/state') {
-      response.setHeader('content-type', 'application/json');
-      response.end(JSON.stringify({ item, count, confirmed }));
-    } else if (path === '/edit' && request.method === 'POST') {
-      let body = '';
-      for await (const chunk of request) {
-        body += chunk;
-        assert.ok(body.length < 1000);
+  createServer(
+    requestListener(async (request, response) => {
+      const path = new URL(request.url, fixture).pathname;
+      if (path === '/state') {
+        response.setHeader('content-type', 'application/json');
+        response.end(JSON.stringify({ item, count, confirmed }));
+      } else if (path === '/edit' && request.method === 'POST') {
+        let body = '';
+        for await (const chunk of request) {
+          body += chunk;
+          assert.ok(body.length < 1000);
+        }
+        const value = JSON.parse(body).item;
+        assert.equal(typeof value, 'string');
+        assert.ok(value.length < 100);
+        item = value;
+        response.end('changed');
+      } else if (path === '/confirm' && request.method === 'POST') {
+        count += 1;
+        confirmed = item;
+        response.end('confirmed');
+      } else {
+        response.setHeader('content-type', 'text/html; charset=utf-8');
+        response.end(
+          `<!doctype html><title>Browser observation QA</title><body style="font:24px sans-serif;padding:32px;background:white;color:#111"><h1>Browser observation QA</h1><p id="item"></p><label>Human edit <input aria-label="Human edit" value="Original item" style="font:20px sans-serif"></label><button id="edit" style="font:20px sans-serif">Apply Human edit</button><p><button id="confirm" style="font:24px sans-serif">Confirm current item</button></p><p id="receipt"></p><p>Disposable QA page: OBSERVATION-CONTENT-REDACTION</p><script>async function refresh(){const s=await(await fetch('/state')).json();document.querySelector('#item').textContent='Current item: '+s.item;document.querySelector('#receipt').textContent=s.count?'Confirmed '+s.confirmed+' ('+s.count+')':'Awaiting confirmation';}document.querySelector('#edit').onclick=async()=>{await fetch('/edit',{method:'POST',body:JSON.stringify({item:document.querySelector('input').value})});await refresh()};document.querySelector('#confirm').onclick=async()=>{await fetch('/confirm',{method:'POST'});await refresh()};refresh();setInterval(refresh,250);</script></body>`,
+        );
       }
-      const value = JSON.parse(body).item;
-      assert.equal(typeof value, 'string');
-      assert.ok(value.length < 100);
-      item = value;
-      response.end('changed');
-    } else if (path === '/confirm' && request.method === 'POST') {
-      count += 1;
-      confirmed = item;
-      response.end('confirmed');
-    } else {
-      response.setHeader('content-type', 'text/html; charset=utf-8');
-      response.end(
-        `<!doctype html><title>Browser observation QA</title><body style="font:24px sans-serif;padding:32px;background:white;color:#111"><h1>Browser observation QA</h1><p id="item"></p><label>Human edit <input aria-label="Human edit" value="Original item" style="font:20px sans-serif"></label><button id="edit" style="font:20px sans-serif">Apply Human edit</button><p><button id="confirm" style="font:24px sans-serif">Confirm current item</button></p><p id="receipt"></p><p>Disposable QA page: OBSERVATION-CONTENT-REDACTION</p><script>async function refresh(){const s=await(await fetch('/state')).json();document.querySelector('#item').textContent='Current item: '+s.item;document.querySelector('#receipt').textContent=s.count?'Confirmed '+s.confirmed+' ('+s.count+')':'Awaiting confirmation';}document.querySelector('#edit').onclick=async()=>{await fetch('/edit',{method:'POST',body:JSON.stringify({item:document.querySelector('input').value})});await refresh()};document.querySelector('#confirm').onclick=async()=>{await fetch('/confirm',{method:'POST'});await refresh()};refresh();setInterval(refresh,250);</script></body>`,
-      );
-    }
-  }).listen(port, '127.0.0.1');
+    }),
+  ).listen(port, '127.0.0.1');
 } else {
   const origin = process.env.BH_E2E_ORIGIN;
   const home = process.env.BH_E2E_HOME;

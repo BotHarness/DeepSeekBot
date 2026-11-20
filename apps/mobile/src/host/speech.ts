@@ -1,83 +1,84 @@
-import { ExpoSpeechRecognitionModule, useSpeechRecognitionEvent } from 'expo-speech-recognition';
-import { useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { useSpeechRecognitionEvent } from 'expo-speech-recognition';
+import { useRef, useState, useSyncExternalStore } from 'react';
 
-import {
-  dictate,
-  dictating,
-  idleDictation,
-  speechLang,
-  type Dictation,
-  type DictationEvent,
-} from '../ui/chat/dictation';
 import { useMounted } from '../ui/mounted';
+import {
+  createComposerDictation,
+  createHostRecognizer,
+  createVoiceDictationPort,
+  type ComposerDictation,
+  type ComposerDictationStatus,
+} from '../../../../packages/core/src/voice/dictation-client';
+import type { HostClient } from '@botharness/host-client/client';
+import { createDictationMic } from './dictation-mic';
+import { hostDictationReady } from './host-dictation';
+import { createOsRecognizer, type OsRecognizer } from './os-dictation';
 
-async function permitted(): Promise<'denied' | 'unavailable' | undefined> {
-  if (!ExpoSpeechRecognitionModule.isRecognitionAvailable()) return 'unavailable';
-  const permission = await ExpoSpeechRecognitionModule.requestPermissionsAsync();
-  return permission.granted ? undefined : 'denied';
-}
+export type DictationProblem = 'denied' | 'unavailable' | 'failed' | 'limited';
 
-export function useDictation(onText: (text: string) => void) {
-  const current = useRef<Dictation>(idleDictation);
-  const [state, setState] = useState(idleDictation);
-  const apply = (event: DictationEvent) => {
-    const next = dictate(current.current, event);
-    current.current = next;
-    setState(next);
-    return next;
-  };
+const PROBLEMS: Partial<Record<ComposerDictationStatus, DictationProblem>> = {
+  denied: 'denied',
+  missing: 'unavailable',
+  failed: 'failed',
+  limited: 'limited',
+};
 
-  useSpeechRecognitionEvent('start', () => apply({ kind: 'started' }));
-  useSpeechRecognitionEvent('result', (event) => {
-    const before = current.current;
-    const next = apply({ kind: 'heard', transcript: event.results[0]?.transcript ?? '' });
-    if (next !== before) onText(next.heard);
+export function useDictation(
+  onText: (text: string, caret?: number) => void,
+  options: {
+    client?: HostClient | undefined;
+    slug?: string | undefined;
+    onProblem?(problem: DictationProblem): void;
+  } = {},
+) {
+  const latest = useRef({ onText, options });
+  latest.current = { onText, options };
+  const os = useRef<OsRecognizer | undefined>(undefined);
+  const [controller] = useState<ComposerDictation>(() => {
+    const created = createComposerDictation({
+      recognizer: async () => {
+        const { client, slug } = latest.current.options;
+        if (client !== undefined && (await hostDictationReady(client, slug)))
+          return createHostRecognizer({
+            port: createVoiceDictationPort((method, args) => client.call(method, args), { slug }),
+            mic: createDictationMic(),
+          });
+        const recognizer = createOsRecognizer();
+        os.current = recognizer;
+        return recognizer;
+      },
+      onText: (text, caret) => latest.current.onText(text, caret),
+    });
+    let was = created.snapshot().status;
+    created.subscribe(() => {
+      const status = created.snapshot().status;
+      if (status === was) return;
+      was = status;
+      const problem = PROBLEMS[status];
+      if (problem !== undefined) latest.current.options.onProblem?.(problem);
+    });
+    return created;
   });
-  useSpeechRecognitionEvent('error', (event) => apply({ kind: 'error', code: event.error }));
-  useSpeechRecognitionEvent('end', () => apply({ kind: 'ended' }));
+  const snapshot = useSyncExternalStore(controller.subscribe, controller.snapshot);
 
-  const mountRef = useMounted<unknown>(
-    () => () => {
-      if (dictating(current.current.status)) ExpoSpeechRecognitionModule.abort();
-      current.current = idleDictation;
-    },
-    [],
-  );
+  useSpeechRecognitionEvent('start', () => os.current?.events.start());
+  useSpeechRecognitionEvent('result', (event) => os.current?.events.result(event));
+  useSpeechRecognitionEvent('error', (event) => os.current?.events.error(event));
+  useSpeechRecognitionEvent('end', () => os.current?.events.end());
 
-  const start = () => {
-    if (dictating(current.current.status)) return;
-    apply({ kind: 'press' });
-    permitted()
-      .then((refusal) => {
-        if (current.current.status !== 'starting') return;
-        if (refusal !== undefined) {
-          apply({ kind: 'refused', reason: refusal });
-          return;
-        }
-        ExpoSpeechRecognitionModule.start({
-          lang: speechLang(Intl.DateTimeFormat().resolvedOptions().locale),
-          interimResults: true,
-          addsPunctuation: true,
-          continuous: Platform.OS === 'ios',
-        });
-      })
-      .catch(() => apply({ kind: 'refused', reason: 'unavailable' }));
+  const mountRef = useMounted<unknown>(() => () => controller.dispose(), [controller]);
+
+  const start = (draft?: { text: string; caret?: number }) => {
+    const text = draft?.text ?? '';
+    const caret = Math.max(0, Math.min(text.length, draft?.caret ?? text.length));
+    controller.start('toggle', { before: text.slice(0, caret), after: text.slice(caret) });
   };
 
-  const stop = () => {
-    if (current.current.status === 'listening') ExpoSpeechRecognitionModule.stop();
-    else cancel();
+  return {
+    state: { status: snapshot.status, heard: snapshot.text },
+    start,
+    stop: () => void controller.stop(),
+    cancel: () => controller.cancel(),
+    mountRef,
   };
-
-  const cancel = () => {
-    const was = current.current.status;
-    apply({ kind: 'cancel' });
-    if (dictating(was)) {
-      ExpoSpeechRecognitionModule.abort();
-      onText('');
-    }
-  };
-
-  return { state, start, stop, cancel, mountRef };
 }

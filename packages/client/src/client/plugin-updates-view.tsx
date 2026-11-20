@@ -1,14 +1,19 @@
-import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
+import { Button } from './ds/button.js';
+import { useMemo, useSyncExternalStore, type ReactElement } from 'react';
 
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
-import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
+import * as stylex from '@stylexjs/stylex';
+import { Note } from './ds/note.js';
+import { CopyChip } from './ds/status-block.js';
+import { layer, space, style } from './ds/tobs.stylex.js';
 
 import type { PluginUpdate } from '../../../core/src/release/plugins.js';
 import type { BridgeCall } from './bridge.js';
-import { SettingsRow, SettingsRows } from './ds/settings-row.js';
+import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { PluginUpdatesController, type PluginRowState } from './plugin-updates.js';
+import { UpdateRunPanel, useUpdateRuns } from './update-run-view.js';
+import { updateRunActive, type UpdateRunsController } from './update-runs.js';
 import {
   compatibilityText,
   DESKTOP_UPDATE_PROFILE,
@@ -16,6 +21,17 @@ import {
   RELEASE_UPDATE_PROFILE,
   runsInDesktop,
 } from './release-notes-view.js';
+
+const styles = stylex.create({
+  diagnostic: {
+    margin: 0,
+    padding: space.x3,
+    backgroundColor: layer.well,
+    borderRadius: style.radiusContainer,
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
+  },
+});
 
 const PLUGIN_NAMES: Readonly<Record<string, BotHarnessKey>> = {
   '@botharness/vrm-companion': 'plugins.name.vrmCompanion',
@@ -39,7 +55,10 @@ function statusText(plugin: PluginUpdate, t: BotHarnessTranslate): string {
     case 'current':
       return t('plugins.status.current', { current: plugin.current });
     case 'available':
-      return t('plugins.status.available', { current: plugin.current, latest: plugin.latest });
+      return t('plugins.status.available', {
+        current: plugin.current,
+        latest: plugin.latest,
+      });
     case 'blocked':
       return `${t('plugins.status.blocked', { current: plugin.current, latest: plugin.latest })} ${compatibilityText(plugin.compatibility, t)}`;
     case 'restart-required':
@@ -56,7 +75,6 @@ function ManualCommand({
   version: string;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const [copied, setCopied] = useState(false);
   const command = pluginUpdateCommand(
     name,
     version,
@@ -64,21 +82,14 @@ function ManualCommand({
   );
   return (
     <>
-      <div className="bh-settings-row-desc">{t('plugins.manual')}</div>
-      <div className="bh-release-command">
-        <code>{command}</code>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            void navigator.clipboard?.writeText(command).then(() => {
-              setCopied(true);
-            });
-          }}
-        >
-          {t(copied ? 'release.update.copied' : 'release.update.copy')}
-        </Button>
-      </div>
+      <Note>{t('plugins.manual')}</Note>
+      <CopyChip
+        value={command}
+        copyLabel={t('release.update.copy')}
+        copiedLabel={t('release.update.copied')}
+        marker="data-plugin-command"
+        well
+      />
     </>
   );
 }
@@ -98,13 +109,19 @@ function PluginRow({
   controller: PluginUpdatesController;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const { run } = useUpdateRuns(controller.runs);
+  const shown = run?.kind === 'plugin' && run.name === plugin.name;
+  const following = shown && updateRunActive(run);
   const installing = row.status === 'installing';
   const reloading = row.status === 'reloading';
   const available = plugin.status === 'available';
   return (
     <SettingsRow
       title={pluginTitle(plugin.name, t)}
-      data={{ 'data-plugin-update': plugin.name, 'data-plugin-status': plugin.status }}
+      data={{
+        'data-plugin-update': plugin.name,
+        'data-plugin-status': plugin.status,
+      }}
       description={
         <span role="status" aria-live="polite">
           {reloading
@@ -115,7 +132,7 @@ function PluginRow({
         </span>
       }
       control={
-        available && installable ? (
+        available && installable && !following ? (
           <Button
             size="sm"
             variant="primary"
@@ -130,22 +147,27 @@ function PluginRow({
         ) : null
       }
     >
-      {row.status === 'failed' ? (
-        <div className="bh-release-install-error" role="alert" data-plugin-install-error>
-          <div>
+      <UpdateRunPanel
+        controller={controller.runs}
+        kind="plugin"
+        name={plugin.name}
+        title={pluginTitle(plugin.name, t)}
+        t={t}
+      />
+      {row.status === 'failed' && !shown ? (
+        <div data-plugin-install-error>
+          <Note tone="danger">
             {t(
               row.reason === 'unknown-plugin'
                 ? 'plugins.install.unknown'
                 : INSTALL_FAILURE_KEYS[row.reason],
             )}
-          </div>
+          </Note>
           {row.diagnostic === undefined ? null : (
-            <pre className="bh-release-install-diagnostic">{row.diagnostic}</pre>
+            <pre {...stylex.props(styles.diagnostic)}>{row.diagnostic}</pre>
           )}
           {row.logPath === undefined ? null : (
-            <div className="bh-settings-row-desc">
-              {t('release.install.log', { path: row.logPath })}
-            </div>
+            <Note>{t('release.install.log', { path: row.logPath })}</Note>
           )}
         </div>
       ) : null}
@@ -156,22 +178,46 @@ function PluginRow({
   );
 }
 
-export type PluginsSectionProps = PropsLocale<'botharness'> & InjectFace<{ call: BridgeCall }>;
+export interface PluginsSectionProps {
+  call: BridgeCall;
+  t: BotHarnessTranslate;
+  updateRuns?: UpdateRunsController;
+}
 
-export function PluginsSection({ call, t }: PluginsSectionProps): ReactElement {
-  const controller = useMemo(() => new PluginUpdatesController(call), [call]);
+export function PluginsSection(props: PluginsSectionProps): ReactElement {
+  return (
+    <SettingsRows>
+      <PluginsSettings {...props} />
+    </SettingsRows>
+  );
+}
+
+export function PluginsSettings({
+  call,
+  updateRuns,
+  title,
+  t,
+}: PluginsSectionProps & { readonly title?: string }): ReactElement {
+  const controller = useMemo(
+    () => new PluginUpdatesController(call, undefined, updateRuns),
+    [call, updateRuns],
+  );
   const snapshot = useSyncExternalStore(controller.source.subscribe, controller.source.getSnapshot);
+  const runs = useUpdateRuns(controller.runs);
   const mount = useMountedResource<HTMLDivElement>(() => {
     void controller.load();
+    void controller.runs.follow();
   }, [controller]);
-  const busy = Object.values(snapshot.rows).some(
-    (row) => row.status === 'installing' || row.status === 'reloading',
-  );
+  const busy =
+    Object.values(snapshot.rows).some(
+      (row) => row.status === 'installing' || row.status === 'reloading',
+    ) || updateRunActive(runs.run);
   const staged = snapshot.plugins.some((plugin) => plugin.status === 'restart-required');
   const restarting = snapshot.restart === 'restarting';
   return (
-    <SettingsRows rootRef={mount}>
+    <SettingsSection title={title}>
       <SettingsRow
+        rootRef={mount}
         title={t('plugins.row.title')}
         description={
           <span role="status" aria-live="polite">
@@ -247,6 +293,6 @@ export function PluginsSection({ call, t }: PluginsSectionProps): ReactElement {
           }
         />
       ) : null}
-    </SettingsRows>
+    </SettingsSection>
   );
 }

@@ -1,3 +1,4 @@
+export { BROWSER_COMPUTER_OPTIONS } from './cli-option-spec.js';
 import { createReadStream, createWriteStream, statSync, writeFileSync } from 'node:fs';
 import { basename } from 'node:path';
 import { Readable } from 'node:stream';
@@ -8,20 +9,6 @@ import { CliLiveError } from './cli-live-error.js';
 import type { connectLiveHost } from './cli-live.js';
 
 type LiveHost = Awaited<ReturnType<typeof connectLiveHost>>;
-
-export const BROWSER_COMPUTER_OPTIONS = {
-  permission: { type: 'string' },
-  tab: { type: 'string' },
-  profile: { type: 'string' },
-  package: { type: 'string', multiple: true },
-  confirm: { type: 'boolean' },
-  'token-stdin': { type: 'boolean' },
-  dir: { type: 'string' },
-  plugin: { type: 'string' },
-  entity: { type: 'string' },
-  viewer: { type: 'string' },
-  probe: { type: 'boolean' },
-} as const;
 
 export const BROWSER_COMPUTER_COMMANDS = [
   {

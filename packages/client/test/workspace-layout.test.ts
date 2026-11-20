@@ -1,6 +1,11 @@
 import type { SerializedDockview } from 'dockview-react';
 import { describe, expect, it } from 'vitest';
-import { isFullHeightRail, reorderWorkspaceRail } from '../src/client/workspace-layout.js';
+import type { DockviewApi } from 'dockview-react';
+import {
+  isFullHeightRail,
+  reorderWorkspaceRail,
+  workspaceMoveColumns,
+} from '../src/client/workspace-layout.js';
 import { WORKSPACE_RAIL } from '../src/client/workspace-context.js';
 import {
   CHANNEL_BODY_PANEL,
@@ -39,6 +44,27 @@ const layout: SerializedDockview = {
 };
 
 describe('workspace layout', () => {
+  it('measures move targets only while the move menu is open', () => {
+    let reads = 0;
+    const lefts: Record<string, number> = { channels: 60, body: 320, activity: 900, sessions: 900 };
+    const api = {
+      toJSON: () => layout,
+      groups: Object.keys(lefts).map((id) => ({
+        id,
+        api: {
+          get boundingBox() {
+            reads += 1;
+            return { left: lefts[id] };
+          },
+        },
+      })),
+    } as unknown as DockviewApi;
+    for (let n = 0; n < 20; n++) expect(workspaceMoveColumns(api, false)).toEqual([]);
+    expect(reads).toBe(0);
+    expect(workspaceMoveColumns(api, true)).toEqual(['body', 'activity']);
+    expect(reads).toBe(4);
+  });
+
   it('moves before a stacked column without splitting or resetting any of its panels', () => {
     const moved = reorderWorkspaceRail(layout, 'activity');
     const nodes = moved.grid.root.data as (typeof stacked)[];

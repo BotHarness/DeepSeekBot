@@ -1,8 +1,10 @@
 import { createHmac } from 'node:crypto';
+import { credentialKey } from '@deepseek-ai/dsh-credentials';
 
 import { describe, expect, it, vi } from 'vitest';
 
 import { createConnectAccount } from '../src/devices/connect-account.js';
+import { CONNECT_ZONES } from '@botharness/host-protocol/connect-zones';
 import type { ConnectStatus, DeviceConnect } from '../src/devices/connect.js';
 import { runConnectCommand } from '../src/bots/cli-connect.js';
 
@@ -10,6 +12,14 @@ const RELAY = 'https://relay.test';
 const CLIENT = 'client_01TEST';
 const RELAY_KEY = 'relay-key-for-hstudioaaaaa';
 const TOKEN = Buffer.from(JSON.stringify({ a: 'a', t: 't', s: 's' })).toString('base64');
+
+function deferred() {
+  let resolve = () => {};
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
 
 function memoryCredentials() {
   const records = new Map<string, unknown>();
@@ -65,12 +75,32 @@ function fakeServices(
     deleted?: { workos: boolean };
     activity?: boolean;
     deviceError?: string;
+    userId?: string;
+    email?: string;
+    hostId?: string;
+    maxHosts?: number;
+    listStatus?: number;
+    listBody?: unknown;
+    forgetAfterList?: boolean;
+    signer?: boolean;
+    onList?: () => Promise<void>;
+    refreshExpired?: boolean;
+    sessionRevoked?: boolean;
+    relayFull?: Record<string, unknown>;
+    pool?: Record<string, unknown>;
+    protectedUntil?: string;
+    offer?: (
+      path: string,
+      body: Record<string, unknown> | undefined,
+      signal: AbortSignal | null | undefined,
+    ) => Promise<Response>;
   } = {},
 ) {
   let pending = options.pending ?? 1;
   let refreshCount = 0;
   const calls: { method: string; path: string; auth?: string; body?: unknown }[] = [];
   const hosts = new Set<string>();
+  const owners = new Map<string, string>();
   const fetcher = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
     const url = new URL(String(input));
     const method = init?.method ?? 'GET';
@@ -82,6 +112,7 @@ function fakeServices(
     calls.push({
       method,
       path: `${url.origin}${url.pathname}`,
+      ...(url.search ? { search: url.search } : {}),
       ...(auth ? { auth } : {}),
       ...(body ? { body } : {}),
     });
@@ -103,10 +134,14 @@ function fakeServices(
         return Response.json({
           access_token: 'access-0',
           refresh_token: 'refresh-0',
-          user: { id: 'user_alice', email: 'alice@example.com' },
+          user: { id: options.userId ?? 'user_alice', email: options.email ?? 'alice@example.com' },
         });
       }
-      if (form?.['refresh_token'] === 'revoked' || options.deleted?.workos)
+      if (
+        form?.['refresh_token'] === 'revoked' ||
+        options.deleted?.workos ||
+        options.refreshExpired
+      )
         return Response.json({ error: 'invalid_grant' }, { status: 400 });
       refreshCount += 1;
       return Response.json({
@@ -115,6 +150,8 @@ function fakeServices(
       });
     }
     if (url.origin !== RELAY) return new Response('{}', { status: 404 });
+    if (url.pathname.endsWith('/offer') && options.offer)
+      return options.offer(url.pathname, body, init?.signal);
     if (url.pathname === '/v1/config')
       return Response.json({
         clientId: CLIENT,
@@ -126,11 +163,37 @@ function fakeServices(
       return Response.json({ error: { code: 'unauthorized' } }, { status: 401 });
     if (options.allowed === false)
       return Response.json({ error: { code: 'account-not-allowed' } }, { status: 403 });
-    if (url.pathname === '/v1/hosts' && method === 'GET')
-      return Response.json({ hosts: [...hosts].map((id) => ({ id })) });
+    if (options.sessionRevoked)
+      return Response.json({ error: { code: 'session-revoked' } }, { status: 401 });
+    if (url.pathname.endsWith('/revoke') && method === 'POST') {
+      const hostId = url.pathname.split('/')[3] ?? '';
+      if (!hosts.delete(hostId))
+        return Response.json({ error: { code: 'host-not-found' } }, { status: 404 });
+      return Response.json({ deleted: true, sessionKnown: true, sessionRevoked: false });
+    }
+    if (url.pathname === '/v1/hosts' && method === 'GET') {
+      await options.onList?.();
+      const listed = [...hosts]
+        .filter((id) => owners.get(id) === (options.userId ?? 'user_alice'))
+        .map((id) => ({
+          id,
+          ...(options.protectedUntil ? { protectedUntil: options.protectedUntil } : {}),
+        }));
+      if (options.forgetAfterList) hosts.clear();
+      return Response.json(
+        options.listBody ?? { hosts: listed, ...(options.pool ? { pool: options.pool } : {}) },
+        {
+          status: options.listStatus ?? 200,
+        },
+      );
+    }
     if (url.pathname === '/v1/hosts' && method === 'POST') {
-      hosts.add('hstudioaaaaa');
-      return Response.json({ host: { id: 'hstudioaaaaa' } }, { status: 201 });
+      if (hosts.size >= (options.maxHosts ?? Infinity))
+        return Response.json({ error: { code: 'host-limit' } }, { status: 409 });
+      const hostId = options.hostId ?? 'hstudioaaaaa';
+      hosts.add(hostId);
+      owners.set(hostId, options.userId ?? 'user_alice');
+      return Response.json({ host: { id: hostId } }, { status: 201 });
     }
     if (options.activity && url.pathname === '/v1/hosts/hstudioaaaaa/live-activity')
       return Response.json(
@@ -140,13 +203,22 @@ function fakeServices(
       );
     const tunnel = /^\/v1\/hosts\/([^/]+)\/tunnel$/u.exec(url.pathname)?.[1];
     if (tunnel !== undefined) {
-      if (!hosts.has(tunnel))
+      if (!hosts.has(tunnel) || owners.get(tunnel) !== (options.userId ?? 'user_alice'))
         return Response.json({ error: { code: 'host-not-found' } }, { status: 404 });
+      if (options.relayFull)
+        return Response.json(
+          { error: { code: 'relay-full', ...options.relayFull } },
+          { status: 503 },
+        );
       return Response.json({
         hostname: `${tunnel}.deepseekbot.dev`,
         token: TOKEN,
-        account: 'user_alice',
-        relayKey: RELAY_KEY,
+        ...(options.signer === false
+          ? {}
+          : {
+              account: options.userId ?? 'user_alice',
+              relayKey: options.userId ? `${RELAY_KEY}-${options.userId}` : RELAY_KEY,
+            }),
       });
     }
     if (method === 'DELETE') {
@@ -155,7 +227,7 @@ function fakeServices(
     }
     return new Response('{}', { status: 404 });
   });
-  return { fetcher, calls, hosts };
+  return { fetcher, calls, hosts, owners };
 }
 
 async function settle(account: { status(): { state: string } }) {
@@ -163,7 +235,14 @@ async function settle(account: { status(): { state: string } }) {
     await new Promise((done) => setImmediate(done));
 }
 
-function setup(services = fakeServices(), port = 41001, watchMs = 60_000) {
+function setup(
+  services = fakeServices(),
+  port = 41001,
+  watchMs = 60_000,
+  onReady?: () => void,
+  record?: Parameters<typeof createConnectAccount>[0]['record'],
+  onAccountChanged?: () => void,
+) {
   const credentials = memoryCredentials();
   const tunnel = fakeConnect(port);
   const account = createConnectAccount({
@@ -175,11 +254,931 @@ function setup(services = fakeServices(), port = 41001, watchMs = 60_000) {
     freePort: async () => 41001,
     sleep: async () => {},
     watchMs,
+    ...(onReady === undefined ? {} : { onReady }),
+    ...(onAccountChanged === undefined ? {} : { onAccountChanged }),
+    ...(record === undefined ? {} : { record }),
   });
   return { account, credentials, tunnel, services };
 }
 
+describe('linked account computers', () => {
+  it.each(['hosts', 'relationship', 'activity'] as const)(
+    'persists a consumed %s rotation after caller cancellation while retaining the owner queue',
+    async (entry) => {
+      const services = fakeServices({
+        pending: 0,
+        hostId: 'haaaaaaaaaaaa',
+        offer: async () => Response.json({}, { status: 401 }),
+      });
+      const { account, credentials } = setup(services);
+      const received = deferred();
+      const release = deferred();
+      const saving = deferred();
+      const persist = deferred();
+      let signal: AbortSignal | null | undefined;
+      let exchanges = 0;
+      let relayRequests = 0;
+      const tokens: string[] = [];
+      try {
+        await account.signIn();
+        await settle(account);
+        const session = await account.relationshipSession();
+        const modify = credentials.provider.modifyRecord;
+        credentials.provider.modifyRecord = async (key, mutate) =>
+          modify(key, async (current) => {
+            const next = await mutate(current);
+            if (JSON.stringify(next).includes('rotated-refresh')) {
+              saving.resolve();
+              await persist.promise;
+            }
+            return next;
+          });
+        const original = services.fetcher.getMockImplementation()!;
+        services.fetcher.mockImplementation(async (input, init) => {
+          if (String(input).startsWith(RELAY)) relayRequests++;
+          if (String(init?.body).includes('grant_type=refresh_token')) {
+            const token = new URLSearchParams(String(init?.body)).get('refresh_token')!;
+            tokens.push(token);
+            exchanges++;
+            if (exchanges === 1) {
+              signal = init?.signal;
+              received.resolve();
+              await release.promise;
+              return Response.json({
+                access_token: 'rotated-access',
+                refresh_token: 'rotated-refresh',
+              });
+            }
+            if (token !== 'rotated-refresh')
+              return Response.json({ error: 'invalid_grant' }, { status: 400 });
+            return Response.json({ access_token: 'next-access', refresh_token: 'next-refresh' });
+          }
+          if (entry === 'activity' && String(input).endsWith('/live-activity'))
+            return Response.json({}, { status: 401 });
+          return original(input, init);
+        });
+        const caller = new AbortController();
+        const first =
+          entry === 'hosts'
+            ? account.connectedHosts(caller.signal)
+            : entry === 'activity'
+              ? account.activity.call({}, caller.signal)
+              : session!
+                  .offer(session!.registrationId, 'a'.repeat(43), caller.signal)
+                  .catch(() => 'refused');
+        await received.promise;
+        caller.abort();
+        expect(signal?.aborted).toBe(false);
+        expect(await first).toEqual(
+          entry === 'hosts'
+            ? { ok: false, code: 'relay-unavailable' }
+            : entry === 'activity'
+              ? { status: 503, body: {} }
+              : 'refused',
+        );
+        expect(signal?.aborted).toBe(false);
+        const queued = new AbortController();
+        const cancelled = account.connectedHosts(queued.signal);
+        queued.abort();
+        expect(await cancelled).toEqual({ ok: false, code: 'relay-unavailable' });
+        const next = account.accessToken({ fresh: true });
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(exchanges).toBe(1);
+        release.resolve();
+        await saving.promise;
+        await new Promise<void>((resolve) => setImmediate(resolve));
+        expect(exchanges).toBe(1);
+        persist.resolve();
+        expect(await next).toBe('next-access');
+        expect(tokens).toHaveLength(2);
+        expect(tokens[1]).toBe('rotated-refresh');
+        expect(relayRequests).toBe(entry === 'hosts' ? 0 : 1);
+        expect(JSON.stringify([...credentials.records.values()])).toContain('next-refresh');
+        expect(JSON.stringify([...credentials.records.values()])).not.toContain('rotated-refresh');
+      } finally {
+        release.resolve();
+        persist.resolve();
+        await account.close();
+      }
+    },
+  );
+
+  it.each([
+    'sign-out',
+    'close',
+    'deadline',
+    'late-success',
+    'access-token-close',
+    'account-change',
+  ] as const)('cancels the serialized relationship token refresh on %s', async (mode) => {
+    let expire = false;
+    const serviceOptions = {
+      pending: 0,
+      hostId: 'haaaaaaaaaaaa',
+      userId: 'user_alice',
+      offer: async () => {
+        expire = true;
+        return Response.json({ error: { code: 'session-expired' } }, { status: 401 });
+      },
+    };
+    const services = fakeServices(serviceOptions);
+    const original = services.fetcher.getMockImplementation()!;
+    const started = deferred();
+    let release = () => {};
+    let blocked = false;
+    let refreshSignal: AbortSignal | null | undefined;
+    services.fetcher.mockImplementation(async (input, init) => {
+      if (expire && !blocked && String(init?.body).includes('grant_type=refresh_token')) {
+        blocked = true;
+        refreshSignal = init?.signal;
+        return new Promise<Response>((resolve, reject) => {
+          release = () =>
+            resolve(Response.json({ access_token: 'late-access', refresh_token: 'late-refresh' }));
+          refreshSignal?.addEventListener(
+            'abort',
+            () =>
+              mode === 'late-success' || mode === 'account-change'
+                ? release()
+                : reject(
+                    refreshSignal?.reason instanceof Error
+                      ? refreshSignal.reason
+                      : new Error('aborted', { cause: refreshSignal?.reason }),
+                  ),
+            { once: true },
+          );
+          started.resolve();
+        });
+      }
+      return original(input, init);
+    });
+    const { account, credentials } = setup(services);
+    const caller = new AbortController();
+    const deadline = new AbortController();
+    let timeout: ReturnType<typeof vi.spyOn> | undefined;
+    let teardown: Promise<unknown> | undefined;
+    try {
+      await account.signIn();
+      await settle(account);
+      const session = await account.relationshipSession();
+      expect(session).toBeDefined();
+      const before = JSON.stringify([...credentials.records.values()]);
+      if (mode === 'deadline')
+        timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(deadline.signal);
+      if (mode === 'access-token-close') expire = true;
+      const work =
+        mode === 'access-token-close'
+          ? account
+              .accessToken({ fresh: true })
+              .then((token) => (token === undefined ? 'refused' : 'accepted'))
+          : session!.offer(session!.registrationId, 'a'.repeat(43), caller.signal).then(
+              () => 'accepted',
+              () => 'refused',
+            );
+      await started.promise;
+      if (mode === 'account-change') {
+        serviceOptions.userId = 'user_bob';
+        teardown = account.signIn().then(() => settle(account));
+      } else if (mode === 'sign-out') teardown = account.signOut();
+      else if (mode === 'close' || mode === 'late-success' || mode === 'access-token-close')
+        teardown = account.close();
+      else if (mode === 'deadline') deadline.abort();
+      else caller.abort();
+      await vi.waitFor(() => expect(refreshSignal?.aborted).toBe(true), { timeout: 500 });
+      expect(await work).toBe('refused');
+      await teardown;
+      if (mode === 'sign-out') {
+        expect(account.status().state).toBe('signed-out');
+        expect(credentials.records.size).toBe(0);
+      } else if (mode === 'account-change') {
+        expect(JSON.stringify([...credentials.records.values()])).toContain('user_bob');
+        expect(JSON.stringify([...credentials.records.values()])).not.toContain('late-refresh');
+      } else expect(JSON.stringify([...credentials.records.values()])).toBe(before);
+      expect(services.calls.filter((call) => call.path.endsWith('/offer'))).toHaveLength(
+        mode === 'access-token-close' ? 0 : 1,
+      );
+    } finally {
+      release();
+      timeout?.mockRestore();
+      await teardown;
+      await account.close();
+    }
+  });
+
+  it.each(['refresh', 'relay'])(
+    'cancels a stalled health %s request and skips queued cancelled checks',
+    async (stage) => {
+      const services = fakeServices({ pending: 0 });
+      const { account } = setup(services);
+      try {
+        await account.signIn();
+        await settle(account);
+        expect(account.status().state).toBe('signed-in');
+        const original = services.fetcher.getMockImplementation();
+        if (!original) throw new Error('missing-test-fetch');
+        let started = () => {};
+        const ready = new Promise<void>((resolve) => {
+          started = resolve;
+        });
+        let blocked = 0;
+        let release = () => {};
+        services.fetcher.mockImplementation(async (input, init) => {
+          const url = String(input);
+          const selected =
+            stage === 'refresh' ? url.includes('/authenticate') : url === `${RELAY}/v1/hosts`;
+          if (!selected) return original(input, init);
+          blocked++;
+          started();
+          return new Promise<Response>((resolve, reject) => {
+            release = () =>
+              resolve(
+                Response.json({ access_token: 'health-access', refresh_token: 'health-refresh' }),
+              );
+            const signal = init?.signal;
+            if (!signal) {
+              reject(new Error('missing-cancellation'));
+              return;
+            }
+            if (signal.aborted) reject(new Error('cancelled'));
+            else
+              signal.addEventListener('abort', () => reject(new Error('cancelled')), {
+                once: true,
+              });
+          });
+        });
+        const running = new AbortController();
+        const first = account.connectedHosts(running.signal);
+        await ready;
+        const queued = new AbortController();
+        const second = account.connectedHosts(queued.signal);
+        queued.abort();
+        running.abort();
+        expect(await first).toEqual({ ok: false, code: 'relay-unavailable' });
+        expect(await second).toEqual({ ok: false, code: 'relay-unavailable' });
+        expect(blocked).toBe(1);
+        release();
+        services.fetcher.mockImplementation(original);
+        expect(await account.signOut()).toMatchObject({ ok: true });
+      } finally {
+        await account.close();
+      }
+    },
+  );
+
+  it.each(['account', 'registration', 'expired', 'route'] as const)(
+    'refuses a %s mismatch in an authenticated relationship offer',
+    async (mode) => {
+      const registrationId = 'haaaaaaaaaaaa';
+      const services = fakeServices({
+        pending: 0,
+        hostId: registrationId,
+        offer: async (_path, body) => {
+          const payload = JSON.stringify({
+            hostId: mode === 'registration' ? 'hbbbbbbbbbbbb' : registrationId,
+            account: mode === 'account' ? 'another-account' : 'user_alice',
+            verifierHash: body?.['verifierHash'],
+            issuedAt: new Date(
+              mode === 'expired' ? Date.now() - 120_000 : Date.now(),
+            ).toISOString(),
+          });
+          return Response.json({
+            host: { id: 'remote-pairing-host', name: 'Remote' },
+            encryption: { protocol: 'connect-noise-xk-v1', publicKey: 'ab'.repeat(32) },
+            enrollment: {
+              body: payload,
+              signature: createHmac('sha256', RELAY_KEY).update(payload).digest('base64url'),
+            },
+            hostname: mode === 'route' ? 'untrusted.example' : `${registrationId}.deepseekbot.dev`,
+            expiresAt: new Date(Date.now() + 300_000).toISOString(),
+          });
+        },
+      });
+      const events: { phase: string; detail: string | undefined }[] = [];
+      const { account } = setup(services, 41001, 60_000, undefined, (phase, detail) =>
+        events.push({ phase, detail }),
+      );
+      try {
+        await account.signIn();
+        await settle(account);
+        const session = await account.relationshipSession();
+        expect(session).toBeDefined();
+        await expect(
+          session?.offer(registrationId, 'a'.repeat(43), new AbortController().signal),
+        ).rejects.toThrow();
+        expect(services.calls.at(-1)?.auth).toMatch(/^Bearer /u);
+        const failure = events.findLast((event) => event.phase === 'account-request-error');
+        expect(failure?.detail).toContain(
+          'service=relay operation=relationship-offer reason=invalid-response httpStatus=200',
+        );
+        expect(failure?.detail).not.toContain('another-account');
+        expect(failure?.detail).not.toContain(RELAY_KEY);
+        expect(failure?.detail).not.toContain('a'.repeat(43));
+      } finally {
+        await account.close();
+      }
+    },
+  );
+  it('invalidates an in-flight authenticated relationship offer immediately when sign-out starts', async () => {
+    const gate = deferred();
+    const entered = vi.fn();
+    const registrationId = 'haaaaaaaaaaaa';
+    const services = fakeServices({
+      pending: 0,
+      hostId: registrationId,
+      offer: async (_path, body) => {
+        entered();
+        await gate.promise;
+        const payload = JSON.stringify({
+          hostId: registrationId,
+          account: 'user_alice',
+          verifierHash: body?.['verifierHash'],
+          issuedAt: new Date().toISOString(),
+        });
+        return Response.json({
+          host: { id: 'remote-pairing-host', name: 'Remote' },
+          encryption: { protocol: 'connect-noise-xk-v1', publicKey: 'ab'.repeat(32) },
+          enrollment: {
+            body: payload,
+            signature: createHmac('sha256', RELAY_KEY).update(payload).digest('base64url'),
+          },
+          hostname: `${registrationId}.deepseekbot.dev`,
+          expiresAt: new Date(Date.now() + 300_000).toISOString(),
+        });
+      },
+    });
+    const { account } = setup(services);
+    try {
+      await account.signIn();
+      await settle(account);
+      const session = await account.relationshipSession();
+      if (!session) throw new Error('missing test account session');
+      const offered = session.offer(registrationId, 'a'.repeat(43), new AbortController().signal);
+      await vi.waitFor(() => expect(entered).toHaveBeenCalled());
+      const signOut = account.signOut();
+      expect(session.current()).toBe(false);
+      gate.resolve();
+      await expect(offered).rejects.toThrow('session-expired');
+      await signOut;
+      expect(await account.relationshipSession()).toBeUndefined();
+    } finally {
+      gate.resolve();
+      await account.close();
+    }
+  });
+  it('refuses signed-out operations without any network calls', async () => {
+    const { account, services } = setup();
+    try {
+      expect(await account.connectedHosts()).toEqual({ ok: false, code: 'signed-out' });
+      expect(await account.revokeConnectedHost('hother')).toEqual({
+        ok: false,
+        code: 'signed-out',
+      });
+      expect(services.calls).toHaveLength(0);
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('sanitizes the on-demand list, derives current and refuses self before the network', async () => {
+    const services = fakeServices({
+      pending: 0,
+      listBody: {
+        hosts: [
+          {
+            id: 'hstudioaaaaa',
+            name: 'Studio',
+            hostname: 'studio.test',
+            createdAt: '2026-01-01T00:00:00Z',
+            connected: true,
+            sessionKnown: true,
+            botNetwork: { hostId: 'paired-host', publicKey: '11'.repeat(32) },
+            account: 'private',
+            session_id: 'private',
+            relayKey: 'private',
+          },
+          {
+            id: 'hother',
+            name: 'Old',
+            hostname: 'old.test',
+            createdAt: '2026-01-01T00:00:00Z',
+            refreshToken: 'private',
+          },
+        ],
+      },
+    });
+    const { account } = setup(services);
+    try {
+      await account.signIn();
+      await settle(account);
+      const listed = await account.connectedHosts();
+      expect(listed).toEqual({
+        ok: true,
+        hosts: [
+          {
+            id: 'hstudioaaaaa',
+            name: 'Studio',
+            hostname: 'studio.test',
+            createdAt: '2026-01-01T00:00:00Z',
+            connected: true,
+            current: true,
+            sessionKnown: true,
+            botNetwork: { hostId: 'paired-host', publicKey: '11'.repeat(32) },
+          },
+          {
+            id: 'hother',
+            name: 'Old',
+            hostname: 'old.test',
+            createdAt: '2026-01-01T00:00:00Z',
+            current: false,
+            sessionKnown: false,
+          },
+        ],
+      });
+      expect(JSON.stringify(listed)).not.toMatch(
+        /private|account|session_id|relayKey|refreshToken/u,
+      );
+      const before = services.calls.length;
+      expect(await account.revokeConnectedHost('hstudioaaaaa')).toEqual({
+        ok: false,
+        code: 'current-host',
+      });
+      expect(services.calls).toHaveLength(before);
+      expect(await account.revokeConnectedHost('hmissing')).toEqual({
+        ok: false,
+        code: 'host-not-found',
+      });
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('retries a host-limit only after revoke leaves serial and returns the updated status', async () => {
+    const services = fakeServices({ pending: 0, maxHosts: 1 });
+    services.hosts.add('hother');
+    services.owners.set('hother', 'user_alice');
+    const { account } = setup(services);
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(account.status().issue).toBe('host-limit');
+      expect(await account.revokeConnectedHost('hother')).toMatchObject({
+        ok: true,
+        status: { state: 'signed-in', hostId: 'hstudioaaaaa' },
+        sessionKnown: true,
+        sessionRevoked: false,
+      });
+      expect(services.hosts.has('hother')).toBe(false);
+      expect(services.hosts.has('hstudioaaaaa')).toBe(true);
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('keeps host-limit actionable if another Host takes the freed slot', async () => {
+    const services = fakeServices({ pending: 0, maxHosts: 0 });
+    services.hosts.add('hother');
+    services.owners.set('hother', 'user_alice');
+    const { account } = setup(services);
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(await account.revokeConnectedHost('hother')).toMatchObject({
+        ok: true,
+        status: { state: 'error', issue: 'host-limit' },
+      });
+      expect(
+        services.calls.filter(
+          (call) => call.method === 'POST' && call.path === `${RELAY}/v1/hosts`,
+        ),
+      ).toHaveLength(2);
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('retires a tombstoned session instead of re-registering', async () => {
+    const options = { pending: 0, sessionRevoked: false };
+    const services = fakeServices(options);
+    const { account, credentials, tunnel } = setup(services);
+    try {
+      await account.signIn();
+      await settle(account);
+      options.sessionRevoked = true;
+      expect(await account.connectedHosts()).toEqual({ ok: false, code: 'session-revoked' });
+      expect(account.status()).toMatchObject({ state: 'error', issue: 'session-revoked' });
+      expect(tunnel.connect.status().state).toBe('off');
+      expect(JSON.stringify([...credentials.records.values()])).not.toContain('refreshToken');
+      expect(await account.revokeConnectedHost('hother')).toEqual({
+        ok: false,
+        code: 'signed-out',
+      });
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('reports unavailable or malformed lists without leaking raw relay bodies', async () => {
+    for (const options of [
+      { listStatus: 503 },
+      { listBody: { hosts: [{ id: 'hbad', private: 'secret' }] } },
+    ]) {
+      const { account } = setup(fakeServices({ pending: 0, ...options }));
+      try {
+        await account.signIn();
+        await settle(account);
+        expect(await account.connectedHosts()).toEqual({ ok: false, code: 'relay-unavailable' });
+      } finally {
+        await account.close();
+      }
+    }
+  });
+});
+
 describe('Connect account sign-in', () => {
+  it('rejects a token returned after timeout abort before the wall-clock deadline', async () => {
+    const services = fakeServices({ pending: 0 });
+    const credentials = memoryCredentials();
+    const controller = new AbortController();
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1000);
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValue(controller.signal);
+    const account = createConnectAccount({
+      credentials: () => credentials.provider,
+      connect: fakeConnect().connect,
+      relay: RELAY,
+      sleep: async () => {},
+      fetch: async (input, init) => {
+        if (String(input).endsWith('/authenticate')) {
+          controller.abort();
+          return Response.json({ access_token: 'late-access', refresh_token: 'late-refresh' });
+        }
+        return services.fetcher(input, init);
+      },
+    });
+    try {
+      await account.signIn();
+      await vi.waitFor(() =>
+        expect(account.status()).toMatchObject({ state: 'error', issue: 'sign-in-expired' }),
+      );
+      expect(Date.now()).toBe(1000);
+      expect(credentials.records.size).toBe(0);
+      expect(services.hosts.size).toBe(0);
+    } finally {
+      await account.close();
+      timeout.mockRestore();
+      now.mockRestore();
+    }
+  });
+
+  it.each(['aborted', 'late-success'])(
+    'expires an in-flight device-token request (%s)',
+    async (mode) => {
+      const services = fakeServices({ pending: 0 });
+      const credentials = memoryCredentials();
+      let aborted = false;
+      let tokenCalls = 0;
+      const account = createConnectAccount({
+        credentials: () => credentials.provider,
+        connect: fakeConnect().connect,
+        relay: RELAY,
+        fetch: async (input, init) => {
+          if (String(input).endsWith('/authorize/device')) {
+            const response = await services.fetcher(input, init);
+            return Response.json({ ...(await response.json()), expires_in: 1, interval: 0.001 });
+          }
+          if (String(input).endsWith('/authenticate')) {
+            tokenCalls += 1;
+            if (!init?.signal) throw new Error('Device authorization must have a deadline');
+            const signal = init.signal;
+            return new Promise((resolve, reject) => {
+              signal.addEventListener(
+                'abort',
+                () => {
+                  aborted = true;
+                  if (mode === 'late-success')
+                    resolve(
+                      Response.json({ access_token: 'late-access', refresh_token: 'late-refresh' }),
+                    );
+                  else
+                    reject(
+                      signal.reason instanceof Error
+                        ? signal.reason
+                        : new Error('aborted', { cause: signal.reason }),
+                    );
+                },
+                { once: true },
+              );
+            });
+          }
+          return services.fetcher(input, init);
+        },
+      });
+      try {
+        await account.signIn();
+        await vi.waitFor(
+          () =>
+            expect(account.status()).toMatchObject({ state: 'error', issue: 'sign-in-expired' }),
+          { timeout: 3000, interval: 10 },
+        );
+        expect(aborted).toBe(true);
+        expect(tokenCalls).toBe(1);
+        expect(credentials.records.size).toBe(0);
+        expect(services.hosts.size).toBe(0);
+      } finally {
+        await account.close();
+      }
+    },
+  );
+
+  it.each([
+    { status: 500, error: 'access_denied', issue: 'sign-in-denied' },
+    { status: 429, error: 'invalid_grant', issue: 'sign-in-denied' },
+    { status: 503, error: 'expired_token', issue: 'sign-in-expired' },
+  ])('does not retry an explicit OAuth $error even on HTTP $status', async (failure) => {
+    const services = fakeServices({ pending: 0 });
+    const waits: number[] = [];
+    const account = createConnectAccount({
+      credentials: () => memoryCredentials().provider,
+      connect: fakeConnect().connect,
+      relay: RELAY,
+      fetch: async (input, init) =>
+        String(input).endsWith('/authenticate')
+          ? Response.json({ error: failure.error }, { status: failure.status })
+          : services.fetcher(input, init),
+      sleep: async (ms) => {
+        waits.push(ms);
+      },
+    });
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({ state: 'error', issue: failure.issue });
+      expect(waits).toEqual([1000]);
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('backs off timeouts, preserves slow_down intervals and stops at the original expiry', async () => {
+    const services = fakeServices({ pending: 0 });
+    let now = 1_000_000;
+    const clock = vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const waits: number[] = [];
+    let calls = 0;
+    const account = createConnectAccount({
+      credentials: () => memoryCredentials().provider,
+      connect: fakeConnect().connect,
+      relay: RELAY,
+      fetch: async (input, init) => {
+        if (String(input).endsWith('/authorize/device')) {
+          const response = await services.fetcher(input, init);
+          return Response.json({ ...(await response.json()), expires_in: 14 });
+        }
+        if (String(input).endsWith('/authenticate')) {
+          calls += 1;
+          if (calls === 1) throw new DOMException('timeout', 'TimeoutError');
+          if (calls === 2) return Response.json({ error: 'slow_down' }, { status: 400 });
+          return Response.json({ error: 'authorization_pending' }, { status: 400 });
+        }
+        return services.fetcher(input, init);
+      },
+      sleep: async (ms) => {
+        waits.push(ms);
+        now += ms;
+      },
+    });
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({ state: 'error', issue: 'sign-in-expired' });
+      expect(waits).toEqual([1000, 2000, 7000, 4000]);
+      expect(calls).toBe(3);
+    } finally {
+      await account.close();
+      clock.mockRestore();
+    }
+  });
+
+  it.each(['register-host', 'tunnel'])(
+    'automatically recovers a post-login %s failure without another sign-in',
+    async (operation) => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+      const services = fakeServices({ pending: 0 });
+      const credentials = memoryCredentials();
+      let failed = false;
+      const account = createConnectAccount({
+        credentials: () => credentials.provider,
+        connect: fakeConnect().connect,
+        relay: RELAY,
+        fetch: async (input, init) => {
+          const target =
+            operation === 'register-host'
+              ? `${RELAY}/v1/hosts`
+              : `${RELAY}/v1/hosts/hstudioaaaaa/tunnel`;
+          if (String(input) === target && init?.method === 'POST' && !failed) {
+            failed = true;
+            return Response.json({}, { status: 503 });
+          }
+          return services.fetcher(input, init);
+        },
+        sleep: async () => {},
+        freePort: async () => 41001,
+      });
+      try {
+        await account.signIn();
+        await settle(account);
+        expect(account.status()).toMatchObject({
+          state: 'error',
+          issue: 'relay-unavailable',
+          recovery: 'automatic',
+        });
+        await vi.advanceTimersByTimeAsync(60_000);
+        expect(account.status()).toMatchObject({ state: 'signed-in', hostId: 'hstudioaaaaa' });
+        expect(services.hosts.size).toBe(1);
+        expect(
+          services.calls.filter((call) => call.path.endsWith('/authorize/device')),
+        ).toHaveLength(1);
+      } finally {
+        await account.close();
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it.each([408, 429, 500, 503])(
+    'retries temporary HTTP %s during device authorization',
+    async (httpStatus) => {
+      const services = fakeServices({ pending: 0 });
+      const credentials = memoryCredentials();
+      const waits: number[] = [];
+      let tokenCalls = 0;
+      const account = createConnectAccount({
+        credentials: () => credentials.provider,
+        connect: fakeConnect().connect,
+        relay: RELAY,
+        fetch: async (input, init) => {
+          if (
+            String(init?.body).includes(
+              encodeURIComponent('urn:ietf:params:oauth:grant-type:device_code'),
+            ) &&
+            tokenCalls++ === 0
+          )
+            return Response.json({}, { status: httpStatus });
+          return services.fetcher(input, init);
+        },
+        sleep: async (ms) => {
+          waits.push(ms);
+        },
+        freePort: async () => 41001,
+      });
+      try {
+        await account.signIn();
+        await settle(account);
+        expect(account.status()).toMatchObject({ state: 'signed-in' });
+        expect(waits).toEqual([1000, 2000]);
+      } finally {
+        await account.close();
+      }
+    },
+  );
+
+  it('keeps a local tunnel refusal distinct from a relay request failure', async () => {
+    const services = fakeServices({ pending: 0 });
+    const credentials = memoryCredentials();
+    const logs: string[] = [];
+    const account = createConnectAccount({
+      credentials: () => credentials.provider,
+      connect: {
+        ...fakeConnect().connect,
+        enable: async () => ({ ok: false, code: 'connect-hostname-invalid' }),
+      },
+      relay: RELAY,
+      fetch: services.fetcher,
+      sleep: async () => {},
+      freePort: async () => 41001,
+      record: (phase, detail) => logs.push(`${phase} ${detail ?? ''}`),
+    });
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({ state: 'error', issue: 'relay-unavailable' });
+      expect(logs).toContain(
+        'account-connect-error operation=enable-tunnel refusal=connect-hostname-invalid',
+      );
+      expect(logs.join('\n')).not.toContain('account-request-error');
+    } finally {
+      await account.close();
+    }
+  });
+
+  it.each(['config', 'device-authorization', 'refresh-token'])(
+    'identifies the failing service and operation: %s',
+    async (operation) => {
+      const services = fakeServices({ pending: 0 });
+      const logs: string[] = [];
+      const credentials = memoryCredentials();
+      const account = createConnectAccount({
+        credentials: () => credentials.provider,
+        connect: fakeConnect().connect,
+        relay: RELAY,
+        fetch: async (input, init) => {
+          const url = String(input);
+          const body = String(init?.body ?? '');
+          if (
+            (operation === 'config' && url.endsWith('/v1/config')) ||
+            (operation === 'device-authorization' && url.endsWith('/authorize/device')) ||
+            (operation === 'refresh-token' && body.includes('grant_type=refresh_token'))
+          )
+            throw new DOMException('private-detail', 'TimeoutError');
+          return services.fetcher(input, init);
+        },
+        sleep: async () => {},
+        freePort: async () => 41001,
+        record: (phase, detail) => logs.push(`${phase} ${detail ?? ''}`),
+      });
+      try {
+        await account.signIn();
+        await settle(account);
+        expect(logs).toContain(
+          `account-request-error service=${operation === 'config' ? 'relay' : 'identity'} operation=${operation} reason=transport transport=timeout`,
+        );
+        expect(logs.join('\n')).not.toContain('private-detail');
+      } finally {
+        await account.close();
+      }
+    },
+  );
+
+  it.each([
+    { failure: 'dns', expected: 'reason=transport transport=ENOTFOUND' },
+    { failure: 'timeout', expected: 'reason=transport transport=ETIMEDOUT' },
+    { failure: 'unknown', expected: 'reason=transport transport=unknown' },
+    { failure: '503', expected: 'reason=http httpStatus=503' },
+    { failure: '429', expected: 'reason=http httpStatus=429' },
+    { failure: 'invalid', expected: 'reason=invalid-response httpStatus=201' },
+  ])('diagnoses post-login host registration failure: $failure', async ({ failure, expected }) => {
+    const services = fakeServices({ pending: 0 });
+    const logs: string[] = [];
+    const credentials = memoryCredentials();
+    const account = createConnectAccount({
+      credentials: () => credentials.provider,
+      connect: fakeConnect().connect,
+      relay: RELAY,
+      fetch: async (input, init) => {
+        if (String(input) === `${RELAY}/v1/hosts` && init?.method === 'POST') {
+          if (failure === '503' || failure === '429')
+            return Response.json({ secret: 'private-response' }, { status: Number(failure) });
+          if (failure === 'invalid')
+            return Response.json({ secret: 'private-response' }, { status: 201 });
+          throw new TypeError('private-url?token=private-token', {
+            cause: Object.assign(new Error('private-host'), {
+              code:
+                failure === 'dns'
+                  ? 'ENOTFOUND'
+                  : failure === 'timeout'
+                    ? 'ETIMEDOUT'
+                    : 'private-code',
+            }),
+          });
+        }
+        return services.fetcher(input, init);
+      },
+      sleep: async () => {},
+      freePort: async () => 41001,
+      record: (phase, detail) => logs.push(`${phase} ${detail ?? ''}`),
+    });
+    try {
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({ state: 'error', issue: 'relay-unavailable' });
+      expect(logs).toContain(
+        `account-request-error service=relay operation=register-host ${expected}`,
+      );
+      expect(logs.join('\n')).not.toMatch(/private-|access-0|refresh-0/u);
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('does not register another computer when signing in again on the same Host', async () => {
+    const { account, services } = setup(fakeServices({ pending: 0 }));
+    try {
+      await account.signIn();
+      await settle(account);
+      await account.start();
+      expect(account.status().state).toBe('signed-in');
+      await account.signIn();
+      await settle(account);
+      await account.start();
+      expect(account.status().state).toBe('signed-in');
+      expect(
+        services.calls.filter(
+          (call) => call.path === `${RELAY}/v1/hosts` && call.method === 'POST',
+        ),
+      ).toHaveLength(1);
+    } finally {
+      await account.close();
+    }
+  });
+
   it('signs in with the device flow, links the Host and enables its tunnel', async () => {
     const { account, credentials, tunnel, services } = setup();
     const started = await account.signIn();
@@ -200,6 +1199,7 @@ describe('Connect account sign-in', () => {
     expect(tunnel.enabled).toEqual([{ hostname: 'hstudioaaaaa.deepseekbot.dev', token: TOKEN }]);
     const stored = [...credentials.records.values()][0] as { payload: Record<string, unknown> };
     expect(stored.payload).toEqual({
+      kind: 'session',
       relay: RELAY,
       clientId: CLIENT,
       refreshToken: 'refresh-1',
@@ -217,6 +1217,7 @@ describe('Connect account sign-in', () => {
     });
     expect(services.calls.find((call) => call.path.endsWith('/tunnel'))?.body).toEqual({
       originPort: 41001,
+      zones: CONNECT_ZONES,
     });
     await account.close();
   });
@@ -249,6 +1250,34 @@ describe('Connect account sign-in', () => {
     }
   });
 
+  it('refuses newly started offer verification while sign-out is waiting for unlink', async () => {
+    const services = fakeServices({ pending: 0 });
+    const { account } = setup(services);
+    await account.signIn();
+    await settle(account);
+    const gate = deferred();
+    const original = services.fetcher.getMockImplementation()!;
+    services.fetcher.mockImplementation(async (input, init) => {
+      if (init?.method === 'DELETE') await gate.promise;
+      return original(input, init);
+    });
+    const body = JSON.stringify({
+      hostId: 'hstudioaaaaa',
+      account: 'user_alice',
+      verifierHash: Buffer.alloc(32, 3).toString('base64url'),
+      issuedAt: new Date().toISOString(),
+    });
+    const signature = createHmac('sha256', RELAY_KEY).update(body).digest('base64url');
+    const leaving = account.signOut();
+    try {
+      expect(await account.verifyOffer(body, signature)).toEqual({ ok: false });
+    } finally {
+      gate.resolve();
+      await leaving;
+      await account.close();
+    }
+  });
+
   it('accepts only fresh offers the relay signed for this Host and account', async () => {
     const { account } = setup(fakeServices({ pending: 0 }));
     const verifierHash = Buffer.alloc(32, 3).toString('base64url');
@@ -270,6 +1299,7 @@ describe('Connect account sign-in', () => {
     const good = sign(fresh);
     expect(await account.verifyOffer(good.body, good.signature)).toEqual({
       ok: true,
+      accountAutoApprove: true,
       verifierHash,
       name: 'iPhone',
     });
@@ -292,7 +1322,10 @@ describe('Connect account sign-in', () => {
     await settle(account);
     expect(
       services.calls.filter((call) => call.path.endsWith('/tunnel')).map((call) => call.body),
-    ).toEqual([{ originPort: 41001 }, { originPort: 52000 }]);
+    ).toEqual([
+      { originPort: 41001, zones: CONNECT_ZONES },
+      { originPort: 52000, zones: CONNECT_ZONES },
+    ]);
     await account.close();
   });
 
@@ -307,6 +1340,378 @@ describe('Connect account sign-in', () => {
 });
 
 describe('Connect account lifecycle', () => {
+  it('publishes account status after browser authorization settles and does not repeat a healthy sync', async () => {
+    const states: string[] = [];
+    const test = setup(fakeServices({ pending: 0 }), 41001, 60_000, undefined, undefined, () => {
+      states.push(test.account.status().state);
+    });
+    try {
+      await test.account.signIn();
+      await settle(test.account);
+      expect(states).toEqual(['signing-in', 'signed-in']);
+      await test.account.start();
+      expect(states).toEqual(['signing-in', 'signed-in']);
+      await test.account.signOut();
+      expect(states).toEqual(['signing-in', 'signed-in', 'signed-out']);
+    } finally {
+      await test.account.close();
+    }
+  });
+
+  it('announces readiness only after sign-in, without repeating it on a healthy account sync', async () => {
+    const states: string[] = [];
+    const test = setup(fakeServices({ pending: 0 }), 41001, 60000, () => {
+      states.push(test.account.status().state);
+    });
+    try {
+      await test.account.signIn();
+      await settle(test.account);
+      expect(states).toEqual(['signed-in']);
+      await test.account.start();
+      await test.account.start();
+      expect(states).toEqual(['signed-in']);
+      await test.account.signOut();
+      await test.account.signIn();
+      await settle(test.account);
+      expect(states).toEqual(['signed-in', 'signed-in']);
+    } finally {
+      await test.account.close();
+    }
+  });
+
+  it('recovers the same registration after an expired session has been revoked locally', async () => {
+    const options = { pending: 0, maxHosts: 1, refreshExpired: false };
+    const services = fakeServices(options);
+    const { account, credentials, tunnel } = setup(services);
+    try {
+      await account.signIn();
+      await settle(account);
+      options.refreshExpired = true;
+      await account.start();
+      expect(account.status()).toMatchObject({ state: 'error', issue: 'session-expired' });
+      expect(tunnel.connect.status()).toEqual({ state: 'off' });
+      for (const stored of credentials.records.values()) {
+        expect(stored).not.toHaveProperty('payload.refreshToken');
+        expect(stored).not.toHaveProperty('payload.relayKey');
+      }
+      options.refreshExpired = false;
+      await account.close();
+      const restored = createConnectAccount({
+        credentials: () => credentials.provider,
+        connect: tunnel.connect,
+        relay: RELAY,
+        fetch: services.fetcher,
+        sleep: async () => {},
+        freePort: async () => 41001,
+      });
+      try {
+        await restored.start();
+        expect(restored.status()).toEqual({ state: 'signed-out' });
+        expect(await restored.accessToken()).toBeUndefined();
+        await restored.signIn();
+        await settle(restored);
+        expect(restored.status()).toMatchObject({ state: 'signed-in', hostId: 'hstudioaaaaa' });
+      } finally {
+        await restored.close();
+      }
+      expect(
+        services.calls.filter(
+          (call) => call.method === 'POST' && call.path === `${RELAY}/v1/hosts`,
+        ),
+      ).toHaveLength(1);
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('removes even the registration reference on explicit sign-out after expiry', async () => {
+    const options = { pending: 0, refreshExpired: false };
+    const { account, credentials } = setup(fakeServices(options));
+    try {
+      await account.signIn();
+      await settle(account);
+      options.refreshExpired = true;
+      await account.start();
+      expect(account.status()).toMatchObject({ state: 'error', issue: 'session-expired' });
+      await account.signOut();
+      expect(account.status()).toEqual({ state: 'signed-out' });
+      expect(credentials.records.size).toBe(0);
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('does not save a late re-login after the account owner closes', async () => {
+    const options: NonNullable<Parameters<typeof fakeServices>[0]> = { pending: 0 };
+    const services = fakeServices(options);
+    const { account, credentials, tunnel } = setup(services);
+    const checking = deferred();
+    const proceed = deferred();
+    try {
+      await account.signIn();
+      await settle(account);
+      options.onList = async () => {
+        checking.resolve();
+        await proceed.promise;
+      };
+      await account.signIn();
+      await checking.promise;
+      const closing = account.close();
+      proceed.resolve();
+      await closing;
+      expect([...credentials.records.values()]).toEqual([
+        {
+          kind: 'grant',
+          payload: { kind: 'registration', relay: RELAY, clientId: CLIENT, hostId: 'hstudioaaaaa' },
+        },
+      ]);
+      expect(tunnel.enabled).toHaveLength(1);
+      expect(tunnel.connect.status()).toEqual({ state: 'off' });
+    } finally {
+      proceed.resolve();
+      await account.close();
+    }
+  });
+
+  it('retains the registration after a device authorization expires and a later attempt succeeds', async () => {
+    const options = { pending: 0, deviceError: '' };
+    const services = fakeServices(options);
+    const { account, credentials } = setup(services);
+    try {
+      await account.signIn();
+      await settle(account);
+      const original = [...credentials.records.values()];
+      options.deviceError = 'expired_token';
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({ state: 'error', issue: 'sign-in-expired' });
+      expect([...credentials.records.values()]).toEqual(original);
+      options.deviceError = '';
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toMatchObject({ state: 'signed-in', hostId: 'hstudioaaaaa' });
+      expect(
+        services.calls.filter(
+          (call) => call.method === 'POST' && call.path === `${RELAY}/v1/hosts`,
+        ),
+      ).toHaveLength(1);
+    } finally {
+      await account.close();
+    }
+  });
+
+  it('reuses the owned registration at full quota with the newly authorized token', async () => {
+    const services = fakeServices({ pending: 0, maxHosts: 1 });
+    const { account, tunnel } = setup(services);
+    try {
+      await account.signIn();
+      await settle(account);
+      const first = account.status();
+      const before = services.calls.length;
+      await account.signIn();
+      await settle(account);
+      expect(account.status()).toEqual(first);
+      expect(services.hosts.size).toBe(1);
+      expect(tunnel.enabled).toHaveLength(2);
+      const calls = services.calls.slice(before);
+      expect(calls.find((call) => call.path === `${RELAY}/v1/hosts`)).toMatchObject({
+        method: 'GET',
+        auth: 'Bearer access-0',
+      });
+      expect(
+        calls.some((call) => call.method === 'POST' && call.path === `${RELAY}/v1/hosts`),
+      ).toBe(false);
+    } finally {
+      await account.close();
+    }
+  });
+
+  for (const sameEmail of [true, false])
+    it(`does not reuse another account's Host or signer (${sameEmail ? 'same' : 'different'} email)`, async () => {
+      const options = {
+        pending: 0,
+        userId: 'user_alice',
+        email: 'alice@example.com',
+        hostId: 'hstudioaaaaa',
+      };
+      const services = fakeServices(options);
+      const { account, credentials, tunnel } = setup(services);
+      try {
+        await account.signIn();
+        await settle(account);
+        const before = services.calls.length;
+        options.userId = 'user_bob';
+        options.email = sameEmail ? 'alice@example.com' : 'bob@example.com';
+        options.hostId = 'hstudiobbbbb';
+        await account.signIn();
+        await settle(account);
+        expect(account.status()).toMatchObject({ state: 'signed-in', hostId: 'hstudiobbbbb' });
+        expect(services.hosts.size).toBe(2);
+        expect(
+          services.calls.slice(before).some((call) => call.path.includes('/hstudioaaaaa')),
+        ).toBe(false);
+        expect([...credentials.records.values()]).toEqual([
+          {
+            kind: 'grant',
+            payload: {
+              kind: 'session',
+              relay: RELAY,
+              clientId: CLIENT,
+              refreshToken: 'refresh-2',
+              email: options.email,
+              hostId: 'hstudiobbbbb',
+              account: 'user_bob',
+              relayKey: `${RELAY_KEY}-user_bob`,
+            },
+          },
+        ]);
+        expect(tunnel.enabled.at(-1)?.hostname).toBe('hstudiobbbbb.deepseekbot.dev');
+        expect(services.calls.some((call) => call.method === 'DELETE')).toBe(false);
+      } finally {
+        await account.close();
+      }
+    });
+
+  for (const forgetAfterList of [true, false])
+    it(`registers again when the Host is deleted ${forgetAfterList ? 'after' : 'before'} ownership lookup`, async () => {
+      const options = { pending: 0, forgetAfterList: false, hostId: 'hstudioaaaaa' };
+      const services = fakeServices(options);
+      const { account } = setup(services);
+      try {
+        await account.signIn();
+        await settle(account);
+        if (forgetAfterList) options.forgetAfterList = true;
+        else services.hosts.clear();
+        options.hostId = 'hstudiobbbbb';
+        await account.signIn();
+        await settle(account);
+        expect(account.status()).toMatchObject({ state: 'signed-in', hostId: 'hstudiobbbbb' });
+        expect(
+          services.calls.filter(
+            (call) => call.method === 'POST' && call.path === `${RELAY}/v1/hosts`,
+          ),
+        ).toHaveLength(2);
+      } finally {
+        await account.close();
+      }
+    });
+
+  for (const payload of [
+    { relay: RELAY, clientId: CLIENT, hostId: 'hstudioaaaaa' },
+    { relay: 'https://old-relay.test', clientId: CLIENT, hostId: 'hstudioaaaaa' },
+    { relay: RELAY, clientId: 'client_OLD', hostId: 'hstudioaaaaa' },
+    { relay: RELAY, clientId: CLIENT },
+  ])
+    it(`recovers an expired legacy session without trusting old signing material (${JSON.stringify(payload)})`, async () => {
+      const services = fakeServices({ pending: 0, maxHosts: 1, signer: false });
+      const { account, credentials } = setup(services);
+      try {
+        await account.signIn();
+        await settle(account);
+        for (const key of credentials.records.keys())
+          credentials.records.set(key, {
+            kind: 'grant',
+            payload: {
+              ...payload,
+              refreshToken: 'revoked',
+              account: 'unverified',
+              relayKey: 'stale',
+            },
+          });
+        await account.signIn();
+        await settle(account);
+        const reusable =
+          payload.relay === RELAY && payload.clientId === CLIENT && 'hostId' in payload;
+        expect(account.status()).toMatchObject(
+          reusable
+            ? { state: 'signed-in', hostId: 'hstudioaaaaa' }
+            : { state: 'error', issue: 'host-limit' },
+        );
+        for (const stored of credentials.records.values()) {
+          expect(stored).not.toHaveProperty('payload.account');
+          expect(stored).not.toHaveProperty('payload.relayKey');
+        }
+        expect(services.calls.some((call) => call.method === 'DELETE')).toBe(false);
+        expect(
+          services.calls.some(
+            (call) =>
+              typeof call.body === 'object' &&
+              call.body !== null &&
+              'refresh_token' in call.body &&
+              call.body.refresh_token === 'revoked',
+          ),
+        ).toBe(false);
+      } finally {
+        await account.close();
+      }
+    });
+
+  for (const failure of [
+    { listStatus: 503, listBody: {} },
+    { listStatus: 401, listBody: {} },
+    { listStatus: 200, listBody: {} },
+    { listStatus: 200, listBody: { hosts: [null] } },
+  ])
+    it(`does not create a registration when ownership cannot be verified (${JSON.stringify(failure)})`, async () => {
+      vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] });
+      const options: Parameters<typeof fakeServices>[0] = { pending: 0 };
+      const services = fakeServices(options);
+      const { account, credentials, tunnel } = setup(services);
+      try {
+        await account.signIn();
+        await settle(account);
+        Object.assign(options, failure, { userId: 'user_bob', hostId: 'hstudiobbbbb' });
+        await account.signIn();
+        await settle(account);
+        expect(account.status()).toMatchObject({
+          state: 'error',
+          issue: failure.listStatus === 401 ? 'session-expired' : 'relay-unavailable',
+          recovery: 'sign-in',
+        });
+        expect(
+          services.calls.filter(
+            (call) => call.method === 'POST' && call.path === `${RELAY}/v1/hosts`,
+          ),
+        ).toHaveLength(1);
+        expect(await account.accessToken()).toBeUndefined();
+        expect(tunnel.connect.status()).toEqual({ state: 'off' });
+        expect([...credentials.records.values()]).toEqual([
+          {
+            kind: 'grant',
+            payload: {
+              kind: 'registration',
+              relay: RELAY,
+              clientId: CLIENT,
+              hostId: 'hstudioaaaaa',
+            },
+          },
+        ]);
+        const body = JSON.stringify({
+          hostId: 'hstudioaaaaa',
+          account: 'user_alice',
+          verifierHash: Buffer.alloc(32, 3).toString('base64url'),
+          issuedAt: new Date().toISOString(),
+        });
+        const signature = createHmac('sha256', RELAY_KEY).update(body).digest('base64url');
+        expect(await account.verifyOffer(body, signature)).toEqual({ ok: false });
+        delete options.listBody;
+        options.listStatus = 200;
+        const failedStatus = account.status();
+        const count = services.calls.length;
+        await vi.advanceTimersByTimeAsync(120_000);
+        await account.start();
+        expect(account.status()).toEqual(failedStatus);
+        expect(services.calls).toHaveLength(count);
+        await account.signIn();
+        await settle(account);
+        expect(account.status()).toMatchObject({ state: 'signed-in', hostId: 'hstudiobbbbb' });
+        expect(services.calls.some((call) => call.method === 'DELETE')).toBe(false);
+      } finally {
+        await account.close();
+        vi.useRealTimers();
+      }
+    });
+
   it('resumes from the stored session, relinks a Host the relay forgot, and signs out', async () => {
     const services = fakeServices({ pending: 0 });
     const first = setup(services);
@@ -352,7 +1757,12 @@ describe('Connect account lifecycle', () => {
     });
     await account.start();
     expect(account.status()).toMatchObject({ state: 'error', issue: 'session-expired' });
-    expect(credentials.records.size).toBe(0);
+    expect([...credentials.records.values()]).toEqual([
+      {
+        kind: 'grant',
+        payload: { kind: 'registration', relay: RELAY, clientId: CLIENT, hostId: 'hstudioaaaaa' },
+      },
+    ]);
     await account.close();
 
     const hostile = vi.fn(async () =>
@@ -397,7 +1807,12 @@ describe('Connect account deletion', () => {
       await until(() => account.status().state !== 'signed-in');
       expect(account.status()).toMatchObject({ state: 'error', issue: 'session-expired' });
       expect(tunnel.connect.status()).toEqual({ state: 'off' });
-      expect(credentials.records.size).toBe(0);
+      expect([...credentials.records.values()]).toEqual([
+        {
+          kind: 'grant',
+          payload: { kind: 'registration', relay: RELAY, clientId: CLIENT, hostId: 'hstudioaaaaa' },
+        },
+      ]);
       await account.close();
     });
 
@@ -410,6 +1825,73 @@ describe('Connect account deletion', () => {
     await until(() => tunnel.enabled.length > 1);
     expect(tunnel.enabled).toHaveLength(2);
     expect(account.status()).toMatchObject({ state: 'signed-in', hostId: 'hstudioaaaaa' });
+    await account.close();
+  });
+
+  it('waits in the relay queue with its position and the pool, then connects when a slot frees', async () => {
+    const pool = { capacity: 900, inUse: 900, free: 0, waiting: 3 };
+    const options: Parameters<typeof fakeServices>[0] = {
+      pending: 0,
+      relayFull: { reason: 'pool-full', position: 3, retryAfter: 60, pool },
+    };
+    const services = fakeServices(options);
+    let changes = 0;
+    const { account, tunnel } = setup(services, 41001, 10, undefined, undefined, () => {
+      changes += 1;
+    });
+    await account.signIn();
+    await settle(account);
+    await until(() => account.status().issue === 'relay-full');
+    const waiting = account.status();
+    expect(waiting).toMatchObject({
+      state: 'error',
+      issue: 'relay-full',
+      recovery: 'automatic',
+      wait: { reason: 'pool-full', position: 3, retryAfter: 60 },
+      pool,
+    });
+    expect(Number.isNaN(Date.parse(waiting.wait?.since ?? ''))).toBe(false);
+    expect(tunnel.enabled).toHaveLength(0);
+    delete options.relayFull;
+    options.pool = { capacity: 900, inUse: 899, free: 1, waiting: 2 };
+    await until(() => account.status().state === 'signed-in');
+    expect(tunnel.enabled).toHaveLength(1);
+    expect(account.status()).not.toHaveProperty('wait');
+    await until(() => account.status().pool?.inUse === 899);
+    const beforePoolChange = changes;
+    options.pool = {
+      capacity: 900,
+      inUse: 900,
+      free: 0,
+      waiting: 1,
+      nextFreeAt: '2026-11-09T20:10:00.000Z',
+      guaranteedMinutes: 30,
+    };
+    options.protectedUntil = '2026-11-09T20:25:00.000Z';
+    await until(() => account.status().protectedUntil === '2026-11-09T20:25:00.000Z');
+    expect(account.status().pool).toMatchObject({
+      nextFreeAt: '2026-11-09T20:10:00.000Z',
+      guaranteedMinutes: 30,
+    });
+    expect(changes).toBeGreaterThan(beforePoolChange);
+    await account.close();
+  });
+
+  it('reports how long ago a paired device last used the tunnel on its account check', async () => {
+    const services = fakeServices({ pending: 0 });
+    const { account, tunnel } = setup(services, 41001, 10);
+    let idle: number | undefined;
+    tunnel.connect.idleSeconds = () => idle;
+    await account.signIn();
+    await settle(account);
+    const listed = () =>
+      services.calls.filter((call) => call.method === 'GET' && call.path === `${RELAY}/v1/hosts`);
+    await until(() => listed().length > 0);
+    expect(listed()[0]).not.toHaveProperty('search');
+    idle = 42;
+    const count = listed().length;
+    await until(() => listed().length > count);
+    expect(listed().at(-1)).toMatchObject({ search: '?host=hstudioaaaaa&idle=42' });
     await account.close();
   });
 });
@@ -487,3 +1969,88 @@ describe('connect sign-in CLI', () => {
     ).rejects.toMatchObject({ code: 'usage' });
   });
 });
+
+it('uses the account credential owner for Bot verification and rejects it after sign-out', async () => {
+  const services = fakeServices();
+  const credentials = memoryCredentials();
+  const receiver = { id: 'hbbbbbbbbbbbb', hostId: 'local-host', publicKey: 'b'.repeat(64) };
+  const sender = { id: 'haaaaaaaaaaaa', hostId: 'remote-host', publicKey: 'a'.repeat(64) };
+  services.hosts.add(receiver.id);
+  services.owners.set(receiver.id, 'user_alice');
+  credentials.records.set(credentialKey('botharness-core', 'connect-account'), {
+    kind: 'grant',
+    payload: {
+      relay: RELAY,
+      clientId: CLIENT,
+      refreshToken: 'refresh-0',
+      hostId: receiver.id,
+      account: 'user_alice',
+      relayKey: RELAY_KEY,
+    },
+  });
+  const account = createConnectAccount({
+    credentials: () => credentials.provider,
+    connect: fakeConnect().connect,
+    relay: RELAY,
+    freePort: async () => 41001,
+    fetch: async (input, init) => {
+      if (String(input) === `${RELAY}/v1/hosts` && (init?.method ?? 'GET') === 'GET')
+        return Response.json({
+          hosts: [receiver, sender].map((peer) => ({
+            id: peer.id,
+            hostname: `${peer.id}.deepseekbot.dev`,
+            botNetwork: { hostId: peer.hostId, publicKey: peer.publicKey },
+          })),
+        });
+      return services.fetcher(input, init);
+    },
+  });
+  try {
+    await account.start();
+    const payload = JSON.stringify({
+      purpose: 'bot-network-peer-v1',
+      account: 'user_alice',
+      sender,
+      recipient: receiver,
+      issuedAt: new Date().toISOString(),
+      nonce: 'n'.repeat(32),
+    });
+    const grant = {
+      payload,
+      signature: createHmac('sha256', RELAY_KEY).update(payload).digest('base64url'),
+    };
+    expect(await account.botNetwork.verify(receiver, grant)).toMatchObject(sender);
+    await account.signOut();
+    await expect(account.botNetwork.verify(receiver, grant)).rejects.toMatchObject({
+      code: 'network-denied',
+    });
+  } finally {
+    await account.close();
+  }
+});
+
+it.each(['match', 'other-account', 'other-host', 'expired'] as const)(
+  'same-account enrollment authorization: %s',
+  async (mode) => {
+    const { account } = setup(fakeServices({ pending: 0 }));
+    try {
+      await account.signIn();
+      await settle(account);
+      const body = JSON.stringify({
+        account: mode === 'other-account' ? 'user_bob' : 'user_alice',
+        hostId: mode === 'other-host' ? 'another-host' : 'hstudioaaaaa',
+        verifierHash: Buffer.alloc(32, 7).toString('base64url'),
+        issuedAt: new Date(Date.now() - (mode === 'expired' ? 120_000 : 0)).toISOString(),
+      });
+      const signature = createHmac('sha256', RELAY_KEY).update(body).digest('base64url');
+      const result = await account.verifyOffer(body, signature);
+      expect(result.ok).toBe(mode === 'match');
+      if (result.ok) expect(result.accountAutoApprove).toBe(true);
+      expect(await account.verifyOffer(body, 'forged')).toEqual({ ok: false });
+      await account.signOut();
+      expect(await account.verifyOffer(body, signature)).toEqual({ ok: false });
+    } finally {
+      await account.close();
+    }
+  },
+);

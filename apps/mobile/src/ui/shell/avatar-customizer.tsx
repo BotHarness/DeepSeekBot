@@ -21,7 +21,7 @@ import {
   changeAvatarFeature,
   type AvatarOption,
 } from '../../host/avatar-customization';
-import { randomAvatarSeed } from '../../host/bot-avatar-choice';
+import { randomAvatarSeed } from '@botharness/host-client/bot-avatar-choice';
 import { useDesignTheme } from '../design/theme';
 import { avatarEditor, edge, radius, space } from '../design/tokens';
 import { AvatarRange } from '../primitives/avatar-range';

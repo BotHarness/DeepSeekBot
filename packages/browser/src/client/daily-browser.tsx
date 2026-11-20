@@ -1,5 +1,7 @@
+import { Button } from '../../../client/src/client/ds/button.js';
+import { Tag } from '../../../client/src/client/ds/tag.js';
 import { useCallback, useRef, useState, type ReactElement } from 'react';
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { SidebarCardList, SidebarCardRow } from '../../../client/src/client/sidebar-card.js';
 import type { DailyView } from '../daily.js';
 import type { BrowserTranslate } from './locale.js';

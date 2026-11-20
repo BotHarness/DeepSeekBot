@@ -1,0 +1,195 @@
+export type SqlValue = string | number | null | Uint8Array;
+
+export type SqlConnection = {
+  exec(sql: string): Promise<void>;
+  run(sql: string, params?: readonly SqlValue[]): Promise<void>;
+  all<T>(sql: string, params?: readonly SqlValue[]): Promise<T[]>;
+  close(): Promise<void>;
+};
+
+export type SqlReader = {
+  all<T>(sql: string, params?: readonly SqlValue[]): Promise<T[]>;
+  get<T>(sql: string, params?: readonly SqlValue[]): Promise<T | undefined>;
+};
+
+export type SqlWriter = SqlReader & {
+  run(sql: string, params?: readonly SqlValue[]): Promise<void>;
+};
+
+export type LocalStore = SqlReader & {
+  readonly version: number;
+  write<T>(work: (tx: SqlWriter) => Promise<T>): Promise<T>;
+  close(): Promise<void>;
+};
+
+export class LocalStoreError extends Error {
+  constructor(
+    readonly code: 'local-store/newer-schema' | 'local-store/closed',
+    message: string,
+  ) {
+    super(message);
+    this.name = 'LocalStoreError';
+  }
+}
+
+export const LOCAL_STORE_MIGRATIONS: readonly string[] = [
+  `create table channels (
+    id text primary key,
+    record text not null
+  ) without rowid;
+  create table messages (
+    channel_id text not null,
+    id text not null,
+    revision integer not null,
+    entry text not null,
+    purged integer not null default 0,
+    primary key (channel_id, id)
+  ) without rowid;
+  create index messages_by_revision on messages (channel_id, revision);
+  create table cursors (
+    channel_id text primary key,
+    epoch text not null,
+    seq integer not null
+  ) without rowid;
+  create table gaps (
+    channel_id text not null,
+    from_revision integer not null,
+    to_revision integer not null,
+    primary key (channel_id, from_revision)
+  ) without rowid;`,
+  `create table conversation_keys (
+    key text primary key,
+    channel_id text not null
+  ) without rowid;
+  create index conversation_keys_by_channel on conversation_keys (channel_id);`,
+  `create table list_cursor (
+    singleton integer primary key check (singleton = 1),
+    epoch text not null,
+    seq integer not null
+  );
+  create table list_bots (
+    singleton integer primary key check (singleton = 1),
+    record text not null
+  );`,
+  `create table search_rows (
+    n integer primary key,
+    channel_id text not null,
+    id text not null,
+    unique (channel_id, id)
+  );
+  create virtual table message_text using fts5(body, tokenize = 'trigram');
+  create trigger messages_text_insert after insert on messages begin
+    insert into search_rows (channel_id, id)
+      select new.channel_id, new.id where not exists
+        (select 1 from search_rows where channel_id = new.channel_id and id = new.id);
+    insert into message_text (rowid, body)
+      select n, json_extract(new.entry, '$.message.body') from search_rows
+      where channel_id = new.channel_id and id = new.id and new.purged = 0
+        and coalesce(json_extract(new.entry, '$.message.body'), '') <> '';
+  end;
+  create trigger messages_text_update after update on messages
+    when old.entry is not new.entry or old.purged is not new.purged begin
+    delete from message_text
+      where rowid = (select n from search_rows where channel_id = old.channel_id and id = old.id);
+    insert into search_rows (channel_id, id)
+      select new.channel_id, new.id where not exists
+        (select 1 from search_rows where channel_id = new.channel_id and id = new.id);
+    insert into message_text (rowid, body)
+      select n, json_extract(new.entry, '$.message.body') from search_rows
+      where channel_id = new.channel_id and id = new.id and new.purged = 0
+        and coalesce(json_extract(new.entry, '$.message.body'), '') <> '';
+  end;
+  create trigger messages_text_delete after delete on messages begin
+    delete from message_text
+      where rowid = (select n from search_rows where channel_id = old.channel_id and id = old.id);
+    delete from search_rows where channel_id = old.channel_id and id = old.id;
+  end;
+  insert into search_rows (channel_id, id) select channel_id, id from messages;
+  insert into message_text (rowid, body)
+    select search_rows.n, json_extract(messages.entry, '$.message.body')
+    from messages join search_rows
+      on search_rows.channel_id = messages.channel_id and search_rows.id = messages.id
+    where messages.purged = 0
+      and coalesce(json_extract(messages.entry, '$.message.body'), '') <> '';`,
+];
+
+const reader = (connection: SqlConnection): SqlReader => ({
+  all: (sql, params) => connection.all(sql, params),
+  async get(sql, params) {
+    const rows = await connection.all<never>(sql, params);
+    return rows[0];
+  },
+});
+
+async function schemaVersion(connection: SqlConnection): Promise<number> {
+  const rows = await connection.all<{ user_version: number }>('pragma user_version');
+  return rows[0]?.user_version ?? 0;
+}
+
+export async function openLocalStore(
+  connection: SqlConnection,
+  migrations: readonly string[] = LOCAL_STORE_MIGRATIONS,
+): Promise<LocalStore> {
+  const reads = reader(connection);
+  let closed = false;
+  let queue: Promise<unknown> = Promise.resolve();
+  const serial = <T>(task: () => Promise<T>): Promise<T> => {
+    const next = queue.then(() => {
+      if (closed) throw new LocalStoreError('local-store/closed', 'The local store is closed.');
+      return task();
+    });
+    queue = next.catch(() => undefined);
+    return next;
+  };
+  const write = <T>(work: (tx: SqlWriter) => Promise<T>): Promise<T> =>
+    serial(async () => {
+      await connection.exec('begin immediate');
+      try {
+        const result = await work({
+          ...reads,
+          run: (sql, params) => connection.run(sql, params),
+        });
+        await connection.exec('commit');
+        return result;
+      } catch (error) {
+        await connection.exec('rollback').catch(() => undefined);
+        throw error;
+      }
+    });
+  try {
+    await connection.exec('pragma journal_mode = wal');
+    await connection.exec('pragma synchronous = normal');
+    await connection.exec('pragma foreign_keys = on');
+    const current = await schemaVersion(connection);
+    if (current > migrations.length)
+      throw new LocalStoreError(
+        'local-store/newer-schema',
+        `The local store has schema ${current}, newer than this app's ${migrations.length}.`,
+      );
+    for (let version = current + 1; version <= migrations.length; version += 1)
+      await write(async () => {
+        await connection.exec(migrations[version - 1]!);
+        await connection.exec(`pragma user_version = ${version}`);
+      });
+  } catch (error) {
+    closed = true;
+    await connection.close().catch(() => undefined);
+    throw error;
+  }
+  return {
+    all: (sql, params) => serial(() => reads.all(sql, params)),
+    get: (sql, params) => serial(() => reads.get(sql, params)),
+    version: migrations.length,
+    write,
+    async close() {
+      if (closed) return;
+      await queue;
+      closed = true;
+      await connection.close();
+    },
+  };
+}
+
+export function localStoreName(hostId: string): string {
+  return `deepseekbot-store-${encodeURIComponent(hostId)}.db`;
+}

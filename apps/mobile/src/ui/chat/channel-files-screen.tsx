@@ -9,9 +9,9 @@ import { useCallback, useMemo, useRef, useState, useSyncExternalStore } from 're
 import { FlatList, Pressable, View } from 'react-native';
 
 import { createChannelFiles, type ChannelFile } from '../../host/channel-files';
-import type { HostClient } from '../../host/client';
-import type { MessageAttachment } from '../../host/conversation';
-import { useHostSession, useHostSnapshot } from '../../host/host-session';
+import type { HostClient } from '@botharness/host-client/client';
+import type { MessageAttachment } from '@botharness/host-client/conversation';
+import { retainHostActivity, useHostSession, useHostSnapshot } from '../../host/host-session';
 import { shareAttachment } from '../../host/share-attachment';
 import { channelMedia, edge, space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
@@ -143,6 +143,7 @@ export function useChannelFilesList(
       await shareAttachment(
         { ...attachment, key: `${hostId}:${channelId}:${attachment.key}` },
         stillAvailable,
+        () => retainHostActivity(client),
       );
     } catch {
       if (live.current && lifecycle.current === epoch) setShareFailed(true);
@@ -373,7 +374,7 @@ export function useChannelFilesList(
         attachment={preview}
         onClose={() => setPreviewKey(undefined)}
         onShare={share}
-        cachePolicy="none"
+        cachePolicy={preview?.source?.cacheKey === undefined ? 'none' : 'memory-disk'}
       />
     ),
   };

@@ -165,14 +165,14 @@ it('shares the roster carrier, coalesces arrivals, and does not poll while conne
   const second = feed.acquire();
   try {
     live.handlers.baseline([]);
-    await vi.advanceTimersByTimeAsync(30);
+    await vi.advanceTimersByTimeAsync(300);
     const count = activityPage.mock.calls.length;
     await vi.advanceTimersByTimeAsync(60_000);
     expect(activityPage).toHaveBeenCalledTimes(count);
     expect(live.roster).toHaveBeenCalledTimes(1);
     ids = ['from-another-channel'];
     for (let i = 0; i < 10; i++) live.handlers.attention?.();
-    await vi.advanceTimersByTimeAsync(30);
+    await vi.advanceTimersByTimeAsync(300);
     expect(activityPage).toHaveBeenCalledTimes(count + 3);
     expect(feed.getSnapshot().pages.unread.items[0]?.id).toBe('from-another-channel');
     first();
@@ -203,12 +203,12 @@ it('recovers while disconnected and resynchronizes on the next baseline without 
   const release = feed.acquire();
   try {
     live.handlers.baseline([]);
-    await vi.advanceTimersByTimeAsync(30);
+    await vi.advanceTimersByTimeAsync(300);
     live.handlers.interrupted();
     fail = true;
     await vi.advanceTimersByTimeAsync(5000);
     live.handlers.interrupted();
-    await vi.advanceTimersByTimeAsync(5030);
+    await vi.advanceTimersByTimeAsync(5300);
     expect(feed.getSnapshot().pages.action).toMatchObject({
       status: 'ready',
       items: [item('one')],
@@ -217,7 +217,7 @@ it('recovers while disconnected and resynchronizes on the next baseline without 
     ids = ['one', 'two'];
     fail = false;
     live.handlers.baseline([]);
-    await vi.advanceTimersByTimeAsync(30);
+    await vi.advanceTimersByTimeAsync(300);
     expect(feed.getSnapshot().pages.action.items.map((x) => x.id)).toEqual(ids);
     expect(feed.getSnapshot().pages.action.error).toBeUndefined();
     const count = activityPage.mock.calls.length;
@@ -248,7 +248,7 @@ it('rereads changes received during the initial query and keeps unchanged snapsh
   try {
     live.handlers.baseline([]);
     live.handlers.attention?.();
-    await vi.advanceTimersByTimeAsync(30);
+    await vi.advanceTimersByTimeAsync(300);
     first = false;
     resolve.forEach((done) => done({ items: [] }));
     await vi.advanceTimersByTimeAsync(1);

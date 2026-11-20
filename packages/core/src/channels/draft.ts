@@ -7,6 +7,8 @@ export interface ChannelDraft {
   attemptId: string;
   botSlug: string;
   body: string;
+  voice?: true;
+  bodyComplete?: true;
 }
 
 export type ChannelDraftEvent =
@@ -38,9 +40,10 @@ interface DraftAttempt {
 
 interface DraftCall {
   published: ChannelDraft | undefined;
+  voice: boolean | undefined;
 }
 
-function stringField(raw: string, key: string): { value: string; complete: boolean } | undefined {
+function topLevelSegments(raw: string): string[] {
   const segments: string[] = [];
   let depth = 0;
   let inString = false;
@@ -69,7 +72,19 @@ function stringField(raw: string, key: string): { value: string; complete: boole
     }
   }
   if (start < raw.length) segments.push(raw.slice(start));
-  for (const segment of segments) {
+  return segments;
+}
+
+function booleanField(raw: string, key: string): boolean | undefined {
+  for (const segment of topLevelSegments(raw)) {
+    const match = /^\s*"([^"\\]+)"\s*:\s*(true|false)\s*$/u.exec(segment);
+    if (match?.[1] === key) return match[2] === 'true';
+  }
+  return undefined;
+}
+
+function stringField(raw: string, key: string): { value: string; complete: boolean } | undefined {
+  for (const segment of topLevelSegments(raw)) {
     const match = /^\s*"([^"\\]+)"\s*:\s*"/.exec(segment);
     if (match?.[1] !== key) continue;
     const valueStart = match[0].length;
@@ -95,8 +110,8 @@ function stringField(raw: string, key: string): { value: string; complete: boole
   return undefined;
 }
 
-function partialBody(raw: string): string | undefined {
-  return stringField(raw, 'body')?.value;
+function partialBody(raw: string): { value: string; complete: boolean } | undefined {
+  return stringField(raw, 'body');
 }
 
 function explicitChannelId(raw: string): string | undefined {
@@ -204,6 +219,13 @@ export class ChannelDraftTracker {
     this.#runs.delete(sessionId);
   }
 
+  interrupt(sessionId: string): void {
+    const run = this.#runs.get(sessionId);
+    if (run === undefined) return;
+    for (const attempt of run.attempts.values()) this.#abandonAttempt(attempt, 'interrupted');
+    this.#runs.delete(sessionId);
+  }
+
   #switchAttempt(run: DraftRun, attemptId: string): void {
     if (run.currentAttemptId === attemptId) return;
     for (const attempt of run.attempts.values()) this.#abandonAttempt(attempt, 'interrupted');
@@ -221,11 +243,13 @@ export class ChannelDraftTracker {
     const draftId = attemptId + ':' + callId;
     let call = attempt.calls.get(draftId);
     if (call === undefined) {
-      call = { published: undefined };
+      call = { published: undefined, voice: undefined };
       attempt.calls.set(draftId, call);
     }
-    const body = partialBody(args);
+    const field = partialBody(args);
+    const body = field?.value;
     if (body === undefined || body.length === 0) return;
+    call.voice ??= booleanField(args, 'voice') === true;
     const source = stringField(args, 'source_event_id');
     const channelId = source?.complete ? run.replyChannel?.(source.value) : explicitChannelId(args);
     if (channelId === undefined) {
@@ -239,8 +263,18 @@ export class ChannelDraftTracker {
     if (call.published !== undefined && call.published.channelId !== channelId) {
       this.#abandonCall(call, 'retargeted');
     }
-    if (call.published?.body === body) return;
-    const draft = { channelId, draftId, attemptId, botSlug: run.botSlug, body };
+    const bodyComplete = field?.complete === true;
+    if (call.published?.body === body && (call.published.bodyComplete === true) === bodyComplete)
+      return;
+    const draft: ChannelDraft = {
+      channelId,
+      draftId,
+      attemptId,
+      botSlug: run.botSlug,
+      body,
+      ...(call.voice ? { voice: true as const } : {}),
+      ...(bodyComplete ? { bodyComplete: true as const } : {}),
+    };
     call.published = draft;
     this.#publish({ type: 'update', draft });
   }

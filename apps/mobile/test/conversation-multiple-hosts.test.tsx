@@ -4,9 +4,9 @@ const channelHistory = channelNavigationHarness();
 import { act, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import type { RosterBot } from '../src/host/client';
+import type { RosterBot } from '@botharness/host-client/client';
 import { secure, remotes } from './host-session-fixture';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import type { ActivityTarget } from '../src/host/live-activity-session';
 
 const push = vi.hoisted(() => vi.fn());
@@ -14,8 +14,12 @@ const activity = vi.hoisted(() => ({
   start: vi.fn(async (_target: ActivityTarget) => {}),
   confirm: undefined as (() => Promise<void> | void) | undefined,
 }));
+vi.mock('../src/host/native-host-look', () => ({
+  useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
+}));
 vi.mock('../src/ui/chat/profile-swipe-preview', () => ({ ProfileSwipePreview: () => null }));
 vi.mock('expo-image', () => ({ Image: () => null }));
+vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
 vi.mock('../src/ui/chat/bot-profile-screen', () => ({ BotProfileScreen: () => null }));
 vi.mock('../src/ui/chat/group-profile-screen', () => ({ GroupProfileScreen: () => null }));
 vi.mock('../src/ui/chat/channel-details-screen', () => ({ ChannelDetailsScreen: () => null }));
@@ -127,7 +131,11 @@ vi.mock('react-native', async () => {
     },
     KeyboardAvoidingView: shim.View,
     AppState: { currentState: 'active', addEventListener: () => ({ remove() {} }) },
-    Keyboard: { dismiss() {} },
+    Keyboard: {
+      dismiss() {},
+      isVisible: () => false,
+      addListener: () => ({ remove() {} }),
+    },
     PanResponder: { create: () => ({ panHandlers: {} }) },
   };
 });
@@ -137,6 +145,14 @@ vi.mock('../src/host/share-attachment', () => ({ shareAttachment: vi.fn() }));
 vi.mock('../src/host/native-dm-activity', () => ({ useHiddenDmActivity: () => [] }));
 vi.mock('../src/host/native-message-display', () => ({
   useMessageDisplay: () => state.display,
+}));
+vi.mock('../src/host/native-header-model', () => ({
+  useHeaderModelPreferences: () => ({ enabled: true, loaded: true, storageError: false }),
+}));
+vi.mock('../src/host/native-send-jump', () => ({
+  sendJumpPreferences: {
+    getSnapshot: () => ({ enabled: false, loaded: true, storageError: false }),
+  },
 }));
 vi.mock('../src/host/native-delivery-receipts', () => ({
   useDeliveryReceiptPreferences: () => ({ enabled: false, loaded: true, storageError: false }),
@@ -152,6 +168,8 @@ vi.mock('../src/host/speech', () => ({
   useDictation: () => ({ state: { status: 'idle' }, mountRef: () => undefined }),
 }));
 vi.mock('../src/ui/chat/native-header', () => ({
+  headerContentScale: () => 1,
+  headerControlHeight: (theme: { touch: number }) => theme.touch,
   get glassHeader() {
     return state.glassHeader;
   },
@@ -165,6 +183,23 @@ vi.mock('../src/ui/chat/native-header', () => ({
   useHeaderPadding: () => 0,
 }));
 vi.mock('../src/ui/chat/header-chrome', () => ({
+  HeaderActionGroup: ({
+    actions,
+  }: {
+    actions: readonly { label: string; testID: string; onPress(): void }[];
+  }) => (
+    <span>
+      {actions.map((action) => (
+        <button
+          key={action.testID}
+          type="button"
+          data-testid={action.testID}
+          aria-label={action.label}
+          onClick={action.onPress}
+        />
+      ))}
+    </span>
+  ),
   useChatHeaderHeight: () => 56,
   HeaderCircleButton: ({ label, onPress }: { label: string; onPress(): void }) => (
     <button onClick={onPress}>{label}</button>
@@ -395,6 +430,26 @@ it('opens B with A selected, sends through its real composer, and retains an off
     expect(field().value).toBe('Unsent B draft');
     expect(b.channel('dm-same').messages).toHaveLength(1);
     expect(view.textContent).not.toContain(t.sourceChanged);
+    await type('No too');
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+        field(),
+        'No tool',
+      );
+      field().dispatchEvent(new Event('input', { bubbles: true }));
+      const send = view.querySelector<HTMLButtonElement>('[data-testid="composer-send"]')!;
+      send.click();
+      send.click();
+    });
+    await act(async () => {
+      await vi.waitFor(() =>
+        expect(b.channel('dm-same').messages.map((m) => m.body)).toEqual([
+          'Only B via composer',
+          'No tool',
+        ]),
+      );
+    });
+    expect(field().value).toBe('');
   } finally {
     await act(async () => {
       root.unmount();

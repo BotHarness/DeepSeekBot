@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { groupSpan, speakerLift } from '../src/ui/chat/speaker-span';
+import { groupSpan, speakerLift, speakerContentTop } from '../src/ui/chat/speaker-span';
 
 describe('sticky speaker avatar', () => {
   it('measures a group from its first bubble top to its last row', () => {
@@ -20,5 +20,31 @@ describe('sticky speaker avatar', () => {
     expect(speakerLift({ bubbleBottom: 760, floor: 700, rest: 40, span: 100 })).toBe(60);
     expect(speakerLift({ bubbleBottom: 900, floor: 700, rest: 40, span: 100 })).toBe(140);
     expect(speakerLift({ bubbleBottom: 900, floor: 700, rest: 40, span: -60 })).toBe(0);
+  });
+});
+
+describe('speakerContentTop', () => {
+  it('places content above the list by the live scroll offset', () => {
+    expect(
+      speakerContentTop({
+        top: 100,
+        height: 600,
+        content: 2000,
+        offset: 300,
+        inverted: false,
+      }),
+    ).toBe(-200);
+  });
+
+  it('places inverted content from the list bottom', () => {
+    expect(
+      speakerContentTop({
+        top: 100,
+        height: 600,
+        content: 2000,
+        offset: 300,
+        inverted: true,
+      }),
+    ).toBe(-1000);
   });
 });

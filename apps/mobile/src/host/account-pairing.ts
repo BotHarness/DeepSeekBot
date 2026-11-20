@@ -1,16 +1,18 @@
-import type { ConnectHost } from './connect-account';
-import type { SavedHost } from './hosts';
-import type { PairingFailure } from './pairing';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import type { PairingFailure } from '@botharness/host-client/pairing';
 
 export function accountHostAdded(host: ConnectHost, saved: readonly SavedHost[]): boolean {
-  return saved.some((entry) =>
-    entry.routes.some((route) => {
-      try {
-        return new URL(route).origin === `https://${host.hostname}`;
-      } catch {
-        return false;
-      }
-    }),
+  return saved.some(
+    (entry) =>
+      entry.connectHost === host.id ||
+      entry.routes.some((route) => {
+        try {
+          return new URL(route).origin === `https://${host.hostname}`;
+        } catch {
+          return false;
+        }
+      }),
   );
 }
 
@@ -25,7 +27,7 @@ export async function pairAccountSelection(options: {
     if (options.signal.aborted) break;
     if (seen.has(host.id)) continue;
     seen.add(host.id);
-    const result = host.online ? await options.pair(host) : 'host-offline';
+    const result = await options.pair(host);
     if (options.signal.aborted) break;
     options.result(host, result ?? 'added');
     if (result === 'cancelled' || result === 'host-key-confirmation-required') break;

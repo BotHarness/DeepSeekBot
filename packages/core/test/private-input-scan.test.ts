@@ -14,6 +14,7 @@ it('allows only the exact native store and probe paths while scanning identicall
     execFileSync(process.execPath, ['scripts/scan-private-input-evidence.mjs', home], {
       encoding: 'utf8',
       windowsHide: true,
+      shell: false,
     });
   expect(JSON.parse(scan()).violations).toEqual([]);
   mkdirSync(join(home, 'spill'));
@@ -51,6 +52,7 @@ it('follows native result Spill references outside Home and checks their content
     execFileSync(process.execPath, ['scripts/scan-private-input-evidence.mjs', home], {
       encoding: 'utf8',
       windowsHide: true,
+      shell: false,
     });
   } catch (error) {
     output = String((error as { stdout: string }).stdout);

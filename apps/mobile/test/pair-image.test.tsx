@@ -21,6 +21,12 @@ vi.mock('expo-camera', () => ({
   CameraView: () => null,
   useCameraPermissions: () => [{ granted: false }, vi.fn()],
 }));
+vi.mock('expo-application', () => ({
+  nativeApplicationVersion: '1.6.1',
+  nativeBuildVersion: '42',
+}));
+vi.mock('expo-device', () => ({ osVersion: '18.2' }));
+vi.mock('expo-clipboard', () => ({ setStringAsync: vi.fn(async () => true) }));
 vi.mock('expo-image-picker', () => ({ launchImageLibraryAsync: native.pick }));
 vi.mock('expo-router', () => ({
   Stack: { Screen: () => null },

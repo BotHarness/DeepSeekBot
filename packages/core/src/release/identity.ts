@@ -34,11 +34,13 @@ function developmentIdentity(moduleUrl: string): ReleaseIdentity {
     }
     const git = (args: string[]): string =>
       execFileSync('git', args, {
+        windowsHide: true,
         cwd: root,
         encoding: 'utf8',
         timeout: 2_000,
         maxBuffer: 1024 * 1024,
         stdio: ['ignore', 'pipe', 'ignore'],
+        shell: false,
       }).trim();
     if (realpathSync(git(['rev-parse', '--show-toplevel'])) !== realpathSync(root)) {
       return { kind: 'unknown', reason: 'metadata-invalid' };

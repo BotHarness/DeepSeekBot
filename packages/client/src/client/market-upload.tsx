@@ -1,6 +1,7 @@
+import { Checkbox } from './ds/checkbox.js';
+import { Button } from './ds/button.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { ShareDraftView } from '../../../core/src/marketplace/share-draft.js';
 import type { MarketplaceEntry } from '../../../core/src/marketplace/client.js';
@@ -24,10 +25,12 @@ import { fileSize } from './market-files.js';
 import { watchShareDraft } from './share-flow.js';
 import { MarketplaceSubmitField, marketplaceError, useMarketplaceSubmit } from './marketplace.js';
 import { startConnectSignIn } from './connect-sign-in.js';
+import { ConnectSignInBlock } from './connect-sign-in-block.js';
+import { observeResource } from './messaging-defaults-live.js';
 import { useMountedResource } from './mounted-resource.js';
 import { store, type BotSummary } from './store.js';
 
-const ACCOUNT_POLL_MS = 3000;
+const SIGN_IN_FALLBACK_MS = 15_000;
 const MAX_AUTHOR_NAME_LENGTH = 40;
 const MAX_TAGS = 8;
 
@@ -57,21 +60,17 @@ type AccountState =
   | { status: 'ready'; account: MarketplaceAccount };
 
 const styles = stylex.create({
-  body: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },
-  choices: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
-  code: {
-    alignSelf: 'center',
-    paddingBlock: space.x3,
-    paddingInline: space.x5,
-    borderRadius: radius.sm,
-    backgroundColor: color.surface,
-    color: color.fg,
-    fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)',
-    fontSize: text.titleSize,
-    lineHeight: text.titleLine,
-    fontWeight: text.strong,
-    letterSpacing: '0.12em',
-    userSelect: 'all',
+  body: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x5,
+    minWidth: 0,
+  },
+  choices: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    minWidth: 0,
   },
   summary: {
     display: 'flex',
@@ -82,7 +81,12 @@ const styles = stylex.create({
     backgroundColor: color.surface,
     minWidth: 0,
   },
-  summaryCopy: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0 },
+  summaryCopy: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x1,
+    minWidth: 0,
+  },
   summaryName: {
     color: color.fg,
     fontSize: text.titleSize,
@@ -139,20 +143,30 @@ function BotChoices({
   bots,
   t,
   disabled = false,
+  original,
   onChoose,
 }: {
   bots: readonly BotSummary[];
   t: BotHarnessTranslate;
   disabled?: boolean;
+  original?: string | undefined;
   onChoose: (bot: BotSummary) => void;
 }): ReactElement {
   if (bots.length === 0) return <Note>{t('market.upload.noBots')}</Note>;
+  const ordered =
+    original === undefined
+      ? bots
+      : [
+          ...bots.filter((bot) => bot.slug === original),
+          ...bots.filter((bot) => bot.slug !== original),
+        ];
   return (
     <div {...stylex.props(styles.choices)} role="list">
-      {bots.map((bot) => (
+      {ordered.map((bot) => (
         <div key={bot.slug} role="listitem">
           <ChoiceButton
             title={bot.displayName}
+            description={bot.slug === original ? t('market.mine.original') : undefined}
             leading={<BotAvatar bot={bot} size={28} t={t} />}
             disabled={disabled}
             data={{ 'data-market-bot-choice': bot.slug }}
@@ -205,7 +219,13 @@ export function MarketUploadDialog({
 }): ReactElement {
   const roster = useSyncExternalStore(store.subscribe, () => store.getSnapshot().bots);
   const bots = publishable(roster);
-  const preselected = bots.find((bot) => bot.slug === initialSlug);
+  const source =
+    replacing === undefined
+      ? undefined
+      : (bots.find((bot) => bot.uploadedListing === replacing.id) ??
+        bots.find((bot) => bot.installedListing === replacing.id));
+  const listingName = replacing === undefined ? '' : (replacing.displayName ?? replacing.name);
+  const preselected = bots.find((bot) => bot.slug === initialSlug) ?? source;
   const submit = useMarketplaceSubmit(actions, (bot) => {
     onListed(bot);
     onClose();
@@ -218,7 +238,10 @@ export function MarketUploadDialog({
   const [chosen, setChosen] = useState<BotSummary | undefined>(preselected);
   const [draft, setDraft] = useState<DraftState>({ status: 'loading' });
   const [account, setAccount] = useState<AccountState>({ status: 'loading' });
-  const [signIn, setSignIn] = useState<{ userCode: string; verificationUri: string }>();
+  const [signIn, setSignIn] = useState<{
+    userCode: string;
+    verificationUri: string;
+  }>();
   const [authorName, setAuthorName] = useState('');
   const [acceptTerms, setAcceptTerms] = useState(false);
   const [name, setName] = useState(
@@ -234,10 +257,15 @@ export function MarketUploadDialog({
   const [busy, setBusy] = useState(false);
   const [cause, setCause] = useState<unknown>();
   const mounted = useRef(true);
+  const signInEpoch = useRef(0);
+  const draftFor = useRef<string | undefined>(undefined);
+  const signingIn = useRef(false);
 
   const loadAccount = async (): Promise<MarketplaceAccount | undefined> => {
+    const epoch = signInEpoch.current;
     try {
       const loaded = await actions.marketplaceAccount();
+      if (signingIn.current || epoch !== signInEpoch.current) return undefined;
       if (mounted.current) {
         setAccount({ status: 'ready', account: loaded });
         const profileName = loaded.author?.name;
@@ -245,19 +273,23 @@ export function MarketUploadDialog({
       }
       return loaded;
     } catch (failure) {
-      if (mounted.current) setAccount({ status: 'error', cause: failure });
+      if (mounted.current && !signingIn.current && epoch === signInEpoch.current)
+        setAccount({ status: 'error', cause: failure });
       return undefined;
     }
   };
 
   const loadDraft = (bot: BotSummary): void => {
+    draftFor.current = bot.slug;
     setDraft({ status: 'loading' });
     void actions.shareDraftGet(bot.slug).then(
       (value) => {
-        if (mounted.current) setDraft({ status: 'ready', draft: value });
+        if (mounted.current && draftFor.current === bot.slug)
+          setDraft({ status: 'ready', draft: value });
       },
       (failure: unknown) => {
-        if (mounted.current) setDraft({ status: 'error', cause: failure });
+        if (mounted.current && draftFor.current === bot.slug)
+          setDraft({ status: 'error', cause: failure });
       },
     );
   };
@@ -283,14 +315,21 @@ export function MarketUploadDialog({
     };
   }, []);
 
-  const poll = useMountedResource<HTMLSpanElement>(() => {
-    const timer = setInterval(() => {
-      void loadAccount().then((loaded) => {
-        if (loaded?.signedIn === true && mounted.current) setSignIn(undefined);
-      });
-    }, ACCOUNT_POLL_MS);
-    return () => clearInterval(timer);
-  }, [signIn]);
+  const signInResource = useMountedResource<HTMLSpanElement>(
+    () =>
+      observeResource(
+        'account',
+        async () => {
+          const loaded = await loadAccount();
+          if ((loaded?.signedIn === true || loaded?.issue !== undefined) && mounted.current)
+            setSignIn(undefined);
+        },
+        SIGN_IN_FALLBACK_MS,
+        SIGN_IN_FALLBACK_MS,
+        true,
+      ),
+    [actions, signIn],
+  );
 
   const ready = account.status === 'ready' ? account.account : undefined;
   const author = ready?.author ?? null;
@@ -328,6 +367,7 @@ export function MarketUploadDialog({
 
   const askTob = async (message: string): Promise<void> => {
     const home = await actions.tobHome();
+    if (typeof home.channelId !== 'string') throw new Error('No Tob on this Host');
     await actions.sendHome(home.channelId, message, 'human-' + crypto.randomUUID());
     registry?.open(CHANNEL_BODY_PANEL);
     onClose();
@@ -344,7 +384,11 @@ export function MarketUploadDialog({
     run(async () => {
       const exported = await actions.shareDraftExport(bot.slug);
       await askTob(
-        t('market.github.message', { name: bot.displayName, path: exported.path, slug: bot.slug }),
+        t('market.github.message', {
+          name: bot.displayName,
+          path: exported.path,
+          slug: bot.slug,
+        }),
       );
     });
 
@@ -356,7 +400,7 @@ export function MarketUploadDialog({
     else if (step === 'details') go(accountDone ? beforeAccount : 'account');
     else if (step === 'account' || step === 'github') go(beforeAccount);
     else if (step === 'where') go('draft');
-    else if (step === 'draft' && preselected === undefined) go('bot');
+    else if (step === 'draft' && (preselected === undefined || replacing !== undefined)) go('bot');
     else if (replacing !== undefined) onClose();
     else setRoute('choose');
   };
@@ -398,7 +442,21 @@ export function MarketUploadDialog({
   } else {
     let content: ReactNode;
     if (step === 'bot') {
-      content = <BotChoices bots={bots} t={t} onChoose={choose} />;
+      content =
+        replacing === undefined ? (
+          <BotChoices bots={bots} t={t} onChoose={choose} />
+        ) : (
+          <>
+            <div data-market-replace-hint={source === undefined ? 'missing' : 'found'}>
+              <Note tone={source === undefined ? 'warning' : 'muted'}>
+                {t(source === undefined ? 'market.mine.sourceMissing' : 'market.mine.pickHint', {
+                  listing: listingName,
+                })}
+              </Note>
+            </div>
+            <BotChoices bots={bots} t={t} original={source?.slug} onChoose={choose} />
+          </>
+        );
     } else if (step === 'draft' && chosen !== undefined) {
       if (draft.status === 'loading') content = <Note>{t('market.direct.planLoading')}</Note>;
       else if (draft.status === 'error')
@@ -481,7 +539,9 @@ export function MarketUploadDialog({
       else if (account.status === 'error') {
         content = (
           <Note tone="danger">
-            {t('market.direct.accountFailed', { error: marketplaceError(account.cause, t) })}
+            {t('market.direct.accountFailed', {
+              error: marketplaceError(account.cause, t),
+            })}
           </Note>
         );
         primary = (
@@ -496,40 +556,43 @@ export function MarketUploadDialog({
           </Button>
         );
       } else if (!account.account.signedIn) {
-        content =
-          signIn === undefined ? (
-            <Note>{t('market.direct.signInHint')}</Note>
-          ) : (
-            <>
-              <Note>{t('devices.connect.confirm')}</Note>
-              <code {...stylex.props(styles.code)} data-market-sign-in="">
-                {signIn.userCode}
-              </code>
-              <span ref={poll} hidden />
-            </>
-          );
-        primary =
-          signIn === undefined ? (
-            <Button
-              variant="primary"
-              disabled={busy}
-              onClick={() =>
-                void run(async () => {
+        content = (
+          <ConnectSignInBlock
+            t={t}
+            code={signIn}
+            title={t('accountProfile.signInTitle')}
+            body={t('market.direct.signInHint')}
+            signInLabel={t('market.direct.signIn')}
+            busy={busy}
+            onSignIn={() =>
+              void run(async () => {
+                signingIn.current = true;
+                try {
                   const started = await startConnectSignIn();
+                  signInEpoch.current += 1;
                   if (mounted.current) setSignIn(started);
-                })
-              }
-            >
-              {t('market.direct.signIn')}
-            </Button>
-          ) : (
-            <Button
-              variant="primary"
-              onClick={() => window.open(signIn.verificationUri, '_blank', 'noopener')}
-            >
-              {t('devices.connect.openPage')}
-            </Button>
-          );
+                } finally {
+                  signingIn.current = false;
+                }
+              })
+            }
+            codeMarker="data-market-sign-in"
+            {...(account.account.issue === undefined
+              ? {}
+              : {
+                  failed: t(
+                    account.account.issue === 'relay-unavailable' ||
+                      account.account.issue === 'relay-full'
+                      ? 'accountProfile.signInRelay'
+                      : 'accountProfile.signInFailed',
+                  ),
+                })}
+          >
+            {signIn === undefined && account.account.issue === undefined ? null : (
+              <span ref={signInResource} hidden />
+            )}
+          </ConnectSignInBlock>
+        );
       } else {
         content = (
           <FieldStack>
@@ -555,7 +618,10 @@ export function MarketUploadDialog({
               void run(async () => {
                 const saved = await actions.marketplaceAuthorSave(authorName.trim(), true);
                 if (mounted.current && ready !== undefined)
-                  setAccount({ status: 'ready', account: { ...ready, author: saved } });
+                  setAccount({
+                    status: 'ready',
+                    account: { ...ready, author: saved },
+                  });
               })
             }
           >
@@ -597,6 +663,25 @@ export function MarketUploadDialog({
       const files = plan.value;
       content = (
         <>
+          {replacing === undefined || chosen === undefined ? null : (
+            <div data-market-replace-summary="" {...stylex.props(styles.choices)}>
+              <Note>
+                {t('market.mine.replaceSummary', { bot: chosen.displayName, listing: listingName })}
+              </Note>
+              {chosen.slug === source?.slug ? null : (
+                <div data-market-replace-warning="">
+                  <Note tone="warning">
+                    {source === undefined
+                      ? t('market.mine.unknownSource', { bot: chosen.displayName })
+                      : t('market.mine.otherBot', {
+                          bot: chosen.displayName,
+                          original: source.displayName,
+                        })}
+                  </Note>
+                </div>
+              )}
+            </div>
+          )}
           {chosen === undefined ? null : (
             <div {...stylex.props(styles.summary)}>
               <BotAvatar bot={chosen} size={40} t={t} />
@@ -646,9 +731,8 @@ export function MarketUploadDialog({
                 tags: tagList(tags),
                 ...(replacing === undefined ? {} : { replaces: replacing.id }),
               });
-              if (!mounted.current) return;
               onListed(uploaded.bot);
-              onClose();
+              if (mounted.current) onClose();
             })
           }
         >
@@ -682,7 +766,9 @@ export function MarketUploadDialog({
       title={
         replacing === undefined
           ? t(TITLES[route])
-          : t('market.mine.updateTitle', { name: replacing.displayName ?? replacing.name })
+          : t('market.mine.updateTitle', {
+              name: replacing.displayName ?? replacing.name,
+            })
       }
       closeLabel={t('common.close')}
       onClose={onClose}

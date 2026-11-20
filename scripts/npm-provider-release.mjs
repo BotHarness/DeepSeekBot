@@ -106,10 +106,18 @@ async function main() {
   const archive = {
     bytes: readFileSync(path),
     manifest: JSON.parse(
-      execFileSync('tar', ['-xOf', path, 'package/package.json'], { encoding: 'utf8' }),
+      execFileSync('tar', ['-xOf', path, 'package/package.json'], {
+        encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
+      }),
     ),
     provenance: JSON.parse(
-      execFileSync('tar', ['-xOf', path, 'package/PROVENANCE.json'], { encoding: 'utf8' }),
+      execFileSync('tar', ['-xOf', path, 'package/PROVENANCE.json'], {
+        encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
+      }),
     ),
   };
   verifyProviderArchive(archive, providerReleasePlan);
@@ -166,7 +174,7 @@ async function main() {
             '--globalconfig',
             '/dev/null',
           ],
-          { env, stdio: ['ignore', 'pipe', 'pipe'] },
+          { env, stdio: ['ignore', 'pipe', 'pipe'], shell: false, windowsHide: true },
         );
         let output = '';
         child.stdout.on('data', (chunk) => {

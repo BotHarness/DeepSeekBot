@@ -1,5 +1,18 @@
 # Phone Remote Host sections and Pinned list
 
+## Sources
+
+- `apps/mobile/src/ui/cloud/channels-screen.tsx`
+- `apps/mobile/src/ui/shell/cloud-channel-navigation.ts`
+- `apps/mobile/src/ui/interface-preferences.ts`
+- `apps/mobile/src/cloud/workspace-directory.ts`
+
+## Terms
+
+- Pinned section (置顶分区)
+- Channel section
+- Remote Host
+
 ## Sub-features
 
 - `organization`: selected Remote Host sections, pins, membership and order come from `rosterGet`; global/per-scope sorting comes from the same Host's native `settings/describe` namespace used by Web. A refresh reads both; there is no device-local arrangement.

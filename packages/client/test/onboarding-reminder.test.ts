@@ -1,16 +1,11 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type BotHarnessKey } from '../src/client/locale.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({
-    variant: _variant,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) =>
-    createElement('button', props),
-  Checkbox: () => null,
-  Tag: ({ children, ...props }: { children?: unknown } & Record<string, unknown>) =>
-    createElement('span', props, children as never),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 vi.mock('../src/client/model-picker.js', () => ({ ModelPicker: () => null }));
 vi.mock('../src/client/onboarding-memory.js', () => ({ OnboardingMemory: () => null }));
@@ -18,7 +13,7 @@ vi.mock('../src/client/onboarding-binding.js', () => ({ OnboardingAppBinding: ()
 vi.mock('../src/client/modal.js', () => ({ Modal: () => null }));
 vi.mock('../src/client/bot-settings-open.js', () => ({ openModelsSettings: vi.fn() }));
 import type { BridgeActions } from '../src/client/actions.js';
-import { zhTranslate, en, type BotHarnessKey } from '../src/client/locale.js';
+import { zhTranslate, en } from '../src/client/locale.js';
 import { onboardingFor } from '../src/client/onboarding.js';
 import { OnboardingWelcome } from '../src/client/onboarding-view.js';
 import { store } from '../src/client/store.js';

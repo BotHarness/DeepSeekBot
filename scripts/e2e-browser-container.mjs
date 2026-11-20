@@ -84,7 +84,7 @@ const counter = async () =>
             '-fsS',
             `http://127.0.0.1:${fixturePort}/state`,
           ],
-          { encoding: 'utf8', timeout: 30_000 },
+          { encoding: 'utf8', timeout: 30_000, shell: false, windowsHide: true },
         ),
       )
     : (await fetch(`http://127.0.0.1:${fixturePort}/state`)).json();
@@ -102,10 +102,12 @@ if (mode === 'fixture') {
       fileURLToPath(new URL('./e2e-browser-container-fixture.py', import.meta.url)),
       `${container}:/tmp/bh726-fixture.py`,
     ],
-    { timeout: 30_000 },
+    { timeout: 30_000, shell: false, windowsHide: true },
   );
   execFileSync('docker', ['exec', '-d', container, 'python3', '/tmp/bh726-fixture.py'], {
     timeout: 30_000,
+    shell: false,
+    windowsHide: true,
   });
   assert.deepEqual(await counter(), { queries: [], firstResultOpens: 0 });
   console.log('Task-owned container loopback fixture ready.');

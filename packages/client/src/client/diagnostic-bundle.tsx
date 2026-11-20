@@ -1,12 +1,6 @@
+import { Icon } from './ds/icon.js';
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconCheckCircleOutlineRegular,
-  IconClockOutlineRegular,
-  IconInfoOutlineRegular,
-  IconShieldOutlineRegular,
-  IconWarningTriangleOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { Callout } from './ds/callout.js';
 import { FormDialog } from './ds/form-dialog.js';
@@ -296,7 +290,7 @@ export function DiagnosticBundleDialog({
       <div ref={mount} data-diagnostic-bundle="" {...stylex.props(styles.body)}>
         {downloaded !== undefined ? (
           <DiagnosticCard
-            icon={<IconCheckCircleOutlineRegular size={16} />}
+            icon={<Icon name="circle-check" size={16} />}
             title={t('diagnostics.complete')}
             tone="success"
             role="status"
@@ -307,7 +301,7 @@ export function DiagnosticBundleDialog({
           <section data-diagnostic-preview="" {...stylex.props(styles.summary)}>
             <div {...stylex.props(styles.range)}>
               <span aria-hidden="true" {...stylex.props(styles.rangeIcon)}>
-                <IconClockOutlineRegular size={16} />
+                <Icon name="clock" size={16} />
               </span>
               <span>
                 {time(preview.range.start)} – {time(preview.range.end)}
@@ -374,7 +368,7 @@ export function DiagnosticBundleDialog({
         ) : null}
         {error === undefined ? null : (
           <DiagnosticCard
-            icon={<IconWarningTriangleOutlineRegular size={16} />}
+            icon={<Icon name="triangle-alert" size={16} />}
             title={t('diagnostics.failed', { code: error })}
             tone="error"
             role="alert"
@@ -387,14 +381,14 @@ export function DiagnosticBundleDialog({
         {downloaded !== undefined ? null : (
           <div {...stylex.props(styles.notices)}>
             <DiagnosticCard
-              icon={<IconWarningTriangleOutlineRegular size={16} />}
+              icon={<Icon name="triangle-alert" size={16} />}
               title={t('diagnostics.notice.content.title')}
               tone="warn"
             >
               {t('diagnostics.notice.content.body')}
             </DiagnosticCard>
             <DiagnosticCard
-              icon={<IconShieldOutlineRegular size={16} />}
+              icon={<Icon name="shield" size={16} />}
               title={t('diagnostics.notice.redacted.title')}
             >
               {preview
@@ -402,7 +396,7 @@ export function DiagnosticBundleDialog({
                 : t('diagnostics.notice.redacted.body')}
             </DiagnosticCard>
             <DiagnosticCard
-              icon={<IconInfoOutlineRegular size={16} />}
+              icon={<Icon name="info" size={16} />}
               title={t('diagnostics.notice.excluded.title')}
             >
               {t('diagnostics.notice.excluded.body')}

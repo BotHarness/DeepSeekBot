@@ -2,7 +2,7 @@
 import { act, createElement, useLayoutEffect, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createBotCreationController } from '../src/host/bot-creation';
+import { createBotCreationController } from '@botharness/host-client/bot-creation';
 
 const fixture = vi.hoisted(() => {
   const fetch = vi.fn<typeof globalThis.fetch>();
@@ -53,13 +53,14 @@ vi.mock('../src/host/native-bot-creation', () => ({
 }));
 
 import { digestCoverLayout } from '../src/marketplace/digest';
-import { setFeatureSink } from '../src/telemetry/features';
+import { setFeatureSink } from '@botharness/host-client/telemetry/features';
 import { DigestCover } from '../src/ui/shell/marketplace-cover';
 import { MarketplaceDigestScreen } from '../src/ui/shell/marketplace-digest-screen';
 import { MarketplacePastPicksScreen } from '../src/ui/shell/marketplace-past-picks-screen';
 import { MarketplaceRankingScreen } from '../src/ui/shell/marketplace-ranking-screen';
 import { MarketplaceScreen } from '../src/ui/shell/marketplace-screen';
 import { t } from '../src/ui/strings';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
@@ -110,6 +111,7 @@ let root: Root;
 let element: HTMLElement;
 const features = vi.fn();
 beforeEach(() => {
+  interfacePreferences.setLanguage('en');
   vi.clearAllMocks();
   fixture.params = { entry: 'all' };
   setFeatureSink(features);

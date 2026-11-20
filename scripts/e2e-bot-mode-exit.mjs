@@ -47,6 +47,8 @@ async function dismissNotices() {
       '稍后配置',
       'Skip tutorial',
       '跳过教程',
+      'Don’t show again',
+      '不再提示',
     ]) {
       const button = await page.$(`::-p-aria(${name}[role="button"])`);
       if (button && (await button.boundingBox())) await button.click();
@@ -99,6 +101,12 @@ try {
     acceptLanguage: locale === 'zh' ? 'zh-CN,zh' : 'en-US,en',
   });
   await page.emulateMediaFeatures([{ name: 'prefers-color-scheme', value: theme }]);
+  await page.evaluateOnNewDocument(() => {
+    const key = 'botharness.bot-mode-layout-mode';
+    if (localStorage.getItem(key) === null) {
+      localStorage.setItem(key, JSON.stringify({ mode: 'advanced' }));
+    }
+  });
   await page.goto(instance.url, { waitUntil: 'networkidle2' });
   await page.goto(instance.url, { waitUntil: 'networkidle2' });
   await dismissNotices();
@@ -207,6 +215,72 @@ try {
     null,
     'narrow fallback has no extra return control',
   );
+  step = 'medium-sidebar';
+  await page.setViewport({ width: 720, height: 860 });
+  await page.waitForSelector('[data-bot-window-class="medium"] .bh-mode-sidebar', {
+    visible: true,
+  });
+  assert.ok(
+    await page.evaluate(() => {
+      const sidebar = document.querySelector('.bh-mode-sidebar')?.getBoundingClientRect();
+      const main = document.querySelector('.bh-main')?.getBoundingClientRect();
+      return sidebar && main && sidebar.width > 0 && sidebar.right < main.left;
+    }),
+    'the medium sidebar and conversation occupy separate columns',
+  );
+  step = 'compact-sidebar-focus';
+  await page.setViewport({ width: 400, height: 860 });
+  const opener = `[data-bot-window-class="compact"] button[aria-label="${label('Open sidebar', '打开侧边栏')}"]`;
+  const drawer = '[data-presentation="drawer"] [role="dialog"]';
+  const close = `${drawer} button[aria-label="${label('Close sidebar', '关闭侧边栏')}"]`;
+  await page.waitForSelector(opener, { visible: true });
+  await page.$eval(opener, (node) => node.focus());
+  for (const key of ['Enter', 'Space']) {
+    await page.keyboard.press(key);
+    await page.waitForSelector(drawer, { visible: true });
+    assert.ok(await page.$eval(close, (node) => document.activeElement === node));
+    if (key === 'Enter') {
+      await page.keyboard.down('Shift');
+      try {
+        await page.keyboard.press('Tab');
+      } finally {
+        await page.keyboard.up('Shift');
+      }
+      assert.ok(await page.$eval(drawer, (node) => node.contains(document.activeElement)));
+      await page.keyboard.press('Escape');
+    } else {
+      await page.keyboard.press('Enter');
+    }
+    await page.waitForSelector(drawer, { hidden: true });
+    assert.ok(await page.$eval(opener, (node) => document.activeElement === node));
+  }
+  await page.click(opener);
+  await page.waitForSelector(drawer, { visible: true });
+  await capture('compact-sidebar-drawer');
+  await page.mouse.click(390, 430);
+  await page.waitForSelector(drawer, { hidden: true });
+  assert.ok(await page.$eval(opener, (node) => document.activeElement === node));
+  await page.click(opener);
+  await page.waitForSelector(drawer, { visible: true });
+  const tobName = label('Tob', '托布');
+  const tobRow = await page.waitForFunction(
+    (selector, name) =>
+      [...document.querySelectorAll(selector)].find(
+        (row) => row.querySelector('.bh-name')?.textContent === name,
+      ),
+    {},
+    `${drawer} button[data-channel-id]`,
+    tobName,
+  );
+  await tobRow.asElement().click();
+  await tobRow.dispose();
+  await page.waitForSelector(drawer, { hidden: true });
+  await page.waitForFunction(
+    (name) => document.querySelector('.bh-mobile-conversation-header h1')?.textContent === name,
+    {},
+    tobName,
+  );
+  await capture('compact-conversation');
   await page.setViewport({ width: 1440, height: 900 });
   await page.waitForSelector(rail);
   await capture('wide-again');

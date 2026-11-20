@@ -23,7 +23,7 @@ const packages = new Map(
         execFileSync(
           'tar',
           ['-xOf', join(artifacts.directory, entry.filename), 'package/package.json'],
-          { encoding: 'utf8' },
+          { encoding: 'utf8', shell: false, windowsHide: true },
         ),
       ),
     },
@@ -100,6 +100,8 @@ async function run(command, args, expected = 0, commandEnv = env) {
     env: shim ? { ...commandEnv, TOBS_QA_COMMAND: command } : commandEnv,
     windowsVerbatimArguments: shim,
     stdio: ['ignore', 'pipe', 'pipe'],
+    shell: false,
+    windowsHide: true,
   });
   const stdout = [];
   const stderr = [];

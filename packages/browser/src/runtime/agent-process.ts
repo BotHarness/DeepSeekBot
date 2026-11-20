@@ -184,7 +184,7 @@ export function createAgentBrowserProcess(note: (detail: string) => void): Agent
         AGENT_BROWSER_IDLE_TIMEOUT_MS: '0',
         AGENT_BROWSER_DEFAULT_TIMEOUT: '10000',
       });
-      const proc = spawn(binary, [], { env, stdio: 'ignore', windowsHide: true });
+      const proc = spawn(binary, [], { env, stdio: 'ignore', windowsHide: true, shell: false });
       child = proc;
       let spawnError: Error | undefined;
       proc.on('error', (error) => {

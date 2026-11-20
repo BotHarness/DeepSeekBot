@@ -1,12 +1,12 @@
-import type { HostClient } from './client';
-import { attachmentsOf, type MessageAttachment } from './conversation';
+import { readChannelJournal, wireMessage } from '@botharness/host-client/channel-messages';
+import type { HostClient } from '@botharness/host-client/client';
+import { attachmentsOf, type MessageAttachment } from '@botharness/host-client/conversation';
 import type {
   ChannelLiveFrame,
   JournalEntry,
-  JournalPage,
   RosterLiveFrame,
   WireAuthor,
-} from './wire';
+} from '@botharness/host-protocol/wire';
 
 export interface ChannelFile {
   key: string;
@@ -293,12 +293,12 @@ export function createChannelFiles({
       const boundary = before;
       publish({ loadingOlder: true, pageFailed: false });
       try {
-        const page = await host.call<JournalPage>('channelJournalPage', {
+        const page = await readChannelJournal(
+          host,
           channelId,
-          through,
-          before: boundary,
-          limit: pageSize,
-        });
+          { through, before: boundary, limit: pageSize },
+          wireMessage,
+        );
         if (
           !running ||
           epoch !== generation ||

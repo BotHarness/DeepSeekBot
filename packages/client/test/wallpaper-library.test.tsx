@@ -19,6 +19,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   host.remove();
+  vi.unstubAllGlobals();
 });
 const t = ((key: string, params?: Record<string, unknown>) =>
   params?.n === undefined ? key : `${key} ${params.n}`) as never;
@@ -48,7 +49,8 @@ function fixture(materials?: object) {
   return { appearance, owner, memory };
 }
 
-it('adds dropped files, shows the newest, and turns untuned panels see-through once', async () => {
+it.each([400, 1280])('adds, selects and removes wallpapers at %i px', async (width) => {
+  vi.stubGlobal('innerWidth', width);
   const f = fixture({ materials: { header: { opacity: 95 } } });
   const onChange = vi.fn();
   await f.owner.refresh();

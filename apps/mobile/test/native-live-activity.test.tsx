@@ -87,8 +87,8 @@ vi.mock('../src/host/host-session', () => ({
     };
   },
 }));
-vi.mock('../src/host/live-activity', async (original) => ({
-  ...(await original<typeof import('../src/host/live-activity')>()),
+vi.mock('@botharness/host-client/live-activity', async (original) => ({
+  ...(await original<typeof import('@botharness/host-client/live-activity')>()),
   createHostActivity: () => ({ request: device.remote }),
 }));
 vi.mock('../src/ui/widgets/request-activity', () => ({

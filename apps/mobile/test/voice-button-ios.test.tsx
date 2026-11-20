@@ -68,6 +68,7 @@ vi.mock('@expo/ui/swift-ui', () => ({
 vi.mock('expo-speech-recognition', () => ({
   ExpoSpeechRecognitionModule: {
     isRecognitionAvailable: () => true,
+    getPermissionsAsync: () => Promise.resolve({ granted: speech.permission === undefined }),
     requestPermissionsAsync: () => speech.permission ?? Promise.resolve({ granted: true }),
     start: speech.start,
     stop: speech.stop,

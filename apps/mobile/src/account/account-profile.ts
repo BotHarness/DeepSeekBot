@@ -3,7 +3,7 @@ import type {
   MarketplaceClient,
   MarketplaceResult,
 } from '../../../../packages/core/src/marketplace/client';
-import type { ConnectResult } from '../host/connect-account';
+import type { ConnectResult } from '@botharness/host-client/connect-account';
 
 export const ACCOUNT_NAME_MAX = 40;
 

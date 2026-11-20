@@ -1,73 +1,33 @@
 // @vitest-environment jsdom
-import { act, createElement, forwardRef, type PropsWithChildren } from 'react';
+import { mountAppearanceFixture } from './appearance-fixture.js';
+import { type ChannelMessage } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-const menus = vi.hoisted(
-  () => [] as Array<{ items?: Array<{ id: string }>; onSelect?(id: string): void }>,
-);
-
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
-  const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
+
   return {
-    IconWarningTriangleOutlineRegular: () => null,
-    IconCodeOutlineRegular: () => null,
-    IconBranchOutlineRegular: () => null,
-    Button: stub,
-    Toast: stub,
-    IconAgentPresetOutlineRegular: stub,
-    IconCheckOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconChevronLeftOutlineRegular: stub,
-    IconChevronRightOutlineRegular: stub,
-    IconDownloadOutlineRegular: stub,
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
     IconCloseFill14: stub,
-    IconCopyOutlineRegular: stub,
-    IconGoalOutlineRegular: stub,
-    IconChecklistOutlineRegular: stub,
-    IconCloseOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
-    IconUserOutlineRegular: stub,
-    IconFolderCloseRegular: stub,
-    IconFolderOpenRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconNewChatOutlineRegular: stub,
-    IconPanelLeftOutlineRegular: stub,
-    IconPaperclipOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconRefreshOutlineRegular: stub,
-    IconSearchOutlineRegular: stub,
-    IconSendOutlineRegular: stub,
-    IconPinFillRegular: stub,
-    IconPinOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
+
     FileTypeIcon: stub,
-    HoverCard: ({ anchor }: PropsWithChildren<{ anchor: unknown }>) =>
-      createElement('span', { 'data-hover-card': 'author' }, anchor as never),
+
     fileSizeText: (size: number) => `${size} B`,
     ImageLightbox: stub,
-    Input: stub,
-    Menu: (props: { anchor?: unknown; items?: Array<{ id: string }> }) => {
-      menus.push(props);
-      return props.anchor ?? null;
-    },
-    MenuItemButton: stub,
-    MenuSurface: forwardRef<HTMLDivElement, PropsWithChildren>((props, ref) =>
-      createElement('div', { ...props, ref }),
-    ),
+
     MarkdownText: stub,
-    Modal: stub,
-    SegmentedControl: stub,
+
     StateDot: stub,
-    Tag,
-    Tooltip: ({ children }: PropsWithChildren) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
 
+import { menuItem } from './primitive-mocks.js';
 import { createDockPanelRegistry } from '../src/client/dock-panels.js';
 import type { BridgeActions } from '../src/client/actions.js';
 import { BotModePrefs } from '../src/client/bot-mode-prefs.js';
@@ -83,8 +43,9 @@ import { createChannelSidebarBuiltins } from '../src/client/channel-sidebar-buil
 import { createChannelSidebarRegistry } from '../src/client/channel-sidebar.js';
 import { ChannelSidebarEntrySection } from '../src/client/channel-sidebar-view.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { store, type ChannelMessage } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 import { WindowCompanions } from '../src/client/window-companions.js';
+import { CSS } from '../src/client/styles.js';
 import { inertSubmissionActions } from './inert-submissions.js';
 import * as messageAuthorCards from '../src/client/message-author-card.js';
 
@@ -122,6 +83,7 @@ it('keeps settled message groups mounted without rerendering their author cards 
     modelCatalog: async () => ({ models: [] }),
     listWorkspaceGrants: async () => [],
     botSourcePolicies: async () => [],
+    skillCatalog: async () => [],
     allBotPreview: async () => ({ recipients: [], excluded: [] }),
     listWorkspaceOptions: async () => [],
     markRead: async () => undefined,
@@ -135,13 +97,24 @@ it('keeps settled message groups mounted without rerendering their author cards 
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   store.setRoster([bot], [channel]);
   store.select({ kind: 'channel', channelId: channel.id });
-  store.setConversation({ status: 'ready', channel, messages: [committed], drafts: [] });
+  store.setConversation({
+    status: 'ready',
+    channel,
+    messages: [committed],
+    drafts: [],
+  });
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
   try {
     await act(async () =>
-      root.render(createElement(BotMain, { prefs, actions, channelSidebar: sidebarRegistry() })),
+      root.render(
+        createElement(BotMain, {
+          prefs,
+          actions,
+          channelSidebar: sidebarRegistry(),
+        }),
+      ),
     );
     const settled = container.querySelector('[data-message-id="settled-human"]');
     expect(settled).not.toBeNull();
@@ -174,7 +147,10 @@ it('keeps settled message groups mounted without rerendering their author cards 
     expect(container.querySelector('[data-message-id="streaming-draft"]')).not.toBeNull();
     expect(humanRenders()).toBe(initialRenders);
     await act(async () =>
-      store.setConversation({ messages: [{ ...committed, body: 'History changed' }], drafts: [] }),
+      store.setConversation({
+        messages: [{ ...committed, body: 'History changed' }],
+        drafts: [],
+      }),
     );
     expect(humanRenders()).toBeGreaterThan(initialRenders);
     expect(container.querySelector('[data-message-id="streaming-draft"]')).toBeNull();
@@ -197,7 +173,10 @@ describe('Channel read position candidates', () => {
       author: { kind: 'human' },
       body: 'Workspace authorized.',
       replyTo: 'grant-request',
-      grantRequestResolution: { requestMessageId: 'grant-request', grantId: 'grant-1' },
+      grantRequestResolution: {
+        requestMessageId: 'grant-request',
+        grantId: 'grant-1',
+      },
     };
     expect([...resolvedGrantRequestIds([{ ...response, pending: true }])]).toEqual([]);
     expect([...resolvedGrantRequestIds([{ ...response, failed: 'network disconnected' }])]).toEqual(
@@ -318,7 +297,10 @@ describe('Bot main Sessions pane', () => {
       icon: 'hash',
       scope: 'global',
       component: () =>
-        createElement('input', { 'data-global-probe': '', defaultValue: 'untouched' }),
+        createElement('input', {
+          'data-global-probe': '',
+          defaultValue: 'untouched',
+        }),
     });
     const node = document.createElement('div');
     document.body.append(node);
@@ -329,6 +311,7 @@ describe('Bot main Sessions pane', () => {
           createElement(BotMain, {
             actions: {
               ...inertSubmissionActions,
+              skillCatalog: async () => [],
               allBotPreview: async () => undefined,
             } as unknown as BridgeActions,
             channelSidebar: createChannelSidebarRegistry(),
@@ -348,7 +331,9 @@ describe('Bot main Sessions pane', () => {
         expect(input.isConnected).toBe(true);
         expect(input.value).toBe('local state retained');
         await act(() =>
-          store.setConversation({ revision: store.getSnapshot().conversation.revision + 1 }),
+          store.setConversation({
+            revision: store.getSnapshot().conversation.revision + 1,
+          }),
         );
         expect(node.querySelector('[data-global-probe]')).toBe(input);
       }
@@ -411,7 +396,7 @@ describe('Bot main Sessions pane', () => {
       store.setConversation(previous.conversation);
       store.setSessions(previous.sessions);
       store.setBotInbox(previous.botInbox);
-      store.setHumanInbox(previous.humanInbox);
+      store.setActivityList(previous.activityList);
     }
   });
 
@@ -665,7 +650,7 @@ describe('Bot main Sessions pane', () => {
       }),
     );
     expect(markup).toContain('bh-bubble-pending');
-    expect(markup).not.toContain('发送中');
+    expect(markup).not.toContain('>发送中<');
     expect(markup).toContain('hello');
     expect(markup).not.toContain('bh-message-group-avatar');
   });
@@ -715,7 +700,7 @@ describe('Bot main Sessions pane', () => {
     expect(markup).toContain('bh-bubble-failed');
     expect(markup).toContain('将失败消息放回输入框修改后重发');
     expect(markup).toContain('network disconnected');
-    expect(markup).not.toContain('发送中');
+    expect(markup).not.toContain('>发送中<');
   });
   it('keeps a Bot DM read-only when its stored member list is incomplete', () => {
     const previous = store.getSnapshot();
@@ -756,6 +741,88 @@ describe('Bot main Sessions pane', () => {
     store.setRoster(previous.bots, previous.channels);
     store.select(previous.selection);
     store.setConversation(previous.conversation);
+  });
+  it('opens the message menu in a read-only DM with only the time and copy', async () => {
+    const previous = store.getSnapshot();
+    const channel = {
+      id: 'dm-ada',
+      type: 'dm' as const,
+      name: 'Ada',
+      members: ['ada'],
+      botSlug: 'ada',
+      createdAt: '2026-09-21T00:00:00.000Z',
+      updatedAt: '2026-09-21T00:01:00.000Z',
+    };
+    store.setRoster(
+      [
+        {
+          slug: 'ada',
+          displayName: 'Ada',
+          roles: [],
+          aggregateState: 'idle',
+          workspaces: [],
+          createdAt: '2026-09-21T00:00:00.000Z',
+          deleted: true,
+          paused: true,
+        },
+      ],
+      [channel],
+    );
+    store.select({ kind: 'channel', channelId: channel.id });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      sending: false,
+      messages: [
+        {
+          id: 'b1',
+          at: '2026-09-21T00:01:00.000Z',
+          author: { kind: 'bot', slug: 'ada' },
+          body: 'Ready',
+          channelRevision: 1,
+        },
+      ],
+    });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () =>
+        root.render(
+          createElement(BotMain, {
+            actions: {
+              profileActivity: vi.fn().mockRejectedValue(new Error('Unavailable')),
+              listWorkspaceGrants: async () => [],
+              modelPlanState: async () => undefined,
+              botSourcePolicies: async () => [],
+              reactToMessage: vi.fn().mockResolvedValue(undefined),
+              ...inertSubmissionActions,
+            } as unknown as BridgeActions,
+            channelSidebar: sidebarRegistry(),
+          }),
+        ),
+      );
+      await act(async () =>
+        container.querySelector('.bh-bubble-wrap')!.dispatchEvent(
+          new MouseEvent('contextmenu', {
+            bubbles: true,
+            cancelable: true,
+            clientX: 40,
+            clientY: 60,
+          }),
+        ),
+      );
+      const popup = document.querySelector('[role="menu"]')!;
+      expect(popup.querySelector('[role=presentation]')?.textContent).toMatch(/\S/);
+      expect(
+        [...popup.querySelectorAll('[role=menuitem]')].map((item) => item.textContent),
+      ).toEqual([zhTranslate('message.copy'), zhTranslate('message.select')]);
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      store.select(previous.selection);
+      store.setConversation(previous.conversation);
+    }
   });
   it('labels a deleted Bot DM as read-only history', () => {
     const previous = store.getSnapshot();
@@ -820,14 +887,13 @@ describe('Bot main Sessions pane', () => {
       store.setConversation(previous.conversation);
     }
   });
-  it('keeps the own identity row inside the mirrored group while name still precedes time in DOM order', () => {
+  it('shows no own name above the Human in a group row and no header time', () => {
     const previous = store.getSnapshot();
     const channel = {
-      id: 'dm-ada',
-      type: 'dm' as const,
-      name: 'Ada',
+      id: 'group-ada',
+      type: 'group' as const,
+      name: 'Team',
       members: ['ada'],
-      botSlug: 'ada',
       createdAt: '2026-09-21T00:00:00.000Z',
       updatedAt: '2026-09-21T00:01:00.000Z',
     };
@@ -841,7 +907,7 @@ describe('Bot main Sessions pane', () => {
     };
     try {
       store.setRoster([bot], [channel]);
-      store.select({ kind: 'bot', slug: 'ada' });
+      store.select({ kind: 'channel', channelId: channel.id });
       store.setConversation({
         status: 'ready',
         channel,
@@ -862,19 +928,16 @@ describe('Bot main Sessions pane', () => {
         }),
       );
       expect(markup).toContain('bh-message-group-me');
-      const identity = markup.indexOf('bh-message-identity');
-      expect(identity).toBeGreaterThan(-1);
-      const author = markup.indexOf('bh-bubble-author', identity);
-      const time = markup.indexOf('bh-bubble-time', identity);
-      expect(author).toBeGreaterThan(-1);
-      expect(time).toBeGreaterThan(author);
+      expect(markup).not.toContain('bh-message-identity');
+      expect(markup).not.toContain('bh-bubble-author');
+      expect(markup).not.toContain('bh-bubble-time');
     } finally {
       store.setRoster(previous.bots, previous.channels);
       store.select(previous.selection);
       store.setConversation(previous.conversation);
     }
   });
-  it('colors DM and Group Bot author names from the saved Bot Primary Color and nothing else', () => {
+  it('colors Group Bot author names from the saved Bot Primary Color and shows none in a DM', () => {
     const previous = store.getSnapshot();
     const at = '2026-10-12T00:00:00.000Z';
     const dm = {
@@ -886,10 +949,20 @@ describe('Bot main Sessions pane', () => {
       createdAt: at,
       updatedAt: at,
     };
-    const group = { ...dm, id: 'group-team', type: 'group' as const, name: 'Team' };
+    const group = {
+      ...dm,
+      id: 'group-team',
+      type: 'group' as const,
+      name: 'Team',
+    };
     const messages: ChannelMessage[] = [
       { id: 'human-1', at, author: { kind: 'human' }, body: 'hello' },
-      { id: 'bot-1', at, author: { kind: 'bot', slug: 'ada' }, body: 'an existing reply' },
+      {
+        id: 'bot-1',
+        at,
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'an existing reply',
+      },
     ];
     const bot = (
       primaryColor?: { mode: 'custom'; color: string; retained?: string },
@@ -914,7 +987,12 @@ describe('Bot main Sessions pane', () => {
           ? { kind: 'bot', slug: 'ada' }
           : { kind: 'channel', channelId: channel.id },
       );
-      store.setConversation({ status: 'ready', channel, sending: false, messages });
+      store.setConversation({
+        status: 'ready',
+        channel,
+        sending: false,
+        messages,
+      });
       const host = document.createElement('div');
       host.innerHTML = renderToStaticMarkup(
         createElement(BotMain, {
@@ -929,33 +1007,32 @@ describe('Bot main Sessions pane', () => {
     };
     const contrast = (name: string, theme: 'light' | 'dark') =>
       contrastRatio(parseColor(name)!.rgb, parseColor(REFERENCE_SURFACES[theme].background)!.rgb);
+    const appearance = mountAppearanceFixture();
     try {
-      const [human, automatic] = authors(bot(), dm);
-      expect(human!.hasAttribute('data-bot-name-color')).toBe(false);
-      expect(human!.getAttribute('style')).toBeNull();
+      expect(authors(bot(), dm)).toHaveLength(0);
+      const [automatic] = authors(bot(), group);
+      expect(authors(bot(), group)).toHaveLength(1);
       const hair = seededAvatarFor('Ada', undefined).hairColor;
       expect(automatic!.getAttribute('data-bot-name-color')).toBe(botNameColor(hair, '#ffffff'));
 
       const white = bot({ mode: 'custom', color: '#ffffff' });
-      const light = authors(white, dm)[1]!.getAttribute('data-bot-name-color')!;
+      const light = authors(white, group)[0]!.getAttribute('data-bot-name-color')!;
       expect(light).not.toBe('#ffffff');
       expect(contrast(light, 'light')).toBeGreaterThanOrEqual(4.5);
-      document.body.setAttribute('data-ds-dark-theme', '');
-      const dark = authors(white, dm)[1]!;
+      appearance.owner.update({ preference: 'dark' });
+      const dark = authors(white, group)[0]!;
       expect(dark.getAttribute('data-bot-name-color')).toBe('#ffffff');
       expect(dark.style.color).not.toBe('');
       expect(contrast('#ffffff', 'dark')).toBeGreaterThanOrEqual(4.5);
 
-      const [groupHuman, groupBot] = authors(white, group);
-      expect(groupHuman!.hasAttribute('data-bot-name-color')).toBe(false);
+      const [groupBot] = authors(white, group);
       expect(groupBot!.getAttribute('data-bot-name-color')).toBe('#ffffff');
-      document.body.removeAttribute('data-ds-dark-theme');
-      expect(authors(white, group)[1]!.getAttribute('data-bot-name-color')).toBe(light);
+      appearance.owner.update({ preference: 'light' });
+      expect(authors(white, group)[0]!.getAttribute('data-bot-name-color')).toBe(light);
       const gone = bot({ mode: 'custom', color: '#ffffff', retained: '#1d1b22' }, true);
-      expect(authors(gone, group)[1]!.getAttribute('data-bot-name-color')).toBe('#1d1b22');
-      expect(authors(gone, dm)[1]!.getAttribute('data-bot-name-color')).toBe('#1d1b22');
+      expect(authors(gone, group)[0]!.getAttribute('data-bot-name-color')).toBe('#1d1b22');
     } finally {
-      document.body.removeAttribute('data-ds-dark-theme');
+      appearance.dispose();
       store.setRoster(previous.bots, previous.channels);
       store.select(previous.selection);
       store.setConversation(previous.conversation);
@@ -1004,7 +1081,7 @@ describe('Bot main Sessions pane', () => {
         }),
       );
       expect(markup).toMatch(
-        /aria-haspopup="dialog"[^>]*>Alex · 【Lark\/飞书 QA group】<\/button>.*class="bh-bubble"/,
+        /aria-haspopup="dialog"[^>]*>Alex · 【Lark\/飞书 QA group】<\/button>.*class="bh-bubble[ "]/,
       );
       expect(markup).toContain('original external text');
       expect(markup).not.toContain('sender-private-id');
@@ -1016,7 +1093,7 @@ describe('Bot main Sessions pane', () => {
       store.setConversation(previous.conversation);
     }
   });
-  it('renders one group timestamp and individual inline actions for adjacent Bot messages', () => {
+  it('keeps times out of adjacent Bot bubbles and mounts no toolbar until hover', () => {
     const bot = {
       slug: 'ada',
       displayName: 'Ada',
@@ -1026,16 +1103,15 @@ describe('Bot main Sessions pane', () => {
       createdAt: '2026-09-21T00:00:00.000Z',
     };
     const channel = {
-      id: 'dm-ada',
-      type: 'dm' as const,
-      name: 'Ada',
+      id: 'group-ada',
+      type: 'group' as const,
+      name: 'Team',
       members: ['ada'],
-      botSlug: 'ada',
       createdAt: '2026-09-21T00:00:00.000Z',
       updatedAt: '2026-09-21T00:01:00.000Z',
     };
     store.setRoster([bot], [channel]);
-    store.select({ kind: 'bot', slug: 'ada' });
+    store.select({ kind: 'channel', channelId: channel.id });
     store.setConversation({
       status: 'ready',
       channel,
@@ -1067,20 +1143,24 @@ describe('Bot main Sessions pane', () => {
     expect(markup).toContain('data-group-position="first"');
     expect(markup).toContain('data-group-position="last"');
     expect(markup.match(/class="bh-message-group-avatar"/g)).toHaveLength(1);
-    expect(markup).not.toContain('bh-message-group-avatar-link');
-    expect(markup.match(/data-hover-card="author"/g)).toHaveLength(2);
-    expect(markup).toContain('class="bh-message-group-avatar-focus" role="group" tabindex="0"');
-    const group = markup.slice(markup.indexOf('class="bh-message-group"'));
+    expect(markup.match(/class="bh-message-group-avatar-link"/g)).toHaveLength(1);
+    const parsed = document.createElement('div');
+    parsed.innerHTML = markup;
+    const anchors = parsed.querySelectorAll('.bh-message-group-avatar-link, .bh-bubble-author');
+    expect(anchors).toHaveLength(2);
+    expect([...anchors].every((anchor) => anchor.parentElement?.id.startsWith('base-ui-'))).toBe(
+      true,
+    );
+    const start = markup.indexOf('class="bh-message-group"');
+    const group = markup.slice(start, markup.indexOf('class="bh-bubble-wrap', start));
     expect(group).toContain('class="bh-persona-avatar"');
     expect(group).not.toMatch(/class="bh-persona-avatar"[^>]*title=/);
-    expect(markup.match(/class="bh-bubble-time"/g)).toHaveLength(1);
-    expect(markup).toContain('dateTime="2026-09-21T00:01:00.000Z"');
-    expect(markup.match(/class="bh-bubble-meta"/g)).toHaveLength(2);
-    expect(markup.match(/class="bh-bubble-toolbar"/g)).toHaveLength(2);
-    expect(markup.match(/aria-label="回复"/g)).toHaveLength(2);
-    expect(markup.match(/aria-label="复制消息"/g)).toHaveLength(2);
+    expect(markup).not.toContain('bh-bubble-time');
+    expect(markup).not.toContain('bh-bubble-meta');
+    expect(markup).not.toMatch(/<time[^>]*dateTime="2026-09-21T00:01:00.000Z"/);
+    expect(markup).not.toContain('bh-bubble-toolbar');
     expect(markup).toContain('bh-bubble-focused');
-    expect(markup.match(/<time[^>]*dateTime="2026-09-21T00:01:05.000Z"/g)).toHaveLength(1);
+    expect(markup).not.toMatch(/<time[^>]*dateTime="2026-09-21T00:01:05.000Z"/);
     expect(markup).not.toContain('data-unread-divider');
   });
   it('draws the new-messages divider after the read anchor and splits the group there', () => {
@@ -1222,6 +1302,73 @@ describe('Bot main Sessions pane', () => {
     await act(async () => root.unmount());
     container.remove();
   });
+  it('locks reactions in a shared-Bot DM whose Bot can no longer be reached', async () => {
+    const bot = {
+      slug: 'ada',
+      displayName: 'Ada',
+      roles: [],
+      aggregateState: 'idle',
+      workspaces: [],
+      createdAt: '2026-09-21T00:00:00.000Z',
+    };
+    const channel = {
+      id: 'dm-member-ada',
+      type: 'dm' as const,
+      name: 'Ada',
+      members: ['ada'],
+      botSlug: 'ada',
+      readOnly: true as const,
+      createdAt: '2026-09-21T00:00:00.000Z',
+      updatedAt: '2026-09-21T00:01:00.000Z',
+    };
+    store.setRoster([bot], [channel]);
+    store.select({ kind: 'bot', slug: 'ada' });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      sending: false,
+      focusMessageId: undefined,
+      messages: [
+        {
+          id: 'b1',
+          at: '2026-09-21T00:01:00.000Z',
+          author: { kind: 'bot', slug: 'ada' },
+          body: 'Ready',
+          channelRevision: 1,
+          reactions: [{ emoji: '🎉', actors: [{ kind: 'bot', id: 'ada' }] }],
+        },
+      ],
+    });
+    const reactToMessage = vi.fn().mockResolvedValue(undefined);
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    await act(async () =>
+      root.render(
+        createElement(BotMain, {
+          actions: {
+            profileActivity: vi.fn().mockRejectedValue(new Error('Unavailable')),
+            listWorkspaceGrants: async () => [],
+            modelPlanState: async () => undefined,
+            botSourcePolicies: async () => [],
+            reactToMessage,
+            ...inertSubmissionActions,
+          } as unknown as BridgeActions,
+          channelSidebar: sidebarRegistry(),
+        }),
+      ),
+    );
+    container.querySelector<HTMLButtonElement>('[data-reaction="🎉"]')?.click();
+    await act(async () =>
+      container
+        .querySelector('.bh-bubble-wrap')!
+        .dispatchEvent(new MouseEvent('pointermove', { bubbles: true })),
+    );
+    expect(container.querySelector('[data-reaction-picker-trigger]')).toBeNull();
+    expect(reactToMessage).not.toHaveBeenCalled();
+    await act(async () => root.unmount());
+    container.remove();
+  });
   it('reacts from the hover bar and toggles reactions from their chips', async () => {
     const bot = {
       slug: 'ada',
@@ -1282,6 +1429,13 @@ describe('Bot main Sessions pane', () => {
     expect(chip?.getAttribute('aria-pressed')).toBe('false');
     await act(async () => chip!.click());
     expect(reactToMessage).toHaveBeenLastCalledWith('dm-ada', 'b1', '🎉', true);
+    expect(container.querySelector('.bh-bubble-toolbar')).toBeNull();
+    await act(async () =>
+      container
+        .querySelector('.bh-bubble-wrap')!
+        .dispatchEvent(new MouseEvent('pointermove', { bubbles: true })),
+    );
+    expect(container.querySelectorAll('.bh-bubble-toolbar [data-bubble-action]')).toHaveLength(3);
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[data-reaction-picker-trigger]')!.click(),
     );
@@ -1292,7 +1446,6 @@ describe('Bot main Sessions pane', () => {
     await act(async () => thumbs!.click());
     expect(reactToMessage).toHaveBeenLastCalledWith('dm-ada', 'b1', '👍', true);
     expect(document.body.querySelector('[data-reaction-picker]')).toBeNull();
-    menus.length = 0;
     await act(async () =>
       container.querySelector('.bh-bubble-wrap')!.dispatchEvent(
         new MouseEvent('contextmenu', {
@@ -1303,15 +1456,106 @@ describe('Bot main Sessions pane', () => {
         }),
       ),
     );
-    const menu = menus.findLast((props) => props.items?.some((item) => item.id === 'react'));
-    expect(menu?.items?.map((item) => item.id)).toEqual([
-      'reply',
-      'react',
-      'copy',
-      'select',
-      'feedback',
+    const popup = document.querySelector('[role="menu"]')!;
+    expect(popup.querySelector('[role=presentation]')?.textContent).toMatch(/\S/);
+    expect([...popup.querySelectorAll('[role=menuitem]')].map((item) => item.textContent)).toEqual([
+      zhTranslate('message.quote'),
+      zhTranslate('message.react'),
+      zhTranslate('message.copy'),
+      zhTranslate('message.select'),
+      zhTranslate('feedback.title'),
     ]);
-    await act(async () => menu!.onSelect!('react'));
+    const identity = store.getSnapshot().composerIdentity;
+    await act(async () =>
+      store.setComposerIdentity({
+        hostId: 'host',
+        profileId: 'quotes',
+        humanId: 'human',
+      }),
+    );
+    const bodyText = document.createTextNode('Ready');
+    container.querySelector('.bh-bubble-wrap .bh-bubble-body')!.append(bodyText);
+    const range = document.createRange();
+    range.setStart(bodyText, 0);
+    range.setEnd(bodyText, 2);
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    await act(async () =>
+      container.querySelector('.bh-bubble-wrap')!.dispatchEvent(
+        new MouseEvent('contextmenu', {
+          bubbles: true,
+          cancelable: true,
+          clientX: 40,
+          clientY: 60,
+        }),
+      ),
+    );
+    expect(menuItem(zhTranslate('message.quoteSelection'))).not.toBeNull();
+    expect(menuItem(zhTranslate('message.copySelection'))).not.toBeNull();
+    await act(async () => menuItem(zhTranslate('message.quoteSelection')).click());
+    const quoteChip = container.querySelector('[data-quote-chip]');
+    expect(quoteChip?.hasAttribute('data-quote-part')).toBe(true);
+    expect(quoteChip?.textContent).toContain((bodyText.textContent ?? '').slice(0, 2));
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-quote-chip] button')!.click(),
+    );
+    expect(container.querySelector('[data-quote-chip]')).toBeNull();
+    await act(async () =>
+      container
+        .querySelector('.bh-bubble-wrap')!
+        .dispatchEvent(new MouseEvent('pointermove', { bubbles: true })),
+    );
+    await act(async () =>
+      container
+        .querySelector<HTMLButtonElement>(
+          `.bh-bubble-toolbar [aria-label="${zhTranslate('message.quote')}"]`,
+        )!
+        .click(),
+    );
+    const wholeChip = container.querySelector('[data-quote-chip]');
+    expect(wholeChip?.hasAttribute('data-quote-part')).toBe(false);
+    await act(async () =>
+      container.querySelector<HTMLButtonElement>('[data-quote-chip] button')!.click(),
+    );
+    Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => new DOMRect(100, 200, 40, 16),
+    });
+    window.getSelection()!.removeAllRanges();
+    window.getSelection()!.addRange(range);
+    await act(async () => {
+      document.dispatchEvent(new Event('selectionchange'));
+      await new Promise((resolve) => requestAnimationFrame(() => resolve(undefined)));
+    });
+    const toolbar = document.body.querySelector('[data-selection-toolbar]');
+    expect(toolbar).not.toBeNull();
+    await act(async () => toolbar!.querySelector<HTMLButtonElement>('button')!.click());
+    expect(container.querySelector('[data-quote-chip]')?.hasAttribute('data-quote-part')).toBe(
+      true,
+    );
+    expect(document.body.querySelector('[data-selection-toolbar]')).toBeNull();
+    const noteInput = container.querySelector<HTMLInputElement>('[data-quote-chip] input')!;
+    expect(noteInput.placeholder).toBe(zhTranslate('message.quoteNote'));
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        noteInput,
+        'Agreed',
+      );
+      noteInput.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    expect(container.querySelector<HTMLInputElement>('[data-quote-chip] input')!.value).toBe(
+      'Agreed',
+    );
+    Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect');
+    window.getSelection()!.removeAllRanges();
+    await act(async () => store.setComposerIdentity(identity));
+    localStorage.clear();
+    await act(async () =>
+      container
+        .querySelector('.bh-bubble-wrap')!
+        .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+    );
+    await act(async () => menuItem(zhTranslate('message.react')).click());
     const pressed = document.body.querySelector('[data-reaction-picker]');
     expect(pressed).not.toBeNull();
     await act(async () =>
@@ -1378,7 +1622,11 @@ describe('Bot main Sessions pane', () => {
         }),
       ),
     );
-    const shortcut = new KeyboardEvent('keydown', { key: 'f', ctrlKey: true, cancelable: true });
+    const shortcut = new KeyboardEvent('keydown', {
+      key: 'f',
+      ctrlKey: true,
+      cancelable: true,
+    });
     await act(async () => {
       document.dispatchEvent(shortcut);
     });
@@ -1433,11 +1681,19 @@ describe('Bot main Sessions pane', () => {
       author: { kind: 'human' },
       body: 'answer',
       replyTo: 'm1',
-      replyToPreview: { author: { kind: 'bot', slug: 'ada' }, body: 'original summary' },
+      replyToPreview: {
+        author: { kind: 'bot', slug: 'ada' },
+        body: 'original summary',
+      },
     };
     store.setRoster([bot], [channel]);
     store.select({ kind: 'bot', slug: 'ada' });
-    store.setConversation({ status: 'ready', channel, messages: [reply], sending: false });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      messages: [reply],
+      sending: false,
+    });
     const render = () =>
       renderToStaticMarkup(
         createElement(BotMain, {
@@ -1446,14 +1702,37 @@ describe('Bot main Sessions pane', () => {
         }),
       );
     const linked = render();
-    expect(linked).toContain('class="bh-bubble-reply"');
+    expect(linked).toContain('data-bubble-quote="bot"');
     expect(linked).toContain('original summary');
-    expect(linked).toContain('bh-bubble-reply-author');
+    expect(linked).toContain('data-bubble-quote-author');
+
+    store.setConversation({
+      messages: [
+        {
+          ...reply,
+          quotes: [{ messageId: 'm1', preview: reply.replyToPreview! }],
+        },
+      ],
+    });
+    expect(render().match(/data-bubble-quote="bot"/gu)).toHaveLength(1);
+    store.setConversation({
+      messages: [
+        {
+          ...reply,
+          quotes: [
+            { messageId: 'm1', text: 'original', note: 'Agreed', preview: reply.replyToPreview! },
+          ],
+        },
+      ],
+    });
+    const noted = render();
+    expect(noted).toContain('data-bubble-quote-note');
+    expect(noted.indexOf('original')).toBeLessThan(noted.indexOf('Agreed'));
 
     store.setConversation({ messages: [{ ...reply, replyToPreview: null }] });
     const unavailable = render();
-    expect(unavailable).toContain('bh-bubble-reply-unavailable');
-    expect(unavailable).not.toContain('class="bh-bubble-reply"');
+    expect(unavailable).toContain('data-bubble-quote="unavailable"');
+    expect(unavailable).not.toContain('data-bubble-quote="bot"');
   });
 });
 
@@ -1479,7 +1758,11 @@ describe('DM usage refresh', () => {
     };
     const profileActivity = vi
       .fn()
-      .mockResolvedValueOnce({ slug: bot.slug, modelUsageStatus: 'ready', modelUsageRows: [] })
+      .mockResolvedValueOnce({
+        slug: bot.slug,
+        modelUsageStatus: 'ready',
+        modelUsageRows: [],
+      })
       .mockImplementationOnce(() => new Promise(() => {}));
     const actions = {
       profileActivity,
@@ -1493,20 +1776,35 @@ describe('DM usage refresh', () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     store.setRoster([bot], [channel]);
     store.select({ kind: 'bot', slug: bot.slug });
-    store.setConversation({ status: 'ready', channel, messages: [], sending: false });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      messages: [],
+      sending: false,
+    });
     const node = document.createElement('div');
     document.body.append(node);
     const root = createRoot(node);
     try {
       await act(async () =>
-        root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
+        root.render(
+          createElement(BotMain, {
+            actions,
+            channelSidebar: sidebarRegistry(),
+          }),
+        ),
       );
       const before = node.querySelector('[data-composer-chip="usage"]')!.textContent;
       expect(before).toContain('— / —');
       await act(async () => {
         store.setConversation({
           messages: [
-            { id: 'usage-committed', at: bot.createdAt, author: { kind: 'human' }, body: 'Hello' },
+            {
+              id: 'usage-committed',
+              at: bot.createdAt,
+              author: { kind: 'human' },
+              body: 'Hello',
+            },
           ],
         });
       });
@@ -1650,7 +1948,12 @@ describe('return to latest messages', () => {
     const root = createRoot(container);
     try {
       await act(async () =>
-        root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
+        root.render(
+          createElement(BotMain, {
+            actions,
+            channelSidebar: sidebarRegistry(),
+          }),
+        ),
       );
       const viewport = container.querySelector<HTMLElement>('.bh-chat-body')!;
       Object.defineProperties(viewport, {
@@ -1666,6 +1969,7 @@ describe('return to latest messages', () => {
       expect(button()?.getAttribute('aria-label')).toBe(zhTranslate('messages.latest'));
       expect(button()?.textContent).toBe('');
       expect(button()?.querySelector('.bh-timeline-new-count')).toBeNull();
+      expect(button()?.hasAttribute('data-unseen')).toBe(false);
       await act(async () => {
         store.setConversation({
           messages: [message('first'), message('second'), message('third')],
@@ -1685,6 +1989,796 @@ describe('return to latest messages', () => {
       store.setRoster(previous.bots, previous.channels);
       store.select(previous.selection);
       store.setConversation(previous.conversation);
+    }
+  });
+
+  it('stays where a small upward scroll leaves it while a Bot reply grows', async () => {
+    const previous = store.getSnapshot();
+    const bot = {
+      slug: 'timeline-hold',
+      displayName: 'Timeline hold',
+      roles: [],
+      aggregateState: 'idle',
+      workspaces: [],
+      createdAt: '2026-10-24T00:00:00.000Z',
+    };
+    const channel = {
+      id: 'dm-timeline-hold',
+      type: 'dm' as const,
+      name: bot.displayName,
+      members: [bot.slug],
+      botSlug: bot.slug,
+      createdAt: bot.createdAt,
+      updatedAt: bot.createdAt,
+    };
+    const message = (id: string): ChannelMessage => ({
+      id,
+      at: bot.createdAt,
+      author: { kind: 'bot', slug: bot.slug },
+      body: id,
+    });
+    const actions = {
+      profileActivity: async () => ({
+        slug: bot.slug,
+        modelUsageStatus: 'ready',
+        modelUsageRows: [],
+      }),
+      modelPlanState: async () => ({}),
+      modelCatalog: async () => ({ models: [] }),
+      listWorkspaceGrants: async () => [],
+      botSourcePolicies: async () => [],
+      markRead: async () => undefined,
+      ...inertSubmissionActions,
+    } as unknown as BridgeActions;
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    store.setRoster([bot], [channel]);
+    store.select({ kind: 'bot', slug: bot.slug });
+    store.setConversation({
+      status: 'ready',
+      channel,
+      messages: [message('first')],
+      revision: 1,
+      sending: false,
+    });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    try {
+      await act(async () =>
+        root.render(
+          createElement(BotMain, {
+            actions,
+            channelSidebar: sidebarRegistry(),
+          }),
+        ),
+      );
+      const viewport = container.querySelector<HTMLElement>('.bh-chat-body')!;
+      Object.defineProperties(viewport, {
+        scrollHeight: { value: 2000 },
+        clientHeight: { value: 500 },
+      });
+      await act(async () => {
+        viewport.scrollTop = 1500;
+        viewport.dispatchEvent(new Event('scroll'));
+      });
+      await act(async () => {
+        viewport.scrollTop = 1460;
+        viewport.dispatchEvent(new Event('scroll'));
+      });
+      await act(async () => {
+        store.setConversation({
+          messages: [message('first'), message('second')],
+          revision: 2,
+        });
+      });
+      expect(viewport.scrollTop).toBe(1460);
+      await act(async () => {
+        viewport.scrollTop = 1500;
+        viewport.dispatchEvent(new Event('scroll'));
+      });
+      await act(async () => {
+        viewport.dispatchEvent(new WheelEvent('wheel', { deltaY: -10, bubbles: true }));
+        store.setConversation({
+          messages: [message('first'), message('second'), message('third')],
+          revision: 3,
+        });
+      });
+      expect(viewport.scrollTop).toBe(1500);
+      await act(async () => {
+        viewport.scrollTop = 1490;
+        viewport.dispatchEvent(new Event('scroll'));
+      });
+      await act(async () => {
+        viewport.scrollTop = 1495;
+        viewport.dispatchEvent(new Event('scroll'));
+      });
+      await act(async () => {
+        store.setConversation({
+          messages: [message('first'), message('second'), message('third'), message('fourth')],
+          revision: 4,
+        });
+      });
+      expect(viewport.scrollTop).toBe(2000);
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      store.setRoster(previous.bots, previous.channels);
+      store.select(previous.selection);
+      store.setConversation(previous.conversation);
+    }
+  });
+});
+
+describe('B2 chat bubbles', () => {
+  const at = '2026-11-09T09:41:00.000Z';
+  const ada = {
+    slug: 'ada',
+    displayName: 'Ada',
+    roles: [],
+    aggregateState: 'idle' as const,
+    workspaces: [],
+    createdAt: at,
+    primaryColor: { mode: 'custom' as const, color: '#e8590c' },
+  };
+  const bob = { ...ada, slug: 'bob', displayName: 'Bob' };
+  const dm = {
+    id: 'dm-ada',
+    type: 'dm' as const,
+    name: 'Ada',
+    members: ['ada'],
+    botSlug: 'ada',
+    createdAt: at,
+    updatedAt: at,
+  };
+  const group = {
+    id: 'group-team',
+    type: 'group' as const,
+    name: 'Team',
+    members: ['ada', 'bob'],
+    createdAt: at,
+    updatedAt: at,
+  };
+  const show = (
+    channel: typeof dm | typeof group,
+    messages: ChannelMessage[],
+    avatars = { dm: false, own: false },
+  ): HTMLElement => {
+    store.setRoster([ada, bob], [channel]);
+    store.select(
+      channel.type === 'dm'
+        ? { kind: 'bot', slug: 'ada' }
+        : { kind: 'channel', channelId: channel.id },
+    );
+    store.setConversation({
+      status: 'ready',
+      channel,
+      sending: false,
+      messages,
+    });
+    const prefs = new BotModePrefs();
+    prefs.setShowDmAvatar(avatars.dm);
+    prefs.setShowOwnAvatar(avatars.own);
+    const host = document.createElement('div');
+    host.innerHTML = renderToStaticMarkup(
+      createElement(BotMain, {
+        actions: { ...inertSubmissionActions } as BridgeActions,
+        channelSidebar: sidebarRegistry(),
+        prefs,
+      }),
+    );
+    return host;
+  };
+  const bubble = (host: HTMLElement, id: string) =>
+    host.querySelector<HTMLElement>(`[data-message-id="${id}"] .bh-bubble`);
+  const restore = (previous: ReturnType<typeof store.getSnapshot>) => {
+    store.setRoster(previous.bots, previous.channels);
+    store.select(previous.selection);
+    store.setConversation(previous.conversation);
+  };
+
+  it('keeps message times out of the timeline and shows no avatar or name in a DM by default', () => {
+    const previous = store.getSnapshot();
+    try {
+      const host = show(dm, [
+        { id: 'h1', at, author: { kind: 'human' }, body: 'hello' },
+        {
+          id: 'b1',
+          at,
+          author: { kind: 'bot', slug: 'ada' },
+          body: 'hi there',
+        },
+        {
+          id: 'b2',
+          at,
+          author: { kind: 'bot', slug: 'ada' },
+          body: 'how can I help',
+        },
+        {
+          id: 'h2',
+          at,
+          author: { kind: 'human' },
+          body: 'sending',
+          pending: true,
+        },
+      ]);
+      const timeline = host.querySelector('.bh-chat-body')!;
+      expect(timeline.querySelector('.bh-message-identity')).toBeNull();
+      expect(timeline.querySelector('.bh-message-group-avatar')).toBeNull();
+      expect(timeline.textContent).not.toContain('Ada');
+      expect(timeline.querySelectorAll('time')).toHaveLength(0);
+      expect(CSS).not.toMatch(/bh-bubble-stamp/);
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('shows the DM avatar and my avatar only when those settings are on', () => {
+    const previous = store.getSnapshot();
+    const messages: ChannelMessage[] = [
+      { id: 'h1', at, author: { kind: 'human' }, body: 'hello' },
+      { id: 'b1', at, author: { kind: 'bot', slug: 'ada' }, body: 'hi there' },
+    ];
+    const avatarIn = (host: HTMLElement, mine: boolean) =>
+      host.querySelector(
+        `.bh-message-group${mine ? '.bh-message-group-me' : ':not(.bh-message-group-me)'} > .bh-message-group-avatar`,
+      );
+    try {
+      const peer = show(dm, messages, { dm: true, own: false });
+      expect(avatarIn(peer, false)).not.toBeNull();
+      expect(avatarIn(peer, true)).toBeNull();
+      expect(peer.querySelector('.bh-message-identity')).toBeNull();
+      const own = show(dm, messages, { dm: false, own: true });
+      expect(avatarIn(own, false)).toBeNull();
+      const mine = avatarIn(own, true)!;
+      expect(mine.previousElementSibling?.classList.contains('bh-message-stack')).toBe(true);
+      const both = show(group, messages, { dm: false, own: true });
+      expect(avatarIn(both, false)).not.toBeNull();
+      expect(avatarIn(both, true)).not.toBeNull();
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('keeps the Bot name outside the first bubble of a group run without a header time', () => {
+    const previous = store.getSnapshot();
+    try {
+      const host = show(group, [
+        { id: 'b1', at, author: { kind: 'bot', slug: 'ada' }, body: 'first' },
+        { id: 'b2', at, author: { kind: 'bot', slug: 'ada' }, body: 'second' },
+      ]);
+      const identities = host.querySelectorAll('.bh-message-identity');
+      expect(identities).toHaveLength(1);
+      expect(identities[0]!.textContent).toBe('Ada');
+      expect(identities[0]!.querySelector('time')).toBeNull();
+      expect(host.querySelectorAll('.bh-message-group-avatar')).toHaveLength(1);
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('floats the reading chip opposite the time without adding anything to the row', () => {
+    const previous = store.getSnapshot();
+    const message: ChannelMessage = {
+      id: 'h1',
+      at,
+      author: { kind: 'human' },
+      body: 'hello',
+    };
+    try {
+      const idle = show(group, [message]);
+      const reading = show(group, [
+        { ...message, deliveries: [{ botSlug: 'ada', state: 'running' }] },
+      ]);
+      const surface = (host: HTMLElement) =>
+        host.querySelector<HTMLElement>('[data-message-id="h1"] .bh-bubble-surface')!;
+      const chip = surface(reading).querySelector('.bh-bubble-badges [data-message-reading]');
+      expect(chip).not.toBeNull();
+      expect(surface(idle).querySelector('.bh-bubble-badges')).toBeNull();
+      expect(bubble(reading, 'h1')!.outerHTML).toBe(bubble(idle, 'h1')!.outerHTML);
+      const badges = surface(reading).querySelector('.bh-bubble-badges')!;
+      badges.remove();
+      expect(surface(reading).outerHTML).toBe(surface(idle).outerHTML);
+      expect(CSS).toMatch(/\n\.bh-bubble-badges \{\s*position: absolute;/);
+      expect(CSS).toMatch(
+        /\n\.bh-message-group-me \.bh-bubble-badges \.bh-reading \{\s*margin-right: auto;/,
+      );
+      expect(CSS).not.toMatch(/\n\.bh-bubble-badges \.bh-reading \{[^}]*margin-left: auto/);
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('opens a reply with a quote block naming the quoted author, ahead of the body', async () => {
+    const previous = store.getSnapshot();
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const quoted = {
+      author: { kind: 'bot' as const, slug: 'ada' },
+      body: 'the question',
+    };
+    const openAround = vi.fn(async () => undefined);
+    try {
+      store.setRoster([ada, bob], [group]);
+      store.select({ kind: 'channel', channelId: group.id });
+      store.setConversation({
+        status: 'ready',
+        channel: group,
+        sending: false,
+        messages: [
+          {
+            id: 'h1',
+            at,
+            author: { kind: 'human' },
+            body: 'my answer',
+            replyTo: 'b0',
+            replyToPreview: quoted,
+          },
+          {
+            id: 'b1',
+            at,
+            author: { kind: 'bot', slug: 'bob' },
+            body: 'adding to that',
+            replyTo: 'b0',
+            replyToPreview: quoted,
+          },
+          {
+            id: 'b2',
+            at,
+            author: { kind: 'bot', slug: 'bob' },
+            body: 'noted',
+            replyTo: 'h1',
+            replyToPreview: { author: { kind: 'human' }, body: 'my answer' },
+          },
+        ],
+      });
+      const actions = {
+        modelPlanState: async () => ({}),
+        listWorkspaceGrants: async () => [],
+        botSourcePolicies: async () => [],
+        skillCatalog: async () => [],
+        allBotPreview: async () => ({ recipients: [], excluded: [] }),
+        listWorkspaceOptions: async () => [],
+        markRead: async () => undefined,
+        openAround,
+        ...inertSubmissionActions,
+      } as unknown as BridgeActions;
+      await act(async () =>
+        root.render(
+          createElement(BotMain, {
+            actions,
+            channelSidebar: sidebarRegistry(),
+          }),
+        ),
+      );
+      const quote = (id: string) =>
+        container.querySelector<HTMLButtonElement>(
+          `[data-message-id="${id}"] .bh-bubble [data-bubble-quote]`,
+        )!;
+      const mine = quote('h1');
+      expect(mine.tagName).toBe('BUTTON');
+      expect(mine.getAttribute('aria-label')).toContain('Ada');
+      expect(mine.getAttribute('aria-label')).toContain('the question');
+      expect(mine.querySelector('[data-bubble-quote-author]')?.textContent).toBe('Ada');
+      expect(mine.textContent).toContain('the question');
+      expect(mine.hasAttribute('data-bot-name-color')).toBe(false);
+      const body = container.querySelector('[data-message-id="h1"] .bh-bubble-body')!;
+      expect(mine.compareDocumentPosition(body) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+      const quotedBot = quote('b1');
+      const colour = quotedBot.getAttribute('data-bot-name-color');
+      expect(colour).toMatch(/^#[0-9a-f]{6}$/);
+      expect(
+        contrastRatio(
+          parseColor(colour!)!.rgb,
+          parseColor(REFERENCE_SURFACES.light.background)!.rgb,
+        ),
+      ).toBeGreaterThanOrEqual(4.5);
+
+      const quotedHuman = quote('b2');
+      expect(quotedHuman.hasAttribute('data-bot-name-color')).toBe(false);
+      expect(quotedHuman.dataset['bubbleQuote']).toBe('human');
+
+      await act(async () => quotedHuman.click());
+      expect(openAround).toHaveBeenCalledWith(group.id, 'h1');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      restore(previous);
+    }
+  });
+
+  it('keeps the first eight quotes and says so when a ninth is added', async () => {
+    const previous = store.getSnapshot();
+    const identity = previous.composerIdentity;
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    try {
+      store.setComposerIdentity({ hostId: 'host', profileId: 'limit', humanId: 'human' });
+      store.setRoster([ada, bob], [group]);
+      store.select({ kind: 'channel', channelId: group.id });
+      store.setConversation({
+        status: 'ready',
+        channel: group,
+        sending: false,
+        messages: Array.from({ length: 9 }, (_, index) => ({
+          id: `m${index}`,
+          at,
+          author: { kind: 'bot' as const, slug: 'ada' },
+          body: index === 8 ? '' : `message ${index}`,
+          ...(index === 8
+            ? {
+                attachments: [
+                  {
+                    hash: `sha256:${'1'.repeat(64)}`,
+                    name: 'plan.pdf',
+                    mime: 'application/pdf',
+                    size: 1,
+                  },
+                ],
+              }
+            : {}),
+        })),
+      });
+      const actions = {
+        modelPlanState: async () => ({}),
+        listWorkspaceGrants: async () => [],
+        botSourcePolicies: async () => [],
+        skillCatalog: async () => [],
+        allBotPreview: async () => ({ recipients: [], excluded: [] }),
+        listWorkspaceOptions: async () => [],
+        markRead: async () => undefined,
+        ...inertSubmissionActions,
+      } as unknown as BridgeActions;
+      await act(async () =>
+        root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
+      );
+      const quote = async (id: string) => {
+        await act(async () =>
+          container
+            .querySelector(`[data-message-id="${id}"]`)!
+            .dispatchEvent(new MouseEvent('pointermove', { bubbles: true })),
+        );
+        const button = container.querySelector<HTMLButtonElement>(
+          `[data-message-id="${id}"] [data-bubble-action][aria-label="Quote"], [data-message-id="${id}"] [data-bubble-action][aria-label="引用"]`,
+        )!;
+        await act(async () => button.click());
+      };
+      const chips = () =>
+        [...container.querySelectorAll('[data-quote-chip]')].map((chip) => chip.textContent ?? '');
+      await quote('m8');
+      expect(chips()[0]).toContain('plan.pdf');
+      for (let index = 0; index < 8; index += 1) await quote(`m${index}`);
+      expect(chips()).toHaveLength(8);
+      expect(chips()[0]).toContain('plan.pdf');
+      expect(chips().some((chip) => chip.includes('message 7'))).toBe(false);
+      expect(container.textContent).toMatch(
+        /A message can quote at most 8 messages|一条消息最多引用 8 条/u,
+      );
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      store.setComposerIdentity(identity);
+      localStorage.clear();
+      restore(previous);
+    }
+  });
+
+  it('restores the quote of a failed message whose target is not loaded', async () => {
+    const previous = store.getSnapshot();
+    const identity = previous.composerIdentity;
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    try {
+      store.setComposerIdentity({ hostId: 'host', profileId: 'restore', humanId: 'human' });
+      store.setRoster([ada, bob], [group]);
+      store.select({ kind: 'channel', channelId: group.id });
+      store.setConversation({
+        status: 'ready',
+        channel: group,
+        sending: false,
+        messages: [
+          {
+            id: 'local-failed-q',
+            at,
+            author: { kind: 'human' },
+            body: 'Still true?',
+            failed: 'network disconnected',
+            quotes: [
+              {
+                messageId: 'old-1',
+                text: 'ship Friday',
+                note: 'Is it?',
+                preview: { author: { kind: 'bot', slug: 'ada' }, body: 'We ship Friday.' },
+              },
+            ],
+          },
+        ],
+      });
+      const actions = {
+        modelPlanState: async () => ({}),
+        listWorkspaceGrants: async () => [],
+        botSourcePolicies: async () => [],
+        skillCatalog: async () => [],
+        allBotPreview: async () => ({ recipients: [], excluded: [] }),
+        listWorkspaceOptions: async () => [],
+        markRead: async () => undefined,
+        ...inertSubmissionActions,
+        dismissFailedMessage: () => true,
+      } as unknown as BridgeActions;
+      await act(async () =>
+        root.render(createElement(BotMain, { actions, channelSidebar: sidebarRegistry() })),
+      );
+      await act(async () =>
+        container.querySelector<HTMLButtonElement>('button.bh-bubble-failed-action')!.click(),
+      );
+      const chip = container.querySelector('[data-quote-chip]');
+      expect(chip?.textContent).toContain('Ada');
+      expect(chip?.textContent).toContain('ship Friday');
+      expect(chip?.querySelector('input')?.value).toBe('Is it?');
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      store.setComposerIdentity(identity);
+      localStorage.clear();
+      restore(previous);
+    }
+  });
+
+  const photo = (name: string, extra: Partial<{ width: number; height: number }> = {}) => ({
+    fileId: `file:${name}`,
+    name,
+    mime: 'image/png',
+    size: 2048,
+    version: 'v1',
+    ...extra,
+  });
+  const photos = (count: number) =>
+    Array.from({ length: count }, (_, index) => photo(`p${index + 1}.png`));
+
+  it('fills an uncaptioned image to the bubble edge with its time on a pill and puts a caption below', () => {
+    const previous = store.getSnapshot();
+    try {
+      const host = show(dm, [
+        {
+          id: 'h1',
+          at,
+          author: { kind: 'human' },
+          body: '',
+          attachments: [photo('a.png')],
+        },
+        {
+          id: 'h2',
+          at,
+          author: { kind: 'human' },
+          body: 'the gate',
+          attachments: [photo('b.png')],
+        },
+        { id: 'h3', at, author: { kind: 'human' }, body: 'plain text' },
+      ]);
+      const bare = bubble(host, 'h1')!;
+      expect(bare.dataset['bubbleMedia']).toBe('bare');
+      expect(bare.querySelector('[data-album-count="1"]')).not.toBeNull();
+      const captioned = bubble(host, 'h2')!;
+      expect(captioned.dataset['bubbleMedia']).toBe('captioned');
+      const album = captioned.querySelector('.bh-message-album')!;
+      const caption = captioned.querySelector('.bh-bubble-body')!;
+      expect(
+        album.compareDocumentPosition(caption) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+      expect(bubble(host, 'h3')!.hasAttribute('data-bubble-media')).toBe(false);
+      expect(CSS).toMatch(
+        /\.bh-bubble\[data-bubble-media\] \{[^}]*padding: 0;[^}]*overflow: hidden;/,
+      );
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('lays several images out as one album with +N on the last visible tile', () => {
+    const previous = store.getSnapshot();
+    try {
+      const host = show(dm, [
+        {
+          id: 'a2',
+          at,
+          author: { kind: 'human' },
+          body: '',
+          attachments: photos(2),
+        },
+        {
+          id: 'a3',
+          at,
+          author: { kind: 'human' },
+          body: '',
+          attachments: photos(3),
+        },
+        {
+          id: 'a4',
+          at,
+          author: { kind: 'human' },
+          body: '',
+          attachments: photos(4),
+        },
+        {
+          id: 'a8',
+          at,
+          author: { kind: 'bot', slug: 'ada' },
+          body: '',
+          attachments: photos(8),
+        },
+      ]);
+      const album = (id: string) =>
+        bubble(host, id)!.querySelector<HTMLElement>('.bh-message-album')!;
+      const tiles = (id: string) => album(id).querySelectorAll('[data-album-tile]');
+      expect(['a2', 'a3', 'a4', 'a8'].map((id) => tiles(id).length)).toEqual([2, 3, 4, 5]);
+      expect(album('a3').style.gridTemplateColumns).toBe('2fr 1fr');
+      expect(
+        album('a3').querySelector<HTMLElement>('.bh-message-album-cell')!.style.gridRow,
+      ).toContain('span 2');
+      expect(album('a8').getAttribute('role')).toBe('group');
+      expect(album('a8').getAttribute('aria-label')).toBe('8 张图片');
+      expect(album('a8').dataset['albumCount']).toBe('8');
+      expect(tiles('a8')[4]!.textContent).toBe('+3');
+      expect(tiles('a8')[3]!.textContent).toBe('');
+      expect(bubble(host, 'a8')!.querySelectorAll('.bh-message-file')).toHaveLength(0);
+      expect(CSS).toMatch(/\.bh-message-album \{[^}]*display: grid;[^}]*gap: 0;/);
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('shows what a quoted media message was inside the quote block', () => {
+    const previous = store.getSnapshot();
+    const quote = (media: NonNullable<ChannelMessage['replyToPreview']>['media'], body = '') => ({
+      author: { kind: 'bot' as const, slug: 'ada' },
+      body,
+      ...(media === undefined ? {} : { media }),
+    });
+    try {
+      const host = show(dm, [
+        {
+          id: 'r1',
+          at,
+          author: { kind: 'human' },
+          body: 'this one',
+          replyTo: 'q1',
+          replyToPreview: quote({
+            kind: 'image',
+            count: 1,
+            thumbnail: photo('thumb.png'),
+          }),
+        },
+        {
+          id: 'r2',
+          at,
+          author: { kind: 'human' },
+          body: 'those',
+          replyTo: 'q2',
+          replyToPreview: quote({ kind: 'image', count: 3 }),
+        },
+        {
+          id: 'r3',
+          at,
+          author: { kind: 'human' },
+          body: 'heard it',
+          replyTo: 'q3',
+          replyToPreview: quote({ kind: 'voice', durationMs: 7000 }, 'transcript'),
+        },
+        {
+          id: 'r4',
+          at,
+          author: { kind: 'human' },
+          body: 'got it',
+          replyTo: 'q4',
+          replyToPreview: quote({ kind: 'file', name: 'report.pdf', count: 1 }),
+        },
+      ]);
+      const block = (id: string) =>
+        bubble(host, id)!.querySelector<HTMLElement>('[data-bubble-quote]')!;
+      const thumb = block('r1').querySelector('img[data-bubble-quote-thumb]')!;
+      expect(thumb.getAttribute('src')).toContain('messageId=q1');
+      expect(thumb.getAttribute('src')).toContain('variant=96c');
+      expect(block('r1').querySelector('[data-bubble-quote-body]')?.textContent).toBe('图片');
+      expect(block('r2').querySelector('img')).toBeNull();
+      expect(block('r2').querySelector('[data-bubble-quote-body]')?.textContent).toBe('3 张图片');
+      expect(block('r3').querySelector('[data-bubble-quote-body]')?.textContent).toBe(
+        '语音 · 0:07',
+      );
+      expect(block('r4').querySelector('[data-bubble-quote-body]')?.textContent).toBe('report.pdf');
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('puts no label above the Human in a group', () => {
+    const previous = store.getSnapshot();
+    try {
+      const host = show(group, [
+        { id: 'h1', at, author: { kind: 'human' }, body: 'hello' },
+        { id: 'b1', at, author: { kind: 'bot', slug: 'ada' }, body: 'hi' },
+        {
+          id: 'h2',
+          at,
+          author: { kind: 'human' },
+          body: 'later',
+          pending: true,
+        },
+      ]);
+      const identities = host.querySelectorAll('.bh-message-identity');
+      expect([...identities].map((node) => node.textContent)).toEqual(['Ada']);
+      expect(host.querySelector('.bh-message-group-me .bh-bubble-author')).toBeNull();
+      expect(host.querySelector('[data-bubble-check]')).toBeNull();
+    } finally {
+      restore(previous);
+    }
+  });
+
+  it('opens the gallery at the clicked album tile, including the tile that hides the rest', async () => {
+    const previous = store.getSnapshot();
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    try {
+      store.setRoster([ada, bob], [dm]);
+      store.select({ kind: 'bot', slug: 'ada' });
+      store.setConversation({
+        status: 'ready',
+        channel: dm,
+        sending: false,
+        messages: [
+          {
+            id: 'a8',
+            at,
+            author: { kind: 'human' },
+            body: '',
+            attachments: photos(8),
+          },
+        ],
+      });
+      await act(async () =>
+        root.render(
+          createElement(BotMain, {
+            actions: {
+              profileActivity: vi.fn().mockRejectedValue(new Error('Unavailable')),
+              listWorkspaceGrants: async () => [],
+              modelPlanState: async () => undefined,
+              botSourcePolicies: async () => [],
+              ...inertSubmissionActions,
+            } as unknown as BridgeActions,
+            channelSidebar: sidebarRegistry(),
+          }),
+        ),
+      );
+      const tiles = container.querySelectorAll<HTMLButtonElement>('[data-album-tile]');
+      expect(tiles).toHaveLength(5);
+      const dialog = () => document.body.querySelector('[role="dialog"][aria-modal="true"]');
+      await act(async () => tiles[1]!.click());
+      expect(dialog()?.getAttribute('aria-label')).toBe('图片预览：p2.png');
+      expect(dialog()?.textContent).toContain('2 / 8');
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      });
+      await act(async () => tiles[4]!.click());
+      expect(dialog()?.getAttribute('aria-label')).toBe('图片预览：p5.png');
+      expect(dialog()?.textContent).toContain('5 / 8');
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight' }));
+      });
+      expect(dialog()?.getAttribute('aria-label')).toBe('图片预览：p6.png');
+      await act(async () => {
+        window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }));
+      });
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+      restore(previous);
     }
   });
 });

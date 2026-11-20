@@ -1,6 +1,6 @@
 import { avatarSvg } from '../../../../packages/core/src/bots/avatar-appearance';
 import { resolvedAvatarRecipe } from '../../../../packages/core/src/bots/primary-color';
-import type { RosterView } from './client';
+import type { RosterView } from '@botharness/host-client/client';
 
 export interface AvatarImage {
   uri: string;

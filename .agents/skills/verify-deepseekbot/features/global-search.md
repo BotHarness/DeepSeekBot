@@ -1,5 +1,16 @@
 # Global search (quick switcher)
 
+## Sources
+
+- `packages/client/src/client/quick-switcher*.{ts,tsx}`
+- `packages/client/src/client/settings-search.tsx`
+
+## Terms
+
+- Channel
+- PersonaBot
+- Settings
+
 ## Sub-features
 
 - S1: Alt+K (Option+K on macOS) opens the search in Bot mode on Web and Desktop; Ctrl+K / Command+K still opens it where the browser delivers the key. On Desktop macOS and Windows, DSH owns Command/Ctrl+K for its own session search and consumes it in the Electron main process, so only Alt/Option+K reaches DeepSeekBot there.
@@ -22,6 +33,8 @@ node scripts/verify-app.mjs shot search-open-setting --name <n> --bot-mode --loc
 ```
 
 The first shows the 外观讨论 conversation and the 界面设置 section under 设置; the second shows Bot settings open on 界面设置 with the 主题 row highlighted.
+
+Open with Alt+K and verify the dialog and scrim appear immediately. Press Escape, then click the search button in the Workspace Control Rail and verify that both fade in. Focus that same button and press Enter to verify that keyboard activation also skips the fade. Compare `animationName` on the popup and scrim while each dialog is open.
 
 ## Gotchas
 

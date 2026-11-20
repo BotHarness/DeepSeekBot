@@ -46,6 +46,7 @@ export const compose = {
   LoadingIndicator: node('LoadingIndicator'),
   Checkbox: node('Checkbox'),
   RadioButton: node('RadioButton'),
+  Shape: { RoundedCorner: (props: object) => ({ type: 'roundedCorner', ...props }) },
   Badge: node('Badge'),
   BadgedBox: Object.assign(node('BadgedBox'), { Badge: slot('badge') }),
   TextField: Object.assign(
@@ -119,9 +120,12 @@ export const theme = {
   scheme: 'light',
   touch: 48,
   mono: 'Menlo',
+  layer: { raised: { fill: 'surface' } },
   color: {
     accent: 'accent',
+    accentText: 'accentText',
     warning: 'warning',
+    onWarning: 'onWarning',
     fg: 'fg',
     base: 'base',
     warningSoft: 'warningSoft',

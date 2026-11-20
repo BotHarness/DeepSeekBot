@@ -1,10 +1,14 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
-import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
+import { useRef, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import * as Clipboard from 'expo-clipboard';
-import { createHostClient } from '../src/host/client';
+import { installedAppVersion } from '../src/host/app-version';
 import { useHostSession, useHostSnapshot } from '../src/host/host-session';
-import { nativeCarrier } from '../src/host/native-carrier';
-import { isConnectRoute, isLanRoute } from '../src/host/route';
+import {
+  isConnectRoute,
+  isLanRoute,
+  isLoopbackRoute,
+  isTailscaleRoute,
+} from '@botharness/host-protocol/route';
 import { SHEET_GROUP } from '../src/ui/chat/sheet';
 import { space } from '../src/ui/design/tokens';
 import { SheetHeader } from '../src/ui/primitives/sheet-header';
@@ -14,28 +18,35 @@ import { SheetScreen } from '../src/ui/primitives/sheet-screen';
 import { Text } from '../src/ui/primitives/text';
 import { useMounted } from '../src/ui/mounted';
 import { useStrings } from '../src/ui/strings';
+import { PreferenceRow } from '../src/ui/primitives/preference-row';
 
 export default function HostConnectionScreen() {
   const t = useStrings();
   const copy = t.connectionRoutes;
   const router = useRouter();
   const { hostId } = useLocalSearchParams<{ hostId?: string }>();
-  const session = useHostSession();
+  const session = useHostSession(hostId);
   const host = session.hosts.find((item) => item.hostId === (hostId ?? session.saved?.hostId));
-  const active = host?.hostId === session.saved?.hostId ? session.client : undefined;
-  const client = useMemo(
-    () => active ?? (host ? createHostClient({ ...host, carrier: nativeCarrier() }) : undefined),
-    [active, host?.hostId, host?.credential],
-  );
-  useFocusEffect(
-    useCallback(() => {
-      if (!client || client === active) return;
-      client.start();
-      return () => client.stop();
-    }, [client, active]),
-  );
+  const automaticHint = host?.encryption?.privateRelay ? copy.privateAutomatic : copy.automatic;
+  const client = session.client;
   const snapshot = useHostSnapshot(client);
   const [busy, setBusy] = useState<string>();
+  const [preferenceFailed, setPreferenceFailed] = useState(false);
+  const savingPreference = useRef(false);
+  const selectRoute = async (value: string) => {
+    if (savingPreference.current || !client?.setRoutePreference) return;
+    savingPreference.current = true;
+    setBusy('preference');
+    setPreferenceFailed(false);
+    try {
+      await client.setRoutePreference(value === 'automatic' ? undefined : value);
+    } catch {
+      setPreferenceFailed(true);
+    } finally {
+      savingPreference.current = false;
+      setBusy(undefined);
+    }
+  };
   const [copied, setCopied] = useState<string>();
   const copiedTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const mount = useMounted(() => () => clearTimeout(copiedTimer.current), []);
@@ -44,8 +55,15 @@ export default function HostConnectionScreen() {
     setCopied(url);
     copiedTimer.current = setTimeout(() => setCopied(undefined), 1500);
   };
-  const routes =
-    snapshot.routes ?? host?.routes.map((url) => ({ url, status: 'unchecked' as const })) ?? [];
+  const routes = (
+    snapshot.routes ??
+    host?.routes.map((url) => ({ url, status: 'unchecked' as const })) ??
+    []
+  ).filter(({ url }) => host?.encryption?.loopback === 'encrypted' || !isLoopbackRoute(url));
+  const hiddenActiveLoopback =
+    host?.encryption?.loopback !== 'encrypted' &&
+    snapshot.connection.status === 'connected' &&
+    isLoopbackRoute(snapshot.connection.route);
   const header = (
     <SheetHeader
       title={copy.title}
@@ -56,15 +74,90 @@ export default function HostConnectionScreen() {
   return (
     <SheetScreen onMount={mount}>
       <SettingsForm header={header} testID="host-connection">
-        {host && routes.length > 0 ? null : (
+        {host?.member ? (
+          <SettingsSection on={SHEET_GROUP}>
+            <SettingsRow
+              on={SHEET_GROUP}
+              icon="account"
+              title={t.memberPairing.signedInAs.replace('{name}', host.member.displayName)}
+              {...(host.member.username ? { detail: `@${host.member.username}` } : {})}
+            />
+            <SettingsRow
+              on={SHEET_GROUP}
+              icon="qr"
+              testID="member-pair-another"
+              title={t.memberPairing.pairAnother}
+              detail={t.memberPairing.pairAnotherDetail}
+              disclosure
+              onPress={() =>
+                router.push({ pathname: '/member-pairing', params: { hostId: host.hostId } })
+              }
+            />
+          </SettingsSection>
+        ) : null}
+        {host && client ? (
+          <SettingsSection on={SHEET_GROUP} footer={copy.preferenceScope}>
+            {busy === 'preference' ? (
+              <SettingsRow
+                on={SHEET_GROUP}
+                title={copy.preference}
+                detail={snapshot.routePreference ?? copy.autoChoice}
+                control={{ kind: 'busy' }}
+              />
+            ) : (
+              <PreferenceRow
+                on={SHEET_GROUP}
+                title={copy.preference}
+                icon="computer"
+                testID="connection-route-preference"
+                value={snapshot.routePreference ?? 'automatic'}
+                options={[
+                  { value: 'automatic', label: copy.autoChoice, icon: 'computer' },
+                  ...[
+                    ...new Set([
+                      ...routes.map(({ url }) => url),
+                      ...(snapshot.routePreference === undefined ? [] : [snapshot.routePreference]),
+                    ]),
+                  ].map((url) => ({ value: url, label: url, icon: 'computer' as const })),
+                ]}
+                onChange={(value) => void selectRoute(value)}
+              />
+            )}
+            {snapshot.routeChangePending ? (
+              <SettingsRow on={SHEET_GROUP} title={copy.switchPending} control={{ kind: 'busy' }} />
+            ) : null}
+            {preferenceFailed ? (
+              <SettingsRow on={SHEET_GROUP} title={copy.preferenceFailed} tone="danger" />
+            ) : null}
+            {snapshot.routePreference === undefined ? null : (
+              <SettingsRow
+                on={SHEET_GROUP}
+                title={copy.returnAutomatic}
+                detail={copy.manualHint}
+                icon="computer"
+                testID="connection-return-automatic"
+                onPress={busy ? undefined : () => void selectRoute('automatic')}
+              />
+            )}
+          </SettingsSection>
+        ) : null}
+        {host && (routes.length > 0 || hiddenActiveLoopback) ? null : (
           <SettingsFormItem>
             <Text tone="muted" style={{ paddingHorizontal: space.x5 }}>
-              {host ? copy.automatic : t.hostLookMissing}
+              {host ? automaticHint : t.hostLookMissing}
             </Text>
           </SettingsFormItem>
         )}
-        {host && snapshot.connection.status !== 'connected' ? (
+        {host && (snapshot.connection.status !== 'connected' || hiddenActiveLoopback) ? (
           <SettingsSection on={SHEET_GROUP}>
+            {hiddenActiveLoopback ? (
+              <SettingsRow
+                on={SHEET_GROUP}
+                icon="computer"
+                title={copy.localActive}
+                detail={copy.localActiveHint}
+              />
+            ) : null}
             <SettingsRow
               on={SHEET_GROUP}
               icon="qr"
@@ -83,15 +176,19 @@ export default function HostConnectionScreen() {
             ? ([copy.lan, 'lan'] as const)
             : isConnectRoute(url)
               ? (['Connect', 'encrypted'] as const)
-              : new URL(url).hostname.endsWith('.ts.net')
+              : isTailscaleRoute(url)
                 ? (['Tailscale', 'encrypted'] as const)
-                : ([copy.local, 'computer'] as const);
+                : isLoopbackRoute(url)
+                  ? ([copy.ssh, 'encrypted'] as const)
+                  : ([copy.address, 'computer'] as const);
           return (
             <SettingsSection
               key={url}
               title={kind}
               on={SHEET_GROUP}
-              {...(index === routes.length - 1 ? { footer: copy.automatic } : {})}
+              {...(index === routes.length - 1 && snapshot.routePreference === undefined
+                ? { footer: automaticHint }
+                : {})}
             >
               <SettingsRow
                 on={SHEET_GROUP}
@@ -127,6 +224,34 @@ export default function HostConnectionScreen() {
             </SettingsSection>
           );
         })}
+        {host ? (
+          <SettingsSection
+            title={copy.versions}
+            on={SHEET_GROUP}
+            {...(snapshot.compatibility?.update === 'host'
+              ? { footer: t.hostCompatibility.updateHost }
+              : snapshot.compatibility?.update === 'app'
+                ? { footer: t.hostCompatibility.updateApp }
+                : {})}
+          >
+            <SettingsRow
+              on={SHEET_GROUP}
+              icon="computer"
+              title={t.hostCompatibility.hostVersion}
+              testID="connection-host-version"
+              detail={
+                snapshot.compatibility?.hostVersion ??
+                (snapshot.compatibility?.update === 'host' ? t.hostCompatibility.olderThan170 : '—')
+              }
+            />
+            <SettingsRow
+              on={SHEET_GROUP}
+              icon="version"
+              title={t.hostCompatibility.appVersion}
+              detail={installedAppVersion() ?? '—'}
+            />
+          </SettingsSection>
+        ) : null}
       </SettingsForm>
     </SheetScreen>
   );

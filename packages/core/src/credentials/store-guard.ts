@@ -36,7 +36,9 @@ export function credentialStoreDenial(
     return command.includes('.credentials') ||
       /\.cred[\w-]*[*?[]/.test(command) ||
       command.includes(store) ||
-      (basename(dshHome).length > 0 && new RegExp(`${escape(home)}/?(\\s|$|["'*])`).test(command))
+      (basename(dshHome).length > 0 &&
+        new RegExp(`${escape(home)}/?(\\s|$|["'*])`).test(command) &&
+        !literalOutputCommand(name, command))
       ? 'The native credential store is not available to Agent commands; ask for a secret with ask_secret and use it through a protected consumer'
       : undefined;
   }
@@ -52,6 +54,16 @@ export function credentialStoreDenial(
       return 'The native credential store is not available to Agent file tools; ask for a secret with ask_secret and use it through a protected consumer';
   }
   return undefined;
+}
+
+function literalOutputCommand(shell: string, command: string): boolean {
+  if (/[\r\n\u2018\u2019\u201c\u201d]/.test(command)) return false;
+  const output = shell === 'bash' ? '(?:echo|printf)' : '(?:echo|Write-Output)';
+  const argument = String.raw`(?:'[^'\r\n]*'|"[^"\x60$\\\r\n]*"|[a-zA-Z0-9_./:=+%,-]+)`;
+  return new RegExp(
+    `^[ \\t]*${output}(?:[ \\t]+${argument})*[ \\t]*$`,
+    shell === 'pwsh' ? 'i' : '',
+  ).test(command);
 }
 
 function escape(value: string): string {

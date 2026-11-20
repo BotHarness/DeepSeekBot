@@ -1,7 +1,8 @@
+import { Tag } from './ds/tag.js';
 import { ExternalMessageText } from './external-message-text.js';
 import { externalPlatformLabel, externalSenderLabel } from './bridge-source-label.js';
 import type { ReactElement, ReactNode } from 'react';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import type { BotHarnessTranslate } from './locale.js';
 

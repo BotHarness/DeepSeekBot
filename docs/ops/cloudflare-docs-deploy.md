@@ -19,7 +19,7 @@ pnpm docs:deploy           # 等于 pnpm --filter docs run deploy
 ```
 
 - 需要 `pnpm exec wrangler login`（或 `CLOUDFLARE_API_TOKEN`）一次。
-- 构建会先跑 `scripts/sync-docs.mjs`，把 living architecture、`CONTEXT.md`、Guides、生成 Reference、ADR 与 changelog 同步进 `src/content/`。
+- 构建会先跑 `scripts/sync-docs.mjs`，把 living architecture、`GLOSSARY.md`、Guides、生成 Reference、ADR 与 changelog 同步进 `src/content/`。
 - 首次部署后，在 Dashboard → Worker → Settings → Domains & Routes 确认 **`botharness.ai` 和 `botharness.dev` 都是自定义域名**（同一 Worker、同一份内容，无需重定向）。
 
 ## 可选：Workers Builds（Git 集成，后续再做）

@@ -5,6 +5,7 @@ export const GENERATED_FILES_CSS = `
 .bh-generated-files-list:empty { display: none; }
 .bh-generated-files-list { display: flex; flex-direction: column; margin: 0; padding: 0; list-style: none; }
 .bh-generated-file { min-width: 0; padding: 0; }
+.bh-generated-files-older { display: flex; justify-content: center; padding: ${space.x2} ${space.x3} ${space.x3}; }
 .bh-generated-file:hover { background: ${color.hover}; }
 .bh-generated-file .bh-message-attachment { width: 100%; min-width: 0; }
 .bh-generated-file .bh-message-file { box-sizing: border-box; flex-wrap: wrap; gap: ${space.x1} ${space.x3}; width: 100%; max-width: 100%; min-height: ${size.row}; padding: ${space.x2} ${space.x3}; border-radius: 0; background: transparent; }

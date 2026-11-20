@@ -30,7 +30,7 @@ export type TelemetryCapture = (
 ) => void;
 
 export interface TelemetryStackFrame {
-  platform: 'node:javascript';
+  platform: 'node:javascript' | 'web:javascript';
   function: string;
   filename: string;
   abs_path: string;
@@ -41,7 +41,10 @@ export interface TelemetryStackFrame {
 
 export interface TelemetryExceptionEntry {
   type: string;
-  mechanism: { type: 'onuncaughtexception' | 'onunhandledrejection'; handled: false };
+  mechanism: {
+    type: 'onuncaughtexception' | 'onunhandledrejection' | 'onerror';
+    handled: false;
+  };
   stacktrace: { type: 'raw'; frames: TelemetryStackFrame[] };
 }
 

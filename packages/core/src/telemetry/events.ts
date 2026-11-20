@@ -1,4 +1,11 @@
 import { MARKETPLACE_INSTALL_SOURCES } from '../marketplace/client.js';
+import {
+  BOT_TURN_CONTEXT_PROPERTIES,
+  BOT_TURN_OUTCOMES,
+  BOT_TURN_ROLES,
+  BOT_TURN_TRIGGERS,
+} from './bot-turn-spec.js';
+import { CLIENT_ISSUE_DURATION_BUCKETS, CLIENT_ISSUE_KINDS } from './client-issues.js';
 
 export const CONNECTOR_TYPES = ['feishu', 'lark', 'slack', 'discord', 'weixin', 'other'] as const;
 
@@ -90,7 +97,7 @@ export interface TelemetryEventSpec {
   properties: Readonly<Record<string, TelemetryPropertySpec>>;
 }
 
-const INTRO_STEPS = ['welcome', 'theme', 'model', 'community', 'start'] as const;
+const INTRO_STEPS = ['welcome', 'theme', 'model', 'phone', 'community', 'start'] as const;
 const INTRO_PERSONAS = ['engineer', 'creator', 'operator', 'learner'] as const;
 const INTRO_FEATURES = ['bot', 'group', 'schedule', 'browser', 'memory', 'im'] as const;
 const INTRO_PERSONA_DETAILS = [
@@ -134,6 +141,51 @@ export const TELEMETRY_EVENTS = {
       window_hours: 'count',
     },
   },
+  'app:token_usage_report': {
+    origin: 'host',
+    description:
+      'Changed daily Bot-owned Session token snapshots from the last seven Host-local days; take the latest per install and day, never sum snapshots.',
+    properties: {
+      day_timestamp: 'count',
+      input_token_count: 'count',
+      output_token_count: 'count',
+      cache_read_token_count: 'count',
+      cache_write_token_count: 'count',
+      total_token_count: 'count',
+      reported_total_token_count: 'count',
+      unknown_total_count: 'count',
+      is_partial: 'boolean',
+      is_reconciled: 'boolean',
+    },
+  },
+  'chat:bot_turn_complete': {
+    origin: 'host',
+    description:
+      'A Bot-owned Orchestrator or Assignment turn ended: reported token usage summed over its model steps, and estimated context tokens per Context Source for the whole context (the context properties) and for what this turn added (the added properties). No message text.',
+    properties: {
+      role: BOT_TURN_ROLES,
+      outcome: BOT_TURN_OUTCOMES,
+      trigger: BOT_TURN_TRIGGERS,
+      step_count: 'count',
+      tool_call_count: 'count',
+      input_token_count: 'count',
+      output_token_count: 'count',
+      cache_read_token_count: 'count',
+      cache_write_token_count: 'count',
+      context_token_count: 'count',
+      is_partial: 'boolean',
+      ...Object.fromEntries(BOT_TURN_CONTEXT_PROPERTIES.map((name) => [name, 'count' as const])),
+    },
+  },
+  'app:client_issue_report': {
+    origin: 'host',
+    description:
+      'The Web Client hit a failure or a slowdown: an uncaught error, a failed or slow request, a long frame or a broken invariant. At most once per kind per Client session, with no message text.',
+    properties: {
+      kind: CLIENT_ISSUE_KINDS,
+      duration_bucket: CLIENT_ISSUE_DURATION_BUCKETS,
+    },
+  },
   'app:active_day_start': {
     origin: 'host',
     description:
@@ -150,8 +202,9 @@ export const TELEMETRY_EVENTS = {
   },
   'search:switcher_open': {
     origin: 'client',
-    description: 'The quick switcher (search Channels, messages and settings) opened.',
-    properties: SURFACE,
+    description:
+      'The quick switcher (search Channels, messages and settings) opened, from its keyboard shortcut or the control-rail Search button.',
+    properties: { source: ['shortcut', 'rail'], ...SURFACE },
   },
   'search:result_open': {
     origin: 'client',
@@ -170,7 +223,7 @@ export const TELEMETRY_EVENTS = {
   },
   'activity:inbox_open': {
     origin: 'client',
-    description: 'Activity Center (the Human Inbox) opened.',
+    description: 'Activity opened.',
     properties: SURFACE,
   },
   'activity:approval_submit': {
@@ -190,23 +243,26 @@ export const TELEMETRY_EVENTS = {
   },
   'activity:inbox_reply_send': {
     origin: 'client',
-    description: 'The Human replied to a message from Activity Center.',
+    description: 'The Human replied to a message from Activity.',
     properties: { target: ['message', 'assignment'], ...SURFACE },
   },
   'activity:inbox_item_dismiss': {
     origin: 'client',
-    description: 'The Human dismissed an Activity Center item.',
+    description: 'The Human dismissed an Activity item.',
     properties: SURFACE,
   },
   'activity:inbox_item_snooze': {
     origin: 'client',
-    description: 'The Human snoozed an Activity Center item.',
+    description: 'The Human snoozed an Activity item.',
     properties: SURFACE,
   },
   'model:plan_update': {
     origin: 'client',
     description: "A PersonaBot's model plan changed.",
-    properties: { via: ['preset', 'custom', 'assignments', 'plan', 'inherit'], ...SURFACE },
+    properties: {
+      via: ['preset', 'custom', 'assignments', 'plan', 'inherit', 'group'],
+      ...SURFACE,
+    },
   },
   'remote_host:host_pair_complete': {
     origin: 'client',

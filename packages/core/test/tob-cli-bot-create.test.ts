@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -20,7 +21,7 @@ function fixture() {
     core.externalMessaging.close();
     core.operationalDatabase.close();
   });
-  const bridge = createBridgeMethods({ ...core });
+  const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
   const prepare = createTobBotCreationOperations({
     creations: core.creations,
     bridge,

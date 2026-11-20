@@ -1,6 +1,6 @@
 # PersonaBot 输出提交事件
 
-这是应用定义、仅在 Host 进程中的 Cordis Event，用于观察 PersonaBot 已提交的公开文本。它与 DSH SessionEvent、模型增量、Activity、Channel SSE、外部平台送达分别有自己的契约。产品边界见 [ADR-0049](../../adr/0049-personabot-activity-is-a-projection-with-live-events.md) 与[现行架构](../../architecture/botharness-architecture.md)。
+这是应用定义、仅在 Host 进程中的 Cordis Event，用于观察 PersonaBot 已提交的公开文本。它与 DSH SessionEvent、模型增量、Activity、Channel SSE、外部平台送达分别有自己的契约。产品边界见 [ADR-0049](../../decisions/release.md#adr-0049) 与[现行架构](../../architecture/botharness-architecture.md)。
 
 ## 订阅与生命周期
 

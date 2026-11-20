@@ -1,28 +1,17 @@
+import {
+  finishHumanProfile,
+  readHumanAvatars,
+  readHumanIdentity,
+  setHumanAvatar,
+  setHumanName,
+} from '@botharness/host-client/human-profile';
+import { readRoster, applyRosterBatch } from '@botharness/host-client/roster-readers';
+import { setBotAvatar } from '@botharness/host-client/bot-control';
+export { PROFILE_OPTIONS } from './cli-option-spec.js';
 import { readFileSync, writeFileSync } from 'node:fs';
-import { dmChannelId } from '../channels/channel.js';
+import { resolveBotDm } from './cli-bot-dm.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
-
-export const PROFILE_OPTIONS = {
-  file: { type: 'string' },
-  'recipe-stdin': { type: 'boolean' },
-  'part-stdin': { type: 'boolean' },
-  color: { type: 'string' },
-  automatic: { type: 'boolean' },
-  'source-class': { type: 'string' },
-  wake: { type: 'string' },
-  delivery: { type: 'string' },
-  'digest-count': { type: 'string' },
-  'digest-interval': { type: 'string' },
-  soul: { type: 'string' },
-  'core-memory': { type: 'string' },
-  section: { type: 'string' },
-  confirm: { type: 'boolean' },
-  slot: { type: 'string' },
-  colors: { type: 'string' },
-  parent: { type: 'string' },
-  'part-id': { type: 'string' },
-} as const;
 
 export const PROFILE_COMMANDS = [
   { command: 'bot-avatar-set', description: "set a Bot's avatar image from a file, or --clear it" },
@@ -67,7 +56,23 @@ export const PROFILE_COMMANDS = [
     command: 'roster-top-reorder',
     description: 'set the top-level sidebar order of sections and Channels',
   },
-  { command: 'human-identity', description: "read the Human's id and display name" },
+  { command: 'host-ping', description: 'check that the Host answers, with no payload' },
+  {
+    command: 'human-identity',
+    description: "read the Human's id, display name and avatar version",
+  },
+  {
+    command: 'human-avatar-set',
+    description: 'set your own chat avatar from a PNG, JPEG or WebP file, or --clear it',
+  },
+  {
+    command: 'human-avatars',
+    description: 'read the chat avatars of Humans you share a Channel with, by Human ID',
+  },
+  {
+    command: 'human-profile-setup-finish',
+    description: 'stop asking a new Team member for a chat name and photo at sign-in',
+  },
   { command: 'part-library', description: 'list the Custom Part Library' },
   { command: 'part-library-add', description: 'save a Custom Part JSON from stdin to the library' },
   {
@@ -191,19 +196,20 @@ export async function profileCall(
   rest: string[],
   values: ProfileValues,
   io: BotCreateCliIo,
-): Promise<[method: string, args: Record<string, unknown>]> {
+): Promise<[method: string, args: Record<string, unknown>, dmSlug?: string]> {
   switch (command) {
     case 'bot-avatar-set': {
-      const channelId = dmChannelId(oneBot(command, rest));
+      const dmSlug = oneBot(command, rest);
       if ((values.file !== undefined) === (values.clear === true))
         usage('bot-avatar-set needs exactly one of --file or --clear.');
       return [
         'botAvatarSet',
-        { channelId, avatar: values.clear ? null : imageDataUrl(readBytes(values.file)) },
+        { avatar: values.clear ? null : imageDataUrl(readBytes(values.file)) },
+        dmSlug,
       ];
     }
     case 'bot-banner-set': {
-      const channelId = dmChannelId(oneBot(command, rest));
+      const dmSlug = oneBot(command, rest);
       const chosen = [values.file !== undefined, values['recipe-stdin'] === true, values.clear];
       if (chosen.filter(Boolean).length !== 1)
         usage('bot-banner-set needs exactly one of --file, --recipe-stdin or --clear.');
@@ -212,15 +218,15 @@ export async function profileCall(
         : values['recipe-stdin']
           ? { recipe: await stdinJson(io, '--recipe-stdin') }
           : { image: `data:image/png;base64,${readBytes(values.file).toString('base64')}` };
-      return ['botBannerSet', { channelId, banner }];
+      return ['botBannerSet', { banner }, dmSlug];
     }
     case 'bot-appearance-set': {
-      const channelId = dmChannelId(oneBot(command, rest));
+      const dmSlug = oneBot(command, rest);
       if (values['recipe-stdin'] !== true) usage('bot-appearance-set requires --recipe-stdin.');
-      return ['botAppearanceSet', { channelId, recipe: await stdinJson(io, '--recipe-stdin') }];
+      return ['botAppearanceSet', { recipe: await stdinJson(io, '--recipe-stdin') }, dmSlug];
     }
     case 'bot-primary-color-set': {
-      const channelId = dmChannelId(oneBot(command, rest));
+      const dmSlug = oneBot(command, rest);
       if ((values.color !== undefined) === (values.automatic === true))
         usage('bot-primary-color-set needs exactly one of --color or --automatic.');
       if (values.color !== undefined && !/^#[0-9a-f]{6}$/iu.test(values.color))
@@ -228,11 +234,11 @@ export async function profileCall(
       return [
         'botPrimaryColorSet',
         {
-          channelId,
           primaryColor: values.automatic
             ? { mode: 'automatic' }
             : { mode: 'custom', color: values.color!.toLowerCase() },
         },
+        dmSlug,
       ];
     }
     case 'bot-source-policies':
@@ -341,9 +347,30 @@ export async function profileCall(
       });
       return ['topReorder', { order }];
     }
+    case 'host-ping':
+      noArguments(command, rest);
+      return ['ping', {}];
     case 'human-identity':
       noArguments(command, rest);
       return ['humanIdentity', {}];
+    case 'human-avatar-set': {
+      noArguments(command, rest);
+      if ((values.file !== undefined) === (values.clear === true))
+        usage('human-avatar-set needs exactly one of --file or --clear.');
+      return [
+        'humanAvatarSet',
+        { avatar: values.clear ? null : imageDataUrl(readBytes(values.file)) },
+      ];
+    }
+    case 'human-profile-setup-finish':
+      noArguments(command, rest);
+      return ['humanProfileSetupFinish', {}];
+    case 'human-avatars': {
+      const humanIds = rest.map((id) => id.trim()).filter((id) => id.length > 0);
+      if (humanIds.length === 0 || humanIds.length > 64)
+        usage('human-avatars needs 1 to 64 Human IDs.');
+      return ['humanAvatars', { humanIds }];
+    }
     case 'human-name-set': {
       noArguments(command, rest);
       const name = values.name?.trim();
@@ -420,9 +447,24 @@ export async function runProfileCommand(
   io: BotCreateCliIo,
   connect: () => Promise<ProfileRpc>,
 ): Promise<unknown> {
-  const [method, args] = await profileCall(command, rest, values, io);
+  const [method, args, dmSlug] = await profileCall(command, rest, values, io);
   const rpc = await connect();
-  const result = await rpc<unknown>(method, args);
+  const reader = { call: (name: string, payload = {}) => rpc(name, payload) };
+  if (method === 'humanIdentity') return readHumanIdentity(reader);
+  if (method === 'humanNameSet') return setHumanName(reader, args['displayName'] as string | null);
+  if (method === 'humanAvatarSet') return setHumanAvatar(reader, args['avatar'] as string | null);
+  if (method === 'humanAvatars')
+    return { avatars: await readHumanAvatars(reader, args['humanIds'] as string[]) };
+  if (method === 'humanProfileSetupFinish') return finishHumanProfile(reader);
+  if (method === 'rosterGet') return readRoster(reader);
+  if (method === 'rosterBatch') return applyRosterBatch(reader, args);
+  const channelId = dmSlug === undefined ? undefined : await resolveBotDm(rpc, dmSlug);
+  if (method === 'botAvatarSet' && channelId !== undefined)
+    return setBotAvatar(reader, { channelId, avatar: args['avatar'] }, true);
+  const result = await rpc<unknown>(
+    method,
+    channelId === undefined ? args : { ...args, channelId },
+  );
   if (command !== 'part-library-export') return result;
   const exported = result as { fileName?: unknown; data?: unknown };
   if (typeof exported.fileName !== 'string' || typeof exported.data !== 'string')

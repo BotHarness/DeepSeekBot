@@ -12,15 +12,18 @@ export function pulledPast(offset: number, from: number): number {
   return Math.max(0, offset - from);
 }
 
-function measure(event: ScrollEvent) {
+function measure(event: ScrollEvent, inverted: boolean) {
   const native = event.nativeEvent;
   return {
-    offset: native.contentOffset.y,
-    distance: distanceFromLatest({
-      content: native.contentSize?.height ?? 0,
-      layout: native.layoutMeasurement?.height ?? 0,
-      offset: native.contentOffset.y,
-    }),
+    offset: inverted ? -native.contentOffset.y : native.contentOffset.y,
+    distance: distanceFromLatest(
+      {
+        content: native.contentSize?.height ?? 0,
+        layout: native.layoutMeasurement?.height ?? 0,
+        offset: native.contentOffset.y,
+      },
+      inverted,
+    ),
   };
 }
 
@@ -40,11 +43,13 @@ export function usePullToCompose({
   enabled,
   threshold,
   flick,
+  inverted = false,
   onCompose,
 }: {
   enabled: boolean;
   threshold: number;
   flick?: number | undefined;
+  inverted?: boolean;
   onCompose(): void;
 }): PullToCompose {
   const from = useRef<number | undefined>(undefined);
@@ -61,30 +66,32 @@ export function usePullToCompose({
 
   const onScrollBeginDrag = useCallback(
     (event: ScrollEvent) => {
-      const { offset, distance } = measure(event);
+      const { offset, distance } = measure(event, inverted);
       from.current = enabled && atLatest(distance) ? offset : undefined;
     },
-    [enabled],
+    [enabled, inverted],
   );
 
   const onScroll = useCallback(
     (event: ScrollEvent) => {
       if (from.current === undefined || flick !== undefined) return;
-      const pulled = pulledPast(event.nativeEvent.contentOffset.y, from.current);
+      const { offset } = measure(event, inverted);
+      const pulled = pulledPast(offset, from.current);
       progress.value = Math.min(1, pulled / threshold);
       reach(pulled >= threshold);
     },
-    [flick, progress, threshold, reach],
+    [flick, inverted, progress, threshold, reach],
   );
 
   const onScrollEndDrag = useCallback(
     (event: ScrollEvent) => {
       if (from.current === undefined) return;
-      const { distance } = measure(event);
+      const { offset, distance } = measure(event, inverted);
       const composes =
         flick === undefined
-          ? pulledPast(event.nativeEvent.contentOffset.y, from.current) >= threshold
-          : atLatest(distance) && flickedPast(-(event.nativeEvent.velocity?.y ?? 0), flick);
+          ? pulledPast(offset, from.current) >= threshold
+          : atLatest(distance) &&
+            flickedPast((inverted ? 1 : -1) * (event.nativeEvent.velocity?.y ?? 0), flick);
       from.current = undefined;
       progress.value = withSpring(0, spring.release);
       reach(false);
@@ -92,7 +99,7 @@ export function usePullToCompose({
       if (flick !== undefined) haptic('pull');
       onCompose();
     },
-    [enabled, flick, threshold, onCompose, progress, reach],
+    [enabled, flick, inverted, threshold, onCompose, progress, reach],
   );
 
   return { progress, ready, onScrollBeginDrag, onScroll, onScrollEndDrag };

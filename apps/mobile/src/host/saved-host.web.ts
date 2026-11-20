@@ -1,6 +1,11 @@
-import { parseSavedHosts, serializeSavedHost, type SavedHosts } from './hosts';
+import {
+  parseSavedHosts,
+  serializeSavedHost,
+  type SavedHosts,
+} from '@botharness/host-client/hosts';
 
-export type { SavedHost, SavedHosts } from './hosts';
+export { SavedHostsWriteError } from '@botharness/host-client/hosts';
+export type { SavedHost, SavedHosts } from '@botharness/host-client/hosts';
 
 const KEY = 'deepseekbot.hosts.v3';
 const SINGLE_KEY = 'deepseekbot.host.v2';

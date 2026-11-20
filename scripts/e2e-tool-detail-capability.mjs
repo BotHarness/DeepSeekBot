@@ -14,6 +14,8 @@ const result = spawnSync(process.execPath, ['scripts/e2e-safe-tool-activity.mjs'
     BH_E2E_COMPACT: 'true',
     BH_E2E_SOURCE_ROLE: 'orchestrator',
   },
+  shell: false,
+  windowsHide: true,
 });
 assert.equal(result.status, 0, 'Real native Tool / safe Activity UI verifier must pass');
 const proof = JSON.parse(readFileSync(resolve(home, 'tool-detail-proof.json'), 'utf8'));

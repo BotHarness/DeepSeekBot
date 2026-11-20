@@ -1,9 +1,6 @@
+import { Icon } from './ds/icon.js';
 import { useRef, useState, type ReactElement } from 'react';
 
-import {
-  IconCheckOutlineRegular,
-  IconCopyOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 import { Tooltip } from './ds/tooltip.js';
 
 import { IconButton } from './ds/icon-button.js';
@@ -63,7 +60,7 @@ export function MessageCopyAction({
           void copy();
         }}
       >
-        {copied ? <IconCheckOutlineRegular size={16} /> : <IconCopyOutlineRegular size={16} />}
+        {copied ? <Icon name="check" size={16} /> : <Icon name="copy" size={16} />}
       </IconButton>
     </Tooltip>
   );

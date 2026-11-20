@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 import { View, type ViewInstance } from 'react-native';
 
 import {
@@ -9,9 +9,9 @@ import {
   loadAssignmentContext,
   replyToAssignment,
   type AttentionRef,
-} from '../host/attention-actions';
-import type { HostClient } from '../host/client';
-import type { HumanAttentionItem } from '../host/wire';
+} from '@botharness/host-client/attention-actions';
+import type { HostClient } from '@botharness/host-client/client';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { AssignmentView, AutoRejectionView, JoinRequestView, RepairView } from './attention-view';
 import { useMounted } from './mounted';
 import { errorText, LoadFailed, Loading } from './request-parts';
@@ -37,6 +37,7 @@ export function AttentionItemView({
   after,
   onOpenChat,
   fallback,
+  clearOnOpen = false,
 }: {
   client: HostClient;
   target: AttentionRef;
@@ -45,20 +46,48 @@ export function AttentionItemView({
   after?(): void;
   onOpenChat?(item: HumanAttentionItem): void;
   fallback: ReactNode;
+  clearOnOpen?: boolean;
 }) {
   const [phase, setPhase] = useState<Phase>(
     known === undefined ? { kind: 'loading' } : { kind: 'ready', item: known },
   );
+  const [cleared, setCleared] = useState(false);
+  const [clearError, setClearError] = useState<string | undefined>(undefined);
+  const clearing = useRef<string | undefined>(undefined);
+  const afterRef = useRef(after);
+  afterRef.current = after;
+  const clearOpened = useCallback(
+    (opened: HumanAttentionItem | undefined) => {
+      if (!clearOnOpen || opened?.kind !== 'bot-message-needs-repair') return;
+      if (clearing.current === opened.id) return;
+      clearing.current = opened.id;
+      setClearError(undefined);
+      void clearAttentionItem(client, opened).then(
+        () => {
+          setCleared(true);
+          afterRef.current?.();
+        },
+        (error: unknown) => {
+          clearing.current = undefined;
+          setClearError(errorText(error));
+        },
+      );
+    },
+    [client, clearOnOpen],
+  );
   const load = useCallback(async () => {
     setPhase({ kind: 'loading' });
     try {
-      setPhase({ kind: 'ready', item: await findAttentionItem(client, target) });
+      const found = await findAttentionItem(client, target);
+      setPhase({ kind: 'ready', item: found });
+      clearOpened(found);
     } catch (error) {
       setPhase({ kind: 'failed', error: errorText(error) });
     }
-  }, [client, target]);
+  }, [client, target, clearOpened]);
   const mount = useMounted<ViewInstance>(() => {
     if (known === undefined) void load();
+    else clearOpened(known);
   }, [load]);
 
   const item = phase.kind === 'ready' ? phase.item : undefined;
@@ -122,6 +151,8 @@ export function AttentionItemView({
         port={ports}
         {...(after === undefined ? {} : { after })}
         {...(onOpenChat === undefined ? {} : { onOpenChat: () => onOpenChat(item) })}
+        cleared={cleared}
+        {...(clearError === undefined ? {} : { clearError })}
       />
     );
   else if (

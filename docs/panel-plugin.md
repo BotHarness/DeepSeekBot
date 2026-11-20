@@ -2,7 +2,7 @@
 
 Room iteration 3 is implemented and isolated-Host verified; Human visual acceptance is pending. See [the handoff](qa/2222-vrm-materials-handoff.md) for the current validation boundary.
 
-This is the implementation guide for [T1 #2222](https://github.com/BotHarness/DeepSeekBot/issues/2222), under [ADR-0234](adr/0234-panels-are-native-plugins-with-independent-binding.md). It does not implement the T2 Task Kanban or the later migration tickets. Human acceptance remains the gate before expanding those slices.
+This is the implementation guide for [T1 #2222](https://github.com/BotHarness/DeepSeekBot/issues/2222), under [ADR-0234](decisions/desktop-ui.md#adr-0234). It does not implement the T2 Task Kanban or the later migration tickets. Human acceptance remains the gate before expanding those slices.
 
 ## Install and open
 

@@ -1,9 +1,10 @@
+import { measureMessageView } from '../primitives/measure-message-view';
 import { useRef } from 'react';
 import { Pressable, View, type ViewInstance } from 'react-native';
 
-import type { ChannelActivity } from '../../host/channel-activity';
-import type { RosterView } from '../../host/client';
-import type { ConversationMessage } from '../../host/conversation';
+import type { ChannelActivity } from '@botharness/host-client/channel-activity';
+import type { RosterView } from '@botharness/host-client/client';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
 import { motion, radius, space } from '../design/tokens';
@@ -11,11 +12,14 @@ import { haptic } from '../haptics';
 import { Text } from '../primitives/text';
 import {
   ChatsIcon,
+  CpuIcon,
   GitCommitIcon,
   MessageIcon,
   PersonIcon,
+  PhoneIcon,
   PlusIcon,
-  RecordingStopIcon,
+  StopCircleIcon,
+  ShieldCheckIcon,
 } from '../shell/icons';
 import { useStrings } from '../strings';
 import { activityPeer, activityText, type ActivityTarget } from './activity-text';
@@ -57,23 +61,31 @@ export function ActivityRow({
   const summary =
     dmSlug !== undefined && line.botSlug === dmSlug ? detail : `${line.name} ${detail}`;
   const Icon =
-    activity.kind === 'memory'
-      ? GitCommitIcon
-      : activity.kind === 'dm-action'
-        ? MessageIcon
-        : activity.kind === 'channel-post'
-          ? ChatsIcon
-          : activity.kind === 'bot-create'
-            ? PlusIcon
-            : activity.kind === 'departure'
-              ? PersonIcon
-              : RecordingStopIcon;
-  const size = theme.type.meta.line;
+    activity.kind === 'approval-review'
+      ? ShieldCheckIcon
+      : activity.kind === 'memory'
+        ? GitCommitIcon
+        : activity.kind === 'dm-action'
+          ? MessageIcon
+          : activity.kind === 'channel-post'
+            ? ChatsIcon
+            : activity.kind === 'bot-create'
+              ? PlusIcon
+              : activity.kind === 'departure'
+                ? PersonIcon
+                : activity.kind === 'voice-call'
+                  ? PhoneIcon
+                  : activity.kind === 'model-switch'
+                    ? CpuIcon
+                    : StopCircleIcon;
+  const size = theme.type.meta.line * theme.fontScale;
   const hit = Math.max(0, (theme.touch - size) / 2);
   const open = () => {
-    ref.current?.measureInWindow((x, y, width, height) => {
-      onLongPress({ x, y, width, height }, label, line.target);
-    });
+    measureMessageView(
+      ref.current,
+      (x, y, width, height) => onLongPress({ x, y, width, height }, label, line.target),
+      () => undefined,
+    );
   };
   return (
     <View style={bubbleRow(true)}>
@@ -104,13 +116,15 @@ export function ActivityRow({
           {dmSlug !== undefined ? null : (
             <View style={{ width: SPEAKER_AVATAR, alignItems: 'center' }}>
               {actor === undefined ? (
-                <PersonIcon color={theme.color.muted} size={size} />
+                <Icon color={theme.color.muted} size={size} />
               ) : (
                 <BotAvatar bot={actor} size={size} corner={radius.xs} ring={false} />
               )}
             </View>
           )}
-          <Icon color={theme.color.muted} size={size} />
+          {dmSlug === undefined && actor === undefined ? null : (
+            <Icon color={theme.color.muted} size={size} />
+          )}
           {dmSlug === undefined || peerSlug === undefined ? null : peer === undefined ? (
             <PersonIcon color={theme.color.muted} size={size} />
           ) : (

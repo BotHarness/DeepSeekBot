@@ -1,4 +1,4 @@
-import type { HostSnapshot } from './client';
+import type { HostSnapshot } from '@botharness/host-client/client';
 import { liveGlance, type HostStatus } from './host-glance';
 
 interface AvailabilityHost {

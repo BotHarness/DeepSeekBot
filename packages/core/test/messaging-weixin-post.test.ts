@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import { createDshImProvider, type DshImOutboundService } from '../src/messaging/dsh-im.js';
@@ -70,10 +71,10 @@ async function fixture() {
 
 it('qualified WeChat post is external-only, current-own-authorized and idempotent through the Profile RPC', async () => {
   const { core, transport, grant } = await fixture();
-  const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
   const before = core.channels.readMessages(dm.id);
   expect((await core.externalMessaging.snapshot('ada')).grants[0]?.canPost).toBe(true);
-  const bridge = createBridgeMethods(core);
+  const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, core);
   const input = {
     slug: 'ada',
     grantId: grant.id,

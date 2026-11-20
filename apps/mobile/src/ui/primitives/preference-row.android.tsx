@@ -65,7 +65,7 @@ export function PreferenceRow<T extends string>({
       <SettingsRow
         on={on}
         title={title}
-        icon={icon}
+        {...(icon === undefined ? {} : { icon })}
         detail={options.find((option) => option.value === value)?.label ?? value}
         testID={testID}
         expanded={open}

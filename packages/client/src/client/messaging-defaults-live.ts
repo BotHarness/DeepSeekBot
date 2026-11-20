@@ -1,15 +1,42 @@
+import type { HostClient } from '@botharness/host-client/client';
+import {
+  SKILL_CATALOG_CHANGED_EVENT,
+  type SkillCatalogChange,
+} from '../../../core/src/skills/events.js';
+import { parseSkillCatalogChange } from './bridge.js';
 import type { PurgedPlacement } from '../../../core/src/purge/contracts.js';
 import { parseContentRedactions } from './content-redactions.js';
+import {
+  RESOURCE_CHANGED_EVENT,
+  parseResourceChange,
+  type LiveResource,
+  type ResourceChange,
+} from '../../../core/src/channels/resource-events.js';
+import { visibleInterval } from './visible-interval.js';
+import { reportFailure } from './diagnostic-log.js';
+
+const skillListeners = new Map<() => void, string>();
+const skillsChanged = (change?: SkillCatalogChange): void => {
+  for (const [listener, channelId] of [...skillListeners])
+    if (change === undefined || change.channelIds.includes(channelId)) listener();
+};
 
 const listeners = new Set<() => void>();
 const attentionListeners = new Map<() => void, (healthy: boolean) => void>();
 let rosterHealthy = false;
+const resourceListeners = new Map<(change?: ResourceChange) => void, (healthy: boolean) => void>();
+const rosterListeners = (): number =>
+  listeners.size + attentionListeners.size + skillListeners.size + resourceListeners.size;
 const attentionHealth = (healthy: boolean): void => {
   rosterHealthy = healthy;
   for (const health of attentionListeners.values()) health(healthy);
+  for (const health of resourceListeners.values()) health(healthy);
 };
 const attentionChanged = (): void => {
   for (const changed of attentionListeners.keys()) changed();
+};
+const resourcesChanged = (change?: ResourceChange): void => {
+  for (const changed of [...resourceListeners.keys()]) changed(change);
 };
 const purgeListeners = new Set<(placements: PurgedPlacement[]) => void>();
 const latestListeners = new Set<(value: unknown) => void>();
@@ -23,6 +50,8 @@ export interface TypedLive {
     baseline(placements: PurgedPlacement[]): void;
     changed(): void;
     attention?(): void;
+    skills?(change: unknown): void;
+    resource?(change: unknown): void;
     latest(value: unknown): void;
     purged(placements: PurgedPlacement[]): void;
     interrupted(): void;
@@ -63,25 +92,35 @@ function publishLatest(value: unknown): void {
 
 function syncTyped(): void {
   if (typed === undefined) return;
-  if ((listeners.size || attentionListeners.size) && stopRoster === undefined)
+  if (rosterListeners() && stopRoster === undefined)
     stopRoster = typed.roster({
       baseline(placements) {
         redactions.clear();
         recordPurged(placements);
         notify();
+        skillsChanged();
         attentionHealth(true);
         attentionChanged();
+        resourcesChanged();
       },
       changed: () => {
         notify();
         attentionChanged();
       },
       attention: attentionChanged,
+      resource: (value) => {
+        const change = parseResourceChange(value);
+        if (change !== undefined) resourcesChanged(change);
+      },
+      skills: (value) => {
+        const change = parseSkillCatalogChange(value);
+        if (change !== undefined) skillsChanged(change);
+      },
       latest: publishLatest,
       purged: recordPurged,
       interrupted: () => attentionHealth(false),
     });
-  else if (!listeners.size && !attentionListeners.size && stopRoster !== undefined) {
+  else if (!rosterListeners() && stopRoster !== undefined) {
     stopRoster();
     stopRoster = undefined;
     rosterHealthy = false;
@@ -108,11 +147,7 @@ function syncTyped(): void {
 
 function releaseUnusedSource(): void {
   syncTyped();
-  if (
-    typed === undefined
-      ? listeners.size || attentionListeners.size || consumers.size
-      : channelConsumer !== undefined
-  )
+  if (typed === undefined ? rosterListeners() || consumers.size : channelConsumer !== undefined)
     return;
   source?.close();
   source = undefined;
@@ -154,11 +189,11 @@ class SharedSource extends EventTarget implements ActivityEventSource {
     consumers.delete(this);
     if (channelConsumer === this) channelConsumer = undefined;
     releaseUnusedSource();
-    if (listeners.size || attentionListeners.size || consumers.size) {
+    if (rosterListeners() || consumers.size) {
       try {
         ensureSource();
       } catch {
-        console.warn('botharness: live transport replacement refused');
+        reportFailure('live-transport-replacement-refused', 'live transport replacement refused');
       }
     }
   }
@@ -190,12 +225,24 @@ function ensureSource(): void {
   next.addEventListener('roster/changed', () => {
     if (source === next) notify();
   });
+  next.addEventListener(SKILL_CATALOG_CHANGED_EVENT, (event) => {
+    if (source !== next || !(event instanceof MessageEvent)) return;
+    const change = parseSkillCatalogChange(event.data);
+    if (change !== undefined) skillsChanged(change);
+  });
   next.addEventListener('open', () => {
     if (source === next) {
       notify();
+      skillsChanged();
       attentionHealth(true);
       attentionChanged();
+      resourcesChanged();
     }
+  });
+  next.addEventListener(RESOURCE_CHANGED_EVENT, (event) => {
+    if (source !== next || !(event instanceof MessageEvent)) return;
+    const change = parseResourceChange(event.data);
+    if (change !== undefined) resourcesChanged(change);
   });
   next.addEventListener('human-attention/changed', () => {
     if (source === next) attentionChanged();
@@ -226,6 +273,8 @@ function ensureSource(): void {
     'channel/admission',
     'channel/human-read',
     'channel/reaction',
+    'channel/voice',
+    'channel/attachments',
     'channel/draft-baseline',
     'channel/draft',
     'channel/draft-settled',
@@ -264,7 +313,7 @@ export function installTypedLive(next: TypedLive): () => void {
     attentionHealth(false);
     activityBaseline = undefined;
     sourceUrl = undefined;
-    if (listeners.size || attentionListeners.size || consumers.size) ensureSource();
+    if (rosterListeners() || consumers.size) ensureSource();
     else releaseUnusedSource();
     for (const consumer of [...consumers]) consumer.publish('error', undefined, 0);
   };
@@ -380,5 +429,136 @@ export function observeHumanAttention(refresh: () => void): () => void {
     clearTimeout(pending);
     clearInterval(recovery);
     stop();
+  };
+}
+
+type ResourceSelector = LiveResource | ((change: ResourceChange) => boolean);
+
+export function observeResource(
+  resource: ResourceSelector,
+  refresh: () => void | Promise<void>,
+  recoveryMs = 10_000,
+  safetyMs = 60_000,
+  readOnMount = false,
+  host?: HostClient,
+  subscribeInvalidation?: (invalidate: () => void) => () => void,
+): () => void {
+  let disposed = false;
+  let pending: ReturnType<typeof setTimeout> | undefined;
+  let reading = false;
+  let refreshAgain = false;
+  let stopFallback: (() => void) | undefined;
+  let lastHealth: boolean | undefined;
+  const read = async (): Promise<void> => {
+    pending = undefined;
+    if (disposed) return;
+    reading = true;
+    try {
+      await refresh();
+    } catch {
+      reportFailure('live-resource-refresh-failed', 'live resource refresh failed');
+    } finally {
+      reading = false;
+      if (refreshAgain) {
+        refreshAgain = false;
+        invalidate();
+      }
+    }
+  };
+  const invalidate = (): void => {
+    if (disposed || pending !== undefined) return;
+    if (reading) {
+      refreshAgain = true;
+      return;
+    }
+    pending = setTimeout(() => void read(), 25);
+  };
+  const changed = (change?: ResourceChange): void => {
+    if (
+      change === undefined ||
+      (typeof resource === 'string' ? change.resource === resource : resource(change))
+    )
+      invalidate();
+  };
+  const health = (healthy: boolean): void => {
+    if (lastHealth === healthy) return;
+    lastHealth = healthy;
+    stopFallback?.();
+    stopFallback = visibleInterval(invalidate, healthy ? safetyMs : recoveryMs);
+  };
+  let stopSource: () => void;
+  if (host) {
+    const connectionHealth = () =>
+      health(host.onResource !== undefined && host.getSnapshot().connection.status === 'connected');
+    const offHealth = host.onResource === undefined ? undefined : host.subscribe(connectionHealth);
+    const offResource = host.onResource?.((name, value) => {
+      if (name === undefined) changed();
+      else {
+        const change = parseResourceChange(value ?? { resource: name, revision: 0 });
+        if (change !== undefined) changed(change);
+      }
+    });
+    connectionHealth();
+    stopSource = () => {
+      offResource?.();
+      offHealth?.();
+    };
+  } else {
+    resourceListeners.set(changed, health);
+    health(rosterHealthy);
+    try {
+      ensureSource();
+    } catch {
+      health(false);
+    }
+    stopSource = () => {
+      resourceListeners.delete(changed);
+      releaseUnusedSource();
+    };
+  }
+  const stopInvalidation = subscribeInvalidation?.(invalidate);
+  if (readOnMount) {
+    clearTimeout(pending);
+    void read();
+  }
+  return () => {
+    if (disposed) return;
+    disposed = true;
+    clearTimeout(pending);
+    stopFallback?.();
+    stopInvalidation?.();
+    stopSource();
+  };
+}
+
+export function observeHostResource(
+  resource: ResourceSelector,
+  refresh: () => void | Promise<void>,
+  host?: HostClient,
+  subscribeInvalidation?: (invalidate: () => void) => () => void,
+): () => void {
+  return observeResource(
+    resource,
+    refresh,
+    undefined,
+    undefined,
+    true,
+    host,
+    subscribeInvalidation,
+  );
+}
+
+export function subscribeSkillCatalog(channelId: string, listener: () => void): () => void {
+  skillListeners.set(listener, channelId);
+  try {
+    ensureSource();
+  } catch (error) {
+    skillListeners.delete(listener);
+    releaseUnusedSource();
+    throw error;
+  }
+  return () => {
+    skillListeners.delete(listener);
+    releaseUnusedSource();
   };
 }

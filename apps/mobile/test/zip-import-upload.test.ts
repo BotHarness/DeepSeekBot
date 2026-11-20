@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it, vi } from 'vitest';
-import { uploadZip, type ZipImportSource } from '../src/host/zip-import-upload';
-import { ZIP_CHUNK_BYTES, type ZipFilePort } from '../src/host/zip-import-file';
+import { uploadZip, type ZipImportSource } from '@botharness/host-client/zip-import-upload';
+import { ZIP_CHUNK_BYTES, type ZipFilePort } from '@botharness/host-client/zip-import-file';
 
 function fixture() {
   const bytes = new Uint8Array(ZIP_CHUNK_BYTES + 29).fill(4);

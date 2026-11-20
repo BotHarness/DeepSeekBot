@@ -44,7 +44,13 @@ it('offers mute and pin, ending with mark as read when there is something to rea
 });
 
 it('calls the existing Host methods and refreshes', async () => {
-  const call = vi.fn(async () => ({}));
+  const call = vi.fn(async (method: string) =>
+    method === 'channelMuteSet'
+      ? { muted: ['c1'] }
+      : method === 'rosterBatch'
+        ? { pins: ['dm1'], hidden: [], sections: [], sectionOrder: [] }
+        : {},
+  );
   const refresh = vi.fn(async () => undefined);
   const inbox = { refresh: vi.fn(async () => undefined) };
   const client = { call, refresh } as never;

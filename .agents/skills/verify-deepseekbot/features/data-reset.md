@@ -1,5 +1,16 @@
 # Clear all BotHarness data
 
+## Sources
+
+- `packages/core/src/data-reset/**`
+- `packages/client/src/client/data-reset-settings.tsx`
+
+## Terms
+
+- BotHarness operational database
+- Settings
+- Host
+
 ## Sub-features
 
 - Settings → Data & privacy → **Clear all BotHarness data** opens a preview of every folder that is deleted (with size and file count) and everything kept: DSH credentials, Memory folders a Human chose, exported files.

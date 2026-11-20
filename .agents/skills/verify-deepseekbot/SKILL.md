@@ -56,6 +56,14 @@ node scripts/verify-app.mjs shot <label> --name <n> --bot-mode \
 - Use `rpc <namespace/method> [json]` to read canonical state (Channel timelines, Bot lists) after a UI action, or to seed preconditions through the same public API the Client calls. It is evidence of state, never a substitute for the UI step it follows.
 - For scripted journeys, use the feature file’s launch contract. Some accept `BH_E2E_INSTANCE=.humanlayer/verify/<n>/instance.json`, the model suite accepts `--name <n>`, and others own their Host; check before running so the journey targets this task’s instance.
 
+## Monkey
+
+```bash
+node scripts/verify-app.mjs monkey <label> --name <n> --seed <s> --steps 300 [--bot-mode]
+```
+
+It clicks, types and presses keys at random from the seed, skips destructive controls and links that leave the Host, and exits 1 on an uncaught page error or a blank shell. `<label>.monkey.json` in the evidence folder lists every step and a `replay` command; on a freshly launched Host the same seed and steps make the same choices. The nightly `health` workflow runs it in both modes and keeps a performance and codebase trend.
+
 ## Measure performance
 
 For a change that touches the timeline, the composer or message rendering, or a report that
@@ -77,15 +85,29 @@ Submit the feature's steps to the queue; only its designated runner drives the s
 The Mac runner uses `scripts/e2e-mobile-sim.mjs` and the Maestro flows in `apps/mobile/.maestro/`
 ([phone-notifications.md](features/phone-notifications.md)). Read every captured screenshot.
 The Windows runner uses [Android device QA](../../../docs/agents/android-device-qa.md) and
-`scripts/android-qa.ps1` for its queued emulator/USB-phone lane, XML snapshots and scrcpy video.
+`scripts/android-qa.mjs` for its queued emulator/USB-phone lane, XML snapshots and scrcpy video.
 Web-export checks qualify their named web paths; native-only behavior remains untested until
 its device result is recorded.
+
+## Team mode security suite
+
+For a change that affects Team mode permissions, run the real-model security suite on an isolated Host and attach its report to the PR:
+
+```bash
+pnpm build
+node scripts/e2e-team-security.mjs --launch            # every scenario
+node scripts/e2e-team-security.mjs --name <n> --scenario B   # only file and Shell boundaries
+```
+
+It sets up roles with Role Policy, members, public and private Bots, folders and Channels, then drives real model turns that try to leak finance figures (A), reach other members' folders, the Host data directory or the Host API through file tools, Shell and grants (B), and cross private Bots, Channels, Human DMs, offboarding and model allowlists (C). Hard boundaries are asserted on Host state and tool results; Role Policy scenarios pass only when no restricted value appears in any reply. Shell checks are enforced only when `team-mode status` reports `isolation: enforced` (Linux with bwrap, slirp4netns and nft); elsewhere B2 reports the known gap. The report lands in `.humanlayer/team-security/<time>/`; publish it with `pnpm evidence:publish`.
+
+B2 requires a completed Shell probe against fixed synthetic files and a verified own-file write and read. If the model refuses, the probe does not complete or the reply times out, the report marks B2 `inconclusive` and the suite exits nonzero. Retry the scenario with `--scenario B2`. An inconclusive run does not satisfy the M15 gate.
 
 ## Evidence
 
 `shot` writes `<label>.png`, `<label>.aria.txt` and `<label>.console.txt` to `.humanlayer/verify/<n>/evidence/`, and `<label>.failure.png` plus `<label>.failure.aria.txt` when a step fails. Its JSON output lists every step it performed.
 
-A proof has three parts: the user action, the visible result, and the canonical state behind it (a timeline entry, a persisted Bot, a Git Memory HEAD). A successful API call alone does not prove rendering, and a screenshot alone does not prove persistence. Read the console file: a page error during the journey is a finding even when the screenshot looks right. PR screenshots follow `docs/agents/pr-ui-visual-evidence.md`.
+A proof has three parts: the user action, the visible result, and the canonical state behind it (a timeline entry, a persisted Bot, a Git Memory HEAD). A successful API call alone does not prove rendering, and a screenshot alone does not prove persistence. Read the console file: a page error during the journey is a finding even when the screenshot looks right. PR screenshots follow `docs/agents/pr-ui-visual-evidence.md`: publish reviewed derivatives to Cloudflare R2 using `pnpm evidence:publish`, never commit evidence media to Git or an evidence branch, and remove disposable local copies only after successful publication and verified public readback, and only when no active QA/release hold remains. Merging a PR does not replace either prerequisite; disposable originals additionally wait until merge. Keep URLs, hashes and provenance in the small task index.
 
 ## Cleanup
 
@@ -108,7 +130,7 @@ children have exited, its port is free and the evidence files still exist after 
 
 ## Feature map
 
-[`features/README.md`](features/README.md) indexes the mapped features. Before you verify a change, read the file for each feature the change touches and drive every entry point it lists. When the app no longer matches a file, fix the file in the same change, or report the product regression. A journey that cannot pass keeps its failure and records the reason in `Gotchas`.
+[`features/README.md`](features/README.md) indexes the mapped features. Find the features a change touches with `node scripts/feature-impact.mjs --base=origin/main` (or `--paths <file>...`), and the likely features of a bug report with `--terms="<bug text>"`; it matches each feature's `## Sources` globs and `## Terms` (GLOSSARY.md entries). Before you verify a change, read the file for each feature the change touches and drive every entry point it lists. A new feature file lists its `## Sources` and `## Terms`; `pnpm lint` fails when a glob matches nothing or a term is not in GLOSSARY.md, and `scripts/feature-map-baseline.json` lists the features not mapped yet (it only shrinks). When the app no longer matches a file, fix the file in the same change, or report the product regression. A journey that cannot pass keeps its failure and records the reason in `Gotchas`.
 
 When changing a user entry point, add or update its feature file and index row in the same PR.
 Name every changed sub-feature and its visible/canonical proof. Run

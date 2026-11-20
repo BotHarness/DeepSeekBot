@@ -40,6 +40,7 @@ it('observes supported model routes without retaining bodies or changing the und
           BOTHARNESS_PRIVATE_WIRE_EVIDENCE: evidence,
           BOTHARNESS_PRIVATE_CANARY_FILE: canaries,
         },
+        shell: false,
       },
     );
     const text = readFileSync(evidence, 'utf8');

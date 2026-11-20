@@ -1,6 +1,6 @@
 import { showAppDialog } from '../primitives/app-dialog';
 import { useRef, useState } from 'react';
-import { ActivityRequestFailed } from '../../host/live-activity';
+import { ActivityRequestFailed } from '@botharness/host-client/live-activity';
 import type { ActivityTarget } from '../../host/live-activity-session';
 import { requestActivitySession, useRequestActivity } from '../../host/native-live-activity';
 import { useStrings } from '../strings';
@@ -37,7 +37,7 @@ export function useRequestActivityAction(target: ActivityTarget | undefined) {
           : t.lockScreen.unavailable,
       [{ text: t.close }],
     );
-  const run = async (
+  const run = (
     operation: NonNullable<typeof pending>,
     work: () => Promise<void>,
     failure: (error: unknown) => void,
@@ -45,14 +45,12 @@ export function useRequestActivityAction(target: ActivityTarget | undefined) {
     if (pendingRef.current) return;
     pendingRef.current = true;
     setPending(operation);
-    try {
-      await work();
-    } catch (error) {
-      failure(error);
-    } finally {
-      pendingRef.current = false;
-      setPending(undefined);
-    }
+    work()
+      .catch(failure)
+      .finally(() => {
+        pendingRef.current = false;
+        setPending(undefined);
+      });
   };
   const start = () =>
     run(
@@ -75,7 +73,8 @@ export function useRequestActivityAction(target: ActivityTarget | undefined) {
     onPress() {
       if (busy || pendingRef.current) return;
       if (same || !target) {
-        return stop();
+        stop();
+        return;
       }
       if (state.tracking)
         showAppDialog(t.lockScreen.title, t.lockScreen.switchBody, [

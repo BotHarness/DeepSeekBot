@@ -236,10 +236,10 @@ export function createCloudProvider(
     async targets(id) {
       return [target(id)];
     },
-    async inspect(id, ref) {
+    async inspect(id, ref, checkedAccount) {
       const t = target(id);
       if (t.ref !== ref) throw new ClientError('INVALID_CLOUD_TARGET');
-      return { account: await account(id), target: t };
+      return { account: checkedAccount ?? (await account(id)), target: t };
     },
     async consume(input) {
       const controller = new AbortController(),

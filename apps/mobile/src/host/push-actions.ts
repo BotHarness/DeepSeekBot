@@ -1,7 +1,7 @@
-import { checkRoute, isConnectRoute } from './route';
-import type { SavedHost } from './hosts';
-import type { PushTarget } from './push';
-import type { ApprovalChoice, DecisionResult, RequestRef } from './requests';
+import { checkRoute, isConnectRoute } from '@botharness/host-protocol/route';
+import type { SavedHost } from '@botharness/host-client/hosts';
+import type { PushTarget } from '@botharness/host-client/push';
+import type { ApprovalChoice, DecisionResult, RequestRef } from '@botharness/host-client/requests';
 
 export const APPROVAL_CATEGORY = 'tool-approval';
 export const APPROVAL_ONCE_CATEGORY = 'tool-approval-once';
@@ -15,6 +15,8 @@ export const APPROVAL_ACTIONS: Readonly<Record<string, ApprovalChoice>> = {
 };
 
 export type PushDecision = DecisionResult | 'failed';
+
+export const ANSWERED: ReadonlySet<PushDecision> = new Set(['accepted', 'decided']);
 
 export type ApprovalButton = 'always' | 'approve' | 'reject' | typeof REMOVE_DEVICE_ACTION;
 

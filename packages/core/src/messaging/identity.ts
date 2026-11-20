@@ -1,3 +1,4 @@
+import type { ReceptionRecovery } from './receiver-recovery.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { messagingDefaults } from './defaults.js';
 import { MessagingError } from './provider.js';
@@ -42,6 +43,7 @@ export type MessagingIdentityInput =
   | { kind: 'reconnect'; id: string; expectedRevision: number }
   | { kind: 'unbind'; id: string; expectedRevision: number };
 export type MessagingIdentityView = MessagingIdentity & {
+  recovery?: ReceptionRecovery;
   availability: 'available' | 'paused' | 'unavailable' | 'rebind-required';
   reception?: 'off' | 'connecting' | 'receiving' | 'unavailable';
   grantCount: number;

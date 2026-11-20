@@ -12,24 +12,30 @@ import {
 } from './cloudflared-packages.mjs';
 import { providerRuntimeDigest } from './dev-im-provider.mjs';
 import { pnpmCommand } from './dev-package-manager.mjs';
+import { qqOrdinaryMediaSource } from './product-provider/qq-ordinary-media.mjs';
 
-export const productDsh = '0.2.1-rc.3';
+export const productDsh = '0.2.2-rc.1';
 export { productDshRange } from './dsh-compatibility.mjs';
 export const providerDshRange = '>=0.2.0-0';
-export const productDshVersions = Object.freeze(['0.2.0-rc.2', '0.2.1-rc.2', productDsh]);
+export const productDshVersions = Object.freeze([
+  '0.2.0-rc.2',
+  '0.2.1-rc.2',
+  '0.2.1-rc.3',
+  productDsh,
+]);
 
 export const productImProvider = Object.freeze({
   name: '@botharness/im-provider',
-  version: '4.32.0-botharness.23',
+  version: '4.32.0-botharness.27',
   sourceManifestSha256: '3331e8f771a91abf396eb4e7ed5c0acc4c3b504cdccc7d715e37062708384cc2',
   sourceLockSha256: '3476c34c7d4515000d2617beaf2568b2a794b60de9b350cd8eafb7a2bf21adef',
   upstream: Object.freeze({
     package: '@xmanrui/dsh-im',
     packageVersion: '4.32.0',
-    source: '7505ce6fcda26c02810781fde9d4da81dab28a68',
+    source: 'bb0c7956896f5f5845950a0707837cd7938a11b3',
     dsh: '0.2.0-rc.2',
-    runtimeFiles: 424,
-    runtimeSha256: 'a4429580ebf70b08e19394cea97d7d0db9b86b06e1c92f294a28144378537d46',
+    runtimeFiles: 425,
+    runtimeSha256: 'b1df502e022b25e474a691b8c99517f7f6a7222b308c7f3fe2aff23232540751',
   }),
 });
 
@@ -83,7 +89,15 @@ export function productManifest(manifest, version) {
       ...cloudflaredOptionalDependencies(version),
     },
     dsh: { ...manifest.dsh, bundle: { patch: './cordis.im.patch.yml' } },
-    files: ['dist', 'desktop-theme', 'cordis.im.patch.yml', 'README.md', 'LICENSE'],
+    files: [
+      'dist',
+      'desktop-theme',
+      'desktop-theme-0.2.2-rc.1',
+      'desktop-theme-0.2.2-rc.2',
+      'cordis.im.patch.yml',
+      'README.md',
+      'LICENSE',
+    ],
   };
 }
 
@@ -110,7 +124,12 @@ function writeJson(path, value) {
 }
 
 function run(command, args, options = {}) {
-  const result = spawnSync(command, args, { encoding: 'utf8', ...options });
+  const result = spawnSync(command, args, {
+    encoding: 'utf8',
+    shell: false,
+    ...options,
+    windowsHide: true,
+  });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${command} failed: ${result.stderr?.slice(-2500)}`);
   return result.stdout;
@@ -180,6 +199,8 @@ export function stageProvider(source, target, repoRoot) {
     'README.en.md',
     'THIRD_PARTY_NOTICES.md',
   ]);
+  const qqConsumerPath = join(target, 'src/channels/qq/external-consumer.mjs');
+  writeFileSync(qqConsumerPath, qqOrdinaryMediaSource(readFileSync(qqConsumerPath, 'utf8')));
   writeJson(
     join(target, 'package.json'),
     providerManifest(JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'))),
@@ -238,16 +259,18 @@ export function stageProvider(source, target, repoRoot) {
     sourceManifestSha256: productImProvider.sourceManifestSha256,
     sourceLockSha256: productImProvider.sourceLockSha256,
     managedSources: Object.fromEntries(
-      ['update-rpc.mjs', 'update-policy.mjs', 'update-panel.js'].map((name) => [
-        name,
-        createHash('sha256')
-          .update(readFileSync(join(repoRoot, 'scripts/product-provider', name)))
-          .digest('hex'),
-      ]),
+      ['update-rpc.mjs', 'update-policy.mjs', 'update-panel.js', 'qq-ordinary-media.mjs'].map(
+        (name) => [
+          name,
+          createHash('sha256')
+            .update(readFileSync(join(repoRoot, 'scripts/product-provider', name)))
+            .digest('hex'),
+        ],
+      ),
     ),
     upstreamReleased: false,
     derivation:
-      'First-party package/client identity and product-managed updates; transport contracts unchanged',
+      'First-party package/client identity, product-managed updates and checked ordinary QQ image/file retention; native transport and send authority unchanged',
   });
   return output;
 }
@@ -311,7 +334,14 @@ export function packProduct({
   mkdirSync(product);
   const source = join(repoRoot, 'packages/deepseekbot');
   writeJson(join(product, 'package.json'), productRelease);
-  copyAvailable(source, product, ['dist', 'desktop-theme', 'cordis.im.patch.yml', 'README.md']);
+  copyAvailable(source, product, [
+    'dist',
+    'desktop-theme',
+    'desktop-theme-0.2.2-rc.1',
+    'desktop-theme-0.2.2-rc.2',
+    'cordis.im.patch.yml',
+    'README.md',
+  ]);
   cpSync(join(repoRoot, 'README.en.md'), join(product, 'README.md'));
   cpSync(join(repoRoot, 'LICENSE'), join(product, 'LICENSE'));
   packageDirectories.push(product);
@@ -322,7 +352,12 @@ export function packProduct({
   cpSync(join(repoRoot, 'README.en.md'), join(tobs, 'README.md'));
   const launcher = join(tobs, 'src/tobs.mjs');
   writeFileSync(launcher, `#!/usr/bin/env node\n${readFileSync(launcher, 'utf8')}`);
-  copyAvailable(source, tobs, ['cordis.im.patch.yml', 'desktop-theme']);
+  copyAvailable(source, tobs, [
+    'cordis.im.patch.yml',
+    'desktop-theme',
+    'desktop-theme-0.2.2-rc.1',
+    'desktop-theme-0.2.2-rc.2',
+  ]);
   mkdirSync(join(tobs, 'dist'), { recursive: true });
   cpSync(join(source, 'dist/theme-schema.mjs'), join(tobs, 'dist/theme-schema.mjs'));
   cpSync(join(repoRoot, 'LICENSE'), join(tobs, 'LICENSE'));
@@ -378,6 +413,8 @@ export function tobsManifest(product) {
       'src',
       'dist/theme-schema.mjs',
       'desktop-theme',
+      'desktop-theme-0.2.2-rc.1',
+      'desktop-theme-0.2.2-rc.2',
       'cordis.im.patch.yml',
       'README.md',
       'LICENSE',

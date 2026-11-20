@@ -42,6 +42,7 @@ async function invoke(args) {
     env,
     windowsHide: true,
     timeout: 70000,
+    shell: false,
   });
   if (result.stdout.includes(token) || result.stderr.includes(token))
     throw new Error('Authentication appeared in CLI output.');

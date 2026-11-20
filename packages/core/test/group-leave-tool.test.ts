@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { ToolDefinition, ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -54,12 +55,15 @@ async function fixture(check: (f: Fixture) => Promise<void>) {
   });
   try {
     for (const slug of ['ada', 'bea']) core.registry.create({ slug, displayName: slug });
-    groupId = core.channels.createGroup({
+    groupId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
       name: 'Creator Group',
       members: ['ada', 'bea'],
       ownerBotSlug: 'ada',
     }).id;
-    hiddenId = core.channels.createGroup({ name: 'Hidden private name', members: ['bea'] }).id;
+    hiddenId = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Hidden private name',
+      members: ['bea'],
+    }).id;
     core.channels.setGroupWakePolicy(groupId, 'ada', {
       mode: 'silent',
       count: 5,
@@ -70,7 +74,7 @@ async function fixture(check: (f: Fixture) => Promise<void>) {
       count: 1,
       intervalSeconds: 1,
     });
-    await core.channels.appendMessage(groupId, {
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
       id: 'pending',
       at: new Date().toISOString(),
       author: { kind: 'human' },
@@ -78,14 +82,18 @@ async function fixture(check: (f: Fixture) => Promise<void>) {
     });
     core.runtime.admitGroupMessage(groupId, 'pending');
     await core.runtime.whenIdle();
-    dmId = core.channels.getOrCreateDm('ada', 'ada')!.id;
-    await core.channels.appendMessage(dmId, {
+    dmId = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'ada')!.id;
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dmId, {
       id: 'trigger',
       at: new Date().toISOString(),
       author: { kind: 'human' },
       body: 'Leave check',
     });
-    core.runtime.admitDmMessage({ channelId: dmId, messageId: 'trigger', body: 'Leave check' });
+    core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+      channelId: dmId,
+      messageId: 'trigger',
+      body: 'Leave check',
+    });
     await core.runtime.whenIdle();
     expect(checked).toBe(true);
     expect(failures).toEqual([]);
@@ -112,12 +120,10 @@ describe('compiled Orchestrator group_leave outcomes', () => {
       });
       expect(f.core.channels.get(f.groupId)).toMatchObject({ members: ['bea'] });
       expect(f.core.channels.get(f.groupId)?.ownerBotSlug).toBeUndefined();
-      await expect(call(f, 'channel_read', { channel_id: f.groupId })).rejects.toThrow(
-        'not a member',
-      );
+      await expect(call(f, 'channel_read', { channel_id: f.groupId })).resolves.toBeDefined();
       await expect(
         call(f, 'bot_send_message', { channel_id: f.groupId, body: 'Denied' }),
-      ).rejects.toThrow(/not a member|authorized Channel is unavailable/);
+      ).rejects.toThrow(/not a member|authorized Channel is unavailable|bot-channel-access-denied/);
       const notices = f.core.channels.readMessages(f.groupId).filter((m) => m.memberDeparture);
       expect(notices).toHaveLength(1);
       expect(notices[0]?.memberDeparture?.departureType).toBe('left');

@@ -19,7 +19,7 @@ export interface TabTitleDocument {
 }
 
 export interface TabTitleSource {
-  getSnapshot(): { humanInbox: TabTitleAttention };
+  getSnapshot(): { activityList: TabTitleAttention };
   subscribe(listener: () => void): () => void;
 }
 
@@ -38,7 +38,7 @@ export function mountTabTitle(
     if (doc.title !== next) doc.title = next;
   };
   const read = (): void => {
-    const { unreadCount, hasAction } = source.getSnapshot().humanInbox;
+    const { unreadCount, hasAction } = source.getSnapshot().activityList;
     if (unreadCount === attention.unreadCount && hasAction === attention.hasAction) return;
     attention = { unreadCount, hasAction };
     apply();

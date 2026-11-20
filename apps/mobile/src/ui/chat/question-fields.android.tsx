@@ -1,4 +1,4 @@
-import { Box, Checkbox, Column, RadioButton, Row, Text } from '@expo/ui/jetpack-compose';
+import { Box, Column, RNHostView, Text } from '@expo/ui/jetpack-compose';
 import {
   border,
   clickable,
@@ -6,22 +6,19 @@ import {
   defaultMinSize,
   fillMaxWidth,
   padding,
-  selectableGroup,
   semantics,
   Shapes,
-  toggleable,
-  weight,
 } from '@expo/ui/jetpack-compose/modifiers';
 import type { ComponentProps } from 'react';
 
-import { toggleOption, typeCustom } from '../../host/requests';
+import { typeCustom } from '@botharness/host-client/requests';
 import { materialType, useMaterialRoles } from '../design/material-tokens';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { useStrings } from '../strings';
 import { CardField } from './action-card';
 import type { QuestionFields as SharedQuestionFields } from './question-fields';
-import { letter } from './question-letter';
+import { QuestionOptions } from './question-options';
 
 export function QuestionFields({
   question,
@@ -29,6 +26,7 @@ export function QuestionFields({
   heading,
   disabled,
   inChat,
+  answered = false,
   onExpand,
   onChange,
   onPick,
@@ -67,55 +65,17 @@ export function QuestionFields({
         </Text>
       ) : null}
       {question.options?.length ? (
-        <Column
-          modifiers={[
-            fillMaxWidth(),
-            ...(multiple ? [] : [selectableGroup()]),
-            semantics({ contentDescription: question.question }),
-          ]}
-        >
-          {question.options.map((option, index) => {
-            const chosen = draft.selected.includes(option.label);
-            const press = () =>
-              onPick === undefined
-                ? onChange(toggleOption(question, draft, option.label))
-                : onPick(option.label);
-            return (
-              <Row
-                key={option.label}
-                verticalAlignment="center"
-                horizontalArrangement={{ spacedBy: space.x4 }}
-                modifiers={[
-                  fillMaxWidth(),
-                  defaultMinSize({ minHeight: theme.touch }),
-                  toggleable(chosen, press, {
-                    role: multiple ? 'checkbox' : 'radioButton',
-                    enabled: !disabled,
-                  }),
-                  padding(0, space.x2, space.x2, space.x2),
-                ]}
-              >
-                {multiple ? (
-                  <Checkbox value={chosen} enabled={!disabled} />
-                ) : (
-                  <RadioButton selected={chosen} enabled={!disabled} />
-                )}
-                <Column verticalArrangement={{ spacedBy: space.x1 }} modifiers={[weight(1)]}>
-                  <Text style={{ typography: materialType.body }}>
-                    {t.option(letter(index), option.label)}
-                  </Text>
-                  {option.description === undefined ? null : (
-                    <Text color={roles.onSurfaceVariant} style={{ typography: materialType.meta }}>
-                      {option.description}
-                    </Text>
-                  )}
-                </Column>
-              </Row>
-            );
-          })}
-        </Column>
+        <RNHostView matchContents={{ vertical: true }} modifiers={[fillMaxWidth()]}>
+          <QuestionOptions
+            question={question}
+            draft={draft}
+            disabled={disabled}
+            onChange={onChange}
+            {...(onPick === undefined ? {} : { onPick })}
+          />
+        </RNHostView>
       ) : null}
-      {inChat ? (
+      {answered ? null : inChat ? (
         <Text color={roles.onSurfaceVariant} style={{ typography: materialType.meta }}>
           {t.replyInChat}
         </Text>

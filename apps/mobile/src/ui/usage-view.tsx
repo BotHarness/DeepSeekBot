@@ -1,8 +1,8 @@
 import { useMemo, useState } from 'react';
 import { Pressable, SectionList, View, type ViewInstance } from 'react-native';
 
-import type { RosterBot } from '../host/client';
-import { MethodRefused } from '../host/client';
+import type { RosterBot } from '@botharness/host-client/client';
+import { MethodRefused } from '@botharness/host-client/client';
 import {
   USAGE_SPLIT,
   usageIsPartial,
@@ -12,8 +12,8 @@ import {
   type OverviewMemory,
   type OverviewUsage,
   type UsagePeriod,
-} from '../host/usage';
-import type { MemoryActivityBot, UsageBot } from '../host/wire';
+} from '@botharness/host-client/usage';
+import type { MemoryActivityBot, UsageBot } from '@botharness/host-protocol/wire';
 import { BotAvatar } from './bot-avatar';
 import { useDesignTheme } from './design/theme';
 import { chart } from './design/chart';
@@ -26,7 +26,7 @@ import { Text } from './primitives/text';
 import { DayBars } from './primitives/day-bars';
 import { dayLabel } from '../host/usage-days';
 import { tokenAmount, UsageBars, useLoaded, type Loaded } from './shell/usage-card';
-import { useStrings, t } from './strings';
+import { dateLocale, useStrings, t } from './strings';
 import { LoadingIndicator } from './primitives/loading-indicator';
 
 const AVATAR = 28;
@@ -140,8 +140,8 @@ function UsageSummary({
               ? t.usageLoading
               : day !== undefined
                 ? day.end === undefined
-                  ? dayLabel(day.day)
-                  : `${dayLabel(day.day)} – ${dayLabel(day.end)}`
+                  ? dayLabel(day.day, dateLocale())
+                  : `${dayLabel(day.day, dateLocale())} – ${dayLabel(day.end, dateLocale())}`
                 : usage.start === usage.end
                   ? usage.end
                   : `${usage.start} – ${usage.end}`}

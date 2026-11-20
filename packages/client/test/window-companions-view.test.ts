@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { WindowCompanions } from '../src/client/window-companions.js';
@@ -9,73 +9,12 @@ import { CompanionPin } from '../src/client/window-companions-view.js';
 import { CompanionSound } from '../src/client/companion-sound.js';
 import { companionPosition } from './companion-position.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Menu: ({
-    anchor,
-    open,
-    items,
-    onSelect,
-  }: {
-    anchor: ReactNode;
-    open: boolean;
-    items: { id: string; label?: string; disabled?: boolean }[];
-    onSelect(id: string): void;
-  }) =>
-    createElement(
-      'div',
-      {},
-      anchor,
-      open
-        ? items
-            .filter((item) => item.label)
-            .map((item) =>
-              createElement(
-                'button',
-                { key: item.id, disabled: item.disabled, onClick: () => onSelect(item.id) },
-                item.label,
-              ),
-            )
-        : null,
-    ),
-  Input: (props: Record<string, unknown>) => createElement('input', props),
-  Switch: ({
-    checked,
-    onChange,
-    label,
-    disabled,
-  }: {
-    checked: boolean;
-    onChange(value: boolean): void;
-    label: string;
-    disabled: boolean;
-  }) =>
-    createElement('button', {
-      type: 'button',
-      role: 'switch',
-      'aria-label': label,
-      'aria-checked': checked,
-      disabled,
-      onClick: () => onChange(!checked),
-    }),
-  Button: ({
-    children,
-    size: _size,
-    variant: _variant,
-    ...props
-  }: {
-    children: ReactNode;
-    size?: string;
-    variant?: string;
-  }) => createElement('button', props, children),
-  IconEllipsisOutlineRegular: () => null,
-  IconCloseFillRegular: () => null,
-  IconNewChatOutlineRegular: () => null,
-  IconPinFillRegular: () => null,
-  IconPinOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
-it('pins independently, exposes right-click controls and applies global bounded card capacity', async () => {
+it.each([400, 1280])('operates Window companion controls at %i px', async (width) => {
+  vi.stubGlobal('innerWidth', width);
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const frames = new Map<number, FrameRequestCallback>();
   let frame = 0;
@@ -294,7 +233,7 @@ it('pins independently, exposes right-click controls and applies global bounded 
       ada.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
     );
     expect(ada.querySelector('[aria-expanded="true"]')).not.toBeNull();
-    const walking = [...ada.querySelectorAll<HTMLButtonElement>('button')].find(
+    const walking = [...document.body.querySelectorAll<HTMLElement>('[role="menuitem"]')].find(
       (button) => button.textContent === '暂停走动',
     )!;
     await act(() => walking.click());

@@ -1,8 +1,8 @@
 import { Pressable, View } from 'react-native';
 
-import { errorText } from '../../host/bot-settings';
+import { errorText } from '@botharness/host-client/bot-settings';
 import type { Routines } from '../../host/routines';
-import type { BotScheduleSummary, ScheduleTrigger } from '../../host/wire';
+import type { BotScheduleSummary, ScheduleTrigger } from '@botharness/host-protocol/wire';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { haptic } from '../haptics';

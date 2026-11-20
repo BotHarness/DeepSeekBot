@@ -295,7 +295,13 @@ describe('Memory runner provenance prerequisites', () => {
     const directory = mkdtempSync(join(tmpdir(), 'memory-provenance-'));
     directories.push(directory);
     const git = (...args) =>
-      execFileSync('git', args, { cwd: directory, encoding: 'utf8', stdio: 'pipe' }).trim();
+      execFileSync('git', args, {
+        cwd: directory,
+        encoding: 'utf8',
+        stdio: 'pipe',
+        shell: false,
+        windowsHide: true,
+      }).trim();
     git('init', '--quiet');
     writeFileSync(join(directory, '.git/info/exclude'), 'scripts/\n.humanlayer/\nnode_modules\n');
     git(
@@ -321,7 +327,7 @@ describe('Memory runner provenance prerequisites', () => {
     const result = spawnSync(
       process.execPath,
       ['scripts/e2e-memory-restore.mjs', '--name', 'missing-base'],
-      { cwd: directory, encoding: 'utf8', timeout: 10000 },
+      { cwd: directory, encoding: 'utf8', timeout: 10000, shell: false, windowsHide: true },
     );
     expect(result.error, result.stderr).toBeUndefined();
     expect(result.stderr).not.toContain('ERR_MODULE_NOT_FOUND');

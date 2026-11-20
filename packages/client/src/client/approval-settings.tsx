@@ -1,5 +1,8 @@
+import { SegmentedControl } from './ds/segmented.js';
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
 import { useId, useState, type ReactElement } from 'react';
-import { Button, SegmentedTabs, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Combobox } from './combobox.js';
 import type { ApprovalMessagingSnapshot } from '../../../core/src/messaging/approval-messaging.js';
 import type { FailureAlertSnapshot } from '../../../core/src/messaging/failure-alerts.js';
@@ -269,11 +272,13 @@ export function ApprovalSettings({
               {t('approvalIm.refresh')}
             </Button>
           </div>
-          <SegmentedTabs
+          <SegmentedControl
+            id={id}
+            controlsPanel
             label={t('approvalIm.history')}
             value={tab}
             onChange={setTab}
-            items={failureAlerts ? [failureTab, approvalTab] : [approvalTab]}
+            options={failureAlerts ? [failureTab, approvalTab] : [approvalTab]}
           />
           <div role="tabpanel" id={`${id}-panel-${tab}`} aria-labelledby={`${id}-${tab}`}>
             {tab === 'failures' && failureAlerts ? (

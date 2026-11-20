@@ -1,3 +1,5 @@
+import { humanContext, OWNER_HUMAN_CONTEXT, type HumanContext } from '../src/humans/context.js';
+import { attachOperationalModule } from '../src/database/owner.js';
 import { afterEach, expect, it } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -18,7 +20,10 @@ function namedError(name: string, message: string): Error {
   return error;
 }
 
-async function fixture(sideEffect = false, { unsaved = false } = {}) {
+async function fixture(
+  sideEffect = false,
+  { unsaved = false, member = false, direct = false } = {},
+) {
   const archived = new Set<string>();
   const saved = new Set<string>();
   const runs: string[] = [];
@@ -62,20 +67,54 @@ async function fixture(sideEffect = false, { unsaved = false } = {}) {
   });
   cores.push(core);
   core.registry.create({ slug: 'ada', displayName: 'Ada' });
-  const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-  await core.channels.appendMessage(dm.id, {
-    id: 'human-request',
-    at: new Date().toISOString(),
-    author: { kind: 'human' },
-    body: 'Hello',
-  });
-  const admission = core.runtime.admitDmMessage({
-    channelId: dm.id,
-    messageId: 'human-request',
-    body: 'Hello',
-  });
-  if (!admission.admitted) throw new Error(admission.reason);
-  await admission.settled.catch(() => undefined);
+  let human: HumanContext = OWNER_HUMAN_CONTEXT;
+  if (member) {
+    attachOperationalModule(core.operationalDatabase, 'team').transaction((db) => {
+      db.prepare('UPDATE team_settings SET enabled=1').run();
+      db.prepare("INSERT INTO humans VALUES ('bob','Bob','active','now')").run();
+      db.prepare("INSERT INTO human_roles VALUES ('bob','member')").run();
+    });
+    core.team.spaces.ensureAccount('bob');
+    core.team.bots.setVisibility(OWNER_HUMAN_CONTEXT, 'ada', {
+      kind: 'public',
+      audience: { kind: 'everyone' },
+    });
+    human = humanContext('bob');
+  }
+  const dm = member
+    ? core.team.bots.dm(human, 'ada')!
+    : core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  if (direct) {
+    core.ownership.claim({
+      sessionId: 'bot-direct',
+      botSlug: 'ada',
+      rootRole: 'orchestrator',
+      at: new Date().toISOString(),
+    });
+    const sessionId = core.runtime.currentOrchestratorSessionId?.('ada');
+    if (sessionId === undefined) throw new Error('Missing Orchestrator Session');
+    const sent = core.runtime.sendOrchestratorMessage!(human, {
+      botSlug: 'ada',
+      sessionId,
+      text: 'Hello',
+    });
+    if (!sent.delivered) throw new Error(sent.reason);
+    await sent.settled.catch(() => undefined);
+  } else {
+    await core.channels.appendMessage(human, dm.id, {
+      id: 'human-request',
+      at: new Date().toISOString(),
+      author: { kind: 'human' },
+      body: 'Hello',
+    });
+    const admission = core.runtime.admitDmMessage(human, {
+      channelId: dm.id,
+      messageId: 'human-request',
+      body: 'Hello',
+    });
+    if (!admission.admitted) throw new Error(admission.reason);
+    await admission.settled.catch(() => undefined);
+  }
   await core.runtime.whenIdle();
   const failure = core.channels.readMessages(dm.id).find((message) => message.sessionFailure);
   if (!failure) throw new Error('Missing failure');
@@ -86,8 +125,9 @@ async function fixture(sideEffect = false, { unsaved = false } = {}) {
     runs,
     loaded,
     archived,
+    human,
     input: { channelId: dm.id, failureMessageId: failure.id },
-    methods: createBridgeMethods({ ...core }),
+    methods: createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }),
   };
 }
 
@@ -141,6 +181,20 @@ it('loads a cold Session, serializes concurrent recovery, and retries after comp
   expect(fx.archived.size).toBe(0);
 });
 
+it('retries a message sent from Session detail after compaction or in a new Session', async () => {
+  for (const action of ['compact', 'new-session'] as const) {
+    const fx = await fixture(false, { direct: true });
+    await fx.core.runtime.recoverDmMessage!({
+      ...fx.input,
+      action,
+      compact: async () => true,
+    });
+    await fx.core.runtime.whenIdle();
+    expect(fx.runs).toHaveLength(2);
+    expect(fx.runs[1] === fx.runs[0]).toBe(action === 'compact');
+  }
+});
+
 it('does not retry or replace when compaction cannot produce a useful summary', async () => {
   const fx = await fixture();
   await expect(
@@ -168,13 +222,13 @@ it('queues a new message during recovery without interrupting compaction', async
       return true;
     },
   });
-  await fx.core.channels.appendMessage(fx.dm.id, {
+  await fx.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, fx.dm.id, {
     id: 'later-request',
     at: new Date().toISOString(),
     author: { kind: 'human' },
     body: 'Later',
   });
-  const next = fx.core.runtime.admitDmMessage({
+  const next = fx.core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
     channelId: fx.dm.id,
     messageId: 'later-request',
     body: 'Later',
@@ -244,4 +298,25 @@ it('points compaction of a never-saved Session to a new Session', async () => {
   await expect(result).rejects.toMatchObject({ code: 'session-unsaved' });
   await expect(result).rejects.toThrow(/new Session/);
   expect(fx.runs).toHaveLength(1);
+});
+
+it('lets a reachable shared-Bot participant recover their DM and refuses after access ends', async () => {
+  const fx = await fixture(false, { member: true });
+  expect(fx.dm.dmHumanId).toBe('bob');
+  await fx.core.runtime.recoverDmMessage!(
+    { ...fx.input, action: 'new-session', compact: async () => false },
+    fx.human,
+  );
+  await fx.core.runtime.whenIdle();
+  expect(fx.runs).toHaveLength(2);
+  const revoked = await fixture(false, { member: true });
+  revoked.core.team.bots.setVisibility(OWNER_HUMAN_CONTEXT, 'ada', { kind: 'private' }, true);
+  for (const human of [revoked.human, humanContext('carol')])
+    await expect(
+      revoked.core.runtime.recoverDmMessage!(
+        { ...revoked.input, action: 'new-session', compact: async () => false },
+        human,
+      ),
+    ).rejects.toMatchObject({ code: 'recovery-unavailable' });
+  expect(revoked.runs).toHaveLength(1);
 });

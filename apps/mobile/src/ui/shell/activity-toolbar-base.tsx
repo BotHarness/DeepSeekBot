@@ -8,7 +8,11 @@ import { materialSearchHeight } from '../design/material-search';
 import { space, tabHeader } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { ActivityHeaderActions, type ActivityOptions } from './activity-header-actions';
+import {
+  ActivityHeaderActions,
+  type ActivityManage,
+  type ActivityOptions,
+} from './activity-header-actions';
 import { HeaderSearch } from './header-search';
 
 export type ActivityToolbarHandle = { dismissSearch(): void };
@@ -22,6 +26,7 @@ export type ActivityToolbarProps = {
   onSearch(value: string): void;
   onSearchFocus(focused: boolean): void;
   onFilter(): void;
+  manage?: ActivityManage | undefined;
   onHeight(height: number): void;
 };
 
@@ -34,6 +39,7 @@ export function ActivityToolbar({
   onSearch,
   onSearchFocus,
   onFilter,
+  manage,
   onHeight,
 }: ActivityToolbarProps) {
   const t = useStrings();
@@ -46,12 +52,12 @@ export function ActivityToolbar({
     ref,
     () => ({
       dismissSearch() {
-        setSearching(false);
+        if (search === '') setSearching(false);
         onSearchFocus(false);
         Keyboard.dismiss();
       },
     }),
-    [onSearchFocus],
+    [onSearchFocus, search],
   );
   return (
     <>
@@ -107,6 +113,7 @@ export function ActivityToolbar({
                   searching={search !== ''}
                   options={options}
                   onFilter={onFilter}
+                  manage={manage}
                   onSearch={() => {
                     onSearchFocus(true);
                     setSearching(true);
@@ -129,7 +136,7 @@ export function ActivityToolbar({
                 onChangeText={(value) => onSearch(value.slice(0, 200))}
                 onFocusChange={(focused) => {
                   onSearchFocus(focused);
-                  if (!focused) setSearching(false);
+                  if (!focused && search === '') setSearching(false);
                 }}
                 onClose={() => {
                   onSearchFocus(false);

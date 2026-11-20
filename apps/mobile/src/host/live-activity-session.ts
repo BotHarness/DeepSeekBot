@@ -1,5 +1,5 @@
-import { ActivityRequestFailed, type HostActivity } from './live-activity';
-import type { SavedHost } from './hosts';
+import { ActivityRequestFailed, type HostActivity } from '@botharness/host-client/live-activity';
+import type { SavedHost } from '@botharness/host-client/hosts';
 
 export interface ActivityTarget {
   hostId: string;
@@ -330,8 +330,9 @@ export function createActivitySession(options: {
     sync(): Promise<void> {
       syncRequested = true;
       if (syncing) return syncing;
-      syncing = ready
-        .then(async () => {
+      syncing = (async () => {
+        try {
+          await ready;
           do {
             syncRequested = false;
             await serial(async () => {
@@ -374,11 +375,11 @@ export function createActivitySession(options: {
               }
             });
           } while (syncRequested);
-        })
-        .finally(() => {
+        } finally {
           syncing = undefined;
-          if (syncRequested) return owner.sync();
-        });
+          if (syncRequested) await owner.sync();
+        }
+      })();
       return syncing;
     },
   };

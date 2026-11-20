@@ -81,6 +81,8 @@ if (command === 'prepare') {
         nativeVersion: version,
         applicationBaseline: execFileSync('git', ['rev-parse', 'HEAD'], {
           encoding: 'utf8',
+          shell: false,
+          windowsHide: true,
         }).trim(),
         upstream: '687f282e8625c6b8d11ff58211a90524be2e4317',
         applicationRuntime:
@@ -120,6 +122,8 @@ if (command === 'prepare') {
       timeout: 60000,
       maxBuffer: 16 * 1024 * 1024,
       stdio: ['ignore', 'pipe', 'pipe'],
+      shell: false,
+      windowsHide: true,
     },
   );
   writeFileSync(output, result);

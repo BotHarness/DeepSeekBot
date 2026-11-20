@@ -200,7 +200,7 @@ try {
   if (mode === 'overview-before') {
     const slug = (await rpc('list')).bots[0].slug;
     await open(`dm-${slug}`);
-    await page.click('.bh-human-inbox-entry');
+    await page.click('.bh-activity-list-entry');
     await page.waitForSelector('.bh-overview-bots');
     await delay(500);
     assert.equal(await page.$('.bh-overview-bot'), null);
@@ -335,7 +335,7 @@ try {
       await open(scene.channelId);
       await assertUI(scene, true);
       assert.equal((await host(scene.slug)).revision, baseline.revision);
-      await page.click('.bh-human-inbox-entry');
+      await page.click('.bh-activity-list-entry');
       await page.waitForSelector('.bh-overview-bot');
       const overview = (await rpc('activityOverview')).bots.find((bot) => bot.slug === scene.slug);
       assert.deepEqual(overview.attention, baseline.attention);

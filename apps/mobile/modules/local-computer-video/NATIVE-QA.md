@@ -99,3 +99,73 @@ Finish with a fresh, unmodified production observation. Remove debugger breakpoi
 confirm normal motion/control/release/resume, and collect the canonical Host cleanup and
 receiver evidence. These fault-injection rows do not establish measured FPS, latency,
 physical scanout or Human acceptance.
+
+## Android call camera (#3498) — pending execution
+
+Run this in the assigned Windows/physical-Android batch with a rebuilt Debug APK and the
+isolated QA Host, never by taking the shared phone outside its queue. The JVM test covers the
+pure thumbnail, scaling and NV21 math; it does not prove CameraX capture or preview.
+
+1. Connect a Bot call, tap `call-camera`, grant the camera permission when asked, and confirm
+   the call stays up and the 3:4 self-preview appears. The permission dialog must not end the
+   call as a background event.
+2. Show a printed page or a QR-sized label, wait for the keyframe counter to rise, and ask the
+   Bot what it sees with the latest DeepSeek model. Confirm the Host receives `frame` commands
+   and the DM carries the expected grid.
+3. Tap `call-camera-flip`; confirm the preview switches camera and require a new keyframe from the
+   other side in the Host facts or keyframe counter. A preview-only change is not a pass. Front
+   preview is mirrored; text in the frame sent to the Bot is not.
+4. Use a `.dev` build and open `deepseekbot-dev://call/<bot>?script=<url>` with a timeline that
+   contains `{"at": 0, "video": "<url>"}`, then `{"at": 3000, "camera": "flip"}` and
+   `{"at": 6000, "camera": "off"}`. Require the report's `camera` mark with
+   `position: "back"` and `test: false` after the flip, then a later `keyframe` mark, before the
+   off transition. Earlier `video` or `keyframe` marks do not prove the flip. On an emulator
+   without a rear camera, record the flip row as **blocked**, not passed. Record JPEG byte sizes
+   and preparation times for the keyframes that do arrive.
+5. With the camera on, press Home, wait 10 seconds and return. The call stays up (ADR-0305) and
+   the DM shows the `share-paused` and `share-resumed` records; the keyframe counter rises again
+   after the return.
+6. Capture light and dark call screens with the camera on and off. Crop unrelated conversations
+   from published evidence.
+
+## Android background calls (#3423) and the bubble over other apps (#3469) — pending execution
+
+Rebuild the Debug APK first: the foreground service, its permissions, the overlay window and
+the notification icons are native inputs. Run it in the Windows/physical-Android batch with
+the isolated QA Host and the latest DeepSeek model. `adb logcat -s BotHarnessCall` shows the
+service phases (`started`, `stopped`, `start-failed`, `overlay-failed`).
+
+1. Start a call and allow notifications when asked (Android 13+). The shade shows one ongoing
+   call notification: Bot name, status, a running call time, **Hang up** and **Mute**. It
+   cannot be swiped away. `adb shell dumpsys activity services CallService` lists it with
+   types `microphone|mediaPlayback`.
+2. Turn the screen off for 60 seconds while a `.dev` script injects a question; the reply plays
+   with the screen off and the call is still live afterwards. Repeat after
+   `adb shell dumpsys deviceidle force-idle` (then `unforce`).
+3. Open another app and speak; the Bot hears and answers. Back in the app the call screen or the
+   in-app bubble shows the same call; the Host has no `ended` event.
+4. From the notification: **Mute** toggles the call screen's mute and the label; tapping the
+   notification body opens the call screen of the same call; **Hang up** ends the call, removes
+   the notification, and the Host records `hangup`.
+5. Interruptions: start music in another app (call mode) or receive a phone call. The call shows
+   **Paused** on the notification, bubble and call screen, the Host receives no speech, and the
+   Bot is not heard; when the music stops, the phone call ends or you return to the app, it
+   resumes on its own.
+6. Audio modes: run the question-and-answer case in call mode and in media mode. Volume keys
+   control call volume and media volume respectively; a Bluetooth headset uses A2DP in media
+   mode. Record speaker echo.
+7. Refuse notifications: the call still runs in the background and the live call screen shows
+   `call-notifications-off` with **Open Settings**.
+8. Bubble over other apps: on a live call screen `call-overlay-off` offers **Turn on** and
+   **Not now**. **Not now** hides it for this call. **Turn on** opens the system page; allow
+   it, return, and the prompt is gone. Press Home: the bubble floats over the launcher and other
+   apps with the Bot initial, ring, call time and muted badge; drag it and let go, and it snaps
+   to the nearer side inside the bars. Tapping it opens the same call without dialing again.
+   Back in the app only the in-app bubble shows, never both. Permission dialogs (camera,
+   notifications) do not bring up the bubble. Hang up from the notification removes it.
+9. Without the overlay permission the app in the background shows only the notification and
+   the call continues.
+10. Release (R8) build: one call connects, survives screen-off and shows the notification.
+11. Capture light and dark: the notification (shade and lock screen), the bubble over the
+    launcher, both call-screen prompts, at default, medium and largest text. Crop unrelated
+    notifications and apps.

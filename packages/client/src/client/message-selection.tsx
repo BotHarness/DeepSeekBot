@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { createContext, useContext, useState, type ReactElement } from 'react';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { MessageSelection } from './message-selection-state.js';
 import type { BotHarnessTranslate } from './locale.js';

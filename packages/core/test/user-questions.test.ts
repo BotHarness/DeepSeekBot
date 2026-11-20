@@ -1,65 +1,127 @@
+import { ToolCallId } from '@deepseek-ai/dsh-llm';
+import { humanContext, OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { Context } from '@deepseek-ai/cordis';
-import { join } from 'node:path';
 
 import { describe, expect, it, vi } from 'vitest';
 
-import type { Agent } from '@deepseek-ai/dsh-agent';
-
-import { createChannelStore } from '../src/channels/store.js';
 import {
   ChannelUserQuestions,
   registerChannelUserQuestions,
   type TimedQuestionPort,
 } from '../src/channels/user-questions.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
-import { createTempRoot, createTestOwnership } from './helpers.js';
 
-const sessionId = 'botharness-orchestrator-question-test';
-const channelId = 'dm-ada';
-const questions = [
-  {
-    id: 'memory-branch',
-    question: 'Which Memory branch should I switch to?',
-    options: [
-      { label: 'main', description: 'Current branch' },
-      { label: 'history-qa', description: 'Earlier memory' },
-    ],
-  },
-];
-
-function fixture(role: 'orchestrator' | 'assignment' = 'orchestrator', timed?: TimedQuestionPort) {
-  const channels = createChannelStore({
-    rootDir: join(createTempRoot('bh-question-'), 'channels'),
-  });
-  channels.getOrCreateDm('ada', 'Ada');
-  const ownership = createTestOwnership({ [sessionId]: { botSlug: 'ada', rootRole: role } });
-  const agent = { session: { id: sessionId, header: { cwd: '/tmp/memory' } } } as Agent;
-  let live = true;
-  const warn = vi.fn();
-  const states = createBotStateTracker();
-  states.setSessionState('ada', sessionId, 'working', undefined, 'orchestrator');
-  const answerer = new ChannelUserQuestions(
-    channels,
-    ownership,
-    (candidate) => candidate === agent && live,
-    warn,
-    (slug, count) => states.setQuestionCount(slug, count),
-    timed,
-  );
-  return {
-    channels,
-    ownership,
-    agent,
-    answerer,
-    warn,
-    states,
-    setLive: (value: boolean) => {
-      live = value;
-    },
-  };
-}
+import { channelId, fixture, questions, sessionId } from './fixtures/user-questions.js';
 
 describe('native DSH questions in a PersonaBot DM', () => {
+  it('publishes only committed requests and accepted answers, while a broken observer cannot settle the owner', async () => {
+    const state = fixture();
+    const notices: string[] = [];
+    state.answerer.observe((notice, status) => {
+      expect(state.channels.message(channelId, notice.messageId)).toBeDefined();
+      notices.push(status);
+    });
+    state.answerer.observe(() => {
+      throw new Error('observer failed');
+    });
+    const wait = state.answerer.ask({ agent: state.agent, questions });
+    await vi.waitFor(() => expect(notices).toEqual(['pending']));
+    const id = state.answerer.activeMessageIds()[0]!;
+    expect(state.answerer.pending('ada', id)?.sessionId).toBe(sessionId);
+    expect(
+      await state.answerer.answer(
+        'ada',
+        id,
+        {
+          answers: [{ id: questions[0]!.id, selected: ['main'] }],
+        },
+        OWNER_HUMAN_CONTEXT,
+      ),
+    ).toBe(true);
+    await wait;
+    expect(notices).toEqual(['pending', 'answered']);
+    expect(state.warn).toHaveBeenCalledWith('user-question-notification-failed');
+  });
+
+  it('rechecks external authority inside the canonical Channel commit queue and preserves the ask when it is revoked', async () => {
+    const state = fixture();
+    const wait = state.answerer.ask({ agent: state.agent, questions });
+    await vi.waitFor(() => expect(state.answerer.activeMessageIds()).toHaveLength(1));
+    const id = state.answerer.activeMessageIds()[0]!;
+    let authorized = true;
+    await vi.waitFor(() => expect(state.answerer.pending('ada', id)).toBeDefined());
+    const answer = { answers: [{ id: questions[0]!.id, selected: ['main'] }] };
+    const result = state.answerer.answer('ada', id, answer, OWNER_HUMAN_CONTEXT, {
+      actor: {
+        platform: 'feishu',
+        bindingId: 'binding',
+        fingerprint: 'a'.repeat(64),
+        actorId: 'ou_human',
+        pairingId: 'pairing',
+        pairingRevision: 1,
+        conversationId: 'oc_dm',
+        messageId: 'om_card',
+      },
+      authorized: () => authorized,
+    });
+    authorized = false;
+    expect(await result).toBe(false);
+    expect(state.channels.readMessages(channelId)).toHaveLength(1);
+    expect(state.answerer.status('ada', id)).toBe('pending');
+    expect(await state.answerer.answer('ada', id, answer, OWNER_HUMAN_CONTEXT)).toBe(true);
+    expect(await wait).toEqual(answer);
+  });
+
+  it('keeps the original native ask after a failed answer write and accepts only one winner', async () => {
+    const state = fixture();
+    const wait = state.answerer.ask({ agent: state.agent, questions });
+    await vi.waitFor(() => expect(state.answerer.activeMessageIds()).toHaveLength(1));
+    const id = state.answerer.activeMessageIds()[0]!;
+    const answer = { answers: [{ id: questions[0]!.id, selected: ['main'] }] };
+    await vi.waitFor(() => expect(state.answerer.pending('ada', id)).toBeDefined());
+    vi.spyOn(state.channels, 'appendMessage').mockRejectedValueOnce(
+      new Error('answer write failed'),
+    );
+    await expect(state.answerer.answer('ada', id, answer, OWNER_HUMAN_CONTEXT)).rejects.toThrow(
+      'answer write failed',
+    );
+    expect(state.answerer.status('ada', id)).toBe('pending');
+    expect(
+      await Promise.all([
+        state.answerer.answer('ada', id, answer, OWNER_HUMAN_CONTEXT),
+        state.answerer.answer('ada', id, answer, OWNER_HUMAN_CONTEXT),
+      ]),
+    ).toEqual([true, false]);
+    expect(await wait).toEqual(answer);
+    expect(
+      state.channels.readMessages(channelId).filter((m) => m.userQuestionResolution),
+    ).toHaveLength(1);
+  });
+
+  it('requires explicit owner reconciliation after a write commits but reports an uncertain result', async () => {
+    const state = fixture();
+    const wait = state.answerer.ask({ agent: state.agent, questions });
+    await vi.waitFor(() => expect(state.answerer.activeMessageIds()).toHaveLength(1));
+    const id = state.answerer.activeMessageIds()[0]!;
+    await vi.waitFor(() => expect(state.answerer.pending('ada', id)).toBeDefined());
+    const answer = { answers: [{ id: questions[0]!.id, selected: ['main'] }] };
+    const append = state.channels.appendMessage.bind(state.channels);
+    vi.spyOn(state.channels, 'appendMessage').mockImplementationOnce(async (...args) => {
+      await append(...args);
+      throw new Error('post-commit write outcome unknown');
+    });
+    await expect(state.answerer.answer('ada', id, answer, OWNER_HUMAN_CONTEXT)).rejects.toThrow(
+      'unknown',
+    );
+    expect(await state.answerer.answer('ada', id, answer, OWNER_HUMAN_CONTEXT)).toBe(false);
+    expect(state.answerer.pending('ada', id)).toBeDefined();
+    expect(state.answerer.reconcile('ada', id)).toBe(true);
+    expect(await wait).toEqual(answer);
+    expect(
+      state.channels.readMessages(channelId).filter((m) => m.userQuestionResolution),
+    ).toHaveLength(1);
+  });
+
   it('commits a card, validates the Human answer, and resumes the same waiting request', async () => {
     const state = fixture();
     const wait = state.answerer.ask({ agent: state.agent, questions });
@@ -73,17 +135,29 @@ describe('native DSH questions in a PersonaBot DM', () => {
     });
     expect(state.answerer.activeMessageIds()).toEqual([request.id]);
     expect(
-      await state.answerer.answer('other-bot', request.id, {
-        answers: [{ id: 'memory-branch', selected: ['history-qa'] }],
-      }),
+      await state.answerer.answer(
+        'other-bot',
+        request.id,
+        {
+          answers: [{ id: 'memory-branch', selected: ['history-qa'] }],
+        },
+        OWNER_HUMAN_CONTEXT,
+      ),
     ).toBe(false);
     expect(
-      await state.answerer.answer('ada', request.id, {
-        answers: [{ id: 'memory-branch', selected: ['unoffered'] }],
-      }),
+      await state.answerer.answer(
+        'ada',
+        request.id,
+        {
+          answers: [{ id: 'memory-branch', selected: ['unoffered'] }],
+        },
+        OWNER_HUMAN_CONTEXT,
+      ),
     ).toBe(false);
     const expected = { answers: [{ id: 'memory-branch', selected: ['history-qa'] }] };
-    expect(await state.answerer.answer('ada', request.id, expected)).toBe(true);
+    expect(await state.answerer.answer('ada', request.id, expected, OWNER_HUMAN_CONTEXT)).toBe(
+      true,
+    );
     expect(await wait).toEqual(expected);
     expect(state.states.snapshot('ada').attention).toBeUndefined();
     expect(
@@ -94,10 +168,54 @@ describe('native DSH questions in a PersonaBot DM', () => {
       requestMessageId: request.id,
       state: 'answered',
       answers: expected.answers,
+      decidedBy: { humanId: OWNER_HUMAN_CONTEXT.humanId },
     });
-    expect(state.answerer.status('ada', request.id)).toBe('expired');
+    expect(state.answerer.status('ada', request.id)).toBe('answered');
     expect(state.answerer.activeMessageIds()).toEqual([]);
-    expect(await state.answerer.answer('ada', request.id, expected)).toBe(false);
+    expect(await state.answerer.answer('ada', request.id, expected, OWNER_HUMAN_CONTEXT)).toBe(
+      false,
+    );
+    const restarted = new ChannelUserQuestions(
+      state.channels,
+      state.ownership,
+      () => false,
+      state.warn,
+    );
+    expect(restarted.status('ada', request.id)).toBe('answered');
+    expect(restarted.status('ada', 'missing-request')).toBe('expired');
+    expect(restarted.activeMessageIds()).toEqual([]);
+    expect(await restarted.answer('ada', request.id, expected, OWNER_HUMAN_CONTEXT)).toBe(false);
+  });
+
+  it('finds answered questions beyond the latest page before and after service restart', async () => {
+    const state = fixture();
+    const wait = state.answerer.ask({ agent: state.agent, questions });
+    await vi.waitFor(() => expect(state.answerer.activeMessageIds()).toHaveLength(1));
+    const id = state.answerer.activeMessageIds()[0]!;
+    const appendHistory = async (prefix: string) => {
+      for (let index = 0; index < 205; index++) {
+        await state.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
+          id: `${prefix}-${index}`,
+          at: new Date().toISOString(),
+          author: { kind: 'human' },
+          body: 'Intervening message',
+        });
+      }
+    };
+    await appendHistory('before-answer');
+    const answer = { answers: [{ id: questions[0]!.id, selected: ['main'] }] };
+    expect(await state.answerer.answer('ada', id, answer, OWNER_HUMAN_CONTEXT)).toBe(true);
+    expect(await wait).toEqual(answer);
+    expect(state.answerer.status('ada', id)).toBe('answered');
+    await appendHistory('after-answer');
+    const restarted = new ChannelUserQuestions(
+      state.channels,
+      state.ownership,
+      () => false,
+      state.warn,
+    );
+    expect(restarted.status('ada', id)).toBe('answered');
+    expect(await restarted.answer('ada', id, answer, OWNER_HUMAN_CONTEXT)).toBe(false);
   });
 
   it('posts a card for more than three questions and a long question instead of leaving them to DSH', async () => {
@@ -119,7 +237,9 @@ describe('native DSH questions in a PersonaBot DM', () => {
           : { id: item.id, selected: ['yes'] },
       ),
     };
-    expect(await state.answerer.answer('ada', request.id, expected)).toBe(true);
+    expect(await state.answerer.answer('ada', request.id, expected, OWNER_HUMAN_CONTEXT)).toBe(
+      true,
+    );
     expect(await wait).toEqual(expected);
   });
 
@@ -142,9 +262,14 @@ describe('native DSH questions in a PersonaBot DM', () => {
     expect(state.answerer.status('ada', request.id)).toBe('expired');
     expect(state.answerer.activeMessageIds()).toEqual([]);
     expect(
-      await state.answerer.answer('ada', request.id, {
-        answers: [{ id: 'memory-branch', selected: [], custom: 'my-history' }],
-      }),
+      await state.answerer.answer(
+        'ada',
+        request.id,
+        {
+          answers: [{ id: 'memory-branch', selected: [], custom: 'my-history' }],
+        },
+        OWNER_HUMAN_CONTEXT,
+      ),
     ).toBe(false);
   });
 
@@ -157,9 +282,14 @@ describe('native DSH questions in a PersonaBot DM', () => {
     state.setLive(false);
     expect(state.answerer.status('ada', id)).toBe('expired');
     expect(
-      await state.answerer.answer('ada', id, {
-        answers: [{ id: 'memory-branch', selected: ['history-qa'] }],
-      }),
+      await state.answerer.answer(
+        'ada',
+        id,
+        {
+          answers: [{ id: 'memory-branch', selected: ['history-qa'] }],
+        },
+        OWNER_HUMAN_CONTEXT,
+      ),
     ).toBe(false);
     await rejected;
     expect(state.states.snapshot('ada').attention).toBeUndefined();
@@ -183,14 +313,21 @@ describe('native DSH questions in a PersonaBot DM', () => {
     const gate = new Promise<void>((resolve) => {
       release = resolve;
     });
-    vi.spyOn(state.channels, 'appendMessage').mockImplementation(async (channel, message) => {
-      const saved = await append(channel, message);
-      if (message.userQuestionResolution?.state === 'answered') await gate;
-      return saved;
-    });
-    const answer = state.answerer.answer('ada', id, {
-      answers: [{ id: 'memory-branch', selected: ['history-qa'] }],
-    });
+    vi.spyOn(state.channels, 'appendMessage').mockImplementation(
+      async (human, channel, message) => {
+        const saved = await append(human, channel, message);
+        if (message.userQuestionResolution?.state === 'answered') await gate;
+        return saved;
+      },
+    );
+    const answer = state.answerer.answer(
+      'ada',
+      id,
+      {
+        answers: [{ id: 'memory-branch', selected: ['history-qa'] }],
+      },
+      OWNER_HUMAN_CONTEXT,
+    );
     await vi.waitFor(() =>
       expect(
         state.channels
@@ -221,26 +358,71 @@ describe('native DSH questions in a PersonaBot DM', () => {
     const wait = state.answerer.ask({ agent: state.agent, questions });
     await vi.waitFor(() => expect(state.channels.readMessages(channelId)).toHaveLength(1));
     const id = state.channels.readMessages(channelId)[0]!.id;
-    expect(await state.answerer.answer('ada', id, { answers: [] })).toBe(false);
+    expect(await state.answerer.answer('ada', id, { answers: [] }, OWNER_HUMAN_CONTEXT)).toBe(
+      false,
+    );
     expect(
-      await state.answerer.answer('ada', id, {
-        answers: [{ id: 'memory-branch', selected: ['main', 'history-qa'] }],
-      }),
+      await state.answerer.answer(
+        'ada',
+        id,
+        {
+          answers: [{ id: 'memory-branch', selected: ['main', 'history-qa'] }],
+        },
+        OWNER_HUMAN_CONTEXT,
+      ),
     ).toBe(false);
     expect(
-      await state.answerer.answer('ada', id, {
-        answers: [{ id: 'memory-branch', selected: ['main'], custom: 'another-branch' }],
-      }),
+      await state.answerer.answer(
+        'ada',
+        id,
+        {
+          answers: [{ id: 'memory-branch', selected: ['main'], custom: 'another-branch' }],
+        },
+        OWNER_HUMAN_CONTEXT,
+      ),
     ).toBe(false);
     const expected = { answers: [{ id: 'memory-branch', selected: [], custom: 'another-branch' }] };
-    expect(await state.answerer.answer('ada', id, expected)).toBe(true);
+    expect(await state.answerer.answer('ada', id, expected, OWNER_HUMAN_CONTEXT)).toBe(true);
     expect(await wait).toEqual(expected);
     expect(state.states.snapshot('ada').attention).toBeUndefined();
   });
 });
 
 describe('native timed question card continuation', () => {
-  it('also waits for native settlement when the answer arrives before the deadline', async () => {
+  it('logs unexpected answer failures without prompt or answer text and leaves the card retryable', async () => {
+    const port = {
+      read: () => ({ state: 'open' as const }),
+      answer: vi.fn(() => true),
+      recordAnswer: vi.fn(),
+    };
+    port.recordAnswer.mockImplementationOnce(() => {
+      throw new TypeError('CONFIDENTIAL_PROMPT CONFIDENTIAL_ANSWER');
+    });
+    const state = fixture('orchestrator', port);
+    const pending = state.answerer.ask({
+      agent: state.agent,
+      questions,
+      wait: { callId: ToolCallId('log-failure'), timed: true },
+    });
+    void pending.catch(() => {});
+    await vi.waitFor(() => expect(state.answerer.activeMessageIds()).toHaveLength(1));
+    const id = state.answerer.activeMessageIds()[0]!;
+    const answer = { answers: [{ id: questions[0]!.id, selected: ['main'] }] };
+    await expect(state.answerer.answer('ada', id, answer, OWNER_HUMAN_CONTEXT)).rejects.toThrow(
+      TypeError,
+    );
+    const log = state.warn.mock.calls.map((call) => String(call[0])).join('\n');
+    expect(log).toContain(
+      'botharness.channel_question.answer_failed method=userQuestionAnswer phase=native-receipt kind=type',
+    );
+    expect(log).not.toContain('CONFIDENTIAL');
+    expect(state.answerer.status('ada', id)).toBe('pending');
+    expect(await state.answerer.answer('ada', id, answer, OWNER_HUMAN_CONTEXT)).toBe(true);
+    expect(await pending).toEqual(answer);
+    state.answerer.close();
+  });
+
+  it('notifies subscribers of a deferred native answer before settlement', async () => {
     const answer = { answers: [{ id: 'memory-branch', selected: ['main'] }] };
     let native: ReturnType<TimedQuestionPort['read']> = { state: 'open' };
     const port: TimedQuestionPort = { read: () => native, answer: vi.fn(() => true) };
@@ -252,10 +434,17 @@ describe('native timed question card continuation', () => {
     } as Parameters<ChannelUserQuestions['ask']>[0]);
     await vi.waitFor(() => expect(state.channels.readMessages(channelId)).toHaveLength(1));
     const id = state.channels.readMessages(channelId)[0]!.id;
-    expect(await state.answerer.answer('ada', id, answer)).toBe(true);
+    const statusChanged = vi.fn(({ messageId }: { messageId: string }) =>
+      state.answerer.status('ada', messageId),
+    );
+    const unsubscribe = state.answerer.subscribeStatus(statusChanged);
+    expect(await state.answerer.answer('ada', id, answer, OWNER_HUMAN_CONTEXT)).toBe(true);
     expect(await wait).toEqual(answer);
     expect(state.channels.readMessages(channelId)).toHaveLength(1);
     expect(state.answerer.status('ada', id)).toBe('submitted');
+    expect(statusChanged).toHaveBeenCalledExactlyOnceWith({ channelId, messageId: id });
+    expect(statusChanged).toHaveReturnedWith('submitted');
+    unsubscribe();
     expect(port.answer).not.toHaveBeenCalled();
     native = { state: 'answered', answer };
     await state.answerer.reconcileSession(sessionId);
@@ -304,10 +493,16 @@ describe('native timed question card continuation', () => {
     ]);
     expect(state.answerer.activeSessionIds()).toEqual([sessionId]);
     expect(state.states.snapshot('ada').attention?.questionCount).toBe(1);
-    expect(await state.answerer.answer('other', state.id, state.answer)).toBe(false);
-    expect(await state.answerer.answer('ada', state.id, { answers: [] })).toBe(false);
+    expect(await state.answerer.answer('other', state.id, state.answer, OWNER_HUMAN_CONTEXT)).toBe(
+      false,
+    );
+    expect(await state.answerer.answer('ada', state.id, { answers: [] }, OWNER_HUMAN_CONTEXT)).toBe(
+      false,
+    );
     expect(state.port.answer).not.toHaveBeenCalled();
-    expect(await state.answerer.answer('ada', state.id, state.answer)).toBe(true);
+    expect(await state.answerer.answer('ada', state.id, state.answer, OWNER_HUMAN_CONTEXT)).toBe(
+      true,
+    );
     expect(state.port.answer).toHaveBeenCalledWith(sessionId, 'original', state.answer);
     expect(state.answerer.status('ada', state.id)).toBe('submitted');
     expect(state.answerer.requests('ada')).toMatchObject([
@@ -315,12 +510,19 @@ describe('native timed question card continuation', () => {
     ]);
     await state.answerer.reconcileSession(sessionId);
     expect(state.channels.readMessages(channelId)).toHaveLength(1);
-    expect(await state.answerer.answer('ada', state.id, state.answer)).toBe(false);
+    expect(await state.answerer.answer('ada', state.id, state.answer, OWNER_HUMAN_CONTEXT)).toBe(
+      false,
+    );
     state.setNative({ state: 'answered', answer: state.answer });
     await state.answerer.reconcileSession(sessionId);
     expect(state.channels.readMessages(channelId)[0]?.userQuestionResolution).toMatchObject({
       state: 'answered',
       answers: state.answer.answers,
+    });
+    expect(state.channels.readMessages(channelId)[0]?.author).toEqual({
+      kind: 'human',
+      humanId: OWNER_HUMAN_CONTEXT.humanId,
+      displayName: 'Human',
     });
     expect(state.answerer.status('ada', state.id)).toBe('answered');
     expect(state.answerer.requests('ada')).toEqual([]);
@@ -330,15 +532,63 @@ describe('native timed question card continuation', () => {
 
   it('lets a discarded native reply be submitted again without falsely recording an answer', async () => {
     const state = await continued();
-    expect(await state.answerer.answer('ada', state.id, state.answer)).toBe(true);
+    const discard = vi.fn();
+    state.port.discardAnswer = discard;
+    const changes: string[] = [];
+    const off = state.answerer.subscribeStatus((card) => {
+      expect(card).toEqual({ channelId, messageId: state.id });
+      changes.push(state.answerer.status('ada', state.id));
+    });
+    expect(await state.answerer.answer('ada', state.id, state.answer, OWNER_HUMAN_CONTEXT)).toBe(
+      true,
+    );
     state.answerer.discardReply(sessionId, 'other-call');
     expect(state.answerer.status('ada', state.id)).toBe('submitted');
+    expect(changes).toEqual(['submitted']);
     state.answerer.discardReply(sessionId, 'original');
+    expect(discard).toHaveBeenCalledWith(sessionId, 'original');
     expect(state.answerer.status('ada', state.id)).toBe('pending');
     expect(state.channels.readMessages(channelId)).toHaveLength(1);
-    expect(await state.answerer.answer('ada', state.id, state.answer)).toBe(true);
+    expect(await state.answerer.answer('ada', state.id, state.answer, OWNER_HUMAN_CONTEXT)).toBe(
+      true,
+    );
+    state.setNative({ state: 'answered', answer: state.answer });
+    await state.answerer.reconcileSession(sessionId);
+    expect(
+      state.channels.readMessages(channelId)[0]?.userQuestionResolution?.decidedBy?.humanId,
+    ).toBe(OWNER_HUMAN_CONTEXT.humanId);
+    expect(changes).toEqual(['submitted', 'pending', 'submitted', 'answered']);
+    off();
     state.answerer.close();
   });
+
+  it.each([false, true])(
+    'does not attribute a later native-only answer to the Human whose reply was discarded (receipt: %s)',
+    async (receipts) => {
+      const state = await continued();
+      if (receipts) {
+        let receipt: typeof OWNER_HUMAN_CONTEXT | undefined;
+        state.port.recordAnswer = (_session, _call, _answer, human) => {
+          receipt = human;
+        };
+        state.port.discardAnswer = () => {
+          receipt = undefined;
+        };
+        state.port.answeringHuman = () => receipt;
+      }
+      expect(await state.answerer.answer('ada', state.id, state.answer, OWNER_HUMAN_CONTEXT)).toBe(
+        true,
+      );
+      state.answerer.discardReply(sessionId, 'original');
+      state.setNative({ state: 'answered', answer: state.answer });
+      await state.answerer.reconcileSession(sessionId);
+      const resolution = state.channels.readMessages(channelId)[0];
+      expect(resolution?.userQuestionResolution?.state).toBe('answered');
+      expect(resolution?.userQuestionResolution?.decidedBy).toBeUndefined();
+      expect(resolution?.author).toEqual({ kind: 'system' });
+      state.answerer.close();
+    },
+  );
 
   it('fails closed for changed ownership and a missing native question', async () => {
     for (const invalidate of [
@@ -350,7 +600,9 @@ describe('native timed question card continuation', () => {
       const state = await continued();
       invalidate(state);
       expect(state.answerer.status('ada', state.id)).toBe('expired');
-      expect(await state.answerer.answer('ada', state.id, state.answer)).toBe(false);
+      expect(await state.answerer.answer('ada', state.id, state.answer, OWNER_HUMAN_CONTEXT)).toBe(
+        false,
+      );
       expect(state.port.answer).not.toHaveBeenCalled();
       expect(state.states.snapshot('ada').attention).toBeUndefined();
     }
@@ -421,7 +673,7 @@ describe('timed question cards outlive their asking Agent', () => {
         return deliver();
       };
     });
-    expect(await restarted.answer('ada', id, answer)).toBe(true);
+    expect(await restarted.answer('ada', id, answer, OWNER_HUMAN_CONTEXT)).toBe(true);
     expect(after.delivered).toEqual([[sessionId, channelId, id]]);
     expect(after.port.answer).toHaveBeenCalledWith(sessionId, 'original', answer);
     expect(restarted.status('ada', id)).toBe('submitted');
@@ -434,15 +686,65 @@ describe('timed question cards outlive their asking Agent', () => {
       requestMessageId: id,
       state: 'answered',
       answers: answer.answers,
+      decidedBy: { humanId: OWNER_HUMAN_CONTEXT.humanId, displayName: 'Human' },
     });
     expect(restarted.status('ada', id)).toBe('answered');
     expect(states.snapshot('ada').attention).toBeUndefined();
   });
 
+  it.each(['foreground', 'continued'] as const)(
+    'recovers the submitting member after a %s answer before the Channel commit',
+    async (mode) => {
+      let native: ReturnType<TimedQuestionPort['read']> = { state: 'open' };
+      let receipt: { answer: typeof answer; human: ReturnType<typeof humanContext> } | undefined;
+      const { port } = recoveringPort(() => native);
+      const timed: TimedQuestionPort = {
+        ...port,
+        recordAnswer: (_session, _call, submitted, human) => {
+          receipt = { answer: submitted, human };
+        },
+        answeringHuman: (_session, _call, submitted) =>
+          JSON.stringify(receipt?.answer) === JSON.stringify(submitted)
+            ? receipt?.human
+            : undefined,
+      };
+      const state = fixture('orchestrator', timed);
+      const { id, controller } = await askTimed(state);
+      if (mode === 'continued') {
+        controller.abort();
+        state.setLive(false);
+        native = { state: 'continued' };
+      }
+      const member = humanContext('bob');
+      expect(await state.answerer.answer('ada', id, answer, member)).toBe(true);
+      expect(receipt?.human).toEqual(member);
+      state.answerer.close();
+      native = { state: 'answered', answer };
+      const restarted = new ChannelUserQuestions(
+        state.channels,
+        state.ownership,
+        () => false,
+        undefined,
+        undefined,
+        timed,
+      );
+      await restarted.recover([{ channelId, messageId: id }]);
+      const resolution = state.channels
+        .readMessages(channelId)
+        .find((item) => item.userQuestionResolution);
+      expect(resolution?.userQuestionResolution?.decidedBy).toEqual({
+        humanId: 'bob',
+        displayName: 'Human',
+      });
+      expect(resolution?.author).toMatchObject({ kind: 'human', humanId: 'bob' });
+      restarted.close();
+    },
+  );
+
   it('records a native answer settled while the Host was down', async () => {
     const { port } = recoveringPort(() => ({ state: 'answered', answer }));
     const state = fixture('orchestrator', port);
-    const message = await state.channels.appendMessage(channelId, {
+    const message = await state.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
       id: 'recovered-card',
       at: new Date().toISOString(),
       author: { kind: 'bot', slug: 'ada' },
@@ -453,6 +755,11 @@ describe('timed question cards outlive their asking Agent', () => {
     await state.answerer.recover([{ channelId, messageId: 'recovered-card' }]);
     expect(state.answerer.status('ada', 'recovered-card')).toBe('answered');
     expect(state.answerer.activeMessageIds()).toEqual([]);
+    const resolution = state.channels
+      .readMessages(channelId)
+      .find((item) => item.userQuestionResolution);
+    expect(resolution?.author).toEqual({ kind: 'system' });
+    expect(resolution?.userQuestionResolution?.decidedBy).toBeUndefined();
   });
 
   it('recovers nothing for a missing native question, another owner, an unavailable Session or a blocking card', async () => {
@@ -464,7 +771,7 @@ describe('timed question cards outlive their asking Agent', () => {
     ]) {
       const { port } = recoveringPort(() => ({ state: 'continued' }));
       const state = fixture('orchestrator', port);
-      await state.channels.appendMessage(channelId, {
+      await state.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
         id: 'card',
         at: new Date().toISOString(),
         author: { kind: 'bot', slug: 'ada' },
@@ -479,7 +786,7 @@ describe('timed question cards outlive their asking Agent', () => {
     }
     const { port } = recoveringPort(() => ({ state: 'continued' }));
     const state = fixture('orchestrator', port);
-    await state.channels.appendMessage(channelId, {
+    await state.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
       id: 'blocking',
       at: new Date().toISOString(),
       author: { kind: 'bot', slug: 'ada' },
@@ -502,7 +809,7 @@ describe('timed question cards outlive their asking Agent', () => {
       end(state);
       expect(state.answerer.status('ada', id)).toBe('pending');
       expect(state.states.snapshot('ada').attention?.questionCount).toBe(1);
-      expect(await state.answerer.answer('ada', id, answer)).toBe(true);
+      expect(await state.answerer.answer('ada', id, answer, OWNER_HUMAN_CONTEXT)).toBe(true);
       expect(delivered).toEqual([[sessionId, channelId, id]]);
       expect(port.answer).toHaveBeenCalledWith(sessionId, 'original', answer);
       native = undefined;
@@ -518,7 +825,7 @@ describe('timed question cards outlive their asking Agent', () => {
     const { controller, id } = await askTimed(state);
     controller.abort(new Error('turn stopped'));
     expect(state.answerer.status('ada', id)).toBe('pending');
-    expect(await state.answerer.answer('ada', id, answer)).toBe(false);
+    expect(await state.answerer.answer('ada', id, answer, OWNER_HUMAN_CONTEXT)).toBe(false);
     native = undefined;
     await state.answerer.reconcileSession(sessionId);
     await vi.waitFor(() =>
@@ -556,10 +863,10 @@ describe('live question attention authority', () => {
     await vi.waitFor(() => expect(state.states.snapshot('ada').attention?.questionCount).toBe(2));
     const ids = state.answerer.activeMessageIds();
     const answer = { answers: [{ id: 'memory-branch', selected: ['main'] }] };
-    expect(await state.answerer.answer('ada', ids[0]!, answer)).toBe(true);
+    expect(await state.answerer.answer('ada', ids[0]!, answer, OWNER_HUMAN_CONTEXT)).toBe(true);
     await first;
     expect(state.states.snapshot('ada').attention).toEqual({ approvalCount: 2, questionCount: 1 });
-    expect(await state.answerer.answer('ada', ids[1]!, answer)).toBe(true);
+    expect(await state.answerer.answer('ada', ids[1]!, answer, OWNER_HUMAN_CONTEXT)).toBe(true);
     await second;
     expect(state.states.snapshot('ada')).toEqual({ ...original, attention: { approvalCount: 2 } });
     state.states.setApprovalCount('ada', 0);
@@ -576,10 +883,12 @@ describe('live question attention authority', () => {
       release = done;
     });
     const append = state.channels.appendMessage.bind(state.channels);
-    vi.spyOn(state.channels, 'appendMessage').mockImplementation(async (channel, message) => {
-      if (message.userQuestionRequest) await gate;
-      return append(channel, message);
-    });
+    vi.spyOn(state.channels, 'appendMessage').mockImplementation(
+      async (human, channel, message) => {
+        if (message.userQuestionRequest) await gate;
+        return append(human, channel, message);
+      },
+    );
     const controller = new AbortController();
     const request = state.answerer.ask({
       agent: state.agent,
@@ -649,7 +958,7 @@ describe('Channel question routing before native Client answerers', () => {
     await vi.waitFor(() => expect(state.channels.readMessages(channelId)).toHaveLength(1));
     const request = state.channels.readMessages(channelId)[0]!;
     const answer = { answers: [{ id: 'memory-branch', selected: ['history-qa'] }] };
-    expect(await state.answerer.answer('ada', request.id, answer)).toBe(true);
+    expect(await state.answerer.answer('ada', request.id, answer, OWNER_HUMAN_CONTEXT)).toBe(true);
     expect(await waiting).toEqual(answer);
     expect(native).not.toHaveBeenCalled();
   });

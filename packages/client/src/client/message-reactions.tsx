@@ -2,7 +2,7 @@ import * as stylex from '@stylexjs/stylex';
 import { useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 
-import { MenuSurface } from '@deepseek-ai/dsh-client-ui-primitives';
+import { MenuSurface } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 
 import { IconButton } from './ds/icon-button.js';
@@ -22,8 +22,7 @@ const styles = stylex.create({
     display: 'flex',
     gap: space.x1,
     padding: space.x2,
-    '--dsw-elevation-stroke-color': color.divider,
-    boxShadow: 'var(--dsw-elevation-prominent)',
+    boxShadow: 'var(--tobs-elevation-2)',
   },
   pick: {
     display: 'grid',
@@ -62,7 +61,7 @@ const styles = stylex.create({
     paddingInline: `calc(${space.x3} + ${space.x1})`,
     borderWidth: border.focus,
     borderStyle: 'solid',
-    borderColor: 'var(--dsw-alias-bg-base)',
+    borderColor: 'var(--tobs-layer-canvas)',
     borderRadius: radius.lg,
     backgroundColor: color.surface,
     backgroundImage: {

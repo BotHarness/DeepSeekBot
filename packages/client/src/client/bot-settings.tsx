@@ -1,12 +1,36 @@
-import { SettingsSearch, searchSettings } from './settings-search.js';
+import { CLIENT_SETTINGS_INDEX, SettingsSearch, searchSettings } from './settings-search.js';
 import { useMountedResource } from './mounted-resource.js';
 import { useState, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 
-import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots';
-
-import type {} from './bot-settings-slot.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import type { SettingsSectionSlots } from './bot-settings-slot.js';
+import * as stylex from '@stylexjs/stylex';
+import { MEMBER_SETTINGS_SECTIONS } from './member-settings.js';
+import type { BridgeCall } from './bridge.js';
+import { canManageModelProviders } from './team-bridge.js';
+import { refreshTeamMode, useTeamMember, useTeamMode } from './team-state.js';
+import { Icon } from './ds/icon.js';
 import { SettingsDialog } from './ds/settings-dialog.js';
+import { Note } from './ds/note.js';
+import { NavItem } from './ds/nav-item.js';
+import { edge, line, radius, space } from './ds/tobs.stylex.js';
+import { SettingsSection } from './ds/settings-row.js';
+import { useHostDraftGuard } from './host-draft-guard.js';
+import { hostSettingsDrafts } from './host-settings-drafts.js';
+import {
+  EnvironmentSwitcher,
+  LocalHostAppearance,
+  REMOTE_DEVICE_SECTIONS,
+  REMOTE_SECTION_ICONS,
+  REMOTE_SETTINGS_SECTIONS,
+  RemoteEnvironmentSection,
+  isRemoteSettingsSection,
+  remoteSettingsRows,
+  type SettingsEnvironments,
+} from './settings-environment.js';
+import { THIS_HOST } from './remote-hosts.js';
+import { TargetName } from './target-name.js';
+import { PinToggle, SETTINGS_HOME, SettingsHome, type SettingsPins } from './settings-home.js';
+import { useThisHost } from './this-host.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 export const BOT_SETTINGS_SECTIONS = {
@@ -15,12 +39,16 @@ export const BOT_SETTINGS_SECTIONS = {
   appearance: 'appearance',
   notifications: 'notifications',
   shortcuts: 'shortcuts',
+  modelProviders: 'model-providers',
   models: 'models',
+  modelPresets: 'model-presets',
   messaging: 'messaging',
   autoApproval: 'auto-approval',
   prompts: 'prompts',
+  voice: 'voice',
   imApps: 'im-apps',
   companions: 'companions',
+  team: 'team',
   devices: 'devices',
   dataPrivacy: 'data-privacy',
   advanced: 'advanced',
@@ -30,13 +58,24 @@ export const BOT_SETTINGS_SECTIONS = {
 
 export const BOT_SETTINGS_DEFAULT_SECTION = BOT_SETTINGS_SECTIONS.general;
 
+export const DEVICE_SETTINGS_SECTIONS: ReadonlySet<string> = new Set(
+  Object.keys(CLIENT_SETTINGS_INDEX),
+);
+
+const HOME_GROUP = 'home';
+const DEVICE_GROUP = 'device';
+const HOST_GROUP = 'host';
+
 const SECTION_ICONS: Readonly<Record<string, string>> = {
   [BOT_SETTINGS_SECTIONS.account]: 'user',
   [BOT_SETTINGS_SECTIONS.general]: 'settings',
   [BOT_SETTINGS_SECTIONS.appearance]: 'palette',
+  [BOT_SETTINGS_SECTIONS.modelProviders]: 'server',
   [BOT_SETTINGS_SECTIONS.models]: 'cpu',
+  [BOT_SETTINGS_SECTIONS.modelPresets]: 'list',
   [BOT_SETTINGS_SECTIONS.autoApproval]: 'shield-check',
   [BOT_SETTINGS_SECTIONS.prompts]: 'file-text',
+  [BOT_SETTINGS_SECTIONS.voice]: 'audio-lines',
   [BOT_SETTINGS_SECTIONS.messaging]: 'message-square',
   [BOT_SETTINGS_SECTIONS.notifications]: 'bell',
   [BOT_SETTINGS_SECTIONS.shortcuts]: 'keyboard',
@@ -44,6 +83,7 @@ const SECTION_ICONS: Readonly<Record<string, string>> = {
   computer: 'monitor',
   browser: 'globe',
   [BOT_SETTINGS_SECTIONS.companions]: 'bot',
+  [BOT_SETTINGS_SECTIONS.team]: 'users',
   [BOT_SETTINGS_SECTIONS.devices]: 'smartphone',
   [BOT_SETTINGS_SECTIONS.dataPrivacy]: 'lock',
   [BOT_SETTINGS_SECTIONS.advanced]: 'sliders-horizontal',
@@ -55,13 +95,43 @@ export function botSettingsSectionIcon(id: string): string {
   return Object.hasOwn(SECTION_ICONS, id) ? SECTION_ICONS[id]! : 'settings-2';
 }
 
+const CONNECT_ACTIONS = [
+  { id: 'pair-phone', label: 'settings.home.pairPhone', icon: 'smartphone' },
+  { id: 'join-computer', label: 'connections.join', icon: 'laptop' },
+] as const;
+
+function rowIcon(id: string): string {
+  if (id === SETTINGS_HOME) return 'house';
+  const action = CONNECT_ACTIONS.find((candidate) => candidate.id === id);
+  if (action !== undefined) return action.icon;
+  return isRemoteSettingsSection(id) ? REMOTE_SECTION_ICONS[id] : botSettingsSectionIcon(id);
+}
+
+const styles = stylex.create({
+  searchResults: { display: 'flex', flexDirection: 'column', gap: space.x1 },
+  searchResultTarget: {
+    outline: `${edge.focus} solid ${line.focus}`,
+    outlineOffset: edge.focusOffset,
+    borderRadius: radius.xs,
+  },
+});
+
+const searchTargetClasses = stylex.props(styles.searchResultTarget).className?.split(' ') ?? [];
 const SECTION_SLOT = 'botharness.settings.section';
+
+const COMPUTER_SECTION = 'computer';
+const BROWSER_SECTION = 'browser';
+const SECTION_ALIASES: Readonly<Record<string, string>> = {
+  [BROWSER_SECTION]: COMPUTER_SECTION,
+  plugins: 'about',
+};
 
 export interface BotSettingsSectionRow {
   readonly id: string;
   readonly order: number;
   readonly label: string;
   readonly layoutAvailable?: boolean;
+  readonly clientLayoutAvailable?: boolean;
 }
 
 export interface BotSettingsTarget {
@@ -72,7 +142,17 @@ export interface BotSettingsTarget {
 export interface BotSettingsSnapshot {
   readonly open: boolean;
   readonly sectionId: string | undefined;
+  readonly pairPhone?: boolean;
+  readonly joinComputer?: boolean;
   readonly target?: BotSettingsTarget | undefined;
+  readonly clientOnly?: boolean;
+  readonly compactList?: boolean;
+  readonly host?: BotSettingsHost | undefined;
+}
+
+export interface BotSettingsHost {
+  readonly remote: { readonly hostId: string; readonly hostName: string } | undefined;
+  readonly nonce: number;
 }
 
 export interface BotSettingsSectionSource {
@@ -97,15 +177,60 @@ export class BotSettings {
     this.#set({
       open: true,
       sectionId:
-        sectionId === 'connect'
+        sectionId === 'connect' || sectionId === 'pair-phone' || sectionId === 'join-computer'
           ? BOT_SETTINGS_SECTIONS.devices
           : (sectionId ?? this.#snapshot.sectionId),
+      compactList: sectionId === undefined,
+      pairPhone: sectionId === 'pair-phone',
+      joinComputer: sectionId === 'join-computer',
       target: this.#target(target),
     });
   };
 
-  readonly select = (sectionId: string, target?: string): void => {
-    this.#set({ ...this.#snapshot, sectionId, target: this.#target(target) });
+  readonly select = (sectionId: string, target?: string, compactList = false): void => {
+    if (this.#snapshot.clientOnly && !Object.hasOwn(CLIENT_SETTINGS_INDEX, sectionId)) return;
+    this.#set({
+      ...this.#snapshot,
+      sectionId,
+      compactList,
+      pairPhone: false,
+      joinComputer: false,
+      target: this.#target(target),
+    });
+  };
+
+  readonly showList = (): void => {
+    this.#set({
+      ...this.#snapshot,
+      compactList: true,
+      pairPhone: false,
+      joinComputer: false,
+      target: undefined,
+    });
+  };
+
+  readonly showDetail = (): void => {
+    this.#set({ ...this.#snapshot, compactList: false });
+  };
+
+  readonly openHost = (host?: { hostId: string; hostName: string }): void => {
+    this.#set({
+      open: true,
+      sectionId:
+        host === undefined ? BOT_SETTINGS_SECTIONS.models : REMOTE_SETTINGS_SECTIONS.hostModels,
+      host: {
+        remote: host && { hostId: host.hostId, hostName: host.hostName },
+        nonce: Date.now(),
+      },
+    });
+  };
+
+  readonly openClientPreferences = (): void => {
+    this.#set({
+      open: true,
+      sectionId: BOT_SETTINGS_SECTIONS.appearance,
+      clientOnly: true,
+    });
   };
 
   readonly close = (): void => {
@@ -120,7 +245,12 @@ export class BotSettings {
     if (
       next.open === this.#snapshot.open &&
       next.sectionId === this.#snapshot.sectionId &&
-      next.target === this.#snapshot.target
+      next.pairPhone === this.#snapshot.pairPhone &&
+      next.joinComputer === this.#snapshot.joinComputer &&
+      next.target === this.#snapshot.target &&
+      next.clientOnly === this.#snapshot.clientOnly &&
+      next.compactList === this.#snapshot.compactList &&
+      next.host === this.#snapshot.host
     )
       return;
     this.#snapshot = next;
@@ -128,26 +258,74 @@ export class BotSettings {
   }
 }
 
-export type BotSettingsViewProps = PropsRenderSlots<'botharness.settings.section'> & {
+export type BotSettingsViewProps = SettingsSectionSlots & {
   botSettings: BotSettings;
+  call?: BridgeCall;
   sections: BotSettingsSectionSource;
+  environments?: SettingsEnvironments | undefined;
+  pins?: SettingsPins | undefined;
   t: BotHarnessTranslate;
 };
 
+const NO_ENVIRONMENTS: Omit<SettingsEnvironments, 'notifications'> = {
+  getSnapshot: () => EMPTY_ENVIRONMENTS,
+  subscribe: () => () => undefined,
+  client: () => undefined,
+};
+const EMPTY_ENVIRONMENTS = {
+  hosts: [],
+  avatars: new Map(),
+  tab: '',
+} as ReturnType<SettingsEnvironments['getSnapshot']>;
+
 export function BotSettingsView({
   botSettings,
+  call,
   sections,
+  environments,
+  pins,
   renderSlot,
   t,
 }: BotSettingsViewProps): ReactElement | null {
   const state = useSyncExternalStore(botSettings.subscribe, botSettings.getSnapshot);
   const registered = useSyncExternalStore(sections.subscribe, sections.getSnapshot);
+  const known = environments ?? NO_ENVIRONMENTS;
+  const remotes = useSyncExternalStore(known.subscribe, known.getSnapshot, known.getSnapshot).hosts;
+  const member = useTeamMember();
+  const canManageProviders = canManageModelProviders(useTeamMode(call)?.viewer);
+  const thisHost = useThisHost();
   const [query, setQuery] = useState('');
+  const [chosenHost, setChosenHost] = useState<{
+    hostId: string;
+    hostName: string;
+  }>();
+  const [appliedHost, setAppliedHost] = useState(state.host);
+  if (state.host !== appliedHost) {
+    setAppliedHost(state.host);
+    if (state.host !== undefined) setChosenHost(state.host.remote);
+  }
+  const grouped = state.clientOnly !== true;
+  const localRequest =
+    chosenHost !== undefined &&
+    state.sectionId !== undefined &&
+    !DEVICE_SETTINGS_SECTIONS.has(state.sectionId) &&
+    registered.some((row) => row.id === state.sectionId) &&
+    !hostSettingsDrafts.hasDirty(chosenHost.hostId);
+  if (localRequest) setChosenHost(undefined);
+  const chosen = localRequest ? undefined : chosenHost;
+  const remote =
+    grouped && chosen
+      ? (remotes.find((entry) => entry.host.hostId === chosen.hostId)?.host ?? chosen)
+      : undefined;
+  const guard = useHostDraftGuard(remote?.hostId, t);
   const target = state.target;
   const locate = useMountedResource<HTMLDivElement>(
     (root) => {
-      for (const item of root.querySelectorAll('[data-settings-highlight]'))
+      if (call !== undefined) void refreshTeamMode(call);
+      for (const item of root.querySelectorAll('[data-settings-highlight]')) {
         item.removeAttribute('data-settings-highlight');
+        item.classList.remove(...searchTargetClasses);
+      }
       if (!target) {
         root.parentElement?.scrollTo?.(0, 0);
         return;
@@ -170,6 +348,7 @@ export function BotSettingsView({
         found = true;
         node.scrollIntoView?.({ block: 'center' });
         node.setAttribute('data-settings-highlight', '');
+        node.classList.add(...searchTargetClasses);
         node.tabIndex = -1;
         node.focus({ preventScroll: true });
       };
@@ -178,66 +357,284 @@ export function BotSettingsView({
       find();
       return () => observer.disconnect();
     },
-    [state.sectionId, target],
+    [call, state.sectionId, target],
   );
   if (!state.open) return null;
-  const rows = [...registered].sort((a, b) => a.order - b.order);
-  const active =
-    rows.find((row) => row.id === state.sectionId) ??
-    rows.find((row) => row.id === BOT_SETTINGS_DEFAULT_SECTION) ??
-    rows[0];
-  const close = (): void => {
-    setQuery('');
-    botSettings.close();
+  const rows = [...registered]
+    .filter(
+      (row) =>
+        (row.id === BOT_SETTINGS_SECTIONS.modelProviders
+          ? canManageProviders
+          : !member || MEMBER_SETTINGS_SECTIONS.has(row.id)) &&
+        (!state.clientOnly || Object.hasOwn(CLIENT_SETTINGS_INDEX, row.id)),
+    )
+    .sort((a, b) => a.order - b.order);
+  const merged = rows.some((row) => row.id === COMPUTER_SECTION);
+  const navSource = merged
+    ? rows
+        .filter((row) => row.id !== BROWSER_SECTION)
+        .map((row) =>
+          row.id === COMPUTER_SECTION
+            ? { ...row, label: t('botSettings.section.computerBrowser') }
+            : row,
+        )
+    : rows;
+  const deviceRows = rows.filter((row) => DEVICE_SETTINGS_SECTIONS.has(row.id));
+  const hereName = thisHost.name ?? t('remoteHosts.this');
+  const hostRows: readonly BotSettingsSectionRow[] = remote
+    ? remoteSettingsRows(t, { member: 'member' in remote && remote.member !== undefined })
+    : navSource.filter((row) => !DEVICE_SETTINGS_SECTIONS.has(row.id));
+  const hostLookOnAccount = grouped && !member && !remote;
+  const home = grouped && pins !== undefined;
+  const homeRow: BotSettingsSectionRow = {
+    id: SETTINGS_HOME,
+    order: -1,
+    label: t('settings.home'),
   };
+  const navRows = grouped ? [...(home ? [homeRow] : []), ...deviceRows, ...hostRows] : navSource;
+  const wanted =
+    hostLookOnAccount && state.sectionId === REMOTE_SETTINGS_SECTIONS.hostAppearance
+      ? BOT_SETTINGS_SECTIONS.account
+      : state.sectionId !== undefined && Object.hasOwn(SECTION_ALIASES, state.sectionId)
+        ? SECTION_ALIASES[state.sectionId]
+        : state.sectionId;
+  const active =
+    navRows.find((row) => row.id === wanted) ??
+    (home
+      ? homeRow
+      : remote
+        ? hostRows[0]
+        : (rows.find((row) => row.id === BOT_SETTINGS_DEFAULT_SECTION) ?? navRows[0]));
+  const close = (): void => {
+    void guard.leave(() => {
+      setQuery('');
+      botSettings.close();
+    });
+  };
+  const select = (id: string, target?: string): void => {
+    void guard.leave(() => {
+      setQuery('');
+      botSettings.select(id, target);
+    });
+  };
+  const back = (): void => {
+    void guard.leave(() => {
+      setQuery('');
+      botSettings.showList();
+    });
+  };
+  const switchHost = (hostId: string): void => {
+    void guard.leave(() => {
+      const next = remotes.find((entry) => entry.host.hostId === hostId)?.host;
+      setChosenHost(next && { hostId: next.hostId, hostName: next.hostName });
+      if (
+        active === undefined ||
+        active.id === SETTINGS_HOME ||
+        DEVICE_SETTINGS_SECTIONS.has(active.id)
+      )
+        return;
+      botSettings.select(
+        next === undefined ? BOT_SETTINGS_SECTIONS.models : REMOTE_SETTINGS_SECTIONS.hostModels,
+        undefined,
+        state.compactList,
+      );
+    }, 'switch');
+  };
+  const multi = grouped && (remotes.length > 0 || remote !== undefined);
+  const hostLabel = multi ? (
+    <TargetName
+      hostId={remote?.hostId ?? thisHost.id ?? THIS_HOST}
+      name={remote?.hostName ?? hereName}
+      glyph={false}
+    />
+  ) : (
+    hereName
+  );
+  const scope =
+    !multi || active === undefined || active.id === SETTINGS_HOME
+      ? undefined
+      : DEVICE_SETTINGS_SECTIONS.has(active.id) || REMOTE_DEVICE_SECTIONS.has(active.id)
+        ? t('environment.settings.deviceScope')
+        : t('environment.settings.hostScope', {
+            name: remote?.hostName ?? hereName,
+          });
+  const results = searchSettings(remote ? deviceRows : rows, query, t, state.clientOnly);
   return (
     <SettingsDialog
-      title={t('settings.nav')}
-      navTitle={t('settings.nav')}
-      sections={rows.map((row) => ({
-        ...row,
-        icon: <ChannelSidebarIcon name={botSettingsSectionIcon(row.id)} />,
+      title={t(state.clientOnly ? 'environment.settings.app' : 'settings.nav')}
+      navTitle={t(state.clientOnly ? 'environment.settings.app' : 'settings.nav')}
+      caption={state.clientOnly ? <Note>{t('environment.settings.clientScope')}</Note> : undefined}
+      sections={navRows.map((row) => ({
+        id: row.id,
+        label: row.label,
+        group:
+          row.id === SETTINGS_HOME
+            ? HOME_GROUP
+            : DEVICE_SETTINGS_SECTIONS.has(row.id)
+              ? DEVICE_GROUP
+              : HOST_GROUP,
+        icon: <Icon name={rowIcon(row.id)} />,
       }))}
+      groups={
+        grouped
+          ? [
+              { id: HOME_GROUP },
+              {
+                id: DEVICE_GROUP,
+                label: t('environment.settings.deviceGroup'),
+              },
+              { id: HOST_GROUP, label: hostLabel },
+            ]
+          : undefined
+      }
+      scope={scope}
+      headerAction={
+        pins !== undefined && home && active !== undefined && active.id !== SETTINGS_HOME ? (
+          <PinToggle sectionId={active.id} pins={pins} t={t} />
+        ) : null
+      }
+      environmentAction={
+        multi ? (
+          <EnvironmentSwitcher
+            here={{ hostId: thisHost.id ?? THIS_HOST, name: hereName }}
+            remotes={[
+              ...remotes.map(({ host }) => ({
+                hostId: host.hostId,
+                name: host.hostName,
+              })),
+              ...(remote && !remotes.some((entry) => entry.host.hostId === remote.hostId)
+                ? [{ hostId: remote.hostId, name: remote.hostName }]
+                : []),
+            ]}
+            value={remote?.hostId ?? thisHost.id ?? THIS_HOST}
+            onChange={switchHost}
+            t={t}
+          />
+        ) : null
+      }
+      overlay={guard.view}
+      compactNavigation={{
+        showList: state.compactList === true,
+        onBack: back,
+        onExpand: botSettings.showDetail,
+        backLabel: t('settings.back'),
+      }}
       activeId={active?.id}
       navigationSearch={<SettingsSearch query={query} onChange={setQuery} t={t} />}
       navigationResults={
         query.trim() ? (
-          <div className="bh-settings-search-results" aria-label={t('settings.results')}>
-            {searchSettings(rows, query, t).length ? (
-              searchSettings(rows, query, t).map((result) => (
-                <button
-                  type="button"
+          <div
+            data-settings-search-results=""
+            aria-label={t('settings.results')}
+            {...stylex.props(styles.searchResults)}
+          >
+            {results.length ? (
+              results.map((result) => (
+                <NavItem
                   key={`${result.section}:${result.title}`}
-                  onClick={() => {
-                    botSettings.select(result.section, result.target);
-                    setQuery('');
-                  }}
-                >
-                  <span>{result.title}</span>
-                  <small>{result.page}</small>
-                </button>
+                  icon={<Icon name={rowIcon(result.section)} />}
+                  label={result.title}
+                  description={result.title === result.page ? undefined : result.page}
+                  onSelect={() => select(result.section, result.target)}
+                />
               ))
             ) : (
-              <p role="status">{t('settings.noResults')}</p>
+              <Note>{t('settings.noResults')}</Note>
             )}
           </div>
         ) : undefined
       }
-      onSelect={(id) => {
-        setQuery('');
-        botSettings.select(id);
-      }}
+      onSelect={select}
       onClose={close}
       labels={{
-        nav: t('botSettings.nav'),
+        nav: t(state.clientOnly ? 'environment.settings.app' : 'botSettings.nav'),
         close: t('common.close'),
-        picker: (section) => t('botSettings.picker', { section }),
       }}
     >
       <div ref={locate} data-settings-content={active?.id}>
-        {active === undefined
-          ? null
-          : (renderSlot(SECTION_SLOT, { close }, { only: active.id }) as unknown as ReactNode)}
+        {active === undefined ? null : pins !== undefined && active.id === SETTINGS_HOME ? (
+          <SettingsHome
+            rows={[
+              ...navRows.filter((row) => row.id !== SETTINGS_HOME),
+              ...(rows.some((row) => row.id === BOT_SETTINGS_SECTIONS.devices)
+                ? CONNECT_ACTIONS.map((action) => ({ id: action.id, label: t(action.label) }))
+                : []),
+            ].map((row) => ({
+              id: row.id,
+              label: row.label,
+              icon: <Icon name={rowIcon(row.id)} large />,
+            }))}
+            pins={pins}
+            onOpen={(id) => {
+              if (CONNECT_ACTIONS.some((action) => action.id === id))
+                void guard.leave(() => {
+                  botSettings.open(id);
+                });
+              else select(id);
+            }}
+            t={t}
+          />
+        ) : environments && remote && isRemoteSettingsSection(active.id) ? (
+          <RemoteEnvironmentSection
+            environments={environments}
+            hostId={remote.hostId}
+            name={remote.hostName}
+            section={active.id}
+            t={t}
+          />
+        ) : active.id === REMOTE_SETTINGS_SECTIONS.hostAppearance ? (
+          <LocalHostAppearance hostId={thisHost.id} name={hereName} t={t} />
+        ) : active.id === BOT_SETTINGS_SECTIONS.account && hostLookOnAccount ? (
+          <>
+            {
+              renderSlot(
+                SECTION_SLOT,
+                { close, clientOnly: false },
+                { only: active.id },
+              ) as unknown as ReactNode
+            }
+            <LocalHostAppearance
+              hostId={thisHost.id}
+              name={hereName}
+              title={t('account.section.hostLook')}
+              t={t}
+            />
+          </>
+        ) : active.id === COMPUTER_SECTION && merged ? (
+          <>
+            <SettingsSection title={t('botSettings.section.computer')}>
+              {
+                renderSlot(
+                  SECTION_SLOT,
+                  { close, clientOnly: state.clientOnly === true },
+                  { only: COMPUTER_SECTION },
+                ) as unknown as ReactNode
+              }
+            </SettingsSection>
+            {rows.some((row) => row.id === BROWSER_SECTION) ? (
+              <SettingsSection title={t('botSettings.section.browser')}>
+                {
+                  renderSlot(
+                    SECTION_SLOT,
+                    { close, clientOnly: state.clientOnly === true },
+                    { only: BROWSER_SECTION },
+                  ) as unknown as ReactNode
+                }
+              </SettingsSection>
+            ) : null}
+          </>
+        ) : (
+          (renderSlot(
+            SECTION_SLOT,
+            {
+              close,
+              clientOnly: state.clientOnly === true,
+              pairPhone: state.pairPhone,
+              joinComputer: state.joinComputer,
+            },
+            { only: active.id },
+          ) as unknown as ReactNode)
+        )}
       </div>
     </SettingsDialog>
   );
@@ -282,6 +679,9 @@ export function botSettingsSectionSource(ctx: SectionLedger): BotSettingsSection
         rows = ctx.slots.entries(SECTION_SLOT).map(({ options }) => ({
           id: options.id ?? '',
           layoutAvailable: ctx.slots.entries('botharness.settings.layout').length > 0,
+          clientLayoutAvailable: ctx.slots
+            .entries('botharness.settings.layout')
+            .some((entry) => entry.options.id === 'workspace-layout'),
           order: options.order ?? 0,
           label: typeof options.label === 'function' ? options.label() : (options.label ?? ''),
         }));

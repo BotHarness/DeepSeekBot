@@ -1,28 +1,23 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { parseChannelMessage } from '../src/client/bridge.js';
 import { ChannelMessageBody } from '../src/client/channel-message-body.js';
 import { zhTranslate } from '../src/client/locale.js';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Tag: ({ children }: { children: ReactNode }) => createElement('span', {}, children),
-  Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
-    createElement('button', props, children),
-  Modal: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   FileTypeIcon: () => null,
   MarkdownText: () => null,
   StateDot: () => null,
-  IconDownloadOutlineRegular: () => null,
-  IconPlayOutlineRegular: () => null,
-  IconPauseOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+
   fileSizeText: (size: number) => `${size} B`,
 }));
 vi.mock('../src/client/messaging-defaults-live.js', () => ({
   subscribeMessagingDefaults: () => () => {},
 }));
-it('Channel voice exposes original download and prepares playback only on explicit action without autoplay', async () => {
+it('Channel voice offers the original download in its menu and prepares playback only on explicit action without autoplay', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const fetched = vi.fn(
     async (_url: string, _options?: RequestInit) =>
@@ -41,6 +36,20 @@ it('Channel voice exposes original download and prepares playback only on explic
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
+  const saved = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+  const downloadHref = async (): Promise<string | null> => {
+    saved.mockClear();
+    await act(async () =>
+      container
+        .querySelector('.bh-external-source-audio')!
+        .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+    );
+    await act(async () => document.querySelector<HTMLButtonElement>('[role="menuitem"]')!.click());
+    expect(saved).toHaveBeenCalledTimes(1);
+    const anchor = saved.mock.contexts[0] as HTMLAnchorElement;
+    expect(anchor.getAttribute('download')).toBe('voice.silk');
+    return anchor.getAttribute('href');
+  };
   try {
     const message = parseChannelMessage({
       id: 'source',
@@ -72,12 +81,10 @@ it('Channel voice exposes original download and prepares playback only on explic
       ),
     );
     expect(container.textContent).toContain('平台转写');
-    expect(container.querySelector('a[download]')?.getAttribute('href')).toContain(
-      'channelId=group-local',
-    );
-    expect(container.querySelector('a[download]')?.getAttribute('href')).not.toContain(
-      'representation',
-    );
+    expect(container.querySelector('a[download]')).toBeNull();
+    const original = await downloadHref();
+    expect(original).toContain('channelId=group-local');
+    expect(original).not.toContain('representation');
     expect(fetched).not.toHaveBeenCalled();
     expect(container.querySelector('audio')).toBeNull();
     expect(container.querySelector('.bh-message-audio-play')?.hasAttribute('disabled')).toBe(true);
@@ -95,18 +102,16 @@ it('Channel voice exposes original download and prepares playback only on explic
       '音频播放器: voice.silk',
     );
     expect(container.querySelector('audio')?.hasAttribute('autoplay')).toBe(false);
-    expect(container.querySelector('a[download]')?.getAttribute('href')).not.toContain('blob:');
-    expect(container.querySelector('a[download]')?.getAttribute('href')).not.toContain(
-      'representation',
-    );
+    const prepared = await downloadHref();
+    expect(prepared).not.toContain('blob:');
+    expect(prepared).not.toContain('representation');
     expect(container.querySelector('.bh-message-audio-play')?.hasAttribute('disabled')).toBe(false);
     await act(async () => container.querySelector('audio')!.dispatchEvent(new Event('error')));
     expect(container.querySelector('audio')).toBeNull();
     expect(container.querySelector('[role="alert"]')).not.toBeNull();
-    expect(container.querySelector('a[download]')?.getAttribute('href')).toContain(
-      'sourceEventId=source',
-    );
+    expect(await downloadHref()).toContain('sourceEventId=source');
   } finally {
+    saved.mockRestore();
     await act(async () => root.unmount());
     container.remove();
     vi.unstubAllGlobals();
@@ -160,4 +165,32 @@ it('unmount aborts pending playback and discards a late response', async () => {
   } finally {
     vi.unstubAllGlobals();
   }
+});
+
+it('accepts Lark voice media and refuses voice evidence from platforms without a checked audio path', () => {
+  const message = (platform: string) =>
+    parseChannelMessage({
+      id: 'source',
+      at: '2026-11-03T00:00:00.000Z',
+      body: 'please listen',
+      format: 'text',
+      author: { kind: 'bridged', source: 'Human' },
+      bridgeOrigin: {
+        sourceEventId: 'source',
+        platform,
+        conversationId: 'group',
+        conversationName: 'Group',
+        messageId: 'native-message',
+        senderId: 'human',
+      },
+      bridgeMedia: {
+        voice: { transcript: 'unavailable', durationMs: 4916 },
+        items: [{ kind: 'audio', id: 'a'.repeat(64), name: 'voice.opus' }],
+      },
+    });
+  expect(message('feishu')?.bridgeMedia).toEqual({
+    voice: { transcript: 'unavailable', durationMs: 4916 },
+    items: [{ kind: 'audio', id: 'a'.repeat(64), name: 'voice.opus' }],
+  });
+  expect(message('discord')).toBeUndefined();
 });

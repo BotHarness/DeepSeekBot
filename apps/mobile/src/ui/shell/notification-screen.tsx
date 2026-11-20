@@ -1,19 +1,25 @@
 import { useMemo, useSyncExternalStore } from 'react';
-import { Linking } from 'react-native';
+import { Linking, Platform } from 'react-native';
 
 import {
   hostPush,
   hostSession,
   useHostSession,
   usePushStatus,
+  useConnectionSummary,
   pushSession,
+  setHostNotificationsEnabled,
+  setHostDelivery,
 } from '../../host/host-session';
 import { NotificationSettings, type NotificationSettingsPort } from '../notification-settings';
 import { notificationPreferences } from '../../host/native-notification-preferences';
+import { KeepConnectedSettings } from '../keep-connected-settings';
+import { InAppNotificationSettings } from '../in-app-notification-settings';
 
 export default function NotificationsScreen() {
   const { saved } = useHostSession();
   const status = usePushStatus();
+  const summary = useConnectionSummary();
   const preference = useSyncExternalStore(
     notificationPreferences.subscribe,
     notificationPreferences.getSnapshot,
@@ -35,7 +41,17 @@ export default function NotificationsScreen() {
             set: async (preferences) => {
               await notificationPreferences.set(preferences);
             },
-            setEnabled: (enabled) => hostPush.setEnabled(saved, enabled),
+            setEnabled: async (enabled) => {
+              const settings = await hostPush.setEnabled(saved, enabled);
+              setHostNotificationsEnabled(saved.hostId, settings.enabled);
+              return settings;
+            },
+            setDelivery: async (delivery) => {
+              const settings = await hostPush.setDelivery(saved, delivery);
+              if (hostSession.getState().saved?.credential === saved.credential)
+                setHostDelivery(saved.hostId, settings.delivery);
+              return settings;
+            },
             test: () => hostPush.test(saved),
           },
     [saved, status.status],
@@ -47,6 +63,12 @@ export default function NotificationsScreen() {
       hostName={saved.hostName}
       port={port}
       preference={preference}
+      connectionSettings={
+        <>
+          {Platform.OS === 'android' ? <InAppNotificationSettings /> : null}
+          <KeepConnectedSettings summary={summary} />
+        </>
+      }
       onEnable={() => void pushSession.enable(hostSession.getState().hosts)}
       onOpenSettings={() => void Linking.openSettings()}
       key={saved.hostId}

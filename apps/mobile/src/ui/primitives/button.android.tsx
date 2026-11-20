@@ -5,6 +5,7 @@ import {
   FilledTonalButton,
   Host,
   Icon,
+  RNHostView,
   Row,
   Text,
   TextButton,
@@ -22,7 +23,8 @@ import { loadingIndicator, materialButton } from '../design/tokens';
 import { controlCase } from '../platform-copy';
 import { useStrings } from '../strings';
 import type { Button as SharedButton, ButtonSymbol } from './button';
-import { useComposeTree } from './compose-tree';
+import { ComposeTreeContext, useComposeTree } from './compose-tree';
+import { Button as PressableButton } from './pressable-button';
 
 export type { ButtonTone } from '../design/controls';
 export type { ButtonSymbol } from './button';
@@ -32,6 +34,7 @@ const symbols: Record<ButtonSymbol, number> = {
   check: require('../../../assets/button/check.xml'),
   'shield-check': require('../../../assets/button/shield-check.xml'),
   x: require('../../../assets/button/x.xml'),
+  trash: require('../../../assets/button/trash.xml'),
   archive: require('../../../assets/button/archive.xml'),
   plus: require('../../../assets/button/plus.xml'),
   'message-square': require('../../../assets/button/message-square.xml'),
@@ -43,12 +46,30 @@ const symbols: Record<ButtonSymbol, number> = {
   photo: require('../../../assets/button/photo.xml'),
 };
 
-export function Button({
+export function Button(props: ComponentProps<typeof SharedButton>) {
+  const tree = useComposeTree();
+  if (props.variant !== 'card-solid') return <NativeButton {...props} />;
+  if (tree === undefined) return <PressableButton {...props} />;
+  const fullWidth = tree.fill && !props.fit;
+  return (
+    <RNHostView
+      matchContents={fullWidth ? { vertical: true } : true}
+      {...(fullWidth ? { modifiers: [fillMaxWidth()] } : {})}
+    >
+      <ComposeTreeContext.Provider value={undefined}>
+        <PressableButton {...props} />
+      </ComposeTreeContext.Provider>
+    </RNHostView>
+  );
+}
+
+function NativeButton({
   label,
   onPress,
   tone = 'secondary',
   disabled = false,
   busy = false,
+  selected = false,
   variant = 'filled',
   symbol,
   testID: id,
@@ -60,26 +81,47 @@ export function Button({
   const tree = useComposeTree();
   const [height, setHeight] = useState<number>();
   const danger = tone === 'danger';
-  const Control =
-    variant === 'text'
-      ? TextButton
-      : tone === 'primary' || danger
-        ? FilledButton
-        : FilledTonalButton;
-  const colors = !danger
-    ? undefined
-    : variant === 'text'
-      ? { contentColor: roles.error }
-      : { containerColor: roles.error, contentColor: roles.onError };
+  const text = variant === 'text';
+  const Control = text
+    ? TextButton
+    : tone === 'primary' || danger
+      ? FilledButton
+      : FilledTonalButton;
+  const chosenFill = danger
+    ? roles.error
+    : tone === 'primary'
+      ? roles.primary
+      : roles.secondaryContainer;
+  const chosenInk = danger
+    ? roles.onError
+    : tone === 'primary'
+      ? roles.onPrimary
+      : roles.onSecondaryContainer;
+  const contentColor = danger ? roles.error : roles.primary;
+  const colors = text
+    ? danger || selected
+      ? { contentColor, ...(selected ? { disabledContentColor: contentColor } : {}) }
+      : undefined
+    : danger || selected
+      ? {
+          ...(danger ? { containerColor: roles.error, contentColor: roles.onError } : {}),
+          ...(selected
+            ? { disabledContainerColor: chosenFill, disabledContentColor: chosenInk }
+            : {}),
+        }
+      : undefined;
+  const fullWidth = tree?.fill !== false && !fit;
+  const shownLabel = selected ? label + ' · ' + t.selectedChoice : label;
   const control = (
     <Control
       enabled={!disabled && !busy}
       onClick={onPress}
       {...(colors ? { colors } : {})}
       modifiers={[
-        ...(tree?.fill === false || fit ? [] : [fillMaxWidth()]),
+        ...(fullWidth ? [fillMaxWidth()] : []),
         defaultMinSize({ minHeight: theme.touch }),
         ...(id ? [testID(id)] : []),
+        ...(selected ? [semantics({ contentDescription: shownLabel })] : []),
       ]}
     >
       <Row horizontalArrangement={{ spacedBy: materialButton.iconGap }} verticalAlignment="center">
@@ -95,7 +137,7 @@ export function Button({
         ) : symbol ? (
           <Icon source={symbols[symbol]} size={materialButton.icon} />
         ) : null}
-        <Text style={{ textAlign: 'center' }}>{controlCase(label)}</Text>
+        <Text style={{ textAlign: 'center' }}>{controlCase(shownLabel)}</Text>
       </Row>
     </Control>
   );

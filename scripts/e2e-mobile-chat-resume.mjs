@@ -50,12 +50,19 @@ function drive(label, ...command) {
         lease.udid,
         '--json',
       ],
-      { env, encoding: 'utf8', timeout: 95000, maxBuffer: 16 * 1024 * 1024 },
+      {
+        env,
+        encoding: 'utf8',
+        timeout: 95000,
+        maxBuffer: 16 * 1024 * 1024,
+        shell: false,
+        windowsHide: true,
+      },
     );
   } catch (error) {
     save(`${label}.private.json`, error.stdout || '{}');
     save(`${label}.private.stderr`, error.stderr || '');
-    throw new Error(`Driver failed at ${label}; see private evidence`);
+    throw new Error(`Driver failed at ${label}; see private evidence`, { cause: error });
   }
   save(`${label}.private.json`, raw);
   const result = JSON.parse(raw);
@@ -89,11 +96,19 @@ function processId(label) {
         path,
         '--quiet',
       ],
-      { encoding: 'utf8', timeout: 30000, stdio: ['ignore', 'pipe', 'pipe'] },
+      {
+        encoding: 'utf8',
+        timeout: 30000,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
+        windowsHide: true,
+      },
     );
   } catch (error) {
     save(`${label}.private.stderr`, error.stderr || '');
-    throw new Error(`Process observation failed at ${label}; see private evidence`);
+    throw new Error(`Process observation failed at ${label}; see private evidence`, {
+      cause: error,
+    });
   }
   const processes = JSON.parse(readFileSync(path, 'utf8')).result.runningProcesses;
   const matches = processes.filter((entry) =>

@@ -1,0 +1,849 @@
+// @vitest-environment jsdom
+import { type SessionLiveSnapshot } from '../src/client/bridge.js';
+import { type SessionTranscript } from '../src/client/bridge.js';
+import { type SessionDetailPrefs } from '../src/client/session-detail.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
+import { afterEach, expect, it, vi } from 'vitest';
+
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
+  FileTypeIcon: () => null,
+  fileSizeText: (size: number) => `${size} B`,
+
+  MarkdownText: ({ text }: { text: string }) => createElement('div', null, text),
+}));
+
+import type { BridgeActions } from '../src/client/actions.js';
+
+import { zhTranslate } from '../src/client/locale.js';
+import { SessionDetail, SessionDetailPrefsContext } from '../src/client/session-detail.js';
+import { SessionHeaderSlot } from '../src/client/session-header-slot.js';
+import {
+  cachedSessionDetail,
+  clearSessionDetailCache,
+  prefetchSessionDetail,
+  rememberSessionDetail,
+} from '../src/client/session-detail-cache.js';
+
+(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+
+const mounted: (() => void)[] = [];
+afterEach(() => {
+  for (const unmount of mounted.splice(0)) unmount();
+  clearSessionDetailCache();
+});
+
+const transcript = (role: SessionTranscript['role'], running = false): SessionTranscript => ({
+  role,
+  running,
+  omitted: 2,
+  seq: 5,
+  items: [
+    {
+      kind: 'input',
+      text: 'Fix the Safari export button.',
+      at: '2026-11-17T00:00:01.000Z',
+      turn: 1,
+      source: 'user',
+    },
+    {
+      kind: 'reasoning',
+      text: 'Check the click handler.',
+      at: '2026-11-17T00:00:02.000Z',
+    },
+    {
+      kind: 'reply',
+      text: 'The download runs after an await.',
+      at: '2026-11-17T00:00:03.000Z',
+    },
+    {
+      kind: 'tool',
+      id: 'c1',
+      tool: 'read_file',
+      toolKind: 'read',
+      status: 'done',
+      detail: 'src/export.tsx',
+      at: '2026-11-17T00:00:04.000Z',
+    },
+    { kind: 'turn-end', state: 'done', at: '2026-11-17T00:00:05.000Z' },
+  ],
+});
+
+it('shows the localized engine effort next to the model in an attributed reply', async () => {
+  const current = transcript('orchestrator');
+  const host = await render({
+    sessionTranscript: async () => ({
+      ...current,
+      items: current.items.map((item) =>
+        item.kind === 'reply'
+          ? {
+              ...item,
+              turnTargets: [
+                { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol', reasoningEffort: 'high' },
+              ],
+            }
+          : item,
+      ),
+    }),
+  });
+  const path = host.querySelector('[data-transcript="reply"] [data-turn-targets]');
+  expect(path?.textContent).toBe('GPT-6.2-Sol · 高');
+});
+
+function label(node: HTMLElement): string {
+  const copy = node.cloneNode(true) as HTMLElement;
+  for (const meta of copy.querySelectorAll('[data-transcript-time], [data-transcript-clock]'))
+    meta.remove();
+  return copy.textContent ?? '';
+}
+
+async function render(
+  actions: Partial<BridgeActions>,
+  prefs?: SessionDetailPrefs,
+): Promise<HTMLElement> {
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  mounted.push(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+  await act(async () => {
+    const detail = createElement(SessionDetail, {
+      actions: actions as BridgeActions,
+      botSlug: 'tobs',
+      sessionId: 'asg-1',
+      t: zhTranslate,
+    });
+    root.render(
+      prefs === undefined
+        ? detail
+        : createElement(SessionDetailPrefsContext.Provider, { value: prefs }, detail),
+    );
+  });
+  await act(async () => {});
+  return host;
+}
+
+it('shows the full conversation with summary chips that expand in place', async () => {
+  const host = await render({
+    sessionTranscript: vi.fn(async () => transcript('assignment')),
+    sessionProgress: vi.fn(async () => ({
+      'asg-1': {
+        goal: {
+          objective: 'Export works on Safari 17',
+          phase: 'active' as const,
+          roundsStarted: 3,
+          maxGoalRounds: 256,
+        },
+        todos: [
+          { content: 'Reproduce', status: 'completed' as const },
+          { content: 'Fix', status: 'in_progress' as const },
+        ],
+      },
+    })),
+    sendSessionRequest: vi.fn(async () => {}),
+  });
+  const kinds = () =>
+    [...host.querySelectorAll('[data-transcript]')].map((node) =>
+      node.getAttribute('data-transcript'),
+    );
+  expect(kinds()).toEqual(['input', 'turn-end', 'reply']);
+  expect(host.textContent).not.toContain('第 1 轮');
+  expect(host.querySelector('[data-transcript="turn-end"]')?.textContent).toBe('已完成，用时 4 秒');
+  expect(host.textContent).toContain('更早的 2 条没有显示');
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-transcript="turn-end"]')!.click(),
+  );
+  expect(kinds()).toEqual(['input', 'turn-end', 'process', 'reply', 'process']);
+  const groups = host.querySelectorAll<HTMLElement>('[data-transcript="process"]');
+  expect(label(groups[0]!)).toBe('已思考');
+  expect(label(groups[1]!)).toBe('读取了 1 个文件');
+  expect(groups[1]!.querySelector('[data-transcript-time]')).not.toBeNull();
+  await act(async () => groups[1]!.querySelector('button')!.click());
+  expect(host.querySelector('[data-tool-status="done"]')?.textContent).toContain('src/export.tsx');
+  expect(host.querySelector('[data-session-panel]')).toBeNull();
+  const todos = host.querySelector<HTMLButtonElement>('[data-session-chip="todos"]')!;
+  expect(todos.textContent).toContain('1/2');
+  await act(async () => todos.click());
+  expect(host.querySelector('[data-session-panel="todos"]')?.textContent).toContain('Fix');
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-session-chip="goal"]')!.click(),
+  );
+  expect(host.querySelector('[data-session-panel="goal"]')?.textContent).toContain(
+    'Export works on Safari 17',
+  );
+  expect(host.querySelector('[data-session-composer]')).not.toBeNull();
+  expect(host.querySelector('[data-session-composer]')?.textContent).not.toContain('Inbox');
+});
+
+it('sends a message straight into the Orchestrator Session, not as an Assignment request', async () => {
+  const sendSessionRequest = vi.fn(async () => {});
+  const sendOrchestratorMessage = vi.fn(async () => {});
+  const host = await render({
+    sessionTranscript: vi.fn(async () => transcript('orchestrator')),
+    sendSessionRequest,
+    sendOrchestratorMessage,
+  });
+  expect(host.querySelectorAll('[data-transcript]')).toHaveLength(3);
+  const input = host.querySelector<HTMLTextAreaElement>('[data-session-composer] textarea')!;
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+      input,
+      'Skip the charts this week.',
+    );
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () =>
+    host
+      .querySelector<HTMLButtonElement>('[data-session-composer] button[aria-label="发送"]')!
+      .click(),
+  );
+  expect(sendOrchestratorMessage).toHaveBeenCalledWith(
+    'tobs',
+    'asg-1',
+    'Skip the charts this week.',
+  );
+  expect(sendSessionRequest).not.toHaveBeenCalled();
+});
+
+it('sends an Orchestrator message through the Session message bridge', async () => {
+  const { sendOrchestratorMessage } = await import('../src/client/bridge.js');
+  const call = vi.fn(async () => ({
+    ok: true as const,
+    value: { sourceEventId: 'evt-1' },
+  }));
+  await sendOrchestratorMessage(call, 'tobs', 'bot-1', 'Skip the charts.');
+  expect(call).toHaveBeenCalledWith(
+    'sessionMessageSend',
+    {
+      botSlug: 'tobs',
+      sessionId: 'bot-1',
+      text: 'Skip the charts.',
+    },
+    undefined,
+  );
+});
+
+it('says when the Session cannot be read', async () => {
+  const host = await render({
+    sessionTranscript: vi.fn(async () => {
+      throw new Error('offline');
+    }),
+  });
+  expect(host.textContent).toContain('读取会话失败');
+});
+
+it('sends a direct request that resumes a stopped or archived Assignment and reports a refusal', async () => {
+  const { loadSessionTranscript, sendSessionRequest } = await import('../src/client/bridge.js');
+  const calls: [string, Record<string, unknown>][] = [];
+  const delivered = vi.fn(async (endpoint: string, payload: Record<string, unknown>) => {
+    calls.push([endpoint, payload]);
+    return {
+      ok: true as const,
+      value: { slug: 'tobs', result: '{"delivery":"steer"}' },
+    };
+  });
+  await sendSessionRequest(delivered, 'tobs', 'asg-1', 'Also cover Firefox.', true);
+  expect(calls).toEqual([
+    [
+      'botToolRun',
+      {
+        slug: 'tobs',
+        tool: 'unarchive_assignment',
+        args: {
+          session_id: 'asg-1',
+          message: 'Also cover Firefox.',
+          mode: 'next-step',
+        },
+      },
+    ],
+  ]);
+  const refused = vi.fn(async () => ({
+    ok: true as const,
+    value: {
+      result: { code: 'request-not-delivered', message: 'The Bot is at capacity' },
+    },
+  }));
+  await expect(sendSessionRequest(refused, 'tobs', 'asg-1', 'Hi', false)).rejects.toThrow(
+    'The Bot is at capacity',
+  );
+  const read = vi.fn(async () => ({
+    ok: true as const,
+    value: {
+      role: 'assignment',
+      running: true,
+      omitted: 0,
+      items: [
+        { kind: 'tool', id: 'c1', tool: 'bash', status: 'odd', at: 'x' },
+        ...transcript('assignment').items,
+      ],
+    },
+  }));
+  const parsed = await loadSessionTranscript(read, 'tobs', 'asg-1');
+  expect(parsed.running).toBe(true);
+  expect(parsed.items).toHaveLength(5);
+  expect(parsed.items[3]).toMatchObject({ kind: 'tool', toolKind: 'read' });
+  const unknownKind = await loadSessionTranscript(
+    vi.fn(async () => ({
+      ok: true as const,
+      value: {
+        role: 'assignment',
+        running: false,
+        omitted: 0,
+        items: [{ kind: 'tool', id: 'c2', tool: 'mcp_x', status: 'done', at: 'x' }],
+      },
+    })),
+    'tobs',
+    'asg-1',
+  );
+  expect(unknownKind.items[0]).toMatchObject({ toolKind: 'other' });
+});
+
+it('stops a running Assignment from an empty composer', async () => {
+  const stopSession = vi.fn(async () => {});
+  const host = await render({
+    sessionTranscript: vi.fn(async () => transcript('assignment', true)),
+    sendSessionRequest: vi.fn(async () => {}),
+    stopSession,
+  });
+  const stop = host.querySelector<HTMLButtonElement>('[data-composer-stop]')!;
+  expect(stop.getAttribute('aria-label')).toBe('停止');
+  await act(async () => stop.click());
+  expect(stopSession).toHaveBeenCalledWith('tobs', 'asg-1');
+});
+
+it('keeps send for an idle Assignment', async () => {
+  const host = await render({
+    sessionTranscript: vi.fn(async () => transcript('assignment')),
+    sendSessionRequest: vi.fn(async () => {}),
+    stopSession: vi.fn(async () => {}),
+  });
+  expect(host.querySelector('[data-session-composer]')).not.toBeNull();
+  expect(host.querySelector('[data-composer-stop]')).toBeNull();
+});
+
+it('shows the running step live and keeps the turn open', async () => {
+  const host = await render({
+    sessionTranscript: vi.fn(async () => ({
+      role: 'assignment' as const,
+      running: true,
+      omitted: 0,
+      seq: 2,
+      items: [
+        {
+          kind: 'input' as const,
+          text: 'Run the tests.',
+          at: '2026-11-17T00:00:01.000Z',
+          turn: 1,
+          source: 'user' as const,
+        },
+        {
+          kind: 'tool' as const,
+          id: 'c1',
+          tool: 'bash',
+          toolKind: 'other' as const,
+          status: 'running' as const,
+          detail: 'node --test',
+          at: '2026-11-17T00:00:02.000Z',
+        },
+      ],
+    })),
+    sendSessionRequest: vi.fn(async () => {}),
+    stopSession: vi.fn(async () => {}),
+  });
+  expect(host.querySelector('[data-transcript="turn-end"]')).toBeNull();
+  expect(label(host.querySelector<HTMLElement>('[data-process-live]')!)).toBe(
+    '正在运行命令node --test',
+  );
+  expect(host.querySelector('[data-process-live] [data-transcript-clock]')).not.toBeNull();
+});
+
+const editTurn = (): SessionTranscript => ({
+  role: 'assignment',
+  running: false,
+  omitted: 0,
+  seq: 9,
+  items: [
+    {
+      kind: 'input',
+      text: 'PR opened.',
+      at: '2026-11-17T00:00:01.000Z',
+      turn: 1,
+      source: 'system',
+      trigger: 'github',
+    },
+    {
+      kind: 'tool',
+      id: 'c1',
+      tool: 'edit',
+      toolKind: 'edit',
+      status: 'done',
+      path: 'src/a.ts',
+      added: 3,
+      removed: 1,
+      at: '2026-11-17T00:00:02.000Z',
+      endedAt: '2026-11-17T00:00:03.000Z',
+    },
+    { kind: 'reply', text: 'First note.', at: '2026-11-17T00:00:04.000Z' },
+    { kind: 'reasoning', text: 'Check again.', at: '2026-11-17T00:00:05.000Z' },
+    { kind: 'reply', text: 'Final answer.', at: '2026-11-17T00:00:06.000Z' },
+    {
+      kind: 'turn-end',
+      state: 'done',
+      at: '2026-11-17T00:00:11.000Z',
+      usage: { tokens: 8591, output: 230, outputMs: 5000 },
+    },
+  ],
+});
+
+it('names the notice, sums changed files and shows the turn usage', async () => {
+  const host = await render({ sessionTranscript: vi.fn(async () => editTurn()) });
+  expect(host.querySelector('[data-transcript="system"]')?.textContent).toContain(
+    '收到 GitHub 事件',
+  );
+  expect(host.querySelector('[data-transcript-usage]')?.textContent).toBe('8.6k tok · 46 tok/s');
+  const changes = host.querySelector<HTMLElement>('[data-transcript="changes"]')!;
+  expect(changes.textContent).toBe('改动了 1 个文件+3−1');
+  await act(async () => changes.querySelector('button')!.click());
+  expect(host.querySelector('[data-changed-file="src/a.ts"]')).not.toBeNull();
+  expect(
+    [...host.querySelectorAll('[data-transcript="reply"]')].map((node) => node.textContent),
+  ).toEqual(['First note.', 'Final answer.']);
+});
+
+it('follows the settings for folded replies, fold timing and detail level', async () => {
+  const final = await render(
+    { sessionTranscript: vi.fn(async () => editTurn()) },
+    { level: 'standard', collapse: 'completion', replies: 'final' },
+  );
+  expect(
+    [...final.querySelectorAll('[data-transcript="reply"]')].map((node) => node.textContent),
+  ).toEqual(['Final answer.']);
+  const later = await render(
+    { sessionTranscript: vi.fn(async () => editTurn()) },
+    { level: 'standard', collapse: 'nextInput', replies: 'all' },
+  );
+  expect(later.querySelectorAll('[data-transcript="process"]')).toHaveLength(2);
+  const verbose = await render(
+    { sessionTranscript: vi.fn(async () => editTurn()) },
+    { level: 'verbose', collapse: 'completion', replies: 'all' },
+  );
+  expect(verbose.querySelector('[data-transcript-steps]')).not.toBeNull();
+  expect(verbose.querySelector('[data-transcript="reasoning"]')?.textContent).toContain(
+    'Check again.',
+  );
+});
+
+it('opens a tool step into its command and output', async () => {
+  const sessionToolDetail = vi.fn(async () => ({
+    card: 'terminal' as const,
+    command: 'pnpm test',
+    output: '3 passed',
+    exitCode: 1,
+  }));
+  const host = await render(
+    {
+      sessionTranscript: vi.fn(async () => ({
+        ...editTurn(),
+        items: [
+          {
+            kind: 'tool' as const,
+            id: 'c9',
+            tool: 'bash',
+            toolKind: 'execute' as const,
+            status: 'done' as const,
+            command: 'pnpm test',
+            at: '2026-11-17T00:00:02.000Z',
+          },
+        ],
+      })),
+      sessionToolDetail,
+    },
+    { level: 'detailed', collapse: 'nextInput', replies: 'all' },
+  );
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-transcript="process"] button')!.click(),
+  );
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-transcript="tool"] button')!.click(),
+  );
+  expect(sessionToolDetail).toHaveBeenCalledWith('tobs', 'asg-1', 'c9');
+  const card = host.querySelector('[data-tool-detail="terminal"]');
+  expect(card?.textContent).toContain('$ pnpm test');
+  expect(card?.textContent).toContain('3 passed');
+  expect(card?.textContent).toContain('退出码 1');
+});
+
+it('streams the live reasoning and reply over the durable history', async () => {
+  let resolveSecond: (value: SessionLiveSnapshot) => void = () => {};
+  const sessionLive = vi
+    .fn()
+    .mockResolvedValueOnce({
+      revision: 1,
+      seq: 2,
+      items: [
+        {
+          kind: 'reasoning',
+          text: 'Line one\nLine two',
+          at: '2026-11-17T00:00:03.000Z',
+          live: true,
+        },
+      ],
+    })
+    .mockImplementationOnce(() => new Promise((resolve) => (resolveSecond = resolve)))
+    .mockImplementation(() => new Promise(() => {}));
+  const host = await render({
+    sessionTranscript: vi.fn(async () => ({
+      role: 'assignment' as const,
+      running: true,
+      omitted: 0,
+      seq: 2,
+      items: [
+        {
+          kind: 'input' as const,
+          text: 'Go.',
+          at: '2026-11-17T00:00:01.000Z',
+          turn: 1,
+          source: 'user' as const,
+        },
+      ],
+    })),
+    sessionLive,
+  });
+  await act(async () => {});
+  expect(host.querySelector('[data-transcript="preview"]')?.textContent).toBe('Line one\nLine two');
+  await act(async () =>
+    resolveSecond({
+      revision: 2,
+      seq: 2,
+      items: [
+        { kind: 'reasoning', text: 'Line one', at: '2026-11-17T00:00:03.000Z', live: true },
+        { kind: 'reply', text: 'Streaming answer', at: '2026-11-17T00:00:04.000Z', live: true },
+      ],
+    }),
+  );
+  expect(host.querySelector('[data-transcript="reply"]')?.textContent).toBe('Streaming answer');
+  expect(sessionLive).toHaveBeenNthCalledWith(2, 'tobs', 'asg-1', 1, expect.anything());
+});
+
+it('offers turn navigation once there are several turns', async () => {
+  const items: SessionTranscript['items'] = [1, 2, 3].flatMap((turn) => [
+    {
+      kind: 'input' as const,
+      text: `Ask ${turn}`,
+      at: `2026-11-17T00:00:0${turn}.000Z`,
+      turn,
+      source: 'user' as const,
+    },
+    { kind: 'reply' as const, text: `Answer ${turn}`, at: `2026-11-17T00:00:0${turn}.500Z` },
+  ]);
+  const host = await render({
+    sessionTranscript: vi.fn(async () => ({ ...editTurn(), items })),
+  });
+  expect(host.querySelectorAll('[data-nav-turn]')).toHaveLength(3);
+});
+
+it('reopens a Session from its last transcript while it refreshes', async () => {
+  const actions: Partial<BridgeActions> = {
+    sessionTranscript: vi.fn(async () => transcript('assignment')),
+  };
+  await render(actions);
+  for (const unmount of mounted.splice(0)) unmount();
+  actions.sessionTranscript = vi.fn(() => new Promise<never>(() => {}));
+  const host = await render(actions);
+  expect(host.textContent).not.toContain('正在读取会话');
+  expect(host.querySelectorAll('[data-transcript="reply"]')).toHaveLength(1);
+});
+
+it('keeps another Host from reopening a cached Session', async () => {
+  await render({ sessionTranscript: vi.fn(async () => transcript('assignment')) });
+  for (const unmount of mounted.splice(0)) unmount();
+  const host = await render({ sessionTranscript: vi.fn(() => new Promise<never>(() => {})) });
+  expect(host.textContent).toContain('正在读取会话');
+});
+
+it('prefetches a Session once before it opens', async () => {
+  const read = vi.fn(async () => transcript('assignment'));
+  const actions: Partial<BridgeActions> = { sessionTranscript: read };
+  const at = { host: actions, botSlug: 'tobs', sessionId: 'asg-1' };
+  prefetchSessionDetail(actions, at);
+  prefetchSessionDetail(actions, at);
+  await act(async () => {});
+  expect(read).toHaveBeenCalledTimes(1);
+  actions.sessionTranscript = vi.fn(() => new Promise<never>(() => {}));
+  const host = await render(actions);
+  expect(host.textContent).not.toContain('正在读取会话');
+  expect(host.textContent).toContain('The download runs after an await.');
+});
+
+it('drops a prefetch that finishes after the cache was cleared', async () => {
+  let finish: (value: SessionTranscript) => void = () => {};
+  const at = { host: {}, botSlug: 'tobs', sessionId: 'asg-1' };
+  prefetchSessionDetail({ sessionTranscript: () => new Promise((done) => (finish = done)) }, at);
+  clearSessionDetailCache();
+  await act(async () => finish(transcript('assignment')));
+  expect(cachedSessionDetail(at)).toBeUndefined();
+});
+
+it('keeps a newer transcript when a hover prefetch finishes late', async () => {
+  let finish: (value: SessionTranscript) => void = () => {};
+  const at = { host: {}, botSlug: 'tobs', sessionId: 'asg-1' };
+  prefetchSessionDetail({ sessionTranscript: () => new Promise((done) => (finish = done)) }, at);
+  const newer = transcript('assignment');
+  rememberSessionDetail(at, { transcript: newer });
+  await act(async () => finish({ ...newer, items: [] }));
+  expect(cachedSessionDetail(at)?.transcript).toBe(newer);
+});
+
+it('offers a jump to the latest step after scrolling up', async () => {
+  const host = await render({
+    sessionTranscript: vi.fn(async () => transcript('assignment')),
+    sendSessionRequest: vi.fn(async () => {}),
+  });
+  const timeline = host.querySelector<HTMLElement>('[data-session-transcript]')!;
+  const jump = (): HTMLButtonElement | null =>
+    host.querySelector<HTMLButtonElement>('[aria-label="跳到最新"]');
+  Object.defineProperty(timeline, 'scrollHeight', { configurable: true, value: 1000 });
+  Object.defineProperty(timeline, 'clientHeight', { configurable: true, value: 300 });
+  const scrollTo = vi.fn();
+  timeline.scrollTo = scrollTo;
+  expect(jump()).toBeNull();
+  timeline.scrollTop = 100;
+  await act(async () => timeline.dispatchEvent(new Event('scroll')));
+  expect(host.querySelector('[data-session-composer]')?.contains(jump())).toBe(true);
+  const other = document.createElement('button');
+  document.body.append(other);
+  other.focus();
+  act(() => {
+    jump()!.dispatchEvent(new MouseEvent('click', { bubbles: true, detail: 1 }));
+  });
+  expect(scrollTo).toHaveBeenCalledWith({ top: 1000, behavior: 'smooth' });
+  expect(document.activeElement).toBe(other);
+  other.remove();
+  jump()!.focus();
+  act(() => jump()!.click());
+  expect(document.activeElement).toBe(timeline);
+  expect(scrollTo).toHaveBeenLastCalledWith({ top: 1000, behavior: 'auto' });
+  document.documentElement.dataset['botharnessMotion'] = 'reduce';
+  act(() => jump()!.click());
+  delete document.documentElement.dataset['botharnessMotion'];
+  expect(scrollTo).toHaveBeenLastCalledWith({ top: 1000, behavior: 'auto' });
+  timeline.scrollTop = 700;
+  await act(async () => timeline.dispatchEvent(new Event('scroll')));
+  expect(jump()).toBeNull();
+});
+
+it('keeps a prefetched transcript when progress arrives first', async () => {
+  let finish: (value: SessionTranscript) => void = () => {};
+  const at = { host: {}, botSlug: 'tobs', sessionId: 'asg-1' };
+  prefetchSessionDetail({ sessionTranscript: () => new Promise((done) => (finish = done)) }, at);
+  rememberSessionDetail(at, { progress: undefined });
+  const value = transcript('assignment');
+  await act(async () => finish(value));
+  expect(cachedSessionDetail(at)?.transcript).toBe(value);
+});
+
+it('drops a prefetch whose newer transcript was evicted while it ran', async () => {
+  let finish: (value: SessionTranscript) => void = () => {};
+  const host = {};
+  const at = { host, botSlug: 'tobs', sessionId: 'asg-1' };
+  prefetchSessionDetail({ sessionTranscript: () => new Promise((done) => (finish = done)) }, at);
+  rememberSessionDetail(at, { transcript: transcript('assignment') });
+  for (let index = 0; index < 24; index += 1)
+    rememberSessionDetail({ host, botSlug: 'tobs', sessionId: `other-${index}` }, {});
+  expect(cachedSessionDetail(at)).toBeUndefined();
+  await act(async () => finish({ ...transcript('assignment'), items: [] }));
+  expect(cachedSessionDetail(at)).toBeUndefined();
+});
+
+it('warns while a refresh fails and clears the warning once one succeeds', async () => {
+  const empty = { ...transcript('assignment'), items: [] };
+  const actions: Partial<BridgeActions> = { sessionTranscript: vi.fn(async () => empty) };
+  await render(actions);
+  for (const unmount of mounted.splice(0)) unmount();
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  try {
+    actions.sessionTranscript = vi
+      .fn<NonNullable<BridgeActions['sessionTranscript']>>()
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValue(empty);
+    const host = await render(actions);
+    await act(async () => {});
+    expect(host.textContent).toContain('刷新失败');
+    expect(host.textContent).toContain('还没有会话记录');
+    await act(async () => vi.advanceTimersByTimeAsync(30_000));
+    expect(actions.sessionTranscript).toHaveBeenCalledTimes(2);
+    expect(host.textContent).not.toContain('刷新失败');
+  } finally {
+    vi.useRealTimers();
+  }
+});
+
+it('quotes selected Session text with a reply and sends it ahead of the request', async () => {
+  Object.defineProperty(Range.prototype, 'getBoundingClientRect', {
+    configurable: true,
+    value: () => new DOMRect(100, 200, 40, 20),
+  });
+  const frame = window.requestAnimationFrame;
+  window.requestAnimationFrame = (callback) => {
+    callback(0);
+    return 1;
+  };
+  const sendSessionRequest = vi.fn(async () => {});
+  try {
+    const host = await render({
+      sessionTranscript: vi.fn(async () => transcript('assignment')),
+      sendSessionRequest,
+      stopSession: vi.fn(async () => {}),
+    });
+    const select = async (node: Element, word: string) =>
+      act(async () => {
+        const text = [...node.childNodes].find((child) => child.textContent?.includes(word))!;
+        const leaf = text.nodeType === Node.TEXT_NODE ? text : text.firstChild!;
+        const start = leaf.textContent!.indexOf(word);
+        const range = document.createRange();
+        range.setStart(leaf, start);
+        range.setEnd(leaf, start + word.length);
+        window.getSelection()!.removeAllRanges();
+        window.getSelection()!.addRange(range);
+        document.dispatchEvent(new Event('selectionchange'));
+      });
+    const quote = async () =>
+      act(async () =>
+        document.body
+          .querySelector('[data-selection-toolbar]')!
+          .querySelector<HTMLButtonElement>('button')!
+          .click(),
+      );
+    await select(host.querySelector('[data-transcript="reply"]')!, 'runs after an await');
+    await quote();
+    expect(window.getSelection()!.rangeCount).toBe(0);
+    await act(async () => window.dispatchEvent(new Event('scroll')));
+    expect(document.body.querySelector('[data-selection-toolbar]')).toBeNull();
+    await select(host.querySelector('[data-transcript="input"]')!, 'Safari export');
+    await quote();
+    const chips = [...host.querySelectorAll('[data-quote-chip]')];
+    expect(chips.map((chip) => chip.textContent)).toEqual([
+      expect.stringContaining('runs after an await'),
+      expect.stringContaining('Safari export'),
+    ]);
+    const note = chips[0]!.querySelector<HTMLInputElement>('input')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(
+        note,
+        'Is that the cause?',
+      );
+      note.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    const input = host.querySelector<HTMLTextAreaElement>('[data-session-composer] textarea')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+        input,
+        'Please confirm.',
+      );
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await act(async () =>
+      input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+    );
+    expect(sendSessionRequest).toHaveBeenCalledWith(
+      'tobs',
+      'asg-1',
+      '> runs after an await\n\n↳ Is that the cause?\n\n> Safari export\n\nPlease confirm.',
+      false,
+    );
+    expect(host.querySelector('[data-quote-chip]')).toBeNull();
+  } finally {
+    window.getSelection()!.removeAllRanges();
+    window.requestAnimationFrame = frame;
+    Reflect.deleteProperty(Range.prototype, 'getBoundingClientRect');
+  }
+});
+
+it("loads the Session's own Skill menu for its composer", async () => {
+  const { loadSessionSkillCatalog } = await import('../src/client/bridge.js');
+  const call = vi.fn(async () => ({
+    ok: true as const,
+    value: {
+      skills: [
+        { name: 'review', description: 'Review', owner: { kind: 'host' } },
+        { name: 'broken', owner: { kind: 'host' } },
+      ],
+    },
+  }));
+  expect(await loadSessionSkillCatalog(call, 'tobs', 'asg-1')).toEqual([
+    { name: 'review', description: 'Review', owner: { kind: 'host' } },
+  ]);
+  expect((call.mock.calls[0] as unknown[]).slice(0, 2)).toEqual([
+    'sessionSkillCatalog',
+    { slug: 'tobs', sessionId: 'asg-1' },
+  ]);
+  const sessionSkillCatalog = vi.fn(async () => []);
+  await render({
+    sessionTranscript: vi.fn(async () => transcript('assignment')),
+    sendSessionRequest: vi.fn(async () => {}),
+    sessionSkillCatalog,
+  });
+  expect(sessionSkillCatalog).toHaveBeenCalledWith('tobs', 'asg-1');
+  const orchestrator = vi.fn(async () => []);
+  await render({
+    sessionTranscript: vi.fn(async () => transcript('orchestrator')),
+    sessionSkillCatalog: orchestrator,
+  });
+  expect(orchestrator).not.toHaveBeenCalled();
+});
+
+it('names the Skill DSH loaded for a /name request', async () => {
+  const loaded = transcript('assignment');
+  loaded.items.splice(1, 0, {
+    kind: 'input',
+    text: '<skill_content name="qa-check">\nRun node --test.\n</skill_content>',
+    at: '2026-11-17T00:00:01.500Z',
+    source: 'system',
+    trigger: 'request',
+  } as (typeof loaded.items)[number]);
+  const host = await render({ sessionTranscript: vi.fn(async () => loaded) });
+  const row = host.querySelector('[data-trigger="skill"]')!;
+  expect(label(row as HTMLElement)).toContain('使用了 skill qa-check');
+  expect(row.textContent).not.toContain('<skill_content');
+});
+
+it('puts the goal and to-do chips in the panel header when it offers a slot', async () => {
+  const panel = document.createElement('aside');
+  const slot = document.createElement('span');
+  const body = document.createElement('div');
+  panel.append(slot, body);
+  document.body.append(panel);
+  const root = createRoot(body);
+  mounted.push(() => {
+    act(() => root.unmount());
+    panel.remove();
+  });
+  await act(async () => {
+    root.render(
+      createElement(
+        SessionHeaderSlot.Provider,
+        { value: slot },
+        createElement(SessionDetail, {
+          actions: {
+            sessionTranscript: vi.fn(async () => transcript('assignment')),
+            sessionProgress: vi.fn(async () => ({
+              'asg-1': { todos: [{ content: 'Fix', status: 'completed' as const }] },
+            })),
+          } as unknown as BridgeActions,
+          botSlug: 'tobs',
+          sessionId: 'asg-1',
+          t: zhTranslate,
+        }),
+      ),
+    );
+  });
+  await act(async () => {});
+  expect(slot.querySelector('[data-session-chip="todos"]')?.textContent).toContain('1/1');
+  expect(body.querySelector('[data-session-chip]')).toBeNull();
+  act(() => slot.querySelector<HTMLButtonElement>('[data-session-chip="todos"]')!.click());
+  expect(body.querySelector('[data-session-panel="todos"]')).not.toBeNull();
+});

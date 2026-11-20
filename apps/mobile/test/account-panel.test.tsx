@@ -3,6 +3,12 @@ import { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
+vi.mock('expo-clipboard', () => ({ setStringAsync: vi.fn(async () => {}) }));
+vi.mock('expo-application', () => ({
+  nativeApplicationVersion: '1.7.0',
+  nativeBuildVersion: '18',
+}));
+vi.mock('expo-device', () => ({ osVersion: '27.0' }));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
@@ -56,6 +62,8 @@ function render(props: Partial<AccountPanelProps>) {
     onSignIn: vi.fn(),
     onSignOut: vi.fn(),
     onDelete: vi.fn(),
+    onManage: vi.fn(),
+    onRevoke: vi.fn(),
     ...props,
   };
   act(() => root!.render(<AccountPanel {...all} />));
@@ -65,6 +73,19 @@ const find = (label: string) =>
   [...host.querySelectorAll('button')].find((node) =>
     node.getAttribute('aria-label')?.startsWith(label),
   );
+
+it('offers unlink for offline and already-added computers in management mode without starting pairing', () => {
+  const props = render({
+    managing: true,
+    rows: [row('laptop', { disabled: true, added: true, detail: t.pairAccount.offline })],
+  });
+  act(() => find(t.pairAccount.unlinkTitle('laptop'))!.click());
+  expect(props.onRevoke).toHaveBeenCalledWith('laptop');
+  expect(props.onToggle).not.toHaveBeenCalled();
+  expect(find(t.pairAccount.choose)).toBeUndefined();
+  render({ managing: true, managementDisabled: true, rows: [row('laptop')] });
+  expect(find(t.pairAccount.unlinkTitle('laptop'))).toBeUndefined();
+});
 
 it('selects whole Environment rows with a checkmark and no checkbox', () => {
   const props = render({

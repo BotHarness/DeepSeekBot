@@ -2,6 +2,16 @@
 
 Candidate journey for #1980; packaged/restart qualification is still pending.
 
+## Sources
+
+- `packages/core/src/release/**`
+- `packages/client/src/client/release-notes*.{ts,tsx}`
+
+## Terms
+
+- Product Release Version
+- Development Build Identity
+
 ## Sub-features
 
 - Source-build identity in About and the authenticated release-info readers.

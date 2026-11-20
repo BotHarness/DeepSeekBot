@@ -1,10 +1,8 @@
-import { useState, type ReactElement } from 'react';
-import {
-  Button,
-  IconCheckOutlineRegular,
-  IconInfoOutlineRegular,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
+import { useRef, useState, type ReactElement } from 'react';
+
 import * as stylex from '@stylexjs/stylex';
 
 import type { BridgeActions } from './actions.js';
@@ -13,11 +11,12 @@ import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { Callout } from './ds/callout.js';
 import { FieldStack, TextAreaField, TextField } from './ds/field.js';
 import { ConfirmDialog, DangerTextButton, FormDialog } from './ds/form-dialog.js';
+import { IconButton } from './ds/icon-button.js';
 import { GroupHeading } from './ds/group-heading.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { ink, layer, space, style, type as text } from './ds/tobs.stylex.js';
 import { Tooltip } from './ds/tooltip.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
@@ -51,35 +50,39 @@ const BUILT_IN = 'built-in';
 const FOLLOW = 'global';
 
 const styles = stylex.create({
-  page: { display: 'flex', flexDirection: 'column', gap: space.x4, minWidth: 0 },
-  check: { display: 'inline-flex', color: color.fg },
-  meta: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x2 },
-  heading: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x2 },
-  info: {
-    display: 'inline-flex',
+  page: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x4,
+    minWidth: 0,
+  },
+  check: { display: 'inline-flex', color: ink.primary },
+  meta: {
+    display: 'flex',
+    flexWrap: 'wrap',
     alignItems: 'center',
-    padding: 0,
-    border: 'none',
-    background: 'none',
-    color: color.muted,
-    cursor: 'pointer',
+    gap: space.x2,
+  },
+  heading: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x2,
   },
   explain: {
     flexBasis: '100%',
     margin: 0,
     padding: space.x3,
-    borderRadius: radius.sm,
-    backgroundColor: color.surface,
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
+    borderRadius: style.radiusContainer,
+    backgroundColor: layer.raised,
+    color: ink.secondary,
+    fontSize: text.captionSize,
+    lineHeight: text.captionLine,
     whiteSpace: 'pre-wrap',
   },
   part: {
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.divider,
-    borderRadius: radius.sm,
+    backgroundColor: layer.well,
+    borderRadius: style.radiusContainer,
     padding: space.x3,
   },
   summary: {
@@ -88,18 +91,23 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: space.x2,
     cursor: 'pointer',
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
+    fontSize: style.textUiSize,
+    lineHeight: style.textUiLine,
   },
-  body: { display: 'flex', flexDirection: 'column', gap: space.x2, marginTop: space.x3 },
+  body: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x2,
+    marginTop: space.x3,
+  },
   actions: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
   block: {
     margin: 0,
     padding: space.x3,
-    borderRadius: radius.sm,
-    backgroundColor: color.surface,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
+    borderRadius: style.radiusContainer,
+    backgroundColor: layer.raised,
+    fontSize: text.captionSize,
+    lineHeight: text.captionLine,
     whiteSpace: 'pre-wrap',
     overflowWrap: 'anywhere',
   },
@@ -110,15 +118,14 @@ export function PromptInfo({ info, t }: { info: string; t: BotHarnessTranslate }
   return (
     <>
       <Tooltip label={info} side="bottom">
-        <button
-          type="button"
-          {...stylex.props(styles.info)}
+        <IconButton
+          size="inline"
           aria-label={t('promptInspect.howItWorks')}
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
         >
-          <IconInfoOutlineRegular size={14} />
-        </button>
+          <Icon name="info" />
+        </IconButton>
       </Tooltip>
       {open ? <p {...stylex.props(styles.explain)}>{info}</p> : null}
     </>
@@ -205,7 +212,9 @@ function PartsEditor({
                         size="sm"
                         onClick={() => setDraft({ ...draft, [part.id]: fallback.text })}
                       >
-                        {t('prompts.reset', { source: sourceLabel(t, fallback.source) })}
+                        {t('prompts.reset', {
+                          source: sourceLabel(t, fallback.source),
+                        })}
                       </Button>
                     ) : null}
                     {defaultChanged ? (
@@ -331,7 +340,10 @@ function LimitsEditor({
                   })}
                   error={
                     invalid
-                      ? t('prompts.limits.invalid', { min: limit.min, max: limit.max })
+                      ? t('prompts.limits.invalid', {
+                          min: limit.min,
+                          max: limit.max,
+                        })
                       : undefined
                   }
                   inputMode="numeric"
@@ -344,7 +356,9 @@ function LimitsEditor({
                     size="sm"
                     onClick={() => setDraft({ ...draft, [limit.id]: String(fallback.value) })}
                   >
-                    {t('prompts.reset', { source: sourceLabel(t, fallback.source) })}
+                    {t('prompts.reset', {
+                      source: sourceLabel(t, fallback.source),
+                    })}
                   </Button>
                 ) : null}
               </div>
@@ -380,8 +394,15 @@ async function loadLibrary(actions: PromptActions): Promise<Library> {
 }
 
 type Editor =
-  | { mode: 'create'; name: string; draft: Draft; limits: LimitDraft }
-  | { mode: 'edit'; preset: PresetView; name: string; draft: Draft; limits: LimitDraft };
+  | { mode: 'create'; name: string; draft: Draft; limits: LimitDraft; base: Library }
+  | {
+      mode: 'edit';
+      preset: PresetView;
+      name: string;
+      draft: Draft;
+      limits: LimitDraft;
+      base: Library;
+    };
 
 export function PromptPresetSettings({
   actions,
@@ -396,18 +417,34 @@ export function PromptPresetSettings({
   const [deleting, setDeleting] = useState<PresetView>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const mount = useMountedResource<HTMLDivElement>(() => {
-    let live = true;
-    if (actions.promptParts !== undefined)
-      loadLibrary(actions)
-        .then((next) => {
-          if (live) setLibrary(next);
-        })
-        .catch((cause: unknown) => {
-          if (live) setLoadError(errorMessage(cause));
-        });
+  const reads = useRef({ latest: 0, live: false });
+  const read = (): Promise<void> => {
+    const seq = ++reads.current.latest;
+    const current = () => reads.current.live && seq === reads.current.latest;
+    return loadLibrary(actions).then(
+      (next) => {
+        if (!current()) return;
+        setLibrary(next);
+        setLoadError(undefined);
+      },
+      (cause: unknown) => {
+        if (current()) setLoadError(errorMessage(cause));
+      },
+    );
+  };
+  const mount = useMountedResource<HTMLElement>(() => {
+    if (actions.promptParts === undefined) return undefined;
+    reads.current.live = true;
+    const refresh = (): void => {
+      if (document.visibilityState === 'visible') void read();
+    };
+    refresh();
+    document.addEventListener('visibilitychange', refresh);
+    window.addEventListener('focus', refresh);
     return () => {
-      live = false;
+      reads.current.live = false;
+      document.removeEventListener('visibilitychange', refresh);
+      window.removeEventListener('focus', refresh);
     };
   }, [actions]);
   if (actions.promptParts === undefined) return null;
@@ -424,18 +461,19 @@ export function PromptPresetSettings({
     void operation()
       .then(async () => {
         if (!keepOpen) close();
-        setLibrary(await loadLibrary(actions));
+        await read();
       })
       .catch((cause: unknown) => setError(errorMessage(cause)))
       .finally(() => setBusy(false));
   };
   const labels = { close: t('common.close'), cancel: t('common.cancel') };
+  const catalog = editor?.base ?? library;
   const builtInLimit = (id: string) => ({
-    value: library?.limits.find((limit) => limit.id === id)?.defaultValue ?? 0,
+    value: catalog?.limits.find((limit) => limit.id === id)?.defaultValue ?? 0,
     source: 'built-in' as Source,
   });
   const builtIn = (id: string) => ({
-    text: library?.parts.find((part) => part.id === id)?.defaultText ?? '',
+    text: catalog?.parts.find((part) => part.id === id)?.defaultText ?? '',
     source: 'built-in' as Source,
   });
 
@@ -460,7 +498,7 @@ export function PromptPresetSettings({
     const changes = edits(layer, editor.draft, (id) => builtIn(id).text);
     const limitLayer: LimitLayer = editor.mode === 'edit' ? editor.preset.limits : {};
     const limitChanges = limitEdits(
-      library.limits,
+      editor.base.limits,
       limitLayer,
       editor.limits,
       (id) => builtInLimit(id).value,
@@ -525,7 +563,7 @@ export function PromptPresetSettings({
           />
           <Note>{t('prompts.editorHint')}</Note>
           <PartsEditor
-            parts={library.parts}
+            parts={editor.base.parts}
             layer={layer}
             draft={editor.draft}
             inherited={builtIn}
@@ -533,7 +571,7 @@ export function PromptPresetSettings({
             t={t}
           />
           <LimitsEditor
-            catalog={library.limits}
+            catalog={editor.base.limits}
             layer={limitLayer}
             draft={editor.limits}
             inherited={builtInLimit}
@@ -547,11 +585,16 @@ export function PromptPresetSettings({
 
   const options = [
     { value: BUILT_IN, label: t('prompts.builtIn') },
-    ...(library?.presets ?? []).map((preset) => ({ value: preset.id, label: preset.name })),
+    ...(library?.presets ?? []).map((preset) => ({
+      value: preset.id,
+      label: preset.name,
+    })),
   ];
   return (
-    <div ref={mount} data-prompt-preset-settings="">
+    <>
       <SettingsSection
+        rootRef={mount}
+        data={{ 'data-prompt-preset-settings': '' }}
         title={
           <span {...stylex.props(styles.heading)}>
             {t('prompts.title')}
@@ -593,7 +636,13 @@ export function PromptPresetSettings({
                   size="sm"
                   onClick={() => {
                     setError(undefined);
-                    setEditor({ mode: 'create', name: '', draft: {}, limits: {} });
+                    setEditor({
+                      mode: 'create',
+                      name: '',
+                      draft: {},
+                      limits: {},
+                      base: library,
+                    });
                   }}
                 >
                   {t('prompts.create')}
@@ -617,7 +666,11 @@ export function PromptPresetSettings({
                         <Tag tone="success">{t('prompts.globalTag')}</Tag>
                       ) : null}
                       {stale ? <Tag tone="warning">{t('prompts.defaultChanged')}</Tag> : null}
-                      <span>{t('prompts.changed', { count: changed })}</span>
+                      <span>
+                        {changed === 0
+                          ? t('prompts.bot.none')
+                          : t('prompts.changed', { count: changed })}
+                      </span>
                     </span>
                   }
                   control={
@@ -632,6 +685,7 @@ export function PromptPresetSettings({
                           name: preset.name,
                           draft: {},
                           limits: {},
+                          base: library,
                         });
                       }}
                     >
@@ -644,11 +698,24 @@ export function PromptPresetSettings({
             {error === undefined || editor !== undefined || deleting !== undefined ? null : (
               <Note tone="danger">{error}</Note>
             )}
+            {loadError === undefined ? null : (
+              <SettingsRow
+                title={
+                  <Note tone="danger">{t('prompts.refreshFailed', { error: loadError })}</Note>
+                }
+                data={{ 'data-prompt-refresh-error': '' }}
+                control={
+                  <Button variant="outline" size="sm" onClick={() => void read()}>
+                    {t('prompts.retry')}
+                  </Button>
+                }
+              />
+            )}
           </>
         )}
       </SettingsSection>
       {dialog}
-    </div>
+    </>
   );
 }
 
@@ -765,7 +832,9 @@ export function BotPromptSettingsEntry({
     {
       id: FOLLOW,
       title: t('prompts.bot.follow'),
-      meta: t('prompts.bot.followHint', { name: globalPreset?.name ?? t('prompts.builtIn') }),
+      meta: t('prompts.bot.followHint', {
+        name: globalPreset?.name ?? t('prompts.builtIn'),
+      }),
     },
     ...library.presets.map((preset) => ({
       id: preset.id,
@@ -816,13 +885,15 @@ export function BotPromptSettingsEntry({
                 trailing={
                   active ? (
                     <span {...stylex.props(styles.check)}>
-                      <IconCheckOutlineRegular size={16} />
+                      <Icon name="check" size={16} />
                     </span>
                   ) : undefined
                 }
                 {...(active
                   ? {}
-                  : { onClick: () => run({ presetId: card.id === FOLLOW ? null : card.id }) })}
+                  : {
+                      onClick: () => run({ presetId: card.id === FOLLOW ? null : card.id }),
+                    })}
               />
             );
           })}

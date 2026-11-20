@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import type { RosterView } from '../src/host/client';
-import type { HumanAttentionItem } from '../src/host/wire';
+import type { RosterView } from '@botharness/host-client/client';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { locale, t } from '../src/ui/strings';
 import { interfacePreferences } from '../src/ui/interface-preferences';
 import {
@@ -135,6 +135,40 @@ describe('Home conversations', () => {
       'bot:ada',
       'bot:bo',
     ]);
+  });
+
+  it('lists a DM with another person beside Bot DMs and Channels, by latest activity', () => {
+    const withPerson: RosterView = {
+      ...roster,
+      people: [
+        {
+          id: 'dm-humans-ab',
+          name: 'Bob',
+          memberCount: 2,
+          members: [],
+          preview: 'hi',
+          previewAt: '2026-10-14T11:00:00.000Z',
+        },
+      ],
+    };
+    const rows = conversations(withPerson, [], { 'dm-humans-ab': 1 });
+    expect(rows.map((row) => row.key)).toEqual([
+      'channel:dm-humans-ab',
+      'bot:cy',
+      'channel:team',
+      'bot:ada',
+      'bot:bo',
+    ]);
+    expect(rows[0]).toMatchObject({ kind: 'channel', person: true, unread: 1 });
+    expect(
+      chatList(
+        {
+          ...withPerson,
+          arrangement: { pins: [], sections: [], sectionOrder: [], hidden: [], muted: [] },
+        },
+        [],
+      ).some((entry) => entry.kind === 'row' && entry.key === 'channel:dm-humans-ab'),
+    ).toBe(true);
   });
 
   it('counts what needs the Human in the DM or the Channel it belongs to', () => {

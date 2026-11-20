@@ -1,3 +1,4 @@
+import type { ConversationStateView } from './store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
 
 import type { BridgeActions } from './actions.js';
@@ -9,12 +10,12 @@ import {
   type ChannelSidebarRegistry,
 } from './channel-sidebar.js';
 import { channelSidebarPrefs, type ChannelSidebarPrefs } from './channel-sidebar-prefs.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { SettingsDialog } from './ds/settings-dialog.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
-import type { ClientState } from './store.js';
 import {
-  channelSettings,
+  useChannelSettings,
   channelSettingsSectionKey,
   channelSettingsSections,
   type ChannelSettings,
@@ -27,16 +28,18 @@ export function ChannelSettingsDialog({
   state,
   actions,
   t,
-  controller = channelSettings,
+  controller: providedController,
   prefs = channelSidebarPrefs,
 }: {
   registry: ChannelSidebarRegistry;
-  state: ClientState;
+  state: ConversationStateView;
   actions: BridgeActions;
   t: BotHarnessTranslate;
   controller?: ChannelSettings;
   prefs?: ChannelSidebarPrefs;
 }): ReactElement | null {
+  const inheritedController = useChannelSettings();
+  const controller = providedController ?? inheritedController;
   const snapshot = useSyncExternalStore(
     controller.subscribe,
     controller.getSnapshot,
@@ -137,6 +140,7 @@ export function ChannelSettingsDialog({
       sections={sections.map((section) => ({
         id: section.id,
         label: section.label,
+        icon: <ChannelSidebarIcon name={section.icon} />,
         attention: attention.includes(section.id),
       }))}
       activeId={active.id}
@@ -184,14 +188,16 @@ export function ChannelSettingsAttention({
   state,
   actions,
   t,
-  controller = channelSettings,
+  controller: providedController,
 }: {
   registry: ChannelSidebarRegistry;
-  state: ClientState;
+  state: ConversationStateView;
   actions: BridgeActions;
   t: BotHarnessTranslate;
   controller?: ChannelSettings;
 }): ReactElement | null {
+  const inheritedController = useChannelSettings();
+  const controller = providedController ?? inheritedController;
   const context = resolveChannelSidebarContext(state);
   const scope = context?.scope ?? 'channel';
   const entries = useSyncExternalStore(

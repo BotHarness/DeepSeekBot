@@ -3,6 +3,14 @@ import { CliLiveError } from './cli-live-error.js';
 import { parseAgentManagement } from './cli-agent-management.js';
 import { parseReviewedSettings } from './cli-live.js';
 
+const TYPED_SETTINGS = new Set(['botharness-client', 'agent-default-model']);
+
+function hostArgv(command: string, argv: readonly string[]): string[] {
+  const index = argv.indexOf(command);
+  const rest = index < 0 ? [...argv] : [...argv.slice(0, index), ...argv.slice(index + 1)];
+  return [command, ...rest.filter((arg) => arg !== '--compact')];
+}
+
 export function hasAgentCliContext(env: NodeJS.ProcessEnv): boolean {
   return (
     env['DEEPSEEKBOT_AGENT_ENDPOINT'] !== undefined || env['DEEPSEEKBOT_AGENT_TOKEN'] !== undefined
@@ -14,6 +22,7 @@ export async function runAgentCli(
   rest: string[],
   values: Record<string, unknown>,
   io: BotCreateCliIo,
+  argv: readonly string[] = [],
 ): Promise<unknown> {
   const endpoint = io.env['DEEPSEEKBOT_AGENT_ENDPOINT'];
   const token = io.env['DEEPSEEKBOT_AGENT_TOKEN'];
@@ -45,9 +54,29 @@ export async function runAgentCli(
   let operation = command;
   if (values['help'] === true || command === undefined || command === 'help')
     operation = 'capabilities';
-  const managed = await parseAgentManagement(operation!, rest, values, io);
-  const args: Record<string, unknown> = managed?.args ?? {};
-  if (!managed) {
+  const typedSettings =
+    operation === 'capabilities' ||
+    ((operation === 'settings' || operation === 'settings-set') &&
+      (rest.length === 0 || TYPED_SETTINGS.has(rest[0]!)));
+  const managed = typedSettings
+    ? undefined
+    : await parseAgentManagement(operation!, rest, values, io);
+  let args: Record<string, unknown> = managed?.args ?? {};
+  let generic = false;
+  if (!managed && !typedSettings) {
+    if (['host', 'token-file', 'home'].some((key) => values[key] !== undefined))
+      refuse(
+        'agent-scope-denied',
+        'The Host runs this command on itself; --host, --token-file and --home are not available here.',
+      );
+    generic = true;
+    operation = 'cli';
+    args = {
+      argv: hostArgv(command!, argv),
+      stdin: (await io.readStdin?.()) ?? '',
+      cwd: process.cwd(),
+    };
+  } else if (!managed) {
     const allowed = new Set(['compact', 'help', 'timeout']);
     if (operation === 'settings-set')
       for (const key of ['patch-stdin', 'expected-revision', 'previous-value']) allowed.add(key);
@@ -61,11 +90,6 @@ export async function runAgentCli(
       if (rest.length > 1 || (operation === 'settings-set' && rest.length !== 1))
         refuse('usage', 'settings takes an optional namespace; settings-set requires a namespace.');
       if (rest.length) {
-        if (!['botharness-client', 'agent-default-model'].includes(rest[0]!))
-          refuse(
-            'agent-scope-denied',
-            'This namespace is not available in the scoped CLI context.',
-          );
         args['ns'] = rest[0];
       }
     }
@@ -116,7 +140,7 @@ export async function runAgentCli(
       Object.assign(args, { patch: typedPatch, ...reviewed });
     }
   }
-  const write = managed?.write ?? operation === 'settings-set';
+  const write = generic || (managed?.write ?? operation === 'settings-set');
   const seconds = values['timeout'] === undefined ? (write ? 600 : 120) : Number(values['timeout']);
   if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 600)
     refuse('usage', '--timeout must be between 0 and 600 seconds.');

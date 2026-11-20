@@ -1,7 +1,7 @@
 import { blobatar } from 'blobatar';
 import type { CSSProperties, ReactElement } from 'react';
 
-import type { BotModeIcon } from '../bot-mode-settings.js';
+import type { BotModeIcon } from '@botharness/host-client/shared/bot-mode-settings';
 import {
   DEEPSEEKBOT_DARK_DATA_URI,
   DEEPSEEKBOT_LIGHT_DATA_URI,

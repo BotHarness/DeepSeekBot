@@ -33,6 +33,7 @@ function fakeHost(initial: Partial<BotModeScopeSnapshot> = {}) {
       sendKey: 'enter' as const,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 8,
+      botHopLimit: 128,
       developerMode: false,
       showBotSessions: false,
       showApprovalReviewSessions: false,
@@ -99,6 +100,25 @@ describe('BOT-mode policy store', () => {
     expect(reloaded.source.getSnapshot().showDeliveryReceipts).toBe(true);
   });
 
+  it('hides message avatars in direct messages and on my side until the Host stores a choice', () => {
+    const scope = fakeHost();
+    const prefs = new BotModePrefs();
+    prefs.attach(scope.host);
+    expect(prefs.source.getSnapshot().showDmAvatar).toBe(false);
+    expect(prefs.source.getSnapshot().showOwnAvatar).toBe(false);
+    botModePrefsFace(prefs).setShowDmAvatar(true);
+    botModePrefsFace(prefs).setShowOwnAvatar(true);
+    expect(scope.set).toHaveBeenCalledWith('showDmAvatar', true);
+    expect(scope.set).toHaveBeenCalledWith('showOwnAvatar', true);
+    scope.push({
+      value: { ...scope.host.getSnapshot().value!, showDmAvatar: true, showOwnAvatar: true },
+    });
+    const reloaded = new BotModePrefs();
+    reloaded.attach(scope.host);
+    expect(reloaded.source.getSnapshot().showDmAvatar).toBe(true);
+    expect(reloaded.source.getSnapshot().showOwnAvatar).toBe(true);
+  });
+
   it('shows Bot replies once complete until the Host stores streaming', () => {
     const scope = fakeHost();
     const prefs = new BotModePrefs();
@@ -118,12 +138,18 @@ describe('BOT-mode policy store', () => {
     expect(prefs.source.getSnapshot()).toEqual({
       autoCollapseMessages: false,
       showDeliveryReceipts: false,
+      showDmAvatar: false,
+      showOwnAvatar: false,
       streamReplies: false,
+      sessionDetailLevel: 'standard',
+      sessionCollapse: 'completion',
+      sessionFoldedReplies: 'all',
       motionPreference: 'system',
       botIcon: 'mascot' as const,
       sendKey: 'enter' as const,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 8,
+      botHopLimit: 128,
       developerMode: false,
       showBotSessions: true,
       showApprovalReviewSessions: false,
@@ -174,6 +200,7 @@ describe('BOT-mode policy store', () => {
         sendKey: 'enter' as const,
         autoAcceptGroupInvites: true,
         assignmentConcurrencyLimit: 3,
+        botHopLimit: 128,
         developerMode: false,
         showBotSessions: false,
         showApprovalReviewSessions: false,
@@ -191,10 +218,16 @@ describe('BOT-mode policy store', () => {
       botIcon: 'mascot' as const,
       autoCollapseMessages: false,
       showDeliveryReceipts: false,
+      showDmAvatar: false,
+      showOwnAvatar: false,
       streamReplies: false,
+      sessionDetailLevel: 'standard',
+      sessionCollapse: 'completion',
+      sessionFoldedReplies: 'all',
       sendKey: 'enter' as const,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
+      botHopLimit: 128,
       developerMode: false,
       showBotSessions: false,
       showApprovalReviewSessions: false,
@@ -211,6 +244,7 @@ describe('BOT-mode policy store', () => {
         sendKey: 'enter' as const,
         autoAcceptGroupInvites: true,
         assignmentConcurrencyLimit: 3,
+        botHopLimit: 128,
         developerMode: false,
         showBotSessions: false,
         showApprovalReviewSessions: false,
@@ -249,6 +283,7 @@ describe('BOT-mode policy store', () => {
       sendKey: 'enter' as const,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 8,
+      botHopLimit: 128,
       developerMode: false,
       showBotSessions: false,
       showApprovalReviewSessions: false,
@@ -277,6 +312,7 @@ describe('BOT-mode policy store', () => {
         sendKey: 'bogus' as never,
         autoAcceptGroupInvites: true,
         assignmentConcurrencyLimit: 3,
+        botHopLimit: 128,
         developerMode: false,
         motionPreference: 'system',
         sortMode: 'updated',
@@ -302,6 +338,7 @@ describe('BOT-mode policy store', () => {
         sendKey: 'enter' as const,
         autoAcceptGroupInvites: true,
         assignmentConcurrencyLimit: 3,
+        botHopLimit: 128,
         developerMode: true,
         motionPreference: 'system',
         sortMode: 'updated',
@@ -333,6 +370,24 @@ describe('BOT-mode policy store', () => {
     expect(scope.mutate).toHaveBeenCalledWith([{ op: 'unset', path: ['sortModes', 's1'] }]);
   });
 
+  it('keeps Settings pins on the Host and adopts pins saved elsewhere', () => {
+    const scope = fakeHost();
+    const prefs = new BotModePrefs();
+    prefs.attach(scope.host);
+    expect(prefs.source.getSnapshot().settingsPins).toBeUndefined();
+
+    botModePrefsFace(prefs).setSettingsPins(['models', 'about', 'models']);
+    expect(prefs.source.getSnapshot().settingsPins).toEqual(['models', 'about']);
+    expect(scope.set).toHaveBeenCalledWith('settingsPins', ['models', 'about']);
+
+    scope.set.mockClear();
+    prefs.setSettingsPins(['models', 'about']);
+    expect(scope.set).not.toHaveBeenCalled();
+
+    scope.push({ value: { ...scope.host.getSnapshot().value!, settingsPins: ['voice'] } });
+    expect(prefs.source.getSnapshot().settingsPins).toEqual(['voice']);
+  });
+
   it('resolves a section without an override to inherit', () => {
     const snapshot = {
       motionPreference: 'system' as const,
@@ -340,9 +395,15 @@ describe('BOT-mode policy store', () => {
       sendKey: 'enter' as const,
       autoCollapseMessages: false,
       showDeliveryReceipts: false,
+      showDmAvatar: false,
+      showOwnAvatar: false,
       streamReplies: false,
+      sessionDetailLevel: 'standard' as const,
+      sessionCollapse: 'completion' as const,
+      sessionFoldedReplies: 'all' as const,
       autoAcceptGroupInvites: true,
       assignmentConcurrencyLimit: 3,
+      botHopLimit: 128,
       developerMode: false,
       showBotSessions: false,
       showApprovalReviewSessions: false,
@@ -432,6 +493,7 @@ describe('BOT-mode policy store', () => {
         sendKey: 'enter' as const,
         autoAcceptGroupInvites: true,
         assignmentConcurrencyLimit: 3,
+        botHopLimit: 128,
         developerMode: false,
         showBotSessions: false,
         showApprovalReviewSessions: false,
@@ -521,6 +583,7 @@ describe('legacy roster.json sort migration', () => {
         sendKey: 'enter' as const,
         autoAcceptGroupInvites: true,
         assignmentConcurrencyLimit: 3,
+        botHopLimit: 128,
         developerMode: false,
         showBotSessions: false,
         showApprovalReviewSessions: false,
@@ -586,6 +649,7 @@ describe('roster migration sort-mode remap', () => {
         sendKey: 'enter' as const,
         autoAcceptGroupInvites: true,
         assignmentConcurrencyLimit: 3,
+        botHopLimit: 128,
         developerMode: false,
         showBotSessions: false,
         showApprovalReviewSessions: false,
@@ -664,6 +728,7 @@ describe('roster migration sort-mode remap', () => {
         sendKey: 'enter' as const,
         autoAcceptGroupInvites: true,
         assignmentConcurrencyLimit: 3,
+        botHopLimit: 128,
         developerMode: false,
         showBotSessions: false,
         showApprovalReviewSessions: false,

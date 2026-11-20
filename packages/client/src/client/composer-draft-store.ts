@@ -2,15 +2,30 @@ import type { ChannelComposerUpload } from './channel-composer.js';
 import type { ChannelMessage } from './store.js';
 import type { SelectedMention } from './mentions.js';
 import type { SelectedChannelRef } from './channel-refs.js';
+import { rebaseSkills, type SelectedSkill } from './skill-refs.js';
+import { parseSkillOwnerKey, skillOwnerKey } from '../../../core/src/skills/entries.js';
 import { isChannelAttachmentRef } from '../../../core/src/attachments/ref.js';
 
 export interface ComposerDraft {
   text: string;
   mentions: SelectedMention[];
   channelRefs: SelectedChannelRef[];
+  skills: SelectedSkill[];
   reply: ChannelMessage | undefined;
+  quotes: ComposerQuote[];
   uploads: ChannelComposerUpload[];
 }
+
+export interface ComposerQuote {
+  messageId: string;
+  text?: string;
+  note?: string;
+  author?: string;
+  excerpt?: string;
+  target?: ChannelMessage;
+}
+
+export const MAX_DRAFT_QUOTES = 8;
 
 export interface Version {
   writer: string;
@@ -34,7 +49,15 @@ const MAX_BYTES = 1_048_576;
 const MAX_VERSIONS = 100;
 
 export function emptyComposerDraft(): ComposerDraft {
-  return { text: '', mentions: [], channelRefs: [], reply: undefined, uploads: [] };
+  return {
+    text: '',
+    mentions: [],
+    channelRefs: [],
+    skills: [],
+    reply: undefined,
+    quotes: [],
+    uploads: [],
+  };
 }
 
 function record(value: unknown): Record<string, unknown> {
@@ -86,11 +109,38 @@ function parseVersion(raw: string): Version {
     start: number(token['start']),
     end: number(token['end']),
   }));
+  const skills = (saved['skills'] === undefined ? [] : tokens(saved['skills'], '/')).flatMap(
+    (token): SelectedSkill[] => {
+      const owner = parseSkillOwnerKey(string(token['owner']));
+      return owner === undefined
+        ? []
+        : [
+            {
+              name: string(token['label']),
+              owner,
+              start: number(token['start']),
+              end: number(token['end']),
+            },
+          ];
+    },
+  );
   let reply: ChannelMessage | undefined;
   if (saved['reply'] !== null) {
     const target = record(saved['reply']);
     reply = { id: string(target['id']), at: '', author: { kind: 'human' }, body: '' };
   }
+  const savedQuotes = saved['quotes'] ?? [];
+  if (!Array.isArray(savedQuotes) || savedQuotes.length > MAX_DRAFT_QUOTES) throw new Error();
+  const quotes = savedQuotes.map((entry): ComposerQuote => {
+    const quote = record(entry);
+    const text = quote['text'] === undefined ? undefined : string(quote['text']);
+    const note = quote['note'] === undefined ? undefined : string(quote['note']);
+    return {
+      messageId: string(quote['messageId']),
+      ...(text === undefined ? {} : { text }),
+      ...(note === undefined ? {} : { note }),
+    };
+  });
   if (!Array.isArray(saved['uploads']) || saved['uploads'].length > 10) throw new Error();
   const uploads = saved['uploads'].map((entry): ChannelComposerUpload => {
     const upload = record(entry);
@@ -113,7 +163,7 @@ function parseVersion(raw: string): Version {
     writer: string(source['writer']),
     sequence: number(source['sequence']),
     seen,
-    draft: { text, mentions, channelRefs, reply, uploads },
+    draft: { text, mentions, channelRefs, skills, reply, quotes, uploads },
     notice:
       source['reselectAllBots'] === true ||
       mentions.length !== (saved['mentions'] as unknown[]).length,
@@ -136,7 +186,24 @@ function serialize(version: Version): string {
       channelRefs: draft.channelRefs.filter(
         (token) => draft.text.slice(token.start, token.end) === '#' + token.label,
       ),
+      skills: draft.skills
+        .filter((token) => draft.text.slice(token.start, token.end) === '/' + token.name)
+        .map((token) => ({
+          label: token.name,
+          owner: skillOwnerKey(token.owner),
+          start: token.start,
+          end: token.end,
+        })),
       reply: draft.reply === undefined ? null : { id: draft.reply.id },
+      ...(draft.quotes.length === 0
+        ? {}
+        : {
+            quotes: draft.quotes.map(({ messageId, text, note }) => ({
+              messageId,
+              ...(text === undefined ? {} : { text }),
+              ...(note === undefined ? {} : { note }),
+            })),
+          }),
       uploads: draft.uploads.map((upload) => ({
         id: upload.id,
         name: upload.file.name,
@@ -293,7 +360,13 @@ export class ComposerDraftStore {
       writer: this.writer,
       sequence: Math.max(own?.sequence ?? 0, seen[this.writer] ?? 0) + 1,
       seen,
-      draft: { ...snapshot.draft, ...patch },
+      draft: {
+        ...snapshot.draft,
+        ...patch,
+        ...(patch.text === undefined || patch.skills !== undefined
+          ? {}
+          : { skills: rebaseSkills(snapshot.draft.text, patch.text, snapshot.draft.skills ?? []) }),
+      },
     };
     let error = snapshot.error;
     if (error !== 'corrupt' && (snapshot.versions.length < MAX_VERSIONS || resolve)) {

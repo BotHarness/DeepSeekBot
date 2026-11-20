@@ -8,6 +8,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { runMonkey } from './ui-monkey.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -16,11 +17,18 @@ export const usage = `Usage: node scripts/verify-app.mjs <command> [--name <inst
 Drive an isolated DeepSeekBot instance the way a user does and keep the evidence.
 
 Commands:
-  launch [--port <n>] [--build] [--dsh-version <version>]   Start an isolated DSH Host through dev-instance.mjs.
+  launch [--port <n>] [--build] [--dsh-version <version>] [--genui-preview-browser <absolute-executable>]
+                                  Start an isolated DSH Host through dev-instance.mjs.
+                                  --no-ax-model skips machine-local AX model configuration for fixture providers.
+                                  --no-deepseek-secret omits launcher-injected and inherited DeepSeek API keys.
   doctor                          Check that the recorded instance is ours, alive and authenticated.
   observe                         Save Host health and browser-reported Client diagnostics as JSON.
   rpc <namespace/method> [json]   Call one authenticated /api method with JSON args.
   shot <label> [shot options]     Open the Web Client, act, then save a screenshot and ARIA snapshot.
+  monkey <label> [--seed <n>] [--steps <n>] [--bot-mode]
+                                  Click, type and press keys at random (seeded, destructive controls
+                                  skipped) and fail on an uncaught page error or a blank shell.
+                                  On a freshly launched Host, the same seed and steps replay the same choices.
   stop                            Stop the recorded Host and delete its temporary DSH_HOME.
 
 Shot options:
@@ -59,7 +67,11 @@ export function parseVerifyArgs(argv) {
     botMode: false,
     keepOverlays: false,
     build: false,
+    noAxModel: false,
+    noDeepSeekSecret: false,
     port: undefined,
+    seed: undefined,
+    steps: 100,
   };
   for (let index = 0; index < rest.length; index += 1) {
     const flag = rest[index];
@@ -83,6 +95,25 @@ export function parseVerifyArgs(argv) {
         break;
       case '--build':
         options.build = true;
+        break;
+      case '--no-ax-model':
+        options.noAxModel = true;
+        break;
+      case '--no-deepseek-secret':
+        options.noDeepSeekSecret = true;
+        break;
+      case '--genui-preview-browser':
+        options.genuiPreviewBrowser = value();
+        break;
+      case '--seed':
+        options.seed = Number(value());
+        if (!Number.isInteger(options.seed) || options.seed < 0)
+          throw new Error('--seed must be a non-negative integer');
+        break;
+      case '--steps':
+        options.steps = Number(value());
+        if (!Number.isInteger(options.steps) || options.steps < 1)
+          throw new Error('--steps must be a positive integer');
         break;
       case '--bot-mode':
         options.botMode = true;
@@ -209,7 +240,13 @@ export async function rpc(instance, endpoint, args = {}) {
   const envelope = await response.json().catch(() => undefined);
   if (response.status !== 200 || envelope?.result?.ok !== true) {
     const code = envelope?.result?.error?.code ?? 'invalid-response';
-    throw new Error(`${endpoint} failed: HTTP ${response.status}, ${code}`);
+    const message = envelope?.result?.error?.message;
+    throw Object.assign(
+      new Error(
+        `${endpoint} failed: HTTP ${response.status}, ${code}${message ? `: ${message}` : ''}`,
+      ),
+      { code, ...(message ? { bridgeMessage: message } : {}) },
+    );
   }
   return envelope.result.value;
 }
@@ -226,12 +263,18 @@ async function launch(options, paths) {
   const port = options.port ?? (await freePort());
   const args = ['scripts/dev-instance.mjs', '--home', paths.home, '--port', String(port), '--json'];
   if (options.build) args.push('--build');
+  if (options.noAxModel) args.push('--no-ax-model');
+  if (options.noDeepSeekSecret) args.push('--no-deepseek-secret');
   if (options.dshVersion) args.push('--dsh-version', options.dshVersion);
+  if (options.genuiPreviewBrowser)
+    args.push('--genui-preview-browser', options.genuiPreviewBrowser);
   const result = spawnSync(process.execPath, args, {
     cwd: repoRoot,
     encoding: 'utf8',
     timeout: 600_000,
     maxBuffer: 4 * 1024 * 1024,
+    shell: false,
+    windowsHide: true,
   });
   if (result.error) throw new Error(`dev-instance.mjs did not complete: ${result.error.message}`);
   const start = (result.stdout ?? '').indexOf('{');
@@ -352,7 +395,11 @@ async function dismissOverlays(page) {
   for (let round = 0; round < 4; round += 1) {
     const clicked = await page.evaluate((labels) => {
       const button = [...document.querySelectorAll('button')].find(
-        (node) => labels.includes(node.textContent?.trim() ?? '') && node.offsetParent !== null,
+        (node) =>
+          (labels.includes(node.textContent?.trim() ?? '') ||
+            node.matches('.bh-internal-tour .bh-internal-tour-skip')) &&
+          node.offsetParent !== null &&
+          node.closest('.bh-session-failure-row') === null,
       );
       button?.click();
       return button?.textContent?.trim() ?? null;
@@ -377,10 +424,7 @@ function renderAria(node, depth = 0, lines = []) {
   return lines;
 }
 
-async function shot(options, paths) {
-  const [label] = options.positional;
-  if (!label || !/^[a-z0-9][a-z0-9-]*$/u.test(label))
-    throw new Error('shot needs a label of lowercase letters, digits and dashes');
+async function withClient(options, paths, label, work) {
   const instance = readInstance(paths);
   if (!alive(instance.pid))
     throw new Error('recorded Host is not running; run doctor, then launch');
@@ -417,21 +461,63 @@ async function shot(options, paths) {
     await page.goto(instance.url, { waitUntil: 'networkidle2' });
     await page.waitForFunction(
       () =>
-        [...document.querySelectorAll('button')].some((node) =>
-          ['Settings', '设置', 'More', '更多'].includes(node.textContent?.trim() ?? ''),
+        [...document.querySelectorAll('button')].some(
+          (node) =>
+            ['Settings', '设置', 'More', '更多'].includes(node.textContent?.trim() ?? '') ||
+            ['Open sidebar', '打开侧边栏'].includes(node.getAttribute('aria-label')),
         ),
       { timeout: 30_000 },
     );
     if (!options.keepOverlays) await dismissOverlays(page);
     if (options.botMode) {
-      if ((await page.$('.bh-root.bh-main')) === null)
+      if ((await page.$('.bh-root.bh-main')) === null) {
+        const sidebar = aria(options.locale === 'zh' ? '打开侧边栏' : 'Open sidebar');
+        if (await page.$(sidebar)) await page.locator(sidebar).click();
         await page.locator(aria(options.locale === 'zh' ? 'Bot 模式' : 'Bot mode')).click();
+      }
       await page.waitForSelector('.bh-root.bh-main', { timeout: 30_000 });
       steps.push('entered Bot mode');
       await new Promise((done) => setTimeout(done, 1500));
     }
     if (options.theme === 'dark')
       await page.evaluate(() => document.body.setAttribute('data-ds-dark-theme', ''));
+    return await work({ page, instance, consoleLines, steps });
+  } catch (error) {
+    const failure = await saveFailure(page, paths, label, consoleLines);
+    throw new Error(`${error.message} after [${steps.join('; ')}]; see ${failure}`, {
+      cause: error,
+    });
+  } finally {
+    await browser.close();
+  }
+}
+
+async function saveFailure(page, paths, label, consoleLines) {
+  const failure = join(paths.evidence, `${label}.failure.png`);
+  await page?.screenshot({ path: failure, waitForFonts: false }).catch(() => undefined);
+  try {
+    const snapshot = await page?.accessibility
+      .snapshot({ interestingOnly: true })
+      .catch(() => null);
+    writeFileSync(
+      join(paths.evidence, `${label}.failure.aria.txt`),
+      `${renderAria(snapshot).join('\n')}\n`,
+    );
+    writeFileSync(join(paths.evidence, `${label}.console.txt`), consoleLines.join('\n'));
+  } catch {}
+  return failure;
+}
+
+const evidenceLabel = (options, command) => {
+  const [label] = options.positional;
+  if (!label || !/^[a-z0-9][a-z0-9-]*$/u.test(label))
+    throw new Error(`${command} needs a label of lowercase letters, digits and dashes`);
+  return label;
+};
+
+async function shot(options, paths) {
+  const label = evidenceLabel(options, 'shot');
+  return withClient(options, paths, label, async ({ page, consoleLines, steps }) => {
     for (const action of options.actions) {
       if (!options.keepOverlays) await dismissOverlays(page);
       if (action.kind === 'press') {
@@ -495,23 +581,49 @@ async function shot(options, paths) {
       console: log,
       consoleIssues: consoleLines.length,
     };
-  } catch (error) {
-    const failure = join(paths.evidence, `${label}.failure.png`);
-    await page?.screenshot({ path: failure, waitForFonts: false }).catch(() => undefined);
-    try {
-      const snapshot = await page?.accessibility
-        .snapshot({ interestingOnly: true })
-        .catch(() => null);
-      writeFileSync(
-        join(paths.evidence, `${label}.failure.aria.txt`),
-        `${renderAria(snapshot).join('\n')}\n`,
-      );
-      writeFileSync(join(paths.evidence, `${label}.console.txt`), consoleLines.join('\n'));
-    } catch {}
-    throw new Error(`${error.message} after [${steps.join('; ')}]; see ${failure}`);
-  } finally {
-    await browser.close();
-  }
+  });
+}
+
+export function monkeyReplay(options, label, seed, failedAt) {
+  return [
+    `node scripts/verify-app.mjs monkey ${label} --name ${options.name}`,
+    `--seed ${seed} --steps ${Math.max(1, failedAt ?? options.steps)}`,
+    `--locale ${options.locale} --theme ${options.theme} --size ${options.width}x${options.height}`,
+    ...(options.botMode ? ['--bot-mode'] : []),
+    ...(options.keepOverlays ? ['--keep-overlays'] : []),
+  ].join(' ');
+}
+
+async function monkey(options, paths) {
+  const label = evidenceLabel(options, 'monkey');
+  const seed = options.seed ?? Math.floor(Math.random() * 2 ** 31);
+  return withClient(options, paths, label, async ({ page, instance, consoleLines }) => {
+    const run = await runMonkey(page, {
+      seed,
+      steps: options.steps,
+      origin: new URL(instance.url).origin,
+      setupErrors: consoleLines
+        .filter((line) => line.startsWith('pageerror: '))
+        .map((line) => line.slice('pageerror: '.length)),
+    });
+    const screenshot = join(paths.evidence, `${label}.png`);
+    await page.screenshot({ path: screenshot, waitForFonts: false }).catch(() => undefined);
+    const report = join(paths.evidence, `${label}.monkey.json`);
+    const replay = monkeyReplay(options, label, seed, run.failedAt);
+    writeFileSync(report, `${JSON.stringify({ ...run, replay }, null, 2)}\n`);
+    return {
+      label,
+      ok: run.ok,
+      seed,
+      steps: run.steps,
+      failedAt: run.failedAt,
+      pageErrors: run.pageErrors.slice(0, 5),
+      consoleErrors: run.consoleErrors.length,
+      screenshot,
+      report,
+      replay,
+    };
+  });
 }
 
 async function stop(paths) {
@@ -554,6 +666,9 @@ async function main() {
     case 'shot':
       result = await shot(options, paths);
       break;
+    case 'monkey':
+      result = await monkey(options, paths);
+      break;
     case 'stop':
       result = await stop(paths);
       break;
@@ -562,7 +677,7 @@ async function main() {
       process.exit(options.command === undefined || options.command === '--help' ? 0 : 2);
   }
   console.log(JSON.stringify(result, null, 2));
-  if (options.command === 'doctor' && !result.ok) process.exit(1);
+  if (['doctor', 'monkey'].includes(options.command) && !result.ok) process.exit(1);
   if (options.command === 'observe') process.exitCode = result.exitCode;
 }
 

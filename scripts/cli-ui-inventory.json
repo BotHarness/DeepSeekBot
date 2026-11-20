@@ -2,11 +2,32 @@
   "version": 1,
   "groups": [
     {
+      "id": "host-relationships",
+      "description": "Reciprocal Host approval, independent client enrollment and relationship disconnection.",
+      "scope": "Local Host",
+      "surfaces": [
+        "route:packages/core/src/devices/mount.ts:RELATIONSHIPS_PATH",
+        "setting:packages/client/src/client/relationship-settings.tsx:{item.peer.name}",
+        "setting:packages/client/src/client/relationship-settings.tsx:{t('relationships.prepareReturn')}"
+      ],
+      "commands": ["relationships", "device-probe", "device-lan"]
+    },
+    {
+      "id": "remote-host-custody",
+      "description": "The local Host carries this Client's requests to paired Remote Hosts with credentials it keeps; the CLI reaches Remote Hosts with its own private key files.",
+      "scope": "Local Host",
+      "surfaces": [
+        "route:packages/core/src/devices/mount.ts:REMOTE_CUSTODY_PATH",
+        "route:packages/core/src/devices/mount.ts:REMOTE_CUSTODY_STREAM_PATH"
+      ],
+      "commands": ["device-pair", "device-account-pair", "device-probe"]
+    },
+    {
       "id": "client-preferences",
       "description": "Theme, locale, notifications, file opening and presentation preferences; native Settings fields already have generic settings CLI, but local services need a target Client.",
       "scope": "Client",
       "surfaces": [
-        "setting:packages/client/src/client/appearance-settings.tsx:{t('settings.language')}",
+        "setting:packages/client/src/client/bot-settings-sections.tsx:{t('settings.language')}",
         "setting:packages/client/src/client/notification-settings.tsx:{t('desktopNotify.row.title')}",
         "storage:packages/client/src/client/composer-footer-preferences.ts:setItem(FOOTER_STORAGE_KEY)",
         "storage:packages/client/src/client/desktop-notifications.ts:setItem(DESKTOP_NOTIFICATIONS_KEY)",
@@ -56,6 +77,7 @@
       "surfaces": [
         "setting:packages/client/src/client/keyboard-settings.tsx:{row.label}",
         "setting:packages/client/src/client/notification-settings.tsx:{t('shortcuts.row.title')}",
+        "setting:packages/client/src/client/shortcut-help.tsx:{label}",
         "storage:packages/client/src/client/shortcut-bindings.ts:setItem(SHORTCUT_BINDINGS_KEY)",
         "storage:packages/client/src/client/workspace-shortcuts.ts:setItem(key)",
         "storage:packages/client/src/client/workspace-shortcuts.ts:setItem(migrationKey)"
@@ -67,15 +89,16 @@
       "description": "Device list, offers, offer status and revoke; the Connect tunnel action on the same route family has connect-status/enable/disable/sign-in/sign-out.",
       "scope": "Profile",
       "surfaces": [
-        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/requests`, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/approve-key`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], [`${DEVICES_PATH}/lan`, ['POST']], ] as const",
-        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.lan.title')}",
+        "route:packages/core/src/devices/mount.ts:path in [ [DEVICES_PATH, ['GET']], [`${DEVICES_PATH}/requests`, ['GET']], [`${DEVICES_PATH}/offer`, ['POST']], [`${DEVICES_PATH}/offer-status`, ['POST']], [`${DEVICES_PATH}/approve-key`, ['POST']], [`${DEVICES_PATH}/revoke`, ['POST']], [`${DEVICES_PATH}/connect`, ['POST']], [`${DEVICES_PATH}/connect-health`, ['POST']], [`${DEVICES_PATH}/private`, ['POST']], [`${DEVICES_PATH}/private-tunnel`, ['POST']], [`${DEVICES_PATH}/account-hosts`, ['GET']], [`${DEVICES_PATH}/account-hosts/revoke`, ['POST']], [`${DEVICES_PATH}/lan`, ['POST']], [`${DEVICES_PATH}/lan-bots`, ['GET', 'POST']], ] as const",
+        "setting:packages/client/src/client/private-tunnel-settings.tsx:{t('privateTunnel.ingressLan')}",
         "setting:packages/client/src/client/paired-devices.tsx:{device.name}",
         "setting:packages/client/src/client/paired-devices.tsx:{item.name}",
         "route:packages/core/src/devices/mount.ts:CONNECT_CHANNEL_PATH",
         "setting:packages/client/src/client/paired-devices.tsx:{t('devices.pair.title')}",
         "setting:packages/client/src/client/paired-devices.tsx:{t('connections.title')}",
         "setting:packages/client/src/client/paired-devices.tsx:{t('connections.methods')}",
-        "setting:packages/client/src/client/paired-devices.tsx:{t('connections.pending')}"
+        "setting:packages/client/src/client/paired-devices.tsx:{t('connections.pending')}",
+        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.lan.title')}"
       ],
       "commands": [
         "devices",
@@ -83,12 +106,21 @@
         "device-offer-status",
         "device-approve-key",
         "device-lan",
+        "bot-lan",
         "device-revoke",
         "connect-enable",
         "connect-disable",
+        "connect-account-hosts",
+        "connect-account-revoke",
         "device-requests",
         "connection-clients",
-        "connection"
+        "connection",
+        "private-connect",
+        "private-tunnel-enable",
+        "private-tunnel-disable",
+        "private-ingress-enable",
+        "private-ingress-disable",
+        "private-route"
       ]
     },
     {
@@ -96,19 +128,22 @@
       "description": "Devices page hosted Connect account and tunnel state (ADR-0241).",
       "scope": "Profile",
       "surfaces": [
-        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.connect.account')}",
-        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.connect.tunnel')}"
+        "setting:packages/client/src/client/connect-account-hosts.tsx:{t('devices.connect.thisComputer')}",
+        "setting:packages/client/src/client/connect-account-hosts.tsx:{t('devices.connect.computersStatus')}"
       ],
-      "commands": ["connect-status", "connect-sign-in", "connect-sign-out"]
+      "commands": [
+        "connect-status",
+        "connect-sign-in",
+        "connect-sign-out",
+        "connect-account-hosts",
+        "connect-account-revoke"
+      ]
     },
     {
       "id": "phone-route",
       "description": "Phone route status and the confirmed tailscale serve publish under the separate Tailscale connection entry.",
       "scope": "Profile",
-      "surfaces": [
-        "route:packages/core/src/devices/mount.ts:DEVICES_SERVE_PATH",
-        "setting:packages/client/src/client/paired-devices.tsx:{t('devices.tailscale.title')}"
-      ],
+      "surfaces": ["route:packages/core/src/devices/mount.ts:DEVICES_SERVE_PATH"],
       "commands": ["phone-route", "phone-route-publish"]
     },
     {
@@ -168,10 +203,10 @@
       "description": "#2088 reuses native Settings for exactly four live fields: assignmentConcurrencyLimit, developerMode, showBotSessions and showApprovalReviewSessions. Scoped Tob writes add source/approval/revision guards; no new settings owner.",
       "scope": "Host / protected Tob Human DM",
       "surfaces": [
-        "field:packages/client/src/bot-mode-settings.ts:assignmentConcurrencyLimit",
-        "field:packages/client/src/bot-mode-settings.ts:developerMode",
-        "field:packages/client/src/bot-mode-settings.ts:showApprovalReviewSessions",
-        "field:packages/client/src/bot-mode-settings.ts:showBotSessions",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:assignmentConcurrencyLimit",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:developerMode",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:showApprovalReviewSessions",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:showBotSessions",
         "setting:packages/client/src/client/assignment-concurrency-setting.tsx:{t('assignmentLimit.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('approvalReviewSessions.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('botSessions.row.title')}",
@@ -184,22 +219,35 @@
       "description": "Remaining native preferences reuse Human settings/settings-set; these fields are outside scoped Tob #2088 access (follow-ups #2094/#2095).",
       "scope": "Host",
       "surfaces": [
-        "field:packages/client/src/bot-mode-settings.ts:autoAcceptGroupInvites",
-        "field:packages/client/src/bot-mode-settings.ts:autoCollapseMessages",
-        "field:packages/client/src/bot-mode-settings.ts:botIcon",
-        "field:packages/client/src/bot-mode-settings.ts:motionPreference",
-        "field:packages/client/src/bot-mode-settings.ts:sendKey",
-        "field:packages/client/src/bot-mode-settings.ts:sortMode",
-        "field:packages/client/src/bot-mode-settings.ts:sortModes",
-        "field:packages/client/src/bot-mode-settings.ts:showDeliveryReceipts",
-        "field:packages/client/src/bot-mode-settings.ts:streamReplies",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:autoAcceptGroupInvites",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:autoCollapseMessages",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:botIcon",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:motionPreference",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:sendKey",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:sortMode",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:sortModes",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:showDeliveryReceipts",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:showDmAvatar",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:showOwnAvatar",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:streamReplies",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:sessionDetailLevel",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:sessionCollapse",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:sessionFoldedReplies",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:botHopLimit",
+        "field:packages/host-client/src/shared/bot-mode-settings.ts:settingsPins",
+        "setting:packages/client/src/client/bot-hop-limit-setting.tsx:{t('botHopLimit.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('groupAutoAccept.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('icon.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('motion.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sendKey.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('messageFold.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.delivery.row.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.avatar.dm.row.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.avatar.own.row.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('message.stream.row.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sessions.settings.level.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sessions.settings.collapse.title')}",
+        "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sessions.settings.replies.title')}",
         "setting:packages/client/src/client/bot-mode-setting-rows.tsx:{t('sort.row.title')}"
       ],
       "commands": ["settings", "settings-set"]
@@ -212,13 +260,15 @@
         "setting:packages/client/src/client/approval-reviewer-model-setting.tsx:{t('autoApproval.reviewerModel.title')}",
         "setting:packages/client/src/client/approval-template-entry.tsx:{t('autoApproval.title')}",
         "setting:packages/client/src/client/approval-template-library.tsx:{t('autoApproval.library.new')}",
+        "setting:packages/client/src/client/approval-template-library.tsx:{t('autoApproval.globalDefault')}",
         "setting:packages/client/src/client/approval-template-library.tsx:{templateTitle(t, template.name, template.title)}"
       ],
       "commands": [
         "approval-reviewer-model",
         "approval-reviewer-model-set",
         "approval-template",
-        "approval-template-set"
+        "approval-template-set",
+        "approval-template-global-set"
       ]
     },
     {
@@ -229,7 +279,8 @@
         "setting:packages/client/src/client/prompt-preset-settings.tsx:{t('prompts.global')}",
         "setting:packages/client/src/client/prompt-preset-settings.tsx:{t('prompts.new')}",
         "setting:packages/client/src/client/prompt-preset-settings.tsx:{preset.name}",
-        "setting:packages/client/src/client/prompt-preset-settings.tsx:{own === 0 ? t('prompts.bot.none') : t('prompts.changed', { count: own })}"
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{own === 0 ? t('prompts.bot.none') : t('prompts.changed', { count: own })}",
+        "setting:packages/client/src/client/prompt-preset-settings.tsx:{ <Note tone=\"danger\">{t('prompts.refreshFailed', { error: loadError })}</Note> }"
       ],
       "commands": [
         "prompt-parts",
@@ -240,6 +291,94 @@
         "prompt-global-set",
         "bot-prompt",
         "bot-prompt-set"
+      ]
+    },
+    {
+      "id": "model-providers",
+      "description": "API key provider settings with template, display name, write-only key and custom endpoint and model.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.apiKey')}",
+        "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.endpoint')}",
+        "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.model')}",
+        "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.name')}",
+        "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.template')}"
+      ],
+      "commands": [
+        "model-providers",
+        "model-provider-add",
+        "model-provider-edit",
+        "model-provider-remove"
+      ]
+    },
+    {
+      "id": "routing-groups",
+      "description": "Routing Groups in Settings, Models: list with resting members, create, rename, reorder, add or remove members and delete.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/routing-group-settings.tsx:{t('routingGroups.new')}",
+        "setting:packages/client/src/client/routing-group-settings.tsx:{group.name}"
+      ],
+      "commands": [
+        "model-groups",
+        "model-group",
+        "model-group-create",
+        "model-group-update",
+        "model-group-delete"
+      ]
+    },
+    {
+      "id": "bot-primary-color",
+      "description": "The Bot Profile exposes the Host-owned primary color choice.",
+      "scope": "PersonaBot",
+      "surfaces": [
+        "setting:packages/client/src/client/profile-header.tsx:{t('profile.primaryColor.title')}"
+      ],
+      "commands": ["bot-primary-color-set"]
+    },
+    {
+      "id": "bot-modes",
+      "description": "The DSH mode (Agent Preset) every Bot without its own uses, each Bot's own mode, and the mode templates that limit which modes a Bot and its Orchestrator can use.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{t('botMode.default.title')}",
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{t('botMode.template.bot.title')}",
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{template.name}",
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{modeText(mode, t).name}",
+        "setting:packages/client/src/client/bot-mode-settings.tsx:{missingText(id)}"
+      ],
+      "commands": [
+        "bot-modes",
+        "bot-mode-default-set",
+        "bot-mode-set",
+        "bot-mode-template-save",
+        "bot-mode-template-delete",
+        "bot-mode-template-set"
+      ]
+    },
+    {
+      "id": "voice",
+      "description": "TTS and ASR Providers (add, test, remove), the Host-wide default for each, the speech threshold with its microphone test (the live level meter itself is browser-only; voice-dictate covers the capture path), and each Bot's voice and speech recognition override and preview.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.provider')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.asr')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.voiceId')}",
+        "setting:packages/client/src/client/voice-settings.tsx:{t('voice.bot.preview')}"
+      ],
+      "commands": [
+        "voice-providers",
+        "voice-provider-add",
+        "voice-provider-remove",
+        "voice-provider-test",
+        "voice-set",
+        "voice-asr-set",
+        "voice-defaults",
+        "voice-default-set",
+        "voice-vad-set",
+        "voice-dictate",
+        "voice-synthesize",
+        "voice-local-kit"
       ]
     },
     {
@@ -256,7 +395,9 @@
       "description": "Host automatic context compaction threshold (window ratio and headroom).",
       "scope": "Host",
       "surfaces": [
-        "setting:packages/client/src/client/compaction-threshold-setting.tsx:{t('compactionThreshold.row.title')}"
+        "setting:packages/client/src/client/compaction-threshold-setting.tsx:{t('compactionThreshold.ratio')}",
+        "setting:packages/client/src/client/compaction-threshold-setting.tsx:{t('compactionThreshold.headroom')}",
+        "setting:packages/client/src/client/compaction-threshold-setting.tsx:{t('compactionThreshold.reset.title')}"
       ],
       "commands": ["idle-compaction", "compaction-threshold-set"]
     },
@@ -277,13 +418,20 @@
     },
     {
       "id": "profile-personal",
-      "description": "Human default name, Channel nickname and DM trace policy.",
+      "description": "Human default name, Host chat avatar, Channel nickname and DM trace policy.",
       "scope": "Host",
       "surfaces": [
         "setting:packages/client/src/client/channel-personal-settings.tsx:{<label htmlFor=\"bh-channel-human-nickname\">{t('humanNickname.title')}</label>}",
-        "setting:packages/client/src/client/human-name-settings.tsx:{<label htmlFor=\"bh-human-default-name\">{t('humanName.title')}</label>}"
+        "setting:packages/client/src/client/human-name-settings.tsx:{<label htmlFor=\"bh-human-default-name\">{t('humanName.title')}</label>}",
+        "setting:packages/client/src/client/human-avatar-settings.tsx:{t('humanAvatar.title')}"
       ],
-      "commands": ["human-identity", "human-name-set", "channel-human-name-set"]
+      "commands": [
+        "human-identity",
+        "human-name-set",
+        "human-avatar-set",
+        "human-avatars",
+        "channel-human-name-set"
+      ]
     },
     {
       "id": "account-profile",
@@ -293,11 +441,16 @@
         "setting:packages/client/src/client/account-profile-settings.tsx:{<label htmlFor=\"bh-account-name\">{t('accountProfile.name')}</label>}",
         "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.email')}",
         "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.id')}",
-        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.loadFailed')}",
-        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.photo')}",
-        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.signInHint')}"
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.photo')}"
       ],
       "commands": ["marketplace-account", "marketplace-author", "marketplace-author-avatar"]
+    },
+    {
+      "id": "account-uploaded-bots",
+      "description": "Settings entry listing the signed-in account's uploaded Marketplace Bots, with update and delete.",
+      "scope": "Host",
+      "surfaces": ["setting:packages/client/src/client/market-mine.tsx:{t('market.mine.title')}"],
+      "commands": ["marketplace-mine", "marketplace-upload", "marketplace-delete"]
     },
     {
       "id": "channel-history",
@@ -386,9 +539,7 @@
       "id": "storage-cleanup",
       "description": "Show storage used by chat media, messages and Memory, clear reviewed chat media by chat, age and type, and delete reviewed old messages by chat and age.",
       "scope": "Host",
-      "surfaces": [
-        "setting:packages/client/src/client/storage-settings.tsx:{t('storage.row.title')}"
-      ],
+      "surfaces": [],
       "commands": [
         "storage-usage",
         "storage-cleanup-preview",
@@ -427,6 +578,22 @@
         "route:packages/core/src/plugin.ts:path in [DIAGNOSTIC_BUNDLE_PATH, DIAGNOSTIC_BUNDLE_PREVIEW_PATH]"
       ],
       "issue": "#1690"
+    },
+    {
+      "id": "diagnostic-logs",
+      "description": "Always-on local diagnostic log: Client ingest, filtered readback and redacted ZIP export.",
+      "scope": "Host",
+      "surfaces": [
+        "route:packages/core/src/diagnostics/diagnostic-log.ts:path in DIAGNOSTIC_LOG_ROUTES"
+      ],
+      "commands": ["diagnostic-logs", "diagnostic-logs-export", "diagnostic-log-record"]
+    },
+    {
+      "id": "bug-report",
+      "description": "Report a problem: description, attachments, redacted diagnostic log and versions packed into one ZIP with a prefilled GitHub issue link.",
+      "scope": "Host",
+      "surfaces": ["route:packages/core/src/diagnostics/diagnostic-log.ts:BUG_REPORT_PATH"],
+      "commands": ["bug-report"]
     },
     {
       "id": "bot-transfer",
@@ -475,6 +642,17 @@
       "commands": ["todos", "todo-add", "todo-update", "todo-remove", "todo-tool"]
     },
     {
+      "id": "ui-mic-device",
+      "description": "The microphone this browser uses for dictation, the microphone test and desktop or Web calls.",
+      "scope": "Client device preference",
+      "surfaces": [
+        "storage:packages/client/src/client/mic-device.ts:removeItem(MIC_DEVICE_STORAGE_KEY)",
+        "storage:packages/client/src/client/mic-device.ts:setItem(MIC_DEVICE_STORAGE_KEY)"
+      ],
+      "exemption": "Microphone device ids come from enumerateDevices in one browser profile on one machine and mean nothing to the Host or another Client, so no Host CLI can list or set them. The Host-side capture path is covered by voice-dictate.",
+      "configurable": false
+    },
+    {
       "id": "ui-drafts",
       "description": "Drafts, pending sends and transport request recovery are per-Client delivery state, not configurable settings; sending is already covered by send.",
       "scope": "Client transport / transient state",
@@ -504,9 +682,10 @@
         "storage:packages/client/src/client/onboarding.ts:setItem(key)",
         "storage:packages/client/src/client/onboarding.ts:removeItem('botharness/onboarding/sessions-return')",
         "storage:packages/client/src/client/onboarding.ts:setItem(`botharness/onboarding/layout-v2/${this.state.receipt.profileId}`)",
-        "storage:packages/client/src/client/onboarding.ts:setItem(introKey(receipt.profileId))"
+        "storage:packages/client/src/client/onboarding.ts:setItem(introKey(receipt.profileId))",
+        "storage:packages/client/src/client/host-acknowledgements.ts:setItem(key)"
       ],
-      "exemption": "Device-local tour anchors and seen markers are presentation state, not Host settings. Profile tutorial lifecycle is available through onboarding.",
+      "exemption": "Device-local tour anchors and local copies of seen markers are presentation state, not Host settings. Profile tutorial lifecycle is available through onboarding; Profile seen markers through acknowledgements and acknowledge.",
       "configurable": false
     },
     {
@@ -514,14 +693,17 @@
       "description": "A browser's own Remote Host pairings, selected Host tab, legacy-key migration and the icon and colour it shows for each Host (#2500).",
       "scope": "Client transport / transient state",
       "surfaces": [
-        "storage:packages/client/src/client/remote-hosts.ts:removeItem(REMOTE_HOSTS_STORAGE_KEY)",
+        "storage:packages/client/src/client/remote-hosts.ts:removeItem('botharness.computers.v1')",
         "storage:packages/client/src/client/remote-notifications.ts:removeItem(REMOTE_NOTIFICATION_KEY)",
         "storage:packages/client/src/client/remote-hosts.ts:setItem(REMOTE_HOSTS_STORAGE_KEY)",
         "storage:packages/client/src/client/remote-hosts.ts:setItem(HOST_TAB_STORAGE_KEY)",
+        "storage:packages/client/src/client/environment-creation-target.ts:setItem(CREATION_HOST_STORAGE_KEY)",
         "storage:packages/client/src/client/remote-hosts.ts:removeItem(oldKey)",
-        "storage:packages/client/src/client/remote-hosts.ts:setItem(key)"
+        "storage:packages/client/src/client/remote-hosts.ts:setItem(key)",
+        "storage:packages/client/src/client/remote-hosts.ts:setItem(REMOTE_HOST_RELEASE_STORAGE_KEY)",
+        "storage:packages/client/src/client/remote-hosts.ts:removeItem(REMOTE_HOST_RELEASE_STORAGE_KEY)"
       ],
-      "exemption": "Per-browser connections, legacy-key migration, and the tab filter belong to that browser profile, not to any Host (spec #2178, ADR-0243: Host looks are device-local), so no Host CLI can read or set them. Permanent pairing removal also deletes its browser notification choice as automatic cleanup, not a separate setting. Browser notifications and Host looks use separately inventoried Client relay commands. The Remote Host's side is its existing device gateway: pair, unary calls, stream ticket and revoke.",
+      "exemption": "Per-browser connections, local Forget automatic-enrollment choices, legacy-key migration, the tab filter and the automatic last-creation Host hint belong to that browser profile, not to any Host (spec #2178, ADR-0243: Host looks are device-local), so no Host CLI can read or set them. The creation hint is not an independent setting; CLI create, group-create and roster commands already select their exact Host explicitly. Permanent pairing removal also deletes its browser notification choice as automatic cleanup, not a separate setting, and keeps released credential handles the Host could not forget yet in a retry queue that the next start drains automatically. Browser notifications and Host looks use separately inventoried Client relay commands. The Remote Host's side is its existing device gateway and relationships CLI: pair, unary calls, stream ticket, revoke, enrollment status, commit and exact-key cancellation.",
       "configurable": false
     },
     {
@@ -534,10 +716,10 @@
     },
     {
       "id": "ui-mobile-apps-hint",
-      "description": "The Control Rail's mobile app hint is shown once per device until opened or dismissed.",
+      "description": "The Control Rail's mobile app hint is shown once per Profile until opened or dismissed.",
       "scope": "Client transport / transient state",
       "surfaces": ["storage:packages/client/src/client/mobile-apps.tsx:setItem(SEEN_KEY)"],
-      "exemption": "A device-local seen marker for a presentation hint, not a Host setting; the entry only links to public TestFlight, Discord and QQ destinations.",
+      "exemption": "A local copy of the Profile seen marker for a presentation hint, not a Host setting; the marker is read and recorded with acknowledgements and acknowledge mobile-apps, and the entry only links to public TestFlight, Discord and QQ destinations.",
       "configurable": false
     },
     {
@@ -546,7 +728,6 @@
       "scope": "Client transport / transient state",
       "surfaces": [
         "setting:packages/client/src/client/bot-settings-sections.tsx:{t('build.row.title')}",
-        "setting:packages/client/src/client/release-notes-view.tsx:{t('release.row.title')}",
         "storage:packages/client/src/client/release-notes.ts:setItem(RELEASE_NOTES_SEEN_KEY)",
         "storage:packages/client/src/client/release-notes.ts:setItem(key)"
       ],
@@ -812,6 +993,21 @@
       "commands": ["computer-video"]
     },
     {
+      "id": "voice-call",
+      "description": "Bot calls through the Host call owner: readiness, status, hang up and a synthetic-audio call without a phone.",
+      "scope": "Host",
+      "surfaces": ["route:packages/core/src/plugin.ts:VOICE_CALL_PATH"],
+      "commands": ["call-readiness", "call-status", "call-hangup", "call-simulate"]
+    },
+    {
+      "id": "ui-call-window",
+      "description": "Each desktop or Web window keeps a random call id in session storage so the Host tells two windows apart.",
+      "scope": "Client transport / transient state",
+      "surfaces": ["storage:packages/client/src/client/desktop-call.ts:setItem(CLIENT_KEY)"],
+      "exemption": "A per-window caller identity, not a setting. Calls themselves are covered by call-readiness, call-status, call-hangup and call-simulate.",
+      "configurable": false
+    },
+    {
       "id": "computer-webrtc",
       "description": "HTTP operation with existing direct CLI command.",
       "scope": "Host",
@@ -881,6 +1077,47 @@
       "commands": ["window-zoom-clients", "window-zoom-get", "window-zoom-set", "window-zoom-reset"]
     },
     {
+      "id": "desktop-window-reveal",
+      "description": "Host relaunches the Windows Desktop executable so the shell restores and focuses its running window, as a notification click does.",
+      "scope": "Host / Windows Desktop window",
+      "surfaces": ["route:packages/core/src/plugin.ts:DESKTOP_WINDOW_PATH"],
+      "commands": ["desktop-window-reveal"]
+    },
+    {
+      "id": "desktop-presence",
+      "description": "Desktop Clients lease an active state on the Host; while any is active, reply pushes to phones wait until it lapses.",
+      "scope": "Host / push delivery",
+      "surfaces": ["route:packages/core/src/plugin.ts:PRESENCE_PATH"],
+      "commands": ["presence-status", "presence-report"]
+    },
+    {
+      "id": "subscription-engines",
+      "description": "The local Host lists subscription models and starts Codex or Claude Code sign-in from the Main and Task model pickers. Model Presets can store and restore a subscription model and effort for each role.",
+      "scope": "Host / PersonaBot",
+      "surfaces": [
+        "route:packages/core/src/plugin.ts:ENGINES_PATH",
+        "setting:packages/client/src/client/subscription-accounts.tsx:{t('modelProviders.accountEngine')}",
+        "setting:packages/client/src/client/subscription-accounts.tsx:{t('modelProviders.name')}"
+      ],
+      "commands": [
+        "engine-list",
+        "engine-accounts",
+        "engine-account-add",
+        "engine-account-rename",
+        "engine-account-remove",
+        "engine-status",
+        "engine-approvals",
+        "engine-tools",
+        "engine-tool",
+        "engine-login",
+        "engine-models",
+        "engine-use",
+        "model-preset-create",
+        "model-preset-update",
+        "model-preset-apply"
+      ]
+    },
+    {
       "id": "desktop-window-zoom-setup",
       "description": "Host schedules the Desktop zoom Profile link to be added or removed after the app quits, then reopens the app.",
       "scope": "Host / desktop Profile",
@@ -919,10 +1156,13 @@
       "surfaces": [
         "setting:packages/client/src/client/appearance-settings.tsx:{t('appearance.primary')}",
         "setting:packages/client/src/client/wallpaper-settings.tsx:{t('wallpaper.interval')}",
+        "setting:packages/client/src/client/wallpaper-settings.tsx:{t('wallpaper.zoom')}",
         "setting:packages/client/src/client/wallpaper-settings.tsx:{t('wallpaper.shuffle')}",
         "storage:packages/client/src/client/appearance.ts:setItem(APPEARANCE_KEY)",
         "route:packages/core/src/plugin.ts:APPEARANCE_CONTROL_PATH",
         "setting:packages/client/src/client/appearance-material-settings.tsx:{t('appearance.materialBlur')}",
+        "setting:packages/client/src/client/appearance-recovery-settings.tsx:{t('recovery.clear')}",
+        "setting:packages/client/src/client/appearance-recovery-settings.tsx:{t('recovery.reset')}",
         "setting:packages/client/src/client/appearance-material-settings.tsx:{t('appearance.materialColor')}",
         "setting:packages/client/src/client/appearance-material-settings.tsx:{t('appearance.materialOpacity')}",
         "setting:packages/client/src/client/appearance-panel-settings.tsx:{t( field === 'color' ? 'appearance.materialColor' : field === 'opacity' ? 'appearance.materialOpacity' : 'appearance.materialBlur', )}"
@@ -947,7 +1187,11 @@
       "description": "Browser-owned Host name, icon and colour; shared HostLooks locks persisted revision/merge, supports explicit refresh after read failure, and checks CLI absolute expiry before setItem. Early disconnect is unknown outcome with readback; no Host mirror.",
       "scope": "Client / Host",
       "surfaces": [
-        "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)"
+        "storage:packages/client/src/client/host-looks.ts:setItem(HOST_LOOKS_STORAGE_KEY)",
+        "setting:packages/client/src/client/host-look-settings.tsx:{<label htmlFor={`bh-host-name-${hostId}`}>{t('remoteHosts.look.name')}</label>}",
+        "setting:packages/client/src/client/host-look-settings.tsx:{t('remoteHosts.look.symbols')}",
+        "setting:packages/client/src/client/host-look-settings.tsx:{t('remoteHosts.look.emoji')}",
+        "setting:packages/client/src/client/host-look-settings.tsx:{t('remoteHosts.look.color')}"
       ],
       "commands": ["appearance-clients", "host-look"]
     },
@@ -959,6 +1203,112 @@
         "route:packages/core/src/plugin.ts:`${MESSAGE_FEEDBACK_PATH}/${action}` in MESSAGE_FEEDBACK_ACTIONS"
       ],
       "commands": ["feedback-preview", "feedback-download", "feedback-submit"]
+    },
+    {
+      "id": "remote-connection-management",
+      "description": "One selected Client observes routes and uses its exact Host owner for device revocation, individual route stop and account sign-out; Web-Locked execution guards and owner readback prevent unknown writes being replayed.",
+      "scope": "Client",
+      "surfaces": [
+        "setting:packages/client/src/client/connection-hosts.tsx:{device.name}",
+        "setting:packages/client/src/client/connection-hosts.tsx:{t('connections.hosts.preference')}",
+        "setting:packages/client/src/client/connection-hosts.tsx:{host.name}",
+        "setting:packages/client/src/client/connection-hosts.tsx:{route.address}",
+        "setting:packages/client/src/client/connection-hosts.tsx:{label}",
+        "setting:packages/client/src/client/connection-hosts.tsx:\"Tobs Connect\"",
+        "storage:packages/client/src/client/remote-hosts.ts:removeItem(item.key)",
+        "storage:packages/client/src/client/remote-hosts.ts:removeItem(executionKey)",
+        "storage:packages/client/src/client/remote-hosts.ts:setItem(CONNECTION_OPERATIONS_INDEX)"
+      ],
+      "commands": ["connection-hosts", "connection-host", "connect-account-hosts"]
+    },
+    {
+      "id": "team-members",
+      "description": "Host-owned Team mode, member credentials, public Channels and local member evaluation. Read Host Role model grants with roles list and models allowed. Write provider and exact model grants with roles create or roles update using --model-providers and --models.",
+      "scope": "Host / Human",
+      "surfaces": [
+        "route:packages/core/src/team/mount.ts:'/api/botharness/team-as'",
+        "setting:packages/client/src/client/team-settings.tsx:{member.displayName}",
+        "setting:packages/client/src/client/team-settings.tsx:{t('team.access.address')}",
+        "setting:packages/client/src/client/team-settings.tsx:{t('team.account.password')}",
+        "setting:packages/client/src/client/team-settings.tsx:{t('team.insecureHttp.title')}",
+        "setting:packages/client/src/client/team-settings.tsx:{t('team.members.title')}",
+        "setting:packages/client/src/client/team-settings.tsx:{t('team.mode.title')}",
+        "setting:packages/client/src/client/team-settings.tsx:{t('team.ownerPassword.title')}",
+        "setting:packages/client/src/client/team-settings.tsx:{view.viewer.displayName}",
+        "setting:packages/client/src/client/channel-access-settings.tsx:{t('channelAccess.admins')}",
+        "setting:packages/client/src/client/channel-access-settings.tsx:{t('channelAccess.visibility')}",
+        "setting:packages/client/src/client/channel-access-settings.tsx:{t(`channelAccess.policy.${key}`)}",
+        "setting:packages/client/src/client/team-roles.tsx:{name}",
+        "setting:packages/client/src/client/team-roles.tsx:{roleLabel(t, role)}",
+        "setting:packages/client/src/client/team-settings.tsx:{t('team.devices.mine')}",
+        "setting:packages/client/src/client/team-spaces.tsx:{item.name}",
+        "setting:packages/client/src/client/team-spaces.tsx:{t('team.spaces.shared')}",
+        "setting:packages/client/src/client/team-spaces.tsx:{t('team.spaces.yours')}",
+        "setting:packages/client/src/client/team-usage-section.tsx:{member.displayName}",
+        "setting:packages/client/src/client/team-usage-section.tsx:{t('team.usage.period')}",
+        "setting:packages/client/src/client/team-audit.tsx:{object.name}",
+        "setting:packages/client/src/client/team-audit.tsx:{label}",
+        "setting:packages/client/src/client/team-audit.tsx:{t('team.audit.integrity')}",
+        "setting:packages/client/src/client/team-audit.tsx:{t('team.private.open')}"
+      ],
+      "commands": [
+        "team-mode",
+        "members",
+        "channels",
+        "roles",
+        "devices",
+        "usage",
+        "models",
+        "dm",
+        "private",
+        "audit"
+      ]
+    },
+    {
+      "id": "team-member-browser-sign-out",
+      "description": "A member ends the sign-in grant held by this browser.",
+      "scope": "Client",
+      "surfaces": [
+        "setting:packages/client/src/client/team-settings.tsx:{t('team.account.signOut')}"
+      ],
+      "exemption": "Sign-out ends the cookie grant of one member browser and has no Host-side setting to read or change; the local CLI acts as the Owner, and --as uses a temporary grant that it revokes itself.",
+      "configurable": false
+    },
+    {
+      "id": "team-bot-access",
+      "description": "A Bot's owner chooses who can use it (private, everyone, chosen roles or people) and sets its proactive-DM, principal-Channel and speaker-context switches; people who use someone else's Bot can stop it messaging them first.",
+      "scope": "Host",
+      "surfaces": [
+        "setting:packages/client/src/client/bot-access-entry.tsx:{t('botAccess.who')}",
+        "setting:packages/client/src/client/bot-access-entry.tsx:{t(`botAccess.switch.${key}`)}",
+        "setting:packages/client/src/client/bot-access-entry.tsx:{t('botAccess.allowProactive')}"
+      ],
+      "commands": ["bot-access"]
+    },
+    {
+      "id": "avatar-crop-preview",
+      "description": "The avatar crop zoom is a temporary image-editing value.",
+      "scope": "Client draft",
+      "surfaces": [
+        "setting:packages/client/src/client/group-avatar-crop.tsx:{t('group.avatarCrop.zoom')}"
+      ],
+      "exemption": "The Client only submits the finished image. Existing avatar commands take the finished image directly.",
+      "configurable": false
+    },
+    {
+      "id": "settings-status-rows",
+      "description": "Loading, empty and load-failure rows shown inside settings groups.",
+      "scope": "Client transport / transient state",
+      "surfaces": [
+        "setting:packages/client/src/client/account-profile-settings.tsx:{t('accountProfile.loading')}",
+        "setting:packages/client/src/client/im-apps-section.tsx:{t('imApps.empty')}",
+        "setting:packages/client/src/client/im-apps-section.tsx:{<span role=\"status\">{t('imApps.loadFailed')}</span>}",
+        "setting:packages/client/src/client/messaging-defaults-settings.tsx:{<Note tone=\"danger\">{error}</Note>}",
+        "setting:packages/client/src/client/messaging-defaults-settings.tsx:{error ? <Note tone=\"danger\">{error}</Note> : t('im.loading')}",
+        "setting:packages/client/src/client/paired-devices.tsx:{ snapshot === undefined ? t( readState === 'stale' ? 'devices.connection.unchecked' : 'devices.list.loading', ) : t('devices.list.empty') }"
+      ],
+      "exemption": "These rows report load state, an empty list or a load error; they are not settings. The apps, platform defaults and paired devices they describe are covered by their existing CLI commands.",
+      "configurable": false
     }
   ]
 }

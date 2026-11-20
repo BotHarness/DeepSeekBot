@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createTestRegistry } from './registry-fixture.js';
 import { join } from 'node:path';
@@ -35,8 +36,8 @@ function setup() {
   registry.create({ slug: 'ada', displayName: 'Ada' });
   registry.create({ slug: 'bea', displayName: 'Bea' });
   const channels = createChannelStore({ rootDir: join(root, 'channels') });
-  const dm = channels.getOrCreateDm('ada', 'Ada')!;
-  const methods = createBridgeMethods({
+  const dm = channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry,
     channels,
     ownership,

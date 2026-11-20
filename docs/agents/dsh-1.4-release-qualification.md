@@ -2,7 +2,7 @@
 
 Target release: **1.4.0**. This is a preparation plan, not a published release or a claim that unreleased DSH versions work. Tracking: [#2167](https://github.com/BotHarness/DeepSeekBot/issues/2167).
 
-> Historical 1.4.0 candidate record. The current admission policy supersedes the version bounds and npm peer declarations below: see [rc.3 / forward admission](dsh-rc3-upgrade.md) and [ADR-0087](../adr/0087-dsh-compatibility-is-a-semver-range-with-a-verified-floor.md). Keep the original qualification evidence attached to its candidate.
+> Historical 1.4.0 candidate record. The current admission policy supersedes the version bounds and npm peer declarations below: see [rc.3 / forward admission](dsh-rc3-upgrade.md) and [ADR-0087](../decisions/release.md#adr-0087). Keep the original qualification evidence attached to its candidate.
 
 ## Admission and qualification are separate
 

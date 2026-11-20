@@ -7,6 +7,8 @@ function git(...args) {
     return execFileSync('git', args, {
       cwd: __dirname,
       stdio: ['ignore', 'pipe', 'ignore'],
+      shell: false,
+      windowsHide: true,
     })
       .toString()
       .trim();
@@ -34,6 +36,7 @@ if (process.env.EXPO_PUBLIC_BUILD_TIME === undefined) {
 }
 
 const config = getDefaultConfig(__dirname);
+config.resolver.assetExts.push('wasm');
 if (process.env.NODE_ENV === 'production') {
   config.cacheVersion = [
     config.cacheVersion,

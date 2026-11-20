@@ -107,3 +107,37 @@ describe('Host Assignment limit binding', () => {
     expect(Config({ assignmentConcurrencyLimit: 32 }).assignmentConcurrencyLimit.get()).toBe(32);
   });
 });
+
+describe('Host Bot-to-Bot hop limit binding', () => {
+  it('binds the live volatile value to the core hop budget', () => {
+    const config = Config({ botHopLimit: 40 });
+    let read: (() => number) | undefined;
+    const ctx = {
+      inject: (deps: string[], callback: (ctx: unknown) => unknown) => {
+        if (deps.includes('botharness'))
+          callback({
+            botharness: {
+              configureGroupInvitations: () => () => undefined,
+              configureBotHopLimit: (value: () => number) => {
+                read = value;
+                return () => undefined;
+              },
+            },
+            effect: (factory: () => unknown) => factory(),
+          });
+      },
+    };
+    apply(ctx as never, config);
+    expect(read?.()).toBe(40);
+    config.botHopLimit = Config({ botHopLimit: 7 }).botHopLimit;
+    expect(read?.()).toBe(7);
+  });
+  it.each([0, 1001, 1.5, NaN, '3'])('rejects invalid hop limit %s', (value) => {
+    expect(() => Config({ botHopLimit: value as never })).toThrow();
+  });
+  it('defaults to 128 and accepts both range boundaries', () => {
+    expect(Config({}).botHopLimit.get()).toBe(128);
+    expect(Config({ botHopLimit: 1 }).botHopLimit.get()).toBe(1);
+    expect(Config({ botHopLimit: 1000 }).botHopLimit.get()).toBe(1000);
+  });
+});

@@ -1,12 +1,13 @@
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { FormDialog } from './ds/form-dialog.js';
 import { NumberStepper } from './ds/number-stepper.js';
 import { TextAreaField } from './ds/field.js';
 import { color, space, text } from './ds/tokens.stylex.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { useMessageHost } from './message-host.js';
 
 const PATH = './api/botharness/message-feedback/';
 const TAGS = {
@@ -44,8 +45,18 @@ type Preview = {
   uploadEvidence?: string;
 };
 const styles = stylex.create({
-  body: { display: 'flex', flexDirection: 'column', gap: space.x4, minWidth: 0 },
-  row: { display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: space.x3 },
+  body: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x4,
+    minWidth: 0,
+  },
+  row: {
+    display: 'flex',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    gap: space.x3,
+  },
   choices: {
     display: 'flex',
     flexDirection: 'column',
@@ -54,7 +65,11 @@ const styles = stylex.create({
     borderWidth: 0,
     margin: 0,
   },
-  note: { color: color.muted, fontSize: text.metaSize, lineHeight: text.metaLine },
+  note: {
+    color: color.muted,
+    fontSize: text.metaSize,
+    lineHeight: text.metaLine,
+  },
   content: {
     whiteSpace: 'pre-wrap',
     overflowWrap: 'anywhere',
@@ -142,6 +157,7 @@ export function MessageFeedbackDialog({
   const [submitted, setSubmitted] = useState(false);
   const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
   const active = useRef<AbortController | undefined>(undefined);
+  const host = useMessageHost();
   const mounted = useRef(false);
   const run = async (work: (signal: AbortSignal) => Promise<void>) => {
     active.current?.abort();
@@ -158,6 +174,21 @@ export function MessageFeedbackDialog({
     }
   };
   const post = async (action: string, body: unknown, signal: AbortSignal) => {
+    if (host !== undefined) {
+      if (!host.current(channelId)) throw new Error('conversation-changed');
+      const answer = await host.client.api('/api/botharness/message-feedback/' + action, {
+        body: record(body),
+        signal,
+        ...(action === 'download' ? { response: 'bytes' } : {}),
+      });
+      if (answer.status < 200 || answer.status >= 300) throw new Error('feedback-failed');
+      return new Response(
+        answer.body instanceof Uint8Array
+          ? Uint8Array.from(answer.body)
+          : JSON.stringify(answer.body),
+        { status: answer.status },
+      );
+    }
     const response = await fetch(PATH + action, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
@@ -310,7 +341,10 @@ export function MessageFeedbackDialog({
                     type="checkbox"
                     checked={scope[category]}
                     onChange={(event) => {
-                      setScope((current) => ({ ...current, [category]: event.target.checked }));
+                      setScope((current) => ({
+                        ...current,
+                        [category]: event.target.checked,
+                      }));
                       setDirty(true);
                     }}
                   />

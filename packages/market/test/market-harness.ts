@@ -42,7 +42,9 @@ export function createMemoryBucket(): R2Bucket & { objects: Map<string, Uint8Arr
 export const testVerifier: AccessTokenVerifier = {
   verify: (token) =>
     Promise.resolve(
-      /^token-[A-Za-z0-9]+$/u.test(token) ? `user_${token.slice('token-'.length)}` : undefined,
+      /^token-[A-Za-z0-9]+$/u.test(token)
+        ? { account: `user_${token.slice('token-'.length)}` }
+        : undefined,
     ),
 };
 

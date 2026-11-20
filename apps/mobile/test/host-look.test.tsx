@@ -31,7 +31,8 @@ vi.mock('react-native-svg', () => ({
   Stop: () => null,
 }));
 
-import { createHostLooks, parseHostLook } from '../src/host/host-look';
+import { createHostLooks, parseHostLook } from '@botharness/host-client/host-look';
+import { accountHostLookId, accountHostLookTarget } from '../src/host/account-host-look';
 import {
   DEFAULT_HOST_LOOK,
   HOST_COLOR_IDS,
@@ -39,7 +40,7 @@ import {
   nearestHostColor,
   shownHostName,
   type HostLook,
-} from '../src/ui/design/host-look';
+} from '@botharness/host-client/ui/design/host-look';
 import { contrast, resolveTheme } from '../src/ui/design/resolve-theme';
 import { HostLookEditor, type HostLookActions } from '../src/ui/shell/host-look-editor';
 import { t } from '../src/ui/strings';
@@ -320,6 +321,58 @@ describe('Customize computer sheet', () => {
 });
 
 describe('new paired environment appearance', () => {
+  it('adds no storage I/O when reading many account-row appearances', async () => {
+    const read = vi.fn(async () => ({}));
+    const write = vi.fn();
+    const looks = createHostLooks({ read, write });
+    await looks.ready;
+    const reads = read.mock.calls.length;
+    for (let index = 0; index < 1000; index += 1)
+      expect(looks.look(accountHostLookId(`host-${index}`))).toBe(DEFAULT_HOST_LOOK);
+    expect(read).toHaveBeenCalledTimes(reads);
+    expect(write).not.toHaveBeenCalled();
+  });
+
+  it('keeps account appearance local and carries it into pairing without replacing a saved look', async () => {
+    let stored: Record<string, HostLook> = {};
+    const storage = {
+      read: async () => stored,
+      write: (value: Record<string, HostLook>) => {
+        stored = value;
+      },
+    };
+    const account = {
+      id: 'account-computer',
+      hostname: 'studio.connect.example',
+      name: 'Remote name',
+      online: false,
+    };
+    const target = accountHostLookTarget(account);
+    expect(target).toEqual({
+      hostId: accountHostLookId('ACCOUNT-COMPUTER'),
+      hostName: 'Remote name',
+    });
+    expect(accountHostLookId('other-computer')).not.toBe(target.hostId);
+    const custom: HostLook = {
+      name: 'My studio',
+      icon: { kind: 'emoji', emoji: '🏠' },
+      color: 'green',
+    };
+    const looks = createHostLooks(storage);
+    await looks.ready;
+    await looks.update(target.hostId, () => custom);
+    expect(account.name).toBe('Remote name');
+    const restored = createHostLooks(storage);
+    await restored.initialize('verified-host-id', ['verified-host-id'], undefined, target.hostId);
+    expect(restored.look('verified-host-id')).toEqual(custom);
+    const later: HostLook = { name: 'New local name', icon: { kind: 'symbol', id: 'desktop' } };
+    await restored.update('verified-host-id', () => later);
+    await restored.initialize('verified-host-id', ['verified-host-id'], undefined, target.hostId);
+    expect(restored.look('verified-host-id')).toEqual(later);
+    expect(restored.look(target.hostId)).toEqual(custom);
+    expect(restored.look('unrelated-host')).toEqual(DEFAULT_HOST_LOOK);
+  });
+
   it('avoids paired icons and colors, persists the choice and preserves customization on re-pair', async () => {
     let stored: Record<string, HostLook> = {
       a: { icon: { kind: 'symbol', id: 'desktop' }, color: 'blue' },

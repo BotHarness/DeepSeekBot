@@ -1,5 +1,17 @@
 # Temporary Workspace Grant: authorize, read and revoke
 
+## Sources
+
+- `packages/core/src/workspaces/grant*.ts`
+- `packages/client/src/client/workspace-grant*`
+- `scripts/workspace-grant-report.mjs`
+
+## Terms
+
+- Workspace Grant
+- Workspace
+- Workspace root
+
 ## Sub-features
 
 - Behavior ID: `desktop.grants.temporary-read-revoke`.
@@ -17,7 +29,7 @@ Bot mode → the test PersonaBot DM → **Workspace Grants · <Bot name> · 0 wo
 under the composer → **Advanced: enter Host path** → enter the dedicated fixture path →
 **Authorize workspace** → inspect the Bot/path confirmation → **Authorize workspace**.
 The folder appears in the Workspace Grants dialog. Select the test Bot explicitly and
-dismiss **Skip tutorial** if onboarding appears before opening the dialog. Wait for its
+dismiss **Skip** in **Welcome to Tobs** (older builds: **Skip tutorial**) if onboarding appears before opening the dialog. Wait for its
 folder content and opening animation before capturing it. Keep Memory Repository collapsed.
 
 Read the owning Host's `grants` list and use the same Bot ID with the existing

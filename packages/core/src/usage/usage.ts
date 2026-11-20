@@ -1,8 +1,11 @@
 import {
   queryOverviewUsage,
+  queryUsageByMember,
+  type UsageByMemberResult,
   type UsageOverviewPeriod,
   type UsageOverviewResult,
 } from './overview.js';
+import { z } from 'zod';
 import { createHmac } from 'node:crypto';
 import { queryUsage, usageFilterSchema, type UsageFilter, type UsageQueryResult } from './query.js';
 import type { DatabaseSync } from 'node:sqlite';
@@ -13,8 +16,9 @@ import {
   type OperationalDatabaseOwner,
 } from '../database/owner.js';
 import type { IdleCompactionRecord } from '../runtime/idle-compaction.js';
-import type { SessionOwnership } from '../sessions/ownership.js';
+import type { SessionOwnership, SessionOwnershipRecord } from '../sessions/ownership.js';
 import type { DshSessionEvent } from '../sessions/source.js';
+import { queryTokenUsageDays, type UsageTelemetrySnapshot } from './telemetry.js';
 
 export interface UsageDayRow {
   day: string;
@@ -58,9 +62,13 @@ export interface SessionUsageSummary {
 }
 
 export interface UsageProjection {
+  telemetrySnapshot(): UsageTelemetrySnapshot | undefined;
+
   handleSessionEvent(sessionId: string, event: DshSessionEvent): void;
 
   primeSession(sessionId: string, events: readonly DshSessionEvent[]): void;
+
+  bindParentTurn(sessionId: string, parentSessionId: string): void;
 
   latestRoute(
     sessionId: string,
@@ -82,7 +90,17 @@ export interface UsageProjection {
     readLog: DshUsageSessionLogReader,
   ): Promise<SessionUsageSummary>;
 
-  overview(period: UsageOverviewPeriod, after?: string): UsageOverviewResult;
+  overview(
+    period: UsageOverviewPeriod,
+    after?: string,
+    botSlugs?: readonly string[],
+  ): UsageOverviewResult;
+
+  byMember(
+    period: UsageOverviewPeriod,
+    ownerId: string,
+    botName: (slug: string) => string,
+  ): UsageByMemberResult;
 
   purgeBot(botSlug: string, removeFiles?: () => void): void;
 
@@ -125,7 +143,7 @@ function recordOf(value: unknown): Record<string, unknown> | undefined {
     : undefined;
 }
 
-function reportedBuckets(event: DshSessionEvent): {
+export function reportedBuckets(event: DshSessionEvent): {
   uncachedInputTokens?: number;
   outputTokens?: number;
   cacheReadTokens?: number;
@@ -201,6 +219,7 @@ interface UsageRoute {
 }
 
 interface UsageFoldEvent {
+  turn: number | undefined;
   seq: number;
   time: number;
   source: UsageRoute | undefined;
@@ -212,9 +231,11 @@ function projectUsageEvent(event: DshSessionEvent): UsageFoldEvent | undefined {
   if (event.surfaceOp !== undefined && event.surfaceOp !== 'append') return undefined;
   if (event.seq === undefined || !Number.isSafeInteger(event.seq) || event.seq < 0)
     return undefined;
+  const turn = recordOf(event.data)?.['turn'];
   return {
     seq: event.seq,
     time: event.time,
+    turn: typeof turn === 'number' && Number.isSafeInteger(turn) ? turn : undefined,
     source: routeOf(recordOf(recordOf(event.data)?.['message'])?.['source']),
     buckets: reportedBuckets(event),
   };
@@ -243,10 +264,23 @@ function requestRoute(event: DshSessionEvent): UsageRoute | undefined {
   return undefined;
 }
 
+function routeIndex(history: ReadonlyArray<readonly [number, UsageRoute]>, seq: number): number {
+  let low = 0;
+  let high = history.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (history[middle]![0] <= seq) low = middle + 1;
+    else high = middle;
+  }
+  return low - 1;
+}
+
 export function createUsageProjection(options: {
   ownership: SessionOwnership;
   database: OperationalDatabaseOwner;
   now?: () => Date;
+  botOwner?: (botSlug: string) => string;
+  ownerHumanId?: () => string;
   botCreatedAt?: (botSlug: string) => string | undefined;
 }): UsageProjection {
   const database: OperationalDatabaseModulePort = attachOperationalModule(
@@ -254,7 +288,49 @@ export function createUsageProjection(options: {
     'usage',
   );
   const { ownership } = options;
-  const routes = new Map<string, Map<number, UsageRoute>>();
+  const hostOwner = (): string =>
+    options.ownerHumanId?.() ??
+    database.read(
+      (db) =>
+        z
+          .object({ owner_human_id: z.string() })
+          .parse(db.prepare('SELECT owner_human_id FROM team_settings WHERE singleton = 1').get())
+          .owner_human_id,
+    );
+
+  const humanAt = (connection: DatabaseSync, sessionId: string, at: number, turn?: number) =>
+    z
+      .object({ human_id: z.string() })
+      .optional()
+      .parse(
+        connection
+          .prepare(
+            'SELECT human_id FROM usage_turn_humans WHERE session_id = ? AND turn >= 0 AND at_ms <= ? AND (? IS NULL OR turn = ?) ORDER BY at_ms DESC, turn DESC LIMIT 1',
+          )
+          .get(sessionId, at, turn ?? null, turn ?? null),
+      )?.human_id;
+  const descendantCreator = (
+    connection: DatabaseSync,
+    owner: SessionOwnershipRecord,
+    seen = new Set<string>(),
+  ): string | undefined => {
+    if (!owner.parentSessionId || seen.has(owner.sessionId)) return undefined;
+    seen.add(owner.sessionId);
+    const existing = humanAt(connection, owner.sessionId, Number.MAX_SAFE_INTEGER, 0);
+    if (existing) return existing;
+    const parent = ownership.resolve(owner.parentSessionId);
+    if (!parent || parent.botSlug !== owner.botSlug) return undefined;
+    const at = Date.parse(owner.createdAt);
+    if (!Number.isFinite(at)) return undefined;
+    const humanId =
+      humanAt(connection, parent.sessionId, at) ?? descendantCreator(connection, parent, seen);
+    if (humanId)
+      connection
+        .prepare('INSERT OR IGNORE INTO usage_turn_humans VALUES (?, 0, ?, ?)')
+        .run(owner.sessionId, humanId, at);
+    return humanId;
+  };
+  const routes = new Map<string, Array<[number, UsageRoute]>>();
   const fingerprintKey = database.read((connection) =>
     connection.prepare('SELECT fingerprint_key FROM usage_receipt_state WHERE singleton = 1').get(),
   ) as { fingerprint_key: string };
@@ -274,6 +350,7 @@ export function createUsageProjection(options: {
     purpose: string,
     provider: string,
     model: string,
+    humanId: string,
     usage: {
       uncachedInputTokens?: number;
       outputTokens?: number;
@@ -287,9 +364,9 @@ export function createUsageProjection(options: {
         `INSERT INTO usage_daily
            (bot_slug, day, provider, model, purpose,
             input_tokens, output_tokens, cache_read_tokens, cache_write_tokens,
-            unknown_input, unknown_output, unknown_cache_read, unknown_cache_write, total_tokens, unknown_total)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (bot_slug, day, provider, model, purpose) DO UPDATE SET
+            unknown_input, unknown_output, unknown_cache_read, unknown_cache_write, total_tokens, unknown_total, human_id, legacy)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
+         ON CONFLICT (bot_slug, day, provider, model, purpose, human_id, legacy) DO UPDATE SET
            input_tokens = input_tokens + excluded.input_tokens,
            output_tokens = output_tokens + excluded.output_tokens,
            cache_read_tokens = cache_read_tokens + excluded.cache_read_tokens,
@@ -317,6 +394,7 @@ export function createUsageProjection(options: {
         usage.cacheWriteTokens === undefined ? 1 : 0,
         usage.totalTokens ?? 0,
         usage.totalTokens === undefined ? 1 : 0,
+        humanId,
       );
   };
 
@@ -354,9 +432,16 @@ export function createUsageProjection(options: {
     const fingerprint = createHmac('sha256', fingerprintKey.fingerprint_key)
       .update(JSON.stringify([sessionId, event.seq]))
       .digest('hex');
+    const humanId =
+      humanAt(connection, sessionId, event.time, event.turn) ??
+      (owner.parentSessionId ? descendantCreator(connection, owner) : undefined) ??
+      options.botOwner?.(owner.botSlug) ??
+      hostOwner();
     const receipt = connection
-      .prepare('INSERT OR IGNORE INTO usage_receipts (fingerprint, bot_slug) VALUES (?, ?)')
-      .run(fingerprint, owner.botSlug);
+      .prepare(
+        'INSERT OR IGNORE INTO usage_receipts (fingerprint, bot_slug, human_id) VALUES (?, ?, ?)',
+      )
+      .run(fingerprint, owner.botSlug, humanId);
     if (receipt.changes === 0) return false;
     const baseline = baselineByBot.get(owner.botSlug);
     if (baseline !== undefined && event.time <= baseline) return false;
@@ -368,6 +453,7 @@ export function createUsageProjection(options: {
       purposeOf(owner),
       actual.provider,
       actual.model,
+      humanId,
       event.buckets,
     );
     return true;
@@ -380,20 +466,14 @@ export function createUsageProjection(options: {
     let history = routes.get(sessionId);
     if (route !== undefined) {
       if (history === undefined) {
-        history = new Map();
+        history = [];
         routes.set(sessionId, history);
       }
-      history.set(event.seq, route);
+      const at = routeIndex(history, event.seq);
+      if (history[at]?.[0] === event.seq) history[at] = [event.seq, route];
+      else history.splice(at + 1, 0, [event.seq, route]);
     }
-    let latest = -1;
-    let resolved: UsageRoute | undefined;
-    for (const [seq, candidate] of history ?? []) {
-      if (seq <= event.seq && seq > latest) {
-        latest = seq;
-        resolved = candidate;
-      }
-    }
-    return resolved;
+    return history === undefined ? undefined : history[routeIndex(history, event.seq)]?.[1];
   };
 
   const writeLive = (
@@ -405,6 +485,15 @@ export function createUsageProjection(options: {
   };
 
   return {
+    telemetrySnapshot() {
+      if (rebuilding || reconciledAt === null) return undefined;
+      return {
+        days: database.read((connection) =>
+          queryTokenUsageDays(connection, options.now?.() ?? new Date()),
+        ),
+        isReconciled: !reconciliationFailed,
+      };
+    },
     async sessionSummary(botSlug, sessionId, sinceIso, readLog) {
       const root = ownership.resolve(sessionId);
       const available = (): boolean => {
@@ -497,11 +586,41 @@ export function createUsageProjection(options: {
         return { totalTokens: null, status: incomplete ? 'unavailable' : 'unknown' };
       return { totalTokens, status: unknown || incomplete ? 'partial' : 'ready' };
     },
+    bindParentTurn(sessionId, parentSessionId) {
+      const owner = ownership.resolve(sessionId);
+      const parent = ownership.resolve(parentSessionId);
+      if (
+        !owner ||
+        !parent ||
+        owner.parentSessionId !== parentSessionId ||
+        owner.botSlug !== parent.botSlug
+      )
+        return;
+      database.transaction(
+        (connection) => {
+          const humanId =
+            humanAt(connection, parentSessionId, Number.MAX_SAFE_INTEGER) ??
+            options.botOwner?.(owner.botSlug) ??
+            hostOwner();
+          const at = (options.now?.() ?? new Date()).getTime();
+          connection
+            .prepare('INSERT OR IGNORE INTO usage_turn_humans VALUES (?, 0, ?, ?)')
+            .run(sessionId, humanId, at);
+          connection
+            .prepare('INSERT OR REPLACE INTO usage_turn_humans VALUES (?, -1, ?, ?)')
+            .run(sessionId, humanId, at);
+        },
+        ['usage'],
+      );
+    },
     primeSession(sessionId, events) {
+      const owner = ownership.resolve(sessionId);
+      if (owner?.parentSessionId)
+        database.transaction((connection) => descendantCreator(connection, owner), ['usage']);
       for (const event of events) observe(sessionId, event);
     },
     latestRoute(sessionId) {
-      const ordered = [...(routes.get(sessionId) ?? [])].sort(([a], [b]) => a - b);
+      const ordered = routes.get(sessionId) ?? [];
       const resolved = ordered.at(-1)?.[1];
       if (resolved === undefined) return undefined;
       const effort =
@@ -519,6 +638,72 @@ export function createUsageProjection(options: {
       };
     },
     handleSessionEvent(sessionId, event) {
+      if (event.type === 'turn/start') {
+        const turn = recordOf(event.data)?.['turn'];
+        const owner = ownership.resolve(sessionId);
+        if (owner && typeof turn === 'number' && Number.isSafeInteger(turn))
+          database.transaction(
+            (db) => {
+              const pending = z
+                .object({ human_id: z.string() })
+                .optional()
+                .parse(
+                  db
+                    .prepare(
+                      'SELECT human_id FROM usage_turn_humans WHERE session_id = ? AND turn = -1',
+                    )
+                    .get(sessionId),
+                );
+              const previous =
+                !pending && owner.parentSessionId
+                  ? z
+                      .object({ human_id: z.string() })
+                      .optional()
+                      .parse(
+                        db
+                          .prepare(
+                            'SELECT human_id FROM usage_turn_humans WHERE session_id = ? AND turn > 0 AND turn < ? AND at_ms <= ? ORDER BY turn DESC LIMIT 1',
+                          )
+                          .get(sessionId, turn, event.time),
+                      )
+                  : undefined;
+              const inherited =
+                !pending && !previous && owner.parentSessionId
+                  ? descendantCreator(db, owner)
+                  : undefined;
+              const creator =
+                owner.rootRole === 'assignment'
+                  ? z
+                      .object({ human_id: z.string() })
+                      .optional()
+                      .parse(
+                        db
+                          .prepare(
+                            'SELECT human_id FROM usage_turn_humans WHERE session_id = ? AND turn = 0',
+                          )
+                          .get(sessionId),
+                      )
+                  : undefined;
+              const humanId =
+                pending?.human_id ??
+                previous?.human_id ??
+                creator?.human_id ??
+                inherited ??
+                options.botOwner?.(owner.botSlug) ??
+                hostOwner();
+              db.prepare('INSERT OR IGNORE INTO usage_turn_humans VALUES (?, ?, ?, ?)').run(
+                sessionId,
+                turn,
+                humanId,
+                event.time,
+              );
+              db.prepare('DELETE FROM usage_turn_humans WHERE session_id = ? AND turn = -1').run(
+                sessionId,
+              );
+            },
+            ['usage'],
+          );
+      }
       const route = observe(sessionId, event);
       const projected = projectUsageEvent(event);
       if (projected === undefined) return;
@@ -604,12 +789,24 @@ export function createUsageProjection(options: {
         }),
       );
     },
-    overview(period, after) {
+    byMember(period, ownerId, botName) {
+      return database.read((db) =>
+        queryUsageByMember(db, period, options.now?.() ?? new Date(), ownerId, botName),
+      );
+    },
+    overview(period, after, botSlugs) {
       return database.read((connection) =>
-        queryOverviewUsage(connection, period, after, options.now?.() ?? new Date(), {
-          freshness: rebuilding ? 'reconciling' : reconciliationFailed ? 'degraded' : 'ready',
-          reconciledAt,
-        }),
+        queryOverviewUsage(
+          connection,
+          period,
+          after,
+          options.now?.() ?? new Date(),
+          {
+            freshness: rebuilding ? 'reconciling' : reconciliationFailed ? 'degraded' : 'ready',
+            reconciledAt,
+          },
+          botSlugs,
+        ),
       );
     },
     purgeBot(botSlug, removeFiles) {
@@ -642,8 +839,8 @@ export function createUsageProjection(options: {
             .prepare(
               `INSERT INTO usage_idle_compactions
                  (bot_slug, at, provider, model, idle_gap_ms, cache_lifetime_ms, cache_lifetime_source,
-                  tokens_before, tokens_after, outcome, error, input_tokens, cache_read_tokens, output_tokens)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                  tokens_before, tokens_after, outcome, error, input_tokens, cache_read_tokens, output_tokens, human_id)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
             )
             .run(
               record.botSlug,
@@ -660,6 +857,7 @@ export function createUsageProjection(options: {
               record.inputTokens,
               record.cacheReadTokens,
               record.outputTokens,
+              options.botOwner?.(record.botSlug) ?? hostOwner(),
             );
         },
         ['usage'],
@@ -701,12 +899,10 @@ export function createUsageProjection(options: {
       const rows = database.read((connection) =>
         connection
           .prepare(
-            `SELECT day, purpose, provider, model, input_tokens, output_tokens,
-                    cache_read_tokens, cache_write_tokens,
-                    unknown_input, unknown_output, unknown_cache_read, unknown_cache_write, total_tokens, unknown_total
+            `SELECT day, purpose, provider, model, SUM(input_tokens) AS input_tokens, SUM(output_tokens) AS output_tokens, SUM(cache_read_tokens) AS cache_read_tokens, SUM(cache_write_tokens) AS cache_write_tokens, SUM(unknown_input) AS unknown_input, SUM(unknown_output) AS unknown_output, SUM(unknown_cache_read) AS unknown_cache_read, SUM(unknown_cache_write) AS unknown_cache_write, SUM(total_tokens) AS total_tokens, SUM(unknown_total) AS unknown_total
                FROM usage_daily
               WHERE bot_slug = ? AND day >= ?
-              ORDER BY day`,
+              GROUP BY day, purpose, provider, model ORDER BY day`,
           )
           .all(botSlug, sinceDay),
       ) as unknown as UsageDailyDbRow[];

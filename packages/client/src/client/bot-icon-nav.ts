@@ -1,3 +1,5 @@
+import { outsideTimeline } from './timeline-mutations.js';
+
 export const BOT_NAV_MARKER = 'bh-bot-nav';
 
 export const BOT_NAV_ICON_CLASS = 'bh-bot-nav-icon';
@@ -86,7 +88,11 @@ export function installBotNavIcon(options: BotNavIconOptions): () => void {
   apply();
 
   const observer =
-    typeof MutationObserver === 'undefined' ? undefined : new MutationObserver(schedule);
+    typeof MutationObserver === 'undefined'
+      ? undefined
+      : new MutationObserver((records) => {
+          if (outsideTimeline(records)) schedule();
+        });
   observer?.observe(doc.body, { childList: true, subtree: true });
   const unsubscribe = options.subscribe?.(schedule);
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import type { ConversationReaction } from '../src/host/conversation';
+import type { ConversationReaction } from '@botharness/host-client/conversation';
 import { shownReactions } from '../src/ui/chat/reaction-presence';
 
 const reaction = (emoji: string, count = 1): ConversationReaction => ({

@@ -32,6 +32,7 @@ export function runCliSmoke({
         maxBuffer: 8 * 1024 * 1024,
         timeout: Math.ceil(Number(timeout) * 1000) + 5000,
         input: stdin,
+        shell: false,
       },
     );
     let result;

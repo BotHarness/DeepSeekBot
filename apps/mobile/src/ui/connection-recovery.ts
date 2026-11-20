@@ -1,4 +1,4 @@
-import { isConnectRoute, isLanRoute } from '../host/route';
+import { isConnectRoute, isLanRoute } from '@botharness/host-protocol/route';
 import { t } from './strings';
 
 export function connectionRecoveryText(route: string): string {

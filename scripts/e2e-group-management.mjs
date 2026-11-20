@@ -400,13 +400,13 @@ try {
   await (
     await page.$('[data-sidebar-entry="group-management"] input[type="file"]')
   ).uploadFile(avatarPath);
-  await page.waitForSelector('.bh-group-avatar-crop-viewport img');
+  await page.waitForSelector('[data-group-avatar-crop-viewport] img');
   await page.$eval('#bh-group-avatar-zoom', (input) => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
     setter?.call(input, '1.5');
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  const crop = await page.$('.bh-group-avatar-crop-viewport');
+  const crop = await page.$('[data-group-avatar-crop-viewport]');
   const cropRect = await crop.boundingBox();
   await page.mouse.move(cropRect.x + 140, cropRect.y + 140);
   await page.mouse.down();
@@ -421,7 +421,7 @@ try {
   if (!(await groupRecord(group.id)).avatar.startsWith('data:image/webp;base64,'))
     throw new Error('Group avatar was not saved as WebP');
 
-  await page.click('button[aria-label="Invite member"], button[aria-label="邀请新群员"]');
+  await page.click('button[aria-label="Invite a Bot"], button[aria-label="邀请 Bot"]');
   await page.waitForSelector('[data-group-invite]');
   await page.type('[data-group-invite-search]', target.displayName.slice(0, 8));
   await sleep(350);
@@ -433,15 +433,14 @@ try {
   await page.waitForFunction(() =>
     Array.from(document.querySelectorAll('button')).some(
       (button) =>
-        ['邀请新群员', 'Invite member'].includes(button.textContent?.trim() ?? '') &&
-        !button.disabled,
+        ['邀请 Bot', 'Invite a Bot'].includes(button.textContent?.trim() ?? '') && !button.disabled,
     ),
   );
   await page.evaluate(() => {
     Array.from(document.querySelectorAll('button'))
       .find(
         (button) =>
-          ['邀请新群员', 'Invite member'].includes(button.textContent?.trim() ?? '') &&
+          ['邀请 Bot', 'Invite a Bot'].includes(button.textContent?.trim() ?? '') &&
           !button.disabled,
       )
       ?.click();

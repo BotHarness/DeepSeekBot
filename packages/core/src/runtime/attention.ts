@@ -98,6 +98,7 @@ export interface BotAttentionPage {
 export interface BotAttentionQuery {
   list(input: {
     botSlug: string;
+    channelId?: string;
     limit?: number;
     cursor?: string;
     state?: BotAttentionState;
@@ -197,7 +198,8 @@ export function createBotAttentionQuery(
           WHERE a.bot_slug = ?
         )
         SELECT * FROM attention
-        WHERE (? IS NULL OR state = ?)
+        WHERE (? IS NULL OR channel_id = ?)
+          AND (? IS NULL OR state = ?)
           AND (? IS NULL OR created_at < ? OR
                (created_at = ? AND source_event_id < ?))
         ORDER BY created_at DESC, source_event_id DESC
@@ -205,6 +207,8 @@ export function createBotAttentionQuery(
       `)
             .all(
               input.botSlug,
+              input.channelId ?? null,
+              input.channelId ?? null,
               input.state ?? null,
               input.state ?? null,
               anchor?.created_at ?? null,
@@ -220,7 +224,9 @@ export function createBotAttentionQuery(
         const authorKind =
           row.author_kind === 'human' || row.author_kind === 'bot' || row.author_kind === 'bridged'
             ? row.author_kind
-            : 'system';
+            : row.author_kind === null && row.source_kind === 'human-message'
+              ? 'human'
+              : 'system';
         const external =
           row.source_kind === 'bridge-message' && row.payload_json !== null
             ? (JSON.parse(row.payload_json) as { external: ExternalSource }).external

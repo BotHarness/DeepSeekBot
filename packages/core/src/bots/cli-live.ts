@@ -1,4 +1,25 @@
+import {
+  createGrant,
+  readAssignmentAccess,
+  readWorkspaceGrants,
+  writeAssignmentAccess,
+} from '@botharness/host-client/access-readers';
+import {
+  answerUserQuestion,
+  decideToolApproval,
+  readToolApprovalStatus,
+  readUserQuestionStatus,
+} from '@botharness/host-client/approval-readers';
+import type { QuestionAnswer } from '@botharness/host-protocol/wire';
+import { isLanAddress } from '@botharness/host-protocol/lan-address';
+import { parseQuotesInput, type ChannelQuote } from '../channels/quotes.js';
+import { toolEffectLabels } from '../workspaces/tool-effect-labels.js';
+import type { ChannelMessage } from '../channels/channel.js';
+
+export { LIVE_OPTIONS } from './cli-option-spec.js';
+import { TEAM_COMMANDS, runTeamCommand } from './cli-team.js';
 import { runDeviceActivity } from './cli-live-activity.js';
+import { GENUI_COMMANDS, runGenuiCommand } from './cli-genui.js';
 import { HOST_LOOK_COMMANDS, runHostLook } from './cli-host-look.js';
 import {
   PROFILE_BACKUP_COMMANDS,
@@ -6,17 +27,16 @@ import {
   runProfileBackupCommand,
 } from './cli-profile-backup.js';
 import { runPhoneNotifications } from './cli-phone-notifications.js';
-import {
-  WINDOW_ZOOM_COMMANDS,
-  WINDOW_ZOOM_OPTIONS,
-  runWindowZoomCommand,
-} from './cli-window-zoom.js';
+import { WINDOW_ZOOM_COMMANDS, runWindowZoomCommand } from './cli-window-zoom.js';
+import { DESKTOP_WINDOW_COMMANDS, runDesktopWindowCommand } from './cli-desktop-window.js';
+import { PRESENCE_COMMANDS, runPresenceCommand } from './cli-presence.js';
+import { ENGINE_COMMANDS, runEngineCommand } from './cli-engine.js';
 import { PHONE_ROUTE_COMMANDS, runPhoneRouteCommand } from './cli-phone-route.js';
 import { DEVICES_COMMANDS, isDevicesCommand, runDevicesCommand } from './cli-devices.js';
+import { RELATIONSHIP_COMMANDS, runRelationshipCommand } from './cli-relationships.js';
 import { DEVICE_CLIENT_COMMANDS, runDeviceClientCommand } from './cli-device-client.js';
 import {
   DEVICE_NOTIFICATION_COMMANDS,
-  DEVICE_NOTIFICATION_OPTIONS,
   runDeviceNotifications,
 } from './cli-device-notifications.js';
 import {
@@ -24,43 +44,50 @@ import {
   runBrowserNotifications,
 } from './cli-browser-notifications.js';
 import { FEEDBACK_COMMANDS, runFeedbackCommand } from './cli-feedback.js';
-import { APPEARANCE_COMMANDS, APPEARANCE_OPTIONS, runAppearanceCommand } from './cli-appearance.js';
+import { DIAGNOSTIC_LOG_COMMANDS, runDiagnosticLogCommand } from './cli-diagnostic-logs.js';
+import { DOCTOR_COMMANDS, runDoctor } from './cli-doctor.js';
+import { BUG_REPORT_COMMANDS, runBugReport } from './cli-bug-report.js';
+import { APPEARANCE_COMMANDS, runAppearanceCommand } from './cli-appearance.js';
 import { prepareCloud, prepareCloudWork } from './cli-cloud.js';
 import { randomUUID } from 'node:crypto';
 import { isDeepStrictEqual } from 'node:util';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-import { dmChannelId } from '../channels/channel.js';
+import { resolveBotDm } from './cli-bot-dm.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 import { CONNECTION_COMMANDS, runConnectionCommand } from './cli-connection.js';
+import { TOB_CLI_COMMANDS, runTobCli } from './cli-tob.js';
 import { BOT_TOOL_COMMANDS, runBotToolCommand } from './cli-bot-tool.js';
+import {
+  CALL_TIMELINE_COMMANDS,
+  isCallTimelineCommand,
+  runCallTimelineCommand,
+} from './cli-call-timeline.js';
+import { TAKEOVER_COMMANDS, isTakeoverCommand, runTakeoverCommand } from './cli-takeover.js';
 import {
   channelOperationKey,
   CHANNEL_COMMANDS,
-  CHANNEL_OPTIONS,
   isChannelCommand,
   runChannelCommand,
 } from './cli-channels.js';
 import {
   BROWSER_COMPUTER_COMMANDS,
-  BROWSER_COMPUTER_OPTIONS,
   isBrowserComputerCommand,
   runBrowserComputerCommand,
   type BrowserComputerValues,
 } from './cli-browser-computer.js';
 import {
   IM_COMMANDS,
-  IM_OPTIONS,
   prepareImAuthorization,
   runImAuthorization,
   type ImValues,
 } from './cli-im-authorization.js';
 import {
   MESSAGING_COMMANDS,
-  MESSAGING_OPTIONS,
   prepareMessaging,
+  messagingReadMode,
   runMessaging,
   type MessagingCommand,
   type MessagingValues,
@@ -68,26 +95,17 @@ import {
 import {
   isModelsUsageCommand,
   MODELS_USAGE_COMMANDS,
-  MODELS_USAGE_OPTIONS,
   runModelsUsage,
   type ModelsUsageValues,
 } from './cli-models-usage.js';
 import {
   HOST_ADMIN_COMMANDS,
-  HOST_ADMIN_OPTIONS,
   isHostAdminCommand,
   runHostAdminCommand,
   type HostAdminValues,
 } from './cli-host-admin.js';
+import { INBOX_COMMANDS, isInboxCommand, runInboxCommand, type InboxValues } from './cli-inbox.js';
 import {
-  INBOX_COMMANDS,
-  INBOX_OPTIONS,
-  isInboxCommand,
-  runInboxCommand,
-  type InboxValues,
-} from './cli-inbox.js';
-import {
-  SCHEDULE_OPTIONS,
   isScheduleCommand,
   prepareScheduleCommand,
   runScheduleCommand,
@@ -95,43 +113,43 @@ import {
 } from './cli-schedules.js';
 import {
   PROFILE_COMMANDS,
-  PROFILE_OPTIONS,
   isProfileCommand,
   runProfileCommand,
   type ProfileValues,
 } from './cli-profile.js';
-import {
-  TODO_COMMANDS,
-  TODO_OPTIONS,
-  isTodoCommand,
-  runTodoCommand,
-  type TodoValues,
-} from './cli-todos.js';
+import { TODO_COMMANDS, isTodoCommand, runTodoCommand, type TodoValues } from './cli-todos.js';
 import {
   APPROVAL_TEMPLATE_COMMANDS,
-  APPROVAL_TEMPLATE_OPTIONS,
   isApprovalTemplateCommand,
   runApprovalTemplateCommand,
   type ApprovalTemplateValues,
 } from './cli-approval-templates.js';
 import {
   PROMPT_PRESET_COMMANDS,
-  PROMPT_PRESET_OPTIONS,
   isPromptPresetCommand,
   runPromptPresetCommand,
 } from './cli-prompt-presets.js';
 import {
   APPROVAL_REVIEWER_COMMANDS,
-  APPROVAL_REVIEWER_OPTIONS,
   isApprovalReviewerCommand,
   runApprovalReviewerCommand,
   type ApprovalReviewerValues,
 } from './cli-approval-reviewer.js';
+import { VOICE_COMMANDS, isVoiceCommand, runVoiceCommand, type VoiceValues } from './cli-voice.js';
+import { CALL_COMMANDS, isCallCommand, runCallCommand } from './cli-call.js';
+import {
+  SKILL_COMMANDS,
+  isSkillCommand,
+  runSkillCommand,
+  skillInvocationTokens,
+  type SkillValues,
+} from './cli-skills.js';
+
+import { VOICE_CALL_PATH, type VoiceCallResult } from '../voice/call-contract.js';
 import {
   isStorageCommand,
   runStorageCommand,
   STORAGE_COMMANDS,
-  STORAGE_OPTIONS,
   type StorageValues,
 } from './cli-storage.js';
 import {
@@ -139,87 +157,15 @@ import {
   isIdleCompactionCommand,
   runIdleCompactionCommand,
 } from './cli-idle-compaction.js';
-import {
-  CONNECT_COMMANDS,
-  CONNECT_OPTIONS,
-  isConnectCommand,
-  runConnectCommand,
-} from './cli-connect.js';
+import { BOT_MODE_COMMANDS, isBotModeCommand, runBotModeCommand } from './cli-bot-modes.js';
+import { CONNECT_COMMANDS, isConnectCommand, runConnectCommand } from './cli-connect.js';
 import {
   isShareDraftCommand,
   runShareDraftCommand,
   SHARE_DRAFT_COMMANDS,
-  SHARE_DRAFT_OPTIONS,
 } from './cli-share-draft.js';
+import { PRIVATE_FIELD_ID } from '../credentials/references.js';
 export { CliLiveError } from './cli-live-error.js';
-
-export const LIVE_OPTIONS = {
-  'new-home': { type: 'string' },
-
-  'connection-id': { type: 'string' },
-  fingerprint: { type: 'string' },
-  'link-file': { type: 'string' },
-  'remote-host-id': { type: 'string' },
-  'host-id': { type: 'string' },
-  ...DEVICE_NOTIFICATION_OPTIONS,
-  'activity-stdin': { type: 'boolean' },
-  ...WINDOW_ZOOM_OPTIONS,
-  ...CONNECT_OPTIONS,
-  ...APPEARANCE_OPTIONS,
-  ...IM_OPTIONS,
-  ...MESSAGING_OPTIONS,
-  ...MODELS_USAGE_OPTIONS,
-  ...CHANNEL_OPTIONS,
-  ...HOST_ADMIN_OPTIONS,
-  ...SHARE_DRAFT_OPTIONS,
-  ...INBOX_OPTIONS,
-  ...SCHEDULE_OPTIONS,
-  ...BROWSER_COMPUTER_OPTIONS,
-  ...PROFILE_OPTIONS,
-  ...TODO_OPTIONS,
-  ...APPROVAL_TEMPLATE_OPTIONS,
-  ...PROMPT_PRESET_OPTIONS,
-  ...APPROVAL_REVIEWER_OPTIONS,
-  ...STORAGE_OPTIONS,
-  host: { type: 'string' },
-  'token-file': { type: 'string' },
-  'image-source': { type: 'string' },
-  'image-revision': { type: 'string' },
-  'image-reference': { type: 'string' },
-  timeout: { type: 'string' },
-  'message-id': { type: 'string' },
-  'reply-to': { type: 'string' },
-  'failure-message-id': { type: 'string' },
-  recovery: { type: 'string' },
-  outcome: { type: 'string' },
-  'answer-stdin': { type: 'boolean' },
-  'values-stdin': { type: 'boolean' },
-  since: { type: 'string' },
-  workspace: { type: 'string' },
-  mode: { type: 'string' },
-  scope: { type: 'string' },
-  'acknowledge-risk': { type: 'boolean' },
-  'patch-stdin': { type: 'boolean' },
-  refresh: { type: 'boolean' },
-  'previous-value': { type: 'string' },
-  member: { type: 'string', multiple: true },
-  app: { type: 'string' },
-  bot: { type: 'string' },
-  conversation: { type: 'string' },
-  out: { type: 'string' },
-  'args-stdin': { type: 'boolean' },
-  session: { type: 'string' },
-  turns: { type: 'string' },
-  offset: { type: 'string' },
-  kind: { type: 'string' },
-  checkpoint: { type: 'string' },
-  'expected-current': { type: 'string' },
-  'restore-id': { type: 'string' },
-  'repair-id': { type: 'string' },
-  'default-location': { type: 'boolean' },
-  tag: { type: 'string' },
-  target: { type: 'string' },
-} as const;
 
 const DEVICE_COMMANDS = [
   'browser-open',
@@ -246,6 +192,7 @@ const IM_CONTROL_COMMANDS = [
   'im-app-remove',
   'im-bind',
   'im-unbind',
+  'im-reconnect',
   'im-status',
   'channel-connect',
   'channel-ingests',
@@ -265,6 +212,8 @@ const CONTROL_COMMANDS = [
 ] as const;
 
 export const LIVE_COMMANDS = [
+  ...TEAM_COMMANDS,
+  ...GENUI_COMMANDS,
   ...PROFILE_BACKUP_COMMANDS,
   ...BROWSER_NOTIFICATION_COMMANDS,
   ...CONNECTION_COMMANDS,
@@ -276,9 +225,16 @@ export const LIVE_COMMANDS = [
       'read capability or prepare/register/stop/status one device Lock Screen status (--device-file, --activity-stdin)',
   },
   ...FEEDBACK_COMMANDS,
+  ...DIAGNOSTIC_LOG_COMMANDS,
+  ...DOCTOR_COMMANDS,
+  ...BUG_REPORT_COMMANDS,
   ...WINDOW_ZOOM_COMMANDS,
+  ...DESKTOP_WINDOW_COMMANDS,
+  ...PRESENCE_COMMANDS,
+  ...ENGINE_COMMANDS,
   ...PHONE_ROUTE_COMMANDS,
   ...DEVICES_COMMANDS,
+  ...RELATIONSHIP_COMMANDS,
   ...DEVICE_CLIENT_COMMANDS,
   ...CONNECT_COMMANDS,
   ...IM_COMMANDS,
@@ -300,12 +256,19 @@ export const LIVE_COMMANDS = [
   ...BROWSER_COMPUTER_COMMANDS,
   ...PROFILE_COMMANDS,
   ...BOT_TOOL_COMMANDS,
+  ...TOB_CLI_COMMANDS,
+  ...TAKEOVER_COMMANDS,
   ...TODO_COMMANDS,
   ...APPROVAL_TEMPLATE_COMMANDS,
   ...PROMPT_PRESET_COMMANDS,
   ...APPROVAL_REVIEWER_COMMANDS,
+  ...VOICE_COMMANDS,
+  ...CALL_COMMANDS,
+  ...CALL_TIMELINE_COMMANDS,
   ...IDLE_COMPACTION_COMMANDS,
+  ...BOT_MODE_COMMANDS,
   ...STORAGE_COMMANDS,
+  ...SKILL_COMMANDS,
   {
     command: 'send',
     description: 'send a Human DM and collect its committed Bot reply from a live Host',
@@ -322,16 +285,34 @@ export const LIVE_COMMANDS = [
     command: 'tool-approval-decide',
     description: 'allow once, always allow a secret_cli kind, or reject an owned tool approval',
   },
-  { command: 'user-question-status', description: 'inspect a formal Human question' },
-  { command: 'ask-secret-status', description: 'inspect a private input request without values' },
+  {
+    command: 'user-question-status',
+    description: 'inspect a formal Human question',
+  },
+  {
+    command: 'ask-secret-status',
+    description: 'inspect a private input request without values',
+  },
   {
     command: 'ask-secret-submit',
     description: 'submit confidential field JSON from stdin through the authenticated Owner',
   },
-  { command: 'ask-secret-cancel', description: 'cancel a private input request as Owner' },
-  { command: 'ask-secret-account-status', description: 'inspect current private account access' },
-  { command: 'ask-secret-replace', description: 'open a blank replacement private input card' },
-  { command: 'ask-secret-revoke', description: 'revoke local private account access as Owner' },
+  {
+    command: 'ask-secret-cancel',
+    description: 'cancel a private input request as Owner',
+  },
+  {
+    command: 'ask-secret-account-status',
+    description: 'inspect current private account access',
+  },
+  {
+    command: 'ask-secret-replace',
+    description: 'open a blank replacement private input card',
+  },
+  {
+    command: 'ask-secret-revoke',
+    description: 'revoke local private account access as Owner',
+  },
   {
     command: 'ask-secret-accounts',
     description: "list a Bot's private accounts as Owner, without values",
@@ -340,13 +321,22 @@ export const LIVE_COMMANDS = [
     command: 'user-question-answer',
     description: 'answer a formal Human question with JSON from stdin',
   },
-  { command: 'release-info', description: 'read the running Host release lifecycle' },
-  { command: 'workspace-options', description: 'list live Host workspaces for grants' },
+  {
+    command: 'release-info',
+    description: 'read the running Host release lifecycle',
+  },
+  {
+    command: 'workspace-options',
+    description: 'list live Host workspaces for grants',
+  },
   {
     command: 'folder-browse',
     description: 'list folder names on the Host computer, as the phone folder picker does',
   },
-  { command: 'grant-create', description: 'authorize a Bot workspace through the live Host' },
+  {
+    command: 'grant-create',
+    description: 'authorize a Bot workspace through the live Host',
+  },
   {
     command: 'browser-access-set',
     description: "turn a Bot's Browser Access on or off through the live Host",
@@ -355,7 +345,10 @@ export const LIVE_COMMANDS = [
     command: 'computer-access-set',
     description: "turn a Bot's Computer Access on or off through the live Host",
   },
-  { command: 'access', description: "read a Bot's access preset (workspace write or full access)" },
+  {
+    command: 'access',
+    description: "read a Bot's access preset (workspace write or full access)",
+  },
   {
     command: 'access-set',
     description: "set a Bot's access preset; full access needs --acknowledge-risk",
@@ -365,23 +358,48 @@ export const LIVE_COMMANDS = [
     command: 'settings-set',
     description: 'patch one live Host settings namespace with JSON from stdin',
   },
-  { command: 'workspace-create', description: 'register an absolute folder as a Host workspace' },
-  { command: 'group-create', description: 'create a group Channel with optional initial Bots' },
+  {
+    command: 'workspace-create',
+    description: 'register an absolute folder as a Host workspace',
+  },
+  {
+    command: 'group-create',
+    description: 'create a group Channel with optional initial Bots',
+  },
   {
     command: 'im-app-add',
     description: 'add a token-based IM app (Discord, Slack, …) with credentials JSON from stdin',
   },
-  { command: 'im-app-status', description: "read a token IM platform's apps and connection state" },
-  { command: 'im-app-remove', description: 'remove a token IM app from the Provider' },
+  {
+    command: 'im-app-status',
+    description: "read a token IM platform's apps and connection state",
+  },
+  {
+    command: 'im-app-remove',
+    description: 'remove a token IM app from the Provider',
+  },
   { command: 'im-bind', description: 'bind a connected IM app to a Bot' },
   { command: 'im-unbind', description: 'unbind an IM app from a Bot' },
-  { command: 'im-status', description: "read a Bot's IM apps and bindings with reception state" },
+  {
+    command: 'im-reconnect',
+    description: 'reconnect a Bot IM receiver without changing its access',
+  },
+  {
+    command: 'im-status',
+    description: "read a Bot's IM apps and bindings with reception state",
+  },
   {
     command: 'channel-connect',
     description: "connect an external group conversation to a Channel through a Bot's binding",
   },
-  { command: 'channel-ingests', description: "list a Channel's connected external conversations" },
-  { command: 'browser-open', description: "start a Bot's Browser and open its tab for viewing" },
+  {
+    command: 'channel-ingests',
+    description: "list a Channel's connected external conversations",
+  },
+  {
+    command: 'browser-open',
+    description: "start a Bot's Browser and open its tab for viewing",
+  },
   {
     command: 'browser-frame',
     description: "save the current picture of a Bot's Browser to a file",
@@ -400,7 +418,10 @@ export const LIVE_COMMANDS = [
     command: 'computer-start',
     description: 'start the profile Computer with explicit authorization',
   },
-  { command: 'computer-status', description: 'read the profile Computer target and state' },
+  {
+    command: 'computer-status',
+    description: 'read the profile Computer target and state',
+  },
   {
     command: 'computer-video',
     description:
@@ -435,18 +456,45 @@ export const LIVE_COMMANDS = [
     description:
       'export version-bound Memory image bytes (--path --image-source --image-revision [--image-reference] --out)',
   },
-  { command: 'memory-file-target', description: 'resolve a memory file path for a Bot' },
+  {
+    command: 'memory-file-target',
+    description: 'resolve a memory file path for a Bot',
+  },
   { command: 'memory-graph', description: "read a Bot's memory commit graph" },
-  { command: 'memory-commit-diff', description: 'read the full diff of one memory commit' },
+  {
+    command: 'memory-commit-diff',
+    description: 'read the full diff of one memory commit',
+  },
   { command: 'memory-changes', description: 'list uncommitted memory changes' },
-  { command: 'memory-working-diff', description: 'read the diff of one uncommitted memory file' },
-  { command: 'memory-checkpoints', description: 'list memory recovery checkpoints' },
-  { command: 'memory-restore', description: 'restore memory to a recovery checkpoint' },
-  { command: 'memory-restore-commit', description: 'restore memory to an earlier commit' },
+  {
+    command: 'memory-working-diff',
+    description: 'read the diff of one uncommitted memory file',
+  },
+  {
+    command: 'memory-checkpoints',
+    description: 'list memory recovery checkpoints',
+  },
+  {
+    command: 'memory-restore',
+    description: 'restore memory to a recovery checkpoint',
+  },
+  {
+    command: 'memory-restore-commit',
+    description: 'restore memory to an earlier commit',
+  },
   { command: 'memory-versions', description: 'list named memory versions' },
-  { command: 'memory-version-name', description: 'name a memory commit as a version' },
-  { command: 'memory-version-unname', description: 'remove a memory version name' },
-  { command: 'memory-repair', description: 'repair a memory repository against its expected head' },
+  {
+    command: 'memory-version-name',
+    description: 'name a memory commit as a version',
+  },
+  {
+    command: 'memory-version-unname',
+    description: 'remove a memory version name',
+  },
+  {
+    command: 'memory-repair',
+    description: 'repair a memory repository against its expected head',
+  },
   {
     command: 'memory-move',
     description: "move a Bot's Memory repository to another folder, or back to the default",
@@ -482,12 +530,26 @@ interface LiveValues
     ProfileValues,
     TodoValues,
     ApprovalTemplateValues,
-    ApprovalReviewerValues {
+    ApprovalReviewerValues,
+    VoiceValues {
+  id?: string;
+  skill?: string[];
+  as?: string;
+  username?: string;
+  'display-name'?: string;
+  'initial-password-file'?: string;
+  'password-stdin'?: boolean;
+
   'new-home'?: string;
   'client-id'?: string;
   'device-file'?: string;
   'link-file'?: string;
+  'account-file'?: string;
   'connection-id'?: string;
+  'confirm-disconnect'?: boolean;
+  handover?: string;
+  'connection-route-id'?: string;
+  'expected-route-revision'?: string;
   fingerprint?: string;
   'remote-host-id'?: string;
   'host-id'?: string;
@@ -500,15 +562,25 @@ interface LiveValues
   timeout?: string;
   'message-id'?: string;
   'reply-to'?: string;
+  quote?: string[];
+  'quote-note'?: string[];
   'failure-message-id'?: string;
+  'auto-continue-for'?: string;
   recovery?: string;
   body?: string;
   'body-stdin'?: boolean;
+  attach?: string[];
+  title?: string;
   'answer-stdin'?: boolean;
   'values-stdin'?: boolean;
   outcome?: string;
   since?: string;
+  hours?: string;
+  offline?: boolean;
+  home?: string;
   workspace?: string;
+  after?: string;
+  reason?: string;
   limit?: string;
   before?: string;
   enabled?: boolean;
@@ -526,6 +598,7 @@ interface LiveValues
   conversation?: string;
   out?: string;
   'args-stdin'?: boolean;
+  'cause-event'?: string;
   session?: string;
   turns?: string;
   offset?: string;
@@ -576,7 +649,7 @@ function hostUrl(value: string | undefined): URL {
     url.pathname !== '/' ||
     !(
       (loopback && (url.protocol === 'http:' || url.protocol === 'https:')) ||
-      (tailnet && url.protocol === 'https:')
+      ((tailnet || isLanAddress(name)) && url.protocol === 'https:')
     )
   ) {
     usage(
@@ -637,7 +710,9 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
     }
   };
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const response = await request(login, { headers: cookie ? { cookie } : {} });
+    const response = await request(login, {
+      headers: cookie ? { cookie } : {},
+    });
     const cookies = response.headers.getSetCookie();
     if (cookies.length > 0) cookie = cookies.map((entry) => entry.split(';')[0]).join('; ');
     await response.body?.cancel();
@@ -672,8 +747,46 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
   };
   const scrub = (value: string) =>
     value.replaceAll(secret, '[redacted]').replaceAll(encodeURIComponent(secret), '[redacted]');
+  const rpcFailure = (error: Record<string, unknown>): CliLiveError => {
+    const failure = new CliLiveError(
+      typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error',
+      scrub(typeof error['message'] === 'string' ? error['message'] : 'member-call-refused'),
+    );
+    const details = record(error['details']);
+    if (
+      ['permission-required', 'permission-not-grantable'].includes(failure.code) &&
+      typeof details['permission'] === 'string'
+    )
+      failure.details = { permission: scrub(details['permission']) };
+    if (failure.code === 'model-not-allowed' && typeof details['route'] === 'string')
+      failure.details = { route: scrub(details['route']) };
+    const { path, spaceId } = details;
+    if (typeof path === 'string' || typeof spaceId === 'string')
+      failure.details = {
+        ...failure.details,
+        ...(typeof path === 'string' ? { path: scrub(path) } : {}),
+        ...(typeof spaceId === 'string' ? { spaceId: scrub(spaceId) } : {}),
+      };
+    return failure;
+  };
   const rpc = async <T>(method: string, args: Record<string, unknown>): Promise<T> => {
     const name = method.includes('/') ? method : `botharness/${method}`;
+    if (values.as !== undefined) {
+      const [namespace, memberMethod, extra] = name.split('/');
+      if (!namespace || !memberMethod || extra)
+        throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
+      const answer = await request(new URL('/api/botharness/team-as', base), {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', cookie },
+        body: JSON.stringify({ username: values.as, namespace, method: memberMethod, args }),
+      });
+      const result = await readResponse(answer);
+      if (result['ok'] !== true) {
+        const error = record(result['error']);
+        throw rpcFailure(error);
+      }
+      return result['value'] as T;
+    }
     const response = await request(new URL(`/api/${name}`, base), {
       method: 'POST',
       headers: { 'content-type': 'application/json', cookie },
@@ -690,17 +803,21 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
     const result = record(payload['result']);
     if (result['ok'] !== true) {
       const error = record(result['error']);
-      const code = typeof error['code'] === 'string' ? error['code'] : 'host-protocol-error';
-      const message =
-        typeof error['message'] === 'string' ? error['message'] : 'The Host refused the command.';
-      throw new CliLiveError(code, scrub(message));
+      throw rpcFailure(error);
     }
     return result['value'] as T;
   };
   const importBotZip = async <T>(
     archive: Uint8Array,
-    metadata: { name?: string; displayName?: string; roles?: string[]; description?: string },
+    metadata: {
+      name?: string;
+      displayName?: string;
+      roles?: string[];
+      description?: string;
+    },
   ): Promise<T> => {
+    if (values.as !== undefined)
+      throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
     const url = new URL('/api/botharness/bot-zip/import', base);
     for (const key of ['name', 'displayName', 'description'] as const) {
       if (metadata[key] !== undefined) url.searchParams.set(key, metadata[key]);
@@ -753,7 +870,7 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
     const packages = Array.isArray(detail['packages'])
       ? detail['packages'].filter((name): name is string => typeof name === 'string')
       : [];
-    throw new CliLiveError(
+    const error = new CliLiveError(
       code === undefined ? 'host-refused' : scrub(code),
       scrub(
         (typeof detail['error'] === 'string' && detail['error'] !== ''
@@ -764,11 +881,15 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
           (packages.length === 0 ? '' : ` Packages: ${packages.join(' ')}.`),
       ),
     );
+    error.status = status;
+    throw error;
   };
   const http = async (
     path: string,
     body?: Record<string, unknown>,
   ): Promise<{ response: Response; bytes: Uint8Array }> => {
+    if (values.as !== undefined)
+      throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
     const response = await request(new URL(path, base), {
       method: body === undefined ? 'GET' : 'POST',
       headers: {
@@ -790,14 +911,21 @@ export async function connectLiveHost(values: LiveValues, io: BotCreateCliIo, si
     return { response, bytes };
   };
   const stream = async (path: string, init: RequestInit = {}): Promise<Response> => {
+    if (values.as !== undefined)
+      throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
     const response = await request(new URL(path, base), {
       ...init,
-      headers: { ...(init.headers as Record<string, string> | undefined), cookie },
+      headers: {
+        ...(init.headers as Record<string, string> | undefined),
+        cookie,
+      },
     });
     if (!response.ok) refuse(path, response.status, new Uint8Array(await response.arrayBuffer()));
     return response;
   };
   const socket = (path: string): WebSocket => {
+    if (values.as !== undefined)
+      throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
     const url = new URL(path, base);
     url.protocol = url.protocol === 'https:' ? 'wss:' : 'ws:';
     const Socket = WebSocket as unknown as new (
@@ -815,6 +943,22 @@ export async function runLiveCli(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
+  if (
+    values.as !== undefined &&
+    (['relationships', 'device-activity', 'device-notifications', 'phone-notifications'].includes(
+      command,
+    ) ||
+      DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
+  )
+    throw new CliLiveError('as-command-unsupported', 'as-command-unsupported');
+  if (
+    TEAM_COMMANDS.some((entry) => entry.command === command) ||
+    command === 'channels' ||
+    (command === 'devices' && values.member !== undefined)
+  ) {
+    const host = await connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout)));
+    return runTeamCommand(command, rest, values, io, host.rpc);
+  }
   if (isProfileBackupCommand(command))
     return runProfileBackupCommand(command, rest, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
@@ -831,6 +975,16 @@ export async function runLiveCli(
         ...(values['link-file'] === undefined ? {} : { 'link-file': values['link-file'] }),
         ...(values.fingerprint === undefined ? {} : { fingerprint: values.fingerprint }),
         ...(values.confirm === undefined ? {} : { confirm: values.confirm }),
+        ...(values['confirm-disconnect'] === undefined
+          ? {}
+          : { 'confirm-disconnect': values['confirm-disconnect'] }),
+        ...(values.handover === undefined ? {} : { handover: values.handover }),
+        ...(values['connection-route-id'] === undefined
+          ? {}
+          : { 'connection-route-id': values['connection-route-id'] }),
+        ...(values['expected-route-revision'] === undefined
+          ? {}
+          : { 'expected-route-revision': values['expected-route-revision'] }),
       },
       io,
       () => connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
@@ -846,6 +1000,18 @@ export async function runLiveCli(
   if (command === 'phone-notifications') return runPhoneNotifications(rest, values, io);
   if (BROWSER_NOTIFICATION_COMMANDS.some((entry) => entry.command === command))
     return runBrowserNotifications(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (command === 'bug-report')
+    return runBugReport(values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (command === 'doctor')
+    return runDoctor(values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (DIAGNOSTIC_LOG_COMMANDS.some((entry) => entry.command === command))
+    return runDiagnosticLogCommand(command, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (FEEDBACK_COMMANDS.some((entry) => entry.command === command))
@@ -884,8 +1050,24 @@ export async function runLiveCli(
     return runConnectCommand(command, rest, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (DESKTOP_WINDOW_COMMANDS.some((entry) => entry.command === command))
+    return runDesktopWindowCommand(rest, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (WINDOW_ZOOM_COMMANDS.some((entry) => entry.command === command))
     return runWindowZoomCommand(command, rest, values, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (ENGINE_COMMANDS.some((entry) => entry.command === command))
+    return runEngineCommand(
+      command,
+      rest,
+      values,
+      () => connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+      () => io.readStdin?.() ?? Promise.resolve(''),
+    );
+  if (PRESENCE_COMMANDS.some((entry) => entry.command === command))
+    return runPresenceCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (PHONE_ROUTE_COMMANDS.some((entry) => entry.command === command))
@@ -896,6 +1078,18 @@ export async function runLiveCli(
     return runDevicesCommand(command, rest, values, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
+  if (command === 'relationships') {
+    const duration = timeoutMs(values.timeout);
+    const expiresAt = Date.now() + duration;
+    const signal = AbortSignal.timeout(duration);
+    return runRelationshipCommand(
+      rest,
+      values,
+      () => connectLiveHost(values, io, signal),
+      signal,
+      expiresAt,
+    );
+  }
   if (DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
     return runDeviceClientCommand(command, rest, values);
   if (command === 'cloud-work') {
@@ -935,8 +1129,49 @@ export async function runLiveCli(
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });
+  if (isVoiceCommand(command))
+    return runVoiceCommand(command, rest, values, io, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
+  if (isCallCommand(command))
+    return runCallCommand(command, rest, values, async () => {
+      const signal = AbortSignal.timeout(
+        values.timeout === undefined && command === 'call-simulate'
+          ? 600_000
+          : timeoutMs(values.timeout),
+      );
+      const { http, rpc } = await connectLiveHost(values, io, signal);
+      return {
+        async post(body) {
+          const { bytes } = await http(VOICE_CALL_PATH, body);
+          let parsed: Record<string, unknown>;
+          try {
+            parsed = record(JSON.parse(new TextDecoder().decode(bytes)));
+          } catch {
+            throw new CliLiveError(
+              'host-protocol-error',
+              'The Host returned no JSON for the call.',
+            );
+          }
+          if (typeof parsed['ok'] !== 'boolean')
+            throw new CliLiveError('host-protocol-error', 'The Host returned no call result.');
+          return parsed as unknown as VoiceCallResult;
+        },
+        text: async (input) => record(await rpc('channelSend', input)),
+      };
+    });
+  if (isCallTimelineCommand(command))
+    return runCallTimelineCommand(command, rest, values, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (isApprovalReviewerCommand(command))
     return runApprovalReviewerCommand(command, rest, values, async () => {
+      const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+      return (await connectLiveHost(values, io, signal)).rpc;
+    });
+  if (isSkillCommand(command))
+    return runSkillCommand(command, rest, values as SkillValues, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });
@@ -950,6 +1185,16 @@ export async function runLiveCli(
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
       return (await connectLiveHost(values, io, signal)).rpc;
     });
+  if (isBotModeCommand(command))
+    return runBotModeCommand(
+      command,
+      rest,
+      async () => {
+        const signal = AbortSignal.timeout(timeoutMs(values.timeout));
+        return (await connectLiveHost(values, io, signal)).rpc;
+      },
+      values.id === undefined ? {} : { id: values.id },
+    );
   if (isPromptPresetCommand(command))
     return runPromptPresetCommand(command, rest, values, io, async () => {
       const signal = AbortSignal.timeout(timeoutMs(values.timeout));
@@ -962,6 +1207,14 @@ export async function runLiveCli(
     });
   if (isTodoCommand(command))
     return runTodoCommand(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (isTakeoverCommand(command))
+    return runTakeoverCommand(command, rest, values, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
+  if (command === 'tob-cli')
+    return runTobCli(rest, values, io, () =>
       connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
     );
   if (BOT_TOOL_COMMANDS.some((entry) => entry.command === command))
@@ -1017,10 +1270,18 @@ export async function runLiveCli(
       ...(offset === undefined ? {} : { offset }),
     });
   }
+  if (GENUI_COMMANDS.some((entry) => entry.command === command))
+    return runGenuiCommand(command, rest, values, io, () =>
+      connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
+    );
   if (command === 'grants') {
     if (rest.length !== 1 || !rest[0]?.trim()) usage('grants needs exactly one bot id.');
     const signal = AbortSignal.timeout(timeoutMs(values.timeout));
-    return (await connectLiveHost(values, io, signal)).rpc('grants', { slug: rest[0].trim() });
+    const { rpc } = await connectLiveHost(values, io, signal);
+    return readWorkspaceGrants(
+      { call: (method, args = {}) => rpc(method, args) },
+      { slug: rest[0].trim() },
+    );
   }
   if (IM_CONTROL_COMMANDS.some((entry) => entry === command))
     return runImControlCommand(command as (typeof IM_CONTROL_COMMANDS)[number], rest, values, io);
@@ -1052,6 +1313,8 @@ export async function runLiveCli(
   )
     usage('--message-id is required.');
   let body: string | undefined;
+  let skillTokens: ReturnType<typeof skillInvocationTokens> = [];
+  let quotes: ChannelQuote[] = [];
   let answer: unknown;
   let confidential: Record<string, string> | undefined;
   if (command === 'ask-secret-submit') {
@@ -1068,9 +1331,7 @@ export async function runLiveCli(
         entries.length > 8 ||
         entries.some(
           ([key, value]) =>
-            !/^[a-z][a-z0-9_]{0,47}$/.test(key) ||
-            typeof value !== 'string' ||
-            value.length > 16_384,
+            !PRIVATE_FIELD_ID.test(key) || typeof value !== 'string' || value.length > 16_384,
         )
       )
         throw new Error('Invalid private fields');
@@ -1091,6 +1352,18 @@ export async function runLiveCli(
       usage('--message-id must be human- followed by a UUID.');
     if (values['reply-to'] !== undefined && !values['reply-to'].trim())
       usage('--reply-to needs a message id.');
+    const notes = values['quote-note'] ?? [];
+    if (notes.length > (values.quote?.length ?? 0))
+      usage('--quote-note pairs with the --quote at the same position.');
+    const parsedQuotes = parseQuotesInput(
+      values.quote?.map((value, index) => ({
+        ...cliQuote(value),
+        ...(notes[index] ? { note: notes[index] } : {}),
+      })),
+    );
+    if (typeof parsedQuotes === 'string') usage(`--quote: ${parsedQuotes}.`);
+    quotes = parsedQuotes as ChannelQuote[];
+    skillTokens = skillInvocationTokens(body, values.skill);
   }
   if (
     command === 'tool-approval-decide' &&
@@ -1130,6 +1403,7 @@ export async function runLiveCli(
   const signal = AbortSignal.timeout(duration);
   const { rpc } = await connectLiveHost(values, io, signal);
   if (command.startsWith('ask-secret-')) {
+    let refusal: unknown;
     try {
       if (command === 'ask-secret-accounts') {
         const result = await rpc<{
@@ -1165,7 +1439,11 @@ export async function runLiveCli(
                 typeof field['required'] !== 'boolean'
               )
                 throw new Error('Invalid private field');
-              return { id: field['id'], label: field['label'], required: field['required'] };
+              return {
+                id: field['id'],
+                label: field['label'],
+                required: field['required'],
+              };
             }),
             status,
             configuredAt: optional(row['configuredAt']),
@@ -1230,35 +1508,43 @@ export async function runLiveCli(
         };
       }
       const method = command === 'ask-secret-submit' ? 'privateInputSubmit' : 'privateInputCancel';
-      const result = await rpc<{ accepted?: unknown }>(method, {
+      const result = await rpc<{ accepted?: unknown; reason?: unknown }>(method, {
         channelId: target,
         messageId,
         ...(confidential === undefined ? {} : { values: confidential }),
       });
-      if (result.accepted !== true) throw new Error('Private request was not accepted');
-      return { accepted: true };
+      if (result.accepted !== true) refusal = result.reason;
+      else return { accepted: true };
     } catch {
-      throw new CliLiveError(
-        'private-input-not-accepted',
-        'Private input operation was not accepted. Check Owner authentication and request status before retrying.',
-      );
+      refusal = undefined;
     } finally {
       if (confidential !== undefined)
         for (const key of Object.keys(confidential)) delete confidential[key];
     }
+    throw new CliLiveError(
+      'private-input-not-accepted',
+      'Private input operation was not accepted' +
+        (typeof refusal === 'string' && /^[a-z-]{1,40}$/.test(refusal)
+          ? ` (reason: ${refusal})`
+          : '') +
+        '. Check Owner authentication and request status before retrying.',
+    );
   }
   if (command === 'send') {
-    const channelId = dmChannelId(target);
-    const receipt = { channelId, messageId: messageId ?? `human-${randomUUID()}` };
+    const channelId = await resolveBotDm(rpc, target);
+    const receipt = {
+      channelId,
+      messageId: messageId ?? `human-${randomUUID()}`,
+    };
     let sent: unknown;
     try {
-      const bot = await rpc<{ bot: { displayName?: string } }>('get', { slug: target });
-      await rpc('channelDm', { slug: target, displayName: bot.bot.displayName });
       sent = await rpc('channelSend', {
         channelId,
         body,
         messageId: receipt.messageId,
         ...(values['reply-to'] === undefined ? {} : { replyTo: values['reply-to'].trim() }),
+        ...(quotes.length === 0 ? {} : { quotes }),
+        ...(skillTokens.length === 0 ? {} : { skillInvocations: skillTokens }),
       });
       while (Date.now() < deadline) {
         const status = await rpc<{ state: string; replies: unknown[] }>(
@@ -1295,28 +1581,50 @@ export async function runLiveCli(
     );
   }
   if (command === 'send-status')
-    return rpc('channelSendStatus', { channelId: dmChannelId(target), messageId });
+    return rpc('channelSendStatus', {
+      channelId: await resolveBotDm(rpc, target),
+      messageId,
+    });
   if (command === 'channel-messages') {
     const limit = values.limit === undefined ? undefined : Number(values.limit);
     if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 200))
       usage('--limit must be 1–200.');
-    return rpc('channelMessages', {
+    const result = await rpc<{ messages: ChannelMessage[]; revision: number }>('channelMessages', {
       channelId: target,
       ...(limit === undefined ? {} : { limit }),
       ...(values.before === undefined ? {} : { before: values.before }),
     });
+    return {
+      ...result,
+      messages: result.messages.map((message) => {
+        const effects = message.toolApprovalRequest?.effects;
+        return effects === undefined
+          ? message
+          : {
+              ...message,
+              effectLabels: {
+                en: toolEffectLabels(effects, 'en'),
+                zh: toolEffectLabels(effects, 'zh'),
+              },
+            };
+      }),
+    };
   }
-  if (command === 'tool-approval-status')
-    return rpc('toolApprovalStatus', { channelId: target, messageId });
+  const reader = { call: (method: string, args = {}) => rpc(method, args) };
+  if (command === 'tool-approval-status') return readToolApprovalStatus(reader, target, messageId!);
   if (command === 'tool-approval-decide')
-    return rpc('toolApprovalDecide', { channelId: target, messageId, outcome: values.outcome });
-  if (command === 'user-question-status')
-    return rpc('userQuestionStatus', { channelId: target, messageId });
+    return decideToolApproval(
+      reader,
+      target,
+      messageId!,
+      values.outcome as Parameters<typeof decideToolApproval>[3],
+    );
+  if (command === 'user-question-status') return readUserQuestionStatus(reader, target, messageId!);
   if (command === 'user-question-answer')
-    return rpc('userQuestionAnswer', { channelId: target, messageId, answer });
+    return answerUserQuestion(reader, target, messageId!, answer as QuestionAnswer);
   if (command === 'workspace-options') return rpc('workspaceOptions', {});
   if (command === 'grant-create')
-    return rpc('grantCreate', { slug: target, workspaceId: values.workspace });
+    return createGrant(reader, { slug: target, workspaceId: values.workspace! });
   return rpc('releaseInfo', values.since === undefined ? {} : { since: values.since });
 }
 
@@ -1370,14 +1678,27 @@ async function runControlCommand(
       slug: target,
       enabled: values.enabled === true,
     });
-  if (command === 'access') return rpc('assignmentAccessGet', { slug: target });
-  if (command === 'access-set')
-    return rpc('assignmentAccessSet', {
-      slug: target,
-      mode: values.mode,
-      ...(values.scope === undefined ? {} : { scope: values.scope }),
-      ...(values.mode === 'danger-full-access' ? { acknowledgeRisk: true } : {}),
-    });
+  if (command === 'access' || command === 'access-set') {
+    const reader = { call: (method: string, args = {}) => rpc(method, args) };
+    const mode = values.mode === 'danger-full-access' ? 'danger-full-access' : 'workspace-write';
+    const scope =
+      values.scope === 'chat' || values.scope === 'assignments' ? values.scope : undefined;
+    const result = await (command === 'access'
+      ? readAssignmentAccess(reader, target)
+      : writeAssignmentAccess(reader, {
+          slug: target,
+          mode,
+          ...(scope === undefined ? {} : { scope }),
+          ...(mode === 'danger-full-access' ? { acknowledgeRisk: true } : {}),
+        }));
+    return result.preset.mode === 'danger-full-access'
+      ? {
+          ...result,
+          warning:
+            'The Bot can run commands that change or delete files anywhere without approval.',
+        }
+      : result;
+  }
   if (command === 'workspace-create') return rpc('workspace/create', { request: { path: target } });
   if (command === 'group-create')
     return rpc('channelCreate', {
@@ -1444,6 +1765,7 @@ async function runImControlCommand(
   values: LiveValues,
   io: BotCreateCliIo,
 ): Promise<unknown> {
+  const mode = messagingReadMode(command, values['read-mode']);
   if (rest.length !== 1 || !rest[0]?.trim()) usage(`${command} needs exactly one target.`);
   const target = rest[0].trim();
   const app = values.app?.trim() ?? '';
@@ -1465,7 +1787,13 @@ async function runImControlCommand(
       usage('--credentials-stdin must be a JSON object, for example {"token":"…"}.');
     }
   }
-  if ((command === 'im-app-remove' || command === 'im-bind' || command === 'im-unbind') && !app)
+  if (
+    (command === 'im-app-remove' ||
+      command === 'im-bind' ||
+      command === 'im-unbind' ||
+      command === 'im-reconnect') &&
+    !app
+  )
     usage(`${command} requires --app <app-id>.`);
   if (command === 'channel-connect' && (!values.bot?.trim() || !values.conversation?.trim()))
     usage('channel-connect requires --bot <bot-id> and --conversation <external-id>.');
@@ -1498,12 +1826,13 @@ async function runImControlCommand(
     });
   }
   const slug = command === 'channel-connect' ? values.bot!.trim() : target;
-  const snapshot = record(await rpc('messagingSnapshot', { slug }));
+  const snapshot = record(await rpc('messagingSnapshot', { slug, ...(mode ? { mode } : {}) }));
   const identities = (Array.isArray(snapshot['identities']) ? snapshot['identities'] : []).map(
     record,
   );
   if (command === 'im-status')
     return {
+      ...(snapshot['checks'] === undefined ? {} : { checks: snapshot['checks'] }),
       apps: (Array.isArray(snapshot['accounts']) ? snapshot['accounts'] : [])
         .map(record)
         .map((entry) => ({
@@ -1521,6 +1850,7 @@ async function runImControlCommand(
         availability: entry['availability'],
         reception: entry['reception'],
         conversations: entry['grantCount'],
+        ...(entry['recovery'] === undefined ? {} : { recovery: entry['recovery'] }),
       })),
     };
   const binding = identities.find((entry) =>
@@ -1535,10 +1865,14 @@ async function runImControlCommand(
         ? `Bot ${slug} has no IM app binding to connect through.`
         : `Bot ${slug} is not bound to IM app ${app}.`,
     );
-  if (command === 'im-unbind')
+  if (command === 'im-unbind' || command === 'im-reconnect')
     return rpc('messagingIdentity', {
       slug,
-      input: { kind: 'unbind', id: binding['id'], expectedRevision: binding['revision'] },
+      input: {
+        kind: command === 'im-reconnect' ? 'reconnect' : 'unbind',
+        id: binding['id'],
+        expectedRevision: binding['revision'],
+      },
     });
   return rpc('channelIngest', {
     channelId: target,
@@ -1670,7 +2004,11 @@ async function runDeviceCommand(
           bytes: bytes.byteLength,
         };
       }
-      return { type: 'image', mimeType: item['mimeType'], bytes: bytes.byteLength };
+      return {
+        type: 'image',
+        mimeType: item['mimeType'],
+        bytes: bytes.byteLength,
+      };
     });
   if (command === 'browser-tools') return json('/api/browser/tools');
   if (video) {
@@ -1685,12 +2023,16 @@ async function runDeviceCommand(
     const { offer, ...safeState } = state;
     if (offer !== undefined && values.out !== undefined) {
       try {
-        writeFileSync(values.out, JSON.stringify(offer), { mode: 0o600, flag: 'wx' });
+        writeFileSync(values.out, JSON.stringify(offer), {
+          mode: 0o600,
+          flag: 'wx',
+        });
       } catch {
         if (state['binding'] !== undefined)
-          await json('/api/computer/video', { kind: 'close', binding: state['binding'] }).catch(
-            () => undefined,
-          );
+          await json('/api/computer/video', {
+            kind: 'close',
+            binding: state['binding'],
+          }).catch(() => undefined);
         throw new CliLiveError(
           'signaling-file-failed',
           'Private signaling could not be saved. Use a new writable absolute file.',
@@ -1706,16 +2048,27 @@ async function runDeviceCommand(
   if (command === 'computer-tools') return json('/api/computer/tools');
   if (command === 'computer-tool') {
     const result = record(
-      await json('/api/computer/tool', { slug, tool: rest[1]!.trim(), args: toolArgs }),
+      await json('/api/computer/tool', {
+        slug,
+        tool: rest[1]!.trim(),
+        args: toolArgs,
+      }),
     );
     const inner = record(result['result']);
     return Array.isArray(inner['content'])
-      ? { ...result, result: { ...inner, content: savedImages(inner['content']) } }
+      ? {
+          ...result,
+          result: { ...inner, content: savedImages(inner['content']) },
+        }
       : result;
   }
   if (command === 'browser-tool') {
     const result = record(
-      await json('/api/browser/tool', { slug, tool: rest[1]!.trim(), args: toolArgs }),
+      await json('/api/browser/tool', {
+        slug,
+        tool: rest[1]!.trim(),
+        args: toolArgs,
+      }),
     );
     return {
       ...result,
@@ -1724,7 +2077,10 @@ async function runDeviceCommand(
   }
   if (command === 'browser-open') return json('/api/browser/open', { slug });
   if (command === 'browser-takeover')
-    return json('/api/browser/takeover', { slug, active: values.enabled === true });
+    return json('/api/browser/takeover', {
+      slug,
+      active: values.enabled === true,
+    });
   if (command === 'browser-input') return json('/api/browser/input', { ...toolArgs, slug });
   if (command === 'browser-stop') return json('/api/browser/stop', { slug });
   if (command === 'computer-start')
@@ -1809,7 +2165,6 @@ async function runMemoryCommand(
 ): Promise<unknown> {
   if (rest.length !== 1 || !rest[0]?.trim()) usage(`${command} needs exactly one bot id.`);
   const slug = rest[0].trim();
-  const channelId = dmChannelId(slug);
   const required = (name: keyof LiveValues, flag: string): string => {
     const value = values[name];
     if (typeof value !== 'string' || !value.trim()) usage(`${command} requires --${flag}.`);
@@ -1829,7 +2184,7 @@ async function runMemoryCommand(
   let args: Record<string, unknown>;
   switch (command) {
     case 'memory-snapshot':
-      [method, args] = ['memorySnapshot', { channelId }];
+      [method, args] = ['memorySnapshot', {}];
       break;
     case 'memory-image': {
       const path = required('path', 'path <file>');
@@ -1843,6 +2198,26 @@ async function runMemoryCommand(
         AbortSignal.timeout(timeoutMs(values.timeout)),
       );
       const reference = values['image-reference'];
+      if (values.as !== undefined) {
+        const image = await host.rpc<{ mime: string; dataBase64: string }>('memoryImage', {
+          slug,
+          path,
+          source,
+          revision,
+          ...(reference === undefined ? {} : { reference }),
+        });
+        const bytes = Buffer.from(image.dataBase64, 'base64');
+        writeFileSync(out, bytes, { flag: 'wx' });
+        return {
+          path,
+          source,
+          revision,
+          ...(reference === undefined ? {} : { reference }),
+          mime: image.mime,
+          bytes: bytes.length,
+          out,
+        };
+      }
       const { bytes, response } = await host.http(
         '/api/botharness/memory/image?' +
           new URLSearchParams({
@@ -1872,13 +2247,13 @@ async function runMemoryCommand(
       };
     }
     case 'memory-file':
-      [method, args] = ['memoryFile', { channelId, path: required('path', 'path <file>') }];
+      [method, args] = ['memoryFile', { path: required('path', 'path <file>') }];
       break;
     case 'memory-history':
-      [method, args] = ['memoryHistory', { channelId }];
+      [method, args] = ['memoryHistory', {}];
       break;
     case 'memory-diff':
-      [method, args] = ['memoryDiff', { channelId, sha: sha() }];
+      [method, args] = ['memoryDiff', { sha: sha() }];
       break;
     case 'memory-file-target':
       [method, args] = ['memoryFileTarget', { slug, path: required('path', 'path <file>') }];
@@ -1890,7 +2265,6 @@ async function runMemoryCommand(
       [method, args] = [
         'memoryGitGraph',
         {
-          channelId,
           offset,
           ...(values.path === undefined ? {} : { path: required('path', 'path <file>') }),
         },
@@ -1898,29 +2272,25 @@ async function runMemoryCommand(
       break;
     }
     case 'memory-commit-diff':
-      [method, args] = ['memoryGitCommitDiff', { channelId, sha: sha() }];
+      [method, args] = ['memoryGitCommitDiff', { sha: sha() }];
       break;
     case 'memory-changes':
-      [method, args] = ['memoryWorkingChanges', { channelId }];
+      [method, args] = ['memoryWorkingChanges', {}];
       break;
     case 'memory-working-diff': {
       const kind = required('kind', 'kind staged|unstaged|untracked|current');
       if (!['staged', 'unstaged', 'untracked', 'current'].includes(kind))
         usage('--kind must be staged, unstaged, untracked or current.');
-      [method, args] = [
-        'memoryWorkingDiff',
-        { channelId, path: required('path', 'path <file>'), kind },
-      ];
+      [method, args] = ['memoryWorkingDiff', { path: required('path', 'path <file>'), kind }];
       break;
     }
     case 'memory-checkpoints':
-      [method, args] = ['memoryRecoveryHistory', { channelId }];
+      [method, args] = ['memoryRecoveryHistory', {}];
       break;
     case 'memory-restore':
       [method, args] = [
         'memoryRestore',
         {
-          channelId,
           checkpointId: required('checkpoint', 'checkpoint <id>'),
           expectedCurrentId: required('expected-current', 'expected-current <id>'),
         },
@@ -1930,7 +2300,6 @@ async function runMemoryCommand(
       [method, args] = [
         'memoryRestoreCommit',
         {
-          channelId,
           sha: sha(),
           expectedHead: expectedHead(),
           restoreId: values['restore-id']?.trim() || randomUUID(),
@@ -1939,19 +2308,16 @@ async function runMemoryCommand(
       ];
       break;
     case 'memory-versions':
-      [method, args] = ['memoryVersions', { channelId }];
+      [method, args] = ['memoryVersions', {}];
       break;
     case 'memory-version-name':
       [method, args] = [
         'memoryNameVersion',
-        { channelId, sha: sha(), name: required('name', 'name <version>') },
+        { sha: sha(), name: required('name', 'name <version>') },
       ];
       break;
     case 'memory-version-unname':
-      [method, args] = [
-        'memoryRemoveVersionName',
-        { channelId, tag: required('tag', 'tag <version>') },
-      ];
+      [method, args] = ['memoryRemoveVersionName', { tag: required('tag', 'tag <version>') }];
       break;
     case 'memory-move': {
       const location = values['memory-location']?.trim();
@@ -1963,7 +2329,10 @@ async function runMemoryCommand(
         usage('--memory-location must be an absolute folder path.');
       [method, args] = [
         'memoryMove',
-        { slug, location: location === undefined || location === '' ? null : location },
+        {
+          slug,
+          location: location === undefined || location === '' ? null : location,
+        },
       ];
       break;
     }
@@ -1971,7 +2340,6 @@ async function runMemoryCommand(
       [method, args] = [
         'memoryRepair',
         {
-          channelId,
           expectedHead: expectedHead(),
           repairId: values['repair-id']?.trim() || randomUUID(),
         },
@@ -1986,7 +2354,6 @@ async function runMemoryCommand(
       [method, args] = [
         'memorySave',
         {
-          channelId,
           path,
           body,
           expectedHead: head,
@@ -1996,7 +2363,13 @@ async function runMemoryCommand(
     }
   }
   const signal = AbortSignal.timeout(timeoutMs(values.timeout));
-  return (await connectLiveHost(values, io, signal)).rpc(method, args);
+  const rpc = (await connectLiveHost(values, io, signal)).rpc;
+  return rpc(
+    method,
+    method === 'memoryMove' || method === 'memoryFileTarget'
+      ? args
+      : { ...args, channelId: await resolveBotDm(rpc, slug) },
+  );
 }
 
 export interface ReviewedSettings {
@@ -2030,4 +2403,11 @@ export function parseReviewedSettings(
     expectedRevision: Number(revision),
     previousValue: previousValue as Record<string, unknown>,
   };
+}
+
+export function cliQuote(value: string): { messageId: string; text?: string } {
+  const split = value.indexOf('::');
+  return split < 0
+    ? { messageId: value.trim() }
+    : { messageId: value.slice(0, split).trim(), text: value.slice(split + 2) };
 }

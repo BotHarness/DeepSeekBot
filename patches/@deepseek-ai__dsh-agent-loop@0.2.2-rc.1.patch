@@ -1,0 +1,70 @@
+diff --git a/lib/index.js b/lib/index.js
+--- a/lib/index.js
++++ b/lib/index.js
+@@ -518,4 +518,5 @@
+ 	phase;
+ 	activityDone = Promise.resolve();
++	releasing = false;
+ 	/** The agent-scoped registration boundary; the lifecycle owner unwinds it after the driver exits. */
+ 	scope;
+@@ -563,4 +564,5 @@
+ 	}
+ 	send(message, target, wakeup) {
++		if (this.releasing) throw new Error(`agent "${this.id}" is releasing its Session`);
+ 		const wakingAfterAbort = wakeup && this.phase.kind !== "idle" && this.phase.abort.signal.aborted;
+ 		const resolvedTarget = wakingAfterAbort ? "next-turn" : target;
+@@ -585,5 +587,5 @@
+ 	}
+ 	runMaintenance(job) {
+-		if (this.phase.kind !== "idle") throw new Error(`agent "${this.id}" already has active work`);
++		if (this.releasing || this.phase.kind !== "idle") throw new Error(`agent "${this.id}" already has active work`);
+ 		const done = Promise.withResolvers();
+ 		const maintenance = {
+@@ -1322,4 +1324,5 @@
+ 	config;
+ 	ownership;
++	idleReleases = new WeakMap();
+ 	/** Plain holder prevents Cordis from re-tracing the factory's dependency context through a caller shadow. */
+ 	runtime;
+@@ -1445,4 +1448,8 @@
+ 		}
+ 	}
++	/** Release the exact idle Agent through its existing lifecycle owner. */
++	async releaseIdleAgent(agent) {
++		return await this.idleReleases.get(agent)?.() ?? false;
++	}
+ 	/**
+ 	* Own initialization and teardown from an acquired Session to a published Agent.
+@@ -1504,4 +1511,5 @@
+ 				detachSession?.();
+ 			} finally {
++				if (machine !== void 0) this.idleReleases.delete(machine);
+ 				untrack();
+ 			}
+@@ -1580,4 +1588,10 @@
+ 					assertLive();
+ 					ready = true;
++					this.idleReleases.set(agent, async () => {
++						if (abort.signal.aborted || agent.phase.kind !== "idle" || agent.inbox.hasPending) return false;
++						agent.releasing = true;
++						await dispose();
++						return true;
++					});
+ 					return {
+ 						agent,
+diff --git a/lib/types/index.d.ts b/lib/types/index.d.ts
+--- a/lib/types/index.d.ts
++++ b/lib/types/index.d.ts
+@@ -93,4 +93,5 @@
+     readonly config: Config;
+     private readonly ownership;
++    private readonly idleReleases;
+     /** Plain holder prevents Cordis from re-tracing the factory's dependency context through a caller shadow. */
+     private readonly runtime;
+@@ -106,4 +107,6 @@
+     /** Wait for a draining same-id lifecycle to finish registry teardown. */
+     private waitForDrainingConfiguredIdentity;
++    /** Release the exact idle Agent and its Session writer. Refuse active or queued work. */
++    releaseIdleAgent(agent: Agent): Promise<boolean>;
+     /**
+      * Own initialization and teardown from an acquired Session to a published Agent.

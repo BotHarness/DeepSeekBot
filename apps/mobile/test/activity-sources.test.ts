@@ -1,7 +1,7 @@
 import { createActivityCountPreferences } from '../src/host/activity-count';
 import { afterEach, expect, it } from 'vitest';
-import { createHostClient, type HostClient } from '../src/host/client';
-import { createInbox, type Inbox } from '../src/host/inbox';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import { createInbox, type Inbox } from '@botharness/host-client/inbox';
 import {
   observeActivitySources,
   observeActivitySourceCount,
@@ -9,7 +9,7 @@ import {
   activitySelection,
   type ActivitySource,
 } from '../src/host/activity-sources';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const clients: HostClient[] = [];
 const inboxes: Inbox[] = [];
@@ -31,6 +31,8 @@ async function source(id: string) {
               kind: 'user-question',
               category: 'action',
               botSlug: 'same-bot',
+              channelId: 'dm-same-bot',
+              channelName: 'Bot',
               summary: id,
               createdAt: id === 'a' ? '2026-10-20T00:00:00Z' : '2026-10-21T00:00:00Z',
             },

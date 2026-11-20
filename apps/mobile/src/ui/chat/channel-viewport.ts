@@ -1,18 +1,22 @@
-import { useCallback, useState, type RefObject } from 'react';
+import { useCallback, useMemo, useRef, useState, type RefObject } from 'react';
 import type { FlatList, LayoutChangeEvent } from 'react-native';
 import { useSharedValue, useReducedMotion } from 'react-native-reanimated';
 
-import type { ConversationMessage } from '../../host/conversation';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
+import { nativeChatRecycler } from '../primitives/chat-recycler';
 import { useChatScrollAdapter, useChatOverlayStyle } from '../primitives/chat-scroll';
 import { useFollowLatest } from './follow-latest';
+import type { ComposerPill } from './composer-pill';
+import { LatestAnchor } from './latest-anchor';
 
 export function useChannelViewport<Row>(
-  list: RefObject<FlatList<Row> | null>,
+  list: RefObject<Pick<FlatList<Row>, 'scrollToOffset'> | null>,
   messages: readonly ConversationMessage[],
   onFollowingChange: ((following: boolean) => void) | undefined,
   start: number,
   empty: boolean,
-  streaming = false,
+  minIndexForVisible = 0,
+  inverted = false,
 ) {
   const reducedMotion = useReducedMotion();
   const latest = useFollowLatest(
@@ -21,16 +25,39 @@ export function useChannelViewport<Row>(
     onFollowingChange,
     start,
     empty,
-    streaming && !reducedMotion,
+    !reducedMotion,
+    minIndexForVisible,
+    inverted,
+    LatestAnchor !== undefined || nativeChatRecycler,
   );
   const overlayStyle = useChatOverlayStyle();
   const renderScrollComponent = useChatScrollAdapter(latest.keyboard, latest.away);
   const [composerHeight, setComposerHeight] = useState(0);
   const [viewportHeight, setViewportHeight] = useState(0);
   const viewportLayout = useSharedValue(0);
-  const onComposerLayout = useCallback((event: LayoutChangeEvent) => {
-    setComposerHeight(event.nativeEvent.layout.height);
-  }, []);
+  const pillHeight = useSharedValue(0);
+  const chrome = useSharedValue(0);
+  const composerSizes = useRef({ frame: 0, pill: 0 });
+  const onComposerLayout = useCallback(
+    (event: LayoutChangeEvent) => {
+      const height = event.nativeEvent.layout.height;
+      setComposerHeight(height);
+      composerSizes.current.frame = height;
+      chrome.set(height - composerSizes.current.pill);
+    },
+    [chrome],
+  );
+  const pill = useMemo<ComposerPill>(
+    () => ({
+      height: pillHeight,
+      chrome,
+      layout(height) {
+        composerSizes.current.pill = height;
+        chrome.set(composerSizes.current.frame - height);
+      },
+    }),
+    [pillHeight, chrome],
+  );
   const onViewportLayout = useCallback(
     (event: LayoutChangeEvent) => {
       viewportLayout.value += 1;
@@ -39,6 +66,7 @@ export function useChannelViewport<Row>(
     [viewportLayout],
   );
   return {
+    reducedMotion,
     away: latest.away,
     ready: latest.ready,
     canRetry: latest.canRetry,
@@ -46,7 +74,9 @@ export function useChannelViewport<Row>(
     browsed: latest.browsed,
     unseen: latest.unseen,
     hold: latest.hold,
+    reveal: latest.reveal,
     jumpToLatest: latest.jumpToLatest,
+    send: latest.send,
     listProps: latest.listProps,
     renderScrollComponent,
     overlayStyle,
@@ -55,5 +85,6 @@ export function useChannelViewport<Row>(
     viewportLayout,
     onComposerLayout,
     onViewportLayout,
+    pill,
   };
 }

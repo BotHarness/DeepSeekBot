@@ -1,27 +1,24 @@
 // @vitest-environment jsdom
+import { type ComputerSettings } from '../src/settings.js';
+import { type ComputerKey } from '../src/client/locale.js';
 import { act, createElement } from 'react';
-import type { ComputerSettings } from '../src/settings.js';
+
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronDownOutlineRegular: () => null,
-  IconFolderOpenOutlineRegular: () => null,
-  Menu: ({ anchor }: { anchor: unknown }) => anchor,
-  Input: ({ className: _className, ...props }: { className?: string }) =>
-    createElement('input', props),
-  Switch: () => null,
-  Tag: ({ children }: { children: string }) => createElement('span', null, children),
-  Button: ({ children, ...props }: { children: string }) =>
-    createElement('button', props, children),
-}));
+import { shellPrimitives } from '../../client/test/primitive-mocks.js';
+
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => shellPrimitives());
 
 import {
   ComputerSettingsPrefs,
   ComputerSettingsRows,
   createComputerSettingsFace,
 } from '../src/client/settings-rows.js';
-import { en, type ComputerKey, type ComputerTranslate } from '../src/client/locale.js';
+import type { ObserveResource } from '../../core/src/channels/resource-events.js';
+import { observeResource } from '../../client/src/client/messaging-defaults-live.js';
+import { resourceEvents } from '../../client/test/resource-events-fixture.js';
+import { en, type ComputerTranslate } from '../src/client/locale.js';
 
 const t = ((key: ComputerKey, params?: Record<string, unknown>) => {
   let text = en[key];
@@ -36,7 +33,14 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-async function mount(pickDirectory?: () => Promise<string | null>, target?: 'local' | 'container') {
+async function mount(
+  pickDirectory?: () => Promise<string | null>,
+  target?: 'local' | 'container',
+  options?: {
+    observe?: ObserveResource;
+    respond(url: string): Promise<Response>;
+  },
+) {
   let value: ComputerSettings = {
     exportDir: '/old',
     idleStopMinutes: 30,
@@ -61,9 +65,14 @@ async function mount(pickDirectory?: () => Promise<string | null>, target?: 'loc
   const requests: string[] = [];
   vi.stubGlobal('fetch', async (url: string) => {
     requests.push(url);
+    if (options) return options.respond(url);
     return Response.json({ archive: `${value.exportDir}/computer.tar` });
   });
-  const face = createComputerSettingsFace({ prefs, pickDirectory });
+  const face = createComputerSettingsFace({
+    prefs,
+    pickDirectory,
+    observeResource: options?.observe,
+  });
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
@@ -140,37 +149,75 @@ describe('Computer Settings transfer interaction', () => {
     expect(view.container.textContent).toContain('type a path or use the current directory');
   });
 
-  it('names each setting row and its picker, and announces notes and failures', async () => {
-    const view = await mount(async () => '/picked');
-    const groups = [...view.container.querySelectorAll<HTMLElement>('[role="group"]')].map(
-      (group) => labelOf(group),
-    );
-    expect(groups).toEqual(
-      expect.arrayContaining([
-        'Computer Target',
-        'Auto-allow Computer actions',
-        'Computer export directory',
-        'Idle stop',
-      ]),
-    );
-    const target = view.container.querySelector<HTMLButtonElement>(
-      'button[aria-label="Computer Target"]',
-    );
-    expect(target?.textContent).toBe('Docker Computer');
-    expect(target?.getAttribute('aria-haspopup')).toBe('menu');
-    const idle = [...view.container.querySelectorAll<HTMLButtonElement>('button')].find(
-      (button) => button.textContent === '30 min',
-    );
-    expect(idle?.getAttribute('aria-expanded')).toBe('false');
-    expect(view.container.querySelector('[role="alert"]')).toBeNull();
-    await view.click('Export to…');
-    const status = view.container.querySelector('[role="status"]');
-    expect(status?.textContent).toBe('Export to: /picked');
-    expect(view.container.querySelector('[class*="bh-settings-"]')).toBeNull();
-  });
+  it.each([400, 1280])(
+    'keeps Computer controls named and announces results at %i px',
+    async (width) => {
+      vi.stubGlobal('innerWidth', width);
+      const view = await mount(async () => '/picked');
+      const groups = [...view.container.querySelectorAll<HTMLElement>('[role="group"]')].map(
+        (group) => labelOf(group),
+      );
+      expect(groups).toEqual(
+        expect.arrayContaining([
+          'Computer Target',
+          'Auto-allow Computer actions',
+          'Computer export directory',
+          'Idle stop',
+        ]),
+      );
+      const target = view.container.querySelector<HTMLButtonElement>(
+        'button[aria-label="Computer Target"]',
+      );
+      expect(target?.textContent).toBe('Docker Computer');
+      expect(target?.getAttribute('aria-haspopup')).toBe('menu');
+      const idle = [...view.container.querySelectorAll<HTMLButtonElement>('button')].find(
+        (button) => button.textContent === '30 min',
+      );
+      expect(idle?.getAttribute('aria-expanded')).toBe('false');
+      expect(view.container.querySelector('[role="alert"]')).toBeNull();
+      await view.click('Export to…');
+      const status = view.container.querySelector('[role="status"]');
+      expect(status?.textContent).toBe('Export to: /picked');
+      expect(view.container.querySelector('[class*="bh-settings-"]')).toBeNull();
+    },
+  );
 });
 
 function labelOf(element: HTMLElement): string {
   const id = element.getAttribute('aria-labelledby');
   return id === null ? '' : (element.ownerDocument.getElementById(id)?.textContent ?? '');
 }
+
+it('shows the operation phase on a Host event and advances the stopwatch without polling', async () => {
+  vi.useFakeTimers();
+  const events = resourceEvents();
+  let completeExport: ((response: Response) => void) | undefined;
+  const exportRequest = new Promise<Response>((resolve) => {
+    completeExport = resolve;
+  });
+  let phase = 'idle';
+  const view = await mount(async () => '/picked', 'container', {
+    observe: (resource, refresh) => observeResource(resource, refresh, 10_000, 60_000, true),
+    respond: async (url) =>
+      url.endsWith('/export') ? exportRequest : Response.json({ status: { phase } }),
+  });
+  try {
+    await view.click('Export to…');
+    await view.click('Authorize and export');
+    expect(view.requests.filter((url) => url.endsWith('/status'))).toHaveLength(1);
+    phase = 'exporting';
+    await act(async () => vi.advanceTimersByTimeAsync(2_000));
+    expect(view.requests.filter((url) => url.endsWith('/status'))).toHaveLength(1);
+    expect(view.container.textContent).not.toMatch(/Exporting ·/);
+    await act(async () => {
+      events.emit('computer');
+      await vi.advanceTimersByTimeAsync(30);
+    });
+    expect(view.container.textContent).toContain('Exporting ·');
+    expect(view.container.textContent).toContain('2s');
+  } finally {
+    await act(async () => completeExport?.(Response.json({ archive: '/picked/computer.tar' })));
+    events.dispose();
+    vi.useRealTimers();
+  }
+});

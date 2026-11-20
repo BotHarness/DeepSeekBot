@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -108,7 +109,7 @@ async function fixture() {
     bind,
     settle,
     query,
-    methods: createBridgeMethods({ ...core }),
+    methods: createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core }),
     async receive(app: App, id: string, group = false) {
       const consumer = consumers.get(app);
       if (!consumer) throw new Error(`${app} not subscribed`);

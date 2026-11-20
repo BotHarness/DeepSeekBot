@@ -11,7 +11,7 @@ export type SegmentedProps<T extends string> = {
   options: readonly { value: T; label: string }[];
   value: T;
   on?: LayerName;
-  onChange(value: T): void;
+  onChange(value: T): void | PromiseLike<void>;
   compact?: boolean;
   disabled?: boolean;
 };

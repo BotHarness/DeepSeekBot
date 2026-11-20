@@ -4,6 +4,22 @@ A Human creates a blank Bot on a chosen paired Host. The phone retains the exact
 
 Git import uses the same target, confirmation, operation record and completion path. A read-only source preview supplies an immutable commit before the submitted operation is saved. Recovery keeps that commit; if the remote branch advances before it can be imported, show the source-change refusal rather than silently selecting new content.
 
+## Sources
+
+- `apps/mobile/app/(bot-creation)/*.tsx`
+- `apps/mobile/app/create-bot-avatar.tsx`
+- `apps/mobile/src/ui/shell/create-bot-screen.tsx`
+- `apps/mobile/src/marketplace/import-selection.ts`
+- `apps/mobile/src/host/native-zip-import-file.ts`
+- `packages/host-client/src/zip-import-{file,upload}.ts`
+
+## Terms
+
+- PersonaBot
+- Bot Marketplace
+- Bot Zip
+- Import
+
 ## Sub-features
 
 - `creation-menu`: native top-level Create Bot, Import Bot, Create Channel and Bot Marketplace entries. Import Bot opens ZIP/Git choices; Back returns to the top level and Close selects nothing. Leaves preserve All/selected-Computer destination semantics and reuse the existing create/import journeys.

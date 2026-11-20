@@ -1,3 +1,5 @@
+import type {} from '../../core/src/channels/resource-events.js';
+import { coalesce } from '../../core/src/runtime/coalesce.js';
 import { BROWSER_TOOLS, browserToolName } from './tool/catalog.js';
 import { stampReleaseComponent } from '../../core/src/release/component.js';
 import { createDeviceApprovalScope } from '../../core/src/workspaces/device-approval.js';
@@ -73,7 +75,7 @@ export const DEFAULT_CONFIG: BrowserConfig = {
   autoAllowActions: false,
 };
 
-export const Config = Schema.object({
+export const Config: Schema<Partial<BrowserConfig>, Parameters<typeof apply>[1]> = Schema.object({
   target: Schema.union([
     Schema.const('local'),
     Schema.const('container'),
@@ -139,6 +141,12 @@ export function apply(
 ): void {
   if (!config.enabled) return;
 
+  const observationChanged = coalesce(() => ctx.get('botharnessResourcePublisher')?.('browser'), {
+    delayMs: 25,
+    maxWaitMs: 1_000,
+  });
+  ctx.effect(() => observationChanged.cancel, 'botharness-browser: observation notifications');
+
   let logDb: LogDatabase | undefined;
   try {
     const home = process.env.DSH_HOME?.trim();
@@ -168,6 +176,25 @@ export function apply(
       : config.containerDriver) ?? 'current';
   const driver = (): 'current' | 'agent-browser' =>
     target() === 'container' ? containerDriver() : localDriver();
+  const localDesktop = (): { held: boolean; epoch: number } | undefined => {
+    if (target() !== 'local') return undefined;
+    const computer = ctx.get('botharnessComputerTools') as unknown as
+      | { desktopControl?: () => { desktop: boolean; held: boolean; epoch: number } }
+      | undefined;
+    const control = computer?.desktopControl?.();
+    return control?.desktop === true ? { held: control.held, epoch: control.epoch } : undefined;
+  };
+  const launchHeadless = (): boolean => {
+    const desktop = localDesktop() !== undefined;
+    const headless = config.headless && !desktop;
+    diagnostics.record(
+      'lifecycle',
+      `phase=launch-mode mode=${headless ? 'headless' : 'headed'} reason=${
+        desktop ? 'local-computer-desktop' : config.headless ? 'config-headless' : 'config-headed'
+      }`,
+    );
+    return headless;
+  };
   let revision = 0;
   const registrationScopes = new WeakMap<AbortSignal, number>();
   let registrationRevision = 0;
@@ -273,8 +300,10 @@ export function apply(
     tailnetAddress: () => detectTailnetAddress(),
     installDir: pinnedBrowserDirectory(),
     ...(config.browserPath.trim() === '' ? {} : { browserPath: config.browserPath.trim() }),
-    ...(config.headless ? { headless: true } : {}),
+    headless: launchHeadless,
+    foregroundTabs: () => localDesktop() !== undefined,
     onEvent: (detail) => diagnostics.record('lifecycle', detail),
+    onObservationChanged: observationChanged.schedule,
     profileOf: (slug) => {
       const registry = coreLookup()?.registry as
         | { get(slug: string): { browserProfile?: string } | undefined }
@@ -369,8 +398,10 @@ export function apply(
     borrowed: () => (target() === 'extension' ? borrow : undefined),
     takeover: () => takeovers,
     takeoverUrlFor: takeoverViewerBase,
+    desktopControl: localDesktop,
     audit: (event) => diagnostics.record('browser-action', formatAudit(event)),
     note: (detail) => diagnostics.record('lifecycle', detail),
+    onObservationChanged: observationChanged.schedule,
     onInvalidate: (slug) => botRevisions.set(slug, (botRevisions.get(slug) ?? 0) + 1),
     onActivity: (slug) => {
       if (target() === 'local' || target() === 'container') runtimes.touch(slug);
@@ -411,6 +442,8 @@ export function apply(
       );
     },
     ownsTool: (name: string) => ownsBrowserTool(name),
+    isTakeover: (slug: string) => provider.isTakeover(slug),
+    sharesLocalDesktop: () => localDesktop() !== undefined,
     executionSignal: (sessionId: string) => provider.executionSignal(sessionId),
     needsAuthorization: (sessionId: string) => provider.needsAuthorization(sessionId),
     authorizationScope,
@@ -474,6 +507,7 @@ export function apply(
     switching = switching.catch(() => undefined).then(() => runtimes.stopAll());
     void switching
       .then(() => provider.reconcileAll())
+      .finally(observationChanged.schedule)
       .catch((error: unknown) =>
         diagnostics.record(
           'lifecycle',
@@ -493,15 +527,39 @@ export function apply(
             ) => void,
           ) => () => void;
           hostTools?: Set<string>;
+          registry?: { get(slug: string): { browserAccess?: boolean } | undefined };
+          contributeEngineTools?: (
+            source: (info: { botSlug: string }) => readonly {
+              name: string;
+              description: string;
+              inputSchema: Record<string, unknown>;
+              run(args: Record<string, unknown>, signal: AbortSignal): Promise<unknown>;
+            }[],
+          ) => () => void;
         };
       }
     ).botharness;
     const remove = core?.contributeBotAgentSetup?.((agentCtx, agent, info) => {
       provider.attachAgent(agentCtx, String(agent.id), info);
     });
+    const removeEngineTools = core?.contributeEngineTools?.(({ botSlug }) =>
+      core.registry?.get(botSlug)?.browserAccess === true
+        ? BROWSER_TOOLS.map((spec) => ({
+            name: browserToolName(spec.raw),
+            description: spec.description,
+            inputSchema: spec.inputSchema as Record<string, unknown>,
+            run: async (args: Record<string, unknown>, signal: AbortSignal) => {
+              runtimes.touch(botSlug);
+              await switching;
+              return provider.runDirect(botSlug, spec.raw, args, signal);
+            },
+          }))
+        : [],
+    );
     for (const name of browserToolNames()) core?.hostTools?.add(name);
     return () => {
       remove?.();
+      removeEngineTools?.();
       for (const name of browserToolNames()) core?.hostTools?.delete(name);
     };
   });
@@ -948,6 +1006,7 @@ export function apply(
             );
           }
         }
+        observationChanged.schedule();
         return json({ ok: true, takeover });
       },
     };
@@ -1159,3 +1218,4 @@ export function apply(
 
   ctx.logger.info(`botharness-browser: Bot Browser ready (profile ${profileDirectory()})`);
 }
+export { discoverBrowserBinary } from './runtime/browser.js';

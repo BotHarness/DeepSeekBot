@@ -1,7 +1,7 @@
 import { useHostSession } from '../../host/host-session';
 import { useRouter } from 'expo-router';
 import { Button } from '../primitives/button';
-import type { RequestRef } from '../../host/requests';
+import type { RequestRef } from '@botharness/host-client/requests';
 import { CardNote, CardPreview, ActionCard } from './action-card';
 import { CardLine } from './card-line';
 import type { BubbleGroup } from './bubble-shape';

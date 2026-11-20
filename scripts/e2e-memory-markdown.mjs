@@ -13,6 +13,8 @@ const instance = JSON.parse(readFileSync(resolve('.humanlayer/verify', name, 'in
 if (instance.worktree !== root) throw new Error('Use an isolated Host from this worktree');
 const doctor = spawnSync(process.execPath, ['scripts/verify-app.mjs', 'doctor', '--name', name], {
   encoding: 'utf8',
+  shell: false,
+  windowsHide: true,
 });
 if (doctor.status !== 0 || !JSON.parse(doctor.stdout).ok)
   throw new Error('Isolated Host doctor failed');
@@ -28,12 +30,18 @@ const cli = (...args) => {
         DEEPSEEKBOT_HOST: login.origin,
         DEEPSEEKBOT_HOST_TOKEN: login.searchParams.get('token'),
       },
+      shell: false,
+      windowsHide: true,
     },
   );
   if (r.status !== 0) throw new Error(`CLI ${args[0]} failed: ${r.stdout}`);
   return JSON.parse(r.stdout);
 };
-const sourceSha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+const sourceSha = execFileSync('git', ['rev-parse', 'HEAD'], {
+  encoding: 'utf8',
+  shell: false,
+  windowsHide: true,
+}).trim();
 const hostSource = phase === 'after' ? cli('release-info').identity?.source : undefined;
 if (phase === 'after' && (hostSource?.revision !== sourceSha || hostSource?.dirty !== false))
   throw new Error('Rebuild and restart the task Host from this clean commit before verification');
@@ -52,7 +60,7 @@ else {
         '--name',
         name,
       ],
-      { encoding: 'utf8' },
+      { encoding: 'utf8', shell: false, windowsHide: true },
     );
     if (r.status !== 0) throw new Error('fixture RPC refused');
     return JSON.parse(r.stdout);
@@ -83,7 +91,11 @@ else {
         .asPng(),
     );
   const git = (...args) =>
-    execFileSync('git', ['-C', memory, ...args], { encoding: 'utf8' }).trim();
+    execFileSync('git', ['-C', memory, ...args], {
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    }).trim();
   mkdirSync(resolve(memory, 'notes'), { recursive: true });
   const body = (version) =>
     `# Field guide — ${version}\n\nA **readable document** with the image from this version.\n\n| Check | Result |\n| --- | --- |\n| Version | ${version} |\n| Source | Memory Repository |\n\n![Version chart](../preview.png)\n\n## External reference\n\n![Remote figure](https://preview.invalid/external.png)\n\n## More figures\n\n![Repository root](/preview.png)\n\n![Missing figure](../missing.png)\n\n<script>window.markdownExecuted = true</script>\n`;
@@ -292,10 +304,20 @@ try {
   } else await page.waitForSelector('.bh-memory-diff-table');
   await capture('history-dark');
   stage = 'narrow';
-  await page.setViewport({ width: 700, height: 1000 });
-  await page.waitForSelector('.bh-mobile-shell[data-page="list"]', { visible: true });
-  await page.locator(`.bh-mobile-list button[data-channel-id="${seed.channelId}"]`).click();
-  await page.waitForSelector('.bh-mobile-shell[data-page="conversation"]', { visible: true });
+  await page.setViewport({ width: 550, height: 1000 });
+  await page.waitForSelector('.bh-mobile-shell', { visible: true });
+  if (await page.$('[data-bot-window-class="compact"]')) {
+    await page
+      .locator('[data-bot-window-class="compact"] button[aria-label="Open sidebar"]')
+      .click();
+    await page.locator(`[role="dialog"] button[data-channel-id="${seed.channelId}"]`).click();
+    await page.waitForSelector('[data-tobs-dialog-viewport][data-presentation="drawer"]', {
+      hidden: true,
+    });
+  } else {
+    await page.locator(`.bh-mobile-list button[data-channel-id="${seed.channelId}"]`).click();
+    await page.waitForSelector('.bh-mobile-shell[data-page="conversation"]', { visible: true });
+  }
   await click('Conversation settings');
   await click('Memory');
   await selectWorking();
@@ -347,12 +369,11 @@ try {
     const bytes = (source) =>
       source === 'worktree'
         ? readFileSync(resolve(seed.memory, 'preview.png'))
-        : execFileSync('git', [
-            '-C',
-            seed.memory,
-            'show',
-            `${source === 'index' ? '' : source}:preview.png`,
-          ]);
+        : execFileSync(
+            'git',
+            ['-C', seed.memory, 'show', `${source === 'index' ? '' : source}:preview.png`],
+            { shell: false, windowsHide: true },
+          );
     const check = (label, doc, reference = '../preview.png') => {
       const output = resolve(out, label + '-export.png');
       const result = cli(
@@ -381,12 +402,19 @@ try {
     const original = readFileSync(resolve(seed.memory, path));
     const originalImage = readFileSync(resolve(seed.memory, 'preview.png'));
     const git = (...args) =>
-      execFileSync('git', ['-C', seed.memory, ...args], { encoding: 'utf8' }).trim();
+      execFileSync('git', ['-C', seed.memory, ...args], {
+        encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
+      }).trim();
     try {
       writeFileSync(resolve(seed.memory, path), '# STAGED\n![Version chart](../preview.png)');
       writeFileSync(
         resolve(seed.memory, 'preview.png'),
-        execFileSync('git', ['-C', seed.memory, 'show', seed.first + ':preview.png']),
+        execFileSync('git', ['-C', seed.memory, 'show', seed.first + ':preview.png'], {
+          shell: false,
+          windowsHide: true,
+        }),
       );
       git('add', path, 'preview.png');
       writeFileSync(resolve(seed.memory, path), original);
@@ -437,6 +465,8 @@ try {
             DEEPSEEKBOT_HOST: login.origin,
             DEEPSEEKBOT_HOST_TOKEN: login.searchParams.get('token'),
           },
+          shell: false,
+          windowsHide: true,
         },
       );
       if (
@@ -467,7 +497,11 @@ try {
     ok: true,
     phase,
     hostSource,
-    source: execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim(),
+    source: execFileSync('git', ['rev-parse', 'HEAD'], {
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    }).trim(),
     browser: await browser.version(),
     exports,
     externalRequests: externalRequests.length,

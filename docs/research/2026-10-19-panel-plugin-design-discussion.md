@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Baseline: BotHarness main `508e3b3c0`.
 
-This records the ongoing `grill-with-docs` discussion. Accepted design direction is now recorded in [ADR-0234](../adr/0234-panels-are-native-plugins-with-independent-binding.md); this discussion is supporting evidence, not implementation authorization. Existing implementation facts are in [the event audit](2026-10-19-panel-events-audit.md) and [the pinned DSH mechanism investigation](2026-10-19-panel-authoring-dsh-mechanisms.md).
+This records the ongoing `grill-with-docs` discussion. Accepted design direction was recorded in [ADR-0234](https://github.com/BotHarness/DeepSeekBot/blob/c29037589fa5ebdd7c9eb2790421f142ff8da233/docs/adr/0234-panels-are-native-plugins-with-independent-binding.md) (current decision: [Desktop UI](../decisions/desktop-ui.md#adr-0234)); this discussion is supporting evidence, not implementation authorization. Existing implementation facts are in [the event audit](2026-10-19-panel-events-audit.md) and [the pinned DSH mechanism investigation](2026-10-19-panel-authoring-dsh-mechanisms.md).
 
 ## Human-confirmed direction
 
@@ -95,4 +95,4 @@ The published set is T1–T7 under #2219 and T8–T15 under migration hub #2234.
 
 ## Documentation follow-through
 
-The four resolved Panel category names have been added to `CONTEXT.md` and its Chinese counterpart, explicitly labelled as authoring target terminology. Existing runtime layout rules remain in force: ADR-0221 and the Channel workspace definition currently prohibit Channel subpanels from docking into the Global workspace. Q7 permits separately instantiated, explicitly bound content in the Global workspace; it does not silently change existing dragging behavior. Q10 accepts required-role recovery while preferring native conflict mechanisms. ADR-0234 now records the durable direction and both living architecture versions link its target result. This discussion does not supersede that ADR or claim delivery.
+The four resolved Panel category names have been added to `GLOSSARY.md` and its Chinese counterpart, explicitly labelled as authoring target terminology. Existing runtime layout rules remain in force: ADR-0221 and the Channel workspace definition currently prohibit Channel subpanels from docking into the Global workspace. Q7 permits separately instantiated, explicitly bound content in the Global workspace; it does not silently change existing dragging behavior. Q10 accepts required-role recovery while preferring native conflict mechanisms. ADR-0234 now records the durable direction and both living architecture versions link its target result. This discussion does not supersede that ADR or claim delivery.

@@ -7,7 +7,7 @@ import { space } from '../design/tokens';
 export type PairingAction = { label: string; testID: string; onPress(): void };
 export type PairingActionsProps = {
   primary?: PairingAction | undefined;
-  secondary: PairingAction;
+  secondary?: PairingAction | undefined;
   details?: PairingAction | undefined;
 };
 
@@ -23,7 +23,9 @@ export function PairingActions({ primary, secondary, details }: PairingActionsPr
     >
       <Column spacing={space.x3} alignment="center" style={width === undefined ? {} : { width }}>
         {primary ? <NativeButton {...primary} style={{ paddingVertical: space.x3 }} /> : null}
-        <NativeButton {...secondary} variant="outlined" style={{ paddingVertical: space.x3 }} />
+        {secondary ? (
+          <NativeButton {...secondary} variant="outlined" style={{ paddingVertical: space.x3 }} />
+        ) : null}
         {details ? (
           <NativeButton {...details} variant="text" style={{ paddingVertical: space.x3 }} />
         ) : null}

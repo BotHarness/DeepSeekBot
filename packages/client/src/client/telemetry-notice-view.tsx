@@ -1,6 +1,7 @@
+import { Button } from './ds/button.js';
 import { useMemo, useSyncExternalStore, type ReactElement } from 'react';
 
-import { Button, MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives';
+import { MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { Modal } from './modal.js';
@@ -8,15 +9,31 @@ import { useMountedResource } from './mounted-resource.js';
 import type { ReleaseNotesController, ReleaseNotesSnapshot } from './release-notes.js';
 import type { TelemetryNoticeController } from './telemetry-notice.js';
 
-const ROWS: readonly { label: BotHarnessKey; text: BotHarnessKey; row: string }[] = [
+const ROWS: readonly {
+  label: BotHarnessKey;
+  text: BotHarnessKey;
+  row: string;
+}[] = [
   {
     row: 'collected',
     label: 'telemetry.notice.collected.label',
     text: 'telemetry.notice.collected',
   },
-  { row: 'never', label: 'telemetry.notice.never.label', text: 'telemetry.notice.never' },
-  { row: 'why', label: 'telemetry.notice.why.label', text: 'telemetry.notice.why' },
-  { row: 'opt-out', label: 'telemetry.notice.optOut.label', text: 'telemetry.notice.optOut' },
+  {
+    row: 'never',
+    label: 'telemetry.notice.never.label',
+    text: 'telemetry.notice.never',
+  },
+  {
+    row: 'why',
+    label: 'telemetry.notice.why.label',
+    text: 'telemetry.notice.why',
+  },
+  {
+    row: 'opt-out',
+    label: 'telemetry.notice.optOut.label',
+    text: 'telemetry.notice.optOut',
+  },
 ];
 
 const NO_RELEASE: ReleaseNotesSnapshot | undefined = undefined;
@@ -30,7 +47,10 @@ function open(url: string): void {
 export function TelemetryNoticeBody({ t }: { t: BotHarnessTranslate }): ReactElement {
   const labels = useMemo<MarkdownLabels>(
     () => ({
-      code: { copyLabel: t('message.code.copy'), copiedLabel: t('message.code.copied') },
+      code: {
+        copyLabel: t('message.code.copy'),
+        copiedLabel: t('message.code.copied'),
+      },
       footnotes: t('message.footnotes'),
     }),
     [t],

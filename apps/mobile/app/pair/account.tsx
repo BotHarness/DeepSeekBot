@@ -1,8 +1,9 @@
+import type { ConnectionDiagnostic } from '@botharness/host-client/connection-diagnostic';
 import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { View } from 'react-native';
 import { pairAccountSelection } from '../../src/host/account-pairing';
-import type { ConnectHost } from '../../src/host/connect-account';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
 import { useHostSession } from '../../src/host/host-session';
 import { connectAccount } from '../../src/host/native-connect-account';
 import { AccountHosts } from '../../src/ui/account-hosts';
@@ -22,6 +23,7 @@ export default function PairAccountScreen() {
   const [progress, setProgress] = useState<string>();
   const [current, setCurrent] = useState<string>();
   const [results, setResults] = useState<Record<string, AccountPairResult>>({});
+  const [failures, setFailures] = useState<Record<string, ConnectionDiagnostic>>({});
   const add = async (hosts: ConnectHost[]) => {
     if (batch.current) return;
     const operation = new AbortController();
@@ -40,6 +42,11 @@ export default function PairAccountScreen() {
         result: (host, result) => {
           setCurrent(undefined);
           setResults((old) => ({ ...old, [host.id]: result }));
+          const detail = result === 'added' ? undefined : pairing.lastFailure();
+          setFailures((old) => {
+            const { [host.id]: _previous, ...rest } = old;
+            return detail === undefined ? rest : { ...rest, [host.id]: detail };
+          });
         },
       });
       if (!operation.signal.aborted) pairing.finishSetup();
@@ -56,6 +63,7 @@ export default function PairAccountScreen() {
     useCallback(() => {
       let live = true;
       setResults({});
+      setFailures({});
       if (typeof params.account === 'string' && !requested.current) {
         requested.current = true;
         void connectAccount
@@ -87,6 +95,11 @@ export default function PairAccountScreen() {
           pairing={current}
           saved={session.hosts}
           results={results}
+          failures={failures}
+          onClearFailures={() => {
+            setResults({});
+            setFailures({});
+          }}
           onPair={add}
         />
       </View>

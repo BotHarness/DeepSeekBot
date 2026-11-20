@@ -1,3 +1,4 @@
+import { memberPage } from './member-page.js';
 import { useSyncExternalStore } from 'react';
 
 interface ThisHostInfo {
@@ -13,7 +14,7 @@ const localListeners = new Set<() => void>();
 
 function subscribeLocal(listener: () => void): () => void {
   localListeners.add(listener);
-  if (!localRequested) {
+  if (!localRequested && !memberPage()) {
     localRequested = true;
     void fetch('./api/botharness/devices')
       .then((response) => (response.ok ? response.json() : undefined))

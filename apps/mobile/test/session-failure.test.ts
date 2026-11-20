@@ -1,5 +1,13 @@
 import { expect, it, vi } from 'vitest';
-import { sessionFailure, createFailureMaintenance } from '../src/host/session-failure';
+import {
+  collapseRepeatedFailures,
+  sessionFailure,
+  createFailureContinuation,
+  createFailureMaintenance,
+  type SessionFailure,
+} from '@botharness/host-client/session-failure';
+import { failureReason } from '../src/ui/chat/failure-reason';
+import { t } from '../src/ui/strings';
 
 it('preserves failure identity for recovery without interpreting max-tokens as overflow', () => {
   const failure = sessionFailure({
@@ -19,7 +27,10 @@ it('preserves failure identity for recovery without interpreting max-tokens as o
 });
 
 it('runs DM maintenance without submitting the failed message again', async () => {
-  const call = vi.fn(async () => ({ outcome: 'nothing' }));
+  const call = vi
+    .fn()
+    .mockResolvedValueOnce({ outcome: 'nothing', tokensBefore: null, tokensAfter: null })
+    .mockResolvedValueOnce({ started: true });
   const failure = {
     role: 'orchestrator' as const,
     sessionId: 's',
@@ -37,4 +48,109 @@ it('runs DM maintenance without submitting the failed message again', async () =
   await group.run('compact');
   expect(group.getSnapshot().notice).toBe('unavailable');
   expect(call).toHaveBeenCalledTimes(2);
+});
+
+it('parses where the turn stopped and continues it through channelRetry', async () => {
+  const failure = sessionFailure({
+    role: 'orchestrator',
+    sessionId: 's',
+    requestMessageId: 'm',
+    code: 'TRANSPORT',
+    detail: 'socket hang up',
+    progress: { completedSteps: 2, lastTool: 'bash' },
+    autoContinue: {
+      attempt: 1,
+      maxAttempts: 2,
+      at: '2026-11-02T00:01:00.000Z',
+    },
+  })!;
+  expect(failure.progress).toEqual({ completedSteps: 2, lastTool: 'bash' });
+  expect(failure.autoContinue).toEqual({
+    attempt: 1,
+    maxAttempts: 2,
+    at: '2026-11-02T00:01:00.000Z',
+  });
+  const call = vi
+    .fn()
+    .mockResolvedValueOnce({ accepted: true })
+    .mockResolvedValueOnce({ stopped: [], alreadyIdle: [] });
+  const card = createFailureContinuation({ call }, 'dm-ada', 'failure-1', failure);
+  await card.continueTurn();
+  expect(call).toHaveBeenLastCalledWith('channelRetry', {
+    channelId: 'dm-ada',
+    messageId: 'm',
+    recovery: 'continue',
+    failureMessageId: 'failure-1',
+  });
+  const waiting = createFailureContinuation({ call }, 'dm-ada', 'failure-2', failure);
+  await waiting.cancelAuto();
+  expect(call).toHaveBeenLastCalledWith('botStop', {
+    channelId: 'dm-ada',
+    botSlug: 'ada',
+    autoContinueFor: 'm',
+  });
+});
+
+it('collapses back-to-back identical failures into the newest card with a count', () => {
+  const quota = (id: string, bot = 'ada') => ({
+    id,
+    bot,
+    sessionFailure: {
+      role: 'orchestrator' as const,
+      sessionId: 's',
+      requestMessageId: `req-${id}`,
+      code: 'QUOTA',
+      detail: `quota exhausted (${id})`,
+    } as SessionFailure,
+  });
+  const human: Item = { id: 'h', bot: undefined, sessionFailure: undefined };
+  type Item = { id: string; bot: string | undefined; sessionFailure: SessionFailure | undefined };
+  const collapse = (items: Item[]) =>
+    collapseRepeatedFailures(
+      items,
+      (item) => ({ bot: item.bot, failure: item.sessionFailure }),
+      (item, repeated) => ({ ...item, sessionFailure: { ...item.sessionFailure!, repeated } }),
+    );
+
+  const shown = collapse([human, quota('a'), quota('b'), quota('c')]);
+  expect(shown.map((item) => item.id)).toEqual(['h', 'c']);
+  expect(shown[1]!.sessionFailure).toMatchObject({ requestMessageId: 'req-c', repeated: 3 });
+
+  const apart = [quota('a'), human, quota('b')];
+  expect(collapse(apart)).toBe(apart);
+  const otherBot = [quota('a'), quota('b', 'bob')];
+  expect(collapse(otherBot)).toBe(otherBot);
+  const otherCode = [
+    quota('a'),
+    { ...quota('b'), sessionFailure: { ...quota('b').sessionFailure, code: 'AUTH' } },
+  ];
+  expect(collapse(otherCode)).toBe(otherCode);
+  const progressed = [
+    quota('a'),
+    {
+      ...quota('b'),
+      sessionFailure: { ...quota('b').sessionFailure, progress: { completedSteps: 2 } },
+    },
+  ];
+  expect(collapse(progressed)).toBe(progressed);
+
+  const linked = collapseRepeatedFailures(
+    [quota('a'), quota('b'), quota('c')],
+    (item) => ({ bot: item.bot, failure: item.sessionFailure }),
+    (item, repeated) => ({ ...item, sessionFailure: { ...item.sessionFailure, repeated } }),
+    (item) => item.id === 'a',
+  );
+  expect(linked.map((item) => item.id)).toEqual(['a', 'c']);
+  expect(linked[1]!.sessionFailure.repeated).toBe(2);
+});
+
+it('titles the collapsed failure card with the reason instead of a generic label', () => {
+  expect(failureReason({ code: 'QUOTA' })).toBe(t.sessionRecovery.reasons.QUOTA);
+  expect(failureReason({ code: 'AUTH' })).toBe(t.sessionRecovery.reasons.AUTH);
+  expect(failureReason({ code: 'CONTEXT_WINDOW_EXCEEDED' })).toBe(t.sessionRecovery.contextFull);
+  expect(failureReason({ code: 'SESSION_REFUSED' })).toBe(
+    t.sessionRecovery.refused.SESSION_REFUSED![0],
+  );
+  expect(failureReason({ code: 'SOMETHING_NEW' })).toBe(t.sessionRecovery.details);
+  expect(failureReason({})).toBe(t.sessionRecovery.details);
 });

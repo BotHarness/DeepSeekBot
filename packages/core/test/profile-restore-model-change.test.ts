@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
@@ -87,15 +88,15 @@ it('keeps a restored and activated Bot replying after the Human changes its mode
   expect(core.registry.applyModelPreset('keeper', changed).ok).toBe(true);
   expect(core.registry.get('keeper')!.modelPlan!.revision).toBeGreaterThan(plan.revision);
 
-  const dm = core.channels.getOrCreateDm('keeper', 'Keeper')!;
-  await core.channels.appendMessage(dm.id, {
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'keeper', 'Keeper')!;
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id: 'after-model-change',
     at: '2026-10-27T00:00:00.000Z',
     author: { kind: 'human' },
     body: 'Are you there?',
   });
   expect(
-    core.runtime.admitDmMessage({
+    core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
       channelId: dm.id,
       messageId: 'after-model-change',
       body: 'Are you there?',

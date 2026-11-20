@@ -47,6 +47,10 @@ function fixture(productVersion = '0.1.0-alpha.1') {
         'preload.cjs',
         'renderer.html',
         'renderer.js',
+        'call-main.cjs',
+        'call-preload.cjs',
+        'call-renderer.html',
+        'call-renderer.js',
       ]) {
         writeFileSync(join(dir, 'package/native/local-video', asset), 'fixture media asset');
       }
@@ -107,7 +111,10 @@ function fixture(productVersion = '0.1.0-alpha.1') {
     writeFileSync(join(dir, 'package/index.js'), 'export const apply = () => {};');
     writeFileSync(join(dir, 'package/LICENSE'), 'MIT');
     const filename = `${index}.tgz`;
-    execFileSync('tar', ['-czf', join(root, filename), '-C', dir, 'package']);
+    execFileSync('tar', ['-czf', join(root, filename), '-C', dir, 'package'], {
+      shell: false,
+      windowsHide: true,
+    });
     return {
       name,
       version,
@@ -363,7 +370,17 @@ describe('reviewed npm prerelease', () => {
   it('rejects a Computer archive missing any lazily loaded native helper asset', () => {
     const artifact = { name: '@botharness/computer', version: '0.1.0-alpha.1' };
     const manifest = { ...artifact, license: 'MIT', main: './dist/index.mjs' };
-    const assets = ['launcher.cs', 'main.cjs', 'preload.cjs', 'renderer.html', 'renderer.js'];
+    const assets = [
+      'launcher.cs',
+      'main.cjs',
+      'preload.cjs',
+      'renderer.html',
+      'renderer.js',
+      'call-main.cjs',
+      'call-preload.cjs',
+      'call-renderer.html',
+      'call-renderer.js',
+    ];
     const files = [
       'package/LICENSE',
       'package/dist/index.mjs',
@@ -398,13 +415,17 @@ describe('reviewed npm prerelease', () => {
       join(root, String(productIndex), 'package/dist/deepseekbot.mjs'),
       'import "../src/unpublished.mjs";',
     );
-    execFileSync('tar', [
-      '-czf',
-      join(root, `${productIndex}.tgz`),
-      '-C',
-      join(root, String(productIndex)),
-      'package',
-    ]);
+    execFileSync(
+      'tar',
+      [
+        '-czf',
+        join(root, `${productIndex}.tgz`),
+        '-C',
+        join(root, String(productIndex)),
+        'package',
+      ],
+      { shell: false, windowsHide: true },
+    );
     expect(() => verifyPackedCli(root, packages, '/unused-no-dependencies')).toThrow();
   });
   it('recovers a partial publication only when the existing version has identical bytes', () => {
@@ -475,7 +496,13 @@ describe('release source diagnostics', () => {
   function checkout(files = {}) {
     const directory = mkdtempSync(join(tmpdir(), 'release-source-test-'));
     roots.push(directory);
-    const git = (...args) => execFileSync('git', args, { cwd: directory, encoding: 'utf8' });
+    const git = (...args) =>
+      execFileSync('git', args, {
+        cwd: directory,
+        encoding: 'utf8',
+        shell: false,
+        windowsHide: true,
+      });
     git('init', '--quiet');
     git('config', 'core.autocrlf', 'false');
     git('config', 'core.hooksPath', join(directory, 'no-hooks'));

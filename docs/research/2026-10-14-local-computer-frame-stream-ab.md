@@ -1,6 +1,6 @@
 # Local Computer on the phone: screenshot stream against WebRTC
 
-A/B test for [#1832](https://github.com/BotHarness/DeepSeekBot/issues/1832) and [#1833](https://github.com/BotHarness/DeepSeekBot/issues/1833). Decision: [ADR-0210](../adr/0210-the-phone-watches-the-local-computer-through-a-screenshot-stream.md).
+A/B test for [#1832](https://github.com/BotHarness/DeepSeekBot/issues/1832) and [#1833](https://github.com/BotHarness/DeepSeekBot/issues/1833). Decision: [ADR-0210](../decisions/computer.md#adr-0210).
 
 ## Method
 

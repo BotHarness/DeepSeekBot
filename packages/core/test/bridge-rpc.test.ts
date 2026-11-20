@@ -1,3 +1,6 @@
+import { bridgeMethodInventory } from './bridge-method-inventory.js';
+import { DEFAULT_CHANNEL_POLICY } from '../src/team/channel-contract.js';
+import { OWNER_HUMAN_CONTEXT, humanContext } from '../src/humans/context.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createTestRegistry, registryDatabase } from './registry-fixture.js';
 import { mkdtempSync, rmSync } from 'node:fs';
@@ -9,7 +12,7 @@ import { remoteMethods } from '@deepseek-ai/dsh-typert-protocol';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  createBridgeMethods,
+  createBridgeMethodsForHumans,
   type BridgeMethods,
   type BridgeMethodsDeps,
 } from '../src/bridge/methods.js';
@@ -37,7 +40,10 @@ afterEach(() => {
 
 function setup(
   sourcePolicy?: BotSourcePolicyStore,
-  extras: Pick<BridgeMethodsDeps, 'channelManagement' | 'tob'> = {},
+  extras: Pick<
+    BridgeMethodsDeps,
+    'channelManagement' | 'tob' | 'modelCatalog' | 'routingGroupEngineOptions'
+  > = {},
   operational = false,
 ) {
   const root = mkdtempSync(join(tmpdir(), 'botharness-bridge-rpc-'));
@@ -48,7 +54,7 @@ function setup(
     rootDir: join(root, 'channels'),
     now: () => new Date('2026-09-19T00:00:00.000Z'),
   });
-  const methods: BridgeMethods = createBridgeMethods({
+  const methodsForHuman = createBridgeMethodsForHumans({
     registry,
     states: createBotStateTracker(),
     channels,
@@ -58,9 +64,10 @@ function setup(
     ...extras,
     ...(sourcePolicy === undefined ? {} : { sourcePolicy }),
   });
-  const ctx = new Context();
-  const service = registerBridge(ctx, methods);
-  return { root, registry, channels, methods, service };
+  const methods = methodsForHuman(OWNER_HUMAN_CONTEXT);
+  const ctx = new Context().extend({ invocation: { peer: { principal: { kind: 'owner' } } } });
+  const service = registerBridge(ctx, methodsForHuman);
+  return { root, registry, channels, methods, methodsForHuman, service };
 }
 
 function parameterNames(method: (...args: never[]) => unknown): string[] {
@@ -76,20 +83,133 @@ function parameterNames(method: (...args: never[]) => unknown): string[] {
 }
 
 describe('bridge typert service', () => {
-  it('refuses workspace authorization without an authenticated Owner invocation', () => {
+  it('reuses one method table per Human across RPC calls', () => {
+    const { service, methods, methodsForHuman } = setup();
+    const identity = vi.spyOn(methods, 'humanIdentity');
+    expect(service.humanIdentity().humanId).toBe(OWNER_HUMAN_CONTEXT.humanId);
+    expect(service.humanIdentity().humanId).toBe(OWNER_HUMAN_CONTEXT.humanId);
+    expect(identity).toHaveBeenCalledTimes(2);
+    const ownerAgain = methodsForHuman(humanContext(OWNER_HUMAN_CONTEXT.humanId));
+    expect(ownerAgain).toBe(methods);
+    expect(ownerAgain.voiceDictation).toBe(methods.voiceDictation);
+    const second = humanContext('human-test-b');
+    const secondMethods = methodsForHuman(second);
+    expect(secondMethods).not.toBe(methods);
+    expect(secondMethods.voiceDictation).not.toBe(methods.voiceDictation);
+    expect(methodsForHuman(humanContext(second.humanId))).toBe(secondMethods);
+    expect(secondMethods.humanIdentity({})).toMatchObject({
+      ok: true,
+      value: { humanId: second.humanId },
+    });
+  });
+
+  it('advertises and forwards the optional Routing Group engine read on the catalog RPC', async () => {
+    const { service } = setup(undefined, {
+      modelCatalog: { list: async () => [], validate: async () => undefined },
+      routingGroupEngineOptions: async () => [
+        { engine: 'codex', available: false, reason: 'not-installed' },
+      ],
+    });
+    expect(parameterNames(service.modelCatalog)).toEqual(['includeRoutingGroupEngines']);
+    await expect(service.modelCatalog()).resolves.toEqual({ models: [] });
+    await expect(service.modelCatalog(true)).resolves.toEqual({
+      models: [],
+      routingGroupEngines: [{ engine: 'codex', available: false, reason: 'not-installed' }],
+    });
+  });
+
+  it('declares every remote method with plain identifier parameters', () => {
+    const { service } = setup();
+    const prototype = Object.getPrototypeOf(service) as Record<string, unknown>;
+    const descriptor = prototype['@deepseek-ai/dsh-typert-protocol/remote-methods'] as {
+      methods: { method: string }[];
+    };
+    const offenders = descriptor.methods
+      .map((entry) => entry.method)
+      .filter((name) => {
+        const source = Function.prototype.toString.call(prototype[name]);
+        const open = source.indexOf('(');
+        const close = source.indexOf(')', open + 1);
+        return source
+          .slice(open + 1, close)
+          .split(',')
+          .map((part) => part.trim())
+          .some((part) => part !== '' && !/^[A-Za-z_$][\w$]*$/u.test(part));
+      });
+    expect(offenders).toEqual([]);
+  });
+
+  it('refuses workspace authorization without an authenticated Human invocation', () => {
     const { service, methods } = setup();
+    Object.defineProperty(service, 'ctx', { value: new Context() });
     const approve = vi.spyOn(methods, 'grantRequestApprove');
     expect(() => service.grantRequestApprove('ada', 'dm-ada', 'request', 'project', true)).toThrow(
-      /authenticated Owner/,
+      /Authenticated Human required/,
     );
     const guest = Object.create(service) as typeof service;
     Object.defineProperty(guest, 'ctx', {
       value: new Context().extend({ invocation: { peer: { principal: { kind: 'guest' } } } }),
     });
     expect(() => guest.grantRequestApprove('ada', 'dm-ada', 'request', 'project', true)).toThrow(
-      /authenticated Owner/,
+      /Authenticated Human required/,
     );
     expect(approve).not.toHaveBeenCalled();
+  });
+
+  it('declares and forwards explicit template deletion confirmation through the Gateway', () => {
+    const { service, methods } = setup();
+    const value = {
+      template: { name: 'night-shift' },
+      clearedBots: [],
+      inheritedBots: [],
+      globalDefault: null,
+    };
+    const deletion = vi
+      .spyOn(methods, 'approvalTemplateDelete')
+      .mockReturnValue({ ok: true, value });
+    const revision = 'a'.repeat(64);
+    expect(parameterNames(service.approvalTemplateDelete)).toEqual([
+      'name',
+      'confirmed',
+      'revision',
+    ]);
+    expect(service.approvalTemplateDelete('night-shift', true, revision)).toEqual(value);
+    expect(deletion).toHaveBeenLastCalledWith({ name: 'night-shift', confirmed: true, revision });
+    deletion.mockReturnValueOnce({
+      ok: false,
+      error: { code: 'confirmation-required', message: 'confirmation-required' },
+    });
+    expect(() => service.approvalTemplateDelete('night-shift', false, revision)).toThrow(
+      expect.objectContaining({ code: 'confirmation-required' }),
+    );
+    expect(deletion).toHaveBeenLastCalledWith({ name: 'night-shift', confirmed: false, revision });
+  });
+
+  it('forwards optional policy revisions and preserves stale-policy refusals', async () => {
+    const { service, methods } = setup();
+    const set = vi.spyOn(methods, 'channelPolicySet').mockResolvedValue({ ok: true, value: null });
+    expect(parameterNames(service.channelPolicySet)).toEqual([
+      'channelId',
+      'policy',
+      'expectedRevision',
+    ]);
+    await expect(
+      service.channelPolicySet('group-1', DEFAULT_CHANNEL_POLICY, 'a'.repeat(64)),
+    ).resolves.toBeNull();
+    expect(set).toHaveBeenLastCalledWith({
+      channelId: 'group-1',
+      policy: DEFAULT_CHANNEL_POLICY,
+      expectedRevision: 'a'.repeat(64),
+    });
+    await service.channelPolicySet('group-1', DEFAULT_CHANNEL_POLICY);
+    expect(set).toHaveBeenLastCalledWith({ channelId: 'group-1', policy: DEFAULT_CHANNEL_POLICY });
+    set.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'stale-channel-policy', message: 'stale-channel-policy' },
+    });
+    await expect(
+      service.channelPolicySet('group-1', DEFAULT_CHANNEL_POLICY, 'a'.repeat(64)),
+    ).rejects.toMatchObject({ code: 'stale-channel-policy' });
   });
 
   it('refuses reviewed or keyed Channel writes when the durable owner is unavailable', () => {
@@ -117,6 +237,7 @@ describe('bridge typert service', () => {
       undefined,
       {
         tob: {
+          async close() {},
           ensure: async () => {
             throw new Error('unused');
           },
@@ -375,20 +496,40 @@ describe('bridge typert service', () => {
     });
   });
 
+  it('forwards the Marketplace install source through the named RPC facade (#3342)', async () => {
+    const { service, methods } = setup();
+    const install = vi
+      .spyOn(methods, 'marketplaceInstall')
+      .mockResolvedValue({ ok: false, error: { code: 'not-found', message: 'gone' } });
+    await expect(
+      service.marketplaceInstall('R_doubao', 'review-1', undefined, 'digest'),
+    ).rejects.toThrow('gone');
+    expect(install).toHaveBeenCalledWith({
+      id: 'R_doubao',
+      reviewId: 'review-1',
+      operationKey: undefined,
+      source: 'digest',
+    });
+  });
+
   it('round-trips profile fingerprint and preserves stale profile refusal through the RPC facade', () => {
     const { service } = setup();
     service.create('Ada');
-    const fingerprint = service.get('ada').profileFingerprint;
+    const initial = service.get('ada');
+    if (!('profileFingerprint' in initial)) throw new Error('own-profile-redacted');
+    const fingerprint = initial.profileFingerprint;
     expect(fingerprint).toMatch(/^[a-f0-9]{64}$/u);
     service.update('ada', { displayName: 'Updated' }, fingerprint);
     expect(() => service.update('ada', { displayName: 'Stale' }, fingerprint)).toThrow(
       expect.objectContaining({ code: 'stale-profile' }),
     );
     expect(service.get('ada').bot.displayName).toBe('Updated');
-    expect(service.get('ada').profileFingerprint).not.toBe(fingerprint);
-    expect(service.update('ada', { description: 'Existing UI' }).bot.description).toBe(
-      'Existing UI',
-    );
+    const updated = service.get('ada');
+    if (!('profileFingerprint' in updated)) throw new Error('own-profile-redacted');
+    expect(updated.profileFingerprint).not.toBe(fingerprint);
+    const edited = service.update('ada', { description: 'Existing UI' });
+    if ('metadataOnly' in edited) throw new Error('own-profile-redacted');
+    expect(edited.bot.description).toBe('Existing UI');
   });
 
   it('exposes and forwards complete Assignment choices through preset creation and updates', async () => {
@@ -417,6 +558,14 @@ describe('bridge typert service', () => {
       'orchestrator',
       'assignmentDefault',
       'assignmentModels',
+      'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
+      'orchestratorGroupEffort',
+      'orchestratorEngine',
+      'assignmentEngine',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -425,7 +574,53 @@ describe('bridge typert service', () => {
       'orchestrator',
       'assignmentDefault',
       'assignmentModels',
+      'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
+      'orchestratorGroupEffort',
+      'orchestratorEngine',
+      'assignmentEngine',
     ]);
+    expect(parameterNames(service.modelPlanSet)).toEqual([
+      'slug',
+      'expectedRevision',
+      'orchestrator',
+      'assignmentDefault',
+      'assignmentModels',
+      'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
+      'orchestratorGroupEffort',
+    ]);
+    const planSet = vi
+      .spyOn(methods, 'modelPlanSet')
+      .mockResolvedValue({ ok: true, value: { plan: {} as never } });
+    await service.modelPlanSet(
+      'ada',
+      3,
+      undefined,
+      route,
+      assignmentModels,
+      undefined,
+      'g',
+      ['h'],
+      'h',
+      null,
+    );
+    expect(planSet).toHaveBeenCalledWith({
+      slug: 'ada',
+      expectedRevision: 3,
+      assignmentDefault: route,
+      assignmentModels,
+      orchestratorGroupId: 'g',
+      assignmentGroups: ['h'],
+      assignmentDefaultGroupId: 'h',
+      assignmentGroupOptions: null,
+    });
     await service.modelPresetCreate('Daily', route, route, assignmentModels);
     expect(create).toHaveBeenCalledWith({
       name: 'Daily',
@@ -433,7 +628,46 @@ describe('bridge typert service', () => {
       assignmentDefault: route,
       assignmentModels,
     });
-    await service.modelPresetUpdate('p', 1, 'Daily', route, route, assignmentModels);
+    const orchestratorEngine = { engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const assignmentEngine = { engine: 'claude' as const, model: 'opus' };
+    await service.modelPresetCreate(
+      'Daily',
+      route,
+      route,
+      assignmentModels,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      orchestratorEngine,
+      assignmentEngine,
+    );
+    expect(create).toHaveBeenLastCalledWith({
+      name: 'Daily',
+      orchestrator: route,
+      assignmentDefault: route,
+      assignmentModels,
+      orchestratorEngine,
+      assignmentEngine,
+    });
+    await service.modelPresetUpdate(
+      'p',
+      1,
+      'Daily',
+      route,
+      route,
+      assignmentModels,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      orchestratorEngine,
+      null,
+    );
     expect(update).toHaveBeenCalledWith({
       id: 'p',
       expectedRevision: 1,
@@ -441,6 +675,8 @@ describe('bridge typert service', () => {
       orchestrator: route,
       assignmentDefault: route,
       assignmentModels,
+      orchestratorEngine,
+      assignmentEngine: null,
     });
   });
   it('exposes Activity and notification query arguments and refuses an unavailable owner', () => {
@@ -519,6 +755,9 @@ describe('bridge typert service', () => {
       'route',
       'globalDefault',
       'expectedDefaultRevision',
+      'groupId',
+      'groupEffort',
+      'expectedDefaultGroupRevision',
     ]);
     expect(parameterNames(service.modelPresetApply)).toEqual([
       'slug',
@@ -531,6 +770,14 @@ describe('bridge typert service', () => {
       'orchestrator',
       'assignmentDefault',
       'assignmentModels',
+      'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
+      'orchestratorGroupEffort',
+      'orchestratorEngine',
+      'assignmentEngine',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -539,6 +786,14 @@ describe('bridge typert service', () => {
       'orchestrator',
       'assignmentDefault',
       'assignmentModels',
+      'openAssignmentModels',
+      'orchestratorGroupId',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
+      'orchestratorGroupEffort',
+      'orchestratorEngine',
+      'assignmentEngine',
     ]);
     const route = { provider: 'official', model: 'fast', reasoningEffort: 'high' };
     const assignmentModels = [
@@ -558,6 +813,18 @@ describe('bridge typert service', () => {
       route,
       globalDefault: true,
       expectedDefaultRevision: 7,
+    });
+    await expect(
+      service.onboardingModel(undefined, 0, undefined, true, 7, 'daily', 'high', 2),
+    ).rejects.toThrow('stale test');
+    expect(defaultCall).toHaveBeenLastCalledWith({
+      slug: undefined,
+      expectedRevision: 0,
+      globalDefault: true,
+      expectedDefaultRevision: 7,
+      groupId: 'daily',
+      groupEffort: 'high',
+      expectedDefaultGroupRevision: 2,
     });
     await expect(service.modelPresetApply('one', 'preset', 2, 3)).rejects.toThrow('stale test');
     expect(applyCall).toHaveBeenCalledWith({
@@ -600,295 +867,9 @@ describe('bridge typert service', () => {
   it('marks every bridge endpoint for typert claims', () => {
     const { service } = setup();
 
-    expect(remoteMethods(service).map((marker) => marker.exportName ?? marker.method)).toEqual([
-      'privateInputStatus',
-      'privateInputSubmit',
-      'privateInputCancel',
-      'privateAccountStatus',
-      'privateInputReplace',
-      'privateAccountRevoke',
-      'privateAccounts',
-      'privateMcpServerRemove',
-      'privateMcpServerEnable',
-      'messagingDefaults',
-      'messagingDefaultsSet',
-      'channelBridges',
-      'channelBridge',
-      'channelIngests',
-      'channelIngest',
-      'messagingChannelTarget',
-      'messagingReceive',
-      'messagingGroupPolicy',
-      'messagingThreadPolicy',
-      'messagingSource',
-      'messagingIdentity',
-      'approvalRoute',
-      'approvalTest',
-      'approvalRetry',
-      'failureAlertsSet',
-      'failureAlertsTest',
-      'failureAlertsRetry',
-      'pairingReview',
-      'senderAccess',
-      'cloudConnections',
-      'cloudWork',
-      'messagingApps',
-      'messagingSnapshot',
-      'messagingTargets',
-      'messagingReachable',
-      'messagingPostConversation',
-      'messagingPostRequest',
-      'messagingPostLimit',
-      'messagingAuthorize',
-      'messagingRevoke',
-      'messagingConversation',
-      'messagingSend',
-      'tobHome',
-      'onboarding',
-      'onboardingModel',
-      'telemetryEvent',
-      'modelPlanInherit',
-      'channelRetry',
-      'botNewSession',
-      'botCompact',
-      'botContext',
-      'botSystemPrompt',
-      'botTurnInput',
-      'channelBotStop',
-      'modelCatalog',
-      'modelPresets',
-      'modelPresetCreate',
-      'modelPresetUpdate',
-      'modelPresetApply',
-      'modelPlan',
-      'modelPlanCustomize',
-      'modelPlanAssignmentsSet',
-      'modelPlanSet',
-      'list',
-      'activitySnapshot',
-      'get',
-      'create',
-      'createLookup',
-      'zipUploadBegin',
-      'zipUploadChunk',
-      'zipUploadPreview',
-      'zipImportLookup',
-      'zipImport',
-      'botImportPreview',
-      'botImportLookup',
-      'createFromGit',
-      'update',
-      'dataResetPreview',
-      'dataResetConfirm',
-      'deletionPreview',
-      'deletionConfirm',
-      'deletionRetry',
-      'deletionMemoryFolder',
-      'pause',
-      'resume',
-      'channels',
-      'humanIdentity',
-      'composerIdentity',
-      'composerValidate',
-      'humanNameSet',
-      'channelHumanNameSet',
-      'channelDm',
-      'channelGet',
-      'channelCreate',
-      'channelRename',
-      'channelGroupAvatarSet',
-      'channelGroupInvite',
-      'channelGroupInviteCancel',
-      'channelGroupMemberRemove',
-      'channelGroupJoinDecide',
-      'channelGroupSendReview',
-      'channelGroupWakeSet',
-      'channelGroupWakePolicies',
-      'channelGroupDelete',
-      'channelHistory',
-      'channelHistorySources',
-      'channelPurgePreview',
-      'channelPurgeConfirm',
-      'storageUsage',
-      'storageCleanupPreview',
-      'storageCleanupConfirm',
-      'storageMessagesCleanupPreview',
-      'storageMessagesCleanupConfirm',
-      'channelMessages',
-      'channelTimeline',
-      'channelReadPosition',
-      'channelMarkRead',
-      'channelMarkAllRead',
-      'channelReact',
-      'channelSearch',
-      'messageSearch',
-      'channelUnreadCounts',
-      'channelAllBotPreview',
-      'channelSend',
-      'channelSendStatus',
-      'botAttention',
-      'botSourcePolicies',
-      'botSourcePolicySet',
-      'botSourcePolicyReset',
-      'activityOverview',
-      'channelActivityToday',
-      'humanAttention',
-      'humanAssignmentContext',
-      'humanAttentionStatus',
-      'humanAttentionIgnore',
-      'humanAttentionDismiss',
-      'humanAttentionRestore',
-      'humanAttentionSnooze',
-      'assignments',
-      'channelAssignments',
-      'assignment',
-      'assignmentTimeline',
-      'sessionSubagents',
-      'workspaceOptions',
-      'messageAttachmentTarget',
-      'channelMediaTarget',
-      'workspaceFileTarget',
-      'folderBrowse',
-      'grants',
-      'grantCreate',
-      'grantRevoke',
-      'grantWriteSet',
-      'grantRequestApprove',
-      'assignmentAccessGet',
-      'assignmentAccessSet',
-      'toolApprovalRules',
-      'toolApprovalRuleRevoke',
-      'toolApprovalHistory',
-      'toolApprovalStatus',
-      'toolApprovalDecide',
-      'toolAutoRejectionOverride',
-      'userQuestionStatus',
-      'userQuestionAnswer',
-      'sessions',
-      'botToolTrace',
-      'botTools',
-      'botToolRun',
-      'sessionArchiveSet',
-      'memoryMove',
-      'sessionOwner',
-      'botSessionIds',
-      'memoryFileTarget',
-      'memorySnapshot',
-      'memoryFile',
-      'memoryHistory',
-      'memoryDiff',
-      'memoryGitGraph',
-      'memoryGitCommitDiff',
-      'memoryWorkingChanges',
-      'memoryWorkingDiff',
-      'memoryRecoveryHistory',
-      'memoryRestore',
-      'memorySave',
-      'memoryRestoreCommit',
-      'memoryNameVersion',
-      'memoryRemoveVersionName',
-      'memoryVersions',
-      'memoryRepair',
-      'profileActivity',
-      'profileSessionUsage',
-      'overviewMemory',
-      'overviewUsage',
-      'profileUsage',
-      'groupProfileActivity',
-      'rosterGet',
-      'sectionCreate',
-      'sectionRename',
-      'sectionRemove',
-      'channelAssign',
-      'sectionReorder',
-      'topReorder',
-      'pinsSet',
-      'hiddenSet',
-      'channelMuteSet',
-      'rosterBatch',
-      'developerModeSet',
-      'computerAccessSet',
-      'browserAccessSet',
-      'browserProfileSet',
-      'approvalTemplates',
-      'promptParts',
-      'promptPresets',
-      'promptPresetCreate',
-      'promptPresetUpdate',
-      'promptPresetDelete',
-      'promptGlobalSet',
-      'botPrompt',
-      'botPromptSet',
-      'approvalTemplateCreate',
-      'approvalTemplateUpdate',
-      'approvalTemplateDelete',
-      'botApprovalTemplateSet',
-      'approvalReviewerModel',
-      'approvalReviewerModelSet',
-      'idleCompaction',
-      'idleCompactionSet',
-      'idleCompactionCacheLifetimeSet',
-      'compactionThresholdSet',
-      'standingLimitsSet',
-      'botAvatarSet',
-      'botAppearanceSet',
-      'botPrimaryColorSet',
-      'partLibraryList',
-      'partLibraryAdd',
-      'partLibraryExport',
-      'partLibraryImport',
-      'partLibraryImportImage',
-      'botBannerSet',
-      'marketplaceList',
-      'marketplaceSubmit',
-      'marketplaceTopics',
-      'marketplaceSections',
-      'marketplaceDigests',
-      'marketplaceDigest',
-      'marketplaceDetail',
-      'marketplaceFileView',
-      'marketplaceChallenge',
-      'marketplaceReport',
-      'marketplaceAccount',
-      'marketplaceAuthorSave',
-      'marketplaceAuthorAvatarSet',
-      'marketplaceUploadPlan',
-      'marketplaceUpload',
-      'marketplaceInstallReview',
-      'marketplaceMine',
-      'marketplaceDelete',
-      'shareDraftStart',
-      'shareDraftGet',
-      'shareDraftFile',
-      'shareDraftDecide',
-      'shareDraftFinish',
-      'shareDraftDiscard',
-      'shareDraftExport',
-      'marketplaceInstall',
-      'releaseInfo',
-      'releaseUpdate',
-      'releaseInstall',
-      'releaseRestart',
-      'pluginUpdates',
-      'pluginInstall',
-      'pluginRestart',
-      'telemetryStatus',
-      'telemetrySet',
-      'gitStatus',
-      'gitInstall',
-      'scheduleList',
-      'scheduleCreate',
-      'scheduleUpdate',
-      'scheduleDelete',
-      'scheduleHistory',
-      'scheduleRunNow',
-      'schedulePreview',
-      'channelJournalPage',
-      'followRoster',
-      'followActivity',
-      'followChannel',
-      'followCompanion',
-    ]);
+    expect(remoteMethods(service).map((marker) => marker.exportName ?? marker.method)).toEqual(
+      bridgeMethodInventory,
+    );
   });
 
   it('marks the live stream methods whose final parameter is the injected signal', () => {
@@ -914,8 +895,21 @@ describe('bridge typert service', () => {
       'before',
       'limit',
     ]);
+    expect(parameterNames(service.channelFilesPage)).toEqual(['channelId', 'before', 'limit']);
+    expect(parameterNames(service.channelChanges)).toEqual([
+      'channelId',
+      'sinceSeq',
+      'epoch',
+      'limit',
+    ]);
     expect(parameterNames(service.followCompanion)).toEqual(['resume', 'lastEventId', 'signal']);
-    expect(parameterNames(service.botToolRun)).toEqual(['slug', 'tool', 'args', 'sessionId']);
+    expect(parameterNames(service.botToolRun)).toEqual([
+      'slug',
+      'tool',
+      'args',
+      'sessionId',
+      'sourceEventId',
+    ]);
     expect(parameterNames(service.memoryMove)).toEqual(['slug', 'location']);
   });
 
@@ -928,7 +922,7 @@ describe('bridge typert service', () => {
   it('keeps every method signature parseable by the gateway SRC resolver', () => {
     const { service } = setup();
 
-    expect(parameterNames(service.list)).toEqual(['query']);
+    expect(parameterNames(service.list)).toEqual(['query', 'administration']);
     expect(parameterNames(service.get)).toEqual(['slug']);
     expect(parameterNames(service.create)).toEqual([
       'displayName',
@@ -988,6 +982,12 @@ describe('bridge typert service', () => {
     expect(parameterNames(service.marketplaceSubmit)).toEqual(['url', 'altcha']);
     expect(parameterNames(service.marketplaceChallenge)).toEqual([]);
     expect(parameterNames(service.marketplaceReport)).toEqual(['id', 'altcha', 'reason']);
+    expect(parameterNames(service.marketplaceInstall)).toEqual([
+      'id',
+      'reviewId',
+      'operationKey',
+      'source',
+    ]);
     expect(parameterNames(service.releaseInfo)).toEqual(['since']);
     expect(parameterNames(service.releaseUpdate)).toEqual(['force']);
     expect(parameterNames(service.channelReact)).toEqual([
@@ -998,7 +998,10 @@ describe('bridge typert service', () => {
     ]);
     expect(parameterNames(service.channelSearch)).toEqual(['channelId', 'text', 'cursor', 'limit']);
     expect(parameterNames(service.messageSearch)).toEqual(['text', 'cursor', 'limit']);
-    expect(parameterNames(service.releaseInstall)).toEqual(['version']);
+    expect(parameterNames(service.releaseInstall)).toEqual(['version', 'requestId']);
+    expect(parameterNames(service.pluginInstall)).toEqual(['name', 'version', 'requestId']);
+    expect(parameterNames(service.updateRun)).toEqual(['id']);
+    expect(parameterNames(service.updateCancel)).toEqual(['id']);
     expect(parameterNames(service.releaseRestart)).toEqual([]);
     expect(parameterNames(service.telemetryStatus)).toEqual([]);
     expect(parameterNames(service.telemetrySet)).toEqual(['enabled']);
@@ -1044,7 +1047,11 @@ describe('bridge typert service', () => {
       'grantRequestResolution',
       'assignmentReply',
       'allBotMention',
+      'genuiReply',
+      'skillInvocations',
+      'quotes',
     ]);
+    expect(parameterNames(service.channelSkillCatalog)).toEqual(['channelId']);
     expect(parameterNames(service.botAttention)).toEqual(['slug', 'limit', 'cursor', 'state']);
     expect(parameterNames(service.humanAssignmentContext)).toEqual([
       'slug',
@@ -1140,10 +1147,10 @@ describe('bridge typert service', () => {
     const renamed = service.channelRename('dm-ada', 'Ada Lovelace');
     expect(renamed.channel.name).toBe('Ada Lovelace');
     expect(renamed.bot?.displayName).toBe('Ada Lovelace');
-    expect(service.channels().channels.map((channel) => channel.id)).toEqual(['dm-ada']);
+    expect((await service.channels()).channels.map((channel) => channel.id)).toEqual(['dm-ada']);
     const sent = await service.channelSend('dm-ada', 'hello');
     expect(sent.message.body).toBe('hello');
-    expect(service.channels().channels[0]?.latestMessage?.body).toBe('hello');
+    expect((await service.channels()).channels[0]?.latestMessage?.body).toBe('hello');
     expect(service.channelMessages('dm-ada').messages[0]?.body).toBe('hello');
     expect(service.assignments('ada').assignments).toEqual([]);
     expect(service.sessions('ada').sessions).toEqual([]);
@@ -1174,4 +1181,28 @@ it('exports the named Overview period and cursor through the existing Typert ser
   await expect(service.overviewMemory()).rejects.toThrow('Memory statistics unavailable');
   expect(parameterNames(service.overviewUsage)).toEqual(['period', 'after']);
   expect(() => service.overviewUsage('week')).toThrow('Usage statistics unavailable');
+});
+
+it('exposes named Tob CLI start/status/cancel arguments through the gateway facade', async () => {
+  const { service, methods } = setup();
+  const response = {
+    id: 'lease',
+    channelId: 'dm-tob',
+    messageId: 'human-cli',
+    state: 'running' as const,
+    cancelRequested: false,
+  };
+  const owner = vi.spyOn(methods, 'tobCli').mockResolvedValue({ ok: true, value: response });
+  expect(parameterNames(service.tobCli)).toEqual(['action', 'command', 'id']);
+  expect(await service.tobCli('start', { argv: ['approval-templates'], stdin: '' })).toEqual(
+    response,
+  );
+  expect(owner).toHaveBeenLastCalledWith({
+    action: 'start',
+    command: { argv: ['approval-templates'], stdin: '' },
+  });
+  await service.tobCli('status', undefined, 'lease');
+  expect(owner).toHaveBeenLastCalledWith({ action: 'status', id: 'lease' });
+  await service.tobCli('cancel', undefined, 'lease');
+  expect(owner).toHaveBeenLastCalledWith({ action: 'cancel', id: 'lease' });
 });

@@ -1,3 +1,5 @@
+import { memberDeviceRequest, deviceFailure } from '../team/device-http.js';
+import { TEAM_PATH, type TeamHttp } from '../team/http.js';
 import { createHash, randomBytes } from 'node:crypto';
 import { request as httpRequest, type IncomingMessage, type ServerResponse } from 'node:http';
 import type { Duplex } from 'node:stream';
@@ -10,11 +12,18 @@ import {
   type LocalVideoResult,
 } from '../../../computer/src/local-video-contract.js';
 import { DEVICE_ROUTE_HEADER, forwardDeviceRoute, isConnectRequest } from './route-context.js';
+import {
+  VOICE_CALL_CONNECT_REFUSAL,
+  VOICE_CALL_LIMITS,
+  VOICE_CALL_PATH,
+  type VoiceCallResult,
+} from '../voice/call-contract.js';
 import { refuseConnectRpc } from './rpc-policy.js';
 import { connectMux } from './connect-mux.js';
 
 export const DEVICE_GATEWAY_PREFIX = '/botharness-device';
 export const DEVICE_PAIR_PATH = `${DEVICE_GATEWAY_PREFIX}/pair`;
+export const DEVICE_FEED_READ_PATH = `${DEVICE_GATEWAY_PREFIX}/feed-read`;
 export const DEVICE_UNPAIR_PATH = `${DEVICE_GATEWAY_PREFIX}/unpair`;
 export const DEVICE_REMOVE_PATH = `${DEVICE_GATEWAY_PREFIX}/devices/remove`;
 export const DEVICE_CONNECT_OFFER_PATH = `${DEVICE_GATEWAY_PREFIX}/connect/offer`;
@@ -71,9 +80,11 @@ export type GatewayRefusal =
   | 'ticket-invalid'
   | 'relay-signature-invalid'
   | 'host-session-unavailable'
+  | 'relationship-local-client-required'
   | 'not-found';
 
 export interface DeviceGatewayOptions {
+  team?: TeamHttp;
   pairing: DevicePairing;
   port: () => number;
   authenticatedUrl: (baseUrl: string) => string;
@@ -84,6 +95,11 @@ export interface DeviceGatewayOptions {
     command: unknown;
     signal: AbortSignal;
   }) => Promise<LocalVideoResult>;
+  voiceCall?: (request: {
+    deviceId: string;
+    command: unknown;
+    signal: AbortSignal;
+  }) => Promise<VoiceCallResult>;
   activity?: (request: {
     method: string;
     path: string;
@@ -253,11 +269,16 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       input = JSON.parse(text ?? '') as typeof input;
     } catch {}
     if (typeof input.offer !== 'string') return refuse(response, 401, 'offer-invalid');
-    const result = pairing.redeem({
-      offer: input.offer,
-      ...(typeof input.name === 'string' ? { name: input.name } : {}),
-      ...(typeof input.verifier === 'string' ? { verifier: input.verifier } : {}),
-    });
+    let result;
+    try {
+      result = pairing.redeem({
+        offer: input.offer,
+        ...(typeof input.name === 'string' ? { name: input.name } : {}),
+        ...(typeof input.verifier === 'string' ? { verifier: input.verifier } : {}),
+      });
+    } catch (error) {
+      return deviceFailure(response, error);
+    }
     if (!result.ok) return refuse(response, 401, result.code);
     response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
     response.end(
@@ -265,6 +286,13 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
         deviceId: result.device.id,
         credential: result.credential,
         host: result.host,
+        ...(result.humanId === undefined
+          ? {}
+          : {
+              humanId: result.humanId,
+              displayName: result.displayName,
+              mustChangePassword: result.mustChangePassword,
+            }),
       }),
     );
   };
@@ -355,6 +383,12 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     if (!admission.ok) return refuse(response, 401, admission.code);
     const pathname = new URL(request.url ?? '/', 'http://device').pathname;
     const endpoint = pathname.slice(`${prefix}/api/`.length);
+    if (
+      decodeURIComponent(endpoint)
+        .replace(/\/{2,}/gu, '/')
+        .startsWith('botharness/relationships')
+    )
+      return refuse(response, 403, 'relationship-local-client-required');
     if (
       await refuseConnectRpc(request, response, endpoint, () =>
         log('device-gateway phase=secret-route-refused'),
@@ -535,9 +569,109 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     }
   };
 
+  let pendingCalls = 0;
+  const call = async (
+    request: IncomingMessage,
+    response: ServerResponse,
+    admission: Admission,
+  ): Promise<void> => {
+    if (!admission.ok) return refuse(response, 401, admission.code);
+    const send = (result: VoiceCallResult): void => {
+      if (response.destroyed) return;
+      response.writeHead(result.ok ? 200 : 409, {
+        'content-type': 'application/json',
+        'cache-control': 'no-store',
+      });
+      response.end(JSON.stringify(result));
+    };
+    if (isConnectRequest(request)) {
+      request.resume();
+      return send(VOICE_CALL_CONNECT_REFUSAL);
+    }
+    if (request.method !== 'POST') return refuse(response, 404, 'not-found');
+    if (pendingCalls >= VOICE_CALL_LIMITS.pendingRequests) {
+      request.resume();
+      return send({ ok: false, code: 'queue-full', error: 'Too many pending call commands.' });
+    }
+    const cancellation = new AbortController();
+    const started = performance.now();
+    const expire = () => {
+      cancellation.abort();
+      request.destroy();
+    };
+    let timer = setTimeout(expire, VOICE_CALL_LIMITS.operationTimeoutMs);
+    const detach = pairing.attachStream(admission.device.id, () => {
+      cancellation.abort();
+      request.destroy();
+      response.destroy();
+    });
+    const closed = (): void => {
+      if (!response.writableFinished) cancellation.abort();
+    };
+    response.on('close', closed);
+    pendingCalls += 1;
+    try {
+      const raw = await readSmall(request, VOICE_CALL_LIMITS.requestBytes);
+      if (raw === undefined)
+        return send({
+          ok: false,
+          code: 'request-too-large',
+          error: 'The call command is too large.',
+        });
+      let command: unknown;
+      try {
+        command = JSON.parse(raw) as unknown;
+      } catch {
+        return send({ ok: false, code: 'invalid-input', error: 'The call command must be JSON.' });
+      }
+      if (!pairing.check(admission.device.id).ok || cancellation.signal.aborted)
+        return send({
+          ok: false,
+          code: 'device-revoked',
+          error: 'The device connection is no longer admitted.',
+        });
+      if (
+        typeof command === 'object' &&
+        command !== null &&
+        'kind' in command &&
+        command.kind === 'open'
+      ) {
+        clearTimeout(timer);
+        timer = setTimeout(
+          expire,
+          Math.max(0, VOICE_CALL_LIMITS.connectTimeoutMs - (performance.now() - started)),
+        );
+      }
+      send(
+        options.voiceCall === undefined
+          ? { ok: false, code: 'not-ready', error: 'Calls are not ready on this Host.' }
+          : await options.voiceCall({
+              deviceId: admission.device.id,
+              command,
+              signal: cancellation.signal,
+            }),
+      );
+    } catch {
+      send({ ok: false, code: 'operation-timeout', error: 'The call command did not complete.' });
+    } finally {
+      pendingCalls -= 1;
+      clearTimeout(timer);
+      detach();
+      response.off('close', closed);
+    }
+  };
+
   return {
     async handle(request, response) {
       const path = new URL(request.url ?? '/', 'http://device').pathname;
+      if (memberDeviceRequest(request) && path !== `${TEAM_PATH}/device-sign-in`) {
+        if (options.team?.device) return options.team.device.handle(request, response);
+        return refuse(response, 401, 'device-unknown');
+      }
+      if (path === TEAM_PATH || path.startsWith(`${TEAM_PATH}/`)) {
+        if (options.team) return options.team.handle(request, response);
+        return refuse(response, 404, 'not-found');
+      }
       let decodedPath: string;
       try {
         decodedPath = new URL(`http://device${decodeURIComponent(path)}`).pathname
@@ -553,6 +687,19 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
         response.setHeader('access-control-allow-origin', origin);
         response.setHeader('vary', 'origin');
         if (request.method === 'OPTIONS') return preflight(request, response);
+      }
+      if (path === DEVICE_FEED_READ_PATH) {
+        if (request.method !== 'POST') return refuse(response, 404, 'not-found');
+        const admission = pairing.admit(header(request, 'authorization'));
+        if (!admission.ok) return refuse(response, 401, admission.code);
+        const receipt = pairing.acknowledgeFeed(admission.device.id);
+        if (!receipt.ok) return refuse(response, 401, receipt.code);
+        response.writeHead(200, {
+          'content-type': 'application/json',
+          'cache-control': 'no-store',
+        });
+        response.end(JSON.stringify({ feedReadAt: receipt.device.feedReadAt }));
+        return;
       }
       if (path === DEVICE_PAIR_PATH) return pair(request, response);
       if (path === DEVICE_STREAM_TICKET_PATH) return streamTicket(request, response);
@@ -573,6 +720,8 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
 
       if (decodedPath === `${DEVICE_GATEWAY_PREFIX}${LOCAL_VIDEO_PATH}`)
         return video(request, response, pairing.admit(header(request, 'authorization')));
+      if (decodedPath === `${DEVICE_GATEWAY_PREFIX}${VOICE_CALL_PATH}`)
+        return call(request, response, pairing.admit(header(request, 'authorization')));
       if (path.startsWith(`${DEVICE_GATEWAY_PREFIX}/api/`))
         return forward(
           request,
@@ -585,6 +734,10 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
 
     async upgrade(request, socket, head) {
       const pathname = new URL(request.url ?? '/', 'http://device').pathname;
+      if (memberDeviceRequest(request)) {
+        if (options.team?.device) return options.team.device.upgrade(request, socket, head);
+        return refuseUpgrade(socket, 401, 'device-unknown');
+      }
       if (
         pathname !== DEVICE_MUX_PATH &&
         !(DEVICE_SIGNALING_PATHS as readonly string[]).includes(pathname)

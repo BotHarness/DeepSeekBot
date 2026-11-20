@@ -1,5 +1,4 @@
 import { existsSync } from 'node:fs';
-import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
 
@@ -92,7 +91,8 @@ it('retains missing histories across restarts and never recounts restored or lat
   );
   expect(receipts).toHaveLength(3);
   expect(JSON.stringify(receipts)).not.toContain('deleted-session');
-  expect(Object.keys(receipts[0]!)).toEqual(['fingerprint', 'bot_slug']);
+  expect(Object.keys(receipts[0]!)).toEqual(['fingerprint', 'bot_slug', 'human_id']);
+  expect(receipts.every((row) => row['human_id'] === 'local-human')).toBe(true);
 });
 
 it('rolls back the entire reconciliation after projecting multiple sessions', async () => {
@@ -173,8 +173,13 @@ it('preserves legacy counters on upgrade and seeds old receipts without doubling
       ),
     }),
   );
-  const ownership = createSessionOwnership(attachOperationalModule(old, 'session-ownership'));
-  claim(ownership, 'legacy-session');
+  attachOperationalModule(old, 'session-ownership').transaction((db) =>
+    db
+      .prepare(`INSERT INTO session_ownership
+    (session_id, bot_slug, root_role, provenance, created_at)
+    VALUES ('legacy-session', 'ada', 'orchestrator', 'created', ?)`)
+      .run(new Date(TIME - 1000).toISOString()),
+  );
   attachOperationalModule(old, 'usage').transaction((db) =>
     db
       .prepare(`INSERT INTO usage_daily
@@ -301,6 +306,8 @@ it('refuses Host Registry Purge in recovery mode before deleting the PersonaBot 
   const original = createCore({ dshHome: home });
   trackTestOwner(original.operationalDatabase);
   expect(original.registry.create({ slug: 'ada', displayName: 'Ada' }).ok).toBe(true);
+  const memoryDir = original.registry.memoryDirFor('ada')!;
+  expect(existsSync(memoryDir)).toBe(true);
   original.operationalDatabase.close();
   const future = trackTestOwner(
     mountOperationalDatabase({
@@ -308,7 +315,7 @@ it('refuses Host Registry Purge in recovery mode before deleting the PersonaBot 
       schemaPlan: defineSchemaPlan([
         ...BOT_HARNESS_SCHEMA_PLAN.migrations,
         {
-          generation: BOT_HARNESS_SCHEMA_PLAN.targetGeneration + 1,
+          id: 'future-usage',
           module: 'usage',
           description: 'Simulate a newer profile schema',
           migrate() {},
@@ -322,7 +329,7 @@ it('refuses Host Registry Purge in recovery mode before deleting the PersonaBot 
   expect(recovery.operationalDatabase.mode).toBe('recovery');
   expect(() => recovery.registry.remove('ada', { purge: true })).toThrow();
   expect(() => recovery.registry.get('ada')).toThrow();
-  expect(existsSync(join(recovery.registry.rootDir, 'ada'))).toBe(true);
+  expect(existsSync(memoryDir)).toBe(true);
   const database = new DatabaseSync(recovery.operationalDatabase.databasePath, { readOnly: true });
   try {
     const stored = database.prepare('SELECT body FROM persona_bots WHERE slug = ?').get('ada');

@@ -8,6 +8,7 @@ import { createWallpaperControl } from './wallpaper-control.js';
 import { Appearance, AppearanceError, object } from './appearance.js';
 import { remoteHosts } from './remote-hosts.js';
 import { createConnectionControl } from './connection-control.js';
+import { isConnectionManagement, manageConnections } from './connection-management.js';
 
 export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper): () => void {
   const abort = new AbortController();
@@ -57,10 +58,13 @@ export function mountAppearanceControl(owner: Appearance, wallpaper?: Wallpaper)
                   Math.max(0, command.expiresAt - Date.now()),
                 ),
               };
-              result = connections.execute(command.connection, {
+              const request = {
                 expiresAt: command.expiresAt,
                 signal: AbortSignal.any([abort.signal, deliveryAbort.signal]),
-              });
+              };
+              result = isConnectionManagement(command.connection)
+                ? await manageConnections(remoteHosts(), command.connection, request)
+                : connections.execute(command.connection, request);
             } else if (command.hostLook !== undefined) {
               const looks = hostLooks();
               await looks.ready;

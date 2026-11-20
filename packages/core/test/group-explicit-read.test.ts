@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { attachOperationalModule } from '../src/database/owner.js';
@@ -17,7 +18,7 @@ function adapter(onRun: (run: OrchestratorAgentRun) => Promise<void>): BotAgentA
 }
 
 async function ordinary(core: ReturnType<typeof createCore>, channelId: string, id: string) {
-  await core.channels.appendMessage(channelId, {
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
     id,
     at: new Date().toISOString(),
     author: { kind: 'human' },
@@ -27,14 +28,18 @@ async function ordinary(core: ReturnType<typeof createCore>, channelId: string, 
 }
 
 async function ask(core: ReturnType<typeof createCore>, botSlug: string, id: string) {
-  const dm = core.channels.getOrCreateDm(botSlug, botSlug)!;
-  await core.channels.appendMessage(dm.id, {
+  const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, botSlug, botSlug)!;
+  await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
     id,
     at: new Date().toISOString(),
     author: { kind: 'human' },
     body: 'Inspect Group',
   });
-  core.runtime.admitDmMessage({ channelId: dm.id, messageId: id, body: 'Inspect Group' });
+  core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+    channelId: dm.id,
+    messageId: id,
+    body: 'Inspect Group',
+  });
   await core.runtime.whenIdle();
 }
 
@@ -54,7 +59,10 @@ describe('explicit Channel read handles returned Bot Inbox admissions on success
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const group = core.channels.createGroup({ name: 'Team', members: ['ada'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada'],
+      });
       groupId = group.id;
       core.channels.setGroupWakePolicy(group.id, 'ada', {
         mode: 'silent',
@@ -112,7 +120,10 @@ describe('explicit Channel read handles returned Bot Inbox admissions on success
     try {
       before.registry.create({ slug: 'ada', displayName: 'Ada' });
       before.registry.create({ slug: 'bea', displayName: 'Bea' });
-      const group = before.channels.createGroup({ name: 'Team', members: ['ada', 'bea'] });
+      const group = before.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Team',
+        members: ['ada', 'bea'],
+      });
       groupId = group.id;
       for (const botSlug of ['ada', 'bea'])
         before.channels.setGroupWakePolicy(group.id, botSlug, {

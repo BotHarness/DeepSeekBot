@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -48,6 +49,20 @@ const input = {
 };
 
 describe('canonical keyed Bot creation', () => {
+  it('assigns distinct filesystem-safe IDs to independent requests with the same display name', () => {
+    const f = fixture();
+    const displayName = 'Ada / 研究';
+    const first = f.owner.create({ ...input, displayName }, key);
+    const second = f.owner.create({ ...input, displayName }, 'test-create-operation-02');
+
+    expect(first.record.slug).toMatch(/^bot-[0-9a-f]{32}$/);
+    expect(second.record.slug).toMatch(/^bot-[0-9a-f]{32}$/);
+    expect(second.record.slug).not.toBe(first.record.slug);
+    expect(first.record.displayName).toBe(displayName);
+    expect(second.record.displayName).toBe(displayName);
+    expect(f.core.channels.list()).toHaveLength(2);
+  });
+
   it('creates one identity, Git Memory and DM and returns the same receipt after retry and restart', async () => {
     const f = fixture();
     expect(f.owner.lookup(key, input)).toBeUndefined();
@@ -141,7 +156,7 @@ describe('canonical keyed Bot creation', () => {
 
   it('routes bridge creates through the same owner and carries the receipt', () => {
     const f = fixture();
-    const bridge = createBridgeMethods({ ...f.core, creations: f.owner });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core, creations: f.owner });
     const first = bridge.create({ ...input, operationKey: key });
     expect(first).toMatchObject({
       ok: true,
@@ -161,7 +176,7 @@ describe('canonical keyed Bot creation', () => {
 
   it('looks up the original Bot and DM after a lost bridge response and Host restart', async () => {
     const f = fixture();
-    const bridge = createBridgeMethods({ ...f.core, creations: f.owner });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core, creations: f.owner });
     const request = { ...input, operationKey: key };
     expect(bridge.createLookup(request)).toEqual({ ok: true, value: { receipt: null } });
     expect(f.core.registry.list()).toHaveLength(0);
@@ -170,7 +185,10 @@ describe('canonical keyed Bot creation', () => {
     if (!result.ok) throw new Error(result.error.message);
     await f.close();
     const restarted = fixture(f.home);
-    const recovered = createBridgeMethods({ ...restarted.core, creations: restarted.owner });
+    const recovered = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+      ...restarted.core,
+      creations: restarted.owner,
+    });
     const beforeLookup =
       restarted.core.operationalDatabase.diagnostics().metrics.transactionsCommitted;
     expect(recovered.createLookup(request)).toEqual({
@@ -195,7 +213,7 @@ describe('canonical keyed Bot creation', () => {
 
   it('refuses invalid lookup inputs and unavailable creation without reserving an identity', () => {
     const f = fixture();
-    const bridge = createBridgeMethods({ ...f.core, creations: f.owner });
+    const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...f.core, creations: f.owner });
     for (const patch of [{ operationKey: undefined }, { operationKey: 5 }, { roles: 5 }])
       expect(bridge.createLookup({ ...input, operationKey: key, ...patch })).toMatchObject({
         ok: false,
@@ -206,7 +224,7 @@ describe('canonical keyed Bot creation', () => {
       error: { code: 'invalid-operation-key' },
     });
     const { creations: _creations, ...withoutCreation } = f.core;
-    const unavailable = createBridgeMethods(withoutCreation);
+    const unavailable = createBridgeMethods(OWNER_HUMAN_CONTEXT, withoutCreation);
     expect(unavailable.createLookup({ ...input, operationKey: key })).toMatchObject({
       ok: false,
       error: { code: 'creation-unavailable' },

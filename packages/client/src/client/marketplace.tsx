@@ -1,3 +1,7 @@
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
+import { SegmentedControl } from './ds/segmented.js';
 import { ReadFailure } from './ds/read-failure.js';
 import {
   useId,
@@ -10,14 +14,7 @@ import {
   type Ref,
 } from 'react';
 
-import {
-  Button,
-  Input,
-  MarkdownText,
-  SegmentedControl,
-  Tag,
-  type MarkdownLabels,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { solveChallenge } from '../../../core/src/marketplace/altcha.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
@@ -44,9 +41,12 @@ import { BotBannerArt } from './bot-banner.js';
 import { BridgeCallError, errorMessage } from './bridge.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { Note } from './ds/note.js';
+import { Tooltip } from './ds/tooltip.js';
+import { CommunityIcon } from './community-icons.js';
 import { Select } from './ds/select.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { MarketplaceFileReader, MarketplaceFileTree } from './market-files.js';
+import { MarketplaceSkills } from './bot-skills-card.js';
 import { MarketPage } from './market-page.js';
 import { useMountedResource } from './mounted-resource.js';
 import { personaBotCreateError } from './persona-bot-create.js';
@@ -245,7 +245,9 @@ export function MarketplaceInstalls({
       aria-label={t('market.installs', { count: String(bot.installs) })}
       title={t('market.installs', { count: String(bot.installs) })}
     >
-      {t('market.installsCount', { count: formatStars(bot.installs, marketplaceLanguage(t)) })}
+      {t('market.installsCount', {
+        count: formatStars(bot.installs, marketplaceLanguage(t)),
+      })}
     </span>
   );
 }
@@ -472,14 +474,22 @@ function MarketplaceDetailView({
         <MarketplaceBanner bot={shown} className="bh-market-banner" />
         <div className="bh-market-row-head">
           <MarketplaceAvatar bot={shown} size={64} t={t} />
-          <span className="bh-market-copy">
-            <MarketplaceName bot={shown} />
-          </span>
           {shown.source === 'upload' ? null : (
-            <a className="bh-market-github" href={shown.htmlUrl} target="_blank" rel="noreferrer">
-              {t('market.detail.github')}
-            </a>
+            <Tooltip label={t('market.detail.github')} side="bottom" delayMs={500}>
+              <a
+                className="bh-market-github"
+                href={shown.htmlUrl}
+                target="_blank"
+                rel="noreferrer"
+                aria-label={t('market.detail.github')}
+              >
+                <CommunityIcon name="github" size={18} />
+              </a>
+            </Tooltip>
           )}
+        </div>
+        <div className="bh-market-hero-name">
+          <MarketplaceName bot={shown} />
         </div>
         {shown.description === null ? null : <MarketplaceDescription bot={shown} t={t} />}
         <MarketplaceMeta bot={shown} t={t} />
@@ -492,7 +502,9 @@ function MarketplaceDetailView({
       ) : null}
       {state.status === 'error' ? (
         <ReadFailure retryLabel={t('market.retry')} onRetry={onRetry}>
-          {t('market.detail.error', { error: marketplaceError(state.cause, t) })}
+          {t('market.detail.error', {
+            error: marketplaceError(state.cause, t),
+          })}
         </ReadFailure>
       ) : null}
       {state.status === 'ready' && reading !== undefined ? (
@@ -500,10 +512,18 @@ function MarketplaceDetailView({
           actions={actions}
           botId={shown.id}
           file={reading}
-          labels={labels}
           t={t}
           describeError={(cause) => marketplaceError(cause, t)}
           onBack={() => setReading(undefined)}
+        />
+      ) : null}
+      {state.status === 'ready' && reading === undefined && state.detail.files !== undefined ? (
+        <MarketplaceSkills
+          actions={actions}
+          botId={shown.id}
+          files={state.detail.files}
+          t={t}
+          describeError={(cause) => marketplaceError(cause, t)}
         />
       ) : null}
       {state.status === 'ready' && reading === undefined && state.detail.files !== undefined ? (
@@ -615,7 +635,9 @@ function InstallReviewView({
       <Callout
         tone="danger"
         role="alert"
-        title={t('market.review.found', { count: String(review.findings.length) })}
+        title={t('market.review.found', {
+          count: String(review.findings.length),
+        })}
       >
         <InstallFindings findings={review.findings} t={t} />
       </Callout>
@@ -742,7 +764,10 @@ export function useMarketplaceBrowse(
 ): MarketplaceBrowse {
   const includeUploads = options.includeUploads === true;
   const [list, setList] = useState<ListState>({ status: 'loading' });
-  const [filters, setFilters] = useState<Filters>(() => ({ sort: preferredSort(), query: '' }));
+  const [filters, setFilters] = useState<Filters>(() => ({
+    sort: preferredSort(),
+    query: '',
+  }));
   const [searchText, setSearchText] = useState('');
   const [topics, setTopics] = useState<MarketplaceTopic[]>([]);
   const generation = useRef(0);
@@ -824,7 +849,10 @@ export function useMarketplaceBrowse(
     prepend: (bot) =>
       setList((current) =>
         current.status === 'ready'
-          ? { ...current, bots: [bot, ...current.bots.filter((item) => item.id !== bot.id)] }
+          ? {
+              ...current,
+              bots: [bot, ...current.bots.filter((item) => item.id !== bot.id)],
+            }
           : { status: 'ready', bots: [bot], loadingMore: false },
       ),
     remove: (id) =>
@@ -1164,7 +1192,11 @@ export function MarketplaceBotFlow({
     void proveHuman(actions)
       .then((altcha) => {
         if (ticket === detailGeneration.current) {
-          setReport({ status: 'open', reason: report.reason, phase: 'sending' });
+          setReport({
+            status: 'open',
+            reason: report.reason,
+            phase: 'sending',
+          });
         }
         return actions.marketplaceReport(bot.id, altcha, reason.length === 0 ? undefined : reason);
       })
@@ -1174,7 +1206,12 @@ export function MarketplaceBotFlow({
         },
         (cause: unknown) => {
           if (ticket === detailGeneration.current) {
-            setReport({ status: 'open', reason: report.reason, phase: 'idle', cause });
+            setReport({
+              status: 'open',
+              reason: report.reason,
+              phase: 'idle',
+              cause,
+            });
           }
         },
       );
@@ -1357,11 +1394,13 @@ export function MarketplaceBotFlow({
 }
 
 export function MarketplaceModal({
+  target,
   actions,
   t,
   onClose,
   onInstalled,
 }: {
+  target?: ReactNode;
   actions: BridgeActions;
   t: BotHarnessTranslate;
   onClose: () => void;
@@ -1401,6 +1440,7 @@ export function MarketplaceModal({
         </Button>
       }
     >
+      {target}
       <MarketplaceSubmitField submit={submit} t={t} />
       <MarketplaceBrowseControls browse={browse} t={t} />
       <MarketplaceListStatus browse={browse} t={t} />

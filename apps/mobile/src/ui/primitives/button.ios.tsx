@@ -1,8 +1,16 @@
 import type { ComponentProps } from 'react';
 import { useState } from 'react';
 import { Host } from '@expo/ui';
-import { Button as NativeButton, HStack, Image, ProgressView, Text } from '@expo/ui/swift-ui';
 import {
+  Button as NativeButton,
+  HStack,
+  Image,
+  ProgressView,
+  Text,
+  VStack,
+} from '@expo/ui/swift-ui';
+import {
+  accessibilityAddTraits,
   accessibilityHidden,
   accessibilityLabel,
   accessibilityValue,
@@ -23,6 +31,8 @@ import { useStrings } from '../strings';
 import { useLiquidGlass } from './drawer-material';
 import type { Button as SharedButton, ButtonSymbol } from './button';
 
+import { Button as PressableButton } from './pressable-button';
+
 export type { ButtonTone } from '../design/controls';
 
 export const ACTION_SF_SYMBOL = {
@@ -30,6 +40,7 @@ export const ACTION_SF_SYMBOL = {
   check: 'checkmark',
   'shield-check': 'checkmark.shield',
   x: 'xmark',
+  trash: 'trash',
   archive: 'archivebox',
   plus: 'plus',
   'message-square': 'bubble.left',
@@ -45,17 +56,26 @@ function nativeStyle(
   props: Pick<ComponentProps<typeof SharedButton>, 'tone' | 'variant'>,
   glass: boolean,
 ) {
-  if (props.variant === 'text') return 'borderless';
+  if (props.variant !== 'filled') return 'borderless';
   if (props.tone === 'primary') return glass ? 'glassProminent' : 'borderedProminent';
   return glass ? 'glass' : 'bordered';
 }
 
-export function Button({
+export function Button(props: ComponentProps<typeof SharedButton>) {
+  return props.variant === 'card-solid' ? (
+    <PressableButton {...props} />
+  ) : (
+    <SwiftUIButton {...props} />
+  );
+}
+
+function SwiftUIButton({
   label,
   onPress,
   tone = 'secondary',
   disabled = false,
   busy = false,
+  selected = false,
   variant = 'filled',
   symbol,
   testID,
@@ -66,10 +86,11 @@ export function Button({
   const [height, setHeight] = useState<number>();
   const style = nativeStyle({ tone, variant }, glass);
   const bezel = style !== 'borderless';
+  const Stack = theme.largeText ? VStack : HStack;
   return (
     <Host
       matchContents={{ vertical: true }}
-      ignoreSafeArea="keyboard"
+      ignoreSafeArea="all"
       colorScheme={theme.scheme}
       seedColor={theme.color.accent}
       style={{ alignSelf: 'stretch', flexGrow: 1, maxHeight: height }}
@@ -85,11 +106,12 @@ export function Button({
           tint(tone === 'danger' ? theme.color.danger : theme.color.accent),
           controlDisabled(disabled || busy),
           accessibilityLabel(label),
+          ...(selected ? [accessibilityAddTraits(['isSelected'])] : []),
           ...(busy ? [accessibilityValue(t.loading)] : []),
         ]}
       >
-        <HStack
-          spacing={space.x3}
+        <Stack
+          spacing={theme.largeText ? space.x2 : space.x3}
           modifiers={[
             frame({ maxWidth: Infinity, minHeight: bezel ? theme.touch - space.x5 : theme.touch }),
             ...(bezel ? [] : [contentShape(shapes.rectangle())]),
@@ -109,9 +131,9 @@ export function Button({
               multilineTextAlignment('center'),
             ]}
           >
-            {controlCase(label)}
+            {controlCase(selected ? label + ' · ' + t.selectedChoice : label)}
           </Text>
-        </HStack>
+        </Stack>
       </NativeButton>
     </Host>
   );

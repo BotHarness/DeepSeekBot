@@ -14,6 +14,7 @@ import type { PromptLimitValues } from '../prompts/prompt-limits.js';
 import type { PromptPartOverrides } from '../prompts/prompt-presets.js';
 
 export interface PersonaBotRecord {
+  ownerHumanId?: string;
   slug: string;
   displayName: string;
   displayNameCustomized?: true;
@@ -42,13 +43,57 @@ export interface PersonaBotRecord {
 
   approvalTemplate?: string;
 
+  voice?: PersonaBotVoice;
+
+  asr?: PersonaBotAsr;
+
   standingLimits?: StandingLimits;
 
   marketplaceListing?: MarketplaceListingRef;
 
+  marketplaceUpload?: MarketplaceListingRef;
+
   promptPreset?: string;
   promptOverrides?: PromptPartOverrides;
   promptLimits?: PromptLimitValues;
+}
+
+export interface PersonaBotVoice {
+  providerId: string;
+  voiceId?: string;
+}
+
+export function isPersonaBotVoice(value: unknown): value is PersonaBotVoice {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const voice = value as Record<string, unknown>;
+  return (
+    Object.keys(voice).every((key) => key === 'providerId' || key === 'voiceId') &&
+    typeof voice['providerId'] === 'string' &&
+    /^tts-[a-f0-9]{12}$/u.test(voice['providerId']) &&
+    (voice['voiceId'] === undefined ||
+      (typeof voice['voiceId'] === 'string' &&
+        voice['voiceId'].trim() !== '' &&
+        voice['voiceId'].length <= 200 &&
+        !/[\u0000-\u001f\u007f]/u.test(voice['voiceId'])))
+  );
+}
+
+export interface PersonaBotAsr {
+  providerId: string;
+  language?: string;
+}
+
+export function isPersonaBotAsr(value: unknown): value is PersonaBotAsr {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
+  const asr = value as Record<string, unknown>;
+  return (
+    Object.keys(asr).every((key) => key === 'providerId' || key === 'language') &&
+    typeof asr['providerId'] === 'string' &&
+    /^asr-[a-f0-9]{12}$/u.test(asr['providerId']) &&
+    (asr['language'] === undefined ||
+      (typeof asr['language'] === 'string' &&
+        /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/u.test(asr['language'])))
+  );
 }
 
 export interface MarketplaceListingRef {
@@ -63,6 +108,7 @@ export function isMarketplaceListingRef(value: unknown): value is MarketplaceLis
 }
 
 export interface CreatePersonaBotInput {
+  ownerHumanId?: string;
   slug: string;
   displayName: string;
   persona?: string;
@@ -165,6 +211,11 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
   if (typeof value !== 'object' || value === null) return false;
   const record = value as Record<string, unknown>;
   if (record['slug'] !== slug) return false;
+  if (
+    record['ownerHumanId'] !== undefined &&
+    (typeof record['ownerHumanId'] !== 'string' || record['ownerHumanId'].trim().length === 0)
+  )
+    return false;
   if (typeof record['displayName'] !== 'string') return false;
   if (typeof record['createdAt'] !== 'string') return false;
   for (const key of ['displayNameCustomized', 'avatarCustomized'])
@@ -180,6 +231,8 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
     return false;
   if (record['promptPreset'] !== undefined && typeof record['promptPreset'] !== 'string')
     return false;
+  if (record['voice'] !== undefined && !isPersonaBotVoice(record['voice'])) return false;
+  if (record['asr'] !== undefined && !isPersonaBotAsr(record['asr'])) return false;
   if (
     record['promptOverrides'] !== undefined &&
     (typeof record['promptOverrides'] !== 'object' ||
@@ -226,6 +279,11 @@ export function isPersonaBotRecord(value: unknown, slug: string): value is Perso
   if (
     record['marketplaceListing'] !== undefined &&
     !isMarketplaceListingRef(record['marketplaceListing'])
+  )
+    return false;
+  if (
+    record['marketplaceUpload'] !== undefined &&
+    !isMarketplaceListingRef(record['marketplaceUpload'])
   )
     return false;
   return true;

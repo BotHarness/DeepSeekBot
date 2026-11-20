@@ -3,9 +3,9 @@ import { useCallback, useMemo, useState } from 'react';
 import { View } from 'react-native';
 
 import { botRoutines } from '../../host/routines';
-import { errorText } from '../../host/bot-settings';
+import { errorText } from '@botharness/host-client/bot-settings';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
-import type { BotScheduleSummary } from '../../host/wire';
+import type { BotScheduleSummary } from '@botharness/host-protocol/wire';
 import { SheetPage } from '../primitives/sheet-page';
 import { useStrings } from '../strings';
 import { RoutineSheet } from './routine-sheet';

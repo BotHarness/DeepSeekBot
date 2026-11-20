@@ -4,7 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  return dialogPrimitives();
+  return { ...(await import('./primitive-mocks.js')).shellPrimitives(), ...dialogPrimitives() };
 });
 vi.mock('../src/client/messaging-help.js', () => ({
   MessagingHelp: ({ text }: { text: string }) =>
@@ -56,11 +56,11 @@ async function fixture() {
     root.render(createElement(ChannelHistory, { actions, t: zhTranslate, onClose })),
   );
   const click = async (label: string) => {
-    const button = buttonNamed(label, host);
+    const button = buttonNamed(label, document.body);
     await act(async () => button.click());
   };
   const source = () => {
-    const input = host.querySelector<HTMLInputElement>('input[type="checkbox"]');
+    const input = document.body.querySelector<HTMLInputElement>('input[type="checkbox"]');
     if (input === null) throw new Error('No source checkbox');
     return input;
   };
@@ -81,15 +81,15 @@ describe('ended Channel history consent', () => {
     const f = await fixture();
     try {
       expect(dialog().getAttribute('aria-label')).toBe('已结束会话的历史');
-      expect(f.host.querySelector('[data-history-channel-id="group-qa"]')?.textContent).toContain(
-        'Synthetic QA',
-      );
+      expect(
+        document.body.querySelector('[data-history-channel-id="group-qa"]')?.textContent,
+      ).toContain('Synthetic QA');
       expect(() => buttonNamed('预览内容清除范围')).toThrow();
       await f.click('查看历史');
       expect(f.actions.channelHistorySources).toHaveBeenCalledWith('group-qa', undefined);
       expect(buttonNamed('预览内容清除范围').disabled).toBe(true);
       await f.click('返回已结束会话');
-      expect(f.host.querySelector('[data-history-channel-id="group-qa"]')).not.toBeNull();
+      expect(document.body.querySelector('[data-history-channel-id="group-qa"]')).not.toBeNull();
       await f.click('关闭');
       expect(f.onClose).toHaveBeenCalledTimes(1);
     } finally {
@@ -104,21 +104,21 @@ describe('ended Channel history consent', () => {
       await act(async () => f.source().click());
       await f.click('预览内容清除范围');
       expect(f.actions.channelPurgePreview).toHaveBeenCalledWith('group-qa', ['source-qa']);
-      expect(f.host.textContent).not.toContain('DSH Session');
+      expect(document.body.textContent).not.toContain('DSH Session');
       expect(
-        [...f.host.querySelectorAll('button')].some((button) =>
+        [...document.body.querySelectorAll('button')].some((button) =>
           button.title.includes('DSH Session'),
         ),
       ).toBe(true);
-      expect(f.host.textContent).toContain('无法撤销');
-      expect(f.host.textContent).not.toContain('msg-qa');
+      expect(document.body.textContent).toContain('无法撤销');
+      expect(document.body.textContent).not.toContain('msg-qa');
       await f.click('取消');
       expect(f.actions.channelPurgeConfirm).not.toHaveBeenCalled();
       expect(f.onClose).not.toHaveBeenCalled();
-      expect(f.host.textContent).toContain('synthetic-only');
+      expect(document.body.textContent).toContain('synthetic-only');
       await act(async () => f.source().click());
       await f.click('预览内容清除范围');
-      const close = f.host.querySelector<HTMLButtonElement>('button[aria-label="关闭"]')!;
+      const close = document.body.querySelector<HTMLButtonElement>('button[aria-label="关闭"]')!;
       await act(async () => close.click());
       expect(f.onClose).toHaveBeenCalledTimes(1);
       expect(f.actions.channelPurgeConfirm).not.toHaveBeenCalled();
@@ -138,8 +138,10 @@ describe('ended Channel history consent', () => {
         ['source-qa'],
         'reviewed',
       );
-      expect(f.host.querySelector('[role=alert]')?.textContent).toBe('Scope changed; review again');
-      expect(f.host.textContent).not.toContain('确认永久清除所选正文');
+      expect(document.body.querySelector('[role=alert]')?.textContent).toBe(
+        'Scope changed; review again',
+      );
+      expect(document.body.textContent).not.toContain('确认永久清除所选正文');
     } finally {
       await f.dispose();
     }
@@ -154,7 +156,7 @@ describe('ended Channel history consent', () => {
       const form = dialog().querySelector('form');
       await act(async () => form?.requestSubmit());
       expect(f.actions.channelPurgeConfirm).toHaveBeenCalledTimes(1);
-      expect(f.host.querySelector('[role=status]')?.textContent).toBe(
+      expect(document.body.querySelector('[role=status]')?.textContent).toBe(
         zhTranslate('purge.complete'),
       );
     } finally {

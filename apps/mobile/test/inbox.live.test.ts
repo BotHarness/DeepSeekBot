@@ -2,8 +2,8 @@ import { existsSync, readFileSync, rmSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { createHostClient, type HostClient } from '../src/host/client';
-import { createInbox, type Inbox } from '../src/host/inbox';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import { createInbox, type Inbox } from '@botharness/host-client/inbox';
 import {
   answerQuestion,
   decideApproval,
@@ -11,8 +11,8 @@ import {
   loadQuestion,
   requestRef,
   type RequestRef,
-} from '../src/host/requests';
-import type { HumanAttentionItem } from '../src/host/wire';
+} from '@botharness/host-client/requests';
+import type { HumanAttentionItem } from '@botharness/host-protocol/wire';
 import { pairWithLiveHost } from './live-pairing';
 import { nodeCarrier } from './node-carrier';
 

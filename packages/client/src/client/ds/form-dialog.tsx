@@ -1,6 +1,7 @@
+import { Button } from './button.js';
 import { useId, type FormEvent, type ReactElement, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { Modal } from '../modal.js';
 import { color, dialog, space, text } from './tokens.stylex.js';
@@ -35,7 +36,11 @@ const styles = stylex.create({
     width: '100%',
   },
   spacer: { flexGrow: 1 },
-  scroll: { maxHeight: dialog.bodyMax, overflowY: 'auto', overscrollBehavior: 'contain' },
+  scroll: {
+    maxHeight: dialog.bodyMax,
+    overflowY: 'auto',
+    overscrollBehavior: 'contain',
+  },
   danger: {
     backgroundColor: { default: color.danger, ':hover': color.danger },
     borderColor: 'transparent',
@@ -71,6 +76,8 @@ export function FormDialog({
   showCancel = true,
   scroll = false,
   submitData,
+  inline = false,
+  footerContainer,
   children,
 }: {
   readonly title: string;
@@ -89,6 +96,8 @@ export function FormDialog({
   readonly showCancel?: boolean;
   readonly scroll?: boolean;
   readonly submitData?: Readonly<Record<`data-${string}`, string>>;
+  readonly inline?: boolean;
+  readonly footerContainer?: HTMLElement | null | undefined;
   readonly children?: ReactNode;
 }): ReactElement {
   const formId = useId();
@@ -97,6 +106,62 @@ export function FormDialog({
     event.preventDefault();
     if (!blocked) onSubmit?.();
   };
+  const footer = (
+    <div {...stylex.props(styles.footer)}>
+      {secondary === undefined ? null : (
+        <>
+          {secondary}
+          <span {...stylex.props(styles.spacer)} />
+        </>
+      )}
+      {showCancel ? (
+        <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
+          {labels.cancel}
+        </Button>
+      ) : null}
+      {onSubmit === undefined ? null : (
+        <Button
+          {...submitData}
+          type="submit"
+          form={formId}
+          variant="primary"
+          disabled={blocked}
+          aria-busy={busy || undefined}
+          xstyle={danger ? styles.danger : undefined}
+        >
+          {submitLabel}
+        </Button>
+      )}
+    </div>
+  );
+  const body = (
+    <form
+      id={formId}
+      noValidate
+      onSubmit={submit}
+      {...stylex.props(styles.form, scroll && styles.scroll)}
+    >
+      {children}
+      {error === undefined || error === null || error === false ? null : (
+        <p role="alert" {...stylex.props(styles.error)}>
+          {error}
+        </p>
+      )}
+    </form>
+  );
+  if (inline) {
+    return (
+      <section aria-label={title} {...stylex.props(styles.form)}>
+        {description === undefined ? null : <p>{description}</p>}
+        {body}
+        {footerContainer === undefined
+          ? footer
+          : footerContainer
+            ? createPortal(footer, footerContainer)
+            : null}
+      </section>
+    );
+  }
   return (
     <Modal
       open
@@ -105,48 +170,9 @@ export function FormDialog({
       title={title}
       {...(description === undefined ? {} : { description })}
       className={stylex.props(styles[size]).className ?? ''}
-      footer={
-        <div {...stylex.props(styles.footer)}>
-          {secondary === undefined ? null : (
-            <>
-              {secondary}
-              <span {...stylex.props(styles.spacer)} />
-            </>
-          )}
-          {showCancel ? (
-            <Button type="button" variant="outline" disabled={busy} onClick={onCancel}>
-              {labels.cancel}
-            </Button>
-          ) : null}
-          {onSubmit === undefined ? null : (
-            <Button
-              {...submitData}
-              type="submit"
-              form={formId}
-              variant="primary"
-              disabled={blocked}
-              aria-busy={busy || undefined}
-              className={danger ? (stylex.props(styles.danger).className ?? '') : undefined}
-            >
-              {submitLabel}
-            </Button>
-          )}
-        </div>
-      }
+      footer={footer}
     >
-      <form
-        id={formId}
-        noValidate
-        onSubmit={submit}
-        {...stylex.props(styles.form, scroll && styles.scroll)}
-      >
-        {children}
-        {error === undefined || error === null || error === false ? null : (
-          <p role="alert" {...stylex.props(styles.error)}>
-            {error}
-          </p>
-        )}
-      </form>
+      {body}
     </Modal>
   );
 }
@@ -159,6 +185,8 @@ export function ConfirmDialog({
   onCancel,
   onConfirm,
   busy = false,
+  confirmDisabled = false,
+  scroll = false,
   danger = true,
   error,
   children,
@@ -170,6 +198,8 @@ export function ConfirmDialog({
   readonly onCancel: () => void;
   readonly onConfirm: () => void;
   readonly busy?: boolean;
+  readonly confirmDisabled?: boolean;
+  readonly scroll?: boolean;
   readonly danger?: boolean;
   readonly error?: ReactNode;
   readonly children?: ReactNode;
@@ -183,6 +213,8 @@ export function ConfirmDialog({
       onCancel={onCancel}
       onSubmit={onConfirm}
       busy={busy}
+      submitDisabled={confirmDisabled}
+      scroll={scroll}
       danger={danger}
       error={error}
     >
@@ -209,7 +241,7 @@ export function DangerTextButton({
       variant="ghost"
       disabled={disabled}
       onClick={onClick}
-      className={stylex.props(styles.dangerQuiet).className ?? ''}
+      xstyle={styles.dangerQuiet}
     >
       {children}
     </Button>

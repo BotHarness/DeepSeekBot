@@ -1,6 +1,12 @@
-import type { ReactElement, ReactNode, Ref } from 'react';
+import { useContext, type ReactElement, type ReactNode, type Ref } from 'react';
+import * as stylex from '@stylexjs/stylex';
 
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { SettingsGroupContext } from './ds/settings-row.js';
+
+const styles = stylex.create({
+  inGroup: { display: 'contents' },
+});
 
 export function SidebarCardList({
   label,
@@ -15,6 +21,21 @@ export function SidebarCardList({
   flush?: boolean | undefined;
   children: ReactNode;
 }): ReactElement {
+  const inGroup = useContext(SettingsGroupContext);
+  if (inGroup) {
+    const part = stylex.props(stylex.defaultMarker(), styles.inGroup);
+    return (
+      <ul
+        ref={listRef}
+        aria-label={label}
+        data-settings-part=""
+        {...part}
+        className={className === undefined ? part.className : `${part.className} ${className}`}
+      >
+        {children}
+      </ul>
+    );
+  }
   return (
     <ul
       ref={listRef}
@@ -41,8 +62,10 @@ export interface SidebarCardRowProps {
   chips?: ReactNode | undefined;
   meta?: ReactNode | undefined;
   trailing?: ReactNode | undefined;
+  trailingAlign?: 'start' | undefined;
   detail?: ReactNode | undefined;
   onClick?: () => void | undefined;
+  onIntent?: (() => void) | undefined;
   disabled?: boolean | undefined;
   muted?: boolean | undefined;
   mainClassName?: string | undefined;
@@ -67,8 +90,10 @@ export function SidebarCardRow({
   chips,
   meta,
   trailing,
+  trailingAlign,
   detail,
   onClick,
+  onIntent,
   disabled,
   muted,
   mainClassName,
@@ -78,6 +103,7 @@ export function SidebarCardRow({
   state,
   anchor,
 }: SidebarCardRowProps): ReactElement {
+  const inGroup = useContext(SettingsGroupContext);
   const body = (
     <>
       {leading === undefined ? null : <span className="bh-card-leading">{leading}</span>}
@@ -122,6 +148,7 @@ export function SidebarCardRow({
   return (
     <li
       className="bh-card-row"
+      data-settings-row={inGroup ? '' : undefined}
       data-muted={muted === true ? 'true' : undefined}
       data-state={state}
       data-selected={selection?.checked === true ? 'true' : undefined}
@@ -155,11 +182,23 @@ export function SidebarCardRow({
             aria-expanded={expanded}
             aria-controls={controls}
             onClick={onClick}
+            onPointerEnter={
+              onIntent === undefined
+                ? undefined
+                : (event) => {
+                    if (event.pointerType !== 'touch') onIntent();
+                  }
+            }
+            onFocus={onIntent}
           >
             {body}
           </button>
         )}
-        {trailing === undefined ? null : <span className="bh-card-trailing">{trailing}</span>}
+        {trailing === undefined ? null : (
+          <span className="bh-card-trailing" data-card-trailing={trailingAlign}>
+            {trailing}
+          </span>
+        )}
       </div>
       {detail === undefined ? null : (
         <div id={controls} className="bh-card-detail">

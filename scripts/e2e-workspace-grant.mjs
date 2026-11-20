@@ -29,7 +29,13 @@ if (!process.argv.includes('--name') || !/^[a-z0-9][a-z0-9-]*$/u.test(name ?? ''
 const paths = verifyPaths(name, root);
 const directory = resolve(paths.dir, 'workspace-grant', `attempt-${Date.now()}-${process.pid}`);
 mkdirSync(directory, { recursive: true });
-const git = (...args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+const git = (...args) =>
+  execFileSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  }).trim();
 const run = {
   version: 1,
   behavior,
@@ -93,6 +99,8 @@ const command = (args, input, allowRefusal = false) => {
         DEEPSEEKBOT_HOST: url.origin,
         DEEPSEEKBOT_HOST_TOKEN: url.searchParams.get('token'),
       },
+      shell: false,
+      windowsHide: true,
     },
   );
   let value;
@@ -122,6 +130,8 @@ const health = async () => {
     cwd: root,
     encoding: 'utf8',
     timeout: 70_000,
+    shell: false,
+    windowsHide: true,
   });
   try {
     const { model: _model, ...safe } = JSON.parse(result.stdout);
@@ -260,6 +270,9 @@ try {
         const handle = await page.$(`::-p-aria([name=${JSON.stringify(label)}][role="button"])`);
         if (handle && (await handle.isVisible())) await handle.click();
       }
+      const welcome = await page.$('::-p-aria([name="Welcome to Tobs"][role="dialog"])');
+      const skip = await welcome?.$('::-p-aria([name="Skip"][role="button"])');
+      if (skip && (await skip.isVisible())) await skip.click();
       await new Promise((done) => setTimeout(done, 250));
     }
   };
@@ -409,7 +422,10 @@ try {
       const problems = grantProblems(run, (name) =>
         JSON.parse(readFileSync(resolve(directory, name + '.json'), 'utf8')),
       );
-      if (problems.length) throw new Error(problems.join('; '));
+      if (problems.length > 0) {
+        run.status = 'fail';
+        run.reason = redact(problems.join('; '));
+      }
     } catch (error) {
       run.status = 'fail';
       run.reason = redact(error.message);

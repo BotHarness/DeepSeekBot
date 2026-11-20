@@ -1,9 +1,18 @@
 # Composer footer and reply speed
 
+## Sources
+
+- `packages/client/src/client/{composer-context-bar,composer-context-styles,composer-footer-preferences,dm-composer-context,dm-composer-usage,group-composer-context}.{ts,tsx}`
+
+## Terms
+
+- Composer
+- DM
+
 ## Sub-features
 
 - Web defaults to model/workspace on the left and token usage on the right. Generation speed, including per-reply labels, is off by default.
-- Right-click or long-press the footer, or focus it and press Shift+F10, to open its visibility panel, arrange the layout or restore defaults. Switches keep the panel open. The `/footer` composer shortcut also opens it, even after all items are hidden.
+- Right-click or long-press the footer, or focus it and press Shift+F10, to open its visibility panel, arrange the layout or restore defaults. Switches keep the panel open. The `/footer` composer shortcut also opens it, even after all items are hidden. When the items sit in the conversation header chip, the panel is titled Header bar settings and the shortcut is `/header`; right-clicking any part of the header chip, including the gaps between segments on macOS, opens it.
 - Arrange mode supports pointer dragging with an insertion marker. Arrow keys reorder the focused item; Ctrl/Command + arrows move it left/right. Escape or an outside click finishes.
 - Preferences persist in this browser's localStorage and synchronize between same-origin tabs. They do not change Host permissions or other devices.
 - The footer stays on one line with ellipsis on long labels. At 480px or less of footer width, model/workspace controls collapse to icons with full names in tooltips and accessible labels; numeric usage/speed stays visible. Phone-width Web uses the same visible items and ordering: model/workspace/usage in DMs, workspace in groups, plus optional speed in either. Buttons remain compact at 28px high on touch screens too. Hiding every applicable item collapses the entire footer and moves the input down.

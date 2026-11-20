@@ -1,6 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { describe, expect, it, vi } from 'vitest';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { inboxFixture as fixture } from './inbox-fixture.js';
+import { TEST_GRANT_ID } from './workspace-grant-fixture.js';
 
 const resolveOldest = (run: OrchestratorAgentRun) => {
   const ids = run.triage!.list().groups.flatMap((group) => group.ids);
@@ -18,6 +20,75 @@ describe('Orchestrator triage continuation', () => {
       expect(f.state(item)).toBe('open');
       await f.core.runtime.whenIdle();
       expect(f.runs).toHaveLength(2);
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
+  it('leaves a request alone while the Assignment created for it is working', async () => {
+    const f = await fixture({ triageContinuation: true });
+    try {
+      await f.admit('Fix the export bug', (run) =>
+        run.assignments.create({ title: 'Fix', grantId: TEST_GRANT_ID, description: 'Fix it' }),
+      );
+      expect(f.results[0]).toMatchObject({ outcome: 'created' });
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      expect(f.runs).toHaveLength(1);
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
+  it('resolves the Report of a finished Assignment with the request it served', async () => {
+    const f = await fixture({ triageContinuation: true });
+    try {
+      let request = '';
+      let seen: string[] = [];
+      const message = await f.admit(
+        'Research the export bug',
+        (run) =>
+          run.assignments.create({ title: 'Research', grantId: TEST_GRANT_ID, description: 'Dig' }),
+        (run) => {
+          seen = run.triage!.current().filter((id) => id !== request);
+          f.assignments[0]!.completedTurn!({ turn: 1, endSeq: 10 });
+          return run.triage!.resolve({ ids: [request], outcome: 'done' });
+        },
+      );
+      request = f.sourceId(message);
+      await f.assignments[0]!.report(
+        { state: 'completed', summary: 'The bug is in the CSV writer' },
+        { turn: 1 },
+      );
+      f.finishAssignments();
+      await vi.waitFor(() => expect(f.runs).toHaveLength(2));
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      await f.core.runtime.whenIdle();
+      expect(f.runs[1]!.inbox).toContain('The bug is in the CSV writer');
+      expect(f.resolved(request)).toBe(true);
+      expect(seen.length).toBeGreaterThan(0);
+      for (const id of seen) expect(f.resolved(id)).toBe(true);
+      expect(f.assignmentItems().map((item) => item.source_kind)).toContain('assignment-lifecycle');
+      expect(f.assignmentItems().every((item) => item.resolved_at !== null)).toBe(true);
+      expect(f.runs).toHaveLength(2);
+    } finally {
+      await f.close();
+    }
+  }, 60000);
+
+  it('shows the Assignment status beside an open request', async () => {
+    const f = await fixture({ triageContinuation: true });
+    try {
+      await f.admit('Research the export bug', (run) =>
+        run.assignments.create({ title: 'Research', grantId: TEST_GRANT_ID, description: 'Dig' }),
+      );
+      await f.assignments[0]!.report(
+        { state: 'progress', summary: 'Halfway through the CSV writer' },
+        { turn: 1 },
+      );
+      await f.admit('Any news?');
+      await vi.waitFor(() => expect(f.runs).toHaveLength(2));
+      const open = f.runs[1]!.inbox.split('[Open Inbox]')[1] ?? '';
+      expect(open).toContain('Status: Assignment "Research" working.');
     } finally {
       await f.close();
     }
@@ -72,8 +143,11 @@ describe('Orchestrator triage continuation', () => {
   it('maps a Message ID shared by two channels to the item in this turn', async () => {
     const f = await fixture();
     try {
-      const group = f.core.channels.createGroup({ name: 'Crew', members: ['ada'] });
-      await f.core.channels.appendMessage(group.id, {
+      const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Crew',
+        members: ['ada'],
+      });
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'human-1',
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -102,8 +176,11 @@ describe('Orchestrator triage continuation', () => {
     const f = await fixture();
     try {
       await f.send('Waiting on legal');
-      const group = f.core.channels.createGroup({ name: 'Crew', members: ['ada'] });
-      await f.core.channels.appendMessage(group.id, {
+      const group = f.core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Crew',
+        members: ['ada'],
+      });
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id: 'human-1',
         at: new Date().toISOString(),
         author: { kind: 'human' },

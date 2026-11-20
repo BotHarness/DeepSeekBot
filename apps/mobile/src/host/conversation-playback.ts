@@ -1,5 +1,10 @@
-import type { Conversation, ConversationDraft, ConversationMessage } from './conversation';
-import { createTextPlayback, playbackTiming, type TextPlayback } from './text-playback';
+import type {
+  Conversation,
+  ConversationDraft,
+  ConversationMessage,
+} from '@botharness/host-client/conversation';
+import { playbackTiming, type TextPlayback } from './text-playback';
+import { createPlaybackRuntime, type PlaybackRuntime } from './playback-runtime';
 
 export type BubblePlayback = { message: ConversationMessage; streaming: boolean };
 
@@ -16,6 +21,7 @@ type Queue = {
 
 export function createConversationPlayback(
   source: Pick<Conversation, 'getSnapshot' | 'getTimelineSnapshot' | 'subscribe'>,
+  runtime: PlaybackRuntime = createPlaybackRuntime(),
 ) {
   const queues = new Map<string, Queue>();
   const bindings = new Map<string, string>();
@@ -25,7 +31,7 @@ export function createConversationPlayback(
   let active = true;
   let following = true;
   let live = previous.status === 'live';
-  let timer: ReturnType<typeof setTimeout> | undefined;
+  let timer: (() => void) | undefined;
   let stop: (() => void) | undefined;
 
   const changed = (queue: Queue) => {
@@ -58,7 +64,7 @@ export function createConversationPlayback(
       ...(draftId === undefined ? { messageId: base.id } : { draftId }),
       base,
       publishedBase: base,
-      player: createTextPlayback(initial),
+      player: runtime.createPlayer(initial),
       snapshot: { message: { ...base, body: initial }, streaming: true },
     };
     queues.set(key, queue);
@@ -101,12 +107,22 @@ export function createConversationPlayback(
         (queue.snapshot.streaming && queue.player.getSnapshot().phase === 'complete'),
     );
     if (!pending) {
-      clearTimeout(timer);
+      timer?.();
       timer = undefined;
       return;
     }
-    if (timer === undefined && active && following && listeners.size > 0 && pending)
-      timer = setTimeout(tick, playbackTiming.frame);
+    if (timer === undefined && active && following && listeners.size > 0 && pending) {
+      const occupied = new Set<string>();
+      const selected: TextPlayback[] = [];
+      for (const queue of queues.values()) {
+        if (queue.player.getSnapshot().phase === 'complete') continue;
+        const bot = queue.base.bot ?? queue.key;
+        if (occupied.has(bot)) continue;
+        occupied.add(bot);
+        selected.push(queue.player);
+      }
+      timer = runtime.schedule(selected, tick);
+    }
   };
   const update = () => {
     const current = source.getSnapshot();
@@ -205,7 +221,7 @@ export function createConversationPlayback(
         if (listeners.size === 0) {
           stop?.();
           stop = undefined;
-          clearTimeout(timer);
+          timer?.();
           timer = undefined;
         }
       };
@@ -213,14 +229,14 @@ export function createConversationPlayback(
     setFollowing(next: boolean) {
       if (following === next) return;
       following = next;
-      clearTimeout(timer);
+      timer?.();
       timer = undefined;
       for (const queue of queues.values()) queue.player.resetClock(Date.now());
       if (next) schedule();
     },
     setActive(next: boolean) {
       active = next;
-      clearTimeout(timer);
+      timer?.();
       timer = undefined;
       for (const queue of queues.values()) {
         if (!next) {

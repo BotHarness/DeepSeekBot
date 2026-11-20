@@ -1,6 +1,6 @@
+import { Button } from './ds/button.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button } from '@deepseek-ai/dsh-client-ui-primitives';
 import { Note } from './ds/note.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 

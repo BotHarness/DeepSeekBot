@@ -1,6 +1,7 @@
 import type { DshSessionEvent } from '../sessions/source.js';
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import type { DirectBotToolCall } from '../runtime/bot-runtime.js';
+import type { SessionFailureProgress } from '../channels/channel.js';
 
 export type ToolCallOutcome = 'ok' | 'error' | 'denied' | 'cancelled' | 'pending';
 
@@ -183,4 +184,22 @@ export function directToolTrace(
       },
     ],
   }));
+}
+
+const UNKNOWN_TOOLS_LIMIT = 5;
+
+export function turnProgress(
+  events: readonly DshSessionEvent[],
+): SessionFailureProgress | undefined {
+  const turn = summarizeToolTrace(events, { turns: 1 }).turns[0];
+  if (turn === undefined) return undefined;
+  const last = turn.calls.at(-1);
+  const unknownTools = [
+    ...new Set(turn.calls.filter((call) => call.outcome === 'pending').map((call) => call.name)),
+  ].slice(0, UNKNOWN_TOOLS_LIMIT);
+  return {
+    completedSteps: turn.calls.filter((call) => call.outcome !== 'pending').length,
+    ...(last === undefined ? {} : { lastTool: last.name }),
+    ...(unknownTools.length === 0 ? {} : { unknownTools }),
+  };
 }

@@ -1,11 +1,17 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createCore } from '../src/plugin.js';
 import { createTempRoot } from './helpers.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
+import type { ChannelMessage } from '../src/channels/channel.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { attachOperationalModule } from '../src/database/owner.js';
-import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
-import { describe, expect, it } from 'vitest';
+import {
+  createBotMessageTool,
+  sessionMentionIds,
+  withoutSessionMentions,
+} from '../src/runtime/bot-message-tool.js';
+import { describe, expect, it, vi } from 'vitest';
 import { createDshBotAgentAdapter } from '../src/runtime/dsh-bot-agent-adapter.js';
 import { FakeAgentHost } from './dsh-agent-host-fixture.js';
 import { inboxFixture, type TurnHook } from './inbox-fixture.js';
@@ -16,10 +22,11 @@ function receipt(value: unknown) {
 }
 
 function tools() {
+  const memoryDir = createTempRoot('bot-message-tool-memory-');
   return createDshBotAgentAdapter({
     agents: new FakeAgentHost(),
     defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
-    orchestratorCwd: () => '/memory',
+    orchestratorCwd: () => memoryDir,
   });
 }
 
@@ -30,7 +37,7 @@ async function fixture() {
     ...f,
     send: async (body: string, ...turns: TurnHook[]) => {
       sequence += 1;
-      await f.core.channels.appendMessage(f.dm.id, {
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
         id: `human-${sequence}`,
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -72,6 +79,70 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
       });
       expect(conclusions).toBe(1);
       expect(f.state(source)).toBe('handled');
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('treats schema-filled empty optional fields as absent (#3296)', async () => {
+    const f = await fixture();
+    try {
+      const source = await f.send('Reply please', async (run) => {
+        const tool = createBotMessageTool(() => run);
+        const context = {
+          callId: ToolCallId('filled'),
+          signal: new AbortController().signal,
+          concludeTurn: () => {},
+        } as ToolRunContext;
+        const args = {
+          source_event_id: run.triage!.current()[0],
+          body: '测试',
+          attachments: [],
+          binding_id: '',
+          bot_id: '',
+          channel_id: '',
+          conversation_id: '',
+          draft_id: '',
+          grant_id: '',
+          observation_id: '',
+          mention_bot_ids: [],
+          mention_human_ids: [],
+          recover: false,
+          resolve_inbox_ids: [],
+          freshness_override: { draftVersion: 0, reason: '' },
+        };
+        const result = receipt(await tool.execute(args, context));
+        expect(result).toMatchObject({ status: 'committed' });
+        expect(f.core.channels.readMessages(f.dm.id).some((m) => m.id === result.messageId)).toBe(
+          true,
+        );
+      });
+      expect(f.state(source)).toBe('open');
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('names the conflicting destination fields when more than one is supplied', async () => {
+    const f = await fixture();
+    try {
+      await f.send('Reply please', async (run) => {
+        const tool = createBotMessageTool(() => run);
+        const context = {
+          callId: ToolCallId('conflict'),
+          signal: new AbortController().signal,
+          concludeTurn: () => {},
+        } as ToolRunContext;
+        await expect(
+          tool.execute(
+            { source_event_id: run.triage!.current()[0], channel_id: f.dm.id, body: 'x' },
+            context,
+          ),
+        ).rejects.toThrow(/got: source_event_id, channel_id/);
+        await expect(
+          tool.execute({ channel_id: '', grant_id: '  ', body: 'x' }, context),
+        ).rejects.toThrow(/got: none/);
+      });
     } finally {
       await f.close();
     }
@@ -190,6 +261,188 @@ describe('explicit local Bot messages', { timeout: 60_000 }, () => {
       expect(f.state(earlier)).toBe('open');
     } finally {
       await adapter.close();
+      await f.close();
+    }
+  });
+
+  it('shows a Human quote to the Bot and lets the Bot cite several messages', async () => {
+    const f = await inboxFixture();
+    const adapter = tools();
+    const append = (id: string, body: string, quotes?: { messageId: string; text?: string }[]) =>
+      f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id,
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body,
+        ...(quotes === undefined ? {} : { quotes }),
+      });
+    try {
+      await append('human-1', 'Ship the **export** fix on Friday, then update the docs.');
+      await f.send('Ship the export fix on Friday, then update the docs.');
+      await append('human-2', 'Is this still the plan?', [
+        { messageId: 'human-1', text: 'export fix on Friday' },
+      ]);
+      let prompt = '';
+      let refused: unknown;
+      await f.send('Is this still the plan?', async (run) => {
+        prompt = run.message;
+        const source = run.triage!.current()[0];
+        refused = await adapter.runDirectTool!(
+          run,
+          'bot_send_message',
+          {
+            source_event_id: source,
+            body: 'x',
+            quotes: [{ message_id: 'human-1', text: 'ship on Monday' }],
+          },
+          new AbortController().signal,
+        ).catch((error: unknown) => error);
+        await adapter.runDirectTool!(
+          run,
+          'bot_send_message',
+          {
+            source_event_id: source,
+            body: 'Yes: Friday for the fix, docs after.',
+            quotes: [
+              { message_id: 'human-1', text: 'then update the docs' },
+              { message_id: 'human-2' },
+            ],
+          },
+          new AbortController().signal,
+        );
+      });
+      expect(prompt).toContain('[Quoted messages');
+      expect(prompt).toContain('- Message human-1 from Human');
+      expect(prompt).toContain('(excerpt): "export fix on Friday"');
+      expect(refused).toMatchObject({ code: 'quote-text-mismatch' });
+      const page = f.core.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, f.dm.id, { limit: 5 })!;
+      const reply = page.entries.find(
+        (entry) => entry.body === 'Yes: Friday for the fix, docs after.',
+      );
+      expect(reply?.author).toMatchObject({ kind: 'bot', slug: 'ada' });
+      expect(reply?.quotes).toMatchObject([
+        {
+          messageId: 'human-1',
+          text: 'then update the docs',
+          preview: { body: expect.any(String) },
+        },
+        { messageId: 'human-2', preview: { body: 'Is this still the plan?' } },
+      ]);
+    } finally {
+      await adapter.close();
+      await f.close();
+    }
+  });
+
+  it('hides a quote target removed by message cleanup from readers and the Bot prompt', async () => {
+    const f = await inboxFixture();
+    try {
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-1',
+        at: '2026-01-01T00:00:00.000Z',
+        author: { kind: 'human' },
+        body: 'Secret plan: launch on Friday.',
+      });
+      await f.send('Secret plan: launch on Friday.');
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-2',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: 'Still on?',
+        quotes: [{ messageId: 'human-1', text: 'launch on Friday', note: 'Is it?' }],
+      });
+      const scope = { before: '2026-06-01T00:00:00.000Z', channelIds: [f.dm.id] };
+      const preview = f.core.contentPurge.textPreview(OWNER_HUMAN_CONTEXT, scope);
+      expect(preview.messages).toBe(1);
+      f.core.contentPurge.textConfirm(OWNER_HUMAN_CONTEXT, preview.scope, preview.token);
+      expect(f.core.channels.message(f.dm.id, 'human-1')).toHaveProperty('contentPurge');
+      const page = f.core.channels.readHumanTimeline(OWNER_HUMAN_CONTEXT, f.dm.id, { limit: 5 })!;
+      expect(page.entries.find((entry) => entry.id === 'human-2')?.quotes).toEqual([
+        { messageId: 'human-1', note: 'Is it?', preview: null },
+      ]);
+      expect(JSON.stringify(page.entries)).not.toContain('launch on Friday');
+      let prompt = '';
+      await f.send('Still on?', async (run) => {
+        prompt = run.message;
+      });
+      expect(prompt).toContain('- Message human-1: (unavailable)');
+      expect(prompt).not.toContain('launch on Friday');
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('hides a quote target cleaned up while the Bot turn is being prepared', async () => {
+    const f = await inboxFixture();
+    try {
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-1',
+        at: '2026-01-01T00:00:00.000Z',
+        author: { kind: 'human' },
+        body: 'Secret plan: launch on Friday.',
+      });
+      await f.send('Secret plan: launch on Friday.');
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-2',
+        at: new Date().toISOString(),
+        author: { kind: 'human' },
+        body: 'Still on?',
+        quotes: [{ messageId: 'human-1' }],
+      });
+      const prepare = f.core.memory.prepareTurnAsync.bind(f.core.memory);
+      const spy = vi
+        .spyOn(f.core.memory, 'prepareTurnAsync')
+        .mockImplementationOnce(async (...args) => {
+          const scope = { before: '2026-06-01T00:00:00.000Z', channelIds: [f.dm.id] };
+          const preview = f.core.contentPurge.textPreview(OWNER_HUMAN_CONTEXT, scope);
+          f.core.contentPurge.textConfirm(OWNER_HUMAN_CONTEXT, preview.scope, preview.token);
+          return prepare(...args);
+        });
+      let prompt = '';
+      await f.send('Still on?', async (run) => {
+        prompt = run.message;
+      });
+      expect(spy).toHaveBeenCalled();
+      expect(prompt).toContain('- Message human-1: (unavailable)');
+      expect(prompt).not.toContain('launch on Friday');
+    } finally {
+      await f.close();
+    }
+  });
+
+  it('returns a committed quoting send on retry after message cleanup removes its target', async () => {
+    const f = await inboxFixture();
+    try {
+      await f.core.channels.appendMessage(OWNER_HUMAN_CONTEXT, f.dm.id, {
+        id: 'human-1',
+        at: '2026-01-01T00:00:00.000Z',
+        author: { kind: 'human' },
+        body: 'Secret plan: launch on Friday.',
+      });
+      await f.send('Secret plan: launch on Friday.');
+      const send = (run: OrchestratorAgentRun, text: string) =>
+        run.channels.send({
+          channelId: f.dm.id,
+          body: 'Noted.',
+          deliveryKey: 'quote-retry',
+          quotes: [{ messageId: 'human-1', text }],
+        });
+      let first: ChannelMessage | undefined;
+      let retry: ChannelMessage | undefined;
+      let changed: unknown;
+      await f.send('Is the plan still on?', async (run) => {
+        first = await send(run, 'launch on Friday');
+        const scope = { before: '2026-06-01T00:00:00.000Z', channelIds: [f.dm.id] };
+        const preview = f.core.contentPurge.textPreview(OWNER_HUMAN_CONTEXT, scope);
+        f.core.contentPurge.textConfirm(OWNER_HUMAN_CONTEXT, preview.scope, preview.token);
+        expect(f.core.channels.message(f.dm.id, 'human-1')).toHaveProperty('contentPurge');
+        retry = await send(run, 'launch on Friday');
+        changed = await send(run, 'Secret plan').catch((error: unknown) => error);
+      });
+      expect(first?.id).toBeDefined();
+      expect(retry?.id).toBe(first?.id);
+      expect(changed).toMatchObject({ code: 'quote-text-mismatch' });
+    } finally {
       await f.close();
     }
   });
@@ -315,9 +568,12 @@ it('keeps an explicitly selected Group source as causation when newer input exis
   });
   try {
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const group = core.channels.createGroup({ name: 'Source QA', members: ['ada'] });
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Source QA',
+      members: ['ada'],
+    });
     for (const id of ['first', 'second']) {
-      await core.channels.appendMessage(group.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, group.id, {
         id,
         at: new Date().toISOString(),
         author: { kind: 'human' },
@@ -348,3 +604,84 @@ it('keeps an explicitly selected Group source as causation when newer input exis
     core.operationalDatabase.close();
   }
 }, 60000);
+
+it('links Sessions to a sent DM message after sending, adds later ones, and checks inline mentions', async () => {
+  const f = await fixture();
+  try {
+    await f.send('Fix the export', async (run) => {
+      const scoped = {
+        ...run,
+        assignments: {
+          ...run.assignments,
+          inspect: (sessionId: string) =>
+            sessionId === 'asg-old' ? ({ sessionId, title: 'Old work' } as never) : undefined,
+        },
+      } as OrchestratorAgentRun;
+      const tool = createBotMessageTool(() => scoped);
+      const context = (id: string) =>
+        ({
+          callId: ToolCallId(id),
+          signal: new AbortController().signal,
+          concludeTurn: () => {},
+        }) as ToolRunContext;
+      const source = run.triage!.current()[0];
+      await expect(
+        tool.execute(
+          { source_event_id: source, body: 'See [x](session:asg-missing).' },
+          context('missing'),
+        ),
+      ).rejects.toThrow('Unknown Assignment Session');
+      const result = receipt(
+        await tool.execute(
+          { source_event_id: source, body: 'Starting; see also [Old work](session:asg-old).' },
+          context('receipt'),
+        ),
+      );
+      const sent = f.core.channels
+        .readMessages(f.dm.id)
+        .find((entry) => entry.id === result.messageId)!;
+      expect(sent.sessionLinks).toBeUndefined();
+      expect(sent.body).toContain('[Old work](session:asg-old)');
+      const later = new Date(Date.parse(sent.at) + 1000).toISOString();
+      const earlier = new Date(Date.parse(sent.at) - 60_000).toISOString();
+      run.channels.linkSessions!({
+        messageId: result.messageId,
+        links: [
+          { sessionId: 'asg-new', kind: 'created', title: 'Fix export' },
+          { sessionId: 'asg-old', kind: 'sent', title: 'Old work', createdAt: earlier },
+        ],
+      });
+      const linked = run.channels.linkSessions!({
+        messageId: result.messageId,
+        links: [
+          { sessionId: 'asg-new', kind: 'sent', title: 'Fix export' },
+          { sessionId: 'asg-next', kind: 'sent', title: 'Next turn', createdAt: later },
+        ],
+      });
+      expect(linked.sessionLinks).toEqual([
+        { sessionId: 'asg-new', kind: 'created', title: 'Fix export' },
+        { sessionId: 'asg-old', kind: 'sent', title: 'Old work' },
+        { sessionId: 'asg-next', kind: 'created', title: 'Next turn' },
+      ]);
+      expect(
+        f.core.channels.readMessages(f.dm.id).find((entry) => entry.id === result.messageId)
+          ?.sessionLinks,
+      ).toEqual(linked.sessionLinks);
+      expect(() =>
+        run.channels.linkSessions!({
+          messageId: 'not-a-message',
+          links: [{ sessionId: 'asg-new', kind: 'created', title: 'Fix export' }],
+        }),
+      ).toThrow('is not one of your messages in a Human DM');
+    });
+  } finally {
+    await f.close();
+  }
+});
+
+it('turns inline session mentions into plain titles for external IM', () => {
+  const body =
+    'Done: [Fix export](session:asg-1) and [Docs](session:asg-2), [Fix export](session:asg-1).';
+  expect(sessionMentionIds(body)).toEqual(['asg-1', 'asg-2']);
+  expect(withoutSessionMentions(body)).toBe('Done: Fix export and Docs, Fix export.');
+});

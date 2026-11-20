@@ -1,34 +1,15 @@
+export { CHANNEL_OPTIONS } from './cli-option-spec.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import type { BotCreateCliIo } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
 import type { connectLiveHost } from './cli-live.js';
 
-export const CHANNEL_OPTIONS = {
-  'avatar-file': { type: 'string' },
-  'expected-channel': { type: 'string' },
-  invitation: { type: 'string' },
-  request: { type: 'string' },
-  accept: { type: 'boolean' },
-  decline: { type: 'boolean' },
-  inherit: { type: 'boolean' },
-  count: { type: 'string' },
-  interval: { type: 'string' },
-  direction: { type: 'string' },
-  around: { type: 'string' },
-  'older-limit': { type: 'string' },
-  'newer-limit': { type: 'string' },
-  through: { type: 'string' },
-  'source-event': { type: 'string', multiple: true },
-  confirm: { type: 'boolean' },
-  emoji: { type: 'string' },
-  remove: { type: 'boolean' },
-  off: { type: 'boolean' },
-  attachment: { type: 'string' },
-} as const;
-
 export const CHANNEL_COMMANDS = [
-  { command: 'channel', description: 'read a group Channel and its current fingerprint' },
+  {
+    command: 'channel',
+    description: 'read a group Channel and its current fingerprint',
+  },
   {
     command: 'channel-media-target',
     description: 'acquire authorized source media and resolve its Host file target',
@@ -37,24 +18,39 @@ export const CHANNEL_COMMANDS = [
     command: 'channel-media-download',
     description: 'download authorized source media to a new local --out file',
   },
-  { command: 'channel-rename', description: 'rename a Channel; renaming a Bot DM renames the Bot' },
+  {
+    command: 'channel-rename',
+    description: 'rename a Channel; renaming a Bot DM renames the Bot',
+  },
   {
     command: 'group-avatar-set',
     description: 'set a group avatar from a PNG, JPEG or WebP file, or clear it',
   },
   { command: 'group-invite', description: 'invite a Bot into a group Channel' },
-  { command: 'group-invite-cancel', description: 'cancel a pending group invitation' },
+  {
+    command: 'group-invite-cancel',
+    description: 'cancel a pending group invitation',
+  },
   {
     command: 'group-join-decide',
     description: "accept or decline a Bot's request to join a group",
   },
-  { command: 'group-member-remove', description: 'remove a Bot from a group Channel' },
+  {
+    command: 'group-member-remove',
+    description: 'remove a Bot from a group Channel',
+  },
   {
     command: 'group-send-review',
     description: 'read Group send review; --accept enables and --off disables it',
   },
-  { command: 'group-wake-policies', description: "read each group member's wake policy" },
-  { command: 'group-wake-set', description: "set or reset one group member's wake policy" },
+  {
+    command: 'group-wake-policies',
+    description: "read each group member's wake policy",
+  },
+  {
+    command: 'group-wake-set',
+    description: "set or reset one group member's wake policy",
+  },
   {
     command: 'group-delete',
     description: 'disband a group and delete its messages; needs --confirm',
@@ -63,33 +59,67 @@ export const CHANNEL_COMMANDS = [
     command: 'channel-history',
     description: 'list deleted groups whose history can still be purged',
   },
-  { command: 'channel-history-sources', description: "page a Channel's purgeable Source Events" },
+  {
+    command: 'channel-history-sources',
+    description: "page a Channel's purgeable Source Events",
+  },
   {
     command: 'channel-journal',
     description: "page a Channel's message journal through a revision",
   },
   {
+    command: 'channel-files',
+    description: "page a Channel's messages with files, newest first",
+  },
+  {
+    command: 'channel-changes',
+    description: 'list what changed in a Channel since a change cursor, or the current cursor',
+  },
+  {
+    command: 'channel-list-changes',
+    description:
+      'list the Channels whose summary changed since a change cursor, or the current cursor',
+  },
+  {
     command: 'channel-timeline',
     description: "page a Channel's Human timeline by cursor or anchor",
   },
-  { command: 'channel-mark-read', description: 'mark a Channel read through one message' },
-  { command: 'channel-mark-all-read', description: 'mark every Channel read' },
+  {
+    command: 'channel-mark-read',
+    description: 'mark a Channel read through one message',
+  },
+  {
+    command: 'channel-mark-all-read',
+    description: "mark every Channel read, or only one Channel or one Bot's Channels",
+  },
   {
     command: 'channel-react',
     description: 'add or remove your emoji reaction on one Channel message',
   },
-  { command: 'channel-search', description: "search a Channel's messages, newest first" },
+  {
+    command: 'channel-search',
+    description: "search a Channel's messages, newest first",
+  },
   {
     command: 'message-search',
     description: 'search messages across every Channel you can see, newest first',
   },
-  { command: 'channel-unread', description: 'list unread message counts per Channel' },
+  {
+    command: 'channel-unread',
+    description: 'list unread message counts per Channel',
+  },
   {
     command: 'channel-mute',
     description: 'mute a Channel so it stays out of unread badges, or unmute it with --off',
   },
-  { command: 'channel-retry', description: 'retry a failed Bot reply to a Human DM message' },
-  { command: 'channel-bot-stop', description: "stop a working Bot's current turn in a Channel" },
+  {
+    command: 'channel-retry',
+    description: 'retry or continue a failed Bot reply to a Human DM message',
+  },
+  {
+    command: 'channel-bot-stop',
+    description: 'deprecated alias of bot-stop: stop every running Session of a Bot in a Channel',
+  },
   {
     command: 'channel-purge-preview',
     description: 'preview what purging Source Events removes and get its confirmation token',
@@ -104,6 +134,7 @@ type ChannelCommand = (typeof CHANNEL_COMMANDS)[number]['command'];
 
 interface ChannelValues {
   'operation-key'?: string;
+  channel?: string;
   'expected-channel'?: string;
   timeout?: string;
   name?: string;
@@ -115,6 +146,7 @@ interface ChannelValues {
   limit?: string;
   'message-id'?: string;
   'failure-message-id'?: string;
+  'auto-continue-for'?: string;
   recovery?: string;
   'confirmation-stdin'?: boolean;
   'avatar-file'?: string;
@@ -130,6 +162,8 @@ interface ChannelValues {
   'older-limit'?: string;
   'newer-limit'?: string;
   through?: string;
+  since?: string;
+  epoch?: string;
   'source-event'?: string[];
   confirm?: boolean;
   emoji?: string;
@@ -137,6 +171,7 @@ interface ChannelValues {
   query?: string;
   off?: boolean;
   attachment?: string;
+  representation?: string;
   out?: string;
 }
 
@@ -224,6 +259,7 @@ export async function runChannelCommand(
     command === 'channel-history' ||
     command === 'channel-mark-all-read' ||
     command === 'channel-unread' ||
+    command === 'channel-list-changes' ||
     command === 'message-search';
   if (rest.length !== (noTarget ? 0 : 1))
     usage(
@@ -249,6 +285,11 @@ export async function runChannelCommand(
       args.sourceEventId = required(values['source-event'][0], '--source-event');
       args.attachmentId = required(values.attachment, '--attachment');
       if (command === 'channel-media-download') required(values.out, '--out');
+      if (
+        values.representation !== undefined &&
+        (command !== 'channel-media-download' || values.representation !== 'playback')
+      )
+        usage('--representation playback is only supported by channel-media-download.');
       break;
     case 'channel-rename':
       method = 'channelRename';
@@ -334,6 +375,47 @@ export async function runChannelCommand(
       };
       break;
     }
+    case 'channel-files': {
+      method = 'channelFilesPage';
+      const before = integer(values.before, '--before', 1, 2 ** 53 - 1);
+      const limit = integer(values.limit, '--limit', 1, 100);
+      args = {
+        channelId,
+        ...(before === undefined ? {} : { before }),
+        ...(limit === undefined ? {} : { limit }),
+      };
+      break;
+    }
+    case 'channel-changes': {
+      if (values.since === undefined) {
+        method = 'channelChangeCursor';
+        args = {};
+        break;
+      }
+      method = 'channelChanges';
+      const sinceSeq = integer(values.since, '--since', 0, 2 ** 53 - 1)!;
+      const limit = integer(values.limit, '--limit', 1, 1000);
+      args = {
+        channelId,
+        sinceSeq,
+        ...(values.epoch === undefined ? {} : { epoch: values.epoch }),
+        ...(limit === undefined ? {} : { limit }),
+      };
+      break;
+    }
+    case 'channel-list-changes': {
+      if (values.since === undefined) {
+        method = 'channelChangeCursor';
+        args = {};
+        break;
+      }
+      method = 'channelListChanges';
+      args = {
+        sinceSeq: integer(values.since, '--since', 0, 2 ** 53 - 1)!,
+        ...(values.epoch === undefined ? {} : { epoch: values.epoch }),
+      };
+      break;
+    }
     case 'channel-timeline': {
       method = 'channelTimeline';
       if (values.direction !== undefined && !DIRECTIONS.has(values.direction))
@@ -383,6 +465,8 @@ export async function runChannelCommand(
     case 'channel-mark-all-read':
       method = 'channelMarkAllRead';
       args = {};
+      if (values.channel !== undefined) args.channelId = required(values.channel, '--channel');
+      if (values.bot !== undefined) args.botSlug = required(values.bot, '--bot');
       break;
     case 'channel-unread':
       method = 'channelUnreadCounts';
@@ -396,15 +480,24 @@ export async function runChannelCommand(
       method = 'channelRetry';
       args.messageId = required(values['message-id'], '--message-id');
       if (values.recovery !== undefined) {
-        if (values.recovery !== 'compact' && values.recovery !== 'new-session')
-          usage('--recovery must be compact or new-session');
+        if (
+          values.recovery !== 'continue' &&
+          values.recovery !== 'compact' &&
+          values.recovery !== 'new-session'
+        )
+          usage('--recovery must be continue, compact or new-session');
         args.recovery = values.recovery;
         args.failureMessageId = required(values['failure-message-id'], '--failure-message-id');
       }
       break;
     case 'channel-bot-stop':
+      io.stderr(
+        'tobs: channel-bot-stop is deprecated and will be removed; use `bot-stop <bot> --channel <channel-id>`.',
+      );
       method = 'channelBotStop';
       args.botSlug = required(values.bot, '--bot');
+      if (values['auto-continue-for'] !== undefined)
+        args.autoContinueFor = required(values['auto-continue-for'], '--auto-continue-for');
       break;
     case 'channel-purge-preview':
     case 'channel-purge-confirm': {
@@ -440,6 +533,7 @@ export async function runChannelCommand(
           channelId,
           sourceEventId: String(args.sourceEventId),
           attachmentId: String(args.attachmentId),
+          ...(values.representation === 'playback' ? { representation: 'playback' } : {}),
         }),
     );
     if (bytes.byteLength > 25 * 1024 * 1024)

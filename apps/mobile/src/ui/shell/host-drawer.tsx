@@ -1,9 +1,13 @@
+import type { ConnectionDiagnostic } from '@botharness/host-client/connection-diagnostic';
+import { ReadFailure } from '../primitives/read-failure';
+import { watchAccountHosts } from '../../host/watch-account-hosts';
 import { closeWorkspacePage } from './workspace-paging';
 import { router, useIsFocused, usePathname, useGlobalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
-import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import {
   AccessibilityInfo,
+  AppState,
   FlatList,
   Platform,
   Pressable,
@@ -34,9 +38,11 @@ import {
 import { computerEnvironmentKey } from '../../host/conversation-environments';
 import { conversationFilter, useConversationFilter } from '../../host/native-conversation-filter';
 
-import type { ConnectHost } from '../../host/connect-account';
+import type { ConnectHost } from '@botharness/host-client/connect-account';
+import { accountHostLookId } from '../../host/account-host-look';
 import { connectAccount } from '../../host/native-connect-account';
-import { liveGlance, type HostStatus } from '../../host/host-glance';
+import { liveGlance, type HostGlance, type HostStatus } from '../../host/host-glance';
+import { SavedHostsWriteError } from '@botharness/host-client/hosts';
 import {
   hostSession,
   useHostSession,
@@ -46,7 +52,11 @@ import {
 } from '../../host/host-session';
 
 import { useHostLook } from '../../host/native-host-look';
-import { hostColorInk, hostTileFill, shownHostName, type HostLook } from '../design/host-look';
+import {
+  hostColorInk,
+  hostTileFill,
+  shownHostName,
+} from '@botharness/host-client/ui/design/host-look';
 import { glassShadow, pressTint, useDesignTheme, type DesignTheme } from '../design/theme';
 import { useMounted } from '../mounted';
 import { spring } from '../design/motion';
@@ -58,11 +68,16 @@ import { SettingsForm } from '../primitives/settings-form';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { DrawerListItem } from '../primitives/drawer-list-item';
 import { CountBadge } from '../primitives/count-badge';
-import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
 import { showActionMenu, showAppDialog } from '../primitives/app-dialog';
 import { useStrings, t } from '../strings';
 import { HostTile } from './host-tile';
+import {
+  AccountComputerRow,
+  ComputerRowLabel,
+  ComputerTile,
+  computerStatusDot,
+} from './computer-row';
 import { ActionMenuButton, type MenuAction } from '../primitives/action-menu-button';
 import { ContextMenuArea, nativeContextMenu } from '../primitives/context-menu';
 import { MENU_SYMBOL } from '../primitives/menu-symbols';
@@ -95,7 +110,12 @@ export const hostDrawer = createHostDrawer({
   },
   pair: () => router.push('/pair'),
   notifications: () => router.push('/notifications'),
-  failed: () => showAppDialog(t.channelOpeningFailed, undefined, [{ text: t.done }]),
+  failed: (error) =>
+    error instanceof SavedHostsWriteError
+      ? showAppDialog(t.savedComputersKeychainFailed, t.savedComputersErrorDetail(error.message), [
+          { text: t.done },
+        ])
+      : showAppDialog(t.channelOpeningFailed, undefined, [{ text: t.done }]),
 });
 
 const progress = makeMutable(0);
@@ -258,8 +278,17 @@ function PanHostDrawerEdge({
   );
 }
 
-function statusText(status: HostStatus): string {
-  return status === 'online' ? t.hostOnline : status === 'offline' ? t.hostOffline : t.hostChecking;
+function statusText(glance: HostGlance): string {
+  if (glance.refusal === 'sign-in-required') return t.hostSignInRequired;
+  if (glance.refusal === 'member-suspended') return t.hostMemberSuspended;
+  const status = glance.status;
+  return status === 'online'
+    ? t.hostOnline
+    : status === 'offline'
+      ? t.hostOffline
+      : status === 'refused'
+        ? t.hostRefused
+        : t.hostChecking;
 }
 
 function closeThen(action: () => void): void {
@@ -267,33 +296,64 @@ function closeThen(action: () => void): void {
   action();
 }
 
+function isMemberHost(hostId: string): boolean {
+  return hostSession
+    .getState()
+    .hosts.some((host) => host.hostId === hostId && host.member !== undefined);
+}
+
 function confirmUnpair(row: HostDrawerRow, name: string): void {
-  showAppDialog(t.unpairHost(name), t.unpairHostDetail, [
-    { text: t.cancel, style: 'cancel' },
-    {
-      text: t.unpair,
-      style: 'destructive',
-      onPress: () => {
-        if (hostSession.getState().hosts.length <= 1) settle(false);
-        return hostSession.unpair(row.hostId).then(
-          (result) => {
-            if (result?.current === true && row.current && router.canDismiss()) router.dismissAll();
-            noticeHostKept(result, name);
-          },
-          (error: unknown) =>
-            showAppDialog(
-              `${t.unpairFailed} ${error instanceof Error ? error.message : String(error)}`,
-              undefined,
-              [{ text: t.done }],
-            ),
-        );
+  const member = isMemberHost(row.hostId);
+  showAppDialog(
+    member ? t.teamSignIn.signOutTitle.replace('{host}', name) : t.unpairHost(name),
+    member ? t.teamSignIn.signOutBody : t.unpairHostDetail,
+    [
+      { text: t.cancel, style: 'cancel' },
+      {
+        text: member ? t.teamSignIn.signOut : t.unpair,
+        style: 'destructive',
+        onPress: () => {
+          if (hostSession.getState().hosts.length <= 1) settle(false);
+          return hostSession.unpair(row.hostId).then(
+            (result) => {
+              if (result?.current === true && row.current && router.canDismiss())
+                router.dismissAll();
+              noticeHostKept(result, name);
+            },
+            (error: unknown) =>
+              error instanceof SavedHostsWriteError
+                ? showAppDialog(
+                    `${t.unpairFailed} ${t.savedComputersKeychainFailed}`,
+                    t.savedComputersErrorDetail(error.message),
+                    [{ text: t.done }],
+                  )
+                : showAppDialog(
+                    `${t.unpairFailed} ${error instanceof Error ? error.message : String(error)}`,
+                    undefined,
+                    [{ text: t.done }],
+                  ),
+          );
+        },
       },
-    },
-  ]);
+    ],
+  );
 }
 
 function hostMenuActions(row: HostDrawerRow, name: string): MenuAction[] {
+  const member = isMemberHost(row.hostId);
   return [
+    ...(row.glance.refusal === 'sign-in-required'
+      ? [
+          {
+            label: t.teamSignIn.again,
+            icon: 'person' as const,
+            run: () =>
+              closeThen(() =>
+                router.push({ pathname: '/pair/team', params: { host: row.hostId } }),
+              ),
+          },
+        ]
+      : []),
     {
       label: t.connectionRoutes.title,
       icon: 'connection',
@@ -317,8 +377,23 @@ function hostMenuActions(row: HostDrawerRow, name: string): MenuAction[] {
             run: () => closeThen(() => void hostDrawer.select(row.hostId)),
           },
         ]),
+    ...(member
+      ? [
+          {
+            label: t.teamSignIn.switchAccount,
+            icon: 'person' as const,
+            run: () =>
+              closeThen(() =>
+                router.push({
+                  pathname: '/pair/team',
+                  params: { host: row.hostId, switch: '1' },
+                }),
+              ),
+          },
+        ]
+      : []),
     {
-      label: t.unpair,
+      label: member ? t.teamSignIn.signOut : t.unpair,
       icon: 'close',
       run: () => confirmUnpair(row, name),
       destructive: true,
@@ -361,31 +436,49 @@ function rowStyle(theme: DesignTheme, glass: boolean, active: boolean, selected 
   };
 }
 
-function DrawerTile({ look, name, current }: { look: HostLook; name: string; current: boolean }) {
-  const theme = useDesignTheme();
-  const glass = useLiquidGlass();
+function BadgedHostTile({ glance, children }: { glance: HostGlance; children: ReactNode }) {
+  const t = useStrings();
+  const badge = hostRowBadge(glance);
   return (
-    <View
-      style={{
-        padding: space.x1,
-        borderRadius: radius.lg,
-        borderWidth: edge.focus,
-        borderColor: current ? theme.color.fg : glass ? 'transparent' : theme.layer.sheet.fill,
-      }}
-    >
-      <HostTile
-        hostName={name}
-        icon={look.icon}
-        size={theme.type.title.line + space.x3}
-        fill={hostTileFill(theme.scheme, theme.color, look.color, theme.layer.sheet.inset)}
-        ink={
-          look.color === undefined
-            ? theme.color.fg
-            : hostColorInk(theme.scheme, theme.color, look.color)
-        }
-      />
+    <View style={{ paddingTop: space.x2, paddingRight: space.x2 }}>
+      {children}
+      {badge === undefined ? null : (
+        <View
+          testID="drawer-host-badge"
+          pointerEvents="none"
+          style={{ position: 'absolute', top: 0, right: 0 }}
+        >
+          <CountBadge
+            compact
+            count={badge.count}
+            tone={badge.tone}
+            label={
+              badge.tone === 'needs-you' ? t.hostPending(badge.count) : t.hostUnread(badge.count)
+            }
+          />
+        </View>
+      )}
     </View>
   );
+}
+
+function hostRowLabel(
+  t: ReturnType<typeof useStrings>,
+  row: HostDrawerRow,
+  name: string,
+  selected: boolean,
+): string {
+  const pending = row.glance.pending ?? 0;
+  const unread = row.glance.unread ?? 0;
+  return [
+    name,
+    selected ? t.showing : undefined,
+    statusText(row.glance),
+    pending > 0 ? t.hostPending(pending) : undefined,
+    unread > 0 ? t.hostUnread(unread) : undefined,
+  ]
+    .filter((part) => part !== undefined)
+    .join(', ');
 }
 
 const loadAccountName = () => connectAccount.email().then((email) => email ?? undefined);
@@ -427,31 +520,20 @@ function StackedHostTiles({ rows }: { rows: readonly HostDrawerRow[] }) {
   );
 }
 
-function HostRow({
-  row,
-  address,
-  selected,
-}: {
-  row: HostDrawerRow;
-  address: string;
-  selected: boolean;
-}) {
+function HostRow({ row, selected }: { row: HostDrawerRow; selected: boolean }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const glass = useLiquidGlass();
   const android = !glass && Platform.OS === 'android';
   const look = useHostLook(row.hostId);
   const name = shownHostName(look, row.hostName);
-  const pending = row.glance.pending ?? 0;
-  const unread = row.glance.unread ?? 0;
-  const badge = hostRowBadge(row.glance);
-  const status = statusText(row.glance.status);
-  const dot =
-    row.glance.status === 'online'
-      ? theme.color.success
-      : row.glance.status === 'checking'
-        ? theme.color.warning
-        : theme.color.subtle;
+  const status = statusText(row.glance);
+  const dot = computerStatusDot(theme, row.glance.status);
+  const tile = (
+    <BadgedHostTile glance={row.glance}>
+      <ComputerTile look={look} name={name} current={selected} />
+    </BadgedHostTile>
+  );
   if (Platform.OS === 'android') {
     return (
       <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: space.x4 }}>
@@ -459,32 +541,12 @@ function HostRow({
           <DrawerListItem
             testID={'drawer-host-' + row.hostId}
             label={name}
-            detail={[status, address].filter(Boolean).join(' · ')}
-            accessibilityLabel={[
-              name,
-              selected ? t.showing : undefined,
-              status,
-              address,
-              pending > 0 ? t.hostPending(pending) : undefined,
-              unread > 0 ? t.hostUnread(unread) : undefined,
-            ]
-              .filter(Boolean)
-              .join(', ')}
+            detail={status}
+            detailDot={dot}
+            singleLine
+            accessibilityLabel={hostRowLabel(t, row, name, selected)}
             selected={selected}
-            leading={<DrawerTile look={look} name={name} current={selected} />}
-            trailing={
-              badge && (
-                <CountBadge
-                  count={badge.count}
-                  tone={badge.tone}
-                  label={
-                    badge.tone === 'needs-you'
-                      ? t.hostPending(badge.count)
-                      : t.hostUnread(badge.count)
-                  }
-                />
-              )
-            }
+            leading={tile}
             onPress={() => closeThen(() => void hostDrawer.select(row.hostId))}
             onLongPress={() => openHostMenu(row, name)}
           />
@@ -519,15 +581,7 @@ function HostRow({
           onPress={() => closeThen(() => void hostDrawer.select(row.hostId))}
           {...(nativeContextMenu ? {} : { onLongPress: () => openHostMenu(row, name) })}
           accessibilityRole="button"
-          accessibilityLabel={[
-            name,
-            selected ? t.showing : undefined,
-            status,
-            pending > 0 ? t.hostPending(pending) : undefined,
-            unread > 0 ? t.hostUnread(unread) : undefined,
-          ]
-            .filter((part) => part !== undefined)
-            .join(', ')}
+          accessibilityLabel={hostRowLabel(t, row, name, selected)}
           accessibilityState={{ selected }}
           style={({ pressed }) => ({
             flex: 1,
@@ -551,41 +605,8 @@ function HostRow({
                   : theme.layer.sheet.fill,
           })}
         >
-          <DrawerTile look={look} name={name} current={selected} />
-          <View style={{ flex: 1, gap: space.x1 }}>
-            <Text strong numberOfLines={theme.largeText ? undefined : 1}>
-              {name}
-            </Text>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
-              <View
-                style={{
-                  width: space.x3,
-                  height: space.x3,
-                  borderRadius: radius.round,
-                  backgroundColor: dot,
-                }}
-              />
-              <Text
-                variant="meta"
-                tone="muted"
-                {...(address
-                  ? addressLines(theme.largeText, Platform.OS)
-                  : { numberOfLines: theme.largeText ? undefined : 1 })}
-                style={{ flexShrink: 1 }}
-              >
-                {address || status}
-              </Text>
-            </View>
-          </View>
-          {badge === undefined ? null : (
-            <CountBadge
-              count={badge.count}
-              tone={badge.tone}
-              label={
-                badge.tone === 'needs-you' ? t.hostPending(badge.count) : t.hostUnread(badge.count)
-              }
-            />
-          )}
+          {tile}
+          <ComputerRowLabel name={name} status={status} dot={dot} />
         </Pressable>
       </ContextMenuArea>
       <ActionMenuButton
@@ -597,61 +618,28 @@ function HostRow({
   );
 }
 
-function HostFormRow({
-  row,
-  address,
-  selected,
-}: {
-  row: HostDrawerRow;
-  address: string;
-  selected: boolean;
-}) {
+function HostFormRow({ row, selected }: { row: HostDrawerRow; selected: boolean }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const look = useHostLook(row.hostId);
   const name = shownHostName(look, row.hostName);
-  const pending = row.glance.pending ?? 0;
-  const unread = row.glance.unread ?? 0;
-  const badge = hostRowBadge(row.glance);
-  const status = statusText(row.glance.status);
   return (
     <SettingsRow
       testID={`drawer-host-${row.hostId}`}
       title={name}
-      detail={[status, address].filter((part) => part !== '').join(' · ')}
+      detail={statusText(row.glance)}
+      detailDot={computerStatusDot(theme, row.glance.status)}
+      singleLine
       leading={
-        <HostTile
-          hostName={name}
-          icon={look.icon}
-          size={workspaceStack.tile}
-          fill={hostTileFill(theme.scheme, theme.color, look.color, theme.layer.sheet.inset)}
-          ink={
-            look.color === undefined
-              ? theme.color.fg
-              : hostColorInk(theme.scheme, theme.color, look.color)
-          }
-        />
-      }
-      {...(selected && badge === undefined ? { control: { kind: 'check' as const } } : {})}
-      trailing={
-        badge === undefined ? undefined : (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
-            <CountBadge
-              count={badge.count}
-              tone={badge.tone}
-              label={
-                badge.tone === 'needs-you' ? t.hostPending(badge.count) : t.hostUnread(badge.count)
-              }
-            />
-            {selected ? (
-              <SystemSymbol
-                name={{ ios: 'checkmark', android: 'check' }}
-                size={theme.type.title.line}
-                color={theme.color.accent}
-              />
-            ) : null}
-          </View>
-        )
+        <BadgedHostTile glance={row.glance}>
+          <ComputerTile
+            look={look}
+            name={name}
+            current={selected}
+            size={workspaceStack.tile}
+            rest="transparent"
+          />
+        </BadgedHostTile>
       }
       accessory={
         <ActionMenuButton
@@ -661,15 +649,7 @@ function HostFormRow({
         />
       }
       selected={selected}
-      accessibilityLabel={[
-        name,
-        selected ? t.showing : undefined,
-        status,
-        pending > 0 ? t.hostPending(pending) : undefined,
-        unread > 0 ? t.hostUnread(unread) : undefined,
-      ]
-        .filter((part) => part !== undefined)
-        .join(', ')}
+      accessibilityLabel={hostRowLabel(t, row, name, selected)}
       onPress={() => void hostDrawer.select(row.hostId)}
     />
   );
@@ -757,50 +737,26 @@ function CloudServiceRow({
   );
 }
 
-function AccountHostRow({ host, onPress }: { host: ConnectHost; onPress(): void }) {
-  const t = useStrings();
-  const theme = useDesignTheme();
-  const glass = useLiquidGlass();
-  const status = host.online ? t.pairAccount.pair : t.pairAccount.offline;
-  if (Platform.OS === 'android')
-    return (
-      <DrawerListItem
-        label={host.name}
-        detail={status}
-        testID={'workspace-account-' + host.id}
-        accessibilityLabel={[t.pairAccount.pairWith(host.name), status].join(', ')}
-        leading={<ComputerIcon color={theme.color.muted} size={theme.type.title.line + space.x3} />}
-        onPress={onPress}
-      />
-    );
+function AccountHostRow({
+  host,
+  onPress,
+  form = false,
+}: {
+  host: ConnectHost;
+  onPress(): void;
+  form?: boolean;
+}) {
+  const look = useHostLook(accountHostLookId(host.id));
   return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={
-        host.online
-          ? t.pairAccount.pairWith(host.name)
-          : [t.pairAccount.pairWith(host.name), status].join(', ')
-      }
+    <AccountComputerRow
+      host={host}
+      look={look}
+      form={form}
       onPress={onPress}
-      style={({ pressed }) => ({
-        minHeight: theme.touch + space.x3,
-        padding: space.x4,
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space.x4,
-        ...rowStyle(theme, glass, pressed),
-      })}
-    >
-      <ComputerIcon color={theme.color.muted} size={theme.type.title.line + space.x3} />
-      <View style={{ flex: 1, gap: space.x1 }}>
-        <Text strong numberOfLines={theme.largeText ? undefined : 1}>
-          {host.name}
-        </Text>
-        <Text variant="meta" tone="muted" numberOfLines={theme.largeText ? undefined : 1}>
-          {status}
-        </Text>
-      </View>
-    </Pressable>
+      onCustomize={() =>
+        closeThen(() => router.push({ pathname: '/host-look', params: { account: host.id } }))
+      }
+    />
   );
 }
 
@@ -959,17 +915,27 @@ export function WorkspacePanel({
     if (active) setTab(cloudRoute ? 'cloud' : 'computers');
   }, [active, cloudRoute]);
   const [linked, setLinked] = useState<ConnectHost[]>([]);
+  const [directoryFailure, setDirectoryFailure] = useState<ConnectionDiagnostic>();
+  const [directoryBusy, setDirectoryBusy] = useState(false);
+  const accountRefresh = useRef(() => {});
   const accountMount = useMounted<ViewInstance>(() => {
     if (!active || tab !== 'computers') return;
-    let live = true;
-    setLinked([]);
-    void connectAccount.email().then(async (email) => {
-      if (email === null) return;
-      const listed = await connectAccount.hosts();
-      if (live && listed.ok) setLinked(listed.value);
+    const watcher = watchAccountHosts({
+      account: connectAccount,
+      update: setLinked,
+      failed: setDirectoryFailure,
+      busy: setDirectoryBusy,
+      onResume: (refresh) => {
+        const subscription = AppState.addEventListener('change', (state) => {
+          if (state === 'active') refresh();
+        });
+        return () => subscription.remove();
+      },
     });
+    accountRefresh.current = watcher.refresh;
     return () => {
-      live = false;
+      accountRefresh.current = () => {};
+      watcher.close();
     };
   }, [active, tab]);
   const currentId = cloudRoute ? undefined : saved?.hostId;
@@ -1089,7 +1055,17 @@ export function WorkspacePanel({
           {t.workspaceEmpty}
         </Text>
       )}
-      {tab === 'computers' && rows.length === 0 && (
+      {tab === 'computers' && directoryFailure && (
+        <View style={{ padding: space.x5 }}>
+          <ReadFailure
+            title={t.pairAccount.directoryFailed}
+            detail={JSON.stringify(directoryFailure, null, 2)}
+            busy={directoryBusy}
+            onRetry={() => accountRefresh.current()}
+          />
+        </View>
+      )}
+      {tab === 'computers' && !directoryFailure && rows.length === 0 && (
         <Text style={{ padding: space.x5 }} tone="muted">
           {t.workspaceAdd.noComputers}
         </Text>
@@ -1171,23 +1147,16 @@ export function WorkspacePanel({
             key={row.hostId}
             row={row}
             selected={!cloudRoute && filter === computerEnvironmentKey(row.hostId)}
-            address={connectionAddress(hosts.find((host) => host.hostId === row.hostId)?.routes[0])}
           />
         ))}
       </SettingsSection>
       {unpaired.length === 0 ? null : (
         <SettingsSection title={t.pairAccount.drawerTitle}>
           {unpaired.map((host) => (
-            <SettingsRow
+            <AccountHostRow
               key={host.id}
-              title={host.name}
-              detail={host.online ? t.pairAccount.pair : t.pairAccount.offline}
-              icon="computer"
-              accessibilityLabel={
-                host.online
-                  ? t.pairAccount.pairWith(host.name)
-                  : [t.pairAccount.pairWith(host.name), t.pairAccount.offline].join(', ')
-              }
+              host={host}
+              form
               onPress={() =>
                 router.push({ pathname: '/pair/account', params: { account: host.id } })
               }
@@ -1211,6 +1180,7 @@ export function WorkspacePanel({
       }}
     >
       <HumanAvatarButton
+        client={client}
         testID="workspace-account"
         loadName={loadAccountName}
         onPress={() => {
@@ -1265,9 +1235,15 @@ export function WorkspacePanel({
               <View ref={cloudAvailable ? undefined : tabFocus}>
                 <DrawerListItem
                   testID="drawer-all"
-                  label={page ? t.allEnvironmentsRow : t.allEnvironments}
+                  label={t.allEnvironmentsRow}
                   selected={!cloudRoute && filter === 'all'}
-                  leading={<ChatsIcon color={theme.color.accent} size={theme.type.body.line} />}
+                  leading={
+                    rows.length > 0 ? (
+                      <StackedHostTiles rows={rows} />
+                    ) : (
+                      <ChatsIcon color={theme.color.accent} size={theme.type.body.line} />
+                    )
+                  }
                   onPress={() => closeThen(() => hostDrawer.selectAll())}
                 />
               </View>
@@ -1278,7 +1254,7 @@ export function WorkspacePanel({
                 ref={cloudAvailable ? undefined : tabFocus}
                 testID="drawer-all"
                 accessibilityRole="button"
-                accessibilityLabel={page ? t.allEnvironmentsRow : t.allEnvironments}
+                accessibilityLabel={t.allEnvironmentsRow}
                 accessibilityState={{ selected: !cloudRoute && filter === 'all' }}
                 onPress={() => closeThen(() => hostDrawer.selectAll())}
                 android_ripple={{ color: pressTint(theme.color.fg), foreground: true }}
@@ -1292,7 +1268,7 @@ export function WorkspacePanel({
                   overflow: 'hidden',
                 })}
               >
-                {page && rows.length > 0 ? (
+                {rows.length > 0 ? (
                   <StackedHostTiles rows={rows} />
                 ) : (
                   <ChatsIcon
@@ -1301,7 +1277,7 @@ export function WorkspacePanel({
                   />
                 )}
                 <Text strong style={{ flexShrink: 1 }}>
-                  {page ? t.allEnvironmentsRow : t.allEnvironments}
+                  {t.allEnvironmentsRow}
                 </Text>
               </Pressable>
             );
@@ -1310,9 +1286,6 @@ export function WorkspacePanel({
               <HostRow
                 row={item.row}
                 selected={!cloudRoute && filter === computerEnvironmentKey(item.row.hostId)}
-                address={connectionAddress(
-                  hosts.find((host) => host.hostId === item.row.hostId)?.routes[0],
-                )}
               />
             );
           if (item.kind === 'account-title')

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { createHostClient, MethodRefused } from '../src/host/client';
+import { createHostClient, MethodRefused } from '@botharness/host-client/client';
 import {
   loadMemoryActivity,
   loadMoreMemoryActivity,
@@ -12,8 +12,8 @@ import {
   usageChartDays,
   type OverviewMemory,
   type OverviewUsage,
-} from '../src/host/usage';
-import { FakeHost } from './fake-host';
+} from '@botharness/host-client/usage';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { trailingDays } from '../src/host/usage-days';
 import usageWire from './fixtures/usage-wire.json';
 
@@ -40,9 +40,9 @@ describe('Host usage', () => {
     fake.methods.set('overviewUsage', () => {
       throw new Error('Unsupported period');
     });
-    await expect(loadUsage(client(fake), 'month')).rejects.toEqual(
-      new MethodRefused('invalid-input', 'Unsupported period'),
-    );
+    const failure = await loadUsage(client(fake), 'month').catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(MethodRefused);
+    expect(failure).toMatchObject({ code: 'invalid-input', message: 'Unsupported period' });
   });
 
   it.each(['month', 'quarter'] as const)(

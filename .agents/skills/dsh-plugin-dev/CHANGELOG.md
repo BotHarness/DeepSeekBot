@@ -10,6 +10,43 @@ Preparing the next DSH Skill release independently from downstream product relea
 
 ### Documentation
 
+- Documented the downstream model-free Tob CLI journey and pinned native approval audit boundary; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4212](https://github.com/BotHarness/DeepSeekBot/issues/4212)).
+- Added the downstream anonymous Bot token telemetry verification journey and snapshot query contract; stable DSH/Cordis Context, Decision Tree and upstream qualification are unchanged ([#4255](https://github.com/BotHarness/DeepSeekBot/issues/4255)).
+
+- Added the downstream first-Tob settings responsiveness journey; stable DSH/Cordis Context, Decision Tree and upstream qualification are unchanged ([#4226](https://github.com/BotHarness/DeepSeekBot/issues/4226)).
+
+- Documented downstream same-registration official-address recovery and privacy-safe account-offer diagnostics; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4115](https://github.com/BotHarness/DeepSeekBot/issues/4115)).
+
+- Aligned the downstream remote Bot CLI journey with the verified native Profile, model, Workspace and approval controls; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4118](https://github.com/BotHarness/DeepSeekBot/issues/4118)).
+
+- Documented the downstream selected-Host usage/storage journey and fresh published149 verification boundary; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4119](https://github.com/BotHarness/DeepSeekBot/issues/4119)).
+
+- Documented the downstream exact-Environment Settings journey with its verified More → Settings entry; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4117](https://github.com/BotHarness/DeepSeekBot/issues/4117)).
+
+- Documented downstream evidence checks against the current advertised Client artifact revision after a task-owned swap; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
+
+- Documented downstream ownership-verified recovery, with task-owner exclusion of same-Home launchers/recovery attempts, of an empty native credential writer lock after interrupted startup; follow the [recovery guide](../dsh-dev/SKILL.md). Stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4114](https://github.com/BotHarness/DeepSeekBot/issues/4114)).
+
+- Documented downstream offline retirement after published Channel access146, safe pending cancellation and fresh generation147 qualification; stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4113](https://github.com/BotHarness/DeepSeekBot/issues/4113)).
+
+- Documented downstream explicit recovery of interrupted copy preparation, retained dependency trees and shared-file safeguards; the stable DSH Skill version and upstream provenance are unchanged ([#4172](https://github.com/BotHarness/DeepSeekBot/issues/4172)).
+
+- Documented downstream isolated dependency copies, read-only legacy restart and the verified shared-file metadata hazard; the stable DSH Skill version and upstream provenance are unchanged ([#4135](https://github.com/BotHarness/BotHarness/issues/4135)).
+
+- Documented downstream partial Host relationship direction checks, pinned route recovery and safe pending cancellation in the [CLI guide](../../../docs/bot-cli.md#reciprocal-computer-relationships); stable DSH/Cordis Context, Decision Tree and upstream provenance are unchanged ([#4112](https://github.com/BotHarness/DeepSeekBot/issues/4112)).
+
+- Documented downstream isolated GenUI browser startup diagnostics, explicit executable selection and path-scoped CI sandbox provisioning; the stable Context/Decision Tree and verified DSH provenance are unchanged ([#4030](https://github.com/BotHarness/DeepSeekBot/issues/4030)).
+
+- Prepared the downstream Tobs 1.7.0 release ledger, highlights and candidate privacy-review guidance; the independently versioned DSH Skill and its verified upstream provenance are unchanged ([#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)).
+
+- Added downstream same-artifact qualification requirements for the DSH 0.2.1 and 0.2.2 API generations; the stable Skill version and upstream verification provenance are unchanged ([#3477](https://github.com/BotHarness/DeepSeekBot/issues/3477)).
+
+- Documented downstream RC qualification and the 0.2.2-rc.1 runtime adaptation checks; the stable Context/Decision Tree Skill version and its verified upstream provenance are unchanged ([#3477](https://github.com/BotHarness/DeepSeekBot/issues/3477)).
+
+- Documented downstream responsive workspace ownership and the DSH 0.2.2 center-column compatibility pitfall; DSH/Cordis Context, Decision Tree and Skill version are unchanged ([#3665](https://github.com/BotHarness/DeepSeekBot/issues/3665)).
+
+- Prepared the downstream Tobs 1.6.1 release ledger; the independently versioned DSH Skill and its verified DSH provenance are unchanged ([#3214](https://github.com/BotHarness/DeepSeekBot/issues/3214)).
+
 - Synchronized downstream Tobs installation guidance after verified 1.6.0 publication; the independent Skill version and DSH provenance are unchanged ([#3195](https://github.com/BotHarness/DeepSeekBot/issues/3195)).
 
 - Prepared the downstream Tobs 1.6.0 release ledger; the independently versioned DSH Skill and its verified DSH provenance are unchanged ([#3195](https://github.com/BotHarness/DeepSeekBot/issues/3195)).

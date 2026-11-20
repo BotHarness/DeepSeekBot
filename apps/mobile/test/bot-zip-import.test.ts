@@ -4,8 +4,8 @@ import {
   createBotCreationController,
   type BotCreationOperation,
   type CreationRecord,
-} from '../src/host/bot-creation';
-import type { ZipImportSource } from '../src/host/zip-import-upload';
+} from '@botharness/host-client/bot-creation';
+import type { ZipImportSource } from '@botharness/host-client/zip-import-upload';
 
 const file = {
   fileId: '12345678-1234-1234-1234-123456789abc',

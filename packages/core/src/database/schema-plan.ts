@@ -1,12 +1,17 @@
+import { z } from 'zod';
+import { DEFAULT_CHANNEL_POLICY } from '../team/channel-contract.js';
+import { ADMIN_PERMISSIONS, MEMBER_PERMISSIONS } from '../team/permissions.js';
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { randomBytes } from 'node:crypto';
-import type { DatabaseSync } from 'node:sqlite';
+import { DatabaseSync } from 'node:sqlite';
 
+import { OperationalDatabaseError } from './owner.js';
 import { defineSchemaPlan, type SchemaMigration } from './schema.js';
 import { INBOX_HISTORY_INDEX_SQL, MESSAGE_SEARCH_INDEX_SQL } from './inbox-history-index.js';
 import { deriveAssignmentTitle } from '../runtime/assignment-title.js';
 
 const SESSION_OWNERSHIP_MIGRATION: SchemaMigration = {
-  generation: 2,
+  id: 'session-ownership',
   module: 'session-ownership',
   description: 'Create explicit PersonaBot root Session ownership',
   migrate(database) {
@@ -24,7 +29,7 @@ const SESSION_OWNERSHIP_MIGRATION: SchemaMigration = {
 };
 
 const MESSAGING_TRACER_MIGRATION: SchemaMigration = {
-  generation: 3,
+  id: 'messaging-tracer',
   module: 'messaging',
   description: 'Create the minimal durable Source Event and Bot Inbox admission path',
   migrate(database) {
@@ -48,7 +53,7 @@ const MESSAGING_TRACER_MIGRATION: SchemaMigration = {
 };
 
 const ASSIGNMENT_DIRECTORY_MIGRATION: SchemaMigration = {
-  generation: 4,
+  id: 'assignment-directory',
   module: 'assignments',
   description: 'Create the durable Assignment Directory and latest report projection',
   migrate(database) {
@@ -72,7 +77,7 @@ const ASSIGNMENT_DIRECTORY_MIGRATION: SchemaMigration = {
 };
 
 const SOURCE_EVENT_ATTEMPT_MIGRATION: SchemaMigration = {
-  generation: 5,
+  id: 'source-event-attempt',
   module: 'bot-runtime',
   description: 'Track replay-safe Source Event attempt state',
   migrate(database) {
@@ -86,7 +91,7 @@ const SOURCE_EVENT_ATTEMPT_MIGRATION: SchemaMigration = {
 };
 
 const SESSION_OWNERSHIP_LINEAGE_MIGRATION: SchemaMigration = {
-  generation: 6,
+  id: 'session-ownership-lineage',
   module: 'session-ownership',
   description: 'Record ownership provenance, lineage, and the explicit cwd reference',
   migrate(database) {
@@ -101,7 +106,7 @@ const SESSION_OWNERSHIP_LINEAGE_MIGRATION: SchemaMigration = {
 };
 
 const SOURCE_EVENT_SIDE_EFFECT_MIGRATION: SchemaMigration = {
-  generation: 7,
+  id: 'source-event-side-effect',
   module: 'bot-runtime',
   description: 'Separate an in-flight side effect from an unreplayable failure state',
   migrate(database) {
@@ -115,7 +120,7 @@ const SOURCE_EVENT_SIDE_EFFECT_MIGRATION: SchemaMigration = {
 };
 
 const ASSIGNMENT_COLLABORATION_MIGRATION: SchemaMigration = {
-  generation: 8,
+  id: 'assignment-collaboration',
   module: 'assignments',
   description: 'Admit Assignment reports and asks with observation and continuity facts',
   migrate(database) {
@@ -137,7 +142,7 @@ const ASSIGNMENT_COLLABORATION_MIGRATION: SchemaMigration = {
 };
 
 const SESSION_PERSONA_SNAPSHOT_MIGRATION: SchemaMigration = {
-  generation: 9,
+  id: 'session-persona-snapshot',
   module: 'session-ownership',
   description: 'Freeze each Session system-prompt persona at its first assembly',
   migrate(database) {
@@ -149,7 +154,7 @@ const SESSION_PERSONA_SNAPSHOT_MIGRATION: SchemaMigration = {
 };
 
 const MEMORY_ACCEPTED_COMMIT_MIGRATION: SchemaMigration = {
-  generation: 10,
+  id: 'memory-accepted-commit',
   module: 'memory',
   description: 'Record accepted Memory Commit lineage and repository heads',
   migrate(database) {
@@ -195,7 +200,7 @@ const MEMORY_ACCEPTED_COMMIT_MIGRATION: SchemaMigration = {
 };
 
 export const WORKSPACE_GRANT_MIGRATION: SchemaMigration = {
-  generation: 11,
+  id: 'workspace-grant',
   module: 'workspace-grants',
   description: 'Record Human Workspace Grants and immutable Assignment permission provenance',
   migrate(database) {
@@ -222,7 +227,7 @@ export const WORKSPACE_GRANT_MIGRATION: SchemaMigration = {
 };
 
 export const TOOL_APPROVAL_RULE_MIGRATION: SchemaMigration = {
-  generation: 12,
+  id: 'tool-approval-rule',
   module: 'tool-approval-rules',
   description: 'Persist revocable Human rules for native tool approval',
   migrate(database) {
@@ -246,7 +251,7 @@ export const TOOL_APPROVAL_RULE_MIGRATION: SchemaMigration = {
 };
 
 export const ASSIGNMENT_ACCESS_MIGRATION: SchemaMigration = {
-  generation: 13,
+  id: 'assignment-access',
   module: 'assignment-access',
   description: 'Persist Human-owned per-Bot Assignment access preset and audit',
   migrate(database) {
@@ -271,7 +276,7 @@ export const ASSIGNMENT_ACCESS_MIGRATION: SchemaMigration = {
 };
 
 export const MEMORY_BRANCH_HEAD_MIGRATION: SchemaMigration = {
-  generation: 14,
+  id: 'memory-branch-head',
   module: 'memory',
   description: 'Track the accepted Memory head independently for each local branch',
   migrate(database) {
@@ -294,7 +299,7 @@ export const MEMORY_BRANCH_HEAD_MIGRATION: SchemaMigration = {
 };
 
 export const CHANNEL_MESSAGING_MIGRATION: SchemaMigration = {
-  generation: 15,
+  id: 'channel-messaging',
   module: 'messaging',
   description:
     'Move Channel messages to canonical Source Events, placements, and per-Bot admissions',
@@ -369,7 +374,7 @@ export const CHANNEL_MESSAGING_MIGRATION: SchemaMigration = {
 };
 
 const BOT_DM_ADMISSION_MIGRATION: SchemaMigration = {
-  generation: 16,
+  id: 'bot-dm-admission',
   module: 'messaging',
   description: 'Admit Bot-to-Bot DM messages through the canonical Inbox',
   rebuildsReferencedTables: true,
@@ -401,7 +406,7 @@ const BOT_DM_ADMISSION_MIGRATION: SchemaMigration = {
 };
 
 const GROUP_INVITATION_ADMISSION_MIGRATION: SchemaMigration = {
-  generation: 17,
+  id: 'group-invitation-admission',
   module: 'messaging',
   description: 'Deliver Group invitations through the Bot Inbox before membership',
   rebuildsReferencedTables: true,
@@ -433,7 +438,7 @@ const GROUP_INVITATION_ADMISSION_MIGRATION: SchemaMigration = {
 };
 
 const GROUP_DIGEST_ADMISSION_MIGRATION: SchemaMigration = {
-  generation: 18,
+  id: 'group-digest-admission',
   module: 'messaging',
   description: 'Capture per-Group ordinary-message digest policy with each Inbox Admission',
   rebuildsReferencedTables: true,
@@ -472,7 +477,7 @@ const GROUP_DIGEST_ADMISSION_MIGRATION: SchemaMigration = {
 };
 
 const GROUP_JOIN_ADMISSION_MIGRATION: SchemaMigration = {
-  generation: 19,
+  id: 'group-join-admission',
   module: 'messaging',
   description: 'Admit Group join requests and decisions as durable Bot Inbox notifications',
   rebuildsReferencedTables: true,
@@ -515,7 +520,7 @@ const GROUP_JOIN_ADMISSION_MIGRATION: SchemaMigration = {
 };
 
 const ASSIGNMENT_STOP_MIGRATION: SchemaMigration = {
-  generation: 20,
+  id: 'assignment-stop',
   module: 'assignments',
   description:
     'Persist stopping and stopped Assignment lifecycle while retaining DSH Session history',
@@ -527,7 +532,7 @@ const ASSIGNMENT_STOP_MIGRATION: SchemaMigration = {
   },
 };
 const ASSIGNMENT_REPORT_ADMISSION_MIGRATION: SchemaMigration = {
-  generation: 21,
+  id: 'assignment-report-admission',
   module: 'messaging',
   description: 'Admit Assignment reports to their PersonaBot Inbox',
   rebuildsReferencedTables: true,
@@ -576,7 +581,7 @@ const ASSIGNMENT_REPORT_ADMISSION_MIGRATION: SchemaMigration = {
 };
 
 const HUMAN_ATTENTION_DECISION_MIGRATION: SchemaMigration = {
-  generation: 22,
+  id: 'human-attention-decision',
   module: 'human-attention',
   description: 'Record Human decisions for informational Source Events',
   migrate(database) {
@@ -593,7 +598,7 @@ const HUMAN_ATTENTION_DECISION_MIGRATION: SchemaMigration = {
 };
 
 const BOT_ATTENTION_IGNORE_MIGRATION: SchemaMigration = {
-  generation: 23,
+  id: 'bot-attention-ignore',
   module: 'bot-inbox',
   description: 'Record explicit Bot ignore decisions on canonical Inbox Admissions',
   migrate(database) {
@@ -605,7 +610,7 @@ const BOT_ATTENTION_IGNORE_MIGRATION: SchemaMigration = {
 };
 
 const ASSIGNMENT_LIFECYCLE_NOTICE_MIGRATION: SchemaMigration = {
-  generation: 24,
+  id: 'assignment-lifecycle-notice',
   module: 'assignments',
   description: 'Admit Host-origin Assignment lifecycle notices to the Bot Inbox',
   rebuildsReferencedTables: true,
@@ -687,7 +692,7 @@ const ASSIGNMENT_LIFECYCLE_NOTICE_MIGRATION: SchemaMigration = {
 };
 
 export const LOCAL_HUMAN_RECEIPTS_MIGRATION: SchemaMigration = {
-  generation: 25,
+  id: 'local-human-receipts',
   module: 'messaging',
   description: 'Give the local Human explicit Group membership and identity-keyed read positions',
   rebuildsReferencedTables: true,
@@ -702,13 +707,19 @@ export const LOCAL_HUMAN_RECEIPTS_MIGRATION: SchemaMigration = {
         left_at TEXT,
         PRIMARY KEY (channel_id, human_id)
       );
+    `);
+    database
+      .prepare(`
       INSERT INTO channel_human_members
         (channel_id, human_id, display_name, visible_from_revision, joined_at)
-      SELECT channel_id, 'local-human', 'Human', 1,
+      SELECT channel_id, ?, 'Human', 1,
              json_extract(record_json, '$.createdAt')
         FROM channel_records
        WHERE json_extract(record_json, '$.type') = 'group'
          AND json_extract(record_json, '$.deletedAt') IS NULL;
+    `)
+      .run(OWNER_HUMAN_CONTEXT.humanId);
+    database.exec(`
       CREATE TABLE channel_read_positions_next (
         channel_id TEXT NOT NULL REFERENCES channel_records(channel_id),
         human_id TEXT NOT NULL,
@@ -717,10 +728,16 @@ export const LOCAL_HUMAN_RECEIPTS_MIGRATION: SchemaMigration = {
         read_at TEXT NOT NULL,
         PRIMARY KEY (channel_id, human_id)
       );
+    `);
+    database
+      .prepare(`
       INSERT INTO channel_read_positions_next
         (channel_id, human_id, message_id, revision, read_at)
-      SELECT channel_id, 'local-human', message_id, revision, read_at
+      SELECT channel_id, ?, message_id, revision, read_at
         FROM channel_read_positions;
+    `)
+      .run(OWNER_HUMAN_CONTEXT.humanId);
+    database.exec(`
       DROP TABLE channel_read_positions;
       ALTER TABLE channel_read_positions_next RENAME TO channel_read_positions;
     `);
@@ -728,7 +745,7 @@ export const LOCAL_HUMAN_RECEIPTS_MIGRATION: SchemaMigration = {
 };
 
 const GROUP_WAKE_MODE_MIGRATION: SchemaMigration = {
-  generation: 26,
+  id: 'group-wake-mode',
   module: 'bot-inbox',
   description: 'Preserve the Group wake policy mode on each ordinary Inbox Admission',
   migrate(database) {
@@ -747,7 +764,7 @@ const GROUP_WAKE_MODE_MIGRATION: SchemaMigration = {
 };
 
 const GROUP_WAKE_POLICY_AUDIT_MIGRATION: SchemaMigration = {
-  generation: 27,
+  id: 'group-wake-policy-audit',
   module: 'messaging',
   description: 'Audit per-member Group wake policy revisions without duplicating current policy',
   migrate(database) {
@@ -777,7 +794,7 @@ const GROUP_WAKE_POLICY_AUDIT_MIGRATION: SchemaMigration = {
 };
 
 const USAGE_DAILY_MIGRATION: SchemaMigration = {
-  generation: 28,
+  id: 'usage-daily',
   module: 'usage',
   description: 'Derive per-PersonaBot daily token buckets from DSH Session usage events',
   migrate(database) {
@@ -800,7 +817,7 @@ const USAGE_DAILY_MIGRATION: SchemaMigration = {
 };
 
 const BOT_SOURCE_POLICY_MIGRATION: SchemaMigration = {
-  generation: 29,
+  id: 'bot-source-policy',
   module: 'bot-inbox',
   description: 'Record per-PersonaBot source policy revisions and Admission snapshots',
   migrate(database) {
@@ -837,7 +854,7 @@ const BOT_SOURCE_POLICY_MIGRATION: SchemaMigration = {
 };
 
 const BOT_SOURCE_POLICY_EDIT_MIGRATION: SchemaMigration = {
-  generation: 30,
+  id: 'bot-source-policy-edit',
   module: 'bot-inbox',
   description: 'Distinguish active source overrides and record actual Orchestrator wake attempts',
   migrate(database) {
@@ -864,7 +881,7 @@ const BOT_SOURCE_POLICY_EDIT_MIGRATION: SchemaMigration = {
 };
 
 const BOT_SOURCE_DELIVERY_MIGRATION: SchemaMigration = {
-  generation: 36,
+  id: 'bot-source-delivery',
   module: 'bot-inbox',
   description: 'Record the delivery dimension of immediate source policies',
   migrate(database) {
@@ -876,7 +893,7 @@ const BOT_SOURCE_DELIVERY_MIGRATION: SchemaMigration = {
 };
 
 const MEMORY_CHANGE_INBOX_MIGRATION: SchemaMigration = {
-  generation: 32,
+  id: 'memory-change-inbox',
   module: 'bot-inbox',
   description: 'Admit observed Memory changes as durable Source Events',
   rebuildsReferencedTables: true,
@@ -947,7 +964,7 @@ const MEMORY_CHANGE_INBOX_MIGRATION: SchemaMigration = {
 };
 
 const BOT_SOURCE_GROUP_MODES_MIGRATION: SchemaMigration = {
-  generation: 31,
+  id: 'bot-source-group-modes',
   module: 'bot-inbox',
   description: 'Allow ordinary Group source defaults to use mentions and silent wake modes',
   migrate(database) {
@@ -994,7 +1011,7 @@ const BOT_SOURCE_GROUP_MODES_MIGRATION: SchemaMigration = {
 };
 
 const MEMORY_CHANGE_CHECKPOINT_MIGRATION: SchemaMigration = {
-  generation: 33,
+  id: 'memory-change-checkpoint',
   module: 'memory',
   description: 'Keep per-Bot Memory observations across Host restarts',
   migrate(database) {
@@ -1011,7 +1028,7 @@ const MEMORY_CHANGE_CHECKPOINT_MIGRATION: SchemaMigration = {
 };
 
 const MEMORY_RECOVERY_CHECKPOINT_MIGRATION: SchemaMigration = {
-  generation: 34,
+  id: 'memory-recovery-checkpoint',
   module: 'memory',
   description: 'Retain audited Git recovery checkpoints for Memory state',
   migrate(database) {
@@ -1037,7 +1054,7 @@ const MEMORY_RECOVERY_CHECKPOINT_MIGRATION: SchemaMigration = {
 };
 
 const ASSIGNMENT_MODEL_ROUTE_MIGRATION: SchemaMigration = {
-  generation: 35,
+  id: 'assignment-model-route',
   module: 'assignments',
   description: 'Snapshot each new Assignment Session model route independently of the Bot plan',
   migrate(database) {
@@ -1046,7 +1063,7 @@ const ASSIGNMENT_MODEL_ROUTE_MIGRATION: SchemaMigration = {
 };
 
 const USAGE_REPORT_COMPLETENESS_MIGRATION: SchemaMigration = {
-  generation: 37,
+  id: 'usage-report-completeness',
   module: 'usage',
   description: 'Distinguish unreported provider token buckets from reported zero',
   migrate(database) {
@@ -1063,7 +1080,7 @@ const USAGE_REPORT_COMPLETENESS_MIGRATION: SchemaMigration = {
 };
 
 const MESSAGING_OUTBOUND_MIGRATION: SchemaMigration = {
-  generation: 38,
+  id: 'messaging-outbound',
   module: 'messaging',
   description: 'Persist external account bindings, proactive grants and one-attempt Outbox facts',
   migrate(database) {
@@ -1095,7 +1112,7 @@ const MESSAGING_OUTBOUND_MIGRATION: SchemaMigration = {
 };
 
 const ATTACHMENT_FILE_BINDING_MIGRATION: SchemaMigration = {
-  generation: 39,
+  id: 'attachment-file-binding',
   module: 'messaging',
   description: 'Bind retained legacy attachment occurrences to independently managed real files',
   migrate(database) {
@@ -1116,7 +1133,7 @@ const ATTACHMENT_FILE_BINDING_MIGRATION: SchemaMigration = {
 };
 
 const USAGE_RETENTION_MIGRATION: SchemaMigration = {
-  generation: 40,
+  id: 'usage-retention',
   module: 'usage',
   description:
     'Retain daily usage independently of Session histories with durable anonymous receipts',
@@ -1150,7 +1167,7 @@ const USAGE_RETENTION_MIGRATION: SchemaMigration = {
 };
 
 const LOCAL_HUMAN_NAME_MIGRATION: SchemaMigration = {
-  generation: 41,
+  id: 'local-human-name',
   module: 'messaging',
   description: 'Retain one optional local Human default name without changing membership',
   migrate(database) {
@@ -1162,7 +1179,7 @@ const LOCAL_HUMAN_NAME_MIGRATION: SchemaMigration = {
 };
 
 const ORCHESTRATOR_WORKSPACE_WRITE_MIGRATION: SchemaMigration = {
-  generation: 42,
+  id: 'orchestrator-workspace-write',
   module: 'workspace-grants',
   description: 'Explicit Human-owned Orchestrator write permission on Workspace Grants',
   migrate(database) {
@@ -1175,7 +1192,7 @@ const ORCHESTRATOR_WORKSPACE_WRITE_MIGRATION: SchemaMigration = {
 };
 
 const HUMAN_CHANNEL_NICKNAME_MIGRATION: SchemaMigration = {
-  generation: 43,
+  id: 'human-channel-nickname',
   module: 'messaging',
   description: 'Retain explicit per-Channel Human nickname overrides',
   migrate(database) {
@@ -1189,7 +1206,7 @@ const HUMAN_CHANNEL_NICKNAME_MIGRATION: SchemaMigration = {
 };
 
 const EXTERNAL_SOURCE_MIGRATION: SchemaMigration = {
-  generation: 44,
+  id: 'external-source',
   module: 'messaging',
   description: 'Persist authenticated external IM Source Events without Channel placements',
   rebuildsReferencedTables: true,
@@ -1229,7 +1246,7 @@ const EXTERNAL_SOURCE_MIGRATION: SchemaMigration = {
 };
 
 const HUMAN_RESPONSE_INDEX_MIGRATION: SchemaMigration = {
-  generation: 45,
+  id: 'human-response-index',
   module: 'messaging',
   description: 'Index canonical Human response targets and history time',
   migrate(database) {
@@ -1250,7 +1267,7 @@ const HUMAN_RESPONSE_INDEX_MIGRATION: SchemaMigration = {
 };
 
 const EXTERNAL_GROUP_POLICY_MIGRATION: SchemaMigration = {
-  generation: 46,
+  id: 'external-group-policy',
   module: 'messaging',
   description: 'Version external group collection and wake independently of Service Grants',
   migrate(database) {
@@ -1272,7 +1289,7 @@ const EXTERNAL_GROUP_POLICY_MIGRATION: SchemaMigration = {
 };
 
 const HUMAN_INBOX_DISMISSAL_MIGRATION: SchemaMigration = {
-  generation: 47,
+  id: 'human-inbox-dismissal',
   module: 'human-attention',
   description: 'Persist Inbox-only dismissal independently of source request decisions',
   migrate(database) {
@@ -1290,7 +1307,7 @@ const HUMAN_INBOX_DISMISSAL_MIGRATION: SchemaMigration = {
 };
 
 const EXTERNAL_THREAD_POLICY_MIGRATION: SchemaMigration = {
-  generation: 48,
+  id: 'external-thread-policy',
   module: 'messaging',
   description: 'Version exact external Thread participation independently of group reception',
   migrate(database) {
@@ -1312,7 +1329,7 @@ const EXTERNAL_THREAD_POLICY_MIGRATION: SchemaMigration = {
 };
 
 const EXTERNAL_IDENTITY_MIGRATION: SchemaMigration = {
-  generation: 49,
+  id: 'external-identity',
   module: 'messaging',
   description: 'Separate Bot identity lifecycle from conversation grants',
   migrate(database) {
@@ -1328,7 +1345,7 @@ const EXTERNAL_IDENTITY_MIGRATION: SchemaMigration = {
 };
 
 const CHANNEL_BRIDGE_MIGRATION: SchemaMigration = {
-  generation: 50,
+  id: 'channel-bridge',
   module: 'messaging',
   description: 'Fence Channel Bridge intake preference and retain existing grant authority',
   migrate(database) {
@@ -1342,7 +1359,7 @@ const CHANNEL_BRIDGE_MIGRATION: SchemaMigration = {
 };
 
 const MESSAGING_DEFAULTS_MIGRATION: SchemaMigration = {
-  generation: 51,
+  id: 'messaging-defaults',
   module: 'messaging',
   description: 'Version platform preferences and preserve existing explicit Profile behavior',
   migrate(database) {
@@ -1364,7 +1381,7 @@ const MESSAGING_DEFAULTS_MIGRATION: SchemaMigration = {
 };
 
 const BRIDGE_ROUTES_MIGRATION: SchemaMigration = {
-  generation: 52,
+  id: 'bridge-routes',
   module: 'messaging',
   description:
     'Retain one Source Event with distinct Channel placements and per-member reception paths',
@@ -1399,7 +1416,7 @@ const BRIDGE_ROUTES_MIGRATION: SchemaMigration = {
 };
 
 const QUALIFIED_PLATFORM_DEFAULTS_MIGRATION: SchemaMigration = {
-  generation: 53,
+  id: 'qualified-platform-defaults',
   module: 'messaging',
   description:
     'Allow independently versioned qualified Slack preferences while retaining every existing override',
@@ -1422,7 +1439,7 @@ const QUALIFIED_PLATFORM_DEFAULTS_MIGRATION: SchemaMigration = {
 };
 
 const MODEL_PRESET_STORAGE_MIGRATION: SchemaMigration = {
-  generation: 54,
+  id: 'model-preset-storage',
   module: 'model-presets',
   description:
     'Own reusable Model Presets and their one-time import marker in the Profile database',
@@ -1436,8 +1453,78 @@ const MODEL_PRESET_STORAGE_MIGRATION: SchemaMigration = {
   },
 };
 
+const ASSIGNMENT_AGENT_PRESET_MIGRATION: SchemaMigration = {
+  id: 'assignment-agent-preset',
+  module: 'assignments',
+  description: 'Snapshot the DSH mode an Orchestrator chose for a new Assignment Session',
+  migrate(database) {
+    database.exec(`ALTER TABLE assignments ADD COLUMN agent_preset TEXT;`);
+  },
+};
+
+const SESSION_AGENT_PRESET_MIGRATION: SchemaMigration = {
+  id: 'session-agent-preset',
+  module: 'session-ownership',
+  description: 'Record the DSH mode each owned root Session was composed from',
+  migrate(database) {
+    database.exec(`ALTER TABLE session_ownership ADD COLUMN agent_preset TEXT;`);
+  },
+};
+
+const ROUTING_GROUP_STORAGE_MIGRATION: SchemaMigration = {
+  id: 'routing-group-storage',
+  module: 'routing-groups',
+  description: 'Own Host-wide Routing Groups: named, ordered model routes and nested groups',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE routing_groups (id TEXT PRIMARY KEY, body TEXT NOT NULL CHECK (json_valid(body)));
+    `);
+  },
+};
+
+const ROUTING_GROUP_DEFAULT_MIGRATION: SchemaMigration = {
+  id: 'routing-group-default',
+  module: 'routing-groups',
+  description: 'Own the Routing Group chosen as the Profile default model, with its revision',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE routing_group_default (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        group_id TEXT,
+        revision INTEGER NOT NULL CHECK (revision >= 0)
+      );
+    `);
+  },
+};
+
+const ROUTING_GROUP_DEFAULT_EFFORT_MIGRATION: SchemaMigration = {
+  id: 'routing-group-default-effort',
+  module: 'routing-groups',
+  description: 'Keep the reasoning effort chosen with the Profile default Routing Group',
+  migrate(database) {
+    database.exec('ALTER TABLE routing_group_default ADD COLUMN effort TEXT');
+  },
+};
+
+const GROUP_FALLBACK_OVERRIDES_MIGRATION: SchemaMigration = {
+  id: 'group-fallback-overrides',
+  module: 'routing-groups',
+  description: 'Keep the Routing Group member an Orchestrator Session fell back to across restarts',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE group_fallback_overrides (
+        session_id TEXT PRIMARY KEY,
+        bot_slug TEXT NOT NULL,
+        group_id TEXT NOT NULL,
+        route_json TEXT NOT NULL CHECK (json_valid(route_json)),
+        updated_at TEXT NOT NULL
+      );
+    `);
+  },
+};
+
 const PERSONA_BOT_REGISTRY_MIGRATION: SchemaMigration = {
-  generation: 55,
+  id: 'persona-bot-registry',
   module: 'bot-registry',
   description: 'Own PersonaBot identities and applied plans with a durable Registry import marker',
   migrate(database) {
@@ -1451,7 +1538,7 @@ const PERSONA_BOT_REGISTRY_MIGRATION: SchemaMigration = {
 };
 
 const ROSTER_ARRANGEMENT_MIGRATION: SchemaMigration = {
-  generation: 56,
+  id: 'roster-arrangement',
   module: 'roster',
   description: 'Own Channel sections and roster arrangement in the Profile database',
   migrate(database) {
@@ -1498,7 +1585,7 @@ function rebuildWithKind(
 }
 
 const BOT_SCHEDULE_MIGRATION: SchemaMigration = {
-  generation: 57,
+  id: 'bot-schedule',
   module: 'bot-schedules',
   description: 'Own PersonaBot Schedules and admit their firings into the Bot Inbox',
   rebuildsReferencedTables: true,
@@ -1537,7 +1624,7 @@ const BOT_SCHEDULE_MIGRATION: SchemaMigration = {
 };
 
 const DISCORD_PLATFORM_DEFAULTS_MIGRATION: SchemaMigration = {
-  generation: 58,
+  id: 'discord-platform-defaults',
   module: 'messaging',
   description:
     'Qualify independent Discord defaults without rewriting earlier revisions or overrides',
@@ -1560,7 +1647,7 @@ const DISCORD_PLATFORM_DEFAULTS_MIGRATION: SchemaMigration = {
 };
 
 const BOT_PAIRING_MIGRATION: SchemaMigration = {
-  generation: 59,
+  id: 'bot-pairing',
   module: 'messaging',
   description: 'Own current-Bot Human pairing and explicitly reviewed IM capabilities',
   migrate(database) {
@@ -1580,7 +1667,7 @@ const BOT_PAIRING_MIGRATION: SchemaMigration = {
 };
 
 const APPROVAL_MESSAGING_MIGRATION: SchemaMigration = {
-  generation: 60,
+  id: 'approval-messaging',
   module: 'messaging',
   description:
     'Own approved management routes and notification receipts without duplicating native decisions',
@@ -1598,7 +1685,7 @@ const APPROVAL_MESSAGING_MIGRATION: SchemaMigration = {
 };
 
 const NEW_CONVERSATION_DEFAULT_MIGRATION: SchemaMigration = {
-  generation: 65,
+  id: 'new-conversation-default',
   module: 'messaging',
   description: 'Let a bound app inherit the platform default new-conversation mode',
   migrate(database) {
@@ -1611,7 +1698,7 @@ const NEW_CONVERSATION_DEFAULT_MIGRATION: SchemaMigration = {
 };
 
 const BOUND_APP_ADMISSION_MIGRATION: SchemaMigration = {
-  generation: 61,
+  id: 'bound-app-admission',
   module: 'messaging',
   description:
     'Admit default traffic through a bound app with implicit conversation entries and a per-binding new-conversation mode',
@@ -1630,7 +1717,7 @@ const BOUND_APP_ADMISSION_MIGRATION: SchemaMigration = {
 };
 
 const CONVERSATION_LIST_MIGRATION: SchemaMigration = {
-  generation: 62,
+  id: 'conversation-list',
   module: 'messaging',
   description:
     'Keep durable conversation blocks per Bot and app fingerprint, and held conversations waiting for a decision',
@@ -1685,7 +1772,7 @@ const CONVERSATION_LIST_MIGRATION: SchemaMigration = {
 };
 
 const SEVERAL_APPS_MIGRATION: SchemaMigration = {
-  generation: 63,
+  id: 'several-apps',
   module: 'messaging',
   description:
     'Let one Bot bind several apps of the same platform; one app still belongs to one Bot',
@@ -1695,7 +1782,7 @@ const SEVERAL_APPS_MIGRATION: SchemaMigration = {
 };
 
 const CONVERSATION_INGEST_MIGRATION: SchemaMigration = {
-  generation: 64,
+  id: 'conversation-ingest',
   module: 'messaging',
   description: 'Let a Channel ingest an external conversation as one-way context',
   migrate(database) {
@@ -1720,7 +1807,7 @@ const CONVERSATION_INGEST_MIGRATION: SchemaMigration = {
 };
 
 const PERSONA_BOT_DELETION_MIGRATION: SchemaMigration = {
-  generation: 66,
+  id: 'persona-bot-deletion',
   module: 'bot-registry',
   description: 'Terminal PersonaBot deletion and exclusive Memory ownership proofs',
   migrate(database) {
@@ -1738,7 +1825,7 @@ const PERSONA_BOT_DELETION_MIGRATION: SchemaMigration = {
 };
 
 const MESSAGING_TYPING_MIGRATION: SchemaMigration = {
-  generation: 67,
+  id: 'messaging-typing',
   module: 'messaging',
   description: 'Persist identity-local native typing preference without persisting tickets',
   migrate(database) {
@@ -1750,7 +1837,7 @@ const MESSAGING_TYPING_MIGRATION: SchemaMigration = {
 };
 
 const CONTENT_PURGE_MIGRATION: SchemaMigration = {
-  generation: 68,
+  id: 'content-purge',
   module: 'messaging-purge',
   description: 'Require an independent Purge Ledger and fence accepted local Source Events',
   migrate(database) {
@@ -1799,7 +1886,7 @@ const CONTENT_PURGE_MIGRATION: SchemaMigration = {
 };
 
 const WECHAT_PLATFORM_DEFAULTS_MIGRATION: SchemaMigration = {
-  generation: 69,
+  id: 'wechat-platform-defaults',
   module: 'messaging',
   description: 'Qualify WeChat defaults and preserve existing identity-local typing overrides',
   migrate(database) {
@@ -1824,7 +1911,7 @@ const WECHAT_PLATFORM_DEFAULTS_MIGRATION: SchemaMigration = {
 };
 
 const COMPLETE_CONTENT_PURGE_MIGRATION: SchemaMigration = {
-  generation: 70,
+  id: 'complete-content-purge',
   module: 'messaging-purge',
   description:
     'Track acquired media and fence shared content, stale effects and attachment bindings',
@@ -1875,7 +1962,7 @@ const COMPLETE_CONTENT_PURGE_MIGRATION: SchemaMigration = {
 };
 
 const BOT_ONBOARDING_MIGRATION: SchemaMigration = {
-  generation: 71,
+  id: 'bot-onboarding',
   module: 'bot-onboarding',
   description: 'Persist Profile onboarding receipts and trusted Channel output provenance',
   migrate(database) {
@@ -1901,7 +1988,7 @@ const BOT_ONBOARDING_MIGRATION: SchemaMigration = {
 };
 
 const PROFILE_RECOVERY_MIGRATION: SchemaMigration = {
-  generation: 72,
+  id: 'profile-recovery',
   module: 'profile-portability',
   description: 'Persist Disaster Restore receipt and explicit target-local activation',
   migrate(database) {
@@ -1920,7 +2007,7 @@ const PROFILE_RECOVERY_MIGRATION: SchemaMigration = {
 };
 
 const AVATAR_PART_LIBRARY_MIGRATION: SchemaMigration = {
-  generation: 73,
+  id: 'avatar-part-library',
   module: 'avatar-part-library',
   description: 'Persist the Profile Part Library of Human-drawn Avatar Custom Parts',
   migrate(database) {
@@ -1934,7 +2021,7 @@ const AVATAR_PART_LIBRARY_MIGRATION: SchemaMigration = {
 };
 
 const RECEPTION_HISTORY_MIGRATION: SchemaMigration = {
-  generation: 74,
+  id: 'reception-history',
   module: 'messaging',
   description: 'Retain bounded reception coverage observations without copying external messages',
   migrate(database) {
@@ -1949,7 +2036,7 @@ const RECEPTION_HISTORY_MIGRATION: SchemaMigration = {
 };
 
 const BOT_SELF_RECORD_MIGRATION: SchemaMigration = {
-  generation: 75,
+  id: 'bot-self-record',
   module: 'messaging',
   description: 'Record Bot Self-Records as Channel Notices with born-handled Bot Inbox records',
   rebuildsReferencedTables: true,
@@ -1960,7 +2047,7 @@ const BOT_SELF_RECORD_MIGRATION: SchemaMigration = {
 };
 
 const MEMORY_COMMIT_RECORD_MIGRATION: SchemaMigration = {
-  generation: 76,
+  id: 'memory-commit-record',
   module: 'messaging',
   description: 'Track each PersonaBot Memory commit cursor and record each commit once',
   migrate(database) {
@@ -1979,7 +2066,7 @@ const MEMORY_COMMIT_RECORD_MIGRATION: SchemaMigration = {
 };
 
 const INBOX_HISTORY_MIGRATION: SchemaMigration = {
-  generation: 77,
+  id: 'inbox-history',
   module: 'messaging',
   description: 'Index canonical Source Events for own-Bot Inbox history with FTS5 trigram',
   migrate(database) {
@@ -1988,7 +2075,7 @@ const INBOX_HISTORY_MIGRATION: SchemaMigration = {
 };
 
 const EXTERNAL_USER_ROLE_MIGRATION: SchemaMigration = {
-  generation: 78,
+  id: 'external-user-role',
   module: 'messaging',
   description:
     'Keep ordinary conversation roles separate from explicit management grants in Messaging',
@@ -2005,7 +2092,7 @@ const EXTERNAL_USER_ROLE_MIGRATION: SchemaMigration = {
 };
 
 const PERMISSION_GROUP_MIGRATION: SchemaMigration = {
-  generation: 79,
+  id: 'permission-group',
   module: 'messaging',
   description: 'Persist continuous scoped authorization groups without copying member grants',
   migrate(database) {
@@ -2015,7 +2102,7 @@ const PERMISSION_GROUP_MIGRATION: SchemaMigration = {
 };
 
 const PAIRING_CARD_MIGRATION: SchemaMigration = {
-  generation: 80,
+  id: 'pairing-card',
   module: 'messaging',
   description: 'Persist scoped pairing-review card receipts and operator choices',
   migrate(database) {
@@ -2028,7 +2115,7 @@ const PAIRING_CARD_MIGRATION: SchemaMigration = {
 };
 
 export const BEHAVIOR_PERMISSION_MIGRATION: SchemaMigration = {
-  generation: 81,
+  id: 'behavior-permission',
   module: 'messaging',
   description: 'Persist reusable Bot-scoped Group behavior permission items',
   migrate(db) {
@@ -2042,7 +2129,7 @@ export const BEHAVIOR_PERMISSION_MIGRATION: SchemaMigration = {
 };
 
 export const EXTERNAL_TOOL_RULE_CREATOR_MIGRATION: SchemaMigration = {
-  generation: 82,
+  id: 'external-tool-rule-creator',
   module: 'tool-approval-rules',
   description: 'Retain external creator provenance for revocable native approval rules',
   migrate(database) {
@@ -2051,7 +2138,7 @@ export const EXTERNAL_TOOL_RULE_CREATOR_MIGRATION: SchemaMigration = {
 };
 
 const FAILURE_ALERT_MIGRATION: SchemaMigration = {
-  generation: 83,
+  id: 'failure-alert',
   module: 'messaging',
   description:
     'Persist opt-in failure alerts and bounded delivery metadata on the shared management route',
@@ -2068,7 +2155,7 @@ const FAILURE_ALERT_MIGRATION: SchemaMigration = {
 };
 
 const ASSIGNMENT_ARCHIVE_MIGRATION: SchemaMigration = {
-  generation: 84,
+  id: 'assignment-archive',
   module: 'assignments',
   description: 'Mirror the DSH Session archive on Orchestrator-archived Assignments (ADR-0188)',
   migrate(database) {
@@ -2077,7 +2164,7 @@ const ASSIGNMENT_ARCHIVE_MIGRATION: SchemaMigration = {
 };
 
 const INBOX_RESOLUTION_MIGRATION: SchemaMigration = {
-  generation: 85,
+  id: 'inbox-resolution',
   module: 'bot-inbox',
   description: 'Keep Inbox Admissions open until the Orchestrator resolves them (ADR-0188)',
   migrate(database) {
@@ -2096,7 +2183,7 @@ const INBOX_RESOLUTION_MIGRATION: SchemaMigration = {
 };
 
 const INBOX_SNOOZE_MIGRATION: SchemaMigration = {
-  generation: 86,
+  id: 'inbox-snooze',
   module: 'bot-inbox',
   description: 'Let the Orchestrator snooze open Inbox Admissions until a time (ADR-0188)',
   migrate(database) {
@@ -2112,7 +2199,7 @@ const INBOX_SNOOZE_MIGRATION: SchemaMigration = {
 };
 
 const ASSIGNMENT_ACCESS_SCOPE_MIGRATION: SchemaMigration = {
-  generation: 87,
+  id: 'assignment-access-scope',
   module: 'assignment-access',
   description: 'Record whether full access also covers the Orchestrator (ADR-0193)',
   migrate(database) {
@@ -2124,7 +2211,7 @@ const ASSIGNMENT_ACCESS_SCOPE_MIGRATION: SchemaMigration = {
 };
 
 const SECRET_MCP_SERVER_MIGRATION: SchemaMigration = {
-  generation: 88,
+  id: 'secret-mcp-server',
   module: 'secret-mcp',
   description: 'Remember Human-approved secret MCP servers per PersonaBot (ADR-0196)',
   migrate(database) {
@@ -2145,7 +2232,7 @@ const SECRET_MCP_SERVER_MIGRATION: SchemaMigration = {
 };
 
 const PROACTIVE_POST_LIMIT_MIGRATION: SchemaMigration = {
-  generation: 89,
+  id: 'proactive-post-limit',
   module: 'messaging',
   description: 'Persist per-app proactive post limits and independent quota revisions',
   migrate(database) {
@@ -2157,7 +2244,7 @@ const PROACTIVE_POST_LIMIT_MIGRATION: SchemaMigration = {
 };
 
 const SECRET_MCP_ENABLEMENT_MIGRATION: SchemaMigration = {
-  generation: 90,
+  id: 'secret-mcp-enablement',
   module: 'secret-mcp',
   description: 'Record which PersonaBots enabled a remembered secret MCP server (ADR-0198)',
   migrate(database) {
@@ -2174,7 +2261,7 @@ const SECRET_MCP_ENABLEMENT_MIGRATION: SchemaMigration = {
 };
 
 const DEVICE_PAIRING_MIGRATION: SchemaMigration = {
-  generation: 91,
+  id: 'device-pairing',
   module: 'device-pairing',
   description: 'Record the Host identity and paired devices for the device gateway (ADR-0199)',
   migrate(database) {
@@ -2198,7 +2285,7 @@ const DEVICE_PAIRING_MIGRATION: SchemaMigration = {
 };
 
 const PUSH_DELIVERY_MIGRATION: SchemaMigration = {
-  generation: 92,
+  id: 'push-delivery',
   module: 'push',
   description:
     'Record push tokens, notification kinds and sent Human Inbox items per paired device',
@@ -2225,7 +2312,7 @@ const PUSH_DELIVERY_MIGRATION: SchemaMigration = {
 };
 
 const HUMAN_INBOX_SNOOZE_MIGRATION: SchemaMigration = {
-  generation: 93,
+  id: 'human-inbox-snooze',
   module: 'human-attention',
   description: 'Let the Human snooze a Human Inbox item until a later time',
   migrate(database) {
@@ -2243,7 +2330,7 @@ const HUMAN_INBOX_SNOOZE_MIGRATION: SchemaMigration = {
 };
 
 const CHANNEL_REACTION_MIGRATION: SchemaMigration = {
-  generation: 94,
+  id: 'channel-reaction',
   module: 'messaging',
   description: 'Record emoji reactions on Channel messages',
   migrate(database) {
@@ -2262,7 +2349,7 @@ const CHANNEL_REACTION_MIGRATION: SchemaMigration = {
 };
 
 const SECRET_CLI_TOOL_RULE_MIGRATION: SchemaMigration = {
-  generation: 95,
+  id: 'secret-cli-tool-rule',
   module: 'tool-approval-rules',
   description: 'Allow secret_cli always-allow rules per program, account and variable names',
   migrate(database) {
@@ -2295,7 +2382,7 @@ const SECRET_CLI_TOOL_RULE_MIGRATION: SchemaMigration = {
 };
 
 const TOB_IDENTITY_MIGRATION: SchemaMigration = {
-  generation: 96,
+  id: 'tob-identity',
   module: 'tob',
   description: 'Reserve the protected local Tob identity',
   migrate(database) {
@@ -2306,7 +2393,7 @@ const TOB_IDENTITY_MIGRATION: SchemaMigration = {
 };
 
 const BOT_CREATION_OPERATION_MIGRATION: SchemaMigration = {
-  generation: 97,
+  id: 'bot-creation-operation',
   module: 'bot-creation',
   description: 'Reserve stable Bot creation identities for idempotent live CLI retries',
   migrate(database) {
@@ -2318,7 +2405,7 @@ const BOT_CREATION_OPERATION_MIGRATION: SchemaMigration = {
 };
 
 const CHANNEL_MANAGEMENT_OPERATION_MIGRATION: SchemaMigration = {
-  generation: 98,
+  id: 'channel-management-operation',
   module: 'channel-management',
   description: 'Reserve canonical Channel and invitation identities for scoped CLI retries',
   migrate(database) {
@@ -2331,7 +2418,7 @@ const CHANNEL_MANAGEMENT_OPERATION_MIGRATION: SchemaMigration = {
 };
 
 const GROUP_SEND_REVIEW_MIGRATION: SchemaMigration = {
-  generation: 99,
+  id: 'group-send-review',
   module: 'channel-send-review',
   description: 'Opt-in local Group send review and bounded durable draft intents',
   migrate(database) {
@@ -2347,7 +2434,7 @@ const GROUP_SEND_REVIEW_MIGRATION: SchemaMigration = {
 };
 
 const CLOUD_CONNECTION_MIGRATION: SchemaMigration = {
-  generation: 100,
+  id: 'cloud-connection',
   module: 'messaging',
   description: 'Track explicit cloud Agent connections without storing secret values',
   migrate(database) {
@@ -2364,7 +2451,7 @@ const CLOUD_CONNECTION_MIGRATION: SchemaMigration = {
 };
 
 const CLOUD_WORK_MIGRATION: SchemaMigration = {
-  generation: 101,
+  id: 'cloud-work',
   module: 'messaging',
   description: 'Fence bounded cloud work execution and forwarding across retries',
   migrate(database) {
@@ -2385,7 +2472,7 @@ const CLOUD_WORK_MIGRATION: SchemaMigration = {
 };
 
 const TOB_ONBOARDING_MIGRATION: SchemaMigration = {
-  generation: 102,
+  id: 'tob-onboarding',
   module: 'bot-onboarding',
   description: 'Version the short Tob journey without restarting legacy tutorials',
   migrate(database) {
@@ -2405,7 +2492,7 @@ const TOB_ONBOARDING_MIGRATION: SchemaMigration = {
 };
 
 const USAGE_IDLE_COMPACTION_MIGRATION: SchemaMigration = {
-  generation: 103,
+  id: 'usage-idle-compaction',
   module: 'usage',
   description: 'Record idle Orchestrator Session compactions for Bot activity',
   migrate(database) {
@@ -2433,7 +2520,7 @@ const USAGE_IDLE_COMPACTION_MIGRATION: SchemaMigration = {
 };
 
 const THREE_ACTION_APPROVAL_MIGRATION: SchemaMigration = {
-  generation: 104,
+  id: 'three-action-approval',
   module: 'tool-approval-rules',
   description: 'Remember one tool per authority scope and retain native ask for Full Access',
   migrate(database) {
@@ -2459,7 +2546,7 @@ const THREE_ACTION_APPROVAL_MIGRATION: SchemaMigration = {
 };
 
 const PUSH_APP_RENDER_MIGRATION: SchemaMigration = {
-  generation: 105,
+  id: 'push-app-render',
   module: 'push',
   description: 'Record which paired devices draw push notifications in the app',
   migrate(database) {
@@ -2468,7 +2555,7 @@ const PUSH_APP_RENDER_MIGRATION: SchemaMigration = {
 };
 
 const DEVICE_NOTIFICATION_PREFERENCE_MIGRATION: SchemaMigration = {
-  generation: 106,
+  id: 'device-notification-preference',
   module: 'push',
   description: 'Keep the device-owned notification preference copy without a push token',
   migrate(database) {
@@ -2483,7 +2570,7 @@ const DEVICE_NOTIFICATION_PREFERENCE_MIGRATION: SchemaMigration = {
 };
 
 const DEVICE_LIVE_ACTIVITY_MIGRATION: SchemaMigration = {
-  generation: 107,
+  id: 'device-live-activity',
   module: 'live-activity',
   description: 'Track device-owned Live Activity delivery handles, never request execution state',
   migrate(database) {
@@ -2499,7 +2586,7 @@ const DEVICE_LIVE_ACTIVITY_MIGRATION: SchemaMigration = {
 };
 
 const ASSIGNMENT_TITLE_MIGRATION: SchemaMigration = {
-  generation: 108,
+  id: 'assignment-title',
   module: 'assignments',
   description: 'Give Assignments a Title and turn purpose into their Description (ADR-0262)',
   migrate(database) {
@@ -2519,7 +2606,7 @@ const ASSIGNMENT_TITLE_MIGRATION: SchemaMigration = {
 };
 
 const SESSION_PROMPT_SNAPSHOT_MIGRATION: SchemaMigration = {
-  generation: 109,
+  id: 'session-prompt-snapshot',
   module: 'session-ownership',
   description: 'Freeze each Session Prompt Preset text at its first assembly',
   migrate(database) {
@@ -2528,7 +2615,7 @@ const SESSION_PROMPT_SNAPSHOT_MIGRATION: SchemaMigration = {
 };
 
 const TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION: SchemaMigration = {
-  generation: 110,
+  id: 'tool-rule-auto-approval-count',
   module: 'tool-approval-rules',
   description: 'Count the approval requests each always-allow rule answers',
   migrate(database) {
@@ -2539,7 +2626,7 @@ const TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION: SchemaMigration = {
 };
 
 const REQUEST_ASSIGNMENT_LINK_MIGRATION: SchemaMigration = {
-  generation: 111,
+  id: 'request-assignment-link',
   module: 'assignments',
   description: 'Record which Assignment each Human request created or advanced',
   migrate(database) {
@@ -2555,7 +2642,7 @@ const REQUEST_ASSIGNMENT_LINK_MIGRATION: SchemaMigration = {
 };
 
 const MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION: SchemaMigration = {
-  generation: 112,
+  id: 'message-search-attachment-name',
   module: 'messaging',
   description: 'Index attachment file names in the message full-text index for global search',
   migrate(database) {
@@ -2563,8 +2650,20 @@ const MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION: SchemaMigration = {
   },
 };
 
+const GRANT_RECEPTION_EVIDENCE_MIGRATION: SchemaMigration = {
+  id: 'grant-reception-evidence',
+  module: 'messaging',
+  description: 'Fence grant-backed reception evidence from older Bridge-only readers',
+  migrate(database) {
+    database.exec(`CREATE INDEX messaging_paths_authority
+      ON messaging_source_paths(bot_slug, source_event_id, json_extract(body, '$.kind'));
+      CREATE VIEW messaging_bridge_sources AS SELECT DISTINCT source_event_id
+        FROM messaging_source_paths WHERE json_extract(body, '$.kind') IS NOT 'grant';`);
+  },
+};
+
 const HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION: SchemaMigration = {
-  generation: 113,
+  id: 'human-attention-candidate-index',
   module: 'messaging',
   description: 'Index canonical pending attention candidates without scanning ordinary history',
   migrate(database) {
@@ -2584,6 +2683,1381 @@ const HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION: SchemaMigration = {
       CREATE INDEX source_events_attention_rejection ON source_events (message_id, source_event_id)
         WHERE source_kind = 'system-message'
           AND json_extract(payload_json, '$.toolAutoApproval.outcome') = 'rejected';
+    `);
+  },
+};
+
+const BOT_LAN_ADMISSION_MIGRATION: SchemaMigration = {
+  id: 'bot-lan-admission',
+  module: 'bot-lan',
+  description: 'Record explicit Host-key-bound LAN Bot collaboration admissions',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE bot_lan_admissions (
+        host_id TEXT PRIMARY KEY,
+        public_key TEXT NOT NULL,
+        admission_id TEXT NOT NULL UNIQUE,
+        name TEXT NOT NULL,
+        admitted_at TEXT NOT NULL,
+        revoked_at TEXT
+      );
+    `);
+  },
+};
+
+const QUESTION_MESSAGING_MIGRATION: SchemaMigration = {
+  id: 'question-messaging',
+  module: 'messaging',
+  description: 'Retain checked native question notification references and receipts',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE messaging_question_deliveries (
+        id TEXT PRIMARY KEY, bot_slug TEXT NOT NULL, body TEXT NOT NULL CHECK(json_valid(body))
+      );
+      CREATE INDEX messaging_question_deliveries_bot ON messaging_question_deliveries(bot_slug);
+    `);
+  },
+};
+
+const TAKEOVER_ATTENTION_INDEX_MIGRATION: SchemaMigration = {
+  id: 'takeover-attention-index',
+  module: 'messaging',
+  description: 'Index Takeover Handoff requests without scanning ordinary history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_attention_takeover ON source_events (message_id, source_event_id)
+        WHERE source_kind = 'bot-message'
+          AND json_extract(payload_json, '$.takeoverRequest') IS NOT NULL;
+    `);
+  },
+};
+
+const VOICE_PROVIDER_MIGRATION: SchemaMigration = {
+  id: 'voice-provider',
+  module: 'voice',
+  description: 'Store TTS Providers; their keys stay in the credentials service',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE voice_providers (
+        id TEXT PRIMARY KEY,
+        body TEXT NOT NULL CHECK (json_valid(body)),
+        created_at TEXT NOT NULL
+      );
+    `);
+  },
+};
+
+const GRANT_RESOLUTION_INDEX_MIGRATION: SchemaMigration = {
+  id: 'grant-resolution-index',
+  module: 'messaging',
+  description: 'Index grant request resolutions without scanning Channel history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_grant_resolution
+        ON source_events (json_extract(payload_json, '$.grantRequestResolution.requestMessageId'))
+        WHERE json_extract(payload_json, '$.grantRequestResolution.requestMessageId') IS NOT NULL;
+    `);
+  },
+};
+
+const OUTPUT_REQUEST_INDEX_MIGRATION: SchemaMigration = {
+  id: 'output-request-index',
+  module: 'messaging',
+  description: 'Index Bot output lookups by the request that caused them',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX channel_output_origins_request ON channel_output_origins (request_source_event_id);
+    `);
+  },
+};
+
+const SESSION_PARENT_INDEX_MIGRATION: SchemaMigration = {
+  id: 'session-parent-index',
+  module: 'session-ownership',
+  description: 'Index child Sessions by parent without scanning every Session',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX session_ownership_parent ON session_ownership (parent_session_id);
+    `);
+  },
+};
+
+const NEEDS_REPAIR_INDEX_MIGRATION: SchemaMigration = {
+  id: 'needs-repair-index',
+  module: 'bot-inbox',
+  description: 'Index Admissions that need repair without scanning Inbox history',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX inbox_admissions_needs_repair ON inbox_admissions (source_event_id, bot_slug)
+        WHERE attempt_state = 'needs-repair';
+    `);
+  },
+};
+
+const PLACEMENT_NOTICE_MIGRATION: SchemaMigration = {
+  id: 'placement-notice',
+  module: 'messaging',
+  description: 'Mark notice placements so the latest message is found without walking notices',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE channel_placements ADD COLUMN notice INTEGER NOT NULL DEFAULT 0;
+      UPDATE channel_placements SET notice = 1 WHERE source_event_id IN (
+        SELECT source_event_id FROM source_events
+         WHERE CASE WHEN json_valid(payload_json) THEN coalesce(json_type(payload_json, '$.botDmAction') = 'object' OR json_type(payload_json, '$.botCreateAction') = 'object' OR json_type(payload_json, '$.botChannelPost') = 'object' OR json_type(payload_json, '$.memoryCommit') = 'object' OR json_type(payload_json, '$.toolAutoApproval') = 'object' OR json_type(payload_json, '$.toolAutoApprovalPause') = 'object', 0) ELSE 0 END
+      );
+      CREATE INDEX channel_placements_latest_message ON channel_placements (channel_id, revision)
+        WHERE notice = 0;
+      CREATE TRIGGER channel_placements_notice_insert AFTER INSERT ON channel_placements
+        BEGIN
+          UPDATE channel_placements SET notice = coalesce((
+            SELECT CASE WHEN json_valid(payload_json) THEN coalesce(json_type(payload_json, '$.botDmAction') = 'object' OR json_type(payload_json, '$.botCreateAction') = 'object' OR json_type(payload_json, '$.botChannelPost') = 'object' OR json_type(payload_json, '$.memoryCommit') = 'object' OR json_type(payload_json, '$.toolAutoApproval') = 'object' OR json_type(payload_json, '$.toolAutoApprovalPause') = 'object', 0) ELSE 0 END FROM source_events
+             WHERE source_event_id = NEW.source_event_id
+          ), 0)
+           WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
+        END;
+      CREATE TRIGGER channel_placements_notice_update AFTER UPDATE OF payload_json ON source_events
+        BEGIN
+          UPDATE channel_placements SET notice = CASE WHEN json_valid(NEW.payload_json) THEN coalesce(json_type(NEW.payload_json, '$.botDmAction') = 'object' OR json_type(NEW.payload_json, '$.botCreateAction') = 'object' OR json_type(NEW.payload_json, '$.botChannelPost') = 'object' OR json_type(NEW.payload_json, '$.memoryCommit') = 'object' OR json_type(NEW.payload_json, '$.toolAutoApproval') = 'object' OR json_type(NEW.payload_json, '$.toolAutoApprovalPause') = 'object', 0) ELSE 0 END
+           WHERE source_event_id = NEW.source_event_id;
+        END;
+    `);
+  },
+};
+
+const PLACEMENT_HUMAN_REPLY_MIGRATION: SchemaMigration = {
+  id: 'placement-human-reply',
+  module: 'messaging',
+  description:
+    'Mark Bot replies and mentions for the Human so the replies list skips other history',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE channel_placements ADD COLUMN for_human INTEGER NOT NULL DEFAULT 0;
+      UPDATE channel_placements SET for_human = 1 WHERE (
+        SELECT CASE WHEN json_valid(e.payload_json) AND json_extract(e.payload_json, '$.author.kind') = 'bot' THEN coalesce(json_array_length(e.payload_json, '$.humanMentions') > 0 OR EXISTS (SELECT 1 FROM channel_placements o JOIN source_events t ON t.source_event_id = o.source_event_id WHERE o.channel_id = channel_placements.channel_id AND o.message_id = json_extract(e.payload_json, '$.replyTo') AND json_valid(t.payload_json) AND json_extract(t.payload_json, '$.author.kind') = 'human'), 0) ELSE 0 END FROM source_events e WHERE e.source_event_id = channel_placements.source_event_id
+      ) = 1;
+      CREATE INDEX channel_placements_for_human ON channel_placements (channel_id, revision)
+        WHERE for_human = 1;
+      CREATE TRIGGER channel_placements_for_human_insert AFTER INSERT ON channel_placements
+        BEGIN
+          UPDATE channel_placements SET for_human = coalesce((
+            SELECT CASE WHEN json_valid(e.payload_json) AND json_extract(e.payload_json, '$.author.kind') = 'bot' THEN coalesce(json_array_length(e.payload_json, '$.humanMentions') > 0 OR EXISTS (SELECT 1 FROM channel_placements o JOIN source_events t ON t.source_event_id = o.source_event_id WHERE o.channel_id = NEW.channel_id AND o.message_id = json_extract(e.payload_json, '$.replyTo') AND json_valid(t.payload_json) AND json_extract(t.payload_json, '$.author.kind') = 'human'), 0) ELSE 0 END FROM source_events e WHERE e.source_event_id = NEW.source_event_id
+          ), 0)
+           WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
+        END;
+      CREATE TRIGGER channel_placements_for_human_update AFTER UPDATE OF payload_json ON source_events
+        BEGIN
+          UPDATE channel_placements SET for_human = coalesce((
+            SELECT CASE WHEN json_valid(e.payload_json) AND json_extract(e.payload_json, '$.author.kind') = 'bot' THEN coalesce(json_array_length(e.payload_json, '$.humanMentions') > 0 OR EXISTS (SELECT 1 FROM channel_placements o JOIN source_events t ON t.source_event_id = o.source_event_id WHERE o.channel_id = channel_placements.channel_id AND o.message_id = json_extract(e.payload_json, '$.replyTo') AND json_valid(t.payload_json) AND json_extract(t.payload_json, '$.author.kind') = 'human'), 0) ELSE 0 END FROM source_events e WHERE e.source_event_id = NEW.source_event_id
+          ), 0)
+           WHERE source_event_id = NEW.source_event_id;
+        END;
+    `);
+  },
+};
+
+const BOUNDED_RANGE_INDEX_MIGRATION: SchemaMigration = {
+  id: 'bounded-range-index',
+  module: 'messaging',
+  description:
+    'Index message time, outbound attempts, outbound receipts and external message ids for bounded lookups',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_created ON source_events (created_at);
+      CREATE INDEX messaging_outbox_attempts_started ON messaging_outbox_attempts (started_at);
+      CREATE INDEX messaging_outbox_receipt
+        ON messaging_outbox (bot_slug, json_extract(body, '$.receipt.messageId'));
+      CREATE INDEX source_events_external_message
+        ON source_events (bot_slug, json_extract(payload_json, '$.external.event.messageId'))
+        WHERE source_kind = 'bridge-message';
+    `);
+  },
+};
+
+const ATTENTION_RESOLUTION_INDEX_MIGRATION: SchemaMigration = {
+  id: 'attention-resolution-index',
+  module: 'messaging',
+  description: 'Index attention resolutions and admission activity time for bounded lookups',
+  migrate(database) {
+    database.exec(`
+      CREATE INDEX source_events_question_resolution
+        ON source_events (json_extract(payload_json, '$.userQuestionResolution.requestMessageId'))
+        WHERE json_extract(payload_json, '$.userQuestionResolution.requestMessageId') IS NOT NULL;
+      CREATE INDEX source_events_approval_decision
+        ON source_events (json_extract(payload_json, '$.toolApprovalDecision.requestMessageId'))
+        WHERE json_extract(payload_json, '$.toolApprovalDecision.requestMessageId') IS NOT NULL;
+      CREATE INDEX source_events_approval_override
+        ON source_events (json_extract(payload_json, '$.toolAutoApprovalOverride.recordMessageId'))
+        WHERE json_extract(payload_json, '$.toolAutoApprovalOverride.recordMessageId') IS NOT NULL;
+      CREATE INDEX source_events_private_resolution
+        ON source_events (json_extract(payload_json, '$.privateInputResolution.requestMessageId'))
+        WHERE json_extract(payload_json, '$.privateInputResolution.requestMessageId') IS NOT NULL;
+      CREATE INDEX inbox_admissions_activity
+        ON inbox_admissions (bot_slug, coalesce(observed_at, handled_at))
+        WHERE ignored_at IS NULL;
+    `);
+  },
+};
+
+const CAUSAL_PURGE_TOMBSTONE_MIGRATION: SchemaMigration = {
+  id: 'causal-purge-tombstone',
+  module: 'messaging-purge',
+  description: 'Allow a Source Event canonical tombstone when its causal ancestors are purged',
+  migrate(database) {
+    database.exec(`
+      DROP TRIGGER messaging_purge_source_update;
+      CREATE TRIGGER messaging_purge_source_update BEFORE UPDATE ON source_events
+        WHEN EXISTS (SELECT 1 FROM messaging_purge_facts f WHERE
+          ((f.source_event_id IN (OLD.source_event_id, NEW.source_event_id)
+            OR (f.channel_id = NEW.channel_id AND f.message_id = NEW.message_id))
+           AND (NEW.source_event_id != f.source_event_id OR NEW.channel_id IS NOT f.channel_id
+             OR NEW.message_id IS NOT f.message_id OR NEW.body != '' OR NEW.payload_json IS NOT f.tombstone_json))
+          OR (f.source_event_id IN (json_extract(NEW.payload_json, '$.botCausation.rootSourceEventId'),
+            json_extract(NEW.payload_json, '$.botCausation.parentSourceEventId'))
+            AND NEW.payload_json IS NOT f.tombstone_json AND NEW.payload_json IS NOT OLD.payload_json
+            AND NOT EXISTS (SELECT 1 FROM messaging_purge_facts own
+              WHERE own.source_event_id = NEW.source_event_id
+                AND own.channel_id IS NEW.channel_id AND own.message_id IS NEW.message_id
+                AND NEW.body = '' AND own.tombstone_json IS NEW.payload_json)))
+        BEGIN SELECT RAISE(ABORT, 'content purged'); END;
+    `);
+  },
+};
+
+const VOICE_DEFAULTS_MIGRATION: SchemaMigration = {
+  id: 'voice-defaults',
+  module: 'voice',
+  description: 'Store the Host-wide default TTS and ASR Provider every Bot falls back to',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE voice_defaults (
+        kind TEXT PRIMARY KEY CHECK (kind IN ('tts', 'asr')),
+        body TEXT NOT NULL CHECK (json_valid(body))
+      );
+    `);
+  },
+};
+
+const VOICE_SETTINGS_MIGRATION: SchemaMigration = {
+  id: 'voice-settings',
+  module: 'voice',
+  description: 'Store Host-wide voice tuning such as the speech detection threshold',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE voice_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL CHECK (json_valid(value))
+      );
+    `);
+  },
+};
+
+const CHANNEL_CHANGE_LOG_MIGRATION: SchemaMigration = {
+  id: 'channel-change-log',
+  module: 'messaging',
+  description: 'Record every change to what a placed message renders in a global change log',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE channel_change_epoch (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        epoch TEXT NOT NULL,
+        floor_seq INTEGER NOT NULL DEFAULT 0
+      );
+      INSERT INTO channel_change_epoch (singleton, epoch) VALUES (1, lower(hex(randomblob(8))));
+      CREATE TABLE channel_changes (
+        seq INTEGER PRIMARY KEY AUTOINCREMENT,
+        channel_id TEXT NOT NULL,
+        message_id TEXT,
+        kind TEXT NOT NULL CHECK (kind IN ('message', 'removed', 'channel', 'read')),
+        changed_at INTEGER NOT NULL DEFAULT (CAST((julianday('now') - 2440587.5) * 86400000 AS INTEGER))
+      );
+      CREATE INDEX channel_changes_channel ON channel_changes (channel_id, seq);
+      CREATE INDEX channel_changes_changed_at ON channel_changes (changed_at);
+      CREATE INDEX source_events_reply_target
+        ON source_events (json_extract(payload_json, '$.replyTo'))
+        WHERE json_valid(payload_json) AND json_extract(payload_json, '$.replyTo') IS NOT NULL;
+      CREATE INDEX source_events_post_target
+        ON source_events (json_extract(payload_json, '$.botChannelPost.messageId'))
+        WHERE json_valid(payload_json)
+          AND json_extract(payload_json, '$.botChannelPost.messageId') IS NOT NULL;
+
+      CREATE TRIGGER channel_change_placement_insert AFTER INSERT ON channel_placements
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            VALUES (NEW.channel_id, NEW.message_id, 'message');
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT NEW.channel_id, json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId'), 'message'
+              FROM source_events e
+             WHERE e.source_event_id = NEW.source_event_id AND json_valid(e.payload_json)
+               AND json_extract(e.payload_json, '$.grantRequestResolution.requestMessageId') IS NOT NULL;
+        END;
+      CREATE TRIGGER channel_change_placement_delete AFTER DELETE ON channel_placements
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            VALUES (OLD.channel_id, OLD.message_id, 'removed');
+        END;
+      CREATE TRIGGER channel_change_source_update AFTER UPDATE OF body, payload_json ON source_events
+        WHEN OLD.body IS NOT NEW.body
+          OR (CASE WHEN json_valid(OLD.payload_json)
+                THEN json_remove(OLD.payload_json, '$.feedback', '$.external.contextReads')
+                ELSE OLD.payload_json END)
+             IS NOT (CASE WHEN json_valid(NEW.payload_json)
+                THEN json_remove(NEW.payload_json, '$.feedback', '$.external.contextReads')
+                ELSE NEW.payload_json END)
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = NEW.source_event_id;
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT r.channel_id, r.message_id, 'message'
+              FROM channel_placements p
+              JOIN source_events re
+                ON json_valid(re.payload_json) AND json_extract(re.payload_json, '$.replyTo') = p.message_id
+              JOIN channel_placements r
+                ON r.source_event_id = re.source_event_id AND r.channel_id = p.channel_id
+             WHERE p.source_event_id = NEW.source_event_id;
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT r.channel_id, r.message_id, 'message'
+              FROM channel_placements p
+              JOIN source_events re
+                ON json_valid(re.payload_json)
+               AND json_extract(re.payload_json, '$.botChannelPost.messageId') = p.message_id
+               AND json_extract(re.payload_json, '$.botChannelPost.channelId') = p.channel_id
+              JOIN channel_placements r ON r.source_event_id = re.source_event_id
+             WHERE p.source_event_id = NEW.source_event_id;
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT p.channel_id, json_extract(x.payload, '$.grantRequestResolution.requestMessageId'), 'message'
+              FROM channel_placements p,
+                   (SELECT OLD.payload_json AS payload UNION ALL SELECT NEW.payload_json) x
+             WHERE p.source_event_id = NEW.source_event_id AND json_valid(x.payload)
+               AND json_extract(x.payload, '$.grantRequestResolution.requestMessageId') IS NOT NULL;
+        END;
+      CREATE TRIGGER channel_change_admission_insert AFTER INSERT ON inbox_admissions
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = NEW.source_event_id;
+        END;
+      CREATE TRIGGER channel_change_admission_update AFTER UPDATE ON inbox_admissions
+        WHEN OLD.attempt_state IS NOT NEW.attempt_state OR OLD.handled_at IS NOT NEW.handled_at
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = NEW.source_event_id;
+        END;
+      CREATE TRIGGER channel_change_admission_delete AFTER DELETE ON inbox_admissions
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = OLD.source_event_id;
+        END;
+      CREATE TRIGGER channel_change_reaction_insert AFTER INSERT ON channel_reactions
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            VALUES (NEW.channel_id, NEW.message_id, 'message');
+        END;
+      CREATE TRIGGER channel_change_reaction_delete AFTER DELETE ON channel_reactions
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            VALUES (OLD.channel_id, OLD.message_id, 'message');
+        END;
+      CREATE TRIGGER channel_change_binding_insert AFTER INSERT ON attachment_file_bindings
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = NEW.source_event_id;
+        END;
+      CREATE TRIGGER channel_change_binding_update AFTER UPDATE ON attachment_file_bindings
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = NEW.source_event_id;
+        END;
+      CREATE TRIGGER channel_change_binding_delete AFTER DELETE ON attachment_file_bindings
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = OLD.source_event_id;
+        END;
+      CREATE TRIGGER channel_change_request_assignment_insert AFTER INSERT ON request_assignments
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = NEW.request_source_event_id;
+        END;
+      CREATE TRIGGER channel_change_request_assignment_delete AFTER DELETE ON request_assignments
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind)
+            SELECT channel_id, message_id, 'message' FROM channel_placements
+             WHERE source_event_id = OLD.request_source_event_id;
+        END;
+      CREATE TRIGGER channel_change_read_insert AFTER INSERT ON channel_read_positions
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'read');
+        END;
+      CREATE TRIGGER channel_change_read_update AFTER UPDATE ON channel_read_positions
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'read');
+        END;
+      CREATE TRIGGER channel_change_record_insert AFTER INSERT ON channel_records
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_record_update AFTER UPDATE ON channel_records
+        WHEN (CASE WHEN json_valid(OLD.record_json)
+                THEN json_remove(OLD.record_json, '$.updatedAt') ELSE OLD.record_json END)
+          IS NOT (CASE WHEN json_valid(NEW.record_json)
+                THEN json_remove(NEW.record_json, '$.updatedAt') ELSE NEW.record_json END)
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_nickname_insert AFTER INSERT ON channel_human_nicknames
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_nickname_update AFTER UPDATE ON channel_human_nicknames
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_nickname_delete AFTER DELETE ON channel_human_nicknames
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (OLD.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_member_insert AFTER INSERT ON channel_human_members
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_member_update AFTER UPDATE ON channel_human_members
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (NEW.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_member_delete AFTER DELETE ON channel_human_members
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES (OLD.channel_id, NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_name_insert AFTER INSERT ON local_human_names
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES ('*', NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_name_update AFTER UPDATE ON local_human_names
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES ('*', NULL, 'channel');
+        END;
+    `);
+  },
+};
+
+const WORKSPACE_GRANT_PATH_MIGRATION: SchemaMigration = {
+  id: 'workspace-grant-path',
+  module: 'workspace-grants',
+  description: 'Keep one active Workspace Grant per Bot and canonical directory',
+  migrate(database) {
+    database.exec(`
+      WITH ranked AS (
+        SELECT id, ROW_NUMBER() OVER (
+          PARTITION BY bot_slug, workspace_path ORDER BY created_at DESC, id DESC
+        ) AS position,
+        MAX(created_at) OVER (PARTITION BY bot_slug, workspace_path) AS superseded_at
+        FROM workspace_grants WHERE revoked_at IS NULL
+      )
+      UPDATE workspace_grants SET revoked_at = (
+        SELECT superseded_at FROM ranked WHERE ranked.id = workspace_grants.id
+      ) WHERE id IN (SELECT id FROM ranked WHERE position > 1);
+      CREATE UNIQUE INDEX workspace_grants_active_path
+        ON workspace_grants (bot_slug, workspace_path) WHERE revoked_at IS NULL;
+    `);
+  },
+};
+
+const CALL_VISUAL_UNSAVED_MIGRATION: SchemaMigration = {
+  id: 'call-visual-unsaved',
+  module: 'messaging',
+  description: 'Drop the removed unsaved marker from call message visuals',
+  migrate(database) {
+    database.exec(`
+      UPDATE source_events
+         SET payload_json = json_remove(payload_json, '$.voiceCall.visual.unsaved')
+       WHERE json_valid(payload_json)
+         AND json_type(payload_json, '$.voiceCall.visual.unsaved') IS NOT NULL;
+    `);
+  },
+};
+
+const CLIENT_ACKNOWLEDGEMENT_MIGRATION: SchemaMigration = {
+  id: 'client-acknowledgement',
+  module: 'bot-onboarding',
+  description: 'Remember one-time Client notices per Profile instead of per browser origin',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE client_acknowledgements (
+        ack_key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        recorded_at TEXT NOT NULL
+      );
+    `);
+  },
+};
+
+const CALL_VISUAL_TIMELINE_MIGRATION: SchemaMigration = {
+  id: 'call-visual-timeline',
+  module: 'messaging',
+  description:
+    'Drop the removed frame-record list from call message visuals, and grid metadata without a picture range',
+  migrate(database) {
+    database.exec(`
+      UPDATE source_events
+         SET payload_json = json_remove(payload_json, '$.voiceCall.visual.records')
+       WHERE json_valid(payload_json)
+         AND json_type(payload_json, '$.voiceCall.visual.records') IS NOT NULL;
+      UPDATE source_events
+         SET payload_json = json_remove(payload_json, '$.voiceCall.visual')
+       WHERE json_valid(payload_json)
+         AND json_type(payload_json, '$.voiceCall.visual.frames') IS NOT NULL
+         AND (json_type(payload_json, '$.voiceCall.visual.fromMs') IS NULL
+           OR json_type(payload_json, '$.voiceCall.visual.toMs') IS NULL);
+    `);
+  },
+};
+
+const GENUI_PRIVATE_VIEW_MIGRATION: SchemaMigration = {
+  id: 'genui-private-view',
+  module: 'messaging',
+  description:
+    'Private Human view drafts reference canonical report placements and cascade on purge',
+  migrate(database) {
+    database.exec(`CREATE TABLE genui_private_views (
+      human_id TEXT NOT NULL,
+      channel_id TEXT NOT NULL,
+      message_id TEXT NOT NULL,
+      snapshot_id TEXT NOT NULL,
+      version INTEGER NOT NULL CHECK (version > 0),
+      state_json TEXT NOT NULL,
+      PRIMARY KEY (human_id, channel_id, message_id),
+      FOREIGN KEY (channel_id, message_id) REFERENCES channel_placements(channel_id, message_id) ON DELETE CASCADE
+    )`);
+  },
+};
+
+const callGridLayoutFor = (frames: string) =>
+  `CASE ${frames} WHEN 1 THEN '1' WHEN 2 THEN '2' WHEN 3 THEN '3' WHEN 4 THEN '2+2' WHEN 5 THEN '3+2'
+    WHEN 6 THEN '3+3' WHEN 7 THEN '3+2+2' WHEN 8 THEN '3+3+2' WHEN 9 THEN '3+3+3' END`;
+
+const CALL_GRID_ROWS_MIGRATION: SchemaMigration = {
+  id: 'call-grid-rows',
+  module: 'voice',
+  description: 'Rewrite call grid layouts from square grids to balanced rows of at most three',
+  migrate(database) {
+    const visualFrames = "json_extract(payload_json, '$.voiceCall.visual.frames')";
+    const recordFrames = "json_extract(payload_json, '$.voiceCallRecord.frames')";
+    const oldVisual = `json_valid(payload_json)
+      AND json_extract(payload_json, '$.voiceCall.visual.layout') IN ('1x1', '2x2', '3x3', '4x4')`;
+    const oldRecord = `json_valid(payload_json)
+      AND json_extract(payload_json, '$.voiceCallRecord.state') = 'frames'
+      AND json_extract(payload_json, '$.voiceCallRecord.layout') IN ('1x1', '2x2', '3x3', '4x4')`;
+    database.exec(`
+      UPDATE source_events
+         SET payload_json = json_set(payload_json, '$.voiceCall.visual.layout',
+           ${callGridLayoutFor(visualFrames)})
+       WHERE ${oldVisual} AND ${visualFrames} BETWEEN 1 AND 9;
+      UPDATE source_events SET payload_json = json_remove(payload_json, '$.voiceCall.visual')
+       WHERE ${oldVisual};
+      UPDATE source_events
+         SET body = replace(body,
+               'a ' || json_extract(payload_json, '$.voiceCallRecord.layout') || ' grid of',
+               'a ' || ${callGridLayoutFor(recordFrames)} || ' grid of'),
+             payload_json = json_set(payload_json, '$.voiceCallRecord.layout',
+               ${callGridLayoutFor(recordFrames)})
+       WHERE ${oldRecord} AND ${recordFrames} BETWEEN 1 AND 9;
+    `);
+  },
+};
+
+const QUESTION_MESSAGING_RECOVERY_MIGRATION: SchemaMigration = {
+  id: 'question-messaging-recovery',
+  module: 'messaging',
+  description: 'Recover the question schema skipped by the generation-116 QQ defaults hotfix',
+  migrate(database) {
+    const reference = new DatabaseSync(':memory:');
+    try {
+      QUESTION_MESSAGING_MIGRATION.migrate(reference);
+      const query = `SELECT type, name, tbl_name, sql FROM sqlite_schema
+        WHERE tbl_name = 'messaging_question_deliveries'
+           OR name IN ('messaging_question_deliveries', 'messaging_question_deliveries_bot')`;
+      const expected = reference.prepare(query).all();
+      const actual = database.prepare(query).all();
+      const normalize = (sql: unknown) =>
+        typeof sql === 'string' ? sql.replace(/\s+/gu, ' ').trim() : sql;
+      for (const object of actual) {
+        const match = expected.find((candidate) => candidate.name === object.name);
+        if (
+          match === undefined ||
+          match.type !== object.type ||
+          match.tbl_name !== object.tbl_name ||
+          normalize(match.sql) !== normalize(object.sql)
+        ) {
+          throw new OperationalDatabaseError(
+            'migration-failed',
+            'Incompatible question notification schema; retain the Profile for recovery',
+          );
+        }
+      }
+      for (const object of expected) {
+        if (typeof object.sql === 'string' && !actual.some((entry) => entry.name === object.name)) {
+          database.exec(object.sql);
+        }
+      }
+    } finally {
+      reference.close();
+    }
+  },
+};
+
+const QQ_PLATFORM_DEFAULTS_MIGRATION: SchemaMigration = {
+  id: 'qq-platform-defaults',
+  module: 'messaging',
+  description:
+    'Allow QQ platform defaults while preserving official and historical hotfix preferences',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE messaging_default_revisions_qualified (
+        platform TEXT NOT NULL CHECK (platform IN ('feishu', 'slack', 'discord', 'weixin', 'qq')),
+        revision INTEGER NOT NULL CHECK (revision > 0), body TEXT NOT NULL,
+        PRIMARY KEY (platform, revision)
+      );
+      INSERT INTO messaging_default_revisions_qualified SELECT * FROM messaging_default_revisions;
+      DROP TABLE messaging_default_revisions;
+      ALTER TABLE messaging_default_revisions_qualified RENAME TO messaging_default_revisions;
+      CREATE TRIGGER messaging_defaults_no_update BEFORE UPDATE ON messaging_default_revisions
+        BEGIN SELECT RAISE(ABORT, 'Messaging defaults revisions are immutable'); END;
+      CREATE TRIGGER messaging_defaults_no_delete BEFORE DELETE ON messaging_default_revisions
+        BEGIN SELECT RAISE(ABORT, 'Messaging defaults revisions are immutable'); END;
+    `);
+  },
+};
+
+const DEVICE_FEED_READ_MIGRATION: SchemaMigration = {
+  id: 'device-feed-read',
+  module: 'paired-devices',
+  description: 'Retain the paired client acknowledgement of its first Host Feed read',
+  migrate(database) {
+    database.exec('ALTER TABLE paired_devices ADD COLUMN feed_read_at TEXT');
+  },
+};
+
+const SOURCE_EVENT_HUMAN_MIGRATION: SchemaMigration = {
+  id: 'source-event-human',
+  module: 'messaging',
+  description: 'Record the speaking Human on Source Events without changing message payloads',
+  migrate(database) {
+    database.exec('ALTER TABLE source_events ADD COLUMN human_id TEXT');
+    database
+      .prepare(`UPDATE source_events SET human_id = ?
+      WHERE source_kind = 'human-message'`)
+      .run(OWNER_HUMAN_CONTEXT.humanId);
+    database.exec(`CREATE TABLE human_attention_decisions_next (
+      human_id TEXT NOT NULL,
+      source_event_id TEXT NOT NULL REFERENCES source_events(source_event_id),
+      decision TEXT NOT NULL CHECK (decision IN ('ignored')),
+      decided_at TEXT NOT NULL,
+      PRIMARY KEY (human_id, source_event_id)
+    )`);
+    database
+      .prepare(`INSERT INTO human_attention_decisions_next
+      (human_id, source_event_id, decision, decided_at)
+      SELECT ?, source_event_id, decision, decided_at FROM human_attention_decisions`)
+      .run(OWNER_HUMAN_CONTEXT.humanId);
+    database.exec(`DROP TABLE human_attention_decisions;
+      ALTER TABLE human_attention_decisions_next RENAME TO human_attention_decisions`);
+  },
+};
+
+const TEAM_MEMBERS_MIGRATION: SchemaMigration = {
+  id: 'team-members',
+  module: 'team',
+  description: 'Host-owned Human identities, password credentials and revocable member grants',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE humans (
+        human_id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('active', 'suspended')),
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO humans SELECT 'local-human', COALESCE(
+        (SELECT default_display_name FROM local_human_names WHERE human_id = 'local-human'),
+        'Human'), 'active', strftime('%Y-%m-%dT%H:%M:%fZ', 'now');
+      CREATE TABLE member_credentials (
+        human_id TEXT PRIMARY KEY REFERENCES humans(human_id),
+        username TEXT NOT NULL UNIQUE,
+        password_json TEXT NOT NULL,
+        history_json TEXT NOT NULL,
+        must_change INTEGER NOT NULL CHECK (must_change IN (0, 1))
+      );
+      CREATE TABLE member_grants (
+        grant_id TEXT PRIMARY KEY,
+        token_hash TEXT NOT NULL UNIQUE,
+        human_id TEXT NOT NULL REFERENCES humans(human_id),
+        created_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        revoked_at TEXT
+      );
+      CREATE INDEX member_grants_human ON member_grants(human_id, revoked_at);
+      CREATE TABLE team_settings (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+        insecure_http_allowed INTEGER NOT NULL DEFAULT 0 CHECK (insecure_http_allowed IN (0, 1))
+      );
+      INSERT INTO team_settings(singleton) VALUES (1);
+      ALTER TABLE paired_devices ADD COLUMN human_id TEXT NOT NULL DEFAULT 'local-human';
+      ALTER TABLE channel_records ADD COLUMN public INTEGER NOT NULL DEFAULT 0 CHECK (public IN (0, 1));
+      CREATE INDEX public_group_channels ON channel_records(channel_id) WHERE public = 1;
+    `);
+  },
+};
+
+const TEAM_ROLES_MIGRATION: SchemaMigration = {
+  id: 'team-roles',
+  module: 'team',
+  description: 'Host Roles, member assignments and transferable Owner authority',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE team_settings_next (
+        singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+        enabled INTEGER NOT NULL DEFAULT 0 CHECK (enabled IN (0, 1)),
+        insecure_http_allowed INTEGER NOT NULL DEFAULT 0 CHECK (insecure_http_allowed IN (0, 1)),
+        owner_human_id TEXT NOT NULL REFERENCES humans(human_id)
+      );
+      INSERT INTO team_settings_next SELECT singleton, enabled, insecure_http_allowed, 'local-human' FROM team_settings;
+      DROP TABLE team_settings;
+      ALTER TABLE team_settings_next RENAME TO team_settings;
+      CREATE TABLE host_roles (
+        role_id TEXT PRIMARY KEY,
+        name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+        builtin TEXT UNIQUE CHECK (builtin IN ('admin', 'member')),
+        permissions_json TEXT NOT NULL
+      );
+      CREATE TABLE human_roles (
+        human_id TEXT NOT NULL REFERENCES humans(human_id),
+        role_id TEXT NOT NULL REFERENCES host_roles(role_id),
+        PRIMARY KEY (human_id, role_id)
+      );
+      CREATE INDEX human_roles_role ON human_roles(role_id, human_id);
+    `);
+    const insert = database.prepare('INSERT INTO host_roles VALUES (?, ?, ?, ?)');
+    insert.run('admin', 'admin', 'admin', JSON.stringify(ADMIN_PERMISSIONS));
+    insert.run('member', 'member', 'member', JSON.stringify(MEMBER_PERMISSIONS));
+    database.exec(
+      `INSERT INTO human_roles SELECT human_id, 'member' FROM humans WHERE human_id <> 'local-human'`,
+    );
+  },
+};
+
+const PRIVATE_BOTS_MIGRATION: SchemaMigration = {
+  id: 'private-bots',
+  module: 'team',
+  description: 'Private Bot ownership and one durable Tob identity per Human',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE persona_bots ADD COLUMN owner_human_id TEXT NOT NULL DEFAULT 'local-human';
+      CREATE INDEX persona_bots_owner ON persona_bots(owner_human_id, slug);
+      UPDATE persona_bots SET body = json_set(body, '$.ownerHumanId', owner_human_id);
+      ALTER TABLE tob_identity RENAME TO tob_identity_owner;
+      CREATE TABLE tob_identity (
+        human_id TEXT PRIMARY KEY,
+        bot_slug TEXT NOT NULL UNIQUE
+      );
+      INSERT INTO tob_identity SELECT 'local-human', bot_slug FROM tob_identity_owner;
+      DROP TABLE tob_identity_owner;
+    `);
+  },
+};
+
+const HOST_RELATIONSHIP_MIGRATION: SchemaMigration = {
+  id: 'host-relationship',
+  module: 'host-relationships',
+  description: 'Persist pinned reciprocal Host relationships and derived device provenance',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE host_relationships (
+        relationship_id TEXT PRIMARY KEY,
+        peer_host_id TEXT NOT NULL,
+        peer_name TEXT NOT NULL,
+        peer_key TEXT NOT NULL,
+        peer_routes TEXT NOT NULL,
+        direction TEXT NOT NULL CHECK (direction IN ('incoming', 'outgoing')),
+        state TEXT NOT NULL CHECK (state IN ('pending', 'approved', 'active', 'disconnected')),
+        expires_at INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        peer_revocation_pending INTEGER NOT NULL DEFAULT 0 CHECK (peer_revocation_pending IN (0, 1))
+      );
+      CREATE UNIQUE INDEX host_relationship_live_peer ON host_relationships(peer_host_id)
+        WHERE state != 'disconnected';
+      CREATE TABLE relationship_device_grants (
+        device_id TEXT PRIMARY KEY REFERENCES paired_devices(device_id),
+        relationship_id TEXT NOT NULL REFERENCES host_relationships(relationship_id)
+      );
+      CREATE INDEX relationship_grant_owner ON relationship_device_grants(relationship_id);
+    `);
+  },
+};
+
+const MEMBER_LIFECYCLE_MIGRATION: SchemaMigration = {
+  id: 'member-lifecycle',
+  module: 'team',
+  description: 'Deactivation, mode suspension and deleted member identities',
+  rebuildsReferencedTables: true,
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE humans_next (
+        human_id TEXT PRIMARY KEY,
+        display_name TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('active', 'suspended', 'deactivated')),
+        created_at TEXT NOT NULL
+      );
+      INSERT INTO humans_next SELECT * FROM humans;
+      DROP TABLE humans;
+      ALTER TABLE humans_next RENAME TO humans;
+      CREATE INDEX humans_status ON humans(status, human_id);
+      CREATE TABLE team_mode_suspensions (
+        human_id TEXT PRIMARY KEY REFERENCES humans(human_id),
+        previous_status TEXT NOT NULL CHECK (previous_status IN ('active', 'deactivated'))
+      );
+      CREATE TABLE deleted_humans (human_id TEXT PRIMARY KEY, deleted_at TEXT NOT NULL);
+      UPDATE channel_records SET record_json = json_set(record_json, '$.ownerHumanId',
+        (SELECT owner_human_id FROM team_settings))
+        WHERE json_extract(record_json, '$.type') = 'group'
+          AND json_extract(record_json, '$.ownerBotSlug') IS NULL;
+    `);
+  },
+};
+
+const CHANNEL_ACCESS_MIGRATION: SchemaMigration = {
+  id: 'channel-access',
+  module: 'team',
+  description: 'Channel visibility, Human ownership, policy and admins',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE channel_records ADD COLUMN visibility_json TEXT NOT NULL DEFAULT '{"kind":"private"}';
+      ALTER TABLE channel_records ADD COLUMN policy_json TEXT NOT NULL DEFAULT '${JSON.stringify(DEFAULT_CHANNEL_POLICY)}';
+      ALTER TABLE channel_records ADD COLUMN owner_human_id TEXT REFERENCES humans(human_id) ON DELETE SET NULL;
+      UPDATE channel_records SET visibility_json = '{"kind":"public"}' WHERE public = 1;
+      UPDATE channel_records SET owner_human_id = COALESCE(json_extract(record_json, '$.ownerHumanId'), (SELECT owner_human_id FROM team_settings));
+      CREATE TABLE channel_admins (
+        channel_id TEXT NOT NULL REFERENCES channel_records(channel_id) ON DELETE CASCADE,
+        human_id TEXT NOT NULL REFERENCES humans(human_id) ON DELETE CASCADE,
+        PRIMARY KEY(channel_id, human_id)
+      );
+    `);
+  },
+};
+
+const HOST_RELATIONSHIP_REVOCATION_MIGRATION: SchemaMigration = {
+  id: 'host-relationship-revocation',
+  module: 'host-relationships',
+  description: 'Retain bounded offline reciprocal disconnect retries across Host restart',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE host_relationships ADD COLUMN revocation_attempts INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE host_relationships ADD COLUMN revocation_retry_at INTEGER;
+      ALTER TABLE host_relationships ADD COLUMN automatic_enrollment_suppressed INTEGER NOT NULL DEFAULT 0;
+      UPDATE host_relationships SET revocation_retry_at = 0 WHERE peer_revocation_pending = 1;
+      UPDATE host_relationships SET automatic_enrollment_suppressed = 1 WHERE state = 'disconnected';
+    `);
+  },
+};
+
+const TEAM_MODELS_MIGRATION: SchemaMigration = {
+  id: 'team-models',
+  module: 'team',
+  description: 'Role model route policy',
+  migrate(db) {
+    db.exec(`ALTER TABLE host_roles ADD COLUMN models_json TEXT NOT NULL DEFAULT '{"kind":"all"}'`);
+  },
+};
+const MEMBER_USAGE_MIGRATION: SchemaMigration = {
+  id: 'member-usage',
+  module: 'usage',
+  description: 'Human-attributed usage receipts and daily buckets',
+  migrate(db) {
+    db.exec(`
+      ALTER TABLE usage_daily RENAME TO usage_daily_old;
+      CREATE TABLE usage_daily (
+        bot_slug TEXT NOT NULL, day TEXT NOT NULL, provider TEXT NOT NULL, model TEXT NOT NULL, purpose TEXT NOT NULL,
+        input_tokens INTEGER NOT NULL DEFAULT 0, output_tokens INTEGER NOT NULL DEFAULT 0,
+        cache_read_tokens INTEGER NOT NULL DEFAULT 0, cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+        unknown_input INTEGER NOT NULL DEFAULT 0, unknown_output INTEGER NOT NULL DEFAULT 0,
+        unknown_cache_read INTEGER NOT NULL DEFAULT 0, unknown_cache_write INTEGER NOT NULL DEFAULT 0,
+        total_tokens INTEGER NOT NULL DEFAULT 0, unknown_total INTEGER NOT NULL DEFAULT 0,
+        human_id TEXT NOT NULL DEFAULT '', legacy INTEGER NOT NULL DEFAULT 1,
+        PRIMARY KEY (bot_slug, day, provider, model, purpose, human_id, legacy)
+      );
+      INSERT INTO usage_daily SELECT *, (SELECT owner_human_id FROM team_settings WHERE singleton = 1), 1 FROM usage_daily_old;
+      DROP TABLE usage_daily_old;
+      CREATE INDEX usage_daily_bot_day ON usage_daily(bot_slug, day);
+      CREATE INDEX usage_daily_period_human ON usage_daily(day, human_id, bot_slug);
+      ALTER TABLE usage_receipts ADD COLUMN human_id TEXT;
+      UPDATE usage_receipts SET human_id = (SELECT owner_human_id FROM team_settings WHERE singleton = 1);
+      ALTER TABLE usage_idle_compactions ADD COLUMN human_id TEXT;
+      ALTER TABLE bot_schedules ADD COLUMN creator_human_id TEXT;
+      CREATE TABLE usage_turn_humans (session_id TEXT NOT NULL, turn INTEGER NOT NULL, human_id TEXT NOT NULL, at_ms INTEGER NOT NULL,
+        PRIMARY KEY(session_id, turn));
+      CREATE INDEX usage_turn_humans_time ON usage_turn_humans(session_id, at_ms DESC, turn DESC) WHERE turn >= 0;
+    `);
+  },
+};
+
+const HOST_RELATIONSHIP_ACCOUNT_MIGRATION: SchemaMigration = {
+  id: 'host-relationship-account',
+  module: 'host-relationships',
+  description: 'Retain verified same-account relationship provenance',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE host_relationships ADD COLUMN account_origin TEXT;
+      CREATE TABLE relationship_client_enrollments (
+        relationship_id TEXT NOT NULL REFERENCES host_relationships(relationship_id),
+        public_key TEXT NOT NULL,
+        direction TEXT NOT NULL CHECK (direction IN ('incoming', 'outgoing')),
+        state TEXT NOT NULL CHECK (state IN ('unconfirmed', 'committed', 'cleanup-pending', 'cleaned', 'cancelled')),
+        expires_at INTEGER NOT NULL,
+        account_generation TEXT,
+        cleanup_attempts INTEGER NOT NULL DEFAULT 0,
+        retry_at INTEGER,
+        PRIMARY KEY (relationship_id, public_key, direction)
+      );
+      CREATE INDEX relationship_enrollment_cleanup ON relationship_client_enrollments(direction, state, retry_at);
+    `);
+  },
+};
+
+const WORKSPACE_SPACES_MIGRATION: SchemaMigration = {
+  id: 'workspace-spaces',
+  module: 'workspace-spaces',
+  description:
+    'Account and audience-contained shared Workspace roots and resumable Memory relocation',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE workspace_spaces (
+        space_id TEXT PRIMARY KEY,
+        kind TEXT NOT NULL CHECK (kind IN ('account', 'shared')),
+        name TEXT NOT NULL COLLATE NOCASE,
+        owner_human_id TEXT UNIQUE,
+        audience_json TEXT,
+        CHECK ((kind = 'account' AND owner_human_id IS NOT NULL AND audience_json IS NULL)
+          OR (kind = 'shared' AND owner_human_id IS NULL AND json_valid(audience_json)))
+      );
+      CREATE UNIQUE INDEX workspace_shared_names ON workspace_spaces(name) WHERE kind = 'shared';
+      INSERT INTO workspace_spaces
+        SELECT 'spaces/' || human_id, 'account', display_name, human_id, NULL FROM humans;
+      CREATE TABLE workspace_file_transfers (human_id TEXT PRIMARY KEY, moves_json TEXT NOT NULL);
+      CREATE TABLE workspace_memory_moves (
+        slug TEXT PRIMARY KEY,
+        source TEXT,
+        target TEXT,
+        proof_json TEXT
+      );
+      INSERT INTO workspace_memory_moves(slug)
+        SELECT b.slug FROM persona_bots b
+        WHERE b.owner_human_id <> (SELECT owner_human_id FROM team_settings WHERE singleton = 1)
+          AND NOT EXISTS (SELECT 1 FROM persona_bot_deletions d WHERE d.slug = b.slug
+          AND (json_extract(d.body, '$.memory') = 'erased' OR json_extract(d.body, '$.eraseMemory') = 1));
+    `);
+  },
+};
+
+const PRIVATE_CONTENT_AUDIT_MIGRATION: SchemaMigration = {
+  id: 'private-content-audit',
+  module: 'team',
+  description: 'Hash-chained private-content access audit and durable tail anchor',
+  migrate(database) {
+    database.exec(`
+        CREATE TABLE private_access_audit (
+          seq INTEGER PRIMARY KEY,
+          audit_id TEXT NOT NULL UNIQUE,
+          record_json TEXT NOT NULL CHECK(json_valid(record_json))
+        );
+        CREATE TABLE private_audit_head (
+          seq INTEGER NOT NULL,
+          audit_id TEXT NOT NULL,
+          hash TEXT NOT NULL
+        );
+        INSERT INTO private_audit_head VALUES (0, '', '');
+      `);
+  },
+};
+
+const MINIMAL_MEMBER_MIGRATION: SchemaMigration = {
+  id: 'minimal-member',
+  module: 'team',
+  description: 'Minimal Member grants, split Bot creation and Owner-only Tob',
+  migrate(db) {
+    const previousMember = ['channels.create', 'dm.humans', 'bots.create', 'models.use'];
+    const rows = z
+      .array(
+        z.object({
+          role_id: z.string(),
+          builtin: z.string().nullable(),
+          name: z.string(),
+          permissions_json: z.string(),
+          models_json: z.string(),
+        }),
+      )
+      .parse(
+        db
+          .prepare('SELECT role_id, builtin, name, permissions_json, models_json FROM host_roles')
+          .all(),
+      );
+    for (const row of rows) {
+      const permissions = z.array(z.string()).parse(JSON.parse(row.permissions_json));
+      const unmodifiedMember =
+        row.builtin === 'member' &&
+        row.name === 'member' &&
+        row.models_json === '{"kind":"all"}' &&
+        permissions.length === previousMember.length &&
+        previousMember.every((permission) => permissions.includes(permission));
+      const grants = unmodifiedMember
+        ? ['dm.humans']
+        : [
+            ...new Set(
+              permissions.map((permission) =>
+                permission === 'bots.create' ? 'bots.createPrivate' : permission,
+              ),
+            ),
+          ];
+      db.prepare('UPDATE host_roles SET permissions_json = ? WHERE role_id = ?').run(
+        JSON.stringify(grants),
+        row.role_id,
+      );
+    }
+    db.exec(
+      'DELETE FROM tob_identity WHERE human_id <> (SELECT owner_human_id FROM team_settings)',
+    );
+  },
+};
+
+const MIGRATION_LEDGER_MIGRATION: SchemaMigration = {
+  id: 'migration-ledger',
+  module: 'database',
+  description: 'Require named migration history on every subsequent open',
+  migrate() {},
+};
+
+const CHANNEL_MEMBERSHIP_BASIS_MIGRATION: SchemaMigration = {
+  id: 'channel-membership-basis',
+  module: 'team',
+  description: 'Distinguish named invitations from role-based Channel joins',
+  migrate(db) {
+    db.exec(`
+      ALTER TABLE channel_human_members ADD COLUMN membership_basis TEXT NOT NULL DEFAULT 'invited'
+        CHECK (membership_basis IN ('role', 'invited'));
+      CREATE INDEX channel_role_members_by_human ON channel_human_members(human_id, channel_id)
+        WHERE left_at IS NULL AND membership_basis = 'role';
+      UPDATE channel_human_members AS m SET membership_basis = 'role'
+      WHERE m.human_id <> (SELECT owner_human_id FROM team_settings)
+        AND EXISTS (SELECT 1 FROM channel_records c WHERE c.channel_id = m.channel_id
+          AND json_extract(c.record_json, '$.type') = 'group'
+          AND json_extract(c.visibility_json, '$.kind') = 'roles'
+          AND c.owner_human_id <> m.human_id)
+        AND NOT EXISTS (SELECT 1 FROM channel_admins a
+          WHERE a.channel_id = m.channel_id AND a.human_id = m.human_id);
+      UPDATE channel_human_members AS m SET left_at = COALESCE(left_at, datetime('now'))
+      WHERE membership_basis = 'role' AND NOT EXISTS (
+        SELECT 1 FROM channel_records c, json_each(c.visibility_json, '$.roleIds') vr
+        JOIN human_roles r ON r.role_id = vr.value AND r.human_id = m.human_id
+        WHERE c.channel_id = m.channel_id);
+    `);
+  },
+};
+
+export const BOT_VISIBILITY_MIGRATION: SchemaMigration = {
+  id: 'bot-visibility',
+  module: 'team',
+  description: 'Bot visibility, participant DM authority, switches and revisioned speaker policy',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE persona_bots ADD COLUMN visibility_json TEXT NOT NULL DEFAULT '{"kind":"private"}';
+      ALTER TABLE persona_bots ADD COLUMN switches_json TEXT NOT NULL DEFAULT '{"proactiveDms":false,"joinPrincipalChannels":true,"speakerContext":true}';
+      ALTER TABLE host_roles ADD COLUMN policy_json TEXT NOT NULL DEFAULT '[]';
+      ALTER TABLE host_roles ADD COLUMN policy_revision INTEGER NOT NULL DEFAULT 1;
+      CREATE INDEX channel_bot_human_dms ON channel_records(json_extract(record_json,'$.botSlug'),json_extract(record_json,'$.dmHumanId'))
+        WHERE json_extract(record_json,'$.type')='dm' AND json_extract(record_json,'$.botSlug') IS NOT NULL;
+      CREATE TABLE bot_channel_adders (
+        bot_slug TEXT NOT NULL, channel_id TEXT NOT NULL, human_id TEXT NOT NULL,
+        PRIMARY KEY (bot_slug, channel_id)
+      ) STRICT;
+      INSERT INTO bot_channel_adders
+        SELECT b.slug, c.channel_id, b.owner_human_id FROM persona_bots b JOIN channel_records c
+        ON EXISTS (SELECT 1 FROM json_each(c.record_json, '$.members') m WHERE m.value = b.slug)
+        WHERE json_extract(c.record_json, '$.type') = 'group';
+      INSERT INTO channel_human_members(channel_id,human_id,display_name,visible_from_revision,joined_at)
+        SELECT DISTINCT c.channel_id,h.human_id,h.display_name,1,json_extract(c.record_json,'$.createdAt')
+        FROM persona_bots b JOIN team_settings s ON b.owner_human_id=s.owner_human_id
+        JOIN humans h ON h.human_id=b.owner_human_id JOIN channel_records c
+          ON EXISTS (SELECT 1 FROM json_each(c.record_json,'$.members') m WHERE m.value=b.slug)
+        WHERE json_extract(c.record_json,'$.type')='group'
+          AND NOT EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id=c.channel_id AND m.human_id=h.human_id);
+      INSERT OR IGNORE INTO channel_admins(channel_id,human_id)
+        SELECT DISTINCT c.channel_id,s.owner_human_id FROM persona_bots b JOIN team_settings s ON b.owner_human_id=s.owner_human_id
+        JOIN channel_records c ON EXISTS (SELECT 1 FROM json_each(c.record_json,'$.members') m WHERE m.value=b.slug)
+        JOIN channel_human_members hm ON hm.channel_id=c.channel_id AND hm.human_id=s.owner_human_id AND hm.left_at IS NULL
+        WHERE json_extract(c.record_json,'$.type')='group' AND json_extract(c.visibility_json,'$.kind')='roles';
+      CREATE TABLE bot_proactive_opt_outs (
+        bot_slug TEXT NOT NULL, human_id TEXT NOT NULL,
+        PRIMARY KEY (bot_slug, human_id)
+      ) STRICT;
+      CREATE TABLE session_speaker_policies (
+        session_id TEXT NOT NULL, role_id TEXT NOT NULL, revision INTEGER NOT NULL,
+        PRIMARY KEY (session_id, role_id)
+      ) STRICT;
+    `);
+  },
+};
+
+const HUMAN_ROSTER_ARRANGEMENTS_MIGRATION: SchemaMigration = {
+  id: 'human-roster-arrangements',
+  module: 'roster',
+  description: 'Keep each Human sidebar arrangement independent from the legacy local Human roster',
+  migrate(database) {
+    database.exec(`CREATE TABLE human_roster_arrangements (
+      human_id TEXT PRIMARY KEY REFERENCES humans(human_id) ON DELETE CASCADE,
+      body TEXT NOT NULL
+    )`);
+  },
+};
+
+const HUMAN_MODEL_FAVORITES_MIGRATION: SchemaMigration = {
+  id: 'human-model-favorites',
+  module: 'model-favorites',
+  description: 'Keep each Human favorite models as a personal preference shared by their devices',
+  migrate(database) {
+    database.exec(`CREATE TABLE human_model_favorites (
+      human_id TEXT NOT NULL REFERENCES humans(human_id) ON DELETE CASCADE,
+      favorite_key TEXT NOT NULL,
+      favorite_json TEXT NOT NULL CHECK (json_valid(favorite_json)),
+      position INTEGER NOT NULL,
+      PRIMARY KEY (human_id, favorite_key)
+    )`);
+  },
+};
+
+const CHANNEL_AUTO_JOIN_MIGRATION: SchemaMigration = {
+  id: 'channel-auto-join',
+  module: 'team',
+  description: 'Join every active Human to each public or role Channel they can view',
+  migrate(db) {
+    db.exec(`
+      UPDATE channel_human_members AS m SET left_at = datetime('now')
+      WHERE left_at IS NULL AND membership_basis = 'role'
+        AND EXISTS (SELECT 1 FROM channel_records c WHERE c.channel_id = m.channel_id
+          AND json_extract(c.visibility_json, '$.kind') = 'private');
+      INSERT INTO channel_human_members(channel_id, human_id, display_name, visible_from_revision, joined_at, membership_basis)
+      SELECT c.channel_id, h.human_id, h.display_name, 1, datetime('now'), 'role'
+      FROM channel_records c JOIN humans h ON h.status = 'active'
+      WHERE json_extract(c.record_json, '$.type') = 'group'
+        AND json_extract(c.record_json, '$.deletedAt') IS NULL
+        AND json_extract(c.visibility_json, '$.kind') IN ('public', 'roles')
+        AND (json_extract(c.visibility_json, '$.kind') = 'public'
+          OR EXISTS (SELECT 1 FROM human_roles r JOIN json_each(c.visibility_json, '$.roleIds') v
+            ON v.value = r.role_id WHERE r.human_id = h.human_id))
+        AND NOT EXISTS (SELECT 1 FROM channel_human_members x
+          WHERE x.channel_id = c.channel_id AND x.human_id = h.human_id AND x.left_at IS NULL)
+      ON CONFLICT(channel_id, human_id) DO UPDATE SET left_at = NULL, membership_basis = 'role';
+    `);
+  },
+};
+
+const MEMBER_DEVICES_MIGRATION: SchemaMigration = {
+  id: 'member-devices',
+  module: 'team',
+  description: 'Member grants distinguish browser sessions and paired devices',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE member_grants ADD COLUMN kind TEXT NOT NULL DEFAULT 'browser-session'
+        CHECK (kind IN ('browser-session', 'paired-device'));
+      ALTER TABLE member_grants ADD COLUMN device_name TEXT;
+      ALTER TABLE member_grants ADD COLUMN public_key TEXT;
+    `);
+  },
+};
+
+const REMOTE_HOST_CUSTODY_MIGRATION: SchemaMigration = {
+  id: 'remote-host-custody',
+  module: 'remote-host-custody',
+  description: 'The local Host keeps Remote Host credentials; the Client only holds handles',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE remote_host_custody (
+        handle TEXT PRIMARY KEY,
+        owner_human_id TEXT NOT NULL,
+        host_id TEXT NOT NULL,
+        member INTEGER NOT NULL CHECK (member IN (0, 1)),
+        routes TEXT NOT NULL,
+        created_at INTEGER NOT NULL
+      ) STRICT;
+    `);
+  },
+};
+
+const ASSIGNMENT_MODEL_GROUP_MIGRATION: SchemaMigration = {
+  id: 'assignment-model-group',
+  module: 'assignments',
+  description: 'Remember the Routing Group an Assignment Session runs on so it can fall back',
+  migrate(database) {
+    database.exec(`ALTER TABLE assignments ADD COLUMN model_group_id TEXT;`);
+  },
+};
+
+const noticeOf = (payload: string) =>
+  `CASE WHEN json_valid(${payload}) THEN coalesce(${['botDmAction', 'botCreateAction', 'botChannelPost', 'memoryCommit', 'toolAutoApproval', 'toolAutoApprovalPause', 'modelSwitch'].map((field) => `json_type(${payload}, '$.${field}') = 'object'`).join(' OR ')}, 0) ELSE 0 END`;
+
+const MODEL_SWITCH_NOTICE_MIGRATION: SchemaMigration = {
+  id: 'model-switch-notice',
+  module: 'messaging',
+  description: 'Mark Model Switch Notices as notice placements',
+  migrate(database) {
+    database.exec(`
+      DROP TRIGGER channel_placements_notice_insert;
+      DROP TRIGGER channel_placements_notice_update;
+      UPDATE channel_placements SET notice = 1 WHERE notice = 0 AND source_event_id IN (
+        SELECT source_event_id FROM source_events WHERE ${noticeOf('payload_json')}
+      );
+      CREATE TRIGGER channel_placements_notice_insert AFTER INSERT ON channel_placements
+        BEGIN
+          UPDATE channel_placements SET notice = coalesce((
+            SELECT ${noticeOf('payload_json')} FROM source_events
+             WHERE source_event_id = NEW.source_event_id
+          ), 0)
+           WHERE channel_id = NEW.channel_id AND revision = NEW.revision;
+        END;
+      CREATE TRIGGER channel_placements_notice_update AFTER UPDATE OF payload_json ON source_events
+        BEGIN
+          UPDATE channel_placements SET notice = ${noticeOf('NEW.payload_json')}
+           WHERE source_event_id = NEW.source_event_id;
+        END;
+    `);
+  },
+};
+
+const HUMAN_AVATAR_MIGRATION: SchemaMigration = {
+  id: 'human-avatar',
+  module: 'human-identity',
+  description: 'A Host-owned chat avatar for each Human, independent of any Tobs account',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE human_avatars (
+        human_id TEXT PRIMARY KEY,
+        avatar TEXT NOT NULL,
+        version TEXT NOT NULL
+      ) STRICT;
+    `);
+  },
+};
+
+const HUMAN_AVATAR_CHANGE_MIGRATION: SchemaMigration = {
+  id: 'human-avatar-channel-changes',
+  module: 'human-identity',
+  description: 'Tell Channel readers to refresh member avatar versions when a Human avatar changes',
+  migrate(database) {
+    database.exec(`
+      CREATE TRIGGER channel_change_avatar_insert AFTER INSERT ON human_avatars
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES ('*', NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_avatar_update AFTER UPDATE ON human_avatars
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES ('*', NULL, 'channel');
+        END;
+      CREATE TRIGGER channel_change_avatar_delete AFTER DELETE ON human_avatars
+        BEGIN
+          INSERT INTO channel_changes (channel_id, message_id, kind) VALUES ('*', NULL, 'channel');
+        END;
+    `);
+  },
+};
+
+const HUMAN_PROFILE_SETUP_MIGRATION: SchemaMigration = {
+  id: 'human-profile-setup',
+  module: 'human-identity',
+  description:
+    'Remember which Team members finished or skipped the first chat name and photo prompt',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE human_profile_setup (
+        human_id TEXT PRIMARY KEY,
+        finished_at TEXT NOT NULL
+      ) STRICT;
+    `);
+  },
+};
+
+const ASSIGNMENT_MODEL_EFFORT_MIGRATION: SchemaMigration = {
+  id: 'assignment-model-effort',
+  module: 'assignments',
+  description: 'Remember the reasoning effort chosen for an Assignment Routing Group',
+  migrate(database) {
+    database.exec('ALTER TABLE assignments ADD COLUMN model_effort TEXT');
+  },
+};
+
+const MODELS_CONFIGURE_PERMISSION_MIGRATION: SchemaMigration = {
+  id: 'models-configure-permission',
+  module: 'team',
+  description: 'Grant shared model configuration to the built-in Admin with its default grants',
+  migrate(database) {
+    const previousAdmin = [
+      'members.manage',
+      'roles.manage',
+      'team.settings',
+      'channels.create',
+      'channels.manageAll',
+      'dm.humans',
+      'bots.createPrivate',
+      'bots.createPublic',
+      'bots.manageAll',
+      'models.use',
+      'im.bind',
+      'workspaces.manageShared',
+      'approvals.opaqueTools',
+      'usage.view',
+      'audit.view',
+    ];
+    database
+      .prepare(`UPDATE host_roles SET permissions_json = json_insert(permissions_json, '$[#]', ?)
+      WHERE builtin = 'admin' AND json_array_length(permissions_json) = ?
+      AND NOT EXISTS (
+        SELECT value FROM json_each(?) EXCEPT SELECT value FROM json_each(permissions_json)
+      )`)
+      .run('models.configure', previousAdmin.length, JSON.stringify(previousAdmin));
+  },
+};
+
+const ROLE_MODEL_PROVIDERS_MIGRATION: SchemaMigration = {
+  id: 'role-model-providers',
+  module: 'team',
+  description: 'Add an empty provider allowlist to existing restricted Host Roles',
+  migrate(database) {
+    database.exec(`
+      UPDATE host_roles
+      SET models_json = json_set(models_json, '$.providers', json('[]'))
+      WHERE json_extract(models_json, '$.kind') = 'only'
+        AND json_type(models_json, '$.providers') IS NULL
+    `);
+  },
+};
+
+const SESSION_TURN_TARGET_MIGRATION: SchemaMigration = {
+  id: 'session-turn-targets',
+  module: 'bot-runtime',
+  description: 'Record executed model and engine segments by Session turn',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE session_turn_targets (
+        session_id TEXT NOT NULL REFERENCES session_ownership(session_id) ON DELETE CASCADE,
+        turn INTEGER NOT NULL,
+        step INTEGER NOT NULL,
+        request_id TEXT NOT NULL,
+        target_json TEXT NOT NULL CHECK (json_valid(target_json)),
+        PRIMARY KEY (session_id, turn, step)
+      ) WITHOUT ROWID;
     `);
   },
 };
@@ -2618,12 +4092,12 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   USAGE_DAILY_MIGRATION,
   BOT_SOURCE_POLICY_MIGRATION,
   BOT_SOURCE_POLICY_EDIT_MIGRATION,
-  BOT_SOURCE_DELIVERY_MIGRATION,
   BOT_SOURCE_GROUP_MODES_MIGRATION,
   MEMORY_CHANGE_INBOX_MIGRATION,
   MEMORY_CHANGE_CHECKPOINT_MIGRATION,
   MEMORY_RECOVERY_CHECKPOINT_MIGRATION,
   ASSIGNMENT_MODEL_ROUTE_MIGRATION,
+  BOT_SOURCE_DELIVERY_MIGRATION,
   USAGE_REPORT_COMPLETENESS_MIGRATION,
   MESSAGING_OUTBOUND_MIGRATION,
   ATTACHMENT_FILE_BINDING_MIGRATION,
@@ -2700,5 +4174,68 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   TOOL_RULE_AUTO_APPROVAL_COUNT_MIGRATION,
   REQUEST_ASSIGNMENT_LINK_MIGRATION,
   MESSAGE_SEARCH_ATTACHMENT_NAME_MIGRATION,
+  GRANT_RECEPTION_EVIDENCE_MIGRATION,
   HUMAN_ATTENTION_CANDIDATE_INDEX_MIGRATION,
+  BOT_LAN_ADMISSION_MIGRATION,
+  QUESTION_MESSAGING_MIGRATION,
+  TAKEOVER_ATTENTION_INDEX_MIGRATION,
+  VOICE_PROVIDER_MIGRATION,
+  GRANT_RESOLUTION_INDEX_MIGRATION,
+  OUTPUT_REQUEST_INDEX_MIGRATION,
+  SESSION_PARENT_INDEX_MIGRATION,
+  NEEDS_REPAIR_INDEX_MIGRATION,
+  PLACEMENT_NOTICE_MIGRATION,
+  PLACEMENT_HUMAN_REPLY_MIGRATION,
+  BOUNDED_RANGE_INDEX_MIGRATION,
+  ATTENTION_RESOLUTION_INDEX_MIGRATION,
+  CAUSAL_PURGE_TOMBSTONE_MIGRATION,
+  VOICE_DEFAULTS_MIGRATION,
+  VOICE_SETTINGS_MIGRATION,
+  CHANNEL_CHANGE_LOG_MIGRATION,
+  WORKSPACE_GRANT_PATH_MIGRATION,
+  GENUI_PRIVATE_VIEW_MIGRATION,
+  CALL_GRID_ROWS_MIGRATION,
+  CALL_VISUAL_UNSAVED_MIGRATION,
+  CALL_VISUAL_TIMELINE_MIGRATION,
+  CLIENT_ACKNOWLEDGEMENT_MIGRATION,
+  QUESTION_MESSAGING_RECOVERY_MIGRATION,
+  QQ_PLATFORM_DEFAULTS_MIGRATION,
+  DEVICE_FEED_READ_MIGRATION,
+  SOURCE_EVENT_HUMAN_MIGRATION,
+  TEAM_MEMBERS_MIGRATION,
+  TEAM_ROLES_MIGRATION,
+  PRIVATE_BOTS_MIGRATION,
+  HOST_RELATIONSHIP_MIGRATION,
+  MEMBER_LIFECYCLE_MIGRATION,
+  CHANNEL_ACCESS_MIGRATION,
+  HOST_RELATIONSHIP_REVOCATION_MIGRATION,
+  TEAM_MODELS_MIGRATION,
+  MEMBER_USAGE_MIGRATION,
+  HOST_RELATIONSHIP_ACCOUNT_MIGRATION,
+  WORKSPACE_SPACES_MIGRATION,
+  PRIVATE_CONTENT_AUDIT_MIGRATION,
+  MINIMAL_MEMBER_MIGRATION,
+  MIGRATION_LEDGER_MIGRATION,
+  CHANNEL_MEMBERSHIP_BASIS_MIGRATION,
+  BOT_VISIBILITY_MIGRATION,
+  HUMAN_ROSTER_ARRANGEMENTS_MIGRATION,
+  CHANNEL_AUTO_JOIN_MIGRATION,
+  MEMBER_DEVICES_MIGRATION,
+  REMOTE_HOST_CUSTODY_MIGRATION,
+  ROUTING_GROUP_STORAGE_MIGRATION,
+  MODEL_SWITCH_NOTICE_MIGRATION,
+  ASSIGNMENT_MODEL_GROUP_MIGRATION,
+  HUMAN_AVATAR_MIGRATION,
+  HUMAN_AVATAR_CHANGE_MIGRATION,
+  HUMAN_PROFILE_SETUP_MIGRATION,
+  HUMAN_MODEL_FAVORITES_MIGRATION,
+  ROUTING_GROUP_DEFAULT_MIGRATION,
+  GROUP_FALLBACK_OVERRIDES_MIGRATION,
+  ASSIGNMENT_AGENT_PRESET_MIGRATION,
+  SESSION_AGENT_PRESET_MIGRATION,
+  ROUTING_GROUP_DEFAULT_EFFORT_MIGRATION,
+  ASSIGNMENT_MODEL_EFFORT_MIGRATION,
+  MODELS_CONFIGURE_PERMISSION_MIGRATION,
+  ROLE_MODEL_PROVIDERS_MIGRATION,
+  SESSION_TURN_TARGET_MIGRATION,
 ]);

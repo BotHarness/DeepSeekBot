@@ -33,7 +33,8 @@ describe('memoryAttachmentReferences', () => {
     writeFileSync(join(outside, 'linked.md'), hash('d'));
     symlinkSync(outside, join(memory, 'linked-notes'));
     symlinkSync(join(outside, 'linked.md'), join(memory, 'linked.md'));
-    if (process.platform !== 'win32') execFileSync('mkfifo', [join(memory, 'pipe.md')]);
+    if (process.platform !== 'win32')
+      execFileSync('mkfifo', [join(memory, 'pipe.md')], { shell: false, windowsHide: true });
     mkdirSync(join(rootDir, 'erased', 'memory'), { recursive: true });
     writeFileSync(join(rootDir, 'erased', 'memory', 'MEMORY.md'), hash('e'));
 

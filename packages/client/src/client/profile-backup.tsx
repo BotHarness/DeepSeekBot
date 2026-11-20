@@ -1,12 +1,26 @@
+import { Checkbox } from './ds/checkbox.js';
+import { HiddenFileInput } from './ds/input.js';
+import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Button, Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
-import type { PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
+
+import type { BotHarnessTranslate } from './locale.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
-import { border, color, space, text } from './ds/tokens.stylex.js';
+import { color, space, text } from './ds/tokens.stylex.js';
 import { useMountedResource } from './mounted-resource.js';
+import {
+  CopyChip,
+  StatusBlock,
+  StatusDisclosure,
+  StatusFact,
+  StatusStack,
+} from './ds/status-block.js';
+import { StepProgress } from './ds/step-progress.js';
+
+const RESTORE_COMMAND =
+  'tobs profile-backup-restore --file "environment.botharness-backup" --new-home "new-environment" --confirm';
 
 const styles = stylex.create({
   section: {
@@ -16,9 +30,6 @@ const styles = stylex.create({
     gap: space.x3,
     minWidth: 0,
     paddingTop: space.x4,
-    borderTopWidth: border.hairline,
-    borderTopStyle: 'solid',
-    borderTopColor: color.divider,
   },
   heading: {
     margin: 0,
@@ -118,7 +129,7 @@ async function result<T>(response: Response): Promise<T> {
   if (!response.ok) throw new Error(value.error?.code ?? 'operation-failed');
   return value as T;
 }
-export type ProfileBackupSettingsProps = PropsLocale<'botharness'>;
+export type ProfileBackupSettingsProps = { t: BotHarnessTranslate };
 function BackupCounts({
   bots,
   files,
@@ -186,6 +197,8 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<{ area: BackupArea; code: string }>();
   const [acknowledged, setAcknowledged] = useState(false);
+  const [contents, setContents] = useState(false);
+  const [nextSteps, setNextSteps] = useState(false);
   const active = useRef<AbortController | undefined>(undefined);
   const mounted = useRef(false);
   const file = useRef<HTMLInputElement>(null);
@@ -209,7 +222,10 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
       await work(controller.signal);
     } catch (failure) {
       if (mounted.current && !controller.signal.aborted)
-        setError({ area, code: failure instanceof Error ? failure.message : 'operation-failed' });
+        setError({
+          area,
+          code: failure instanceof Error ? failure.message : 'operation-failed',
+        });
     } finally {
       if (mounted.current && active.current === controller) {
         active.current = undefined;
@@ -314,52 +330,88 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
           closeLabel={t('backup.close')}
           data={{ 'data-profile-backup': '' }}
         >
-          <section aria-label={t('backup.export')} {...stylex.props(styles.section)}>
-            <div {...stylex.props(styles.header)}>
-              <h3 {...stylex.props(styles.heading)}>{t('backup.export')}</h3>
-              <Button variant="outline" size="sm" disabled={busy} onClick={() => void prepare()}>
-                {t('backup.prepare')}
-              </Button>
-            </div>
-            <p {...stylex.props(styles.text, styles.muted)}>{t('backup.sensitive')}</p>
-            <details {...stylex.props(styles.details)}>
-              <summary {...stylex.props(styles.summary)}>{t('backup.contents')}</summary>
-              <div {...stylex.props(styles.detailBody)}>
-                <p {...stylex.props(styles.text)}>{t('backup.identity')}</p>
-                <p {...stylex.props(styles.text)}>{t('backup.excluded')}</p>
-                <p {...stylex.props(styles.text)}>{t('backup.sessions')}</p>
-                <p {...stylex.props(styles.text)}>{t('backup.limits')}</p>
-              </div>
-            </details>
-            {preview ? (
-              <div data-backup-preview {...stylex.props(styles.stack)}>
-                <BackupCounts
-                  bots={preview.bots}
-                  files={preview.files}
-                  bytes={preview.estimatedBytes}
-                  estimated
-                  t={t}
-                />
-                <p {...stylex.props(styles.text, styles.muted)}>{t('backup.purge')}</p>
-                <Button variant="outline" size="sm" disabled={busy} onClick={() => void download()}>
-                  {t('backup.download')}
-                </Button>
-              </div>
-            ) : null}
-            {bytes === undefined ? null : (
-              <p role="status" {...stylex.props(styles.text)}>
-                {t('backup.complete', { bytes: String(bytes) })}
-              </p>
-            )}
+          <StatusStack>
+            <StatusBlock
+              icon={bytes === undefined ? 'archive' : 'check'}
+              tone={bytes === undefined ? 'accent' : 'success'}
+              title={t('backup.export')}
+              body={
+                bytes === undefined ? (
+                  t('backup.sensitive')
+                ) : (
+                  <span role="status">{t('backup.complete', { bytes: String(bytes) })}</span>
+                )
+              }
+              data={{
+                'data-backup-export': bytes === undefined ? (preview ? 'ready' : 'idle') : 'done',
+              }}
+              action={
+                preview ? (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => void download()}
+                  >
+                    {t('backup.download')}
+                  </Button>
+                ) : (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    disabled={busy}
+                    onClick={() => void prepare()}
+                  >
+                    {t('backup.prepare')}
+                  </Button>
+                )
+              }
+            >
+              <StepProgress
+                label={t('backup.panel.steps')}
+                steps={[
+                  t('backup.panel.stepPrepare'),
+                  t('backup.panel.stepDownload'),
+                  t('backup.panel.stepDone'),
+                ]}
+                step={bytes !== undefined ? 2 : preview ? 1 : 0}
+              />
+              {preview ? (
+                <div data-backup-preview {...stylex.props(styles.stack)}>
+                  <BackupCounts
+                    bots={preview.bots}
+                    files={preview.files}
+                    bytes={preview.estimatedBytes}
+                    estimated
+                    t={t}
+                  />
+                  <p {...stylex.props(styles.text, styles.muted)}>{t('backup.purge')}</p>
+                </div>
+              ) : null}
+            </StatusBlock>
             {error?.area === 'export' ? (
-              <Note tone="danger">{failureText(error.code, t)}</Note>
+              <StatusBlock
+                icon="info"
+                tone="warning"
+                title={t('backup.panel.failedTitle')}
+                body={failureText(error.code, t)}
+              />
             ) : null}
-          </section>
-          <section aria-label={t('backup.import')} {...stylex.props(styles.section)}>
-            <input
+            <StatusDisclosure
+              icon="list-checks"
+              title={t('backup.contents')}
+              open={contents}
+              onToggle={() => setContents(!contents)}
+            >
+              <p {...stylex.props(styles.text)}>{t('backup.identity')}</p>
+              <p {...stylex.props(styles.text)}>{t('backup.excluded')}</p>
+              <p {...stylex.props(styles.text)}>{t('backup.sessions')}</p>
+              <p {...stylex.props(styles.text)}>{t('backup.limits')}</p>
+            </StatusDisclosure>
+          </StatusStack>
+          <StatusStack>
+            <HiddenFileInput
               ref={file}
-              hidden
-              type="file"
               accept=".botharness-backup"
               aria-label={t('backup.select')}
               onChange={(event) => {
@@ -368,52 +420,77 @@ export function ProfileBackupSettings({ t }: ProfileBackupSettingsProps): ReactE
                 event.currentTarget.value = '';
               }}
             />
-            <div {...stylex.props(styles.header)}>
-              <h3 {...stylex.props(styles.heading)}>{t('backup.import')}</h3>
-              <Button
-                variant="outline"
-                size="sm"
-                disabled={busy}
-                onClick={() => file.current?.click()}
-              >
-                {t('backup.select')}
-              </Button>
-            </div>
-            <p {...stylex.props(styles.text, styles.muted)}>{t('backup.localRestore')}</p>
-            {inspection ? (
-              <div data-backup-inspection {...stylex.props(styles.stack)}>
-                <p role="status" {...stylex.props(styles.text)}>
-                  {t('backup.inspected')}
-                </p>
-                <BackupCounts
-                  bots={inspection.manifest.counts.bots}
-                  files={inspection.manifest.counts.files}
-                  bytes={inspection.bytes}
-                  t={t}
-                />
-                <p {...stylex.props(styles.text)}>{t('backup.restoreCommand')}</p>
-                <pre {...stylex.props(styles.pre)}>
-                  tobs profile-backup-restore --file "environment.botharness-backup" --new-home
-                  "new-environment" --confirm
-                </pre>
-                <p {...stylex.props(styles.text)}>{t('backup.restorePosture')}</p>
-                <details {...stylex.props(styles.details)}>
-                  <summary {...stylex.props(styles.summary)}>{t('backup.nextSteps')}</summary>
-                  <div {...stylex.props(styles.detailBody)}>
-                    <p {...stylex.props(styles.text)}>{t('backup.launch')}</p>
-                    <p {...stylex.props(styles.text)}>{t('backup.restoreDetails')}</p>
-                  </div>
-                </details>
-                <details {...stylex.props(styles.details)}>
-                  <summary {...stylex.props(styles.summary)}>{t('backup.integrity')}</summary>
-                  <code {...stylex.props(styles.code)}>{inspection.sha256}</code>
-                </details>
-              </div>
-            ) : null}
+            <StatusBlock
+              icon={inspection ? 'check' : 'archive-restore'}
+              tone={inspection ? 'success' : 'accent'}
+              title={t('backup.import')}
+              body={
+                inspection ? (
+                  <span role="status">{t('backup.inspected')}</span>
+                ) : (
+                  t('backup.localRestore')
+                )
+              }
+              data={{ 'data-backup-import': inspection ? 'inspected' : 'idle' }}
+              action={
+                <Button
+                  variant={inspection ? 'outline' : 'primary'}
+                  size="sm"
+                  disabled={busy}
+                  onClick={() => file.current?.click()}
+                >
+                  {t('backup.select')}
+                </Button>
+              }
+            >
+              {inspection ? (
+                <div data-backup-inspection {...stylex.props(styles.stack)}>
+                  <BackupCounts
+                    bots={inspection.manifest.counts.bots}
+                    files={inspection.manifest.counts.files}
+                    bytes={inspection.bytes}
+                    t={t}
+                  />
+                  <p {...stylex.props(styles.text)}>{t('backup.restoreCommand')}</p>
+                  <CopyChip
+                    value={RESTORE_COMMAND}
+                    copyLabel={t('devices.route.copy')}
+                    copiedLabel={t('devices.pair.copied')}
+                    marker="data-backup-restore-command"
+                  />
+                  <p {...stylex.props(styles.text, styles.muted)}>{t('backup.restorePosture')}</p>
+                </div>
+              ) : null}
+            </StatusBlock>
             {error?.area === 'import' ? (
-              <Note tone="danger">{failureText(error.code, t)}</Note>
+              <StatusBlock
+                icon="info"
+                tone="warning"
+                title={t('backup.panel.failedTitle')}
+                body={failureText(error.code, t)}
+              />
             ) : null}
-          </section>
+            {inspection ? (
+              <StatusDisclosure
+                icon="info"
+                title={t('backup.nextSteps')}
+                hint={t('backup.integrity')}
+                open={nextSteps}
+                onToggle={() => setNextSteps(!nextSteps)}
+              >
+                <p {...stylex.props(styles.text)}>{t('backup.launch')}</p>
+                <p {...stylex.props(styles.text)}>{t('backup.restoreDetails')}</p>
+                <StatusFact label={t('backup.integrity')}>
+                  <CopyChip
+                    value={inspection.sha256}
+                    copyLabel={t('devices.route.copy')}
+                    copiedLabel={t('devices.pair.copied')}
+                    well
+                  />
+                </StatusFact>
+              </StatusDisclosure>
+            ) : null}
+          </StatusStack>
           {recovery?.restored ? (
             <section
               aria-label={t('backup.recovery')}

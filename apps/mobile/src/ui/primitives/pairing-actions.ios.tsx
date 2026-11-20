@@ -38,7 +38,7 @@ export function PairingActions({ primary, secondary, details }: PairingActionsPr
     >
       <VStack spacing={space.x3} modifiers={[frame({ maxWidth: Infinity })]}>
         {primary ? action(primary, 'borderedProminent') : null}
-        {action(secondary, 'bordered')}
+        {secondary ? action(secondary, 'bordered') : null}
         {details ? action(details, 'plain') : null}
       </VStack>
     </Host>

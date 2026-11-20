@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -22,40 +23,42 @@ async function host(
 ) {
   const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
   let logins = 0;
-  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    if (req.method === 'GET') {
-      logins += 1;
-      if (
-        new URL(req.url!, 'http://localhost').searchParams.get('token') !== 'private-test-token'
-      ) {
-        res.writeHead(403).end();
+  const server = createServer(
+    requestListener(async (req: IncomingMessage, res: ServerResponse) => {
+      if (req.method === 'GET') {
+        logins += 1;
+        if (
+          new URL(req.url!, 'http://localhost').searchParams.get('token') !== 'private-test-token'
+        ) {
+          res.writeHead(403).end();
+          return;
+        }
+        if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+        res.writeHead(302, { location: '/' }).end();
         return;
       }
-      if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-      res.writeHead(302, { location: '/' }).end();
-      return;
-    }
-    expect(req.headers.cookie).toBe('authority=signed');
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const body = JSON.parse(Buffer.concat(chunks).toString());
-    expect(body.type).toBe('client-request');
-    expect(req.url).toBe(`/api/${body.method}`);
-    const method = body.method.replace('botharness/', '');
-    calls.push({ method, args: body.payload.args });
-    res.setHeader('content-type', 'application/json');
-    if (stallBody) {
-      res.write('{');
-      return;
-    }
-    res.end(
-      JSON.stringify({
-        type: 'server-response',
-        rpcId: body.rpcId,
-        result: handler(method, body.payload.args),
-      }),
-    );
-  });
+      expect(req.headers.cookie).toBe('authority=signed');
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      expect(body.type).toBe('client-request');
+      expect(req.url).toBe(`/api/${body.method}`);
+      const method = body.method.replace('botharness/', '');
+      calls.push({ method, args: body.payload.args });
+      res.setHeader('content-type', 'application/json');
+      if (stallBody) {
+        res.write('{');
+        return;
+      }
+      res.end(
+        JSON.stringify({
+          type: 'server-response',
+          rpcId: body.rpcId,
+          result: handler(method, body.payload.args),
+        }),
+      );
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -102,9 +105,17 @@ describe('Agent control commands', () => {
   });
 
   it('reads and sets the access preset and refuses danger without explicit acknowledgement', async () => {
+    let mode = 'workspace-write';
     const live = await host((method, args) => ({
       ok: true,
-      value: { preset: { botSlug: args['slug'], mode: args['mode'] ?? 'workspace-write' } },
+      value: {
+        preset: {
+          botSlug: args['slug'],
+          revision: 1,
+          scope: args['scope'] ?? 'chat',
+          mode: typeof args['mode'] === 'string' ? (mode = args['mode']) : mode,
+        },
+      },
     }));
     expect((await invoke(['access', 'ada'], live.url)).json.preset.botSlug).toBe('ada');
     const refused = await invoke(['access-set', 'ada', '--mode', 'danger-full-access'], live.url);
@@ -119,7 +130,7 @@ describe('Agent control commands', () => {
         )
       ).json.error.code,
     ).toBe('usage');
-    await invoke(
+    const fullAccess = await invoke(
       [
         'access-set',
         'ada',
@@ -131,6 +142,8 @@ describe('Agent control commands', () => {
       ],
       live.url,
     );
+    expect(fullAccess.json.warning).toMatch(/change or delete files anywhere/u);
+    expect((await invoke(['access', 'ada'], live.url)).json.warning).toBe(fullAccess.json.warning);
     await invoke(['access-set', 'ada', '--mode', 'workspace-write'], live.url);
     expect(live.calls).toEqual([
       { method: 'assignmentAccessGet', args: { slug: 'ada' } },
@@ -143,6 +156,7 @@ describe('Agent control commands', () => {
           acknowledgeRisk: true,
         },
       },
+      { method: 'assignmentAccessGet', args: { slug: 'ada' } },
       { method: 'assignmentAccessSet', args: { slug: 'ada', mode: 'workspace-write' } },
     ]);
   });

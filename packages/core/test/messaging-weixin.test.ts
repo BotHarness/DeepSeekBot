@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
@@ -123,7 +124,7 @@ it.each<{ voice?: MessagingVoice }>([
       targetDigest: target.digest,
     });
     await core.externalMessaging.inbound.setEnabled('ada', grant.id, true);
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     expect(await core.externalMessaging.channelBridges(dm.id)).toMatchObject({
       bridges: [expect.objectContaining({ delivery: 'inbox', collection: 'all' })],
       sources: [expect.objectContaining({ platform: 'weixin' })],

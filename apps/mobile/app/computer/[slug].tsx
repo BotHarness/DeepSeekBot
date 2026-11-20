@@ -8,7 +8,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type { BrowserInput } from '../../src/host/browser-viewer';
+import type { BrowserInput } from '@botharness/host-client/browser-viewer';
 import {
   addedText,
   COMPUTER_KEYS,
@@ -17,7 +17,7 @@ import {
   wheelInput,
   type ComputerModifier,
   type ComputerViewerState,
-} from '../../src/host/computer-viewer';
+} from '@botharness/host-client/computer-viewer';
 import { useHostSession, useHostSnapshot } from '../../src/host/host-session';
 import { BrowserStage, type BrowserTouchMode } from '../../src/ui/chat/browser-stage';
 import {
@@ -32,7 +32,7 @@ import { Button } from '../../src/ui/primitives/button';
 import { Text } from '../../src/ui/primitives/text';
 import { viewerHeaderOptions } from '../../src/ui/shell/viewer-header';
 import { useMounted } from '../../src/ui/mounted';
-import { recordFeature } from '../../src/telemetry/features';
+import { recordFeature } from '@botharness/host-client/telemetry/features';
 import { useStrings } from '../../src/ui/strings';
 import { LoadingIndicator } from '../../src/ui/primitives/loading-indicator';
 import { LocalComputerScreen } from '../../src/ui/chat/local-computer-screen';

@@ -27,11 +27,12 @@ vi.mock('react-native-svg', () => ({
 }));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 
-import type { OverviewMemory, OverviewUsage, UsagePeriod } from '../src/host/usage';
-import { MethodRefused } from '../src/host/client';
+import type { OverviewMemory, OverviewUsage, UsagePeriod } from '@botharness/host-client/usage';
+import { MethodRefused } from '@botharness/host-client/client';
 import { dayLabel, trailingDays } from '../src/host/usage-days';
 import { SettingsView, type SettingsActions } from '../src/ui/settings-view';
-import { daysLabel, tokenAmount } from '../src/ui/shell/usage-card';
+import { dayBars, daysLabel, tokenAmount } from '../src/ui/shell/usage-card';
+import { interfacePreferences } from '../src/ui/interface-preferences';
 import { t } from '../src/ui/strings';
 import { UsageView, type UsageSources } from '../src/ui/usage-view';
 import usageWire from './fixtures/usage-wire.json';
@@ -83,12 +84,25 @@ function actions(overrides: Partial<SettingsActions> = {}): SettingsActions {
     onNotifications: vi.fn(),
     onStorage: vi.fn(),
     onModels: vi.fn(),
+    onPrompts: vi.fn(),
     onCopyVersion: vi.fn(),
     ...overrides,
   };
 }
 
 describe('Usage card in Settings', () => {
+  it('names the weekdays in the app language, not the phone language', () => {
+    const week = [{ day: '2026-11-09', tokens: 1 }];
+    try {
+      interfacePreferences.setLanguage('en');
+      expect(dayBars(week)[0]!.label).toBe('M');
+      interfacePreferences.setLanguage('zh');
+      expect(dayBars(week)[0]!.label).toBe('一');
+    } finally {
+      interfacePreferences.setLanguage('system');
+    }
+  });
+
   it("shows the Host's 7-day total over a bar per day, and opens the Usage screen", async () => {
     const handlers = actions();
     const load = vi.fn(async () => week());

@@ -1,10 +1,13 @@
+import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
+import type { ChannelMessageAuthor } from '../channels/message-author.js';
 
 export const PUSH_KINDS = ['approval', 'question', 'private-input', 'reply'] as const;
 export type PushKind = (typeof PUSH_KINDS)[number];
 export type PushPreferences = Record<PushKind, boolean>;
 export type PushPlatform = 'ios' | 'android';
 export type PushLocale = 'en' | 'zh';
+export type PushDeliveryMode = 'push' | 'in-app';
 
 export const DEFAULT_PUSH_PREFERENCES: PushPreferences = {
   approval: true,
@@ -13,6 +16,7 @@ export const DEFAULT_PUSH_PREFERENCES: PushPreferences = {
   reply: true,
 };
 
+const RESOLVED_LIMIT = 50;
 const MAX_ATTEMPTS = 3;
 const RETRY_BASE_MS = 1_000;
 const RECEIPT_DELAY_MS = 15 * 60 * 1000;
@@ -22,6 +26,8 @@ const TOKEN = /^Expo(?:nent)?PushToken\[[A-Za-z0-9_-]{8,128}\]$/u;
 const MAX_QUIET_CHANNELS = 500;
 
 export interface PushCandidate {
+  author?: Extract<ChannelMessageAuthor, { kind: 'bot' }>;
+  approval?: import('../team/approval-contract.js').ApprovalCard;
   id: string;
   kind: PushKind;
   attentionKind: string;
@@ -35,11 +41,13 @@ export interface PushCandidate {
 }
 
 export interface PushSource {
-  pending(): { items: PushCandidate[]; badge: number };
+  pending(human?: HumanContext): { items: PushCandidate[]; badge: number };
   botName(slug: string): string | undefined;
 }
 
 export interface PushData {
+  author?: PushCandidate['author'];
+  approval?: import('../team/approval-contract.js').ApprovalCard;
   v: 1;
   hostId: string;
   itemId?: string;
@@ -56,6 +64,7 @@ export interface PushData {
   badge?: number;
   test?: true;
   deviceId?: string;
+  resolved?: string[];
 }
 
 export interface ExpoMessage {
@@ -69,6 +78,13 @@ export interface ExpoMessage {
   channelId?: string;
   categoryId?: string;
   mutableContent?: true;
+  _contentAvailable?: true;
+}
+
+function keepDelivered(message: ExpoMessage): ExpoMessage {
+  if (message.badge !== 0) return message;
+  const { badge: _badge, ...rest } = message;
+  return { ...rest, _contentAvailable: true, data: { ...message.data, badge: 0 } };
 }
 
 export type ExpoTicket =
@@ -98,9 +114,10 @@ export type PushEvent =
   | {
       phase: 'sent';
       deviceId: string;
-      kind: PushKind | 'badge' | 'test' | 'device-paired';
+      kind: PushKind | 'badge' | 'resolve' | 'test' | 'device-paired';
       outcome: 'ok' | 'error';
       code?: string;
+      ageMs?: number;
     }
   | { phase: 'retry'; deviceId: string; attempt: number; code: string }
   | { phase: 'send-failed'; deviceId: string; count: number; code: string }
@@ -112,6 +129,7 @@ export type TestResult = 'sent' | 'not-registered' | 'failed';
 export interface PushSettings {
   registered: boolean;
   enabled: boolean;
+  delivery: PushDeliveryMode;
   preferences: PushPreferences;
   quietChannelIds: string[];
 }
@@ -125,7 +143,12 @@ export interface PushDelivery {
   ): RegisterResult;
   unregister(deviceId: string): boolean;
   settings(deviceId: string): PushSettings;
-  setPreferences(deviceId: string, input: unknown, enabled?: unknown): PushSettings;
+  setPreferences(
+    deviceId: string,
+    input: unknown,
+    enabled?: unknown,
+    delivery?: unknown,
+  ): PushSettings;
   setQuiet(deviceId: string, input: { channelId: unknown; quiet: unknown }): QuietResult;
   test(deviceId: string): Promise<TestResult>;
   announcePaired(device: { id: string; name: string }): Promise<void>;
@@ -139,6 +162,8 @@ export interface PushDeliveryOptions {
   sender: ExpoSender;
   host(): { id: string; name: string };
   deviceActive(deviceId: string): boolean;
+  deviceHuman?(deviceId: string): HumanContext | undefined;
+  held?: (human: HumanContext) => boolean;
   now?: () => number;
   sleep?: (ms: number) => Promise<void>;
   record?: (event: PushEvent) => void;
@@ -168,6 +193,10 @@ function enabledOf(json: string | undefined): boolean {
   return stored(json)['enabled'] !== false;
 }
 
+function deliveryOf(json: string | undefined): PushDeliveryMode {
+  return stored(json)['delivery'] === 'in-app' ? 'in-app' : 'push';
+}
+
 function quietOf(json: string | undefined): string[] {
   const value = stored(json)['quiet'];
   return Array.isArray(value)
@@ -179,6 +208,7 @@ function settingsOf(current: DeviceRow | undefined): PushSettings {
   return {
     registered: current !== undefined,
     enabled: enabledOf(current?.preferences_json),
+    delivery: deliveryOf(current?.preferences_json),
     preferences: preferencesOf(current?.preferences_json),
     quietChannelIds: quietOf(current?.preferences_json),
   };
@@ -194,13 +224,16 @@ function preferencesOf(json: string | undefined): PushPreferences {
   ) as PushPreferences;
 }
 
-const TITLES: Record<PushLocale, Record<PushKind | 'channel-mention', (bot: string) => string>> = {
+type PushCopyKey = PushKind | 'channel-mention' | 'takeover-request';
+
+const TITLES: Record<PushLocale, Record<PushCopyKey, (bot: string) => string>> = {
   en: {
     approval: (bot) => `${bot} needs your approval`,
     question: (bot) => `${bot} has a question for you`,
     'private-input': (bot) => `${bot} needs private input from you`,
     reply: (bot) => `${bot} replied to you`,
     'channel-mention': (bot) => `${bot} mentioned you`,
+    'takeover-request': (bot) => `${bot} needs you to take over`,
   },
   zh: {
     approval: (bot) => `${bot} 需要你审批`,
@@ -208,13 +241,11 @@ const TITLES: Record<PushLocale, Record<PushKind | 'channel-mention', (bot: stri
     'private-input': (bot) => `${bot} 需要你提供私密输入`,
     reply: (bot) => `${bot} 回复了你`,
     'channel-mention': (bot) => `${bot} 提到了你`,
+    'takeover-request': (bot) => `${bot} 需要你接管`,
   },
 };
 
-const LEADS: Record<
-  PushLocale,
-  Record<PushKind | 'channel-mention', (bot: string | undefined) => string>
-> = {
+const LEADS: Record<PushLocale, Record<PushCopyKey, (bot: string | undefined) => string>> = {
   en: {
     approval: (bot) => (bot === undefined ? 'Needs your approval' : `${bot} needs your approval`),
     question: (bot) =>
@@ -223,6 +254,8 @@ const LEADS: Record<
       bot === undefined ? 'Needs private input from you' : `${bot} needs private input from you`,
     reply: (bot) => bot ?? '',
     'channel-mention': (bot) => bot ?? '',
+    'takeover-request': (bot) =>
+      bot === undefined ? 'Needs you to take over' : `${bot} needs you to take over`,
   },
   zh: {
     approval: (bot) => (bot === undefined ? '需要你审批' : `${bot} 需要你审批`),
@@ -231,6 +264,7 @@ const LEADS: Record<
       bot === undefined ? '需要你提供私密输入' : `${bot} 需要你提供私密输入`,
     reply: (bot) => bot ?? '',
     'channel-mention': (bot) => bot ?? '',
+    'takeover-request': (bot) => (bot === undefined ? '需要你接管' : `${bot} 需要你接管`),
   },
 };
 
@@ -266,7 +300,10 @@ function text(
   bot: string,
   locale: PushLocale,
 ): { title: string; body: string; message: string } {
-  const key = candidate.attentionKind === 'channel-mention' ? 'channel-mention' : candidate.kind;
+  const key: PushCopyKey =
+    candidate.attentionKind === 'channel-mention' || candidate.attentionKind === 'takeover-request'
+      ? candidate.attentionKind
+      : candidate.kind;
   const compose = (lead: string): string =>
     candidate.preview === undefined
       ? lead
@@ -289,7 +326,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const record = options.record ?? (() => {});
   const iso = (): string => new Date(now()).toISOString();
-  const tickets = new Map<string, { deviceId: string; sentAt: number }>();
+  const tickets = new Map<string, { deviceId: string; token: string; sentAt: number }>();
   let running: Promise<void> | undefined;
   let again = false;
 
@@ -354,16 +391,31 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
     if (drop(deviceId)) record({ phase: 'token-dropped', deviceId, code });
   };
 
+  const dropInvalidToken = (deviceId: string, token: string): void => {
+    if (row(deviceId)?.token === token) dropToken(deviceId, 'device-not-registered');
+  };
+
   const deliver = async (
     device: DeviceRow,
-    messages: ExpoMessage[],
-    kinds: Array<PushKind | 'badge' | 'test' | 'device-paired'>,
+    input: ExpoMessage[],
+    kinds: Array<PushKind | 'badge' | 'resolve' | 'test' | 'device-paired'>,
+    createdAt: ReadonlyArray<string | undefined> = [],
+    audience?: string,
   ): Promise<boolean> => {
+    const messages = device.platform === 'ios' ? input.map(keepDelivered) : input;
     for (let start = 0; start < messages.length; start += BATCH) {
       const batch = messages.slice(start, start + BATCH);
       let result: ExpoTicket[] | undefined;
+      let handedAt = now();
       for (let attempt = 1; result === undefined; attempt += 1) {
         try {
+          if (
+            options.deviceHuman &&
+            (!options.deviceActive(device.device_id) ||
+              options.deviceHuman(device.device_id)?.humanId !== audience)
+          )
+            return false;
+          handedAt = now();
           result = await sender.send(batch);
         } catch (error) {
           const code = error instanceof Error ? error.message : 'send-failed';
@@ -379,18 +431,24 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       let unregistered = false;
       result.forEach((ticket, index) => {
         const kind = kinds[start + index] ?? 'badge';
+        const created = Date.parse(createdAt[start + index] ?? '');
+        const age = Number.isFinite(created) ? { ageMs: Math.max(0, handedAt - created) } : {};
         if (ticket.status === 'ok') {
-          record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'ok' });
+          record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'ok', ...age });
           if (tickets.size < MAX_PENDING_RECEIPTS)
-            tickets.set(ticket.id, { deviceId: device.device_id, sentAt: now() });
+            tickets.set(ticket.id, {
+              deviceId: device.device_id,
+              token: device.token,
+              sentAt: now(),
+            });
           return;
         }
         const code = ticket.details?.error ?? 'error';
-        record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'error', code });
+        record({ phase: 'sent', deviceId: device.device_id, kind, outcome: 'error', code, ...age });
         if (code === 'DeviceNotRegistered') unregistered = true;
       });
       if (unregistered) {
-        dropToken(device.device_id, 'device-not-registered');
+        dropInvalidToken(device.device_id, device.token);
         return false;
       }
     }
@@ -402,10 +460,24 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       (db) => db.prepare('SELECT * FROM push_devices').all() as unknown as DeviceRow[],
     );
     if (devices.length === 0) return;
-    const { items, badge } = source.pending();
-    const present = new Set(items.map((item) => item.id));
+    const snapshots = new Map<string, ReturnType<PushSource['pending']>>();
     const hostId = options.host().id;
     for (const device of devices) {
+      const human = options.deviceHuman
+        ? options.deviceHuman(device.device_id)
+        : OWNER_HUMAN_CONTEXT;
+      if (!human) {
+        dropToken(device.device_id, 'device-revoked');
+        continue;
+      }
+      const held = options.held?.(human) === true;
+      let snapshot = snapshots.get(human.humanId);
+      if (!snapshot) {
+        snapshot = source.pending(human);
+        snapshots.set(human.humanId, snapshot);
+      }
+      const { items, badge } = snapshot;
+      const present = new Set(items.map((item) => item.id));
       if (!options.deviceActive(device.device_id)) {
         dropToken(device.device_id, 'device-revoked');
         continue;
@@ -426,7 +498,10 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         ),
       );
       const fresh = items.filter(
-        (item) => !seen.has(item.id) && Date.parse(item.createdAt) >= registeredAt,
+        (item) =>
+          !seen.has(item.id) &&
+          Date.parse(item.createdAt) >= registeredAt &&
+          !(held && item.kind === 'reply'),
       );
       const gone = [...seen].filter((id) => !present.has(id));
       database.transaction(
@@ -441,13 +516,15 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
         ['push'],
       );
       if (!enabled) continue;
+      const inApp = deliveryOf(device.preferences_json) === 'in-app';
       const notify = fresh.filter(
         (item) =>
+          !inApp &&
           preferences[item.kind] &&
           !(item.kind === 'reply' && item.channelId !== undefined && quiet.has(item.channelId)),
       );
       const messages: ExpoMessage[] = notify.map((item) => {
-        const sender = source.botName(item.botSlug) ?? item.botSlug;
+        const sender = item.author?.displayName ?? source.botName(item.botSlug) ?? item.botSlug;
         const { message, ...shown } = text(item, sender, localeOf(device.locale));
         const drawn = device.platform === 'android' && device.render === 'app';
         const data: PushData = {
@@ -455,6 +532,8 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           hostId,
           itemId: item.id,
           kind: item.attentionKind,
+          ...(item.author ? { author: item.author } : {}),
+          ...(item.approval ? { approval: item.approval } : {}),
           botSlug: item.botSlug,
           ...(item.channelId === undefined ? {} : { channelId: item.channelId }),
           ...(item.messageId === undefined ? {} : { messageId: item.messageId }),
@@ -486,12 +565,27 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           data,
         };
       });
-      const kinds: Array<PushKind | 'badge'> = notify.map((item) => item.kind);
-      if (messages.length === 0 && device.badge !== badge) {
+      const kinds: Array<PushKind | 'badge' | 'resolve'> = notify.map((item) => item.kind);
+      const created: Array<string | undefined> = notify.map((item) => item.createdAt);
+      const resolve =
+        gone.length === 0
+          ? undefined
+          : device.platform === 'ios'
+            ? { to: device.token, badge, _contentAvailable: true as const }
+            : device.render === 'app'
+              ? { to: device.token, priority: 'high' as const }
+              : undefined;
+      if (resolve !== undefined) {
+        for (let start = 0; start < gone.length; start += RESOLVED_LIMIT) {
+          const resolved = gone.slice(start, start + RESOLVED_LIMIT);
+          messages.push({ ...resolve, data: { v: 1, hostId, resolved } });
+          kinds.push('resolve');
+        }
+      } else if (messages.length === 0 && device.badge !== badge) {
         messages.push({ to: device.token, badge, data: { v: 1, hostId } });
         kinds.push('badge');
       }
-      if (messages.length > 0 && (await deliver(device, messages, kinds)))
+      if (messages.length > 0 && (await deliver(device, messages, kinds, created, human.humanId)))
         database.transaction(
           (db) =>
             db
@@ -553,7 +647,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       return settings(deviceId);
     },
 
-    setPreferences(deviceId, input, enabled) {
+    setPreferences(deviceId, input, enabled, delivery) {
       const current = row(deviceId);
       const next = settings(deviceId).preferences;
       const patch = typeof input === 'object' && input !== null ? input : {};
@@ -570,7 +664,10 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
             .run(deviceId, JSON.stringify(next)),
         ['push'],
       );
-      if (current !== undefined && typeof enabled === 'boolean') save(current, { enabled });
+      const changes: Record<string, unknown> = {};
+      if (typeof enabled === 'boolean') changes['enabled'] = enabled;
+      if (delivery === 'push' || delivery === 'in-app') changes['delivery'] = delivery;
+      if (current !== undefined && Object.keys(changes).length > 0) save(current, changes);
       else record({ phase: 'preferences', deviceId });
       return settings(deviceId);
     },
@@ -594,7 +691,9 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
       const current = row(deviceId);
       if (current === undefined) return 'not-registered';
       const host = options.host();
-      const badge = source.pending().badge;
+      const human = options.deviceHuman ? options.deviceHuman(deviceId) : OWNER_HUMAN_CONTEXT;
+      if (!human || !options.deviceActive(deviceId)) return 'failed';
+      const badge = source.pending(human).badge;
       const text = TEST[localeOf(current.locale)];
       const ok = await deliver(
         current,
@@ -610,19 +709,27 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           },
         ],
         ['test'],
+        [],
+        human.humanId,
       );
       return ok ? 'sent' : 'failed';
     },
 
     async announcePaired(device) {
       const host = options.host();
-      const badge = source.pending().badge;
+      const pairedHuman = options.deviceHuman
+        ? options.deviceHuman(device.id)
+        : OWNER_HUMAN_CONTEXT;
+      if (!pairedHuman) return;
+      const badge = source.pending(pairedHuman).badge;
       const devices = database.read(
         (db) => db.prepare('SELECT * FROM push_devices').all() as unknown as DeviceRow[],
       );
       for (const current of devices) {
         if (
           current.device_id === device.id ||
+          (options.deviceHuman &&
+            options.deviceHuman(current.device_id)?.humanId !== pairedHuman.humanId) ||
           !enabledOf(current.preferences_json) ||
           !options.deviceActive(current.device_id)
         )
@@ -644,6 +751,8 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
             },
           ],
           ['device-paired'],
+          [],
+          pairedHuman.humanId,
         );
       }
     },
@@ -680,7 +789,7 @@ export function createPushDelivery(options: PushDeliveryOptions): PushDelivery {
           tickets.delete(id);
           const receipt = receipts[id];
           if (receipt?.status === 'error' && receipt.details?.error === 'DeviceNotRegistered')
-            dropToken(ticket.deviceId, 'device-not-registered');
+            dropInvalidToken(ticket.deviceId, ticket.token);
         }
       }
     },

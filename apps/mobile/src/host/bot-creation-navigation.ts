@@ -1,4 +1,4 @@
-import type { CreationSnapshot } from './bot-creation';
+import type { CreationSnapshot } from '@botharness/host-client/bot-creation';
 
 export async function openBotCreationResult(
   port: {

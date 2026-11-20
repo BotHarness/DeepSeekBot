@@ -29,7 +29,11 @@ const cli = async (command, args = [], patch) => {
   const child = execFile(
     process.execPath,
     ['packages/deepseekbot/dist/deepseekbot.mjs', command, '--host', url.origin, ...args],
-    { env: { ...process.env, DEEPSEEKBOT_HOST_TOKEN: url.searchParams.get('token') } },
+    {
+      env: { ...process.env, DEEPSEEKBOT_HOST_TOKEN: url.searchParams.get('token') },
+      shell: false,
+      windowsHide: true,
+    },
   );
   child.stdin.end(patch === undefined ? '' : JSON.stringify(patch));
   return new Promise((resolve, reject) => {

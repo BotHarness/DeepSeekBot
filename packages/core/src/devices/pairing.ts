@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
@@ -16,9 +17,11 @@ export interface HostIdentity {
 export interface PairedDevice {
   id: string;
   name: string;
+  humanId?: string;
   publicKey?: string;
   pairedAt: string;
   lastSeenAt?: string;
+  feedReadAt?: string;
   revokedAt?: string;
 }
 
@@ -41,11 +44,28 @@ export type OfferStatus =
   | { receipt: string; state: 'expired' | 'refused' | 'superseded'; settledAt: string }
   | { receipt: string; state: 'unknown' };
 
-export type OfferRefusal = 'offer-invalid' | 'offer-expired' | 'device-approval-required';
-export type DeviceRefusal = 'device-credential-missing' | 'device-unknown' | 'device-revoked';
+export type OfferRefusal =
+  | 'offer-invalid'
+  | 'offer-expired'
+  | 'device-approval-required'
+  | 'relationship-inactive';
+export type DeviceRefusal =
+  | 'device-credential-missing'
+  | 'device-unknown'
+  | 'device-revoked'
+  | 'sign-in-required'
+  | 'member-suspended';
 
 export type Redemption =
-  | { ok: true; device: PairedDevice; credential: string; host: HostIdentity }
+  | {
+      ok: true;
+      device: PairedDevice;
+      credential: string;
+      host: HostIdentity;
+      humanId?: string;
+      displayName?: string;
+      mustChangePassword?: boolean;
+    }
   | { ok: false; code: OfferRefusal };
 
 export type Admission = { ok: true; device: PairedDevice } | { ok: false; code: DeviceRefusal };
@@ -67,8 +87,16 @@ export interface PendingDeviceKey {
 
 export interface DevicePairing {
   host(): HostIdentity;
-  createOffer(binding?: { verifierHash: string; name?: string }): PairingOffer;
+  createOffer(binding?: {
+    verifierHash?: string;
+    name?: string;
+    humanId?: string;
+    relationshipId?: string;
+  }): PairingOffer;
   offerStatus(receipt: string): OfferStatus;
+  claimRelationshipOffer(offer: string): boolean;
+  clearOffers(): void;
+  stopOfferExpiry(): void;
   redeem(input: {
     offer: string;
     name?: string;
@@ -83,30 +111,54 @@ export interface DevicePairing {
   }): { ok: true; receipt: string } | { ok: false; code: OfferRefusal };
   pendingKeys(): PendingDeviceKey[];
   approveKey(receipt: string, publicKey: string): boolean;
+  cancelRelationshipOffers(relationshipId: string, publicKey: string): number;
   admitKey(authorization: string | undefined, publicKey: string): Admission;
   admit(authorization: string | undefined): Admission;
   check(deviceId: string): Admission;
+  acknowledgeFeed(deviceId: string): Admission;
   list(): PairedDevice[];
   revoke(deviceId: string): { revoked: boolean; closedStreams: number };
+  closeStreams(): number;
   attachStream(deviceId: string, close: () => void): () => void;
 }
 
 export interface DevicePairingOptions {
   database: OperationalDatabaseModulePort;
   hostName: string;
+  ownerHumanId?: () => string;
   now?: () => number;
   record?: (event: DevicePairingEvent) => void;
   onRevoked?: (deviceId: string) => void;
+  onChange?: () => void;
   onPaired?: (device: PairedDevice) => void;
+  members?: {
+    redeem(
+      humanId: string,
+      name: string,
+      publicKey?: string,
+    ): {
+      deviceId: string;
+      credential: string;
+      humanId: string;
+      displayName: string;
+      mustChangePassword: boolean;
+    };
+    admit(authorization: string | undefined, publicKey?: string): PairedDevice | undefined;
+    refusal(authorization: string | undefined): 'sign-in-required' | 'member-suspended';
+    check(deviceId: string): PairedDevice | undefined;
+    attach(deviceId: string, close: () => void): () => void;
+  };
 }
 
 interface Row {
+  human_id: string;
   device_id: string;
   name: string;
   secret_hash: string;
   public_key: string | null;
   paired_at: string;
   last_seen_at: string | null;
+  feed_read_at: string | null;
   revoked_at: string | null;
 }
 
@@ -122,6 +174,7 @@ function device(row: Row): PairedDevice {
     pairedAt: row.paired_at,
     ...(row.public_key === null ? {} : { publicKey: row.public_key }),
     ...(row.last_seen_at === null ? {} : { lastSeenAt: row.last_seen_at }),
+    ...(row.feed_read_at == null ? {} : { feedReadAt: row.feed_read_at }),
     ...(row.revoked_at === null ? {} : { revokedAt: row.revoked_at }),
   };
 }
@@ -136,23 +189,47 @@ function deviceName(input: string | undefined): string {
 
 export function createDevicePairing(options: DevicePairingOptions): DevicePairing {
   const { database } = options;
+  const ownerHumanId = options.ownerHumanId ?? (() => OWNER_HUMAN_CONTEXT.humanId);
   const now = options.now ?? Date.now;
   const record = options.record ?? (() => {});
+  const changed = options.onChange ?? (() => {});
   const iso = (ms: number): string => new Date(ms).toISOString();
 
   const offers = new Map<
     string,
     {
       expiresAt: number;
+      humanId: string;
       receipt: string;
+      memberHumanId?: string;
       verifierHash?: string;
       name?: string;
       publicKey?: string;
       approved?: boolean;
+      relationshipId?: string;
     }
   >();
   const settled = new Map<string, OfferStatus>();
   const streams = new Map<string, Set<() => void>>();
+  let expiry: ReturnType<typeof setTimeout> | undefined;
+
+  const stopOfferExpiry = (): void => {
+    clearTimeout(expiry);
+    expiry = undefined;
+  };
+  const scheduleOfferExpiry = (): void => {
+    if (expiry !== undefined || options.onChange === undefined || offers.size === 0) return;
+    const next = Math.min(...Array.from(offers.values(), (offer) => offer.expiresAt));
+    expiry = setTimeout(
+      () => {
+        expiry = undefined;
+        sweep();
+        scheduleOfferExpiry();
+      },
+      Math.max(1, next - now()),
+    );
+    expiry.unref();
+  };
 
   const settle = (
     receipt: string,
@@ -166,24 +243,40 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
   };
 
   const sweep = (): void => {
+    let swept = false;
     for (const [key, { expiresAt, receipt }] of offers)
       if (expiresAt <= now()) {
         offers.delete(key);
         settle(receipt, { state: 'expired' });
         record({ phase: 'offer-expired' });
+        swept = true;
       }
+    if (swept) changed();
   };
 
-  const row = (deviceId: string): Row | undefined =>
-    database.read(
+  const row = (deviceId: string) => {
+    const current = database.read(
       (connection) =>
-        connection.prepare('SELECT * FROM paired_devices WHERE device_id = ?').get(deviceId) as
-          | Row
-          | undefined,
+        connection
+          .prepare(`SELECT device.*, EXISTS (
+          SELECT 1 FROM relationship_device_grants AS grant_ref
+          JOIN host_relationships AS relationship ON relationship.relationship_id = grant_ref.relationship_id
+          WHERE grant_ref.device_id = device.device_id AND relationship.state != 'active'
+        ) AS relationship_inactive FROM paired_devices AS device WHERE device.device_id = ?`)
+          .get(deviceId) as Row | undefined,
     );
+    if (current === undefined) return undefined;
+    if (!('relationship_inactive' in current) || typeof current.relationship_inactive !== 'number')
+      throw new Error('device-admission-state-invalid');
+    return { ...current, relationshipInactive: current.relationship_inactive !== 0 };
+  };
 
-  const active = (current: Row): Admission => {
-    if (current.revoked_at !== null) {
+  const active = (current: NonNullable<ReturnType<typeof row>>): Admission => {
+    if (
+      current.revoked_at !== null ||
+      current.human_id !== ownerHumanId() ||
+      current.relationshipInactive
+    ) {
       record({ phase: 'device-refused', code: 'device-revoked', deviceId: current.device_id });
       return { ok: false, code: 'device-revoked' };
     }
@@ -234,20 +327,43 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
 
   return {
     host,
+    stopOfferExpiry,
 
     createOffer(binding) {
       sweep();
+      let displacedKey = false;
       while (offers.size >= MAX_OPEN_OFFERS) {
         const oldest = offers.keys().next().value!;
-        settle(offers.get(oldest)!.receipt, { state: 'superseded' });
+        const displaced = offers.get(oldest)!;
+        settle(displaced.receipt, { state: 'superseded' });
+        displacedKey ||= displaced.publicKey !== undefined;
         offers.delete(oldest);
       }
       const offer = token(24);
       const receipt = token(9);
       const expiresAt = now() + PAIRING_OFFER_TTL_MS;
-      offers.set(digest(offer).toString('hex'), { expiresAt, receipt, ...binding });
+      offers.set(digest(offer).toString('hex'), {
+        expiresAt,
+        receipt,
+        ...binding,
+        humanId: ownerHumanId(),
+        ...(binding?.humanId === undefined ? {} : { memberHumanId: binding.humanId }),
+      });
+      scheduleOfferExpiry();
+      if (displacedKey) changed();
       record({ phase: 'offer-created' });
       return { offer, expiresAt: iso(expiresAt), receipt };
+    },
+
+    clearOffers() {
+      if (offers.size === 0) return;
+      for (const open of offers.values()) {
+        settle(open.receipt, { state: 'superseded' });
+        record({ phase: 'offer-refused' });
+      }
+      offers.clear();
+      stopOfferExpiry();
+      changed();
     },
 
     offerStatus(receipt) {
@@ -269,6 +385,23 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       return settled.get(receipt) ?? { receipt, state: 'unknown' };
     },
 
+    claimRelationshipOffer(offer) {
+      sweep();
+      const key = digest(offer).toString('hex');
+      const open = offers.get(key);
+      if (
+        !open ||
+        open.humanId !== ownerHumanId() ||
+        open.memberHumanId !== undefined ||
+        open.publicKey !== undefined ||
+        open.verifierHash !== undefined
+      )
+        return false;
+      offers.delete(key);
+      settle(open.receipt, { state: 'superseded' });
+      return true;
+    },
+
     requestKey(input) {
       sweep();
       const open = offers.get(digest(input.offer).toString('hex'));
@@ -284,7 +417,8 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       if (open.publicKey === undefined) {
         open.publicKey = input.publicKey;
         open.name = deviceName(input.name ?? open.name);
-        open.approved = false;
+        open.approved = open.memberHumanId !== undefined;
+        changed();
       }
       return { ok: true, receipt: open.receipt };
     },
@@ -311,14 +445,34 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
           open.publicKey === publicKey &&
           /^[0-9a-f]{64}$/u.test(publicKey)
         ) {
-          open.approved = true;
+          if (open.approved !== true) {
+            open.approved = true;
+            changed();
+          }
           return true;
         }
       }
       return false;
     },
+    cancelRelationshipOffers(relationshipId, publicKey) {
+      let cancelled = 0;
+      for (const [key, open] of offers) {
+        if (open.relationshipId !== relationshipId || open.publicKey !== publicKey) continue;
+        offers.delete(key);
+        settle(open.receipt, { state: 'refused' });
+        cancelled++;
+      }
+      if (cancelled > 0) changed();
+      return cancelled;
+    },
 
     admitKey(authorization, publicKey) {
+      if (authorization?.startsWith('Device member.')) {
+        const member = options.members?.admit(authorization, publicKey);
+        return member
+          ? { ok: true, device: member }
+          : { ok: false, code: options.members?.refusal(authorization) ?? 'device-unknown' };
+      }
       const admitted = this.admit(authorization);
       if (!admitted.ok) return admitted;
       if (admitted.device.publicKey !== publicKey) return { ok: false, code: 'device-unknown' };
@@ -334,9 +488,10 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
         (open.publicKey !== input.publicKey || open.approved !== true)
       )
         return { ok: false, code: 'device-approval-required' };
-      offers.delete(key);
+      if (offers.delete(key)) changed();
       if (
         open === undefined ||
+        open.humanId !== ownerHumanId() ||
         (open.verifierHash !== undefined &&
           (input.verifier === undefined ||
             !timingSafeEqual(digest(input.verifier), Buffer.from(open.verifierHash, 'base64url'))))
@@ -350,19 +505,88 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
         record({ phase: 'offer-expired' });
         return { ok: false, code: 'offer-expired' };
       }
+      if (open.memberHumanId !== undefined) {
+        const result = options.members?.redeem(
+          open.memberHumanId,
+          deviceName(input.name ?? open.name),
+          input.publicKey,
+        );
+        if (!result) {
+          settle(open.receipt, { state: 'refused' });
+          return { ok: false, code: 'offer-invalid' };
+        }
+        settle(open.receipt, { state: 'redeemed', deviceId: result.deviceId });
+        record({ phase: 'offer-redeemed', deviceId: result.deviceId });
+        return {
+          ok: true,
+          ...result,
+          device: {
+            id: result.deviceId,
+            humanId: result.humanId,
+            name: deviceName(input.name ?? open.name),
+            pairedAt: iso(now()),
+          },
+          host: host(),
+        };
+      }
       const id = token(16);
       const secret = token(32);
       const pairedAt = iso(now());
       const name = deviceName(input.name ?? open.name);
-      database.transaction(
-        (connection) =>
+      const issued = database.transaction(
+        (connection) => {
+          if (
+            open.relationshipId !== undefined &&
+            !connection
+              .prepare(
+                "SELECT 1 FROM host_relationships WHERE relationship_id = ? AND state = 'active'",
+              )
+              .get(open.relationshipId)
+          )
+            return false;
+          if (open.relationshipId !== undefined) {
+            const enrollment = connection
+              .prepare(
+                "SELECT state, expires_at FROM relationship_client_enrollments WHERE relationship_id = ? AND public_key = ? AND direction = 'incoming'",
+              )
+              .get(open.relationshipId, input.publicKey ?? '') as
+              | { state: string; expires_at: number }
+              | undefined;
+            if (!enrollment || enrollment.state !== 'unconfirmed' || enrollment.expires_at <= now())
+              return false;
+            connection
+              .prepare(
+                "UPDATE relationship_client_enrollments SET state = 'committed' WHERE relationship_id = ? AND public_key = ? AND direction = 'incoming'",
+              )
+              .run(open.relationshipId, input.publicKey ?? '');
+          }
           connection
             .prepare(
-              'INSERT INTO paired_devices (device_id, name, secret_hash, paired_at, public_key) VALUES (?, ?, ?, ?, ?)',
+              'INSERT INTO paired_devices (device_id, name, secret_hash, paired_at, public_key, human_id) VALUES (?, ?, ?, ?, ?, ?)',
             )
-            .run(id, name, digest(secret).toString('hex'), pairedAt, input.publicKey ?? null),
+            .run(
+              id,
+              name,
+              digest(secret).toString('hex'),
+              pairedAt,
+              input.publicKey ?? null,
+              open.humanId,
+            );
+          if (open.relationshipId !== undefined)
+            connection
+              .prepare(
+                'INSERT INTO relationship_device_grants (device_id, relationship_id) VALUES (?, ?)',
+              )
+              .run(id, open.relationshipId);
+          return true;
+        },
         ['paired-devices'],
       );
+      if (!issued) {
+        settle(open.receipt, { state: 'refused' });
+        record({ phase: 'offer-refused' });
+        return { ok: false, code: 'relationship-inactive' };
+      }
       settle(open.receipt, { state: 'redeemed', deviceId: id });
       record({ phase: 'offer-redeemed', deviceId: id });
       options.onPaired?.({ id, name, pairedAt });
@@ -380,6 +604,12 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     },
 
     admit(authorization) {
+      if (authorization?.startsWith('Device member.')) {
+        const member = options.members?.admit(authorization);
+        return member
+          ? { ok: true, device: member }
+          : { ok: false, code: options.members?.refusal(authorization) ?? 'device-unknown' };
+      }
       const match = CREDENTIAL.exec(authorization?.trim() ?? '');
       if (match === null) {
         record({ phase: 'device-refused', code: 'device-credential-missing' });
@@ -399,12 +629,31 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     },
 
     check(deviceId) {
+      const member = options.members?.check(deviceId);
+      if (member) return { ok: true, device: member };
       const current = row(deviceId);
       if (current === undefined) {
         record({ phase: 'device-refused', code: 'device-unknown', deviceId });
         return { ok: false, code: 'device-unknown' };
       }
       return active(current);
+    },
+
+    acknowledgeFeed(deviceId) {
+      const current = row(deviceId);
+      if (current === undefined) return { ok: false, code: 'device-unknown' };
+      const admission = active(current);
+      if (!admission.ok || current.feed_read_at !== null) return admission;
+      database.transaction(
+        (connection) =>
+          connection
+            .prepare(
+              'UPDATE paired_devices SET feed_read_at = ? WHERE device_id = ? AND revoked_at IS NULL AND feed_read_at IS NULL',
+            )
+            .run(iso(now()), deviceId),
+        ['paired-devices'],
+      );
+      return { ok: true, device: device(row(deviceId)!) };
     },
 
     list() {
@@ -418,6 +667,7 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     },
 
     revoke(deviceId) {
+      const known = row(deviceId) !== undefined;
       const changed = database.transaction(
         (connection) =>
           connection
@@ -430,13 +680,20 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       const open = [...(streams.get(deviceId) ?? [])];
       streams.delete(deviceId);
       for (const close of open) close();
-      if (Number(changed) === 0 && open.length === 0) return { revoked: false, closedStreams: 0 };
-      record({ phase: 'device-revoked', deviceId, closedStreams: open.length });
-      options.onRevoked?.(deviceId);
-      return { revoked: true, closedStreams: open.length };
+      const revoked = Number(changed) !== 0 || open.length !== 0;
+      if (revoked) record({ phase: 'device-revoked', deviceId, closedStreams: open.length });
+      if (known || revoked) options.onRevoked?.(deviceId);
+      return { revoked, closedStreams: open.length };
     },
 
+    closeStreams() {
+      const open = [...streams.values()].flatMap((group) => [...group]);
+      streams.clear();
+      for (const close of open) close();
+      return open.length;
+    },
     attachStream(deviceId, close) {
+      if (options.members?.check(deviceId)) return options.members.attach(deviceId, close);
       const open = streams.get(deviceId) ?? new Set();
       open.add(close);
       streams.set(deviceId, open);

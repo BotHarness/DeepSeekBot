@@ -65,7 +65,13 @@ process.stdin.on('end', stop);
 process.stdin.on('error', stop);
 const env = { ...process.env };
 delete env.ELECTRON_RUN_AS_NODE;
-child = spawn(executable, [entry], { detached: true, stdio: ['pipe', 'pipe', 'pipe'], env });
+child = spawn(executable, [entry], {
+  detached: true,
+  stdio: ['pipe', 'pipe', 'pipe'],
+  env,
+  shell: false,
+  windowsHide: true,
+});
 child.on('spawn', () => emit({ event: 'tree-owned', version: 1, rootPid: child.pid }));
 child.on('error', stop);
 child.on('exit', stop);

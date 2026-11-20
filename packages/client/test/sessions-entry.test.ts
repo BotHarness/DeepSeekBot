@@ -1,24 +1,22 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
+import { type NativeSessionCatalog } from '../src/client/sessions-entry.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Modal: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   relativeTime: () => ({ unit: 'now', n: 0 }),
-  Button: () => null,
-  Input: () => null,
+
   StateDot: () => null,
-  Tag: ({ children }: PropsWithChildren) => createElement('span', { className: 'tag' }, children),
-  IconChevronDownOutlineRegular: () => null,
-  Menu: ({ anchor }: { anchor: unknown }) => anchor,
-  Tooltip: ({ children }: PropsWithChildren) => children,
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
 import type { ChannelSidebarEntryProps } from '../src/client/channel-sidebar.js';
+import { queryMenuItem } from './primitive-mocks.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { SessionsEntry, type NativeSessionCatalog } from '../src/client/sessions-entry.js';
+import { SessionsEntry } from '../src/client/sessions-entry.js';
 import {
   sessionViewPreferenceSnapshot,
   updateSessionViewPreference,
@@ -27,6 +25,22 @@ import { setSessionTarget } from '../src/client/session-target.js';
 import { store } from '../src/client/store.js';
 
 afterEach(() => localStorage.clear());
+
+async function menuItem(row: Element, id: string): Promise<HTMLElement | null> {
+  for (const trigger of document.querySelectorAll<HTMLButtonElement>(
+    '[data-session-more="open"] button',
+  )) {
+    if (!row.contains(trigger)) await act(async () => trigger.click());
+  }
+  const more = row.querySelector<HTMLButtonElement>('[data-session-more] button');
+  if (more === null) return null;
+  if (more.getAttribute('aria-expanded') !== 'true') await act(async () => more.click());
+  if (id === 'stop') return queryMenuItem(/^(停止|正在停止…)/);
+  if (id === 'archive') return queryMenuItem(/^(归档|取消归档)$/);
+  return queryMenuItem(
+    id === 'work' ? zhTranslate('assignmentWork.tooltip') : zhTranslate('sessions.openInHarness'),
+  );
+}
 
 function catalog(
   byId: Record<string, { displayTitle: string; updatedAt: number; running: boolean }>,
@@ -114,6 +128,7 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
     expect(lists[0]!.querySelector('[data-session-orchestrator]')?.getAttribute('aria-label')).toBe(
       'Orchestrator',
     );
+    expect(lists[0]!.querySelector('[data-session-orchestrator] .bh-avatar-media')).not.toBeNull();
     expect(
       [...container.querySelectorAll<HTMLElement>('[data-section]')].map(
         (node) => node.dataset['section'],
@@ -145,18 +160,16 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
       container.querySelector('[data-session-groups] > .bh-card-list .bh-card-badge')?.textContent,
     ).toBe('整理收件箱 · 3');
     expect(working.querySelector('[data-flip-key="a-run"] .bh-card-badge')).toBeNull();
-    expect(working.querySelector('[data-session-archive]')).toBeNull();
+    for (const node of working.querySelectorAll('[data-flip-key]'))
+      expect(await menuItem(node, 'archive')).toBeNull();
     expect(needs.querySelector('[data-flip-key="a-fail"] .bh-card-badge')?.textContent).toBe(
       '出错',
     );
     expect(needs.querySelector('[data-flip-key="a-ask"] .bh-card-badge')?.textContent).toBe(
       '等你回复',
     );
-    await act(async () =>
-      idle
-        .querySelector<HTMLButtonElement>('[data-flip-key="a-new"] [data-session-archive]')!
-        .click(),
-    );
+    const archiveNew = (await menuItem(idle.querySelector('[data-flip-key="a-new"]')!, 'archive'))!;
+    await act(async () => archiveNew.click());
     expect(setSessionArchived).toHaveBeenCalledWith('sessions-qa', 'a-new', true);
     await act(async () =>
       resolved.querySelector<HTMLButtonElement>('[data-group-heading]')!.click(),
@@ -165,15 +178,141 @@ it('pins the Orchestrator on top and groups Assignments by needs input, working,
       'Ship the release notes',
     ]);
     expect(container.querySelector('[data-flip-key="a-done"] .bh-card-badge')).toBeNull();
-    await act(async () =>
-      container
-        .querySelector<HTMLButtonElement>('[data-flip-key="a-done"] [data-session-archive]')!
-        .click(),
-    );
+    const archiveDone = (await menuItem(
+      container.querySelector('[data-flip-key="a-done"]')!,
+      'archive',
+    ))!;
+    await act(async () => archiveDone.click());
     expect(setSessionArchived).toHaveBeenCalledWith('sessions-qa', 'a-done', false);
     await act(async () => idle.querySelector<HTMLButtonElement>('[data-group-heading]')!.click());
     expect(sessionViewPreferenceSnapshot('sessions-qa').collapsedSections).toEqual(['idle']);
     expect(container.querySelector('[data-section="idle"] .bh-card-list')).toBeNull();
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    store.setSessions(previous);
+  }
+});
+
+it('stops a running Orchestrator or Assignment from its row and shows Stopping… until the stop settles', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const previous = store.getSnapshot().sessions;
+  updateSessionViewPreference('stop-qa', (current) => ({ ...current, scope: 'all' }));
+  store.setSessions({
+    status: 'ready',
+    items: [
+      { sessionId: 'orc', role: 'orchestrator', createdAt: '2026-10-01T00:00:00Z' },
+      {
+        sessionId: 'a-run',
+        role: 'assignment',
+        createdAt: '2026-10-01T00:00:00Z',
+        assignmentTitle: 'Crawl every page',
+      },
+      {
+        sessionId: 'a-other',
+        role: 'assignment',
+        createdAt: '2026-10-01T00:00:00Z',
+        assignmentTitle: 'Write the summary',
+      },
+      {
+        sessionId: 'a-idle',
+        role: 'assignment',
+        createdAt: '2026-10-01T00:00:00Z',
+        assignmentTitle: 'Quick lookup',
+      },
+      {
+        sessionId: 'a-halting',
+        role: 'assignment',
+        createdAt: '2026-10-01T00:00:00Z',
+        assignmentActivity: 'stopping',
+        assignmentTitle: 'Halting',
+      },
+    ],
+  });
+  const native = catalog({
+    orc: { displayTitle: 'Main', updatedAt: 1, running: true },
+    'a-run': { displayTitle: 'Crawl every page', updatedAt: 20, running: true },
+    'a-other': { displayTitle: 'Write the summary', updatedAt: 30, running: true },
+    'a-idle': { displayTitle: 'Quick lookup', updatedAt: 10, running: false },
+    'a-halting': { displayTitle: 'Halting', updatedAt: 5, running: true },
+  });
+  let settle!: () => void;
+  const stopSession = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        settle = resolve;
+      }),
+  );
+  const stopBot = vi.fn(async () => 'stopped' as const);
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(SessionsEntry, {
+          scope: 'personabot',
+          channelId: 'dm-ada',
+          botSlug: 'stop-qa',
+          actions: {
+            refreshSessions: vi.fn(async () => undefined),
+            stopSession,
+            stopBot,
+          } as unknown as BridgeActions,
+          t: zhTranslate,
+          nativeSessions: native,
+        } as ChannelSidebarEntryProps & { nativeSessions: NativeSessionCatalog }),
+      ),
+    );
+    const row = (id: string) => container.querySelector(`[data-flip-key="${id}"]`)!;
+    expect(row('orc').querySelector('[data-session-more] button')?.getAttribute('aria-label')).toBe(
+      '「Main」的更多操作',
+    );
+    const orchestrator = (await menuItem(row('orc'), 'stop'))!;
+    expect(orchestrator.getAttribute('aria-disabled') === 'true').toBe(false);
+    expect(orchestrator.textContent).toBe('停止');
+    expect(await menuItem(row('a-idle'), 'stop')).toBeNull();
+    const halting = (await menuItem(row('a-halting'), 'stop'))!;
+    expect(halting.getAttribute('aria-disabled') === 'true').toBe(true);
+    expect(row('a-halting').querySelector('.bh-card-badge')?.textContent).toBe('正在停止…');
+
+    const button = (await menuItem(row('a-run'), 'stop'))!;
+    await act(async () => button.click());
+    expect(stopSession).toHaveBeenCalledTimes(1);
+    expect(stopSession).toHaveBeenCalledWith('stop-qa', 'a-run', 'dm-ada');
+    expect(row('a-run').querySelector('.bh-card-badge')?.textContent).toBe('正在停止…');
+    expect((await menuItem(row('a-run'), 'stop'))!.getAttribute('aria-disabled') === 'true').toBe(
+      true,
+    );
+    expect(row('a-other').querySelector('.bh-card-badge')).toBeNull();
+
+    await act(async () => settle());
+    expect(row('a-run').querySelector('.bh-card-badge')).toBeNull();
+
+    const dialogButton = (text: string) =>
+      [...document.body.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(
+        (button) => button.textContent?.trim() === text,
+      )!;
+    const first = (await menuItem(row('orc'), 'stop'))!;
+    await act(async () => first.click());
+    expect(document.body.textContent).toContain('停止「Main」？');
+    expect(document.body.textContent).toContain('同时停止它正在运行的 2 个 Assignment');
+    await act(async () => dialogButton('停止').click());
+    expect(stopSession).toHaveBeenLastCalledWith('stop-qa', 'orc', 'dm-ada');
+    expect(stopBot).not.toHaveBeenCalled();
+    await act(async () => settle());
+
+    const again = (await menuItem(row('orc'), 'stop'))!;
+    await act(async () => again.click());
+    const checkbox = document.body.querySelector<HTMLInputElement>(
+      '[role="dialog"] input[type="checkbox"]',
+    )!;
+    expect(checkbox.checked).toBe(false);
+    await act(async () => checkbox.click());
+    await act(async () => dialogButton('停止').click());
+    expect(stopBot).toHaveBeenCalledWith('dm-ada', 'stop-qa');
+    expect(stopSession).toHaveBeenCalledTimes(2);
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   } finally {
     await act(async () => root.unmount());
     container.remove();
@@ -318,12 +457,17 @@ it('lists the Subagents an Orchestrator started under its row, with their model'
       '[data-session-subagents-toggle]',
     );
     expect(toggles).toHaveLength(1);
-    const work = [...container.querySelectorAll('[data-assignment-work-open]')];
-    expect(work.map((button) => button.getAttribute('aria-label'))).toEqual([
-      zhTranslate('assignmentWork.open', { title: 'Build' }),
-    ]);
-    expect(container.textContent).toContain('deepseek/deepseek-v4-pro · high');
-    expect(container.textContent).toContain('opencode-go/deepseek-v4.1-flash');
+    const work = [];
+    for (const node of container.querySelectorAll('[data-flip-key]')) {
+      const item = await menuItem(node, 'work');
+      if (item !== null) work.push(item.textContent);
+    }
+    expect(work).toEqual([zhTranslate('assignmentWork.tooltip')]);
+    const modelChips = [...container.querySelectorAll('[data-session-meta-chip="model"]')];
+    expect(modelChips.map((chip) => chip.textContent)).toContain('v4 pro · high');
+    expect(modelChips.map((chip) => chip.getAttribute('title'))).toContain(
+      'deepseek/deepseek-v4-pro · high',
+    );
     expect(sessionSubagents).not.toHaveBeenCalled();
     await act(async () => toggles[0]!.click());
     expect(sessionSubagents).toHaveBeenCalledWith('subagent-qa', 'orc');
@@ -332,6 +476,79 @@ it('lists the Subagents an Orchestrator started under its row, with their model'
     expect(list.textContent).toContain('deepseek/deepseek-v4 · medium');
     await act(async () => list.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
     expect(openSession).toHaveBeenCalledWith('orc-sub');
+  } finally {
+    await act(async () => root.unmount());
+    container.remove();
+    store.setSessions(previous);
+  }
+});
+
+it('shows each Session goal and to-do progress, and moves a quiet running Assignment to Stuck', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const previous = store.getSnapshot().sessions;
+  store.setSessions({
+    status: 'ready',
+    error: undefined,
+    items: [
+      { sessionId: 'orc', role: 'orchestrator', createdAt: '2026-10-01T00:00:00Z' },
+      { sessionId: 'a-busy', role: 'assignment', createdAt: '2026-10-01T00:00:00Z' },
+      { sessionId: 'a-quiet', role: 'assignment', createdAt: '2026-10-01T00:00:00Z' },
+    ],
+  });
+  const now = Date.now();
+  const sessionProgress = vi.fn(async () => ({
+    'a-busy': {
+      goal: {
+        objective: 'Ship the export fix',
+        phase: 'active' as const,
+        roundsStarted: 2,
+        maxGoalRounds: 256,
+      },
+      todos: [
+        { content: 'Reproduce', status: 'completed' as const },
+        { content: 'Write the test', status: 'in_progress' as const },
+        { content: 'Open the PR', status: 'pending' as const },
+      ],
+      lastEventAt: now - 30_000,
+    },
+    'a-quiet': { lastEventAt: now - 18 * 60_000 },
+  }));
+  const container = document.createElement('div');
+  document.body.append(container);
+  const root = createRoot(container);
+  try {
+    await act(async () =>
+      root.render(
+        createElement(SessionsEntry, {
+          scope: 'personabot',
+          channelId: 'dm-progress',
+          botSlug: 'progress-qa',
+          actions: {
+            refreshSessions: vi.fn(async () => undefined),
+            sessionProgress,
+            openSession: vi.fn(),
+          } as unknown as BridgeActions,
+          t: zhTranslate,
+          nativeSessions: catalog({
+            orc: { displayTitle: 'Main', updatedAt: 1, running: false },
+            'a-busy': { displayTitle: 'Export', updatedAt: 3, running: true },
+            'a-quiet': { displayTitle: 'CLI', updatedAt: 2, running: true },
+          }),
+        } as ChannelSidebarEntryProps & { nativeSessions: NativeSessionCatalog }),
+      ),
+    );
+    expect(sessionProgress).toHaveBeenCalledWith('progress-qa', ['orc', 'a-busy', 'a-quiet']);
+    const working = container.querySelector('[data-section="working"]')!;
+    expect(working.querySelector('[data-session-todos]')?.getAttribute('data-session-todos')).toBe(
+      '1/3',
+    );
+    expect(working.querySelector('[data-session-goal]')?.textContent).toContain(
+      'Ship the export fix',
+    );
+    expect(working.textContent).toContain('Write the test');
+    const stuck = container.querySelector('[data-section="stuck"]')!;
+    expect(stuck.textContent).toContain('CLI');
+    expect(stuck.textContent).toContain(zhTranslate('sessions.stuck.line', { minutes: 18 }));
   } finally {
     await act(async () => root.unmount());
     container.remove();

@@ -1,10 +1,44 @@
+import * as deletionReaders from '@botharness/host-client/deletion-readers';
+import * as botControl from '@botharness/host-client/bot-control';
+import { loadRoutingGroupEngines } from '@botharness/host-client/model-catalog';
+import { botModeActions, type BotModeActions } from './bot-mode-actions.js';
+import { retryChannelMessage } from '@botharness/host-client/channel-messages';
+import { subscribeSkillCatalog } from './messaging-defaults-live.js';
+import { replyPreviewOf } from '../../../core/src/channels/reply-preview.js';
+import { gitImportSource } from '@botharness/host-client/bot-creation';
+import * as prompts from '@botharness/host-client/prompt-presets';
+import { inheritModelPlan, setOnboardingModel } from '@botharness/host-client/model-plans';
+import { loadBotDetail } from '@botharness/host-client/bots';
+import {
+  createHumanAvatarCache,
+  type HumanAvatarCache,
+} from '@botharness/host-client/human-profile';
 import { approveWorkspaceGrantRequest } from './bridge.js';
+import {
+  loadGenuiView,
+  saveGenuiView,
+  loadGenuiDocumentView,
+  saveGenuiDocumentView,
+} from './bridge.js';
+import {
+  genuiDocumentReplySchema,
+  type GenuiDocument,
+  type GenuiDocumentState,
+  type GenuiDocumentReply,
+} from '../../../core/src/channels/genui-document.js';
+import {
+  genuiReplySchema,
+  type GenuiReply,
+  type GenuiView,
+  type GenuiViewState,
+} from '../../../core/src/channels/genui.js';
 import type { ClientTelemetryEventName } from '../../../core/src/telemetry/events.js';
 import { telemetrySurface } from './telemetry-surface.js';
 import type { PixelBannerRecipe } from '@botharness/pixel-banner';
 import { onboardingFor } from './onboarding.js';
 import { loadAveragePerf, type AveragePerfView } from './message-perf.js';
 import { invalidateInheritedModelPlans } from './model-plan-store.js';
+import { modelFavoritesEpoch, rememberModelFavorites } from './model-favorites.js';
 import type { ProviderAppSetup } from './provider-app-setup.js';
 import type { OnboardingSnapshot, TutorialAction } from '../../../core/src/onboarding/types.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
@@ -36,6 +70,7 @@ import {
   setApprovalRoute,
   testApprovalRoute,
   retryApprovalNotification,
+  retryQuestionNotification,
   setFailureAlerts,
   testFailureAlerts,
   retryFailureAlerts,
@@ -66,9 +101,20 @@ import type {
 import type { ShareDraftView } from '../../../core/src/marketplace/share-draft.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import type { InstallReviewResult } from '../../../core/src/marketplace/install-review.js';
-import { loadAllBotPreview } from './bridge.js';
+import {
+  loadAllBotPreview,
+  loadBotSkills,
+  loadChannelSkillCatalog,
+  loadSessionSkillCatalog,
+  loadSkillDetail,
+  removeBotSkill,
+  type BotSkillRow,
+  type SkillDetailView,
+} from './bridge.js';
 import { loadComposerIdentity, validateComposerDraft } from './bridge.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
+import type { ChannelSkillInvocationToken } from '../../../core/src/channels/channel.js';
+import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
 
 import type {
   ChannelBridgeInput,
@@ -83,13 +129,14 @@ import type {
   MessagingIdentityInput,
 } from '../../../core/src/messaging/identity.js';
 import type { ChannelActivityToday } from '../../../core/src/channels/activity-today.js';
-import type { BotAttentionPage, HumanAttentionPage, HumanInboxState } from './store.js';
+import type { BotAttentionPage, HumanAttentionPage, ActivityListState } from './store.js';
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
 import { publishWorkspaceGrantChange } from './workspace-grant-events.js';
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import type {
   MessagingSnapshot,
+  MessagingReadMode,
   MessagingGrant,
   OutboxIntent,
 } from '../../../core/src/messaging/outbound.js';
@@ -117,7 +164,6 @@ import {
   readMessagingSource,
   loadMessageAttachmentTarget,
   loadChannelMediaTarget,
-  parseBotCompactResult,
   type BotCompactResult,
 } from './bridge.js';
 import {
@@ -129,6 +175,8 @@ import {
   setGroupAvatar as setGroupAvatarViaBridge,
   setChannelHumanName,
   loadHumanIdentity,
+  loadHumanAvatars,
+  setHumanAvatar,
   setBotAvatar as setBotAvatarViaBridge,
   setBotBanner as setBotBannerViaBridge,
   updateBotProfile as updateBotProfileViaBridge,
@@ -149,6 +197,16 @@ import {
   loadChannelAssignments,
   loadSessionSubagents,
   loadAssignmentWork,
+  loadSessionProgress,
+  loadSessionTranscript,
+  loadSessionLive,
+  loadSessionToolDetail,
+  sendSessionRequest,
+  sendOrchestratorMessage,
+  type SessionProgress,
+  type SessionTranscript,
+  type SessionLiveSnapshot,
+  type SessionToolDetail,
   type SessionSubagent,
   type AssignmentWork,
   deleteGroupChannel,
@@ -190,6 +248,7 @@ import {
   loadPrivateInputStatus,
   submitPrivateInput,
   cancelPrivateInput,
+  settleTakeover,
   answerUserQuestion,
   type WorkspaceOption,
   type WorkspaceGrantView,
@@ -201,13 +260,16 @@ import {
   loadHumanAssignmentContext,
   type HumanAssignmentContext,
   ignoreHumanAssignmentReport,
-  dismissHumanInboxItem,
+  dismissActivityListItem,
+  dismissAllActivityListItems,
   overrideAutoRejection,
-  snoozeHumanInboxItem,
+  snoozeActivityListItem,
   type TimelinePage,
   type TimelinePageRequest,
   loadSessions,
   setSessionArchived,
+  stopSession,
+  stopBot,
   moveMemoryLocation,
   loadBots,
   loadMemorySnapshot,
@@ -241,19 +303,29 @@ import {
   type UsageFilter,
   type UsageQueryResult,
   loadGroupProfileActivity,
+  bridgeHost,
   loadModelCatalog,
+  setModelFavorite,
   loadModelPresets,
   loadModelPlan,
   loadModelPlanState,
   type ModelPlanStateView,
-  createModelPreset,
-  updateModelPreset,
+  createRoutingGroup,
+  deleteRoutingGroup,
+  loadRoutingGroups,
+  updateRoutingGroup,
+  type RestingRouteView,
+  type RoutingGroupMemberView,
+  type RoutingGroupView,
   applyModelPreset,
   customizeModelPlan,
+  chooseModelPlanGroup,
   setModelPlanAssignments,
   setModelPlan,
   setStandingLimits,
   type ModelCatalogView,
+  type ModelChoice,
+  type ModelPlanGroupsView,
   type ModelPresetView,
   type ModelPlanView,
   type ModelRouteView,
@@ -280,6 +352,8 @@ import {
   saveMemoryFile,
   repairMemory,
   loadTimelinePage,
+  loadFilesPage,
+  type FilesPage,
   loadReadPosition,
   markReadPosition,
   markAllReadPositions,
@@ -325,7 +399,7 @@ import {
   type RosterSection,
   type TopOrderEntry,
 } from './roster.js';
-import { initialTimeline } from './store.js';
+import { initialTimeline, quoteRefOf, type QuoteRef } from './store.js';
 import {
   completeFlatEntries,
   flatRosterChannelIds,
@@ -341,8 +415,8 @@ import type {
   OwnedSessionSummary,
   ConversationSelection,
   HumanAttentionItem,
-  HumanInboxCategory,
-  HumanInboxFilters,
+  ActivityListCategory,
+  ActivityListFilters,
   UserQuestionAnswerItem,
 } from './store.js';
 
@@ -359,6 +433,28 @@ import {
   type SubmissionAttempt,
   type SubmissionSnapshot,
 } from './composer-submission-store.js';
+import { createVoiceDictationPort } from './composer-dictation.js';
+import {
+  addVoiceProvider,
+  loadVoiceProviders,
+  removeVoiceProvider,
+  setBotAsr,
+  setBotVoice,
+  setSpeechThreshold,
+  setVoiceDefault,
+  synthesizeVoice,
+  testVoiceProvider,
+  type BotAsrView,
+  type BotVoiceView,
+  type VoiceDefaultsView,
+  type VoiceSpeechThresholdView,
+  type VoiceProviderAddInput,
+  type VoiceProviderHealthView,
+  type VoiceProvidersView,
+  type VoiceProviderView,
+  type VoiceSynthesisView,
+} from './voice-bridge.js';
+import { reportFailure } from './diagnostic-log.js';
 
 const GIT_INSTALL_POLL_MS = 500;
 
@@ -373,8 +469,44 @@ export interface HostDirectoryListing {
   nativePicker?: boolean;
 }
 
-export interface BridgeActions {
+export interface BridgeActions extends BotModeActions {
+  readonly teamCall?: BridgeCall;
+  readonly openModelPresets?: () => void;
+  genuiDocumentView(
+    channelId: string,
+    messageId: string,
+    document: GenuiDocument,
+  ): Promise<{ version: number; state: GenuiDocumentState }>;
+  saveGenuiDocumentView(
+    channelId: string,
+    messageId: string,
+    document: GenuiDocument,
+    expectedVersion: number,
+    state: GenuiDocumentState,
+  ): Promise<{ version: number; state: GenuiDocumentState }>;
+  sendGenuiDocumentReply(
+    channelId: string,
+    body: string,
+    submissionId: string,
+    reply: GenuiDocumentReply,
+  ): Promise<void>;
+  genuiView(channelId: string, messageId: string): Promise<GenuiView>;
+  saveGenuiView(
+    channelId: string,
+    messageId: string,
+    snapshotId: string,
+    expectedVersion: number,
+    state: GenuiViewState,
+  ): Promise<GenuiView>;
+  sendGenuiReply(
+    channelId: string,
+    body: string,
+    submissionId: string,
+    reply: GenuiReply,
+  ): Promise<void>;
   humanIdentity(signal?: AbortSignal): Promise<import('./bridge.js').LocalHumanIdentity>;
+  humanAvatarSet(avatar: string | null): Promise<import('./bridge.js').LocalHumanIdentity>;
+  readonly humanAvatars: HumanAvatarCache;
   tobHome(): Promise<
     import('../../../core/src/tob/service.js').TobHome & {
       attention?: { unreadCount: number; hasAction: boolean };
@@ -390,12 +522,17 @@ export interface BridgeActions {
     channelId: string,
     attachments: ChannelAttachmentRef[],
     replyTo?: string,
-  ): Promise<{ reply?: ChannelMessage; attachments: Array<ChannelAttachmentRef | null> }>;
+    quotes?: ReadonlyArray<{ messageId: string; text?: string }>,
+  ): Promise<{
+    reply?: ChannelMessage;
+    attachments: Array<ChannelAttachmentRef | null>;
+    quotes?: Array<ChannelMessage | null>;
+  }>;
   onboarding(slug?: string, action?: TutorialAction): Promise<OnboardingSnapshot>;
   onboardingModel(
     slug: string | undefined,
     expectedRevision: number,
-    route: ModelRouteView,
+    choice: ModelRouteView | { groupId: string; effort?: string },
     globalDefault: boolean,
   ): Promise<{ revision: number }>;
   inheritModel(slug: string, expectedRevision: number): Promise<{ revision: number }>;
@@ -406,9 +543,13 @@ export interface BridgeActions {
   retryMessage(
     channelId: string,
     messageId: string,
-    recovery?: { action: 'compact' | 'new-session'; failureMessageId: string },
+    recovery?: {
+      action: 'continue' | 'compact' | 'new-session';
+      failureMessageId: string;
+    },
   ): Promise<void>;
   stopBot(channelId: string, botSlug: string): Promise<'stopped' | 'not-working'>;
+  cancelAutoContinue(channelId: string, botSlug: string, requestMessageId: string): Promise<void>;
   compactBot(botSlug: string): Promise<BotCompactResult>;
   newBotSession(botSlug: string): Promise<void>;
   botContext(
@@ -417,28 +558,21 @@ export interface BridgeActions {
   botSystemPrompt(
     botSlug: string,
   ): Promise<import('../../../core/src/runtime/prompt-inspection.js').BotSystemPromptView>;
-  promptParts?(): Promise<{
-    parts: import('../../../core/src/bridge/methods.js').PromptPartView[];
-    limits: import('../../../core/src/bridge/methods.js').PromptLimitView[];
-  }>;
-  promptPresets?(): Promise<{
-    presets: import('../../../core/src/prompts/prompt-presets.js').PromptPreset[];
-    globalPresetId: string | null;
-  }>;
+  promptParts?(): Promise<import('@botharness/host-client/prompt-presets').PromptParts>;
+  promptPresets?(): Promise<import('@botharness/host-client/prompt-presets').PromptPresets>;
   promptPresetCreate?(
     name: string,
     parts: Record<string, string | null>,
     limits?: Record<string, number | null>,
-  ): Promise<{ preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset }>;
+  ): Promise<{
+    preset: import('@botharness/host-client/prompt-presets').PromptPresetInfo;
+  }>;
   promptPresetUpdate?(
     id: string,
-    change: {
-      name?: string;
-      parts?: Record<string, string | null>;
-      limits?: Record<string, number | null>;
-      expectedRevision?: number;
-    },
-  ): Promise<{ preset: import('../../../core/src/prompts/prompt-presets.js').PromptPreset }>;
+    change: import('@botharness/host-client/prompt-presets').PromptPresetChange,
+  ): Promise<{
+    preset: import('@botharness/host-client/prompt-presets').PromptPresetInfo;
+  }>;
   promptPresetDelete?(id: string): Promise<{ id: string; clearedBots: string[] }>;
   promptGlobalSet?(presetId: string | null): Promise<{ presetId: string | null }>;
   botPrompt?(slug: string): Promise<import('../../../core/src/bridge/methods.js').BotPromptView>;
@@ -459,7 +593,7 @@ export interface BridgeActions {
     turns: import('../../../core/src/runtime/prompt-inspection.js').TurnInputView[];
   }>;
 
-  channelBridges(channelId: string): Promise<ChannelBridgeSnapshot>;
+  channelBridges(channelId: string, mode?: MessagingReadMode): Promise<ChannelBridgeSnapshot>;
   channelBridge(channelId: string, input: ChannelBridgeInput): Promise<void>;
   channelIngests(channelId: string): Promise<ConversationIngestSnapshot>;
   channelIngest(channelId: string, input: ConversationIngestInput): Promise<void>;
@@ -475,6 +609,7 @@ export interface BridgeActions {
   approvalRoute(slug: string, pairingId: string | null, expectedRevision: number): Promise<void>;
   approvalTest(slug: string): Promise<void>;
   approvalRetry(slug: string, id: string): Promise<void>;
+  questionRetry(slug: string, id: string): Promise<void>;
   failureAlertsSet(slug: string, enabled: boolean, expectedRevision: number): Promise<void>;
   failureAlertsTest(slug: string): Promise<void>;
   failureAlertsRetry(slug: string, id: string): Promise<void>;
@@ -483,7 +618,7 @@ export interface BridgeActions {
   messagingIdentity(slug: string, input: MessagingIdentityInput): Promise<MessagingIdentity>;
   messagingConversation(slug: string, input: MessagingConversationInput): Promise<void>;
   appSetup?: ProviderAppSetup;
-  messagingSnapshot(slug: string): Promise<MessagingSnapshot>;
+  messagingSnapshot(slug: string, mode?: MessagingReadMode): Promise<MessagingSnapshot>;
   messagingReachable?(
     slug: string,
     bindingId: string,
@@ -527,27 +662,34 @@ export interface BridgeActions {
   ): Promise<OutboxIntent>;
 
   modelCatalog(): Promise<ModelCatalogView>;
+  routingGroupEngines(): ReturnType<typeof loadRoutingGroupEngines>;
+  setModelFavorite?(choice: ModelChoice, favorite: boolean): Promise<ModelChoice[]>;
   modelPresets(): Promise<ModelPresetView[]>;
-  modelPlan(slug: string): Promise<ModelPlanView | undefined>;
-  modelPlanState(slug: string): Promise<ModelPlanStateView>;
-  createModelPreset(
-    name: string,
-    orchestrator: ModelRouteView,
-    assignmentDefault: ModelRouteView,
-    assignmentModels?: AssignmentModelOptionView[],
-  ): Promise<ModelPresetView>;
-  updateModelPreset(
+  routingGroups(): Promise<{
+    groups: RoutingGroupView[];
+    rests: RestingRouteView[];
+  }>;
+  createRoutingGroup(name: string, members: RoutingGroupMemberView[]): Promise<RoutingGroupView>;
+  updateRoutingGroup(
     id: string,
     expectedRevision: number,
     name: string,
-    orchestrator: ModelRouteView,
-    assignmentDefault: ModelRouteView,
-  ): Promise<ModelPresetView>;
+    members: RoutingGroupMemberView[],
+  ): Promise<RoutingGroupView>;
+  deleteRoutingGroup(id: string, expectedRevision: number): Promise<RoutingGroupView>;
+  modelPlan(slug: string): Promise<ModelPlanView | undefined>;
+  modelPlanState(slug: string): Promise<ModelPlanStateView>;
   applyModelPreset(slug: string, presetId: string): Promise<ModelPlanView>;
   customizeModelPlan(
     slug: string,
     orchestrator: ModelRouteView,
     expectedRevision?: number,
+  ): Promise<ModelPlanView>;
+  chooseModelPlanGroup(
+    slug: string,
+    groupId: string,
+    expectedRevision?: number,
+    effort?: string,
   ): Promise<ModelPlanView>;
   setStandingLimits(slug: string, limits: StandingLimitsView): Promise<BotSummary>;
   setModelPlanAssignments(
@@ -562,6 +704,8 @@ export interface BridgeActions {
     orchestrator: ModelRouteView,
     assignmentDefault: ModelRouteView,
     assignmentModels: AssignmentModelOptionView[],
+    openAssignmentModels?: boolean,
+    groups?: ModelPlanGroupsView,
   ): Promise<ModelPlanView>;
   listHostFolders(
     path?: string,
@@ -598,35 +742,46 @@ export interface BridgeActions {
   openActivityCenter(): Promise<void>;
   attachActivityCenterPanel(): () => void;
   activityPage(
-    category: HumanInboxCategory,
-    filters: HumanInboxFilters & { search?: string; mentionsFirst?: boolean },
+    category: ActivityListCategory,
+    filters: ActivityListFilters & { search?: string; mentionsFirst?: boolean },
     cursor?: string,
   ): Promise<HumanAttentionPage>;
-  openHumanInbox(): Promise<void>;
-  refreshHumanInboxStatus(): Promise<void>;
-  refreshHumanInbox(category?: HumanInboxCategory, background?: boolean): Promise<void>;
-  setHumanInboxFilters(filters: HumanInboxFilters): Promise<void>;
-  loadMoreHumanInbox(): Promise<void>;
-  dismissHumanInbox(item: HumanAttentionItem): Promise<void>;
+  openActivityList(): Promise<void>;
+  refreshActivityListStatus(): Promise<void>;
+  refreshActivityList(category?: ActivityListCategory, background?: boolean): Promise<void>;
+  setActivityListFilters(filters: ActivityListFilters): Promise<void>;
+  loadMoreActivityList(): Promise<void>;
+  dismissActivityList(item: HumanAttentionItem): Promise<void>;
+  dismissAllActivityList(filter: {
+    kind?: HumanAttentionItem['kind'] | undefined;
+    categories: ReadonlyArray<'action' | 'info' | 'replies' | 'unread'>;
+    botSlug?: string | undefined;
+    channelId?: string | undefined;
+  }): Promise<{ dismissed: number; more: boolean }>;
   allowAutoRejectionOnce(item: HumanAttentionItem): Promise<void>;
-  snoozeHumanInbox(item: HumanAttentionItem, until: string | null): Promise<void>;
-  humanInboxContextPage(
+  snoozeActivityList(item: HumanAttentionItem, until: string | null): Promise<void>;
+  activityListContextPage(
     channelId: string,
     request: TimelinePageRequest,
     signal?: AbortSignal,
   ): Promise<TimelinePage>;
+  channelFilesPage(
+    channelId: string,
+    request: { before?: number; limit?: number },
+    signal?: AbortSignal,
+  ): Promise<FilesPage>;
   ignoreHumanReport(sourceEventId: string): Promise<void>;
   loadMoreBotInbox(slug: string): Promise<void>;
   botInboxPage(slug: string, cursor?: string): Promise<BotAttentionPage>;
   openChannel(channelId: string): Promise<void>;
   openChannelAtMessage(channelId: string, messageId: string): Promise<void>;
   averageReplyPerf(channelId: string, signal?: AbortSignal): Promise<AveragePerfView | undefined>;
-  humanInboxContext(
+  activityListContext(
     channelId: string,
     messageId: string,
     signal?: AbortSignal,
   ): Promise<ChannelMessage[]>;
-  replyFromHumanInbox(
+  replyFromActivityList(
     channelId: string,
     messageId: string,
     body: string,
@@ -656,7 +811,10 @@ export interface BridgeActions {
   loadNewer(channelId: string): Promise<void>;
   openLatest(channelId: string): Promise<void>;
   openAround(channelId: string, messageId: string): Promise<void>;
-  markAllRead(): Promise<void>;
+  markAllRead(scope?: {
+    channelId?: string | undefined;
+    botSlug?: string | undefined;
+  }): Promise<void>;
   markRead(channelId: string, messageId: string): Promise<void>;
   reactToMessage?(
     channelId: string,
@@ -674,13 +832,22 @@ export interface BridgeActions {
   refreshChannelMessages(channelId: string): Promise<void>;
   applyChannelTail(
     channelId: string,
-    page: { entries: ChannelMessage[]; olderCursor: string | null; hasOlder: boolean },
+    page: {
+      entries: ChannelMessage[];
+      olderCursor: string | null;
+      hasOlder: boolean;
+    },
   ): void;
   dismissFailedMessage(channelId: string, messageId: string): boolean;
   openSession(sessionId: string): void;
   refreshSessions(slug: string): Promise<void>;
   readSessions(slug: string): Promise<OwnedSessionSummary[]>;
   setSessionArchived(slug: string, sessionId: string, archived: boolean): Promise<void>;
+  stopSession(
+    slug: string,
+    session: string | { activityId: string },
+    channelId?: string,
+  ): Promise<void>;
   messageAttachmentTarget(
     channelId: string,
     messageId: string,
@@ -698,10 +865,10 @@ export interface BridgeActions {
     choice: HostFileOpen,
   ): Promise<void>;
   messageAttachmentDownload(channelId: string, messageId: string, fileId: string): Promise<void>;
-  bridgeFileCommands?(
-    sourceEventId: string,
-  ):
-    | (import('./host-file-menu.js').HostFileCommands & { available(): Promise<boolean> })
+  bridgeFileCommands?(sourceEventId: string):
+    | (import('./host-file-menu.js').HostFileCommands & {
+        available(): Promise<boolean>;
+      })
     | undefined;
   workspaceFileTarget(slug: string, grantId: string): Promise<HostFileTarget>;
   workspaceFileApplications(slug: string, grantId: string): Promise<HostFileOptions>;
@@ -738,7 +905,7 @@ export interface BridgeActions {
   overviewUsage(
     period: import('../../../core/src/usage/overview.js').UsageOverviewPeriod,
     after?: string,
-  ): Promise<import('../../../core/src/bridge/methods.js').OverviewUsage>;
+  ): Promise<import('@botharness/host-client/usage').OverviewUsage>;
   profileUsage(channelId: string, filter: UsageFilter): Promise<UsageQueryResult>;
   channelActivityToday(): Promise<ChannelActivityToday>;
   groupProfileActivity(channelId: string): Promise<GroupProfileActivity>;
@@ -815,14 +982,42 @@ export interface BridgeActions {
     scope?: 'chat' | 'assignments',
   ): Promise<AssignmentAccessPresetView>;
   listToolApprovalRules(slug: string): Promise<ToolApprovalRuleView[]>;
-  approvalTemplates?(
-    slug: string,
-  ): Promise<{ templates: ApprovalTemplateView[]; selected: string | null }>;
+  approvalTemplates?(slug: string): Promise<{
+    templates: ApprovalTemplateView[];
+    selected: string | null;
+    globalDefault?: string | null;
+  }>;
   setBotApprovalTemplate?(slug: string, template: string | null): Promise<void>;
   approvalReviewerModel?(): Promise<ApprovalReviewerModelView>;
+  voiceProviders?(slug?: string): Promise<VoiceProvidersView>;
+  dictationPort?(slug?: string): import('./composer-dictation.js').VoiceDictationPort;
+  addVoiceProvider?(input: VoiceProviderAddInput): Promise<VoiceProviderView>;
+  removeVoiceProvider?(id: string): Promise<string[]>;
+  testVoiceProvider?(id: string, voiceId?: string): Promise<VoiceProviderHealthView>;
+  synthesizeVoice?(input: {
+    text: string;
+    slug?: string;
+    providerId?: string;
+    voiceId?: string;
+  }): Promise<VoiceSynthesisView>;
+  setBotVoice?(
+    slug: string,
+    providerId: string | null,
+    voiceId?: string,
+  ): Promise<BotVoiceView | null>;
+  setBotAsr?(slug: string, providerId: string | null): Promise<BotAsrView | null>;
+  setVoiceDefault?(
+    kind: 'tts' | 'asr',
+    providerId: string | null,
+    voiceId?: string,
+  ): Promise<VoiceDefaultsView>;
+  setSpeechThreshold?(dbfs: number | null): Promise<VoiceSpeechThresholdView>;
   setApprovalReviewerModel?(model: ModelRouteView | null): Promise<ApprovalReviewerModelView>;
   revokeToolApprovalRule(slug: string, id: string): Promise<void>;
-  toolApprovalStatus(channelId: string, messageId: string): Promise<'pending' | 'expired'>;
+  toolApprovalStatus(
+    channelId: string,
+    messageId: string,
+  ): Promise<import('./bridge.js').ToolApprovalStatus>;
   privateInputStatus?(
     channelId: string,
     messageId: string,
@@ -833,6 +1028,11 @@ export interface BridgeActions {
     values: Record<string, string>,
   ): Promise<void>;
   privateInputCancel?(channelId: string, messageId: string): Promise<void>;
+  settleTakeover?(
+    channelId: string,
+    messageId: string,
+    outcome: 'done' | 'failed' | 'cancelled',
+  ): Promise<'done' | 'failed' | 'cancelled' | 'expired' | undefined>;
   privateAccountStatus?(
     channelId: string,
     messageId: string,
@@ -848,7 +1048,12 @@ export interface BridgeActions {
   toolApprovalState?(
     channelId: string,
     messageId: string,
-  ): Promise<{ status: 'pending' | 'expired'; expiresAt?: string }>;
+  ): Promise<{
+    status: import('./bridge.js').ToolApprovalStatus;
+    execution?: ToolApprovalExecutionState;
+    expiresAt?: string;
+  }>;
+  requestHost?(): import('@botharness/host-client/client').HostClient;
   toolApprovalExecutionState?(
     channelId: string,
     messageId: string,
@@ -883,14 +1088,22 @@ export interface BridgeActions {
     grantRequestResolution?: ChannelMessage['grantRequestResolution'],
     allBotMention?: AllBotMention,
     submissionId?: string,
+    skillInvocations?: ChannelSkillInvocationToken[],
+    quotes?: readonly QuoteRef[],
   ): Promise<boolean>;
+  skillCatalog?(channelId: string): Promise<SkillCatalogEntry[]>;
+  sessionSkillCatalog?(slug: string, sessionId: string): Promise<SkillCatalogEntry[]>;
+  botSkills?(slug: string): Promise<BotSkillRow[]>;
+  skillDetail?(name: string, owner: string): Promise<SkillDetailView>;
+  botSkillRemove?(slug: string, name: string): Promise<void>;
+  subscribeSkillCatalog?(channelId: string, listener: () => void): () => void;
   submissions: {
     subscribe(listener: () => void): () => void;
     snapshot(channelId: string): SubmissionSnapshot | undefined;
     begin(
       channelId: string,
       attempt: Pick<SubmissionAttempt, 'text' | 'mentions' | 'channelRefs'> &
-        Partial<Pick<SubmissionAttempt, 'replyTo' | 'attachments'>>,
+        Partial<Pick<SubmissionAttempt, 'replyTo' | 'quotes' | 'attachments'>>,
     ): { id: string; persisted: boolean } | undefined;
     cancel(channelId: string, id: string): void;
     sync(channelId: string): void;
@@ -921,7 +1134,12 @@ export interface BridgeActions {
   marketplaceUploadPlan(slug: string): Promise<UploadPlan>;
   marketplaceUpload(
     slug: string,
-    presentation: { displayName: string; bio?: string; tags?: string[]; replaces?: string },
+    presentation: {
+      displayName: string;
+      bio?: string;
+      tags?: string[];
+      replaces?: string;
+    },
   ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>;
   marketplaceMine(lang?: MarketplaceLanguage): Promise<MarketplaceAuthoredBot[]>;
   marketplaceDelete(id: string): Promise<void>;
@@ -936,7 +1154,12 @@ export interface BridgeActions {
     sectionId?: string,
     source?: MarketplaceInstallSource,
   ): Promise<BotSummary>;
-  createGroup(name: string, sectionId?: string): Promise<ChannelSummary | undefined>;
+  createGroup(
+    name: string,
+    sectionId?: string,
+    operationKey?: string,
+  ): Promise<ChannelSummary | undefined>;
+  previewBotImport(gitUrl: string): Promise<{ gitUrl: string; commit: string }>;
   renameChannel(channelId: string, name: string): Promise<boolean>;
   setHumanNickname(channelId: string, nickname: string | null): Promise<boolean>;
   setGroupAvatar(channelId: string, avatar: string | null): Promise<boolean>;
@@ -991,6 +1214,20 @@ export interface BridgeActions {
     sessionId: string,
   ): Promise<{ subagents: SessionSubagent[]; omitted: number }>;
   assignmentWork?(slug: string, sessionId: string): Promise<AssignmentWork>;
+  sessionProgress?(
+    slug: string,
+    sessionIds: readonly string[],
+  ): Promise<Record<string, SessionProgress>>;
+  sessionTranscript?(slug: string, sessionId: string): Promise<SessionTranscript>;
+  sessionLive?(
+    slug: string,
+    sessionId: string,
+    after: number | undefined,
+    signal?: AbortSignal,
+  ): Promise<SessionLiveSnapshot>;
+  sessionToolDetail?(slug: string, sessionId: string, callId: string): Promise<SessionToolDetail>;
+  sendSessionRequest?(slug: string, sessionId: string, text: string, steer: boolean): Promise<void>;
+  sendOrchestratorMessage?(slug: string, sessionId: string, text: string): Promise<void>;
   setGroupWakePolicy(
     channelId: string,
     botSlug: string,
@@ -1108,7 +1345,9 @@ export function createActions(
     nativeFiles?: NativeHostFiles;
     fileOpenPreferences?: FileOpenPreferences;
     submissions?: ComposerSubmissionStore;
+    openModelPresets?(): void;
   },
+  resources?: { download(path: string, name: string): Promise<void> },
 ): BridgeActions {
   clientStore.setComposerIdentity(undefined);
   let openingFile = false;
@@ -1131,15 +1370,39 @@ export function createActions(
       ? undefined
       : JSON.stringify([identity.hostId, identity.profileId, identity.humanId, channelId]);
   };
-  const submissionEcho = (attempt: SubmissionAttempt): ChannelMessage => ({
+  const currentHumanAuthor = (): ChannelMessage['author'] => {
+    const identity = clientStore.getSnapshot().composerIdentity;
+    return identity === undefined
+      ? { kind: 'human' }
+      : { kind: 'human', humanId: identity.humanId };
+  };
+  const submissionEcho = (
+    attempt: SubmissionAttempt,
+    known: readonly ChannelMessage[] = [],
+  ): ChannelMessage => ({
     id: attempt.id,
     at: attempt.at,
-    author: { kind: 'human' },
+    author: currentHumanAuthor(),
     body: attempt.text,
     ...(attempt.mentions.length === 0 ? {} : { mentions: attempt.mentions }),
     ...(attempt.channelRefs.length === 0 ? {} : { channelRefs: attempt.channelRefs }),
     ...(attempt.attachments === undefined ? {} : { attachments: attempt.attachments }),
     ...(attempt.replyTo === undefined ? {} : { replyTo: attempt.replyTo, replyToPreview: null }),
+    ...(attempt.quotes === undefined || attempt.quotes.length === 0
+      ? {}
+      : {
+          quotes: attempt.quotes.map((quote) => {
+            const target =
+              known.find((item) => item.id === quote.messageId) ??
+              clientStore
+                .getSnapshot()
+                .conversation.messages.find((item) => item.id === quote.messageId);
+            return {
+              ...quote,
+              preview: target === undefined ? null : replyPreviewOf(target),
+            };
+          }),
+        }),
     pending: false,
     failed: attempt.error ?? '',
     ...(attempt.state === 'unknown' ? { unconfirmed: true } : {}),
@@ -1154,7 +1417,7 @@ export function createActions(
     if (scope !== undefined) submissions.settle(scope, id, state, error);
   };
   const failedByChannel = new Map<string, ChannelMessage[]>();
-  const localFailedFor = (id: string): ChannelMessage[] => {
+  const localFailedFor = (id: string, known: readonly ChannelMessage[] = []): ChannelMessage[] => {
     const held = failedByChannel.get(id) ?? [];
     const scope = submissionScope(id);
     if (scope === undefined) return held;
@@ -1175,7 +1438,7 @@ export function createActions(
             !heldIds.has(attempt.id) &&
             !active.has(attempt.id),
         )
-        .map(submissionEcho),
+        .map((attempt) => submissionEcho(attempt, known)),
     ];
   };
   const remainingFailures = (
@@ -1183,7 +1446,7 @@ export function createActions(
     committed: readonly ChannelMessage[],
   ): ChannelMessage[] => {
     const committedIds = new Set(committed.map((message) => message.id));
-    const current = localFailedFor(channelId);
+    const current = localFailedFor(channelId, committed);
     const next = current.filter((message) => !committedIds.has(message.id));
     if (next.length !== current.length) {
       for (const message of current)
@@ -1234,7 +1497,7 @@ export function createActions(
         clientStore.setGit(await loadGitAvailability(call));
       }
     } catch (error) {
-      console.warn('botharness: Git install status check failed', error);
+      reportFailure('git-install-status-check-failed', 'Git install status check failed', error);
     } finally {
       followingGitInstall = false;
     }
@@ -1247,7 +1510,8 @@ export function createActions(
       clientStore.setGit(git);
       if (gitInstalling(git)) void followGitInstall();
     } catch (error) {
-      if (signal?.aborted !== true) console.warn('botharness: Git status check failed', error);
+      if (signal?.aborted !== true)
+        reportFailure('git-status-check-failed', 'Git status check failed', error);
     }
   };
 
@@ -1256,11 +1520,13 @@ export function createActions(
       clientStore.setGit(await startGitInstall(call));
       await followGitInstall();
     } catch (error) {
-      console.warn('botharness: Git install failed to start', error);
+      reportFailure('git-install-failed-to-start', 'Git install failed to start', error);
     }
   };
 
+  let rosterRefreshGeneration = 0;
   const refreshRoster = async (signal?: AbortSignal): Promise<void> => {
+    const generation = ++rosterRefreshGeneration;
     const [rosterResult, channelResult, botResult, identityResult] = await Promise.allSettled([
       loadRoster(call, signal),
       loadChannels(call, signal),
@@ -1273,16 +1539,19 @@ export function createActions(
     );
     if (botResult.status === 'fulfilled')
       clientStore.setRoster(botResult.value, clientStore.getSnapshot().channels);
-    if (channelResult.status === 'fulfilled') {
+    if (channelResult.status === 'fulfilled' && generation === rosterRefreshGeneration) {
       const channels = channelResult.value;
-      const current = clientStore.getSnapshot().conversation.channel;
-      clientStore.setRoster(clientStore.getSnapshot().bots, channels);
+      const before = clientStore.getSnapshot();
+      const current = before.conversation.channel;
+      clientStore.setRoster(before.bots, channels);
       if (current !== undefined) {
         const updated = channels.find((item) => item.id === current.id);
         if (updated !== undefined) clientStore.setConversation({ channel: updated });
+        else if (before.channels.some((item) => item.id === current.id))
+          clientStore.select(undefined);
       }
-    } else {
-      console.warn('botharness: channel refresh failed', channelResult.reason);
+    } else if (channelResult.status === 'rejected') {
+      reportFailure('channel-refresh-failed', 'channel refresh failed', channelResult.reason);
     }
     if (rosterResult.status === 'fulfilled') {
       const snapshot = rosterResult.value;
@@ -1296,14 +1565,14 @@ export function createActions(
         readOnly: false,
       });
       if (!sameIds([...previousMuted].sort(), [...snapshot.muted].sort()))
-        void refreshHumanInboxStatus();
+        void refreshActivityListStatus();
     } else if (
       rosterResult.reason instanceof BridgeCallError &&
       rosterResult.reason.code === 'storage-unavailable'
     ) {
       clientStore.setRosterState({ readOnly: true });
     } else {
-      console.warn('botharness: roster refresh failed', rosterResult.reason);
+      reportFailure('roster-refresh-failed', 'roster refresh failed', rosterResult.reason);
     }
   };
 
@@ -1311,7 +1580,7 @@ export function createActions(
     if (error instanceof BridgeCallError && error.code === 'storage-unavailable') {
       clientStore.setRosterState({ readOnly: true });
     }
-    console.warn('botharness: roster write failed', error);
+    reportFailure('roster-write-failed', 'roster write failed', error);
   };
 
   const rosterMutate = async (operation: () => Promise<void>): Promise<boolean> => {
@@ -1402,19 +1671,18 @@ export function createActions(
   };
 
   let activityPanelScope: object | undefined;
-  const humanInboxScope = (): object | undefined => {
+  const activityListScope = (): object | undefined => {
     const selection = currentSelection();
     return selection?.kind === 'inbox' ? selection : activityPanelScope;
   };
-  let humanInboxHeadSeq = 0;
-  let humanInboxPageSeq = 0;
-  let humanInboxPagesPending = 0;
-  let humanInboxScopeVersion = 0;
-  let humanInboxStatusSeq = 0;
+  let activityListHeadSeq = 0;
+  let activityListPageSeq = 0;
+  let activityListPagesPending = 0;
+  let activityListScopeVersion = 0;
   const loadInboxStatus = async (): Promise<
     Partial<
       Pick<
-        HumanInboxState,
+        ActivityListState,
         'unreadCount' | 'hasAction' | 'channelUnread' | 'messageCounts' | 'attentionStatus'
       >
     >
@@ -1430,35 +1698,51 @@ export function createActions(
       ...(channelUnread.status === 'fulfilled' ? { channelUnread: channelUnread.value } : {}),
     };
   };
-  const refreshHumanInboxStatus = async (): Promise<void> => {
-    const requestSeq = ++humanInboxStatusSeq;
+  let activityListStatusReading: Promise<void> | undefined;
+  let activityListStatusAgain = false;
+  const readActivityListStatus = async (): Promise<void> => {
     try {
       const status = await loadInboxStatus();
-      if (requestSeq === humanInboxStatusSeq) clientStore.setHumanInbox(status);
+      if (!activityListStatusAgain) clientStore.setActivityList(status);
     } catch {
-      if (requestSeq === humanInboxStatusSeq)
-        clientStore.setHumanInbox({ attentionStatus: 'error' });
-      return;
+      if (!activityListStatusAgain) clientStore.setActivityList({ attentionStatus: 'error' });
     }
   };
-  const loadHumanInboxFor = async (
-    category: HumanInboxCategory,
+  const refreshActivityListStatus = (): Promise<void> => {
+    if (activityListStatusReading !== undefined) {
+      activityListStatusAgain = true;
+      return activityListStatusReading;
+    }
+    activityListStatusReading = (async () => {
+      try {
+        do {
+          activityListStatusAgain = false;
+          await readActivityListStatus();
+        } while (activityListStatusAgain);
+      } finally {
+        activityListStatusReading = undefined;
+      }
+    })();
+    return activityListStatusReading;
+  };
+  const loadActivityListFor = async (
+    category: ActivityListCategory,
     scope: object,
     cursor?: string,
-    retainedCount = clientStore.getSnapshot().humanInbox.items.length,
+    retainedCount = clientStore.getSnapshot().activityList.items.length,
     background = false,
   ): Promise<void> => {
     const head = cursor === undefined;
-    const requestSeq = head ? ++humanInboxHeadSeq : ++humanInboxPageSeq;
-    const scopeVersion = humanInboxScopeVersion;
-    const headVersion = humanInboxHeadSeq;
-    const { botSlug, channelId, sort, snoozed } = clientStore.getSnapshot().humanInbox;
+    const requestSeq = head ? ++activityListHeadSeq : ++activityListPageSeq;
+    const scopeVersion = activityListScopeVersion;
+    const headVersion = activityListHeadSeq;
+    const { botSlug, channelId, sort, snoozed } = clientStore.getSnapshot().activityList;
     const isCurrent = (): boolean =>
-      humanInboxScope() === scope &&
-      scopeVersion === humanInboxScopeVersion &&
-      requestSeq === (head ? humanInboxHeadSeq : humanInboxPageSeq);
-    if (cursor === undefined && clientStore.getSnapshot().humanInbox.status === 'idle')
-      clientStore.setHumanInbox({ status: 'loading', error: undefined });
+      activityListScope() === scope &&
+      scopeVersion === activityListScopeVersion &&
+      requestSeq === (head ? activityListHeadSeq : activityListPageSeq);
+    if (cursor === undefined && clientStore.getSnapshot().activityList.status === 'idle')
+      clientStore.setActivityList({ status: 'loading', error: undefined });
     try {
       const page = await loadHumanAttention(call, category, 50, cursor, {
         botSlug,
@@ -1467,12 +1751,12 @@ export function createActions(
         snoozed,
       });
       if (!isCurrent()) return;
-      const priorState = clientStore.getSnapshot().humanInbox;
+      const priorState = clientStore.getSnapshot().activityList;
       if (priorState.category !== category) return;
       const prior = priorState.items;
-      if (background && (humanInboxPagesPending > 0 || prior.length > 150)) return;
-      if (!head && headVersion !== humanInboxHeadSeq) {
-        await loadHumanInboxFor(category, scope, undefined, prior.length + page.items.length);
+      if (background && (activityListPagesPending > 0 || prior.length > 150)) return;
+      if (!head && headVersion !== activityListHeadSeq) {
+        await loadActivityListFor(category, scope, undefined, prior.length + page.items.length);
         return;
       }
       let canonicalItems = page.items;
@@ -1501,7 +1785,7 @@ export function createActions(
       if (!isCurrent()) return;
       if (
         background &&
-        (humanInboxPagesPending > 0 || clientStore.getSnapshot().humanInbox.items.length > 150)
+        (activityListPagesPending > 0 || clientStore.getSnapshot().activityList.items.length > 150)
       )
         return;
       const items = head
@@ -1510,40 +1794,59 @@ export function createActions(
             ...prior,
             ...canonicalItems.filter((item) => !prior.some((seen) => seen.id === item.id)),
           ];
-      clientStore.setHumanInbox({ status: 'ready', items, nextCursor, error: undefined });
+      clientStore.setActivityList({
+        status: 'ready',
+        items,
+        nextCursor,
+        error: undefined,
+      });
     } catch (error) {
-      if (!isCurrent() || clientStore.getSnapshot().humanInbox.category !== category) return;
-      clientStore.setHumanInbox({ status: 'error', error: errorMessage(error) });
+      if (!isCurrent() || clientStore.getSnapshot().activityList.category !== category) return;
+      clientStore.setActivityList({
+        status: 'error',
+        error: errorMessage(error),
+      });
     }
   };
   const loadOpeningTimeline = async (channelId: string, active: ConversationSelection) => {
-    const anchor = await loadReadPosition(call, channelId);
-    if (currentSelection() !== active) return;
-    if (anchor !== undefined) {
-      try {
-        const opened = await loadTimelinePage(call, channelId, {
-          direction: 'around',
-          around: anchor,
-        });
-        return {
-          ...opened,
-          focusMessageId: undefined,
-          unreadAfterMessageId: unreadAfterAnchor(
-            opened.page.entries,
-            anchor,
-            opened.page.hasNewer,
-          ),
-        };
-      } catch (error) {
-        if (!(error instanceof BridgeCallError) || error.code !== 'invalid-input') throw error;
+    const controller = new AbortController();
+    const unsubscribe = clientStore.subscribe(() => {
+      if (currentSelection() !== active) controller.abort();
+    });
+    try {
+      if (currentSelection() !== active) return;
+      const anchor = await loadReadPosition(call, channelId, controller.signal);
+      if (currentSelection() !== active) return;
+      if (anchor !== undefined) {
+        try {
+          const opened = await loadTimelinePage(
+            call,
+            channelId,
+            { direction: 'around', around: anchor },
+            controller.signal,
+          );
+          return {
+            ...opened,
+            focusMessageId: undefined,
+            unreadAfterMessageId: unreadAfterAnchor(
+              opened.page.entries,
+              anchor,
+              opened.page.hasNewer,
+            ),
+          };
+        } catch (error) {
+          if (!(error instanceof BridgeCallError) || error.code !== 'invalid-input') throw error;
+        }
       }
+      if (currentSelection() !== active) return;
+      return {
+        ...(await loadTimelinePage(call, channelId, {}, controller.signal)),
+        focusMessageId: undefined,
+        unreadAfterMessageId: undefined,
+      };
+    } finally {
+      unsubscribe();
     }
-    if (currentSelection() !== active) return;
-    return {
-      ...(await loadTimelinePage(call, channelId)),
-      focusMessageId: undefined,
-      unreadAfterMessageId: undefined,
-    };
   };
   const refreshUnreadDivider = async (
     channelId: string,
@@ -1577,10 +1880,15 @@ export function createActions(
     const sourcePage =
       messageId === undefined
         ? undefined
-        : await loadTimelinePage(call, channelId, { direction: 'around', around: messageId });
+        : await loadTimelinePage(call, channelId, {
+            direction: 'around',
+            around: messageId,
+          });
     if (sourcePage !== undefined && currentSelection() !== requestedFrom) return;
     const selection: ConversationSelection = { kind: 'channel', channelId };
-    clientStore.select(selection, { deferConversation: messageId !== undefined });
+    clientStore.select(selection, {
+      deferConversation: messageId !== undefined,
+    });
     const active = currentSelection();
     if (active === undefined) return;
     if (messageId === undefined && clientStore.getSnapshot().conversation.status === 'ready') {
@@ -1633,7 +1941,11 @@ export function createActions(
       });
     } catch (error) {
       if (currentSelection() !== active) return;
-      clientStore.setConversation({ status: 'error', error: errorMessage(error), sending: false });
+      clientStore.setConversation({
+        status: 'error',
+        error: errorMessage(error),
+        sending: false,
+      });
     }
     if (channel.type === 'dm' && channel.botSlug !== undefined) {
       await loadSessionsFor(channel.botSlug, active);
@@ -1645,7 +1957,7 @@ export function createActions(
     channelId: string,
     messageId: string,
     submit: () => Promise<void>,
-    loadStatus: () => Promise<'pending' | 'submitted' | 'answered' | 'expired'>,
+    loadStatus: () => Promise<'pending' | 'submitted' | 'answered' | 'expired' | 'stopped'>,
   ): Promise<void> => {
     let resolved = false;
     try {
@@ -1655,23 +1967,23 @@ export function createActions(
       if (!resolved) {
         try {
           const status = await loadStatus();
-          resolved = status === 'expired' || status === 'answered';
+          resolved = status === 'expired' || status === 'stopped' || status === 'answered';
         } catch {}
       }
       if (resolved)
-        clientStore.setHumanInbox({
+        clientStore.setActivityList({
           items: clientStore
             .getSnapshot()
-            .humanInbox.items.filter(
+            .activityList.items.filter(
               (item) =>
                 item.kind !== kind || item.channelId !== channelId || item.messageId !== messageId,
             ),
         });
-      const scope = humanInboxScope();
+      const scope = activityListScope();
       await Promise.allSettled([
-        refreshHumanInboxStatus(),
+        refreshActivityListStatus(),
         ...(scope !== undefined
-          ? [loadHumanInboxFor(clientStore.getSnapshot().humanInbox.category, scope)]
+          ? [loadActivityListFor(clientStore.getSnapshot().activityList.category, scope)]
           : []),
       ]);
     }
@@ -1695,9 +2007,81 @@ export function createActions(
       throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
     return result.value as T;
   };
+  const host: prompts.PromptPresetClient = {
+    call: (method, args) => invoke(method, args ?? {}),
+  };
+  const humanAvatars = createHumanAvatarCache((humanIds) => loadHumanAvatars(call, humanIds));
   const actions: BridgeActions = {
+    ...botModeActions(call),
+    teamCall: call,
+    ...(folderAccess?.openModelPresets === undefined
+      ? {}
+      : { openModelPresets: folderAccess.openModelPresets }),
+    genuiDocumentView: (channelId, messageId, document) =>
+      loadGenuiDocumentView(call, channelId, messageId, document),
+    saveGenuiDocumentView: (channelId, messageId, document, expectedVersion, state) =>
+      saveGenuiDocumentView(call, channelId, messageId, document, expectedVersion, state),
+    async sendGenuiDocumentReply(channelId, body, submissionId, reply) {
+      reply = genuiDocumentReplySchema.parse(reply);
+      const channel = clientStore.getSnapshot().conversation.channel;
+      if (channel?.id !== channelId || channel.type !== 'dm')
+        throw new BridgeCallError('genui-unavailable', 'Document unavailable');
+      await sendChannelMessage(
+        call,
+        channelId,
+        body,
+        undefined,
+        undefined,
+        submissionId,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reply,
+      );
+      await actions.refreshChannelMessages(channelId);
+    },
+    genuiView: (channelId, messageId) => loadGenuiView(call, channelId, messageId),
+    saveGenuiView: (channelId, messageId, snapshotId, expectedVersion, state) =>
+      saveGenuiView(call, channelId, messageId, snapshotId, expectedVersion, state),
+    async sendGenuiReply(channelId, body, submissionId, reply) {
+      reply = genuiReplySchema.parse(reply);
+      const channel = clientStore.getSnapshot().conversation.channel;
+      if (channel?.id !== channelId || channel.type !== 'dm') throw new Error('genui-unavailable');
+      await sendChannelMessage(
+        call,
+        channelId,
+        body,
+        undefined,
+        undefined,
+        submissionId,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        reply,
+      );
+      await actions.refreshChannelMessages(channelId);
+    },
     tobHome: () => invoke('tobHome', {}),
     humanIdentity: (signal) => loadHumanIdentity(call, signal),
+    async humanAvatarSet(avatar) {
+      const identity = await setHumanAvatar(call, avatar);
+      if (avatar !== null && identity.avatarVersion !== undefined)
+        humanAvatars.put({
+          humanId: identity.humanId,
+          version: identity.avatarVersion,
+          avatar,
+        });
+      return identity;
+    },
+    humanAvatars,
     async sendHome(channelId, body, messageId, attachments) {
       const message = await sendChannelMessage(
         call,
@@ -1712,19 +2096,34 @@ export function createActions(
       await actions.load();
       await openChannelById(channelId);
     },
-    onboarding: (slug, action) => invoke('onboarding', { slug, action }),
-    onboardingModel: async (slug, expectedRevision, route, globalDefault) => {
-      const result = await invoke<{ revision: number }>('onboardingModel', {
-        slug,
+    onboarding: (slug, action) =>
+      invoke('onboarding', {
+        slug:
+          slug !== undefined &&
+          clientStore
+            .getSnapshot()
+            .bots.some((bot) => bot.slug === slug && bot.sharedBy !== undefined)
+            ? undefined
+            : slug,
+        action,
+      }),
+    onboardingModel: async (slug, expectedRevision, choice, globalDefault) => {
+      const result = await setOnboardingModel(host, {
+        ...(slug === undefined ? {} : { slug }),
         expectedRevision,
-        route,
+        ...('groupId' in choice
+          ? {
+              groupId: choice.groupId,
+              ...(choice.effort === undefined ? {} : { groupEffort: choice.effort }),
+            }
+          : { route: choice }),
         globalDefault,
       });
-      if (globalDefault) invalidateInheritedModelPlans();
+      if (globalDefault) invalidateInheritedModelPlans(actions);
       return result;
     },
     inheritModel: (slug, expectedRevision) =>
-      recorded(invoke('modelPlanInherit', { slug, expectedRevision }), () =>
+      recorded(inheritModelPlan(host, slug, expectedRevision), () =>
         actions.telemetryEvent('model:plan_update', { via: 'inherit' }),
       ),
     telemetryEvent: (event, properties = {}) => {
@@ -1739,34 +2138,28 @@ export function createActions(
     async botSystemPrompt(botSlug) {
       return invoke('botSystemPrompt', { slug: botSlug });
     },
-    promptParts: () => invoke('promptParts', {}),
-    promptPresets: () => invoke('promptPresets', {}),
+    promptParts: () => prompts.loadPromptParts(host),
+    promptPresets: () => prompts.loadPromptPresets(host),
     promptPresetCreate: (name, parts, limits) =>
-      invoke('promptPresetCreate', { name, parts, ...(limits === undefined ? {} : { limits }) }),
-    promptPresetUpdate: (id, change) => invoke('promptPresetUpdate', { id, ...change }),
-    promptPresetDelete: (id) => invoke('promptPresetDelete', { id }),
-    promptGlobalSet: (presetId) => invoke('promptGlobalSet', { presetId }),
+      prompts.createPromptPreset(host, name, parts, limits),
+    promptPresetUpdate: (id, change) => prompts.updatePromptPreset(host, id, change),
+    promptPresetDelete: (id) => prompts.deletePromptPreset(host, id),
+    promptGlobalSet: (presetId) => prompts.setGlobalPromptPreset(host, presetId),
     botPrompt: (slug) => invoke('botPrompt', { slug }),
     botPromptSet: (slug, change) => invoke('botPromptSet', { slug, ...change }),
     async botTurnInput(botSlug, turns = 1) {
       return invoke('botTurnInput', { slug: botSlug, turns });
     },
     async newBotSession(botSlug) {
-      await invoke('botNewSession', { slug: botSlug });
+      await botControl.newBotSession(bridgeHost(call), botSlug);
     },
     async retryMessage(channelId, messageId, recovery) {
-      await invoke('channelRetry', {
-        channelId,
-        messageId,
-        ...(recovery
-          ? { recovery: recovery.action, failureMessageId: recovery.failureMessageId }
-          : {}),
-      });
+      await retryChannelMessage(host, { channelId, messageId, recovery });
       await actions.refreshChannelMessages(channelId);
     },
     async compactBot(botSlug) {
       try {
-        return parseBotCompactResult(await invoke('botCompact', { slug: botSlug }));
+        return await botControl.compactBot(bridgeHost(call), botSlug);
       } catch (error) {
         if (error instanceof BridgeCallError && error.code === 'bot-busy')
           return { outcome: 'busy', tokensBefore: null, tokensAfter: null };
@@ -1774,23 +2167,41 @@ export function createActions(
       }
     },
     async stopBot(channelId, botSlug) {
-      try {
-        await invoke('channelBotStop', { channelId, botSlug });
-      } catch (error) {
-        if (error instanceof BridgeCallError && error.code === 'not-working') return 'not-working';
-        throw error;
-      }
+      const stopped = await stopBot(call, botSlug, channelId);
+      if (stopped.stopped.length === 0) return 'not-working';
       await actions.refreshChannelMessages(channelId).catch(() => undefined);
       return 'stopped';
     },
-    modelCatalog: () => loadModelCatalog(call),
+    async cancelAutoContinue(channelId, botSlug, requestMessageId) {
+      await botControl.stopBot(bridgeHost(call), {
+        channelId,
+        botSlug,
+        autoContinueFor: requestMessageId,
+      });
+      await actions.refreshChannelMessages(channelId).catch(() => undefined);
+    },
+    modelCatalog: () => {
+      const seen = modelFavoritesEpoch();
+      return loadModelCatalog(call).then((catalog) => {
+        rememberModelFavorites(
+          catalog.favorites,
+          call,
+          (choice, favorite) => setModelFavorite(call, choice, favorite),
+          seen,
+        );
+        return catalog;
+      });
+    },
+    setModelFavorite: (choice, favorite) => setModelFavorite(call, choice, favorite),
     modelPresets: () => loadModelPresets(call),
+    routingGroups: () => loadRoutingGroups(call),
+    routingGroupEngines: () => loadRoutingGroupEngines(bridgeHost(call)),
+    createRoutingGroup: (name, members) => createRoutingGroup(call, name, members),
+    updateRoutingGroup: (id, expectedRevision, name, members) =>
+      updateRoutingGroup(call, id, expectedRevision, name, members),
+    deleteRoutingGroup: (id, expectedRevision) => deleteRoutingGroup(call, id, expectedRevision),
     modelPlan: (slug) => loadModelPlan(call, slug),
     modelPlanState: (slug) => loadModelPlanState(call, slug),
-    createModelPreset: (name, orchestrator, assignmentDefault, assignmentModels) =>
-      createModelPreset(call, name, orchestrator, assignmentDefault, assignmentModels),
-    updateModelPreset: (id, expectedRevision, name, orchestrator, assignmentDefault) =>
-      updateModelPreset(call, id, expectedRevision, name, orchestrator, assignmentDefault),
     applyModelPreset: (slug, presetId) =>
       recorded(applyModelPreset(call, slug, presetId), () =>
         actions.telemetryEvent('model:plan_update', { via: 'preset' }),
@@ -1799,13 +2210,25 @@ export function createActions(
       recorded(customizeModelPlan(call, slug, orchestrator, expectedRevision), () =>
         actions.telemetryEvent('model:plan_update', { via: 'custom' }),
       ),
+    chooseModelPlanGroup: (slug, groupId, expectedRevision, effort) =>
+      recorded(chooseModelPlanGroup(call, slug, groupId, expectedRevision, effort), () =>
+        actions.telemetryEvent('model:plan_update', { via: 'group' }),
+      ),
     setStandingLimits: (slug, limits) => setStandingLimits(call, slug, limits),
     setModelPlanAssignments: (slug, expectedRevision, assignmentDefault, assignmentModels) =>
       recorded(
         setModelPlanAssignments(call, slug, expectedRevision, assignmentDefault, assignmentModels),
         () => actions.telemetryEvent('model:plan_update', { via: 'assignments' }),
       ),
-    setModelPlan: (slug, expectedRevision, orchestrator, assignmentDefault, assignmentModels) =>
+    setModelPlan: (
+      slug,
+      expectedRevision,
+      orchestrator,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+      groups,
+    ) =>
       recorded(
         setModelPlan(
           call,
@@ -1814,6 +2237,8 @@ export function createActions(
           orchestrator,
           assignmentDefault,
           assignmentModels,
+          openAssignmentModels,
+          groups,
         ),
         () => actions.telemetryEvent('model:plan_update', { via: 'plan' }),
       ),
@@ -1847,10 +2272,8 @@ export function createActions(
     readGroupWorkspaceGrant: (channelId, slug, path) =>
       readGroupWorkspaceGrant(call, slug, channelId, path),
     async memoryDirectory(slug) {
-      const result = await call('get', { slug });
-      if (!result.ok) throw new BridgeCallError(result.error.code, result.error.message);
-      const bot = (result.value as { bot?: { memoryDir?: unknown } }).bot;
-      return typeof bot?.memoryDir === 'string' ? bot.memoryDir : undefined;
+      const { bot } = await loadBotDetail(host, slug);
+      return typeof bot['memoryDir'] === 'string' ? bot['memoryDir'] : undefined;
     },
     moveMemoryLocation: (slug, location) => moveMemoryLocation(call, slug, location),
     listWorkspaceOptions: () => loadWorkspaceOptions(call),
@@ -1866,6 +2289,17 @@ export function createActions(
     approvalTemplates: (slug) => loadApprovalTemplates(call, slug),
     setBotApprovalTemplate: (slug, template) => setBotApprovalTemplate(call, slug, template),
     approvalReviewerModel: () => loadApprovalReviewerModel(call),
+    voiceProviders: (slug) => loadVoiceProviders(call, slug),
+    dictationPort: (slug) => createVoiceDictationPort(call, { slug }),
+    addVoiceProvider: (input) => addVoiceProvider(call, input),
+    removeVoiceProvider: (id) => removeVoiceProvider(call, id),
+    testVoiceProvider: (id, voiceId) => testVoiceProvider(call, id, voiceId),
+    synthesizeVoice: (input) => synthesizeVoice(call, input),
+    setBotVoice: (slug, providerId, voiceId) => setBotVoice(call, slug, providerId, voiceId),
+    setBotAsr: (slug, providerId) => setBotAsr(call, slug, providerId),
+    setVoiceDefault: (kind, providerId, voiceId) =>
+      setVoiceDefault(call, kind, providerId, voiceId),
+    setSpeechThreshold: (dbfs) => setSpeechThreshold(call, dbfs),
     setApprovalReviewerModel: (model) => setApprovalReviewerModel(call, model),
     revokeToolApprovalRule: (slug, id) => revokeToolApprovalRule(call, slug, id),
     toolApprovalStatus: (channelId, messageId) =>
@@ -1875,8 +2309,13 @@ export function createActions(
     privateInputSubmit: (channelId, messageId, values) =>
       submitPrivateInput(call, channelId, messageId, values),
     privateInputCancel: (channelId, messageId) => cancelPrivateInput(call, channelId, messageId),
+    settleTakeover: (channelId, messageId, outcome) =>
+      settleTakeover(call, channelId, messageId, outcome),
     privateAccountStatus: async (channelId, messageId) => {
-      const result = await call('privateAccountStatus', { channelId, messageId });
+      const result = await call('privateAccountStatus', {
+        channelId,
+        messageId,
+      });
       if (!result.ok) throw new Error('Private account status is unavailable');
       const value =
         result.value as import('../../../core/src/credentials/contracts.js').PrivateAccountStatus;
@@ -1894,7 +2333,10 @@ export function createActions(
       return value;
     },
     privateInputReplace: async (channelId, messageId) => {
-      const result = await call('privateInputReplace', { channelId, messageId });
+      const result = await call('privateInputReplace', {
+        channelId,
+        messageId,
+      });
       const replacement = result.ok
         ? (result.value as { messageId?: unknown }).messageId
         : undefined;
@@ -1908,7 +2350,11 @@ export function createActions(
       return parsePrivateAccountList(result.value);
     },
     privateMcpServerEnable: async (slug, serverName, enabled) => {
-      const result = await call('privateMcpServerEnable', { slug, serverName, enabled });
+      const result = await call('privateMcpServerEnable', {
+        slug,
+        serverName,
+        enabled,
+      });
       if (!result.ok) throw new Error('MCP server setting is unavailable');
       return (result.value as { accepted?: unknown }).accepted === true;
     },
@@ -1918,7 +2364,10 @@ export function createActions(
       return (result.value as { removed?: unknown }).removed === true;
     },
     privateAccountRevoke: async (channelId, messageId) => {
-      const result = await call('privateAccountRevoke', { channelId, messageId });
+      const result = await call('privateAccountRevoke', {
+        channelId,
+        messageId,
+      });
       if (!result.ok) throw new Error('Private account revocation is unavailable');
       const value =
         result.value as import('../../../core/src/credentials/contracts.js').PrivateRevocationResult;
@@ -1979,28 +2428,31 @@ export function createActions(
       await refreshRoster(signal);
     },
     async deletionPreview(slug) {
-      const result = await call('deletionPreview', { slug });
-      if (!result.ok) throw new Error(result.error.message);
-      return (result.value as { preview: PersonaBotDeletionPreview }).preview;
+      return (await deletionReaders.previewBotDeletion(bridgeHost(call), slug)).preview;
     },
     async deletionConfirm(slug, token, eraseMemory) {
-      const result = await call('deletionConfirm', { slug, token, eraseMemory });
-      if (!result.ok) throw new Error(result.error.message);
+      const { deletion } = await deletionReaders.confirmBotDeletion(bridgeHost(call), {
+        slug,
+        token,
+        eraseMemory,
+      });
       await refreshRoster();
-      return (result.value as { deletion: PersonaBotDeletion }).deletion;
+      return deletion;
     },
     async deletionRetry(slug) {
-      const result = await call('deletionRetry', { slug });
-      if (!result.ok) throw new Error(result.error.message);
+      const { deletion } = await deletionReaders.retryBotDeletion(bridgeHost(call), slug);
       await refreshRoster();
-      return (result.value as { deletion: PersonaBotDeletion }).deletion;
+      return deletion;
     },
     async deletionFolderApplications(slug) {
       const result = await call('deletionMemoryFolder', { slug });
       if (!result.ok) throw new Error(result.error.message);
       const target = (result.value as { target: HostFileTarget }).target;
       return (
-        folderAccess?.nativeFiles?.applications(target) ?? { available: false, applications: [] }
+        folderAccess?.nativeFiles?.applications(target) ?? {
+          available: false,
+          applications: [],
+        }
       );
     },
     async deletionFolderOpen(slug, choice) {
@@ -2067,7 +2519,8 @@ export function createActions(
           clientStore.setConversation({ channel, error: undefined });
           await actions.refreshChannelMessages(channel.id);
           await refreshUnreadDivider(channel.id, active);
-          await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
+          if (bot.sharedBy === undefined)
+            await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
           return;
         }
         if (cached) {
@@ -2097,7 +2550,11 @@ export function createActions(
             ? listedChannel
             : latestMessage === undefined
               ? (listedChannel ?? channel)
-              : { ...(listedChannel ?? channel), updatedAt: latestMessage.at, latestMessage };
+              : {
+                  ...(listedChannel ?? channel),
+                  updatedAt: latestMessage.at,
+                  latestMessage,
+                };
         clientStore.upsertChannel(projectedChannel);
         clientStore.setConversation({
           status: 'ready',
@@ -2120,7 +2577,8 @@ export function createActions(
           sending: false,
         });
       }
-      await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
+      if (bot.sharedBy === undefined)
+        await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
     },
     refreshBotInbox(slug) {
       const selection = currentSelection();
@@ -2135,40 +2593,40 @@ export function createActions(
       return loadBotInboxFor(slug, selection, cursor);
     },
     openActivityCenter() {
-      return actions.openHumanInbox();
+      return actions.openActivityList();
     },
     attachActivityCenterPanel() {
       const scope = {};
       activityPanelScope = scope;
-      humanInboxScopeVersion += 1;
+      activityListScopeVersion += 1;
       return () => {
         if (activityPanelScope !== scope) return;
         activityPanelScope = undefined;
-        humanInboxScopeVersion += 1;
+        activityListScopeVersion += 1;
       };
     },
     botInboxPage: (slug, cursor) => loadBotAttention(call, slug, 50, cursor),
     activityPage: (category, filters, cursor) =>
       loadHumanAttention(call, category, 50, cursor, filters),
-    openHumanInbox() {
+    openActivityList() {
       clientStore.select({ kind: 'inbox' });
       actions.telemetryEvent('activity:inbox_open');
-      void refreshHumanInboxStatus();
-      const scope = humanInboxScope();
+      void refreshActivityListStatus();
+      const scope = activityListScope();
       if (scope === undefined) return Promise.resolve();
-      return loadHumanInboxFor(clientStore.getSnapshot().humanInbox.category, scope);
+      return loadActivityListFor(clientStore.getSnapshot().activityList.category, scope);
     },
-    refreshHumanInboxStatus,
-    refreshHumanInbox(category, background = false) {
-      const scope = humanInboxScope();
+    refreshActivityListStatus,
+    refreshActivityList(category, background = false) {
+      const scope = activityListScope();
       if (scope === undefined) return Promise.resolve();
-      const prior = clientStore.getSnapshot().humanInbox;
-      if (background && (humanInboxPagesPending > 0 || prior.items.length > 150))
+      const prior = clientStore.getSnapshot().activityList;
+      if (background && (activityListPagesPending > 0 || prior.items.length > 150))
         return Promise.resolve();
       const nextCategory = category ?? prior.category;
       if (nextCategory !== prior.category) {
-        humanInboxScopeVersion += 1;
-        clientStore.setHumanInbox({
+        activityListScopeVersion += 1;
+        clientStore.setActivityList({
           category: nextCategory,
           sort: nextCategory === 'action' ? 'oldest' : 'newest',
           botSlug: nextCategory === 'unread' ? undefined : prior.botSlug,
@@ -2180,12 +2638,12 @@ export function createActions(
           error: undefined,
         });
       }
-      return loadHumanInboxFor(nextCategory, scope, undefined, prior.items.length, background);
+      return loadActivityListFor(nextCategory, scope, undefined, prior.items.length, background);
     },
-    setHumanInboxFilters(filters) {
-      const scope = humanInboxScope();
+    setActivityListFilters(filters) {
+      const scope = activityListScope();
       if (scope === undefined) return Promise.resolve();
-      const prior = clientStore.getSnapshot().humanInbox;
+      const prior = clientStore.getSnapshot().activityList;
       if (
         prior.botSlug === filters.botSlug &&
         prior.channelId === filters.channelId &&
@@ -2193,8 +2651,8 @@ export function createActions(
         prior.snoozed === (filters.snoozed ?? prior.snoozed)
       )
         return Promise.resolve();
-      humanInboxScopeVersion += 1;
-      clientStore.setHumanInbox({
+      activityListScopeVersion += 1;
+      clientStore.setActivityList({
         ...filters,
         snoozed: filters.snoozed ?? prior.snoozed,
         status: 'loading',
@@ -2202,49 +2660,76 @@ export function createActions(
         nextCursor: undefined,
         error: undefined,
       });
-      return loadHumanInboxFor(prior.category, scope);
+      return loadActivityListFor(prior.category, scope);
     },
-    loadMoreHumanInbox() {
-      const scope = humanInboxScope();
-      const state = clientStore.getSnapshot().humanInbox;
+    loadMoreActivityList() {
+      const scope = activityListScope();
+      const state = clientStore.getSnapshot().activityList;
       if (scope === undefined || state.nextCursor === undefined) return Promise.resolve();
-      humanInboxPagesPending += 1;
-      return loadHumanInboxFor(state.category, scope, state.nextCursor).finally(() => {
-        humanInboxPagesPending -= 1;
+      activityListPagesPending += 1;
+      return loadActivityListFor(state.category, scope, state.nextCursor).finally(() => {
+        activityListPagesPending -= 1;
       });
     },
     async allowAutoRejectionOnce(item) {
       await overrideAutoRejection(call, item.id);
-      humanInboxScopeVersion += 1;
-      humanInboxHeadSeq += 1;
-      humanInboxPageSeq += 1;
-      const state = clientStore.getSnapshot().humanInbox;
-      clientStore.setHumanInbox({
+      activityListScopeVersion += 1;
+      activityListHeadSeq += 1;
+      activityListPageSeq += 1;
+      const state = clientStore.getSnapshot().activityList;
+      clientStore.setActivityList({
         items: state.items.filter(
           (entry) => entry.id !== item.id || entry.sourceEventId !== item.sourceEventId,
         ),
       });
-      void Promise.all([actions.refreshHumanInbox(), actions.refreshHumanInboxStatus()]).catch(
+      void Promise.all([actions.refreshActivityList(), actions.refreshActivityListStatus()]).catch(
         () => undefined,
       );
     },
-    async dismissHumanInbox(item) {
-      await dismissHumanInboxItem(call, item.id, item.sourceEventId ?? '');
+    async dismissActivityList(item) {
+      await dismissActivityListItem(call, item.id, item.sourceEventId ?? '');
       actions.telemetryEvent('activity:inbox_item_dismiss');
-      humanInboxScopeVersion += 1;
-      humanInboxHeadSeq += 1;
-      humanInboxPageSeq += 1;
-      const state = clientStore.getSnapshot().humanInbox;
-      clientStore.setHumanInbox({
+      activityListScopeVersion += 1;
+      activityListHeadSeq += 1;
+      activityListPageSeq += 1;
+      const state = clientStore.getSnapshot().activityList;
+      clientStore.setActivityList({
         items: state.items.filter(
           (entry) => entry.id !== item.id || entry.sourceEventId !== item.sourceEventId,
         ),
       });
-      void Promise.all([actions.refreshHumanInbox(), actions.refreshHumanInboxStatus()]).catch(
+      void Promise.all([actions.refreshActivityList(), actions.refreshActivityListStatus()]).catch(
         () => undefined,
       );
     },
-    async humanInboxContextPage(channelId, request, signal) {
+    async dismissAllActivityList(filter) {
+      let dismissed = 0;
+      let more = false;
+      try {
+        for (const category of filter.categories) {
+          const result = await dismissAllActivityListItems(call, {
+            kind: filter.kind,
+            category,
+            botSlug: filter.botSlug,
+            channelId: filter.channelId,
+          });
+          dismissed += result.dismissed;
+          more ||= result.more;
+        }
+      } finally {
+        activityListScopeVersion += 1;
+        activityListHeadSeq += 1;
+        activityListPageSeq += 1;
+        void Promise.all([
+          actions.refreshActivityList(),
+          actions.refreshActivityListStatus(),
+        ]).catch(() => undefined);
+      }
+      return { dismissed, more };
+    },
+    channelFilesPage: (channelId, request, signal) =>
+      loadFilesPage(call, channelId, request, signal),
+    async activityListContextPage(channelId, request, signal) {
       const { page } = await loadTimelinePage(call, channelId, request, signal);
       if (
         request.direction === 'around' &&
@@ -2262,29 +2747,29 @@ export function createActions(
         return page;
       });
     },
-    async snoozeHumanInbox(item, until) {
-      await snoozeHumanInboxItem(call, item.id, item.sourceEventId ?? '', until);
+    async snoozeActivityList(item, until) {
+      await snoozeActivityListItem(call, item.id, item.sourceEventId ?? '', until);
       actions.telemetryEvent('activity:inbox_item_snooze');
-      humanInboxScopeVersion += 1;
-      humanInboxHeadSeq += 1;
-      humanInboxPageSeq += 1;
-      const state = clientStore.getSnapshot().humanInbox;
-      clientStore.setHumanInbox({
+      activityListScopeVersion += 1;
+      activityListHeadSeq += 1;
+      activityListPageSeq += 1;
+      const state = clientStore.getSnapshot().activityList;
+      clientStore.setActivityList({
         items: state.items.filter(
           (entry) => entry.id !== item.id || entry.sourceEventId !== item.sourceEventId,
         ),
       });
-      void Promise.all([actions.refreshHumanInbox(), actions.refreshHumanInboxStatus()]).catch(
+      void Promise.all([actions.refreshActivityList(), actions.refreshActivityListStatus()]).catch(
         () => undefined,
       );
     },
     async ignoreHumanReport(sourceEventId) {
       await ignoreHumanAssignmentReport(call, sourceEventId);
-      humanInboxScopeVersion += 1;
-      humanInboxHeadSeq += 1;
-      humanInboxPageSeq += 1;
-      const state = clientStore.getSnapshot().humanInbox;
-      clientStore.setHumanInbox({
+      activityListScopeVersion += 1;
+      activityListHeadSeq += 1;
+      activityListPageSeq += 1;
+      const state = clientStore.getSnapshot().activityList;
+      clientStore.setActivityList({
         items: state.items.filter((item) => item.sourceEventId !== sourceEventId),
       });
     },
@@ -2294,7 +2779,7 @@ export function createActions(
     openChannelAtMessage(channelId, messageId) {
       return openChannelById(channelId, messageId);
     },
-    async humanInboxContext(channelId, messageId, signal) {
+    async activityListContext(channelId, messageId, signal) {
       const { page } = await loadTimelinePage(
         call,
         channelId,
@@ -2314,7 +2799,7 @@ export function createActions(
         throw new Error('Source message is no longer available');
       return page.entries;
     },
-    async replyFromHumanInbox(channelId, messageId, body, clientMessageId) {
+    async replyFromActivityList(channelId, messageId, body, clientMessageId) {
       const text = body.trim();
       const message = await sendChannelMessage(
         call,
@@ -2331,7 +2816,9 @@ export function createActions(
         message.author.kind !== 'human'
       )
         throw new Error('Channel reply could not be confirmed');
-      actions.telemetryEvent('activity:inbox_reply_send', { target: 'message' });
+      actions.telemetryEvent('activity:inbox_reply_send', {
+        target: 'message',
+      });
       return message;
     },
     pickWorkspaceFolder() {
@@ -2341,7 +2828,7 @@ export function createActions(
     async resolveWorkspaceGrantRequest(slug, messageId, path, _body, sourceChannelId) {
       const channelId = sourceChannelId ?? 'dm-' + slug;
       const readRequest = async () => {
-        const messages = await actions.humanInboxContext(channelId, messageId);
+        const messages = await actions.activityListContext(channelId, messageId);
         return messages.find((message) => message.id === messageId);
       };
       await settleNativeInboxAction(
@@ -2367,28 +2854,26 @@ export function createActions(
             messageId,
             workspace.workspaceId,
           );
-          publishWorkspaceGrantChange(slug);
+          publishWorkspaceGrantChange(slug, actions);
         },
         async () => ((await readRequest())?.grantRequestResolved === true ? 'expired' : 'pending'),
       );
       actions.telemetryEvent('activity:grant_request_submit');
     },
-    async markAllRead() {
+    async markAllRead(scope) {
       try {
-        await markAllReadPositions(call);
+        await markAllReadPositions(call, scope);
       } catch (error) {
-        await refreshHumanInboxStatus();
+        await refreshActivityListStatus();
         throw error;
       }
-      const requestSeq = ++humanInboxStatusSeq;
-      const status = await loadInboxStatus();
-      if (requestSeq === humanInboxStatusSeq) clientStore.setHumanInbox(status);
-      if (humanInboxScope() !== undefined) await actions.refreshHumanInbox();
+      await refreshActivityListStatus();
+      if (activityListScope() !== undefined) await actions.refreshActivityList();
     },
     async markRead(channelId, messageId) {
       await markReadPosition(call, channelId, messageId);
-      await refreshHumanInboxStatus();
-      if (humanInboxScope() !== undefined) await actions.refreshHumanInbox();
+      await refreshActivityListStatus();
+      if (activityListScope() !== undefined) await actions.refreshActivityList();
     },
     async reactToMessage(channelId, messageId, emoji, active) {
       const apply = (reactions: (current: ChannelMessage) => ChannelMessage['reactions']) => {
@@ -2426,9 +2911,9 @@ export function createActions(
         .getSnapshot()
         .channels.find((channel) => channel.id === channelId)?.latestMessage?.id;
       if (messageId === undefined) return;
-      clientStore.setHumanInbox({
+      clientStore.setActivityList({
         channelUnread: Object.fromEntries(
-          Object.entries(clientStore.getSnapshot().humanInbox.channelUnread).filter(
+          Object.entries(clientStore.getSnapshot().activityList.channelUnread).filter(
             ([id]) => id !== channelId,
           ),
         ),
@@ -2436,7 +2921,7 @@ export function createActions(
       try {
         await actions.markRead(channelId, messageId);
       } catch (error) {
-        await refreshHumanInboxStatus();
+        await refreshActivityListStatus();
         throw error;
       }
     },
@@ -2468,12 +2953,14 @@ export function createActions(
           message.assignmentReply.sourceEventId !== sourceEventId
         )
           throw new Error('Assignment response could not be confirmed');
-        actions.telemetryEvent('activity:inbox_reply_send', { target: 'assignment' });
+        actions.telemetryEvent('activity:inbox_reply_send', {
+          target: 'assignment',
+        });
         return message;
       } finally {
         await Promise.allSettled([
-          refreshHumanInboxStatus(),
-          ...(humanInboxScope() !== undefined ? [actions.refreshHumanInbox()] : []),
+          refreshActivityListStatus(),
+          ...(activityListScope() !== undefined ? [actions.refreshActivityList()] : []),
         ]);
       }
     },
@@ -2490,7 +2977,7 @@ export function createActions(
       clientStore.setConversation({
         timeline: { ...timeline, loadingOlder: true, olderError: undefined },
       });
-      const viaJournal = prependChannelJournal(channelId);
+      const viaJournal = prependChannelJournal(channelId, clientStore);
       if (viaJournal !== undefined) {
         let olderError: string | undefined;
         try {
@@ -2501,7 +2988,11 @@ export function createActions(
         const latest = clientStore.getSnapshot();
         if (latest.conversation.channel?.id !== channelId) return;
         clientStore.setConversation({
-          timeline: { ...latest.conversation.timeline, loadingOlder: false, olderError },
+          timeline: {
+            ...latest.conversation.timeline,
+            loadingOlder: false,
+            olderError,
+          },
         });
         return;
       }
@@ -2745,7 +3236,10 @@ export function createActions(
     async messageAttachmentApplications(channelId, messageId, fileId) {
       const target = await loadMessageAttachmentTarget(call, channelId, messageId, fileId);
       return (
-        folderAccess?.nativeFiles?.applications(target) ?? { available: false, applications: [] }
+        folderAccess?.nativeFiles?.applications(target) ?? {
+          available: false,
+          applications: [],
+        }
       );
     },
     async messageAttachmentOpen(channelId, messageId, fileId, choice) {
@@ -2762,6 +3256,9 @@ export function createActions(
     },
     async messageAttachmentDownload(channelId, messageId, fileId) {
       const target = await loadMessageAttachmentTarget(call, channelId, messageId, fileId);
+      const path =
+        '/api/botharness/attachment?' + new URLSearchParams({ channelId, messageId, fileId });
+      if (resources !== undefined) return resources.download(path, target.relativePath);
       const anchor = document.createElement('a');
       anchor.href =
         './api/botharness/attachment?' + new URLSearchParams({ channelId, messageId, fileId });
@@ -2774,7 +3271,10 @@ export function createActions(
     async workspaceFileApplications(slug, grantId) {
       const target = await loadWorkspaceFileTarget(call, slug, grantId);
       return (
-        folderAccess?.nativeFiles?.applications(target) ?? { available: false, applications: [] }
+        folderAccess?.nativeFiles?.applications(target) ?? {
+          available: false,
+          applications: [],
+        }
       );
     },
     async workspaceFileOpen(slug, grantId, choice) {
@@ -2794,7 +3294,10 @@ export function createActions(
     async memoryFileApplications(slug, path) {
       const target = await loadMemoryFileTarget(call, slug, path);
       return (
-        folderAccess?.nativeFiles?.applications(target) ?? { available: false, applications: [] }
+        folderAccess?.nativeFiles?.applications(target) ?? {
+          available: false,
+          applications: [],
+        }
       );
     },
     async memoryFileOpen(slug, path, choice) {
@@ -2812,6 +3315,11 @@ export function createActions(
     async memoryFileDownload(slug, path) {
       const target = await loadMemoryFileTarget(call, slug, path);
       if (target.kind !== 'file') throw new Error('Only files can be downloaded');
+      if (resources !== undefined)
+        return resources.download(
+          '/api/botharness/memory/file?' + new URLSearchParams({ slug, path }),
+          path.split('/').at(-1) ?? '',
+        );
       const anchor = document.createElement('a');
       anchor.href = memoryDownloadUrl(slug, path);
       anchor.download = path.split('/').at(-1) ?? '';
@@ -2875,7 +3383,7 @@ export function createActions(
       setMessagingGroupPolicy(call, slug, grantId, policy),
     messagingReceive: (slug, grantId, enabled) => setMessagingReceive(call, slug, grantId, enabled),
     messagingSource: (slug, sourceEventId) => readMessagingSource(call, slug, sourceEventId),
-    channelBridges: (channelId) => loadChannelBridges(call, channelId),
+    channelBridges: (channelId, mode) => loadChannelBridges(call, channelId, mode),
     channelBridge: (channelId, input) => manageChannelBridge(call, channelId, input),
     channelIngests: (channelId) => loadChannelIngests(call, channelId),
     channelIngest: (channelId, input) => manageChannelIngest(call, channelId, input),
@@ -2883,6 +3391,7 @@ export function createActions(
       setApprovalRoute(call, slug, pairingId, expectedRevision),
     approvalTest: (slug) => testApprovalRoute(call, slug),
     approvalRetry: (slug, id) => retryApprovalNotification(call, slug, id),
+    questionRetry: (slug, id) => retryQuestionNotification(call, slug, id),
     failureAlertsSet: (slug, enabled, expectedRevision) =>
       setFailureAlerts(call, slug, enabled, expectedRevision),
     failureAlertsTest: (slug) => testFailureAlerts(call, slug),
@@ -2891,7 +3400,7 @@ export function createActions(
     senderAccess: (slug, input) => changeExternalSenderAccess(call, slug, input),
     messagingIdentity: (slug, input) => manageMessagingIdentity(call, slug, input),
     messagingConversation: (slug, input) => manageMessagingConversation(call, slug, input),
-    messagingSnapshot: (slug) => loadMessagingSnapshot(call, slug),
+    messagingSnapshot: (slug, mode) => loadMessagingSnapshot(call, slug, mode),
     messagingReachable: (slug, bindingId, cursor) =>
       loadMessagingReachable(call, slug, bindingId, cursor),
     messagingPostConversation: (slug, bindingId, conversationId, requestId, text) =>
@@ -2944,9 +3453,23 @@ export function createActions(
       if (selection === undefined || selectedBotSlug(selection) !== slug) return;
       await loadSessionsFor(slug, selection);
     },
+    async stopSession(slug, session, channelId) {
+      const stopped = await stopSession(call, slug, session, channelId);
+      if (stopped.messageId !== undefined && channelId !== undefined)
+        await actions.refreshChannelMessages(channelId).catch(() => undefined);
+      const selection = currentSelection();
+      if (selection === undefined || selectedBotSlug(selection) !== slug) return;
+      await loadSessionsFor(slug, selection);
+    },
     allBotPreview: (channelId) => loadAllBotPreview(call, channelId),
-    validateComposerDraft: (channelId, attachments, replyTo) =>
-      validateComposerDraft(call, channelId, attachments, replyTo),
+    subscribeSkillCatalog,
+    skillCatalog: (channelId) => loadChannelSkillCatalog(call, channelId),
+    sessionSkillCatalog: (slug, sessionId) => loadSessionSkillCatalog(call, slug, sessionId),
+    botSkills: (slug) => loadBotSkills(call, slug),
+    skillDetail: (name, owner) => loadSkillDetail(call, name, owner),
+    botSkillRemove: (slug, name) => removeBotSkill(call, slug, name),
+    validateComposerDraft: (channelId, attachments, replyTo, quotes) =>
+      validateComposerDraft(call, channelId, attachments, replyTo, quotes),
     async send(
       body,
       replyTo,
@@ -2957,6 +3480,8 @@ export function createActions(
       grantRequestResolution,
       allBotMention,
       submissionId,
+      skillInvocations,
+      quotes,
     ) {
       let snapshot = clientStore.getSnapshot();
       const channel = snapshot.conversation.channel;
@@ -2972,8 +3497,10 @@ export function createActions(
         channel.botSlug !== undefined &&
         !attachments?.length &&
         !replyTo &&
+        !quotes?.length &&
         !mentions?.length &&
         !channelRefs?.length &&
+        !skillInvocations?.length &&
         !memorySwitchTarget &&
         !grantRequestResolution
       ) {
@@ -2981,6 +3508,15 @@ export function createActions(
         if (!(typeof prepared === 'boolean' ? prepared : await prepared)) return false;
       }
       const replyTarget = snapshot.conversation.messages.find((message) => message.id === replyTo);
+      const quoteEcho = quotes?.map((quote) => {
+        const target = snapshot.conversation.messages.find(
+          (message) => message.id === quote.messageId,
+        );
+        return {
+          ...quoteRefOf(quote),
+          preview: target === undefined ? null : replyPreviewOf(target),
+        };
+      });
       if (snapshot.conversation.timeline.hasNewer) {
         try {
           const { page, revision } = await loadTimelinePage(call, channel.id);
@@ -3015,6 +3551,11 @@ export function createActions(
           mentions: mentions ?? [],
           channelRefs: channelRefs ?? [],
           ...(replyTo === undefined ? {} : { replyTo }),
+          ...(quotes === undefined || quotes.length === 0
+            ? {}
+            : {
+                quotes: quotes.map(quoteRefOf),
+              }),
           ...(attachments === undefined || attachments.length === 0 ? {} : { attachments }),
         });
       onboardingFor(actions).markSubmitted(channel.id, text);
@@ -3026,7 +3567,7 @@ export function createActions(
           {
             id: localId,
             at: new Date().toISOString(),
-            author: { kind: 'human' },
+            author: currentHumanAuthor(),
             body: text,
             ...(attachments === undefined ? {} : { attachments }),
             ...(mentions === undefined ? {} : { mentions }),
@@ -3036,11 +3577,9 @@ export function createActions(
               ? {}
               : {
                   replyTo,
-                  replyToPreview:
-                    replyTarget === undefined
-                      ? null
-                      : { author: replyTarget.author, body: replyTarget.body },
+                  replyToPreview: replyTarget === undefined ? null : replyPreviewOf(replyTarget),
                 }),
+            ...(quoteEcho === undefined || quoteEcho.length === 0 ? {} : { quotes: quoteEcho }),
             pending: true,
           },
         ],
@@ -3063,6 +3602,9 @@ export function createActions(
           grantRequestResolution,
           undefined,
           allBotMention,
+          undefined,
+          skillInvocations,
+          quotes,
         );
         remainingFailures(channel.id, [message]);
         settleSubmission(channel.id, localId, 'sent');
@@ -3290,12 +3832,15 @@ export function createActions(
       await openCreatedBot(bot, sectionId);
     },
     async importBotZip(file, sectionId) {
+      if (resources !== undefined) throw new Error('remote-bot-import-unavailable');
       return openCreatedBot(await importBotZip(file), sectionId);
     },
     botZipFiles(slug) {
+      if (resources !== undefined) throw new Error('remote-bot-export-unavailable');
       return loadBotZipFiles(slug);
     },
     async exportBotZip(slug, displayName, choice) {
+      if (resources !== undefined) throw new Error('remote-bot-export-unavailable');
       const { blob, name } = await downloadBotZip(slug, displayName, choice);
       const url = URL.createObjectURL(blob);
       const anchor = document.createElement('a');
@@ -3306,8 +3851,16 @@ export function createActions(
       anchor.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
     },
-    async createGroup(name, sectionId) {
-      const channel = await createGroupChannel(call, name);
+    async previewBotImport(gitUrl) {
+      const result = await call('botImportPreview', { gitUrl });
+      if (!result.ok) throw new BridgeCallError(result.error.code, result.error.message);
+      const value = result.value;
+      if (typeof value !== 'object' || value === null || !('source' in value))
+        throw new Error('Invalid Git preview');
+      return gitImportSource(value.source);
+    },
+    async createGroup(name, sectionId, operationKey) {
+      const channel = await createGroupChannel(call, name, undefined, operationKey);
       clientStore.upsertChannel(channel);
       await placeCreatedChannelFirst(channel.id, sectionId);
       await openChannelById(channel.id);
@@ -3334,7 +3887,7 @@ export function createActions(
         }
         return true;
       } catch (error) {
-        console.warn('botharness: channel rename failed', error);
+        reportFailure('channel-rename-failed', 'channel rename failed', error);
         return false;
       }
     },
@@ -3365,14 +3918,18 @@ export function createActions(
       try {
         return await importLibraryPartsViaBridge(call, data);
       } catch (error) {
-        return { error: error instanceof Error ? error.message : String(error) };
+        return {
+          error: error instanceof Error ? error.message : String(error),
+        };
       }
     },
     async importLibraryImage(data, slot, colors, name) {
       try {
         return await importLibraryImageViaBridge(call, data, slot, colors, name);
       } catch (error) {
-        return { error: error instanceof Error ? error.message : String(error) };
+        return {
+          error: error instanceof Error ? error.message : String(error),
+        };
       }
     },
     async addLibraryPart(part, name, parent) {
@@ -3388,7 +3945,11 @@ export function createActions(
         clientStore.upsertBot(bot);
         return true;
       } catch (error) {
-        console.warn('botharness: PersonaBot profile update failed', error);
+        reportFailure(
+          'personabot-profile-update-failed',
+          'PersonaBot profile update failed',
+          error,
+        );
         return false;
       }
     },
@@ -3398,7 +3959,7 @@ export function createActions(
         clientStore.upsertBot(bot);
         return true;
       } catch (error) {
-        console.warn('botharness: PersonaBot avatar update failed', error);
+        reportFailure('personabot-avatar-update-failed', 'PersonaBot avatar update failed', error);
         return false;
       }
     },
@@ -3408,7 +3969,7 @@ export function createActions(
         clientStore.upsertBot(bot);
         return true;
       } catch (error) {
-        console.warn('botharness: Bot banner update failed', error);
+        reportFailure('bot-banner-update-failed', 'Bot banner update failed', error);
         return false;
       }
     },
@@ -3418,7 +3979,7 @@ export function createActions(
         clientStore.upsertBot(bot);
         return true;
       } catch (error) {
-        console.warn('botharness: Bot Primary Color update failed', error);
+        reportFailure('bot-primary-color-update-failed', 'Bot Primary Color update failed', error);
         return false;
       }
     },
@@ -3430,7 +3991,7 @@ export function createActions(
           clientStore.setConversation({ channel });
         return true;
       } catch (error) {
-        console.warn('botharness: Group avatar update failed', error);
+        reportFailure('group-avatar-update-failed', 'Group avatar update failed', error);
         return false;
       }
     },
@@ -3442,7 +4003,7 @@ export function createActions(
           clientStore.setConversation({ channel });
         return true;
       } catch (error) {
-        console.warn('botharness: Group invitation failed', error);
+        reportFailure('group-invitation-failed', 'Group invitation failed', error);
         return false;
       }
     },
@@ -3454,7 +4015,11 @@ export function createActions(
           clientStore.setConversation({ channel });
         return true;
       } catch (error) {
-        console.warn('botharness: Group invitation cancellation failed', error);
+        reportFailure(
+          'group-invitation-cancellation-failed',
+          'Group invitation cancellation failed',
+          error,
+        );
         return false;
       }
     },
@@ -3466,7 +4031,7 @@ export function createActions(
           clientStore.setConversation({ channel });
         return true;
       } catch (error) {
-        console.warn('botharness: Group join decision failed', error);
+        reportFailure('group-join-decision-failed', 'Group join decision failed', error);
         return false;
       }
     },
@@ -3478,7 +4043,7 @@ export function createActions(
           clientStore.setConversation({ channel });
         return true;
       } catch (error) {
-        console.warn('botharness: Group member removal failed', error);
+        reportFailure('group-member-removal-failed', 'Group member removal failed', error);
         return false;
       }
     },
@@ -3491,6 +4056,24 @@ export function createActions(
     assignmentWork(slug, sessionId) {
       return loadAssignmentWork(call, slug, sessionId);
     },
+    sessionProgress(slug, sessionIds) {
+      return loadSessionProgress(call, slug, sessionIds);
+    },
+    sessionTranscript(slug, sessionId) {
+      return loadSessionTranscript(call, slug, sessionId);
+    },
+    sessionLive(slug, sessionId, after, signal) {
+      return loadSessionLive(call, slug, sessionId, after, signal);
+    },
+    sessionToolDetail(slug, sessionId, callId) {
+      return loadSessionToolDetail(call, slug, sessionId, callId);
+    },
+    sendSessionRequest(slug, sessionId, text, steer) {
+      return sendSessionRequest(call, slug, sessionId, text, steer);
+    },
+    sendOrchestratorMessage(slug, sessionId, text) {
+      return sendOrchestratorMessage(call, slug, sessionId, text);
+    },
     groupWakePolicies(channelId) {
       return loadGroupWakePolicies(call, channelId);
     },
@@ -3502,7 +4085,7 @@ export function createActions(
           clientStore.setConversation({ channel });
         return true;
       } catch (error) {
-        console.warn('botharness: Group wake policy update failed', error);
+        reportFailure('group-wake-policy-update-failed', 'Group wake policy update failed', error);
         return false;
       }
     },
@@ -3520,12 +4103,19 @@ export function createActions(
       return result.value as { sources: PurgeSource[]; before?: string };
     },
     async channelPurgePreview(channelId, sourceEventIds) {
-      const result = await call('channelPurgePreview', { channelId, sourceEventIds });
+      const result = await call('channelPurgePreview', {
+        channelId,
+        sourceEventIds,
+      });
       if (!result.ok) throw new Error(result.error.message);
       return result.value as PurgePreview;
     },
     async channelPurgeConfirm(channelId, sourceEventIds, token) {
-      const result = await call('channelPurgeConfirm', { channelId, sourceEventIds, token });
+      const result = await call('channelPurgeConfirm', {
+        channelId,
+        sourceEventIds,
+        token,
+      });
       if (!result.ok) throw new Error(result.error.message);
       return result.value as { accepted: number; cleanupPending?: number };
     },
@@ -3533,7 +4123,7 @@ export function createActions(
       try {
         await deleteGroupChannel(call, channelId);
       } catch (error) {
-        console.warn('botharness: Group deletion failed', error);
+        reportFailure('group-deletion-failed', 'Group deletion failed', error);
         return false;
       }
       const snapshot = clientStore.getSnapshot();
@@ -3545,7 +4135,7 @@ export function createActions(
       try {
         await actions.load();
       } catch (error) {
-        console.warn('botharness: Group deletion refresh failed', error);
+        reportFailure('group-deletion-refresh-failed', 'Group deletion refresh failed', error);
       }
       return true;
     },

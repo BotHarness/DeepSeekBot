@@ -1,0 +1,338 @@
+{
+  "$description": "Style C, tonal (Material 3 Expressive): separate list tiles on a tinted container with 2px gaps, tonal accent selection, pill controls and larger radii. Every colour aliases a shared colour role.",
+  "web": {
+    "style": {
+      "text": {
+        "ui": {
+          "size": {
+            "$type": "dimension",
+            "$value": {
+              "value": 14,
+              "unit": "px"
+            }
+          },
+          "line": {
+            "$type": "dimension",
+            "$value": "{web.type.body.line}"
+          }
+        },
+        "message": {
+          "size": {
+            "$type": "dimension",
+            "$value": {
+              "value": 14,
+              "unit": "px"
+            }
+          },
+          "line": {
+            "$type": "dimension",
+            "$value": "{web.type.body.line}"
+          }
+        },
+        "section-title": {
+          "$type": "color",
+          "$value": "{web.color.accent.ink}"
+        }
+      },
+      "control": {
+        "height": {
+          "$type": "dimension",
+          "$value": "{web.size.control-large}"
+        },
+        "height-small": {
+          "$type": "dimension",
+          "$value": "{web.size.control}"
+        },
+        "height-large": {
+          "$type": "dimension",
+          "$value": "{web.size.row-comfortable}"
+        }
+      },
+      "row": {
+        "nav": {
+          "$type": "dimension",
+          "$value": "{web.size.row-medium}"
+        },
+        "list": {
+          "$type": "dimension",
+          "$value": {
+            "value": 52,
+            "unit": "px"
+          }
+        }
+      },
+      "icon": {
+        "size": {
+          "$type": "dimension",
+          "$value": "{web.size.icon}"
+        },
+        "slot": {
+          "$type": "dimension",
+          "$value": "{web.size.icon-slot}"
+        }
+      },
+      "list": {
+        "gap": {
+          "$type": "dimension",
+          "$value": "{web.space.1}"
+        },
+        "group-radius": {
+          "$type": "dimension",
+          "$value": "{core.radius.20}"
+        },
+        "group-fill": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "item-radius": {
+          "$type": "dimension",
+          "$value": "{core.radius.4}"
+        },
+        "item-fill": {
+          "$type": "color",
+          "$value": "{web.color.layer.raised}"
+        },
+        "item-padding": {
+          "$type": "dimension",
+          "$value": "{web.space.5}"
+        },
+        "separator": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "item-padding-block": {
+          "$type": "dimension",
+          "$value": "{web.space.3}"
+        },
+        "group-padding-inline": {
+          "$type": "dimension",
+          "$value": {
+            "value": 0,
+            "unit": "px"
+          }
+        },
+        "group-padding-block": {
+          "$type": "dimension",
+          "$value": {
+            "value": 0,
+            "unit": "px"
+          }
+        },
+        "group-edge": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        }
+      },
+      "radius": {
+        "control": {
+          "$type": "dimension",
+          "$value": "{core.radius.full}"
+        },
+        "field": {
+          "$type": "dimension",
+          "$value": "{core.radius.full}"
+        },
+        "container": {
+          "$type": "dimension",
+          "$value": "{core.radius.16}"
+        },
+        "menu": {
+          "$type": "dimension",
+          "$value": "{core.radius.16}"
+        },
+        "dialog": {
+          "$type": "dimension",
+          "$value": "{core.radius.28}"
+        },
+        "nav-selected": {
+          "$type": "dimension",
+          "$value": "{core.radius.full}"
+        },
+        "chip": {
+          "$type": "dimension",
+          "$value": "{core.radius.full}"
+        },
+        "segmented": {
+          "$type": "dimension",
+          "$value": "{core.radius.full}"
+        },
+        "composer": {
+          "$type": "dimension",
+          "$value": "{core.radius.28}"
+        },
+        "bubble": {
+          "$type": "dimension",
+          "$value": "{core.radius.20}"
+        },
+        "card": {
+          "$type": "dimension",
+          "$value": "{core.radius.20}"
+        },
+        "sheet": {
+          "$type": "dimension",
+          "$value": "{core.radius.28}"
+        },
+        "small": {
+          "$type": "dimension",
+          "$value": "{core.radius.10}"
+        }
+      },
+      "chip": {
+        "height": {
+          "$type": "dimension",
+          "$value": "{web.size.control-large}"
+        }
+      },
+      "nav": {
+        "selected-fill": {
+          "$type": "color",
+          "$value": "{web.color.accent.container}"
+        },
+        "selected-ink": {
+          "$type": "color",
+          "$value": "{web.color.accent.on-container}"
+        },
+        "selected-icon": {
+          "$type": "color",
+          "$value": "{web.color.accent.on-container}"
+        }
+      },
+      "surface": {
+        "list-backdrop": {
+          "$type": "color",
+          "$value": "{web.color.layer.canvas}"
+        },
+        "nav": {
+          "$type": "color",
+          "$value": "{web.color.layer.canvas}"
+        },
+        "nav-edge": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        }
+      },
+      "on": {
+        "page-field": {
+          "$type": "color",
+          "$value": "{web.color.layer.well}"
+        },
+        "page-field-edge": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "page-track": {
+          "$type": "color",
+          "$value": "{web.color.layer.well}"
+        },
+        "page-secondary": {
+          "$type": "color",
+          "$value": "{web.color.layer.well}"
+        },
+        "page-secondary-edge": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "card-field": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "card-field-edge": {
+          "$type": "color",
+          "$value": "{web.color.line.edge}"
+        },
+        "card-track": {
+          "$type": "color",
+          "$value": "{web.color.layer.well}"
+        },
+        "card-secondary": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "card-secondary-edge": {
+          "$type": "color",
+          "$value": "{web.color.line.edge}"
+        }
+      },
+      "switch": {
+        "width": {
+          "$type": "dimension",
+          "$value": {
+            "value": 40,
+            "unit": "px"
+          }
+        },
+        "height": {
+          "$type": "dimension",
+          "$value": {
+            "value": 24,
+            "unit": "px"
+          }
+        },
+        "thumb-on": {
+          "$type": "dimension",
+          "$value": {
+            "value": 16,
+            "unit": "px"
+          }
+        },
+        "thumb-off": {
+          "$type": "dimension",
+          "$value": {
+            "value": 12,
+            "unit": "px"
+          }
+        },
+        "thumb-off-fill": {
+          "$type": "color",
+          "$value": "{web.color.ink.tertiary}"
+        },
+        "thumb-off-shadow": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        }
+      },
+      "segmented": {
+        "selected-fill": {
+          "$type": "color",
+          "$value": "{web.color.accent.container}"
+        },
+        "selected-ink": {
+          "$type": "color",
+          "$value": "{web.color.accent.on-container}"
+        },
+        "edge": {
+          "$type": "color",
+          "$value": "{web.color.line.edge}"
+        }
+      },
+      "button": {
+        "secondary-ink": {
+          "$type": "color",
+          "$value": "{web.color.accent.ink}"
+        }
+      },
+      "choice": {
+        "fill": {
+          "$type": "color",
+          "$value": "{web.color.layer.raised}"
+        },
+        "selected-fill": {
+          "$type": "color",
+          "$value": "{web.color.accent.container}"
+        },
+        "selected-ring": {
+          "$type": "color",
+          "$value": "{web.color.layer.clear}"
+        },
+        "selected-ink": {
+          "$type": "color",
+          "$value": "{web.color.accent.on-container}"
+        },
+        "padding": {
+          "$type": "dimension",
+          "$value": "{web.space.3}"
+        }
+      }
+    }
+  }
+}

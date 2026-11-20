@@ -1,7 +1,9 @@
+import { z } from 'zod';
 import { isTob, TobError } from '../tob/service.js';
 import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readdirSync, realpathSync, rmSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import type { DatabaseSync } from 'node:sqlite';
 
 import {
   attachOperationalModule,
@@ -51,10 +53,74 @@ export interface PersonaBotDeletionPreview {
 
 export interface PersonaBotDeletions {
   preview(slug: string): PersonaBotDeletionPreview;
+  memberPreview(humanId: string, slug: string): PersonaBotDeletionPreview;
   confirm(slug: string, token: string, eraseMemory: boolean): Promise<PersonaBotDeletion>;
   retry(slug: string): Promise<PersonaBotDeletion>;
   get(slug: string): PersonaBotDeletion | undefined;
   folder(slug: string): { path: string; relativePath: string; kind: 'directory' };
+}
+
+export function acceptMemberBotPurge({
+  db,
+  humanId,
+  slug,
+  acceptedAt,
+  rootDir,
+}: {
+  db: DatabaseSync;
+  humanId: string;
+  slug: string;
+  acceptedAt: string;
+  rootDir: string;
+}): void {
+  const row = db
+    .prepare(`SELECT b.body FROM persona_bots b, team_settings s
+    WHERE b.slug = ? AND b.owner_human_id = ? AND s.owner_human_id <> ?
+      AND EXISTS (SELECT 1 FROM deleted_humans d WHERE d.human_id = ?)`)
+    .get(slug, humanId, humanId, humanId);
+  if (!row) return;
+  const record = z
+    .object({ displayName: z.string(), memoryDir: z.string().optional() })
+    .parse(JSON.parse(String(row.body)));
+  const proofRow = db
+    .prepare('SELECT body FROM persona_bot_memory_ownership WHERE slug = ?')
+    .get(slug);
+  const proof = proofRow
+    ? z
+        .object({ path: z.string(), device: z.number(), inode: z.number() })
+        .parse(JSON.parse(String(proofRow.body)))
+    : undefined;
+  const previousRow = db.prepare('SELECT body FROM persona_bot_deletions WHERE slug = ?').get(slug);
+  const previous = previousRow
+    ? z
+        .object({
+          phase: z.string(),
+          eraseMemory: z.boolean(),
+          memory: z.string(),
+          cleanupAccepted: z.boolean().optional(),
+        })
+        .parse(JSON.parse(String(previousRow.body)))
+    : undefined;
+  const memoryDir = record.memoryDir ?? (proof?.path || join(rootDir, slug, 'memory'));
+  const absent = !existsSync(memoryDir);
+  if (previous && previous.phase !== 'complete') {
+    if (previous.eraseMemory && (previous.memory !== 'erased' || absent)) return;
+    throw new Error('deletion-in-progress');
+  }
+  if (previous?.memory === 'erased' && absent) return;
+  const state: PersonaBotDeletion = {
+    slug,
+    displayName: record.displayName,
+    acceptedAt,
+    memoryDir,
+    eraseMemory: true,
+    phase: 'stopping',
+    memory: absent ? 'erased' : 'pending',
+    ...(proof ? { ownership: proof } : {}),
+    ...(previous?.cleanupAccepted ? { cleanupAccepted: true } : {}),
+  };
+  db.prepare(`INSERT INTO persona_bot_deletions(slug, body) VALUES (?, ?)
+    ON CONFLICT(slug) DO UPDATE SET body = excluded.body`).run(slug, JSON.stringify(state));
 }
 
 export function memoryOwnership(path: string, partial = false): MemoryOwnership {
@@ -167,6 +233,7 @@ export function createPersonaBotDeletions(options: {
   allWorkspacePaths(): string[];
   protectedPaths?: string[];
   stop(slug: string): Promise<void>;
+  accept?(slug: string, commit: (database: DatabaseSync) => void): void;
   changed?(slug: string): void;
   capture?: TelemetryCapture;
   log?(event: {
@@ -190,20 +257,19 @@ export function createPersonaBotDeletions(options: {
         ? undefined
         : (JSON.parse(String(row['body'])) as PersonaBotDeletion);
     });
-  const write = (state: PersonaBotDeletion, retainedRecord?: string): void => {
-    port.transaction(
-      (database) => {
-        if (retainedRecord !== undefined)
-          database
-            .prepare('UPDATE persona_bots SET body = ? WHERE slug = ?')
-            .run(retainedRecord, state.slug);
+  const write = (state: PersonaBotDeletion, retainedRecord?: string, accepting = false): void => {
+    const commit = (database: DatabaseSync): void => {
+      if (retainedRecord !== undefined)
         database
-          .prepare(`INSERT INTO persona_bot_deletions (slug, body) VALUES (?, ?)
+          .prepare('UPDATE persona_bots SET body = ? WHERE slug = ?')
+          .run(retainedRecord, state.slug);
+      database
+        .prepare(`INSERT INTO persona_bot_deletions (slug, body) VALUES (?, ?)
         ON CONFLICT (slug) DO UPDATE SET body = excluded.body`)
-          .run(state.slug, JSON.stringify(state));
-      },
-      ['bot-registry'],
-    );
+        .run(state.slug, JSON.stringify(state));
+    };
+    if (accepting && options.accept !== undefined) options.accept(state.slug, commit);
+    else port.transaction(commit, ['bot-registry']);
     try {
       options.changed?.(state.slug);
     } catch {}
@@ -220,7 +286,7 @@ export function createPersonaBotDeletions(options: {
   const pathFor = (slug: string): string => {
     const record = options.registry.getHistorical(slug);
     if (record === undefined) throw new Error('PersonaBot does not exist');
-    return record.memoryDir ?? join(options.registry.rootDir, slug, 'memory');
+    return record.memoryDir ?? options.registry.defaultMemoryDirFor(slug);
   };
   const check = (
     slug: string,
@@ -233,7 +299,7 @@ export function createPersonaBotDeletions(options: {
         'Exclusive managed ownership of this Memory repository is unproven; retain Memory',
       );
     const actual = memoryOwnership(path, partial);
-    const managedDefault = join(canonicalCandidate(options.registry.rootDir), slug, 'memory');
+    const managedDefault = canonicalCandidate(options.registry.defaultMemoryDirFor(slug));
     if (actual.path !== managedDefault) {
       for (const protectedPath of options.protectedPaths ?? [options.registry.rootDir]) {
         if (overlap(actual.path, canonicalCandidate(protectedPath)))
@@ -254,8 +320,7 @@ export function createPersonaBotDeletions(options: {
     assertNoEscapes(actual.path);
     return actual;
   };
-  const preview = (slug: string): PersonaBotDeletionPreview => {
-    if (isTob(port, slug)) throw new TobError('protected-bot');
+  const snapshot = (slug: string): PersonaBotDeletionPreview => {
     const record = options.registry.getHistorical(slug);
     if (record === undefined) throw new Error('PersonaBot does not exist');
     const state = get(slug);
@@ -274,11 +339,15 @@ export function createPersonaBotDeletions(options: {
       displayName: record.displayName,
       memoryDir: path,
       token: createHash('sha256').update(JSON.stringify(snapshot)).digest('hex'),
-      eraseAvailable: refusal === undefined,
+      eraseAvailable: (state?.memory === 'erased' && !existsSync(path)) || refusal === undefined,
       ...(refusal === undefined ? {} : { refusal }),
       dependencies,
       ...(state === undefined ? {} : { deletion: state }),
     };
+  };
+  const preview = (slug: string): PersonaBotDeletionPreview => {
+    if (isTob(port, slug)) throw new TobError('protected-bot');
+    return snapshot(slug);
   };
   const run = (state: PersonaBotDeletion): Promise<PersonaBotDeletion> => {
     const active = pending.get(state.slug);
@@ -335,6 +404,21 @@ export function createPersonaBotDeletions(options: {
   };
   return {
     preview,
+    memberPreview(humanId, slug) {
+      const allowed = port.read((db) =>
+        db
+          .prepare(`SELECT 1 FROM persona_bots b, team_settings s
+        WHERE b.slug = ? AND b.owner_human_id = ? AND s.owner_human_id <> ?
+        AND (EXISTS (SELECT 1 FROM humans h WHERE h.human_id = ? AND h.status = 'deactivated')
+          OR EXISTS (SELECT 1 FROM deleted_humans d WHERE d.human_id = ?))`)
+          .get(slug, humanId, humanId, humanId, humanId),
+      );
+      if (!allowed) throw new TobError('permission-required');
+      const reviewed = snapshot(slug);
+      if (pending.has(slug) || (reviewed.deletion && reviewed.deletion.phase !== 'complete'))
+        return { ...reviewed, eraseAvailable: false, refusal: 'deletion-in-progress' };
+      return reviewed;
+    },
     get,
     async confirm(slug, token, eraseMemory) {
       const reviewed = preview(slug);
@@ -355,7 +439,7 @@ export function createPersonaBotDeletions(options: {
       try {
         retainedRecord = options.registry.retainedRecordBody(slug);
       } catch {}
-      write(state, retainedRecord);
+      write(state, retainedRecord, true);
       try {
         options.capture?.('bot_library:bot_delete');
       } catch {}

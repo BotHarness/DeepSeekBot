@@ -1,8 +1,10 @@
+import { humanContext, OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createCore } from '../src/plugin.js';
-import { createBridgeMethods } from '../src/bridge/methods.js';
+import { createBridgeMethods, createBridgeMethodsForHumans } from '../src/bridge/methods.js';
+import { createHostRelationships } from '../src/devices/relationships.js';
 import { createHash } from 'node:crypto';
 import { createServer, request, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo, Socket } from 'node:net';
@@ -10,13 +12,20 @@ import type { Duplex } from 'node:stream';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
+import {
+  attachOperationalModule,
+  mountOperationalDatabase,
+  type OperationalDatabaseOwner,
+} from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createDeviceGateway, DEVICE_GATEWAY_PREFIX } from '../src/devices/gateway.js';
+import { APP_VERSION_HEADER, MIN_PHONE_APP_VERSION } from '../src/devices/client-compat.js';
 import { createDevicePairing } from '../src/devices/pairing.js';
 import { createGatewayOrigin } from '../src/devices/connect.js';
+import { createManagedTlsIngress } from '../src/devices/managed-tls-ingress.js';
 import { DEVICE_ROUTE_HEADER, isConnectRequest } from '../src/devices/route-context.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
+import { requestListener } from './async-listener.js';
 
 const servers: Server[] = [];
 afterEach(async () => {
@@ -37,33 +46,37 @@ async function fakeDsh(
   localVideo?: Parameters<typeof createDeviceGateway>[0]['localVideo'],
   rpc?: (method: string, payload: unknown) => unknown,
   activity?: Parameters<typeof createDeviceGateway>[0]['activity'],
+  databaseOwner?: OperationalDatabaseOwner,
+  ownerHumanId?: () => string,
 ) {
   const state = {
     secret: 1,
     token: 'launch-token',
     seen: [] as Record<string, unknown>[],
     upgrades: [] as string[],
+    mints: 0,
   };
   const cookie = () => `dsh=${String(state.secret)}`;
   let gateway: ReturnType<typeof createDeviceGateway> | undefined;
-  const server = createServer((req, res) => {
-    const url = new URL(req.url ?? '/', 'http://x');
-    if (url.pathname.startsWith(DEVICE_GATEWAY_PREFIX)) return void gateway!.handle(req, res);
-    if (url.pathname === '/' && url.searchParams.get('token') === state.token) {
-      res.writeHead(303, { 'set-cookie': `${cookie()}; HttpOnly`, location: '/' });
-      return res.end();
-    }
-    if (req.headers.cookie !== cookie()) {
-      res.writeHead(401);
-      return res.end();
-    }
-    if (req.headers['sec-fetch-site'] === 'cross-site') {
-      res.writeHead(403);
-      return res.end('forbidden');
-    }
-    const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
-    req.on('end', async () => {
+  const server = createServer(
+    requestListener(async (req, res) => {
+      const url = new URL(req.url ?? '/', 'http://x');
+      if (url.pathname.startsWith(DEVICE_GATEWAY_PREFIX)) return gateway!.handle(req, res);
+      if (url.pathname === '/' && url.searchParams.get('token') === state.token) {
+        state.mints++;
+        res.writeHead(303, { 'set-cookie': `${cookie()}; HttpOnly`, location: '/' });
+        return res.end();
+      }
+      if (req.headers.cookie !== cookie()) {
+        res.writeHead(401);
+        return res.end();
+      }
+      if (req.headers['sec-fetch-site'] === 'cross-site') {
+        res.writeHead(403);
+        return res.end('forbidden');
+      }
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk as Buffer);
       const { [DEVICE_ROUTE_HEADER]: routeTag, ...headers } = req.headers;
       state.seen.push({
         ...headers,
@@ -88,8 +101,8 @@ async function fakeDsh(
       }
       res.writeHead(200, { 'content-type': 'application/json', 'set-cookie': 'leak=1' });
       res.end(JSON.stringify({ path: url.pathname, body: Buffer.concat(chunks).toString() }));
-    });
-  });
+    }),
+  );
   server.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     if (req.url?.startsWith(DEVICE_GATEWAY_PREFIX)) return void gateway!.upgrade(req, socket, head);
     if (req.headers.cookie !== cookie()) {
@@ -113,13 +126,18 @@ async function fakeDsh(
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   servers.push(server);
   const port = (server.address() as AddressInfo).port;
-  const home = createTempRoot('botharness-device-gateway-');
-  const owner = trackTestOwner(
-    mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN }),
-  );
+  const owner =
+    databaseOwner ??
+    trackTestOwner(
+      mountOperationalDatabase({
+        dshHome: createTempRoot('botharness-device-gateway-'),
+        schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+      }),
+    );
   const pairing = createDevicePairing({
     database: attachOperationalModule(owner, 'device-pairing'),
     hostName: 'studio',
+    ...(ownerHumanId ? { ownerHumanId } : {}),
   });
   gateway = createDeviceGateway({
     pairing,
@@ -139,6 +157,240 @@ async function pair(base: string, offer: string) {
   });
   return { status: response.status, body: (await response.json()) as Record<string, string> };
 }
+
+it('retains the authenticated Owner Human on paired Client messages and refuses revoked writes', async () => {
+  const core = createCore({
+    dshHome: createTempRoot('gateway-human-context-'),
+    agents: {
+      async runOrchestrator() {},
+      async runAssignment() {},
+      async close() {},
+      requestAssignment() {
+        throw new Error('unexpected');
+      },
+    },
+  });
+  trackTestOwner(core.operationalDatabase);
+  let offPairing: (() => void) | undefined;
+  try {
+    const methods = createBridgeMethodsForHumans(core);
+    const created = methods(core.team.ownerContext()).create({
+      displayName: 'Gateway Human',
+      persona: 'Short replies',
+    });
+    expect(created.ok).toBe(true);
+    const bot = core.registry.list()[0]!;
+    const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, bot.slug, bot.displayName)!;
+    const live = await fakeDsh(
+      undefined,
+      undefined,
+      (method, payload) => {
+        const current = methods(core.team.ownerContext());
+        if (method === 'botharness/channelMessages') return current.channelMessages(payload);
+        if (method !== 'botharness/channelSend') throw new Error('unexpected method');
+        return current.channelSend(payload);
+      },
+      undefined,
+      core.operationalDatabase,
+      () => core.team.ownerContext().humanId,
+    );
+    const client = await pair(live.base, live.pairing.createOffer().offer);
+    const send = (credential = client.body.credential, channelId = channel.id) =>
+      fetch(live.base + DEVICE_GATEWAY_PREFIX + '/api/botharness/channelSend', {
+        method: 'POST',
+        headers: {
+          authorization: 'Device ' + credential,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'client-request',
+          rpcId: 'human-context',
+          method: 'botharness/channelSend',
+          humanId: 'spoofed-envelope',
+          payload: {
+            args: { channelId, body: 'Owner message', humanId: 'spoofed-payload' },
+          },
+        }),
+      });
+    expect(await (await send()).json()).toMatchObject({ result: { ok: true } });
+    const events = () =>
+      attachOperationalModule(core.operationalDatabase, 'human-context-test').read((db) =>
+        db.prepare('SELECT human_id FROM source_events WHERE channel_id = ?').all(channel.id),
+      );
+    expect(events()).toEqual([{ human_id: OWNER_HUMAN_CONTEXT.humanId }]);
+    offPairing = core.team.bindPairing(live.pairing);
+    await core.team.setOwnerPassword(OWNER_HUMAN_CONTEXT, 'owner-password-1');
+    await core.team.setMode(OWNER_HUMAN_CONTEXT, true);
+    const next = await core.team.createMember(OWNER_HUMAN_CONTEXT, 'nextowner', 'Next Owner');
+    const nextHuman = humanContext(next.member.humanId);
+    await core.team.changePassword(nextHuman, next.initialPassword, 'next-owner-password-1');
+    const pending = live.pairing.createOffer();
+    await core.team.transferOwner(OWNER_HUMAN_CONTEXT, nextHuman.humanId, 'owner-password-1');
+    expect((await send()).status).toBe(401);
+    expect(live.pairing.redeem({ offer: pending.offer })).toEqual({
+      ok: false,
+      code: 'offer-invalid',
+    });
+    expect(events()).toEqual([{ human_id: OWNER_HUMAN_CONTEXT.humanId }]);
+    const relationships = createHostRelationships({
+      database: attachOperationalModule(core.operationalDatabase, 'host-relationships'),
+      pairing: live.pairing,
+    });
+    const peer = {
+      id: 'trusted-host',
+      name: 'Trusted',
+      publicKey: 'ab'.repeat(32),
+      routes: ['http://127.0.0.1:31002'],
+    };
+    const relationship = relationships.propose({ peer, direction: 'incoming' });
+    relationships.approve(relationship.id, peer.publicKey);
+    relationships.activate(relationship.id, peer.publicKey);
+    const offer = relationships.enrollment(relationship.id, peer.publicKey, {
+      name: 'New Owner derived',
+      publicKey: 'cd'.repeat(32),
+    });
+    const derived = live.pairing.redeem({ offer: offer.offer, publicKey: 'cd'.repeat(32) });
+    if (!derived.ok) throw new Error(derived.code);
+    const nextBot = core.registry.create({
+      slug: 'next-private-bot',
+      displayName: 'Next private Bot',
+      ownerHumanId: nextHuman.humanId,
+    });
+    if (!nextBot.ok) throw new Error(nextBot.reason);
+    const nextChannel = core.channels.getOrCreateDm(
+      nextHuman,
+      nextBot.record.slug,
+      nextBot.record.displayName,
+    )!;
+    expect(await (await send(derived.credential, nextChannel.id)).json()).toMatchObject({
+      result: { ok: true },
+    });
+    expect(
+      attachOperationalModule(core.operationalDatabase, 'human-context-test').read((db) =>
+        db.prepare('SELECT human_id FROM source_events WHERE channel_id = ?').all(nextChannel.id),
+      ),
+    ).toEqual([{ human_id: nextHuman.humanId }]);
+    expect(await (await send(derived.credential, channel.id)).json()).toMatchObject({
+      result: { ok: false },
+    });
+    const hidden = await fetch(
+      live.base + DEVICE_GATEWAY_PREFIX + '/api/botharness/channelMessages',
+      {
+        method: 'POST',
+        headers: {
+          authorization: 'Device ' + derived.credential,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          type: 'client-request',
+          rpcId: 'private-read',
+          method: 'botharness/channelMessages',
+          payload: { args: { channelId: channel.id, limit: 10 } },
+        }),
+      },
+    );
+    expect(await hidden.json()).toMatchObject({ result: { ok: false } });
+    expect(events()).toEqual([{ human_id: OWNER_HUMAN_CONTEXT.humanId }]);
+    relationships.disconnect(relationship.id);
+    expect((await send(derived.credential, nextChannel.id)).status).toBe(401);
+  } finally {
+    offPairing?.();
+    await core.runtime.close();
+    core.operationalDatabase.close();
+  }
+});
+
+it('does not let a paired device manage or inherit Host relationships', async () => {
+  const host = await fakeDsh();
+  const paired = host.pairing.redeem({ offer: host.pairing.createOffer().offer, name: 'Phone' });
+  if (!paired.ok) throw new Error(paired.code);
+  for (const endpoint of [
+    'botharness/relationships',
+    'botharness/%72elationships',
+    'botharness//relationships',
+  ]) {
+    const response = await fetch(`${host.base}/botharness-device/api/${endpoint}`, {
+      method: 'POST',
+      headers: { authorization: `Device ${paired.credential}` },
+      body: JSON.stringify({ action: 'enroll', id: 'forged', desktop: true }),
+    });
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ code: 'relationship-local-client-required' });
+  }
+  expect(host.state.seen).toEqual([]);
+  expect(host.pairing.admit(`Device ${paired.credential}`).ok).toBe(true);
+});
+
+it('never uses the Owner session for a grant that is not bound to the current Owner', async () => {
+  let ownerHumanId = OWNER_HUMAN_CONTEXT.humanId;
+  const host = await fakeDsh(
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    undefined,
+    () => ownerHumanId,
+  );
+  const paired = await pair(host.base, host.pairing.createOffer().offer);
+  const authorization = `Device ${paired.body.credential}`;
+  const ticket = (await (
+    await fetch(`${host.base}/botharness-device/stream-ticket`, {
+      method: 'POST',
+      headers: { authorization },
+    })
+  ).json()) as { ticket: string };
+  ownerHumanId = 'not-the-owner';
+  const refused = { code: 'device-revoked' };
+  const unary = await fetch(`${host.base}/botharness-device/api/botharness/list`, {
+    method: 'POST',
+    headers: { authorization, 'content-type': 'application/json' },
+    body: '{"type":"client-request"}',
+  });
+  expect([unary.status, await unary.json()]).toEqual([401, refused]);
+  const avatar = await fetch(
+    `${host.base}/botharness-device/api/botharness/bot-avatar?slug=ada&v=portrait-1`,
+    { headers: { authorization } },
+  );
+  expect([avatar.status, await avatar.json()]).toEqual([401, refused]);
+  const issued = await fetch(`${host.base}/botharness-device/stream-ticket`, {
+    method: 'POST',
+    headers: { authorization },
+  });
+  expect([issued.status, await issued.json()]).toEqual([401, refused]);
+  expect(await stream(host.port, { authorization })).toEqual({
+    status: 401,
+    body: JSON.stringify(refused),
+  });
+  expect(
+    await stream(host.port, {}, `/botharness-device/api/remote.mux?ticket=${ticket.ticket}`),
+  ).toEqual({ status: 401, body: JSON.stringify(refused) });
+  expect(host.state.mints).toBe(0);
+  expect(host.state.seen).toEqual([]);
+  expect(host.state.upgrades).toEqual([]);
+});
+
+it('attributes Feed acknowledgement to the authenticated device and refuses revoked or missing credentials', async () => {
+  const host = await fakeDsh();
+  const paired = host.pairing.redeem({ offer: host.pairing.createOffer().offer });
+  if (!paired.ok) throw new Error(paired.code);
+  const post = (authorization?: string) =>
+    fetch(`${host.base}/botharness-device/feed-read`, {
+      method: 'POST',
+      headers: authorization ? { authorization } : {},
+      body: JSON.stringify({ deviceId: 'forged' }),
+    });
+  expect((await post()).status).toBe(401);
+  const response = await post(`Device ${paired.credential}`);
+  expect(response.status).toBe(200);
+  expect(await response.json()).toMatchObject({ feedReadAt: expect.any(String) });
+  expect(host.pairing.list()).toHaveLength(1);
+  expect(host.pairing.list()[0]).toMatchObject({
+    id: paired.device.id,
+    feedReadAt: expect.any(String),
+  });
+  host.pairing.revoke(paired.device.id);
+  expect((await post(`Device ${paired.credential}`)).status).toBe(401);
+});
 
 describe('Local Computer video gateway admission', () => {
   it('binds direct commands to admitted identity and keeps removed web routes refused', async () => {
@@ -242,6 +494,49 @@ const echo = (socket: Socket, text: string) =>
   });
 
 describe('device gateway', () => {
+  it('keeps paired Owner and Web Client HTTP and upgrade carriers through managed ingress', async () => {
+    const host = await fakeDsh();
+    const paired = await pair(host.base, host.pairing.createOffer().offer);
+    const ingress = createManagedTlsIngress({ port: host.port });
+    let device: Socket | undefined;
+    let web: Socket | undefined;
+    try {
+      const port = await ingress.start();
+      const base = `http://127.0.0.1:${port}`;
+      const headers = { 'x-forwarded-for': '192.0.2.5', 'x-forwarded-proto': 'https' };
+      const authorization = `Device ${paired.body.credential}`;
+      const ownerDevice = await fetch(`${base}/botharness-device/api/botharness/list`, {
+        method: 'POST',
+        headers: { ...headers, authorization },
+        body: '{"type":"client-request"}',
+      });
+      expect(ownerDevice.status).toBe(200);
+      expect(await ownerDevice.json()).toMatchObject({ path: '/api/botharness/list' });
+      expect(host.state.seen.at(-1)).toMatchObject({ connect: false, routeHeaderPresent: true });
+      expect(ownerDevice.headers.has('set-cookie')).toBe(false);
+      const ownerWeb = await fetch(`${base}/api/botharness/list`, {
+        method: 'POST',
+        headers: { ...headers, cookie: 'dsh=1' },
+        body: 'web-client',
+      });
+      expect(await ownerWeb.json()).toMatchObject({ body: 'web-client' });
+      const upgradedDevice = await stream(port, { ...headers, authorization });
+      device = upgradedDevice.socket;
+      expect(upgradedDevice.status).toBe(101);
+      const upgradedWeb = await stream(port, { ...headers, cookie: 'dsh=1' }, '/api/remote.mux');
+      web = upgradedWeb.socket;
+      expect(upgradedWeb.status).toBe(101);
+      if (!device || !web) throw new Error('missing-stream');
+      expect(await echo(device, 'device-frame')).toBe('device-frame');
+      expect(await echo(web, 'web-frame')).toBe('web-frame');
+      host.pairing.revoke(paired.body.deviceId ?? '');
+      expect(await echo(web, 'web-still-open')).toBe('web-still-open');
+    } finally {
+      device?.destroy();
+      web?.destroy();
+      await ingress.close();
+    }
+  });
   it('pairs once and forwards unary calls with the Host-held session only', async () => {
     const host = await fakeDsh();
     const { offer } = host.pairing.createOffer();
@@ -267,6 +562,25 @@ describe('device gateway', () => {
     const seen = host.state.seen.at(-1)!;
     expect(seen.authorization).toBeUndefined();
     expect(seen.host).toBe(`127.0.0.1:${String(host.port)}`);
+  });
+
+  it('serves a phone app of any version and never refuses it for being old', async () => {
+    const host = await fakeDsh();
+    const { offer } = host.pairing.createOffer();
+    const paired = await pair(host.base, offer);
+    const list = (appVersion?: string) =>
+      fetch(`${host.base}/botharness-device/api/botharness/list`, {
+        method: 'POST',
+        headers: {
+          authorization: `Device ${paired.body.credential}`,
+          'content-type': 'application/json',
+          ...(appVersion === undefined ? {} : { [APP_VERSION_HEADER]: appVersion }),
+        },
+        body: '{"type":"client-request"}',
+      });
+    expect((await list('1.0.0')).status).toBe(200);
+    expect((await list(MIN_PHONE_APP_VERSION)).status).toBe(200);
+    expect((await list()).status).toBe(200);
   });
 
   it('refuses unpaired and cross-origin callers with coded errors', async () => {
@@ -689,7 +1003,12 @@ describe('mobile creation recovery through device admission', () => {
       if (kind === 'git') {
         const directory = createTempRoot('gateway-git-source-');
         const git = (...args: string[]) =>
-          execFileSync('git', args, { cwd: directory, encoding: 'utf8', windowsHide: true }).trim();
+          execFileSync('git', args, {
+            cwd: directory,
+            encoding: 'utf8',
+            windowsHide: true,
+            shell: false,
+          }).trim();
         git('init', '--quiet');
         git('config', 'user.name', 'Fixture');
         git('config', 'user.email', 'fixture@example.test');
@@ -718,7 +1037,7 @@ describe('mobile creation recovery through device admission', () => {
         },
       });
       try {
-        const methods = createBridgeMethods(core);
+        const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, core);
         let drop = true;
         const live = await fakeDsh(undefined, undefined, async (method, payload) => {
           if (method === 'botharness/' + lookupMethod)

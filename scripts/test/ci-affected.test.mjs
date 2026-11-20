@@ -174,6 +174,8 @@ describe('exact affected shard execution', () => {
           cwd: ROOT,
           encoding: 'utf8',
           env: { ...process.env, RELATED: related, GITHUB_OUTPUT: output },
+          shell: false,
+          windowsHide: true,
         });
         expect(child.status).toBe(status);
         if (status) expect(child.stderr).toContain('SyntaxError');

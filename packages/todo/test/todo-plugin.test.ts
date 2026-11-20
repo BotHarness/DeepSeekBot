@@ -18,6 +18,7 @@ function memoryTable() {
       },
       put: async (key: string, value: TodoRecord) => void rows.set(key, value),
       delete: async (key: string) => rows.delete(key),
+      deleteMany: async (keys: readonly string[]) => keys.filter((key) => rows.delete(key)).length,
       update: async (key: string, fn: (current: TodoRecord) => TodoRecord) => {
         const next = fn(rows.get(key)!);
         rows.set(key, next);
@@ -80,6 +81,12 @@ async function setup() {
   const routes = new Map<string, Route>();
   const hostTools = new Set<string>();
   let contribute: ((scope: Context, agent: unknown, info: { botSlug: string }) => void) | undefined;
+  let engineTools:
+    | ((info: { botSlug: string }) => readonly {
+        name: string;
+        run(args: Record<string, unknown>, signal: AbortSignal): Promise<unknown>;
+      }[])
+    | undefined;
   ctx.provide('storageDomain', {
     open: async () => ({
       table: () => storage.table,
@@ -101,6 +108,12 @@ async function setup() {
       contribute = callback;
       return () => {
         contribute = undefined;
+      };
+    },
+    contributeEngineTools: (source: typeof engineTools) => {
+      engineTools = source;
+      return () => {
+        engineTools = undefined;
       };
     },
   } as never);
@@ -143,6 +156,7 @@ async function setup() {
     call,
     runTool,
     closed: () => closed,
+    engineTools: () => engineTools,
     service: () => ctx.get('todos') as TodoService | undefined,
   };
 }
@@ -173,6 +187,28 @@ describe('to-do plugin', () => {
     expect(await h.runTool('todos_list', {})).toMatchObject({ todos: [{ id, done: true }] });
     await h.runTool('todos_remove', { id });
     expect(h.storage.rows.size).toBe(0);
+  });
+
+  it('offers the same to-do tools to an engine-backed Bot', async () => {
+    const h = await setup();
+    const tools = h.engineTools()?.({ botSlug: 'ada' }) ?? [];
+    expect(tools.map((tool) => tool.name)).toEqual([
+      'todos_list',
+      'todos_add',
+      'todos_update',
+      'todos_remove',
+    ]);
+    const add = tools.find((tool) => tool.name === 'todos_add')!;
+    const added = JSON.parse(
+      (await add.run({ title: 'Engine task' }, new AbortController().signal)) as string,
+    ) as { todo: unknown };
+    expect(added.todo).toMatchObject({
+      title: 'Engine task',
+      createdBy: { kind: 'bot', slug: 'ada' },
+    });
+    await h.ctx.fiber.dispose();
+    contexts.splice(contexts.indexOf(h.ctx), 1);
+    expect(h.engineTools()).toBeUndefined();
   });
 
   it('lets the Human add, update and remove through the Host routes with coded refusals', async () => {

@@ -93,11 +93,29 @@ export function createDshActivityProjection(options: {
     name: string,
     args: unknown,
   ): { name: string; view?: ToolCallView; publicDetail?: string } | undefined;
+  assignmentTitle?(botSlug: string, sessionId: string): string | undefined;
 }): DshActivityProjection {
   const { ownership, states } = options;
   const now = options.now ?? (() => new Date());
 
   const names = new Map<string, string>();
+  const assignmentTitles = new Map<string, string>();
+  const sessionName = (sessionId: string, owner: SessionOwnershipRecord): string | undefined => {
+    if (owner.rootRole !== 'assignment' || owner.provenance === 'subagent')
+      return names.get(sessionId);
+    let title = assignmentTitles.get(sessionId);
+    if (title === undefined) {
+      let found: string | undefined;
+      try {
+        found = options.assignmentTitle?.(owner.botSlug, sessionId);
+      } catch {}
+      if (isSessionActivityName(found)) {
+        title = found;
+        assignmentTitles.set(sessionId, title);
+      }
+    }
+    return title ?? names.get(sessionId);
+  };
   const turnOpen = new Map<string, boolean>();
   const pending = new Map<string, Map<string, PersonaBotToolActivity>>();
   const project = (sessionId: string, event: DshSessionEvent): SessionState | undefined => {
@@ -177,7 +195,12 @@ export function createDshActivityProjection(options: {
     if (activity === undefined) return undefined;
     return {
       ...activity,
-      sources: [{ role: owner.provenance === 'subagent' ? 'subagent' : owner.rootRole, count: 1 }],
+      sources: [
+        {
+          role: owner.provenance === 'subagent' ? 'subagent' : owner.rootRole,
+          count: 1,
+        },
+      ],
     } satisfies PersonaBotToolActivity;
   };
 
@@ -214,7 +237,7 @@ export function createDshActivityProjection(options: {
         state,
         activityForSession(sessionId, owner),
         owner.provenance === 'subagent' ? 'subagent' : owner.rootRole,
-        names.get(sessionId),
+        sessionName(sessionId, owner),
       );
     },
     handleAgentCreated(session) {
@@ -239,7 +262,7 @@ export function createDshActivityProjection(options: {
         'done',
         undefined,
         owner.provenance === 'subagent' ? 'subagent' : owner.rootRole,
-        names.get(sessionId),
+        sessionName(sessionId, owner),
       );
     },
     handleSessionDisposed(sessionId) {
@@ -248,6 +271,7 @@ export function createDshActivityProjection(options: {
       options.details?.revokeSession(sessionId);
       pending.delete(sessionId);
       names.delete(sessionId);
+      assignmentTitles.delete(sessionId);
       turnOpen.delete(sessionId);
       states.clearSession(owner.botSlug, sessionId);
     },
@@ -275,6 +299,7 @@ export function createDshActivityProjection(options: {
         }
         pending.delete(session.id);
         names.delete(session.id);
+        assignmentTitles.delete(session.id);
         turnOpen.delete(session.id);
         let state: SessionState | undefined;
         for (const event of session.snapshotEvents()) state = project(session.id, event) ?? state;
@@ -288,13 +313,14 @@ export function createDshActivityProjection(options: {
           state = 'done';
         }
         const activity = activityForSession(session.id, owner);
+        const name = sessionName(session.id, owner);
         rows.push({
           slug: owner.botSlug,
           sessionId: session.id,
           state,
           role: owner.provenance === 'subagent' ? 'subagent' : owner.rootRole,
           ...(activity === undefined ? {} : { activity }),
-          ...(names.get(session.id) === undefined ? {} : { name: names.get(session.id)! }),
+          ...(name === undefined ? {} : { name }),
         });
         rebuilt += 1;
       }

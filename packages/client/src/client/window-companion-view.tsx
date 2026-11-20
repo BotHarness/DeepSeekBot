@@ -1,3 +1,4 @@
+import { Icon } from './ds/icon.js';
 import { Menu } from './appearance-primitives.js';
 import {
   useCallback,
@@ -9,19 +10,20 @@ import {
   type ReactElement,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconEllipsisOutlineRegular,
-  IconCloseFillRegular,
-  IconNewChatOutlineRegular,
-  type MenuEntry,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
+import { type MenuEntry } from './ds/menu.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { attentionCount } from './activity-attention.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { CompanionBot } from '../../../core/src/companions/feed.js';
 import type { CompanionViewState, WindowCompanion } from './window-companion.js';
-import { CompanionMotion, type CompanionPoint } from './companion-motion.js';
+import {
+  CompanionMotion,
+  pointUpdate,
+  toolbarSide,
+  type CompanionPoint,
+} from './companion-motion.js';
 import { CompanionBubbles, type BubblePlacement } from './companion-bubbles.js';
 import { CompanionFrames, type CompanionFrameTask } from './companion-frames.js';
 import { isAvatarAppearance } from '../../../core/src/bots/avatar-appearance.js';
@@ -269,7 +271,11 @@ export function WindowCompanionView({
   const presentPoint = useRef<(next: CompanionPoint) => void>(setPoint);
   const motionFrameAt = useRef(performance.now());
   const displayedPoint = useRef(point);
-  displayedPoint.current = point;
+  const renderedPoint = useRef(point);
+  if (renderedPoint.current !== point) {
+    renderedPoint.current = point;
+    displayedPoint.current = point;
+  }
   const anchor = useRef<AvatarAnchor | undefined>(undefined);
   const viewport = useRef({ left: 0, bottom: window.innerHeight, height: window.innerHeight });
   const anchorRef = useCallback((value: AvatarAnchor | undefined) => {
@@ -282,6 +288,7 @@ export function WindowCompanionView({
   const [bubble, setBubble] = useState<BubblePlacement | undefined>(undefined);
   const root = useRef<HTMLDivElement | null>(null);
   const character = useRef<HTMLButtonElement | null>(null);
+  const body = useRef<HTMLElement | null>(null);
   const pointer = useRef<
     | {
         id: number;
@@ -524,7 +531,20 @@ export function WindowCompanionView({
           if (walking && (next.x <= 8 || next.x >= Math.max(8, next.width - 104)))
             direction.current *= -1;
           setStride(walking ? (direction.current > 0 ? 'right' : 'left') : undefined);
-          if (next !== previousPoint) setPoint(next);
+          const shown = displayedPoint.current;
+          if (next !== shown && body.current && character.current) {
+            body.current.style.transform = `translate3d(${next.x}px, ${-next.y}px, 0)`;
+            character.current.style.rotate = `${next.tilt}deg`;
+            character.current.style.transform = `scale(${1 + next.squash}, ${1 - next.squash})`;
+          }
+          const update =
+            body.current && character.current
+              ? pointUpdate(speaking(state), shown, renderedPoint.current, next)
+              : renderedPoint.current === next
+                ? 'none'
+                : 'render';
+          if (update === 'repaint') displayedPoint.current = next;
+          else if (update === 'render') setPoint(next);
           if (previousPoint.phase !== 'rest' && next.phase === 'rest') persistPosition();
         }
         sampled = undefined;
@@ -691,6 +711,7 @@ export function WindowCompanionView({
         </svg>
       ) : null}
       <section
+        ref={body}
         {...hooked('bh-companion', styles.companion)}
         aria-label={t('companion.label', { name: bot.name })}
         data-bh-tour="companion"
@@ -699,7 +720,7 @@ export function WindowCompanionView({
         data-sync={view.sync}
         data-motion={point.phase}
         data-bot={bot.slug}
-        data-toolbar={point.x > point.width - 150 ? 'left' : 'right'}
+        data-toolbar={toolbarSide(point)}
         style={{
           left: 0,
           bottom: 0,
@@ -771,19 +792,21 @@ export function WindowCompanionView({
                   {...stylex.props(styles.headerButton, styles.sourceButton)}
                   disabled={head.canOpen === false}
                   title={head.canOpen === false ? t('companion.sourceUnavailable') : undefined}
-                  onClick={async () => {
+                  onClick={() => {
                     if (head.canOpen === false) return;
-                    try {
-                      await openChannel(head.channelId, head.messageId);
-                      setUnavailable(
-                        (prior) => new Set([...prior].filter((id) => id !== headIdentity)),
+                    Promise.resolve()
+                      .then(() => openChannel(head.channelId, head.messageId))
+                      .then(
+                        () =>
+                          setUnavailable(
+                            (prior) => new Set([...prior].filter((id) => id !== headIdentity)),
+                          ),
+                        () =>
+                          setUnavailable(
+                            (prior) =>
+                              new Set([...prior, headIdentity].slice(-view.capacity.retention)),
+                          ),
                       );
-                    } catch {
-                      setUnavailable(
-                        (prior) =>
-                          new Set([...prior, headIdentity].slice(-view.capacity.retention)),
-                      );
-                    }
                   }}
                 >
                   {t(
@@ -821,7 +844,7 @@ export function WindowCompanionView({
                   companion.dismiss(head.messageId, head.channelId);
                 }}
               >
-                <IconCloseFillRegular size={14} />
+                <Icon name="circle-x" size={14} />
               </button>
             </header>
             <CompanionMessageText
@@ -843,7 +866,7 @@ export function WindowCompanionView({
             title={t('companion.openDm')}
             onClick={() => openDm(bot.slug)}
           >
-            <IconNewChatOutlineRegular size={16} />
+            <Icon name="message-square-plus" size={16} />
           </button>
           <button
             type="button"
@@ -873,7 +896,7 @@ export function WindowCompanionView({
                 aria-expanded={menu}
                 onClick={() => setMenu(!menu)}
               >
-                <IconEllipsisOutlineRegular size={16} />
+                <Icon name="ellipsis" size={16} />
               </button>
             }
             onSelect={(id) => {

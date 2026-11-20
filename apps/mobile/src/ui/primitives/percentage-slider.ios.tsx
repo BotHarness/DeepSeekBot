@@ -8,8 +8,15 @@ import {
 
 import { useDesignTheme } from '../design/theme';
 import type { PercentageSliderProps } from './percentage-slider';
+import { percentageStep } from './percentage-step';
 
-export function PercentageSlider({ label, value, onChange }: PercentageSliderProps) {
+export function PercentageSlider({
+  label,
+  value,
+  max = 100,
+  step = 1,
+  onChange,
+}: PercentageSliderProps) {
   const theme = useDesignTheme();
   return (
     <Host
@@ -20,10 +27,10 @@ export function PercentageSlider({ label, value, onChange }: PercentageSliderPro
       <Slider
         value={value}
         min={0}
-        max={100}
-        step={1}
+        max={max}
+        step={step}
         onValueChange={(next) => {
-          const rounded = Math.round(next);
+          const rounded = percentageStep(next, step, max);
           if (rounded !== value) onChange(rounded);
         }}
         modifiers={[

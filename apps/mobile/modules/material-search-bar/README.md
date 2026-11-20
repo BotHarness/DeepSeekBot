@@ -16,7 +16,7 @@ main thread and draws it as the Chats row's 48dp rounded square, with `initial` 
 Material `ListItem`s inside the expanded surface, because that surface is a separate window that
 React Native views cannot draw into. A pick sends `onPick` with the key and collapses the bar.
 
-Colours come from the Host's Material theme seeded by the accent (ADR-0266); the view takes no
+Colours come from the Host's Material theme seeded by the accent ([ADR-0266](../../../../docs/decisions/mobile-ui.md#adr-0266)); the view takes no
 colour props. Host keeps its composition while React Native Screens detaches an inactive screen,
 so the expanded search window collapses and is removed while the view is out of a window.
 

@@ -57,7 +57,14 @@ function launch(port) {
   const result = spawnSync(
     process.execPath,
     ['scripts/dev-instance.mjs', '--home', home, '--port', String(port), '--json'],
-    { cwd: root, encoding: 'utf8', timeout: 600_000, maxBuffer: 4 * 1024 * 1024 },
+    {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 600_000,
+      maxBuffer: 4 * 1024 * 1024,
+      shell: false,
+      windowsHide: true,
+    },
   );
   const start = (result.stdout ?? '').indexOf('{');
   if (result.status !== 0 || start < 0)
@@ -189,6 +196,8 @@ async function main() {
       env: { ...process.env, EXPO_OFFLINE: '1' },
       timeout: 600_000,
       maxBuffer: 16 * 1024 * 1024,
+      shell: false,
+      windowsHide: true,
     });
     if (exported.status !== 0) throw new Error(`export:web failed: ${exported.stderr.slice(-800)}`);
     steps.push('exported the app for web');
@@ -282,7 +291,7 @@ async function main() {
     steps.push('paired the app by pasting the link');
 
     await page.locator('::-p-text(Launch)').click();
-    await page.waitForSelector('[placeholder="Message #Launch"]', { timeout: 30_000 });
+    await page.waitForSelector('[data-testid="composer-input"]', { timeout: 30_000 });
     await new Promise((done) => setTimeout(done, 600));
     await shot('0-group-chat');
     await page.waitForSelector('[aria-label$=" members"][aria-label^="Launch, "]');

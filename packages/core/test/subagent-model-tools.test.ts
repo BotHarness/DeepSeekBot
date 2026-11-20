@@ -8,6 +8,7 @@ import type { ToolDefinition } from '@deepseek-ai/dsh-tools';
 
 import type { PersonaBotModelPlan } from '../src/models/presets.js';
 import {
+  createBotSubagentModelTools,
   installBotSubagentModelTools,
   installOrchestratorSubagentGuard,
   type BotSubagentPresetConfig,
@@ -97,6 +98,7 @@ interface HarnessOptions {
   subagents?: boolean;
   llm?: boolean;
   maxDepth?: number;
+  requireRoute?: (route: { provider: string; model: string }) => void;
 }
 
 function createHarness(options: HarnessOptions = {}) {
@@ -153,7 +155,7 @@ function createHarness(options: HarnessOptions = {}) {
     resolveMaxDepth,
     resolveCallConfig,
     install(config: BotSubagentPresetConfig = options.config ?? {}) {
-      return installBotSubagentModelTools(ctx, () => options.plan, config);
+      return installBotSubagentModelTools(ctx, () => options.plan, config, options.requireRoute);
     },
   };
 }
@@ -194,6 +196,39 @@ function presetParameter(definition: ToolDefinition) {
 }
 
 describe('Bot-owned DSH Subagent tools', () => {
+  it.each(['bot_subagent', 'bot_subagent_fork'])(
+    'checks the role route policy before %s activation and LLM credential lookup',
+    async (name) => {
+      const requireRoute = vi.fn<() => void>(() => {
+        throw Object.assign(new Error('model-not-allowed'), {
+          code: 'model-not-allowed',
+          details: { route: 'deepseek/pro' },
+        });
+      });
+      const harness = createHarness({ plan, requireRoute });
+      await harness.install();
+      await expect(
+        callTool(harness, name, {
+          description: 'Denied',
+          prompt: 'Work',
+          provider: 'deepseek',
+          model: 'pro',
+        }),
+      ).rejects.toMatchObject({ code: 'model-not-allowed', details: { route: 'deepseek/pro' } });
+      expect(harness.startActivation).not.toHaveBeenCalled();
+      expect(harness.resolveCallConfig).not.toHaveBeenCalled();
+      requireRoute.mockImplementation(() => {});
+      await callTool(harness, name, {
+        description: 'Allowed',
+        prompt: 'Work',
+        provider: 'deepseek',
+        model: 'pro',
+        run_in_background: false,
+      });
+      expect(harness.startActivation).toHaveBeenCalledOnce();
+    },
+  );
+
   it('gives an Orchestrator no Subagent tools and points it to create_assignment', () => {
     const harness = createHarness();
     installOrchestratorSubagentGuard(harness.ctx);
@@ -269,6 +304,46 @@ describe('Bot-owned DSH Subagent tools', () => {
       expect.any(AbortSignal),
     );
   });
+
+  it.each([false, true])(
+    'starts a child on a flat-request Host (background=%s)',
+    async (background) => {
+      const harness = createHarness();
+      await harness.install();
+      const parent = createAgent();
+      harness.startActivation.mockImplementationOnce(async (spec) => {
+        if (!('parent' in spec) || spec.parent !== parent)
+          throw new Error('flat Host requires the exact live parent');
+        expect(spec).toMatchObject({
+          agentOptions: parentOptions,
+          agentPreset: 'system-default',
+          maxDepth: 1,
+          prompt: [{ type: 'text', text: 'Calculate 37 times 41' }],
+          delivery: background ? 'parent' : 'caller',
+        });
+        return {
+          childId: CHILD_ID,
+          result: Promise.resolve({
+            stopReason: 'completed',
+            output: [{ type: 'text', text: '1517' }],
+          }),
+          dispose: async () => undefined,
+        };
+      });
+      const result = await callTool(
+        harness,
+        'bot_subagent',
+        {
+          description: 'RC2 child',
+          prompt: 'Calculate 37 times 41',
+          run_in_background: background,
+        },
+        parent,
+      );
+      expect(result).toContain(background ? `Started Subagent ${CHILD_ID}` : '1517');
+      expect(harness.startActivation).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it('reads the system default at each spawn and refuses a missing registry', async () => {
     const presets = presetRegistry(['system-default', 'new-default']);
@@ -620,6 +695,53 @@ describe('Bot-owned DSH Subagent tools', () => {
       default: plan.assignmentDefault,
       allowed: plan.assignmentModels,
       parentSession: 'parent',
+    });
+  });
+  it('starts a child on the first usable Routing Group member and lists the groups (#4420)', async () => {
+    const harness = createHarness({ plan });
+    const picked: string[] = [];
+    const tools = createBotSubagentModelTools(harness.ctx, () => plan, {}, undefined, undefined, {
+      pick: async (groupId) => {
+        picked.push(groupId);
+        return { provider: 'openai', model: 'sol', reasoningEffort: 'high' };
+      },
+      list: () => [
+        {
+          group: 'g',
+          name: 'Fallback',
+          members: [{ provider: 'deepseek', model: 'pro', restingUntil: '2026-11-18T00:00:00Z' }],
+        },
+      ],
+    });
+    for (const tool of tools) harness.definitions.set(tool.name, tool);
+    const listed = JSON.parse((await callTool(harness, 'list_bot_subagent_models', {})) as string);
+    expect(listed.groups).toEqual([
+      {
+        group: 'g',
+        name: 'Fallback',
+        members: [{ provider: 'deepseek', model: 'pro', restingUntil: '2026-11-18T00:00:00Z' }],
+      },
+    ]);
+    await expect(
+      callTool(harness, 'bot_subagent', {
+        description: 'Both',
+        prompt: 'Work',
+        group: 'g',
+        provider: 'deepseek',
+        model: 'pro',
+      }),
+    ).rejects.toThrow('group must be a Routing Group id');
+    expect(
+      await callTool(harness, 'bot_subagent', {
+        description: 'Grouped',
+        prompt: 'Work',
+        group: 'g',
+      }),
+    ).toContain(`Started Subagent ${CHILD_ID} on openai/sol`);
+    expect(picked).toEqual(['g']);
+    expect(startedActivation(harness).request.agentOptions).toMatchObject({
+      provider: 'openai',
+      model: 'sol',
     });
   });
 });

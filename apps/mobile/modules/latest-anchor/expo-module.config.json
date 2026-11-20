@@ -1,0 +1,12 @@
+{
+  "platforms": ["apple", "android"],
+  "apple": {
+    "modules": ["LatestAnchorModule"]
+  },
+  "android": {
+    "modules": [
+      "expo.modules.latestanchor.ChatRecyclerModule",
+      "expo.modules.latestanchor.ChatRecyclerCellModule"
+    ]
+  }
+}

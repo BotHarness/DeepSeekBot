@@ -141,7 +141,7 @@ function fixture(
             ],
       environment: { version: 'test', platform: 'test', arch: 'test', node: 'test' },
     },
-    readTimeline: (id, request) => pageChannelTimeline(id, messages, request),
+    readTimeline: (human, id, request) => pageChannelTimeline(id, messages, request),
     homes: [],
     ...(submit ? { submit } : {}),
   });

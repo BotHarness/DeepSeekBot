@@ -471,7 +471,9 @@ describe('release service', () => {
       restartable: false,
       applied: false,
     });
-    expect(manager.installBundle).toHaveBeenCalledWith('deepseekbot@1.1.0');
+    expect(manager.installBundle).toHaveBeenCalledWith('deepseekbot@1.1.0', {
+      requestId: expect.any(String),
+    });
     expect(await service.update()).toEqual({
       status: 'restart-required',
       current: '1.0.1',

@@ -6,6 +6,7 @@ function a11y(props: Props): Record<string, unknown> {
   const state = (props['accessibilityState'] ?? {}) as Record<string, unknown>;
   return {
     ...(props['testID'] === undefined ? {} : { 'data-testid': props['testID'] }),
+    ...(props['nativeID'] === undefined ? {} : { 'data-native-id': props['nativeID'] }),
     ...(props['accessibilityRole'] === undefined ? {} : { role: props['accessibilityRole'] }),
     ...(props['accessibilityLabel'] === undefined
       ? {}
@@ -16,7 +17,11 @@ function a11y(props: Props): Record<string, unknown> {
 }
 
 export const View = (props: Props) =>
-  createElement('div', { ...a11y(props), ref: props['ref'] }, props.children);
+  createElement(
+    'div',
+    { ...a11y(props), ref: props['ref'], 'data-style': JSON.stringify(props['style']) },
+    props.children,
+  );
 export const Text = (props: Props) => createElement('span', a11y(props), props.children);
 export const ScrollView = View;
 export const Animated = {
@@ -48,7 +53,16 @@ export const Pressable = (props: Props) =>
       ...a11y(props),
       type: 'button',
       disabled: props['disabled'] === true,
+      'data-rest-style':
+        typeof props['style'] === 'function'
+          ? JSON.stringify(props['style']({ pressed: false }))
+          : undefined,
+      'data-pressed-style':
+        typeof props['style'] === 'function'
+          ? JSON.stringify(props['style']({ pressed: true }))
+          : undefined,
       onClick: () => (props['onPress'] as (() => void) | undefined)?.(),
+      onContextMenu: () => (props['onLongPress'] as (() => void) | undefined)?.(),
     },
     typeof props.children === 'function'
       ? (props.children as (state: { pressed: boolean }) => ReactNode)({ pressed: false })

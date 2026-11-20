@@ -61,17 +61,113 @@ export function botPreset(standard) {
     /^ {10}- id: (?:time-context|tool-schedule)\n(?: {12,}[^\n]*(?:\n|$)|[ \t]*\n)*/gm,
     '',
   );
+  body = body.replace(
+    /( {10}- id: tool-plugin-manager\n {12}name: '@deepseek-ai\/dsh-plugin-manager\/tools'\n) {12}disabled: [^\n]+/,
+    '$1            disabled: true',
+  );
   return body;
 }
 
+export const SCENARIO_MODES = [
+  {
+    id: 'tobs-research',
+    name: 'Tobs 调研',
+    order: 6,
+    plugins: [
+      'persona',
+      'agent-instructions',
+      'tool-fs',
+      'tool-fs-search',
+      'compaction',
+      'tool-ask-user',
+      'tool-todo',
+      'tool-web',
+      'present',
+    ],
+    description:
+      'Tobs 调研模式：上网搜索和抓取网页、读写文件，没有终端。适合查资料、核对版本和事实、对比产品并写报告；不适合跑代码、处理数据。 Research: web search and fetch plus file read and write, no terminal. Use it to look things up, check versions and facts, compare products and write a report. Not for running code or processing data.',
+  },
+  {
+    id: 'tobs-code',
+    name: 'Tobs 编程',
+    order: 7,
+    plugins: [
+      'persona',
+      'agent-instructions',
+      'tool-bash',
+      'tool-pwsh',
+      'tool-fs',
+      'tool-fs-search',
+      'tool-jobs',
+      'skill-filesystem',
+      'tool-skill',
+      'compaction',
+      'tool-ask-user',
+      'tool-todo',
+      'tool-web',
+    ],
+    description:
+      'Tobs 编程模式：终端、文件读写和搜索、后台任务、技能，可以上网查文档。适合写代码、改代码、跑测试和构建；没有计划模式和 workflow。 Coding: terminal, file read, write and search, background jobs, skills, and web lookups for docs. Use it to write or change code and run tests and builds. No plan mode or workflows.',
+  },
+  {
+    id: 'tobs-script',
+    name: 'Tobs 脚本',
+    order: 8,
+    plugins: [
+      'persona',
+      'agent-instructions',
+      'tool-bash',
+      'tool-pwsh',
+      'tool-fs',
+      'tool-fs-search',
+      'compaction',
+      'tool-ask-user',
+    ],
+    description:
+      'Tobs 脚本模式：只有终端和文件读写搜索，最省。适合处理本地数据和文件、算统计、跑一个小脚本；不能上网。 Script: terminal and file read, write and search only, the lightest mode. Use it to process local data or files, compute statistics or run a small script. No web access.',
+  },
+];
+
+export function scenarioPreset(tobs, mode) {
+  const rows = tobs.split('\n');
+  const start = rows.indexOf('        plugins:');
+  if (start < 0) throw new Error('The Tobs preset has no plugin list');
+  const blocks = [];
+  for (const row of rows.slice(start + 1)) {
+    const id = /^ {10}- id: (\S+)$/.exec(row)?.[1];
+    if (id !== undefined) blocks.push({ id, rows: [row] });
+    else if (blocks.length === 0)
+      throw new Error('The Tobs plugin list starts with a non-plugin row');
+    else blocks.at(-1).rows.push(row);
+  }
+  const missing = mode.plugins.filter((id) => !blocks.some((block) => block.id === id));
+  if (missing.length > 0)
+    throw new Error(`The Tobs preset has no ${missing.join(', ')} plugin for ${mode.id}`);
+  let head = rows.slice(0, start + 1).join('\n');
+  head = replaceOnce(head, `id: preset-${BOT_PRESET_ID}\n`, `id: preset-${mode.id}\n`);
+  head = replaceOnce(head, `        id: ${BOT_PRESET_ID}\n`, `        id: ${mode.id}\n`);
+  head = replaceOnce(head, '        name: Tobs\n', `        name: ${mode.name}\n`);
+  head = replaceOnce(
+    head,
+    `        description: '${BOT_PRESET_DESCRIPTION}'\n`,
+    `        description: '${mode.description}'\n`,
+  );
+  head = replaceOnce(head, '        order: 5\n', `        order: ${mode.order}\n`);
+  const kept = blocks.filter((block) => mode.plugins.includes(block.id));
+  return [head, ...kept.flatMap((block) => block.rows)].join('\n').trimEnd();
+}
+
 export function generatedRegion(standard) {
+  const tobs = botPreset(standard);
   return [
     BEGIN,
     '# The PersonaBot agent preset: DSH standard, with ask_user_question in timed',
-    '# mode so a pending question does not hold the Bot (ADR-0187) and without the',
-    '# native subagent tools the Bot replaces with bot_subagent. Do not edit;',
+    '# mode so a pending question does not hold the Bot (Session decisions §10) and without the',
+    '# native subagent tools the Bot replaces with bot_subagent. The scenario modes',
+    '# keep only the Tobs plugins their task needs. Do not edit;',
     '# run `node scripts/sync-bot-preset.mjs` after a DSH upgrade.',
-    botPreset(standard),
+    tobs,
+    ...SCENARIO_MODES.map((mode) => scenarioPreset(tobs, mode)),
     END,
   ].join('\n');
 }

@@ -60,7 +60,7 @@ export async function authorizeGroupMembers({
         error: errorMessage(cause),
       };
     }
-    publishWorkspaceGrantChange(slug);
+    publishWorkspaceGrantChange(slug, actions);
     onResult(result);
   }
 }

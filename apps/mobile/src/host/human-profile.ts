@@ -1,0 +1,140 @@
+import { readChannel, setChannelHumanName } from '@botharness/host-client/channel-management';
+import type { HostClient } from '@botharness/host-client/client';
+import {
+  createHumanAvatarCache,
+  readHumanAvatars,
+  readHumanIdentity,
+  setHumanName,
+  setHumanAvatar,
+  finishHumanProfile,
+  type HumanAvatarCache,
+  type HumanIdentity,
+} from '@botharness/host-client/human-profile';
+import { createContext, useContext, useSyncExternalStore } from 'react';
+import type { ViewInstance } from 'react-native';
+
+import { useMounted } from '../ui/mounted';
+import { followConnection } from './follow-connection';
+import { createReadSequence } from './identity-reads';
+
+const caches = new WeakMap<HostClient, HumanAvatarCache>();
+
+export function humanAvatarCache(client: HostClient): HumanAvatarCache {
+  let cache = caches.get(client);
+  if (cache === undefined) {
+    cache = createHumanAvatarCache((humanIds) => readHumanAvatars(client, humanIds));
+    caches.set(client, cache);
+  }
+  return cache;
+}
+
+const idle: HumanAvatarCache = createHumanAvatarCache(async () => []);
+
+export function useHumanAvatar(
+  client: HostClient | undefined,
+  humanId: string | undefined,
+  version: string | undefined,
+): string | undefined {
+  const cache = client === undefined ? idle : humanAvatarCache(client);
+  useSyncExternalStore(cache.subscribe, cache.getSnapshot, cache.getSnapshot);
+  if (client === undefined || humanId === undefined) return undefined;
+  cache.want(humanId, version);
+  return cache.get(humanId, version);
+}
+
+export const HumanAvatarClientContext = createContext<HostClient | undefined>(undefined);
+
+export function useMemberAvatar(
+  humanId: string | undefined,
+  version: string | undefined,
+): string | undefined {
+  const client = useContext(HumanAvatarClientContext);
+  return useHumanAvatar(client, version === undefined ? undefined : humanId, version);
+}
+
+const identities = new WeakMap<HostClient, HumanIdentity>();
+const identityListeners = new Set<() => void>();
+let identityRevision = 0;
+const identitySource = {
+  subscribe(listener: () => void) {
+    identityListeners.add(listener);
+    return () => {
+      identityListeners.delete(listener);
+    };
+  },
+  getSnapshot: () => identityRevision,
+};
+
+const sequence = createReadSequence<HostClient>();
+
+function remember(client: HostClient, identity: HumanIdentity, write = false): HumanIdentity {
+  if (write) sequence.wrote(client);
+  identities.set(client, identity);
+  identityRevision += 1;
+  for (const listener of identityListeners) listener();
+  return identity;
+}
+
+export async function loadHumanIdentity(client: HostClient): Promise<HumanIdentity> {
+  const commit = sequence.begin(client);
+  const identity = await readHumanIdentity(client);
+  const newer = identities.get(client);
+  return !commit() && newer !== undefined ? newer : remember(client, identity);
+}
+
+export function followHumanIdentity(client: HostClient): () => void {
+  return followConnection(client, () => loadHumanIdentity(client));
+}
+
+export async function saveHumanName(
+  client: HostClient,
+  name: string | null,
+): Promise<HumanIdentity> {
+  return remember(client, await setHumanName(client, name), true);
+}
+
+export async function saveHumanAvatar(
+  client: HostClient,
+  avatar: string | null,
+): Promise<HumanIdentity> {
+  const identity = await setHumanAvatar(client, avatar);
+  if (avatar !== null && identity.avatarVersion !== undefined)
+    humanAvatarCache(client).put({
+      humanId: identity.humanId,
+      version: identity.avatarVersion,
+      avatar,
+    });
+  return remember(client, identity, true);
+}
+
+export async function finishHumanProfileSetup(client: HostClient): Promise<HumanIdentity> {
+  return remember(client, await finishHumanProfile(client), true);
+}
+
+export function useHumanIdentity(client: HostClient | undefined) {
+  useSyncExternalStore(identitySource.subscribe, identitySource.getSnapshot);
+  const identity = client === undefined ? undefined : identities.get(client);
+  const mount = useMounted<ViewInstance>(
+    () => (client === undefined ? undefined : followHumanIdentity(client)),
+    [client],
+  );
+  const avatar = useHumanAvatar(client, identity?.humanId, identity?.avatarVersion);
+  return { identity, avatar, mount };
+}
+
+export async function loadChannelNickname(
+  client: HostClient,
+  channelId: string,
+): Promise<string | null> {
+  return (await readChannel(client, channelId)).nickname;
+}
+
+export async function saveChannelNickname(
+  client: HostClient,
+  channelId: string,
+  nickname: string | null,
+): Promise<string | null> {
+  const result = await setChannelHumanName(client, channelId, nickname);
+  await client.refresh().catch(() => undefined);
+  return result.nickname;
+}

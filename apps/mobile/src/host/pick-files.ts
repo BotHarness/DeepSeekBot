@@ -2,7 +2,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import { File, Paths } from 'expo-file-system';
 import * as ImagePicker from 'expo-image-picker';
 
-import type { OutgoingFile } from './conversation';
+import type { OutgoingFile } from '@botharness/host-client/conversation';
 
 export type PickSource = 'photos' | 'camera' | 'file';
 

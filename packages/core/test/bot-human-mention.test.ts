@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { LOCAL_HUMAN_ID } from '../src/channels/channel.js';
@@ -66,38 +67,47 @@ describe('trusted Bot mentions of the local Human', () => {
       }),
     });
     core.registry.create({ slug: 'ada', displayName: 'Ada' });
-    const group = core.channels.createGroup({ name: 'Launch', members: ['ada'] });
+    const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Launch',
+      members: ['ada'],
+    });
     groupId = group.id;
-    const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
+    const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
     try {
-      await core.channels.appendMessage(dm.id, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'start',
         at: '2026-09-30T01:00:00Z',
         author: { kind: 'human' },
         body: 'Test targets',
       });
-      core.runtime.admitDmMessage({ channelId: dm.id, messageId: 'start', body: 'Test targets' });
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: 'start',
+        body: 'Test targets',
+      });
       await core.runtime.whenIdle();
       expect(failures).toHaveLength(4);
       expect(validationErrors).toHaveLength(4);
       for (const error of validationErrors)
         expect(error).toContain('Human mentions require at most 20 valid Human IDs');
-      const personal = core.humanAttention.list({ category: 'replies' }).items;
+      const personal = core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' }).items;
       expect(personal).toHaveLength(1);
       expect(personal[0]?.summary).toBe('@Human Trusted request');
-      expect(core.humanAttention.list({ category: 'unread' }).items).toMatchObject([
-        { unreadCount: 1, summary: '@Human ordinary text' },
-      ]);
-      expect(core.humanAttention.status().unreadCount).toBe(2);
-      core.channels.setHumanDefaultName('Launch lead');
-      expect(core.channels.listHumanMembers(groupId)).toEqual([
+      expect(
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread' }).items,
+      ).toMatchObject([{ unreadCount: 1, summary: '@Human ordinary text' }]);
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT).unreadCount).toBe(2);
+      core.channels.setHumanDefaultName(OWNER_HUMAN_CONTEXT, 'Launch lead');
+      expect(core.channels.listHumanMembers(OWNER_HUMAN_CONTEXT, groupId)).toEqual([
         { humanId: LOCAL_HUMAN_ID, displayName: 'Launch lead' },
       ]);
       await core.runtime.close();
       core.operationalDatabase.close();
       const resumed = createCore({ dshHome: home });
       try {
-        expect(resumed.humanAttention.list({ category: 'replies' }).items).toEqual(personal);
+        expect(
+          resumed.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' }).items,
+        ).toEqual(personal);
         expect(resumed.channels.message(groupId, personal[0]!.messageId!)?.humanMentions).toEqual([
           { humanId: LOCAL_HUMAN_ID, label: 'Human', start: 0, end: 6 },
         ]);
@@ -114,10 +124,12 @@ describe('trusted Bot mentions of the local Human', () => {
               .run('2026-10-01T00:00:00Z', groupId, LOCAL_HUMAN_ID),
           ['channel'],
         );
-        expect(resumed.channels.listHumanMembers(groupId)).toEqual([]);
-        expect(resumed.humanAttention.list({ category: 'replies' }).items).toEqual([]);
+        expect(resumed.channels.listHumanMembers(OWNER_HUMAN_CONTEXT, groupId)).toEqual([]);
+        expect(
+          resumed.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' }).items,
+        ).toEqual([]);
         await expect(
-          resumed.channels.appendMessageOnce(groupId, {
+          resumed.channels.appendMessageOnce(OWNER_HUMAN_CONTEXT, groupId, {
             id: 'absent-target',
             at: '2026-10-01T00:00:00Z',
             author: { kind: 'bot', slug: 'ada' },
@@ -166,22 +178,25 @@ describe('trusted Bot mentions of the local Human', () => {
     });
     try {
       for (const slug of ['ada', 'bea', 'cee']) core.registry.create({ slug, displayName: slug });
-      const group = core.channels.createGroup({ name: 'Launch', members: ['ada', 'bea', 'cee'] });
+      const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+        name: 'Launch',
+        members: ['ada', 'bea', 'cee'],
+      });
       groupId = group.id;
-      await core.channels.appendMessage(groupId, {
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, groupId, {
         id: 'human-question',
         at: '2026-09-30T00:00:00.000Z',
         author: { kind: 'human' },
         body: 'Is the launch ready?',
       });
-      const dm = core.channels.getOrCreateDm('ada', 'ada')!;
-      await core.channels.appendMessage(dm.id, {
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'ada')!;
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
         id: 'start',
         at: '2026-09-30T00:01:00.000Z',
         author: { kind: 'human' },
         body: 'Ask us in Launch',
       });
-      core.runtime.admitDmMessage({
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'start',
         body: 'Ask us in Launch',
@@ -192,15 +207,22 @@ describe('trusted Bot mentions of the local Human', () => {
         humanMentions: [{ humanId: LOCAL_HUMAN_ID, label: 'Human', start: 10, end: 16 }],
       });
       expect(recipients.sort()).toEqual(['bea', 'cee']);
-      expect(core.humanAttention.list({ category: 'replies' }).items).toMatchObject([
+      expect(
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' }).items,
+      ).toMatchObject([
         { kind: 'channel-mention', messageId: sentId, channelId: groupId, isUnread: true },
       ]);
-      expect(core.humanAttention.status()).toEqual({ unreadCount: 1, hasAction: false });
-      expect(core.humanAttention.list({ category: 'unread' }).items).toEqual([]);
-      await core.channels.markRead(groupId, sentId);
-      expect(core.humanAttention.list({ category: 'replies' }).items).toMatchObject([
-        { messageId: sentId, isUnread: false },
-      ]);
+      expect(core.humanAttention.status(OWNER_HUMAN_CONTEXT)).toEqual({
+        unreadCount: 1,
+        hasAction: false,
+      });
+      expect(core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'unread' }).items).toEqual(
+        [],
+      );
+      await core.channels.markRead(OWNER_HUMAN_CONTEXT, groupId, sentId);
+      expect(
+        core.humanAttention.list(OWNER_HUMAN_CONTEXT, { category: 'replies' }).items,
+      ).toMatchObject([{ messageId: sentId, isUnread: false }]);
     } finally {
       await core.runtime.close();
       core.operationalDatabase.close();

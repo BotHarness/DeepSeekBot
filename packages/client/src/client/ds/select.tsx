@@ -1,13 +1,37 @@
+import { Icon } from './icon.js';
 import { PointerMenu, type MenuPoint } from './pointer-menu.js';
 import { useMountedResource } from '../mounted-resource.js';
 import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import { pillStyles } from './pill-button.js';
-import { color, space } from './tokens.stylex.js';
+import { on } from './surface.stylex.js';
+import { accent, ink, style } from './tobs.stylex.js';
+import { border, space } from './tokens.stylex.js';
 
 const styles = stylex.create({
+  trigger: {
+    boxSizing: 'border-box',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x2,
+    minWidth: 0,
+    maxWidth: '100%',
+    height: style.controlHeight,
+    paddingInlineStart: space.x3,
+    paddingInlineEnd: space.x2,
+    borderWidth: 0,
+    borderRadius: style.radiusControl,
+    backgroundColor: on.field,
+    boxShadow: `inset 0 0 0 1px ${on.fieldEdge}`,
+    color: ink.primary,
+    fontFamily: 'inherit',
+    fontSize: style.textUiSize,
+    lineHeight: style.textUiLine,
+    cursor: { default: 'pointer', ':disabled': 'default' },
+    opacity: { default: 1, ':disabled': 0.5 },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${accent.focus}` },
+    outlineOffset: '-1px',
+  },
   label: {
     minWidth: 0,
     overflow: 'hidden',
@@ -17,7 +41,7 @@ const styles = stylex.create({
   chevron: {
     display: 'inline-flex',
     flexShrink: 0,
-    color: color.muted,
+    color: ink.tertiary,
   },
 });
 
@@ -121,11 +145,11 @@ export function Select<Value extends string>({
           if (active) close();
           else setOpen(true);
         }}
-        {...stylex.props(pillStyles.pill)}
+        {...stylex.props(styles.trigger)}
       >
         <span {...stylex.props(styles.label)}>{current?.label}</span>
         <span {...stylex.props(styles.chevron)}>
-          <IconChevronDownOutlineRegular size={12} />
+          <Icon name="chevron-down" size={12} />
         </span>
       </button>
       {active && point ? (
@@ -135,7 +159,10 @@ export function Select<Value extends string>({
           container={trigger.current?.closest('[role="dialog"]') ?? document.body}
           autoFocus
           anchor={<span aria-hidden="true" />}
-          items={options.map((option) => ({ id: option.value, label: option.label }))}
+          items={options.map((option) => ({
+            id: option.value,
+            label: option.label,
+          }))}
           selectedId={value}
           onSelect={(id) => {
             close();

@@ -6,6 +6,7 @@ import { writeZip } from '../src/bots/zip-archive.js';
 import { readBotZip } from '../src/bots/bot-zip.js';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 const directories: string[] = [];
@@ -24,44 +25,59 @@ afterEach(async () => {
 
 async function host(handler: (method: string, args: Record<string, unknown>) => unknown) {
   const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
-  const server = createServer(async (req, res) => {
-    if (req.method === 'GET') {
-      expect(new URL(req.url!, 'http://localhost').searchParams.get('token')).toBe(
-        'private-test-token',
-      );
-      res.writeHead(302, { 'set-cookie': 'authority=signed', location: '/' }).end();
-      return;
-    }
-    expect(req.headers.cookie).toBe('authority=signed');
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    if (req.url?.startsWith('/api/botharness/bot-zip/import')) {
-      const args = {
-        ...Object.fromEntries(new URL(req.url, 'http://localhost').searchParams),
-        archive: Buffer.concat(chunks),
-      };
-      calls.push({ method: 'bot-zip/import', args });
-      const result = handler('bot-zip/import', args);
+  const server = createServer(
+    requestListener(async (req, res) => {
+      if (req.method === 'GET') {
+        expect(new URL(req.url!, 'http://localhost').searchParams.get('token')).toBe(
+          'private-test-token',
+        );
+        res.writeHead(302, { 'set-cookie': 'authority=signed', location: '/' }).end();
+        return;
+      }
+      expect(req.headers.cookie).toBe('authority=signed');
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      if (req.url?.startsWith('/api/botharness/bot-zip/import')) {
+        const args = {
+          ...Object.fromEntries(new URL(req.url, 'http://localhost').searchParams),
+          archive: Buffer.concat(chunks),
+        };
+        calls.push({ method: 'bot-zip/import', args });
+        const result = handler('bot-zip/import', args);
+        if (result === 'lost-response') {
+          res.destroy();
+          return;
+        }
+        const output = typeof result === 'object' && result !== null && 'error' in result;
+        res.statusCode = output ? 500 : 200;
+        res.end(JSON.stringify(result));
+        return;
+      }
+      const input = JSON.parse(Buffer.concat(chunks).toString());
+      const method = input.method.replace('botharness/', '');
+      expect(req.url).toBe(`/api/${input.method}`);
+      calls.push({ method, args: input.payload.args });
+      const result =
+        method === 'channelDm'
+          ? {
+              ok: true,
+              value: {
+                channel: {
+                  id: 'dm-' + String(input.payload.args.slug),
+                  type: 'dm',
+                  name: String(input.payload.args.slug),
+                  members: [String(input.payload.args.slug)],
+                },
+              },
+            }
+          : handler(method, input.payload.args);
       if (result === 'lost-response') {
         res.destroy();
         return;
       }
-      const output = typeof result === 'object' && result !== null && 'error' in result;
-      res.statusCode = output ? 500 : 200;
-      res.end(JSON.stringify(result));
-      return;
-    }
-    const input = JSON.parse(Buffer.concat(chunks).toString());
-    const method = input.method.replace('botharness/', '');
-    expect(req.url).toBe(`/api/${input.method}`);
-    calls.push({ method, args: input.payload.args });
-    const result = handler(method, input.payload.args);
-    if (result === 'lost-response') {
-      res.destroy();
-      return;
-    }
-    res.end(JSON.stringify({ type: 'server-response', result }));
-  });
+      res.end(JSON.stringify({ type: 'server-response', result }));
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -82,6 +98,24 @@ async function invoke(argv: string[], url: string, stdin = '') {
   expect(stdout.join('') + stderr.join('')).not.toContain('private-test-token');
   return { code, value: JSON.parse(stdout[0]!) };
 }
+
+const deletionPreview = (token: string) => ({
+  slug: 'owned',
+  displayName: 'Owned',
+  memoryDir: '/memory/owned',
+  eraseAvailable: true,
+  token,
+  dependencies: { sessions: [], workspaces: [], grants: [], identities: [], channels: [] },
+});
+const deletionReceipt = (eraseMemory: boolean, phase: 'incomplete' | 'complete') => ({
+  slug: 'owned',
+  displayName: 'Owned',
+  memoryDir: '/memory/owned',
+  acceptedAt: '2026-11-20T00:00:00Z',
+  eraseMemory,
+  phase,
+  memory: eraseMemory ? 'erased' : 'retained',
+});
 
 describe('online CLI management', () => {
   it.each(['started', 'busy'] as const)(
@@ -185,7 +219,7 @@ describe('online CLI management', () => {
             ok: false,
             error: { code: 'botharness/invalid-input', message: 'Preview scope changed' },
           }
-        : { ok: true, value: { preview: { token: 'reviewed-scope' } } },
+        : { ok: true, value: { preview: deletionPreview('reviewed-scope') } },
     );
     expect((await invoke(['bot-delete-preview', 'owned'], live.url)).code).toBe(0);
     expect((await invoke(['bot-delete-confirm', 'owned'], live.url)).value.error.code).toBe(
@@ -373,6 +407,7 @@ describe('online CLI management', () => {
       roles: ['QA'],
     });
     expect(live.calls[2]?.args).toEqual({ slug: 'minted', presetId: 'preset' });
+    expect(live.calls.at(-1)?.args).toEqual({ slug: 'minted', displayName: 'Ada' });
   });
 
   it('forwards a chosen Memory location to the Host create owner', async () => {
@@ -584,8 +619,13 @@ describe('online CLI management', () => {
         ok: true,
         value:
           method === 'deletionPreview'
-            ? { preview: { deletion: { eraseMemory, phase: 'incomplete' } } }
-            : { deletion: { eraseMemory, phase: 'complete' } },
+            ? {
+                preview: {
+                  ...deletionPreview('accepted-scope'),
+                  deletion: deletionReceipt(eraseMemory, 'incomplete'),
+                },
+              }
+            : { deletion: deletionReceipt(eraseMemory, 'complete') },
       }));
       expect((await invoke(['bot-delete-retry', 'owned'], live.url)).value.error.code).toBe(
         'usage',
@@ -595,7 +635,7 @@ describe('online CLI management', () => {
           .error.code,
       ).toBe('usage');
       const result = await invoke(['bot-delete-retry', 'owned', '--confirm'], live.url);
-      expect(result.value.deletion).toEqual({ eraseMemory, phase: 'complete' });
+      expect(result.value.deletion).toEqual(deletionReceipt(eraseMemory, 'complete'));
       expect(live.calls).toEqual([
         { method: 'deletionPreview', args: { slug: 'owned' } },
         { method: 'deletionRetry', args: { slug: 'owned' } },
@@ -604,14 +644,20 @@ describe('online CLI management', () => {
   );
 
   it('refuses retry without an accepted deletion and never submits a new scope', async () => {
-    const live = await host(() => ({ ok: true, value: { preview: { token: 'unaccepted' } } }));
+    const live = await host(() => ({
+      ok: true,
+      value: { preview: deletionPreview('unaccepted') },
+    }));
     const result = await invoke(['bot-delete-retry', 'owned', '--confirm'], live.url);
     expect(result.value.error.code).toBe('usage');
     expect(live.calls).toEqual([{ method: 'deletionPreview', args: { slug: 'owned' } }]);
   });
 
   it('requires explicit confirmation and an explicit flag to erase reviewed Memory', async () => {
-    const live = await host(() => ({ ok: true, value: { deletion: { memory: 'erased' } } }));
+    const live = await host(() => ({
+      ok: true,
+      value: { deletion: deletionReceipt(true, 'complete') },
+    }));
     const token = JSON.stringify({ token: 'reviewed-scope' });
     expect(
       (
@@ -781,4 +827,32 @@ it('creates a pinned Git import and exposes its stable receipt without inspectin
     },
   });
   expect(live.calls.some((call) => call.method === 'botImportPreview')).toBe(false);
+});
+
+it('returns the independent Bot active flag even when the visible state is waiting and session output is bounded', async () => {
+  const live = await host((method) => ({
+    ok: true,
+    value:
+      method === 'activitySnapshot'
+        ? {
+            generation: 'generation-1',
+            revision: 1,
+            bots: [
+              {
+                slug: 'ada',
+                state: 'waiting',
+                active: true,
+                sessions: [
+                  { id: 'approval', role: 'orchestrator', state: 'waiting' },
+                  { id: 'running', role: 'assignment', state: 'working' },
+                ],
+              },
+            ],
+          }
+        : { bot: { slug: 'ada' } },
+  }));
+  const result = await invoke(['bot-activity', 'ada', '--limit', '1'], live.url);
+  expect(result.code).toBe(0);
+  expect(result.value.bot).toMatchObject({ slug: 'ada', state: 'waiting', active: true });
+  expect(result.value.bot.sessions).toHaveLength(1);
 });

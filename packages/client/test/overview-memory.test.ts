@@ -30,5 +30,7 @@ it('loads the bounded Memory projection and rejects invented zero or dirty state
     ok: true,
     value: { ...result, bots: [{ ...result.bots[0], total: 0, dirty: false }] },
   });
-  await expect(loadOverviewMemory(invalid)).rejects.toThrow('invalid Overview Memory');
+  await expect(loadOverviewMemory(invalid)).rejects.toThrow(
+    'overviewMemory returned an unreadable Memory overview.',
+  );
 });

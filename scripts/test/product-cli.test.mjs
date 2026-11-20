@@ -50,11 +50,17 @@ it('starts the bundled CLI after core/cli has already been built outside DSH', a
       },
     });
     const entry = join(temporary, 'dist', 'deepseekbot.mjs');
-    const help = await exec(process.execPath, [entry, '--help'], { timeout: 20_000 });
+    const help = await exec(process.execPath, [entry, '--help'], {
+      timeout: 20_000,
+      shell: false,
+      windowsHide: true,
+    });
     expect(help.stdout).toContain('channel-media-download');
     expect(help.stdout).toContain('channel-media-target');
     const output = await exec(process.execPath, [entry, 'channel-media-download', 'channel'], {
       timeout: 20_000,
+      shell: false,
+      windowsHide: true,
     }).catch((error) => error);
     expect(JSON.parse(output.stdout).error.code).toBe('usage');
     expect(output.stderr).not.toContain('ERR_MODULE_NOT_FOUND');

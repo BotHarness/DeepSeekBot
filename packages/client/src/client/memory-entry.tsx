@@ -1,3 +1,5 @@
+import { Button } from './ds/button.js';
+import { Input } from './ds/input.js';
 import { PointerMenu } from './ds/pointer-menu.js';
 import { PanelEmptyState } from './ds/empty-state.js';
 import {
@@ -9,7 +11,6 @@ import {
   type MouseEvent,
   type ReactElement,
 } from 'react';
-import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type {
   MemoryGitGraph,
@@ -64,8 +65,14 @@ function MemoryEntryForScope({
     y: number;
     returnFocus: HTMLElement;
   }>();
-  const [continueForm, setContinueForm] = useState<{ sha: string; branch: string }>();
-  const [restoreForm, setRestoreForm] = useState<{ sha: string; name: string }>();
+  const [continueForm, setContinueForm] = useState<{
+    sha: string;
+    branch: string;
+  }>();
+  const [restoreForm, setRestoreForm] = useState<{
+    sha: string;
+    name: string;
+  }>();
   const [nameForm, setNameForm] = useState<{ sha: string; name: string }>();
   const [restored, setRestored] = useState<{
     sha: string;
@@ -159,7 +166,11 @@ function MemoryEntryForScope({
               current?.head === next.head &&
               current.currentBranch === next.currentBranch &&
               current.commits.length > next.commits.length
-                ? { ...next, commits: current.commits, hasMore: current.hasMore }
+                ? {
+                    ...next,
+                    commits: current.commits,
+                    hasMore: current.hasMore,
+                  }
                 : next;
             cache.graph = merged;
             setGraph(merged);
@@ -286,7 +297,12 @@ function MemoryEntryForScope({
     const cachedFile = path === undefined ? undefined : cache.files.get(path);
     if (draftState.current.path !== path) {
       const body = cachedFile?.body ?? '';
-      draftState.current = { path, body, value: body, version: draftState.current.version + 1 };
+      draftState.current = {
+        path,
+        body,
+        value: body,
+        version: draftState.current.version + 1,
+      };
       setFile(cachedFile);
       setDraft(body);
     }
@@ -407,7 +423,11 @@ function MemoryEntryForScope({
     setBusy(true);
     setError(undefined);
     try {
-      await actions.memoryNameVersion({ channelId, sha: nameForm.sha, name: nameForm.name.trim() });
+      await actions.memoryNameVersion({
+        channelId,
+        sha: nameForm.sha,
+        name: nameForm.name.trim(),
+      });
       setNameForm(undefined);
       forgetMemory();
     } catch (failure) {
@@ -701,18 +721,26 @@ function MemoryEntryForScope({
             )}
             {restored === undefined ? null : (
               <div className="bh-note bh-memory-restore-done" role="status">
-                {t('memory.restoreCommit.done', { sha: restored.sha.slice(0, 7) })}
+                {t('memory.restoreCommit.done', {
+                  sha: restored.sha.slice(0, 7),
+                })}
                 {restored.backup === null && restored.version === null ? null : (
                   <MessagingHelp
-                    title={t('memory.restoreCommit.done', { sha: restored.sha.slice(0, 7) })}
+                    title={t('memory.restoreCommit.done', {
+                      sha: restored.sha.slice(0, 7),
+                    })}
                     text={`${
                       restored.backup === null
                         ? ''
-                        : t('memory.restoreCommit.backedUp', { sha: restored.backup.slice(0, 7) })
+                        : t('memory.restoreCommit.backedUp', {
+                            sha: restored.backup.slice(0, 7),
+                          })
                     }${
                       restored.version === null
                         ? ''
-                        : t('memory.restoreCommit.named', { name: restored.version })
+                        : t('memory.restoreCommit.named', {
+                            name: restored.version,
+                          })
                     }`.trim()}
                     t={t}
                   />
@@ -729,7 +757,12 @@ function MemoryEntryForScope({
                   items={[
                     ...(commitMenu.sha === graph.head
                       ? []
-                      : [{ id: 'restore', label: t('memory.restoreCommit.menu') }]),
+                      : [
+                          {
+                            id: 'restore',
+                            label: t('memory.restoreCommit.menu'),
+                          },
+                        ]),
                     { id: 'name', label: t('memory.version.action') },
                     { id: 'continue', label: t('memory.continueHere') },
                   ]}
@@ -890,7 +923,12 @@ function MemoryEntryForScope({
                                     variant="outline"
                                     size="sm"
                                     disabled={busy}
-                                    onClick={() => setRestoreForm({ sha: version.sha, name: '' })}
+                                    onClick={() =>
+                                      setRestoreForm({
+                                        sha: version.sha,
+                                        name: '',
+                                      })
+                                    }
                                   >
                                     {t('memory.versions.restore')}
                                   </Button>
@@ -1081,7 +1119,10 @@ function MemoryEntryForScope({
                                     placeholder={t('memory.version.placeholder')}
                                     disabled={busy}
                                     onChange={(event) =>
-                                      setNameForm({ sha: commit.sha, name: event.target.value })
+                                      setNameForm({
+                                        sha: commit.sha,
+                                        name: event.target.value,
+                                      })
                                     }
                                   />
                                 </label>
@@ -1128,7 +1169,10 @@ function MemoryEntryForScope({
                                       onClick={() => {
                                         setContinueForm(undefined);
                                         setNameForm(undefined);
-                                        setRestoreForm({ sha: commit.sha, name: '' });
+                                        setRestoreForm({
+                                          sha: commit.sha,
+                                          name: '',
+                                        });
                                       }}
                                     >
                                       {t('memory.restoreCommit.action')}
@@ -1140,7 +1184,10 @@ function MemoryEntryForScope({
                                     disabled={busy}
                                     onClick={() => {
                                       setRestoreForm(undefined);
-                                      setNameForm({ sha: commit.sha, name: '' });
+                                      setNameForm({
+                                        sha: commit.sha,
+                                        name: '',
+                                      });
                                     }}
                                   >
                                     {t('memory.version.action')}

@@ -21,7 +21,7 @@ function launch() {
     const child = spawn(
       process.execPath,
       [join(root, 'scripts/dev-instance.mjs'), '--home', home, '--port', port, '--json'],
-      { cwd: root, stdio: ['ignore', 'pipe', 'inherit'] },
+      { cwd: root, stdio: ['ignore', 'pipe', 'inherit'], shell: false, windowsHide: true },
     );
     let out = '';
     child.stdout.on('data', (chunk) => (out += chunk));

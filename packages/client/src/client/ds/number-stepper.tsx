@@ -1,55 +1,60 @@
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { border, color, radius, size, space, text } from './tokens.stylex.js';
+import { on } from './surface.stylex.js';
+import { accent, ink, state, style } from './tobs.stylex.js';
+import { border, space } from './tokens.stylex.js';
 
 const styles = stylex.create({
   wrap: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: space.x2,
+    gap: space.x3,
   },
   group: {
+    boxSizing: 'border-box',
     display: 'inline-flex',
     alignItems: 'center',
-    height: size.icon,
-    borderRadius: radius.sm,
-    backgroundColor: color.surface,
+    height: style.controlHeight,
+    padding: space.x1,
+    borderRadius: style.radiusControl,
+    backgroundColor: on.field,
+    boxShadow: `inset 0 0 0 1px ${on.fieldEdge}`,
     opacity: { default: 1, ':has(input:disabled)': 0.5 },
   },
   step: {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: size.icon,
-    height: size.icon,
+    width: `calc(${style.controlHeight} - 4px)`,
+    height: '100%',
     padding: 0,
     borderWidth: 0,
-    borderRadius: radius.sm,
-    backgroundColor: { default: 'transparent', ':hover:enabled': color.hover },
-    color: { default: color.fg, ':disabled': color.subtle },
+    borderRadius: `calc(${style.radiusControl} - 2px)`,
+    backgroundColor: { default: 'transparent', ':hover:enabled': state.hover },
+    color: { default: ink.secondary, ':disabled': ink.disabled },
     cursor: { default: 'pointer', ':disabled': 'default' },
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${accent.focus}` },
   },
   input: {
     width: '40px',
-    height: size.icon,
+    height: '100%',
     padding: 0,
     borderWidth: 0,
     backgroundColor: 'transparent',
-    color: color.fg,
+    color: ink.primary,
     fontFamily: 'inherit',
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
+    fontSize: style.textUiSize,
+    lineHeight: style.textUiLine,
     fontVariantNumeric: 'tabular-nums',
     textAlign: 'center',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
-    borderRadius: radius.sm,
+    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${accent.focus}` },
+    borderRadius: `calc(${style.radiusControl} - 2px)`,
   },
   unit: {
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
+    color: ink.tertiary,
+    fontSize: style.textUiSize,
+    lineHeight: style.textUiLine,
     whiteSpace: 'nowrap',
   },
 });

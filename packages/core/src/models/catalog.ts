@@ -19,32 +19,38 @@ export interface ModelCatalog {
   defaultRoute?(): ModelRoute | undefined;
 }
 
+function displayName(name: string | undefined, id: string): string {
+  return typeof name === 'string' && name.trim() !== '' ? name : id;
+}
+
 export function createModelCatalog(
   llm: Pick<LlmRuntime, 'listProviders' | 'listModels' | 'resolveModelInfo' | 'resolveCallConfig'>,
   options: {
     credentials?: Pick<ProviderCredentialHealth, 'failure'>;
     defaultRoute?: () => ModelRoute | undefined;
-    credentialFailure?: (provider: string) => Promise<ProviderCredentialFailure | undefined>;
+    credentialReadiness?: () => (
+      provider: string,
+    ) => Promise<ProviderCredentialFailure | undefined>;
   } = {},
 ): ModelCatalog {
   return {
     ...(options.defaultRoute === undefined ? {} : { defaultRoute: options.defaultRoute }),
     async list() {
       const providers = llm.listProviders();
+      const credentialFailure = options.credentialReadiness?.();
       const groups = await Promise.all(
         providers.map(async (provider) => {
           const models = await llm.listModels(provider.id);
           const credential =
-            options.credentials?.failure(provider.id) ??
-            (await options.credentialFailure?.(provider.id));
+            options.credentials?.failure(provider.id) ?? (await credentialFailure?.(provider.id));
           return Promise.all(
             models.map(async (model): Promise<ModelCatalogEntry> => {
               const exact = await llm.resolveModelInfo(provider.id, model.id);
               return {
                 provider: provider.id,
-                providerName: provider.name,
+                providerName: displayName(provider.name, provider.id),
                 model: model.id,
-                modelName: model.name,
+                modelName: displayName(model.name, model.id),
                 efforts: (exact.reasoning?.efforts ?? []).map((effort) => ({
                   id: effort.id,
                   name: effort.name,
@@ -68,7 +74,7 @@ export function createModelCatalog(
       if (provider === undefined) throw new Error(`Provider ${route.provider} is unavailable`);
       const credential =
         options.credentials?.failure(route.provider) ??
-        (await options.credentialFailure?.(route.provider));
+        (await options.credentialReadiness?.()(route.provider));
       if (credential !== undefined) {
         throw new Error(
           `Provider ${route.provider} has ${credential === 'missing' ? 'no' : 'an invalid'} API key; configure it in DSH model settings first`,
@@ -87,4 +93,36 @@ export function createModelCatalog(
       });
     },
   };
+}
+
+export function groupEfforts(
+  routes: readonly Pick<ModelRoute, 'provider' | 'model'>[],
+  entries: readonly ModelCatalogEntry[],
+): string[] {
+  const lists = routes
+    .map((route) =>
+      (
+        entries.find((entry) => entry.provider === route.provider && entry.model === route.model)
+          ?.efforts ?? []
+      )
+        .map((effort) => effort.id)
+        .filter((id) => id !== ''),
+    )
+    .filter((list) => list.length > 0);
+  const [first, ...rest] = lists;
+  return (first ?? []).filter((id) => rest.every((list) => list.includes(id)));
+}
+
+export function groupMemberRoute(
+  route: ModelRoute,
+  effort: string | undefined,
+  entries: readonly ModelCatalogEntry[],
+): ModelRoute {
+  if (route.reasoningEffort !== undefined || effort === undefined || effort === '') return route;
+  const entry = entries.find(
+    (item) => item.provider === route.provider && item.model === route.model,
+  );
+  return entry?.efforts.some((item) => item.id === effort)
+    ? { ...route, reasoningEffort: effort }
+    : route;
 }

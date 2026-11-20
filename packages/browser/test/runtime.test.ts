@@ -210,6 +210,7 @@ function fakeChild(): FakeChild {
   proc.kill = vi.fn(() => {
     proc.exitCode = 0;
     proc.emit('exit', 0);
+    proc.emit('close', 0);
   });
   return {
     proc,
@@ -305,6 +306,54 @@ describe('runtime lifecycle', () => {
     });
     await expect(runtime.ensure()).rejects.toThrow(/No Chrome, Edge, or Chromium/);
     expect(runtime.isRunning()).toBe(false);
+  });
+
+  it('brings the Bot tab to the front when headed on the Local Computer desktop (#3378)', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child.proc as never);
+    const client = fakeClient();
+    const runtime = createBotBrowserRuntime({
+      userDataDir: '/tmp/browser-test',
+      platform: 'linux',
+      env: {},
+      fileExists: (path) => path === '/usr/bin/google-chrome',
+      connect: async () => client,
+      headless: () => false,
+      foregroundTabs: () => true,
+    });
+    const ensuring = runtime.ensure();
+    child.ready();
+    await ensuring;
+    await runtime.open('https://example.com');
+    const activations = (): number =>
+      client.calls.filter((call) => call.method === 'Target.activateTarget').length;
+    expect(client.send).toHaveBeenCalledWith('Target.activateTarget', { targetId: 'tab-1' });
+    expect(activations()).toBe(1);
+    await runtime.observe('tab-1');
+    expect(activations()).toBe(2);
+    await runtime.stop();
+  });
+
+  it('keeps Bot tabs in the background when headless even if the desktop asks for foreground', async () => {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child.proc as never);
+    const client = fakeClient();
+    const runtime = createBotBrowserRuntime({
+      userDataDir: '/tmp/browser-test',
+      platform: 'linux',
+      env: {},
+      fileExists: (path) => path === '/usr/bin/google-chrome',
+      connect: async () => client,
+      headless: () => true,
+      foregroundTabs: () => true,
+    });
+    const ensuring = runtime.ensure();
+    child.ready();
+    await ensuring;
+    await runtime.open('https://example.com');
+    await runtime.observe('tab-1');
+    expect(client.calls.map((call) => call.method)).not.toContain('Target.activateTarget');
+    await runtime.stop();
   });
 
   it('launches, opens, reuses the tab, observes, and stops', async () => {
@@ -1659,6 +1708,7 @@ describe('first-run provisioning UX', () => {
 
   it('bounds a browser that never reports its endpoint', async () => {
     const child = fakeChild();
+    Object.assign(child.proc, { pid: 4321, signalCode: null });
     spawnMock.mockReturnValue(child.proc as never);
     const runtime = createBotBrowserRuntime({
       userDataDir: '/tmp/browser-test',
@@ -1668,12 +1718,30 @@ describe('first-run provisioning UX', () => {
       launchTimeoutMs: 50,
       connect: async () => fakeClient(),
     });
-    const failure = (await runtime.ensure().then(
+    const ensuring = runtime.ensure();
+    child.proc.stderr.emit(
+      'data',
+      Buffer.from(
+        'waiting for sandbox\ntoken=private-startup-token\nhttps://example.com/?token=hidden\n',
+      ),
+    );
+    const failure = (await ensuring.then(
       () => undefined,
       (error: unknown) => error,
     )) as BrowserProvisionError;
     expect(failure.code).toBe('startup-timeout');
     expect(failure.message).toMatch(/took longer/);
+    expect(JSON.parse(failure.detail!)).toMatchObject({
+      timeoutMs: 50,
+      binary: '/usr/bin/google-chrome',
+      pid: 4321,
+      exitCode: null,
+      signalCode: null,
+      killed: false,
+    });
+    expect(failure.detail).toContain('waiting for sandbox');
+    expect(failure.detail).not.toContain('private-startup-token');
+    expect(failure.detail).not.toContain('hidden');
     await runtime.stop();
   });
 
@@ -1756,6 +1824,119 @@ describe('Container upload execution paths', () => {
       await runtime.stop();
       rmSync(directory, { recursive: true, force: true });
     }
+  });
+});
+
+describe('local process shutdown ownership', () => {
+  async function runningChild() {
+    const child = fakeChild();
+    spawnMock.mockReturnValue(child.proc as never);
+    const events: string[] = [];
+    const runtime = createBotBrowserRuntime({
+      userDataDir: '/tmp/browser-shutdown-test',
+      browserPath: '/test/chrome',
+      fileExists: () => true,
+      connect: async () => fakeClient(),
+      onEvent: (event) => events.push(event),
+    });
+    const ready = runtime.ensure();
+    child.ready();
+    await ready;
+    return { child, runtime, events };
+  }
+
+  it('does not release the profile when exit precedes inherited stdio closure', async () => {
+    const { child, runtime, events } = await runningChild();
+    child.proc.kill.mockImplementation(() => {
+      child.proc.exitCode = 0;
+      child.proc.emit('exit', 0);
+      return true;
+    });
+    let settled = false;
+    const stopped = runtime.stop().then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(events).not.toContain('stopped');
+    child.proc.emit('close', 0);
+    await stopped;
+    expect(events).toContain('stopped');
+  });
+
+  it('does not equate sending SIGKILL with confirmed process closure', async () => {
+    vi.useFakeTimers();
+    try {
+      const { child, runtime, events } = await runningChild();
+      child.proc.kill.mockImplementation(() => true);
+      let settled = false;
+      const stopped = runtime.stop().then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(4000);
+      expect(child.proc.kill).toHaveBeenCalledWith('SIGKILL');
+      expect(settled).toBe(false);
+      expect(events).not.toContain('stopped');
+      child.proc.emit('close', null, 'SIGKILL');
+      await stopped;
+      expect(events).toContain('stopped');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('retains an unconfirmed child after the bounded shutdown deadline', async () => {
+    vi.useFakeTimers();
+    try {
+      const { child, runtime, events } = await runningChild();
+      child.proc.kill.mockImplementation(() => true);
+      const stopped = runtime.stop().then(
+        () => undefined,
+        (error: unknown) => error,
+      );
+      await vi.advanceTimersByTimeAsync(6000);
+      expect(await stopped).toMatchObject({
+        message: 'Browser process did not close after shutdown',
+      });
+      expect(events).not.toContain('stopped');
+      expect(events).toContain('phase=stop outcome=error reason=process-close-unconfirmed');
+      child.proc.emit('close', null, 'SIGKILL');
+      await runtime.stop();
+      expect(events).toContain('stopped');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('waits for a failed connection child to close before launching its replacement', async () => {
+    const first = fakeChild();
+    const retry = fakeChild();
+    first.proc.kill.mockImplementation(() => true);
+    spawnMock.mockReturnValueOnce(first.proc as never).mockImplementationOnce(() => {
+      queueMicrotask(() => retry.ready());
+      return retry.proc as never;
+    });
+    const runtime = createBotBrowserRuntime({
+      userDataDir: '/tmp/browser-shutdown-test',
+      browserPath: '/test/chrome',
+      fileExists: () => true,
+      connect: vi
+        .fn()
+        .mockRejectedValueOnce(new Error('Connection unavailable'))
+        .mockResolvedValueOnce(fakeClient()),
+    });
+    const failed = expect(runtime.ensure()).rejects.toThrow('Connection unavailable');
+    first.ready();
+    await failed;
+    const pending = runtime.ensure();
+    await Promise.resolve();
+    await Promise.resolve();
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    first.proc.emit('close', 0);
+    await pending;
+    expect(spawnMock).toHaveBeenCalledTimes(2);
+    await runtime.stop();
   });
 });
 

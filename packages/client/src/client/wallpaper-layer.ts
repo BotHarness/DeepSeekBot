@@ -24,7 +24,7 @@ export function mountWallpaper(owner: Wallpaper): () => void {
   style.dataset.plugin = '@botharness/ui';
   style.dataset.pluginCss = '@botharness/ui/wallpaper';
   style.textContent = `
-:root .bh-workspace-mount[data-workspace-enabled][data-wallpaper-active] { position:relative; isolation:isolate; }
+:root .bh-workspace-mount[data-workspace-enabled][data-wallpaper-active] { position:relative; isolation:isolate; --bh-wallpaper-ink:1; --bh-subpanel-gap-fill:transparent; }
 :root [data-bh-wallpaper] { position:absolute; inset:0; overflow:hidden; pointer-events:none; z-index:-1; }
 :root [data-bh-wallpaper] img, :root [data-bh-wallpaper] video { position:absolute; max-width:none; max-height:none; }
 :root .bh-workspace-mount[data-wallpaper-active] .bh-dock[data-workspace-dock],

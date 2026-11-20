@@ -1,14 +1,13 @@
+import type { ObserveResource } from '../../../core/src/channels/resource-events.js';
+import { watchComputerStatus } from './status-live.js';
+import { Icon } from '../../../client/src/client/ds/icon.js';
+import { Input } from '../../../client/src/client/ds/input.js';
+import { Switch } from '../../../client/src/client/ds/switch.js';
 import { useCallback, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import { useMountedResource } from './mounted-resource.js';
 
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconChevronDownOutlineRegular,
-  IconFolderOpenOutlineRegular,
-  Input,
-  Menu,
-  Switch,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { Menu } from '../../../client/src/client/ds/menu.js';
 import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import {
@@ -21,8 +20,8 @@ import {
 import { Note } from '../../../client/src/client/ds/note.js';
 import { PillButton, PillFileButton } from '../../../client/src/client/ds/pill-button.js';
 import { Select } from '../../../client/src/client/ds/select.js';
-import { SettingsRow, SettingsRows } from '../../../client/src/client/ds/settings-row.js';
-import { border, color, space, text } from '../../../client/src/client/ds/tokens.stylex.js';
+import { SettingsGroupPart, SettingsRow } from '../../../client/src/client/ds/settings-row.js';
+import { ink, space, type as text } from '../../../client/src/client/ds/tobs.stylex.js';
 import { LocalComputerStatus } from './local-computer.js';
 import type { ComputerTarget } from '../target.js';
 
@@ -153,6 +152,7 @@ export class ComputerSettingsPrefs {
 
 export interface ComputerSettingsFace {
   prefs: ComputerSettingsPrefs;
+  observeResource?: ObserveResource | undefined;
   pickerAvailable: boolean;
   pickDirectory: () => Promise<string | null>;
   openDirectory: (dir: string) => Promise<void>;
@@ -168,18 +168,10 @@ export interface ComputerSettingsFace {
 const IDLE_OPTIONS = [15, 30, 60, 120, 240] as const;
 
 const styles = stylex.create({
-  intro: {
-    margin: 0,
-    paddingTop: space.x5,
-    paddingBottom: space.x2,
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-  },
   chevron: {
     display: 'inline-flex',
     flexShrink: 0,
-    color: color.muted,
+    color: ink.secondary,
   },
   manual: {
     display: 'flex',
@@ -187,9 +179,7 @@ const styles = stylex.create({
     gap: space.x4,
     minWidth: 0,
     paddingBlock: space.x4,
-    borderBottomWidth: border.hairline,
-    borderBottomStyle: 'solid',
-    borderBottomColor: color.divider,
+    flexWrap: 'wrap',
   },
   manualInput: {
     flexGrow: 1,
@@ -202,9 +192,9 @@ const styles = stylex.create({
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
+    color: ink.secondary,
+    fontSize: text.captionSize,
+    lineHeight: text.captionLine,
   },
 });
 
@@ -233,12 +223,14 @@ async function postAuthorized(url: string, body: Record<string, unknown> = {}): 
 
 export function createComputerSettingsFace(options: {
   prefs: ComputerSettingsPrefs;
+  observeResource?: ObserveResource | undefined;
   pickDirectory?: (() => Promise<string | null>) | undefined;
   createXhr?: (() => XMLHttpRequest) | undefined;
 }): ComputerSettingsFace {
   const { prefs } = options;
   return {
     prefs,
+    observeResource: options.observeResource,
     pickerAvailable: options.pickDirectory !== undefined,
     pickDirectory: async () =>
       options.pickDirectory === undefined ? null : options.pickDirectory(),
@@ -336,7 +328,7 @@ function Selector({
     >
       {label}
       <span {...stylex.props(styles.chevron)}>
-        <IconChevronDownOutlineRegular size={12} />
+        <Icon name="chevron-down" size={12} />
       </span>
     </PillButton>
   );
@@ -345,6 +337,7 @@ function Selector({
 export function ComputerSettingsRows({
   t,
   prefs,
+  observeResource,
   pickerAvailable,
   pickDirectory,
   openDirectory,
@@ -359,7 +352,6 @@ export function ComputerSettingsRows({
   const snapshot = useSyncExternalStore(prefs.subscribe, prefs.getSnapshot);
   const [targetError, setTargetError] = useState<string>();
   const [targetSaving, setTargetSaving] = useState(false);
-  const [idleOpen, setIdleOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
   const [archives, setArchives] = useState<readonly string[] | undefined>(undefined);
   const [busy, setBusy] = useState<'export' | 'import' | 'upload' | undefined>(undefined);
@@ -375,6 +367,7 @@ export function ComputerSettingsRows({
   );
   const [uploadName, setUploadName] = useState<string | undefined>(undefined);
   const uploadFile = useRef<File | null>(null);
+  const settingsPart = useRef<HTMLDivElement>(null);
   const [pickerBroken, setPickerBroken] = useState(false);
   const [hostDir, setHostDir] = useState<string | undefined>(undefined);
   const [livePhase, setLivePhase] = useState<string | undefined>(undefined);
@@ -398,30 +391,22 @@ export function ComputerSettingsRows({
     setLivePhase(undefined);
     setLiveElapsed(0);
     const startedAt = Date.now();
-    const controller = new AbortController();
-    let pending = false;
-    const tick = async (): Promise<void> => {
-      if (controller.signal.aborted) return;
-      setLiveElapsed(Math.round((Date.now() - startedAt) / 1000));
-      if (pending) return;
-      pending = true;
+    const stop = watchComputerStatus(observeResource, async (signal) => {
       try {
         const payload = await requestJson<{ status?: { phase?: string } }>(STATUS_ENDPOINT, {
-          signal: AbortSignal.any([controller.signal, AbortSignal.timeout(10_000)]),
+          signal,
         });
-        if (!controller.signal.aborted) setLivePhase(payload.status?.phase);
-      } catch {
-      } finally {
-        pending = false;
-      }
-    };
-    void tick();
-    const timer = setInterval(() => void tick(), 1000);
+        if (!signal.aborted) setLivePhase(payload.status?.phase);
+      } catch {}
+    });
+    const clock = setInterval(() => {
+      setLiveElapsed(Math.round((Date.now() - startedAt) / 1000));
+    }, 1000);
     return () => {
-      controller.abort();
-      clearInterval(timer);
+      stop();
+      clearInterval(clock);
     };
-  }, [busy]);
+  }, [busy, observeResource]);
 
   const phaseKey = livePhase === undefined ? undefined : PHASE_LABEL[livePhase];
 
@@ -582,10 +567,9 @@ export function ComputerSettingsRows({
   const selectedFile = uploadName ?? (confirming === 'import' ? archives?.[0] : undefined);
 
   return (
-    <SettingsRows>
+    <SettingsGroupPart rootRef={settingsPart}>
       <span hidden ref={hostDirResource} />
       {busy === undefined ? null : <span hidden ref={busyResource} />}
-      <p {...stylex.props(styles.intro)}>{t('section.description')}</p>
       <SettingsRow
         title={t('rows.target.title')}
         description={t('rows.target.description')}
@@ -625,7 +609,7 @@ export function ComputerSettingsRows({
         }
       />
       {snapshot.target === 'local' ? (
-        <LocalComputerStatus t={t as ComputerTranslate} />
+        <LocalComputerStatus t={t as ComputerTranslate} observeResource={observeResource} />
       ) : (
         <>
           <SettingsRow
@@ -637,7 +621,7 @@ export function ComputerSettingsRows({
               <>
                 {canAdjust ? (
                   <PillButton disabled={!writable} onClick={pickExportDir}>
-                    <IconFolderOpenOutlineRegular size={14} />
+                    <Icon name="folder-open" size={14} />
                     {t('rows.exportDir.pick')}
                   </PillButton>
                 ) : null}
@@ -682,33 +666,15 @@ export function ComputerSettingsRows({
             title={t('rows.idle.title')}
             description={t('rows.idle.description')}
             control={
-              <Menu
-                listClassName="bh-appearance-scope"
-                open={idleOpen}
-                portal
-                align="end"
-                items={IDLE_OPTIONS.map((minutes) => ({
-                  id: String(minutes),
+              <Select
+                label={t('rows.idle.title')}
+                value={String(snapshot.idleStopMinutes)}
+                options={IDLE_OPTIONS.map((minutes) => ({
+                  value: String(minutes),
                   label: t('rows.idle.minutes', { minutes }),
                 }))}
-                selectedId={String(snapshot.idleStopMinutes)}
-                onSelect={(id) => {
-                  setIdleOpen(false);
-                  prefs.setIdleStopMinutes(Number(id));
-                }}
-                onClose={() => {
-                  setIdleOpen(false);
-                }}
-                anchor={
-                  <Selector
-                    label={t('rows.idle.minutes', { minutes: snapshot.idleStopMinutes })}
-                    open={idleOpen}
-                    disabled={!writable}
-                    onToggle={() => {
-                      setIdleOpen((value) => !value);
-                    }}
-                  />
-                }
+                disabled={!writable}
+                onChange={(value) => prefs.setIdleStopMinutes(Number(value))}
               />
             }
           />
@@ -773,9 +739,10 @@ export function ComputerSettingsRows({
                   </PillButton>
                 ) : (
                   <Menu
-                    listClassName="bh-appearance-scope"
                     open={importOpen}
                     portal
+                    autoFocus
+                    container={settingsPart.current?.closest('[role="dialog"]') ?? undefined}
                     align="end"
                     items={(archives ?? []).map((file) => ({ id: file, label: file }))}
                     onSelect={(id) => {
@@ -851,6 +818,6 @@ export function ComputerSettingsRows({
       {snapshot.target !== 'container' || transferNote === undefined ? null : (
         <Note>{transferNote}</Note>
       )}
-    </SettingsRows>
+    </SettingsGroupPart>
   );
 }

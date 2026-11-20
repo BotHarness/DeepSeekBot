@@ -1,5 +1,8 @@
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
+import { QuestionNotifications } from './question-notifications.js';
 import { useState, type ReactElement } from 'react';
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { ReachablePostDialog } from './reachable-post.js';
 import type { MessagingIdentityView } from '../../../core/src/messaging/identity.js';
 
@@ -23,7 +26,7 @@ function IdentitiesForBot({
   actions: ChannelSidebarEntryProps['actions'];
   t: ChannelSidebarEntryProps['t'];
 }): ReactElement {
-  const { snapshot, failed, refresh, mount } = useMessagingSnapshot(slug, actions);
+  const { snapshot, failed, refresh, discover, mount } = useMessagingSnapshot(slug, actions);
   const dm = useClientStore((state) =>
     state.channels.find((c) => c.type === 'dm' && c.botSlug === slug),
   );
@@ -31,7 +34,14 @@ function IdentitiesForBot({
   const composerIdentity = useClientStore((state) => state.composerIdentity);
   const bot = bots.find((b) => b.slug === slug);
   const syncChannels = [
-    ...(dm ? [{ id: dm.id, name: t('bridge.dmTarget', { name: bot?.displayName ?? slug }) }] : []),
+    ...(dm
+      ? [
+          {
+            id: dm.id,
+            name: t('bridge.dmTarget', { name: bot?.displayName ?? slug }),
+          },
+        ]
+      : []),
     ...(snapshot?.channelTargets ?? []),
   ];
   const [postIdentity, setPostIdentity] = useState<MessagingIdentityView>();
@@ -95,6 +105,7 @@ function IdentitiesForBot({
         appSetup={actions.appSetup ? { client: actions.appSetup, botSlug: slug } : undefined}
         snapshot={snapshot}
         refresh={refresh}
+        discover={discover}
         t={t}
         mutate={async (input) => {
           await actions.messagingIdentity(slug, input);
@@ -128,7 +139,12 @@ function IdentitiesForBot({
             await actions.channelBridge(
               channelId,
               route
-                ? { ...input, kind: 'update', routeId: route.id, expectedRevision: route.revision }
+                ? {
+                    ...input,
+                    kind: 'update',
+                    routeId: route.id,
+                    expectedRevision: route.revision,
+                  }
                 : { ...input, kind: 'add' },
             );
           } catch (error) {
@@ -231,6 +247,13 @@ function IdentitiesForBot({
               test: () => operate(() => actions.failureAlertsTest(slug), 'approval'),
               retry: (id) => operate(() => actions.failureAlertsRetry(slug, id), 'approval'),
             }}
+          />
+          <QuestionNotifications
+            deliveries={snapshot?.questions ?? []}
+            busy={busy}
+            t={t}
+            repair={(id) => operate(() => actions.questionRetry(slug, id), 'approval')}
+            openSession={actions.openSession}
           />
         </PanelDialog>
       ) : null}

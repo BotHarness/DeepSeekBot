@@ -1,4 +1,9 @@
-import type { DockviewApi, SerializedDockview, SerializedGridObject } from 'dockview-react';
+import {
+  Orientation,
+  type DockviewApi,
+  type SerializedDockview,
+  type SerializedGridObject,
+} from 'dockview-react';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
 import { WORKSPACE_CHANNELS, WORKSPACE_RAIL } from './workspace-context.js';
 
@@ -30,7 +35,7 @@ function groups(node: Node): string[] {
 
 export function workspaceColumns(api: DockviewApi): { id: string; left: number }[] {
   const layout = api.toJSON();
-  if (layout.grid.orientation !== 'HORIZONTAL') return [];
+  if (layout.grid.orientation !== Orientation.HORIZONTAL) return [];
   return (layout.grid.root.data as Node[])
     .filter((node) => !contains(node, WORKSPACE_RAIL))
     .map((node) => {
@@ -46,13 +51,21 @@ export function workspaceColumns(api: DockviewApi): { id: string; left: number }
     });
 }
 
+export function workspaceMoveColumns(api: DockviewApi, open: boolean): string[] {
+  return open
+    ? workspaceColumns(api)
+        .slice(1)
+        .map((column) => column.id)
+    : [];
+}
+
 export function reorderWorkspaceRail(
   layout: SerializedDockview,
   before: string,
 ): SerializedDockview {
   const children = layout.grid.root.data as Node[];
   const rail = children.find((node) => node.type === 'leaf' && contains(node, WORKSPACE_RAIL));
-  if (!rail || layout.grid.orientation !== 'HORIZONTAL') return layout;
+  if (!rail || layout.grid.orientation !== Orientation.HORIZONTAL) return layout;
   const columns = children.filter((node) => node !== rail);
   const target =
     before === 'right'
@@ -71,7 +84,7 @@ export function moveWorkspaceRail(api: DockviewApi, before: string): void {
 }
 
 export function isFullHeightRail(layout: SerializedDockview): boolean {
-  if (layout.grid.orientation !== 'HORIZONTAL') return false;
+  if (layout.grid.orientation !== Orientation.HORIZONTAL) return false;
   const columns = layout.grid.root.data as Node[];
   return columns.some(
     (node) =>

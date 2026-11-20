@@ -6,7 +6,6 @@ import Animated, {
   useAnimatedReaction,
   useAnimatedScrollHandler,
   useAnimatedStyle,
-  useComposedEventHandler,
   useSharedValue,
   withSpring,
 } from 'react-native-reanimated';
@@ -17,7 +16,6 @@ import { useMounted } from '../mounted';
 import { useSystemReducedMotion } from '../primitives/use-system-reduced-motion';
 import { PullToRefresh, type PullToRefreshScrollProps } from '../primitives/pull-to-refresh';
 import { useHostDrawerOpen } from './host-drawer';
-import type { useChromeScroll } from './scroll-chrome';
 import type { TobModeHref } from './tob-mode-model';
 import { TobPullIndicator } from './tob-pull-indicator';
 import { tobPullArmed, tobPullCanStart, tobPullOutcome } from './tob-pull-model';
@@ -30,7 +28,6 @@ export function PullToTob({
   refreshing,
   onRefresh,
   onOpen,
-  onScroll,
   children,
 }: {
   enabled: boolean;
@@ -40,7 +37,6 @@ export function PullToTob({
   refreshing: boolean;
   onRefresh(): void;
   onOpen(href: TobModeHref): void;
-  onScroll: ReturnType<typeof useChromeScroll>;
   children(
     scroll: PullToRefreshScrollProps & Pick<ScrollViewProps, 'onScroll' | 'alwaysBounceVertical'>,
   ): ReactElement;
@@ -125,7 +121,6 @@ export function PullToTob({
       reset();
     },
   });
-  const scroll = useComposedEventHandler([onScroll, pullScroll]);
   const native = Gesture.Native();
   const pan = Gesture.Pan()
     .enabled(android && active && hostId !== undefined)
@@ -181,10 +176,10 @@ export function PullToTob({
   }));
 
   if (hostId === undefined) {
-    if (!enabled || drawer) return children({ onScroll });
+    if (!enabled || drawer) return children({});
     return (
       <PullToRefresh refreshing={refreshing} onRefresh={onRefresh}>
-        {(pull) => children({ ...pull, onScroll })}
+        {(pull) => children(pull)}
       </PullToRefresh>
     );
   }
@@ -192,7 +187,7 @@ export function PullToTob({
     return (
       <View ref={mount} style={{ flex: 1 }} testID="pull-to-tob">
         <TobPullIndicator distance={distance} />
-        {children({ onScroll: scroll, alwaysBounceVertical: true })}
+        {children({ onScroll: pullScroll, alwaysBounceVertical: true })}
       </View>
     );
   return (
@@ -200,7 +195,7 @@ export function PullToTob({
       <View ref={mount} style={{ flex: 1 }} testID="pull-to-tob">
         <TobPullIndicator distance={distance} />
         <Animated.View style={travel}>
-          <GestureDetector gesture={native}>{children({ onScroll: scroll })}</GestureDetector>
+          <GestureDetector gesture={native}>{children({ onScroll: pullScroll })}</GestureDetector>
         </Animated.View>
       </View>
     </GestureDetector>

@@ -20,7 +20,11 @@ export function createSpawnRunner(): SystemCommandRunner {
     onChunk?: (chunk: string) => void,
   ): Promise<SystemCommandResult> =>
     new Promise((resolve) => {
-      const child = spawn(argv[0] ?? '', argv.slice(1), { stdio: ['ignore', 'pipe', 'pipe'] });
+      const child = spawn(argv[0] ?? '', argv.slice(1), {
+        windowsHide: true,
+        stdio: ['ignore', 'pipe', 'pipe'],
+        shell: false,
+      });
       let stdout = '';
       let stderr = '';
       child.stdout.on('data', (chunk: Buffer) => {

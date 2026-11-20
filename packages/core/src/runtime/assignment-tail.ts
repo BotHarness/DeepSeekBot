@@ -1,4 +1,9 @@
-import { createHash } from 'node:crypto';
+import {
+  acceptedReportText,
+  REPORT_PAGE_CHARACTERS,
+  REPORT_EVENT_READ_LIMIT,
+  type AssignmentReportContent,
+} from './assignment-report.js';
 
 import type { AssignmentEventTail } from './bot-runtime.js';
 
@@ -28,21 +33,16 @@ export async function readAssignmentReportPage(
   sessionId: string,
   acceptedSummary: string,
   offset: number,
+  content?: AssignmentReportContent,
 ): Promise<AssignmentReportPage> {
   if (!Number.isSafeInteger(offset) || offset < 0) throw new Error('Invalid report offset');
-  const spillFooter =
-    /…\n\[Full report: \d+ bytes; sha256: ([0-9a-f]{64}); locator: [^\n]+\]$/u.exec(
-      acceptedSummary,
-    );
-  const preview =
-    spillFooter === null ? acceptedSummary : acceptedSummary.slice(0, spillFooter.index);
   const matches = await query.filterEvents(sessionId, [
     { kind: 'type', values: ['tool/call'] },
     { kind: 'text', text: 'report_to_orchestrator' },
   ]);
   let readCount = 0;
   let sourceEventBytes = 0;
-  for (const match of matches.slice(-64).reverse()) {
+  for (const match of matches.slice(-REPORT_EVENT_READ_LIMIT).reverse()) {
     const { target } = await query.readEvent({ sessionId, seq: match.seq });
     readCount += 1;
     sourceEventBytes += Buffer.byteLength(JSON.stringify(target) ?? 'null', 'utf8');
@@ -56,16 +56,10 @@ export async function readAssignmentReportPage(
       continue;
     }
     if (!isRecord(argumentsValue) || typeof argumentsValue.summary !== 'string') continue;
-    const summary = argumentsValue.summary;
-    if (spillFooter === null) {
-      if (summary !== acceptedSummary) continue;
-    } else if (
-      !summary.startsWith(preview) ||
-      createHash('sha256').update(summary).digest('hex') !== spillFooter[1]
-    )
-      continue;
+    const summary = acceptedReportText(argumentsValue.summary, acceptedSummary, content);
+    if (summary === undefined) continue;
     const characters = Array.from(summary);
-    const text = characters.slice(offset, offset + 2_000).join('');
+    const text = characters.slice(offset, offset + REPORT_PAGE_CHARACTERS).join('');
     const nextOffset = offset + Array.from(text).length;
     return {
       text,

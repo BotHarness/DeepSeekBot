@@ -29,8 +29,8 @@ export async function runProfileRestoreCli(argv: readonly string[]): Promise<voi
     const archive = readFileSync(file);
     if (action === 'inspect') {
       const { manifest } = inspectProfileBackup(archive);
-      console.log(
-        JSON.stringify(
+      process.stdout.write(
+        `${JSON.stringify(
           {
             id: manifest.id,
             counts: manifest.counts,
@@ -40,7 +40,7 @@ export async function runProfileRestoreCli(argv: readonly string[]): Promise<voi
           },
           null,
           2,
-        ),
+        )}\n`,
       );
     } else {
       if (!options.has('--new-home'))
@@ -48,8 +48,8 @@ export async function runProfileRestoreCli(argv: readonly string[]): Promise<voi
       const receipt = await restoreProfileBackup(archive, resolve(options.get('--new-home')!), {
         signal: controller.signal,
       });
-      console.log(
-        JSON.stringify(
+      process.stdout.write(
+        `${JSON.stringify(
           {
             id: receipt.id,
             home: receipt.destinationHome,
@@ -59,7 +59,7 @@ export async function runProfileRestoreCli(argv: readonly string[]): Promise<voi
           },
           null,
           2,
-        ),
+        )}\n`,
       );
     }
   } finally {

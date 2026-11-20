@@ -1,19 +1,15 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
 import { PointerMenu } from './ds/pointer-menu.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import {
-  Button,
-  IconEllipsisOutlineRegular,
-  IconNewChatOutlineRegular,
-  IconPlusOutlineRegular,
-  IconTrashOutlineRegular,
-  Tag,
-  type MenuEntry,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 
 import type { BridgeActions } from './actions.js';
+import { HumanAvatarImage } from './human-avatar.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { AtSignIcon } from './at-sign-icon.js';
 import { useClientStore } from './use-client-store.js';
@@ -26,10 +22,14 @@ import { Note } from './ds/note.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 import { humanLabel } from './actor-names.js';
+import { OWNER_HUMAN_ID, useSelfHumanId } from './self-human.js';
+import type { ChannelHumanMember } from './store.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { personaBotActivity } from './persona-activity.js';
 import { store, type BotSummary, type ChannelSummary } from './store.js';
+import { useSubmission } from './submission.js';
 import { IconButton } from './ds/icon-button.js';
+import { AddPeopleAction } from './channel-add-people.js';
 
 const styles = stylex.create({
   attentionHeading: {
@@ -84,7 +84,10 @@ const styles = stylex.create({
     lineHeight: text.bodyLine,
     textAlign: 'start',
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
     outlineOffset: '-2px',
   },
   optionOn: {
@@ -114,7 +117,10 @@ const styles = stylex.create({
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: {
+      default: 'none',
+      ':focus-visible': `${border.focus} solid ${color.accent}`,
+    },
     outlineOffset: '1px',
   },
   choiceOn: {
@@ -164,10 +170,10 @@ function InviteMemberModal({
     value.trim().toLocaleLowerCase(),
   );
   const [selected, setSelected] = useState('');
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const submission = useSubmission();
   const available = bots.filter(
     (bot) =>
+      bot.tob === undefined &&
       !bot.paused &&
       !bot.deleted &&
       !group.members.includes(bot.slug) &&
@@ -175,29 +181,24 @@ function InviteMemberModal({
         (invitation) => invitation.targetBotSlug === bot.slug && invitation.status === 'pending',
       ),
   );
+  const selectedAvailable = available.some((bot) => bot.slug === selected);
   const filtered = available.filter(
     (bot) =>
       bot.displayName.toLocaleLowerCase().includes(delayedQuery) ||
       bot.slug.toLocaleLowerCase().includes(delayedQuery),
   );
   const invite = async (): Promise<void> => {
-    if (!selected) return;
-    setBusy(true);
-    try {
-      if (await actions.inviteGroupBot(group.id, selected)) onClose();
-      else setError(true);
-    } finally {
-      setBusy(false);
-    }
+    if (!selectedAvailable) return;
+    if (await submission.run(() => actions.inviteGroupBot(group.id, selected))) onClose();
   };
   return (
     <FormDialog
       title={t('group.invite')}
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
       submitLabel={t('group.invite')}
-      submitDisabled={!selected}
-      busy={busy}
-      error={error ? t('members.error') : undefined}
+      submitDisabled={!selectedAvailable}
+      busy={submission.state === 'busy'}
+      error={submission.state === 'failed' ? t('members.error') : undefined}
       onCancel={onClose}
       onSubmit={() => void invite()}
     >
@@ -209,6 +210,7 @@ function InviteMemberModal({
         onChange={updateQuery}
         initialFocus
       />
+      {bots.some((bot) => bot.tob !== undefined) ? <Note>{t('group.tobPrivateOnly')}</Note> : null}
       <div
         ref={cancelOnUnmount}
         role="group"
@@ -259,8 +261,8 @@ function GroupAttentionModal({
   t: BotHarnessTranslate;
   onClose: () => void;
 }): ReactElement {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const submission = useSubmission();
+  const busy = submission.state === 'busy';
   const invitationLabels = {
     pending: t('members.pending'),
     accepted: t('members.accepted'),
@@ -268,12 +270,7 @@ function GroupAttentionModal({
     cancelled: t('members.cancelled'),
   };
   const apply = async (result: Promise<boolean>): Promise<void> => {
-    setBusy(true);
-    try {
-      setError(!(await result));
-    } finally {
-      setBusy(false);
-    }
+    await submission.run(() => result);
   };
   return (
     <PanelDialog
@@ -370,7 +367,7 @@ function GroupAttentionModal({
       ) : (
         <Note>{t('members.attention.emptyRequests')}</Note>
       )}
-      {error ? <Note tone="danger">{t('members.error')}</Note> : null}
+      {submission.state === 'failed' ? <Note tone="danger">{t('members.error')}</Note> : null}
     </PanelDialog>
   );
 }
@@ -394,6 +391,7 @@ function MembersHeaderActionForChannel({
     (group.joinRequests?.filter((item) => item.status === 'pending').length ?? 0);
   return (
     <>
+      <AddPeopleAction channelId={channelId} actions={actions} t={t} />
       <Tooltip label={t('group.invite')} side="bottom" delayMs={500}>
         <IconButton
           size="row"
@@ -402,7 +400,7 @@ function MembersHeaderActionForChannel({
           aria-haspopup="dialog"
           onClick={() => setInviteOpen(true)}
         >
-          <IconPlusOutlineRegular size={16} />
+          <Icon name="plus" size={16} />
         </IconButton>
       </Tooltip>
       <Tooltip label={t('members.attention.title')} side="bottom" delayMs={500}>
@@ -462,10 +460,10 @@ export function MemberWakePolicyModal({
   const [mode, setMode] = useState<'all' | 'mentions' | 'digest' | 'silent'>(
     saved?.mode ?? 'digest',
   );
-  const [count, setCount] = useState(saved?.count ?? 5);
+  const [count, setCount] = useState(saved?.count ?? 10);
   const [seconds, setSeconds] = useState(saved?.intervalSeconds ?? 30);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
+  const submission = useSubmission();
+  const busy = submission.state === 'busy';
   const valid =
     Number.isSafeInteger(count) &&
     count >= 1 &&
@@ -474,21 +472,17 @@ export function MemberWakePolicyModal({
     seconds >= 1 &&
     seconds <= 3600;
   const save = async (inherit = false): Promise<void> => {
-    setBusy(true);
-    try {
-      if (
-        await actions.setGroupWakePolicy(group.id, slug, {
+    if (
+      await submission.run(() =>
+        actions.setGroupWakePolicy(group.id, slug, {
           mode: inherit ? (saved?.mode ?? 'digest') : mode,
-          count: inherit ? (saved?.count ?? 5) : count,
+          count: inherit ? (saved?.count ?? 10) : count,
           intervalSeconds: inherit ? (saved?.intervalSeconds ?? 30) : seconds,
           ...(inherit ? { inherit } : {}),
-        })
+        }),
       )
-        onClose();
-      else setError(true);
-    } finally {
-      setBusy(false);
-    }
+    )
+      onClose();
   };
   return (
     <FormDialog
@@ -496,8 +490,8 @@ export function MemberWakePolicyModal({
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
       submitLabel={t('members.wake.save')}
       submitDisabled={!valid}
-      busy={busy}
-      error={error ? t('members.error') : undefined}
+      busy={submission.state === 'busy'}
+      error={submission.state === 'failed' ? t('members.error') : undefined}
       onCancel={onClose}
       onSubmit={() => void save()}
       secondary={
@@ -548,6 +542,17 @@ export function MemberWakePolicyModal({
   );
 }
 
+export function memberHumanName(
+  member: Pick<ChannelHumanMember, 'humanId' | 'displayName'>,
+  self: string,
+  t: BotHarnessTranslate,
+): string {
+  if (member.humanId === self) return humanLabel(member.displayName, t);
+  if (member.humanId === OWNER_HUMAN_ID && member.displayName === 'Human')
+    return t('team.members.owner');
+  return member.displayName;
+}
+
 export function MembersEntry(props: ChannelSidebarEntryProps): ReactElement {
   return <MembersEntryForChannel key={props.channelId} {...props} />;
 }
@@ -563,9 +568,11 @@ function MembersEntryForChannel({
   const group = channel?.type === 'group' && channel.id === channelId ? channel : undefined;
   const [menu, setMenu] = useState<{ slug: string; x: number; y: number } | undefined>();
   const [policySlug, setPolicySlug] = useState<string | undefined>();
-  const [error, setError] = useState(false);
+  const removal = useSubmission();
   const proxy = useRef<HTMLSpanElement | null>(null);
   const members = group?.members ?? [];
+  const humans = group?.humanMembers ?? [];
+  const self = useSelfHumanId();
   const selectedMember = menu?.slug;
   const canMention =
     onMentionBot !== undefined &&
@@ -573,35 +580,59 @@ function MembersEntryForChannel({
       (bot) => bot.slug === selectedMember && bot.deleted !== true && members.includes(bot.slug),
     );
   const menuItems: readonly MenuEntry[] = [
-    { id: 'dm', label: t('members.openDm'), icon: <IconNewChatOutlineRegular size={16} /> },
+    {
+      id: 'dm',
+      label: t('members.openDm'),
+      icon: <Icon name="message-square-plus" size={16} />,
+    },
     ...(canMention
-      ? [{ id: 'mention', label: t('message.avatar.mention'), icon: <AtSignIcon /> }]
+      ? [
+          {
+            id: 'mention',
+            label: t('message.avatar.mention'),
+            icon: <AtSignIcon />,
+          },
+        ]
       : []),
     { id: 'policy', label: t('members.policy'), icon: <BellIcon /> },
     { type: 'separator', id: 'member-separator' },
-    { id: 'remove', label: t('members.remove'), icon: <IconTrashOutlineRegular size={16} /> },
+    {
+      id: 'remove',
+      label: t('members.remove'),
+      icon: <Icon name="trash" size={16} />,
+    },
   ];
   return (
     <>
-      {group?.ownerBotSlug === undefined && group !== undefined ? (
+      {group?.ownerBotSlug === undefined && group !== undefined && self === OWNER_HUMAN_ID ? (
         <div className="bh-note">{t('members.humanManaged')}</div>
       ) : null}
-      {members.length === 0 ? <div className="bh-note">{t('members.empty')}</div> : null}
-      {(group?.humanMembers ?? []).map((member) => (
-        <div
-          className="bh-member-row"
-          key={'human:' + member.humanId}
-          data-human-id={member.humanId}
-        >
-          <span className="bh-delivery-human-avatar" aria-hidden="true">
-            {humanLabel(member.displayName, t).slice(0, 1)}
-          </span>
-          <span className="bh-name">{humanLabel(member.displayName, t)}</span>
-          {member.displayName === 'Human' ? null : (
-            <Tag tone="neutral">{t('message.mention.humanType')}</Tag>
-          )}
-        </div>
-      ))}
+      {members.length === 0 && humans.length === 0 ? (
+        <div className="bh-note">{t('members.empty')}</div>
+      ) : null}
+      {humans.map((member) => {
+        const name = memberHumanName(member, self, t);
+        return (
+          <div
+            className="bh-member-row"
+            key={'human:' + member.humanId}
+            data-human-id={member.humanId}
+          >
+            <span className="bh-delivery-human-avatar" aria-hidden="true">
+              <HumanAvatarImage
+                cache={actions.humanAvatars}
+                humanId={member.humanId}
+                version={member.avatarVersion}
+                fallback={name.slice(0, 1)}
+              />
+            </span>
+            <span className="bh-name">{name}</span>
+            {member.humanId === self && name !== t('channelActivity.human') ? (
+              <Tag tone="neutral">{t('message.mention.humanType')}</Tag>
+            ) : null}
+          </div>
+        );
+      })}
       {members.map((slug) => {
         const member = bots.find((candidate) => candidate.slug === slug);
         return (
@@ -622,7 +653,9 @@ function MembersEntryForChannel({
             <button
               type="button"
               className="bh-member-open-dm"
-              aria-label={t('message.mention.openDm', { bot: memberName(bots, slug) })}
+              aria-label={t('message.mention.openDm', {
+                bot: memberName(bots, slug),
+              })}
               onClick={() => void actions.openBot(slug)}
             >
               <PersonaBotAvatar
@@ -652,7 +685,7 @@ function MembersEntryForChannel({
                 setMenu({ slug, x: rect.left, y: rect.bottom });
               }}
             >
-              <IconEllipsisOutlineRegular size={16} />
+              <Icon name="ellipsis" size={16} />
             </button>
           </div>
         );
@@ -673,12 +706,12 @@ function MembersEntryForChannel({
               else if (
                 id === 'remove' &&
                 window.confirm(
-                  t('members.removeConfirm', { bot: memberName(bots, selectedMember) }),
+                  t('members.removeConfirm', {
+                    bot: memberName(bots, selectedMember),
+                  }),
                 )
               ) {
-                void actions
-                  .removeGroupMember(group.id, selectedMember)
-                  .then((ok) => setError(!ok));
+                void removal.run(() => actions.removeGroupMember(group.id, selectedMember));
               }
             }}
             onClose={() => setMenu(undefined)}
@@ -696,7 +729,7 @@ function MembersEntryForChannel({
           onClose={() => setPolicySlug(undefined)}
         />
       ) : null}
-      {error ? (
+      {removal.state === 'failed' ? (
         <div className="bh-error" role="alert">
           {t('members.error')}
         </div>

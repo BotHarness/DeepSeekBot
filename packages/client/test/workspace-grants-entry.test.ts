@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type InputHTMLAttributes, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -7,42 +7,98 @@ import type { BridgeActions } from '../src/client/actions.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { WorkspaceGrantsEntry } from '../src/client/workspace-grants-entry.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('button', props, children),
-  Switch: ({
-    checked,
-    disabled,
-    label,
-    onChange,
-  }: {
-    checked: boolean;
-    disabled?: boolean;
-    label: string;
-    onChange(value: boolean): void;
-  }) =>
-    createElement('input', {
-      type: 'checkbox',
-      role: 'switch',
-      checked,
-      disabled,
-      'aria-label': label,
-      onChange: (event: { currentTarget: { checked: boolean } }) =>
-        onChange(event.currentTarget.checked),
-    }),
-  Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
-  Modal: () => null,
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  IconChevronDownOutlineRegular: ({ size }: { size?: number }) =>
-    createElement('svg', { 'data-icon': 'sidebar-chevron', width: size, height: size }),
-  IconCloseOutlineRegular: () => null,
-  IconFolderOpenOutlineRegular: () => null,
-  IconPlusOutlineRegular: () => null,
-  IconTrashOutlineRegular: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 describe('Workspace Grant sidebar', () => {
+  it.each([
+    ['flat', JSON.stringify(['orchestrator', '/qa', []])],
+    [
+      'explicit',
+      JSON.stringify([JSON.stringify(['orchestrator', '/qa', []]), 'explicit-approval']),
+    ],
+    [
+      'browser',
+      JSON.stringify([JSON.stringify(['orchestrator', '/qa', []]), 'browser', 'authorization']),
+    ],
+    [
+      'computer',
+      JSON.stringify([JSON.stringify(['orchestrator', '/qa', []]), 'computer', 'authorization']),
+    ],
+    ['tob', JSON.stringify([JSON.stringify(['orchestrator', '/qa', []]), null, 'authorization'])],
+  ])(
+    'shows the %s card rule directory and reads canonical state after revoke without changing templates',
+    async (_kind, scopeKey) => {
+      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+      const container = document.createElement('div');
+      document.body.append(container);
+      const root = createRoot(container);
+      const rule = {
+        id: 'saved-card',
+        botSlug: 'ada',
+        role: 'orchestrator',
+        scopeKey,
+        kind: 'tool',
+        toolName: 'qa_marker',
+        input: '',
+        createdAt: '2026-11-16',
+      };
+      let revoked = false;
+      const listToolApprovalRules = vi.fn(async () => [
+        { ...rule, ...(revoked ? { revokedAt: '2026-11-16' } : {}) },
+      ]);
+      const revokeToolApprovalRule = vi.fn(async () => {
+        revoked = true;
+      });
+      const actions = {
+        listWorkspaceGrants: vi.fn(async () => []),
+        listWorkspaceOptions: vi.fn(async () => []),
+        memoryDirectory: vi.fn(async () => undefined),
+        assignmentAccess: vi.fn(async () => ({ mode: 'workspace-write' })),
+        listToolApprovalRules,
+        revokeToolApprovalRule,
+      } as unknown as BridgeActions;
+      try {
+        await act(async () =>
+          root.render(
+            createElement(WorkspaceGrantsEntry, {
+              scope: 'personabot',
+              botSlug: 'ada',
+              channelId: 'dm-ada',
+              actions,
+              t: zhTranslate,
+              composerOnly: true,
+            }),
+          ),
+        );
+        expect(listToolApprovalRules).toHaveBeenCalledExactlyOnceWith('ada');
+        expect(container.textContent).toContain(zhTranslate('approval.rulesTitle'));
+        expect(container.textContent).toContain(zhTranslate('approval.ruleFromCard'));
+        expect(
+          Array.from(container.querySelectorAll('.bh-note')).map((note) => note.textContent),
+        ).toContain(zhTranslate('approval.cwd', { path: '/qa' }));
+        expect(container.querySelector('.bh-tool-approval-input')?.textContent).toBe(scopeKey);
+        expect(container.textContent).toContain(zhTranslate('approval.orchestrator'));
+        const button = container.querySelector<HTMLButtonElement>(
+          'button[aria-label="' + zhTranslate('approval.revokeRule') + ': qa_marker"]',
+        )!;
+        await act(async () => button.click());
+        expect(revokeToolApprovalRule).toHaveBeenCalledExactlyOnceWith('ada', 'saved-card');
+        expect(listToolApprovalRules).toHaveBeenCalledTimes(2);
+        expect(container.textContent).toContain(zhTranslate('approval.ruleInactive'));
+        expect(
+          container.querySelector<HTMLButtonElement>(
+            'button[aria-label="' + zhTranslate('approval.revokeRule') + ': qa_marker"]',
+          )?.disabled,
+        ).toBe(true);
+      } finally {
+        await act(async () => root.unmount());
+        container.remove();
+      }
+    },
+  );
+
   it('reuses the Channel sidebar summary row and chevron while keeping native disclosure', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     const container = document.createElement('div');
@@ -297,10 +353,12 @@ describe('Workspace Grant sidebar', () => {
       );
       expect(container.querySelector('.bh-workspace-grant-confirm')).toBeNull();
       expect(
-        container.querySelector<HTMLInputElement>(
-          `input[aria-label="${zhTranslate('grant.orchestratorWrite')}: Project"]`,
-        )!.checked,
-      ).toBe(true);
+        container
+          .querySelector<HTMLButtonElement>(
+            `button[aria-label="${zhTranslate('grant.orchestratorWrite')}: Project"]`,
+          )!
+          .getAttribute('aria-checked'),
+      ).toBe('true');
       expect(
         Array.from(container.querySelectorAll('button')).filter(
           (button) => !button.disabled && button.textContent === zhTranslate('grant.authorize'),
@@ -362,8 +420,8 @@ describe('Workspace Grant sidebar', () => {
       expect(row().getAttribute('aria-expanded')).toBe('false');
       const header = row().closest('.bh-card-line')!;
       const toggle = () =>
-        container.querySelector<HTMLInputElement>(
-          `input[aria-label="${zhTranslate('grant.orchestratorWrite')}: .dsh"]`,
+        container.querySelector<HTMLButtonElement>(
+          `button[aria-label="${zhTranslate('grant.orchestratorWrite')}: .dsh"]`,
         );
       expect(header.contains(toggle())).toBe(true);
       const deletes = Array.from(
@@ -380,14 +438,14 @@ describe('Workspace Grant sidebar', () => {
       expect(deletes[0]!.getAttribute('aria-label')).toBe(
         zhTranslate('grant.memoryDeleteUnavailable'),
       );
-      expect(toggle()!.checked).toBe(false);
+      expect(toggle()!.getAttribute('aria-checked')).toBe('false');
       await act(async () => toggle()!.click());
       expect(setWorkspaceGrantWrite).toHaveBeenCalledExactlyOnceWith(
         'composer-write',
         'composer-write-grant',
         true,
       );
-      expect(toggle()!.checked).toBe(true);
+      expect(toggle()!.getAttribute('aria-checked')).toBe('true');
       expect(row().getAttribute('aria-expanded')).toBe('false');
       expect(actions.setAssignmentAccess).not.toHaveBeenCalled();
     } finally {
@@ -456,10 +514,12 @@ describe('Workspace Grant sidebar', () => {
       expect(container.textContent).toContain('manual folder');
       expect(container.textContent).toContain('Host rejected permission change');
       expect(
-        container.querySelector<HTMLInputElement>(
-          `input[aria-label="${zhTranslate('grant.orchestratorWrite')}: manual folder"]`,
-        )!.checked,
-      ).toBe(false);
+        container
+          .querySelector<HTMLButtonElement>(
+            `button[aria-label="${zhTranslate('grant.orchestratorWrite')}: manual folder"]`,
+          )!
+          .getAttribute('aria-checked'),
+      ).toBe('false');
     } finally {
       await act(async () => root.unmount());
       container.remove();
@@ -517,21 +577,21 @@ describe('Workspace Grant sidebar', () => {
       ).find((button) => button.querySelector('.bh-card-title')?.textContent === 'write project')!;
       act(() => expand.click());
       const toggle = () =>
-        container.querySelector('input[aria-label*="write project"]') as HTMLInputElement;
-      expect(toggle().checked).toBe(false);
+        container.querySelector('button[aria-label*="write project"]') as HTMLButtonElement;
+      expect(toggle().getAttribute('aria-checked')).toBe('false');
       await act(async () => toggle().click());
       expect(setWorkspaceGrantWrite).toHaveBeenCalledWith('write-test', 'write-grant', true);
-      expect(toggle().checked).toBe(false);
+      expect(toggle().getAttribute('aria-checked')).toBe('false');
       expect(toggle().disabled).toBe(true);
       await act(async () => {
         release();
         await pending;
       });
-      expect(toggle().checked).toBe(true);
+      expect(toggle().getAttribute('aria-checked')).toBe('true');
       expect(toggle().disabled).toBe(false);
       await act(async () => toggle().click());
       expect(setWorkspaceGrantWrite).toHaveBeenLastCalledWith('write-test', 'write-grant', false);
-      expect(toggle().checked).toBe(true);
+      expect(toggle().getAttribute('aria-checked')).toBe('true');
       expect(toggle().disabled).toBe(false);
       expect(container.textContent).toContain('Host rejected permission change');
     } finally {

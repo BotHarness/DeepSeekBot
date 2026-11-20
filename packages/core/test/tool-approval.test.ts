@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import type { Agent } from '@deepseek-ai/dsh-agent';
@@ -11,6 +12,7 @@ import { attachOperationalModule, mountOperationalDatabase } from '../src/databa
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { createToolApprovalRuleStore } from '../src/workspaces/tool-approval-rules.js';
 import { createTempRoot } from './helpers.js';
+import { toolEffects } from '../src/workspaces/tool-effects.js';
 import { ChannelToolApproval } from '../src/workspaces/tool-approval.js';
 
 const botSlug = 'ada';
@@ -28,7 +30,7 @@ function fixture(
   const channel = { id: channelId, type: 'dm', botSlug } as ChannelRecord;
   const channels = {
     get: vi.fn((id: string) => (id === channelId ? channel : undefined)),
-    appendMessage: vi.fn(async (id: string, message: ChannelMessage) => {
+    appendMessage: vi.fn(async (_human: unknown, id: string, message: ChannelMessage) => {
       if (id !== channelId) return undefined;
       messages.push(message);
       return message;
@@ -56,6 +58,105 @@ function fixture(
 }
 
 describe('Channel tool approval', () => {
+  it('uses a saved external-effect authorization before any Reviewer call and rechecks revocation', async () => {
+    const state = fixture();
+    const home = createTempRoot('bh-effect-rule-');
+    const database = mountOperationalDatabase({
+      dshHome: home,
+      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    });
+    const rules = createToolApprovalRuleStore(
+      attachOperationalModule(database, 'tool-approval-rules'),
+    );
+    const review = vi.fn();
+    const broker = new ChannelToolApproval(
+      state.channels,
+      state.ownership,
+      rules,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { template: () => ({ name: 'review', text: 'Ask the Human.' }), review, log: vi.fn() },
+      () => false,
+    );
+    const rule = rules.createPending({
+      botSlug,
+      role: 'assignment',
+      scopeKey: JSON.stringify(['assignment', '/tmp/project']),
+      kind: 'tool',
+      toolName: 'bot_send_message',
+      input: '',
+    });
+    rules.activate(botSlug, rule.id);
+    broker.track({
+      ...state.execution(),
+      name: 'bot_send_message',
+      arguments: { body: 'user already approved', effects: { changes: 'none' } },
+    });
+    try {
+      expect(
+        await broker.ask({ agent: state.agent, toolName: 'bot_send_message', callId: 'call-1' }),
+      ).toBe('allowed-once');
+      expect(review).not.toHaveBeenCalled();
+      expect(state.messages).toHaveLength(0);
+      const guard = broker.executionGuard(state.agent, 'call-1')!;
+      const args = { body: 'user already approved', effects: { changes: 'none' } };
+      expect(guard('bot_send_message', args)).toBe(true);
+      rules.revoke(botSlug, rule.id);
+      expect(guard('bot_send_message', args)).toBe(false);
+    } finally {
+      broker.close();
+      database.close();
+      rmSync(home, { recursive: true, force: true });
+    }
+  });
+
+  it.each([
+    ['channel_read', {}, 'none', false],
+    ['channel_attachment_open', { access: 'read' }, 'none', false],
+    ['channel_attachment_open', { access: 'write' }, 'reversible', false],
+    ['bot_send_message', { body: 'hello' }, 'irreversible', false],
+    ['secret_cli', { program: 'gh' }, 'irreversible', true],
+    ['protected_cli', { program: 'gh' }, 'irreversible', true],
+    ['bash', { command: 'deepseekbot grant-write-set ada --enabled' }, undefined, false],
+  ] as const)(
+    'keeps deterministic Full Access decisions for %s effects',
+    async (name, args, mutation, secrets) => {
+      const state = fixture();
+      const review = vi.fn();
+      const broker = new ChannelToolApproval(
+        state.channels,
+        state.ownership,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { template: () => undefined, review, log: vi.fn() },
+        () => true,
+      );
+      const effects = toolEffects(name, args);
+      expect(effects?.changes).toBe(mutation);
+      expect(effects?.secrets ?? false).toBe(secrets);
+      broker.track({ ...state.execution(), name, arguments: args });
+      try {
+        const answer = broker.ask({ agent: state.agent, toolName: name, callId: 'call-1' });
+        if (name === 'bash' || effects?.authority === 'management') {
+          await vi.waitFor(() => expect(state.messages).toHaveLength(1));
+          await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'rejected');
+          expect(await answer).toBe('rejected');
+        } else {
+          expect(await answer).toBe('allowed-once');
+          expect(state.messages).toHaveLength(0);
+        }
+        expect(review).not.toHaveBeenCalled();
+      } finally {
+        broker.close();
+      }
+    },
+  );
+
   it.each([
     ['browser_open', 'browser'],
     ['computer_click', 'computer'],
@@ -112,7 +213,14 @@ describe('Channel tool approval', () => {
       const first = ask(broker, 'first');
       await vi.waitFor(() => expect(state.messages).toHaveLength(1));
       expect(state.messages[0]!.toolApprovalRequest?.allowAlways).toBe(true);
-      expect(await broker.decide(botSlug, state.messages[0]!.id, 'allowed-always-tool')).toBe(true);
+      expect(
+        await broker.decide(
+          OWNER_HUMAN_CONTEXT,
+          botSlug,
+          state.messages[0]!.id,
+          'allowed-always-tool',
+        ),
+      ).toBe(true);
       expect(await first).toBe('allowed-once');
       const saved = rules.list(botSlug).find((rule) => rule.id !== legacy.id)!;
       broker.close();
@@ -145,7 +253,12 @@ describe('Channel tool approval', () => {
       track(restored, 'revoked');
       const revoked = ask(restored, 'revoked');
       await vi.waitFor(() => expect(state.messages).toHaveLength(3));
-      await restored.decide(botSlug, state.messages[2]!.id, 'allowed-always-tool');
+      await restored.decide(
+        OWNER_HUMAN_CONTEXT,
+        botSlug,
+        state.messages[2]!.id,
+        'allowed-always-tool',
+      );
       expect(await revoked).toBe('allowed-once');
       if (device) {
         target = 'target-b';
@@ -153,7 +266,7 @@ describe('Channel tool approval', () => {
         track(restored, 'new-target');
         const changed = ask(restored, 'new-target');
         await vi.waitFor(() => expect(state.messages).toHaveLength(5));
-        await restored.decide(botSlug, state.messages[4]!.id, 'rejected');
+        await restored.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[4]!.id, 'rejected');
         expect(await changed).toBe('rejected');
       }
     } finally {
@@ -177,7 +290,14 @@ describe('Channel tool approval', () => {
       const first = broker.ask({ agent: state.agent, toolName: 'bash', callId: 'call-1' });
       await vi.waitFor(() => expect(state.messages).toHaveLength(1));
       expect(state.messages[0]?.toolApprovalRequest?.allowAlways).toBe(true);
-      expect(await broker.decide(botSlug, state.messages[0]!.id, 'allowed-always-tool')).toBe(true);
+      expect(
+        await broker.decide(
+          OWNER_HUMAN_CONTEXT,
+          botSlug,
+          state.messages[0]!.id,
+          'allowed-always-tool',
+        ),
+      ).toBe(true);
       expect(await first).toBe('allowed-once');
       expect(rules.list(botSlug)).toMatchObject([{ kind: 'tool', toolName: 'bash', input: '' }]);
       broker.track({
@@ -191,13 +311,13 @@ describe('Channel tool approval', () => {
       broker.track({ ...state.execution(undefined, 'call-3'), name: 'pwsh' });
       const other = broker.ask({ agent: state.agent, toolName: 'pwsh', callId: 'call-3' });
       await vi.waitFor(() => expect(state.messages).toHaveLength(3));
-      await broker.decide(botSlug, state.messages[2]!.id, 'rejected');
+      await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[2]!.id, 'rejected');
       expect(await other).toBe('rejected');
       rules.revoke(botSlug, rules.list(botSlug)[0]!.id);
       broker.track(state.execution(undefined, 'call-4'));
       const revoked = broker.ask({ agent: state.agent, toolName: 'bash', callId: 'call-4' });
       await vi.waitFor(() => expect(state.messages).toHaveLength(5));
-      await broker.decide(botSlug, state.messages[4]!.id, 'rejected');
+      await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[4]!.id, 'rejected');
       expect(await revoked).toBe('rejected');
     } finally {
       broker.close();
@@ -232,7 +352,9 @@ describe('Channel tool approval', () => {
       });
     await vi.waitFor(() => expect(state.messages).toHaveLength(1));
     expect(begin).toHaveBeenCalledWith(sessionId, 'call-1', expect.any(AbortSignal));
-    expect(await broker.decide(botSlug, state.messages[0]!.id, 'allowed-once')).toBe(true);
+    expect(
+      await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'allowed-once'),
+    ).toBe(true);
     expect(state.messages[1]?.toolApprovalDecision?.outcome).toBe('allowed-once');
     expect(lease.resume).toHaveBeenCalledTimes(1);
     expect(delivered).not.toHaveBeenCalled();
@@ -259,7 +381,9 @@ describe('Channel tool approval', () => {
     broker.track(state.execution());
     const answer = broker.ask({ agent: state.agent, toolName: 'bash', callId: 'call-1' });
     await vi.waitFor(() => expect(state.messages).toHaveLength(1));
-    expect(await broker.decide(botSlug, state.messages[0]!.id, 'allowed-once')).toBe(true);
+    expect(
+      await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'allowed-once'),
+    ).toBe(true);
     refuse(new Error('authority unavailable'));
     expect(await answer).toBe('unavailable');
     expect(lease.release).toHaveBeenCalledTimes(1);
@@ -294,7 +418,9 @@ describe('Channel tool approval', () => {
       display_name: 'Tim',
       tags: ['translator'],
     });
-    expect(await state.broker.decide(botSlug, state.messages[0]!.id, 'rejected')).toBe(true);
+    expect(
+      await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'rejected'),
+    ).toBe(true);
     expect(await answer).toBe('rejected');
   });
 
@@ -327,7 +453,14 @@ describe('Channel tool approval', () => {
     const answer = state.broker.ask({ agent: state.agent, toolName: 'bash', callId: 'call-1' });
     await vi.waitFor(() => expect(state.messages).toHaveLength(1));
     expect(state.messages[0]!.toolApprovalRequest?.input.length).toBeGreaterThan(20_000);
-    expect(await state.broker.decide(botSlug, state.messages[0]!.id, 'allowed-once')).toBe(true);
+    expect(
+      await state.broker.decide(
+        OWNER_HUMAN_CONTEXT,
+        botSlug,
+        state.messages[0]!.id,
+        'allowed-once',
+      ),
+    ).toBe(true);
     expect(await answer).toBe('allowed-once');
   });
 
@@ -347,17 +480,24 @@ describe('Channel tool approval', () => {
     });
     expect(state.broker.status(botSlug, request.id)).toBe('pending');
     expect(state.broker.activeMessageIds()).toEqual([request.id]);
-    expect(await state.broker.decide('other-bot', request.id, 'allowed-once')).toBe(false);
+    expect(
+      await state.broker.decide(OWNER_HUMAN_CONTEXT, 'other-bot', request.id, 'allowed-once'),
+    ).toBe(false);
     expect(state.messages).toHaveLength(1);
-    expect(await state.broker.decide(botSlug, request.id, 'allowed-once')).toBe(true);
+    expect(
+      await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, request.id, 'allowed-once'),
+    ).toBe(true);
     expect(await answer).toBe('allowed-once');
     expect(state.messages[1]?.toolApprovalDecision).toEqual({
       requestMessageId: request.id,
+      decidedBy: { humanId: OWNER_HUMAN_CONTEXT.humanId },
       outcome: 'allowed-once',
     });
     expect(state.broker.status(botSlug, request.id)).toBe('expired');
     expect(state.broker.activeMessageIds()).toEqual([]);
-    expect(await state.broker.decide(botSlug, request.id, 'allowed-once')).toBe(false);
+    expect(
+      await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, request.id, 'allowed-once'),
+    ).toBe(false);
     untrack?.();
   });
 
@@ -367,10 +507,13 @@ describe('Channel tool approval', () => {
     const answer = state.broker.ask({ agent: state.agent, toolName: 'bash', callId: 'call-1' });
     await vi.waitFor(() => expect(state.messages).toHaveLength(1));
     const requestId = state.messages[0]!.id;
-    expect(await state.broker.decide(botSlug, requestId, 'rejected')).toBe(true);
+    expect(await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, requestId, 'rejected')).toBe(
+      true,
+    );
     expect(await answer).toBe('rejected');
     expect(state.messages[1]?.toolApprovalDecision).toEqual({
       requestMessageId: requestId,
+      decidedBy: { humanId: OWNER_HUMAN_CONTEXT.humanId },
       outcome: 'rejected',
     });
     untrack?.();
@@ -390,7 +533,14 @@ describe('Channel tool approval', () => {
     controller.abort();
     expect(await answer).toBe('cancelled');
     expect(state.broker.status(botSlug, state.messages[0]!.id)).toBe('expired');
-    expect(await state.broker.decide(botSlug, state.messages[0]!.id, 'allowed-once')).toBe(false);
+    expect(
+      await state.broker.decide(
+        OWNER_HUMAN_CONTEXT,
+        botSlug,
+        state.messages[0]!.id,
+        'allowed-once',
+      ),
+    ).toBe(false);
     untrack?.();
   });
 
@@ -405,6 +555,26 @@ describe('Channel tool approval', () => {
     state.broker.cancelChannel(channelId);
     expect(await answer).toBe('cancelled');
     expect(state.broker.status(botSlug, requestId)).toBe('expired');
+    untrack?.();
+  });
+
+  it('closes the approval cards of a stopped Session as stopped and refuses a late decision', async () => {
+    const state = fixture();
+    const untrack = state.broker.track(state.execution());
+    const answer = state.broker.ask({ agent: state.agent, toolName: 'bash', callId: 'call-1' });
+    await vi.waitFor(() => expect(state.messages).toHaveLength(1));
+    const requestId = state.messages[0]!.id;
+
+    expect(state.broker.closeSessions(['botharness-other-session'])).toEqual([]);
+    expect(state.broker.status(botSlug, requestId)).toBe('pending');
+    expect(state.broker.closeSessions([sessionId])).toEqual([requestId]);
+
+    expect(await answer).toBe('cancelled');
+    expect(state.broker.status(botSlug, requestId)).toBe('stopped');
+    expect(state.broker.activeMessageIds()).toEqual([]);
+    expect(await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, requestId, 'allowed-once')).toBe(
+      false,
+    );
     untrack?.();
   });
 
@@ -425,7 +595,9 @@ describe('Channel tool approval', () => {
 
     expect(await answer).toBe('unavailable');
     expect(broker.status(botSlug, requestId)).toBe('expired');
-    expect(await broker.decide(botSlug, requestId, 'allowed-once')).toBe(false);
+    expect(await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, requestId, 'allowed-once')).toBe(
+      false,
+    );
     expect(state.messages).toHaveLength(1);
   });
   it('refuses a native call if its Grant is revoked after one-time approval', async () => {
@@ -438,7 +610,9 @@ describe('Channel tool approval', () => {
     const answer = broker.ask({ agent: state.agent, toolName: 'bash', callId: 'call-1' });
     await vi.waitFor(() => expect(state.messages).toHaveLength(1));
 
-    expect(await broker.decide(botSlug, state.messages[0]!.id, 'allowed-once')).toBe(true);
+    expect(
+      await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'allowed-once'),
+    ).toBe(true);
     expect(await answer).toBe('allowed-once');
     expect(broker.validAfterDecision(state.agent, 'call-1')).toBe(true);
     grantActive = false;
@@ -490,16 +664,22 @@ describe('Channel tool approval', () => {
     await vi.waitFor(() => expect(state.messages).toHaveLength(1));
     const request = state.messages[0]!;
     expect(request.toolApprovalRequest).toMatchObject({ externalDecision: 'each-use' });
-    expect(await broker.decide(botSlug, request.id, 'allowed-always-exact')).toBe(false);
-    expect(await broker.decide(botSlug, request.id, 'allowed-always-all')).toBe(false);
     expect(
-      await broker.decide(botSlug, request.id, 'allowed-once', {
+      await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, request.id, 'allowed-always-exact'),
+    ).toBe(false);
+    expect(
+      await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, request.id, 'allowed-always-all'),
+    ).toBe(false);
+    expect(
+      await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, request.id, 'allowed-once', {
         actor: { kind: 'external' } as never,
         authorized: () => true,
       }),
     ).toBe(false);
     expect(rules.createPending).not.toHaveBeenCalled();
-    expect(await broker.decide(botSlug, request.id, 'allowed-once')).toBe(true);
+    expect(await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, request.id, 'allowed-once')).toBe(
+      true,
+    );
     expect(await answer).toBe('allowed-once');
     broker.close();
   });
@@ -519,8 +699,12 @@ describe('Channel tool approval', () => {
     await vi.waitFor(() => expect(state.messages).toHaveLength(1));
     const request = state.messages[0]!;
     expect(broker.remembered(state.agent, 'call-1')).toBe(false);
-    expect(await broker.decide(botSlug, request.id, 'allowed-always-all')).toBe(false);
-    expect(await broker.decide(botSlug, request.id, 'allowed-always-exact')).toBe(true);
+    expect(
+      await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, request.id, 'allowed-always-all'),
+    ).toBe(false);
+    expect(
+      await broker.decide(OWNER_HUMAN_CONTEXT, botSlug, request.id, 'allowed-always-exact'),
+    ).toBe(true);
     expect(await answer).toBe('allowed-once');
     expect(broker.remembered(state.agent, 'call-1')).toBe(true);
     expect(rules.createPending).not.toHaveBeenCalled();
@@ -560,9 +744,18 @@ describe('committed native approval attention', () => {
       callId: 'call-2',
     });
     await vi.waitFor(() => expect(changed).toHaveBeenLastCalledWith(botSlug, 2));
-    expect(await state.broker.decide('other', state.messages[0]!.id, 'allowed-once')).toBe(false);
+    expect(
+      await state.broker.decide(
+        OWNER_HUMAN_CONTEXT,
+        'other',
+        state.messages[0]!.id,
+        'allowed-once',
+      ),
+    ).toBe(false);
     expect(changed).toHaveBeenLastCalledWith(botSlug, 2);
-    expect(await state.broker.decide(botSlug, state.messages[0]!.id, 'rejected')).toBe(true);
+    expect(
+      await state.broker.decide(OWNER_HUMAN_CONTEXT, botSlug, state.messages[0]!.id, 'rejected'),
+    ).toBe(true);
     expect(await firstAnswer).toBe('rejected');
     expect(changed).toHaveBeenLastCalledWith(botSlug, 1);
     state.broker.close();
@@ -607,7 +800,7 @@ describe('committed native approval attention', () => {
     expect(changed).not.toHaveBeenCalled();
     let commit!: () => void;
     vi.mocked(state.channels.appendMessage).mockImplementationOnce(
-      (_id, message) =>
+      (_human, _id, message) =>
         new Promise((resolve) => {
           commit = () => resolve(message);
         }),
@@ -638,7 +831,14 @@ describe('committed native approval attention', () => {
     await vi.waitFor(() =>
       expect(warn).toHaveBeenCalledWith('tool-approval-attention-publication-failed'),
     );
-    expect(await state.broker.decide(botSlug, state.messages[0]!.id, 'allowed-once')).toBe(true);
+    expect(
+      await state.broker.decide(
+        OWNER_HUMAN_CONTEXT,
+        botSlug,
+        state.messages[0]!.id,
+        'allowed-once',
+      ),
+    ).toBe(true);
     expect(await answer).toBe('allowed-once');
   });
 });

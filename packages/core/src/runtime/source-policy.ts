@@ -142,18 +142,28 @@ export function createBotSourcePolicyStore(
          ORDER BY revision DESC LIMIT 1
       `)
       .get(botSlug, sourceClass) as SourcePolicyRow | undefined;
-    const row: SourcePolicyRow = stored ?? {
-      revision: 1,
-      changed_at: now().toISOString(),
-      admission_mode: 'admit',
-      wake_mode: builtIn.wake,
-      actor_kind: 'built-in',
-      actor_bot_slug: null,
-      digest_count: digestCount,
-      digest_interval_seconds: digestIntervalSeconds,
-      override_active: 0,
-      delivery: 'delivery' in builtIn ? builtIn.delivery : 'steer',
-    };
+    const row: SourcePolicyRow =
+      stored?.actor_kind === 'built-in' && sourceClass === 'group-ordinary'
+        ? {
+            ...stored,
+            digest_count: stored.wake_mode === 'digest' ? digestCount : stored.digest_count,
+            digest_interval_seconds:
+              stored.wake_mode === 'digest'
+                ? digestIntervalSeconds
+                : stored.digest_interval_seconds,
+          }
+        : (stored ?? {
+            revision: 1,
+            changed_at: now().toISOString(),
+            admission_mode: 'admit',
+            wake_mode: builtIn.wake,
+            actor_kind: 'built-in',
+            actor_bot_slug: null,
+            digest_count: digestCount,
+            digest_interval_seconds: digestIntervalSeconds,
+            override_active: 0,
+            delivery: 'delivery' in builtIn ? builtIn.delivery : 'steer',
+          });
     if (row.admission_mode !== 'admit')
       throw new Error(`Protected ${sourceClass} admission mode is invalid`);
     if (sourceClass === 'assignment-report') {
@@ -214,13 +224,19 @@ export function createBotSourcePolicyStore(
       sourceClass === 'group-ordinary' && row.wake_mode !== 'digest'
         ? (db
             .prepare(`
-              SELECT digest_count, digest_interval_seconds
+              SELECT digest_count, digest_interval_seconds, actor_kind
                 FROM bot_source_policy_revisions
                WHERE bot_slug = ? AND source_class = 'group-ordinary' AND wake_mode = 'digest'
                ORDER BY revision DESC LIMIT 1
             `)
-            .get(botSlug) as { digest_count: number; digest_interval_seconds: number } | undefined)
+            .get(botSlug) as
+            | { digest_count: number; digest_interval_seconds: number; actor_kind: string }
+            | undefined)
         : undefined;
+    if (previousDigest?.actor_kind === 'built-in') {
+      previousDigest.digest_count = digestCount!;
+      previousDigest.digest_interval_seconds = digestIntervalSeconds!;
+    }
     const effectiveDigestCount = row.digest_count ?? previousDigest?.digest_count ?? null;
     const effectiveDigestIntervalSeconds =
       row.digest_interval_seconds ?? previousDigest?.digest_interval_seconds ?? null;

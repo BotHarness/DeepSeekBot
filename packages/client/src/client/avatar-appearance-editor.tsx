@@ -1,4 +1,8 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
 import { useMemo, useState, type ReactElement } from 'react';
+
 import {
   AVATAR_COLORS,
   AVATAR_FAMILIES,
@@ -48,7 +52,6 @@ import {
   LINE_SWATCHES,
   seededLineRecipe,
 } from '../../../core/src/bots/avatar-line.js';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { PartLibraryEntry } from '../../../core/src/bots/part-library.js';
 import { CustomPartEditor } from './custom-part-editor.js';
@@ -172,7 +175,10 @@ const V2_ONLY = (part: string, value: string | number) =>
 
 function withPart(recipe: AvatarRecipe, key: string, value: string | number): AvatarRecipe {
   if (recipe.family !== 'illustrated')
-    return { ...(recipe as unknown as Fields), [key]: value } as unknown as AvatarRecipe;
+    return {
+      ...(recipe as unknown as Fields),
+      [key]: value,
+    } as unknown as AvatarRecipe;
   if (key === 'species')
     return withAvatarSpecies(recipe, value as Parameters<typeof withAvatarSpecies>[1]);
   if (V4_KEYS.has(key)) {
@@ -200,7 +206,9 @@ function withPart(recipe: AvatarRecipe, key: string, value: string | number): Av
   return {
     ...split,
     ...(split.assetVersion === 2
-      ? { rightSideHair: split.sideHair as NonNullable<IllustratedAvatarRecipe['rightSideHair']> }
+      ? {
+          rightSideHair: split.sideHair as NonNullable<IllustratedAvatarRecipe['rightSideHair']>,
+        }
       : {}),
     spacing: next.spacing ?? 0,
     height: next.height ?? 0,
@@ -272,7 +280,12 @@ export interface PartLibraryActions {
     | {
         added: PartLibraryEntry[];
         refused: number;
-        image?: { width: number; height: number; colors: number; slots: string[] };
+        image?: {
+          width: number;
+          height: number;
+          colors: number;
+          slots: string[];
+        };
       }
     | { error: string }
   >;
@@ -835,7 +848,12 @@ export function AvatarAppearanceEditor({
             name={bot.displayName}
             src={bot.avatar}
             appearance={
-              recipe ? { recipe, revision: bot.appearance?.revision ?? '0'.repeat(64) } : undefined
+              recipe
+                ? {
+                    recipe,
+                    revision: bot.appearance?.revision ?? '0'.repeat(64),
+                  }
+                : undefined
             }
             avatarSeed={bot.avatarSeed}
             size={160}
@@ -1167,19 +1185,23 @@ export function AvatarAppearanceEditor({
           ) : null}
           {draft ? (
             <div className="bh-profile-avatar-actions">
-              <button
+              <Button
+                size="sm"
+                variant="primary"
+                icon={<Icon name="save" />}
                 data-avatar-save
                 type="button"
-                className="bh-profile-action bh-profile-action-primary"
                 disabled={busy || drawing !== undefined}
                 onClick={() => void save()}
               >
                 {t('profile.save')}
-              </button>
-              <button
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                icon={<Icon name="x" />}
                 data-avatar-cancel
                 type="button"
-                className="bh-profile-action"
                 disabled={busy}
                 onClick={() => {
                   setDrafts(undefined);
@@ -1188,7 +1210,7 @@ export function AvatarAppearanceEditor({
                 }}
               >
                 {t('common.cancel')}
-              </button>
+              </Button>
             </div>
           ) : null}
           {failed ? (

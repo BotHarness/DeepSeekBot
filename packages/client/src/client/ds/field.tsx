@@ -1,3 +1,4 @@
+import { Input } from './input.js';
 import {
   useId,
   type InputHTMLAttributes,
@@ -6,9 +7,10 @@ import {
   type TextareaHTMLAttributes,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Input } from '@deepseek-ai/dsh-client-ui-primitives';
 
-import { border, color, radius, space, text } from './tokens.stylex.js';
+import { border, color, space, text } from './tokens.stylex.js';
+import { ChannelSidebarIcon } from '../channel-sidebar-icon.js';
+import { font, ink, layer, style } from './tobs.stylex.js';
 
 const styles = stylex.create({
   field: {
@@ -42,7 +44,7 @@ const styles = stylex.create({
     overflowWrap: 'anywhere',
   },
   input: { boxSizing: 'border-box', width: '100%', minWidth: 0 },
-  mono: { fontFamily: 'var(--dsw-font-mono, ui-monospace, monospace)' },
+  mono: { fontFamily: font.familyMono },
   textarea: {
     boxSizing: 'border-box',
     width: '100%',
@@ -52,7 +54,7 @@ const styles = stylex.create({
     borderWidth: border.hairline,
     borderStyle: 'solid',
     borderColor: { default: color.border, ':focus-visible': color.fg },
-    borderRadius: radius.sm,
+    borderRadius: style.radiusField,
     outline: 'none',
     backgroundColor: 'transparent',
     color: color.fg,
@@ -60,6 +62,39 @@ const styles = stylex.create({
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     resize: 'vertical',
+  },
+  search: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x3,
+    boxSizing: 'border-box',
+    width: '100%',
+    minWidth: 0,
+    flexShrink: 0,
+    height: style.controlHeight,
+    paddingInline: space.x3,
+    borderRadius: style.radiusControl,
+    backgroundColor: layer.well,
+    color: ink.tertiary,
+    outline: {
+      default: 'none',
+      ':focus-within': `${border.focus} solid ${color.accent}`,
+    },
+    outlineOffset: `-${border.focus}`,
+  },
+  searchInput: {
+    flexGrow: 1,
+    minWidth: 0,
+    height: '100%',
+    margin: 0,
+    padding: 0,
+    borderWidth: 0,
+    outline: 'none',
+    backgroundColor: 'transparent',
+    color: { default: color.fg, '::placeholder': ink.tertiary },
+    fontFamily: 'inherit',
+    fontSize: style.textUiSize,
+    lineHeight: style.textUiLine,
   },
   stack: {
     display: 'flex',
@@ -209,5 +244,29 @@ export function TextAreaField({
         />
       )}
     </Field>
+  );
+}
+
+export function SearchField({
+  label,
+  value,
+  onChange,
+}: {
+  readonly label: string;
+  readonly value: string;
+  readonly onChange: (value: string) => void;
+}): ReactElement {
+  return (
+    <label {...stylex.props(styles.search)}>
+      <ChannelSidebarIcon name="search" />
+      <input
+        type="search"
+        aria-label={label}
+        placeholder={label}
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+        {...stylex.props(styles.searchInput)}
+      />
+    </label>
   );
 }

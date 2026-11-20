@@ -1,5 +1,15 @@
 # VRM companion Panel
 
+## Sources
+
+- `packages/vrm-companion/**`
+
+## Terms
+
+- Window Companion
+- Companion Visibility
+- Panel
+
 ## Sub-features
 
 - Independent native Bundle installation, activation, removal and reinstall.

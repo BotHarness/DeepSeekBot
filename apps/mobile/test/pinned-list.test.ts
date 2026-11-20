@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { chatList } from '../src/ui/chat/conversations';
-import type { RosterView } from '../src/host/client';
+import type { RosterView } from '@botharness/host-client/client';
 
 describe('Pinned virtual list projection (not native geometry evidence)', () => {
   it('projects one flat-list item per pin alongside ordinary rows and keeps collapse counts', () => {

@@ -14,6 +14,7 @@ export function PlusMenuButton({
   label,
   testID,
   size,
+  embedded = false,
   disabled = false,
   items,
 }: PlusMenuButtonProps) {
@@ -91,7 +92,7 @@ export function PlusMenuButton({
           height: size,
           borderRadius: radius.round,
           overflow: 'hidden',
-          backgroundColor: theme.layer.raised.fill,
+          backgroundColor: embedded ? theme.layer.raised.inset : theme.layer.raised.fill,
           alignItems: 'center',
           justifyContent: 'center',
         }}

@@ -1,18 +1,10 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type PropsWithChildren,
-  type ReactNode,
-} from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  Button: (props: ButtonHTMLAttributes<HTMLButtonElement>) => createElement('button', props),
-  Modal: ({ open, children, footer }: PropsWithChildren<{ open: boolean; footer?: ReactNode }>) =>
-    open ? createElement('div', { role: 'dialog' }, children, footer) : null,
 }));
 import { ReachablePostDialog } from '../src/client/reachable-post.js';
 import { zhTranslate } from '../src/client/locale.js';
@@ -84,8 +76,8 @@ it.each([
         ),
       );
 
-      await chooseOption('选择群聊', 'oc_new', host);
-      const input = host.querySelector<HTMLTextAreaElement>('textarea')!;
+      await chooseOption('选择群聊', 'oc_new', document.body);
+      const input = document.body.querySelector<HTMLTextAreaElement>('textarea')!;
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(
           HTMLTextAreaElement.prototype,

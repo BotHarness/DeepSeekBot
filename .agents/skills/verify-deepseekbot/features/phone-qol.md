@@ -1,5 +1,18 @@
 # Native mobile quiet feedback, loading and stable history
 
+## Sources
+
+- `apps/mobile/src/host/{delivery-receipt,native-delivery-receipts,connection-summary}.ts`
+- `apps/mobile/src/ui/{connection-presence,connection-recovery}.ts`
+- `apps/mobile/src/ui/primitives/{connection-progress,connection-failure-state,list-skeleton}.{ts,tsx}`
+- `apps/mobile/src/ui/chat/delivery-stack.tsx`
+
+## Terms
+
+- Conversation screen
+- Chats
+- Composer
+
 ## Sub-features
 
 - `delivery`: outgoing bubbles remain normal for three seconds per attempt, then mute only while pending; failures retain explicit retry.
@@ -28,6 +41,54 @@ Native mobile checks use the assigned [shared-device queue](../../../../docs/age
 8. For changed screens, capture matched before/after at default/intermediate/maximum text and light/dark. Verify reduced motion and screen-reader progress: skeleton shapes are noninteractive, hidden history is not separately exposed and transient connection progress does not produce repeated alerts.
 
 ## Observable proof
+
+### Android native latest anchor (#3868)
+
+In an assigned Windows batch, rebuild for each lane's ABI with `LatestAnchor` included.
+Run `:latest-anchor:testDebugUnitTest` from the generated Android project. Compare the
+same build with the default native path and Metro restarted with
+`EXPO_PUBLIC_FOLLOW_LATEST=js`. Keep Android mVCP enabled in both variants.
+
+On both emulator and phone, record sending at the bottom, a new Bot reply, a long
+Streaming reply, and reading-chip start/stop on the final message. Restore Full bubble
+after the streaming scenario. Also check history hold, explicit Jump to latest,
+keyboard/composer resizing and animator duration scale zero; restore original settings.
+Use repeatable fixtures and matched native/JS trials rather than different model replies.
+
+Handoff v2 adds these required scenarios on both lanes and both paths:
+
+- Send a long multiline draft with the keyboard open, then closed. Track the newest
+  bubble's bottom edge relative to the composer throughout collapse; fail steps or
+  delayed jumps, and confirm the flying text remains visible throughout the send.
+- Delay server confirmation, then commit the pending Human message. Verify that
+  pending and committed bubbles show the same body layout without a clock or
+  timestamp row. Check failed-send retry and the separate delivery and reading chips.
+- Open Message Actions by long-pressing on iOS and tapping on Android. Confirm
+  the timestamp is readable in the iOS sheet and Android anchored menu, including
+  a calendar date for yesterday and a year for last year. Repeat for media-only
+  messages and exercise the accessibility entry. Android long-press keeps message
+  selection.
+- Flick away from the bottom with small release velocity, then return to the bottom.
+  The latest arrow must clear even when no momentum-start event follows the drag
+  (#3889 uses a 120 ms fallback). Also verify a real fling retains history ownership.
+
+The shared fixes in #3889, #3894, #3896 and #3901 require Android checks, not duplicate
+implementations. Keep `nativeSpacer = !android && LatestAnchor !== undefined` unchanged
+until the multiline-send measurement proves Android needs a spacer. If needed, place
+it in the inverted list's header, add an A/B switch and remeasure. Do not copy iOS
+shrink glue without a measured Android shrink jump. Record separate list displacement,
+composer edge, bubble edge and bubble height: list-only correlation cannot prove a
+stable bubble/composer gap or bubble height.
+
+Capture scrcpy clips, retain original timestamps and extract 60 fps frames with ffmpeg.
+Cross-correlate neighbouring frames in a fixed list-only crop, excluding the composer
+and changing stream text. Record frame timestamp, vertical displacement, correlation
+confidence, cumulative displacement and end visibility in a per-frame table. Count
+frames to the end, direction reversals and stalls inside the glide; flag duplicated
+capture frames and low-confidence comparisons instead of treating them as app stalls.
+Confirm the final message is above the composer. The reading chip must not move rows.
+Capture light/dark screenshots and publish redacted before/after clips through
+`pnpm evidence:publish`. Report each lane separately; unit tests are not native acceptance.
 
 Record the source/head, installed binary, actual actions, visible result and canonical readback for sends/creation. First-frame history behavior needs a recording or equivalent frame evidence. Label each case PASS, FAIL or UNTESTED separately for iOS, Android, Simulator and physical/Human checks. Restore assigned fixtures/settings and verify task-owned processes and ports are released.
 

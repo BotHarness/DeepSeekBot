@@ -1,29 +1,57 @@
 # Approval Templates and auto approval
 
-A Human writes Approval Templates, a PersonaBot selects one, and the Approval Reviewer answers that Bot's operation approvals by the template's text before any card is posted (ADR-0207).
+A Bot inherits the optional global default, selects one complete shared template, or disables its Reviewer (ADR-0342). Deterministic authorization runs first; Reviewer outcomes are allow for this call or ask-human.
+
+## Sources
+
+- `packages/client/src/client/{approval-template-*,approval-reviewer-model-setting}.tsx`
+- `packages/core/src/bots/cli-approval-{templates,reviewer}.ts`
+- `packages/core/src/workspaces/approval-{template,reviewer}*.ts`
+
+## Terms
+
+- Approval Template
+- Approval Reviewer
+- Approval Review Session
+- Tool Approval Rule
 
 ## Sub-features
 
-- `library` is Bot settings → Auto approval: every template with `Built-in` or its file name, its description and the Bots that use it. `New` creates one; `View` opens a built-in read-only with `Copy`; `Edit` opens a Human template with `Save` and `Delete`.
-- `cli` is `deepseekbot approval-template list|show|create|edit|delete` and `approval-template-set <bot> <name|off>`. Files live in `$DSH_HOME/botharness/approval-templates/<name>.md`.
-- `select` is the Bot's channel settings → Auto approval page, or the composer workspace panel.
-- `reviewer` leaves a folded `Auto-approved by <template>` or `Auto-rejected by <template>` system line in the Channel.
-- `guard` turns a Bot Shell call that selects a template, or edits or deletes a template some Bot uses, into a Human card that the reviewer and saved rules never answer. Creating a template, or editing one no Bot uses, runs without a card.
+- `library`: Bot settings → Auto approval → Global default template (DSH Select), existing template library and Reviewer model. No global default means inherited review is off. Read failures remain errors.
+- `editor`: New template requires Blank or one selected source; edit independent Always ask/Always allow rows in the same grouped card list as External identities/connectors (outer top/bottom corners, straight middle joins, distinct list fill and spaced headings); top-right and bottom add actions append a draft row and focus/reveal its input, plus free text; save alone or apply to a named Bot. Copy a custom or built-in template independently; shared-original editing lists actual users including global inheritors. Read back full content and selection through CLI.
+- `cli`: `approval-template list --bot <bot>`, `approval-template-global-set <name|off>`, `approval-template-set <bot> <inherit|name|off>`; library create/edit commands retain existing Markdown contents.
+- `select`: Channel settings → Auto approval, or composer Workspace Grants panel → Auto approval, uses the same DSH Select. Inheritance shows its effective global source. Specific selection replaces global; Off retains deterministic rules.
+- `mobile`: Bot profile → Settings → Permissions → Workspace grants → Auto approval template, inside the existing iOS sheet / Android `ModalBottomSheet`. Inherit global shows the resolved global template (or Off); selecting Off then Inherit global writes null then @global through the same Host owner. Legacy Hosts without a global-selection field retain their supported choices.
+- `reviewer`: a covered call leaves an auto-approved record with template identity/version; an uncovered or failed review posts a Human card with the reason and captured version when available. No new model rejection or rejection pause occurs.
+- `delete`: custom template → Delete opens a read-only impact preview. It lists visible direct/global users plus protected private-reference count and the resulting global template/Off/unavailable state. Confirming its revision switches direct users to inherit and clears a deleted global default. Stale references/policy/content require a fresh preview and another confirmation. Failed reads do not delete or change choices.
+- `guard`: effective template/global/Bot policy changes bypass Full Access and model review, retaining Human or explicit management-scope authorization and execution fences (ADR-0249).
 
 ## How to get to it (user POV)
 
-- Bot mode → `Bot settings` → `Auto approval`.
+Bot mode → Bot settings → Auto approval for global default; open a Bot DM → Channel settings → Auto approval for its selection.
 
 ## Driving it with verify-app
 
-Preconditions: `launch` reported a model credential and `doctor` passes. Point the CLI at the instance with `--host <origin>` and `--token-file <file holding the launcher token>`.
+Use an isolated Host and its own authenticated CLI. Confirm health and Client console/DOM before each journey. Use the actual CLI Host origin and a private token file; never put tokens in screenshots or args.
 
-- **Library.** `shot <label> --bot-mode --click "Bot settings" --click "Auto approval" --wait-text "Get the work done"`. Then `--click "Edit"` on a Human template or `--click-text "View"` on a built-in, and `--click "Copy"` then `--click-text "New"` to save the copy. Proof: the file appears under `approval-templates/`.
-- **Reviewer follows the text.** Create a template that rejects files named `secret-plan` with a fixed reason, select it, and DM the Bot to write `/root/bh-1824/secret-plan.txt` and ask to leave the sandbox. Proof: `rpc botharness/channelMessages` holds a system entry with `toolAutoApproval.outcome: "rejected"` and that reason, and the file does not exist.
-- **Guard.** Copy the launcher token to a file the Bot's Shell can read and give the Bot the full CLI command. `create` returns with no card. `edit` of a template another Bot uses posts a `toolApprovalRequest` entry; `tool-approval-decide <channel> --message-id <id> --outcome rejected` leaves the file's hash unchanged.
+1. Capture light/dark global and Bot selection before/after at the same viewport and locale.
+2. Set global cautious with the CLI, select inherit through the Client, and read back list --bot: selected @global, source global, effective cautious. Change global to get-work-done: inheritance follows. Select cautious specifically, change global or clear it: the Bot remains cautious. Select Off: effective null, source off.
+3. New Bot creation reads back @global; a retained legacy missing field remains Off. Restart verifies persistence without schema changes.
+4. Trigger an existing approval through the native tool path. A deterministic saved rule makes zero Reviewer calls. An uncovered call uses the effective template and leaves either the versioned auto-approved record or Human card; answer that card through the normal owner.
+5. Edit/switch during an injected Reviewer wait at the Channel Tool Approval seam: this Review retains the old identity/version, the next uses the new one. Missing/unreadable template or model timeout/malformed response posts Human with a reason, even if diagnostics fail. Check canonical Channel records and developer logs.
+6. Create a custom template and an explicit user, an inherited user, another specific user and an Off control. Preview deletion through CLI and Client without mutation; confirm after checking all effects. With another global default, direct users inherit it. Delete the global default: clear it and leave inheritors inherited with Reviewer off. Change refs/content/global between preview and confirmation: refusal and refreshed impact, no replay. Keep an existing Human review pending across deletion and verify its captured template/version on settlement. Saved rules and Full Access do not change.
+7. Exercise a policy-management approval under Full Access; Reviewer calls remain zero and only Human or an explicit management rule can authorize effects. Revoke the rule before execution and verify refusal.
+
+## Native mobile qualification
+
+Use the shared device QA lane and T3 device tools. The same synthetic Bot and isolated QA Host must be used for before/after, with the current PR/source/build identities recorded. In Bot profile → Settings → Permissions → Workspace grants, verify the inherited row is checked and names the global template or Off. Choose Off, return to Inherit global, then choose one specific template; read back each selection using the authenticated CLI. A global switch updates the inherited row after refresh while a specific choice remains specific. Read failures stay visible failures. Capture default/intermediate/maximum system text in light/dark, keep the last choice reachable, and distinguish Android, iOS and Human acceptance. Web screenshots do not qualify this journey.
 
 ## Gotchas
 
-- `/tmp` is writable inside the Bot sandbox, so a write there never reaches the reviewer. Use a path outside it.
-- The model tends to refuse to edit the template it is itself bound by. Exercise the guard with a template another Bot uses.
-- The default Bot only exists after the Web Client first loads; run one `shot` before CLI calls that need its id.
+- `/tmp` may already be writable; an ordinary file write there need not reach an approval gate.
+- Three-part editing, confirmed bulk deletion and the card-rule table have distinct journeys. Verify legacy Markdown conversion, next-Review snapshot behavior and deletion fallback separately.
+- Browser screenshots establish Web behavior only. Preserve failed drives and observe before retrying.
+
+## Human result retention (#4211)
+
+After Reviewer asks the Human, verify a compact sent-to-Human row precedes the real request. Open request details, then Allow once, Always allow or Reject: command/tool/folder/input remain, opened details stay open, and the chosen disabled control is identifiable. Reload history and verify the full request remains readable with no resubmission. Mobile uses the existing validated message projection for decided history without one timeline/status RPC per card; malformed/purged content stays unavailable. Historical Reviewer rejection rows remain readable; new ask-human rows cannot be overridden as rejections. Use the public online CLI synthetic missing-secret path on Windows; do not run the native-pwsh journey under the Human no-PowerShell constraint.

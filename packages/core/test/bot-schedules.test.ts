@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { describe, expect, it } from 'vitest';
 
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -467,8 +468,8 @@ describe('Bot Schedule firing', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      const dm = core.channels.getOrCreateDm('ada', 'Ada')!;
-      const admission = core.runtime.admitDmMessage({
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      const admission = core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
         channelId: dm.id,
         messageId: 'interactive-origin',
         body: 'Configure a private account',
@@ -514,7 +515,7 @@ describe('Bot Schedule firing', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      core.channels.getOrCreateDm('ada', 'Ada');
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
       const schedule = core.schedules.create(
         'ada',
         {
@@ -545,7 +546,7 @@ describe('Bot Schedule firing', () => {
         'Hourly check',
         'Check X',
       ]);
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(
         await methods.scheduleUpdate({ slug: 'ada', id: schedule.id, locked: 'yes' }),
       ).toMatchObject({ ok: false });
@@ -601,7 +602,7 @@ describe('Bot Schedule Run now wake', () => {
     });
     try {
       core.registry.create({ slug: 'ada', displayName: 'Ada' });
-      core.channels.getOrCreateDm('ada', 'Ada');
+      core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada');
       const schedule = core.schedules.create(
         'ada',
         {
@@ -611,7 +612,7 @@ describe('Bot Schedule Run now wake', () => {
         },
         'human',
       );
-      const methods = createBridgeMethods({ ...core });
+      const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...core });
       expect(await methods.scheduleRunNow({ slug: 'ada', id: 'missing' })).toMatchObject({
         ok: false,
       });

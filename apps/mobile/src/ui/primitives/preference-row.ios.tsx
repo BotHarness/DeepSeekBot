@@ -1,7 +1,9 @@
 import { Host, Label, Menu, Picker, RNHostView, Text } from '@expo/ui/swift-ui';
 import {
+  accessibilityAddTraits,
   accessibilityElement,
   accessibilityLabel,
+  accessibilityValue,
   buttonStyle,
   foregroundStyle,
   frame,
@@ -38,13 +40,20 @@ export function PreferenceRow<T extends string>({
         label={
           <Label
             title={title}
-            systemImage={rowSymbol(icon).ios}
+            {...(icon === undefined ? {} : { systemImage: rowSymbol(icon).ios })}
             modifiers={[foregroundStyle({ type: 'hierarchical', style: 'primary' })]}
           />
         }
         selection={value}
         onSelectionChange={onChange}
-        modifiers={[pickerStyle('menu'), tint(theme.color.muted), accessibilityLabel(title)]}
+        modifiers={[
+          pickerStyle('menu'),
+          tint(theme.color.muted),
+          accessibilityElement('combine'),
+          accessibilityLabel(title),
+          accessibilityValue(selected),
+          accessibilityAddTraits(['isButton']),
+        ]}
       >
         {options.map((option) => (
           <Text key={option.value} modifiers={[tag(option.value)]}>
@@ -67,7 +76,7 @@ export function PreferenceRow<T extends string>({
               <SettingsRow
                 on={on}
                 title={title}
-                icon={icon}
+                {...(icon === undefined ? {} : { icon })}
                 trailing={
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
                     <RowText tone="muted" numberOfLines={1}>

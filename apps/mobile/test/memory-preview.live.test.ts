@@ -4,14 +4,14 @@ import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-import { createHostClient } from '../src/host/client';
+import { createHostClient } from '@botharness/host-client/client';
 import { loadMemoryFile } from '../src/host/bot-profile';
 import {
   loadPreviewImage,
   memoryPreviewSource,
   type MemoryPreviewIO,
 } from '../src/host/memory-preview';
-import type { MemoryMarkdown } from '../src/host/wire';
+import type { MemoryMarkdown } from '@botharness/host-protocol/wire';
 import { pairWithLiveHost } from './live-pairing';
 import { nodeCarrier } from './node-carrier';
 
@@ -84,8 +84,15 @@ describe.skipIf(!live || !fixtureFile)(
           expect(exports.at(-1)).toBe(hash(current));
         }
         for (const source of [seed.first, seed.commit]) {
-          const body = execFileSync('git', ['-C', seed.memory, 'show', `${source}:notes/guide.md`]);
-          const image = execFileSync('git', ['-C', seed.memory, 'show', `${source}:preview.png`]);
+          const body = execFileSync(
+            'git',
+            ['-C', seed.memory, 'show', `${source}:notes/guide.md`],
+            { shell: false, windowsHide: true },
+          );
+          const image = execFileSync('git', ['-C', seed.memory, 'show', `${source}:preview.png`], {
+            shell: false,
+            windowsHide: true,
+          });
           const version: MemoryMarkdown = {
             source,
             status: 'ready',

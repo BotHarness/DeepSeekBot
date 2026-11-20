@@ -123,12 +123,16 @@ export function MessageReading({
   readers,
   bots,
   motion,
+  onShown,
+  onEntered,
   onLeft,
   t,
 }: {
   readers: readonly string[];
   bots: readonly BotSummary[];
   motion?: 'enter' | 'leave' | undefined;
+  onShown?: (() => void) | undefined;
+  onEntered?: (() => void) | undefined;
   onLeft?: (() => void) | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
@@ -147,8 +151,13 @@ export function MessageReading({
       data-message-reading=""
       data-badge-motion={motion}
       aria-hidden={motion === 'leave' ? true : undefined}
+      onAnimationStart={(event) => {
+        if (motion === 'enter' && event.target === event.currentTarget) onShown?.();
+      }}
       onAnimationEnd={(event) => {
-        if (motion === 'leave' && event.target === event.currentTarget) onLeft?.();
+        if (event.target !== event.currentTarget) return;
+        if (motion === 'enter') onEntered?.();
+        if (motion === 'leave') onLeft?.();
       }}
     >
       {shown.map((botSlug) => (
@@ -157,11 +166,6 @@ export function MessageReading({
       {readers.length > shown.length ? (
         <span className="bh-stack-more">+{readers.length - shown.length}</span>
       ) : null}
-      <span className="bh-reading-dots" aria-hidden="true">
-        <i />
-        <i />
-        <i />
-      </span>
     </span>
   );
 }

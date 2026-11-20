@@ -37,7 +37,7 @@ export interface MemoryService extends MemoryAcceptance, ReturnType<typeof creat
 
   overviewActivity?(after?: string): Promise<OverviewMemory>;
 
-  activity?(botSlug: string, sinceIso: string): Array<{ at: string }>;
+  activity?(botSlug: string, sinceIso: string): Promise<Array<{ at: string }>>;
 }
 
 export function createMemoryService(options: MemoryServiceOptions): MemoryService {
@@ -132,6 +132,13 @@ export function createMemoryService(options: MemoryServiceOptions): MemoryServic
   };
 
   return {
+    prepareTurnAsync: (botSlug, sessionId, options) =>
+      requireAcceptance().prepareTurnAsync(botSlug, sessionId, options),
+    reconcileTurnAsync: (input) => requireAcceptance().reconcileTurnAsync(input),
+    abortTurnAsync: (botSlug, sessionId, preserveObservation) =>
+      requireAcceptance().abortTurnAsync(botSlug, sessionId, preserveObservation),
+    pendingCommitsAsync: (botSlug) => requireAcceptance().pendingCommitsAsync(botSlug),
+    scanChangesAsync: (botSlug) => requireAcceptance().scanChangesAsync(botSlug),
     sourceReferences: (ids) => requireAcceptance().sourceReferences(ids),
     ...createMemoryFiles(registry),
     continueFromCommit: (input) => requireAcceptance().continueFromCommit(input),
@@ -160,20 +167,22 @@ export function createMemoryService(options: MemoryServiceOptions): MemoryServic
     workingChanges: (botSlug) => requireAcceptance().workingChanges(botSlug),
     workingDiff: (botSlug, path, kind) => requireAcceptance().workingDiff(botSlug, path, kind),
     recoveryHistory: (botSlug) => requireAcceptance().recoveryHistory(botSlug),
-    restoreHuman: (input) => requireAcceptance().restoreHuman(input),
-    saveHuman: (input) => requireAcceptance().saveHuman(input),
-    restoreCommitHuman: (input) => requireAcceptance().restoreCommitHuman(input),
+    restoreHuman: (human, input) => requireAcceptance().restoreHuman(human, input),
+    saveHuman: (human, input) => requireAcceptance().saveHuman(human, input),
+    restoreCommitHuman: (human, input) => requireAcceptance().restoreCommitHuman(human, input),
     nameVersionHuman: (input) => requireAcceptance().nameVersionHuman(input),
     versions: (botSlug) => requireAcceptance().versions(botSlug),
     removeVersionNameHuman: (input) => requireAcceptance().removeVersionNameHuman(input),
-    repairHuman: (input) => requireAcceptance().repairHuman(input),
+    repairHuman: (human, input) => requireAcceptance().repairHuman(human, input),
     memoryDirFor,
     repositoryFor,
     overviewActivity: (after) =>
       queryOverviewMemory(registry, options.now?.() ?? new Date(), after),
     activity: (botSlug, sinceIso) => {
       const memoryDir = registry.memoryDirFor(botSlug);
-      return memoryDir === undefined ? [] : createMemoryGit(memoryDir).activitySince(sinceIso);
+      return memoryDir === undefined
+        ? Promise.resolve([])
+        : createMemoryGit(memoryDir).activitySince(sinceIso);
     },
     personaForSession,
     refreshPersonaAfterCompaction,

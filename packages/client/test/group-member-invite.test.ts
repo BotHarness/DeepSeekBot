@@ -1,24 +1,22 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type ChannelSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    IconPlusOutlineRegular: () => null,
-    IconEllipsisOutlineRegular: () => null,
-    Menu: () => null,
-    Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-    Tooltip: ({ children }: PropsWithChildren) => children,
   };
 });
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { MembersHeaderAction } from '../src/client/group-member-controls.js';
 import { zhTranslate as t } from '../src/client/locale.js';
-import { store, type BotSummary, type ChannelSummary } from '../src/client/store.js';
+import { store, type BotSummary } from '../src/client/store.js';
 import { buttonNamed, dialog, fieldNamed, typeInto } from './primitive-mocks.js';
 
 const AT = '2026-10-08T00:00:00Z';
@@ -67,6 +65,9 @@ beforeEach(() => {
       bot('cy', 'Cy'),
       bot('dee', 'Dee', { paused: true }),
       bot('eve', 'Eve'),
+      bot('protected-steward', 'Renamed Tob', {
+        tob: { defaultName: false, defaultAvatar: false },
+      }),
     ],
     [GROUP],
   );
@@ -95,7 +96,7 @@ async function openInvite(): Promise<void> {
       }),
     ),
   );
-  await act(async () => buttonNamed(t('group.invite'), host).click());
+  await act(async () => buttonNamed(t('group.invite'), document.body).click());
 }
 
 function options(): string[] {
@@ -108,6 +109,7 @@ it('lists only Bots that can be invited, filters them and invites the chosen one
   await openInvite();
   expect(dialog().getAttribute('aria-label')).toBe(t('group.invite'));
   expect(options()).toEqual(['Bob', 'Eve']);
+  expect(dialog().textContent).toContain(t('group.tobPrivateOnly'));
   const submit = () =>
     [...dialog().querySelectorAll<HTMLButtonElement>('button[type="submit"]')].at(0)!;
   expect(submit().disabled).toBe(true);
@@ -138,4 +140,48 @@ it('keeps the dialog open with an error when the invitation fails', async () => 
   expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(t('members.error'));
   await act(async () => buttonNamed(t('common.cancel'), dialog()).click());
   expect(document.querySelector('[role="dialog"]')).toBeNull();
+});
+
+it('does not confuse an ordinary Bot named Tob with the protected identity', async () => {
+  store.setRoster([bot('ordinary', 'Tob')], [GROUP]);
+  await openInvite();
+  expect(options()).toEqual(['Tob']);
+  expect(dialog().textContent).not.toContain(t('group.tobPrivateOnly'));
+  await act(async () => buttonNamed('Tob', dialog()).click());
+  await act(async () => dialog().querySelector('form')!.requestSubmit());
+  expect(inviteGroupBot).toHaveBeenCalledWith(GROUP.id, 'ordinary');
+});
+
+it('stops a selected Bot from being invited after it becomes unavailable', async () => {
+  await openInvite();
+  await act(async () => buttonNamed('Bob', dialog()).click());
+  await act(async () => store.setRoster([bot('bob', 'Bob', { paused: true })], [GROUP]));
+  expect(dialog().querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(true);
+  await act(async () => dialog().querySelector('form')!.requestSubmit());
+  expect(inviteGroupBot).not.toHaveBeenCalled();
+});
+
+it('clears the previous error while a retry is pending and shows it again only if the retry fails', async () => {
+  inviteGroupBot.mockResolvedValueOnce(false);
+  await openInvite();
+  await act(async () => buttonNamed('Bob', dialog()).click());
+  await act(async () => dialog().querySelector('form')!.requestSubmit());
+  expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(t('members.error'));
+
+  let settle: (ok: boolean) => void = () => undefined;
+  inviteGroupBot.mockReturnValueOnce(new Promise<boolean>((resolve) => (settle = resolve)));
+  await act(async () => dialog().querySelector('form')!.requestSubmit());
+  expect(dialog().querySelector('[role="alert"]')).toBeNull();
+
+  await act(async () => settle(false));
+  expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(t('members.error'));
+});
+
+it('shows the error when the invitation request throws', async () => {
+  inviteGroupBot.mockRejectedValueOnce(new Error('bridge offline'));
+  await openInvite();
+  await act(async () => buttonNamed('Bob', dialog()).click());
+  await act(async () => dialog().querySelector('form')!.requestSubmit());
+  expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(t('members.error'));
+  expect(dialog().querySelector<HTMLButtonElement>('button[type="submit"]')?.disabled).toBe(false);
 });

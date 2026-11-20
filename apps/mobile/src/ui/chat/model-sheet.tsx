@@ -9,13 +9,16 @@ import {
   type Loadable,
   type ModelCatalogEntry,
   type ModelPreset,
-} from '../../host/bot-settings';
+} from '@botharness/host-client/bot-settings';
 import {
   SettingsGroupItem,
   SettingsRow,
   type SettingsRowControl,
 } from '../primitives/settings-row';
 import { useStrings, t } from '../strings';
+import { useDesignTheme } from '../design/theme';
+import { modelEntryLabel } from './composer-labels';
+import { ModelBrandIcon } from './model-brand-icon';
 import {
   Sheet,
   type SheetPageProps,
@@ -57,6 +60,7 @@ export function ModelSheet({
   onClose(): void;
 }) {
   const t = useStrings();
+  const theme = useDesignTheme();
   const [busy, setBusy] = useState<string>();
   const [error, setError] = useState<string>();
   const close = () => {
@@ -89,6 +93,11 @@ export function ModelSheet({
   else {
     const value = model.value;
     const current = currentModel(value).route;
+    const favorites = (value.favorites ?? []).flatMap((choice) => {
+      if (choice.kind !== 'model') return [];
+      const entry = value.models.find((item) => sameModel(item, choice));
+      return entry === undefined ? [] : [entry];
+    });
     const sections = [
       ...(value.presets.length === 0
         ? []
@@ -99,6 +108,18 @@ export function ModelSheet({
                 kind: 'preset',
                 key: `preset:${preset.id}`,
                 preset,
+              })),
+            },
+          ]),
+      ...(favorites.length === 0
+        ? []
+        : [
+            {
+              title: t.modelSettings.favorites,
+              data: favorites.map((entry): Row => ({
+                kind: 'model',
+                key: `favorite:${entry.provider}:${entry.model}`,
+                entry,
               })),
             },
           ]),
@@ -134,7 +155,15 @@ export function ModelSheet({
       const usable = item.entry.credential === undefined;
       return (
         <SettingsRow
-          title={item.entry.modelName}
+          leading={
+            <ModelBrandIcon
+              brand={modelEntryLabel(item.entry).brand}
+              size={theme.type.title.line}
+              color={usable ? theme.color.fg : theme.color.muted}
+            />
+          }
+          title={modelEntryLabel(item.entry).name}
+          accessibilityLabel={`${item.entry.modelName}, ${credentialHint(item.entry)}`}
           detail={credentialHint(item.entry)}
           tone={usable ? 'fg' : 'muted'}
           selected={selected}

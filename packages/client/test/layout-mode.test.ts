@@ -40,6 +40,7 @@ describe('Layout mode preference', () => {
     expanded: ['sessions'],
     hidden: ['schedules'],
     heights: { sessions: 260 },
+    order: ['schedules', 'sessions'],
   };
   it.each([
     [CHANNEL_BODY_PANEL, WORKSPACE_CHANNELS],
@@ -95,6 +96,7 @@ describe('Layout mode preference', () => {
           expanded: 'sessions',
           hidden: [3, 'x'],
           heights: { a: 10, b: 'tall', c: 200 },
+          order: ['a', 3, 'a', 'b', null],
         },
       }),
     });
@@ -102,10 +104,28 @@ describe('Layout mode preference', () => {
       mode: 'simple',
       sideColumn: WORKSPACE_CHANNELS,
       channelsWidth: DEFAULT_SIMPLE_CHANNELS_WIDTH,
-      column: { ...DEFAULT_SUBPANEL_COLUMN, hidden: ['x'], heights: { c: 200 } },
+      column: { ...DEFAULT_SUBPANEL_COLUMN, hidden: ['x'], heights: { c: 200 }, order: ['a', 'b'] },
     });
     storage.setItem(LAYOUT_MODE_STORAGE_KEY, 'not json');
     expect(readLayoutMode(storage).mode).toBe('simple');
+  });
+
+  it('defaults an order-free column to an empty order and round-trips an explicit one', () => {
+    const storage = memory({
+      [LAYOUT_MODE_STORAGE_KEY]: JSON.stringify({
+        mode: 'simple',
+        sideColumn: WORKSPACE_CHANNELS,
+        channelsWidth: 0.3,
+        column: { open: true, width: 0.4, expanded: ['sessions'], hidden: [], heights: {} },
+      }),
+    });
+    expect(readLayoutMode(storage).column.order).toEqual([]);
+    const ordered = { ...readLayoutMode(storage).column, order: ['members', 'sessions'] };
+    writeLayoutMode(
+      { mode: 'simple', sideColumn: WORKSPACE_CHANNELS, channelsWidth: 0.3, column: ordered },
+      storage,
+    );
+    expect(readLayoutMode(storage).column.order).toEqual(['members', 'sessions']);
   });
 
   it('reports a failed write without throwing', () => {

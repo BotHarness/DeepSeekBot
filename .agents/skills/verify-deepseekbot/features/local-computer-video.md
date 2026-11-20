@@ -2,6 +2,21 @@
 
 One Windows x64 primary display reaches one Android viewer through a supervised video helper and the existing encrypted LAN channel with Device Pairing admission. The Computer owner separately manages observation, exclusive control and durable Bot pause. See the [operation guide](../../../../docs/local-computer-video.md) and [CLI contract](../../../../docs/bot-cli.md#local-computer-video).
 
+## Sources
+
+- `packages/computer/src/local-video-*.ts`
+- `packages/computer/native/local-video/{main.cjs,preload.cjs,renderer.html,renderer.js,launcher.cs,launcher-macos.cjs}`
+- `apps/mobile/src/host/local-video-*.ts`
+- `apps/mobile/src/ui/chat/{local-video-notice.ts,local-computer-screen.android.tsx}`
+- `apps/mobile/modules/local-computer-video/**/{LocalComputerVideo*,VideoAttempt,VideoRenderer,DirectChannel}.*`
+
+## Terms
+
+- Local Computer
+- Computer viewer
+- Paired Device
+- Takeover
+
 ## Sub-features
 
 - `observe`: native WebRTC video without Bot pause, screenshots or image fallback. Opening a second viewer returns `viewer-limit` while the first keeps rendering.

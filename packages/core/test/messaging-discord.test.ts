@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { setImmediate as tick } from 'node:timers/promises';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore, type BotHarnessCore } from '../src/plugin.js';
@@ -41,6 +42,15 @@ it.each([
     reason: undefined,
   },
   {
+    name: 'own managed-role channel reply',
+    managedRole: true,
+    nearby: false,
+    threadId: undefined,
+    refusal: undefined,
+    state: 'provider-accepted',
+    reason: undefined,
+  },
+  {
     name: 'thread reply',
     nearby: false,
     threadId: '555555555555555555',
@@ -74,7 +84,7 @@ it.each([
   },
 ])(
   'Discord canonical Inbox and own-identity reply preserve $name outcome',
-  async ({ threadId, refusal, state, reason, nearby }) => {
+  async ({ threadId, refusal, state, reason, nearby, managedRole }) => {
     const fingerprint = 'd'.repeat(64);
     let consumer: Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1] | undefined;
     let runs = 0;
@@ -219,10 +229,10 @@ it.each([
       messageId: '777777777777777777',
       actor: { kind: 'user', id: '666666666666666666', name: 'QA Human' },
       conversation: { kind: 'group', id: '444444444444444444' },
-      mentions: [{ id: '111111111111111111', key: '<@111111111111111111>' }],
+      mentions: managedRole ? [] : [{ id: '111111111111111111', key: '<@111111111111111111>' }],
       mentionedAccount: true,
       at: new Date().toISOString(),
-      text: '<@111111111111111111> Reply here',
+      text: managedRole ? '<@&888888888888888888> Reply here' : '<@111111111111111111> Reply here',
       reply: {
         messageId: '777777777777777777',
         actorId: '666666666666666666',
@@ -547,8 +557,14 @@ it('Discord shared placement deduplicates the existing Inbox path and preserves 
     fingerprint,
     targetDigest: target.digest,
   });
-  const shared = core.channels.createGroup({ name: 'Shared Discord', members: ['ada', 'bea'] });
-  const other = core.channels.createGroup({ name: 'Untargeted', members: ['ada'] });
+  const shared = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Shared Discord',
+    members: ['ada', 'bea'],
+  });
+  const other = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+    name: 'Untargeted',
+    members: ['ada'],
+  });
   await core.externalMessaging.inbound.channelBridge(shared.id, {
     kind: 'add',
     grantId: grant.id,

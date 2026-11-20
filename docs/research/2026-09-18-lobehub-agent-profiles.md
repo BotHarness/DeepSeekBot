@@ -12,7 +12,7 @@
 | 调研方法   | 只用一手来源：仓库源码（Drizzle schema、types、context-engine、server services）+ 仓库自带 `AGENTS.md`。所有行号均指 pinned SHA 下的克隆；未能在源码中确认的说法一律标「未验证」。若克隆不在场，可用 `https://github.com/lobehub/lobehub/blob/b0ef4b2ef15d61b0be43bfa6f39d3524405ce374/<path>#L<n>` 复核。                               |
 | 复现       | `git clone --depth 1 https://github.com/lobehub/lobehub reference/lobehub && git -C reference/lobehub rev-parse HEAD`；未运行 `pnpm/bun install/build/test`，未启动任何服务。                                                                                                                                                            |
 
-对照的本地规格：`PRD.md`、`docs/botharness.md`、`CONTEXT.md`、`docs/adr/0001`–`0026`、`docs/architecture/botharness-architecture.md`。
+对照的本地规格：`PRD.md`、`docs/botharness.md`、`GLOSSARY.md`、`docs/adr/0001`–`0026`、`docs/architecture/botharness-architecture.md`。
 
 ## 1. 一句话定位与技术栈
 

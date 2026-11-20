@@ -1,3 +1,4 @@
+import { humanIdOf } from './self-human.js';
 import type { ChannelMessage } from './store.js';
 
 export interface MessageGroup {
@@ -24,7 +25,8 @@ export function groupChannelMessages(
     const sameAuthor =
       previous !== undefined &&
       previous.author.kind === message.author.kind &&
-      (message.author.kind === 'human' ||
+      ((message.author.kind === 'human' &&
+        humanIdOf(previous.author) === humanIdOf(message.author)) ||
         (message.author.kind === 'bot' &&
           previous.author.kind === 'bot' &&
           previous.author.slug === message.author.slug) ||

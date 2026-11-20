@@ -12,9 +12,9 @@ import {
   type AssignmentTimelineLane,
   type AssignmentTimelineRound,
 } from '../../host/assignment-timeline';
-import { errorText } from '../../host/bot-settings';
-import type { HostClient } from '../../host/client';
-import { MethodRefused } from '../../host/client';
+import { errorText } from '@botharness/host-client/bot-settings';
+import type { HostClient } from '@botharness/host-client/client';
+import { MethodRefused } from '@botharness/host-client/client';
 import { useHostSession } from '../../host/host-session';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, rowGlyph, space } from '../design/tokens';

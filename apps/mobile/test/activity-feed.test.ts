@@ -12,6 +12,7 @@ vi.mock('react-native-svg', () => ({
   Defs: () => null,
   LinearGradient: () => null,
   Rect: () => null,
+  Circle: () => null,
   Stop: () => null,
 }));
 vi.mock('react-native-safe-area-context', () => ({
@@ -32,17 +33,18 @@ vi.mock('../src/ui/bot-avatar', () => ({
     createElement('span', { 'data-testid': `avatar-${bot.slug}` }),
 }));
 
-import { createHostClient, type HostClient } from '../src/host/client';
-import { observeInbox, type InboxSnapshot } from '../src/host/inbox';
-import type { HumanAttentionItem } from '../src/host/wire';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import { observeInbox, type InboxSnapshot } from '@botharness/host-client/inbox';
+import type { HumanAttentionItem, WireHumanAttentionItem } from '@botharness/host-protocol/wire';
 import { ActivityFeed, feedRows } from '../src/ui/shell/activity-feed';
 import { t } from '../src/ui/strings';
-import { FakeHost } from './fake-host';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import inboxWire from './fixtures/inbox-wire.json';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 
 type Recorded = keyof typeof inboxWire.rpc;
+type HandledAttention = HumanAttentionItem & Pick<WireHumanAttentionItem, 'responseSourceEventId'>;
 const recorded = (name: Recorded): unknown => structuredClone(inboxWire.rpc[name].result);
 const items = (name: Recorded): HumanAttentionItem[] =>
   (inboxWire.rpc[name].result as { value: { items: HumanAttentionItem[] } }).value.items;
@@ -53,8 +55,9 @@ const privateInput: HumanAttentionItem = { ...question, id: 'private-1', kind: '
 const reply: HumanAttentionItem = {
   ...question,
   id: 'reply-1',
-  kind: 'reply',
+  kind: 'channel-reply',
   category: 'replies',
+  isUnread: true,
 };
 
 const ready = (action: HumanAttentionItem[]): InboxSnapshot => ({
@@ -206,7 +209,13 @@ describe('Activity feed rows', () => {
         (row) => row.key,
       ),
     ).toEqual(['other-1']);
-    const done = { ...question, id: 'done-1', category: 'handled' as const };
+    const done: HandledAttention = {
+      ...question,
+      id: 'done-1',
+      category: 'handled',
+      responseMessageId: 'answer',
+      responseSourceEventId: 'answer-source',
+    };
     const snapshot: InboxSnapshot = {
       status: 'ready',
       sections: { action: [], replies: [], unread: [], handled: [done] },
@@ -335,6 +344,7 @@ describe('Activity feed', () => {
     const unread: HumanAttentionItem = {
       ...reply,
       id: 'long-unread',
+      unreadCount: 1,
       category: 'unread',
       kind: 'channel-unread',
       summary: `${'正文'.repeat(10000)}FULL_END`,
@@ -364,7 +374,13 @@ describe('Activity feed', () => {
       kind: 'tool-approval',
       summary: '请求批准执行 secret_cli',
     };
-    const handled: HumanAttentionItem = { ...approval, id: 'handled:e7', category: 'handled' };
+    const handled: HandledAttention = {
+      ...approval,
+      id: 'handled:e7',
+      category: 'handled',
+      responseMessageId: 'decision',
+      responseSourceEventId: 'decision-source',
+    };
     const view = await feed(host(), {
       status: 'ready',
       sections: { action: [approval], replies: [], unread: [], handled: [handled] },
@@ -383,7 +399,7 @@ describe('Activity feed', () => {
     expect(row.textContent).not.toContain(t.runTool('secret_cli'));
     expect(row.getAttribute('aria-label')).toContain('secret_cli');
   });
-  it('preserves the search when editing ends and options reset', async () => {
+  it('preserves the search when editing ends and clears it on close', async () => {
     const fake = host();
     const queries: Record<string, unknown>[] = [];
     fake.answers.set('humanAttention', (args) => {
@@ -411,18 +427,58 @@ describe('Activity feed', () => {
     expect(view.querySelectorAll('[role=tab]')).toHaveLength(0);
     expect(view.querySelector(`button[aria-label="${t.close}"]`)).toBeNull();
     await act(async () => field.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+    expect(
+      view.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${t.activitySearch}"]`)?.value,
+    ).toBe('budget');
+    expect(view.querySelector(`button[aria-label="${t.activitySearch}"]`)).toBeNull();
+    expect(view.querySelector(`button[aria-label="${t.activityOptions}"]`)).toBeNull();
     expect(queries.at(-1)?.search).toBe('budget');
-    await press(button(view, t.activityOptions));
-    await press(button(view, t.activityReset));
-    expect(queries.findLast((query) => query.category === 'action')?.sort).toBe('newest');
-    expect(queries.at(-1)?.search).toBe('budget');
-    await press(button(view, t.cancel));
-    await press(button(view, t.activitySearch));
-    expect(view.querySelector('textarea')?.value).toBe('budget');
-    await clearSearch(view);
-    expect(view.querySelector('textarea')?.value).toBe('');
+    await press(button(view, t.closeSearch));
+    expect(view.querySelector('textarea')).toBeNull();
+    expect(view.querySelector(`button[aria-label="${t.activitySearch}"]`)).not.toBeNull();
     expect(queries.at(-1)?.search).toBeUndefined();
+    expect(queries.at(-1)?.sort).toBe('oldest');
     expect(view.querySelectorAll('[role=tab]')).toHaveLength(0);
+  });
+
+  it('keeps the search field open after editing ends with a query', async () => {
+    const fake = host();
+    const queries: Record<string, unknown>[] = [];
+    fake.answers.set('humanAttention', (args) => {
+      queries.push(args);
+      return { ok: true, value: { items: args.category === 'replies' ? [reply] : [] } };
+    });
+    const view = await feed(fake, ready([]));
+    await press(button(view, t.activitySearch));
+    const field = view.querySelector<HTMLTextAreaElement>(
+      `textarea[aria-label="${t.activitySearch}"]`,
+    )!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
+        field,
+        'budget',
+      );
+      field.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    await settle();
+    expect(queries.at(-1)?.search).toBe('budget');
+    await act(async () => field.dispatchEvent(new FocusEvent('focusout', { bubbles: true })));
+    expect(
+      view.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${t.activitySearch}"]`)?.value,
+    ).toBe('budget');
+    expect(queries.at(-1)?.search).toBe('budget');
+    const filler = [...view.querySelectorAll('button')].find(
+      (node) =>
+        node.getAttribute('aria-label') === null &&
+        node.dataset.testid === undefined &&
+        (node.textContent ?? '') === '',
+    );
+    expect(filler).not.toBeUndefined();
+    await press(filler!);
+    expect(
+      view.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${t.activitySearch}"]`)?.value,
+    ).toBe('budget');
+    expect(queries.at(-1)?.search).toBe('budget');
   });
 
   it('shows one no-results message instead of empty sections for an unmatched search', async () => {
@@ -526,7 +582,13 @@ describe('Activity feed', () => {
       summary: 'A new conversation',
       unreadCount: 10,
     };
-    const done: HumanAttentionItem = { ...question, id: 'done-1', category: 'handled' };
+    const done: HandledAttention = {
+      ...question,
+      id: 'done-1',
+      category: 'handled',
+      responseMessageId: 'answer',
+      responseSourceEventId: 'answer-source',
+    };
     const view = await feed(host(), {
       status: 'ready',
       sections: { action: [question], replies: [reply], unread: [unread], handled: [done] },
@@ -597,14 +659,20 @@ describe('Activity feed', () => {
   });
 
   it('shows personal messages in For you and handled history only through filters', async () => {
-    const done: HumanAttentionItem = { ...question, id: 'done-1', category: 'handled' };
+    const done: HandledAttention = {
+      ...question,
+      id: 'done-1',
+      category: 'handled',
+      responseMessageId: 'answer',
+      responseSourceEventId: 'answer-source',
+    };
     const view = await feed(host(), {
       status: 'ready',
       sections: { action: [], replies: [reply], unread: [], handled: [done] },
     });
     const replied = view.querySelector('[data-testid="inbox-row-reply-1"]')!;
     expect(replied.textContent).toContain(reply.botSlug);
-    expect(replied.textContent).toContain(`${t.kind.reply ?? t.otherKind} · `);
+    expect(replied.textContent).toContain(`${t.kind['channel-reply'] ?? t.otherKind} · `);
     expect(replied.textContent?.split(reply.summary).length).toBe(2);
     await press(button(view, t.activityOptions));
     await press(button(view, t.inboxSections.handled));

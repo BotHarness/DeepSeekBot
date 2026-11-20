@@ -10,8 +10,8 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 
-import type { RosterBot } from '../../host/client';
-import type { ConversationMessage } from '../../host/conversation';
+import type { RosterBot } from '@botharness/host-client/client';
+import type { ConversationMessage } from '@botharness/host-client/conversation';
 import {
   receiptGroups,
   receiptRecipients,
@@ -45,7 +45,8 @@ export function receiptColor(theme: DesignTheme, state: ReceiptState): string {
       return theme.color.subtle;
     case 'missing':
       return theme.color.warning;
-    default:
+    case 'needs-repair':
+    case 'retryable':
       return theme.color.danger;
   }
 }

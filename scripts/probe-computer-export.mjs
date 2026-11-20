@@ -113,7 +113,12 @@ async function waitForState(base, cookie, want, timeoutMs) {
 }
 
 function docker(args) {
-  const result = spawnSync('docker', args, { encoding: 'utf8', timeout: 300_000 });
+  const result = spawnSync('docker', args, {
+    encoding: 'utf8',
+    timeout: 300_000,
+    shell: false,
+    windowsHide: true,
+  });
   if (result.error) throw result.error;
   return result;
 }

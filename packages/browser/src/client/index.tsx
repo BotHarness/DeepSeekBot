@@ -1,3 +1,9 @@
+import type { ObserveResource } from '../../../core/src/channels/resource-events.js';
+import { visibleInterval } from '../../../client/src/client/visible-interval.js';
+import { Icon } from '../../../client/src/client/ds/icon.js';
+import { Button } from '../../../client/src/client/ds/button.js';
+import { Switch } from '../../../client/src/client/ds/switch.js';
+import { Tag } from '../../../client/src/client/ds/tag.js';
 import { PanelEmptyState } from '../../../client/src/client/ds/empty-state.js';
 import { RemoteViewer } from '../../../client/src/client/remote-viewer/index.js';
 import type { ViewerTranslate } from '../../../client/src/client/remote-viewer/locale.js';
@@ -10,12 +16,7 @@ import {
   type ComponentType,
   type ReactElement,
 } from 'react';
-import {
-  Button,
-  IconFullscreenOutlineRegular,
-  Switch,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from '../../../client/src/client/ds/tooltip.js';
 import { ChannelSidebarIcon } from '../../../client/src/client/channel-sidebar-icon.js';
 import { useMountedResource } from '../../../client/src/client/mounted-resource.js';
@@ -57,6 +58,7 @@ export const name = 'botharness-browser-client';
 export const inject = ['channelSidebar', 'connection', 'locale'];
 
 export interface BrowserClientContext {
+  get?(key: 'botharnessResourceObserver'): ObserveResource | undefined;
   readonly locale: {
     bind(namespace: string): BrowserTranslate;
     register(namespace: string, dictionaries: { zh: unknown; en: unknown }): () => void;
@@ -252,10 +254,13 @@ function observationUrl(botSlug: string | undefined, tabId: string | undefined):
   return tabId === undefined || tabId === '' ? base : `${base}&tab=${encodeURIComponent(tabId)}`;
 }
 
-function createObservationStore(botSlug: string | undefined): ObservationStore {
+export function createObservationStore(
+  botSlug: string | undefined,
+  observeResource?: ObserveResource,
+): ObservationStore {
   let value: BrowserObservation | undefined;
   let tab: string | undefined;
-  let timer: ReturnType<typeof setInterval> | undefined;
+  let stopObserving: (() => void) | undefined;
   let refreshing = false;
   let revision = 0;
   let refreshAgain = false;
@@ -269,10 +274,13 @@ function createObservationStore(botSlug: string | undefined): ObservationStore {
     const requestedTab = tab;
     const requestedRevision = revision;
     try {
-      const next = await requestJson<BrowserObservation>(observationUrl(botSlug, requestedTab));
+      const next = await requestJson<BrowserObservation>(observationUrl(botSlug, requestedTab), {
+        signal: AbortSignal.timeout(10_000),
+      });
       if (tab === requestedTab && revision === requestedRevision) value = next;
-    } catch {
-      if (tab === requestedTab && revision === requestedRevision) value = undefined;
+    } catch (cause) {
+      const timedOut = (cause as { name?: unknown } | undefined)?.name === 'TimeoutError';
+      if (!timedOut && tab === requestedTab && revision === requestedRevision) value = undefined;
     } finally {
       refreshing = false;
     }
@@ -286,14 +294,16 @@ function createObservationStore(botSlug: string | undefined): ObservationStore {
     subscribe(listener) {
       listeners.add(listener);
       if (listeners.size === 1) {
-        void refresh();
-        timer = setInterval(() => void refresh(), 1500);
+        const stopEvents = observeResource?.('browser', refresh);
+        if (stopEvents === undefined) void refresh();
+        const stopKeepAlive = visibleInterval(() => void refresh(), 20_000);
+        stopObserving = () => (stopEvents?.(), stopKeepAlive());
       }
       return () => {
         listeners.delete(listener);
-        if (listeners.size === 0 && timer !== undefined) {
-          clearInterval(timer);
-          timer = undefined;
+        if (listeners.size === 0) {
+          stopObserving?.();
+          stopObserving = undefined;
         }
       };
     },
@@ -396,8 +406,12 @@ function BrowserHeaderAction({
   );
 }
 
-function BrowserBody({ botSlug, t }: ChannelSidebarEntryProps): ReactElement {
-  const [store] = useState(() => createObservationStore(botSlug));
+function BrowserBody({
+  botSlug,
+  t,
+  observeResource,
+}: ChannelSidebarEntryProps & { observeResource?: ObserveResource | undefined }): ReactElement {
+  const [store] = useState(() => createObservationStore(botSlug, observeResource));
   const infoStore = botInfoStore(botSlug);
   const observation = useSyncExternalStore(store.subscribe, store.getSnapshot);
   const info = useSyncExternalStore(infoStore.subscribe, infoStore.getSnapshot);
@@ -771,7 +785,7 @@ function BrowserBody({ botSlug, t }: ChannelSidebarEntryProps): ReactElement {
                     }}
                   >
                     <span className="bh-viewer-btn-content">
-                      <IconFullscreenOutlineRegular size={14} />
+                      <Icon name="maximize" size={14} />
                       <span data-bh-viewer-btn-label>{t('entry.view.fullscreen')}</span>
                     </span>
                   </Button>
@@ -916,14 +930,17 @@ function BrowserBody({ botSlug, t }: ChannelSidebarEntryProps): ReactElement {
   );
 }
 
-function createBrowserBody(t: BrowserTranslate): ComponentType<ChannelSidebarEntryProps> {
+function createBrowserBody(
+  t: BrowserTranslate,
+  observeResource?: ObserveResource,
+): ComponentType<ChannelSidebarEntryProps> {
   return function BrowserBodyView(props: Omit<ChannelSidebarEntryProps, 't'>): ReactElement {
     useState(() => recordViewerOpen(connectionRpc, 'browser'));
     const store = botInfoStore(props.botSlug);
     const info = useSyncExternalStore(store.subscribe, store.getSnapshot);
     if (info.browserAccess === false)
       return <PanelEmptyState icon="globe">{t('entry.access.description')}</PanelEmptyState>;
-    return <BrowserBody {...props} t={t} />;
+    return <BrowserBody {...props} t={t} observeResource={observeResource} />;
   };
 }
 
@@ -971,7 +988,7 @@ export function apply(ctx: BrowserClientContext): void {
           label: t('entry.label'),
           order: 41,
           scope: 'personabot',
-          component: createBrowserBody(t),
+          component: createBrowserBody(t, sidebarCtx.get?.('botharnessResourceObserver')),
           headerAction: createBrowserHeader(t),
           badge: createBrowserBadge(t),
           tab: 'screen',

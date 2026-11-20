@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 const dirs: string[] = [];
@@ -32,46 +33,48 @@ async function host(
 ) {
   const calls: Call[] = [];
   let logins = 0;
-  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    const url = new URL(req.url!, 'http://localhost');
-    if (req.method === 'GET' && url.searchParams.has('token')) {
-      logins += 1;
-      if (url.searchParams.get('token') !== 'private-test-token') {
-        res.writeHead(403).end();
+  const server = createServer(
+    requestListener(async (req: IncomingMessage, res: ServerResponse) => {
+      const url = new URL(req.url!, 'http://localhost');
+      if (req.method === 'GET' && url.searchParams.has('token')) {
+        logins += 1;
+        if (url.searchParams.get('token') !== 'private-test-token') {
+          res.writeHead(403).end();
+          return;
+        }
+        if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+        res.writeHead(302, { location: '/' }).end();
         return;
       }
-      if (logins % 2 === 0) res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-      res.writeHead(302, { location: '/' }).end();
-      return;
-    }
-    expect(req.headers.cookie).toBe('authority=signed');
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const text = Buffer.concat(chunks).toString();
-    const parsed = text === '' ? undefined : JSON.parse(text);
-    const rpc = parsed?.type === 'client-request';
-    const call: Call = {
-      method: req.method!,
-      path: rpc ? parsed.method.replace('botharness/', '') : url.pathname + url.search,
-      body: rpc ? parsed.payload.args : parsed,
-    };
-    calls.push(call);
-    const answer = route(call);
-    if (rpc) {
-      res.setHeader('content-type', 'application/json');
-      res.end(
-        JSON.stringify({ type: 'server-response', rpcId: parsed.rpcId, result: answer.json }),
-      );
-      return;
-    }
-    if (answer.bytes !== undefined) {
-      res.writeHead(answer.status ?? 200, answer.headers ?? {});
-      res.end(answer.bytes);
-      return;
-    }
-    res.writeHead(answer.status ?? 200, { 'content-type': 'application/json' });
-    res.end(JSON.stringify(answer.json ?? {}));
-  });
+      expect(req.headers.cookie).toBe('authority=signed');
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const text = Buffer.concat(chunks).toString();
+      const parsed = text === '' ? undefined : JSON.parse(text);
+      const rpc = parsed?.type === 'client-request';
+      const call: Call = {
+        method: req.method!,
+        path: rpc ? parsed.method.replace('botharness/', '') : url.pathname + url.search,
+        body: rpc ? parsed.payload.args : parsed,
+      };
+      calls.push(call);
+      const answer = route(call);
+      if (rpc) {
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({ type: 'server-response', rpcId: parsed.rpcId, result: answer.json }),
+        );
+        return;
+      }
+      if (answer.bytes !== undefined) {
+        res.writeHead(answer.status ?? 200, answer.headers ?? {});
+        res.end(answer.bytes);
+        return;
+      }
+      res.writeHead(answer.status ?? 200, { 'content-type': 'application/json' });
+      res.end(JSON.stringify(answer.json ?? {}));
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -520,8 +523,18 @@ describe('Agent Browser and Computer commands', () => {
   });
 
   it('lists workspace grants from a live Host', async () => {
-    const live = await host(() => ({ json: { ok: true, value: { grants: [{ id: 'g1' }] } } }));
-    expect((await invoke(['grants', 'ada'], live.url)).json).toEqual({ grants: [{ id: 'g1' }] });
+    const grants = [
+      {
+        id: 'g1',
+        botSlug: 'ada',
+        workspaceId: 'workspace-1',
+        workspacePath: '/srv/workspace',
+        workspaceTitle: 'Workspace',
+        createdAt: '2026-11-20T00:00:00.000Z',
+      },
+    ];
+    const live = await host(() => ({ json: { ok: true, value: { grants } } }));
+    expect((await invoke(['grants', 'ada'], live.url)).json).toEqual({ grants });
     expect(live.calls).toEqual([{ method: 'POST', path: 'grants', body: { slug: 'ada' } }]);
   });
 

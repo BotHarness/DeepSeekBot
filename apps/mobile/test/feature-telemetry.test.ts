@@ -1,6 +1,9 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { recordFeature, setFeatureSink } from '../src/telemetry/features';
-import { createMobileTelemetry, type TelemetryEvent } from '../src/telemetry/mobile-telemetry';
+import { recordFeature, setFeatureSink } from '@botharness/host-client/telemetry/features';
+import {
+  createMobileTelemetry,
+  type TelemetryEvent,
+} from '@botharness/host-client/telemetry/mobile-telemetry';
 
 afterEach(() => setFeatureSink(undefined));
 

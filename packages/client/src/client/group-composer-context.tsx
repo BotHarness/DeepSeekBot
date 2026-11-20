@@ -1,6 +1,10 @@
+import { Tag } from './ds/tag.js';
+import { Button } from './ds/button.js';
+import { memberPage } from './member-page.js';
+import { hasChannelBots } from './channel-kind.js';
 import { useScopedState } from './scoped-state.js';
 import { useRef, useState, type Ref, type ReactElement } from 'react';
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { BridgeActions } from './actions.js';
 import type { AssignmentAccessPresetView, WorkspaceGrantView, WorkspaceOption } from './bridge.js';
 import { errorMessage } from './bridge.js';
@@ -32,12 +36,14 @@ interface PreviewMember {
 }
 
 export function useGroupComposerContext({
+  scopeKey,
   channel,
   members,
   actions,
   t,
   avgPerf,
 }: {
+  scopeKey?: string | undefined;
   channel: ChannelSummary | undefined;
   members: BotSummary[];
   actions: BridgeActions;
@@ -45,8 +51,8 @@ export function useGroupComposerContext({
   avgPerf?: AveragePerfView | undefined;
 }): ComposerContext | undefined {
   const footerSettings = useRef<ComposerFooterHandle>(null);
-  const [openChannel, setOpenChannel] = useScopedState<string>(channel?.id);
-  if (channel?.type !== 'group') return;
+  const [openChannel, setOpenChannel] = useScopedState<string>(scopeKey ?? channel?.id);
+  if (channel?.type !== 'group' || !hasChannelBots(channel) || memberPage()) return;
   const open = () => setOpenChannel(channel.id);
   return {
     target: channel.id,
@@ -57,11 +63,15 @@ export function useGroupComposerContext({
         icon: <ChannelSidebarIcon name="folder-key" />,
         run: open,
       },
-      { id: 'footer', label: t('footer.settings'), run: () => footerSettings.current?.open() },
+      {
+        id: 'footer',
+        label: t('footer.settings'),
+        run: () => footerSettings.current?.open(),
+      },
     ],
     content: (
       <GroupComposerContextView
-        key={channel.id}
+        key={scopeKey ?? channel.id}
         footerSettings={footerSettings}
         channelId={channel.id}
         members={members.filter((bot) => !bot.deleted && !bot.paused)}
@@ -146,7 +156,7 @@ export function GroupComposerContextView({
         () => {},
       );
     const disposers = slugs.map((slug) =>
-      subscribeWorkspaceGrantChanges(slug, () => refresh(slug)),
+      subscribeWorkspaceGrantChanges(slug, () => refresh(slug), actions),
     );
     return () => {
       factRequest.current += 1;
@@ -172,7 +182,11 @@ export function GroupComposerContextView({
           })),
         );
         if (current.current === generation)
-          setPreview({ path: resolved.path, title: resolved.title, members: targets });
+          setPreview({
+            path: resolved.path,
+            title: resolved.title,
+            members: targets,
+          });
       })(),
       t('grant.loadTimeout'),
     )
@@ -207,6 +221,7 @@ export function GroupComposerContextView({
     members.map((bot) => facts[bot.slug]),
     t,
   );
+  const count = groupWorkspaceCount(members.map((bot) => facts[bot.slug]));
   const retry = results.some((row) => row.status === 'unknown' || row.status === 'failed');
   return (
     <>
@@ -222,7 +237,8 @@ export function GroupComposerContextView({
           data-composer-chip="workspace"
           collapseLabel
           icon={<ChannelSidebarIcon name="folder-key" size={14} />}
-          label={chip}
+          label={count ?? chip}
+          title={chip}
           aria-label={`${t('entry.workspaceGrants')} · ${chip}`}
           onClick={onOpen}
         />
@@ -292,7 +308,9 @@ export function GroupComposerContextView({
                   initiallyExpanded
                   chips={
                     <Tag tone="outline">
-                      {t('groupGrant.targets', { count: preview.members.length })}
+                      {t('groupGrant.targets', {
+                        count: preview.members.length,
+                      })}
                     </Tag>
                   }
                   pathAction={
@@ -329,7 +347,9 @@ export function GroupComposerContextView({
                           </Tag>
                         </>
                       }
-                      meta={t('groupGrant.taskAccess', { mode: bot.access.mode })}
+                      meta={t('groupGrant.taskAccess', {
+                        mode: bot.access.mode,
+                      })}
                       detail={
                         result?.error === undefined ? undefined : (
                           <div className="bh-error">{result.error}</div>
@@ -368,6 +388,14 @@ export function GroupComposerContextView({
       ) : null}
     </>
   );
+}
+
+export function groupWorkspaceCount(
+  facts: (WorkspaceGrantView[] | null | undefined)[],
+): string | undefined {
+  if (facts.length === 0 || facts.some((grants) => grants === null || grants === undefined))
+    return undefined;
+  return String(new Set(facts.flatMap((grants) => grants!.map((grant) => grant.workspaceId))).size);
 }
 
 export function groupWorkspaceChip(

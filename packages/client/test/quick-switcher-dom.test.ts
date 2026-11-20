@@ -1,25 +1,18 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type QuickSwitcherEntry } from '../src/client/quick-switcher-rank.js';
+import { type SettingsSearchResult } from '../src/client/settings-search.js';
+import { type ChannelSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconSearchOutlineRegular: () => null,
-  IconSettingsOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   relativeTime: () => ({ unit: 'days', n: 1 }),
-  Input: (props: Record<string, unknown>) => {
-    const { icon: _icon, ...rest } = props;
-    return createElement('input', rest);
-  },
+
   ShortcutKeys: (props: { keys: readonly string[] }) =>
     createElement('kbd', null, props.keys.join(' ')),
-  Modal: (props: Record<string, unknown>) =>
-    createElement(
-      'div',
-      { role: 'dialog', 'aria-modal': 'true', 'aria-label': props['title'] },
-      props['children'] as ReactNode,
-    ),
 }));
 
 vi.mock('../src/client/avatar.js', () => ({
@@ -29,13 +22,9 @@ vi.mock('../src/client/avatar.js', () => ({
 import { webQuickSwitcherBlocked } from '../src/client/channel-shortcuts.js';
 import { QuickSwitcher } from '../src/client/quick-switcher.js';
 import { ShortcutBindings } from '../src/client/shortcut-bindings.js';
-import {
-  quickSwitcherEntries,
-  type QuickSwitcherEntry,
-} from '../src/client/quick-switcher-rank.js';
+import { quickSwitcherEntries } from '../src/client/quick-switcher-rank.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { searchSettings, type SettingsSearchResult } from '../src/client/settings-search.js';
-import type { ChannelSummary } from '../src/client/store.js';
+import { searchSettings } from '../src/client/settings-search.js';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -99,9 +88,11 @@ describe('quick switcher keyboard', () => {
         }),
       );
     });
-    const input = host.querySelector<HTMLInputElement>('input[role="combobox"]')!;
+    const input = document.body.querySelector<HTMLInputElement>('input[role="combobox"]')!;
     const selected = (): string | null | undefined =>
-      host.querySelector('[role="option"][aria-selected="true"]')?.getAttribute('data-channel-id');
+      document.body
+        .querySelector('[role="option"][aria-selected="true"]')
+        ?.getAttribute('data-channel-id');
     const key = async (value: string, init: KeyboardEventInit = {}): Promise<void> => {
       await act(async () => {
         input.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true, ...init }));
@@ -115,7 +106,7 @@ describe('quick switcher keyboard', () => {
       });
     };
 
-    expect(host.querySelectorAll('[role="option"]')).toHaveLength(3);
+    expect(document.body.querySelectorAll('[role="option"]')).toHaveLength(3);
     expect(selected()).toBe('a');
     await key('ArrowDown');
     expect(selected()).toBe('b');
@@ -124,7 +115,7 @@ describe('quick switcher keyboard', () => {
     expect(selected()).toBe('c');
 
     await type('LAUNCH');
-    expect(host.querySelectorAll('[role="option"]')).toHaveLength(2);
+    expect(document.body.querySelectorAll('[role="option"]')).toHaveLength(2);
     expect(selected()).toBe('a');
     await key('ArrowDown');
     await key('Enter');
@@ -139,7 +130,7 @@ describe('quick switcher keyboard', () => {
     expect(opened.map((entry) => entry.channel.id)).toEqual(['b', 'c', 'c']);
 
     await type('nothing');
-    expect(host.textContent).toContain('没有匹配的结果');
+    expect(document.body.textContent).toContain('没有匹配的结果');
     await key('Enter');
     expect(opened).toHaveLength(3);
 
@@ -181,7 +172,7 @@ describe('quick switcher keyboard', () => {
         }),
       );
     });
-    const input = host.querySelector<HTMLInputElement>('input[role="combobox"]')!;
+    const input = document.body.querySelector<HTMLInputElement>('input[role="combobox"]')!;
     const type = async (value: string): Promise<void> => {
       await act(async () => {
         const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!;
@@ -195,12 +186,12 @@ describe('quick switcher keyboard', () => {
       });
     };
 
-    expect(host.querySelector('[data-settings-section]')).toBeNull();
+    expect(document.body.querySelector('[data-settings-section]')).toBeNull();
 
     await type('theme');
-    expect(host.querySelector('[data-channel-id]')).toBeNull();
-    expect(host.textContent).toContain('设置');
-    const themeRow = [...host.querySelectorAll('[data-settings-section]')].find((node) =>
+    expect(document.body.querySelector('[data-channel-id]')).toBeNull();
+    expect(document.body.textContent).toContain('设置');
+    const themeRow = [...document.body.querySelectorAll('[data-settings-section]')].find((node) =>
       node.textContent?.startsWith('主题'),
     );
     expect(themeRow).toBeDefined();
@@ -211,13 +202,13 @@ describe('quick switcher keyboard', () => {
 
     await type('kuaijiejian');
     expect(
-      host
+      document.body
         .querySelector('[role="option"][aria-selected="true"]')
         ?.getAttribute('data-settings-section'),
     ).toBe('shortcuts');
 
     await type('waiguan');
-    const options = [...host.querySelectorAll('[role="option"]')];
+    const options = [...document.body.querySelectorAll('[role="option"]')];
     expect(options[0]?.getAttribute('data-channel-id')).toBe('a');
     expect(options.slice(1).every((node) => node.hasAttribute('data-settings-section'))).toBe(true);
     await act(async () => root.unmount());
@@ -266,7 +257,7 @@ describe('quick switcher keyboard', () => {
           }),
         );
       });
-      const input = host.querySelector<HTMLInputElement>('input[role="combobox"]')!;
+      const input = document.body.querySelector<HTMLInputElement>('input[role="combobox"]')!;
       const key = async (value: string): Promise<void> => {
         await act(async () => {
           input.dispatchEvent(new KeyboardEvent('keydown', { key: value, bubbles: true }));
@@ -278,25 +269,29 @@ describe('quick switcher keyboard', () => {
         input.dispatchEvent(new Event('input', { bubbles: true }));
       });
       expect(search).not.toHaveBeenCalled();
-      expect(host.querySelector('[role="status"][aria-label="正在搜索消息…"]')).not.toBeNull();
+      expect(
+        document.body.querySelector('[role="status"][aria-label="正在搜索消息…"]'),
+      ).not.toBeNull();
       await act(async () => {
         await vi.advanceTimersByTimeAsync(150);
       });
       expect(search).toHaveBeenCalledWith('发布', undefined);
-      const options = [...host.querySelectorAll('[role="option"]')];
+      const options = [...document.body.querySelectorAll('[role="option"]')];
       expect(options[0]?.hasAttribute('data-message-id')).toBe(false);
       expect(options[1]?.getAttribute('data-message-id')).toBe('m1');
       expect(options[1]?.querySelector('mark')?.textContent).toBe('发布');
-      expect(host.textContent).toContain('消息');
+      expect(document.body.textContent).toContain('消息');
 
       await key('ArrowDown');
       await key('ArrowDown');
       await key('Enter');
       expect(search).toHaveBeenLastCalledWith('发布', 'next');
-      expect(host.querySelector('[data-message-id="m2"]')).not.toBeNull();
-      expect(host.querySelector('[data-message-search-more]')).toBeNull();
+      expect(document.body.querySelector('[data-message-id="m2"]')).not.toBeNull();
+      expect(document.body.querySelector('[data-message-search-more]')).toBeNull();
 
-      await act(async () => (host.querySelector('[data-message-id="m2"]') as HTMLElement).click());
+      await act(async () =>
+        (document.body.querySelector('[data-message-id="m2"]') as HTMLElement).click(),
+      );
       expect(openedHits).toEqual(['m2']);
       await act(async () => root.unmount());
     } finally {

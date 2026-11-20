@@ -6,6 +6,10 @@ interface AttachmentMetadata {
   name: string;
   mime: string;
   size: number;
+  version?: string;
+  width?: number;
+  height?: number;
+  thumbhash?: string;
 }
 export type ChannelAttachmentRef = AttachmentMetadata &
   ({ fileId: string; hash?: never } | { hash: string; fileId?: never });

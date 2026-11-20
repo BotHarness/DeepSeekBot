@@ -1,5 +1,8 @@
-import type { HostClient } from '../../host/client';
-import type { Inbox } from '../../host/inbox';
+import { applyRosterBatch } from '@botharness/host-client/roster-readers';
+import { setChannelMuted } from '@botharness/host-client/channel-management';
+import { markChannelRead } from '@botharness/host-client/channel-messages';
+import type { HostClient } from '@botharness/host-client/client';
+import type { Inbox } from '@botharness/host-client/inbox';
 import { t } from '../strings';
 import type { Conversation } from './conversations';
 
@@ -43,12 +46,11 @@ export async function runConversationAction(
   if (key === 'read') {
     const messageId = latestMessageId(conversation);
     if (messageId === undefined) return;
-    await client.call('channelMarkRead', { channelId, messageId });
+    await markChannelRead(client, channelId, messageId);
     await inbox?.refresh();
     return;
   }
-  if (key === 'mute' || key === 'unmute')
-    await client.call('channelMuteSet', { channelId, muted: key === 'mute' });
-  else await client.call('rosterBatch', { action: key, channelIds: [channelId] });
+  if (key === 'mute' || key === 'unmute') await setChannelMuted(client, channelId, key === 'mute');
+  else await applyRosterBatch(client, { action: key, channelIds: [channelId] });
   await client.refresh();
 }

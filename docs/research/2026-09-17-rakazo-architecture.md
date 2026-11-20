@@ -11,7 +11,7 @@
 | 日期       | 2026-09-17                                                                                                                                                                                                                                                                                           |
 | 调研方法   | 只用一手来源：仓库自带文档 + 源码 + Prisma schema。文中所有行号均指 pinned SHA 下的克隆；未能在源码中确认的说法一律标记「未验证」。二手文章（DeepWiki、博客）未用于事实陈述。若克隆不在场，可用 `https://github.com/elie222/rakazo/blob/83698c0de8eefab5993a84ed76cb81674a04ea32/<path>#L<n>` 复核。 |
 
-对照的本地规格：`PRD.md`、`docs/botharness.md`、`CONTEXT.md`、`docs/adr/0001`–`0018`、`docs/architecture/botharness-architecture.md`。
+对照的本地规格：`PRD.md`、`docs/botharness.md`、`GLOSSARY.md`、`docs/adr/0001`–`0018`、`docs/architecture/botharness-architecture.md`。
 
 ## 1. 一句话定位与 Grok Bot 的关系
 
@@ -21,7 +21,7 @@ VISION 把定位收得更紧：每个 Bot "a continuing identity with one visibl
 
 **与 Grok Bot 的关系：** 仓库自身文档**从未**自称 "Grok Bot alternative"。全文检索 "Grok" 只出现在模型名/订阅登录语境（xAI 的 Grok 4.6、SuperGrok 登录，`reference/rakazo/CHANGELOG.md:12,18`、`reference/rakazo/packages/adapters/src/pi-oauth.ts:41-45`）。因此「Grok Bot 的开源替代」是**外部定位/我们这边的类比，不是一手说法（未验证）**。可以确认的是产品形状高度同构：持久 Bot + 每人自己的电脑 + 记忆 + routines + 后台工作（我们 `docs/botharness.md:16` 同样以 Grok Bot 为灵感）。
 
-与 BotHarness 的根本形态差异：Rakazo 自带 API/Web/Worker/DB/沙箱全栈；我们是在 DSH 内做插件层（ADR-0015），Host 单进程（`CONTEXT.md:43-45`）。这决定了下面几乎所有对比的「可借鉴 vs 不采用」。
+与 BotHarness 的根本形态差异：Rakazo 自带 API/Web/Worker/DB/沙箱全栈；我们是在 DSH 内做插件层（ADR-0015），Host 单进程（`GLOSSARY.md:43-45`）。这决定了下面几乎所有对比的「可借鉴 vs 不采用」。
 
 ## 2. 技术栈与拓扑
 

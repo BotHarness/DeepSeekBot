@@ -1,10 +1,15 @@
+import { NavGroupHeading, NavItem } from './ds/nav-item.js';
+import { Button } from './ds/button.js';
+import { remoteChannelRows } from './environment-channels.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import type { RemoteHost, RemoteConversationTarget } from './remote-hosts.js';
 import { ALL_HOSTS, remoteHosts, THIS_HOST } from './remote-hosts.js';
 import { UnreadCount } from './unread-count.js';
-import { HostSettings } from './host-settings.js';
+import { HostLookSettings } from './host-look-settings.js';
+import { readQrImage } from './qr-image.js';
+import { openHostSettings } from './environment-settings-source.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { RemoteAvatar } from './remote-avatar.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
@@ -17,6 +22,9 @@ import { useThisHost, getThisHost } from './this-host.js';
 import { useMountedResource } from './mounted-resource.js';
 import { createConnectionControl, type ConnectionAttempt } from './connection-control.js';
 import { ConnectionProgress } from './connection-progress.js';
+import { TeamSignInDialog, teamSignInErrorText } from './team-sign-in-dialog.js';
+import { parseTeamInvitation } from '@botharness/host-protocol/team-invitation';
+import type { TeamSignInTarget } from '@botharness/host-client/team-sign-in';
 export { useThisHost } from './this-host.js';
 import { HostGlyph } from './host-glyph.js';
 export { HostGlyph } from './host-glyph.js';
@@ -24,10 +32,13 @@ import {
   DEFAULT_HOST_LOOK,
   shownHostName,
   type HostLook,
-} from '../../../../apps/mobile/src/ui/design/host-look.js';
+} from '@botharness/host-client/ui/design/host-look';
 import { hostLooks, unusedHostLook, useHostLook, useHostName } from './host-looks.js';
 
-const focusRing = { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` };
+const focusRing = {
+  default: 'none',
+  ':focus-visible': `${border.focus} solid ${color.accent}`,
+};
 
 const styles = stylex.create({
   strip: {
@@ -202,7 +213,6 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
   const localLook = useHostLook(thisHost.id ?? THIS_HOST);
   const [menu, setMenu] = useState<{ hostId: string; point: MenuPoint } | undefined>(undefined);
   const [removing, setRemoving] = useState<RemoteHost | undefined>(undefined);
-  const [settings, setSettings] = useState<{ hostId: string; name: string; local: boolean }>();
   const proxy = useRef<HTMLSpanElement | null>(null);
 
   const thisId = thisHost.id ?? THIS_HOST;
@@ -268,31 +278,28 @@ export function HostTabs({ t }: { t: BotHarnessTranslate }): ReactElement | null
               { id: 'settings', label: t('remoteHosts.settings') },
               ...(menuRemote === undefined
                 ? []
-                : [{ id: 'remove', label: t('remoteHosts.remove.confirm'), danger: true }]),
+                : [
+                    {
+                      id: 'remove',
+                      label: t('remoteHosts.remove.confirm'),
+                      danger: true,
+                    },
+                  ]),
             ]}
             onSelect={(id) => {
               setMenu(undefined);
               if (id === 'settings' && (menuRemote !== undefined || menu.hostId === thisId))
-                setSettings({
-                  hostId: menu.hostId,
-                  name: menuRemote?.host.hostName ?? thisHost.name ?? thisName,
-                  local: menuRemote === undefined,
-                });
+                openHostSettings(
+                  menuRemote && {
+                    hostId: menuRemote.host.hostId,
+                    hostName: menuRemote.host.hostName,
+                  },
+                );
               if (id === 'remove' && menuRemote !== undefined) setRemoving(menuRemote);
             }}
             onClose={() => setMenu(undefined)}
           />
         </span>
-      )}
-      {settings === undefined ? null : (
-        <HostSettings
-          key={settings.hostId}
-          hostId={settings.hostId}
-          name={settings.name}
-          local={settings.local}
-          onClose={() => setSettings(undefined)}
-          t={t}
-        />
       )}
       {removing === undefined ? null : (
         <ConfirmDialog
@@ -321,20 +328,44 @@ const PAIR_ERRORS: Partial<Record<string, BotHarnessKey>> = {
   'this-host': 'remoteHosts.error.this-host',
 };
 
+export function teamInvitationLink(
+  link: string,
+): ReturnType<typeof parseTeamInvitation> | undefined {
+  try {
+    const url = new URL(link.trim());
+    if (url.protocol !== 'deepseekbot:' || url.hostname !== 'team') return undefined;
+  } catch {
+    return undefined;
+  }
+  return parseTeamInvitation(link.trim());
+}
+
 export function AddRemoteHostDialog({
   onClose,
+  onBack,
+  inline = false,
+  footerContainer,
   t,
 }: {
   onClose: () => void;
+  onBack?: (() => void) | undefined;
+  inline?: boolean;
+  footerContainer?: HTMLElement | null | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [link, setLink] = useState('');
+  const [readingImage, setReadingImage] = useState(false);
+  const imageInput = useRef<HTMLInputElement>(null);
+  const imageRead = useRef(0);
   const [attempt, setAttempt] = useState<ConnectionAttempt>();
   const [error, setError] = useState<string>();
   const control = useRef<ReturnType<typeof createConnectionControl>>();
   const attemptId = useRef<string>();
+  const [team, setTeam] = useState<TeamSignInTarget>();
+  const [manual, setManual] = useState<{ route: string; username: string }>();
   const mount = useMountedResource<HTMLDivElement>(() => {
-    const owner = createConnectionControl(remoteHosts(), getThisHost);
+    const sources = remoteHosts();
+    const owner = createConnectionControl(sources, getThisHost);
     control.current = owner;
     const off = owner.subscribe(() => {
       if (!attemptId.current) return;
@@ -357,12 +388,14 @@ export function AddRemoteHostDialog({
       }
     });
     return () => {
+      imageRead.current += 1;
       off();
       owner.dispose();
       control.current = undefined;
     };
   }, []);
-  const busy = attempt?.state === 'connecting' || attempt?.state === 'approve-device';
+  const busy =
+    readingImage || attempt?.state === 'connecting' || attempt?.state === 'approve-device';
   const submit = () => {
     if (attempt?.state === 'connected' || attempt?.saved) {
       onClose();
@@ -372,7 +405,10 @@ export function AddRemoteHostDialog({
     if (!owner) return;
     setError(undefined);
     try {
-      const request = { expiresAt: Date.now() + 8000, signal: new AbortController().signal };
+      const request = {
+        expiresAt: Date.now() + 8000,
+        signal: new AbortController().signal,
+      };
       if (attempt?.state === 'verify-host') {
         owner.execute(
           {
@@ -384,6 +420,12 @@ export function AddRemoteHostDialog({
           request,
         );
       } else {
+        const invitation = teamInvitationLink(link);
+        if (invitation !== undefined) {
+          if (invitation.ok) setTeam({ kind: 'invitation', link: link.trim() });
+          else setError(teamSignInErrorText(t, invitation.code));
+          return;
+        }
         attemptId.current = crypto.randomUUID();
         owner.execute({ action: 'start', attemptId: attemptId.current, link }, request);
       }
@@ -392,10 +434,69 @@ export function AddRemoteHostDialog({
     }
   };
   const failed = attempt?.state === 'failed' || attempt?.state === 'cancelled';
+  if (team !== undefined)
+    return (
+      <div ref={mount}>
+        <TeamSignInDialog
+          target={team}
+          inline={inline}
+          footerContainer={footerContainer}
+          onClose={onClose}
+          onDone={() => onClose()}
+          t={t}
+        />
+      </div>
+    );
+  if (manual !== undefined) {
+    const route = manual.route.trim();
+    const username = manual.username.trim();
+    return (
+      <div ref={mount}>
+        <FormDialog
+          title={t('teamSignIn.titleGeneric')}
+          description={t('teamSignIn.manualHint')}
+          inline={inline}
+          showCancel={!inline}
+          footerContainer={footerContainer}
+          labels={{ close: t('common.close'), cancel: t('connections.back') }}
+          submitLabel={t('teamSignIn.continue')}
+          submitDisabled={route.length === 0 || username.length === 0}
+          onCancel={() => setManual(undefined)}
+          onClose={onClose}
+          onSubmit={() => setTeam({ kind: 'address', route, username })}
+          submitData={{ 'data-team-manual-submit': '' }}
+        >
+          <TextField
+            label={t('teamSignIn.address')}
+            hint={t('teamSignIn.addressHint')}
+            placeholder="https://"
+            inputMode="url"
+            autoComplete="url"
+            value={manual.route}
+            onChange={(value) => setManual({ ...manual, route: value })}
+            initialFocus
+          />
+          <TextField
+            label={t('teamSignIn.username')}
+            autoComplete="username"
+            value={manual.username}
+            onChange={(value) => setManual({ ...manual, username: value })}
+          />
+        </FormDialog>
+      </div>
+    );
+  }
   return (
     <FormDialog
       title={t('connections.join')}
-      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+      inline={inline}
+      footerContainer={footerContainer}
+      showCancel={!inline}
+      description={!attempt ? t('connections.joinHint') : undefined}
+      labels={{
+        close: t('common.close'),
+        cancel: t(onBack ? 'connections.back' : 'common.cancel'),
+      }}
       submitLabel={t(
         attempt?.state === 'connected' || attempt?.saved
           ? 'connections.done'
@@ -410,7 +511,8 @@ export function AddRemoteHostDialog({
           ? t(PAIR_ERRORS[attempt.code ?? ''] ?? 'remoteHosts.error.unreachable')
           : undefined)
       }
-      onCancel={onClose}
+      onCancel={onBack ?? onClose}
+      onClose={onClose}
       onSubmit={submit}
       submitData={{ 'data-remote-host-add-submit': '' }}
     >
@@ -424,59 +526,79 @@ export function AddRemoteHostDialog({
           </div>
         ) : attempt?.state === 'approve-device' ? (
           <div role="status">
-            <p>{t('connect.pending')}</p>
+            <p>{t('relationships.approveOn', { name: attempt.hostName ?? '' })}</p>
             <code>{attempt.deviceFingerprint}</code>
           </div>
         ) : attempt?.state === 'connected' ? (
-          <div role="status">{t('connections.connected', { name: attempt.hostName ?? '' })}</div>
+          <>
+            <div role="status">{t('connections.connected', { name: attempt.hostName ?? '' })}</div>
+            {attempt.hostId ? (
+              <HostLookSettings hostId={attempt.hostId} name={attempt.hostName ?? ''} t={t} />
+            ) : null}
+          </>
         ) : attempt?.saved && failed ? (
           <div role="status">{t('connections.savedOffline', { name: attempt.hostName ?? '' })}</div>
         ) : !attempt || failed ? (
-          <TextField
-            label={t('remoteHosts.add.link')}
-            hint={t('remoteHosts.add.hint')}
-            value={link}
-            onChange={setLink}
-            initialFocus={true}
-          />
+          <>
+            <TextField
+              label={t('remoteHosts.add.link')}
+              hint={t('remoteHosts.add.hint')}
+              value={link}
+              onChange={setLink}
+              initialFocus={true}
+            />
+            <input
+              ref={imageInput}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              hidden
+              onChange={(event) => {
+                const file = event.currentTarget.files?.[0];
+                event.currentTarget.value = '';
+                if (!file) return;
+                const read = ++imageRead.current;
+                setReadingImage(true);
+                setError(undefined);
+                void readQrImage(file)
+                  .then(
+                    (value) => {
+                      if (read === imageRead.current) {
+                        setLink(value);
+                        setAttempt(undefined);
+                      }
+                    },
+                    () => {
+                      if (read === imageRead.current) setError(t('remoteHosts.add.imageError'));
+                    },
+                  )
+                  .finally(() => {
+                    if (read === imageRead.current) setReadingImage(false);
+                  });
+              }}
+            />
+            <Button
+              variant="outline"
+              disabled={readingImage}
+              icon={<ChannelSidebarIcon name="image" size={16} />}
+              onClick={() => imageInput.current?.click()}
+            >
+              {t(readingImage ? 'remoteHosts.add.readingImage' : 'remoteHosts.add.image')}
+            </Button>
+            <Button
+              variant="ghost"
+              data-team-manual=""
+              icon={<ChannelSidebarIcon name="user" size={16} />}
+              onClick={() => setManual({ route: '', username: '' })}
+            >
+              {t('teamSignIn.useUsername')}
+            </Button>
+          </>
         ) : (
           <div role="status">{t('connections.reading')}</div>
         )}
       </div>
     </FormDialog>
   );
-}
-
-function rows(remote: RemoteHost): (RemoteConversationTarget & {
-  key: string;
-  unread: number;
-  preview?: string;
-  previewAt?: string;
-})[] {
-  const roster = remote.snapshot.roster;
-  if (roster === undefined) return [];
-  const hostId = remote.host.hostId;
-  const unread = remote.inbox.status === 'ready' ? (remote.inbox.unread ?? {}) : {};
-  return [
-    ...roster.bots.map((bot) => ({
-      key: `bot:${bot.slug}`,
-      hostId,
-      title: bot.displayName,
-      botSlug: bot.slug,
-      unread: bot.dmChannelId === undefined ? 0 : (unread[bot.dmChannelId] ?? 0),
-      ...(bot.preview === undefined ? {} : { preview: bot.preview }),
-      ...(bot.previewAt === undefined ? {} : { previewAt: bot.previewAt }),
-    })),
-    ...roster.channels.map((channel) => ({
-      key: `channel:${channel.id}`,
-      hostId,
-      title: channel.name,
-      channelId: channel.id,
-      unread: unread[channel.id] ?? 0,
-      ...(channel.preview === undefined ? {} : { preview: channel.preview }),
-      ...(channel.previewAt === undefined ? {} : { previewAt: channel.previewAt }),
-    })),
-  ].sort((a, b) => (b.previewAt ?? '').localeCompare(a.previewAt ?? ''));
 }
 
 function sameTarget(
@@ -496,34 +618,37 @@ export function RemoteHostRows({
   query,
   showSource,
   onOpen,
+  rowsOverride,
   t,
 }: {
   remote: RemoteHost;
   query: string;
   showSource: boolean;
   onOpen?: (() => void) | undefined;
+  rowsOverride?: ReturnType<typeof remoteChannelRows> | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
   const sources = remoteHosts();
   const { open, avatars } = useRemoteHosts();
   const name = useHostName(remote.host.hostId, remote.host.hostName);
   const needle = query.trim().toLocaleLowerCase();
-  const visible = rows(remote).filter(
+  const visible = (rowsOverride ?? remoteChannelRows(remote)).filter(
     (row) => needle.length === 0 || row.title.toLocaleLowerCase().includes(needle),
   );
   if (visible.length === 0 && showSource) return null;
   const list = (
     <div className="bh-list-area" data-remote-host={remote.host.hostId}>
       {visible.map((row) => (
-        <button
+        <NavItem
           key={row.key}
-          type="button"
-          className={`bh-channel-row${row.unread > 0 ? ' bh-has-unread' : ''}${sameTarget(open, row) ? ' bh-selected' : ''}`}
-          data-remote-row={row.key}
+          multiline
+          current={sameTarget(open, row)}
+          className={`bh-channel-row${row.unread > 0 ? ' bh-has-unread' : ''}`}
+          data={{ 'data-remote-row': row.key }}
           aria-label={
             showSource ? t('remoteHosts.rowLabel', { name: row.title, host: name }) : row.title
           }
-          onClick={() => {
+          onSelect={() => {
             onOpen?.();
             sources.open({
               hostId: row.hostId,
@@ -532,38 +657,97 @@ export function RemoteHostRows({
               ...(row.channelId === undefined ? {} : { channelId: row.channelId }),
             });
           }}
-        >
-          <span className="bh-row-avatar">
-            <RemoteAvatar
-              roster={remote.snapshot.roster}
-              avatars={avatars}
-              target={row}
-              size={34}
-              activity={row.botSlug === undefined ? undefined : remote.activity?.get(row.botSlug)}
-              t={t}
-            />
-            <UnreadCount count={row.unread} corner t={t} />
-          </span>
-          <span className="bh-body">
-            <span className="bh-top">
-              <span className="bh-name">{row.title}</span>
-              {showSource ? <HostMark hostId={remote.host.hostId} /> : null}
+          icon={
+            <span className="bh-row-avatar">
+              <RemoteAvatar
+                roster={remote.snapshot.roster}
+                avatars={avatars}
+                target={row}
+                size={20}
+                activity={row.botSlug === undefined ? undefined : remote.activity?.get(row.botSlug)}
+                t={t}
+              />
             </span>
-            <span className="bh-bottom">
-              <span className="bh-msg">{row.preview ?? t('rail.noMessages')}</span>
+          }
+          label={
+            <span className="bh-body">
+              <span className="bh-top">
+                <span className="bh-name">{row.title}</span>
+                {showSource ? <HostMark hostId={remote.host.hostId} /> : null}
+                {showSource ? <span className="bh-muted-mark">{name}</span> : null}
+              </span>
+              <span className="bh-bottom">
+                <span className="bh-msg">{row.preview ?? t('rail.noMessages')}</span>
+                <UnreadCount count={row.unread} t={t} />
+                {remote.snapshot.connection.status !== 'connected' ? (
+                  <span>{t('environment.offline')}</span>
+                ) : null}
+              </span>
             </span>
-          </span>
-        </button>
+          }
+        />
       ))}
     </div>
   );
-  if (!showSource) return list;
+  if (rowsOverride !== undefined) return list;
+  if (!showSource) {
+    const sections = remote.snapshot.roster?.arrangement?.sections ?? [];
+    const pins = new Set(remote.snapshot.roster?.arrangement?.pins ?? []);
+    if (sections.length === 0 && pins.size === 0) return list;
+    const channelId = (row: ReturnType<typeof remoteChannelRows>[number]) =>
+      row.channelId ??
+      remote.snapshot.roster?.bots.find((bot) => bot.slug === row.botSlug)?.dmChannelId;
+    const sectioned = new Set(sections.flatMap((section) => section.channelIds));
+    return (
+      <>
+        {pins.size > 0 ? (
+          <div className="bh-section">
+            <NavGroupHeading label={t('pin.title')} first />
+            <RemoteHostRows
+              remote={remote}
+              query={query}
+              showSource={false}
+              rowsOverride={visible.filter((row) => pins.has(channelId(row) ?? ''))}
+              onOpen={onOpen}
+              t={t}
+            />
+          </div>
+        ) : null}
+        <RemoteHostRows
+          remote={remote}
+          query={query}
+          showSource={false}
+          rowsOverride={visible.filter(
+            (row) => !sectioned.has(channelId(row) ?? '') && !pins.has(channelId(row) ?? ''),
+          )}
+          onOpen={onOpen}
+          t={t}
+        />
+        {sections.map((section) => (
+          <div
+            className="bh-section"
+            key={section.id}
+            data-environment-section={JSON.stringify([remote.host.hostId, section.id])}
+          >
+            <NavGroupHeading label={section.name} first />
+            <RemoteHostRows
+              remote={remote}
+              query={query}
+              showSource={false}
+              rowsOverride={section.channelIds.flatMap((id) =>
+                pins.has(id) ? [] : visible.filter((row) => channelId(row) === id),
+              )}
+              onOpen={onOpen}
+              t={t}
+            />
+          </div>
+        ))}
+      </>
+    );
+  }
   return (
     <div className="bh-section" data-remote-section={remote.host.hostId}>
-      <div className="bh-section-head">
-        <span className="bh-section-name">{name}</span>
-        <span className="bh-section-count">{visible.length}</span>
-      </div>
+      <NavGroupHeading label={name} trailing={visible.length} first />
       {list}
     </div>
   );

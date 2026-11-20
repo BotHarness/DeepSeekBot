@@ -60,6 +60,33 @@ const update = () => ({
 });
 
 describe('Tob scoped CLI broker', () => {
+  it('runs a declared external operation without a proposal when no approval is required', async () => {
+    const run = vi.fn((guard: () => void) => {
+      guard();
+      return { id: 'fixture', completed: true };
+    });
+    const f = await fixture({ prepareOperation: () => ({ run }) });
+    expect(await f.invoke('voice-provider-test', { id: 'fixture', completed: true })).toMatchObject(
+      { ok: true },
+    );
+    expect(run).toHaveBeenCalledOnce();
+    expect(f.approve).not.toHaveBeenCalled();
+  });
+
+  it('reads a completed invitation receipt without asking or executing another invitation', async () => {
+    const run = vi.fn((guard: () => void) => {
+      guard();
+      return { operationKey: 'fixture', replayed: true };
+    });
+    const f = await fixture({ prepareOperation: () => ({ completed: true, run }) });
+    expect(await f.invoke('group-invite', { operationKey: 'fixture' })).toMatchObject({
+      ok: true,
+      value: { operationKey: 'fixture', replayed: true },
+    });
+    expect(run).toHaveBeenCalledOnce();
+    expect(f.approve).not.toHaveBeenCalled();
+  });
+
   it.each([
     'operation-key-conflict',
     'stale-channel',
@@ -120,7 +147,7 @@ describe('Tob scoped CLI broker', () => {
     });
     expect(prepareOperation).not.toHaveBeenCalled();
     expect(await f.invoke(command, args)).toMatchObject({ ok: true, value: { accepted: true } });
-    expect(prepareOperation).toHaveBeenCalledWith(command, args);
+    expect(prepareOperation).toHaveBeenCalledWith(command, args, expect.any(AbortSignal));
     expect(f.approve).toHaveBeenCalledOnce();
     expect(run).toHaveBeenCalledOnce();
     expect(await f.invoke(command, { ...args, avatar: 'x'.repeat(256 * 1024) })).toMatchObject({

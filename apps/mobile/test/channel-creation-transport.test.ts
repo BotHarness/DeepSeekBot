@@ -2,8 +2,8 @@ import { expect, it, vi } from 'vitest';
 import { channelCreationTransport } from '../src/host/channel-creation-transport';
 import { createChannelCreation } from '../src/host/channel-creation';
 import { ChannelCreationNotAccepted } from '../src/host/channel-creation';
-import type { HostCarrier } from '../src/host/carrier';
-import type { SavedHost } from '../src/host/hosts';
+import type { HostCarrier } from '@botharness/host-protocol/carrier';
+import type { SavedHost } from '@botharness/host-client/hosts';
 import { seededAvatarFor } from '../../../packages/core/src/bots/avatar-appearance';
 
 const hosts: SavedHost[] = ['A', 'B'].map((hostId) => ({
@@ -39,7 +39,7 @@ it('creates on the chosen Host through the authenticated client with only eligib
       operationKey: 'mobile-test-channel',
     });
     return answer({
-      channel: { id: 'group-team', members: ['ada', 'bo'] },
+      channel: { id: 'group-team', type: 'group', name: 'Team', members: ['ada', 'bo'] },
       receipt: {
         operationKey: 'mobile-test-channel',
         channelId: 'group-team',
@@ -141,6 +141,7 @@ it('retains the chosen Host artwork, seed and authenticated custom avatar source
       displayName: 'Bo',
       avatarSource: {
         uri: 'https://b.ts.net/botharness-device/avatars/bo.png',
+        scope: 'B',
         headers: { authorization: 'Device credential-B' },
       },
     },

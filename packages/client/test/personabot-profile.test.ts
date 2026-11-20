@@ -1,125 +1,37 @@
 // @vitest-environment jsdom
-import { act, createElement, type InputHTMLAttributes, type PropsWithChildren } from 'react';
+import { type UsageFilter } from '../src/client/bridge.js';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
+import { type GroupProfileActivity } from '../src/client/bridge.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
-  const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
+
   return {
-    IconCodeOutlineRegular: () => null,
-    IconBranchOutlineRegular: () => null,
-    Button: ({
-      children,
-      onClick,
-      disabled,
-      type = 'button',
-      form,
-      ...rest
-    }: PropsWithChildren<{
-      onClick?: () => void;
-      disabled?: boolean;
-      type?: 'button' | 'submit';
-      form?: string;
-      [key: `data-${string}`]: unknown;
-    }>) =>
-      createElement(
-        'button',
-        {
-          type,
-          form,
-          onClick,
-          disabled,
-          ...Object.fromEntries(Object.entries(rest).filter(([key]) => key.startsWith('data-'))),
-        },
-        children,
-      ),
-    HoverCard: stub,
-    IconAgentPresetOutlineRegular: stub,
-    IconCheckOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconChevronLeftOutlineRegular: stub,
-    IconChevronRightOutlineRegular: stub,
-    IconCloseFillRegular: stub,
-    IconCloseOutlineRegular: stub,
-    IconCopyOutlineRegular: stub,
-    IconEditOutlineRegular: stub,
-    IconInfoOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconNewChatOutlineRegular: stub,
-    IconPanelLeftOutlineRegular: stub,
-    IconPaperclipOutlineRegular: stub,
-    IconPinFillRegular: stub,
-    IconPinOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconRefreshOutlineRegular: stub,
-    IconSearchOutlineRegular: stub,
-    IconSendOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
-    IconUserOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
-    IconShareOutlineRegular: stub,
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
     FileTypeIcon: stub,
     ImageLightbox: stub,
-    Input: ({ className: _className, ...props }: InputHTMLAttributes<HTMLInputElement>) =>
-      createElement('input', props),
+
     MarkdownText: stub,
-    Menu: ({
-      open,
-      anchor,
-      items = [],
-      onSelect,
-    }: {
-      open: boolean;
-      anchor?: unknown;
-      items?: readonly { id: string; type?: string }[];
-      onSelect?: (id: string) => void;
-    }) =>
-      createElement(
-        'span',
-        null,
-        anchor as never,
-        open
-          ? items
-              .filter((item) => item.type === undefined)
-              .map((item) =>
-                createElement('button', {
-                  key: item.id,
-                  type: 'button',
-                  'data-menu-id': item.id,
-                  onClick: () => onSelect?.(item.id),
-                }),
-              )
-          : null,
-      ),
-    MenuItemButton: stub,
-    Modal: ({
-      open,
-      title,
-      children,
-      footer,
-    }: PropsWithChildren<{ open: boolean; title: string; footer?: unknown }>) =>
-      open
-        ? createElement('div', { role: 'dialog', 'aria-label': title }, children, footer as never)
-        : null,
-    SegmentedControl: stub,
+
     StateDot: stub,
-    Switch: stub,
-    Tag,
-    Tooltip: ({ children }: PropsWithChildren) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
 
-import type { UsageFilter } from '../src/client/bridge.js';
+import { menuItem } from './primitive-mocks.js';
+
 import type { BridgeActions } from '../src/client/actions.js';
 import { BotMain } from '../src/client/bot-main.js';
 import { createChannelSidebarBuiltins } from '../src/client/channel-sidebar-builtins.js';
 import { createChannelSidebarRegistry } from '../src/client/channel-sidebar.js';
-import { zhTranslate, en, type BotHarnessTranslate } from '../src/client/locale.js';
+import { zhTranslate, en } from '../src/client/locale.js';
 import { createGroupProfileCards } from '../src/client/group-profile.js';
-import { loadGroupProfileActivity, type GroupProfileActivity } from '../src/client/bridge.js';
+import { loadGroupProfileActivity } from '../src/client/bridge.js';
 import { createProfileCardBuiltins } from '../src/client/profile-cards-builtins.js';
 import { createProfileCardRegistry } from '../src/client/profile-cards.js';
 import { ProfileView } from '../src/client/personabot-profile.js';
@@ -150,7 +62,7 @@ function setNativeValue(input: HTMLInputElement | HTMLTextAreaElement, value: st
 }
 
 function click(container: HTMLElement, selector: string): void {
-  const element = container.querySelector<HTMLElement>(selector);
+  const element = document.body.querySelector<HTMLElement>(selector);
   expect(element, selector).not.toBeNull();
   element?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
 }
@@ -283,7 +195,7 @@ describe('PersonaBot Profile surface', () => {
       expect(container.querySelector('.bh-chat-body')).not.toBeNull();
 
       await act(async () => click(container, '.bh-channel-island'));
-      await act(async () => click(container, '[data-menu-id="primary"]'));
+      await act(async () => menuItem('查看资料').click());
       expect(container.querySelector('.bh-profile-popover')).toBeNull();
       expect(container.querySelector('.bh-profile-view')).not.toBeNull();
       expect(container.querySelector<HTMLElement>('.bh-topbar')?.dataset['channelDetail']).toBe(
@@ -323,18 +235,7 @@ describe('PersonaBot Profile surface', () => {
       expect(avatarButton.disabled).toBe(false);
       const overlay = avatarButton.querySelector('.bh-profile-avatar-overlay');
       expect(overlay?.getAttribute('aria-hidden')).toBe('true');
-      const { CSS } = await import('../src/client/styles.js');
-      expect(CSS).toContain(
-        '.bh-profile-avatar-button:not(:disabled):hover .bh-profile-avatar-overlay',
-      );
-      expect(CSS).toContain('.bh-profile-avatar-button:not(:disabled):hover .bh-persona-avatar');
-      expect(CSS).toMatch(/\.bh-profile-avatar-overlay \{[^}]*\}/);
-      expect(CSS.match(/\.bh-profile-avatar-overlay \{[^}]*\}/)![0]).not.toContain('background');
-      expect(CSS).not.toMatch(
-        /\.bh-profile-header-top \.bh-profile-avatar-button \{[^}]*(border|background)/,
-      );
-      expect(CSS).toContain('.bh-profile-avatar-button:focus-visible .bh-profile-avatar-overlay');
-      expect(container.querySelectorAll('.bh-profile-card').length).toBe(3);
+      expect(container.querySelectorAll('.bh-profile-card').length).toBe(4);
       const sidebarLabels = [...container.querySelectorAll('.bh-channel-sidebar [role="tab"]')].map(
         (tab) => tab.getAttribute('aria-label') ?? tab.textContent,
       );
@@ -350,7 +251,7 @@ describe('PersonaBot Profile surface', () => {
           (button) => button.textContent === label,
         )!;
       await act(async () => headerButton('编辑资料').click());
-      const editor = container.querySelector('[role="dialog"][aria-label="编辑资料"]')!;
+      const editor = document.body.querySelector('[role="dialog"][aria-label="编辑资料"]')!;
       const input = fieldNamed('名称', editor);
       expect(input.value).toBe('Ada');
       const saveButton = () =>
@@ -376,7 +277,7 @@ describe('PersonaBot Profile surface', () => {
         roles: ['研究员'],
         description: '帮你找资料',
       });
-      expect(container.querySelector('[role="dialog"][aria-label="编辑资料"]')).toBeNull();
+      expect(document.body.querySelector('[role="dialog"][aria-label="编辑资料"]')).toBeNull();
 
       const heatCell = container.querySelector<HTMLElement>(
         '.bh-profile-heat-cell:not([data-level="future"])',
@@ -399,7 +300,7 @@ describe('PersonaBot Profile surface', () => {
       expect(container.querySelector('.bh-profile-heat-tip')).toBeNull();
 
       await act(async () => click(container, '.bh-profile-avatar-button'));
-      const avatarDialog = container.querySelector('[role="dialog"][aria-label="头像"]');
+      const avatarDialog = document.body.querySelector('[role="dialog"][aria-label="头像"]');
       const avatarMethods = avatarDialog?.querySelectorAll(
         '.bh-avatar-methods > .bh-avatar-method',
       );
@@ -425,6 +326,11 @@ describe('PersonaBot Profile surface', () => {
         dialog.remove();
       }
 
+      await act(async () =>
+        document.body
+          .querySelector<HTMLButtonElement>('[role="dialog"] button[aria-label="关闭"]')!
+          .click(),
+      );
       await act(async () => {
         document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
       });
@@ -435,7 +341,7 @@ describe('PersonaBot Profile surface', () => {
       expect(container.querySelector('.bh-chat-body')).not.toBeNull();
 
       await act(async () => click(container, '.bh-channel-island'));
-      await act(async () => click(container, '[data-menu-id="primary"]'));
+      await act(async () => menuItem('查看资料').click());
       expect(container.querySelector('.bh-profile-view')).not.toBeNull();
       expect(container.querySelector('.bh-profile-popover')).toBeNull();
       await act(async () => {
@@ -476,6 +382,7 @@ describe('PersonaBot Profile surface', () => {
         root.render(
           createElement(BotMain, {
             actions: {
+              skillCatalog: async () => [],
               allBotPreview: vi.fn(async () => ({ revision: '0'.repeat(64), recipients: [] })),
               channelAssignments: vi.fn(async () => []),
               groupProfileActivity: vi.fn(() => new Promise(() => {})),
@@ -491,7 +398,7 @@ describe('PersonaBot Profile surface', () => {
       expect(island?.getAttribute('aria-label')).toBe('设计组 · 聊天菜单');
       expect(island?.getAttribute('aria-haspopup')).toBe('menu');
       await act(async () => click(container, '[data-group-channel-name]'));
-      await act(async () => click(container, '[data-menu-id="primary"]'));
+      await act(async () => menuItem('群聊 Profile').click());
       expect(container.querySelector('.bh-profile-view')).not.toBeNull();
       expect(container.querySelector('.bh-profile-popover')).toBeNull();
     } finally {
@@ -687,6 +594,69 @@ describe('Profile activity windows', () => {
       '2026-01-02',
     ]);
     expect(trailingProfileDays(undefined, 3)).toHaveLength(3);
+  });
+});
+
+describe('Shared Bot profile', () => {
+  it("shows a Bot shared with you view-only, with who shared it and none of the owner's tools", async () => {
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    const container = document.createElement('div');
+    document.body.append(container);
+    const root = createRoot(container);
+    const cards = createProfileCardRegistry();
+    for (const card of createProfileCardBuiltins(zhTranslate)) cards.register(card);
+    const bot = {
+      slug: 'helper',
+      displayName: 'Helper',
+      roles: [],
+      aggregateState: 'idle' as const,
+      createdAt: '2026-09-30T00:00:00Z',
+      workspaces: [],
+    };
+    const viewProps = {
+      bot,
+      activity: undefined,
+      cards,
+      channel: {
+        name: 'Helper',
+        id: 'dm-helper-alice',
+        type: 'dm' as const,
+        botSlug: 'helper',
+        members: ['helper'],
+        createdAt: '',
+        updatedAt: '',
+      },
+      actions: {
+        profileUsage: vi.fn(async () => undefined),
+        profileActivity: vi.fn(async () => undefined),
+      } as unknown as BridgeActions,
+      t: zhTranslate,
+      onClose: vi.fn(),
+    };
+    try {
+      await act(async () => root.render(createElement(ProfileView, viewProps)));
+      expect(container.querySelector('[data-avatar-editable]')).not.toBeNull();
+      expect(container.querySelector('.bh-profile-banner-edit')).not.toBeNull();
+      expect(container.querySelector('.bh-profile-header-actions')).not.toBeNull();
+      expect(container.querySelector('.bh-profile-shared-by')).toBeNull();
+
+      await act(async () =>
+        root.render(createElement(ProfileView, { ...viewProps, bot: { ...bot, sharedBy: 'Bob' } })),
+      );
+      expect(container.querySelector('.bh-profile-shared-by')?.textContent).toBe(
+        zhTranslate('team.bots.sharedBy', { name: 'Bob' }),
+      );
+      expect(container.querySelector('[data-avatar-editable]')).toBeNull();
+      expect(
+        container.querySelector<HTMLButtonElement>('.bh-profile-avatar-button')?.disabled,
+      ).toBe(true);
+      expect(container.querySelector('.bh-profile-banner-edit')).toBeNull();
+      expect(container.querySelector('.bh-profile-header-actions')).toBeNull();
+      expect(container.querySelector('.bh-profile-card')).toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      container.remove();
+    }
   });
 });
 

@@ -4,13 +4,20 @@ const path = require('node:path');
 const withSharingPlugin = require('expo-sharing/app.plugin').default;
 const withIosBrand = require('./with-ios-brand');
 const withAndroidBrand = require('./with-android-brand');
+const release = require('../../scripts/install-release.json');
 
 const mainCheckout = () => {
   try {
     const commonDir = execFileSync(
       'git',
       ['rev-parse', '--path-format=absolute', '--git-common-dir'],
-      { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+      {
+        cwd: __dirname,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        shell: false,
+        windowsHide: true,
+      },
     ).trim();
     return path.dirname(commonDir);
   } catch {
@@ -53,16 +60,19 @@ module.exports = ({ config }) => {
   const bundleIdentifier = store ? 'app.deepseekbot.mobile' : config.ios.bundleIdentifier;
   const resolved = withSharing({
     ...config,
+    version: release.version,
     plugins: [
       ...config.plugins,
       './modules/local-computer-video/app.plugin.js',
       './modules/hardware-send/app.plugin.js',
       './modules/stream-reveal/app.plugin.js',
+      './modules/speaker-anchor/app.plugin.js',
+      './modules/latest-anchor/app.plugin.js',
       [
         'expo-widgets',
         { enablePushNotifications: true, groupIdentifier: `group.${bundleIdentifier}` },
       ],
-      ['expo-dev-client', { addGeneratedScheme: !store }],
+      ['expo-dev-client', { addGeneratedScheme: !store, toolsButton: false }],
     ],
     owner: 'deepseekbots-team',
     updates: { ...config.updates, enabled: false },

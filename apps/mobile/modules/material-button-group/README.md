@@ -3,7 +3,7 @@
 Local Expo UI extension wrapping Compose Material 3 Expressive `ToggleButton`s laid out as a
 connected button group. It is registered with `ExpoUIView` and rendered inside `<Host>`
 ([Extending with Jetpack Compose](https://docs.expo.dev/guides/expo-ui-jetpack-compose/extending/)),
-so it inherits the Host's `MaterialExpressiveTheme` seeded by the accent (ADR-0266). The Bot profile uses it for its icon-only Work, Memory, Files, Routines and Settings
+so it inherits the Host's `MaterialExpressiveTheme` seeded by the accent ([ADR-0266](../../../../docs/decisions/mobile-ui.md#adr-0266)). The Bot profile uses it for its icon-only Work, Memory, Files, Routines and Settings
 tabs (#2905).
 
 SDK 58 Expo UI exposes `ToggleButton` but not the connected shapes, the checked-shape morph or the

@@ -5,27 +5,10 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  const { createElement: element } = await import('react');
+
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    IconChevronDownOutlineRegular: () => null,
-    Checkbox: (props: {
-      checked: boolean;
-      disabled?: boolean;
-      label: string;
-      onChange(next: boolean): void;
-    }) =>
-      element(
-        'label',
-        null,
-        element('input', {
-          type: 'checkbox',
-          checked: props.checked,
-          disabled: props.disabled,
-          onChange: (event: { target: HTMLInputElement }) => props.onChange(event.target.checked),
-        }),
-        props.label,
-      ),
   };
 });
 
@@ -54,9 +37,10 @@ vi.mock('../src/client/ds/select.js', async () => {
 
 import type { BridgeCall } from '../src/client/bridge.js';
 import { StorageSettings, type StorageSettingsSource } from '../src/client/storage-settings.js';
-import { MethodRefused } from '../../../apps/mobile/src/host/client.js';
+import { MethodRefused } from '@botharness/host-client/client';
+import { HostAnswerInvalid } from '@botharness/host-client/bot-settings';
 import { zhTranslate } from '../src/client/locale.js';
-import { buttonNamed } from './primitive-mocks.js';
+import { buttonNamed, dialog } from './primitive-mocks.js';
 
 const usage = {
   measuredAt: '2026-10-20T00:00:00.000Z',
@@ -88,6 +72,9 @@ const usage = {
     { channelId: 'dm-text', name: 'Text only', type: 'dm', messages: 3, mediaBytes: 0, media: [] },
   ],
 };
+
+const cleanupCalls = (call: { mock: { calls: unknown[][] } }) =>
+  call.mock.calls.filter(([endpoint]) => endpoint !== 'storageUsage');
 
 function preview(scope: Record<string, unknown>) {
   return {
@@ -126,13 +113,24 @@ async function render(call: BridgeCall | StorageSettingsSource) {
     });
   };
   const checkbox = (label: string) =>
-    Array.from(host.querySelectorAll('label')).find((node) => node.textContent === label)!
+    Array.from(document.body.querySelectorAll('label')).find((node) => node.textContent === label)!
       .firstElementChild as HTMLInputElement;
   return {
     host,
     press,
     checkbox,
-    open: () => press(buttonNamed('管理…', host)),
+    open: () => press(buttonNamed('管理…', document.body)),
+    replace: async (source: StorageSettingsSource) => {
+      await act(async () =>
+        root.render(
+          createElement(StorageSettings, {
+            source,
+            title: 'Other Host · 存储空间',
+            t: zhTranslate,
+          }),
+        ),
+      );
+    },
     dispose: () => {
       act(() => root.unmount());
       host.remove();
@@ -141,10 +139,102 @@ async function render(call: BridgeCall | StorageSettingsSource) {
 }
 
 describe('StorageSettings', () => {
-  it('names the Remote Host during confirmation and handles its stale preview without deleting again', async () => {
-    const confirmMedia = vi.fn(async () => {
-      throw new MethodRefused('storage-preview-stale', 'changed');
-    });
+  it.each([false, true])(
+    'retains or recovers the summary after cancelling a read (initial pending: %s)',
+    async (initialPending) => {
+      const load = vi
+        .fn()
+        .mockImplementationOnce(() =>
+          initialPending ? new Promise<never>(() => {}) : Promise.resolve(usage),
+        )
+        .mockImplementationOnce(() => new Promise<never>(() => {}))
+        .mockResolvedValue(usage);
+      const source: StorageSettingsSource = {
+        usage: load,
+        previewMedia: vi.fn(),
+        confirmMedia: vi.fn(),
+        previewMessages: vi.fn(),
+        confirmMessages: vi.fn(),
+      };
+      const view = await render(source);
+      try {
+        await view.open();
+        await view.press(buttonNamed('关闭', document.body));
+        expect(document.body.textContent).toContain('8.0 MB');
+        expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+        expect(load).toHaveBeenCalledTimes(initialPending ? 3 : 2);
+        expect(source.confirmMedia).not.toHaveBeenCalled();
+        expect(source.confirmMessages).not.toHaveBeenCalled();
+      } finally {
+        view.dispose();
+      }
+    },
+  );
+  it('drops the old total and shows the error when a refresh fails', async () => {
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce(usage)
+      .mockRejectedValueOnce(new HostAnswerInvalid('storageUsage answer is malformed'));
+    const source: StorageSettingsSource = {
+      usage: load,
+      previewMedia: vi.fn(),
+      confirmMedia: vi.fn(),
+      previewMessages: vi.fn(),
+      confirmMessages: vi.fn(),
+    };
+    const view = await render(source);
+    try {
+      expect(view.host.querySelector('[data-storage-total]')?.textContent).toBe('共占用 8.0 MB');
+      await view.open();
+      await view.press(buttonNamed('关闭', dialog()));
+      expect(load).toHaveBeenCalledTimes(2);
+      expect(view.host.querySelector('[data-storage-total]')).toBeNull();
+      expect(view.host.textContent).not.toContain('8.0 MB');
+      expect(view.host.textContent).toContain('读取失败，重新加载后再试。');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('shows the read-back error after a cleanup instead of the old total', async () => {
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce(usage)
+      .mockResolvedValueOnce(usage)
+      .mockRejectedValueOnce(new HostAnswerInvalid('storageUsage answer is malformed'));
+    const source: StorageSettingsSource = {
+      usage: load,
+      previewMedia: async (scope) => preview({ ...scope }) as never,
+      confirmMedia: vi.fn(async () => ({ messages: 2, files: 3, freedBytes: 4 * 1024 * 1024 })),
+      previewMessages: vi.fn(),
+      confirmMessages: vi.fn(),
+    };
+    const view = await render(source);
+    try {
+      await view.open();
+      await view.press(dialog().querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
+      await view.press(dialog().querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      expect(dialog().querySelector('[data-storage-result]')?.textContent).toBe(
+        '已清理 3 个文件，释放 4.0 MB。',
+      );
+      expect(load).toHaveBeenCalledTimes(3);
+      expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(
+        '读取失败，重新加载后再试。',
+      );
+      expect(view.host.querySelector('[data-storage-total]')).toBeNull();
+      await view.press(buttonNamed('关闭', dialog()));
+      expect(view.host.textContent).not.toContain('8.0 MB');
+      expect(view.host.textContent).toContain('读取失败，重新加载后再试。');
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('cannot publish an old Host cleanup result into a newly selected source', async () => {
+    let finish:
+      | ((value: Awaited<ReturnType<StorageSettingsSource['confirmMedia']>>) => void)
+      | undefined;
     const source: StorageSettingsSource = {
       usage: async () => ({
         totalBytes: 12,
@@ -160,41 +250,332 @@ describe('StorageSettings', () => {
         ],
       }),
       previewMedia: async (scope) => ({
-        token: 'remote-preview',
-        scope: { ...scope, channelIds: [] },
+        token: 'old-host',
+        scope: { ...scope, channelIds: ['remote-only'] },
         files: 1,
         messages: 1,
         bytes: 12,
         freedBytes: 12,
         kept: [],
       }),
-      confirmMedia,
+      confirmMedia: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      previewMessages: vi.fn(),
+      confirmMessages: vi.fn(),
+    };
+    const next: StorageSettingsSource = {
+      ...source,
+      usage: async () => ({ totalBytes: 99, parts: [], chats: [] }),
+      confirmMedia: vi.fn(),
+    };
+    const view = await render(source);
+    try {
+      await view.open();
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      await view.replace(next);
+      await act(async () => finish?.({ files: 1, messages: 1, freedBytes: 12 }));
+      expect(document.body.querySelector('[data-storage-result]')).toBeNull();
+      expect(
+        document.body.querySelector('[data-storage-total]')?.getAttribute('data-storage-total'),
+      ).toBe('99');
+      expect(next.confirmMedia).not.toHaveBeenCalled();
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it.each([
+    new MethodRefused('gateway/method-not-found', 'unsupported'),
+    Object.assign(new Error('This Host does not support storageUsage yet'), { status: 404 }),
+  ])(
+    'states the selected Host upgrade requirement when storage methods are unsupported (%s)',
+    async (failure) => {
+      const source: StorageSettingsSource = {
+        usage: async () => {
+          throw failure;
+        },
+        previewMedia: vi.fn(),
+        confirmMedia: vi.fn(),
+        previewMessages: vi.fn(),
+        confirmMessages: vi.fn(),
+      };
+      const view = await render(source);
+      try {
+        expect(document.body.textContent).toContain('更新此 Host 后即可管理存储');
+        await view.open();
+        expect(
+          document.body.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled,
+        ).toBe(true);
+        expect(source.previewMedia).not.toHaveBeenCalled();
+        expect(document.body.querySelector('[data-storage-total]')).toBeNull();
+      } finally {
+        view.dispose();
+      }
+    },
+  );
+
+  it('blocks another cleanup until a failed outcome readback is explicitly reloaded', async () => {
+    const current: Awaited<ReturnType<StorageSettingsSource['usage']>> = {
+      totalBytes: 12,
+      parts: [],
+      chats: [
+        { channelId: 'remote-only', name: 'Remote only', type: 'dm', messages: 1, mediaBytes: 12 },
+      ],
+    };
+    const usageRead = vi.fn(async () => current);
+    const source: StorageSettingsSource = {
+      usage: usageRead,
+      previewMedia: async (scope) => ({
+        token: 'remote-preview',
+        scope: { ...scope, channelIds: ['remote-only'] },
+        files: 1,
+        messages: 1,
+        bytes: 12,
+        freedBytes: 12,
+        kept: [],
+      }),
+      confirmMedia: vi.fn(async () => {
+        throw new Error('reply lost');
+      }),
       previewMessages: vi.fn(),
       confirmMessages: vi.fn(),
     };
     const view = await render(source);
     try {
       await view.open();
-      expect(view.host.textContent).toContain('Studio T8 · 存储空间');
-      expect(view.host.textContent).toContain('Remote only');
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
-      expect(view.host.textContent).toContain('Studio T8 · 存储空间');
-      expect(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!.disabled).toBe(
-        true,
-      );
-      expect(confirmMedia).not.toHaveBeenCalled();
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
       await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
-      expect(confirmMedia).toHaveBeenCalledTimes(1);
-      expect(confirmMedia).toHaveBeenCalledWith(
-        expect.objectContaining({ token: 'remote-preview' }),
+      usageRead.mockRejectedValueOnce(new Error('offline'));
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      expect(document.body.querySelector('[data-storage-confirm]')).toBeNull();
+      expect(
+        document.body.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled,
+      ).toBe(true);
+      const reload = Array.from(document.body.querySelectorAll('button')).find(
+        (button) => button.textContent === '重新加载',
       );
-      expect(view.host.textContent).toContain('内容有变化，请重新预览。');
-      expect(view.host.querySelector('[data-storage-usage]')).not.toBeNull();
+      expect(reload).toBeDefined();
+      await view.press(reload!);
+      expect(
+        document.body.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled,
+      ).toBe(false);
+      expect(source.confirmMedia).toHaveBeenCalledTimes(1);
     } finally {
       view.dispose();
     }
   });
+
+  it('discards the previous Host preview and ignores its late response after source replacement', async () => {
+    let finish:
+      | ((value: Awaited<ReturnType<StorageSettingsSource['previewMedia']>>) => void)
+      | undefined;
+    const source: StorageSettingsSource = {
+      usage: async () => ({
+        totalBytes: 12,
+        parts: [],
+        chats: [
+          {
+            channelId: 'remote-only',
+            name: 'Remote only',
+            type: 'dm',
+            messages: 1,
+            mediaBytes: 12,
+          },
+        ],
+      }),
+      previewMedia: () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      confirmMedia: vi.fn(),
+      previewMessages: vi.fn(),
+      confirmMessages: vi.fn(),
+    };
+    const next: StorageSettingsSource = {
+      ...source,
+      usage: async () => ({ totalBytes: 99, parts: [], chats: [] }),
+    };
+    const view = await render(source);
+    try {
+      await view.open();
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      await view.replace(next);
+      expect(document.body.querySelector('[data-storage-preview]')).toBeNull();
+      await act(async () =>
+        finish?.({
+          token: 'old-host',
+          scope: { before: '2026-01-01', channelIds: ['remote-only'], kinds: ['image'] },
+          files: 1,
+          messages: 1,
+          bytes: 12,
+          freedBytes: 12,
+          kept: [],
+        }),
+      );
+      expect(document.body.querySelector('[data-storage-confirm]')).toBeNull();
+      expect(
+        document.body.querySelector('[data-storage-total]')?.getAttribute('data-storage-total'),
+      ).toBe('99');
+      expect(source.confirmMedia).not.toHaveBeenCalled();
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it('reads the same Host after an unknown cleanup outcome before allowing a fresh preview', async () => {
+    let finishRead:
+      | ((value: Awaited<ReturnType<StorageSettingsSource['usage']>>) => void)
+      | undefined;
+    const current: Awaited<ReturnType<StorageSettingsSource['usage']>> = {
+      totalBytes: 12,
+      parts: [],
+      chats: [
+        { channelId: 'remote-only', name: 'Remote only', type: 'dm', messages: 1, mediaBytes: 12 },
+      ],
+    };
+    const usageRead = vi.fn(async () => current);
+    const source: StorageSettingsSource = {
+      usage: usageRead,
+      previewMedia: async (scope) => ({
+        token: 'remote-preview',
+        scope: { ...scope, channelIds: ['remote-only'] },
+        files: 1,
+        messages: 1,
+        bytes: 12,
+        freedBytes: 12,
+        kept: [],
+      }),
+      confirmMedia: vi.fn(async () => {
+        throw new Error('reply lost');
+      }),
+      previewMessages: vi.fn(),
+      confirmMessages: vi.fn(),
+    };
+    const view = await render(source);
+    try {
+      await view.open();
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
+      usageRead.mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            finishRead = resolve;
+          }),
+      );
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      expect(document.body.querySelector('[data-storage-confirm]')).toBeNull();
+      expect(
+        document.body.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled,
+      ).toBe(true);
+      expect(source.confirmMedia).toHaveBeenCalledTimes(1);
+      await act(async () => finishRead?.({ ...current, totalBytes: 0, chats: [] }));
+      expect(document.body.textContent).toContain('已重新读取此 Host');
+      expect(
+        document.body.querySelector<HTMLButtonElement>('[data-storage-review]')?.disabled,
+      ).toBe(true);
+      expect(
+        document.body
+          .querySelector('[data-storage-usage] [data-storage-total]')
+          ?.getAttribute('data-storage-total'),
+      ).toBe('0');
+      expect(source.confirmMedia).toHaveBeenCalledTimes(1);
+    } finally {
+      view.dispose();
+    }
+  });
+
+  it.each(['media', 'messages'] as const)(
+    'keeps the named Host for a known stale %s refusal without replay or unknown-outcome readback',
+    async (target) => {
+      const confirmCleanup = vi.fn(async () => {
+        throw new MethodRefused(
+          target === 'media' ? 'storage-preview-stale' : 'purge-preview-stale',
+          'changed',
+        );
+      });
+      const source: StorageSettingsSource = {
+        usage: vi.fn<StorageSettingsSource['usage']>(async () => ({
+          totalBytes: 12,
+          parts: [],
+          chats: [
+            {
+              channelId: 'remote-only',
+              name: 'Remote only',
+              type: 'dm',
+              messages: 1,
+              mediaBytes: 12,
+            },
+          ],
+        })),
+        previewMedia: async (scope) => ({
+          token: 'remote-preview',
+          scope: { ...scope, channelIds: [] },
+          files: 1,
+          messages: 1,
+          bytes: 12,
+          freedBytes: 12,
+          kept: [],
+        }),
+        confirmMedia: confirmCleanup,
+        previewMessages: async (scope) => ({
+          token: 'remote-preview',
+          scope: { ...scope, channelIds: [] },
+          messages: 1,
+          bytes: 12,
+          files: 1,
+          chats: [{ channelId: 'remote-only', name: 'Remote only', messages: 1 }],
+          kept: [],
+          memoryReferences: 0,
+          more: false,
+        }),
+        confirmMessages: confirmCleanup,
+      };
+      const view = await render(source);
+      try {
+        await view.open();
+        if (target === 'messages') {
+          const choice = document.body.querySelector<HTMLSelectElement>(
+            'select[aria-label="清理内容"]',
+          )!;
+          await act(async () => {
+            choice.value = target;
+            choice.dispatchEvent(new Event('change', { bubbles: true }));
+          });
+        }
+        expect(document.body.textContent).toContain('Studio T8 · 存储空间');
+        expect(document.body.textContent).toContain('Remote only');
+        await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+        expect(document.body.textContent).toContain('Studio T8 · 存储空间');
+        expect(
+          document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!.disabled,
+        ).toBe(true);
+        expect(confirmCleanup).not.toHaveBeenCalled();
+        await act(async () =>
+          view
+            .checkbox(
+              target === 'media' ? '我了解这些文件会被永久删除' : '我了解这些消息会被永久删除',
+            )
+            .click(),
+        );
+        await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+        expect(confirmCleanup).toHaveBeenCalledTimes(1);
+        expect(confirmCleanup).toHaveBeenCalledWith(
+          expect.objectContaining({ token: 'remote-preview' }),
+        );
+        expect(document.body.textContent).toContain('内容有变化，请重新预览。');
+        expect(document.body.querySelector('[data-storage-usage]')).not.toBeNull();
+        expect(source.usage).toHaveBeenCalledTimes(2);
+        expect(document.body.querySelector('[data-storage-confirm]')).toBeNull();
+        expect(document.body.textContent).not.toContain('已重新读取此 Host');
+      } finally {
+        view.dispose();
+      }
+    },
+  );
 
   it('shows space used, previews the chosen chat media and clears after confirmation', async () => {
     const call = vi.fn<BridgeCall>(async (endpoint, payload) =>
@@ -207,36 +588,38 @@ describe('StorageSettings', () => {
     const view = await render(call);
     try {
       await view.open();
-      expect(view.host.querySelector('[data-storage-total]')?.textContent).toBe('共占用 8.0 MB');
       expect(
-        Array.from(view.host.querySelectorAll('[data-storage-part]')).map(
+        document.body.querySelector('[data-storage-usage] [data-storage-total]')?.textContent,
+      ).toBe('共占用 8.0 MB');
+      expect(
+        Array.from(document.body.querySelectorAll('[data-storage-usage] [data-storage-part]')).map(
           (node) => node.textContent,
         ),
       ).toEqual(['图片和文件 6.0 MB', '聊天记录 1.0 MB', '记忆 512.0 KB', '其他 512.0 KB']);
       expect(
-        Array.from(view.host.querySelectorAll('[data-storage-chat]')).map((node) =>
+        Array.from(document.body.querySelectorAll('[data-storage-chat]')).map((node) =>
           node.getAttribute('data-storage-chat'),
         ),
       ).toEqual(['dm-ada', 'group-team']);
 
       await act(async () => view.checkbox('Team').click());
       await act(async () => view.checkbox('文件').click());
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
-      const [endpoint, scope] = call.mock.calls[1]!;
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      const [endpoint, scope] = cleanupCalls(call)[0]!;
       expect(endpoint).toBe('storageCleanupPreview');
       expect(scope).toMatchObject({ channelIds: ['dm-ada'], kinds: ['image', 'video', 'audio'] });
       expect(Date.parse((scope as { before: string }).before)).toBeLessThan(
         Date.now() - 89 * 24 * 60 * 60 * 1000,
       );
 
-      expect(view.host.textContent).toContain('会从 2 条消息里删除 3 个文件，释放约 4.0 MB。');
-      expect(view.host.textContent).toContain('1 个文件 Bot 还在处理，这次先保留。');
-      expect(view.host.textContent).toContain('部分文件在别处仍在使用');
-      const confirm = view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!;
+      expect(document.body.textContent).toContain('会从 2 条消息里删除 3 个文件，释放约 4.0 MB。');
+      expect(document.body.textContent).toContain('1 个文件 Bot 还在处理，这次先保留。');
+      expect(document.body.textContent).toContain('部分文件在别处仍在使用');
+      const confirm = document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!;
       expect(confirm.disabled).toBe(true);
       await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
       await view.press(confirm);
-      expect(call.mock.calls[2]).toEqual([
+      expect(cleanupCalls(call)[1]).toEqual([
         'storageCleanupConfirm',
         {
           before: (scope as { before: string }).before,
@@ -246,9 +629,10 @@ describe('StorageSettings', () => {
         },
         undefined,
       ]);
-      expect(view.host.querySelector('[data-storage-result]')?.textContent).toBe(
+      expect(document.body.querySelector('[data-storage-result]')?.textContent).toBe(
         '已清理 3 个文件，释放 4.0 MB。',
       );
+      expect(call.mock.calls.filter(([endpoint]) => endpoint === 'storageUsage')).toHaveLength(3);
     } finally {
       view.dispose();
     }
@@ -268,12 +652,12 @@ describe('StorageSettings', () => {
     const view = await render(call);
     try {
       await view.open();
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
-      expect(call.mock.calls[1]![1]).not.toHaveProperty('channelIds');
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      expect(cleanupCalls(call)[0]![1]).not.toHaveProperty('channelIds');
       await act(async () => view.checkbox('我了解这些文件会被永久删除').click());
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
-      expect(view.host.textContent).toContain('内容有变化，请重新预览。');
-      expect(view.host.querySelector('[data-storage-usage]')).not.toBeNull();
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      expect(document.body.textContent).toContain('内容有变化，请重新预览。');
+      expect(document.body.querySelector('[data-storage-usage]')).not.toBeNull();
     } finally {
       view.dispose();
     }
@@ -303,35 +687,37 @@ describe('StorageSettings', () => {
     const view = await render(call);
     try {
       await view.open();
-      const target = view.host.querySelector<HTMLSelectElement>('select[aria-label="清理内容"]')!;
+      const target = document.body.querySelector<HTMLSelectElement>(
+        'select[aria-label="清理内容"]',
+      )!;
       await act(async () => {
         target.value = 'messages';
         target.dispatchEvent(new Event('change', { bubbles: true }));
       });
-      expect(view.host.querySelector('[data-storage-target-note]')?.textContent).toContain(
+      expect(document.body.querySelector('[data-storage-target-note]')?.textContent).toContain(
         '删除整条消息',
       );
-      expect(view.host.textContent).not.toContain('视频');
+      expect(document.body.textContent).not.toContain('视频');
       expect(
-        Array.from(view.host.querySelectorAll('[data-storage-chat]')).map((node) =>
+        Array.from(document.body.querySelectorAll('[data-storage-chat]')).map((node) =>
           node.getAttribute('data-storage-chat'),
         ),
       ).toEqual(['dm-ada', 'group-team', 'dm-text']);
       await act(async () => view.checkbox('Team').click());
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-review]')!);
-      const [endpoint, scope] = call.mock.calls[1]!;
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-review]')!);
+      const [endpoint, scope] = cleanupCalls(call)[0]!;
       expect(endpoint).toBe('storageMessagesCleanupPreview');
       expect(scope).toMatchObject({ channelIds: ['dm-ada', 'dm-text'] });
       expect(scope).not.toHaveProperty('kinds');
 
-      expect(view.host.textContent).toContain('会删除 1 个聊天里的 12 条消息，约 4.0 KB。');
-      expect(view.host.textContent).toContain('其中的 2 个文件也会一起删除。');
-      expect(view.host.textContent).toContain('有 3 处 Bot 记忆提到了这些消息');
-      expect(view.host.textContent).toContain('1 条消息 Bot 还在处理，这次先保留。');
-      expect(view.host.textContent).toContain('还有更多旧消息');
+      expect(document.body.textContent).toContain('会删除 1 个聊天里的 12 条消息，约 4.0 KB。');
+      expect(document.body.textContent).toContain('其中的 2 个文件也会一起删除。');
+      expect(document.body.textContent).toContain('有 3 处 Bot 记忆提到了这些消息');
+      expect(document.body.textContent).toContain('1 条消息 Bot 还在处理，这次先保留。');
+      expect(document.body.textContent).toContain('还有更多旧消息');
       await act(async () => view.checkbox('我了解这些消息会被永久删除').click());
-      await view.press(view.host.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
-      expect(call.mock.calls[2]).toEqual([
+      await view.press(document.body.querySelector<HTMLButtonElement>('[data-storage-confirm]')!);
+      expect(cleanupCalls(call)[1]).toEqual([
         'storageMessagesCleanupConfirm',
         {
           before: (scope as { before: string }).before,
@@ -340,7 +726,7 @@ describe('StorageSettings', () => {
         },
         undefined,
       ]);
-      expect(view.host.querySelector('[data-storage-result]')?.textContent).toBe(
+      expect(document.body.querySelector('[data-storage-result]')?.textContent).toBe(
         '已删除 12 条消息，释放 8.0 KB。',
       );
     } finally {

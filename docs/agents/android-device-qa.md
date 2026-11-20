@@ -7,7 +7,7 @@ at a time**, including phone checks: the emulator and phone share Gradle, Metro 
 
 ## Submit and cut a batch
 
-1. Run `pwsh -NoProfile -File scripts/android-qa.ps1 init` from any checkout. It creates the
+1. Run `node scripts/android-qa.mjs init` from any checkout. It creates the
    queue and machine configuration once, without overwriting existing files. All linked Git
    worktrees resolve the same main-checkout `.humanlayer/device-qa/windows/` directory through
    `git rev-parse --git-common-dir`. Independent clones must use the same explicit `-QueueRoot`.
@@ -24,9 +24,9 @@ at a time**, including phone checks: the emulator and phone share Gradle, Metro 
    ```powershell
    $runner = '<stable-task-id>'
    $batch = 'windows-batch-1'
-   $qa = 'scripts/android-qa.ps1'
-   pwsh -NoProfile -File $qa devices
-   pwsh -NoProfile -File $qa claim -Owner $runner -Batch $batch -Lane emulator -Serial emulator-5580
+   $qa = 'scripts/android-qa.mjs'
+   node $qa devices
+   node $qa claim -Owner $runner -Batch $batch -Lane emulator -Serial emulator-5580
    ```
 
    `active.json` is created exclusively; a concurrent claim fails. Device operations require
@@ -75,13 +75,13 @@ Install the pinned Node/pnpm workspace dependencies in the assigned checkout fir
 from that checkout, passing the claim identity on every operation:
 
 ```powershell
-pwsh -NoProfile -File $qa emulator -Owner $runner -Batch $batch
+node $qa emulator -Owner $runner -Batch $batch
 # Wait until adb -s <serial> shell getprop sys.boot_completed returns 1.
-pwsh -NoProfile -File $qa build -Owner $runner -Batch $batch
-pwsh -NoProfile -File $qa install -Owner $runner -Batch $batch
+node $qa build -Owner $runner -Batch $batch
+node $qa install -Owner $runner -Batch $batch
 # In a separate terminal, keep the same identity and checkout:
-pwsh -NoProfile -File $qa metro -Owner $runner -Batch $batch
-pwsh -NoProfile -File $qa open -Owner $runner -Batch $batch
+node $qa metro -Owner $runner -Batch $batch
+node $qa open -Owner $runner -Batch $batch
 ```
 
 `build` runs Expo prebuild for Android, then the generated Gradle wrapper with CMake staging
@@ -100,6 +100,16 @@ left a USB phone stuck loading because ADB reverse targeted IPv4. Check
 No EAS initialization, Expo account or cloud build is needed for this local debug workflow.
 `open` restarts only the development app process before opening its Metro link, so a previous
 failed connection is not reused; it preserves app data and pairing credentials.
+
+## Dev Client tools button
+
+The development client is configured with `expo-dev-client` `toolsButton: false`, so a freshly
+configured QA build does not show the floating **Tools** button
+(`EXDevMenuShowFloatingActionButton=false`). That Debug-only bubble can cover a right-edge swipe
+action and make a real tap look like a missed hit target. Do not re-enable it for device QA. If an
+older build still shows it, hide it for that process with `__expo_disable_fab=1` on the dev-client
+launch URL, or move the bubble away before testing edge gestures; record which method was used in
+the evidence.
 
 ## Dedicated Host and pairing
 
@@ -140,10 +150,10 @@ Human's production app/data. Replacing an existing dev build is part of the devi
 
 ```powershell
 # Run after the phone claim; these commands work in either lane.
-pwsh -NoProfile -File $qa mirror -Owner $runner -Batch $batch
-pwsh -NoProfile -File $qa screenshot -Owner $runner -Batch $batch -Label chats-light
+node $qa mirror -Owner $runner -Batch $batch
+node $qa screenshot -Owner $runner -Batch $batch -Label chats-light
 # Close an existing mirror first. Recording opens its own controllable window.
-pwsh -NoProfile -File $qa record -Owner $runner -Batch $batch -Label chat-flow -Seconds 30
+node $qa record -Owner $runner -Batch $batch -Label chat-flow -Seconds 30
 ```
 
 `mirror` opens scrcpy for keyboard/mouse control. `record` opens one window with control and

@@ -23,7 +23,7 @@ import {
   loadAssignmentTimeline,
   parseAssignmentTimeline,
 } from '../src/host/assignment-timeline';
-import { MethodRefused, type HostClient } from '../src/host/client';
+import { MethodRefused, type HostClient } from '@botharness/host-client/client';
 import { AssignmentDetail, AssignmentScreenBody } from '../src/ui/chat/assignment-screen';
 import { t } from '../src/ui/strings';
 
@@ -66,10 +66,10 @@ const wire = {
       index: 0,
       sessionId: 'asg-1',
       omitted: 3,
+      state: 'running',
       entries: [
         { status: 'done', kind: 'fetch', tool: 'browser_open', detail: 'play.google.com', at: now },
         { status: 'failed', kind: 'execute', tool: 'bash', at: now },
-        { status: 'bogus', kind: 'read', tool: 'read', at: now },
       ],
     },
     {
@@ -77,15 +77,15 @@ const wire = {
       index: 1,
       sessionId: 'sub-1',
       title: 'Check App Store',
+      state: 'running',
       omitted: 0,
-      entries: [{ status: 'running', kind: 'unknown', tool: 'grep', at: now }],
+      entries: [{ status: 'running', kind: 'other', tool: 'grep', at: now }],
     },
-    { role: 'someone', index: 2, sessionId: 'sub-2', entries: [] },
   ],
 };
 
 describe('Assignment detail', () => {
-  it('reads the timeline from the Host and drops unreadable parts', async () => {
+  it('reads the timeline from the Host and refuses unreadable answers', async () => {
     const call = vi.fn(async () => wire);
     const timeline = await loadAssignmentTimeline(
       { call } as unknown as HostClient,
@@ -127,7 +127,6 @@ describe('Assignment detail', () => {
           rounds: [
             { index: 1, kind: 'created', at: now, instruction: 'Check the stores' },
             { index: 2, kind: 'continued', at: now, instruction: 'Now check Play too' },
-            { index: 'x', kind: 'continued', at: now },
           ],
           omittedRounds: 1,
           lanes: [
@@ -135,6 +134,7 @@ describe('Assignment detail', () => {
               role: 'main',
               index: 0,
               sessionId: 'asg-1',
+              state: 'running',
               omitted: 0,
               entries: [
                 {
@@ -160,6 +160,7 @@ describe('Assignment detail', () => {
               index: 1,
               sessionId: 'sub-1',
               title: 'Check App Store',
+              state: 'running',
               round: 1,
               omitted: 0,
               entries: [],
@@ -169,6 +170,7 @@ describe('Assignment detail', () => {
               index: 2,
               sessionId: 'sub-2',
               title: 'Check Play',
+              state: 'running',
               round: 2,
               omitted: 0,
               entries: [],

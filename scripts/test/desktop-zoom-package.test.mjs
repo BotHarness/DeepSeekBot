@@ -1,3 +1,4 @@
+import { Script } from 'node:vm';
 import { createHash } from 'node:crypto';
 import {
   cpSync,
@@ -5,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   rmSync,
   statSync,
@@ -20,6 +22,7 @@ import {
   prepareDesktopZoomCompatibility,
   preparePackagedDesktopZoomTheme,
   ZOOM_THEME_HASHES,
+  ZOOM_THEME_BUILDS,
 } from '../desktop-zoom-compat.mjs';
 const dshRequire = createRequire(
   createRequire(import.meta.url).resolve('@deepseek-ai/dsh/package.json'),
@@ -46,6 +49,60 @@ afterEach(() => {
 });
 
 describe('product-owned desktop theme payload', () => {
+  it('retains the exact licensed rc2 Desktop distribution inputs', () => {
+    const source = fileURLToPath(
+      new URL('../../packages/client/vendor/dsh-ui-theme-022-rc2/', import.meta.url),
+    );
+    const provenance = JSON.parse(readFileSync(join(source, 'PROVENANCE.json'), 'utf8'));
+    for (const [file, expected] of Object.entries(provenance.files)) {
+      expect(digest(readFileSync(join(source, file))), file).toBe(expected);
+    }
+    const files = readdirSync(source, { recursive: true }).filter(
+      (file) =>
+        statSync(join(source, file)).isFile() &&
+        !['PROVENANCE.json', 'README.botharness.md'].includes(file),
+    );
+    expect(files.map((file) => file.split(sep).join('/')).sort()).toEqual(
+      Object.keys(provenance.files).sort(),
+    );
+  });
+
+  it.each([
+    ['0.2.1-rc.2', '@deepseek-ai/dsh-client-ui-theme'],
+    ['0.2.2-rc.1', 'dsh-ui-theme-022'],
+    ['0.2.2-rc.2', '../vendor/dsh-ui-theme-022-rc2'],
+  ])(
+    'preserves every official %s resource while adapting only the two entry points',
+    (version, packageName) => {
+      const source = fileURLToPath(
+        new URL(`../../packages/client/node_modules/${packageName}`, import.meta.url),
+      );
+      const target = join(temporary(), 'theme');
+      const provenance = preparePackagedDesktopZoomTheme({ source, target });
+      const client = readFileSync(join(target, 'lib/client.js'), 'utf8');
+      expect(() => new Script(`(function () {\n${client}\n})`)).not.toThrow();
+      expect(provenance.sourceVersion).toBe(version);
+      expect(provenance.clientBefore).toBe(ZOOM_THEME_BUILDS[version].client);
+      expect(provenance.hostBefore).toBe(ZOOM_THEME_BUILDS[version].host);
+      for (const directory of ['lib/styles', 'lib/types', 'locale']) {
+        if (directory === 'lib/types' && !existsSync(join(source, directory))) continue;
+        for (const file of readdirSync(join(source, directory), { recursive: true })) {
+          if (!statSync(join(source, directory, file)).isFile()) continue;
+          expect(readFileSync(join(target, directory, file))).toEqual(
+            readFileSync(join(source, directory, file)),
+          );
+        }
+      }
+      expect(readFileSync(join(target, 'LICENSE'))).toEqual(readFileSync(join(source, 'LICENSE')));
+      expect(JSON.parse(readFileSync(join(target, 'package.json')))).toEqual(
+        JSON.parse(readFileSync(join(source, 'package.json'))),
+      );
+      expect(readFileSync(join(target, 'lib/client.js'), 'utf8')).toContain(
+        'await fontKeys.dispose()',
+      );
+    },
+  );
+
   it.each([
     ['manifest', 'zoom-theme-version-unsupported', 'zoom-theme-version-unsupported'],
     ['host', 'zoom-theme-host-unsupported', 'zoom-theme-version-unsupported'],

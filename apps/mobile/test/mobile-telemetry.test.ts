@@ -3,7 +3,7 @@ import {
   createMobileTelemetry,
   type TelemetryEvent,
   type TelemetryOptions,
-} from '../src/telemetry/mobile-telemetry';
+} from '@botharness/host-client/telemetry/mobile-telemetry';
 
 function fixture(overrides: Partial<TelemetryOptions> = {}) {
   let stored: unknown;

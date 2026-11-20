@@ -1,3 +1,4 @@
+import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { storedState, storedSection, storedWriteCount } from './roster-fixture.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { registryDatabase, createTestRegistry } from './registry-fixture.js';
@@ -17,7 +18,7 @@ function setup(): { methods: BridgeMethods; roster: RosterStore; fake: FakeRoste
   const root = createTempRoot('botharness-roster-bridge-');
   const roster = createTestRosterStore({ database: registryDatabase(root) });
   const fake = createFakeRosterDomain();
-  const methods = createBridgeMethods({
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry: createTestRegistry({ rootDir: root }),
     states: createBotStateTracker(),
     channels: createChannelStore({ rootDir: join(root, 'channels') }),

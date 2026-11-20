@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { requestListener } from './async-listener.js';
 
 const servers: ReturnType<typeof createServer>[] = [];
 afterEach(async () => {
@@ -24,35 +25,37 @@ async function host(
 ) {
   const calls: Array<{ method: string; args: Record<string, unknown> }> = [];
   const downloads: Array<{ url: string; authorized: boolean }> = [];
-  const server = createServer(async (req: IncomingMessage, res: ServerResponse) => {
-    if (media && req.url?.startsWith('/api/botharness/attachment?')) {
-      downloads.push({ url: req.url, authorized: req.headers.cookie === 'authority=signed' });
-      res
-        .writeHead(media.status, {
-          'content-type': media.status === 200 ? 'application/octet-stream' : 'application/json',
-        })
-        .end(media.body);
-      return;
-    }
-    if (req.method === 'GET') {
-      res.setHeader('set-cookie', 'authority=signed; HttpOnly');
-      res.writeHead(302, { location: '/' }).end();
-      return;
-    }
-    const chunks: Buffer[] = [];
-    for await (const chunk of req) chunks.push(chunk);
-    const body = JSON.parse(Buffer.concat(chunks).toString());
-    const method = body.method.replace('botharness/', '');
-    calls.push({ method, args: body.payload.args });
-    res.setHeader('content-type', 'application/json');
-    res.end(
-      JSON.stringify({
-        type: 'server-response',
-        rpcId: body.rpcId,
-        result: handler(method, body.payload.args),
-      }),
-    );
-  });
+  const server = createServer(
+    requestListener(async (req: IncomingMessage, res: ServerResponse) => {
+      if (media && req.url?.startsWith('/api/botharness/attachment?')) {
+        downloads.push({ url: req.url, authorized: req.headers.cookie === 'authority=signed' });
+        res
+          .writeHead(media.status, {
+            'content-type': media.status === 200 ? 'application/octet-stream' : 'application/json',
+          })
+          .end(media.body);
+        return;
+      }
+      if (req.method === 'GET') {
+        res.setHeader('set-cookie', 'authority=signed; HttpOnly');
+        res.writeHead(302, { location: '/' }).end();
+        return;
+      }
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(chunk);
+      const body = JSON.parse(Buffer.concat(chunks).toString());
+      const method = body.method.replace('botharness/', '');
+      calls.push({ method, args: body.payload.args });
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        JSON.stringify({
+          type: 'server-response',
+          rpcId: body.rpcId,
+          result: handler(method, body.payload.args),
+        }),
+      );
+    }),
+  );
   servers.push(server);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   const address = server.address();
@@ -62,14 +65,15 @@ async function host(
 
 async function invoke(argv: string[], url: string, stdin = '') {
   const stdout: string[] = [];
+  const stderr: string[] = [];
   const code = await runBotCreateCli(argv, {
     env: { DEEPSEEKBOT_HOST: url, DEEPSEEKBOT_HOST_TOKEN: 'private-test-token' },
     stdout: (text) => stdout.push(text),
-    stderr: () => undefined,
+    stderr: (text) => stderr.push(text),
     readStdin: async () => stdin,
   });
   expect(stdout).toHaveLength(1);
-  return { code, json: JSON.parse(stdout.join('')) };
+  return { code, json: JSON.parse(stdout.join('')), stderr };
 }
 
 const ok = (method: string, args: Record<string, unknown>) => ({
@@ -78,6 +82,45 @@ const ok = (method: string, args: Record<string, unknown>) => ({
 });
 
 describe('Channel and group CLI commands', () => {
+  it('requests playback explicitly without changing the original download default or allowing arbitrary representations', async () => {
+    const live = await host(ok, { status: 200, body: Buffer.from('video') });
+    const path = join(mkdtempSync(join(tmpdir(), 'cli-playback-')), 'playback.mp4');
+    const args = [
+      'channel-media-download',
+      'group',
+      '--source-event',
+      'source',
+      '--attachment',
+      'video',
+      '--out',
+      path,
+    ];
+    expect((await invoke([...args, '--representation', 'playback'], live.url)).code).toBe(0);
+    expect(live.downloads[0]?.url).toContain('&representation=playback');
+    expect(live.downloads[0]?.authorized).toBe(true);
+    expect(
+      (await invoke([...args, '--representation', 'transcode'], live.url)).json.error.code,
+    ).toBe('usage');
+    expect(
+      (
+        await invoke(
+          [
+            'channel-media-target',
+            'group',
+            '--source-event',
+            'source',
+            '--attachment',
+            'video',
+            '--representation',
+            'playback',
+          ],
+          live.url,
+        )
+      ).json.error.code,
+    ).toBe('usage');
+    expect(live.downloads).toHaveLength(1);
+  });
+
   it('routes recovery and current context inspection through the same Host commands', async () => {
     const live = await host(ok);
     expect(
@@ -421,6 +464,11 @@ describe('Channel and group CLI commands', () => {
       [['channel-history']],
       [['channel-history-sources', 'grp-1', '--before', '42']],
       [['channel-journal', 'grp-1', '--through', '9', '--before', '5', '--limit', '3']],
+      [['channel-files', 'grp-1', '--before', '7', '--limit', '30']],
+      [['channel-changes', 'grp-1', '--since', '12', '--epoch', 'ab12', '--limit', '50']],
+      [['channel-changes', 'grp-1']],
+      [['channel-list-changes', '--since', '12', '--epoch', 'ab12']],
+      [['channel-list-changes']],
       [
         [
           'channel-timeline',
@@ -436,6 +484,8 @@ describe('Channel and group CLI commands', () => {
       [['channel-timeline', 'grp-1', '--cursor', 'c-1', '--limit', '20']],
       [['channel-mark-read', 'grp-1', '--message-id', 'm-1']],
       [['channel-mark-all-read']],
+      [['channel-mark-all-read', '--channel', 'grp-1']],
+      [['channel-mark-all-read', '--bot', 'ada']],
       [['channel-react', 'grp-1', '--message-id', 'm-1', '--emoji', '👍']],
       [['channel-react', 'grp-1', '--message-id', 'm-1', '--emoji', '👍', '--remove']],
       [['channel-search', 'grp-1', '--query', 'launch', '--cursor', 'c-2', '--limit', '5']],
@@ -510,6 +560,14 @@ describe('Channel and group CLI commands', () => {
         method: 'channelJournalPage',
         args: { channelId: 'grp-1', through: 9, before: 5, limit: 3 },
       },
+      { method: 'channelFilesPage', args: { channelId: 'grp-1', before: 7, limit: 30 } },
+      {
+        method: 'channelChanges',
+        args: { channelId: 'grp-1', sinceSeq: 12, epoch: 'ab12', limit: 50 },
+      },
+      { method: 'channelChangeCursor', args: {} },
+      { method: 'channelListChanges', args: { sinceSeq: 12, epoch: 'ab12' } },
+      { method: 'channelChangeCursor', args: {} },
       {
         method: 'channelTimeline',
         args: { channelId: 'grp-1', direction: 'around', around: 'm-1', olderLimit: 0 },
@@ -517,6 +575,8 @@ describe('Channel and group CLI commands', () => {
       { method: 'channelTimeline', args: { channelId: 'grp-1', cursor: 'c-1', limit: 20 } },
       { method: 'channelMarkRead', args: { channelId: 'grp-1', messageId: 'm-1' } },
       { method: 'channelMarkAllRead', args: {} },
+      { method: 'channelMarkAllRead', args: { channelId: 'grp-1' } },
+      { method: 'channelMarkAllRead', args: { botSlug: 'ada' } },
       {
         method: 'channelReact',
         args: { channelId: 'grp-1', messageId: 'm-1', emoji: '👍', active: true },
@@ -583,6 +643,10 @@ describe('Channel and group CLI commands', () => {
       [['group-wake-set', 'grp-1', '--bot', 'ada', '--mode', 'all', '--count', '0']],
       [['group-wake-set', 'grp-1', '--bot', 'ada', '--mode', 'all', '--interval', '1.5']],
       [['channel-journal', 'grp-1']],
+      [['channel-files', 'grp-1', '--limit', '101']],
+      [['channel-changes', 'grp-1', '--since', '-1']],
+      [['channel-list-changes', '--since', '-1']],
+      [['channel-list-changes', 'grp-1']],
       [['channel-timeline', 'grp-1', '--direction', 'sideways']],
       [['channel-timeline', 'grp-1', '--direction', 'around']],
       [['channel-history-sources', 'grp-1', '--before', 'abc']],
@@ -625,6 +689,8 @@ describe('Channel and group CLI commands', () => {
       error: { code: 'not-working', message: 'Ada is not working right now' },
     }));
     const result = await invoke(['channel-bot-stop', 'dm-ada', '--bot', 'ada'], live.url);
+    expect(result.stderr.join('')).toContain('channel-bot-stop is deprecated');
+    expect(result.stderr.join('')).toContain('bot-stop <bot> --channel <channel-id>');
     expect(result.code).not.toBe(0);
     expect(result.json.error).toEqual({
       code: 'not-working',

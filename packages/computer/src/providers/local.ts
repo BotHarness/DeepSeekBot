@@ -75,11 +75,16 @@ export function createLocalComputerProvider(options: {
   arch?: string | undefined;
   installAccess?: (() => Promise<SystemInstallAccess>) | undefined;
   onEvent?: ((detail: string) => void) | undefined;
+  onStatusChanged?: () => void;
 }): ComputerProvider {
   const platform = options.platform ?? process.platform;
   const arch = options.arch ?? process.arch;
   const build = localDriverBuild(platform, arch);
   let state: ComputerStatus = { state: 'stopped' };
+  const updateStatus = (next: ComputerStatus): void => {
+    state = next;
+    options.onStatusChanged?.();
+  };
   let starting: Promise<void> | undefined;
   let controller: AbortController | undefined;
   const supported = (): boolean => build !== undefined;
@@ -99,11 +104,11 @@ export function createLocalComputerProvider(options: {
         const started = Date.now();
         controller = new AbortController();
         const signal = controller.signal;
-        state = { state: 'stopped', phase: 'starting' };
+        updateStatus({ state: 'stopped', phase: 'starting' });
         let permissions: LocalPermissions | undefined;
         try {
           await options.driver.ensure(signal, (progress) => {
-            if (!signal.aborted) state = { state: 'stopped', phase: 'starting', progress };
+            if (!signal.aborted) updateStatus({ state: 'stopped', phase: 'starting', progress });
           });
           if (platform === 'darwin') {
             await ensureMacVideoHelper({
@@ -112,7 +117,8 @@ export function createLocalComputerProvider(options: {
               arch,
               onEvent: options.onEvent,
               onProgress: (progress) => {
-                if (!signal.aborted) state = { state: 'stopped', phase: 'starting', progress };
+                if (!signal.aborted)
+                  updateStatus({ state: 'stopped', phase: 'starting', progress });
               },
             });
           }
@@ -124,7 +130,8 @@ export function createLocalComputerProvider(options: {
               arch,
               onEvent: options.onEvent,
               onProgress: (progress) => {
-                if (!signal.aborted) state = { state: 'stopped', phase: 'starting', progress };
+                if (!signal.aborted)
+                  updateStatus({ state: 'stopped', phase: 'starting', progress });
               },
             });
           }
@@ -149,7 +156,7 @@ export function createLocalComputerProvider(options: {
           );
           if (!readiness.ready) throw new Error(readiness.refusal);
           if (signal.aborted) throw new Error('Local Computer setup cancelled');
-          state = { state: 'running', phase: 'running' };
+          updateStatus({ state: 'running', phase: 'running' });
         } catch (error) {
           const missing =
             error instanceof LocalDesktopMissingError
@@ -159,7 +166,7 @@ export function createLocalComputerProvider(options: {
                   install: await (options.installAccess?.() ?? systemInstallAccess(options.runner)),
                 }
               : undefined;
-          state = {
+          updateStatus({
             state: 'failed',
             phase: 'failed',
             refusal:
@@ -174,7 +181,7 @@ export function createLocalComputerProvider(options: {
             ...(permissions ? { permissions } : {}),
             detail: error instanceof Error ? error.message : String(error),
             ...(missing === undefined ? {} : { missing }),
-          };
+          });
           options.onEvent?.(`phase=refused detail=${state.detail ?? 'failed'}`);
           await options.driver.close();
           throw error;
@@ -190,7 +197,7 @@ export function createLocalComputerProvider(options: {
       controller?.abort();
       await starting?.catch(() => undefined);
       await options.driver.close();
-      state = { state: 'stopped' };
+      updateStatus({ state: 'stopped' });
     },
     upstream: () => undefined,
   };

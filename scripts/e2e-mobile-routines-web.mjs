@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { basename, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { approvePhonePairing } from './mobile-web-pairing.mjs';
 import { verifyPaths } from './verify-app.mjs';
 import { pnpmCommand } from './dev-package-manager.mjs';
 
@@ -58,7 +59,14 @@ function launch(port) {
   const result = spawnSync(
     process.execPath,
     ['scripts/dev-instance.mjs', '--home', home, '--port', String(port), '--json'],
-    { cwd: root, encoding: 'utf8', timeout: 600_000, maxBuffer: 4 * 1024 * 1024 },
+    {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 600_000,
+      maxBuffer: 4 * 1024 * 1024,
+      shell: false,
+      windowsHide: true,
+    },
   );
   const start = (result.stdout ?? '').indexOf('{');
   if (result.status !== 0 || start < 0)
@@ -195,6 +203,8 @@ async function main() {
       env: { ...process.env, EXPO_OFFLINE: '1' },
       timeout: 600_000,
       maxBuffer: 16 * 1024 * 1024,
+      shell: false,
+      windowsHide: true,
     });
     if (exported.error !== undefined) throw exported.error;
     if (exported.status !== 0)
@@ -309,6 +319,10 @@ async function main() {
       link,
     );
     await page.locator('::-p-aria(Pair)').click();
+    await approvePhonePairing(page, {
+      receipt: offer.receipt,
+      post: (path, body) => operator(hostOrigin, path, body),
+    });
     await text(displayName);
     steps.push('paired the app by pasting the link');
     await page.goto(`${origin}/settings`, { waitUntil: 'networkidle0' });

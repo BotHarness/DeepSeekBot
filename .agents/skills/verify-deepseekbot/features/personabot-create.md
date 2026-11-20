@@ -2,10 +2,24 @@
 
 A Human creates a PersonaBot bound to a native Workspace. The Bot gets a DM Channel and a Git Memory Repository, and both survive a Host restart along with the DM history.
 
+## Sources
+
+- `packages/client/src/client/{persona-bot-create,bot-create-source,bot-create-approval}.tsx`
+- `packages/core/src/bots/{bot-create-cli,memory-move,zip-import}.ts`
+- `packages/core/src/tob/cli-bot-create.ts`
+
+## Terms
+
+- PersonaBot
+- Memory Repository
+- Workspace Grant
+- Bot Zip
+
 ## Sub-features
 
 - `workspace` registers a native DSH Workspace that BotHarness lists in its options.
 - `create` creates the PersonaBot with a role and Workspace grant.
+- `creation-method-dialog` opens a two-step dialog from the Channel list or section's New menu. Three cards choose blank, GitHub or zip; the first step returns from the form, while submission locks it. Remote zip import remains disabled and members only see blank creation.
 - `memory` initializes the Bot's Git Memory with an accepted HEAD.
 - `restart` keeps the Bot, its DM and the Human message after a Host restart.
 - `blank-recovery` queries an absent operation, creates an independent blank Bot, recovers its receipt through RPC and the built `create-status` CLI, and retries the same input/key before and after Host restart with exactly one Bot and DM.
@@ -16,6 +30,7 @@ A Human creates a PersonaBot bound to a native Workspace. The Bot gets a DM Chan
 ## How to get to it (user POV)
 
 - In Bot mode, choose `Create Bot` in the welcome letter, then fill in the form.
+- In the Channel list header or a section, choose New → Create Bot, then select a creation-method card. Click Choose a method in the form's step indicator to return. Verify all three forms, close/Escape, narrow-screen fit and the remote/member restrictions; the existing creation journey below proves canonical persistence.
 - In a Bot's DM, ask it to create a Bot ("make me a translator Bot called Tim"), then allow the `New Bot` approval card.
 
 ## Driving it with verify-app
@@ -24,13 +39,14 @@ The scripted journey owns its Host: it launches a fresh instance on a free port,
 
 - **Run.** `pnpm build`, then `node scripts/e2e-personabot-create.mjs --with-dm`. It prints JSON with `"result":"pass"` and `workspaceCreated`, `personaBotCreated`, `persistedAfterRestart`, `gitMemoryReady` and `dmHistoryAfterRestart` all `true`; `blankCreationLookup`, `blankCreationCli`, `blankCreationRetry` and `blankCreationAfterRestart` prove the independent blank recovery path. CI runs this journey on every pull request that changes code.
 - **UI, narrow screens.** At 375 × 667, open Create Bot, fill Name, expand Advanced settings and scroll the form. The dialog title and Cancel/Create actions stay within the viewport while its body scrolls. Submit and verify the new Bot appears, then send a real DM. Capture the dialog before/after; the scripted journey above proves the API path only.
-- **Memory location.** Make an empty folder on the Host, then `shot <label> --bot-mode --click "New" --click "Create Bot" --fill "Name=Ada" --click "Advanced settings" --fill "Memory location=<folder>" --click "Create" --wait-text "Hi, I'm Ada"`. Proof: `<folder>/<bot id>` is a Git repository, and `rpc botharness/get '{"slug":"<bot id>"}'` reports that path as `memoryDir`. A folder that does not exist shows the inline refusal instead.
+- **Memory location.** Make an empty folder on the Host, then `shot <label> --bot-mode --click "New" --click "Create Bot" --click-text "Start empty" --fill "Name=Ada" --click "Advanced settings" --fill "Memory location=<folder>" --click "Create" --wait-text "Hi, I'm Ada"`. Proof: `<folder>/<bot id>` is a Git repository, and `rpc botharness/get '{"slug":"<bot id>"}'` reports that path as `memoryDir`. A folder that does not exist shows the inline refusal instead.
 - **Memory move.** Send one DM first so the Bot has a main session. Make an empty folder on the Host, then `shot <label> --bot-mode --click-text Ada --click "Workspace Grants · Ada · 0 workspaces" --click-text "Memory Repository" --fill "New Memory location=<folder>" --click "Move Memory" --wait-text "<folder>/<bot id>"`. Proof: `git -C <folder>/<bot id> rev-parse HEAD` matches the HEAD before the move, the old folder is gone, `rpc botharness/get` reports the new `memoryDir`, and after the next DM `rpc botharness/botSessionIds '{}'` lists a second session whose `cwd` (in `<DSH_HOME>/storages/session_projcache/sessions/<id>.json`) is the new folder. `deepseekbot memory-move <bot id> --default-location` moves it back. The turn may fail for lack of model credit; the move is still provable.
 - **Bot creates Bot, without the model.** `printf '{"display_name":"Tim","tags":["translator"],"soul":"# Tim"}' | deepseekbot bot-tool <bot id> bot_create --args-stdin`. Proof: the result has `bot_id`, `dm_channel_id` and `memory_dir`; `<memory_dir>/SOUL.md` holds the Soul; Tim shows in the sidebar; the creating Bot's DM shows "<Bot> created a new Bot, Tim". Bad input exits non-zero with `invalid-input`, `invalid-avatar` or `invalid-memory-dir`.
 - **Bot creates Bot, live.** Needs a model. In the creating Bot's DM, `send` "Create a Bot called Tim, tag translator, Soul: calm and precise". A `New Bot` card appears in the DM (unless the Bot has full access or a saved rule); `shot <label> --bot-mode --click-text "<Bot>"` captures it, and `--click "Allow once"` approves. Proof: the Bot replies with Tim's name, Tim appears in the sidebar and `deepseekbot bot-trace <bot id> --turns 1` lists a `bot_create` call with outcome `ok`. Rejecting the card creates nothing. Last run (#1858) on DeepSeek V4.1 Flash: the card asked, `Allow once` created Tim with the asked Tags, Bio and `SOUL.md`, and the notice and Ada's reply followed. Seeding the prompt with `rpc botharness/channelSend` is steadier than `--fill`, and `--wait "Allow once"` only proves the card exists; scroll it into view before capturing.
 
 ## Gotchas
 
+- Method-dialog verification on DSH `0.2.2-rc.1` (#4224): the three cards, blank/GitHub forms and return step rendered without page errors; the dialog fit within 1024 × 667 in dark mode. Escape did not dismiss the native Modal in this run. At 800px and below the shell switched to the separate mobile surface, so resizing an open desktop dialog did not qualify that surface. Zip selection and member/remote restrictions have focused component coverage; the local zip form was not driven in this run.
 - The journey needs no model credential. It discards the blank create response and recovers by lookup; this is live recovery coverage, not a claim of actual network fault injection. Device gateway tests separately drop the response. The CLI receives the current launch token only in its environment, including after restart.
 - `bot_create` returns `model: host-default` for a Bot without its own Model Plan; it still answers on the Host default model.
 - `--locale zh` does not switch the Client language on a fresh Profile; read accessible names from the English UI.

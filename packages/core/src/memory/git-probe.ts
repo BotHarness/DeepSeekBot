@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, realpathSync } from 'node:fs';
-import { delimiter, join } from 'node:path';
+import { posix, win32 } from 'node:path';
 
 export const MINIMUM_GIT_VERSION = '2.28';
 
@@ -33,6 +33,7 @@ const defaultHost: GitProbeHost = {
       stdio: ['ignore', 'pipe', 'pipe'],
       timeout: 5_000,
       windowsHide: true,
+      shell: false,
     }),
 };
 
@@ -46,9 +47,12 @@ function atLeast(version: string, [wantMajor, wantMinor]: readonly [number, numb
 }
 
 let sinceAsFilter: boolean | undefined;
+let probed: { at: number; path: string | undefined; value: GitAvailability } | undefined;
+const PROBE_REUSE_MS = 60_000;
 
 export function resetGitCapabilities(): void {
   sinceAsFilter = undefined;
+  probed = undefined;
 }
 
 export function gitSupportsSinceAsFilter(probe: () => GitAvailability = probeGit): boolean {
@@ -59,9 +63,10 @@ export function gitSupportsSinceAsFilter(probe: () => GitAvailability = probeGit
 }
 
 function firstOnPath(host: GitProbeHost): string | undefined {
-  for (const dir of (host.path ?? '').split(delimiter)) {
+  const path = host.platform === 'win32' ? win32 : posix;
+  for (const dir of (host.path ?? '').split(path.delimiter)) {
     if (dir.length === 0) continue;
-    const candidate = join(dir, 'git');
+    const candidate = path.join(dir, 'git');
     if (host.exists(candidate)) return candidate;
   }
   return undefined;
@@ -85,6 +90,17 @@ function isMacCommandLineToolsStub(host: GitProbeHost): boolean {
 }
 
 export function probeGit(host: GitProbeHost = defaultHost): GitAvailability {
+  if (host !== defaultHost) return probeGitOnce(host);
+  const now = Date.now();
+  const path = host.path;
+  if (probed !== undefined && probed.path === path && now - probed.at < PROBE_REUSE_MS)
+    return probed.value;
+  const value = probeGitOnce(host);
+  probed = { at: now, path, value };
+  return value;
+}
+
+function probeGitOnce(host: GitProbeHost): GitAvailability {
   if (isMacCommandLineToolsStub(host)) return { available: false, reason: 'unrunnable' };
   let output: string;
   try {
