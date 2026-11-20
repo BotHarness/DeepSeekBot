@@ -1,3 +1,4 @@
+import { fakeTeamMode } from '../../host-client/test/reader-fixtures.js';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -68,7 +69,7 @@ async function host(
               },
             }
           : input.method === 'botharness/teamMode'
-            ? { isolation: 'trial', viewer: { humanId: 'owner-id' } }
+            ? fakeTeamMode({ humanId: 'owner-id' })
             : input.method === 'botharness/members'
               ? [
                   { username: 'bob', humanId: 'bob-id' },
@@ -681,7 +682,7 @@ describe('Team CLI', () => {
       expect(url.origin).toBe('https://192.168.1.20');
       return Response.json({
         type: 'server-response',
-        result: { ok: true, value: { enabled: false } },
+        result: { ok: true, value: fakeTeamMode() },
       });
     });
     const result = await run('https://192.168.1.20', ['team-mode', 'status']);
@@ -953,7 +954,10 @@ describe('M2 CLI member Bot and Activity dispatch', () => {
   });
 
   it.each([
-    { argv: ['team-mode', 'status'], value: { isolation: 'trial', viewer: { humanId: 'bob' } } },
+    {
+      argv: ['team-mode', 'status'],
+      value: fakeTeamMode({ humanId: 'bob', kind: 'member', displayName: 'Bob' }),
+    },
     {
       argv: [
         'tool-approval-decide',

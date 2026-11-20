@@ -111,6 +111,8 @@ describe('Agent control commands', () => {
       value: {
         preset: {
           botSlug: args['slug'],
+          revision: 1,
+          scope: args['scope'] ?? 'chat',
           mode: typeof args['mode'] === 'string' ? (mode = args['mode']) : mode,
         },
       },

@@ -877,3 +877,26 @@ export interface WireUserQuestionState {
   status: UserQuestionStatus;
   approval?: WireApprovalCard;
 }
+
+export type {
+  WireAdministrativeDeletion,
+  WireAdministrativeDeletionPreview,
+  WireAssignmentAccessPreset,
+  WireAssignmentTimeline,
+  WireAssignmentTimelineEntry,
+  WireAssignmentTimelineLane,
+  WireAssignmentTimelineRound,
+  WireAttentionDismissal,
+  WireBotDeletion,
+  WireBotDeletionPreview,
+  WireGrantApprovalMessage,
+  WireHumanAssignmentContext,
+  WireHumanAttentionItem,
+  WireHumanAttentionPage,
+  WireHumanAvatar,
+  WireHumanIdentity,
+  WireProfileActivity,
+  WireRosterSnapshot,
+  WireTeamMode,
+  WireWorkspaceGrant,
+} from './management-wire';

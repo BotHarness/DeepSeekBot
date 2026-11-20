@@ -1,3 +1,4 @@
+import { dismissHumanAttention, readHumanAssignmentContext, readHumanAttention } from './people';
 import { overrideAutoRejection } from './approval-readers';
 import { decideGroupJoin } from './channel-management';
 import {
@@ -9,11 +10,7 @@ import {
 import { HostAnswerInvalid } from './bot-settings';
 import type { HostClient } from './client';
 import { uuid } from './conversation';
-import type {
-  HumanAssignmentContext,
-  HumanAttentionItem,
-  HumanAttentionPage,
-} from '@botharness/host-protocol/wire';
+import type { HumanAssignmentContext, HumanAttentionItem } from '@botharness/host-protocol/wire';
 export { decideApproval, answerQuestion, decideGrantRequest } from './requests';
 
 export interface AttentionRef {
@@ -31,7 +28,7 @@ export async function findAttentionItem(
   client: HostClient,
   ref: AttentionRef,
 ): Promise<HumanAttentionItem | undefined> {
-  const page = await client.call<HumanAttentionPage>('humanAttention', {
+  const page = await readHumanAttention(client, {
     category: 'action',
     botSlug: ref.botSlug,
     limit: 100,
@@ -59,7 +56,7 @@ export async function loadAssignmentContext(
   sessionId: string,
   sourceEventId: string,
 ): Promise<HumanAssignmentContext> {
-  const value = await client.call<{ context: HumanAssignmentContext }>('humanAssignmentContext', {
+  const value = await readHumanAssignmentContext(client, {
     slug,
     sessionId,
     sourceEventId,
@@ -123,17 +120,13 @@ export async function clearAllAttention(
     channelId?: string | undefined;
   },
 ): Promise<{ dismissed: number; more: boolean }> {
-  const value = record(
-    await client.call('humanAttentionDismissAll', {
-      category: filter.category,
-      ...(filter.kind === undefined ? {} : { kind: filter.kind }),
-      ...(filter.botSlug === undefined ? {} : { botSlug: filter.botSlug }),
-      ...(filter.channelId === undefined ? {} : { channelId: filter.channelId }),
-    }),
-  );
-  if (value?.['accepted'] !== true || typeof value['dismissed'] !== 'number')
-    throw new HostAnswerInvalid('The computer did not confirm the change.');
-  return { dismissed: value['dismissed'], more: value['more'] === true };
+  const { dismissed, more } = await dismissHumanAttention(client, {
+    category: filter.category,
+    ...(filter.kind === undefined ? {} : { kind: filter.kind }),
+    ...(filter.botSlug === undefined ? {} : { botSlug: filter.botSlug }),
+    ...(filter.channelId === undefined ? {} : { channelId: filter.channelId }),
+  });
+  return { dismissed, more };
 }
 
 export const READABLE_ATTENTION_KINDS: ReadonlySet<HumanAttentionItem['kind']> = new Set([

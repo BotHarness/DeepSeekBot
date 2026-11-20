@@ -136,7 +136,7 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
   });
 
   it('searches and orders personal Activity through the same Host query', async () => {
-    const live = await host(echo);
+    const live = await host(() => ({ ok: true, value: { items: [], queryVersion: 1 } }));
     const result = await invoke(
       [
         'inbox',
@@ -165,7 +165,9 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
   it('lists, counts, dismisses and ignores Human Inbox items through the live Host', async () => {
-    const live = await host(echo);
+    const live = await host((method, args) =>
+      method === 'humanAttention' ? { ok: true, value: { items: [] } } : echo(method, args),
+    );
     const listed = await invoke(
       [
         'inbox',
@@ -291,11 +293,11 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
   it('dismisses every Inbox item, or every item of one kind, only with --confirm', async () => {
     const live = await host(() => ({
       ok: true,
-      value: { accepted: true, dismissed: 3, more: false },
+      value: { accepted: true, dismissed: 3, read: 0, more: false },
     }));
     const all = await invoke(['inbox-dismiss-all', '--confirm'], live.url);
     expect(all.code).toBe(0);
-    expect(all.json).toEqual({ accepted: true, dismissed: 3, more: false });
+    expect(all.json).toEqual({ accepted: true, dismissed: 3, read: 0, more: false });
     await invoke(
       [
         'inbox-dismiss-all',

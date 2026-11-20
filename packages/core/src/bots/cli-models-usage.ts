@@ -1,3 +1,4 @@
+import { readProfileActivity } from '@botharness/host-client/profile-activity';
 import { readFile } from 'node:fs/promises';
 export { MODELS_USAGE_OPTIONS } from './cli-option-spec.js';
 import { resolveBotDm } from './cli-bot-dm.js';
@@ -515,11 +516,14 @@ export async function runModelsUsage(
     if (weeks !== undefined && (!Number.isInteger(weeks) || weeks < 1 || weeks > 104))
       usage('--weeks must be an integer from 1 to 104.');
     const rpc = await connect();
-    return rpc('profileActivity', {
-      channelId: await resolveBotDm(rpc, target),
-      ...(before === undefined ? {} : { before }),
-      ...(weeks === undefined ? {} : { weeks }),
-    });
+    return readProfileActivity(
+      { call: (method, args = {}) => rpc(method, args) },
+      {
+        channelId: await resolveBotDm(rpc, target),
+        ...(before === undefined ? {} : { before }),
+        ...(weeks === undefined ? {} : { weeks }),
+      },
+    );
   }
   if (command === 'bot-usage') {
     const start = day(values.start, 'start');

@@ -1,3 +1,4 @@
+import { applyRosterBatch } from '@botharness/host-client/roster-readers';
 import { prepareConversation } from '../../host/host-session';
 import { Platform } from 'react-native';
 import { showActionMenu } from '../primitives/app-dialog';
@@ -75,8 +76,7 @@ export function ManagedConversationRow({
         onDelete,
         onMove: (sectionId) => {
           if (!channelId) return;
-          void client
-            .call('rosterBatch', { action: 'move', channelIds: [channelId], sectionId })
+          void applyRosterBatch(client, { action: 'move', channelIds: [channelId], sectionId })
             .then(() => client.refresh())
             .catch(onError);
         },

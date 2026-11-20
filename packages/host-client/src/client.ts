@@ -1,3 +1,4 @@
+import { readRoster } from './roster-readers';
 import { readChannels } from './channel-management';
 import type { HostMemberIdentity } from './member-identity';
 import { readComputerAvailability } from './computer-availability';
@@ -1053,7 +1054,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
 
   const readArrangement = (): Promise<RosterArrangement | undefined> => {
     fetchedArrangement = undefined;
-    return call<unknown>('rosterGet')
+    return readRoster(host)
       .then(arrangementOf, (error: unknown) => {
         if (error instanceof MethodRefused || hostLacksMethod(error)) return undefined;
         throw error;

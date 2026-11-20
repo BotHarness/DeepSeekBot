@@ -939,6 +939,10 @@ describe('Host Feed lifecycle', () => {
         botSlug: 'ada',
         createdAt: '2026-01-01',
         summary: 'Question',
+        channelId: 'dm-ada',
+        channelName: 'Ada',
+        messageId: 'request',
+        sourceEventId: 'source',
       };
       host.methods.set('humanAttention', (args) =>
         args.notifications
@@ -1035,6 +1039,10 @@ describe('Host Feed lifecycle', () => {
         botSlug: 'ada',
         createdAt: '2026-10-22T12:00:00.000Z',
         summary: 'Old question',
+        channelId: 'dm-ada',
+        channelName: 'Ada',
+        messageId: 'request',
+        sourceEventId: 'source',
       };
       const items = [old];
       let fail = false;
@@ -1134,6 +1142,10 @@ describe('Host Feed lifecycle', () => {
       botSlug: 'ada',
       createdAt: '2026-01-01',
       summary: 'Question',
+      channelId: 'dm-ada',
+      channelName: 'Ada',
+      messageId: 'request',
+      sourceEventId: 'source',
     };
     const refresh = async (next: typeof items) => {
       const before = sources.getSnapshot().hosts[0]?.inbox;
@@ -1215,6 +1227,10 @@ describe('Host Feed lifecycle', () => {
         botSlug: 'ada',
         createdAt: '2026-01-01',
         summary: 'Question',
+        channelId: 'dm-ada',
+        channelName: 'Ada',
+        messageId: 'request',
+        sourceEventId: 'source',
       },
     ];
     host.push('botharness/followActivity', { type: 'changed', snapshot: { bots: [] } });
@@ -1296,6 +1312,11 @@ describe('Host Feed lifecycle', () => {
                 botSlug: 'ada',
                 createdAt: 'now',
                 summary: 'must not appear',
+                category: 'action',
+                channelId: 'dm-ada',
+                channelName: 'Ada',
+                messageId: 'private-request',
+                sourceEventId: 'private-source',
               },
             ],
           }
@@ -1331,6 +1352,11 @@ describe('Host Feed lifecycle', () => {
       botSlug: 'ada',
       createdAt: '2026-10-22T12:00:00.000Z',
       summary: `old-${index}`,
+      channelId: 'group',
+      channelName: 'Group',
+      messageId: `m-${index}`,
+      sourceEventId: `e-${index}`,
+      isUnread: true,
     }));
     let finish!: () => void;
     let gate: Promise<void> | undefined = new Promise((resolve) => {
@@ -1367,6 +1393,11 @@ describe('Host Feed lifecycle', () => {
         botSlug: 'ada',
         createdAt: '2026-10-22T12:00:00.000Z',
         summary: id,
+        channelId: id === 'dm' ? 'dm-ada' : 'group',
+        channelName: 'Ada',
+        messageId: id,
+        sourceEventId: 'source-' + id,
+        isUnread: true,
       })),
     );
     live();
@@ -1387,6 +1418,11 @@ describe('Host Feed lifecycle', () => {
       botSlug: 'ada',
       createdAt: '2026-10-22T12:00:00.000Z',
       summary: 'later',
+      channelId: 'dm-ada',
+      channelName: 'Ada',
+      messageId: 'later',
+      sourceEventId: 'source-later',
+      isUnread: true,
     });
     live();
     await vi.waitFor(() => expect(show).toHaveBeenCalledTimes(3));
@@ -1405,6 +1441,11 @@ describe('Host Feed lifecycle', () => {
         botSlug: 'ada',
         createdAt: `2026-01-0${6 - index}T00:00:00.000Z`,
         summary: `late-attention-${index}`,
+        channelId: 'dm-ada',
+        channelName: 'Ada',
+        messageId: `late-message-${index}`,
+        sourceEventId: `late-source-${index}`,
+        isUnread: true,
       })),
     );
     live();
@@ -1601,16 +1642,23 @@ it('reuses the shared activity Inbox for reads, pagination and refresh', async (
   const { host, storage } = liveHost();
   host.methods.set('humanAttention', (args) => ({
     queryVersion: 1,
-    items: [
-      {
-        id: String(args.category) + (args.cursor ? '-next' : ''),
-        category: args.category,
-        kind: 'channel-unread',
-        botSlug: 'ada',
-        summary: 'remote',
-        createdAt: '',
-      },
-    ],
+    items:
+      args.category === 'unread'
+        ? [
+            {
+              id: String(args.category) + (args.cursor ? '-next' : ''),
+              category: 'unread',
+              kind: 'channel-unread',
+              unreadCount: 1,
+              messageId: args.cursor ? 'new' : 'old',
+              botSlug: 'ada',
+              summary: 'remote',
+              createdAt: '2026-11-20T00:00:00Z',
+              channelId: 'dm-ada',
+              channelName: 'Ada',
+            },
+          ]
+        : [],
     ...(args.cursor ? {} : { nextCursor: 'remote-cursor' }),
   }));
   const sources = createRemoteHosts({ carrier: host.carrier, storage });

@@ -1,3 +1,4 @@
+import { readWorkspaceGrants } from '@botharness/host-client/access-readers';
 import { openBotDm } from '@botharness/host-client/channel-management';
 import { loadProfileActivity } from './bot-activity';
 import { loadSchedules } from '@botharness/host-client/schedules';
@@ -276,11 +277,9 @@ export async function loadBotProfile(client: HostClient, bot: ProfileBotRef): Pr
     ),
     settle<BotScheduleSummary[]>(loadSchedules(client, bot.slug)),
     settle(
-      client
-        .call<{
-          grants: WorkspaceGrantSummary[];
-        }>('grants', { slug: bot.slug })
-        .then((result) => result.grants.filter((grant) => grant.revokedAt === undefined)),
+      readWorkspaceGrants(client, { slug: bot.slug }).then((result) =>
+        result.grants.filter((grant) => grant.revokedAt === undefined),
+      ),
     ),
     settle(channel.then((channelId) => loadProfileActivity(client, channelId, { weeks: 1 }))),
   ]);

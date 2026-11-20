@@ -3,7 +3,14 @@ import {
   createHumanAvatarCache,
   parseHumanAvatars,
   parseHumanIdentity,
+  readHumanIdentity,
+  readHumanAvatars,
+  setHumanName,
+  setHumanAvatar,
+  finishHumanProfile,
 } from '../src/human-profile';
+
+import { HostAnswerInvalid } from '../src/host-answer';
 
 const avatar = 'data:image/webp;base64,UklGRg==';
 
@@ -32,24 +39,75 @@ describe('Human profile parsers', () => {
     ).toThrow();
   });
 
-  it('reads a pending first sign-in profile prompt and ignores other values', () => {
+  it('reads a pending first sign-in profile prompt and rejects other values', () => {
     const base = { humanId: 'mia', defaultDisplayName: null, displayName: 'Mia' };
     expect(parseHumanIdentity({ ...base, profileSetup: 'pending' })).toEqual({
       ...base,
       profileSetup: 'pending',
     });
-    expect(parseHumanIdentity({ ...base, profileSetup: 'done' })).toEqual(base);
+    expect(() => parseHumanIdentity({ ...base, profileSetup: 'done' })).toThrow(HostAnswerInvalid);
   });
 
-  it('drops avatars that are not bounded image data URLs', () => {
-    expect(
+  it('rejects a list with an invalid avatar URL', () => {
+    expect(() =>
       parseHumanAvatars({
         avatars: [
           { humanId: 'a', version: '0123456789abcdef', avatar },
           { humanId: 'b', version: '0123456789abcdef', avatar: 'https://example.com/b.png' },
         ],
       }),
-    ).toEqual([{ humanId: 'a', version: '0123456789abcdef', avatar }]);
+    ).toThrow(HostAnswerInvalid);
+  });
+
+  it.each([
+    { method: 'humanIdentity', read: readHumanIdentity, args: {} },
+    {
+      method: 'humanNameSet',
+      read: (host: Parameters<typeof readHumanIdentity>[0]) => setHumanName(host, 'Mia'),
+      args: { displayName: 'Mia' },
+    },
+    {
+      method: 'humanAvatarSet',
+      read: (host: Parameters<typeof readHumanIdentity>[0]) => setHumanAvatar(host, null),
+      args: { avatar: null },
+    },
+    { method: 'humanProfileSetupFinish', read: finishHumanProfile, args: {} },
+  ])('reads and validates $method through the Host', async ({ method, read, args }) => {
+    const identity = { humanId: 'mia', defaultDisplayName: null, displayName: 'Mia' };
+    const host = { call: vi.fn().mockResolvedValue(identity) };
+    await expect(read(host)).resolves.toEqual(identity);
+    expect(host.call).toHaveBeenCalledWith(method, args);
+    host.call.mockResolvedValue({
+      ...identity,
+      avatarVersion: '0123456789abcdef',
+      profileSetup: 'pending',
+    });
+    await expect(read(host)).resolves.toMatchObject({
+      profileSetup: 'pending',
+      avatarVersion: '0123456789abcdef',
+    });
+    for (const value of [
+      { ...identity, profileSetup: false },
+      { ...identity, avatarVersion: null },
+      { ...identity, defaultDisplayName: 2 },
+    ]) {
+      host.call.mockResolvedValue(value);
+      await expect(read(host)).rejects.toBeInstanceOf(HostAnswerInvalid);
+    }
+  });
+
+  it('reads an empty authorized avatar list and validates every supplied row', async () => {
+    const row = { humanId: 'mia', version: '0123456789abcdef', avatar };
+    const host = {
+      call: vi
+        .fn()
+        .mockResolvedValueOnce({ avatars: [] })
+        .mockResolvedValueOnce({ avatars: [row] })
+        .mockResolvedValueOnce({ avatars: [{ ...row, version: false }] }),
+    };
+    await expect(readHumanAvatars(host, ['mia'])).resolves.toEqual([]);
+    await expect(readHumanAvatars(host, ['mia'])).resolves.toEqual([row]);
+    await expect(readHumanAvatars(host, ['mia'])).rejects.toBeInstanceOf(HostAnswerInvalid);
   });
 });
 
@@ -58,7 +116,7 @@ describe('Human avatar cache', () => {
     const calls: string[][] = [];
     const cache = createHumanAvatarCache(async (ids) => {
       calls.push(ids);
-      return { avatars: [{ humanId: 'a', version: '0123456789abcdef', avatar }] };
+      return [{ humanId: 'a', version: '0123456789abcdef', avatar }];
     });
     let published = 0;
     cache.subscribe(() => (published += 1));
@@ -81,7 +139,7 @@ describe('Human avatar cache', () => {
     const cache = createHumanAvatarCache(async (ids) => {
       calls.push(ids);
       if (fail) throw new Error('offline');
-      return { avatars: [{ humanId: 'a', version: '0123456789abcdef', avatar }] };
+      return [{ humanId: 'a', version: '0123456789abcdef', avatar }];
     });
     const tick = () => new Promise((resolve) => setTimeout(resolve, 0));
     cache.want('a', '0123456789abcdef');
@@ -109,7 +167,7 @@ describe('Human avatar cache', () => {
       ];
       const cache = createHumanAvatarCache(async (ids) => {
         calls.push(ids);
-        return replies.shift();
+        return parseHumanAvatars(replies.shift());
       });
       const render = () => cache.want('a', '1111111111111111');
       cache.subscribe(render);
@@ -137,7 +195,7 @@ describe('Human avatar cache', () => {
       ];
       const cache = createHumanAvatarCache(async (ids) => {
         calls.push(ids);
-        return replies.shift();
+        return parseHumanAvatars(replies.shift());
       });
       const tick = () => vi.advanceTimersByTimeAsync(0);
       cache.want('a', '1111111111111111');

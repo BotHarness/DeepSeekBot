@@ -31,6 +31,8 @@ async function source(id: string) {
               kind: 'user-question',
               category: 'action',
               botSlug: 'same-bot',
+              channelId: 'dm-same-bot',
+              channelName: 'Bot',
               summary: id,
               createdAt: id === 'a' ? '2026-10-20T00:00:00Z' : '2026-10-21T00:00:00Z',
             },

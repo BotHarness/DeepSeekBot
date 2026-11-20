@@ -59,6 +59,8 @@ const AUTO: HumanAttentionItem = {
   kind: 'auto-rejection',
   createdAt: '2026-10-20T00:00:00.000Z',
   channelId: 'dm-ada',
+  channelName: 'Ada',
+  messageId: 'request-1',
   botSlug: 'ada',
   summary: 'Rejected by the cautious template.',
   sourceEventId: 'e1',
@@ -123,6 +125,8 @@ function host(): FakeHost {
       botSlug: 'ada',
       sessionId: 's9',
       purpose: 'Deploy the launch site',
+      description: 'Deploy the launch site',
+      title: 'Launch site',
       sourceEventId: 'report-3',
       reports: [
         {

@@ -1,32 +1,20 @@
-export interface HumanIdentity {
-  humanId: string;
-  defaultDisplayName: string | null;
-  displayName: string;
-  avatarVersion?: string;
-  profileSetup?: 'pending';
-}
+import type { WireHumanAvatar, WireHumanIdentity } from '@botharness/host-protocol/wire';
+import { HostAnswerInvalid, record, type HostCall } from './host-answer';
 
-export interface HumanAvatarImage {
-  humanId: string;
-  version: string;
-  avatar: string;
-}
+export type HumanIdentity = WireHumanIdentity;
+export type HumanAvatarImage = WireHumanAvatar;
 
 export const HUMAN_AVATAR_SIZE = 256;
 export const HUMAN_AVATAR_BATCH = 64;
 
-const record = (value: unknown): Record<string, unknown> | undefined =>
-  typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-
 const VERSION = /^[a-f0-9]{16}$/u;
 const AVATAR = /^data:image\/(?:png|jpeg|webp);base64,[A-Za-z0-9+/]+={0,2}$/u;
 
-export function parseHumanIdentity(value: unknown): HumanIdentity {
+export function parseHumanIdentity(value: unknown, method = 'humanIdentity'): HumanIdentity {
   const item = record(value);
   const name = item?.['defaultDisplayName'];
   const version = item?.['avatarVersion'];
+  const setup = item?.['profileSetup'];
   if (
     item === undefined ||
     typeof item['humanId'] !== 'string' ||
@@ -35,9 +23,10 @@ export function parseHumanIdentity(value: unknown): HumanIdentity {
       (typeof name !== 'string' || name.trim().length === 0 || name.length > 128)) ||
     typeof item['displayName'] !== 'string' ||
     item['displayName'].trim().length === 0 ||
-    (version !== undefined && (typeof version !== 'string' || !VERSION.test(version)))
+    (version !== undefined && (typeof version !== 'string' || !VERSION.test(version))) ||
+    (setup !== undefined && setup !== 'pending')
   )
-    throw new Error('invalid Human identity');
+    throw new HostAnswerInvalid(`${method} returned an invalid Human identity.`);
   return {
     humanId: item['humanId'],
     defaultDisplayName: name,
@@ -49,17 +38,52 @@ export function parseHumanIdentity(value: unknown): HumanIdentity {
 
 export function parseHumanAvatars(value: unknown): HumanAvatarImage[] {
   const avatars = record(value)?.['avatars'];
-  if (!Array.isArray(avatars)) throw new Error('invalid humanAvatars response');
-  return avatars.flatMap((raw: unknown) => {
+  if (!Array.isArray(avatars)) throw new HostAnswerInvalid('humanAvatars returned no list.');
+  return avatars.map((raw: unknown) => {
     const item = record(raw);
-    return typeof item?.['humanId'] === 'string' &&
-      typeof item['version'] === 'string' &&
-      VERSION.test(item['version']) &&
-      typeof item['avatar'] === 'string' &&
-      AVATAR.test(item['avatar'])
-      ? [{ humanId: item['humanId'], version: item['version'], avatar: item['avatar'] }]
-      : [];
+    if (
+      typeof item?.['humanId'] !== 'string' ||
+      !item['humanId'] ||
+      typeof item['version'] !== 'string' ||
+      !VERSION.test(item['version']) ||
+      typeof item['avatar'] !== 'string' ||
+      !AVATAR.test(item['avatar'])
+    )
+      throw new HostAnswerInvalid('humanAvatars returned an invalid avatar.');
+    return { humanId: item['humanId'], version: item['version'], avatar: item['avatar'] };
   });
+}
+
+export async function readHumanIdentity(host: HostCall): Promise<HumanIdentity> {
+  return parseHumanIdentity(await host.call('humanIdentity', {}));
+}
+
+export async function setHumanName(
+  host: HostCall,
+  displayName: string | null,
+): Promise<HumanIdentity> {
+  return parseHumanIdentity(await host.call('humanNameSet', { displayName }), 'humanNameSet');
+}
+
+export async function setHumanAvatar(
+  host: HostCall,
+  avatar: string | null,
+): Promise<HumanIdentity> {
+  return parseHumanIdentity(await host.call('humanAvatarSet', { avatar }), 'humanAvatarSet');
+}
+
+export async function finishHumanProfile(host: HostCall): Promise<HumanIdentity> {
+  return parseHumanIdentity(
+    await host.call('humanProfileSetupFinish', {}),
+    'humanProfileSetupFinish',
+  );
+}
+
+export async function readHumanAvatars(
+  host: HostCall,
+  humanIds: string[],
+): Promise<HumanAvatarImage[]> {
+  return parseHumanAvatars(await host.call('humanAvatars', { humanIds }));
 }
 
 export function humanAvatarVersionOf(value: unknown): { avatarVersion?: string } {
@@ -77,7 +101,7 @@ export interface HumanAvatarCache {
 const HUMAN_AVATAR_RETRY_MS = 30_000;
 
 export function createHumanAvatarCache(
-  load: (humanIds: string[]) => Promise<unknown>,
+  load: (humanIds: string[]) => Promise<readonly HumanAvatarImage[]>,
   schedule: (run: () => void) => void = (run) => void Promise.resolve().then(run),
 ): HumanAvatarCache {
   const images = new Map<string, string>();
@@ -108,8 +132,7 @@ export function createHumanAvatarCache(
       for (const [humanId, version] of batch) loading.delete(key(humanId, version));
     };
     void load(batch.map(([humanId]) => humanId))
-      .then((value) => {
-        const received = parseHumanAvatars(value);
+      .then((received) => {
         for (const image of received) {
           images.set(key(image.humanId, image.version), image.avatar);
           settled.add(key(image.humanId, image.version));

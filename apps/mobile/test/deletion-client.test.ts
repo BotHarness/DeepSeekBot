@@ -15,7 +15,15 @@ it('carries the reviewed deletion scope through the paired-device client and rej
   };
   host.methods.set('deletionPreview', () => ({ preview }));
   host.methods.set('deletionConfirm', () => ({
-    deletion: { phase: 'complete', memory: 'retained', eraseMemory: false },
+    deletion: {
+      slug: 'ada',
+      displayName: 'Ada',
+      memoryDir: '/memory/ada',
+      acceptedAt: '2026-11-20T00:00:00Z',
+      phase: 'complete',
+      memory: 'retained',
+      eraseMemory: false,
+    },
   }));
   const client = createHostClient({
     routes: ['https://studio.tailnet-example.ts.net'],
@@ -37,7 +45,9 @@ it('carries the reviewed deletion scope through the paired-device client and rej
       'POST https://studio.tailnet-example.ts.net/botharness-device/api/botharness/deletionConfirm',
     );
     host.methods.set('deletionPreview', () => ({ preview: { ...preview, slug: 'someone-else' } }));
-    await expect(previewDeletion(client, 'ada')).rejects.toThrow('Invalid deletion preview');
+    await expect(previewDeletion(client, 'ada')).rejects.toThrow(
+      'deletionPreview returned an invalid deletion scope.',
+    );
   } finally {
     client.stop();
   }

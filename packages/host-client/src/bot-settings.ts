@@ -1,3 +1,15 @@
+import {
+  approveGrantRequest,
+  createGrant,
+  readAssignmentAccess,
+  readWorkspaceGrants,
+  revokeGrant,
+  writeAssignmentAccess,
+} from './access-readers';
+import type {
+  WireAssignmentAccessPreset,
+  WireWorkspaceGrant,
+} from '@botharness/host-protocol/wire';
 import { readApprovalTemplates, setBotApprovalTemplate } from './approval-readers';
 export { INHERIT_APPROVAL_TEMPLATE } from './approval-readers';
 import { MethodRefused, type HostClient } from './client';
@@ -241,38 +253,23 @@ export async function chooseModel(
   return customizeModelPlan(client, slug, { orchestrator }, expectedRevision);
 }
 
-function grant(value: unknown): WorkspaceGrant | undefined {
-  const row = record(value);
-  if (
-    !text(row?.['id']) ||
-    !text(row['workspaceId']) ||
-    !text(row['workspacePath']) ||
-    !text(row['workspaceTitle'])
-  )
-    return undefined;
+function grantView(row: WireWorkspaceGrant): WorkspaceGrant {
   return {
-    id: row['id'],
-    workspaceId: row['workspaceId'],
-    workspacePath: row['workspacePath'],
-    workspaceTitle: row['workspaceTitle'],
-    orchestratorWrite: row['orchestratorWrite'] === true,
-    ...(text(row['revokedAt']) ? { revokedAt: row['revokedAt'] } : {}),
+    id: row.id,
+    workspaceId: row.workspaceId,
+    workspacePath: row.workspacePath,
+    workspaceTitle: row.workspaceTitle,
+    orchestratorWrite: row.orchestratorWrite === true,
+    ...(row.revokedAt === undefined ? {} : { revokedAt: row.revokedAt }),
   };
-}
-
-function grantResult(value: unknown, method: string): WorkspaceGrant {
-  const parsed = grant(record(value)?.['grant']);
-  if (parsed === undefined) throw new HostAnswerInvalid(`${method} returned no grant.`);
-  return parsed;
 }
 
 export async function loadWorkspaceGrants(
   client: HostClient,
   slug: string,
 ): Promise<WorkspaceGrant[]> {
-  const rows = record(await client.call<unknown>('grants', { slug }))?.['grants'];
-  if (!Array.isArray(rows)) throw new HostAnswerInvalid('grants returned no list.');
-  return some(rows, grant).filter((row) => row.revokedAt === undefined);
+  const { grants } = await readWorkspaceGrants(client, { slug });
+  return grants.filter((row) => row.revokedAt === undefined).map(grantView);
 }
 
 export async function revokeWorkspaceGrant(
@@ -280,7 +277,7 @@ export async function revokeWorkspaceGrant(
   slug: string,
   grantId: string,
 ): Promise<WorkspaceGrant> {
-  return grantResult(await client.call<unknown>('grantRevoke', { slug, grantId }), 'grantRevoke');
+  return grantView((await revokeGrant(client, { slug, grantId })).grant);
 }
 
 function folder(value: unknown): HostFolder | undefined {
@@ -408,10 +405,7 @@ export async function createWorkspaceGrant(
   slug: string,
   workspaceId: string,
 ): Promise<WorkspaceGrant> {
-  return grantResult(
-    await client.call<unknown>('grantCreate', { slug, workspaceId }),
-    'grantCreate',
-  );
+  return grantView((await createGrant(client, { slug, workspaceId })).grant);
 }
 
 export async function authorizeWorkspacePath(
@@ -429,46 +423,24 @@ export async function approveWorkspaceRequest(
   requestMessageId: string,
   workspaceId: string,
 ): Promise<WorkspaceGrant> {
-  const granted = grantResult(
-    await client.call<unknown>('grantRequestApprove', {
-      slug,
-      channelId,
-      requestMessageId,
-      workspaceId,
-      acknowledgeReadWrite: true,
-    }),
-    'grantRequestApprove',
+  return grantView(
+    (await approveGrantRequest(client, { slug, channelId, requestMessageId, workspaceId })).grant,
   );
-  if (!granted.orchestratorWrite)
-    throw new HostAnswerInvalid('The computer did not confirm read/write access.');
-  return granted;
 }
 
-function access(value: unknown, slug: string, method: string): AssignmentAccess {
-  const preset = record(record(value)?.['preset']);
-  const mode = preset?.['mode'];
-  if (
-    preset?.['botSlug'] !== slug ||
-    (mode !== 'workspace-write' && mode !== 'danger-full-access') ||
-    typeof preset['revision'] !== 'number'
-  )
-    throw new HostAnswerInvalid(`${method} returned no access setting.`);
-  return {
-    mode,
-    scope: preset['scope'] === 'assignments' ? 'assignments' : 'chat',
-    revision: preset['revision'],
-  };
+function accessView({
+  mode,
+  scope = 'chat',
+  revision,
+}: WireAssignmentAccessPreset): AssignmentAccess {
+  return { mode, scope, revision };
 }
 
 export async function loadAssignmentAccess(
   client: HostClient,
   slug: string,
 ): Promise<AssignmentAccess> {
-  return access(
-    await client.call<unknown>('assignmentAccessGet', { slug }),
-    slug,
-    'assignmentAccessGet',
-  );
+  return accessView((await readAssignmentAccess(client, slug)).preset);
 }
 
 export async function setAssignmentAccess(
@@ -478,15 +450,15 @@ export async function setAssignmentAccess(
   acknowledgeRisk: boolean,
   scope?: AccessScope,
 ): Promise<AssignmentAccess> {
-  return access(
-    await client.call<unknown>('assignmentAccessSet', {
-      slug,
-      mode,
-      acknowledgeRisk,
-      ...(scope === undefined ? {} : { scope }),
-    }),
-    slug,
-    'assignmentAccessSet',
+  return accessView(
+    (
+      await writeAssignmentAccess(client, {
+        slug,
+        mode,
+        acknowledgeRisk,
+        ...(scope === undefined ? {} : { scope }),
+      })
+    ).preset,
   );
 }
 

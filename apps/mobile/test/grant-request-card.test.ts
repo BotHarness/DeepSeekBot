@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { fakeGrantApprovalMessage } from '../../../packages/host-client/test/reader-fixtures.js';
 import { act, createElement, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -44,6 +45,8 @@ function request(extra: Record<string, unknown> = {}) {
 function grant(orchestratorWrite = true) {
   return {
     id: 'grant-9',
+    botSlug: 'ada',
+    createdAt: '2026-11-20T00:00:00Z',
     workspaceId: PROJECT.id,
     workspacePath: PROJECT.path,
     workspaceTitle: PROJECT.title,
@@ -84,7 +87,10 @@ function host(entries: unknown[] = [request()]): FakeHost {
   });
   fake.methods.set('workspaceOptions', () => ({ workspaces: [PROJECT] }));
   fake.methods.set('workspace/create', () => ({ workspace: { workspaceId: PROJECT.id } }));
-  fake.methods.set('grantRequestApprove', () => ({ grant: grant(), message: {} }));
+  fake.methods.set('grantRequestApprove', (args) => ({
+    grant: grant(),
+    message: fakeGrantApprovalMessage(String(args.requestMessageId), 'grant-9'),
+  }));
   return fake;
 }
 

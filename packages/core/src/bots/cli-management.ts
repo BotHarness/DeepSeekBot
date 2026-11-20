@@ -1,3 +1,8 @@
+import {
+  confirmBotDeletion,
+  previewBotDeletion,
+  retryBotDeletion,
+} from '@botharness/host-client/deletion-readers';
 import { compactBot, newBotSession, readBotAttention } from '@botharness/host-client/bot-control';
 import { expandGitHubRef } from './bot-create-cli.js';
 import { parseMemoryGitUrl } from '../memory/clone.js';
@@ -25,7 +30,6 @@ import type {
 import { CliLiveError } from './cli-live-error.js';
 import { assignmentModelsMode, presetEngineFlags, presetGroupFlags } from './cli-models-usage.js';
 import { connectLiveHost } from './cli-live.js';
-import type { PersonaBotDeletionPreview } from './deletion.js';
 
 export const ONLINE_MANAGEMENT_COMMANDS = [
   'create',
@@ -318,19 +322,23 @@ export async function runOnlineManagement(
   if (command === 'bot-compact') return compactBot(reader, slug!);
   if (command === 'bot-context') return rpc('botContext', { slug });
   if (command === 'bot-system-prompt') return rpc('botSystemPrompt', { slug });
-  if (command === 'bot-delete-preview') return rpc('deletionPreview', { slug });
+  if (command === 'bot-delete-preview') return previewBotDeletion(reader, slug!, true);
   if (command === 'bot-delete-memory-folder') return rpc('deletionMemoryFolder', { slug });
   if (command === 'bot-delete-confirm')
-    return rpc('deletionConfirm', {
-      slug,
-      token: confirmation,
-      eraseMemory: values['erase-memory'] === true,
-    });
+    return confirmBotDeletion(
+      reader,
+      {
+        slug: slug!,
+        token: confirmation!,
+        eraseMemory: values['erase-memory'] === true,
+      },
+      true,
+    );
   if (command === 'bot-delete-retry') {
-    const result = await rpc<{ preview: PersonaBotDeletionPreview }>('deletionPreview', { slug });
-    if (typeof result.preview.deletion?.eraseMemory !== 'boolean')
+    const { preview } = await previewBotDeletion(reader, slug!, true);
+    if (preview.deletion === undefined)
       usage('Retry requires an existing accepted deletion and preserves its Memory choice.');
-    return rpc('deletionRetry', { slug });
+    return retryBotDeletion(reader, slug!, true);
   }
   if (command === 'bot-attention')
     return readBotAttention(reader, {

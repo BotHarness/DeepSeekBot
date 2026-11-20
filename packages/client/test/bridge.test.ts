@@ -29,7 +29,10 @@ function bridgeCall(handlers: Record<string, Handler>): BridgeCall {
   return async (endpoint, payload) => {
     const handler = handlers[endpoint];
     if (handler === undefined) throw new Error(`unexpected endpoint: ${endpoint}`);
-    return { ok: true, value: await handler(payload) };
+    const value = await handler(payload);
+    if (endpoint === 'rosterGet')
+      return { ok: true, value: { hidden: [], sectionOrder: [], ...Object(value) } };
+    return { ok: true, value };
   };
 }
 
@@ -2629,7 +2632,7 @@ describe('bridge actions', () => {
     expect(writes).toBe(1);
   });
 
-  it('projects the flat order and drops malformed entries while parsing', async () => {
+  it('projects a valid flat order and deduplicates repeated entries', async () => {
     const { clientStore, actions } = setup({
       rosterGet: () => ({
         pins: [],
@@ -2637,9 +2640,6 @@ describe('bridge actions', () => {
         topOrder: [
           { kind: 'section', id: 's1' },
           { kind: 'channel', id: 'c1' },
-          { kind: 'channel', id: '' },
-          { kind: 'nope', id: 'x' },
-          null,
           { kind: 'channel', id: 'c1' },
         ],
       }),
@@ -2666,7 +2666,7 @@ describe('bridge actions', () => {
     const clientStore = createStore();
     const call: BridgeCall = async (endpoint) => {
       if (endpoint === 'rosterGet') {
-        return { ok: true, value: { pins: [], sections: [] } };
+        return { ok: true, value: { pins: [], sections: [], hidden: [], sectionOrder: [] } };
       }
       if (endpoint === 'sectionCreate') {
         return {
@@ -2705,7 +2705,7 @@ describe('bridge actions', () => {
                 details: {},
               },
             }
-          : { ok: true, value: { pins: ['ada'], sections: [] } };
+          : { ok: true, value: { pins: ['ada'], sections: [], hidden: [], sectionOrder: [] } };
       }
       throw new Error(`unexpected endpoint: ${endpoint}`);
     };

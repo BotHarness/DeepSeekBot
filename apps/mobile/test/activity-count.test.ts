@@ -6,18 +6,28 @@ import {
   observeActivityCount,
   readActivityCount,
 } from '../src/host/activity-count';
-import type { HumanAttentionItem, HumanAttentionPage } from '@botharness/host-protocol/wire';
+import type {
+  WireHumanAttentionItem,
+  WireHumanAttentionPage,
+} from '@botharness/host-protocol/wire';
 import type { InboxSnapshot } from '@botharness/host-client/inbox';
 
-const item = (id: string, kind = 'tool-approval'): HumanAttentionItem => ({
+const item = (
+  id: string,
+  kind: WireHumanAttentionItem['kind'] = 'tool-approval',
+): WireHumanAttentionItem => ({
   id,
   kind,
   category: 'action',
   createdAt: '2026-10-18T00:00:00Z',
   botSlug: 'qa',
   summary: 'test',
+  channelId: 'dm-qa',
+  channelName: 'QA',
+  messageId: 'message-' + id,
+  sourceEventId: 'event-' + id,
 });
-const page = (items: HumanAttentionItem[], nextCursor?: string): HumanAttentionPage => ({
+const page = (items: WireHumanAttentionItem[], nextCursor?: string): WireHumanAttentionPage => ({
   queryVersion: 1,
   items,
   ...(nextCursor ? { nextCursor } : {}),
@@ -112,18 +122,26 @@ describe('navigation Activity count', () => {
     ]);
   });
 
-  it('deduplicates categories, excludes handled replies and separates other actions', async () => {
+  it('deduplicates activity, excludes read replies and separates other actions', async () => {
+    const mention = {
+      ...item('reply', 'channel-mention'),
+      category: 'replies',
+      isUnread: true,
+    } satisfies WireHumanAttentionItem;
     const client = {
       call: async (_method: string, args: Record<string, unknown>) => {
         if (args.category === 'replies') {
           expect(args.unreadOnly).toBe(true);
           return page([
-            { ...item('seen', 'channel-reply'), isUnread: false },
-            item('reply', 'channel-mention'),
+            { ...item('seen', 'channel-reply'), category: 'replies', isUnread: false },
+            mention,
+            mention,
           ]);
         }
         if (args.category === 'unread')
-          return page([item('reply', 'channel-mention'), item('channel', 'channel-unread')]);
+          return page([
+            { ...item('channel', 'channel-unread'), category: 'unread', unreadCount: 1 },
+          ]);
         return page([
           item('a'),
           item('q', 'user-question'),
@@ -239,7 +257,7 @@ describe('navigation Activity count', () => {
   it('discards an old response when categories change during a request', async () => {
     const prefs = preferences();
     await prefs.ready;
-    let resolve: (page: HumanAttentionPage) => void = () => {};
+    let resolve: (page: WireHumanAttentionPage) => void = () => {};
     let calls = 0;
     const observer = observeActivityCount(
       {

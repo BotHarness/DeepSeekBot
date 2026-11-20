@@ -1,4 +1,12 @@
-import { isTurnTargetPath, type TurnTarget } from '@botharness/host-protocol/turn-target';
+import * as people from '@botharness/host-client/people';
+import * as accessReaders from '@botharness/host-client/access-readers';
+import * as rosterReaders from '@botharness/host-client/roster-readers';
+import { readAssignmentTimeline } from '@botharness/host-client/assignment-timeline';
+import { readProfileActivity } from '@botharness/host-client/profile-activity';
+import type {
+  WireAssignmentAccessPreset,
+  WireWorkspaceGrant,
+} from '@botharness/host-protocol/wire';
 import * as botControl from '@botharness/host-client/bot-control';
 import * as approvalReaders from '@botharness/host-client/approval-readers';
 import type {
@@ -21,8 +29,11 @@ import {
 import { MEMBER_METHODS } from '../../../core/src/team/member-methods.js';
 import {
   humanAvatarVersionOf,
-  parseHumanAvatars,
-  parseHumanIdentity,
+  readHumanAvatars,
+  readHumanIdentity,
+  setHumanName,
+  setHumanAvatar as writeHumanAvatar,
+  finishHumanProfile,
   type HumanAvatarImage,
   type HumanIdentity,
 } from '@botharness/host-client/human-profile';
@@ -133,6 +144,7 @@ import {
   isChannelTurnStopEngine,
   isChannelTurnStopRests,
 } from '../../../core/src/channels/turn-stop.js';
+import { isTurnTargetPath, type TurnTarget } from '@botharness/host-protocol/turn-target';
 import { isChannelModelSwitch } from '../../../core/src/channels/model-switch.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
@@ -3406,32 +3418,32 @@ export async function loadHumanIdentity(
   call: BridgeCall,
   signal?: AbortSignal,
 ): Promise<LocalHumanIdentity> {
-  return parseHumanIdentity(await unwrap(call, 'humanIdentity', {}, signal));
+  return readHumanIdentity(bridgeHost(call, signal));
 }
 
 export async function setHumanDefaultName(
   call: BridgeCall,
   displayName: string | null,
 ): Promise<LocalHumanIdentity> {
-  return parseHumanIdentity(await unwrap(call, 'humanNameSet', { displayName }));
+  return setHumanName(bridgeHost(call), displayName);
 }
 
 export async function setHumanAvatar(
   call: BridgeCall,
   avatar: string | null,
 ): Promise<LocalHumanIdentity> {
-  return parseHumanIdentity(await unwrap(call, 'humanAvatarSet', { avatar }));
+  return writeHumanAvatar(bridgeHost(call), avatar);
 }
 
 export async function finishHumanProfileSetup(call: BridgeCall): Promise<LocalHumanIdentity> {
-  return parseHumanIdentity(await unwrap(call, 'humanProfileSetupFinish', {}));
+  return finishHumanProfile(bridgeHost(call));
 }
 
 export async function loadHumanAvatars(
   call: BridgeCall,
   humanIds: string[],
 ): Promise<HumanAvatarImage[]> {
-  return parseHumanAvatars(await unwrap(call, 'humanAvatars', { humanIds }));
+  return readHumanAvatars(bridgeHost(call), humanIds);
 }
 
 export async function setChannelHumanName(
@@ -3654,7 +3666,6 @@ export async function removeGroupMember(
 }
 
 const ASSIGNMENT_ACTIVITIES = ['working', 'idle', 'error', 'stopping', 'stopped'];
-const ASSIGNMENT_REPORT_STATES = ['progress', 'completed', 'blocked', 'waiting-human', 'failed'];
 
 export async function loadChannelAssignments(
   call: BridgeCall,
@@ -4349,8 +4360,6 @@ export async function sendOrchestratorMessage(
   await unwrap(call, 'sessionMessageSend', { botSlug, sessionId, text });
 }
 
-const WORK_STEP_STATUSES = ['running', 'done', 'failed', 'denied', 'cancelled'];
-
 export interface AssignmentWorkStep {
   status: 'running' | 'done' | 'failed' | 'denied' | 'cancelled';
   kind: string;
@@ -4394,132 +4403,23 @@ export interface AssignmentWork {
   omittedRounds: number;
 }
 
-function positiveCount(value: unknown): number {
-  return typeof value === 'number' && value > 0 ? value : 0;
-}
-
-function workStepOf(value: unknown): AssignmentWorkStep[] {
-  const entry = asRecord(value);
-  const status = entry?.['status'];
-  const tool = entry?.['tool'];
-  const at = entry?.['at'];
-  if (
-    !WORK_STEP_STATUSES.includes(status as string) ||
-    typeof tool !== 'string' ||
-    typeof at !== 'string'
-  )
-    return [];
-  const kind = entry?.['kind'];
-  const detail = entry?.['detail'];
-  const round = entry?.['round'];
-  return [
-    {
-      status: status as AssignmentWorkStep['status'],
-      kind: typeof kind === 'string' ? kind : 'other',
-      tool,
-      ...(typeof detail === 'string' && detail.trim() !== '' ? { detail } : {}),
-      at,
-      ...(typeof round === 'number' ? { round } : {}),
-    },
-  ];
-}
-
-function workLaneOf(value: unknown): AssignmentWorkLane[] {
-  const lane = asRecord(value);
-  const role = lane?.['role'];
-  const index = lane?.['index'];
-  const sessionId = lane?.['sessionId'];
-  const state = lane?.['state'];
-  const entries = lane?.['entries'];
-  if (
-    (role !== 'main' && role !== 'subagent') ||
-    typeof index !== 'number' ||
-    typeof sessionId !== 'string' ||
-    !Array.isArray(entries)
-  )
-    return [];
-  const title = lane?.['title'];
-  const route = parseSessionModelRoute(lane?.['route']);
-  const round = lane?.['round'];
-  return [
-    {
-      role,
-      index,
-      sessionId,
-      ...(typeof title === 'string' && title.trim() !== '' ? { title } : {}),
-      ...(route === undefined ? {} : { route }),
-      state: SUBAGENT_LANE_STATES.includes(state as string)
-        ? (state as SessionSubagent['state'])
-        : 'idle',
-      ...(typeof round === 'number' ? { round } : {}),
-      entries: entries.flatMap(workStepOf),
-      omitted: positiveCount(lane?.['omitted']),
-    },
-  ];
-}
-
-function workRoundOf(value: unknown): AssignmentWorkRound[] {
-  const round = asRecord(value);
-  const index = round?.['index'];
-  const kind = round?.['kind'];
-  const at = round?.['at'];
-  if (
-    typeof index !== 'number' ||
-    (kind !== 'created' && kind !== 'continued') ||
-    typeof at !== 'string'
-  )
-    return [];
-  const instruction = round?.['instruction'];
-  return [
-    {
-      index,
-      kind,
-      at,
-      ...(typeof instruction === 'string' && instruction !== '' ? { instruction } : {}),
-    },
-  ];
-}
-
 export async function loadAssignmentWork(
   call: BridgeCall,
   slug: string,
   sessionId: string,
 ): Promise<AssignmentWork> {
-  const value = asRecord(await unwrap(call, 'assignmentTimeline', { slug, sessionId }));
-  const assignment = asRecord(value?.['assignment']);
-  const lanes = value?.['lanes'];
-  const title = assignment?.['title'];
-  const activity = assignment?.['activity'];
-  if (
-    typeof title !== 'string' ||
-    !ASSIGNMENT_ACTIVITIES.includes(activity as string) ||
-    !Array.isArray(lanes)
-  )
-    throw new Error('invalid assignmentTimeline response');
-  const description = assignment?.['description'];
-  const report = asRecord(assignment?.['latestReport']);
-  const reportState = report?.['state'];
-  const reportSummary = report?.['summary'];
-  const reportAt = report?.['at'];
-  const rounds = value?.['rounds'];
+  const { assignment, rounds, lanes, omittedSubagents, omittedRounds } =
+    await readAssignmentTimeline(bridgeHost(call), { slug, sessionId });
+  const { title, description, activity, latestReport } = assignment;
   return {
     title,
-    description: typeof description === 'string' ? description : '',
-    activity: activity as AssignmentWork['activity'],
-    ...(ASSIGNMENT_REPORT_STATES.includes(reportState as string) &&
-    typeof reportSummary === 'string'
-      ? {
-          latestReport: {
-            state: reportState as NonNullable<AssignmentWork['latestReport']>['state'],
-            summary: reportSummary,
-            ...(typeof reportAt === 'string' ? { at: reportAt } : {}),
-          },
-        }
-      : {}),
-    rounds: Array.isArray(rounds) ? rounds.flatMap(workRoundOf) : [],
-    lanes: lanes.flatMap(workLaneOf),
-    omittedSubagents: positiveCount(value?.['omittedSubagents']),
-    omittedRounds: positiveCount(value?.['omittedRounds']),
+    description,
+    activity,
+    ...(latestReport === undefined ? {} : { latestReport }),
+    rounds: rounds ?? [],
+    lanes,
+    omittedSubagents,
+    omittedRounds: omittedRounds ?? 0,
   };
 }
 
@@ -4728,72 +4628,12 @@ export async function loadHumanAssignmentContext(
   sourceEventId: string,
   signal?: AbortSignal,
 ): Promise<HumanAssignmentContext> {
-  const context = asRecord(
-    asRecord(
-      await unwrap(call, 'humanAssignmentContext', { slug, sessionId, sourceEventId }, signal),
-    )?.['context'],
-  );
-  if (
-    context === undefined ||
-    context['botSlug'] !== slug ||
-    context['sessionId'] !== sessionId ||
-    context['sourceEventId'] !== sourceEventId ||
-    typeof context['title'] !== 'string' ||
-    typeof context['description'] !== 'string' ||
-    typeof context['canReply'] !== 'boolean' ||
-    !Array.isArray(context['reports']) ||
-    context['reports'].length > 5
-  )
-    throw new Error('invalid Assignment context');
-  const reports: HumanAssignmentContext['reports'] = [];
-  for (const value of context['reports']) {
-    const row = asRecord(value);
-    if (
-      row === undefined ||
-      typeof row['sourceEventId'] !== 'string' ||
-      typeof row['at'] !== 'string' ||
-      typeof row['summary'] !== 'string' ||
-      (row['state'] !== 'progress' &&
-        row['state'] !== 'completed' &&
-        row['state'] !== 'blocked' &&
-        row['state'] !== 'waiting-human' &&
-        row['state'] !== 'failed')
-    )
-      throw new Error('invalid Assignment report');
-    reports.push({
-      sourceEventId: row['sourceEventId'],
-      at: row['at'],
-      summary: row['summary'],
-      state: row['state'],
-    });
-  }
-  if (!reports.some((row) => row.sourceEventId === sourceEventId))
-    throw new Error('Assignment source report is unavailable');
-  let reply: HumanAssignmentContext['reply'];
-  if (context['reply'] !== undefined) {
-    const row = asRecord(context['reply']);
-    if (
-      row === undefined ||
-      typeof row['id'] !== 'string' ||
-      typeof row['at'] !== 'string' ||
-      typeof row['body'] !== 'string'
-    )
-      throw new Error('invalid Assignment response');
-    reply = { id: row['id'], at: row['at'], body: row['body'] };
-  }
-  return {
-    botSlug: slug,
+  const { context } = await people.readHumanAssignmentContext(bridgeHost(call, signal), {
+    slug,
     sessionId,
     sourceEventId,
-    title: context['title'],
-    description: context['description'],
-    purpose: context['description'],
-    canReply: context['canReply'],
-    reports,
-    ...(typeof context['hasOlder'] === 'boolean' ? { hasOlder: context['hasOlder'] } : {}),
-    ...(typeof context['hasNewer'] === 'boolean' ? { hasNewer: context['hasNewer'] } : {}),
-    ...(reply === undefined ? {} : { reply }),
-  };
+  });
+  return context;
 }
 
 export async function loadAllBotPreview(
@@ -4923,27 +4763,15 @@ export async function saveGenuiDocumentView(
   );
 }
 
-export interface AssignmentAccessPresetView {
-  botSlug: string;
-  mode: 'workspace-write' | 'danger-full-access';
-  scope?: 'chat' | 'assignments';
-  revision: number;
-  changedAt?: string;
-}
+export type AssignmentAccessPresetView = WireAssignmentAccessPreset;
+
 export async function loadAssignmentAccess(
   call: BridgeCall,
   slug: string,
 ): Promise<AssignmentAccessPresetView> {
-  const response = asRecord(await unwrap(call, 'assignmentAccessGet', { slug }));
-  const preset = asRecord(response?.['preset']);
-  if (
-    preset?.['botSlug'] !== slug ||
-    (preset['mode'] !== 'workspace-write' && preset['mode'] !== 'danger-full-access') ||
-    typeof preset['revision'] !== 'number'
-  )
-    throw new Error('invalid assignmentAccessGet response');
-  return preset as unknown as AssignmentAccessPresetView;
+  return (await accessReaders.readAssignmentAccess(bridgeHost(call), slug)).preset;
 }
+
 export async function setAssignmentAccess(
   call: BridgeCall,
   slug: string,
@@ -4951,18 +4779,14 @@ export async function setAssignmentAccess(
   acknowledgeRisk: boolean,
   scope?: 'chat' | 'assignments',
 ): Promise<AssignmentAccessPresetView> {
-  const response = asRecord(
-    await unwrap(call, 'assignmentAccessSet', {
+  return (
+    await accessReaders.writeAssignmentAccess(bridgeHost(call), {
       slug,
       mode,
       acknowledgeRisk,
       ...(scope === undefined ? {} : { scope }),
-    }),
-  );
-  const preset = asRecord(response?.['preset']);
-  if (preset?.['botSlug'] !== slug || preset['mode'] !== mode)
-    throw new Error('invalid assignmentAccessSet response');
-  return preset as unknown as AssignmentAccessPresetView;
+    })
+  ).preset;
 }
 
 export type ToolApprovalRuleView = WireApprovalRule;
@@ -5301,30 +5125,13 @@ export interface WorkspaceGrantView extends WorkspaceOption {
   writeRevision?: number;
 }
 
-function parseWorkspaceGrant(value: unknown): WorkspaceGrantView | undefined {
-  const row = asRecord(value);
-  if (
-    row === undefined ||
-    typeof row['id'] !== 'string' ||
-    typeof row['botSlug'] !== 'string' ||
-    typeof row['workspaceId'] !== 'string' ||
-    typeof row['workspacePath'] !== 'string' ||
-    typeof row['workspaceTitle'] !== 'string' ||
-    typeof row['createdAt'] !== 'string'
-  )
-    return undefined;
+function workspaceGrantView(grant: WireWorkspaceGrant): WorkspaceGrantView {
   return {
-    id: row['id'],
-    path: row['workspacePath'],
-    title: row['workspaceTitle'],
-    botSlug: row['botSlug'],
-    workspaceId: row['workspaceId'],
-    workspacePath: row['workspacePath'],
-    workspaceTitle: row['workspaceTitle'],
-    createdAt: row['createdAt'],
-    orchestratorWrite: row['orchestratorWrite'] === true,
-    writeRevision: typeof row['writeRevision'] === 'number' ? row['writeRevision'] : 0,
-    ...(typeof row['revokedAt'] === 'string' ? { revokedAt: row['revokedAt'] } : {}),
+    ...grant,
+    path: grant.workspacePath,
+    title: grant.workspaceTitle,
+    orchestratorWrite: grant.orchestratorWrite === true,
+    writeRevision: grant.writeRevision ?? 0,
   };
 }
 
@@ -5345,12 +5152,9 @@ export async function loadWorkspaceGrants(
   call: BridgeCall,
   slug: string,
 ): Promise<WorkspaceGrantView[]> {
-  const rows = asRecord(await unwrap(call, 'grants', { slug }))?.['grants'];
-  if (!Array.isArray(rows)) throw new Error('invalid grants response');
-  return rows.flatMap((row) => {
-    const parsed = parseWorkspaceGrant(row);
-    return parsed === undefined ? [] : [parsed];
-  });
+  return (await accessReaders.readWorkspaceGrants(bridgeHost(call), { slug })).grants.map(
+    workspaceGrantView,
+  );
 }
 
 export async function createWorkspaceGrant(
@@ -5358,10 +5162,9 @@ export async function createWorkspaceGrant(
   slug: string,
   workspaceId: string,
 ): Promise<WorkspaceGrantView> {
-  const value = asRecord(await unwrap(call, 'grantCreate', { slug, workspaceId }))?.['grant'];
-  const grant = parseWorkspaceGrant(value);
-  if (grant === undefined) throw new Error('invalid grantCreate response');
-  return grant;
+  return workspaceGrantView(
+    (await accessReaders.createGrant(bridgeHost(call), { slug, workspaceId })).grant,
+  );
 }
 
 export async function createGroupWorkspaceGrant(
@@ -5371,17 +5174,12 @@ export async function createGroupWorkspaceGrant(
   channelId: string,
   path: string,
 ): Promise<{ grant: WorkspaceGrantView; created: boolean }> {
-  const result = asRecord(
-    await unwrap(call, 'grantCreate', {
-      slug,
-      workspaceId,
-      scope: { channelId, path },
-    }),
-  );
-  const grant = parseWorkspaceGrant(result?.['grant']);
-  if (grant === undefined || typeof result?.['created'] !== 'boolean')
-    throw new Error('invalid scoped grantCreate response');
-  return { grant, created: result['created'] };
+  const { grant, created } = await accessReaders.createGrant(bridgeHost(call), {
+    slug,
+    workspaceId,
+    scope: { channelId, path },
+  });
+  return { grant: workspaceGrantView(grant), created: created! };
 }
 
 export async function readGroupWorkspaceGrant(
@@ -5390,11 +5188,12 @@ export async function readGroupWorkspaceGrant(
   channelId: string,
   path: string,
 ): Promise<WorkspaceGrantView | undefined> {
-  const result = asRecord(await unwrap(call, 'grants', { slug, scope: { channelId, path } }));
-  if (!Array.isArray(result?.['grants'])) throw new Error('invalid scoped grants response');
-  const grants = result['grants'].map(parseWorkspaceGrant);
-  if (grants.some((grant) => grant === undefined)) throw new Error('invalid scoped grant readback');
-  return grants[0];
+  const { grants } = await accessReaders.readWorkspaceGrants(bridgeHost(call), {
+    slug,
+    scope: { channelId, path },
+  });
+  const grant = grants[0];
+  return grant === undefined ? undefined : workspaceGrantView(grant);
 }
 
 export async function approveWorkspaceGrantRequest(
@@ -5404,19 +5203,13 @@ export async function approveWorkspaceGrantRequest(
   requestMessageId: string,
   workspaceId: string,
 ): Promise<WorkspaceGrantView> {
-  const value = asRecord(
-    await unwrap(call, 'grantRequestApprove', {
-      slug,
-      channelId,
-      requestMessageId,
-      workspaceId,
-      acknowledgeReadWrite: true,
-    }),
-  );
-  const grant = parseWorkspaceGrant(value?.['grant']);
-  if (!grant || grant.orchestratorWrite !== true)
-    throw new Error('Workspace write authorization could not be confirmed');
-  return grant;
+  const { grant } = await accessReaders.approveGrantRequest(bridgeHost(call), {
+    slug,
+    channelId,
+    requestMessageId,
+    workspaceId,
+  });
+  return workspaceGrantView(grant);
 }
 
 export async function setWorkspaceGrantWrite(
@@ -5425,12 +5218,8 @@ export async function setWorkspaceGrantWrite(
   grantId: string,
   enabled: boolean,
 ): Promise<WorkspaceGrantView> {
-  const value = asRecord(await unwrap(call, 'grantWriteSet', { slug, grantId, enabled }))?.[
-    'grant'
-  ];
-  const grant = parseWorkspaceGrant(value);
-  if (grant === undefined) throw new Error('invalid grantWriteSet response');
-  return grant;
+  const value = await unwrap(call, 'grantWriteSet', { slug, grantId, enabled });
+  return workspaceGrantView(accessReaders.readGrantReceipt(value, 'grantWriteSet', slug));
 }
 
 export async function revokeWorkspaceGrant(
@@ -5438,10 +5227,9 @@ export async function revokeWorkspaceGrant(
   slug: string,
   grantId: string,
 ): Promise<WorkspaceGrantView> {
-  const value = asRecord(await unwrap(call, 'grantRevoke', { slug, grantId }))?.['grant'];
-  const grant = parseWorkspaceGrant(value);
-  if (grant === undefined) throw new Error('invalid grantRevoke response');
-  return grant;
+  return workspaceGrantView(
+    (await accessReaders.revokeGrant(bridgeHost(call), { slug, grantId })).grant,
+  );
 }
 
 export async function loadBotAttention(
@@ -5454,143 +5242,7 @@ export async function loadBotAttention(
   return botControl.readBotAttention(bridgeHost(call), { slug, limit, cursor, state });
 }
 
-export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
-  const row = asRecord(value);
-  const raw = row?.['items'];
-  if (!Array.isArray(raw)) throw new Error('invalid Human attention page');
-  const items = raw.map((entry): HumanAttentionItem | undefined => {
-    const item = asRecord(entry);
-    if (item === undefined) return undefined;
-    for (const key of ['id', 'createdAt', 'botSlug', 'summary'])
-      if (typeof item[key] !== 'string') return undefined;
-    if (
-      item['category'] !== 'action' &&
-      item['category'] !== 'info' &&
-      item['category'] !== 'unread' &&
-      item['category'] !== 'replies' &&
-      item['category'] !== 'handled'
-    )
-      return undefined;
-    if (
-      item['kind'] !== 'group-join-request' &&
-      item['kind'] !== 'pairing-request' &&
-      item['kind'] !== 'user-question' &&
-      item['kind'] !== 'private-input' &&
-      item['kind'] !== 'takeover-request' &&
-      item['kind'] !== 'tool-approval' &&
-      item['kind'] !== 'auto-rejection' &&
-      item['kind'] !== 'workspace-grant-request' &&
-      item['kind'] !== 'bot-dm-message' &&
-      item['kind'] !== 'assignment-waiting-human' &&
-      item['kind'] !== 'assignment-blocked' &&
-      item['kind'] !== 'assignment-report' &&
-      item['kind'] !== 'bot-message-needs-repair' &&
-      item['kind'] !== 'channel-unread' &&
-      item['kind'] !== 'channel-reply' &&
-      item['kind'] !== 'channel-mention'
-    )
-      return undefined;
-    if (item['channelId'] !== undefined && typeof item['channelId'] !== 'string') return undefined;
-    if (item['channelName'] !== undefined && typeof item['channelName'] !== 'string')
-      return undefined;
-    if (
-      item['kind'] === 'assignment-waiting-human' ||
-      item['kind'] === 'assignment-blocked' ||
-      item['kind'] === 'assignment-report'
-        ? typeof item['assignmentSessionId'] !== 'string'
-        : typeof item['channelId'] !== 'string' || typeof item['channelName'] !== 'string'
-    )
-      return undefined;
-    if (
-      item['assignmentSessionId'] !== undefined &&
-      typeof item['assignmentSessionId'] !== 'string'
-    )
-      return undefined;
-    if (item['sourceEventId'] !== undefined && typeof item['sourceEventId'] !== 'string')
-      return undefined;
-    if (
-      (item['kind'] === 'assignment-report' || item['kind'] === 'bot-message-needs-repair') &&
-      typeof item['sourceEventId'] !== 'string'
-    )
-      return undefined;
-    if (item['requestId'] !== undefined && typeof item['requestId'] !== 'string') return undefined;
-    if (item['kind'] === 'pairing-request' && typeof item['requestId'] !== 'string')
-      return undefined;
-    if (item['messageId'] !== undefined && typeof item['messageId'] !== 'string') return undefined;
-    if (item['snoozedUntil'] !== undefined && typeof item['snoozedUntil'] !== 'string')
-      return undefined;
-    if (
-      item['kind'] === 'auto-rejection' &&
-      (item['category'] !== 'action' ||
-        typeof item['messageId'] !== 'string' ||
-        typeof item['sourceEventId'] !== 'string')
-    )
-      return undefined;
-    if (item['autoRejection'] !== undefined) {
-      const detail = asRecord(item['autoRejection']);
-      if (
-        item['kind'] !== 'auto-rejection' ||
-        detail === undefined ||
-        ['sessionId', 'toolName', 'input', 'template', 'reason'].some(
-          (key) => typeof detail[key] !== 'string',
-        )
-      )
-        return undefined;
-    }
-    if (
-      (item['kind'] === 'private-input' || item['kind'] === 'takeover-request') &&
-      (item['category'] !== 'action' ||
-        typeof item['messageId'] !== 'string' ||
-        typeof item['sourceEventId'] !== 'string')
-    )
-      return undefined;
-    if (
-      item['kind'] === 'channel-unread' &&
-      (!Number.isSafeInteger(item['unreadCount']) ||
-        (item['unreadCount'] as number) < 1 ||
-        typeof item['messageId'] !== 'string')
-    )
-      return undefined;
-    if (
-      (item['kind'] === 'channel-reply' ||
-        item['kind'] === 'channel-mention' ||
-        item['category'] === 'replies') &&
-      ((item['kind'] !== 'channel-reply' && item['kind'] !== 'channel-mention') ||
-        item['category'] !== 'replies' ||
-        typeof item['messageId'] !== 'string' ||
-        typeof item['sourceEventId'] !== 'string' ||
-        typeof item['isUnread'] !== 'boolean')
-    )
-      return undefined;
-    if (
-      item['category'] === 'handled' &&
-      (![
-        'user-question',
-        'tool-approval',
-        'workspace-grant-request',
-        'assignment-waiting-human',
-        'assignment-blocked',
-      ].includes(String(item['kind'])) ||
-        typeof item['channelId'] !== 'string' ||
-        typeof item['responseMessageId'] !== 'string' ||
-        typeof item['responseSourceEventId'] !== 'string' ||
-        typeof item['sourceEventId'] !== 'string' ||
-        (item['kind'] !== 'assignment-waiting-human' &&
-          item['kind'] !== 'assignment-blocked' &&
-          typeof item['messageId'] !== 'string'))
-    )
-      return undefined;
-    return item as unknown as HumanAttentionItem;
-  });
-  if (items.some((item) => item === undefined)) throw new Error('invalid Human attention item');
-  const cursor = row?.['nextCursor'];
-  if (cursor !== undefined && typeof cursor !== 'string')
-    throw new Error('invalid Human attention cursor');
-  return {
-    items: items as HumanAttentionItem[],
-    ...(cursor === undefined ? {} : { nextCursor: cursor }),
-  };
-}
+export { parseHumanAttentionPage } from '@botharness/host-client/people';
 
 export async function loadHumanAttention(
   call: BridgeCall,
@@ -5607,7 +5259,7 @@ export async function loadHumanAttention(
   },
 ): Promise<HumanAttentionPage> {
   const extended = filters.search !== undefined || filters.mentionsFirst === true;
-  const value = await unwrap(call, 'humanAttention', {
+  const value = await people.readHumanAttention(bridgeHost(call), {
     category,
     limit,
     cursor,
@@ -5617,9 +5269,11 @@ export async function loadHumanAttention(
     ...(extended ? { queryVersion: 1, search: filters.search } : {}),
     ...(filters.snoozed === true ? { snoozed: true } : {}),
   });
-  if (extended && asRecord(value)?.['queryVersion'] !== 1)
-    throw new Error('Update the Host to search Activity.');
-  return parseHumanAttentionPage(value);
+  if (extended && value.queryVersion !== 1) throw new Error('Update the Host to search Activity.');
+  return {
+    items: value.items,
+    ...(value.nextCursor === undefined ? {} : { nextCursor: value.nextCursor }),
+  };
 }
 export async function loadHumanAttentionStatus(call: BridgeCall): Promise<{
   unreadCount: number;
@@ -5682,17 +5336,13 @@ export async function dismissAllActivityListItems(
     channelId?: string | undefined;
   },
 ): Promise<{ dismissed: number; more: boolean }> {
-  const value = asRecord(
-    await unwrap(call, 'humanAttentionDismissAll', {
-      ...(filter.kind === undefined ? {} : { kind: filter.kind }),
-      ...(filter.category === undefined ? {} : { category: filter.category }),
-      ...(filter.botSlug === undefined ? {} : { botSlug: filter.botSlug }),
-      ...(filter.channelId === undefined ? {} : { channelId: filter.channelId }),
-    }),
-  );
-  if (value?.['accepted'] !== true || typeof value['dismissed'] !== 'number')
-    throw new Error('Inbox dismissal was not confirmed');
-  return { dismissed: value['dismissed'], more: value['more'] === true };
+  const { dismissed, more } = await people.dismissHumanAttention(bridgeHost(call), {
+    ...(filter.kind === undefined ? {} : { kind: filter.kind }),
+    ...(filter.category === undefined ? {} : { category: filter.category }),
+    ...(filter.botSlug === undefined ? {} : { botSlug: filter.botSlug }),
+    ...(filter.channelId === undefined ? {} : { channelId: filter.channelId }),
+  });
+  return { dismissed, more };
 }
 
 export async function overrideAutoRejection(call: BridgeCall, itemId: string): Promise<void> {
@@ -5816,7 +5466,7 @@ export async function moveMemoryLocation(
 }
 
 export async function loadRoster(call: BridgeCall, signal?: AbortSignal): Promise<RosterSnapshot> {
-  return parseRosterSnapshot(await unwrap(call, 'rosterGet', {}, signal));
+  return parseRosterSnapshot(await rosterReaders.readRoster(bridgeHost(call, signal)));
 }
 
 export interface RosterBatchInput {
@@ -5835,7 +5485,9 @@ export async function applyRosterBatch(
     channelIds: [...input.channelIds],
     ...(input.sectionId === undefined ? {} : { sectionId: input.sectionId }),
   };
-  return parseRosterSnapshot(await unwrap(call, 'rosterBatch', payload, signal));
+  return parseRosterSnapshot(
+    await rosterReaders.applyRosterBatch(bridgeHost(call, signal), payload),
+  );
 }
 
 export async function createRosterSection(
@@ -6143,17 +5795,6 @@ function isActivityDays(value: unknown): value is ProfileActivityDay[] {
   );
 }
 
-function isTokenBuckets(value: unknown): value is ProfileTokenBuckets {
-  const record = asRecord(value);
-  return (
-    record !== undefined &&
-    typeof record['inputTokens'] === 'number' &&
-    typeof record['outputTokens'] === 'number' &&
-    typeof record['cacheReadTokens'] === 'number' &&
-    typeof record['cacheWriteTokens'] === 'number'
-  );
-}
-
 export async function loadProfileUsage(
   call: BridgeCall,
   channelId: string,
@@ -6248,59 +5889,12 @@ export async function loadProfileActivity(
   channelId: string,
   window?: ProfileActivityWindow,
 ): Promise<ProfileActivity> {
-  const response = asRecord(
-    await unwrap(call, 'profileActivity', { channelId, ...(window ?? {}) }),
-  );
-  if (
-    response === undefined ||
-    typeof response['slug'] !== 'string' ||
-    typeof response['weeks'] !== 'number' ||
-    typeof response['since'] !== 'string' ||
-    typeof response['today'] !== 'string' ||
-    !isActivityDays(response['memoryCommits']) ||
-    !Array.isArray(response['events']) ||
-    !response['events'].every((value) => {
-      const entry = asRecord(value);
-      return (
-        typeof entry?.['day'] === 'string' &&
-        typeof entry['count'] === 'number' &&
-        typeof entry['reason'] === 'string'
-      );
-    }) ||
-    !Array.isArray(response['tokens']) ||
-    !response['tokens'].every((value) => {
-      const entry = asRecord(value);
-      return typeof entry?.['day'] === 'string' && isTokenBuckets(entry);
-    }) ||
-    !isTokenBuckets(response['tokenTotals']) ||
-    (response['modelUsageRows'] !== undefined &&
-      (!Array.isArray(response['modelUsageRows']) ||
-        !response['modelUsageRows'].every((value) => {
-          const row = asRecord(value);
-          return (
-            row !== undefined &&
-            typeof row['day'] === 'string' &&
-            typeof row['purpose'] === 'string' &&
-            typeof row['provider'] === 'string' &&
-            typeof row['model'] === 'string' &&
-            [
-              'inputTokens',
-              'outputTokens',
-              'cacheReadTokens',
-              'cacheWriteTokens',
-              'totalTokens',
-            ].every(
-              (key) =>
-                row[key] === null || (Number.isSafeInteger(row[key]) && (row[key] as number) >= 0),
-            )
-          );
-        }))) ||
-    (response['modelUsageStatus'] !== undefined &&
-      !['ready', 'unavailable'].includes(String(response['modelUsageStatus']))) ||
-    (response['createdDay'] !== undefined && typeof response['createdDay'] !== 'string')
-  )
-    throw new Error('invalid Profile activity');
-  return response as unknown as ProfileActivity;
+  const activity = await readProfileActivity(bridgeHost(call), { channelId, ...window });
+  return {
+    ...activity,
+    modelUsageRows: activity.modelUsageRows ?? [],
+    modelUsageStatus: activity.modelUsageStatus ?? 'unavailable',
+  };
 }
 
 export async function loadGroupProfileActivity(

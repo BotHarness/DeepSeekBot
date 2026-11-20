@@ -1,4 +1,11 @@
 import {
+  readHumanAttention,
+  dismissHumanAttention,
+  readHumanAssignmentContext,
+} from '@botharness/host-client/people';
+import { readAssignmentTimeline } from '@botharness/host-client/assignment-timeline';
+import { approveGrantRequest, revokeGrant } from '@botharness/host-client/access-readers';
+import {
   overrideAutoRejection,
   readToolApprovalRules,
   revokeToolApprovalRule,
@@ -228,8 +235,11 @@ export async function runInboxCommand(
     return watchInbox(
       host.stream,
       async () => {
-        const result = await host.rpc<Record<string, unknown>>(call.method, call.args);
-        if (call.args['queryVersion'] === 1 && result['queryVersion'] !== 1)
+        const result = await readHumanAttention(
+          { call: (method, args = {}) => host.rpc(method, args) },
+          call.args,
+        );
+        if (call.args['queryVersion'] === 1 && result.queryVersion !== 1)
           throw new CliLiveError(
             'host-query-unsupported',
             'Update the Host to use Activity query filters.',
@@ -249,7 +259,34 @@ export async function runInboxCommand(
     return readToolApprovalRules(reader, String(call.args['slug']));
   if (call.method === 'toolApprovalRuleRevoke')
     return revokeToolApprovalRule(reader, String(call.args['slug']), String(call.args['id']));
-  const result = await rpc<Record<string, unknown>>(call.method, call.args);
+  if (call.method === 'humanAttentionDismissAll') return dismissHumanAttention(reader, call.args);
+  if (call.method === 'humanAssignmentContext')
+    return readHumanAssignmentContext(reader, {
+      slug: String(call.args['slug']),
+      sessionId: String(call.args['sessionId']),
+      sourceEventId: String(call.args['sourceEventId']),
+    });
+  if (call.method === 'assignmentTimeline')
+    return readAssignmentTimeline(reader, {
+      slug: String(call.args['slug']),
+      sessionId: String(call.args['sessionId']),
+    });
+  if (call.method === 'grantRevoke')
+    return revokeGrant(reader, {
+      slug: String(call.args['slug']),
+      grantId: String(call.args['grantId']),
+    });
+  if (call.method === 'grantRequestApprove')
+    return approveGrantRequest(reader, {
+      slug: String(call.args['slug']),
+      channelId: String(call.args['channelId']),
+      requestMessageId: String(call.args['requestMessageId']),
+      workspaceId: String(call.args['workspaceId']),
+    });
+  const result =
+    call.method === 'humanAttention'
+      ? ({ ...(await readHumanAttention(reader, call.args)) } as Record<string, unknown>)
+      : await rpc<Record<string, unknown>>(call.method, call.args);
   if (call.args['notifications'] === true && result['notificationVersion'] !== 1)
     throw new CliLiveError(
       'host-query-unsupported',

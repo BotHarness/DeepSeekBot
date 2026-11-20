@@ -1,3 +1,4 @@
+import { fakeTeamMode } from '../../host-client/test/reader-fixtures.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { BridgeCallError } from '../src/client/bridge.js';
@@ -15,7 +16,7 @@ import { renderTeamSignInPage } from '@botharness/host-client/shared/team-sign-i
 
 const viewer = {
   humanId: 'local-human',
-  kind: 'owner',
+  kind: 'owner' as const,
   displayName: 'Ada',
   mustChangePassword: false,
 };
@@ -69,7 +70,7 @@ describe('Team mode bridge', () => {
   it('reads the Team mode view through the teamMode method', async () => {
     const call = vi.fn(async () => ({
       ok: true as const,
-      value: { enabled: false, ownerPasswordSet: false, viewer },
+      value: fakeTeamMode(viewer),
     }));
     await loadTeamMode(call);
     expect(call).toHaveBeenCalledWith('teamMode', {}, undefined);
