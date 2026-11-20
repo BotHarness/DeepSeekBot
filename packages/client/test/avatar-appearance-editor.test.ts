@@ -59,20 +59,23 @@ describe('Profile Avatar Appearance editing', () => {
     ).rejects.toBeInstanceOf(HostAnswerInvalid);
   });
 
-  it('offers pixel design and image upload as two choices and marks the one in use', async () => {
+  it('shows presets first, previews selections before saving, and keeps upload under the portrait', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     const container = document.createElement('div');
     document.body.append(container);
     const root = createRoot(container);
     const upload = vi.fn();
     const remove = vi.fn();
+    const save = vi.fn(async () => true);
+    const saveImage = vi.fn(async () => true);
     const render = (bot: Parameters<typeof AvatarAppearanceEditor>[0]['bot']) =>
       act(() =>
         root.render(
           createElement(AvatarAppearanceEditor, {
             bot,
             channelId: 'dm-ada',
-            onSave: vi.fn(async () => true),
+            onSave: save,
+            onChooseImage: saveImage,
             onUpload: upload,
             onRemoveImage: remove,
             t: zhTranslate,
@@ -89,35 +92,54 @@ describe('Profile Avatar Appearance editing', () => {
     };
     try {
       await render(base);
-      const rows = () => [
-        ...container.querySelectorAll('.bh-avatar-methods > button.bh-avatar-method'),
-      ];
-      expect(container.querySelector('section')?.getAttribute('aria-label')).toBe('头像');
+      const click = (selector: string) =>
+        act(() => container.querySelector<HTMLButtonElement>(selector)!.click());
+      expect(container.querySelectorAll('[data-avatar-preset]')).toHaveLength(
+        AVATAR_PRESETS.length,
+      );
       expect(
-        rows().map((row) => row.querySelector('.bh-avatar-method-title > span')?.textContent),
-      ).toEqual(['设计像素头像', '上传图片']);
-      expect(rows().map((row) => row.getAttribute('data-state'))).toEqual(['current', null]);
+        container.querySelector('[data-avatar-preview] + [data-avatar-upload]')?.textContent,
+      ).toBe('上传图片');
       expect(container.querySelector('[data-avatar-remove]')).toBeNull();
-      expect(rows().map((row) => row.getAttribute('type'))).toEqual(['button', 'button']);
-      expect(rows()[0]!.hasAttribute('data-avatar-edit')).toBe(true);
-      expect(rows()[1]!.hasAttribute('data-avatar-upload')).toBe(true);
-      expect(container.querySelectorAll('.bh-avatar-method button').length).toBe(0);
-      await act(() => container.querySelector<HTMLButtonElement>('[data-avatar-upload]')!.click());
-      expect(upload).toHaveBeenCalledTimes(1);
+      await click('[data-avatar-upload]');
+      expect(upload).toHaveBeenCalledOnce();
 
       await render({ ...base, avatar: '/saved.png' });
-      expect(rows().map((row) => row.getAttribute('data-state'))).toEqual([null, 'current']);
-      const removeButton = container.querySelector<HTMLButtonElement>('[data-avatar-remove]')!;
-      expect(removeButton.closest('.bh-avatar-methods')).toBeNull();
-      expect(removeButton.closest('.bh-avatar-remove')?.previousElementSibling).toBe(
-        container.querySelector('.bh-avatar-methods'),
-      );
-      await act(() => container.querySelector<HTMLButtonElement>('[data-avatar-remove]')!.click());
-      expect(remove).toHaveBeenCalledTimes(1);
+      await click('[data-avatar-preview-column] [data-avatar-remove]');
+      expect(remove).toHaveBeenCalledOnce();
+      await click('[data-avatar-preset="2"]');
+      expect(save).not.toHaveBeenCalled();
+      expect(
+        container.querySelector('[data-avatar-preview] [data-media]')?.getAttribute('data-media'),
+      ).toBe('composed');
+      await click('[data-avatar-edit]');
+      expect(container.querySelector('[data-avatar-preset]')).toBeNull();
+      await click('[data-avatar-save]');
+      expect(save).toHaveBeenCalledWith('dm-ada', AVATAR_PRESETS[2]);
 
-      await act(() => container.querySelector<HTMLButtonElement>('[data-avatar-edit]')!.click());
-      expect(container.querySelector('.bh-avatar-methods')).toBeNull();
-      expect(container.querySelector('[data-avatar-save]')).not.toBeNull();
+      const tilties = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(
+        (tab) => tab.textContent === '歪头团',
+      );
+      expect(tilties).toBeDefined();
+      await act(() => tilties!.click());
+      expect(container.querySelectorAll('[data-tilties-avatar]')).toHaveLength(9);
+      expect(
+        container.querySelector('[aria-selected="true"][role="tab"]:last-child')?.textContent,
+      ).toBe('歪头团');
+      expect(
+        container.querySelector('[role="tablist"][aria-label="歪头团分组"] [aria-selected="true"]')
+          ?.textContent,
+      ).toBe('AI 娘');
+      const deepseek = '[data-tilties-avatar="deepseek"]';
+      const image = container.querySelector(`${deepseek} img`)?.getAttribute('src');
+      await click(deepseek);
+      expect(saveImage).not.toHaveBeenCalled();
+      expect(container.querySelector('[data-avatar-preview] img')?.getAttribute('src')).toBe(image);
+      await click('[data-avatar-cancel]');
+      expect(container.querySelector('[data-avatar-save]')).toBeNull();
+      await click(deepseek);
+      await click('[data-avatar-save]');
+      expect(saveImage).toHaveBeenCalledExactlyOnceWith(image);
     } finally {
       await act(() => root.unmount());
       container.remove();

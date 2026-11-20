@@ -2,6 +2,22 @@ import webp from '../assets/tilties.json';
 
 const collections = [
   {
+    id: 'ai',
+    en: 'AI Girls',
+    zh: 'AI 娘',
+    names: [
+      ['deepseek', 'DeepSeek', 'DeepSeek 娘'],
+      ['gpt', 'GPT', 'GPT 娘'],
+      ['claude', 'Claude', 'Claude 娘'],
+      ['gemini', 'Gemini', 'Gemini 娘'],
+      ['qwen', 'Qwen', '通义千问娘'],
+      ['doubao', 'Doubao', '豆包娘'],
+      ['kimi', 'Kimi', 'Kimi 娘'],
+      ['grok', 'Grok', 'Grok 娘'],
+      ['mistral', 'Mistral', 'Mistral 娘'],
+    ],
+  },
+  {
     id: 'pioneers',
     en: 'Pioneers',
     zh: '先遣队',
@@ -52,6 +68,8 @@ const collections = [
 ] as const;
 
 export type TiltiesCollectionId = (typeof collections)[number]['id'];
+
+export const DEFAULT_TILTIES_COLLECTION = collections[0].id;
 
 export const TILTIES_COLLECTIONS = collections.map(({ id, en, zh, names }) => ({
   id,

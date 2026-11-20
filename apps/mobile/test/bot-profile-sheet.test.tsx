@@ -336,7 +336,7 @@ describe('Bot profile page', () => {
       view.querySelector<HTMLButtonElement>('[data-testid="bot-avatar-settings-tilties"]')!.click(),
     );
     expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(9);
-    expect(view.querySelector('[data-testid="tilties-avatar-spark-captain"]')).not.toBeNull();
+    expect(view.querySelector('[data-testid="tilties-avatar-deepseek"]')).not.toBeNull();
     const fantasy = [...view.querySelectorAll('button')].find((button) =>
       ['Fantasy', '奇幻'].includes(button.textContent?.trim() ?? ''),
     );

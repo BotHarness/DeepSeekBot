@@ -35,9 +35,9 @@ for (const source of sources) {
   portraits[id] = image.toString('base64');
 }
 
-if (sources.length !== 27 || totalBytes > 384 * 1024) {
+if (sources.length !== 36 || totalBytes > 640 * 1024) {
   throw new Error(
-    `Expected 27 portraits within 384 KiB, got ${sources.length} and ${totalBytes} bytes.`,
+    `Expected 36 portraits within 640 KiB, got ${sources.length} and ${totalBytes} bytes.`,
   );
 }
 const ordered = Object.fromEntries(
@@ -47,4 +47,4 @@ await writeFile(
   new URL('../packages/host-client/assets/tilties.json', import.meta.url),
   `${JSON.stringify(ordered, null, 2)}\n`,
 );
-process.stdout.write(`Wrote 27 Tilties portraits (512 × 512, ${totalBytes} bytes total).\n`);
+process.stdout.write(`Wrote 36 Tilties portraits (512 × 512, ${totalBytes} bytes total).\n`);

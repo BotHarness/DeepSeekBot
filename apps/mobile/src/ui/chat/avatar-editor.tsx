@@ -1,5 +1,6 @@
 import { Image } from 'expo-image';
 import {
+  DEFAULT_TILTIES_COLLECTION,
   TILTIES_COLLECTIONS,
   type TiltiesCollectionId,
 } from '@botharness/host-client/tilties-avatars';
@@ -120,7 +121,7 @@ export function AvatarSettings({
   const t = useStrings();
   const theme = useDesignTheme();
   const [tiltiesOpen, setTiltiesOpen] = useState(false);
-  const [collection, selectCollection] = useState<TiltiesCollectionId>('pioneers');
+  const [collection, selectCollection] = useState<TiltiesCollectionId>(DEFAULT_TILTIES_COLLECTION);
   const portraits = TILTIES_COLLECTIONS.find(({ id }) => id === collection)?.portraits ?? [];
   return (
     <View style={{ alignSelf: 'stretch', gap: space.x2 }}>

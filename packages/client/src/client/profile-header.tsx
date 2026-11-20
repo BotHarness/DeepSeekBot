@@ -214,6 +214,7 @@ export function BotAvatarModal({
 }): ReactElement {
   const [file, setFile] = useState<File>();
   const [busy, setBusy] = useState(false);
+  const [imageEditVersion, setImageEditVersion] = useState(0);
   const [failed, setFailed] = useState(false);
   const [coloring, setColoring] = useState(false);
   const primary = botPrimaryColorOf(bot);
@@ -224,6 +225,7 @@ export function BotAvatarModal({
     try {
       const updated = await actions.setBotAvatar(channel.id, image);
       setFailed(!updated);
+      if (updated) setImageEditVersion((version) => version + 1);
       return updated;
     } catch {
       setFailed(true);
@@ -258,7 +260,7 @@ export function BotAvatarModal({
         }
       />
       <AvatarAppearanceEditor
-        key={`avatar-${bot.slug}`}
+        key={`avatar-${bot.slug}-${imageEditVersion}`}
         bot={bot}
         channelId={channel.id}
         onSave={actions.setBotAppearance}
@@ -270,7 +272,10 @@ export function BotAvatarModal({
           importImage: actions.importLibraryImage,
         }}
         onUpload={() => input.current?.click()}
-        onChooseImage={(image) => void saveImage(image)}
+        onChooseImage={(image) => {
+          setFailed(false);
+          return actions.setBotAvatar(channel.id, image);
+        }}
         onRemoveImage={() => void saveImage(null)}
         imageBusy={busy}
         t={t}
