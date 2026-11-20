@@ -33,7 +33,6 @@
     "packages/client/src/client/channel-sidebar-icon.tsx",
     "packages/client/src/client/locale.ts",
     "packages/client/src/client/marketplace.tsx",
-    "packages/client/src/client/memory-entry.tsx",
     "packages/client/src/client/paired-devices.tsx",
     "packages/client/src/client/remote-hosts.ts",
     "packages/client/src/client/schedules-entry.tsx",
