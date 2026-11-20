@@ -29,6 +29,8 @@ const styles = stylex.create({
   tile: {
     width: `calc(${size.rowLarge} + ${size.control})`,
     aspectRatio: '1',
+    paddingBlock: 0,
+    paddingInline: 0,
   },
   selected: {
     content: { default: null, '::after': '""' },
