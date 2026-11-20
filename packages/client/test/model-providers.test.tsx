@@ -65,9 +65,14 @@ it('saves a key, shows all three outcomes, then edits and removes the provider',
     revision: 3,
   };
   let providers: (typeof provider)[] = [];
+  let finishSave = () => {};
+  const save = new Promise<void>((resolve) => {
+    finishSave = resolve;
+  });
   const call = vi.fn<BridgeCall>(async (method, args) => {
     switch (method) {
       case 'modelProviderAdd':
+        await save;
         providers = [provider];
         return {
           ok: true,
@@ -105,6 +110,8 @@ it('saves a key, shows all three outcomes, then edits and removes the provider',
   try {
     await act(async () => root.render(<ModelProvidersSettings call={call} t={zhTranslate} />));
     await click('添加提供商');
+    expect(document.querySelector('input[aria-label="名称"]')).toHaveProperty('required', true);
+    expect(document.querySelector('input[type="password"]')).toHaveProperty('required', true);
     await fill('名称', 'Backup Go');
     await fill('API key', 'unpublished-key-1234');
     await click('保存', true);
@@ -118,6 +125,9 @@ it('saves a key, shows all three outcomes, then edits and removes the provider',
       },
       undefined,
     );
+    await click('关闭', true);
+    expect(document.querySelector('input[aria-label="名称"]')).toHaveProperty('value', 'Backup Go');
+    await act(async () => finishSave());
     const receipt = document.querySelector('[role="dialog"]')?.textContent;
     expect(receipt).toContain('API key 已保存');
     expect(receipt).toContain('已列出 1 个模型');
@@ -126,6 +136,7 @@ it('saves a key, shows all three outcomes, then edits and removes the provider',
     await click('关闭', true);
     await click('编辑 Backup Go');
     expect(document.querySelector('input[type="password"]')).toHaveProperty('value', '');
+    expect(document.querySelector('input[type="password"]')).toHaveProperty('required', false);
     await fill('名称', 'Renamed Go');
     await click('保存', true);
     expect(call).toHaveBeenCalledWith(

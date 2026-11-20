@@ -1,0 +1,100 @@
+# Desktop/Web component catalogue
+
+Generated from exported components and [catalogue.json](catalogue.json) by `pnpm lint:fix`.
+
+- [ActionButton](action-button.tsx) replaces hand-styled action buttons in cards and callouts.
+- [ActionGroup](action-button.tsx) replaces ad hoc spacing and wrapping for related actions.
+- [Button](button.tsx) replaces styled native buttons and DSH buttons in feature code.
+- [Callout](callout.tsx) replaces one-off informational and warning blocks.
+- [Checkbox](checkbox.tsx) replaces raw checkboxes and one-off checkmark styling.
+- [ChipButton](chip-button.tsx) replaces hand-styled compact chip actions.
+- [ChoiceButton](choice-button.tsx) replaces custom clickable option cards with local selection styles.
+- [ColorInput](input.tsx) replaces hand-styled colour input controls.
+- [ComposerControl](chat-chrome.tsx) replaces hand-styled action controls beside the message composer.
+- [ComposerTextarea](chat-chrome.tsx) replaces raw multiline inputs in the message composer.
+- [ConfirmDialog](form-dialog.tsx) replaces individually composed confirmation modals.
+- [CopyChip](status-block.tsx) replaces ad hoc inline copy affordances for status facts.
+- [DangerTextButton](form-dialog.tsx) replaces ad hoc destructive text actions.
+- [Dialog](dialog.tsx) replaces ad hoc modal overlays and focus traps.
+- [EmptyState](empty-state.tsx) replaces one-off empty-state layouts with local typography.
+- [Field](field.tsx) replaces hand-aligned labels, inputs and validation messages.
+- [FieldStack](field.tsx) replaces local stacks for related form fields.
+- [FileTypeIcon](file-type-icon.tsx) replaces feature-level file extension to icon mappings.
+- [FilterPicker](filter-picker.tsx) replaces one-off searchable lists with filter state and styling.
+- [FormDialog](form-dialog.tsx) replaces custom modal forms with submit and cancel footers.
+- [GroupHeading](group-heading.tsx) replaces locally aligned labels above groups of list rows.
+- [HiddenFileInput](input.tsx) replaces raw hidden file inputs repeated across features.
+- [HoverCard](hover-card.tsx) replaces feature-owned floating hover previews.
+- [Icon](icon.tsx) replaces inline glyph SVG and direct icon-library imports.
+- [IconButton](icon-button.tsx) replaces raw icon-only buttons and local hit-area styling.
+- [InfoTip](info-tip.tsx) replaces manually positioned explanation popovers.
+- [InfoTip](status-block.tsx) replaces manually positioned explanation popovers.
+- [InlineTokenButton](inline-token-button.tsx) replaces one-off inline controls for token-like text.
+- [Input](input.tsx) replaces raw single-line form inputs styled by each feature.
+- [InstantTooltipScope](tooltip.tsx) replaces feature-managed tooltip timing for adjacent controls.
+- [Kbd](kbd.tsx) replaces ad hoc keycap formatting.
+- [KeyCombo](kbd.tsx) replaces locally spaced sequences of keycaps.
+- [Menu](menu.tsx) replaces feature-owned action menus and keyboard navigation.
+- [MenuItemButton](menu.tsx) replaces hand-styled action controls inside menus.
+- [MenuRowButton](menu-row-button.tsx) replaces styled native buttons for menu-like rows.
+- [MenuSurface](menu.tsx) replaces individually positioned menu containers.
+- [Modal](modal.tsx) replaces one-off dialog mount and dismissal wrappers.
+- [NavGroupHeading](nav-item.tsx) replaces local heading insets for navigation groups.
+- [NavItem](nav-item.tsx) replaces hand-styled navigation buttons with custom selected and attention states.
+- [Note](note.tsx) replaces individually styled supporting notes.
+- [NumberField](number-field.tsx) replaces raw numeric inputs assembled with independent labels.
+- [NumberStepper](number-stepper.tsx) replaces ad hoc increment and decrement controls.
+- [PanelDialog](panel-dialog.tsx) replaces local modal shells for Panel content.
+- [PanelEmptyState](empty-state.tsx) replaces individually styled empty content in Panels.
+- [PanelHeader](panel-header.tsx) replaces hand-aligned Panel headers with independent action spacing.
+- [PickerTrigger](picker-trigger.tsx) replaces styled native buttons for opening a picker.
+- [PillButton](pill-button.tsx) replaces individually styled pill-shaped actions.
+- [PillFileButton](pill-button.tsx) replaces raw file inputs paired with one-off pill buttons.
+- [PointerMenu](pointer-menu.tsx) replaces hand-positioned pointer-triggered action menus.
+- [PreviewChoices](preview-choice.tsx) replaces local grids of selectable previews.
+- [ProfileActivitySection](profile-panel.tsx) replaces one-off activity section layout in profiles.
+- [ProfileCard](profile-panel.tsx) replaces local card styling in profile views.
+- [ProfilePanel](profile-panel.tsx) replaces feature-level layout for profile sections.
+- [QuoteCard](quote-chip.tsx) replaces ad hoc expanded quote cards.
+- [QuoteCardList](quote-chip.tsx) replaces separate layout for stacks of expanded quote cards.
+- [QuoteChip](quote-chip.tsx) replaces hand-styled inline quote previews.
+- [QuoteChipList](quote-chip.tsx) replaces ad hoc wrapping and spacing for quote chips.
+- [ReadFailure](read-failure.tsx) replaces one-off failed-read summaries and retry controls.
+- [RequestDetail](request-card.tsx) replaces locally laid out request detail facts.
+- [RequestDetails](request-card.tsx) replaces per-request stacks of labelled facts.
+- [RequestHeading](request-card.tsx) replaces individual heading styles on approval and question cards.
+- [RequestOption](request-card.tsx) replaces hand-styled selectable request answers.
+- [RequestOptions](request-card.tsx) replaces local layout and spacing for request answers.
+- [RequestOutcome](request-card.tsx) replaces ad hoc outcome styling in request cards.
+- [SearchField](field.tsx) replaces raw search inputs with an improvised search affordance.
+- [SegmentedControl](segmented.tsx) replaces custom groups of mutually exclusive segment buttons.
+- [Select](select.tsx) replaces raw select elements and custom selection popovers.
+- [SelectionToolbar](selection-toolbar.tsx) replaces feature-owned toolbars for bulk selection actions.
+- [SelectionToolbarButton](selection-toolbar.tsx) replaces one-off bulk-selection toolbar actions.
+- [SettingsDialog](settings-dialog.tsx) replaces feature-owned settings navigation and modal shell.
+- [SettingsGroupPart](settings-row.tsx) replaces one-off wrappers for additions to a grouped settings surface.
+- [SettingsRow](settings-row.tsx) replaces hand-aligned settings labels, descriptions and controls.
+- [SettingsRows](settings-row.tsx) replaces local styling for grouped settings rows.
+- [SettingsSection](settings-row.tsx) replaces ad hoc settings group headings and row grouping.
+- [SettingsValue](settings-row.tsx) replaces individually formatted read-only settings values.
+- [ShortcutTile](shortcut-tile.tsx) replaces hand-styled shortcut tiles.
+- [Slider](slider.tsx) replaces raw range inputs with duplicated styling.
+- [StatusBadge](status-block.tsx) replaces one-off icon and tone treatments for statuses.
+- [StatusBlock](status-block.tsx) replaces independently styled status cards and action layouts.
+- [StatusDisclosure](status-block.tsx) replaces locally arranged disclosure controls for status detail.
+- [StatusFact](status-block.tsx) replaces hand-aligned labels and values within a status surface.
+- [StatusGroup](status-block.tsx) replaces ad hoc grouping of related status sections.
+- [StatusHeading](status-block.tsx) replaces individually styled headings in status surfaces.
+- [StatusList](status-block.tsx) replaces one-off lists in status sections.
+- [StatusListAction](status-block.tsx) replaces local action rows in status lists.
+- [StatusListRow](status-block.tsx) replaces hand-aligned status list icons, labels and values.
+- [StatusStack](status-block.tsx) replaces locally spaced stacks of status surfaces.
+- [StepProgress](step-progress.tsx) replaces custom progress displays for sequential steps.
+- [SwatchChoices](preview-choice.tsx) replaces individually styled colour swatches and selected states.
+- [Switch](switch.tsx) replaces raw checkbox switches and feature-specific toggle styles.
+- [Tag](tag.tsx) replaces one-off label chips and status tags.
+- [TextAreaField](field.tsx) replaces separately arranged labels and multiline fields.
+- [TextField](field.tsx) replaces separately arranged labels and single-line fields.
+- [Toast](toast.tsx) replaces feature-owned transient notifications.
+- [Tooltip](tooltip.tsx) replaces one-off floating labels and hover timers.
+- [WorkRow](work-row.tsx) replaces hand-styled work rows and their action affordances.
