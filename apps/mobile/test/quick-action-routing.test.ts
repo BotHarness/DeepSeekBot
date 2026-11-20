@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import type { Action } from 'expo-quick-actions';
 
 vi.mock('expo-quick-actions', () => ({ initial: undefined, addListener: () => ({ remove() {} }) }));
 vi.mock('expo-router', () => ({ router: { navigate: vi.fn() } }));
@@ -64,7 +65,7 @@ describe('home-screen shortcut routing', () => {
   it('opens a warm shortcut right away', () => {
     vi.useFakeTimers();
     const navigate = vi.fn();
-    let handler: ((action: { id: string; title: string; params?: object }) => void) | undefined;
+    let handler: ((action: Action) => void) | undefined;
     routeQuickActions({
       initial: undefined,
       listen: (next) => {

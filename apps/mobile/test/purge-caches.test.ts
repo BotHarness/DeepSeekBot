@@ -4,9 +4,10 @@ const disk = vi.hoisted(() => new Map<string, string | Uint8Array>());
 
 vi.mock('expo-sharing', () => ({ shareAsync: vi.fn() }));
 vi.mock('expo-file-system', () => {
-  const pathOf = (parts: unknown[]) =>
+  type PathPart = string | { path: string };
+  const pathOf = (parts: PathPart[]) =>
     parts
-      .map((part) => (typeof part === 'string' ? part : (part as { path: string }).path))
+      .map((part) => (typeof part === 'string' ? part : part.path))
       .join('/')
       .replace(/^file:\/\//u, '');
   const children = (path: string) => {
@@ -20,7 +21,7 @@ vi.mock('expo-file-system', () => {
   };
   class Directory {
     readonly path: string;
-    constructor(...parts: unknown[]) {
+    constructor(...parts: PathPart[]) {
       this.path = pathOf(parts);
     }
     get name() {
@@ -41,7 +42,7 @@ vi.mock('expo-file-system', () => {
   }
   class File {
     readonly path: string;
-    constructor(...parts: unknown[]) {
+    constructor(...parts: PathPart[]) {
       this.path = pathOf(parts);
     }
     get name() {
@@ -115,7 +116,7 @@ const tail = (hostId: string, channelId: string, ids: string[]) => {
         body: `secret ${id}`,
         attachments: [{ fileId: `file:${id}`, name: 'p.png', mime: 'image/png', size: 1 }],
       },
-    })) as never,
+    })),
   });
 };
 const read = async (hostId: string, channelId: string) =>
@@ -193,7 +194,12 @@ describe('purges reach the phone’s caches', () => {
 
   it('ignores malformed placements', () => {
     expect(
-      purgedPlacements([null, 1, { sourceEventId: 's' }, { ...placement('m', ['file:a', 3]) }]),
+      purgedPlacements([
+        null,
+        1,
+        { sourceEventId: 's' },
+        { ...placement('m', []), fileIds: ['file:a', 3] },
+      ]),
     ).toEqual([placement('m', ['file:a'])]);
     expect(purgedPlacements('nope')).toEqual([]);
   });
