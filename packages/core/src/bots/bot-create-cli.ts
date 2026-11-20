@@ -177,10 +177,11 @@ Usage:
   tobs engine tools <id> [--query memory] --host <url>
   tobs engine tool <id> memory_read --args-stdin --host <url>
   tobs engine accounts --host <url>
-  tobs engine account-add codex --name <name> --expected-revision <r> --host <url>
+  tobs engine account-add codex|claude --name <name> --expected-revision <r> --host <url>
   tobs engine account-rename <account-id> --name <name> --expected-revision <r> --host <url>
   tobs engine account-remove <account-id> --expected-revision <r> --confirm --host <url>
-  tobs engine login <account-id>|codex|claude --host <url>
+  tobs engine login <account-id>|codex|claude [--account <id>] --host <url>
+  tobs engine login claude [--account <id>] --code-stdin --host <url> < <code-file>
   tobs engine models <account-id>|codex|claude --host <url>
   tobs engine use <id> codex|claude|none --role orchestrator|assignment [--account <id>] [--model <id>] [--effort <level>] [--fallback on|off] --host <url>
   tobs pause <id> [--home <dsh-home>]

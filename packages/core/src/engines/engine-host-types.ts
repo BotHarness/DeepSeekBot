@@ -8,7 +8,7 @@ import type { ClaudeQueryFactory } from './claude-engine.js';
 import type { CodexProcessOptions, CodexTransport } from './codex-engine.js';
 import type { EngineSessionPersistence, EngineSessionStore } from './engine-dsh-session.js';
 import type { EngineGateway } from './engine-gateway.js';
-import type { ClaudeStatus } from './claude-status.js';
+import type { ClaudeStatus, startClaudeLogin } from './claude-status.js';
 import type { CodexStatus } from './codex-status.js';
 import type { EngineContextRecord } from './engine-context.js';
 import type { EngineQuotaView } from './engine-quota.js';
@@ -60,7 +60,7 @@ export interface EngineHostOptions {
   }): Promise<{ url?: string }>;
   openClaude?: ClaudeQueryFactory;
   detectClaude?(options: { command: string; home: string }): Promise<ClaudeStatus>;
-  startClaudeLogin?(options: { command: string; home: string }): Promise<{ url?: string }>;
+  startClaudeLogin?: typeof startClaudeLogin;
 }
 
 export interface EngineTurnRequest {

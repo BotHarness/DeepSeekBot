@@ -240,7 +240,7 @@ export function setup(options: {
   nativeReply?: string;
   beforeEngineLimit?(engine: string, clock: { now: number }): void;
   inherited?: boolean;
-  namedCodex?: boolean;
+  namedEngine?: 'codex' | 'claude';
   nativeFirst?: boolean;
   nativeRuntime?: Pick<
     Awaited<ReturnType<typeof nativeRuntime>>,
@@ -300,9 +300,10 @@ export function setup(options: {
     detectClaude: async () => ({ installed: true, version: '2.1.327', login: 'subscription' }),
     openClaude: claude.factory,
   });
-  const account = options.namedCodex ? host.addAccount('Work', 0) : undefined;
+  const account =
+    options.namedEngine === undefined ? undefined : host.addAccount(options.namedEngine, 'Work', 0);
   const members = options.members.map((member) =>
-    member.kind === 'engine' && member.engine === 'codex' && account !== undefined
+    member.kind === 'engine' && member.engine === account?.engine
       ? { ...member, accountId: account.id }
       : member,
   );

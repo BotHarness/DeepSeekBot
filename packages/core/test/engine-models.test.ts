@@ -112,6 +112,25 @@ function setup(
 }
 
 describe('Subscription Engine models', () => {
+  it('keeps each Claude account model list in its own cache and config directory', async () => {
+    const { host, replay, route, root } = setup([LISTING, LISTING]);
+    const work = host.addAccount('claude', 'Work', 0);
+    try {
+      const personal = await route({ action: 'models', engine: 'claude' });
+      const named = await route({ action: 'models', engine: work.id });
+      expect(personal.status).toBe(200);
+      expect(named).toEqual(personal);
+      await route({ action: 'models', engine: work.id });
+      await route({ action: 'models', engine: 'claude' });
+      expect(replay.options.map((options) => options.env?.CLAUDE_CONFIG_DIR)).toEqual([
+        join(root, 'claude', 'home'),
+        join(root, 'claude', 'accounts', work.id),
+      ]);
+    } finally {
+      await host.close();
+    }
+  });
+
   it('keeps the healthy engine and its models when another status probe fails', async () => {
     const { host, replay } = setup([LISTING], {
       detectCodex: async () => {

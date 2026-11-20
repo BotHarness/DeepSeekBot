@@ -22,6 +22,11 @@ export function engineName(engine: string): string {
   return engine;
 }
 
+export function engineAccountTitle(engine: EngineId, accountName?: string): string {
+  const brand = engineName(engine);
+  return accountName === undefined || accountName === brand ? brand : `${brand} · ${accountName}`;
+}
+
 export function routingGroupEngineReason(
   engine: EngineId,
   reason: RoutingGroupEngineUnavailable,
