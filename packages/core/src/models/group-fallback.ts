@@ -1,3 +1,4 @@
+import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { EngineRefusal, type EngineId } from '../engines/engine-session.js';
 import { createMemoryFallbackOverrides, type FallbackOverrideStore } from './fallback-overrides.js';
 import type { ModelRoute, PersonaBotModelPlan } from './presets.js';
@@ -64,7 +65,7 @@ const same = (left: RouteKey, right: RouteKey) =>
 
 export function routingTargetRestKey(target: RoutingTarget): string {
   return target.kind === 'engine'
-    ? JSON.stringify(['engine', target.engine])
+    ? JSON.stringify(['engine', engineAccountKey(target.engine, target.accountId)])
     : JSON.stringify(['route', target.route.provider, target.route.model]);
 }
 
@@ -73,6 +74,7 @@ export function unavailableRoutingEngine(error: unknown): boolean {
     error instanceof EngineRefusal &&
     [
       'engine-not-installed',
+      'engine-account-not-found',
       'engine-signed-out',
       'engine-not-subscription',
       'unknown-model',
@@ -89,7 +91,7 @@ export function createGroupFallback(options: {
   engines?: {
     targets(groupId: string): RoutingTarget[];
     allowed(botSlug: string): boolean;
-    limit(engine: EngineId): Omit<SubscriptionRest, 'engine'> | undefined;
+    limit(engine: EngineId, accountId?: string): Omit<SubscriptionRest, 'engine'> | undefined;
   };
   allowsGroup?(botSlug: string, groupId: string): boolean;
   rests: Pick<RouteRests, 'restingUntil'>;
@@ -152,7 +154,7 @@ export function createGroupFallback(options: {
     const rests: RestingRoute[] = [];
     let unavailable = false;
     let subscription: SubscriptionRest | undefined;
-    const restingEngines = new Set<EngineId>();
+    const restingEngines = new Set<string>();
     const restingRoutes = new Set<string>();
     for (const target of targets) {
       if (target.kind === 'engine') {
@@ -160,14 +162,15 @@ export function createGroupFallback(options: {
           unavailable = true;
           continue;
         }
-        const limit = engines.limit(target.engine);
+        const key = routingTargetRestKey(target);
+        const limit = engines.limit(target.engine, target.accountId);
         if (limit === undefined) {
-          if (!attempted?.has(routingTargetRestKey(target))) return { kind: 'target', target };
+          if (!attempted?.has(key)) return { kind: 'target', target };
           unavailable = true;
           continue;
         }
-        if (!restingEngines.has(target.engine)) {
-          restingEngines.add(target.engine);
+        if (!restingEngines.has(key)) {
+          restingEngines.add(key);
           if (subscription === undefined || limit.until < subscription.until)
             subscription = { engine: target.engine, ...limit };
           rests.push({

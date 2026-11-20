@@ -176,9 +176,13 @@ Usage:
   tobs engine list|status --host <url>
   tobs engine tools <id> [--query memory] --host <url>
   tobs engine tool <id> memory_read --args-stdin --host <url>
-  tobs engine login codex|claude --host <url>
-  tobs engine models codex|claude --host <url>
-  tobs engine use <id> codex|claude|none --role orchestrator|assignment [--model <id>] [--effort <level>] [--fallback on|off] --host <url>
+  tobs engine accounts --host <url>
+  tobs engine account-add codex --name <name> --expected-revision <r> --host <url>
+  tobs engine account-rename <account-id> --name <name> --expected-revision <r> --host <url>
+  tobs engine account-remove <account-id> --expected-revision <r> --confirm --host <url>
+  tobs engine login <account-id>|codex|claude --host <url>
+  tobs engine models <account-id>|codex|claude --host <url>
+  tobs engine use <id> codex|claude|none --role orchestrator|assignment [--account <id>] [--model <id>] [--effort <level>] [--fallback on|off] --host <url>
   tobs pause <id> [--home <dsh-home>]
   tobs resume <id> [--home <dsh-home>]
   tobs update <id> [--name <name>] [--description <text>] [--role <tag> ...] [--home <dsh-home>]
@@ -2551,7 +2555,8 @@ const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
   { command: 'bots', description: 'bots list|create|show|delete' },
   {
     command: 'engine',
-    description: 'engine list|status|approvals|tools|tool|login|models|use: Subscription Engines',
+    description:
+      'engine list|status|accounts|account-add|account-rename|account-remove|approvals|tools|tool|login|models|use: Subscription Engines',
   },
   ...ZIP_UPLOAD_COMMANDS.map((command) => ({
     command,
@@ -2679,13 +2684,26 @@ export async function runBotCreateCli(
       const [action, ...targets] = rest;
       if (
         action !== undefined &&
-        ['list', 'status', 'approvals', 'tools', 'tool', 'login', 'models', 'use'].includes(action)
+        [
+          'list',
+          'status',
+          'accounts',
+          'account-add',
+          'account-rename',
+          'account-remove',
+          'approvals',
+          'tools',
+          'tool',
+          'login',
+          'models',
+          'use',
+        ].includes(action)
       ) {
         command = `engine-${action}`;
         rest = targets;
       } else if (values.help !== true)
         throw usageError(
-          'engine needs list, status, approvals, tools, tool, login, models or use.',
+          'engine needs list, status, accounts, account-add, account-rename, account-remove, approvals, tools, tool, login, models or use.',
         );
     } else if (command === 'activity' && rest[0] === 'list') rest = rest.slice(1);
     if (values.administration && command !== 'list') throw usageError('invalid-input');

@@ -612,6 +612,7 @@ it.each(['api-first', 'engine-first'] as const)(
     const native = await nativeRuntime(model);
     const bot = setup({
       members: [apiFirst ? CLAUDE : CODEX],
+      namedCodex: !apiFirst,
       nativeFirst: apiFirst,
       nativeRuntime: native,
       inherited: true,
@@ -636,7 +637,7 @@ it.each(['api-first', 'engine-first'] as const)(
         assignmentGroups: [
           {
             group: bot.groupId,
-            members: apiFirst ? [API, CLAUDE] : [CODEX, API],
+            members: apiFirst ? [API, CLAUDE] : [{ ...CODEX, accountId: bot.account?.id }, API],
           },
         ],
       },
@@ -663,6 +664,12 @@ it.each(['api-first', 'engine-first'] as const)(
     expect(
       bot.channelMessages().filter((message) => message.sessionFailure?.sessionId === sessionId),
     ).toEqual([]);
+    if (!apiFirst) {
+      const accountId = bot.account?.id;
+      expect(accountId).toEqual(expect.any(String));
+      expect(bot.host.limit('codex')).toBeUndefined();
+      expect(bot.host.limit('codex', accountId)?.until).toBe(RESETS_AT);
+    }
     expect(bot.assignment(sessionId)).toMatchObject({
       activity: 'idle',
       latestReport: { state: 'completed' },

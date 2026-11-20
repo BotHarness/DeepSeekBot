@@ -132,9 +132,11 @@ export const MODELS_USAGE_COMMANDS = [
 
 export interface ModelsUsageValues {
   'orchestrator-engine'?: string;
+  'orchestrator-engine-account'?: string;
   'orchestrator-engine-model'?: string;
   'orchestrator-engine-effort'?: string;
   'assignment-engine'?: string;
+  'assignment-engine-account'?: string;
   'assignment-engine-model'?: string;
   'assignment-engine-effort'?: string;
   name?: string;
@@ -276,9 +278,23 @@ export function presetEngineFlags(
     const engine = values[`${role}-engine`]?.trim();
     const model = values[`${role}-engine-model`]?.trim();
     const effort = values[`${role}-engine-effort`]?.trim();
-    if (engine === undefined && model === undefined && effort === undefined) return undefined;
-    if (update && engine === 'none' && model === undefined && effort === undefined) return null;
-    if (!isEngineId(engine) || model === '' || effort === '')
+    const accountId = values[`${role}-engine-account`]?.trim();
+    if (
+      engine === undefined &&
+      model === undefined &&
+      effort === undefined &&
+      accountId === undefined
+    )
+      return undefined;
+    if (
+      update &&
+      engine === 'none' &&
+      model === undefined &&
+      effort === undefined &&
+      accountId === undefined
+    )
+      return null;
+    if (!isEngineId(engine) || model === '' || effort === '' || accountId === '')
       usage(
         `--${role}-engine must be codex or claude${update ? ' (or none to clear)' : ''}; model and effort must be nonempty.`,
       );
@@ -286,6 +302,7 @@ export function presetEngineFlags(
       engine,
       ...(model === undefined ? {} : { model }),
       ...(effort === undefined ? {} : { effort }),
+      ...(accountId === undefined ? {} : { accountId }),
     };
   };
   const orchestratorEngine = read('orchestrator');

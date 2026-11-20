@@ -1,11 +1,19 @@
 import {
+  createEngineAccountBridge,
+  type EngineAccountBridgeMethods,
+  type EngineAccountOperations,
+} from '../engines/engine-account-bridge.js';
+import {
   createModelProviderBridge,
   invalidInput,
   modelFailure,
   type ModelProviderBridgeMethods,
 } from '../models/provider-bridge.js';
 import type { ModelProviders } from '../models/providers.js';
-import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
+import {
+  engineAccountKey,
+  type RoutingGroupEngineOptions,
+} from '@botharness/host-protocol/subscription-engine';
 import type { EngineHost } from '../engines/engine-host.js';
 import { EngineRefusal } from '../engines/engine-session.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
@@ -815,7 +823,8 @@ export interface MessagingAppsView {
   setups: NonNullable<MessagingSnapshot['appSetups']>;
 }
 
-export interface BridgeMethods extends TeamBridgeMethods, ModelProviderBridgeMethods {
+export interface BridgeMethods
+  extends TeamBridgeMethods, ModelProviderBridgeMethods, EngineAccountBridgeMethods {
   tobHome(
     payload: unknown,
   ): Promise<
@@ -1478,6 +1487,7 @@ export interface BridgeMethodsDeps {
   subscriptionEngines?: Pick<EngineHost, 'validateChoice' | 'use' | 'fallsBack'> & {
     store: Pick<EngineHost['store'], 'selection'>;
   };
+  engineAccounts?: EngineAccountOperations;
   localSubscriptionEngines?: boolean;
   routingGroupEngineOptions?(): Promise<RoutingGroupEngineOptions[]>;
   releaseEngineQuotaHold?(slug: string): void;
@@ -2596,12 +2606,15 @@ function buildBridgeMethods(
         (saved) =>
           saved.kind === 'engine' &&
           saved.engine === member.engine &&
+          engineAccountKey(saved.engine, saved.accountId) ===
+            engineAccountKey(member.engine, member.accountId) &&
           saved.model === member.model?.trim() &&
           saved.reasoningEffort === member.reasoningEffort?.trim(),
       )
         ? [
             {
               engine: member.engine,
+              ...(member.accountId === undefined ? {} : { accountId: member.accountId }),
               model: member.model.trim(),
               effort: member.reasoningEffort.trim(),
             },
@@ -2640,6 +2653,17 @@ function buildBridgeMethods(
         'invalid-input',
         `Model ${unknown.provider}/${unknown.model} is not in this Host's model list`,
       );
+  };
+  const assertEngineAccounts = (
+    choices: readonly (
+      | Pick<import('../models/presets.js').ModelPresetEngine, 'engine' | 'accountId'>
+      | null
+      | undefined
+    )[],
+  ) => {
+    if (!deps.engineAccounts) return;
+    for (const choice of choices)
+      if (choice != null) deps.engineAccounts.resolveAccount(choice.engine, choice.accountId);
   };
   const firstUsableRoute = async (routes: readonly ModelRoute[]): Promise<ModelRoute> => {
     let failure: Error | undefined;
@@ -3243,6 +3267,7 @@ function buildBridgeMethods(
   const methods: BridgeMethods = {
     ...createTeamBridge(human, deps.team),
     ...createModelProviderBridge(human, deps),
+    ...createEngineAccountBridge(human, deps),
     ...createVoiceBridgeMethods({
       providers: deps.voiceProviders,
       registry: deps.registry,
@@ -4595,6 +4620,7 @@ function buildBridgeMethods(
           ],
         );
         if (groups !== undefined) presetGroupRoutes(groups);
+        assertEngineAccounts([engines.orchestratorEngine, engines.assignmentEngine]);
         const preset = deps.modelPresets.create({
           name,
           orchestrator,
@@ -4674,6 +4700,7 @@ function buildBridgeMethods(
             ],
         );
         if (groups !== undefined) presetGroupRoutes(groups);
+        assertEngineAccounts([engines.orchestratorEngine, engines.assignmentEngine]);
         const preset = deps.modelPresets.update(id, {
           expectedRevision,
           name,
@@ -4755,6 +4782,7 @@ function buildBridgeMethods(
           ...(preset.assignmentModels ?? []),
           ...presetGroupRoutes(preset, slug),
         ]);
+        assertEngineAccounts([preset.orchestratorEngine, preset.assignmentEngine]);
         const result = deps.registry.applyModelPreset(slug, { ...preset, orchestrator });
         if (!result.ok || result.record.modelPlan === undefined) return unknownBot(slug);
         const engines = deps.subscriptionEngines;
@@ -4812,6 +4840,7 @@ function buildBridgeMethods(
       try {
         const input = routingGroupInput(source);
         await validateGroupMembers(input.members);
+        assertEngineAccounts(input.members.filter((member) => member.kind === 'engine'));
         return { ok: true, value: { group: deps.routingGroups.create(input) } };
       } catch (error) {
         return routingGroupFailure(error);
@@ -4835,6 +4864,7 @@ function buildBridgeMethods(
           input.members,
           current?.revision === expectedRevision ? current?.members : undefined,
         );
+        assertEngineAccounts(input.members.filter((member) => member.kind === 'engine'));
         const group = deps.routingGroups.update(id, {
           ...input,
           expectedRevision: expectedRevision as number,

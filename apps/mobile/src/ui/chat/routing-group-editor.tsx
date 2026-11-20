@@ -1,3 +1,4 @@
+import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { Stack, useFocusEffect, usePreventRemove, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { FlatList, Keyboard, View } from 'react-native';
@@ -278,7 +279,11 @@ function RoutingGroupEditor({
         renderItem={({ item, index }) => {
           const engine =
             item.kind === 'engine'
-              ? engines?.find((option) => option.engine === item.engine)
+              ? engines?.find(
+                  (option) =>
+                    engineAccountKey(option.engine, option.accountId) ===
+                    engineAccountKey(item.engine, item.accountId),
+                )
               : undefined;
           const engineRow =
             item.kind === 'engine'

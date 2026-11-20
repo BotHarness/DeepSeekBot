@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import {
   isRoutingGroupEngineMember,
+  engineAccountKey,
   type RoutingGroupEngineMember,
 } from '@botharness/host-protocol/subscription-engine';
 
@@ -19,7 +20,7 @@ export type RoutingGroupMember = ModelChoice | RoutingGroupEngineMember;
 export type RoutingTarget = { kind: 'route'; route: ModelRoute } | RoutingGroupEngineMember;
 
 export const ROUTING_GROUP_MEMBER_SHAPES =
-  '{kind:"model",provider,model,reasoningEffort?}, {kind:"group",id} or {kind:"engine",engine,model?,reasoningEffort?}';
+  '{kind:"model",provider,model,reasoningEffort?}, {kind:"group",id} or {kind:"engine",engine,model?,reasoningEffort?,accountId?}';
 
 export interface RoutingGroup {
   id: string;
@@ -116,6 +117,7 @@ function memberRecord(member: RoutingGroupMember): RoutingGroupMember {
     return {
       kind: 'engine',
       engine: member.engine,
+      ...(member.accountId === undefined ? {} : { accountId: member.accountId }),
       ...(member.model === undefined ? {} : { model: member.model.trim() }),
       ...(member.reasoningEffort === undefined
         ? {}
@@ -132,10 +134,12 @@ function memberRecord(member: RoutingGroupMember): RoutingGroupMember {
 }
 
 export function memberLabel(member: RoutingGroupMember): string {
-  if (member.kind === 'engine')
+  if (member.kind === 'engine') {
+    const account = engineAccountKey(member.engine, member.accountId);
     return member.model === undefined
-      ? member.engine
-      : `${member.engine}/${member.model}${member.reasoningEffort ? ` (${member.reasoningEffort})` : ''}`;
+      ? account
+      : `${account}/${member.model}${member.reasoningEffort ? ` (${member.reasoningEffort})` : ''}`;
+  }
   return member.kind === 'group'
     ? `group ${member.id}`
     : `${member.provider}/${member.model}${member.reasoningEffort ? ` (${member.reasoningEffort})` : ''}`;
@@ -177,7 +181,7 @@ export function expandRoutingTargets(
       }
       const key = JSON.stringify(
         member.kind === 'engine'
-          ? [member.kind, member.engine, member.model]
+          ? [member.kind, engineAccountKey(member.engine, member.accountId), member.model]
           : [member.kind, member.provider, member.model, member.reasoningEffort],
       );
       if (seen.has(key)) continue;

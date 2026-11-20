@@ -6,7 +6,7 @@ import { ChoiceButton } from './ds/choice-button.js';
 import { ReadFailure } from './ds/read-failure.js';
 import { bridgeHost, type BridgeCall } from './bridge.js';
 import { BOT_SETTINGS_SECTIONS, type BotSettings } from './bot-settings.js';
-import { useSubscriptionEngines } from './engine-choice.js';
+import { engineModelKey, useSubscriptionEngines } from './engine-choice.js';
 import { engineName } from './session-engine.js';
 import { engineMenuItems } from './model-menu.js';
 import { ModelBrandIcon } from './model-brand.js';
@@ -982,9 +982,14 @@ function ModelStep({
     (choice) => choice.botSlug === tob && choice.role === 'orchestrator',
   );
   const [firstEngine] = availableEngines;
-  const draftEngine = availableEngines.find(({ engine }) => engine === subscription?.engine);
+  const subscriptionKey = (choice: SubscriptionModel) =>
+    engineModelKey(choice.engine, choice.accountId);
+  const draftEngine =
+    subscription == null
+      ? undefined
+      : availableEngines.find((entry) => subscriptionKey(entry) === subscriptionKey(subscription));
   const draftEngineModels =
-    draftEngine === undefined ? undefined : engines.models[draftEngine.engine];
+    draftEngine === undefined ? undefined : engines.models[subscriptionKey(draftEngine)];
   const draftEngineModel = draftEngineModels?.find(({ id }) => id === subscription?.model);
   const unavailableSubscription =
     owner === true &&
@@ -998,6 +1003,7 @@ function ModelStep({
     subscription && draftEngine && (subscription.model === undefined || draftEngineModel)
       ? {
           engine: subscription.engine,
+          ...(subscription.accountId === undefined ? {} : { accountId: subscription.accountId }),
           ...(subscription.model === undefined ? {} : { model: subscription.model }),
           ...(subscription.effort !== undefined &&
           draftEngineModel?.efforts.some(({ id }) => id === subscription.effort)
@@ -1011,10 +1017,15 @@ function ModelStep({
     validatedSubscription !== undefined
       ? validatedSubscription
       : savedEngine !== undefined &&
-          availableEngines.some((status) => status.engine === savedEngine.engine)
+          availableEngines.some(
+            (status) => subscriptionKey(status) === subscriptionKey(savedEngine),
+          )
         ? savedEngine
         : route === undefined && firstEngine !== undefined
-          ? { engine: firstEngine.engine }
+          ? {
+              engine: firstEngine.engine,
+              ...(firstEngine.accountId === undefined ? {} : { accountId: firstEngine.accountId }),
+            }
           : null;
   const waitingForEngineSelection =
     owner === true &&
@@ -1062,7 +1073,8 @@ function ModelStep({
       if (engineChoice !== null) {
         if (
           tob !== undefined &&
-          (engineChoice.engine !== savedEngine?.engine ||
+          (savedEngine === undefined ||
+            subscriptionKey(engineChoice) !== subscriptionKey(savedEngine) ||
             engineChoice.model !== savedEngine?.model ||
             engineChoice.effort !== savedEngine?.effort)
         ) {

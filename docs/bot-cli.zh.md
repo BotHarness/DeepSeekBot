@@ -1073,21 +1073,29 @@ PersonaBot 的 Orchestrator 可以不用 DSH 模型，而运行在订阅引擎�
 
 ```bash
 deepseekbot engine list
-deepseekbot engine status
+deepseekbot engine status [<account-id>]
 deepseekbot engine approvals
 deepseekbot engine tools <bot> [--query memory]
 echo '{"path":"MEMORY.md"}' | deepseekbot engine tool <bot> memory_read --args-stdin
+deepseekbot engine accounts
+deepseekbot engine account-add codex --name <name> --expected-revision <r>
+deepseekbot engine account-rename <account-id> --name <name> --expected-revision <r>
+deepseekbot engine account-remove <account-id> --expected-revision <r> --confirm
 deepseekbot engine login codex
+deepseekbot engine login <account-id>
 deepseekbot engine login claude
-deepseekbot engine models codex|claude
-deepseekbot engine use <bot> codex --role orchestrator [--model <id>] [--effort <level>] [--fallback on|off]
+deepseekbot engine models <account-id>|codex|claude
+deepseekbot engine use <bot> codex --role orchestrator [--account <account-id>] [--model <id>] [--effort <level>] [--fallback on|off]
 deepseekbot engine use <bot> claude --role orchestrator [--model <id>] [--effort <level>] [--fallback on|off]
 deepseekbot engine use <bot> none --role orchestrator
-deepseekbot engine use <bot> codex|claude|none --role assignment [--model <id>] [--effort <level>]
+deepseekbot engine use <bot> codex|claude|none --role assignment [--account <account-id>] [--model <id>] [--effort <level>]
 ```
 
 `engine list` 返回 `{engines: [{engine, displayName, available, reason?}]}`；`engine status` 另加 `installed`、`version` 和 `login`（Codex 为 `chatgpt`，Claude Code 为 `subscription`，以及 `api-key`、`signed-out` 或 `unknown`），并以 `{botSlug, role, engine}` 列出 `selections`。`reason` 为 `not-installed`、`signed-out`、`not-subscription` 或 `login-unknown`。Cloud 或 VPS Host（`subscriptionEngines: false`，或 `DEEPSEEKBOT_HOST_KIND=cloud|vps`）不列出任何引擎。`engine login codex` 在 Host 电脑上为 Bot 的 Codex 目录启动 `codex login`，`engine login claude` 为 Bot 的 Claude 配置目录启动 `claude auth login --claudeai`；两者都返回 `{engine, started, url?}`。在浏览器里用 ChatGPT 或 Claude 订阅账号完成登录。`engine use` 返回 `{bot, role, engine, fallback?, model?, effort?}`；`none` 清除显式引擎选择，恢复 Bot 的 Orchestrator 模型选择，包括已配置的路由组。每轮开始前 Host 读取引擎账号，只接受订阅：Codex 要求 ChatGPT 登录，Claude Code 要求账号带订阅类型且密钥来源为 `none`（否则拒绝：`engine-not-subscription`、`engine-signed-out`）。Claude Code 运行时不加载任何设置来源，使用 `--strict-mcp-config`，并去掉所有服务商密钥变量；`init` 报告使用 API key 的一轮会停止。Claude Code 的 `canUseTool` 请求和 Codex 的审批请求一样变成工具审批卡片，回答会回到 Claude。引擎通过本机 MCP 网关调用 Bot 工具，网关令牌绑定到该 Bot、该 Session 和当前 Channel；引擎自己的最终文本不会发出。拒绝码：`unknown-bot`、`unknown-engine`、`engine-unavailable`、`invalid-input` 和 `usage`。
 
+Host Owner 和具有 `modelSources.manage` 权限的 Human 可以列出、添加、重命名、移除及登录订阅账号。每个 Codex 账号都有 Host 管理的独立目录。已有 Codex 选择和 `codex` 参数仍指向 `codex-default`，该账号沿用原目录。Claude Code 保留单账号。修改列表前先用 `engine accounts` 读取 `revision`。过期版本返回 `engine-account-conflict`。账号仍被 Bot、模型预设或路由组使用时，移除会返回 `engine-account-in-use` 并列出引用。移除成功后也会删除账号目录。状态查询、模型列表和登录可指定账号 ID。用 `engine use --account` 为 Bot 的任一角色选择账号。登录状态、模型缓存和额度按账号保存。账号不存在或已移除时返回 `engine-account-not-found`。切换账号会依据现有 DSH Session 上下文启动新引擎线程。
+
+新的引擎会话会带上 Bot 原 Session 中有大小限制的上下文。如果已有压缩摘要，也会带上当前摘要。后续轮次恢复该引擎会话。运行 `engine use <bot> none --role orchestrator` 切回 DSH 模型后，会在同一个 Session 中继续，并能看到引擎执行的轮次。
 新的引擎会话会带上 Bot 原 Session 中有大小限制的上下文。如果已有压缩摘要，也会带上当前摘要。后续轮次恢复该引擎会话。清除显式引擎选择后，DSH 目标可以在同一个 Session 中继续，并读取引擎执行的轮次。
 
 Orchestrator 的引擎进程空闲 30 秒后关闭。Assignment 的引擎进程在工作结束时关闭，之后释放 Host 的 Assignment 并发名额。下一条 DM 或 Assignment Request 按已保存的原生 ID 恢复。原生会话丢失时，Host 用 Bot Inbox、当前 Channel 的近期消息、Memory 和已保存的 Session 上下文重建 Orchestrator。Assignment 从目录条目、已保存的请求和 Session 事件重建。用 `session-transcript <bot-id> --session <session-id>` 查看重建通知。Assignment 所需记录缺失时，Orchestrator 会在 Bot Inbox 收到失败报告。目录条目仍存在时，`assignment` 也会显示失败。
@@ -1096,7 +1104,7 @@ Orchestrator 的引擎进程空闲 30 秒后关闭。Assignment 的引擎进程�
 
 `engine use <bot> <engine> --role assignment` 让 Bot 的 Assignment 运行在引擎上，与 Orchestrator 分开选择，所以 Claude Code 上的 Orchestrator 可以把工作交给 DSH 模型，DSH 上的 Orchestrator 也可以交给 Claude Code 或 Codex；`none` 让它们回到 DSH 模型。`selections` 会列出角色，`--fallback` 只属于 Orchestrator。每个引擎 Assignment Session 在其 Workspace Grant 的 `primaryCwd` 中打开，并保留原生会话供下一次请求使用。Claude Code 以 `acceptEdits` 模式运行：Grant 内的编辑直接进行，其他操作（命令、Grant 外的文件）通过常规的工具审批卡片询问 Human；Codex 在以 Grant 为根的 `workspace-write` 沙箱中运行。网关只向 Assignment 提供 `report_to_orchestrator`，不绑定任何 Channel，并拒绝任何 Channel 或目标参数。报告和 DSH Assignment 一样送达 Orchestrator；引擎 Assignment 一轮结束时没有报告，其最终文本会作为标记为未报告的完成报告转发。要调整正在运行的工作，用 `bot-tool <bot-id> send_assignment_request --args-stdin` 传入 `{"session_id":"<assignment-session-id>","mode":"next-step","text":"沿用现有导出格式。"}`。Codex 将请求送入当前轮次。Claude Code，或明确拒绝 steer 的 Codex，会中断当前轮次，在同一个 Session 中用请求内容开始下一轮。Orchestrator 会收到这次工作的一个终态报告。
 
-连接本机 Host 后，`model-preset-create` 和 `model-preset-update` 支持 `--orchestrator-engine codex|claude`，可选 `--orchestrator-engine-model` 和 `--orchestrator-engine-effort`。任务模型使用对应的 `--assignment-engine`、`--assignment-engine-model` 和 `--assignment-engine-effort`。预设保留相应角色在 DSH 上运行时使用的路由。`model-preset-update --<role>-engine none` 可移除该角色的引擎设置。`model-preset-apply` 在同一 Host 上恢复预设保存的选择，未保存引擎选择的角色切回预设中的 DSH 路由。用 `engine status` 查看应用后的模型及推理强度。
+连接本机 Host 后，`model-preset-create` 和 `model-preset-update` 支持 `--orchestrator-engine codex|claude`，可选 `--orchestrator-engine-account`、`--orchestrator-engine-model` 和 `--orchestrator-engine-effort`。副模型使用对应的 `--assignment-engine`、`--assignment-engine-account`、`--assignment-engine-model` 和 `--assignment-engine-effort`。预设保留相应角色在 DSH 上运行时使用的路由。`model-preset-update --<role>-engine none` 可移除该角色的引擎设置。`model-preset-apply` 在同一 Host 上恢复预设保存的选择，未保存引擎选择的角色切回预设中的 DSH 路由。用 `engine status` 查看应用后的模型及推理强度。
 
 订阅额度只来自引擎在一轮里报告的内容（Codex 的 `account/rateLimits/updated`），不读取任何 OAuth 令牌。引擎报告过额度后，`engine status` 会加上 `quota: {usedPercent?, resetsAt?, limitedUntil?, observedAt}`，并在每个 selection 上列出 `fallback`；Session 列表和 Session 详情显示同样的额度。某一轮报告订阅额度用完时，Bot 会停下（`ENGINE_LIMIT`），发一张带重置时间和"改用 API 模型"一键切换的额度卡片；重置前之后的轮次直接拒绝，不会启动引擎。如果事先用 `--fallback on` 选了备用，Bot 会改用自己的 Orchestrator Model Choice（一条具体路由或一个 Routing Group，之后由 Model Fallback 接着处理）继续，并记一条 Model Switch Notice，重置后的第一轮回到引擎。没选备用时，不会自动改用按量计费。`engine use` 会恢复因订阅额度暂停的 Bot；`engine use <bot> none` 就是卡片上那个切换的 CLI 形式。
 
@@ -1203,7 +1211,7 @@ deepseekbot group-activity <group-channel>
 
 ### 路由组
 
-**Routing Group（路由组）**是 Host 范围内带名称的有序成员列表。成员可以是 DSH 路由 `{"kind":"model","provider":"<provider>","model":"<id>"}`（可附带 `reasoningEffort`）、嵌套路由组 `{"kind":"group","id":"<id>"}` 或[订阅引擎](#订阅引擎) `{"kind":"engine","engine":"codex"}`（可附带 `model` 和 `reasoningEffort`）。`engine` 接受 `codex` 或 `claude`。`engine models codex|claude` 列出已登录引擎的模型和支持的推理强度。Claude Code 提供解析后的模型 ID 时，使用该 ID。已保存但未指定模型的成员跟随订阅当前的默认模型。
+**Routing Group（路由组）**是 Host 范围内带名称的有序成员列表。成员可以是 DSH 路由 `{"kind":"model","provider":"<provider>","model":"<id>"}`（可附带 `reasoningEffort`）、嵌套路由组 `{"kind":"group","id":"<id>"}` 或[订阅引擎](#订阅引擎) `{"kind":"engine","engine":"codex"}`（可附带 `model`、`reasoningEffort` 和 `accountId`）。`engine` 接受 `codex` 或 `claude`。`engine models codex|claude` 列出已登录引擎的模型和支持的推理强度。Claude Code 提供解析后的模型 ID 时，使用该 ID。已保存但未指定模型的成员跟随订阅当前的默认模型。
 
 ```bash
 printf '%s\n' '{"members":[{"kind":"engine","engine":"codex","model":"gpt-5.4","reasoningEffort":"high"},{"kind":"model","provider":"deepseek-official","model":"deepseek-v4-pro"}]}' |

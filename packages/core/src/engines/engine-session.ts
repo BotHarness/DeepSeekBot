@@ -35,6 +35,7 @@ export function findEngineModel(models: readonly EngineModel[], id: string | und
 }
 
 export interface EngineChoice {
+  accountId?: string;
   model?: string;
   effort?: string;
 }
@@ -48,6 +49,7 @@ export function routingGroupEngineChoice(
   const inherited = offered?.efforts.find((effort) => effort.id === sharedEffort)?.id;
   const effort = target.reasoningEffort ?? inherited;
   return {
+    ...(target.accountId === undefined ? {} : { accountId: target.accountId }),
     ...(target.model === undefined ? {} : { model: target.model }),
     ...(effort === undefined ? {} : { effort }),
   };
@@ -162,6 +164,11 @@ export class EngineLimitError extends Error {
 export class EngineRefusal extends Error {
   constructor(
     readonly code:
+      | 'engine-account-not-found'
+      | 'engine-account-conflict'
+      | 'engine-account-in-use'
+      | 'engine-account-busy'
+      | 'invalid-input'
       | 'engine-unavailable'
       | 'engine-not-installed'
       | 'engine-signed-out'
@@ -169,9 +176,12 @@ export class EngineRefusal extends Error {
       | 'engine-thread-gone'
       | 'engine-recovery-unavailable'
       | 'engine-failed'
+      | 'unknown-engine'
+      | 'engine-account-write-failed'
       | 'unknown-model'
       | 'unknown-effort',
     message: string,
+    readonly references?: readonly string[],
   ) {
     super(message);
     this.name = 'EngineRefusal';

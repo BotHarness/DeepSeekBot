@@ -120,7 +120,13 @@ describe('Subscription Engine models', () => {
     });
     try {
       const [codex, claude] = await routingGroupEngineOptions(host);
-      expect(codex).toEqual({ engine: 'codex', available: false, reason: 'login-unknown' });
+      expect(codex).toEqual({
+        engine: 'codex',
+        accountId: 'codex-default',
+        accountName: 'Codex',
+        available: false,
+        reason: 'login-unknown',
+      });
       expect(claude).toMatchObject({
         engine: 'claude',
         available: true,

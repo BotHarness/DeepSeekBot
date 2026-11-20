@@ -368,7 +368,11 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
 
   it('lists Claude Code beside Codex and starts its sign-in through the Host route', async () => {
     const { host } = setup();
-    const deps = { host, botExists: (slug: string) => slug === 'ada' };
+    const deps = {
+      host,
+      botExists: (slug: string) => slug === 'ada',
+      authorizeLogin: () => undefined,
+    };
     const listed = await (
       await engineRouteFetch(new Request('http://host/api/botharness/engines'), deps)
     ).json();
@@ -376,6 +380,8 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
       {
         engine: 'codex',
         displayName: 'Codex',
+        accountId: 'codex-default',
+        accountName: 'Codex',
         available: false,
         reason: 'not-installed',
         installed: false,

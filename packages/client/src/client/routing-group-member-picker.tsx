@@ -3,6 +3,7 @@ import {
   routingGroupEnginePresentation,
 } from '@botharness/host-client/model-catalog';
 import {
+  enginePickerAccountKey,
   ENGINE_IDS,
   type RoutingGroupEngineOptions,
 } from '@botharness/host-protocol/subscription-engine';
@@ -31,7 +32,7 @@ export function routingGroupMemberKey(member: RoutingGroupMemberView): string {
     case 'group':
       return `group:${member.id}`;
     case 'engine':
-      return `engine:${JSON.stringify([member.engine, member.model ?? '', member.reasoningEffort ?? ''])}`;
+      return `engine:${JSON.stringify([enginePickerAccountKey(member.engine, member.accountId), member.model ?? '', member.reasoningEffort ?? ''])}`;
     case 'model':
       return `model:${JSON.stringify([member.provider, member.model, member.reasoningEffort ?? ''])}`;
   }
@@ -136,10 +137,15 @@ function MemberMenu({
   for (const group of groups)
     choices.set(groupMenuKey(group.id), { member: { kind: 'group', id: group.id } });
   const engineItems = routingGroupEngineChoices(engines ?? []).map(
-    ({ member, model, isDefault }): ModelMenuItem => {
-      const key = engineMenuKey(member.engine, member.model);
+    ({ member, model, isDefault, accountName }): ModelMenuItem => {
+      const key = engineMenuKey(member.engine, member.model, member.accountId);
       choices.set(key, { ...model, member });
-      const row = routingGroupEnginePresentation(member, routingGroupEngineCopy(t), model.name);
+      const row = routingGroupEnginePresentation(
+        member,
+        routingGroupEngineCopy(t),
+        model.name,
+        accountName,
+      );
       return {
         value: key,
         label: row.title,
@@ -179,7 +185,11 @@ function MemberMenu({
   };
   const engineFilters = Object.fromEntries(
     ENGINE_IDS.map((engine) => {
-      const status = engines?.find((entry) => entry.engine === engine);
+      const statuses = engines?.filter((entry) => entry.engine === engine);
+      const status =
+        statuses?.find((entry) => entry.available && entry.models.length > 0) ??
+        statuses?.find((entry) => entry.available) ??
+        statuses?.[0];
       const retry = { label: t('routingGroups.retryEngines'), onPress: refreshEngines };
       const notice = engineReadFailed
         ? { message: t('routingGroups.enginesUnavailable'), retry }

@@ -25,7 +25,13 @@ import type { ComboboxOption } from './combobox.js';
 import { FilterPicker, type FilterPickerFilter } from './ds/filter-picker.js';
 import { Tag } from './ds/tag.js';
 import type { BotHarnessTranslate } from './locale.js';
-import type { EngineId, EngineModelView, EngineStatusView } from './engine-choice.js';
+import {
+  engineModelKey,
+  type EngineId,
+  type EngineModels,
+  type EngineModelView,
+  type EngineStatusView,
+} from './engine-choice.js';
 import { engineName } from './session-engine.js';
 import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
 import { setModelFavorite, useModelFavorites } from './model-favorites.js';
@@ -36,6 +42,7 @@ export interface ModelMenuItem extends ComboboxOption {
   readonly provider?: string | undefined;
   readonly model?: string | undefined;
   readonly engine?: EngineId;
+  readonly accountId?: string;
   readonly group?: string | undefined;
   readonly preset?: string | undefined;
   readonly hidden?: boolean;
@@ -242,40 +249,51 @@ export function catalogMenuItems(
 
 const ENGINE_BRAND = { codex: 'openai', claude: 'claude' } as const;
 
-export const engineMenuKey = (engine: EngineId, model: string): string =>
-  `engine:${engine}:${model}`;
+export const engineMenuKey = (engine: EngineId, model: string, accountId?: string): string =>
+  `engine:${engineModelKey(engine, accountId)}:${model}`;
 
-export const engineSignInKey = (engine: EngineId): string => `engine-signin:${engine}`;
+export const engineSignInKey = (engine: EngineId, accountId?: string): string =>
+  `engine-signin:${engineModelKey(engine, accountId)}`;
 
 export function engineMenuItems(
   engines: readonly EngineStatusView[],
-  models: Partial<Record<EngineId, readonly EngineModelView[]>>,
-  signingIn: EngineId | undefined,
+  models: EngineModels,
+  signingIn: string | undefined,
   t: BotHarnessTranslate,
 ): ModelMenuItem[] {
+  const multipleCodex = engines.filter(({ engine }) => engine === 'codex').length > 1;
   return engines.flatMap((status): ModelMenuItem[] => {
-    const { engine } = status;
-    const base = { engine, brand: ENGINE_BRAND[engine] };
+    const { engine, accountId, accountName } = status;
+    const key = engineModelKey(engine, accountId);
+    const base = {
+      engine,
+      brand: ENGINE_BRAND[engine],
+      ...(accountId === undefined ? {} : { accountId }),
+    };
     const name = engineName(engine);
+    const hint =
+      multipleCodex && accountName !== undefined
+        ? t('modelProviders.accountHint', { engine: name, name: accountName })
+        : t('engine.subscription', { engine: name });
     if (status.available) {
-      const entries = models[engine];
+      const entries = models[key];
       if (entries !== undefined && entries.length > 0)
         return entries.map((model) => ({
           ...base,
-          value: engineMenuKey(engine, model.id),
+          value: engineMenuKey(engine, model.id, accountId),
           name: model.name,
           label: model.name,
-          hint: t('engine.subscription', { engine: name }),
+          hint,
           model: model.id,
         }));
       const label = t(entries === undefined ? 'modelPreset.loading' : 'engine.noModels');
-      return [{ ...base, value: `engine-status:${engine}`, name: label, label, disabled: true }];
+      return [{ ...base, value: `engine-status:${key}`, name: label, label, disabled: true }];
     }
     if (!status.installed || status.reason === 'host-not-local')
       return [
         {
           ...base,
-          value: `engine-status:${engine}`,
+          value: `engine-status:${key}`,
           name,
           label: name,
           hint: t(status.reason === 'host-not-local' ? 'engine.localOnly' : 'engine.notInstalled', {
@@ -284,13 +302,13 @@ export function engineMenuItems(
           disabled: true,
         },
       ];
-    const label = t(signingIn === engine ? 'engine.signingIn' : 'engine.signInLabel', {
-      engine: name,
+    const label = t(signingIn === key ? 'engine.signingIn' : 'engine.signInLabel', {
+      engine: multipleCodex ? (accountName ?? name) : name,
     });
     return [
       {
         ...base,
-        value: engineSignInKey(engine),
+        value: engineSignInKey(engine, accountId),
         name: label,
         label,
         ...(status.reason === 'not-subscription' ? { hint: t('engine.notSubscription') } : {}),
@@ -302,14 +320,14 @@ export function engineMenuItems(
 }
 
 export function selectedEngineMenuItem(
-  choice: { engine: EngineId; model?: string },
+  choice: { engine: EngineId; model?: string; accountId?: string },
   model: EngineModelView | undefined,
   t: BotHarnessTranslate,
 ): ModelMenuItem {
   const id = choice.model ?? model?.id ?? '';
   const name = model?.name ?? (id || engineName(choice.engine));
   return {
-    value: engineMenuKey(choice.engine, id),
+    value: engineMenuKey(choice.engine, id, choice.accountId),
     name,
     label: name,
     hint: t('engine.subscription', { engine: engineName(choice.engine) }),

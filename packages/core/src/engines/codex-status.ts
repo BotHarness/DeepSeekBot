@@ -19,6 +19,8 @@ export interface CodexStatus {
 export interface CodexCommandOptions {
   command: string;
   home: string;
+  signal?: AbortSignal;
+  onExit?(): void;
   env?: Readonly<Record<string, string | undefined>>;
 }
 
@@ -61,7 +63,13 @@ export function startCodexLogin(
 ): Promise<{ url?: string }> {
   mkdirSync(options.home, { recursive: true });
   return startEngineLogin(
-    { ...target(options), name: 'codex', label: 'Codex' },
+    {
+      ...target(options),
+      name: 'codex',
+      label: 'Codex',
+      ...(options.signal === undefined ? {} : { signal: options.signal }),
+      ...(options.onExit === undefined ? {} : { onExit: options.onExit }),
+    },
     ['login'],
     timeoutMs,
   );

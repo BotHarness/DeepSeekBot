@@ -111,7 +111,7 @@ it('reads engine status and models only for the opted-in Routing Group catalog',
     },
   });
   expect(status).toHaveBeenCalledOnce();
-  expect(models.mock.calls).toEqual([['codex']]);
+  expect(models.mock.calls.map(([engine]) => engine)).toEqual(['codex']);
 });
 
 describe('composer recovery reference validation', () => {

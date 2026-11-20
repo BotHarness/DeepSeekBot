@@ -141,7 +141,12 @@ it('drives engine list, status, login and use through the Host engine route', as
       ),
     ),
   }));
-  const connect = async () => ({ http });
+  const rpc = vi.fn(async () => ({
+    engine: 'codex',
+    started: true,
+    url: 'https://auth.openai.com/x',
+  }));
+  const connect = async () => ({ http, rpc });
   expect(await runEngineCommand('engine-list', [], {}, connect)).toEqual({
     engines: [{ engine: 'codex', displayName: 'Codex', available: false, reason: 'signed-out' }],
   });
@@ -154,10 +159,7 @@ it('drives engine list, status, login and use through the Host engine route', as
   expect(await runEngineCommand('engine-login', ['codex'], {}, connect)).toMatchObject({
     started: true,
   });
-  expect(http.mock.calls.at(-1)).toEqual([
-    '/api/botharness/engines',
-    { action: 'login', engine: 'codex' },
-  ]);
+  expect(rpc).toHaveBeenCalledWith('engineAccountLogin', { id: 'codex' });
   expect(
     await runEngineCommand('engine-use', ['ada', 'none'], { role: ['orchestrator'] }, connect),
   ).toEqual({ bot: 'ada', role: 'orchestrator', engine: null });

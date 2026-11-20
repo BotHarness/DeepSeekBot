@@ -1,3 +1,5 @@
+import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
+import { TeamError } from '../team/error.js';
 import type { EngineHost } from './engine-host.js';
 import { EngineRefusal, isEngineId } from './engine-session.js';
 import { type EngineBotTool, searchEngineTools } from './engine-tools.js';
@@ -20,6 +22,7 @@ export interface EngineApprovalCard {
 export interface EngineRouteDeps {
   host: EngineHost;
   botExists(slug: string): boolean;
+  authorizeLogin?(): void;
   releaseQuotaHold?(slug: string): void;
   approvals?(): EngineApprovalCard[];
   tools?(bot: string): Promise<readonly EngineBotTool[]>;
@@ -46,13 +49,34 @@ export async function engineRouteFetch(request: Request, deps: EngineRouteDeps):
   }
   try {
     if (body['action'] === 'login') {
-      if (!isEngineId(body['engine'])) return refusal('unknown-engine', 'Unknown engine');
-      return Response.json(await host.login(body['engine']));
+      if (!deps.authorizeLogin) return refusal('permission-required', 'modelSources.manage', 403);
+      deps.authorizeLogin();
+      if (typeof body['engine'] !== 'string') return refusal('unknown-engine', 'Unknown engine');
+      const account = host.target(body['engine']);
+      return Response.json(await host.login(account.engine, account.id));
     }
     if (body['action'] === 'models') {
-      const engine = body['engine'];
-      if (!isEngineId(engine)) return refusal('unknown-engine', 'Unknown engine');
-      return Response.json({ engine, models: await host.models(engine) });
+      const target = body['engine'];
+      if (typeof target !== 'string') return refusal('unknown-engine', 'Unknown engine');
+      const { engine, id } = host.target(target);
+      return Response.json({ engine, models: await host.models(engine, id) });
+    }
+    if (body['action'] === 'status') {
+      const target = body['engine'];
+      if (typeof target !== 'string') return refusal('unknown-engine', 'Unknown engine');
+      const account = host.target(target);
+      return Response.json({
+        engines: await host.status(target),
+        selections: host.store
+          .selections()
+          .filter(
+            (row) =>
+              deps.botExists(row.botSlug) &&
+              row.engine === account.engine &&
+              engineAccountKey(row.engine, row.accountId) === account.id,
+          ),
+        approvals: deps.approvals?.() ?? [],
+      });
     }
     if (body['action'] === 'use') {
       const bot = body['bot'];
@@ -73,17 +97,23 @@ export async function engineRouteFetch(request: Request, deps: EngineRouteDeps):
         return refusal('invalid-input', 'fallback applies only to the orchestrator role');
       const model = body['model'];
       const effort = body['effort'];
+      const accountId = body['accountId'];
       for (const [name, value] of [
         ['model', model],
         ['effort', effort],
+        ['accountId', accountId],
       ] as const)
         if (value !== undefined && (typeof value !== 'string' || value === ''))
           return refusal('invalid-input', `${name} must be a non-empty string`);
-      if (engine === null && (model !== undefined || effort !== undefined))
+      if (
+        engine === null &&
+        (model !== undefined || effort !== undefined || accountId !== undefined)
+      )
         return refusal('invalid-input', 'model and effort need an engine');
       const choice = {
         ...(typeof model === 'string' ? { model } : {}),
         ...(typeof effort === 'string' ? { effort } : {}),
+        ...(typeof accountId === 'string' ? { accountId } : {}),
       };
       if (engine !== null && (choice.model !== undefined || choice.effort !== undefined))
         await host.validateChoice(engine, choice);
@@ -133,13 +163,14 @@ export async function engineRouteFetch(request: Request, deps: EngineRouteDeps):
         return refusal('tool-failed', error instanceof Error ? error.message : String(error), 409);
       }
     }
-    return refusal('invalid-input', 'action must be login, models, use, tools or tool');
+    return refusal('invalid-input', 'action must be status, login, models, use, tools or tool');
   } catch (error) {
+    if (error instanceof TeamError) return refusal(error.code, error.message, 403);
     if (error instanceof EngineRefusal)
       return refusal(
         error.code,
         error.message,
-        error.code === 'unknown-model' || error.code === 'unknown-effort' ? 400 : 409,
+        ['unknown-engine', 'unknown-model', 'unknown-effort'].includes(error.code) ? 400 : 409,
       );
     throw error;
   }

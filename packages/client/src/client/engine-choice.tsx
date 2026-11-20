@@ -1,11 +1,14 @@
 import type { SubscriptionModel } from '@botharness/host-client/model-plans';
 import {
+  enginePickerAccountKey as engineModelKey,
   isEngineId,
+  type EngineAccountIdentity,
   type EngineId,
   type EngineModelView,
 } from '@botharness/host-protocol/subscription-engine';
 import { useRef, useState } from 'react';
 
+import { observeResource } from './messaging-defaults-live.js';
 import { useMountedResource } from './mounted-resource.js';
 
 export type { EngineId } from '@botharness/host-protocol/subscription-engine';
@@ -22,7 +25,8 @@ export type EngineStatusView = {
   engine: EngineId;
   installed: boolean;
   version?: string;
-} & ({ available: true } | { available: false; reason: EngineUnavailableReason });
+} & EngineAccountIdentity &
+  ({ available: true } | { available: false; reason: EngineUnavailableReason });
 
 export interface EngineSelectionView extends SubscriptionModel {
   botSlug: string;
@@ -31,6 +35,7 @@ export interface EngineSelectionView extends SubscriptionModel {
 }
 
 export interface EnginesView {
+  revision?: number;
   engines: EngineStatusView[];
   selections: EngineSelectionView[];
 }
@@ -39,14 +44,14 @@ export type { EngineModelView } from '@botharness/host-protocol/subscription-eng
 
 export interface EngineApi {
   read(): Promise<EnginesView>;
-  models(engine: EngineId): Promise<EngineModelView[]>;
+  models(engine: EngineId, accountId?: string): Promise<EngineModelView[]>;
   use(
     bot: string,
     role: EngineRole,
     engine: EngineId | null,
-    options?: { model?: string; effort?: string; fallback?: boolean },
+    options?: { model?: string; effort?: string; fallback?: boolean; accountId?: string },
   ): Promise<void>;
-  login(engine: EngineId): Promise<{ url?: string }>;
+  login(engine: EngineId, accountId?: string): Promise<{ url?: string }>;
 }
 
 const ENGINES = './api/botharness/engines';
@@ -70,6 +75,8 @@ function parseStatus(value: unknown): EngineStatusView | undefined {
   const base = {
     engine,
     installed: entry['installed'] === true,
+    ...(typeof entry['accountId'] === 'string' ? { accountId: entry['accountId'] } : {}),
+    ...(typeof entry['accountName'] === 'string' ? { accountName: entry['accountName'] } : {}),
     ...(typeof entry['version'] === 'string' ? { version: entry['version'] } : {}),
   };
   if (entry['available'] === true) return { ...base, available: true };
@@ -91,6 +98,7 @@ export function parseEngines(value: unknown): EnginesView {
   if (!Array.isArray(engines) || !Array.isArray(selections))
     throw new Error('Invalid Subscription Engine status');
   return {
+    ...(typeof body?.['revision'] === 'number' ? { revision: body['revision'] } : {}),
     engines: engines.flatMap((entry) => parseStatus(entry) ?? []),
     selections: selections.flatMap((value): EngineSelectionView[] => {
       const entry = record(value);
@@ -105,6 +113,7 @@ export function parseEngines(value: unknown): EnginesView {
               botSlug: entry['botSlug'],
               role,
               engine,
+              ...(typeof entry['accountId'] === 'string' ? { accountId: entry['accountId'] } : {}),
               ...(typeof entry['model'] === 'string' ? { model: entry['model'] } : {}),
               ...(typeof entry['effort'] === 'string' ? { effort: entry['effort'] } : {}),
               ...(typeof entry['fallback'] === 'boolean' ? { fallback: entry['fallback'] } : {}),
@@ -138,8 +147,8 @@ export const engineApi: EngineApi = {
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     return parseEngines(await response.json());
   },
-  async models(engine) {
-    const { models } = await post({ action: 'models', engine });
+  async models(engine, accountId) {
+    const { models } = await post({ action: 'models', engine: accountId ?? engine });
     if (!Array.isArray(models)) throw new Error('Invalid Subscription Engine models');
     return models.flatMap((value): EngineModelView[] => {
       const row = record(value);
@@ -167,8 +176,8 @@ export const engineApi: EngineApi = {
   async use(bot, role, engine, options) {
     await post({ action: 'use', bot, role, engine, ...options });
   },
-  async login(engine) {
-    const result = await post({ action: 'login', engine });
+  async login(engine, accountId) {
+    const result = await post({ action: 'login', engine: accountId ?? engine });
     return typeof result['url'] === 'string' ? { url: result['url'] } : {};
   },
 };
@@ -178,15 +187,22 @@ const SIGN_IN_POLL_DEADLINE_MS = 3 * 60_000;
 
 export const engineRoles = ['orchestrator', 'assignment'] as const;
 
-type EngineModels = Partial<Record<EngineId, readonly EngineModelView[]>>;
-type ModelLoads = Partial<Record<EngineId, { state: 'pending' | 'ready' | 'failed' }>>;
+export { engineModelKey };
 
-export function useSubscriptionEngines(enabled: boolean, api = engineApi, loadModels = true) {
+export type EngineModels = Partial<Record<string, readonly EngineModelView[]>>;
+type ModelLoads = Partial<Record<string, { state: 'pending' | 'ready' | 'failed' }>>;
+
+export function useSubscriptionEngines(
+  enabled: boolean,
+  api = engineApi,
+  loadModels = true,
+  observeAccounts = api === engineApi,
+) {
   const [view, setView] = useState<EnginesView>();
   const [models, setModels] = useState<EngineModels>({});
   const [loadFailed, setLoadFailed] = useState(false);
   const [modelLoadFailed, setModelLoadFailed] = useState(false);
-  const [signingIn, setSigningIn] = useState<EngineId>();
+  const [signingIn, setSigningIn] = useState<string>();
   const [signInUrl, setSignInUrl] = useState<string>();
   const [error, setError] = useState<string>();
   const alive = useRef(false);
@@ -206,36 +222,44 @@ export function useSubscriptionEngines(enabled: boolean, api = engineApi, loadMo
       setLoadFailed(false);
       if (!loadModels) return next;
       const source = loads.current;
-      for (const status of next.engines) {
-        const { engine, available } = status;
-        if (!available) {
-          delete source[engine];
-          setModels((previous) => {
-            if (previous[engine] === undefined) return previous;
-            const { [engine]: _removed, ...remaining } = previous;
-            return remaining;
-          });
-          continue;
-        }
-        const loaded = source[engine];
+      const keys = new Set(
+        next.engines
+          .filter((status) => status.available)
+          .map(({ engine, accountId }) => engineModelKey(engine, accountId)),
+      );
+      for (const key of Object.keys(source)) {
+        if (keys.has(key)) continue;
+        delete source[key];
+        setModels((previous) => {
+          if (previous[key] === undefined) return previous;
+          const { [key]: _removed, ...remaining } = previous;
+          return remaining;
+        });
+      }
+      for (const { engine, accountId, available } of next.engines) {
+        if (!available) continue;
+        const key = engineModelKey(engine, accountId);
+        const loaded = source[key];
         if (loaded !== undefined && (loaded.state !== 'failed' || !retry)) continue;
         const request = { state: 'pending' } as const;
-        source[engine] = request;
-        void api.models(engine).then(
+        source[key] = request;
+        const catalog =
+          accountId === undefined ? api.models(engine) : api.models(engine, accountId);
+        void catalog.then(
           (values) => {
-            if (!alive.current || loads.current !== source || source[engine] !== request) return;
-            source[engine] = { state: 'ready' };
-            setModels((previous) => ({ ...previous, [engine]: values }));
-            setModelLoadFailed(Object.values(source).some((load) => load.state === 'failed'));
+            if (!alive.current || loads.current !== source || source[key] !== request) return;
+            source[key] = { state: 'ready' };
+            setModels((previous) => ({ ...previous, [key]: values }));
+            setModelLoadFailed(Object.values(source).some((load) => load?.state === 'failed'));
           },
           () => {
-            if (!alive.current || loads.current !== source || source[engine] !== request) return;
-            source[engine] = { state: 'failed' };
+            if (!alive.current || loads.current !== source || source[key] !== request) return;
+            source[key] = { state: 'failed' };
             setModelLoadFailed(true);
           },
         );
       }
-      setModelLoadFailed(Object.values(source).some((load) => load.state === 'failed'));
+      setModelLoadFailed(Object.values(source).some((load) => load?.state === 'failed'));
       return next;
     } catch {
       if (alive.current && generation.current === current) setLoadFailed(true);
@@ -247,7 +271,13 @@ export function useSubscriptionEngines(enabled: boolean, api = engineApi, loadMo
     if (!enabled) return;
     alive.current = true;
     void refresh();
+    const stop = observeAccounts
+      ? observeResource('model-providers', async () => {
+          if (activeLogin.current === undefined) await refresh();
+        })
+      : undefined;
     return () => {
+      stop?.();
       alive.current = false;
       generation.current += 1;
       loads.current = {};
@@ -255,7 +285,7 @@ export function useSubscriptionEngines(enabled: boolean, api = engineApi, loadMo
       clearTimeout(poll.current);
       clearTimeout(deadline.current);
     };
-  }, [enabled, api, loadModels]);
+  }, [enabled, api, loadModels, observeAccounts]);
 
   const saveSelection = async (
     botSlug: string,
@@ -295,16 +325,18 @@ export function useSubscriptionEngines(enabled: boolean, api = engineApi, loadMo
     );
   };
 
-  const signIn = (engine: EngineId): void => {
+  const signIn = (engine: EngineId, accountId?: string): void => {
+    const key = engineModelKey(engine, accountId);
     if (activeLogin.current !== undefined) return;
     const tab = window.open('', '_blank');
     if (tab !== null) tab.opener = null;
     const attempt = Symbol();
     activeLogin.current = attempt;
-    setSigningIn(engine);
+    setSigningIn(key);
     setSignInUrl(undefined);
     setError(undefined);
-    void api.login(engine).then(
+    const login = accountId === undefined ? api.login(engine) : api.login(engine, accountId);
+    void login.then(
       ({ url }) => {
         if (!alive.current || activeLogin.current !== attempt || url === undefined) tab?.close();
         else if (tab === null || tab.closed) setSignInUrl(url);
@@ -323,7 +355,11 @@ export function useSubscriptionEngines(enabled: boolean, api = engineApi, loadMo
         const check = async (): Promise<void> => {
           const next = await refresh(false);
           if (!alive.current || done || activeLogin.current !== attempt) return;
-          if (next?.engines.some((entry) => entry.engine === engine && entry.available))
+          if (
+            next?.engines.some(
+              (entry) => engineModelKey(entry.engine, entry.accountId) === key && entry.available,
+            )
+          )
             finish(true);
           else poll.current = setTimeout(() => void check(), SIGN_IN_POLL_MS);
         };

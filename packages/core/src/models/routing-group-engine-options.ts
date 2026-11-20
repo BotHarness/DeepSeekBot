@@ -31,21 +31,23 @@ export async function routingGroupEngineOptions(
   host: Pick<EngineHost, 'status' | 'models'>,
 ): Promise<RoutingGroupEngineOptions[]> {
   const report = await host.status();
+  if (report.length === 0)
+    return ENGINE_IDS.map((engine) => ({ engine, available: false, reason: 'host-not-local' }));
   return Promise.all(
-    ENGINE_IDS.map(async (engine): Promise<RoutingGroupEngineOptions> => {
-      const status = report.find((entry) => entry.engine === engine);
-      if (status === undefined) return { engine, available: false, reason: 'host-not-local' };
+    report.map(async (status): Promise<RoutingGroupEngineOptions> => {
+      const { engine, accountId, accountName } = status;
+      const base = {
+        engine,
+        ...(accountId === undefined ? {} : { accountId }),
+        ...(accountName === undefined ? {} : { accountName }),
+      };
       if (!status.available || !status.installed)
-        return { engine, available: false, reason: status.reason ?? 'login-unknown' };
+        return { ...base, available: false, reason: status.reason ?? 'login-unknown' };
       try {
-        const models = await host.models(engine);
-        return {
-          engine,
-          available: true,
-          models: concreteModels(models),
-        };
+        const models = await host.models(engine, accountId);
+        return { ...base, available: true, models: concreteModels(models) };
       } catch {
-        return { engine, available: false, reason: 'models-unavailable' };
+        return { ...base, available: false, reason: 'models-unavailable' };
       }
     }),
   );

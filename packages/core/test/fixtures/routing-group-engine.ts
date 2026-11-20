@@ -240,6 +240,7 @@ export function setup(options: {
   nativeReply?: string;
   beforeEngineLimit?(engine: string, clock: { now: number }): void;
   inherited?: boolean;
+  namedCodex?: boolean;
   nativeFirst?: boolean;
   nativeRuntime?: Pick<
     Awaited<ReturnType<typeof nativeRuntime>>,
@@ -299,6 +300,12 @@ export function setup(options: {
     detectClaude: async () => ({ installed: true, version: '2.1.327', login: 'subscription' }),
     openClaude: claude.factory,
   });
+  const account = options.namedCodex ? host.addAccount('Work', 0) : undefined;
+  const members = options.members.map((member) =>
+    member.kind === 'engine' && member.engine === 'codex' && account !== undefined
+      ? { ...member, accountId: account.id }
+      : member,
+  );
   const routeRests = createRouteRests({ now: () => clock.now });
   const groupFallback = createGroupFallback({
     plan: (slug) => core.registry.get(slug)?.modelPlan,
@@ -307,9 +314,9 @@ export function setup(options: {
     engines: {
       targets: (id) => core.routingGroups.targets(id),
       allowed: () => options.enginesAllowed ?? true,
-      limit: (engine) => {
+      limit: (engine, accountId) => {
         options.beforeEngineLimit?.(engine, clock);
-        return host.limit(engine);
+        return host.limit(engine, accountId);
       },
     },
     rests: routeRests,
@@ -350,7 +357,7 @@ export function setup(options: {
         targets: core.routingGroups.targets(id),
       }),
       restingUntil: (route) => routeRests.restingUntil(route),
-      engineRestingUntil: (engine) => host.limit(engine)?.until,
+      engineRestingUntil: (engine, accountId) => host.limit(engine, accountId)?.until,
       inherited: () => core.routingGroups.defaultGroup().groupId,
     },
   });
@@ -380,9 +387,7 @@ export function setup(options: {
   const nativeMember = { kind: 'model', ...API } as const;
   const group = core.routingGroups.create({
     name: 'Fallback',
-    members: options.nativeFirst
-      ? [nativeMember, ...options.members]
-      : [...options.members, nativeMember],
+    members: options.nativeFirst ? [nativeMember, ...members] : [...members, nativeMember],
   });
   if (options.inherited) core.routingGroups.setDefaultGroup(group.id, 0);
   else expect(core.registry.customizeModelPlan('ada', API, 0, group.id).ok).toBe(true);
@@ -403,6 +408,7 @@ export function setup(options: {
   }
   return {
     host,
+    account,
     adapter,
     dsh,
     codex,

@@ -1,3 +1,4 @@
+import { enginePickerAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { useMemo, useRef, useState } from 'react';
 import { FlatList, Keyboard } from 'react-native';
 
@@ -44,7 +45,7 @@ export function routingGroupMemberKey(member: RoutingGroupMember): string {
     case 'group':
       return `group:${member.id}`;
     case 'engine':
-      return `engine:${JSON.stringify([member.engine, member.model ?? '', member.reasoningEffort ?? ''])}`;
+      return `engine:${JSON.stringify([enginePickerAccountKey(member.engine, member.accountId), member.model ?? '', member.reasoningEffort ?? ''])}`;
     case 'model':
       return JSON.stringify([member.provider, member.model, member.reasoningEffort ?? '']);
   }
@@ -98,7 +99,11 @@ export function RoutingGroupMemberPicker({
     [catalog.models],
   );
   const engineId = ENGINE_IDS.find((engine) => source === `engine-${engine}`);
-  const status = engines?.find((entry) => entry.engine === engineId);
+  const statuses = engines?.filter((entry) => entry.engine === engineId);
+  const status =
+    statuses?.find((entry) => entry.available && entry.models.length > 0) ??
+    statuses?.find((entry) => entry.available) ??
+    statuses?.[0];
   const engineError =
     engineId !== undefined &&
     (engineReadFailed || (status?.available === false && status.reason === 'models-unavailable'));
@@ -125,6 +130,7 @@ export function RoutingGroupMemberPicker({
               choice.member,
               t.routingGroup.engineRow,
               choice.model.name,
+              choice.accountName,
             );
             const text = [row.name, row.title, row.detail, choice.member.model]
               .join(' ')
@@ -303,7 +309,7 @@ export function RoutingGroupMemberPicker({
                 row={item.row}
                 isDefault={item.isDefault}
                 selected={active}
-                testID={`routing-member-engine-${item.member.engine}-${item.member.model}`}
+                testID={`routing-member-engine-${enginePickerAccountKey(item.member.engine, item.member.accountId)}-${item.member.model}`}
                 onPress={() => pick(item)}
               />
             ) : (

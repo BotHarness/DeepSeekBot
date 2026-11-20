@@ -1,3 +1,11 @@
+import {
+  engineModelKey,
+  type EngineStatusView,
+  type useSubscriptionEngines,
+} from './engine-choice.js';
+import { EngineBrandIcon } from './model-brand.js';
+import { engineName } from './session-engine.js';
+import { SubscriptionAccounts } from './subscription-accounts.js';
 import { useState, type ReactElement } from 'react';
 
 import { providerBrand } from '@botharness/host-client/shared/model-brand';
@@ -15,15 +23,15 @@ import { Note } from './ds/note.js';
 import { ReadFailure } from './ds/read-failure.js';
 import { Select } from './ds/select.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
-import { useSubscriptionEngines, type EngineId, type EngineStatusView } from './engine-choice.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { observeResource } from './messaging-defaults-live.js';
-import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
-import { shortTime, engineName } from './session-engine.js';
+import { ModelBrandIcon } from './model-brand.js';
+import { shortTime } from './session-engine.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { roleLabel } from './team-roles.js';
 import { canManage, loadRoles, roleAllowsProvider, type TeamRole } from './team-roles-bridge.js';
+import { canManageModelProviders } from './team-bridge.js';
 import { useTeamMode } from './team-state.js';
 
 type Template = 'opencode-go' | 'deepseek' | 'custom';
@@ -42,7 +50,6 @@ type Dialog =
   | { kind: 'receipt'; receipt: ModelProviderSave };
 
 const templateNames = { 'opencode-go': 'OpenCode Go', deepseek: 'DeepSeek' };
-const engineIds: readonly EngineId[] = ['codex', 'claude'];
 
 function blankDraft(): Draft {
   return { name: 'OpenCode Go', key: '', endpoint: '', model: '', template: 'opencode-go' };
@@ -106,17 +113,6 @@ function engineStatus(
   }
 }
 
-function Subscriptions({ t }: { t: BotHarnessTranslate }): ReactElement {
-  const engines = useSubscriptionEngines(true, undefined, false);
-  return (
-    <SettingsSection title={t('modelProviders.subscriptions')}>
-      <div ref={engines.mount}>
-        <ModelProviderSubscriptions engines={engines} t={t} />
-      </div>
-    </SettingsSection>
-  );
-}
-
 export function ModelProviderSubscriptions({
   engines,
   t,
@@ -132,15 +128,17 @@ export function ModelProviderSubscriptions({
         </ReadFailure>
       ) : null}
       <SidebarCardList label={t('modelProviders.subscriptions')}>
-        {engineIds.map((id) => {
-          const status = engines.view?.engines.find(({ engine }) => engine === id);
-          const name = engineName(id);
+        {(engines.view?.engines ?? []).map((status) => {
+          const { engine: id, accountId, accountName } = status;
+          const brand = engineName(id);
+          const name = accountName === undefined ? brand : `${brand} · ${accountName}`;
+          const key = engineModelKey(id, accountId);
           return (
             <SidebarCardRow
-              key={id}
+              key={key}
               leading={<EngineBrandIcon brand={id === 'codex' ? 'openai' : 'claude'} size={20} />}
               title={name}
-              summary={engineStatus(status, name, t)}
+              summary={engineStatus(status, brand, t)}
               trailing={
                 status?.installed === true &&
                 !status.available &&
@@ -148,9 +146,9 @@ export function ModelProviderSubscriptions({
                   <Button
                     variant="outline"
                     disabled={engines.signingIn !== undefined}
-                    onClick={() => engines.signIn(id)}
+                    onClick={() => engines.signIn(id, accountId)}
                   >
-                    {engines.signingIn === id
+                    {engines.signingIn === key
                       ? t('engine.signingIn')
                       : t('engine.signInLabel', { engine: name })}
                   </Button>
@@ -680,7 +678,7 @@ export function ModelProvidersSettings({
         )}
         {notice === undefined ? null : <Note tone="warning">{notice}</Note>}
       </SettingsSection>
-      <Subscriptions t={t} />
+      {canManageModelProviders(team?.viewer) ? <SubscriptionAccounts call={call} t={t} /> : null}
       {editor}
     </>
   );

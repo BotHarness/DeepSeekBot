@@ -36,25 +36,51 @@ export function isEngineId(value: unknown): value is EngineId {
   return typeof value === 'string' && ENGINE_IDS.some((id) => id === value);
 }
 
+export const DEFAULT_CODEX_ACCOUNT = 'codex-default';
+
+export function engineAccountKey(engine: EngineId, accountId?: string): string {
+  return accountId ?? (engine === 'codex' ? DEFAULT_CODEX_ACCOUNT : engine);
+}
+
+export function enginePickerAccountKey(engine: EngineId, accountId?: string): string {
+  return accountId === DEFAULT_CODEX_ACCOUNT ? engine : (accountId ?? engine);
+}
+
+export interface EngineAccountIdentity {
+  accountId?: string;
+  accountName?: string;
+}
+
+export interface NamedEngineAccount {
+  id: string;
+  engine: EngineId;
+  name: string;
+}
+
 export interface RoutingGroupEngineMember {
   kind: 'engine';
   engine: EngineId;
   model?: string;
+  accountId?: string;
   reasoningEffort?: string;
 }
 
 export function isRoutingGroupEngineMember(value: unknown): value is RoutingGroupEngineMember {
   if (typeof value !== 'object' || value === null || Array.isArray(value)) return false;
   const member = value as Record<string, unknown>;
-  const model = member['model'];
-  const effort = member['reasoningEffort'];
+  const { model, accountId, reasoningEffort } = member;
   return (
     member['kind'] === 'engine' &&
     isEngineId(member['engine']) &&
     (model === undefined || (typeof model === 'string' && model.trim().length > 0)) &&
-    (effort === undefined ||
-      (typeof model === 'string' && typeof effort === 'string' && effort.trim() !== '')) &&
-    Object.keys(member).every((key) => ['kind', 'engine', 'model', 'reasoningEffort'].includes(key))
+    (accountId === undefined || (typeof accountId === 'string' && accountId.trim().length > 0)) &&
+    (reasoningEffort === undefined ||
+      (typeof model === 'string' &&
+        typeof reasoningEffort === 'string' &&
+        reasoningEffort.trim() !== '')) &&
+    Object.keys(member).every((key) =>
+      ['kind', 'engine', 'model', 'accountId', 'reasoningEffort'].includes(key),
+    )
   );
 }
 
@@ -82,7 +108,8 @@ export interface RoutingGroupEngineModel extends EngineModelView {
   aliases?: string[];
 }
 
-export type RoutingGroupEngineOptions = { engine: EngineId } & (
-  | { available: true; models: RoutingGroupEngineModel[] }
-  | { available: false; reason: RoutingGroupEngineUnavailable }
-);
+export type RoutingGroupEngineOptions = { engine: EngineId } & EngineAccountIdentity &
+  (
+    | { available: true; models: RoutingGroupEngineModel[] }
+    | { available: false; reason: RoutingGroupEngineUnavailable }
+  );

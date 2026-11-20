@@ -1,3 +1,4 @@
+import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import {
   routingGroupEngineMemberRow,
   routingGroupEnginePresentation,
@@ -276,7 +277,11 @@ function MemberEditor({
           {members.map((member, index) => {
             const engine =
               member.kind === 'engine'
-                ? engines?.find((option) => option.engine === member.engine)
+                ? engines?.find(
+                    (option) =>
+                      engineAccountKey(option.engine, option.accountId) ===
+                      engineAccountKey(member.engine, member.accountId),
+                  )
                 : undefined;
             const engineRow =
               member.kind === 'engine'

@@ -97,6 +97,23 @@ function setup(recording = RECORDING, local = true) {
 }
 
 describe('Codex Subscription Engine Session (replay)', () => {
+  it('resumes a legacy Codex thread in its original home and opens a fresh thread for another account', async () => {
+    const { host, opened, replays, request, root } = setup();
+    const other = host.addAccount('Work', 0);
+    host.use('ada', 'orchestrator', 'codex');
+    host.store.rememberNativeSession(request.sessionId, 'codex', 'legacy-thread', 'ChatGPT pro');
+    await host.runTurn(request);
+    expect(opened[0]?.home).toBe(join(root, 'codex', 'home'));
+    expect(replays[0]?.sent.map((request) => request['method'])).toContain('thread/resume');
+
+    host.use('ada', 'orchestrator', 'codex', { accountId: other.id });
+    await host.runTurn(request);
+    expect(opened[1]?.home).toBe(join(root, 'codex', 'accounts', other.id));
+    expect(replays[1]?.sent.map((request) => request['method'])).not.toContain('thread/resume');
+    expect(host.describe(request.sessionId)?.accountId).toBe(other.id);
+    await host.close();
+  });
+
   it('answers a DM through bot_send_message and writes the turn into the DSH Session', async () => {
     const { host, dsh, replays, opened, execute, request, root } = setup();
     host.use('ada', 'orchestrator', 'codex');
@@ -363,7 +380,11 @@ describe('Engine selection, status and route', () => {
 
   it('serves list, use and login through the Host route', async () => {
     const { host } = setup();
-    const deps = { host, botExists: (slug: string) => slug === 'ada' };
+    const deps = {
+      host,
+      botExists: (slug: string) => slug === 'ada',
+      authorizeLogin: () => undefined,
+    };
     const post = (body: unknown) =>
       engineRouteFetch(
         new Request('http://host/api/botharness/engines', {
@@ -396,6 +417,8 @@ describe('Engine selection, status and route', () => {
         {
           engine: 'codex',
           displayName: 'Codex',
+          accountId: 'codex-default',
+          accountName: 'Codex',
           available: true,
           installed: true,
           version: '0.170.0',

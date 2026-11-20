@@ -16,7 +16,12 @@ import type {
   ModelRouteView,
 } from './bridge.js';
 import { errorMessage } from './bridge.js';
-import { engineRoles, useSubscriptionEngines, type EngineRole } from './engine-choice.js';
+import {
+  engineModelKey,
+  engineRoles,
+  useSubscriptionEngines,
+  type EngineRole,
+} from './engine-choice.js';
 import { engineName } from './session-engine.js';
 import { isOriginActions } from './origin-actions.js';
 import { Note } from './ds/note.js';
@@ -58,7 +63,13 @@ const styles = stylex.create({
 
 function sameEngine(left: SubscriptionModel | null, right: SubscriptionModel | null): boolean {
   return (
-    left?.engine === right?.engine && left?.model === right?.model && left?.effort === right?.effort
+    left?.engine === right?.engine &&
+    (left === null ||
+      right === null ||
+      engineModelKey(left.engine, left.accountId) ===
+        engineModelKey(right.engine, right.accountId)) &&
+    left?.model === right?.model &&
+    left?.effort === right?.effort
   );
 }
 
@@ -99,7 +110,7 @@ export function ModelPresetProfile({
     t,
   );
   const liveEngine = (role: EngineRole) =>
-    origin && engines.view?.engines.length
+    origin && engines.view !== undefined
       ? (engines.view.selections.find((item) => item.botSlug === slug && item.role === role) ??
         null)
       : null;

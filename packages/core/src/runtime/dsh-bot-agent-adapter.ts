@@ -1,3 +1,4 @@
+import type { RoutingGroupEngineMember } from '@botharness/host-protocol/subscription-engine';
 import { installMemorySkillProvider } from '../skills/memory-provider.js';
 import { hasIrreversibleExternalEffect, toolEffects } from '../workspaces/tool-effects.js';
 
@@ -116,7 +117,7 @@ export interface AssignmentGroupRoutes {
     groupId: string,
     botSlug: string,
   ): { name: string; routes: ModelRoute[]; targets?: RoutingTarget[] } | undefined;
-  engineRestingUntil?(engine: EngineId): string | undefined;
+  engineRestingUntil?(engine: EngineId, accountId?: string): string | undefined;
   restingUntil(route: ModelRoute): RestingRoute | undefined;
   inherited?(): string | undefined;
   inheritedEffort?(): string | undefined;
@@ -580,6 +581,7 @@ export interface DshBotAgentAdapterOptions {
 export interface DshBotEngines {
   engineFor(botSlug: string, role?: 'orchestrator' | 'assignment'): string | undefined;
   runsOnEngine?(botSlug: string, role?: 'orchestrator' | 'assignment'): boolean;
+  assertAssignmentAccount?(botSlug: string, target?: RoutingGroupEngineMember): void;
   runTurn(request: EngineTurnRequest): Promise<EngineTurnOutcome | void>;
   steerAssignment?(sessionId: string, text: string): boolean;
   release(sessionId: string): Promise<void>;
@@ -1835,6 +1837,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       | undefined;
     try {
       if (stopped()) throw new Error('Assignment stopped before Inbox acceptance');
+      const target = run.routingTarget?.kind === 'engine' ? run.routingTarget : undefined;
+      engines.assertAssignmentAccount?.(run.bot.slug, target);
       run.setExecutionReady?.(true);
       run.requireContent?.();
       if (run.acceptNativeInput !== undefined) {
@@ -1846,7 +1850,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         (await engines.runTurn({
           botSlug: run.bot.slug,
           role: 'assignment',
-          ...(run.routingTarget?.kind === 'engine' ? { target: run.routingTarget } : {}),
+          ...(target === undefined ? {} : { target }),
           ...(run.groupEffort === undefined ? {} : { groupEffort: run.groupEffort }),
           ...(run.continuingFromNativeRoute ? { continuingFromNativeRoute: true } : {}),
           releaseNativeSession: () => this.#releaseNativeSession(run.sessionId, 'assignment'),
@@ -2390,7 +2394,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
                 ? group.routes.map(resting)
                 : group.targets.map((target) => {
                     if (target.kind === 'route') return resting(target.route);
-                    const until = groups?.engineRestingUntil?.(target.engine);
+                    const until = groups?.engineRestingUntil?.(target.engine, target.accountId);
                     return until === undefined ? target : { ...target, restingUntil: until };
                   });
             const until = members.map((member) =>

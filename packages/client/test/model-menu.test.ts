@@ -490,3 +490,32 @@ it('distinguishes the next available model from the executing target', async () 
   expect(running?.hint).toMatch(/^当前：/u);
   expect(running?.hintLabel).toContain('Claude Code · high');
 });
+
+it('gives the same Codex model a separate row and hint for each named account', () => {
+  const catalog = [{ id: 'gpt-5.4', name: 'GPT-5.4', efforts: [] }];
+  const items = engineMenuItems(
+    [
+      {
+        engine: 'codex',
+        accountId: 'codex-default',
+        accountName: '个人',
+        installed: true,
+        available: true,
+      },
+      {
+        engine: 'codex',
+        accountId: 'codex-work',
+        accountName: '工作',
+        installed: true,
+        available: true,
+      },
+    ],
+    { codex: catalog, 'codex-work': catalog },
+    undefined,
+    zhTranslate,
+  );
+  expect(items).toMatchObject([
+    { accountId: 'codex-default', value: 'engine:codex:gpt-5.4', hint: 'Codex · 个人' },
+    { accountId: 'codex-work', value: 'engine:codex-work:gpt-5.4', hint: 'Codex · 工作' },
+  ]);
+});
