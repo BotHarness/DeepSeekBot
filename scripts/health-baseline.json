@@ -135,7 +135,6 @@
     "scripts/e2e-tob-group-decisions.mjs",
     "scripts/sync-docs.mjs"
   ],
-  "tsc-exclude": [
-  ],
+  "tsc-exclude": [],
   "agent-prose-bytes": 20303
 }

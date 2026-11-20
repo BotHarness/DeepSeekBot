@@ -42,6 +42,5 @@
     "apps/mobile/test/host",
     "*.config.ts"
   ],
-  "exclude": [
-  ]
+  "exclude": []
 }
