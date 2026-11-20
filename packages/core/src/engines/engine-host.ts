@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import type { ApprovalOutcome } from '@deepseek-ai/dsh-user-approval';
 
 import { EngineHostAccounts } from './engine-host-accounts.js';
-import { AssignmentSteering } from './assignment-steering.js';
+import { EngineSteering, type SteeringInput } from './assignment-steering.js';
 import { readEngineAccount, requireSubscription } from './engine-account.js';
 import {
   type CodexProcessOptions,
@@ -75,7 +75,10 @@ export {
 
 interface TurnScope {
   channelId: string | undefined;
+  canUseChannel: EngineTurnRequest['canUseChannel'];
+  steer?: EngineSteering['steer'];
   execute: EngineTurnRequest['execute'];
+  pendingReplies: Set<Promise<unknown>>;
   context?: EngineToolContext;
   signal: AbortSignal;
 }
@@ -136,7 +139,7 @@ export class EngineHost {
   readonly #opening = new Map<string, Promise<LiveEngineSession>>();
   readonly #openingConfiguration = new Map<string, string>();
   readonly #roles = new Map<string, EngineRole>();
-  readonly #assignmentSteering = new Map<string, AssignmentSteering>();
+  readonly #assignmentSteering = new Map<string, EngineSteering>();
   readonly #accounts: EngineHostAccounts;
   readonly #openingAccounts = new Map<string, string>();
   readonly #states = new Map<string, EngineSessionDescription>();
@@ -338,30 +341,37 @@ export class EngineHost {
     return this.#assignmentSteering.get(sessionId)?.offer(text) ?? false;
   }
 
+  steerOrchestrator(sessionId: string, text: string, requireAccess: () => void) {
+    if (this.#role(sessionId) !== 'orchestrator') return false;
+    return this.#live.get(sessionId)?.turn?.steer?.(text, requireAccess) ?? false;
+  }
+
   async runTurn(request: EngineTurnRequest): Promise<EngineTurnOutcome> {
-    if (request.role !== 'assignment') return this.#runTurn(request);
     const { sessionId, signal } = request;
-    if (this.#assignmentSteering.has(sessionId))
+    const assignment = request.role === 'assignment';
+    if (assignment && this.#assignmentSteering.has(sessionId))
       throw new EngineRefusal('engine-unavailable', 'This engine Assignment is already running');
-    const steering = new AssignmentSteering(() => !signal.aborted && !this.#closed);
-    this.#assignmentSteering.set(sessionId, steering);
+    const steering = new EngineSteering(() => !signal.aborted && !this.#closed, assignment);
+    if (assignment) this.#assignmentSteering.set(sessionId, steering);
     try {
       return await steering.run(
-        request.input,
-        (input, continuation) => this.#runTurn({ ...request, input }, steering, continuation),
-        () => this.#assignmentSteering.delete(sessionId),
+        (updates) => this.#runTurn(request, steering, updates),
+        () => {
+          if (assignment) this.#assignmentSteering.delete(sessionId);
+        },
       );
     } finally {
-      await this.release(sessionId);
+      if (assignment) await this.release(sessionId);
     }
   }
 
   async #runTurn(
     request: EngineTurnRequest,
-    steering?: AssignmentSteering,
-    continuation = false,
+    steering: EngineSteering,
+    updates: readonly SteeringInput[],
   ): Promise<EngineTurnOutcome> {
     const role = request.role ?? 'orchestrator';
+    const continuation = updates.length > 0;
     this.#roles.set(request.sessionId, role);
     const target = this.#options.local ? request.target : undefined;
     const direct = this.#directSelection(request);
@@ -417,14 +427,32 @@ export class EngineHost {
           broken = true;
           throw error;
         }
-        if (live.workspaceMode !== mode) return this.#runTurn(request, steering, continuation);
+        if (live.workspaceMode !== mode) return this.#runTurn(request, steering, updates);
         if (role === 'orchestrator') this.#rememberAccount(request.botSlug, engine, live.account);
-        const input = steering?.takeInput(request.input) ?? request.input;
+        const priorReplies = continuation ? request.priorReplies?.() : undefined;
+        const valid = updates.filter((update) => {
+          try {
+            update.requireAccess?.();
+            return true;
+          } catch (error) {
+            update.fail?.(error);
+            return false;
+          }
+        });
+        if (updates.length > 0 && valid.length === 0) return outcome;
+        const text = continuation ? valid.map((update) => update.text).join('\n\n') : request.input;
+        const input = steering.takeInput(
+          priorReplies?.size
+            ? `[Host: Replies were already sent for these Source Events. Do not answer them again: ${[...priorReplies].join(', ')}.]\n\n${text}`
+            : text,
+        );
         const stop = new AbortController();
         live.stop = stop;
         const signal = AbortSignal.any([request.signal, stop.signal]);
         const scope: TurnScope = {
           channelId: request.channelId,
+          canUseChannel: request.canUseChannel,
+          pendingReplies: new Set(),
           execute: (...args) => {
             observeTarget();
             return request.execute(...args);
@@ -473,8 +501,9 @@ export class EngineHost {
         scope.context = {
           session: live.dsh.session,
           get assignmentInputRevision() {
-            return steering?.inputRevision;
+            return role === 'assignment' ? steering.inputRevision : undefined;
           },
+          priorReplies,
           ask: (approval) =>
             this.#ask(
               live,
@@ -487,6 +516,8 @@ export class EngineHost {
         };
         try {
           observeTarget();
+          if (role === 'orchestrator')
+            scope.steer = (text, requireAccess) => steering.steer(text, requireAccess);
           const sending = live.engine.send(input, {
             signal,
             verbatimInput: continuation,
@@ -503,17 +534,27 @@ export class EngineHost {
               }
             },
           });
-          const steered =
-            steering === undefined
-              ? undefined
-              : await steering.duringTurn({ sending, engine: live.engine, signal, stop, log });
-          const end = steered?.end ?? (await sending);
+          for (const update of valid) update.settle?.(true);
+          const steered = await steering.duringTurn({
+            sending,
+            engine: live.engine,
+            signal,
+            stop,
+            log,
+          });
+          const end = steered.end;
+          if (steered.replacing) await Promise.allSettled(scope.pendingReplies);
           observeTarget();
           if (role === 'orchestrator')
             this.#rememberModel(request.botSlug, engine, live.engine.model);
           try {
             await log.end(end);
-            broken = live.seed !== undefined && end.status !== 'completed';
+            const interruptedForSteer =
+              role === 'orchestrator' &&
+              steered.replacing &&
+              end.status === 'interrupted' &&
+              !live.engine.ended;
+            broken = live.seed !== undefined && end.status !== 'completed' && !interruptedForSteer;
             if (!broken) {
               this.store.rememberNativeSession(
                 request.sessionId,
@@ -529,18 +570,18 @@ export class EngineHost {
             broken = true;
             throw error;
           }
-          if (steered?.failure !== undefined) throw steered.failure.error;
+          if (steered.failure !== undefined) throw steered.failure.error;
           const last = live.dsh.session.snapshotEvents().at(-1);
           if (last !== undefined) outcome.endSeq = Number(last.seq);
           if (end.status === 'failed') {
             const limit = limitedNow ? this.limit(engine, live.accountId) : undefined;
             if (limit !== undefined)
               throw new EngineLimitError(engine, limit.account, limit.until, true);
-            if (steered?.replacing !== true || !current())
+            if (!steered.replacing || !current())
               throw new EngineRefusal('engine-failed', end.message);
           }
         } finally {
-          if (!current()) steering?.discard();
+          if (!current()) steering.discard();
           if (live.turn === scope) live.turn = undefined;
           if (live.stop === stop) live.stop = undefined;
         }
@@ -573,7 +614,7 @@ export class EngineHost {
         }
       }
     }
-    if (reopen) return this.#runTurn(request, steering, continuation);
+    if (reopen) return this.#runTurn(request, steering, updates);
     return outcome;
   }
 
@@ -825,14 +866,23 @@ export class EngineHost {
         sessionId,
         tools,
         channelId: () => holder.live?.turn?.channelId,
+        canUseChannel: (channelId) => holder.live?.turn?.canUseChannel?.(channelId) === true,
         channelless: request.role === 'assignment',
         call: async (name, args, signal) => {
           const turn = holder.live?.turn;
-          if (turn?.context === undefined)
+          if (turn?.context === undefined || turn.signal.aborted)
             return { text: 'refused: session-not-running', isError: true };
-          const callSignal =
-            request.role === 'assignment' ? AbortSignal.any([signal, turn.signal]) : signal;
-          return engineGatewayResult(await turn.execute(name, args, callSignal, turn.context));
+          const callSignal = AbortSignal.any([signal, turn.signal]);
+          const execution = turn.execute(name, args, callSignal, turn.context);
+          const replying =
+            name === 'bot_send_message' ||
+            (name === 'tool_call' && args['name'] === 'bot_send_message');
+          if (replying) turn.pendingReplies.add(execution);
+          try {
+            return engineGatewayResult(await execution);
+          } finally {
+            if (replying) turn.pendingReplies.delete(execution);
+          }
         },
       });
       const stored = this.store.nativeSession(sessionId);

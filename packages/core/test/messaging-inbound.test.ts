@@ -594,7 +594,11 @@ it('uses existing group-mention steer when an Orchestrator is already active', a
   });
   await fx.receive(second);
   await tick();
-  expect(steer).toHaveBeenCalledWith('ada', expect.stringContaining('second mention'));
+  expect(steer).toHaveBeenCalledWith(
+    'ada',
+    expect.stringContaining('second mention'),
+    expect.any(Function),
+  );
   release?.();
   await fx.idle();
   expect(fx.runs).toHaveLength(1);
