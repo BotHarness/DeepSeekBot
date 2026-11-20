@@ -400,6 +400,7 @@ export const LIVE_OPTIONS = {
   out: { type: 'string' },
   'route-id': { type: 'string' },
   'args-stdin': { type: 'boolean' },
+  'code-stdin': { type: 'boolean' },
   'cause-event': { type: 'string' },
   session: { type: 'string' },
   turns: { type: 'string' },

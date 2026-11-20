@@ -99,7 +99,7 @@ function setup(recording = RECORDING, local = true) {
 describe('Codex Subscription Engine Session (replay)', () => {
   it('resumes a legacy Codex thread in its original home and opens a fresh thread for another account', async () => {
     const { host, opened, replays, request, root } = setup();
-    const other = host.addAccount('Work', 0);
+    const other = host.addAccount('codex', 'Work', 0);
     host.use('ada', 'orchestrator', 'codex');
     host.store.rememberNativeSession(request.sessionId, 'codex', 'legacy-thread', 'ChatGPT pro');
     await host.runTurn(request);
@@ -427,6 +427,8 @@ describe('Engine selection, status and route', () => {
         {
           engine: 'claude',
           displayName: 'Claude Code',
+          accountId: 'claude',
+          accountName: 'Claude Code',
           available: false,
           reason: 'signed-out',
           installed: true,

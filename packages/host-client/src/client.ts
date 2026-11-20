@@ -1,23 +1,4 @@
-import { readRoster } from './roster-readers';
-import { readChannels } from './channel-management';
-import type { HostMemberIdentity } from './member-identity';
-import { readComputerAvailability } from './computer-availability';
-import {
-  encryptedCarrier,
-  encodeBase64,
-  ConnectRefused,
-  HOST_KEY_REJECTIONS,
-} from './encrypted-carrier';
-import type { HostEncryption } from './hosts';
-import { learnedRoutes, preferredRoutes } from './learned-routes';
-import type { ConnectionTelemetry } from './telemetry/connection';
-import { ActivitySmoother } from './shared/activity-smoothing';
-import type { BotPrimaryColor } from '../../core/src/bots/primary-color';
-import type { HostCarrier, HostSocket } from '@botharness/host-protocol/carrier';
-import { readRosterSorting, type RosterSorting } from './roster-sorting';
-import { listBots } from './bots';
-import type { HostCall } from './host-answer';
-import { DEVICE_PREFIX } from './pairing';
+import type { HostSocket } from '@botharness/host-protocol/carrier';
 import {
   checkRoute,
   isConnectRoute,
@@ -26,299 +7,66 @@ import {
   socketOrigin,
 } from '@botharness/host-protocol/route';
 import {
-  readChannelList,
-  readListBots,
-  saveListBots,
-  syncChannelList,
-  type ChannelListChanges,
-} from './channel-list-store';
-import { loadChannelChangeCursor } from './channel-messages';
-import type { LocalStore } from './local-store';
-import { LOCAL_VIDEO_PATH } from '../../computer/src/local-video-contract';
-import {
-  isChannelVoiceCallRecord,
-  type ChannelVoiceCallRecord,
-} from '../../core/src/channels/voice-call-record';
-import { VOICE_CALL_CONNECT_REFUSAL, VOICE_CALL_PATH } from '../../core/src/voice/call-contract';
-import { secretRouteRefusal } from '../../core/src/bridge/secret-route';
+  REMOTE_STREAM_MUX_PATH,
+  type ActivityLiveFrame,
+  type MuxClientFrame,
+  type MuxServerFrame,
+  type RosterLiveFrame,
+  type RosterResourceChange,
+} from '@botharness/host-protocol/wire';
 import {
   APP_VERSION_HEADER,
   MIN_HOST_VERSION,
   belowMinimum,
 } from '../../core/src/devices/client-compat';
+import { listBots } from './bots';
+import type {
+  ConnectionState,
+  HostClient,
+  HostClientOptions,
+  HostCompatibility,
+  HostSnapshot,
+  StreamHandlers,
+} from './client-contract';
 import {
-  REMOTE_STREAM_MUX_PATH,
-  type ActivityLiveFrame,
-  type AttachmentRef,
-  type AggregatedState,
-  type ChannelListItem,
-  type ClientRequest,
-  type MuxClientFrame,
-  type MuxServerFrame,
-  type PersonaBotSummary,
-  type RosterLiveFrame,
-  type RosterResourceChange,
-  type WireBotActivity,
-  type WireSessionActivity,
-  type WireAuthor,
-  type WireToolActivity,
-} from '@botharness/host-protocol/wire';
+  CredentialRefused,
+  MethodRefused,
+  Unreachable,
+  hostKeyRejected,
+  hostLacksMethod,
+} from './client-errors';
+import { createHostRequests } from './client-requests';
+import { createHostResources } from './client-resources';
+import { createHostRoster } from './client-roster';
+import { createRosterView } from './client-roster-view';
+import { createHostSnapshotSharing } from './client-snapshot-sharing';
+import { id, record } from './client-wire';
+import { readComputerAvailability } from './computer-availability';
+import { ConnectRefused, encryptedCarrier } from './encrypted-carrier';
+import { learnedRoutes, preferredRoutes } from './learned-routes';
+import { DEVICE_PREFIX } from './pairing';
 
-export type ConnectionState =
-  | { status: 'connecting'; route: string }
-  | { status: 'connected'; route: string }
-  | { status: 'reconnecting'; route: string; attempt: number }
-  | {
-      status: 'unreachable';
-      route: string;
-      attempt: number;
-      reason: string;
-      retryDelay?: number;
-    }
-  | { status: 'refused'; route: string; code: DeviceRefusal; reason: string }
-  | { status: 'stopped'; route: string };
-
-export interface RosterBot {
-  tob?: boolean;
-  slug: string;
-  displayName: string;
-  avatarUrl?: string;
-  avatarHeaders?: Record<string, string>;
-  appearance?: unknown;
-  avatarSeed?: 2;
-  bannerRecipe?: { scene: string; seed: number };
-  bannerUrl?: string;
-  bannerHeaders?: Record<string, string>;
-  primaryColor?: BotPrimaryColor;
-  roles: string[];
-  description?: string;
-  computerAccess: boolean;
-  browserAccess: boolean;
-  hostAccess?: { computer: boolean; browser: boolean };
-  state: AggregatedState;
-  activity?: WireToolActivity;
-  sessions?: readonly WireSessionActivity[];
-  paused: boolean;
-  dmChannelId?: string;
-  preview?: string;
-  previewCall?: ChannelVoiceCallRecord;
-  previewAt?: string;
-  latestMessageId?: string;
-  previewAuthor?: WireAuthor;
-}
-
-export interface RosterHuman {
-  humanId: string;
-  displayName: string;
-  avatarVersion?: string;
-}
-
-export interface RosterChannel {
-  id: string;
-  name: string;
-  memberCount: number;
-  members: string[];
-  humanMembers?: RosterHuman[];
-  avatar?: string;
-  ownerBotSlug?: string;
-  pendingInvites?: Array<{ id: string; botSlug: string }>;
-  pendingJoins?: Array<{ id: string; botSlug: string }>;
-  preview?: string;
-  previewCall?: ChannelVoiceCallRecord;
-  previewAt?: string;
-  latestMessageId?: string;
-  previewAuthor?: WireAuthor;
-}
-
-export interface RosterSection {
-  id: string;
-  name: string;
-  channelIds: string[];
-}
-
-export interface TopOrderEntry {
-  kind: 'section' | 'channel';
-  id: string;
-}
-
-export interface RosterArrangement {
-  pins: string[];
-  hidden: string[];
-  muted?: string[];
-  sections: RosterSection[];
-  sectionOrder: string[];
-  topOrder?: TopOrderEntry[];
-}
-
-export interface RosterView {
-  bots: RosterBot[];
-  channels: RosterChannel[];
-  people?: RosterChannel[];
-  activityChannels?: ChannelListItem[];
-  arrangement?: RosterArrangement;
-  sorting?: RosterSorting;
-}
-
-export interface HostCompatibility {
-  hostVersion?: string;
-  update?: 'host' | 'app';
-}
-
-export interface HostSnapshot {
-  routePreference?: string;
-  routeChangePending?: boolean;
-  feedRead?: 'acknowledged' | 'unsupported' | 'unconfirmed';
-  routes?: readonly {
-    url: string;
-    status: 'unchecked' | 'verified' | 'unreachable';
-  }[];
-  computerAvailable?: boolean;
-  compatibility?: HostCompatibility;
-  connection: ConnectionState;
-  disruptedSince?: number;
-  activity?: readonly WireBotActivity[];
-  roster?: RosterView;
-}
-
-export interface RemoteSource {
-  read?: (signal: AbortSignal) => Promise<{ bytes: Uint8Array; mime: string }>;
-  uri: string;
-  headers: Record<string, string>;
-  cacheKey?: string;
-  scope?: string;
-}
-
-export interface StreamHandlers {
-  item(value: unknown): void;
-  interrupted(reason: string): void;
-  refused(error: { code: string; message: string }): void;
-}
-
-export interface HostClient {
-  setRoutePreference?(route: string | undefined): Promise<void>;
-  updateRoutes?(
-    routes: string[],
-    encryption?: HostEncryption,
-    saved?: { routePreference: string | undefined },
-  ): void;
-  testRoute?(url: string): Promise<boolean>;
-  getSnapshot(): HostSnapshot;
-  subscribe(listener: () => void): () => void;
-  start(): void;
-  stop(): void;
-  retryNow(trigger?: 'resume' | 'manual_retry', options?: { preserveConnected?: boolean }): void;
-  refresh(): Promise<void>;
-  call<T>(method: string, args?: Record<string, unknown>): Promise<T>;
-  upload(name: string, data: Blob): Promise<AttachmentRef>;
-  api(path: string, init?: HostApiInit): Promise<HostApiAnswer>;
-  resource(path: string): RemoteSource;
-  secretInputAllowed?(): boolean;
-  onLive(listener: (source: 'roster' | 'activity') => void): () => void;
-  onPurged?(listener: (placements: unknown) => void): () => void;
-  onSkills?(listener: (channelIds: readonly string[]) => void): () => void;
-  onResource?(
-    listener: (resource: string | undefined, change?: RosterResourceChange) => void,
-  ): () => void;
-  follow(endpoint: string, args: Record<string, unknown>, handlers: StreamHandlers): () => void;
-}
-
-export interface HostApiInit {
-  response?: 'bytes';
-  body?: Record<string, unknown>;
-  timeoutMs?: number;
-  signal?: AbortSignal;
-}
-
-export interface HostApiAnswer {
-  status: number;
-  body: unknown;
-}
-
-export interface HostClientOptions {
-  member?: HostMemberIdentity;
-  routePreference?: string;
-  onRoutePreferenceChanged?: (route: string | undefined) => Promise<void>;
-  onRoutesChanged?: (routes: string[]) => Promise<void>;
-  onPurged?: (placements: unknown) => void;
-  hostId?: string;
-  encryption?: HostEncryption;
-  telemetry?: ConnectionTelemetry;
-  routes: string[];
-  credential: string;
-  carrier: HostCarrier;
-  backoff?: (attempt: number) => number;
-  timeoutMs?: number;
-  localStore?: () => Promise<LocalStore | undefined>;
-  appVersion?: string;
-}
-
-export type DeviceRefusal =
-  | 'device-revoked'
-  | 'device-unknown'
-  | 'device-credential-missing'
-  | 'host-key-changed'
-  | 'sign-in-required'
-  | 'member-suspended';
-
-const REFUSALS: Record<DeviceRefusal, string> = {
-  'device-revoked': 'This phone was removed from the paired devices on your computer.',
-  'device-unknown': 'Your computer no longer knows this phone.',
-  'device-credential-missing': 'This phone has no pairing for your computer.',
-  'host-key-changed': 'This computer no longer accepts this pairing. Remove it, then pair again.',
-  'sign-in-required': 'Your password changed or you were signed out. Sign in again.',
-  'member-suspended': 'Your account on this Host was deactivated.',
-};
-
-class CredentialRefused extends Error {
-  constructor(readonly code: DeviceRefusal) {
-    super(REFUSALS[code]);
-  }
-}
-
-export function deviceRefusal(error: unknown): DeviceRefusal | undefined {
-  return error instanceof CredentialRefused ? error.code : undefined;
-}
-
-function refusalOf(text: string): DeviceRefusal | undefined {
-  try {
-    const code = record(JSON.parse(text))['code'];
-    if (code === 'credentials-invalid') return 'sign-in-required';
-    return typeof code === 'string' && code in REFUSALS ? (code as DeviceRefusal) : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-class Unreachable extends Error {
-  constructor(
-    message: string,
-    readonly status?: number,
-  ) {
-    super(message);
-  }
-}
-
-function hostLacksMethod(error: unknown): boolean {
-  return error instanceof Unreachable && error.status === 404;
-}
-
-const UPLOAD_TOO_LARGE = 'The file is larger than the Host accepts.';
-const uploadTimeoutMs = 120_000;
-const OCTET_STREAM = 'application/octet-stream';
-
-export class MethodRefused extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-    readonly details?: unknown,
-  ) {
-    super(message);
-  }
-}
-
-function hostKeyRejected(error: unknown): error is MethodRefused {
-  return error instanceof MethodRefused && HOST_KEY_REJECTIONS.has(error.code);
-}
+export type {
+  ConnectionState,
+  RosterBot,
+  RosterHuman,
+  RosterChannel,
+  RosterSection,
+  TopOrderEntry,
+  RosterArrangement,
+  RosterView,
+  HostCompatibility,
+  HostSnapshot,
+  RemoteSource,
+  StreamHandlers,
+  HostClient,
+  HostApiInit,
+  HostApiAnswer,
+  HostClientOptions,
+} from './client-contract';
+export { deviceRefusal, MethodRefused, type DeviceRefusal } from './client-errors';
+export { REUSE_ON_RECONNECT_MS } from './client-roster';
+export { arrangementOf } from './client-roster-view';
 
 interface Follower {
   endpoint: string;
@@ -331,107 +79,8 @@ interface Follower {
 export const MAX_RECONNECT_DELAY_MS = 30_000;
 export const HOST_KEY_REJECTION_LIMIT = 3;
 export const STABLE_CONNECTION_MS = 60_000;
-export const REUSE_ON_RECONNECT_MS = 600_000;
 export const defaultBackoff = (attempt: number): number =>
   Math.min(MAX_RECONNECT_DELAY_MS, 500 * 2 ** (attempt - 1));
-
-function id(): string {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/gu, (c) => {
-    const r = (Math.random() * 16) | 0;
-    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
-  });
-}
-
-function record(value: unknown): Record<string, unknown> {
-  return typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
-}
-
-const HUMAN_AVATAR_VERSION = /^[a-f0-9]{16}$/u;
-
-function rosterHumans(value: unknown): { humanMembers?: RosterHuman[] } {
-  if (!Array.isArray(value)) return {};
-  return {
-    humanMembers: value.flatMap((raw: unknown) => {
-      if (typeof raw !== 'object' || raw === null) return [];
-      const member = raw as Record<string, unknown>;
-      const version = member['avatarVersion'];
-      return typeof member['humanId'] === 'string' &&
-        member['humanId'].length > 0 &&
-        typeof member['displayName'] === 'string'
-        ? [
-            {
-              humanId: member['humanId'],
-              displayName: member['displayName'],
-              ...(typeof version === 'string' && HUMAN_AVATAR_VERSION.test(version)
-                ? { avatarVersion: version }
-                : {}),
-            },
-          ]
-        : [];
-    }),
-  };
-}
-
-function previewOf(channel: ChannelListItem | undefined): {
-  preview?: string;
-  previewCall?: ChannelVoiceCallRecord;
-  previewAt?: string;
-  latestMessageId?: string;
-  previewAuthor?: WireAuthor;
-} {
-  const message = channel?.latestMessage;
-  if (message === undefined) return {};
-  const call = record(message).voiceCallRecord;
-  return {
-    preview: message.body.replace(/\s+/gu, ' ').trim().slice(0, 140),
-    ...(message.author?.kind === 'system' && isChannelVoiceCallRecord(call)
-      ? { previewCall: call }
-      : {}),
-    previewAt: message.at,
-    latestMessageId: message.id,
-    ...(message.author === undefined ? {} : { previewAuthor: message.author }),
-  };
-}
-
-function strings(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === 'string')
-    : [];
-}
-
-export function arrangementOf(value: unknown): RosterArrangement | undefined {
-  const snapshot = record(value);
-  if (!Array.isArray(snapshot['sections'])) return undefined;
-  const sections = snapshot['sections'].flatMap((entry): RosterSection[] => {
-    const section = record(entry);
-    return typeof section['id'] === 'string' && typeof section['name'] === 'string'
-      ? [
-          {
-            id: section['id'],
-            name: section['name'],
-            channelIds: strings(section['channelIds']),
-          },
-        ]
-      : [];
-  });
-  const topOrder = Array.isArray(snapshot['topOrder'])
-    ? snapshot['topOrder'].flatMap((entry): TopOrderEntry[] => {
-        const item = record(entry);
-        return (item['kind'] === 'section' || item['kind'] === 'channel') &&
-          typeof item['id'] === 'string'
-          ? [{ kind: item['kind'], id: item['id'] }]
-          : [];
-      })
-    : undefined;
-  return {
-    pins: strings(snapshot['pins']),
-    hidden: strings(snapshot['hidden']),
-    ...(Array.isArray(snapshot['muted']) ? { muted: strings(snapshot['muted']) } : {}),
-    sections,
-    sectionOrder: strings(snapshot['sectionOrder']),
-    ...(topOrder === undefined ? {} : { topOrder }),
-  };
-}
 
 export function createHostClient(options: HostClientOptions): HostClient {
   const carrier = encryptedCarrier({
@@ -463,8 +112,6 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let route = routePreference ?? options.routes[0] ?? '';
   const backoff = options.backoff ?? defaultBackoff;
   const timeoutMs = options.timeoutMs ?? 10_000;
-  const avatars = new Map<string, string>();
-  const avatarLoading = new Set<string>();
   const listeners = new Set<() => void>();
   const liveListeners = new Set<(source: 'roster' | 'activity') => void>();
   const skillListeners = new Set<(channelIds: readonly string[]) => void>();
@@ -479,22 +126,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     connection: { status: 'stopped', route },
     ...(routePreference === undefined ? {} : { routePreference }),
   };
-  let bots: PersonaBotSummary[] | undefined;
   let computerAvailable: boolean | undefined;
-  let channels = new Map<string, ChannelListItem>();
-  let channelsLoaded = false;
-  let feedRead: HostSnapshot['feedRead'];
-  let feedAcknowledging = false;
-  let savedBots: string | undefined;
-  let states = new Map<string, WireBotActivity>();
-  let rawStates = new Map<string, WireBotActivity>();
-  const smoother = new ActivitySmoother<WireBotActivity>();
-  let settle: ReturnType<typeof setTimeout> | undefined;
-  let arrangement: RosterArrangement | undefined;
-  let sorting: RosterSorting | undefined;
-  let reuseNextPass = false;
-  let fetchedArrangement: { value: RosterArrangement | undefined; at: number } | undefined;
-  let fetchedSorting: { value: RosterSorting | undefined; at: number } | undefined;
   let running = false;
   let everConnected = false;
   let attempt = 0;
@@ -504,8 +136,6 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let socket: HostSocket | undefined;
   let wake: (() => void) | undefined;
   let retryTimer: ReturnType<typeof setTimeout> | undefined;
-  let reloading: Promise<void> | undefined;
-  let reloadAgain = false;
   let disconnectCurrent: ((reason: string) => void) | undefined;
   let activeRequests = 0;
   let resumeRequested = false;
@@ -516,52 +146,17 @@ export function createHostClient(options: HostClientOptions): HostClient {
   let liveSocket: { generation: number; send(frame: MuxClientFrame): void } | undefined;
   let streams = new Map<string, { item(value: unknown): void; end(frame: MuxServerFrame): void }>();
 
-  const shared = new Map<string, { json: string; value: unknown }>();
-  const share = <T>(key: string, value: T): T => {
-    const json = JSON.stringify(value);
-    const previous = shared.get(key);
-    if (previous?.json === json) return previous.value as T;
-    shared.set(key, { json, value });
-    return value;
-  };
-  const sameList = <T>(next: readonly T[], previous: readonly T[] | undefined): boolean =>
-    previous !== undefined &&
-    next.length === previous.length &&
-    next.every((item, index) => item === previous[index]);
-  const shareRoster = (next: RosterView, previous: RosterView | undefined): RosterView => {
-    const bots = next.bots.map((bot) => share(`bot:${bot.slug}`, bot));
-    const channels = next.channels.map((channel) => share(`channel:${channel.id}`, channel));
-    const people = next.people?.map((person) => share(`person:${person.id}`, person));
-    const roster: RosterView = {
-      ...next,
-      bots: sameList(bots, previous?.bots) ? previous!.bots : bots,
-      channels: sameList(channels, previous?.channels) ? previous!.channels : channels,
-      ...(people === undefined
-        ? {}
-        : {
-            people: sameList(people, previous?.people) ? previous!.people! : people,
-          }),
-      ...(next.activityChannels === undefined
-        ? {}
-        : {
-            activityChannels: sameList(next.activityChannels, previous?.activityChannels)
-              ? previous!.activityChannels!
-              : next.activityChannels,
-          }),
-    };
-    return previous !== undefined &&
-      (Object.keys(roster) as (keyof RosterView)[]).every((key) => roster[key] === previous[key]) &&
-      Object.keys(previous).length === Object.keys(roster).length
-      ? previous
-      : roster;
-  };
+  const { share, shareRoster } = createHostSnapshotSharing();
 
   const publish = (connection?: ConnectionState): void => {
     const nextRoutes: NonNullable<HostSnapshot['routes']> = routes.map((url) => ({
       url,
       status: routeChecks.get(url) ?? 'unchecked',
     }));
-    const roster = bots === undefined ? undefined : shareRoster(view(bots), snapshot.roster);
+    const roster =
+      rosterState.bots === undefined
+        ? undefined
+        : shareRoster(view(rosterState.bots), snapshot.roster);
     const status = (connection ?? snapshot.connection).status;
     const disruptedSince =
       status === 'connecting' || status === 'reconnecting' || status === 'unreachable'
@@ -576,9 +171,9 @@ export function createHostClient(options: HostClientOptions): HostClient {
           ? snapshot.routes
           : nextRoutes,
       connection: connection ?? snapshot.connection,
-      ...(feedRead === undefined ? {} : { feedRead }),
+      ...(rosterState.feedRead === undefined ? {} : { feedRead: rosterState.feedRead }),
       ...(disruptedSince === undefined ? {} : { disruptedSince }),
-      activity: share('activity', [...rawStates.values()]),
+      activity: share('activity', [...rosterState.rawStates.values()]),
       ...(computerAvailable === undefined ? {} : { computerAvailable }),
       ...(compatibility === undefined ? {} : { compatibility }),
       ...(roster === undefined ? {} : { roster }),
@@ -598,348 +193,6 @@ export function createHostClient(options: HostClientOptions): HostClient {
     for (const listener of listeners) listener();
   };
 
-  const view = (list: PersonaBotSummary[]): RosterView => {
-    const dms = new Map<string, ChannelListItem>();
-    const groups: RosterChannel[] = [];
-    const people: RosterChannel[] = [];
-    for (const channel of channels.values()) {
-      if (channel.deletedAt !== undefined) continue;
-      if (channel.type === 'dm' && channel.botSlug !== undefined) dms.set(channel.botSlug, channel);
-      else if (channel.type === 'dm' && channel.humanParticipants?.length === 2)
-        people.push({
-          id: channel.id,
-          name: channel.name,
-          memberCount: channel.humanParticipants.length,
-          members: channel.members,
-          ...previewOf(channel),
-        });
-      else if (channel.type === 'group') {
-        const humans = rosterHumans(channel.humanMembers);
-        groups.push({
-          id: channel.id,
-          name: channel.name,
-          memberCount: channel.members.length + (humans.humanMembers?.length ?? 0),
-          members: channel.members,
-          ...humans,
-          ...(channel.avatar === undefined ? {} : { avatar: channel.avatar }),
-          ...(channel.ownerBotSlug === undefined ? {} : { ownerBotSlug: channel.ownerBotSlug }),
-          pendingInvites: (channel.invitations ?? [])
-            .filter((invite) => invite.status === 'pending')
-            .map((invite) => ({
-              id: invite.id,
-              botSlug: invite.targetBotSlug,
-            })),
-          pendingJoins: (channel.joinRequests ?? [])
-            .filter((request) => request.status === 'pending')
-            .map((request) => ({
-              id: request.id,
-              botSlug: request.requesterBotSlug,
-            })),
-          ...previewOf(channel),
-        });
-      }
-    }
-    groups.sort((a, b) => (b.previewAt ?? '').localeCompare(a.previewAt ?? ''));
-    return {
-      bots: list
-        .filter((bot) => bot.deleted !== true)
-        .map((bot) => {
-          const dm = dms.get(bot.slug);
-          const live = states.get(bot.slug);
-          return {
-            slug: bot.slug,
-            displayName: bot.displayName,
-            tob: bot.tob !== undefined,
-            ...(bot.avatar === undefined ? {} : avatar(bot.avatar)),
-
-            ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
-            ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
-            ...bannerOf(bot.banner),
-            ...(bot.primaryColor === undefined ? {} : { primaryColor: bot.primaryColor }),
-            roles: bot.roles ?? [],
-            ...(bot.description === undefined ? {} : { description: bot.description }),
-            computerAccess:
-              bot.computerAccess === true &&
-              (!isEncryptedRoute(route, options.encryption) || isLanRoute(route)),
-            browserAccess:
-              bot.browserAccess === true && !isEncryptedRoute(route, options.encryption),
-            hostAccess: {
-              computer: bot.computerAccess === true,
-              browser: bot.browserAccess === true,
-            },
-            state: live?.state ?? bot.aggregateState,
-            ...(live?.activity === undefined ? {} : { activity: live.activity }),
-            ...(live?.sessions === undefined ? {} : { sessions: live.sessions }),
-            paused: bot.paused === true,
-            ...(dm === undefined ? {} : { dmChannelId: dm.id }),
-            ...previewOf(dm),
-          };
-        }),
-      channels: groups,
-      ...(people.length === 0 ? {} : { people }),
-      activityChannels: [...channels.values()].filter((channel) => channel.deletedAt === undefined),
-      ...(arrangement === undefined ? {} : { arrangement }),
-      ...(sorting === undefined ? {} : { sorting }),
-    };
-  };
-
-  const absolute = (path: string): string =>
-    path.startsWith('/') ? `${route}${DEVICE_PREFIX}${path}` : path;
-
-  const scope = options.hostId ? { scope: options.hostId } : {};
-  const resource = (path: string): RemoteSource => {
-    if (
-      checkRoute(route, options.encryption?.privateRelay).ok &&
-      !isEncryptedRoute(route, options.encryption)
-    )
-      return { uri: absolute(path), headers: authorization, ...scope };
-    const origin = route;
-    return {
-      ...scope,
-      uri: `connect-resource:${options.hostId ?? ''}:${path}`,
-      headers: {},
-      read: async (signal) => {
-        if (!path.startsWith('/') || path.startsWith('//'))
-          throw new Error('resource-path-invalid');
-        const response = await carrier.request(`${origin}${DEVICE_PREFIX}${path}`, {
-          method: 'GET',
-          signal,
-        });
-        if (response.status !== 200 || !response.bytes) throw new Error('resource-unavailable');
-        return {
-          bytes: await response.bytes(),
-          mime: response.contentType ?? 'application/octet-stream',
-        };
-      },
-    };
-  };
-  const avatar = (path: string): { avatarUrl?: string; avatarHeaders?: Record<string, string> } => {
-    if (!checkRoute(route, options.encryption?.privateRelay).ok) return {};
-    if (!isEncryptedRoute(route, options.encryption))
-      return { avatarUrl: absolute(path), avatarHeaders: authorization };
-    const key = route + path;
-    const cached = avatars.get(key);
-    if (cached) return { avatarUrl: cached, avatarHeaders: {} };
-    if (running && avatars.size < 64 && avatarLoading.size < 8 && !avatarLoading.has(key)) {
-      avatarLoading.add(key);
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), timeoutMs);
-      void resource(path).read!(controller.signal)
-        .then(
-          ({ bytes, mime }) => {
-            if (
-              running &&
-              bytes.length <= 512 * 1024 &&
-              /^image\/(?:png|jpeg|webp|gif)$/u.test(mime.split(';')[0]!)
-            ) {
-              avatars.set(key, `data:${mime};base64,${encodeBase64(bytes)}`);
-              publish();
-            }
-          },
-          () => {},
-        )
-        .finally(() => {
-          clearTimeout(timer);
-          avatarLoading.delete(key);
-        });
-    }
-    return {};
-  };
-
-  const bannerOf = (
-    banner: PersonaBotSummary['banner'],
-  ): Pick<RosterBot, 'bannerRecipe' | 'bannerUrl' | 'bannerHeaders'> => {
-    if (banner === undefined) return {};
-    if ('recipe' in banner) return { bannerRecipe: banner.recipe };
-    const image = avatar(banner.image);
-    return image.avatarUrl === undefined
-      ? {}
-      : {
-          bannerUrl: image.avatarUrl,
-          bannerHeaders: image.avatarHeaders ?? {},
-        };
-  };
-
-  const reloadInBackground = (): void => {
-    reload().catch(() => {});
-  };
-
-  const withDeadline = async <T>(
-    work: (signal: AbortSignal) => Promise<T>,
-    ms: number = timeoutMs,
-  ): Promise<T> => {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), ms);
-    try {
-      return await work(controller.signal);
-    } catch (error) {
-      if (error instanceof ConnectRefused) {
-        if (error.code in REFUSALS) throw new CredentialRefused(error.code as DeviceRefusal);
-        throw new MethodRefused(
-          error.code,
-          'Encrypted connection refused. Check the Host fingerprint and pair again.',
-        );
-      }
-      if (
-        error instanceof CredentialRefused ||
-        error instanceof Unreachable ||
-        error instanceof MethodRefused
-      )
-        throw error;
-      throw new Unreachable(
-        controller.signal.aborted
-          ? 'The Host did not answer in time.'
-          : 'The Host could not be reached.',
-      );
-    } finally {
-      clearTimeout(timer);
-    }
-  };
-
-  const call = <T>(
-    method: string,
-    args: Record<string, unknown> = {},
-    via: string = route,
-  ): Promise<T> =>
-    withDeadline(async (signal) => {
-      const name = method.includes('/') ? method : `botharness/${method}`;
-      const refusal =
-        isEncryptedRoute(via, options.encryption) && options.encryption === undefined
-          ? secretRouteRefusal(name)
-          : undefined;
-      if (refusal !== undefined) throw new MethodRefused(refusal.code, refusal.message);
-      const request: ClientRequest = {
-        type: 'client-request',
-        rpcId: id(),
-        method: name,
-        payload: { args },
-      };
-      const response = await carrier.request(`${via}${DEVICE_PREFIX}/api/${name}`, {
-        method: 'POST',
-        body: JSON.stringify(request),
-        headers: jsonAuthorization,
-        signal,
-      });
-      if (response.status === 401 || response.status === 403) {
-        const code = refusalOf(await response.text());
-        if (code !== undefined) throw new CredentialRefused(code);
-      }
-      if (response.status === 404)
-        throw new Unreachable(
-          `This computer's Tobs does not support ${name} yet. Update Tobs on the computer.`,
-          404,
-        );
-      if (response.status >= 400)
-        throw new Unreachable(`The Host answered ${response.status}.`, response.status);
-      let envelope: Record<string, unknown>;
-      try {
-        envelope = record(JSON.parse(await response.text()));
-      } catch {
-        throw new Unreachable('The Host did not return a JSON response.');
-      }
-      const result = record(envelope['result']);
-      if (envelope['type'] !== 'server-response' || result['ok'] !== true) {
-        const error = record(result['error']);
-        throw new MethodRefused(
-          typeof error['code'] === 'string' ? error['code'] : 'refused',
-          typeof error['message'] === 'string' ? error['message'] : `${name} was refused.`,
-          error['details'],
-        );
-      }
-      return result['value'] as T;
-    });
-
-  const hostVia = (via?: string): HostCall => ({
-    call: (method, args) => call(method, args, via),
-  });
-  const host = hostVia();
-
-  const upload = (name: string, data: Blob): Promise<AttachmentRef> =>
-    withDeadline(async (signal) => {
-      const response = await carrier.request(
-        `${route}${DEVICE_PREFIX}/api/botharness/attachment/upload?${new URLSearchParams({ name })}`,
-        {
-          method: 'POST',
-          body: data.type === OCTET_STREAM ? data : new Blob([data], { type: OCTET_STREAM }),
-          headers: { ...authorization, 'content-type': OCTET_STREAM },
-          signal,
-        },
-      );
-      if (response.status === 401 || response.status === 403) {
-        const code = refusalOf(await response.text());
-        if (code !== undefined) throw new CredentialRefused(code);
-      }
-      if (response.status === 413) throw new MethodRefused('too-large', UPLOAD_TOO_LARGE);
-      if (response.status >= 400) throw new Unreachable(`The Host answered ${response.status}.`);
-      let attachment: unknown;
-      try {
-        attachment = record(JSON.parse(await response.text()))['attachment'];
-      } catch {
-        throw new Unreachable('The Host did not return a JSON response.');
-      }
-      const ref = record(attachment);
-      if (typeof ref['name'] !== 'string' || typeof ref['mime'] !== 'string')
-        throw new Unreachable('The Host did not accept the attachment.');
-      return attachment as AttachmentRef;
-    }, uploadTimeoutMs);
-
-  const api = (path: string, init: HostApiInit = {}): Promise<HostApiAnswer> =>
-    withDeadline(async (signal) => {
-      if (isConnectRoute(route) && path === LOCAL_VIDEO_PATH)
-        return {
-          status: 403,
-          body: {
-            ok: false,
-            code: 'connect-carrier-required',
-            error: 'Local Computer video requires the paired LAN route.',
-          },
-        };
-      if (isConnectRoute(route) && path === VOICE_CALL_PATH)
-        return { status: 409, body: VOICE_CALL_CONNECT_REFUSAL };
-      if (
-        isEncryptedRoute(route, options.encryption) &&
-        /^\/api\/(?:browser|computer)\//u.test(path) &&
-        !(isLanRoute(route) && path === LOCAL_VIDEO_PATH)
-      )
-        throw new MethodRefused(
-          'connect-viewer-unavailable',
-          'Use the Host or Tailscale for Browser and Computer viewers.',
-        );
-      const outer = init.signal;
-      if (outer?.aborted === true) throw new Unreachable('The request was cancelled.');
-      const controller = new AbortController();
-      const cancel = (): void => controller.abort();
-      signal.addEventListener('abort', cancel);
-      outer?.addEventListener('abort', cancel);
-      try {
-        const response = await carrier.request(`${route}${DEVICE_PREFIX}${path}`, {
-          method: init.body === undefined ? 'GET' : 'POST',
-          ...(init.body === undefined ? {} : { body: JSON.stringify(init.body) }),
-          headers: init.body === undefined ? authorization : jsonAuthorization,
-          signal: controller.signal,
-        });
-        if (init.response === 'bytes' && response.status < 400) {
-          if (response.bytes === undefined)
-            throw new Unreachable('The connection cannot download files.');
-          return { status: response.status, body: await response.bytes() };
-        }
-        const text = await response.text();
-        if (response.status === 401 || response.status === 403) {
-          const code = refusalOf(text);
-          if (code !== undefined) throw new CredentialRefused(code);
-        }
-        if (text === '') return { status: response.status, body: null };
-        try {
-          return { status: response.status, body: JSON.parse(text) as unknown };
-        } catch {
-          return { status: response.status, body: text };
-        }
-      } finally {
-        signal.removeEventListener('abort', cancel);
-        outer?.removeEventListener('abort', cancel);
-      }
-    }, init.timeoutMs);
-
   const refusedBy = (error: unknown): void => {
     if (error instanceof CredentialRefused && running) {
       running = false;
@@ -947,14 +200,12 @@ export function createHostClient(options: HostClientOptions): HostClient {
       disconnectCurrent?.(error.message);
       interruptFollowers(error.message);
       clearTimeout(retryTimer);
-      clearTimeout(settle);
-      settle = undefined;
+      rosterState.clearSmoothing();
       wake?.();
       socket?.close();
       socket = undefined;
       carrier.close?.();
-      avatars.clear();
-      avatarLoading.clear();
+      resources.clear();
       options.telemetry?.dispose();
       publish({
         status: 'refused',
@@ -983,214 +234,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
     }
   };
 
-  const fullChannelList = (): Promise<ChannelListItem[]> => readChannels({ call });
-
-  const unlessRefused = <T>(work: Promise<T>): Promise<T | undefined> =>
-    work.catch((error: unknown) => {
-      if (error instanceof MethodRefused || hostLacksMethod(error)) return undefined;
-      throw error;
-    });
-
-  const openLocalStore = (): Promise<LocalStore | undefined> =>
-    options.localStore?.().catch(() => undefined) ?? Promise.resolve(undefined);
-
-  const loadChannels = async (): Promise<ChannelListItem[]> => {
-    const store = await openLocalStore();
-    if (store === undefined) return fullChannelList();
-    try {
-      return await syncChannelList(store, {
-        channels: fullChannelList,
-        cursor: () => unlessRefused(loadChannelChangeCursor({ call })),
-        changes: (cursor) =>
-          unlessRefused(
-            call<ChannelListChanges>('channelListChanges', {
-              sinceSeq: cursor.seq,
-              epoch: cursor.epoch,
-            }),
-          ),
-      });
-    } catch (error) {
-      if (
-        (error instanceof Unreachable && !hostLacksMethod(error)) ||
-        error instanceof MethodRefused ||
-        error instanceof CredentialRefused
-      )
-        throw error;
-      return fullChannelList();
-    }
-  };
-
-  const paintStoredChannels = async (): Promise<void> => {
-    const store = await openLocalStore();
-    if (store === undefined || channelsLoaded) return;
-    const [stored, storedBots] = await Promise.all([
-      readChannelList(store),
-      readListBots<PersonaBotSummary>(store),
-    ]).catch(() => [undefined, undefined] as const);
-    if (stored === undefined || storedBots === undefined || channelsLoaded) return;
-    savedBots = JSON.stringify(storedBots);
-    bots = storedBots;
-    channels = new Map(stored.channels.map((channel) => [channel.id, channel]));
-    publish();
-  };
-
-  const keepBots = (list: PersonaBotSummary[]): void => {
-    const json = JSON.stringify(list);
-    if (json === savedBots) return;
-    void openLocalStore()
-      .then(async (store) => {
-        if (store === undefined) return;
-        await saveListBots(store, list);
-        savedBots = json;
-      })
-      .catch(() => undefined);
-  };
-
-  const reusable = <T>(
-    reuse: boolean,
-    fetched: { value: T; at: number } | undefined,
-  ): fetched is { value: T; at: number } =>
-    reuse && fetched !== undefined && Date.now() - fetched.at < REUSE_ON_RECONNECT_MS;
-
-  const readArrangement = (): Promise<RosterArrangement | undefined> => {
-    fetchedArrangement = undefined;
-    return readRoster(host)
-      .then(arrangementOf, (error: unknown) => {
-        if (error instanceof MethodRefused || hostLacksMethod(error)) return undefined;
-        throw error;
-      })
-      .then((value) => {
-        fetchedArrangement = { value, at: Date.now() };
-        return value;
-      });
-  };
-
-  const readSorting = (): Promise<RosterSorting | undefined> => {
-    fetchedSorting = undefined;
-    return readRosterSorting(host)
-      .catch((error: unknown) => {
-        if (error instanceof MethodRefused || hostLacksMethod(error)) return undefined;
-        throw error;
-      })
-      .then((value) => {
-        fetchedSorting = { value, at: Date.now() };
-        return value;
-      });
-  };
-
-  const acknowledgeFeed = (): void => {
-    if (!running || feedRead === 'acknowledged' || feedRead === 'unsupported' || feedAcknowledging)
-      return;
-    feedAcknowledging = true;
-    void withDeadline(async (signal) => {
-      const response = await carrier.request(`${route}${DEVICE_PREFIX}/feed-read`, {
-        method: 'POST',
-        headers: jsonAuthorization,
-        body: '{}',
-        signal,
-      });
-      if (response.status === 404) feedRead = 'unsupported';
-      else if (
-        response.status === 200 &&
-        typeof record(JSON.parse(await response.text()))['feedReadAt'] === 'string'
-      )
-        feedRead = 'acknowledged';
-      else feedRead = 'unconfirmed';
-    })
-      .catch(() => {
-        feedRead = 'unconfirmed';
-      })
-      .finally(() => {
-        feedAcknowledging = false;
-        if (running) publish();
-      });
-  };
-
-  const reloadOnce = async (reuse: boolean): Promise<void> => {
-    void discoverComputer();
-    void discoverRoutes();
-    const [list, channelList, rosterArrangement, rosterSorting] = await Promise.all([
-      listBots(host),
-      loadChannels(),
-      reusable(reuse, fetchedArrangement) ? fetchedArrangement.value : readArrangement(),
-      reusable(reuse, fetchedSorting) ? fetchedSorting.value : readSorting(),
-    ]);
-    bots = list;
-    channels = new Map(channelList.map((channel) => [channel.id, channel]));
-    channelsLoaded = true;
-    keepBots(list);
-    arrangement = rosterArrangement;
-    sorting = rosterSorting;
-    publish();
-    acknowledgeFeed();
-  };
-
-  const reload = (): Promise<void> => {
-    if (reloading !== undefined) {
-      reloadAgain = true;
-      return reloading;
-    }
-    reloading = (async () => {
-      try {
-        do {
-          const reuse = reuseNextPass;
-          reuseNextPass = false;
-          reloadAgain = false;
-          await reloadOnce(reuse);
-        } while (reloadAgain);
-      } finally {
-        reloading = undefined;
-      }
-    })();
-    return reloading;
-  };
-
   const notifyLive = (source: 'roster' | 'activity'): void => {
     for (const listener of liveListeners) listener(source);
-  };
-
-  const smooth = (): void => {
-    clearTimeout(settle);
-    settle = undefined;
-    const now = Date.now();
-    const { shown, wake } = smoother.step(rawStates, now);
-    states = shown;
-    if (wake !== undefined)
-      settle = setTimeout(() => {
-        settle = undefined;
-        smooth();
-        publish();
-      }, wake - now);
-  };
-
-  const applyActivity = (frame: ActivityLiveFrame): void => {
-    rawStates = new Map(frame.snapshot.bots.map((bot) => [bot.slug, bot]));
-    smooth();
-    const known = new Set(bots?.map((bot) => bot.slug));
-    if (bots !== undefined && frame.snapshot.bots.some((bot) => !known.has(bot.slug)))
-      reloadInBackground();
-    publish();
-  };
-
-  const applyRoster = (frame: RosterLiveFrame): void => {
-    if (frame.type === 'latest') {
-      const channel = channels.get(frame.channelId);
-      if (channel === undefined) {
-        reloadInBackground();
-        return;
-      }
-      channels.set(frame.channelId, {
-        ...channel,
-        latestMessage: frame.message,
-      });
-      publish();
-    } else if (frame.type === 'skills') {
-      for (const listener of skillListeners) listener(frame.change.channelIds);
-    } else if (frame.type === 'resource') {
-      resourceChanged(frame.change);
-    } else if (frame.type === 'changed' || frame.type === 'purged') {
-      reloadInBackground();
-    }
   };
 
   const pickRoute = async (): Promise<void> => {
@@ -1416,7 +461,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     } finally {
       clearTimeout(deadline);
     }
-    if (reloading === undefined) reuseNextPass = true;
+    rosterState.reuseOnNextReload();
     pingAvailable = true;
     setCompatibility({});
     void readCompatibility().catch(() => undefined);
@@ -1673,6 +718,63 @@ export function createHostClient(options: HostClientOptions): HostClient {
     disconnect?.('resuming');
   };
 
+  const connection = {
+    get route() {
+      return route;
+    },
+    get running() {
+      return running;
+    },
+  };
+  const { withDeadline, call, hostVia, host, upload, api } = createHostRequests(
+    options,
+    carrier,
+    authorization,
+    jsonAuthorization,
+    timeoutMs,
+    connection,
+  );
+  const resources = createHostResources(
+    options,
+    carrier,
+    authorization,
+    timeoutMs,
+    connection,
+    publish,
+  );
+  const rosterState = createHostRoster({
+    options,
+    host,
+    call,
+    carrier,
+    jsonAuthorization,
+    withDeadline,
+    connection,
+    publish,
+    discoverComputer,
+    discoverRoutes,
+    skillListeners,
+    resourceChanged,
+  });
+  const { reload, paintStoredChannels, applyActivity, applyRoster } = rosterState;
+  const view = createRosterView(options, resources.avatar, {
+    get route() {
+      return route;
+    },
+    get channels() {
+      return rosterState.channels;
+    },
+    get states() {
+      return rosterState.states;
+    },
+    get arrangement() {
+      return rosterState.arrangement;
+    },
+    get sorting() {
+      return rosterState.sorting;
+    },
+  });
+
   return {
     async setRoutePreference(next) {
       if (changingPreference) throw new Error('connection-preference-busy');
@@ -1772,14 +874,12 @@ export function createHostClient(options: HostClientOptions): HostClient {
       interruptFollowers('stopped');
       generation += 1;
       clearTimeout(retryTimer);
-      clearTimeout(settle);
-      settle = undefined;
+      rosterState.clearSmoothing();
       wake?.();
       socket?.close();
       socket = undefined;
       carrier.close?.();
-      avatars.clear();
-      avatarLoading.clear();
+      resources.clear();
       publish({ status: 'stopped', route });
       options.telemetry?.dispose();
     },
@@ -1794,8 +894,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         return;
       }
       if (trigger === 'manual_retry') {
-        fetchedArrangement = undefined;
-        fetchedSorting = undefined;
+        rosterState.clearFetchedSorting();
       }
       options.telemetry?.begin(trigger);
       if (snapshot.connection.status === 'connected') {
@@ -1854,7 +953,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
         resumeLive();
       }
     },
-    resource,
+    resource: resources.resource,
     secretInputAllowed: () =>
       checkRoute(route, options.encryption?.privateRelay).ok &&
       (!isEncryptedRoute(route, options.encryption) || options.encryption !== undefined),

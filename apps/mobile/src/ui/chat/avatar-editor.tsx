@@ -1,3 +1,9 @@
+import { Image } from 'expo-image';
+import {
+  DEFAULT_TILTIES_COLLECTION,
+  TILTIES_COLLECTIONS,
+  type TiltiesCollectionId,
+} from '@botharness/host-client/tilties-avatars';
 import { useRef, useState, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -5,6 +11,7 @@ import { errorText } from '@botharness/host-client/bot-settings';
 import type { LayerName } from '../design/layers';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { edge, space } from '../design/tokens';
+import { Segmented } from '../primitives/segmented';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
@@ -19,14 +26,14 @@ export function useAvatarEditor({ pick, save }: AvatarActions) {
   const pending = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const change = async (choose: boolean) => {
+  const change = async (choice: 'photo' | { image: string | null }) => {
     if (pending.current) return;
     pending.current = true;
     setBusy(true);
     setError(undefined);
     try {
-      let avatar: string | null = null;
-      if (choose) {
+      let avatar: string | null;
+      if (choice === 'photo') {
         let picked: string | undefined;
         try {
           picked = await pick();
@@ -36,6 +43,8 @@ export function useAvatarEditor({ pick, save }: AvatarActions) {
         }
         if (picked === undefined) return;
         avatar = picked;
+      } else {
+        avatar = choice.image;
       }
       try {
         await save(avatar);
@@ -47,7 +56,12 @@ export function useAvatarEditor({ pick, save }: AvatarActions) {
       setBusy(false);
     }
   };
-  return { busy, error, choose: () => change(true), remove: () => change(false) };
+  return {
+    busy,
+    error,
+    choose: (image?: string) => change(image === undefined ? 'photo' : { image }),
+    remove: () => change({ image: null }),
+  };
 }
 
 type AvatarEditor = ReturnType<typeof useAvatarEditor>;
@@ -95,15 +109,20 @@ export function AvatarSettings({
   portrait,
   testID,
   on = 'sheet',
+  showTilties = false,
 }: {
   editor: AvatarEditor;
   hasAvatar: boolean;
   portrait: ReactNode;
   testID: string;
   on?: LayerName;
+  showTilties?: boolean;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const [tiltiesOpen, setTiltiesOpen] = useState(false);
+  const [collection, selectCollection] = useState<TiltiesCollectionId>(DEFAULT_TILTIES_COLLECTION);
+  const portraits = TILTIES_COLLECTIONS.find(({ id }) => id === collection)?.portraits ?? [];
   return (
     <View style={{ alignSelf: 'stretch', gap: space.x2 }}>
       <SettingsSection title={t.avatarTitle} on={on}>
@@ -115,6 +134,15 @@ export function AvatarSettings({
           control={{ kind: 'chevron' }}
           onPress={editor.busy ? undefined : () => void editor.choose()}
         />
+        {showTilties ? (
+          <SettingsRow
+            on={on}
+            testID={`${testID}-tilties`}
+            title={t.avatarEditor.tilties}
+            expanded={tiltiesOpen}
+            onPress={editor.busy ? undefined : () => setTiltiesOpen(!tiltiesOpen)}
+          />
+        ) : null}
         {hasAvatar ? (
           <View style={{ borderTopWidth: edge.hairline, borderTopColor: theme.layer[on].divider }}>
             <SettingsRow
@@ -126,6 +154,43 @@ export function AvatarSettings({
           </View>
         ) : null}
       </SettingsSection>
+      {showTilties && tiltiesOpen ? (
+        <View style={{ gap: space.x3 }}>
+          <Segmented<TiltiesCollectionId>
+            label={t.avatarEditor.collections}
+            options={TILTIES_COLLECTIONS.map(({ id, en, zh }) => ({
+              value: id,
+              label: t.avatarEditor.tiltiesName(en, zh),
+            }))}
+            value={collection}
+            onChange={selectCollection}
+            disabled={editor.busy}
+          />
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}>
+            {portraits.map(({ id, en, zh, image }) => (
+              <Pressable
+                key={id}
+                testID={`tilties-avatar-${id}`}
+                accessibilityRole="button"
+                accessibilityLabel={t.avatarEditor.tiltiesName(en, zh)}
+                accessibilityState={{ disabled: editor.busy }}
+                disabled={editor.busy}
+                onPress={() => void editor.choose(image)}
+                android_ripple={{ color: pressTint(theme.color.fg) }}
+                style={({ pressed }) => ({
+                  width: theme.touch,
+                  height: theme.touch,
+                  borderRadius: theme.touch / 2,
+                  overflow: 'hidden',
+                  opacity: pressed || editor.busy ? 0.7 : 1,
+                })}
+              >
+                <Image source={{ uri: image }} contentFit="cover" style={{ flex: 1 }} />
+              </Pressable>
+            ))}
+          </View>
+        </View>
+      ) : null}
       {editor.error === undefined ? null : (
         <Text accessibilityRole="alert" accessibilityLiveRegion="polite" tone="danger">
           {editor.error}

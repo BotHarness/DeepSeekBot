@@ -2275,19 +2275,6 @@ html[data-botharness-motion='full'] .bh-skeleton-line {
 .bh-illustrated-head { transform-box: fill-box; transform-origin: 50% 65%; }
 .bh-illustrated-gaze { transform-box: fill-box; transform-origin: center; }
 .bh-avatar-editor { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: ${space.x6}; align-items: start; }
-.bh-avatar-methods { display: flex; flex-direction: column; gap: ${space.x3}; }
-.bh-avatar-method { display: flex; align-items: center; gap: ${space.x3}; width: 100%; box-sizing: border-box; margin: 0; padding: ${space.x3} ${space.x4}; border: ${border.hairline} solid ${color.border}; border-radius: ${radius.md}; background: transparent; color: var(--tobs-ink-primary); font: inherit; text-align: start; cursor: pointer; transition: background-color 120ms ease, border-color 120ms ease; }
-.bh-avatar-method:not(:disabled):hover { background: var(--tobs-state-hover); }
-.bh-avatar-method:not(:disabled):active { background: var(--tobs-state-pressed); }
-.bh-avatar-method:focus-visible { outline: ${border.focus} solid var(--tobs-ink-primary); outline-offset: 2px; }
-.bh-avatar-method:disabled { cursor: default; opacity: 0.5; }
-.bh-avatar-method[data-state="current"] { border-color: var(--bh-accent); }
-.bh-avatar-method-icon { display: grid; flex: none; place-items: center; width: 32px; height: 32px; border-radius: ${radius.sm}; background: var(--bh-well-inset); }
-.bh-avatar-method-body { display: flex; flex: 1; flex-direction: column; gap: ${space.x1}; min-width: 0; }
-.bh-avatar-method-title { display: flex; flex-wrap: wrap; align-items: center; gap: ${space.x2}; font-size: ${text.bodySize}; font-weight: ${text.strong}; line-height: ${text.bodyLine}; }
-.bh-avatar-method-meta { color: var(--tobs-ink-secondary); font-size: ${text.metaSize}; line-height: ${text.metaLine}; }
-.bh-avatar-method-chevron { display: grid; flex: none; place-items: center; color: var(--tobs-ink-tertiary); }
-.bh-avatar-remove { display: flex; margin-top: ${space.x3}; }
 .bh-avatar-editor-preview { display: flex; align-items: center; justify-content: center; }
 .bh-avatar-editor-controls h3 { margin: 0; font-size: ${text.titleSize}; }
 .bh-avatar-editor-controls p { margin: ${space.x3} 0 ${space.x4}; color: var(--tobs-ink-secondary); font-size: ${text.bodySize}; }

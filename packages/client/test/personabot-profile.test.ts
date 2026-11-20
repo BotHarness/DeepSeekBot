@@ -301,14 +301,16 @@ describe('PersonaBot Profile surface', () => {
 
       await act(async () => click(container, '.bh-profile-avatar-button'));
       const avatarDialog = document.body.querySelector('[role="dialog"][aria-label="头像"]');
-      const avatarMethods = avatarDialog?.querySelectorAll(
-        '.bh-avatar-methods > .bh-avatar-method',
+      expect(avatarDialog?.querySelector('[role="tab"][aria-selected="true"]')?.textContent).toBe(
+        '像素风',
       );
-      expect(avatarMethods?.length).toBe(2);
-      expect(avatarMethods?.[0]?.textContent).toContain('设计像素头像');
-      expect(avatarMethods?.[1]?.textContent).toContain('上传图片');
-      expect(avatarMethods?.[1]?.getAttribute('data-state')).toBe('current');
-      expect(avatarMethods?.[1]?.textContent).toContain('使用中');
+      expect(avatarDialog?.querySelector('[data-avatar-preset]')).not.toBeNull();
+      expect(avatarDialog?.querySelector('[data-avatar-edit]')?.textContent).toContain(
+        '自定义像素头像',
+      );
+      expect(
+        avatarDialog?.querySelector('[data-avatar-preview] + [data-avatar-upload]')?.textContent,
+      ).toContain('上传图片');
       await act(async () => click(container, '[data-avatar-remove]'));
       expect(setBotAvatar).toHaveBeenCalledWith('dm-ada', null);
       expect(avatarDialog?.querySelector('input[type="file"]')).not.toBeNull();
