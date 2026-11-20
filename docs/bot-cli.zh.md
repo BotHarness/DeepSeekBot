@@ -1098,7 +1098,7 @@ Host Owner 和具有 `modelSources.manage` 权限的 Human 可以列出、添加
 新的引擎会话会带上 Bot 原 Session 中有大小限制的上下文。如果已有压缩摘要，也会带上当前摘要。后续轮次恢复该引擎会话。运行 `engine use <bot> none --role orchestrator` 切回 DSH 模型后，会在同一个 Session 中继续，并能看到引擎执行的轮次。
 新的引擎会话会带上 Bot 原 Session 中有大小限制的上下文。如果已有压缩摘要，也会带上当前摘要。后续轮次恢复该引擎会话。清除显式引擎选择后，DSH 目标可以在同一个 Session 中继续，并读取引擎执行的轮次。
 
-DM 或群聊提及启用 steer 后，既有发送命令会将新消息送入 Codex 正在运行的轮次。Claude Code 会中断当前轮次，并在同一个 Session 中继续。Codex 拒绝时，新消息留在队列中，等下一轮处理。用 `session-transcript <bot-id> --session <session-id>` 查看每条输入在哪一轮送达。Bot 用可信的 `source_event_id` 调用 `bot_send_message`，让回复回到消息原来的 Channel。
+DM 或群聊提及启用 steer 后，既有发送命令会将新消息送入 Codex 正在运行的轮次。Claude Code 会中断当前轮次，并在同一个 Session 中继续。Codex 拒绝时，新消息留待下一轮处理。用 `session-transcript <bot-id> --session <session-id>` 查看每条输入在哪一轮送达。Bot 用可信的 `source_event_id` 调用 `bot_send_message`，让回复回到消息原来的 Channel。
 
 Orchestrator 的引擎进程空闲 30 秒后关闭。Assignment 的引擎进程在工作结束时关闭，之后释放 Host 的 Assignment 并发名额。下一条 DM 或 Assignment Request 按已保存的原生 ID 恢复。原生会话丢失时，Host 用 Bot Inbox、当前 Channel 的近期消息、Memory 和已保存的 Session 上下文重建 Orchestrator。Assignment 从目录条目、已保存的请求和 Session 事件重建。用 `session-transcript <bot-id> --session <session-id>` 查看重建通知。Assignment 所需记录缺失时，Orchestrator 会在 Bot Inbox 收到失败报告。目录条目仍存在时，`assignment` 也会显示失败。
 
