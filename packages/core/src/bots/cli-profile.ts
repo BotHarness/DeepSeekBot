@@ -1,3 +1,4 @@
+import { setBotAvatar } from '@botharness/host-client/bot-control';
 export { PROFILE_OPTIONS } from './cli-option-spec.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolveBotDm } from './cli-bot-dm.js';
@@ -440,9 +441,15 @@ export async function runProfileCommand(
 ): Promise<unknown> {
   const [method, args, dmSlug] = await profileCall(command, rest, values, io);
   const rpc = await connect();
+  const channelId = dmSlug === undefined ? undefined : await resolveBotDm(rpc, dmSlug);
+  if (method === 'botAvatarSet' && channelId !== undefined)
+    return setBotAvatar(
+      { call: (name, payload = {}) => rpc(name, payload) },
+      { channelId, avatar: args['avatar'] },
+    );
   const result = await rpc<unknown>(
     method,
-    dmSlug === undefined ? args : { ...args, channelId: await resolveBotDm(rpc, dmSlug) },
+    channelId === undefined ? args : { ...args, channelId },
   );
   if (command !== 'part-library-export') return result;
   const exported = result as { fileName?: unknown; data?: unknown };

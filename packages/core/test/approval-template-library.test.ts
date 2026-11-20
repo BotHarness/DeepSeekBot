@@ -1,3 +1,4 @@
+import { fakeBotDetail } from '../../host-client/test/fake-host.js';
 import {
   decodeApprovalTemplateGuidance,
   encodeApprovalTemplateGuidance,
@@ -757,13 +758,16 @@ describe('deepseekbot approval-template', () => {
                   {
                     name: 'night-shift',
                     title: 'Night shift',
+                    description: 'Night shift rules',
                     builtIn: false,
                     usedBy: [],
                     text: MINE,
                   },
                 ],
               }
-            : { echo: envelope.payload.args };
+            : method === 'botApprovalTemplateSet'
+              ? { bot: fakeBotDetail('ada', 'Ada') }
+              : { echo: envelope.payload.args };
         res.setHeader('content-type', 'application/json');
         res.end(
           JSON.stringify({
@@ -797,12 +801,21 @@ describe('deepseekbot approval-template', () => {
     const draft = join(tempDir(), 'draft.md');
     writeFileSync(draft, MINE);
     expect((await invoke(['approval-template', 'list'], live.url)).json).toEqual({
-      templates: [{ name: 'night-shift', title: 'Night shift', builtIn: false, usedBy: [] }],
+      templates: [
+        {
+          name: 'night-shift',
+          title: 'Night shift',
+          description: 'Night shift rules',
+          builtIn: false,
+          usedBy: [],
+        },
+      ],
     });
     expect((await invoke(['approval-template', 'show', 'night-shift'], live.url)).json).toEqual({
       template: {
         name: 'night-shift',
         title: 'Night shift',
+        description: 'Night shift rules',
         builtIn: false,
         usedBy: [],
         text: MINE,

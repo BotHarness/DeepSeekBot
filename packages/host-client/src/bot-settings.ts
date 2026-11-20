@@ -1,3 +1,5 @@
+import { readApprovalTemplates, setBotApprovalTemplate } from './approval-readers';
+export { INHERIT_APPROVAL_TEMPLATE } from './approval-readers';
 import { MethodRefused, type HostClient } from './client';
 import { HostAnswerInvalid, record, some, text, type HostCall } from './host-answer';
 import {
@@ -91,8 +93,6 @@ export interface ApprovalTemplate {
   title: string;
   description: string;
 }
-
-export const INHERIT_APPROVAL_TEMPLATE = '@global';
 
 export interface ApprovalTemplates {
   templates: ApprovalTemplate[];
@@ -492,28 +492,10 @@ export async function loadApprovalTemplates(
   client: HostClient,
   slug: string,
 ): Promise<ApprovalTemplates> {
-  const value = record(await client.call<unknown>('approvalTemplates', { slug }));
-  const selected = value?.['selected'];
-  const globalDefault = value?.['globalDefault'];
-  if (
-    (globalDefault !== undefined && globalDefault !== null && !text(globalDefault)) ||
-    (selected === INHERIT_APPROVAL_TEMPLATE && globalDefault === undefined)
-  )
-    throw new HostAnswerInvalid('approvalTemplates returned no readable global selection.');
-  if (!Array.isArray(value?.['templates']) || (selected !== null && !text(selected)))
-    throw new HostAnswerInvalid('approvalTemplates returned no templates.');
+  const { templates, selected, globalDefault } = await readApprovalTemplates(client, slug);
   return {
-    templates: some(value['templates'], (item) => {
-      const row = record(item);
-      return text(row?.['name']) && text(row['title']) && text(row['description'])
-        ? {
-            name: row['name'],
-            title: row['title'],
-            description: row['description'],
-          }
-        : undefined;
-    }),
-    selected,
+    templates: templates.map(({ name, title, description }) => ({ name, title, description })),
+    selected: selected ?? null,
     ...(globalDefault === undefined ? {} : { globalDefault }),
   };
 }
@@ -523,9 +505,7 @@ export async function setApprovalTemplate(
   slug: string,
   template: string | null,
 ): Promise<void> {
-  const value = record(await client.call<unknown>('botApprovalTemplateSet', { slug, template }));
-  if (record(value?.['bot'])?.['slug'] !== slug)
-    throw new HostAnswerInvalid('botApprovalTemplateSet did not return the Bot.');
+  await setBotApprovalTemplate(client, slug, template);
 }
 
 export interface BotSettings {

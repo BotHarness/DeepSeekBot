@@ -12,7 +12,7 @@ vi.mock('../src/ui/shell/icons', async () => ({
 }));
 
 import type { HostClient } from '@botharness/host-client/client';
-import type { BotInboxItem } from '@botharness/host-protocol/wire';
+import type { WireBotAttentionItem } from '@botharness/host-protocol/wire';
 import { BotInboxScreen } from '../src/ui/chat/bot-inbox-screen';
 import { t } from '../src/ui/strings';
 
@@ -35,13 +35,15 @@ async function render(element: ReactElement): Promise<HTMLElement> {
   return host;
 }
 
-const item = (id: string, extra: Partial<BotInboxItem> = {}): BotInboxItem => ({
+const item = (id: string, extra: Partial<WireBotAttentionItem> = {}): WireBotAttentionItem => ({
   id,
   botSlug: 'ada',
   reason: 'group-mention',
   state: 'handled',
   createdAt: '2026-10-26T00:00:00.000Z',
   sourceKind: 'human-message',
+  sourceAvailable: true,
+  authorKind: 'human',
   sourceChannelName: 'Team',
   summary: 'Summary ' + id,
   ...extra,

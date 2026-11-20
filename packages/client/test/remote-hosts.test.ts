@@ -1688,8 +1688,8 @@ it('routes decisions, questions, joins, snooze and clear to the owning Host and 
     refresh,
     open: async () => {},
   });
-  host.methods.set('toolApprovalDecide', () => ({}));
-  host.methods.set('userQuestionAnswer', () => ({}));
+  host.methods.set('toolApprovalDecide', () => ({ accepted: true }));
+  host.methods.set('userQuestionAnswer', () => ({ accepted: true }));
   host.methods.set('channelGroupJoinDecide', (args) => ({
     channel: {
       id: args.channelId,

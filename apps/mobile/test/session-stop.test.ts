@@ -61,7 +61,7 @@ describe('session stopper', () => {
   });
 
   it('omits the Channel when the stop has no Channel', async () => {
-    const call = vi.fn(async () => ({}));
+    const call = vi.fn(async () => ({ stopped: [], alreadyIdle: [] }));
     await sessionStopper({ call } as never).stopBot('ada');
     expect(call).toHaveBeenCalledWith('botStop', { botSlug: 'ada' });
   });

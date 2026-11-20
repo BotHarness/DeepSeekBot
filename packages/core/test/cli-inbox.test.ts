@@ -266,9 +266,16 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
   });
 
   it('lists auto-rejected calls and allows one once anyway', async () => {
-    const live = await host(echo);
+    const receipt = { accepted: true, channelId: 'dm-ada', messageId: 'request-1' };
+    const live = await host((method) =>
+      method === 'toolAutoRejectionOverride'
+        ? { ok: true, value: receipt }
+        : { ok: true, value: { items: [] } },
+    );
     await invoke(['inbox', '--category', 'action', '--kind', 'auto-rejection'], live.url);
-    await invoke(['inbox-allow-once', 'autoreject:src-1'], live.url);
+    expect((await invoke(['inbox-allow-once', 'autoreject:src-1'], live.url)).json).toEqual(
+      receipt,
+    );
     for (const argv of [
       ['inbox', '--kind', 'tool-approval'],
       ['inbox-allow-once'],
@@ -554,8 +561,26 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
   });
 
   it('lists and revokes always-allow rules, and revokes grants online, only with --confirm', async () => {
-    const live = await host(echo);
-    await invoke(['tool-approval-rules', 'ada'], live.url);
+    const rule = {
+      id: 'r1',
+      botSlug: 'ada',
+      role: 'orchestrator',
+      scopeKey: 'host',
+      kind: 'exact',
+      toolName: 'bash',
+      input: 'pwd',
+      createdAt: '2026-11-20T00:00:00Z',
+      autoApprovedCount: 0,
+    };
+    const live = await host((method, args) => {
+      if (method === 'toolApprovalRules') return { ok: true, value: { rules: [rule] } };
+      if (method === 'toolApprovalRuleRevoke')
+        return { ok: true, value: { rule: { ...rule, revokedAt: '2026-11-20T01:00:00Z' } } };
+      return echo(method, args);
+    });
+    expect((await invoke(['tool-approval-rules', 'ada'], live.url)).json).toEqual({
+      rules: [rule],
+    });
     for (const argv of [
       ['tool-approval-rule-revoke', 'ada', '--rule', 'r1'],
       ['grant-revoke', 'ada', '--grant', 'g1'],

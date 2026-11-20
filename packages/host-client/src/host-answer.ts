@@ -28,3 +28,28 @@ export function answerRecord(value: unknown, method: string): Record<string, unk
   if (answer === undefined) throw new HostAnswerInvalid(`${method} returned no answer.`);
   return answer;
 }
+
+export function strings(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every(text);
+}
+
+export function finiteNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+export function count(value: unknown): value is number {
+  return finiteNumber(value) && Number.isSafeInteger(value) && value >= 0;
+}
+
+export function optional(value: unknown, guard: (value: unknown) => boolean): boolean {
+  return value === undefined || guard(value);
+}
+
+export function answer<T>(
+  value: unknown,
+  guard: (value: unknown) => value is T,
+  method: string,
+): T {
+  if (!guard(value)) throw new HostAnswerInvalid(`${method} returned an invalid answer.`);
+  return value;
+}

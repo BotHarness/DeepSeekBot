@@ -1,3 +1,12 @@
+import * as botControl from '@botharness/host-client/bot-control';
+import * as approvalReaders from '@botharness/host-client/approval-readers';
+import type {
+  WireApprovalRule,
+  WireBotCompactResult,
+  WireSessionStopResult,
+  WireStoppedSessionRef,
+  WireToolApprovalExecution,
+} from '@botharness/host-protocol/wire';
 import { parseToolEffects } from '../../../core/src/workspaces/tool-effects-contract.js';
 import {
   approvalTemplateDeletionPreviewSchema,
@@ -235,7 +244,6 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import type { ConnectionRpcResult } from '@deepseek-ai/dsh-client-connection/client';
 
 import type {
-  BotAttentionItem,
   BotAttentionPage,
   BotAttentionStatus,
   HumanAttentionItem,
@@ -3266,31 +3274,8 @@ export function parseIdleCompactionStatus(value: unknown): IdleCompactionStatus 
   };
 }
 
-export interface BotCompactResult {
-  outcome: 'compacted' | 'nothing' | 'busy' | 'not-loaded';
-  tokensBefore: number | null;
-  tokensAfter: number | null;
-}
-
-export function parseBotCompactResult(value: unknown): BotCompactResult {
-  const item =
-    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
-  const outcome = item['outcome'];
-  if (
-    outcome !== 'compacted' &&
-    outcome !== 'nothing' &&
-    outcome !== 'busy' &&
-    outcome !== 'not-loaded'
-  )
-    throw new Error('invalid compaction result');
-  const tokens = (raw: unknown) =>
-    typeof raw === 'number' && Number.isFinite(raw) && raw >= 0 ? raw : null;
-  return {
-    outcome,
-    tokensBefore: tokens(item['tokensBefore']),
-    tokensAfter: tokens(item['tokensAfter']),
-  };
-}
+export type BotCompactResult = WireBotCompactResult;
+export { parseBotCompactResult } from '@botharness/host-client/bot-control';
 
 export async function loadIdleCompaction(
   call: BridgeCall,
@@ -3473,10 +3458,8 @@ export async function setBotAvatar(
   channelId: string,
   avatar: string | null,
 ): Promise<BotSummary> {
-  const value = asRecord(await unwrap(call, 'botAvatarSet', { channelId, avatar }));
-  const bot = parseBotSummary(value?.['bot']);
-  if (bot === undefined) throw new Error('invalid botAvatarSet response');
-  return bot;
+  const { bot } = await botControl.setBotAvatar(bridgeHost(call), { channelId, avatar });
+  return parseBotSummary(bot)!;
 }
 
 export async function setBotBanner(
@@ -4977,28 +4960,15 @@ export async function setAssignmentAccess(
   return preset as unknown as AssignmentAccessPresetView;
 }
 
-export interface ToolApprovalRuleView {
-  id: string;
-  botSlug: string;
-  role: 'orchestrator' | 'assignment';
-  scopeKey: string;
-  kind: 'exact' | 'tool' | 'all-opaque' | 'secret-cli';
-  toolName: string;
-  input: string;
-  createdAt: string;
-  revokedAt?: string;
-  externalCreator?: import('../../../core/src/workspaces/tool-approval-actor.js').ToolApprovalActor;
-  autoApprovedCount?: number;
-}
+export type ToolApprovalRuleView = WireApprovalRule;
+
 export async function loadToolApprovalRules(
   call: BridgeCall,
   slug: string,
 ): Promise<ToolApprovalRuleView[]> {
-  const response = asRecord(await unwrap(call, 'toolApprovalRules', { slug }));
-  const rules = response?.['rules'];
-  if (!Array.isArray(rules)) throw new Error('invalid toolApprovalRules response');
-  return rules as ToolApprovalRuleView[];
+  return (await approvalReaders.readToolApprovalRules(bridgeHost(call), slug)).rules;
 }
+
 export interface ApprovalTemplateView {
   name: string;
   title: string;
@@ -5033,22 +5003,13 @@ export async function loadApprovalTemplates(
   selected: string | null;
   globalDefault?: string | null;
 }> {
-  const response = asRecord(
-    await unwrap(call, 'approvalTemplates', slug === undefined ? {} : { slug }),
+  const { templates, selected, globalDefault } = await approvalReaders.readApprovalTemplates(
+    bridgeHost(call),
+    slug,
   );
-  const templates = response?.['templates'];
-  const selected = response?.['selected'] ?? null;
-  const globalDefault = response?.['globalDefault'];
-  if (globalDefault !== undefined && globalDefault !== null && typeof globalDefault !== 'string')
-    throw new Error('invalid global approval selection');
-  if (!Array.isArray(templates) || (selected !== null && typeof selected !== 'string'))
-    throw new Error('invalid approvalTemplates response');
   return {
-    templates: templates.flatMap((item: unknown) => {
-      const template = parseApprovalTemplate(item);
-      return template === undefined ? [] : [template];
-    }),
-    selected,
+    templates,
+    selected: selected ?? null,
     ...(globalDefault === undefined ? {} : { globalDefault }),
   };
 }
@@ -5118,9 +5079,7 @@ export async function setBotApprovalTemplate(
   slug: string,
   template: string | null,
 ): Promise<void> {
-  const response = asRecord(await unwrap(call, 'botApprovalTemplateSet', { slug, template }));
-  if (asRecord(response?.['bot'])?.['slug'] !== slug)
-    throw new Error('invalid botApprovalTemplateSet response');
+  await approvalReaders.setBotApprovalTemplate(bridgeHost(call), slug, template);
 }
 export interface ApprovalReviewerModelView {
   follows: 'bot' | 'model' | 'invalid';
@@ -5178,101 +5137,54 @@ export async function revokeToolApprovalRule(
   slug: string,
   id: string,
 ): Promise<void> {
-  const response = asRecord(await unwrap(call, 'toolApprovalRuleRevoke', { slug, id }));
-  if (asRecord(response?.['rule'])?.['id'] !== id)
-    throw new Error('invalid toolApprovalRuleRevoke response');
+  await approvalReaders.revokeToolApprovalRule(bridgeHost(call), slug, id);
 }
 
-export type ToolApprovalStatus = 'pending' | 'expired' | 'stopped';
-
-function isToolApprovalStatus(value: unknown): value is ToolApprovalStatus {
-  return value === 'pending' || value === 'expired' || value === 'stopped';
-}
+export type { ToolApprovalStatus } from '@botharness/host-protocol/wire';
+export type ToolApprovalExecutionState = WireToolApprovalExecution;
 
 export async function loadToolApprovalStatus(
   call: BridgeCall,
   channelId: string,
   messageId: string,
-): Promise<ToolApprovalStatus> {
-  const response = asRecord(await unwrap(call, 'toolApprovalStatus', { channelId, messageId }));
-  const status = response?.['status'];
-  if (!isToolApprovalStatus(status)) {
-    throw new Error('invalid toolApprovalStatus response');
-  }
-  return status;
+) {
+  return (await approvalReaders.readToolApprovalStatus(bridgeHost(call), channelId, messageId))
+    .status;
 }
 
 export async function loadToolApprovalState(
   call: BridgeCall,
   channelId: string,
   messageId: string,
-): Promise<{
-  status: ToolApprovalStatus;
-  expiresAt?: string;
-  execution?: ToolApprovalExecutionState;
-}> {
-  const response = asRecord(await unwrap(call, 'toolApprovalStatus', { channelId, messageId }));
-  const status = response?.['status'];
-  if (!isToolApprovalStatus(status)) {
-    throw new Error('invalid toolApprovalStatus response');
-  }
-  const execution = parseToolApprovalExecution(response?.['execution']);
-  const state = { status, ...(execution === undefined ? {} : { execution }) };
-  const expiresAt = response?.['expiresAt'];
-  if (expiresAt === undefined || status !== 'pending') return state;
-  if (typeof expiresAt !== 'string' || Number.isNaN(Date.parse(expiresAt)))
-    throw new Error('invalid toolApprovalStatus expiry');
-  return { ...state, expiresAt };
+) {
+  const { status, expiresAt, execution } = await approvalReaders.readToolApprovalStatus(
+    bridgeHost(call),
+    channelId,
+    messageId,
+  );
+  return {
+    status,
+    ...(status !== 'pending' || expiresAt === undefined ? {} : { expiresAt }),
+    ...(execution === undefined ? {} : { execution }),
+  };
 }
-
-export type ToolApprovalExecutionState =
-  | 'waiting-human'
-  | 'waiting-capacity'
-  | 'running'
-  | 'settled'
-  | 'needs-repair';
 
 export async function loadToolApprovalExecutionState(
   call: BridgeCall,
   channelId: string,
   messageId: string,
-): Promise<ToolApprovalExecutionState | undefined> {
-  const response = asRecord(await unwrap(call, 'toolApprovalStatus', { channelId, messageId }));
-  return parseToolApprovalExecution(response?.['execution']);
-}
-
-function parseToolApprovalExecution(execution: unknown): ToolApprovalExecutionState | undefined {
-  if (
-    execution !== undefined &&
-    execution !== 'waiting-human' &&
-    execution !== 'waiting-capacity' &&
-    execution !== 'running' &&
-    execution !== 'settled' &&
-    execution !== 'needs-repair'
-  )
-    throw new Error('invalid toolApprovalStatus execution');
-  return execution;
+) {
+  return (await approvalReaders.readToolApprovalStatus(bridgeHost(call), channelId, messageId))
+    .execution;
 }
 
 export async function decideToolApproval(
   call: BridgeCall,
   channelId: string,
   messageId: string,
-  outcome:
-    | 'allowed-once'
-    | 'allowed-always-tool'
-    | 'allowed-always-exact'
-    | 'allowed-always-all'
-    | 'rejected',
+  outcome: Parameters<typeof approvalReaders.decideToolApproval>[3],
 ): Promise<void> {
-  const response = asRecord(
-    await unwrap(call, 'toolApprovalDecide', {
-      channelId,
-      messageId,
-      outcome,
-    }),
-  );
-  if (response?.['accepted'] !== true) throw new Error('Tool approval was not accepted');
+  await approvalReaders.decideToolApproval(bridgeHost(call), channelId, messageId, outcome);
 }
 
 export async function loadPrivateInputStatus(
@@ -5354,16 +5266,8 @@ export async function loadUserQuestionStatus(
   channelId: string,
   messageId: string,
 ): Promise<'pending' | 'submitted' | 'answered' | 'expired'> {
-  const response = asRecord(await unwrap(call, 'userQuestionStatus', { channelId, messageId }));
-  const status = response?.['status'];
-  if (
-    status !== 'pending' &&
-    status !== 'submitted' &&
-    status !== 'answered' &&
-    status !== 'expired'
-  )
-    throw new Error('invalid userQuestionStatus response');
-  return status;
+  return (await approvalReaders.readUserQuestionStatus(bridgeHost(call), channelId, messageId))
+    .status;
 }
 
 export async function answerUserQuestion(
@@ -5372,14 +5276,7 @@ export async function answerUserQuestion(
   messageId: string,
   answers: UserQuestionAnswerItem[],
 ): Promise<void> {
-  const response = asRecord(
-    await unwrap(call, 'userQuestionAnswer', {
-      channelId,
-      messageId,
-      answer: { answers },
-    }),
-  );
-  if (response?.['accepted'] !== true) throw new Error('Question answer was not accepted');
+  await approvalReaders.answerUserQuestion(bridgeHost(call), channelId, messageId, { answers });
 }
 
 export interface WorkspaceOption {
@@ -5542,76 +5439,6 @@ export async function revokeWorkspaceGrant(
   return grant;
 }
 
-function parseBotAttentionItem(value: unknown): BotAttentionItem | undefined {
-  const row = asRecord(value);
-  if (row === undefined) return undefined;
-  const required = ['id', 'botSlug', 'reason', 'createdAt', 'sourceKind', 'summary'] as const;
-  if (required.some((key) => typeof row[key] !== 'string')) return undefined;
-  if (
-    ![
-      'pending',
-      'processing',
-      'observed',
-      'deferred',
-      'needs-repair',
-      'open',
-      'snoozed',
-      'handled',
-      'ignored',
-    ].includes(String(row['state']))
-  )
-    return undefined;
-  if (!['human', 'bot', 'bridged', 'system'].includes(String(row['authorKind']))) return undefined;
-  if (typeof row['sourceAvailable'] !== 'boolean') return undefined;
-  if (row['externalOrigin'] !== undefined) {
-    const origin = asRecord(row['externalOrigin']);
-    if (
-      !origin ||
-      ['platform', 'accountName', 'conversationName', 'conversationId', 'senderId'].some(
-        (key) => typeof origin[key] !== 'string',
-      ) ||
-      (origin['senderName'] !== undefined && typeof origin['senderName'] !== 'string')
-    )
-      return undefined;
-  }
-  for (const key of [
-    'observedAt',
-    'handledAt',
-    'ignoredAt',
-    'sourceChannelId',
-    'sourceChannelName',
-    'sourceMessageId',
-    'assignmentSessionId',
-    'assignmentTitle',
-    'authorBotSlug',
-    'scheduleId',
-  ])
-    if (row[key] !== undefined && typeof row[key] !== 'string') return undefined;
-  if (
-    row['assignmentReportState'] !== undefined &&
-    !['progress', 'completed', 'blocked', 'waiting-human', 'failed'].includes(
-      String(row['assignmentReportState']),
-    )
-  )
-    return undefined;
-  return row as unknown as BotAttentionItem;
-}
-
-export function parseBotAttentionPage(value: unknown): BotAttentionPage {
-  const row = asRecord(value);
-  const raw = row?.['items'];
-  if (!Array.isArray(raw)) throw new Error('invalid Bot attention page');
-  const items = raw.map(parseBotAttentionItem);
-  if (items.some((item) => item === undefined)) throw new Error('invalid Bot attention item');
-  const cursor = row?.['nextCursor'];
-  if (cursor !== undefined && typeof cursor !== 'string')
-    throw new Error('invalid Bot attention cursor');
-  return {
-    items: items as BotAttentionItem[],
-    ...(cursor === undefined ? {} : { nextCursor: cursor }),
-  };
-}
-
 export async function loadBotAttention(
   call: BridgeCall,
   slug: string,
@@ -5619,7 +5446,7 @@ export async function loadBotAttention(
   cursor?: string,
   state?: BotAttentionStatus,
 ): Promise<BotAttentionPage> {
-  return parseBotAttentionPage(await unwrap(call, 'botAttention', { slug, limit, cursor, state }));
+  return botControl.readBotAttention(bridgeHost(call), { slug, limit, cursor, state });
 }
 
 export function parseHumanAttentionPage(value: unknown): HumanAttentionPage {
@@ -5864,8 +5691,7 @@ export async function dismissAllActivityListItems(
 }
 
 export async function overrideAutoRejection(call: BridgeCall, itemId: string): Promise<void> {
-  const value = asRecord(await unwrap(call, 'toolAutoRejectionOverride', { itemId }));
-  if (value?.['accepted'] !== true) throw new Error('Auto-rejection override was not confirmed');
+  await approvalReaders.overrideAutoRejection(bridgeHost(call), itemId);
 }
 
 export async function snoozeActivityListItem(
@@ -5946,31 +5772,8 @@ export async function setSessionArchived(
   return value?.['archived'] === true;
 }
 
-export interface StoppedSessionRef {
-  botSlug: string;
-  sessionId: string;
-  role: 'orchestrator' | 'assignment';
-}
-
-export interface SessionStopResult {
-  stopped: StoppedSessionRef[];
-  alreadyIdle: StoppedSessionRef[];
-  messageId?: string;
-}
-
-function parseSessionStopResult(value: unknown): SessionStopResult {
-  const record = asRecord(value);
-  const refs = (key: string): StoppedSessionRef[] => {
-    const list = record?.[key];
-    return Array.isArray(list) ? (list as StoppedSessionRef[]) : [];
-  };
-  const messageId = record?.['messageId'];
-  return {
-    stopped: refs('stopped'),
-    alreadyIdle: refs('alreadyIdle'),
-    ...(typeof messageId === 'string' ? { messageId } : {}),
-  };
-}
+export type StoppedSessionRef = WireStoppedSessionRef;
+export type SessionStopResult = WireSessionStopResult;
 
 export async function stopSession(
   call: BridgeCall,
@@ -5978,13 +5781,11 @@ export async function stopSession(
   session: string | { activityId: string },
   channelId?: string,
 ): Promise<SessionStopResult> {
-  return parseSessionStopResult(
-    await unwrap(call, 'sessionStop', {
-      botSlug,
-      ...(typeof session === 'string' ? { sessionId: session } : session),
-      ...(channelId === undefined ? {} : { channelId }),
-    }),
-  );
+  return botControl.stopSession(bridgeHost(call), {
+    botSlug,
+    ...(typeof session === 'string' ? { sessionId: session } : session),
+    ...(channelId === undefined ? {} : { channelId }),
+  });
 }
 
 export async function stopBot(
@@ -5992,12 +5793,10 @@ export async function stopBot(
   botSlug: string,
   channelId?: string,
 ): Promise<SessionStopResult> {
-  return parseSessionStopResult(
-    await unwrap(call, 'botStop', {
-      botSlug,
-      ...(channelId === undefined ? {} : { channelId }),
-    }),
-  );
+  return botControl.stopBot(bridgeHost(call), {
+    botSlug,
+    ...(channelId === undefined ? {} : { channelId }),
+  });
 }
 
 export async function moveMemoryLocation(

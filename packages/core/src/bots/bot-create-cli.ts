@@ -1,3 +1,4 @@
+import { HostAnswerInvalid } from '@botharness/host-client/host-answer';
 import { hasCliDeclaration } from './cli-effects.js';
 import { botMetadata, type BotMetadataResult } from '../team/bot-administration.js';
 import { privateBotRegistry, ownsBot } from '../team/bot-access.js';
@@ -3013,6 +3014,13 @@ export async function runBotCreateCli(
     );
     return 0;
   } catch (error) {
+    if (error instanceof HostAnswerInvalid) {
+      out.stdout(
+        JSON.stringify({ error: { code: 'host-protocol-error', message: error.message } }, null, 2),
+      );
+      io.stderr(`tobs: ${error.message}`);
+      return 1;
+    }
     if (error instanceof CliLiveError) {
       out.stdout(
         JSON.stringify(

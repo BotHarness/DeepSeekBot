@@ -1,3 +1,4 @@
+import { overrideAutoRejection } from './approval-readers';
 import { decideGroupJoin } from './channel-management';
 import {
   markAllChannelsRead,
@@ -40,9 +41,7 @@ export async function findAttentionItem(
 }
 
 export async function allowAutoRejectionOnce(client: HostClient, itemId: string): Promise<void> {
-  const value = record(await client.call('toolAutoRejectionOverride', { itemId }));
-  if (value?.['accepted'] !== true)
-    throw new HostAnswerInvalid('The computer did not confirm the override.');
+  await overrideAutoRejection(client, itemId);
 }
 
 export async function decideJoinRequest(

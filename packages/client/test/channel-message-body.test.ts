@@ -213,9 +213,12 @@ it('maintains the DM session without retrying a failed message', async () => {
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
-  const call = vi.fn(async (_method: string, _args?: unknown) => ({
+  const call = vi.fn(async (method: string, _args?: unknown) => ({
     ok: true as const,
-    value: { outcome: 'nothing', tokensBefore: null, tokensAfter: null },
+    value:
+      method === 'botNewSession'
+        ? { started: true }
+        : { outcome: 'nothing', tokensBefore: null, tokensAfter: null },
   }));
   const actions = createActions(call, store);
   const message: ChannelMessage = {
@@ -249,13 +252,13 @@ it('maintains the DM session without retrying a failed message', async () => {
     expect(container.textContent).toContain('开启新会话');
     expect(container.textContent).not.toContain('重试');
     await act(async () => button?.click());
-    expect(call).toHaveBeenCalledWith('botCompact', { slug: 'ada' });
+    expect(call).toHaveBeenCalledWith('botCompact', { slug: 'ada' }, undefined);
     expect(container.textContent).toContain('当前没有可压缩的内容');
     const newButton = [...container.querySelectorAll('button')].find(
       (node) => node.textContent === '开启新会话',
     );
     await act(async () => newButton?.click());
-    expect(call).toHaveBeenCalledWith('botNewSession', { slug: 'ada' });
+    expect(call).toHaveBeenCalledWith('botNewSession', { slug: 'ada' }, undefined);
     expect(call.mock.calls.map((args) => args[0])).not.toContain('channelRetry');
     await act(async () =>
       root.render(

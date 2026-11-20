@@ -1,3 +1,10 @@
+import {
+  answerUserQuestion,
+  decideToolApproval,
+  readToolApprovalStatus,
+  readUserQuestionStatus,
+} from '@botharness/host-client/approval-readers';
+import type { QuestionAnswer } from '@botharness/host-protocol/wire';
 import { isLanAddress } from '@botharness/host-protocol/lan-address';
 import { parseQuotesInput, type ChannelQuote } from '../channels/quotes.js';
 import { toolEffectLabels } from '../workspaces/tool-effect-labels.js';
@@ -1595,18 +1602,18 @@ export async function runLiveCli(
       }),
     };
   }
-  if (command === 'tool-approval-status')
-    return rpc('toolApprovalStatus', { channelId: target, messageId });
+  const reader = { call: (method: string, args = {}) => rpc(method, args) };
+  if (command === 'tool-approval-status') return readToolApprovalStatus(reader, target, messageId!);
   if (command === 'tool-approval-decide')
-    return rpc('toolApprovalDecide', {
-      channelId: target,
-      messageId,
-      outcome: values.outcome,
-    });
-  if (command === 'user-question-status')
-    return rpc('userQuestionStatus', { channelId: target, messageId });
+    return decideToolApproval(
+      reader,
+      target,
+      messageId!,
+      values.outcome as Parameters<typeof decideToolApproval>[3],
+    );
+  if (command === 'user-question-status') return readUserQuestionStatus(reader, target, messageId!);
   if (command === 'user-question-answer')
-    return rpc('userQuestionAnswer', { channelId: target, messageId, answer });
+    return answerUserQuestion(reader, target, messageId!, answer as QuestionAnswer);
   if (command === 'workspace-options') return rpc('workspaceOptions', {});
   if (command === 'grant-create')
     return rpc('grantCreate', { slug: target, workspaceId: values.workspace });

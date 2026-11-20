@@ -1,3 +1,4 @@
+import * as botControl from '@botharness/host-client/bot-control';
 import { loadRoutingGroupEngines } from '@botharness/host-client/model-catalog';
 import { botModeActions, type BotModeActions } from './bot-mode-actions.js';
 import { retryChannelMessage } from '@botharness/host-client/channel-messages';
@@ -162,7 +163,6 @@ import {
   readMessagingSource,
   loadMessageAttachmentTarget,
   loadChannelMediaTarget,
-  parseBotCompactResult,
   type BotCompactResult,
 } from './bridge.js';
 import {
@@ -2152,7 +2152,7 @@ export function createActions(
       return invoke('botTurnInput', { slug: botSlug, turns });
     },
     async newBotSession(botSlug) {
-      await invoke('botNewSession', { slug: botSlug });
+      await botControl.newBotSession(bridgeHost(call), botSlug);
     },
     async retryMessage(channelId, messageId, recovery) {
       await retryChannelMessage(host, { channelId, messageId, recovery });
@@ -2160,7 +2160,7 @@ export function createActions(
     },
     async compactBot(botSlug) {
       try {
-        return parseBotCompactResult(await invoke('botCompact', { slug: botSlug }));
+        return await botControl.compactBot(bridgeHost(call), botSlug);
       } catch (error) {
         if (error instanceof BridgeCallError && error.code === 'bot-busy')
           return { outcome: 'busy', tokensBefore: null, tokensAfter: null };
@@ -2174,7 +2174,7 @@ export function createActions(
       return 'stopped';
     },
     async cancelAutoContinue(channelId, botSlug, requestMessageId) {
-      await invoke('botStop', {
+      await botControl.stopBot(bridgeHost(call), {
         channelId,
         botSlug,
         autoContinueFor: requestMessageId,

@@ -21,7 +21,7 @@ import {
 import { createHostClient } from '@botharness/host-client/client';
 import { modelLabel, restingNotice, workspaceLabel } from '../src/ui/chat/composer-labels';
 import { t } from '../src/ui/strings';
-import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import { fakeBotDetail, FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
 const slug = 'ada';
@@ -467,7 +467,7 @@ describe('Bot workspace from the composer', () => {
         selected: '@global',
         globalDefault,
       }));
-      fake.methods.set('botApprovalTemplateSet', () => ({ bot: { slug } }));
+      fake.methods.set('botApprovalTemplateSet', () => ({ bot: fakeBotDetail(slug, 'Ada') }));
       const host = client(fake);
       expect(await loadApprovalTemplates(host, slug)).toMatchObject({
         selected: '@global',
@@ -495,13 +495,26 @@ describe('Bot workspace from the composer', () => {
     const fake = new FakeHost();
     fake.methods.set('approvalTemplates', () => ({
       templates: [
-        { name: 'cautious', title: 'Cautious', description: 'Reads and plans.' },
-        { name: 'get-work-done', title: 'Get the work done', description: 'Keeps going.' },
-        { name: 'broken' },
+        {
+          name: 'cautious',
+          title: 'Cautious',
+          description: 'Reads and plans.',
+          builtIn: true,
+          usedBy: [],
+          text: '# Cautious',
+        },
+        {
+          name: 'get-work-done',
+          title: 'Get the work done',
+          description: 'Keeps going.',
+          builtIn: true,
+          usedBy: [],
+          text: '# Get the work done',
+        },
       ],
       selected: 'cautious',
     }));
-    fake.methods.set('botApprovalTemplateSet', () => ({ bot: { slug } }));
+    fake.methods.set('botApprovalTemplateSet', () => ({ bot: fakeBotDetail(slug, 'Ada') }));
     const host = client(fake);
 
     const templates = await loadApprovalTemplates(host, slug);
@@ -519,7 +532,7 @@ describe('Bot workspace from the composer', () => {
       ['botApprovalTemplateSet', { slug, template: null }],
     ]);
 
-    fake.methods.set('botApprovalTemplateSet', () => ({ bot: { slug: 'grace' } }));
+    fake.methods.set('botApprovalTemplateSet', () => ({ bot: fakeBotDetail('grace', 'Grace') }));
     await expect(setApprovalTemplate(host, slug, null)).rejects.toThrow(
       'botApprovalTemplateSet did not return the Bot.',
     );

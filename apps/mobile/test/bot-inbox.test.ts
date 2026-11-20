@@ -1,15 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { createBotInbox, inboxOrder } from '../src/host/bot-inbox';
-import type { BotInboxItem } from '@botharness/host-protocol/wire';
+import type { WireBotAttentionItem } from '@botharness/host-protocol/wire';
 
-const item = (id: string, sourceMessageId?: string): BotInboxItem => ({
+const item = (id: string, sourceMessageId?: string): WireBotAttentionItem => ({
   id,
   botSlug: 'ada',
   reason: 'group-mention',
   state: 'handled',
   createdAt: '2026-10-26T00:00:00.000Z',
   sourceKind: 'human-message',
+  sourceAvailable: true,
+  authorKind: 'human',
   ...(sourceMessageId === undefined ? {} : { sourceMessageId }),
   summary: 'Summary ' + id,
 });

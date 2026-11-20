@@ -1,5 +1,6 @@
+import { readBotAttention } from '@botharness/host-client/bot-control';
 import type { HostClient } from '@botharness/host-client/client';
-import type { BotInboxItem, BotInboxPage } from '@botharness/host-protocol/wire';
+import type { BotInboxItem } from '@botharness/host-protocol/wire';
 
 export const BOT_INBOX_PAGE = 30;
 
@@ -34,7 +35,7 @@ export function createBotInbox(client: Pick<HostClient, 'call'>, slug: string): 
       const kept = cursor === undefined ? [] : snapshot.items;
       set({ status: 'loading', items: kept });
       try {
-        const page = await client.call<BotInboxPage>('botAttention', {
+        const page = await readBotAttention(client, {
           slug,
           limit: BOT_INBOX_PAGE,
           ...(cursor === undefined ? {} : { cursor }),

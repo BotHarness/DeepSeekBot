@@ -1,3 +1,9 @@
+import {
+  overrideAutoRejection,
+  readToolApprovalRules,
+  revokeToolApprovalRule,
+} from '@botharness/host-client/approval-readers';
+import { stopBot, stopSession } from '@botharness/host-client/bot-control';
 export { INBOX_OPTIONS } from './cli-option-spec.js';
 import { canonicalCliCommandName, legacyActivityCommandName } from './cli-command-names.js';
 import { watchInbox } from './cli-inbox-watch.js';
@@ -234,6 +240,15 @@ export async function runInboxCommand(
     );
   }
   const { rpc } = await connect();
+  const reader = { call: (method: string, args = {}) => rpc(method, args) };
+  if (call.method === 'toolAutoRejectionOverride')
+    return overrideAutoRejection(reader, String(call.args['itemId']));
+  if (call.method === 'sessionStop') return stopSession(reader, call.args);
+  if (call.method === 'botStop') return stopBot(reader, call.args);
+  if (call.method === 'toolApprovalRules')
+    return readToolApprovalRules(reader, String(call.args['slug']));
+  if (call.method === 'toolApprovalRuleRevoke')
+    return revokeToolApprovalRule(reader, String(call.args['slug']), String(call.args['id']));
   const result = await rpc<Record<string, unknown>>(call.method, call.args);
   if (call.args['notifications'] === true && result['notificationVersion'] !== 1)
     throw new CliLiveError(
