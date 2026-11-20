@@ -304,7 +304,9 @@ for (const surface of questionSurfaces) {
         expect(target.disabled).toBe(true);
         if (surface.name === 'question card') {
           expect(target.getAttribute('aria-checked')).toBe('true');
-          expect(target.querySelector('[data-testid="question-option-check"]')).not.toBeNull();
+          expect(target.querySelector('[data-testid="question-option-letter"]')?.textContent).toBe(
+            'A',
+          );
           expect(container.querySelector('[data-testid="question-submit"]')).toBeNull();
         }
         expect(played).toEqual([]);

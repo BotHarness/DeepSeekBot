@@ -2,11 +2,9 @@ import { Pressable, View } from 'react-native';
 
 import { toggleOption, type QuestionDraft } from '@botharness/host-client/requests';
 import type { QuestionItem } from '@botharness/host-protocol/wire';
-import { cardChoiceColors, questionGroupOutline } from '../design/controls';
 import { useDesignTheme } from '../design/theme';
 import { edge, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
-import { CheckIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { letter } from './question-letter';
 
@@ -29,10 +27,7 @@ function Option({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const tone = chosen ? 'primary' : 'secondary';
-  const state = disabled && !chosen ? 'disabled' : 'rest';
-  const colors = cardChoiceColors(theme, tone, state);
-  const pressedColors = cardChoiceColors(theme, tone, 'pressed');
+  const well = theme.layer.well;
   const badge = theme.type.body.line * theme.fontScale + space.x2;
   return (
     <Pressable
@@ -43,42 +38,45 @@ function Option({
       accessibilityState={{ checked: chosen, disabled }}
       disabled={disabled}
       onPress={onPress}
-      style={({ pressed }) => {
-        const paint = pressed && !disabled ? pressedColors : colors;
-        return {
-          minHeight: theme.touch,
-          minWidth: theme.touch,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: space.x4,
-          paddingHorizontal: space.x4,
-          paddingVertical: space.x3,
-          backgroundColor: paint.fill,
-        };
-      }}
+      style={({ pressed }) => ({
+        minHeight: theme.touch,
+        minWidth: theme.touch,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: space.x4,
+        paddingHorizontal: space.x4,
+        paddingVertical: space.x3,
+        borderTopWidth: index === 0 ? 0 : edge.hairline,
+        borderTopColor: well.divider,
+        backgroundColor: chosen ? well.chosen : pressed && !disabled ? well.pressed : well.fill,
+      })}
     >
       <View
-        testID={chosen ? 'question-option-check' : undefined}
+        testID="question-option-letter"
         accessible={false}
         style={{
           width: badge,
           height: badge,
+          borderRadius: radius.round,
           alignItems: 'center',
           justifyContent: 'center',
+          ...(chosen
+            ? { backgroundColor: theme.color.accent, borderWidth: 0 }
+            : {
+                borderWidth: edge.hairline,
+                borderColor: theme.color.muted,
+                borderStyle: 'dashed',
+              }),
         }}
       >
-        {chosen ? (
-          <CheckIcon size={theme.type.meta.line * theme.fontScale} color={colors.ink} />
-        ) : (
-          <Text variant="meta" strong style={{ color: colors.ink }}>
-            {letter(index)}
-          </Text>
-        )}
+        <Text variant="meta" strong tone={chosen ? 'onAccent' : 'fg'}>
+          {letter(index)}
+        </Text>
       </View>
       <View style={{ flexShrink: 1, gap: space.x1 }}>
-        <Text style={{ color: colors.ink }}>{label}</Text>
+        <Text>{label}</Text>
         {description === undefined ? null : (
-          <Text variant="meta" style={{ color: colors.ink }}>
+          <Text variant="meta" tone="muted">
             {description}
           </Text>
         )}
@@ -108,11 +106,7 @@ export function QuestionOptions({
       testID="question-options"
       accessibilityLabel={question.question}
       style={{
-        gap: edge.hairline,
-        backgroundColor: theme.layer.raised.fill,
-        borderColor: questionGroupOutline(theme),
-        borderStyle: 'dashed',
-        borderWidth: edge.hairline,
+        backgroundColor: theme.layer.well.fill,
         borderRadius: radius.md,
         overflow: 'hidden',
       }}

@@ -654,7 +654,13 @@ describe('Question card in the DM', () => {
     expect(sent.map((args) => args['answer'])).toEqual([
       { answers: [{ id: 'colour', selected: ['Amber'] }] },
     ]);
-    expect(line(view)).toBe(t.cardLine('Which colour?', t.cardAnswered));
+    expect(view.textContent).toContain(t.cardAnswered);
+    expect(amber.getAttribute('aria-checked')).toBe('true');
+    expect(teal.getAttribute('aria-checked')).toBe('false');
+    expect(amber.querySelector('[data-testid="question-option-letter"]')?.textContent).toBe('B');
+    expect(amber.disabled).toBe(true);
+    expect(teal.disabled).toBe(true);
+    expect(view.querySelector('[data-testid="question-submit"]')).toBeNull();
   });
 
   it('keeps a multiple-choice answer local until Submit is pressed', async () => {
@@ -668,7 +674,7 @@ describe('Question card in the DM', () => {
     const amber = button(view, t.option('B', 'Amber'));
     await press(amber);
     expect(amber.getAttribute('aria-checked')).toBe('true');
-    expect(amber.querySelector('[data-testid="question-option-check"]')).not.toBeNull();
+    expect(amber.querySelector('[data-testid="question-option-letter"]')?.textContent).toBe('B');
     expect(send).not.toHaveBeenCalled();
     expect(submit.disabled).toBe(false);
     await press(submit);

@@ -26,6 +26,7 @@ export function QuestionFields({
   heading,
   disabled,
   inChat,
+  answered = false,
   onExpand,
   onChange,
   onPick,
@@ -74,7 +75,7 @@ export function QuestionFields({
           />
         </RNHostView>
       ) : null}
-      {inChat ? (
+      {answered ? null : inChat ? (
         <Text color={roles.onSurfaceVariant} style={{ typography: materialType.meta }}>
           {t.replyInChat}
         </Text>

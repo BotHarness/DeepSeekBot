@@ -15,6 +15,7 @@ export function QuestionFields({
   heading,
   disabled,
   inChat,
+  answered = false,
   onExpand,
   onChange,
   onPick,
@@ -24,6 +25,7 @@ export function QuestionFields({
   heading: boolean;
   disabled: boolean;
   inChat: boolean;
+  answered?: boolean;
   onExpand?(): void;
   onChange(next: QuestionDraft): void;
   onPick?(label: string): void;
@@ -62,7 +64,7 @@ export function QuestionFields({
         onChange={onChange}
         {...(onPick === undefined ? {} : { onPick })}
       />
-      {inChat ? (
+      {answered ? null : inChat ? (
         <Text variant="meta" tone="muted">
           {t.replyInChat}
         </Text>

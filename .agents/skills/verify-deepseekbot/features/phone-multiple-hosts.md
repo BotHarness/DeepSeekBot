@@ -57,10 +57,11 @@ required to verify routing; a real reply additionally needs a working model.
    question, then read back only B's results. Page each category and change badge
    preferences. Verify late responses after a scope change cannot alter the new view.
    Compare the in-card controls on the same pending fixtures in Light and Dark.
-   Check the Question card's rounded dashed group and the Action card's three solid
-   decision buttons. Tap a single-choice answer and verify it sends once without
-   Submit. On a multi-choice card, verify a selected row replaces its letter with a
-   checkmark and the Host records the answer only after Submit. For each text-size
+   Check the Question card's recessed group with row separators and the Action card's
+   three solid decision buttons. A clear badge has a dashed border. A selected badge
+   keeps the letter and uses accent fill with no border. Tap a single-choice answer
+   and verify it sends once without Submit and keeps the finished selection visible.
+   Select a multi-choice answer and verify the Host records it only after Submit. For each text-size
    decision check (default, intermediate and maximum), start with fresh pending
    cards on the same Host and reach the last choice.
 8. Background the app, generate messages on both Hosts and tap a B notification while

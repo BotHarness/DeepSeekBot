@@ -54,7 +54,7 @@ import { QuestionFields } from '../src/ui/chat/question-fields.android';
 import { Button } from '../src/ui/primitives/button.android';
 import { cardChoiceColors } from '../src/ui/design/controls';
 import { resolveTheme } from '../src/ui/design/resolve-theme';
-import { radius } from '../src/ui/design/tokens';
+import { edge, radius } from '../src/ui/design/tokens';
 import { t } from '../src/ui/strings';
 
 const theme = resolveTheme('light', {}, 'android');
@@ -105,9 +105,19 @@ function expectOption(control: HTMLButtonElement, rest: string, pressed = rest) 
     expect(style).toMatchObject({
       minHeight: theme.touch,
       minWidth: theme.touch,
+      borderTopColor: theme.layer.well.divider,
       backgroundColor: fill,
     });
   }
+}
+
+function optionLetter(control: HTMLButtonElement, letter: string) {
+  const badge = control.querySelector('[data-testid="question-option-letter"]');
+  expect(badge?.textContent).toBe(letter);
+  const style = JSON.parse(badge?.getAttribute('data-style') ?? '{}');
+  expect(style).toMatchObject({ borderRadius: radius.round });
+  expect(style.width).toBe(style.height);
+  return style;
 }
 
 describe('ActionCard on Android', () => {
@@ -269,17 +279,28 @@ describe('question options on Android', () => {
     );
     const rows = [...view.querySelectorAll<HTMLButtonElement>('button[role="radio"]')];
     expect(rows).toHaveLength(2);
-    expect(rows[0]!.parentElement).toBe(view.querySelector('[data-testid="question-options"]'));
-    expect(rows[1]!.parentElement).toBe(rows[0]!.parentElement);
+    const group = view.querySelector('[data-testid="question-options"]');
+    expect(rows[0]!.parentElement).toBe(group);
+    expect(rows[1]!.parentElement).toBe(group);
+    const groupStyle = JSON.parse(group?.getAttribute('data-style') ?? '{}');
+    expect(groupStyle.backgroundColor).toBe(theme.layer.well.fill);
+    expect(groupStyle).not.toHaveProperty('borderWidth');
+    const first = JSON.parse(rows[0]!.getAttribute('data-rest-style') ?? '{}');
+    const next = JSON.parse(rows[1]!.getAttribute('data-rest-style') ?? '{}');
+    expect(first.borderTopWidth).toBe(0);
+    expect(next.borderTopWidth).toBe(edge.hairline);
     expect(rows[0]!.closest('[data-compose="RNHostView"]')).not.toBeNull();
     expect(rows[0]!.getAttribute('aria-label')).toBe(t.option('A', 'main'));
     expect(rows[0]!.textContent).toContain('The default branch');
     expect(rows[1]!.getAttribute('aria-checked')).toBe('false');
-    expectOption(
-      rows[0]!,
-      cardChoiceColors(theme, 'secondary').fill,
-      cardChoiceColors(theme, 'secondary', 'pressed').fill,
-    );
+    expectOption(rows[0]!, theme.layer.well.fill, theme.layer.well.pressed);
+    const badge = optionLetter(rows[0]!, 'A');
+    expect(badge).not.toHaveProperty('backgroundColor');
+    expect(badge).toMatchObject({
+      borderStyle: 'dashed',
+      borderWidth: edge.hairline,
+      borderColor: theme.color.muted,
+    });
     await act(async () => rows[1]!.click());
     expect(pick).toHaveBeenCalledWith('dev');
     expect(view.querySelector('textarea')).not.toBeNull();
@@ -304,13 +325,12 @@ describe('question options on Android', () => {
       'true',
       'false',
     ]);
-    expect(checkboxes[0]!.querySelector('[data-testid="question-option-check"]')).not.toBeNull();
-    expect(checkboxes[1]!.querySelector('[data-testid="question-option-check"]')).toBeNull();
-    expectOption(
-      checkboxes[0]!,
-      cardChoiceColors(theme, 'primary').fill,
-      cardChoiceColors(theme, 'primary', 'pressed').fill,
-    );
+    const selected = optionLetter(checkboxes[0]!, 'A');
+    expect(selected).toMatchObject({ backgroundColor: theme.color.accent, borderWidth: 0 });
+    expect(selected).not.toHaveProperty('borderColor');
+    expect(selected).not.toHaveProperty('borderStyle');
+    expect(optionLetter(checkboxes[1]!, 'B')).toMatchObject({ borderStyle: 'dashed' });
+    expectOption(checkboxes[0]!, theme.layer.well.chosen);
     expect(texts(view)).toEqual(expect.arrayContaining(['Which branch?', t.replyInChat]));
     expect(view.querySelector('textarea')).toBeNull();
     await act(async () => checkboxes[1]!.click());
@@ -330,8 +350,8 @@ describe('question options on Android', () => {
       ),
     );
     expect(checkboxes.every((checkbox) => checkbox.disabled)).toBe(true);
-    expectOption(checkboxes[0]!, cardChoiceColors(theme, 'primary').fill);
-    expectOption(checkboxes[1]!, cardChoiceColors(theme, 'secondary', 'disabled').fill);
+    expectOption(checkboxes[0]!, theme.layer.well.chosen);
+    expectOption(checkboxes[1]!, theme.layer.well.fill);
     await act(async () => checkboxes[1]!.click());
     expect(change).not.toHaveBeenCalled();
   });
