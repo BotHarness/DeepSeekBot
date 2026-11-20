@@ -161,6 +161,9 @@ export const engineApi: EngineApi = {
         {
           id: row['id'],
           name: row['name'],
+          ...(typeof row['resolvedModel'] === 'string'
+            ? { resolvedModel: row['resolvedModel'] }
+            : {}),
           efforts: Array.isArray(row['efforts'])
             ? row['efforts'].flatMap((value) => {
                 const effort = record(value);

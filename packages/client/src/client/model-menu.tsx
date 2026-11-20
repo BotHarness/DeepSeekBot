@@ -319,7 +319,7 @@ export function selectedEngineMenuItem(
   model: EngineModelView | undefined,
   t: BotHarnessTranslate,
 ): ModelMenuItem {
-  const id = choice.model ?? model?.id ?? '';
+  const id = model?.id ?? choice.model ?? '';
   const name = model?.name ?? (id || engineName(choice.engine));
   return {
     value: engineMenuKey(choice.engine, id, choice.accountId),

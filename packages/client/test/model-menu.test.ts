@@ -19,6 +19,7 @@ import {
   presetMenuItems,
 } from '../src/client/model-menu.js';
 import { rememberModelFavorites } from '../src/client/model-favorites.js';
+import { ModelPicker } from '../src/client/model-picker.js';
 
 const catalog: ModelCatalogEntryView[] = [
   {
@@ -528,6 +529,53 @@ it('gives the same Codex model a separate row and hint for each named account', 
     { accountId: 'codex-default', value: 'engine:codex:gpt-5.4', hint: 'Codex · 个人' },
     { accountId: 'codex-work', value: 'engine:codex-work:gpt-5.4', hint: 'Codex · 工作' },
   ]);
+});
+
+it('shows the catalog name in the trigger for a saved resolved engine model id', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  cleanup = () => {
+    act(() => root.unmount());
+    host.remove();
+  };
+  const models = {
+    claude: [
+      { id: 'default', resolvedModel: 'claude-opus-5-5', name: 'Default', efforts: [] },
+      { id: 'opus', resolvedModel: 'claude-opus-5-5', name: 'Opus 5.5', efforts: [] },
+    ],
+  };
+  await act(async () =>
+    root.render(
+      createElement(ModelPicker, {
+        title: 'Orchestrator model',
+        hint: '',
+        choice: { key: '', effort: '' },
+        catalog: [],
+        options: [],
+        disabled: false,
+        onChange: vi.fn(),
+        subscription: {
+          choice: { engine: 'claude', model: 'claude-opus-5-5' },
+          items: engineMenuItems(
+            [{ engine: 'claude', available: true, installed: true }],
+            models,
+            undefined,
+            zhTranslate,
+          ),
+          models,
+          onChange: vi.fn(),
+          signIn: vi.fn(),
+        },
+        t: zhTranslate,
+      }),
+    ),
+  );
+  const trigger = host.querySelector('button[aria-haspopup]');
+  expect(trigger?.textContent).toContain('Opus 5.5');
+  expect(trigger?.getAttribute('aria-label')).toContain('Opus 5.5');
+  expect(trigger?.getAttribute('title')).toBe('Opus 5.5');
 });
 
 it('includes the Claude account in model identity and the named row label', () => {

@@ -66,7 +66,8 @@ export function ModelPicker({
   const selectedModel =
     engine?.model === undefined
       ? (models.find((model) => model.isDefault) ?? models[0])
-      : models.find((model) => model.id === engine.model);
+      : (models.find((model) => model.id === engine.model) ??
+        models.find((model) => model.resolvedModel === engine.model && model.id !== 'default'));
   const selectedEngine =
     engine === null ? undefined : selectedEngineMenuItem(engine, selectedModel, t);
   const shown =
@@ -140,7 +141,8 @@ export function ModelPicker({
               if (
                 engine !== null &&
                 engineModelKey(engine.engine, engine.accountId) === accountKey &&
-                engine.model === item.model
+                (engine.model === item.model ||
+                  (engine.model !== undefined && selectedModel?.id === item.model))
               )
                 return;
               const model = subscription.models[accountKey]?.find(
@@ -178,7 +180,9 @@ export function ModelPicker({
                 const { effort: _removed, ...selected } = engine;
                 subscription.onChange({
                   ...selected,
-                  ...(selectedModel === undefined ? {} : { model: selectedModel.id }),
+                  ...(engine.model !== undefined || selectedModel === undefined
+                    ? {}
+                    : { model: selectedModel.id }),
                   ...(effort === '' ? {} : { effort }),
                 });
               }

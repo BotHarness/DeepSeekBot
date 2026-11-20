@@ -24,7 +24,6 @@ export interface EngineEffort {
 
 export interface EngineModel extends EngineModelView {
   description?: string;
-  resolvedModel?: string;
 }
 
 export function findEngineModel(models: readonly EngineModel[], id: string | undefined) {
