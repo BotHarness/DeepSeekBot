@@ -46,10 +46,14 @@ const report = {
     execFileSync('git', ['status', '--porcelain'], {
       cwd: instance.worktree,
       encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
     }).trim().length > 0,
   source: execFileSync('git', ['rev-parse', 'HEAD'], {
     cwd: instance.worktree,
     encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
   }).trim(),
   console: [],
 };
@@ -85,6 +89,8 @@ const cli = (args, input) =>
           DEEPSEEKBOT_HOST: new URL(instance.url).origin,
           DEEPSEEKBOT_HOST_TOKEN: new URL(instance.url).searchParams.get('token'),
         },
+        shell: false,
+        windowsHide: true,
       },
     ),
   );

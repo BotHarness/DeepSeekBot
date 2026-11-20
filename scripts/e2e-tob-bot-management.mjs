@@ -160,7 +160,7 @@ async function humanCli(command, args = [], input, expectedFailure = false) {
     const child = spawn(
       process.execPath,
       [resolve('packages/deepseekbot/dist/deepseekbot.mjs'), command, ...args],
-      { env, stdio: ['pipe', 'pipe', 'pipe'] },
+      { env, stdio: ['pipe', 'pipe', 'pipe'], shell: false, windowsHide: true },
     );
     let stdout = '';
     const timer = setTimeout(() => child.kill('SIGTERM'), 30000);

@@ -22,6 +22,7 @@ const report = {
     cwd: root,
     encoding: 'utf8',
     windowsHide: true,
+    shell: false,
   }).trim(),
   startedAt: new Date().toISOString(),
   status: 'running',
