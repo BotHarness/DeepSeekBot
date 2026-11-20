@@ -1,3 +1,7 @@
+import type {
+  MarketplaceAvatar,
+  MarketplaceAvatarPage,
+} from '@botharness/host-protocol/marketplace-avatar';
 import { markRemoteMethods, markRemoteStreams } from './remote-descriptors.js';
 import type {
   ModelProvidersView,
@@ -3279,6 +3283,36 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
+  async marketplaceAvatarList(cursor?: string): Promise<MarketplaceAvatarPage> {
+    return unwrapAsync(this.methods.marketplaceAvatarList(cursor === undefined ? {} : { cursor }));
+  }
+
+  async marketplaceAvatarDetail(id: string): Promise<MarketplaceAvatar> {
+    return unwrapAsync(this.methods.marketplaceAvatarDetail({ id }));
+  }
+
+  async marketplaceAvatarPublish(
+    name: string,
+    image: string,
+    requestKey: string,
+    confirm: boolean,
+    description?: string,
+    tags?: string[],
+    expectedAuthorId?: string,
+  ): Promise<MarketplaceAvatar> {
+    return unwrapAsync(
+      this.methods.marketplaceAvatarPublish({
+        name,
+        image,
+        requestKey,
+        confirm,
+        description,
+        tags,
+        expectedAuthorId,
+      }),
+    );
+  }
+
   async marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail> {
     return unwrapAsync(this.methods.marketplaceDetail(lang === undefined ? { id } : { id, lang }));
   }
@@ -3878,6 +3912,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceSections',
   'marketplaceDigests',
   'marketplaceDigest',
+  'marketplaceAvatarList',
+  'marketplaceAvatarDetail',
+  'marketplaceAvatarPublish',
   'marketplaceDetail',
   'marketplaceFileView',
   'marketplaceChallenge',

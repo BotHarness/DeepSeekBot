@@ -47,8 +47,22 @@ export function MarketplaceLoadMore({
   const { list } = browse;
   if (list.status !== 'ready' || list.nextCursor === undefined) return null;
   return (
-    <Button variant="outline" disabled={list.loadingMore} onClick={browse.loadMore}>
-      {list.loadingMore ? t('market.loadingMore') : t('market.loadMore')}
+    <MarketplaceLoadMoreButton loading={list.loadingMore} onLoadMore={browse.loadMore} t={t} />
+  );
+}
+
+export function MarketplaceLoadMoreButton({
+  loading,
+  onLoadMore,
+  t,
+}: {
+  loading: boolean;
+  onLoadMore: () => void;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  return (
+    <Button variant="outline" disabled={loading} onClick={onLoadMore}>
+      {loading ? t('market.loadingMore') : t('market.loadMore')}
     </Button>
   );
 }

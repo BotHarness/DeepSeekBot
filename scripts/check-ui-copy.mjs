@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { globSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -10,10 +10,17 @@ const require = createRequire(import.meta.url);
 const { parse } = require('@babel/parser');
 
 export const BASELINE = join(root, 'scripts/ui-copy-baseline.json');
+const featureSources = (name, glob) =>
+  globSync(glob, { cwd: root })
+    .sort()
+    .map((file) => ({ name, file }));
+
 export const SOURCES = [
   { name: 'client', file: 'packages/client/src/client/locale.ts' },
   { name: 'client', file: 'packages/client/src/client/model-provider-copy.ts' },
+  ...featureSources('client', 'packages/client/src/client/features/*/*locale.ts'),
   { name: 'mobile', file: 'apps/mobile/src/ui/strings.ts' },
+  ...featureSources('mobile', 'apps/mobile/src/features/*/*strings.ts'),
 ];
 const GUIDE = 'docs/agents/ui-copy.md';
 
@@ -155,6 +162,40 @@ export function collect(source, name) {
   return strings;
 }
 
+export function topLevelKeys(source) {
+  const ast = parse(source, { sourceType: 'module', plugins: ['typescript', 'jsx'] });
+  const keys = [];
+  for (const statement of ast.program.body) {
+    const declaration =
+      statement.type === 'ExportNamedDeclaration' ? statement.declaration : statement;
+    if (declaration?.type !== 'VariableDeclaration') continue;
+    for (const declarator of declaration.declarations) {
+      const locale = declarator.id.name;
+      let init = declarator.init;
+      while (init && /^TS(?:As|Satisfies)Expression$/u.test(init.type)) init = init.expression;
+      if ((locale !== 'en' && locale !== 'zh') || init?.type !== 'ObjectExpression') continue;
+      for (const property of init.properties) {
+        const key = property.type === 'ObjectProperty' ? keyOf(property) : undefined;
+        if (key !== undefined) keys.push(`${locale}.${key}`);
+      }
+    }
+  }
+  return keys;
+}
+
+export function duplicateKeys(sources) {
+  const owner = new Map();
+  const problems = [];
+  for (const { name, file, source } of sources)
+    for (const key of topLevelKeys(source)) {
+      const id = `${name}:${key}`;
+      const first = owner.get(id);
+      if (first === undefined) owner.set(id, file);
+      else if (first !== file) problems.push(`duplicate key ${id} in ${first} and ${file}`);
+    }
+  return problems;
+}
+
 const visible = (text) => /[\p{L}]/u.test(text) && !/^[\w.-]+$/u.test(text);
 
 export function findings(strings) {
@@ -225,6 +266,15 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   const current = findings(scanAll());
   const baseline = JSON.parse(readFileSync(BASELINE, 'utf8'));
   const { problems, stale } = compare(current, baseline);
+  problems.push(
+    ...duplicateKeys(
+      SOURCES.map(({ name, file }) => ({
+        name,
+        file,
+        source: readFileSync(join(root, file), 'utf8'),
+      })),
+    ),
+  );
   if (write) {
     if (problems.length && !process.argv.includes('--init')) {
       for (const line of problems) console.error(`ui copy: ${line}`);

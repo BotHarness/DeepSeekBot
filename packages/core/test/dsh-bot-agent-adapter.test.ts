@@ -2457,29 +2457,45 @@ describe('DSH Bot Agent adapter', () => {
         request: () => ({ assignment: ASSIGNMENT, delivery: 'followup' }),
       },
     };
-    const imPrompt = () =>
-      host.scopes
-        .get(run.sessionId)
-        ?.sections.some((section) => section.name === 'botharness:external-im');
+    const sections = () =>
+      host.scopes.get(run.sessionId)?.sections.map(({ name, order }) => [name, order]);
+    const baseSections = [
+      ['botharness:orchestrator-role', 10_350],
+      ['botharness:reply-delivery', 10_450],
+      ['botharness:genui-authoring', 10_451],
+    ];
+    const bridgeToolNames = [
+      'bridge_sender_permissions',
+      'bridge_directory',
+      'bridge_targets',
+      'bridge_reachable_groups',
+      'bridge_outbox',
+      'bridge_read',
+      'bridge_share',
+      'bridge_group_policy_list',
+      'bridge_group_policy_set',
+      'bridge_thread_policy_list',
+      'bridge_thread_policy_set',
+      'bridge_context',
+      'bridge_attachment_save',
+    ];
     try {
       await adapter.runOrchestrator(run);
       expect(listed.at(-1)).toEqual([]);
-      expect(imPrompt()).toBe(false);
+      expect(sections()).toEqual(baseSections);
 
       connected = true;
       await adapter.runOrchestrator({ ...run, resume: true });
-      expect(listed.at(-1)).toHaveLength(13);
-      expect(listed.at(-1)).not.toContain('bridge_reply');
-      expect(listed.at(-1)).toContain('bridge_reachable_groups');
-      expect(imPrompt()).toBe(true);
+      expect(listed.at(-1)).toEqual(bridgeToolNames);
+      expect(sections()).toEqual([...baseSections, ['botharness:external-im', 10_351]]);
 
       await adapter.runOrchestrator({ ...run, resume: true });
-      expect(listed.at(-1)).toHaveLength(13);
+      expect(listed.at(-1)).toEqual(bridgeToolNames);
 
       connected = false;
       await adapter.runOrchestrator({ ...run, resume: true });
       expect(listed.at(-1)).toEqual([]);
-      expect(imPrompt()).toBe(false);
+      expect(sections()).toEqual(baseSections);
     } finally {
       await adapter.close();
     }

@@ -1,15 +1,17 @@
 import { Image as CachedImage } from 'expo-image';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { Image, View } from 'react-native';
+import { View } from 'react-native';
 
 import { avatarSvg } from '../../../../../packages/core/src/bots/avatar-appearance';
 import { creationAvatarRecipe, randomAvatarSeed } from '@botharness/host-client/bot-avatar-choice';
+import { isTiltiesAvatar, randomTiltiesAvatar } from '@botharness/host-client/tilties-avatars';
 import type { BotAvatarChoice } from '@botharness/host-client/bot-creation';
 import { pickAvatarImage } from '../../host/pick-avatar-image';
 import { useDesignTheme } from '../design/theme';
 import { creationAvatar, space } from '../design/tokens';
 import { Button } from '../primitives/creation-button';
+import { Segmented } from '../primitives/segmented';
 import { SystemSymbol } from '../primitives/system-symbol';
 import { Text } from '../primitives/text';
 import { creationCopy as copy } from './bot-creation-copy';
@@ -29,7 +31,10 @@ export function CreationAvatarPreview({
 }) {
   const theme = useDesignTheme();
   const svg = useMemo(
-    () => (imported && !avatar ? undefined : avatarSvg(creationAvatarRecipe(avatar))),
+    () =>
+      (imported && !avatar) || avatar?.kind === 'photo'
+        ? undefined
+        : avatarSvg(creationAvatarRecipe(avatar)),
     [avatar, imported],
   );
   return (
@@ -48,7 +53,12 @@ export function CreationAvatarPreview({
       }}
     >
       {avatar?.kind === 'photo' ? (
-        <Image source={{ uri: avatar.image }} style={{ width: size, height: size }} />
+        <CachedImage
+          source={{ uri: avatar.image }}
+          cachePolicy="memory"
+          contentFit="cover"
+          style={{ width: size, height: size }}
+        />
       ) : svg ? (
         <CachedImage
           source={{ uri: `data:image/svg+xml;base64,${btoa(svg)}` }}
@@ -82,6 +92,14 @@ export function CreationAvatar({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
+  const tiltiesImage =
+    avatar?.kind === 'photo' && isTiltiesAvatar(avatar.image) ? avatar.image : undefined;
+  const shuffle = () =>
+    onChange(
+      tiltiesImage === undefined
+        ? { kind: 'generated', seed: randomAvatarSeed() }
+        : { kind: 'photo', image: randomTiltiesAvatar(tiltiesImage) },
+    );
   const choosePhoto = async () => {
     const image = await pickAvatarImage().catch(() => undefined);
     if (image) onChange({ kind: 'photo', image });
@@ -94,6 +112,24 @@ export function CreationAvatar({
         imported={imported}
         testID="create-bot-avatar-preview"
       />
+      {imported ? null : (
+        <Segmented
+          label={t.avatarEditor.style}
+          value={tiltiesImage === undefined ? 'pixel' : 'tilties'}
+          options={[
+            { value: 'pixel', label: t.avatarEditor.pixel },
+            { value: 'tilties', label: t.avatarEditor.tilties },
+          ]}
+          disabled={disabled}
+          onChange={(style) =>
+            onChange(
+              style === 'tilties'
+                ? { kind: 'photo', image: randomTiltiesAvatar() }
+                : { kind: 'generated', seed: randomAvatarSeed() },
+            )
+          }
+        />
+      )}
       {imported && !avatar ? (
         <Text tone="muted" style={{ textAlign: 'center' }}>
           {copy.sourceAvatar}
@@ -111,7 +147,7 @@ export function CreationAvatar({
             label={copy.shuffleAvatar}
             testID="create-bot-avatar-shuffle"
             disabled={disabled}
-            onPress={() => onChange({ kind: 'generated', seed: randomAvatarSeed() })}
+            onPress={shuffle}
           />
         </View>
         <View style={{ flex: theme.largeText ? undefined : 1 }}>

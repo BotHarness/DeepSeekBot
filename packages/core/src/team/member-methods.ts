@@ -22,6 +22,8 @@ export const MODEL_CONFIGURATION_METHODS: ReadonlySet<string> = new Set([
 ]);
 
 export const MEMBER_GLOBAL_METHODS = [
+  'marketplaceAvatarList',
+  'marketplaceAvatarDetail',
   ...MODEL_CONFIGURATION_METHODS,
   'botVisibility',
   'botVisibilitySet',

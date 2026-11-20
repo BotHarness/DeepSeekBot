@@ -179,7 +179,23 @@ describe('illustrated Avatar artwork', () => {
   });
 
   it('ships distinct, valid presets', () => {
-    expect(AVATAR_PRESETS.length).toBeGreaterThanOrEqual(12);
+    expect(AVATAR_PRESETS).toHaveLength(28);
+    expect(
+      AVATAR_PRESETS.flatMap((recipe) => ('species' in recipe ? [recipe.species] : [])),
+    ).toEqual(
+      expect.arrayContaining([
+        'elf',
+        'dwarf',
+        'orc',
+        'goblin',
+        'flower',
+        'cat',
+        'dog',
+        'fox',
+        'rabbit',
+        'bear',
+      ]),
+    );
     expect(new Set(AVATAR_PRESETS.map((recipe) => JSON.stringify(recipe))).size).toBe(
       AVATAR_PRESETS.length,
     );

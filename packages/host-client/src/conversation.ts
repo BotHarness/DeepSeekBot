@@ -1,32 +1,21 @@
-import { isTurnTargetPath, type TurnTarget } from '@botharness/host-protocol/turn-target';
 import { openBotDm } from './channel-management';
-import type { HostClient, RemoteSource } from './client';
-import { genuiDocumentOf, type GenuiDocument, type GenuiDocumentReply } from './genui/document';
 import { forgetGenuiDocumentViews } from './genui/view';
 import { forgetMedia } from './media-cache';
-import { sessionFailure } from './session-failure';
-import { activityOf, type ChannelActivity } from './channel-activity';
-import { approvalCommand, approvalContent, type ApprovalContent } from './requests';
 import { replyPreviewOf } from '../../core/src/channels/reply-preview';
 import type {
   AttachmentRef,
-  WireAllBotMention,
-  WireMention,
   ChannelLiveFrame,
   ChannelNotification,
   ChannelWireMessage,
   JournalEntry,
   JournalPage,
-  ToolApprovalOutcome,
   WireDraft,
   WireDelivery,
   WireDraftAppend,
   WireMessageVoice,
   WireReaction,
   WireReplyPreview,
-  WireSkillInvocation,
 } from '@botharness/host-protocol/wire';
-import { skillInvocationsOf } from './skill-catalog';
 import {
   loadChannelChangeCursor,
   readChannelChanges,
@@ -35,312 +24,72 @@ import {
   sendToChannel,
   wireMessage,
 } from './channel-messages';
+import type {
+  DeliveryState,
+  ConversationMessage,
+  ConversationDraft,
+  ConversationStatus,
+  ConversationSnapshot,
+  ChangeCursor,
+  SendObservation,
+  Conversation,
+  ConversationOptions,
+  OutgoingFile,
+  MessageTags,
+} from './conversation-contract';
+import { LOCAL_HUMAN, toggledReactions } from './conversation-reactions';
+import { timelineOf, previewFor, present } from './conversation-timeline';
+import { mediaCacheKey, replyThumbnailOf, withReplyThumbnail } from './conversation-media';
 
-export type DeliveryState = 'pending' | 'committed' | 'failed';
-
-export type CardKind = 'tool-approval' | 'user-question' | 'private-input' | 'grant' | 'takeover';
-
-export interface MessageCard {
-  kind: CardKind;
-  channelId: string;
-  subject?: string;
-  command?: string;
-  approvalContent?: ApprovalContent;
-  resolved?: true;
-  takeover?: { target: 'computer' | 'browser'; title: string; expiresAt: string };
-}
-
-export type CardResolution =
-  | { kind: 'tool-approval'; outcome: ToolApprovalOutcome }
-  | { kind: 'user-question'; state: 'answered' | 'cancelled' }
-  | { kind: 'grant' }
-  | { kind: 'private-input' }
-  | { kind: 'takeover'; outcome: 'done' | 'failed' | 'cancelled' | 'expired' };
-
-export interface MessageAttachment {
-  key: string;
-  identity?: string;
-  kind: 'image' | 'file' | 'audio';
-  name: string;
-  mime?: string;
-  size?: number;
-  source?: RemoteSource;
-  thumbnail?: RemoteSource;
-  preview?: RemoteSource;
-  thumbhash?: string;
-  width?: number;
-  height?: number;
-  local: boolean;
-  cleared?: true;
-}
-
-export const LOCAL_HUMAN = 'local-human';
-
-export const QUICK_REACTIONS = ['👍', '❤️', '😂', '🎉', '👀', '✅'] as const;
-
-export const MENU_REACTIONS = [
-  ...QUICK_REACTIONS,
-  '🙏',
-  '🔥',
-  '💯',
-  '😮',
-  '😢',
-  '👎',
-  '🙌',
-  '🤔',
-] as const;
-
-export type ConversationReaction = WireReaction;
-
-export function reactedByMe(reaction: ConversationReaction): boolean {
-  return reaction.actors.some((actor) => actor.kind === 'human' && actor.id === LOCAL_HUMAN);
-}
-
-export function toggledReactions(
-  reactions: readonly ConversationReaction[] | undefined,
-  emoji: string,
-  active: boolean,
-): ConversationReaction[] {
-  const me = { kind: 'human' as const, id: LOCAL_HUMAN };
-  const current = [...(reactions ?? [])];
-  const index = current.findIndex((reaction) => reaction.emoji === emoji);
-  if (!active) {
-    if (index === -1) return current;
-    const actors = current[index]!.actors.filter(
-      (actor) => actor.kind !== 'human' || actor.id !== LOCAL_HUMAN,
-    );
-    return actors.length === 0
-      ? current.filter((_, position) => position !== index)
-      : current.map((reaction, position) => (position === index ? { emoji, actors } : reaction));
-  }
-  if (index === -1) return [...current, { emoji, actors: [me] }];
-  if (reactedByMe(current[index]!)) return current;
-  return current.map((reaction, position) =>
-    position === index ? { emoji, actors: [...reaction.actors, me] } : reaction,
-  );
-}
-
-export function reactable(message: ConversationMessage): boolean {
-  return (
-    message.author !== 'system' &&
-    message.revision !== undefined &&
-    message.delivery === 'committed' &&
-    message.card === undefined &&
-    message.activity === undefined
-  );
-}
-
-export function shownInChat(message: ConversationMessage): boolean {
-  const resolution = message.resolves?.resolution;
-  if (
-    resolution?.kind === 'tool-approval' ||
-    resolution?.kind === 'grant' ||
-    resolution?.kind === 'private-input' ||
-    resolution?.kind === 'takeover' ||
-    (resolution?.kind === 'user-question' && resolution.state === 'cancelled')
-  )
-    return false;
-  if (message.welcome === true) return false;
-  return (
-    message.source?.message.contentPurge !== undefined ||
-    message.source?.message.sessionFailure !== undefined ||
-    message.activity !== undefined ||
-    message.body.trim() !== '' ||
-    message.attachments.length > 0 ||
-    message.card !== undefined ||
-    message.resolves !== undefined
-  );
-}
-
-export interface MessageVoice {
-  state: 'pending' | 'ready' | 'failed';
-  audio?: MessageAttachment;
-  durationMs?: number;
-  error?: string;
-}
-
-export interface ReplyThumbnail {
-  source: RemoteSource;
-  thumbhash?: string;
-}
-
-export interface ConversationMessage {
-  turnTargets?: TurnTarget[];
-  source?: JournalEntry;
-  voice?: MessageVoice;
-  sessionFailure?: import('./session-failure').SessionFailure;
-  id: string;
-  revision?: number;
-  at: string;
-  author: 'human' | 'person' | 'bot' | 'system';
-  bot?: string;
-  person?: { humanId: string; name: string };
-  body: string;
-  mentions?: WireMention[];
-  skillInvocations?: WireSkillInvocation[];
-  replyTo?: string;
-  replyPreview?: WireReplyPreview | null;
-  replyThumbnail?: ReplyThumbnail;
-  attachments: MessageAttachment[];
-  genuiDocument?: GenuiDocument;
-  card?: MessageCard;
-  resolves?: { requestId: string; resolution: CardResolution };
-  reactions?: ConversationReaction[];
-  deliveries?: WireDelivery[];
-  delivery: DeliveryState;
-  attemptStartedAt?: number;
-  error?: string;
-  welcome?: true;
-  activity?: ChannelActivity;
-}
-
-export interface ConversationDraft {
-  draftId: string;
-  botSlug: string;
-  body: string;
-}
-
-export type ConversationDraftReference = Pick<ConversationDraft, 'draftId' | 'botSlug'>;
-
-export type ConversationStatus = 'opening' | 'live' | 'interrupted' | 'refused';
-
-export interface ConversationSnapshot {
-  status: ConversationStatus;
-  reason?: string;
-  messages: ConversationMessage[];
-  drafts: ConversationDraft[];
-  hasOlder: boolean;
-  loadingOlder: boolean;
-  olderError?: boolean;
-  fromCache: boolean;
-}
-
-export interface ConversationTimelineSnapshot extends Omit<ConversationSnapshot, 'drafts'> {
-  drafts: ConversationDraftReference[];
-}
-
-function timelineOf(
-  current: ConversationSnapshot,
-  previous?: ConversationTimelineSnapshot,
-): ConversationTimelineSnapshot {
-  const sameDrafts =
-    previous !== undefined &&
-    current.drafts.length === previous.drafts.length &&
-    current.drafts.every(
-      (draft, index) =>
-        draft.draftId === previous.drafts[index]?.draftId &&
-        draft.botSlug === previous.drafts[index]?.botSlug,
-    );
-  if (
-    sameDrafts &&
-    current.messages === previous.messages &&
-    current.status === previous.status &&
-    current.reason === previous.reason &&
-    current.hasOlder === previous.hasOlder &&
-    current.loadingOlder === previous.loadingOlder &&
-    current.olderError === previous.olderError &&
-    current.fromCache === previous.fromCache
-  )
-    return previous;
-  return {
-    ...current,
-    drafts: sameDrafts
-      ? previous.drafts
-      : current.drafts.map(({ draftId, botSlug }) => ({ draftId, botSlug })),
-  };
-}
-
-export interface ChangeCursor {
-  epoch: string;
-  seq: number;
-}
-
-export interface CachedConversation {
-  entries: JournalEntry[];
-  hasOlder: boolean;
-  changes?: ChangeCursor;
-}
+export type {
+  DeliveryState,
+  CardKind,
+  MessageCard,
+  CardResolution,
+  MessageAttachment,
+  ConversationReaction,
+  MessageVoice,
+  ReplyThumbnail,
+  ConversationMessage,
+  ConversationDraft,
+  ConversationDraftReference,
+  ConversationStatus,
+  ConversationSnapshot,
+  ConversationTimelineSnapshot,
+  ChangeCursor,
+  CachedConversation,
+  CachedChanges,
+  OlderPage,
+  ConversationCache,
+  SendObservation,
+  Conversation,
+  ConversationOptions,
+  OutgoingFile,
+  MessageTags,
+} from './conversation-contract';
+export {
+  LOCAL_HUMAN,
+  QUICK_REACTIONS,
+  MENU_REACTIONS,
+  reactedByMe,
+  toggledReactions,
+  reactable,
+} from './conversation-reactions';
+export {
+  ATTACHMENT_PATH,
+  mediaCacheKey,
+  THUMBNAIL_VARIANT,
+  PREVIEW_VARIANT,
+  attachmentsOf,
+  replyThumbnailOf,
+  voiceOf,
+} from './conversation-media';
+export { shownInChat } from './conversation-timeline';
 
 const MAX_CHANGE_PAGES = 20;
 const CACHE_WAIT_MS = 200;
 
-export interface CachedChanges {
-  upserts: readonly JournalEntry[];
-  tombstones: readonly string[];
-  removed: readonly string[];
-  cursor: ChangeCursor;
-}
-
-export interface OlderPage {
-  entries: JournalEntry[];
-  hasOlder: boolean;
-}
-
-export interface ConversationCache {
-  read(key: string): Promise<CachedConversation | undefined>;
-  write(key: string, value: CachedConversation): void;
-  applyChanges?(key: string, channelId: string, changes: CachedChanges): void;
-  replace?(key: string, channelId: string, value: CachedConversation): void;
-  readOlder?(key: string, before: number, limit: number): Promise<OlderPage | undefined>;
-  writeOlder?(key: string, channelId: string, before: number, page: OlderPage): void;
-}
-
-export interface SendObservation {
-  accepted(): boolean;
-  observed(): void;
-}
-export interface Conversation {
-  setForeground?(visible: boolean): void;
-  getSnapshot(): ConversationSnapshot;
-  getTimelineSnapshot(): ConversationTimelineSnapshot;
-  subscribe(listener: () => void): () => void;
-  start(): void;
-  stop(): void;
-  loadOlder(): Promise<void>;
-  send(body: string, files?: OutgoingFile[], tags?: MessageTags): string;
-  retry(messageId: string): void;
-  react(messageId: string, emoji: string, active: boolean): Promise<void>;
-  wireMessage?(messageId: string): ChannelWireMessage | undefined;
-  redact?(placements: readonly { channelId: string; messageId: string }[]): void;
-}
-
-export interface ConversationOptions {
-  telemetry?: { send(): SendObservation };
-  host: Pick<HostClient, 'call' | 'follow' | 'upload' | 'resource'>;
-  botSlug?: string;
-  displayName?: string;
-  channelId?: string;
-  cacheKey?: string;
-  cache?: ConversationCache;
-  pageSize?: number;
-  olderPageSize?: number;
-  cachedEntries?: number;
-  messageId?: () => string;
-  draftDelayMs?: number;
-  cacheWaitMs?: number;
-  selfHumanId?: string;
-}
-
 const MAX_PAGE = 200;
-
-export interface OutgoingFile {
-  name: string;
-  kind?: 'image' | 'file';
-  uri?: string;
-  read(): Promise<Blob>;
-}
-
-const PREVIEWABLE = new Set(['image/png', 'image/jpeg', 'image/gif', 'image/webp']);
-
-export const ATTACHMENT_PATH = '/api/botharness/attachment';
-
-export interface MessageTags {
-  mentions?: WireMention[];
-  skillInvocations?: WireSkillInvocation[];
-  allBotMention?: WireAllBotMention;
-  replyTo?: string;
-  genuiReply?: GenuiDocumentReply;
-}
 
 interface Outgoing {
   observation?: SendObservation;
@@ -361,355 +110,6 @@ export function uuid(): string {
     const r = (Math.random() * 16) | 0;
     return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
   });
-}
-
-function text(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim() !== '' ? value : undefined;
-}
-
-function field(value: unknown, key: string): unknown {
-  return typeof value === 'object' && value !== null
-    ? (value as Record<string, unknown>)[key]
-    : undefined;
-}
-
-function cardOf(channelId: string, message: ChannelWireMessage): MessageCard | undefined {
-  if (message.toolApprovalRequest !== undefined) {
-    if (message.contentPurge !== undefined) return { kind: 'tool-approval', channelId };
-    const content = approvalContent(message.toolApprovalRequest);
-    const subject = text(field(message.toolApprovalRequest, 'toolName'));
-    const input = text(field(message.toolApprovalRequest, 'input'));
-    const command =
-      subject === undefined || input === undefined ? undefined : approvalCommand(subject, input);
-    return {
-      kind: 'tool-approval',
-      channelId,
-      ...(content === undefined ? {} : { approvalContent: content }),
-      ...(subject === undefined ? {} : { subject }),
-      ...(command === undefined ? {} : { command }),
-    };
-  }
-  if (message.userQuestionRequest !== undefined) {
-    const questions = field(message.userQuestionRequest, 'questions');
-    const subject = Array.isArray(questions) ? text(field(questions[0], 'question')) : undefined;
-    return { kind: 'user-question', channelId, ...(subject === undefined ? {} : { subject }) };
-  }
-  if (message.privateInputRequest !== undefined) {
-    const subject = text(field(message.privateInputRequest, 'purpose'));
-    return { kind: 'private-input', channelId, ...(subject === undefined ? {} : { subject }) };
-  }
-  if (message.takeoverRequest !== undefined && message.author.kind === 'bot') {
-    const target = field(message.takeoverRequest, 'target');
-    const title = text(field(message.takeoverRequest, 'title'));
-    const expiresAt = text(field(message.takeoverRequest, 'expiresAt'));
-    if ((target === 'computer' || target === 'browser') && title !== undefined && expiresAt)
-      return {
-        kind: 'takeover',
-        channelId,
-        subject: message.body,
-        takeover: { target, title, expiresAt },
-      };
-  }
-  if (message.grantRequest === true)
-    return {
-      kind: 'grant',
-      channelId,
-      ...(message.grantRequestResolved === true ? { resolved: true as const } : {}),
-    };
-  return undefined;
-}
-
-const OUTCOMES = new Set<string>([
-  'allowed-once',
-  'allowed-always-tool',
-  'allowed-always-exact',
-  'allowed-always-all',
-  'rejected',
-]);
-
-function resolvesOf(message: ChannelWireMessage): ConversationMessage['resolves'] {
-  const decision = message.toolApprovalDecision;
-  const decided = text(field(decision, 'requestMessageId'));
-  const outcome = field(decision, 'outcome');
-  if (decided !== undefined && typeof outcome === 'string' && OUTCOMES.has(outcome))
-    return {
-      requestId: decided,
-      resolution: { kind: 'tool-approval', outcome: outcome as ToolApprovalOutcome },
-    };
-  const resolution = message.userQuestionResolution;
-  const answered = text(field(resolution, 'requestMessageId'));
-  const state = field(resolution, 'state');
-  if (answered !== undefined && (state === 'answered' || state === 'cancelled'))
-    return { requestId: answered, resolution: { kind: 'user-question', state } };
-  const granted = text(field(message.grantRequestResolution, 'requestMessageId'));
-  if (granted !== undefined) return { requestId: granted, resolution: { kind: 'grant' } };
-  const handed = text(field(message.takeoverResolution, 'requestMessageId'));
-  const ended = field(message.takeoverResolution, 'outcome');
-  if (
-    handed !== undefined &&
-    (ended === 'done' || ended === 'failed' || ended === 'cancelled' || ended === 'expired')
-  )
-    return { requestId: handed, resolution: { kind: 'takeover', outcome: ended } };
-  const provided = text(field(message.privateInputResolution, 'requestMessageId'));
-  if (provided !== undefined) return { requestId: provided, resolution: { kind: 'private-input' } };
-  return undefined;
-}
-
-function attachmentPath(params: Record<string, string>): string {
-  return `${ATTACHMENT_PATH}?${new URLSearchParams(params)}`;
-}
-
-function versionedSources(
-  resolve: (path: string) => RemoteSource,
-  owner: { channelId: string; messageId: string },
-  fileId: string,
-  version: string,
-  image: boolean,
-): { source: RemoteSource; thumbnail?: RemoteSource; preview?: RemoteSource } {
-  const variant = (name?: string): RemoteSource => {
-    const resolved = resolve(
-      attachmentPath({
-        ...owner,
-        fileId,
-        v: version,
-        ...(name === undefined ? {} : { variant: name }),
-      }),
-    );
-    return {
-      ...resolved,
-      cacheKey: mediaCacheKey(resolved.scope, fileId, version, name),
-    };
-  };
-  if (!image) return { source: variant() };
-  return {
-    source: variant(),
-    thumbnail: variant(THUMBNAIL_VARIANT),
-    preview: variant(PREVIEW_VARIANT),
-  };
-}
-
-export function mediaCacheKey(
-  scope: string | undefined,
-  fileId: string,
-  version?: string,
-  variant?: string,
-): string {
-  const file = `${scope === undefined ? '' : `${scope}/`}${fileId}:`;
-  if (version === undefined) return file;
-  return variant === undefined ? `${file}${version}` : `${file}${version}:${variant}`;
-}
-
-function refSources(
-  resolve: (path: string) => RemoteSource,
-  owner: { channelId: string; messageId: string },
-  ref: AttachmentRef,
-  image: boolean,
-): { source: RemoteSource; thumbnail?: RemoteSource; preview?: RemoteSource } {
-  if (ref.fileId !== undefined && ref.version !== undefined)
-    return versionedSources(resolve, owner, ref.fileId, ref.version, image);
-  return {
-    source: resolve(
-      attachmentPath(
-        ref.fileId === undefined
-          ? { hash: ref.hash ?? '', name: ref.name, ...owner }
-          : { ...owner, fileId: ref.fileId },
-      ),
-    ),
-  };
-}
-
-export const THUMBNAIL_VARIANT = '320';
-export const PREVIEW_VARIANT = '800';
-
-export function attachmentsOf(
-  entry: JournalEntry,
-  resolve: (path: string) => RemoteSource,
-  picked: readonly (OutgoingFile | undefined)[] = [],
-): MessageAttachment[] {
-  const message = entry.message;
-  const owner = { channelId: entry.channelId, messageId: message.id };
-  const stored = (message.attachments ?? []).map((ref, index): MessageAttachment => {
-    const file = picked[index];
-    return {
-      key: `${message.id}:${index}`,
-      ...((ref.fileId ?? ref.hash) === undefined ? {} : { identity: ref.fileId ?? ref.hash! }),
-      kind: PREVIEWABLE.has(ref.mime) ? 'image' : 'file',
-      name: ref.name,
-      mime: ref.mime,
-      size: ref.size,
-      ...(file?.uri !== undefined
-        ? { source: { uri: file.uri, headers: {} } }
-        : refSources(resolve, owner, ref, PREVIEWABLE.has(ref.mime))),
-      ...(ref.thumbhash === undefined ? {} : { thumbhash: ref.thumbhash }),
-      ...(ref.width === undefined || ref.height === undefined
-        ? {}
-        : { width: ref.width, height: ref.height }),
-      local: file?.uri !== undefined,
-    };
-  });
-  const sourceEventId = message.bridgeOrigin?.sourceEventId;
-  const bridged = (message.bridgeMedia?.items ?? [])
-    .filter((item) => item.id !== message.bridgeMedia?.video?.posterAttachmentId)
-    .map((item): MessageAttachment => ({
-      key: `${message.id}:bridge:${item.id}`,
-      identity: `${sourceEventId ?? message.id}:bridge:${item.id}`,
-      kind: item.kind === 'video' ? 'file' : item.kind,
-      name: item.name,
-      ...(item.sizeBytes === undefined ? {} : { size: item.sizeBytes }),
-      ...(sourceEventId === undefined
-        ? {}
-        : {
-            source: resolve(
-              attachmentPath({
-                channelId: entry.channelId,
-                sourceEventId,
-                attachmentId: item.id,
-              }),
-            ),
-          }),
-      local: false,
-    }));
-  const cleared = (message.clearedAttachments ?? []).map((item, index): MessageAttachment => ({
-    key: `${message.id}:cleared:${index}`,
-    kind: 'file',
-    name: item.name,
-    mime: item.mime,
-    size: item.size,
-    local: false,
-    cleared: true,
-  }));
-  return [...stored, ...cleared, ...bridged];
-}
-
-export function replyThumbnailOf(
-  channelId: string,
-  replyTo: string,
-  preview: WireReplyPreview | null | undefined,
-  resolve: (path: string) => RemoteSource,
-): ReplyThumbnail | undefined {
-  const media = preview?.media;
-  if (media?.kind !== 'image' || media.thumbnail === undefined) return undefined;
-  const ref = media.thumbnail;
-  const sources = refSources(resolve, { channelId, messageId: replyTo }, ref, true);
-  return {
-    source: sources.thumbnail ?? sources.source,
-    ...(ref.thumbhash === undefined ? {} : { thumbhash: ref.thumbhash }),
-  };
-}
-
-export function voiceOf(
-  message: ChannelWireMessage,
-  attachments: MessageAttachment[],
-): { attachments: MessageAttachment[]; voice?: MessageVoice } {
-  const voice = message.author.kind === 'bot' ? message.voice : undefined;
-  if (voice === undefined) return { attachments };
-  const audio =
-    voice.attachment === undefined
-      ? undefined
-      : attachments.find((attachment) => attachment.identity === voice.attachment);
-  return {
-    attachments: audio === undefined ? attachments : attachments.filter((item) => item !== audio),
-    voice: {
-      state: voice.state,
-      ...(audio === undefined ? {} : { audio: { ...audio, kind: 'audio' } }),
-      ...(voice.durationMs === undefined ? {} : { durationMs: voice.durationMs }),
-      ...(voice.error === undefined ? {} : { error: voice.error }),
-    },
-  };
-}
-
-function withReplyThumbnail(thumbnail: ReplyThumbnail | undefined): {
-  replyThumbnail?: ReplyThumbnail;
-} {
-  return thumbnail === undefined ? {} : { replyThumbnail: thumbnail };
-}
-
-function previewFor(
-  preview: WireReplyPreview | null,
-  selfHumanId: string | undefined,
-): WireReplyPreview | null {
-  if (preview?.author.kind !== 'human') return preview;
-  const { humanId, displayName } = preview.author;
-  return {
-    ...preview,
-    author:
-      selfHumanId !== undefined &&
-      humanId !== undefined &&
-      humanId !== selfHumanId &&
-      displayName !== undefined
-        ? { kind: 'human', humanId, displayName }
-        : { kind: 'human' },
-  };
-}
-
-function present(
-  entry: JournalEntry,
-  resolve: (path: string) => RemoteSource,
-  picked: readonly (OutgoingFile | undefined)[],
-  selfHumanId: string | undefined,
-): ConversationMessage {
-  const message = entry.message;
-  const kind = message.author.kind;
-  const person =
-    message.author.kind === 'human' &&
-    selfHumanId !== undefined &&
-    message.author.humanId !== undefined &&
-    message.author.humanId !== selfHumanId
-      ? { humanId: message.author.humanId, name: message.author.displayName ?? '' }
-      : undefined;
-  const card = cardOf(entry.channelId, message);
-  const resolves = resolvesOf(message);
-  const activity = activityOf(message);
-  const genuiDocument =
-    message.contentPurge === undefined ? genuiDocumentOf(message.genui) : undefined;
-  const failure = kind === 'bot' ? sessionFailure(message.sessionFailure) : undefined;
-  const { attachments, voice } = voiceOf(message, attachmentsOf(entry, resolve, picked));
-  return {
-    id: message.id,
-    source: entry,
-    revision: entry.revision,
-    at: message.at,
-    author:
-      person !== undefined
-        ? 'person'
-        : kind === 'human'
-          ? 'human'
-          : kind === 'bot'
-            ? 'bot'
-            : 'system',
-    ...(message.author.kind === 'bot' ? { bot: message.author.slug } : {}),
-    ...(person === undefined ? {} : { person }),
-    body: message.body,
-    ...(message.mentions === undefined ? {} : { mentions: message.mentions }),
-    ...(kind !== 'human' || message.skillInvocations === undefined
-      ? {}
-      : { skillInvocations: skillInvocationsOf(message.body, message.skillInvocations) }),
-    ...(message.replyTo === undefined
-      ? {}
-      : {
-          replyTo: message.replyTo,
-          replyPreview: previewFor(message.replyToPreview ?? null, selfHumanId),
-          ...withReplyThumbnail(
-            replyThumbnailOf(entry.channelId, message.replyTo, message.replyToPreview, resolve),
-          ),
-        }),
-    attachments,
-    ...(voice === undefined ? {} : { voice }),
-    ...(isTurnTargetPath(message.turnTargets) ? { turnTargets: message.turnTargets } : {}),
-    ...(genuiDocument === undefined ? {} : { genuiDocument }),
-    ...(card === undefined ? {} : { card }),
-    ...(resolves === undefined ? {} : { resolves }),
-    ...(activity === undefined ? {} : { activity }),
-    ...(failure === undefined ? {} : { sessionFailure: failure }),
-    ...(message.reactions === undefined || message.reactions.length === 0
-      ? {}
-      : { reactions: message.reactions }),
-    ...(message.deliveries === undefined || message.deliveries.length === 0
-      ? {}
-      : { deliveries: message.deliveries }),
-    delivery: 'committed',
-    ...(kind === 'system' && message.onboardingWelcome !== undefined ? { welcome: true } : {}),
-  };
 }
 
 const REOPEN_FIRST_MS = 1_000;

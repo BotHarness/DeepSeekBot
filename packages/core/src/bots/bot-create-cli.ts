@@ -244,6 +244,10 @@ Usage:
   tobs marketplace-digest [--day YYYY-MM-DD] [--lang zh|en]
   tobs marketplace-digests [--lang zh|en]
   tobs marketplace-detail <owner/repo>
+  tobs marketplace-avatar-list [--cursor <cursor>]  Browse Marketplace Avatars / 浏览市场头像
+  tobs marketplace-avatar-detail <id>  Read a Marketplace Avatar / 查看市场头像详情
+  tobs marketplace-avatar-publish --file <image> --name <name> [--description <text>] [--avatar-tag <tag> ...] [--operation-key <key>] --confirm
+    Publish a processed image as the Host owner / Host 所有者从文件发布已处理的头像
   tobs marketplace-file <listing-id> <path>
   tobs marketplace-submit <github-repo-url>
   tobs marketplace-report <owner/repo> [--reason <text>]
@@ -2767,10 +2771,11 @@ export async function runBotCreateCli(
           'group-create',
           'group-invite',
           'marketplace-install',
+          'marketplace-avatar-publish',
         ].includes(command))
     )
       throw usageError(
-        '--operation-key is supported only for online Bot creation or status, Marketplace install, group creation or group invitation.',
+        '--operation-key is supported only for online Bot creation or status, Marketplace install or Avatar publish, group creation or group invitation.',
       );
     if (
       values['expected-channel'] !== undefined &&
