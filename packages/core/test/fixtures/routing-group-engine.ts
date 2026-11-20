@@ -17,7 +17,7 @@ import { SessionId, SessionStore } from '@deepseek-ai/dsh-session';
 import { SessionProjectionRegistry } from '@deepseek-ai/dsh-session-projection';
 import { SystemPrompt } from '@deepseek-ai/dsh-system-prompt';
 import { ToolRuntime } from '@deepseek-ai/dsh-tools';
-import { afterEach, vi } from 'vitest';
+import { afterEach, expect, vi } from 'vitest';
 
 import { dmChannelId } from '../../src/channels/channel.js';
 import { attachOperationalModule } from '../../src/database/owner.js';
