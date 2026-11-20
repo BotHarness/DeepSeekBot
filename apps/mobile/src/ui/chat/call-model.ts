@@ -1,8 +1,4 @@
 import type { CallClientState } from '../../../../../packages/core/src/voice/call-client';
-import type {
-  VoiceCallEndReason,
-  VoiceCallMissing,
-} from '../../../../../packages/core/src/voice/call-contract';
 import {
   callEndView,
   callLiveView,
@@ -40,10 +36,32 @@ function noticeText(t: Strings, notice: CallNotice): string {
       return t.call.microphoneMissing;
     case 'refused':
       return t.call.ended.refused;
-    default:
-      return notice.startsWith('missing.')
-        ? t.call.missing[notice.slice('missing.'.length) as VoiceCallMissing]
-        : t.call.ended[notice.slice('ended.'.length) as Exclude<VoiceCallEndReason, 'hangup'>];
+    case 'missing.asr':
+      return t.call.missing['asr'];
+    case 'missing.bot':
+      return t.call.missing['bot'];
+    case 'missing.local-voice-off':
+      return t.call.missing['local-voice-off'];
+    case 'missing.media-helper-missing':
+      return t.call.missing['media-helper-missing'];
+    case 'missing.media-unavailable':
+      return t.call.missing['media-unavailable'];
+    case 'missing.media-unsupported':
+      return t.call.missing['media-unsupported'];
+    case 'missing.tts':
+      return t.call.missing['tts'];
+    case 'ended.bot-unavailable':
+      return t.call.ended['bot-unavailable'];
+    case 'ended.connect-timeout':
+      return t.call.ended['connect-timeout'];
+    case 'ended.connection-lost':
+      return t.call.ended['connection-lost'];
+    case 'ended.host-stopped':
+      return t.call.ended['host-stopped'];
+    case 'ended.media-failed':
+      return t.call.ended['media-failed'];
+    case 'ended.replaced':
+      return t.call.ended['replaced'];
   }
 }
 

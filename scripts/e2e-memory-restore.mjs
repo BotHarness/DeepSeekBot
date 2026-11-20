@@ -419,7 +419,10 @@ try {
       const problems = memoryProblems(run, (name) =>
         JSON.parse(readFileSync(resolve(directory, name + '.json'), 'utf8')),
       );
-      if (problems.length) throw new Error(problems.join('; '));
+      if (problems.length > 0) {
+        run.status = 'fail';
+        run.reason = redact(problems.join('; '));
+      }
     } catch (error) {
       run.status = 'fail';
       run.reason = redact(error.message);

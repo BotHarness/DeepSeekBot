@@ -48,12 +48,7 @@ export function configureDesktopZoom(options) {
   } finally {
     try {
       const own = fstatSync(file, { bigint: true });
-      let current;
-      try {
-        current = lstatSync(lock, { bigint: true });
-      } catch (error) {
-        if (error.code !== 'ENOENT') throw error;
-      }
+      const current = lstatSync(lock, { bigint: true, throwIfNoEntry: false });
       if (current?.ino === own.ino && current?.dev === own.dev) unlinkSync(lock);
     } finally {
       closeSync(file);

@@ -61,7 +61,9 @@ export function creationStepReady(
       return draft.source?.kind === 'zip';
     case 'identity':
       return draft.displayName.trim() !== '';
-    default:
+    case 'confirm':
+    case 'details':
+    case 'persona':
       return true;
   }
 }

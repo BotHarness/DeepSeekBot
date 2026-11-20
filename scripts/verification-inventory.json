@@ -1472,8 +1472,8 @@
       "category": "mapped",
       "behaviors": ["desktop.browser.open-observe-stop"],
       "task": 2012,
-      "reason": "One disposable Bot on an isolated Host; deterministic loopback fixture; real panel lifecycle and same-owner CLI/direct tools; cold start must pass without reconnect; no model. L-4 makes direct-argv process options explicit.",
-      "sha256": "b6ab6e083b18a944b8279a7578b79f3f0fc5a2cdb324133f49e290cb89fb6934"
+      "reason": "One disposable Bot on an isolated Host; deterministic loopback fixture; real panel lifecycle and same-owner CLI/direct tools; cold start must pass without reconnect; no model. L-4 makes direct-argv process options explicit. L-3 re-audit: explicit control flow and test cleanup; journey classification unchanged; this hash is not runtime qualification.",
+      "sha256": "78130f0f8d879057cf91bc4c484ee8748a4eaded3b5846f8d51ef8f4a106e97c"
     },
     {
       "path": "scripts/e2e-browser-multitab.mjs",
@@ -1879,9 +1879,9 @@
       "path": "scripts/e2e-hidden-channel-search.mjs",
       "category": "historical-regression",
       "behaviors": ["desktop.roster"],
-      "reason": "Prepared hidden/deleted Channels and delayed reads; cancellation/replacement must not apply stale search results.",
+      "reason": "Prepared hidden/deleted Channels and delayed reads; cancellation/replacement must not apply stale search results. L-3 re-audit: explicit control flow and test cleanup; journey classification unchanged; this hash is not runtime qualification.",
       "task": 1967,
-      "sha256": "5fb6c57a1c5e9653165011f0637a221b8701f97ca99a5ad4412968ec5ab9fa83"
+      "sha256": "a56bcd14ead593b45ae25b19aaffa15151faac8bbeaa974789e42f32490bca13"
     },
     {
       "path": "scripts/e2e-human-channel-names.mjs",
@@ -1999,9 +1999,9 @@
       "path": "scripts/e2e-memory-restore.mjs",
       "category": "mapped",
       "behaviors": ["desktop.memory.read-restore"],
-      "reason": "Own isolated Host; two owner-saved versions, real Web/CLI read, descendant restore and stale-head refusal; immutable evidence; retains Memory. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Own isolated Host; two owner-saved versions, real Web/CLI read, descendant restore and stale-head refusal; immutable evidence; retains Memory. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification. L-3 re-audit: explicit control flow and test cleanup; journey classification unchanged; this hash is not runtime qualification.",
       "task": 1975,
-      "sha256": "5de745445f91ce6ce0f16c09ac75d7147336a78d37bc01cadf6d2b14b36a9af9"
+      "sha256": "632c735de5bde1110347ffdb1e78fff0cf87c1b8c5d612e722d00816aa7d685c"
     },
     {
       "path": "scripts/e2e-team-auto-join.mjs",
@@ -2332,9 +2332,9 @@
       "path": "scripts/e2e-workspace-grant.mjs",
       "category": "mapped",
       "behaviors": ["desktop.grants.temporary-read-revoke"],
-      "reason": "Dedicated temporary sample outside Host data; actual Web Grant authorization, direct attachment-import read, explicit CLI revocation, same-read denial and before/after visible evidence. No model/native file tool/Shell security claim. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
+      "reason": "Dedicated temporary sample outside Host data; actual Web Grant authorization, direct attachment-import read, explicit CLI revocation, same-read denial and before/after visible evidence. No model/native file tool/Shell security claim. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification. L-3 re-audit: explicit control flow and test cleanup; journey classification unchanged; this hash is not runtime qualification.",
       "task": 1974,
-      "sha256": "8164e7d3c3f3132fc8c2adcadf0d34ada7f981f164b6493a1fc89818f7b27044"
+      "sha256": "8f7fa95fa42e46a0a6195ca0282cd3d1cca199125da46d26f335446e45d47ffd"
     },
     {
       "path": "scripts/e2e-bot-mode-exit.mjs",
@@ -2750,9 +2750,9 @@
       "path": "scripts/e2e-settings-loading.mjs",
       "category": "mapped",
       "behaviors": ["settings.first-tob-loading"],
-      "reason": "Fresh-Profile concurrent onboarding and settings requests with a 500ms response budget.",
+      "reason": "Fresh-Profile concurrent onboarding and settings requests with a 500ms response budget. L-3 re-audit: explicit control flow and test cleanup; journey classification unchanged; this hash is not runtime qualification.",
       "task": 4226,
-      "sha256": "a60b02ee56b57a840535969cefcdf28d1cdfa0bfe5d07047483289aeacbc89a8"
+      "sha256": "84dbd3cc64305776ea43fdb7c8fe47f81feca84358721858e9ad221ecc2b44b2"
     },
     {
       "path": "scripts/e2e-context-overflow.mjs",

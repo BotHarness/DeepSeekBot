@@ -13791,6 +13791,7 @@ window.__ModuleLoader__.load({
 				case "settings-open-failed": return t("local.error.settings");
 				case "target-changed": return t("local.error.target");
 				case "request-failed": return t("local.error.request");
+				case void 0:
 				default: return t("local.error.setup");
 			}
 		}

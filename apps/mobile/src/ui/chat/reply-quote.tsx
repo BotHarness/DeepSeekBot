@@ -28,7 +28,7 @@ export function replyText(preview: WireReplyPreview | null | undefined, t: typeo
           : t.voiceLabel;
     case 'file':
       return body !== '' ? body : t.reply.file(media.name);
-    default:
+    case undefined:
       return preview.body;
   }
 }
@@ -49,7 +49,9 @@ function authorInk(
     }
     case 'bridged':
       return theme.color.fg;
-    default:
+    case 'remote-bot':
+    case 'system':
+    case undefined:
       return theme.color.muted;
   }
 }
