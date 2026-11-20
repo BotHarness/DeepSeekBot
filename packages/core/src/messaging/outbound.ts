@@ -1,429 +1,45 @@
-import type { ReceptionRecovery } from './receiver-recovery.js';
-import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
-import { readIngest } from './conversation-ingest.js';
-import { isChannelNotice } from '../channels/channel-notice.js';
-import { sourceContentPurged } from '../purge/fence.js';
-import { effectiveDmControls } from './dm-controls.js';
-import { decodeLarkVoice } from '../attachments/lark-audio.js';
-import { decodeQqVoice } from '../attachments/qq-audio.js';
-import type { ToolApprovalActor } from '../workspaces/tool-approval-actor.js';
-import {
-  createFailureAlerts,
-  type FailureAlerts,
-  type FailureAlertSnapshot,
-} from './failure-alerts.js';
-import {
-  createApprovalMessaging,
-  type ApprovalMessaging,
-  type ApprovalMessagingSnapshot,
-} from './approval-messaging.js';
-import { externalPermissionGroups, type ExternalPermissionGroup } from './permission-groups.js';
-import { behaviorPermissions, type BehaviorPermission } from './behavior-permissions.js';
+import { createFailureAlerts } from './failure-alerts.js';
+import { createApprovalMessaging } from './approval-messaging.js';
 import { createPairingCards } from './pairing-cards.js';
-import {
-  createQuestionMessaging,
-  type QuestionDelivery,
-  type QuestionMessaging,
-} from './question-messaging.js';
-import {
-  createMessagingDirectory,
-  type MessagingDirectoryQuery,
-  type MessagingDirectoryPage,
-} from './directory.js';
-import {
-  createBotPairing,
-  type BotPairing,
-  type PairingRequest,
-  type PairingReviewInput,
-} from './pairing.js';
-import {
-  changeSenderAccess,
-  bumpSenderPolicy,
-  externalUserRoles,
-  readSenderPolicy,
-  readSourceSenderPermissions,
-  type SenderPermissions,
-  type SenderAccessInput,
-  type SenderPolicy,
-  type ExternalUserRole,
-} from './sender-access.js';
-import {
-  assertMessagingIdentity,
-  readMessagingIdentity,
-  type MessagingIdentity,
-  type MessagingIdentityView,
-  type MessagingIdentityInput,
-} from './identity.js';
-import type { ThreadReceptionView } from './thread-policy.js';
-import {
-  observeReception,
-  receptionObservationDue,
-  receptionHistory,
-  recordLocalReception,
-  stopReceptionHistory,
-  type ReceptionInterval,
-} from './reception-history.js';
-import {
-  messagingDefaults,
-  messagingDefaultsPlatform,
-  commitMessagingDefaults,
-  type MessagingDefaults,
-  type MessagingDefaultsInput,
-} from './defaults.js';
-import { initializeGroupReceptionPolicy, type GroupReceptionPolicy } from './group-policy.js';
-import {
-  admissionBound,
-  listBlocks,
-  listHeld,
-  readBlock,
-  readHeld,
-  removeBlock,
-  removeHeld,
-  writeBlock,
-  type BlockedConversation,
-  type HeldConversation,
-  type MessagingConversationInput,
-} from './conversations.js';
-import { bridgeChannel, humanBridgeChannel } from './channel-target.js';
-import { dmChannelId, type ChannelMessage } from '../channels/channel.js';
-import {
-  channelBridgeRoutes,
-  type ChannelBridgeRoute,
-  type ChannelBridgeSnapshot,
-  type ChannelBridgeConfiguration,
-} from './channel-bridge.js';
+import { createQuestionMessaging } from './question-messaging.js';
+import { createBotPairing } from './pairing.js';
+import { assertMessagingIdentity, readMessagingIdentity } from './identity.js';
+import { recordLocalReception, stopReceptionHistory } from './reception-history.js';
 import type { ChannelMessageCommit, ChannelStore } from '../channels/store.js';
-import { attachmentIdentity, type ChannelAttachmentRef } from '../attachments/ref.js';
 import type { AttachmentStore } from '../attachments/store.js';
 import { createChannelMediaAccess } from './channel-media.js';
-import { sourceMediaUploadId } from './media-identity.js';
-import { decodeWeChatVoice, MAX_VOICE_INPUT_BYTES } from '../attachments/wechat-audio.js';
-import { createHash, randomUUID } from 'node:crypto';
-import { createInboundMessaging, type InboundMessaging, type ExternalSource } from './inbound.js';
-import { createMessagingTyping, type MessagingProcessing } from './typing.js';
-import { createMessagingFeedback, type SourceFeedback } from './feedback.js';
+import { randomUUID } from 'node:crypto';
+import { createInboundMessaging } from './inbound.js';
+import { createMessagingTyping } from './typing.js';
+import { createMessagingFeedback } from './feedback.js';
 import { createBotSourcePolicyStore, type BotSourcePolicyStore } from '../runtime/source-policy.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { CONNECTOR_TYPES as TELEMETRY_CONNECTOR_TYPES } from '../telemetry/events.js';
 import type { TelemetryCapture } from '../telemetry/service.js';
 import { OperationalDatabaseError, type OperationalDatabaseModulePort } from '../database/owner.js';
-import {
-  MessagingError,
-  MessagingProviderError,
-  type MessagingProvider,
-  type MessagingAccount,
-  type MessagingReachablePage,
-  type MessagingTarget,
-  type MessagingReceipt,
-  type MessagingReplyRoute,
-} from './provider.js';
-import { PRIVATE_REFERENCE_IN_TEXT } from '../credentials/references.js';
-
-async function replyFileBytes(
-  store: AttachmentStore,
-  file: ChannelAttachmentRef,
-  signal: AbortSignal,
-) {
-  try {
-    const downloaded = await store.download(attachmentIdentity(file), file.name, signal);
-    if (downloaded.ref.size < 1 || downloaded.ref.size > store.maxBytes) {
-      await downloaded.body.cancel();
-      throw new MessagingProviderError('invalid-file', 'not-started');
-    }
-    const reader = downloaded.body.getReader();
-    const chunks: Uint8Array[] = [];
-    let size = 0;
-    try {
-      while (true) {
-        signal.throwIfAborted();
-        const next = await reader.read();
-        if (next.done) break;
-        size += next.value.byteLength;
-        if (size > store.maxBytes) throw new MessagingProviderError('invalid-file', 'not-started');
-        chunks.push(next.value);
-      }
-    } finally {
-      await reader.cancel().catch(() => undefined);
-      reader.releaseLock();
-    }
-    if (size !== downloaded.ref.size)
-      throw new MessagingProviderError('file-changed', 'not-started');
-    const bytes = new Uint8Array(size);
-    let offset = 0;
-    for (const chunk of chunks) {
-      bytes.set(chunk, offset);
-      offset += chunk.byteLength;
-    }
-    return { name: downloaded.ref.name, bytes, mediaType: downloaded.ref.mime };
-  } catch (error) {
-    if (error instanceof MessagingProviderError) throw error;
-    throw new MessagingProviderError('file-unavailable', 'not-started');
-  }
-}
-
-export interface MessagingGrant {
-  id: string;
-  bindingId: string;
-  botSlug: string;
-  providerId: string;
-  accountRef: string;
-  accountName: string;
-  fingerprint: string;
-  platform: string;
-  targetRef: string;
-  targetName: string;
-  targetDigest: string;
-  revision: number;
-  createdAt: string;
-  receiveAfter?: string;
-  receiveScope?: { kind: 'group' | 'dm'; conversationId: string };
-  receiveTargetChannelId?: string;
-  dmMirror?: boolean;
-  dmMirrorEpoch?: string;
-  dmSyncRevision?: number;
-  dmForward?: boolean;
-  dmForwardAfter?: string;
-  receptionInheritance?: 'inherit' | 'custom';
-  channelBridge?: ChannelBridgeConfiguration;
-  bridgeRoutes?: ChannelBridgeRoute[];
-  origin?: 'explicit' | 'implicit';
-  muted?: boolean;
-  preferenceRevision?: number;
-  openGroup?: boolean;
-  openGroupAfter?: string;
-  revokedAt?: string;
-  suspendedReason?: 'rebind-required';
-}
-
-export type OutboxState =
-  | 'pending'
-  | 'in-flight'
-  | 'provider-accepted'
-  | 'failed'
-  | 'unknown-outcome'
-  | 'cancelled'
-  | 'grant-revoked';
-
-export interface ReportOrigin {
-  providerId: string;
-  accountRef: string;
-  fingerprint: string;
-  platform: string;
-  accountName: string;
-  targetName: string;
-  conversationId: string;
-}
-
-export interface ReplyOrigin extends ReportOrigin {
-  route: MessagingReplyRoute;
-}
-
-export interface OutboxIntent {
-  id: string;
-  botSlug: string;
-  grantId: string;
-  grantRevision: number;
-  sourceEventId?: string;
-  forwardSourceEventId?: string;
-  report?: ReportOrigin;
-  reply?: ReplyOrigin;
-  receipt?: MessagingReceipt;
-  echo?: { eventId: string; at: string };
-  file?: ChannelAttachmentRef;
-  text: string;
-  state: OutboxState;
-  createdAt: string;
-  settledAt?: string;
-  dmMirror?: { epoch: string; bindingId: string; conversationId: string } | undefined;
-  reason?: string;
-}
-
-export type MessagingApp = MessagingAccount & {
-  providerId: string;
-  boundBotSlug?: string;
-  bindingId?: string;
-};
-
-export type MessagingReadMode = 'saved' | 'status';
-type ProviderRegistration = { provider: MessagingProvider; token: object };
-type AccountReader = (
-  entry: ProviderRegistration,
-  ref: string,
-) => Promise<MessagingAccount | undefined>;
-
-export interface MessagingSnapshot {
-  checks?: 'pending' | 'complete';
-  questions?: QuestionDelivery[];
-  permissionGroups?: ExternalPermissionGroup[];
-  behaviorPermissions?: BehaviorPermission[];
-  senderPolicy?: SenderPolicy;
-  roles?: ExternalUserRole[];
-  receptionHistory?: ReceptionInterval[];
-  feedback?: { sourceEventId: string; bindingId: string; attempts: SourceFeedback }[];
-  approvals?: ApprovalMessagingSnapshot;
-  failureAlerts?: FailureAlertSnapshot;
-  setup?: {
-    providerReady: boolean;
-    receipts: {
-      sourceEventId: string;
-      grantId: string;
-      messageId: string;
-      conversationId: string;
-      threadId?: string;
-      at: string;
-      replyState?: OutboxState;
-      replyMessageId?: string;
-      echoObserved: boolean;
-    }[];
-  };
-  identities?: MessagingIdentityView[];
-  pairings?: PairingRequest[];
-  pairingReceivers?: { name: string; status: 'off' | 'connecting' | 'receiving' | 'unavailable' }[];
-  channelTargets?: { id: string; name: string }[];
-  appSetups?: (import('./provider.js').MessagingSetup & { providerId: string })[];
-  accounts: MessagingApp[];
-  grants: (MessagingGrant & {
-    availability: 'available' | 'unavailable' | 'rebind-required';
-    reception: ReturnType<InboundMessaging['status']>;
-    recovery?: ReceptionRecovery;
-    canReceive?: boolean;
-    canPost?: boolean;
-    postConversationId?: string;
-    lastMessageAt?: string;
-    groupPolicy?: GroupReceptionPolicy;
-    threadPolicies?: ThreadReceptionView[];
-    ordinaryDelivery?: 'verified' | 'unverified';
-  })[];
-  heldConversations?: HeldConversation[];
-  blockedConversations?: BlockedConversation[];
-  intents: OutboxIntent[];
-}
-
-export interface OutboundMessaging {
-  questions: QuestionMessaging;
-  privateInputReplyAuthority(
-    botSlug: string,
-    sourceEventId: string,
-    authority: import('../credentials/im-origin.js').PrivateReplyAuthority,
-  ): () => void;
-  approvals: ApprovalMessaging;
-  failureAlerts: FailureAlerts;
-  beginProcessing(botSlug: string, sourceEventIds: readonly string[]): MessagingProcessing;
-  pairing: BotPairing;
-  senderAccess(botSlug: string, input: SenderAccessInput): void;
-  toolRuleCreatorAuthorized(botSlug: string, creator: ToolApprovalActor): boolean;
-  senderPermissions(botSlug: string, sourceEventId: string): SenderPermissions;
-  directory(botSlug: string, query: MessagingDirectoryQuery): MessagingDirectoryPage;
-  reviewPairing(botSlug: string, input: PairingReviewInput): Promise<PairingRequest>;
-  inbound: InboundMessaging;
-  defaults<Platform extends string = 'feishu'>(platform?: Platform): MessagingDefaults<Platform>;
-  setDefaults(input: MessagingDefaultsInput): Promise<MessagingDefaults>;
-  identity(botSlug: string, input: MessagingIdentityInput): Promise<MessagingIdentity>;
-  reply(
-    botSlug: string,
-    sourceEventId: string,
-    text: string,
-    messageKey?: string,
-  ): Promise<OutboxIntent>;
-  privateInputNotice(
-    botSlug: string,
-    sourceEventId: string,
-    requestId: string,
-    webUrl: string | undefined,
-    authority: import('../credentials/im-origin.js').PrivateReplyAuthority,
-  ): Promise<OutboxIntent>;
-  acquireFile(
-    botSlug: string,
-    sourceEventId: string,
-    attachmentId: string,
-    signal?: AbortSignal,
-  ): Promise<ChannelAttachmentRef>;
-  readChannelMedia(input: {
-    channelId: string;
-    sourceEventId: string;
-    attachmentId: string;
-    representation?: 'playback';
-    signal: AbortSignal;
-  }): Promise<{ ref: ChannelAttachmentRef; body: ReadableStream<Uint8Array>; inline?: boolean }>;
-  prepareAudio(
-    botSlug: string,
-    sourceEventId: string,
-    attachmentId: string,
-    signal?: AbortSignal,
-  ): Promise<ChannelAttachmentRef>;
-  replyFile(
-    botSlug: string,
-    sourceEventId: string,
-    file: ChannelAttachmentRef,
-    messageKey?: string,
-  ): Promise<OutboxIntent>;
-  register(provider: MessagingProvider): () => void;
-  snapshot(botSlug: string, mode?: MessagingReadMode): Promise<MessagingSnapshot>;
-  disableBot(botSlug: string): Promise<void>;
-  deletionDependencies(botSlug: string): { identities: string[]; grants: string[] };
-  apps(): Promise<MessagingApp[]>;
-  setups(): Promise<(import('./provider.js').MessagingSetup & { providerId: string })[]>;
-  channelBridges(channelId: string, mode?: MessagingReadMode): Promise<ChannelBridgeSnapshot>;
-  targets(providerId: string, accountRef: string): Promise<MessagingTarget[]>;
-  reachable(botSlug: string, bindingId: string, cursor?: string): Promise<MessagingReachablePage>;
-  setPostLimit(
-    botSlug: string,
-    bindingId: string,
-    expectedRevision: number,
-    limit: number | null,
-  ): Promise<MessagingIdentity>;
-  postConversation(
-    botSlug: string,
-    bindingId: string,
-    conversationId: string,
-    requestId: string,
-    text: string,
-  ): Promise<OutboxIntent>;
-  postRequest(
-    botSlug: string,
-    bindingId: string,
-    conversationId: string,
-    requestId: string,
-    text: string,
-  ): OutboxIntent | undefined;
-  authorize(input: {
-    botSlug: string;
-    providerId: string;
-    accountRef: string;
-    targetRef: string;
-    fingerprint: string;
-    targetDigest: string;
-  }): Promise<MessagingGrant>;
-  revoke(botSlug: string, grantId: string): void;
-  conversation(botSlug: string, input: MessagingConversationInput): Promise<void>;
-  send(
-    botSlug: string,
-    grantId: string,
-    requestId: string,
-    text: string,
-    sourceEventId?: string,
-    file?: ChannelAttachmentRef,
-    report?: boolean,
-  ): Promise<OutboxIntent>;
-  post(botSlug: string, grantId: string, requestId: string, text: string): Promise<OutboxIntent>;
-  forwardWebDm(commit: ChannelMessageCommit): Promise<void>;
-  inspectIntent(botSlug: string, intentId: string): OutboxIntent;
-  history(botSlug: string): OutboxIntent[];
-  close(): void;
-}
-
-type StoredIntent = OutboxIntent & { requestId: string; payloadHash: string };
-
-const CONNECTOR_TYPES = new Set<string>(
-  TELEMETRY_CONNECTOR_TYPES.filter((type) => type !== 'other'),
-);
-
-export function connectorType(platform: string): string {
-  const normalized = platform.trim().toLowerCase();
-  return CONNECTOR_TYPES.has(normalized) ? normalized : 'other';
-}
-
-export function createOutboundMessaging(options: {
+import { MessagingError } from './provider.js';
+import type { ProviderRegistration, OutboundMessaging } from './outbound-contract.js';
+import { createOutboxStore } from './outbound-outbox-store.js';
+import { createOutboundDelivery } from './outbound-delivery.js';
+import { createOutboundDmMirror } from './outbound-dm-mirror.js';
+import { createOutboundGrants } from './outbound-grants.js';
+import { createOutboundReplies } from './outbound-replies.js';
+import { createOutboundMedia } from './outbound-media.js';
+import { createOutboundBinding } from './outbound-binding.js';
+import { createOutboundConversations } from './outbound-conversations.js';
+import { createOutboundSnapshot } from './outbound-snapshot.js';
+export type {
+  MessagingGrant,
+  OutboxState,
+  ReportOrigin,
+  ReplyOrigin,
+  OutboxIntent,
+  MessagingApp,
+  MessagingReadMode,
+  MessagingSnapshot,
+  OutboundMessaging,
+} from './outbound-contract.js';
+export type OutboundMessagingOptions = {
   database: OperationalDatabaseModulePort;
   channels?: Pick<ChannelStore, 'get' | 'getOrCreateDm'>;
   attachments?: AttachmentStore;
@@ -443,7 +59,39 @@ export function createOutboundMessaging(options: {
   now?: () => Date;
   warn?: (message: string) => void;
   capture?: TelemetryCapture;
-}): OutboundMessaging {
+};
+
+const CONNECTOR_TYPES = new Set<string>(
+  TELEMETRY_CONNECTOR_TYPES.filter((type) => type !== 'other'),
+);
+
+export function connectorType(platform: string): string {
+  const normalized = platform.trim().toLowerCase();
+  return CONNECTOR_TYPES.has(normalized) ? normalized : 'other';
+}
+
+function prepareOutboxStateUpdate(db: DatabaseSync) {
+  return db.prepare('UPDATE messaging_outbox SET state = ?, body = ? WHERE id = ?');
+}
+
+function prepareOutboxIntentInsert(db: DatabaseSync) {
+  return db.prepare(
+    'INSERT INTO messaging_outbox (id, bot_slug, grant_id, request_id, state, created_at, body) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  );
+}
+
+function prepareOutboundDmSourceInsert(db: DatabaseSync) {
+  return db.prepare(`INSERT INTO source_events (source_event_id, source_kind, bot_slug, channel_id, message_id, body, created_at, payload_json)
+          VALUES (?, 'bot-message', ?, ?, ?, ?, ?, ?)`);
+}
+
+function prepareOutboundDmPlacementInsert(db: DatabaseSync) {
+  return db.prepare(
+    'INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id) VALUES (?, ?, ?, ?)',
+  );
+}
+
+export function createOutboundMessaging(options: OutboundMessagingOptions): OutboundMessaging {
   const { database } = options;
   const connectorEnabled = (platform: string): void => {
     try {
@@ -502,24 +150,26 @@ export function createOutboundMessaging(options: {
     if (provider(id).token !== token) throw new MessagingError('provider-unavailable');
   };
   const binding = (id: string) => database.read((db) => readMessagingIdentity(db, id));
-  const revokePendingIntents = (db: DatabaseSync, grantId: string, at: string) => {
-    const pending = db
-      .prepare("SELECT id FROM messaging_outbox WHERE grant_id = ? AND state = 'pending'")
-      .all(grantId) as unknown as { id: string }[];
-    for (const row of pending) {
-      const intent = readIntent(row.id);
-      db.prepare('UPDATE messaging_outbox SET state = ?, body = ? WHERE id = ?').run(
-        'grant-revoked',
-        JSON.stringify({
-          ...intent,
-          state: 'grant-revoked',
-          reason: 'grant-revoked',
-          settledAt: at,
-        }),
-        row.id,
-      );
-    }
-  };
+  const {
+    revokePendingIntents,
+    readIntent,
+    postRequest,
+    settle,
+    history,
+    checkPostLimit,
+    methods: outboxStoreMethods,
+  } = createOutboxStore({
+    database,
+    get grant() {
+      return grant;
+    },
+    transaction,
+    now,
+    get mirrorAccepted() {
+      return mirrorAccepted;
+    },
+    prepareOutboxStateUpdate,
+  });
   const enabledBinding = (id: string, revision?: number) =>
     database.read((db) => assertMessagingIdentity(db, id, revision));
   const bounded = async <T>(work: Promise<T>): Promise<T> => {
@@ -538,432 +188,83 @@ export function createOutboundMessaging(options: {
       if (timer) clearTimeout(timer);
     }
   };
-  const inspectIdentity = async (
-    value: Pick<MessagingIdentity, 'providerId' | 'accountRef' | 'fingerprint'>,
-    readAccount?: AccountReader,
-  ) => {
-    const entry = provider(value.providerId);
-    const account = await bounded(
-      readAccount
-        ? readAccount(entry, value.accountRef)
-        : entry.provider.inspectAccount
-          ? entry.provider.inspectAccount(value.accountRef)
-          : entry.provider
-              .accounts()
-              .then((rows) => rows.find((r) => r.ref === value.accountRef && !r.unsupported)),
-    );
-    current(value.providerId, entry.token);
-    if (!account || account.ref !== value.accountRef || account.fingerprint !== value.fingerprint)
-      throw new MessagingError('rebind-required');
-    if (!account.connected) throw new MessagingError('provider-unavailable');
-    return { ...account, token: entry.token };
-  };
-  const grant = (slug: string, id: string): MessagingGrant => {
-    const row = database.read((db) =>
-      db.prepare('SELECT body FROM messaging_grants WHERE id = ? AND bot_slug = ?').get(id, slug),
-    ) as { body: string } | undefined;
-    if (row === undefined) throw new MessagingError('grant-unavailable');
-    return database.read((db) => effectiveDmControls(db, JSON.parse(row.body) as MessagingGrant));
-  };
-  const readIntent = (id: string): StoredIntent => {
-    const row = database.read((db) =>
-      db.prepare('SELECT body FROM messaging_outbox WHERE id = ?').get(id),
-    ) as { body: string } | undefined;
-    if (!row) throw new MessagingError('intent-unavailable');
-    return JSON.parse(row.body) as StoredIntent;
-  };
-  const postRequest = (
-    botSlug: string,
-    bindingId: string,
-    conversationId: string,
-    requestId: string,
-    text: string,
-  ): StoredIntent | undefined => {
-    if (!/^[A-Za-z0-9_-]{8,128}$/.test(requestId) || !text.trim() || text.length > 4000)
-      throw new MessagingError('invalid-input');
-    const row = database.read((db) =>
-      db.prepare('SELECT id FROM messaging_outbox WHERE request_id = ?').get(requestId),
-    ) as { id: string } | undefined;
-    if (!row) return undefined;
-    const value = readIntent(row.id);
-    if (
-      value.botSlug !== botSlug ||
-      value.report?.conversationId !== conversationId ||
-      value.payloadHash !==
-        createHash('sha256')
-          .update(JSON.stringify(['report', text]))
-          .digest('hex') ||
-      grant(botSlug, value.grantId).bindingId !== bindingId
-    )
-      throw new MessagingError('request-conflict');
-    return value;
-  };
-  const mirrorChoice = (value: MessagingGrant, conversationId: string | undefined) =>
-    database.read((db) => {
-      if (value.platform !== 'weixin' || !conversationId) return undefined;
-      for (const row of db
-        .prepare('SELECT body FROM messaging_grants WHERE binding_id = ?')
-        .all(value.bindingId)) {
-        const receiver = effectiveDmControls(db, JSON.parse(String(row.body)) as MessagingGrant);
-        if (
-          !receiver.revokedAt &&
-          !receiver.suspendedReason &&
-          receiver.dmMirror === true &&
-          receiver.dmMirrorEpoch &&
-          receiver.receiveScope?.kind === 'dm' &&
-          receiver.receiveScope.conversationId === conversationId &&
-          channelBridgeRoutes(receiver).some((route) => route.enabled)
-        )
-          return { epoch: receiver.dmMirrorEpoch, bindingId: receiver.bindingId, conversationId };
-      }
-      return undefined;
-    });
-  const mirrorAccepted = async (accepted: StoredIntent): Promise<void> => {
-    try {
-      if (accepted.requestId.startsWith('web-mirror-') || !accepted.dmMirror) return;
-      const channel = options.channels?.getOrCreateDm(OWNER_HUMAN_CONTEXT, accepted.botSlug);
-      if (!channel) return;
-      const commit = transaction(
-        (db) => {
-          const value = readIntent(accepted.id);
-          const currentGrant = grant(value.botSlug, value.grantId);
-          const choice = mirrorChoice(currentGrant, value.dmMirror?.conversationId);
-          const sourceId = 'dm-mirror-' + value.id;
-          if (
-            value.state !== 'provider-accepted' ||
-            !choice ||
-            choice.epoch !== value.dmMirror?.epoch ||
-            choice.bindingId !== value.dmMirror.bindingId ||
-            currentGrant.revokedAt ||
-            currentGrant.suspendedReason ||
-            !options.isBotActive(value.botSlug) ||
-            !binding(choice.bindingId).enabled ||
-            binding(choice.bindingId).revokedAt ||
-            sourceContentPurged(db, sourceId) ||
-            (value.sourceEventId && sourceContentPurged(db, value.sourceEventId))
-          )
-            return;
-          if (value.sourceEventId) {
-            const original = db
-              .prepare(
-                "SELECT json_extract(payload_json, '$.external.dmMirrorEpoch') AS epoch FROM source_events WHERE source_event_id = ?",
-              )
-              .get(value.sourceEventId);
-            if (
-              original?.epoch === choice.epoch &&
-              !db
-                .prepare(
-                  'SELECT 1 FROM channel_placements WHERE source_event_id = ? AND channel_id = ?',
-                )
-                .get(value.sourceEventId, channel.id)
-            )
-              return;
-          }
-          bridgeChannel(OWNER_HUMAN_CONTEXT, db, channel.id, value.botSlug);
-          if (db.prepare('SELECT 1 FROM source_events WHERE source_event_id = ?').get(sourceId))
-            return;
-          const message: ChannelMessage = {
-            id: sourceId,
-            at: value.settledAt!,
-            body: value.file?.name ?? value.text,
-            format: 'text',
-            author: { kind: 'bot', slug: value.botSlug },
-            bridgeOrigin: {
-              sourceEventId: sourceId,
-              platform: currentGrant.platform,
-              accountRef: currentGrant.accountRef,
-              accountName: currentGrant.accountName,
-              conversationId: choice.conversationId,
-              conversationName: currentGrant.targetName,
-              messageId: value.receipt?.messageId ?? value.id,
-              senderId: currentGrant.accountRef,
-              senderName: value.botSlug,
-            },
-          };
-          const { body, ...envelope } = message;
-          const revision = Number(
-            db
-              .prepare(
-                'SELECT COALESCE(MAX(revision), 0) + 1 AS n FROM channel_placements WHERE channel_id = ?',
-              )
-              .get(channel.id)!.n,
-          );
-          db.prepare(`INSERT INTO source_events (source_event_id, source_kind, bot_slug, channel_id, message_id, body, created_at, payload_json)
-          VALUES (?, 'bot-message', ?, ?, ?, ?, ?, ?)`).run(
-            sourceId,
-            value.botSlug,
-            channel.id,
-            sourceId,
-            body,
-            message.at,
-            JSON.stringify({
-              ...envelope,
-              outboxOrigin: { intentId: value.id, sourceEventId: value.sourceEventId },
-            }),
-          );
-          db.prepare(
-            'INSERT INTO channel_placements (channel_id, revision, source_event_id, message_id) VALUES (?, ?, ?, ?)',
-          ).run(channel.id, revision, sourceId, sourceId);
-          return {
-            channelId: channel.id,
-            revision,
-            message: { ...message, channelRevision: revision },
-          };
-        },
-        ['source-event', 'channel'],
-      );
-      if (commit) options.onPlaced?.(commit);
-    } catch {
-      options.warn?.(
-        JSON.stringify({ event: 'weixin-dm-mirror', phase: 'failed', intentId: accepted.id }),
-      );
-    }
-  };
-  const recovering = new Set<string>();
-  const recoveryPending = new Set<string>();
-  const recoverMirrors = async (providerId: string) => {
-    if (recovering.has(providerId)) {
-      recoveryPending.add(providerId);
-      return;
-    }
-    recovering.add(providerId);
-    try {
-      do {
-        recoveryPending.delete(providerId);
-        let cursor = 0;
-        for (;;) {
-          if (closed || !providers.has(providerId)) return;
-          const rows = database.read((db) =>
-            db
-              .prepare(`SELECT o.rowid AS position, o.id FROM messaging_outbox o
-          JOIN messaging_grants g ON g.id = o.grant_id
-          WHERE o.rowid > ? AND o.state = 'provider-accepted' AND json_extract(g.body, '$.providerId') = ?
-          AND json_extract(o.body, '$.dmMirror.epoch') IS NOT NULL
-          AND NOT EXISTS (SELECT 1 FROM source_events e WHERE e.source_event_id = 'dm-mirror-' || o.id)
-          ORDER BY o.rowid ASC LIMIT 100`)
-              .all(cursor, providerId),
-          );
-          for (const row of rows) {
-            cursor = Number(row.position);
-            await mirrorAccepted(readIntent(String(row.id)));
-          }
-          if (rows.length < 100) break;
-          await new Promise<void>((resolve) => setImmediate(resolve));
-        }
-      } while (recoveryPending.has(providerId));
-    } finally {
-      recovering.delete(providerId);
-      recoveryPending.delete(providerId);
-    }
-  };
-  const webDmText = (message: ChannelMessage): string | undefined => {
-    if (
-      message.author.kind === 'bridged' ||
-      message.author.kind === 'system' ||
-      isChannelNotice(message) ||
-      message.toolApprovalRequest ||
-      message.toolApprovalDecision ||
-      message.userQuestionRequest ||
-      message.userQuestionResolution ||
-      message.privateInputRequest ||
-      message.privateInputResolution ||
-      message.takeoverResolution ||
-      message.sessionFailure ||
-      message.grantRequest ||
-      message.grantRequestResolution ||
-      message.onboardingWelcome ||
-      message.memberDeparture ||
-      message.turnStop ||
-      message.modelSwitch ||
-      message.voiceCallRecord ||
-      message.toolAutoApprovalOverride
-    )
-      return undefined;
-    const text = [message.body, ...(message.attachments ?? []).map((item) => item.name)]
-      .filter((line) => line.trim() !== '')
-      .join('\n');
-    if (text === '') return undefined;
-    return message.author.kind === 'bot' ? text : `【网页】我：${text}`;
-  };
-  const forwardingSources = new Map<string, string>();
-  const forwardingFences = new Map<string, () => void>();
-  const forwardWebDm = async (commit: ChannelMessageCommit): Promise<void> => {
-    const warn = (error: unknown, grantId?: string) => {
-      options.warn?.(
-        JSON.stringify({
-          event: 'weixin-web-mirror',
-          phase: 'failed',
-          grantId,
-          messageId: commit.message.id,
-          reason: error instanceof MessagingError ? error.code : 'provider-unavailable',
-        }),
-      );
-    };
-    try {
-      const message = commit.message;
-      if (message.id.startsWith('dm-mirror-')) return;
-      const channel = options.channels?.get(commit.channelId);
-      const botSlug = channel?.botSlug;
-      if (
-        channel === undefined ||
-        channel.type !== 'dm' ||
-        botSlug === undefined ||
-        channel.id !== dmChannelId(botSlug)
-      )
-        return;
-      if (message.author.kind === 'bot' && message.author.slug !== botSlug) return;
-      const text = webDmText(message);
-      if (text === undefined) return;
-      const origin = database.read((db) =>
-        db
-          .prepare(
-            'SELECT source_event_id FROM channel_placements WHERE channel_id = ? AND message_id = ?',
-          )
-          .get(commit.channelId, message.id),
-      );
-      const sourceId = origin ? String(origin.source_event_id) : undefined;
-      const rows = database.read((db) =>
-        db.prepare('SELECT body FROM messaging_grants WHERE bot_slug = ?').all(botSlug),
-      ) as { body: string }[];
-      const grants = rows
-        .map((row) =>
-          database.read((db) => effectiveDmControls(db, JSON.parse(row.body) as MessagingGrant)),
-        )
-        .filter(
-          (value) =>
-            value.platform === 'weixin' &&
-            value.revokedAt === undefined &&
-            value.suspendedReason === undefined,
-        );
-      const visited = new Set<string>();
-      for (const receiver of grants) {
-        if (
-          receiver.receiveScope?.kind !== 'dm' ||
-          receiver.dmForward !== true ||
-          (receiver.dmForwardAfter !== undefined && message.at < receiver.dmForwardAfter) ||
-          !channelBridgeRoutes(receiver).some((route) => route.enabled)
-        )
-          continue;
-        const conversationId = receiver.receiveScope.conversationId;
-        const scope = receiver.bindingId + ':' + conversationId;
-        if (visited.has(scope)) continue;
-        visited.add(scope);
-        const routes = channelBridgeRoutes(receiver);
-        const assertForwarding = () => {
-          if (sourceId && database.read((db) => sourceContentPurged(db, sourceId)))
-            throw new MessagingError('content-purged');
-          const latest = grant(botSlug, receiver.id);
-          if (
-            latest.dmForward !== true ||
-            latest.revokedAt ||
-            latest.suspendedReason ||
-            latest.bindingId !== receiver.bindingId ||
-            latest.revision !== receiver.revision ||
-            latest.receiveScope?.kind !== 'dm' ||
-            latest.receiveScope.conversationId !== conversationId ||
-            !channelBridgeRoutes(latest).some(
-              (route) =>
-                route.enabled &&
-                routes.some(
-                  (prior) =>
-                    prior.enabled && prior.id === route.id && prior.revision === route.revision,
-                ),
-            )
-          )
-            throw new MessagingError('grant-revoked');
-        };
-        try {
-          let sender: MessagingGrant | undefined;
-          for (const candidate of grants) {
-            if (
-              candidate.bindingId !== receiver.bindingId ||
-              (candidate.receiveScope &&
-                candidate.id !== receiver.id &&
-                candidate.dmForward !== true)
-            )
-              continue;
-            if (
-              candidate.origin === 'implicit' &&
-              !provider(candidate.providerId).provider.postConversation
-            )
-              continue;
-            const checked = await check(candidate);
-            assertForwarding();
-            if (
-              checked.inspected.account.postSupported !== false &&
-              checked.inspected.target.receiveScope?.kind === 'dm' &&
-              checked.inspected.target.receiveScope.conversationId === conversationId
-            ) {
-              sender = candidate;
-              break;
-            }
-          }
-          if (!sender) continue;
-          let offset = 0;
-          let part = 0;
-          while (offset < text.length) {
-            assertForwarding();
-            let end = Math.min(offset + 4000, text.length);
-            if (end < text.length && /[\uD800-\uDBFF]/.test(text[end - 1]!)) end--;
-            const base = 'web-mirror-' + sender.id + '-' + message.id;
-            const requestId = text.length > 4000 ? base + '-' + (part + 1) : base;
-            forwardingFences.set(requestId, assertForwarding);
-            if (sourceId) forwardingSources.set(requestId, sourceId);
-            try {
-              const intent = await service.post(
-                botSlug,
-                sender.id,
-                requestId,
-                text.slice(offset, end),
-              );
-              if (intent.state !== 'provider-accepted') break;
-            } finally {
-              forwardingFences.delete(requestId);
-              forwardingSources.delete(requestId);
-            }
-            part++;
-            offset = end;
-          }
-        } catch (error) {
-          warn(error, receiver.id);
-        }
-      }
-    } catch (error) {
-      warn(error);
-    }
-  };
-  const settle = (
-    id: string,
-    state: OutboxState,
-    reason?: string,
-    receipt?: MessagingReceipt,
-  ): OutboxIntent => {
-    const value = transaction(
-      (db) => {
-        const existing = readIntent(id);
-        if (existing.state !== 'pending' && existing.state !== 'in-flight') return existing;
-        const value = {
-          ...existing,
-          state,
-          settledAt: now(),
-          ...(reason === undefined ? {} : { reason }),
-          ...(receipt === undefined ? {} : { receipt }),
-        };
-        db.prepare('UPDATE messaging_outbox SET state = ?, body = ? WHERE id = ?').run(
-          state,
-          JSON.stringify(value),
-          id,
-        );
-        db.prepare(
-          'UPDATE messaging_outbox_attempts SET state = ?, finished_at = ?, reason = ? WHERE intent_id = ?',
-        ).run(state, value.settledAt, reason ?? null, id);
-        return value;
-      },
-      ['outbox'],
-    );
-    if (value.state === 'provider-accepted') void mirrorAccepted(value);
-    return value;
-  };
+  const { inspectIdentity, methods: outboundBinding } = createOutboundBinding({
+    provider,
+    bounded,
+    current,
+    database,
+    get service() {
+      return service;
+    },
+    transaction,
+    options,
+    get inbound() {
+      return inbound;
+    },
+    get typing() {
+      return typing;
+    },
+    active,
+    now,
+    connectorEnabled,
+    binding,
+    enabledBinding,
+  });
+  const {
+    grant,
+    assertConversationAllowed,
+    savedDmGrant,
+    check,
+    methods: outboundGrants,
+  } = createOutboundGrants({
+    database,
+    transaction,
+    bounded,
+    provider,
+    active,
+    enabledBinding,
+    current,
+    get service() {
+      return service;
+    },
+    options,
+    get inbound() {
+      return inbound;
+    },
+    now,
+    connectorEnabled,
+    revokePendingIntents,
+    get typing() {
+      return typing;
+    },
+    inFlight,
+  });
+  const {
+    mirrorChoice,
+    mirrorAccepted,
+    recoverMirrors,
+    forwardingSources,
+    forwardingFences,
+    forwardWebDm,
+  } = createOutboundDmMirror({
+    database,
+    options,
+    transaction,
+    readIntent,
+    grant,
+    binding,
+    get closed() {
+      return closed;
+    },
+    providers,
+    provider,
+    check,
+    get service() {
+      return service;
+    },
+    prepareOutboundDmSourceInsert,
+    prepareOutboundDmPlacementInsert,
+  });
   if (options.recover !== false)
     transaction(
       (db) => {
@@ -987,156 +288,6 @@ export function createOutboundMessaging(options: {
       },
       ['outbox'],
     );
-
-  const history = (botSlug: string) => {
-    const rows = database.read((db) =>
-      db
-        .prepare(
-          'SELECT body FROM messaging_outbox WHERE bot_slug = ? ORDER BY created_at DESC, id DESC LIMIT 30',
-        )
-        .all(botSlug),
-    ) as unknown as { body: string }[];
-    return rows.map((row) => JSON.parse(row.body) as OutboxIntent);
-  };
-  const suspend = (value: MessagingGrant) => {
-    transaction(
-      (db) => {
-        const latest = grant(value.botSlug, value.id);
-        if (latest.revokedAt === undefined && latest.suspendedReason === undefined) {
-          db.prepare('UPDATE messaging_grants SET body = ?, revision = ? WHERE id = ?').run(
-            JSON.stringify({
-              ...latest,
-              suspendedReason: 'rebind-required',
-              revision: latest.revision + 1,
-            }),
-            latest.revision + 1,
-            latest.id,
-          );
-        }
-      },
-      ['grants'],
-    );
-  };
-  const inspectImplicit = async (
-    entry: ProviderRegistration,
-    value: MessagingGrant,
-    readAccount?: AccountReader,
-  ) => {
-    const registered = entry.provider;
-    if (!registered.inspectAccount || !value.receiveScope)
-      throw new MessagingError('capability-unavailable');
-    const account = await bounded(
-      readAccount
-        ? readAccount(entry, value.accountRef)
-        : registered.inspectAccount(value.accountRef),
-    );
-    if (!account) throw new MessagingError('rebind-required');
-    return {
-      account,
-      target: {
-        ref: value.targetRef,
-        name: value.targetName,
-        digest: value.targetDigest,
-        receiveScope: value.receiveScope,
-      },
-    };
-  };
-  const assertConversationAllowed = (
-    value: MessagingGrant,
-    scope: MessagingTarget['receiveScope'],
-  ) => {
-    if (
-      scope &&
-      database.read((db) =>
-        readBlock(db, value.botSlug, value.fingerprint, {
-          kind: scope.kind,
-          id: scope.conversationId,
-        }),
-      )
-    )
-      throw new MessagingError('conversation-blocked');
-  };
-  const savedDmGrant = async (value: MessagingGrant): Promise<string | undefined> => {
-    const conversationId = value.receiveScope?.conversationId;
-    if (conversationId === undefined) return undefined;
-    const rows = database.read((db) =>
-      db
-        .prepare(
-          'SELECT body FROM messaging_grants WHERE binding_id = ? AND bot_slug = ? AND revoked_at IS NULL ORDER BY created_at, rowid',
-        )
-        .all(value.bindingId, value.botSlug),
-    ) as { body: string }[];
-    const candidates = rows
-      .map((row) => JSON.parse(row.body) as MessagingGrant)
-      .filter((candidate) => candidate.origin !== 'implicit' && !candidate.suspendedReason);
-    if (candidates.length === 0) return undefined;
-    const entry = provider(value.providerId);
-    const targets = await bounded(entry.provider.targets(value.accountRef));
-    return candidates.find((candidate) =>
-      targets.some(
-        (target) =>
-          target.ref === candidate.targetRef &&
-          target.digest === candidate.targetDigest &&
-          target.receiveScope?.kind === 'dm' &&
-          target.receiveScope.conversationId === conversationId,
-      ),
-    )?.id;
-  };
-  const check = async (value: MessagingGrant, readAccount?: AccountReader) => {
-    active(value.botSlug);
-    if (value.revokedAt !== undefined) throw new MessagingError('grant-revoked');
-    const identity = enabledBinding(value.bindingId);
-    if (value.suspendedReason !== undefined) throw new MessagingError('rebind-required');
-    const entry = provider(value.providerId);
-    let inspected;
-    try {
-      inspected =
-        value.origin === 'implicit'
-          ? await inspectImplicit(entry, value, readAccount)
-          : await bounded(
-              readAccount
-                ? entry.provider.inspect(
-                    value.accountRef,
-                    value.targetRef,
-                    await readAccount(entry, value.accountRef),
-                  )
-                : entry.provider.inspect(value.accountRef, value.targetRef),
-            );
-    } catch (error) {
-      current(value.providerId, entry.token);
-      if (error instanceof MessagingError && error.code === 'rebind-required') suspend(value);
-      throw error;
-    }
-    current(value.providerId, entry.token);
-    enabledBinding(value.bindingId, identity.revision);
-    active(value.botSlug);
-    if (!inspected.account.connected) throw new MessagingError('provider-unavailable');
-    if (
-      inspected.account.ref !== value.accountRef ||
-      inspected.account.fingerprint !== value.fingerprint ||
-      inspected.account.platform !== value.platform ||
-      inspected.target.ref !== value.targetRef ||
-      inspected.target.digest !== value.targetDigest
-    ) {
-      suspend(value);
-      throw new MessagingError('rebind-required');
-    }
-    assertConversationAllowed(value, inspected.target.receiveScope);
-    return { ...entry, inspected, identityRevision: identity.revision };
-  };
-  const checkPostLimit = (db: DatabaseSync, bindingId: string, reserved = false) => {
-    const identity = readMessagingIdentity(db, bindingId);
-    if (identity.postLimit === null) return;
-    const limit = identity.postLimit ?? 60;
-    const cutoff = new Date(new Date(now()).getTime() - 3600000).toISOString();
-    const row = db
-      .prepare(
-        "SELECT COUNT(*) AS count FROM messaging_outbox_attempts a JOIN messaging_outbox o ON o.id = a.intent_id JOIN messaging_grants g ON g.id = o.grant_id WHERE g.binding_id = ? AND a.started_at > ? AND json_type(o.body, '$.sourceEventId') IS NULL",
-      )
-      .get(bindingId, cutoff) as { count: number };
-    if (reserved ? row.count > limit : row.count >= limit)
-      throw new MessagingError('post-rate-limited');
-  };
   const pairing = createBotPairing(
     database,
     options.isBotActive,
@@ -1232,66 +383,26 @@ export function createOutboundMessaging(options: {
     ...(options.imCommands === undefined ? {} : { imCommands: options.imCommands }),
     ...(options.warn === undefined ? {} : { warn: options.warn }),
   });
-  const sourceForReply = (botSlug: string, sourceEventId: string, value: MessagingGrant) => {
-    const source = inbound.readShared(botSlug, sourceEventId);
-    if (source.grantId === value.id) {
-      if (!inbound.available(botSlug, sourceEventId))
-        throw new MessagingError('source-unavailable');
-    } else {
-      const ingress = database.read((db) =>
-        db.prepare('SELECT body FROM messaging_grants WHERE id = ?').get(source.grantId),
-      ) as { body: string } | undefined;
-      if (!ingress) throw new MessagingError('source-unavailable');
-      const owner = JSON.parse(ingress.body) as MessagingGrant;
-      if (
-        owner.botSlug === botSlug ||
-        owner.providerId !== value.providerId ||
-        source.platform !== value.platform ||
-        (source.event.conversation.kind !== 'group' &&
-          !(source.platform === 'weixin' && source.event.conversation.kind === 'dm')) ||
-        !source.localChannelId
-      )
-        throw new MessagingError('source-unavailable');
-    }
-    return source;
-  };
-  const qualifyReply = async (
-    botSlug: string,
-    sourceEventId: string,
-    value: MessagingGrant,
-    entry: Awaited<ReturnType<typeof check>>,
-    signal: AbortSignal,
-  ) => {
-    const source = sourceForReply(botSlug, sourceEventId, value);
-    if (source.grantId === value.id) return source.event.reply;
-    if (
-      entry.inspected.target.receiveScope?.conversationId !== source.event.conversation.id ||
-      !entry.provider.qualifyReply ||
-      !entry.provider.reply
-    )
-      throw new MessagingError('capability-unavailable');
-    await inbound.ensureReplyConsumer(botSlug, value.id, signal);
-    const route = await entry.provider.qualifyReply({
-      accountRef: value.accountRef,
-      fingerprint: value.fingerprint,
-      route: source.event.reply,
-      signal,
-    });
-    signal.throwIfAborted();
-    current(value.providerId, entry.token);
-    sourceForReply(botSlug, sourceEventId, value);
-    if (
-      !route.actorId ||
-      route.actorId.length > 512 ||
-      route.messageId !== source.event.reply.messageId ||
-      route.conversationId !== source.event.reply.conversationId ||
-      route.threadId !== source.event.reply.threadId ||
-      route.rootId !== source.event.reply.rootId ||
-      route.parentId !== source.event.reply.parentId
-    )
-      throw new MessagingError('stale-route');
-    return route;
-  };
+  const {
+    sourceForReply,
+    qualifyReply,
+    routedReply,
+    methods: outboundReplies,
+  } = createOutboundReplies({
+    inbound,
+    database,
+    check,
+    current,
+    get service() {
+      return service;
+    },
+    get feedback() {
+      return feedback;
+    },
+    provider,
+    bounded,
+    privateNotices,
+  });
   const channelMedia = options.attachments
     ? createChannelMediaAccess({
         database,
@@ -1386,83 +497,95 @@ export function createOutboundMessaging(options: {
       };
     },
   });
-  async function routedReply(
-    botSlug: string,
-    sourceEventId: string,
-    text: string,
-    noticeId?: string,
-    messageKey?: string,
-  ): Promise<OutboxIntent> {
-    if (noticeId === undefined && PRIVATE_REFERENCE_IN_TEXT.test(text))
-      throw new MessagingError('private-reference-not-deliverable');
-    let source: ExternalSource;
-    try {
-      source = inbound.readShared(botSlug, sourceEventId);
-    } catch (error) {
-      if (error instanceof MessagingError && error.code === 'channel-unavailable')
-        throw new MessagingError('source-unavailable');
-      throw error;
-    }
-    const ingress = database.read((db) =>
-      db.prepare('SELECT bot_slug FROM messaging_grants WHERE id = ?').get(source.grantId),
-    ) as { bot_slug: string } | undefined;
-    if (ingress?.bot_slug === botSlug) {
-      const result = await service.send(
-        botSlug,
-        source.grantId,
-        noticeId ?? (messageKey === undefined ? 'reply-' + sourceEventId : 'message-' + messageKey),
-        text,
-        sourceEventId,
-      );
-      if (noticeId === undefined && result.state === 'provider-accepted')
-        feedback.notify(botSlug, sourceEventId, 'answered', result.id);
-      return result;
-    }
-    const rows = database.read((db) =>
-      db.prepare('SELECT body FROM messaging_grants WHERE bot_slug = ?').all(botSlug),
-    ) as { body: string }[];
-    const matches: MessagingGrant[] = [];
-    for (const row of rows) {
-      const value = JSON.parse(row.body) as MessagingGrant;
-      if (
-        value.platform !== source.platform ||
-        value.revokedAt ||
-        value.suspendedReason ||
-        (value.receiveScope !== undefined &&
-          value.receiveScope.conversationId !== source.event.conversation.id)
-      )
-        continue;
-      sourceForReply(botSlug, sourceEventId, value);
-      if (value.origin !== 'implicit') {
-        const registered = provider(value.providerId);
-        const targets = await bounded(registered.provider.targets(value.accountRef));
-        current(value.providerId, registered.token);
-        if (
-          !targets.some(
-            (target) =>
-              target.ref === value.targetRef &&
-              target.receiveScope?.conversationId === source.event.conversation.id,
-          )
-        )
-          continue;
-      }
-      const entry = await check(value);
-      if (entry.inspected.target.receiveScope?.conversationId === source.event.conversation.id)
-        matches.push(value);
-    }
-    if (matches.length !== 1)
-      throw new MessagingError(
-        matches.length ? 'reply-target-ambiguous' : 'own-reply-grant-unavailable',
-      );
-    const requestId =
-      noticeId ??
-      (messageKey === undefined ? undefined : 'message-' + messageKey) ??
-      'reply-' +
-        createHash('sha256')
-          .update(JSON.stringify([botSlug, sourceEventId]))
-          .digest('hex');
-    return service.send(botSlug, matches[0]!.id, requestId, text, sourceEventId);
-  }
+  const delivery = createOutboundDelivery({
+    active,
+    postRequest,
+    enabledBinding,
+    provider,
+    bounded,
+    database,
+    get service() {
+      return service;
+    },
+    transaction,
+    current,
+    now,
+    inbound,
+    grant,
+    savedDmGrant,
+    forwardingFences,
+    readIntent,
+    sourceForReply,
+    check,
+    qualifyReply,
+    options,
+    assertConversationAllowed,
+    forwardingSources,
+    mirrorChoice,
+    privateNotices,
+    privateReplies,
+    privateReplyKey,
+    checkPostLimit,
+    inFlight,
+    binding,
+    settle,
+    prepareOutboxIntentInsert,
+    prepareOutboxStateUpdate,
+  });
+  const outboundMedia = createOutboundMedia({
+    channelMedia,
+    options,
+    inbound,
+    grant,
+    check,
+    inFlight,
+    current,
+    transaction,
+    get service() {
+      return service;
+    },
+  });
+  const outboundConversations = createOutboundConversations({
+    active,
+    transaction,
+    options,
+    pairingCards,
+    binding,
+    pairing,
+    inbound,
+    database,
+    grant,
+    now,
+    revokePendingIntents,
+    inFlight,
+  });
+  const outboundSnapshot = createOutboundSnapshot({
+    database,
+    get service() {
+      return service;
+    },
+    providers,
+    bounded,
+    current,
+    binding,
+    inspectIdentity,
+    inbound,
+    typing,
+    check,
+    grant,
+    options,
+    history,
+    now,
+    get closed() {
+      return closed;
+    },
+    receptionHostId,
+    transaction,
+    pairing,
+    approvals,
+    questions,
+    failureAlerts,
+  });
 
   const service: OutboundMessaging = {
     questions,
@@ -1484,633 +607,20 @@ export function createOutboundMessaging(options: {
     beginProcessing: (botSlug, sourceEventIds) => typing.begin(botSlug, sourceEventIds),
     inbound,
     pairing,
-    senderAccess(botSlug, input) {
-      active(botSlug);
-      transaction((db) => changeSenderAccess(db, botSlug, input), ['pairing', 'bot-inbox']);
-      options.onAuthorizationChanged?.(botSlug);
-      pairingCards.refresh(botSlug);
-    },
-    toolRuleCreatorAuthorized(botSlug, creator) {
-      try {
-        active(botSlug);
-        const identity = binding(creator.bindingId);
-        if (
-          identity.botSlug !== botSlug ||
-          identity.platform !== 'feishu' ||
-          identity.fingerprint !== creator.fingerprint ||
-          !identity.enabled ||
-          identity.revokedAt
-        )
-          return false;
-        pairing.assert(botSlug, creator.bindingId, creator.actorId, 'approve', creator.pairingId);
-        pairing.assert(
-          botSlug,
-          creator.bindingId,
-          creator.actorId,
-          'save-rules',
-          creator.pairingId,
-        );
-        return true;
-      } catch (error) {
-        if (!(error instanceof MessagingError)) throw error;
-        return false;
-      }
-    },
-    senderPermissions(botSlug, sourceEventId) {
-      active(botSlug);
-      if (typeof sourceEventId !== 'string' || !sourceEventId || sourceEventId.length > 200)
-        throw new MessagingError('source-unavailable');
-      const source = inbound.readShared(botSlug, sourceEventId);
-      return database.read((db) => {
-        if (source.ingestId) {
-          let ingest;
-          try {
-            ingest = readIngest(db, source.ingestId);
-          } catch (error) {
-            if (!(error instanceof MessagingError)) throw error;
-            return {
-              queriedAt: new Date().toISOString(),
-              status: 'unavailable',
-              reason: 'source-unavailable',
-            };
-          }
-          if (
-            !db
-              .prepare(
-                'SELECT 1 FROM channel_placements WHERE source_event_id = ? AND channel_id = ?',
-              )
-              .get(source.id, ingest.channelId)
-          )
-            return {
-              queriedAt: new Date().toISOString(),
-              status: 'unavailable',
-              reason: 'source-unavailable',
-            };
-          return readSourceSenderPermissions(db, botSlug, source.event, new Date(), {
-            ingest,
-            bindingId: source.ingressBindingId,
-          });
-        }
-        const sourceGrant = db
-          .prepare('SELECT body FROM messaging_grants WHERE id = ?')
-          .get(source.grantId) as { body: string } | undefined;
-        const authority = sourceGrant
-          ? (JSON.parse(sourceGrant.body) as MessagingGrant)
-          : undefined;
-        return readSourceSenderPermissions(db, botSlug, source.event, new Date(), authority);
-      });
-    },
-    directory(botSlug, query) {
-      active(botSlug);
-      return createMessagingDirectory(database, inbound.readShared)(botSlug, query);
-    },
-    async reviewPairing(botSlug, input) {
-      const request = pairing.review(botSlug, input);
-      pairingCards.refresh(botSlug);
-      await inbound.notifyPairing(request);
-      return pairing.list(botSlug).find((item) => item.id === request.id)!;
-    },
-    defaults<Platform extends string = 'feishu'>(platform?: Platform) {
-      return database.read((db) => messagingDefaults(db, platform));
-    },
-    async setDefaults(input) {
-      const prior = service.defaults(input.platform);
-      const value = transaction(
-        (db) => commitMessagingDefaults(db, input),
-        ['bindings', 'grants', 'channel', 'bot-inbox'],
-      );
-      const identities = database.read((db) =>
-        db
-          .prepare(
-            'SELECT id, bot_slug FROM messaging_bindings WHERE platform = ? AND enabled_inherited = 1 AND revoked_at IS NULL',
-          )
-          .all(value.platform),
-      ) as { id: string; bot_slug: string }[];
-      if (prior.identityEnabled !== value.identityEnabled) {
-        for (const botSlug of new Set(identities.map((identity) => identity.bot_slug)))
-          options.onAuthorizationChanged?.(botSlug);
-        await Promise.allSettled(identities.map(({ id }) => bounded(inbound.reconcileBinding(id))));
-      }
-      if (prior.typingEnabled !== value.typingEnabled) {
-        const inherited = database.read((db) =>
-          db
-            .prepare(
-              'SELECT id FROM messaging_bindings WHERE platform = ? AND typing_inherited = 1 AND revoked_at IS NULL',
-            )
-            .all(value.platform),
-        ) as { id: string }[];
-        const ids = new Set(inherited.map(({ id }) => id));
-        typing.invalidate((candidate) => ids.has(candidate.bindingId));
-      }
-      options.onDefaultsChanged?.();
-      options.warn?.(
-        JSON.stringify({
-          event: 'messaging-defaults',
-          phase: 'committed',
-          initiator: 'human-settings',
-          revision: value.revision,
-          platform: value.platform,
-        }),
-      );
-      return value;
-    },
-    async identity(botSlug, input) {
-      active(botSlug);
-      if (input.kind === 'bind') {
-        const account = await inspectIdentity(input);
-        const bound = transaction(
-          (db) => {
-            active(botSlug);
-            current(input.providerId, account.token);
-            const prior = db
-              .prepare(
-                'SELECT id FROM messaging_bindings WHERE revoked_at IS NULL AND provider_id = ? AND (account_ref = ? OR fingerprint = ?)',
-              )
-              .get(input.providerId, input.accountRef, input.fingerprint);
-            if (prior) throw new MessagingError('binding-conflict');
-            const id = randomUUID();
-            db.prepare(
-              'INSERT INTO messaging_bindings (id, bot_slug, provider_id, platform, account_ref, fingerprint, created_at, display_name, enabled_inherited, typing_inherited) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            ).run(
-              id,
-              botSlug,
-              input.providerId,
-              account.platform,
-              input.accountRef,
-              input.fingerprint,
-              now(),
-              account.name,
-              messagingDefaultsPlatform.safeParse(account.platform).success ? 1 : 0,
-              account.platform === 'weixin' ? 1 : 0,
-            );
-            return readMessagingIdentity(db, id);
-          },
-          ['bindings'],
-        );
-        await bounded(inbound.reconcileBinding(bound.id));
-        if (bound.enabled) connectorEnabled(bound.platform);
-        return bound;
-      }
-      const value = binding(input.id);
-      if (value.botSlug !== botSlug || value.revokedAt)
-        throw new MessagingError('identity-unavailable');
-      if (value.revision !== input.expectedRevision) throw new MessagingError('identity-stale');
-      if (input.kind === 'update' && (!input.name.trim() || input.name.length > 120))
-        throw new MessagingError('invalid-input');
-      if (
-        input.kind === 'update' &&
-        (input.typingEnabled !== undefined || input.inheritTyping !== undefined) &&
-        value.platform !== 'weixin'
-      )
-        throw new MessagingError('invalid-input');
-      const scopes = database.read((db) =>
-        db
-          .prepare('SELECT body FROM messaging_grants WHERE binding_id = ? AND revoked_at IS NULL')
-          .all(value.id),
-      ) as { body: string }[];
-      const enabled =
-        input.kind === 'update'
-          ? input.inheritEnabled
-            ? service.defaults(value.platform).identityEnabled
-            : input.enabled
-          : input.kind === 'reconnect'
-            ? value.enabledInheritance === 'inherit'
-              ? service.defaults(value.platform).identityEnabled
-              : true
-            : false;
-      const validatedTokens = new Map<string, object>();
-      if (enabled) {
-        const account = await inspectIdentity(value);
-        validatedTokens.set(value.providerId, account.token);
-        if (account.platform !== value.platform) throw new MessagingError('rebind-required');
-        for (const row of scopes) {
-          const g = JSON.parse(row.body) as MessagingGrant;
-          if (g.origin === 'implicit') continue;
-          const entry = provider(g.providerId);
-          const checked = await bounded(entry.provider.inspect(g.accountRef, g.targetRef));
-          current(g.providerId, entry.token);
-          validatedTokens.set(g.providerId, entry.token);
-          if (
-            g.suspendedReason ||
-            checked.account.fingerprint !== value.fingerprint ||
-            !checked.account.connected ||
-            checked.target.digest !== g.targetDigest ||
-            checked.target.ref !== g.targetRef ||
-            checked.account.ref !== value.accountRef ||
-            checked.account.platform !== value.platform
-          )
-            throw new MessagingError('rebind-required');
-        }
-      }
-      const updated = transaction(
-        (db) => {
-          active(botSlug);
-          for (const [id, token] of validatedTokens) current(id, token);
-          const latest = readMessagingIdentity(db, value.id);
-          if (
-            input.kind === 'update' &&
-            input.expectedDefaultRevision !== undefined &&
-            input.expectedDefaultRevision !== latest.defaultRevision
-          )
-            throw new MessagingError('defaults-stale');
-          if (latest.revokedAt || latest.revision !== input.expectedRevision)
-            throw new MessagingError('identity-stale');
-          const currentScopes = db
-            .prepare(
-              'SELECT body FROM messaging_grants WHERE binding_id = ? AND revoked_at IS NULL',
-            )
-            .all(value.id) as { body: string }[];
-          if (enabled && JSON.stringify(currentScopes) !== JSON.stringify(scopes))
-            throw new MessagingError('identity-stale');
-          const at = now();
-          if (latest.platform === 'weixin' && enabled && !latest.enabled) {
-            db.prepare('UPDATE messaging_bindings SET receive_after = ? WHERE id = ?').run(
-              at,
-              value.id,
-            );
-            for (const row of currentScopes) {
-              const g = JSON.parse(row.body) as MessagingGrant;
-              db.prepare('UPDATE messaging_grants SET body = ? WHERE id = ?').run(
-                JSON.stringify({ ...g, receiveAfter: at }),
-                g.id,
-              );
-            }
-          }
-          db.prepare(
-            'UPDATE messaging_bindings SET revision = revision + 1, enabled = ?, display_name = ?, revoked_at = ?, enabled_inherited = ?, typing_enabled = ?, typing_inherited = ?, new_conversations = ?, new_conversations_inherited = ? WHERE id = ?',
-          ).run(
-            enabled ? 1 : 0,
-            input.kind === 'update' ? input.name.trim() : latest.name,
-            input.kind === 'unbind' ? at : null,
-            input.kind === 'update'
-              ? input.inheritEnabled
-                ? 1
-                : 0
-              : latest.enabledInheritance === 'inherit'
-                ? 1
-                : 0,
-            (input.kind === 'update'
-              ? (input.typingEnabled ?? latest.typingEnabled)
-              : latest.typingEnabled) === false
-              ? 0
-              : 1,
-            input.kind === 'update' && input.inheritTyping !== undefined
-              ? input.inheritTyping
-                ? 1
-                : 0
-              : input.kind === 'update' && input.typingEnabled !== undefined
-                ? 0
-                : latest.typingInheritance === 'inherit'
-                  ? 1
-                  : 0,
-            input.kind === 'update' &&
-              input.newConversations !== undefined &&
-              input.newConversations !== 'inherit'
-              ? input.newConversations
-              : (
-                  db
-                    .prepare('SELECT new_conversations FROM messaging_bindings WHERE id = ?')
-                    .get(value.id) as { new_conversations: string }
-                ).new_conversations,
-            input.kind === 'update' && input.newConversations !== undefined
-              ? input.newConversations === 'inherit'
-                ? 1
-                : 0
-              : latest.newConversationsInheritance === 'custom'
-                ? 0
-                : 1,
-            value.id,
-          );
-          if (input.kind === 'unbind') {
-            for (const row of scopes) {
-              const g = JSON.parse(row.body) as MessagingGrant;
-              db.prepare(
-                'UPDATE messaging_grants SET body = ?, revoked_at = ?, revision = ? WHERE id = ?',
-              ).run(
-                JSON.stringify({ ...g, revokedAt: at, revision: g.revision + 1 }),
-                at,
-                g.revision + 1,
-                g.id,
-              );
-            }
-          }
-          return readMessagingIdentity(db, value.id);
-        },
-        ['bindings', 'grants', 'bot-inbox'],
-      );
-      typing.invalidate((candidate) => candidate.bindingId === value.id);
-      options.onAuthorizationChanged?.(botSlug);
-      await bounded(inbound.reconcileBinding(value.id));
-      options.warn?.(
-        JSON.stringify({
-          event: 'messaging-identity',
-          phase: 'committed',
-          initiator: 'human-profile',
-          identityId: value.id,
-          revision: updated.revision,
-          enabled: updated.enabled,
-          operation: input.kind,
-        }),
-      );
-      if (updated.enabled && !value.enabled && !updated.revokedAt)
-        connectorEnabled(updated.platform);
-      return updated;
-    },
-    readChannelMedia(input) {
-      if (!channelMedia) throw new MessagingError('capability-unavailable');
-      return channelMedia(input);
-    },
-    async acquireFile(botSlug, sourceEventId, attachmentId, signal) {
-      if (options.attachments === undefined || !inbound.available(botSlug, sourceEventId))
-        throw new MessagingError('source-unavailable');
-      const source = inbound.read(botSlug, sourceEventId);
-      const attachment = source.event.attachments?.find((item) => item.id === attachmentId);
-      if (attachment === undefined) throw new MessagingError('attachment-unavailable');
-      const value = grant(botSlug, source.grantId);
-      const entry = await check(value);
-      if (entry.provider.readFile === undefined) throw new MessagingError('capability-unavailable');
-      const controller = new AbortController();
-      const combined = AbortSignal.any([
-        controller.signal,
-        AbortSignal.timeout(30000),
-        inbound.sourceSignal(botSlug, sourceEventId),
-        ...(signal === undefined ? [] : [signal]),
-      ]);
-      const key = 'file-' + randomUUID();
-      inFlight.set(key, {
-        providerId: value.providerId,
-        token: entry.token,
-        controller,
-        fileGrantId: value.id,
-      });
-      const validate = () => {
-        combined.throwIfAborted();
-        current(value.providerId, entry.token);
-        if (!inbound.available(botSlug, sourceEventId))
-          throw new MessagingError('source-unavailable');
-      };
-      const startedAt = Date.now();
-      options.warn?.(
-        JSON.stringify({
-          event: 'messaging-attachment',
-          phase: 'starting',
-          initiator: 'source-file-access',
-          sourceEventId,
-        }),
-      );
-      let abort: (() => void) | undefined;
-      try {
-        validate();
-        const uploadId = sourceMediaUploadId(
-          value.providerId,
-          value.fingerprint,
-          source.event.conversation.id,
-          attachment.id,
-        );
-        const interrupted = new Promise<never>((_, reject) => {
-          abort = () => reject(new MessagingError('transfer-cancelled'));
-          combined.addEventListener('abort', abort, { once: true });
-          if (combined.aborted) abort();
-        });
-        const ref = await Promise.race([
-          options.attachments.acquire({
-            uploadId,
-            name: attachment.name,
-            signal: combined,
-            load: async () => {
-              validate();
-              const data = await entry.provider.readFile!({
-                accountRef: value.accountRef,
-                fingerprint: value.fingerprint,
-                route: source.event.reply,
-                attachment,
-                signal: combined,
-              });
-              return (async function* () {
-                for await (const chunk of data) {
-                  validate();
-                  yield chunk;
-                }
-                validate();
-              })();
-            },
-          }),
-          interrupted,
-        ]);
-        validate();
-        transaction((db) =>
-          db
-            .prepare('INSERT OR IGNORE INTO messaging_managed_files VALUES (?, ?, ?)')
-            .run(sourceEventId, ref.fileId!, 'original'),
-        );
-        options.warn?.(
-          JSON.stringify({
-            event: 'messaging-attachment',
-            phase: 'completed',
-            sourceEventId,
-            durationMs: Date.now() - startedAt,
-            size: ref.size,
-          }),
-        );
-        return ref;
-      } catch (error) {
-        options.warn?.(
-          JSON.stringify({
-            event: 'messaging-attachment',
-            phase: 'refused',
-            sourceEventId,
-            durationMs: Date.now() - startedAt,
-            reason: error instanceof MessagingError ? error.code : 'transfer-unavailable',
-          }),
-        );
-        throw error;
-      } finally {
-        if (abort !== undefined) combined.removeEventListener('abort', abort);
-        inFlight.delete(key);
-        controller.abort();
-      }
-    },
-    async prepareAudio(botSlug, sourceEventId, attachmentId, signal) {
-      if (options.attachments === undefined || !inbound.available(botSlug, sourceEventId))
-        throw new MessagingError('source-unavailable');
-      const source = inbound.read(botSlug, sourceEventId);
-      if (
-        (source.platform !== 'weixin' &&
-          source.platform !== 'qq' &&
-          source.platform !== 'feishu') ||
-        !source.event.voice ||
-        !source.event.attachments?.some(
-          (file) => file.id === attachmentId && file.mediaType?.startsWith('audio/'),
-        )
-      )
-        throw new MessagingError('audio-codec-unsupported');
-      const combined = AbortSignal.any([
-        inbound.sourceSignal(botSlug, sourceEventId),
-        AbortSignal.timeout(15000),
-        ...(signal ? [signal] : []),
-      ]);
-      const validate = (): void => {
-        combined.throwIfAborted();
-        if (!inbound.available(botSlug, sourceEventId))
-          throw new MessagingError('source-unavailable');
-      };
-      const startedAt = Date.now();
-      try {
-        const original = await service.acquireFile(botSlug, sourceEventId, attachmentId, combined);
-        if (original.size > MAX_VOICE_INPUT_BYTES) throw new MessagingError('audio-too-large');
-        const downloaded = await options.attachments.download(
-          attachmentIdentity(original),
-          original.name,
-          combined,
-        );
-        const reader = downloaded.body.getReader();
-        const chunks: Uint8Array[] = [];
-        let size = 0;
-        try {
-          while (true) {
-            validate();
-            const chunk = await reader.read();
-            if (chunk.done) break;
-            size += chunk.value.length;
-            if (size > MAX_VOICE_INPUT_BYTES) throw new MessagingError('audio-too-large');
-            chunks.push(chunk.value);
-          }
-        } finally {
-          await reader.cancel().catch(() => undefined);
-          reader.releaseLock();
-        }
-        const bytes = new Uint8Array(size);
-        let offset = 0;
-        for (const chunk of chunks) {
-          bytes.set(chunk, offset);
-          offset += chunk.length;
-        }
-        validate();
-        const digest = createHash('sha256')
-          .update(bytes)
-          .update(
-            JSON.stringify([
-              sourceEventId,
-              attachmentId,
-              source.event.voice,
-              source.platform === 'qq'
-                ? 'qq-silk-wav-v1'
-                : source.platform === 'feishu'
-                  ? 'lark-opus-wav-v1'
-                  : 'silk-wav-v1',
-            ]),
-          )
-          .digest('hex')
-          .slice(0, 32);
-        const uploadId = [
-          digest.slice(0, 8),
-          digest.slice(8, 12),
-          '4' + digest.slice(13, 16),
-          '8' + digest.slice(17, 20),
-          digest.slice(20),
-        ].join('-');
-        const result = await options.attachments.acquire({
-          uploadId,
-          name: 'voice.wav',
-          signal: combined,
-          load: async () => {
-            const wav =
-              source.platform === 'qq'
-                ? await decodeQqVoice(bytes, combined)
-                : source.platform === 'feishu'
-                  ? await decodeLarkVoice(bytes, combined)
-                  : await decodeWeChatVoice(bytes, source.event.voice!, combined);
-            validate();
-            return (async function* () {
-              validate();
-              yield wav;
-              validate();
-            })();
-          },
-        });
-        validate();
-        transaction((db) =>
-          db
-            .prepare('INSERT OR IGNORE INTO messaging_managed_files VALUES (?, ?, ?)')
-            .run(sourceEventId, result.fileId!, 'voice.wav'),
-        );
-        await check(grant(botSlug, source.grantId));
-        validate();
-        options.warn?.(
-          JSON.stringify({
-            event: 'messaging-audio',
-            phase: 'completed',
-            initiator: 'source-audio-access',
-            sourceEventId,
-            durationMs: Date.now() - startedAt,
-            size: result.size,
-          }),
-        );
-        return result;
-      } catch (error) {
-        options.warn?.(
-          JSON.stringify({
-            event: 'messaging-audio',
-            phase: 'refused',
-            initiator: 'source-audio-access',
-            sourceEventId,
-            durationMs: Date.now() - startedAt,
-            reason: error instanceof MessagingError ? error.code : 'audio-unavailable',
-          }),
-        );
-        throw error;
-      }
-    },
-    async replyFile(botSlug, sourceEventId, file, messageKey) {
-      if (!inbound.available(botSlug, sourceEventId))
-        throw new MessagingError('source-unavailable');
-      const source = inbound.read(botSlug, sourceEventId);
-      const result = await service.send(
-        botSlug,
-        source.grantId,
-        messageKey === undefined ? 'reply-' + sourceEventId : 'message-' + messageKey,
-        'File reply: ' + file.name,
-        sourceEventId,
-        file,
-      );
-      if (result.state === 'provider-accepted')
-        feedback.notify(botSlug, sourceEventId, 'answered', result.id);
-      return result;
-    },
-    reply: (botSlug, sourceEventId, text, messageKey) =>
-      routedReply(botSlug, sourceEventId, text, undefined, messageKey),
-    async privateInputNotice(botSlug, sourceEventId, requestId, webUrl, authority) {
-      if (!/^[0-9a-f-]{36}$/.test(requestId)) throw new MessagingError('source-unavailable');
-      if (authority.signal.aborted || !authority.current())
-        throw new MessagingError('source-unavailable');
-      const url = webUrl === undefined ? undefined : new URL(webUrl);
-      if (
-        url !== undefined &&
-        (!['http:', 'https:'].includes(url.protocol) ||
-          url.username ||
-          url.password ||
-          url.search ||
-          !url.hash.startsWith('#botharness-private-input='))
-      )
-        throw new MessagingError('source-unavailable');
-      const noticeId = 'private-input-' + requestId;
-      privateNotices.set(noticeId, authority);
-      try {
-        const result = await routedReply(
-          botSlug,
-          sourceEventId,
-          url === undefined
-            ? "Owner action needed. Open this Bot's Chat in Web Chat or the app and fill in the private input card there. Do not send private values here."
-            : 'Owner action needed. Open the private input card in Web Chat. Do not send private values here.\n' +
-                url.href,
-          noticeId,
-        );
-        if (result.state !== 'provider-accepted') throw new MessagingError('source-unavailable');
-        return result;
-      } finally {
-        if (privateNotices.get(noticeId) === authority) privateNotices.delete(noticeId);
-      }
-    },
+    senderAccess: outboundConversations.senderAccess,
+    toolRuleCreatorAuthorized: outboundConversations.toolRuleCreatorAuthorized,
+    senderPermissions: outboundConversations.senderPermissions,
+    directory: outboundConversations.directory,
+    reviewPairing: outboundConversations.reviewPairing,
+    defaults: outboundBinding.defaults,
+    setDefaults: outboundBinding.setDefaults,
+    identity: outboundBinding.identity,
+    readChannelMedia: outboundMedia.readChannelMedia,
+    acquireFile: outboundMedia.acquireFile,
+    prepareAudio: outboundMedia.prepareAudio,
+    replyFile: outboundReplies.replyFile,
+    reply: outboundReplies.reply,
+    privateInputNotice: outboundReplies.privateInputNotice,
     register(value) {
       if (closed) throw new MessagingError('provider-unavailable');
       const token = {};
@@ -2133,1372 +643,25 @@ export function createOutboundMessaging(options: {
           if (attempt.token === token) attempt.controller.abort();
       };
     },
-    async setPostLimit(botSlug, bindingId, expectedRevision, limit) {
-      if (limit !== null && (!Number.isSafeInteger(limit) || limit < 1 || limit > 10000))
-        throw new MessagingError('bad-request');
-      transaction(
-        (db) => {
-          active(botSlug);
-          const identity = enabledBinding(bindingId);
-          if (identity.botSlug !== botSlug) throw new MessagingError('identity-unavailable');
-          if (identity.postLimitRevision !== expectedRevision)
-            throw new MessagingError('identity-changed');
-          db.prepare(
-            'UPDATE messaging_bindings SET post_limit = ?, post_limit_revision = post_limit_revision + 1 WHERE id = ?',
-          ).run(limit, bindingId);
-        },
-        ['bindings'],
-      );
-      return binding(bindingId);
-    },
-    async reachable(botSlug, bindingId, cursor) {
-      active(botSlug);
-      const identity = enabledBinding(bindingId);
-      if (identity.botSlug !== botSlug) throw new MessagingError('identity-unavailable');
-      const entry = provider(identity.providerId);
-      if (!entry.provider.reachable || !entry.provider.postConversation)
-        throw new MessagingError('capability-unavailable');
-      const page = await bounded(
-        entry.provider.reachable({
-          accountRef: identity.accountRef,
-          fingerprint: identity.fingerprint,
-          signal: AbortSignal.timeout(options.timeoutMs ?? 15000),
-          ...(cursor ? { cursor } : {}),
-        }),
-      );
-      active(botSlug);
-      current(identity.providerId, entry.token);
-      enabledBinding(bindingId, identity.revision);
-      return page;
-    },
-    async postConversation(botSlug, bindingId, conversationId, requestId, text) {
-      active(botSlug);
-      const prior = postRequest(botSlug, bindingId, conversationId, requestId, text);
-      if (prior) return prior;
-      const identity = enabledBinding(bindingId);
-      if (identity.botSlug !== botSlug) throw new MessagingError('identity-unavailable');
-      const entry = provider(identity.providerId);
-      if (!entry.provider.reachable || !entry.provider.postConversation)
-        throw new MessagingError('capability-unavailable');
-      const targets = await bounded(entry.provider.targets(identity.accountRef));
-      const matching = targets.filter(
-        (target) => target.receiveScope?.conversationId === conversationId,
-      );
-      const findExisting = (db: DatabaseSync) => {
-        const rows = db
-          .prepare('SELECT body FROM messaging_grants WHERE binding_id = ? AND revoked_at IS NULL')
-          .all(bindingId) as { body: string }[];
-        return rows
-          .map((row) =>
-            database.read((db) => effectiveDmControls(db, JSON.parse(row.body) as MessagingGrant)),
-          )
-          .find(
-            (value) =>
-              (value.receiveScope?.kind === 'group' &&
-                value.receiveScope.conversationId === conversationId) ||
-              (value.origin !== 'implicit' &&
-                matching.some(
-                  (target) =>
-                    target.ref === value.targetRef && target.digest === value.targetDigest,
-                )),
-          );
-      };
-      const existing = database.read(findExisting);
-      if (existing) return service.post(botSlug, existing.id, requestId, text);
-      let found: MessagingReachablePage['conversations'][number] | undefined;
-      let cursor: string | undefined;
-      const seen = new Set<string>();
-      do {
-        const page = await service.reachable(botSlug, bindingId, cursor);
-        found = page.conversations.find((value) => value.id === conversationId);
-        if (found || !page.hasMore) break;
-        if (!page.cursor || seen.has(page.cursor) || seen.size >= 20)
-          throw new MessagingError('provider-unavailable');
-        cursor = page.cursor;
-        seen.add(cursor);
-      } while (!found);
-      if (!found) throw new MessagingError('send-permission-denied');
-      const conversation = { kind: 'group' as const, id: conversationId };
-      const created = transaction(
-        (db) => {
-          active(botSlug);
-          current(identity.providerId, entry.token);
-          enabledBinding(bindingId, identity.revision);
-          if (readBlock(db, botSlug, identity.fingerprint, conversation))
-            throw new MessagingError('grant-revoked');
-          const repeated = findExisting(db);
-          if (repeated) return repeated.id;
-          if (admissionBound(db, bindingId, new Date(now())) === 'active-limit')
-            throw new MessagingError('conversation-limit');
-          const at = now();
-          const value: MessagingGrant = {
-            id: randomUUID(),
-            bindingId,
-            botSlug,
-            providerId: identity.providerId,
-            platform: identity.platform,
-            accountRef: identity.accountRef,
-            accountName: identity.name,
-            fingerprint: identity.fingerprint,
-            targetRef: '',
-            targetDigest: '',
-            targetName: found!.name,
-            revision: 1,
-            createdAt: at,
-            receiveAfter: at,
-            receiveScope: { kind: 'group', conversationId },
-            origin: 'implicit',
-          };
-          db.prepare(
-            'INSERT INTO messaging_grants (id, binding_id, bot_slug, revision, created_at, body) VALUES (?, ?, ?, ?, ?, ?)',
-          ).run(value.id, bindingId, botSlug, 1, at, JSON.stringify(value));
-          initializeGroupReceptionPolicy(db, value.id);
-          removeHeld(db, bindingId, conversation);
-          return value.id;
-        },
-        ['grants'],
-      );
-      inbound.startEntry(created);
-      return service.post(botSlug, created, requestId, text);
-    },
-    postRequest(botSlug, bindingId, conversationId, requestId, text) {
-      active(botSlug);
-      return postRequest(botSlug, bindingId, conversationId, requestId, text);
-    },
-    async post(botSlug, grantId, requestId, text) {
-      const value = grant(botSlug, grantId);
-      if (value.origin === 'implicit' && value.receiveScope?.kind === 'dm') {
-        const saved = await savedDmGrant(value);
-        if (saved === undefined) throw new MessagingError('capability-unavailable');
-        return service.post(botSlug, saved, requestId, text);
-      }
-      if (
-        value.origin === 'implicit'
-          ? provider(value.providerId).provider.postConversation === undefined
-          : provider(value.providerId).provider.post === undefined &&
-            provider(value.providerId).provider.postConversation === undefined
-      )
-        throw new MessagingError('capability-unavailable');
-      return service.send(botSlug, grantId, requestId, text, undefined, undefined, true);
-    },
+    setPostLimit: outboundBinding.setPostLimit,
+    reachable: outboundBinding.reachable,
+    postConversation: delivery.postConversation,
+    postRequest: delivery.postRequest,
+    post: delivery.post,
     forwardWebDm,
-    inspectIntent(botSlug, intentId) {
-      const value = readIntent(intentId);
-      if (value.botSlug !== botSlug) throw new MessagingError('intent-unavailable');
-      const { requestId: _request, payloadHash: _hash, ...intent } = value;
-      return intent;
-    },
+    inspectIntent: outboxStoreMethods.inspectIntent,
     history,
-    async channelBridges(channelId, mode) {
-      const channel = database.read((db) => humanBridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId));
-      const snapshots = await Promise.all(
-        channel.members.map((slug) => service.snapshot(slug, mode)),
-      );
-      const current = database.read((db) => humanBridgeChannel(OWNER_HUMAN_CONTEXT, db, channelId));
-      const grants = snapshots.flatMap((snapshot, index) =>
-        current.members.includes(channel.members[index]!)
-          ? snapshot.grants.filter(
-              (grant) => grant.platform === 'weixin' || grant.receiveScope?.kind !== 'dm',
-            )
-          : [],
-      );
-      const source = (g: MessagingSnapshot['grants'][number]) => ({
-        grantId: g.id,
-        grantRevision: g.revision,
-        dmMirror: g.dmMirror === true,
-        dmForward: g.dmForward === true,
-        dmForwardAvailable: grants.some(
-          (other) =>
-            other.botSlug === g.botSlug &&
-            other.bindingId === g.bindingId &&
-            other.platform === 'weixin' &&
-            other.canPost === true &&
-            other.postConversationId === g.receiveScope?.conversationId,
-        ),
-        botSlug: g.botSlug,
-        platform: g.platform,
-        accountName: g.accountName,
-        conversationName: g.targetName,
-        ordinaryDelivery: g.ordinaryDelivery ?? ('unverified' as const),
-        defaultRevision: service.defaults(g.platform).revision,
-      });
-      return {
-        channelId,
-        ...(mode
-          ? { checks: mode === 'saved' ? ('pending' as const) : ('complete' as const) }
-          : {}),
-        canTargetInbox: current.type === 'dm',
-        receptionNeedsAttention: snapshots.some(
-          (snapshot, index) =>
-            current.members.includes(channel.members[index]!) &&
-            (snapshot.grants.some(
-              (grant) =>
-                grant.receiveScope &&
-                !grant.revokedAt &&
-                !grant.suspendedReason &&
-                grant.recovery?.kind === 'action-required',
-            ) ||
-              snapshot.identities?.some(
-                (identity) =>
-                  identity.enabled &&
-                  !identity.revokedAt &&
-                  (identity.recovery?.kind === 'action-required' ||
-                    identity.availability === 'rebind-required'),
-              )),
-        ),
-        bridges: grants.flatMap((g) =>
-          channelBridgeRoutes(g)
-            .filter(
-              (route) =>
-                route.channelId === channelId ||
-                (current.type === 'dm' && route.channelId === null && g.origin !== 'implicit'),
-            )
-            .map((route) => ({
-              ...source(g),
-              ...route,
-              routeId: route.id,
-              delivery: route.channelId === null ? ('inbox' as const) : ('channel' as const),
-              collection:
-                route.collectionInheritance === 'inherit'
-                  ? service.defaults(g.platform).collection
-                  : route.collection,
-              defaultRevision: service.defaults(g.platform).revision,
-              availability: g.availability,
-              reception: route.enabled ? g.reception : ('off' as const),
-              ...(route.enabled && g.recovery ? { recovery: g.recovery } : {}),
-            })),
-        ),
-        sources: grants
-          .filter((g) => !g.revokedAt && g.availability === 'available' && g.canReceive)
-          .map(source),
-      };
-    },
-    deletionDependencies(botSlug) {
-      return database.read((db) => ({
-        identities: db
-          .prepare(
-            'SELECT id FROM messaging_bindings WHERE bot_slug = ? AND revoked_at IS NULL ORDER BY id',
-          )
-          .all(botSlug)
-          .map((row) => String(row['id'])),
-        grants: db
-          .prepare(
-            'SELECT id FROM messaging_grants WHERE bot_slug = ? AND revoked_at IS NULL ORDER BY id',
-          )
-          .all(botSlug)
-          .map((row) => String(row['id'])),
-      }));
-    },
-    async disableBot(botSlug) {
-      const dependencies = service.deletionDependencies(botSlug);
-      for (const id of dependencies.grants) service.revoke(botSlug, id);
-      database.transaction(
-        (db) => {
-          db.prepare(
-            'UPDATE messaging_bindings SET enabled = 0, enabled_inherited = 0, revision = revision + 1 WHERE bot_slug = ? AND revoked_at IS NULL',
-          ).run(botSlug);
-        },
-        ['bindings', 'grants', 'bot-inbox'],
-      );
-      options.onAuthorizationChanged?.(botSlug);
-      await Promise.all(dependencies.identities.map((id) => bounded(inbound.reconcileBinding(id))));
-    },
-    async apps() {
-      const accounts = (
-        await Promise.allSettled(
-          [...providers.values()].map(async (entry) =>
-            (await bounded(entry.provider.accounts())).map((account) => ({
-              ...account,
-              providerId: entry.provider.id,
-            })),
-          ),
-        )
-      ).flatMap((result) => (result.status === 'fulfilled' ? result.value : []));
-      const bindings = database.read((db) =>
-        db
-          .prepare(
-            'SELECT id, bot_slug, provider_id, account_ref, fingerprint FROM messaging_bindings WHERE revoked_at IS NULL',
-          )
-          .all(),
-      ) as {
-        id: string;
-        bot_slug: string;
-        provider_id: string;
-        account_ref: string;
-        fingerprint: string;
-      }[];
-      return accounts.map((account) => {
-        const bound = bindings.find(
-          (b) =>
-            b.provider_id === account.providerId &&
-            (b.account_ref === account.ref || b.fingerprint === account.fingerprint),
-        );
-        return bound ? { ...account, boundBotSlug: bound.bot_slug, bindingId: bound.id } : account;
-      });
-    },
-    async setups() {
-      return (
-        await Promise.allSettled(
-          [...providers.values()].map(async ({ provider }) => {
-            const setup = await bounded(provider.setup?.() ?? Promise.resolve(undefined));
-            return setup ? { ...setup, providerId: provider.id } : undefined;
-          }),
-        )
-      ).flatMap((result) => (result.status === 'fulfilled' && result.value ? [result.value] : []));
-    },
-    async snapshot(botSlug, mode) {
-      const reads = new Map<object, Map<string, Promise<MessagingAccount | undefined>>>();
-      const statusAccounts: MessagingApp[] = [];
-      const retained = new Map<object, string>();
-      const readAccount: AccountReader = (entry, ref) => {
-        retained.set(entry.token, entry.provider.id);
-        let byRef = reads.get(entry.token);
-        if (!byRef) {
-          byRef = new Map();
-          reads.set(entry.token, byRef);
-        }
-        const pending = byRef.get(ref);
-        if (pending) return pending;
-        const work = bounded(
-          entry.provider.inspectAccount
-            ? entry.provider.inspectAccount(ref)
-            : entry.provider
-                .accounts()
-                .then((rows) => rows.find((row) => row.ref === ref && !row.unsupported)),
-        ).then((account) => {
-          current(entry.provider.id, entry.token);
-          if (account) statusAccounts.push({ ...account, providerId: entry.provider.id });
-          return account;
-        });
-        byRef.set(ref, work);
-        return work;
-      };
-      const accounts: MessagingApp[] = mode ? [] : await service.apps();
-      const appSetups = mode ? [] : await service.setups();
-      const rows = database.read((db) =>
-        db
-          .prepare('SELECT body FROM messaging_grants WHERE bot_slug = ? ORDER BY created_at DESC')
-          .all(botSlug),
-      ) as unknown as { body: string }[];
-      const identityRows = database.read((db) =>
-        db
-          .prepare(
-            'SELECT id FROM messaging_bindings WHERE bot_slug = ? AND revoked_at IS NULL ORDER BY created_at',
-          )
-          .all(botSlug),
-      ) as { id: string }[];
-      const identities: MessagingIdentityView[] = await Promise.all(
-        identityRows.map(async ({ id }) => {
-          const value = binding(id);
-          let availability: MessagingIdentityView['availability'] = value.enabled
-            ? 'unavailable'
-            : 'paused';
-          if (value.enabled && mode !== 'saved') {
-            try {
-              await inspectIdentity(value, readAccount);
-              availability = 'available';
-            } catch (error) {
-              if (error instanceof MessagingError && error.code === 'rebind-required')
-                availability = 'rebind-required';
-            }
-          }
-          const latest = binding(id);
-          if (latest.revision !== value.revision)
-            availability = latest.enabled ? 'unavailable' : 'paused';
-          const recovery = inbound.pairingRecovery(id);
-          const scopes = rows
-            .map((r) => JSON.parse(r.body) as MessagingGrant)
-            .filter((g) => g.bindingId === id && !g.revokedAt);
-          return {
-            ...latest,
-            availability,
-            reception:
-              (mode === 'saved' && latest.enabled) || availability === 'available'
-                ? inbound.pairingReception(id)
-                : availability === 'paused'
-                  ? ('off' as const)
-                  : ('unavailable' as const),
-            ...(recovery ? { recovery } : {}),
-            grantCount: scopes.length,
-            scopes: scopes.map((g) => g.targetName),
-            ...(latest.platform === 'weixin'
-              ? {
-                  typing: {
-                    supported: (mode === 'status' ? statusAccounts : accounts).some(
-                      (account) =>
-                        account.providerId === latest.providerId &&
-                        account.ref === latest.accountRef &&
-                        account.fingerprint === latest.fingerprint &&
-                        account.typingSupported === true,
-                    ),
-                    ...typing.state(id),
-                  },
-                }
-              : {}),
-          };
-        }),
-      );
-      const grants = await Promise.all(
-        rows.map(async (row) => {
-          const value = database.read((db) =>
-            effectiveDmControls(db, JSON.parse(row.body) as MessagingGrant),
-          );
-          let availability: 'available' | 'unavailable' | 'rebind-required' = 'unavailable';
-          let canReceive = false;
-          let canPost = false;
-          let postConversationId: string | undefined;
-          if (value.revokedAt === undefined && mode !== 'saved') {
-            try {
-              const checked = await check(value, readAccount);
-              canPost =
-                checked.inspected.account.postSupported !== false &&
-                (value.origin === 'implicit'
-                  ? checked.provider.postConversation !== undefined &&
-                    checked.inspected.target.receiveScope?.kind === 'group'
-                  : checked.provider.post !== undefined ||
-                    checked.provider.postConversation !== undefined) &&
-                checked.inspected.target.receiveScope !== undefined;
-              if (canPost)
-                postConversationId = checked.inspected.target.receiveScope?.conversationId;
-              canReceive =
-                checked.provider.consume !== undefined &&
-                checked.provider.reply !== undefined &&
-                checked.inspected.target.receiveScope !== undefined;
-              availability = 'available';
-            } catch (error) {
-              if (error instanceof MessagingError && error.code === 'rebind-required')
-                availability = 'rebind-required';
-            }
-          }
-          const current = grant(botSlug, value.id);
-          const recovery = inbound.recovery(value.id);
-          const lastMessageAt =
-            current.origin === 'implicit' && mode !== 'saved'
-              ? (
-                  database.read((db) =>
-                    db
-                      .prepare(
-                        "SELECT max(created_at) AS at FROM source_events WHERE source_kind = 'bridge-message' AND json_extract(payload_json, '$.external.grantId') = ?",
-                      )
-                      .get(current.id),
-                  ) as { at: string | null }
-                ).at
-              : null;
-          return {
-            ...current,
-            ...(lastMessageAt ? { lastMessageAt } : {}),
-            availability,
-            reception: inbound.status(value.id),
-            ...(recovery ? { recovery } : {}),
-            canReceive,
-            canPost,
-            ...(postConversationId ? { postConversationId } : {}),
-            ...(current.revokedAt === undefined &&
-            !current.suspendedReason &&
-            options.isBotActive(botSlug) &&
-            current.receiveScope?.kind !== 'dm' &&
-            current.platform !== 'weixin'
-              ? {
-                  groupPolicy: inbound.policy(botSlug, value.id),
-                  threadPolicies: inbound.threads(botSlug, value.id),
-                  ordinaryDelivery: inbound.ordinaryDelivery(value.id),
-                }
-              : {}),
-          };
-        }),
-      );
-      const replaced = new Set(
-        [...retained]
-          .filter(([token, id]) => providers.get(id)?.token !== token)
-          .map(([, id]) => id),
-      );
-      for (const identity of identities)
-        if (replaced.has(identity.providerId)) {
-          identity.availability = identity.enabled ? 'unavailable' : 'paused';
-          identity.reception = identity.enabled ? 'unavailable' : 'off';
-          if (identity.typing) identity.typing.supported = false;
-        }
-      for (const grant of grants)
-        if (replaced.has(grant.providerId)) {
-          grant.availability = 'unavailable';
-          grant.reception = 'unavailable';
-          grant.canReceive = false;
-          grant.canPost = false;
-        }
-      for (let index = accounts.length - 1; index >= 0; index--)
-        if (replaced.has(accounts[index]!.providerId)) accounts.splice(index, 1);
-      if (mode === 'status')
-        accounts.push(
-          ...statusAccounts
-            .filter((account) => !replaced.has(account.providerId))
-            .map((account) => {
-              const identity = identities.find(
-                (row) => row.providerId === account.providerId && row.accountRef === account.ref,
-              );
-              return identity
-                ? { ...account, bindingId: identity.id, boundBotSlug: identity.botSlug }
-                : account;
-            }),
-        );
-      const channelTargets = database.read((db) => {
-        const rows = db.prepare('SELECT channel_id FROM channel_records').all() as {
-          channel_id: string;
-        }[];
-        return rows.flatMap(({ channel_id }) => {
-          try {
-            const channel = bridgeChannel(OWNER_HUMAN_CONTEXT, db, channel_id, botSlug, true);
-            return channel.type === 'group' ? [{ id: channel.id, name: channel.name }] : [];
-          } catch (error) {
-            if (error instanceof MessagingError) return [];
-            throw error;
-          }
-        });
-      });
-      const intents = history(botSlug);
-      const setupRows = database.read((db) =>
-        db
-          .prepare(`SELECT source_event_id FROM source_events
-          WHERE bot_slug = ? AND source_kind = 'bridge-message'
-          AND instr(body, '[BH-LARK-SETUP]') > 0
-          ORDER BY created_at DESC, source_event_id DESC LIMIT 20`)
-          .all(botSlug),
-      ) as { source_event_id: string }[];
-      const receipts: NonNullable<MessagingSnapshot['setup']>['receipts'] = [];
-      for (const row of setupRows) {
-        try {
-          const source = inbound.read(botSlug, row.source_event_id);
-          const current = grants.find((g) => g.id === source.grantId);
-          if (
-            source.platform !== 'feishu' ||
-            !source.event.mentionedAccount ||
-            current?.availability !== 'available' ||
-            current.revokedAt ||
-            current.reception !== 'receiving' ||
-            current.receiveScope?.conversationId !== source.event.conversation.id ||
-            !source.event.reply.threadId
-          )
-            continue;
-          const threadId = source.event.reply.threadId;
-          const setupReplies = database.read((db) =>
-            db
-              .prepare(`SELECT body FROM messaging_outbox
-                WHERE bot_slug = ?
-                  AND json_extract(body, '$.sourceEventId') = ?
-                  AND json_extract(body, '$.grantId') = ?
-                  AND json_extract(body, '$.reply.route.threadId') = ?
-                ORDER BY created_at DESC, id DESC`)
-              .all(botSlug, source.id, current.id, threadId),
-          ) as { body: string }[];
-          const candidate = setupReplies
-            .map(({ body }) => JSON.parse(body) as OutboxIntent)
-            .find((reply) => reply.text.trim() === 'LARK-SETUP-OK');
-          const intent =
-            candidate?.sourceEventId === source.id &&
-            candidate.grantId === current.id &&
-            candidate.reply?.route.threadId === source.event.reply.threadId &&
-            candidate.text.trim() === 'LARK-SETUP-OK'
-              ? candidate
-              : undefined;
-          receipts.push({
-            sourceEventId: source.id,
-            grantId: current.id,
-            messageId: source.event.messageId,
-            conversationId: source.event.conversation.id,
-            threadId: source.event.reply.threadId,
-            at: source.at,
-            ...(intent ? { replyState: intent.state } : {}),
-            ...(intent?.receipt?.conversationId === source.event.conversation.id
-              ? { replyMessageId: intent.receipt.messageId }
-              : {}),
-            echoObserved:
-              intent?.state === 'provider-accepted' &&
-              !!intent.echo &&
-              intent.receipt?.conversationId === source.event.conversation.id,
-          });
-        } catch (error) {
-          if (!(error instanceof MessagingError)) throw error;
-        }
-      }
-      const qqIdentities = identities.filter((identity) => identity.platform === 'qq');
-      const observedAt = now();
-      const observations =
-        closed || mode === 'saved'
-          ? []
-          : database.read((db) =>
-              qqIdentities.filter((identity) =>
-                receptionObservationDue(db, identity, receptionHostId, observedAt),
-              ),
-            );
-      if (observations.length)
-        transaction((db) => {
-          for (const identity of observations)
-            if (readMessagingIdentity(db, identity.id).revision === identity.revision)
-              observeReception(db, identity, receptionHostId, observedAt);
-        });
-      return {
-        ...(mode
-          ? { checks: mode === 'saved' ? ('pending' as const) : ('complete' as const) }
-          : {}),
-        ...(qqIdentities.length
-          ? { receptionHistory: database.read((db) => receptionHistory(db, botSlug)) }
-          : {}),
-        accounts,
-        appSetups,
-        feedback: database.read((db) =>
-          (
-            db
-              .prepare(`SELECT s.source_event_id, s.payload_json, g.binding_id
-          FROM source_events s JOIN inbox_admissions a USING(source_event_id)
-          JOIN messaging_grants g ON g.id = json_extract(s.payload_json, '$.external.grantId')
-          WHERE a.bot_slug = ? AND json_type(s.payload_json, '$.feedback') = 'object'
-          ORDER BY s.created_at DESC, s.source_event_id DESC LIMIT 30`)
-              .all(botSlug) as {
-              source_event_id: string;
-              payload_json: string;
-              binding_id: string;
-            }[]
-          ).map((row) => ({
-            sourceEventId: row.source_event_id,
-            bindingId: row.binding_id,
-            attempts: (JSON.parse(row.payload_json) as { feedback: SourceFeedback }).feedback,
-          })),
-        ),
-        identities,
-        roles: database.read((db) => externalUserRoles(db, botSlug)),
-        permissionGroups: database.read((db) => externalPermissionGroups(db, botSlug)),
-        behaviorPermissions: database.read((db) => behaviorPermissions(db, botSlug)),
-        senderPolicy: database.read((db) => readSenderPolicy(db, botSlug)),
-        pairings: pairing.list(botSlug),
-        approvals: approvals.snapshot(botSlug),
-        questions: questions.snapshot(botSlug),
-        failureAlerts: failureAlerts.snapshot(botSlug),
-        pairingReceivers: identities
-          .filter((i) => ['feishu', 'slack'].includes(i.platform) && !i.revokedAt)
-          .map((i) => ({ name: i.name, status: i.reception ?? 'unavailable' })),
-        grants,
-        heldConversations: database.read((db) =>
-          identities.flatMap((identity) => listHeld(db, identity.id)),
-        ),
-        blockedConversations: database
-          .read((db) => listBlocks(db, botSlug))
-          .map((block) => {
-            const owner = identities.find((identity) => identity.fingerprint === block.fingerprint);
-            return owner ? { ...block, bindingId: owner.id } : block;
-          }),
-        channelTargets,
-        intents,
-        setup: {
-          providerReady: [...providers.values()].some(
-            ({ provider }) =>
-              provider.id === 'dsh-im/feishu' && !!provider.consume && !!provider.reply,
-          ),
-          receipts,
-        },
-      };
-    },
-    async targets(providerId, accountRef) {
-      return provider(providerId).provider.targets(accountRef);
-    },
-    async authorize(input) {
-      active(input.botSlug);
-      const entry = provider(input.providerId);
-      const inspected = await entry.provider.inspect(input.accountRef, input.targetRef);
-      current(input.providerId, entry.token);
-      if (
-        inspected.account.ref !== input.accountRef ||
-        !inspected.account.connected ||
-        inspected.account.fingerprint !== input.fingerprint ||
-        inspected.target.ref !== input.targetRef ||
-        inspected.target.digest !== input.targetDigest
-      )
-        throw new MessagingError('rebind-required');
-      let createdBinding: string | undefined;
-      const authorized = transaction(
-        (db) => {
-          createdBinding = undefined;
-          active(input.botSlug);
-          const existing = db
-            .prepare(
-              'SELECT id FROM messaging_bindings WHERE revoked_at IS NULL AND provider_id = ? AND (account_ref = ? OR fingerprint = ?)',
-            )
-            .get(input.providerId, input.accountRef, input.fingerprint);
-          let reusable: MessagingIdentity | undefined;
-          if (existing !== undefined) {
-            reusable = readMessagingIdentity(db, (existing as { id: string }).id);
-            if (
-              reusable.botSlug !== input.botSlug ||
-              reusable.providerId !== input.providerId ||
-              reusable.accountRef !== input.accountRef ||
-              reusable.fingerprint !== input.fingerprint ||
-              !reusable.enabled
-            )
-              throw new MessagingError('binding-conflict');
-            const duplicate = db
-              .prepare(
-                "SELECT id FROM messaging_grants WHERE binding_id = ? AND revoked_at IS NULL AND json_extract(body, '$.targetRef') = ?",
-              )
-              .get(reusable.id, input.targetRef);
-            if (duplicate) throw new MessagingError('binding-conflict');
-          }
-          const at = now();
-          const bindingId = reusable?.id ?? randomUUID();
-          const id = randomUUID();
-          const value: MessagingGrant = {
-            ...input,
-            id,
-            bindingId,
-            accountName: inspected.account.name,
-            platform: inspected.account.platform,
-            targetName: inspected.target.name,
-            revision: 1,
-            createdAt: at,
-            origin: 'explicit',
-          };
-          if (!reusable)
-            db.prepare(
-              'INSERT INTO messaging_bindings (id, bot_slug, provider_id, platform, account_ref, fingerprint, created_at, display_name, enabled_inherited, typing_inherited) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-            ).run(
-              bindingId,
-              input.botSlug,
-              input.providerId,
-              value.platform,
-              input.accountRef,
-              value.fingerprint,
-              at,
-              inspected.account.name,
-              messagingDefaultsPlatform.safeParse(value.platform).success ? 1 : 0,
-              value.platform === 'weixin' ? 1 : 0,
-            );
-          if (!reusable && readMessagingIdentity(db, bindingId).enabled)
-            createdBinding = value.platform;
-          db.prepare(
-            'INSERT INTO messaging_grants (id, binding_id, bot_slug, revision, created_at, body) VALUES (?, ?, ?, ?, ?, ?)',
-          ).run(id, bindingId, input.botSlug, 1, at, JSON.stringify(value));
-          return value;
-        },
-        ['bindings', 'grants'],
-      );
-      if (createdBinding !== undefined) connectorEnabled(createdBinding);
-      return authorized;
-    },
-    revoke(botSlug, grantId) {
-      transaction(
-        (db) => {
-          const value = grant(botSlug, grantId);
-          if (value.revokedAt !== undefined) return;
-          const revokedAt = now();
-          db.prepare('UPDATE messaging_grants SET body = ?, revoked_at = ? WHERE id = ?').run(
-            JSON.stringify({ ...value, revokedAt }),
-            revokedAt,
-            grantId,
-          );
-
-          revokePendingIntents(db, grantId, revokedAt);
-        },
-        ['grants', 'bindings', 'outbox'],
-      );
-      inbound.revoke(grantId);
-      typing.invalidate((candidate) => candidate.grantId === grantId);
-      for (const attempt of inFlight.values())
-        if (attempt.fileGrantId === grantId) attempt.controller.abort();
-    },
-    async conversation(botSlug, input) {
-      active(botSlug);
-      if (input.kind === 'open-group') {
-        transaction(
-          (db) => {
-            const value = grant(botSlug, input.grantId);
-            const identity = assertMessagingIdentity(db, value.bindingId);
-            if (
-              value.revokedAt ||
-              value.suspendedReason ||
-              value.platform !== 'feishu' ||
-              value.receiveScope?.kind !== 'group' ||
-              identity.botSlug !== botSlug ||
-              !identity.enabled ||
-              readBlock(db, botSlug, value.fingerprint, {
-                kind: 'group',
-                id: value.receiveScope.conversationId,
-              })
-            )
-              throw new MessagingError('grant-unavailable');
-            if ((value.preferenceRevision ?? 0) !== input.expectedRevision)
-              throw new MessagingError('conversation-stale');
-            db.prepare('UPDATE messaging_grants SET body = ? WHERE id = ?').run(
-              JSON.stringify({
-                ...value,
-                openGroup: input.open,
-                openGroupAfter: now(),
-                preferenceRevision: input.expectedRevision + 1,
-              }),
-              value.id,
-            );
-            bumpSenderPolicy(db, botSlug);
-          },
-          ['grants'],
-        );
-        return;
-      }
-      if (input.kind === 'mute') {
-        transaction(
-          (db) => {
-            const value = grant(botSlug, input.grantId);
-            if (value.revokedAt !== undefined || !value.receiveScope)
-              throw new MessagingError('grant-revoked');
-            if ((value.preferenceRevision ?? 0) !== input.expectedRevision)
-              throw new MessagingError('conversation-stale');
-            const next: MessagingGrant = {
-              ...value,
-              muted: input.muted,
-              preferenceRevision: input.expectedRevision + 1,
-            };
-            db.prepare('UPDATE messaging_grants SET body = ? WHERE id = ?').run(
-              JSON.stringify(next),
-              value.id,
-            );
-          },
-          ['grants'],
-        );
-        inbound.startEntry(input.grantId);
-        return;
-      }
-      if (input.kind === 'block') {
-        transaction(
-          (db) => {
-            const value = grant(botSlug, input.grantId);
-            if (value.revokedAt !== undefined || !value.receiveScope)
-              throw new MessagingError('grant-revoked');
-            if (value.revision !== input.expectedRevision)
-              throw new MessagingError('conversation-stale');
-            const at = now();
-            const revision = value.revision + 1;
-            db.prepare(
-              'UPDATE messaging_grants SET body = ?, revoked_at = ?, revision = ? WHERE id = ?',
-            ).run(JSON.stringify({ ...value, revokedAt: at, revision }), at, revision, value.id);
-            revokePendingIntents(db, value.id, at);
-            const conversation = {
-              kind: value.receiveScope.kind,
-              id: value.receiveScope.conversationId,
-            };
-            writeBlock(db, {
-              botSlug,
-              fingerprint: value.fingerprint,
-              conversation,
-              name: value.targetName,
-              blockedAt: at,
-            });
-            removeHeld(db, value.bindingId, conversation);
-          },
-          ['grants', 'outbox'],
-        );
-        inbound.revoke(input.grantId);
-        for (const attempt of inFlight.values())
-          if (attempt.fileGrantId === input.grantId) attempt.controller.abort();
-        inbound.startEntry(input.grantId);
-        return;
-      }
-      const created = transaction(
-        (db) => {
-          const identity = readMessagingIdentity(db, input.bindingId);
-          if (identity.botSlug !== botSlug || identity.revokedAt)
-            throw new MessagingError('identity-unbound');
-          const held = readHeld(db, input.bindingId, input.conversation);
-          const blocked = readBlock(db, botSlug, identity.fingerprint, input.conversation);
-          if (input.kind === 'block-held') {
-            if (!held || held.revision !== input.expectedRevision)
-              throw new MessagingError('conversation-stale');
-            writeBlock(db, {
-              botSlug,
-              fingerprint: identity.fingerprint,
-              conversation: input.conversation,
-              name: held.name,
-              blockedAt: now(),
-            });
-            removeHeld(db, input.bindingId, input.conversation);
-            return undefined;
-          }
-          const source = input.from === 'held' ? held : blocked;
-          if (!source || source.revision !== input.expectedRevision)
-            throw new MessagingError('conversation-stale');
-          if (!identity.enabled) throw new MessagingError('identity-paused');
-          const existing = db
-            .prepare(
-              `SELECT 1 FROM messaging_grants WHERE binding_id = ? AND revoked_at IS NULL
-                AND json_extract(body, '$.receiveScope.kind') = ?
-                AND json_extract(body, '$.receiveScope.conversationId') = ?`,
-            )
-            .get(input.bindingId, input.conversation.kind, input.conversation.id);
-          if (existing) throw new MessagingError('conversation-stale');
-          if (admissionBound(db, input.bindingId, new Date(now())) === 'active-limit')
-            throw new MessagingError('conversation-limit');
-          const at = now();
-          const value: MessagingGrant = {
-            id: randomUUID(),
-            bindingId: identity.id,
-            botSlug,
-            providerId: identity.providerId,
-            accountRef: identity.accountRef,
-            accountName: identity.name,
-            fingerprint: identity.fingerprint,
-            platform: identity.platform,
-            targetRef: '',
-            targetName: source.name,
-            targetDigest: '',
-            revision: 1,
-            createdAt: at,
-            receiveAfter: at,
-            receiveScope: { kind: input.conversation.kind, conversationId: input.conversation.id },
-            origin: 'implicit',
-          };
-          db.prepare(
-            'INSERT INTO messaging_grants (id, binding_id, bot_slug, revision, created_at, body) VALUES (?, ?, ?, ?, ?, ?)',
-          ).run(value.id, value.bindingId, botSlug, 1, at, JSON.stringify(value));
-          if (input.conversation.kind === 'group') initializeGroupReceptionPolicy(db, value.id);
-          removeHeld(db, input.bindingId, input.conversation);
-          removeBlock(db, botSlug, identity.fingerprint, input.conversation);
-          return value.id;
-        },
-        ['grants', 'bindings'],
-      );
-      if (created !== undefined) inbound.startEntry(created);
-      else options.onReceptionChanged?.();
-    },
-    async send(botSlug, grantId, requestId, text, sourceEventId, file, report = false) {
-      const forwardingFence = forwardingFences.get(requestId);
-      forwardingFence?.();
-      active(botSlug);
-      if (
-        (report && (sourceEventId !== undefined || file !== undefined)) ||
-        (file !== undefined && sourceEventId === undefined) ||
-        !/^[A-Za-z0-9_-]{8,128}$/.test(requestId) ||
-        !text.trim() ||
-        text.length > 4000
-      )
-        throw new MessagingError('invalid-input');
-      const payloadHash = createHash('sha256')
-        .update(
-          file === undefined
-            ? sourceEventId === undefined
-              ? report
-                ? JSON.stringify(['report', text])
-                : text
-              : JSON.stringify([text, sourceEventId])
-            : JSON.stringify([text, sourceEventId, file]),
-        )
-        .digest('hex');
-      const duplicate = database.read((db) =>
-        db.prepare('SELECT id FROM messaging_outbox WHERE request_id = ?').get(requestId),
-      ) as { id: string } | undefined;
-      if (duplicate) {
-        const value = readIntent(duplicate.id);
-        if (
-          value.botSlug !== botSlug ||
-          value.grantId !== grantId ||
-          value.payloadHash !== payloadHash
-        )
-          throw new MessagingError('request-conflict');
-        return value;
-      }
-      const acceptedGrant = grant(botSlug, grantId);
-      const source =
-        sourceEventId === undefined
-          ? undefined
-          : sourceForReply(botSlug, sourceEventId, acceptedGrant);
-      if (file && source?.grantId !== grantId) throw new MessagingError('capability-unavailable');
-      if (acceptedGrant.origin === 'implicit' && source === undefined && !report)
-        throw new MessagingError('capability-unavailable');
-      const acceptedEntry = await check(acceptedGrant);
-      const acceptedIdentity = acceptedEntry.identityRevision;
-      const replyRoute =
-        sourceEventId !== undefined && file === undefined
-          ? await qualifyReply(
-              botSlug,
-              sourceEventId,
-              acceptedGrant,
-              acceptedEntry,
-              AbortSignal.timeout(options.timeoutMs ?? 15000),
-            )
-          : undefined;
-      const postScope = acceptedEntry.inspected.target.receiveScope;
-      const conversationId = postScope?.conversationId;
-      if (report && !conversationId) throw new MessagingError('capability-unavailable');
-      const id = transaction(
-        (db) => {
-          active(botSlug);
-          enabledBinding(acceptedGrant.bindingId, acceptedIdentity);
-          const currentGrant = grant(botSlug, grantId);
-          if (
-            currentGrant.revokedAt !== undefined ||
-            currentGrant.revision !== acceptedGrant.revision
-          )
-            throw new MessagingError('grant-revoked');
-          if (report) assertConversationAllowed(currentGrant, postScope);
-          if (sourceEventId !== undefined) sourceForReply(botSlug, sourceEventId, currentGrant);
-          const existing = db
-            .prepare('SELECT id FROM messaging_outbox WHERE request_id = ?')
-            .get(requestId) as { id: string } | undefined;
-          if (existing) return { id: existing.id, created: false };
-          const value: StoredIntent = {
-            id: randomUUID(),
-            botSlug,
-            grantId,
-            grantRevision: currentGrant.revision,
-            requestId,
-            payloadHash,
-            ...(forwardingSources.has(requestId)
-              ? { forwardSourceEventId: forwardingSources.get(requestId)! }
-              : {}),
-            ...(sourceEventId === undefined ? {} : { sourceEventId }),
-            ...(report
-              ? {
-                  report: {
-                    providerId: currentGrant.providerId,
-                    accountRef: currentGrant.accountRef,
-                    fingerprint: currentGrant.fingerprint,
-                    platform: currentGrant.platform,
-                    accountName: currentGrant.accountName,
-                    targetName: currentGrant.targetName,
-                    conversationId: conversationId!,
-                  },
-                }
-              : {}),
-            ...(replyRoute
-              ? {
-                  reply: {
-                    providerId: currentGrant.providerId,
-                    accountRef: currentGrant.accountRef,
-                    fingerprint: currentGrant.fingerprint,
-                    platform: currentGrant.platform,
-                    accountName: currentGrant.accountName,
-                    targetName: currentGrant.targetName,
-                    conversationId: replyRoute.conversationId,
-                    route: replyRoute,
-                  },
-                }
-              : {}),
-            ...(file === undefined ? {} : { file }),
-            text,
-            ...(!requestId.startsWith('web-mirror-')
-              ? {
-                  dmMirror: mirrorChoice(
-                    currentGrant,
-                    replyRoute?.conversationId ?? conversationId,
-                  ),
-                }
-              : {}),
-            state: 'pending',
-            createdAt: now(),
-          };
-          db.prepare(
-            'INSERT INTO messaging_outbox (id, bot_slug, grant_id, request_id, state, created_at, body) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          ).run(
-            value.id,
-            botSlug,
-            grantId,
-            requestId,
-            value.state,
-            value.createdAt,
-            JSON.stringify(value),
-          );
-          return { id: value.id, created: true };
-        },
-        ['outbox'],
-      );
-      if (!id.created) {
-        const value = readIntent(id.id);
-        if (
-          value.botSlug !== botSlug ||
-          value.grantId !== grantId ||
-          value.payloadHash !== payloadHash
-        )
-          throw new MessagingError('request-conflict');
-        return value;
-      }
-      const beganAt = Date.now();
-      let started = false;
-      let postFenceReason: string | undefined;
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const controller = new AbortController();
-      const noticeAuthority = privateNotices.get(requestId);
-      const privateAuthorities =
-        noticeAuthority !== undefined
-          ? [noticeAuthority]
-          : sourceEventId === undefined
-            ? []
-            : [...(privateReplies.get(privateReplyKey(botSlug, sourceEventId)) ?? [])];
-      const privateReplyCurrent = () =>
-        privateAuthorities.every((authority) => !authority.signal.aborted && authority.current());
-      const abortPrivateReply = () => controller.abort();
-      for (const authority of privateAuthorities)
-        authority.signal.addEventListener('abort', abortPrivateReply, { once: true });
-      try {
-        if (!privateReplyCurrent()) throw new MessagingError('source-unavailable');
-        const entry = await check(grant(botSlug, grantId));
-        transaction(
-          (db) => {
-            active(botSlug);
-            current(acceptedGrant.providerId, entry.token);
-            enabledBinding(acceptedGrant.bindingId, acceptedIdentity);
-            const value = grant(botSlug, grantId);
-            if (value.revokedAt !== undefined || value.revision !== acceptedGrant.revision)
-              throw new MessagingError('grant-revoked');
-            const intent = readIntent(id.id);
-            if (intent.state !== 'pending') throw new MessagingError('grant-revoked');
-            const at = now();
-            if (sourceEventId === undefined) checkPostLimit(db, acceptedGrant.bindingId);
-            db.prepare('UPDATE messaging_outbox SET state = ?, body = ? WHERE id = ?').run(
-              'in-flight',
-              JSON.stringify({ ...intent, state: 'in-flight' }),
-              id.id,
-            );
-            db.prepare(
-              'INSERT INTO messaging_outbox_attempts (intent_id, started_at, state) VALUES (?, ?, ?)',
-            ).run(id.id, at, 'in-flight');
-          },
-          ['outbox'],
-        );
-        if (sourceEventId !== undefined) sourceForReply(botSlug, sourceEventId, acceptedGrant);
-        started = true;
-        options.warn?.(
-          JSON.stringify({
-            event: 'messaging-outbox',
-            phase: 'starting',
-            initiator: report
-              ? 'bot-external-post'
-              : sourceEventId === undefined
-                ? 'human-profile'
-                : 'bot-source-reply',
-            intentId: id.id,
-          }),
-        );
-        inFlight.set(id.id, {
-          providerId: acceptedGrant.providerId,
-          token: entry.token,
-          controller,
-          ...(file === undefined ? {} : { fileGrantId: acceptedGrant.id }),
-        });
-        const interrupted = new Promise<never>((_, reject) => {
-          controller.signal.addEventListener(
-            'abort',
-            () => reject(new MessagingProviderError('provider-interrupted', 'unknown')),
-            { once: true },
-          );
-          timer = setTimeout(() => controller.abort(), options.timeoutMs ?? 15000);
-        });
-        const beforePost = () => {
-          try {
-            forwardingFence?.();
-            active(botSlug);
-            current(acceptedGrant.providerId, entry.token);
-            const latest = grant(botSlug, grantId);
-            const currentIdentity = binding(acceptedGrant.bindingId);
-            if (
-              latest.revokedAt ||
-              latest.revision !== acceptedGrant.revision ||
-              currentIdentity.revokedAt
-            )
-              throw new MessagingError('grant-revoked');
-            enabledBinding(acceptedGrant.bindingId, acceptedIdentity);
-            assertConversationAllowed(latest, postScope);
-            if (report) database.read((db) => checkPostLimit(db, acceptedGrant.bindingId, true));
-            return !controller.signal.aborted;
-          } catch (error) {
-            postFenceReason =
-              error instanceof MessagingError
-                ? error.code === 'conversation-blocked'
-                  ? 'grant-revoked'
-                  : error.code
-                : 'provider-unavailable';
-            return false;
-          }
-        };
-        const result = await Promise.race([
-          file !== undefined && sourceEventId !== undefined
-            ? (async () => {
-                if (entry.provider.replyFile === undefined || options.attachments === undefined)
-                  throw new MessagingProviderError('capability-unavailable', 'not-started');
-                const result = await replyFileBytes(options.attachments, file, controller.signal);
-                try {
-                  await check(grant(botSlug, grantId));
-                } catch (error) {
-                  throw new MessagingProviderError(
-                    error instanceof MessagingError ? error.code : 'grant-unavailable',
-                    'not-started',
-                  );
-                }
-                if (!inbound.available(botSlug, sourceEventId))
-                  throw new MessagingProviderError('source-unavailable', 'not-started');
-                return entry.provider.replyFile({
-                  accountRef: acceptedGrant.accountRef,
-                  fingerprint: acceptedGrant.fingerprint,
-                  route: inbound.read(botSlug, sourceEventId).event.reply,
-                  file: { id: id.id, ...result },
-                  signal: controller.signal,
-                  beforeSend: () => {
-                    try {
-                      active(botSlug);
-                      current(acceptedGrant.providerId, entry.token);
-                      enabledBinding(acceptedGrant.bindingId, acceptedIdentity);
-                      const latest = grant(botSlug, grantId);
-                      if (latest.revokedAt || latest.revision !== acceptedGrant.revision)
-                        return false;
-                      sourceForReply(botSlug, sourceEventId, latest);
-                      return !controller.signal.aborted;
-                    } catch {
-                      return false;
-                    }
-                  },
-                });
-              })()
-            : sourceEventId !== undefined
-              ? entry.provider.reply === undefined
-                ? Promise.reject(
-                    new MessagingProviderError('capability-unavailable', 'not-started'),
-                  )
-                : (async () => {
-                    let route: MessagingReplyRoute;
-                    try {
-                      route = await qualifyReply(
-                        botSlug,
-                        sourceEventId,
-                        acceptedGrant,
-                        entry,
-                        controller.signal,
-                      );
-                      await check(grant(botSlug, grantId));
-                      enabledBinding(acceptedGrant.bindingId, acceptedIdentity);
-                      const latest = grant(botSlug, grantId);
-                      if (latest.revokedAt || latest.revision !== acceptedGrant.revision)
-                        throw new MessagingError('grant-revoked');
-                      sourceForReply(botSlug, sourceEventId, latest);
-                      if (
-                        [
-                          'messageId',
-                          'conversationId',
-                          'actorId',
-                          'threadId',
-                          'rootId',
-                          'parentId',
-                        ].some((key) => Reflect.get(route, key) !== Reflect.get(replyRoute!, key))
-                      )
-                        throw new MessagingError('stale-route');
-                    } catch (error) {
-                      throw new MessagingProviderError(
-                        error instanceof MessagingError ? error.code : 'source-unavailable',
-                        'not-started',
-                      );
-                    }
-                    return entry.provider.reply!({
-                      operationId: id.id,
-                      accountRef: acceptedGrant.accountRef,
-                      fingerprint: acceptedGrant.fingerprint,
-                      route,
-                      text,
-                      signal: controller.signal,
-                      beforeSend: () => {
-                        try {
-                          if (!privateReplyCurrent()) return false;
-                          active(botSlug);
-                          current(acceptedGrant.providerId, entry.token);
-                          enabledBinding(acceptedGrant.bindingId, acceptedIdentity);
-                          const latest = grant(botSlug, grantId);
-                          if (latest.revokedAt || latest.revision !== acceptedGrant.revision)
-                            return false;
-                          sourceForReply(botSlug, sourceEventId, latest);
-                          return !controller.signal.aborted;
-                        } catch {
-                          return false;
-                        }
-                      },
-                    });
-                  })()
-              : report
-                ? entry.provider.postConversation !== undefined &&
-                  (acceptedGrant.origin === 'implicit' || entry.provider.post === undefined)
-                  ? entry.provider.postConversation({
-                      operationId: id.id,
-                      accountRef: acceptedGrant.accountRef,
-                      fingerprint: acceptedGrant.fingerprint,
-                      conversationId: conversationId!,
-                      text,
-                      signal: controller.signal,
-                      beforeSend: beforePost,
-                    })
-                  : entry.provider.post === undefined
-                    ? Promise.reject(
-                        new MessagingProviderError('capability-unavailable', 'not-started'),
-                      )
-                    : entry.provider.post({
-                        operationId: id.id,
-                        accountRef: acceptedGrant.accountRef,
-                        targetRef: acceptedGrant.targetRef,
-                        fingerprint: acceptedGrant.fingerprint,
-                        targetDigest: acceptedGrant.targetDigest,
-                        conversationId: conversationId!,
-                        text,
-                        signal: controller.signal,
-                        beforeSend: beforePost,
-                      })
-                : entry.provider.send({
-                    operationId: id.id,
-                    beforeSend: beforePost,
-                    accountRef: acceptedGrant.accountRef,
-                    targetRef: acceptedGrant.targetRef,
-                    fingerprint: acceptedGrant.fingerprint,
-                    targetDigest: acceptedGrant.targetDigest,
-                    text,
-                    signal: controller.signal,
-                  }),
-          interrupted,
-        ]);
-        if (result.accepted !== true)
-          throw new MessagingProviderError('provider-result-unknown', 'unknown');
-        const receipt = 'receipt' in result ? (result.receipt as MessagingReceipt) : undefined;
-        if (
-          (report || (source !== undefined && source.grantId !== grantId)) &&
-          (receipt?.version !== 1 ||
-            typeof receipt.messageId !== 'string' ||
-            !receipt.messageId ||
-            receipt.messageId.length > 512 ||
-            receipt.conversationId !== (replyRoute?.conversationId ?? conversationId!))
-        )
-          throw new MessagingProviderError('provider-result-unknown', 'unknown');
-        return settle(id.id, 'provider-accepted', undefined, receipt);
-      } catch (error) {
-        const definite =
-          !started ||
-          (error instanceof MessagingProviderError && error.disposition === 'not-started');
-        const reason =
-          definite && postFenceReason !== undefined
-            ? postFenceReason
-            : error instanceof MessagingError || error instanceof MessagingProviderError
-              ? error.code
-              : 'provider-result-unknown';
-        const state =
-          reason === 'grant-revoked' && (!started || (report && definite))
-            ? 'grant-revoked'
-            : definite
-              ? 'failed'
-              : 'unknown-outcome';
-        return settle(id.id, state, reason);
-      } finally {
-        for (const authority of privateAuthorities)
-          authority.signal.removeEventListener('abort', abortPrivateReply);
-        if (timer !== undefined) clearTimeout(timer);
-        inFlight.delete(id.id);
-        const value = readIntent(id.id);
-        options.warn?.(
-          JSON.stringify({
-            event: 'messaging-outbox',
-            intentId: id.id,
-            phase: 'settled',
-            durationMs: Date.now() - beganAt,
-            state: value.state,
-            reason: value.reason,
-          }),
-        );
-      }
-    },
+    channelBridges: outboundSnapshot.channelBridges,
+    deletionDependencies: outboundGrants.deletionDependencies,
+    disableBot: outboundGrants.disableBot,
+    apps: outboundSnapshot.apps,
+    setups: outboundSnapshot.setups,
+    snapshot: outboundSnapshot.snapshot,
+    targets: outboundBinding.targets,
+    authorize: outboundGrants.authorize,
+    revoke: outboundGrants.revoke,
+    conversation: outboundConversations.conversation,
+    send: delivery.send,
     close() {
       if (closed) return;
       try {
