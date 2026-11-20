@@ -486,7 +486,8 @@ it('distinguishes the next available model from the executing target', async () 
     target: { kind: 'engine', engine: 'claude', model: 'claude-opus-5-5', reasoningEffort: 'high' },
   });
   const running = items.find((item) => item.group === 'mixed');
-  expect(running).toMatchObject({ hintBrand: 'claude', tag: '外部引擎' });
+  expect(running).toMatchObject({ hintBrand: 'claude', hintExternal: true });
+  expect(running?.tag).toBeUndefined();
   expect(running?.hint).toMatch(/^当前：/u);
   expect(running?.hintLabel).toContain('Claude Code · high');
 });
