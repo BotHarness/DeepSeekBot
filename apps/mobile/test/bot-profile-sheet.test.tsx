@@ -337,16 +337,13 @@ describe('Bot profile page', () => {
     );
     expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(9);
     expect(view.querySelector('[data-testid="tilties-avatar-deepseek"]')).not.toBeNull();
-    await act(async () =>
-      view.querySelector<HTMLButtonElement>('[data-testid="tilties-collections"]')?.click(),
-    );
-    expect(view.querySelectorAll('[data-testid^="tilties-collection-"]')).toHaveLength(16);
-    await act(async () =>
-      view
-        .querySelector<HTMLButtonElement>('[data-testid="tilties-collection-star-rail-3"]')
-        ?.click(),
-    );
-    expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(9);
+    expect(view.querySelectorAll('[data-testid^="tilties-collection-"]')).toHaveLength(7);
+    const starRail = view.querySelector<HTMLButtonElement>(
+      '[data-testid="tilties-collection-star-rail"]',
+    )!;
+    expect(starRail.textContent).toBe('Star Rail');
+    await act(async () => starRail.click());
+    expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(27);
     expect(view.querySelector('[data-testid="tilties-avatar-deepseek"]')).toBeNull();
     await act(async () =>
       view

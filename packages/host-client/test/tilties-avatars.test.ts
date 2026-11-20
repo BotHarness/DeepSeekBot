@@ -14,24 +14,15 @@ describe('Tilties avatars', () => {
   const portraits = TILTIES_COLLECTIONS.flatMap((collection) => collection.portraits);
   const images = portraits.map(({ image }) => image);
 
-  it('ships 16 collections of nine distinct 512 px WebP portraits within their budgets', () => {
+  it('ships seven collections of distinct 512 px WebP portraits within their budgets', () => {
     expect(TILTIES_COLLECTIONS.map(({ id }) => id)).toEqual([
       'ai',
       'pioneers',
       'town',
       'fantasy',
-      'genshin-1',
-      'genshin-2',
-      'genshin-3',
-      'genshin-4',
-      'genshin-5',
-      'genshin-6',
-      'star-rail-1',
-      'star-rail-2',
-      'star-rail-3',
-      'wuthering-waves-1',
-      'wuthering-waves-2',
-      'wuthering-waves-3',
+      'genshin',
+      'star-rail',
+      'wuthering-waves',
     ]);
     expect(DEFAULT_TILTIES_COLLECTION).toBe('ai');
     expect(TILTIES_COLLECTIONS[0]?.portraits.map(({ id }) => id)).toEqual([
@@ -45,7 +36,9 @@ describe('Tilties avatars', () => {
       'grok',
       'mistral',
     ]);
-    expect(TILTIES_COLLECTIONS.map(({ portraits }) => portraits.length)).toEqual(Array(16).fill(9));
+    expect(TILTIES_COLLECTIONS.map(({ portraits }) => portraits.length)).toEqual([
+      9, 9, 9, 9, 54, 27, 27,
+    ]);
     expect(
       portraits
         .slice(0, 36)

@@ -1,8 +1,8 @@
 export const TILTIES_GAME_COLLECTIONS = [
   {
-    id: 'genshin-1',
-    en: 'Genshin Impact 1',
-    zh: '原神 1',
+    id: 'genshin',
+    en: 'Genshin Impact',
+    zh: '原神',
     names: [
       ['genshin-aether', 'Aether', '空'],
       ['genshin-lumine', 'Lumine', '荧'],
@@ -13,13 +13,6 @@ export const TILTIES_GAME_COLLECTIONS = [
       ['genshin-furina', 'Furina', '芙宁娜'],
       ['genshin-mavuika', 'Mavuika', '玛薇卡'],
       ['genshin-columbina', 'Columbina', '哥伦比娅'],
-    ],
-  },
-  {
-    id: 'genshin-2',
-    en: 'Genshin Impact 2',
-    zh: '原神 2',
-    names: [
       ['genshin-jean', 'Jean', '琴'],
       ['genshin-lisa', 'Lisa', '丽莎'],
       ['genshin-barbara', 'Barbara', '芭芭拉'],
@@ -29,13 +22,6 @@ export const TILTIES_GAME_COLLECTIONS = [
       ['genshin-amber', 'Amber', '安柏'],
       ['genshin-xiangling', 'Xiangling', '香菱'],
       ['genshin-beidou', 'Beidou', '北斗'],
-    ],
-  },
-  {
-    id: 'genshin-3',
-    en: 'Genshin Impact 3',
-    zh: '原神 3',
-    names: [
       ['genshin-xingqiu', 'Xingqiu', '行秋'],
       ['genshin-ningguang', 'Ningguang', '凝光'],
       ['genshin-klee', 'Klee', '可莉'],
@@ -45,13 +31,6 @@ export const TILTIES_GAME_COLLECTIONS = [
       ['genshin-qiqi', 'Qiqi', '七七'],
       ['genshin-chongyun', 'Chongyun', '重云'],
       ['genshin-mona', 'Mona', '莫娜'],
-    ],
-  },
-  {
-    id: 'genshin-4',
-    en: 'Genshin Impact 4',
-    zh: '原神 4',
-    names: [
       ['genshin-keqing', 'Keqing', '刻晴'],
       ['genshin-sucrose', 'Sucrose', '砂糖'],
       ['genshin-tartaglia', 'Tartaglia', '达达利亚'],
@@ -61,13 +40,6 @@ export const TILTIES_GAME_COLLECTIONS = [
       ['genshin-ganyu', 'Ganyu', '甘雨'],
       ['genshin-xiao', 'Xiao', '魈'],
       ['genshin-hu-tao', 'Hu Tao', '胡桃'],
-    ],
-  },
-  {
-    id: 'genshin-5',
-    en: 'Genshin Impact 5',
-    zh: '原神 5',
-    names: [
       ['genshin-rosaria', 'Rosaria', '罗莎莉亚'],
       ['genshin-yanfei', 'Yanfei', '烟绯'],
       ['genshin-eula', 'Eula', '优菈'],
@@ -77,13 +49,6 @@ export const TILTIES_GAME_COLLECTIONS = [
       ['genshin-sayu', 'Sayu', '早柚'],
       ['genshin-kujou-sara', 'Kujou Sara', '九条裟罗'],
       ['genshin-aloy', 'Aloy', '埃洛伊'],
-    ],
-  },
-  {
-    id: 'genshin-6',
-    en: 'Genshin Impact 6',
-    zh: '原神 6',
-    names: [
       ['genshin-sangonomiya-kokomi', 'Sangonomiya Kokomi', '珊瑚宫心海'],
       ['genshin-thoma', 'Thoma', '托马'],
       ['genshin-gorou', 'Gorou', '五郎'],
@@ -96,9 +61,9 @@ export const TILTIES_GAME_COLLECTIONS = [
     ],
   },
   {
-    id: 'star-rail-1',
-    en: 'Star Rail 1',
-    zh: '星穹铁道 1',
+    id: 'star-rail',
+    en: 'Star Rail',
+    zh: '星穹铁道',
     names: [
       ['star-rail-stelle', 'Stelle', '星'],
       ['star-rail-march-7th', 'March 7th', '三月七'],
@@ -109,13 +74,6 @@ export const TILTIES_GAME_COLLECTIONS = [
       ['star-rail-silver-wolf', 'Silver Wolf', '银狼'],
       ['star-rail-firefly', 'Firefly', '流萤'],
       ['star-rail-acheron', 'Acheron', '黄泉'],
-    ],
-  },
-  {
-    id: 'star-rail-2',
-    en: 'Star Rail 2',
-    zh: '星穹铁道 2',
-    names: [
       ['star-rail-jing-yuan', 'Jing Yuan', '景元'],
       ['star-rail-blade', 'Blade', '刃'],
       ['star-rail-jingliu', 'Jingliu', '镜流'],
@@ -125,13 +83,6 @@ export const TILTIES_GAME_COLLECTIONS = [
       ['star-rail-yanqing', 'Yanqing', '彦卿'],
       ['star-rail-yukong', 'Yukong', '驭空'],
       ['star-rail-luocha', 'Luocha', '罗刹'],
-    ],
-  },
-  {
-    id: 'star-rail-3',
-    en: 'Star Rail 3',
-    zh: '星穹铁道 3',
-    names: [
       ['star-rail-robin', 'Robin', '知更鸟'],
       ['star-rail-aventurine', 'Aventurine', '砂金'],
       ['star-rail-sparkle', 'Sparkle', '花火'],
@@ -144,9 +95,9 @@ export const TILTIES_GAME_COLLECTIONS = [
     ],
   },
   {
-    id: 'wuthering-waves-1',
-    en: 'Wuthering Waves 1',
-    zh: '鸣潮 1',
+    id: 'wuthering-waves',
+    en: 'Wuthering Waves',
+    zh: '鸣潮',
     names: [
       ['wuthering-waves-navy-rover', 'Navy Rover', '玄衣旅者'],
       ['wuthering-waves-blue-beret', 'Blue Beret', '蓝色贝雷帽'],
@@ -157,13 +108,6 @@ export const TILTIES_GAME_COLLECTIONS = [
       ['wuthering-waves-star-hood', 'Star Hood', '星光兜帽'],
       ['wuthering-waves-black-ribbons', 'Black Ribbons', '黑色丝带'],
       ['wuthering-waves-blue-crown', 'Blue Crown', '蓝枝冠'],
-    ],
-  },
-  {
-    id: 'wuthering-waves-2',
-    en: 'Wuthering Waves 2',
-    zh: '鸣潮 2',
-    names: [
       ['wuthering-waves-green-leaf-bow', 'Green Leaf Bow', '绿叶蝴蝶结'],
       ['wuthering-waves-pink-twintails', 'Pink Twintails', '粉色双辫'],
       ['wuthering-waves-silver-streaks', 'Silver Streaks', '银白挑染'],
@@ -173,13 +117,6 @@ export const TILTIES_GAME_COLLECTIONS = [
       ['wuthering-waves-gold-flowers', 'Gold Flowers', '金色花簪'],
       ['wuthering-waves-silver-mane', 'Silver Mane', '银色长发'],
       ['wuthering-waves-ash-brown-fringe', 'Ash Brown Fringe', '灰棕刘海'],
-    ],
-  },
-  {
-    id: 'wuthering-waves-3',
-    en: 'Wuthering Waves 3',
-    zh: '鸣潮 3',
-    names: [
       ['wuthering-waves-crimson-ribbons', 'Crimson Ribbons', '绯红缎带'],
       ['wuthering-waves-pink-blue-bows', 'Pink and Blue Bows', '粉蓝蝴蝶结'],
       ['wuthering-waves-navy-tricorne', 'Navy Tricorne', '深蓝三角帽'],

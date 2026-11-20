@@ -9,7 +9,6 @@ import { useId, useState, type ReactElement } from 'react';
 import { Button } from './ds/button.js';
 import { Icon } from './ds/icon.js';
 import { SegmentedControl } from './ds/segmented.js';
-import { Select } from './ds/select.js';
 import { accent, edge, size, space, style as controlStyle } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 
@@ -74,6 +73,7 @@ export function AvatarPresetPicker<Recipe>({
   t: BotHarnessTranslate;
 }): ReactElement {
   const id = useId();
+  const collectionId = `${id}-collection`;
   const [style, switchStyle] = useState<AvatarStyle>(
     pixelDisabled && hasTilties ? 'tilties' : 'pixel',
   );
@@ -151,8 +151,10 @@ export function AvatarPresetPicker<Recipe>({
           </>
         ) : (
           <>
-            <Select<TiltiesCollectionId>
-              align="start"
+            <SegmentedControl<TiltiesCollectionId>
+              id={collectionId}
+              controlsPanel
+              wrap
               label={t('profile.avatar.collections')}
               options={TILTIES_COLLECTIONS.map(({ id, en, zh }) => ({
                 value: id,
@@ -164,8 +166,9 @@ export function AvatarPresetPicker<Recipe>({
             />
             <div
               {...stylex.props(styles.gallery)}
-              role="group"
-              aria-label={t('profile.avatar.tilties')}
+              id={`${collectionId}-${collection}-panel`}
+              role="tabpanel"
+              aria-labelledby={`${collectionId}-${collection}`}
             >
               {portraits.map(({ id, en, zh, image }) => {
                 const label = t('profile.avatar.tiltiesName', { en, zh });
@@ -183,7 +186,13 @@ export function AvatarPresetPicker<Recipe>({
                     disabled={disabled}
                     onClick={() => onChoose({ kind: 'tilties', image })}
                   >
-                    <img src={image} alt="" decoding="async" {...stylex.props(styles.image)} />
+                    <img
+                      src={image}
+                      alt=""
+                      decoding="async"
+                      loading="lazy"
+                      {...stylex.props(styles.image)}
+                    />
                     {pressed ? (
                       <span aria-hidden="true" {...stylex.props(styles.selectionRing)} />
                     ) : null}

@@ -123,10 +123,16 @@ describe('Profile Avatar Appearance editing', () => {
       expect(tilties).toBeDefined();
       await act(() => tilties!.click());
       expect(container.querySelectorAll('[data-tilties-avatar]')).toHaveLength(9);
-      expect(
-        container.querySelector('[aria-selected="true"][role="tab"]:last-child')?.textContent,
-      ).toBe('歪头团');
-      expect(container.querySelector('button[aria-label="歪头团分组"]')?.textContent).toBe('AI 娘');
+      expect(tilties?.getAttribute('aria-selected')).toBe('true');
+      const gameTabs = container.querySelector('[role="tablist"][aria-label="歪头团分组"]')!;
+      expect(gameTabs.querySelector('[aria-selected="true"]')?.textContent).toBe('AI 娘');
+      const collections = [...gameTabs.querySelectorAll<HTMLButtonElement>('[role="tab"]')];
+      expect(collections).toHaveLength(7);
+      expect(collections.slice(-3).map((tab) => tab.textContent)).toEqual([
+        '原神',
+        '星穹铁道',
+        '鸣潮',
+      ]);
       const deepseek = '[data-tilties-avatar="deepseek"]';
       const image = container.querySelector(`${deepseek} img`)?.getAttribute('src');
       await click(deepseek);
@@ -134,15 +140,10 @@ describe('Profile Avatar Appearance editing', () => {
       expect(container.querySelector('[data-avatar-preview] img')?.getAttribute('src')).toBe(image);
       await click('[data-avatar-cancel]');
       expect(container.querySelector('[data-avatar-save]')).toBeNull();
-      await click('button[aria-label="歪头团分组"]');
-      const genshin = [
-        ...document.querySelectorAll<HTMLButtonElement>(
-          '[role="menuitem"], [role="menuitemradio"]',
-        ),
-      ].find((option) => option.textContent?.trim() === '原神 6');
+      const genshin = collections.find((tab) => tab.textContent === '原神');
       expect(genshin).toBeDefined();
       await act(() => genshin?.click());
-      expect(container.querySelectorAll('[data-tilties-avatar]')).toHaveLength(9);
+      expect(container.querySelectorAll('[data-tilties-avatar]')).toHaveLength(54);
       expect(container.querySelector(deepseek)).toBeNull();
       const yelan = '[data-tilties-avatar="genshin-yelan"]';
       const newImage = container.querySelector(`${yelan} img`)?.getAttribute('src');
