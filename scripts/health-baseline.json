@@ -21,7 +21,6 @@
     "packages/browser/src/viewer-local.ts",
     "packages/browser/test/browser-tools.test.ts",
     "packages/browser/test/runtime.test.ts",
-    "packages/client/src/client/actions.ts",
     "packages/client/src/client/activity-list-view.tsx",
     "packages/client/src/client/avatar-appearance-editor.tsx",
     "packages/client/src/client/bot-intro.tsx",
