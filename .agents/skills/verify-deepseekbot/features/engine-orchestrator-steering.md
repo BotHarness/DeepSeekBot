@@ -5,6 +5,7 @@
 - `packages/core/src/engines/assignment-steering.ts`
 - `packages/core/src/engines/engine-gateway.ts`
 - `packages/core/src/engines/engine-host.ts`
+- `packages/core/src/engines/engine-turn-scope.ts`
 - `packages/core/src/runtime/bot-runtime.ts`
 - `packages/core/test/engine-orchestrator-steering.test.ts`
 

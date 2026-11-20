@@ -32,12 +32,12 @@ import {
   type EngineTurnRequest,
   type EngineTurnOutcome,
   type EngineToolApproval,
-  type EngineToolContext,
   type EngineSessionState,
   type EngineHostOptions,
   type EngineSessionDescription,
 } from './engine-host-types.js';
 import { EngineTurnLog } from './engine-log.js';
+import { executeEngineTurnTool, type TurnScope } from './engine-turn-scope.js';
 import {
   ENGINE_DEFINITIONS,
   type EngineChoice,
@@ -72,16 +72,6 @@ export {
   type EngineQuotaView,
   type EngineStatusReport,
 } from './engine-host-types.js';
-
-interface TurnScope {
-  channelId: string | undefined;
-  canUseChannel: EngineTurnRequest['canUseChannel'];
-  steer?: EngineSteering['steer'];
-  execute: EngineTurnRequest['execute'];
-  pendingReplies: Set<Promise<unknown>>;
-  context?: EngineToolContext;
-  signal: AbortSignal;
-}
 
 interface LiveEngineSession {
   botSlug: string;
@@ -430,22 +420,9 @@ export class EngineHost {
         if (live.workspaceMode !== mode) return this.#runTurn(request, steering, updates);
         if (role === 'orchestrator') this.#rememberAccount(request.botSlug, engine, live.account);
         const priorReplies = continuation ? request.priorReplies?.() : undefined;
-        const valid = updates.filter((update) => {
-          try {
-            update.requireAccess?.();
-            return true;
-          } catch (error) {
-            update.fail?.(error);
-            return false;
-          }
-        });
-        if (updates.length > 0 && valid.length === 0) return outcome;
-        const text = continuation ? valid.map((update) => update.text).join('\n\n') : request.input;
-        const input = steering.takeInput(
-          priorReplies?.size
-            ? `[Host: Replies were already sent for these Source Events. Do not answer them again: ${[...priorReplies].join(', ')}.]\n\n${text}`
-            : text,
-        );
+        const prepared = steering.prepareInput(request.input, updates, priorReplies);
+        if (prepared === undefined) return outcome;
+        const { input } = prepared;
         const stop = new AbortController();
         live.stop = stop;
         const signal = AbortSignal.any([request.signal, stop.signal]);
@@ -534,7 +511,7 @@ export class EngineHost {
               }
             },
           });
-          for (const update of valid) update.settle?.(true);
+          for (const update of prepared.updates) update.settle?.(true);
           const steered = await steering.duringTurn({
             sending,
             engine: live.engine,
@@ -868,22 +845,7 @@ export class EngineHost {
         channelId: () => holder.live?.turn?.channelId,
         canUseChannel: (channelId) => holder.live?.turn?.canUseChannel?.(channelId) === true,
         channelless: request.role === 'assignment',
-        call: async (name, args, signal) => {
-          const turn = holder.live?.turn;
-          if (turn?.context === undefined || turn.signal.aborted)
-            return { text: 'refused: session-not-running', isError: true };
-          const callSignal = AbortSignal.any([signal, turn.signal]);
-          const execution = turn.execute(name, args, callSignal, turn.context);
-          const replying =
-            name === 'bot_send_message' ||
-            (name === 'tool_call' && args['name'] === 'bot_send_message');
-          if (replying) turn.pendingReplies.add(execution);
-          try {
-            return engineGatewayResult(await execution);
-          } finally {
-            if (replying) turn.pendingReplies.delete(execution);
-          }
-        },
+        call: (name, args, signal) => executeEngineTurnTool(holder.live?.turn, name, args, signal),
       });
       const stored = this.store.nativeSession(sessionId);
       let resume =

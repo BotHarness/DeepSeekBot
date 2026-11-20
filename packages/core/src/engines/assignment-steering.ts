@@ -37,7 +37,32 @@ export class EngineSteering {
     });
   }
 
-  takeInput(input: string): string {
+  prepareInput(
+    firstInput: string,
+    updates: readonly SteeringInput[],
+    priorReplies?: ReadonlySet<string>,
+  ) {
+    const valid = updates.filter((update) => {
+      try {
+        update.requireAccess?.();
+        return true;
+      } catch (error) {
+        update.fail?.(error);
+        return false;
+      }
+    });
+    if (updates.length > 0 && valid.length === 0) return undefined;
+    const text =
+      updates.length === 0 ? firstInput : valid.map((update) => update.text).join('\n\n');
+    const input = this.#takeInput(
+      priorReplies?.size
+        ? `[Host: Replies were already sent for these Source Events. Do not answer them again: ${[...priorReplies].join(', ')}.]\n\n${text}`
+        : text,
+    );
+    return { input, updates: valid };
+  }
+
+  #takeInput(input: string): string {
     if (this.#pending.length === 0) return input;
     const updates = this.#pending.splice(0);
     this.#inputRevision += 1;
