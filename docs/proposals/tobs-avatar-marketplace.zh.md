@@ -10,16 +10,16 @@
 
 ## 已核对的主线能力
 
-| 范围 | 现状 | 本方案如何使用 |
-| --- | --- | --- |
-| Marketplace Worker | D1 `MARKET_DB` + R2 `MARKET_FILES`；Bot 有列表、搜索、详情、举报、管理员封禁和恢复、Hot/New/Rising 每日快照（`rankings.ts`） | Avatar 条目复用同一个 Worker、存储、举报和榜单任务 |
-| 作者身份 | 用 Connect 的 WorkOS token 鉴权，对外显示 Author ID | 发布时必须登录，作者信息只记在 Marketplace |
-| Uploaded Bot 生命周期 | 没有版本；作者删除是硬删除，回执一起删掉（`uploads.ts`） | Avatar 条目采用同样的生命周期 |
-| 安装回执 | Host 尽力异步上报一次，失败不重试；按 SHA-256(Host ID) 去重（`receipts.ts`） | 应用回执照搬这套做法，去重键改为按 Bot（见下文） |
-| Bot 头像 | PNG/JPEG/WebP data URL，上限 128 KiB，校验文件签名（`persona-bot.ts`）；换图会清掉 Appearance | 应用时调用同一个 Registry 写入接口 |
-| 改头像的权限 | Host owner 可以改所有 Bot；Bot 的拥有者可以改自己的 Bot；改别人的 Bot 需要 `bots.manageAll`，并写审计记录（`team/private-content.ts`） | 应用沿用这套规则；发布首版只限 Host owner |
-| 裁剪界面 | Web 有 `personabot-avatar-crop.tsx`；手机有 `pick-avatar-image.ts`，用系统 1:1 裁剪，输出 256 像素 JPEG | 输出尺寸改为 min(原图, 512)，最小 256 |
-| CLI | 现有命令都叫 `marketplace-*` | 新增一组 `marketplace-avatar-*` |
+| 范围                  | 现状                                                                                                                                   | 本方案如何使用                                     |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------- |
+| Marketplace Worker    | D1 `MARKET_DB` + R2 `MARKET_FILES`；Bot 有列表、搜索、详情、举报、管理员封禁和恢复、Hot/New/Rising 每日快照（`rankings.ts`）           | Avatar 条目复用同一个 Worker、存储、举报和榜单任务 |
+| 作者身份              | 用 Connect 的 WorkOS token 鉴权，对外显示 Author ID                                                                                    | 发布时必须登录，作者信息只记在 Marketplace         |
+| Uploaded Bot 生命周期 | 没有版本；作者删除是硬删除，回执一起删掉（`uploads.ts`）                                                                               | Avatar 条目采用同样的生命周期                      |
+| 安装回执              | Host 尽力异步上报一次，失败不重试；按 SHA-256(Host ID) 去重（`receipts.ts`）                                                           | 应用回执照搬这套做法，去重键改为按 Bot（见下文）   |
+| Bot 头像              | PNG/JPEG/WebP data URL，上限 128 KiB，校验文件签名（`persona-bot.ts`）；换图会清掉 Appearance                                          | 应用时调用同一个 Registry 写入接口                 |
+| 改头像的权限          | Host owner 可以改所有 Bot；Bot 的拥有者可以改自己的 Bot；改别人的 Bot 需要 `bots.manageAll`，并写审计记录（`team/private-content.ts`） | 应用沿用这套规则；发布首版只限 Host owner          |
+| 裁剪界面              | Web 有 `personabot-avatar-crop.tsx`；手机有 `pick-avatar-image.ts`，用系统 1:1 裁剪，输出 256 像素 JPEG                                | 输出尺寸改为 min(原图, 512)，最小 256              |
+| CLI                   | 现有命令都叫 `marketplace-*`                                                                                                           | 新增一组 `marketplace-avatar-*`                    |
 
 ## 发布
 
@@ -56,17 +56,17 @@
 
 ## CLI
 
-| 命令 | 作用 |
-| --- | --- |
-| `marketplace-avatar-list` | 浏览或搜索（关键词、标签、榜单） |
-| `marketplace-avatar-tags` | 列出标签及各自的条目数 |
-| `marketplace-avatar-detail` | 查看单个条目 |
-| `marketplace-avatar-publish` | 从文件（`--file`）或从 Bot（`--from-bot`）发布；CLI 也要满足同样的图片要求 |
-| `marketplace-avatar-mine` | 列出我发布的条目 |
-| `marketplace-avatar-edit` | 只修改文字 |
-| `marketplace-avatar-delete` | 删除自己的条目 |
-| `marketplace-avatar-report` | 举报 |
-| `marketplace-avatar-apply --bot <bot>` | 应用到当前 Host 上的 Bot |
+| 命令                                   | 作用                                                                       |
+| -------------------------------------- | -------------------------------------------------------------------------- |
+| `marketplace-avatar-list`              | 浏览或搜索（关键词、标签、榜单）                                           |
+| `marketplace-avatar-tags`              | 列出标签及各自的条目数                                                     |
+| `marketplace-avatar-detail`            | 查看单个条目                                                               |
+| `marketplace-avatar-publish`           | 从文件（`--file`）或从 Bot（`--from-bot`）发布；CLI 也要满足同样的图片要求 |
+| `marketplace-avatar-mine`              | 列出我发布的条目                                                           |
+| `marketplace-avatar-edit`              | 只修改文字                                                                 |
+| `marketplace-avatar-delete`            | 删除自己的条目                                                             |
+| `marketplace-avatar-report`            | 举报                                                                       |
+| `marketplace-avatar-apply --bot <bot>` | 应用到当前 Host 上的 Bot                                                   |
 
 每条命令都要有中英文说明，满足 `pnpm lint` 的 CLI parity 检查。
 
@@ -74,19 +74,19 @@
 
 使用独立的 DSH Web Host Profile，以及隔离的 Marketplace Worker、R2 和 D1 环境。准备两套作者身份 A 和 B；测试 Host 上准备两只 B 能编辑的 Bot（可以包含 Tob），一只 B 能看到但无权编辑的 Bot，再准备一台已连接的远端 Host，上面有一只 B 能编辑的 Bot。
 
-| 操作 | 可观察的结果 |
-| --- | --- |
-| A 从文件上传 PNG，裁剪后填写信息并发布 | 预览和公开详情显示同一张裁剪后的图片；按标签能搜到；计数为 0；B 改不了、也删不了 A 的条目 |
-| 绕过界面直接提交：未裁剪的大图、带 EXIF 的 JPEG、动态 WebP、200 像素的小图、非正方形图片、超过 128 KiB 的图片、伪装成图片的文件 | 全部被拒绝，返回「未经处理」，D1 和 R2 都没有新增数据 |
-| A（Host owner）从 Bot 发布（一只用上传图片做头像的 Bot，一只用 Appearance 的 Bot）；尝试发布使用默认 Blobatar 的 Bot | 前两只发布成功；Blobatar 的入口不出现或提交被拒绝 |
-| 同一台 Host 上的普通成员（即使有 `bots.manageAll`）尝试发布，包括用 CLI 绕过界面 | 看不到发布入口；CLI 返回权限拒绝；Marketplace 没有新增条目 |
-| B 预览并应用到 Bot 1 | Bot 资料页和列表显示新头像；重启同一台 Host 后字节不变；Marketplace 不可达时仍能读取本地头像；计数最终变为 1 |
-| 重复应用到 Bot 1、换走再换回、再应用到 Bot 2；并发提交同一个请求 | Bot 1 始终计为 1；应用到 Bot 2 后变为 2；并发请求不会多计 |
-| 在远端 Host 上应用到它的 Bot | 由远端 Host 取图、写入并上报；计数加 1 |
-| 用 CLI 应用到无权编辑的 Bot | 返回权限拒绝，Bot 数据不变 |
-| A 删除条目；B 从之前打开的详情页再次尝试应用 | 条目不再出现在搜索和榜单中；新的应用被拒绝；已应用的两只 Bot 保留头像 |
-| 多次举报直到超过阈值；管理员恢复 | 条目被自动隐藏；恢复后重新出现，计数保留 |
-| 跑一次每日榜单任务 | Avatars 分区的 Hot/New/Rising 有快照，并按应用数排序 |
+| 操作                                                                                                                            | 可观察的结果                                                                                                 |
+| ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| A 从文件上传 PNG，裁剪后填写信息并发布                                                                                          | 预览和公开详情显示同一张裁剪后的图片；按标签能搜到；计数为 0；B 改不了、也删不了 A 的条目                    |
+| 绕过界面直接提交：未裁剪的大图、带 EXIF 的 JPEG、动态 WebP、200 像素的小图、非正方形图片、超过 128 KiB 的图片、伪装成图片的文件 | 全部被拒绝，返回「未经处理」，D1 和 R2 都没有新增数据                                                        |
+| A（Host owner）从 Bot 发布（一只用上传图片做头像的 Bot，一只用 Appearance 的 Bot）；尝试发布使用默认 Blobatar 的 Bot            | 前两只发布成功；Blobatar 的入口不出现或提交被拒绝                                                            |
+| 同一台 Host 上的普通成员（即使有 `bots.manageAll`）尝试发布，包括用 CLI 绕过界面                                                | 看不到发布入口；CLI 返回权限拒绝；Marketplace 没有新增条目                                                   |
+| B 预览并应用到 Bot 1                                                                                                            | Bot 资料页和列表显示新头像；重启同一台 Host 后字节不变；Marketplace 不可达时仍能读取本地头像；计数最终变为 1 |
+| 重复应用到 Bot 1、换走再换回、再应用到 Bot 2；并发提交同一个请求                                                                | Bot 1 始终计为 1；应用到 Bot 2 后变为 2；并发请求不会多计                                                    |
+| 在远端 Host 上应用到它的 Bot                                                                                                    | 由远端 Host 取图、写入并上报；计数加 1                                                                       |
+| 用 CLI 应用到无权编辑的 Bot                                                                                                     | 返回权限拒绝，Bot 数据不变                                                                                   |
+| A 删除条目；B 从之前打开的详情页再次尝试应用                                                                                    | 条目不再出现在搜索和榜单中；新的应用被拒绝；已应用的两只 Bot 保留头像                                        |
+| 多次举报直到超过阈值；管理员恢复                                                                                                | 条目被自动隐藏；恢复后重新出现，计数保留                                                                     |
+| 跑一次每日榜单任务                                                                                                              | Avatars 分区的 Hot/New/Rising 有快照，并按应用数排序                                                         |
 
 同一切片还包括：
 
