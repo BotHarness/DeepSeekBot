@@ -7,11 +7,13 @@ import { TeamError } from './error.js';
 import { channelRoleMembershipEntrySql, channelRoleMembershipExitSql } from './channel-contract.js';
 import {
   ALL_PERMISSIONS,
+  allowsModel,
   ownerGrantedPermission,
   roleSchema,
   type HostPermission,
   type HostRole,
   type RoleModels,
+  type RoleModelsInput,
   type ModelsAllowed,
   roleModelsSchema,
 } from './permissions.js';
@@ -78,23 +80,28 @@ export class TeamRoles {
         ),
       );
     if (rows.some((row) => row.owner)) return { all: true };
-    const models = rows.flatMap((row) =>
-      row.models === null ? [] : [roleModelsSchema.parse(JSON.parse(row.models))],
-    );
-    if (models.some((model) => model.kind === 'all')) return { all: true };
+    const providers = new Set<string>();
+    const routes = new Set<string>();
+    for (const row of rows) {
+      if (row.models === null) continue;
+      const model = roleModelsSchema.parse(JSON.parse(row.models));
+      if (model.kind === 'all') return { all: true };
+      for (const provider of model.providers) providers.add(provider);
+      for (const route of model.routes) routes.add(route);
+    }
     return {
       all: false,
-      routes: [
-        ...new Set(models.flatMap((model) => (model.kind === 'only' ? model.routes : []))),
-      ].sort(),
+      providers: [...providers].sort(),
+      routes: [...routes].sort(),
     };
   }
 
   requireModel(human: HumanContext, route: { provider: string; model: string }): void {
     const allowed = this.modelsAllowed(human);
-    const key = `${route.provider}/${route.model}`;
-    if (!allowed.all && !allowed.routes.includes(key))
-      throw new TeamError('model-not-allowed', undefined, { route: key });
+    if (!allowsModel(allowed, route))
+      throw new TeamError('model-not-allowed', undefined, {
+        route: `${route.provider}/${route.model}`,
+      });
   }
 
   require(human: HumanContext, ...permissions: [HostPermission, ...HostPermission[]]): void {
@@ -172,7 +179,18 @@ export class TeamRoles {
     if (actor.all) return;
     if (models.kind === 'all')
       throw new TeamError('model-not-allowed', undefined, { route: 'all' });
-    const outside = models.routes.find((route) => !actor.routes.includes(route));
+    const outsideProvider = models.providers.find(
+      (provider) => !actor.providers.includes(provider),
+    );
+    if (outsideProvider !== undefined)
+      throw new TeamError('model-not-allowed', undefined, { route: `${outsideProvider}/*` });
+    const outside = models.routes.find((route) => {
+      const separator = route.indexOf('/');
+      return !allowsModel(actor, {
+        provider: route.slice(0, separator),
+        model: route.slice(separator + 1),
+      });
+    });
     if (outside !== undefined)
       throw new TeamError('model-not-allowed', undefined, { route: outside });
   }
@@ -195,7 +213,7 @@ export class TeamRoles {
     human: HumanContext,
     name: string,
     permissions: string[],
-    models: RoleModels = { kind: 'all' },
+    models: RoleModelsInput = { kind: 'all' },
     policy: RolePolicy = [],
   ): { role: HostRole } {
     this.require(human, 'roles.manage');
@@ -232,7 +250,7 @@ export class TeamRoles {
   update(
     human: HumanContext,
     roleId: string,
-    patch: { name?: string; permissions?: string[]; models?: RoleModels; policy?: RolePolicy },
+    patch: { name?: string; permissions?: string[]; models?: RoleModelsInput; policy?: RolePolicy },
   ): { role: HostRole } {
     this.require(human, 'roles.manage');
     const role = this.role(roleId);

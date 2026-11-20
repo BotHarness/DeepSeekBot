@@ -3029,7 +3029,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
         const human = actorKind === 'owner' ? owner : f.human;
         const models =
           actorKind === 'restricted-manager'
-            ? { kind: 'only' as const, routes: ['provider/allowed'] }
+            ? { kind: 'only' as const, providers: [], routes: ['provider/allowed'] }
             : { kind: 'all' as const };
         const peer =
           actorKind === 'owner'
@@ -3048,7 +3048,9 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
         expect(f.team.roles.update(human, created.roleId, { models }).role.models).toEqual(models);
         f.team.roles.set(human, f.alice.member.humanId, [created.roleId]);
         expect(f.team.mode(humanContext(f.alice.member.humanId)).viewer.models).toEqual(
-          models.kind === 'all' ? { all: true } : { all: false, routes: models.routes },
+          models.kind === 'all'
+            ? { all: true }
+            : { all: false, providers: models.providers, routes: models.routes },
         );
         const member = await f.team.createMember(human, 'delegated-models', 'Delegated', [
           created.roleId,

@@ -1,6 +1,5 @@
-import type { BridgeCall, ModelCatalogEntryView } from './bridge.js';
+import type { BridgeCall } from './bridge.js';
 import { list, record, unwrap } from './team-bridge.js';
-import { routeKey } from './team-roles-bridge.js';
 
 export const USAGE_VIEW = 'usage.view';
 export const USAGE_PERIODS = ['today', 'week', 'month', 'quarter'] as const;
@@ -76,16 +75,4 @@ export async function loadMemberUsage(
     members: sortMembers(list(value?.['members'], parseMemberUsage)),
     legacy: value?.['legacy'] === true,
   };
-}
-
-export function modelChoices(
-  models: readonly ModelCatalogEntryView[],
-): { route: string; label: string }[] {
-  const seen = new Set<string>();
-  return models.flatMap((entry) => {
-    const route = routeKey(entry.provider, entry.model);
-    if (seen.has(route)) return [];
-    seen.add(route);
-    return [{ route, label: `${entry.providerName} · ${entry.modelName}` }];
-  });
 }

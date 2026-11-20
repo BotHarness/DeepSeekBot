@@ -1232,6 +1232,7 @@
         "setting:packages/client/src/client/channel-access-settings.tsx:{t(`channelAccess.policy.${key}`)}",
         "setting:packages/client/src/client/team-roles.tsx:{name}",
         "setting:packages/client/src/client/team-roles.tsx:{roleLabel(t, role)}",
+        "setting:packages/client/src/client/team-role-models.tsx:{t('team.roles.models')}",
         "setting:packages/client/src/client/team-settings.tsx:{t('team.devices.mine')}",
         "setting:packages/client/src/client/team-spaces.tsx:{item.name}",
         "setting:packages/client/src/client/team-spaces.tsx:{t('team.spaces.shared')}",

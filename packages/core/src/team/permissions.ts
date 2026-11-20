@@ -31,6 +31,11 @@ export const roleModelsSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('all') }),
   z.object({
     kind: z.literal('only'),
+    providers: z
+      .array(z.string().regex(/^[^/\s]+$/u))
+      .max(10000)
+      .default([])
+      .transform((providers) => [...new Set(providers)].sort()),
     routes: z
       .array(z.string().regex(/^[^/\s]+\/[^\s]+$/u))
       .max(10000)
@@ -38,7 +43,20 @@ export const roleModelsSchema = z.discriminatedUnion('kind', [
   }),
 ]);
 export type RoleModels = z.infer<typeof roleModelsSchema>;
-export type ModelsAllowed = { all: true } | { all: false; routes: string[] };
+export type RoleModelsInput = z.input<typeof roleModelsSchema>;
+export type ModelsAllowed = { all: true } | { all: false; providers: string[]; routes: string[] };
+
+export function allowsModel(
+  allowed: ModelsAllowed,
+  route: { provider: string; model: string },
+): boolean {
+  return (
+    allowed.all ||
+    allowed.providers.includes(route.provider) ||
+    allowed.routes.includes(`${route.provider}/${route.model}`)
+  );
+}
+
 export const roleSchema = z.object({
   roleId: z.string(),
   name: z.string(),

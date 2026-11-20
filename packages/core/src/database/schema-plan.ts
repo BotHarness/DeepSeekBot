@@ -3998,6 +3998,20 @@ const ASSIGNMENT_MODEL_EFFORT_MIGRATION: SchemaMigration = {
   },
 };
 
+const ROLE_MODEL_PROVIDERS_MIGRATION: SchemaMigration = {
+  id: 'role-model-providers',
+  module: 'team',
+  description: 'Add an empty provider allowlist to existing restricted Host Roles',
+  migrate(database) {
+    database.exec(`
+      UPDATE host_roles
+      SET models_json = json_set(models_json, '$.providers', json('[]'))
+      WHERE json_extract(models_json, '$.kind') = 'only'
+        AND json_type(models_json, '$.providers') IS NULL
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -4171,4 +4185,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_AGENT_PRESET_MIGRATION,
   ROUTING_GROUP_DEFAULT_EFFORT_MIGRATION,
   ASSIGNMENT_MODEL_EFFORT_MIGRATION,
+  ROLE_MODEL_PROVIDERS_MIGRATION,
 ]);
