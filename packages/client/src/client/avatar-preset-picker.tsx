@@ -32,13 +32,12 @@ const styles = stylex.create({
     paddingBlock: 0,
     paddingInline: 0,
   },
-  selected: {
-    content: { default: null, '::after': '""' },
-    position: { default: null, '::after': 'absolute' },
-    inset: { default: null, '::after': 0 },
-    borderRadius: { default: null, '::after': 'inherit' },
-    boxShadow: { default: null, '::after': `inset 0 0 0 ${edge.focus} ${accent.focus}` },
-    pointerEvents: { default: null, '::after': 'none' },
+  selectionRing: {
+    position: 'absolute',
+    inset: 0,
+    borderRadius: 'inherit',
+    boxShadow: `inset 0 0 0 ${edge.focus} ${accent.focus}`,
+    pointerEvents: 'none',
   },
   image: {
     display: 'block',
@@ -121,7 +120,7 @@ export function AvatarPresetPicker<Recipe>({
                       key={index}
                       variant="preview"
                       type="button"
-                      xstyle={[styles.tile, pressed && styles.selected]}
+                      xstyle={styles.tile}
                       aria-label={label}
                       aria-pressed={pressed}
                       data-avatar-preset={index}
@@ -129,6 +128,9 @@ export function AvatarPresetPicker<Recipe>({
                       onClick={() => onChoose({ kind: 'pixel', recipe })}
                     >
                       <img src={image} alt="" decoding="async" {...stylex.props(styles.image)} />
+                      {pressed ? (
+                        <span aria-hidden="true" {...stylex.props(styles.selectionRing)} />
+                      ) : null}
                     </Button>
                   );
                 })}
@@ -172,7 +174,7 @@ export function AvatarPresetPicker<Recipe>({
                     key={id}
                     variant="preview"
                     type="button"
-                    xstyle={[styles.tile, pressed && styles.selected]}
+                    xstyle={styles.tile}
                     aria-label={label}
                     aria-pressed={pressed}
                     title={label}
@@ -181,6 +183,9 @@ export function AvatarPresetPicker<Recipe>({
                     onClick={() => onChoose({ kind: 'tilties', image })}
                   >
                     <img src={image} alt="" decoding="async" {...stylex.props(styles.image)} />
+                    {pressed ? (
+                      <span aria-hidden="true" {...stylex.props(styles.selectionRing)} />
+                    ) : null}
                   </Button>
                 );
               })}
