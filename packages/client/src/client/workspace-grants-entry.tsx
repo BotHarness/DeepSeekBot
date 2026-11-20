@@ -3,30 +3,15 @@ import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { Input } from './ds/input.js';
 import { Switch } from './ds/switch.js';
-import {
-  useCallback,
-  useId,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type ReactElement,
-  type ReactNode,
-} from 'react';
+import { useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import * as stylex from '@stylexjs/stylex';
 
 import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import type { HostDirectoryListing } from './actions.js';
-import type {
-  WorkspaceGrantView,
-  WorkspaceOption,
-  ToolApprovalRuleView,
-  AssignmentAccessPresetView,
-} from './bridge.js';
-import { BridgeCallError, errorMessage } from './bridge.js';
+import type { WorkspaceOption, ToolApprovalRuleView } from './bridge.js';
+import { errorMessage } from './bridge.js';
 import { isAbsoluteHostPath } from './persona-bot-create.js';
-import { MemoryFileActionButton, MemoryFileOpenButton } from './memory-file-actions.js';
-import { WorkspaceFileOpenButton, WorkspaceFilePathButton } from './workspace-file-actions.js';
 import { Callout } from './ds/callout.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
@@ -37,114 +22,29 @@ import { LoadingSkeleton } from './loading-skeleton.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { ApprovalTemplateEntry } from './approval-template-entry.js';
-import {
-  publishWorkspaceGrantChange,
-  subscribeWorkspaceGrantChanges,
-  workspaceGrantRevision,
-} from './workspace-grant-events.js';
+import { publishWorkspaceGrantChange } from './workspace-grant-events.js';
 
 export { WORKSPACE_GRANTS_CHANGED } from './workspace-grant-events.js';
+import { approvalRulePath, secretCliRuleLabel } from './workspace-approval-rule-labels.js';
+import { renderWorkspaceGrantFolders } from './workspace-grant-folders.js';
+import {
+  folderBrowseError,
+  pickerUnavailable,
+  useWorkspaceGrants,
+  withWorkspaceActionDeadline,
+} from './use-workspace-grants.js';
+import {
+  AddFolderRow,
+  FolderSectionSummary,
+  WorkspaceGrantConfirmation,
+} from './workspace-grant-row-controls.js';
 
-type WorkspaceCache = {
-  grants: WorkspaceGrantView[];
-  workspaces: WorkspaceOption[];
-  rules: ToolApprovalRuleView[];
-  access: AssignmentAccessPresetView | undefined;
-  memoryDir: string | undefined;
-};
-const workspaceCaches = new WeakMap<
-  ChannelSidebarEntryProps['actions'],
-  Map<string, WorkspaceCache>
->();
-
-function cachedWorkspace(
-  actions: ChannelSidebarEntryProps['actions'],
-  botSlug: string | undefined,
-): WorkspaceCache | undefined {
-  return botSlug === undefined ? undefined : workspaceCaches.get(actions)?.get(botSlug);
-}
-
-function rememberWorkspace(
-  actions: ChannelSidebarEntryProps['actions'],
-  botSlug: string,
-  patch: Partial<WorkspaceCache>,
-): void {
-  let cache = workspaceCaches.get(actions);
-  if (cache === undefined) {
-    cache = new Map();
-    workspaceCaches.set(actions, cache);
-  }
-  const previous = cache.get(botSlug);
-  cache.delete(botSlug);
-  cache.set(botSlug, {
-    grants: [],
-    workspaces: [],
-    rules: [],
-    access: undefined,
-    memoryDir: undefined,
-    ...previous,
-    ...patch,
-  });
-  if (cache.size > 30) cache.delete(cache.keys().next().value!);
-}
-
-const WORKSPACE_ACTION_TIMEOUT_MS = 15_000;
-
-export function FolderSectionSummary({ children }: { children: ReactNode }): ReactElement {
-  return (
-    <summary className="bh-channel-sidebar-entry-head">
-      <span className="bh-channel-sidebar-entry-chevron" aria-hidden="true">
-        <Icon name="chevron-down" size={14} />
-      </span>
-      <span className="bh-channel-sidebar-entry-label">{children}</span>
-    </summary>
-  );
-}
-
-export function withWorkspaceActionDeadline<T>(
-  promise: Promise<T>,
-  timeoutMessage: string,
-): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = window.setTimeout(
-      () => reject(new Error(timeoutMessage)),
-      WORKSPACE_ACTION_TIMEOUT_MS,
-    );
-    void promise.finally(() => window.clearTimeout(timer)).then(resolve, reject);
-  });
-}
-
-function secretCliRuleLabel(input: string): {
-  program: string;
-  account: string;
-} {
-  try {
-    const kind = JSON.parse(input) as { program?: unknown; account?: unknown };
-    return {
-      program: typeof kind.program === 'string' ? kind.program : '?',
-      account: typeof kind.account === 'string' ? kind.account : '?',
-    };
-  } catch {
-    return { program: '?', account: '?' };
-  }
-}
-
-function approvalRulePath(rule: ToolApprovalRuleView): string {
-  try {
-    let scope: unknown = JSON.parse(rule.scopeKey);
-    if (
-      Array.isArray(scope) &&
-      typeof scope[0] === 'string' &&
-      ((scope.length === 2 && scope[1] === 'explicit-approval') ||
-        (scope.length === 3 &&
-          (scope[1] === 'browser' || scope[1] === 'computer' || scope[1] === null) &&
-          typeof scope[2] === 'string'))
-    )
-      scope = JSON.parse(scope[0]);
-    if (Array.isArray(scope) && typeof scope[1] === 'string') return scope[1];
-  } catch {}
-  return rule.scopeKey;
-}
+export { folderBrowseError, withWorkspaceActionDeadline } from './use-workspace-grants.js';
+export {
+  AddFolderRow,
+  FolderSectionSummary,
+  WorkspaceGrantConfirmation,
+} from './workspace-grant-row-controls.js';
 
 export function FolderRow({
   name,
@@ -231,37 +131,6 @@ export function FolderRow({
   );
 }
 
-export function AddFolderRow({
-  label,
-  disabled,
-  onAdd,
-}: {
-  label: string;
-  disabled: boolean;
-  onAdd: () => void;
-}): ReactElement {
-  return (
-    <SidebarCardRow
-      leading={<Icon name="plus" size={16} />}
-      title={label}
-      mainClassName="bh-workspace-folder-add"
-      disabled={disabled}
-      onClick={onAdd}
-    />
-  );
-}
-
-function pickerUnavailable(cause: unknown): boolean {
-  if (typeof cause !== 'object' || cause === null || !('rpcError' in cause)) return false;
-  const rpcError = cause.rpcError;
-  return (
-    typeof rpcError === 'object' &&
-    rpcError !== null &&
-    'code' in rpcError &&
-    rpcError.code === 'directory-picker/unavailable'
-  );
-}
-
 const accessStyles = stylex.create({
   stack: {
     display: 'flex',
@@ -275,16 +144,6 @@ const accessStyles = stylex.create({
     justifyContent: 'flex-end',
     gap: space.x2,
   },
-});
-
-const memoryMoveStyles = stylex.create({
-  row: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: space.x2,
-  },
-  grow: { flexGrow: 1, minWidth: 0 },
 });
 
 const browserStyles = stylex.create({
@@ -396,12 +255,6 @@ function rememberFolder(
   const entry = { at: Date.now(), listing };
   cache.set(requested, entry);
   cache.set(listing.path, entry);
-}
-
-export function folderBrowseError(cause: unknown, t: ChannelSidebarEntryProps['t']): string {
-  return cause instanceof BridgeCallError && cause.code === 'folder-browse/timeout'
-    ? t('grant.browseTimeout')
-    : errorMessage(cause);
 }
 
 export function FolderBrowser({
@@ -690,247 +543,29 @@ export function WorkspaceGrantsEntry({
   composerOnly?: boolean;
   botName?: string;
 }): ReactElement {
-  const slug = botSlug ?? '';
-  const subscribeChanges = useCallback(
-    (listener: () => void) => subscribeWorkspaceGrantChanges(slug, listener, actions),
-    [slug, actions],
-  );
-  const getChangeRevision = useCallback(
-    () => workspaceGrantRevision(slug, actions),
-    [slug, actions],
-  );
-  const changeRevision = useSyncExternalStore(
-    subscribeChanges,
-    getChangeRevision,
-    getChangeRevision,
-  );
-  const cached = cachedWorkspace(actions, botSlug);
-  const [workspaces, setWorkspaces] = useState<WorkspaceOption[]>(cached?.workspaces ?? []);
-  const [grants, setGrants] = useState<WorkspaceGrantView[]>(cached?.grants ?? []);
-  const [rules, setRules] = useState<ToolApprovalRuleView[]>(cached?.rules ?? []);
-  const [access, setAccess] = useState<AssignmentAccessPresetView | undefined>(cached?.access);
-  const [confirmDanger, setConfirmDanger] = useState(false);
-  const [pendingGrant, setPendingGrant] = useState<{
-    path: string;
-    workspaceId?: string;
-  }>();
-  const [memoryDir, setMemoryDir] = useState<string | undefined>(cached?.memoryDir);
-  const [manualOpen, setManualOpen] = useState(false);
-  const [manualPath, setManualPath] = useState('');
-  const [memoryLocation, setMemoryLocation] = useState('');
-  const [browserListing, setBrowserListing] = useState<HostDirectoryListing | undefined>();
-  const [busy, setBusy] = useState<string | undefined>();
-  const [error, setError] = useState<string | undefined>();
-  const [loading, setLoading] = useState(cached === undefined);
-  const activeSlug = useRef<string | undefined>(undefined);
-  const requestVersion = useRef(0);
-  const showGrant = (grant: WorkspaceGrantView): void => {
-    if (botSlug === undefined || activeSlug.current !== botSlug) return;
-    const current = cachedWorkspace(actions, botSlug)?.grants ?? grants;
-    const next = [...current.filter((row) => row.id !== grant.id), grant];
-    rememberWorkspace(actions, botSlug, { grants: next });
-    setGrants(next);
-  };
-  const writableByDefault = async (grant: WorkspaceGrantView): Promise<WorkspaceGrantView> => {
-    if (botSlug === undefined || grant.orchestratorWrite === true) return grant;
-    const current = cachedWorkspace(actions, botSlug)?.grants ?? grants;
-    if (current.some((row) => row.id === grant.id && row.revokedAt === undefined)) return grant;
-    showGrant(grant);
-    return actions.setWorkspaceGrantWrite(botSlug, grant.id, true);
-  };
-
-  const refresh = async (slug: string): Promise<void> => {
-    if (activeSlug.current !== slug) return;
-    const version = ++requestVersion.current;
-    const isCurrent = (): boolean =>
-      activeSlug.current === slug && requestVersion.current === version;
-    try {
-      const owned = await withWorkspaceActionDeadline(
-        actions.listWorkspaceGrants(slug),
-        t('grant.loadTimeout'),
-      );
-      if (!isCurrent()) return;
-      rememberWorkspace(actions, slug, { grants: owned });
-      setGrants(owned);
-      setLoading(false);
-      const [available, memory, ruleRows, preset] = await Promise.all([
-        actions.listWorkspaceOptions(),
-        actions.memoryDirectory(slug),
-        actions.listToolApprovalRules(slug),
-        actions.assignmentAccess(slug),
-      ]);
-      if (!isCurrent()) return;
-      rememberWorkspace(actions, slug, {
-        workspaces: available,
-        memoryDir: memory,
-        rules: ruleRows,
-        access: preset,
-      });
-      setWorkspaces(available);
-      setMemoryDir(memory);
-      setRules(ruleRows);
-      setAccess(preset);
-    } catch (cause) {
-      if (isCurrent()) throw cause;
-    }
-  };
-  const mount = useMountedResource<HTMLDivElement>(() => {
-    activeSlug.current = botSlug;
-    requestVersion.current += 1;
-    const current = cachedWorkspace(actions, botSlug);
-    setWorkspaces(current?.workspaces ?? []);
-    setGrants(current?.grants ?? []);
-    setRules(current?.rules ?? []);
-    setAccess(current?.access);
-    setMemoryDir(current?.memoryDir);
-    setMemoryLocation('');
-    setBrowserListing(undefined);
-    setBusy(undefined);
-    setConfirmDanger(false);
-    setPendingGrant(undefined);
-    if (botSlug === undefined) return;
-    setLoading(cachedWorkspace(actions, botSlug) === undefined);
-    setError(undefined);
-    void refresh(botSlug).catch((cause: unknown) => {
-      if (activeSlug.current !== botSlug) return;
-      setError(errorMessage(cause));
-      setLoading(false);
-    });
-    return () => {
-      activeSlug.current = undefined;
-      requestVersion.current += 1;
-    };
-  }, [actions, botSlug, changeRevision]);
-  const mutate = (id: string, action: () => Promise<unknown>): void => {
-    if (botSlug === undefined || busy !== undefined) return;
-    setBusy(id);
-    setError(undefined);
-    void (async () => {
-      try {
-        const operation = action().then((value) => {
-          publishWorkspaceGrantChange(botSlug, actions);
-          return value;
-        });
-        await withWorkspaceActionDeadline(operation, t('grant.operationTimeout'));
-      } catch (cause) {
-        if (activeSlug.current === botSlug) {
-          setError(errorMessage(cause));
-          if (composerOnly) {
-            try {
-              await refresh(botSlug);
-            } catch (readback) {
-              if (activeSlug.current === botSlug)
-                setError(`${errorMessage(cause)} · ${errorMessage(readback)}`);
-            }
-          }
-        }
-      } finally {
-        if (activeSlug.current === botSlug) setBusy(undefined);
-      }
-    })();
-  };
-
-  const chooseMemoryLocation = (): void => {
-    if (botSlug === undefined || busy !== undefined) return;
-    setBusy('memory-picker');
-    setError(undefined);
-    void actions
-      .pickWorkspaceFolder()
-      .then(
-        (path) => {
-          if (path !== null && activeSlug.current === botSlug) setMemoryLocation(path);
-        },
-        (cause: unknown) => {
-          if (activeSlug.current === botSlug) setError(errorMessage(cause));
-        },
-      )
-      .finally(() => {
-        if (activeSlug.current === botSlug) setBusy(undefined);
-      });
-  };
-
-  const moveMemory = (location: string | null): void => {
-    if (botSlug === undefined || busy !== undefined) return;
-    setBusy('memory-move');
-    setError(undefined);
-    void actions
-      .moveMemoryLocation(botSlug, location)
-      .then(
-        (moved) => {
-          rememberWorkspace(actions, botSlug, { memoryDir: moved });
-          if (activeSlug.current !== botSlug) return;
-          setMemoryDir(moved);
-          setMemoryLocation('');
-        },
-        (cause: unknown) => {
-          if (activeSlug.current === botSlug) setError(errorMessage(cause));
-        },
-      )
-      .finally(() => {
-        if (activeSlug.current === botSlug) setBusy(undefined);
-      });
-  };
-
-  const openFolderBrowser = (): void => {
-    if (botSlug === undefined || busy !== undefined) return;
-    setBusy('folder-picker');
-    setError(undefined);
-    const pickNatively = async (): Promise<void> => {
-      try {
-        if (composerOnly) {
-          const path = await actions.pickWorkspaceFolder();
-          if (path !== null && activeSlug.current === botSlug) setPendingGrant({ path });
-        } else {
-          const grant = await actions.addWorkspaceFolder(botSlug);
-          if (grant !== undefined) showGrant(await writableByDefault(grant));
-          await refresh(botSlug);
-        }
-      } catch (nativeCause) {
-        if (activeSlug.current === botSlug) setError(errorMessage(nativeCause));
-      }
-    };
-    void (async () => {
-      try {
-        const listing = await actions.listHostFolders();
-        if (activeSlug.current !== botSlug) return;
-        if (listing.nativePicker === true) await pickNatively();
-        else setBrowserListing(listing);
-      } catch (cause) {
-        if (activeSlug.current !== botSlug) return;
-        if (pickerUnavailable(cause)) await pickNatively();
-        else setError(folderBrowseError(cause, t));
-      } finally {
-        if (activeSlug.current === botSlug) setBusy(undefined);
-      }
-    })();
-  };
-
-  const previewFolder = (): void => {
-    if (botSlug === undefined || busy !== undefined) return;
-    setBusy('preview-folder');
-    setError(undefined);
-    void withWorkspaceActionDeadline(
-      actions.listHostFolders(manualPath.trim()),
-      t('grant.loadTimeout'),
-    )
-      .then(
-        (resolved) => {
-          if (activeSlug.current === botSlug) setPendingGrant({ path: resolved.path });
-        },
-        (cause: unknown) => {
-          if (activeSlug.current === botSlug) setError(folderBrowseError(cause, t));
-        },
-      )
-      .finally(() => {
-        if (activeSlug.current === botSlug) setBusy(undefined);
-      });
-  };
+  const state = useWorkspaceGrants({ actions, botSlug, t, composerOnly });
+  const {
+    grants,
+    rules,
+    access,
+    confirmDanger,
+    setConfirmDanger,
+    pendingGrant,
+    setPendingGrant,
+    setManualPath,
+    browserListing,
+    setBrowserListing,
+    busy,
+    error,
+    loading,
+    activeSlug,
+    showGrant,
+    writableByDefault,
+    mount,
+    mutate,
+  } = state;
 
   if (botSlug === undefined) return <div className="bh-note">{t('grant.noBot')}</div>;
-  const active = grants.filter((grant) => grant.revokedAt === undefined);
-  const revoked = grants.filter((grant) => grant.revokedAt !== undefined);
-  const activeIds = new Set(active.map((grant) => grant.workspaceId));
-  const available = workspaces.filter((workspace) => !activeIds.has(workspace.id));
 
   return (
     <div className="bh-workspace-grants" ref={mount}>
@@ -944,451 +579,17 @@ export function WorkspaceGrantsEntry({
         </div>
       )}
       <SettingsRows>
-        <SettingsSection title={t('grant.section')}>
-          <div {...stylex.props(accessStyles.stack)}>
-            {composerOnly ? (
-              <WorkspaceFolderPicker
-                actions={actions}
-                t={t}
-                disabled={busy !== undefined}
-                workspaces={available}
-                listLabel={t('entry.workspaceGrants')}
-                rows={
-                  <>
-                    <FolderRow
-                      icon="git-branch"
-                      name={t('grant.memory')}
-                      removeText={t('grant.delete')}
-                      removeUnavailable={t('grant.memoryDeleteUnavailable')}
-                      path={memoryDir ?? ''}
-                      pathAction={
-                        memoryDir === undefined ? undefined : (
-                          <MemoryFileActionButton
-                            actions={actions}
-                            slug={botSlug}
-                            path=""
-                            text={memoryDir}
-                            className="bh-workspace-folder-path"
-                            t={t}
-                          />
-                        )
-                      }
-                      control={
-                        memoryDir === undefined ? undefined : (
-                          <MemoryFileOpenButton
-                            actions={actions}
-                            slug={botSlug}
-                            path=""
-                            name={memoryDir}
-                            compact
-                            t={t}
-                          />
-                        )
-                      }
-                      detail={
-                        memoryDir === undefined ? undefined : (
-                          <div className="bh-workspace-folder-manual" data-memory-move="">
-                            <div className="bh-note">{t('grant.memoryMove.hint')}</div>
-                            <div {...stylex.props(memoryMoveStyles.row)}>
-                              <Input
-                                className={stylex.props(memoryMoveStyles.grow).className ?? ''}
-                                aria-label={t('grant.memoryMove.label')}
-                                placeholder={t('grant.memoryMove.placeholder')}
-                                value={memoryLocation}
-                                disabled={busy !== undefined}
-                                autoCapitalize="none"
-                                autoComplete="off"
-                                spellCheck={false}
-                                onChange={(event) => setMemoryLocation(event.currentTarget.value)}
-                              />
-                              <Button
-                                variant="outline"
-                                disabled={busy !== undefined}
-                                onClick={chooseMemoryLocation}
-                              >
-                                {t('bot.create.memoryLocation.choose')}
-                              </Button>
-                            </div>
-                            {memoryLocation.trim().length > 0 &&
-                            !isAbsoluteHostPath(memoryLocation.trim()) ? (
-                              <div className="bh-error" role="alert">
-                                {t('bot.create.memoryLocation.relative')}
-                              </div>
-                            ) : null}
-                            <div {...stylex.props(memoryMoveStyles.row)}>
-                              <Button
-                                variant="primary"
-                                disabled={
-                                  busy !== undefined || !isAbsoluteHostPath(memoryLocation.trim())
-                                }
-                                onClick={() => moveMemory(memoryLocation.trim())}
-                              >
-                                {busy === 'memory-move'
-                                  ? t('grant.memoryMove.moving')
-                                  : t('grant.memoryMove.move')}
-                              </Button>
-                              <Button
-                                variant="outline"
-                                disabled={busy !== undefined}
-                                onClick={() => moveMemory(null)}
-                              >
-                                {t('grant.memoryMove.default')}
-                              </Button>
-                            </div>
-                          </div>
-                        )
-                      }
-                    />
-                    {active.map((grant) => (
-                      <FolderRow
-                        key={grant.id}
-                        name={grant.workspaceTitle}
-                        path={grant.workspacePath}
-                        pathAction={
-                          <WorkspaceFilePathButton
-                            actions={actions}
-                            slug={botSlug}
-                            grantId={grant.id}
-                            text={grant.workspacePath}
-                            t={t}
-                          />
-                        }
-                        disabled={busy !== undefined}
-                        control={
-                          <>
-                            <label
-                              className="bh-workspace-folder-write"
-                              title={t('grant.orchestratorWrite')}
-                            >
-                              <span>{t('grant.chip.write')}</span>
-                              <Switch
-                                checked={grant.orchestratorWrite === true}
-                                disabled={busy !== undefined}
-                                label={t('grant.orchestratorWrite') + ': ' + grant.workspaceTitle}
-                                onChange={(enabled) =>
-                                  mutate(grant.id, async () => {
-                                    const updated = await actions.setWorkspaceGrantWrite(
-                                      botSlug,
-                                      grant.id,
-                                      enabled,
-                                    );
-                                    const current =
-                                      cachedWorkspace(actions, botSlug)?.grants ?? grants;
-                                    const next = current.map((row) =>
-                                      row.id === updated.id ? updated : row,
-                                    );
-                                    rememberWorkspace(actions, botSlug, {
-                                      grants: next,
-                                    });
-                                    if (activeSlug.current === botSlug) setGrants(next);
-                                  })
-                                }
-                              />
-                            </label>
-                            <WorkspaceFileOpenButton
-                              actions={actions}
-                              slug={botSlug}
-                              grantId={grant.id}
-                              name={grant.workspacePath}
-                              t={t}
-                            />
-                          </>
-                        }
-                        removeText={t('grant.delete')}
-                        removeLabel={t('grant.removeFolder') + ': ' + grant.workspaceTitle}
-                        remove={() =>
-                          mutate(grant.id, async () => {
-                            const revokedGrant = await actions.revokeWorkspaceGrant(
-                              botSlug,
-                              grant.id,
-                            );
-                            const current = cachedWorkspace(actions, botSlug)?.grants ?? grants;
-                            const next = current.map((row) =>
-                              row.id === revokedGrant.id ? revokedGrant : row,
-                            );
-                            rememberWorkspace(actions, botSlug, {
-                              grants: next,
-                            });
-                            if (activeSlug.current === botSlug) setGrants(next);
-                          })
-                        }
-                      />
-                    ))}
-                  </>
-                }
-                onChoose={(path, workspaceId) =>
-                  setPendingGrant({
-                    path,
-                    ...(workspaceId === undefined ? {} : { workspaceId }),
-                  })
-                }
-              />
-            ) : (
-              <SidebarCardList
-                className="bh-workspace-folder-table"
-                label={t('entry.workspaceGrants')}
-              >
-                <FolderRow
-                  icon="git-branch"
-                  name={t('grant.memory')}
-                  removeText={t('grant.delete')}
-                  removeUnavailable={t('grant.memoryDeleteUnavailable')}
-                  path={memoryDir ?? ''}
-                  pathAction={
-                    memoryDir === undefined ? undefined : (
-                      <MemoryFileActionButton
-                        actions={actions}
-                        slug={botSlug}
-                        path=""
-                        text={memoryDir}
-                        className="bh-workspace-folder-path"
-                        t={t}
-                      />
-                    )
-                  }
-                  control={
-                    memoryDir === undefined ? undefined : (
-                      <MemoryFileOpenButton
-                        actions={actions}
-                        slug={botSlug}
-                        path=""
-                        name={memoryDir}
-                        compact
-                        t={t}
-                      />
-                    )
-                  }
-                  detail={
-                    memoryDir === undefined ? undefined : (
-                      <div className="bh-workspace-folder-manual" data-memory-move="">
-                        <div className="bh-note">{t('grant.memoryMove.hint')}</div>
-                        <div {...stylex.props(memoryMoveStyles.row)}>
-                          <Input
-                            className={stylex.props(memoryMoveStyles.grow).className ?? ''}
-                            aria-label={t('grant.memoryMove.label')}
-                            placeholder={t('grant.memoryMove.placeholder')}
-                            value={memoryLocation}
-                            disabled={busy !== undefined}
-                            autoCapitalize="none"
-                            autoComplete="off"
-                            spellCheck={false}
-                            onChange={(event) => setMemoryLocation(event.currentTarget.value)}
-                          />
-                          <Button
-                            variant="outline"
-                            disabled={busy !== undefined}
-                            onClick={chooseMemoryLocation}
-                          >
-                            {t('bot.create.memoryLocation.choose')}
-                          </Button>
-                        </div>
-                        {memoryLocation.trim().length > 0 &&
-                        !isAbsoluteHostPath(memoryLocation.trim()) ? (
-                          <div className="bh-error" role="alert">
-                            {t('bot.create.memoryLocation.relative')}
-                          </div>
-                        ) : null}
-                        <div {...stylex.props(memoryMoveStyles.row)}>
-                          <Button
-                            variant="primary"
-                            disabled={
-                              busy !== undefined || !isAbsoluteHostPath(memoryLocation.trim())
-                            }
-                            onClick={() => moveMemory(memoryLocation.trim())}
-                          >
-                            {busy === 'memory-move'
-                              ? t('grant.memoryMove.moving')
-                              : t('grant.memoryMove.move')}
-                          </Button>
-                          <Button
-                            variant="outline"
-                            disabled={busy !== undefined}
-                            onClick={() => moveMemory(null)}
-                          >
-                            {t('grant.memoryMove.default')}
-                          </Button>
-                        </div>
-                      </div>
-                    )
-                  }
-                />
-                {active.map((grant) => (
-                  <FolderRow
-                    key={grant.id}
-                    name={grant.workspaceTitle}
-                    path={grant.workspacePath}
-                    pathAction={
-                      <WorkspaceFilePathButton
-                        actions={actions}
-                        slug={botSlug}
-                        grantId={grant.id}
-                        text={grant.workspacePath}
-                        t={t}
-                      />
-                    }
-                    disabled={busy !== undefined}
-                    control={
-                      <>
-                        <label
-                          className="bh-workspace-folder-write"
-                          title={t('grant.orchestratorWrite')}
-                        >
-                          <span>{t('grant.chip.write')}</span>
-                          <Switch
-                            checked={grant.orchestratorWrite === true}
-                            disabled={busy !== undefined}
-                            label={t('grant.orchestratorWrite') + ': ' + grant.workspaceTitle}
-                            onChange={(enabled) =>
-                              mutate(grant.id, async () => {
-                                const updated = await actions.setWorkspaceGrantWrite(
-                                  botSlug,
-                                  grant.id,
-                                  enabled,
-                                );
-                                const current = cachedWorkspace(actions, botSlug)?.grants ?? grants;
-                                const next = current.map((row) =>
-                                  row.id === updated.id ? updated : row,
-                                );
-                                rememberWorkspace(actions, botSlug, {
-                                  grants: next,
-                                });
-                                if (activeSlug.current === botSlug) setGrants(next);
-                              })
-                            }
-                          />
-                        </label>
-                        <WorkspaceFileOpenButton
-                          actions={actions}
-                          slug={botSlug}
-                          grantId={grant.id}
-                          name={grant.workspacePath}
-                          t={t}
-                        />
-                      </>
-                    }
-                    removeText={t('grant.delete')}
-                    removeLabel={t('grant.removeFolder') + ': ' + grant.workspaceTitle}
-                    remove={() =>
-                      mutate(grant.id, async () => {
-                        const revokedGrant = await actions.revokeWorkspaceGrant(botSlug, grant.id);
-                        const current = cachedWorkspace(actions, botSlug)?.grants ?? grants;
-                        const next = current.map((row) =>
-                          row.id === revokedGrant.id ? revokedGrant : row,
-                        );
-                        rememberWorkspace(actions, botSlug, { grants: next });
-                        if (activeSlug.current === botSlug) setGrants(next);
-                      })
-                    }
-                  />
-                ))}
-                <AddFolderRow
-                  label={t('grant.addFolder')}
-                  disabled={busy !== undefined}
-                  onAdd={openFolderBrowser}
-                />
-              </SidebarCardList>
-            )}
-            {busy === undefined ? null : (
-              <div className="bh-note" role="status">
-                {t('grant.working')}
-              </div>
-            )}
-            {developerMode && !composerOnly ? (
-              <details
-                className="bh-workspace-folder-secondary"
-                open={manualOpen}
-                onToggle={(event) => setManualOpen(event.currentTarget.open)}
-              >
-                <FolderSectionSummary>{t('grant.enterPath')}</FolderSectionSummary>
-                <div className="bh-workspace-folder-manual">
-                  <div className="bh-note">{t('grant.pathHelp')}</div>
-                  <Input
-                    aria-label={t('grant.pathLabel')}
-                    placeholder={t('grant.pathPlaceholder')}
-                    value={manualPath}
-                    onChange={(event) => setManualPath(event.target.value)}
-                  />
-                  <Button
-                    variant="outline"
-                    disabled={busy !== undefined || manualPath.trim().length === 0}
-                    onClick={() => {
-                      if (composerOnly) {
-                        previewFolder();
-                        return;
-                      }
-                      mutate('manual-folder', async () => {
-                        showGrant(
-                          await writableByDefault(
-                            await actions.authorizeWorkspacePath(botSlug, manualPath.trim()),
-                          ),
-                        );
-                        if (activeSlug.current === botSlug) {
-                          setManualPath('');
-                          setManualOpen(false);
-                        }
-                      });
-                    }}
-                  >
-                    {t('grant.authorize')}
-                  </Button>
-                </div>
-              </details>
-            ) : null}
-            {!developerMode || composerOnly || available.length === 0 ? null : (
-              <details className="bh-workspace-folder-secondary">
-                <FolderSectionSummary>{t('grant.registeredFolders')}</FolderSectionSummary>
-                <SidebarCardList className="bh-workspace-folder-table">
-                  {available.map((workspace) => (
-                    <FolderRow
-                      key={workspace.id}
-                      name={workspace.title}
-                      path={workspace.path}
-                      detail={
-                        <Button
-                          variant="outline"
-                          disabled={busy !== undefined}
-                          onClick={() => {
-                            if (composerOnly)
-                              setPendingGrant({
-                                path: workspace.path,
-                                workspaceId: workspace.id,
-                              });
-                            else
-                              mutate(workspace.id, async () =>
-                                showGrant(
-                                  await writableByDefault(
-                                    await actions.createWorkspaceGrant(botSlug, workspace.id),
-                                  ),
-                                ),
-                              );
-                          }}
-                        >
-                          {t('grant.authorize')}
-                        </Button>
-                      }
-                    />
-                  ))}
-                </SidebarCardList>
-              </details>
-            )}
-            {!developerMode || revoked.length === 0 ? null : (
-              <details className="bh-workspace-folder-secondary">
-                <FolderSectionSummary>
-                  {t('grant.history')} ({revoked.length})
-                </FolderSectionSummary>
-                <SidebarCardList className="bh-workspace-folder-table">
-                  {revoked.map((grant) => (
-                    <FolderRow
-                      key={grant.id}
-                      name={grant.workspaceTitle}
-                      path={grant.workspacePath}
-                    />
-                  ))}
-                </SidebarCardList>
-              </details>
-            )}
-          </div>
-        </SettingsSection>
+        {renderWorkspaceGrantFolders({
+          actions,
+          botSlug,
+          t,
+          developerMode,
+          composerOnly,
+          state,
+          stackProps: stylex.props(accessStyles.stack),
+          FolderRow,
+          WorkspaceFolderPicker,
+        })}
         <SettingsSection title={t('access.section')}>
           <SettingsRow
             title={t('access.title')}
@@ -1763,21 +964,6 @@ export function WorkspaceFolderPicker({
           }}
         />
       )}
-    </div>
-  );
-}
-
-export function WorkspaceGrantConfirmation({
-  title,
-  children,
-}: {
-  title: string;
-  children: ReactNode;
-}): ReactElement {
-  return (
-    <div className="bh-workspace-grant-confirm" role="group" aria-label={title}>
-      <strong>{title}</strong>
-      {children}
     </div>
   );
 }
