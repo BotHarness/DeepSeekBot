@@ -18,11 +18,7 @@ import type { DatabaseSync } from 'node:sqlite';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { MessagingGrant } from './outbound.js';
 import { MessagingError, type MessagingInboundEvent } from './provider.js';
-import type {
-  ExternalSource,
-  ExternalContextResult,
-  InboundMessaging,
-} from './inbound-types.js';
+import type { ExternalSource, ExternalContextResult, InboundMessaging } from './inbound-types.js';
 import type { StatementSync } from 'node:sqlite';
 import type { InboundMessagingOptions } from './inbound.js';
 
