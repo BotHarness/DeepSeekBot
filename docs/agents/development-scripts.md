@@ -210,6 +210,8 @@ node scripts/e2e-team-security.mjs --name <n> --scenario A  # Role Policy only, 
 node scripts/e2e-team-security.mjs --list
 ```
 
+B2 runs a bounded Shell probe against synthetic fixtures in the test Profile. It checks the Bot's own file write and read in both the Shell tool trace and Host state before it can pass. A refusal, an incomplete probe or a reply timeout is reported as `inconclusive` with a reason and a nonzero suite exit status. Retry B2 on an isolated Host. An inconclusive result does not satisfy the M15 gate. On macOS and Windows, a B2 pass qualifies probe execution in trial mode only.
+
 The report (`report.json`, `report.md`, `fixture.json` and `transcripts/`) lands in `.humanlayer/team-security/<time>/`. Run the suite on the exact PR head for every Team mode authority change, including offboarding, device access and model allowlists. Publish the report and transcripts through `pnpm evidence:publish` and link them from the PR. A failing scenario blocks merge unless the PR names the known gap and links its tracking issue.
 
 > > > > > > > origin/claude/bot-mention-wake-te5p0m
