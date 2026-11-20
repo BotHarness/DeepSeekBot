@@ -6136,7 +6136,7 @@ export const zh = {
   'team.roles.modelsProvider': '整个提供商 · 以后新增的模型也包含',
   'team.roles.modelsDisclosure': '显示或隐藏{name}的模型',
   'team.roles.modelsServerCheck': '服务端在每次调用模型时也会检查，不只是在选择器里隐藏。',
-  'modelProviders.rolesAllowed': '{roles} 可用',
+  'modelProviders.rolesAllowed': '{roles}可用',
   'modelProviders.roleSeparator': '、',
   'team.roles.modelsLoading': '正在加载模型…',
   'team.roles.modelsFailed': '无法加载模型，请重试。',

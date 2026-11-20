@@ -32,7 +32,7 @@ const styles = stylex.create({
   provider: { backgroundColor: layer.well, borderRadius: style.radiusControl },
   row: {
     display: 'grid',
-    gridTemplateColumns: 'auto minmax(0, 1fr) auto',
+    gridTemplateColumns: 'minmax(0, 1fr) auto',
     alignItems: 'center',
     gap: space.x2,
     minWidth: 0,
@@ -181,9 +181,16 @@ export function RoleModelsField({
             return (
               <div key={provider.id} {...stylex.props(styles.provider)}>
                 <div {...stylex.props(styles.row)}>
-                  <ModelBrandIcon brand={providerBrand(provider.id, provider.name)} size={20} />
                   <Checkbox
-                    label={provider.name}
+                    label={
+                      <>
+                        <ModelBrandIcon
+                          brand={providerBrand(provider.id, provider.name)}
+                          size={20}
+                        />
+                        {provider.name}
+                      </>
+                    }
                     title={t('team.roles.modelsProvider')}
                     checked={checked}
                     disabled={disabled || (!grantProvider && !checked)}

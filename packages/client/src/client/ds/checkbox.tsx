@@ -1,5 +1,5 @@
 import * as stylex from '@stylexjs/stylex';
-import type { ReactElement } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 
 import { joinClass } from './class-name.js';
 import { accent, edge, ink, size, space, style } from './tobs.stylex.js';
@@ -31,7 +31,7 @@ const styles = stylex.create({
 export interface CheckboxProps {
   readonly checked: boolean;
   readonly onChange: (next: boolean) => void;
-  readonly label: string;
+  readonly label: ReactNode;
   readonly disabled?: boolean;
   readonly title?: string | undefined;
   readonly className?: string | undefined;
