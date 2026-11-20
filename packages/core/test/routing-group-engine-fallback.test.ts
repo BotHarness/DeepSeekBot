@@ -221,7 +221,7 @@ function setup(options: {
   nativeFirst?: boolean;
   nativeRuntime?: Pick<
     Awaited<ReturnType<typeof nativeRuntime>>,
-    'agents' | 'dsh' | 'releaseNativeAgent'
+    'agents' | 'ctx' | 'dsh' | 'releaseNativeAgent'
   >;
   beforeNativeHandle?(sessionId: string, cwd: string): Promise<void>;
 }) {
@@ -320,6 +320,11 @@ function setup(options: {
     defaultModel: { currentSelection: () => API },
     orchestratorRoute: (id) => groupFallback.route(id),
   });
+  options.nativeRuntime?.ctx.on(
+    'agent/assistant-stream',
+    ({ agent, frame }) => adapter.acceptAssistantStream(agent.session.id, frame, agent),
+    { global: true },
+  );
   const core = createCore({
     dshHome: root,
     agents: adapter,

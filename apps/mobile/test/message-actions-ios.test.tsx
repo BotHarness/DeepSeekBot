@@ -10,6 +10,7 @@ const native = vi.hoisted(() => ({
 vi.mock('react-native-svg', () => ({
   default: ({ children }: { children: ReactNode }) => createElement('svg', null, children),
   Path: () => createElement('path'),
+  SvgXml: () => createElement('svg'),
 }));
 vi.mock('react-native', () => ({
   Platform: { OS: 'ios' },

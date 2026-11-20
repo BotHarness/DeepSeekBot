@@ -112,7 +112,7 @@ describe('Bot model from the composer', () => {
     expect(restingNotice('GPT-5', { restingUntil: until, credential: 'missing' })).toBeUndefined();
   });
 
-  it('names the Routing Group the Bot runs on beside the model in front (#4421)', () => {
+  it('shows the Routing Group and uses the target that actually ran', () => {
     const model: BotModel = {
       revision: 3,
       plan: {
@@ -130,7 +130,13 @@ describe('Bot model from the composer', () => {
       presets: [],
     };
     expect(currentModel(model)).toMatchObject({ name: 'DeepSeek V4 Pro', group: 'Daily' });
-    expect(modelLabel({ status: 'ready', value: model })).toBe('Daily · DeepSeek V4 Pro');
+    expect(modelLabel({ status: 'ready', value: model })).toBe('Daily');
+    expect(
+      modelLabel({
+        status: 'ready',
+        value: { ...model, currentTarget: { kind: 'dsh', ...flash } },
+      }),
+    ).toBe('DeepSeek V4 Flash · DeepSeek');
   });
 
   it('falls back to the global default model when the Bot has no plan, and survives missing presets', async () => {

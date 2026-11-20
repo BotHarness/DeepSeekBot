@@ -3577,7 +3577,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.on(
     'agent/assistant-stream',
     ({ agent, frame }) => {
-      agentAdapter.acceptAssistantStream(agent.session.id, frame);
+      agentAdapter.acceptAssistantStream(agent.session.id, frame, agent);
       sessionLive.accept(agent.session.id, frame);
     },
     { global: true },

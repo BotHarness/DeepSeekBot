@@ -15,6 +15,7 @@ vi.mock('react-native-reanimated', async () => import('./reanimated-shim'));
 vi.mock('react-native-svg', () => ({
   default: ({ children }: { children: ReactNode }) => createElement('svg', null, children),
   Path: () => createElement('path'),
+  SvgXml: () => createElement('svg'),
 }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),

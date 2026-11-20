@@ -1479,7 +1479,17 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     return false;
   }
 
-  acceptAssistantStream(sessionId: string, frame: AssistantStreamFrame): void {
+  acceptAssistantStream(sessionId: string, frame: AssistantStreamFrame, agent?: Agent): void {
+    if (frame.type === 'start') {
+      const active = this.#runs.get(sessionId);
+      const config = agent?.session.requestHeader()?.config;
+      if (active?.role === 'orchestrator' && config !== undefined)
+        active.run.observeTurnTarget?.(frame.turn, frame.step, {
+          kind: 'dsh',
+          provider: config.provider,
+          model: config.model,
+        });
+    }
     this.#drafts.accept(sessionId, frame);
   }
 
@@ -1908,23 +1918,6 @@ class DshBotAgentAdapter implements BotAgentAdapter {
       if (borrowed && disposeFiles !== undefined) borrowedDisposers.push(disposeFiles);
       const disposeSelection = installNativeModelSelection(agentCtx, agent, selection);
       if (borrowed) borrowedDisposers.push(disposeSelection);
-      const disposeTarget = agentCtx.on('agent/assistant-stream', (event) => {
-        const { frame } = event;
-        if (event.agent !== agent || frame.type !== 'start') return;
-        const active = this.#runs.get(agent.session.id);
-        if (active?.role !== 'orchestrator') return;
-        const config = agent.session.requestHeader()?.config;
-        if (config !== undefined)
-          active.run.observeTurnTarget?.(frame.turn, frame.step, {
-            kind: 'dsh',
-            provider: config.provider,
-            model: config.model,
-          });
-      });
-      if (borrowed)
-        borrowedDisposers.push(() => {
-          disposeTarget();
-        });
       const registerTool = (tool: Parameters<typeof agentCtx.tools.register>[0]) => {
         if (run.tobCli && TOB_CLI_ONLY_TOOLS.has(tool.name)) return () => undefined;
         const dispose = agentCtx.tools.register(tool);
@@ -5431,7 +5424,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
 }
 
 export function createDshBotAgentAdapter(options: DshBotAgentAdapterOptions): BotAgentAdapter & {
-  acceptAssistantStream(sessionId: string, frame: AssistantStreamFrame): void;
+  acceptAssistantStream(sessionId: string, frame: AssistantStreamFrame, agent?: Agent): void;
   forgetAgent(agent: Agent): void;
   modelSelection(sessionId: string): ModelSelection | undefined;
   ownsModelFreeTobTurn(agent: Agent): boolean;

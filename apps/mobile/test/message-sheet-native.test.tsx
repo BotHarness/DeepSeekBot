@@ -30,6 +30,7 @@ const labelOf = (modifiers?: Modifier[]) =>
 vi.mock('react-native-svg', () => ({
   default: ({ children }: { children: ReactNode }) => createElement('svg', null, children),
   Path: () => createElement('path'),
+  SvgXml: () => createElement('svg'),
 }));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');

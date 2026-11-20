@@ -5,6 +5,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { ConversationMessage } from '@botharness/host-client/conversation';
 
+vi.mock('react-native-svg', () => ({
+  default: () => null,
+  Path: () => null,
+  SvgXml: () => null,
+}));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return {
