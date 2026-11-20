@@ -107,7 +107,7 @@ describe('Profile Avatar Appearance editing', () => {
       await render({ ...base, avatar: '/saved.png' });
       await click('[data-avatar-preview-column] [data-avatar-remove]');
       expect(remove).toHaveBeenCalledOnce();
-      await click('[data-avatar-preset="2"]');
+      await click(`[data-avatar-preset="${AVATAR_PRESETS.length - 1}"]`);
       expect(save).not.toHaveBeenCalled();
       expect(
         container.querySelector('[data-avatar-preview] [data-media]')?.getAttribute('data-media'),
@@ -115,7 +115,7 @@ describe('Profile Avatar Appearance editing', () => {
       await click('[data-avatar-edit]');
       expect(container.querySelector('[data-avatar-preset]')).toBeNull();
       await click('[data-avatar-save]');
-      expect(save).toHaveBeenCalledWith('dm-ada', AVATAR_PRESETS[2]);
+      expect(save).toHaveBeenCalledWith('dm-ada', AVATAR_PRESETS.at(-1));
 
       const tilties = [...container.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(
         (tab) => tab.textContent === '歪头团',

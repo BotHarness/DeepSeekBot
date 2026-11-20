@@ -12,8 +12,6 @@ import { SegmentedControl } from './ds/segmented.js';
 import { accent, edge, radius, size, space } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 
-const pixelTile = `calc(${size.rowLarge} + ${space.x5})`;
-
 const styles = stylex.create({
   picker: {
     display: 'flex',
@@ -22,21 +20,14 @@ const styles = stylex.create({
     gap: space.x3,
     width: '100%',
   },
-  pixels: {
-    display: 'grid',
-    gridTemplateColumns: `repeat(auto-fill, minmax(${pixelTile}, 1fr))`,
+  gallery: {
+    display: 'flex',
+    flexWrap: 'wrap',
     gap: space.x2,
     width: '100%',
-    maxWidth: `calc(6 * ${pixelTile} + 5 * ${space.x2})`,
-  },
-  portraits: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
-    gap: space.x2,
-    width: '100%',
-    maxWidth: `calc(6 * ${size.rowLarge})`,
   },
   tile: {
+    width: `calc(${size.rowLarge} + ${size.control})`,
     aspectRatio: '1',
     paddingBlock: space.x1,
     paddingInline: space.x1,
@@ -114,7 +105,7 @@ export function AvatarPresetPicker<Recipe>({
               </p>
             ) : (
               <div
-                {...stylex.props(styles.pixels)}
+                {...stylex.props(styles.gallery)}
                 role="group"
                 aria-label={t('profile.avatar.presets')}
               >
@@ -164,7 +155,7 @@ export function AvatarPresetPicker<Recipe>({
               disabled={disabled}
             />
             <div
-              {...stylex.props(styles.portraits)}
+              {...stylex.props(styles.gallery)}
               role="group"
               aria-label={t('profile.avatar.tilties')}
             >
