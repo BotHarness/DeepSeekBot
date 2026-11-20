@@ -98,6 +98,7 @@ function PresetEditor({
   t,
   onClose,
   onSaved,
+  onRefreshed,
 }: {
   editor: Editor;
   library: Library;
@@ -106,8 +107,10 @@ function PresetEditor({
   t: BotHarnessTranslate;
   onClose(): void;
   onSaved(preset: ModelPreset): void;
+  onRefreshed(preset: ModelPreset): void;
 }): ReactElement {
   const preset = editor.kind === 'edit' ? editor.preset : undefined;
+  const [revision, setRevision] = useState(preset?.revision);
   const { models, groups = [], default: fallback } = library.catalog;
   const [name, setName] = useState(preset?.name ?? '');
   const [draft, setDraft] = useState(() => {
@@ -190,10 +193,20 @@ function PresetEditor({
       onSaved(
         preset === undefined
           ? await createModelPreset(host, input)
-          : await updateModelPreset(host, preset.id, preset.revision, input),
+          : await updateModelPreset(host, preset.id, revision ?? preset.revision, input),
       );
     } catch (cause) {
       setError(errorMessage(cause));
+      if (preset !== undefined) {
+        const current = await loadModelPresetLibrary(host).then(
+          (snapshot) => snapshot.presets.find((entry) => entry.id === preset.id),
+          () => undefined,
+        );
+        if (current !== undefined) {
+          setRevision(current.revision);
+          onRefreshed(current);
+        }
+      }
     } finally {
       setBusy(false);
     }
@@ -212,7 +225,9 @@ function PresetEditor({
       submitDisabled={name.trim() === '' || parts === undefined}
       busy={busy}
       error={error}
-      onCancel={onClose}
+      onCancel={() => {
+        if (!busy) onClose();
+      }}
       onSubmit={() => void save()}
     >
       <TextField
@@ -452,6 +467,14 @@ export function ModelPresetsSettings({
                 });
                 close();
               }}
+              onRefreshed={(preset) =>
+                setLibrary({
+                  ...library,
+                  presets: library.presets.map((entry) =>
+                    entry.id === preset.id ? preset : entry,
+                  ),
+                })
+              }
             />
           )
         ) : null}

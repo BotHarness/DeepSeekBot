@@ -60,6 +60,7 @@ export function AssignmentModelPolicy({
           ) : (
             <>
               <Button
+                type="button"
                 variant="ghost"
                 disabled={busy}
                 onClick={() => onMakeDefault({ key, effort: option.defaultEffort })}
@@ -67,6 +68,7 @@ export function AssignmentModelPolicy({
                 {t('modelPreset.makeDefault')}
               </Button>
               <Button
+                type="button"
                 variant="ghost"
                 disabled={busy}
                 aria-label={t('modelPreset.removeAllowed', { model: name })}
@@ -174,6 +176,7 @@ export function AssignmentModelPolicy({
           ) : (
             <>
               <Button
+                type="button"
                 variant="ghost"
                 disabled={busy}
                 onClick={() => onMakeDefault({ key: groupMenuKey(option.group), effort: '' })}
@@ -181,6 +184,7 @@ export function AssignmentModelPolicy({
                 {t('modelPreset.makeDefault')}
               </Button>
               <Button
+                type="button"
                 variant="ghost"
                 disabled={busy}
                 aria-label={t('modelPreset.removeAllowed', { model: name })}
@@ -202,6 +206,7 @@ export function AssignmentModelPolicy({
           <div className="bh-model-card-field">
             <span className="bh-note">{t('modelPreset.groupEffortsStale')}</span>
             <Button
+              type="button"
               variant="ghost"
               disabled={busy}
               onClick={() =>
