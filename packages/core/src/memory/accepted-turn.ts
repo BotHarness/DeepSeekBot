@@ -2,7 +2,7 @@ import { syncGitSteps, type GitSteps } from './git-steps.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
-import { MemoryAcceptError } from './accepted-contract.js';
+import { MemoryAcceptError } from './accepted-types.js';
 import type {
   MemoryPendingCommits,
   MemoryCommitSummary,
@@ -10,7 +10,7 @@ import type {
   MemoryChangeScan,
   MemoryAcceptedCommit,
   MemoryAcceptance,
-} from './accepted-contract.js';
+} from './accepted-types.js';
 import {
   repositorySteps,
   branchOfSteps,

@@ -3,8 +3,8 @@ import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
 import { createMemoryRecovery } from './recovery.js';
-import { MemoryAcceptError } from './accepted-contract.js';
-import type { MemoryChangeScan, MemoryAcceptance } from './accepted-contract.js';
+import { MemoryAcceptError } from './accepted-types.js';
+import type { MemoryChangeScan, MemoryAcceptance } from './accepted-types.js';
 import { repository, branchOf, run } from './accepted-git.js';
 import { createMemoryObservation } from './accepted-observation.js';
 import { createAcceptedRepository } from './accepted-repository.js';
@@ -14,7 +14,7 @@ import { createMemoryReads } from './accepted-reads.js';
 import { createAcceptedHumanEdits } from './accepted-human.js';
 import { createAcceptedRepair } from './accepted-repair.js';
 import { createAcceptedVersions } from './accepted-versions.js';
-export { MemoryAcceptError } from './accepted-contract.js';
+export { MemoryAcceptError } from './accepted-types.js';
 export type {
   MemoryAcceptErrorCode,
   MemoryAcceptedCommit,
@@ -34,7 +34,7 @@ export type {
   MemoryCommitFile,
   MemoryCommitSummary,
   MemoryPendingCommits,
-} from './accepted-contract.js';
+} from './accepted-types.js';
 
 export function createMemoryAcceptance(options: {
   registry: PersonaBotRegistry;

@@ -7,13 +7,13 @@ import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
 import { toMemoryRelativePath, resolveMemoryPath } from './jail.js';
 import { createMemoryRecovery } from './recovery.js';
-import { MemoryAcceptError } from './accepted-contract.js';
+import { MemoryAcceptError } from './accepted-types.js';
 import type {
   MemoryChangeScan,
   MemoryAcceptedCommit,
   MemoryVersionName,
   MemoryAcceptance,
-} from './accepted-contract.js';
+} from './accepted-types.js';
 import {
   repository,
   branchOf,

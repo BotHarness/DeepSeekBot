@@ -9,12 +9,12 @@ import { existsSync, lstatSync, readFileSync, statSync } from 'node:fs';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { toMemoryRelativePath, resolveMemoryPath } from './jail.js';
 import { run, head, MAX_DIFF_BYTES, output, dirty, MAX_FILE_BYTES } from './accepted-git.js';
-import { MemoryAcceptError } from './accepted-contract.js';
+import { MemoryAcceptError } from './accepted-types.js';
 import type {
   MemoryGitCommit,
   MemoryGitCommitDiff,
   MemoryAcceptance,
-} from './accepted-contract.js';
+} from './accepted-types.js';
 import { versionNames } from './accepted-versions.js';
 import type { RepairRow } from './accepted-repository.js';
 import { currentWorkingChanges } from './accepted-observation.js';

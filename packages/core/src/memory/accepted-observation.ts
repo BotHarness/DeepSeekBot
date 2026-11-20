@@ -25,13 +25,13 @@ import {
   outputSteps,
   repositorySteps,
 } from './accepted-git.js';
-import { MemoryAcceptError } from './accepted-contract.js';
+import { MemoryAcceptError } from './accepted-types.js';
 import type {
   MemoryWorkingChange,
   MemoryChangeDelta,
   MemoryChangeScan,
   MemoryAcceptance,
-} from './accepted-contract.js';
+} from './accepted-types.js';
 import type { RepairRow } from './accepted-repository.js';
 
 export interface TurnWorktreeObservation {

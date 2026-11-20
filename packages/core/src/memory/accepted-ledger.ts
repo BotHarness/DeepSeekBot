@@ -3,8 +3,8 @@ import { existsSync } from 'node:fs';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { DEFAULT_STANDING_LIMITS, standingUsage } from './soul.js';
-import { MemoryAcceptError } from './accepted-contract.js';
-import type { MemoryAcceptedCommit, MemoryAcceptance } from './accepted-contract.js';
+import { MemoryAcceptError } from './accepted-types.js';
+import type { MemoryAcceptedCommit, MemoryAcceptance } from './accepted-types.js';
 import {
   branchOfSteps,
   headSteps,

@@ -2,8 +2,8 @@ import { syncGitSteps, type GitSteps } from './git-steps.js';
 import { existsSync, lstatSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PersonaBotRegistry } from '../bots/registry.js';
-import { MemoryAcceptError } from './accepted-contract.js';
-import type { MemoryCommitSummary } from './accepted-contract.js';
+import { MemoryAcceptError } from './accepted-types.js';
+import type { MemoryCommitSummary } from './accepted-types.js';
 
 export const MAX_FILE_BYTES = 1024 * 1024;
 

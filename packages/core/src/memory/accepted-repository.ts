@@ -2,8 +2,8 @@ import { existsSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
-import { MemoryAcceptError } from './accepted-contract.js';
-import type { MemoryRepairEvent } from './accepted-contract.js';
+import { MemoryAcceptError } from './accepted-types.js';
+import type { MemoryRepairEvent } from './accepted-types.js';
 import { repository, verifiedRepository } from './accepted-git.js';
 
 export interface RepairRow {

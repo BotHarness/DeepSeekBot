@@ -6,8 +6,8 @@ import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { createMemoryRecovery } from './recovery.js';
 import { rowToRepair } from './accepted-repository.js';
 import type { RepairRow } from './accepted-repository.js';
-import { MemoryAcceptError } from './accepted-contract.js';
-import type { MemoryChangeScan, MemoryAcceptance } from './accepted-contract.js';
+import { MemoryAcceptError } from './accepted-types.js';
+import type { MemoryChangeScan, MemoryAcceptance } from './accepted-types.js';
 import { repository, branchOf, verifiedRepository, head, dirty, run } from './accepted-git.js';
 
 export function createAcceptedRepair({

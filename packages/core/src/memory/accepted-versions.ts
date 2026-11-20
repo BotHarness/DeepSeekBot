@@ -1,6 +1,6 @@
 import type { PersonaBotRegistry } from '../bots/registry.js';
-import { MemoryAcceptError } from './accepted-contract.js';
-import type { MemoryVersionName, MemoryVersion, MemoryAcceptance } from './accepted-contract.js';
+import { MemoryAcceptError } from './accepted-types.js';
+import type { MemoryVersionName, MemoryVersion, MemoryAcceptance } from './accepted-types.js';
 import { output, run, repository } from './accepted-git.js';
 
 export function versionNames(root: string): Map<string, MemoryVersionName[]> {
