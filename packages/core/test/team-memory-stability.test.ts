@@ -44,6 +44,7 @@ function git(path: string, ...args: string[]) {
   return execFileSync('git', ['-C', path, ...args], {
     encoding: 'utf8',
     windowsHide: true,
+    shell: false,
   }).trim();
 }
 function proofBody(core: BotHarnessCore, slug: string) {

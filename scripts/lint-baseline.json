@@ -69,18 +69,7 @@
     "packages/core/test/genui-execution-worker.test.ts": 2
   },
   "botharness/spawn-options": {
-    "apps/mobile/scripts/check-stream-video.mjs": 1,
-    "apps/mobile/scripts/rn-profile.mjs": 1,
-    "apps/mobile/scripts/tob-authkit-browser.mjs": 1,
-    "apps/mobile/scripts/tob-mobile-driver.mjs": 1,
     "apps/mobile/scripts/web-screenshot.mjs": 1,
-    "apps/mobile/test/hardware-send-ios-results.test.ts": 1,
-    "apps/mobile/test/ios-brand.test.ts": 1,
-    "apps/mobile/test/memory-preview.live.test.ts": 2,
-    "apps/mobile/test/stream-replay.test.ts": 1,
-    "packages/computer/test/desktop-initialization.test.ts": 1,
-    "packages/computer/test/local-display.test.ts": 2,
-    "packages/connect-relay/scripts/e2e-lifecycle.ts": 1,
     "scripts/activity-idle-report.mjs": 1,
     "scripts/android-qa.mjs": 1,
     "scripts/browser-lifecycle-report.mjs": 1,

@@ -150,6 +150,8 @@ describe('local speech service kit', () => {
           await promisify(execFile)(py, ['-I', script, '--home', dir, '--port', port, ...args], {
             encoding: 'utf8',
             timeout: 20_000,
+            shell: false,
+            windowsHide: true,
           })
         ).stdout,
       ) as unknown;

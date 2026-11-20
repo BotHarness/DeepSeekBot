@@ -52,6 +52,7 @@ function phone(options) {
         timeout,
         windowsHide: true,
         maxBuffer: 16e6,
+        shell: false,
       });
     try {
       return once();
@@ -65,6 +66,7 @@ function phone(options) {
       timeout: 15000,
       windowsHide: true,
       maxBuffer: 16e6,
+      shell: false,
     });
   const shell = (...args) => run(['shell', ...args]);
   const xml = () => {
@@ -82,6 +84,7 @@ function phone(options) {
     spawn(adb, ['-s', serial, 'shell', 'perfetto', '--txt', '-c', '-', '-o', remote], {
       windowsHide: true,
       stdio: ['pipe', 'ignore', 'pipe'],
+      shell: false,
     });
   return { run, bytes, shell, xml, tap, uptime, trace };
 }
@@ -215,6 +218,7 @@ async function gestures(d, scenario, options) {
     const trigger = spawn(process.execPath, [options.trigger], {
       stdio: 'ignore',
       windowsHide: true,
+      shell: false,
     });
     const finished = new Promise((done) => trigger.once('exit', done));
     await act('trigger', () => {}, 1500);
@@ -328,7 +332,7 @@ function analyze(options) {
         join(dir, `${name}.sql`),
         join(dir, 'trace.perfetto-trace'),
       ],
-      { encoding: 'utf8', windowsHide: true, maxBuffer: 64e6 },
+      { encoding: 'utf8', windowsHide: true, maxBuffer: 64e6, shell: false },
     );
     writeFileSync(join(dir, `${name}.csv`), text);
     return csv(text);

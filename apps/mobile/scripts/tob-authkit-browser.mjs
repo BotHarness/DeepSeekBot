@@ -244,7 +244,11 @@ async function main() {
     return;
   }
   const sims = JSON.parse(
-    execFileSync('xcrun', ['simctl', 'list', 'devices', 'booted', '-j'], { encoding: 'utf8' }),
+    execFileSync('xcrun', ['simctl', 'list', 'devices', 'booted', '-j'], {
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    }),
   );
   const sim = Object.values(sims.devices)
     .flat()

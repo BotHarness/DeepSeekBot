@@ -102,6 +102,8 @@ const connect = (id: string, tunnelToken: string) => {
   const child = spawn(binary, ['tunnel', '--no-autoupdate', 'run'], {
     env: { ...process.env, TUNNEL_TOKEN: tunnelToken },
     stdio: ['ignore', 'ignore', 'pipe'],
+    shell: false,
+    windowsHide: true,
   });
   child.on('error', (error) => record('cloudflared failed to start', false, error.message));
   connectors.set(id, child);

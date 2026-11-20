@@ -350,6 +350,7 @@ export function createCallMedia(options: CallMediaOptions = {}): VoiceCallMedia 
             },
             windowsHide: true,
             stdio: ['pipe', 'pipe', 'pipe'],
+            shell: false,
           },
         );
         signal.addEventListener('abort', aborted, { once: true });
