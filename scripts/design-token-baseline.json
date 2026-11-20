@@ -67,7 +67,7 @@
   },
   "packages/client/src/client/bot-sidebar.tsx": {
     "rawControl": 6,
-    "legacyCss": 2
+    "legacyCss": 1
   },
   "packages/client/src/client/bot-skills-card.tsx": {
     "rawControl": 1
