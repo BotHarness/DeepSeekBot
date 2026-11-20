@@ -9,7 +9,7 @@ import { useId, useState, type ReactElement } from 'react';
 import { Button } from './ds/button.js';
 import { Icon } from './ds/icon.js';
 import { SegmentedControl } from './ds/segmented.js';
-import { accent, edge, size, space } from './ds/tobs.stylex.js';
+import { accent, edge, size, space, style as controlStyle } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 const styles = stylex.create({
@@ -35,7 +35,7 @@ const styles = stylex.create({
   selectionRing: {
     position: 'absolute',
     inset: 0,
-    borderRadius: 'inherit',
+    borderRadius: controlStyle.radiusCard,
     boxShadow: `inset 0 0 0 ${edge.focus} ${accent.focus}`,
     pointerEvents: 'none',
   },
