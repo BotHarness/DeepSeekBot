@@ -122,13 +122,7 @@ import { secretCommandDenial } from './credentials/secret-command.js';
 import { rememberedStarts, secretMcpDenial } from './credentials/secret-mcp.js';
 import { createSecretMcpStore } from './credentials/secret-mcp-store.js';
 import { createBotOnboarding, type BotOnboarding } from './onboarding/service.js';
-import { createPartLibrary, type PartLibrary } from './bots/part-library.js';
-import {
-  PART_SLOTS,
-  isAvatarAppearance,
-  wornAvatarPart,
-  type PartSlot,
-} from './bots/avatar-appearance.js';
+import type { PartLibrary } from './bots/part-library.js';
 import { createOutboundMessaging, type OutboundMessaging } from './messaging/outbound.js';
 import { createProfileRecovery, type ProfileRecovery } from './portability/recovery.js';
 import { createProfileBackupHttp, PROFILE_BACKUP_PATH } from './portability/http.js';
@@ -191,7 +185,6 @@ import {
   BOT_ZIP_EXPORT_PATH,
   BOT_ZIP_FILES_PATH,
   BOT_ZIP_IMPORT_PATH,
-  createBotZipHttp,
 } from './bots/bot-zip-http.js';
 import {
   createAttachmentHttp,
@@ -213,15 +206,6 @@ import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount
 import { createTurnLog } from './diagnostics/turn-log.js';
 import { mountDevicePairing } from './devices/mount.js';
 import { activityListPushSource } from './push/source.js';
-import { createMarketplaceClient } from './marketplace/client.js';
-import { createInstallReceipts } from './marketplace/install-receipts.js';
-import { createMarketplaceUploads } from './marketplace/uploaded-bots.js';
-import {
-  createMarketplaceInstallReviews,
-  INSTALL_REVIEW_SYSTEM_PROMPT,
-  INSTALL_REVIEW_TIMEOUT_MS,
-} from './marketplace/install-review.js';
-import { createShareDrafts } from './marketplace/share-draft.js';
 import type { ConnectAccount } from './devices/connect-account.js';
 import {
   createLoadingReleaseService,
@@ -274,29 +258,16 @@ import { groupMemberRoute } from './models/catalog.js';
 import { createModelRouteReadiness } from './models/readiness.js';
 import { createGroupFallback } from './models/group-fallback.js';
 import { createHostModelCatalog, createHostModelProviders } from './models/host-models.js';
-import { createBotAvatarHttp, botAvatarUrl, BOT_AVATAR_PATH } from './bots/avatar-http.js';
-import { BOT_BANNER_PATH, createBotBannerHttp } from './bots/banner-http.js';
+import { botAvatarUrl, BOT_AVATAR_PATH } from './bots/avatar-http.js';
+import { BOT_BANNER_PATH } from './bots/banner-http.js';
 import { coalesce } from './runtime/coalesce.js';
 import { watchHumanAttention } from './runtime/human-attention-live.js';
 import { createMediaVersions, type MediaVersions } from './attachments/media-versions.js';
 import { loadImageProcessor } from './attachments/thumbnails.js';
 import { createChannelLiveHub, CHANNEL_STREAM_PATH, type ChannelLiveHub } from './channels/live.js';
 import type { ChannelDraftEvent } from './channels/draft.js';
-import { watchSkillCatalog } from './skills/refresh.js';
-import { SkillCatalog, type SkillRegistryPort } from './skills/catalog.js';
-import { createSkillViewPort, type SkillAgentPresetsPort } from './skills/agent-view.js';
-import {
-  degradeHostCapability,
-  hostAgentPresets,
-  hostSessionPersistence,
-  hostSessionStore,
-  hostSkillRegistry,
-  installHostSkillInvalidation,
-  onHostSkillsChange,
-  hostSkillAgent,
-  onHostSkillAgentsChange,
-} from './runtime/native-agent-compat.js';
-import { DeveloperModeSkillGate } from './logs/skill.js';
+import { hostSessionPersistence, hostSessionStore } from './runtime/native-agent-compat.js';
+import type { SkillRegistrar } from './logs/skill.js';
 import { openLogDatabase, type LogDatabase } from './logs/log-db.js';
 import type { ChannelStore } from './channels/store.js';
 import {
@@ -332,7 +303,7 @@ import {
 import { createBotAttentionQuery, type BotAttentionQuery } from './runtime/attention.js';
 import { createInboxHistoryQuery, type InboxHistoryQuery } from './runtime/inbox-history.js';
 import { createBotSourcePolicyStore, type BotSourcePolicyStore } from './runtime/source-policy.js';
-import { createBotScheduleStore, type BotScheduleStore } from './schedules/bot-schedules.js';
+import type { BotScheduleStore } from './schedules/bot-schedules.js';
 import {
   createHumanAttentionQuery,
   createHumanAttentionDecisions,
@@ -368,12 +339,8 @@ import {
 } from './workspaces/approval-templates.js';
 import {
   APPROVAL_REVIEW_SESSION_PREFIX,
-  ApprovalReviewError,
-  type ApprovalReviewerRoute,
   createApprovalReviewRunner,
   isApprovalReviewSession,
-  routeLabel,
-  runReviewerTurn,
 } from './workspaces/approval-reviewer.js';
 import { createApprovalReviewerSettings } from './workspaces/approval-reviewer-settings.js';
 import {
@@ -443,9 +410,12 @@ import {
 } from './runtime/subagent-model-tools.js';
 import { installNativeSubagentWake } from './runtime/native-subagent-wake.js';
 import { restartEmptyToolSeries } from './runtime/tool-declaration-series.js';
-import { promptTextOf } from './prompts/prompt-parts.js';
-import { createPromptPresetLibrary, promptPartTexts } from './prompts/prompt-presets.js';
-import { createPromptSettings, type PromptSettings } from './prompts/prompt-settings.js';
+import type { PromptSettings } from './prompts/prompt-settings.js';
+import * as avatars from './features/avatars/plugin.js';
+import * as marketplace from './features/marketplace/plugin.js';
+import * as promptPresets from './features/prompts/plugin.js';
+import * as botSchedules from './features/schedules/plugin.js';
+import * as skillsFeature from './features/skills/plugin.js';
 
 export const name = 'botharness-core';
 
@@ -807,9 +777,7 @@ function initializeCore(
     );
   let usage: UsageProjection | undefined;
   startup.enter('avatar-part-library', 'initialize');
-  const partLibrary = createPartLibrary({
-    database: attachOperationalModule(operationalDatabase, 'avatar-part-library'),
-  });
+  const { partLibrary, onAppearanceImported } = avatars.apply(operationalDatabase);
   let registry: PersonaBotRegistry;
   let modelPresets: ModelPresetStore;
   let modelFavorites: ModelFavoriteStore;
@@ -858,20 +826,7 @@ function initializeCore(
         options.warn?.(
           `bot-registry-import initiator=host-startup phase=${event.phase} count=${event.count ?? 0} durationMs=${Math.round(event.durationMs)}`,
         ),
-      onAppearanceImported: (record) => {
-        const recipe = isAvatarAppearance(record.appearance) ? record.appearance.recipe : undefined;
-        if (recipe?.family !== 'illustrated') return;
-        for (const slot of Object.keys(PART_SLOTS) as PartSlot[]) {
-          const part = wornAvatarPart(recipe, slot);
-          if (part)
-            partLibrary.add({
-              part,
-              name: '',
-              origin: 'imported-bot',
-              author: record.displayName,
-            });
-        }
-      },
+      onAppearanceImported,
       onDisplayNameChanged: () => {
         try {
           live?.publishRosterCommitted();
@@ -1428,23 +1383,16 @@ function initializeCore(
   };
 
   startup.enter('bot-schedules', 'initialize');
-  const schedules = createBotScheduleStore({
-    database: attachOperationalModule(operationalDatabase, 'bot-schedules'),
-    isBotActive: (slug) => {
-      const bot = registry.get(slug);
-      return operationalDatabase.mode === 'ready' && bot !== undefined && bot.paused !== true;
-    },
+  const schedules = botSchedules.apply({
+    operationalDatabase,
+    registry,
     onAdmitted: (slug) => runtime?.admitScheduleFiring?.(slug),
-    ...(options.warn === undefined ? {} : { warn: options.warn }),
+    warn: options.warn,
   });
   startup.enter('message-perf', 'initialize');
   const messagePerf: MessagePerfTracker = createMessagePerfTracker();
   startup.enter('prompt-settings', 'initialize');
-  const prompts = createPromptSettings({
-    library: createPromptPresetLibrary(join(dshHome, 'botharness', 'prompt-presets')),
-    registry,
-    ownership,
-  });
+  const prompts = promptPresets.apply({ dshHome, registry, ownership });
   startup.enter('voice-providers', 'initialize');
   const voiceProviders = new VoiceProviders({
     database: attachOperationalModule(operationalDatabase, 'voice'),
@@ -1491,12 +1439,8 @@ function initializeCore(
       ? {}
       : { closeSessionApprovals: options.closeSessionApprovals }),
     onTobDelegation: () => options.capture?.('tob:delegation_send', { surface: 'bot_tool' }),
-    promptText: (slug) => {
-      const sessionId = runtime?.currentOrchestratorSessionId?.(slug);
-      return sessionId === undefined
-        ? promptTextOf(promptPartTexts(prompts.resolved(slug)))
-        : prompts.textForSession(sessionId);
-    },
+    promptText: (slug) =>
+      promptPresets.promptText(prompts, slug, runtime?.currentOrchestratorSessionId?.(slug)),
     promptLimits: (slug) => prompts.limits(slug),
     tob,
     triageContinuation: options.triageContinuation === true,
@@ -1629,7 +1573,7 @@ function initializeCore(
     database: attachOperationalModule(operationalDatabase, 'bot-onboarding'),
   });
   startup.enter('bot-schedules', 'start');
-  if (operationalDatabase.mode === 'ready') schedules.start();
+  botSchedules.start(schedules, operationalDatabase);
   return {
     voiceProviders,
     voiceMessages,
@@ -1726,7 +1670,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   mountClientDiagnostics(ctx, dshHome);
   const botModeSettings = createBotModeSettings(join(dshHome, 'botharness'));
   const productBotMode = config.agentPreset ?? DEFAULT_AGENT_PRESET;
-  let reconcileBotModeSkills: (() => void) | undefined;
   let installedBotModeIds: ReadonlySet<string> | undefined;
   const globalBotMode = (): string => {
     const saved = botModeSettings.defaultMode();
@@ -2621,7 +2564,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     return () => controller.abort();
   }, 'botharness: retained attachment migration');
   ctx.effect(() => () => core.runtime.close(), 'botharness: bot runtime');
-  ctx.effect(() => () => core.schedules.close(), 'botharness: bot schedules');
+  botSchedules.mountCleanup(ctx, core);
   ctx.effect(() => () => core.live.close(), 'botharness: Channel live hub');
   ctx.effect(() => () => core.companions.close(), 'botharness: Window Companion feed');
   ctx.provide('botharness', core);
@@ -3612,33 +3555,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
 
   const dshSessions = (ctx as unknown as { sessions: DshSessionStore }).sessions;
 
-  const developerModeTarget: { gate?: DeveloperModeSkillGate } = {};
-  const syncDeveloperMode = () => {
-    let enabled = false;
-    try {
-      const settings = ctx.get('settings') as unknown as TobNativeSettings | undefined;
-      const value = settings
-        ?.describe({ redactSecrets: true })
-        .find((entry) => entry.ns === 'botharness-client')?.value;
-      enabled =
-        typeof value === 'object' &&
-        value !== null &&
-        'developerMode' in value &&
-        value.developerMode === true;
-    } catch {}
-    developerModeTarget.gate?.set(enabled);
-  };
+  const developerMode = skillsFeature.createDeveloperMode(
+    () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
+  );
   ctx.inject(['settings'], (settingsCtx) => {
     const events = settingsCtx as unknown as {
       on(event: 'settings/document-updated', listener: (namespace: string) => void): void;
     };
-    events.on('settings/document-updated', (namespace) => {
-      if (namespace === 'botharness-client') syncDeveloperMode();
-    });
-    settingsCtx.effect(() => {
-      syncDeveloperMode();
-      return () => developerModeTarget.gate?.set(false);
-    }, 'botharness: developer mode settings');
+    developerMode.mountSettings(settingsCtx, (listener) =>
+      events.on('settings/document-updated', listener),
+    );
   });
   const releaseInstaller: { current: ReleaseInstaller | undefined } = {
     current: undefined,
@@ -3732,8 +3658,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     defaultModel,
     routingGroups: core.routingGroups,
     runtimeChanged: (patch) => {
-      if (typeof patch.developerMode === 'boolean')
-        developerModeTarget.gate?.set(patch.developerMode);
+      if (typeof patch.developerMode === 'boolean') developerMode.set(patch.developerMode);
     },
   });
   const tobMaintenanceOperations = createTobMaintenanceOperations({
@@ -3748,98 +3673,16 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       )?.capability?.().kind === 'native',
   });
   ctx.effect(() => () => folders.close(), 'botharness: folder reader');
-  const marketplaceClient = createMarketplaceClient({
+  const { marketplaceClient, marketplaceUploads, shareDrafts } = marketplace.apply(ctx, {
     baseUrl: config.marketplaceUrl ?? DEFAULT_MARKETPLACE_URL,
-  });
-  const shareDrafts = createShareDrafts({
-    root: join(dshHome, 'botharness', 'share-drafts'),
-    memoryDir: (slug) =>
-      core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
-    log: (event) => ctx.logger.info(JSON.stringify(event)),
-  });
-  const marketplaceUploads = createMarketplaceUploads({
-    client: marketplaceClient,
+    dshHome,
+    registry: core.registry,
     account: () => connectAccount,
-    drafts: shareDrafts,
-    log: (event) => ctx.logger.info(JSON.stringify(event)),
   });
-  let invalidateNativeSkills: (() => void) | undefined;
-  const skillAgentFor = (slug: string) =>
-    hostSkillAgent(ctx, core.runtime.currentOrchestratorSessionId?.(slug));
-  const skillCatalog = new SkillCatalog({
-    grantsFor: (slug) =>
-      core.grants.list(slug).flatMap((grant) => {
-        try {
-          return [core.grants.requireActive(slug, grant.id)];
-        } catch {
-          return [];
-        }
-      }),
-    memoryDirFor: (slug) =>
-      core.registry.get(slug) === undefined ? undefined : core.registry.memoryDirFor(slug),
-    viewFor: createSkillViewPort({
-      agentFor: skillAgentFor,
-      presetFor: botModeOf,
-      agentPresets: () => hostAgentPresets<SkillAgentPresetsPort<Agent>>(ctx),
-    }),
-  });
-  ctx.effect(() => {
-    if (core.operationalDatabase.mode !== 'ready') return () => undefined;
-    const refresh = watchSkillCatalog({
-      catalog: skillCatalog,
-      invalidateNative: () => invalidateNativeSkills?.(),
-      bots: () =>
-        core.registry.list().flatMap((bot) => {
-          const memoryDir = core.registry.memoryDirFor(bot.slug);
-          return memoryDir === undefined
-            ? []
-            : [
-                {
-                  slug: bot.slug,
-                  memoryDir,
-                  agent: skillAgentFor(bot.slug),
-                  preset: botModeOf(bot.slug),
-                },
-              ];
-        }),
-      changed: (botSlugs) =>
-        core.live.publishSkillCatalogChanged({
-          botSlugs,
-          channelIds: core.channels
-            .list()
-            .filter(
-              (channel) =>
-                channel.deletedAt === undefined &&
-                channel.members.some((slug) => botSlugs.includes(slug)),
-            )
-            .map((channel) => channel.id),
-        }),
-      diagnostic: (phase, fields) => diagnosticEvents.record('skills', phase, fields),
-    });
-    const offRegistry = core.operationalDatabase.subscribe(({ topics }) => {
-      if (
-        topics.some((topic) =>
-          ['bot-registry', 'member-purged', 'session-ownership', 'workspace-grants'].includes(
-            topic,
-          ),
-        )
-      )
-        refresh.reconcile();
-    });
-    const offHost = onHostSkillsChange(ctx, () => void refresh.hostChanged());
-    const offAgents = onHostSkillAgentsChange(ctx, () => refresh.reconcile());
-    reconcileBotModeSkills = () => refresh.reconcile();
-    return () => {
-      reconcileBotModeSkills = undefined;
-      offAgents();
-      offHost();
-      offRegistry();
-      refresh.close();
-    };
-  }, 'botharness: live skill catalog');
+  const skills = skillsFeature.apply(ctx, core, { botModeOf, diagnosticEvents });
   const bridgeDeps: BridgeMethodsDeps = {
     team,
-    skills: skillCatalog,
+    skills: skills.catalog,
     hostVersion: () => release.version(),
     callText: createCallTextHarvest({ calls: () => voiceCalls, attachments: core.attachments }),
     voiceProviders: core.voiceProviders,
@@ -3937,7 +3780,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       settings: botModeSettings,
       productDefault: productBotMode,
       roster: installedBotModes,
-      changed: () => reconcileBotModeSkills?.(),
+      changed: skills.reconcileBotMode,
     },
     idleCompaction: {
       settings: idleCompactionSettings,
@@ -4062,77 +3905,24 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     assignmentAccess: core.assignmentAccess,
     marketplace: marketplaceClient,
     marketplaceUploads,
-    marketplaceInstallReviews: createMarketplaceInstallReviews({
-      uploads: marketplaceUploads,
-      reviewer: async (prompt, botName) => {
-        const tob = core.tob.slug();
-        let route: ApprovalReviewerRoute | undefined =
-          tob === undefined ? undefined : core.registry.get(tob)?.modelPlan?.orchestrator;
-        if (route === undefined) {
-          try {
-            route = defaultModel.currentSelection();
-          } catch {
-            route = undefined;
-          }
-        }
-        if (route === undefined) throw new ApprovalReviewError('no-model');
-        try {
-          await modelCatalog.validate(route);
-        } catch (error) {
-          throw new ApprovalReviewError(
-            'model-unavailable',
-            error instanceof Error ? error.message : String(error),
-          );
-        }
-        const sessionId = APPROVAL_REVIEW_SESSION_PREFIX + 'install-' + randomUUID();
-        const cwd = join(dshHome, 'botharness', 'approval-reviews');
-        mkdirSync(cwd, { recursive: true });
-        const titles = ctx.get('sessionTitle') as
-          | { rename?: (session: unknown, title: string) => void }
-          | undefined;
-        reviewing.add(sessionId);
-        try {
-          const text = await runReviewerTurn(
-            ctx.agents,
-            route,
-            {
-              systemPrompt: INSTALL_REVIEW_SYSTEM_PROMPT,
-              sectionName: 'botharness:install-review',
-              prompt,
-              title: `Install review · ${botName}`,
-              signal: new AbortController().signal,
-              maxTokens: 4_000,
-            },
-            {
-              sessionId,
-              cwd,
-              timeoutMs: INSTALL_REVIEW_TIMEOUT_MS,
-              ...(typeof titles?.rename === 'function'
-                ? { rename: (session, title) => titles.rename!(session, title) }
-                : {}),
-            },
-          );
-          return { text, model: routeLabel(route) };
-        } finally {
-          reviewing.delete(sessionId);
-        }
-      },
+    marketplaceInstallReviews: marketplace.createInstallReviews(ctx, {
+      dshHome,
+      registry: core.registry,
+      tob: core.tob,
+      defaultRoute: () => defaultModel.currentSelection(),
+      modelCatalog,
+      reviewing,
+      marketplaceUploads,
     }),
     shareDrafts,
-    marketplaceReceipts: createInstallReceipts({
-      client: marketplaceClient,
-      dataDir: telemetryDir,
-      log: (event) => ctx.logger.info(JSON.stringify(event)),
-    }),
+    marketplaceReceipts: marketplace.createReceipts(ctx, marketplaceClient, telemetryDir),
     release: releaseService,
     plugins: pluginUpdates,
     updates: updateRuns,
     telemetry,
     activeDay,
     git,
-    developerMode: {
-      set: (enabled: boolean) => developerModeTarget.gate?.set(enabled),
-    },
+    developerMode: { set: developerMode.set },
     computerAccess: {
       changed: (slug: string) => {
         const provider = ctx.get('botharnessComputerTools') as unknown as
@@ -4430,71 +4220,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     team,
   );
 
-  ctx.inject(['skills'], (skillsCtx) => {
-    const skills = (
-      skillsCtx as unknown as {
-        skills: {
-          register(skill: {
-            readonly name: string;
-            readonly description: string;
-            readonly whenToUse: string;
-            readonly content: string;
-            readonly invocation: {
-              readonly modelInvocable: boolean;
-              readonly userInvocable: boolean;
-            };
-            readonly source: string;
-            readonly provider: string;
-          }): () => void;
-        };
-      }
-    ).skills;
-    const gate = new DeveloperModeSkillGate({
-      register: (definition) => {
-        let dispose: (() => void) | undefined;
-        skillsCtx.effect(() => {
-          dispose = skills.register(definition);
-          return () => dispose?.();
-        }, 'botharness: operational logs skill');
-        return () => dispose?.();
-      },
-    });
-    developerModeTarget.gate = gate;
-    skillsCtx.effect(() => {
-      const registry = hostSkillRegistry<SkillRegistryPort>(skillsCtx);
-      if (registry === undefined) return degradeHostCapability(skillsCtx, 'skills.list');
-      const detach = skillCatalog.attach(registry);
-      const stop = installHostSkillInvalidation(skillsCtx, (invalidate) => {
-        invalidateNativeSkills = invalidate;
-        return () => {
-          if (invalidateNativeSkills === invalidate) invalidateNativeSkills = undefined;
-        };
-      });
-      return () => {
-        stop();
-        detach();
-      };
-    }, 'botharness: skill catalog');
-    skillsCtx.effect(
-      () =>
-        skills.register({
-          name: LOCAL_VOICE_SKILL_NAME,
-          description: LOCAL_VOICE_SKILL_DESCRIPTION,
-          whenToUse: LOCAL_VOICE_SKILL_WHEN_TO_USE,
-          content: LOCAL_VOICE_SKILL_CONTENT,
-          invocation: LOCAL_VOICE_SKILL_INVOCATION,
-          source: LOCAL_VOICE_SKILL_SOURCE,
-          provider: LOCAL_VOICE_SKILL_PROVIDER,
-        }),
-      'botharness: local voice skill',
-    );
-    skillsCtx.effect(() => {
-      syncDeveloperMode();
-      return () => {
-        gate.set(false);
-        if (developerModeTarget.gate === gate) delete developerModeTarget.gate;
-      };
-    }, 'botharness: developer mode skill gate');
+  skills.mountNative({
+    developerMode,
+    getRegistrar: (skillsCtx) => (skillsCtx as unknown as { skills: SkillRegistrar }).skills,
+    localVoiceSkill: () => ({
+      name: LOCAL_VOICE_SKILL_NAME,
+      description: LOCAL_VOICE_SKILL_DESCRIPTION,
+      whenToUse: LOCAL_VOICE_SKILL_WHEN_TO_USE,
+      content: LOCAL_VOICE_SKILL_CONTENT,
+      invocation: LOCAL_VOICE_SKILL_INVOCATION,
+      source: LOCAL_VOICE_SKILL_SOURCE,
+      provider: LOCAL_VOICE_SKILL_PROVIDER,
+    }),
   });
 
   ctx.inject(['connection'], (connectionCtx) => {
@@ -4708,32 +4445,26 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         }),
       'botharness: Channel attachment download',
     );
-    const botBannerHttp = createBotBannerHttp(core.registry);
-    connectionCtx.effect(
-      () =>
+    avatars.mountRoutes(connectionCtx, {
+      registry: core.registry,
+      registerBanner: (fetch) =>
         connection.fetch.register({
           path: BOT_BANNER_PATH,
           methods: ['GET'],
           requestBody: 'buffered',
-          fetch: botBannerHttp,
+          fetch,
         }),
-      'botharness: Bot banner',
-    );
-    const botAvatarHttp = createBotAvatarHttp(core.registry);
-    connectionCtx.effect(
-      () =>
+      registerAvatar: (fetch) =>
         connection.fetch.register({
           path: BOT_AVATAR_PATH,
           methods: ['GET'],
           requestBody: 'buffered',
-          fetch: botAvatarHttp,
+          fetch,
         }),
-      'botharness: PersonaBot avatar',
-    );
-    const botZipHttp = createBotZipHttp({
+    });
+    const botZipHttp = marketplace.createZipTransfer(ctx, {
       registry: core.registry,
       detail: (slug) => bridgeMethods.get({ slug }),
-      log: (message) => ctx.logger.info(message),
     });
     const profileBackupHttp = createProfileBackupHttp(
       {
@@ -4830,36 +4561,29 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           }),
         'botharness: diagnostic bundle ' + path,
       );
-    connectionCtx.effect(
-      () =>
+    marketplace.mountZipRoutes(connectionCtx, botZipHttp, {
+      export: (fetch) =>
         connection.fetch.register({
           path: BOT_ZIP_EXPORT_PATH,
           methods: ['GET', 'POST'],
           requestBody: 'buffered',
-          fetch: botZipHttp,
+          fetch,
         }),
-      'botharness: Bot Zip export',
-    );
-    connectionCtx.effect(
-      () =>
+      files: (fetch) =>
         connection.fetch.register({
           path: BOT_ZIP_FILES_PATH,
           methods: ['GET'],
           requestBody: 'buffered',
-          fetch: botZipHttp,
+          fetch,
         }),
-      'botharness: Bot Zip file list',
-    );
-    connectionCtx.effect(
-      () =>
+      import: (fetch) =>
         connection.fetch.register({
           path: BOT_ZIP_IMPORT_PATH,
           methods: ['POST'],
           requestBody: 'streaming',
-          fetch: botZipHttp,
+          fetch,
         }),
-      'botharness: Bot Zip import',
-    );
+    });
   });
   const toolDetails = createToolDetailIndex({
     owner: (sessionId) => core.ownership.resolve(sessionId),
