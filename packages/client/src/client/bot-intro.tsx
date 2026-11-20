@@ -1,54 +1,20 @@
-import { providerBrand } from '@botharness/host-client/shared/model-brand';
-import type { ModelProvidersView } from '@botharness/host-client/model-providers';
-import type { SubscriptionModel } from '@botharness/host-client/model-plans';
 import { Button } from './ds/button.js';
-import { ChoiceButton } from './ds/choice-button.js';
-import { ReadFailure } from './ds/read-failure.js';
-import { bridgeHost, type BridgeCall } from './bridge.js';
+import type { BridgeCall } from './bridge.js';
 import { BOT_SETTINGS_SECTIONS, type BotSettings } from './bot-settings.js';
-import { engineModelKey, useSubscriptionEngines } from './engine-choice.js';
-import { engineName } from './session-engine.js';
-import { engineMenuItems } from './model-menu.js';
-import { ModelBrandIcon } from './model-brand.js';
-import { AddModelProvider, ModelProviderSubscriptions } from './model-providers-settings.js';
-import { canManageModelProviders } from './team-bridge.js';
-import {
-  useLayoutEffect,
-  useState,
-  useSyncExternalStore,
-  type Dispatch,
-  type ReactElement,
-  type ReactNode,
-  type SetStateAction,
-} from 'react';
+import { useLayoutEffect, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type { BridgeActions } from './actions.js';
-import { errorMessage, type ModelCatalogView, type ModelRouteView } from './bridge.js';
-import { BotIcon } from './bot-icon.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
-import { Icon } from './ds/icon.js';
 import { IconButton } from './ds/icon-button.js';
-import { Note } from './ds/note.js';
 import { border, color, dialog, radius, size, space, text } from './ds/tokens.stylex.js';
-import { space as tobsSpace } from './ds/tobs.stylex.js';
 import { ConnectionsDialog } from './connections-dialog.js';
 import { Modal } from './modal.js';
-import { ModelPicker } from './model-picker.js';
-import type { Appearance, AppearancePatch } from './appearance.js';
-import { AppearanceMaterialSettings } from './appearance-material-settings.js';
-import {
-  ColorSchemePicker,
-  LayoutModePicker,
-  ThemePresetPicker,
-  applyPreset,
-} from './appearance-pickers.js';
-import type { LayoutMode } from './layout-mode.js';
-import { WallpaperLibrary } from './wallpaper-library.js';
+import type { Appearance } from './appearance.js';
 import type { Wallpaper } from './wallpaper.js';
 import { CommunityIcon } from './community-icons.js';
 import { COMMUNITY, cachedGithubStars, fetchGithubStars, formatStars } from './community-links.js';
 import { requestTobMessage } from './tob-requests.js';
-import { refreshTeamMode, useTeamMember, useTeamModeRead } from './team-state.js';
+import { useTeamMember } from './team-state.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import {
@@ -67,17 +33,20 @@ import {
   type PersonaDetail,
   type PersonaPrompt,
 } from './onboarding-personas.js';
-import { invalidateInheritedModelPlans } from './model-plan-store.js';
 import { observeResource } from './messaging-defaults-live.js';
+
+import {
+  ModelStep,
+  EMPTY_MODEL_DRAFT,
+  type ModelStepBinding,
+  type ModelStepDraft,
+} from './bot-intro-model-step.js';
+import { noSubscribe, ThemeStep } from './bot-intro-theme-step.js';
+import { Voices, WelcomeStep } from './bot-intro-welcome-step.js';
+import { styles as stepStyles } from './bot-intro-step-styles.js';
 
 export { INTRO_STEPS };
 export type IntroStep = (typeof INTRO_STEPS)[number];
-
-const REVIEWS: readonly BotHarnessKey[] = [
-  'intro.reviews.clean',
-  'intro.reviews.era',
-  'intro.reviews.details',
-];
 
 const FEATURE_ICONS: Readonly<Record<OnboardingFeature, string>> = {
   bot: 'bot',
@@ -89,12 +58,6 @@ const FEATURE_ICONS: Readonly<Record<OnboardingFeature, string>> = {
 };
 
 const styles = stylex.create({
-  modelForm: {
-    display: 'grid',
-    gap: space.x5,
-    minWidth: 0,
-    lineHeight: text.bodyLine,
-  },
   dialog: {
     width: dialog.medium,
     maxWidth: '100%',
@@ -202,117 +165,18 @@ const styles = stylex.create({
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
   },
-  hero: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: space.x4,
-    textAlign: 'center',
-  },
   heroCopy: {
     display: 'flex',
     flexDirection: 'column',
     gap: space.x3,
     maxWidth: '560px',
   },
-  title: {
-    margin: 0,
-    color: color.fg,
-    fontSize: text.titleSize,
-    lineHeight: text.titleLine,
-    fontWeight: text.strong,
-  },
-  copy: {
-    margin: 0,
-    color: color.muted,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
-  },
-  letter: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x3,
-    padding: space.x5,
-    borderRadius: radius.lg,
-    backgroundColor: color.surface,
-  },
   reviews: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
     gap: space.x3,
   },
-  review: {
-    margin: 0,
-    padding: space.x4,
-    borderRadius: radius.lg,
-    backgroundColor: color.surface,
-    color: color.fg,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
-  },
-  choices: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: tobsSpace.x2,
-  },
-  providers: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: tobsSpace.x2,
-  },
-  provider: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: tobsSpace.x1,
-    minWidth: 0,
-    overflowWrap: 'anywhere',
-  },
-  advanced: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x3,
-    padding: space.x4,
-    borderRadius: radius.lg,
-    backgroundColor: color.surface,
-  },
-  advancedSummary: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x1,
-    cursor: 'pointer',
-    color: color.fg,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
-    fontWeight: text.strong,
-  },
   starterItem: { display: 'flex', flexDirection: 'column' },
-  note: { display: 'flex', flexDirection: 'column', gap: space.x2 },
-  signature: {
-    margin: 0,
-    alignSelf: 'flex-end',
-    color: color.muted,
-    fontSize: text.bodySize,
-  },
-  section: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x4,
-    minWidth: 0,
-  },
-  layoutHint: {
-    margin: 0,
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-  },
-  sectionTitle: {
-    margin: 0,
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    fontWeight: text.strong,
-  },
   link: {
     display: 'flex',
     alignItems: 'center',
@@ -618,7 +482,9 @@ export function BotIntro({
         )}
         data-intro-step={step}
       >
-        {step === 'welcome' ? <WelcomeStep t={t} /> : null}
+        {step === 'welcome' ? (
+          <WelcomeStep t={t} heroCopyProps={stylex.props(styles.heroCopy)} />
+        ) : null}
         {step === 'theme' && appearance ? (
           <ThemeStep
             appearance={appearance}
@@ -647,11 +513,11 @@ export function BotIntro({
           />
         ) : null}
         {step === 'phone' ? (
-          <div ref={phoneStatusMount} {...stylex.props(styles.hero)}>
+          <div ref={phoneStatusMount} {...stylex.props(stepStyles.hero)}>
             <ChannelSidebarIcon name="smartphone" size={48} />
             <div {...stylex.props(styles.heroCopy)}>
-              <h2 {...stylex.props(styles.title)}>{t('intro.phone.title')}</h2>
-              <p {...stylex.props(styles.copy)} role="status">
+              <h2 {...stylex.props(stepStyles.title)}>{t('intro.phone.title')}</h2>
+              <p {...stylex.props(stepStyles.copy)} role="status">
                 {t(phoneRead ? 'intro.phone.connected' : 'intro.phone.body')}
               </p>
               <Button
@@ -737,720 +603,6 @@ export function BotIntro({
   );
 }
 
-const noSubscribe = () => () => {};
-
-function WelcomeStep({ t }: { t: BotHarnessTranslate }): ReactElement {
-  return (
-    <>
-      <div {...stylex.props(styles.hero)}>
-        <BotIcon icon="mascot" size={96} />
-        <div {...stylex.props(styles.heroCopy)}>
-          <h2 {...stylex.props(styles.title)}>{t('intro.welcome.greeting')}</h2>
-          <p {...stylex.props(styles.copy)}>{t('intro.welcome.body')}</p>
-          <p {...stylex.props(styles.copy)}>{t('intro.welcome.next')}</p>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function Voices({ t }: { t: BotHarnessTranslate }): ReactElement {
-  return (
-    <>
-      <section {...stylex.props(styles.section)} aria-label={t('intro.reviews.title')}>
-        <h3 {...stylex.props(styles.sectionTitle)}>{t('intro.reviews.title')}</h3>
-        <div {...stylex.props(styles.reviews)} data-user-reviews>
-          {REVIEWS.map((key) => (
-            <blockquote key={key} {...stylex.props(styles.review)}>
-              {t(key)}
-            </blockquote>
-          ))}
-        </div>
-      </section>
-      <section {...stylex.props(styles.letter)} aria-label={t('intro.founder.title')}>
-        <h3 {...stylex.props(styles.sectionTitle)}>{t('intro.founder.title')}</h3>
-        <div {...stylex.props(styles.note)} data-founder-note>
-          {t('intro.founder.body')
-            .split('\n')
-            .map((line) => (
-              <p key={line} {...stylex.props(styles.copy)}>
-                {line}
-              </p>
-            ))}
-        </div>
-        <p {...stylex.props(styles.signature)}>{t('intro.founder.signature')}</p>
-      </section>
-    </>
-  );
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }): ReactElement {
-  return (
-    <section {...stylex.props(styles.section)} aria-label={title}>
-      <h3 {...stylex.props(styles.sectionTitle)}>{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function ThemeStep({
-  appearance,
-  wallpaper,
-  layoutMode,
-  onLayoutMode,
-  t,
-  track,
-}: {
-  appearance: Appearance;
-  wallpaper?: Wallpaper | undefined;
-  layoutMode?: LayoutMode | undefined;
-  onLayoutMode(mode: LayoutMode): void;
-  t: BotHarnessTranslate;
-  track(setting: 'scheme' | 'preset' | 'layout' | 'wallpaper'): void;
-}): ReactElement {
-  const theme = useSyncExternalStore(appearance.subscribe, appearance.getSnapshot);
-  const media = useSyncExternalStore(wallpaper?.subscribe ?? noSubscribe, () =>
-    wallpaper?.getSnapshot(),
-  );
-  const change = (patch: AppearancePatch) => {
-    try {
-      appearance.update(patch);
-    } catch {}
-  };
-  return (
-    <>
-      <h2 {...stylex.props(styles.title)}>{t('intro.theme.title')}</h2>
-      {theme.error ? <Note tone="danger">{t('appearance.saveFailed')}</Note> : null}
-      <Section title={t('intro.theme.scheme')}>
-        <ColorSchemePicker
-          value={theme.config.preference}
-          config={theme.config}
-          onChange={(preference) => {
-            change({ preference });
-            track('scheme');
-          }}
-          t={t}
-        />
-      </Section>
-      <Section title={t('intro.theme.color')}>
-        <ThemePresetPicker
-          config={theme.config}
-          onSelect={(preset) => {
-            applyPreset(appearance, preset);
-            track('preset');
-          }}
-          t={t}
-        />
-      </Section>
-      {layoutMode ? (
-        <Section title={t('workspace.layoutMode')}>
-          <LayoutModePicker
-            value={layoutMode}
-            onChange={(mode) => {
-              onLayoutMode(mode);
-              track('layout');
-            }}
-            t={t}
-          />
-          <p {...stylex.props(styles.layoutHint)}>
-            {t(
-              layoutMode === 'simple'
-                ? 'onboarding.short.layoutSimpleHint'
-                : 'onboarding.short.layoutAdvancedHint',
-            )}
-          </p>
-        </Section>
-      ) : null}
-      {wallpaper ? (
-        <Section title={t('intro.theme.wallpaper')}>
-          <WallpaperLibrary
-            owner={wallpaper}
-            t={t}
-            appearance={appearance}
-            size="large"
-            onChange={() => track('wallpaper')}
-          />
-        </Section>
-      ) : null}
-      {media?.current ? (
-        <Section title={t('intro.theme.panels')}>
-          <Note>{t('intro.theme.panelsHint')}</Note>
-          <AppearanceMaterialSettings appearance={appearance} snapshot={theme} t={t} />
-        </Section>
-      ) : null}
-    </>
-  );
-}
-
-interface ModelStepBinding {
-  keyForm: boolean;
-  canAdvance: boolean;
-  save(): Promise<boolean>;
-}
-
-interface ModelStepDraft {
-  route?: ModelRouteView | undefined;
-  subscription?: SubscriptionModel | null;
-  assignment?: ModelRouteView | undefined;
-  advanced: boolean;
-}
-
-const EMPTY_MODEL_DRAFT: ModelStepDraft = { advanced: false };
-
-function ModelStep({
-  actions,
-  call,
-  member,
-  t,
-  draft: [{ route: draftRoute, subscription, assignment, advanced }, setDraft],
-  bind,
-  saving,
-  onProviderSavingChange,
-  openProviders,
-}: {
-  actions: BridgeActions;
-  call: BridgeCall | undefined;
-  member: boolean;
-  t: BotHarnessTranslate;
-  draft: [ModelStepDraft, Dispatch<SetStateAction<ModelStepDraft>>];
-  bind(model: ModelStepBinding | undefined): void;
-  saving: boolean;
-  onProviderSavingChange(saving: boolean): void;
-  openProviders: (() => void) | undefined;
-}): ReactElement {
-  const viewerRead = useTeamModeRead(call);
-  const viewer = viewerRead.value?.viewer;
-  const [retryingViewer, setRetryingViewer] = useState(false);
-  const owner = call === undefined ? !member : viewer?.owner;
-  const canConnect = canManageModelProviders(viewer);
-  const engines = useSubscriptionEngines(viewer?.owner === true);
-  const [catalog, setCatalog] = useState<ModelCatalogView>();
-  const [planned, setPlanned] = useState<string>();
-  const [connection, setConnection] = useState<'key' | 'subscription'>();
-  const [readError, setReadError] = useState<string>();
-  const [saveError, setSaveError] = useState<string>();
-  const [refresh, setRefresh] = useState(0);
-  const editingKey = canConnect && connection === 'key' && call !== undefined;
-  const reload = () => setRefresh((count) => count + 1);
-  const mount = useMountedResource<HTMLDivElement>(() => {
-    let active = true;
-    const stop = observeResource(
-      'model-providers',
-      async () => {
-        try {
-          const next = await actions.modelCatalog();
-          if (active) {
-            setCatalog(next);
-            setReadError(undefined);
-          }
-        } catch (cause) {
-          if (active) setReadError(errorMessage(cause));
-        }
-      },
-      undefined,
-      undefined,
-      true,
-    );
-    return () => {
-      active = false;
-      stop();
-    };
-  }, [actions, refresh]);
-
-  const models = (catalog?.models ?? []).filter((model) => model.credential === undefined);
-  const usableRoute = (route: ModelRouteView | undefined): ModelRouteView | undefined => {
-    if (route === undefined) return undefined;
-    const entry = models.find(
-      (model) => model.provider === route.provider && model.model === route.model,
-    );
-    if (entry === undefined || entry.restingUntil !== undefined) return undefined;
-    return route.reasoningEffort === undefined ||
-      entry.efforts.some(({ id }) => id === route.reasoningEffort)
-      ? route
-      : { provider: route.provider, model: route.model };
-  };
-  const first = models.find((model) => model.restingUntil === undefined);
-  const route =
-    usableRoute(draftRoute) ??
-    usableRoute(catalog?.default) ??
-    (first === undefined ? undefined : { provider: first.provider, model: first.model });
-  const tob = onboardingFor(actions).getSnapshot().receipt?.defaultBotSlug;
-  const availableEngines = owner
-    ? (engines.view?.engines.filter((engine) => engine.available) ?? [])
-    : [];
-  const savedEngine = engines.view?.selections.find(
-    (choice) => choice.botSlug === tob && choice.role === 'orchestrator',
-  );
-  const [firstEngine] = availableEngines;
-  const subscriptionKey = (choice: SubscriptionModel) =>
-    engineModelKey(choice.engine, choice.accountId);
-  const draftEngine =
-    subscription == null
-      ? undefined
-      : availableEngines.find((entry) => subscriptionKey(entry) === subscriptionKey(subscription));
-  const draftEngineModels =
-    draftEngine === undefined ? undefined : engines.models[subscriptionKey(draftEngine)];
-  const draftEngineModel = draftEngineModels?.find(({ id }) => id === subscription?.model);
-  const unavailableSubscription =
-    owner === true &&
-    subscription != null &&
-    engines.view !== undefined &&
-    (draftEngine === undefined ||
-      (subscription.model !== undefined &&
-        draftEngineModels !== undefined &&
-        draftEngineModel === undefined));
-  const validatedSubscription =
-    subscription && draftEngine && (subscription.model === undefined || draftEngineModel)
-      ? {
-          engine: subscription.engine,
-          ...(subscription.accountId === undefined ? {} : { accountId: subscription.accountId }),
-          ...(subscription.model === undefined ? {} : { model: subscription.model }),
-          ...(subscription.effort !== undefined &&
-          draftEngineModel?.efforts.some(({ id }) => id === subscription.effort)
-            ? { effort: subscription.effort }
-            : {}),
-        }
-      : owner
-        ? subscription
-        : undefined;
-  const engineChoice: SubscriptionModel | null =
-    validatedSubscription !== undefined
-      ? validatedSubscription
-      : savedEngine !== undefined &&
-          availableEngines.some(
-            (status) => subscriptionKey(status) === subscriptionKey(savedEngine),
-          )
-        ? savedEngine
-        : route === undefined && firstEngine !== undefined
-          ? {
-              engine: firstEngine.engine,
-              ...(firstEngine.accountId === undefined ? {} : { accountId: firstEngine.accountId }),
-            }
-          : null;
-  const waitingForEngineSelection =
-    owner === true &&
-    call !== undefined &&
-    tob !== undefined &&
-    subscription !== undefined &&
-    (engines.view === undefined ||
-      (draftEngine !== undefined &&
-        subscription?.model !== undefined &&
-        draftEngineModels === undefined));
-  const availableAssignment = usableRoute(assignment);
-  const invalidAssignment =
-    advanced &&
-    assignment !== undefined &&
-    catalog !== undefined &&
-    (availableAssignment === undefined ||
-      availableAssignment.reasoningEffort !== assignment.reasoningEffort);
-  const waitingForCatalog =
-    catalog === undefined && (draftRoute !== undefined || (advanced && assignment !== undefined));
-  const canAdvance =
-    owner === false ||
-    (owner === true &&
-      !unavailableSubscription &&
-      (editingKey ||
-        (!waitingForEngineSelection &&
-          (engineChoice !== null || (!waitingForCatalog && !invalidAssignment)))));
-  const hasUsableProvider = route !== undefined || availableEngines.length > 0;
-  const local =
-    engines.view === undefined
-      ? undefined
-      : engines.view.engines.some(
-          (status) => status.available || status.reason !== 'host-not-local',
-        );
-  const split =
-    advanced && assignment !== undefined && route !== undefined
-      ? routeKey(assignment) !== routeKey(route) ||
-        (assignment.reasoningEffort ?? '') !== (route.reasoningEffort ?? '')
-      : false;
-
-  const save = async (): Promise<boolean> => {
-    if (!canAdvance) return false;
-    if (!owner || connection === 'key') return true;
-    setSaveError(undefined);
-    try {
-      if (engineChoice !== null) {
-        if (
-          tob !== undefined &&
-          (savedEngine === undefined ||
-            subscriptionKey(engineChoice) !== subscriptionKey(savedEngine) ||
-            engineChoice.model !== savedEngine?.model ||
-            engineChoice.effort !== savedEngine?.effort)
-        ) {
-          await engines.saveSelection(tob, 'orchestrator', engineChoice);
-          onboardingFor(actions).introEvent('onboarding:model_save', { is_advanced: false });
-        }
-        return true;
-      }
-      if (route === undefined) return true;
-      const plan = split && assignment ? JSON.stringify([route, assignment]) : undefined;
-      const initial = catalog?.default;
-      const changedDefault =
-        initial === undefined ||
-        routeKey(initial) !== routeKey(route) ||
-        (initial.reasoningEffort ?? '') !== (route.reasoningEffort ?? '');
-      if (changedDefault) {
-        await actions.onboardingModel(undefined, 0, route, true);
-        invalidateInheritedModelPlans(actions);
-        setCatalog((previous) =>
-          previous === undefined ? previous : { ...previous, default: route },
-        );
-        setPlanned(undefined);
-      }
-      if (tob !== undefined && savedEngine !== undefined && subscription === null) {
-        await engines.saveSelection(tob, 'orchestrator', null);
-      }
-      if (tob !== undefined && plan !== planned) {
-        const revision = (await actions.modelPlanState(tob)).revision ?? 0;
-        if (split && assignment) {
-          const effort = assignment.reasoningEffort ?? '';
-          await actions.setModelPlan(tob, revision, route, assignment, [
-            {
-              provider: assignment.provider,
-              model: assignment.model,
-              allowedEfforts: [effort],
-              defaultEffort: effort,
-            },
-          ]);
-        } else await actions.inheritModel(tob, revision);
-        setPlanned(plan);
-      }
-      if (changedDefault || (tob !== undefined && plan !== planned))
-        onboardingFor(actions).introEvent('onboarding:model_save', { is_advanced: split });
-      return true;
-    } catch (cause) {
-      setSaveError(errorMessage(cause));
-      return false;
-    }
-  };
-  const bindSave = useMountedResource<HTMLSpanElement>(() => {
-    bind({ keyForm: editingKey, canAdvance, save });
-    return () => bind(undefined);
-  }, [
-    owner,
-    canAdvance,
-    editingKey,
-    connection,
-    route?.provider,
-    route?.model,
-    route?.reasoningEffort,
-    catalog?.default,
-    assignment,
-    advanced,
-    planned,
-    engineChoice?.engine,
-    engineChoice?.model,
-    engineChoice?.effort,
-    savedEngine,
-    subscription,
-    tob,
-  ]);
-  const options = models.map((model) => ({
-    value: routeKey(model),
-    label: model.modelName,
-    hint: model.providerName,
-    disabled: model.restingUntil !== undefined,
-  }));
-  const parse = ({ key, effort }: { key: string; effort: string }): ModelRouteView | undefined => {
-    const model = models.find((entry) => routeKey(entry) === key);
-    return model === undefined
-      ? undefined
-      : {
-          provider: model.provider,
-          model: model.model,
-          ...(effort ? { reasoningEffort: effort } : {}),
-        };
-  };
-  const connected = new Map(
-    models.map(({ provider, providerName }) => [
-      provider,
-      { name: providerName, brand: providerBrand(provider, providerName) },
-    ]),
-  );
-  for (const status of availableEngines) {
-    connected.set(`engine:${status.engine}`, {
-      name: engineName(status.engine),
-      brand: status.engine === 'codex' ? 'openai' : 'claude',
-    });
-  }
-  return (
-    <div
-      ref={mount}
-      className={`bh-onboarding-model-form ${stylex.props(styles.modelForm).className ?? ''}`}
-    >
-      <span ref={bindSave} hidden />
-      <div ref={engines.mount} hidden />
-      <h2 {...stylex.props(styles.title)}>
-        {t(
-          editingKey || !hasUsableProvider
-            ? 'intro.model.connectTitle'
-            : engineChoice !== null
-              ? 'intro.model.tobModel'
-              : owner === false
-                ? 'intro.model.memberTitle'
-                : 'intro.model.title',
-        )}
-      </h2>
-      {editingKey ? (
-        <InlineModelProvider
-          call={call}
-          onSavingChange={onProviderSavingChange}
-          onClose={() => setConnection(undefined)}
-          onAdded={() => {
-            setConnection(undefined);
-            reload();
-          }}
-          t={t}
-        />
-      ) : hasUsableProvider ? (
-        <>
-          <ModelPicker
-            title={t('onboarding.model')}
-            hint={
-              engineChoice !== null
-                ? t('intro.model.subscriptionHint')
-                : owner
-                  ? t('intro.model.hint')
-                  : ''
-            }
-            choice={{ key: route ? routeKey(route) : '', effort: route?.reasoningEffort ?? '' }}
-            catalog={models}
-            options={options}
-            onChange={(choice) =>
-              setDraft((previous) => ({ ...previous, route: parse(choice), subscription: null }))
-            }
-            disabled={saving}
-            subscription={
-              (availableEngines.length === 0 && engineChoice === null) || tob === undefined
-                ? undefined
-                : {
-                    choice: engineChoice,
-                    items: engineMenuItems(availableEngines, engines.models, engines.signingIn, t),
-                    models: engines.models,
-                    onChange: (choice) =>
-                      setDraft((previous) => ({ ...previous, subscription: choice })),
-                    signIn: engines.signIn,
-                  }
-            }
-            t={t}
-          />
-          {owner && engineChoice === null && tob !== undefined ? (
-            <details
-              {...stylex.props(styles.advanced)}
-              open={advanced}
-              onToggle={(event) => {
-                const { open } = event.currentTarget;
-                setDraft((previous) =>
-                  previous.advanced === open ? previous : { ...previous, advanced: open },
-                );
-              }}
-              data-intro-model-advanced
-            >
-              <summary
-                {...stylex.props(styles.advancedSummary)}
-                aria-disabled={saving || undefined}
-                onClick={saving ? (event) => event.preventDefault() : undefined}
-              >
-                <span>{t('intro.model.advanced')}</span>
-                <span {...stylex.props(styles.copy)}>
-                  {t(split ? 'intro.model.advancedSplit' : 'intro.model.advancedSame')}
-                </span>
-              </summary>
-              <ModelPicker
-                title={t('modelPreset.assignment')}
-                hint={t('intro.model.assignmentHint')}
-                choice={{
-                  key: routeKey(assignment ?? route ?? { provider: '', model: '' }),
-                  effort: (assignment ?? route)?.reasoningEffort ?? '',
-                }}
-                catalog={models}
-                options={options}
-                onChange={(choice) =>
-                  setDraft((previous) => ({ ...previous, assignment: parse(choice) }))
-                }
-                disabled={saving}
-                t={t}
-              />
-            </details>
-          ) : null}
-          {canConnect && openProviders !== undefined ? (
-            <div {...stylex.props(styles.choices)}>
-              <ChoiceButton
-                title={t('botSettings.section.modelProviders')}
-                leading={<Icon name="settings" />}
-                description={
-                  <span {...stylex.props(styles.providers)}>
-                    {[...connected].slice(0, 3).map(([id, { name, brand }]) => (
-                      <span key={id} {...stylex.props(styles.provider)}>
-                        <ModelBrandIcon brand={brand} />
-                        {name}
-                      </span>
-                    ))}
-                    {connected.size > 3 ? <span>+{connected.size - 3}</span> : null}
-                  </span>
-                }
-                disabled={saving}
-                onClick={openProviders}
-              />
-            </div>
-          ) : null}
-          {engines.loadFailed ? (
-            <ReadFailure retryLabel={t('engine.reload')} onRetry={() => void engines.refresh()}>
-              {t('engine.loadFailed')}
-            </ReadFailure>
-          ) : null}
-        </>
-      ) : catalog === undefined ? (
-        readError === undefined ? (
-          <Note>{t('modelPreset.loading')}</Note>
-        ) : null
-      ) : canConnect ? (
-        <div {...stylex.props(styles.choices)}>
-          <ChoiceButton
-            title={t('intro.model.enterKey')}
-            description={t('intro.model.enterKeyHint')}
-            leading={<Icon name="shield-check" />}
-            disabled={saving}
-            onClick={() => setConnection('key')}
-          />
-          {local === true ? (
-            connection === 'subscription' ? (
-              <ModelProviderSubscriptions engines={engines} t={t} />
-            ) : (
-              <ChoiceButton
-                title={t('intro.model.signIn')}
-                description={t('intro.model.signInHint')}
-                leading={<Icon name="plug" />}
-                disabled={saving}
-                onClick={() => setConnection('subscription')}
-              />
-            )
-          ) : local === false ? (
-            <Note>{t('engine.localOnly')}</Note>
-          ) : null}
-          {engines.loadFailed ? (
-            <ReadFailure retryLabel={t('engine.reload')} onRetry={() => void engines.refresh()}>
-              {t('engine.loadFailed')}
-            </ReadFailure>
-          ) : null}
-        </div>
-      ) : viewer !== undefined ? (
-        <Note>{t('intro.model.ownerConnects')}</Note>
-      ) : null}
-      {call !== undefined && viewerRead.failed ? (
-        <ReadFailure
-          retryLabel={t('team.retry')}
-          busy={retryingViewer}
-          onRetry={() => {
-            setRetryingViewer(true);
-            void refreshTeamMode(call).finally(() => setRetryingViewer(false));
-          }}
-        >
-          {t('intro.model.viewerLoadFailed')}
-        </ReadFailure>
-      ) : null}
-      {readError === undefined ? null : (
-        <ReadFailure retryLabel={t('engine.reload')} onRetry={reload}>
-          {readError}
-        </ReadFailure>
-      )}
-      {!editingKey && owner && unavailableSubscription ? (
-        <Note tone="danger">{t('intro.model.subscriptionUnavailable')}</Note>
-      ) : null}
-      {!editingKey && owner && engineChoice === null && invalidAssignment ? (
-        <div>
-          <Note tone="warning">{t('intro.model.assignmentUnavailable')}</Note>
-          <Button
-            variant="outline"
-            disabled={saving}
-            onClick={() => setDraft((previous) => ({ ...previous, assignment: undefined }))}
-          >
-            {t('intro.model.useMainForAssignment')}
-          </Button>
-        </div>
-      ) : null}
-      {saveError === undefined ? null : <Note tone="danger">{saveError}</Note>}
-    </div>
-  );
-}
-
-function InlineModelProvider({
-  call,
-  onClose,
-  onAdded,
-  onSavingChange,
-  t,
-}: {
-  call: BridgeCall;
-  onClose(): void;
-  onAdded(): void;
-  onSavingChange(saving: boolean): void;
-  t: BotHarnessTranslate;
-}): ReactElement {
-  const [view, setView] = useState<ModelProvidersView>();
-  const [failed, setFailed] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [retry, setRetry] = useState(0);
-  const reload = () => {
-    setFailed(false);
-    setRefreshing(true);
-    setRetry((count) => count + 1);
-  };
-  const mount = useMountedResource<HTMLDivElement>(() => {
-    const request = new AbortController();
-    void bridgeHost(call, request.signal)
-      .call<ModelProvidersView>('modelProviders')
-      .then(
-        (result) => {
-          if (request.signal.aborted) return;
-          setView(result);
-          setRefreshing(false);
-        },
-        () => {
-          if (!request.signal.aborted) setFailed(true);
-        },
-      );
-    return () => request.abort();
-  }, [call, retry]);
-  return (
-    <div ref={mount}>
-      {view?.revision !== undefined ? (
-        <AddModelProvider
-          call={call}
-          revision={refreshing ? undefined : view.revision}
-          onAdded={onAdded}
-          onClose={onClose}
-          onConflict={reload}
-          onSavingChange={onSavingChange}
-          inline
-          t={t}
-        />
-      ) : (
-        <div {...stylex.props(styles.section)}>
-          {view !== undefined ? (
-            <Note>{t('modelProviders.readOnly')}</Note>
-          ) : failed ? null : (
-            <Note>{t('modelProviders.loading')}</Note>
-          )}
-          <Button variant="outline" onClick={onClose}>
-            {t('common.cancel')}
-          </Button>
-        </div>
-      )}
-      {failed ? (
-        <ReadFailure retryLabel={t('engine.reload')} onRetry={reload}>
-          {t('modelProviders.readFailed')}
-        </ReadFailure>
-      ) : null}
-    </div>
-  );
-}
-
-function routeKey(route: { provider: string; model: string }): string {
-  return JSON.stringify([route.provider, route.model]);
-}
-
 function CommunityStep({
   t,
   track,
@@ -1469,10 +621,10 @@ function CommunityStep({
   }, []);
   const locale = typeof navigator === 'undefined' ? 'en' : navigator.language;
   return (
-    <div ref={mount} {...stylex.props(styles.section)}>
+    <div ref={mount} {...stylex.props(stepStyles.section)}>
       <div {...stylex.props(styles.heroCopy)}>
-        <h2 {...stylex.props(styles.title)}>{t('intro.community.title')}</h2>
-        <p {...stylex.props(styles.copy)}>{t('intro.community.hint')}</p>
+        <h2 {...stylex.props(stepStyles.title)}>{t('intro.community.title')}</h2>
+        <p {...stylex.props(stepStyles.copy)}>{t('intro.community.hint')}</p>
       </div>
       <a
         href={COMMUNITY.github}
@@ -1487,7 +639,7 @@ function CommunityStep({
         </span>
         <span {...stylex.props(styles.linkText)}>
           <span {...stylex.props(styles.linkTitle)}>{t('intro.community.github')}</span>
-          <span {...stylex.props(styles.copy)}>{t('intro.community.githubHint')}</span>
+          <span {...stylex.props(stepStyles.copy)}>{t('intro.community.githubHint')}</span>
         </span>
         <span {...stylex.props(styles.stars)} data-github-stars={stars ?? ''}>
           <ChannelSidebarIcon name="star" size={14} />
@@ -1509,7 +661,7 @@ function CommunityStep({
         </span>
         <span {...stylex.props(styles.linkText)}>
           <span {...stylex.props(styles.linkTitle)}>{t('intro.community.discord')}</span>
-          <span {...stylex.props(styles.copy)}>{t('intro.community.discordHint')}</span>
+          <span {...stylex.props(stepStyles.copy)}>{t('intro.community.discordHint')}</span>
         </span>
         <ChannelSidebarIcon name="external-link" size={16} />
       </a>
@@ -1519,7 +671,7 @@ function CommunityStep({
         </span>
         <span {...stylex.props(styles.linkText)}>
           <span {...stylex.props(styles.linkTitle)}>{t('intro.community.qq')}</span>
-          <span {...stylex.props(styles.copy)}>
+          <span {...stylex.props(stepStyles.copy)}>
             {t('intro.community.qqHint', { number: COMMUNITY.qqGroup })}
           </span>
         </span>
@@ -1538,7 +690,7 @@ function CommunityStep({
           {t(copied ? 'intro.community.copied' : 'intro.community.copy')}
         </Button>
       </div>
-      <Voices t={t} />
+      <Voices t={t} reviewsProps={stylex.props(styles.reviews)} />
     </div>
   );
 }
@@ -1606,16 +758,16 @@ function StartStep({
       );
     };
     return (
-      <div {...stylex.props(styles.section)} data-intro-persona={personas.join(' ')}>
+      <div {...stylex.props(stepStyles.section)} data-intro-persona={personas.join(' ')}>
         <div {...stylex.props(styles.heroCopy)}>
-          <h2 {...stylex.props(styles.title)}>
+          <h2 {...stylex.props(stepStyles.title)}>
             {personas.length === 1
               ? t('intro.persona.promptsTitle', {
                   persona: t(`intro.persona.${personas[0]!}.name`),
                 })
               : t('intro.persona.tasksTitle')}
           </h2>
-          <p {...stylex.props(styles.copy)}>{t('intro.persona.promptsHint')}</p>
+          <p {...stylex.props(stepStyles.copy)}>{t('intro.persona.promptsHint')}</p>
         </div>
         <div
           {...stylex.props(styles.starters, styles.wide)}
@@ -1674,10 +826,10 @@ function StartStep({
     );
   }
   return (
-    <div {...stylex.props(styles.section)}>
+    <div {...stylex.props(stepStyles.section)}>
       <div {...stylex.props(styles.heroCopy)}>
-        <h2 {...stylex.props(styles.title)}>{t('intro.start.title')}</h2>
-        <p {...stylex.props(styles.copy)}>{t('intro.start.hint')}</p>
+        <h2 {...stylex.props(stepStyles.title)}>{t('intro.start.title')}</h2>
+        <p {...stylex.props(stepStyles.copy)}>{t('intro.start.hint')}</p>
       </div>
       <div {...stylex.props(styles.personas)} role="group" aria-label={t('intro.persona.label')}>
         {ONBOARDING_PERSONAS.map((id) => {
