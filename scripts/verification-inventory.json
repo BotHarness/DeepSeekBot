@@ -667,7 +667,7 @@
     {
       "id": "desktop.channel.purge",
       "label": "Preview/cancel/confirm purge and retain unselected/shared attachments",
-      "source": "packages/core/src/channels/store.ts",
+      "source": "packages/core/src/purge/owner.ts",
       "guide": null,
       "task": 1967,
       "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."

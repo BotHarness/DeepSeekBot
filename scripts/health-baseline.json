@@ -45,7 +45,6 @@
     "packages/core/src/bridge/rpc.ts",
     "packages/core/src/channels/channel.ts",
     "packages/core/src/channels/live.ts",
-    "packages/core/src/channels/store.ts",
     "packages/core/src/credentials/private-inputs.ts",
     "packages/core/src/database/owner.ts",
     "packages/core/src/database/schema-plan.ts",
