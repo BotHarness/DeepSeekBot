@@ -307,6 +307,8 @@ export async function runBotCreateCli(
       out.stdout(JSON.stringify(await runZipUploadCli(command, rest, values, io), null, 2));
       return 0;
     }
+    if (values['from-bot'] !== undefined && command !== 'marketplace-avatar-publish')
+      throw usageError('--from-bot only applies to marketplace-avatar-publish.');
     if (
       values['operation-key'] !== undefined &&
       (!online ||

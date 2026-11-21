@@ -1,4 +1,28 @@
 import {
+  createSessionsBridgeMethods,
+  type SessionsBridgeMethods,
+} from '../features/sessions/methods.js';
+export type {
+  IdleCompactionView,
+  IdleCompactionDeps,
+  SessionEngineQuota,
+  OwnedSessionSummary,
+  OwnedSessionBot,
+} from '../features/sessions/methods.js';
+import type { IdleCompactionDeps, SessionEngineQuota } from '../features/sessions/methods.js';
+import {
+  createAssignmentsBridgeMethods,
+  type AssignmentsBridgeMethods,
+  type AssignmentsBridgeDeps,
+} from '../features/assignments/methods.js';
+export { SESSION_PROGRESS_LIMIT } from '../features/assignments/methods.js';
+export type { SessionProgressEntry } from '../features/assignments/methods.js';
+import {
+  createMemoryBridgeMethods,
+  type MemoryBridgeMethods,
+  type MemoryBridgeDeps,
+} from '../features/memory/methods.js';
+import {
   createApprovalsBridgeMethods,
   type ApprovalsBridgeMethods,
   type ApprovalsBridgeDeps,
@@ -125,25 +149,7 @@ import { SessionRecoveryError } from '../runtime/session-recovery.js';
 import type { BotContextWindow } from '../runtime/context-window.js';
 import { summarizeTurnInput, type TurnInputView } from '../runtime/prompt-inspection.js';
 import { notificationAttentionPage } from '../runtime/notification-attention.js';
-import { MemoryImageError } from '../memory/image.js';
-import { inspectImage } from '../media/image-format.js';
-import {
-  MIN_IDLE_MS,
-  type IdleCompaction,
-  type IdleCompactionRecord,
-  type IdleCompactionRouteView,
-  type ManualCompactionResult,
-} from '../runtime/idle-compaction.js';
-import {
-  COMPACTION_HEADROOM_TOKENS,
-  COMPACTION_THRESHOLD_RATIO,
-  isCacheLifetimeSeconds,
-  isCompactionHeadroomTokens,
-  isCompactionThresholdRatio,
-  MAX_CACHE_LIFETIME_SECONDS,
-  type IdleCompactionRoute,
-  type IdleCompactionSettings,
-} from '../runtime/idle-compaction-settings.js';
+import { type IdleCompactionRecord } from '../runtime/idle-compaction.js';
 import { isDeepStrictEqual } from 'node:util';
 import { DEEPSEEKBOT_RECIPE } from '../onboarding/service.js';
 import { type CloudWork } from '../cloud/work.js';
@@ -170,7 +176,6 @@ import {
   type BotCreationReceipt,
 } from '../bots/creation.js';
 import { TobError, type TobService, type TobHome } from '../tob/service.js';
-import { directToolTrace, summarizeToolTrace, type TurnTrace } from '../bots/tool-trace.js';
 import type { BotOnboarding, OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
 import type { ClientAcknowledgements } from '../onboarding/acknowledgements.js';
 import type { HttpsFallback } from '../memory/clone.js';
@@ -194,7 +199,7 @@ import {
 } from '../storage/media-cleanup.js';
 import { pairingReviewInput, type PairingRequest } from '../messaging/pairing.js';
 import { senderAccessInput } from '../messaging/sender-access.js';
-import type { ChannelTurnStopTarget, GroupMemberWakePolicy } from '../channels/channel.js';
+import type { GroupMemberWakePolicy } from '../channels/channel.js';
 import {
   parseAllBotMention,
   expandAllBotMention,
@@ -203,7 +208,6 @@ import {
   type AllBotPreview,
   type AllBotMention,
 } from '../channels/all-bot-mention.js';
-import type { OverviewMemory } from '../memory/overview.js';
 import {
   isUsageOverviewPeriod,
   usageOverviewPeriods,
@@ -270,29 +274,10 @@ import {
   type TelemetrySurface,
 } from '../telemetry/events.js';
 import type { TelemetryCapture, TelemetryStatus } from '../telemetry/service.js';
-import {
-  AssignmentReplyTargetError,
-  type HumanAssignmentContext,
-} from '../runtime/assignment-human-context.js';
-import { summarizeSessionProgress, type SessionProgress } from '../runtime/session-progress.js';
-import {
-  summarizeSessionTranscript,
-  type SessionTranscript,
-} from '../runtime/session-transcript.js';
+import { AssignmentReplyTargetError } from '../runtime/assignment-human-context.js';
 import type { SessionLiveSnapshot, SessionLiveStreams } from '../runtime/session-live.js';
-import {
-  summarizeSessionToolDetail,
-  type PresentToolResult,
-  type SessionToolDetail,
-} from '../runtime/session-tool-detail.js';
-import {
-  summarizeAssignmentTimeline,
-  summarizeSubagentLanes,
-  TIMELINE_SUBAGENTS,
-  type AssignmentTimelineLane,
-  type AssignmentTimelineSession,
-  type PublicToolCall,
-} from '../runtime/assignment-timeline.js';
+import { type PresentToolResult } from '../runtime/session-tool-detail.js';
+import { type PublicToolCall } from '../runtime/assignment-timeline.js';
 import { createMessageAttachmentFiles } from '../attachments/message-files.js';
 import { attachmentIntent } from '../attachments/ref.js';
 import type { AttachmentStore } from '../attachments/store.js';
@@ -372,11 +357,6 @@ import { SkillContentTooLargeError, skillOwnerKey, type ResolvedSkill } from '..
 
 import { isValidSlug } from '../bots/slug.js';
 import {
-  memoryMoveTarget,
-  moveMemoryDirectory,
-  type MemoryMoveResult,
-} from '../bots/memory-move.js';
-import {
   MAX_ROSTER_BATCH_SIZE,
   RosterStore,
   RosterUnavailableError,
@@ -386,32 +366,16 @@ import {
 } from '../roster/store.js';
 import type { TopOrderEntry } from '../roster/spec.js';
 import type { SessionOwnership, SessionRootRole } from '../sessions/ownership.js';
-import {
-  MemoryAcceptError,
-  type MemoryAcceptedCommit,
-  type MemoryAcceptedSnapshot,
-  type MemoryGitGraph,
-  type MemoryVersion,
-  type MemoryVersionName,
-  type MemoryGitCommitDiff,
-  type MemoryWorkingChange,
-  type MemoryWorkingDiff,
-  type MemoryWorkingKind,
-  type MemoryRepairEvent,
-} from '../memory/accepted.js';
-import type { MemoryRecoveryCheckpoint } from '../memory/recovery.js';
-import type { MemoryService } from '../memory/service.js';
 import type {
   UsageProjection,
   DshUsageSessionLogReader,
   SessionUsageSummary,
 } from '../usage/usage.js';
 import { usageFilterSchema, type UsageQueryResult } from '../usage/query.js';
-import { isModelRoute, type ModelRoute, type PersonaBotModelPlan } from '../models/presets.js';
+import { isModelRoute, type PersonaBotModelPlan } from '../models/presets.js';
 import { RoutingGroupError } from '../models/routing-groups.js';
 import { groupMemberRoute } from '../models/catalog.js';
-import { MemoryFileError, type MemoryFileTarget } from '../memory/file-actions.js';
-import { MemoryPathError } from '../memory/jail.js';
+import { type MemoryFileTarget } from '../memory/file-actions.js';
 import {
   DEFAULT_STANDING_LIMITS,
   isStandingLimits,
@@ -426,11 +390,6 @@ import {
   type FolderListing,
 } from '../workspaces/folder-browse.js';
 import type { ChannelToolApproval } from '../workspaces/tool-approval.js';
-import type {
-  AssignmentAccessMode,
-  AssignmentAccessStore,
-  AssignmentAccessPreset,
-} from '../workspaces/assignment-access.js';
 import type {
   BotAttentionQuery,
   BotAttentionPage,
@@ -448,21 +407,11 @@ import {
   type HumanAttentionCategory,
   type HumanAttentionItem,
 } from '../runtime/human-attention.js';
-import { DirectBotToolError, queryAssignmentDirectory } from '../runtime/bot-runtime.js';
+import { DirectBotToolError } from '../runtime/bot-runtime.js';
 import { GenuiDiagramError } from '../runtime/genui-diagram.js';
 import { GenuiPreviewError } from '../runtime/genui-preview.js';
 import { ChannelCallReadError } from '../channels/call-window.js';
-import type {
-  AssignmentActivity,
-  AssignmentDetail,
-  AssignmentReportState,
-  AssignmentSummary,
-  BotRuntime,
-  ChannelAssignmentSummary,
-  DirectBotToolSpec,
-  DmAdmissionFailure,
-} from '../runtime/bot-runtime.js';
-import type { AssignmentExecutionWait } from '../runtime/assignment-approval-capacity.js';
+import type { BotRuntime, DirectBotToolSpec, DmAdmissionFailure } from '../runtime/bot-runtime.js';
 import type {
   AggregatedState,
   BotStateSnapshot,
@@ -627,43 +576,6 @@ export type ChannelListChanges =
       cursor: ChannelChangeCursor;
     };
 
-export interface SessionEngineQuota {
-  usedPercent?: number;
-  resetsAt?: string;
-  limitedUntil?: string;
-  observedAt: string;
-}
-
-export interface OwnedSessionSummary {
-  sessionId: string;
-  role: SessionRootRole;
-  createdAt: string;
-  cwdReference?: string;
-  assignmentActivity?: AssignmentActivity;
-  assignmentAccessMode?: AssignmentAccessMode;
-  assignmentReportState?: AssignmentReportState;
-  assignmentExecutionWait?: AssignmentExecutionWait;
-  assignmentArchived?: true;
-  assignmentTitle?: string;
-  assignmentDescription?: string;
-  assignmentModelRoute?: ModelRoute;
-  modelRoute?: ModelRoute;
-  engine?: { engine: string; account?: string; quota?: SessionEngineQuota };
-  agentPreset?: string;
-  currentOrchestrator?: boolean;
-  triageOpenCount?: number;
-  subagentCount?: number;
-}
-
-export interface OwnedSessionBot {
-  botSlug: string;
-  displayName: string;
-  avatar?: string;
-  appearance?: AvatarAppearance | RetainedAvatarAppearance;
-  avatarSeed?: 2;
-  role: SessionRootRole;
-}
-
 export interface MessagingAppsView {
   apps: MessagingApp[];
   setups: NonNullable<MessagingSnapshot['appSetups']>;
@@ -686,7 +598,10 @@ export interface BridgeMethods
     BrowserBridgeMethods,
     VoiceBridgeMethods,
     ApprovalsBridgeMethods,
-    WorkspacesBridgeMethods {
+    WorkspacesBridgeMethods,
+    SessionsBridgeMethods,
+    AssignmentsBridgeMethods,
+    MemoryBridgeMethods {
   tobHome(
     payload: unknown,
   ): Promise<
@@ -702,29 +617,7 @@ export interface BridgeMethods
   ): Promise<BridgeResult<{ revision: number; groupRevision?: number }>>;
   telemetryEvent(payload: unknown): BridgeResult<null>;
   channelRetry(payload: unknown): Promise<BridgeResult<{ accepted: true }>>;
-  botNewSession(payload: unknown): Promise<BridgeResult<{ started: true }>>;
-  botCompact(payload: unknown): Promise<BridgeResult<ManualCompactionResult>>;
-  botContext(payload: unknown): Promise<BridgeResult<BotContextWindow>>;
-  channelBotStop(payload: unknown): Promise<
-    BridgeResult<{
-      stopped: { botSlug: string; sessionId: string; messageId: string };
-    }>
-  >;
   sessionMessageSend(payload: unknown): Promise<BridgeResult<{ sourceEventId: string }>>;
-  sessionStop(payload: unknown): Promise<
-    BridgeResult<{
-      stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
-      alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
-      messageId?: string;
-    }>
-  >;
-  botStop(payload: unknown): Promise<
-    BridgeResult<{
-      stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
-      alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
-      messageId?: string;
-    }>
-  >;
   failureAlertsSet(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   failureAlertsTest(payload: unknown): Promise<
     BridgeResult<{
@@ -869,7 +762,6 @@ export interface BridgeMethods
   channelActivityToday(payload: unknown): BridgeResult<ChannelActivityToday>;
   activityOverview(payload: unknown): BridgeResult<ActivityOverview>;
   humanAttention(payload: unknown): BridgeResult<HumanAttentionPage>;
-  humanAssignmentContext(payload: unknown): BridgeResult<{ context: HumanAssignmentContext }>;
   humanAttentionStatus(payload: unknown): BridgeResult<HumanAttentionStatus>;
   channelUnreadCounts(payload: unknown): BridgeResult<{
     channels: Array<{ channelId: string; unreadCount: number }>;
@@ -886,32 +778,7 @@ export interface BridgeMethods
   >;
   humanAttentionIgnore(payload: unknown): BridgeResult<{ accepted: boolean }>;
   humanAttentionSnooze(payload: unknown): BridgeResult<{ accepted: boolean }>;
-  assignments(payload: unknown): BridgeResult<{ assignments: AssignmentSummary[] }>;
-  channelAssignments(payload: unknown): BridgeResult<{ assignments: ChannelAssignmentSummary[] }>;
-  assignment(payload: unknown): BridgeResult<{ assignment: AssignmentDetail }>;
-  assignmentTimeline(payload: unknown): Promise<
-    BridgeResult<{
-      assignment: AssignmentDetail;
-      lanes: AssignmentTimelineLane[];
-      omittedSubagents: number;
-    }>
-  >;
-  sessionSubagents(payload: unknown): Promise<
-    BridgeResult<{
-      sessionId: string;
-      role: SessionRootRole;
-      lanes: AssignmentTimelineLane[];
-      omittedSubagents: number;
-    }>
-  >;
-  sessionProgress(payload: unknown): Promise<BridgeResult<{ sessions: SessionProgressEntry[] }>>;
-  sessionTranscript(
-    payload: unknown,
-  ): Promise<BridgeResult<{ sessionId: string; role: SessionRootRole } & SessionTranscript>>;
   sessionLive(payload: unknown): Promise<BridgeResult<{ sessionId: string } & SessionLiveSnapshot>>;
-  sessionToolDetail(
-    payload: unknown,
-  ): Promise<BridgeResult<{ sessionId: string; callId: string; detail: SessionToolDetail }>>;
   workspaceOptions(payload: unknown): BridgeResult<{
     workspaces: { id: string; path: string; title: string }[];
   }>;
@@ -919,12 +786,6 @@ export interface BridgeMethods
     target: { path: string; relativePath: ''; kind: 'directory' };
   }>;
   folderBrowse(payload: unknown): Promise<BridgeResult<FolderListing>>;
-  assignmentAccessGet(payload: unknown): BridgeResult<{ preset: AssignmentAccessPreset }>;
-  assignmentAccessSet(payload: unknown): BridgeResult<{ preset: AssignmentAccessPreset }>;
-  sessions(payload: unknown): BridgeResult<{ sessions: OwnedSessionSummary[] }>;
-  botToolTrace(
-    payload: unknown,
-  ): Promise<BridgeResult<{ slug: string; sessionId: string; turns: TurnTrace[] }>>;
   botTurnInput(
     payload: unknown,
   ): Promise<BridgeResult<{ slug: string; sessionId: string; turns: TurnInputView[] }>>;
@@ -937,57 +798,10 @@ export interface BridgeMethods
       result: unknown;
     }>
   >;
-  sessionArchiveSet(payload: unknown): Promise<BridgeResult<{ archived: boolean }>>;
-  memoryMove(
-    payload: unknown,
-  ): Promise<BridgeResult<{ memoryDir: string; moved: boolean; leftover?: string }>>;
-  sessionOwner(payload: unknown): BridgeResult<{ owner: OwnedSessionBot | null }>;
-  botSessionIds(payload: unknown): BridgeResult<{
-    sessionIds: string[];
-    groups: { botSlug: string; displayName: string; sessionIds: string[] }[];
-  }>;
   messageAttachmentTarget(payload: unknown): BridgeResult<{ target: MemoryFileTarget }>;
   channelMediaTarget(payload: unknown): Promise<BridgeResult<{ target: MemoryFileTarget }>>;
-  memoryFileTarget(payload: unknown): BridgeResult<{ target: MemoryFileTarget }>;
-  memoryImage(payload: unknown): BridgeResult<{ mime: string; dataBase64: string }>;
-  memorySnapshot(payload: unknown): BridgeResult<{ snapshot: MemoryAcceptedSnapshot }>;
-  memoryFile(payload: unknown): BridgeResult<{
-    file?: {
-      path: string;
-      body: string;
-      head: string;
-      binary?: boolean;
-      image?: import('../memory/image.js').MemoryImage;
-      markdown?: import('../memory/markdown.js').MemoryMarkdown;
-    };
-  }>;
-  memoryHistory(payload: unknown): BridgeResult<{ commits: MemoryAcceptedCommit[] }>;
-  memoryDiff(payload: unknown): BridgeResult<{ sha: string; diff: string }>;
-  memoryGitGraph(payload: unknown): BridgeResult<MemoryGitGraph>;
-  memoryGitCommitDiff(payload: unknown): BridgeResult<MemoryGitCommitDiff>;
-  memoryWorkingChanges(payload: unknown): BridgeResult<{ changes: MemoryWorkingChange[] }>;
-  memoryWorkingDiff(payload: unknown): BridgeResult<MemoryWorkingDiff>;
-  memoryRecoveryHistory(
-    payload: unknown,
-  ): BridgeResult<{ checkpoints: MemoryRecoveryCheckpoint[] }>;
-  memoryRestore(payload: unknown): BridgeResult<{
-    checkpoint: MemoryRecoveryCheckpoint;
-    archivePath: string;
-  }>;
-  memorySave(payload: unknown): BridgeResult<{ commit: MemoryAcceptedCommit }>;
-  memoryRestoreCommit(payload: unknown): BridgeResult<{
-    head: string;
-    backup: string | null;
-    version: MemoryVersionName | null;
-    saved: MemoryRecoveryCheckpoint;
-  }>;
-  memoryNameVersion(payload: unknown): BridgeResult<{ version: MemoryVersionName }>;
-  memoryVersions(payload: unknown): BridgeResult<{ versions: MemoryVersion[] }>;
-  memoryRemoveVersionName(payload: unknown): BridgeResult<{ removed: true }>;
-  memoryRepair(payload: unknown): BridgeResult<{ repair: MemoryRepairEvent }>;
   profileActivity(payload: unknown): Promise<BridgeResult<ProfileActivity>>;
   profileSessionUsage(payload: unknown): Promise<BridgeResult<ProfileSessionUsage>>;
-  overviewMemory(payload: unknown): Promise<BridgeResult<OverviewMemory>>;
   usageByMember(payload: unknown): BridgeResult<UsageByMemberResult>;
   overviewUsage(payload: unknown): BridgeResult<OverviewUsage>;
   profileUsage(payload: unknown): BridgeResult<UsageQueryResult>;
@@ -1010,10 +824,6 @@ export interface BridgeMethods
   botModeTemplateSave: BotModeBridgeMethods['botModeTemplateSave'];
   botModeTemplateDelete: BotModeBridgeMethods['botModeTemplateDelete'];
   botModeTemplateSet: BotModeBridgeMethods['botModeTemplateSet'];
-  idleCompaction(payload?: unknown): BridgeResult<IdleCompactionView>;
-  idleCompactionSet(payload: unknown): BridgeResult<IdleCompactionView>;
-  idleCompactionCacheLifetimeSet(payload: unknown): BridgeResult<IdleCompactionView>;
-  compactionThresholdSet(payload: unknown): BridgeResult<IdleCompactionView>;
   standingLimitsSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   releaseInfo(payload: unknown): BridgeResult<ReleaseInfo>;
   releaseUpdate(payload?: unknown): Promise<BridgeResult<ReleaseUpdate>>;
@@ -1033,32 +843,6 @@ export interface BridgeMethods
   takeoverRequest(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
   takeoverComplete(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
   takeoverCancel(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
-}
-
-export interface IdleCompactionView {
-  enabled: boolean;
-  settingReadable: boolean;
-  minimumIdleSeconds: number;
-  scheduled: number;
-  routes: IdleCompactionRouteView[];
-  threshold: {
-    ratio: number;
-    headroomTokens: number;
-    ratioSet: boolean;
-    headroomSet: boolean;
-    ratioRange: { defaultValue: number; min: number; max: number };
-    headroomRange: { defaultValue: number; min: number; max: number };
-  };
-}
-
-export interface IdleCompactionDeps {
-  settings: IdleCompactionSettings;
-  scheduler: Pick<IdleCompaction, 'describe' | 'scheduled'>;
-  routes(): IdleCompactionRoute[];
-  rescan(): void;
-  applyThreshold?(): void;
-  compactBot?(slug: string): Promise<ManualCompactionResult>;
-  compactReservedSession?(sessionId: string): Promise<ManualCompactionResult>;
 }
 
 const storageCleanupScope = z
@@ -1117,7 +901,9 @@ export interface BridgeMethodsDeps
     BrowserBridgeDeps,
     VoiceBridgeDeps,
     ApprovalsBridgeDeps,
-    WorkspacesBridgeDeps {
+    WorkspacesBridgeDeps,
+    AssignmentsBridgeDeps,
+    MemoryBridgeDeps {
   team?: TeamService;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
   botContext?(slug: string): Promise<BotContextWindow>;
@@ -1144,7 +930,6 @@ export interface BridgeMethodsDeps
   runningSessionIds?: () => ReadonlySet<string>;
   channels: ChannelStore;
   ownership: SessionOwnership;
-  memory?: MemoryService;
   usage?: UsageProjection;
   readUsageSessionLog?: DshUsageSessionLogReader;
   describeToolCall?(sessionId: string, name: string, args: unknown): PublicToolCall | undefined;
@@ -1169,7 +954,6 @@ export interface BridgeMethodsDeps
   folders?: FolderBrowser;
   externalMessaging?: OutboundMessaging;
   toolApproval?: ChannelToolApproval;
-  assignmentAccess?: AssignmentAccessStore;
   developerMode?: { set(enabled: boolean): void };
   createBotId?: () => string;
   marketplaceReceipts?: InstallReceipts;
@@ -1334,13 +1118,6 @@ function dmAdmissionFailure(
   }
 }
 
-function unknownAssignment(sessionId: string): BridgeResult<never> {
-  return {
-    ok: false,
-    error: { code: 'not-found', message: `unknown Assignment: ${sessionId}` },
-  };
-}
-
 const DIRECT_TOOL_TIMEOUT_MS = 10 * 60_000;
 
 const HUMAN_ATTENTION_DISMISS_LIMIT = 1000;
@@ -1378,29 +1155,6 @@ function directToolsUnavailable(): BridgeResult<never> {
   };
 }
 
-function idleCompactionView(deps: IdleCompactionDeps): IdleCompactionView {
-  const setting = deps.settings.read();
-  return {
-    enabled: setting !== 'invalid' && setting.enabled,
-    settingReadable: setting !== 'invalid',
-    minimumIdleSeconds: MIN_IDLE_MS / 1000,
-    scheduled: deps.scheduler.scheduled(),
-    routes: deps.scheduler.describe(deps.routes()),
-    threshold: {
-      ratio:
-        (setting === 'invalid' ? undefined : setting.thresholdRatio) ??
-        COMPACTION_THRESHOLD_RATIO.defaultValue,
-      headroomTokens:
-        (setting === 'invalid' ? undefined : setting.headroomTokens) ??
-        COMPACTION_HEADROOM_TOKENS.defaultValue,
-      ratioSet: setting !== 'invalid' && setting.thresholdRatio !== undefined,
-      headroomSet: setting !== 'invalid' && setting.headroomTokens !== undefined,
-      ratioRange: COMPACTION_THRESHOLD_RATIO,
-      headroomRange: COMPACTION_HEADROOM_TOKENS,
-    },
-  };
-}
-
 function dataResetFailure(error: unknown): BridgeResult<never> {
   if (error instanceof DataResetError)
     return { ok: false, error: { code: error.code, message: error.message } };
@@ -1411,38 +1165,6 @@ function dataResetFailure(error: unknown): BridgeResult<never> {
       message: error instanceof Error ? error.message : 'BotHarness data could not be cleared',
     },
   };
-}
-
-export const SESSION_PROGRESS_LIMIT = 30;
-
-export type SessionProgressEntry = { sessionId: string } & (
-  | SessionProgress
-  | { error: 'not-found' | 'unavailable' }
-);
-
-async function sessionLogOf(
-  read: DshUsageSessionLogReader,
-  sessionId: string,
-): Promise<AssignmentTimelineSession> {
-  return { sessionId, events: (await read(sessionId))?.events ?? [] };
-}
-
-async function subagentSessionsOf(
-  ownership: SessionOwnership,
-  read: DshUsageSessionLogReader,
-  slug: string,
-  sessionId: string,
-): Promise<AssignmentTimelineSession[]> {
-  const subagents = ownership
-    .descendantsOf(sessionId)
-    .filter((record) => record.botSlug === slug && record.provenance === 'subagent');
-  const skipped = Math.max(0, subagents.length - TIMELINE_SUBAGENTS);
-  return [
-    ...subagents.slice(0, skipped).map((record) => ({ sessionId: record.sessionId, events: [] })),
-    ...(await Promise.all(
-      subagents.slice(skipped).map((record) => sessionLogOf(read, record.sessionId)),
-    )),
-  ];
 }
 
 function unknownSection(sectionId: string): BridgeResult<never> {
@@ -1756,112 +1478,6 @@ function buildBridgeMethods(
       record,
       deps.defaultModel?.currentSelection() ?? deps.modelCatalog?.defaultRoute?.(),
     );
-  async function appendStopNotice(
-    channelId: string,
-    botSlug: string,
-    botName: string,
-    sessionId: string,
-    target: ChannelTurnStopTarget,
-  ): Promise<string | undefined> {
-    const humanName =
-      deps.channels
-        .listHumanMembers(human, channelId)
-        .find((member) => member.humanId === human.humanId)?.displayName ?? 'Human';
-    const subject =
-      target.scope === 'bot'
-        ? botName
-        : target.role === 'orchestrator'
-          ? `${botName}'s Orchestrator`
-          : `${botName}'s Assignment${target.title ? ` “${target.title}”` : ''}`;
-    const appended = await deps.channels.appendMessage(human, channelId, {
-      id: `turn-stopped-${randomUUID()}`,
-      at: new Date().toISOString(),
-      author: { kind: 'system' },
-      body: `${humanName} stopped ${subject}.`,
-      turnStop: {
-        botSlug,
-        botName,
-        humanName,
-        sessionId,
-        cause: 'human-stop',
-        target,
-      },
-    });
-    return appended?.id;
-  }
-
-  async function stopBotSessions(
-    source: Record<string, unknown>,
-    botSlug: string,
-    channelId: string | undefined,
-  ): Promise<
-    BridgeResult<{
-      stopped: import('../runtime/bot-runtime.js').StoppedSessionRef[];
-      alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
-      messageId?: string;
-    }>
-  > {
-    const bot = deps.registry.get(botSlug);
-    if (bot === undefined) return unknownBot(botSlug);
-    const autoContinueFor = asNonBlank(source, 'autoContinueFor');
-    if (source['autoContinueFor'] !== undefined && autoContinueFor === undefined)
-      return invalidInput('autoContinueFor must be a message id');
-    if (autoContinueFor !== undefined) {
-      if (channelId === undefined) return invalidInput('autoContinueFor needs a channelId');
-      const cancelled = await deps.runtime?.stopTurn?.(botSlug, {
-        autoContinueFor,
-        channelId,
-      });
-      if (cancelled === undefined) return { ok: true, value: { stopped: [], alreadyIdle: [] } };
-      const humanName =
-        deps.channels
-          .listHumanMembers(human, channelId)
-          .find((member) => member.humanId === human.humanId)?.displayName ?? 'Human';
-      const appended = await deps.channels.appendMessage(human, channelId, {
-        id: `turn-stopped-${randomUUID()}`,
-        at: new Date().toISOString(),
-        author: { kind: 'system' },
-        body: `${humanName} stopped ${bot.displayName}.`,
-        turnStop: {
-          botSlug,
-          botName: bot.displayName,
-          humanName,
-          sessionId: cancelled.sessionId,
-        },
-      });
-      return {
-        ok: true,
-        value: {
-          stopped: [{ botSlug, sessionId: cancelled.sessionId, role: 'orchestrator' }],
-          alreadyIdle: [],
-          ...(appended === undefined ? {} : { messageId: appended.id }),
-        },
-      };
-    }
-    if (deps.runtime?.stopAllSessions === undefined) return unavailable();
-    const outcome = await deps.runtime.stopAllSessions(botSlug);
-    const channel = channelId === undefined ? undefined : deps.channels.get(channelId);
-    const noticeSession =
-      outcome.stopped.find((ref) => ref.role === 'orchestrator')?.sessionId ??
-      outcome.stopped[0]?.sessionId;
-    const messageId =
-      noticeSession !== undefined &&
-      channel !== undefined &&
-      !channel.deletedAt &&
-      botInChannel(channel, botSlug)
-        ? await appendStopNotice(channel.id, botSlug, bot.displayName, noticeSession, {
-            scope: 'bot',
-          })
-        : undefined;
-    return {
-      ok: true,
-      value: {
-        stopped: outcome.stopped,
-        alreadyIdle: outcome.alreadyIdle,
-        ...(messageId === undefined ? {} : { messageId }),
-      },
-    };
-  }
   const channelView = (channel: ChannelRecord): ChannelListItem => {
     if (!isHostOwner()) {
       const {
@@ -2050,34 +1666,6 @@ function buildBridgeMethods(
       return unknownBot(channel.botSlug);
     return { botSlug: channel.botSlug };
   };
-  const memoryCall = <T>(operation: () => T): BridgeResult<T> => {
-    if (deps.memory === undefined) {
-      return {
-        ok: false,
-        error: {
-          code: 'memory-unavailable',
-          message: 'Memory Service unavailable',
-        },
-      };
-    }
-    try {
-      return { ok: true, value: operation() };
-    } catch (error) {
-      if (error instanceof MemoryAcceptError || error instanceof MemoryImageError) {
-        return {
-          ok: false,
-          error: { code: error.code, message: error.message },
-        };
-      }
-      if (error instanceof MemoryFileError)
-        return {
-          ok: false,
-          error: { code: error.code, message: error.message },
-        };
-      if (error instanceof MemoryPathError) return invalidInput(error.message);
-      throw error;
-    }
-  };
 
   const setPaused = (
     payload: unknown,
@@ -2127,6 +1715,9 @@ function buildBridgeMethods(
     messagingCall,
   );
   const workspacesMethods = createWorkspacesBridgeMethods(human, deps);
+  const sessionsMethods = createSessionsBridgeMethods(human, deps, botInChannel);
+  const assignmentsMethods = createAssignmentsBridgeMethods(human, deps);
+  const memoryMethods = createMemoryBridgeMethods(human, deps, dmMemory);
   const methods: BridgeMethods = {
     ...createTeamBridge(human, deps.team),
     ...createModelProviderBridge(human, deps),
@@ -3041,120 +2632,12 @@ function buildBridgeMethods(
         return invalidInput(error instanceof Error ? error.message : 'Retry unavailable');
       }
     },
-    async botNewSession(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.runtime?.startFreshOrchestrator === undefined) return unavailable();
-      try {
-        const outcome = await deps.runtime.startFreshOrchestrator(slug);
-        if (outcome === 'busy')
-          return {
-            ok: false,
-            error: {
-              code: 'bot-busy',
-              message: 'Stop the Bot before starting a fresh Session',
-            },
-          };
-        return { ok: true, value: { started: true } };
-      } catch {
-        return {
-          ok: false,
-          error: {
-            code: 'session-reset-failed',
-            message: 'Could not start a fresh Session',
-          },
-        };
-      }
-    },
-    async botCompact(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.idleCompaction?.compactBot === undefined) return unavailable();
-      try {
-        const result = await deps.idleCompaction.compactBot(slug);
-        if (result.outcome === 'busy')
-          return {
-            ok: false,
-            error: {
-              code: 'bot-busy',
-              message: 'Stop the Bot before compacting its Session',
-            },
-          };
-        return { ok: true, value: result };
-      } catch (error) {
-        if (error instanceof SessionRecoveryError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
-        return {
-          ok: false,
-          error: {
-            code: 'compaction-failed',
-            message: 'Could not compact the Session',
-          },
-        };
-      }
-    },
-    async botContext(payload) {
-      const slug = asSlug(payload);
-      if (!slug) return invalidInput('slug is required');
-      if (!deps.registry.get(slug)) return unknownBot(slug);
-      if (!deps.botContext) return unavailable();
-      try {
-        return { ok: true, value: await deps.botContext(slug) };
-      } catch {
-        return unavailable();
-      }
-    },
+    botNewSession: sessionsMethods.botNewSession,
+    botCompact: sessionsMethods.botCompact,
+    botContext: sessionsMethods.botContext,
     botSystemPrompt,
-    async channelBotStop(payload) {
-      const source = asObject(payload);
-      const channelId = asNonBlank(source, 'channelId');
-      const botSlug = asNonBlank(source, 'botSlug');
-      if (!channelId || !botSlug) return invalidInput('channelId and botSlug are required');
-      const channel = deps.channels.get(channelId);
-      if (channel === undefined || channel.deletedAt) return unknownChannel(channelId);
-      const bot = deps.registry.get(botSlug);
-      if (bot === undefined) return unknownBot(botSlug);
-      if (!botInChannel(channel, botSlug))
-        return invalidInput(`${bot.displayName} is not in this Channel`);
-      const stopped = await stopBotSessions(source, botSlug, channelId);
-      if (!stopped.ok) return stopped;
-      if (stopped.value.messageId === undefined)
-        return {
-          ok: false,
-          error: {
-            code: 'not-working',
-            message: `${bot.displayName} is not working right now`,
-          },
-        };
-      const sessionId =
-        stopped.value.stopped.find((ref) => ref.role === 'orchestrator')?.sessionId ??
-        stopped.value.stopped[0]!.sessionId;
-      return {
-        ok: true,
-        value: {
-          stopped: { botSlug, sessionId, messageId: stopped.value.messageId },
-        },
-      };
-    },
-    async botStop(payload) {
-      const source = asObject(payload);
-      const botSlug = asNonBlank(source, 'botSlug');
-      if (!botSlug) return invalidInput('botSlug is required');
-      if (deps.registry.get(botSlug) === undefined) return unknownBot(botSlug);
-      const channelId = asNonBlank(source, 'channelId');
-      if (source['channelId'] !== undefined && channelId === undefined)
-        return invalidInput('channelId must be a Channel id');
-      if (channelId !== undefined) {
-        const channel = deps.channels.get(channelId);
-        if (channel === undefined || channel.deletedAt) return unknownChannel(channelId);
-      }
-      return stopBotSessions(source, botSlug, channelId);
-    },
+    channelBotStop: sessionsMethods.channelBotStop,
+    botStop: sessionsMethods.botStop,
     async sessionMessageSend(payload) {
       const source = asObject(payload);
       const botSlug = asNonBlank(source, 'botSlug');
@@ -3183,63 +2666,7 @@ function buildBridgeMethods(
       void outcome.settled.catch(() => undefined);
       return { ok: true, value: { sourceEventId: outcome.sourceEventId } };
     },
-    async sessionStop(payload) {
-      const source = asObject(payload);
-      const botSlug = asNonBlank(source, 'botSlug');
-      const activityId = asNonBlank(source, 'activityId');
-      if (!botSlug || (source['sessionId'] === undefined) === (activityId === undefined))
-        return invalidInput('botSlug and exactly one of sessionId or activityId are required');
-      const bot = deps.registry.get(botSlug);
-      if (bot === undefined) return unknownBot(botSlug);
-      const channelId = asNonBlank(source, 'channelId');
-      if (source['channelId'] !== undefined && channelId === undefined)
-        return invalidInput('channelId must be a Channel id');
-      if (deps.runtime?.stopSession === undefined) return unavailable();
-      const sessionId =
-        activityId === undefined
-          ? asNonBlank(source, 'sessionId')
-          : deps.states.sessionIdForActivity(botSlug, activityId);
-      if (activityId !== undefined && sessionId === undefined)
-        return { ok: true, value: { stopped: [], alreadyIdle: [] } };
-      if (!sessionId) return invalidInput('sessionId must be a Session id');
-      const outcome = await deps.runtime.stopSession(botSlug, sessionId);
-      if (outcome.outcome === 'refused')
-        return {
-          ok: false,
-          error: { code: outcome.code, message: outcome.message },
-        };
-      const ref = outcome.stopped[0];
-      const channel = channelId === undefined ? undefined : deps.channels.get(channelId);
-      const related =
-        ref !== undefined &&
-        channel !== undefined &&
-        !channel.deletedAt &&
-        (ref.role === 'orchestrator'
-          ? botInChannel(channel, botSlug)
-          : (deps.runtime.listChannelAssignments?.(channel.id) ?? []).some(
-              (assignment) => assignment.sessionId === ref.sessionId,
-            ));
-      const title =
-        ref?.role === 'assignment'
-          ? deps.runtime.getAssignment(botSlug, ref.sessionId)?.title
-          : undefined;
-      const messageId = related
-        ? await appendStopNotice(channel!.id, bot.slug, bot.displayName, ref.sessionId, {
-            scope: 'session',
-            role: ref.role,
-            sessionId: ref.sessionId,
-            ...(title ? { title } : {}),
-          })
-        : undefined;
-      return {
-        ok: true,
-        value: {
-          stopped: outcome.stopped,
-          alreadyIdle: outcome.alreadyIdle,
-          ...(messageId === undefined ? {} : { messageId }),
-        },
-      };
-    },
+    sessionStop: sessionsMethods.sessionStop,
     ...modelSettings,
     dataResetPreview() {
       if (deps.dataReset === undefined) return unavailable();
@@ -3919,67 +3346,10 @@ function buildBridgeMethods(
     botApprovalTemplateSet: approvalsMethods.botApprovalTemplateSet,
     approvalReviewerModel: approvalsMethods.approvalReviewerModel,
     approvalReviewerModelSet: approvalsMethods.approvalReviewerModelSet,
-    idleCompaction() {
-      if (deps.idleCompaction === undefined) return unavailable();
-      return { ok: true, value: idleCompactionView(deps.idleCompaction) };
-    },
-    idleCompactionSet(payload) {
-      if (deps.idleCompaction === undefined) return unavailable();
-      const enabled = asObject(payload)['enabled'];
-      if (typeof enabled !== 'boolean') return invalidInput('enabled must be true or false');
-      try {
-        deps.idleCompaction.settings.setEnabled(enabled);
-      } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
-      }
-      if (enabled) deps.idleCompaction.rescan();
-      return { ok: true, value: idleCompactionView(deps.idleCompaction) };
-    },
-    idleCompactionCacheLifetimeSet(payload) {
-      if (deps.idleCompaction === undefined) return unavailable();
-      const object = asObject(payload);
-      const provider = asNonBlank(object, 'provider');
-      const model = asNonBlank(object, 'model');
-      const lifetime = object['seconds'];
-      if (provider === undefined || model === undefined)
-        return invalidInput('provider and model are required');
-      if (lifetime !== null && !isCacheLifetimeSeconds(lifetime))
-        return invalidInput(
-          `seconds must be a whole number from 0 to ${MAX_CACHE_LIFETIME_SECONDS}, or null to resolve it automatically`,
-        );
-      try {
-        deps.idleCompaction.settings.setCacheLifetime({ provider, model }, lifetime);
-      } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
-      }
-      deps.idleCompaction.rescan();
-      return { ok: true, value: idleCompactionView(deps.idleCompaction) };
-    },
-    compactionThresholdSet(payload) {
-      if (deps.idleCompaction === undefined) return unavailable();
-      const object = asObject(payload);
-      const ratio = object['thresholdRatio'];
-      const headroom = object['headroomTokens'];
-      if (
-        (ratio === undefined && headroom === undefined) ||
-        (ratio !== undefined && ratio !== null && !isCompactionThresholdRatio(ratio)) ||
-        (headroom !== undefined && headroom !== null && !isCompactionHeadroomTokens(headroom))
-      )
-        return invalidInput(
-          `thresholdRatio (${COMPACTION_THRESHOLD_RATIO.min}-${COMPACTION_THRESHOLD_RATIO.max}) and/or headroomTokens (integer ${COMPACTION_HEADROOM_TOKENS.min}-${COMPACTION_HEADROOM_TOKENS.max}) are required; null restores the default`,
-        );
-      try {
-        deps.idleCompaction.settings.setThreshold({
-          ...(ratio === undefined ? {} : { thresholdRatio: ratio as number | null }),
-          ...(headroom === undefined ? {} : { headroomTokens: headroom as number | null }),
-        });
-      } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
-      }
-      deps.idleCompaction.applyThreshold?.();
-      deps.idleCompaction.rescan();
-      return { ok: true, value: idleCompactionView(deps.idleCompaction) };
-    },
+    idleCompaction: sessionsMethods.idleCompaction,
+    idleCompactionSet: sessionsMethods.idleCompactionSet,
+    idleCompactionCacheLifetimeSet: sessionsMethods.idleCompactionCacheLifetimeSet,
+    compactionThresholdSet: sessionsMethods.compactionThresholdSet,
     standingLimitsSet(payload) {
       const slug = asSlug(payload);
       const object = asObject(payload);
@@ -6339,36 +5709,7 @@ function buildBridgeMethods(
         return invalidInput(String(error));
       }
     },
-    humanAssignmentContext(payload) {
-      const source = asObject(payload);
-      const slug = asSlug(payload);
-      const sessionId = asNonBlank(source, 'sessionId');
-      const sourceEventId = asNonBlank(source, 'sourceEventId');
-      if (
-        slug === undefined ||
-        sessionId === undefined ||
-        sessionId.length > 150 ||
-        sourceEventId === undefined ||
-        sourceEventId.length > 150
-      )
-        return invalidInput('Bot, Assignment Session and report Source Event are required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      const context = deps.humanAttention?.assignmentContext(slug, sessionId, sourceEventId);
-      if (context === undefined)
-        return invalidInput('Assignment report is unavailable for this Bot');
-      return {
-        ok: true,
-        value: {
-          context: {
-            ...context,
-            canReply:
-              context.canReply &&
-              deps.registry.get(slug)?.paused !== true &&
-              deps.channels.get('dm-' + slug)?.botSlug === slug,
-          },
-        },
-      };
-    },
+    humanAssignmentContext: assignmentsMethods.humanAssignmentContext,
     humanAttentionDismiss(payload) {
       const source = asObject(payload);
       const itemId = asNonBlank(source, 'itemId');
@@ -6540,170 +5881,12 @@ function buildBridgeMethods(
         return invalidInput(String(error));
       }
     },
-    assignments(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
-      const assignments = deps.runtime?.listAssignments(slug) ?? [];
-      const filter = z
-        .object({
-          query: z.string().max(200).optional(),
-          activity: z.array(z.enum(['working', 'idle', 'error', 'stopping', 'stopped'])).optional(),
-          includeArchived: z.boolean().optional(),
-          limit: z.number().int().optional(),
-          cursor: z.string().optional(),
-        })
-        .safeParse(asObject(payload));
-      if (!filter.success) return invalidInput('invalid Assignment Directory query');
-      const { query, includeArchived, limit, cursor } = filter.data;
-      const activity = filter.data.activity?.length === 0 ? undefined : filter.data.activity;
-      if ([query, activity, includeArchived, limit, cursor].every((value) => value === undefined))
-        return { ok: true, value: { assignments } };
-      try {
-        return {
-          ok: true,
-          value: queryAssignmentDirectory(assignments, {
-            ...(query === undefined ? {} : { query }),
-            ...(activity === undefined ? {} : { activity }),
-            ...(includeArchived === undefined ? {} : { includeArchived }),
-            ...(limit === undefined ? {} : { limit }),
-            ...(cursor === undefined ? {} : { cursor }),
-          }),
-        };
-      } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
-      }
-    },
-    channelAssignments(payload) {
-      const parsed = z.object({ channelId: z.string().min(1) }).safeParse(asObject(payload));
-      if (!parsed.success) return invalidInput('invalid Group channel');
-      const channel = deps.channels.get(parsed.data.channelId);
-      if (
-        channel?.type !== 'group' ||
-        channel.deletedAt ||
-        !deps.channels
-          .listHumanMembers(human, channel.id)
-          .some((member) => member.humanId === human.humanId)
-      )
-        return invalidInput('Group channel unavailable');
-      const assignments = deps.runtime?.listChannelAssignments?.(channel.id) ?? [];
-      const subagentCounts = deps.ownership.subagentCounts(
-        assignments.map((assignment) => assignment.sessionId),
-      );
-      return {
-        ok: true,
-        value: {
-          assignments: assignments.map((assignment) => {
-            const subagentCount = subagentCounts.get(assignment.sessionId);
-            const modelRoute =
-              deps.usage?.latestRoute(assignment.sessionId) ??
-              assignment.modelRoute ??
-              deps.registry.get(assignment.botSlug)?.modelPlan?.assignmentDefault ??
-              deps.defaultModel?.currentSelection();
-            return {
-              ...assignment,
-              ...(modelRoute === undefined ? {} : { modelRoute }),
-              ...(subagentCount === undefined ? {} : { subagentCount }),
-            };
-          }),
-        },
-      };
-    },
-    assignment(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const sessionId = asNonBlank(source, 'sessionId');
-      if (slug === undefined) return invalidInput('slug is required');
-      if (sessionId === undefined) return invalidInput('sessionId is required');
-      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
-      const assignment = deps.runtime?.getAssignment(slug, sessionId);
-      if (assignment === undefined) return unknownAssignment(sessionId);
-      return { ok: true, value: { assignment } };
-    },
-    async assignmentTimeline(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const sessionId = asNonBlank(source, 'sessionId');
-      if (slug === undefined) return invalidInput('slug is required');
-      if (sessionId === undefined) return invalidInput('sessionId is required');
-      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
-      const assignment = deps.runtime?.getAssignment(slug, sessionId);
-      if (assignment === undefined) return unknownAssignment(sessionId);
-      const read = deps.readUsageSessionLog;
-      if (read === undefined) return unavailable();
-      const [main, subagents] = await Promise.all([
-        sessionLogOf(read, sessionId),
-        subagentSessionsOf(deps.ownership, read, slug, sessionId),
-      ]);
-      const timeline = summarizeAssignmentTimeline({
-        main,
-        subagents,
-        describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
-      });
-      return { ok: true, value: { assignment, ...timeline } };
-    },
-    async sessionProgress(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      if (slug === undefined) return invalidInput('slug is required');
-      const ids = source?.['sessionIds'];
-      if (
-        !Array.isArray(ids) ||
-        ids.length === 0 ||
-        ids.length > SESSION_PROGRESS_LIMIT ||
-        !ids.every((id) => typeof id === 'string' && id.trim() !== '')
-      )
-        return invalidInput(`sessionIds must list 1 to ${SESSION_PROGRESS_LIMIT} Session ids`);
-      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
-      const read = deps.readUsageSessionLog;
-      if (read === undefined) return unavailable();
-      const sessions = await Promise.all(
-        [...new Set(ids as string[])].map(async (sessionId): Promise<SessionProgressEntry> => {
-          const owner = deps.ownership.resolve(sessionId);
-          if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
-            return { sessionId, error: 'not-found' };
-          try {
-            const log = await read(sessionId);
-            return { sessionId, ...summarizeSessionProgress(log?.events ?? []) };
-          } catch {
-            return { sessionId, error: 'unavailable' };
-          }
-        }),
-      );
-      return { ok: true, value: { sessions } };
-    },
-    async sessionTranscript(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const sessionId = asNonBlank(source, 'sessionId');
-      if (slug === undefined) return invalidInput('slug is required');
-      if (sessionId === undefined) return invalidInput('sessionId is required');
-      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
-      const owner = deps.ownership.resolve(sessionId);
-      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
-        return {
-          ok: false,
-          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
-        };
-      const read = deps.readUsageSessionLog;
-      if (read === undefined) return unavailable();
-      const log = await read(sessionId);
-      const engine = deps.describeEngineSession?.(sessionId);
-      return {
-        ok: true,
-        value: {
-          sessionId,
-          role: owner.rootRole,
-          ...(engine === undefined ? {} : { engine }),
-          ...summarizeSessionTranscript({
-            sessionId,
-            events: log?.events ?? [],
-            segments: deps.runtime?.sessionTurnTargets?.(sessionId) ?? [],
-            describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
-          }),
-        },
-      };
-    },
+    assignments: assignmentsMethods.assignments,
+    channelAssignments: assignmentsMethods.channelAssignments,
+    assignment: assignmentsMethods.assignment,
+    assignmentTimeline: assignmentsMethods.assignmentTimeline,
+    sessionProgress: assignmentsMethods.sessionProgress,
+    sessionTranscript: sessionsMethods.sessionTranscript,
     async sessionLive(payload) {
       const source = asObject(payload);
       const slug = asNonBlank(source, 'slug');
@@ -6725,61 +5908,8 @@ function buildBridgeMethods(
       if (after !== undefined) await live.wait(sessionId, after);
       return { ok: true, value: { sessionId, ...live.snapshot(sessionId) } };
     },
-    async sessionToolDetail(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const sessionId = asNonBlank(source, 'sessionId');
-      const callId = asNonBlank(source, 'callId');
-      if (slug === undefined) return invalidInput('slug is required');
-      if (sessionId === undefined) return invalidInput('sessionId is required');
-      if (callId === undefined) return invalidInput('callId is required');
-      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
-      const owner = deps.ownership.resolve(sessionId);
-      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
-        return {
-          ok: false,
-          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
-        };
-      const read = deps.readUsageSessionLog;
-      if (read === undefined) return unavailable();
-      const log = await read(sessionId);
-      const detail = summarizeSessionToolDetail({
-        sessionId,
-        callId,
-        events: log?.events ?? [],
-        ...(deps.presentToolResult === undefined ? {} : { present: deps.presentToolResult }),
-      });
-      if (detail === undefined)
-        return { ok: false, error: { code: 'not-found', message: `unknown tool call: ${callId}` } };
-      return { ok: true, value: { sessionId, callId, detail } };
-    },
-    async sessionSubagents(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const sessionId = asNonBlank(source, 'sessionId');
-      if (slug === undefined) return invalidInput('slug is required');
-      if (sessionId === undefined) return invalidInput('sessionId is required');
-      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
-      const owner = deps.ownership.resolve(sessionId);
-      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
-        return {
-          ok: false,
-          error: {
-            code: 'not-found',
-            message: `unknown root Session: ${sessionId}`,
-          },
-        };
-      const read = deps.readUsageSessionLog;
-      if (read === undefined) return unavailable();
-      const children = summarizeSubagentLanes({
-        subagents: await subagentSessionsOf(deps.ownership, read, slug, sessionId),
-        describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
-      });
-      return {
-        ok: true,
-        value: { sessionId, role: owner.rootRole, ...children },
-      };
-    },
+    sessionToolDetail: sessionsMethods.sessionToolDetail,
+    sessionSubagents: assignmentsMethods.sessionSubagents,
     workspaceOptions() {
       try {
         const team = deps.team;
@@ -6967,41 +6097,8 @@ function buildBridgeMethods(
     grantRevoke: workspacesMethods.grantRevoke,
     grantRequestApprove: workspacesMethods.grantRequestApprove,
     grantWriteSet: workspacesMethods.grantWriteSet,
-    assignmentAccessGet(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      return {
-        ok: true,
-        value: {
-          preset: deps.assignmentAccess?.get(slug) ?? {
-            botSlug: slug,
-            mode: 'workspace-write',
-            scope: 'chat',
-            revision: 0,
-          },
-        },
-      };
-    },
-    assignmentAccessSet(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const mode = source['mode'];
-      if (slug === undefined || (mode !== 'workspace-write' && mode !== 'danger-full-access'))
-        return invalidInput('slug and valid mode are required');
-      if (mode === 'danger-full-access' && source['acknowledgeRisk'] !== true)
-        return invalidInput('Dangerous access requires explicit Human risk acknowledgement');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.assignmentAccess === undefined)
-        return invalidInput('Assignment access is unavailable');
-      const scope = source['scope'];
-      if (scope !== undefined && scope !== 'chat' && scope !== 'assignments')
-        return invalidInput('scope must be chat or assignments');
-      return {
-        ok: true,
-        value: { preset: deps.assignmentAccess.set(slug, mode, scope, human) },
-      };
-    },
+    assignmentAccessGet: assignmentsMethods.assignmentAccessGet,
+    assignmentAccessSet: assignmentsMethods.assignmentAccessSet,
     toolApprovalRules: approvalsMethods.toolApprovalRules,
     toolApprovalRuleRevoke: approvalsMethods.toolApprovalRuleRevoke,
     toolApprovalHistory: approvalsMethods.toolApprovalHistory,
@@ -7010,45 +6107,7 @@ function buildBridgeMethods(
     toolAutoRejectionOverride: approvalsMethods.toolAutoRejectionOverride,
     userQuestionStatus: approvalsMethods.userQuestionStatus,
     userQuestionAnswer: approvalsMethods.userQuestionAnswer,
-    async botToolTrace(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
-      const source = asObject(payload) ?? {};
-      const turns = source['turns'] === undefined ? 3 : source['turns'];
-      if (typeof turns !== 'number' || !Number.isInteger(turns) || turns < 1 || turns > 20)
-        return invalidInput('turns must be an integer from 1 to 20');
-      const roots = deps.ownership.rootsFor(slug);
-      const requested = source['sessionId'];
-      if (requested !== undefined && typeof requested !== 'string')
-        return invalidInput('sessionId must be a string');
-      if (requested === 'direct')
-        return {
-          ok: true,
-          value: {
-            slug,
-            sessionId: 'direct',
-            turns: directToolTrace(deps.runtime?.directBotToolCalls?.(slug) ?? [], { turns }),
-          },
-        };
-      const sessionId =
-        requested ??
-        deps.runtime?.currentOrchestratorSessionId?.(slug) ??
-        [...roots].reverse().find((root) => root.rootRole === 'orchestrator')?.sessionId;
-      if (sessionId === undefined || !roots.some((root) => root.sessionId === sessionId))
-        return invalidInput('The Session does not belong to this PersonaBot');
-      if (deps.readUsageSessionLog === undefined) return unavailable();
-      const log = await deps.readUsageSessionLog(sessionId);
-      if (log === undefined) return unavailable();
-      return {
-        ok: true,
-        value: {
-          slug,
-          sessionId,
-          ...summarizeToolTrace(log.events, { turns }),
-        },
-      };
-    },
+    botToolTrace: sessionsMethods.botToolTrace,
     async botTurnInput(payload) {
       const slug = asSlug(payload);
       if (slug === undefined) return invalidInput('slug is required');
@@ -7137,504 +6196,30 @@ function buildBridgeMethods(
         };
       }
     },
-    sessions(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
-      const assignments = new Map(
-        (deps.runtime?.listAssignments(slug) ?? []).map((assignment) => [
-          assignment.sessionId,
-          assignment,
-        ]),
-      );
-      const resumed =
-        deps.runtime?.currentOrchestratorSessionId === undefined
-          ? undefined
-          : (deps.runtime.currentOrchestratorSessionId(slug) ?? null);
-      const triage = deps.runtime?.triageOpenCount?.(slug);
-      const roots = deps.ownership.rootsFor(slug);
-      const subagentCounts = deps.ownership.subagentCounts(roots.map((root) => root.sessionId));
-      const plan = deps.registry.get(slug)?.modelPlan;
-      const fallbackRoute = deps.defaultModel?.currentSelection();
-      const sessions = roots.map((root) => {
-        const assignment = assignments.get(root.sessionId);
-        const subagentCount = subagentCounts.get(root.sessionId);
-        const engine = deps.describeEngineSession?.(root.sessionId);
-        const modelRoute =
-          engine !== undefined
-            ? undefined
-            : (deps.usage?.latestRoute(root.sessionId) ??
-              (root.rootRole === 'assignment'
-                ? (assignment?.modelRoute ?? plan?.assignmentDefault)
-                : plan?.orchestrator) ??
-              fallbackRoute);
-        return {
-          sessionId: root.sessionId,
-          role: root.rootRole,
-          createdAt: root.createdAt,
-          ...(resumed === undefined || root.rootRole !== 'orchestrator'
-            ? {}
-            : { currentOrchestrator: root.sessionId === resumed }),
-          ...(triage === undefined || root.rootRole !== 'orchestrator' || root.sessionId !== resumed
-            ? {}
-            : { triageOpenCount: triage }),
-          ...(root.cwdReference === undefined ? {} : { cwdReference: root.cwdReference }),
-          ...(assignment === undefined ? {} : { assignmentActivity: assignment.activity }),
-          ...(assignment?.permission === undefined
-            ? {}
-            : { assignmentAccessMode: assignment.permission.mode }),
-          ...(assignment?.latestReport === undefined
-            ? {}
-            : { assignmentReportState: assignment.latestReport.state }),
-          ...(assignment?.executionWait === undefined
-            ? {}
-            : { assignmentExecutionWait: assignment.executionWait }),
-          ...(assignment?.archivedAt === undefined ? {} : { assignmentArchived: true as const }),
-          ...(assignment === undefined
-            ? {}
-            : {
-                assignmentTitle: assignment.title,
-                assignmentDescription: assignment.description,
-              }),
-          ...(assignment?.modelRoute === undefined
-            ? {}
-            : { assignmentModelRoute: assignment.modelRoute }),
-          ...(modelRoute === undefined ? {} : { modelRoute }),
-          ...(engine === undefined
-            ? {}
-            : {
-                engine: {
-                  engine: engine.engine,
-                  ...(engine.account === undefined ? {} : { account: engine.account }),
-                  ...(engine.quota === undefined ? {} : { quota: engine.quota }),
-                },
-              }),
-          ...(root.agentPreset === undefined ? {} : { agentPreset: root.agentPreset }),
-          ...(subagentCount === undefined ? {} : { subagentCount }),
-        };
-      });
-      return { ok: true, value: { sessions } };
-    },
-    async sessionArchiveSet(payload) {
-      const input = asObject(payload);
-      const slug = asSlug(payload);
-      const sessionId = asNonBlank(input, 'sessionId');
-      const archived = input?.['archived'];
-      if (slug === undefined || sessionId === undefined || typeof archived !== 'boolean')
-        return invalidInput('slug, sessionId and archived are required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.runtime?.setAssignmentArchived === undefined)
-        return invalidInput('Assignment archive is unavailable');
-      if (deps.runtime.getAssignment(slug, sessionId) === undefined)
-        return invalidInput('Unknown Assignment Session');
-      const outcome = await deps.runtime.setAssignmentArchived(slug, sessionId, archived);
-      if (outcome.outcome === 'refused') return invalidInput(outcome.message);
-      return { ok: true, value: { archived: outcome.outcome === 'archived' } };
-    },
-    async memoryMove(payload) {
-      const input = asObject(payload);
-      const slug = asSlug(payload);
-      const location = input?.['location'];
-      if (slug === undefined || (location !== null && typeof location !== 'string'))
-        return invalidInput('slug and location (a folder, or null for the default) are required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.runtime?.replaceOrchestrator === undefined)
-        return invalidInput('Moving Memory is unavailable on this Host');
-      const target = memoryMoveTarget(
-        deps.registry,
-        slug,
-        typeof location === 'string' && location.trim() !== '' ? location.trim() : null,
-      );
-      if (!target.ok)
-        return {
-          ok: false,
-          error: { code: target.code, message: target.message },
-        };
-      try {
-        const bot = deps.registry.get(slug);
-        if (deps.team && bot) deps.team.spaces.assertMemoryPath(botOwner(bot), slug, target.to);
-      } catch (error) {
-        if (error instanceof WorkspaceGrantError)
-          return {
-            ok: false,
-            error: {
-              code: error.code,
-              message: error.code,
-              ...(error.details ? { details: error.details } : {}),
-            },
-          };
-        throw error;
-      }
-      if (target.to === target.from)
-        return { ok: true, value: { memoryDir: target.from, moved: false } };
-      try {
-        if (deps.memory?.snapshot(slug).provisional === true)
-          return {
-            ok: false,
-            error: {
-              code: 'memory-conflict',
-              message: 'Finish the Memory repair before moving Memory.',
-            },
-          };
-      } catch {}
-      let outcome;
-      try {
-        outcome = await deps.runtime.replaceOrchestrator(slug, (): MemoryMoveResult => {
-          const moved = moveMemoryDirectory(target.from, target.to);
-          try {
-            deps.registry.setMemoryDir(slug, target.custom ? target.to : undefined);
-          } catch (error) {
-            moveMemoryDirectory(target.to, target.from);
-            throw error;
-          }
-          return moved;
-        });
-      } catch (error) {
-        return {
-          ok: false,
-          error: {
-            code: 'memory-unavailable',
-            message: `Memory was not moved: ${error instanceof Error ? error.message : String(error)}`,
-          },
-        };
-      }
-      if (outcome.outcome === 'refused')
-        return {
-          ok: false,
-          error: { code: outcome.code, message: outcome.message },
-        };
-      return {
-        ok: true,
-        value: {
-          memoryDir: target.to,
-          moved: true,
-          ...(outcome.value.leftover === undefined ? {} : { leftover: outcome.value.leftover }),
-        },
-      };
-    },
-    sessionOwner(payload) {
-      const sessionId = asNonBlank(asObject(payload), 'sessionId');
-      if (sessionId === undefined) return invalidInput('sessionId is required');
-      const owned = deps.ownership.resolve(sessionId);
-      if (owned === undefined || owned.parentSessionId !== undefined)
-        return { ok: true, value: { owner: null } };
-      const bot = deps.registry.get(owned.botSlug);
-      if (bot === undefined) return { ok: true, value: { owner: null } };
-      return {
-        ok: true,
-        value: {
-          owner: {
-            botSlug: bot.slug,
-            displayName: bot.displayName,
-            ...(bot.appearance === undefined ? {} : { appearance: bot.appearance }),
-            ...(bot.avatarSeed === undefined ? {} : { avatarSeed: bot.avatarSeed }),
-            ...(bot.avatar === undefined
-              ? {}
-              : {
-                  avatar: bot.avatar.startsWith('data:image/')
-                    ? botAvatarUrl(bot.slug, bot.avatar)
-                    : bot.avatar,
-                }),
-            role: owned.rootRole,
-          },
-        },
-      };
-    },
-    botSessionIds() {
-      const privateSessions = deps.team?.bots.privateSessions(human);
-      const groups = deps.registry
-        .list()
-        .filter((bot) => !privateSessions?.has(bot.slug))
-        .map((bot) => ({
-          botSlug: bot.slug,
-          displayName: bot.displayName,
-          sessionIds: deps.ownership
-            .rootsFor(bot.slug)
-            .filter((root) => deps.ownership.contentAvailable(root.sessionId))
-            .map((root) => root.sessionId),
-        }));
-      return {
-        ok: true,
-        value: {
-          sessionIds: groups.flatMap((group) => group.sessionIds),
-          groups,
-        },
-      };
-    },
-    memoryFileTarget(payload) {
-      const source = asObject(payload);
-      const slug = asSlug(payload);
-      const path = source['path'];
-      if (slug === undefined || typeof path !== 'string')
-        return invalidInput('slug and path are required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      return memoryCall(() => ({
-        target: deps.memory!.fileTarget(slug, path),
-      }));
-    },
-    memoryImage(payload) {
-      const input = z
-        .object({
-          slug: z.string().min(1),
-          path: z.string().min(1),
-          source: z.string().min(1),
-          revision: z.string().min(1),
-          reference: z.string().optional(),
-        })
-        .strict()
-        .safeParse(payload);
-      if (!input.success) return invalidInput('slug, path, source and revision are required');
-      const { slug, path, source, revision, reference } = input.data;
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      return memoryCall(() => {
-        const bytes =
-          reference === undefined
-            ? deps.memory!.imageFile(slug, path, source, revision)
-            : deps.memory!.markdownImageFile(slug, path, source, revision, reference);
-        return { mime: inspectImage(bytes).mime, dataBase64: bytes.toString('base64') };
-      });
-    },
-    memorySnapshot(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      return memoryCall(() => ({
-        snapshot: deps.memory!.snapshot(scope.botSlug),
-      }));
-    },
-    memoryFile(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const path = asNonBlank(asObject(payload), 'path');
-      if (path === undefined) return invalidInput('path is required');
-      return memoryCall(() => {
-        const file = deps.memory!.readAccepted(scope.botSlug, path);
-        return file === undefined ? {} : { file };
-      });
-    },
-    memoryHistory(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      return memoryCall(() => ({
-        commits: deps.memory!.history(scope.botSlug),
-      }));
-    },
-    memoryDiff(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const sha = asNonBlank(asObject(payload), 'sha');
-      if (sha === undefined || !/^[0-9a-f]{40}$/u.test(sha))
-        return invalidInput('valid sha is required');
-      return memoryCall(() => deps.memory!.diff(scope.botSlug, sha));
-    },
-    memoryGitGraph(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const offset = asObject(payload)['offset'];
-      if (
-        offset !== undefined &&
-        (!Number.isInteger(offset) || Number(offset) < 0 || Number(offset) > 10_000)
-      )
-        return invalidInput('valid offset is required');
-      const path = asObject(payload)['path'];
-      if (path !== undefined && (typeof path !== 'string' || path.trim() === ''))
-        return invalidInput('valid path is required');
-      return memoryCall(() =>
-        deps.memory!.gitGraph(scope.botSlug, Number(offset ?? 0), path as string | undefined),
-      );
-    },
-    memoryGitCommitDiff(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const sha = asNonBlank(asObject(payload), 'sha');
-      if (sha === undefined || !/^[0-9a-f]{40}$/u.test(sha))
-        return invalidInput('valid sha is required');
-      return memoryCall(() => deps.memory!.gitCommitDiff(scope.botSlug, sha));
-    },
-    memoryWorkingChanges(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      return memoryCall(() => ({
-        changes: deps.memory!.workingChanges(scope.botSlug),
-      }));
-    },
-    memoryWorkingDiff(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const source = asObject(payload);
-      const path = asNonBlank(source, 'path');
-      const kind = source['kind'];
-      if (
-        path === undefined ||
-        !['staged', 'unstaged', 'untracked', 'current'].includes(String(kind))
-      ) {
-        return invalidInput('valid path and kind are required');
-      }
-      return memoryCall(() =>
-        deps.memory!.workingDiff(scope.botSlug, path, kind as MemoryWorkingKind),
-      );
-    },
-    memoryRecoveryHistory(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      return memoryCall(() => ({
-        checkpoints: deps.memory!.recoveryHistory(scope.botSlug),
-      }));
-    },
-    memoryRestore(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const source = asObject(payload);
-      const checkpointId = asNonBlank(source, 'checkpointId');
-      const expectedCurrentId = asNonBlank(source, 'expectedCurrentId');
-      const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u;
-      if (
-        checkpointId === undefined ||
-        expectedCurrentId === undefined ||
-        !uuid.test(checkpointId) ||
-        !uuid.test(expectedCurrentId)
-      )
-        return invalidInput('valid checkpointId and expectedCurrentId are required');
-      return memoryCall(() =>
-        deps.memory!.restoreHuman(human, {
-          botSlug: scope.botSlug,
-          checkpointId,
-          expectedCurrentId,
-        }),
-      );
-    },
-    memorySave(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const source = asObject(payload);
-      const path = asNonBlank(source, 'path');
-      const body = source['body'];
-      const expectedHead = asNonBlank(source, 'expectedHead');
-      const editId = asNonBlank(source, 'editId');
-      if (
-        path === undefined ||
-        typeof body !== 'string' ||
-        expectedHead === undefined ||
-        editId === undefined ||
-        !/^[0-9a-f]{40}$/u.test(expectedHead) ||
-        editId.length > 100
-      ) {
-        return invalidInput('path, body, expectedHead, and editId are required');
-      }
-      return memoryCall(() => ({
-        commit: deps.memory!.saveHuman(human, {
-          botSlug: scope.botSlug,
-          path,
-          body,
-          expectedHead,
-          editId,
-        }),
-      }));
-    },
-    memoryRestoreCommit(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const source = asObject(payload);
-      const sha = asNonBlank(source, 'sha');
-      const expectedHead = asNonBlank(source, 'expectedHead');
-      const restoreId = asNonBlank(source, 'restoreId');
-      const name = source['name'];
-      if (
-        (name !== undefined &&
-          (typeof name !== 'string' || name.length > 60 || /[\r\n]/u.test(name))) ||
-        sha === undefined ||
-        expectedHead === undefined ||
-        restoreId === undefined ||
-        !/^[0-9a-f]{40}$/u.test(sha) ||
-        !/^[0-9a-f]{40}$/u.test(expectedHead) ||
-        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(restoreId)
-      )
-        return invalidInput('valid sha, expectedHead, restoreId, and name are required');
-      return memoryCall(() =>
-        deps.memory!.restoreCommitHuman(human, {
-          botSlug: scope.botSlug,
-          sha,
-          expectedHead,
-          restoreId,
-          ...(name === undefined ? {} : { name }),
-        }),
-      );
-    },
-    memoryVersions(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      return memoryCall(() => ({
-        versions: deps.memory!.versions(scope.botSlug),
-      }));
-    },
-    memoryNameVersion(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const source = asObject(payload);
-      const sha = asNonBlank(source, 'sha');
-      const name = asNonBlank(source, 'name');
-      if (
-        sha === undefined ||
-        name === undefined ||
-        !/^[0-9a-f]{40}$/u.test(sha) ||
-        name.length > 60
-      )
-        return invalidInput('valid sha and name are required');
-      return memoryCall(() => ({
-        version: deps.memory!.nameVersionHuman({
-          botSlug: scope.botSlug,
-          sha,
-          name,
-        }),
-      }));
-    },
-    memoryRemoveVersionName(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const tag = asNonBlank(asObject(payload), 'tag');
-      if (tag === undefined || tag.length > 200) return invalidInput('valid tag is required');
-      return memoryCall(() => {
-        deps.memory!.removeVersionNameHuman({ botSlug: scope.botSlug, tag });
-        return { removed: true as const };
-      });
-    },
-    memoryRepair(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const source = asObject(payload);
-      const expectedHead = asNonBlank(source, 'expectedHead');
-      const repairId = asNonBlank(source, 'repairId');
-      if (
-        expectedHead === undefined ||
-        repairId === undefined ||
-        !/^[0-9a-f]{40}$/u.test(expectedHead) ||
-        !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/u.test(repairId)
-      )
-        return invalidInput('valid expectedHead and repairId are required');
-      return memoryCall(() => ({
-        repair: deps.memory!.repairHuman(human, {
-          botSlug: scope.botSlug,
-          expectedHead,
-          repairId,
-        }),
-      }));
-    },
-    async overviewMemory(payload) {
-      const after = asObject(payload)['after'];
-      if (
-        after !== undefined &&
-        (typeof after !== 'string' || after.length === 0 || after.length > 255)
-      )
-        return invalidInput('Overview Memory requires an optional Bot cursor');
-      if (deps.memory?.overviewActivity === undefined)
-        return {
-          ok: false,
-          error: {
-            code: 'storage-unavailable',
-            message: 'Memory statistics unavailable',
-          },
-        };
-      return { ok: true, value: await deps.memory.overviewActivity(after) };
-    },
+    sessions: sessionsMethods.sessions,
+    sessionArchiveSet: sessionsMethods.sessionArchiveSet,
+    memoryMove: memoryMethods.memoryMove,
+    sessionOwner: sessionsMethods.sessionOwner,
+    botSessionIds: sessionsMethods.botSessionIds,
+    memoryFileTarget: memoryMethods.memoryFileTarget,
+    memoryImage: memoryMethods.memoryImage,
+    memorySnapshot: memoryMethods.memorySnapshot,
+    memoryFile: memoryMethods.memoryFile,
+    memoryHistory: memoryMethods.memoryHistory,
+    memoryDiff: memoryMethods.memoryDiff,
+    memoryGitGraph: memoryMethods.memoryGitGraph,
+    memoryGitCommitDiff: memoryMethods.memoryGitCommitDiff,
+    memoryWorkingChanges: memoryMethods.memoryWorkingChanges,
+    memoryWorkingDiff: memoryMethods.memoryWorkingDiff,
+    memoryRecoveryHistory: memoryMethods.memoryRecoveryHistory,
+    memoryRestore: memoryMethods.memoryRestore,
+    memorySave: memoryMethods.memorySave,
+    memoryRestoreCommit: memoryMethods.memoryRestoreCommit,
+    memoryVersions: memoryMethods.memoryVersions,
+    memoryNameVersion: memoryMethods.memoryNameVersion,
+    memoryRemoveVersionName: memoryMethods.memoryRemoveVersionName,
+    memoryRepair: memoryMethods.memoryRepair,
+    overviewMemory: memoryMethods.overviewMemory,
     usageByMember(payload) {
       const period = asObject(payload)['period'];
       if (!isUsageOverviewPeriod(period)) return invalidInput('period-invalid');

@@ -1,28 +1,15 @@
 import { memberRoutes as eligibleMemberRoutes } from '../team/member-urls.js';
 import { createMemberDevices } from '../team/devices.js';
 import { createConnectHealth } from './connect-health.js';
-import { pairedDeviceHuman, deviceOwnsRequest } from '../team/device-audience.js';
-import { mountTeamGateway } from '../team/mount.js';
+import { deviceOwnsRequest } from '../team/device-audience.js';
 import type { TeamService } from '../team/service.js';
-import type { TeamHttp } from '../team/http.js';
 import { createDirectPeers } from './direct.js';
 import { createHostRelationships } from './relationships.js';
 import { createRelationshipControl } from './relationship-control.js';
 import { createRelationshipHttp, RELATIONSHIPS_PATH } from './relationship-http.js';
-import { createRemoteCustody } from './remote-custody.js';
-import {
-  createRemoteCustodyHttp,
-  createRemoteCustodyStream,
-  REMOTE_CUSTODY_PATH,
-  REMOTE_CUSTODY_STREAM_PATH,
-} from './remote-custody-http.js';
-import { nodeDeviceCarrier } from './node-carrier.js';
-import { createHash } from 'node:crypto';
-import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { createPrivateConnection } from './private-relay.js';
 import { createPrivateTunnel } from './private-tunnel.js';
 import { createConnectBotBridge } from './bot-connect-bridge.js';
-import { BOT_CONNECT_PATH } from './bot-connect-channel.js';
 import { createLanBotBridge } from './bot-lan-bridge.js';
 import { createLanBotDiscovery } from './bot-lan-discovery.js';
 import { createLanBotMembership } from './bot-lan-membership.js';
@@ -35,7 +22,6 @@ import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import type { Context } from '@deepseek-ai/cordis';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 import { createDeviceLan } from './lan.js';
-import type { IncomingMessage, ServerResponse } from 'node:http';
 import { hostname, platform } from 'node:os';
 import { createTailnetBotBridge } from './bot-tailnet-bridge.js';
 import { createBotNetworkRoutes } from './bot-network-routes.js';
@@ -47,7 +33,6 @@ import {
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ChannelStore } from '../channels/store.js';
 import { join } from 'node:path';
-import type { Duplex } from 'node:stream';
 import type { LocalVideoOwner } from '../../../computer/src/local-video-contract.js';
 import { localVideoCommand } from '../../../computer/src/local-video-http.js';
 import type { VoiceCallResult } from '../voice/call-contract.js';
@@ -55,66 +40,26 @@ import type { VoiceCalls } from '../voice/calls.js';
 
 import { attachOperationalModule, type OperationalDatabaseOwner } from '../database/owner.js';
 import { openLogDatabase, type LogDatabase } from '../logs/log-db.js';
-import {
-  createDeviceGateway,
-  DEVICE_GATEWAY_PREFIX,
-  DEVICE_MUX_PATH,
-  DEVICE_SIGNALING_PATHS,
-} from './gateway.js';
 import { createConnectAccount, type ConnectAccount } from './connect-account.js';
 import { cloudflaredCacheRoot } from './cloudflared.js';
 import { createDeviceConnect } from './connect.js';
 import { createDevicesHttp, DEVICES_PATH, DEVICES_SERVE_PATH } from './http.js';
 import { createDevicePairing, type DevicePairingEvent } from './pairing.js';
 import { createManagedPhoneRoute, parseManagedPhoneRoute } from './routes.js';
+import { mountDeviceGateway } from './mount-gateway.js';
 import {
-  createPushDelivery,
-  type ExpoSender,
-  type PushDelivery,
-  type PushEvent,
-  type PushSource,
-} from '../push/delivery.js';
-import { createExpoSender } from '../push/expo-sender.js';
-import { createDevicePushHttp } from '../push/http.js';
+  mountDevicePush,
+  PUSH_SETTLE_MS,
+  SETTLE_MAX_WAIT_MS,
+  type DevicePushOptions,
+} from './mount-push.js';
+import { mountRemoteCustodyRoutes } from './mount-remote-custody.js';
+import type { ConnectionLike, WebServerLike } from './mount-types.js';
+import type { PushDelivery } from '../push/delivery.js';
 import type { TelemetryService } from '../telemetry/service.js';
 import { coalesce } from '../runtime/coalesce.js';
 
-const PUSH_SETTLE_MS = 500;
-const SETTLE_MAX_WAIT_MS = 2_000;
-const PUSH_SWEEP_MS = 60_000;
-
-export interface DevicePushOptions {
-  source: PushSource;
-  watch(changed: () => void): () => void;
-  held?: (human: import('../humans/context.js').HumanContext) => boolean;
-  sender?: ExpoSender;
-}
-
-interface ConnectionLike {
-  fetch: {
-    register(route: {
-      path: string;
-      methods: readonly ('GET' | 'POST')[];
-      requestBody: 'buffered' | 'streaming';
-      fetch(request: Request): Promise<Response>;
-    }): () => Promise<void>;
-  };
-  authenticatedUrl(baseUrl: string): string;
-}
-
-interface WebServerLike {
-  readonly port: number;
-  getOrigin?(): string;
-  register(route: {
-    kind: 'exact' | 'prefix';
-    path: string;
-    handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void>;
-  }): () => void;
-  registerUpgrade(route: {
-    path: string;
-    handler: (request: IncomingMessage, socket: Duplex, head: Buffer) => void;
-  }): () => void;
-}
+export type { DevicePushOptions } from './mount-push.js';
 
 const CONNECT_OUTCOMES: Readonly<Record<string, 'success' | 'denied' | 'expired'>> = {
   'signed-in': 'success',
@@ -137,12 +82,6 @@ function detail(event: DevicePairingEvent): string {
   if ('code' in event) parts.push(`code=${event.code}`);
   if ('closedStreams' in event) parts.push(`closedStreams=${String(event.closedStreams)}`);
   return parts.join(' ');
-}
-
-function pushDetail(event: PushEvent): string {
-  return Object.entries(event)
-    .map(([key, value]) => `${key}=${String(value)}`)
-    .join(' ');
 }
 
 export function mountDevicePairing(
@@ -369,43 +308,10 @@ export function mountDevicePairing(
       };
     }, 'botharness: online Bot collaboration bridge');
   }
-  if (options.push !== undefined) {
-    const watched = options.push;
-    const delivery = createPushDelivery({
-      database: attachOperationalModule(options.database, 'push'),
-      source: watched.source,
-      deviceHuman: (deviceId) =>
-        pairedDeviceHuman(attachOperationalModule(options.database, 'push'), deviceId),
-      sender: watched.sender ?? createExpoSender(),
-      host: () => pairing.host(),
-      deviceActive: (deviceId) =>
-        pairing.list().some((device) => device.id === deviceId && device.revokedAt === undefined),
-      ...(watched.held === undefined ? {} : { held: watched.held }),
-      record: (event) => write('push', event.phase, `push ${pushDetail(event)}`),
+  if (options.push !== undefined)
+    mountDevicePush(ctx, options, options.push, pairing, write, (delivery) => {
+      push = delivery;
     });
-    push = delivery;
-    const reconcile = (): void => {
-      void delivery
-        .reconcile()
-        .catch((error: unknown) =>
-          ctx.logger.warn(`push phase=reconcile-failed error=${String(error)}`),
-        );
-    };
-    const settle = coalesce(reconcile, { delayMs: PUSH_SETTLE_MS, maxWaitMs: SETTLE_MAX_WAIT_MS });
-    ctx.effect(() => {
-      const off = watched.watch(settle.schedule);
-      const sweep = setInterval(() => {
-        reconcile();
-        void delivery.checkReceipts();
-      }, PUSH_SWEEP_MS);
-      reconcile();
-      return () => {
-        off();
-        settle.cancel();
-        clearInterval(sweep);
-      };
-    }, 'botharness: push delivery');
-  }
 
   ctx.inject(['connection', 'webServer'], (webCtx) => {
     const connection = (webCtx as unknown as { connection: ConnectionLike }).connection;
@@ -959,54 +865,7 @@ export function mountDevicePairing(
         }),
       'botharness: local Host relationship management',
     );
-    webCtx.effect(() => {
-      const secretKey = (handle: string) =>
-        credentialKey(
-          'botharness-private',
-          'remote-host-' + createHash('sha256').update(handle).digest('hex').slice(0, 40),
-        );
-      const store = () => {
-        const credentials = options.credentials?.();
-        if (!credentials) throw new Error('custody-storage-unavailable');
-        return credentials;
-      };
-      const custody = createRemoteCustody({
-        database: attachOperationalModule(options.database, 'remote-host-custody'),
-        secrets: {
-          read: async (handle) => {
-            const record = await store().readRecord(secretKey(handle));
-            return record?.kind === 'grant' ? record.payload : undefined;
-          },
-          write: async (handle, secret) => {
-            await store().modifyRecord(secretKey(handle), async () => ({
-              kind: 'grant',
-              payload: secret,
-            }));
-          },
-          delete: (handle) => store().deleteRecord(secretKey(handle)),
-        },
-        ownerHumanId: () => (options.team?.ownerContext() ?? OWNER_HUMAN_CONTEXT).humanId,
-        carrier: nodeDeviceCarrier,
-      });
-      const offs = [
-        connection.fetch.register({
-          path: REMOTE_CUSTODY_PATH,
-          methods: ['POST'],
-          requestBody: 'buffered',
-          fetch: createRemoteCustodyHttp(custody),
-        }),
-        connection.fetch.register({
-          path: REMOTE_CUSTODY_STREAM_PATH,
-          methods: ['GET'],
-          requestBody: 'buffered',
-          fetch: createRemoteCustodyStream(custody),
-        }),
-      ];
-      return async () => {
-        custody.close();
-        for (const off of offs) await off();
-      };
-    }, 'botharness: Remote Host credentials kept by the local Host');
+    mountRemoteCustodyRoutes(webCtx, connection, options);
     const http = createDevicesHttp({
       privateConnection,
       privateTunnel,
@@ -1065,126 +924,19 @@ export function mountDevicePairing(
       'botharness: publish phone route',
     );
 
-    let memberGateway: TeamHttp | undefined;
-    const teamService = options.team;
-    if (teamService)
-      write(
-        'team',
-        'carrier-waiting',
-        `team phase=waiting gateway=${Boolean(webCtx.get('typertGateway'))} access=${Boolean(webCtx.get('remoteAccess'))} modules=${Boolean(webCtx.get('clientModules'))}`,
-      );
-    if (teamService)
-      webCtx.inject(['typert', 'typertGateway', 'remoteAccess', 'clientModules'], (teamCtx) => {
-        try {
-          memberGateway = mountTeamGateway(
-            teamCtx,
-            teamService,
-            () => pairing.host().name,
-            memberDevices!,
-            (phase, facts) =>
-              write(
-                'team',
-                `carrier-${phase}`,
-                `team phase=${phase} facts=${JSON.stringify(facts)}`,
-              ),
-          );
-        } catch (error) {
-          write(
-            'team',
-            'carrier-failed',
-            `team phase=failed error=${error instanceof Error ? error.message.slice(0, 300) : 'runtime-error'}`,
-          );
-          throw error;
-        }
-        teamCtx.effect(
-          () => () => {
-            memberGateway = undefined;
-          },
-          'botharness: member carrier readiness',
-        );
-      });
-    const team = teamService
-      ? {
-          get device() {
-            return memberGateway?.device;
-          },
-          async handle(request: IncomingMessage, response: ServerResponse) {
-            if (memberGateway) return memberGateway.handle(request, response);
-            response.writeHead(503, {
-              'content-type': 'application/json',
-              'cache-control': 'no-store',
-            });
-            response.end(JSON.stringify({ code: 'member-carrier-unavailable' }));
-          },
-          async close() {
-            await memberGateway?.close();
-          },
-        }
-      : undefined;
-    const gateway = createDeviceGateway({
-      ...(team ? { team } : {}),
+    mountDeviceGateway(ctx, webCtx, {
+      connection,
+      webServer,
+      teamService: options.team,
+      memberDevices,
       pairing,
-      port: () => webServer.port,
-      authenticatedUrl: (base) => connection.authenticatedUrl(base),
-      log: (message) => ctx.logger.info(message),
-      localVideo: ({ deviceId, command, signal }) =>
-        localVideoCommand(videoOwner(), { deviceId }, command, signal),
-      voiceCall: ({ deviceId, command, signal }) => voiceCall({ deviceId }, command, signal),
-      ...(push === undefined ? {} : { push: createDevicePushHttp(push) }),
-      ...(activity === undefined ? {} : { activity: activity.handle }),
-      connectOffer: (body, signature) => account.verifyOffer(body, signature),
+      write,
+      videoOwner,
+      voiceCall,
+      delivery: () => ({ push, activity }),
+      account,
+      connectBots,
+      encryption,
     });
-    webCtx.effect(
-      () =>
-        webServer.register({
-          kind: 'prefix',
-          path: DEVICE_GATEWAY_PREFIX,
-          handler: async (request, response) => {
-            if (request.url?.startsWith(`${BOT_CONNECT_PATH}/`)) {
-              if (connectBots === undefined) {
-                response.writeHead(503);
-                response.end();
-                return;
-              }
-              await connectBots.handle(request, response);
-              return;
-            }
-            if (request.url === CONNECT_CHANNEL_PATH) {
-              if (request.method !== 'GET') {
-                response.writeHead(405);
-                response.end();
-                return;
-              }
-              try {
-                const identity = await encryption();
-                response.writeHead(200, {
-                  'content-type': 'application/json',
-                  'cache-control': 'no-store',
-                  'access-control-allow-origin': '*',
-                });
-                response.end(JSON.stringify({ host: pairing.host(), encryption: identity }));
-              } catch {
-                response.writeHead(503, {
-                  'content-type': 'application/json',
-                  'cache-control': 'no-store',
-                });
-                response.end(JSON.stringify({ code: 'host-key-unavailable' }));
-              }
-              return;
-            }
-            await gateway.handle(request, response);
-          },
-        }),
-      'botharness: device gateway',
-    );
-    for (const path of [DEVICE_MUX_PATH, ...DEVICE_SIGNALING_PATHS])
-      webCtx.effect(
-        () =>
-          webServer.registerUpgrade({
-            path,
-            handler: (request, socket, head) => void gateway.upgrade(request, socket, head),
-          }),
-        `botharness: device gateway stream ${path}`,
-      );
   });
 }

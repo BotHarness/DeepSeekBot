@@ -210,6 +210,15 @@ export async function marketplaceAvatarApply(
   return unwrapAsync(methods.marketplaceAvatarApply({ id, bot, operationKey }));
 }
 
+export function marketplaceAvatarSource(
+  methods: MarketplaceBridgeMethods,
+  bot: string,
+): {
+  image: string;
+} {
+  return unwrap(methods.marketplaceAvatarSource({ bot }));
+}
+
 export async function marketplaceAvatarPublish(
   methods: MarketplaceBridgeMethods,
   name: string,

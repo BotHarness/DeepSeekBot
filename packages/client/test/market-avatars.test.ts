@@ -6,7 +6,10 @@ import { avatarDataUrl } from '../../market/test/avatar-fixtures.js';
 import { buttonNamed, fieldNamed, typeInto } from './primitive-mocks.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 import { MarketAvatars, MarketAvatarPublishDialog } from '../src/client/market-avatars.js';
-import { PersonaBotAvatarCropModal } from '../src/client/personabot-avatar-crop.js';
+import {
+  BannerCropModal,
+  PersonaBotAvatarCropModal,
+} from '../src/client/personabot-avatar-crop.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives, shellPrimitives } = await import('./primitive-mocks.js');
@@ -64,6 +67,7 @@ function actionsFor() {
       termsAcceptedAt: '2026-11-21',
     })),
     marketplaceAvatarPublish: vi.fn(async () => avatar),
+    marketplaceAvatarSource: vi.fn(async () => ({ image })),
     marketplaceAvatarList: vi.fn(async (cursor?: string) =>
       cursor === undefined
         ? { avatars: [avatar], nextCursor: 'next' }
@@ -98,6 +102,36 @@ function mockCanvas() {
   const encode = vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(image);
   return { drawImage, encode };
 }
+
+it.each([
+  ['Bot Avatar', PersonaBotAvatarCropModal],
+  ['banner', BannerCropModal],
+] as const)('applies the shared crop layout to the %s editor', async (_name, CropModal) => {
+  const props = {
+    file: new File(['source'], 'crop.png', { type: 'image/png' }),
+    t,
+    onClose: vi.fn(),
+    onSave: vi.fn(async () => true),
+  };
+  const layout = () => {
+    const preview = document.querySelector('img[src="blob:crop"]');
+    const viewport = preview?.parentElement;
+    const frame = viewport?.parentElement;
+    if (!preview || !viewport || !frame) throw new Error('Missing crop viewport');
+    return [frame.className, viewport.className, preview.className];
+  };
+  await act(async () =>
+    root.render(createElement(PersonaBotAvatarCropModal, { ...props, marketplace: true })),
+  );
+  const marketplaceLayout = layout();
+  expect(marketplaceLayout).not.toEqual([
+    'bh-group-avatar-crop',
+    'bh-group-avatar-crop-viewport',
+    '',
+  ]);
+  await act(async () => root.render(createElement(CropModal, props)));
+  expect(layout()).toEqual(marketplaceLayout);
+});
 
 it.each([
   [320, 1000, 320],
@@ -141,6 +175,55 @@ it('refuses a crop when either source dimension is under 256 px', async () => {
   expect(document.body.textContent).toContain(t('market.avatar.tooSmall'));
   expect(buttonNamed(t('profile.avatar.crop.save')).disabled).toBe(true);
   expect(save).not.toHaveBeenCalled();
+});
+
+it('loads a stored 256 px Avatar and refuses zoom that takes the crop below 256 px', async () => {
+  const { encode } = mockCanvas();
+  const actions = actionsFor();
+  await act(async () =>
+    root.render(
+      createElement(MarketAvatarPublishDialog, {
+        actions,
+        avatarSource: 'otter',
+        t,
+        onClose: vi.fn(),
+        onPublished: vi.fn(),
+      }),
+    ),
+  );
+  expect(actions.marketplaceAvatarSource).toHaveBeenCalledExactlyOnceWith('otter');
+  await loadSource(256, 256);
+  const zoom = fieldNamed(t('profile.avatar.crop.zoom'));
+  const save = buttonNamed(t('profile.avatar.crop.save'));
+  expect(save.disabled).toBe(false);
+  await typeInto(zoom, '1.05');
+  expect(document.body.textContent).toContain(t('market.avatar.tooSmall'));
+  expect(save.disabled).toBe(true);
+  await act(async () => save.click());
+  expect(encode).not.toHaveBeenCalled();
+  await typeInto(zoom, '1');
+  await act(async () => save.click());
+  expect(encode.mock.contexts[0]).toMatchObject({ width: 256, height: 256 });
+  expect(document.querySelector('[data-market-avatar-preview]')).not.toBeNull();
+});
+
+it('encodes a zoomed Marketplace crop at its cropped source size', async () => {
+  const { encode } = mockCanvas();
+  await act(async () =>
+    root.render(
+      createElement(PersonaBotAvatarCropModal, {
+        file: new File(['source'], 'avatar.png', { type: 'image/png' }),
+        marketplace: true,
+        t,
+        onClose: vi.fn(),
+        onSave: vi.fn(async () => true),
+      }),
+    ),
+  );
+  await loadSource(800, 640);
+  await typeInto(fieldNamed(t('profile.avatar.crop.zoom')), '2');
+  await act(async () => buttonNamed(t('profile.avatar.crop.save')).click());
+  expect(encode.mock.contexts[0]).toMatchObject({ width: 320, height: 320 });
 });
 
 it('publishes the displayed crop under the confirmed author and keeps the key when retrying', async () => {

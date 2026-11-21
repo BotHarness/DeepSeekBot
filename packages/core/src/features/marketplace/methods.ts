@@ -5,6 +5,7 @@ import {
   parseOptional,
   parseRoles,
   unavailable,
+  unknownBot,
   type BridgeResult,
 } from '../../bridge/method-utils.js';
 import {
@@ -68,6 +69,7 @@ import {
 import type { UploadFileKind } from '../../../../market/src/upload-files.js';
 import { MARKETPLACE_LANGUAGES, type MarketplaceLanguage } from '../../marketplace/language.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
+import { isPersonaBotAvatar } from '../../bots/persona-bot.js';
 import type { BridgeMethodsDeps, PersonaBotDetail } from '../../bridge/methods.js';
 import type { HumanContext } from '../../humans/context.js';
 import { createMarketplaceAvatarApply } from './avatar-apply.js';
@@ -99,6 +101,7 @@ export interface MarketplaceBridgeMethods {
   ): BridgeResult<{ bots: MarketplaceAvatarApplyCandidate[] }>;
   marketplaceAvatarApply(payload: unknown): Promise<BridgeResult<{ applied: true }>>;
   marketplaceAvatarPublish(payload: unknown): Promise<BridgeResult<MarketplaceAvatar>>;
+  marketplaceAvatarSource(payload: unknown): BridgeResult<{ image: string }>;
   marketplaceDetail(payload: unknown): Promise<BridgeResult<MarketplaceDetail>>;
   marketplaceFileView(payload: unknown): Promise<BridgeResult<MarketplaceFileView>>;
   marketplaceChallenge(): Promise<BridgeResult<AltchaChallenge>>;
@@ -273,6 +276,16 @@ export function createMarketplaceBridgeMethods(
       message: 'Bot Marketplace is unavailable',
     },
   });
+  const avatarPublishPermission = (): BridgeResult<never> | undefined =>
+    isHostOwner() && human.caller !== 'bot'
+      ? undefined
+      : {
+          ok: false,
+          error: {
+            code: 'permission-required',
+            message: 'Only the Host owner may publish Marketplace Avatars',
+          },
+        };
   const shareDraftSlug = (payload: unknown): string | undefined => {
     const slug = asSlug(payload);
     return slug === undefined ||
@@ -505,15 +518,23 @@ export function createMarketplaceBridgeMethods(
           return Promise.resolve(invalidInput('invalid Avatar ID'));
         return marketplaceCall((client) => client.avatarDetail(id));
       },
-      async marketplaceAvatarPublish(payload) {
-        if (!isHostOwner() || human.caller === 'bot')
+      marketplaceAvatarSource(payload) {
+        const denied = avatarPublishPermission();
+        if (denied) return denied;
+        const { bot: slug } = asObject(payload);
+        if (typeof slug !== 'string' || !slug.trim()) return invalidInput('A Bot slug is required');
+        const bot = globalRegistry.get(slug);
+        if (bot === undefined) return unknownBot(slug);
+        if (!isPersonaBotAvatar(bot.avatar))
           return {
             ok: false,
-            error: {
-              code: 'permission-required',
-              message: 'Only the Host owner may publish Marketplace Avatars',
-            },
+            error: { code: 'no-stored-avatar', message: 'This Bot has no stored Avatar image' },
           };
+        return { ok: true, value: { image: bot.avatar } };
+      },
+      async marketplaceAvatarPublish(payload) {
+        const denied = avatarPublishPermission();
+        if (denied) return denied;
         if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
         const input = parseMarketplaceAvatarPublish(asObject(payload));
         if (input === undefined) return invalidInput('invalid Marketplace Avatar publish payload');
@@ -828,6 +849,7 @@ export function createMarketplaceBridgeMethods(
       | 'marketplaceAvatarList'
       | 'marketplaceAvatarDetail'
       | 'marketplaceAvatarPublish'
+      | 'marketplaceAvatarSource'
       | 'marketplaceDetail'
       | 'marketplaceFileView'
       | 'marketplaceSubmit'

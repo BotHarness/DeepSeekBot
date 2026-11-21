@@ -983,6 +983,8 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 Web Marketplace 的 Avatars 分区使用独立的 D1 表和 R2 `avatars/` 前缀。Web 裁剪并重新编码图片，CLI 校验已处理的文件。两者通过同一个 Host 方法发布，由 Host 校验所有者身份并从 Connect 取账户令牌。Worker 按 [ADR-0359](../adr/0359-marketplace-avatar-images-are-processed-on-the-client.md) 检查文件头和分块结构，以作者账户和请求键去重，写入完成后公开提供分页列表、详情和图片。
 
+从 Bot 发布时，Web 和 CLI 先通过仅限 Host 所有者的读取方法取得 Bot 在 Registry 中保存的图片，包括 Avatar Appearance 的静态 PNG。Web 将图片交给同一个市场头像裁剪流程，CLI 则直接校验图片，然后沿用同一个发布方法。
+
 应用时，当前 Host 通过 Worker 的公开图片路由读取原始字节，验证头像并在写入前重新检查 Bot 和权限。Host 复用手动换头像的 Registry 路径，写入成功后异步发送回执。Worker 根据头像条目和 Host ID 与 PersonaBot ID 的 SHA-256 去重，由回执计算应用次数。见 [ADR-0358](../adr/0358-apply-count-counts-persona-bots-without-anti-abuse.md)。
 
 [ADR-0240](../decisions/marketplace.md#adr-0240) 让列表按读者语言（中文/英文）显示：作者在仓库根目录放 `README.zh-CN.md`／`README.en.md`，在 `.botharness/bot.json` 的 `i18n` 里写翻译后的名称和简介；Worker 推送后一并抓取，`lang=zh|en` 时优先返回。某语言没有作者简介时，Worker 在每小时刷新后经 OpenCode Go 的免费模型按 README 生成一句简介（按输入哈希缓存、每轮限量，标记 `bioGenerated`），作者文本总是优先；README 正文不做机器翻译。Host 的 Marketplace modal 与 CLI 按界面语言传 `lang`。

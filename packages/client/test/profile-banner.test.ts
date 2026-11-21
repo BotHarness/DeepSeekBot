@@ -20,8 +20,10 @@ import type { BridgeActions } from '../src/client/actions.js';
 import { parseBotSummary } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { ProfileHeader } from '../src/client/profile-header.js';
+import { seededAvatarFor } from '../../core/src/bots/avatar-appearance.js';
+import { isolateTeamIdentity, setTeamModeSnapshot } from '../src/client/team-state.js';
 
-import { buttonNamed, dialog } from './primitive-mocks.js';
+import { buttonNamed, dialog, queryMenuItem } from './primitive-mocks.js';
 
 const AT = '2026-10-08T00:00:00Z';
 const CHANNEL: ChannelSummary = {
@@ -98,6 +100,61 @@ async function render(summary: BotSummary, actions: Partial<BridgeActions>) {
     ),
   );
 }
+
+it.each([
+  ['owner', 'image', true],
+  ['owner', 'appearance', true],
+  ['owner', 'blobatar', false],
+  ['member', 'image', false],
+  ['member', 'appearance', false],
+] as const)(
+  'shows the Bot profile Avatar publish action for %s with %s: %s',
+  async (kind, source, visible) => {
+    const summary = bot();
+    if (source === 'image') summary.avatar = '/api/botharness/bot-avatar?slug=ada&v=1';
+    if (source === 'appearance')
+      summary.appearance = { recipe: seededAvatarFor('Ada', 2), revision: 'preview' };
+    const teamCall = vi.fn();
+    isolateTeamIdentity(teamCall);
+    setTeamModeSnapshot(teamCall, {
+      enabled: true,
+      ownerPasswordSet: false,
+      insecureHttpAllowed: false,
+      memberUrls: [],
+      isolation: 'trial',
+      viewer: {
+        kind,
+        humanId: kind,
+        displayName: kind,
+        mustChangePassword: false,
+        owner: kind === 'owner',
+        permissions: ['bots.manageAll'],
+        roleIds: [],
+      },
+    });
+    const onPublishAvatar = vi.fn();
+    const actions: Partial<BridgeActions> = { teamCall };
+    await act(async () =>
+      root.render(
+        createElement(ProfileHeader, {
+          bot: summary,
+          channel: CHANNEL,
+          actions: actions as BridgeActions,
+          t: zhTranslate,
+          onDelete: vi.fn(),
+          onPublishAvatar,
+        }),
+      ),
+    );
+    await act(async () => button(zhTranslate('profile.more')).click());
+    const item = queryMenuItem(zhTranslate('market.avatar.publish'));
+    expect(item !== null).toBe(visible);
+    if (item !== null) {
+      await act(async () => item.click());
+      expect(onPublishAvatar).toHaveBeenCalledExactlyOnceWith('ada');
+    }
+  },
+);
 
 it('shows the name-seeded banner and saves a picked scene, a reroll or a reset', async () => {
   const setBotBanner = vi.fn(async () => true);

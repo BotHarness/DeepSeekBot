@@ -106,7 +106,7 @@ Usage:
   tobs marketplace-avatar-detail <id>  Read a Marketplace Avatar / 查看市场头像详情
   tobs marketplace-avatar-apply <id> --bot <bot> [--operation-key <key>]  Apply to a Bot / 应用到 Bot
   tobs marketplace-avatar-apply-candidates  List eligible Bots / 列出可应用头像的 Bot
-  tobs marketplace-avatar-publish --file <image> --name <name> [--description <text>] [--avatar-tag <tag> ...] [--operation-key <key>] --confirm
+  tobs marketplace-avatar-publish (--file <image> | --from-bot <bot>) --name <name> [--description <text>] [--avatar-tag <tag> ...] [--operation-key <key>] --confirm
     Publish a processed image as the Host owner / Host 所有者从文件发布已处理的头像
   tobs marketplace-file <listing-id> <path>
   tobs marketplace-submit <github-repo-url>

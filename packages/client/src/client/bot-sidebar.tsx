@@ -468,6 +468,7 @@ export function ChannelMoveMenu({
   companionAction,
   shareAction,
   marketAction,
+  publishAvatarAction,
   deleteAction,
   settingsAction,
   profileAction,
@@ -493,6 +494,7 @@ export function ChannelMoveMenu({
   companionAction?: { label: string; run(): void } | undefined;
   shareAction?: { label: string; run(): void } | undefined;
   marketAction?: (() => void) | undefined;
+  publishAvatarAction?: (() => void) | undefined;
   deleteAction?: { label: string; run(): void } | undefined;
   settingsAction?: { attention: boolean; run(): void } | undefined;
   profileAction?: (() => void) | undefined;
@@ -589,6 +591,15 @@ export function ChannelMoveMenu({
             id: 'share-market',
             label: t('market.share'),
             icon: <ChannelSidebarIcon name="store" size={16} />,
+          },
+        ]),
+    ...(publishAvatarAction === undefined
+      ? []
+      : [
+          {
+            id: 'publish-avatar',
+            label: t('market.avatar.publish'),
+            icon: <ChannelSidebarIcon name="image-up" size={16} />,
           },
         ]),
     {
@@ -720,6 +731,10 @@ export function ChannelMoveMenu({
           }
           if (id === 'share-market') {
             marketAction?.();
+            return;
+          }
+          if (id === 'publish-avatar') {
+            publishAvatarAction?.();
             return;
           }
           if (id === 'delete') {
