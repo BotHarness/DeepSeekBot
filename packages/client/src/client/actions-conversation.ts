@@ -27,7 +27,7 @@ import type { createComposerActions } from './actions-composer.js';
 
 export interface ConversationActions {
   openBot(slug: string, view?: 'profile' | 'inbox'): Promise<void>;
-  openChannel(channelId: string, scopedCall?: BridgeCall): Promise<void>;
+  openChannel(channelId: string, options?: { scopedCall?: BridgeCall | undefined }): Promise<void>;
   openChannelAtMessage(channelId: string, messageId: string): Promise<void>;
   loadOlder(channelId: string): Promise<void>;
   loadNewer(channelId: string): Promise<void>;
@@ -153,8 +153,10 @@ export function createConversationActions(
   };
   const openChannelById = async (
     channelId: string,
-    messageId?: string,
-    scopedCall = call,
+    {
+      messageId,
+      scopedCall = call,
+    }: { messageId?: string; scopedCall?: BridgeCall | undefined } = {},
   ): Promise<void> => {
     scopedCall.assertCurrent?.();
     const snapshot = clientStore.getSnapshot();
@@ -346,11 +348,11 @@ export function createConversationActions(
       if (bot.sharedBy === undefined)
         await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
     },
-    openChannel(channelId, scopedCall) {
-      return openChannelById(channelId, undefined, scopedCall);
+    openChannel(channelId, options) {
+      return openChannelById(channelId, options);
     },
     openChannelAtMessage(channelId, messageId) {
-      return openChannelById(channelId, messageId);
+      return openChannelById(channelId, { messageId });
     },
     async reactToMessage(channelId, messageId, emoji, active) {
       const apply = (reactions: (current: ChannelMessage) => ChannelMessage['reactions']) => {

@@ -19,12 +19,12 @@ import type { createRosterActions } from './actions-roster.js';
 import type { createConversationActions } from './actions-conversation.js';
 
 export interface ChannelActions {
-  createGroup(
-    name: string,
-    sectionId?: string,
-    operationKey?: string,
-    scopedCall?: BridgeCall,
-  ): Promise<ChannelSummary | undefined>;
+  createGroup(input: {
+    name: string;
+    sectionId?: string | undefined;
+    operationKey?: string | undefined;
+    scopedCall?: BridgeCall | undefined;
+  }): Promise<ChannelSummary | undefined>;
   renameChannel(channelId: string, name: string): Promise<boolean>;
   setHumanNickname(channelId: string, nickname: string | null): Promise<boolean>;
   setGroupAvatar(channelId: string, avatar: string | null): Promise<boolean>;
@@ -53,13 +53,13 @@ export function createChannelActions(
   openChannelById: ReturnType<typeof createConversationActions>['openChannelById'],
 ) {
   return {
-    async createGroup(name, sectionId, operationKey, scopedCall = call) {
+    async createGroup({ name, sectionId, operationKey, scopedCall = call }) {
       const channel = await createGroupChannel(scopedCall, name, undefined, operationKey);
       scopedCall.assertCurrent?.();
       clientStore.upsertChannel(channel);
       await placeCreatedChannelFirst(channel.id, sectionId, scopedCall);
       scopedCall.assertCurrent?.();
-      await openChannelById(channel.id, undefined, scopedCall);
+      await openChannelById(channel.id, { scopedCall });
       scopedCall.assertCurrent?.();
       return channel;
     },

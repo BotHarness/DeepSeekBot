@@ -104,10 +104,11 @@ function MemberChannelCreation({
         if (!memberCall) throw new Error(t('environment.create.offline'));
         memberCall.assertCurrent?.();
         onDispatch();
-        return actions.createGroup(name, sectionId, key, memberCall);
+        return actions.createGroup({ name, sectionId, operationKey: key, scopedCall: memberCall });
       }}
       onMembersChanged={(channel) => {
-        if (memberCall) void actions.openChannel(channel.id, memberCall).catch(() => undefined);
+        if (memberCall)
+          void actions.openChannel(channel.id, { scopedCall: memberCall }).catch(() => undefined);
       }}
     />
   );
@@ -177,6 +178,7 @@ function OwnerEnvironmentCreation({
   const connectionChanged =
     submitted &&
     capturedOwner.current !== undefined &&
+    target?.id === capturedOwner.current.id &&
     remoteHosts().client(capturedOwner.current.id) !== capturedOwner.current.client;
   const choices =
     target && !hosts.some((host) => host.id === target.id) ? [...hosts, target] : hosts;
@@ -333,7 +335,8 @@ function OwnerEnvironmentCreation({
         }}
         onMembersChanged={(channel) => {
           if (client) void client.refresh().catch(() => undefined);
-          else void actions.openChannel(channel.id, pickerCall).catch(() => undefined);
+          else
+            void actions.openChannel(channel.id, { scopedCall: pickerCall }).catch(() => undefined);
         }}
       />
     );

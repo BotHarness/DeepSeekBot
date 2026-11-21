@@ -300,12 +300,12 @@ it.each(['member', 'admin'])(
       expect(storage).not.toHaveBeenCalled();
       await typeInto(fieldNamed('频道名称'), 'Member local');
       await act(async () => buttonNamed('创建').click());
-      expect(create).toHaveBeenCalledExactlyOnceWith(
-        'Member local',
-        undefined,
-        expect.any(String),
-        localCall,
-      );
+      expect(create).toHaveBeenCalledExactlyOnceWith({
+        name: 'Member local',
+        sectionId: undefined,
+        operationKey: expect.any(String),
+        scopedCall: localCall,
+      });
       expect(fixture.call).not.toHaveBeenCalled();
       expect(close).toHaveBeenCalledOnce();
     } finally {
@@ -403,6 +403,59 @@ it('keeps a pending create on B when the browsing scope changes to A', async () 
     channelId: 'same-id',
     title: 'Only B',
   });
+  expect(close).toHaveBeenCalledOnce();
+});
+
+it('keeps a local Channel retry available when a previously selected remote Client changes', async () => {
+  const emptyPicker = { canAddPeople: true, canAddBots: true, people: [], bots: [] };
+  fixture.call.mockResolvedValue(emptyPicker);
+  const call: BridgeCall = async (method) => {
+    if (method === 'channelGroupMemberPicker') return { ok: true, value: emptyPicker };
+    throw new Error('Unexpected local method: ' + method);
+  };
+  const actions = createActions(call, createStore());
+  const create = vi
+    .spyOn(actions, 'createGroup')
+    .mockRejectedValueOnce(new Error('reply lost'))
+    .mockResolvedValueOnce({
+      id: 'local-group',
+      type: 'group',
+      name: 'Only local',
+      members: [],
+      createdAt: '2026-11-14T00:00:00Z',
+      updatedAt: '2026-11-14T00:00:00Z',
+    });
+  const renderForm = async () =>
+    act(async () =>
+      root.render(
+        createElement(EnvironmentCreation, {
+          request: { kind: 'channel' },
+          scope: 'all',
+          actions,
+          t: zhTranslate,
+          onClose: close,
+        }),
+      ),
+    );
+
+  await renderForm();
+  const select = document.querySelector('select');
+  if (!select) throw new Error('Missing Host selector');
+  await act(async () => {
+    select.value = 'local';
+    select.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await typeInto(fieldNamed('频道名称'), 'Only local');
+  await act(async () => buttonNamed('创建').click());
+  fixture.generation += 1;
+  await renderForm();
+
+  const retry = buttonNamed(zhTranslate('environment.create.retry'));
+  expect(retry.disabled).toBe(false);
+  await act(async () => retry.click());
+  expect(create).toHaveBeenCalledTimes(2);
+  expect(create.mock.calls[1]).toEqual(create.mock.calls[0]);
+  expect(fixture.call.mock.calls).toEqual([['channelGroupMemberPicker', { query: '' }]]);
   expect(close).toHaveBeenCalledOnce();
 });
 

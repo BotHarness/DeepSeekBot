@@ -62,10 +62,12 @@ export function localCreationOwner(
       channelInput ??= { name, operationKey: binding?.operationKey ?? key() };
       if (!channelReceipt) {
         lifecycle.submitted();
-        const input = [channelInput.name, sectionId, channelInput.operationKey] as const;
-        channelReceipt = binding
-          ? await actions.createGroup(...input, binding.call)
-          : await actions.createGroup(...input);
+        channelReceipt = await actions.createGroup({
+          name: channelInput.name,
+          sectionId,
+          operationKey: channelInput.operationKey,
+          scopedCall: binding?.call,
+        });
         if (channelReceipt) lifecycle.committed();
       }
       return channelReceipt;

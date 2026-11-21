@@ -149,7 +149,7 @@ function AddGroupMembersDialog({
     setError(false);
     try {
       await batch.apply(call, channelId, selected);
-      void actions.openChannel(channelId, call).catch(() => undefined);
+      void actions.openChannel(channelId, { scopedCall: call }).catch(() => undefined);
     } catch {
       setError(true);
     } finally {
