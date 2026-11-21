@@ -64,6 +64,7 @@ function actionsFor() {
       termsAcceptedAt: '2026-11-21',
     })),
     marketplaceAvatarPublish: vi.fn(async () => avatar),
+    marketplaceAvatarSource: vi.fn(async () => ({ image })),
     marketplaceAvatarList: vi.fn(async (cursor?: string) =>
       cursor === undefined
         ? { avatars: [avatar], nextCursor: 'next' }
@@ -141,6 +142,55 @@ it('refuses a crop when either source dimension is under 256 px', async () => {
   expect(document.body.textContent).toContain(t('market.avatar.tooSmall'));
   expect(buttonNamed(t('profile.avatar.crop.save')).disabled).toBe(true);
   expect(save).not.toHaveBeenCalled();
+});
+
+it('loads a stored 256 px Avatar and refuses zoom that takes the crop below 256 px', async () => {
+  const { encode } = mockCanvas();
+  const actions = actionsFor();
+  await act(async () =>
+    root.render(
+      createElement(MarketAvatarPublishDialog, {
+        actions,
+        avatarSource: 'otter',
+        t,
+        onClose: vi.fn(),
+        onPublished: vi.fn(),
+      }),
+    ),
+  );
+  expect(actions.marketplaceAvatarSource).toHaveBeenCalledExactlyOnceWith('otter');
+  await loadSource(256, 256);
+  const zoom = fieldNamed(t('profile.avatar.crop.zoom'));
+  const save = buttonNamed(t('profile.avatar.crop.save'));
+  expect(save.disabled).toBe(false);
+  await typeInto(zoom, '1.05');
+  expect(document.body.textContent).toContain(t('market.avatar.tooSmall'));
+  expect(save.disabled).toBe(true);
+  await act(async () => save.click());
+  expect(encode).not.toHaveBeenCalled();
+  await typeInto(zoom, '1');
+  await act(async () => save.click());
+  expect(encode.mock.contexts[0]).toMatchObject({ width: 256, height: 256 });
+  expect(document.querySelector('[data-market-avatar-preview]')).not.toBeNull();
+});
+
+it('encodes a zoomed Marketplace crop at its cropped source size', async () => {
+  const { encode } = mockCanvas();
+  await act(async () =>
+    root.render(
+      createElement(PersonaBotAvatarCropModal, {
+        file: new File(['source'], 'avatar.png', { type: 'image/png' }),
+        marketplace: true,
+        t,
+        onClose: vi.fn(),
+        onSave: vi.fn(async () => true),
+      }),
+    ),
+  );
+  await loadSource(800, 640);
+  await typeInto(fieldNamed(t('profile.avatar.crop.zoom')), '2');
+  await act(async () => buttonNamed(t('profile.avatar.crop.save')).click());
+  expect(encode.mock.contexts[0]).toMatchObject({ width: 320, height: 320 });
 });
 
 it('publishes the displayed crop under the confirmed author and keeps the key when retrying', async () => {

@@ -30,6 +30,7 @@ const marketplaceErrorKeys: Record<string, BotHarnessKey> = {
   'bot-limit': 'market.error.botLimit',
   'avatar-limit': 'market.avatar.limit',
   'avatar-not-found': 'market.avatar.notFound',
+  'no-stored-avatar': 'market.avatar.sourceMissing',
   'unprocessed-image': 'market.avatar.unprocessed',
   'author-changed': 'market.avatar.authorChanged',
   'avatars-unavailable': 'market.error.unavailable',

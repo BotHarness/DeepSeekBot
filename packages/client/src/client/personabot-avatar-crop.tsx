@@ -129,9 +129,10 @@ function ImageCropModal({
     height: number;
   }>();
   const sourceSide = dimensions === undefined ? 0 : Math.min(dimensions.width, dimensions.height);
-  const tooSmall =
-    marketplace && dimensions !== undefined && sourceSide < MIN_MARKETPLACE_AVATAR_SIDE;
   const [zoom, setZoom] = useState(1);
+  const croppedSide = Math.floor(sourceSide / zoom);
+  const tooSmall =
+    marketplace && dimensions !== undefined && croppedSide < MIN_MARKETPLACE_AVATAR_SIDE;
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
@@ -175,7 +176,7 @@ function ImageCropModal({
       const bitmap = await createImageBitmap(file);
       try {
         const canvas = document.createElement('canvas');
-        const side = Math.min(sourceSide, MAX_MARKETPLACE_AVATAR_SIDE);
+        const side = Math.min(croppedSide, MAX_MARKETPLACE_AVATAR_SIDE);
         canvas.width = marketplace ? side : outputWidth;
         canvas.height = marketplace ? side : outputHeight;
         const context = canvas.getContext('2d');

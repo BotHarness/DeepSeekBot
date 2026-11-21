@@ -4,7 +4,9 @@
 
 - `packages/market/**`
 - `packages/core/src/marketplace/**`
+- `packages/core/src/features/marketplace/**`
 - `packages/client/src/client/{marketplace,market-panel,market-avatars,market-avatar-apply,personabot-avatar-crop}.tsx`
+- `packages/client/src/client/{profile-header,bot-sidebar-channel-actions}.tsx`
 - `apps/mobile/src/marketplace/**`
 - `apps/mobile/src/ui/shell/marketplace-*`
 - `apps/mobile/src/ui/primitives/marketplace-topic-sheet*`
@@ -53,6 +55,13 @@ For Worker tie/paging proof run `pnpm exec vitest run packages/market/test/marke
 2. Open **Avatars → Publish Avatar**, choose a rectangular image with both sides at least 256 px, move the crop, and save. Fill in the name, description and tags. Verify the confirmation identifies the author by display name and Author ID and explains that applied copies stay with other Bots.
 3. Publish and compare the detail image with the form preview. Verify the description, tags, author and Apply Count of 0. Read the canonical result with `deepseekbot marketplace-avatar-detail <id>`. Confirm a file with a 255 px side is refused.
 4. Seed more than 24 listings from at least two accounts, use **Load more**, and compare the visible IDs with `deepseekbot marketplace-avatar-list [--cursor <cursor>]`. Browse as a Team member, verify the publish entry is absent, and verify a member publish call receives `permission-required`.
+
+### Publish a Bot's current Avatar
+
+1. As the Host owner, set a 256 × 256 PNG on a Bot. Open its profile, then **More** → **Publish Avatar**. Repeat from the Bot's DM context menu.
+2. Zoom in one step. Confirm the 256 px crop message and disabled Save action. Return the slider to minimum, save, and publish using the existing author form. Compare the detail image with the crop and read it with `deepseekbot marketplace-avatar-detail <id>`.
+3. Repeat with a Bot that has an Avatar Appearance. Verify the published still matches the Bot's appearance. Verify both menu entries are absent for a Blobatar-only Bot and for a Team member with `bots.manageAll`.
+4. Run `deepseekbot marketplace-avatar-publish --from-bot <bot> --name <name> --confirm` as owner. Use a compliant stored image for success. Verify `no-stored-avatar` for a Blobatar, `unprocessed-image` with a Web instruction for a noncompliant image, and `permission-required` as a member.
 5. Return to **Bots** and verify the current search, sort and cards are preserved. Initial Bots browsing makes no Avatar list request.
 
 ## Tob install review
