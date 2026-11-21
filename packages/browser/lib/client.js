@@ -1300,7 +1300,7 @@ window.__ModuleLoader__.load({
 		};
 		//#endregion
 		//#region packages/client/src/client/ds/button.tsx
-		const styles$4 = {
+		const styles$5 = {
 			base: {
 				kB7OPa: "bhx9f619",
 				k1xSpc: "bhx3nfvp2",
@@ -1364,6 +1364,17 @@ window.__ModuleLoader__.load({
 				kmVMDM: "bhxi2nhp4",
 				$$css: true
 			},
+			overlay: {
+				kVAEAm: "bhx10l6tqk",
+				kpwlN0: "bhx10a8y8t",
+				kY2c9j: "bhx1ja2u2z",
+				kZKoxP: "bhxt7dq6l",
+				kmVPX3: "bhx1717udv",
+				kaIpWk: "bhx2u8bby",
+				kInvED: "bhx1xqv9of",
+				kWkggS: "bhxjbqb8w bhxqta4pg bhx9mj4i6",
+				$$css: true
+			},
 			toolbar: {
 				kWkggS: "bhxp02wjs",
 				kKwaWg: "bhx18o3ruo bhxfdnnug",
@@ -1393,7 +1404,7 @@ window.__ModuleLoader__.load({
 			}
 		};
 		const Button = (0, react.forwardRef)(function Button({ variant = "ghost", size = "md", icon, className, xstyle, children, style, ...rest }, ref) {
-			const styled = props(styles$4.base, styles$4[size], styles$4[variant], xstyle);
+			const styled = props(styles$5.base, styles$5[size], styles$5[variant], xstyle);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 				ref,
 				...rest,
@@ -1434,7 +1445,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/tag.tsx
-		const styles$3 = {
+		const styles$4 = {
 			wrap: {
 				khDVqt: "bhxeaf4i8",
 				kHjlTd: "bhxj0a0fe",
@@ -1499,7 +1510,7 @@ window.__ModuleLoader__.load({
 				...props$1,
 				ref,
 				"data-tone": tone,
-				className: joinClass(props(styles$3.tag, styles$3[tone], wrap && styles$3.wrap).className, className)
+				className: joinClass(props(styles$4.tag, styles$4[tone], wrap && styles$4.wrap).className, className)
 			});
 		});
 		//#endregion
@@ -10628,7 +10639,7 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region packages/client/src/client/ds/settings-row.tsx
 		const SettingsGroupContext = (0, react.createContext)(false);
-		const styles$2 = {
+		const styles$3 = {
 			rows: {
 				k1xSpc: "bhx78zum5",
 				kXwgrk: "bhxdt5ytf",
@@ -10728,9 +10739,29 @@ window.__ModuleLoader__.load({
 				children
 			});
 		}
-		styles$2.row;
+		styles$3.row;
 		//#endregion
 		//#region packages/client/src/client/sidebar-card.tsx
+		const styles$2 = {
+			toggleLine: {
+				kVAEAm: "bhx1n2onr6",
+				$$css: true
+			},
+			tightMain: {
+				k8WAf4: "bhx1axou9h",
+				$$css: true
+			},
+			tightBody: {
+				kOIVth: "bhxxhr3t",
+				$$css: true
+			}
+		};
+		({ raised: {
+			kVAEAm: "bhx1n2onr6",
+			kY2c9j: "bhx1vjfegm",
+			$$css: true
+		} }).raised;
+		const withStyle = (base, extra) => extra === false ? base : `${base} ${props(extra).className ?? ""}`.trim();
 		function SidebarCardList({ label, className, listRef, flush = false, children }) {
 			if ((0, react.useContext)(SettingsGroupContext)) {
 				const part = { className: "bhx-default-marker bhxjp7ctv bhxe8uvvx" };
@@ -10751,7 +10782,7 @@ window.__ModuleLoader__.load({
 				children
 			});
 		}
-		function SidebarCardRow({ icon, leading, iconLabel, selection, title, titleClassName, badge, summary, flipKey, hint, chips, meta, trailing, trailingAlign, detail, onClick, onIntent, disabled, muted, mainClassName, dialog, expanded, controls, state, anchor }) {
+		function SidebarCardRow({ icon, leading, iconLabel, selection, title, titleClassName, badge, summary, flipKey, hint, chips, meta, trailing, trailingAlign, detail, onClick, onIntent, disabled, muted, mainClassName, dialog, expanded, controls, state, anchor, tight, toggle }) {
 			const inGroup = (0, react.useContext)(SettingsGroupContext);
 			const body = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 				leading === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
@@ -10769,7 +10800,7 @@ window.__ModuleLoader__.load({
 					})
 				}),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-					className: "bh-card-body",
+					className: withStyle("bh-card-body", tight === true && styles$2.tightBody),
 					children: [
 						badge === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: titleClassName === void 0 ? "bh-card-title" : "bh-card-title " + titleClassName,
@@ -10799,7 +10830,7 @@ window.__ModuleLoader__.load({
 					]
 				})
 			] });
-			const className = mainClassName === void 0 ? "bh-card-main" : "bh-card-main " + mainClassName;
+			const className = withStyle(mainClassName === void 0 ? "bh-card-main" : "bh-card-main " + mainClassName, tight === true && styles$2.tightMain);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
 				className: "bh-card-row",
 				"data-settings-row": inGroup ? "" : void 0,
@@ -10809,41 +10840,51 @@ window.__ModuleLoader__.load({
 				"data-anchor": anchor,
 				"data-flip-key": flipKey,
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: "bh-card-line",
-					children: [selection?.multiple === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-						className,
-						title: hint,
-						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-							className: "bh-card-checkbox",
-							type: "checkbox",
-							checked: selection.checked,
+					className: withStyle("bh-card-line", toggle !== void 0 && styles$2.toggleLine),
+					children: [
+						toggle === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
+							variant: "overlay",
+							"aria-label": toggle.label,
+							"aria-expanded": toggle.expanded,
+							"aria-controls": toggle.controls,
+							onClick: toggle.onToggle
+						}),
+						selection?.multiple === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+							className,
+							title: hint,
+							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+								className: "bh-card-checkbox",
+								type: "checkbox",
+								checked: selection.checked,
+								disabled,
+								onChange: onClick
+							}), body]
+						}) : onClick === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+							className,
+							title: hint,
+							children: body
+						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+							type: "button",
+							className,
+							title: hint,
 							disabled,
-							onChange: onClick
-						}), body]
-					}) : onClick === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-						className,
-						title: hint,
-						children: body
-					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-						type: "button",
-						className,
-						title: hint,
-						disabled,
-						"aria-pressed": selection?.checked,
-						"aria-haspopup": dialog === true ? "dialog" : void 0,
-						"aria-expanded": expanded,
-						"aria-controls": controls,
-						onClick,
-						onPointerEnter: onIntent === void 0 ? void 0 : (event) => {
-							if (event.pointerType !== "touch") onIntent();
-						},
-						onFocus: onIntent,
-						children: body
-					}), trailing === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-						className: "bh-card-trailing",
-						"data-card-trailing": trailingAlign,
-						children: trailing
-					})]
+							"aria-pressed": selection?.checked,
+							"aria-haspopup": dialog === true ? "dialog" : void 0,
+							"aria-expanded": expanded,
+							"aria-controls": controls,
+							onClick,
+							onPointerEnter: onIntent === void 0 ? void 0 : (event) => {
+								if (event.pointerType !== "touch") onIntent();
+							},
+							onFocus: onIntent,
+							children: body
+						}),
+						trailing === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+							className: "bh-card-trailing",
+							"data-card-trailing": trailingAlign,
+							children: trailing
+						})
+					]
 				}), detail === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 					id: controls,
 					className: "bh-card-detail",
@@ -14738,6 +14779,7 @@ window.__ModuleLoader__.load({
 .bhx1tsjn1a:not(#\\#){padding:16px}
 .bhx-level-2:not(#\\#):not(#\\#){}
 .bhx7vmdhn:not(#\\#):not(#\\#){border-color:var(--tobs-line-edge)}
+.bhx2u8bby:not(#\\#):not(#\\#){border-radius:0}
 .bhx1cx41gz:not(#\\#):not(#\\#){border-radius:4px}
 .bhx13u8aww:not(#\\#):not(#\\#){border-radius:50%}
 .bhx1hir1rn:not(#\\#):not(#\\#){border-radius:9999px}
@@ -14755,6 +14797,7 @@ window.__ModuleLoader__.load({
 .bhx1sfpsak:not(#\\#):not(#\\#){border-width:1px}
 .bhx3psx0u:not(#\\#):not(#\\#){flex:0 0 auto}
 .bhx12lumcd:not(#\\#):not(#\\#){flex:1 1 auto}
+.bhxxhr3t:not(#\\#):not(#\\#){gap:0}
 .bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}
 .bhxfe3e77:not(#\\#):not(#\\#){gap:12px}
 .bhx1c459s5:not(#\\#):not(#\\#){gap:2px}
@@ -14778,6 +14821,7 @@ window.__ModuleLoader__.load({
 .bhx1bcthrq:not(#\\#):not(#\\#){padding-block:2px}
 .bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}
 .bhx1kz1gct:not(#\\#):not(#\\#){padding-block:8px}
+.bhx1axou9h:not(#\\#):not(#\\#){padding-block:calc(4px + 2px)}
 .bhxggp0jn:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-group-padding-block)}
 .bhx1nxcsqp:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-item-padding-block)}
 .bhxnjsko4:not(#\\#):not(#\\#){padding-inline:0}
@@ -14914,6 +14958,7 @@ window.__ModuleLoader__.load({
 .bhx1y3gkto:not(#\\#):not(#\\#):not(#\\#){outline-offset:1px}
 .bhx18n8c13:not(#\\#):not(#\\#):not(#\\#){outline-offset:2px}
 .bhx1hl8ikr:not(#\\#):not(#\\#):not(#\\#){outline-offset:2px}
+.bhx1xqv9of:not(#\\#):not(#\\#):not(#\\#){outline-offset:calc(-1 * 2px)}
 .bhxkmyskz:not(#\\#):not(#\\#):not(#\\#){outline-offset:calc(-1 * 2px)}
 .bhxj0a0fe:not(#\\#):not(#\\#):not(#\\#){overflow-wrap:anywhere}
 .bhx1lo940d:not(#\\#):not(#\\#):not(#\\#){padding-inline-end:4px}
@@ -14938,6 +14983,8 @@ window.__ModuleLoader__.load({
 .bhxeaf4i8:not(#\\#):not(#\\#):not(#\\#){white-space:normal}
 .bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}
 .bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}
+.bhx1ja2u2z:not(#\\#):not(#\\#):not(#\\#){z-index:0}
+.bhx1vjfegm:not(#\\#):not(#\\#):not(#\\#){z-index:1}
 .bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}
 .bhx1i7x82i:not(#\\#):not(#\\#):not(#\\#){z-index:1200}
 .bhxacn7go:is([data-highlighted]):not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}
