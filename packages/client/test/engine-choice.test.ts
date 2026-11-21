@@ -142,6 +142,37 @@ it('stays pending without a sign-in error when login rejects while cancel is in 
   expect(state().error).toBeUndefined();
 });
 
+it('keeps a sign-in pending past the deadline while cancel is in flight and offers Cancel after it fails', async () => {
+  vi.useFakeTimers();
+  let rejectCancel: (cause: Error) => void = () => {};
+  const cancelLogin = vi.fn(
+    () =>
+      new Promise<void>((_resolve, reject) => {
+        rejectCancel = reject;
+      }),
+  );
+  const login = async () => ({ url: 'https://example.test/sign-in' });
+  const state = await render({
+    read: () => new Promise<EnginesView>(() => {}),
+    login,
+    cancelLogin,
+  });
+  await act(async () => state().signIn('codex'));
+  let cancelled: Promise<void> | undefined;
+  await act(async () => {
+    cancelled = state().cancelSignIn();
+  });
+  await act(async () => vi.advanceTimersByTimeAsync(3 * 60_000 + 1));
+  expect(state().signingIn).toBe('codex');
+  await act(async () => {
+    rejectCancel(new Error('down'));
+    await cancelled;
+  });
+  expect(state().cancelFailed).toBe(true);
+  expect(state().cancelling).toBe(false);
+  expect(state().signingIn).toBe('codex');
+});
+
 it('keeps the committed choice when readback fails and reloads without repeating the write', async () => {
   const selection = {
     botSlug: 'ada',

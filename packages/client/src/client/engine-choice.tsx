@@ -412,7 +412,9 @@ export function useSubscriptionEngines(
           setLoginUrl(undefined);
           setSignInUrl(undefined);
         };
-        deadline.current = setTimeout(() => finish(false), SIGN_IN_POLL_DEADLINE_MS);
+        deadline.current = setTimeout(() => {
+          if (cancelRequested.current !== attempt) finish(false);
+        }, SIGN_IN_POLL_DEADLINE_MS);
         const check = async (): Promise<void> => {
           const next = await refresh(false);
           if (!alive.current || done || activeLogin.current !== attempt) return;
