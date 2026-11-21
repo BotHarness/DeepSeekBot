@@ -43,7 +43,6 @@
     "packages/core/src/bots/registry.ts",
     "packages/core/src/bridge/methods.ts",
     "packages/core/src/bridge/rpc.ts",
-    "packages/core/src/channels/channel.ts",
     "packages/core/src/channels/live.ts",
     "packages/core/src/channels/store.ts",
     "packages/core/src/credentials/private-inputs.ts",
