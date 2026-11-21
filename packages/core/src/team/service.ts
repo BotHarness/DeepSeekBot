@@ -27,7 +27,7 @@ import type { PeerScope, Principal } from '@deepseek-ai/dsh-typert-protocol';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { humanContext, type HumanContext } from '../humans/context.js';
 import type { ChannelStore } from '../channels/store.js';
-import { hashPassword, passwordHashSchema, strongPassword, verifyPassword } from './password.js';
+import { hashPassword, passwordHashSchema, verifyPassword } from './password.js';
 import { SignInRateLimit } from './rate-limit.js';
 import { memberUrls } from './member-urls.js';
 
@@ -218,7 +218,6 @@ export class TeamService {
       get ensureTob() {
         return service.ensureTob?.bind(service);
       },
-      hasCredential: (...args) => service.hasCredential(...args),
       invalidate: (...args) => service.invalidate(...args),
       isOwner: (...args) => service.isOwner(...args),
       get limiter() {
@@ -619,31 +618,10 @@ export class TeamService {
     password: string,
     current?: string,
   ): Promise<TeamModeView> {
-    this.owner(human);
-    const previous = this.credential(human.humanId);
-    if (previous && !(await verifyPassword(current ?? '', previous.hash)))
-      throw new TeamError('credentials-invalid');
-    this.owner(human);
-    if (!strongPassword(password)) throw new TeamError('password-weak');
-    const hash = await hashPassword(password);
-    this.owner(human);
-    if (this.credential(human.humanId)?.hash.hash !== previous?.hash.hash)
-      throw new TeamError('credentials-invalid');
-    this.db.transaction(
-      (db) => {
-        if (previous)
-          db.prepare(
-            'UPDATE member_credentials SET password_json = ?, must_change = 0 WHERE human_id = ?',
-          ).run(credentialPasswordJson(hash, human.humanId), human.humanId);
-        else
-          db.prepare("INSERT INTO member_credentials VALUES (?, 'owner', ?, '[]', 0)").run(
-            human.humanId,
-            credentialPasswordJson(hash, human.humanId),
-          );
-      },
-      ['team'],
-    );
-    this.invalidate();
+    await memberAuth.setOwnerPassword.call(this.#memberOperations, human, password, {
+      kind: 'settings',
+      current,
+    });
     return this.mode(human);
   }
 

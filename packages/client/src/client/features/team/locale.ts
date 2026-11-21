@@ -97,7 +97,7 @@ export const zh = {
   'team.invite.text.intro': '你被邀请加入 {host} 的 Team。',
   'team.invite.text.phone': '手机：在 Tobs 里打开这个邀请链接（10 分钟内有效）：{link}',
   'team.invite.text.desktop':
-    '电脑：在 Tobs「环境」里点「添加远程」→「以团队成员身份登录」，地址填 {address}',
+    '桌面端：在 Tobs「环境」里点「添加远程」→「以团队成员身份登录」，地址填 {address}',
   'team.invite.text.username': '用户名：{username}',
   'team.invite.text.password': '一次性密码：{password}（第一次登录后改成你自己的密码）',
   'team.invite.text.fingerprint': '登录时核对 Host 指纹：{fingerprint}',
@@ -499,7 +499,7 @@ export const en = {
   'team.invite.text.phone':
     'Phone: open this invitation link in Tobs (valid for 10 minutes): {link}',
   'team.invite.text.desktop':
-    'Computer: in Tobs Environments, choose Add remote → Sign in as a team member, and enter {address}',
+    'Desktop: in Tobs Environments, choose Add remote → Sign in as a team member, and enter {address}',
   'team.invite.text.username': 'Username: {username}',
   'team.invite.text.password':
     'One-time password: {password} (you choose your own password after the first sign-in)',

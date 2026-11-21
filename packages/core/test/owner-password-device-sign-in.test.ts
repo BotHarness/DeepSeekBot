@@ -150,6 +150,38 @@ it('revokes the new Owner device when the encrypted reply cannot be sent', async
   }
 });
 
+it('commits only one credential when the Owner setup entry points race', async () => {
+  const f = teamFixture();
+  const [standalone, team] = await Promise.allSettled([
+    f.team.ownerPasswordSignInSet(owner, { enabled: true, username: 'my-owner', password }),
+    f.team.setOwnerPassword(owner, 'legacy-owner-password-1'),
+  ]);
+  if (standalone.status === 'fulfilled') {
+    expect(team).toMatchObject({ status: 'rejected', reason: { code: 'credentials-invalid' } });
+    expect(f.team.ownerPasswordSignIn(owner)).toEqual({ enabled: true, username: 'my-owner' });
+  } else {
+    expect(standalone.reason).toMatchObject({ code: 'invalid-input' });
+    expect(team.status).toBe('fulfilled');
+    expect(f.team.ownerPasswordSignIn(owner)).toEqual({ enabled: false, username: 'owner' });
+  }
+});
+
+it('preserves the chosen username and standalone switch when Team settings updates the password', async () => {
+  const f = teamFixture();
+  await f.team.ownerPasswordSignInSet(owner, { enabled: true, username: 'my-owner', password });
+  const next = 'replacement-owner-password-1';
+  await f.team.setOwnerPassword(owner, next, password);
+  expect(f.team.ownerPasswordSignIn(owner)).toEqual({ enabled: true, username: 'my-owner' });
+  const host = await memberDeviceHost(f);
+  await expect(signIn(f, host, deviceEncryption(f), { attempt: next })).resolves.toMatchObject({
+    ok: true,
+  });
+  await expect(signIn(f, host, deviceEncryption(f))).resolves.toEqual({
+    ok: false,
+    code: 'credentials-invalid',
+  });
+});
+
 it('reuses an existing Owner credential and keeps standalone configuration Owner-only', async () => {
   const f = teamFixture();
   await f.team.setOwnerPassword(owner, password);

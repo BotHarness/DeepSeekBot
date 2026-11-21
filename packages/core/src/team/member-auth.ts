@@ -56,7 +56,6 @@ export type MemberAuthHost = {
   deviceGrantResult: TeamService['deviceGrantResult'];
   ensureTob: TeamService['ensureTob'];
   invalidate: TeamService['invalidate'];
-  hasCredential: TeamService['hasCredential'];
   isOwner: TeamService['isOwner'];
   limiter: TeamService['limiter'];
   log: TeamService['log'];
@@ -133,6 +132,59 @@ function ownerPasswordEnabled(db: MemberAuthHost['db']): boolean {
   );
 }
 
+export async function setOwnerPassword(
+  this: MemberAuthHost,
+  human: HumanContext,
+  password: string,
+  options:
+    | { kind: 'settings'; current: string | undefined }
+    | { kind: 'enable-sign-in'; username: string },
+): Promise<void> {
+  this.owner(human);
+  const previous = this.credential(human.humanId);
+  const username = options.kind === 'enable-sign-in' ? options.username : 'owner';
+  if (options.kind === 'enable-sign-in') {
+    if (previous) throw new TeamError('invalid-input');
+    if (!/^[a-z0-9][a-z0-9._-]{1,31}$/u.test(username)) throw new TeamError('username-invalid');
+  } else if (previous) {
+    if (!(await verifyPassword(options.current ?? '', previous.hash)))
+      throw new TeamError('credentials-invalid');
+    this.owner(human);
+  }
+  if (!strongPassword(password)) throw new TeamError('password-weak');
+  if (options.kind === 'enable-sign-in' && this.byUsername(username))
+    throw new TeamError('username-taken');
+
+  const hash = await hashPassword(password);
+  this.owner(human);
+  if (this.credential(human.humanId)?.hash.hash !== previous?.hash.hash)
+    throw new TeamError(
+      options.kind === 'enable-sign-in' ? 'invalid-input' : 'credentials-invalid',
+    );
+  if (options.kind === 'enable-sign-in' && this.byUsername(username))
+    throw new TeamError('username-taken');
+
+  const credential = credentialPasswordJson(hash, human.humanId);
+  this.db.transaction(
+    (db) => {
+      if (previous)
+        db.prepare(
+          'UPDATE member_credentials SET password_json = ?, must_change = 0 WHERE human_id = ?',
+        ).run(credential, human.humanId);
+      else
+        db.prepare("INSERT INTO member_credentials VALUES (?, ?, ?, '[]', 0)").run(
+          human.humanId,
+          username,
+          credential,
+        );
+      if (options.kind === 'enable-sign-in')
+        db.prepare('UPDATE team_settings SET owner_password_sign_in = 1 WHERE singleton = 1').run();
+    },
+    ['team'],
+  );
+  this.invalidate();
+}
+
 export function ownerPasswordSignIn(
   this: MemberAuthHost,
   human: HumanContext,
@@ -155,25 +207,7 @@ export async function ownerPasswordSignInSet(
   if (enabled && previous.username === undefined) {
     if (username === undefined || password === undefined)
       throw new TeamError('owner-password-required');
-    if (!/^[a-z0-9][a-z0-9._-]{1,31}$/u.test(username)) throw new TeamError('username-invalid');
-    if (!strongPassword(password)) throw new TeamError('password-weak');
-    if (this.byUsername(username)) throw new TeamError('username-taken');
-    const hash = await hashPassword(password);
-    this.owner(human);
-    if (this.hasCredential(human.humanId)) throw new TeamError('invalid-input');
-    if (this.byUsername(username)) throw new TeamError('username-taken');
-    this.db.transaction(
-      (db) => {
-        db.prepare('INSERT INTO member_credentials VALUES (?, ?, ?, ?, 0)').run(
-          human.humanId,
-          username,
-          credentialPasswordJson(hash, human.humanId),
-          '[]',
-        );
-        db.prepare('UPDATE team_settings SET owner_password_sign_in = 1 WHERE singleton = 1').run();
-      },
-      ['team'],
-    );
+    await setOwnerPassword.call(this, human, password, { kind: 'enable-sign-in', username });
   } else {
     if (username !== undefined || password !== undefined) throw new TeamError('invalid-input');
     if (previous.enabled === enabled) return previous;
@@ -184,8 +218,8 @@ export async function ownerPasswordSignInSet(
           .run(Number(enabled)),
       ['team'],
     );
+    this.invalidate();
   }
-  this.invalidate();
   this.log('owner-password-sign-in-changed', { initiator: 'owner', enabled });
   return ownerPasswordSignIn.call(this, human);
 }
