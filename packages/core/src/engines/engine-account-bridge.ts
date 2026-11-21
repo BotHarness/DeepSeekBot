@@ -17,6 +17,7 @@ type Accounts = Pick<
   | 'removeAccount'
   | 'target'
   | 'login'
+  | 'cancelLogin'
   | 'submitClaudeCode'
   | 'resolveAccount'
 >;
@@ -37,6 +38,9 @@ export interface EngineAccountBridgeMethods {
   engineAccountLogin(
     payload: unknown,
   ): Promise<BridgeResult<Awaited<ReturnType<Accounts['login']>>>>;
+  engineAccountLoginCancel(
+    payload: unknown,
+  ): Promise<BridgeResult<Awaited<ReturnType<Accounts['cancelLogin']>>>>;
   engineAccountSubmitCode(
     payload: unknown,
   ): Promise<BridgeResult<Awaited<ReturnType<Accounts['submitClaudeCode']>>>>;
@@ -51,6 +55,7 @@ const add = z.object({ engine, name, expectedRevision });
 const rename = z.object({ id, name, expectedRevision });
 const remove = z.object({ id, expectedRevision, confirm: z.literal(true) });
 const login = z.object({ id, engine: engine.optional() });
+const cancelLogin = z.object({ id });
 const submitCode = z.object({
   id,
   code: z
@@ -126,6 +131,9 @@ export function createEngineAccountBridge(
             : host.resolveAccount(input.engine, input.id);
         return host.login(account.engine, account.id);
       });
+    },
+    engineAccountLoginCancel(payload) {
+      return run(cancelLogin, payload, (host, input) => host.cancelLogin(input.id));
     },
     engineAccountSubmitCode(payload) {
       return run(submitCode, payload, (host, input) => host.submitClaudeCode(input.id, input.code));
