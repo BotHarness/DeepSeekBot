@@ -155,6 +155,11 @@ export interface DshBotEngines {
   assertAssignmentAccount?(botSlug: string, target?: RoutingGroupEngineMember): void;
   runTurn(request: EngineTurnRequest): Promise<EngineTurnOutcome | void>;
   steerAssignment?(sessionId: string, text: string): boolean;
+  steerOrchestrator?(
+    sessionId: string,
+    text: string,
+    requireAccess: () => void,
+  ): boolean | Promise<boolean>;
   release(sessionId: string): Promise<void>;
   isLive(sessionId: string): boolean;
 }
@@ -202,8 +207,8 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     return stopOrchestratorTurn(this.#state, botSlug);
   }
 
-  steerOrchestrator(botSlug: string, text: string): boolean {
-    return steerOrchestrator(this.#state, botSlug, text);
+  steerOrchestrator(botSlug: string, text: string, requireAccess: () => void = () => undefined) {
+    return steerOrchestrator(this.#state, botSlug, text, requireAccess);
   }
 
   acceptAssistantStream(sessionId: string, frame: AssistantStreamFrame, agent?: Agent): void {

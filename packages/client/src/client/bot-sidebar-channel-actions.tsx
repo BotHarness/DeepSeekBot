@@ -18,7 +18,12 @@ import {
   type DmMemoryDisplay,
 } from './dm-actions.js';
 import { MarketUploadDialog } from './market-upload.js';
-import { MARKET_PANEL } from './market-panel.js';
+import {
+  MARKET_PANEL,
+  hasMarketplaceAvatarSource,
+  openMarketplaceAvatarPublish,
+} from './market-panel.js';
+import { useTeamMode } from './team-state.js';
 import type { DockPanelRegistry } from './dock-panels.js';
 import { store, type BotSummary, type ChannelSummary } from './store.js';
 import {
@@ -68,6 +73,12 @@ export function useSidebarChannelMenu({
   const menuBotSlug = state.channels.find(
     (candidate) => candidate.id === channelMenu?.channelId && candidate.type === 'dm',
   )?.botSlug;
+  const menuBot = state.bots.find((bot) => bot.slug === menuBotSlug);
+  const publishableBot =
+    menuBot !== undefined && hasMarketplaceAvatarSource(menuBot) ? menuBot : undefined;
+  const owner =
+    useTeamMode(publishableBot === undefined ? undefined : actions.teamCall)?.viewer.kind ===
+    'owner';
   const menuModelSlug = state.bots.some((bot) => bot.slug === menuBotSlug && bot.deleted !== true)
     ? menuBotSlug
     : undefined;
@@ -141,6 +152,7 @@ export function useSidebarChannelMenu({
     publishing,
     setPublishing,
     menuBotSlug,
+    publishAvatarSlug: owner ? publishableBot?.slug : undefined,
     deleting,
     setDeleting,
     nicknameTarget,
@@ -260,6 +272,7 @@ export function renderSidebarChannelActions({
     publishing,
     setPublishing,
     menuBotSlug,
+    publishAvatarSlug,
     deleting,
     setDeleting,
     nicknameTarget,
@@ -436,6 +449,14 @@ export function renderSidebarChannelActions({
               setChannelMenu(undefined);
             };
           })()}
+          publishAvatarAction={
+            dockPanels === undefined || publishAvatarSlug === undefined
+              ? undefined
+              : () => {
+                  setChannelMenu(undefined);
+                  openMarketplaceAvatarPublish(dockPanels, publishAvatarSlug, actions);
+                }
+          }
           companionAction={(() => {
             const botId = state.channels.find(
               (channel) => channel.id === channelMenu.channelId,

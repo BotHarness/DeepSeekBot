@@ -123,6 +123,8 @@ export async function runEngineTurn(
       releaseNativeSession: () => releaseNativeSession(adapter, run.sessionId, 'orchestrator'),
       sessionId: run.sessionId,
       channelId: run.inboundChannelId,
+      ...(run.canUseEngineChannel === undefined ? {} : { canUseChannel: run.canUseEngineChannel }),
+      ...(run.priorEngineReplies === undefined ? {} : { priorReplies: run.priorEngineReplies }),
       input: `${text}\n\n${replyReminderText(promptText)}`,
       readRecoveryContext: () => {
         run.requireContent?.();
@@ -154,6 +156,18 @@ export async function runEngineTurn(
           (name !== TOOL_CALL.name && !tools.some((entry) => entry.name === name))
         )
           throw new Error(`refused: ${toolName} is not available to this engine Session`);
+        if (toolName === 'bot_send_message' && typeof toolArgs['source_event_id'] === 'string') {
+          const sourceId = toolArgs['source_event_id'];
+          const destination = run.replyDestination?.(sourceId);
+          if (
+            destination?.kind === 'channel' &&
+            destination.channelId !== run.inboundChannelId &&
+            run.canUseEngineChannel?.(destination.channelId) !== true
+          )
+            throw new Error('refused: channel-out-of-scope');
+          if (context.priorReplies?.has(sourceId))
+            throw new Error('refused: a reply to this Source Event was already sent');
+        }
         if (adapter.engineToolGate !== undefined) {
           const refusal = await adapter.engineToolGate({
             botSlug: run.bot.slug,

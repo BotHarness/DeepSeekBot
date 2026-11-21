@@ -1,3 +1,10 @@
+import type { AssignmentRow } from '../features/assignments/events-types.js';
+import { requireNonBlank } from './require-non-blank.js';
+import { createMessagingEvents } from '../features/messaging/events.js';
+import { createActivityEvents } from '../features/activity/events.js';
+import { createAssignmentDelivery } from '../features/assignments/delivery.js';
+import { createAssignmentReporting } from '../features/assignments/reporting.js';
+import { createAssignmentEvents } from '../features/assignments/events.js';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import {
   lastTurnTarget,
@@ -34,11 +41,10 @@ import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { BotNetworkDeliveryError } from './bot-network.js';
 import { BotHopLimitReached } from '../channels/hop-limit.js';
 import { SessionRecoveryError, type SessionRecoveryAction } from './session-recovery.js';
-import { prepareAssignmentReport, type AssignmentReportContent } from './assignment-report.js';
-import {
-  readAcceptedAssignmentReport,
-  type AssignmentReportRead,
-  type AcceptedAssignmentReportPage,
+import type { AssignmentReportContent } from './assignment-report.js';
+import type {
+  AssignmentReportRead,
+  AcceptedAssignmentReportPage,
 } from './assignment-report-reader.js';
 import {
   GroupReplySourceRevoked,
@@ -53,7 +59,7 @@ import {
   type AssignmentApprovalWaitLease,
   type AssignmentExecutionWait,
 } from './assignment-approval-capacity.js';
-import { waitForAssignment, type AssignmentWaitOutcome } from './assignment-wait.js';
+import type { AssignmentWaitOutcome } from './assignment-wait.js';
 import { externalMemberWake } from '../messaging/defaults.js';
 import {
   sourceSenderAllowed,
@@ -101,7 +107,7 @@ import {
 } from '../process/scheduling-diagnostics.js';
 import { authorizedPathRoot } from '../workspaces/grant-native-tools.js';
 import { withMentionNames } from '../messaging/mention-text.js';
-import { EXTERNAL_GUIDANCE_CHARS, inboxLine, renderInbox, type InboxUnit } from './inbox-render.js';
+import { renderInbox, type InboxUnit } from './inbox-render.js';
 import type { MessagingInboundEvent } from '../messaging/provider.js';
 import type { OutboxIntent, OutboundMessaging } from '../messaging/outbound.js';
 import { PrivateInputRefusal, type PrivateInputOrigin } from '../credentials/im-origin.js';
@@ -119,7 +125,7 @@ import {
   type InboxHistoryPage,
   type InboxHistoryQuery,
 } from './inbox-history.js';
-import { channelSql, OPEN_ADMISSION_SQL, SNOOZED_SQL } from './attention.js';
+import { channelSql } from './attention.js';
 import {
   createInboxTriage,
   type InboxTriage,
@@ -165,7 +171,6 @@ import type { MemoryService } from '../memory/service.js';
 import {
   isBotDmChannel,
   DEFAULT_BOT_HOP_LIMIT,
-  DEFAULT_GROUP_WAKE_POLICY,
   dmChannelId,
   type GroupInvitation,
   type GroupJoinRequest,
@@ -399,6 +404,8 @@ export interface OrchestratorAgentRun {
   observeTurnTarget?(turn: number, step: number, target: TurnTarget): void;
   continuingFromNativeRoute?: true;
   inputAccepted?(): void;
+  canUseEngineChannel?(channelId: string): boolean;
+  priorEngineReplies?(): ReadonlySet<string>;
   speakerPolicy?(
     humanId?: string,
     topic?: string,
@@ -832,7 +839,11 @@ export interface BotAgentAdapter {
   runOrchestrator(run: OrchestratorAgentRun): Promise<void>;
   loadOrchestrator?(run: OrchestratorAgentRun): Promise<void>;
 
-  steerOrchestrator?(botSlug: string, text: string): boolean;
+  steerOrchestrator?(
+    botSlug: string,
+    text: string,
+    requireAccess?: () => void,
+  ): boolean | Promise<boolean>;
   stopOrchestratorTurn?(botSlug: string): string | undefined;
   runAssignment(run: AssignmentAgentRun): Promise<void>;
   requestAssignment(run: AssignmentAgentRun): AssignmentRequestDelivery;
@@ -1126,37 +1137,7 @@ export interface BotRuntimeOptions {
   createBotId?: () => string;
 }
 
-interface AssignmentRow {
-  session_id: string;
-  source_event_id: string;
-  bot_slug: string;
-  title: string;
-  description: string;
-  activity: 'working' | 'idle' | 'error';
-  stop_state: 'running' | 'requested' | 'stopped';
-  latest_report_state: AssignmentReportState | null;
-  latest_report_summary: string | null;
-  latest_report_at: string | null;
-  continuity_key: string | null;
-  open_ask_source_event_id: string | null;
-  open_ask_summary?: string | null;
-  open_ask_at: string | null;
-  grant_id: string | null;
-  workspace_id: string | null;
-  primary_cwd: string | null;
-  permission_mode: string | null;
-  approval_policy: string | null;
-  preset_revision: number | null;
-  model_route_json: string | null;
-  model_group_id?: string | null;
-  model_effort?: string | null;
-  agent_preset?: string | null;
-  archived_at?: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-interface InboxReportRow {
+export interface InboxReportRow {
   source_event_id: string;
   source_kind:
     | 'assignment-report'
@@ -1250,14 +1231,14 @@ function groupMessageBody(row: DigestRow): string {
   return withMentionNames(row.body, rowMentions(row));
 }
 
-interface GroupContext {
+export interface GroupContext {
   channelId: string;
   rows: DigestRow[];
   omittedCount: number;
   bodyLimit: number;
 }
 
-interface GroupPromptBudget {
+export interface GroupPromptBudget {
   remainingCharacters: number;
   includedByChannel: Map<string, number>;
 }
@@ -1457,9 +1438,6 @@ export function queryAssignmentDirectory(
   };
 }
 
-const COMPLETION_DIGEST_COUNT = DEFAULT_GROUP_WAKE_POLICY.count;
-const COMPLETION_DIGEST_MS = DEFAULT_GROUP_WAKE_POLICY.intervalSeconds * 1000;
-
 function onlyPairedLifecycle(unit: InboxUnit): boolean {
   return (
     unit.sourceKind === 'assignment-lifecycle' &&
@@ -1560,12 +1538,6 @@ function requireBoundedText(value: unknown, field: string, maxLength: number): s
     throw new TypeError(
       `create_assignment: ${field} must be at most ${maxLength} characters; keep it short`,
     );
-  return normalized;
-}
-
-function requireNonBlank(value: string, name: string): string {
-  const normalized = value.trim();
-  if (normalized.length === 0) throw new TypeError(`${name} must not be blank`);
   return normalized;
 }
 
@@ -1698,7 +1670,6 @@ const sameModelRoute = (left: ModelRoute, right: ModelRoute) =>
 const ASSIGNMENT_RECOVERY_NOTE =
   '[Host: your previous Turn in this Session did not finish cleanly (it ended with an error, was cancelled, or was interrupted by a Host restart). Your context is intact. Check the current state of your workspace and any side effects before redoing work, and do not repeat a side effect blindly; an earlier request may already have reached you.]\n\n';
 
-const DIRECT_NOTICE_TEXT_LIMIT = 2_000;
 const DIRECT_ASSIGNMENT_TOOLS: ReadonlySet<string> = new Set([
   'create_assignment',
   'send_assignment_request',
@@ -1771,7 +1742,6 @@ class BotRuntimeImplementation implements BotRuntime {
   );
   readonly #saveReportSpill: BotRuntimeOptions['saveReportSpill'];
   readonly #readAssignmentTail: BotRuntimeOptions['readAssignmentTail'];
-  readonly #readAssignmentReportPage: BotRuntimeOptions['readAssignmentReportPage'];
   readonly #messagePerf: MessagePerfTracker | undefined;
   readonly #now: () => Date;
   readonly #promptText: (botSlug: string) => PromptText;
@@ -1857,6 +1827,12 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #onTobDelegation: () => void;
   readonly #directToolCalls = new Map<string, DirectBotToolCall[]>();
 
+  readonly #assignmentEvents: ReturnType<typeof createAssignmentEvents>;
+  readonly #assignmentReporting: ReturnType<typeof createAssignmentReporting>;
+  readonly #assignmentDelivery: ReturnType<typeof createAssignmentDelivery>;
+  readonly #activityEvents: ReturnType<typeof createActivityEvents>;
+  readonly #messagingEvents: ReturnType<typeof createMessagingEvents>;
+
   constructor(options: BotRuntimeOptions) {
     this.#waitOptions = options;
     this.#tob = options.tob;
@@ -1909,7 +1885,6 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#callFrames = options.callFrames;
     this.#saveReportSpill = options.saveReportSpill;
     this.#readAssignmentTail = options.readAssignmentTail;
-    this.#readAssignmentReportPage = options.readAssignmentReportPage;
     this.#messagePerf = options.messagePerf;
     this.#now = options.now ?? (() => new Date());
     this.#readTurnProgress = options.readTurnProgress;
@@ -1937,6 +1912,10 @@ class BotRuntimeImplementation implements BotRuntime {
       createEventId: () => this.#createEventId(),
       insertMemoryChange: (db, eventId, botSlug, change) =>
         this.#insertMemoryChange(db, eventId, botSlug, change),
+      coalesceInbox,
+      promptText: (botSlug) => this.#promptText(botSlug),
+      setObserved: (eventIds, at) => this.#setObserved(eventIds, at),
+      trackSteer: (settlement) => this.#trackSteer(settlement),
       warn: this.#warn === undefined ? undefined : (message) => this.#warn?.(message),
     });
     this.#triageContinuation = options.triageContinuation === true;
@@ -1960,6 +1939,105 @@ class BotRuntimeImplementation implements BotRuntime {
       },
     });
 
+    this.#assignmentEvents = createAssignmentEvents({
+      database: this.#database,
+      scheduleHarvest: (...args) => this.#scheduleHarvest(...args),
+      completionDigestTimers: this.#completionDigestTimers,
+      getAssignment: (...args) => this.getAssignment(...args),
+      waitOptions: this.#waitOptions,
+      waitLifetime: this.#waitLifetime,
+      now: (...args) => this.#now(...args),
+      setObserved: (...args) => this.#setObserved(...args),
+      markReportsHandled: (...args) => this.#markReportsHandled(...args),
+    });
+    this.#assignmentReporting = createAssignmentReporting({
+      createEventId: (...args) => this.#createEventId(...args),
+      now: (...args) => this.#now(...args),
+      database: this.#database,
+      sourcePolicy: this.#sourcePolicy,
+      scheduleHarvest: (...args) => this.#scheduleHarvest(...args),
+      ownership: this.#ownership,
+      closed: () => this.#closed,
+      registry: this.#registry,
+      assignmentRow: (...args) => this.#assignmentRow(...args),
+      getAssignment: (...args) => this.getAssignment(...args),
+      saveReportSpill: this.#saveReportSpill,
+      readAssignmentReportPage: options.readAssignmentReportPage,
+      scheduleReportHarvest: (...args) => this.#assignmentEvents.scheduleReportHarvest(...args),
+    });
+    this.#assignmentDelivery = createAssignmentDelivery({
+      assignmentCapacityRefusal: (...args) => this.#assignmentCapacityRefusal(...args),
+      requireAssignmentSummary: (...args) => this.#requireAssignmentSummary(...args),
+      setStopState: (...args) => this.#setStopState(...args),
+      setActivity: (...args) => this.#setActivity(...args),
+      groupContinuations: this.#groupContinuations,
+      agents: this.#agents,
+      interruptedTools: this.#interruptedTools,
+      publishAssignmentRefusal: (...args) => this.#publishAssignmentRefusal(...args),
+      now: (...args) => this.#now(...args),
+      database: this.#database,
+      assignmentAcceptances: this.#assignmentAcceptances,
+      trackAssignmentRun: (...args) => this.#trackAssignmentRun(...args),
+    });
+    this.#activityEvents = createActivityEvents({
+      snoozeTimers: this.#snoozeTimers,
+      registry: this.#registry,
+      closed: () => this.#closed,
+      database: this.#database,
+      now: (...args) => this.#now(...args),
+      held: this.#held,
+      enqueue: (...args) => this.#enqueue(...args),
+      triageContinuation: this.#triageContinuation,
+      triageQueued: this.#triageQueued,
+      inboxTriage: this.#inboxTriage,
+      triageBaseline: this.#triageBaseline,
+      triageStalled: this.#triageStalled,
+      dmChannel: (...args) => this.#dmChannel(...args),
+      promptText: (...args) => this.#promptText(...args),
+      triageRunning: this.#triageRunning,
+      ensureOrchestrator: (...args) => this.#ensureOrchestrator(...args),
+      runOrchestratorTurn: (...args) => this.#runOrchestratorTurn(...args),
+      failureStreaks: this.#failureStreaks,
+      noteAutomaticFailure: (...args) => this.#noteAutomaticFailure(...args),
+      warn: this.#warn === undefined ? undefined : (message) => this.#warn?.(message),
+    });
+    this.#messagingEvents = createMessagingEvents({
+      closed: () => this.#closed,
+      externalMessaging: this.#externalMessaging,
+      database: this.#database,
+      release: (...args) => this.#release(...args),
+      checkHarvestReadiness: (...args) => this.#checkHarvestReadiness(...args),
+      admitChannelMessage: (...args) => this.#admitChannelMessage(...args),
+      activeTurns: this.#activeTurns,
+      delivery: (...args) => this.#delivery(...args),
+      steerWithMemory:
+        this.#agents.steerOrchestrator === undefined
+          ? undefined
+          : (botSlug, prompt, requireAccess) =>
+              this.#steerWithMemory(botSlug, prompt, requireAccess),
+      promptText: (...args) => this.#promptText(...args),
+      promptLimits: (...args) => this.#promptLimits(...args),
+      claimGroupContext: (...args) => this.#claimGroupContext(...args),
+      setObserved: (...args) => this.#setObserved(...args),
+      now: (...args) => this.#now(...args),
+      markAdmissionsSideEffect: (botSlug, sourceIds) =>
+        this.#markAdmissionsSideEffect(botSlug, sourceIds, false),
+      requireTurnAccess: (...args) => this.#requireTurnAccess(...args),
+      turnSessionId: (botSlug) => this.#turnSources.get(botSlug)?.sessionId,
+      routingGroupReplyState: (...args) => this.#routingGroupReplyState(...args),
+      noteSteeredChannel: (...args) => this.#noteSteeredChannel(...args),
+      groupContextSection: (...args) => this.#groupContextSection(...args),
+      settleHarvestFailure: (...args) => this.#settleHarvestFailure(...args),
+      acceptTurnSources: (...args) => this.#acceptTurnSources(...args),
+      typingTurns: this.#typingTurns,
+      observeAdmission: (...args) => this.#observeAdmission(...args),
+      markReportsHandled: (...args) => this.#markReportsHandled(...args),
+      settleHarvestHandled: (...args) => this.#settleHarvestHandled(...args),
+      trackSteer: (settlement) => this.#trackSteer(settlement),
+      held: this.#held,
+      armDigest: (...args) => this.#armDigest(...args),
+    });
+
     if (options.database.mode === 'ready') {
       const interruptedDms = this.#recoverInterruptedAttempts();
       this.#retireRevokedGroupRetries();
@@ -1977,225 +2055,8 @@ class BotRuntimeImplementation implements BotRuntime {
       }
       this.#rearmAutoContinues();
       this.#recoverPendingDigests();
-      this.#recoverPendingAssignmentReports();
-      for (const bot of this.#registry.list()) this.#armSnooze(bot.slug);
-    }
-  }
-
-  #armSnooze(botSlug: string): void {
-    const prior = this.#snoozeTimers.get(botSlug);
-    if (prior !== undefined) clearTimeout(prior);
-    this.#snoozeTimers.delete(botSlug);
-    const bot = this.#registry.get(botSlug);
-    if (this.#closed || bot === undefined) return;
-    const next = this.#database.read((database) =>
-      database
-        .prepare(
-          `
-          SELECT MIN(snoozed_until) AS next FROM inbox_admissions
-           WHERE bot_slug = ? AND snoozed_until IS NOT NULL AND resolved_at IS NULL
-        `,
-        )
-        .get(botSlug),
-    ) as { next: string | null } | undefined;
-    if (next?.next == null) return;
-    const delay = Math.min(
-      2_147_483_647,
-      Math.max(bot.paused === true ? 60_000 : 1, Date.parse(next.next) - this.#now().getTime()),
-    );
-    const timer = setTimeout(() => {
-      this.#snoozeTimers.delete(botSlug);
-      if (this.#closed || this.#held.has(botSlug)) return;
-      void this.#enqueue(botSlug, () => this.#runSnoozeReturnTurn(botSlug))
-        .finally(() => this.#armSnooze(botSlug))
-        .catch(() => undefined);
-    }, delay);
-    timer.unref();
-    this.#snoozeTimers.set(botSlug, timer);
-  }
-
-  #queueTriage(botSlug: string): void {
-    if (
-      !this.#triageContinuation ||
-      this.#closed ||
-      this.#held.has(botSlug) ||
-      this.#triageQueued.has(botSlug)
-    )
-      return;
-    this.#triageQueued.add(botSlug);
-    void this.#enqueue(botSlug, () => this.#runTriageTurn(botSlug)).catch(() => undefined);
-  }
-
-  async #runTriageTurn(botSlug: string): Promise<void> {
-    this.#triageQueued.delete(botSlug);
-    const bot = this.#registry.get(botSlug);
-    if (this.#closed || bot === undefined || bot.paused === true || this.#held.has(botSlug)) return;
-    const ids = this.#withoutWorkingAssignment(this.#inboxTriage.openIds(botSlug));
-    const baseline = this.#triageBaseline.get(botSlug);
-    this.#triageBaseline.delete(botSlug);
-    if (ids.length === 0) {
-      this.#triageStalled.delete(botSlug);
-      return;
-    }
-    if (baseline !== undefined && ids.length >= baseline) {
-      this.#triageStalled.set(botSlug, new Set(ids));
-      return;
-    }
-    const stalled = this.#triageStalled.get(botSlug);
-    if (stalled !== undefined && ids.every((id) => stalled.has(id))) return;
-    this.#triageStalled.delete(botSlug);
-    const anchor = ids[0]!;
-    const channel = this.#database.read((database) =>
-      database
-        .prepare(
-          `SELECT ${channelSql('e')} AS channel_id FROM source_events e WHERE e.source_event_id = ?`,
-        )
-        .get(anchor),
-    ) as { channel_id: string | null } | undefined;
-    const channelId = channel?.channel_id ?? this.#dmChannel(botSlug)?.id;
-    const body = `[Triage] ${ids.length} item${ids.length === 1 ? ' is' : 's are'} still open after your last turn. ${this.#promptText(botSlug)('triage')}`;
-    this.#triageBaseline.set(botSlug, ids.length);
-    this.#triageRunning.set(botSlug, ids.length);
-    try {
-      const orchestrator = this.#ensureOrchestrator(bot, this.#now().toISOString());
-      await this.#runOrchestratorTurn(
-        bot,
-        orchestrator,
-        anchor,
-        channelId,
-        body,
-        [],
-        false,
-        () => undefined,
-        [],
-        [],
-      );
-      this.#failureStreaks.delete(botSlug);
-    } catch (error) {
-      this.#triageBaseline.delete(botSlug);
-      await this.#noteAutomaticFailure(botSlug, channelId, error);
-      this.#warn?.(
-        JSON.stringify({
-          component: 'bot-runtime',
-          event: 'triage-turn-failed',
-          botSlug,
-          error: String(error).slice(0, 500),
-        }),
-      );
-    } finally {
-      this.#triageRunning.delete(botSlug);
-    }
-  }
-
-  #withoutWorkingAssignment(ids: string[]): string[] {
-    if (ids.length === 0) return ids;
-    const delegated = new Set(
-      this.#database
-        .read(
-          (database) =>
-            database
-              .prepare(
-                `SELECT DISTINCT ra.request_source_event_id AS id FROM request_assignments ra
-                 JOIN assignments s ON s.session_id = ra.session_id
-                WHERE ra.request_source_event_id IN (${ids.map(() => '?').join(', ')})
-                  AND s.activity = 'working' AND s.stop_state = 'running' AND s.archived_at IS NULL`,
-              )
-              .all(...ids) as unknown as Array<{ id: string }>,
-        )
-        .map((row) => row.id),
-    );
-    return ids.filter((id) => !delegated.has(id));
-  }
-
-  async #runSnoozeReturnTurn(botSlug: string): Promise<void> {
-    if (this.#closed || this.#held.has(botSlug)) return;
-    const bot = this.#registry.get(botSlug);
-    if (bot === undefined || bot.paused === true) return;
-    const timestamp = this.#now().toISOString();
-    const due = this.#database.transaction(
-      (database) => {
-        const rows = database
-          .prepare(
-            `
-            SELECT a.source_event_id, a.snoozed_until, a.snooze_note, e.body,
-                   ${channelSql('e')} AS channel_id,
-                   CASE WHEN ${OPEN_ADMISSION_SQL} AND ${SNOOZED_SQL} THEN 1 ELSE 0 END AS hidden
-              FROM inbox_admissions a
-              JOIN source_events e ON e.source_event_id = a.source_event_id
-             WHERE a.bot_slug = ? AND a.snoozed_until IS NOT NULL AND a.snoozed_until <= ?
-               AND a.resolved_at IS NULL
-             ORDER BY a.snoozed_until, e.created_at
-          `,
-          )
-          .all(botSlug, timestamp) as unknown as Array<{
-          source_event_id: string;
-          snoozed_until: string;
-          snooze_note: string | null;
-          body: string;
-          channel_id: string | null;
-          hidden: number;
-        }>;
-        for (const row of rows)
-          database
-            .prepare(
-              'UPDATE inbox_admissions SET snoozed_until = NULL WHERE source_event_id = ? AND bot_slug = ?',
-            )
-            .run(row.source_event_id, botSlug);
-        return rows.filter((row) => row.hidden === 1);
-      },
-      ['bot-inbox'],
-    );
-    const anchor = due[0];
-    if (anchor === undefined) return;
-    const channelId = anchor.channel_id ?? this.#dmChannel(botSlug)?.id;
-    const body = [
-      `[Snooze returned] ${due.length} item${due.length === 1 ? '' : 's'} you snoozed ${due.length === 1 ? 'is' : 'are'} back. Decide what each needs now, then resolve it, act on it, or snooze it again.`,
-      ...due.map(
-        (row) =>
-          `- [Source Event ${row.source_event_id}] snoozed until ${row.snoozed_until}${row.snooze_note === null ? '' : `, note: ${JSON.stringify(row.snooze_note)}`}: ${JSON.stringify(row.body.replace(/\s+/g, ' ').slice(0, 300))}`,
-      ),
-    ].join('\n');
-    try {
-      const orchestrator = this.#ensureOrchestrator(bot, timestamp);
-      await this.#runOrchestratorTurn(
-        bot,
-        orchestrator,
-        anchor.source_event_id,
-        channelId,
-        body,
-        [],
-        false,
-        () => undefined,
-        [],
-        [],
-      );
-      this.#failureStreaks.delete(botSlug);
-    } catch (error) {
-      await this.#noteAutomaticFailure(botSlug, channelId, error);
-      const retryAt = new Date(this.#now().getTime() + 300_000).toISOString();
-      this.#database.transaction(
-        (database) => {
-          for (const row of due)
-            database
-              .prepare(
-                `
-                UPDATE inbox_admissions SET snoozed_until = ?
-                 WHERE source_event_id = ? AND bot_slug = ? AND resolved_at IS NULL
-                   AND snoozed_until IS NULL
-              `,
-              )
-              .run(retryAt, row.source_event_id, botSlug);
-        },
-        ['bot-inbox'],
-      );
-      this.#warn?.(
-        JSON.stringify({
-          component: 'bot-runtime',
-          event: 'snooze-return-failed',
-          botSlug,
-          error: String(error).slice(0, 500),
-        }),
-      );
+      this.#assignmentEvents.recoverPendingAssignmentReports();
+      for (const bot of this.#registry.list()) this.#activityEvents.armSnooze(bot.slug);
     }
   }
 
@@ -2735,6 +2596,10 @@ class BotRuntimeImplementation implements BotRuntime {
       persistedBody ?? body,
       timestamp,
     );
+    const queue = () =>
+      this.#enqueue(bot.slug, () =>
+        this.#runHumanDmTurn(bot, channel.id, body, claim, input.messageId, undefined, tobCliTurn),
+      );
     const steered =
       claim.shouldRun &&
       tobCliTurn === undefined &&
@@ -2755,22 +2620,11 @@ class BotRuntimeImplementation implements BotRuntime {
           body,
           claim.sourceEventId,
         ),
+        queue,
       );
     return {
       admitted: true,
-      settled: steered
-        ? Promise.resolve()
-        : this.#enqueue(bot.slug, () =>
-            this.#runHumanDmTurn(
-              bot,
-              channel.id,
-              body,
-              claim,
-              input.messageId,
-              undefined,
-              tobCliTurn,
-            ),
-          ),
+      settled: steered ? Promise.resolve() : queue(),
     };
   }
 
@@ -2813,6 +2667,10 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     this.#cancelAutoContinue(bot.slug);
     this.#release(bot.slug);
+    const queue = () =>
+      this.#enqueue(bot.slug, () =>
+        this.#runHumanDmTurn(bot, channel.id, input.text, claim, messageId),
+      );
     const steered =
       claim.shouldRun &&
       ![...this.#tobCliRequests.values()].some(
@@ -2825,15 +2683,12 @@ class BotRuntimeImplementation implements BotRuntime {
         claim.sourceEventId,
         'human-dm',
         sessionDirectPrompt(input.text, claim.sourceEventId),
+        queue,
       );
     return {
       delivered: true,
       sourceEventId: claim.sourceEventId,
-      settled: steered
-        ? Promise.resolve()
-        : this.#enqueue(bot.slug, () =>
-            this.#runHumanDmTurn(bot, channel.id, input.text, claim, messageId),
-          ),
+      settled: steered ? Promise.resolve() : queue(),
     };
   }
 
@@ -2905,148 +2760,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   admitExternalSource(botSlug: string, sourceEventId: string): void {
-    if (this.#closed || !this.#externalMessaging?.inbound.available(botSlug, sourceEventId)) return;
-    const row = this.#database.read((db) =>
-      db
-        .prepare(
-          `SELECT a.attempt_state, a.reason, a.wake_mode, e.channel_id, e.message_id FROM inbox_admissions a
-      JOIN source_events e USING(source_event_id) WHERE a.bot_slug = ? AND a.source_event_id = ?`,
-        )
-        .get(botSlug, sourceEventId),
-    ) as
-      | {
-          attempt_state: string;
-          reason: string;
-          wake_mode: string | null;
-          channel_id: string | null;
-          message_id: string | null;
-        }
-      | undefined;
-    if (row?.reason === 'human-dm' || row?.reason === 'group-mention') this.#release(botSlug);
-    if (
-      row?.reason === 'group-ordinary' &&
-      this.#externalMessaging.inbound.read(botSlug, sourceEventId).receptionPaths
-    ) {
-      this.#checkHarvestReadiness(botSlug);
-      return;
-    }
-    if (row?.reason === 'group-ordinary' && row.channel_id && row.message_id) {
-      this.#admitChannelMessage(row.channel_id, row.message_id, 'group-ordinary');
-      return;
-    }
-    if (!row || !['pending', 'retryable'].includes(row.attempt_state) || row.wake_mode === 'silent')
-      return;
-    const active = this.#activeTurns.get(botSlug);
-    if (
-      (row.reason === 'group-mention' || row.reason === 'human-dm') &&
-      this.#delivery(botSlug, row.reason) === 'steer' &&
-      active &&
-      this.#agents.steerOrchestrator
-    ) {
-      const source = this.#externalMessaging.inbound.read(botSlug, sourceEventId);
-      const unit: InboxUnit = {
-        sourceEventId,
-        sourceKind: 'bridge-message',
-        external: source,
-        assignmentSessionId: null,
-        summary: source.body,
-        createdAt: source.at,
-        continuityKey: null,
-        activity: null,
-        repeats: 1,
-      };
-      const units = [unit];
-      let characters =
-        EXTERNAL_GUIDANCE_CHARS + inboxLine(unit, this.#promptText(botSlug)).length + 1;
-      for (const candidate of this.#pendingExternalRows(botSlug, true)) {
-        if (
-          candidate.source_event_id === sourceEventId ||
-          !this.#externalMessaging.inbound.available(botSlug, candidate.source_event_id, true)
-        )
-          continue;
-        const context = this.#externalMessaging.inbound.read(botSlug, candidate.source_event_id);
-        const next: InboxUnit = {
-          ...unit,
-          sourceEventId: candidate.source_event_id,
-          external: context,
-          summary: context.body,
-          createdAt: context.at,
-        };
-        const cost = inboxLine(next, this.#promptText(botSlug)).length + 1;
-        if (
-          context.grantId !== source.grantId ||
-          characters + cost > this.#promptLimits(botSlug)['group-context-chars']
-        )
-          continue;
-        characters += cost;
-        units.push(next);
-      }
-      const context = source.localChannelId
-        ? this.#database.transaction(
-            (db) =>
-              this.#claimGroupContext(db, botSlug, source.localChannelId!, {
-                remainingCharacters: Math.max(
-                  0,
-                  this.#promptLimits(botSlug)['group-context-chars'] -
-                    renderInbox(units, this.#promptText(botSlug)).length,
-                ),
-                includedByChannel: new Map(),
-              }),
-            ['bot-inbox'],
-          )
-        : undefined;
-      const contextIds = context?.rows.map((item) => item.source_event_id) ?? [];
-      const included = units.map((item) => item.sourceEventId);
-      this.#setObserved(included, this.#now().toISOString(), botSlug);
-      this.#markAdmissionsSideEffect(botSlug, [...included, ...contextIds]);
-      let delivered = false;
-      try {
-        delivered = this.#agents.steerOrchestrator(
-          botSlug,
-          [
-            renderInbox(units, this.#promptText(botSlug)),
-            ...(context ? [this.#groupContextSection(context)] : []),
-          ].join('\n\n'),
-        );
-      } catch {
-        this.#setObserved(included, null, botSlug);
-        this.#settleHarvestFailure(botSlug, contextIds, 'external-steer-failed');
-        return;
-      }
-      if (delivered) {
-        this.#acceptTurnSources(botSlug, [...included, ...contextIds]);
-        this.#typingTurns.get(botSlug)?.add(included);
-        for (const row of context?.rows ?? [])
-          this.#observeAdmission(row.source_event_id, botSlug, context!.channelId, row.message_id);
-        const settled = active.then(
-          () => {
-            this.#markReportsHandled(included, botSlug);
-            this.#settleHarvestHandled(botSlug, contextIds);
-          },
-          () => {
-            this.#setObserved(included, null, botSlug);
-            this.#settleHarvestFailure(botSlug, contextIds, 'external-steered-turn-failed');
-          },
-        );
-        this.#steerSettlements.add(settled);
-        void settled.finally(() => this.#steerSettlements.delete(settled)).catch(() => undefined);
-        return;
-      }
-      this.#database.transaction(
-        (db) => {
-          for (const id of [...included, ...contextIds]) {
-            db.prepare('UPDATE source_events SET observed_at = NULL WHERE source_event_id = ?').run(
-              id,
-            );
-            db.prepare(
-              "UPDATE inbox_admissions SET observed_at = NULL, side_effect_started_at = NULL, attempt_state = 'pending' WHERE source_event_id = ? AND bot_slug = ?",
-            ).run(id, botSlug);
-          }
-        },
-        ['bot-inbox'],
-      );
-    }
-    this.#checkHarvestReadiness(botSlug);
+    this.#messagingEvents.admitExternalSource(botSlug, sourceEventId);
   }
 
   #admitChannelMessage(
@@ -3153,6 +2867,7 @@ class BotRuntimeImplementation implements BotRuntime {
     sourceEventId: string,
     reason: 'human-dm' | 'bot-dm',
     prompt: string,
+    queue: () => void | Promise<void> = () => this.#scheduleHarvest(botSlug),
   ): boolean {
     const active = this.#activeTurns.get(botSlug);
     if (active === undefined || this.#agents.steerOrchestrator === undefined) return false;
@@ -3178,97 +2893,29 @@ class BotRuntimeImplementation implements BotRuntime {
         messageId: row.message_id,
       })),
     ];
-    this.#channels.admissionChanged?.(channelId, messageId);
-    for (const row of claimed?.rows ?? [])
-      this.#channels.admissionChanged?.(channelId, row.message_id);
-    this.#markAdmissionsSideEffect(
-      botSlug,
-      admissions.map((admission) => admission.sourceEventId),
-    );
-    let delivered: boolean;
     const text = claimed === undefined ? prompt : `${prompt}\n\n${this.#dmContextSection(claimed)}`;
-    const sessionId = this.#turnSources.get(botSlug)?.sessionId;
-    const envelope = sessionId
-      ? this.#speakerInput(
-          botSlug,
-          sessionId,
-          admissions.map((a) => a.sourceEventId),
-          text,
-        )
-      : undefined;
-    try {
-      this.#requireTurnAccess(
-        botSlug,
-        admissions.map((a) => a.sourceEventId),
-      );
-      delivered = this.#steerWithMemory(botSlug, envelope?.text ?? text);
-      if (delivered) envelope?.commit();
-    } catch (error) {
-      this.#database.transaction(
-        (database) => {
-          for (const admission of admissions)
-            database
-              .prepare(
-                `
-          UPDATE inbox_admissions SET attempt_state = 'needs-repair', last_error = ?
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
-        `,
-              )
-              .run(String(error).slice(0, 500), admission.sourceEventId, botSlug);
-        },
-        ['bot-inbox'],
-      );
-      for (const admission of admissions)
-        this.#channels.admissionChanged?.(channelId, admission.messageId);
-      return true;
-    }
-    if (!delivered) {
-      this.#database.transaction(
-        (database) => {
-          for (const admission of admissions)
-            database
-              .prepare(
-                `
-          UPDATE inbox_admissions
-             SET attempt_state = 'pending', side_effect_started_at = NULL
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
-        `,
-              )
-              .run(admission.sourceEventId, botSlug);
-        },
-        ['bot-inbox'],
-      );
-      for (const admission of admissions)
-        this.#channels.admissionChanged?.(channelId, admission.messageId);
-      return false;
-    }
-    this.#noteSteeredChannel(botSlug, channelId);
-    this.#acceptTurnSources(
-      botSlug,
-      admissions.map((admission) => admission.sourceEventId),
-    );
-    for (const admission of admissions)
-      this.#observeAdmission(admission.sourceEventId, botSlug, channelId, admission.messageId);
-    const settlement = active.then(
-      () => this.#settleSteeredAdmission(admissions, botSlug, channelId, true),
-      () => this.#settleSteeredAdmission(admissions, botSlug, channelId, false),
-    );
-    this.#steerSettlements.add(settlement);
-    void settlement.finally(() => this.#steerSettlements.delete(settlement)).catch(() => undefined);
-    return true;
+    return this.#deliverChannelSteer(botSlug, channelId, active, admissions, text, queue);
   }
 
-  #steerWithMemory(botSlug: string, prompt: string): boolean {
+  #steerWithMemory(botSlug: string, prompt: string, requireAccess?: () => void) {
     if (this.#memoryTurnOperations.has(botSlug)) return false;
     const activeEvents = this.#activeMemoryEvents.get(botSlug);
     if (activeEvents === undefined || this.#memory?.scanChanges === undefined)
-      return this.#agents.steerOrchestrator?.(botSlug, prompt) ?? false;
-    const delivered = this.#steerMemoryInbox(botSlug, activeEvents, prompt);
-    recordSchedulingDiagnostic({
-      kind: 'steer',
-      turn: schedulingIdentity(activeEvents),
-      delivered,
-    });
+      return this.#agents.steerOrchestrator?.(botSlug, prompt, requireAccess) ?? false;
+    const delivery = this.#memoryEvents.steerMemoryInbox(
+      botSlug,
+      activeEvents,
+      prompt,
+      (text) => this.#agents.steerOrchestrator?.(botSlug, text, requireAccess) ?? false,
+    );
+    const record = (delivered: boolean) =>
+      recordSchedulingDiagnostic({
+        kind: 'steer',
+        turn: schedulingIdentity(activeEvents),
+        delivered,
+      });
+    if (typeof delivery === 'boolean') record(delivery);
+    else void delivery.then(record, () => record(false));
     this.#memoryEvents.scanMemoryWhileSteering(
       botSlug,
       activeEvents,
@@ -3277,30 +2924,15 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#activeMemoryEvents.get(botSlug) === activeEvents &&
         !this.#memoryTurnOperations.has(botSlug),
       () => {
-        this.#steerMemoryInbox(botSlug, activeEvents, undefined);
+        void this.#memoryEvents.steerMemoryInbox(
+          botSlug,
+          activeEvents,
+          undefined,
+          (text) => this.#agents.steerOrchestrator?.(botSlug, text) ?? false,
+        );
       },
     );
-    return delivered;
-  }
-
-  #steerMemoryInbox(
-    botSlug: string,
-    activeEvents: { eventIds: string[]; preserveObservation: boolean },
-    prompt: string | undefined,
-  ): boolean {
-    const memoryInbox = this.#memoryEvents.collectMemoryInbox(botSlug, coalesceInbox);
-    if (prompt === undefined && memoryInbox.units.length === 0) return false;
-    const rendered =
-      memoryInbox.units.length === 0
-        ? undefined
-        : renderInbox(memoryInbox.units, this.#promptText(botSlug));
-    const text = [prompt, rendered].filter((part) => part !== undefined).join('\n\n');
-    const delivered = this.#agents.steerOrchestrator?.(botSlug, text) ?? false;
-    if (delivered) {
-      activeEvents.eventIds.push(...memoryInbox.eventIds);
-      this.#setObserved(memoryInbox.eventIds, this.#now().toISOString());
-    }
-    return delivered;
+    return delivery;
   }
 
   #claimDmContext(
@@ -3463,90 +3095,110 @@ class BotRuntimeImplementation implements BotRuntime {
         messageId: row.message_id,
       })),
     ];
-    this.#channels.admissionChanged?.(channelId, messageId);
-    for (const row of claimed?.rows ?? [])
-      this.#channels.admissionChanged?.(channelId, row.message_id);
-
-    this.#markAdmissionsSideEffect(
-      botSlug,
-      admissions.map((item) => item.sourceEventId),
+    const text = [mentionPrompt, ...(claimed ? [this.#groupContextSection(claimed)] : [])].join(
+      '\n\n',
     );
-    const body = [
-      mentionPrompt,
-      ...(claimed === undefined ? [] : [this.#groupContextSection(claimed)]),
-    ].join('\n\n');
-    const sessionId = this.#turnSources.get(botSlug)?.sessionId;
-    const envelope =
-      sessionId === undefined
-        ? undefined
-        : this.#speakerInput(
-            botSlug,
-            sessionId,
-            admissions.map((item) => item.sourceEventId),
-            body,
-          );
-    let delivered: boolean;
-    try {
-      this.#requireTurnAccess(
-        botSlug,
-        admissions.map((item) => item.sourceEventId),
+    return this.#deliverChannelSteer(botSlug, channelId, active, admissions, text, () =>
+      this.#scheduleHarvest(botSlug),
+    );
+  }
+
+  #deliverChannelSteer(
+    botSlug: string,
+    channelId: string,
+    active: Promise<void>,
+    admissions: Array<{ sourceEventId: string; messageId: string }>,
+    text: string,
+    queue: () => void | Promise<void>,
+  ): boolean {
+    const turn = this.#turnSources.get(botSlug);
+    const sourceIds = admissions.map((item) => item.sourceEventId);
+    const envelope = turn && this.#speakerInput(botSlug, turn.sessionId, sourceIds, text);
+    const requireAccess = () => {
+      this.#requireTurnAccess(botSlug, sourceIds);
+      this.#requireMembership(botSlug, channelId);
+      this.#database.read((db) => {
+        for (const id of sourceIds) requireSourceEffects(db, id, botSlug);
+      });
+    };
+    const accepted = () => {
+      envelope?.commit();
+      this.#noteSteeredChannel(botSlug, channelId);
+      this.#acceptTurnSources(botSlug, sourceIds);
+      for (const { sourceEventId, messageId } of admissions)
+        this.#observeAdmission(sourceEventId, botSlug, channelId, messageId);
+      return active.then(
+        () => this.#settleSteeredAdmission(admissions, botSlug, channelId, true),
+        () => this.#settleSteeredAdmission(admissions, botSlug, channelId, false),
       );
-      delivered = this.#steerWithMemory(botSlug, envelope?.text ?? body);
-      if (delivered) envelope?.commit();
-    } catch (error) {
+    };
+    const restore = (error?: { cause: unknown }) => {
+      const now = this.#now().toISOString();
       this.#database.transaction(
-        (database) => {
-          for (const admission of admissions)
-            database
-              .prepare(
-                `
-          UPDATE inbox_admissions SET attempt_state = 'needs-repair', last_error = ?
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
-        `,
-              )
-              .run(String(error).slice(0, 500), admission.sourceEventId, botSlug);
+        (db) => {
+          for (const { sourceEventId } of admissions) {
+            const reply =
+              turn && this.#routingGroupReplyState(botSlug, turn.sessionId, sourceEventId);
+            const state =
+              reply === 'delivered'
+                ? 'handled'
+                : error || reply === 'uncertain'
+                  ? 'needs-repair'
+                  : 'pending';
+            db.prepare(`UPDATE inbox_admissions SET attempt_state = ?,
+            side_effect_started_at = CASE WHEN ? = 'pending' THEN NULL ELSE side_effect_started_at END,
+            handled_at = CASE WHEN ? = 'handled' THEN ? ELSE handled_at END,
+            last_error = ?
+            WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'`).run(
+              state,
+              state,
+              state,
+              now,
+              error ? String(error.cause).slice(0, 500) : null,
+              sourceEventId,
+              botSlug,
+            );
+          }
         },
         ['bot-inbox'],
       );
-      for (const admission of admissions)
-        this.#channels.admissionChanged?.(channelId, admission.messageId);
+      for (const { messageId } of admissions)
+        this.#channels.admissionChanged?.(channelId, messageId);
+    };
+    for (const { messageId } of admissions) this.#channels.admissionChanged?.(channelId, messageId);
+    let delivery: boolean | Promise<boolean>;
+    try {
+      requireAccess();
+      this.#markAdmissionsSideEffect(botSlug, sourceIds, false);
+      delivery = this.#steerWithMemory(botSlug, envelope?.text ?? text, requireAccess);
+    } catch (cause) {
+      restore({ cause });
       return true;
     }
-    if (!delivered) {
-      this.#database.transaction(
-        (database) => {
-          for (const admission of admissions)
-            database
-              .prepare(
-                `
-          UPDATE inbox_admissions
-             SET attempt_state = 'pending', side_effect_started_at = NULL
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
-        `,
-              )
-              .run(admission.sourceEventId, botSlug);
-        },
-        ['bot-inbox'],
-      );
-      for (const admission of admissions)
-        this.#channels.admissionChanged?.(channelId, admission.messageId);
-      return false;
+    if (typeof delivery === 'boolean') {
+      if (delivery) this.#trackSteer(accepted());
+      else restore();
+      return delivery;
     }
-    this.#noteSteeredChannel(botSlug, channelId);
-    this.#acceptTurnSources(
-      botSlug,
-      admissions.map((admission) => admission.sourceEventId),
+    const afterTurn = () => active.catch(() => undefined);
+    this.#trackSteer(
+      delivery.then(
+        (delivered) => {
+          if (delivered) return accepted();
+          return afterTurn().then(() => {
+            restore();
+            if (!this.#closed) return queue();
+          });
+        },
+        (cause: unknown) => afterTurn().then(() => restore({ cause })),
+      ),
     );
-    for (const admission of admissions)
-      this.#observeAdmission(admission.sourceEventId, botSlug, channelId, admission.messageId);
+    return true;
+  }
 
-    const settlement = active.then(
-      () => this.#settleSteeredAdmission(admissions, botSlug, channelId, true),
-      () => this.#settleSteeredAdmission(admissions, botSlug, channelId, false),
-    );
+  #trackSteer(settlement: Promise<void>): void {
     this.#steerSettlements.add(settlement);
     void settlement.finally(() => this.#steerSettlements.delete(settlement)).catch(() => undefined);
-    return true;
   }
 
   #settleSteeredAdmission(
@@ -3584,35 +3236,6 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     for (const admission of admissions)
       this.#channels.admissionChanged?.(channelId, admission.messageId);
-  }
-
-  #recoverPendingAssignmentReports(): void {
-    const due = this.#database.read(
-      (database) =>
-        database
-          .prepare(
-            `
-          SELECT DISTINCT a.bot_slug
-            FROM inbox_admissions a
-            JOIN source_events e ON e.source_event_id = a.source_event_id
-           WHERE a.reason IN ('assignment-report', 'assignment-lifecycle')
-             AND a.attempt_state IN ('pending', 'retryable')
-             AND e.observed_at IS NULL
-             AND NOT (e.source_kind = 'assignment-lifecycle' AND
-                  json_extract(e.payload_json, '$.assignmentLifecycle.reportSourceEventId') IS NOT NULL)
-             AND (a.source_policy_wake_mode = 'immediate' OR
-                  ((a.source_policy_wake_mode = 'conditional' OR
-                    a.source_policy_wake_mode IS NULL) AND
-                   (a.reason = 'assignment-lifecycle' OR e.expects_reply = 1 OR
-                    e.payload_json IS NULL OR
-                    json_extract(e.payload_json, '$.assignmentReport.state')
-                      IN ('completed', 'blocked', 'waiting-human', 'failed'))))
-           ORDER BY a.bot_slug
-        `,
-          )
-          .all() as { bot_slug: string }[],
-    );
-    for (const row of due) this.#scheduleHarvest(row.bot_slug);
   }
 
   #recoverPendingChannelAdmissions(): void {
@@ -3762,71 +3385,6 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#digestTimers.set(key, timer);
   }
 
-  #scheduleReportHarvest(botSlug: string): boolean {
-    if (!this.#holdsCompletionDigest(botSlug)) {
-      const prior = this.#completionDigestTimers.get(botSlug);
-      if (prior !== undefined) clearTimeout(prior);
-      this.#completionDigestTimers.delete(botSlug);
-      this.#scheduleHarvest(botSlug);
-      return true;
-    }
-    if (!this.#completionDigestTimers.has(botSlug)) {
-      const timer = setTimeout(() => {
-        this.#completionDigestTimers.delete(botSlug);
-        this.#scheduleHarvest(botSlug);
-      }, COMPLETION_DIGEST_MS);
-      timer.unref();
-      this.#completionDigestTimers.set(botSlug, timer);
-    }
-    return false;
-  }
-
-  #holdsCompletionDigest(botSlug: string): boolean {
-    return this.#database.read((database) => {
-      const rows = database
-        .prepare(
-          `SELECT e.assignment_session_id AS session_id, e.source_kind,
-                  e.expects_reply, json_extract(e.payload_json, '$.assignmentReport.state') AS state
-             FROM inbox_admissions a JOIN source_events e ON e.source_event_id = a.source_event_id
-            WHERE a.bot_slug = ? AND a.attempt_state = 'pending' AND e.observed_at IS NULL
-              AND a.reason IN ('assignment-report', 'assignment-lifecycle')
-              AND NOT (e.source_kind = 'assignment-lifecycle' AND
-                json_extract(e.payload_json, '$.assignmentLifecycle.reportSourceEventId') IS NOT NULL)
-              AND NOT (e.source_kind = 'assignment-report' AND e.expects_reply = 0 AND
-                json_extract(e.payload_json, '$.assignmentReport.state') = 'progress')`,
-        )
-        .all(botSlug) as unknown as Array<{
-        session_id: string | null;
-        source_kind: string;
-        expects_reply: number;
-        state: string | null;
-      }>;
-      if (
-        rows.length === 0 ||
-        rows.some(
-          (row) =>
-            row.session_id === null ||
-            row.source_kind !== 'assignment-report' ||
-            row.expects_reply !== 0 ||
-            row.state !== 'completed',
-        )
-      )
-        return false;
-      if (rows.length >= COMPLETION_DIGEST_COUNT) return false;
-      const sessions = [...new Set(rows.map((row) => row.session_id!))];
-      const other = database
-        .prepare(
-          `SELECT 1 FROM assignments
-            WHERE bot_slug = ? AND activity = 'working' AND stop_state = 'running'
-              AND archived_at IS NULL
-              AND session_id NOT IN (${sessions.map(() => '?').join(', ')})
-            LIMIT 1`,
-        )
-        .get(botSlug, ...sessions);
-      return other !== undefined;
-    });
-  }
-
   #scheduleHarvest(botSlug: string): void {
     if (this.#closed || this.#held.has(botSlug)) return;
     const bot = this.#registry.get(botSlug);
@@ -3869,7 +3427,7 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#scheduleHarvest(botSlug);
       return;
     }
-    const externalPending = this.#pendingExternalRows(botSlug);
+    const externalPending = this.#messagingEvents.pendingExternalRows(botSlug);
     if (
       externalPending.some(
         (row) =>
@@ -3881,31 +3439,13 @@ class BotRuntimeImplementation implements BotRuntime {
       return;
     }
     if (this.#dmChannel(botSlug) !== undefined) {
-      const report = this.#database.read((database) =>
-        database
-          .prepare(
-            `
-          SELECT 1 AS found FROM inbox_admissions a
-           JOIN source_events e ON e.source_event_id = a.source_event_id
-          WHERE a.bot_slug = ? AND a.reason IN ('assignment-report', 'assignment-lifecycle')
-            AND a.attempt_state = 'pending' AND e.observed_at IS NULL
-            AND NOT (e.source_kind = 'assignment-lifecycle' AND
-                  json_extract(e.payload_json, '$.assignmentLifecycle.reportSourceEventId') IS NOT NULL)
-             AND (a.source_policy_wake_mode = 'immediate' OR
-                 ((a.source_policy_wake_mode = 'conditional' OR
-                   a.source_policy_wake_mode IS NULL) AND
-                  (a.reason = 'assignment-lifecycle' OR e.expects_reply = 1 OR
-                   e.payload_json IS NULL OR
-                   json_extract(e.payload_json, '$.assignmentReport.state')
-                     IN ('completed', 'blocked', 'waiting-human', 'failed'))))
-          LIMIT 1
-        `,
-          )
-          .get(botSlug),
-      );
-      if (report !== undefined && this.#scheduleReportHarvest(botSlug)) return;
+      if (
+        this.#assignmentEvents.hasPendingAssignmentReport(botSlug) &&
+        this.#assignmentEvents.scheduleReportHarvest(botSlug)
+      )
+        return;
     }
-    this.#scheduleExternalDigest(botSlug);
+    this.#messagingEvents.scheduleExternalDigest(botSlug);
     for (const channelId of this.#pendingDigestChannels(botSlug)) {
       this.#scheduleDigest(botSlug, channelId);
     }
@@ -3963,7 +3503,7 @@ class BotRuntimeImplementation implements BotRuntime {
       (collected.eventIds.length === 0 ||
         (claimed.contexts.length === 0 && collected.units.every(onlyPairedLifecycle)))
     ) {
-      this.#settleSeenPairedNotices(botSlug, collected.eventIds);
+      this.#assignmentEvents.settleSeenPairedNotices(botSlug, collected.eventIds);
       return;
     }
     const externalChannelId = collected.units.find((unit) => unit.external?.localChannelId)
@@ -4495,12 +4035,19 @@ class BotRuntimeImplementation implements BotRuntime {
 
   #acceptTurnSources(botSlug: string, sourceEventIds: readonly string[]): void {
     const turn = this.#turnSources.get(botSlug);
-    for (const id of sourceEventIds) turn?.acceptedEventIds.add(id);
+    if (turn === undefined) return;
+    for (const id of sourceEventIds) {
+      turn.eventIds.add(id);
+      turn.acceptedEventIds.add(id);
+    }
   }
 
-  #markAdmissionsSideEffect(botSlug: string, sourceEventIds: string[]): void {
+  #markAdmissionsSideEffect(botSlug: string, sourceEventIds: string[], recordInTurn = true): void {
     if (sourceEventIds.length === 0) return;
-    for (const id of sourceEventIds) this.#turnSources.get(botSlug)?.eventIds.add(id);
+    if (recordInTurn) {
+      const turn = this.#turnSources.get(botSlug);
+      if (turn !== undefined) for (const id of sourceEventIds) turn.eventIds.add(id);
+    }
     this.#database.transaction(
       (database) => {
         for (const id of sourceEventIds) {
@@ -4784,6 +4331,7 @@ class BotRuntimeImplementation implements BotRuntime {
     botSlug: string,
     channelId: string,
     messageId: string,
+    claimPending = false,
   ): void {
     const changed = this.#database.transaction(
       (database) =>
@@ -4791,11 +4339,13 @@ class BotRuntimeImplementation implements BotRuntime {
           .prepare(
             `
         UPDATE inbox_admissions
-           SET observed_at = COALESCE(observed_at, ?)
-         WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
+           SET observed_at = COALESCE(observed_at, ?), attempt_state = 'running',
+               last_error = CASE WHEN attempt_state = 'running' THEN last_error ELSE NULL END
+         WHERE source_event_id = ? AND bot_slug = ?
+           AND (attempt_state = 'running' OR (? AND attempt_state IN ('pending', 'retryable')))
       `,
           )
-          .run(this.#now().toISOString(), sourceEventId, botSlug).changes > 0,
+          .run(this.#now().toISOString(), sourceEventId, botSlug, Number(claimPending)).changes > 0,
       ['bot-inbox'],
     );
     if (changed) this.#channels.admissionChanged?.(channelId, messageId);
@@ -5586,7 +5136,7 @@ class BotRuntimeImplementation implements BotRuntime {
       record('ok', typeof result === 'string' ? result : JSON.stringify(result));
       if (DIRECT_ASSIGNMENT_TOOLS.has(tool)) {
         try {
-          this.#noticeDirectAssignmentCall(bot.slug, tool, args, result);
+          this.#assignmentReporting.noticeDirectAssignmentCall(bot.slug, tool, args, result);
         } catch (error) {
           this.#warn?.(
             `Direct ${tool} succeeded but its Orchestrator notice was not recorded: ${error instanceof Error ? error.message : String(error)}`,
@@ -5625,81 +5175,6 @@ class BotRuntimeImplementation implements BotRuntime {
       ['source-event'],
     );
     return id;
-  }
-
-  #noticeDirectAssignmentCall(
-    botSlug: string,
-    tool: string,
-    args: Record<string, unknown>,
-    result: unknown,
-  ): void {
-    if (typeof result !== 'object' || result === null) return;
-    const outcome = result as { outcome?: unknown; sessionId?: unknown; delivery?: unknown };
-    if (typeof outcome.sessionId !== 'string') return;
-    const sessionId = outcome.sessionId;
-    const quoted = (value: unknown) =>
-      typeof value !== 'string'
-        ? undefined
-        : value.length > DIRECT_NOTICE_TEXT_LIMIT
-          ? `${JSON.stringify(value.slice(0, DIRECT_NOTICE_TEXT_LIMIT))} (${value.length - DIRECT_NOTICE_TEXT_LIMIT} more characters omitted)`
-          : JSON.stringify(value);
-    let body: string;
-    let cause: string;
-    if (tool === 'create_assignment') {
-      if (outcome.outcome !== 'created' && outcome.outcome !== 'reused') return;
-      cause = outcome.outcome === 'created' ? 'direct-create' : 'direct-reuse';
-      body = [
-        outcome.outcome === 'created'
-          ? 'The Human created this Assignment directly through the deepseekbot CLI, not through you.'
-          : 'The Human continued this keyed Assignment directly through the deepseekbot CLI, not through you.',
-        `Title: ${quoted(args.title) ?? '(none)'}.`,
-        `Description: ${quoted(args.description) ?? '(none)'}.`,
-        ...(quoted(args.instructions) === undefined
-          ? []
-          : [`Instructions: ${quoted(args.instructions)}.`]),
-        'It is yours to manage like any Assignment you created: its reports come to you; continue it with send_assignment_request and archive it when its work is finished.',
-      ].join(' ');
-    } else {
-      if (outcome.delivery !== 'steer' && outcome.delivery !== 'followup') return;
-      cause = 'direct-request';
-      body = `The Human sent this Assignment a request directly from its Session detail or the deepseekbot CLI, not through you: ${quoted(tool === 'unarchive_assignment' ? args.message : args.text) ?? '(empty)'}. Its next report answers that request.`;
-    }
-    const id = this.#createEventId();
-    const at = this.#now().toISOString();
-    this.#database.transaction(
-      (database) => {
-        const owned = database
-          .prepare('SELECT 1 FROM assignments WHERE bot_slug = ? AND session_id = ?')
-          .get(botSlug, sessionId);
-        if (owned === undefined) return;
-        const rule = this.#sourcePolicy.resolveIn(database, botSlug, 'assignment-lifecycle');
-        database
-          .prepare(
-            `INSERT INTO source_events (source_event_id, source_kind, bot_slug, assignment_session_id,
-               body, created_at, handled_at, attempt_state, expects_reply, payload_json)
-             VALUES (?, 'assignment-lifecycle', ?, ?, ?, ?, ?, 'handled', 0, ?)`,
-          )
-          .run(
-            id,
-            botSlug,
-            sessionId,
-            body,
-            at,
-            at,
-            JSON.stringify({
-              author: { kind: 'system' },
-              assignmentLifecycle: { state: 'directed', cause },
-            }),
-          );
-        database
-          .prepare(
-            `INSERT INTO inbox_admissions (source_event_id, bot_slug, reason, source_policy_revision, source_policy_wake_mode)
-             VALUES (?, ?, 'assignment-lifecycle', ?, 'silent')`,
-          )
-          .run(id, botSlug, rule.revision);
-      },
-      ['source-event', 'bot-inbox'],
-    );
   }
 
   currentTurnTarget(botSlug: string): TurnTarget | undefined {
@@ -6142,7 +5617,7 @@ class BotRuntimeImplementation implements BotRuntime {
               permission,
               recoveryEntry: () => this.getAssignment(bot.slug, sessionId),
               failEngineRecovery: (summary) =>
-                this.#recordEngineRecoveryFailure(bot.slug, sessionId, summary),
+                this.#assignmentReporting.recordEngineRecoveryFailure(bot.slug, sessionId, summary),
               ...(modelRoute === undefined ? {} : { modelRoute }),
               ...(agentPreset === undefined ? {} : { agentPreset }),
               requireContent: () => {
@@ -6167,11 +5642,16 @@ class BotRuntimeImplementation implements BotRuntime {
                 return accepted;
               },
               report: (report, execution) =>
-                this.#recordReport(bot.slug, sessionId, report, execution),
+                this.#assignmentReporting.recordReport(bot.slug, sessionId, report, execution),
               completedTurn: (execution) =>
-                this.#recordCompletedAssignment(bot.slug, sessionId, execution),
+                this.#assignmentReporting.recordCompletedAssignment(bot.slug, sessionId, execution),
               cancelledTurn: (execution) =>
-                this.#recordUnsuccessfulAssignment(bot.slug, sessionId, execution, 'cancelled'),
+                this.#assignmentReporting.recordUnsuccessfulAssignment(
+                  bot.slug,
+                  sessionId,
+                  execution,
+                  'cancelled',
+                ),
               failedTurn: (execution) => this.#assignmentFailed(bot.slug, sessionId, execution),
             });
           } finally {
@@ -6450,7 +5930,7 @@ class BotRuntimeImplementation implements BotRuntime {
       if (this.#closed || this.#held.has(botSlug)) return;
       this.#checkHarvestReadiness(botSlug);
       this.#recoverPendingDigests(botSlug);
-      this.#armSnooze(botSlug);
+      this.#activityEvents.armSnooze(botSlug);
     });
   }
 
@@ -6924,7 +6404,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#setObserved(collected.eventIds, timestamp, bot.slug);
     try {
       tobCliTurn?.signal.throwIfAborted();
-      this.#observeAdmission(claim.sourceEventId, bot.slug, channelId, messageId);
+      this.#observeAdmission(claim.sourceEventId, bot.slug, channelId, messageId, true);
       await this.#runOnLiveOrchestrator(bot, orchestrator, (session) => {
         orchestrator = session;
         return this.#runOrchestratorTurn(
@@ -7185,7 +6665,7 @@ class BotRuntimeImplementation implements BotRuntime {
         preserveObservation = false;
       }
       const memoryInbox = observeMemory
-        ? this.#memoryEvents.collectMemoryInbox(bot.slug, coalesceInbox)
+        ? this.#memoryEvents.collectMemoryInbox(bot.slug)
         : { units: [], eventIds: [] };
       memoryEventIds = memoryInbox.eventIds;
       const units = [...inboxUnits, ...memoryInbox.units];
@@ -7243,6 +6723,26 @@ class BotRuntimeImplementation implements BotRuntime {
             this.#preparedOrchestrators.add(orchestrator.sessionId);
             this.#nativeStepReady.get(orchestrator.sessionId)?.(true);
           } else this.#preparedOrchestrators.delete(orchestrator.sessionId);
+        },
+        canUseEngineChannel: (id) => {
+          const turn = this.#turnSources.get(bot.slug);
+          if (turn?.sessionId !== orchestrator.sessionId) return false;
+          const channel = this.#channels.get(id);
+          if (channel === undefined || !this.#isMember(bot.slug, channel)) return false;
+          return (
+            turn.steeredChannelIds.has(id) ||
+            this.#turnSourceIn(bot.slug, id, readAdmissions, turn.acceptedEventIds) !== undefined
+          );
+        },
+        priorEngineReplies: () => {
+          const turn = this.#turnSources.get(bot.slug);
+          if (turn?.sessionId !== orchestrator.sessionId) return new Set();
+          return new Set(
+            [...turn.acceptedEventIds].filter(
+              (id) =>
+                this.#routingGroupReplyState(bot.slug, orchestrator.sessionId, id) !== undefined,
+            ),
+          );
         },
         inputAccepted: () => envelope?.commit(),
         ...(acceptNativeInput === undefined ? {} : { acceptNativeInput }),
@@ -7322,7 +6822,7 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#notifyReadAdmissions(readAdmissions);
       if (!this.#triageRunning.has(bot.slug)) this.#triageBaseline.delete(bot.slug);
       if (tobCliTurn === undefined && !this.#stoppedTurns.has(bot.slug))
-        this.#queueTriage(bot.slug);
+        this.#activityEvents.queueTriage(bot.slug);
     } catch (error) {
       this.#setObserved(memoryEventIds, null);
       this.#settleHarvestFailure(bot.slug, [...readAdmissions], String(error));
@@ -7435,6 +6935,7 @@ class BotRuntimeImplementation implements BotRuntime {
     inputRecorded: boolean,
   ): OrchestratorAgentRun {
     const priorReply = this.#routingGroupReplyState(run.bot.slug, run.sessionId, sourceEventId);
+    const priorReplies = run.priorEngineReplies?.();
     const replyInstruction =
       priorReply === 'delivered'
         ? 'The previous target already delivered a reply to this Source Event. Continue any remaining work without answering it again.'
@@ -7450,20 +6951,23 @@ class BotRuntimeImplementation implements BotRuntime {
       message: inputRecorded ? note : `${note}\n\n${run.message}`,
       inbox: inputRecorded ? '' : run.inbox,
     };
-    if (priorReply === undefined) return continuation;
+    if (priorReply === undefined && !priorReplies?.size) return continuation;
 
-    const refuseDuplicate = (): never => {
-      throw new Error(replyInstruction);
+    const requireUnanswered = (id: string | undefined): void => {
+      if (id === undefined) return;
+      if (id === sourceEventId && priorReply !== undefined) throw new Error(replyInstruction);
+      if (priorReplies?.has(id))
+        throw new Error(
+          'A reply to this Source Event is already recorded. Check its delivery receipt.',
+        );
     };
     const channelId = run.inboundChannelId;
     continuation.channels = {
       ...run.channels,
       send: (input) => {
-        if (
-          (input.replySourceEventId ?? sourceEventId) === sourceEventId &&
-          (input.channelId ?? channelId) === channelId
-        )
-          refuseDuplicate();
+        const implicitSource =
+          (input.channelId ?? channelId) === channelId ? sourceEventId : undefined;
+        requireUnanswered(input.replySourceEventId ?? implicitSource);
         return run.channels.send(input);
       },
     };
@@ -7471,10 +6975,14 @@ class BotRuntimeImplementation implements BotRuntime {
     if (external !== undefined)
       continuation.externalMessaging = {
         ...external,
-        reply: (id, text, key) =>
-          id === sourceEventId ? refuseDuplicate() : external.reply(id, text, key),
-        replyFile: (id, file, key) =>
-          id === sourceEventId ? refuseDuplicate() : external.replyFile(id, file, key),
+        reply: (id, text, key) => {
+          requireUnanswered(id);
+          return external.reply(id, text, key);
+        },
+        replyFile: (id, file, key) => {
+          requireUnanswered(id);
+          return external.replyFile(id, file, key);
+        },
       };
     return continuation;
   }
@@ -7707,7 +7215,7 @@ class BotRuntimeImplementation implements BotRuntime {
               read: (id: string) => {
                 const source = this.#externalMessaging!.inbound.readShared(bot.slug, id);
                 if (turn.observeReads)
-                  this.#observeExternalRead(bot.slug, [id], turn.readAdmissions);
+                  this.#messagingEvents.observeExternalRead(bot.slug, [id], turn.readAdmissions);
                 return source;
               },
               share: (id, destinationChannelId) => {
@@ -7723,7 +7231,7 @@ class BotRuntimeImplementation implements BotRuntime {
                   signal,
                 );
                 if (turn.observeReads)
-                  this.#observeExternalRead(
+                  this.#messagingEvents.observeExternalRead(
                     bot.slug,
                     result.messages.map((item) => item.sourceEventId),
                     turn.readAdmissions,
@@ -7779,7 +7287,7 @@ class BotRuntimeImplementation implements BotRuntime {
         current: () => [...turn.turnSources, ...turn.readAdmissions],
         changed: (changedChannelId, messageId) =>
           this.#channels.admissionChanged?.(changedChannelId, messageId),
-        snoozed: () => this.#armSnooze(bot.slug),
+        snoozed: () => this.#activityEvents.armSnooze(bot.slug),
       }),
       channels,
       replyDestination: (id) => {
@@ -7970,7 +7478,7 @@ class BotRuntimeImplementation implements BotRuntime {
         const outcome = this.#createOrReuseAssignment(bot, sourceEventId, input, trackDelivery);
         if (outcome.outcome === 'created' || outcome.outcome === 'reused') {
           markSideEffect();
-          this.#linkRequestAssignment(sourceEventId, outcome.assignment.sessionId);
+          this.#assignmentEvents.linkRequestAssignment(sourceEventId, outcome.assignment.sessionId);
         }
         return outcome;
       },
@@ -7988,13 +7496,7 @@ class BotRuntimeImplementation implements BotRuntime {
           throw new Error('DSH Session Query is unavailable');
         return this.#readAssignmentTail(sessionId);
       },
-      reportPage: (request) =>
-        readAcceptedAssignmentReport(
-          this.#database,
-          this.#readAssignmentReportPage,
-          bot.slug,
-          request,
-        ),
+      reportPage: (request) => this.#assignmentReporting.reportPage(bot.slug, request),
       request: (input) => {
         refuseStopped();
         if (sourceEventId !== undefined)
@@ -8003,53 +7505,19 @@ class BotRuntimeImplementation implements BotRuntime {
         if (outcome.delivery !== 'capacity' && outcome.delivery !== 'refused') {
           markSideEffect();
           if (sourceEventId !== undefined)
-            this.#linkRequestAssignment(sourceEventId, input.sessionId);
+            this.#assignmentEvents.linkRequestAssignment(sourceEventId, input.sessionId);
         }
         return outcome;
       },
-      wait: (sessionId, signal, timeoutMs = 30000) => {
-        if (orchestratorSessionId === undefined) throw new Error('Orchestrator run is unavailable');
-        return waitForAssignment({
-          read: () => {
-            const assignment = this.getAssignment(bot.slug, sessionId);
-            if (assignment === undefined) throw new Error('Unknown owned Assignment Session');
-            const report = this.#database.read((database) =>
-              database
-                .prepare(
-                  `SELECT source_event_id FROM source_events
-               WHERE bot_slug = ? AND assignment_session_id = ? AND source_kind = 'assignment-report'
-               ORDER BY rowid DESC LIMIT 1`,
-                )
-                .get(bot.slug, sessionId),
-            ) as { source_event_id: string } | undefined;
-            return { assignment, reportId: report?.source_event_id };
-          },
-          subscribe: (changed) =>
-            this.#waitOptions.database.subscribe((notification) => {
-              if (notification.topics.includes('assignments')) changed();
-            }),
-          begin: () =>
-            this.#waitOptions.beginAssignmentWait?.(bot.slug, orchestratorSessionId) ?? (() => {}),
-          signal: AbortSignal.any([signal, this.#waitLifetime.signal]),
+      wait: (sessionId, signal, timeoutMs) =>
+        this.#assignmentEvents.wait(
+          bot,
+          orchestratorSessionId,
+          readAdmissions,
+          sessionId,
+          signal,
           timeoutMs,
-        }).then((outcome) => {
-          if (outcome.outcome === 'timeout' || readAdmissions === undefined) return outcome;
-          const inboxIds = this.#claimAssignmentNotices(
-            bot.slug,
-            sessionId,
-            outcome.reportId,
-            readAdmissions,
-          );
-          return inboxIds.length === 0
-            ? outcome
-            : {
-                ...outcome,
-                inboxIds,
-                resolveHint:
-                  'You have now seen these Inbox items. Once this result is used, resolve them with inbox_resolve in the same step as your reply, so no triage turn follows.',
-              };
-        });
-      },
+        ),
       stop: (sessionId) => this.#stopAssignment(bot, sessionId, markSideEffect),
     };
   }
@@ -10005,8 +9473,9 @@ class BotRuntimeImplementation implements BotRuntime {
     botSlug: string,
     channelId: string,
     read: Iterable<string> = [],
+    turnSources: Iterable<string> = this.#turnSources.get(botSlug)?.eventIds ?? [],
   ): string | undefined {
-    const sources = [...new Set([...(this.#turnSources.get(botSlug)?.eventIds ?? []), ...read])];
+    const sources = [...new Set([...turnSources, ...read])];
     if (sources.length === 0) return undefined;
     const row = this.#database.read(
       (database) =>
@@ -10806,7 +10275,7 @@ class BotRuntimeImplementation implements BotRuntime {
         permission,
         recoveryEntry: () => this.getAssignment(bot.slug, sessionId),
         failEngineRecovery: (summary) =>
-          this.#recordEngineRecoveryFailure(bot.slug, sessionId, summary),
+          this.#assignmentReporting.recordEngineRecoveryFailure(bot.slug, sessionId, summary),
         ...(modelRoute === undefined ? {} : { modelRoute }),
         ...this.#assignmentGroupExecution(
           bot.slug,
@@ -10816,11 +10285,16 @@ class BotRuntimeImplementation implements BotRuntime {
         ),
         ...(input.mode === undefined ? {} : { agentPreset: input.mode }),
         report: async (report, execution) =>
-          this.#recordReport(bot.slug, sessionId, report, execution),
+          this.#assignmentReporting.recordReport(bot.slug, sessionId, report, execution),
         completedTurn: (execution) =>
-          this.#recordCompletedAssignment(bot.slug, sessionId, execution),
+          this.#assignmentReporting.recordCompletedAssignment(bot.slug, sessionId, execution),
         cancelledTurn: (execution) =>
-          this.#recordUnsuccessfulAssignment(bot.slug, sessionId, execution, 'cancelled'),
+          this.#assignmentReporting.recordUnsuccessfulAssignment(
+            bot.slug,
+            sessionId,
+            execution,
+            'cancelled',
+          ),
         failedTurn: (execution) => this.#assignmentFailed(bot.slug, sessionId, execution),
       }),
     );
@@ -10943,7 +10417,7 @@ class BotRuntimeImplementation implements BotRuntime {
       permission,
       recoveryEntry: () => this.getAssignment(bot.slug, input.sessionId),
       failEngineRecovery: (summary) =>
-        this.#recordEngineRecoveryFailure(bot.slug, input.sessionId, summary),
+        this.#assignmentReporting.recordEngineRecoveryFailure(bot.slug, input.sessionId, summary),
       ...(modelRoute === undefined ? {} : { modelRoute }),
       ...(input.model === undefined
         ? this.#assignmentGroupExecution(
@@ -10955,109 +10429,30 @@ class BotRuntimeImplementation implements BotRuntime {
         : {}),
       ...(typeof row.agent_preset === 'string' ? { agentPreset: row.agent_preset } : {}),
       report: async (report, execution) =>
-        this.#recordReport(bot.slug, input.sessionId, report, execution),
+        this.#assignmentReporting.recordReport(bot.slug, input.sessionId, report, execution),
       completedTurn: (execution) =>
-        this.#recordCompletedAssignment(bot.slug, input.sessionId, execution),
+        this.#assignmentReporting.recordCompletedAssignment(bot.slug, input.sessionId, execution),
       cancelledTurn: (execution) =>
-        this.#recordUnsuccessfulAssignment(bot.slug, input.sessionId, execution, 'cancelled'),
+        this.#assignmentReporting.recordUnsuccessfulAssignment(
+          bot.slug,
+          input.sessionId,
+          execution,
+          'cancelled',
+        ),
       failedTurn: (execution) => this.#assignmentFailed(bot.slug, input.sessionId, execution),
     };
-    const waking = row.activity === 'idle' || recovering;
-    if (waking) {
-      const refusal = this.#assignmentCapacityRefusal('awakened');
-      if (refusal !== undefined) {
-        return {
-          ...refusal,
-          assignment: this.#requireAssignmentSummary(bot.slug, input.sessionId),
-          delivery: 'capacity',
-        };
-      }
-      if (stopped !== undefined)
-        this.#setStopState(bot.slug, input.sessionId, 'stopped', 'running', 'working');
-      else this.#setActivity(input.sessionId, 'working');
-    }
-    let delivery: AssignmentRequestDelivery;
-    const previousContinuation = this.#groupContinuations.get(input.sessionId);
-    try {
-      delivery = this.#agents.requestAssignment(run);
-      if (interrupted !== undefined) this.#interruptedTools.delete(input.sessionId);
-    } catch (error) {
-      const uncertain = error instanceof AssignmentInboxAcceptanceUncertainError;
-      if (uncertain) this.#setActivity(input.sessionId, 'error');
-      else if (waking) this.#setActivity(input.sessionId, settledActivity);
-      if (stopped !== undefined && !uncertain)
-        this.#setStopState(bot.slug, input.sessionId, 'running', 'stopped', stopped.activity);
-      this.#publishAssignmentRefusal(row, error);
-      throw error;
-    }
-    const settleAcceptance = () => {
-      const at = this.#now().toISOString();
-      this.#database.transaction(
-        (database) => {
-          if (row.open_ask_source_event_id !== null) {
-            database
-              .prepare(
-                `UPDATE assignments
-              SET open_ask_source_event_id = NULL, open_ask_at = NULL, updated_at = ?
-              WHERE session_id = ? AND bot_slug = ? AND stop_state = 'running'
-                AND open_ask_source_event_id = ?`,
-              )
-              .run(at, input.sessionId, bot.slug, row.open_ask_source_event_id);
-          }
-          if (input.model !== undefined) {
-            database
-              .prepare(
-                `UPDATE assignments
-              SET model_route_json = ?, model_group_id = NULL, model_effort = NULL, updated_at = ?
-              WHERE session_id = ? AND bot_slug = ? AND stop_state = 'running'`,
-              )
-              .run(JSON.stringify(modelRoute), at, input.sessionId, bot.slug);
-          }
-        },
-        ['assignments'],
-      );
-    };
-    if (delivery.delivery === 'followup') {
-      this.#assignmentAcceptances.add(input.sessionId);
-      trackDelivery?.(input.sessionId, true);
-      let accepted = false;
-      let uncertain = false;
-      void delivery.done.catch(() => undefined);
-      this.#trackAssignmentRun(
-        input.sessionId,
-        async (beginProcessing) => {
-          try {
-            await delivery.accepted;
-          } catch (error) {
-            uncertain = error instanceof AssignmentInboxAcceptanceUncertainError;
-            this.#assignmentAcceptances.delete(input.sessionId);
-            throw error;
-          }
-          this.#assignmentAcceptances.delete(input.sessionId);
-          accepted = true;
-          if (this.#groupContinuations.get(input.sessionId) === previousContinuation)
-            this.#groupContinuations.delete(input.sessionId);
-          settleAcceptance();
-          beginProcessing();
-          await delivery.done;
-        },
-        () => ({
-          activity: !accepted && !uncertain && waking ? settledActivity : 'error',
-          ...(!accepted && !uncertain && row.open_ask_source_event_id !== null
-            ? { answerTo: row.open_ask_source_event_id }
-            : {}),
-        }),
-        true,
-      );
-    } else {
-      settleAcceptance();
-      this.#setActivity(input.sessionId, 'working');
-    }
-    return {
-      assignment: this.#requireAssignmentSummary(bot.slug, input.sessionId),
-      delivery: delivery.delivery,
-      acceptance: delivery.delivery === 'steer' ? 'accepted' : 'pending',
-    };
+    return this.#assignmentDelivery.deliverAssignmentRequest({
+      bot,
+      input,
+      row,
+      stopped,
+      recovering,
+      settledActivity,
+      run,
+      interrupted,
+      modelRoute,
+      trackDelivery,
+    });
   }
 
   async #stopAssignment(
@@ -11557,7 +10952,12 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#groupFallback === undefined ||
       this.#routeRests?.restingUntil(current) === undefined
     ) {
-      this.#recordUnsuccessfulAssignment(botSlug, sessionId, execution, 'failed');
+      this.#assignmentReporting.recordUnsuccessfulAssignment(
+        botSlug,
+        sessionId,
+        execution,
+        'failed',
+      );
       return;
     }
     const continuation = { refreshing: false };
@@ -11584,7 +10984,12 @@ class BotRuntimeImplementation implements BotRuntime {
     const fail = (error: unknown) => {
       const row = runningAssignment();
       if (row === undefined) return;
-      this.#recordUnsuccessfulAssignment(botSlug, sessionId, execution, 'failed');
+      this.#assignmentReporting.recordUnsuccessfulAssignment(
+        botSlug,
+        sessionId,
+        execution,
+        'failed',
+      );
       this.#setActivity(sessionId, 'error');
       const channel = this.#assignmentDmChannel(row);
       if (channel === undefined) return;
@@ -11705,326 +11110,6 @@ class BotRuntimeImplementation implements BotRuntime {
     return route;
   }
 
-  #recordUnsuccessfulAssignment(
-    botSlug: string,
-    sessionId: string,
-    execution: { turn: number; endSeq: number },
-    state: 'cancelled' | 'failed',
-  ): void {
-    if (
-      !Number.isSafeInteger(execution.turn) ||
-      execution.turn < 1 ||
-      !Number.isSafeInteger(execution.endSeq) ||
-      execution.endSeq < 0
-    )
-      throw new Error('Invalid native Assignment unsuccessful settlement');
-    const cause = state === 'cancelled' ? 'native-turn-aborted' : 'native-turn-error';
-    const outcome = state === 'cancelled' ? 'was cancelled' : 'ended with an execution error';
-    const at = this.#now().toISOString();
-    const created = this.#database.transaction(
-      (database) => {
-        const assignment = database
-          .prepare(
-            `
-          SELECT 1 FROM assignments WHERE bot_slug = ? AND session_id = ?
-            AND stop_state = 'running'
-        `,
-          )
-          .get(botSlug, sessionId);
-        if (assignment === undefined) return false;
-        const existing = database
-          .prepare(
-            `
-          SELECT 1 FROM source_events WHERE bot_slug = ? AND assignment_session_id = ?
-            AND source_kind = 'assignment-lifecycle'
-            AND json_extract(payload_json, '$.assignmentLifecycle.turn') = ?
-            AND json_extract(payload_json, '$.assignmentLifecycle.cause') = ?
-        `,
-          )
-          .get(botSlug, sessionId, execution.turn, cause);
-        if (existing !== undefined) return false;
-        const id = this.#createEventId();
-        const rule = this.#sourcePolicy.resolveIn(database, botSlug, 'assignment-lifecycle');
-        database
-          .prepare(
-            `
-          UPDATE assignments SET activity = 'error', updated_at = ?
-            WHERE bot_slug = ? AND session_id = ? AND stop_state = 'running'
-        `,
-          )
-          .run(at, botSlug, sessionId);
-        database
-          .prepare(
-            `
-          INSERT INTO source_events (source_event_id, source_kind, bot_slug, assignment_session_id,
-            body, created_at, handled_at, attempt_state, expects_reply, payload_json)
-          VALUES (?, 'assignment-lifecycle', ?, ?, ?, ?, ?, 'handled', 0, ?)
-        `,
-          )
-          .run(
-            id,
-            botSlug,
-            sessionId,
-            'DSH confirmed Assignment Turn ' +
-              execution.turn +
-              ' ' +
-              outcome +
-              '. Execution did not complete successfully. Its context is kept: send_assignment_request with this Session id continues it; archive_assignment resolves it.',
-            at,
-            at,
-            JSON.stringify({
-              author: { kind: 'system' },
-              assignmentLifecycle: {
-                state,
-                cause,
-                turn: execution.turn,
-                endSeq: execution.endSeq,
-              },
-            }),
-          );
-        database
-          .prepare(
-            `
-          INSERT INTO inbox_admissions (source_event_id, bot_slug, reason, source_policy_revision, source_policy_wake_mode)
-          VALUES (?, ?, 'assignment-lifecycle', ?, ?)
-        `,
-          )
-          .run(id, botSlug, rule.revision, rule.wake);
-        return rule.wake === 'immediate';
-      },
-      ['assignments', 'source-event', 'bot-inbox'],
-    );
-    if (created) this.#scheduleHarvest(botSlug);
-  }
-
-  #recordCompletedAssignment(
-    botSlug: string,
-    sessionId: string,
-    execution: { turn: number; endSeq: number },
-  ): void {
-    if (
-      !Number.isSafeInteger(execution.turn) ||
-      execution.turn < 1 ||
-      !Number.isSafeInteger(execution.endSeq) ||
-      execution.endSeq < 0
-    )
-      throw new Error('Invalid native Assignment completion');
-    const at = this.#now().toISOString();
-    this.#database.transaction(
-      (database) => {
-        const report = database
-          .prepare(
-            `
-        SELECT e.source_event_id FROM source_events e
-          JOIN assignments a ON a.session_id = e.assignment_session_id AND a.bot_slug = e.bot_slug
-         WHERE e.bot_slug = ? AND e.assignment_session_id = ? AND a.stop_state = 'running'
-           AND e.source_kind = 'assignment-report'
-           AND json_extract(e.payload_json, '$.assignmentReport.state') = 'completed'
-           AND json_extract(e.payload_json, '$.assignmentReport.turn') = ?
-         ORDER BY e.rowid DESC LIMIT 1
-      `,
-          )
-          .get(botSlug, sessionId, execution.turn) as { source_event_id: string } | undefined;
-        if (report === undefined) return;
-        const existing = database
-          .prepare(
-            `
-        SELECT 1 FROM source_events WHERE bot_slug = ? AND assignment_session_id = ?
-          AND source_kind = 'assignment-lifecycle'
-          AND json_extract(payload_json, '$.assignmentLifecycle.turn') = ?
-          AND json_extract(payload_json, '$.assignmentLifecycle.cause') = 'native-turn-completed'
-      `,
-          )
-          .get(botSlug, sessionId, execution.turn);
-        if (existing !== undefined) return;
-        const id = this.#createEventId();
-        const rule = this.#sourcePolicy.resolveIn(database, botSlug, 'assignment-lifecycle');
-        database
-          .prepare(
-            `
-        INSERT INTO source_events (source_event_id, source_kind, bot_slug, assignment_session_id,
-          body, created_at, handled_at, attempt_state, expects_reply, payload_json)
-        VALUES (?, 'assignment-lifecycle', ?, ?, ?, ?, ?, 'handled', 0, ?)
-      `,
-          )
-          .run(
-            id,
-            botSlug,
-            sessionId,
-            'DSH confirmed successful completion of Assignment Turn ' + execution.turn + '.',
-            at,
-            at,
-            JSON.stringify({
-              author: { kind: 'system' },
-              assignmentLifecycle: {
-                state: 'completed',
-                cause: 'native-turn-completed',
-                turn: execution.turn,
-                endSeq: execution.endSeq,
-                reportSourceEventId: report.source_event_id,
-              },
-            }),
-          );
-        database
-          .prepare(
-            `
-        INSERT INTO inbox_admissions (source_event_id, bot_slug, reason, source_policy_revision, source_policy_wake_mode)
-        VALUES (?, ?, 'assignment-lifecycle', ?, ?)
-      `,
-          )
-          .run(id, botSlug, rule.revision, rule.wake);
-      },
-      ['source-event', 'bot-inbox'],
-    );
-  }
-
-  #recordEngineRecoveryFailure(botSlug: string, sessionId: string, summary: string) {
-    const owner = this.#ownership.resolve(sessionId);
-    if (
-      this.#closed ||
-      this.#registry.get(botSlug) === undefined ||
-      owner?.botSlug !== botSlug ||
-      owner.rootRole !== 'assignment' ||
-      owner.parentSessionId !== undefined
-    )
-      throw new Error(`Assignment Session ${sessionId} is unavailable`);
-    return this.#recordReport(botSlug, sessionId, { state: 'failed', summary }, undefined, true);
-  }
-
-  async #recordReport(
-    botSlug: string,
-    sessionId: string,
-    input: AssignmentReportInput,
-    execution?: { turn: number },
-    engineRecoveryFailure = false,
-  ): Promise<AssignmentReport> {
-    const origin = this.#assignmentRow(botSlug, sessionId)?.source_event_id;
-    if (origin && !engineRecoveryFailure)
-      this.#database.read((db) => requireSourceContent(db, origin));
-    if (execution !== undefined && (!Number.isSafeInteger(execution.turn) || execution.turn < 1))
-      throw new Error('Invalid native Assignment Turn');
-    const content = requireNonBlank(input.summary, 'Assignment report summary');
-    const assignment = this.getAssignment(botSlug, sessionId);
-    if (
-      (assignment === undefined && !engineRecoveryFailure) ||
-      assignment?.activity === 'stopping' ||
-      assignment?.activity === 'stopped'
-    )
-      throw new Error(`Assignment Session ${sessionId} is unavailable or stopping`);
-    const preparation = prepareAssignmentReport(sessionId, content, this.#saveReportSpill);
-    const prepared = preparation instanceof Promise ? await preparation : preparation;
-    const { summary } = prepared;
-    const at = this.#now().toISOString();
-    const expectsReply = input.expectsReply === true;
-    const report: AssignmentReport = {
-      state: input.state,
-      summary,
-      at,
-      ...(expectsReply ? { expectsReply: true } : {}),
-    };
-    const sourceEventId = this.#createEventId();
-    const reportWake = this.#database.transaction(
-      (database) => {
-        const priorAsk = database
-          .prepare(
-            `SELECT a.open_ask_source_event_id AS id, a.open_ask_at AS at,
-          json_extract(e.payload_json, '$.assignmentReport.state') AS state,
-          EXISTS (SELECT 1 FROM source_events response INDEXED BY source_events_human_assignment_response
-            WHERE response.source_kind = 'human-message'
-              AND json_extract(response.payload_json, '$.author.kind') = 'human'
-              AND json_extract(response.payload_json, '$.assignmentReply.sessionId') = +a.session_id
-              AND json_extract(response.payload_json, '$.assignmentReply.sourceEventId') = +a.open_ask_source_event_id
-          ) AS answered
-          FROM assignments a LEFT JOIN source_events e ON e.source_event_id = a.open_ask_source_event_id
-          WHERE a.session_id = ? AND a.bot_slug = ?`,
-          )
-          .get(sessionId, botSlug) as
-          | {
-              id: string | null;
-              at: string | null;
-              state: string | null;
-              answered: number;
-            }
-          | undefined;
-        const terminal = input.state === 'completed' || input.state === 'failed';
-        const keepAsk =
-          !terminal &&
-          ((input.state === 'progress' && !expectsReply) ||
-            (expectsReply &&
-              priorAsk?.state === 'blocked' &&
-              priorAsk.answered === 0 &&
-              input.state !== 'blocked'));
-        const askId = terminal
-          ? null
-          : keepAsk
-            ? (priorAsk?.id ?? null)
-            : expectsReply
-              ? sourceEventId
-              : null;
-        const askAt = terminal ? null : keepAsk ? (priorAsk?.at ?? null) : expectsReply ? at : null;
-        const changed = database
-          .prepare(
-            `UPDATE assignments
-                SET latest_report_state = ?, latest_report_summary = ?, latest_report_at = ?,
-                    updated_at = ?,
-                    open_ask_source_event_id = ?,
-                    open_ask_at = ?
-              WHERE session_id = ? AND bot_slug = ? AND stop_state = 'running'`,
-          )
-          .run(input.state, summary, at, at, askId, askAt, sessionId, botSlug);
-        if (changed.changes !== 1 && !(engineRecoveryFailure && priorAsk === undefined))
-          throw new Error(`Assignment Session ${sessionId} is unavailable or stopping`);
-        const sourceRule = this.#sourcePolicy.resolveIn(database, botSlug, 'assignment-report');
-        database
-          .prepare(
-            `INSERT INTO source_events (
-               source_event_id, source_kind, bot_slug, assignment_session_id,
-               body, created_at, handled_at, attempt_state, expects_reply, payload_json
-             ) VALUES (?, 'assignment-report', ?, ?, ?, ?, ?, 'handled', ?, ?)`,
-          )
-          .run(
-            sourceEventId,
-            botSlug,
-            sessionId,
-            summary,
-            at,
-            at,
-            expectsReply ? 1 : 0,
-            JSON.stringify({
-              author: { kind: 'bot', slug: botSlug },
-              assignmentReport: {
-                state: input.state,
-                content: prepared.content,
-                ...(execution === undefined ? {} : { turn: execution.turn }),
-              },
-            }),
-          );
-        database
-          .prepare(
-            `
-            INSERT INTO inbox_admissions
-              (source_event_id, bot_slug, reason,
-               source_policy_revision, source_policy_wake_mode)
-            VALUES (?, ?, 'assignment-report', ?, ?)
-          `,
-          )
-          .run(sourceEventId, botSlug, sourceRule.revision, sourceRule.wake);
-        return sourceRule.wake;
-      },
-      ['assignments', 'assignment-report', 'source-event', 'bot-inbox'],
-    );
-    if (
-      reportWake === 'immediate' ||
-      (reportWake === 'conditional' && this.#shouldWakeNow(input.state, expectsReply))
-    )
-      this.#scheduleReportHarvest(botSlug);
-    return report;
-  }
-
-  #shouldWakeNow(state: AssignmentReportState, expectsReply: boolean): boolean {
-    return expectsReply || state !== 'progress';
-  }
-
   #retryInboxAfterAgentFactoryStarts(
     botSlug: string,
     sourceEventIds: string[],
@@ -12078,31 +11163,6 @@ class BotRuntimeImplementation implements BotRuntime {
     return true;
   }
 
-  #scheduleExternalDigest(botSlug: string): void {
-    if (this.#held.has(botSlug)) return;
-    this.#armDigest(
-      botSlug,
-      `external:${botSlug}`,
-      this.#externalMessaging?.inbound.pendingExternal(botSlug, this.#now()).digests ?? [],
-      () => this.#scheduleExternalDigest(botSlug),
-    );
-  }
-
-  #pendingExternalRows(
-    botSlug: string,
-    includeContext = false,
-  ): Array<{
-    source_event_id: string;
-    body: string;
-    created_at: string;
-    attempt_state: string;
-  }> {
-    return (
-      this.#externalMessaging?.inbound.pendingExternal(botSlug, this.#now(), includeContext)
-        .ready ?? []
-    );
-  }
-
   #collectInbox(botSlug: string): { units: InboxUnit[]; eventIds: string[] } {
     const rows = this.#database.read(
       (database) =>
@@ -12130,41 +11190,7 @@ class BotRuntimeImplementation implements BotRuntime {
     );
 
     rows.reverse();
-    let externalCharacters = EXTERNAL_GUIDANCE_CHARS;
-    for (const row of this.#pendingExternalRows(botSlug, true)) {
-      if (!this.#externalMessaging?.inbound.available(botSlug, row.source_event_id, true)) continue;
-      const external = this.#externalMessaging.inbound.read(botSlug, row.source_event_id);
-      const cost =
-        inboxLine(
-          {
-            sourceEventId: row.source_event_id,
-            sourceKind: 'bridge-message',
-            external,
-            assignmentSessionId: null,
-            summary: row.body,
-            createdAt: row.created_at,
-            continuityKey: null,
-            activity: null,
-            repeats: 0,
-          },
-          this.#promptText(botSlug),
-        ).length + 1;
-      if (
-        externalCharacters > EXTERNAL_GUIDANCE_CHARS &&
-        externalCharacters + cost > this.#promptLimits(botSlug)['group-context-chars']
-      )
-        break;
-      externalCharacters += cost;
-      rows.push({
-        ...row,
-        source_kind: 'bridge-message',
-        assignment_session_id: null,
-        expects_reply: 0,
-        continuity_key: null,
-        activity: null,
-        external,
-      });
-    }
+    this.#messagingEvents.collectExternalRows(botSlug, rows);
     const units = coalesceInbox(rows);
     return {
       units,
@@ -12211,83 +11237,6 @@ class BotRuntimeImplementation implements BotRuntime {
     return this.#channels
       .list()
       .find((channel) => channel.type === 'dm' && channel.botSlug === botSlug);
-  }
-
-  #claimAssignmentNotices(
-    botSlug: string,
-    sessionId: string,
-    reportId: string | undefined,
-    readAdmissions: Set<string>,
-  ): string[] {
-    const at = this.#now().toISOString();
-    const claimed = this.#database.transaction(
-      (db) =>
-        db
-          .prepare(
-            `UPDATE inbox_admissions SET observed_at = COALESCE(observed_at, ?),
-          attempt_state = 'running', last_error = NULL
-          WHERE bot_slug = ? AND reason IN ('assignment-report', 'assignment-lifecycle')
-            AND attempt_state IN ('pending', 'retryable')
-            AND source_event_id IN (SELECT source_event_id FROM source_events
-              WHERE bot_slug = ? AND assignment_session_id = ?
-                AND COALESCE(json_extract(payload_json, '$.assignmentLifecycle.cause'), '')
-                  NOT LIKE 'direct-%'
-                AND (? IS NULL
-                  OR rowid <= (SELECT rowid FROM source_events WHERE source_event_id = ?)
-                  OR json_extract(payload_json, '$.assignmentLifecycle.reportSourceEventId') IN (
-                    SELECT r.source_event_id FROM source_events r
-                     WHERE r.assignment_session_id = ? AND r.source_kind = 'assignment-report'
-                       AND r.rowid <= (SELECT rowid FROM source_events WHERE source_event_id = ?))))
-          RETURNING source_event_id`,
-          )
-          .all(
-            at,
-            botSlug,
-            botSlug,
-            sessionId,
-            reportId ?? null,
-            reportId ?? null,
-            sessionId,
-            reportId ?? null,
-          ) as unknown as Array<{
-          source_event_id: string;
-        }>,
-      ['bot-inbox'],
-    );
-    if (claimed.length === 0) return [];
-    const ids = claimed.map((row) => row.source_event_id);
-    this.#database.transaction(
-      (db) =>
-        db
-          .prepare(
-            `UPDATE source_events SET observed_at = COALESCE(observed_at, ?)
-              WHERE source_event_id IN (${ids.map(() => '?').join(', ')})`,
-          )
-          .run(at, ...ids),
-      ['bot-inbox'],
-    );
-    for (const id of ids) readAdmissions.add(id);
-    return ids;
-  }
-
-  #observeExternalRead(botSlug: string, ids: string[], readAdmissions: Set<string>): void {
-    const at = this.#now().toISOString();
-    this.#database.transaction(
-      (db) => {
-        for (const id of ids) {
-          const row = db
-            .prepare(
-              `UPDATE inbox_admissions SET observed_at = COALESCE(observed_at, ?),
-          side_effect_started_at = COALESCE(side_effect_started_at, ?), attempt_state = 'running', last_error = NULL
-          WHERE bot_slug = ? AND source_event_id = ? AND reason IN ('group-mention', 'group-ordinary', 'human-dm')
-            AND attempt_state IN ('pending', 'retryable') RETURNING source_event_id`,
-            )
-            .get(at, at, botSlug, id);
-          if (row) readAdmissions.add(id);
-        }
-      },
-      ['bot-inbox'],
-    );
   }
 
   #observeReadMessages(
@@ -12378,27 +11327,6 @@ class BotRuntimeImplementation implements BotRuntime {
     );
   }
 
-  #settleSeenPairedNotices(botSlug: string, sourceEventIds: string[]): void {
-    if (sourceEventIds.length === 0) return;
-    const placeholders = sourceEventIds.map(() => '?').join(', ');
-    const seen = this.#database.read(
-      (database) =>
-        database
-          .prepare(
-            `SELECT n.source_event_id FROM source_events n
-               JOIN source_events r
-                 ON r.source_event_id = json_extract(n.payload_json, '$.assignmentLifecycle.reportSourceEventId')
-              WHERE n.source_kind = 'assignment-lifecycle' AND r.observed_at IS NOT NULL
-                AND n.source_event_id IN (${placeholders})`,
-          )
-          .all(...sourceEventIds) as unknown as Array<{ source_event_id: string }>,
-    );
-    const ids = seen.map((row) => row.source_event_id);
-    if (ids.length === 0) return;
-    this.#setObserved(ids, this.#now().toISOString(), botSlug);
-    this.#markReportsHandled(ids, botSlug);
-  }
-
   #setObserved(sourceEventIds: string[], at: string | null, botSlug?: string): void {
     if (sourceEventIds.length === 0) return;
     const placeholders = sourceEventIds.map(() => '?').join(', ');
@@ -12459,22 +11387,6 @@ class BotRuntimeImplementation implements BotRuntime {
           linkScheduleFiringsToSession(database, sourceEventIds, placeholders, sessionId);
       },
       ['bot-inbox', 'bot-schedules'],
-    );
-  }
-
-  #linkRequestAssignment(sourceEventId: string, sessionId: string): void {
-    this.#database.transaction(
-      (database) => {
-        database
-          .prepare(
-            `INSERT INTO request_assignments (request_source_event_id, session_id, linked_at)
-             SELECT source_event_id, ?, ? FROM source_events
-              WHERE source_event_id = ? AND source_kind = 'human-message'
-             ON CONFLICT (request_source_event_id, session_id) DO UPDATE SET linked_at = excluded.linked_at`,
-          )
-          .run(sessionId, this.#now().toISOString(), sourceEventId);
-      },
-      ['assignments'],
     );
   }
 

@@ -97,3 +97,53 @@ it('applies through the same live Host method, requires a target, and preserves 
   allowed = false;
   expect((await invoke(apply, live.url)).json.error.code).toBe('bot-not-found');
 });
+
+it('publishes a compliant stored Avatar and refuses a missing or unprocessed source', async () => {
+  let source: ReturnType<typeof ok> | { ok: false; error: { code: string; message: string } } = ok({
+    image: avatarDataUrl('png'),
+  });
+  const live = await host((method) =>
+    method === 'marketplaceAvatarSource' ? source : ok({ id: 'published' }),
+  );
+  const publish = [
+    'marketplace-avatar-publish',
+    '--from-bot',
+    'otter',
+    '--name',
+    'Otter',
+    '--operation-key',
+    'otter',
+    '--confirm',
+  ];
+  expect((await invoke(publish, live.url)).json).toEqual({ id: 'published' });
+  expect(live.calls).toEqual([
+    { method: 'marketplaceAvatarSource', args: { bot: 'otter' } },
+    {
+      method: 'marketplaceAvatarPublish',
+      args: {
+        image: avatarDataUrl('png'),
+        name: 'Otter',
+        description: '',
+        tags: [],
+        requestKey: 'otter',
+        confirm: true,
+      },
+    },
+  ]);
+  expect((await invoke([...publish, '--file', 'unused.png'], live.url)).json.error.code).toBe(
+    'usage',
+  );
+  source = ok({ image: 'data:image/png;base64,aW52YWxpZA==' });
+  expect((await invoke(publish, live.url)).json.error).toMatchObject({
+    code: 'unprocessed-image',
+    message: expect.stringContaining('Publish it from Web'),
+  });
+  expect(live.calls.slice(2)).toEqual([
+    { method: 'marketplaceAvatarSource', args: { bot: 'otter' } },
+  ]);
+  for (const code of ['no-stored-avatar', 'permission-required']) {
+    source = { ok: false, error: { code, message: code } };
+    expect((await invoke(publish, live.url)).json.error.code).toBe(code);
+    expect(live.calls.at(-1)?.method).toBe('marketplaceAvatarSource');
+  }
+});

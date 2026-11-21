@@ -17,6 +17,8 @@ import { avatarDataUrl } from '../../market/test/avatar-fixtures.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createMarket } from '../../market/test/market-harness.js';
 import { createTempRoot } from './helpers.js';
+import { BOT_AVATAR_PATH, createBotAvatarHttp } from '../src/bots/avatar-http.js';
+import { DEEPSEEKBOT_RECIPE } from '../src/onboarding/service.js';
 
 const closes: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -634,4 +636,75 @@ it('publishes an Avatar as the Host owner and lets a Team member browse without 
     value: { avatars: [published.value], nextCursor: null },
   });
   expect(f.market.bucket.objects.size).toBe(1);
+});
+
+it('publishes stored images from Bots, including a member’s Appearance still, as the Host owner', async () => {
+  const f = fixture();
+  const member = humanContext('avatar-member');
+  attachOperationalModule(f.core.operationalDatabase, 'market-avatar-source-test').transaction(
+    (sql) => {
+      sql.prepare('UPDATE team_settings SET enabled=1').run();
+      sql.prepare("INSERT INTO humans VALUES (?,?,'active','now')").run(member.humanId, 'Member');
+      sql.prepare("INSERT INTO human_roles VALUES (?,'member')").run(member.humanId);
+    },
+  );
+  f.core.team.spaces.ensureAccount(member.humanId);
+  const role = f.core.team.roles.create(OWNER_HUMAN_CONTEXT, 'Bot manager', [
+    'bots.manageAll',
+  ]).role;
+  f.core.team.roles.set(OWNER_HUMAN_CONTEXT, member.humanId, ['member', role.roleId]);
+
+  for (const slug of ['uploaded', 'appearance', 'blobatar']) {
+    expect(
+      f.core.registry.create({ slug, displayName: slug, ownerHumanId: member.humanId }).ok,
+    ).toBe(true);
+  }
+  expect(f.core.registry.update('uploaded', { avatar: avatarDataUrl('webp') }).ok).toBe(true);
+  expect(f.core.registry.setAppearance('appearance', DEEPSEEKBOT_RECIPE).ok).toBe(true);
+
+  for (const human of [member, { ...OWNER_HUMAN_CONTEXT, caller: 'bot' as const }]) {
+    const bridge = createBridgeMethods(human, f.bridgeDeps);
+    expect(bridge.marketplaceAvatarSource({ bot: 'uploaded' })).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required' },
+    });
+    expect(await bridge.marketplaceAvatarPublish({})).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required' },
+    });
+  }
+  expect(f.bridge.marketplaceAvatarSource({ bot: 'blobatar' })).toMatchObject({
+    ok: false,
+    error: { code: 'no-stored-avatar' },
+  });
+
+  f.session.state = 'signed-in';
+  expect(
+    (await f.bridge.marketplaceAuthorSave({ displayName: 'Host Owner', acceptTerms: true })).ok,
+  ).toBe(true);
+  for (const [slug, contentType] of [
+    ['uploaded', 'image/webp'],
+    ['appearance', 'image/png'],
+  ] as const) {
+    const source = f.bridge.marketplaceAvatarSource({ bot: slug });
+    if (!source.ok) throw new Error(source.error.code);
+    const stored = await createBotAvatarHttp(f.core.registry)(
+      new Request(`https://host.test${BOT_AVATAR_PATH}?slug=${slug}`),
+    );
+    expect(stored.ok).toBe(true);
+    const expected = Buffer.from(await stored.arrayBuffer()).toString('base64');
+    expect(source.value).toEqual({ image: `data:${contentType};base64,${expected}` });
+    const published = await f.bridge.marketplaceAvatarPublish({
+      ...source.value,
+      name: slug,
+      requestKey: slug,
+      confirm: true,
+    });
+    if (!published.ok) throw new Error(published.error.code);
+    expect(published.value.author.name).toBe('Host Owner');
+    expect(published.value).not.toHaveProperty('appearance');
+    const response = await f.market.request(`/v1/avatars/${published.value.id}/image`);
+    expect(response.headers.get('content-type')).toBe(contentType);
+    expect(Buffer.from(await response.arrayBuffer()).toString('base64')).toBe(expected);
+  }
 });

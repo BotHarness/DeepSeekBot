@@ -92,7 +92,7 @@ type WorkContextContext = Pick<DshBotAgentAdapterState, 'workContexts'>;
 
 type SteerOrchestratorContext = Pick<
   DshBotAgentAdapterState,
-  'assertOpen' | 'engineStops' | 'handles' | 'promptText' | 'runs'
+  'assertOpen' | 'engines' | 'engineStops' | 'handles' | 'promptText' | 'runs'
 > &
   WorkContextContext;
 
@@ -504,19 +504,32 @@ export function steerOrchestrator(
   adapter: SteerOrchestratorContext,
   botSlug: string,
   text: string,
-): boolean {
+  requireAccess: () => void,
+) {
   adapter.assertOpen();
   for (const [sessionId, active] of adapter.runs) {
     if (
       active.role !== 'orchestrator' ||
       active.direct ||
-      adapter.engineStops.has(sessionId) ||
       active.run.tobCliTurn !== undefined ||
       active.run.bot.slug !== botSlug
     )
       continue;
+    if (adapter.engineStops.has(sessionId))
+      return (
+        adapter.engines?.steerOrchestrator?.(
+          sessionId,
+          [
+            text,
+            'Use bot_send_message with the trusted source_event_id for each Channel you are answering.',
+            replyReminderText(adapter.promptText(sessionId)),
+          ].join('\n\n'),
+          requireAccess,
+        ) ?? false
+      );
     const handle = adapter.handles.get(sessionId);
     if (handle === undefined) return false;
+    requireAccess();
     handle.agent.steer(
       createUserMessage({
         content: [

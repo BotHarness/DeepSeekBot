@@ -37,6 +37,7 @@ export function createMarketplaceActions(
     marketplaceAvatarApply: (id, bot) => invoke('marketplaceAvatarApply', { id, bot }),
     marketplaceAvatarDetail: (id) => invoke('marketplaceAvatarDetail', { id }),
     marketplaceAvatarPublish: (input) => invoke('marketplaceAvatarPublish', { ...input }),
+    marketplaceAvatarSource: (bot) => invoke('marketplaceAvatarSource', { bot }),
     marketplaceList: (query) => loadMarketplacePage(call, query),
     marketplaceChallenge: () => loadMarketplaceChallenge(call),
     marketplaceSubmit: (url, altcha) => submitMarketplaceRepository(call, url, altcha),
@@ -74,6 +75,7 @@ export function createMarketplaceActions(
       | 'marketplaceAvatarApplyCandidates'
       | 'marketplaceAvatarApply'
       | 'marketplaceAvatarPublish'
+      | 'marketplaceAvatarSource'
       | 'marketplaceList'
       | 'marketplaceChallenge'
       | 'marketplaceSubmit'
