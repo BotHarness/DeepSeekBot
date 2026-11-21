@@ -1,6 +1,6 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { execFileSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createCore } from '../src/plugin.js';
@@ -65,16 +65,25 @@ function repository() {
 }
 it('previews one Git source and recovers its same Bot and DM after retry and Host restart', async () => {
   const source = repository();
+  const standingLimits = { soul: 6_000, coreMemory: 4_000 };
+  mkdirSync(join(source.dir, '.botharness'));
+  writeFileSync(
+    join(source.dir, '.botharness', 'bot.json'),
+    JSON.stringify({ name: 'Fixture', standingLimits }),
+  );
+  source.git('add', '.');
+  source.git('commit', '--quiet', '-m', 'include standing limits');
+  const commit = source.git('rev-parse', 'HEAD');
   const f = fixture();
   expect(await f.bridge.botImportPreview({ gitUrl: source.url })).toMatchObject({
     ok: true,
-    value: { source: { kind: 'git', gitUrl: source.url, commit: source.commit } },
+    value: { source: { kind: 'git', gitUrl: source.url, commit } },
   });
   const request = {
     operationKey: 'git-import-restart-01',
     displayName: 'Imported helper',
     gitUrl: source.url,
-    expectedCommit: source.commit,
+    expectedCommit: commit,
     roles: ['research'],
     description: 'Selected source',
   };
@@ -95,6 +104,9 @@ it('previews one Git source and recovers its same Bot and DM after retry and Hos
   });
   expect(await restarted.bridge.createFromGit(request)).toEqual(created);
   expect(restarted.core.registry.list()).toHaveLength(1);
+  expect(restarted.core.registry.get(created.value.bot.slug)?.standingLimits).toEqual(
+    standingLimits,
+  );
   expect(restarted.core.channels.list()).toHaveLength(1);
   expect(restarted.core.grants.list(created.value.bot.slug)).toEqual([]);
 });

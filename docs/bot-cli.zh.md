@@ -67,7 +67,7 @@ Client 线路偏好检查或文件替换失败时，Host 线路可能已经更�
 
 连接手机使用的同一个已认证 Host，运行 `bot-zip-upload --from-zip <文件> --upload-key <稳定键> --host <地址>`。结果包含 `sha256`、`sizeBytes`、`offset`、`chunkBytes` 和 `expiresAt`。命令通过 `zipUploadBegin` 和 `zipUploadChunk` 上传，使用相同键和文件可继续已确认的分块。每块原始数据为 256 KiB，base64 请求封装后仍小于加密设备通道的 4 MiB 限制。
 
-创建前运行 `bot-zip-preview --upload-key <键> --archive-sha256 <摘要> --archive-size <字节数> --host <地址>`。`zipUploadPreview` 校验完整压缩包并返回名称等信息、文件数、解压字节数和历史标志。确认名称、可选 `--description` 和重复的 `--role` 后，使用相同来源参数运行 `bot-zip-import`，并增加 `--operation-key <稳定操作键> --name <名称>`。`zipImport` 通过既有导入 owner 创建一个 Bot 及其私聊，不启动模型或授予工作区权限。
+创建前运行 `bot-zip-preview --upload-key <键> --archive-sha256 <摘要> --archive-size <字节数> --host <地址>`。`zipUploadPreview` 校验完整压缩包并返回名称等信息、文件数、解压字节数、历史标志和 `standing` 用量（每份常驻文件的字符数与生效上限）。确认名称、可选 `--description` 和重复的 `--role` 后，使用相同来源参数运行 `bot-zip-import`，并增加 `--operation-key <稳定操作键> --name <名称>`。`zipImport` 通过既有导入 owner 创建一个 Bot 及其私聊，不启动模型或授予工作区权限。
 
 导入响应丢失后，运行 `bot-zip-import-status --archive-sha256 <摘要> --operation-key <键> --name <名称>`，并原样携带可选描述和标签。`zipImportLookup` 不需要文件或上传会话。已完成回执在 Host 重启和上传过期后仍保留；重复 `bot-zip-import` 返回同一个 Bot 和私聊。相同操作键换摘要或元数据会被拒绝。未完成的上传过期后可明确重新传输，继续使用原导入操作键。
 

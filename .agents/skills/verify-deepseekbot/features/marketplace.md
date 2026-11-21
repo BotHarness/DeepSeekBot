@@ -8,6 +8,8 @@
 - `packages/client/src/client/marketplace-report.tsx`
 - `packages/client/src/client/{marketplace,marketplace-browse-controls,market-panel,market-avatars,market-avatar-apply,market-avatar-mine,market-mine,personabot-avatar-crop}.tsx`
 - `packages/client/src/client/{profile-header,bot-sidebar-channel-actions}.tsx`
+- `packages/client/src/client/marketplace-install-review.tsx`
+- `packages/client/src/client/standing-import-usage.tsx`
 - `apps/mobile/src/marketplace/**`
 - `apps/mobile/src/ui/shell/marketplace-*`
 - `apps/mobile/src/ui/primitives/marketplace-topic-sheet*`
@@ -67,6 +69,8 @@ For Worker tie/paging proof run `pnpm exec vitest run packages/market/test/marke
 4. Run `deepseekbot marketplace-avatar-publish --from-bot <bot> --name <name> --confirm` as owner. Use a compliant stored image for success. Verify `no-stored-avatar` for a Blobatar, `unprocessed-image` with a Web instruction for a noncompliant image, and `permission-required` as a member.
 
 ## Tob install review
+
+The import confirmation shows the standing memory usage and effective limits from the staged files. Check an older Bot Marketplace entry that exceeds a default limit and an entry carrying a valid custom pair. Before confirming, compare the usage to the CLI's `marketplace-install <listing-id>` review result. After confirming, read the new Bot's standing memory limits.
 
 Install opens a review step: Tob reads the staged files and the step shows **Tob found nothing risky**, the findings (prompt injection, sends data out, script) with **Install anyway**, or **Tob couldn't review this Bot** with **Install without review**. Back creates nothing. The real-model journey is `node scripts/e2e-install-review.mjs`: it serves a local Marketplace with a planted-injection Bot and a clean Bot, launches an isolated Host pointed at it, and asserts the planted file is flagged, the clean Bot is not, a review creates no Bot, and `marketplace-install <id> --review <review-id> --confirm` installs. Use the AX model selection on the newest DeepSeek model.
 

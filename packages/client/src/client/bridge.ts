@@ -2095,6 +2095,7 @@ export async function createPersonaBot(
 
 export const {
   importBotZip,
+  previewBotZip,
   loadBotZipFiles,
   downloadBotZip,
   loadMarketplacePage,

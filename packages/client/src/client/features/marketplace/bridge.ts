@@ -1,4 +1,5 @@
 import { asRecord, BridgeCallError, unwrap, type BridgeCall } from '../../bridge-transport.js';
+import { parseStandingUsage } from '@botharness/host-client/memory';
 import type { BotSummary } from '../../store.js';
 import type {
   MarketplaceAuthoredBot,
@@ -83,6 +84,18 @@ export function createMarketplaceBridge({
     const bot = parseBotSummary(asRecord(await response.json())?.['bot']);
     if (bot === undefined) throw new Error('invalid Bot zip import response');
     return bot;
+  }
+
+  async function previewBotZip(file: File, signal?: AbortSignal) {
+    const response = await fetch(botZipUrl('bot-zip/import', {}), {
+      method: 'POST',
+      headers: { 'content-type': 'application/vnd.botharness.bot-zip-preview' },
+      body: file,
+      credentials: 'same-origin',
+      ...(signal === undefined ? {} : { signal }),
+    });
+    if (!response.ok) throw await botZipError(response);
+    return parseStandingUsage(asRecord(await response.json())?.['standing']);
   }
 
   async function loadBotZipFiles(slug: string, signal?: AbortSignal): Promise<BotZipFileListing> {
@@ -274,7 +287,14 @@ export function createMarketplaceBridge({
         files,
       };
     } else return undefined;
-    return { reviewId, listing, review: parsed };
+    return {
+      reviewId,
+      listing,
+      review: parsed,
+      ...(result?.['standing'] === undefined
+        ? {}
+        : { standing: parseStandingUsage(result['standing']) }),
+    };
   }
 
   async function reviewMarketplaceInstall(
@@ -349,6 +369,7 @@ export function createMarketplaceBridge({
   }
   return {
     importBotZip,
+    previewBotZip,
     loadBotZipFiles,
     downloadBotZip,
     loadMarketplacePage,

@@ -975,6 +975,8 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 删除 owner 先接受持久身份关闭状态，再停止该 Bot 所拥有的原生 AgentHandle 执行树、撤销 Workspace／工具规则，并停用其 Messaging 绑定。已发出的原生／provider 效果保留实际结果。可选文件清理具有明确接受的范围和未完成状态；重试只使用原目录身份，不能选择新路径。DSH Session Persistence 与共享 provider 账号保留。冷启动仍排除已删除身份，即使清理需要修复。后续 Profile Backup 必须枚举历史 Registry 记录及删除位置，区分主动清除的记忆。Channel Content Purge 与支持恢复的 ledger 仍属于 #897。
 
+从 Bot Zip 和 Bot 市场导入时使用 `.botharness/bot.json` 中可选的 `standingLimits`。导入 owner 校验来源值并在创建时写入 PersonaBot 记录。导入预览采用和提示词组装相同的字符计数，来源没有可用设置时使用默认上限。
+
 ### Bot Marketplace（已接受设计，待实现）
 
 目录查询将 GitHub topics 与 `.botharness/bot.json` 的 tags（兼容旧 `roles`，存于 D1 的 `roles` 列）一起用于文字搜索、`topic` 筛选和 `/v1/topics` 统计；同一仓库的同名标签只计数一次，统计排除收录标记 `botharness-bot` 及未上架仓库。FTS5 同时索引两类标签，迁移会从已存数据重建索引。每小时刷新不依赖 push 即更新 GitHub topics；检测到 push 后重新读取 README 和 bot.json，并替换旧标签。
