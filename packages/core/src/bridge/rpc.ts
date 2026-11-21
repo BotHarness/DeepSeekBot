@@ -1,3 +1,6 @@
+import * as personabotsRpc from '../features/personabots/rpc.js';
+import * as humansRpc from '../features/humans/rpc.js';
+import * as teamRpc from '../features/team/rpc.js';
 import * as cloudRpc from '../features/cloud/rpc.js';
 import * as activityRpc from '../features/activity/rpc.js';
 import * as messagingRpc from '../features/messaging/rpc.js';
@@ -408,20 +411,20 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   spaceAudienceDirectory() {
-    return unwrapAsync(this.methods.spaceAudienceDirectory({}));
+    return teamRpc.spaceAudienceDirectory(this.methods);
   }
   spaces() {
-    return unwrapAsync(this.methods.spaces({}));
+    return teamRpc.spaces(this.methods);
   }
   botVisibility(slug: string) {
-    return unwrapAsync(this.methods.botVisibility({ slug }));
+    return teamRpc.botVisibility(this.methods, slug);
   }
   botVisibilitySet(
     slug: string,
     visibility: import('../team/bot-contract.js').BotVisibility,
     confirm?: boolean,
   ) {
-    return unwrapAsync(this.methods.botVisibilitySet({ slug, visibility, confirm }));
+    return teamRpc.botVisibilitySet(this.methods, slug, visibility, confirm);
   }
   botSwitches(
     slug: string,
@@ -429,80 +432,79 @@ export class BotharnessBridgeService extends TypertRemoteService {
     joinPrincipalChannels?: boolean,
     speakerContext?: boolean,
   ) {
-    return unwrapAsync(
-      this.methods.botSwitches({
-        slug,
-        ...(proactiveDms === undefined ? {} : { proactiveDms }),
-        ...(joinPrincipalChannels === undefined ? {} : { joinPrincipalChannels }),
-        ...(speakerContext === undefined ? {} : { speakerContext }),
-      }),
+    return teamRpc.botSwitches(
+      this.methods,
+      slug,
+      proactiveDms,
+      joinPrincipalChannels,
+      speakerContext,
     );
   }
   reachableBots() {
-    return unwrapAsync(this.methods.reachableBots({}));
+    return teamRpc.reachableBots(this.methods);
   }
   botProactiveOptOut(slug: string, optOut: boolean) {
-    return unwrapAsync(this.methods.botProactiveOptOut({ slug, optOut }));
+    return teamRpc.botProactiveOptOut(this.methods, slug, optOut);
   }
   roleConflicts(humanId?: string, username?: string) {
-    return unwrapAsync(this.methods.roleConflicts({ humanId, username }));
+    return teamRpc.roleConflicts(this.methods, humanId, username);
   }
   speakerPolicy(humanId?: string, topic?: string) {
-    return unwrapAsync(this.methods.speakerPolicy({ humanId, topic }));
+    return teamRpc.speakerPolicy(this.methods, humanId, topic);
   }
   spaceCreate(name: string, audience: SpaceAudience) {
-    return unwrapAsync(this.methods.spaceCreate({ name, audience }));
+    return teamRpc.spaceCreate(this.methods, name, audience);
   }
   spaceUpdate(spaceId: string, name?: string, audience?: SpaceAudience) {
-    return unwrapAsync(this.methods.spaceUpdate({ spaceId, name, audience }));
+    return teamRpc.spaceUpdate(this.methods, spaceId, name, audience);
   }
   spaceDelete(spaceId: string, confirm: boolean) {
-    return unwrapAsync(this.methods.spaceDelete({ spaceId, confirm }));
+    return teamRpc.spaceDelete(this.methods, spaceId, confirm);
   }
   modelsAllowed() {
-    return unwrapAsync(this.methods.modelsAllowed({}));
+    return teamRpc.modelsAllowed(this.methods);
   }
   usageByMember(period: UsageOverviewPeriod) {
-    return unwrap(this.methods.usageByMember({ period }));
+    return teamRpc.usageByMember(this.methods, period);
   }
   privateObjects(humanId?: string, kind?: PrivateKind, username?: string) {
-    return unwrapAsync(this.methods.privateObjects({ humanId, kind, username }));
+    return teamRpc.privateObjects(this.methods, humanId, kind, username);
   }
   privateContentOpen(kind: PrivateKind, objectId: string, reason?: string) {
-    return unwrapAsync(this.methods.privateContentOpen({ kind, objectId, reason }));
+    return teamRpc.privateContentOpen(this.methods, kind, objectId, reason);
   }
   privateContentPage(viewId: string, before: string) {
-    return unwrapAsync(this.methods.privateContentPage({ viewId, before }));
+    return teamRpc.privateContentPage(this.methods, viewId, before);
   }
   auditLog(after?: string, limit?: number) {
-    return unwrapAsync(this.methods.auditLog({ after, limit }));
+    return teamRpc.auditLog(this.methods, after, limit);
   }
   auditVerify() {
-    return unwrapAsync(this.methods.auditVerify({}));
+    return teamRpc.auditVerify(this.methods);
   }
   teamMode() {
-    return unwrapAsync(this.methods.teamMode({}));
+    return teamRpc.teamMode(this.methods);
   }
   teamModeSet(enabled: boolean) {
-    return unwrapAsync(this.methods.teamModeSet({ enabled }));
+    return teamRpc.teamModeSet(this.methods, enabled);
   }
   teamOwnerPasswordSet(password: string, current?: string) {
-    return unwrapAsync(this.methods.teamOwnerPasswordSet({ password, current }));
+    return teamRpc.teamOwnerPasswordSet(this.methods, password, current);
   }
   teamInsecureHttpSet(allowed: boolean) {
-    return unwrapAsync(this.methods.teamInsecureHttpSet({ allowed }));
+    return teamRpc.teamInsecureHttpSet(this.methods, allowed);
   }
   members() {
-    return unwrapAsync(this.methods.members({}));
+    return teamRpc.members(this.methods);
   }
   memberCreate(username: string, displayName: string, roleIds?: string[]) {
-    return unwrapAsync(this.methods.memberCreate({ username, displayName, roleIds }));
+    return teamRpc.memberCreate(this.methods, username, displayName, roleIds);
   }
   permissionCatalog() {
-    return unwrapAsync(this.methods.permissionCatalog({}));
+    return teamRpc.permissionCatalog(this.methods);
   }
   roles() {
-    return unwrapAsync(this.methods.roles({}));
+    return teamRpc.roles(this.methods);
   }
   roleCreate(
     name: string,
@@ -510,7 +512,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     models?: import('../team/permissions.js').RoleModels,
     policy?: import('../team/bot-contract.js').RolePolicy,
   ) {
-    return unwrapAsync(this.methods.roleCreate({ name, permissions, models, policy }));
+    return teamRpc.roleCreate(this.methods, name, permissions, models, policy);
   }
   roleUpdate(
     roleId: string,
@@ -519,107 +521,92 @@ export class BotharnessBridgeService extends TypertRemoteService {
     models?: import('../team/permissions.js').RoleModels,
     policy?: import('../team/bot-contract.js').RolePolicy,
   ) {
-    return unwrapAsync(this.methods.roleUpdate({ roleId, name, permissions, models, policy }));
+    return teamRpc.roleUpdate(this.methods, roleId, name, permissions, models, policy);
   }
   roleDelete(roleId: string) {
-    return unwrapAsync(this.methods.roleDelete({ roleId }));
+    return teamRpc.roleDelete(this.methods, roleId);
   }
   memberRolesSet(humanId: string, roleIds: string[]) {
-    return unwrapAsync(this.methods.memberRolesSet({ humanId, roleIds }));
+    return teamRpc.memberRolesSet(this.methods, humanId, roleIds);
   }
   memberDevices(humanId: string) {
-    const principal = this.ctx.invocation?.peer.principal;
-    return unwrapAsync(
-      this.methods.memberDevices(
-        { humanId },
-        principal?.kind === 'botharness-member' ? principal.grantId : undefined,
-      ),
-    );
+    return teamRpc.memberDevices(() => this.methods, this.ctx, humanId);
   }
   memberDeviceRevoke(humanId: string, grantId: string) {
-    return unwrapAsync(this.methods.memberDeviceRevoke({ humanId, grantId }));
+    return teamRpc.memberDeviceRevoke(this.methods, humanId, grantId);
   }
   ownerTransfer(humanId: string, password: string) {
-    return unwrapAsync(this.methods.ownerTransfer({ humanId, password }));
+    return teamRpc.ownerTransfer(this.methods, humanId, password);
   }
   memberPasswordChange(current: string, next: string, signOutOthers?: boolean) {
-    const principal = this.ctx.invocation?.peer.principal;
-    if (principal?.kind === 'botharness-member' && this.team)
-      return this.team.withPasswordCaller(principal, undefined, () =>
-        unwrapAsync(this.methods.memberPasswordChange({ current, next, signOutOthers })),
-      );
-    return unwrapAsync(this.methods.memberPasswordChange({ current, next, signOutOthers }));
+    return teamRpc.memberPasswordChange(
+      () => this.methods,
+      this.ctx,
+      this.team,
+      current,
+      next,
+      signOutOthers,
+    );
   }
   memberInvitation(humanId: string) {
-    return unwrapAsync(this.methods.memberInvitation({ humanId }));
+    return teamRpc.memberInvitation(this.methods, humanId);
   }
   memberPairingOffer() {
-    return unwrapAsync(this.methods.memberPairingOffer({}));
+    return teamRpc.memberPairingOffer(this.methods);
   }
   memberPasswordReset(humanId: string) {
-    return unwrapAsync(this.methods.memberPasswordReset({ humanId }));
+    return teamRpc.memberPasswordReset(this.methods, humanId);
   }
   channelRoleDirectory(channelId: string) {
-    return unwrapAsync(this.methods.channelRoleDirectory({ channelId }));
+    return teamRpc.channelRoleDirectory(this.methods, channelId);
   }
   channelVisibilitySet(channelId: string, visibility: ChannelVisibility) {
-    return unwrapAsync(this.methods.channelVisibilitySet({ channelId, visibility }));
+    return teamRpc.channelVisibilitySet(this.methods, channelId, visibility);
   }
   channelAdminsSet(channelId: string, humanIds: string[]) {
-    return unwrapAsync(this.methods.channelAdminsSet({ channelId, humanIds }));
+    return teamRpc.channelAdminsSet(this.methods, channelId, humanIds);
   }
   channelPolicySet(channelId: string, policy: ChannelPolicy, expectedRevision?: string) {
-    return unwrapAsync(
-      this.methods.channelPolicySet({
-        channelId,
-        policy,
-        ...(expectedRevision === undefined ? {} : { expectedRevision }),
-      }),
-    );
+    return teamRpc.channelPolicySet(this.methods, channelId, policy, expectedRevision);
   }
   channelMemberCandidates(channelId: string, query?: string) {
-    return unwrapAsync(
-      this.methods.channelMemberCandidates({
-        channelId,
-        ...(query === undefined ? {} : { query }),
-      }),
-    );
+    return teamRpc.channelMemberCandidates(this.methods, channelId, query);
   }
   channelHumanAdd(channelId: string, humanId: string) {
-    return unwrapAsync(this.methods.channelHumanAdd({ channelId, humanId }));
+    return teamRpc.channelHumanAdd(this.methods, channelId, humanId);
   }
   channelDescriptionSet(channelId: string, description: string) {
-    return unwrapAsync(this.methods.channelDescriptionSet({ channelId, description }));
+    return teamRpc.channelDescriptionSet(this.methods, channelId, description);
   }
   teamDirectory() {
-    return unwrapAsync(this.methods.teamDirectory({}));
+    return teamRpc.teamDirectory(this.methods);
   }
   humanDm(humanId: string) {
-    return unwrapAsync(this.methods.humanDm({ humanId }));
+    return teamRpc.humanDm(this.methods, humanId);
   }
   humanDmByUsername(username: string) {
-    return unwrapAsync(this.methods.humanDmByUsername({ username }));
+    return teamRpc.humanDmByUsername(this.methods, username);
   }
   memberDeactivate(humanId: string) {
-    return unwrapAsync(this.methods.memberDeactivate({ humanId }));
+    return teamRpc.memberDeactivate(this.methods, humanId);
   }
   memberReactivate(humanId: string) {
-    return unwrapAsync(this.methods.memberReactivate({ humanId }));
+    return teamRpc.memberReactivate(this.methods, humanId);
   }
   memberTransferPreview(humanId: string) {
-    return unwrapAsync(this.methods.memberTransferPreview({ humanId }));
+    return teamRpc.memberTransferPreview(this.methods, humanId);
   }
   memberTransfer(humanId: string, toHumanId: string) {
-    return unwrapAsync(this.methods.memberTransfer({ humanId, toHumanId }));
+    return teamRpc.memberTransfer(this.methods, humanId, toHumanId);
   }
   memberPurgePreview(humanId: string) {
-    return unwrapAsync(this.methods.memberPurgePreview({ humanId }));
+    return teamRpc.memberPurgePreview(this.methods, humanId);
   }
   memberPurgeConfirm(humanId: string, token: string, username: string) {
-    return unwrapAsync(this.methods.memberPurgeConfirm({ humanId, token, username }));
+    return teamRpc.memberPurgeConfirm(this.methods, humanId, token, username);
   }
   channelPublicSet(channelId: string, publicValue: boolean) {
-    return unwrapAsync(this.methods.channelPublicSet({ channelId, public: publicValue }));
+    return teamRpc.channelPublicSet(this.methods, channelId, publicValue);
   }
 
   followRoster(signal: AbortSignal): AsyncIterable<RosterLiveFrame> {
@@ -1080,7 +1067,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrapAsync(this.methods.tobHome({}));
   }
   onboarding(slug?: string, action?: TutorialAction): Promise<OnboardingSnapshot> {
-    return unwrapAsync(this.methods.onboarding({ slug, action }));
+    return personabotsRpc.onboarding(this.methods, slug, action);
   }
   acknowledgements(): { items: Record<string, string> } {
     return unwrap(this.methods.acknowledgements({}));
@@ -1098,17 +1085,16 @@ export class BotharnessBridgeService extends TypertRemoteService {
     groupEffort?: string,
     expectedDefaultGroupRevision?: number,
   ): Promise<{ revision: number; groupRevision?: number }> {
-    return unwrapAsync(
-      this.methods.onboardingModel({
-        slug,
-        expectedRevision,
-        ...(route === undefined ? {} : { route }),
-        globalDefault,
-        expectedDefaultRevision,
-        ...(groupId === undefined ? {} : { groupId }),
-        ...(groupEffort === undefined ? {} : { groupEffort }),
-        ...(expectedDefaultGroupRevision === undefined ? {} : { expectedDefaultGroupRevision }),
-      }),
+    return personabotsRpc.onboardingModel(
+      this.methods,
+      slug,
+      expectedRevision,
+      route,
+      globalDefault,
+      expectedDefaultRevision,
+      groupId,
+      groupEffort,
+      expectedDefaultGroupRevision,
     );
   }
   telemetryEvent(event: string, properties?: Record<string, string | boolean>): null {
@@ -1472,9 +1458,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     query?: string,
     administration?: boolean,
   ): { bots: Array<PersonaBotSummary | SharedBotSummary | BotMetadata> } {
-    return unwrap(
-      this.methods.list({ query, ...(administration === undefined ? {} : { administration }) }),
-    );
+    return personabotsRpc.list(this.methods, query, administration);
   }
 
   activitySnapshot(): PersonaBotActivitySnapshot {
@@ -1482,7 +1466,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   get(slug: string): AdminResult<{ bot: PersonaBotDetail; profileFingerprint: string }> {
-    return unwrap(this.methods.get({ slug }));
+    return personabotsRpc.get(this.methods, slug);
   }
 
   create(
@@ -1502,20 +1486,19 @@ export class BotharnessBridgeService extends TypertRemoteService {
     channelId?: string;
     receipt?: BotCreationReceipt;
   } {
-    return unwrap(
-      this.methods.create({
-        displayName,
-        roles,
-        persona,
-        description,
-        model,
-        preset,
-        workspaces,
-        avatar,
-        memoryLocation,
-        coreMemory,
-        operationKey,
-      }),
+    return personabotsRpc.create(
+      this.methods,
+      displayName,
+      roles,
+      persona,
+      description,
+      model,
+      preset,
+      workspaces,
+      avatar,
+      memoryLocation,
+      coreMemory,
+      operationKey,
     );
   }
 
@@ -1532,27 +1515,26 @@ export class BotharnessBridgeService extends TypertRemoteService {
     memoryLocation?: string,
     coreMemory?: string,
   ): { receipt: BotCreationReceipt | null } {
-    return unwrap(
-      this.methods.createLookup({
-        displayName,
-        roles,
-        persona,
-        description,
-        model,
-        preset,
-        workspaces,
-        avatar,
-        memoryLocation,
-        coreMemory,
-        operationKey,
-      }),
+    return personabotsRpc.createLookup(
+      this.methods,
+      operationKey,
+      displayName,
+      roles,
+      persona,
+      description,
+      model,
+      preset,
+      workspaces,
+      avatar,
+      memoryLocation,
+      coreMemory,
     );
   }
 
   async botImportPreview(
     gitUrl: string,
   ): Promise<Awaited<ReturnType<BotImportsService['previewGit']>>> {
-    return unwrapAsync(this.methods.botImportPreview({ gitUrl }));
+    return personabotsRpc.botImportPreview(this.methods, gitUrl);
   }
   botImportLookup(
     operationKey: string,
@@ -1562,15 +1544,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     roles?: string[],
     description?: string,
   ): { receipt: BotCreationReceipt | null } {
-    return unwrap(
-      this.methods.botImportLookup({
-        operationKey,
-        gitUrl,
-        expectedCommit,
-        displayName,
-        roles,
-        description,
-      }),
+    return personabotsRpc.botImportLookup(
+      this.methods,
+      operationKey,
+      gitUrl,
+      expectedCommit,
+      displayName,
+      roles,
+      description,
     );
   }
   zipUploadBegin(uploadKey: string, sha256: string, sizeBytes: number): BotZipUploadStatus {
@@ -1655,17 +1636,16 @@ export class BotharnessBridgeService extends TypertRemoteService {
     receipt?: BotCreationReceipt;
     channelId?: string;
   }> {
-    return unwrapAsync(
-      this.methods.createFromGit({
-        displayName,
-        gitUrl,
-        roles,
-        description,
-        origin,
-        operationKey,
-        expectedCommit,
-        listingId,
-      }),
+    return personabotsRpc.createFromGit(
+      this.methods,
+      displayName,
+      gitUrl,
+      roles,
+      description,
+      origin,
+      operationKey,
+      expectedCommit,
+      listingId,
     );
   }
 
@@ -1674,7 +1654,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     patch: PersonaBotPatch,
     expectedProfile?: string,
   ): AdminResult<{ bot: PersonaBotDetail }> {
-    return unwrap(this.methods.update({ slug, patch, expectedProfile }));
+    return personabotsRpc.update(this.methods, slug, patch, expectedProfile);
   }
 
   dataResetPreview(): { preview: DataResetPreview } {
@@ -1689,7 +1669,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     { preview: PersonaBotDeletionPreview },
     BotMetadataResult & { preview: AdminDeletionPreview }
   > {
-    return unwrap(this.methods.deletionPreview({ slug }));
+    return personabotsRpc.deletionPreview(this.methods, slug);
   }
   async deletionConfirm(
     slug: string,
@@ -1698,26 +1678,26 @@ export class BotharnessBridgeService extends TypertRemoteService {
   ): Promise<
     AdminResult<{ deletion: PersonaBotDeletion }, BotMetadataResult & { deletion: AdminDeletion }>
   > {
-    return unwrapAsync(this.methods.deletionConfirm({ slug, token, eraseMemory }));
+    return personabotsRpc.deletionConfirm(this.methods, slug, token, eraseMemory);
   }
   async deletionRetry(
     slug: string,
   ): Promise<
     AdminResult<{ deletion: PersonaBotDeletion }, BotMetadataResult & { deletion: AdminDeletion }>
   > {
-    return unwrapAsync(this.methods.deletionRetry({ slug }));
+    return personabotsRpc.deletionRetry(this.methods, slug);
   }
   deletionMemoryFolder(slug: string): AdminResult<{
     target: { path: string; relativePath: string; kind: 'directory' };
   }> {
-    return unwrap(this.methods.deletionMemoryFolder({ slug }));
+    return personabotsRpc.deletionMemoryFolder(this.methods, slug);
   }
   pause(slug: string): AdminResult<{ bot: PersonaBotDetail }> {
-    return unwrap(this.methods.pause({ slug }));
+    return personabotsRpc.pause(this.methods, slug);
   }
 
   resume(slug: string): AdminResult<{ bot: PersonaBotDetail }> {
-    return unwrap(this.methods.resume({ slug }));
+    return personabotsRpc.resume(this.methods, slug);
   }
   computerAccessSet(slug: string, enabled: boolean): { bot: PersonaBotDetail } {
     return computerRpc.computerAccessSet(this.methods, slug, enabled);
@@ -1981,7 +1961,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     soul: number,
     coreMemory: number,
   ): AdminResult<{ bot: PersonaBotDetail }> {
-    return unwrap(this.methods.standingLimitsSet({ slug, soul, coreMemory }));
+    return personabotsRpc.standingLimitsSet(this.methods, slug, soul, coreMemory);
   }
 
   botAvatarSet(channelId: string, avatar: string | null): AdminResult<{ bot: PersonaBotDetail }> {
@@ -2183,11 +2163,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   humanIdentity() {
-    return unwrap(this.methods.humanIdentity({}));
+    return humansRpc.humanIdentity(this.methods);
   }
 
   composerIdentity() {
-    return unwrap(this.methods.composerIdentity({}));
+    return humansRpc.composerIdentity(this.methods);
   }
 
   composerValidate(
@@ -2207,23 +2187,23 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   channelHumanNameSet(channelId: string, nickname: string | null) {
-    return unwrap(this.methods.channelHumanNameSet({ channelId, nickname }));
+    return humansRpc.channelHumanNameSet(this.methods, channelId, nickname);
   }
 
   humanNameSet(displayName: string | null) {
-    return unwrap(this.methods.humanNameSet({ displayName }));
+    return humansRpc.humanNameSet(this.methods, displayName);
   }
 
   humanAvatarSet(avatar: string | null) {
-    return unwrap(this.methods.humanAvatarSet({ avatar }));
+    return humansRpc.humanAvatarSet(this.methods, avatar);
   }
 
   humanAvatars(humanIds: string[]) {
-    return unwrap(this.methods.humanAvatars({ humanIds }));
+    return humansRpc.humanAvatars(this.methods, humanIds);
   }
 
   humanProfileSetupFinish() {
-    return unwrap(this.methods.humanProfileSetupFinish({}));
+    return humansRpc.humanProfileSetupFinish(this.methods);
   }
 
   channelGroupDelete(channelId: string): { deleted: boolean } & GroupDisbandResult {
@@ -3034,19 +3014,19 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   rosterGet(): RosterSnapshot {
-    return unwrap(this.methods.rosterGet({}));
+    return personabotsRpc.rosterGet(this.methods);
   }
 
   sectionCreate(name: string): Promise<{ section: RosterSection }> {
-    return unwrapAsync(this.methods.sectionCreate({ name }));
+    return personabotsRpc.sectionCreate(this.methods, name);
   }
 
   sectionRename(sectionId: string, name: string): Promise<{ section: RosterSection }> {
-    return unwrapAsync(this.methods.sectionRename({ sectionId, name }));
+    return personabotsRpc.sectionRename(this.methods, sectionId, name);
   }
 
   sectionRemove(sectionId: string): Promise<{ removed: boolean }> {
-    return unwrapAsync(this.methods.sectionRemove({ sectionId }));
+    return personabotsRpc.sectionRemove(this.methods, sectionId);
   }
 
   channelAssign(
@@ -3054,26 +3034,26 @@ export class BotharnessBridgeService extends TypertRemoteService {
     sectionId?: string | null,
     index?: number,
   ): Promise<Record<string, never>> {
-    return unwrapAsync(this.methods.channelAssign({ channelId, sectionId, index }));
+    return personabotsRpc.channelAssign(this.methods, channelId, sectionId, index);
   }
 
   sectionReorder(order: string[]): Promise<{ sectionOrder: string[] }> {
-    return unwrapAsync(this.methods.sectionReorder({ order }));
+    return personabotsRpc.sectionReorder(this.methods, order);
   }
 
   topReorder(order: TopOrderEntry[]): Promise<{ topOrder: TopOrderEntry[] }> {
-    return unwrapAsync(this.methods.topReorder({ order }));
+    return personabotsRpc.topReorder(this.methods, order);
   }
 
   pinsSet(pins: string[]): Promise<{ pins: string[] }> {
-    return unwrapAsync(this.methods.pinsSet({ pins }));
+    return personabotsRpc.pinsSet(this.methods, pins);
   }
 
   hiddenSet(hidden: string[]): Promise<{ hidden: string[] }> {
-    return unwrapAsync(this.methods.hiddenSet({ hidden }));
+    return personabotsRpc.hiddenSet(this.methods, hidden);
   }
   channelMuteSet(channelId: string, muted: boolean): Promise<{ muted: string[] }> {
-    return unwrapAsync(this.methods.channelMuteSet({ channelId, muted }));
+    return personabotsRpc.channelMuteSet(this.methods, channelId, muted);
   }
 
   rosterBatch(
@@ -3081,7 +3061,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     channelIds: string[],
     sectionId?: string | null,
   ): Promise<RosterSnapshot> {
-    return unwrapAsync(this.methods.rosterBatch({ action, channelIds, sectionId }));
+    return personabotsRpc.rosterBatch(this.methods, action, channelIds, sectionId);
   }
 
   developerModeSet(enabled: boolean): { accepted: boolean } {

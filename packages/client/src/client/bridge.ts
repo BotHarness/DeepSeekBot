@@ -1,3 +1,8 @@
+import { MEMBER_METHODS } from '../../../core/src/team/member-methods.js';
+import { isBotPrimaryColor } from '../../../core/src/bots/primary-color.js';
+import { createPersonaBotReaders } from './features/personabots/bridge.js';
+import { createChannelHumanNameBridge } from './features/humans/bridge.js';
+import { createMemberBridgeGuard } from './features/team/bridge.js';
 import { parseRemoteChannelMetadata } from './features/environments/bridge.js';
 import { parseAuthor } from './bridge-channel-author.js';
 import type { ThreadReceptionInput } from '../../../core/src/messaging/thread-policy.js';
@@ -265,26 +270,14 @@ export {
   previewBotSchedule,
 } from './features/schedules/bridge.js';
 
-import * as rosterReaders from '@botharness/host-client/roster-readers';
-
 import { parseToolEffects } from '../../../core/src/workspaces/tool-effects-contract.js';
 
 import {
   skillCatalogChangeSchema,
   type SkillCatalogChange,
 } from '../../../core/src/skills/events.js';
-import { MEMBER_METHODS } from '../../../core/src/team/member-methods.js';
-import {
-  humanAvatarVersionOf,
-  readHumanAvatars,
-  readHumanIdentity,
-  setHumanName,
-  setHumanAvatar as writeHumanAvatar,
-  finishHumanProfile,
-  type HumanAvatarImage,
-  type HumanIdentity,
-} from '@botharness/host-client/human-profile';
-import { memberPage } from './member-page.js';
+
+import { humanAvatarVersionOf, type HumanIdentity } from '@botharness/host-client/human-profile';
 import {
   isTakeoverRequestCard,
   isTakeoverResolution,
@@ -293,12 +286,12 @@ import {
   parseFailureAutoContinue,
   parseFailureProgress,
 } from '@botharness/host-client/shared/turn-continuation';
-import { isPixelBannerRecipe } from '@botharness/pixel-banner';
+
 import {
   browseHostFolders,
   loadWorkspaceOptions as loadHostWorkspaceOptions,
 } from '@botharness/host-client/bot-settings';
-import { listBots, updateBot } from '@botharness/host-client/bots';
+
 import { loadUsage } from '@botharness/host-client/usage';
 export type {
   MemoryAcceptedCommit,
@@ -431,7 +424,7 @@ import type { ChannelActivityToday } from '../../../core/src/channels/activity-t
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
 import { isPartLibraryEntry } from '../../../core/src/bots/part-library.js';
-import { isBotPrimaryColor } from '../../../core/src/bots/primary-color.js';
+
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import type {
   ConversationIngestInput,
@@ -450,7 +443,7 @@ import type {
   MessagingTarget,
 } from '../../../core/src/messaging/provider.js';
 import type { HostFileTarget } from './host-file-actions.js';
-import type { ComposerRecoveryIdentity } from '../../../core/src/bridge/composer-recovery.js';
+
 import {
   isChannelAttachmentRef,
   isChannelClearedAttachment,
@@ -466,7 +459,6 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import type { ConnectionRpcResult } from '@deepseek-ai/dsh-client-connection/client';
 
 import type {
-  BotBannerView,
   BotSummary,
   ChannelAttachmentRef,
   ChannelMessage,
@@ -479,12 +471,6 @@ import type {
   UserQuestionAnswerItem,
 } from './store.js';
 import { quoteRefOf } from './store.js';
-import {
-  parseRosterSnapshot,
-  type RosterSection,
-  type RosterSnapshot,
-  type TopOrderEntry,
-} from './roster.js';
 
 export interface BridgeRpc {
   call(
@@ -493,20 +479,6 @@ export interface BridgeRpc {
     payload: unknown,
     signal?: AbortSignal,
   ): Promise<ConnectionRpcResult<unknown>>;
-}
-
-export interface CreatePersonaBotInput {
-  operationKey?: string;
-  expectedCommit?: string;
-  displayName: string;
-  persona?: string;
-  roles: string[];
-  description?: string;
-  gitUrl?: string;
-  avatar?: string;
-  origin?: 'marketplace';
-  listingId?: string;
-  memoryLocation?: string;
 }
 
 export type {
@@ -531,9 +503,9 @@ function remoteArgs(payload: Record<string, unknown>): Record<string, unknown> {
 }
 
 export function createBridgeCall(ctx: ClientContext): BridgeCall {
-  const member = memberPage();
+  const memberBridgeUnavailable = createMemberBridgeGuard(MEMBER_METHODS);
   return async (endpoint, payload, signal) => {
-    if (member && !MEMBER_METHODS.has(endpoint))
+    if (memberBridgeUnavailable(endpoint))
       return {
         ok: false,
         error: { code: 'member-unavailable', message: endpoint, details: {} },
@@ -562,121 +534,14 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function parseBotSummary(value: unknown): BotSummary | undefined {
-  const record = asRecord(value);
-  if (record === undefined) return undefined;
-  const slug = record['slug'];
-  const displayName = record['displayName'];
-  if (typeof slug !== 'string' || slug.length === 0 || typeof displayName !== 'string') {
-    return undefined;
-  }
-  const aggregateState = record['aggregateState'];
-  const createdAt = record['createdAt'];
-  const roles = stringArray(record['roles']);
-  const legacyTag = record['tag'];
-  const description = record['description'];
-  const avatar = record['avatar'];
-  const runner = asRecord(record['orchestratorRunner']);
-  const engine = runner?.['engine'];
-  const runnerName = runner?.['displayName'];
-  const account = runner?.['account'];
-  const runnerModel = runner?.['model'];
-  return {
-    ...(typeof engine === 'string' &&
-    engine.trim() &&
-    typeof runnerName === 'string' &&
-    runnerName.trim() &&
-    (account === undefined || typeof account === 'string')
-      ? {
-          orchestratorRunner: {
-            engine,
-            displayName: runnerName,
-            ...(account === undefined ? {} : { account }),
-            ...(typeof runnerModel === 'string' && runnerModel.trim()
-              ? { model: runnerModel }
-              : {}),
-          },
-        }
-      : {}),
-    slug,
-    displayName,
-    ...(typeof asRecord(record['tob'])?.['defaultName'] === 'boolean' &&
-    typeof asRecord(record['tob'])?.['defaultAvatar'] === 'boolean'
-      ? {
-          tob: record['tob'] as {
-            defaultName: boolean;
-            defaultAvatar: boolean;
-          },
-        }
-      : {}),
-    ...(typeof record['lastActivityAt'] === 'number' && Number.isFinite(record['lastActivityAt'])
-      ? { lastActivityAt: record['lastActivityAt'] }
-      : {}),
-    ...(typeof asRecord(record['sharedBy'])?.['displayName'] === 'string'
-      ? { sharedBy: asRecord(record['sharedBy'])?.['displayName'] as string }
-      : {}),
-    aggregateState: typeof aggregateState === 'string' ? aggregateState : 'idle',
-    workspaces: stringArray(record['workspaces']),
-    createdAt: typeof createdAt === 'string' ? createdAt : '',
-    roles: roles.length > 0 ? roles : typeof legacyTag === 'string' ? [legacyTag] : [],
-    ...(typeof description === 'string' ? { description } : {}),
-    ...(typeof avatar === 'string' ? { avatar } : {}),
-    ...(isAvatarAppearance(record['appearance'])
-      ? { appearance: record['appearance'] }
-      : isRetainedAvatarAppearance(record['appearance'])
-        ? { appearanceUnsupported: true as const }
-        : {}),
-    ...(parseBanner(record['banner']) ?? {}),
-    ...(isBotPrimaryColor(record['primaryColor']) ? { primaryColor: record['primaryColor'] } : {}),
-    ...(record['avatarSeed'] === 2 ? { avatarSeed: 2 as const } : {}),
-    ...(typeof record['paused'] === 'boolean' ? { paused: record['paused'] } : {}),
-    ...(record['deleted'] === true ? { deleted: true } : {}),
-    ...(record['modelAllowed'] === false ? { modelAllowed: false as const } : {}),
-    ...(typeof record['uploadedListing'] === 'string'
-      ? { uploadedListing: record['uploadedListing'] }
-      : {}),
-    ...(typeof record['installedListing'] === 'string'
-      ? { installedListing: record['installedListing'] }
-      : {}),
-    ...(parseStandingLimits(record['standingLimits']) ?? {}),
-  };
-}
-
-function parseBanner(value: unknown): { banner: BotBannerView } | undefined {
-  const banner = asRecord(value);
-  if (banner === undefined) return undefined;
-  if (isPixelBannerRecipe(banner['recipe'])) return { banner: { recipe: banner['recipe'] } };
-  const image = banner['image'];
-  return typeof image === 'string' && image.length > 0 ? { banner: { image } } : undefined;
-}
-
-function parseStandingLimits(value: unknown): { standingLimits: StandingLimitsView } | undefined {
-  const limits = asRecord(value);
-  const soul = limits?.['soul'];
-  const coreMemory = limits?.['coreMemory'];
-  if (typeof soul !== 'number' || typeof coreMemory !== 'number') return undefined;
-  return { standingLimits: { soul, coreMemory } };
-}
-
-export async function setStandingLimits(
-  call: BridgeCall,
-  slug: string,
-  limits: StandingLimitsView,
-): Promise<BotSummary> {
-  const value = asRecord(await unwrap(call, 'standingLimitsSet', { slug, ...limits }));
-  const bot = parseBotSummary(value?.['bot']);
-  if (bot === undefined) throw new Error('Invalid PersonaBot result');
-  return bot;
-}
-
-export function parseBotSummaries(value: unknown): BotSummary[] {
-  const bots = asRecord(value)?.['bots'];
-  if (!Array.isArray(bots)) return [];
-  return bots.flatMap((entry) => {
-    const bot = parseBotSummary(entry);
-    return bot === undefined ? [] : [bot];
-  });
-}
+export const {
+  parseBotSummary,
+  parseBotSummaries,
+  loadBots,
+  createPersonaBot,
+  updateBotProfile,
+  setStandingLimits,
+} = createPersonaBotReaders(isAvatarAppearance, isRetainedAvatarAppearance, isBotPrimaryColor);
 
 export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
   const record = asRecord(value);
@@ -2032,67 +1897,6 @@ export interface SessionBotOwner {
 export const { parseSessionBotOwner, loadSessionBotOwner } =
   createSessionOwnerBridge(isAvatarAppearance);
 
-export async function loadBots(call: BridgeCall, signal?: AbortSignal): Promise<BotSummary[]> {
-  return parseBotSummaries({ bots: await listBots(bridgeHost(call, signal)) });
-}
-
-export async function botExists(call: BridgeCall, slug: string): Promise<boolean> {
-  return (await listBots(bridgeHost(call))).some((bot) => bot.slug === slug);
-}
-
-export type SshFailureReason =
-  | 'auth'
-  | 'host-key'
-  | 'unreachable'
-  | 'ssh-missing'
-  | 'timeout'
-  | 'other';
-
-const SSH_FAILURE_REASONS: readonly SshFailureReason[] = [
-  'auth',
-  'host-key',
-  'unreachable',
-  'ssh-missing',
-  'timeout',
-  'other',
-];
-
-export interface HttpsFallback {
-  from: string;
-  to: string;
-  reason: SshFailureReason;
-  detail?: string;
-}
-
-export type CreatedBot = BotSummary & { httpsFallback?: HttpsFallback };
-
-function parseHttpsFallback(value: unknown): HttpsFallback | undefined {
-  const item = asRecord(value);
-  if (typeof item?.['from'] !== 'string' || typeof item['to'] !== 'string') return undefined;
-  const reason = SSH_FAILURE_REASONS.find((known) => known === item['reason']) ?? 'other';
-  const detail = item['detail'];
-  return typeof detail === 'string' && detail.length > 0
-    ? { from: item['from'], to: item['to'], reason, detail }
-    : { from: item['from'], to: item['to'], reason };
-}
-
-export async function createPersonaBot(
-  call: BridgeCall,
-  input: CreatePersonaBotInput,
-  signal?: AbortSignal,
-): Promise<CreatedBot> {
-  const value = await unwrap(
-    call,
-    input.gitUrl === undefined ? 'create' : 'createFromGit',
-    { ...input },
-    signal,
-  );
-  const bot = parseBotSummary(asRecord(value)?.['bot']);
-  if (bot === undefined) throw new Error('invalid create response');
-  const httpsFallback = parseHttpsFallback(asRecord(value)?.['httpsFallback']);
-  return httpsFallback === undefined ? bot : { ...bot, httpsFallback };
-}
-
 export const {
   importBotZip,
   loadBotZipFiles,
@@ -2134,25 +1938,6 @@ export async function loadChannels(
     const channel = parseChannelRecord(entry);
     return channel === undefined ? [] : [channel];
   });
-}
-
-export async function loadComposerIdentity(
-  call: BridgeCall,
-  signal?: AbortSignal,
-): Promise<ComposerRecoveryIdentity> {
-  const value = asRecord(await unwrap(call, 'composerIdentity', {}, signal));
-  if (
-    value === undefined ||
-    !['hostId', 'profileId', 'humanId'].every(
-      (key) => typeof value[key] === 'string' && (value[key] as string).length > 0,
-    )
-  )
-    throw new Error('invalid composer identity');
-  return {
-    hostId: value['hostId'] as string,
-    profileId: value['profileId'] as string,
-    humanId: value['humanId'] as string,
-  };
 }
 
 export async function validateComposerDraft(
@@ -2245,6 +2030,7 @@ export async function renameChannel(
   return { channel, ...(bot === undefined ? {} : { bot }) };
 }
 
+export const setChannelHumanName = createChannelHumanNameBridge(presentChannel);
 export type LocalHumanIdentity = HumanIdentity;
 
 export type TelemetryLock = 'config' | 'DO_NOT_TRACK' | 'BOTHARNESS_TELEMETRY';
@@ -2464,47 +2250,6 @@ export async function setTelemetryPreference(
   return parseTelemetryStatus(await unwrap(call, 'telemetrySet', { enabled }));
 }
 
-export async function loadHumanIdentity(
-  call: BridgeCall,
-  signal?: AbortSignal,
-): Promise<LocalHumanIdentity> {
-  return readHumanIdentity(bridgeHost(call, signal));
-}
-
-export async function setHumanDefaultName(
-  call: BridgeCall,
-  displayName: string | null,
-): Promise<LocalHumanIdentity> {
-  return setHumanName(bridgeHost(call), displayName);
-}
-
-export async function setHumanAvatar(
-  call: BridgeCall,
-  avatar: string | null,
-): Promise<LocalHumanIdentity> {
-  return writeHumanAvatar(bridgeHost(call), avatar);
-}
-
-export async function finishHumanProfileSetup(call: BridgeCall): Promise<LocalHumanIdentity> {
-  return finishHumanProfile(bridgeHost(call));
-}
-
-export async function loadHumanAvatars(
-  call: BridgeCall,
-  humanIds: string[],
-): Promise<HumanAvatarImage[]> {
-  return readHumanAvatars(bridgeHost(call), humanIds);
-}
-
-export async function setChannelHumanName(
-  call: BridgeCall,
-  channelId: string,
-  nickname: string | null,
-): Promise<ChannelSummary> {
-  const { channel } = await channels.setChannelHumanName(bridgeHost(call), channelId, nickname);
-  return presentChannel(channel);
-}
-
 export async function setGroupAvatar(
   call: BridgeCall,
   channelId: string,
@@ -2527,16 +2272,6 @@ export const {
   importLibraryImage,
   addLibraryPart,
 } = createAvatarsBridge(parseBotSummary, isPartLibraryEntry);
-
-export async function updateBotProfile(
-  call: BridgeCall,
-  slug: string,
-  patch: { roles?: string[]; description?: string },
-): Promise<BotSummary> {
-  const bot = parseBotSummary(await updateBot(bridgeHost(call), slug, patch));
-  if (bot === undefined) throw new Error('invalid update response');
-  return bot;
-}
 
 export async function inviteGroupBot(
   call: BridgeCall,
@@ -3014,107 +2749,6 @@ export async function loadWorkspaceOptions(call: BridgeCall): Promise<WorkspaceO
 
 export { parseHumanAttentionPage } from '@botharness/host-client/people';
 
-export async function loadRoster(call: BridgeCall, signal?: AbortSignal): Promise<RosterSnapshot> {
-  return parseRosterSnapshot(await rosterReaders.readRoster(bridgeHost(call, signal)));
-}
-
-export interface RosterBatchInput {
-  action: 'pin' | 'unpin' | 'hide' | 'move';
-  channelIds: readonly string[];
-  sectionId?: string;
-}
-
-export async function applyRosterBatch(
-  call: BridgeCall,
-  input: RosterBatchInput,
-  signal?: AbortSignal,
-): Promise<RosterSnapshot> {
-  const payload = {
-    action: input.action,
-    channelIds: [...input.channelIds],
-    ...(input.sectionId === undefined ? {} : { sectionId: input.sectionId }),
-  };
-  return parseRosterSnapshot(
-    await rosterReaders.applyRosterBatch(bridgeHost(call, signal), payload),
-  );
-}
-
-export async function createRosterSection(
-  call: BridgeCall,
-  name: string,
-  signal?: AbortSignal,
-): Promise<RosterSection> {
-  return channels.createRosterSection(bridgeHost(call, signal), name);
-}
-
-export async function renameRosterSection(
-  call: BridgeCall,
-  sectionId: string,
-  name: string,
-  signal?: AbortSignal,
-): Promise<void> {
-  await unwrap(call, 'sectionRename', { sectionId, name }, signal);
-}
-
-export async function removeRosterSection(
-  call: BridgeCall,
-  sectionId: string,
-  signal?: AbortSignal,
-): Promise<void> {
-  await channels.removeRosterSection(bridgeHost(call, signal), sectionId);
-}
-
-export async function assignRosterChannel(
-  call: BridgeCall,
-  channelId: string,
-  sectionId: string | undefined,
-  index?: number,
-  signal?: AbortSignal,
-): Promise<void> {
-  await channels.assignRosterChannel(bridgeHost(call, signal), { channelId, sectionId, index });
-}
-
-export async function reorderRosterSections(
-  call: BridgeCall,
-  order: readonly string[],
-  signal?: AbortSignal,
-): Promise<void> {
-  await unwrap(call, 'sectionReorder', { order }, signal);
-}
-
-export async function reorderTopOrder(
-  call: BridgeCall,
-  order: readonly TopOrderEntry[],
-  signal?: AbortSignal,
-): Promise<void> {
-  await unwrap(call, 'topReorder', { order }, signal);
-}
-
-export async function setRosterPins(
-  call: BridgeCall,
-  pins: readonly string[],
-  signal?: AbortSignal,
-): Promise<void> {
-  await unwrap(call, 'pinsSet', { pins }, signal);
-}
-
-export async function setRosterHidden(
-  call: BridgeCall,
-  hidden: readonly string[],
-  signal?: AbortSignal,
-): Promise<void> {
-  await unwrap(call, 'hiddenSet', { hidden }, signal);
-}
-
-export async function setChannelMute(
-  call: BridgeCall,
-  channelId: string,
-  muted: boolean,
-  signal?: AbortSignal,
-): Promise<void> {
-  await channels.setChannelMuted(bridgeHost(call, signal), channelId, muted);
-}
-
 export async function loadWorkspaceFileTarget(
   call: BridgeCall,
   slug: string,
@@ -3318,3 +2952,34 @@ function parseMessageQuotes(value: unknown): ChannelMessageQuote[] | undefined |
   }
   return quotes;
 }
+
+export {
+  loadComposerIdentity,
+  loadHumanIdentity,
+  setHumanDefaultName,
+  setHumanAvatar,
+  finishHumanProfileSetup,
+  loadHumanAvatars,
+} from './features/humans/bridge.js';
+
+export {
+  type CreatePersonaBotInput,
+  botExists,
+  type SshFailureReason,
+  type HttpsFallback,
+  type CreatedBot,
+  loadRoster,
+  type RosterBatchInput,
+  applyRosterBatch,
+  createRosterSection,
+  renameRosterSection,
+  removeRosterSection,
+  assignRosterChannel,
+  reorderRosterSections,
+  reorderTopOrder,
+  setRosterPins,
+  setRosterHidden,
+  setChannelMute,
+} from './features/personabots/bridge.js';
+
+export type { ComposerRecoveryIdentity } from '../../../core/src/bridge/composer-recovery.js';

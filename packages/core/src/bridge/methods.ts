@@ -1,4 +1,15 @@
 import {
+  createPersonaBotsBridgeMethods,
+  type PersonaBotsBridgeMethods,
+  detail,
+} from '../features/personabots/methods.js';
+import { createHumansBridgeMethods, type HumansBridgeMethods } from '../features/humans/methods.js';
+import {
+  createTeamBridgeMethods,
+  type TeamBridgeMethods,
+  createTeamBridge,
+} from '../features/team/methods.js';
+import {
   remoteChannelAvailability,
   remoteChannelContact,
 } from '../features/environments/methods.js';
@@ -82,7 +93,7 @@ import {
   type ModelsBridgeMethods,
 } from '../features/models/methods.js';
 import type { ModelsBridgeDeps } from '../features/models/deps.js';
-import { createModelRoutingHelpers, routingGroupFailure } from '../features/models/routing.js';
+import { createModelRoutingHelpers } from '../features/models/routing.js';
 export type { ModelCatalogGroup } from '../features/models/routing.js';
 import {
   createMarketplaceBridgeMethods,
@@ -110,9 +121,6 @@ import {
   asNonBlank,
   asObject,
   parseOptional,
-  parseRoles,
-  parseStringArray,
-  type ParsedField,
   asSlug,
   invalidInput,
   unavailable,
@@ -131,7 +139,7 @@ export type {
   PromptLimitView,
   PromptPartView,
 } from '../features/prompts/methods.js';
-import { modelFailure } from '../models/provider-bridge.js';
+
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 import {
   assertQuoteTargets,
@@ -143,14 +151,14 @@ import {
 } from '../channels/quotes.js';
 import { botModelAllowed } from '../team/models.js';
 import { TeamError } from '../team/error.js';
-import type { UsageByMemberResult } from '../usage/overview.js';
+
 import { MEMBER_CHANNEL_METHODS } from '../team/member-methods.js';
 import type { TeamChannels } from '../team/channels.js';
 import { guardHumanBridge } from '../team/bridge-access.js';
 import { botOwner, privateBotRegistry } from '../team/bot-access.js';
 import { privateBotCreations } from '../bots/creation.js';
 import { createHash } from 'node:crypto';
-import { createTeamBridge, type TeamBridgeMethods } from '../team/bridge.js';
+
 import type { TeamService } from '../team/service.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { type HumanContext, type HumanId } from '../humans/context.js';
@@ -174,8 +182,6 @@ import { SessionRecoveryError } from '../runtime/session-recovery.js';
 import type { BotContextWindow } from '../runtime/context-window.js';
 import { summarizeTurnInput, type TurnInputView } from '../runtime/prompt-inspection.js';
 
-import { isDeepStrictEqual } from 'node:util';
-import { DEEPSEEKBOT_RECIPE } from '../onboarding/service.js';
 import { type CloudWork } from '../cloud/work.js';
 
 import type { CloudConnections } from '../cloud/connections.js';
@@ -185,19 +191,13 @@ import {
   type ChannelManagementService,
   type ChannelManagementResult,
 } from '../channels/management.js';
-import { botProfileFingerprint } from '../bots/profile-snapshot.js';
+
 import { BotZipUploadError } from '../bots/zip-upload.js';
-import {
-  BotCreationError,
-  validBotCreationKey,
-  type BotCreationService,
-  type BotCreationInput,
-  type BotCreationReceipt,
-} from '../bots/creation.js';
-import { TobError, type TobService, type TobHome } from '../tob/service.js';
-import type { BotOnboarding, OnboardingSnapshot, TutorialAction } from '../onboarding/service.js';
+import { validBotCreationKey, type BotCreationService } from '../bots/creation.js';
+import { TobError, type TobHome, type TobService } from '../tob/service.js';
+import type { BotOnboarding } from '../onboarding/service.js';
 import type { ClientAcknowledgements } from '../onboarding/acknowledgements.js';
-import type { HttpsFallback } from '../memory/clone.js';
+
 import {
   ContentPurgeError,
   type ContentPurge,
@@ -241,11 +241,7 @@ import type { OutboundMessaging } from '../messaging/outbound.js';
 
 import { OperationalDatabaseError } from '../database/owner.js';
 import type { InstallReceipts } from '../marketplace/install-receipts.js';
-import {
-  MAX_DESCRIPTOR_BIO_LENGTH,
-  MAX_DESCRIPTOR_TAG_LENGTH,
-  MAX_DESCRIPTOR_TAGS,
-} from '../marketplace/descriptor.js';
+
 import type {
   ReleaseInfo,
   ReleaseInstall,
@@ -269,7 +265,6 @@ import type { ActiveDay } from '../telemetry/active-day.js';
 import {
   isClientTelemetryEventName,
   telemetryEventProperties,
-  type TelemetryEventName,
   type TelemetrySurface,
 } from '../telemetry/events.js';
 import type { TelemetryCapture, TelemetryStatus } from '../telemetry/service.js';
@@ -295,10 +290,6 @@ import {
   isSkillInvocationToken,
   isGroupAvatar,
   isReactionEmoji,
-  type LocalHumanIdentity,
-  type HumanAvatar,
-  HUMAN_AVATAR_BATCH,
-  isHumanAvatar,
   type ChannelMention,
   type ChannelMessage,
   type ChannelReaction,
@@ -307,8 +298,8 @@ import {
   type ChannelSkillInvocation,
   type ChannelSkillInvocationToken,
 } from '../channels/channel.js';
-import { botAvatarUrl } from '../bots/avatar-http.js';
-import { botBannerSummary, type BotBannerSummary } from '../bots/banner-http.js';
+
+import { type BotBannerSummary } from '../bots/banner-http.js';
 import type { AvatarAppearance, RetainedAvatarAppearance } from '../bots/avatar-appearance.js';
 import {
   currentBotPrimaryColor,
@@ -333,17 +324,9 @@ import type {
   HumanMessageSearchPage,
 } from '../channels/store.js';
 import type { ChannelChangeCursor, ChannelTimelinePage } from '../channels/timeline.js';
-import type {
-  CreatePersonaBotResult,
-  PersonaBotPatch,
-  PersonaBotRecord,
-} from '../bots/persona-bot.js';
+import type { PersonaBotRecord } from '../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
-import type {
-  PersonaBotDeletions,
-  PersonaBotDeletionPreview,
-  PersonaBotDeletion,
-} from '../bots/deletion.js';
+import type { PersonaBotDeletions } from '../bots/deletion.js';
 import {
   DataResetError,
   type DataReset,
@@ -353,15 +336,8 @@ import {
 import { SkillContentTooLargeError, skillOwnerKey, type ResolvedSkill } from '../skills/catalog.js';
 
 import { isValidSlug } from '../bots/slug.js';
-import {
-  MAX_ROSTER_BATCH_SIZE,
-  RosterStore,
-  RosterUnavailableError,
-  RosterUnknownSectionError,
-  type RosterSection,
-  type RosterSnapshot,
-} from '../roster/store.js';
-import type { TopOrderEntry } from '../roster/spec.js';
+import { RosterStore, RosterUnavailableError } from '../roster/store.js';
+
 import type { SessionOwnership, SessionRootRole } from '../sessions/ownership.js';
 import type {
   UsageProjection,
@@ -369,17 +345,10 @@ import type {
   SessionUsageSummary,
 } from '../usage/usage.js';
 import { usageFilterSchema, type UsageQueryResult } from '../usage/query.js';
-import { isModelRoute, type PersonaBotModelPlan } from '../models/presets.js';
-import { RoutingGroupError } from '../models/routing-groups.js';
-import { groupMemberRoute } from '../models/catalog.js';
+import { type PersonaBotModelPlan } from '../models/presets.js';
+
 import { type MemoryFileTarget } from '../memory/file-actions.js';
-import {
-  DEFAULT_STANDING_LIMITS,
-  isStandingLimits,
-  MAX_STANDING_LIMIT,
-  MIN_STANDING_LIMIT,
-  type StandingLimits,
-} from '../memory/soul.js';
+import { type StandingLimits } from '../memory/soul.js';
 import { WorkspaceGrantError } from '../workspaces/grants.js';
 import {
   FolderBrowseError,
@@ -400,12 +369,7 @@ import { GenuiDiagramError } from '../runtime/genui-diagram.js';
 import { GenuiPreviewError } from '../runtime/genui-preview.js';
 import { ChannelCallReadError } from '../channels/call-window.js';
 import type { BotRuntime, DirectBotToolSpec, DmAdmissionFailure } from '../runtime/bot-runtime.js';
-import type {
-  AggregatedState,
-  BotStateSnapshot,
-  BotStateTracker,
-  SessionState,
-} from '../state/bot-state.js';
+import type { AggregatedState, BotStateTracker, SessionState } from '../state/bot-state.js';
 import { MIN_PHONE_APP_VERSION } from '../devices/client-compat.js';
 
 export type SharedBotSummary = ReturnType<
@@ -515,7 +479,9 @@ export interface BridgeMethods
     MemoryBridgeMethods,
     MessagingBridgeMethods,
     ActivityBridgeMethods,
-    CloudBridgeMethods {
+    CloudBridgeMethods,
+    PersonaBotsBridgeMethods,
+    HumansBridgeMethods {
   tobHome(
     payload: unknown,
   ): Promise<
@@ -523,61 +489,23 @@ export interface BridgeMethods
       (TobHome & { attention?: { unreadCount: number; hasAction: boolean } }) | { available: false }
     >
   >;
-  onboarding(payload: unknown): Promise<BridgeResult<OnboardingSnapshot>>;
   acknowledgements(payload: unknown): BridgeResult<{ items: Record<string, string> }>;
   acknowledge(payload: unknown): BridgeResult<{ key: string; value: string }>;
-  onboardingModel(
-    payload: unknown,
-  ): Promise<BridgeResult<{ revision: number; groupRevision?: number }>>;
   telemetryEvent(payload: unknown): BridgeResult<null>;
   channelRetry(payload: unknown): Promise<BridgeResult<{ accepted: true }>>;
   sessionMessageSend(payload: unknown): Promise<BridgeResult<{ sourceEventId: string }>>;
 
-  list(payload: unknown): BridgeResult<{ bots: Array<PersonaBotSummary | SharedBotSummary> }>;
-
-  get(payload: unknown): BridgeResult<{ bot: PersonaBotDetail; profileFingerprint: string }>;
-  create(payload: unknown): BridgeResult<{
-    bot: PersonaBotDetail;
-    channelId?: string;
-    receipt?: BotCreationReceipt;
-  }>;
-  botImportPreview(
-    payload: unknown,
-  ): Promise<BridgeResult<Awaited<ReturnType<BotImportsService['previewGit']>>>>;
-  botImportLookup(payload: unknown): BridgeResult<{ receipt: BotCreationReceipt | null }>;
-  createLookup(payload: unknown): BridgeResult<{ receipt: BotCreationReceipt | null }>;
-  createFromGit(payload: unknown): Promise<
-    BridgeResult<{
-      bot: PersonaBotDetail;
-      httpsFallback?: HttpsFallback;
-      receipt?: BotCreationReceipt;
-      channelId?: string;
-    }>
-  >;
-  update(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   dataResetPreview(): BridgeResult<{ preview: DataResetPreview }>;
   dataResetConfirm(payload: unknown): BridgeResult<{ reset: DataResetResult }>;
-  deletionPreview(payload: unknown): BridgeResult<{ preview: PersonaBotDeletionPreview }>;
-  deletionConfirm(payload: unknown): Promise<BridgeResult<{ deletion: PersonaBotDeletion }>>;
-  deletionRetry(payload: unknown): Promise<BridgeResult<{ deletion: PersonaBotDeletion }>>;
-  deletionMemoryFolder(payload: unknown): BridgeResult<{
-    target: { path: string; relativePath: string; kind: 'directory' };
-  }>;
-  pause(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  resume(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
+
   ping(payload: unknown): BridgeResult<{ ok: true; version?: string; minAppVersion: string }>;
-  humanIdentity(payload: unknown): BridgeResult<LocalHumanIdentity>;
-  composerIdentity(payload: unknown): BridgeResult<ComposerRecoveryIdentity>;
+
   composerValidate(payload: unknown): BridgeResult<{
     reply?: ChannelMessage;
     attachments: Array<ChannelAttachmentRef | null>;
     quotes?: Array<ChannelMessage | null>;
   }>;
-  humanNameSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
-  humanAvatarSet(payload: unknown): BridgeResult<LocalHumanIdentity>;
-  humanProfileSetupFinish(payload: unknown): BridgeResult<LocalHumanIdentity>;
-  humanAvatars(payload: unknown): BridgeResult<{ avatars: HumanAvatar[] }>;
-  channelHumanNameSet(payload: unknown): BridgeResult<{ channel: ChannelListItem }>;
+
   channels(payload: unknown): Promise<BridgeResult<{ channels: ChannelListItem[] }>>;
   channelListChanges(payload: unknown): Promise<BridgeResult<ChannelListChanges>>;
   channelDm(payload: unknown): BridgeResult<{ channel: ChannelRecord & { readOnly?: boolean } }>;
@@ -654,21 +582,10 @@ export interface BridgeMethods
   messageAttachmentTarget(payload: unknown): BridgeResult<{ target: MemoryFileTarget }>;
 
   profileSessionUsage(payload: unknown): Promise<BridgeResult<ProfileSessionUsage>>;
-  usageByMember(payload: unknown): BridgeResult<UsageByMemberResult>;
+
   overviewUsage(payload: unknown): BridgeResult<OverviewUsage>;
   profileUsage(payload: unknown): BridgeResult<UsageQueryResult>;
 
-  rosterGet(payload: unknown): BridgeResult<RosterSnapshot>;
-  sectionCreate(payload: unknown): Promise<BridgeResult<{ section: RosterSection }>>;
-  sectionRename(payload: unknown): Promise<BridgeResult<{ section: RosterSection }>>;
-  sectionRemove(payload: unknown): Promise<BridgeResult<{ removed: boolean }>>;
-  channelAssign(payload: unknown): Promise<BridgeResult<Record<string, never>>>;
-  sectionReorder(payload: unknown): Promise<BridgeResult<{ sectionOrder: string[] }>>;
-  topReorder(payload: unknown): Promise<BridgeResult<{ topOrder: TopOrderEntry[] }>>;
-  pinsSet(payload: unknown): Promise<BridgeResult<{ pins: string[] }>>;
-  hiddenSet(payload: unknown): Promise<BridgeResult<{ hidden: string[] }>>;
-  channelMuteSet(payload: unknown): Promise<BridgeResult<{ muted: string[] }>>;
-  rosterBatch(payload: unknown): Promise<BridgeResult<RosterSnapshot>>;
   developerModeSet(payload: unknown): BridgeResult<{ accepted: boolean }>;
   botModes: BotModeBridgeMethods['botModes'];
   botModeDefaultSet: BotModeBridgeMethods['botModeDefaultSet'];
@@ -676,7 +593,7 @@ export interface BridgeMethods
   botModeTemplateSave: BotModeBridgeMethods['botModeTemplateSave'];
   botModeTemplateDelete: BotModeBridgeMethods['botModeTemplateDelete'];
   botModeTemplateSet: BotModeBridgeMethods['botModeTemplateSet'];
-  standingLimitsSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
+
   releaseInfo(payload: unknown): BridgeResult<ReleaseInfo>;
   releaseUpdate(payload?: unknown): Promise<BridgeResult<ReleaseUpdate>>;
   releaseInstall(payload: unknown): Promise<BridgeResult<ReleaseInstall>>;
@@ -834,64 +751,6 @@ function unmanagedGitStatus(): GitStatus {
     : { ...git, installable: false, install: { phase: 'idle' } };
 }
 
-function asQuery(payload: unknown): string | undefined {
-  const value = asObject(payload)['query'];
-  return typeof value === 'string' ? value : undefined;
-}
-
-function parseCreation(
-  payload: unknown,
-): BridgeResult<{ input: BotCreationInput; operationKey?: string }> {
-  const source = asObject(payload);
-  const displayName = source['displayName'];
-  if (typeof displayName !== 'string' || displayName.trim().length === 0) {
-    return invalidInput('displayName is required');
-  }
-  const persona = parseOptional(source, 'persona');
-  const coreMemory = parseOptional(source, 'coreMemory');
-  const roles = parseRoles(source);
-  const description = parseOptional(source, 'description');
-  const model = parseOptional(source, 'model');
-  const preset = parseOptional(source, 'preset');
-  const workspaces = parseWorkspaces(source);
-  const avatar = parseOptional(source, 'avatar');
-  const memoryLocation = parseOptional(source, 'memoryLocation');
-  if (
-    !memoryLocation.ok ||
-    !persona.ok ||
-    !coreMemory.ok ||
-    !roles.ok ||
-    !description.ok ||
-    !model.ok ||
-    !preset.ok ||
-    !workspaces.ok ||
-    !avatar.ok
-  ) {
-    return invalidInput('invalid create payload');
-  }
-  const operationKey = source['operationKey'];
-  if (operationKey !== undefined && typeof operationKey !== 'string')
-    return invalidInput('operationKey must be a string');
-  const input = {
-    displayName,
-    ...(persona.value === undefined ? {} : { persona: persona.value }),
-    ...(coreMemory.value === undefined ? {} : { coreMemory: coreMemory.value }),
-    ...(roles.value === undefined ? {} : { roles: roles.value }),
-    ...(description.value === undefined ? {} : { description: description.value }),
-    ...(model.value === undefined ? {} : { model: model.value }),
-    ...(preset.value === undefined ? {} : { preset: preset.value }),
-    ...(workspaces.value === undefined ? {} : { workspaces: workspaces.value }),
-    ...(avatar.value === undefined ? {} : { avatar: avatar.value }),
-    ...(memoryLocation.value === undefined ? {} : { memoryLocation: memoryLocation.value }),
-  };
-  return {
-    ok: true,
-    value: { input, ...(operationKey === undefined ? {} : { operationKey }) },
-  };
-}
-const parseWorkspaces = (source: Record<string, unknown>): ParsedField<string[]> =>
-  parseStringArray(source, 'workspaces');
-
 function releaseUnavailable(): BridgeResult<never> {
   return {
     ok: false,
@@ -901,15 +760,6 @@ function releaseUnavailable(): BridgeResult<never> {
     },
   };
 }
-
-const TUTORIAL_EVENTS: Record<TutorialAction, TelemetryEventName> = {
-  start: 'onboarding:tutorial_start',
-  pause: 'onboarding:tutorial_pause',
-  skip: 'onboarding:tutorial_skip',
-  continue: 'onboarding:tutorial_resume',
-  restart: 'onboarding:tutorial_restart',
-  finish: 'onboarding:tutorial_complete',
-};
 
 function telemetryUnavailable(): BridgeResult<never> {
   return {
@@ -994,204 +844,6 @@ function dataResetFailure(error: unknown): BridgeResult<never> {
   };
 }
 
-function unknownSection(sectionId: string): BridgeResult<never> {
-  return {
-    ok: false,
-    error: {
-      code: 'not-found',
-      message: `unknown Channel section: ${sectionId}`,
-    },
-  };
-}
-
-const sectionCreatePayload = z.object({ name: z.string() });
-const sectionRenamePayload = z.object({
-  sectionId: z.string().min(1),
-  name: z.string(),
-});
-const sectionRemovePayload = z.object({ sectionId: z.string().min(1) });
-const channelAssignPayload = z.object({
-  channelId: z.string().min(1),
-  sectionId: z.union([z.string().min(1), z.null()]).optional(),
-  index: z.number().int().min(0).optional(),
-});
-const sectionReorderPayload = z.object({ order: z.array(z.string()) });
-const topReorderPayload = z.object({
-  order: z.array(z.object({ kind: z.enum(['section', 'channel']), id: z.string().min(1) })),
-});
-const pinsSetPayload = z.object({ pins: z.array(z.string()) });
-const hiddenSetPayload = z.object({ hidden: z.array(z.string()) });
-const channelMuteSetPayload = z.object({
-  channelId: z.string().trim().min(1),
-  muted: z.boolean(),
-});
-const rosterBatchPayload = z.object({
-  action: z.enum(['pin', 'unpin', 'hide', 'move']),
-  channelIds: z
-    .array(z.string().min(1))
-    .min(1)
-    .max(MAX_ROSTER_BATCH_SIZE)
-    .refine((ids) => new Set(ids).size === ids.length),
-  sectionId: z.union([z.string().min(1), z.null()]).optional(),
-});
-
-function createFailure(
-  slug: string,
-  failure: Extract<CreatePersonaBotResult, { ok: false }>,
-): BridgeResult<never> {
-  switch (failure.reason) {
-    case 'duplicate':
-      return {
-        ok: false,
-        error: {
-          code: 'duplicate',
-          message: `PersonaBot already exists: ${slug}`,
-        },
-      };
-    case 'invalid-slug':
-      return {
-        ok: false,
-        error: { code: 'invalid-slug', message: `invalid slug: ${slug}` },
-      };
-    case 'invalid-input':
-      return invalidInput('invalid PersonaBot input');
-    case 'invalid-memory-dir':
-      return {
-        ok: false,
-        error: {
-          code: 'invalid-memory-dir',
-          message:
-            'The Memory location must be an existing absolute folder that does not already hold this Bot.',
-        },
-      };
-    case 'git-not-found':
-      return {
-        ok: false,
-        error: {
-          code: 'git-not-found',
-          message: 'Install Git, make it available on PATH, restart DeepSeek Harness, then retry.',
-        },
-      };
-    case 'invalid-git-url':
-      return {
-        ok: false,
-        error: {
-          code: 'invalid-git-url',
-          message: 'Enter an HTTPS or SSH Git URL without credentials.',
-        },
-      };
-    case 'git-source-changed':
-      return {
-        ok: false,
-        error: {
-          code: 'git-source-changed',
-          message:
-            'The repository changed after inspection. Review the source again before starting another import.',
-        },
-      };
-    case 'git-clone-failed':
-      return {
-        ok: false,
-        error: {
-          code: 'git-clone-failed',
-          message: 'Git clone failed. Check the URL and Host Git credentials.',
-        },
-      };
-    case 'git-clone-timeout':
-      return {
-        ok: false,
-        error: {
-          code: 'git-clone-timeout',
-          message: 'Git clone timed out. Retry or check Host network access.',
-        },
-      };
-    case 'invalid-zip':
-      return {
-        ok: false,
-        error: {
-          code: 'invalid-zip',
-          message: 'The zip file could not be unpacked.',
-        },
-      };
-    case 'memory-unavailable':
-      return {
-        ok: false,
-        error: {
-          code: 'memory-unavailable',
-          message: `Memory Repository is unavailable: ${failure.detail ?? 'unknown reason'}`,
-        },
-      };
-  }
-}
-
-function summarize(
-  record: PersonaBotRecord,
-  snapshot: BotStateSnapshot,
-  protectedTob = false,
-): PersonaBotSummary {
-  return {
-    slug: record.slug,
-    displayName: record.displayName,
-    ...(protectedTob
-      ? {
-          tob: {
-            defaultName: record.displayNameCustomized !== true && record.displayName === 'Tob',
-            defaultAvatar:
-              record.avatarCustomized !== true &&
-              ((!record.avatar?.trim() && record.appearance === undefined) ||
-                isDeepStrictEqual(record.appearance?.recipe, DEEPSEEKBOT_RECIPE)),
-          },
-        }
-      : {}),
-    aggregateState: snapshot.state,
-    workspaces: [...record.workspaces],
-    createdAt: record.createdAt,
-    roles: record.roles ?? (record.tag === undefined ? [] : [record.tag]),
-    standingLimits: { ...(record.standingLimits ?? DEFAULT_STANDING_LIMITS) },
-    ...(record.appearance === undefined ? {} : { appearance: record.appearance }),
-    ...(currentBotPrimaryColor(record.primaryColor) === undefined
-      ? {}
-      : { primaryColor: currentBotPrimaryColor(record.primaryColor)! }),
-    ...(record.description === undefined ? {} : { description: record.description }),
-    ...(record.avatar === undefined
-      ? {}
-      : {
-          avatar: record.avatar.startsWith('data:image/')
-            ? botAvatarUrl(record.slug, record.avatar)
-            : record.avatar,
-        }),
-    ...(record.banner === undefined
-      ? {}
-      : { banner: botBannerSummary(record.slug, record.banner) }),
-    ...(record.avatarSeed === undefined ? {} : { avatarSeed: record.avatarSeed }),
-    ...(record.paused === undefined ? {} : { paused: record.paused }),
-    ...(record.computerAccess === undefined ? {} : { computerAccess: record.computerAccess }),
-    ...(record.browserAccess === undefined ? {} : { browserAccess: record.browserAccess }),
-    ...(record.browserProfile === undefined ? {} : { browserProfile: record.browserProfile }),
-    ...(record.approvalTemplate === undefined ? {} : { approvalTemplate: record.approvalTemplate }),
-    ...(record.marketplaceUpload === undefined
-      ? {}
-      : { uploadedListing: record.marketplaceUpload.id }),
-    ...(record.marketplaceListing === undefined
-      ? {}
-      : { installedListing: record.marketplaceListing.id }),
-  };
-}
-
-function detail(
-  record: PersonaBotRecord,
-  snapshot: BotStateSnapshot,
-  protectedTob = false,
-): PersonaBotDetail {
-  return {
-    ...summarize(record, snapshot, protectedTob),
-    sessions: { ...snapshot.sessions },
-    ...(record.model === undefined ? {} : { model: record.model }),
-    ...(record.modelPlan === undefined ? {} : { modelPlan: record.modelPlan }),
-    ...(record.preset === undefined ? {} : { preset: record.preset }),
-    ...(record.memoryDir === undefined ? {} : { memoryDir: record.memoryDir }),
-  };
-}
 const MAX_CHANNEL_SEND_ATTACHMENTS = 10;
 const MAX_SKILL_INVOCATIONS = 5;
 
@@ -1297,8 +949,7 @@ function buildBridgeMethods(
       throw new TeamError('bot-not-found');
   };
   const modelRouting = createModelRoutingHelpers(human, deps, isHostOwner, requireOwnedBot);
-  const { firstUsableRoute, requireGroupEfforts, requireGroupEngines, requireRoutes } =
-    modelRouting;
+  const { requireRoutes } = modelRouting;
   const allowed = (record: PersonaBotRecord): boolean =>
     botModelAllowed(
       deps.team,
@@ -1420,16 +1071,6 @@ function buildBridgeMethods(
     },
   });
 
-  const rosterWrite = async <T>(operation: () => Promise<T>): Promise<BridgeResult<T>> => {
-    try {
-      return { ok: true, value: await operation() };
-    } catch (error) {
-      if (error instanceof RosterUnavailableError) return unavailable();
-      if (error instanceof RosterUnknownSectionError) return unknownSection(error.sectionId);
-      throw error;
-    }
-  };
-
   const dmMemory = (
     payload: unknown,
     historical = false,
@@ -1448,24 +1089,6 @@ function buildBridgeMethods(
     )
       return unknownBot(channel.botSlug);
     return { botSlug: channel.botSlug };
-  };
-
-  const setPaused = (
-    payload: unknown,
-    paused: boolean,
-  ): BridgeResult<{ bot: PersonaBotDetail }> => {
-    const slug = asSlug(payload);
-    if (slug === undefined) return invalidInput('slug is required');
-    if (paused && deps.tob?.isTob(slug))
-      return {
-        ok: false,
-        error: { code: 'protected-bot', message: 'Tob cannot be archived' },
-      };
-    const result = deps.registry.setPaused(slug, paused);
-    if (!result.ok) return unknownBot(slug);
-    if (paused) deps.channels.cancelInvitationsForBot(slug);
-    else deps.runtime?.resumePendingDigests?.(slug);
-    return { ok: true, value: detailOf(result.record) };
   };
 
   const schedulesMethods = createSchedulesBridgeMethods(human, deps);
@@ -1504,6 +1127,20 @@ function buildBridgeMethods(
   const cloudMethods = createCloudBridgeMethods(deps);
   const activityMethods = createActivityBridgeMethods(human, deps, dmMemory);
   const messagingMethods = createMessagingBridgeMethods(deps, messagingCall);
+  const teamMethods = createTeamBridgeMethods(human, deps, globalRegistry);
+  const humansMethods = createHumansBridgeMethods(human, deps, channelView);
+  const personabotsMethods = createPersonaBotsBridgeMethods(
+    human,
+    deps,
+    isHostOwner,
+    runnerOf,
+    allowed,
+    requireOwnedBot,
+    detailOf,
+    createBotId,
+    sendReceipt,
+    modelRouting,
+  );
   const methods: BridgeMethods = {
     ...createTeamBridge(human, deps.team),
     ...createModelProviderBridge(human, deps),
@@ -1595,63 +1232,7 @@ function buildBridgeMethods(
         };
       }
     },
-    async onboarding(payload) {
-      if (!isHostOwner()) {
-        return {
-          ok: true,
-          value: {
-            profileId: human.humanId,
-            tutorial: 'skipped',
-            completed: true,
-            preparation: 'ready',
-          },
-        };
-      }
-      if (isHostOwner() && human.humanId !== OWNER_HUMAN_CONTEXT.humanId) {
-        if (!deps.tob) return unavailable();
-        const home = await deps.tob.ensure(human);
-        return {
-          ok: true,
-          value: {
-            profileId: human.humanId,
-            tutorial: 'skipped',
-            completed: true,
-            preparation: 'ready',
-            defaultBotSlug: home.botSlug,
-            channelId: home.channelId,
-          },
-        };
-      }
-      if (deps.onboarding === undefined) return unavailable();
-      const source = asObject(payload);
-      const action = source['action'];
-      if (
-        action !== undefined &&
-        !['start', 'pause', 'skip', 'continue', 'restart', 'finish'].includes(String(action))
-      )
-        return invalidInput('Invalid tutorial action');
-      try {
-        const value = await deps.onboarding.enter(
-          asSlug(payload),
-          action as TutorialAction | undefined,
-        );
-        if (action !== undefined)
-          deps.telemetry?.capture?.(TUTORIAL_EVENTS[action as TutorialAction]);
-        const newsAvailable =
-          (await deps
-            .onboardingNews?.(asSlug(payload) ?? value.defaultBotSlug)
-            .catch(() => false)) ?? false;
-        return { ok: true, value: { ...value, newsAvailable } };
-      } catch (error) {
-        return {
-          ok: false,
-          error: {
-            code: error instanceof Error ? error.message : 'onboarding-unavailable',
-            message: error instanceof Error ? error.message : 'Onboarding unavailable',
-          },
-        };
-      }
-    },
+    onboarding: personabotsMethods.onboarding,
     acknowledgements() {
       if (deps.acknowledgements === undefined) return unavailable();
       return { ok: true, value: { items: deps.acknowledgements.list() } };
@@ -1683,220 +1264,7 @@ function buildBridgeMethods(
       }
       return { ok: true, value: null };
     },
-    async onboardingModel(payload) {
-      if (deps.modelCatalog === undefined || deps.defaultModel === undefined) return unavailable();
-      const source = asObject(payload);
-      const slug = asSlug(payload);
-      const groupId = source['groupId'];
-      const groupEffort = source['groupEffort'];
-      const revision = source['expectedRevision'];
-      const defaultRevision = source['expectedDefaultRevision'];
-      const defaultGroupRevision = source['expectedDefaultGroupRevision'];
-      if (
-        defaultGroupRevision !== undefined &&
-        (!Number.isSafeInteger(defaultGroupRevision) ||
-          Number(defaultGroupRevision) < 0 ||
-          source['globalDefault'] !== true)
-      )
-        return invalidInput('A default Routing Group revision needs global scope');
-      if (
-        groupId !== undefined &&
-        (typeof groupId !== 'string' ||
-          !groupId.trim() ||
-          source['route'] !== undefined ||
-          source['globalDefault'] !== true ||
-          deps.routingGroups === undefined)
-      )
-        return invalidInput('A default Routing Group replaces the route and needs global scope');
-      if (
-        groupEffort !== undefined &&
-        (typeof groupEffort !== 'string' || !groupEffort.trim() || typeof groupId !== 'string')
-      )
-        return invalidInput('A default Routing Group effort needs a nonempty effort and a group');
-      const effort = typeof groupEffort === 'string' ? groupEffort.trim() : undefined;
-      let route = source['route'];
-      if (typeof groupId === 'string') {
-        try {
-          if (deps.routingGroups?.get(groupId) === undefined)
-            throw new RoutingGroupError('not-found', `Routing Group ${groupId} does not exist`);
-          requireGroupEngines(groupId);
-          if (effort !== undefined) await requireGroupEfforts(groupId, [effort]);
-          const first = await firstUsableRoute(deps.routingGroups.routes(groupId));
-          route =
-            effort === undefined
-              ? first
-              : groupMemberRoute(first, effort, await deps.modelCatalog.list());
-        } catch (error) {
-          return routingGroupFailure(error);
-        }
-      }
-      if (
-        defaultRevision !== undefined &&
-        (!Number.isSafeInteger(defaultRevision) ||
-          Number(defaultRevision) < 0 ||
-          source['globalDefault'] !== true ||
-          slug !== undefined)
-      )
-        return invalidInput(
-          'A nonnegative native default revision requires global scope without a Bot target',
-        );
-      if (
-        !isModelRoute(route) ||
-        typeof source['globalDefault'] !== 'boolean' ||
-        !Number.isSafeInteger(revision)
-      )
-        return invalidInput('Model, scope and expected revision required');
-      const bot = slug === undefined ? undefined : deps.registry.get(slug);
-      if (slug !== undefined && bot === undefined) return unknownBot(slug);
-      if ((bot?.modelPlan?.revision ?? bot?.modelPlanRevision ?? 0) !== revision)
-        return invalidInput('Bot model changed; reopen before saving');
-      try {
-        if (slug !== undefined && !source['globalDefault']) requireRoutes(slug, [route]);
-        await deps.modelCatalog.validate(route);
-        if (typeof groupId === 'string') requireGroupEngines(groupId);
-        if (source['globalDefault']) {
-          let savedDefaultRevision = 0;
-          const groups = deps.routingGroups;
-          const previous = groups?.defaultGroup();
-          const nextGroup = typeof groupId === 'string' ? groupId : undefined;
-          if (
-            previous !== undefined &&
-            defaultGroupRevision !== undefined &&
-            previous.revision !== defaultGroupRevision
-          )
-            return routingGroupFailure(
-              new RoutingGroupError(
-                'stale-revision',
-                `The default model changed (revision ${previous.revision}); read it again before saving`,
-              ),
-            );
-          const settings =
-            defaultRevision === undefined ? undefined : deps.defaultModelSettings?.();
-          if (defaultRevision !== undefined) {
-            const current = settings
-              ?.describe({ redactSecrets: true })
-              .find((entry) => entry.ns === 'agent-default-model');
-            if (!settings || !current) return unavailable();
-            if (current.revision !== defaultRevision)
-              return {
-                ok: false,
-                error: {
-                  code: 'stale-setting',
-                  message: 'Host default model changed; read it again before saving',
-                },
-              };
-          }
-          const reserved =
-            groups === undefined ||
-            previous === undefined ||
-            nextGroup === undefined ||
-            (previous.groupId === nextGroup && previous.effort === effort)
-              ? undefined
-              : groups.setDefaultGroup(nextGroup, previous.revision, effort);
-          const restore = (): void => {
-            if (reserved === undefined || previous === undefined) return;
-            try {
-              groups?.setDefaultGroup(previous.groupId, reserved.revision, previous.effort);
-            } catch {}
-          };
-          try {
-            if (settings === undefined) await deps.defaultModel.saveSelection(route);
-            else
-              await settings.replace(
-                'agent-default-model',
-                {
-                  provider: route.provider,
-                  model: route.model,
-                  ...(route.reasoningEffort === undefined
-                    ? {}
-                    : { reasoningEffort: route.reasoningEffort }),
-                },
-                Number(defaultRevision),
-              );
-          } catch (error) {
-            restore();
-            throw error;
-          }
-          if (settings !== undefined) {
-            const saved = settings
-              .describe({ redactSecrets: true })
-              .find((entry) => entry.ns === 'agent-default-model');
-            if (!saved)
-              return {
-                ok: false,
-                error: {
-                  code: 'setting-outcome-uncertain',
-                  message:
-                    'The Host default model was submitted but its settings owner is unavailable for readback',
-                },
-              };
-            savedDefaultRevision = saved.revision;
-          }
-          const saved = deps.defaultModel.currentSelection();
-          if (
-            saved.provider !== route.provider ||
-            saved.model !== route.model ||
-            saved.reasoningEffort !== route.reasoningEffort
-          ) {
-            restore();
-            return invalidInput('Profile default model was not saved; open native model settings');
-          }
-          const groupRevision =
-            reserved?.revision ??
-            (groups === undefined || previous === undefined
-              ? undefined
-              : nextGroup !== undefined
-                ? previous.revision
-                : previous.groupId === undefined
-                  ? undefined
-                  : groups.setDefaultGroup(undefined, previous.revision).revision);
-          if (slug === undefined)
-            return {
-              ok: true,
-              value: {
-                revision: savedDefaultRevision,
-                ...(groupRevision === undefined ? {} : { groupRevision }),
-              },
-            };
-          return this.modelPlanInherit({ slug, expectedRevision: revision });
-        }
-        if (slug === undefined) return invalidInput('Choose a Bot for an individual model');
-        requireRoutes(slug, [route]);
-        const result = deps.registry.setModelPlan(
-          slug,
-          {
-            orchestrator: route,
-            assignmentDefault: route,
-            assignmentModels: [
-              {
-                provider: route.provider,
-                model: route.model,
-                allowedEfforts: [route.reasoningEffort ?? ''],
-                defaultEffort: route.reasoningEffort ?? '',
-              },
-            ],
-          },
-          revision as number,
-        );
-        if (!result.ok) return invalidInput('Bot model changed; reopen before saving');
-        return {
-          ok: true,
-          value: { revision: result.record.modelPlan!.revision },
-        };
-      } catch (error) {
-        if ((error as { code?: string }).code === 'SETTINGS_CONFLICT')
-          return {
-            ok: false,
-            error: {
-              code: 'stale-setting',
-              message: 'Host default model changed; read it again before saving',
-            },
-          };
-        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        if (error instanceof TeamError) return modelFailure(error);
-        return invalidInput(error instanceof Error ? error.message : 'Model unavailable');
-      }
-    },
+    onboardingModel: personabotsMethods.onboardingModel,
     async channelRetry(payload) {
       const source = asObject(payload);
       const channelId = asNonBlank(source, 'channelId');
@@ -1997,374 +1365,22 @@ function buildBridgeMethods(
         return dataResetFailure(error);
       }
     },
-    deletionPreview(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.deletions === undefined) return unavailable();
-      try {
-        if (deps.tob?.isTob(slug))
-          return {
-            ok: false,
-            error: { code: 'protected-bot', message: 'Tob cannot be deleted' },
-          };
-        return { ok: true, value: { preview: deps.deletions.preview(slug) } };
-      } catch (error) {
-        return invalidInput(
-          error instanceof Error ? error.message : 'Deletion preview unavailable',
-        );
-      }
-    },
-    async deletionConfirm(payload) {
-      const source = asObject(payload);
-      const slug = asSlug(payload);
-      if (
-        slug === undefined ||
-        typeof source['token'] !== 'string' ||
-        typeof source['eraseMemory'] !== 'boolean'
-      )
-        return invalidInput('Explicit deletion scope is required');
-      if (deps.deletions === undefined) return unavailable();
-      try {
-        if (deps.tob?.isTob(slug))
-          return {
-            ok: false,
-            error: { code: 'protected-bot', message: 'Tob cannot be deleted' },
-          };
-        const result = deps.deletions.confirm(slug, source['token'], source['eraseMemory']);
-        deps.computerAccess?.changed(slug);
-        deps.browserAccess?.changed(slug);
-        return { ok: true, value: { deletion: await result } };
-      } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : 'Deletion unavailable');
-      }
-    },
-    async deletionRetry(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.deletions === undefined) return unavailable();
-      try {
-        return {
-          ok: true,
-          value: { deletion: await deps.deletions.retry(slug) },
-        };
-      } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : 'Deletion retry unavailable');
-      }
-    },
-    deletionMemoryFolder(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.deletions === undefined) return unavailable();
-      try {
-        return { ok: true, value: { target: deps.deletions.folder(slug) } };
-      } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : 'Memory folder unavailable');
-      }
-    },
+    deletionPreview: personabotsMethods.deletionPreview,
+    deletionConfirm: personabotsMethods.deletionConfirm,
+    deletionRetry: personabotsMethods.deletionRetry,
+    deletionMemoryFolder: personabotsMethods.deletionMemoryFolder,
     ...modelPlan,
-    list(payload) {
-      const activity = new Map(deps.channels.latestBotActivity?.(human));
-      for (const [slug, at] of deps.runtime?.latestAssignmentActivity?.() ?? [])
-        activity.set(slug, Math.max(activity.get(slug) ?? 0, at));
-      const query = asQuery(payload)?.trim().toLowerCase();
-      const bots = deps.registry
-        .listHistorical()
-        .filter((record) => {
-          if (query === undefined || query.length === 0) return true;
-          const roles = record.roles ?? (record.tag === undefined ? [] : [record.tag]);
-          return (
-            record.displayName.toLowerCase().includes(query) ||
-            roles.some((role) => role.toLowerCase().includes(query))
-          );
-        })
-        .map((record) => ({
-          ...summarize(record, deps.states.snapshot(record.slug), deps.tob?.isTob(record.slug)),
-          ...runnerOf(record.slug),
-          ...(deps.team ? { modelAllowed: allowed(record) } : {}),
-          ownerHumanId: botOwner(record),
-          owner: botOwner(record) === human.humanId,
-          ...(botOwner(record) === human.humanId && activity.has(record.slug)
-            ? { lastActivityAt: activity.get(record.slug)! }
-            : {}),
-          ...(deps.registry.get(record.slug) === undefined
-            ? {
-                deleted: true,
-                paused: true,
-                primaryColor: historicalBotPrimaryColor(record.slug, record.primaryColor),
-              }
-            : {}),
-        }));
-      const shared =
-        deps.team?.bots
-          .sharedRoster(human)
-          .filter(
-            (bot) =>
-              !query ||
-              bot.displayName.toLowerCase().includes(query) ||
-              bot.slug.toLowerCase().includes(query),
-          )
-          .map((bot) => ({ ...bot, ...runnerOf(bot.slug) })) ?? [];
-      return { ok: true, value: { bots: [...bots, ...shared] } };
-    },
+    list: personabotsMethods.list,
     channelActivityToday: activityMethods.channelActivityToday,
     activityOverview: activityMethods.activityOverview,
     activitySnapshot: activityMethods.activitySnapshot,
-    get(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) {
-        return invalidInput('slug is required');
-      }
-      const record = deps.registry.get(slug);
-      if (record === undefined) return unknownBot(slug);
-      try {
-        requireOwnedBot(slug);
-      } catch (error) {
-        return modelFailure(error);
-      }
-      const bot = detailOf(record).bot;
-      const memoryDir = deps.registry.memoryDirFor(slug);
-      return {
-        ok: true,
-        value: {
-          bot: {
-            ...bot,
-            ...(deps.team ? { modelAllowed: allowed(record) } : {}),
-            ...(memoryDir === undefined ? {} : { memoryDir }),
-          },
-          profileFingerprint: botProfileFingerprint(record),
-        },
-      };
-    },
-    create(payload) {
-      const parsed = parseCreation(payload);
-      if (!parsed.ok) return parsed;
-      const { input, operationKey } = parsed.value;
-      if (deps.creations !== undefined) {
-        try {
-          const created = deps.creations.create(input, operationKey);
-          return {
-            ok: true,
-            value: {
-              ...detailOf(created.record),
-              channelId: created.channelId,
-              ...(created.receipt === undefined ? {} : { receipt: created.receipt }),
-            },
-          };
-        } catch (error) {
-          if (error instanceof BotCreationError)
-            return {
-              ok: false,
-              error: { code: error.code, message: error.message },
-            };
-          throw error;
-        }
-      }
-      if (operationKey !== undefined)
-        return {
-          ok: false,
-          error: {
-            code: 'creation-unavailable',
-            message: 'Idempotent creation is unavailable on this Host.',
-          },
-        };
-      const slug = createBotId();
-      const result = deps.registry.create({ ...input, slug });
-      if (!result.ok) return createFailure(slug, result);
-      return { ok: true, value: detailOf(result.record) };
-    },
-    createLookup(payload) {
-      const parsed = parseCreation(payload);
-      if (!parsed.ok) return parsed;
-      const { input, operationKey } = parsed.value;
-      if (operationKey === undefined) return invalidInput('operationKey is required');
-      if (deps.creations === undefined)
-        return {
-          ok: false,
-          error: {
-            code: 'creation-unavailable',
-            message: 'Idempotent creation is unavailable on this Host.',
-          },
-        };
-      try {
-        return {
-          ok: true,
-          value: {
-            receipt: deps.creations.lookup(operationKey, input) ?? null,
-          },
-        };
-      } catch (error) {
-        if (error instanceof BotCreationError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
-        throw error;
-      }
-    },
+    get: personabotsMethods.get,
+    create: personabotsMethods.create,
+    createLookup: personabotsMethods.createLookup,
     ...marketplaceZip,
-    botImportLookup(payload) {
-      const source = asObject(payload);
-      const displayName = source['displayName'];
-      const gitUrl = source['gitUrl'];
-      const expectedCommit = source['expectedCommit'];
-      const operationKey = source['operationKey'];
-      const roles = parseRoles(source);
-      const description = parseOptional(source, 'description');
-      if (
-        typeof displayName !== 'string' ||
-        !displayName.trim() ||
-        typeof gitUrl !== 'string' ||
-        typeof expectedCommit !== 'string' ||
-        typeof operationKey !== 'string' ||
-        !roles.ok ||
-        !description.ok
-      )
-        return invalidInput('Stable Git lookup needs its complete original input');
-      const imports =
-        deps.imports ??
-        (deps.creations
-          ? createBotImports(deps.creations, deps.warn === undefined ? {} : { log: deps.warn })
-          : undefined);
-      if (!imports)
-        return {
-          ok: false,
-          error: {
-            code: 'creation-unavailable',
-            message: 'Import recovery is unavailable on this Host.',
-          },
-        };
-      try {
-        const input = imports.gitInput({
-          displayName,
-          gitUrl,
-          expectedCommit,
-          ...(roles.value === undefined ? {} : { roles: roles.value }),
-          ...(description.value === undefined ? {} : { description: description.value }),
-        });
-        return {
-          ok: true,
-          value: { receipt: imports.lookup(operationKey, input) ?? null },
-        };
-      } catch (error) {
-        if (error instanceof BotCreationError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
-        throw error;
-      }
-    },
-    async botImportPreview(payload) {
-      const gitUrl = asObject(payload)['gitUrl'];
-      if (typeof gitUrl !== 'string') return invalidInput('gitUrl is required');
-      const imports =
-        deps.imports ??
-        (deps.creations
-          ? createBotImports(deps.creations, deps.warn === undefined ? {} : { log: deps.warn })
-          : undefined);
-      if (!imports) return unavailable();
-      try {
-        return { ok: true, value: await imports.previewGit(gitUrl) };
-      } catch (error) {
-        return {
-          ok: false,
-          error: {
-            code: error instanceof BotCreationError ? error.code : 'import-unavailable',
-            message: 'The selected source could not be inspected.',
-          },
-        };
-      }
-    },
-    async createFromGit(payload) {
-      const source = asObject(payload);
-      const displayName = source['displayName'];
-      const gitUrl = source['gitUrl'];
-      if (typeof displayName !== 'string' || displayName.trim().length === 0) {
-        return invalidInput('displayName is required');
-      }
-      if (typeof gitUrl !== 'string' || gitUrl.trim().length === 0) {
-        return invalidInput('gitUrl is required');
-      }
-      const roles = parseRoles(source);
-      const description = parseOptional(source, 'description');
-      if (!roles.ok || !description.ok) return invalidInput('invalid create payload');
-      const listingId = source['listingId'];
-      if (
-        listingId !== undefined &&
-        (typeof listingId !== 'string' ||
-          listingId.trim().length === 0 ||
-          source['origin'] !== 'marketplace')
-      )
-        return invalidInput('listingId needs origin marketplace');
-      if (source['operationKey'] !== undefined) {
-        const imports =
-          deps.imports ??
-          (deps.creations
-            ? createBotImports(deps.creations, deps.warn === undefined ? {} : { log: deps.warn })
-            : undefined);
-        if (
-          !imports ||
-          typeof source['operationKey'] !== 'string' ||
-          typeof source['expectedCommit'] !== 'string'
-        )
-          return invalidInput('Stable Git import needs operationKey and expectedCommit');
-        try {
-          const input = imports.gitInput({
-            gitUrl,
-            expectedCommit: source['expectedCommit'],
-            displayName,
-            ...(roles.value === undefined ? {} : { roles: roles.value }),
-            ...(description.value === undefined ? {} : { description: description.value }),
-          });
-          const created = await imports.create(source['operationKey'], input);
-          if (listingId !== undefined) sendReceipt(listingId.trim());
-          return {
-            ok: true,
-            value: {
-              ...detailOf(created.record),
-              receipt: created.receipt!,
-              channelId: created.channelId,
-              source: input.source,
-              ...(created.httpsFallback === undefined
-                ? {}
-                : { httpsFallback: created.httpsFallback }),
-            },
-          };
-        } catch (error) {
-          if (error instanceof BotCreationError)
-            return {
-              ok: false,
-              error: { code: error.code, message: error.message },
-            };
-          throw error;
-        }
-      }
-      const slug = createBotId();
-      const result = await deps.registry.createFromGit({
-        slug,
-        displayName,
-        gitUrl,
-        ...(typeof source['expectedCommit'] === 'string'
-          ? { expectedCommit: source['expectedCommit'] }
-          : {}),
-        ...(roles.value === undefined ? {} : { roles: roles.value }),
-        ...(description.value === undefined ? {} : { description: description.value }),
-      });
-      if (!result.ok) return createFailure(slug, result);
-      if (listingId !== undefined) sendReceipt(listingId.trim());
-      if (source['origin'] === 'marketplace') {
-        try {
-          deps.telemetry?.capture?.('marketplace:bot_install');
-        } catch {}
-      }
-      return {
-        ok: true,
-        value: {
-          ...detailOf(result.record),
-          ...(result.httpsFallback === undefined ? {} : { httpsFallback: result.httpsFallback }),
-        },
-      };
-    },
+    botImportLookup: personabotsMethods.botImportLookup,
+    botImportPreview: personabotsMethods.botImportPreview,
+    createFromGit: personabotsMethods.createFromGit,
     ...marketplaceReads,
     releaseInfo(payload) {
       if (deps.release === undefined) return releaseUnavailable();
@@ -2464,102 +1480,9 @@ function buildBridgeMethods(
       }
     },
     ...marketplaceSharing,
-    update(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      const patchOrUndefined = asObject(payload)['patch'];
-      if (typeof patchOrUndefined !== 'object' || patchOrUndefined === null) {
-        return invalidInput('patch is required');
-      }
-      const source = patchOrUndefined as Record<string, unknown>;
-      const displayName = parseOptional(source, 'displayName');
-      const roles = parseRoles(source);
-      const description = parseOptional(source, 'description');
-      const model = parseOptional(source, 'model');
-      const preset = parseOptional(source, 'preset');
-      const workspaces = parseWorkspaces(source);
-      const avatar = parseOptional(source, 'avatar');
-      if (
-        !displayName.ok ||
-        !roles.ok ||
-        !description.ok ||
-        !model.ok ||
-        !preset.ok ||
-        !workspaces.ok ||
-        !avatar.ok
-      ) {
-        return invalidInput('invalid update payload');
-      }
-      if (
-        (roles.value !== undefined &&
-          (roles.value.length > MAX_DESCRIPTOR_TAGS ||
-            roles.value.some((tag) => [...tag.trim()].length > MAX_DESCRIPTOR_TAG_LENGTH))) ||
-        (description.value !== undefined &&
-          [...description.value.trim()].length > MAX_DESCRIPTOR_BIO_LENGTH)
-      ) {
-        return invalidInput('tags or bio exceed the profile limits');
-      }
-      const patch: PersonaBotPatch = {
-        ...(displayName.value === undefined ? {} : { displayName: displayName.value }),
-        ...(roles.value === undefined ? {} : { roles: roles.value }),
-        ...(description.value === undefined ? {} : { description: description.value }),
-        ...(model.value === undefined ? {} : { model: model.value }),
-        ...(preset.value === undefined ? {} : { preset: preset.value }),
-        ...(workspaces.value === undefined ? {} : { workspaces: workspaces.value }),
-        ...(avatar.value === undefined ? {} : { avatar: avatar.value }),
-      };
-      const presetSettingsError =
-        preset.value !== undefined && preset.value.trim().length > 0
-          ? deps.botModes?.settings.readError()
-          : undefined;
-      if (presetSettingsError !== undefined)
-        return {
-          ok: false,
-          error: { code: 'settings-unreadable', message: presetSettingsError },
-        };
-      const allowedModes = deps.botModes?.settings.allowedModes(slug);
-      if (
-        preset.value !== undefined &&
-        preset.value.trim().length > 0 &&
-        allowedModes !== undefined &&
-        !allowedModes.includes(preset.value.trim())
-      )
-        return {
-          ok: false,
-          error: {
-            code: 'mode-not-allowed',
-            message: `Mode ${preset.value.trim()} is not in this Bot's mode template; choose one of ${allowedModes.join(', ')} or change the template.`,
-          },
-        };
-      const expectedProfile = asObject(payload)['expectedProfile'];
-      if (expectedProfile !== undefined) {
-        if (typeof expectedProfile !== 'string' || !/^[a-f0-9]{64}$/u.test(expectedProfile))
-          return invalidInput('expectedProfile must be an observed profile fingerprint');
-        const current = deps.registry.get(slug);
-        if (!current) return unknownBot(slug);
-        if (botProfileFingerprint(current) !== expectedProfile)
-          return {
-            ok: false,
-            error: {
-              code: 'stale-profile',
-              message: 'The Bot profile changed. Read it again before applying this update.',
-            },
-          };
-      }
-      const result = deps.registry.update(slug, patch);
-      if (!result.ok) {
-        return result.reason === 'not-found'
-          ? unknownBot(slug)
-          : invalidInput('invalid update payload');
-      }
-      return { ok: true, value: detailOf(result.record) };
-    },
-    pause(payload) {
-      return setPaused(payload, true);
-    },
-    resume(payload) {
-      return setPaused(payload, false);
-    },
+    update: personabotsMethods.update,
+    pause: personabotsMethods.pause,
+    resume: personabotsMethods.resume,
     ...computerMethods,
     ...browserMethods,
     approvalTemplates: approvalsMethods.approvalTemplates,
@@ -2576,19 +1499,7 @@ function buildBridgeMethods(
     idleCompactionSet: sessionsMethods.idleCompactionSet,
     idleCompactionCacheLifetimeSet: sessionsMethods.idleCompactionCacheLifetimeSet,
     compactionThresholdSet: sessionsMethods.compactionThresholdSet,
-    standingLimitsSet(payload) {
-      const slug = asSlug(payload);
-      const object = asObject(payload);
-      const limits = { soul: object['soul'], coreMemory: object['coreMemory'] };
-      if (slug === undefined || !isStandingLimits(limits)) {
-        return invalidInput(
-          `slug, soul and coreMemory are required; limits are whole numbers from ${MIN_STANDING_LIMIT} to ${MAX_STANDING_LIMIT}`,
-        );
-      }
-      const result = deps.registry.setStandingLimits(slug, limits);
-      if (!result.ok) return unknownBot(slug);
-      return { ok: true, value: detailOf(result.record) };
-    },
+    standingLimitsSet: personabotsMethods.standingLimitsSet,
     ...avatarsMethods,
     ping() {
       const version = deps.hostVersion?.();
@@ -2601,27 +1512,8 @@ function buildBridgeMethods(
         },
       };
     },
-    humanIdentity() {
-      return { ok: true, value: deps.channels.humanIdentity(human) };
-    },
-    composerIdentity() {
-      try {
-        if (deps.composerIdentity === undefined) throw new Error();
-        const identity = deps.composerIdentity(human);
-        return {
-          ok: true,
-          value: { hostId: identity.hostId, profileId: identity.profileId, humanId: human.humanId },
-        };
-      } catch {
-        return {
-          ok: false,
-          error: {
-            code: 'storage-unavailable',
-            message: 'Composer recovery identity unavailable',
-          },
-        };
-      }
-    },
+    humanIdentity: humansMethods.humanIdentity,
+    composerIdentity: humansMethods.composerIdentity,
     composerValidate(payload) {
       const input = z
         .object({
@@ -2686,69 +1578,11 @@ function buildBridgeMethods(
         },
       };
     },
-    humanNameSet(payload) {
-      const input = z
-        .object({ displayName: z.string().max(128).nullable() })
-        .strict()
-        .safeParse(payload);
-      if (!input.success) return invalidInput('A displayName string or null is required');
-      try {
-        return {
-          ok: true,
-          value: deps.channels.setHumanDefaultName(human, input.data.displayName),
-        };
-      } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
-      }
-    },
-    humanAvatarSet(payload) {
-      const input = z
-        .object({ avatar: z.string().max(131_072).nullable() })
-        .strict()
-        .safeParse(payload);
-      if (!input.success || (input.data.avatar !== null && !isHumanAvatar(input.data.avatar)))
-        return invalidInput('avatar must be a PNG, JPEG or WebP data URL up to 96 KiB, or null');
-      return { ok: true, value: deps.channels.setHumanAvatar(human, input.data.avatar) };
-    },
-    humanProfileSetupFinish(payload) {
-      if (!z.object({}).strict().safeParse(payload).success)
-        return invalidInput('humanProfileSetupFinish takes no arguments');
-      return { ok: true, value: deps.channels.finishHumanProfileSetup(human) };
-    },
-    humanAvatars(payload) {
-      const input = z
-        .object({ humanIds: z.array(z.string().min(1).max(128)).max(HUMAN_AVATAR_BATCH) })
-        .strict()
-        .safeParse(payload);
-      if (!input.success)
-        return invalidInput(`humanIds must be up to ${HUMAN_AVATAR_BATCH} Human IDs`);
-      return {
-        ok: true,
-        value: { avatars: deps.channels.humanAvatars(human, input.data.humanIds) },
-      };
-    },
-    channelHumanNameSet(payload) {
-      const input = z
-        .object({
-          channelId: z.string(),
-          nickname: z.string().max(128).nullable(),
-        })
-        .strict()
-        .safeParse(payload);
-      if (!input.success)
-        return invalidInput('A channelId and nickname string or null are required');
-      try {
-        deps.channels.setHumanNickname(human, input.data.channelId, input.data.nickname);
-        return {
-          ok: true,
-          value: {
-            channel: channelView(deps.channels.get(input.data.channelId)!),
-          },
-        };
-      } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
-      }
-    },
+    humanNameSet: humansMethods.humanNameSet,
+    humanAvatarSet: humansMethods.humanAvatarSet,
+    humanProfileSetupFinish: humansMethods.humanProfileSetupFinish,
+    humanAvatars: humansMethods.humanAvatars,
+    channelHumanNameSet: humansMethods.channelHumanNameSet,
     async channels() {
       return {
         ok: true,
@@ -4945,25 +3779,7 @@ function buildBridgeMethods(
     memoryRemoveVersionName: memoryMethods.memoryRemoveVersionName,
     memoryRepair: memoryMethods.memoryRepair,
     overviewMemory: memoryMethods.overviewMemory,
-    usageByMember(payload) {
-      const period = asObject(payload)['period'];
-      if (!isUsageOverviewPeriod(period)) return invalidInput('period-invalid');
-      if (!deps.team) return unavailable();
-      try {
-        let names: Map<string, string> | undefined;
-        return {
-          ok: true,
-          value: deps.team.usageByMember(human, period, deps.usage, (slug) => {
-            names ??= new Map(
-              globalRegistry.listHistorical().map((bot) => [bot.slug, bot.displayName]),
-            );
-            return names.get(slug) ?? slug;
-          }),
-        };
-      } catch (error) {
-        return modelFailure(error);
-      }
-    },
+    usageByMember: teamMethods.usageByMember,
     overviewUsage(payload) {
       const source = asObject(payload);
       const period = source['period'];
@@ -5096,122 +3912,17 @@ function buildBridgeMethods(
     },
     profileActivity: activityMethods.profileActivity,
     groupProfileActivity: activityMethods.groupProfileActivity,
-    rosterGet() {
-      try {
-        return { ok: true, value: deps.roster.snapshot() };
-      } catch (error) {
-        if (error instanceof RosterUnavailableError) return unavailable();
-        throw error;
-      }
-    },
-    async sectionCreate(payload) {
-      const parsed = sectionCreatePayload.safeParse(payload);
-      if (!parsed.success) return invalidInput('invalid sectionCreate payload');
-      const name = parsed.data.name.trim();
-      if (name.length === 0) return invalidInput('name is required');
-      return rosterWrite(async () => ({
-        section: await deps.roster.sectionCreate(name),
-      }));
-    },
-    async sectionRename(payload) {
-      const parsed = sectionRenamePayload.safeParse(payload);
-      if (!parsed.success) return invalidInput('invalid sectionRename payload');
-      const name = parsed.data.name.trim();
-      if (name.length === 0) return invalidInput('name is required');
-      return rosterWrite(async () => ({
-        section: await deps.roster.sectionRename(parsed.data.sectionId, name),
-      }));
-    },
-    async sectionRemove(payload) {
-      const parsed = sectionRemovePayload.safeParse(payload);
-      if (!parsed.success) return invalidInput('invalid sectionRemove payload');
-      return rosterWrite(async () => ({
-        removed: await deps.roster.sectionRemove(parsed.data.sectionId),
-      }));
-    },
-    async channelAssign(payload) {
-      const parsed = channelAssignPayload.safeParse(payload);
-      if (!parsed.success) return invalidInput('invalid channelAssign payload');
-      const { channelId, index } = parsed.data;
-      const sectionId = parsed.data.sectionId ?? undefined;
-      return rosterWrite(async () => {
-        await deps.roster.channelAssign(channelId, sectionId, index);
-        return {};
-      });
-    },
-    async sectionReorder(payload) {
-      const parsed = sectionReorderPayload.safeParse(payload);
-      if (!parsed.success) return invalidInput('invalid sectionReorder payload');
-      return rosterWrite(async () => ({
-        sectionOrder: await deps.roster.sectionReorder(parsed.data.order),
-      }));
-    },
-    async topReorder(payload) {
-      const parsed = topReorderPayload.safeParse(payload);
-      if (!parsed.success) return invalidInput('invalid topReorder payload');
-      return rosterWrite(async () => ({
-        topOrder: await deps.roster.topReorder(parsed.data.order),
-      }));
-    },
-    async pinsSet(payload) {
-      const parsed = pinsSetPayload.safeParse(payload);
-      if (!parsed.success) return invalidInput('invalid pinsSet payload');
-      return rosterWrite(async () => ({
-        pins: await deps.roster.pinsSet(parsed.data.pins),
-      }));
-    },
-    async hiddenSet(payload) {
-      const parsed = hiddenSetPayload.safeParse(payload);
-      if (!parsed.success) return invalidInput('invalid hiddenSet payload');
-      return rosterWrite(async () => ({
-        hidden: await deps.roster.hiddenSet(parsed.data.hidden),
-      }));
-    },
-    async channelMuteSet(payload) {
-      const parsed = channelMuteSetPayload.safeParse(payload);
-      if (!parsed.success) return invalidInput('channelId and a boolean muted are required');
-      const { channelId, muted } = parsed.data;
-      if (muted && deps.channels.get(channelId) === undefined) return unknownChannel(channelId);
-      return rosterWrite(async () => ({
-        muted: await deps.roster.mutedSet(channelId, muted),
-      }));
-    },
-    async rosterBatch(payload) {
-      const parsed = rosterBatchPayload.safeParse(payload);
-      if (!parsed.success) {
-        return invalidInput(`rosterBatch requires 1–${MAX_ROSTER_BATCH_SIZE} distinct channel ids`);
-      }
-      const { action, channelIds, sectionId } = parsed.data;
-      if (action !== 'move' && sectionId !== undefined) {
-        return invalidInput('sectionId is only valid for a rosterBatch move');
-      }
-      const channels = deps.channels
-        .list()
-        .filter((channel) => !deps.team || deps.team.channelAccess.canRead(human, channel.id));
-      const known = new Set([
-        ...channels.map((channel) => channel.id),
-        ...deps.registry.list().map((bot) => bot.slug),
-        ...(deps.team?.bots.reachable(human).map((bot) => bot.slug) ?? []),
-        ...channels.flatMap((channel) =>
-          channel.type === 'dm' && channel.botSlug !== undefined ? [channel.botSlug] : [],
-        ),
-      ]);
-      if (channelIds.some((id) => !known.has(id))) {
-        return invalidInput('rosterBatch contains an unknown Channel');
-      }
-      const aliases = new Map(
-        channels.flatMap((channel) =>
-          channel.type === 'dm' && channel.botSlug !== undefined
-            ? [[channel.botSlug, channel.id] as const]
-            : [],
-        ),
-      );
-      const change =
-        action === 'move'
-          ? { action, channelIds, ...(sectionId == null ? {} : { sectionId }) }
-          : { action, channelIds };
-      return rosterWrite(() => deps.roster.applyBatch(change, (pin) => aliases.get(pin) ?? pin));
-    },
+    rosterGet: personabotsMethods.rosterGet,
+    sectionCreate: personabotsMethods.sectionCreate,
+    sectionRename: personabotsMethods.sectionRename,
+    sectionRemove: personabotsMethods.sectionRemove,
+    channelAssign: personabotsMethods.channelAssign,
+    sectionReorder: personabotsMethods.sectionReorder,
+    topReorder: personabotsMethods.topReorder,
+    pinsSet: personabotsMethods.pinsSet,
+    hiddenSet: personabotsMethods.hiddenSet,
+    channelMuteSet: personabotsMethods.channelMuteSet,
+    rosterBatch: personabotsMethods.rosterBatch,
     developerModeSet(payload) {
       const enabled = asObject(payload)['enabled'];
       if (typeof enabled !== 'boolean') return invalidInput('enabled is required');
