@@ -985,6 +985,8 @@ Web Marketplace 的 Avatars 分区使用独立的 D1 表和 R2 `avatars/` 前缀
 
 从 Bot 发布时，Web 和 CLI 先通过仅限 Host 所有者的读取方法取得 Bot 在 Registry 中保存的图片，包括 Avatar Appearance 的静态 PNG。Web 将图片交给同一个市场头像裁剪流程，CLI 则直接校验图片，然后沿用同一个发布方法。
 
+My Avatars 与 CLI 使用同一组 Host 所有者方法。Worker 按 Connect 账户列出该作者的头像及其 Apply Count，编辑只写入名称、简介和标签，并同步更新搜索索引和规范化标签。删除时先移除 R2 图片，再删除 D1 条目，由外键和触发器清理应用回执及举报。注销账户时逐条执行同一删除流程，并在该账户没有剩余头像时才删除作者记录。已经应用到 Bot 的本地副本继续保留。
+
 应用时，当前 Host 通过 Worker 的公开图片路由读取原始字节，验证头像并在写入前重新检查 Bot 和权限。Host 复用手动换头像的 Registry 路径，写入成功后异步发送回执。Worker 根据头像条目和 Host ID 与 PersonaBot ID 的 SHA-256 去重，由回执计算应用次数。见 [ADR-0358](../adr/0358-apply-count-counts-persona-bots-without-anti-abuse.md)。
 
 Avatar 与 Bot 共用 Worker 的 ALTCHA、来源限流、举报阈值和 D1 举报表。举报达到阈值后，Worker 在同一事务内将该条目的 visibility 设为 `hidden_reported`。公开列表、详情、图片和 Apply 均须读取到 `listed` 状态。管理员恢复 Avatar 时同一条语句更新 visibility 并清除该条目的举报，保留 Apply Count。Host 向 Worker 举报时不需要 Connect 账户。已应用的图片由各 Host 的 Registry 存储。

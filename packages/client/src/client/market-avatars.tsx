@@ -27,6 +27,7 @@ import { Tag } from './ds/tag.js';
 import { layer, space, style } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MarketAvatarApplyDialog, type AvatarApplyActions } from './market-avatar-apply.js';
+import { MyAvatarsDialog, type AvatarMineActions } from './market-avatar-mine.js';
 import { MarketPage } from './market-page.js';
 import { MarketplaceSearchField } from './marketplace-browse-controls.js';
 import { MarketplaceTopicChips } from './marketplace.js';
@@ -165,12 +166,14 @@ export function MarketAvatars({
   t,
   publishing,
   avatarSource,
+  managing = false,
   onClosePublish,
 }: {
-  actions: BrowseActions & PublishActions;
+  actions: BrowseActions & PublishActions & AvatarMineActions;
   t: BotHarnessTranslate;
   publishing: boolean;
   avatarSource?: { slug: string; actions: BrowseActions & PublishActions } | undefined;
+  managing?: boolean;
   onClosePublish: () => void;
 }): ReactElement {
   const [listing, setListing] = useState<Read<MarketplaceAvatarPage>>({ kind: 'loading' });
@@ -355,12 +358,33 @@ export function MarketAvatars({
       </div>
       {selected !== undefined && (
         <MarketAvatarDetail
-          key={selected.avatar.id}
+          key={`${selected.avatar.id}:${reload}`}
           initial={selected.avatar}
           onRead={updateListedCount}
           actions={selected.actions}
           t={t}
           onBack={() => setSelected(undefined)}
+        />
+      )}
+      {managing && (
+        <MyAvatarsDialog
+          actions={actions}
+          t={t}
+          onClose={onClosePublish}
+          onUpdated={(avatar) => {
+            setSelected((current) =>
+              current?.actions === actions && current.avatar.id === avatar.id
+                ? { ...current, avatar }
+                : current,
+            );
+            setReload((value) => value + 1);
+          }}
+          onDeleted={(id) => {
+            setSelected((current) =>
+              current?.actions === actions && current.avatar.id === id ? undefined : current,
+            );
+            setReload((value) => value + 1);
+          }}
         />
       )}
       {publishing && (

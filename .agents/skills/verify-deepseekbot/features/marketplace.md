@@ -6,7 +6,7 @@
 - `packages/core/src/marketplace/**`
 - `packages/core/src/features/marketplace/**`
 - `packages/client/src/client/marketplace-report.tsx`
-- `packages/client/src/client/{marketplace,marketplace-browse-controls,market-panel,market-avatars,market-avatar-apply,personabot-avatar-crop}.tsx`
+- `packages/client/src/client/{marketplace,marketplace-browse-controls,market-panel,market-avatars,market-avatar-apply,market-avatar-mine,market-mine,personabot-avatar-crop}.tsx`
 - `packages/client/src/client/{profile-header,bot-sidebar-channel-actions}.tsx`
 - `apps/mobile/src/marketplace/**`
 - `apps/mobile/src/ui/shell/marketplace-*`
@@ -93,3 +93,9 @@ Install opens a review step: Tob reads the staged files and the step shows **Tob
 4. With the isolated Worker's admin token and URL in the CLI environment, use `deepseekbot marketplace-blocklist restore avatar <id>` and confirm the original Apply Count. Use `block` and `restore` again and check that the same visibility rule applies.
 
 The Worker HTTP coverage is in `packages/market/test/market-avatars.test.ts`. The Host copy check is in `packages/core/test/marketplace-avatar-apply.test.ts`.
+
+### Manage Marketplace Avatars
+
+1. Sign the Host owner into a test Connect account on an isolated Marketplace and publish two Avatars. Apply one to a Bot. From **Avatars**, open the cube action **My uploads**. Compare the published rows and Apply Counts with `deepseekbot marketplace-avatar-mine`.
+2. Edit the name, description and tags. Compare the public detail and image with the original, and confirm that the image bytes are identical. Check that search finds the new name and tag, and that filtering by the old tag excludes the edited Avatar. Verify a Team member cannot open the dialog.
+3. Keep the Avatar detail open in a second browser. Delete the Avatar from My Avatars. Check that the listing disappears and the second browser displays **This Avatar is no longer available** when applying to a Bot. Confirm the Bot that already applied it still has the same bytes. Delete the test Connect account and check that the remaining listing and its R2 image are removed.

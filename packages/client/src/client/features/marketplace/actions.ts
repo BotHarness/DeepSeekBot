@@ -45,6 +45,9 @@ export function createMarketplaceActions(
     marketplaceAvatarDetail: (id) => invoke('marketplaceAvatarDetail', { id }),
     marketplaceAvatarPublish: (input) => invoke('marketplaceAvatarPublish', { ...input }),
     marketplaceAvatarSource: (bot) => invoke('marketplaceAvatarSource', { bot }),
+    marketplaceAvatarMine: () => invoke('marketplaceAvatarMine', {}),
+    marketplaceAvatarEdit: (id, patch) => invoke('marketplaceAvatarEdit', { id, ...patch }),
+    marketplaceAvatarDelete: (id) => invoke('marketplaceAvatarDelete', { id }),
     marketplaceList: (query) => loadMarketplacePage(call, query),
     marketplaceChallenge: () => loadMarketplaceChallenge(call),
     marketplaceSubmit: (url, altcha) => submitMarketplaceRepository(call, url, altcha),
@@ -85,6 +88,9 @@ export function createMarketplaceActions(
       | 'marketplaceAvatarApply'
       | 'marketplaceAvatarPublish'
       | 'marketplaceAvatarSource'
+      | 'marketplaceAvatarMine'
+      | 'marketplaceAvatarEdit'
+      | 'marketplaceAvatarDelete'
       | 'marketplaceList'
       | 'marketplaceChallenge'
       | 'marketplaceSubmit'

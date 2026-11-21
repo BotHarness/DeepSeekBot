@@ -1,6 +1,7 @@
 import {
   MAX_MARKETPLACE_AVATAR_BYTES,
   normalizeMarketplaceAvatarTag,
+  parseMarketplaceAvatarEdit,
   parseMarketplaceAvatarPublish,
   type MarketplaceAvatar,
   type MarketplaceAvatarPage,
@@ -35,6 +36,27 @@ const applyCount = `(SELECT COUNT(*) FROM avatar_apply_receipts WHERE avatar_id 
 const selected = `SELECT a.*, authors.author_id, authors.display_name, ${applyCount} AS apply_count
   FROM marketplace_avatars a JOIN authors USING (account)`;
 const objectKey = (id: string) => `avatars/${id}`;
+const serializeTagKeys = (tags: string[]) =>
+  JSON.stringify([...new Set(tags.map(normalizeMarketplaceAvatarTag))]);
+
+export async function removeMarketAvatar(
+  db: D1Database,
+  bucket: R2Bucket,
+  account: string,
+  id: string,
+): Promise<boolean> {
+  const owned = await db
+    .prepare('SELECT id FROM marketplace_avatars WHERE account = ? AND id = ?')
+    .bind(account, id)
+    .first();
+  if (owned === null) return false;
+  await bucket.delete(objectKey(id));
+  await db
+    .prepare('DELETE FROM marketplace_avatars WHERE account = ? AND id = ?')
+    .bind(account, id)
+    .run();
+  return true;
+}
 
 function avatarFromRow(row: AvatarRow, origin: string): MarketplaceAvatar {
   return {
@@ -163,6 +185,46 @@ export function createMarketAvatars({
       return row === null ? undefined : avatarFromRow(row, origin);
     },
 
+    async mine(account: string, origin: string) {
+      const { results } = await db
+        .prepare(`${selected} WHERE a.account = ? ORDER BY a.created_at DESC, a.id DESC`)
+        .bind(account)
+        .all<AvatarRow>();
+      return results.map((row) => avatarFromRow(row, origin));
+    },
+
+    async edit(account: string, id: string, input: Record<string, unknown>, origin: string) {
+      const patch = parseMarketplaceAvatarEdit(input);
+      if (patch === undefined) return { code: 'invalid-avatar-edit' as const };
+      const changed = await db
+        .prepare(`
+          UPDATE marketplace_avatars SET name = COALESCE(?, name),
+            description = COALESCE(?, description), tags = COALESCE(?, tags),
+            tag_keys = COALESCE(?, tag_keys), updated_at = ?
+          WHERE account = ? AND id = ? RETURNING id
+        `)
+        .bind(
+          patch.name ?? null,
+          patch.description ?? null,
+          patch.tags === undefined ? null : JSON.stringify(patch.tags),
+          patch.tags === undefined ? null : serializeTagKeys(patch.tags),
+          now().toISOString(),
+          account,
+          id,
+        )
+        .first();
+      if (changed === null) return { code: 'avatar-not-found' as const };
+      const row = await db
+        .prepare(`${selected} WHERE a.account = ? AND a.id = ?`)
+        .bind(account, id)
+        .first<AvatarRow>();
+      return row === null
+        ? { code: 'avatar-not-found' as const }
+        : { avatar: avatarFromRow(row, origin) };
+    },
+
+    remove: (account: string, id: string) => removeMarketAvatar(db, bucket, account, id),
+
     async recordApply(id: string, botHash: string) {
       const inserted = await db
         .prepare(`
@@ -237,7 +299,7 @@ export function createMarketAvatars({
             publish.name,
             publish.description,
             JSON.stringify(publish.tags),
-            JSON.stringify([...new Set(publish.tags.map(normalizeMarketplaceAvatarTag))]),
+            serializeTagKeys(publish.tags),
             image.contentType,
             timestamp,
             timestamp,

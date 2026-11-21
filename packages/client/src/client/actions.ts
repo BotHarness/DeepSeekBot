@@ -1,5 +1,6 @@
 import type {
   MarketplaceAvatar,
+  MarketplaceAvatarEdit,
   MarketplaceAvatarPage,
   MarketplaceAvatarQuery,
   MarketplaceAvatarTag,
@@ -352,6 +353,9 @@ export interface BridgeActions
   marketplaceAvatarDetail(id: string): Promise<MarketplaceAvatar>;
   marketplaceAvatarPublish(input: MarketplaceAvatarPublish): Promise<MarketplaceAvatar>;
   marketplaceAvatarSource(slug: string): Promise<{ image: string }>;
+  marketplaceAvatarMine(): Promise<{ avatars: MarketplaceAvatar[] }>;
+  marketplaceAvatarEdit(id: string, patch: MarketplaceAvatarEdit): Promise<MarketplaceAvatar>;
+  marketplaceAvatarDelete(id: string): Promise<{ deleted: true }>;
   marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail>;
   marketplaceFile(id: string, path: string): Promise<MarketplaceFileView>;
   marketplaceAccount(): Promise<MarketplaceAccount>;
@@ -803,6 +807,9 @@ export function createActions(
     marketplaceAvatarDetail: marketplaceActions.marketplaceAvatarDetail,
     marketplaceAvatarPublish: marketplaceActions.marketplaceAvatarPublish,
     marketplaceAvatarSource: marketplaceActions.marketplaceAvatarSource,
+    marketplaceAvatarMine: marketplaceActions.marketplaceAvatarMine,
+    marketplaceAvatarEdit: marketplaceActions.marketplaceAvatarEdit,
+    marketplaceAvatarDelete: marketplaceActions.marketplaceAvatarDelete,
     marketplaceDetail: marketplaceActions.marketplaceDetail,
     marketplaceFile: marketplaceActions.marketplaceFile,
     marketplaceAccount: marketplaceActions.marketplaceAccount,

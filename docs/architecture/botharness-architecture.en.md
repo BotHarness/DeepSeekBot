@@ -618,6 +618,8 @@ Marketplace Avatar apply uses the connected Host to fetch the current listed ima
 
 Web and CLI can publish the stored Avatar of a Bot through an owner-only Host read. The Registry supplies the image, including the stored still PNG of an Avatar Appearance. Web crops and re-encodes it, and CLI checks that it already meets the Marketplace image requirements. Both use the existing publish operation.
 
+My Avatars and the CLI use the same Host-owner methods. The Worker scopes the list and edits to the signed-in Connect account and accepts changes to name, description, and tags. The same update refreshes the search index and normalized tag rows. Deletion removes the R2 image before deleting the D1 listing. A foreign key and trigger remove its Apply Receipts and reports. Account deletion runs the same cleanup for every Avatar before removing the author record. PersonaBots retain their local copies.
+
 ## 7 · Critical boundaries
 
 - Normal runtime uses explicit Session ownership only. `cwd` may be a migration or repair hint but never decides PersonaBot identity.

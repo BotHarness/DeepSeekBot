@@ -221,6 +221,9 @@ function stubActions(): BridgeActions {
     marketplaceAvatarApply: vi.fn(),
     marketplaceAvatarPublish: vi.fn(),
     marketplaceAvatarSource: vi.fn(),
+    marketplaceAvatarMine: vi.fn(),
+    marketplaceAvatarEdit: vi.fn(),
+    marketplaceAvatarDelete: vi.fn(),
     marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
     marketplaceAuthorSave: vi.fn(async () => {
       throw new Error('unused');

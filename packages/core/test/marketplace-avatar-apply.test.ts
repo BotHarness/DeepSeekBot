@@ -318,7 +318,7 @@ it('preserves the applied Tob avatar through report takedown, block and deletion
   const expectUnavailable = async () => {
     expect(await bridge.marketplaceAvatarApply(target(id, botSlug))).toMatchObject({
       ok: false,
-      error: { code: 'avatar-not-found' },
+      error: { code: 'avatar-not-found', message: 'This Avatar is no longer available.' },
     });
     await expectAvatar(host, botSlug, 'png');
   };
@@ -326,7 +326,14 @@ it('preserves the applied Tob avatar through report takedown, block and deletion
   expect((await admin(market, { kind: 'avatar', id, action: 'restore' })).status).toBe(200);
   expect((await admin(market, { kind: 'avatar', id, action: 'block' })).status).toBe(200);
   await expectUnavailable();
-  market.sqlite.prepare('DELETE FROM marketplace_avatars WHERE id = ?').run(id);
+  expect(
+    (
+      await market.request(`/v1/me/avatars/${id}`, {
+        method: 'DELETE',
+        headers: { authorization: 'Bearer token-alice' },
+      })
+    ).status,
+  ).toBe(200);
   await expectUnavailable();
   expect(receipt).toHaveBeenCalledTimes(1);
 }, 45_000);

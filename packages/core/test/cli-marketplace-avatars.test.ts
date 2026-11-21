@@ -8,6 +8,55 @@ import { createChallenge, verifySolution } from '../src/marketplace/altcha.js';
 import { createMarket, TEST_ADMIN_TOKEN } from '../../market/test/market-harness.js';
 import { host, invoke, ok } from './cli-host-admin-fixture.js';
 
+it('lists, edits and confirms deletion of Avatars through the live Host', async () => {
+  let owner = true;
+  const live = await host((method) =>
+    owner
+      ? ok({ method })
+      : { ok: false, error: { code: 'permission-required', message: 'Only the Host owner' } },
+  );
+  expect((await invoke(['marketplace-avatar-mine'], live.url)).code).toBe(0);
+  expect(
+    (
+      await invoke(
+        [
+          'marketplace-avatar-edit',
+          'avatar-id',
+          '--name',
+          ' Seal ',
+          '--avatar-tag',
+          'Water',
+          '--avatar-tag',
+          'water',
+        ],
+        live.url,
+      )
+    ).code,
+  ).toBe(0);
+  expect(
+    (await invoke(['marketplace-avatar-edit', 'avatar-id', '--avatar-tag='], live.url)).code,
+  ).toBe(0);
+  expect((await invoke(['marketplace-avatar-edit', 'avatar-id'], live.url)).json.error.code).toBe(
+    'usage',
+  );
+  expect((await invoke(['marketplace-avatar-delete', 'avatar-id'], live.url)).json.error.code).toBe(
+    'usage',
+  );
+  expect(
+    (await invoke(['marketplace-avatar-delete', 'avatar-id', '--confirm'], live.url)).code,
+  ).toBe(0);
+  expect(live.calls).toEqual([
+    { method: 'marketplaceAvatarMine', args: {} },
+    { method: 'marketplaceAvatarEdit', args: { id: 'avatar-id', name: 'Seal', tags: ['Water'] } },
+    { method: 'marketplaceAvatarEdit', args: { id: 'avatar-id', tags: [] } },
+    { method: 'marketplaceAvatarDelete', args: { id: 'avatar-id' } },
+  ]);
+  owner = false;
+  expect((await invoke(['marketplace-avatar-mine'], live.url)).json.error.code).toBe(
+    'permission-required',
+  );
+});
+
 it('browses and publishes Marketplace Avatars through the live Host and surfaces member refusals', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'market-avatar-cli-'));
   const file = join(dir, 'avatar.webp');

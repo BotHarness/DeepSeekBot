@@ -103,10 +103,10 @@ const refusalStatus: Record<SubmissionRefusal, number> = {
   'upstream-unavailable': 502,
 };
 
-function json(status: number, body: unknown): Response {
+function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8' },
+    headers: { 'content-type': 'application/json; charset=utf-8', ...headers },
   });
 }
 
@@ -373,6 +373,31 @@ export function createMarketHandler(
         token === undefined ? undefined : (await deps.uploads.verifier.verify(token))?.account;
       if (account === undefined) return failure(401, 'unauthorized');
       const store = deps.uploads.store;
+      const ownedAvatar = /^\/v1\/me\/avatars(?:\/([0-9a-f-]{36}))?$/u.exec(url.pathname);
+      if (ownedAvatar !== null) {
+        if (deps.avatars === undefined) return failure(503, 'avatars-unavailable');
+        const id = ownedAvatar[1];
+        if (id === undefined && request.method === 'GET')
+          return json(
+            200,
+            { avatars: await deps.avatars.mine(account, url.origin) },
+            {
+              'cache-control': 'no-store',
+            },
+          );
+        if (id !== undefined && request.method === 'PATCH') {
+          const input = await readBody(request);
+          if (input === undefined) return failure(400, 'invalid-avatar-edit');
+          const result = await deps.avatars.edit(account, id, input, url.origin);
+          if ('avatar' in result) return json(200, result, { 'cache-control': 'no-store' });
+          return failure(result.code === 'avatar-not-found' ? 404 : 400, result.code);
+        }
+        if (id !== undefined && request.method === 'DELETE')
+          return (await deps.avatars.remove(account, id))
+            ? json(200, { deleted: true })
+            : failure(404, 'avatar-not-found');
+        return failure(405, 'method-not-allowed');
+      }
       if (url.pathname === '/v1/me') {
         if (request.method === 'GET') return json(200, { author: await store.author(account) });
         if (request.method === 'DELETE') {

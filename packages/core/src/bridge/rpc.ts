@@ -19,6 +19,7 @@ import * as promptsRpc from '../features/prompts/rpc.js';
 import { toRemoteError, unwrap, unwrapAsync, type AdminResult } from './rpc-result.js';
 import type {
   MarketplaceAvatar,
+  MarketplaceAvatarEdit,
   MarketplaceAvatarPage,
   MarketplaceAvatarTag,
   MarketplaceAvatarApplyCandidate,
@@ -3193,6 +3194,21 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
+  async marketplaceAvatarMine(): Promise<{ avatars: MarketplaceAvatar[] }> {
+    return unwrapAsync(this.methods.marketplaceAvatarMine({}));
+  }
+
+  async marketplaceAvatarEdit(
+    id: string,
+    patch: MarketplaceAvatarEdit,
+  ): Promise<MarketplaceAvatar> {
+    return unwrapAsync(this.methods.marketplaceAvatarEdit({ id, ...patch }));
+  }
+
+  async marketplaceAvatarDelete(id: string): Promise<{ deleted: true }> {
+    return unwrapAsync(this.methods.marketplaceAvatarDelete({ id }));
+  }
+
   async marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail> {
     return marketplaceRpc.marketplaceDetail(this.methods, id, lang);
   }
@@ -3781,6 +3797,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceAvatarDetail',
   'marketplaceAvatarPublish',
   'marketplaceAvatarSource',
+  'marketplaceAvatarMine',
+  'marketplaceAvatarEdit',
+  'marketplaceAvatarDelete',
   'marketplaceAvatarApplyCandidates',
   'marketplaceAvatarApply',
   'marketplaceDetail',

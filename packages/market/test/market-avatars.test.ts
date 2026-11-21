@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
   MAX_MARKETPLACE_AVATAR_BYTES,
   type MarketplaceAvatarPage,
@@ -81,6 +81,160 @@ async function empty(market: Market) {
 }
 
 describe('Marketplace Avatars HTTP', () => {
+  it('lists only the signed-in author’s Avatars, including hidden entries and their Apply Counts', async () => {
+    const market = createMarket();
+    await author(market);
+    await author(market, 'token-bob');
+    const { avatar } = await (await publish(market)).json();
+    await publish(market, { name: 'Bear' }, 'token-bob');
+    expect(
+      (await write(market, `/v1/avatars/${avatar.id}/applies`, { botHash: 'a'.repeat(64) })).status,
+    ).toBe(202);
+    market.sqlite
+      .prepare("UPDATE marketplace_avatars SET visibility = 'hidden_reported' WHERE id = ?")
+      .run(avatar.id);
+
+    expect((await market.request('/v1/me/avatars')).status).toBe(401);
+    const mine = await market.request('/v1/me/avatars', {
+      headers: { authorization: 'Bearer token-alice' },
+    });
+    expect(mine.headers.get('cache-control')).toBe('no-store');
+    expect(await mine.json()).toEqual({ avatars: [{ ...avatar, applyCount: 1 }] });
+    expect((await market.request(`/v1/avatars/${avatar.id}`)).status).toBe(404);
+  });
+
+  it('only lets the author edit valid text, and preserves the stored image', async () => {
+    const market = createMarket();
+    await author(market);
+    await author(market, 'token-bob');
+    const { avatar } = await (
+      await publish(market, { tags: ['Blue'], description: 'River' })
+    ).json();
+    const path = `/v1/me/avatars/${avatar.id}`;
+    expect((await write(market, path, { name: 'Bear' }, 'token-bob', 'PATCH')).status).toBe(404);
+    expect((await write(market, path, {}, 'token-bob', 'DELETE')).status).toBe(404);
+    for (const patch of [
+      {},
+      { name: ' ' },
+      { name: 'a'.repeat(41) },
+      { description: 'a'.repeat(161) },
+      { tags: ['a'.repeat(25)] },
+      { tags: ['a', 'b', 'c', 'd', 'e', 'f'] },
+      { name: 'Bear', image: avatarDataUrl('webp') },
+    ]) {
+      expect((await write(market, path, patch, 'token-alice', 'PATCH')).status).toBe(400);
+    }
+    const edited = await write(
+      market,
+      path,
+      { name: ' Seal ', tags: [' Water ', 'water'] },
+      'token-alice',
+      'PATCH',
+    );
+    expect(await edited.json()).toEqual({ avatar: { ...avatar, name: 'Seal', tags: ['Water'] } });
+    const publicPath = `/v1/avatars/${avatar.id}`;
+    expect(await (await market.request(publicPath)).json()).toEqual({
+      avatar: { ...avatar, name: 'Seal', tags: ['Water'] },
+    });
+    expect(Buffer.from(await (await market.request(`${publicPath}/image`)).arrayBuffer())).toEqual(
+      png,
+    );
+  });
+
+  it('reindexes tag and keyword searches after the author edits an Avatar', async () => {
+    const market = createMarket();
+    await author(market);
+    const { avatar } = await (await publish(market, { tags: ['Blue'] })).json();
+    const path = `/v1/me/avatars/${avatar.id}`;
+    const find = async (query: string) => {
+      const response = await market.request(`/v1/avatars?${query}`);
+      expect(response.status).toBe(200);
+      return (await response.json()).avatars;
+    };
+
+    expect(await find('tag=blue')).toEqual([avatar]);
+    expect(await find('q=Otter')).toEqual([avatar]);
+    expect((await write(market, path, { tags: [' Ｗater '] }, 'token-alice', 'PATCH')).status).toBe(
+      200,
+    );
+    const retagged = { ...avatar, tags: ['Ｗater'] };
+    expect(await find('tag=water')).toEqual([retagged]);
+    expect(await find('tag=blue')).toEqual([]);
+
+    expect(
+      (await write(market, path, { name: 'Silver Seal' }, 'token-alice', 'PATCH')).status,
+    ).toBe(200);
+    expect(await find('q=Silver')).toEqual([{ ...retagged, name: 'Silver Seal' }]);
+    expect(await find('q=Otter')).toEqual([]);
+    expect(await find('tag=water')).toEqual([{ ...retagged, name: 'Silver Seal' }]);
+  });
+
+  it('removes the listing, image, receipts and reports for an Avatar and for deleted accounts', async () => {
+    const market = createMarket();
+    await author(market);
+    await author(market, 'token-bob');
+    const { avatar: first } = await (await publish(market)).json();
+    const { avatar: second } = await (await publish(market, { requestKey: 'second' })).json();
+    const { avatar: third } = await (await publish(market, { requestKey: 'third' })).json();
+    const { avatar: other } = await (await publish(market, {}, 'token-bob')).json();
+    for (const { id } of [first, second, third, other]) {
+      expect(
+        (await write(market, `/v1/avatars/${id}/applies`, { botHash: 'a'.repeat(64) })).status,
+      ).toBe(202);
+      expect(
+        (await post(market, `/v1/avatars/${id}/reports`, { altcha: await solve(market) })).status,
+      ).toBe(202);
+    }
+    const reportKeys = () =>
+      market.sqlite
+        .prepare('SELECT node_id FROM reports ORDER BY node_id')
+        .all()
+        .map(({ node_id }) => node_id);
+    expect(reportKeys()).toEqual(
+      [first, second, third, other].map(({ id }) => `avatar:${id}`).sort(),
+    );
+    expect(
+      (await write(market, `/v1/me/avatars/${first.id}`, {}, 'token-alice', 'DELETE')).status,
+    ).toBe(200);
+    expect(reportKeys()).toEqual([second, third, other].map(({ id }) => `avatar:${id}`).sort());
+    expect((await write(market, '/v1/me', {}, 'token-alice', 'DELETE')).status).toBe(200);
+    expect(await (await market.request('/v1/avatars')).json()).toEqual({
+      avatars: [{ ...other, applyCount: 1 }],
+      nextCursor: null,
+    });
+    for (const { id } of [first, second, third]) {
+      const path = `/v1/avatars/${id}`;
+      expect((await market.request(path)).status).toBe(404);
+      expect((await market.request(`${path}/image`)).status).toBe(404);
+      expect((await write(market, `${path}/applies`, { botHash: 'a'.repeat(64) })).status).toBe(
+        404,
+      );
+    }
+    expect([...market.bucket.objects.keys()]).toEqual([`avatars/${other.id}`]);
+    expect(market.sqlite.prepare('SELECT avatar_id FROM avatar_apply_receipts').all()).toEqual([
+      { avatar_id: other.id },
+    ]);
+    expect(reportKeys()).toEqual([`avatar:${other.id}`]);
+  });
+
+  it('removes an Avatar published while account deletion is cleaning up R2', async () => {
+    const market = createMarket();
+    await author(market);
+    await publish(market);
+    const removeObject = market.bucket.delete;
+    const cleanup = vi.spyOn(market.bucket, 'delete').mockImplementationOnce(async (key) => {
+      const concurrent = await publish(market, { requestKey: 'during-delete' });
+      expect(concurrent.status).toBe(201);
+      await removeObject(key);
+    });
+    try {
+      expect((await write(market, '/v1/me', {}, 'token-alice', 'DELETE')).status).toBe(200);
+      await empty(market);
+    } finally {
+      cleanup.mockRestore();
+    }
+  });
+
   it.each(['png', 'jpeg', 'webp'] as const)(
     'publishes processed %s bytes and serves public detail and image',
     async (type) => {

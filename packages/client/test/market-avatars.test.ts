@@ -4,7 +4,9 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { createChallenge } from '../../core/src/marketplace/altcha.js';
 import { avatarDataUrl } from '../../market/test/avatar-fixtures.js';
+import type { MarketplaceAvatarEdit } from '@botharness/host-protocol/marketplace-avatar';
 import { buttonNamed, fieldNamed, typeInto } from './primitive-mocks.js';
+import { BridgeCallError } from '../src/client/bridge.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 import { MarketAvatars, MarketAvatarPublishDialog } from '../src/client/market-avatars.js';
 import {
@@ -71,6 +73,13 @@ function actionsFor() {
     marketplaceAvatarPublish: vi.fn(async () => avatar),
     marketplaceAvatarSource: vi.fn(async () => ({ image })),
     marketplaceAvatarTags: vi.fn(async () => [{ tag: 'blue', count: 2 }]),
+    marketplaceAvatarMine: vi.fn(async () => ({ avatars: [{ ...avatar, applyCount: 4 }] })),
+    marketplaceAvatarEdit: vi.fn(async (_id: string, patch: MarketplaceAvatarEdit) => ({
+      ...avatar,
+      applyCount: 4,
+      ...patch,
+    })),
+    marketplaceAvatarDelete: vi.fn(async () => ({ deleted: true as const })),
     marketplaceAvatarList: vi.fn(async ({ cursor }: MarketplaceAvatarQuery = {}) =>
       cursor === undefined
         ? { avatars: [avatar], nextCursor: 'next' }
@@ -384,6 +393,64 @@ it('paginates the grid and opens the Avatar hero and tags', async () => {
     t('market.applyCount', { count: 0 }),
   );
   expect(host.querySelector('.bh-market-hero [data-tone="neutral"]')?.textContent).toBe('Blue');
+});
+
+it('lists Apply Counts, edits text and confirms deletion in My Avatars', async () => {
+  const actions = actionsFor();
+  await act(async () =>
+    root.render(
+      createElement(MarketAvatars, {
+        actions,
+        publishing: false,
+        managing: true,
+        onClosePublish: vi.fn(),
+        t,
+      }),
+    ),
+  );
+  const row = () => document.querySelector('[data-market-mine-avatar="avatar-a"]');
+  expect(row()?.textContent).toContain(t('market.applyCount', { count: 4 }));
+  await act(async () => buttonNamed(t('market.avatar.mine.editLabel', { name: 'Otter' })).click());
+  expect(document.querySelector('[role="dialog"] input[type="file"]')).toBeNull();
+  const name = fieldNamed(t('market.direct.name'));
+  expect(name.value).toBe('Otter');
+  await act(async () => typeInto(name, 'A'.repeat(41)));
+  expect(buttonNamed(t('market.avatar.mine.save')).disabled).toBe(true);
+  await act(async () => typeInto(name, 'Seal'));
+  await act(async () => buttonNamed(t('market.avatar.mine.save')).click());
+  expect(actions.marketplaceAvatarEdit).toHaveBeenCalledWith('avatar-a', { name: 'Seal' });
+  expect(row()?.textContent).toContain('Seal');
+  await act(async () => buttonNamed(t('market.mine.deleteLabel', { name: 'Seal' })).click());
+  expect(document.body.textContent).toContain(t('market.avatar.mine.deleteBody'));
+  expect(actions.marketplaceAvatarDelete).not.toHaveBeenCalled();
+  await act(async () => buttonNamed(t('market.mine.deleteConfirm')).click());
+  expect(actions.marketplaceAvatarDelete).toHaveBeenCalledWith('avatar-a');
+  expect(document.body.textContent).toContain(t('market.avatar.mine.empty'));
+});
+
+it('explains when applying from an already open Avatar detail fails after deletion', async () => {
+  const actions = actionsFor();
+  actions.marketplaceAvatarApply.mockRejectedValue(new BridgeCallError('avatar-not-found', 'gone'));
+  await act(async () =>
+    root.render(
+      createElement(MarketAvatars, {
+        actions,
+        publishing: false,
+        onClosePublish: vi.fn(),
+        t,
+      }),
+    ),
+  );
+  await act(async () => buttonNamed(t('market.detail.open', { name: 'Otter' })).click());
+  await act(async () => buttonNamed(t('market.avatar.apply')).click());
+  await act(async () => buttonNamed('Plain Bot').click());
+  const dialog = document.querySelector('[role="dialog"]');
+  const apply = Array.from(dialog?.querySelectorAll('button') ?? []).find(
+    (button) => button.textContent === t('market.avatar.apply'),
+  );
+  await act(async () => apply?.click());
+  expect(actions.marketplaceAvatarApply).toHaveBeenCalledWith('avatar-a', 'plain');
+  expect(dialog?.textContent).toContain(t('market.avatar.notFound'));
 });
 
 it('applies only to a Bot returned by the Host and warns before replacing an editable Appearance', async () => {

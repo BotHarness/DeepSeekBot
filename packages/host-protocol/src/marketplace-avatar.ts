@@ -16,6 +16,8 @@ export interface MarketplaceAvatarText {
   tags: string[];
 }
 
+export type MarketplaceAvatarEdit = Partial<MarketplaceAvatarText>;
+
 export interface MarketplaceAvatarPublish extends MarketplaceAvatarText {
   image: string;
   requestKey: string;
@@ -63,23 +65,49 @@ export function parseMarketplaceAvatarText(input: {
   description?: unknown;
   tags?: unknown;
 }): MarketplaceAvatarText | undefined {
-  if (typeof input.name !== 'string') return;
-  if (input.description !== undefined && typeof input.description !== 'string') return;
-  const name = input.name.trim();
-  const description = input.description?.trim() ?? '';
-  if (!name || [...name].length > MAX_MARKETPLACE_AVATAR_NAME) return;
-  if ([...description].length > MAX_MARKETPLACE_AVATAR_DESCRIPTION) return;
-  const tags = input.tags === undefined ? [] : input.tags;
-  if (!Array.isArray(tags) || tags.length > MAX_MARKETPLACE_AVATAR_TAGS) return;
-  const unique = new Map<string, string>();
-  for (const value of tags) {
-    if (typeof value !== 'string') return;
-    const tag = value.trim();
-    if (!tag || [...tag].length > MAX_MARKETPLACE_AVATAR_TAG) return;
-    const key = tag.toLowerCase();
-    if (!unique.has(key)) unique.set(key, tag);
+  const patch = parseMarketplaceAvatarEdit({
+    name: input.name,
+    description: input.description === undefined ? '' : input.description,
+    tags: input.tags === undefined ? [] : input.tags,
+  });
+  if (patch?.name === undefined || patch.description === undefined || patch.tags === undefined)
+    return;
+  return { name: patch.name, description: patch.description, tags: patch.tags };
+}
+
+export function parseMarketplaceAvatarEdit(
+  input: Record<string, unknown>,
+): MarketplaceAvatarEdit | undefined {
+  if (Object.keys(input).some((key) => key !== 'name' && key !== 'description' && key !== 'tags'))
+    return;
+  const { name, description, tags } = input;
+  if (name === undefined && description === undefined && tags === undefined) return;
+  const patch: MarketplaceAvatarEdit = {};
+  if (name !== undefined) {
+    if (typeof name !== 'string') return;
+    const trimmed = name.trim();
+    if (!trimmed || [...trimmed].length > MAX_MARKETPLACE_AVATAR_NAME) return;
+    patch.name = trimmed;
   }
-  return { name, description, tags: [...unique.values()] };
+  if (description !== undefined) {
+    if (typeof description !== 'string') return;
+    const trimmed = description.trim();
+    if ([...trimmed].length > MAX_MARKETPLACE_AVATAR_DESCRIPTION) return;
+    patch.description = trimmed;
+  }
+  if (tags !== undefined) {
+    if (!Array.isArray(tags) || tags.length > MAX_MARKETPLACE_AVATAR_TAGS) return;
+    const unique = new Map<string, string>();
+    for (const value of tags) {
+      if (typeof value !== 'string') return;
+      const tag = value.trim();
+      if (!tag || [...tag].length > MAX_MARKETPLACE_AVATAR_TAG) return;
+      const key = tag.toLowerCase();
+      if (!unique.has(key)) unique.set(key, tag);
+    }
+    patch.tags = [...unique.values()];
+  }
+  return patch;
 }
 
 export function parseMarketplaceAvatarPublish(
