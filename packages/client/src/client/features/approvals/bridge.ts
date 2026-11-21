@@ -1,3 +1,6 @@
+import type { PrivateInputStatus } from '../../bridge.js';
+import * as channelHost from '@botharness/host-client/channel-messages';
+import { BridgeCallError } from '../../bridge-transport.js';
 import type { ModelRouteView } from '../models/bridge.js';
 import {
   asRecord,
@@ -344,4 +347,59 @@ export async function retryQuestionNotification(
   id: string,
 ): Promise<void> {
   await unwrap(call, 'questionRetry', { slug, id });
+}
+
+export async function loadPrivateInputStatus(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+): Promise<PrivateInputStatus> {
+  try {
+    return await channelHost.loadPrivateInputStatus(bridgeHost(call), channelId, messageId);
+  } catch (error) {
+    if (error instanceof BridgeCallError)
+      throw new Error('Private input status is unavailable', { cause: error });
+    throw error;
+  }
+}
+
+export async function submitPrivateInput(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+  values: Record<string, string>,
+): Promise<void> {
+  const result = await call('privateInputSubmit', {
+    channelId,
+    messageId,
+    values,
+  });
+  if (!result.ok)
+    throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
+  privateInputAccepted(result.value);
+}
+
+export function privateInputAccepted(value: unknown): void {
+  const { accepted, reason } = (value ?? {}) as {
+    accepted?: unknown;
+    reason?: unknown;
+  };
+  if (accepted === true) return;
+  throw new BridgeCallError(
+    'private-input-not-accepted',
+    typeof reason === 'string'
+      ? 'Private input was not accepted: ' + reason
+      : 'Private input was not accepted',
+    typeof reason === 'string' ? { reason } : undefined,
+  );
+}
+
+export async function cancelPrivateInput(
+  call: BridgeCall,
+  channelId: string,
+  messageId: string,
+): Promise<void> {
+  const result = await call('privateInputCancel', { channelId, messageId });
+  if (!result.ok || (result.value as { accepted?: unknown }).accepted !== true)
+    throw new Error('Private input cancellation was not accepted');
 }
