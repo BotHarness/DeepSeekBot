@@ -128,9 +128,12 @@ async function readBody(request: Request): Promise<Record<string, unknown> | und
 }
 
 function blocklistTarget(body: Record<string, unknown>): BlocklistTarget | undefined {
-  const { id, url } = body;
-  if (typeof id === 'string' && id.length > 0 && url === undefined) return { id };
-  if (typeof url === 'string' && url.length > 0 && id === undefined) return { url };
+  const { id, url, kind = 'bot' } = body;
+  if (kind !== 'bot' && kind !== 'avatar') return undefined;
+  if (typeof id === 'string' && id.length > 0 && url === undefined)
+    return kind === 'bot' ? { kind: 'bot', id } : { kind: 'avatar', id };
+  if (kind === 'bot' && typeof url === 'string' && url.length > 0 && id === undefined)
+    return { kind, url };
   return undefined;
 }
 
@@ -262,8 +265,10 @@ export function createMarketHandler(
       }
       const result =
         action === 'block' ? await moderation.block(target) : await moderation.restore(target);
-      if (result.ok) return json(200, { bot: result.bot });
+      if (result.ok)
+        return json(200, 'bot' in result ? { bot: result.bot } : { avatar: result.avatar });
       const status = {
+        'avatar-not-found': 404,
         'bot-not-found': 404,
         'invalid-repository-url': 400,
         'upstream-unavailable': 502,
@@ -434,15 +439,13 @@ export function createMarketHandler(
         ? json(202, { counted: recorded.counted, installs: recorded.installs })
         : failure(404, 'bot-not-found');
     }
-    const reportId = /^\/v1\/bots\/([^/]+)\/reports$/u.exec(url.pathname)?.[1];
-    if (reportId !== undefined) {
+    const reportRoute = /^\/v1\/(bots|avatars)\/([^/]+)\/reports$/u.exec(url.pathname);
+    if (reportRoute !== null) {
       if (request.method !== 'POST') return failure(405, 'method-not-allowed');
-      let id: string;
-      try {
-        id = decodeURIComponent(reportId);
-      } catch {
-        return failure(404, 'bot-not-found');
-      }
+      const kind = reportRoute[1] === 'avatars' ? 'avatar' : 'bot';
+      const notFound = kind === 'avatar' ? 'avatar-not-found' : 'bot-not-found';
+      const id = decodePath(reportRoute[2]!);
+      if (id === undefined) return failure(404, notFound);
       const body = await readBody(request);
       const reasonValue = body?.['reason'];
       const reason = typeof reasonValue === 'string' ? reasonValue.trim() : '';
@@ -455,12 +458,13 @@ export function createMarketHandler(
       const guarded = await guard(request, body?.['altcha'], 'report');
       if (!guarded.ok) return guarded.response;
       const received = await moderation.report({
+        kind,
         id,
         source: guarded.source,
         reason: reason.length === 0 ? undefined : reason,
         threshold: deps.reportThreshold,
       });
-      return received ? json(202, { received: true }) : failure(404, 'bot-not-found');
+      return received ? json(202, { received: true }) : failure(404, notFound);
     }
     if (url.pathname === '/v1/bots') {
       if (request.method !== 'GET') return failure(405, 'method-not-allowed');

@@ -184,6 +184,7 @@ export interface MarketplaceClient {
   report(
     id: string,
     options: { altcha: string; reason?: string },
+    kind?: 'bot' | 'avatar',
   ): Promise<MarketplaceResult<{ received: true }>>;
   author(token: string): Promise<MarketplaceResult<MarketplaceAuthorAccount | null>>;
   saveAuthor(
@@ -792,9 +793,9 @@ export function createMarketplaceClient(options: {
         },
         parseMarketplaceSubmission,
       ),
-    report: (id, options) =>
+    report: (id, options, kind = 'bot') =>
       request(
-        `/v1/bots/${encodeURIComponent(id)}/reports`,
+        `/v1/${kind === 'bot' ? 'bots' : 'avatars'}/${encodeURIComponent(id)}/reports`,
         {
           method: 'POST',
           headers: { accept: 'application/json', 'content-type': 'application/json' },

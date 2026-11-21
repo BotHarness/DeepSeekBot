@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { marketplaceAvatarImageType } from '@botharness/host-protocol/marketplace-avatar-image';
+import {
+  marketplaceAvatarImageType,
+  readMarketplaceAvatarImage,
+} from '@botharness/host-protocol/marketplace-avatar-image';
 import { parseMarketplaceAvatarText } from '@botharness/host-protocol/marketplace-avatar';
 export { HOST_ADMIN_OPTIONS } from './cli-option-spec.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
@@ -24,6 +27,7 @@ export interface HostAdminValues {
   capability?: string[];
   role?: string[];
   'avatar-tag'?: string[];
+  'from-bot'?: string;
   confirm?: boolean;
   'confirmation-stdin'?: boolean;
   enabled?: boolean;
@@ -64,6 +68,10 @@ export const HOST_ADMIN_COMMANDS = [
     description: 'read a Marketplace Avatar / 查看市场头像详情',
   },
   {
+    command: 'marketplace-avatar-report',
+    description: 'report a Marketplace Avatar / 举报市场头像',
+  },
+  {
     command: 'marketplace-avatar-apply',
     description: 'apply a Marketplace Avatar to a Bot / 将市场头像应用到 Bot',
   },
@@ -73,7 +81,8 @@ export const HOST_ADMIN_COMMANDS = [
   },
   {
     command: 'marketplace-avatar-publish',
-    description: 'publish a processed image from --file / 从文件发布已处理的头像',
+    description:
+      'publish a processed Avatar from --file or --from-bot / 从文件或 Bot 发布已处理的头像',
   },
   { command: 'marketplace-topics', description: 'list Bot Marketplace topics with counts' },
   {
@@ -198,6 +207,7 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   'marketplace-list': 0,
   'marketplace-avatar-list': 0,
   'marketplace-avatar-detail': 1,
+  'marketplace-avatar-report': 1,
   'marketplace-avatar-publish': 0,
   'marketplace-avatar-apply': 1,
   'marketplace-avatar-apply-candidates': 0,
@@ -279,7 +289,10 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     (command !== 'marketplace-digest' || !/^\d{4}-\d{2}-\d{2}$/u.test(values.day))
   )
     usage('--day must be a YYYY-MM-DD date, on marketplace-digest.');
-  if (command === 'marketplace-report' && values.reason !== undefined) {
+  if (
+    (command === 'marketplace-report' || command === 'marketplace-avatar-report') &&
+    values.reason !== undefined
+  ) {
     if (values.reason.trim().length > MAX_REPORT_REASON_LENGTH)
       usage(`--reason must be at most ${String(MAX_REPORT_REASON_LENGTH)} characters.`);
   }
@@ -322,9 +335,14 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     );
   if (
     command === 'marketplace-avatar-publish' &&
-    (!values.file?.trim() || !values.name?.trim() || values.confirm !== true)
+    ((values.file === undefined) === (values['from-bot'] === undefined) ||
+      !(values.file ?? values['from-bot'])?.trim() ||
+      !values.name?.trim() ||
+      values.confirm !== true)
   )
-    usage('marketplace-avatar-publish needs --file <image> --name <name> --confirm.');
+    usage(
+      'marketplace-avatar-publish needs exactly one of --file <image> or --from-bot <bot>, plus --name <name> --confirm.',
+    );
   if (command === 'marketplace-upload') {
     if (values.name === undefined || !values.name.trim())
       usage('marketplace-upload needs --name <listing name>.');
@@ -501,13 +519,6 @@ export async function runHostAdminCommand(
     case 'marketplace-avatar-apply-candidates':
       return rpc('marketplaceAvatarApplyCandidates', {});
     case 'marketplace-avatar-publish': {
-      const bytes = readBytes(values.file);
-      const contentType = marketplaceAvatarImageType(bytes);
-      if (contentType === undefined)
-        throw new CliLiveError(
-          'unprocessed-image',
-          'Use a still, metadata-free PNG, JPEG or WebP, square at 256–512 px and at most 128 KiB.',
-        );
       const text = parseMarketplaceAvatarText({
         name: values.name,
         description: values.description,
@@ -519,9 +530,29 @@ export async function runHostAdminCommand(
         );
       const requestKey = values['operation-key'] ?? randomUUID();
       if (!/^[a-zA-Z0-9_-]{1,100}$/u.test(requestKey)) usage('Invalid --operation-key.');
+      const slug = values['from-bot']?.trim();
+      let image: string;
+      if (slug !== undefined) {
+        const source = await rpc<{ image: string }>('marketplaceAvatarSource', { bot: slug });
+        image = source.image;
+        if (readMarketplaceAvatarImage(image) === undefined)
+          throw new CliLiveError(
+            'unprocessed-image',
+            'This Bot’s Avatar needs cropping or re-encoding. Publish it from Web.',
+          );
+      } else {
+        const bytes = readBytes(values.file);
+        const contentType = marketplaceAvatarImageType(bytes);
+        if (contentType === undefined)
+          throw new CliLiveError(
+            'unprocessed-image',
+            'Use a still, metadata-free PNG, JPEG or WebP, square at 256–512 px and at most 128 KiB.',
+          );
+        image = `data:${contentType};base64,${bytes.toString('base64')}`;
+      }
       return rpc('marketplaceAvatarPublish', {
         ...text,
-        image: `data:${contentType};base64,${bytes.toString('base64')}`,
+        image,
         requestKey,
         confirm: true,
       });
@@ -560,13 +591,17 @@ export async function runHostAdminCommand(
         url: target,
         altcha: await proveHuman(rpc, host.signal),
       });
-    case 'marketplace-report': {
+    case 'marketplace-report':
+    case 'marketplace-avatar-report': {
       const reason = values.reason?.trim() ?? '';
-      return rpc('marketplaceReport', {
-        id: target,
-        altcha: await proveHuman(rpc, host.signal),
-        ...(reason === '' ? {} : { reason }),
-      });
+      return rpc(
+        command === 'marketplace-report' ? 'marketplaceReport' : 'marketplaceAvatarReport',
+        {
+          id: target,
+          altcha: await proveHuman(rpc, host.signal),
+          ...(reason === '' ? {} : { reason }),
+        },
+      );
     }
     case 'marketplace-account':
       return rpc('marketplaceAccount', {});

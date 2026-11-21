@@ -3,6 +3,10 @@ export const zh = {
   'market.avatar.title': '头像',
   'market.avatar.bots': 'Bot',
   'market.avatar.publish': '发布头像',
+  'market.avatar.cropImage': '裁剪图片',
+  'market.avatar.cropTitle': '裁剪市场头像',
+  'market.avatar.cropDescription': '拖动图片调整位置，使用缩放滑块调整裁剪范围。',
+  'market.avatar.sourceMissing': '此 Bot 没有保存的头像图片。',
   'market.avatar.apply': '应用',
   'market.avatar.applyTitle': '选择 Bot',
   'market.avatar.applyEmpty': '没有可更换头像的 Bot。',
@@ -18,7 +22,7 @@ export const zh = {
   'market.avatar.nameHint': '1–40 个字符',
   'market.avatar.bioHint': '选填，最多 160 个字符',
   'market.avatar.tagsHint': '用逗号分隔，最多 5 个标签，每个最多 24 个字符。',
-  'market.avatar.tooSmall': '图片的宽和高都必须至少为 256 像素。',
+  'market.avatar.tooSmall': '裁剪区域的宽和高都必须至少为 256 像素。',
   'market.avatar.unprocessed': '选择一张图片并重新裁剪。',
   'market.avatar.notFound': '找不到这个头像。',
   'market.avatar.limit': '每个账号最多发布 20 个头像。',
@@ -66,6 +70,12 @@ export const zh = {
   'market.error.botNotFound': '这个 Bot 已不在市场中。',
   'market.error.fileNotFound': '这个文件已经不在了。',
   'market.challenge.verifying': '正在验证…',
+  'market.avatar.report.title': '举报这个头像',
+  'market.avatar.report.hint':
+    '不需要账号。多个不同来源举报后，这个头像会先从市场中隐藏，等待管理员复核。',
+  'market.avatar.report.placeholder': '例如：冒充他人、垃圾内容、不当图片',
+  'market.avatar.report.done':
+    '谢谢。达到一定数量的独立举报后，这个头像会先被隐藏，等待管理员复核。',
   'market.report.open': '举报',
   'market.report.title': '举报这个 Bot',
   'market.report.hint':
@@ -274,6 +284,11 @@ export const en = {
   'market.avatar.title': 'Avatars',
   'market.avatar.bots': 'Bots',
   'market.avatar.publish': 'Publish Avatar',
+  'market.avatar.cropImage': 'Crop image',
+  'market.avatar.cropTitle': 'Crop Marketplace Avatar',
+  'market.avatar.cropDescription':
+    'Drag the image to move it and use the zoom slider to adjust the crop.',
+  'market.avatar.sourceMissing': 'This Bot has no stored Avatar image.',
   'market.avatar.apply': 'Apply',
   'market.avatar.applyTitle': 'Choose a Bot',
   'market.avatar.applyEmpty': 'No Bots whose avatars you can change.',
@@ -289,7 +304,7 @@ export const en = {
   'market.avatar.nameHint': '1–40 characters',
   'market.avatar.bioHint': 'Optional, up to 160 characters',
   'market.avatar.tagsHint': 'Separate up to 5 tags with commas. Each can be up to 24 characters.',
-  'market.avatar.tooSmall': 'The image must be at least 256 pixels wide and tall.',
+  'market.avatar.tooSmall': 'The crop must be at least 256 pixels wide and tall.',
   'market.avatar.unprocessed': 'Choose an image and crop it again.',
   'market.avatar.notFound': 'This Avatar could not be found.',
   'market.avatar.limit': 'Each account can publish up to 20 Avatars.',
@@ -340,6 +355,12 @@ export const en = {
   'market.error.botNotFound': 'This Bot is no longer in the Marketplace.',
   'market.error.fileNotFound': 'This file is no longer there.',
   'market.challenge.verifying': 'Verifying…',
+  'market.avatar.report.title': 'Report this Avatar',
+  'market.avatar.report.hint':
+    'No account needed. After reports from several different sources, this Avatar is hidden from the Marketplace until an administrator reviews it.',
+  'market.avatar.report.placeholder': 'For example: impersonation, spam, inappropriate imagery',
+  'market.avatar.report.done':
+    'Thanks. Enough independent reports will hide this Avatar until an administrator reviews it.',
   'market.report.open': 'Report',
   'market.report.title': 'Report this Bot',
   'market.report.hint':

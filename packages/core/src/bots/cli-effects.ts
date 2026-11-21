@@ -291,6 +291,8 @@ export const CLI_EFFECTS = {
   'marketplace-author': { effects: external, brokerRead: false },
   'marketplace-avatar-list': { effects: externalRead, brokerRead: true },
   'marketplace-avatar-detail': { effects: externalRead, brokerRead: true },
+  'marketplace-avatar-report': { effects: external, brokerRead: false },
+  'marketplace-blocklist': { effects: externalSecretManagement, brokerRead: false },
   'marketplace-avatar-apply': { effects: external, brokerRead: false },
   'marketplace-avatar-apply-candidates': { effects: read, brokerRead: false },
   'marketplace-avatar-publish': { effects: external, brokerRead: false },

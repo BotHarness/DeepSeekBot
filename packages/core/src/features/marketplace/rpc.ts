@@ -148,6 +148,21 @@ export async function marketplaceReport(
   );
 }
 
+export async function marketplaceAvatarReport(
+  methods: MarketplaceBridgeMethods,
+  id: string,
+  altcha: string,
+  reason?: string,
+): Promise<{ received: true }> {
+  return unwrapAsync(
+    methods.marketplaceAvatarReport({
+      id,
+      altcha,
+      ...(reason === undefined ? {} : { reason }),
+    }),
+  );
+}
+
 export async function marketplaceTopics(
   methods: MarketplaceBridgeMethods,
 ): Promise<MarketplaceTopic[]> {
@@ -208,6 +223,15 @@ export async function marketplaceAvatarApply(
   operationKey?: string,
 ): Promise<{ applied: true }> {
   return unwrapAsync(methods.marketplaceAvatarApply({ id, bot, operationKey }));
+}
+
+export function marketplaceAvatarSource(
+  methods: MarketplaceBridgeMethods,
+  bot: string,
+): {
+  image: string;
+} {
+  return unwrap(methods.marketplaceAvatarSource({ bot }));
 }
 
 export async function marketplaceAvatarPublish(

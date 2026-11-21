@@ -110,6 +110,8 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
 
 import { BotSidebar, BulkChannelMenu, ChannelMoveMenu } from '../src/client/bot-sidebar.js';
 import { createQuickSwitcherLauncher } from '../src/client/quick-switcher-launcher.js';
+import { seededAvatarFor } from '../../core/src/bots/avatar-appearance.js';
+import { isolateTeamIdentity, setTeamModeSnapshot } from '../src/client/team-state.js';
 import { typeInto } from './primitive-mocks.js';
 import { UNGROUPED_MOVE_TARGET } from '../src/client/section-management.js';
 
@@ -213,9 +215,11 @@ function stubActions(): BridgeActions {
     marketplaceList: vi.fn(async () => ({ bots: [] })),
     marketplaceAvatarList: vi.fn(),
     marketplaceAvatarDetail: vi.fn(),
+    marketplaceAvatarReport: vi.fn(),
     marketplaceAvatarApplyCandidates: vi.fn(),
     marketplaceAvatarApply: vi.fn(),
     marketplaceAvatarPublish: vi.fn(),
+    marketplaceAvatarSource: vi.fn(),
     marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
     marketplaceAuthorSave: vi.fn(async () => {
       throw new Error('unused');
@@ -1159,6 +1163,76 @@ describe('bot sidebar rows', () => {
       node.remove();
     }
   });
+
+  it.each([
+    ['owner', 'image', true],
+    ['owner', 'appearance', true],
+    ['owner', 'blobatar', false],
+    ['member', 'image', false],
+    ['member', 'appearance', false],
+  ] as const)(
+    'shows the Bot Avatar publish menu for %s with %s: %s',
+    async (kind, source, visible) => {
+      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+      const bot: BotSummary = { ...BOT };
+      if (source === 'image') bot.avatar = '/api/botharness/bot-avatar?slug=atlas&v=1';
+      if (source === 'appearance')
+        bot.appearance = { recipe: seededAvatarFor('Atlas', 2), revision: 'preview' };
+      store.setRoster([bot], [DM_CHANNEL]);
+      const open = vi.fn();
+      const teamCall = vi.fn();
+      isolateTeamIdentity(teamCall);
+      setTeamModeSnapshot(teamCall, {
+        enabled: true,
+        ownerPasswordSet: false,
+        insecureHttpAllowed: false,
+        memberUrls: [],
+        isolation: 'trial',
+        viewer: {
+          kind,
+          humanId: kind,
+          displayName: kind,
+          mustChangePassword: false,
+          owner: kind === 'owner',
+          permissions: ['bots.manageAll'],
+          roleIds: [],
+        },
+      });
+      const node = document.createElement('div');
+      document.body.append(node);
+      const root = createRoot(node);
+      try {
+        await act(async () =>
+          root.render(
+            createElement(BotSidebar, {
+              wide: true,
+              actions: { ...stubActions(), teamCall },
+              useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+                selector(prefs)) as never,
+              setSortMode,
+              setSectionSortMode,
+              dockPanels: { open } as never,
+              t: zhTranslate,
+            }),
+          ),
+        );
+        await act(async () =>
+          node
+            .querySelector('[data-channel-id="dm-atlas"]')
+            ?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+        );
+        const menu = menuWithItem('share-market');
+        expect(menu.items.some((item) => item['id'] === 'publish-avatar')).toBe(visible);
+        if (visible) {
+          await act(async () => menu.onSelect?.('publish-avatar'));
+          expect(open).toHaveBeenCalledWith('bot-market');
+        }
+      } finally {
+        await act(async () => root.unmount());
+        node.remove();
+      }
+    },
+  );
 
   it('changes a Bot avatar from its DM context menu through the Profile avatar editor', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });

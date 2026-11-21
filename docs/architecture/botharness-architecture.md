@@ -985,7 +985,11 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 Web Marketplace 的 Avatars 分区使用独立的 D1 表和 R2 `avatars/` 前缀。Web 裁剪并重新编码图片，CLI 校验已处理的文件。两者通过同一个 Host 方法发布，由 Host 校验所有者身份并从 Connect 取账户令牌。Worker 按 [ADR-0359](../adr/0359-marketplace-avatar-images-are-processed-on-the-client.md) 检查文件头和分块结构，以作者账户和请求键去重，写入完成后公开提供分页列表、详情和图片。
 
+从 Bot 发布时，Web 和 CLI 先通过仅限 Host 所有者的读取方法取得 Bot 在 Registry 中保存的图片，包括 Avatar Appearance 的静态 PNG。Web 将图片交给同一个市场头像裁剪流程，CLI 则直接校验图片，然后沿用同一个发布方法。
+
 应用时，当前 Host 通过 Worker 的公开图片路由读取原始字节，验证头像并在写入前重新检查 Bot 和权限。Host 复用手动换头像的 Registry 路径，写入成功后异步发送回执。Worker 根据头像条目和 Host ID 与 PersonaBot ID 的 SHA-256 去重，由回执计算应用次数。见 [ADR-0358](../adr/0358-apply-count-counts-persona-bots-without-anti-abuse.md)。
+
+Avatar 与 Bot 共用 Worker 的 ALTCHA、来源限流、举报阈值和 D1 举报表。举报达到阈值后，Worker 在同一事务内将该条目的 visibility 设为 `hidden_reported`。公开列表、详情、图片和 Apply 均须读取到 `listed` 状态。管理员恢复 Avatar 时同一条语句更新 visibility 并清除该条目的举报，保留 Apply Count。Host 向 Worker 举报时不需要 Connect 账户。已应用的图片由各 Host 的 Registry 存储。
 
 [ADR-0240](../decisions/marketplace.md#adr-0240) 让列表按读者语言（中文/英文）显示：作者在仓库根目录放 `README.zh-CN.md`／`README.en.md`，在 `.botharness/bot.json` 的 `i18n` 里写翻译后的名称和简介；Worker 推送后一并抓取，`lang=zh|en` 时优先返回。某语言没有作者简介时，Worker 在每小时刷新后经 OpenCode Go 的免费模型按 README 生成一句简介（按输入哈希缓存、每轮限量，标记 `bioGenerated`），作者文本总是优先；README 正文不做机器翻译。Host 的 Marketplace modal 与 CLI 按界面语言传 `lang`。
 
@@ -1833,6 +1837,7 @@ PersonaBot 的 Orchestrator Session 与 Assignment Session 可以各自运行在
 - **引擎保留自己的 harness**：Bash、编辑等原生工具不替换；DSH 通用工具不暴露给引擎。
 - **MCP 网关**：Host 上一个 HTTP MCP 端点，每个引擎 Session 一个绑定 PersonaBot、Session（Orchestrator 或 Assignment）、该 Session 已有的 Channel 范围与能力范围的 token，会话结束即作废；调用在该 Session 内执行原有 `ToolDefinition`。只列 Bot 层工具，其余经 `tool_search`。
 - **消息约定不变**：最终文本私有，发言只经 `bot_send_message`，Assignment 只经 `report_to_orchestrator`。运行中的 Assignment 由同一个 Host 运行实例接收 steer：Codex 通过 `turn/steer` 将请求送入当前轮次，Claude Code 或明确拒绝 steer 的 Codex 中断当前轮次后在同一 Session 继续。原运行实例对当前工作只提交一次终态报告。
+- **Orchestrator steer**：BotRuntime 在引擎确认接收后，把新消息和一并注入的 Inbox 上下文纳入当前轮次。Codex 通过当前轮次 ID 接收；明确拒绝时保留原 Inbox Admission，留待下一轮处理。Claude Code 共用 Assignment 的中断与继续机制，并按已提交的回复记录避免重复回答。工具网关只授权本轮已接收的 Channel，每次访问仍执行原有的 Bot 成员与发送权限检查。
 - **审批**：`canUseTool`、Codex approval、ACP `session/request_permission` 统一进入 `ChannelToolApproval`；Assignment 的 cwd 是 Workspace Grant 的 `primaryCwd`，Orchestrator 在 PersonaBot 自己的空目录。
 - **文件写入权限**：Host 在每轮开始时按 Assignment 的权限快照和当前 Grant，或 Orchestrator 当前的聊天权限设置，计算引擎的执行模式。受限 Orchestrator 如有任何生效的只读 Grant，则使用只读工具。只读不开放写入或升级审批；工作区模式保留审批；完全访问使用引擎的完整权限。模式变化时，Host 用新权限恢复原引擎会话。混合路由组首次启动引擎、额度切换时在引擎间继续同一请求，以及为新引擎线程传入 Session 上下文，都使用这一权限检查。
 - **历史**：Session 身份不变（ADR-0024）：每个 PersonaBot 一个 Orchestrator Session，照旧接收所有 Channel 的 Inbox 批次；每个 Assignment 一个 Assignment Session。Orchestrator 的引擎进程空闲 30 秒后关闭，Assignment 在工作完成后关闭引擎进程，再释放共用的 Assignment 并发名额。下一批 Inbox 或 Assignment Request 按已保存的原生 ID 恢复。原生会话丢失时，Orchestrator 从 Bot Inbox、当前 Channel 的近期记录、Memory 与已保存的 Session 事件重建。Assignment 从 Assignment Directory、已接受的 Request 与持久化的 Session 事件重建，缺失时由 Host 向所属 Orchestrator 提交失败报告。

@@ -392,6 +392,10 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
       create: { displayName: 'Member Bot' },
       createLookup: { operationKey: 'audit-create-0001', displayName: 'Member Bot' },
       marketplaceAvatarDetail: { id: '00000000-0000-4000-8000-000000000000' },
+      marketplaceAvatarReport: {
+        id: '00000000-0000-4000-8000-000000000000',
+        altcha: 'proof',
+      },
       marketplaceAvatarApply: {
         id: '00000000-0000-4000-8000-000000000000',
         bot: 'owner-secret-bot',
@@ -496,6 +500,8 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
           expect(error).toMatchObject({ code: 'voice-unavailable' });
         else if (method === 'marketplaceAvatarApply')
           expect(error).toMatchObject({ code: 'bot-not-found' });
+        else if (method === 'marketplaceAvatarReport' || method === 'marketplaceChallenge')
+          expect(error).toMatchObject({ code: 'marketplace-unavailable' });
         else if (method === 'marketplaceAvatarList' || method === 'marketplaceAvatarDetail')
           expect(error).toMatchObject({ code: 'marketplace-unavailable' });
         else if (method === 'usageByMember')

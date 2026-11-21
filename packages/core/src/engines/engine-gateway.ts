@@ -23,6 +23,7 @@ export interface EngineGrantSpec {
   sessionId: string;
   tools: readonly EngineGatewayTool[];
   channelId(): string | undefined;
+  canUseChannel?(channelId: string): boolean;
   channelless?: boolean;
   call(
     name: string,
@@ -77,15 +78,26 @@ export function gatewayScopeRefusal(
   args: Record<string, unknown>,
   channelId: string | undefined,
   channelless = false,
+  canUseChannel?: (channelId: string) => boolean,
 ): string | undefined {
   if (channelId === undefined && !channelless) return 'session-not-running';
   const nested = args['arguments'];
   if (typeof nested === 'object' && nested !== null && !Array.isArray(nested)) {
-    const refusal = gatewayScopeRefusal(nested as Record<string, unknown>, channelId, channelless);
+    const refusal = gatewayScopeRefusal(
+      nested as Record<string, unknown>,
+      channelId,
+      channelless,
+      canUseChannel,
+    );
     if (refusal !== undefined) return refusal;
   }
   const requested = args['channel_id'];
-  if (requested !== undefined && requested !== channelId) return 'channel-out-of-scope';
+  if (
+    requested !== undefined &&
+    requested !== channelId &&
+    (typeof requested !== 'string' || canUseChannel?.(requested) !== true)
+  )
+    return 'channel-out-of-scope';
   if (args['scope'] === 'joined') return 'channel-out-of-scope';
   for (const key of OUT_OF_SCOPE_ARGUMENTS)
     if (args[key] !== undefined) return 'destination-out-of-scope';
@@ -204,6 +216,7 @@ export function createEngineGateway(): EngineGateway {
       args,
       grant.spec.channelId(),
       grant.spec.channelless === true,
+      grant.spec.canUseChannel,
     );
     const result =
       refusal !== undefined

@@ -50,7 +50,6 @@
     "packages/core/src/database/owner.ts",
     "packages/core/src/database/schema-plan.ts",
     "packages/core/src/devices/connect-account.ts",
-    "packages/core/src/messaging/dsh-im.ts",
     "packages/core/src/plugin.ts",
     "packages/core/src/purge/owner.ts",
     "packages/core/src/runtime/bot-runtime.ts",
