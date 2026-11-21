@@ -48,11 +48,20 @@ export function modelFailure(error: unknown): BridgeResult<never> {
   return invalidInput(error instanceof Error ? error.message : String(error));
 }
 
+export function canManageModelSources(
+  human: HumanContext,
+  team: BridgeMethodsDeps['team'],
+): boolean {
+  return (
+    human.caller !== 'bot' &&
+    (team === undefined
+      ? human.humanId === OWNER_HUMAN_CONTEXT.humanId
+      : team.isOwner(human) || team.roles.permissions(human).includes('modelSources.manage'))
+  );
+}
+
 export function requireModelSources(human: HumanContext, team: BridgeMethodsDeps['team']): void {
-  if (human.caller !== 'bot') {
-    if (team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId) return;
-    if (team) return team.roles.require(human, 'modelSources.manage');
-  }
+  if (canManageModelSources(human, team)) return;
   throw new TeamError('permission-required', undefined, { permission: 'modelSources.manage' });
 }
 

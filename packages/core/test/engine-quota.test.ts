@@ -70,21 +70,73 @@ function setup(recordings: Array<typeof DM_TURN>) {
 }
 
 describe('Codex quota and limits (#4493)', () => {
-  it('reads the most used window, or the spent one, from a Codex rate-limit report', () => {
+  it.each([
+    ['You’ve hit your usage limit. Try again at 5:26 PM.', 15, new Date(2026, 10, 18, 17, 26)],
+    ['You’ve hit your usage limit. Try again at 5:26 PM.', 18, new Date(2026, 10, 19, 17, 26)],
+    [
+      'You’ve hit your usage limit for codex_other. Switch to another model now, or try again at Nov 22nd, 2026 12:07 AM.',
+      15,
+      new Date(2026, 10, 22, 0, 7),
+    ],
+  ])('uses the upstream retry timestamp in %s', async (message, hour, reset) => {
+    const notification = LIMIT_TURN.findIndex(
+      ({ msg }) => msg['method'] === 'account/rateLimits/updated',
+    );
+    const error = { message, codexErrorInfo: 'usageLimitExceeded' };
+    const { host, clock, request } = setup([
+      [
+        ...LIMIT_TURN.slice(0, notification),
+        { dir: 'in', msg: { method: 'error', params: { willRetry: false, error } } },
+        {
+          dir: 'in',
+          msg: { method: 'turn/completed', params: { turn: { status: 'failed', error } } },
+        },
+      ],
+    ]);
+    clock.now = new Date(2026, 10, 18, hour).getTime();
+    host.use('ada', 'orchestrator', 'codex');
+    try {
+      await expect(host.runTurn(request)).rejects.toMatchObject({ until: reset.toISOString() });
+    } finally {
+      await host.close();
+    }
+  });
+
+  it('maps identified windows and leaves a window with no duration unclassified', () => {
     expect(
       codexRateLimit({
-        primary: { usedPercent: 12, resetsAt: 10 },
-        secondary: { usedPercent: 64, resetsAt: 20 },
+        primary: { usedPercent: 12, resetsAt: 10, windowDurationMins: 300 },
+        secondary: { usedPercent: 64, resetsAt: 20, windowDurationMins: 10_080 },
         rateLimitReachedType: null,
       }),
-    ).toEqual({ kind: 'rate-limit', usedPercent: 64, resetsAt: 20, limited: false });
+    ).toEqual({
+      kind: 'rate-limit',
+      windows: {
+        session: {
+          remainingPercent: 88,
+          resetsAt: new Date(10_000).toISOString(),
+          windowMinutes: 300,
+        },
+        weekly: {
+          remainingPercent: 36,
+          resetsAt: new Date(20_000).toISOString(),
+          windowMinutes: 10_080,
+        },
+      },
+      limited: false,
+    });
     expect(
       codexRateLimit({
         primary: { usedPercent: 100, resetsAt: 10 },
         secondary: { usedPercent: 64, resetsAt: 20 },
         rateLimitReachedType: 'primary',
       }),
-    ).toEqual({ kind: 'rate-limit', usedPercent: 100, resetsAt: 10, limited: true });
+    ).toEqual({
+      kind: 'rate-limit',
+      unclassified: { remainingPercent: 0, resetsAt: new Date(10_000).toISOString() },
+      resetsAt: new Date(10_000).toISOString(),
+      limited: true,
+    });
     expect(codexRateLimit({ primary: null, spendControlReached: true })).toEqual({
       kind: 'rate-limit',
       limited: true,
@@ -102,6 +154,14 @@ describe('Codex quota and limits (#4493)', () => {
       usedPercent: 79,
       resetsAt: new Date(1_795_249_567_000).toISOString(),
       observedAt: new Date(START).toISOString(),
+      windows: {
+        weekly: {
+          remainingPercent: 21,
+          windowMinutes: 10_080,
+          resetsAt: new Date(1_795_249_567_000).toISOString(),
+        },
+      },
+      source: 'turn',
     };
     expect(host.describe('orchestrator-ada')).toEqual({
       engine: 'codex',
@@ -114,6 +174,7 @@ describe('Codex quota and limits (#4493)', () => {
 
   it('stops on a replayed limit, refuses later turns without starting Codex, and runs again after the reset', async () => {
     const { host, dsh, replays, clock, request } = setup([LIMIT_TURN, DM_TURN]);
+    host.renameAccount('codex-default', 'Work subscription', 0);
     host.use('ada', 'orchestrator', 'codex');
 
     const failure = await host.runTurn(request).catch((error: unknown) => error);
@@ -121,7 +182,7 @@ describe('Codex quota and limits (#4493)', () => {
     expect(failure).toMatchObject({
       code: 'ENGINE_LIMIT',
       engine: 'codex',
-      account: 'ChatGPT pro',
+      account: 'Work subscription',
       until: RESETS_AT,
     });
     expect(replays[0]!.mismatches).toEqual([]);
@@ -294,6 +355,9 @@ describe('A Bot whose subscription runs out (#4493)', () => {
         engine: { engine: 'codex', account: 'ChatGPT pro', until },
         rests: [{ provider: 'codex', model: 'ChatGPT pro', until }],
       });
+      expect(
+        core.channels.readMessages('dm-ada').filter((message) => message.sessionFailure),
+      ).toEqual([]);
       expect(core.channels.readMessages('dm-ada').filter((m) => m.modelSwitch)).toEqual([]);
       expect(core.runtime.releaseQuotaHold?.('ada')).toBe(true);
       expect(core.runtime.heldCause?.('ada')).toBeUndefined();

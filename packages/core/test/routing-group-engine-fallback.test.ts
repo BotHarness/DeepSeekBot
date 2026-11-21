@@ -441,10 +441,10 @@ it('posts one limit card when every target rests and retries the first available
         sessionId,
         cause: 'quota',
         routingGroup: true,
-        engine: { engine: 'codex', account: 'ChatGPT pro', until: RESETS_AT },
+        engine: { engine: 'codex', account: 'Codex', until: RESETS_AT },
         rests: [
           { ...API, until: new Date(apiReset).toISOString() },
-          { provider: 'codex', model: 'ChatGPT pro', until: RESETS_AT },
+          { provider: 'codex', model: 'Codex', until: RESETS_AT },
         ],
       },
     },

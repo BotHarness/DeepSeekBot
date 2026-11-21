@@ -4,6 +4,7 @@ import { randomUUID } from 'node:crypto';
 import type { Options } from '@anthropic-ai/claude-agent-sdk';
 
 import { engineLaunch } from './engine-launch.js';
+import { quotaEmail, quotaTime, quotaWindow, type ProviderQuota } from './engine-quota.js';
 import {
   type EngineAccount,
   type EngineApprovalDecision,
@@ -55,7 +56,12 @@ export interface ClaudeSpawnOptions {
 
 export interface ClaudeQueryOptions extends Pick<
   Options,
-  'allowDangerouslySkipPermissions' | 'tools' | 'disallowedTools' | 'settings'
+  | 'abortController'
+  | 'allowDangerouslySkipPermissions'
+  | 'persistSession'
+  | 'tools'
+  | 'disallowedTools'
+  | 'settings'
 > {
   cwd: string;
   env: Record<string, string>;
@@ -209,7 +215,15 @@ export function claudeAccount(info: unknown): EngineAccount {
       detail: `Claude Code is signed in with an API key (${keySource})`,
     };
   const plan = text(account['subscriptionType']);
-  if (plan !== '') return { kind: 'subscription', engine: 'claude', plan };
+  if (plan !== '') {
+    const email = quotaEmail(account['email']);
+    return {
+      kind: 'subscription',
+      engine: 'claude',
+      plan,
+      ...(email === undefined ? {} : { email }),
+    };
+  }
   if (text(account['tokenSource']) !== '' || text(account['email']) !== '')
     return {
       kind: 'metered',
@@ -263,18 +277,51 @@ function resultText(content: unknown): string {
 export function claudeRateLimit(info: unknown): Extract<EngineEvent, { kind: 'rate-limit' }> {
   const limit = record(info);
   const utilization = limit['utilization'];
-  const resetsAt = limit['resetsAt'];
+  const resetsAt =
+    typeof limit['resetsAt'] === 'number' ? quotaTime(limit['resetsAt'] * 1000) : undefined;
+  const used =
+    typeof utilization === 'number'
+      ? utilization <= 1
+        ? utilization * 100
+        : utilization
+      : undefined;
+  const kind = limit['rateLimitType'];
+  const windows =
+    kind === 'five_hour'
+      ? { session: quotaWindow(used, resetsAt, 300) }
+      : kind === 'seven_day'
+        ? { weekly: quotaWindow(used, resetsAt, 10_080) }
+        : undefined;
   return {
     kind: 'rate-limit',
-    ...(typeof utilization === 'number'
-      ? { usedPercent: utilization <= 1 ? Math.round(utilization * 1000) / 10 : utilization }
+    ...(windows === undefined ? {} : { windows }),
+    ...(kind === undefined && used !== undefined
+      ? { unclassified: quotaWindow(used, resetsAt) }
       : {}),
-    ...(typeof resetsAt === 'number' ? { resetsAt } : {}),
+    ...(resetsAt === undefined ? {} : { resetsAt }),
     limited:
       limit['status'] === 'rejected' ||
       limit['isUsingOverage'] === true ||
       limit['overageInUse'] === true,
   };
+}
+
+export function claudeQuotaReport(
+  message: unknown,
+): Extract<ProviderQuota, { status: 'ok' }>['windows'] | undefined {
+  const report = record(record(message)['usage_report']);
+  const rows = record(report['rate_limits'])['limits'];
+  if (!Array.isArray(rows)) return undefined;
+  const windows: Extract<ProviderQuota, { status: 'ok' }>['windows'] = {};
+  for (const value of rows) {
+    const row = record(value);
+    if (row['kind'] !== 'session' && row['kind'] !== 'weekly_all') continue;
+    const used = typeof row['percent'] === 'number' ? row['percent'] : undefined;
+    const resetsAt = quotaTime(text(row['resets_at']));
+    if (row['kind'] === 'session') windows.session = quotaWindow(used, resetsAt, 300);
+    else windows.weekly = quotaWindow(used, resetsAt, 10_080);
+  }
+  return windows;
 }
 
 class InputQueue implements AsyncIterable<ClaudeUserMessage> {
@@ -306,6 +353,54 @@ class InputQueue implements AsyncIterable<ClaudeUserMessage> {
         return Promise.resolve({ value: undefined, done: true });
       },
     };
+  }
+}
+
+export async function readClaudeQuota(
+  options: ClaudeProcessOptions,
+  open: ClaudeQueryFactory,
+  abortController: AbortController,
+): Promise<ProviderQuota> {
+  const input = new InputQueue();
+  const queryOptions = claudeQueryOptions(
+    options,
+    { canUseTool: async () => ({ behavior: 'deny', message: 'Quota read' }), stderr: () => {} },
+    { sessionId: randomUUID() },
+  );
+  const query = await open({
+    prompt: input,
+    options: {
+      ...queryOptions,
+      env: { ...queryOptions.env, HOME: options.home, USERPROFILE: options.home },
+      tools: [],
+      persistSession: false,
+      abortController,
+    },
+  });
+  let identity: { email?: string } = {};
+  try {
+    abortController.signal.throwIfAborted();
+    const account = claudeAccount(await query.accountInfo());
+    if (account.kind === 'signed-out') return { status: 'signed-out' };
+    if (account.kind !== 'subscription') return { status: 'unavailable' };
+    identity = account.email === undefined ? {} : { email: account.email };
+    abortController.signal.throwIfAborted();
+    input.push({
+      type: 'user',
+      message: { role: 'user', content: '/usage' },
+      parent_tool_use_id: null,
+    });
+    for await (const message of query) {
+      if (record(message)['type'] === 'result') break;
+      const windows = claudeQuotaReport(message);
+      if (windows !== undefined) return { status: 'ok', windows, ...identity };
+    }
+    return { status: 'unavailable', ...identity };
+  } catch {
+    return { status: 'unavailable', ...identity };
+  } finally {
+    input.close();
+    query.close();
   }
 }
 

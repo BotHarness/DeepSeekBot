@@ -6571,6 +6571,12 @@ class BotRuntimeImplementation implements BotRuntime {
     autoContinue?: { attempt: number; maxAttempts: number; at: string };
   }): Promise<void> {
     if (input.error instanceof RouteRestingError) return;
+    if (
+      input.role === 'orchestrator' &&
+      input.error instanceof EngineLimitError &&
+      (await this.#holdForRestingRoute(input.botSlug, input.channelId, input.error))
+    )
+      return;
     const details = sessionFailureDetails(input.error);
     const failure = {
       role: input.role,

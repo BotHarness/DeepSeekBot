@@ -30,7 +30,12 @@ export const ENGINE_COMMANDS = [
   {
     command: 'engine-accounts',
     description:
-      'list subscription accounts and their revision, or use --grantable to list accounts granted to the caller',
+      'list subscription accounts, quota windows, and revision, or use --grantable for accounts granted to the caller',
+  },
+  {
+    command: 'engine-quota',
+    description:
+      'show remaining subscription quota (engine quota <account-id> [--refresh] [--json])',
   },
   { command: 'engine-account-add', description: 'add a named Codex or Claude Code account' },
   { command: 'engine-account-rename', description: 'rename a subscription account' },
@@ -115,6 +120,7 @@ export async function runEngineCommand(
     'args-stdin'?: boolean;
     'code-stdin'?: boolean;
     grantable?: boolean;
+    refresh?: boolean;
   },
   connect: Connect,
   readStdin: () => Promise<string> = async () => '',
@@ -123,6 +129,8 @@ export async function runEngineCommand(
     throw new CliLiveError('usage', '--code-stdin requires engine login claude.');
   if (values.grantable && command !== 'engine-accounts')
     throw new CliLiveError('usage', '--grantable requires engine accounts.');
+  if (values.refresh && command !== 'engine-quota')
+    throw new CliLiveError('usage', '--refresh requires engine quota.');
   if (command === 'engine-list' || command === 'engine-status') {
     if (rest.length > (command === 'engine-status' ? 1 : 0))
       throw new CliLiveError('usage', 'engine status accepts one optional engine or account ID.');
@@ -189,6 +197,7 @@ export async function runEngineCommand(
   }
   if (
     command === 'engine-accounts' ||
+    command === 'engine-quota' ||
     command.startsWith('engine-account-') ||
     command === 'engine-login' ||
     command === 'engine-login-cancel'
@@ -206,6 +215,17 @@ export async function runEngineCommand(
     if (rest.length !== 1 || !rest[0])
       throw new CliLiveError('usage', `${command} needs one engine or account ID.`);
     const [id] = rest;
+    if (command === 'engine-quota') {
+      if (values.refresh) return rpc('engineAccountQuotaRefresh', { id });
+      const list = await rpc('engineAccounts', { grantable: true });
+      if (!isObject(list) || !Array.isArray(list['accounts'])) throw protocolError();
+      const accountId = id === 'codex' ? 'codex-default' : id;
+      const accounts = list['accounts'].filter(isObject);
+      const account = accounts.find((entry) => entry['id'] === accountId);
+      if (account === undefined)
+        throw new CliLiveError('engine-account-not-found', 'Subscription account is unavailable.');
+      return { id: accountId, quota: account['quota'] ?? null };
+    }
     if (command === 'engine-login-cancel') {
       if (values.account !== undefined)
         throw new CliLiveError('usage', 'Pass the account ID to engine login-cancel directly.');
