@@ -1509,6 +1509,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         );
       const handle = this.#handles.get(sessionId);
       if (handle === undefined) return false;
+      requireAccess();
       handle.agent.steer(
         createUserMessage({
           content: [
