@@ -382,8 +382,6 @@ export function useSubscriptionEngines(
   const signIn = (engine: EngineId, accountId?: string): void => {
     const key = engineModelKey(engine, accountId);
     if (activeLogin.current !== undefined) return;
-    const tab = window.open('', '_blank');
-    if (tab !== null) tab.opener = null;
     const attempt = Symbol();
     activeLogin.current = attempt;
     activeTarget.current = accountId === undefined ? { engine } : { engine, accountId };
@@ -394,11 +392,11 @@ export function useSubscriptionEngines(
     const login = accountId === undefined ? api.login(engine) : api.login(engine, accountId);
     void login.then(
       ({ url }) => {
-        if (!alive.current || activeLogin.current !== attempt || url === undefined) tab?.close();
-        else if (tab === null || tab.closed) setSignInUrl(url);
-        else tab.location.href = url;
         if (!alive.current || activeLogin.current !== attempt) return;
-        if (url !== undefined) setLoginUrl(url);
+        if (url !== undefined) {
+          setSignInUrl(url);
+          setLoginUrl(url);
+        }
         let done = false;
         const finish = (ready: boolean): void => {
           done = true;
@@ -408,10 +406,8 @@ export function useSubscriptionEngines(
           clearTimeout(deadline.current);
           setSigningIn(undefined);
           setLoginUrl(undefined);
-          if (ready) setSignInUrl(undefined);
+          setSignInUrl(undefined);
         };
-        const codexTabClosedWithoutSignIn = (): boolean =>
-          engine === 'codex' && url !== undefined && tab !== null && tab.closed;
         deadline.current = setTimeout(() => finish(false), SIGN_IN_POLL_DEADLINE_MS);
         const check = async (): Promise<void> => {
           const next = await refresh(false);
@@ -422,16 +418,11 @@ export function useSubscriptionEngines(
             )
           )
             finish(true);
-          else if (codexTabClosedWithoutSignIn()) {
-            finish(false);
-            setSignInUrl(undefined);
-            void api.cancelLogin?.(engine, accountId).catch(() => undefined);
-          } else poll.current = setTimeout(() => void check(), SIGN_IN_POLL_MS);
+          else poll.current = setTimeout(() => void check(), SIGN_IN_POLL_MS);
         };
         poll.current = setTimeout(() => void check(), SIGN_IN_POLL_MS);
       },
       (cause: unknown) => {
-        tab?.close();
         if (!alive.current || activeLogin.current !== attempt) return;
         activeLogin.current = undefined;
         activeTarget.current = undefined;

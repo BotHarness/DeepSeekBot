@@ -68,21 +68,18 @@ it('does not read the origin route from a remote dialog', async () => {
   expect(read).not.toHaveBeenCalled();
 });
 
-it('opens the official URL from a synchronous click and fetches the catalog after sign-in', async () => {
+it('leaves opening the browser to the engine CLI, keeps the link and fetches the catalog after sign-in', async () => {
   vi.useFakeTimers();
   let view = local;
-  const tab = { opener: window as unknown, closed: false, location: { href: '' }, close: vi.fn() };
-  const open = vi.spyOn(window, 'open').mockReturnValue(tab as unknown as Window);
-  const login = vi.fn(async () => {
-    expect(open).toHaveBeenCalledWith('', '_blank');
-    return { url: 'https://claude.ai/oauth/authorize?x=1' };
-  });
+  const open = vi.spyOn(window, 'open');
+  const login = vi.fn(async () => ({ url: 'https://claude.ai/oauth/authorize?x=1' }));
   const models = vi.fn(async () => [model]);
   const state = await render({ read: async () => view, login, models });
   await act(async () => state().signIn('claude'));
   expect(login).toHaveBeenCalledWith('claude');
-  expect(tab.location.href).toBe('https://claude.ai/oauth/authorize?x=1');
-  expect(tab.opener).toBeNull();
+  expect(open).not.toHaveBeenCalled();
+  expect(state().signInUrl).toBe('https://claude.ai/oauth/authorize?x=1');
+  expect(state().loginUrl).toBe('https://claude.ai/oauth/authorize?x=1');
   expect(state().signingIn).toBe('claude');
   view = {
     ...local,
@@ -90,13 +87,13 @@ it('opens the official URL from a synchronous click and fetches the catalog afte
   };
   await act(async () => vi.advanceTimersByTimeAsync(3000));
   expect(state().signingIn).toBeUndefined();
+  expect(state().signInUrl).toBeUndefined();
   expect(state().models.claude).toEqual([model]);
   expect(models.mock.calls).toEqual([['codex'], ['claude']]);
 });
 
-it('keeps a blocked popup link and stops polling at three minutes even if a status read hangs', async () => {
+it('keeps the sign-in link and stops polling at three minutes even if a status read hangs', async () => {
   vi.useFakeTimers();
-  vi.spyOn(window, 'open').mockReturnValue(null);
   const read = vi
     .fn()
     .mockResolvedValueOnce(local)
