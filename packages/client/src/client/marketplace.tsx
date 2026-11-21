@@ -44,6 +44,7 @@ import { MarketplaceFileReader, MarketplaceFileTree } from './market-files.js';
 import { MarketplaceSkills } from './bot-skills-card.js';
 import { MarketPage } from './market-page.js';
 import { useMountedResource } from './mounted-resource.js';
+import { StandingImportUsage } from './standing-import-usage.js';
 
 import {
   MarketplaceAvatar,
@@ -821,7 +822,12 @@ export function MarketplaceBotFlow({
           bot={review.status === 'ready' ? review.result.listing : selected}
           t={t}
           reviewView={
-            <InstallReviewView state={review} t={t} onRetry={() => startReview(selected)} />
+            <>
+              {review.status === 'ready' && review.result.standing ? (
+                <StandingImportUsage standing={review.result.standing} t={t} />
+              ) : null}
+              <InstallReviewView state={review} t={t} onRetry={() => startReview(selected)} />
+            </>
           }
           cause={installCause}
         />

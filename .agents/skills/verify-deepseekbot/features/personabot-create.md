@@ -20,6 +20,7 @@ A Human creates a PersonaBot bound to a native Workspace. The Bot gets a DM Chan
 - `workspace` registers a native DSH Workspace that BotHarness lists in its options.
 - `create` creates the PersonaBot with a role and Workspace grant.
 - `creation-method-dialog` opens a two-step dialog from the Channel list or section's New menu. Three cards choose blank, GitHub or zip; the first step returns from the form, while submission locks it. Remote zip import remains disabled and members only see blank creation.
+- `zip-standing-preview` shows the standing memory usage and effective limits after a Web ZIP is selected. It identifies the number of characters that will be excluded from the prompt.
 - `memory` initializes the Bot's Git Memory with an accepted HEAD.
 - `restart` keeps the Bot, its DM and the Human message after a Host restart.
 - `blank-recovery` queries an absent operation, creates an independent blank Bot, recovers its receipt through RPC and the built `create-status` CLI, and retries the same input/key before and after Host restart with exactly one Bot and DM.
@@ -34,6 +35,8 @@ A Human creates a PersonaBot bound to a native Workspace. The Bot gets a DM Chan
 - In a Bot's DM, ask it to create a Bot ("make me a translator Bot called Tim"), then allow the `New Bot` approval card.
 
 ## Driving it with verify-app
+
+- **ZIP limits.** Choose a ZIP with a `SOUL.md` and `MEMORY.md` and an optional `standingLimits` pair in `.botharness/bot.json`. Check each file's usage before importing, then open Memory files for the new Bot and compare its limits. Repeat with a legacy ZIP above a default limit and check the excluded count in both places. Use `bot-zip-preview` to confirm the same counts without creating a Bot.
 
 The scripted journey owns its Host: it launches a fresh instance on a free port, drives the same `/api` calls the Client makes, restarts the Host and stops it.
 

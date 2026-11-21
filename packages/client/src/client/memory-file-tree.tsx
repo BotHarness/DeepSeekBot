@@ -127,6 +127,7 @@ function StandingBadge({
     percent: Math.round((usage.chars / usage.limit) * 100),
     chars: usage.chars.toLocaleString('en-US'),
     limit: usage.limit.toLocaleString('en-US'),
+    difference: (usage.chars - usage.limit).toLocaleString('en-US'),
   };
   return (
     <span
@@ -142,7 +143,7 @@ function StandingBadge({
         title={t('standing.usageTitle', counts)}
         {...stylex.props(styles.usage, over && styles.over)}
       >
-        {t('standing.usage', counts)}
+        {t(over ? 'standing.usageOver' : 'standing.usage', counts)}
       </span>
     </span>
   );
