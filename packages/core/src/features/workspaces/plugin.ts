@@ -52,7 +52,10 @@ export function mountFolders(ctx: Context) {
 
 export function mountPermissionTracking(
   ctx: Context,
-  core: Pick<BotHarnessCore, 'channels' | 'grants' | 'ownership' | 'registry' | 'runtime'>,
+  core: Pick<
+    BotHarnessCore,
+    'assignmentAccess' | 'channels' | 'grants' | 'ownership' | 'registry' | 'runtime' | 'team'
+  >,
 ) {
   const permissionDenial = (session: import('@deepseek-ai/dsh-session').Session) =>
     grantExecutionDenial(core, session, ctx.get('sandboxPolicy'), ctx.get('approval'));
