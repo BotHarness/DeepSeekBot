@@ -4,6 +4,7 @@ import {
   asSlug,
   invalidInput,
   unknownBot,
+  unknownChannel,
   type BridgeResult,
 } from '../../bridge/method-utils.js';
 import { botOwner } from '../../team/bot-access.js';
@@ -474,5 +475,24 @@ export function createMemoryBridgeMethods(
         };
       return { ok: true, value: await deps.memory.overviewActivity(after) };
     },
+  };
+}
+
+export function createDmMemoryReader(deps: BridgeMethodsDeps) {
+  return (payload: unknown, historical = false): { botSlug: string } | BridgeResult<never> => {
+    const channelId = asNonBlank(asObject(payload), 'channelId');
+    if (channelId === undefined) return invalidInput('channelId is required');
+    const channel = deps.channels.get(channelId);
+    if (channel === undefined) return unknownChannel(channelId);
+    if (channel.type !== 'dm' || channel.botSlug === undefined) {
+      return invalidInput('Memory is available only in a PersonaBot DM');
+    }
+    if (
+      (historical
+        ? deps.registry.getHistorical(channel.botSlug)
+        : deps.registry.get(channel.botSlug)) === undefined
+    )
+      return unknownBot(channel.botSlug);
+    return { botSlug: channel.botSlug };
   };
 }

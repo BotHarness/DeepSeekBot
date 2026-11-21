@@ -1435,9 +1435,6 @@ html[data-botharness-motion='reduce'] [data-badge-motion='leave'] { animation-na
 }
 `,
   channelsCss.sidebarSettings,
-  `.bh-model-menu-list { max-height: min(60vh, calc(100vh - 12px - max(12px, var(--dsh-frame-overlay-top, 12px)))); min-width: 0; max-width: min(360px, calc(100vw - 24px)); }
-`,
-  channelsCss.modelMenuList,
   `.bh-sidebar-settings-trigger { display: flex; align-items: center; gap: ${space.x2}; width: 100%; min-height: 30px; padding: ${space.x2} ${space.x3}; border: 0; border-radius: ${radius.md}; background: transparent; color: var(--tobs-ink-primary); font-size: ${text.bodySize}; line-height: ${text.bodyLine}; text-align: left; cursor: pointer; }
 `,
   channelsCss.sidebarSettingsTrigger,

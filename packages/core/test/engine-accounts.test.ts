@@ -140,7 +140,9 @@ describe('named Codex subscription accounts', () => {
         bridge.engineAccountRename,
         bridge.engineAccountRemove,
         bridge.engineAccountLogin,
+        bridge.engineAccountLoginCancel,
         bridge.engineAccountSubmitCode,
+        bridge.engineAccountQuotaRefresh,
       ]) {
         await expect(method({})).resolves.toMatchObject({
           ok: false,
@@ -162,6 +164,106 @@ describe('named Codex subscription accounts', () => {
     );
     expect(response.status).toBe(403);
     expect(host.accounts().revision).toBe(0);
+  });
+
+  it('returns false for an idle account and validates the local account target', async () => {
+    const { host } = setup();
+    const bridge = createEngineAccountBridge(OWNER_HUMAN_CONTEXT, { engineAccounts: host });
+    await expect(bridge.engineAccountLoginCancel({ id: ' codex ' })).resolves.toEqual({
+      ok: true,
+      value: { cancelled: false },
+    });
+    await expect(bridge.engineAccountLoginCancel({ id: ' ' })).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input' },
+    });
+    await expect(host.cancelLogin('codex-missing')).rejects.toMatchObject({
+      code: 'engine-account-not-found',
+    });
+    await expect(setup({ local: false }).host.cancelLogin('codex')).rejects.toMatchObject({
+      code: 'engine-unavailable',
+    });
+  });
+
+  it.skipIf(process.platform === 'win32').each(['codex', 'claude'] as const)(
+    'cancels the %s login and releases the callback listener before retry',
+    async (engine) => {
+      const command = join(createTempRoot('engine-login-cancel-'), engine);
+      writeFileSync(command, '#!/bin/sh\nnode "$0.cjs"', { mode: 0o700 });
+      writeFileSync(
+        `${command}.cjs`,
+        `const { existsSync, readFileSync, writeFileSync } = require('node:fs');
+const { createServer } = require('node:net');
+const { join } = require('node:path');
+const home = process.env.${engine === 'codex' ? 'CODEX_HOME' : 'CLAUDE_CONFIG_DIR'};
+const portFile = join(home, 'callback-port');
+const port = existsSync(portFile) ? Number(readFileSync(portFile, 'utf8')) : 0;
+const server = createServer();
+server.listen(port, '127.0.0.1', () => {
+  const bound = server.address().port;
+  writeFileSync(portFile, String(bound));
+  console.log('https://example.test/sign-in?port=' + bound);
+});
+`,
+      );
+      const { host } = setup({ codexCommand: command, claudeCommand: command });
+      const account = host.addAccount(engine, 'Work', 0);
+      const bridge = createEngineAccountBridge(OWNER_HUMAN_CONTEXT, { engineAccounts: host });
+      const member = createEngineAccountBridge(
+        { ...OWNER_HUMAN_CONTEXT, humanId: 'member' },
+        { engineAccounts: host },
+      );
+      try {
+        const first = await host.login(engine, account.id);
+        expect(first.url).toMatch(/^https:\/\/example\.test\/sign-in\?port=\d+$/u);
+        await expect(member.engineAccountLoginCancel({ id: account.id })).resolves.toMatchObject({
+          ok: false,
+          error: { code: 'permission-required', details: { permission: 'modelSources.manage' } },
+        });
+        await expect(host.login(engine, account.id)).rejects.toMatchObject({
+          code: 'engine-account-busy',
+        });
+        await expect(bridge.engineAccountLoginCancel({ id: account.id })).resolves.toEqual({
+          ok: true,
+          value: { cancelled: true },
+        });
+        await expect(host.login(engine, account.id)).resolves.toEqual(first);
+        await expect(host.cancelLogin(account.id)).resolves.toEqual({ cancelled: true });
+        await expect(host.cancelLogin(account.id)).resolves.toEqual({ cancelled: false });
+      } finally {
+        await host.close();
+      }
+    },
+  );
+
+  it('cancels a login before its spawn error is delivered', async () => {
+    const command = join(createTempRoot('engine-login-cancel-'), 'codex');
+    const { host } = setup({ codexCommand: command });
+    const signIn = expect(host.login('codex')).rejects.toMatchObject({ code: 'engine-failed' });
+    await expect(host.cancelLogin('codex')).resolves.toEqual({ cancelled: true });
+    await signIn;
+    await expect(host.login('codex')).rejects.toMatchObject({ code: 'engine-not-installed' });
+    await expect(host.cancelLogin('codex')).resolves.toEqual({ cancelled: false });
+  });
+
+  it('passes the account ID to the authenticated cancel RPC and validates its response', async () => {
+    const rpc = vi.fn(async (): Promise<unknown> => ({ cancelled: false, extra: 'fixture' }));
+    const connect = async () => ({ rpc, http: vi.fn() });
+    await expect(
+      runEngineCommand('engine-login-cancel', ['codex-work'], {}, connect),
+    ).resolves.toEqual({
+      cancelled: false,
+    });
+    expect(rpc).toHaveBeenCalledExactlyOnceWith('engineAccountLoginCancel', { id: 'codex-work' });
+    await expect(runEngineCommand('engine-login-cancel', [], {}, connect)).rejects.toMatchObject({
+      code: 'usage',
+    });
+    rpc.mockResolvedValue({});
+    await expect(
+      runEngineCommand('engine-login-cancel', ['codex-work'], {}, connect),
+    ).rejects.toMatchObject({
+      code: 'host-protocol-error',
+    });
   });
 
   it('uses the authenticated RPC for account changes and requires removal confirmation', async () => {
@@ -252,7 +354,11 @@ describe('named Claude Code subscription accounts', () => {
     host.use('ada', 'assignment', 'claude', { accountId: account.id });
     host.store.rememberQuota(
       'claude',
-      { limited: false, usedPercent: 25, observedAt: '2026-11-20T00:00:00Z' },
+      {
+        windows: { weekly: { remainingPercent: 75 } },
+        source: 'live',
+        observedAt: '2026-11-20T00:00:00Z',
+      },
       account.id,
     );
     const reopened = createEngineStore(path);
@@ -260,7 +366,7 @@ describe('named Claude Code subscription accounts', () => {
       revision: 4,
       accounts: [{ id: DEFAULT_CODEX_ACCOUNT }, { id: 'claude' }, { id: account.id }],
     });
-    expect(reopened.quota('claude', account.id)?.usedPercent).toBe(25);
+    expect(reopened.quota('claude', account.id)?.windows.weekly?.remainingPercent).toBe(75);
     expect(reopened.choice('ada', 'orchestrator').accountId).toBe(account.id);
     expect(reopened.choice('ada', 'assignment').accountId).toBe(account.id);
     expect(host.removeAccount('claude', 4)).toEqual({ id: 'claude' });

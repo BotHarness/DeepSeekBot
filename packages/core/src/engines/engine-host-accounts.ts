@@ -1,5 +1,7 @@
 import {
   engineAccountKey,
+  type EngineAccountListEntry,
+  type EngineQuotaRefreshResult,
   type NamedEngineAccount,
 } from '@botharness/host-protocol/subscription-engine';
 import { lstatSync, mkdirSync, rmSync } from 'node:fs';
@@ -10,6 +12,7 @@ import {
   type ClaudeEngineOptions,
   ClaudeEngineSession,
   olderThan,
+  readClaudeQuota,
   sdkClaudeQuery,
 } from './claude-engine.js';
 import { resolveEngineCommand } from './engine-launch.js';
@@ -22,9 +25,12 @@ import type { EngineHostOptions } from './engine-host.js';
 import type { EngineStatusReport } from './engine-host-types.js';
 import {
   engineQuotaLimit,
+  engineQuotaSnapshot,
   engineQuotaView,
   recordEngineQuota,
+  recordLiveEngineQuota,
   type EngineQuotaView,
+  type ProviderQuota,
 } from './engine-quota.js';
 import {
   EngineRefusal,
@@ -37,9 +43,12 @@ import {
 import type { EngineStore, StoredEngineAccount } from './engine-store.js';
 
 const MODELS_TTL_MS = 5 * 60_000;
+const QUOTA_TTL_MS = 30_000;
+const QUOTA_TIMEOUT_MS = 15_000;
 
 interface AccountLogin {
   controller: AbortController;
+  closed: Promise<void>;
   submitCode?: EngineLoginCodeInput;
 }
 
@@ -51,6 +60,15 @@ export class EngineHostAccounts {
   readonly #statusProbes = new Map<string, Promise<CodexStatus | ClaudeStatus>>();
   readonly #readingModels = new Map<string, Promise<EngineModel[]>>();
   readonly #logins = new Map<string, AccountLogin>();
+  readonly #quotaRefreshes = new Map<
+    string,
+    {
+      at: number;
+      controller: AbortController;
+      result: Promise<EngineQuotaRefreshResult['status']>;
+      reading: boolean;
+    }
+  >();
 
   constructor(store: EngineStore, options: EngineHostOptions, busy: (id: string) => boolean) {
     this.#store = store;
@@ -58,8 +76,15 @@ export class EngineHostAccounts {
     this.#busy = busy;
   }
 
-  close(): void {
-    for (const login of this.#logins.values()) login.controller.abort();
+  async close(): Promise<void> {
+    const logins = [...this.#logins.values()];
+    for (const login of logins) login.controller.abort();
+    const refreshes = [...this.#quotaRefreshes.values()];
+    for (const refresh of refreshes) refresh.controller.abort();
+    await Promise.all([
+      ...logins.map(({ closed }) => closed),
+      ...refreshes.map(({ result }) => result),
+    ]);
   }
 
   codex(account: StoredEngineAccount): {
@@ -96,10 +121,25 @@ export class EngineHostAccounts {
       );
   }
 
-  accounts(): { revision?: number; accounts: NamedEngineAccount[] } {
+  accounts(includeEmail = false): { revision?: number; accounts: EngineAccountListEntry[] } {
     if (!this.#options.local) return { accounts: [] };
     const { revision, accounts } = this.#store.accounts();
-    return { revision, accounts: accounts.map(({ id, engine, name }) => ({ id, engine, name })) };
+    const now = this.#now();
+    return {
+      revision,
+      accounts: accounts.map(({ id, engine, name }) => {
+        const stored = this.#store.quota(engine, id);
+        const quota = engineQuotaSnapshot(stored, now);
+        const email = includeEmail ? stored?.email : undefined;
+        return {
+          id,
+          engine,
+          name,
+          ...(quota === undefined ? {} : { quota }),
+          ...(email === undefined ? {} : { email }),
+        };
+      }),
+    };
   }
 
   resolveAccount(engine: EngineId, accountId?: string): NamedEngineAccount {
@@ -154,6 +194,7 @@ export class EngineHostAccounts {
         this.#statusProbes.has(id) ||
         this.#readingModels.has(id) ||
         this.#logins.has(id) ||
+        this.#quotaRefreshes.get(id)?.reading === true ||
         this.#busy(id)
       )
         throw new EngineRefusal(
@@ -162,6 +203,7 @@ export class EngineHostAccounts {
         );
     });
     this.#models.delete(id);
+    this.#quotaRefreshes.delete(id);
     this.#options.accountsChanged?.();
     try {
       rmSync(home, { recursive: true, force: true });
@@ -216,28 +258,140 @@ export class EngineHostAccounts {
   }
 
   limit(engine: EngineId, accountId?: string): { account: string; until: string } | undefined {
-    return engineQuotaLimit(engine, this.#store.quota(engine, accountId), this.#now());
+    const until = engineQuotaLimit(this.#store.quota(engine, accountId), this.#now());
+    return until === undefined
+      ? undefined
+      : { account: this.#store.resolveAccount(engine, accountId).name, until };
   }
 
   quota(engine: EngineId, accountId?: string): EngineQuotaView | undefined {
-    return engineQuotaView(engine, this.#store.quota(engine, accountId), this.#now());
+    return engineQuotaView(this.#store.quota(engine, accountId), this.#now());
   }
 
   #now(): number {
     return (this.#options.now ?? Date.now)();
   }
 
-  record(
-    engine: EngineId,
-    accountId: string,
-    account: string,
-    event: Extract<EngineEvent, { kind: 'rate-limit' }>,
-  ) {
+  record(engine: EngineId, accountId: string, event: Extract<EngineEvent, { kind: 'rate-limit' }>) {
     this.#store.rememberQuota(
       engine,
-      recordEngineQuota(account, event, this.#store.quota(engine, accountId), this.#now()),
+      recordEngineQuota(event, this.#store.quota(engine, accountId), this.#now()),
       accountId,
     );
+  }
+
+  async refreshQuota(id: string): Promise<EngineQuotaRefreshResult> {
+    try {
+      const account = this.target(id);
+      const existing = this.#quotaRefreshes.get(account.id);
+      const now = this.#now();
+      const status = this.#logins.has(account.id)
+        ? 'unavailable'
+        : existing !== undefined && (existing.reading || now - existing.at < QUOTA_TTL_MS)
+          ? await existing.result
+          : await this.#startQuotaRefresh(account, now);
+      const quota = engineQuotaSnapshot(this.#store.quota(account.engine, account.id), this.#now());
+      if (status === 'ok')
+        return quota === undefined ? { status: 'unavailable' } : { status, quota };
+      return { status, ...(quota === undefined ? {} : { quota }) };
+    } catch {
+      return { status: 'unavailable' };
+    }
+  }
+
+  #startQuotaRefresh(account: StoredEngineAccount, at: number) {
+    const original = this.#store.quota(account.engine, account.id);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort('timeout'), QUOTA_TIMEOUT_MS);
+    const cancelled = new Promise<EngineQuotaRefreshResult['status']>((resolve) => {
+      controller.signal.addEventListener(
+        'abort',
+        () => resolve(controller.signal.reason === 'timeout' ? 'timeout' : 'unavailable'),
+        { once: true },
+      );
+    });
+    const reading = this.#readQuota(account, controller)
+      .then<EngineQuotaRefreshResult['status']>((value) => {
+        if (controller.signal.aborted) return 'unavailable';
+        const { engine, id } = account;
+        const previous = this.#store.quota(engine, id);
+        const changedIdentity =
+          value.email !== undefined &&
+          previous?.email !== undefined &&
+          value.email !== previous.email;
+        if (value.status === 'signed-out') this.#store.clearQuota(engine, id);
+        else if (
+          value.status === 'ok' &&
+          (original === previous ||
+            changedIdentity ||
+            JSON.stringify(original) === JSON.stringify(previous))
+        ) {
+          this.#store.rememberQuota(
+            engine,
+            recordLiveEngineQuota(value, changedIdentity ? undefined : previous, this.#now()),
+            id,
+          );
+        } else if (value.email !== undefined && value.email !== previous?.email) {
+          this.#store.rememberQuota(
+            engine,
+            {
+              ...((changedIdentity ? undefined : previous) ?? {
+                windows: {},
+                source: 'live',
+                observedAt: new Date(this.#now()).toISOString(),
+              }),
+              email: value.email,
+            },
+            id,
+          );
+        }
+        return value.status;
+      })
+      .catch((): EngineQuotaRefreshResult['status'] => 'unavailable');
+    const result = Promise.race([cancelled, reading]).finally(() => {
+      clearTimeout(timeout);
+    });
+    const refresh = { at, controller, result, reading: true };
+    void reading.then(() => {
+      refresh.reading = false;
+    });
+    this.#quotaRefreshes.set(account.id, refresh);
+    return result;
+  }
+
+  async #readQuota(
+    account: StoredEngineAccount,
+    controller: AbortController,
+  ): Promise<ProviderQuota> {
+    const cwd = join(this.#options.root, 'workdirs', '.quota');
+    mkdirSync(cwd, { recursive: true });
+    if (account.engine === 'claude') {
+      const { command, ...claude } = this.#claude(account);
+      const executable = resolveEngineCommand(command, { env: claude.env ?? process.env });
+      if (executable === undefined) return { status: 'unavailable' };
+      mkdirSync(claude.home, { recursive: true });
+      return readClaudeQuota(
+        { ...claude, executable, cwd, instructions: '' },
+        this.#options.openClaude ?? sdkClaudeQuery,
+        controller,
+      );
+    }
+    const codex = this.codex(account);
+    mkdirSync(codex.home, { recursive: true });
+    const session = new CodexEngineSession(
+      (this.#options.openCodex ?? spawnCodexTransport)({ ...codex, cwd }),
+      { cwd, instructions: '', requestTimeoutMs: QUOTA_TIMEOUT_MS },
+    );
+    const close = () => session.close().catch(() => undefined);
+    const signal = controller.signal;
+    const abort = () => void close();
+    signal.addEventListener('abort', abort, { once: true });
+    try {
+      return await session.readQuota(signal);
+    } finally {
+      signal.removeEventListener('abort', abort);
+      await close();
+    }
   }
 
   #probeStatus(account: StoredEngineAccount): Promise<CodexStatus | ClaudeStatus> {
@@ -289,13 +443,26 @@ export class EngineHostAccounts {
         'engine-account-busy',
         'Sign-in has already started for this account',
       );
-    const login: AccountLogin = { controller: new AbortController() };
+    if (this.#quotaRefreshes.get(account.id)?.reading === true)
+      throw new EngineRefusal(
+        'engine-account-busy',
+        'Quota refresh is still running for this account',
+      );
+    this.#store.clearQuota(engine, account.id);
+    let resolveClosed!: () => void;
+    const closed = new Promise<void>((resolve) => {
+      resolveClosed = resolve;
+    });
+    const login: AccountLogin = { controller: new AbortController(), closed };
     this.#logins.set(account.id, login);
     this.#models.delete(account.id);
     const onExit = () => {
-      if (this.#logins.get(account.id) !== login) return;
-      this.#logins.delete(account.id);
-      this.#models.delete(account.id);
+      if (this.#logins.get(account.id) === login) {
+        this.#logins.delete(account.id);
+        this.#models.delete(account.id);
+        this.#quotaRefreshes.delete(account.id);
+      }
+      resolveClosed();
     };
     try {
       const process = {
@@ -321,6 +488,15 @@ export class EngineHostAccounts {
       onExit();
       throw error;
     }
+  }
+
+  async cancelLogin(id: string): Promise<{ cancelled: boolean }> {
+    const account = this.target(id);
+    const login = this.#logins.get(account.id);
+    if (login === undefined) return { cancelled: false };
+    login.controller.abort();
+    await login.closed;
+    return { cancelled: true };
   }
 
   async submitClaudeCode(id: string, code: string): Promise<{ submitted: true }> {

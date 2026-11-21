@@ -2,6 +2,9 @@
 
 ## Sources
 
+- `packages/core/src/features/diagnostics/plugin.ts`
+- `packages/core/src/features/diagnostics/{methods,rpc}.ts`
+- `packages/client/src/client/features/diagnostics/bridge.ts`
 - `packages/core/src/telemetry/**`
 - `packages/client/src/client/telemetry-*.{ts,tsx}`
 

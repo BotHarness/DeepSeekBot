@@ -515,6 +515,10 @@ describe('Model entry', () => {
     await act(async () => mode('Advanced').click());
     expect(mode('Advanced').getAttribute('aria-selected')).toBe('true');
     expect(document.querySelector('input[role="combobox"][aria-label="Task model"]')).toBeNull();
+    await openPicker('Add an allowed model');
+    expect(document.querySelector('[data-picker-filter="all"]')).not.toBeNull();
+    expect(document.querySelector('[data-picker-filter="deepseek"]')).not.toBeNull();
+    await openPicker('Add an allowed model');
 
     await choose('Add an allowed model', 'kimi', 'Kimi K2');
     await choose('Add an allowed model', 'flash', 'Flash');

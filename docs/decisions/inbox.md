@@ -185,4 +185,4 @@ An active desktop or Web presence lease holds phone reply pushes while action re
 
 Why: Reaching the Human depends on where they are already reading or talking. Keeping request delivery eligible avoids delaying work that needs a Human decision, while withdrawal clears alerts whose source no longer needs attention.
 
-Enforced by: [mobile attention focus](../../apps/mobile/test/attention-focus.test.ts), [Android approval handling](../../apps/mobile/test/push-answer.test.ts), [desktop presence reporting](../../packages/client/test/presence-reporter.test.ts), [Host hold and reply withdrawal](../../packages/core/test/push-delivery.test.ts), [device preferences](../../apps/mobile/test/device-notification-preferences.test.ts).
+Enforced by: [mobile attention focus](../../apps/mobile/test/attention-focus.test.ts), [Android approval handling](../../apps/mobile/test/push-answer.test.ts), [desktop presence reporting](../../packages/client/test/presence-reporter.test.ts), [Host hold and reply withdrawal](../../packages/core/test/push-delivery-notifications.test.ts), [device preferences](../../apps/mobile/test/device-notification-preferences.test.ts).

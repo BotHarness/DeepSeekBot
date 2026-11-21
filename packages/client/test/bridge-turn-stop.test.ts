@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 import { parseChannelMessage, parseSessionEngineQuota } from '../src/client/bridge.js';
 import { en, zhTranslate } from '../src/client/locale.js';
-import { engineChipLabel, sessionEngineText } from '../src/client/session-engine.js';
+import { engineChipLabel, sessionEngineText, shortTime } from '../src/client/session-engine.js';
 import { turnStopText } from '../src/client/turn-stop.js';
 import { TurnStopLine } from '../src/client/turn-stop-line.js';
 
@@ -112,14 +112,17 @@ it('shows a subscription limit card with a one-tap switch to the API model (#449
       sessionId: 's-1',
       held: true,
       cause: 'quota',
-      rests: [{ provider: 'codex', model: 'ChatGPT pro', until }],
-      engine: { engine: 'codex', account: 'ChatGPT pro', until },
+      rests: [{ provider: 'codex', model: 'Work subscription', until }],
+      engine: { engine: 'codex', account: 'Work subscription', until },
     },
   });
   const stop = parsed!.turnStop!;
-  expect(stop.engine).toEqual({ engine: 'codex', account: 'ChatGPT pro', until });
-  expect(turnStopText(stop, zhTranslate)).toContain(
-    'Ada 已暂停：Codex 订阅（ChatGPT pro）额度用完',
+  expect(stop.engine).toEqual({ engine: 'codex', account: 'Work subscription', until });
+  expect(turnStopText(stop, zhTranslate)).toBe(
+    `Ada 已暂停：Codex 订阅（Work subscription）额度用完，${shortTime(until)} 重置`,
+  );
+  expect(turnStopText(stop, enTranslate)).toBe(
+    `Ada paused: the Codex subscription (Work subscription) is used up until ${shortTime(until)}`,
   );
   const html = renderToStaticMarkup(
     createElement(TurnStopLine, { messageId: 'turn-stopped-5', stop, t: enTranslate }),

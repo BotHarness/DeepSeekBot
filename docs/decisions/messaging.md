@@ -285,7 +285,7 @@ For a Group with send review on (off by default, per Group, through the bridge a
 
 Why: comparing before an asynchronous append leaves a race, and prompt instructions cannot close it. Busy Groups can invalidate every read, so the review needs an explicit end; a new draft must not reset the budget.
 
-Enforced by: `group-send-review.test.ts`, `bot-group-review-rounds.test.ts`, `group-send-recovery.test.ts`, `group-recovery-revoked-source.test.ts`.
+Enforced by: `group-send-review-busy-group-progress.test.ts`, `group-send-review-draft-review.test.ts`, `group-send-review-observed-evidence.test.ts`, `group-send-review-persistence.test.ts`, `bot-group-review-rounds.test.ts`, `group-send-recovery.test.ts`, `group-recovery-revoked-source.test.ts`.
 
 ## 13. Unsent composer drafts live on the device, not in Messaging
 

@@ -50,7 +50,7 @@ Each Human's DM with a public Bot belongs to that participant and the Bot. Its p
 
 Why: Humans and Bots can share a Group while DMs, Bot management and content access keep their own audience boundaries. Role Policy gives the model context while the Host enforces permissions.
 
-Enforced by: [team-channel-membership-live.test.ts](../../packages/core/test/team-channel-membership-live.test.ts), [team-channel-auto-join-migration.test.ts](../../packages/core/test/team-channel-auto-join-migration.test.ts), [team-bot-visibility.test.ts](../../packages/core/test/team-bot-visibility.test.ts), [team-private-audit.test.ts](../../packages/core/test/team-private-audit.test.ts).
+Enforced by: [team-channel-membership-live.test.ts](../../packages/core/test/team-channel-membership-live.test.ts), [team-channel-auto-join-migration.test.ts](../../packages/core/test/team-channel-auto-join-migration.test.ts), [team-bot-visibility-group-access.test.ts](../../packages/core/test/team-bot-visibility-group-access.test.ts), [team-bot-visibility-participant-dms.test.ts](../../packages/core/test/team-bot-visibility-participant-dms.test.ts), [team-bot-visibility-principal-visibility.test.ts](../../packages/core/test/team-bot-visibility-principal-visibility.test.ts), [team-bot-visibility-proactive-dms.test.ts](../../packages/core/test/team-bot-visibility-proactive-dms.test.ts), [team-private-audit.test.ts](../../packages/core/test/team-private-audit.test.ts).
 
 ### Workspace roots, shared Memory and execution confinement
 
@@ -60,7 +60,7 @@ Path-addressed tools enforce current Workspace Grants. Linux execution confineme
 
 Why: a Workspace Grant can authorize file operations precisely. Shell confinement needs the calling Session to select its filesystem roots and enforce network limits independently.
 
-Enforced by: [team-spaces.test.ts](../../packages/core/test/team-spaces.test.ts), [team-public-bot-memory.test.ts](../../packages/core/test/team-public-bot-memory.test.ts), [team-bot-skills.test.ts](../../packages/core/test/team-bot-skills.test.ts), [member-confinement.test.ts](../../packages/core/test/member-confinement.test.ts), [team-approvals.test.ts](../../packages/core/test/team-approvals.test.ts).
+Enforced by: [team-spaces-grants.test.ts](../../packages/core/test/team-spaces-grants.test.ts), [team-spaces-memory-and-offboarding.test.ts](../../packages/core/test/team-spaces-memory-and-offboarding.test.ts), [team-spaces-native-file-authority.test.ts](../../packages/core/test/team-spaces-native-file-authority.test.ts), [team-spaces-shared-audiences.test.ts](../../packages/core/test/team-spaces-shared-audiences.test.ts), [team-public-bot-memory.test.ts](../../packages/core/test/team-public-bot-memory.test.ts), [team-bot-skills.test.ts](../../packages/core/test/team-bot-skills.test.ts), [member-confinement.test.ts](../../packages/core/test/member-confinement.test.ts), [team-approvals-decisions.test.ts](../../packages/core/test/team-approvals-decisions.test.ts), [team-approvals-isolation.test.ts](../../packages/core/test/team-approvals-isolation.test.ts), [team-approvals-notifications.test.ts](../../packages/core/test/team-approvals-notifications.test.ts), [team-approvals-projections.test.ts](../../packages/core/test/team-approvals-projections.test.ts).
 
 ### Approvals, attention and offboarding
 
@@ -72,7 +72,7 @@ Turning Team mode off suspends non-Owners, revokes their grants and stops affect
 
 Why: the request remains tied to the place and Human authority that produced it. Suspension keeps the off switch reversible, while permanent deletion follows the Host's separate purge lifecycle.
 
-Enforced by: [team-approvals.test.ts](../../packages/core/test/team-approvals.test.ts), [bot-modes.test.ts](../../packages/core/test/bot-modes.test.ts), [team-mode.test.ts](../../packages/core/test/team-mode.test.ts), [team-minimal-members.test.ts](../../packages/core/test/team-minimal-members.test.ts), [team-member-lifecycle.test.ts](../../packages/core/test/team-member-lifecycle.test.ts).
+Enforced by: [team-approvals-decisions.test.ts](../../packages/core/test/team-approvals-decisions.test.ts), [team-approvals-isolation.test.ts](../../packages/core/test/team-approvals-isolation.test.ts), [team-approvals-notifications.test.ts](../../packages/core/test/team-approvals-notifications.test.ts), [team-approvals-projections.test.ts](../../packages/core/test/team-approvals-projections.test.ts), [bot-modes.test.ts](../../packages/core/test/bot-modes.test.ts), [team-mode.test.ts](../../packages/core/test/team-mode.test.ts), [team-minimal-members.test.ts](../../packages/core/test/team-minimal-members.test.ts), [team-member-lifecycle.test.ts](../../packages/core/test/team-member-lifecycle.test.ts).
 
 ## 2. Each Human controls their Host-owned chat avatar
 

@@ -34,7 +34,8 @@ import type {
 } from './channel-bridge.js';
 import type { ChannelMessageCommit } from '../channels/store.js';
 import type { ChannelAttachmentRef } from '../attachments/ref.js';
-import type { InboundMessaging } from './inbound.js';
+import type { ExternalSource, InboundMessaging } from './inbound.js';
+import type { SourceReplyCapability } from './source-reply-capability.js';
 import type { MessagingProcessing } from './typing.js';
 import type { SourceFeedback } from './feedback.js';
 import type {
@@ -212,6 +213,11 @@ export interface OutboundMessaging {
     text: string,
     messageKey?: string,
   ): Promise<OutboxIntent>;
+  replyCapability(
+    botSlug: string,
+    source: ExternalSource,
+    signal?: AbortSignal,
+  ): Promise<SourceReplyCapability | undefined>;
   privateInputNotice(
     botSlug: string,
     sourceEventId: string,

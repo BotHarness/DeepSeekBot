@@ -277,7 +277,8 @@ it('lists named subscription accounts and adds, renames and removes one', async 
       undefined,
     );
     expect(page.host.textContent).toContain('Codex · Work');
-    await page.click('重命名 Codex · Work');
+    await page.click('Codex · Work 的操作');
+    await act(async () => menuItem('重命名').click());
     expect(page.nameField().value).toBe('Work');
     await fillName('Studio');
     await page.click('保存', true);
@@ -287,7 +288,8 @@ it('lists named subscription accounts and adds, renames and removes one', async 
       undefined,
     );
     expect(page.host.textContent).toContain('Codex · Studio');
-    await page.click('移除 Codex · Studio');
+    await page.click('Codex · Studio 的操作');
+    await act(async () => menuItem('移除').click());
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
       zhTranslate('modelProviders.removeAccountWarning'),
     );
@@ -356,8 +358,10 @@ it('adds a named Claude Code account and submits a manual code from its sign-in 
     expect(page.host.textContent).not.toContain('Claude Code · Claude Code');
     expect(page.button('登录 Claude Code')?.textContent).toBe('登录');
     await page.click('添加账号');
-    await page.click('订阅引擎', true);
-    await act(async () => menuItem('Claude Code').click());
+    const claude = document.querySelector<HTMLButtonElement>('[data-engine-choice="claude"]');
+    expect(claude?.getAttribute('aria-checked')).toBe('false');
+    await act(async () => claude!.click());
+    expect(claude?.getAttribute('aria-checked')).toBe('true');
     await typeInto(page.nameField(), 'Work');
     await page.click('保存', true);
     expect(call).toHaveBeenCalledWith(
@@ -443,13 +447,82 @@ it('shows the signing-in state only for the selected subscription account', asyn
     await page.render();
     await page.click('登录 Codex · Work');
     expect(call).toHaveBeenCalledWith('engineAccountLogin', { id: 'codex-work' }, undefined);
-    expect(page.button('等待登录…')?.disabled).toBe(true);
+    expect(page.host.textContent).toContain('等待登录…');
+    expect(page.button('取消')).toBeDefined();
     expect(page.button('登录 Codex · Personal')?.disabled).toBe(true);
     expect(page.button('登录 Codex · Work')).toBeUndefined();
+    await page.click('取消');
+    expect(call).toHaveBeenCalledWith('engineAccountLoginCancel', { id: 'codex-work' }, undefined);
+    expect(page.button('登录 Codex · Work')?.disabled).toBe(false);
+    expect(page.host.textContent).not.toContain('等待登录…');
     await act(async () => finishLogin());
   } finally {
     await page.close();
     open.mockRestore();
+  }
+});
+
+it('keeps a sign-in pending until cancel settles and offers Cancel again when it fails', async () => {
+  let settleCancel: (result: Awaited<ReturnType<BridgeCall>>) => void = () => {};
+  const call = vi.fn<BridgeCall>(async (method) => {
+    if (method === 'teamMode')
+      return {
+        ok: true,
+        value: {
+          ...fakeTeamMode({
+            kind: 'member',
+            humanId: 'manager',
+            permissions: ['modelSources.manage'],
+          }),
+          enabled: true,
+        },
+      };
+    if (method === 'engineAccountLogin')
+      return { ok: true, value: { url: 'https://example.test/sign-in' } };
+    if (method === 'engineAccountLoginCancel')
+      return new Promise((resolve) => {
+        settleCancel = resolve;
+      });
+    if (method === 'modelProviders') return { ok: true, value: { revision: 1, providers: [] } };
+    return {
+      ok: true,
+      value: {
+        revision: 1,
+        engines: [
+          {
+            engine: 'codex',
+            accountId: 'codex-work',
+            accountName: 'Work',
+            installed: true,
+            available: false,
+            reason: 'signed-out',
+          },
+        ],
+        selections: [],
+      },
+    };
+  });
+  const page = subscriptionTestPage(call);
+  try {
+    await page.render();
+    await page.click('登录 Codex · Work');
+    expect(page.host.textContent).toContain('等待登录…');
+    await page.click('取消');
+    expect(page.button('正在取消…')?.disabled).toBe(true);
+    expect(page.host.textContent).toContain('等待登录…');
+    await act(async () =>
+      settleCancel({ ok: false, error: { code: 'unavailable', message: 'down', details: {} } }),
+    );
+    expect(page.host.textContent).toContain('取消登录失败，再试一次。');
+    expect(page.button('取消')?.disabled).toBe(false);
+    expect(page.host.textContent).toContain('等待登录…');
+    await page.click('取消');
+    await act(async () => settleCancel({ ok: true, value: { cancelled: true } }));
+    expect(page.host.textContent).not.toContain('等待登录…');
+    expect(page.host.textContent).not.toContain('取消登录失败，再试一次。');
+    expect(page.button('登录 Codex · Work')?.disabled).toBe(false);
+  } finally {
+    await page.close();
   }
 });
 
@@ -492,6 +565,113 @@ it('omits the subscription write controls for a Team member without modelSources
     expect(page.button('重命名 Codex · Work')).toBeUndefined();
     expect(page.button('移除 Codex · Work')).toBeUndefined();
     expect(call.mock.calls.map(([method]) => method)).not.toContain('engineAccounts');
+  } finally {
+    await page.close();
+  }
+});
+
+it('masks the bound email until clicked and shows remaining quota per window with refresh', async () => {
+  const now = Date.now();
+  const hour = 3_600_000;
+  const cachedStatus: Record<string, unknown> = {
+    usedPercent: 50,
+    resetsAt: new Date(now + 2 * hour).toISOString(),
+    observedAt: new Date(now - 2 * hour).toISOString(),
+    source: 'turn',
+    windows: {
+      session: { remainingPercent: 50, resetsAt: new Date(now + 2 * hour).toISOString() },
+    },
+  };
+  let quota = cachedStatus;
+  let refreshStatus = 'ok';
+  const call = vi.fn<BridgeCall>(async (method) => {
+    switch (method) {
+      case 'teamMode':
+        return { ok: true, value: { ...fakeTeamMode(), enabled: true } };
+      case 'modelProviders':
+        return { ok: true, value: { revision: 1, providers: [] } };
+      case 'engineAccounts':
+        return {
+          ok: true,
+          value: {
+            revision: 3,
+            accounts: [
+              {
+                id: 'claude-work',
+                engine: 'claude',
+                name: 'Work',
+                email: 'vain.test@example.org',
+                quota,
+              },
+            ],
+            engines: [
+              {
+                engine: 'claude',
+                accountId: 'claude-work',
+                accountName: 'Work',
+                installed: true,
+                available: true,
+                quota: cachedStatus,
+              },
+            ],
+            selections: [],
+          },
+        };
+      case 'engineAccountQuotaRefresh':
+        if (refreshStatus !== 'ok') return { ok: true, value: { status: refreshStatus } };
+        quota = {
+          observedAt: new Date(now).toISOString(),
+          source: 'live',
+          windows: {
+            session: { remainingPercent: 27, resetsAt: new Date(now + hour).toISOString() },
+            weekly: { remainingPercent: 41, resetsAt: new Date(now + 90 * hour).toISOString() },
+          },
+        };
+        return { ok: true, value: { status: 'ok', quota } };
+      default:
+        throw new Error('Unexpected bridge method ' + method);
+    }
+  });
+  const page = subscriptionTestPage(call);
+  try {
+    await page.render();
+    expect(page.host.textContent).toContain('va•••@e•••.org');
+    expect(page.host.textContent).not.toContain('vain.test@example.org');
+    await page.click('显示完整邮箱');
+    expect(page.host.textContent).toContain('vain.test@example.org');
+    expect(page.button('vain.test@example.org，点击隐藏')).toBeDefined();
+    await page.click('vain.test@example.org，点击隐藏');
+    expect(page.host.textContent).not.toContain('vain.test@example.org');
+
+    expect(page.button('Claude Code · Work 的额度：剩余 50%')).toBeDefined();
+    await page.click('Claude Code · Work 的额度：剩余 50%');
+    expect(call).toHaveBeenCalledWith(
+      'engineAccountQuotaRefresh',
+      { id: 'claude-work' },
+      undefined,
+    );
+    const panel = page.host.querySelector('[data-account-quota]');
+    const meter = (id: string) =>
+      panel?.querySelector(`[data-quota-window="${id}"] [role="meter"]`);
+    expect(meter('session')?.getAttribute('aria-valuenow')).toBe('27');
+    expect(meter('session')?.getAttribute('aria-valuetext')).toBe('剩余 27%');
+    expect(meter('weekly')?.getAttribute('aria-valuenow')).toBe('41');
+    expect(meter('session')?.textContent).toContain('1 小时 0 分');
+    expect(page.button('刷新')?.getAttribute('title')).toContain('刚刚更新');
+    expect(page.host.querySelector('[data-quota-chip="claude-work"]')?.textContent).toBe(
+      '剩余 27%',
+    );
+    expect(page.button('Claude Code · Work 的额度：剩余 27%')).toBeDefined();
+
+    refreshStatus = 'timeout';
+    await page.click('刷新');
+    expect(page.host.textContent).toContain('读取额度超时，再试一次。');
+    expect(
+      call.mock.calls.filter(([method]) => method === 'engineAccountQuotaRefresh'),
+    ).toHaveLength(2);
+
+    await page.click('Claude Code · Work 的额度：剩余 27%');
+    expect(page.host.querySelector('[data-account-quota]')).toBeNull();
   } finally {
     await page.close();
   }

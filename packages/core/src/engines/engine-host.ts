@@ -129,8 +129,11 @@ export class EngineHost {
     );
   }
 
-  accounts() {
-    return this.#accounts.accounts();
+  accounts(includeEmail = false) {
+    return this.#accounts.accounts(includeEmail);
+  }
+  refreshQuota(id: string) {
+    return this.#accounts.refreshQuota(id);
   }
   resolveAccount(engine: EngineId, id?: string): NamedEngineAccount {
     return this.#accounts.resolveAccount(engine, id);
@@ -152,6 +155,10 @@ export class EngineHost {
   }
   login(engine: EngineId, id?: string) {
     return this.#accounts.login(engine, id);
+  }
+
+  cancelLogin(id: string) {
+    return this.#accounts.cancelLogin(id);
   }
   submitClaudeCode(id: string, code: string) {
     return this.#accounts.submitClaudeCode(id, code);
@@ -499,7 +506,7 @@ export class EngineHost {
                 void this.#approve(live, scope, log, event, request.sessionId, signal);
               if (event.kind === 'rate-limit') {
                 limitedNow = event.limited;
-                this.#accounts.record(engine, live.accountId, live.account, event);
+                this.#accounts.record(engine, live.accountId, event);
               }
             },
           });
@@ -710,11 +717,12 @@ export class EngineHost {
 
   async close(): Promise<void> {
     this.#closed = true;
-    this.#accounts.close();
+    const closingAccounts = this.#accounts.close();
     for (const cancel of this.#cancels.values()) cancel();
     await Promise.allSettled([...this.#opening.values()]);
     await Promise.allSettled([...this.#live.keys()].map((id) => this.release(id)));
     await Promise.allSettled([...this.#releasing.values()]);
+    await closingAccounts;
   }
 
   isLive(sessionId: string): boolean {
