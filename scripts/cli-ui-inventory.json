@@ -996,7 +996,7 @@
       "id": "voice-call",
       "description": "Bot calls through the Host call owner: readiness, status, hang up and a synthetic-audio call without a phone.",
       "scope": "Host",
-      "surfaces": ["route:packages/core/src/plugin.ts:VOICE_CALL_PATH"],
+      "surfaces": ["route:packages/core/src/features/voice/plugin.ts:VOICE_CALL_PATH"],
       "commands": ["call-readiness", "call-status", "call-hangup", "call-simulate"]
     },
     {
