@@ -1,5 +1,12 @@
-import { asRecord, BridgeCallError, unwrap, type BridgeCall } from '../../bridge-transport.js';
+import { loadMarketplaceChallenge as readMarketplaceChallenge } from '@botharness/host-client/marketplace-avatars';
 import { parseStandingUsage } from '@botharness/host-client/memory';
+import {
+  asRecord,
+  bridgeHost,
+  BridgeCallError,
+  unwrap,
+  type BridgeCall,
+} from '../../bridge-transport.js';
 import type { BotSummary } from '../../store.js';
 import type {
   MarketplaceAuthoredBot,
@@ -42,7 +49,6 @@ export function createMarketplaceBridge({
   parseMarketplaceDigests,
   parseMarketplaceSubmission,
   parseMarketplaceTopics,
-  parseChallenge,
   parseBotSummary,
 }: MarketplaceBridgeReaders) {
   function botZipUrl(path: string, params: Record<string, string>): string {
@@ -225,9 +231,7 @@ export function createMarketplaceBridge({
   }
 
   async function loadMarketplaceChallenge(call: BridgeCall): Promise<AltchaChallenge> {
-    const challenge = parseChallenge(await unwrap(call, 'marketplaceChallenge', {}));
-    if (challenge === undefined) throw new Error('invalid marketplaceChallenge response');
-    return challenge;
+    return readMarketplaceChallenge(bridgeHost(call));
   }
 
   async function submitMarketplaceRepository(

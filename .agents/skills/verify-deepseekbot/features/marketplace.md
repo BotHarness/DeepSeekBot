@@ -5,6 +5,7 @@
 - `packages/market/**`
 - `packages/core/src/marketplace/**`
 - `packages/core/src/features/marketplace/**`
+- `packages/host-client/src/marketplace-avatars.ts`
 - `packages/client/src/client/marketplace-report.tsx`
 - `packages/client/src/client/{marketplace,marketplace-browse-controls,market-panel,market-avatars,market-avatar-apply,market-avatar-mine,market-mine,personabot-avatar-crop}.tsx`
 - `packages/client/src/client/{profile-header,bot-sidebar-channel-actions}.tsx`
@@ -104,3 +105,15 @@ The Worker HTTP coverage is in `packages/market/test/market-avatars.test.ts`. Th
 1. Sign the Host owner into a test Connect account on an isolated Marketplace and publish two Avatars. Apply one to a Bot. From **Avatars**, open the cube action **My uploads**. Compare the published rows and Apply Counts with `deepseekbot marketplace-avatar-mine`.
 2. Edit the name, description and tags. Compare the public detail and image with the original, and confirm that the image bytes are identical. Check that search finds the new name and tag, and that filtering by the old tag excludes the edited Avatar. Verify a Team member cannot open the dialog.
 3. Keep the Avatar detail open in a second browser. Delete the Avatar from My Avatars. Check that the listing disappears and the second browser displays **This Avatar is no longer available** when applying to a Bot. Confirm the Bot that already applied it still has the same bytes. Delete the test Connect account and check that the remaining listing and its R2 image are removed.
+
+## Marketplace Avatars on Tobs mobile
+
+Set `EXPO_PUBLIC_MARKETPLACE_AVATARS=on` before exporting the bundle or starting Metro. The EAS development profiles and mobile verification job set it. Restart Metro after changing the flag. Store bundles leave it unset until Human QA passes on both platforms. With the flag unset, the Marketplace shows Bots, Bot settings hides Publish Avatar, and direct Avatar links return to the Marketplace.
+
+Use the native iOS and Android lanes. Repeat at default, intermediate and maximum system text in light and dark. Capture matched English light and Chinese dark before and after frames with loaded data. Use a paired Host pointed at an isolated Marketplace seeded with several pages and shared tags.
+
+1. Open **Marketplace → Avatars**. Use the header search and filter to search by name and combine the search with a tag, check the tag count and load another page. Open a result and compare its image, name, description, tags, author ID and Apply Count with the existing CLI.
+2. Apply to a plain Bot and then to one with an editable Appearance. Confirm Apply starts disabled and the picker shows portraits for the eligible Bots. Select each Bot and check its selection mark, then confirm the replacement warning appears for the editable Appearance. Apply and check that the Bot profile updates. Repeat with a member on the paired Host.
+3. As the Host owner, open Publish Avatar from the header menu and choose a rectangular photo, crop it with the system picker, publish and compare the detail image. Try a 255 px crop and verify the refusal. Open Settings on a Bot with a stored Avatar and publish its still image. Verify the owner controls are hidden for a member and the Bot action is hidden for a Blobatar-only Bot.
+4. Open **My Avatars** from the header menu, edit the details and confirm search returns the new name and tags. Keep the detail open in a second Client, delete the listing and verify a new apply is refused. Restart the Host and the app and check the applied Bot still shows its local Avatar.
+5. Report a seeded Avatar and verify the acknowledgement. Try the soft keyboard in search, name, description, tags and report reason. At each scale, move between fields and scroll to submission, then retry a refused request with the same draft.

@@ -1,4 +1,6 @@
+import { marketplaceAvatarActions } from '@botharness/host-client/marketplace-avatars';
 import {
+  bridgeHost,
   loadMarketplaceDetail,
   loadMarketplaceFile,
   loadMarketplacePage,
@@ -31,23 +33,7 @@ export function createMarketplaceActions(
   openCreatedBot: ReturnType<typeof createBotActions>['openCreatedBot'],
 ) {
   return {
-    marketplaceAvatarList: (query = {}) => invoke('marketplaceAvatarList', { ...query }),
-    marketplaceAvatarTags: () => invoke('marketplaceAvatarTags', {}),
-    marketplaceAvatarApplyCandidates: () => invoke('marketplaceAvatarApplyCandidates', {}),
-    marketplaceAvatarApply: (id, bot) => invoke('marketplaceAvatarApply', { id, bot }),
-    async marketplaceAvatarReport(id, altcha, reason) {
-      await invoke('marketplaceAvatarReport', {
-        id,
-        altcha,
-        ...(reason === undefined ? {} : { reason }),
-      });
-    },
-    marketplaceAvatarDetail: (id) => invoke('marketplaceAvatarDetail', { id }),
-    marketplaceAvatarPublish: (input) => invoke('marketplaceAvatarPublish', { ...input }),
-    marketplaceAvatarSource: (bot) => invoke('marketplaceAvatarSource', { bot }),
-    marketplaceAvatarMine: () => invoke('marketplaceAvatarMine', {}),
-    marketplaceAvatarEdit: (id, patch) => invoke('marketplaceAvatarEdit', { id, ...patch }),
-    marketplaceAvatarDelete: (id) => invoke('marketplaceAvatarDelete', { id }),
+    ...marketplaceAvatarActions(bridgeHost(call)),
     marketplaceList: (query) => loadMarketplacePage(call, query),
     marketplaceChallenge: () => loadMarketplaceChallenge(call),
     marketplaceSubmit: (url, altcha) => submitMarketplaceRepository(call, url, altcha),
@@ -58,9 +44,6 @@ export function createMarketplaceActions(
     marketplaceDigest: (day, lang) => loadMarketplaceDigest(call, day, lang),
     marketplaceDetail: (id, lang) => loadMarketplaceDetail(call, id, lang),
     marketplaceFile: (id, path) => loadMarketplaceFile(call, id, path),
-    marketplaceAccount: () => invoke('marketplaceAccount', {}),
-    marketplaceAuthorSave: (displayName, acceptTerms) =>
-      invoke('marketplaceAuthorSave', { displayName, acceptTerms }),
     marketplaceAuthorAvatarSet: (avatar) => invoke('marketplaceAuthorAvatarSet', { avatar }),
     marketplaceUploadPlan: (slug) => invoke('marketplaceUploadPlan', { slug }),
     marketplaceUpload: (slug, presentation) => uploadMarketplaceBot(call, slug, presentation),

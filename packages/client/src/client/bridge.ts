@@ -388,7 +388,7 @@ import type {
   InstallReview,
   InstallReviewResult,
 } from '../../../core/src/marketplace/install-review.js';
-import { parseChallenge, type AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
+import type { AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import { approvalTemplateDeletionPreviewSchema } from '../../../core/src/workspaces/approval-template-deletion-contract.js';
 export type {
@@ -420,7 +420,6 @@ export interface MarketplaceBridgeReaders {
   parseMarketplaceDigests: typeof parseMarketplaceDigests;
   parseMarketplaceSubmission: typeof parseMarketplaceSubmission;
   parseMarketplaceTopics: typeof parseMarketplaceTopics;
-  parseChallenge: typeof parseChallenge;
   parseBotSummary: typeof parseBotSummary;
 }
 import type { OverviewUsage } from '@botharness/host-client/usage';
@@ -2123,7 +2122,6 @@ export const {
   parseMarketplaceDigests,
   parseMarketplaceSubmission,
   parseMarketplaceTopics,
-  parseChallenge,
   parseBotSummary,
 });
 
