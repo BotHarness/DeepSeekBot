@@ -447,7 +447,7 @@ export function CreateChannelModal({
       />
       {batch.items ? (
         <GroupMemberResults items={batch.items} busy={creating} t={t} />
-      ) : members ? (
+      ) : members && !targetUnavailable && !bindingChanged ? (
         <GroupMemberPicker
           key={scope}
           call={members.call}

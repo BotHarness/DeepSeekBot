@@ -35,11 +35,6 @@ export function EnvironmentCreation(
   props: Parameters<typeof OwnerEnvironmentCreation>[0],
 ): ReactElement {
   const { request, actions, t, onClose, sectionName, onBack } = props;
-  const teamCall = actions.teamCall;
-  const memberCall = useMemo(
-    () => (teamCall?.bindConnection ? teamCall.bindConnection() : teamCall),
-    [teamCall],
-  );
   if (!memberPage()) return <OwnerEnvironmentCreation {...props} />;
   if (request.kind === 'human-dm')
     return (
@@ -58,20 +53,12 @@ export function EnvironmentCreation(
     );
   if (request.kind === 'channel')
     return (
-      <CreateChannelModal
-        t={t}
+      <MemberChannelCreation
+        actions={actions}
+        sectionId={request.sectionId}
         sectionName={sectionName}
-        members={memberCall && { scope: 'member-host', call: memberCall }}
-        targetUnavailable={!memberCall}
-        onCancel={onClose}
-        onCreate={async (name, key, onDispatch) => {
-          memberCall?.assertCurrent?.();
-          onDispatch();
-          return actions.createGroup(name, request.sectionId, key, memberCall);
-        }}
-        onMembersChanged={(channel) => {
-          void actions.openChannel(channel.id, memberCall).catch(() => undefined);
-        }}
+        t={t}
+        onClose={onClose}
       />
     );
   return (
@@ -84,6 +71,44 @@ export function EnvironmentCreation(
       t={t}
       onCancel={onClose}
       onCreated={onClose}
+    />
+  );
+}
+
+function MemberChannelCreation({
+  actions,
+  sectionId,
+  sectionName,
+  t,
+  onClose,
+}: {
+  actions: BridgeActions;
+  sectionId: string | undefined;
+  sectionName: string | undefined;
+  t: BotHarnessTranslate;
+  onClose: () => void;
+}): ReactElement {
+  const teamCall = actions.teamCall;
+  const memberCall = useMemo(
+    () => (teamCall?.bindConnection ? teamCall.bindConnection() : teamCall),
+    [teamCall],
+  );
+  return (
+    <CreateChannelModal
+      t={t}
+      sectionName={sectionName}
+      members={memberCall && { scope: 'member-host', call: memberCall }}
+      targetUnavailable={!memberCall}
+      onCancel={onClose}
+      onCreate={async (name, key, onDispatch) => {
+        if (!memberCall) throw new Error(t('environment.create.offline'));
+        memberCall.assertCurrent?.();
+        onDispatch();
+        return actions.createGroup(name, sectionId, key, memberCall);
+      }}
+      onMembersChanged={(channel) => {
+        if (memberCall) void actions.openChannel(channel.id, memberCall).catch(() => undefined);
+      }}
     />
   );
 }

@@ -300,7 +300,12 @@ it.each(['member', 'admin'])(
       expect(storage).not.toHaveBeenCalled();
       await typeInto(fieldNamed('频道名称'), 'Member local');
       await act(async () => buttonNamed('创建').click());
-      expect(create).toHaveBeenCalledExactlyOnceWith('Member local', undefined);
+      expect(create).toHaveBeenCalledExactlyOnceWith(
+        'Member local',
+        undefined,
+        expect.any(String),
+        localCall,
+      );
       expect(fixture.call).not.toHaveBeenCalled();
       expect(close).toHaveBeenCalledOnce();
     } finally {
@@ -342,6 +347,9 @@ it('keeps the offline last Host visible and requires an explicit online choice',
   expect(select?.value).toBe('remote-b');
   expect(buttonNamed('创建').disabled).toBe(true);
   expect(document.body.textContent).toContain('此环境离线');
+  expect(
+    document.querySelector('input[placeholder="' + zhTranslate('groupMembers.search') + '"]'),
+  ).toBeNull();
   await act(async () => buttonNamed('创建').click());
   expect(fixture.call).not.toHaveBeenCalled();
   expect(localCall).not.toHaveBeenCalled();
@@ -356,11 +364,16 @@ it('keeps the offline last Host visible and requires an explicit online choice',
 
 it('keeps a pending create on B when the browsing scope changes to A', async () => {
   let finish: ((value: unknown) => void) | undefined;
-  fixture.call.mockReturnValueOnce(
-    new Promise((resolve) => {
-      finish = resolve;
-    }),
-  );
+  fixture.call.mockImplementation(async (method) => {
+    if (method === 'channelGroupMemberPicker')
+      return { canAddPeople: true, canAddBots: true, people: [], bots: [] };
+    if (method === 'channelCreate') {
+      return new Promise((resolve) => {
+        finish = resolve;
+      });
+    }
+    throw new Error('Unexpected remote method: ' + method);
+  });
   await render();
   await typeInto(fieldNamed('频道名称'), 'Only B');
   await act(async () => buttonNamed('创建').click());
@@ -372,17 +385,18 @@ it('keeps a pending create on B when the browsing scope changes to A', async () 
     finish?.({
       channel: { id: 'same-id', type: 'group', name: 'Only B', members: [] },
       receipt: {
-        operationKey: fixture.call.mock.calls[0]?.[1]?.['operationKey'],
+        operationKey: fixture.call.mock.calls.find(([method]) => method === 'channelCreate')?.[1]?.[
+          'operationKey'
+        ],
         channelId: 'same-id',
         status: 'completed',
       },
     }),
   );
-  expect(fixture.call).toHaveBeenCalledExactlyOnceWith('channelCreate', {
-    name: 'Only B',
-    members: [],
-    operationKey: expect.any(String),
-  });
+  expect(fixture.call.mock.calls).toEqual([
+    ['channelGroupMemberPicker', { query: '' }],
+    ['channelCreate', { name: 'Only B', members: [], operationKey: expect.any(String) }],
+  ]);
   expect(localCall).not.toHaveBeenCalled();
   expect(fixture.open).toHaveBeenCalledExactlyOnceWith({
     hostId: 'remote-b',
