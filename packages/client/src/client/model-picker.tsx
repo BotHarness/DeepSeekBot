@@ -4,14 +4,16 @@ import type { ModelCatalogEntryView, ModelCatalogGroupView } from './bridge.js';
 import type { ComboboxOption } from './combobox.js';
 import { ModelTrigger } from './model-trigger.js';
 import type { SubscriptionModel } from '@botharness/host-client/model-plans';
-import { engineModelKey, type EngineId, type EngineModels } from './engine-choice.js';
+import type { EngineId, EngineModels } from './engine-choice.js';
 import {
-  catalogMenuItems,
-  engineMenuKey,
+  engineModelOf,
+  engineSelectionOf,
   engineSignInKey,
   groupMenuId,
+  groupMenuItems,
   modelMenuItems,
   selectedEngineMenuItem,
+  type ModelMenuFavorites,
   type ModelMenuItem,
 } from './model-menu.js';
 import { modelCatalogGroupEfforts } from '@botharness/host-client/model-catalog';
@@ -34,6 +36,7 @@ export function ModelPicker({
   disabled,
   action,
   subscription,
+  favoriteSource,
   t,
 }: {
   title: string;
@@ -56,18 +59,14 @@ export function ModelPicker({
       }
     | undefined;
   t: BotHarnessTranslate;
+  favoriteSource?: ModelMenuFavorites | null | undefined;
 }): ReactElement {
   const id = useId();
   const engine = subscription?.choice ?? null;
-  const models =
-    engine === null
-      ? []
-      : (subscription?.models[engineModelKey(engine.engine, engine.accountId)] ?? []);
   const selectedModel =
-    engine?.model === undefined
-      ? (models.find((model) => model.isDefault) ?? models[0])
-      : (models.find((model) => model.id === engine.model) ??
-        models.find((model) => model.resolvedModel === engine.model && model.id !== 'default'));
+    engine === null || subscription === undefined
+      ? undefined
+      : engineModelOf(engine, subscription.models);
   const selectedEngine =
     engine === null ? undefined : selectedEngineMenuItem(engine, selectedModel, t);
   const shown =
@@ -87,7 +86,7 @@ export function ModelPicker({
     ).filter((effort) => effort.id !== '');
   };
   const items = [
-    ...catalogMenuItems(catalog, t, groups).filter((item) => item.group !== undefined),
+    ...groupMenuItems(catalog, t, groups),
     ...modelMenuItems(options, catalog),
     ...(subscription?.items ?? []),
   ];
@@ -133,29 +132,13 @@ export function ModelPicker({
           if (item?.engine !== undefined && subscription !== undefined) {
             if (key === engineSignInKey(item.engine, item.accountId))
               subscription.signIn(item.engine, item.accountId);
-            else if (
-              item.model !== undefined &&
-              key === engineMenuKey(item.engine, item.model, item.accountId)
-            ) {
-              const accountKey = engineModelKey(item.engine, item.accountId);
+            else {
+              const selected = engineSelectionOf(item, subscription.models);
               if (
-                engine !== null &&
-                engineModelKey(engine.engine, engine.accountId) === accountKey &&
-                (engine.model === item.model ||
-                  (engine.model !== undefined && selectedModel?.id === item.model))
+                selected !== undefined &&
+                (engine?.model === undefined || key !== selectedEngine?.value)
               )
-                return;
-              const model = subscription.models[accountKey]?.find(
-                (entry) => entry.id === item.model,
-              );
-              if (model === undefined) return;
-              const effort = model.efforts.find((option) => option.id === model.defaultEffort);
-              subscription.onChange({
-                engine: item.engine,
-                ...(item.accountId === undefined ? {} : { accountId: item.accountId }),
-                model: model.id,
-                ...(effort === undefined ? {} : { effort: effort.id }),
-              });
+                subscription.onChange(selected);
             }
             return;
           }
@@ -166,6 +149,7 @@ export function ModelPicker({
           onChange({ key, effort: kept ? choice.effort : (fallback ?? '') });
         }}
         t={t}
+        favoriteSource={favoriteSource}
       />
       {efforts.length > 1 && (
         <div className="bh-model-picker-effort">

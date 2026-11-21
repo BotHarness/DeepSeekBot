@@ -153,6 +153,7 @@ function MemberMenu({
         brand: row.brand,
         engine: member.engine,
         model: member.model,
+        ...(member.accountId === undefined ? {} : { accountId: member.accountId }),
         ...(isDefault
           ? {
               tag: t('routingGroups.defaultTag'),
@@ -242,7 +243,6 @@ function MemberMenu({
       items={items}
       value={selected}
       closeOnSelect={false}
-      manageFavorites={false}
       engineFilters={engineFilters}
       efforts={efforts}
       effort={choices.get(selected)?.defaultEffort ?? ''}
@@ -254,7 +254,6 @@ function MemberMenu({
         else commit(key, options[0]?.value ?? '');
       }}
       anchorRef={anchor}
-      portalContainer={anchor.current?.closest('[aria-modal="true"]') ?? null}
       onClose={onClose}
       t={t}
     />

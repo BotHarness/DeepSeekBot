@@ -1,5 +1,6 @@
 import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
+import type { SubscriptionModel } from '@botharness/host-client/model-plans';
 import { useState, type ReactElement, type RefObject } from 'react';
 
 import {
@@ -12,6 +13,9 @@ import {
 import {
   modelCatalogGroupFront,
   modelCatalogGroupMemberLabels,
+  modelChoiceKey,
+  type ModelChoice,
+  type RoutingGroupEngineCopy,
 } from '@botharness/host-client/model-catalog';
 import type {
   ModelCatalogEntryView,
@@ -19,9 +23,9 @@ import type {
   ModelPresetView,
   ModelRouteView,
 } from './bridge.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { ComboboxOption } from './combobox.js';
 import { FilterPicker, type FilterPickerFilter } from './ds/filter-picker.js';
+import { Icon } from './ds/icon.js';
 import { Tag } from './ds/tag.js';
 import type { BotHarnessTranslate } from './locale.js';
 import {
@@ -55,6 +59,11 @@ export interface ModelMenuItem extends ComboboxOption {
 export interface ModelMenuEffort {
   readonly value: string;
   readonly label: string;
+}
+
+export interface ModelMenuFavorites {
+  choices: readonly ModelChoice[];
+  write(choice: ModelChoice, favorite: boolean): Promise<unknown>;
 }
 
 const ALL = 'all';
@@ -173,73 +182,79 @@ export function catalogMenuItems(
       })),
     catalog,
   );
-  return [
-    ...groups.map((group): ModelMenuItem => {
-      const front = modelCatalogGroupFront(group, [...catalog]);
-      const entry = catalog.find(
-        (item) => item.provider === front?.provider && item.model === front.model,
+  return [...groupMenuItems(catalog, t, groups, executed), ...models];
+}
+
+export function groupMenuItems(
+  catalog: readonly ModelCatalogEntryView[],
+  t: BotHarnessTranslate,
+  groups: readonly ModelCatalogGroupView[],
+  executed?: { groupId: string; target: TurnTarget; engines?: TurnTargetCatalog['engines'] },
+): ModelMenuItem[] {
+  return groups.map((group) => {
+    const front = modelCatalogGroupFront(group, [...catalog]);
+    const entry = catalog.find(
+      (item) => item.provider === front?.provider && item.model === front.model,
+    );
+    const disabled =
+      group.restingUntil !== undefined ||
+      group.routes.every((route) =>
+        catalog.some(
+          (item) =>
+            item.provider === route.provider &&
+            item.model === route.model &&
+            item.credential !== undefined,
+        ),
       );
-      const disabled =
-        group.restingUntil !== undefined ||
-        group.routes.every((route) =>
-          catalog.some(
-            (item) =>
-              item.provider === route.provider &&
-              item.model === route.model &&
-              item.credential !== undefined,
-          ),
-        );
-      const brand =
-        entry === undefined
-          ? undefined
-          : modelBrand({ provider: entry.provider, model: entry.model, name: entry.modelName });
-      const members = modelCatalogGroupMemberLabels(
-        group,
-        catalog,
-        groups,
-        routingGroupEngineCopy(t),
-        executed?.engines,
-      );
-      const target =
-        executed?.groupId === group.id
-          ? turnTargetLabel(executed.target, { models: catalog, engines: executed.engines })
-          : undefined;
-      const restful = group.restingUntil;
-      const currentName =
-        entry === undefined ? (front?.model ?? '') : `${entry.modelName} · ${entry.providerName}`;
-      const hint =
+    const brand =
+      entry === undefined
+        ? undefined
+        : modelBrand({ provider: entry.provider, model: entry.model, name: entry.modelName });
+    const members = modelCatalogGroupMemberLabels(
+      group,
+      catalog,
+      groups,
+      routingGroupEngineCopy(t),
+      executed?.engines,
+    );
+    const target =
+      executed?.groupId === group.id
+        ? turnTargetLabel(executed.target, { models: catalog, engines: executed.engines })
+        : undefined;
+    const restful = group.restingUntil;
+    const currentName =
+      entry === undefined ? (front?.model ?? '') : `${entry.modelName} · ${entry.providerName}`;
+    const hint =
+      target !== undefined
+        ? t('modelMenu.groupCurrent', { model: target.short })
+        : restful !== undefined
+          ? restingHint(restful, t)
+          : t('modelMenu.groupFront', {
+              model:
+                entry === undefined
+                  ? (front?.model ?? '')
+                  : `${groupFrontName(entry.modelName, brand)} · ${entry.providerName}`,
+            });
+    return {
+      value: groupMenuKey(group.id),
+      label: group.name,
+      name: group.name,
+      brand: undefined,
+      group: group.id,
+      hintBrand: target?.brand ?? (restful === undefined ? brand : undefined),
+      ...(target?.external ? { hintExternal: true as const } : {}),
+      hintLabel: [
         target !== undefined
-          ? t('modelMenu.groupCurrent', { model: target.short })
-          : restful !== undefined
-            ? restingHint(restful, t)
-            : t('modelMenu.groupFront', {
-                model:
-                  entry === undefined
-                    ? (front?.model ?? '')
-                    : `${groupFrontName(entry.modelName, brand)} · ${entry.providerName}`,
-              });
-      return {
-        value: groupMenuKey(group.id),
-        label: group.name,
-        name: group.name,
-        brand: undefined,
-        group: group.id,
-        hintBrand: target?.brand ?? (restful === undefined ? brand : undefined),
-        ...(target?.external ? { hintExternal: true as const } : {}),
-        hintLabel: [
-          target !== undefined
-            ? t('modelMenu.groupCurrent', { model: target.name })
-            : restful === undefined
-              ? t('modelMenu.groupFront', { model: currentName })
-              : hint,
-          ...members,
-        ].join(' · '),
-        hint,
-        disabled,
-      };
-    }),
-    ...models,
-  ];
+          ? t('modelMenu.groupCurrent', { model: target.name })
+          : restful === undefined
+            ? t('modelMenu.groupFront', { model: currentName })
+            : hint,
+        ...members,
+      ].join(' · '),
+      hint,
+      disabled,
+    };
+  });
 }
 
 const ENGINE_BRAND = { codex: 'openai', claude: 'claude' } as const;
@@ -329,10 +344,37 @@ export function selectedEngineMenuItem(
     hint: t('engine.subscription', { engine: engineName(choice.engine) }),
     model: id,
     engine: choice.engine,
+    ...(choice.accountId === undefined ? {} : { accountId: choice.accountId }),
     brand: ENGINE_BRAND[choice.engine],
     disabled: true,
     hidden: true,
   };
+}
+
+export function engineModelOf(choice: SubscriptionModel, models: EngineModels) {
+  const available = models[engineModelKey(choice.engine, choice.accountId)] ?? [];
+  return choice.model === undefined
+    ? (available.find((model) => model.isDefault) ?? available[0])
+    : (available.find((model) => model.id === choice.model) ??
+        available.find((model) => model.resolvedModel === choice.model && model.id !== 'default'));
+}
+
+export function engineSelectionOf(
+  item: ModelMenuItem,
+  models: EngineModels,
+): SubscriptionModel | undefined {
+  const { engine, model, accountId } = item;
+  if (
+    engine === undefined ||
+    model === undefined ||
+    item.value !== engineMenuKey(engine, model, accountId)
+  )
+    return undefined;
+  const choice = { engine, model, ...(accountId === undefined ? {} : { accountId }) };
+  const entry = engineModelOf(choice, models);
+  if (entry === undefined) return undefined;
+  const effort = entry.efforts.find((option) => option.id === entry.defaultEffort)?.id;
+  return effort === undefined ? choice : { ...choice, effort };
 }
 
 export function presetMenuItems(
@@ -386,11 +428,10 @@ export function ModelMenu({
   onSettings,
   busy = false,
   anchorRef,
-  portalContainer,
   engineFilters,
+  favoriteSource,
   onBrowse,
   closeOnSelect = efforts === undefined || efforts.length <= 1,
-  manageFavorites = true,
   onClose,
   t,
 }: {
@@ -404,11 +445,10 @@ export function ModelMenu({
   onSettings?: (() => void) | undefined;
   busy?: boolean;
   anchorRef: RefObject<HTMLElement | null>;
-  portalContainer?: Element | null;
   engineFilters?: Partial<Record<EngineId, Pick<FilterPickerFilter, 'status' | 'onActivate'>>>;
+  favoriteSource?: ModelMenuFavorites | null | undefined;
   onBrowse?: (() => void) | undefined;
   closeOnSelect?: boolean;
-  manageFavorites?: boolean;
   onClose(): void;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -420,7 +460,17 @@ export function ModelMenu({
     if (engineFilters?.[engine] !== undefined) engines.add(engine);
   const groups = items.filter((item) => item.group !== undefined);
   const presets = items.filter((item) => item.preset !== undefined);
-  const favorites = useModelFavorites();
+  const defaults = useModelFavorites();
+  const favoriteKeys =
+    favoriteSource === undefined
+      ? defaults.keys
+      : new Set(favoriteSource?.choices.map(modelChoiceKey));
+  const writeFavorite =
+    favoriteSource === undefined
+      ? defaults.writable
+        ? setModelFavorite
+        : undefined
+      : favoriteSource?.write;
   const [favoriteError, setFavoriteError] = useState<string>();
   return (
     <FilterPicker
@@ -460,18 +510,18 @@ export function ModelMenu({
                   (item.model !== undefined ||
                     item.group !== undefined ||
                     item.preset !== undefined) &&
-                  favorites.keys.has(item.value),
+                  favoriteKeys.has(item.value),
               }
             : {}),
           ...(item.preset !== undefined
             ? {
-                icon: <ChannelSidebarIcon name="package" size={16} />,
+                icon: <Icon name="package" />,
                 filter: PRESETS,
                 exclusive: true,
                 selected: item.checked === true,
               }
             : item.group !== undefined
-              ? { icon: <ChannelSidebarIcon name="git-branch" size={16} />, filter: GROUPS }
+              ? { icon: <Icon name="git-branch" />, filter: GROUPS }
               : item.engine !== undefined
                 ? {
                     icon: <EngineBrandIcon brand={item.brand} size={16} />,
@@ -491,7 +541,7 @@ export function ModelMenu({
               {
                 key: PRESETS,
                 label: t('modelMenu.presets'),
-                icon: <ChannelSidebarIcon name="package" size={16} />,
+                icon: <Icon name="package" />,
               },
             ]),
         ...(groups.length === 0
@@ -500,7 +550,7 @@ export function ModelMenu({
               {
                 key: GROUPS,
                 label: t('routingGroups.title'),
-                icon: <ChannelSidebarIcon name="git-branch" size={16} />,
+                icon: <Icon name="git-branch" />,
               },
             ]),
         ...[...engines].map((engine) => ({
@@ -519,7 +569,7 @@ export function ModelMenu({
       allFilter={{
         key: ALL,
         label: t('modelMenu.all'),
-        icon: <ChannelSidebarIcon name="layers-2" size={16} />,
+        icon: <Icon name="layers-2" />,
       }}
       searchLabel={t('modelMenu.search')}
       emptyLabel={t('modelPreset.noMatch')}
@@ -538,18 +588,18 @@ export function ModelMenu({
           ? undefined
           : {
               label: t('modelMenu.settings'),
-              icon: <ChannelSidebarIcon name="sliders-horizontal" size={14} />,
+              icon: <Icon name="sliders-horizontal" />,
               onSelect: onSettings,
             }
       }
       busy={busy}
       favorites={
-        manageFavorites && favorites.writable
+        writeFavorite !== undefined
           ? {
               filter: {
                 key: FAVORITES,
                 label: t('modelMenu.favorites'),
-                icon: <ChannelSidebarIcon name="star" size={16} filled />,
+                icon: <Icon name="star" filled />,
               },
               addLabel: t('modelMenu.favoriteAdd'),
               removeLabel: t('modelMenu.favoriteRemove'),
@@ -567,7 +617,7 @@ export function ModelMenu({
                         : undefined;
                 if (choice === undefined) return;
                 setFavoriteError(undefined);
-                void setModelFavorite(choice, favorite).catch((error: unknown) =>
+                void writeFavorite(choice, favorite).catch((error: unknown) =>
                   setFavoriteError(
                     t('modelMenu.favoriteFailed', {
                       error: error instanceof Error ? error.message : String(error),
@@ -580,7 +630,7 @@ export function ModelMenu({
       }
       notice={favoriteError}
       anchorRef={anchorRef}
-      portalContainer={portalContainer ?? null}
+      portalContainer={anchorRef.current?.closest('[aria-modal="true"]') ?? null}
       onClose={onClose}
     />
   );

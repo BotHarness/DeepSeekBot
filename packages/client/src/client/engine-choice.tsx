@@ -60,6 +60,7 @@ export interface EngineApi {
     options?: { model?: string; effort?: string; fallback?: boolean; accountId?: string },
   ): Promise<void>;
   login(engine: EngineId, accountId?: string): Promise<{ url?: string }>;
+  cancelLogin?(engine: EngineId, accountId?: string): Promise<void>;
 }
 
 const ENGINES = './api/botharness/engines';
@@ -257,6 +258,9 @@ export function useSubscriptionEngines(
   const [modelLoadFailed, setModelLoadFailed] = useState(false);
   const [signingIn, setSigningIn] = useState<string>();
   const [signInUrl, setSignInUrl] = useState<string>();
+  const [loginUrl, setLoginUrl] = useState<string>();
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelFailed, setCancelFailed] = useState(false);
   const [error, setError] = useState<string>();
   const alive = useRef(false);
   const generation = useRef(0);
@@ -264,6 +268,8 @@ export function useSubscriptionEngines(
   const poll = useRef<ReturnType<typeof setTimeout>>(undefined);
   const deadline = useRef<ReturnType<typeof setTimeout>>(undefined);
   const activeLogin = useRef<symbol>(undefined);
+  const activeTarget = useRef<{ engine: EngineId; accountId?: string }>(undefined);
+  const cancelRequested = useRef<symbol>(undefined);
 
   const refresh = async (retry = true): Promise<EnginesView | undefined> => {
     if (!enabled) return undefined;
@@ -335,6 +341,7 @@ export function useSubscriptionEngines(
       generation.current += 1;
       loads.current = {};
       activeLogin.current = undefined;
+      activeTarget.current = undefined;
       clearTimeout(poll.current);
       clearTimeout(deadline.current);
     };
@@ -381,30 +388,36 @@ export function useSubscriptionEngines(
   const signIn = (engine: EngineId, accountId?: string): void => {
     const key = engineModelKey(engine, accountId);
     if (activeLogin.current !== undefined) return;
-    const tab = window.open('', '_blank');
-    if (tab !== null) tab.opener = null;
     const attempt = Symbol();
     activeLogin.current = attempt;
+    activeTarget.current = accountId === undefined ? { engine } : { engine, accountId };
     setSigningIn(key);
     setSignInUrl(undefined);
+    setLoginUrl(undefined);
+    setCancelFailed(false);
     setError(undefined);
     const login = accountId === undefined ? api.login(engine) : api.login(engine, accountId);
     void login.then(
       ({ url }) => {
-        if (!alive.current || activeLogin.current !== attempt || url === undefined) tab?.close();
-        else if (tab === null || tab.closed) setSignInUrl(url);
-        else tab.location.href = url;
         if (!alive.current || activeLogin.current !== attempt) return;
+        if (url !== undefined) {
+          setSignInUrl(url);
+          setLoginUrl(url);
+        }
         let done = false;
         const finish = (ready: boolean): void => {
           done = true;
           activeLogin.current = undefined;
+          activeTarget.current = undefined;
           clearTimeout(poll.current);
           clearTimeout(deadline.current);
           setSigningIn(undefined);
-          if (ready) setSignInUrl(undefined);
+          setLoginUrl(undefined);
+          setSignInUrl(undefined);
         };
-        deadline.current = setTimeout(() => finish(false), SIGN_IN_POLL_DEADLINE_MS);
+        deadline.current = setTimeout(() => {
+          if (cancelRequested.current !== attempt) finish(false);
+        }, SIGN_IN_POLL_DEADLINE_MS);
         const check = async (): Promise<void> => {
           const next = await refresh(false);
           if (!alive.current || done || activeLogin.current !== attempt) return;
@@ -419,13 +432,46 @@ export function useSubscriptionEngines(
         poll.current = setTimeout(() => void check(), SIGN_IN_POLL_MS);
       },
       (cause: unknown) => {
-        tab?.close();
         if (!alive.current || activeLogin.current !== attempt) return;
+        if (cancelRequested.current === attempt) return;
         activeLogin.current = undefined;
+        activeTarget.current = undefined;
         setSigningIn(undefined);
         setError(cause instanceof Error ? cause.message : String(cause));
       },
     );
+  };
+
+  const cancelSignIn = async (): Promise<void> => {
+    const attempt = activeLogin.current;
+    const target = activeTarget.current;
+    if (attempt === undefined || target === undefined || cancelling) return;
+    setCancelling(true);
+    setCancelFailed(false);
+    cancelRequested.current = attempt;
+    try {
+      await (api.cancelLogin?.(target.engine, target.accountId) ?? Promise.resolve());
+    } catch {
+      if (cancelRequested.current === attempt) cancelRequested.current = undefined;
+      if (alive.current) {
+        setCancelling(false);
+        setCancelFailed(true);
+      }
+      return;
+    }
+    if (cancelRequested.current === attempt) cancelRequested.current = undefined;
+    if (!alive.current) return;
+    setCancelling(false);
+    if (activeLogin.current === attempt) {
+      activeLogin.current = undefined;
+      activeTarget.current = undefined;
+      clearTimeout(poll.current);
+      clearTimeout(deadline.current);
+      setSigningIn(undefined);
+      setSignInUrl(undefined);
+      setLoginUrl(undefined);
+    }
+    await refresh(false);
   };
 
   return {
@@ -433,8 +479,12 @@ export function useSubscriptionEngines(
     view,
     models,
     signIn,
+    cancelSignIn,
+    cancelling,
+    cancelFailed,
     signingIn,
     signInUrl,
+    loginUrl,
     loadFailed: loadFailed || modelLoadFailed,
     refresh,
     saveSelection,

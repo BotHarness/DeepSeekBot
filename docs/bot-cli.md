@@ -1130,6 +1130,7 @@ deepseekbot engine login codex
 deepseekbot engine login <account-id>
 deepseekbot engine login claude [--account <account-id>]
 deepseekbot engine login claude [--account <account-id>] --code-stdin < <code-file>
+deepseekbot engine login-cancel <account-id>|codex|claude
 deepseekbot engine models <account-id>|codex|claude
 deepseekbot engine use <bot> codex --role orchestrator [--account <account-id>] [--model <id>] [--effort <level>] [--fallback on|off]
 deepseekbot engine use <bot> claude --role orchestrator [--account <account-id>] [--model <id>] [--effort <level>] [--fallback on|off]
@@ -1148,6 +1149,8 @@ An Orchestrator engine process closes after 30 idle seconds. An Assignment engin
 The Host Owner and Humans with `modelSources.manage` can list, add, rename, remove and sign in to subscription accounts. Each Codex or Claude Code account has its own Bot-owned config directory. Existing choices and the engine names `codex` and `claude` still resolve to their original directories, under account IDs `codex-default` and `claude`. Read `revision` from `engine accounts` before changing the list. A stale revision returns `engine-account-conflict`. A Bot selection, Model Preset or Routing Group that uses the account prevents removal with `engine-account-in-use` and the references. Successful removal also deletes the account’s local home. Use the named account ID for status, models and login, and `engine use --account` to choose it for either Bot role. Sign-in state, model cache and quota belong to the account. A removed or missing account returns `engine-account-not-found`. Switching accounts starts a new native thread with the existing DSH Session context.
 
 Use `engine accounts --grantable` to list the accounts granted to the signed-in Human, for example when choosing IDs to delegate to another Host Role. This view skips subscription status probes.
+
+Use `engine login-cancel <account-id>` after closing the browser sign-in tab. It requires `modelSources.manage` and returns `{"cancelled":true}` once the Host has stopped the pending process and you can retry. It returns `{"cancelled":false}` if the account has no pending sign-in. Use `codex` or `claude` for the default account.
 
 If the Claude browser callback cannot reach the Host and the browser shows an authorization code, use **Paste authorization code** in Model providers or run `engine login claude --code-stdin` with that code on stdin. Use the same `--account` as the sign-in command. A running Claude Code login must request a code on stdin. The Host returns `engine-code-not-requested` if the CLI has not offered the prompt and `engine-login-not-pending` if sign-in has ended or has not started. Success returns `{"submitted":true}` once stdin accepts the code. Check `engine status` for the sign-in result.
 

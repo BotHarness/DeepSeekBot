@@ -40,6 +40,10 @@ export const ENGINE_COMMANDS = [
     description: 'start sign-in on the Host or submit a Claude Code authorization code from stdin',
   },
   {
+    command: 'engine-login-cancel',
+    description: 'cancel pending sign-in for a subscription account',
+  },
+  {
     command: 'engine-models',
     description:
       'list the models and effort levels the signed-in engine subscription offers (engine models codex|claude)',
@@ -186,7 +190,8 @@ export async function runEngineCommand(
   if (
     command === 'engine-accounts' ||
     command.startsWith('engine-account-') ||
-    command === 'engine-login'
+    command === 'engine-login' ||
+    command === 'engine-login-cancel'
   ) {
     const rpc = async (method: string, args: Record<string, unknown>) => {
       const host = await connect();
@@ -201,6 +206,13 @@ export async function runEngineCommand(
     if (rest.length !== 1 || !rest[0])
       throw new CliLiveError('usage', `${command} needs one engine or account ID.`);
     const [id] = rest;
+    if (command === 'engine-login-cancel') {
+      if (values.account !== undefined)
+        throw new CliLiveError('usage', 'Pass the account ID to engine login-cancel directly.');
+      const result = await rpc('engineAccountLoginCancel', { id });
+      if (!isObject(result) || typeof result['cancelled'] !== 'boolean') throw protocolError();
+      return { cancelled: result['cancelled'] };
+    }
     if (command === 'engine-login') {
       if (values.account !== undefined && (!isEngineId(id) || values.account.trim() === ''))
         throw new CliLiveError(

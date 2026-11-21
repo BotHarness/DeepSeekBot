@@ -1097,6 +1097,7 @@ deepseekbot engine login codex
 deepseekbot engine login <account-id>
 deepseekbot engine login claude [--account <account-id>]
 deepseekbot engine login claude [--account <account-id>] --code-stdin < <code-file>
+deepseekbot engine login-cancel <account-id>|codex|claude
 deepseekbot engine models <account-id>|codex|claude
 deepseekbot engine use <bot> codex --role orchestrator [--account <account-id>] [--model <id>] [--effort <level>] [--fallback on|off]
 deepseekbot engine use <bot> claude --role orchestrator [--account <account-id>] [--model <id>] [--effort <level>] [--fallback on|off]
@@ -1109,6 +1110,8 @@ deepseekbot engine use <bot> codex|claude|none --role assignment [--account <acc
 Host Owner 和具有 `modelSources.manage` 权限的 Human 可以列出、添加、重命名、移除及登录订阅账号。每个 Codex 或 Claude Code 账号都使用独立的 Bot 专用配置目录。已有模型选择以及 `codex` 和 `claude` 参数继续使用原来的目录，对应账号 ID 为 `codex-default` 和 `claude`。修改列表前先用 `engine accounts` 读取 `revision`。过期版本返回 `engine-account-conflict`。账号仍被 Bot、模型预设或路由组使用时，移除会返回 `engine-account-in-use` 并列出引用。移除成功后也会删除账号目录。状态查询、模型列表和登录可指定账号 ID。用 `engine use --account` 为 Bot 的任一角色选择账号。登录状态、模型缓存和额度按账号保存。账号不存在或已移除时返回 `engine-account-not-found`。切换账号会依据现有 DSH Session 上下文启动新引擎线程。
 
 用 `engine accounts --grantable` 查看已授权给当前 Human 的订阅账号，例如为其他 Host Role 选择可转授的账号 ID。此视图不会探测订阅状态。
+
+关闭浏览器的登录标签页后，可用 `engine login-cancel <account-id>` 取消登录。命令需要 `modelSources.manage` 权限。Host 停止登录进程后返回 `{"cancelled":true}`，此时可以重试。如果没有正在进行的登录，则返回 `{"cancelled":false}`。默认账号可用 `codex` 或 `claude` 指定。
 
 如果 Claude 的浏览器回调无法连接 Host，且页面给出授权码，可在模型提供商页面使用 **粘贴授权码**，或运行 `engine login claude --code-stdin` 从标准输入读取授权码。指定与发起登录时相同的 `--account`。Claude Code 的登录进程必须先提示输入授权码。如果没有提示，Host 返回 `engine-code-not-requested`。登录未开始或已结束时返回 `engine-login-not-pending`。成功写入标准输入后返回 `{"submitted":true}`。用 `engine status` 确认登录结果。
 

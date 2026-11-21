@@ -1,10 +1,15 @@
 import { useRef, useState, type ReactElement } from 'react';
 
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { Icon } from './ds/icon.js';
 import { PickerTrigger } from './ds/picker-trigger.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { TargetBrandIcon } from './model-brand.js';
-import { ModelMenu, type ModelMenuEffort, type ModelMenuItem } from './model-menu.js';
+import {
+  ModelMenu,
+  type ModelMenuEffort,
+  type ModelMenuFavorites,
+  type ModelMenuItem,
+} from './model-menu.js';
 
 export function ModelTrigger({
   label,
@@ -17,6 +22,7 @@ export function ModelTrigger({
   efforts,
   effort,
   onEffort,
+  favoriteSource,
   t,
 }: {
   label: string;
@@ -29,6 +35,7 @@ export function ModelTrigger({
   efforts?: readonly ModelMenuEffort[] | undefined;
   effort?: string | undefined;
   onEffort?: ((value: string) => void) | undefined;
+  favoriteSource?: ModelMenuFavorites | null | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
   const trigger = useRef<HTMLButtonElement>(null);
@@ -42,7 +49,7 @@ export function ModelTrigger({
         placeholder={current === undefined}
         icon={
           current?.group !== undefined ? (
-            <ChannelSidebarIcon name="git-branch" size={16} />
+            <Icon name="git-branch" />
           ) : current?.model === undefined ? undefined : (
             <TargetBrandIcon
               brand={current.brand}
@@ -89,6 +96,7 @@ export function ModelTrigger({
           efforts={efforts}
           effort={effort}
           onEffort={onEffort}
+          favoriteSource={favoriteSource}
           anchorRef={trigger}
           onClose={() => setOpen(false)}
           t={t}

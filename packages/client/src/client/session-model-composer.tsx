@@ -209,7 +209,7 @@ export function SessionModelComposer({
           items={items.menu}
           value={choiceKey(state?.override ?? null)}
           onSelect={select}
-          manageFavorites={false}
+          favoriteSource={null}
           anchorRef={trigger}
           onClose={() => setOpen(false)}
           t={t}
