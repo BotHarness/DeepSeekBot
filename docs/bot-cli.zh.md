@@ -891,6 +891,7 @@ Bot 可以把回复读出来：`bot_send_message` 在 `body` 之前接受 `voice
 
 ```bash
 deepseekbot voice-providers [--bot <bot-id>]
+printf '%s' "$MIMO_API_KEY" | deepseekbot voice-provider-add xiaomi-mimo --voice 冰糖 --key-stdin
 printf '%s' "$FISH_AUDIO_KEY" | deepseekbot voice-provider-add fish-audio --model s2.1-pro-free --voice <reference-id> --key-stdin
 deepseekbot voice-provider-add custom --name Kokoro --base-url http://127.0.0.1:8880/v1 --model kokoro --voice af_bella
 deepseekbot voice-provider-test <provider-id> [--voice <voice-id>]
@@ -900,7 +901,9 @@ deepseekbot voice-synthesize --bot <bot-id> --text '完成了，见 `src/app.ts`
 deepseekbot voice-provider-remove <provider-id>
 ```
 
-预设有 `custom`（任何兼容 OpenAI `/audio/speech` 的端点，例如本地 Kokoro-FastAPI 或 LocalAI，密钥可选）、`local`（下文的本地语音服务，无需密钥）、`fish-audio`、`elevenlabs` 和 `openai`（需要密钥）。`voice-providers` 返回 `{presets, providers, bot?}`，每个 provider 列出 `id`、`name`、`preset`、`baseUrl`、`model`、`defaultVoice` 和 `keySet`，从不返回密钥。密钥只从 stdin 读取，保存在 Host 凭据存储中。`voice-provider-test` 合成一小段话，返回 `{ok: true, latencyMs, bytes, mime}` 或 `{ok: false, code, message}`。`voice-set` 绑定 Bot 的声音，`off` 解除绑定；移除 provider 会清掉使用它的 Bot（`clearedBots`）。`voice-synthesize` 使用 Bot 的绑定（`--bot`）或指定 provider（`--provider`），文字来自 `--text` 或 `--text-stdin`，加 `--markdown` 时套用朗读规则，把音频写到绝对路径 `--out`，输出 `{providerId, voiceId, mime, bytes, latencyMs, text, out}`。拒绝时带错误码：`usage`、`invalid-input`、`key-required`、`unknown-provider`、`voice-not-configured`、`provider-unauthorized`、`provider-rate-limited`、`provider-unavailable`、`provider-timeout`、`provider-rejected` 和 `provider-bad-response`。每次合成会在 `logs.db` 写一条 `voice` 记录，包含 provider、延迟和大小，不含文字或密钥。
+小米 MiMo 使用 `xiaomi-mimo` 预设和 MiMo API Key，默认使用 `mimo-v2.5-tts` 和 `mimo_default`。可用 `--voice 冰糖` 或其他预置音色 ID 覆盖默认值。
+
+预设有 `custom`（任何兼容 OpenAI `/audio/speech` 的端点，例如本地 Kokoro-FastAPI 或 LocalAI，密钥可选）、`local`（下文的本地语音服务，无需密钥）、`fish-audio`、`elevenlabs`、`xiaomi-mimo` 和 `openai`（需要密钥）。`voice-providers` 返回 `{presets, providers, bot?}`，每个 provider 列出 `id`、`name`、`preset`、`baseUrl`、`model`、`defaultVoice` 和 `keySet`，从不返回密钥。密钥只从 stdin 读取，保存在 Host 凭据存储中。`voice-provider-test` 合成一小段话，返回 `{ok: true, latencyMs, bytes, mime}` 或 `{ok: false, code, message}`。`voice-set` 绑定 Bot 的声音，`off` 解除绑定；移除 provider 会清掉使用它的 Bot（`clearedBots`）。`voice-synthesize` 使用 Bot 的绑定（`--bot`）或指定 provider（`--provider`），文字来自 `--text` 或 `--text-stdin`，加 `--markdown` 时套用朗读规则，把音频写到绝对路径 `--out`，输出 `{providerId, voiceId, mime, bytes, latencyMs, text, out}`。拒绝时带错误码：`usage`、`invalid-input`、`key-required`、`unknown-provider`、`voice-not-configured`、`provider-unauthorized`、`provider-rate-limited`、`provider-unavailable`、`provider-timeout`、`provider-rejected` 和 `provider-bad-response`。每次合成会在 `logs.db` 写一条 `voice` 记录，包含 provider、延迟和大小，不含文字或密钥。
 
 ### 本地语音服务
 

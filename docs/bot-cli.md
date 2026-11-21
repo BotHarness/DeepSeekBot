@@ -924,6 +924,7 @@ A Bot can speak a reply: `bot_send_message` takes `voice: true` before `body`, t
 
 ```bash
 deepseekbot voice-providers [--bot <bot-id>]
+printf '%s' "$MIMO_API_KEY" | deepseekbot voice-provider-add xiaomi-mimo --voice 冰糖 --key-stdin
 printf '%s' "$FISH_AUDIO_KEY" | deepseekbot voice-provider-add fish-audio --model s2.1-pro-free --voice <reference-id> --key-stdin
 deepseekbot voice-provider-add custom --name Kokoro --base-url http://127.0.0.1:8880/v1 --model kokoro --voice af_bella
 deepseekbot voice-provider-test <provider-id> [--voice <voice-id>]
@@ -933,7 +934,9 @@ deepseekbot voice-synthesize --bot <bot-id> --text 'Done. See `src/app.ts`.' --m
 deepseekbot voice-provider-remove <provider-id>
 ```
 
-Presets are `custom` (any OpenAI-compatible `/audio/speech` endpoint, for example a local Kokoro-FastAPI or LocalAI; key optional), `local` (the local speech service below; no key), `fish-audio`, `elevenlabs` and `openai` (key required). `voice-providers` returns `{presets, providers, bot?}`; each provider shows `id`, `name`, `preset`, `baseUrl`, `model`, `defaultVoice` and `keySet`, never the key. The key is read only from stdin and kept in the Host credential store. `voice-provider-test` synthesizes a short phrase and returns `{ok: true, latencyMs, bytes, mime}` or `{ok: false, code, message}`. `voice-set` binds the Bot's voice; `off` removes it, and removing a provider clears the Bots that used it (`clearedBots`). `voice-synthesize` uses the Bot's binding (`--bot`) or a provider (`--provider`), reads the text from `--text` or `--text-stdin`, applies the spoken-text rules with `--markdown`, writes the audio to the absolute `--out` path and prints `{providerId, voiceId, mime, bytes, latencyMs, text, out}`. Refusals carry a code: `usage`, `invalid-input`, `key-required`, `unknown-provider`, `voice-not-configured`, `provider-unauthorized`, `provider-rate-limited`, `provider-unavailable`, `provider-timeout`, `provider-rejected` and `provider-bad-response`. Each synthesis writes a `voice` line to `logs.db` with the provider, latency and size, never the text or key.
+For Xiaomi MiMo, use the `xiaomi-mimo` preset with a MiMo API key. It defaults to `mimo-v2.5-tts` and `mimo_default`. Pass `--voice 冰糖` or another built-in voice ID to override it.
+
+Presets are `custom` (any OpenAI-compatible `/audio/speech` endpoint, for example a local Kokoro-FastAPI or LocalAI; key optional), `local` (the local speech service below; no key), `fish-audio`, `elevenlabs`, `xiaomi-mimo` and `openai` (key required). `voice-providers` returns `{presets, providers, bot?}`; each provider shows `id`, `name`, `preset`, `baseUrl`, `model`, `defaultVoice` and `keySet`, never the key. The key is read only from stdin and kept in the Host credential store. `voice-provider-test` synthesizes a short phrase and returns `{ok: true, latencyMs, bytes, mime}` or `{ok: false, code, message}`. `voice-set` binds the Bot's voice; `off` removes it, and removing a provider clears the Bots that used it (`clearedBots`). `voice-synthesize` uses the Bot's binding (`--bot`) or a provider (`--provider`), reads the text from `--text` or `--text-stdin`, applies the spoken-text rules with `--markdown`, writes the audio to the absolute `--out` path and prints `{providerId, voiceId, mime, bytes, latencyMs, text, out}`. Refusals carry a code: `usage`, `invalid-input`, `key-required`, `unknown-provider`, `voice-not-configured`, `provider-unauthorized`, `provider-rate-limited`, `provider-unavailable`, `provider-timeout`, `provider-rejected` and `provider-bad-response`. Each synthesis writes a `voice` line to `logs.db` with the provider, latency and size, never the text or key.
 
 ### Local speech service
 

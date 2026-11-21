@@ -1,8 +1,15 @@
 import { LOCAL_VOICE_BASE_URL } from './local-kit.js';
+import { MIMO_TTS_MODEL, MIMO_TTS_VOICE } from './mimo.js';
 
-export type TtsWire = 'openai' | 'fish' | 'elevenlabs';
+export type TtsWire = 'openai' | 'fish' | 'elevenlabs' | 'mimo';
 
-export type TtsPresetId = 'custom' | 'local' | 'openai' | 'fish-audio' | 'elevenlabs';
+export type TtsPresetId =
+  | 'custom'
+  | 'local'
+  | 'openai'
+  | 'fish-audio'
+  | 'elevenlabs'
+  | 'xiaomi-mimo';
 
 export interface TtsVoiceOption {
   id: string;
@@ -91,6 +98,25 @@ export const TTS_PRESETS: readonly TtsPreset[] = [
     ],
     capabilities: { streaming: true, billing: 'per-character' },
     docsUrl: 'https://elevenlabs.io/docs/api-reference/text-to-speech/convert',
+  },
+  {
+    id: 'xiaomi-mimo',
+    name: 'Xiaomi MiMo',
+    wire: 'mimo',
+    baseUrl: 'https://api.xiaomimimo.com/v1',
+    keyRequired: true,
+    defaultModel: MIMO_TTS_MODEL,
+    models: [MIMO_TTS_MODEL],
+    defaultVoice: MIMO_TTS_VOICE,
+    voices: [
+      { id: MIMO_TTS_VOICE, name: 'MiMo Default' },
+      ...['冰糖', '茉莉', '苏打', '白桦', 'Mia', 'Chloe', 'Milo', 'Dean'].map((id) => ({
+        id,
+        name: id,
+      })),
+    ],
+    capabilities: { streaming: false, billing: 'per-character' },
+    docsUrl: 'https://mimo.mi.com/docs/en-US/api/audio/tts-post',
   },
   {
     id: 'openai',

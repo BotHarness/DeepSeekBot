@@ -4,6 +4,7 @@ import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credent
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { LOCAL_VOICE_SCRIPT_NAME } from './local-kit.js';
+import { mimoTtsRequest, mimoTtsResponse } from './mimo.js';
 import { clampSpeechDbfs, DEFAULT_SPEECH_DBFS, SPEECH_DBFS_RANGE } from './vad.js';
 import {
   warmSoniox,
@@ -402,6 +403,10 @@ async function readBounded(response: Response, max: number): Promise<Uint8Array>
 }
 
 async function providerMessage(response: Response, key: string | undefined): Promise<string> {
+  if (response.headers.get('content-type')?.toLowerCase().startsWith('text/html') === true) {
+    await response.body?.cancel().catch(() => undefined);
+    return `HTTP ${response.status}`;
+  }
   let text = '';
   try {
     text = new TextDecoder().decode(await readBounded(response, 4_096));
@@ -461,6 +466,11 @@ function statusError(status: number, detail: string): VoiceError {
     );
   if (status >= 500)
     return new VoiceError('provider-unavailable', `The provider failed: ${detail}`);
+  if (status === 404)
+    return new VoiceError(
+      'provider-rejected',
+      `The provider endpoint was not found: ${detail}. Check the preset and base URL.`,
+    );
   return new VoiceError('provider-rejected', `The provider rejected the request: ${detail}`);
 }
 
@@ -837,12 +847,14 @@ export class VoiceProviders {
   }
 
   #request(
+    wire: TtsWire,
     stored: StoredProvider,
     key: string | undefined,
     text: string,
     voice: string | undefined,
   ): { url: string; init: RequestInit } {
-    const wire = presetOf(stored.preset).wire;
+    if (wire === 'mimo')
+      return mimoTtsRequest({ baseUrl: stored.baseUrl, model: stored.model, voice, key, text });
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
     };
@@ -905,7 +917,9 @@ export class VoiceProviders {
       throw new VoiceError('invalid-input', `Text must be 1–${MAX_TTS_INPUT_CHARS} characters.`);
     const voice = input.voiceId?.trim() || stored.defaultVoice;
     const key = await this.#key(stored);
-    const { url, init } = this.#request(stored, key, text, voice);
+    const wire = presetOf(stored.preset).wire;
+    const { url, init } = this.#request(wire, stored, key, text, voice);
+    const decoder = wire === 'mimo' ? mimoTtsResponse : undefined;
     const timeout = AbortSignal.timeout(this.#timeoutMs);
     const signal = input.signal === undefined ? timeout : AbortSignal.any([input.signal, timeout]);
     const started = performance.now();
@@ -932,9 +946,12 @@ export class VoiceProviders {
       });
       throw failure;
     }
-    let audio: Uint8Array;
+    let body: Uint8Array;
     try {
-      audio = await readBounded(response, MAX_TTS_AUDIO_BYTES);
+      body = await readBounded(
+        response,
+        decoder?.maxBodyBytes(MAX_TTS_AUDIO_BYTES) ?? MAX_TTS_AUDIO_BYTES,
+      );
     } catch (error) {
       if (error instanceof VoiceError) throw error;
       input.signal?.throwIfAborted();
@@ -943,7 +960,15 @@ export class VoiceProviders {
         'The provider stopped while sending audio.',
       );
     }
-    const mime = sniffAudio(audio, response.headers.get('content-type'));
+    const audio = decoder === undefined ? body : decoder.decode(body);
+    if (audio === undefined)
+      throw new VoiceError('provider-bad-response', 'The provider did not return audio.');
+    if (audio.byteLength > MAX_TTS_AUDIO_BYTES)
+      throw new VoiceError('audio-too-large', 'The provider returned too much audio.');
+    const mime = sniffAudio(
+      audio,
+      decoder === undefined ? response.headers.get('content-type') : null,
+    );
     if (mime === undefined)
       throw new VoiceError('provider-bad-response', 'The provider did not return audio.');
     const latencyMs = Math.round(performance.now() - started);

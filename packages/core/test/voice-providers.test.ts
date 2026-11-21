@@ -8,7 +8,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
-import { chineseScript, VoiceProviders } from '../src/voice/providers.js';
+import { chineseScript, MAX_TTS_AUDIO_BYTES, VoiceProviders } from '../src/voice/providers.js';
 import { speakableText } from '../src/voice/speakable.js';
 import { createTempRoot } from './helpers.js';
 import { requestListener } from './async-listener.js';
@@ -139,6 +139,86 @@ describe('TTS Provider owner', () => {
     );
     expect(JSON.stringify(rows)).not.toContain(secret);
     expect(JSON.stringify(logs)).not.toContain(secret);
+  });
+
+  it('tests the Xiaomi MiMo preset using chat completions and returns decoded audio', async () => {
+    const service = await fakeTts(() => ({
+      status: 200,
+      body: JSON.stringify({
+        choices: [{ message: { audio: { data: MP3.toString('base64') } } }],
+      }),
+    }));
+    const { providers } = await fixture();
+    const provider = await providers.add({
+      preset: 'xiaomi-mimo',
+      baseUrl: `${service.url}/v1`,
+      defaultVoice: '冰糖',
+      key: 'mimo-fixture-key',
+    });
+    expect(provider).toMatchObject({
+      preset: 'xiaomi-mimo',
+      wire: 'mimo',
+      model: 'mimo-v2.5-tts',
+      defaultVoice: '冰糖',
+      keySet: true,
+    });
+    const result = await providers.synthesize({ providerId: provider.id, text: '你好。' });
+    expect(result.mime).toBe('audio/mpeg');
+    expect(Buffer.from(result.audio)).toEqual(MP3);
+    expect(service.requests).toHaveLength(1);
+    expect(service.requests[0]).toMatchObject({
+      method: 'POST',
+      url: '/v1/chat/completions',
+      headers: { 'api-key': 'mimo-fixture-key' },
+      body: {
+        model: 'mimo-v2.5-tts',
+        messages: [{ role: 'assistant', content: '你好。' }],
+        audio: { format: 'mp3', voice: '冰糖' },
+      },
+    });
+    expect(await providers.test(provider.id, 'Mia')).toMatchObject({
+      ok: true,
+      mime: 'audio/mpeg',
+      bytes: MP3.length,
+    });
+    expect(service.requests[1]?.body['audio']).toMatchObject({ voice: 'Mia' });
+  });
+
+  it.each([
+    { data: 'ID3!', code: 'provider-bad-response' },
+    { data: Buffer.from('not audio').toString('base64'), code: 'provider-bad-response' },
+    { data: Buffer.alloc(MAX_TTS_AUDIO_BYTES + 1).toString('base64'), code: 'audio-too-large' },
+  ])('rejects a MiMo response with $code', async ({ data, code }) => {
+    const service = await fakeTts(() => ({
+      status: 200,
+      body: JSON.stringify({ choices: [{ message: { audio: { data } } }] }),
+    }));
+    const { providers } = await fixture();
+    const provider = await providers.add({
+      preset: 'xiaomi-mimo',
+      baseUrl: `${service.url}/v1`,
+      key: 'mimo-fixture-key',
+    });
+    expect(await providers.test(provider.id)).toMatchObject({ ok: false, code });
+  });
+
+  it('explains an upstream HTML 404 without leaking the HTML into settings', async () => {
+    const service = await fakeTts(() => ({
+      status: 404,
+      type: 'text/html',
+      body: '<html><body>openresty</body></html>',
+    }));
+    const { providers } = await fixture();
+    const provider = await providers.add({
+      preset: 'custom',
+      baseUrl: `${service.url}/v1`,
+      defaultVoice: '冰糖',
+    });
+    expect(await providers.test(provider.id)).toMatchObject({
+      ok: false,
+      code: 'provider-rejected',
+      message: 'The provider endpoint was not found: HTTP 404. Check the preset and base URL.',
+    });
   });
 
   it('requires a key for a key-only preset', async () => {
