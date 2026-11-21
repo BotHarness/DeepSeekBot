@@ -52,7 +52,7 @@ One pairing can carry several routes for the same Host identity. LAN and Tailsca
 
 Why: a person moves between home, office and mobile networks, so one Host needs several routes without several identities. Every route is a carrier; keeping trust in the pin and the device grant means a new route can never become a way in.
 
-Enforced by: `packages/core/test/private-tunnel.test.ts`, `private-relay.test.ts`, `private-browser-admission.test.ts`, `managed-tls-ingress.test.ts`, `ssh-tunnel.test.ts`, `bot-tailnet.test.ts`, `connect-health.test.ts`, `apps/mobile/test/route-preference.test.ts`, `learned-routes.test.ts`, `deploy/private-relay/conformance.mjs`.
+Enforced by: `packages/core/test/private-tunnel-configuration-revisions.test.ts`, `packages/core/test/private-tunnel-dns-recovery.test.ts`, `packages/core/test/private-tunnel-managed-routes.test.ts`, `packages/core/test/private-tunnel-phone-admission.test.ts`, `packages/core/test/private-tunnel-public-probes.test.ts`, `private-relay.test.ts`, `private-browser-admission.test.ts`, `managed-tls-ingress.test.ts`, `ssh-tunnel.test.ts`, `bot-tailnet.test.ts`, `connect-health.test.ts`, `apps/mobile/test/route-preference.test.ts`, `learned-routes.test.ts`, `deploy/private-relay/conformance.mjs`.
 
 ## 4. Device traffic is encrypted against pinned Host keys
 

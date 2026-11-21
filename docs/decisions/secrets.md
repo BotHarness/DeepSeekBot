@@ -18,7 +18,7 @@ Field ids, references and placeholders share one format, defined once in `creden
 
 Why: DSH's own Human-only secret prompt is scalar, and ordinary question answers are persisted as text, so neither fits a multi-field card that must never reach history. A single format keeps the declaration, the consumers, the Channel validation and the Messaging reply fence from drifting apart; a field the contract accepts but a fence does not recognise would let a reference leak into a reply.
 
-Enforced by: `private-reference-format.property.test.ts` (the contract accepts exactly the field ids the reference and placeholder parsers accept, every written reference reads back and is found inside any reply text, and no other core source spells the pattern), `private-inputs.test.ts`, `private-profile-boundary.test.ts`.
+Enforced by: `private-reference-format.property.test.ts` (the contract accepts exactly the field ids the reference and placeholder parsers accept, every written reference reads back and is found inside any reply text, and no other core source spells the pattern), `private-inputs-request-lifecycle.test.ts`, `private-inputs-account-references.test.ts`, `private-profile-boundary.test.ts`.
 
 ## 2. Settlement commits to the Channel before the Bot continues
 
@@ -29,7 +29,7 @@ The `PrivateInputs` owner keeps each live request with its real Agent, Bot ident
 
 Why: native credential storage and Channel persistence cannot share a transaction, so the Channel commit has to be the single fact that makes a grant usable. Restoring Promises from history would confuse durable authority with live authority.
 
-Enforced by: `private-inputs.test.ts`, `private-input-attention.test.ts`.
+Enforced by: `private-inputs-request-lifecycle.test.ts`, `private-input-attention.test.ts`.
 
 ## 3. Account versions fence every use; revocation erases values at once
 
@@ -40,7 +40,7 @@ Each Bot identity and account has one current grant, recorded in a separate nati
 
 Why: mutating values behind a stable reference or deriving authority from UI state lets an old card keep working after the Owner replaced it. The tombstone is a one-way security migration: an older binary ignores it and could revive old grants, so a Profile with retained grants must never be downgraded to an unfenced binary.
 
-Enforced by: `private-inputs.test.ts`.
+Enforced by: `private-inputs-account-references.test.ts`.
 
 ## 4. A new card needs a current Human interaction; unattended runs only reuse
 
@@ -51,7 +51,7 @@ _Formerly ADR-0169._
 
 Why: an unattended run that opens a card leaves a Human waiter nobody is watching, and asking the model whether it is unattended is not a check.
 
-Enforced by: `private-input-origin.test.ts` (a revoked IM authority followed by reuse in a later Schedule), `private-inputs.test.ts`.
+Enforced by: `private-input-origin.test.ts` (a revoked IM authority followed by reuse in a later Schedule), `private-inputs-account-references.test.ts`, `private-inputs-channel-and-im-delivery.test.ts`.
 
 ## 5. A secret asked for from an IM conversation is still filled in Web Chat
 
