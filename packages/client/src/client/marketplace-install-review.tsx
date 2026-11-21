@@ -1,7 +1,7 @@
 import type { ReactElement } from 'react';
 import type { InstallFinding, InstallReviewResult } from './bridge.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { Callout } from './ds/callout.js';
+import { Icon } from './ds/icon.js';
 import { Note } from './ds/note.js';
 import { ReadFailure } from './ds/read-failure.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -34,7 +34,7 @@ function InstallFindings({
           data-market-finding={finding.kind}
         >
           <span className="bh-market-finding-icon" data-tone={finding.kind}>
-            <ChannelSidebarIcon name={FINDING_ICONS[finding.kind]} size={14} />
+            <Icon name={FINDING_ICONS[finding.kind]} size={14} />
           </span>
           <span className="bh-market-finding-body">
             <span className="bh-market-finding-head">
@@ -84,7 +84,7 @@ export function InstallReviewView({
   if (review.findings.length === 0)
     return (
       <div className="bh-market-review" data-market-review="clean" data-tone="clean" role="status">
-        <ChannelSidebarIcon name="shield-check" size={16} />
+        <Icon name="shield-check" size={16} />
         {t('market.review.clean')}
         {review.partial ? <Note tone="subtle">{t('market.review.partial')}</Note> : null}
       </div>
