@@ -299,6 +299,7 @@ export function MarketAvatars({
                 })),
               ]}
               label={t('market.sort.label')}
+              separateTrack
               onChange={(sort) =>
                 setFilters(({ sort: _sort, ...filters }) => ({
                   ...filters,

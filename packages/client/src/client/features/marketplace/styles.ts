@@ -92,7 +92,7 @@ export const marketplaceCss = {
 }
 /* The three sort tabs need about 330px in English; below that a menu keeps every choice reachable. */
 @container bh-market (max-width: 380px) {
-  .bh-market-sort-tabs { display: none; }
+  .bh-market-sort > [role='tablist'] { display: none; }
   .bh-market-sort-menu { display: flex; }
 }
 .bh-market-panel > .bh-market-topics {

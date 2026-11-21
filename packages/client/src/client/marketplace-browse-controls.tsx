@@ -75,26 +75,27 @@ export function MarketplaceSortTabs<Value extends string>({
   disabled = false,
   onChange,
   label,
+  separateTrack = false,
 }: {
   value: Value;
   options: readonly SegmentedControlOption<Value>[];
   disabled?: boolean;
   onChange: (value: Value) => void;
   label: string;
+  separateTrack?: boolean;
 }): ReactElement {
   const sortId = useId();
   return (
     <div className="bh-market-sort">
-      <div className="bh-market-sort-tabs">
-        <SegmentedControl
-          id={sortId}
-          label={label}
-          value={value}
-          options={options}
-          disabled={disabled}
-          onChange={onChange}
-        />
-      </div>
+      <SegmentedControl
+        id={sortId}
+        label={label}
+        value={value}
+        options={options}
+        disabled={disabled}
+        onChange={onChange}
+        separateTrack={separateTrack}
+      />
       <span className="bh-market-sort-menu">
         <Select
           label={label}
