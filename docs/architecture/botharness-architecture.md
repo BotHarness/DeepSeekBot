@@ -414,6 +414,8 @@ sequenceDiagram
 
 Source Event 是内容唯一权威；Channel 和 Inbox 都只保存关系。Reply 使用可信 Reply Route 自动选择来源 provider；主动发布属于 Service Action，需要 Provider Capability，以及该 Bot 对应用可触达会话的会话条目，或作为后备的 Human 保存目标 Service Grant。SQLite 事务只覆盖本地事实；外部副作用使用 Outbox Intent、幂等标识和有界 reconciliation，不宣称 exactly-once。不可证明的结果进入 `unknown-outcome`，由 Human 处理。
 
+QQ 群回复能力按原会话和 Source Event 查询。Messaging 复用实际回复的授权选择，检查当前 Grant、Identity 和 Provider 回复路径。查询不写入 Outbox。发送时由原路径再次检查授权和回复窗口，查询结果只代表当时状态。
+
 Wake Policy 决定何时让 Orchestrator 看见新 attention：当前 step 完成后的安全边界、当前 turn 结束后，或 idle 时启动新 turn。普通外部消息不打断正在执行的 model/tool step；只有 DSH 明确支持且策略授权的控制路径才能 steer。就绪的 attention 按回合收割：忙碌期间新到的事件只把就绪集合置脏，当前回合结束（即空闲）时由一次 harvest turn 消费全部就绪项；主动 steer 只用于直接 @ 与 DM（ADR-0077）。
 
 ### Lark 接收与回答反馈（ADR-0149）
@@ -1853,4 +1855,5 @@ PersonaBot 的 Orchestrator Session 与 Assignment Session 可以各自运行在
 - **运行器切换**：Host 从 DSH Session 的模型可见消息中构造有大小限制的文本上下文，优先保留已提交的压缩摘要。从 DSH 模型切换到新引擎线程时，Host 只在首轮输入附上这段上下文。已有同步的引擎线程继续按原 ID 恢复。额度切换如果需要新线程，会沿用这条 Session 上下文路径，无需写入重建通知。切换时释放上一引擎进程并清除其空闲计时。切回 DSH 模型时，由原 Session 的持久化事件恢复 Agent，包含引擎执行的轮次。
 - **混合路由组**：本地 Host 的 BotRuntime 在 Orchestrator 轮次开始时按组内顺序选择就绪的 DSH 路由或订阅引擎。引擎额度休息时间沿用 EngineHost 的持久化额度记录。目标报告额度用尽后，BotRuntime 保持当前准入，在同一个 DSH Session 按顺序切换到尚未尝试的就绪目标。继续时使用已持久化的工具调用与结果，并根据已提交的回复记录拦截重复发送。全组都在休息时，Channel 才显示组的额度卡片。显式引擎选择优先。Assignment 支持混合路由组的 API 与引擎执行；Subagent 使用已授权 Routing Group 的 API 路由投影。新 Orchestrator Session 记录 Bot 的 Memory 目录供 DSH Agent 恢复，引擎进程仍在隔离工作目录运行。
 - **凭据**：不读取、不保存、不转发引擎 OAuth token；引擎进程环境中移除 `ANTHROPIC_API_KEY` 等 API key 变量；额度只用引擎自报数据；额度用尽不自动切换计费。
+- **订阅额度**：EngineHost 按账号在 `engines.json` 记录会话与每周额度窗口。主动刷新在该账号的目录中通过 Codex App Server 的 `account/rateLimits/read` 或 Claude Agent SDK 的结构化 `/usage` 查询。邮箱来自同一引擎的账号信息。只有具有 `modelSources.manage` 权限的 Human 可以刷新或读取邮箱，成员只能读取已授权账号的缓存额度。
 - **待定挂接**：方案 A（DSH Session 不跑内部 Agent，由 Host 写入事件）或方案 B（插件自有引擎 Session，投影到现有视图），由第 0 步验证决定。

@@ -2,7 +2,7 @@ import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
 import { afterEach, expect, it, vi } from 'vitest';
-import { type DshImOutboundService } from '../src/messaging/dsh-im.js';
+import { createDshImProvider, type DshImOutboundService } from '../src/messaging/dsh-im.js';
 import { event, fixture, sharedTarget, cleanup } from './messaging-inbound-fixtures.js';
 
 afterEach(cleanup);
@@ -345,6 +345,47 @@ it('does not let an unavailable grant for a different group block the responder 
     {
       botId: 'lark-bea',
       text: 'Original group reply',
+      route: { ...event().reply, actorId: 'ou-human-scoped-to-bea' },
+    },
+  ]);
+});
+
+it('ignores a grant from another Provider when replying to a shared source', async () => {
+  const fx = await secondResponder();
+  const fingerprint = 'c'.repeat(64);
+  const transport: DshImOutboundService = {
+    ...fx.publicService,
+    listBots: async () => [{ botId: 'other-lark-app', channel: 'feishu' }],
+    describeBot: async (botId) => {
+      const info = await fx.publicService.describeBot(botId);
+      return { ...info, account: { fingerprint } };
+    },
+  };
+  const other = createDshImProvider(transport);
+  if (!other) throw new Error('Missing alternate Provider fixture');
+  const providerId = 'test/other-feishu';
+  fx.core.externalMessaging.register({ ...other, id: providerId });
+  const target = (await fx.core.externalMessaging.targets(providerId, 'other-lark-app'))[0];
+  if (!target) throw new Error('Missing alternate Provider target');
+  await fx.core.externalMessaging.authorize({
+    botSlug: 'bea',
+    providerId,
+    accountRef: 'other-lark-app',
+    targetRef: target.ref,
+    fingerprint,
+    targetDigest: target.digest,
+  });
+
+  const reply = await fx.core.externalMessaging.reply(
+    'bea',
+    fx.sourceId,
+    'Original Provider reply',
+  );
+  expect(reply).toMatchObject({ state: 'provider-accepted', grantId: fx.responderGrant.id });
+  expect(fx.replies).toEqual([
+    {
+      botId: 'lark-bea',
+      text: 'Original Provider reply',
       route: { ...event().reply, actorId: 'ou-human-scoped-to-bea' },
     },
   ]);

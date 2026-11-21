@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/memory/plugin.ts`
 - `packages/core/src/memory/{image,image-http,markdown}.ts`
 - `packages/client/src/client/memory-{image-view,markdown-view}.tsx`
 - `apps/mobile/src/host/{memory-preview,native-memory-preview}.ts`

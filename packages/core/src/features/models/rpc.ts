@@ -91,6 +91,10 @@ export function engineAccounts(
   return unwrapAsync(methods.engineAccounts({ grantable }));
 }
 
+export function engineAccountQuotaRefresh(methods: EngineAccountBridgeMethods, id: string) {
+  return unwrapAsync(methods.engineAccountQuotaRefresh({ id }));
+}
+
 export function engineSelection(
   methods: import('../../engines/engine-selection-bridge.js').EngineSelectionBridgeMethods,
   request: import('../../engines/engine-selection-bridge.js').EngineSelectionRequest,

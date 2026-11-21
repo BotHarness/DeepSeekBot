@@ -1229,6 +1229,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return modelsRpc.engineAccounts(this.methods, grantable);
   }
 
+  engineAccountQuotaRefresh(id: string) {
+    return modelsRpc.engineAccountQuotaRefresh(this.methods, id);
+  }
+
   engineSelection(request: import('../engines/engine-selection-bridge.js').EngineSelectionRequest) {
     return modelsRpc.engineSelection(this.methods, request);
   }
@@ -3493,6 +3497,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'modelProviderEdit',
   'modelProviderRemove',
   'engineAccounts',
+  'engineAccountQuotaRefresh',
   'engineSelection',
   'engineAccountAdd',
   'engineAccountRename',

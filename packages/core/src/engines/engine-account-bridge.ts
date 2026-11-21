@@ -3,7 +3,12 @@ import { z } from 'zod';
 
 import type { BridgeMethodsDeps, BridgeResult } from '../bridge/methods.js';
 import type { HumanContext } from '../humans/context.js';
-import { invalidInput, modelFailure, requireModelSources } from '../models/provider-bridge.js';
+import {
+  canManageModelSources,
+  invalidInput,
+  modelFailure,
+  requireModelSources,
+} from '../models/provider-bridge.js';
 import { engineAccountFilter } from '../team/models.js';
 import type { EngineHost } from './engine-host.js';
 import { EngineRefusal } from './engine-session.js';
@@ -20,6 +25,7 @@ type Accounts = Pick<
   | 'cancelLogin'
   | 'submitClaudeCode'
   | 'resolveAccount'
+  | 'refreshQuota'
 >;
 type AccountList = ReturnType<Accounts['accounts']> & {
   engines: Awaited<ReturnType<Accounts['status']>>;
@@ -28,6 +34,9 @@ type AccountList = ReturnType<Accounts['accounts']> & {
 
 export interface EngineAccountBridgeMethods {
   engineAccounts(payload: unknown): Promise<BridgeResult<AccountList>>;
+  engineAccountQuotaRefresh(
+    payload: unknown,
+  ): Promise<BridgeResult<Awaited<ReturnType<Accounts['refreshQuota']>>>>;
   engineAccountAdd(payload: unknown): Promise<BridgeResult<ReturnType<Accounts['addAccount']>>>;
   engineAccountRename(
     payload: unknown,
@@ -55,7 +64,7 @@ const add = z.object({ engine, name, expectedRevision });
 const rename = z.object({ id, name, expectedRevision });
 const remove = z.object({ id, expectedRevision, confirm: z.literal(true) });
 const login = z.object({ id, engine: engine.optional() });
-const cancelLogin = z.object({ id });
+const accountId = z.object({ id });
 const submitCode = z.object({
   id,
   code: z
@@ -91,7 +100,9 @@ export function createEngineAccountBridge(
         list,
         payload,
         async (host, input) => {
-          const snapshot = host.accounts();
+          const snapshot = host.accounts(
+            input.grantable !== true || canManageModelSources(human, deps.team),
+          );
           if (input.grantable) {
             const allowed = engineAccountFilter(deps.team, human);
             return {
@@ -107,6 +118,9 @@ export function createEngineAccountBridge(
             requireModelSources(human, deps.team);
         },
       );
+    },
+    engineAccountQuotaRefresh(payload) {
+      return run(accountId, payload, (host, input) => host.refreshQuota(input.id));
     },
     engineAccountAdd(payload) {
       return run(add, payload, (host, input) =>
@@ -133,7 +147,7 @@ export function createEngineAccountBridge(
       });
     },
     engineAccountLoginCancel(payload) {
-      return run(cancelLogin, payload, (host, input) => host.cancelLogin(input.id));
+      return run(accountId, payload, (host, input) => host.cancelLogin(input.id));
     },
     engineAccountSubmitCode(payload) {
       return run(submitCode, payload, (host, input) => host.submitClaudeCode(input.id, input.code));

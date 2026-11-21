@@ -35,7 +35,7 @@ The same decision, `allowed-always-tool`, comes from the Web card, the phone car
 
 Why: the Human asked for the same three actions on every approval. A rule that remembers the tool, not the input, matches how people think about trust ("this Bot may run tests"); a rule wider than the tool would silently grant things the Human never saw.
 
-Enforced by: `tool-approval-rules.test.ts`, `secret-cli-approval-rule.test.ts`, `lark-approval.test.ts`, `tool-approval-history.test.ts`.
+Enforced by: `tool-approval-rules.test.ts`, `secret-cli-approval-rule.test.ts`, `lark-approval-standing-rules.test.ts`, `tool-approval-history.test.ts`.
 
 ## 3. Management and device calls accept only an explicit Human answer
 
@@ -115,4 +115,4 @@ On send, the Host resolves each selected Skill and stores its name, owner, path 
 
 Why: An explicit selection fixes the text at send time even if the Skill changes later. Independent routing lets a Human send one Bot the text of another Bot's Skill while keeping file access with its existing owner.
 
-Enforced by: [Host catalog, routing and snapshots](../../packages/core/test/skill-invocation.test.ts), [Workspace Skill lookup and revocation](../../packages/core/test/workspace-skills.test.ts), and [Channel file access](../../packages/core/test/grant-execution.test.ts).
+Enforced by: [Host Skill catalog](../../packages/core/test/skill-invocation-catalog.test.ts), [Human DM routing and snapshots](../../packages/core/test/skill-invocation-human-dm.test.ts), [Group Channel Skill Invocation](../../packages/core/test/skill-invocation-group-channel.test.ts), [Workspace Skill lookup and revocation](../../packages/core/test/workspace-skills.test.ts), and [Channel file access](../../packages/core/test/grant-execution.test.ts).
