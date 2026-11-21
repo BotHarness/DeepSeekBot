@@ -519,6 +519,8 @@ export const CLI_EFFECTS = {
   'user-question-answer': { effects: external, brokerRead: false },
   'user-question-status': { effects: read, brokerRead: true },
   'voice-asr-set': { effects: write, brokerRead: false },
+  'voice-catalog': { effects: { ...externalRead, secrets: true }, brokerRead: false },
+  'voice-catalog-import': { effects: { ...external, secrets: true }, brokerRead: false },
   'voice-default-set': { effects: write, brokerRead: false },
   'voice-defaults': { effects: read, brokerRead: true },
   'voice-dictate': { effects: external, brokerRead: false },

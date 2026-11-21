@@ -1842,6 +1842,36 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return voiceRpc.voiceProviders(this.methods, slug);
   }
 
+  voiceCatalog(
+    kind: string,
+    preset: string,
+    collection: string,
+    key: string,
+    query?: string,
+    cursor?: string,
+  ) {
+    return voiceRpc.voiceCatalog(this.methods, kind, preset, collection, key, query, cursor);
+  }
+
+  voiceCatalogImport(
+    preset: string,
+    ownerId: string,
+    voiceId: string,
+    name: string,
+    key: string,
+    confirmed: boolean,
+  ) {
+    return voiceRpc.voiceCatalogImport(
+      this.methods,
+      preset,
+      ownerId,
+      voiceId,
+      name,
+      key,
+      confirmed,
+    );
+  }
+
   voiceProviderAdd(
     preset: string,
     name?: string,
@@ -3742,6 +3772,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'approvalReviewerModel',
   'approvalReviewerModelSet',
   'voiceProviders',
+  'voiceCatalog',
+  'voiceCatalogImport',
   'voiceProviderAdd',
   'voiceProviderRemove',
   'voiceProviderTest',

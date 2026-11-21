@@ -8,7 +8,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
-import { chineseScript, MAX_TTS_AUDIO_BYTES, VoiceProviders } from '../src/voice/providers.js';
+import {
+  chineseScript,
+  MAX_TTS_AUDIO_BYTES,
+  VoiceProviders,
+  wavFromPcm16,
+} from '../src/voice/providers.js';
 import { speakableText } from '../src/voice/speakable.js';
 import { createTempRoot } from './helpers.js';
 import { requestListener } from './async-listener.js';
@@ -182,6 +187,57 @@ describe('TTS Provider owner', () => {
       bytes: MP3.length,
     });
     expect(service.requests[1]?.body['audio']).toMatchObject({ voice: 'Mia' });
+  });
+
+  it('transcribes a Xiaomi MiMo recording with the same ASR binding and health checks', async () => {
+    const service = await fakeTts(() => ({
+      status: 200,
+      body: JSON.stringify({ choices: [{ message: { content: ' 你好。\n请坐。 ' } }] }),
+    }));
+    const { providers } = await fixture();
+    const asr = await providers.add({
+      kind: 'asr',
+      preset: 'xiaomi-mimo',
+      baseUrl: `${service.url}/v1`,
+      key: 'mimo-fixture-key',
+      language: 'zh-CN',
+    });
+    const audio = wavFromPcm16(new Int16Array([0, 100, 0]), 16_000);
+    expect(asr).toMatchObject({ model: 'mimo-v2.5-asr', wire: 'mimo', streaming: false });
+    expect(await providers.transcribe({ providerId: asr.id, audio })).toMatchObject({
+      text: '你好。 请坐。',
+    });
+    expect(service.requests[0]).toMatchObject({
+      url: '/v1/chat/completions',
+      headers: { 'api-key': 'mimo-fixture-key' },
+      body: {
+        model: 'mimo-v2.5-asr',
+        asr_options: { language: 'zh' },
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'input_audio',
+                input_audio: {
+                  data: `data:audio/wav;base64,${Buffer.from(audio).toString('base64')}`,
+                },
+              },
+            ],
+          },
+        ],
+      },
+    });
+    await expect(
+      providers.transcribe({ providerId: asr.id, audio: Buffer.from('OggS') }),
+    ).rejects.toMatchObject({ code: 'invalid-input' });
+    const oversized = Buffer.alloc(7_500_001);
+    oversized.set(audio);
+    await expect(
+      providers.transcribe({ providerId: asr.id, audio: oversized }),
+    ).rejects.toMatchObject({ code: 'audio-too-large' });
+    expect(service.requests).toHaveLength(1);
+    expect(await providers.test(asr.id)).toMatchObject({ ok: true, mime: 'text/plain' });
   });
 
   it.each([

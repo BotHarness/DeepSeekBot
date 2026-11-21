@@ -323,6 +323,8 @@ export const bridgeMethodInventory = [
   'approvalReviewerModel',
   'approvalReviewerModelSet',
   'voiceProviders',
+  'voiceCatalog',
+  'voiceCatalogImport',
   'voiceProviderAdd',
   'voiceProviderRemove',
   'voiceProviderTest',

@@ -27,7 +27,7 @@ afterEach(async () => {
   for (const close of cleanup.splice(0).reverse()) await close();
 });
 
-async function host() {
+async function host(fetch?: typeof globalThis.fetch) {
   const seen: { url: string; auth?: string; body: Record<string, unknown> }[] = [];
   const server = createServer((request, response) => {
     let raw = '';
@@ -70,6 +70,7 @@ async function host() {
     providers: new VoiceProviders({
       database: attachOperationalModule(owner, 'voice'),
       credentials: () => ctx.credentials,
+      ...(fetch === undefined ? {} : { fetch }),
     }),
     registry,
   }) as unknown as Record<string, (payload: unknown) => unknown>;
@@ -98,6 +99,130 @@ async function host() {
 }
 
 describe('deepseekbot voice commands', () => {
+  it('looks up only the requested catalog and imports a public voice after confirmation', async () => {
+    const requests: Request[] = [];
+    const { run, calls } = await host(async (input, init) => {
+      const request = new Request(input, init);
+      requests.push(request);
+      const url = new URL(request.url);
+      if (url.host === 'api.xiaomimimo.com')
+        return Response.json({
+          data: [
+            { id: 'mimo-v2.5-tts' },
+            { id: 'mimo-v2.5-asr' },
+            { id: 'mimo-v2.5-tts-voiceclone' },
+          ],
+        });
+      if (url.host === 'api.fish.audio')
+        return Response.json({
+          items: [
+            { _id: 'hidden', title: 'Private', visibility: 'private' },
+            { _id: 'public', title: 'Public', visibility: 'public' },
+          ],
+          total: 100,
+          has_more: true,
+        });
+      if (url.pathname === '/v1/models')
+        return Response.json([
+          { model_id: 'eleven_flash', name: 'Flash', can_do_text_to_speech: true },
+          { model_id: 'scribe', can_do_text_to_speech: false },
+        ]);
+      if (url.pathname === '/v2/voices')
+        return Response.json({
+          voices: [{ voice_id: 'saved-voice', name: 'Saved' }],
+          has_more: true,
+          next_page_token: 'opaque-page',
+        });
+      if (url.pathname === '/v1/shared-voices')
+        return Response.json({
+          voices: [{ voice_id: 'public-voice', name: 'Shared', public_owner_id: 'owner-1' }],
+          has_more: false,
+        });
+      if (url.pathname === '/v1/voices/add/owner-1/public-voice')
+        return Response.json({ voice_id: 'added-voice' });
+      return new Response(null, { status: 404 });
+    });
+    const values = { 'key-stdin': true };
+    const key = 'test-only-catalog-key';
+    expect(
+      await run('voice-catalog', ['xiaomi-mimo', 'models'], { ...values, kind: 'asr' }, key),
+    ).toEqual({ items: [{ id: 'mimo-v2.5-asr', name: 'mimo-v2.5-asr' }] });
+    expect(requests[0]?.headers.get('api-key')).toBe(key);
+    expect(
+      await run(
+        'voice-catalog',
+        ['fish-audio', 'account'],
+        { ...values, cursor: '2', query: 'private' },
+        key,
+      ),
+    ).toMatchObject({ items: [{ id: 'hidden' }, { id: 'public' }], nextCursor: '3' });
+    expect(new URL(requests[1]!.url).searchParams).toEqual(
+      new URLSearchParams({
+        self: 'true',
+        page_number: '2',
+        page_size: '25',
+        title: 'private',
+      }),
+    );
+    expect(requests[1]?.headers.get('Authorization')).toBe(`Bearer ${key}`);
+    expect(await run('voice-catalog', ['fish-audio', 'public'], values, key)).toMatchObject({
+      items: [{ id: 'public' }],
+      nextCursor: '2',
+    });
+    expect(await run('voice-catalog', ['elevenlabs', 'models'], values, key)).toEqual({
+      items: [{ id: 'eleven_flash', name: 'Flash' }],
+    });
+    expect(requests[3]?.headers.get('xi-api-key')).toBe(key);
+    expect(
+      await run(
+        'voice-catalog',
+        ['elevenlabs', 'account'],
+        { ...values, cursor: 'older-page' },
+        key,
+      ),
+    ).toEqual({ items: [{ id: 'saved-voice', name: 'Saved' }], nextCursor: 'opaque-page' });
+    expect(new URL(requests[4]!.url).searchParams.get('next_page_token')).toBe('older-page');
+    expect(await run('voice-catalog', ['elevenlabs', 'public'], values, key)).toEqual({
+      items: [{ id: 'public-voice', name: 'Shared', importFrom: 'owner-1' }],
+    });
+    await expect(
+      run(
+        'voice-catalog-import',
+        ['elevenlabs', 'owner-1', 'public-voice'],
+        { ...values, name: 'Shared' },
+        key,
+      ),
+    ).rejects.toMatchObject({ code: 'usage' });
+    await expect(
+      run(
+        'voice-catalog-import',
+        ['fish-audio', 'owner-1', 'public-voice'],
+        {
+          ...values,
+          name: 'Shared',
+          confirm: true,
+        },
+        key,
+      ),
+    ).rejects.toMatchObject({ code: 'invalid-input' });
+    expect(requests).toHaveLength(6);
+    const imported = await run(
+      'voice-catalog-import',
+      ['elevenlabs', 'owner-1', 'public-voice'],
+      {
+        ...values,
+        name: 'Shared',
+        confirm: true,
+      },
+      key,
+    );
+    expect(imported).toEqual({ voice: { id: 'added-voice', name: 'Shared' } });
+    expect(calls.at(-1)?.[0]).toBe('voiceCatalogImport');
+    expect(requests[6]?.method).toBe('POST');
+    expect(await requests[6]?.json()).toEqual({ new_name: 'Shared' });
+    expect(JSON.stringify(await run('voice-providers', []))).not.toContain(key);
+  });
+
   it('adds, tests, binds, synthesizes and removes a provider without printing the key', async () => {
     const { run, calls, seen, root, url } = await host();
     const added = (await run(

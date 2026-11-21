@@ -14,6 +14,32 @@ import type {
 import type { PersonaBotAsr, PersonaBotVoice } from '../../bots/persona-bot.js';
 import type { VoiceBridgeMethods } from './methods.js';
 
+export function voiceCatalog(
+  methods: VoiceBridgeMethods,
+  kind: string,
+  preset: string,
+  collection: string,
+  key: string,
+  query?: string,
+  cursor?: string,
+) {
+  return unwrapAsync(methods.voiceCatalog({ kind, preset, collection, key, query, cursor }));
+}
+
+export function voiceCatalogImport(
+  methods: VoiceBridgeMethods,
+  preset: string,
+  ownerId: string,
+  voiceId: string,
+  name: string,
+  key: string,
+  confirmed: boolean,
+) {
+  return unwrapAsync(
+    methods.voiceCatalogImport({ preset, ownerId, voiceId, name, key, confirmed }),
+  );
+}
+
 export function voiceProviders(methods: VoiceBridgeMethods, slug?: string): VoiceProvidersView {
   return unwrap(methods.voiceProviders(slug === undefined ? {} : { slug }));
 }

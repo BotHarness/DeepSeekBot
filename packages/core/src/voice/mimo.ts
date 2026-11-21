@@ -2,6 +2,8 @@ import { z } from 'zod';
 
 export const MIMO_TTS_MODEL = 'mimo-v2.5-tts';
 export const MIMO_TTS_VOICE = 'mimo_default';
+export const MIMO_ASR_MODEL = 'mimo-v2.5-asr';
+export const MIMO_ASR_MAX_BASE64_BYTES = 10_000_000;
 
 const ttsResponse = z.object({
   choices: z.tuple(
@@ -10,6 +12,24 @@ const ttsResponse = z.object({
   ),
 });
 
+const asrResponse = z.object({
+  choices: z.tuple([z.object({ message: z.object({ content: z.string() }) })], z.unknown()),
+});
+
+function mimoChat(baseUrl: string, key: string | undefined, payload: object) {
+  return {
+    url: `${baseUrl}/chat/completions`,
+    init: {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(key === undefined ? {} : { 'api-key': key }),
+      },
+      body: JSON.stringify(payload),
+    },
+  };
+}
+
 export function mimoTtsRequest(options: {
   baseUrl: string;
   model: string | undefined;
@@ -17,21 +37,39 @@ export function mimoTtsRequest(options: {
   key: string | undefined;
   text: string;
 }): { url: string; init: RequestInit } {
-  return {
-    url: `${options.baseUrl}/chat/completions`,
-    init: {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(options.key === undefined ? {} : { 'api-key': options.key }),
+  return mimoChat(options.baseUrl, options.key, {
+    model: options.model ?? MIMO_TTS_MODEL,
+    messages: [{ role: 'assistant', content: options.text }],
+    audio: { format: 'mp3', voice: options.voice ?? MIMO_TTS_VOICE },
+  });
+}
+
+export function mimoAsrRequest(options: {
+  baseUrl: string;
+  model: string | undefined;
+  key: string | undefined;
+  audio: Uint8Array;
+  mime: 'audio/wav' | 'audio/mpeg';
+  language: string | undefined;
+}) {
+  const { audio, mime } = options;
+  const base64 = Buffer.from(audio.buffer, audio.byteOffset, audio.byteLength).toString('base64');
+  const language = options.language?.split('-')[0];
+  return mimoChat(options.baseUrl, options.key, {
+    model: options.model ?? MIMO_ASR_MODEL,
+    messages: [
+      {
+        role: 'user',
+        content: [{ type: 'input_audio', input_audio: { data: `data:${mime};base64,${base64}` } }],
       },
-      body: JSON.stringify({
-        model: options.model ?? MIMO_TTS_MODEL,
-        messages: [{ role: 'assistant', content: options.text }],
-        audio: { format: 'mp3', voice: options.voice ?? MIMO_TTS_VOICE },
-      }),
-    },
-  };
+    ],
+    asr_options: { language: language === 'zh' || language === 'en' ? language : 'auto' },
+  });
+}
+
+export function mimoTranscript(body: unknown): string | undefined {
+  const result = asrResponse.safeParse(body);
+  return result.success ? result.data.choices[0].message.content : undefined;
 }
 
 export const mimoTtsResponse = {

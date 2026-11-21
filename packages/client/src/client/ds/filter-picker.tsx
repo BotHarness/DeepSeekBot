@@ -254,7 +254,9 @@ export function FilterPicker({
   onSelect,
   closeOnSelect,
   onBrowse,
+  onSearchChange,
   filters,
+  showSingleFilter = false,
   filtersLabel,
   allFilter,
   searchLabel,
@@ -274,13 +276,17 @@ export function FilterPicker({
   onSelect(value: string): void;
   closeOnSelect: boolean;
   onBrowse?: (() => void) | undefined;
+  onSearchChange?: ((query: string) => void) | undefined;
   filters: readonly FilterPickerFilter[];
+  showSingleFilter?: boolean;
   filtersLabel: string;
   allFilter: FilterPickerFilter;
   searchLabel: string;
   emptyLabel: string;
   side?: FilterPickerSide | undefined;
-  footer?: { label: string; icon: ReactNode; onSelect(): void } | undefined;
+  footer?:
+    | { label: string; icon: ReactNode; closeOnSelect?: boolean; onSelect(): void }
+    | undefined;
   busy?: boolean;
   favorites?: FilterPickerFavorites | undefined;
   notice?: string | undefined;
@@ -298,6 +304,7 @@ export function FilterPicker({
       : allFilter.key,
   );
   const favoriteKey = favorites?.filter.key;
+  const showFilters = filters.length > 1 || (showSingleFilter && filters.length > 0);
   const [query, setQuery] = useState('');
   const [held, setHeld] = useState<ReadonlySet<string>>();
   const listed = (option: FilterPickerOption) =>
@@ -433,12 +440,12 @@ export function FilterPicker({
       style={position}
     >
       <div {...stylex.props(styles.body)}>
-        {filters.length > 1 || favorites !== undefined ? (
+        {showFilters || favorites !== undefined ? (
           <div role="group" aria-label={filtersLabel} {...stylex.props(styles.rail)}>
             {[
               ...(favorites === undefined ? [] : [favorites.filter]),
               allFilter,
-              ...(filters.length > 1 ? filters : []),
+              ...(showFilters ? filters : []),
             ].map((entry) => (
               <button
                 key={entry.key}
@@ -482,6 +489,7 @@ export function FilterPicker({
               autoComplete="off"
               onChange={(event) => {
                 setQuery(event.target.value);
+                onSearchChange?.(event.target.value);
                 onBrowse?.();
                 setActive(undefined);
               }}
@@ -644,7 +652,8 @@ export function FilterPicker({
             type="button"
             data-picker-footer=""
             onClick={() => {
-              onClose();
+              if (footer.closeOnSelect === false) searchInput.current?.focus();
+              else onClose();
               footer.onSelect();
             }}
             {...stylex.props(styles.footerButton)}

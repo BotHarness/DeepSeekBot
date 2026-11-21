@@ -3,8 +3,22 @@ import type WebSocket from 'ws';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
 
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
+import {
+  voiceCatalogImportRequest,
+  voiceCatalogRequest,
+  type VoiceCatalogImportInput,
+  type VoiceCatalogInput,
+  type VoiceCatalogItem,
+  type VoiceCatalogPage,
+} from './catalog.js';
 import { LOCAL_VOICE_SCRIPT_NAME } from './local-kit.js';
-import { mimoTtsRequest, mimoTtsResponse } from './mimo.js';
+import {
+  MIMO_ASR_MAX_BASE64_BYTES,
+  mimoAsrRequest,
+  mimoTranscript,
+  mimoTtsRequest,
+  mimoTtsResponse,
+} from './mimo.js';
 import { clampSpeechDbfs, DEFAULT_SPEECH_DBFS, SPEECH_DBFS_RANGE } from './vad.js';
 import {
   warmSoniox,
@@ -34,6 +48,8 @@ export const MAX_TTS_AUDIO_BYTES = 10 * 1024 * 1024;
 export const MAX_ASR_AUDIO_BYTES = 8 * 1024 * 1024;
 export const MAX_TRANSCRIPT_CHARS = 4_000;
 const DEFAULT_TIMEOUT_MS = 30_000;
+const CATALOG_TIMEOUT_MS = 8_000;
+const MAX_CATALOG_BODY_BYTES = 1024 * 1024;
 const MAX_PROVIDERS = 32;
 const PROVIDER_ID = /^(?:tts|asr)-[a-f0-9]{12}$/u;
 const LANGUAGE = /^[a-z]{2,3}(?:-[A-Za-z0-9]{2,8})?$/u;
@@ -510,6 +526,63 @@ export class VoiceProviders {
 
   asrPresets(): readonly AsrPreset[] {
     return ASR_PRESETS;
+  }
+
+  async catalog(input: VoiceCatalogInput): Promise<VoiceCatalogPage> {
+    const request = voiceCatalogRequest(input);
+    if (request === undefined)
+      throw new VoiceError(
+        'invalid-input',
+        'This speech service does not support that catalog or page.',
+      );
+    const data = request.parse(await this.#catalogJson(request, input.key));
+    if (data === undefined)
+      throw new VoiceError('provider-bad-response', 'The provider returned an invalid catalog.');
+    return data;
+  }
+
+  async importVoice(input: VoiceCatalogImportInput): Promise<VoiceCatalogItem> {
+    const request = voiceCatalogImportRequest(input);
+    if (request === undefined)
+      throw new VoiceError(
+        'invalid-input',
+        'This speech service does not support adding shared voices.',
+      );
+    const data = request.parse(await this.#catalogJson(request, input.key));
+    if (data === undefined)
+      throw new VoiceError(
+        'provider-bad-response',
+        'The provider did not return the added voice ID.',
+      );
+    return data;
+  }
+
+  async #catalogJson(request: { url: URL; init: RequestInit }, key: string): Promise<unknown> {
+    const signal = AbortSignal.timeout(Math.min(CATALOG_TIMEOUT_MS, this.#timeoutMs));
+    let response: Response;
+    try {
+      response = await this.#fetch(request.url, { ...request.init, signal, redirect: 'error' });
+    } catch (error) {
+      throw new VoiceError(
+        signal.aborted ? 'provider-timeout' : 'provider-unavailable',
+        signal.aborted
+          ? 'The provider catalog timed out.'
+          : unreachableMessage(request.url.origin, error),
+      );
+    }
+    if (!response.ok) throw statusError(response.status, await providerMessage(response, key));
+    try {
+      return JSON.parse(
+        new TextDecoder().decode(await readBounded(response, MAX_CATALOG_BODY_BYTES)),
+      );
+    } catch {
+      throw new VoiceError(
+        signal.aborted ? 'provider-timeout' : 'provider-bad-response',
+        signal.aborted
+          ? 'The provider catalog timed out.'
+          : 'The provider returned an invalid catalog response.',
+      );
+    }
   }
 
   #stored(id: string, kind?: VoiceProviderKind): StoredProvider {
@@ -997,31 +1070,19 @@ export class VoiceProviders {
     if (language !== undefined && !LANGUAGE.test(language))
       throw new VoiceError('invalid-input', 'Language must be a code such as en or zh.');
     const key = await this.#key(stored);
-    if (asrPresetOf(stored.preset).wire === 'soniox')
+    const wire = asrPresetOf(stored.preset).wire;
+    if (wire === 'soniox')
       return this.#sonioxFile(stored, key, input.audio, language, input.signal);
-    const form = new FormData();
-    form.append(
-      'file',
-      new Blob([input.audio as Uint8Array<ArrayBuffer>], { type: mime }),
-      `speech.${audioExtension(mime)}`,
-    );
-    form.append('model', stored.model ?? 'whisper-1');
-    form.append('response_format', 'json');
-    if (language !== undefined) form.append('language', language.split('-')[0]!);
-    const script = chineseScript(language);
-    if (script !== undefined) form.append('prompt', script);
+    const { url, init } =
+      wire === 'mimo'
+        ? this.#mimoAsr(stored, key, input.audio, mime, language)
+        : this.#openAiAsr(stored, key, input.audio, mime, language);
     const timeout = AbortSignal.timeout(this.#timeoutMs);
     const signal = input.signal === undefined ? timeout : AbortSignal.any([input.signal, timeout]);
     const started = performance.now();
     let response: Response;
     try {
-      response = await this.#fetch(`${stored.baseUrl}/audio/transcriptions`, {
-        method: 'POST',
-        headers: key === undefined ? {} : { Authorization: `Bearer ${key}` },
-        body: form,
-        signal,
-        redirect: 'error',
-      });
+      response = await this.#fetch(url, { ...init, signal, redirect: 'error' });
     } catch (error) {
       input.signal?.throwIfAborted();
       const code = timeout.aborted ? 'provider-timeout' : 'provider-unavailable';
@@ -1051,7 +1112,11 @@ export class VoiceProviders {
       throw new VoiceError('provider-bad-response', 'The provider did not return a transcript.');
     }
     const raw =
-      typeof body === 'object' && body !== null ? (body as Record<string, unknown>)['text'] : '';
+      wire === 'mimo'
+        ? mimoTranscript(body)
+        : typeof body === 'object' && body !== null && 'text' in body
+          ? body.text
+          : undefined;
     if (typeof raw !== 'string')
       throw new VoiceError('provider-bad-response', 'The provider did not return a transcript.');
     const text = raw
@@ -1067,6 +1132,55 @@ export class VoiceProviders {
       ms: latencyMs,
     });
     return { text, latencyMs };
+  }
+
+  #mimoAsr(
+    stored: StoredProvider,
+    key: string | undefined,
+    audio: Uint8Array,
+    mime: string,
+    language: string | undefined,
+  ) {
+    if (mime !== 'audio/wav' && mime !== 'audio/mpeg')
+      throw new VoiceError('invalid-input', 'Xiaomi MiMo needs WAV or MP3 audio.');
+    if (Math.ceil(audio.byteLength / 3) * 4 > MIMO_ASR_MAX_BASE64_BYTES)
+      throw new VoiceError('audio-too-large', 'The audio is too large for Xiaomi MiMo.');
+    return mimoAsrRequest({
+      baseUrl: stored.baseUrl,
+      model: stored.model,
+      key,
+      audio,
+      mime,
+      language,
+    });
+  }
+
+  #openAiAsr(
+    stored: StoredProvider,
+    key: string | undefined,
+    audio: Uint8Array,
+    mime: string,
+    language: string | undefined,
+  ) {
+    const form = new FormData();
+    form.append(
+      'file',
+      new Blob([audio as Uint8Array<ArrayBuffer>], { type: mime }),
+      `speech.${audioExtension(mime)}`,
+    );
+    form.append('model', stored.model ?? 'whisper-1');
+    form.append('response_format', 'json');
+    if (language !== undefined) form.append('language', language.split('-')[0]!);
+    const script = chineseScript(language);
+    if (script !== undefined) form.append('prompt', script);
+    return {
+      url: `${stored.baseUrl}/audio/transcriptions`,
+      init: {
+        method: 'POST',
+        headers: key === undefined ? {} : { Authorization: `Bearer ${key}` },
+        body: form,
+      },
+    };
   }
 
   async #sonioxFile(

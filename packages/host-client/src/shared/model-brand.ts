@@ -38,6 +38,11 @@ const MODEL_FAMILIES: readonly (readonly [ModelBrand, RegExp])[] = [
 ];
 
 const PROVIDER_BRANDS: readonly (readonly [ModelBrand, RegExp])[] = [
+  ['xiaomimimo', /xiaomi|\bmimo\b/],
+  ['fishaudio', /fish[\s-]?audio/],
+  ['elevenlabs', /eleven[\s-]?labs/],
+  ['groq', /\bgroq\b/],
+  ['soniox', /\bsoniox\b/],
   ['opencode', /opencode(?:-go)?/],
   ['deepseek', /deepseek/],
   ['openai', /openai|azure/],

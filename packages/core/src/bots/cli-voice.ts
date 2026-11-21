@@ -26,6 +26,9 @@ export interface VoiceValues {
   kind?: string;
   language?: string;
   file?: string;
+  query?: string;
+  cursor?: string;
+  confirm?: boolean;
 }
 
 export const VOICE_COMMANDS = [
@@ -35,9 +38,19 @@ export const VOICE_COMMANDS = [
       'list TTS and ASR Provider presets and the configured Providers (keys are never shown); --bot also shows its voice and speech recognition bindings',
   },
   {
+    command: 'voice-catalog',
+    description:
+      'browse a speech service catalog: <preset> <models|account|public> [--kind asr] [--query <text>] [--cursor <next-cursor>] --key-stdin',
+  },
+  {
+    command: 'voice-catalog-import',
+    description:
+      'add a shared voice to the provider account: <preset> <public-owner-id> <voice-id> --name <name> --key-stdin --confirm',
+  },
+  {
     command: 'voice-provider-add',
     description:
-      'add a TTS Provider from a preset (local, custom, fish-audio, elevenlabs, xiaomi-mimo, openai), or with --kind asr a speech recognition Provider (custom, local, openai, groq, or soniox which streams while the caller speaks; --language); key only from --key-stdin',
+      'add a TTS Provider from a preset (local, custom, fish-audio, elevenlabs, xiaomi-mimo, openai), or with --kind asr a speech recognition Provider (custom, local, openai, groq, xiaomi-mimo, or soniox which streams while the caller speaks; --language); key only from --key-stdin',
   },
   {
     command: 'voice-provider-remove',
@@ -143,6 +156,46 @@ export async function runVoiceCommand(
     positionals(command, rest, 0, 'no positional arguments');
     const rpc = await connect();
     return rpc('voiceProviders', values.bot?.trim() ? { slug: values.bot.trim() } : {});
+  }
+  if (command === 'voice-catalog') {
+    const [preset, collection] = positionals(command, rest, 2, '<preset> <models|account|public>');
+    const kind = values.kind ?? 'tts';
+    if (kind !== 'tts' && kind !== 'asr') usage('--kind must be tts or asr.');
+    if (collection !== 'models' && collection !== 'account' && collection !== 'public')
+      usage('Choose models, account or public.');
+    if (values['key-stdin'] !== true) usage('voice-catalog needs --key-stdin.');
+    const key = ((await io.readStdin?.()) ?? '').trim();
+    if (key === '') usage('--key-stdin read an empty key.');
+    const rpc = await connect();
+    return rpc('voiceCatalog', {
+      kind,
+      preset,
+      collection,
+      key,
+      query: values.query,
+      cursor: values.cursor,
+    });
+  }
+  if (command === 'voice-catalog-import') {
+    const [preset, ownerId, voiceId] = positionals(
+      command,
+      rest,
+      3,
+      '<preset> <public-owner-id> <voice-id>',
+    );
+    if (values.confirm !== true || values['key-stdin'] !== true || !values.name?.trim())
+      usage('voice-catalog-import needs --name, --key-stdin and --confirm.');
+    const key = ((await io.readStdin?.()) ?? '').trim();
+    if (key === '') usage('--key-stdin read an empty key.');
+    const rpc = await connect();
+    return rpc('voiceCatalogImport', {
+      preset,
+      ownerId,
+      voiceId,
+      name: values.name,
+      key,
+      confirmed: true,
+    });
   }
   if (command === 'voice-provider-add') {
     const [preset] = positionals(command, rest, 1, 'one preset id');

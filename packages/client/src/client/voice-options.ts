@@ -1,10 +1,11 @@
-import { uniqueProviderName } from '../../../core/src/voice/presets.js';
+import { uniqueProviderName } from '@botharness/host-protocol/voice-catalog';
 
 export const CUSTOM_CHOICE = '\u0000custom';
 
 export interface Choice {
   readonly choice: string;
   readonly custom: string;
+  readonly catalogName?: string;
 }
 
 export function choiceValues(options: readonly string[], fallback?: string): string[] {

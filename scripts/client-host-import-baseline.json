@@ -555,9 +555,6 @@
   "packages/client/src/client/voice-call-record.tsx": {
     "../../../core/src/voice/call-view.js": 1
   },
-  "packages/client/src/client/voice-options.ts": {
-    "../../../core/src/voice/presets.js": 1
-  },
   "packages/client/src/client/window-companion-view.tsx": {
     "../../../core/src/bots/avatar-appearance.js": 1,
     "../../../core/src/companions/feed.js": 1,

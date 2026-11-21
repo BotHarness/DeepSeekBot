@@ -11,6 +11,10 @@ import type {
   VoiceProviderView as TtsProviderView,
   VoiceProvidersView,
   VoiceSynthesisView,
+  VoiceCatalogImportInput,
+  VoiceCatalogInput,
+  VoiceCatalogItem,
+  VoiceCatalogPage,
 } from '../../voice-bridge.js';
 
 export interface VoiceProviderAddInput {
@@ -38,11 +42,48 @@ export function createVoiceBridge(
     call: BridgeCall,
     method: string,
     payload: Record<string, unknown>,
+    signal?: AbortSignal,
   ): Promise<Record<string, unknown>> {
-    const result = await call(method, payload);
+    const result = await call(method, payload, signal);
     if (!result.ok)
       throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
     return record(result.value, method);
+  }
+
+  function catalogItem(raw: unknown, method: string): VoiceCatalogItem {
+    const item = record(raw, method);
+    const { id, name, importFrom } = item;
+    if (
+      typeof id !== 'string' ||
+      typeof name !== 'string' ||
+      (importFrom !== undefined && typeof importFrom !== 'string')
+    )
+      throw new Error(`invalid ${method} response`);
+    return { id, name, ...(importFrom === undefined ? {} : { importFrom }) };
+  }
+
+  async function browseVoiceCatalog(
+    call: BridgeCall,
+    input: VoiceCatalogInput,
+    signal?: AbortSignal,
+  ): Promise<VoiceCatalogPage> {
+    const method = 'voiceCatalog';
+    const { items, nextCursor } = await unwrap(call, method, { ...input }, signal);
+    if (!Array.isArray(items) || (nextCursor !== undefined && typeof nextCursor !== 'string'))
+      throw new Error(`invalid ${method} response`);
+    return {
+      items: items.map((item) => catalogItem(item, method)),
+      ...(nextCursor === undefined ? {} : { nextCursor }),
+    };
+  }
+
+  async function importSharedVoice(
+    call: BridgeCall,
+    input: VoiceCatalogImportInput,
+  ): Promise<VoiceCatalogItem> {
+    const method = 'voiceCatalogImport';
+    const { voice } = await unwrap(call, method, { ...input });
+    return catalogItem(voice, method);
   }
 
   function provider(value: unknown, method: string): TtsProviderView {
@@ -219,6 +260,8 @@ export function createVoiceBridge(
   }
   return {
     loadVoiceProviders,
+    browseVoiceCatalog,
+    importSharedVoice,
     addVoiceProvider,
     removeVoiceProvider,
     testVoiceProvider,

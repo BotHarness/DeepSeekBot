@@ -450,11 +450,11 @@
     },
     {
       "id": "desktop.voice.provider-mimo",
-      "label": "Choose Xiaomi MiMo, test speech synthesis and verify the MP3",
+      "label": "Choose Xiaomi MiMo TTS or ASR and browse speech models and account or public voices before saving",
       "source": "packages/client/src/client/voice-settings.tsx",
       "guide": ".agents/skills/verify-deepseekbot/features/voice-provider-mimo.md",
       "task": 4729,
-      "gap": "An upstream MiMo key is required for live synthesis; the local fixture validates the wire and Web/CLI integration."
+      "gap": "Live speech and catalog checks require provider keys. A fixture can validate Host, Web and CLI integration without external account changes."
     },
     {
       "id": "desktop.release.identity",
