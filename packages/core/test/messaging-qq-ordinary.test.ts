@@ -394,6 +394,56 @@ it('QQ ordinary permission evidence does not collect or wake until the conversat
   expect(fx.logs.filter((entry) => entry.includes('ordinary-delivery-verified'))).toHaveLength(1);
 });
 
+it.each(['deadline', 'caller cancellation'] as const)(
+  'stops the QQ reply-capability query on %s during account inspection',
+  async (stop) => {
+    const fx = await fixture();
+    await fx.receive('addressed-request', true);
+    const sourceId = fx.runs.at(-1)?.triage?.current()[0];
+    if (sourceId === undefined) throw new Error('Missing addressed QQ source');
+    const messaging = fx.core.externalMessaging;
+    const source = messaging.inbound.read('ada', sourceId);
+    let markStarted = () => {};
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    let release = () => {};
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const describe = fx.transport.describeBot;
+    fx.transport.describeBot = async (botId) => {
+      markStarted();
+      await released;
+      return describe(botId);
+    };
+    const deadline = new AbortController();
+    const caller = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(deadline.signal);
+    const cancelled = new Error('Caller cancelled the reply-capability query');
+    try {
+      const result = messaging.replyCapability('ada', source, caller.signal).then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error }),
+      );
+      await started;
+      if (stop === 'deadline') deadline.abort();
+      else caller.abort(cancelled);
+      const completed = await Promise.race([result, tick('inspection pending')]);
+      expect(completed).toEqual(
+        stop === 'deadline'
+          ? { value: { state: 'unavailable', reason: 'provider-timeout' } }
+          : { error: cancelled },
+      );
+      expect(fx.transport.replyChecked).not.toHaveBeenCalled();
+    } finally {
+      timeout.mockRestore();
+      fx.transport.describeBot = describe;
+      release();
+    }
+  },
+);
+
 it.each(['image/png', 'application/octet-stream'])(
   'retains ordinary QQ %s in canonical storage only while the authorized group collects all',
   async (mediaType) => {

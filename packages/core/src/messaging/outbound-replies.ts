@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
+import { addAbortListener } from 'node:events';
 import type { InboundMessaging, ExternalSource } from './inbound.js';
 import { createMessagingFeedback } from './feedback.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { MessagingError, type MessagingAccount, type MessagingTarget } from './provider.js';
 import { PRIVATE_REFERENCE_IN_TEXT } from '../credentials/references.js';
-import { sourceReplyCapability } from './source-reply-capability.js';
+import { sourceReplyCapability, type SourceReplyCapability } from './source-reply-capability.js';
 import type {
   MessagingGrant,
   AccountReader,
@@ -110,7 +111,12 @@ export function createOutboundReplies(context: {
     return qualifyProviderReply(botSlug, source, value, entry, signal, true);
   };
 
-  async function replyGrantId(botSlug: string, source: ExternalSource, recordChanges: boolean) {
+  async function replyGrantId(
+    botSlug: string,
+    source: ExternalSource,
+    recordChanges: boolean,
+    signal?: AbortSignal,
+  ) {
     const ingress = database.read((db) =>
       db.prepare('SELECT bot_slug FROM messaging_grants WHERE id = ?').get(source.grantId),
     ) as { bot_slug: string } | undefined;
@@ -120,6 +126,7 @@ export function createOutboundReplies(context: {
     ) as { body: string }[];
     const matches: MessagingGrant[] = [];
     for (const row of rows) {
+      signal?.throwIfAborted();
       const value = JSON.parse(row.body) as MessagingGrant;
       if (
         value.platform !== source.platform ||
@@ -133,6 +140,7 @@ export function createOutboundReplies(context: {
       if (value.origin !== 'implicit') {
         const registered = provider(value.providerId);
         const targets = await bounded(registered.provider.targets(value.accountRef));
+        signal?.throwIfAborted();
         current(value.providerId, registered.token);
         if (
           !targets.some(
@@ -144,6 +152,7 @@ export function createOutboundReplies(context: {
           continue;
       }
       const entry = await check(value, undefined, recordChanges);
+      signal?.throwIfAborted();
       if (entry.inspected.target.receiveScope?.conversationId === source.event.conversation.id)
         matches.push(value);
     }
@@ -203,12 +212,14 @@ export function createOutboundReplies(context: {
       if (capability?.state !== 'requires-provider-check') return capability;
       const timeout = AbortSignal.timeout(10000);
       const probe = signal === undefined ? timeout : AbortSignal.any([signal, timeout]);
-      try {
-        const grantId = await replyGrantId(botSlug, source, false);
+      const inspect = async (): Promise<SourceReplyCapability> => {
+        probe.throwIfAborted();
+        const grantId = await replyGrantId(botSlug, source, false, probe);
+        probe.throwIfAborted();
         const value = context.grant(botSlug, grantId);
         const entry = await check(value, undefined, false);
-        const admitted = sourceForReply(botSlug, source.id, value);
         probe.throwIfAborted();
+        const admitted = sourceForReply(botSlug, source.id, value);
         if (!entry.provider.reply)
           return { state: 'unavailable', reason: 'capability-unavailable' };
         if (!entry.provider.qualifyReply) return capability;
@@ -217,10 +228,18 @@ export function createOutboundReplies(context: {
         if (latest.revokedAt || latest.revision !== value.revision)
           return { state: 'unavailable', reason: 'grant-revoked' };
         return { state: 'provider-checked' };
+      };
+      try {
+        return await new Promise<SourceReplyCapability>((resolve, reject) => {
+          const listener = addAbortListener(probe, () => reject(new MessagingError('cancelled')));
+          void inspect()
+            .then(resolve, reject)
+            .finally(() => listener[Symbol.dispose]());
+        });
       } catch (error) {
         signal?.throwIfAborted();
-        if (error instanceof MessagingError) return { state: 'unavailable', reason: error.code };
         if (timeout.aborted) return { state: 'unavailable', reason: 'provider-timeout' };
+        if (error instanceof MessagingError) return { state: 'unavailable', reason: error.code };
         throw error;
       }
     },
