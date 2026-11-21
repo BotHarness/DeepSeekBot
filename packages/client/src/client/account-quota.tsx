@@ -13,7 +13,7 @@ import { Note } from './ds/note.js';
 import { space } from './ds/tokens.stylex.js';
 import { ink, layer, radius, status as statusColor, type as typeScale } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { aboveCardToggle } from './sidebar-card.js';
+import { aboveListToggle } from './ds/list-card.js';
 import { shortTime } from './session-engine.js';
 
 const STALE_MS = 5 * 60_000;
@@ -96,7 +96,7 @@ export function MaskedEmail({ email, t }: { email: string; t: BotHarnessTranslat
   return (
     <Button
       variant="text"
-      xstyle={aboveCardToggle}
+      xstyle={aboveListToggle}
       aria-pressed={shown}
       aria-label={shown ? t('modelProviders.hideEmail') : t('modelProviders.showEmail')}
       title={shown ? t('modelProviders.hideEmail') : t('modelProviders.showEmail')}
@@ -218,7 +218,7 @@ export function QuotaRefreshButton({
         : updatedText(quota.observedAt, now, t);
   return (
     <IconButton
-      xstyle={aboveCardToggle}
+      xstyle={aboveListToggle}
       aria-label={t('modelProviders.quotaRefresh')}
       title={`${status} · ${t('modelProviders.quotaRefresh')}`}
       disabled={refresh.state === 'refreshing'}

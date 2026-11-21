@@ -38,7 +38,7 @@ import {
 import type { BotHarnessTranslate } from './locale.js';
 import { EngineBrandIcon } from './model-brand.js';
 import { engineAccountTitle, engineName } from './session-engine.js';
-import { aboveCardToggle, SidebarCardList, SidebarCardRow } from './sidebar-card.js';
+import { aboveListToggle, ListCard, ListCardItem } from './ds/list-card.js';
 import { roleLabel } from './team-roles.js';
 import { roleAllowsEngineAccount, type TeamRole } from './team-roles-bridge.js';
 
@@ -65,7 +65,6 @@ const styles = stylex.create({
     color: ink.secondary,
     whiteSpace: 'nowrap',
   },
-  rowMain: { alignItems: 'center' },
   titleLine: { display: 'flex', alignItems: 'center', gap: space.x3, minWidth: 0 },
   titleText: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
   quotaChip: {
@@ -120,7 +119,7 @@ function AccountMenu({
       align="end"
       anchor={
         <IconButton
-          xstyle={aboveCardToggle}
+          xstyle={aboveListToggle}
           aria-label={label}
           aria-haspopup="menu"
           aria-expanded={open}
@@ -414,7 +413,7 @@ export function SubscriptionAccounts({
         ) : engines.view.engines.length === 0 ? (
           <Note>{t('engine.localOnly')}</Note>
         ) : (
-          <SidebarCardList label={t('modelProviders.subscriptions')}>
+          <ListCard label={t('modelProviders.subscriptions')}>
             {engines.view.engines.map((status) => {
               const { engine, accountId } = status;
               const now = Date.now();
@@ -456,9 +455,8 @@ export function SubscriptionAccounts({
                     })
                   : undefined;
               return (
-                <SidebarCardRow
+                <ListCardItem
                   key={key}
-                  tight
                   toggle={
                     canToggleQuota && accountId !== undefined
                       ? {
@@ -472,7 +470,6 @@ export function SubscriptionAccounts({
                         }
                       : undefined
                   }
-                  mainClassName={stylex.props(styles.rowMain).className}
                   leading={
                     <EngineBrandIcon brand={engine === 'codex' ? 'openai' : 'claude'} size={20} />
                   }
@@ -492,7 +489,7 @@ export function SubscriptionAccounts({
                       </>
                     )
                   }
-                  controls={quotaOpen ? quotaId : undefined}
+                  detailId={quotaOpen ? quotaId : undefined}
                   detail={
                     signingIn ? (
                       <div {...stylex.props(styles.signInDetail)}>
@@ -575,7 +572,7 @@ export function SubscriptionAccounts({
                 />
               );
             })}
-          </SidebarCardList>
+          </ListCard>
         )}
         {engines.cancelFailed ? (
           <Note tone="danger">{t('modelProviders.cancelSignInFailed')}</Note>

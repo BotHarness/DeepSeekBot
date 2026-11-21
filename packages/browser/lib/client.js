@@ -1300,7 +1300,7 @@ window.__ModuleLoader__.load({
 		};
 		//#endregion
 		//#region packages/client/src/client/ds/button.tsx
-		const styles$5 = {
+		const styles$4 = {
 			base: {
 				kB7OPa: "bhx9f619",
 				k1xSpc: "bhx3nfvp2",
@@ -1354,9 +1354,9 @@ window.__ModuleLoader__.load({
 				kg3NbH: "bhxnjsko4",
 				kjj79g: "bhxlqzeqv",
 				kMwMTN: "bhx1heor9g",
-				kGuDYH: "bhx1qlqyl8",
-				kLWn49: "bhx15bjb6t",
-				k63SB2: "bhx1pd3egz",
+				kGuDYH: "bhxh82noc",
+				kLWn49: "bhx1g71p44",
+				k63SB2: "bhx17beyxc",
 				khDVqt: "bhxeaf4i8",
 				kHjlTd: "bhxj0a0fe",
 				k9WMMc: "bhx1yc453h",
@@ -1372,7 +1372,7 @@ window.__ModuleLoader__.load({
 				kmVPX3: "bhx1717udv",
 				kaIpWk: "bhx2u8bby",
 				kInvED: "bhx1xqv9of",
-				kWkggS: "bhxjbqb8w bhxqta4pg bhx9mj4i6",
+				kWkggS: "bhxjbqb8w",
 				$$css: true
 			},
 			toolbar: {
@@ -1404,7 +1404,7 @@ window.__ModuleLoader__.load({
 			}
 		};
 		const Button = (0, react.forwardRef)(function Button({ variant = "ghost", size = "md", icon, className, xstyle, children, style, ...rest }, ref) {
-			const styled = props(styles$5.base, styles$5[size], styles$5[variant], xstyle);
+			const styled = props(styles$4.base, styles$4[size], styles$4[variant], xstyle);
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("button", {
 				ref,
 				...rest,
@@ -1445,7 +1445,7 @@ window.__ModuleLoader__.load({
 		}
 		//#endregion
 		//#region packages/client/src/client/ds/tag.tsx
-		const styles$4 = {
+		const styles$3 = {
 			wrap: {
 				khDVqt: "bhxeaf4i8",
 				kHjlTd: "bhxj0a0fe",
@@ -1510,7 +1510,7 @@ window.__ModuleLoader__.load({
 				...props$1,
 				ref,
 				"data-tone": tone,
-				className: joinClass(props(styles$4.tag, styles$4[tone], wrap && styles$4.wrap).className, className)
+				className: joinClass(props(styles$3.tag, styles$3[tone], wrap && styles$3.wrap).className, className)
 			});
 		});
 		//#endregion
@@ -10639,7 +10639,7 @@ window.__ModuleLoader__.load({
 		//#endregion
 		//#region packages/client/src/client/ds/settings-row.tsx
 		const SettingsGroupContext = (0, react.createContext)(false);
-		const styles$3 = {
+		const styles$2 = {
 			rows: {
 				k1xSpc: "bhx78zum5",
 				kXwgrk: "bhxdt5ytf",
@@ -10651,12 +10651,12 @@ window.__ModuleLoader__.load({
 				kXwgrk: "bhxdt5ytf",
 				kOIVth: "bhx103m73q",
 				k7Eaqz: "bhxeuugli",
-				kg3NbH: "bhxf5xh8h bhx1decy8s bhx1qyef7o",
-				k8WAf4: "bhxggp0jn bhxup6t74 bhxvz3fld",
-				kaIpWk: "bhxdylm0v bhxtm8dy7",
+				kg3NbH: "bhxf5xh8h bhx1ybuqwd bhx15ye9kl",
+				k8WAf4: "bhxggp0jn bhxdlu19q bhx13lanjt",
+				kaIpWk: "bhxdylm0v bhx1uxs1jp",
 				kVQacm: "bhx7giv3",
-				kWkggS: "bhx18mhnxz bhxu7tw00",
-				kGVxlE: "bhx1yc4nx5 bhx6vyjea",
+				kWkggS: "bhx18mhnxz bhxm7pdw9",
+				kGVxlE: "bhx1yc4nx5 bhxs2xcy4",
 				$$css: true
 			},
 			row: {
@@ -10739,29 +10739,9 @@ window.__ModuleLoader__.load({
 				children
 			});
 		}
-		styles$3.row;
+		styles$2.row;
 		//#endregion
 		//#region packages/client/src/client/sidebar-card.tsx
-		const styles$2 = {
-			toggleLine: {
-				kVAEAm: "bhx1n2onr6",
-				$$css: true
-			},
-			tightMain: {
-				k8WAf4: "bhx1axou9h",
-				$$css: true
-			},
-			tightBody: {
-				kOIVth: "bhxxhr3t",
-				$$css: true
-			}
-		};
-		({ raised: {
-			kVAEAm: "bhx1n2onr6",
-			kY2c9j: "bhx1vjfegm",
-			$$css: true
-		} }).raised;
-		const withStyle = (base, extra) => extra === false ? base : `${base} ${props(extra).className ?? ""}`.trim();
 		function SidebarCardList({ label, className, listRef, flush = false, children }) {
 			if ((0, react.useContext)(SettingsGroupContext)) {
 				const part = { className: "bhx-default-marker bhxjp7ctv bhxe8uvvx" };
@@ -10782,7 +10762,7 @@ window.__ModuleLoader__.load({
 				children
 			});
 		}
-		function SidebarCardRow({ icon, leading, iconLabel, selection, title, titleClassName, badge, summary, flipKey, hint, chips, meta, trailing, trailingAlign, detail, onClick, onIntent, disabled, muted, mainClassName, dialog, expanded, controls, state, anchor, tight, toggle }) {
+		function SidebarCardRow({ icon, leading, iconLabel, selection, title, titleClassName, badge, summary, flipKey, hint, chips, meta, trailing, trailingAlign, detail, onClick, onIntent, disabled, muted, mainClassName, dialog, expanded, controls, state, anchor }) {
 			const inGroup = (0, react.useContext)(SettingsGroupContext);
 			const body = /* @__PURE__ */ (0, react_jsx_runtime.jsxs)(react_jsx_runtime.Fragment, { children: [
 				leading === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
@@ -10800,7 +10780,7 @@ window.__ModuleLoader__.load({
 					})
 				}),
 				/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("span", {
-					className: withStyle("bh-card-body", tight === true && styles$2.tightBody),
+					className: "bh-card-body",
 					children: [
 						badge === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
 							className: titleClassName === void 0 ? "bh-card-title" : "bh-card-title " + titleClassName,
@@ -10830,7 +10810,7 @@ window.__ModuleLoader__.load({
 					]
 				})
 			] });
-			const className = withStyle(mainClassName === void 0 ? "bh-card-main" : "bh-card-main " + mainClassName, tight === true && styles$2.tightMain);
+			const className = mainClassName === void 0 ? "bh-card-main" : "bh-card-main " + mainClassName;
 			return /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("li", {
 				className: "bh-card-row",
 				"data-settings-row": inGroup ? "" : void 0,
@@ -10840,51 +10820,41 @@ window.__ModuleLoader__.load({
 				"data-anchor": anchor,
 				"data-flip-key": flipKey,
 				children: [/* @__PURE__ */ (0, react_jsx_runtime.jsxs)("div", {
-					className: withStyle("bh-card-line", toggle !== void 0 && styles$2.toggleLine),
-					children: [
-						toggle === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)(Button, {
-							variant: "overlay",
-							"aria-label": toggle.label,
-							"aria-expanded": toggle.expanded,
-							"aria-controls": toggle.controls,
-							onClick: toggle.onToggle
-						}),
-						selection?.multiple === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
-							className,
-							title: hint,
-							children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
-								className: "bh-card-checkbox",
-								type: "checkbox",
-								checked: selection.checked,
-								disabled,
-								onChange: onClick
-							}), body]
-						}) : onClick === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
-							className,
-							title: hint,
-							children: body
-						}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
-							type: "button",
-							className,
-							title: hint,
+					className: "bh-card-line",
+					children: [selection?.multiple === true ? /* @__PURE__ */ (0, react_jsx_runtime.jsxs)("label", {
+						className,
+						title: hint,
+						children: [/* @__PURE__ */ (0, react_jsx_runtime.jsx)("input", {
+							className: "bh-card-checkbox",
+							type: "checkbox",
+							checked: selection.checked,
 							disabled,
-							"aria-pressed": selection?.checked,
-							"aria-haspopup": dialog === true ? "dialog" : void 0,
-							"aria-expanded": expanded,
-							"aria-controls": controls,
-							onClick,
-							onPointerEnter: onIntent === void 0 ? void 0 : (event) => {
-								if (event.pointerType !== "touch") onIntent();
-							},
-							onFocus: onIntent,
-							children: body
-						}),
-						trailing === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
-							className: "bh-card-trailing",
-							"data-card-trailing": trailingAlign,
-							children: trailing
-						})
-					]
+							onChange: onClick
+						}), body]
+					}) : onClick === void 0 ? /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
+						className,
+						title: hint,
+						children: body
+					}) : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("button", {
+						type: "button",
+						className,
+						title: hint,
+						disabled,
+						"aria-pressed": selection?.checked,
+						"aria-haspopup": dialog === true ? "dialog" : void 0,
+						"aria-expanded": expanded,
+						"aria-controls": controls,
+						onClick,
+						onPointerEnter: onIntent === void 0 ? void 0 : (event) => {
+							if (event.pointerType !== "touch") onIntent();
+						},
+						onFocus: onIntent,
+						children: body
+					}), trailing === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("span", {
+						className: "bh-card-trailing",
+						"data-card-trailing": trailingAlign,
+						children: trailing
+					})]
 				}), detail === void 0 ? null : /* @__PURE__ */ (0, react_jsx_runtime.jsx)("div", {
 					id: controls,
 					className: "bh-card-detail",
@@ -14797,7 +14767,6 @@ window.__ModuleLoader__.load({
 .bhx1sfpsak:not(#\\#):not(#\\#){border-width:1px}
 .bhx3psx0u:not(#\\#):not(#\\#){flex:0 0 auto}
 .bhx12lumcd:not(#\\#):not(#\\#){flex:1 1 auto}
-.bhxxhr3t:not(#\\#):not(#\\#){gap:0}
 .bhx1mckxr8:not(#\\#):not(#\\#){gap:12px}
 .bhxfe3e77:not(#\\#):not(#\\#){gap:12px}
 .bhx1c459s5:not(#\\#):not(#\\#){gap:2px}
@@ -14821,7 +14790,6 @@ window.__ModuleLoader__.load({
 .bhx1bcthrq:not(#\\#):not(#\\#){padding-block:2px}
 .bhx89kiln:not(#\\#):not(#\\#){padding-block:4px}
 .bhx1kz1gct:not(#\\#):not(#\\#){padding-block:8px}
-.bhx1axou9h:not(#\\#):not(#\\#){padding-block:calc(4px + 2px)}
 .bhxggp0jn:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-group-padding-block)}
 .bhx1nxcsqp:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-item-padding-block)}
 .bhxnjsko4:not(#\\#):not(#\\#){padding-inline:0}
@@ -14839,12 +14807,12 @@ window.__ModuleLoader__.load({
 .bhx1i94p6w:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}
 .bhxay4pf5:focus-within:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}
 .bhx1m95a6t:focus-visible:not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-solid)}
-.bhxup6t74:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section))):not(#\\#):not(#\\#){padding-block:calc(var(--tobs-style-list-group-padding-block) + var(--tobs-style-list-item-padding-block))}
-.bhx1decy8s:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section))):not(#\\#):not(#\\#){padding-inline:calc(var(--tobs-style-list-group-padding-inline) + var(--tobs-style-list-item-padding))}
-.bhxtm8dy7:has(> section):not(#\\#):not(#\\#){border-radius:0}
+.bhxdlu19q:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section, [data-list-card]), > * > [data-list-card])):not(#\\#):not(#\\#){padding-block:calc(var(--tobs-style-list-group-padding-block) + var(--tobs-style-list-item-padding-block))}
+.bhx1ybuqwd:not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section, [data-list-card]), > * > [data-list-card])):not(#\\#):not(#\\#){padding-inline:calc(var(--tobs-style-list-group-padding-inline) + var(--tobs-style-list-item-padding))}
+.bhx1uxs1jp:has(> :is(section, [data-list-card]), > * > [data-list-card]):not(#\\#):not(#\\#){border-radius:0}
 .bhx38levs:has(:focus-visible):not(#\\#):not(#\\#){outline:2px solid var(--tobs-accent-focus)}
-.bhxvz3fld:has(> section):not(#\\#):not(#\\#){padding-block:0}
-.bhx1qyef7o:has(> section):not(#\\#):not(#\\#){padding-inline:0}
+.bhx13lanjt:has(> :is(section, [data-list-card]), > * > [data-list-card]):not(#\\#):not(#\\#){padding-block:0}
+.bhx15ye9kl:has(> :is(section, [data-list-card]), > * > [data-list-card]):not(#\\#):not(#\\#){padding-inline:0}
 @media (max-width: 648px){.bhx32nsh3.bhx32nsh3:not(#\\#):not(#\\#){gap:8px}}
 @container bh-settings (max-width: 480px){.bhx1bsqh3l.bhx1bsqh3l:not(#\\#):not(#\\#){gap:8px}}
 .bhx-level-3:not(#\\#):not(#\\#):not(#\\#){}
@@ -14930,15 +14898,14 @@ window.__ModuleLoader__.load({
 .bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}
 .bhxh82noc:not(#\\#):not(#\\#):not(#\\#){font-size:12px}
 .bhx1cwq2zs:not(#\\#):not(#\\#):not(#\\#){font-size:calc(12px - 1px)}
-.bhx1qlqyl8:not(#\\#):not(#\\#):not(#\\#){font-size:inherit}
 .bhx1779mkw:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}
 .bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}
 .bhx134zi0a:not(#\\#):not(#\\#):not(#\\#){font-weight:400}
+.bhx17beyxc:not(#\\#):not(#\\#):not(#\\#){font-weight:400}
 .bhxo1l8bm:not(#\\#):not(#\\#):not(#\\#){font-weight:400}
 .bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}
 .bhxc9sfzf:not(#\\#):not(#\\#):not(#\\#){font-weight:500}
 .bhxk50ysn:not(#\\#):not(#\\#):not(#\\#){font-weight:500}
-.bhx1pd3egz:not(#\\#):not(#\\#):not(#\\#){font-weight:inherit}
 .bhxl56j7k:not(#\\#):not(#\\#):not(#\\#){justify-content:center}
 .bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}
 .bhx1qughib:not(#\\#):not(#\\#):not(#\\#){justify-content:space-between}
@@ -14948,7 +14915,6 @@ window.__ModuleLoader__.load({
 .bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}
 .bhx1g71p44:not(#\\#):not(#\\#):not(#\\#){line-height:16px}
 .bhxsxgpsl:not(#\\#):not(#\\#):not(#\\#){line-height:calc(16px + 1px)}
-.bhx15bjb6t:not(#\\#):not(#\\#):not(#\\#){line-height:inherit}
 .bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}
 .bhxe5wb2f:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}
 .bhxf9vgkq:not(#\\#):not(#\\#):not(#\\#){opacity:.72}
@@ -14984,7 +14950,6 @@ window.__ModuleLoader__.load({
 .bhxuxw1ft:not(#\\#):not(#\\#):not(#\\#){white-space:nowrap}
 .bhx126k92a:not(#\\#):not(#\\#):not(#\\#){white-space:pre-wrap}
 .bhx1ja2u2z:not(#\\#):not(#\\#):not(#\\#){z-index:0}
-.bhx1vjfegm:not(#\\#):not(#\\#):not(#\\#){z-index:1}
 .bhxp6lfbs:not(#\\#):not(#\\#):not(#\\#){z-index:1100}
 .bhx1i7x82i:not(#\\#):not(#\\#):not(#\\#){z-index:1200}
 .bhxacn7go:is([data-highlighted]):not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}
@@ -14993,8 +14958,8 @@ window.__ModuleLoader__.load({
 .bhx3h2lrv:is([aria-pressed=true], [data-drag-over]):not(#\\#):not(#\\#):not(#\\#){color:var(--tobs-style-choice-selected-ink)}
 .bhx1m8qfh3:is([data-disabled]):not(#\\#):not(#\\#):not(#\\#){cursor:default}
 .bhxxh3kiz:is([data-disabled]):not(#\\#):not(#\\#):not(#\\#){opacity:.5}
-.bhxu7tw00:has(> section):not(#\\#):not(#\\#):not(#\\#){background-color:transparent}
-.bhx6vyjea:has(> section):not(#\\#):not(#\\#):not(#\\#){box-shadow:none}
+.bhxm7pdw9:has(> :is(section, [data-list-card]), > * > [data-list-card]):not(#\\#):not(#\\#):not(#\\#){background-color:transparent}
+.bhxs2xcy4:has(> :is(section, [data-list-card]), > * > [data-list-card]):not(#\\#):not(#\\#):not(#\\#){box-shadow:none}
 .bhxozmhvb:has(input:disabled):not(#\\#):not(#\\#):not(#\\#){opacity:.5}
 .bhxtgyt42:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:default}
 .bhx1s07b3s:disabled:not(#\\#):not(#\\#):not(#\\#){cursor:not-allowed}

@@ -2,23 +2,11 @@ import { useContext, type ReactElement, type ReactNode, type Ref } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
-import { Button } from './ds/button.js';
 import { SettingsGroupContext } from './ds/settings-row.js';
-import { space } from './ds/tokens.stylex.js';
 
 const styles = stylex.create({
   inGroup: { display: 'contents', listStyle: 'none' },
-  toggleLine: { position: 'relative' },
-  tightMain: { paddingBlock: `calc(${space.x2} + ${space.x1})` },
-  tightBody: { gap: 0 },
 });
-
-export const aboveCardToggle = stylex.create({
-  raised: { position: 'relative', zIndex: 1 },
-}).raised;
-
-const withStyle = (base: string, extra: stylex.StyleXStyles | false): string =>
-  extra === false ? base : `${base} ${stylex.props(extra).className ?? ''}`.trim();
 
 export function SidebarCardList({
   label,
@@ -86,10 +74,6 @@ export interface SidebarCardRowProps {
   controls?: string | undefined;
   state?: string | undefined;
   anchor?: string | undefined;
-  tight?: boolean | undefined;
-  toggle?:
-    | { label: string; expanded: boolean; controls?: string | undefined; onToggle(): void }
-    | undefined;
 }
 
 export function SidebarCardRow({
@@ -118,8 +102,6 @@ export function SidebarCardRow({
   controls,
   state,
   anchor,
-  tight,
-  toggle,
 }: SidebarCardRowProps): ReactElement {
   const inGroup = useContext(SettingsGroupContext);
   const body = (
@@ -135,7 +117,7 @@ export function SidebarCardRow({
           <ChannelSidebarIcon name={icon} size={16} />
         </span>
       )}
-      <span className={withStyle('bh-card-body', tight === true && styles.tightBody)}>
+      <span className="bh-card-body">
         {badge === undefined ? (
           <span
             className={
@@ -162,10 +144,7 @@ export function SidebarCardRow({
       </span>
     </>
   );
-  const className = withStyle(
-    mainClassName === undefined ? 'bh-card-main' : 'bh-card-main ' + mainClassName,
-    tight === true && styles.tightMain,
-  );
+  const className = mainClassName === undefined ? 'bh-card-main' : 'bh-card-main ' + mainClassName;
   return (
     <li
       className="bh-card-row"
@@ -176,16 +155,7 @@ export function SidebarCardRow({
       data-anchor={anchor}
       data-flip-key={flipKey}
     >
-      <div className={withStyle('bh-card-line', toggle !== undefined && styles.toggleLine)}>
-        {toggle === undefined ? null : (
-          <Button
-            variant="overlay"
-            aria-label={toggle.label}
-            aria-expanded={toggle.expanded}
-            aria-controls={toggle.controls}
-            onClick={toggle.onToggle}
-          />
-        )}
+      <div className="bh-card-line">
         {selection?.multiple === true ? (
           <label className={className} title={hint}>
             <input
