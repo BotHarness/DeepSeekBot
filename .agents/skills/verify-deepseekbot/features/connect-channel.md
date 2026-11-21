@@ -2,6 +2,8 @@
 
 ## Sources
 
+- `packages/core/src/features/channels/{methods,rpc}.ts`
+- `packages/client/src/client/features/channels/bridge.ts`
 - `packages/core/src/devices/{connect,connect-*,bot-connect-*}.ts`
 - `apps/mobile/src/host/{native-connect-account,connect-follow}.ts`
 - `packages/client/src/client/connect-panel.tsx`
