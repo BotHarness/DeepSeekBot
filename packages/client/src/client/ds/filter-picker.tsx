@@ -433,34 +433,32 @@ export function FilterPicker({
       style={position}
     >
       <div {...stylex.props(styles.body)}>
-        {filters.length > 1 || favorites !== undefined ? (
+        {filters.length > 0 || favorites !== undefined ? (
           <div role="group" aria-label={filtersLabel} {...stylex.props(styles.rail)}>
-            {[
-              ...(favorites === undefined ? [] : [favorites.filter]),
-              allFilter,
-              ...(filters.length > 1 ? filters : []),
-            ].map((entry) => (
-              <button
-                key={entry.key}
-                type="button"
-                data-picker-filter={entry.key}
-                aria-pressed={filter === entry.key}
-                aria-label={entry.label}
-                title={entry.label}
-                onClick={() => {
-                  if (filter !== entry.key) {
-                    entry.onActivate?.();
-                    onBrowse?.();
-                  }
-                  setFilter(entry.key);
-                  setActive(undefined);
-                  setHeld(undefined);
-                }}
-                {...stylex.props(styles.railButton, filter === entry.key && styles.railSelected)}
-              >
-                {entry.icon}
-              </button>
-            ))}
+            {[...(favorites === undefined ? [] : [favorites.filter]), allFilter, ...filters].map(
+              (entry) => (
+                <button
+                  key={entry.key}
+                  type="button"
+                  data-picker-filter={entry.key}
+                  aria-pressed={filter === entry.key}
+                  aria-label={entry.label}
+                  title={entry.label}
+                  onClick={() => {
+                    if (filter !== entry.key) {
+                      entry.onActivate?.();
+                      onBrowse?.();
+                    }
+                    setFilter(entry.key);
+                    setActive(undefined);
+                    setHeld(undefined);
+                  }}
+                  {...stylex.props(styles.railButton, filter === entry.key && styles.railSelected)}
+                >
+                  {entry.icon}
+                </button>
+              ),
+            )}
           </div>
         ) : null}
         <div {...stylex.props(styles.main)}>
