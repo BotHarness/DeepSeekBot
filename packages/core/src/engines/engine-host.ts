@@ -37,6 +37,7 @@ import {
   type EngineSessionDescription,
 } from './engine-host-types.js';
 import { EngineTurnLog } from './engine-log.js';
+import { choiceKey, sessionAccount, sessionKey, workspaceModeFor } from './engine-session-keys.js';
 import { executeEngineTurnTool, type TurnScope } from './engine-turn-scope.js';
 import {
   ENGINE_DEFINITIONS,
@@ -97,30 +98,6 @@ interface LiveEngineSession {
 }
 
 const ORCHESTRATOR_IDLE_MS = 30_000;
-
-function choiceKey(engine: EngineId | undefined, choice: EngineChoice): string | undefined {
-  return engine === undefined
-    ? undefined
-    : JSON.stringify([engineAccountKey(engine, choice.accountId), choice.model, choice.effort]);
-}
-
-function sessionAccount(engine: EngineId, accountId: string): { accountId?: string } {
-  return engineAccountKey(engine) === accountId ? {} : { accountId };
-}
-
-function workspaceModeFor(request: EngineTurnRequest): EngineWorkspaceMode {
-  return (
-    request.workspaceMode?.() ?? (request.role === 'assignment' ? 'read-only' : 'workspace-write')
-  );
-}
-
-function sessionKey(
-  choice: string | undefined,
-  cwd: string | undefined,
-  mode: EngineWorkspaceMode,
-): string {
-  return JSON.stringify([choice, cwd, mode]);
-}
 
 export class EngineHost {
   readonly store: EngineStore;
