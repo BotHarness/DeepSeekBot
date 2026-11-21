@@ -62,3 +62,38 @@ it('browses and publishes Marketplace Avatars through the live Host and surfaces
   });
   expect(live.calls).toHaveLength(4);
 });
+
+it('applies through the same live Host method, requires a target, and preserves a refusal', async () => {
+  let allowed = true;
+  const live = await host((method) =>
+    method === 'marketplaceAvatarApplyCandidates'
+      ? ok({ bots: [{ slug: 'otter' }] })
+      : allowed
+        ? ok({ applied: true })
+        : { ok: false, error: { code: 'bot-not-found', message: 'Bot unavailable' } },
+  );
+  const apply = [
+    'marketplace-avatar-apply',
+    'avatar-id',
+    '--bot',
+    'otter',
+    '--operation-key',
+    'apply-otter',
+  ];
+  expect((await invoke(['marketplace-avatar-apply-candidates'], live.url)).json).toMatchObject({
+    bots: [{ slug: 'otter' }],
+  });
+  expect((await invoke(apply, live.url)).code).toBe(0);
+  expect(live.calls).toEqual([
+    { method: 'marketplaceAvatarApplyCandidates', args: {} },
+    {
+      method: 'marketplaceAvatarApply',
+      args: { id: 'avatar-id', bot: 'otter', operationKey: 'apply-otter' },
+    },
+  ]);
+  expect((await invoke(['marketplace-avatar-apply', 'avatar-id'], live.url)).json.error.code).toBe(
+    'usage',
+  );
+  allowed = false;
+  expect((await invoke(apply, live.url)).json.error.code).toBe('bot-not-found');
+});

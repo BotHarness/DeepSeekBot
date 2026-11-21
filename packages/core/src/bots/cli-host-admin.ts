@@ -18,6 +18,7 @@ export interface HostAdminValues {
   sort?: string;
   lang?: string;
   cursor?: string;
+  bot?: string;
   reason?: string;
   decision?: string;
   capability?: string[];
@@ -61,6 +62,14 @@ export const HOST_ADMIN_COMMANDS = [
   {
     command: 'marketplace-avatar-detail',
     description: 'read a Marketplace Avatar / 查看市场头像详情',
+  },
+  {
+    command: 'marketplace-avatar-apply',
+    description: 'apply a Marketplace Avatar to a Bot / 将市场头像应用到 Bot',
+  },
+  {
+    command: 'marketplace-avatar-apply-candidates',
+    description: 'list Bots eligible for Marketplace Avatar apply / 列出可应用市场头像的 Bot',
   },
   {
     command: 'marketplace-avatar-publish',
@@ -190,6 +199,8 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   'marketplace-avatar-list': 0,
   'marketplace-avatar-detail': 1,
   'marketplace-avatar-publish': 0,
+  'marketplace-avatar-apply': 1,
+  'marketplace-avatar-apply-candidates': 0,
   'marketplace-topics': 0,
   'marketplace-sections': 0,
   'marketplace-digest': 0,
@@ -274,6 +285,10 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
   }
   if (values['include-uploads'] === true && command !== 'marketplace-list')
     usage('--include-uploads only applies to marketplace-list.');
+  if (command === 'marketplace-avatar-apply' && !values.bot?.trim())
+    usage('marketplace-avatar-apply needs --bot <bot>.');
+  if (values.bot !== undefined && command !== 'marketplace-avatar-apply')
+    usage('--bot only applies to marketplace-avatar-apply.');
   if (values.version !== undefined && command !== 'acknowledge')
     usage('--version only applies to acknowledge release-notes-seen.');
   if (
@@ -477,6 +492,14 @@ export async function runHostAdminCommand(
       );
     case 'marketplace-avatar-detail':
       return rpc('marketplaceAvatarDetail', { id: target });
+    case 'marketplace-avatar-apply':
+      return rpc('marketplaceAvatarApply', {
+        id: target,
+        bot: values.bot?.trim(),
+        ...(values['operation-key'] === undefined ? {} : { operationKey: values['operation-key'] }),
+      });
+    case 'marketplace-avatar-apply-candidates':
+      return rpc('marketplaceAvatarApplyCandidates', {});
     case 'marketplace-avatar-publish': {
       const bytes = readBytes(values.file);
       const contentType = marketplaceAvatarImageType(bytes);

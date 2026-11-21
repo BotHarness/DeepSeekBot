@@ -213,6 +213,8 @@ function stubActions(): BridgeActions {
     marketplaceList: vi.fn(async () => ({ bots: [] })),
     marketplaceAvatarList: vi.fn(),
     marketplaceAvatarDetail: vi.fn(),
+    marketplaceAvatarApplyCandidates: vi.fn(),
+    marketplaceAvatarApply: vi.fn(),
     marketplaceAvatarPublish: vi.fn(),
     marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
     marketplaceAuthorSave: vi.fn(async () => {

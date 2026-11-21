@@ -47,7 +47,12 @@ import {
   type UploadResult,
   type Uploads,
 } from './uploads.js';
-import { AVATAR_ROUTE, createMarketAvatars, readAvatarPublishBody } from './avatars.js';
+import {
+  AVATAR_APPLY_ROUTE,
+  AVATAR_ROUTE,
+  createMarketAvatars,
+  readAvatarPublishBody,
+} from './avatars.js';
 import { logLine, logWorker } from './worker-log.js';
 
 export interface MarketEnv {
@@ -168,6 +173,19 @@ export function createMarketHandler(
 
   const route = async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
+    const appliedAvatarId = AVATAR_APPLY_ROUTE.exec(url.pathname)?.[1];
+    if (appliedAvatarId !== undefined) {
+      if (request.method !== 'POST') return failure(405, 'method-not-allowed');
+      if (deps.avatars === undefined || protection === undefined)
+        return failure(503, 'avatars-unavailable');
+      const botHash = (await readBody(request))?.['botHash'];
+      if (typeof botHash !== 'string' || !/^[0-9a-f]{64}$/u.test(botHash))
+        return failure(400, 'invalid-receipt');
+      if (!(await protection.allow(await protection.source(request), 'install')))
+        return failure(429, 'rate-limited', { 'retry-after': '3600' });
+      const receipt = await deps.avatars.recordApply(appliedAvatarId, botHash);
+      return receipt === undefined ? failure(404, 'avatar-not-found') : json(202, receipt);
+    }
     const avatar = AVATAR_ROUTE.exec(url.pathname);
     if (avatar !== null) {
       if (request.method === 'GET') {
@@ -182,7 +200,10 @@ export function createMarketHandler(
           return image === undefined
             ? failure(404, 'avatar-not-found')
             : new Response(image.bytes, {
-                headers: { 'content-type': image.contentType, 'x-content-type-options': 'nosniff' },
+                headers: {
+                  'content-type': image.contentType,
+                  'x-content-type-options': 'nosniff',
+                },
               });
         }
         const detail = await deps.avatars.detail(id, url.origin);
@@ -549,7 +570,11 @@ export function createMarketHandler(
     return publicResponse(
       request,
       await route(request),
-      pathname === '/v1/avatars' ? 'no-cache' : undefined,
+      pathname.endsWith('/image') && AVATAR_ROUTE.test(pathname)
+        ? 'no-store'
+        : AVATAR_ROUTE.test(pathname)
+          ? 'no-cache'
+          : undefined,
     );
   };
 }

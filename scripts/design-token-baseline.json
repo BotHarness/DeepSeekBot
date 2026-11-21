@@ -295,7 +295,7 @@
     "rawControl": 1
   },
   "packages/client/src/client/group-member-controls.tsx": {
-    "rawControl": 7,
+    "rawControl": 6,
     "lineBorder": 1
   },
   "packages/client/src/client/header-session-stop.tsx": {

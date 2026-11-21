@@ -76,6 +76,20 @@ function partImageMessage(error: PartImageError): string {
   }
 }
 
+export function writeBotAvatar(
+  registry: Pick<PersonaBotRegistry, 'update'>,
+  slug: string,
+  avatar: unknown,
+): BridgeResult<PersonaBotRecord> {
+  if (avatar !== null && !isPersonaBotAvatar(avatar)) {
+    return invalidInput('avatar must be a bounded PNG, JPEG, or WebP data URL');
+  }
+  const result = registry.update(slug, { avatar: avatar ?? '' });
+  if (!result.ok)
+    return result.reason === 'not-found' ? unknownBot(slug) : invalidInput('invalid avatar');
+  return { ok: true, value: result.record };
+}
+
 export function createAvatarsBridgeMethods(
   deps: AvatarsBridgeDeps & {
     registry: Pick<
@@ -308,19 +322,8 @@ export function createAvatarsBridgeMethods(
     botAvatarSet(payload) {
       const scope = dmMemory(payload);
       if (!('botSlug' in scope)) return scope;
-      const avatar = asObject(payload)['avatar'];
-      if (avatar !== null && !isPersonaBotAvatar(avatar)) {
-        return invalidInput('avatar must be a bounded PNG, JPEG, or WebP data URL');
-      }
-      const result = deps.registry.update(scope.botSlug, {
-        avatar: avatar ?? '',
-      });
-      if (!result.ok) {
-        return result.reason === 'not-found'
-          ? unknownBot(scope.botSlug)
-          : invalidInput('invalid avatar');
-      }
-      return { ok: true, value: detailOf(result.record) };
+      const result = writeBotAvatar(deps.registry, scope.botSlug, asObject(payload)['avatar']);
+      return result.ok ? { ok: true, value: detailOf(result.value) } : result;
     },
   };
 }

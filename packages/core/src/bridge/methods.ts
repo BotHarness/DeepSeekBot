@@ -40,6 +40,7 @@ import {
   parseMarketplaceAvatarPublish,
   type MarketplaceAvatar,
   type MarketplaceAvatarPage,
+  type MarketplaceAvatarApplyCandidate,
 } from '@botharness/host-protocol/marketplace-avatar';
 import {
   createEngineAccountBridge,
@@ -85,6 +86,7 @@ import type { UsageByMemberResult } from '../usage/overview.js';
 import { MEMBER_CHANNEL_METHODS } from '../team/member-methods.js';
 import type { TeamChannels } from '../team/channels.js';
 import { guardHumanBridge } from '../team/bridge-access.js';
+import { createMarketplaceAvatarApply } from '../marketplace/avatar-apply.js';
 import { botOwner, ownsBot, privateBotRegistry } from '../team/bot-access.js';
 import { privateBotCreations } from '../bots/creation.js';
 import { createHash } from 'node:crypto';
@@ -1247,6 +1249,10 @@ export interface BridgeMethods
   marketplaceDigest(payload: unknown): Promise<BridgeResult<{ digest: MarketplaceDigest }>>;
   marketplaceAvatarList(payload: unknown): Promise<BridgeResult<MarketplaceAvatarPage>>;
   marketplaceAvatarDetail(payload: unknown): Promise<BridgeResult<MarketplaceAvatar>>;
+  marketplaceAvatarApplyCandidates(
+    payload: unknown,
+  ): BridgeResult<{ bots: MarketplaceAvatarApplyCandidate[] }>;
+  marketplaceAvatarApply(payload: unknown): Promise<BridgeResult<{ applied: true }>>;
   marketplaceAvatarPublish(payload: unknown): Promise<BridgeResult<MarketplaceAvatar>>;
   marketplaceDetail(payload: unknown): Promise<BridgeResult<MarketplaceDetail>>;
   marketplaceFileView(payload: unknown): Promise<BridgeResult<MarketplaceFileView>>;
@@ -5744,6 +5750,12 @@ function buildBridgeMethods(
         };
       }
     },
+    ...createMarketplaceAvatarApply(
+      human,
+      { ...deps, registry: globalRegistry },
+      isHostOwner,
+      marketplaceCall,
+    ),
     marketplaceAvatarList(payload) {
       const { cursor } = asObject(payload);
       if (cursor !== undefined && (typeof cursor !== 'string' || cursor.length > 100))
