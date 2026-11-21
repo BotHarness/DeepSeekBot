@@ -250,6 +250,7 @@ export async function runBotCreateCli(
           'tools',
           'tool',
           'login',
+          'login-cancel',
           'models',
           'use',
         ].includes(action)
@@ -258,7 +259,7 @@ export async function runBotCreateCli(
         rest = targets;
       } else if (values.help !== true)
         throw usageError(
-          'engine needs list, status, accounts, account-add, account-rename, account-remove, approvals, tools, tool, login, models or use.',
+          'engine needs list, status, accounts, account-add, account-rename, account-remove, approvals, tools, tool, login, login-cancel, models or use.',
         );
     } else if (command === 'activity' && rest[0] === 'list') rest = rest.slice(1);
     if (values.administration && command !== 'list') throw usageError('invalid-input');
