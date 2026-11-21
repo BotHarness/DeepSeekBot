@@ -86,7 +86,7 @@ M0 #4139 ─► M1 #4140 ─► [feedback gate] ─┬─► M2 #4141 ───�
 
 ## Facts gathered while designing
 
-- Today the only Human ID is `LOCAL_HUMAN_ID = 'local-human'` (`packages/core/src/channels/channel.ts`).
+- Today the only Human ID is `LOCAL_HUMAN_ID = 'local-human'` (`packages/core/src/channels/channel-record.ts`).
 - These tables are already keyed by `human_id`: `channel_human_members`, read receipts, `human_inbox_snoozes`, `human_inbox_dismissals` (`database/schema-plan.ts`, `LOCAL_HUMAN_RECEIPTS_MIGRATION`).
 - These files interpolate the literal into SQL: `features/activity/human-attention-{query,sql}.ts` (6 uses across both files) and `channels/sqlite-store.ts` (25 uses). Smaller users: `mark-all-read.ts`, `management.ts`, `activity-today.ts`, `memory/accepted.ts`, `memory/recovery.ts`.
 - External IM people already have Roles, Authorization Groups and Behavior permission items. Role Policy (M7) reuses that evaluator; it does not build a new one.
