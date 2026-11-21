@@ -191,11 +191,7 @@ const styles = stylex.create({
   ok: { color: color.success, display: 'inline-flex' },
   run: { color: color.accent, display: 'inline-flex' },
   composer: { position: 'absolute', insetInline: 0, bottom: 0, zIndex: 1 },
-  error: {
-    color: color.danger,
-    paddingInline: space.x5,
-    paddingBottom: space.x2,
-  },
+  error: { color: color.danger, paddingInline: space.x5, paddingBottom: space.x2 },
 });
 
 function stepIcon(step: TranscriptStep): string {
