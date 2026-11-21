@@ -24,6 +24,8 @@ import {
   type ResolvedPromptPart,
 } from '../../prompts/prompt-presets.js';
 import type { PromptSettings } from '../../prompts/prompt-settings.js';
+import { summarizeTurnInput, type TurnInputView } from '../../runtime/prompt-inspection.js';
+import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 
 export interface PromptPartView {
   id: PromptPartId;
@@ -277,6 +279,47 @@ export function createPromptBridgeMethods(
       });
       if (!result.ok) return unknownBot(slug);
       return { ok: true, value: botPromptView(deps, prompts, slug) };
+    },
+  };
+}
+
+export interface PromptsAdapterMethods {
+  botTurnInput(
+    payload: unknown,
+  ): Promise<BridgeResult<{ slug: string; sessionId: string; turns: TurnInputView[] }>>;
+}
+
+export function createPromptsAdapterMethods(deps: BridgeMethodsDeps): PromptsAdapterMethods {
+  return {
+    async botTurnInput(payload) {
+      const slug = asSlug(payload);
+      if (slug === undefined) return invalidInput('slug is required');
+      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
+      const source = asObject(payload) ?? {};
+      const turns = source['turns'] === undefined ? 1 : source['turns'];
+      if (typeof turns !== 'number' || !Number.isInteger(turns) || turns < 1 || turns > 20)
+        return invalidInput('turns must be an integer from 1 to 20');
+      const roots = deps.ownership.rootsFor(slug);
+      const requested = source['sessionId'];
+      if (requested !== undefined && typeof requested !== 'string')
+        return invalidInput('sessionId must be a string');
+      const sessionId =
+        requested ??
+        deps.runtime?.currentOrchestratorSessionId?.(slug) ??
+        [...roots].reverse().find((root) => root.rootRole === 'orchestrator')?.sessionId;
+      if (sessionId === undefined || !roots.some((root) => root.sessionId === sessionId))
+        return invalidInput('The Session does not belong to this PersonaBot');
+      if (deps.readUsageSessionLog === undefined) return unavailable();
+      const log = await deps.readUsageSessionLog(sessionId);
+      if (log === undefined) return unavailable();
+      return {
+        ok: true,
+        value: {
+          slug,
+          sessionId,
+          ...summarizeTurnInput(log.events, { turns }),
+        },
+      };
     },
   };
 }

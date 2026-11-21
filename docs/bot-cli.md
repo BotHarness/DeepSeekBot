@@ -1112,6 +1112,7 @@ deepseekbot engine tools <bot> [--query memory]
 echo '{"path":"MEMORY.md"}' | deepseekbot engine tool <bot> memory_read --args-stdin
 deepseekbot engine accounts
 deepseekbot engine accounts --grantable
+deepseekbot engine quota <account-id> [--refresh] [--json]
 deepseekbot engine account-add codex|claude --name <name> --expected-revision <r>
 deepseekbot engine account-rename <account-id> --name <name> --expected-revision <r>
 deepseekbot engine account-remove <account-id> --expected-revision <r> --confirm
@@ -1138,6 +1139,10 @@ An Orchestrator engine process closes after 30 idle seconds. An Assignment engin
 The Host Owner and Humans with `modelSources.manage` can list, add, rename, remove and sign in to subscription accounts. Each Codex or Claude Code account has its own Bot-owned config directory. Existing choices and the engine names `codex` and `claude` still resolve to their original directories, under account IDs `codex-default` and `claude`. Read `revision` from `engine accounts` before changing the list. A stale revision returns `engine-account-conflict`. A Bot selection, Model Preset or Routing Group that uses the account prevents removal with `engine-account-in-use` and the references. Successful removal also deletes the account’s local home. Use the named account ID for status, models and login, and `engine use --account` to choose it for either Bot role. Sign-in state, model cache and quota belong to the account. A removed or missing account returns `engine-account-not-found`. Switching accounts starts a new native thread with the existing DSH Session context.
 
 Use `engine accounts --grantable` to list the accounts granted to the signed-in Human, for example when choosing IDs to delegate to another Host Role. This view skips subscription status probes.
+
+`engine accounts` includes cached quota and, after a provider read reports it, the full sign-in email for callers with `modelSources.manage`. `engine quota <account-id>` returns the cached quota for an account visible to the caller. With `--refresh`, the Host reads the provider in that account's own home. Refresh requires `modelSources.manage`, shares concurrent requests for the same account, and reuses the result for 30 seconds. A provider read has a 15-second deadline. It returns `ok`, `unavailable`, `signed-out` or `timeout`.
+
+Quota includes the reported five-hour `session` and `weekly` windows, each with `remainingPercent`, `resetsAt` and `windowMinutes` where available. An absent value is unknown. `observedAt` identifies the last observation, `source` is `live` for a refresh or `turn` for a Turn event, and `limitedUntil` is present while a known account hold applies.
 
 Use `engine login-cancel <account-id>` after closing the browser sign-in tab. It requires `modelSources.manage` and returns `{"cancelled":true}` once the Host has stopped the pending process and you can retry. It returns `{"cancelled":false}` if the account has no pending sign-in. Use `codex` or `claude` for the default account.
 

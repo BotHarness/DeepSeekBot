@@ -182,6 +182,28 @@ describe('Remote Host credential custody', () => {
     ).rejects.toMatchObject({ code: 'custody-host-mismatch' });
   });
 
+  it('retains the encrypted transport requirement when an older Client reseals a handle', async () => {
+    const f = fixture();
+    const sealed = await f.custody.seal({
+      ...host,
+      routes: ['https://studio.example.ts.net'],
+      encryption: {
+        protocol: 'connect-noise-xk-v1',
+        hostKey: '33'.repeat(32),
+        deviceKey,
+        required: true,
+      },
+    });
+    if (!sealed.encryption) throw new Error('Missing device encryption');
+    const { required, ...olderEncryption } = sealed.encryption;
+    expect(required).toBe(true);
+
+    const resealed = await f.custody.seal({ ...sealed, encryption: olderEncryption });
+
+    expect(resealed.encryption).toEqual(sealed.encryption);
+    expect(f.secrets.get(sealed.credential)?.encryption?.required).toBe(true);
+  });
+
   it('keeps a handle retryable when the secret cannot be deleted and rechecks socket routes on attach', async () => {
     const f = fixture();
     const sealed = await f.custody.seal(host);

@@ -9,7 +9,7 @@ import {
 import { ContentPurgeError } from '../purge/contracts.js';
 import { z } from 'zod';
 import type { HumanContext } from '../humans/context.js';
-import type { BridgeResult } from '../bridge/methods.js';
+import type { BridgeResult } from '../bridge/method-utils.js';
 import { TeamError, type TeamService } from './service.js';
 
 export function createTeamBridge(human: HumanContext, team: TeamService | undefined) {

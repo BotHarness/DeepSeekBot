@@ -57,6 +57,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'modelProviderEdit',
   'modelProviderRemove',
   'engineAccounts',
+  'engineAccountQuotaRefresh',
   'engineSelection',
   'engineAccountAdd',
   'engineAccountRename',

@@ -1,6 +1,8 @@
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type { WorkspaceGrant } from '../../workspaces/grants.js';
 import type { WorkspacesBridgeMethods } from './methods.js';
+import type { FolderListing } from '../../workspaces/folder-browse.js';
+import type { WorkspacesAdapterMethods } from './methods.js';
 
 export function grants(
   methods: WorkspacesBridgeMethods,
@@ -59,4 +61,31 @@ export function grantWriteSet(
   enabled: boolean,
 ): { grant: WorkspaceGrant } {
   return unwrap(methods.grantWriteSet({ slug, grantId, enabled }));
+}
+
+export function workspaceOptions(methods: WorkspacesAdapterMethods): {
+  workspaces: { id: string; path: string; title: string }[];
+} {
+  return unwrap(methods.workspaceOptions({}));
+}
+
+export function folderBrowse(
+  methods: WorkspacesAdapterMethods,
+  path?: string,
+  offset?: number,
+): Promise<FolderListing> {
+  return unwrapAsync(
+    methods.folderBrowse({
+      ...(path === undefined ? {} : { path }),
+      ...(offset === undefined ? {} : { offset }),
+    }),
+  );
+}
+
+export function workspaceFileTarget(
+  methods: WorkspacesAdapterMethods,
+  slug: string,
+  grantId: string,
+): { target: { path: string; relativePath: ''; kind: 'directory' } } {
+  return unwrap(methods.workspaceFileTarget({ slug, grantId }));
 }

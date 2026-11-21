@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { encryptedCarrier, openNoiseSocket } from '@botharness/host-client/encrypted-carrier';
+import { Peer } from '@deepseek-ai/dsh-client-connection';
 import { afterEach, expect, it } from 'vitest';
 import { z } from 'zod';
 import { OWNER_HUMAN_CONTEXT as owner, humanContext } from '../src/humans/context.js';
@@ -62,13 +63,17 @@ async function signIn(
 it('enrolls an Owner device through Noise with Team mode off and revokes its admitted connection', async () => {
   const f = teamFixture();
   const host = await memberDeviceHost(f);
-  const bridge = f.methods(owner);
+  const peer = new Peer(f.ctx, { principal: { kind: 'owner' } });
+  const invoke = (
+    method: 'ownerPasswordSignIn' | 'ownerPasswordSignInSet',
+    args: Record<string, unknown> = {},
+  ) => f.gateway.invoke({ namespace: 'botharness', method, args, peer });
   const encryption = deviceEncryption(f);
-  expect(await bridge.ownerPasswordSignIn({})).toEqual({ ok: true, value: { enabled: false } });
+  expect(await invoke('ownerPasswordSignIn')).toEqual({ enabled: false });
   expect(await signIn(f, host, encryption)).toEqual({ ok: false, code: 'owner-sign-in-disabled' });
   expect(
-    await bridge.ownerPasswordSignInSet({ enabled: true, username: 'my-owner', password }),
-  ).toEqual({ ok: true, value: { enabled: true, username: 'my-owner' } });
+    await invoke('ownerPasswordSignInSet', { enabled: true, username: 'my-owner', password }),
+  ).toEqual({ enabled: true, username: 'my-owner' });
   expect(f.team.enabled()).toBe(false);
 
   const result = z
@@ -104,9 +109,9 @@ it('enrolls an Owner device through Noise with Team mode off and revokes its adm
     });
   try {
     expect((await acknowledge()).status).toBe(200);
-    expect(await bridge.ownerPasswordSignInSet({ enabled: false })).toEqual({
-      ok: true,
-      value: { enabled: false, username: 'my-owner' },
+    expect(await invoke('ownerPasswordSignInSet', { enabled: false })).toEqual({
+      enabled: false,
+      username: 'my-owner',
     });
     expect((await acknowledge()).status).toBe(200);
     expect(await signIn(f, host, deviceEncryption(f))).toEqual({

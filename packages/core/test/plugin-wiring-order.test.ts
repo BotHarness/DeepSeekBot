@@ -123,4 +123,119 @@ it('preserves the startup order and Fiber ownership of feature wiring', async ()
       "fetch: /api/botharness/bot-banner",
     ]
   `);
+  expect(
+    startup.filter((entry) =>
+      /device pairing logs|external messaging|cloud (work|connections)|IM (tool controls|question answers)|voice calls|Bot calls \(Host owner|Activity Tool detail references|session\/event|\/api\/voice\/call/u.test(
+        entry,
+      ),
+    ),
+  ).toMatchInlineSnapshot(`
+    [
+      "root | botharness: device pairing logs",
+      "root | botharness: external messaging",
+      "root | botharness: cloud work",
+      "root | botharness: cloud work tool name",
+      "root | botharness: cloud work tool",
+      "root | botharness: cloud connections",
+      "root | botharness: approved IM tool controls",
+      "root | botharness: checked IM question answers",
+      "root | ctx.on("session/event")",
+      "root | botharness: voice calls",
+      "root | botharness: Activity Tool detail references",
+      "root | ctx.on("session/event")",
+      "connection | botharness: Bot calls (Host owner and CLI)",
+      "fetch: /api/voice/call",
+    ]
+  `);
+  expect(cleanup.filter((entry) => entry === 'fetch: /api/voice/call')).toEqual([
+    'fetch: /api/voice/call',
+  ]);
+  expect(
+    startup.filter((entry) =>
+      /diagnostic|telemetry|Member confinement|Memory tool|approval|question|release|roster|Tob|profile|tools\/(pre-execute|execute)|^tools: guard|session\/event/u.test(
+        entry,
+      ),
+    ),
+  ).toMatchInlineSnapshot(`
+    [
+      "root | botharness: always-on diagnostic log",
+      "root | botharness: telemetry",
+      "root | botharness: roster",
+      "root | ctx.on("tools/execute")",
+      "tools: guard",
+      "root | botharness: engine Memory tools",
+      "root | botharness: engine Memory tool names",
+      "root | botharness: approval review logs",
+      "root | botharness: companion approval observation",
+      "root | botharness: Channel user questions",
+      "root | botharness: companion question observation",
+      "root | ctx.on("user-questions/request")",
+      "root | botharness: approval projection status",
+      "root | botharness: checked IM question answers",
+      "root | botharness: one-call approval execution fences",
+      "root | botharness: device approval execution leases",
+      "root | botharness: Channel tool approvals",
+      "root | ctx.on("approval/request")",
+      "root | ctx.on("tools/pre-execute")",
+      "root | ctx.on("tools/execute")",
+      "tools: guard",
+      "root | ctx.on("tools/execute")",
+      "root | ctx.on("session/event")",
+      "root | ctx.on("session/event")",
+      "connection | botharness: diagnostic log /api/botharness/client-log",
+      "connection | botharness: diagnostic log /api/botharness/diagnostic-logs",
+      "fetch: /api/botharness/diagnostic-logs",
+      "connection | botharness: diagnostic log /api/botharness/diagnostic-logs/export",
+      "fetch: /api/botharness/diagnostic-logs/export",
+      "fetch: /api/botharness/profile-backup",
+      "fetch: /api/botharness/profile-backup/inspect",
+      "fetch: /api/botharness/profile-backup/recovery",
+      "fetch: /api/botharness/profile-backup/authorize",
+      "fetch: /api/botharness/profile-backup/activate",
+      "connection | botharness: diagnostic bundle /api/botharness/diagnostic-bundle",
+      "fetch: /api/botharness/diagnostic-bundle",
+      "connection | botharness: diagnostic bundle /api/botharness/diagnostic-bundle/preview",
+      "fetch: /api/botharness/diagnostic-bundle/preview",
+    ]
+  `);
+  expect(cleanup).toMatchInlineSnapshot(`
+    [
+      "skill: reading-operational-logs",
+      "skill: reading-operational-logs",
+      "skill: setting-up-local-voice",
+      "skill provider: botharness-memory-skill-changes",
+      "fetch: /api/botharness/bug-report",
+      "fetch: /api/botharness/diagnostic-logs/export",
+      "fetch: /api/botharness/diagnostic-logs",
+      "fetch: /api/botharness/client-log",
+      "fetch: /api/botharness/bot-zip/import",
+      "fetch: /api/botharness/bot-zip/files",
+      "fetch: /api/botharness/bot-zip",
+      "fetch: /api/botharness/diagnostic-bundle/preview",
+      "fetch: /api/botharness/diagnostic-bundle",
+      "fetch: /api/botharness/message-feedback/submit",
+      "fetch: /api/botharness/message-feedback/download",
+      "fetch: /api/botharness/message-feedback/preview",
+      "fetch: /api/botharness/profile-backup/activate",
+      "fetch: /api/botharness/profile-backup/authorize",
+      "fetch: /api/botharness/profile-backup/recovery",
+      "fetch: /api/botharness/profile-backup/inspect",
+      "fetch: /api/botharness/profile-backup",
+      "fetch: /api/botharness/bot-avatar",
+      "fetch: /api/botharness/bot-banner",
+      "fetch: /api/botharness/attachment",
+      "fetch: /api/botharness/attachment/upload",
+      "fetch: /api/botharness/memory/image",
+      "fetch: /api/botharness/memory/file",
+      "fetch: /api/botharness/companion",
+      "fetch: /api/botharness/stream",
+      "fetch: /api/voice/call",
+      "fetch: /api/botharness/desktop-window",
+      "fetch: /api/botharness/appearance-control",
+      "fetch: /api/botharness/window-zoom-setup",
+      "fetch: /api/botharness/window-zoom-control",
+      "fetch: /api/botharness/presence",
+      "fetch: /api/botharness/engines",
+    ]
+  `);
 });

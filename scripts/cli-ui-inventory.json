@@ -160,7 +160,7 @@
       "description": "Online backup export/inspection/recovery authorization/activation; existing offline portability does not cover the online UI.",
       "scope": "Profile",
       "surfaces": [
-        "route:packages/core/src/plugin.ts:PROFILE_BACKUP_PATH + suffix in ['', '/inspect', '/recovery', '/authorize', '/activate']",
+        "route:packages/core/src/features/profile-storage/plugin.ts:PROFILE_BACKUP_PATH + suffix in ['', '/inspect', '/recovery', '/authorize', '/activate']",
         "setting:packages/client/src/client/profile-backup.tsx:{t('backup.title')}"
       ],
       "commands": [
@@ -584,7 +584,7 @@
       "scope": "Host",
       "surfaces": [
         "route:packages/core/src/diagnostics/client-diagnostics.ts:CLIENT_DIAGNOSTICS_PATH",
-        "route:packages/core/src/plugin.ts:path in [DIAGNOSTIC_BUNDLE_PATH, DIAGNOSTIC_BUNDLE_PREVIEW_PATH]"
+        "route:packages/core/src/features/diagnostics/plugin.ts:path in [DIAGNOSTIC_BUNDLE_PATH, DIAGNOSTIC_BUNDLE_PREVIEW_PATH]"
       ],
       "issue": "#1690"
     },
@@ -618,14 +618,14 @@
       "id": "memory-image-preview",
       "description": "Version-bound standalone and document-relative Memory PNG/JPEG/GIF/WebP/safe-SVG transfer; --image-reference binds inline images to Markdown metadata from existing Memory commands.",
       "scope": "Host",
-      "surfaces": ["route:packages/core/src/plugin.ts:MEMORY_IMAGE_PATH"],
+      "surfaces": ["route:packages/core/src/features/memory/plugin.ts:MEMORY_IMAGE_PATH"],
       "commands": ["memory-image"]
     },
     {
       "id": "memory-download",
       "description": "Current Memory file download.",
       "scope": "Host",
-      "surfaces": ["route:packages/core/src/plugin.ts:MEMORY_FILE_DOWNLOAD_PATH"],
+      "surfaces": ["route:packages/core/src/features/memory/plugin.ts:MEMORY_FILE_DOWNLOAD_PATH"],
       "commands": ["memory-file"]
     },
     {
@@ -1005,7 +1005,7 @@
       "id": "voice-call",
       "description": "Bot calls through the Host call owner: readiness, status, hang up and a synthetic-audio call without a phone.",
       "scope": "Host",
-      "surfaces": ["route:packages/core/src/plugin.ts:VOICE_CALL_PATH"],
+      "surfaces": ["route:packages/core/src/features/voice/plugin.ts:VOICE_CALL_PATH"],
       "commands": ["call-readiness", "call-status", "call-hangup", "call-simulate"]
     },
     {
@@ -1210,7 +1210,7 @@
       "description": "Single-message frozen evidence preview, local download and explicit private submission.",
       "scope": "Host diagnostics",
       "surfaces": [
-        "route:packages/core/src/plugin.ts:`${MESSAGE_FEEDBACK_PATH}/${action}` in MESSAGE_FEEDBACK_ACTIONS"
+        "route:packages/core/src/features/diagnostics/plugin.ts:`${MESSAGE_FEEDBACK_PATH}/${action}` in MESSAGE_FEEDBACK_ACTIONS"
       ],
       "commands": ["feedback-preview", "feedback-download", "feedback-submit"]
     },
