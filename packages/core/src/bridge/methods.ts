@@ -3951,6 +3951,7 @@ function buildBridgeMethods(
       try {
         if (slug !== undefined && !source['globalDefault']) requireRoutes(slug, [route]);
         await deps.modelCatalog.validate(route);
+        if (typeof groupId === 'string') requireGroupEngines(groupId);
         if (source['globalDefault']) {
           let savedDefaultRevision = 0;
           const groups = deps.routingGroups;

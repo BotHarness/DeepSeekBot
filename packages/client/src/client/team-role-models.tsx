@@ -8,6 +8,7 @@ import { Button } from './ds/button.js';
 import { Checkbox } from './ds/checkbox.js';
 import { Icon } from './ds/icon.js';
 import { Note } from './ds/note.js';
+import { ReadFailure } from './ds/read-failure.js';
 import { Select } from './ds/select.js';
 import { ink, layer, space, style } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -62,6 +63,7 @@ type Catalog =
       state: 'ready';
       providers: readonly Provider[];
       accounts: NamedEngineAccount[];
+      accountsFailed: boolean;
       allowed: RoleModels;
     };
 
@@ -118,6 +120,7 @@ export function RoleModelsField({
   const id = useId();
   const [catalog, setCatalog] = useState<Catalog>({ state: 'loading' });
   const [expanded, setExpanded] = useState<readonly string[]>([]);
+  const [attempt, setAttempt] = useState(0);
   const canReadProviders = canManage(viewer, 'modelSources.manage');
   const mount = useMountedResource<HTMLFieldSetElement>(() => {
     const request = new AbortController();
@@ -130,7 +133,10 @@ export function RoleModelsField({
     Promise.all([
       inventory,
       loadModelCatalog(call),
-      loadGrantableEngineAccounts(call, request.signal).catch(() => []),
+      loadGrantableEngineAccounts(call, request.signal).then(
+        (accounts) => ({ accounts, failed: false }),
+        () => ({ accounts: [] as NamedEngineAccount[], failed: true }),
+      ),
       viewer.owner ? { kind: 'all' as const } : loadModelsAllowed(call, request.signal),
     ])
       .then(([known, view, accounts, allowed]) => {
@@ -138,7 +144,8 @@ export function RoleModelsField({
           setCatalog({
             state: 'ready',
             providers: roleProviders(known, view.models, [allowed]),
-            accounts,
+            accounts: accounts.accounts,
+            accountsFailed: accounts.failed,
             allowed,
           });
       })
@@ -146,7 +153,7 @@ export function RoleModelsField({
         if (!request.signal.aborted) setCatalog({ state: 'failed' });
       });
     return () => request.abort();
-  }, [call, canReadProviders, viewer.owner]);
+  }, [call, canReadProviders, viewer.owner, attempt]);
   const providers = value.kind === 'only' ? value.providers : [];
   const routes = value.kind === 'only' ? value.routes : [];
   const listed = catalog.state === 'ready' ? catalog.providers : [];
@@ -272,6 +279,14 @@ export function RoleModelsField({
           })}
         </>
       )}
+      {catalog.state === 'ready' && catalog.accountsFailed ? (
+        <ReadFailure
+          retryLabel={t('engine.reload')}
+          onRetry={() => setAttempt((current) => current + 1)}
+        >
+          {t('team.roles.accountsFailed')}
+        </ReadFailure>
+      ) : null}
       {catalog.state === 'ready' && accountIds.length > 0 ? (
         <>
           <Note>{t('modelProviders.subscriptions')}</Note>
