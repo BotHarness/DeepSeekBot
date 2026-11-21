@@ -56,3 +56,17 @@ it('shows short names and distinguishes subscriptions from API routes', () => {
   expect(fallback).toContain('data-model-brand="deepseek"');
   expect(fallback).toContain('>API<');
 });
+
+it('can show an unknown model ID and omits a model label until an engine reports a model', () => {
+  const raw = renderToStaticMarkup(
+    <SessionTargetChip
+      target={{ kind: 'engine', engine: 'claude', model: 'unknown-model' }}
+      t={zhTranslate}
+    />,
+  );
+  expect(raw).toContain('>unknown-model<');
+  const missing = renderToStaticMarkup(
+    <SessionTargetChip target={{ kind: 'engine', engine: 'claude' }} t={zhTranslate} />,
+  );
+  expect(missing).toBe('');
+});

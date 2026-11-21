@@ -149,7 +149,8 @@ export function SessionModelComposer({
       } as const;
     return undefined;
   })();
-  const visible = pending ? preferred : running ? (target ?? preferred) : (preferred ?? target);
+  const recorded = target?.model === undefined ? undefined : target;
+  const visible = pending ? preferred : running ? (recorded ?? preferred) : (preferred ?? recorded);
   const label = visible === undefined ? undefined : turnTargetLabel(visible, catalog);
   const group = choice?.kind === 'group' ? groups.find((item) => item.id === choice.id) : undefined;
   const name =

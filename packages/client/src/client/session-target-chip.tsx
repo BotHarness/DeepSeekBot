@@ -28,7 +28,7 @@ export function SessionTargetChip({
       : route === undefined
         ? undefined
         : { kind: 'dsh', provider: route.provider, model: route.model });
-  if (selected === undefined) return null;
+  if (selected?.model === undefined) return null;
   const label = turnTargetLabel(selected, catalog);
   return (
     <SessionMetaChip
