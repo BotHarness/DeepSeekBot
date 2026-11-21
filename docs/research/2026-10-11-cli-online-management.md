@@ -38,7 +38,7 @@ diagnostic lease metadata contains process/instance identity, not an authenticat
 Host endpoint. This is not a stale timestamp lock that CLI discovery may bypass.
 [`openRegistry`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/bots/bot-create-cli.ts#L505),
 [`lease implementation`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/src/database/owner.ts#L464),
-[`lease test`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/test/bot-create-cli.test.ts#L758).
+[`lease test`](https://github.com/BotHarness/DeepSeekBot/blob/51058d540f52de45e687f4274f3d16dd701dd0d5/packages/core/test/bot-create-cli.test.ts#L758) ([current lease test](../../packages/core/test/bot-offline-operations-cli.test.ts)).
 
 ## Findings: verb-to-owner mapping
 
