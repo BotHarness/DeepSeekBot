@@ -61,7 +61,7 @@ The `baseline` argument expects the original refusal on a separately built base 
 Run the cross-module regression matrix for local DM, local Group, batch collection, steering, approval continuation, IM-only ambiguity, explicit source, revoked source, unaccepted history and later scheduled reuse:
 
 ```bash
-pnpm exec vitest run packages/core/test/private-input-origin.test.ts packages/core/test/private-inputs.test.ts packages/core/test/native-question-runtime.test.ts --maxWorkers=1 --testTimeout=60000
+pnpm exec vitest run packages/core/test/private-input-origin.test.ts packages/core/test/private-inputs-account-references.test.ts packages/core/test/private-inputs-channel-and-im-delivery.test.ts packages/core/test/private-inputs-request-lifecycle.test.ts packages/core/test/native-question-runtime.test.ts --maxWorkers=1 --testTimeout=60000
 ```
 
 For #2847, use a fresh instance with the same synthetic Provider and run `node scripts/e2e-private-input-origin.mjs <name> recovery`. After the local proof, it sends a synthetic IM request, adds two context sources while approval is pending, verifies the coded refusal, and lets the real model follow the recovery instructions. It checks selection of the original request, one corrected successful command and no duplicate input card, then invokes `bot-tool` from the CLI and accepts its native approval. The allowlisted `recovery-proof.json` records outcomes without references or values. Registered-tool regression tests also drive controlled HTTP and MCP processes and assert zero requests before selection and exactly one after recovery.
