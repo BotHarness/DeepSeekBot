@@ -44,6 +44,8 @@ Mobile entries describe changes to the separately versioned phone app; they do n
 
 ### Documentation
 
+- Added the onboarding tutorial to the settings guide’s quick reference and documented when to start, continue, or restart it ([#3768](https://github.com/BotHarness/DeepSeekBot/issues/3768)).
+
 - Updated the installation guide to the verified Tobs 1.7.0 npm release and its four qualified DSH versions, with archive filenames and local import commands following the exact stable package version ([#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)).
 
 ## [1.7.0] - 2026-11-12

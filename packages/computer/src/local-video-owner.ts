@@ -1,13 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname } from 'node:path';
-import { desktopInputCall, parseDesktopInput } from './desktop-view.js';
+import type { ComputerPauseStore } from './computer-pause-store.js';
+import { desktopInputCall } from './desktop-view.js';
+import { parseLocalVideoInput } from './local-video-input.js';
 import type { ScrollMotion } from './macos-scroll.js';
 import type { CuaDriver } from './tool/driver.js';
 import {
   LOCAL_VIDEO_LIMITS,
   LocalVideoError,
-  type LocalVideoInput,
   type LocalVideoBinding,
   type LocalVideoCaller,
   type LocalVideoCommand,
@@ -19,73 +18,7 @@ import {
   type LocalVideoState,
 } from './local-video-contract.js';
 
-function parseLocalVideoInput(body: Record<string, unknown>): LocalVideoInput | undefined {
-  if (body['kind'] !== 'scroll-motion') return parseDesktopInput(body);
-  const { x, y, vx, vy } = body;
-  if (
-    typeof x !== 'number' ||
-    !Number.isFinite(x) ||
-    x < 0 ||
-    typeof y !== 'number' ||
-    !Number.isFinite(y) ||
-    y < 0 ||
-    typeof vx !== 'number' ||
-    !Number.isFinite(vx) ||
-    Math.abs(vx) > 200 ||
-    typeof vy !== 'number' ||
-    !Number.isFinite(vy) ||
-    Math.abs(vy) > 200
-  )
-    return undefined;
-  return { kind: 'scroll-motion', x, y, vx, vy };
-}
-
-export interface ComputerPauseStore {
-  read(): boolean;
-  write(paused: boolean): void;
-}
-
-export function createComputerPauseStore(path: string): ComputerPauseStore {
-  return {
-    read() {
-      let source: string;
-      try {
-        source = readFileSync(path, 'utf8');
-      } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
-        throw error;
-      }
-      const value: unknown = JSON.parse(source);
-      if (
-        typeof value !== 'object' ||
-        value === null ||
-        !('version' in value) ||
-        value.version !== 1 ||
-        !('paused' in value) ||
-        typeof value.paused !== 'boolean'
-      )
-        throw new Error('Computer pause record is invalid');
-      return value.paused;
-    },
-    write(paused) {
-      mkdirSync(dirname(path), { recursive: true });
-      const temporary = `${path}.${randomUUID()}.tmp`;
-      try {
-        writeFileSync(temporary, `${JSON.stringify({ version: 1, paused })}\n`, {
-          encoding: 'utf8',
-          mode: 0o600,
-          flush: true,
-        });
-        renameSync(temporary, path);
-      } catch (error) {
-        try {
-          rmSync(temporary, { force: true });
-        } catch {}
-        throw error;
-      }
-    },
-  };
-}
+export { createComputerPauseStore, type ComputerPauseStore } from './computer-pause-store.js';
 
 interface Viewer {
   readonly binding: LocalVideoBinding;

@@ -28,7 +28,7 @@ interface OrchestratorAssignmentRun {
   linkedSessionIds?: Set<string>;
 }
 
-interface AssignmentToolOptions {
+export interface AssignmentToolOptions {
   currentRun: () => OrchestratorAssignmentRun | undefined;
   run: Pick<OrchestratorAgentRun, 'bot'>;
   resolveModelPlan: () => PersonaBotModelPlan | undefined;
