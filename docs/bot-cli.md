@@ -695,7 +695,7 @@ The `activity*` commands were named `inbox*` before #3321; the old names still w
 
 `--clear` restores the Session’s configured default. A change applies from the next Turn and leaves the Bot’s Model Plan intact. The Host checks Session ownership, Model Choices and account grants. `session-transcript` includes one `model-switch` item when the actual model changes between Turns, with `from`, `to` and the Routing Group fallback `reason` when available.
 
-In Team mode, use `--as <username>` with these Session commands for a Bot the member owns. The Host refuses Session access when the Bot has a private DM with another Human. Saving a Model Choice that uses an ungranted Subscription Engine account returns `model-not-allowed`.
+In Team mode, use `--as <username>` to read the transcript, live updates, tools, Subagents and progress or set the Model Choice for a Bot the member owns. The Host refuses Session access when the Bot has a private DM with another Human. Saving a Model Choice that uses an ungranted Subscription Engine account returns `model-not-allowed`.
 
 `bot-sessions` and `session-transcript` report the running or last-used `currentTarget` when known. For Subscription Engine targets it includes `engine`, the public subscription label in `account`, and the executing `model` when known. For a native target it includes `provider` and `model`, including when a mixed Routing Group falls back to a DSH model.
 
