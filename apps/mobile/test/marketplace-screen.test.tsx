@@ -16,6 +16,7 @@ const fixture = vi.hoisted(() => {
   return {
     fetch,
     fontScale: 1,
+    avatarsAvailable: false,
     platform: 'web',
     params: {} as Record<string, string>,
     push: vi.fn(),
@@ -96,7 +97,17 @@ vi.mock('../src/host/host-session', () => ({
     saved: { hostId: 'A', ...(member ? { member: {} } : {}) },
   }),
 }));
-vi.mock('expo-crypto', () => ({}));
+vi.mock('expo-crypto', () => ({ randomUUID: () => 'draft-key' }));
+vi.mock('../src/marketplace/available', () => ({
+  get marketplaceAvatarsAvailable() {
+    return fixture.avatarsAvailable;
+  },
+}));
+vi.mock('../src/host/pick-avatar-image', () => ({
+  MarketplaceAvatarTooSmall: Error,
+  pickMarketplaceAvatarImage: async () => undefined,
+  prepareMarketplaceAvatarImage: async () => undefined,
+}));
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-safe-area-context', () => ({
@@ -148,6 +159,7 @@ vi.mock('expo-router', () => ({
         ),
       ) ?? null,
   },
+  Redirect: ({ href }: { href: string }) => createElement('a', { href }),
   router: { push: fixture.push },
   useLocalSearchParams: () => fixture.params,
   useFocusEffect: (callback: () => () => void) => useLayoutEffect(callback, [callback]),
@@ -160,8 +172,10 @@ vi.mock('../src/host/native-bot-creation', () => ({
 }));
 
 import { MarketplaceScreen } from '../src/ui/shell/marketplace-screen';
-import { MarketplaceAvatarScreen } from '../src/ui/shell/marketplace-avatar-screen';
-import { MarketplaceAvatarDetailScreen } from '../src/ui/shell/marketplace-avatar-detail-screen';
+import MarketplaceAvatarScreen from '../app/marketplace-avatars';
+import MarketplaceAvatarDetailScreen from '../app/marketplace-avatar';
+import MarketplaceAvatarEditorScreen from '../app/marketplace-avatar-editor';
+import MarketplaceAvatarMineScreen from '../app/marketplace-avatar-mine';
 import { MarketplaceBotScreen } from '../src/ui/shell/marketplace-bot-screen';
 import { t } from '../src/ui/strings';
 
@@ -187,6 +201,7 @@ let element: HTMLElement;
 beforeEach(() => {
   vi.clearAllMocks();
   fixture.fontScale = 1;
+  fixture.avatarsAvailable = false;
   fixture.platform = 'web';
   fixture.params = { entry: 'all' };
   fixture.listEvents = {};
@@ -551,6 +566,7 @@ function avatarHost() {
 }
 
 it('opens Avatars from Bots on the same paired Host and hides owner controls from members', async () => {
+  fixture.avatarsAvailable = true;
   fixture.params = { entry: 'host', hostId: 'A' };
   const host = avatarHost();
   await act(async () => root.render(<MarketplaceScreen />));
@@ -573,6 +589,7 @@ it('opens Avatars from Bots on the same paired Host and hides owner controls fro
 });
 
 it('shows the Appearance warning before confirming the chosen Bot', async () => {
+  fixture.avatarsAvailable = true;
   fixture.params = { id: 'blue', hostId: 'A' };
   const host = avatarHost();
   host.methods.set('marketplaceAvatarApplyCandidates', () => ({
@@ -591,4 +608,39 @@ it('shows the Appearance warning before confirming the chosen Bot', async () => 
     bot: 'ada',
   });
   expect(element.textContent).toContain(t.marketplaceAvatars.applied('Ada Bot'));
+});
+
+it('keeps the Bots catalogue and redirects every direct Avatar route while disabled', async () => {
+  const host = avatarHost();
+  fixture.params = { id: 'blue', hostId: 'A', bot: 'ada' };
+  await act(async () => root.render(<MarketplaceScreen />));
+  expect(element.textContent).toContain('Writer');
+  expect(element.querySelector('[role="tablist"][aria-label="Marketplace"]')).toBeNull();
+
+  for (const Route of [
+    MarketplaceAvatarScreen,
+    MarketplaceAvatarDetailScreen,
+    MarketplaceAvatarEditorScreen,
+    MarketplaceAvatarMineScreen,
+  ]) {
+    await act(async () => root.render(<Route />));
+    expect(element.firstElementChild?.getAttribute('href')).toBe('/marketplace');
+  }
+  expect(host.calls.some(({ method }) => method.startsWith('marketplace'))).toBe(false);
+});
+
+it('opens the owner editor and My Avatars routes while enabled', async () => {
+  fixture.avatarsAvailable = true;
+  fixture.params = { hostId: 'A' };
+  const host = avatarHost();
+  host.methods.set('marketplaceAccount', () => ({
+    signedIn: true,
+    author: { name: 'Ada', id: 'abc234', avatar: null, termsAcceptedAt: '2026-11-21' },
+  }));
+  host.methods.set('marketplaceAvatarMine', () => ({ avatars: [] }));
+  await act(async () => root.render(<MarketplaceAvatarEditorScreen />));
+  expect(element.textContent).toContain(t.marketplaceAvatars.publishAs('Ada', 'abc234'));
+  expect(element.querySelector('[data-testid="marketplace-avatar-choose-image"]')).not.toBeNull();
+  await act(async () => root.render(<MarketplaceAvatarMineScreen />));
+  expect(element.textContent).toContain(t.marketplaceAvatars.mineEmpty);
 });

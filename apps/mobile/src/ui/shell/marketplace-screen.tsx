@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MarketplaceSort } from '../../../../../packages/core/src/marketplace/client';
+import { marketplaceAvatarsAvailable } from '../../marketplace/available';
 import { marketplace, useCatalogueResource } from '../../marketplace/native-catalogue';
 import { space } from '../design/tokens';
 import { useMounted } from '../mounted';
@@ -252,16 +253,18 @@ const MarketplaceCatalogue = memo(function MarketplaceCatalogue({
             }}
             ListHeaderComponent={
               <View style={{ gap: space.x4 }}>
-                <MarketplaceSectionPicker
-                  section="bots"
-                  onChange={(section) => {
-                    if (section === 'avatars')
-                      router.push({
-                        pathname: '/marketplace-avatars',
-                        params: target.entry === 'host' ? { hostId: target.hostId } : {},
-                      });
-                  }}
-                />
+                {marketplaceAvatarsAvailable ? (
+                  <MarketplaceSectionPicker
+                    section="bots"
+                    onChange={(section) => {
+                      if (section === 'avatars')
+                        router.push({
+                          pathname: '/marketplace-avatars',
+                          params: target.entry === 'host' ? { hostId: target.hostId } : {},
+                        });
+                    }}
+                  />
+                ) : null}
                 {home ? (
                   <View testID="marketplace-home" style={{ gap: space.x6 }}>
                     <MarketplaceDailyPicks target={target} />

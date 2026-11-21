@@ -108,6 +108,8 @@ The Worker HTTP coverage is in `packages/market/test/market-avatars.test.ts`. Th
 
 ## Marketplace Avatars on Tobs mobile
 
+Set `EXPO_PUBLIC_MARKETPLACE_AVATARS=on` before exporting the bundle or starting Metro. The EAS development profiles and mobile verification job set it. Restart Metro after changing the flag. Store bundles leave it unset until Human QA passes on both platforms. With the flag unset, the Marketplace shows Bots, Bot settings hides Publish Avatar, and direct Avatar links return to the Marketplace.
+
 Use the native iOS and Android lanes. Repeat at default, intermediate and maximum system text in light and dark. Capture matched English light and Chinese dark before and after frames with loaded data. Use a paired Host pointed at an isolated Marketplace seeded with several pages and shared tags.
 
 1. Open **Marketplace → Avatars**. Search by name, combine search with a tag, check the tag count and load another page. Open a result and compare its image, name, description, tags, author ID and Apply Count with the existing CLI.
