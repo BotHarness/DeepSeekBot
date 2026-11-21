@@ -395,7 +395,7 @@
     {
       "id": "desktop.personabot.create",
       "label": "Create PersonaBot, Memory and DM; retain identity after restart",
-      "source": "packages/core/src/bots/registry.ts",
+      "source": "packages/core/src/features/personabots/registry-creation.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/personabot-create.md",
       "task": 1967,
       "gap": null

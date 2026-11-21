@@ -40,7 +40,6 @@
     "packages/computer/test/local-video-owner.test.ts",
     "packages/connect-relay/test/connect-relay.test.ts",
     "packages/core/src/bots/bot-create-cli.ts",
-    "packages/core/src/bots/registry.ts",
     "packages/core/src/bridge/methods.ts",
     "packages/core/src/bridge/rpc.ts",
     "packages/core/src/channels/channel.ts",
