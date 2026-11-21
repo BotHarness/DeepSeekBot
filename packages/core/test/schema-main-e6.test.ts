@@ -79,8 +79,9 @@ it('appends account150 after published Team models148 and usage149 while preserv
       'suspended',
     );
   });
+  const pairedDevicesSql = 'SELECT * FROM paired_devices ORDER BY device_id';
+  const legacyDevices = database.read((db) => db.prepare(pairedDevicesSql).all());
   const tables = [
-    'paired_devices',
     'relationship_device_grants',
     'humans',
     'team_mode_suspensions',
@@ -111,6 +112,9 @@ it('appends account150 after published Team models148 and usage149 while preserv
   expect(owner.mode).toBe('ready');
   expect(owner.generation).toBe(BOT_HARNESS_SCHEMA_PLAN.targetGeneration);
   const current = attachOperationalModule(owner, 'migration-fixture');
+  expect(current.read((db) => db.prepare(pairedDevicesSql).all())).toEqual(
+    legacyDevices.map((device) => ({ ...device, enrollment: null })),
+  );
   expect(
     current.read((db) =>
       Object.fromEntries(
