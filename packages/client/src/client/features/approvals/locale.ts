@@ -82,6 +82,11 @@ export const zh = {
     '自动审批每次复核都会开一个短会话。默认不显示，打开后可以在 DeepSeek Harness 里查看它是怎么判断的。',
   'standing.badge': '常驻',
   'standing.usage': '{chars}/{limit}',
+  'standing.details.over': '{path} 有 {difference} 字符不会进入提示词。',
+  'standing.import.reading': '正在检查常驻记忆用量…',
+  'standing.import.within': '{path}：已用 {chars} / {limit} 字符，可再用 {difference} 字符。',
+  'standing.import.over':
+    '{path}：已用 {chars} / {limit} 字符，{difference} 字符不会进入提示词。可在导入后调整上限或精简文件。',
   'standing.usageTitle': '已用 {percent}%：{chars}/{limit} 字符',
   'standing.soulTitle': 'Soul：每个新 Session 开始时都会放进 system prompt，代表 Bot 是谁。',
   'standing.coreMemoryTitle':
@@ -402,6 +407,11 @@ export const en = {
     'Auto approval opens a short session for each review. They stay hidden by default. Turn this on to see how each call was judged in DeepSeek Harness.',
   'standing.badge': 'Standing',
   'standing.usage': '{chars}/{limit}',
+  'standing.details.over': '{path} has {difference} characters excluded from the prompt.',
+  'standing.import.reading': 'Checking standing memory usage…',
+  'standing.import.within': '{path}: {chars} / {limit} characters used, {difference} available.',
+  'standing.import.over':
+    '{path}: {chars} / {limit} characters used, {difference} excluded from the prompt. After import, raise the limit or shorten the file.',
   'standing.usageTitle': '{percent}% used: {chars}/{limit} chars',
   'standing.soulTitle':
     'Soul: part of the system prompt at the start of every new Session; it says who the Bot is.',

@@ -1,4 +1,5 @@
 import { parseMarketplaceLanguage, type MarketplaceLanguage } from './language.js';
+import { isStandingLimits, type StandingLimits } from '../memory/standing-limits.js';
 
 export const BOT_DESCRIPTOR_PATH = '.botharness/bot.json';
 export const MAX_DESCRIPTOR_BYTES = 16_384;
@@ -27,6 +28,7 @@ export interface BotDescriptor {
   avatar?: BotDescriptorAvatar;
   banner?: BotDescriptorBanner;
   primaryColor?: BotDescriptorPrimaryColor;
+  standingLimits?: StandingLimits;
   i18n?: Partial<Record<MarketplaceLanguage, BotDescriptorLocalization>>;
 }
 
@@ -184,6 +186,15 @@ export function parseBotDescriptor(
   if (banner !== undefined && banner !== false) descriptor.banner = banner;
   const primaryColor = parsePrimaryColor(source['primaryColor']);
   if (primaryColor !== undefined && primaryColor !== false) descriptor.primaryColor = primaryColor;
+  const standingLimits = source['standingLimits'];
+  if (isStandingLimits(standingLimits)) {
+    descriptor.standingLimits = {
+      soul: standingLimits.soul,
+      coreMemory: standingLimits.coreMemory,
+    };
+  } else if (standingLimits !== undefined && options.strict === true) {
+    return undefined;
+  }
   const i18n = parseI18n(source['i18n'], options.strict === true);
   if (i18n !== undefined && i18n !== false) descriptor.i18n = i18n;
   if (

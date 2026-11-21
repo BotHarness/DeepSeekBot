@@ -1,4 +1,7 @@
 import { NavGroupHeading, NavItem } from './ds/nav-item.js';
+import { CHANNEL_LIST_AVATAR_SIZE } from './ds/roster-styles.js';
+import { hooked } from './ds/hooked.js';
+import { avatarFrameStyles } from './ds/avatar-frame.js';
 import { Button } from './ds/button.js';
 import { remoteChannelRows } from './environment-channels.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
@@ -642,6 +645,7 @@ export function RemoteHostRows({
         <NavItem
           key={row.key}
           multiline
+          largeIcon
           current={sameTarget(open, row)}
           className={`bh-channel-row${row.unread > 0 ? ' bh-has-unread' : ''}`}
           data={{ 'data-remote-row': row.key }}
@@ -658,12 +662,13 @@ export function RemoteHostRows({
             });
           }}
           icon={
-            <span className="bh-row-avatar">
+            <span {...hooked('bh-row-avatar', avatarFrameStyles.channel)}>
               <RemoteAvatar
                 roster={remote.snapshot.roster}
                 avatars={avatars}
                 target={row}
-                size={20}
+                size={CHANNEL_LIST_AVATAR_SIZE}
+                squareBackdrop
                 activity={row.botSlug === undefined ? undefined : remote.activity?.get(row.botSlug)}
                 t={t}
               />

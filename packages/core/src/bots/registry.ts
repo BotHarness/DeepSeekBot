@@ -46,6 +46,7 @@ import {
   readSharedBanner,
   readSharedPresentation,
   readSharedPrimaryColor,
+  readSharedStandingLimits,
 } from './shared-presentation.js';
 import { isValidSlug } from './slug.js';
 import { memoryOwnership, recordMemoryOwnership, transferMemoryOwnership } from './deletion.js';
@@ -551,6 +552,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
   function* createSteps(
     input: CreatePersonaBotInput,
     sync: boolean,
+    standingLimits?: StandingLimits,
   ): Generator<Preparation, CreatePersonaBotResult, MemoryRepositoryInitialization> {
     if (!isValidSlug(input.slug)) return { ok: false, reason: 'invalid-slug' };
     if (read(input.slug) !== undefined) return { ok: false, reason: 'duplicate' };
@@ -603,6 +605,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       ...(model ? { model } : {}),
       ...(preset ? { preset } : {}),
       ...(memoryDir ? { memoryDir } : {}),
+      ...(standingLimits === undefined ? {} : { standingLimits }),
     };
     const targetMemoryDir = memoryDirOf(record);
     try {
@@ -663,9 +666,13 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
     }
     return { ok: true, record };
   }
-  const create = (input: CreatePersonaBotInput, sync: boolean): CreatePersonaBotResult => {
+  const create = (
+    input: CreatePersonaBotInput,
+    sync: boolean,
+    standingLimits?: StandingLimits,
+  ): CreatePersonaBotResult => {
     if (creating.has(input.slug)) return { ok: false, reason: 'duplicate' };
-    const steps = createSteps(input, sync);
+    const steps = createSteps(input, sync, standingLimits);
     let step = steps.next();
     while (!step.done) {
       const work = step.value;
@@ -728,7 +735,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       try {
         migrateLegacySoul(defaultMemoryDir(input.slug, input.ownerHumanId ?? 'local-human'));
       } catch {}
-      const result = create(input, false);
+      const result = create(input, false, readSharedStandingLimits(target));
       created = result.ok;
       if (!result.ok) return result;
       recordMemoryOwnership(port, result.record.slug, memoryDirOf(result.record));
@@ -1137,6 +1144,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         delete record.standingLimits;
       else record.standingLimits = { soul: limits.soul, coreMemory: limits.coreMemory };
       write(record);
+      syncDescriptor(record);
       return { ok: true, record };
     },
     inheritModel(slug, expectedRevision) {

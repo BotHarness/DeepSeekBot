@@ -111,6 +111,8 @@ export function syncBotDescriptor(
   delete descriptor['avatar'];
   delete descriptor['banner'];
   delete descriptor['primaryColor'];
+  delete descriptor['standingLimits'];
+  if (record.standingLimits !== undefined) descriptor['standingLimits'] = record.standingLimits;
 
   const name = clip(record.displayName, MAX_DESCRIPTOR_NAME_LENGTH);
   if (name.length > 0) descriptor['name'] = name;

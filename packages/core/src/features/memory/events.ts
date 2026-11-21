@@ -8,7 +8,8 @@ import {
   schedulingIdentity,
   withinSchedulingScan,
 } from '../../process/scheduling-diagnostics.js';
-import type { InboxUnit } from '../../runtime/inbox-render.js';
+import type { PromptText } from '../../prompts/prompt-parts.js';
+import { renderInbox, type InboxUnit } from '../../runtime/inbox-render.js';
 
 interface MemoryInboxRow {
   source_event_id: string;
@@ -21,6 +22,11 @@ interface MemoryInboxRow {
   activity: null;
 }
 
+interface ActiveMemoryEvents {
+  eventIds: string[];
+  preserveObservation: boolean;
+}
+
 export function createMemoryEvents({
   database,
   registry,
@@ -28,6 +34,10 @@ export function createMemoryEvents({
   now,
   createEventId,
   insertMemoryChange,
+  coalesceInbox,
+  promptText,
+  setObserved,
+  trackSteer,
   warn,
 }: {
   database: OperationalDatabaseModulePort;
@@ -41,6 +51,10 @@ export function createMemoryEvents({
     botSlug: string,
     change: MemoryChangeDelta,
   ) => void;
+  coalesceInbox: (rows: MemoryInboxRow[]) => InboxUnit[];
+  promptText: (botSlug: string) => PromptText;
+  setObserved: (eventIds: string[], at: string | null) => void;
+  trackSteer: (settlement: Promise<void>) => void;
   warn: ((message: string) => void) | undefined;
 }) {
   const steerMemoryScans = new Map<string, { again: boolean; done: Promise<void> }>();
@@ -85,6 +99,37 @@ export function createMemoryEvents({
     );
   }
 
+  function collectMemoryInbox(botSlug: string): {
+    units: InboxUnit[];
+    eventIds: string[];
+  } {
+    const rows = database.read(
+      (database) =>
+        database
+          .prepare(
+            `
+          SELECT e.source_event_id, e.source_kind, e.assignment_session_id,
+                 e.body, e.created_at, e.expects_reply,
+                 NULL AS continuity_key, NULL AS activity
+            FROM source_events e
+            JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
+           WHERE e.bot_slug = ? AND a.bot_slug = ?
+             AND e.source_kind = 'memory-change'
+             AND a.reason = 'memory-change'
+             AND a.attempt_state IN ('pending', 'retryable')
+             AND e.observed_at IS NULL
+           ORDER BY e.rowid ASC
+           LIMIT 20
+        `,
+          )
+          .all(botSlug, botSlug) as unknown as MemoryInboxRow[],
+    );
+    return {
+      units: coalesceInbox(rows),
+      eventIds: rows.map((row) => row.source_event_id),
+    };
+  }
+
   return {
     admitMemoryChange,
     recordMemoryObservation,
@@ -98,42 +143,42 @@ export function createMemoryEvents({
         }
       }
     },
-    collectMemoryInbox(
+    collectMemoryInbox,
+    steerMemoryInbox(
       botSlug: string,
-      coalesceInbox: (rows: MemoryInboxRow[]) => InboxUnit[],
-    ): {
-      units: InboxUnit[];
-      eventIds: string[];
-    } {
-      const rows = database.read(
-        (database) =>
-          database
-            .prepare(
-              `
-            SELECT e.source_event_id, e.source_kind, e.assignment_session_id,
-                   e.body, e.created_at, e.expects_reply,
-                   NULL AS continuity_key, NULL AS activity
-              FROM source_events e
-              JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
-             WHERE e.bot_slug = ? AND a.bot_slug = ?
-               AND e.source_kind = 'memory-change'
-               AND a.reason = 'memory-change'
-               AND a.attempt_state IN ('pending', 'retryable')
-               AND e.observed_at IS NULL
-             ORDER BY e.rowid ASC
-             LIMIT 20
-          `,
-            )
-            .all(botSlug, botSlug) as unknown as MemoryInboxRow[],
+      activeEvents: ActiveMemoryEvents,
+      prompt: string | undefined,
+      deliver: (text: string) => boolean | Promise<boolean>,
+    ): boolean | Promise<boolean> {
+      const { units, eventIds } = collectMemoryInbox(botSlug);
+      if (prompt === undefined && units.length === 0) return false;
+      const rendered = units.length === 0 ? undefined : renderInbox(units, promptText(botSlug));
+      const text = [prompt, rendered].filter((part) => part !== undefined).join('\n\n');
+      const delivery = deliver(text);
+      if (delivery === false) return false;
+      setObserved(eventIds, now().toISOString());
+      const accept = () => activeEvents.eventIds.push(...eventIds);
+      if (delivery === true) {
+        accept();
+        return true;
+      }
+      const settled = delivery.then(
+        (delivered) => {
+          if (delivered) accept();
+          else setObserved(eventIds, null);
+          return delivered;
+        },
+        (error: unknown) => {
+          setObserved(eventIds, null);
+          throw error;
+        },
       );
-      return {
-        units: coalesceInbox(rows),
-        eventIds: rows.map((row) => row.source_event_id),
-      };
+      trackSteer(settled.then(() => undefined));
+      return settled;
     },
     scanMemoryWhileSteering(
       botSlug: string,
-      activeEvents: { eventIds: string[]; preserveObservation: boolean },
+      activeEvents: ActiveMemoryEvents,
       current: () => boolean,
       steerMemoryInbox: () => void,
     ): void {
