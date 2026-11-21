@@ -47,7 +47,6 @@
     "packages/core/src/plugin.ts",
     "packages/core/src/purge/owner.ts",
     "packages/core/src/runtime/bot-runtime.ts",
-    "packages/core/src/runtime/human-attention.ts",
     "packages/core/src/team/service.ts",
     "packages/core/src/voice/providers.ts",
     "packages/core/test/bot-create-cli.test.ts",
