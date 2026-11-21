@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/diagnostics/plugin.ts`
 - `packages/core/src/telemetry/**`
 - `packages/client/src/client/telemetry-*.{ts,tsx}`
 

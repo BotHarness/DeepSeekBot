@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/workspaces/plugin.ts`
 - `packages/core/src/workspaces/grant*.ts`
 - `packages/client/src/client/workspace-grant*`
 - `scripts/workspace-grant-report.mjs`

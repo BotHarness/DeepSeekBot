@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/profile-storage/plugin.ts`
 - `packages/core/src/data-reset/**`
 - `packages/client/src/client/data-reset-settings.tsx`
 
