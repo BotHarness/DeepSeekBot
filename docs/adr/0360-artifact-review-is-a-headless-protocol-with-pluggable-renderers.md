@@ -44,8 +44,8 @@ Artifact review is three layers. The seam between them is the **Anchor**: core s
 A renderer registers a `match(mediaType, name)` predicate and a component. It receives the snapshot bytes and the current Anchors. It reports a Human selection as an Anchor and draws highlights for given Anchors. It never reads or writes review state directly. A product can replace any renderer or the whole thread UI.
 
 - **Web/Desktop**: React renderers. Markdown, code and CSV use existing libraries such as `react-markdown`; PDF uses pdf.js; Office formats use a client-side viewer, with download as the fallback.
-- **Mobile**: Markdown, code, images and CSV render natively. PDF, Office and HTML reuse the web renderers inside `react-native-webview`, with the same Anchor bridge over `postMessage`.
-- **Interactive HTML** runs in a sandboxed iframe with no Host credentials. It speaks the MCP Apps message protocol, so the same artifact also works in other MCP Apps hosts.
+- **Mobile**: Markdown, code, images and CSV render natively. PDF and Office reuse the web renderers inside `react-native-webview`, with the same Anchor bridge over `postMessage`.
+- **HTML** renders through the existing isolated GenUI surface ([ADR-0301](../decisions/genui.md#adr-0301)) on both Clients, with no second HTML sandbox. It keeps the same guest/trusted split, CSP, native WebView policy, resource bounds and readable fallback. The HTML renderer is a trusted adapter around that surface. It derives Anchors and draws highlights on the trusted mirror, never from guest script, and guest content gets no Host credentials, navigation, storage or review access. HTML that the surface cannot render falls back to external open and download.
 
 Rendering is only for display. The Bot still processes files with native tools ([ADR-0105](../decisions/im-providers.md#adr-0105)); renderers are not a document parser for the Agent.
 
@@ -53,9 +53,13 @@ Rendering is only for display. The Bot still processes files with native tools (
 
 - **Partially reopens [ADR-0100](../decisions/workspaces.md#adr-0100)** ("no attachment version archive"). Attachments stay live, mutable files with the identity and current-content semantics of ADR-0100. Review does not add continuous version retention. It stores a snapshot only when a Human starts a review or a Bot publishes one for review. That snapshot belongs to the review owner, is deleted with its threads, and follows existing purge ([ADR-0146](../decisions/persistence.md#adr-0146)) and backup ([ADR-0042](../decisions/persistence.md#adr-0042)) rules. Without it, an external edit would silently invalidate every Anchor.
 - **[ADR-0178](../decisions/workspaces.md#adr-0178)**: the built-in reader for Memory files becomes the first consumer of the renderer registry. Message file cards gain a **View** action next to the existing split-button open and download controls, and download remains available.
+- **[ADR-0301](../decisions/genui.md#adr-0301)**: unchanged, and reused. Artifact HTML is one more consumer of the GenUI isolated surface; review adds Anchors on the trusted side only. An earlier draft of this record proposed a separate MCP Apps sandbox for HTML; that was dropped (amended 2026-11-22).
+- **#2819** (mobile Channel files) asks for no second file ledger before first-slice Human feedback. Delivery steps 1 and 2 below store no review state and can sit behind its Channel files entry. Review Snapshots arrive in step 3, after that feedback.
 - **[ADR-0105](../decisions/im-providers.md#adr-0105)**: unchanged. Opening a viewer grants the Bot no file access. Viewing and commenting use the Human's current Channel authority over that message and file.
 
 ## Delivery
+
+The spec and its user stories are in [#4883](https://github.com/BotHarness/DeepSeekBot/issues/4883) (milestone v1.9.0, project "Artifacts & File Preview").
 
 1. **Viewer (no review state)**: the renderer registry and renderers for Markdown, code, CSV, PDF, HTML and images. Desktop/Web via message file cards and the Memory reader; mobile via a viewer screen. This removes the "open it on a computer" problem on its own.
 2. **Review**: Review Snapshot, Anchors, threads and verdicts; Source Event delivery to the Bot; Bot tool and `deepseekbot artifact` CLI; re-anchoring.
@@ -66,6 +70,7 @@ Each step needs proof in the running app: the file opens on a phone without a do
 ## Considered Options
 
 - **Embed `ryugi-artifacts`**: rejected. It is proprietary; the older AGPL releases would extend copyleft to our clients.
+- **A separate MCP Apps sandbox for HTML**: rejected. It would be a second isolation policy beside GenUI's, with its own CSP, WebView rules and bounds to keep in step. MCP Apps compatibility can be added later as an export, not as the review renderer.
 - **Run plannotator/artifact-server beside the Host**: rejected. It adds a second authority for files, identity and sharing, outside the Host's Channel authorization.
 - **Viewer only, no review protocol**: kept as delivery step 1, but rejected as the end state. Comments would go back into chat as text, losing the exact position the Human meant.
 - **A full UI kit with fixed presentation**: rejected. Other agent products need their own presentation; the Anchor seam lets them reuse state and renderers separately.
@@ -76,4 +81,5 @@ Each step needs proof in the running app: the file opens on a phone without a do
 - New product terms (Artifact, Review Snapshot, Anchor, Review Thread, Verdict) need [`GLOSSARY.md`](../../GLOSSARY.md) and `GLOSSARY.zh.md` entries before implementation names them. Once accepted, this record folds into a section of [Workspaces & files decisions](../decisions/workspaces.md).
 - Office rendering fidelity in the open-source viewers is limited. Office files keep external open and download as the reliable path.
 - Snapshots duplicate bytes for reviewed files. Size limits and cleanup follow the review owner's lifetime, not the Attachment's.
+- Review Anchors on HTML are limited to what the GenUI trusted mirror exposes. A guest-script-driven interaction state cannot be anchored.
 - The web renderers become a mobile dependency through WebView. Their bundle size and cold start need to be checked against the mobile performance targets.
