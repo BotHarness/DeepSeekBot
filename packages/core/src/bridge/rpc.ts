@@ -21,6 +21,7 @@ import type {
   MarketplaceAvatar,
   MarketplaceAvatarEdit,
   MarketplaceAvatarPage,
+  MarketplaceAvatarRanking,
   MarketplaceAvatarTag,
   MarketplaceAvatarApplyCandidate,
 } from '@botharness/host-protocol/marketplace-avatar';
@@ -3145,8 +3146,9 @@ export class BotharnessBridgeService extends TypertRemoteService {
     cursor?: string,
     q?: string,
     tag?: string,
+    sort?: MarketplaceAvatarRanking,
   ): Promise<MarketplaceAvatarPage> {
-    return marketplaceRpc.marketplaceAvatarList(this.methods, cursor, q, tag);
+    return marketplaceRpc.marketplaceAvatarList(this.methods, cursor, q, tag, sort);
   }
 
   async marketplaceAvatarTags(): Promise<MarketplaceAvatarTag[]> {

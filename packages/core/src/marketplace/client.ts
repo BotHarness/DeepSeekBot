@@ -710,13 +710,14 @@ export function createMarketplaceClient(options: {
   };
 
   return {
-    avatarList: ({ cursor, q, tag }) => {
+    avatarList: ({ cursor, q, tag, sort }) => {
       const params = new URLSearchParams();
       if (cursor !== undefined) params.set('cursor', cursor);
       if (q !== undefined) params.set('q', q);
       if (tag !== undefined) params.set('tag', tag);
+      const path = sort === undefined ? '/v1/avatars' : `/v1/avatars/sections/${sort}`;
       return request(
-        params.size === 0 ? '/v1/avatars' : `/v1/avatars?${params}`,
+        params.size === 0 ? path : `${path}?${params}`,
         { method: 'GET', headers: { accept: 'application/json' } },
         parseAvatarPage,
       );

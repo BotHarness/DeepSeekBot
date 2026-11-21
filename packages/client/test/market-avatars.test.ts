@@ -143,6 +143,39 @@ it('submits keyword search, combines it with a counted tag and shows the filtere
   expect(host.textContent).not.toContain(avatar.name);
 });
 
+it('shows the selected Avatar ranking, keeps tag filters and restores the browse grid', async () => {
+  const actions = actionsFor();
+  actions.marketplaceAvatarList.mockImplementation(async ({ sort } = {}) => ({
+    avatars: sort === 'rising' ? [] : [{ ...avatar, name: sort ?? avatar.name }],
+    nextCursor: null,
+  }));
+  await act(async () =>
+    root.render(
+      createElement(MarketAvatars, { actions, t, publishing: false, onClosePublish: vi.fn() }),
+    ),
+  );
+  expect(host.textContent).toContain(avatar.name);
+  await act(async () => buttonNamed('blue2', host).click());
+  const tabs = host.querySelector<HTMLElement>('[role="tablist"]');
+  if (tabs === null) throw new Error('Missing Avatar ranking tabs');
+  expect(tabs.closest('.bh-market-browse')?.querySelector('input[type="search"]')).toBeInstanceOf(
+    HTMLInputElement,
+  );
+  for (const sort of ['hot', 'new', 'rising'] as const) {
+    const tab = buttonNamed(t(`market.section.${sort}`), tabs);
+    await act(async () => tab.click());
+    expect(tab.getAttribute('aria-selected')).toBe('true');
+    expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith({ sort, tag: 'blue' });
+    if (sort !== 'rising') expect(host.textContent).toContain(sort);
+  }
+  expect(host.textContent).toContain(t('market.avatar.search.empty'));
+  await act(async () => buttonNamed(t('market.topics.all'), host).click());
+  expect(host.textContent).toContain(t('market.avatar.ranking.empty'));
+  await act(async () => buttonNamed(t('market.avatar.ranking.all'), tabs).click());
+  expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith({});
+  expect(host.textContent).toContain(avatar.name);
+});
+
 async function loadSource(width: number, height: number) {
   const preview = document.querySelector('img[src="blob:crop"]');
   if (!(preview instanceof HTMLImageElement)) throw new Error('Missing crop preview');

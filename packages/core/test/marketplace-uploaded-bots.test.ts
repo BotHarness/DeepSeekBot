@@ -639,6 +639,22 @@ it('publishes an Avatar as the Host owner and lets a Team member browse without 
     ok: true,
     value: [{ tag: 'blue', count: 1 }],
   });
+  expect(await memberBridge.marketplaceAvatarList({ sort: 'new' })).toEqual({
+    ok: true,
+    value: { avatars: [], nextCursor: null },
+  });
+  await f.market.daily();
+  expect(await memberBridge.marketplaceAvatarList({ sort: 'new', tag: 'BLUE' })).toEqual({
+    ok: true,
+    value: { avatars: [published.value], nextCursor: null },
+  });
+  for (const sort of ['hot', 'rising']) {
+    expect(await memberBridge.marketplaceAvatarList({ sort })).toEqual({
+      ok: true,
+      value: { avatars: [], nextCursor: null },
+    });
+  }
+  expect(await memberBridge.marketplaceAvatarList({ sort: 'stars' })).toMatchObject({ ok: false });
   expect(f.market.bucket.objects.size).toBe(1);
 });
 

@@ -2,6 +2,7 @@ import { useCallback, useId, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import {
+  MARKETPLACE_AVATAR_RANKINGS,
   MAX_MARKETPLACE_AVATAR_QUERY,
   parseMarketplaceAvatarText,
   type MarketplaceAvatar,
@@ -29,7 +30,8 @@ import type { BotHarnessTranslate } from './locale.js';
 import { MarketAvatarApplyDialog, type AvatarApplyActions } from './market-avatar-apply.js';
 import { MyAvatarsDialog, type AvatarMineActions } from './market-avatar-mine.js';
 import { MarketPage } from './market-page.js';
-import { MarketplaceSearchField } from './marketplace-browse-controls.js';
+import { SECTION_TITLES } from './market-rankings.js';
+import { MarketplaceSearchField, MarketplaceSortTabs } from './marketplace-browse-controls.js';
 import { MarketplaceTopicChips } from './marketplace.js';
 import { marketplaceError } from './marketplace-feedback.js';
 import { MarketplaceLoadMoreButton } from './marketplace-list-status.js';
@@ -281,19 +283,36 @@ export function MarketAvatars({
               onChange={setSearchText}
               onSearch={() => {
                 const q = searchText.trim();
-                setFilters(({ tag }) => ({
+                setFilters(({ q: _q, ...filters }) => ({
+                  ...filters,
                   ...(q ? { q } : {}),
-                  ...(tag === undefined ? {} : { tag }),
                 }));
               }}
+            />
+            <MarketplaceSortTabs
+              value={filters.sort ?? 'all'}
+              options={[
+                { value: 'all', label: t('market.avatar.ranking.all') },
+                ...MARKETPLACE_AVATAR_RANKINGS.map((value) => ({
+                  value,
+                  label: t(SECTION_TITLES[value]),
+                })),
+              ]}
+              label={t('market.sort.label')}
+              onChange={(sort) =>
+                setFilters(({ sort: _sort, ...filters }) => ({
+                  ...filters,
+                  ...(sort === 'all' ? {} : { sort }),
+                }))
+              }
             />
           </div>
           <MarketplaceTopicChips
             topics={tags.map(({ tag, count }) => ({ topic: tag, count }))}
             selected={filters.tag}
             onChoose={(tag) =>
-              setFilters(({ q }) => ({
-                ...(q === undefined ? {} : { q }),
+              setFilters(({ tag: _tag, ...filters }) => ({
+                ...filters,
                 ...(tag === undefined ? {} : { tag }),
               }))
             }
@@ -319,7 +338,13 @@ export function MarketAvatars({
           {listing.kind === 'ready' &&
             (listing.value.avatars.length === 0 ? (
               <div className="bh-market-state">
-                {t(filters.q || filters.tag ? 'market.avatar.search.empty' : 'market.avatar.empty')}
+                {t(
+                  filters.q || filters.tag
+                    ? 'market.avatar.search.empty'
+                    : filters.sort
+                      ? 'market.avatar.ranking.empty'
+                      : 'market.avatar.empty',
+                )}
               </div>
             ) : (
               <div

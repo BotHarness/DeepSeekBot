@@ -9,6 +9,7 @@ import {
   type BridgeResult,
 } from '../../bridge/method-utils.js';
 import {
+  isMarketplaceAvatarRanking,
   parseMarketplaceAvatarEdit,
   parseMarketplaceAvatarPublish,
   type MarketplaceAvatar,
@@ -550,9 +551,14 @@ export function createMarketplaceBridgeMethods(
         marketplaceCall,
       ),
       marketplaceAvatarList(payload) {
-        const { cursor, q, tag } = asObject(payload);
-        if (cursor !== undefined && (typeof cursor !== 'string' || cursor.length > 100))
+        const { cursor, q, tag, sort } = asObject(payload);
+        if (
+          cursor !== undefined &&
+          (typeof cursor !== 'string' || cursor.length > 100 || sort !== undefined)
+        )
           return Promise.resolve(invalidInput('invalid cursor'));
+        if (sort !== undefined && !isMarketplaceAvatarRanking(sort))
+          return Promise.resolve(invalidInput('invalid Avatar ranking'));
         if (
           q !== undefined &&
           (typeof q !== 'string' || q.trim().length > MAX_MARKETPLACE_AVATAR_QUERY)
@@ -568,6 +574,7 @@ export function createMarketplaceBridgeMethods(
             ...(cursor === undefined ? {} : { cursor }),
             ...(q === undefined ? {} : { q: q.trim() }),
             ...(tag === undefined ? {} : { tag: tag.trim() }),
+            ...(sort === undefined ? {} : { sort }),
           }),
         );
       },

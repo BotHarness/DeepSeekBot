@@ -993,6 +993,8 @@ My Avatars 与 CLI 使用同一组 Host 所有者方法。Worker 按 Connect 账
 
 Avatar 与 Bot 共用 Worker 的 ALTCHA、来源限流、举报阈值和 D1 举报表。举报达到阈值后，Worker 在同一事务内将该条目的 visibility 设为 `hidden_reported`。公开列表、详情、图片和 Apply 均须读取到 `listed` 状态。管理员恢复 Avatar 时同一条语句更新 visibility 并清除该条目的举报，保留 Apply Count。Host 向 Worker 举报时不需要 Connect 账户。已应用的图片由各 Host 的 Registry 存储。
 
+同一个每日任务以应用回执和首次上架时间生成 Avatar 的热门、新上架和上升最快榜单。每次运行以同一 D1 批次写入 `avatar_ranking_runs` 与 `avatar_ranking_snapshots`，空榜也记录当天。`GET /v1/avatars/sections/{hot|new|rising}` 读取最近一次快照，并再次检查条目是否仍在上架。Web 和 CLI 通过 `marketplaceAvatarList` 的 `sort` 参数读取榜单，可保留关键词和标签筛选。
+
 [ADR-0240](../decisions/marketplace.md#adr-0240) 让列表按读者语言（中文/英文）显示：作者在仓库根目录放 `README.zh-CN.md`／`README.en.md`，在 `.botharness/bot.json` 的 `i18n` 里写翻译后的名称和简介；Worker 推送后一并抓取，`lang=zh|en` 时优先返回。某语言没有作者简介时，Worker 在每小时刷新后经 OpenCode Go 的免费模型按 README 生成一句简介（按输入哈希缓存、每轮限量，标记 `bioGenerated`），作者文本总是优先；README 正文不做机器翻译。Host 的 Marketplace modal 与 CLI 按界面语言传 `lang`。
 
 [ADR-0267](../decisions/marketplace.md#adr-0267) 加入安装计数：Host 在 Bot 建成之后（UI 或 CLI，上传条目或 GitHub 条目）向 Worker 发送一次 Install Receipt（`POST /v1/bots/{id}/installs`），键是 Host 数据目录 `marketplace-host.json` 里只给市场用的随机标识，与遥测安装 ID 无关；Worker 只存它的 SHA-256，`install_receipts` 以 (条目, Host) 去重并按来源地址限流，`installs` 随列表和详情返回。
