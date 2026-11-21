@@ -20,7 +20,7 @@
 
 - Codex receives a Group mention, DM or Inbox context in its active turn.
 - Claude Code interrupts and continues in the same Session without repeating a committed reply.
-- A refused Codex steer queues the input behind the active turn.
+- A refused Codex steer leaves the Inbox Admission pending for the next turn.
 - Each trusted Source Event keeps its own reply Channel and the gateway checks current Bot membership.
 
 ## How to get to it (user POV)
@@ -36,6 +36,6 @@ Select Codex or Claude Code as the Bot's Orchestrator on a local Host. Add the B
 
 ## Gotchas
 
-- A replay proves explicit Codex refusal and queued fallback without relying on a provider failure.
+- A replay proves explicit Codex refusal and pending-Inbox fallback without relying on a provider failure.
 - When both sends can reach the Host near turn startup, wait for the first model input in the Session transcript before sending the update.
 - A Group with send review enabled may require a fresh Channel read before sending.
