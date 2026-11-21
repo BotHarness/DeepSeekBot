@@ -43,23 +43,26 @@ const styles = stylex.create({
     minWidth: 0,
     paddingInline: {
       default: style.listGroupPaddingInline,
-      ':not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section)))': `calc(${style.listGroupPaddingInline} + ${style.listItemPadding})`,
-      ':has(> section)': 0,
+      ':not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section, [data-list-card]), > * > [data-list-card]))': `calc(${style.listGroupPaddingInline} + ${style.listItemPadding})`,
+      ':has(> :is(section, [data-list-card]), > * > [data-list-card])': 0,
     },
     paddingBlock: {
       default: style.listGroupPaddingBlock,
-      ':not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section)))': `calc(${style.listGroupPaddingBlock} + ${style.listItemPaddingBlock})`,
-      ':has(> section)': 0,
+      ':not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section, [data-list-card]), > * > [data-list-card]))': `calc(${style.listGroupPaddingBlock} + ${style.listItemPaddingBlock})`,
+      ':has(> :is(section, [data-list-card]), > * > [data-list-card])': 0,
     },
-    borderRadius: { default: style.listGroupRadius, ':has(> section)': 0 },
+    borderRadius: {
+      default: style.listGroupRadius,
+      ':has(> :is(section, [data-list-card]), > * > [data-list-card])': 0,
+    },
     overflow: 'clip',
     backgroundColor: {
       default: style.listGroupFill,
-      ':has(> section)': 'transparent',
+      ':has(> :is(section, [data-list-card]), > * > [data-list-card])': 'transparent',
     },
     boxShadow: {
       default: `0 0 0 0.5px ${style.listGroupEdge}`,
-      ':has(> section)': 'none',
+      ':has(> :is(section, [data-list-card]), > * > [data-list-card])': 'none',
     },
   },
   sectionHead: {
