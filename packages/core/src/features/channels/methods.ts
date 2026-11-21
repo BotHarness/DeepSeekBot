@@ -788,13 +788,6 @@ export function authorizeChannelBridgeMethods(
             ['channelRename', 'channelGroupAvatarSet'].includes(key)
           )
             deps.team!.channelAccess.requirePolicy(human, id, 'editDetails');
-          if (
-            id &&
-            deps.channels.get(id)?.type === 'group' &&
-            key === 'channelGroupInvite' &&
-            typeof input['botSlug'] === 'string'
-          )
-            deps.team!.bots.requireAdd(human, input['botSlug'], id);
           if (id && deps.channels.get(id) && key === 'channelSend') {
             deps.team!.channelAccess.requirePolicy(human, id, 'post');
             if (input['allBotMention'] !== undefined)
@@ -807,13 +800,6 @@ export function authorizeChannelBridgeMethods(
               }
           }
           const result: unknown = Reflect.apply(method, target, [payload, ...args]);
-          if (
-            key === 'channelGroupInvite' &&
-            id &&
-            typeof input['botSlug'] === 'string' &&
-            asObject(result)['ok'] === true
-          )
-            deps.team!.bots.recordAdder(human, input['botSlug'], id);
           if (result instanceof Promise)
             return result.catch((error: unknown) => {
               if (error instanceof TeamError)

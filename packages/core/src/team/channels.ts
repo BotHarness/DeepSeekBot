@@ -155,6 +155,17 @@ export class TeamChannels {
   }
   memberCandidates(human: HumanContext, channelId: string, query: string) {
     this.requireAddMembers(human, channelId);
+    return this.searchMemberCandidates(channelId, null, query);
+  }
+  createMemberCandidates(human: HumanContext, query: string) {
+    this.roles.require(human, 'channels.create');
+    return this.searchMemberCandidates(null, human.humanId, query);
+  }
+  private searchMemberCandidates(
+    channelId: string | null,
+    excludeHumanId: string | null,
+    query: string,
+  ) {
     return z
       .array(
         z.object({ humanId: z.string(), displayName: z.string(), username: z.string().nullable() }),
@@ -164,11 +175,11 @@ export class TeamChannels {
           db
             .prepare(`SELECT h.human_id AS humanId, h.display_name AS displayName, c.username
         FROM humans h LEFT JOIN member_credentials c ON c.human_id = h.human_id
-        WHERE h.status = 'active'
+        WHERE h.status = 'active' AND h.human_id IS NOT ?
           AND NOT EXISTS (SELECT 1 FROM channel_human_members m WHERE m.channel_id = ? AND m.human_id = h.human_id AND m.left_at IS NULL)
           AND (instr(lower(h.display_name), lower(?)) > 0 OR instr(lower(COALESCE(c.username, '')), lower(?)) > 0)
         ORDER BY h.display_name, h.human_id LIMIT 100`)
-            .all(channelId, query, query),
+            .all(excludeHumanId, channelId, query, query),
         ),
       );
   }
@@ -297,9 +308,9 @@ export class TeamChannels {
     this.changed(true);
     return null;
   }
-  addMember(human: HumanContext, channelId: string, reference: string): null {
+  addMember(human: HumanContext, channelId: string, reference: string | { humanId: string }): null {
     this.requirePolicy(human, channelId, 'addMembers');
-    const humanId = this.memberId(reference);
+    const humanId = typeof reference === 'string' ? this.memberId(reference) : reference.humanId;
     if (!this.active(humanContext(humanId))) throw new TeamError('member-not-found');
     this.db.transaction(
       (db) =>

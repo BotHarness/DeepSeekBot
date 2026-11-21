@@ -170,6 +170,8 @@ export const MEMBER_CHANNEL_METHODS = [
   'channelGroupAvatarSet',
   'channelDescriptionSet',
   'channelGroupInvite',
+  'channelGroupMemberPicker',
+  'channelGroupMembersAdd',
   'channelAllBotPreview',
   'channelSkillCatalog',
   'composerValidate',

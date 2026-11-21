@@ -235,6 +235,34 @@ describe('Channel and group CLI commands', () => {
       args: { slug: 'ada' },
     });
   });
+  it('queries the creation picker and submits a mixed batch with stable Bot keys', async () => {
+    const live = await host(ok);
+    expect((await invoke(['group-member-picker', '--query', 'Bob'], live.url)).code).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelGroupMemberPicker',
+      args: { query: 'Bob' },
+    });
+    expect((await invoke(['group-member-picker', 'team'], live.url)).code).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelGroupMemberPicker',
+      args: { channelId: 'team' },
+    });
+    const targets = [
+      { kind: 'human', id: 'bob-human' },
+      { kind: 'bot', id: 'bob-bot', operationKey: 'bulk-team-bob-bot' },
+    ];
+    const result = await invoke(
+      ['group-members-add', 'team', '--body-stdin'],
+      live.url,
+      JSON.stringify(targets),
+    );
+    expect(result.code).toBe(0);
+    expect(live.calls.at(-1)).toEqual({
+      method: 'channelGroupMembersAdd',
+      args: { channelId: 'team', targets },
+    });
+  });
+
   it('reads group snapshots and forwards stable create and invite identity without changing unkeyed calls', async () => {
     const live = await host(ok);
     expect((await invoke(['channel', 'team'], live.url)).json).toMatchObject({

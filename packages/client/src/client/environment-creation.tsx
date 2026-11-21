@@ -56,9 +56,11 @@ export function EnvironmentCreation(
       <CreateChannelModal
         t={t}
         sectionName={sectionName}
+        members={actions.teamCall && { scope: 'member-host', call: actions.teamCall }}
         onCancel={onClose}
-        onCreate={async (name) => {
-          if (await actions.createGroup(name, request.sectionId)) onClose();
+        onCreate={(name, key) => actions.createGroup(name, request.sectionId, key)}
+        onMembersChanged={(channel) => {
+          void actions.openChannel(channel.id).catch(() => undefined);
         }}
       />
     );
@@ -245,11 +247,26 @@ function OwnerEnvironmentCreation({
       />
     );
   }
-  if (request.kind === 'channel')
+  if (request.kind === 'channel') {
+    const client =
+      target === undefined || target.id === 'local' ? undefined : remoteHosts().client(target.id);
+    const bound =
+      target?.id === 'local'
+        ? localOwner
+        : target && client
+          ? remoteOwner({ id: target.id, client })
+          : undefined;
     return (
       <CreateChannelModal
         t={t}
         target={targetField}
+        members={
+          bound?.call &&
+          target && {
+            scope: target.id === 'local' ? (local.id ?? 'local') : target.id,
+            call: bound.call,
+          }
+        }
         targetUnavailable={!online || connectionChanged}
         sectionName={sectionName}
         committed={committed}
@@ -259,17 +276,19 @@ function OwnerEnvironmentCreation({
           const remote = owner();
           setBusy(true);
           try {
-            if (!remote) await localOwner.createGroup(name, request.sectionId);
-            else {
-              await remoteOwner(remote).channel(name, request.sectionId);
-            }
-            onClose();
+            if (!remote) return await localOwner.createGroup(name, request.sectionId);
+            return await remoteOwner(remote).channel(name, request.sectionId);
           } finally {
             setBusy(false);
           }
         }}
+        onMembersChanged={(channel) => {
+          if (client) void client.refresh().catch(() => undefined);
+          else void actions.openChannel(channel.id).catch(() => undefined);
+        }}
       />
     );
+  }
   return (
     <CreatePersonaBotModal
       onBack={onBack}

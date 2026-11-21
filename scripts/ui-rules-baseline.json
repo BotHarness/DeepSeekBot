@@ -92,13 +92,6 @@
       "width: 240px",
       "width: 8px"
     ],
-    "packages/client/src/client/channel-add-people.tsx": [
-      "height: 28px",
-      "maxHeight: 280px",
-      "minHeight: 120px",
-      "outlineOffset: -2px",
-      "width: 28px"
-    ],
     "packages/client/src/client/channel-delivery-receipt.tsx": ["boxShadow: 1.5px"],
     "packages/client/src/client/channel-dock.tsx": ["outlineOffset: -2px"],
     "packages/client/src/client/channel-options.tsx": [
@@ -1229,7 +1222,6 @@
     "packages/client/src/client/bug-icon.tsx": ["<svg>"],
     "packages/client/src/client/bug-report-annotate-dialog.tsx": ["<svg>"],
     "packages/client/src/client/call-rail-button.tsx": ["ChannelSidebarIcon"],
-    "packages/client/src/client/channel-add-people.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/channel-composer.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/channel-dock.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/channel-message-body.tsx": ["ChannelSidebarIcon"],

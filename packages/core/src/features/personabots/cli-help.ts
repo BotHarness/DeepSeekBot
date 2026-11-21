@@ -153,6 +153,8 @@ Usage:
   tobs workspace-create <absolute-path>
   tobs channel <channel-id>
   tobs group-create <name> [--member <bot-id> ...] [--operation-key <key>]
+  tobs group-member-picker [channel-id] [--query <text>]
+  tobs group-members-add <channel-id> --body-stdin
   tobs group-invite <channel-id> --bot <bot-id> [--operation-key <key>] [--expected-channel <fingerprint>]
   tobs group-invite-cancel <channel-id> --invitation <invitation-id> [--expected-channel <fingerprint>]
   tobs group-join-decide <channel-id> --request <join-request-id> (--accept | --decline) [--expected-channel <fingerprint>]

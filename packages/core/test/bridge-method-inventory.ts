@@ -181,6 +181,8 @@ export const bridgeMethodInventory = [
   'channelRename',
   'channelGroupAvatarSet',
   'channelGroupInvite',
+  'channelGroupMemberPicker',
+  'channelGroupMembersAdd',
   'channelGroupInviteCancel',
   'channelGroupMemberRemove',
   'channelGroupJoinDecide',

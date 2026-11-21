@@ -225,6 +225,8 @@ export function createChannelsManagementAdapterMethods(
         (typeof expectedChannel !== 'string' || !expectedChannel.trim())
       )
         return invalidInput('expectedChannel must be a nonempty string');
+      const group = deps.channels.get(channelId);
+      if (group?.type === 'group') deps.team?.bots.requireAdd(human, botSlug, channelId);
       if (deps.channelManagement) {
         try {
           const result = deps.channelManagement.invite(
@@ -236,6 +238,7 @@ export function createChannelsManagementAdapterMethods(
             },
             operationKey,
           );
+          deps.team?.bots.recordAdder(human, botSlug, channelId);
           return {
             ok: true,
             value: { ...result, channel: channelView(result.channel) },
@@ -279,6 +282,7 @@ export function createChannelsManagementAdapterMethods(
           targetBotCreatedAt: bot.createdAt,
           targetDmChannelId: dm.id,
         });
+        deps.team?.bots.recordAdder(human, botSlug, channelId);
         deps.runtime?.admitGroupInvitation(dm.id, invitation.id);
         return {
           ok: true,

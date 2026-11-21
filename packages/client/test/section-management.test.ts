@@ -325,7 +325,7 @@ describe('channel create modal', () => {
 
     expect(dialog().querySelector('[role="alert"]')?.textContent).toContain('磁盘已满');
     await click(buttonNamed('创建'));
-    expect(onCreate).toHaveBeenLastCalledWith('周报');
+    expect(onCreate).toHaveBeenLastCalledWith('周报', expect.any(String));
     expect(dialog().querySelector('[role="alert"]')).toBeNull();
   });
 });

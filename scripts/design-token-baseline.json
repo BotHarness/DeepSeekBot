@@ -109,9 +109,6 @@
   "packages/client/src/client/channel-activity-view.tsx": {
     "rawControl": 2
   },
-  "packages/client/src/client/channel-add-people.tsx": {
-    "rawControl": 1
-  },
   "packages/client/src/client/channel-composer.tsx": {
     "dshImport": 1,
     "rawControl": 10
