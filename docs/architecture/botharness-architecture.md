@@ -676,6 +676,8 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 
 ## 5 · Orchestrator 与 Assignment control plane
 
+应用定义的 Bot Runtime 持有每个 PersonaBot 的轮次队列，Orchestrator 调度、取消与继续模块共用该队列，并沿用 Session Ownership 与 DSH Agent adapter。参见[共享内核](feature-map.md#shared-kernel)。
+
 DSH Agent adapter 管理原生 Agent 生命周期，并注册 `packages/core/src/features/` 中 Schedule、GenUI、Memory、Channel files、Channel、IM Messaging、Activity、Assignment 和 Models 的工具与提示词。原生回合和直调共用同一套工具定义。
 
 M6 adds application-owned account/shared roots, separate grantable `files/` and protected Bot Memory, current audience checks (including for the Owner's own Bots), and the bound `core.currentRoots(session, kind)` seam for M12. The persistence, migration, M9 lifecycle and wire contracts are in [M6 runtime boundaries](team-mode-m6-runtime.md).
@@ -975,6 +977,8 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 
 删除 owner 先接受持久身份关闭状态，再停止该 Bot 所拥有的原生 AgentHandle 执行树、撤销 Workspace／工具规则，并停用其 Messaging 绑定。已发出的原生／provider 效果保留实际结果。可选文件清理具有明确接受的范围和未完成状态；重试只使用原目录身份，不能选择新路径。DSH Session Persistence 与共享 provider 账号保留。冷启动仍排除已删除身份，即使清理需要修复。后续 Profile Backup 必须枚举历史 Registry 记录及删除位置，区分主动清除的记忆。Channel Content Purge 与支持恢复的 ledger 仍属于 #897。
 
+从 Bot Zip 和 Bot 市场导入时使用 `.botharness/bot.json` 中可选的 `standingLimits`。导入 owner 校验来源值并在创建时写入 PersonaBot 记录。导入预览采用和提示词组装相同的字符计数，来源没有可用设置时使用默认上限。
+
 ### Bot Marketplace（已接受设计，待实现）
 
 目录查询将 GitHub topics 与 `.botharness/bot.json` 的 tags（兼容旧 `roles`，存于 D1 的 `roles` 列）一起用于文字搜索、`topic` 筛选和 `/v1/topics` 统计；同一仓库的同名标签只计数一次，统计排除收录标记 `botharness-bot` 及未上架仓库。FTS5 同时索引两类标签，迁移会从已存数据重建索引。每小时刷新不依赖 push 即更新 GitHub topics；检测到 push 后重新读取 README 和 bot.json，并替换旧标签。
@@ -985,7 +989,13 @@ Web Marketplace 的 Avatars 分区使用独立的 D1 表和 R2 `avatars/` 前缀
 
 从 Bot 发布时，Web 和 CLI 先通过仅限 Host 所有者的读取方法取得 Bot 在 Registry 中保存的图片，包括 Avatar Appearance 的静态 PNG。Web 将图片交给同一个市场头像裁剪流程，CLI 则直接校验图片，然后沿用同一个发布方法。
 
+My Avatars 与 CLI 使用同一组 Host 所有者方法。Worker 按 Connect 账户列出该作者的头像及其 Apply Count，编辑只写入名称、简介和标签，并同步更新搜索索引和规范化标签。删除时先移除 R2 图片，再删除 D1 条目，由外键和触发器清理应用回执及举报。注销账户时逐条执行同一删除流程，并在该账户没有剩余头像时才删除作者记录。已经应用到 Bot 的本地副本继续保留。
+
 应用时，当前 Host 通过 Worker 的公开图片路由读取原始字节，验证头像并在写入前重新检查 Bot 和权限。Host 复用手动换头像的 Registry 路径，写入成功后异步发送回执。Worker 根据头像条目和 Host ID 与 PersonaBot ID 的 SHA-256 去重，由回执计算应用次数。见 [ADR-0358](../adr/0358-apply-count-counts-persona-bots-without-anti-abuse.md)。
+
+Avatar 与 Bot 共用 Worker 的 ALTCHA、来源限流、举报阈值和 D1 举报表。举报达到阈值后，Worker 在同一事务内将该条目的 visibility 设为 `hidden_reported`。公开列表、详情、图片和 Apply 均须读取到 `listed` 状态。管理员恢复 Avatar 时同一条语句更新 visibility 并清除该条目的举报，保留 Apply Count。Host 向 Worker 举报时不需要 Connect 账户。已应用的图片由各 Host 的 Registry 存储。
+
+同一个每日任务以应用回执和首次上架时间生成 Avatar 的热门、新上架和上升最快榜单。每次运行以同一 D1 批次写入 `avatar_ranking_runs` 与 `avatar_ranking_snapshots`，空榜也记录当天。`GET /v1/avatars/sections/{hot|new|rising}` 读取最近一次快照，并再次检查条目是否仍在上架。Web 和 CLI 通过 `marketplaceAvatarList` 的 `sort` 参数读取榜单，可保留关键词和标签筛选。
 
 [ADR-0240](../decisions/marketplace.md#adr-0240) 让列表按读者语言（中文/英文）显示：作者在仓库根目录放 `README.zh-CN.md`／`README.en.md`，在 `.botharness/bot.json` 的 `i18n` 里写翻译后的名称和简介；Worker 推送后一并抓取，`lang=zh|en` 时优先返回。某语言没有作者简介时，Worker 在每小时刷新后经 OpenCode Go 的免费模型按 README 生成一句简介（按输入哈希缓存、每轮限量，标记 `bioGenerated`），作者文本总是优先；README 正文不做机器翻译。Host 的 Marketplace modal 与 CLI 按界面语言传 `lang`。
 

@@ -9,10 +9,15 @@ import {
   type BridgeResult,
 } from '../../bridge/method-utils.js';
 import {
+  isMarketplaceAvatarRanking,
+  parseMarketplaceAvatarEdit,
   parseMarketplaceAvatarPublish,
   type MarketplaceAvatar,
   type MarketplaceAvatarApplyCandidate,
   type MarketplaceAvatarPage,
+  type MarketplaceAvatarTag,
+  MAX_MARKETPLACE_AVATAR_QUERY,
+  MAX_MARKETPLACE_AVATAR_TAG_FILTER,
 } from '@botharness/host-protocol/marketplace-avatar';
 import { TeamError } from '../../team/error.js';
 import { join } from 'node:path';
@@ -74,6 +79,16 @@ import type { BridgeMethodsDeps, PersonaBotDetail } from '../../bridge/methods.j
 import type { HumanContext } from '../../humans/context.js';
 import { createMarketplaceAvatarApply } from './avatar-apply.js';
 
+function avatarManagementRefused(): BridgeResult<never> {
+  return {
+    ok: false,
+    error: {
+      code: 'permission-required',
+      message: 'Only the Host owner may manage Marketplace Avatars',
+    },
+  };
+}
+
 export interface MarketplaceBridgeMethods {
   zipUploadBegin(payload: unknown): BridgeResult<BotZipUploadStatus>;
   zipUploadChunk(payload: unknown): BridgeResult<BotZipUploadStatus>;
@@ -95,6 +110,7 @@ export interface MarketplaceBridgeMethods {
   ): Promise<BridgeResult<{ digests: MarketplaceDigestSummary[] }>>;
   marketplaceDigest(payload: unknown): Promise<BridgeResult<{ digest: MarketplaceDigest }>>;
   marketplaceAvatarList(payload: unknown): Promise<BridgeResult<MarketplaceAvatarPage>>;
+  marketplaceAvatarTags(): Promise<BridgeResult<MarketplaceAvatarTag[]>>;
   marketplaceAvatarDetail(payload: unknown): Promise<BridgeResult<MarketplaceAvatar>>;
   marketplaceAvatarApplyCandidates(
     payload: unknown,
@@ -102,9 +118,13 @@ export interface MarketplaceBridgeMethods {
   marketplaceAvatarApply(payload: unknown): Promise<BridgeResult<{ applied: true }>>;
   marketplaceAvatarPublish(payload: unknown): Promise<BridgeResult<MarketplaceAvatar>>;
   marketplaceAvatarSource(payload: unknown): BridgeResult<{ image: string }>;
+  marketplaceAvatarMine(payload: unknown): Promise<BridgeResult<{ avatars: MarketplaceAvatar[] }>>;
+  marketplaceAvatarEdit(payload: unknown): Promise<BridgeResult<MarketplaceAvatar>>;
+  marketplaceAvatarDelete(payload: unknown): Promise<BridgeResult<{ deleted: true }>>;
   marketplaceDetail(payload: unknown): Promise<BridgeResult<MarketplaceDetail>>;
   marketplaceFileView(payload: unknown): Promise<BridgeResult<MarketplaceFileView>>;
   marketplaceChallenge(): Promise<BridgeResult<AltchaChallenge>>;
+  marketplaceAvatarReport(payload: unknown): Promise<BridgeResult<{ received: true }>>;
   marketplaceReport(payload: unknown): Promise<BridgeResult<{ received: true }>>;
   marketplaceAccount(): Promise<BridgeResult<MarketplaceAccount>>;
   marketplaceAuthorSave(payload: unknown): Promise<BridgeResult<MarketplaceAuthorAccount>>;
@@ -328,6 +348,30 @@ export function createMarketplaceBridgeMethods(
       },
     };
   };
+  const report = (payload: unknown, kind: 'bot' | 'avatar') => {
+    const { id, altcha, reason } = asObject(payload);
+    if (typeof id !== 'string' || id.trim().length === 0) {
+      return Promise.resolve(invalidInput('id is required'));
+    }
+    if (typeof altcha !== 'string' || altcha.length === 0) {
+      return Promise.resolve(invalidInput('altcha is required'));
+    }
+    if (reason !== undefined && typeof reason !== 'string') {
+      return Promise.resolve(invalidInput('invalid reason'));
+    }
+    const trimmed = reason?.trim() ?? '';
+    return marketplaceCall((client) =>
+      client.report(
+        id.trim(),
+        {
+          altcha,
+          ...(trimmed.length === 0 ? {} : { reason: trimmed }),
+        },
+        kind,
+      ),
+    );
+  };
+
   return {
     marketplaceZip: {
       zipUploadBegin(payload) {
@@ -507,10 +551,35 @@ export function createMarketplaceBridgeMethods(
         marketplaceCall,
       ),
       marketplaceAvatarList(payload) {
-        const { cursor } = asObject(payload);
-        if (cursor !== undefined && (typeof cursor !== 'string' || cursor.length > 100))
+        const { cursor, q, tag, sort } = asObject(payload);
+        if (
+          cursor !== undefined &&
+          (typeof cursor !== 'string' || cursor.length > 100 || sort !== undefined)
+        )
           return Promise.resolve(invalidInput('invalid cursor'));
-        return marketplaceCall((client) => client.avatarList(cursor));
+        if (sort !== undefined && !isMarketplaceAvatarRanking(sort))
+          return Promise.resolve(invalidInput('invalid Avatar ranking'));
+        if (
+          q !== undefined &&
+          (typeof q !== 'string' || q.trim().length > MAX_MARKETPLACE_AVATAR_QUERY)
+        )
+          return Promise.resolve(invalidInput('invalid query'));
+        if (
+          tag !== undefined &&
+          (typeof tag !== 'string' || [...tag.trim()].length > MAX_MARKETPLACE_AVATAR_TAG_FILTER)
+        )
+          return Promise.resolve(invalidInput('invalid tag'));
+        return marketplaceCall((client) =>
+          client.avatarList({
+            ...(cursor === undefined ? {} : { cursor }),
+            ...(q === undefined ? {} : { q: q.trim() }),
+            ...(tag === undefined ? {} : { tag: tag.trim() }),
+            ...(sort === undefined ? {} : { sort }),
+          }),
+        );
+      },
+      marketplaceAvatarTags() {
+        return marketplaceCall((client) => client.avatarTags());
       },
       marketplaceAvatarDetail(payload) {
         const { id } = asObject(payload);
@@ -539,6 +608,30 @@ export function createMarketplaceBridgeMethods(
         const input = parseMarketplaceAvatarPublish(asObject(payload));
         if (input === undefined) return invalidInput('invalid Marketplace Avatar publish payload');
         return uploadResult(await deps.marketplaceUploads.publishAvatar(input));
+      },
+      async marketplaceAvatarMine() {
+        if (!isHostOwner() || human.caller === 'bot') return avatarManagementRefused();
+        if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
+        const result = await deps.marketplaceUploads.mineAvatars();
+        return result.ok ? { ok: true, value: { avatars: result.value } } : uploadResult(result);
+      },
+      async marketplaceAvatarEdit(payload) {
+        if (!isHostOwner() || human.caller === 'bot') return avatarManagementRefused();
+        if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
+        const { id, ...input } = asObject(payload);
+        if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/u.test(id))
+          return invalidInput('invalid Avatar ID');
+        const patch = parseMarketplaceAvatarEdit(input);
+        if (patch === undefined) return invalidInput('invalid Marketplace Avatar edit payload');
+        return uploadResult(await deps.marketplaceUploads.editAvatar(id, patch));
+      },
+      async marketplaceAvatarDelete(payload) {
+        if (!isHostOwner() || human.caller === 'bot') return avatarManagementRefused();
+        if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
+        const { id } = asObject(payload);
+        if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/u.test(id))
+          return invalidInput('invalid Avatar ID');
+        return uploadResult(await deps.marketplaceUploads.removeAvatar(id));
       },
       marketplaceDetail(payload) {
         const { id, lang: langValue } = asObject(payload);
@@ -580,25 +673,8 @@ export function createMarketplaceBridgeMethods(
       marketplaceChallenge() {
         return marketplaceCall((client) => client.challenge());
       },
-      marketplaceReport(payload) {
-        const { id, altcha, reason } = asObject(payload);
-        if (typeof id !== 'string' || id.trim().length === 0) {
-          return Promise.resolve(invalidInput('id is required'));
-        }
-        if (typeof altcha !== 'string' || altcha.length === 0) {
-          return Promise.resolve(invalidInput('altcha is required'));
-        }
-        if (reason !== undefined && typeof reason !== 'string') {
-          return Promise.resolve(invalidInput('invalid reason'));
-        }
-        const trimmed = reason?.trim() ?? '';
-        return marketplaceCall((client) =>
-          client.report(id.trim(), {
-            altcha,
-            ...(trimmed.length === 0 ? {} : { reason: trimmed }),
-          }),
-        );
-      },
+      marketplaceReport: (payload) => report(payload, 'bot'),
+      marketplaceAvatarReport: (payload) => report(payload, 'avatar'),
       async marketplaceAccount() {
         if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
         return uploadResult(await deps.marketplaceUploads.account());
@@ -847,14 +923,19 @@ export function createMarketplaceBridgeMethods(
       | 'marketplaceAvatarApplyCandidates'
       | 'marketplaceAvatarApply'
       | 'marketplaceAvatarList'
+      | 'marketplaceAvatarTags'
       | 'marketplaceAvatarDetail'
       | 'marketplaceAvatarPublish'
       | 'marketplaceAvatarSource'
+      | 'marketplaceAvatarMine'
+      | 'marketplaceAvatarEdit'
+      | 'marketplaceAvatarDelete'
       | 'marketplaceDetail'
       | 'marketplaceFileView'
       | 'marketplaceSubmit'
       | 'marketplaceChallenge'
       | 'marketplaceReport'
+      | 'marketplaceAvatarReport'
       | 'marketplaceAccount'
       | 'marketplaceAuthorSave'
       | 'marketplaceAuthorAvatarSet'

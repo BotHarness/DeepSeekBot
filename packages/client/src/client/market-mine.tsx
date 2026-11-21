@@ -1,6 +1,6 @@
 import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
-import { useRef, useState, type ReactElement } from 'react';
+import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import type {
@@ -224,25 +224,15 @@ export function MyUploadsDialog({
     if (screen.kind === 'delete') {
       const { item } = screen;
       return (
-        <FormDialog
-          title={t('market.mine.deleteTitle', {
-            name: marketplaceName(item.bot),
-          })}
-          size="small"
-          labels={{ close: t('common.close'), cancel: t('common.cancel') }}
-          submitLabel={t('market.mine.deleteConfirm')}
+        <UploadDeleteDialog
+          name={marketplaceName(item.bot)}
+          body={t('market.mine.deleteBody')}
           busy={busy}
-          danger
-          error={
-            cause === undefined ? undefined : (
-              <Note tone="danger">{marketplaceError(cause, t)}</Note>
-            )
-          }
+          cause={cause}
+          t={t}
           onCancel={() => go({ kind: 'list' })}
-          onSubmit={() => void remove(item)}
-        >
-          <Note>{t('market.mine.deleteBody')}</Note>
-        </FormDialog>
+          onDelete={() => void remove(item)}
+        />
       );
     }
 
@@ -262,18 +252,15 @@ export function MyUploadsDialog({
         ) : list.bots.length === 0 ? (
           <EmptyState title={t('market.mine.empty')} />
         ) : (
-          <div {...stylex.props(styles.list)} role="list" aria-label={t('market.mine.title')}>
+          <MarketUploadList label={t('market.mine.title')}>
             {list.bots.map((item) => (
-              <div
+              <MarketUploadItem
                 key={item.bot.id}
-                {...stylex.props(styles.row)}
-                role="listitem"
-                data-market-mine-bot={item.bot.id}
-              >
-                <MarketplaceAvatar bot={item.bot} size={40} t={t} />
-                <span {...stylex.props(styles.copy)}>
-                  <span {...stylex.props(styles.name)}>{marketplaceName(item.bot)}</span>
-                  <span {...stylex.props(styles.meta)}>
+                data={{ 'data-market-mine-bot': item.bot.id }}
+                image={<MarketplaceAvatar bot={item.bot} size={40} t={t} />}
+                name={marketplaceName(item.bot)}
+                meta={
+                  <>
                     {item.blocked ? <Tag tone="warning">{t('market.mine.blocked')}</Tag> : null}
                     <span>
                       {t('market.mine.meta', {
@@ -282,33 +269,16 @@ export function MyUploadsDialog({
                         date: day(item.bot.pushedAt),
                       })}
                     </span>
-                  </span>
-                </span>
-                <span {...stylex.props(styles.actions)}>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    aria-label={t('market.mine.updateLabel', {
-                      name: marketplaceName(item.bot),
-                    })}
-                    onClick={() => go({ kind: 'update', item })}
-                  >
-                    {t('market.mine.update')}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    aria-label={t('market.mine.deleteLabel', {
-                      name: marketplaceName(item.bot),
-                    })}
-                    onClick={() => go({ kind: 'delete', item })}
-                  >
-                    {t('market.mine.delete')}
-                  </Button>
-                </span>
-              </div>
+                  </>
+                }
+                changeLabel={t('market.mine.update')}
+                changeAriaLabel={t('market.mine.updateLabel', { name: marketplaceName(item.bot) })}
+                onChange={() => go({ kind: 'update', item })}
+                onDelete={() => go({ kind: 'delete', item })}
+                t={t}
+              />
             ))}
-          </div>
+          </MarketUploadList>
         )}
       </PanelDialog>
     );
@@ -319,5 +289,94 @@ export function MyUploadsDialog({
       <span ref={mount} hidden />
       {view()}
     </>
+  );
+}
+
+export function MarketUploadList({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div {...stylex.props(styles.list)} role="list" aria-label={label}>
+      {children}
+    </div>
+  );
+}
+
+export function MarketUploadItem({
+  data,
+  image,
+  name,
+  meta,
+  changeLabel,
+  changeAriaLabel,
+  onChange,
+  onDelete,
+  t,
+}: {
+  data: Record<`data-${string}`, string>;
+  image: ReactNode;
+  name: string;
+  meta: ReactNode;
+  changeLabel: string;
+  changeAriaLabel: string;
+  onChange: () => void;
+  onDelete: () => void;
+  t: BotHarnessTranslate;
+}) {
+  return (
+    <div {...stylex.props(styles.row)} {...data} role="listitem">
+      {image}
+      <span {...stylex.props(styles.copy)}>
+        <span {...stylex.props(styles.name)}>{name}</span>
+        <span {...stylex.props(styles.meta)}>{meta}</span>
+      </span>
+      <span {...stylex.props(styles.actions)}>
+        <Button size="sm" variant="outline" aria-label={changeAriaLabel} onClick={onChange}>
+          {changeLabel}
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          aria-label={t('market.mine.deleteLabel', { name })}
+          onClick={onDelete}
+        >
+          {t('market.mine.delete')}
+        </Button>
+      </span>
+    </div>
+  );
+}
+
+export function UploadDeleteDialog({
+  name,
+  body,
+  busy,
+  cause,
+  t,
+  onCancel,
+  onDelete,
+}: {
+  name: string;
+  body: string;
+  busy: boolean;
+  cause: unknown;
+  t: BotHarnessTranslate;
+  onCancel: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <FormDialog
+      title={t('market.mine.deleteTitle', { name })}
+      size="small"
+      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+      submitLabel={t('market.mine.deleteConfirm')}
+      busy={busy}
+      danger
+      error={
+        cause === undefined ? undefined : <Note tone="danger">{marketplaceError(cause, t)}</Note>
+      }
+      onCancel={onCancel}
+      onSubmit={onDelete}
+    >
+      <Note>{body}</Note>
+    </FormDialog>
   );
 }

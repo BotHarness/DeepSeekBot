@@ -400,6 +400,8 @@ The full target, implementation observations and #4203/E3 specification differen
 
 ## 5 · Orchestrator and Assignment control plane
 
+The application-defined Bot runtime owns each PersonaBot’s turn queue and shares it with the Orchestrator scheduling, cancellation and continuation modules. The modules use the existing Session Ownership authority and DSH Agent adapter. See the [shared kernel](feature-map.md#shared-kernel).
+
 M6 adds application-owned account/shared roots, separate grantable `files/` and protected Bot Memory, current audience checks (including for the Owner's own Bots), and the bound `core.currentRoots(session, kind)` seam for M12. Linux M12 confinement uses those Session roots, and Team mode reports `enforced` when both filesystem and network confinement are available. The persistence, migration, M9 lifecycle and wire contracts are in [M6 runtime boundaries](team-mode-m6-runtime.md). Current member authorization and Host-owned chat avatars are in the [Team mode decisions](../decisions/team-mode.md).
 
 The direct Bot tool runner can call `create_assignment` and `send_assignment_request` as the Orchestrator does ([ADR-0306](../decisions/sessions.md#adr-0306), superseding ADR-0297). The Assignment stays owned and managed by that Bot's Orchestrator. Without `--source`, each direct call records a `system-message` Source Event carrying `directBotTool` as origin and audit anchor; it has no Inbox Admission. A created, reused or delivered call adds an `assignment-lifecycle` notice with a `silent` admission that the Orchestrator reads in its next Turn. Capacity, Workspace Grant, Continuity Key reuse, recovery after failure and archived reactivation are unchanged; `wait_for_assignment` stays turn-only.
@@ -610,6 +612,8 @@ A cold Host excludes the tombstone even when cleanup needs repair. Future Profil
 enumerate historical Registry records and deletion locators and distinguish intentional erasure.
 Channel Content Purge and its restore-safe ledger remain #897.
 
+Bot Zip and Marketplace imports use the optional `standingLimits` pair in `.botharness/bot.json`. The import owner validates the source pair and persists it in the new PersonaBot record. The import preview counts the same characters as prompt assembly and uses the defaults when the source carries no usable pair.
+
 ### Bot Marketplace (accepted design, not implemented)
 
 [ADR-0131](../decisions/marketplace.md#adr-0131) and #18 start the Bot Marketplace as a GitHub-indexed catalog: adding the `botharness-bot` topic to a public repository is the author's consent to be listed, and pasting the URL into the Marketplace crawls it at once. A dedicated Cloudflare Worker with its own D1 runs a daily topic discovery sliced by creation date and an hourly GraphQL batch refresh, indexing READMEs with FTS5; browsing uses keyset cursors and search returns at most 200 results. The harness Marketplace modal shows README details; Install reuses #298 Git-URL creation, with a confirmation showing the latest commit and a third-party risk notice. URL paste and one-click reporting share ALTCHA and rate limits. [ADR-0267](../decisions/marketplace.md#adr-0267) later lets signed-in Connect authors publish Uploaded Bots in the same catalog and counts completed installs. Separately, [ADR-0135](../decisions/bots.md#adr-0135) adds Bot Zip as a portable form: to hand one Bot to someone else or another device, the Human exports a Bot Zip from the harness (Memory files and `.botharness/bot.json` by default, Git history optional for a whole-Bot export), and the receiver imports it through the create menu's Import from zip as a fresh PersonaBot.
@@ -617,6 +621,10 @@ Channel Content Purge and its restore-safe ledger remain #897.
 Marketplace Avatar apply uses the connected Host to fetch the current listed image from the Worker. The Host validates the bytes and rechecks the target and Avatar-change permission before writing through the same Registry path as a manual change. After the write, the Host sends a best-effort receipt. The Worker calculates Apply Count from distinct SHA-256 receipts derived from the Marketplace Host ID and PersonaBot ID. See [ADR-0358](../adr/0358-apply-count-counts-persona-bots-without-anti-abuse.md).
 
 Web and CLI can publish the stored Avatar of a Bot through an owner-only Host read. The Registry supplies the image, including the stored still PNG of an Avatar Appearance. Web crops and re-encodes it, and CLI checks that it already meets the Marketplace image requirements. Both use the existing publish operation.
+
+My Avatars and the CLI use the same Host-owner methods. The Worker scopes the list and edits to the signed-in Connect account and accepts changes to name, description, and tags. The same update refreshes the search index and normalized tag rows. Deletion removes the R2 image before deleting the D1 listing. A foreign key and trigger remove its Apply Receipts and reports. Account deletion runs the same cleanup for every Avatar before removing the author record. PersonaBots retain their local copies.
+
+The daily Marketplace job ranks Avatars by Apply Receipts and first listing time. It writes the run marker and Hot, New and Rising snapshots in one D1 batch, including days with empty rankings. `GET /v1/avatars/sections/{hot|new|rising}` reads the latest snapshot and checks that every entry is still listed. Web and CLI select the ranking through `marketplaceAvatarList` and can combine it with keyword and tag filters.
 
 ## 7 · Critical boundaries
 

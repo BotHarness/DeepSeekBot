@@ -1273,7 +1273,6 @@
     "packages/client/src/client/host-tabs.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/inbox-icon.tsx": ["<svg>"],
     "packages/client/src/client/market-panel.tsx": ["ChannelSidebarIcon"],
-    "packages/client/src/client/marketplace.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/memory-entry.tsx": ["<svg>", "<svg>"],
     "packages/client/src/client/message-audio.tsx": ["<svg>"],
     "packages/client/src/client/message-bot-dialog.tsx": ["ChannelSidebarIcon"],

@@ -1,17 +1,20 @@
 import { execFile } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { closeSync, mkdtempSync, openSync, readSync } from 'node:fs';
+import { closeSync, lstatSync, mkdtempSync, openSync, readFileSync, readSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
 
 import { uploadFileKind } from '../../../market/src/upload-files.js';
-import { listBotFiles } from '../bots/bot-zip.js';
+import { BOT_ZIP_MAX_BYTES, listBotFiles } from '../bots/bot-zip.js';
 import type { BotImportInput } from '../bots/creation.js';
+import { readSharedStandingLimits } from '../bots/shared-presentation.js';
 import { removeTree } from '../fs/remove-tree.js';
 import { cloneMemoryRepository } from '../memory/clone.js';
+import { STANDING_FILES, standingUsageFromFiles, type StandingUsage } from '../memory/soul.js';
 import { ApprovalReviewError } from '../workspaces/approval-reviewer.js';
 import type { MarketplaceEntry } from './client.js';
+import { BOT_DESCRIPTOR_PATH, parseBotDescriptor } from './descriptor.js';
 import type { MarketplaceUploads } from './uploaded-bots.js';
 
 const execFileAsync = promisify(execFile);
@@ -53,6 +56,7 @@ export interface InstallReviewResult {
   reviewId: string;
   listing: MarketplaceEntry;
   review: InstallReview;
+  standing?: StandingUsage[];
 }
 
 export interface StagedFile {
@@ -236,7 +240,10 @@ export async function stageGitRepository(input: {
   commit: string;
   clone?: typeof cloneMemoryRepository;
   remove?: (path: string) => void;
-}): Promise<{ ok: true; gitUrl: string; files: StagedFile[] } | { ok: false; code: string }> {
+}): Promise<
+  | { ok: true; gitUrl: string; files: StagedFile[]; standing?: StandingUsage[] }
+  | { ok: false; code: string }
+> {
   const root = mkdtempSync(join(tmpdir(), 'tobs-install-review-'));
   const destination = join(root, 'repo');
   try {
@@ -253,14 +260,23 @@ export async function stageGitRepository(input: {
       shell: false,
     });
     const files: StagedFile[] = [];
-    for (const path of listBotFiles(destination))
+    const standingFiles: StagedFile[] = [];
+    for (const path of listBotFiles(destination)) {
+      const fullPath = join(destination, path);
+      if (STANDING_FILES.includes(path) && lstatSync(fullPath).size <= BOT_ZIP_MAX_BYTES)
+        standingFiles.push({ path, data: readFileSync(fullPath) });
       files.push({
         path,
-        data: readable(path)
-          ? readPrefix(join(destination, path), MAX_FILE_CHARS * 4 + 4)
-          : Buffer.alloc(0),
+        data: readable(path) ? readPrefix(fullPath, MAX_FILE_CHARS * 4 + 4) : Buffer.alloc(0),
       });
-    return { ok: true, gitUrl: cloned.httpsFallback?.to ?? input.gitUrl, files };
+    }
+    const standing = standingUsageFromFiles(standingFiles, readSharedStandingLimits(destination));
+    return {
+      ok: true,
+      gitUrl: cloned.httpsFallback?.to ?? input.gitUrl,
+      files,
+      ...(standing.length > 0 ? { standing } : {}),
+    };
   } catch {
     return { ok: false, code: 'git-clone-failed' };
   } finally {
@@ -317,14 +333,30 @@ export function createMarketplaceInstallReviews(deps: {
   const stage = async (
     id: string,
   ): Promise<
-    Result<{ listing: MarketplaceEntry; input: BotImportInput; files: readonly StagedFile[] }>
+    Result<{
+      listing: MarketplaceEntry;
+      input: BotImportInput;
+      files: readonly StagedFile[];
+      standing?: StandingUsage[];
+    }>
   > => {
     const prepared = await deps.uploads.installInput(id);
     if (!prepared.ok) return prepared;
     const { entry, input } = prepared.value;
     const source = input.source;
-    if (source.kind === 'archive')
-      return { ok: true, value: { listing: entry, input, files: source.files } };
+    if (source.kind === 'archive') {
+      const text = source.files.find((file) => file.path === BOT_DESCRIPTOR_PATH)?.data;
+      const limits = text === undefined ? undefined : parseBotDescriptor(text.toString('utf8'));
+      return {
+        ok: true,
+        value: {
+          listing: entry,
+          input,
+          files: source.files,
+          standing: standingUsageFromFiles(source.files, limits?.standingLimits),
+        },
+      };
+    }
     const repo = await (deps.stageGit ?? stageGitRepository)(source);
     if (!repo.ok) return repo;
     return {
@@ -332,6 +364,7 @@ export function createMarketplaceInstallReviews(deps: {
       value: {
         listing: entry,
         files: repo.files,
+        ...(repo.standing === undefined ? {} : { standing: repo.standing }),
         input: { ...input, source: { ...source, gitUrl: repo.gitUrl } },
       },
     };
@@ -348,7 +381,7 @@ export function createMarketplaceInstallReviews(deps: {
         report(started, 'refused', { reason: prepared.code });
         return prepared;
       }
-      const { listing, input, files } = prepared.value;
+      const { listing, input, files, standing } = prepared.value;
       const review = await reviewStagedFiles(deps.reviewer, files, {
         lang,
         botName: listing.displayName ?? listing.name,
@@ -366,7 +399,10 @@ export function createMarketplaceInstallReviews(deps: {
         findings: review.findings.length,
         ...(review.status === 'unavailable' ? { reason: review.reason } : {}),
       });
-      return { ok: true, value: { reviewId, listing, review } };
+      return {
+        ok: true,
+        value: { reviewId, listing, review, ...(standing?.length ? { standing } : {}) },
+      };
     },
 
     staged(
