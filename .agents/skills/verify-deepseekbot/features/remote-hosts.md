@@ -1,6 +1,6 @@
 # Browser Remote Hosts
 
-The browser reads each Remote Host Feed through its own Paired Device and the shared mobile Host client. Manual computer enrollment first establishes an explicitly approved reciprocal Host relationship; independent phone pairing stays separate. This Host remains the default management context.
+The browser reads each Remote Host Feed through its own Paired Device and the shared Host client. Reciprocal enrollment starts with an approved Host Relationship. Standalone Owner password sign-in and independent phone pairing enroll their own devices. This Host is the default management context.
 
 ## Sources
 
@@ -15,6 +15,14 @@ The browser reads each Remote Host Feed through its own Paired Device and the sh
 - Host Feed
 - Paired Device
 - Host Relationship
+
+## Standalone Owner password sign-in (#4898)
+
+Use two fresh Profiles on the same build. Serve the target Host's device channel over a trusted HTTPS origin. For two Hosts on one machine, keep the source Web Client and target HTTPS gateway on different hostnames so their cookies stay scoped to their own hostnames. The encrypted device gateway requires a cookie-free upgrade. If the browser attaches a target Host session cookie, use a fresh browser context for this journey.
+
+With Team mode off, open the target Host's Connections settings. Turn on **Password sign-in** and set an Owner username and password. In the source Owner Client, open **Add remote**, choose password sign-in, and enter the HTTPS address and credentials. Open a Channel unique to the target Host. Compare the visible Channel with the target CLI roster and the new exact device record. Check wrong credentials and an invalid or changed Host identity before the successful attempt. Record a clean console and an accessibility snapshot without credential fields.
+
+Use `team-mode owner-sign-in status` to inspect the setting. Sign in a separate CLI device with `device-owner-sign-in` and validate `device-probe` with its private device file. Disable password sign-in on the target. Verify that a new login is refused and both enrolled devices still read the target Feed. Revoke the CLI device by its ID and verify it loses access. Restart the target Profile and verify the setting and selected username persist. Remove test device files during cleanup.
 
 ## Reciprocal relationship (E1)
 

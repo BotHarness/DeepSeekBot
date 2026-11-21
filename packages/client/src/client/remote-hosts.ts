@@ -3,6 +3,7 @@ import type {
   TeamSignInFlow,
   TeamSignInError,
 } from '@botharness/host-client/team-sign-in';
+import type { OwnerSignInError, OwnerSignInOptions } from '@botharness/host-client/owner-sign-in';
 import type { TeamResult } from '@botharness/host-protocol/team-invitation';
 import {
   connectionOperationIndexSchema,
@@ -99,7 +100,16 @@ export type {
   RemotePairTrust,
 } from './features/environments/remote-host-types.js';
 
+export type RemoteOwnerSignInError = OwnerSignInError | 'owner-required' | 'storage-failed';
+export type RemoteOwnerSignInInput = Pick<
+  OwnerSignInOptions,
+  'route' | 'username' | 'password' | 'deviceName' | 'localHostId' | 'signal'
+>;
+
 export interface RemoteHosts {
+  ownerSignIn(
+    input: RemoteOwnerSignInInput,
+  ): Promise<TeamResult<SavedHost, RemoteOwnerSignInError>>;
   teamSignIn(
     target: TeamSignInTarget,
     localHostId?: string,
@@ -557,7 +567,7 @@ export function createRemoteHosts(options: {
     refreshCredentials();
   };
 
-  const { teamSignIn, pair } = createRemoteHostPairing({
+  const { ownerSignIn, teamSignIn, pair } = createRemoteHostPairing({
     enabled,
     carrier,
     storage,
@@ -825,6 +835,7 @@ export function createRemoteHosts(options: {
         notifications.stop();
       };
     },
+    ownerSignIn,
     teamSignIn,
     pair,
     async forgetLocal(hostId) {

@@ -94,7 +94,8 @@ export function parseSavedHost(input: unknown): SavedHost | undefined {
   )
     return undefined;
   if (
-    record(value['encryption'])['loopback'] === 'encrypted' &&
+    (record(value['encryption'])['loopback'] === 'encrypted' ||
+      record(value['encryption'])['required'] === true) &&
     parseEncryption(value['encryption']) === undefined
   )
     return undefined;
@@ -239,6 +240,7 @@ export function parseEncryption(input: unknown): HostEncryption | undefined {
         protocol: 'connect-noise-xk-v1',
         hostKey: value['hostKey'],
         deviceKey: value['deviceKey'],
+        ...(value['required'] === true ? { required: value['required'] } : {}),
         ...(value['loopback'] === 'encrypted' ? { loopback: 'encrypted' as const } : {}),
       }
     : undefined;

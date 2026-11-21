@@ -3,6 +3,7 @@ import {
   checkRoute,
   isConnectRoute,
   isEncryptedRoute,
+  isHttpsOrigin,
   isLanRoute,
   socketOrigin,
 } from '@botharness/host-protocol/route';
@@ -955,7 +956,8 @@ export function createHostClient(options: HostClientOptions): HostClient {
     },
     resource: resources.resource,
     secretInputAllowed: () =>
-      checkRoute(route, options.encryption?.privateRelay).ok &&
+      (checkRoute(route, options.encryption?.privateRelay).ok ||
+        (options.encryption?.required === true && isHttpsOrigin(route))) &&
       (!isEncryptedRoute(route, options.encryption) || options.encryption !== undefined),
     onLive(listener) {
       liveListeners.add(listener);

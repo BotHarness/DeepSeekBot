@@ -70,6 +70,7 @@ const credentialPasswordSchema = passwordHashSchema.extend({
 });
 
 const credentialSchema = z.object({
+  username: z.string(),
   password_json: z.string(),
   history_json: z.string(),
   must_change: z.coerce.boolean(),
@@ -217,6 +218,7 @@ export class TeamService {
       get ensureTob() {
         return service.ensureTob?.bind(service);
       },
+      hasCredential: (...args) => service.hasCredential(...args),
       invalidate: (...args) => service.invalidate(...args),
       isOwner: (...args) => service.isOwner(...args),
       get limiter() {
@@ -476,7 +478,7 @@ export class TeamService {
     const row = this.db.read((db) =>
       db
         .prepare(
-          'SELECT password_json, history_json, must_change FROM member_credentials WHERE human_id = ?',
+          'SELECT username, password_json, history_json, must_change FROM member_credentials WHERE human_id = ?',
         )
         .get(humanId),
     );
@@ -484,6 +486,7 @@ export class TeamService {
     const parsed = credentialSchema.parse(row);
     const password = credentialPasswordSchema.parse(JSON.parse(parsed.password_json));
     return {
+      username: parsed.username,
       hash: passwordHashSchema.parse(password),
       ownerIssuerHumanId: password.ownerIssuerHumanId,
       history: z.array(passwordHashSchema).parse(JSON.parse(parsed.history_json)),
@@ -542,6 +545,17 @@ export class TeamService {
   private owner(human: HumanContext): void {
     if (!this.isOwner(human))
       throw new TeamError('permission-required', undefined, { permission: 'owner' });
+  }
+
+  ownerPasswordSignIn(human: HumanContext) {
+    return memberAuth.ownerPasswordSignIn.call(this.#memberOperations, human);
+  }
+
+  ownerPasswordSignInSet(
+    human: HumanContext,
+    input: Parameters<typeof memberAuth.ownerPasswordSignInSet>[1],
+  ) {
+    return memberAuth.ownerPasswordSignInSet.call(this.#memberOperations, human, input);
   }
 
   async setMode(human: HumanContext, enabled: boolean): Promise<TeamModeView> {
@@ -700,6 +714,21 @@ export class TeamService {
     device?: { kind: 'paired-device'; name: string; publicKey?: string },
   ): Promise<{ token: string; member: TeamMember; peer: PeerScope }> {
     return memberAuth.signIn.call(this.#memberOperations, username, password, ip, device);
+  }
+
+  signInOwnerDevice<T>(
+    username: string,
+    password: string,
+    ip: string,
+    issue: (humanId: string) => T,
+  ): Promise<T> {
+    return (memberAuth.signInOwnerDevice<T>).call(
+      this.#memberOperations,
+      username,
+      password,
+      ip,
+      issue,
+    );
   }
 
   private createGrant(

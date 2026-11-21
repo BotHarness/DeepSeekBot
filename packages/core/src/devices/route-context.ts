@@ -2,8 +2,24 @@ import { randomBytes } from 'node:crypto';
 import type { IncomingMessage } from 'node:http';
 
 export const DEVICE_ROUTE_HEADER = 'x-botharness-device-route';
+export const DEVICE_NOISE_PEER_HEADER = 'x-botharness-device-noise-peer';
 const connectTag = randomBytes(32).toString('base64url');
 const managedTlsTag = randomBytes(32).toString('base64url');
+const noisePeerTag = randomBytes(32).toString('base64url');
+
+export function noisePeerHeaders(publicKey: string): Record<string, string> {
+  return { [DEVICE_NOISE_PEER_HEADER]: `${noisePeerTag}.${publicKey}` };
+}
+
+export function noisePeerKey(request: IncomingMessage): string | undefined {
+  if (!['127.0.0.1', '::ffff:127.0.0.1', '::1'].includes(request.socket.remoteAddress ?? ''))
+    return;
+  const header = request.headers[DEVICE_NOISE_PEER_HEADER];
+  if (typeof header !== 'string') return;
+  const [tag, publicKey, extra] = header.split('.');
+  if (tag === noisePeerTag && extra === undefined && publicKey && /^[a-f0-9]{64}$/u.test(publicKey))
+    return publicKey;
+}
 
 export function stampConnectRoute(request: IncomingMessage): void {
   stampRoute(request, connectTag);

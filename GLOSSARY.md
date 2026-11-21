@@ -1150,6 +1150,10 @@ _Avoid_: Computer, other computer, machine, server, peer
 A client, a phone app or one browser profile on one origin, holding its own revocable credential from one Host. It reads and acts on that Host as exactly one Human ID but never hosts PersonaBots or relays another Host.
 _Avoid_: phone (for all devices), session, Host
 
+**Host sign-in link**:
+A Host-generated link or QR code that supplies the Host route and identity fingerprint for password sign-in. The Human supplies their own Member Credential.
+_Avoid_: pairing offer, device grant
+
 **Host Relationship**:
 A durable, explicitly authorized bidirectional relationship between two Hosts from which supported Clients obtain their own independent device grants. It is distinct from account registration, a connection route, an individual device grant and Bot Collaboration Network membership.
 _Avoid_: shared remote credential, Host Feed mirror, Bot collaboration admission

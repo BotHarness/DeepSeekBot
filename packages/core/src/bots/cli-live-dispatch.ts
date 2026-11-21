@@ -238,7 +238,7 @@ export async function runLiveCli(
     );
   }
   if (DEVICE_CLIENT_COMMANDS.some((entry) => entry.command === command))
-    return runDeviceClientCommand(command, rest, values);
+    return runDeviceClientCommand(command, rest, values, undefined, io.readStdin);
   if (command === 'cloud-work') {
     const input = await prepareCloudWork(rest, values, io);
     const host = await connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout)));

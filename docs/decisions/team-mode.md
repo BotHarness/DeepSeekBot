@@ -74,6 +74,20 @@ Why: the request remains tied to the place and Human authority that produced it.
 
 Enforced by: [team-approvals-decisions.test.ts](../../packages/core/test/team-approvals-decisions.test.ts), [team-approvals-isolation.test.ts](../../packages/core/test/team-approvals-isolation.test.ts), [team-approvals-notifications.test.ts](../../packages/core/test/team-approvals-notifications.test.ts), [team-approvals-projections.test.ts](../../packages/core/test/team-approvals-projections.test.ts), [bot-modes.test.ts](../../packages/core/test/bot-modes.test.ts), [team-mode.test.ts](../../packages/core/test/team-mode.test.ts), [team-minimal-members.test.ts](../../packages/core/test/team-minimal-members.test.ts), [team-member-lifecycle.test.ts](../../packages/core/test/team-member-lifecycle.test.ts).
 
+### Host password sign-in and Team mode
+
+Accepted design for [#4896](https://github.com/BotHarness/DeepSeekBot/issues/4896). Standalone sign-in is the first delivery. Team mode activation and selective sign-out on password changes are tracked in separate slices. [#4898](https://github.com/BotHarness/DeepSeekBot/issues/4898)
+
+Team mode enables password sign-in for the current Host Owner and eligible Host Members. With Team mode off, the Host Owner can opt in to Owner-only password sign-in. The Owner sets a username and password on first setup. Existing installations reuse the current Owner's stored credentials. When Team mode is the first feature to need those credentials, the enable flow asks the Owner to create them.
+
+The Host stores the standalone Owner setting independently. Turning Team mode off restores its effect and revokes non-Owner grants through the existing offboarding path. Turning standalone sign-in off stops new password-based enrollment. Existing Owner device grants stay usable until revoked, and the stored credentials are available if the Owner enables sign-in again.
+
+Owner password changes default to revoking the other Owner device grants that password sign-in issued. The Owner can opt out. The current device and grants issued by QR pairing remain valid. The Host records issuance on the device grant and uses its existing revocation path to close affected connections.
+
+Why. A single Human can connect remotely with the same Host-owned credential used in Team mode. Keeping the standalone setting independent preserves the Owner's choice after Team mode ends. Recording issuance allows selective revocation after a password change.
+
+Enforced by the [Remote Hosts verification journey](../../.agents/skills/verify-deepseekbot/features/remote-hosts.md#standalone-owner-password-sign-in-4898) and the remaining acceptance cases in [#4896](https://github.com/BotHarness/DeepSeekBot/issues/4896).
+
 ## 2. Each Human controls their Host-owned chat avatar
 
 <a id="adr-0352"></a>

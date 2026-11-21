@@ -69,6 +69,15 @@ export function socketOrigin(origin: string): string {
   return origin.replace(/^http/u, 'ws');
 }
 
+export function isHttpsOrigin(input: string): boolean {
+  try {
+    const url = new URL(input);
+    return input.length <= 2048 && url.protocol === 'https:' && url.origin === input;
+  } catch {
+    return false;
+  }
+}
+
 export function isConnectRoute(route: string): boolean {
   try {
     return CONNECT_HOSTNAME.test(new URL(route).hostname);
@@ -116,7 +125,11 @@ export function isPrivateRoute(route: string): boolean {
   }
 }
 
-export function isEncryptedRoute(route: string, encryption?: { loopback?: 'encrypted' }): boolean {
+export function isEncryptedRoute(
+  route: string,
+  encryption?: { loopback?: 'encrypted'; required?: true },
+): boolean {
+  if (encryption?.required) return true;
   if (isConnectRoute(route) || isLanRoute(route) || isPrivateRoute(route)) return true;
   return encryption?.loopback === 'encrypted' && isLoopbackRoute(route);
 }

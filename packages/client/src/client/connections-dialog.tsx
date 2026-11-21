@@ -1,4 +1,5 @@
 import type { ReactElement } from 'react';
+import type { BridgeCall } from './bridge-transport.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { PairedDevicesSettings } from './paired-devices.js';
 
@@ -34,10 +35,12 @@ export function ConnectionsDialog({
 }
 
 export function ConnectionsPage({
+  call,
   t,
   pairPhone = false,
   joinComputer = false,
 }: {
+  call: BridgeCall;
   t: BotHarnessTranslate;
   pairPhone?: boolean | undefined;
   joinComputer?: boolean | undefined;
@@ -45,6 +48,7 @@ export function ConnectionsPage({
   return (
     <PairedDevicesSettings
       key={`${String(pairPhone)}:${String(joinComputer)}`}
+      ownerPasswordSignInCall={call}
       t={t}
       standalone
       page

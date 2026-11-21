@@ -702,5 +702,9 @@
   {
     "id": "role-engine-accounts",
     "sha256": "d818f03571a8220333a79b53b7b7db4243bf7ba60a8678a9647019773742987e"
+  },
+  {
+    "id": "owner-password-sign-in",
+    "sha256": "cd24239ed9e9be52958c4f7a8436c1877dd00c40a4d7809d36df0b9d52e352d1"
   }
 ]

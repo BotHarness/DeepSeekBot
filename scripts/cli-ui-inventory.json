@@ -85,6 +85,15 @@
       "issue": "#2097"
     },
     {
+      "id": "owner-password-sign-in",
+      "description": "Configure standalone Owner password sign-in and enroll a paired device through the authenticated encrypted channel.",
+      "scope": "Profile",
+      "surfaces": [
+        "setting:packages/client/src/client/owner-password-sign-in-settings.tsx:{title}"
+      ],
+      "commands": ["team-mode", "device-owner-sign-in"]
+    },
+    {
       "id": "device-pairing",
       "description": "Device list, offers, offer status and revoke; the Connect tunnel action on the same route family has connect-status/enable/disable/sign-in/sign-out.",
       "scope": "Profile",
