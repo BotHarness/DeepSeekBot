@@ -1,13 +1,6 @@
-import { Stack, router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { memo, useRef, useState } from 'react';
-import {
-  FlatList,
-  Keyboard,
-  Platform,
-  View,
-  type NativeScrollEvent,
-  type ViewInstance,
-} from 'react-native';
+import { FlatList, Keyboard, View, type NativeScrollEvent, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MarketplaceSort } from '../../../../../packages/core/src/marketplace/client';
 import { marketplaceAvatarsAvailable } from '../../marketplace/available';
@@ -19,8 +12,6 @@ import { LoadingIndicator } from '../primitives/loading-indicator';
 import { MarketplaceDiscovery } from './marketplace-discovery';
 import { PullToRefresh } from '../primitives/pull-to-refresh';
 import { Text } from '../primitives/text';
-import { HeaderIconButton } from './header-icon-button';
-import { HeaderSearch } from './header-search';
 import { useDesignTheme } from '../design/theme';
 import { haptic } from '../haptics';
 import { useStrings, locale } from '../strings';
@@ -29,6 +20,7 @@ import { MarketplaceTopics } from './marketplace-topics';
 import { MarketplaceDailyPicks } from './marketplace-daily-picks';
 import { marketplaceTarget, openMarketplaceBot } from './marketplace-navigation';
 import { MarketplaceSectionPicker } from './marketplace-section-picker';
+import { MarketplaceHeader } from './marketplace-header';
 import { MarketplaceSections } from './marketplace-sections';
 import type { CatalogueList } from '../../marketplace/catalogue';
 
@@ -42,8 +34,6 @@ export function MarketplaceScreen() {
   const [sort, setSort] = useState<MarketplaceSort>('updated');
   const [topic, setTopic] = useState('');
   const [choosingTopic, setChoosingTopic] = useState(false);
-  const insets = useSafeAreaInsets();
-  const ios = Platform.OS === 'ios';
   const resource = marketplace.list({ q: query, sort, topic, lang: locale });
   const searchNow = (submitted = search) => {
     Keyboard.dismiss();
@@ -68,97 +58,24 @@ export function MarketplaceScreen() {
   };
   return (
     <View style={{ flex: 1, backgroundColor: theme.color.base }}>
-      <Stack.Screen
-        options={
-          ios && !searching
-            ? {
-                title: '',
-                headerTitle: '',
-                headerShown: true,
-                headerTransparent: true,
-                headerStyle: {},
-                headerShadowVisible: false,
-                headerBackVisible: false,
-                headerTintColor: theme.color.fg,
-                scrollEdgeEffects: { top: 'automatic', bottom: 'hidden' },
-                unstable_headerLeftItems: () => [
-                  {
-                    type: 'button',
-                    label: t.back,
-                    identifier: 'marketplace-back',
-                    icon: { type: 'sfSymbol', name: 'chevron.left' },
-                    onPress: () => router.back(),
-                  },
-                ],
-                unstable_headerRightItems: () => [
-                  {
-                    type: 'button',
-                    label: t.marketplace.search,
-                    identifier: 'marketplace-search-button',
-                    icon: { type: 'sfSymbol', name: 'magnifyingglass' },
-                    onPress: openSearch,
-                  },
-                  {
-                    type: 'button',
-                    label: t.marketplace.topics,
-                    identifier: 'marketplace-filter-button',
-                    icon: { type: 'sfSymbol', name: 'line.3.horizontal.decrease' },
-                    onPress: openFilters,
-                  },
-                ],
-              }
-            : { title: t.marketplace.title, headerShown: false }
-        }
+      <MarketplaceHeader
+        title={marketplaceAvatarsAvailable ? t.marketplaceAvatars.browse : t.marketplace.title}
+        showNativeTitle={marketplaceAvatarsAvailable}
+        prefix="marketplace"
+        searching={searching}
+        onBack={() => router.back()}
+        onOpenSearch={openSearch}
+        search={{
+          testID: 'marketplace-search',
+          maxLength: 100,
+          value: search,
+          placeholder: t.marketplace.search,
+          onChangeText: setSearch,
+          onSubmitEditing: searchNow,
+          onClose: closeSearch,
+        }}
+        filter={{ label: t.marketplace.topics, selected: topic !== '', onPress: openFilters }}
       />
-      {!ios || searching ? (
-        <View
-          style={{
-            paddingTop: insets.top + space.x2,
-            paddingHorizontal: space.x4,
-            paddingBottom: space.x3,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: space.x2,
-          }}
-        >
-          {searching ? (
-            <HeaderSearch
-              testID="marketplace-search"
-              maxLength={100}
-              value={search}
-              placeholder={t.marketplace.search}
-              onChangeText={setSearch}
-              onSubmitEditing={searchNow}
-              onClose={closeSearch}
-            />
-          ) : (
-            <>
-              <HeaderIconButton
-                icon="back"
-                label={t.back}
-                testID="marketplace-back"
-                onPress={() => router.back()}
-              />
-              <Text variant="title" strong accessibilityRole="header" style={{ flex: 1 }}>
-                {t.marketplace.title}
-              </Text>
-              <HeaderIconButton
-                icon="search"
-                label={t.marketplace.search}
-                testID="marketplace-search-button"
-                onPress={openSearch}
-              />
-              <HeaderIconButton
-                icon="filter"
-                label={t.marketplace.topics}
-                testID="marketplace-filter-button"
-                selected={topic !== ''}
-                onPress={openFilters}
-              />
-            </>
-          )}
-        </View>
-      ) : null}
       <MarketplaceCatalogue
         query={query}
         sort={sort}

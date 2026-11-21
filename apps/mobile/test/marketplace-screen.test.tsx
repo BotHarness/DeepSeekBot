@@ -108,6 +108,17 @@ vi.mock('../src/host/pick-avatar-image', () => ({
   pickMarketplaceAvatarImage: async () => undefined,
   prepareMarketplaceAvatarImage: async () => undefined,
 }));
+vi.mock('../src/ui/bot-avatar', () => ({
+  BotPortrait: ({
+    bot,
+  }: {
+    bot: { slug: string; avatarSource?: { uri: string }; avatarUrl?: string };
+  }) =>
+    createElement('img', {
+      'data-testid': `candidate-portrait-${bot.slug}`,
+      src: bot.avatarSource?.uri ?? bot.avatarUrl,
+    }),
+}));
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-safe-area-context', () => ({
@@ -579,12 +590,18 @@ it('opens Avatars from Bots on the same paired Host and hides owner controls fro
 
   await act(async () => root.render(<MarketplaceAvatarScreen />));
   expect(element.textContent).toContain('Ocean Blue');
-  expect(element.querySelector('[data-testid="marketplace-avatar-publish"]')).not.toBeNull();
-  expect(element.querySelector('[data-testid="marketplace-avatar-mine"]')).not.toBeNull();
+  expect(element.querySelector('[role="header"]')?.textContent).toBe(t.marketplaceAvatars.browse);
+  expect(element.querySelector('[data-testid="marketplace-avatar-more"]')).not.toBeNull();
+  await act(async () => button(t.marketplaceAvatars.moreActions).click());
+  expect(button(t.marketplaceAvatars.mine)).toBeDefined();
+  await act(async () => button(t.marketplaceAvatars.publish).click());
+  expect(fixture.push).toHaveBeenLastCalledWith({
+    pathname: '/marketplace-avatar-editor',
+    params: { hostId: 'A' },
+  });
   member = true;
   await act(async () => root.render(<MarketplaceAvatarScreen />));
-  expect(element.querySelector('[data-testid="marketplace-avatar-publish"]')).toBeNull();
-  expect(element.querySelector('[data-testid="marketplace-avatar-mine"]')).toBeNull();
+  expect(element.querySelector('[data-testid="marketplace-avatar-more"]')).toBeNull();
   expect(element.textContent).toContain('Ocean Blue');
 });
 
@@ -593,13 +610,33 @@ it('shows the Appearance warning before confirming the chosen Bot', async () => 
   fixture.params = { id: 'blue', hostId: 'A' };
   const host = avatarHost();
   host.methods.set('marketplaceAvatarApplyCandidates', () => ({
-    bots: [{ slug: 'ada', displayName: 'Ada Bot', hasAppearance: true }],
+    bots: [
+      {
+        slug: 'ada',
+        displayName: 'Ada Bot',
+        avatar: '/api/botharness/bot-avatar?slug=ada',
+        hasAppearance: true,
+      },
+      { slug: 'plain', displayName: 'Plain Bot', hasAppearance: false },
+    ],
   }));
   host.methods.set('marketplaceAvatarApply', () => ({ applied: true }));
   await act(async () => root.render(<MarketplaceAvatarDetailScreen />));
   expect(element.textContent).toContain('Ada #abc234');
   await act(async () => button(t.marketplaceAvatars.apply).click());
+  expect(button(t.marketplaceAvatars.apply).disabled).toBe(true);
+  expect(element.textContent).not.toContain(t.marketplaceAvatars.applyWarning);
+  expect(
+    element.querySelector('[data-testid="candidate-portrait-ada"]')?.getAttribute('src'),
+  ).toContain('/botharness-device/api/botharness/bot-avatar?slug=ada');
+  expect(element.querySelector('[data-testid="candidate-portrait-plain"]')).not.toBeNull();
+  await act(async () => button('Plain Bot').click());
+  expect(button('Plain Bot').getAttribute('aria-selected')).toBe('true');
+  expect(button(t.marketplaceAvatars.apply).disabled).toBe(false);
+  expect(element.textContent).not.toContain(t.marketplaceAvatars.applyWarning);
   await act(async () => button('Ada Bot').click());
+  expect(button('Ada Bot').getAttribute('aria-selected')).toBe('true');
+  expect(button('Plain Bot').getAttribute('aria-selected')).toBe('false');
   expect(element.textContent).toContain(t.marketplaceAvatars.applyWarning);
   expect(host.calls.some(({ method }) => method === 'marketplaceAvatarApply')).toBe(false);
   await act(async () => button(t.marketplaceAvatars.apply).click());
@@ -643,4 +680,26 @@ it('opens the owner editor and My Avatars routes while enabled', async () => {
   expect(element.querySelector('[data-testid="marketplace-avatar-choose-image"]')).not.toBeNull();
   await act(async () => root.render(<MarketplaceAvatarMineScreen />));
   expect(element.textContent).toContain(t.marketplaceAvatars.mineEmpty);
+});
+
+it('uses the header to search Avatars and open the tag sheet', async () => {
+  fixture.avatarsAvailable = true;
+  const host = avatarHost();
+  host.methods.set('marketplaceAvatarTags', () => [{ tag: 'ocean', count: 1 }]);
+  await act(async () => root.render(<MarketplaceAvatarScreen />));
+  await act(async () => button(t.marketplaceAvatars.search).click());
+  const search = element.querySelector<HTMLTextAreaElement>(
+    '[data-testid="marketplace-avatar-search"]',
+  );
+  expect(search).not.toBeNull();
+  search!.value = 'ocean';
+  await act(async () =>
+    search!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+  );
+  expect(host.calls).toContainEqual({ method: 'marketplaceAvatarList', args: { q: 'ocean' } });
+  await act(async () => button(t.closeSearch).click());
+  await act(async () => button(t.marketplaceAvatars.tags).click());
+  expect(
+    element.querySelector('[data-testid="marketplace-avatar-tag-ocean"]')?.textContent,
+  ).toContain('ocean (1)');
 });

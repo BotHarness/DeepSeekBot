@@ -27,7 +27,7 @@ function read<T>(load: () => Promise<T>) {
 
 type AvatarList = CatalogueResource<MarketplaceAvatarPage> & { more(): Promise<void> };
 
-function createMarketplaceAvatars(client: Pick<HostClient, 'call' | 'refresh'>) {
+function createMarketplaceAvatars(client: Pick<HostClient, 'call' | 'refresh' | 'resource'>) {
   const lists = new Map<string, AvatarList>();
   const details = new Map<string, CatalogueResource<MarketplaceAvatar>>();
   const host = marketplaceAvatarActions(client);
@@ -66,6 +66,7 @@ function createMarketplaceAvatars(client: Pick<HostClient, 'call' | 'refresh'>) 
     detail(id: string) {
       return cached(details, id, () => resource(read(() => host.marketplaceAvatarDetail(id))));
     },
+    avatarResource: client.resource,
     candidates: resource(
       read(async () => {
         const { bots } = await host.marketplaceAvatarApplyCandidates();

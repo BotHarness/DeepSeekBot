@@ -5,7 +5,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { MarketplaceAvatarApplyCandidate } from '@botharness/host-protocol/marketplace-avatar';
 import { useHostSession } from '../../host/host-session';
 import { marketplaceAvatars, type MarketplaceAvatars } from '../../marketplace/avatars';
-import { space } from '../design/tokens';
+import { BotPortrait } from '../bot-avatar';
+import { useDesignTheme } from '../design/theme';
+import { radius, space } from '../design/tokens';
 import { useMounted } from '../mounted';
 import { Button } from '../primitives/button';
 import { CreationField } from '../primitives/creation-field';
@@ -136,6 +138,7 @@ function ApplyCandidates({
 }) {
   const t = useStrings();
   const copy = t.marketplaceAvatars;
+  const theme = useDesignTheme();
   const list = useAvatarResource(actions.candidates);
   const action = useAvatarAction();
   const insets = useSafeAreaInsets();
@@ -176,14 +179,34 @@ function ApplyCandidates({
             <></>
           )
         }
-        renderItem={({ item }) => (
-          <SettingsRow
-            title={item.displayName}
-            selected={item.slug === selected}
-            testID={`marketplace-avatar-target-${item.slug}`}
-            onPress={action.busy ? undefined : () => setSelected(item.slug)}
-          />
-        )}
+        renderItem={({ item }) => {
+          const chosen = item.slug === selected;
+          const avatar = item.avatar;
+          const portrait = {
+            slug: item.slug,
+            displayName: item.displayName,
+            ...(item.avatarSeed === undefined ? {} : { avatarSeed: item.avatarSeed }),
+            ...(avatar?.startsWith('/') && !avatar.startsWith('//')
+              ? { avatarSource: actions.avatarResource(avatar) }
+              : avatar && /^(https?:\/\/|data:image\/)/u.test(avatar)
+                ? { avatarUrl: avatar }
+                : {}),
+          };
+          return (
+            <SettingsRow
+              title={item.displayName}
+              on="raised"
+              leading={
+                <BotPortrait bot={portrait} size={theme.touch - space.x4} corner={radius.sm} />
+              }
+              strong={chosen}
+              selected={chosen}
+              control={chosen ? { kind: 'check' } : undefined}
+              testID={`marketplace-avatar-target-${item.slug}`}
+              onPress={action.busy ? undefined : () => setSelected(item.slug)}
+            />
+          );
+        }}
       />
       <View style={{ padding: space.x5, paddingBottom: insets.bottom + space.x5, gap: space.x3 }}>
         {action.error ? (

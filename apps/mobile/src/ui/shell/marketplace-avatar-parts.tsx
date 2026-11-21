@@ -57,7 +57,13 @@ export function avatarFailureMessage(
   return copy.unavailable;
 }
 
-export function MarketplaceAvatarImage({ uri }: { uri: string }) {
+export function MarketplaceAvatarImage({
+  uri,
+  rounded = true,
+}: {
+  uri: string;
+  rounded?: boolean;
+}) {
   const theme = useDesignTheme();
   return (
     <Image
@@ -67,7 +73,7 @@ export function MarketplaceAvatarImage({ uri }: { uri: string }) {
       style={{
         width: '100%',
         aspectRatio: 1,
-        borderRadius: radius.lg,
+        ...(rounded ? { borderRadius: radius.lg } : {}),
         backgroundColor: theme.layer.canvas.inset,
       }}
     />
