@@ -10,6 +10,13 @@ export const MAX_MARKETPLACE_AVATAR_TAG_FILTER =
   MAX_MARKETPLACE_AVATAR_TAG * MAX_NFKC_CODE_POINT_EXPANSION;
 export const MAX_MARKETPLACE_AVATAR_QUERY = 100;
 
+export const MARKETPLACE_AVATAR_RANKINGS = ['hot', 'new', 'rising'] as const;
+export type MarketplaceAvatarRanking = (typeof MARKETPLACE_AVATAR_RANKINGS)[number];
+
+export function isMarketplaceAvatarRanking(value: unknown): value is MarketplaceAvatarRanking {
+  return MARKETPLACE_AVATAR_RANKINGS.some((ranking) => ranking === value);
+}
+
 export interface MarketplaceAvatarText {
   name: string;
   description: string;
@@ -49,6 +56,7 @@ export interface MarketplaceAvatarQuery {
   cursor?: string;
   q?: string;
   tag?: string;
+  sort?: MarketplaceAvatarRanking;
 }
 
 export interface MarketplaceAvatarTag {

@@ -4,6 +4,7 @@ import {
   readMarketplaceAvatarImage,
 } from '@botharness/host-protocol/marketplace-avatar-image';
 import {
+  isMarketplaceAvatarRanking,
   parseMarketplaceAvatarEdit,
   parseMarketplaceAvatarText,
 } from '@botharness/host-protocol/marketplace-avatar';
@@ -68,7 +69,7 @@ export const HOST_ADMIN_COMMANDS = [
   { command: 'marketplace-list', description: 'browse or search Bot Marketplace listings' },
   {
     command: 'marketplace-avatar-list',
-    description: 'browse or search Marketplace Avatars / 浏览或搜索市场头像',
+    description: 'browse, search or rank Marketplace Avatars / 浏览、搜索或查看市场头像排行',
   },
   {
     command: 'marketplace-avatar-tags',
@@ -292,7 +293,11 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
         ? `${command} takes no positional arguments.`
         : `${command} needs ${command === 'plugin-install' ? 'a package name and a version' : command === 'marketplace-file' ? 'a Bot id and a file path' : POSITIONAL_NAMES[expected]!}.`,
     );
-  if (
+  if (command === 'marketplace-avatar-list' && values.sort !== undefined) {
+    if (!isMarketplaceAvatarRanking(values.sort))
+      usage('--sort must be hot, new or rising, on marketplace-avatar-list.');
+    if (values.cursor !== undefined) usage('--cursor cannot be used with an Avatar ranking.');
+  } else if (
     values.sort !== undefined &&
     (command !== 'marketplace-list' ||
       (values.sort !== 'updated' && values.sort !== 'created' && values.sort !== 'stars'))
@@ -544,6 +549,7 @@ export async function runHostAdminCommand(
         ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
         ...(values.query === undefined ? {} : { q: values.query }),
         ...(values.tag === undefined ? {} : { tag: values.tag }),
+        ...(values.sort === undefined ? {} : { sort: values.sort }),
       });
     case 'marketplace-avatar-tags':
       return { tags: await rpc('marketplaceAvatarTags', {}) };

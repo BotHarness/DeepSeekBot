@@ -622,6 +622,8 @@ Web and CLI can publish the stored Avatar of a Bot through an owner-only Host re
 
 My Avatars and the CLI use the same Host-owner methods. The Worker scopes the list and edits to the signed-in Connect account and accepts changes to name, description, and tags. The same update refreshes the search index and normalized tag rows. Deletion removes the R2 image before deleting the D1 listing. A foreign key and trigger remove its Apply Receipts and reports. Account deletion runs the same cleanup for every Avatar before removing the author record. PersonaBots retain their local copies.
 
+The daily Marketplace job ranks Avatars by Apply Receipts and first listing time. It writes the run marker and Hot, New and Rising snapshots in one D1 batch, including days with empty rankings. `GET /v1/avatars/sections/{hot|new|rising}` reads the latest snapshot and checks that every entry is still listed. Web and CLI select the ranking through `marketplaceAvatarList` and can combine it with keyword and tag filters.
+
 ## 7 · Critical boundaries
 
 - Normal runtime uses explicit Session ownership only. `cwd` may be a migration or repair hint but never decides PersonaBot identity.

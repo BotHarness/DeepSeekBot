@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   MAX_MARKETPLACE_AVATAR_BYTES,
+  type MarketplaceAvatar,
   type MarketplaceAvatarPage,
 } from '../../host-protocol/src/marketplace-avatar.js';
 import { MAX_BOTS_PER_ACCOUNT } from '../src/upload-files.js';
@@ -19,6 +20,7 @@ const input = {
   requestKey: 'otter',
   confirm: true,
 };
+const DAY = 86_400_000;
 
 function write(market: Market, path: string, body: unknown, token?: string, method = 'POST') {
   return market.request(path, {
@@ -46,6 +48,134 @@ async function author(market: Market, token = 'token-alice') {
 function publish(market: Market, overrides: Record<string, unknown> = {}, token = 'token-alice') {
   return write(market, '/v1/avatars', { ...input, ...overrides }, token);
 }
+
+async function rankedAvatars(market: Market, section: string): Promise<MarketplaceAvatar[]> {
+  const response = await market.request(`/v1/avatars/sections/${section}`, {
+    headers: { origin: 'https://tobs.app' },
+  });
+  expect(response.status).toBe(200);
+  expect(response.headers.get('access-control-allow-origin')).toBe('https://tobs.app');
+  expect(response.headers.get('cache-control')).toBe('no-cache');
+  const page: MarketplaceAvatarPage = await response.json();
+  expect(page.nextCursor).toBeNull();
+  return page.avatars;
+}
+
+async function applyAvatars(market: Market, avatar: MarketplaceAvatar, ...botIds: number[]) {
+  for (const botId of botIds) {
+    const response = await write(market, `/v1/avatars/${avatar.id}/applies`, {
+      botHash: botId.toString(16).padStart(64, '0'),
+    });
+    expect(response.status).toBe(202);
+  }
+}
+
+async function publishRankedAvatar(
+  market: Market,
+  name: string,
+  tags: string[] = [],
+): Promise<MarketplaceAvatar> {
+  const response = await publish(market, { name, requestKey: name.replaceAll(' ', '-'), tags });
+  expect(response.status).toBe(201);
+  return (await response.json()).avatar;
+}
+
+it('publishes daily Hot, New and Rising Avatar rankings from distinct apply receipts', async () => {
+  const market = createMarket();
+  const today = market.clock.value.getTime();
+  const daysAgo = (days: number) => {
+    market.clock.value = new Date(today - days * DAY);
+  };
+  daysAgo(15);
+  await author(market);
+  const steady = await publishRankedAvatar(market, 'Steady');
+  const climbing = await publishRankedAvatar(market, 'Climbing', ['Blue']);
+  await applyAvatars(market, climbing, 9, 10, 11);
+  daysAgo(14);
+  await applyAvatars(market, steady, 1, 2, 3, 4);
+  daysAgo(8);
+  await applyAvatars(market, climbing, 4);
+  await publishRankedAvatar(market, 'Outside window');
+  daysAgo(7);
+  const small = await publishRankedAvatar(market, 'Small');
+  await applyAvatars(market, steady, 5, 6, 7, 8);
+  await applyAvatars(market, climbing, 1, 2, 3, 3, 4);
+  await applyAvatars(market, small, 1, 2);
+  daysAgo(1);
+  const newest = await publishRankedAvatar(market, 'Newest', ['Blue']);
+  daysAgo(0);
+
+  expect(await rankedAvatars(market, 'new')).toEqual([]);
+  expect((await market.request('/v1/avatars/sections/popular')).status).toBe(404);
+  expect(await market.daily()).toContainEqual(
+    expect.objectContaining({ phase: 'avatar-rankings', day: '2026-10-05' }),
+  );
+  expect(await rankedAvatars(market, 'hot')).toEqual([
+    { ...steady, applyCount: 8 },
+    { ...climbing, applyCount: 7 },
+    { ...small, applyCount: 2 },
+  ]);
+  expect((await rankedAvatars(market, 'new')).map(({ id }) => id)).toEqual([newest.id, small.id]);
+  expect((await rankedAvatars(market, 'rising')).map(({ id }) => id)).toEqual([climbing.id]);
+  expect(await rankedAvatars(market, 'hot?q=climb&tag=BLUE')).toEqual([
+    { ...climbing, applyCount: 7 },
+  ]);
+  expect(await rankedAvatars(market, 'hot?tag=missing')).toEqual([]);
+
+  await applyAvatars(market, small, 3);
+  expect((await rankedAvatars(market, 'rising')).map(({ id }) => id)).toEqual([climbing.id]);
+  await market.daily();
+  expect((await rankedAvatars(market, 'rising')).map(({ id }) => id)).toEqual([
+    small.id,
+    climbing.id,
+  ]);
+  daysAgo(-10);
+  expect((await rankedAvatars(market, 'hot')).length).toBeGreaterThan(0);
+  await market.daily();
+  for (const section of ['hot', 'new', 'rising']) {
+    expect(await rankedAvatars(market, section)).toEqual([]);
+  }
+});
+
+it('excludes hidden, blocked and deleted Avatars when reading and writing rankings', async () => {
+  const market = createMarket();
+  await author(market);
+  const kept = await publishRankedAvatar(market, 'Kept');
+  const reported = await publishRankedAvatar(market, 'Reported');
+  const blocked = await publishRankedAvatar(market, 'Blocked');
+  const deleted = await publishRankedAvatar(market, 'Deleted');
+  for (const avatar of [kept, reported, blocked, deleted]) {
+    await applyAvatars(market, avatar, 1, 2, 3);
+  }
+
+  await market.daily();
+  expect(await rankedAvatars(market, 'rising')).toHaveLength(4);
+  for (const source of [1, 2, 3]) {
+    const ip = `203.0.113.${source}`;
+    const report = await post(
+      market,
+      `/v1/avatars/${reported.id}/reports`,
+      { altcha: await solve(market, ip) },
+      ip,
+    );
+    expect(report.status).toBe(202);
+  }
+  expect((await admin(market, { action: 'block', kind: 'avatar', id: blocked.id })).status).toBe(
+    200,
+  );
+  const removed = await write(market, `/v1/me/avatars/${deleted.id}`, {}, 'token-alice', 'DELETE');
+  expect(removed.status).toBe(200);
+  for (const section of ['hot', 'new', 'rising']) {
+    expect(await rankedAvatars(market, section)).toEqual([{ ...kept, applyCount: 3 }]);
+  }
+  await market.daily();
+  for (const id of [reported.id, blocked.id]) {
+    expect((await admin(market, { action: 'restore', kind: 'avatar', id })).status).toBe(200);
+  }
+  for (const section of ['hot', 'new', 'rising']) {
+    expect(await rankedAvatars(market, section)).toEqual([{ ...kept, applyCount: 3 }]);
+  }
+});
 
 function url(type: string, bytes: Buffer) {
   return `data:image/${type};base64,${bytes.toString('base64')}`;

@@ -1,6 +1,6 @@
 import { useId, type ReactElement } from 'react';
 import { Input } from './ds/input.js';
-import { SegmentedControl } from './ds/segmented.js';
+import { SegmentedControl, type SegmentedControlOption } from './ds/segmented.js';
 import { Select } from './ds/select.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { committedEnter } from './marketplace-submit.js';
@@ -53,27 +53,54 @@ export function MarketplaceBotSort({
   onChange: (value: Filters['sort']) => void;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const sortId = useId();
-  const sortOptions = [
+  const options = [
     { value: 'created' as const, label: t('market.sort.created') },
     { value: 'updated' as const, label: t('market.sort.updated') },
     { value: 'stars' as const, label: t('market.sort.stars') },
   ];
   return (
+    <MarketplaceSortTabs
+      value={value}
+      options={options}
+      disabled={disabled}
+      onChange={onChange}
+      label={t('market.sort.label')}
+    />
+  );
+}
+
+export function MarketplaceSortTabs<Value extends string>({
+  value,
+  options,
+  disabled = false,
+  onChange,
+  label,
+  separateTrack = false,
+}: {
+  value: Value;
+  options: readonly SegmentedControlOption<Value>[];
+  disabled?: boolean;
+  onChange: (value: Value) => void;
+  label: string;
+  separateTrack?: boolean;
+}): ReactElement {
+  const sortId = useId();
+  return (
     <div className="bh-market-sort">
       <SegmentedControl
         id={sortId}
-        label={t('market.sort.label')}
+        label={label}
         value={value}
-        options={sortOptions}
+        options={options}
         disabled={disabled}
         onChange={onChange}
+        separateTrack={separateTrack}
       />
       <span className="bh-market-sort-menu">
         <Select
-          label={t('market.sort.label')}
+          label={label}
           value={value}
-          options={sortOptions}
+          options={options}
           disabled={disabled}
           align="start"
           onChange={onChange}

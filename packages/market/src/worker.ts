@@ -1,4 +1,5 @@
 import {
+  isMarketplaceAvatarRanking,
   MAX_MARKETPLACE_AVATAR_QUERY,
   MAX_MARKETPLACE_AVATAR_TAG_FILTER,
 } from '../../host-protocol/src/marketplace-avatar.js';
@@ -41,7 +42,12 @@ import {
   type Digests,
   type DigestWriter,
 } from './digest.js';
-import { createRankings, isRankingSection, type Rankings } from './rankings.js';
+import {
+  createRankings,
+  isRankingSection,
+  snapshotAvatarRankings,
+  type Rankings,
+} from './rankings.js';
 import { createReceipts, isMarketplaceHostId, type Receipts } from './receipts.js';
 import { MAX_UPLOAD_FILE_BYTES } from './upload-files.js';
 import {
@@ -53,6 +59,7 @@ import {
 } from './uploads.js';
 import {
   AVATAR_APPLY_ROUTE,
+  AVATAR_RANKING_ROUTE,
   AVATAR_ROUTE,
   AVATAR_TAGS_PATH,
   createMarketAvatars,
@@ -199,28 +206,37 @@ export function createMarketHandler(
       if (deps.avatars === undefined) return failure(503, 'avatars-unavailable');
       return json(200, { tags: await deps.avatars.tags() });
     }
+    const avatarRanking = AVATAR_RANKING_ROUTE.exec(url.pathname)?.[1];
+    if (
+      avatarRanking !== undefined ||
+      (url.pathname === '/v1/avatars' && request.method === 'GET')
+    ) {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      if (avatarRanking !== undefined && !isMarketplaceAvatarRanking(avatarRanking))
+        return failure(404, 'section-not-found');
+      if (deps.avatars === undefined) return failure(503, 'avatars-unavailable');
+      const cursor = url.searchParams.get('cursor') ?? undefined;
+      const q = url.searchParams.get('q')?.trim() ?? '';
+      const tag = url.searchParams.get('tag')?.trim() ?? '';
+      if (q.length > MAX_MARKETPLACE_AVATAR_QUERY) return failure(400, 'invalid-query');
+      if ([...tag].length > MAX_MARKETPLACE_AVATAR_TAG_FILTER) return failure(400, 'invalid-tag');
+      const page = await deps.avatars.list(
+        {
+          ...(cursor === undefined ? {} : { cursor }),
+          ...(q === '' ? {} : { q }),
+          ...(tag === '' ? {} : { tag }),
+          ...(avatarRanking === undefined ? {} : { sort: avatarRanking }),
+        },
+        url.origin,
+      );
+      return page === undefined ? failure(400, 'invalid-cursor') : json(200, page);
+    }
     const avatar = AVATAR_ROUTE.exec(url.pathname);
     if (avatar !== null) {
       if (request.method === 'GET') {
         if (deps.avatars === undefined) return failure(503, 'avatars-unavailable');
         const id = avatar[1];
-        if (id === undefined) {
-          const cursor = url.searchParams.get('cursor') ?? undefined;
-          const q = url.searchParams.get('q')?.trim() ?? '';
-          const tag = url.searchParams.get('tag')?.trim() ?? '';
-          if (q.length > MAX_MARKETPLACE_AVATAR_QUERY) return failure(400, 'invalid-query');
-          if ([...tag].length > MAX_MARKETPLACE_AVATAR_TAG_FILTER)
-            return failure(400, 'invalid-tag');
-          const page = await deps.avatars.list(
-            {
-              ...(cursor === undefined ? {} : { cursor }),
-              ...(q === '' ? {} : { q }),
-              ...(tag === '' ? {} : { tag }),
-            },
-            url.origin,
-          );
-          return page === undefined ? failure(400, 'invalid-cursor') : json(200, page);
-        }
+        if (id === undefined) return failure(404, 'avatar-not-found');
         if (avatar[2] !== undefined) {
           const image = await deps.avatars.image(id);
           return image === undefined
@@ -624,7 +640,9 @@ export function createMarketHandler(
       await route(request),
       pathname.endsWith('/image') && AVATAR_ROUTE.test(pathname)
         ? 'no-store'
-        : AVATAR_ROUTE.test(pathname) || pathname === AVATAR_TAGS_PATH
+        : AVATAR_ROUTE.test(pathname) ||
+            pathname === AVATAR_TAGS_PATH ||
+            AVATAR_RANKING_ROUTE.test(pathname)
           ? 'no-cache'
           : undefined,
     );
@@ -830,25 +848,28 @@ export async function runDaily(
   now: () => Date = () => new Date(),
   digestWriter: DigestWriter | undefined = digestWriterForEnv(env),
 ): Promise<void> {
-  await snapshotRankings(env, log, now);
+  const rankingDate = now();
+  const rankingDeps = { db: env.MARKET_DB, now: () => rankingDate };
+  await snapshotRankings('rankings', () => createRankings(rankingDeps).snapshot(), log);
+  await snapshotRankings('avatar-rankings', () => snapshotAvatarRankings(rankingDeps), log);
   await writeDigest(env, digestWriter, log, now);
 }
 
 async function snapshotRankings(
-  env: MarketEnv,
+  phase: 'rankings' | 'avatar-rankings',
+  snapshot: () => Promise<{ day: string }>,
   log: (line: string) => void,
-  now: () => Date,
 ): Promise<void> {
   const started = Date.now();
   try {
-    const snapshot = await createRankings({ db: env.MARKET_DB, now }).snapshot();
+    const report = await snapshot();
     log(
       JSON.stringify({
         module: 'marketplace-worker',
         initiator: 'scheduled',
-        phase: 'rankings',
+        phase,
         durationMs: Date.now() - started,
-        ...snapshot,
+        ...report,
       }),
     );
   } catch (error) {
@@ -856,7 +877,7 @@ async function snapshotRankings(
       JSON.stringify({
         module: 'marketplace-worker',
         initiator: 'scheduled',
-        phase: 'rankings',
+        phase,
         durationMs: Date.now() - started,
         failed: error instanceof Error ? error.message : 'unknown',
       }),

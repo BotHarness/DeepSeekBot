@@ -14,6 +14,8 @@ export const zh = {
   'market.avatar.applyFailed': '应用失败。{error}',
   'market.avatar.applied': '已应用到 {name}。',
   'market.avatar.empty': '还没有发布的头像。',
+  'market.avatar.ranking.all': '全部头像',
+  'market.avatar.ranking.empty': '此榜单暂无头像。试试其他榜单，或浏览全部头像。',
   'market.avatar.search.label': '搜索市场头像',
   'market.avatar.search.placeholder': '搜索名称、简介或标签，按回车搜索',
   'market.avatar.search.empty': '没有符合条件的头像。换个关键词或标签试试。',
@@ -307,6 +309,9 @@ export const en = {
   'market.avatar.applyFailed': 'Could not apply the Avatar. {error}',
   'market.avatar.applied': 'Applied to {name}.',
   'market.avatar.empty': 'No Marketplace Avatars yet.',
+  'market.avatar.ranking.all': 'All Avatars',
+  'market.avatar.ranking.empty':
+    'No Avatars in this ranking yet. Try another tab or browse All Avatars.',
   'market.avatar.search.label': 'Search Marketplace Avatars',
   'market.avatar.search.placeholder': 'Search names, descriptions or tags, then press Enter',
   'market.avatar.search.empty': 'No Avatars match. Try another keyword or tag.',

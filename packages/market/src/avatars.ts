@@ -16,6 +16,7 @@ import { MAX_BOTS_PER_ACCOUNT } from './upload-files.js';
 const PAGE_SIZE = 24;
 const MAX_PUBLISH_BODY = Math.ceil(MAX_MARKETPLACE_AVATAR_BYTES / 3) * 4 + 4096;
 export const AVATAR_ROUTE = /^\/v1\/avatars(?:\/([0-9a-f-]{36})(\/image)?)?$/u;
+export const AVATAR_RANKING_ROUTE = /^\/v1\/avatars\/sections\/([^/]+)$/u;
 export const AVATAR_TAGS_PATH = '/v1/avatars/tags';
 export const AVATAR_APPLY_ROUTE = /^\/v1\/avatars\/([0-9a-f-]{36})\/applies$/u;
 const CURSOR = /^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z)\/([0-9a-f-]{36})$/u;
@@ -123,17 +124,23 @@ export function createMarketAvatars({
 
   return {
     async list(
-      { cursor, q, tag }: MarketplaceAvatarQuery,
+      { cursor, q, tag, sort }: MarketplaceAvatarQuery,
       origin: string,
     ): Promise<MarketplaceAvatarPage | undefined> {
       const bounds = cursor === undefined ? null : CURSOR.exec(cursor);
-      if (cursor !== undefined && bounds === null) return;
+      if (cursor !== undefined && (bounds === null || sort !== undefined)) return;
       const terms = q?.match(/\S+/gu) ?? [];
       const long = terms.filter((term) => [...term].length >= 3);
       const short = terms.filter((term) => [...term].length < 3);
       const joins: string[] = [];
       const filters = ["a.visibility = 'listed'"];
       const values: string[] = [];
+      if (sort !== undefined) {
+        joins.push('JOIN avatar_ranking_snapshots s ON s.avatar_id = a.id');
+        filters.push('s.day = (SELECT day FROM avatar_ranking_runs ORDER BY day DESC LIMIT 1)');
+        filters.push('s.section = ?');
+        values.push(sort);
+      }
       if (long.length > 0) {
         joins.push('JOIN marketplace_avatars_fts f ON f.rowid = a.rowid');
         filters.push('marketplace_avatars_fts MATCH ?');
@@ -153,14 +160,15 @@ export function createMarketAvatars({
         filters.push('t.tag = ?');
         values.push(normalizeMarketplaceAvatarTag(tag));
       }
-      const sort = tag === undefined ? ['a.created_at', 'a.id'] : ['t.created_at', 't.avatar_id'];
+      const browseOrder =
+        tag === undefined ? ['a.created_at', 'a.id'] : ['t.created_at', 't.avatar_id'];
       if (bounds !== null) {
-        filters.push(`(${sort.join(', ')}) < (?, ?)`);
+        filters.push(`(${browseOrder.join(', ')}) < (?, ?)`);
         values.push(bounds[1]!, bounds[2]!);
       }
       const { results } = await db
         .prepare(`${selected} ${joins.join(' ')} WHERE ${filters.join(' AND ')}
-          ORDER BY ${sort.join(' DESC, ')} DESC LIMIT ?`)
+          ORDER BY ${sort === undefined ? `${browseOrder.join(' DESC, ')} DESC` : 's.rank'} LIMIT ?`)
         .bind(...values, PAGE_SIZE + 1)
         .all<AvatarRow>();
       const page = results.slice(0, PAGE_SIZE);

@@ -161,6 +161,26 @@ it('applies through the same live Host method, requires a target, and preserves 
   expect((await invoke(apply, live.url)).json.error.code).toBe('bot-not-found');
 });
 
+it('passes Avatar ranking choices to the browse method and refuses invalid options locally', async () => {
+  const live = await host(() => ok({ avatars: [], nextCursor: null }));
+  const list = ['marketplace-avatar-list', '--query', 'River', '--tag', 'blue', '--sort'];
+  for (const sort of ['hot', 'new', 'rising']) {
+    expect((await invoke([...list, sort], live.url)).json).toEqual({
+      avatars: [],
+      nextCursor: null,
+    });
+    expect(live.calls.at(-1)).toEqual({
+      method: 'marketplaceAvatarList',
+      args: { sort, q: 'River', tag: 'blue' },
+    });
+  }
+  expect((await invoke([...list, 'stars'], live.url)).json.error.code).toBe('usage');
+  expect((await invoke([...list, 'hot', '--cursor', 'page2'], live.url)).json.error.code).toBe(
+    'usage',
+  );
+  expect(live.calls).toHaveLength(3);
+});
+
 it('publishes a compliant stored Avatar and refuses a missing or unprocessed source', async () => {
   let source: ReturnType<typeof ok> | { ok: false; error: { code: string; message: string } } = ok({
     image: avatarDataUrl('png'),

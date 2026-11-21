@@ -3,6 +3,7 @@ import type {
   MarketplaceAvatar,
   MarketplaceAvatarApplyCandidate,
   MarketplaceAvatarPage,
+  MarketplaceAvatarRanking,
   MarketplaceAvatarTag,
 } from '@botharness/host-protocol/marketplace-avatar';
 import type { BotCreationReceipt } from '../../bots/creation.js';
@@ -202,8 +203,9 @@ export async function marketplaceAvatarList(
   cursor?: string,
   q?: string,
   tag?: string,
+  sort?: MarketplaceAvatarRanking,
 ): Promise<MarketplaceAvatarPage> {
-  return unwrapAsync(methods.marketplaceAvatarList({ cursor, q, tag }));
+  return unwrapAsync(methods.marketplaceAvatarList({ cursor, q, tag, sort }));
 }
 
 export async function marketplaceAvatarTags(
