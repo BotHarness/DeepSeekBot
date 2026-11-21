@@ -676,7 +676,7 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 
 ## 5 · Orchestrator 与 Assignment control plane
 
-DSH Agent adapter 管理原生 Agent 生命周期，并注册 `packages/core/src/features/` 中 Schedule、GenUI、Memory 和 Channel files 的工具与提示词。原生回合和直调共用同一套工具定义。
+DSH Agent adapter 管理原生 Agent 生命周期，并注册 `packages/core/src/features/` 中 Schedule、GenUI、Memory、Channel files、Channel、IM Messaging、Activity、Assignment 和 Models 的工具与提示词。原生回合和直调共用同一套工具定义。
 
 M6 adds application-owned account/shared roots, separate grantable `files/` and protected Bot Memory, current audience checks (including for the Owner's own Bots), and the bound `core.currentRoots(session, kind)` seam for M12. The persistence, migration, M9 lifecycle and wire contracts are in [M6 runtime boundaries](team-mode-m6-runtime.md).
 
@@ -982,6 +982,8 @@ Registry 在 Generation 66 持久化不可恢复的身份关闭状态和确认�
 [ADR-0131](../decisions/marketplace.md#adr-0131) 与 #18 让 Bot Marketplace 先作为 GitHub 索引目录上线：作者给公开仓库加 `botharness-bot` topic 即同意收录，也可在 Marketplace 贴链接立即抓取。独立的 Cloudflare Worker 与 D1 每日按 topic 切片发现、每小时用 GraphQL 批量刷新，README 进入 FTS5 索引；浏览用 keyset cursor，搜索只取前 200 条。harness 的 Marketplace modal 展示 README 详情；安装复用 #298 的 Git URL 创建路径，确认框显示最新提交并提示第三方仓库风险。贴链接与一键举报共用 ALTCHA 和限流。之后 [ADR-0267](../decisions/marketplace.md#adr-0267) 允许已登录 Connect 的作者在同一目录发布 Uploaded Bot，并统计完成的安装次数。另外，[ADR-0135](../decisions/bots.md#adr-0135) 提供 Bot Zip 这种可携带形式：把单个 Bot 交给别人或换设备时，在 harness 里导出 Bot Zip（默认只含 Memory 文件和 `.botharness/bot.json`，整包导出时可选带 Git 历史），对方从创建菜单的「从 zip 导入」得到新的 PersonaBot。
 
 Web Marketplace 的 Avatars 分区使用独立的 D1 表和 R2 `avatars/` 前缀。Web 裁剪并重新编码图片，CLI 校验已处理的文件。两者通过同一个 Host 方法发布，由 Host 校验所有者身份并从 Connect 取账户令牌。Worker 按 [ADR-0359](../adr/0359-marketplace-avatar-images-are-processed-on-the-client.md) 检查文件头和分块结构，以作者账户和请求键去重，写入完成后公开提供分页列表、详情和图片。
+
+应用时，当前 Host 通过 Worker 的公开图片路由读取原始字节，验证头像并在写入前重新检查 Bot 和权限。Host 复用手动换头像的 Registry 路径，写入成功后异步发送回执。Worker 根据头像条目和 Host ID 与 PersonaBot ID 的 SHA-256 去重，由回执计算应用次数。见 [ADR-0358](../adr/0358-apply-count-counts-persona-bots-without-anti-abuse.md)。
 
 [ADR-0240](../decisions/marketplace.md#adr-0240) 让列表按读者语言（中文/英文）显示：作者在仓库根目录放 `README.zh-CN.md`／`README.en.md`，在 `.botharness/bot.json` 的 `i18n` 里写翻译后的名称和简介；Worker 推送后一并抓取，`lang=zh|en` 时优先返回。某语言没有作者简介时，Worker 在每小时刷新后经 OpenCode Go 的免费模型按 README 生成一句简介（按输入哈希缓存、每轮限量，标记 `bioGenerated`），作者文本总是优先；README 正文不做机器翻译。Host 的 Marketplace modal 与 CLI 按界面语言传 `lang`。
 

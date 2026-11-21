@@ -253,3 +253,56 @@ describe('Marketplace Avatars HTTP', () => {
     expect(market.github.requests).toEqual(upstream);
   });
 });
+
+it('records distinct Bot receipts on listed Avatars and projects the count in list and detail', async () => {
+  const market = createMarket();
+  await author(market);
+  const { avatar } = await (await publish(market)).json();
+  const { avatar: second } = await (await publish(market, { requestKey: 'second' })).json();
+  const botHash = 'a'.repeat(64);
+  const path = `/v1/avatars/${avatar.id}`;
+  expect((await write(market, `${path}/applies`, { botHash: 'raw-bot' })).status).toBe(400);
+  const replies = await Promise.all([
+    write(market, `${path}/applies`, { botHash }),
+    write(market, `${path}/applies`, { botHash }),
+  ]);
+  expect(replies.map((reply) => reply.status)).toEqual([202, 202]);
+  const receipts = await Promise.all(replies.map((reply) => reply.json()));
+  expect(receipts).toEqual(
+    expect.arrayContaining([
+      { counted: true, applyCount: 1 },
+      { counted: false, applyCount: 1 },
+    ]),
+  );
+  expect(
+    await (await write(market, `${path}/applies`, { botHash: 'b'.repeat(64) })).json(),
+  ).toEqual({
+    counted: true,
+    applyCount: 2,
+  });
+  expect(await (await market.request(path)).json()).toMatchObject({ avatar: { applyCount: 2 } });
+  expect(await (await market.request('/v1/avatars')).json()).toMatchObject({
+    avatars: expect.arrayContaining([
+      { ...avatar, applyCount: 2 },
+      { ...second, applyCount: 0 },
+    ]),
+  });
+  market.sqlite
+    .prepare("UPDATE marketplace_avatars SET visibility = 'hidden_reported' WHERE id = ?")
+    .run(avatar.id);
+  expect((await write(market, `${path}/applies`, { botHash: 'c'.repeat(64) })).status).toBe(404);
+  expect((await market.request(`${path}/image`)).status).toBe(404);
+  market.sqlite.prepare('DELETE FROM marketplace_avatars WHERE id = ?').run(avatar.id);
+  expect((await write(market, `${path}/applies`, { botHash })).status).toBe(404);
+});
+
+it('rate limits Avatar apply receipts by source', async () => {
+  const market = createMarket({ limits: { installPerHour: 1 } });
+  await author(market);
+  const { avatar } = await (await publish(market)).json();
+  const path = `/v1/avatars/${avatar.id}/applies`;
+  expect((await write(market, path, { botHash: 'a'.repeat(64) })).status).toBe(202);
+  const limited = await write(market, path, { botHash: 'b'.repeat(64) });
+  expect(limited.status).toBe(429);
+  expect(limited.headers.get('retry-after')).toBe('3600');
+});

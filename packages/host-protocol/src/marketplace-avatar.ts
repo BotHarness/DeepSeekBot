@@ -26,6 +26,14 @@ export interface MarketplaceAvatar extends MarketplaceAvatarText {
   applyCount: number;
 }
 
+export interface MarketplaceAvatarApplyCandidate {
+  slug: string;
+  displayName: string;
+  avatar?: string;
+  avatarSeed?: 2;
+  hasAppearance: boolean;
+}
+
 export interface MarketplaceAvatarPage {
   avatars: MarketplaceAvatar[];
   nextCursor: string | null;

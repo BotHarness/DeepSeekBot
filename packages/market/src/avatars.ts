@@ -12,6 +12,7 @@ import { MAX_BOTS_PER_ACCOUNT } from './upload-files.js';
 const PAGE_SIZE = 24;
 const MAX_PUBLISH_BODY = Math.ceil(MAX_MARKETPLACE_AVATAR_BYTES / 3) * 4 + 4096;
 export const AVATAR_ROUTE = /^\/v1\/avatars(?:\/([0-9a-f-]{36})(\/image)?)?$/u;
+export const AVATAR_APPLY_ROUTE = /^\/v1\/avatars\/([0-9a-f-]{36})\/applies$/u;
 const CURSOR = /^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z)\/([0-9a-f-]{36})$/u;
 
 interface AvatarRow {
@@ -23,9 +24,11 @@ interface AvatarRow {
   display_name: string;
   created_at: string;
   content_type: string;
+  apply_count: number;
 }
 
-const selected = `SELECT a.*, authors.author_id, authors.display_name
+const applyCount = `(SELECT COUNT(*) FROM avatar_apply_receipts WHERE avatar_id = a.id)`;
+const selected = `SELECT a.*, authors.author_id, authors.display_name, ${applyCount} AS apply_count
   FROM marketplace_avatars a JOIN authors USING (account)`;
 const objectKey = (id: string) => `avatars/${id}`;
 
@@ -37,7 +40,7 @@ function avatarFromRow(row: AvatarRow, origin: string): MarketplaceAvatar {
     tags: JSON.parse(row.tags),
     author: { id: row.author_id, name: row.display_name },
     imageUrl: `${origin}/v1/avatars/${row.id}/image`,
-    applyCount: 0,
+    applyCount: row.apply_count,
   };
 }
 
@@ -120,8 +123,31 @@ export function createMarketAvatars({
       return row === null ? undefined : avatarFromRow(row, origin);
     },
 
+    async recordApply(id: string, botHash: string) {
+      const inserted = await db
+        .prepare(`
+          INSERT INTO avatar_apply_receipts (avatar_id, bot_hash, created_at)
+          SELECT id, ?, ? FROM marketplace_avatars WHERE id = ? AND visibility = 'listed'
+          ON CONFLICT (avatar_id, bot_hash) DO NOTHING
+          RETURNING avatar_id
+        `)
+        .bind(botHash, now().getTime(), id)
+        .first<{ avatar_id: string }>();
+      const row = await db
+        .prepare(`SELECT ${applyCount} AS apply_count FROM marketplace_avatars a
+          WHERE a.id = ? AND a.visibility = 'listed'`)
+        .bind(id)
+        .first<{ apply_count: number }>();
+      return row === null ? undefined : { counted: inserted !== null, applyCount: row.apply_count };
+    },
+
     async image(id: string) {
-      const row = await listed(id);
+      const row = await db
+        .prepare(
+          "SELECT content_type FROM marketplace_avatars WHERE id = ? AND visibility = 'listed'",
+        )
+        .bind(id)
+        .first<{ content_type: string }>();
       if (row === null) return;
       const image = await bucket.get(objectKey(id));
       if (image === null) return;

@@ -70,6 +70,13 @@ function actionsFor() {
         : { avatars: [{ ...avatar, id: 'avatar-b', name: 'Bear' }], nextCursor: null },
     ),
     marketplaceAvatarDetail: vi.fn(async () => avatar),
+    marketplaceAvatarApplyCandidates: vi.fn(async () => ({
+      bots: [
+        { slug: 'plain', displayName: 'Plain Bot', hasAppearance: false },
+        { slug: 'editable', displayName: 'Editable Bot', hasAppearance: true, avatar: image },
+      ],
+    })),
+    marketplaceAvatarApply: vi.fn(async () => ({ applied: true as const })),
   };
 }
 
@@ -244,4 +251,41 @@ it('paginates the grid and opens the Avatar hero and tags', async () => {
     t('market.applyCount', { count: 0 }),
   );
   expect(host.querySelector('.bh-market-hero [data-tone="neutral"]')?.textContent).toBe('Blue');
+});
+
+it('applies only to a Bot returned by the Host and warns before replacing an editable Appearance', async () => {
+  const actions = actionsFor();
+  await act(async () =>
+    root.render(
+      createElement(MarketAvatars, { actions, publishing: false, onClosePublish: vi.fn(), t }),
+    ),
+  );
+  await act(async () => buttonNamed(t('market.detail.open', { name: 'Otter' })).click());
+  await act(async () => buttonNamed(t('market.avatar.apply')).click());
+  const dialog = document.querySelector('[role="dialog"]');
+  if (!(dialog instanceof HTMLElement)) throw new Error('Expected the Bot picker');
+  const apply = Array.from(dialog.querySelectorAll('button')).find(
+    (button) => button.textContent === t('market.avatar.apply'),
+  );
+  expect(apply?.disabled).toBe(true);
+  expect(actions.marketplaceAvatarApplyCandidates).toHaveBeenCalledTimes(1);
+  expect(
+    Array.from(
+      dialog.querySelectorAll('[data-market-avatar-apply-option]'),
+      (button) => button.textContent,
+    ),
+  ).toEqual(['Plain Bot', 'Editable Bot']);
+  await act(async () => buttonNamed('Plain Bot').click());
+  expect(dialog.textContent).not.toContain(t('market.avatar.applyWarning'));
+  await act(async () => buttonNamed('Editable Bot').click());
+  expect(dialog.textContent).toContain(t('market.avatar.applyWarning'));
+  expect(actions.marketplaceAvatarApply).not.toHaveBeenCalled();
+  actions.marketplaceAvatarDetail.mockResolvedValue({ ...avatar, applyCount: 1 });
+  await act(async () => apply?.click());
+  expect(actions.marketplaceAvatarApply).toHaveBeenCalledWith('avatar-a', 'editable');
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(host.textContent).toContain(t('market.avatar.applied', { name: 'Editable Bot' }));
+  expect(host.querySelector('.bh-market-hero .bh-market-meta')?.textContent).toContain(
+    t('market.applyCount', { count: 1 }),
+  );
 });

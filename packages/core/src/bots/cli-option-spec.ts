@@ -97,6 +97,7 @@ export const GENUI_OPTIONS = {
 } as const;
 
 export const HOST_ADMIN_OPTIONS = {
+  bot: { type: 'string' },
   'avatar-tag': { type: 'string', multiple: true },
   force: { type: 'boolean' },
   action: { type: 'string' },

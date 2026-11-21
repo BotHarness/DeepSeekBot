@@ -1,3 +1,80 @@
+import {
+  createApprovalTemplateDeletionBridge,
+  parseApprovalCard,
+} from './features/approvals/bridge.js';
+export {
+  parseApprovalCard,
+  loadToolApprovalRules,
+  loadApprovalTemplates,
+  setGlobalApprovalTemplate,
+  createApprovalTemplate,
+  updateApprovalTemplate,
+  setBotApprovalTemplate,
+  loadApprovalReviewerModel,
+  setApprovalReviewerModel,
+  revokeToolApprovalRule,
+  loadToolApprovalStatus,
+  loadToolApprovalState,
+  loadToolApprovalExecutionState,
+  decideToolApproval,
+  loadUserQuestionStatus,
+  answerUserQuestion,
+  overrideAutoRejection,
+  setApprovalRoute,
+  testApprovalRoute,
+  retryApprovalNotification,
+  retryQuestionNotification,
+} from './features/approvals/bridge.js';
+export type {
+  ToolApprovalRuleView,
+  ApprovalTemplateView,
+  ApprovalReviewerModelView,
+  ToolApprovalExecutionState,
+} from './features/approvals/bridge.js';
+export {
+  loadWorkspaceGrants,
+  createWorkspaceGrant,
+  createGroupWorkspaceGrant,
+  readGroupWorkspaceGrant,
+  approveWorkspaceGrantRequest,
+  setWorkspaceGrantWrite,
+  revokeWorkspaceGrant,
+} from './features/workspaces/bridge.js';
+export type { WorkspaceGrantView } from './features/workspaces/bridge.js';
+export {
+  setModelFavorite,
+  loadModelCatalog,
+  loadModelPresets,
+  loadModelPlan,
+  loadModelPlanState,
+  loadRoutingGroups,
+  createRoutingGroup,
+  updateRoutingGroup,
+  deleteRoutingGroup,
+  applyModelPreset,
+  customizeModelPlan,
+  chooseModelPlanGroup,
+  setModelPlanAssignments,
+  setModelPlan,
+} from './features/models/bridge.js';
+export type {
+  ModelRouteView,
+  AssignmentModelOptionView,
+  ModelCatalogEntryView,
+  ModelCatalogGroupView,
+  ModelCatalogView,
+  ModelChoice,
+  AssignmentGroupOptionView,
+  ModelPlanGroupsView,
+  ModelPresetView,
+  ModelPlanView,
+  ModelPlanStateView,
+  RoutingGroupMemberView,
+  RoutingGroupView,
+  RestingRouteView,
+} from './features/models/bridge.js';
+import { createMarketplaceBridge } from './features/marketplace/bridge.js';
+export type { BotZipFileListing, BotZipExportChoice } from './features/marketplace/bridge.js';
 import { createGenuiReportBridge } from './features/genui/bridge.js';
 export {
   parseGenuiDocumentView,
@@ -20,6 +97,7 @@ import {
   asRecord,
   bridgeHost,
   BridgeCallError,
+  stringArray,
   unwrap,
   type BridgeCall,
 } from './bridge-transport.js';
@@ -38,24 +116,14 @@ import * as accessReaders from '@botharness/host-client/access-readers';
 import * as rosterReaders from '@botharness/host-client/roster-readers';
 import { readAssignmentTimeline } from '@botharness/host-client/assignment-timeline';
 import { readProfileActivity } from '@botharness/host-client/profile-activity';
-import type {
-  WireAssignmentAccessPreset,
-  WireWorkspaceGrant,
-} from '@botharness/host-protocol/wire';
+import type { WireAssignmentAccessPreset } from '@botharness/host-protocol/wire';
 import * as botControl from '@botharness/host-client/bot-control';
-import * as approvalReaders from '@botharness/host-client/approval-readers';
 import type {
-  WireApprovalRule,
   WireBotCompactResult,
   WireSessionStopResult,
   WireStoppedSessionRef,
-  WireToolApprovalExecution,
 } from '@botharness/host-protocol/wire';
 import { parseToolEffects } from '../../../core/src/workspaces/tool-effects-contract.js';
-import {
-  approvalTemplateDeletionPreviewSchema,
-  type ApprovalTemplateDeletionPreview,
-} from '../../../core/src/workspaces/approval-template-deletion-contract.js';
 
 import {
   skillCatalogChangeSchema,
@@ -85,13 +153,7 @@ import { isPixelBannerRecipe } from '@botharness/pixel-banner';
 import {
   browseHostFolders,
   loadWorkspaceOptions as loadHostWorkspaceOptions,
-  setModelFavorite as setHostModelFavorite,
 } from '@botharness/host-client/bot-settings';
-import type {
-  ModelCatalogGroup,
-  ModelChoice,
-  RoutingGroupMember,
-} from '@botharness/host-client/model-catalog';
 import { listBots, updateBot } from '@botharness/host-client/bots';
 import { loadMemoryActivity, loadUsage } from '@botharness/host-client/usage';
 import {
@@ -125,21 +187,6 @@ export type {
   MemoryStandingUsage,
   MemoryVersionName,
 } from '@botharness/host-client/memory';
-import {
-  applyModelPreset as applyHostModelPreset,
-  customizeModelPlan as customizeHostModelPlan,
-  loadModelCatalog as loadHostModelCatalog,
-  loadModelPlanState as loadHostModelPlanState,
-  loadModelPresets as loadHostModelPresets,
-  setModelPlan as setHostModelPlan,
-  type AssignmentGroupOption,
-  type AssignmentModelOption,
-  type ModelPlan,
-  type ModelPlanGroups,
-  type ModelPlanState,
-  type ModelPreset,
-  type ModelRoute,
-} from '@botharness/host-client/model-plans';
 import * as channelHost from '@botharness/host-client/channel-messages';
 import * as channels from '@botharness/host-client/channel-management';
 import { HostAnswerInvalid } from '@botharness/host-client/host-answer';
@@ -219,6 +266,39 @@ import type {
 } from '../../../core/src/marketplace/install-review.js';
 import { parseChallenge, type AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
+import { approvalTemplateDeletionPreviewSchema } from '../../../core/src/workspaces/approval-template-deletion-contract.js';
+export type {
+  MarketplaceAuthoredBot,
+  MarketplaceDetail,
+  MarketplaceEntry,
+  MarketplaceFileView,
+  MarketplacePage,
+  MarketplaceQuery,
+  MarketplaceSection,
+  MarketplaceDigest,
+  MarketplaceDigestSummary,
+  MarketplaceTopic,
+  MarketplaceInstallSource,
+  UploadPlan,
+  InstallFinding,
+  InstallReview,
+  InstallReviewResult,
+  AltchaChallenge,
+  MarketplaceLanguage,
+};
+export interface MarketplaceBridgeReaders {
+  parseMarketplaceDetail: typeof parseMarketplaceDetail;
+  parseAuthoredBots: typeof parseAuthoredBots;
+  parseMarketplaceFileView: typeof parseMarketplaceFileView;
+  parseMarketplacePage: typeof parseMarketplacePage;
+  parseMarketplaceSection: typeof parseMarketplaceSection;
+  parseMarketplaceDigest: typeof parseMarketplaceDigest;
+  parseMarketplaceDigests: typeof parseMarketplaceDigests;
+  parseMarketplaceSubmission: typeof parseMarketplaceSubmission;
+  parseMarketplaceTopics: typeof parseMarketplaceTopics;
+  parseChallenge: typeof parseChallenge;
+  parseBotSummary: typeof parseBotSummary;
+}
 import type { OverviewUsage } from '@botharness/host-client/usage';
 import type { ProfileSessionUsage } from '../../../core/src/bridge/methods.js';
 export type { ProfileSessionUsage } from '../../../core/src/bridge/methods.js';
@@ -279,7 +359,6 @@ import type {
   QuoteRef,
   StandingLimitsView,
   UserQuestionAnswerItem,
-  ApprovalCardView,
 } from './store.js';
 import { quoteRefOf } from './store.js';
 import {
@@ -298,231 +377,11 @@ export interface BridgeRpc {
   ): Promise<ConnectionRpcResult<unknown>>;
 }
 
-export type ModelRouteView = ModelRoute;
-export type AssignmentModelOptionView = AssignmentModelOption;
-
-export interface ModelCatalogEntryView {
-  provider: string;
-  providerName: string;
-  model: string;
-  modelName: string;
-  efforts: { id: string; name: string }[];
-  defaultEffort?: string;
-  credential?: 'missing' | 'invalid';
-  restingUntil?: string;
-}
-
-export type ModelCatalogGroupView = ModelCatalogGroup;
-
-export interface ModelCatalogView {
-  models: ModelCatalogEntryView[];
-  default?: ModelRouteView;
-  defaultGroupId?: string;
-  defaultGroupEffort?: string;
-  favorites?: ModelChoice[];
-  groups?: ModelCatalogGroupView[];
-}
-
-export type { ModelChoice };
-
-export async function setModelFavorite(
-  call: BridgeCall,
-  choice: ModelChoice,
-  favorite: boolean,
-): Promise<ModelChoice[]> {
-  return setHostModelFavorite(bridgeHost(call), choice, favorite);
-}
-
-export type AssignmentGroupOptionView = AssignmentGroupOption;
-export type ModelPlanGroupsView = Omit<ModelPlanGroups, 'openAssignmentModels'>;
-
-function groupPayload(orchestrator: ModelRouteView, groups: ModelPlanGroupsView | undefined) {
-  if (groups === undefined) return { orchestrator };
-  const ids = groups.assignmentGroups ?? [];
-  return {
-    ...(groups.orchestratorGroupId === undefined ? { orchestrator } : {}),
-    orchestratorGroupId: groups.orchestratorGroupId ?? null,
-    ...(groups.orchestratorGroupId === undefined
-      ? {}
-      : { orchestratorGroupEffort: groups.orchestratorGroupEffort ?? null }),
-    assignmentGroups: ids,
-    assignmentDefaultGroupId:
-      groups.assignmentDefaultGroupId !== undefined && ids.includes(groups.assignmentDefaultGroupId)
-        ? groups.assignmentDefaultGroupId
-        : null,
-    assignmentGroupOptions: (groups.assignmentGroupOptions ?? []).filter((option) =>
-      ids.includes(option.group),
-    ),
-  };
-}
-
-export type ModelPresetView = ModelPreset;
-export type ModelPlanView = ModelPlan;
-
 export async function loadActivitySnapshot(
   call: BridgeCall,
   signal: AbortSignal,
 ): Promise<unknown> {
   return unwrap(call, 'activitySnapshot', {}, signal);
-}
-
-export async function loadModelCatalog(call: BridgeCall): Promise<ModelCatalogView> {
-  const catalog = await loadHostModelCatalog(bridgeHost(call));
-  return {
-    models: catalog.models.map((entry) => ({
-      ...entry,
-      efforts: entry.efforts ?? [],
-    })),
-    ...(catalog.default === undefined
-      ? {}
-      : { default: { provider: catalog.default.provider, model: catalog.default.model } }),
-    ...(catalog.defaultGroupId === undefined ? {} : { defaultGroupId: catalog.defaultGroupId }),
-    ...(catalog.defaultGroupEffort === undefined
-      ? {}
-      : { defaultGroupEffort: catalog.defaultGroupEffort }),
-    ...(catalog.favorites === undefined ? {} : { favorites: catalog.favorites }),
-    ...(catalog.groups === undefined ? {} : { groups: catalog.groups }),
-  };
-}
-
-export async function loadModelPresets(call: BridgeCall): Promise<ModelPresetView[]> {
-  return loadHostModelPresets(bridgeHost(call));
-}
-
-export async function loadModelPlan(
-  call: BridgeCall,
-  slug: string,
-): Promise<ModelPlanView | undefined> {
-  return (await loadModelPlanState(call, slug)).plan;
-}
-
-export type ModelPlanStateView = ModelPlanState;
-
-export async function loadModelPlanState(
-  call: BridgeCall,
-  slug: string,
-): Promise<ModelPlanStateView> {
-  return loadHostModelPlanState(bridgeHost(call), slug);
-}
-
-export type RoutingGroupMemberView = RoutingGroupMember;
-
-export interface RoutingGroupView {
-  id: string;
-  name: string;
-  revision: number;
-  mode: 'order';
-  members: RoutingGroupMemberView[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface RestingRouteView {
-  provider: string;
-  model: string;
-  until: string;
-  reason?: 'quota' | 'credential' | 'rate-limit';
-}
-
-export async function loadRoutingGroups(
-  call: BridgeCall,
-): Promise<{ groups: RoutingGroupView[]; rests: RestingRouteView[] }> {
-  const value = asRecord(await unwrap(call, 'modelGroups', {}));
-  if (!Array.isArray(value?.['groups'])) throw new Error('Invalid Routing Groups');
-  return {
-    groups: value['groups'] as RoutingGroupView[],
-    rests: Array.isArray(value['rests']) ? (value['rests'] as RestingRouteView[]) : [],
-  };
-}
-
-function routingGroupOf(value: unknown): RoutingGroupView {
-  const group = asRecord(asRecord(value)?.['group']);
-  if (group === undefined) throw new Error('Invalid Routing Group result');
-  return group as unknown as RoutingGroupView;
-}
-
-export async function createRoutingGroup(
-  call: BridgeCall,
-  name: string,
-  members: RoutingGroupMemberView[],
-): Promise<RoutingGroupView> {
-  return routingGroupOf(await unwrap(call, 'modelGroupCreate', { name, members }));
-}
-
-export async function updateRoutingGroup(
-  call: BridgeCall,
-  id: string,
-  expectedRevision: number,
-  name: string,
-  members: RoutingGroupMemberView[],
-): Promise<RoutingGroupView> {
-  return routingGroupOf(
-    await unwrap(call, 'modelGroupUpdate', {
-      id,
-      expectedRevision,
-      name,
-      members,
-    }),
-  );
-}
-
-export async function deleteRoutingGroup(
-  call: BridgeCall,
-  id: string,
-  expectedRevision: number,
-): Promise<RoutingGroupView> {
-  return routingGroupOf(await unwrap(call, 'modelGroupDelete', { id, expectedRevision }));
-}
-
-export async function applyModelPreset(
-  call: BridgeCall,
-  slug: string,
-  presetId: string,
-): Promise<ModelPlanView> {
-  return applyHostModelPreset(bridgeHost(call), slug, presetId);
-}
-
-export async function customizeModelPlan(
-  call: BridgeCall,
-  slug: string,
-  orchestrator: ModelRouteView,
-  expectedRevision?: number,
-): Promise<ModelPlanView> {
-  return customizeHostModelPlan(bridgeHost(call), slug, { orchestrator }, expectedRevision);
-}
-
-export async function chooseModelPlanGroup(
-  call: BridgeCall,
-  slug: string,
-  groupId: string,
-  expectedRevision?: number,
-  effort = '',
-): Promise<ModelPlanView> {
-  return customizeHostModelPlan(
-    bridgeHost(call),
-    slug,
-    { orchestratorGroupId: groupId, ...(effort === '' ? {} : { orchestratorGroupEffort: effort }) },
-    expectedRevision,
-  );
-}
-
-export async function setModelPlanAssignments(
-  call: BridgeCall,
-  slug: string,
-  expectedRevision: number,
-  assignmentDefault: ModelRouteView,
-  assignmentModels: AssignmentModelOptionView[],
-): Promise<ModelPlanView> {
-  const value = asRecord(
-    await unwrap(call, 'modelPlanAssignmentsSet', {
-      slug,
-      expectedRevision,
-      assignmentDefault,
-      assignmentModels,
-    }),
-  );
-  if (asRecord(value?.['plan']) === undefined) throw new Error('Invalid Model Plan result');
-  return value!['plan'] as ModelPlanView;
 }
 
 export interface CreatePersonaBotInput {
@@ -687,12 +546,6 @@ export function createBridgeCall(ctx: ClientContext): BridgeCall {
 
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function stringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === 'string')
-    : [];
 }
 
 export function parseBotSummary(value: unknown): BotSummary | undefined {
@@ -1158,43 +1011,6 @@ export async function uploadChannelAttachment(
 
 function isMaskedRequest(value: unknown): boolean {
   return asRecord(value)?.['masked'] === true;
-}
-
-export function parseApprovalCard(value: unknown): ApprovalCardView | undefined {
-  const row = asRecord(value);
-  const kind = row?.['kind'];
-  if (
-    row === undefined ||
-    (kind !== 'tool-approval' && kind !== 'user-question' && kind !== 'private-input') ||
-    typeof row['state'] !== 'string' ||
-    typeof row['botSlug'] !== 'string' ||
-    typeof row['requestedAt'] !== 'string'
-  )
-    return undefined;
-  const base = {
-    kind,
-    state: row['state'],
-    botSlug: row['botSlug'],
-    requestedAt: row['requestedAt'],
-    ...(typeof row['decidedAt'] === 'string' ? { decidedAt: row['decidedAt'] } : {}),
-  } as const;
-  if (row['masked'] === true) return { masked: true, ...base };
-  const decider = asRecord(row['decidedBy']);
-  return {
-    masked: false,
-    ...base,
-    opaque: row['opaque'] === true,
-    ...(typeof decider?.['humanId'] === 'string'
-      ? {
-          decidedBy: {
-            humanId: decider['humanId'],
-            ...(typeof decider['displayName'] === 'string'
-              ? { displayName: decider['displayName'] }
-              : {}),
-          },
-        }
-      : {}),
-  };
 }
 
 function parseSkillInvocations(
@@ -2463,322 +2279,38 @@ export async function createPersonaBot(
   return httpsFallback === undefined ? bot : { ...bot, httpsFallback };
 }
 
-function botZipUrl(path: string, params: Record<string, string>): string {
-  const url = new URL(`./api/botharness/${path}`, document.baseURI);
-  url.search = new URLSearchParams(params).toString();
-  return url.href;
-}
-
-async function botZipError(response: Response): Promise<BridgeCallError> {
-  let code = response.status === 413 ? 'too-large' : 'unavailable';
-  let message = `Bot zip request failed (${response.status})`;
-  try {
-    const error = asRecord(asRecord(await response.json())?.['error']);
-    if (typeof error?.['code'] === 'string') code = error['code'];
-    if (typeof error?.['message'] === 'string') message = error['message'];
-  } catch {}
-  return new BridgeCallError(code, message);
-}
-
-function attachmentFileName(header: string | null, fallback: string): string {
-  const encoded = /filename\*=UTF-8''([^;]+)/iu.exec(header ?? '')?.[1];
-  if (encoded !== undefined) {
-    try {
-      return decodeURIComponent(encoded);
-    } catch {}
-  }
-  return fallback;
-}
-
-export async function importBotZip(file: File, signal?: AbortSignal): Promise<BotSummary> {
-  const response = await fetch(botZipUrl('bot-zip/import', { name: file.name }), {
-    method: 'POST',
-    headers: { 'content-type': 'application/zip' },
-    body: file,
-    credentials: 'same-origin',
-    ...(signal === undefined ? {} : { signal }),
-  });
-  if (!response.ok) throw await botZipError(response);
-  const bot = parseBotSummary(asRecord(await response.json())?.['bot']);
-  if (bot === undefined) throw new Error('invalid Bot zip import response');
-  return bot;
-}
-
-export interface BotZipFileListing {
-  files: Array<{ path: string; size: number }>;
-  always: string[];
-}
-
-export async function loadBotZipFiles(
-  slug: string,
-  signal?: AbortSignal,
-): Promise<BotZipFileListing> {
-  const response = await fetch(botZipUrl('bot-zip/files', { slug }), {
-    credentials: 'same-origin',
-    ...(signal === undefined ? {} : { signal }),
-  });
-  if (!response.ok) throw await botZipError(response);
-  const value = asRecord(await response.json());
-  const files: BotZipFileListing['files'] = [];
-  for (const item of Array.isArray(value?.['files']) ? value['files'] : []) {
-    const entry = asRecord(item);
-    if (typeof entry?.['path'] === 'string' && typeof entry['size'] === 'number') {
-      files.push({ path: entry['path'], size: entry['size'] });
-    }
-  }
-  const always = Array.isArray(value?.['always'])
-    ? value['always'].filter((path): path is string => typeof path === 'string')
-    : [];
-  return { files, always };
-}
-
-export interface BotZipExportChoice {
-  include?: readonly string[];
-  history?: boolean;
-}
-
-export async function downloadBotZip(
-  slug: string,
-  fallbackName: string,
-  choice: BotZipExportChoice = {},
-  signal?: AbortSignal,
-): Promise<{ blob: Blob; name: string }> {
-  const { include } = choice;
-  const query = include === undefined ? { slug, ...(choice.history ? { history: '1' } : {}) } : {};
-  const response = await fetch(botZipUrl('bot-zip', query), {
-    credentials: 'same-origin',
-    ...(include === undefined
-      ? {}
-      : {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ slug, include }),
-        }),
-    ...(signal === undefined ? {} : { signal }),
-  });
-  if (!response.ok) throw await botZipError(response);
-  return {
-    blob: await response.blob(),
-    name: attachmentFileName(response.headers.get('content-disposition'), `${fallbackName}.zip`),
-  };
-}
-
-export async function loadMarketplacePage(
-  call: BridgeCall,
-  query: MarketplaceQuery = {},
-): Promise<MarketplacePage> {
-  const page = parseMarketplacePage(await unwrap(call, 'marketplaceList', { query }));
-  if (page === undefined) throw new Error('invalid marketplaceList response');
-  return page;
-}
-
-export async function loadMarketplaceDetail(
-  call: BridgeCall,
-  id: string,
-  lang?: MarketplaceLanguage,
-): Promise<MarketplaceDetail> {
-  const detail = parseMarketplaceDetail(
-    await unwrap(call, 'marketplaceDetail', lang === undefined ? { id } : { id, lang }),
-  );
-  if (detail === undefined) throw new Error('invalid marketplaceDetail response');
-  return detail;
-}
-
-export async function loadMarketplaceFile(
-  call: BridgeCall,
-  id: string,
-  path: string,
-): Promise<MarketplaceFileView> {
-  const file = parseMarketplaceFileView({
-    file: await unwrap(call, 'marketplaceFileView', { id, path }),
-  });
-  if (file === undefined) throw new Error('invalid marketplaceFileView response');
-  return file;
-}
-
-export async function loadMarketplaceTopics(call: BridgeCall): Promise<MarketplaceTopic[]> {
-  const topics = parseMarketplaceTopics({
-    topics: await unwrap(call, 'marketplaceTopics', {}),
-  });
-  if (topics === undefined) throw new Error('invalid marketplaceTopics response');
-  return topics;
-}
-
-export async function loadMarketplaceSections(
-  call: BridgeCall,
-  lang?: MarketplaceLanguage,
-): Promise<MarketplaceSection[]> {
-  const body = await unwrap(call, 'marketplaceSections', lang === undefined ? {} : { lang });
-  const raw = (body as { sections?: unknown } | null)?.sections;
-  const sections = Array.isArray(raw) ? raw.map(parseMarketplaceSection) : undefined;
-  if (sections === undefined || sections.some((section) => section === undefined))
-    throw new Error('invalid marketplaceSections response');
-  return sections as MarketplaceSection[];
-}
-
-export async function loadMarketplaceDigests(
-  call: BridgeCall,
-  lang?: MarketplaceLanguage,
-): Promise<MarketplaceDigestSummary[]> {
-  const digests = parseMarketplaceDigests(
-    await unwrap(call, 'marketplaceDigests', lang === undefined ? {} : { lang }),
-  );
-  if (digests === undefined) throw new Error('invalid marketplaceDigests response');
-  return digests;
-}
-
-export async function loadMarketplaceDigest(
-  call: BridgeCall,
-  day?: string,
-  lang?: MarketplaceLanguage,
-): Promise<MarketplaceDigest> {
-  const digest = parseMarketplaceDigest(
-    await unwrap(call, 'marketplaceDigest', {
-      ...(day === undefined ? {} : { day }),
-      ...(lang === undefined ? {} : { lang }),
-    }),
-  );
-  if (digest === undefined) throw new Error('invalid marketplaceDigest response');
-  return digest;
-}
-
-export async function loadMarketplaceChallenge(call: BridgeCall): Promise<AltchaChallenge> {
-  const challenge = parseChallenge(await unwrap(call, 'marketplaceChallenge', {}));
-  if (challenge === undefined) throw new Error('invalid marketplaceChallenge response');
-  return challenge;
-}
-
-export async function submitMarketplaceRepository(
-  call: BridgeCall,
-  url: string,
-  altcha: string,
-): Promise<MarketplaceEntry> {
-  const result = parseMarketplaceSubmission(
-    await unwrap(call, 'marketplaceSubmit', { url, altcha }),
-  );
-  if (result === undefined) throw new Error('invalid marketplaceSubmit response');
-  return result.bot;
-}
-
-const INSTALL_FINDING_KINDS = new Set(['prompt-injection', 'exfiltration', 'script']);
-
-function parseInstallFinding(value: unknown): InstallFinding | undefined {
-  const finding = asRecord(value);
-  const kind = finding?.['kind'];
-  const path = finding?.['path'];
-  const note = finding?.['note'];
-  if (typeof kind !== 'string' || !INSTALL_FINDING_KINDS.has(kind) || typeof path !== 'string')
-    return undefined;
-  return {
-    kind: kind as InstallFinding['kind'],
-    path,
-    ...(typeof note === 'string' && note.length > 0 ? { note } : {}),
-  };
-}
-
-export function parseInstallReviewResult(value: unknown): InstallReviewResult | undefined {
-  const result = asRecord(value);
-  const review = asRecord(result?.['review']);
-  const reviewId = result?.['reviewId'];
-  const listing = parseMarketplaceSubmission({ bot: result?.['listing'] })?.bot;
-  if (typeof reviewId !== 'string' || listing === undefined || review === undefined)
-    return undefined;
-  const findings = Array.isArray(review['findings'])
-    ? review['findings'].map(parseInstallFinding)
-    : undefined;
-  if (findings === undefined || findings.some((finding) => finding === undefined)) return undefined;
-  const files = typeof review['files'] === 'number' ? review['files'] : 0;
-  let parsed: InstallReview;
-  if (review['status'] === 'reviewed') {
-    parsed = {
-      status: 'reviewed',
-      findings: findings as InstallFinding[],
-      files,
-      read: typeof review['read'] === 'number' ? review['read'] : files,
-      partial: review['partial'] === true,
-      ...(typeof review['model'] === 'string' ? { model: review['model'] } : {}),
-    };
-  } else if (review['status'] === 'unavailable' && typeof review['reason'] === 'string') {
-    parsed = {
-      status: 'unavailable',
-      reason: review['reason'] as Extract<InstallReview, { status: 'unavailable' }>['reason'],
-      findings: findings as InstallFinding[],
-      files,
-    };
-  } else return undefined;
-  return { reviewId, listing, review: parsed };
-}
-
-export async function reviewMarketplaceInstall(
-  call: BridgeCall,
-  id: string,
-  lang?: MarketplaceLanguage,
-): Promise<InstallReviewResult> {
-  const result = parseInstallReviewResult(
-    await unwrap(call, 'marketplaceInstallReview', lang === undefined ? { id } : { id, lang }),
-  );
-  if (result === undefined) throw new Error('invalid marketplaceInstallReview response');
-  return result;
-}
-
-export async function installMarketplaceBot(
-  call: BridgeCall,
-  id: string,
-  reviewId: string,
-  source?: MarketplaceInstallSource,
-): Promise<BotSummary> {
-  const value = await unwrap(call, 'marketplaceInstall', {
-    id,
-    reviewId,
-    ...(source === undefined ? {} : { source }),
-  });
-  const bot = parseBotSummary(asRecord(value)?.['bot']);
-  if (bot === undefined) throw new Error('invalid marketplaceInstall response');
-  return bot;
-}
-
-export async function loadMyMarketplaceUploads(
-  call: BridgeCall,
-  lang?: MarketplaceLanguage,
-): Promise<MarketplaceAuthoredBot[]> {
-  const bots = parseAuthoredBots(
-    await unwrap(call, 'marketplaceMine', lang === undefined ? {} : { lang }),
-  );
-  if (bots === undefined) throw new Error('invalid marketplaceMine response');
-  return bots;
-}
-
-export async function uploadMarketplaceBot(
-  call: BridgeCall,
-  slug: string,
-  presentation: {
-    displayName: string;
-    bio?: string;
-    tags?: string[];
-    replaces?: string;
-  },
-): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
-  const value = asRecord(await unwrap(call, 'marketplaceUpload', { slug, ...presentation }));
-  const parsed = parseMarketplaceSubmission(value);
-  if (parsed === undefined) throw new Error('invalid marketplaceUpload response');
-  return {
-    bot: parsed.bot,
-    skipped: Array.isArray(value?.['skipped']) ? (value['skipped'] as UploadPlan['skipped']) : [],
-  };
-}
-
-export async function reportMarketplaceBot(
-  call: BridgeCall,
-  id: string,
-  altcha: string,
-  reason?: string,
-): Promise<void> {
-  await unwrap(call, 'marketplaceReport', {
-    id,
-    altcha,
-    ...(reason === undefined ? {} : { reason }),
-  });
-}
+export const {
+  importBotZip,
+  loadBotZipFiles,
+  downloadBotZip,
+  loadMarketplacePage,
+  loadMarketplaceDetail,
+  loadMarketplaceFile,
+  loadMarketplaceTopics,
+  loadMarketplaceSections,
+  loadMarketplaceDigests,
+  loadMarketplaceDigest,
+  loadMarketplaceChallenge,
+  submitMarketplaceRepository,
+  parseInstallReviewResult,
+  reviewMarketplaceInstall,
+  installMarketplaceBot,
+  loadMyMarketplaceUploads,
+  uploadMarketplaceBot,
+  reportMarketplaceBot,
+} = createMarketplaceBridge({
+  parseMarketplaceDetail,
+  parseAuthoredBots,
+  parseMarketplaceFileView,
+  parseMarketplacePage,
+  parseMarketplaceSection,
+  parseMarketplaceDigest,
+  parseMarketplaceDigests,
+  parseMarketplaceSubmission,
+  parseMarketplaceTopics,
+  parseChallenge,
+  parseBotSummary,
+});
 
 export async function loadChannels(
   call: BridgeCall,
@@ -4382,232 +3914,7 @@ export async function setAssignmentAccess(
   ).preset;
 }
 
-export type ToolApprovalRuleView = WireApprovalRule;
-
-export async function loadToolApprovalRules(
-  call: BridgeCall,
-  slug: string,
-): Promise<ToolApprovalRuleView[]> {
-  return (await approvalReaders.readToolApprovalRules(bridgeHost(call), slug)).rules;
-}
-
-export interface ApprovalTemplateView {
-  name: string;
-  title: string;
-  description: string;
-  builtIn: boolean;
-  usedBy: string[];
-  text?: string;
-}
-function parseApprovalTemplate(item: unknown): ApprovalTemplateView | undefined {
-  const template = asRecord(item);
-  if (
-    typeof template?.['name'] !== 'string' ||
-    typeof template['title'] !== 'string' ||
-    typeof template['description'] !== 'string'
-  )
-    return undefined;
-  const text = template['text'];
-  return {
-    name: template['name'],
-    title: template['title'],
-    description: template['description'],
-    builtIn: template['builtIn'] !== false,
-    usedBy: stringArray(template['usedBy']),
-    ...(typeof text === 'string' ? { text } : {}),
-  };
-}
-export async function loadApprovalTemplates(
-  call: BridgeCall,
-  slug?: string,
-): Promise<{
-  templates: ApprovalTemplateView[];
-  selected: string | null;
-  globalDefault?: string | null;
-}> {
-  const { templates, selected, globalDefault } = await approvalReaders.readApprovalTemplates(
-    bridgeHost(call),
-    slug,
-  );
-  return {
-    templates,
-    selected: selected ?? null,
-    ...(globalDefault === undefined ? {} : { globalDefault }),
-  };
-}
-export async function setGlobalApprovalTemplate(
-  call: BridgeCall,
-  template: string | null,
-): Promise<void> {
-  await unwrap(call, 'approvalTemplateGlobalSet', { template });
-}
-async function writtenApprovalTemplate(
-  call: BridgeCall,
-  endpoint: 'approvalTemplateCreate' | 'approvalTemplateUpdate',
-  payload: Record<string, unknown>,
-): Promise<ApprovalTemplateView> {
-  const template = parseApprovalTemplate(
-    asRecord(await unwrap(call, endpoint, payload))?.['template'],
-  );
-  if (template === undefined) throw new Error('invalid ' + endpoint + ' response');
-  return template;
-}
-export function createApprovalTemplate(
-  call: BridgeCall,
-  name: string,
-  source: { text: string } | { from: string },
-): Promise<ApprovalTemplateView> {
-  return writtenApprovalTemplate(call, 'approvalTemplateCreate', {
-    name,
-    ...source,
-  });
-}
-export function updateApprovalTemplate(
-  call: BridgeCall,
-  name: string,
-  text: string,
-): Promise<ApprovalTemplateView> {
-  return writtenApprovalTemplate(call, 'approvalTemplateUpdate', {
-    name,
-    text,
-  });
-}
-export async function previewApprovalTemplateDeletion(
-  call: BridgeCall,
-  name: string,
-): Promise<ApprovalTemplateDeletionPreview> {
-  const response = asRecord(await unwrap(call, 'approvalTemplateDeletePreview', { name }));
-  const preview = approvalTemplateDeletionPreviewSchema.parse(response?.['preview']);
-  if (preview.name !== name) throw new Error('invalid approval template deletion target');
-  return preview;
-}
-export async function deleteApprovalTemplate(
-  call: BridgeCall,
-  preview: ApprovalTemplateDeletionPreview,
-): Promise<{ inheritedBots: string[] }> {
-  const response = asRecord(
-    await unwrap(call, 'approvalTemplateDelete', {
-      name: preview.name,
-      confirmed: true,
-      revision: preview.revision,
-    }),
-  );
-  if (!Array.isArray(response?.['inheritedBots']))
-    throw new Error('invalid approvalTemplateDelete response');
-  return { inheritedBots: stringArray(response['inheritedBots']) };
-}
-export async function setBotApprovalTemplate(
-  call: BridgeCall,
-  slug: string,
-  template: string | null,
-): Promise<void> {
-  await approvalReaders.setBotApprovalTemplate(bridgeHost(call), slug, template);
-}
-export interface ApprovalReviewerModelView {
-  follows: 'bot' | 'model' | 'invalid';
-  model: ModelRouteView | null;
-  available?: boolean;
-  unavailableReason?: string;
-}
-function approvalReviewerModelView(response: unknown, method: string): ApprovalReviewerModelView {
-  const view = asRecord(response);
-  const follows = view?.['follows'];
-  const model = asRecord(view?.['model']);
-  if (
-    (follows !== 'bot' && follows !== 'model' && follows !== 'invalid') ||
-    (view?.['model'] !== null &&
-      (typeof model?.['provider'] !== 'string' || typeof model['model'] !== 'string'))
-  )
-    throw new Error(`invalid ${method} response`);
-  return {
-    follows,
-    model:
-      model === undefined
-        ? null
-        : {
-            provider: model['provider'] as string,
-            model: model['model'] as string,
-            ...(typeof model['reasoningEffort'] === 'string'
-              ? { reasoningEffort: model['reasoningEffort'] }
-              : {}),
-          },
-    ...(typeof view?.['available'] === 'boolean' ? { available: view['available'] } : {}),
-    ...(typeof view?.['unavailableReason'] === 'string'
-      ? { unavailableReason: view['unavailableReason'] }
-      : {}),
-  };
-}
-export async function loadApprovalReviewerModel(
-  call: BridgeCall,
-): Promise<ApprovalReviewerModelView> {
-  return approvalReviewerModelView(
-    await unwrap(call, 'approvalReviewerModel', {}),
-    'approvalReviewerModel',
-  );
-}
-export async function setApprovalReviewerModel(
-  call: BridgeCall,
-  model: ModelRouteView | null,
-): Promise<ApprovalReviewerModelView> {
-  return approvalReviewerModelView(
-    await unwrap(call, 'approvalReviewerModelSet', { model }),
-    'approvalReviewerModelSet',
-  );
-}
-export async function revokeToolApprovalRule(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-): Promise<void> {
-  await approvalReaders.revokeToolApprovalRule(bridgeHost(call), slug, id);
-}
-
 export type { ToolApprovalStatus } from '@botharness/host-protocol/wire';
-export type ToolApprovalExecutionState = WireToolApprovalExecution;
-
-export async function loadToolApprovalStatus(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-) {
-  return (await approvalReaders.readToolApprovalStatus(bridgeHost(call), channelId, messageId))
-    .status;
-}
-
-export async function loadToolApprovalState(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-) {
-  const { status, expiresAt, execution } = await approvalReaders.readToolApprovalStatus(
-    bridgeHost(call),
-    channelId,
-    messageId,
-  );
-  return {
-    status,
-    ...(status !== 'pending' || expiresAt === undefined ? {} : { expiresAt }),
-    ...(execution === undefined ? {} : { execution }),
-  };
-}
-
-export async function loadToolApprovalExecutionState(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-) {
-  return (await approvalReaders.readToolApprovalStatus(bridgeHost(call), channelId, messageId))
-    .execution;
-}
-
-export async function decideToolApproval(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-  outcome: Parameters<typeof approvalReaders.decideToolApproval>[3],
-): Promise<void> {
-  await approvalReaders.decideToolApproval(bridgeHost(call), channelId, messageId, outcome);
-}
 
 export async function loadPrivateInputStatus(
   call: BridgeCall,
@@ -4683,49 +3990,13 @@ export async function cancelPrivateInput(
     throw new Error('Private input cancellation was not accepted');
 }
 
-export async function loadUserQuestionStatus(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-): Promise<'pending' | 'submitted' | 'answered' | 'expired'> {
-  return (await approvalReaders.readUserQuestionStatus(bridgeHost(call), channelId, messageId))
-    .status;
-}
-
-export async function answerUserQuestion(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-  answers: UserQuestionAnswerItem[],
-): Promise<void> {
-  await approvalReaders.answerUserQuestion(bridgeHost(call), channelId, messageId, { answers });
-}
+export const { previewApprovalTemplateDeletion, deleteApprovalTemplate } =
+  createApprovalTemplateDeletionBridge(approvalTemplateDeletionPreviewSchema);
 
 export interface WorkspaceOption {
   id: string;
   path: string;
   title: string;
-}
-
-export interface WorkspaceGrantView extends WorkspaceOption {
-  botSlug: string;
-  workspaceId: string;
-  workspacePath: string;
-  workspaceTitle: string;
-  createdAt: string;
-  revokedAt?: string;
-  orchestratorWrite?: boolean;
-  writeRevision?: number;
-}
-
-function workspaceGrantView(grant: WireWorkspaceGrant): WorkspaceGrantView {
-  return {
-    ...grant,
-    path: grant.workspacePath,
-    title: grant.workspaceTitle,
-    orchestratorWrite: grant.orchestratorWrite === true,
-    writeRevision: grant.writeRevision ?? 0,
-  };
 }
 
 export async function loadHostFolders(
@@ -4739,90 +4010,6 @@ export async function loadHostFolders(
 
 export async function loadWorkspaceOptions(call: BridgeCall): Promise<WorkspaceOption[]> {
   return loadHostWorkspaceOptions(bridgeHost(call));
-}
-
-export async function loadWorkspaceGrants(
-  call: BridgeCall,
-  slug: string,
-): Promise<WorkspaceGrantView[]> {
-  return (await accessReaders.readWorkspaceGrants(bridgeHost(call), { slug })).grants.map(
-    workspaceGrantView,
-  );
-}
-
-export async function createWorkspaceGrant(
-  call: BridgeCall,
-  slug: string,
-  workspaceId: string,
-): Promise<WorkspaceGrantView> {
-  return workspaceGrantView(
-    (await accessReaders.createGrant(bridgeHost(call), { slug, workspaceId })).grant,
-  );
-}
-
-export async function createGroupWorkspaceGrant(
-  call: BridgeCall,
-  slug: string,
-  workspaceId: string,
-  channelId: string,
-  path: string,
-): Promise<{ grant: WorkspaceGrantView; created: boolean }> {
-  const { grant, created } = await accessReaders.createGrant(bridgeHost(call), {
-    slug,
-    workspaceId,
-    scope: { channelId, path },
-  });
-  return { grant: workspaceGrantView(grant), created: created! };
-}
-
-export async function readGroupWorkspaceGrant(
-  call: BridgeCall,
-  slug: string,
-  channelId: string,
-  path: string,
-): Promise<WorkspaceGrantView | undefined> {
-  const { grants } = await accessReaders.readWorkspaceGrants(bridgeHost(call), {
-    slug,
-    scope: { channelId, path },
-  });
-  const grant = grants[0];
-  return grant === undefined ? undefined : workspaceGrantView(grant);
-}
-
-export async function approveWorkspaceGrantRequest(
-  call: BridgeCall,
-  slug: string,
-  channelId: string,
-  requestMessageId: string,
-  workspaceId: string,
-): Promise<WorkspaceGrantView> {
-  const { grant } = await accessReaders.approveGrantRequest(bridgeHost(call), {
-    slug,
-    channelId,
-    requestMessageId,
-    workspaceId,
-  });
-  return workspaceGrantView(grant);
-}
-
-export async function setWorkspaceGrantWrite(
-  call: BridgeCall,
-  slug: string,
-  grantId: string,
-  enabled: boolean,
-): Promise<WorkspaceGrantView> {
-  const value = await unwrap(call, 'grantWriteSet', { slug, grantId, enabled });
-  return workspaceGrantView(accessReaders.readGrantReceipt(value, 'grantWriteSet', slug));
-}
-
-export async function revokeWorkspaceGrant(
-  call: BridgeCall,
-  slug: string,
-  grantId: string,
-): Promise<WorkspaceGrantView> {
-  return workspaceGrantView(
-    (await accessReaders.revokeGrant(bridgeHost(call), { slug, grantId })).grant,
-  );
 }
 
 export async function loadBotAttention(
@@ -4936,10 +4123,6 @@ export async function dismissAllActivityListItems(
     ...(filter.channelId === undefined ? {} : { channelId: filter.channelId }),
   });
   return { dismissed, more };
-}
-
-export async function overrideAutoRejection(call: BridgeCall, itemId: string): Promise<void> {
-  await approvalReaders.overrideAutoRejection(bridgeHost(call), itemId);
 }
 
 export async function snoozeActivityListItem(
@@ -5867,32 +5050,6 @@ export async function manageChannelBridge(
 ): Promise<void> {
   await unwrap(call, 'channelBridge', { channelId, input });
 }
-export async function setApprovalRoute(
-  call: BridgeCall,
-  slug: string,
-  pairingId: string | null,
-  expectedRevision: number,
-): Promise<void> {
-  await unwrap(call, 'approvalRoute', { slug, pairingId, expectedRevision });
-}
-export async function testApprovalRoute(call: BridgeCall, slug: string): Promise<void> {
-  await unwrap(call, 'approvalTest', { slug });
-}
-export async function retryApprovalNotification(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-): Promise<void> {
-  await unwrap(call, 'approvalRetry', { slug, id });
-}
-
-export async function retryQuestionNotification(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-): Promise<void> {
-  await unwrap(call, 'questionRetry', { slug, id });
-}
 
 export async function setFailureAlerts(
   call: BridgeCall,
@@ -6491,24 +5648,6 @@ export async function loadOverviewMemory(
   after?: string,
 ): Promise<OverviewMemory> {
   return loadMemoryActivity(bridgeHost(call), after);
-}
-
-export async function setModelPlan(
-  call: BridgeCall,
-  slug: string,
-  expectedRevision: number,
-  orchestrator: ModelRouteView,
-  assignmentDefault: ModelRouteView,
-  assignmentModels: AssignmentModelOptionView[],
-  openAssignmentModels?: boolean,
-  groups?: ModelPlanGroupsView,
-): Promise<ModelPlanView> {
-  return setHostModelPlan(bridgeHost(call), slug, expectedRevision, {
-    ...groupPayload(orchestrator, groups),
-    assignmentDefault,
-    assignmentModels,
-    ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-  });
 }
 
 function parseQuotePreview(value: unknown): ChannelReplyPreview | null | false {

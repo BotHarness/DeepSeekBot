@@ -1,3 +1,45 @@
+import {
+  createApprovalsBridgeMethods,
+  type ApprovalsBridgeMethods,
+  type ApprovalsBridgeDeps,
+} from '../features/approvals/methods.js';
+export type {
+  ApprovalTemplateEntry,
+  ApprovalReviewerModelView,
+} from '../features/approvals/methods.js';
+import {
+  createWorkspacesBridgeMethods,
+  type WorkspacesBridgeMethods,
+  type WorkspacesBridgeDeps,
+} from '../features/workspaces/methods.js';
+import {
+  createBrowserBridgeMethods,
+  type BrowserBridgeMethods,
+  type BrowserBridgeDeps,
+} from '../features/browser/methods.js';
+import {
+  createComputerBridgeMethods,
+  type ComputerBridgeMethods,
+  type ComputerBridgeDeps,
+} from '../features/computer/methods.js';
+import {
+  createEngineAccountBridge,
+  type EngineAccountBridgeMethods,
+  createEngineSelectionBridge,
+  type EngineSelectionBridgeMethods,
+  createModelProviderBridge,
+  type ModelProviderBridgeMethods,
+  createModelsBridgeMethods,
+  type ModelsBridgeMethods,
+} from '../features/models/methods.js';
+import type { ModelsBridgeDeps } from '../features/models/deps.js';
+import { createModelRoutingHelpers, routingGroupFailure } from '../features/models/routing.js';
+export type { ModelCatalogGroup } from '../features/models/routing.js';
+import {
+  createMarketplaceBridgeMethods,
+  type MarketplaceBridgeMethods,
+  type MarketplaceBridgeDeps,
+} from '../features/marketplace/methods.js';
 import { createGenuiBridgeMethods, type GenuiBridgeMethods } from '../features/genui/methods.js';
 import {
   createAvatarsBridgeMethods,
@@ -18,6 +60,10 @@ import {
 import {
   asNonBlank,
   asObject,
+  parseOptional,
+  parseRoles,
+  parseStringArray,
+  type ParsedField,
   asSlug,
   invalidInput,
   unavailable,
@@ -36,37 +82,8 @@ export type {
   PromptLimitView,
   PromptPartView,
 } from '../features/prompts/methods.js';
-import {
-  parseMarketplaceAvatarPublish,
-  type MarketplaceAvatar,
-  type MarketplaceAvatarPage,
-} from '@botharness/host-protocol/marketplace-avatar';
-import {
-  createEngineAccountBridge,
-  type EngineAccountBridgeMethods,
-  type EngineAccountOperations,
-} from '../engines/engine-account-bridge.js';
-import {
-  createEngineSelectionBridge,
-  type EngineSelectionBridgeMethods,
-  type EngineSelectionOperations,
-} from '../engines/engine-selection-bridge.js';
-import {
-  createModelProviderBridge,
-  modelFailure,
-  type ModelProviderBridgeMethods,
-} from '../models/provider-bridge.js';
-import type { ModelProviders } from '../models/providers.js';
-import {
-  engineAccountKey,
-  type EngineId,
-  type RoutingGroupEngineMember,
-  type RoutingGroupEngineOptions,
-} from '@botharness/host-protocol/subscription-engine';
-import type { EngineHost } from '../engines/engine-host.js';
-import { EngineRefusal } from '../engines/engine-session.js';
+import { modelFailure } from '../models/provider-bridge.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
-import { ApprovalTemplateDeletion } from '../workspaces/approval-template-deletion.js';
 import {
   assertQuoteTargets,
   ChannelQuoteError,
@@ -75,30 +92,29 @@ import {
   quoteTextMatches,
   sameQuoteIntent,
 } from '../channels/quotes.js';
-import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
-import type { ApprovalCard } from '../team/approval-contract.js';
-import { botModelGrants, requireBotModel, botModelAllowed } from '../team/models.js';
-import { requireEngineAccountGrant } from '../team/roles.js';
-import { allowsEngineAccount, allowsModel } from '../team/permissions.js';
+import { botModelAllowed } from '../team/models.js';
 import { TeamError } from '../team/error.js';
 import type { UsageByMemberResult } from '../usage/overview.js';
 import { MEMBER_CHANNEL_METHODS } from '../team/member-methods.js';
 import type { TeamChannels } from '../team/channels.js';
 import { guardHumanBridge } from '../team/bridge-access.js';
-import { botOwner, ownsBot, privateBotRegistry } from '../team/bot-access.js';
+import { botOwner, privateBotRegistry } from '../team/bot-access.js';
 import { privateBotCreations } from '../bots/creation.js';
 import { createHash } from 'node:crypto';
 import { createTeamBridge, type TeamBridgeMethods } from '../team/bridge.js';
 import type { TeamService } from '../team/service.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { type HumanContext, type HumanId } from '../humans/context.js';
-import { createVoiceBridgeMethods, type VoiceBridgeMethods } from '../voice/bridge.js';
+import {
+  createVoiceBridgeMethods,
+  type VoiceBridgeMethods,
+  type VoiceBridgeDeps,
+} from '../features/voice/methods.js';
 import {
   createBotModeBridgeMethods,
   type BotModeBridgeMethods,
   type BotModesDeps,
 } from './bot-modes.js';
-import type { VoiceProviders } from '../voice/providers.js';
 import { networkBotId, type BotContact } from '../runtime/bot-contact-discovery.js';
 import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
 import { join } from 'node:path';
@@ -108,10 +124,6 @@ import { createBotImports, type BotImportsService } from '../bots/imports.js';
 import { SessionRecoveryError } from '../runtime/session-recovery.js';
 import type { BotContextWindow } from '../runtime/context-window.js';
 import { summarizeTurnInput, type TurnInputView } from '../runtime/prompt-inspection.js';
-import {
-  approveGrantRequest,
-  type GrantRequestApprovalResult,
-} from '../workspaces/grant-requests.js';
 import { notificationAttentionPage } from '../runtime/notification-attention.js';
 import { MemoryImageError } from '../memory/image.js';
 import { inspectImage } from '../media/image-format.js';
@@ -149,18 +161,7 @@ import {
   type ChannelManagementResult,
 } from '../channels/management.js';
 import { botProfileFingerprint } from '../bots/profile-snapshot.js';
-import type {
-  BotZipImportService,
-  BotZipImportInput,
-  BotZipImportReference,
-  BotZipPreview,
-} from '../bots/zip-import.js';
-import {
-  BotZipUploadError,
-  type BotZipUploadIdentity,
-  type BotZipUploadStatus,
-} from '../bots/zip-upload.js';
-import { ZipArchiveError } from '../bots/zip-archive.js';
+import { BotZipUploadError } from '../bots/zip-upload.js';
 import {
   BotCreationError,
   validBotCreationKey,
@@ -236,45 +237,7 @@ import type {
 } from '../messaging/outbound.js';
 import { MessagingError, type MessagingTarget } from '../messaging/provider.js';
 import { OperationalDatabaseError } from '../database/owner.js';
-import type {
-  MarketplaceAuthoredBot,
-  MarketplaceAuthorAccount,
-  MarketplaceClient,
-  MarketplaceDetail,
-  MarketplaceDigest,
-  MarketplaceDigestSummary,
-  MarketplaceEntry,
-  MarketplaceFileView,
-  MarketplacePage,
-  MarketplaceQuery,
-  MarketplaceResult,
-  MarketplaceSection,
-  MarketplaceTopic,
-} from '../marketplace/client.js';
-import {
-  MARKETPLACE_DIGEST_DAY,
-  MARKETPLACE_INSTALL_SOURCES,
-  MARKETPLACE_SECTIONS,
-} from '../marketplace/client.js';
-import type { AltchaChallenge } from '../marketplace/altcha.js';
-import type {
-  MarketplaceAccount,
-  MarketplaceUploads,
-  UploadPlan,
-} from '../marketplace/uploaded-bots.js';
-import type {
-  InstallReviewResult,
-  MarketplaceInstallReviews,
-} from '../marketplace/install-review.js';
-import {
-  summarizeShareDraft,
-  type ShareDraft,
-  type ShareDrafts,
-  type ShareDraftView,
-} from '../marketplace/share-draft.js';
-import type { UploadFileKind } from '../../../market/src/upload-files.js';
 import type { InstallReceipts } from '../marketplace/install-receipts.js';
-import { MARKETPLACE_LANGUAGES, type MarketplaceLanguage } from '../marketplace/language.js';
 import {
   MAX_DESCRIPTOR_BIO_LENGTH,
   MAX_DESCRIPTOR_TAG_LENGTH,
@@ -407,20 +370,6 @@ import {
 } from '../data-reset/reset.js';
 import { SkillContentTooLargeError, skillOwnerKey, type ResolvedSkill } from '../skills/catalog.js';
 
-export interface ModelCatalogGroup {
-  id: string;
-  name: string;
-  revision: number;
-  mode: 'order';
-  members: RoutingGroupMember[];
-  routes: ModelRoute[];
-  restingUntil?: string;
-}
-
-function routeKey(route: { provider: string; model: string }): string {
-  return JSON.stringify([route.provider, route.model]);
-}
-
 import { isValidSlug } from '../bots/slug.js';
 import {
   memoryMoveTarget,
@@ -458,42 +407,9 @@ import type {
   SessionUsageSummary,
 } from '../usage/usage.js';
 import { usageFilterSchema, type UsageQueryResult } from '../usage/query.js';
-import {
-  isAssignmentGroupOption,
-  isAssignmentModelOption,
-  hasPresetGroups,
-  hasPresetEngines,
-  isModelPresetEngine,
-  type ModelPresetEngineInput,
-  isModelRoute,
-  validateAssignmentModels,
-  type AssignmentGroupOption,
-  type AssignmentModelOption,
-  type ModelRoute,
-  type ModelPresetUsage,
-  type ModelPreset,
-  type ModelPresetGroups,
-  type ModelPresetStore,
-  type PersonaBotModelPlan,
-} from '../models/presets.js';
-import { modelFavorite, type ModelFavorite, type ModelFavoriteStore } from '../models/favorites.js';
-import {
-  isRoutingGroupMember,
-  ROUTING_GROUP_MEMBER_SHAPES,
-  RoutingGroupError,
-  type RoutingGroup,
-  type RoutingGroupInput,
-  type RoutingGroupMember,
-  type RoutingGroupStore,
-} from '../models/routing-groups.js';
-import {
-  groupEfforts,
-  groupMemberRoute,
-  type ModelCatalog,
-  type ModelCatalogEntry,
-} from '../models/catalog.js';
-
-import type { ModelPlanState, ModelRouteReadiness } from '../models/readiness.js';
+import { isModelRoute, type ModelRoute, type PersonaBotModelPlan } from '../models/presets.js';
+import { RoutingGroupError } from '../models/routing-groups.js';
+import { groupMemberRoute } from '../models/catalog.js';
 import { MemoryFileError, type MemoryFileTarget } from '../memory/file-actions.js';
 import { MemoryPathError } from '../memory/jail.js';
 import {
@@ -503,25 +419,13 @@ import {
   MIN_STANDING_LIMIT,
   type StandingLimits,
 } from '../memory/soul.js';
-import {
-  WorkspaceGrantError,
-  type WorkspaceGrant,
-  type WorkspaceGrantStore,
-} from '../workspaces/grants.js';
+import { WorkspaceGrantError } from '../workspaces/grants.js';
 import {
   FolderBrowseError,
   type FolderBrowser,
   type FolderListing,
 } from '../workspaces/folder-browse.js';
 import type { ChannelToolApproval } from '../workspaces/tool-approval.js';
-import { readToolApprovalState } from '../workspaces/tool-approval-state.js';
-import type { ChannelUserQuestions } from '../channels/user-questions.js';
-import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/types';
-import type { ToolApprovalRuleStore, ToolApprovalRule } from '../workspaces/tool-approval-rules.js';
-import type {
-  ToolApprovalHistoryEntry,
-  ToolApprovalHistoryPosition,
-} from '../channels/approval-history.js';
 import type {
   AssignmentAccessMode,
   AssignmentAccessStore,
@@ -559,17 +463,6 @@ import type {
   DmAdmissionFailure,
 } from '../runtime/bot-runtime.js';
 import type { AssignmentExecutionWait } from '../runtime/assignment-approval-capacity.js';
-import {
-  INHERIT_APPROVAL_TEMPLATE,
-  createApprovalTemplateLibrary,
-  type ApprovalTemplate,
-  type ApprovalTemplateDefault,
-  type ApprovalTemplateLibrary,
-  type ApprovalTemplateWriteResult,
-} from '../workspaces/approval-templates.js';
-import type { ApprovalReviewerSettings } from '../workspaces/approval-reviewer-settings.js';
-
-export type ApprovalTemplateEntry = ApprovalTemplate & { usedBy: string[] };
 import type {
   AggregatedState,
   BotStateSnapshot,
@@ -786,7 +679,14 @@ export interface BridgeMethods
     SchedulesBridgeMethods,
     SkillsBridgeMethods,
     AvatarsBridgeMethods,
-    GenuiBridgeMethods {
+    GenuiBridgeMethods,
+    MarketplaceBridgeMethods,
+    ModelsBridgeMethods,
+    ComputerBridgeMethods,
+    BrowserBridgeMethods,
+    VoiceBridgeMethods,
+    ApprovalsBridgeMethods,
+    WorkspacesBridgeMethods {
   tobHome(
     payload: unknown,
   ): Promise<
@@ -797,7 +697,6 @@ export interface BridgeMethods
   onboarding(payload: unknown): Promise<BridgeResult<OnboardingSnapshot>>;
   acknowledgements(payload: unknown): BridgeResult<{ items: Record<string, string> }>;
   acknowledge(payload: unknown): BridgeResult<{ key: string; value: string }>;
-  modelPlanInherit(payload: unknown): BridgeResult<{ revision: number }>;
   onboardingModel(
     payload: unknown,
   ): Promise<BridgeResult<{ revision: number; groupRevision?: number }>>;
@@ -826,7 +725,6 @@ export interface BridgeMethods
       messageId?: string;
     }>
   >;
-  approvalRoute(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   failureAlertsSet(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   failureAlertsTest(payload: unknown): Promise<
     BridgeResult<{
@@ -836,17 +734,6 @@ export interface BridgeMethods
   failureAlertsRetry(payload: unknown): Promise<
     BridgeResult<{
       delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery;
-    }>
-  >;
-  approvalTest(payload: unknown): Promise<
-    BridgeResult<{
-      delivery: import('../messaging/approval-messaging.js').ApprovalDelivery;
-    }>
-  >;
-  questionRetry(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
-  approvalRetry(payload: unknown): Promise<
-    BridgeResult<{
-      delivery: import('../messaging/approval-messaging.js').ApprovalDelivery;
     }>
   >;
   pairingReview(payload: unknown): Promise<BridgeResult<{ pairing: PairingRequest }>>;
@@ -878,41 +765,6 @@ export interface BridgeMethods
   messagingRevoke(payload: unknown): Promise<BridgeResult<{ revoked: true }>>;
   messagingConversation(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   messagingSend(payload: unknown): Promise<BridgeResult<{ intent: OutboxIntent }>>;
-
-  modelCatalog(payload: unknown): Promise<
-    BridgeResult<{
-      models: ModelCatalogEntry[];
-      default?: ModelRoute;
-      defaultRevision?: number;
-      defaultGroupId?: string;
-      favorites?: ModelFavorite[];
-      groups?: ModelCatalogGroup[];
-      routingGroupEngines?: RoutingGroupEngineOptions[];
-    }>
-  >;
-  modelFavoriteSet(payload: unknown): BridgeResult<{ favorites: ModelFavorite[] }>;
-  modelPresets(
-    payload: unknown,
-  ): BridgeResult<{ presets: ModelPreset[]; usage?: ModelPresetUsage[] }>;
-  modelPresetDelete(payload: unknown): BridgeResult<{ id: string }>;
-  modelPresetCreate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
-  modelPresetUpdate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
-  modelPresetApply(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
-  modelGroups(payload: unknown): BridgeResult<{
-    groups: RoutingGroup[];
-    rests: import('../models/route-rest.js').RestingRoute[];
-  }>;
-  modelGroup(payload: unknown): BridgeResult<{ group: RoutingGroup; routes: ModelRoute[] }>;
-  modelGroupCreate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
-  modelGroupUpdate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
-  modelGroupDelete(payload: unknown): BridgeResult<{ group: RoutingGroup }>;
-  modelPlan(payload: unknown): Promise<BridgeResult<ModelPlanState>>;
-  modelPlanCustomize(
-    payload: unknown,
-    beforeCommit?: () => void,
-  ): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
-  modelPlanAssignmentsSet(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
-  modelPlanSet(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
   list(payload: unknown): BridgeResult<{ bots: Array<PersonaBotSummary | SharedBotSummary> }>;
   activitySnapshot(payload: unknown): BridgeResult<PersonaBotActivitySnapshot>;
   get(payload: unknown): BridgeResult<{ bot: PersonaBotDetail; profileFingerprint: string }>;
@@ -925,17 +777,6 @@ export interface BridgeMethods
     payload: unknown,
   ): Promise<BridgeResult<Awaited<ReturnType<BotImportsService['previewGit']>>>>;
   botImportLookup(payload: unknown): BridgeResult<{ receipt: BotCreationReceipt | null }>;
-  zipUploadBegin(payload: unknown): BridgeResult<BotZipUploadStatus>;
-  zipUploadChunk(payload: unknown): BridgeResult<BotZipUploadStatus>;
-  zipUploadPreview(payload: unknown): BridgeResult<BotZipPreview>;
-  zipImportLookup(payload: unknown): BridgeResult<{ receipt: BotCreationReceipt | null }>;
-  zipImport(payload: unknown): Promise<
-    BridgeResult<{
-      bot: PersonaBotDetail;
-      channelId: string;
-      receipt?: BotCreationReceipt;
-    }>
-  >;
   createLookup(payload: unknown): BridgeResult<{ receipt: BotCreationReceipt | null }>;
   createFromGit(payload: unknown): Promise<
     BridgeResult<{
@@ -1078,35 +919,8 @@ export interface BridgeMethods
     target: { path: string; relativePath: ''; kind: 'directory' };
   }>;
   folderBrowse(payload: unknown): Promise<BridgeResult<FolderListing>>;
-  grants(payload: unknown): BridgeResult<{ grants: WorkspaceGrant[] }>;
-  grantCreate(
-    payload: unknown,
-  ): Promise<BridgeResult<{ grant: WorkspaceGrant; created?: boolean }>>;
-  grantRevoke(payload: unknown): BridgeResult<{ grant: WorkspaceGrant }>;
-  grantRequestApprove(payload: unknown): Promise<BridgeResult<GrantRequestApprovalResult>>;
-  grantWriteSet(payload: unknown): BridgeResult<{ grant: WorkspaceGrant }>;
   assignmentAccessGet(payload: unknown): BridgeResult<{ preset: AssignmentAccessPreset }>;
   assignmentAccessSet(payload: unknown): BridgeResult<{ preset: AssignmentAccessPreset }>;
-  toolApprovalRules(payload: unknown): BridgeResult<{ rules: ToolApprovalRule[] }>;
-  toolApprovalRuleRevoke(payload: unknown): BridgeResult<{ rule: ToolApprovalRule }>;
-  toolApprovalHistory(
-    payload: unknown,
-  ): BridgeResult<{ entries: ToolApprovalHistoryEntry[]; nextCursor?: string }>;
-  toolApprovalStatus(payload: unknown): BridgeResult<{
-    approval?: ApprovalCard;
-    status: 'pending' | 'expired' | 'stopped';
-    expiresAt?: string;
-    execution?: 'waiting-human' | 'waiting-capacity' | 'running' | 'settled' | 'needs-repair';
-  }>;
-  toolApprovalDecide(payload: unknown): Promise<BridgeResult<{ accepted: boolean }>>;
-  toolAutoRejectionOverride(
-    payload: unknown,
-  ): Promise<BridgeResult<{ accepted: true; channelId: string; messageId: string }>>;
-  userQuestionStatus(payload: unknown): BridgeResult<{
-    status: 'pending' | 'submitted' | 'answered' | 'expired';
-    approval?: ApprovalCard;
-  }>;
-  userQuestionAnswer(payload: unknown): Promise<BridgeResult<{ accepted: boolean }>>;
   sessions(payload: unknown): BridgeResult<{ sessions: OwnedSessionSummary[] }>;
   botToolTrace(
     payload: unknown,
@@ -1190,95 +1004,17 @@ export interface BridgeMethods
   channelMuteSet(payload: unknown): Promise<BridgeResult<{ muted: string[] }>>;
   rosterBatch(payload: unknown): Promise<BridgeResult<RosterSnapshot>>;
   developerModeSet(payload: unknown): BridgeResult<{ accepted: boolean }>;
-  computerAccessSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  browserAccessSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  browserProfileSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  approvalTemplates(payload?: unknown): BridgeResult<{
-    templates: ApprovalTemplateEntry[];
-    selected?: string | null;
-    globalDefault?: string | null;
-    effective?: string | null;
-    source?: 'global' | 'specific' | 'off';
-  }>;
-  approvalTemplateCreate(payload: unknown): BridgeResult<{ template: ApprovalTemplateEntry }>;
-  approvalTemplateUpdate(payload: unknown): BridgeResult<{ template: ApprovalTemplateEntry }>;
-  approvalTemplateDeletePreview(
-    payload: unknown,
-  ): BridgeResult<{ preview: ApprovalTemplateDeletionPreview }>;
-  approvalTemplateDelete(payload: unknown): BridgeResult<{
-    template: { name: string };
-    clearedBots: string[];
-    inheritedBots: string[];
-    globalDefault: string | null;
-  }>;
-  approvalTemplateGlobalSet(payload: unknown): BridgeResult<{ template: string | null }>;
-  botApprovalTemplateSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  voiceProviders: VoiceBridgeMethods['voiceProviders'];
-  voiceProviderAdd: VoiceBridgeMethods['voiceProviderAdd'];
-  voiceProviderRemove: VoiceBridgeMethods['voiceProviderRemove'];
-  voiceProviderTest: VoiceBridgeMethods['voiceProviderTest'];
-  voiceSynthesize: VoiceBridgeMethods['voiceSynthesize'];
-  botVoiceSet: VoiceBridgeMethods['botVoiceSet'];
-  voiceTranscribe: VoiceBridgeMethods['voiceTranscribe'];
-  botAsrSet: VoiceBridgeMethods['botAsrSet'];
-  voiceDefaultSet: VoiceBridgeMethods['voiceDefaultSet'];
   botModes: BotModeBridgeMethods['botModes'];
   botModeDefaultSet: BotModeBridgeMethods['botModeDefaultSet'];
   botModeSet: BotModeBridgeMethods['botModeSet'];
   botModeTemplateSave: BotModeBridgeMethods['botModeTemplateSave'];
   botModeTemplateDelete: BotModeBridgeMethods['botModeTemplateDelete'];
   botModeTemplateSet: BotModeBridgeMethods['botModeTemplateSet'];
-  voiceSpeechThresholdSet: VoiceBridgeMethods['voiceSpeechThresholdSet'];
-  voiceDictation: VoiceBridgeMethods['voiceDictation'];
-  approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
-  approvalReviewerModelSet(payload: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   idleCompaction(payload?: unknown): BridgeResult<IdleCompactionView>;
   idleCompactionSet(payload: unknown): BridgeResult<IdleCompactionView>;
   idleCompactionCacheLifetimeSet(payload: unknown): BridgeResult<IdleCompactionView>;
   compactionThresholdSet(payload: unknown): BridgeResult<IdleCompactionView>;
   standingLimitsSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  marketplaceList(payload: unknown): Promise<BridgeResult<MarketplacePage>>;
-  marketplaceSubmit(payload: unknown): Promise<BridgeResult<{ bot: MarketplaceEntry }>>;
-  marketplaceTopics(): Promise<BridgeResult<MarketplaceTopic[]>>;
-  marketplaceSections(payload: unknown): Promise<BridgeResult<{ sections: MarketplaceSection[] }>>;
-  marketplaceDigests(
-    payload: unknown,
-  ): Promise<BridgeResult<{ digests: MarketplaceDigestSummary[] }>>;
-  marketplaceDigest(payload: unknown): Promise<BridgeResult<{ digest: MarketplaceDigest }>>;
-  marketplaceAvatarList(payload: unknown): Promise<BridgeResult<MarketplaceAvatarPage>>;
-  marketplaceAvatarDetail(payload: unknown): Promise<BridgeResult<MarketplaceAvatar>>;
-  marketplaceAvatarPublish(payload: unknown): Promise<BridgeResult<MarketplaceAvatar>>;
-  marketplaceDetail(payload: unknown): Promise<BridgeResult<MarketplaceDetail>>;
-  marketplaceFileView(payload: unknown): Promise<BridgeResult<MarketplaceFileView>>;
-  marketplaceChallenge(): Promise<BridgeResult<AltchaChallenge>>;
-  marketplaceReport(payload: unknown): Promise<BridgeResult<{ received: true }>>;
-  marketplaceAccount(): Promise<BridgeResult<MarketplaceAccount>>;
-  marketplaceAuthorSave(payload: unknown): Promise<BridgeResult<MarketplaceAuthorAccount>>;
-  marketplaceAuthorAvatarSet(payload: unknown): Promise<BridgeResult<MarketplaceAuthorAccount>>;
-  marketplaceUploadPlan(payload: unknown): BridgeResult<UploadPlan>;
-  marketplaceUpload(
-    payload: unknown,
-  ): Promise<BridgeResult<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }>>;
-  marketplaceInstallReview(payload: unknown): Promise<BridgeResult<InstallReviewResult>>;
-  marketplaceMine(payload: unknown): Promise<BridgeResult<{ bots: MarketplaceAuthoredBot[] }>>;
-  marketplaceDelete(payload: unknown): Promise<BridgeResult<{ deleted: true }>>;
-  shareDraftStart(payload: unknown): BridgeResult<ShareDraftView>;
-  shareDraftGet(payload: unknown): BridgeResult<ShareDraftView>;
-  shareDraftFile(
-    payload: unknown,
-  ): BridgeResult<{ path: string; kind: UploadFileKind; text?: string }>;
-  shareDraftDecide(payload: unknown): BridgeResult<ShareDraftView>;
-  shareDraftFinish(payload: unknown): BridgeResult<ShareDraftView>;
-  shareDraftDiscard(payload: unknown): BridgeResult<{ discarded: boolean }>;
-  shareDraftExport(payload: unknown): Promise<BridgeResult<{ path: string; files: number }>>;
-  marketplaceInstall(payload: unknown): Promise<
-    BridgeResult<{
-      bot: PersonaBotDetail;
-      channelId: string;
-      receipt?: BotCreationReceipt;
-      listing: MarketplaceEntry;
-    }>
-  >;
   releaseInfo(payload: unknown): BridgeResult<ReleaseInfo>;
   releaseUpdate(payload?: unknown): Promise<BridgeResult<ReleaseUpdate>>;
   releaseInstall(payload: unknown): Promise<BridgeResult<ReleaseInstall>>;
@@ -1297,13 +1033,6 @@ export interface BridgeMethods
   takeoverRequest(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
   takeoverComplete(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
   takeoverCancel(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
-}
-
-export interface ApprovalReviewerModelView {
-  follows: 'bot' | 'model' | 'invalid';
-  model: ModelRoute | null;
-  available?: boolean;
-  unavailableReason?: string;
 }
 
 export interface IdleCompactionView {
@@ -1377,63 +1106,40 @@ function storageFailure(
 }
 
 export interface BridgeMethodsDeps
-  extends PromptBridgeDeps, SchedulesBridgeDeps, SkillsBridgeDeps, AvatarsBridgeDeps {
+  extends
+    PromptBridgeDeps,
+    SchedulesBridgeDeps,
+    SkillsBridgeDeps,
+    AvatarsBridgeDeps,
+    MarketplaceBridgeDeps,
+    ModelsBridgeDeps,
+    ComputerBridgeDeps,
+    BrowserBridgeDeps,
+    VoiceBridgeDeps,
+    ApprovalsBridgeDeps,
+    WorkspacesBridgeDeps {
   team?: TeamService;
-  voiceProviders?: VoiceProviders;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
-  voiceLog?: (phase: string, fields: Record<string, string | number>) => void;
   botContext?(slug: string): Promise<BotContextWindow>;
   idleCompaction?: IdleCompactionDeps;
   cloudConnections?: CloudConnections;
   cloudWork?: CloudWork;
-  approvalReviewer?: ApprovalReviewerSettings;
   botModes?: BotModesDeps;
   composerIdentity?: (human: HumanContext) => ComposerRecoveryIdentity;
   warn?: (message: string) => void;
   registry: PersonaBotRegistry;
   creations?: BotCreationService;
   imports?: BotImportsService;
-  zipImports?: BotZipImportService;
   channelManagement?: ChannelManagementService;
-  approvalTemplates?: ApprovalTemplateLibrary;
   deletions?: PersonaBotDeletions;
   contentPurge?: ContentPurge;
   storage?: StorageCleanup;
   dataReset?: DataReset;
   attachments?: AttachmentStore;
-  modelPresets?: ModelPresetStore;
-  subscriptionEngines?: Pick<EngineHost, 'validateChoice' | 'use' | 'fallsBack'> & {
-    store: Pick<EngineHost['store'], 'selection'>;
-  };
-  engineAccounts?: EngineAccountOperations;
-  engineSelection?: EngineSelectionOperations;
-  localSubscriptionEngines?: boolean;
-  routingGroupEngineOptions?(
-    allowed: (id: string) => boolean,
-  ): Promise<RoutingGroupEngineOptions[]>;
-  releaseEngineQuotaHold?(slug: string): void;
-  modelFavorites?: ModelFavoriteStore;
-  routingGroups?: RoutingGroupStore;
-  routeRests?: Pick<import('../models/route-rest.js').RouteRests, 'list'>;
-  modelCatalog?: ModelCatalog;
-  modelProviders?: ModelProviders;
-  modelReadiness?: ModelRouteReadiness;
   onboarding?: BotOnboarding;
   acknowledgements?: ClientAcknowledgements;
   tob?: TobService;
   onboardingNews?: (slug?: string) => Promise<boolean>;
-  defaultModel?: {
-    currentSelection(): ModelRoute;
-    saveSelection(route: ModelRoute): Promise<void>;
-  };
-  defaultModelSettings?: () =>
-    | {
-        describe(options: {
-          redactSecrets: boolean;
-        }): { ns: string; value: unknown; revision: number }[];
-        replace(ns: string, value: object, expectedRevision: number): Promise<void>;
-      }
-    | undefined;
   states: BotStateTracker;
   runningSessionIds?: () => ReadonlySet<string>;
   channels: ChannelStore;
@@ -1460,22 +1166,12 @@ export interface BridgeMethodsDeps
   takeovers?: TakeoverHandoffs;
   humanAttention?: HumanAttentionQuery;
   humanAttentionDecisions?: HumanAttentionDecisions;
-  grants?: WorkspaceGrantStore;
   folders?: FolderBrowser;
   externalMessaging?: OutboundMessaging;
   toolApproval?: ChannelToolApproval;
-  userQuestions?: ChannelUserQuestions;
-  toolRules?: ToolApprovalRuleStore;
   assignmentAccess?: AssignmentAccessStore;
   developerMode?: { set(enabled: boolean): void };
-  computerAccess?: { changed(slug: string): void };
-  browserAccess?: { changed(slug: string): void };
-  browserProfile?: { changed(slug: string): void };
   createBotId?: () => string;
-  marketplace?: MarketplaceClient;
-  marketplaceUploads?: MarketplaceUploads;
-  marketplaceInstallReviews?: MarketplaceInstallReviews;
-  shareDrafts?: ShareDrafts;
   marketplaceReceipts?: InstallReceipts;
   release?: ReleaseService;
   hostVersion?: () => string;
@@ -1502,16 +1198,9 @@ function unmanagedGitStatus(): GitStatus {
     : { ...git, installable: false, install: { phase: 'idle' } };
 }
 
-type ParsedField<T> = { ok: true; value: T | undefined } | { ok: false };
-
 function asQuery(payload: unknown): string | undefined {
   const value = asObject(payload)['query'];
   return typeof value === 'string' ? value : undefined;
-}
-
-function marketplaceLang(value: unknown): MarketplaceLanguage | undefined | false {
-  if (value === undefined) return undefined;
-  return MARKETPLACE_LANGUAGES.find((language) => language === value) ?? false;
 }
 
 function parseCreation(
@@ -1564,84 +1253,6 @@ function parseCreation(
     value: { input, ...(operationKey === undefined ? {} : { operationKey }) },
   };
 }
-
-function parseZipUpload(payload: unknown): BotZipUploadIdentity | undefined {
-  const source = asObject(payload);
-  const uploadKey = source['uploadKey'];
-  const sha256 = source['sha256'];
-  const sizeBytes = source['sizeBytes'];
-  return typeof uploadKey === 'string' &&
-    typeof sha256 === 'string' &&
-    typeof sizeBytes === 'number'
-    ? { uploadKey, sha256, sizeBytes }
-    : undefined;
-}
-
-function parseZipImport(payload: unknown): BotZipImportReference | undefined {
-  const source = asObject(payload);
-  const operationKey = source['operationKey'];
-  const sha256 = source['sha256'];
-  const displayName = source['displayName'];
-  const roles = parseRoles(source);
-  const description = parseOptional(source, 'description');
-  if (
-    typeof operationKey !== 'string' ||
-    typeof sha256 !== 'string' ||
-    typeof displayName !== 'string' ||
-    !roles.ok ||
-    !description.ok
-  )
-    return undefined;
-  return {
-    operationKey,
-    sha256,
-    displayName,
-    ...(roles.value === undefined ? {} : { roles: roles.value }),
-    ...(description.value === undefined ? {} : { description: description.value }),
-  };
-}
-
-function zipFailure(error: unknown): BridgeResult<never> {
-  if (error instanceof TeamError)
-    return {
-      ok: false,
-      error: {
-        code: error.code,
-        message: error.code,
-        ...(error.details ? { details: error.details } : {}),
-      },
-    };
-  return {
-    ok: false,
-    error: {
-      code:
-        error instanceof BotZipUploadError ||
-        error instanceof BotCreationError ||
-        error instanceof ZipArchiveError
-          ? error.code
-          : 'upload-unavailable',
-      message: 'The Zip operation could not be completed.',
-    },
-  };
-}
-
-function parseOptional(source: Record<string, unknown>, key: string): ParsedField<string> {
-  const value = source[key];
-  if (value === undefined) return { ok: true, value: undefined };
-  return typeof value === 'string' ? { ok: true, value } : { ok: false };
-}
-
-function parseStringArray(source: Record<string, unknown>, key: string): ParsedField<string[]> {
-  const value = source[key];
-  if (value === undefined) return { ok: true, value: undefined };
-  if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string')) {
-    return { ok: false };
-  }
-  return { ok: true, value: [...value] };
-}
-
-const parseRoles = (source: Record<string, unknown>): ParsedField<string[]> =>
-  parseStringArray(source, 'roles');
 const parseWorkspaces = (source: Record<string, unknown>): ParsedField<string[]> =>
   parseStringArray(source, 'workspaces');
 
@@ -1674,106 +1285,6 @@ function telemetryUnavailable(): BridgeResult<never> {
   };
 }
 
-function routingGroupInput(source: Record<string, unknown>): RoutingGroupInput {
-  const name = source['name'];
-  const members = source['members'];
-  if (typeof name !== 'string' || !Array.isArray(members) || !members.every(isRoutingGroupMember))
-    throw new RoutingGroupError(
-      'invalid-input',
-      `A name and members are required. Member shapes: ${ROUTING_GROUP_MEMBER_SHAPES}`,
-    );
-  return { name, members };
-}
-const PRESET_GROUP_KEYS = [
-  'orchestratorGroupId',
-  'orchestratorGroupEffort',
-  'assignmentGroups',
-  'assignmentDefaultGroupId',
-  'assignmentGroupOptions',
-] as const;
-function presetGroupsInput(
-  source: Record<string, unknown>,
-):
-  | { given: false }
-  | { given: true; groups: ModelPresetGroups; optionsGiven?: true }
-  | { given: true; invalid: true } {
-  if (!PRESET_GROUP_KEYS.some((key) => key in source)) return { given: false };
-  const orchestrator = source['orchestratorGroupId'] ?? undefined;
-  const effort = source['orchestratorGroupEffort'] ?? undefined;
-  const ids = source['assignmentGroups'] ?? [];
-  const defaultId = source['assignmentDefaultGroupId'] ?? undefined;
-  const options = assignmentGroupOptionsInput(source['assignmentGroupOptions'], ids);
-  if (
-    (orchestrator !== undefined && (typeof orchestrator !== 'string' || !orchestrator.trim())) ||
-    (effort !== undefined &&
-      (typeof effort !== 'string' || orchestrator === undefined || effort.trim() === '')) ||
-    !Array.isArray(ids) ||
-    !ids.every((id) => typeof id === 'string' && id.trim() !== '') ||
-    new Set(ids).size !== ids.length ||
-    (defaultId !== undefined && (typeof defaultId !== 'string' || !ids.includes(defaultId))) ||
-    options === 'invalid'
-  )
-    return { given: true, invalid: true };
-  return {
-    given: true,
-    groups: {
-      ...(orchestrator === undefined ? {} : { orchestratorGroupId: orchestrator.trim() }),
-      ...(effort === undefined ? {} : { orchestratorGroupEffort: effort.trim() }),
-      ...(ids.length === 0 ? {} : { assignmentGroups: ids as string[] }),
-      ...(defaultId === undefined ? {} : { assignmentDefaultGroupId: defaultId }),
-      ...(options === undefined || options.length === 0 ? {} : { assignmentGroupOptions: options }),
-    },
-    ...(options === undefined ? {} : { optionsGiven: true }),
-  };
-}
-function assignmentGroupOptionsInput(
-  value: unknown,
-  ids: unknown,
-): AssignmentGroupOption[] | undefined | 'invalid' {
-  if (value === undefined) return undefined;
-  if (value === null) return [];
-  if (
-    !Array.isArray(value) ||
-    !value.every(isAssignmentGroupOption) ||
-    !Array.isArray(ids) ||
-    !value.every((option) => ids.includes(option.group)) ||
-    new Set(value.map((option) => option.group)).size !== value.length
-  )
-    return 'invalid';
-  return value;
-}
-const presetClientOutdated: BridgeResult<never> = {
-  ok: false,
-  error: {
-    code: 'client-update-required',
-    message: 'This Model Preset uses Routing Groups; update the client before editing it',
-  },
-};
-function routingGroupFailure(error: unknown): BridgeResult<never> {
-  if (!(error instanceof RoutingGroupError)) return modelFailure(error);
-  return {
-    ok: false,
-    error: {
-      code: error.code === 'invalid-input' ? 'invalid-input' : `routing-group-${error.code}`,
-      message: error.message,
-      ...(error.references.length > 0 ? { details: { references: error.references } } : {}),
-    },
-  };
-}
-function presetEnginesInput(source: Record<string, unknown>): ModelPresetEngineInput {
-  const read = (key: keyof ModelPresetEngineInput) => {
-    const value = source[key];
-    if (value == null || isModelPresetEngine(value)) return value;
-    throw new Error('Invalid Model Preset Subscription Engine');
-  };
-  const orchestratorEngine = read('orchestratorEngine');
-  const assignmentEngine = read('assignmentEngine');
-  return {
-    ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
-    ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
-  };
-}
-
 function takeoverFailure(error: unknown): BridgeResult<never> {
   if (error instanceof TakeoverError)
     return { ok: false, error: { code: error.code, message: error.message } };
@@ -1782,65 +1293,6 @@ function takeoverFailure(error: unknown): BridgeResult<never> {
 
 function takeoverSurface(value: unknown): string {
   return typeof value === 'string' && /^[a-z][a-z0-9-]{0,31}$/u.test(value) ? value : 'client';
-}
-
-function templateDeletionFailure(
-  name: string,
-  reason: Extract<ReturnType<ApprovalTemplateDeletion['preview']>, { ok: false }>['reason'],
-): BridgeResult<never> {
-  if (reason === 'invalid-name' || reason === 'not-found' || reason === 'built-in')
-    return templateWriteFailure(name, reason);
-  const errors = {
-    'selection-unavailable': [
-      'approval-selection-unavailable',
-      'Approval template selection could not be read.',
-    ],
-    'confirmation-required': [
-      'confirmation-required',
-      'Preview the deletion and confirm its revision before deleting.',
-    ],
-    changed: [
-      'approval-template-delete-changed',
-      'Template references or selection changed. Preview the deletion again.',
-    ],
-    unavailable: [
-      'approval-template-delete-unavailable',
-      'The template could not be deleted. Reload its current references.',
-    ],
-    'rollback-failed': [
-      'approval-template-delete-incomplete',
-      'Deletion did not complete. Reload the current template choices.',
-    ],
-  } as const;
-  const [code, message] = errors[reason];
-  return { ok: false, error: { code, message } };
-}
-
-function templateWriteFailure(
-  name: string,
-  reason: Extract<ApprovalTemplateWriteResult, { ok: false }>['reason'],
-): BridgeResult<never> {
-  const messages = {
-    'invalid-name':
-      'A template name uses lowercase letters, digits and dashes (at most 64), like my-rules',
-    'invalid-text': 'Template text must be non-empty Markdown of at most 32 KiB',
-    exists: `An Approval Template named ${name} already exists`,
-    'not-found': `The Host has no Approval Template named ${name}`,
-    'built-in': `${name} is a built-in Approval Template and is read-only; copy it under a new name`,
-    unavailable: 'Approval Templates cannot be written on this Host',
-  } as const;
-  const codes = {
-    'invalid-name': 'invalid-input',
-    'invalid-text': 'invalid-input',
-    exists: 'template-exists',
-    'not-found': 'unknown-template',
-    'built-in': 'template-read-only',
-    unavailable: 'unavailable',
-  } as const;
-  return {
-    ok: false,
-    error: { code: codes[reason], message: messages[reason] },
-  };
 }
 
 function botInChannel(channel: ChannelRecord, botSlug: string): boolean {
@@ -2191,20 +1643,6 @@ function detail(
     ...(record.memoryDir === undefined ? {} : { memoryDir: record.memoryDir }),
   };
 }
-
-function historyPosition(cursor: string): ToolApprovalHistoryPosition | undefined {
-  if (cursor.length === 0 || cursor.length > 512) return undefined;
-  try {
-    const decoded: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
-    if (typeof decoded !== 'object' || decoded === null) return undefined;
-    const { at, id } = decoded as { at?: unknown; id?: unknown };
-    return typeof at === 'string' && typeof id === 'string'
-      ? { decidedAt: at, decisionMessageId: id }
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
 const MAX_CHANNEL_SEND_ATTACHMENTS = 10;
 const MAX_SKILL_INVOCATIONS = 5;
 
@@ -2288,101 +1726,8 @@ function buildBridgeMethods(
   globalRegistry = deps.registry,
 ): BridgeMethods {
   const { botSystemPrompt, ...promptPresets } = createPromptBridgeMethods(deps, globalRegistry);
-  const catalogRests = (): Map<string, string> =>
-    new Map((deps.routeRests?.list() ?? []).map((rest) => [routeKey(rest), rest.until]));
-  const catalogEntry = <T extends { provider: string; model: string }>(
-    entry: T,
-    rests: ReadonlyMap<string, string>,
-  ): T & { restingUntil?: string } => {
-    const until = rests.get(routeKey(entry));
-    return until === undefined ? entry : { ...entry, restingUntil: until };
-  };
-  const catalogGroups = (
-    rests: ReadonlyMap<string, string>,
-    allowed: (route: ModelRoute) => boolean,
-    engineAllowed: (id: string) => boolean,
-  ): { groups?: ModelCatalogGroup[] } => {
-    const store = deps.routingGroups;
-    if (store === undefined) return {};
-    return {
-      groups: store.list().flatMap((group) => {
-        let routes: ModelRoute[];
-        try {
-          const targets = store.targets(group.id);
-          if (
-            targets.some(
-              (target) =>
-                target.kind === 'engine' &&
-                !engineAllowed(engineAccountKey(target.engine, target.accountId)),
-            )
-          )
-            return [];
-          routes = targets.flatMap((target) => (target.kind === 'route' ? [target.route] : []));
-        } catch {
-          return [];
-        }
-        if (routes.length === 0 || !routes.every(allowed)) return [];
-        const untils = routes.map((route) => rests.get(routeKey(route)));
-        const restingUntil = untils.every((until) => until !== undefined)
-          ? [...(untils as string[])].sort()[0]
-          : undefined;
-        return [
-          {
-            id: group.id,
-            name: group.name,
-            revision: group.revision,
-            mode: group.mode,
-            members: group.members,
-            routes,
-            ...(restingUntil === undefined ? {} : { restingUntil }),
-          },
-        ];
-      }),
-    };
-  };
-  const favoritesOf = (): { favorites?: ModelFavorite[] } =>
-    deps.modelFavorites === undefined ? {} : { favorites: deps.modelFavorites.list(human.humanId) };
   const isHostOwner = () =>
     deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
-  type EngineChoice = { engine: EngineId; accountId?: string };
-  const groupEngineChoices = (id: string): RoutingGroupEngineMember[] =>
-    deps.routingGroups?.targets(id).filter((target) => target.kind === 'engine') ?? [];
-  const memberEngineChoices = (members: readonly RoutingGroupMember[]): EngineChoice[] =>
-    members.flatMap((member) =>
-      member.kind === 'engine'
-        ? [member]
-        : member.kind === 'group'
-          ? groupEngineChoices(member.id)
-          : [],
-    );
-  const engineChoiceFilter = () => {
-    const owner = isHostOwner();
-    const grants = owner ? undefined : deps.team?.roles.modelsAllowed(human);
-    return ({ engine, accountId }: EngineChoice) =>
-      deps.localSubscriptionEngines !== false &&
-      (owner ||
-        (grants !== undefined && allowsEngineAccount(grants, engineAccountKey(engine, accountId))));
-  };
-  const requireEngineChoices = (choices: readonly EngineChoice[], slug?: string): void => {
-    if (choices.length === 0) return;
-    if (deps.localSubscriptionEngines === false)
-      throw new EngineRefusal(
-        'engine-unavailable',
-        'Subscription Engines run only on a local Host',
-      );
-    const actor = deps.team?.roles.modelsAllowed(human);
-    const bot = slug === undefined ? undefined : deps.registry.get(slug);
-    if (slug !== undefined && bot === undefined) throw new TeamError('bot-not-found');
-    const botGrants = deps.team && bot ? botModelGrants(deps.team, bot) : undefined;
-    for (const { engine, accountId } of choices) {
-      const id = engineAccountKey(engine, accountId);
-      if (actor !== undefined) requireEngineAccountGrant(actor, id);
-      else if (!isHostOwner()) throw new TeamError('model-not-allowed', undefined, { route: id });
-      if (botGrants !== undefined) requireEngineAccountGrant(botGrants, id);
-    }
-  };
-  const requireGroupEngines = (id: string, slug?: string): void =>
-    requireEngineChoices(groupEngineChoices(id), slug);
   const channelSkillBots = (channel: ChannelRecord): string[] => {
     if (channel.type === 'group')
       return channel.members.filter((slug) => {
@@ -2402,159 +1747,9 @@ function buildBridgeMethods(
     )
       throw new TeamError('bot-not-found');
   };
-  const validateGroupMembers = async (
-    members: RoutingGroupMember[],
-    previous: readonly RoutingGroupMember[] = [],
-  ): Promise<void> => {
-    requireEngineChoices(memberEngineChoices(members));
-    const engineEfforts = members.flatMap((member) =>
-      member.kind === 'engine' &&
-      member.model !== undefined &&
-      member.reasoningEffort !== undefined &&
-      !previous.some(
-        (saved) =>
-          saved.kind === 'engine' &&
-          saved.engine === member.engine &&
-          engineAccountKey(saved.engine, saved.accountId) ===
-            engineAccountKey(member.engine, member.accountId) &&
-          saved.model === member.model?.trim() &&
-          saved.reasoningEffort === member.reasoningEffort?.trim(),
-      )
-        ? [
-            {
-              engine: member.engine,
-              ...(member.accountId === undefined ? {} : { accountId: member.accountId }),
-              model: member.model.trim(),
-              effort: member.reasoningEffort.trim(),
-            },
-          ]
-        : [],
-    );
-    if (engineEfforts.length > 0) {
-      const engines = deps.subscriptionEngines;
-      if (engines === undefined)
-        throw new EngineRefusal('engine-unavailable', 'Subscription Engines are unavailable');
-      try {
-        await Promise.all(
-          engineEfforts.map(({ engine, ...choice }) => engines.validateChoice(engine, choice)),
-        );
-      } catch (error) {
-        if (error instanceof EngineRefusal)
-          throw new RoutingGroupError('invalid-input', error.message);
-        throw error;
-      }
-    }
-    const routes = members.filter((member) => member.kind === 'model');
-    if (routes.length === 0) return;
-    const known = new Set(
-      (await deps.modelCatalog!.list()).map((entry) =>
-        JSON.stringify([entry.provider, entry.model]),
-      ),
-    );
-    const unknown = routes.find(
-      (route) => !known.has(JSON.stringify([route.provider, route.model])),
-    );
-    if (unknown !== undefined)
-      throw new RoutingGroupError(
-        'invalid-input',
-        `Model ${unknown.provider}/${unknown.model} is not in this Host's model list`,
-      );
-  };
-  const assertEngineAccounts = (
-    choices: readonly (
-      | Pick<import('../models/presets.js').ModelPresetEngine, 'engine' | 'accountId'>
-      | null
-      | undefined
-    )[],
-  ) => {
-    if (!deps.engineAccounts) return;
-    for (const choice of choices)
-      if (choice != null) deps.engineAccounts.resolveAccount(choice.engine, choice.accountId);
-  };
-  const firstUsableRoute = async (routes: readonly ModelRoute[]): Promise<ModelRoute> => {
-    let failure: Error | undefined;
-    const rests = catalogRests();
-    const ordered = [
-      ...routes.filter((route) => !rests.has(routeKey(route))),
-      ...routes.filter((route) => rests.has(routeKey(route))),
-    ];
-    for (const route of ordered) {
-      try {
-        await deps.modelCatalog!.validate(route);
-        return { ...route };
-      } catch (error) {
-        failure ??= error instanceof Error ? error : new Error(String(error), { cause: error });
-      }
-    }
-    throw failure ?? new RoutingGroupError('empty-group', 'The Routing Group has no model');
-  };
-  const requireRoutes = (slug: string, routes: readonly ModelRoute[]): void => {
-    requireOwnedBot(slug);
-    deps.team?.roles.require(human, 'models.use');
-    for (const route of routes) requireBotModel(deps.team, deps.registry.get(slug), route);
-  };
-  const groupRoutes = (id: string): ModelRoute[] => {
-    if (deps.routingGroups?.get(id) === undefined)
-      throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
-    return deps.routingGroups.routes(id);
-  };
-  const presetEngineChoices = (choices: ModelPresetEngineInput): EngineChoice[] =>
-    [choices.orchestratorEngine, choices.assignmentEngine].filter((choice) => choice != null);
-  const checkPresetEngines = async (
-    choices: ModelPresetEngineInput,
-    slug?: string,
-  ): Promise<void> => {
-    const selected = [choices.orchestratorEngine, choices.assignmentEngine].filter(
-      (choice) => choice != null,
-    );
-    if (selected.length === 0) return;
-    requireEngineChoices(selected, slug);
-    const engines = deps.subscriptionEngines;
-    if (engines === undefined)
-      throw new EngineRefusal('engine-unavailable', 'Subscription Engines are unavailable');
-    await Promise.all(selected.map((choice) => engines.validateChoice(choice.engine, choice)));
-  };
-  const presetGroupIds = (groups: ModelPresetGroups): string[] => [
-    ...(groups.orchestratorGroupId === undefined ? [] : [groups.orchestratorGroupId]),
-    ...(groups.assignmentGroups ?? []),
-  ];
-  const presetGroupRoutes = (groups: ModelPresetGroups, slug?: string): ModelRoute[] =>
-    presetGroupIds(groups).flatMap((id) => {
-      const routes = groupRoutes(id);
-      requireGroupEngines(id, slug);
-      return routes;
-    });
-  const requireGroupEfforts = async (group: string, efforts: readonly string[]): Promise<void> => {
-    if (efforts.length === 0) return;
-    if (deps.modelCatalog === undefined) throw new Error('Model catalog is unavailable');
-    const shared = groupEfforts(groupRoutes(group), await deps.modelCatalog.list());
-    const outside = efforts.filter((effort) => !shared.includes(effort));
-    if (outside.length > 0)
-      throw new RoutingGroupError(
-        'invalid-input',
-        `Routing Group ${deps.routingGroups?.get(group)?.name ?? group}: effort ${outside.join(', ')} is not supported by every reasoning member; shared levels: ${shared.join(', ') || 'none'}`,
-      );
-  };
-  const validateGroupOptions = async (
-    options: readonly AssignmentGroupOption[] | undefined,
-  ): Promise<void> => {
-    for (const option of options ?? [])
-      await requireGroupEfforts(option.group, option.allowedEfforts ?? []);
-  };
-  const validateGroupEffort = async (groups: ModelPresetGroups | undefined): Promise<void> => {
-    if (groups?.orchestratorGroupId === undefined || groups.orchestratorGroupEffort === undefined)
-      return;
-    await requireGroupEfforts(groups.orchestratorGroupId, [groups.orchestratorGroupEffort]);
-  };
-  const presetOrchestrator = async (
-    orchestrator: unknown,
-    groups: ModelPresetGroups | undefined,
-  ): Promise<ModelRoute | undefined> => {
-    if (groups?.orchestratorGroupId === undefined)
-      return isModelRoute(orchestrator) ? orchestrator : undefined;
-    if (orchestrator !== undefined) return undefined;
-    return firstUsableRoute(groupRoutes(groups.orchestratorGroupId));
-  };
+  const modelRouting = createModelRoutingHelpers(human, deps, isHostOwner, requireOwnedBot);
+  const { firstUsableRoute, requireGroupEfforts, requireGroupEngines, requireRoutes } =
+    modelRouting;
   const allowed = (record: PersonaBotRecord): boolean =>
     botModelAllowed(
       deps.team,
@@ -2667,62 +1862,6 @@ function buildBridgeMethods(
       },
     };
   }
-
-  const approvalTemplateLibrary = deps.approvalTemplates ?? createApprovalTemplateLibrary();
-  const templateDeletion = new ApprovalTemplateDeletion(
-    approvalTemplateLibrary,
-    globalRegistry,
-    (bot) => ownsBot(human, bot),
-  );
-  const templateUsers = (name: string, registry = deps.registry): string[] =>
-    registry
-      .list()
-      .filter((record) => record.approvalTemplate === name)
-      .map((record) => record.slug);
-  const templateEntry = (
-    template: ApprovalTemplate,
-    global: ApprovalTemplateDefault,
-  ): ApprovalTemplateEntry => {
-    return {
-      ...template,
-      usedBy: [
-        ...templateUsers(template.name),
-        ...(global.kind === 'selected' && global.name === template.name
-          ? deps.registry
-              .list()
-              .filter((record) => record.approvalTemplate === INHERIT_APPROVAL_TEMPLATE)
-              .map((record) => record.slug)
-          : []),
-      ],
-    };
-  };
-  const reviewerModelView = async (
-    route: ModelRoute | undefined,
-  ): Promise<ApprovalReviewerModelView> => {
-    if (route === undefined) return { follows: 'bot', model: null };
-    if (deps.modelCatalog === undefined) return { follows: 'model', model: route };
-    try {
-      await deps.modelCatalog.validate(route);
-      return { follows: 'model', model: route, available: true };
-    } catch (error) {
-      return {
-        follows: 'model',
-        model: route,
-        available: false,
-        unavailableReason: error instanceof Error ? error.message : String(error),
-      };
-    }
-  };
-  const askingBot = (channelId: string, messageId: string): string | undefined => {
-    const channel = deps.channels.get(channelId);
-    if (channel === undefined) return undefined;
-    if (channel.type === 'dm' && !channel.humanParticipants) return channel.botSlug;
-    const author = deps.channels.message(channelId, messageId)?.author;
-    return author?.kind === 'bot' &&
-      (channel.humanParticipants !== undefined || channel.members.includes(author.slug))
-      ? author.slug
-      : undefined;
-  };
   const channelView = (channel: ChannelRecord): ChannelListItem => {
     if (!isHostOwner()) {
       const {
@@ -2826,100 +1965,8 @@ function buildBridgeMethods(
       ...(latestMessage === undefined ? {} : { latestMessage }),
     };
   };
-  const marketplaceCall = async <T>(
-    operation: (client: MarketplaceClient) => Promise<MarketplaceResult<T>>,
-  ): Promise<BridgeResult<T>> => {
-    if (deps.marketplace === undefined) {
-      return {
-        ok: false,
-        error: {
-          code: 'marketplace-unavailable',
-          message: 'Bot Marketplace is unavailable',
-        },
-      };
-    }
-    const result = await operation(deps.marketplace);
-    if (result.ok) return result;
-    deps.warn?.(
-      JSON.stringify({
-        module: 'marketplace',
-        initiator: 'client',
-        phase: 'request-refused',
-        reason: result.code,
-      }),
-    );
-    return { ok: false, error: { code: result.code, message: result.code } };
-  };
   const sendReceipt = (listingId: string): void => {
     void deps.marketplaceReceipts?.send(listingId).catch(() => undefined);
-  };
-  const withInstalls = (entry: MarketplaceEntry): MarketplaceEntry => {
-    if (entry.source !== 'upload') return entry;
-    const copies = deps.registry
-      .list()
-      .flatMap((record) => (record.marketplaceListing?.id === entry.id ? [record] : []));
-    if (copies.length === 0) return entry;
-    return {
-      ...entry,
-      installed: {
-        bots: copies.map((record) => record.slug),
-        authorUpdated: copies.some(
-          (record) => Date.parse(record.marketplaceListing!.pushedAt) < Date.parse(entry.pushedAt),
-        ),
-      },
-    };
-  };
-  const marketplaceUnavailable = (): {
-    ok: false;
-    error: { code: string; message: string };
-  } => ({
-    ok: false,
-    error: {
-      code: 'marketplace-unavailable',
-      message: 'Bot Marketplace is unavailable',
-    },
-  });
-  const shareDraftSlug = (payload: unknown): string | undefined => {
-    const slug = asSlug(payload);
-    return slug === undefined ||
-      deps.registry.get(slug) === undefined ||
-      deps.tob?.isTob(slug) === true
-      ? undefined
-      : slug;
-  };
-  const draftResult = (
-    result: { ok: true; value: ShareDraft } | { ok: false; code: string; path?: string },
-  ): BridgeResult<ShareDraftView> =>
-    uploadResult(
-      result.ok
-        ? {
-            ok: true,
-            value: {
-              ...result.value,
-              summary: summarizeShareDraft(result.value),
-            },
-          }
-        : result,
-    );
-  const uploadResult = <T>(
-    result: { ok: true; value: T } | { ok: false; code: string; path?: string },
-  ): BridgeResult<T> => {
-    if (result.ok) return result;
-    deps.warn?.(
-      JSON.stringify({
-        module: 'marketplace',
-        initiator: 'client',
-        phase: 'upload-refused',
-        reason: result.code,
-      }),
-    );
-    return {
-      ok: false,
-      error: {
-        code: result.code,
-        message: result.path === undefined ? result.code : `${result.code}: ${result.path}`,
-      },
-    };
   };
   const messagingCall = async <T>(
     operation: (service: OutboundMessaging) => Promise<T>,
@@ -3050,29 +2097,36 @@ function buildBridgeMethods(
     return { ok: true, value: detailOf(result.record) };
   };
 
-  const validateAssignmentCatalog = async (
-    assignmentDefault: ModelRoute,
-    assignmentModels: AssignmentModelOption[],
-  ): Promise<void> => {
-    validateAssignmentModels(assignmentDefault, assignmentModels);
-    if (deps.modelCatalog === undefined) throw new Error('Model catalog is unavailable');
-    await Promise.all(
-      assignmentModels.flatMap((option) =>
-        option.allowedEfforts.map((effort) =>
-          deps.modelCatalog!.validate({
-            provider: option.provider,
-            model: option.model,
-            ...(effort === '' ? {} : { reasoningEffort: effort }),
-          }),
-        ),
-      ),
-    );
-  };
-
   const schedulesMethods = createSchedulesBridgeMethods(human, deps);
   const skillsMethods = createSkillsBridgeMethods(deps, channelSkillBots, requireOwnedBot);
   const avatarsMethods = createAvatarsBridgeMethods(deps, dmMemory, detailOf);
   const genuiMethods = createGenuiBridgeMethods(human, deps);
+  const { marketplaceZip, marketplaceReads, marketplaceSharing } = createMarketplaceBridgeMethods(
+    human,
+    deps,
+    globalRegistry,
+    isHostOwner,
+    detailOf,
+    sendReceipt,
+  );
+  const { modelInheritance, modelSettings, modelPlan } = createModelsBridgeMethods(
+    human,
+    deps,
+    globalRegistry,
+    isHostOwner,
+    requireOwnedBot,
+    modelRouting,
+  );
+  const computerMethods = createComputerBridgeMethods(deps, detailOf);
+  const browserMethods = createBrowserBridgeMethods(deps, detailOf);
+  const approvalsMethods = createApprovalsBridgeMethods(
+    human,
+    deps,
+    globalRegistry,
+    detailOf,
+    messagingCall,
+  );
+  const workspacesMethods = createWorkspacesBridgeMethods(human, deps);
   const methods: BridgeMethods = {
     ...createTeamBridge(human, deps.team),
     ...createModelProviderBridge(human, deps),
@@ -3257,56 +2311,10 @@ function buildBridgeMethods(
         delivery: await service.failureAlerts.retry(input.data.slug, input.data.id),
       }));
     },
-    approvalRoute(payload) {
-      const input = z
-        .object({
-          slug: z.string().min(1),
-          pairingId: z.string().uuid().nullable(),
-          expectedRevision: z.number().int().nonnegative(),
-        })
-        .strict()
-        .safeParse(payload);
-      if (!input.success) return Promise.resolve(invalidInput('Invalid approval destination'));
-      return messagingCall(async (service) => {
-        await service.approvals.setRoute(
-          input.data.slug,
-          input.data.pairingId ?? undefined,
-          input.data.expectedRevision,
-        );
-        return { updated: true as const };
-      });
-    },
-    approvalTest(payload) {
-      const input = z
-        .object({ slug: z.string().min(1) })
-        .strict()
-        .safeParse(payload);
-      if (!input.success) return Promise.resolve(invalidInput('Invalid Bot'));
-      return messagingCall(async (service) => ({
-        delivery: await service.approvals.test(input.data.slug),
-      }));
-    },
-    questionRetry(payload) {
-      const input = z
-        .object({ slug: z.string().min(1), id: z.string().uuid() })
-        .strict()
-        .safeParse(payload);
-      if (!input.success) return Promise.resolve(invalidInput('Invalid question notification'));
-      return messagingCall(async (service) => {
-        await service.questions.retry(input.data.slug, input.data.id);
-        return { updated: true as const };
-      });
-    },
-    approvalRetry(payload) {
-      const input = z
-        .object({ slug: z.string().min(1), id: z.string().uuid() })
-        .strict()
-        .safeParse(payload);
-      if (!input.success) return Promise.resolve(invalidInput('Invalid notification'));
-      return messagingCall(async (service) => ({
-        delivery: await service.approvals.retry(input.data.slug, input.data.id),
-      }));
-    },
+    approvalRoute: approvalsMethods.approvalRoute,
+    approvalTest: approvalsMethods.approvalTest,
+    questionRetry: approvalsMethods.questionRetry,
+    approvalRetry: approvalsMethods.approvalRetry,
     senderAccess(payload) {
       const input = z
         .object({ slug: z.string().min(1), input: senderAccessInput })
@@ -3757,25 +2765,7 @@ function buildBridgeMethods(
       if (recorded === undefined) return invalidInput('Invalid acknowledgement');
       return { ok: true, value: recorded };
     },
-    modelPlanInherit(payload) {
-      const slug = asSlug(payload);
-      const revision = asObject(payload)['expectedRevision'];
-      if (slug === undefined || !Number.isSafeInteger(revision))
-        return invalidInput('Bot and expected revision required');
-      try {
-        const route = deps.defaultModel?.currentSelection() ?? deps.modelCatalog?.defaultRoute?.();
-        requireOwnedBot(slug);
-        if (route) requireRoutes(slug, [route]);
-      } catch (error) {
-        return modelFailure(error);
-      }
-      const result = deps.registry.inheritModel(slug, revision as number);
-      if (!result.ok) return invalidInput('Bot model changed; reopen before saving');
-      return {
-        ok: true,
-        value: { revision: result.record.modelPlanRevision ?? 0 },
-      };
-    },
+    ...modelInheritance,
     telemetryEvent(payload) {
       const source = asObject(payload);
       const event = source['event'];
@@ -4250,706 +3240,7 @@ function buildBridgeMethods(
         },
       };
     },
-    async modelCatalog(payload) {
-      if (deps.modelCatalog === undefined) return unavailable();
-      try {
-        const models = await deps.modelCatalog.list();
-        const rests = catalogRests();
-        const owner = isHostOwner();
-        const allowed = !owner ? deps.team?.roles.modelsAllowed(human) : undefined;
-        const isAllowed = (route: ModelRoute) =>
-          allowed === undefined || allowsModel(allowed, route);
-        const credentialGated = owner
-          ? new Set<string>()
-          : new Set(models.filter((route) => route.credential !== undefined).map(routeKey));
-        const isListed = (route: ModelRoute) =>
-          isAllowed(route) && !credentialGated.has(routeKey(route));
-        const defaultRoute =
-          deps.defaultModel?.currentSelection() ?? deps.modelCatalog.defaultRoute?.();
-        const defaultRevision = deps
-          .defaultModelSettings?.()
-          ?.describe({ redactSecrets: true })
-          .find((entry) => entry.ns === 'agent-default-model')?.revision;
-        const defaultGroup = deps.routingGroups?.defaultGroup();
-        const canUseEngine = (id: string) =>
-          deps.localSubscriptionEngines !== false &&
-          (owner || (allowed !== undefined && allowsEngineAccount(allowed, id)));
-        const groups = catalogGroups(rests, isListed, canUseEngine);
-        const defaultGroupVisible = groups.groups?.some(
-          (group) => group.id === defaultGroup?.groupId,
-        );
-        return {
-          ok: true,
-          value: {
-            models: models.filter(isListed).map((entry) => {
-              if (owner) return catalogEntry(entry, rests);
-              const { credential: _credential, ...route } = entry;
-              return catalogEntry(route, rests);
-            }),
-            ...(defaultRoute === undefined ? {} : { default: defaultRoute }),
-            ...(defaultRevision === undefined ? {} : { defaultRevision }),
-            ...(!defaultGroupVisible || defaultGroup?.groupId === undefined
-              ? {}
-              : { defaultGroupId: defaultGroup.groupId }),
-            ...(!defaultGroupVisible || defaultGroup?.effort === undefined
-              ? {}
-              : { defaultGroupEffort: defaultGroup.effort }),
-            ...(defaultGroup === undefined ? {} : { defaultGroupRevision: defaultGroup.revision }),
-            ...favoritesOf(),
-            ...groups,
-            ...(asObject(payload)['includeRoutingGroupEngines'] === true &&
-            (owner || deps.team?.roles.permissions(human).includes('models.configure')) &&
-            deps.routingGroupEngineOptions !== undefined
-              ? { routingGroupEngines: await deps.routingGroupEngineOptions(canUseEngine) }
-              : {}),
-          },
-        };
-      } catch (error) {
-        return !deps.team || deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-    },
-    modelFavoriteSet(payload) {
-      if (deps.modelFavorites === undefined) return unavailable();
-      const input = asObject(payload);
-      const favorite = modelFavorite(input['choice']);
-      if (favorite === undefined || typeof input['favorite'] !== 'boolean')
-        return invalidInput(
-          "modelFavoriteSet needs {choice: {kind: 'model', provider, model} | {kind: 'group', id} | {kind: 'preset', id}, favorite: boolean}",
-        );
-      try {
-        return {
-          ok: true,
-          value: { favorites: deps.modelFavorites.set(human.humanId, favorite, input['favorite']) },
-        };
-      } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
-      }
-    },
-    modelPresets(payload) {
-      if (deps.modelPresets === undefined) return unavailable();
-      const owner = isHostOwner();
-      const engineAllowed = engineChoiceFilter();
-      const presets = deps.modelPresets.list().filter((preset) => {
-        if (owner) return true;
-        try {
-          return [
-            ...presetEngineChoices(preset),
-            ...presetGroupIds(preset).flatMap(groupEngineChoices),
-          ].every(engineAllowed);
-        } catch {
-          return false;
-        }
-      });
-      if (asObject(payload)['includeUsage'] !== true) return { ok: true, value: { presets } };
-      const entries = new Map<string, ModelPresetUsage>(
-        presets.map(({ id }) => [id, { presetId: id, count: 0, botNames: [] }]),
-      );
-      if (entries.size === 0) return { ok: true, value: { presets, usage: [] } };
-      const canSeeAllBots =
-        isHostOwner() || deps.team?.roles.permissions(human).includes('bots.manageAll');
-      for (const bot of globalRegistry.list()) {
-        const id = bot.modelPlan?.sourcePresetId;
-        const usage = id === undefined ? undefined : entries.get(id);
-        if (usage === undefined) continue;
-        usage.count += 1;
-        if (canSeeAllBots || ownsBot(human, bot) || deps.team?.bots.canReach(human, bot.slug))
-          usage.botNames.push(bot.displayName);
-      }
-      return { ok: true, value: { presets, usage: [...entries.values()] } };
-    },
-    modelPresetDelete(payload) {
-      const store = deps.modelPresets;
-      if (store === undefined) return unavailable();
-      const { id, expectedRevision, confirmed } = asObject(payload);
-      if (confirmed !== true)
-        return {
-          ok: false,
-          error: { code: 'confirmation-required', message: 'Confirm the Model Preset deletion.' },
-        };
-      if (
-        typeof id !== 'string' ||
-        id.trim() === '' ||
-        typeof expectedRevision !== 'number' ||
-        !Number.isSafeInteger(expectedRevision) ||
-        expectedRevision < 1
-      )
-        return invalidInput('A Model Preset id and expected revision are required');
-      try {
-        return store.delete(id, expectedRevision)
-          ? { ok: true, value: { id } }
-          : {
-              ok: false,
-              error: {
-                code: 'stale-setting',
-                message: 'The Model Preset changed; reload the list.',
-              },
-            };
-      } catch (error) {
-        return modelFailure(error);
-      }
-    },
-    async modelPresetCreate(payload) {
-      if (deps.modelPresets === undefined || deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      const name = source['name'];
-      const assignmentDefault = source['assignmentDefault'];
-      const assignmentModels = source['assignmentModels'];
-      const openAssignmentModels = source['openAssignmentModels'];
-      const groupInput = presetGroupsInput(source);
-      if ('invalid' in groupInput) return invalidInput('Model Preset Routing Groups are invalid');
-      const groups = groupInput.given ? groupInput.groups : undefined;
-      if (
-        groups?.orchestratorGroupId === undefined
-          ? !isModelRoute(source['orchestrator'])
-          : source['orchestrator'] !== undefined
-      )
-        return invalidInput('Choose either an Orchestrator route or an Orchestrator Routing Group');
-      if (
-        typeof name !== 'string' ||
-        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
-        !isModelRoute(assignmentDefault) ||
-        (assignmentModels !== undefined &&
-          (!Array.isArray(assignmentModels) || !assignmentModels.every(isAssignmentModelOption)))
-      )
-        return invalidInput('A name and valid Orchestrator and Assignment routes are required');
-      try {
-        const engines = presetEnginesInput(source);
-        await checkPresetEngines(engines);
-        if (groups !== undefined) presetGroupRoutes(groups);
-        await validateGroupOptions(groups?.assignmentGroupOptions);
-        await validateGroupEffort(groups);
-        const orchestrator = (await presetOrchestrator(source['orchestrator'], groups))!;
-        await deps.modelCatalog.validate(orchestrator);
-        await validateAssignmentCatalog(
-          assignmentDefault,
-          assignmentModels ?? [
-            {
-              provider: assignmentDefault.provider,
-              model: assignmentDefault.model,
-              allowedEfforts: [assignmentDefault.reasoningEffort ?? ''],
-              defaultEffort: assignmentDefault.reasoningEffort ?? '',
-            },
-          ],
-        );
-        if (groups !== undefined) presetGroupRoutes(groups);
-        requireEngineChoices(presetEngineChoices(engines));
-        assertEngineAccounts(presetEngineChoices(engines));
-        const preset = deps.modelPresets.create({
-          name,
-          orchestrator,
-          assignmentDefault,
-          ...(assignmentModels === undefined ? {} : { assignmentModels }),
-          ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-          ...(groups === undefined ? {} : { groups }),
-          ...(Object.keys(engines).length === 0 ? {} : { engines }),
-        });
-        return { ok: true, value: { preset } };
-      } catch (error) {
-        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError ||
-          error instanceof EngineRefusal ||
-          !deps.team ||
-          deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-    },
-    async modelPresetUpdate(payload) {
-      if (deps.modelPresets === undefined || deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      const id = source['id'];
-      const expectedRevision = source['expectedRevision'];
-      const name = source['name'];
-      const assignmentDefault = source['assignmentDefault'];
-      const assignmentModels = source['assignmentModels'];
-      const openAssignmentModels = source['openAssignmentModels'];
-      const groupInput = presetGroupsInput(source);
-      if ('invalid' in groupInput) return invalidInput('Model Preset Routing Groups are invalid');
-      const given = groupInput.given ? groupInput.groups : undefined;
-      if (
-        given?.orchestratorGroupId === undefined
-          ? !isModelRoute(source['orchestrator'])
-          : source['orchestrator'] !== undefined
-      )
-        return invalidInput('Choose either an Orchestrator route or an Orchestrator Routing Group');
-      if (
-        typeof id !== 'string' ||
-        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
-        typeof expectedRevision !== 'number' ||
-        !Number.isSafeInteger(expectedRevision) ||
-        expectedRevision < 1 ||
-        typeof name !== 'string' ||
-        !isModelRoute(assignmentDefault) ||
-        (assignmentModels !== undefined &&
-          (!Array.isArray(assignmentModels) || !assignmentModels.every(isAssignmentModelOption)))
-      )
-        return invalidInput(
-          'An id, expected revision, name, and valid Orchestrator and Assignment routes are required',
-        );
-      const current = deps.modelPresets.get(id);
-      if (current === undefined) return invalidInput('Model Preset was not found');
-      if (!groupInput.given && hasPresetGroups(current)) return presetClientOutdated;
-      const groups =
-        given === undefined || ('optionsGiven' in groupInput && groupInput.optionsGiven)
-          ? given
-          : current.assignmentGroupOptions === undefined
-            ? given
-            : { ...given, assignmentGroupOptions: current.assignmentGroupOptions };
-      try {
-        const engines = presetEnginesInput(source);
-        await checkPresetEngines(engines);
-        if (groups !== undefined) presetGroupRoutes(groups);
-        await validateGroupOptions(groups?.assignmentGroupOptions);
-        await validateGroupEffort(groups);
-        const orchestrator = (await presetOrchestrator(source['orchestrator'], groups))!;
-        await deps.modelCatalog.validate(orchestrator);
-        await validateAssignmentCatalog(
-          assignmentDefault,
-          assignmentModels ??
-            current.assignmentModels ?? [
-              {
-                provider: assignmentDefault.provider,
-                model: assignmentDefault.model,
-                allowedEfforts: [assignmentDefault.reasoningEffort ?? ''],
-                defaultEffort: assignmentDefault.reasoningEffort ?? '',
-              },
-            ],
-        );
-        if (groups !== undefined) presetGroupRoutes(groups);
-        requireEngineChoices(presetEngineChoices(engines));
-        assertEngineAccounts(presetEngineChoices(engines));
-        const preset = deps.modelPresets.update(id, {
-          expectedRevision,
-          name,
-          orchestrator,
-          assignmentDefault,
-          ...(assignmentModels === undefined ? {} : { assignmentModels }),
-          ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-          ...(groups === undefined ? {} : { groups }),
-          ...(Object.keys(engines).length === 0 ? {} : { engines }),
-        });
-        if (preset === undefined) return invalidInput('Model Preset was not found');
-        return { ok: true, value: { preset } };
-      } catch (error) {
-        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError ||
-          error instanceof EngineRefusal ||
-          !deps.team ||
-          deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-    },
-    async modelPresetApply(payload) {
-      if (deps.modelPresets === undefined || deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      const slug = source['slug'];
-      const presetId = source['presetId'];
-      if (typeof slug !== 'string' || typeof presetId !== 'string') {
-        return invalidInput('slug and presetId are required');
-      }
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      const expectedRevision = source['expectedRevision'];
-      const expectedPresetRevision = source['expectedPresetRevision'];
-      if (
-        [expectedRevision, expectedPresetRevision].some(
-          (value) => value !== undefined && (!Number.isSafeInteger(value) || Number(value) < 0),
-        )
-      )
-        return invalidInput('Expected revisions must be nonnegative integers');
-      const preset = deps.modelPresets.get(presetId);
-      if (preset === undefined) return invalidInput('Model Preset was not found');
-      const changed = () => {
-        const current = deps.registry.get(slug);
-        return (
-          (expectedRevision !== undefined &&
-            (current?.modelPlan?.revision ?? current?.modelPlanRevision ?? 0) !==
-              expectedRevision) ||
-          deps.modelPresets?.get(presetId)?.revision !== (expectedPresetRevision ?? preset.revision)
-        );
-      };
-      const stale = (): BridgeResult<{ plan: PersonaBotModelPlan }> => ({
-        ok: false,
-        error: {
-          code: 'stale-setting',
-          message: 'Bot plan or Model Preset changed; read both again before applying',
-        },
-      });
-      if (changed()) return stale();
-      try {
-        requireRoutes(slug, [
-          preset.orchestrator,
-          preset.assignmentDefault,
-          ...(preset.assignmentModels ?? []),
-          ...presetGroupRoutes(preset, slug),
-        ]);
-        const orchestrator =
-          preset.orchestratorGroupId === undefined
-            ? preset.orchestrator
-            : await firstUsableRoute(groupRoutes(preset.orchestratorGroupId));
-        await deps.modelCatalog.validate(orchestrator);
-        await deps.modelCatalog.validate(preset.assignmentDefault);
-        if (preset.assignmentModels !== undefined)
-          await validateAssignmentCatalog(preset.assignmentDefault, preset.assignmentModels);
-        if (hasPresetEngines(preset)) await checkPresetEngines(preset, slug);
-        await validateGroupOptions(preset.assignmentGroupOptions);
-        await validateGroupEffort(preset);
-        if (changed()) return stale();
-        requireRoutes(slug, [
-          orchestrator,
-          preset.orchestrator,
-          preset.assignmentDefault,
-          ...(preset.assignmentModels ?? []),
-          ...presetGroupRoutes(preset, slug),
-        ]);
-        requireEngineChoices(presetEngineChoices(preset), slug);
-        assertEngineAccounts(presetEngineChoices(preset));
-        const result = deps.registry.applyModelPreset(slug, { ...preset, orchestrator });
-        if (!result.ok || result.record.modelPlan === undefined) return unknownBot(slug);
-        const engines = deps.subscriptionEngines;
-        if (engines !== undefined) {
-          for (const [role, selection] of [
-            ['orchestrator', preset.orchestratorEngine],
-            ['assignment', preset.assignmentEngine],
-          ] as const) {
-            if (selection === undefined && engines.store.selection(slug, role) === undefined)
-              continue;
-            const { engine, ...choice } = selection ?? {};
-            engines.use(
-              slug,
-              role,
-              engine,
-              role === 'orchestrator'
-                ? { ...choice, fallback: engine !== undefined && engines.fallsBack(slug) }
-                : choice,
-            );
-            if (role === 'orchestrator') deps.releaseEngineQuotaHold?.(slug);
-          }
-        }
-        return { ok: true, value: { plan: result.record.modelPlan } };
-      } catch (error) {
-        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError ||
-          error instanceof EngineRefusal ||
-          !deps.team ||
-          deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-    },
-    modelGroups() {
-      if (deps.routingGroups === undefined) return unavailable();
-      const owner = isHostOwner();
-      const engineAllowed = engineChoiceFilter();
-      return {
-        ok: true,
-        value: {
-          groups: deps.routingGroups.list().filter((group) => {
-            if (owner) return true;
-            try {
-              return groupEngineChoices(group.id).every(engineAllowed);
-            } catch {
-              return false;
-            }
-          }),
-          rests: deps.routeRests?.list() ?? [],
-        },
-      };
-    },
-    modelGroup(payload) {
-      if (deps.routingGroups === undefined) return unavailable();
-      const id = asObject(payload)['id'];
-      if (typeof id !== 'string' || !id.trim())
-        return invalidInput('A Routing Group id is required');
-      try {
-        const group = deps.routingGroups.get(id.trim());
-        if (group === undefined)
-          throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
-        if (!isHostOwner()) requireGroupEngines(group.id);
-        return { ok: true, value: { group, routes: deps.routingGroups.routes(group.id) } };
-      } catch (error) {
-        return routingGroupFailure(error);
-      }
-    },
-    async modelGroupCreate(payload) {
-      if (deps.routingGroups === undefined || deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      try {
-        const input = routingGroupInput(source);
-        await validateGroupMembers(input.members);
-        requireEngineChoices(memberEngineChoices(input.members));
-        assertEngineAccounts(input.members.filter((member) => member.kind === 'engine'));
-        return { ok: true, value: { group: deps.routingGroups.create(input) } };
-      } catch (error) {
-        return routingGroupFailure(error);
-      }
-    },
-    async modelGroupUpdate(payload) {
-      if (deps.routingGroups === undefined || deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      const id = source['id'];
-      const expectedRevision = source['expectedRevision'];
-      if (
-        typeof id !== 'string' ||
-        !Number.isSafeInteger(expectedRevision) ||
-        (expectedRevision as number) < 1
-      )
-        return invalidInput('A Routing Group id and expected revision are required');
-      try {
-        const input = routingGroupInput(source);
-        const current = deps.routingGroups.get(id);
-        await validateGroupMembers(
-          input.members,
-          current?.revision === expectedRevision ? current?.members : undefined,
-        );
-        requireEngineChoices(memberEngineChoices(input.members));
-        assertEngineAccounts(input.members.filter((member) => member.kind === 'engine'));
-        const group = deps.routingGroups.update(id, {
-          ...input,
-          expectedRevision: expectedRevision as number,
-        });
-        return { ok: true, value: { group } };
-      } catch (error) {
-        return routingGroupFailure(error);
-      }
-    },
-    modelGroupDelete(payload) {
-      if (deps.routingGroups === undefined) return unavailable();
-      const source = asObject(payload);
-      const id = source['id'];
-      const expectedRevision = source['expectedRevision'];
-      if (
-        typeof id !== 'string' ||
-        !Number.isSafeInteger(expectedRevision) ||
-        (expectedRevision as number) < 1
-      )
-        return invalidInput('A Routing Group id and expected revision are required');
-      try {
-        return {
-          ok: true,
-          value: { group: deps.routingGroups.delete(id, expectedRevision as number) },
-        };
-      } catch (error) {
-        return routingGroupFailure(error);
-      }
-    },
-    async modelPlan(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      const bot = deps.registry.get(slug);
-      if (bot === undefined) return unknownBot(slug);
-      try {
-        requireOwnedBot(slug);
-      } catch (error) {
-        return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-      const currentTarget = deps.runtime?.currentTurnTarget?.(slug);
-      const executed = currentTarget === undefined ? {} : { currentTarget };
-      if (deps.modelReadiness !== undefined && (!deps.team || deps.team.isOwner(human))) {
-        try {
-          const state = await deps.modelReadiness.inspect(slug);
-          const current = deps.registry.get(slug);
-          return {
-            ok: true,
-            value: {
-              ...state,
-              ...executed,
-              revision: current?.modelPlan?.revision ?? current?.modelPlanRevision ?? 0,
-            },
-          };
-        } catch (failure) {
-          return invalidInput(failure instanceof Error ? failure.message : String(failure));
-        }
-      }
-      return {
-        ok: true,
-        value: {
-          ...executed,
-          revision: bot.modelPlan?.revision ?? bot.modelPlanRevision ?? 0,
-          ...(bot.modelPlan === undefined ? {} : { plan: bot.modelPlan }),
-        },
-      };
-    },
-    async modelPlanCustomize(payload, beforeCommit) {
-      if (deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      const slug = source['slug'];
-      const groupId = source['orchestratorGroupId'];
-      const groupEffort = source['orchestratorGroupEffort'] ?? undefined;
-      if (
-        (groupEffort !== undefined &&
-          (typeof groupEffort !== 'string' ||
-            groupEffort.trim() === '' ||
-            groupId === undefined)) ||
-        typeof slug !== 'string' ||
-        (groupId === undefined
-          ? !isModelRoute(source['orchestrator'])
-          : typeof groupId !== 'string' || !groupId.trim() || source['orchestrator'] !== undefined)
-      ) {
-        return invalidInput(
-          'slug and either a valid Orchestrator route or an Orchestrator Routing Group are required',
-        );
-      }
-      const bot = deps.registry.get(slug);
-      if (bot === undefined) return unknownBot(slug);
-      if (bot.model !== undefined)
-        return invalidInput('Repair the legacy model before customizing');
-      const expectedRevision =
-        source['expectedRevision'] ?? bot.modelPlan?.revision ?? bot.modelPlanRevision ?? 0;
-      if (
-        typeof expectedRevision !== 'number' ||
-        !Number.isSafeInteger(expectedRevision) ||
-        expectedRevision < 0
-      )
-        return invalidInput('A valid expected revision is required');
-      try {
-        const group =
-          typeof groupId === 'string'
-            ? (() => {
-                if (deps.routingGroups === undefined)
-                  throw new RoutingGroupError('not-found', 'Routing Groups are unavailable');
-                const found = deps.routingGroups.get(groupId.trim());
-                if (found === undefined)
-                  throw new RoutingGroupError(
-                    'not-found',
-                    `Routing Group ${groupId} does not exist`,
-                  );
-                return found;
-              })()
-            : undefined;
-        const candidates =
-          group === undefined
-            ? [source['orchestrator'] as ModelRoute]
-            : deps.routingGroups!.routes(group.id);
-        if (group !== undefined) requireGroupEngines(group.id, slug);
-        requireRoutes(slug, candidates);
-        if (group !== undefined && typeof groupEffort === 'string')
-          await requireGroupEfforts(group.id, [groupEffort.trim()]);
-        const orchestrator = await firstUsableRoute(candidates);
-        beforeCommit?.();
-        if (group !== undefined) requireGroupEngines(group.id, slug);
-        requireRoutes(slug, candidates);
-        if (group !== undefined && deps.routingGroups!.get(group.id)?.revision !== group.revision)
-          return invalidInput('Routing Group changed; read it again before saving');
-        const result = deps.registry.customizeModelPlan(
-          slug,
-          orchestrator,
-          expectedRevision,
-          group?.id,
-          typeof groupEffort === 'string' ? groupEffort.trim() : undefined,
-        );
-        if (!result.ok)
-          return result.reason === 'not-found'
-            ? unknownBot(slug)
-            : invalidInput('Bot Model Plan changed; reopen Profile before saving');
-        if (result.record.modelPlan === undefined)
-          return invalidInput('Apply a Model Preset first');
-        return { ok: true, value: { plan: result.record.modelPlan } };
-      } catch (error) {
-        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError ||
-          error instanceof EngineRefusal ||
-          !deps.team ||
-          deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-    },
-    async modelPlanAssignmentsSet(payload) {
-      if (deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      const slug = source['slug'];
-      const assignmentDefault = source['assignmentDefault'];
-      const assignmentModels = source['assignmentModels'];
-      const expectedRevision = source['expectedRevision'];
-      const openAssignmentModels = source['openAssignmentModels'];
-      const assignmentGroups = source['assignmentGroups'];
-      const assignmentDefaultGroupId = source['assignmentDefaultGroupId'];
-      const groupOptions = assignmentGroupOptionsInput(
-        source['assignmentGroupOptions'],
-        assignmentGroups ?? deps.registry.get(String(slug))?.modelPlan?.assignmentGroups ?? [],
-      );
-      if (
-        typeof slug !== 'string' ||
-        groupOptions === 'invalid' ||
-        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
-        (assignmentGroups !== undefined &&
-          (!Array.isArray(assignmentGroups) ||
-            !assignmentGroups.every((id) => typeof id === 'string' && id.trim() !== '') ||
-            new Set(assignmentGroups).size !== assignmentGroups.length)) ||
-        (assignmentDefaultGroupId !== undefined &&
-          (typeof assignmentDefaultGroupId !== 'string' ||
-            !Array.isArray(assignmentGroups) ||
-            !assignmentGroups.includes(assignmentDefaultGroupId))) ||
-        !isModelRoute(assignmentDefault) ||
-        !Array.isArray(assignmentModels) ||
-        !assignmentModels.every(isAssignmentModelOption) ||
-        typeof expectedRevision !== 'number' ||
-        !Number.isSafeInteger(expectedRevision)
-      )
-        return invalidInput('A Bot, expected revision, and valid Assignment choices are required');
-      const bot = deps.registry.get(slug);
-      if (bot === undefined) return unknownBot(slug);
-      if (bot.modelPlan === undefined) return invalidInput('Apply a Model Preset first');
-      try {
-        requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
-        await validateAssignmentCatalog(assignmentDefault, assignmentModels);
-        await validateGroupOptions(groupOptions);
-        requireRoutes(slug, [
-          assignmentDefault,
-          ...assignmentModels,
-          ...presetGroupRoutes(
-            {
-              assignmentGroups:
-                (assignmentGroups as string[] | undefined) ?? bot.modelPlan.assignmentGroups ?? [],
-            },
-            slug,
-          ),
-        ]);
-        const result = deps.registry.setAssignmentModels(
-          slug,
-          assignmentDefault,
-          assignmentModels,
-          expectedRevision,
-          typeof openAssignmentModels === 'boolean' ? openAssignmentModels : undefined,
-          assignmentGroups === undefined && groupOptions === undefined
-            ? undefined
-            : {
-                ids:
-                  (assignmentGroups as string[] | undefined) ??
-                  bot.modelPlan.assignmentGroups ??
-                  [],
-                ...(assignmentGroups === undefined
-                  ? bot.modelPlan.assignmentDefaultGroupId === undefined
-                    ? {}
-                    : { defaultId: bot.modelPlan.assignmentDefaultGroupId }
-                  : typeof assignmentDefaultGroupId === 'string'
-                    ? { defaultId: assignmentDefaultGroupId }
-                    : {}),
-                ...(groupOptions === undefined ? {} : { options: groupOptions }),
-              },
-        );
-        if (!result.ok)
-          return result.reason === 'not-found'
-            ? unknownBot(slug)
-            : invalidInput('Bot Model Plan changed; reopen Profile before saving');
-        if (result.record.modelPlan === undefined)
-          return invalidInput('Apply a Model Preset first');
-        return { ok: true, value: { plan: result.record.modelPlan } };
-      } catch (error) {
-        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError ||
-          error instanceof EngineRefusal ||
-          !deps.team ||
-          deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-    },
+    ...modelSettings,
     dataResetPreview() {
       if (deps.dataReset === undefined) return unavailable();
       try {
@@ -5033,78 +3324,7 @@ function buildBridgeMethods(
         return invalidInput(error instanceof Error ? error.message : 'Memory folder unavailable');
       }
     },
-    async modelPlanSet(payload) {
-      if (deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      const slug = source['slug'];
-      const orchestrator = source['orchestrator'];
-      const assignmentDefault = source['assignmentDefault'];
-      const assignmentModels = source['assignmentModels'];
-      const expectedRevision = source['expectedRevision'];
-      const openAssignmentModels = source['openAssignmentModels'];
-      const groupInput = presetGroupsInput(source);
-      if ('invalid' in groupInput) return invalidInput('Model Plan Routing Groups are invalid');
-      const groups = groupInput.given ? groupInput.groups : undefined;
-      if (
-        typeof slug !== 'string' ||
-        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
-        (groups?.orchestratorGroupId === undefined
-          ? !isModelRoute(orchestrator)
-          : orchestrator !== undefined) ||
-        !isModelRoute(assignmentDefault) ||
-        !Array.isArray(assignmentModels) ||
-        !assignmentModels.every(isAssignmentModelOption) ||
-        typeof expectedRevision !== 'number' ||
-        !Number.isSafeInteger(expectedRevision)
-      )
-        return invalidInput(
-          'A Bot, expected revision, and valid Orchestrator and Assignment choices are required',
-        );
-      const bot = deps.registry.get(slug);
-      if (bot === undefined) return unknownBot(slug);
-      try {
-        const grouped = groups === undefined ? [] : presetGroupRoutes(groups, slug);
-        requireRoutes(slug, grouped);
-        await validateGroupOptions(groups?.assignmentGroupOptions);
-        await validateGroupEffort(groups);
-        const route = (await presetOrchestrator(orchestrator, groups))!;
-        requireRoutes(slug, [route]);
-        await deps.modelCatalog.validate(route);
-        requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
-        await validateAssignmentCatalog(assignmentDefault, assignmentModels);
-        requireRoutes(slug, [
-          route,
-          assignmentDefault,
-          ...assignmentModels,
-          ...(groups === undefined ? grouped : presetGroupRoutes(groups, slug)),
-        ]);
-        const result = deps.registry.setModelPlan(
-          slug,
-          {
-            orchestrator: route,
-            assignmentDefault,
-            assignmentModels,
-            ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-            ...(groups === undefined ? {} : { groups }),
-          },
-          expectedRevision,
-        );
-        if (!result.ok)
-          return result.reason === 'not-found'
-            ? unknownBot(slug)
-            : invalidInput('Bot Model Plan changed; reopen it before saving');
-        if (result.record.modelPlan === undefined) return unknownBot(slug);
-        return { ok: true, value: { plan: result.record.modelPlan } };
-      } catch (error) {
-        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError ||
-          error instanceof EngineRefusal ||
-          !deps.team ||
-          deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-    },
+    ...modelPlan,
     list(payload) {
       const activity = new Map(deps.channels.latestBotActivity?.(human));
       for (const [slug, at] of deps.runtime?.latestAssignmentActivity?.() ?? [])
@@ -5328,76 +3548,7 @@ function buildBridgeMethods(
         throw error;
       }
     },
-    zipUploadBegin(payload) {
-      const input = parseZipUpload(payload);
-      if (!input) return invalidInput('An upload identity is required');
-      if (!deps.zipImports) return unavailable();
-      try {
-        return { ok: true, value: deps.zipImports.begin(input) };
-      } catch (error) {
-        return zipFailure(error);
-      }
-    },
-    zipUploadChunk(payload) {
-      const input = parseZipUpload(payload);
-      const source = asObject(payload);
-      const offset = source['offset'];
-      const dataBase64 = source['dataBase64'];
-      if (!input || typeof offset !== 'number' || typeof dataBase64 !== 'string')
-        return invalidInput('An upload chunk is required');
-      if (!deps.zipImports) return unavailable();
-      try {
-        return {
-          ok: true,
-          value: deps.zipImports.chunk({ ...input, offset, dataBase64 }),
-        };
-      } catch (error) {
-        return zipFailure(error);
-      }
-    },
-    zipUploadPreview(payload) {
-      const input = parseZipUpload(payload);
-      if (!input) return invalidInput('An upload identity is required');
-      if (!deps.zipImports) return unavailable();
-      try {
-        return { ok: true, value: deps.zipImports.preview(input) };
-      } catch (error) {
-        return zipFailure(error);
-      }
-    },
-    zipImportLookup(payload) {
-      const input = parseZipImport(payload);
-      if (!input) return invalidInput('The original import input is required');
-      if (!deps.zipImports) return unavailable();
-      try {
-        return {
-          ok: true,
-          value: { receipt: deps.zipImports.lookup(input) ?? null },
-        };
-      } catch (error) {
-        return zipFailure(error);
-      }
-    },
-    async zipImport(payload) {
-      const identity = parseZipUpload(payload);
-      const reference = parseZipImport(payload);
-      if (!identity || !reference) return invalidInput('The original import input is required');
-      if (!deps.zipImports) return unavailable();
-      const input: BotZipImportInput = { ...identity, ...reference };
-      try {
-        const created = await deps.zipImports.create(input);
-        return {
-          ok: true,
-          value: {
-            ...detailOf(created.record),
-            channelId: created.channelId,
-            ...(created.receipt === undefined ? {} : { receipt: created.receipt }),
-          },
-        };
-      } catch (error) {
-        return zipFailure(error);
-      }
-    },
+    ...marketplaceZip,
     botImportLookup(payload) {
       const source = asObject(payload);
       const displayName = source['displayName'];
@@ -5561,92 +3712,7 @@ function buildBridgeMethods(
         },
       };
     },
-    marketplaceList(payload) {
-      const source = asObject(payload);
-      const query: MarketplaceQuery = {};
-      for (const key of ['cursor', 'q', 'topic'] as const) {
-        const value = parseOptional(source, key);
-        if (!value.ok) return Promise.resolve(invalidInput(`invalid ${key}`));
-        const trimmed = value.value?.trim();
-        if (trimmed !== undefined && trimmed.length > 0) query[key] = trimmed;
-      }
-      const sort = source['sort'];
-      if (sort !== undefined && sort !== 'updated' && sort !== 'created' && sort !== 'stars') {
-        return Promise.resolve(invalidInput('invalid sort'));
-      }
-      if (sort !== undefined) query.sort = sort;
-      const lang = marketplaceLang(source['lang']);
-      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
-      if (lang !== undefined) query.lang = lang;
-      if (source['includeUploads'] !== undefined && typeof source['includeUploads'] !== 'boolean')
-        return Promise.resolve(invalidInput('invalid includeUploads'));
-      if (source['includeUploads'] === true) query.includeUploads = true;
-      return marketplaceCall(async (client) => {
-        const page = await client.list(query);
-        return page.ok
-          ? {
-              ok: true,
-              value: { ...page.value, bots: page.value.bots.map(withInstalls) },
-            }
-          : page;
-      });
-    },
-    marketplaceTopics() {
-      return marketplaceCall((client) => client.topics());
-    },
-    marketplaceDigests(payload) {
-      const lang = marketplaceLang(asObject(payload)['lang']);
-      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
-      return marketplaceCall(async (client) => {
-        const digests = await client.digests(lang);
-        return digests.ok ? { ok: true, value: { digests: digests.value } } : digests;
-      });
-    },
-    marketplaceDigest(payload) {
-      const source = asObject(payload);
-      const lang = marketplaceLang(source['lang']);
-      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
-      const day = source['day'] ?? 'latest';
-      if (typeof day !== 'string' || (day !== 'latest' && !MARKETPLACE_DIGEST_DAY.test(day)))
-        return Promise.resolve(invalidInput('invalid day'));
-      return marketplaceCall(async (client) => {
-        const digest = await client.digest(day, lang);
-        if (!digest.ok) return digest;
-        return {
-          ok: true,
-          value: {
-            digest: {
-              ...digest.value,
-              sections: digest.value.sections.map((section) => ({
-                ...section,
-                bot: section.bot === null ? null : withInstalls(section.bot),
-              })),
-            },
-          },
-        };
-      });
-    },
-    marketplaceSections(payload) {
-      const lang = marketplaceLang(asObject(payload)['lang']);
-      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
-      return marketplaceCall(async (client) => {
-        const results = await Promise.all(
-          MARKETPLACE_SECTIONS.map((name) => client.section(name, lang)),
-        );
-        const sections: MarketplaceSection[] = [];
-        for (const result of results) {
-          if (!result.ok) return result;
-          sections.push({
-            ...result.value,
-            entries: result.value.entries.map((entry) => ({
-              ...entry,
-              bot: withInstalls(entry.bot),
-            })),
-          });
-        }
-        return { ok: true, value: { sections } };
-      });
-    },
+    ...marketplaceReads,
     releaseInfo(payload) {
       if (deps.release === undefined) return releaseUnavailable();
       const since = asObject(payload)['since'];
@@ -5744,329 +3810,7 @@ function buildBridgeMethods(
         };
       }
     },
-    marketplaceAvatarList(payload) {
-      const { cursor } = asObject(payload);
-      if (cursor !== undefined && (typeof cursor !== 'string' || cursor.length > 100))
-        return Promise.resolve(invalidInput('invalid cursor'));
-      return marketplaceCall((client) => client.avatarList(cursor));
-    },
-    marketplaceAvatarDetail(payload) {
-      const { id } = asObject(payload);
-      if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/u.test(id))
-        return Promise.resolve(invalidInput('invalid Avatar ID'));
-      return marketplaceCall((client) => client.avatarDetail(id));
-    },
-    async marketplaceAvatarPublish(payload) {
-      if (!isHostOwner() || human.caller === 'bot')
-        return {
-          ok: false,
-          error: {
-            code: 'permission-required',
-            message: 'Only the Host owner may publish Marketplace Avatars',
-          },
-        };
-      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
-      const input = parseMarketplaceAvatarPublish(asObject(payload));
-      if (input === undefined) return invalidInput('invalid Marketplace Avatar publish payload');
-      return uploadResult(await deps.marketplaceUploads.publishAvatar(input));
-    },
-    marketplaceDetail(payload) {
-      const { id, lang: langValue } = asObject(payload);
-      if (typeof id !== 'string' || id.trim().length === 0) {
-        return Promise.resolve(invalidInput('id is required'));
-      }
-      const lang = marketplaceLang(langValue);
-      if (lang === false) return Promise.resolve(invalidInput('invalid lang'));
-      return marketplaceCall(async (client) => {
-        const detail = await client.detail(id.trim(), lang);
-        return detail.ok
-          ? {
-              ok: true,
-              value: { ...detail.value, bot: withInstalls(detail.value.bot) },
-            }
-          : detail;
-      });
-    },
-    marketplaceFileView(payload) {
-      const { id, path } = asObject(payload);
-      if (typeof id !== 'string' || id.trim().length === 0) {
-        return Promise.resolve(invalidInput('id is required'));
-      }
-      if (typeof path !== 'string' || path.length === 0) {
-        return Promise.resolve(invalidInput('path is required'));
-      }
-      return marketplaceCall((client) => client.fileView(id.trim(), path));
-    },
-    marketplaceSubmit(payload) {
-      const { url, altcha } = asObject(payload);
-      if (typeof url !== 'string' || url.trim().length === 0) {
-        return Promise.resolve(invalidInput('url is required'));
-      }
-      if (typeof altcha !== 'string' || altcha.length === 0) {
-        return Promise.resolve(invalidInput('altcha is required'));
-      }
-      return marketplaceCall((client) => client.submit(url.trim(), altcha));
-    },
-    marketplaceChallenge() {
-      return marketplaceCall((client) => client.challenge());
-    },
-    marketplaceReport(payload) {
-      const { id, altcha, reason } = asObject(payload);
-      if (typeof id !== 'string' || id.trim().length === 0) {
-        return Promise.resolve(invalidInput('id is required'));
-      }
-      if (typeof altcha !== 'string' || altcha.length === 0) {
-        return Promise.resolve(invalidInput('altcha is required'));
-      }
-      if (reason !== undefined && typeof reason !== 'string') {
-        return Promise.resolve(invalidInput('invalid reason'));
-      }
-      const trimmed = reason?.trim() ?? '';
-      return marketplaceCall((client) =>
-        client.report(id.trim(), {
-          altcha,
-          ...(trimmed.length === 0 ? {} : { reason: trimmed }),
-        }),
-      );
-    },
-    async marketplaceAccount() {
-      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
-      return uploadResult(await deps.marketplaceUploads.account());
-    },
-    async marketplaceAuthorSave(payload) {
-      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
-      const { displayName, acceptTerms } = asObject(payload);
-      if (
-        typeof displayName !== 'string' ||
-        (acceptTerms !== undefined && typeof acceptTerms !== 'boolean')
-      )
-        return invalidInput('displayName is required');
-      return uploadResult(
-        await deps.marketplaceUploads.saveAuthor({
-          displayName: displayName.trim(),
-          acceptTerms: acceptTerms === true,
-        }),
-      );
-    },
-    async marketplaceAuthorAvatarSet(payload) {
-      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
-      const { avatar } = asObject(payload);
-      const image =
-        typeof avatar === 'string'
-          ? /^data:image\/(?:png|jpeg|webp);base64,([A-Za-z0-9+/]+={0,2})$/u.exec(avatar)?.[1]
-          : undefined;
-      if (avatar !== null && image === undefined)
-        return invalidInput('avatar must be a PNG, JPEG or WebP data URL, or null');
-      return uploadResult(
-        await deps.marketplaceUploads.saveAuthorAvatar(
-          image === undefined ? null : Buffer.from(image, 'base64'),
-        ),
-      );
-    },
-    marketplaceUploadPlan(payload) {
-      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
-      const slug = asSlug(payload);
-      if (slug === undefined || deps.registry.get(slug) === undefined)
-        return invalidInput('slug is required');
-      return uploadResult(deps.marketplaceUploads.plan(slug));
-    },
-    async marketplaceUpload(payload) {
-      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
-      const slug = asSlug(payload);
-      const source = asObject(payload);
-      const record = slug === undefined ? undefined : deps.registry.get(slug);
-      if (slug === undefined || record === undefined || deps.tob?.isTob(slug) === true)
-        return invalidInput('slug must name one of your Bots');
-      const displayName = source['displayName'];
-      const bio = parseOptional(source, 'bio');
-      const tags = source['tags'];
-      if (
-        typeof displayName !== 'string' ||
-        displayName.trim().length === 0 ||
-        !bio.ok ||
-        (tags !== undefined &&
-          (!Array.isArray(tags) || !tags.every((tag) => typeof tag === 'string')))
-      )
-        return invalidInput('invalid upload payload');
-      const replaces = source['replaces'];
-      if (replaces !== undefined && (typeof replaces !== 'string' || replaces.trim().length === 0))
-        return invalidInput('invalid replaces');
-      const trimmedBio = bio.value?.trim();
-      const uploaded = await deps.marketplaceUploads.upload(slug, {
-        displayName: displayName.trim(),
-        ...(trimmedBio === undefined || trimmedBio.length === 0 ? {} : { bio: trimmedBio }),
-        ...(tags === undefined ? {} : { tags: tags as string[] }),
-        ...(replaces === undefined ? {} : { replaces: replaces.trim() }),
-      });
-      if (uploaded.ok) {
-        const { id, pushedAt } = uploaded.value.bot;
-        try {
-          deps.registry.setMarketplaceUpload(slug, { id, pushedAt });
-          for (const other of deps.registry.list())
-            if (other.slug !== slug && other.marketplaceUpload?.id === id)
-              deps.registry.setMarketplaceUpload(other.slug, undefined);
-        } catch (failure) {
-          deps.warn?.(
-            JSON.stringify({
-              module: 'marketplace',
-              initiator: 'client',
-              phase: 'upload-link-not-saved',
-              reason: failure instanceof Error ? failure.message : String(failure),
-            }),
-          );
-        }
-      }
-      return uploadResult(uploaded);
-    },
-    async marketplaceMine(payload) {
-      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
-      const lang = marketplaceLang(asObject(payload)['lang']);
-      if (lang === false) return invalidInput('invalid lang');
-      const mine = await deps.marketplaceUploads.mine(lang);
-      return uploadResult(
-        mine.ok
-          ? {
-              ok: true,
-              value: {
-                bots: mine.value.map((entry) => ({
-                  ...entry,
-                  bot: withInstalls(entry.bot),
-                })),
-              },
-            }
-          : mine,
-      );
-    },
-    async marketplaceDelete(payload) {
-      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
-      const { id } = asObject(payload);
-      if (typeof id !== 'string' || id.trim().length === 0) return invalidInput('id is required');
-      return uploadResult(await deps.marketplaceUploads.remove(id.trim()));
-    },
-    shareDraftStart(payload) {
-      const slug = shareDraftSlug(payload);
-      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
-      if (slug === undefined) return invalidInput('slug must name one of your Bots');
-      return draftResult(deps.shareDrafts.start(slug));
-    },
-    shareDraftGet(payload) {
-      const slug = shareDraftSlug(payload);
-      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
-      if (slug === undefined) return invalidInput('slug must name one of your Bots');
-      return draftResult(deps.shareDrafts.get(slug));
-    },
-    shareDraftFile(payload) {
-      const slug = shareDraftSlug(payload);
-      const { path } = asObject(payload);
-      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
-      if (slug === undefined || typeof path !== 'string' || path.length === 0)
-        return invalidInput('slug and path are required');
-      return uploadResult(deps.shareDrafts.read(slug, path));
-    },
-    shareDraftDecide(payload) {
-      const slug = shareDraftSlug(payload);
-      const { path, decision, text } = asObject(payload);
-      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
-      if (slug === undefined || typeof path !== 'string' || path.length === 0)
-        return invalidInput('slug and path are required');
-      if (decision === 'keep')
-        return draftResult(deps.shareDrafts.decide(slug, path, { keep: true }));
-      if (decision === 'drop')
-        return draftResult(deps.shareDrafts.decide(slug, path, { drop: true }));
-      if (decision === 'rewrite' && typeof text === 'string')
-        return draftResult(deps.shareDrafts.decide(slug, path, { rewrite: text }));
-      return invalidInput('decision must be keep, drop, or rewrite with text');
-    },
-    shareDraftFinish(payload) {
-      const slug = shareDraftSlug(payload);
-      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
-      if (slug === undefined) return invalidInput('slug must name one of your Bots');
-      return draftResult(deps.shareDrafts.finish(slug));
-    },
-    shareDraftDiscard(payload) {
-      const slug = shareDraftSlug(payload);
-      if (deps.shareDrafts === undefined) return marketplaceUnavailable();
-      if (slug === undefined) return invalidInput('slug must name one of your Bots');
-      return uploadResult(deps.shareDrafts.discard(slug));
-    },
-    async shareDraftExport(payload) {
-      const slug = shareDraftSlug(payload);
-      if (deps.shareDrafts === undefined || deps.tob === undefined) return marketplaceUnavailable();
-      if (slug === undefined) return invalidInput('slug must name one of your Bots');
-      const home = await deps.tob.ensure(human);
-      return uploadResult(
-        deps.shareDrafts.exportTo(slug, join(home.workspacePath, 'share-exports', slug)),
-      );
-    },
-    async marketplaceInstallReview(payload) {
-      if (deps.marketplaceInstallReviews === undefined) return marketplaceUnavailable();
-      const { id, lang } = asObject(payload);
-      if (typeof id !== 'string' || id.trim().length === 0) return invalidInput('id is required');
-      if (lang !== undefined && lang !== 'en' && lang !== 'zh') return invalidInput('invalid lang');
-      return uploadResult(await deps.marketplaceInstallReviews.review(id.trim(), lang));
-    },
-    async marketplaceInstall(payload) {
-      if (deps.marketplaceInstallReviews === undefined) return marketplaceUnavailable();
-      const { id, reviewId, operationKey, source: installSource } = asObject(payload);
-      if (typeof id !== 'string' || id.trim().length === 0) return invalidInput('id is required');
-      if (
-        installSource !== undefined &&
-        !(MARKETPLACE_INSTALL_SOURCES as readonly unknown[]).includes(installSource)
-      )
-        return invalidInput('invalid source');
-      if (typeof reviewId !== 'string' || reviewId.length === 0)
-        return {
-          ok: false,
-          error: {
-            code: 'review-required',
-            message: 'Run marketplaceInstallReview first',
-          },
-        };
-      if (operationKey !== undefined && typeof operationKey !== 'string')
-        return invalidInput('invalid operationKey');
-      const imports =
-        deps.imports ??
-        (deps.creations
-          ? createBotImports(deps.creations, deps.warn === undefined ? {} : { log: deps.warn })
-          : undefined);
-      if (imports === undefined) return invalidInput('Bot import is unavailable');
-      const prepared = deps.marketplaceInstallReviews.staged(id.trim(), reviewId);
-      if (!prepared.ok) return uploadResult(prepared);
-      try {
-        const created = await imports.create(
-          operationKey ?? `marketplace:${reviewId}`,
-          prepared.value.input,
-        );
-        sendReceipt(prepared.value.listing.id);
-        try {
-          deps.telemetry?.capture?.(
-            'marketplace:bot_install',
-            typeof installSource === 'string' ? { entry: installSource } : undefined,
-          );
-        } catch {}
-        const listing = prepared.value.listing;
-        const marked = deps.registry.setMarketplaceListing(created.record.slug, {
-          id: listing.id,
-          pushedAt: listing.pushedAt,
-        });
-        return {
-          ok: true,
-          value: {
-            ...detailOf(marked.ok ? marked.record : created.record),
-            channelId: created.channelId,
-            ...(created.receipt === undefined ? {} : { receipt: created.receipt }),
-            listing: prepared.value.listing,
-          },
-        };
-      } catch (error) {
-        if (error instanceof BotCreationError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
-        throw error;
-      }
-    },
+    ...marketplaceSharing,
     update(payload) {
       const slug = asSlug(payload);
       if (slug === undefined) return invalidInput('slug is required');
@@ -6163,230 +3907,18 @@ function buildBridgeMethods(
     resume(payload) {
       return setPaused(payload, false);
     },
-    computerAccessSet(payload) {
-      const slug = asSlug(payload);
-      const enabled = asObject(payload)['enabled'];
-      if (slug === undefined || typeof enabled !== 'boolean') {
-        return invalidInput('slug and enabled are required');
-      }
-      const result = deps.registry.setComputerAccess(slug, enabled);
-      if (!result.ok) return unknownBot(slug);
-      deps.computerAccess?.changed(slug);
-      return { ok: true, value: detailOf(result.record) };
-    },
-    browserAccessSet(payload) {
-      const slug = asSlug(payload);
-      const enabled = asObject(payload)['enabled'];
-      if (slug === undefined || typeof enabled !== 'boolean') {
-        return invalidInput('slug and enabled are required');
-      }
-      const result = deps.registry.setBrowserAccess(slug, enabled);
-      if (!result.ok) return unknownBot(slug);
-      deps.browserAccess?.changed(slug);
-      return { ok: true, value: detailOf(result.record) };
-    },
-    browserProfileSet(payload) {
-      const slug = asSlug(payload);
-      const profile = asObject(payload)['profile'];
-      if (slug === undefined || typeof profile !== 'string') {
-        return invalidInput('slug and profile are required');
-      }
-      const trimmed = profile.trim();
-      const normalized = trimmed === 'default' ? '' : trimmed;
-      if (normalized === '.' || normalized === '..') {
-        return invalidInput(
-          'Profile names "." and ".." are reserved; choose a named profile or default',
-        );
-      }
-      if (normalized !== '' && !/^[a-zA-Z0-9._-]{1,40}$/u.test(normalized)) {
-        return invalidInput('profile must use letters, digits, dot, dash, or underscore (max 40)');
-      }
-      const result = deps.registry.setBrowserProfile(slug, normalized);
-      if (!result.ok) return unknownBot(slug);
-      deps.browserProfile?.changed(slug);
-      return { ok: true, value: detailOf(result.record) };
-    },
-    approvalTemplates(payload) {
-      const global = approvalTemplateLibrary.global();
-      if (global.kind === 'invalid')
-        return {
-          ok: false,
-          error: {
-            code: 'approval-selection-unavailable',
-            message: 'Approval template selection could not be read.',
-          },
-        };
-      const templates = approvalTemplateLibrary
-        .list()
-        .map((template) => templateEntry(template, global));
-      const globalDefault = global.kind === 'selected' ? global.name : null;
-      if (asObject(payload)['slug'] === undefined)
-        return { ok: true, value: { templates, globalDefault } };
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug must be a Bot id');
-      const record = deps.registry.get(slug);
-      if (record === undefined) return unknownBot(slug);
-      return {
-        ok: true,
-        value: {
-          templates,
-          globalDefault,
-          selected: record.approvalTemplate ?? null,
-          effective:
-            record.approvalTemplate === INHERIT_APPROVAL_TEMPLATE
-              ? globalDefault
-              : (record.approvalTemplate ?? null),
-          source:
-            record.approvalTemplate === INHERIT_APPROVAL_TEMPLATE
-              ? 'global'
-              : record.approvalTemplate === undefined
-                ? 'off'
-                : 'specific',
-        },
-      };
-    },
-    approvalTemplateCreate(payload) {
-      const object = asObject(payload);
-      const name = object['name'];
-      const from = object['from'];
-      let text = object['text'];
-      if (typeof name !== 'string') return invalidInput('name is required');
-      if (from !== undefined) {
-        if (typeof from !== 'string' || text !== undefined)
-          return invalidInput('from names one template to copy, in place of text');
-        const source = approvalTemplateLibrary.get(from);
-        if (source === undefined) return templateWriteFailure(from, 'not-found');
-        text = source.text;
-      }
-      if (typeof text !== 'string') return invalidInput('text (Markdown) or from is required');
-      const result = approvalTemplateLibrary.create(name, text);
-      if (!result.ok) return templateWriteFailure(name, result.reason);
-      return {
-        ok: true,
-        value: { template: templateEntry(result.template, approvalTemplateLibrary.global()) },
-      };
-    },
-    approvalTemplateUpdate(payload) {
-      const object = asObject(payload);
-      const name = object['name'];
-      const text = object['text'];
-      if (typeof name !== 'string' || typeof text !== 'string')
-        return invalidInput('name and text (Markdown) are required');
-      const result = approvalTemplateLibrary.update(name, text);
-      if (!result.ok) return templateWriteFailure(name, result.reason);
-      return {
-        ok: true,
-        value: { template: templateEntry(result.template, approvalTemplateLibrary.global()) },
-      };
-    },
+    ...computerMethods,
+    ...browserMethods,
+    approvalTemplates: approvalsMethods.approvalTemplates,
+    approvalTemplateCreate: approvalsMethods.approvalTemplateCreate,
+    approvalTemplateUpdate: approvalsMethods.approvalTemplateUpdate,
     ...promptPresets,
-    approvalTemplateDeletePreview(payload) {
-      const name = asObject(payload)['name'];
-      if (typeof name !== 'string') return invalidInput('name is required');
-      const result = templateDeletion.preview(name);
-      return result.ok
-        ? { ok: true, value: { preview: result.preview } }
-        : templateDeletionFailure(name, result.reason);
-    },
-    approvalTemplateDelete(payload) {
-      const object = asObject(payload);
-      const name = object['name'];
-      if (typeof name !== 'string') return invalidInput('name is required');
-      const revision = object['revision'];
-      const result = templateDeletion.delete(name, {
-        confirmed: object['confirmed'] === true,
-        ...(typeof revision === 'string' ? { revision } : {}),
-      });
-      if (!result.ok) return templateDeletionFailure(name, result.reason);
-      const inheritedBots = result.preview.affectedBots
-        .filter((bot) => bot.source === 'specific')
-        .map((bot) => bot.slug);
-      return {
-        ok: true,
-        value: {
-          template: { name },
-          clearedBots: inheritedBots,
-          inheritedBots,
-          globalDefault: result.preview.globalDefaultAfter,
-        },
-      };
-    },
-    approvalTemplateGlobalSet(payload) {
-      const template = asObject(payload)['template'];
-      if (template !== null && typeof template !== 'string')
-        return invalidInput('template name or null required');
-      if (typeof template === 'string' && approvalTemplateLibrary.get(template) === undefined)
-        return invalidInput('unknown Approval Template ' + template);
-      try {
-        approvalTemplateLibrary.setGlobal(template);
-      } catch {
-        return {
-          ok: false,
-          error: {
-            code: 'approval-selection-unavailable',
-            message: 'Approval template selection could not be saved.',
-          },
-        };
-      }
-      return { ok: true, value: { template } };
-    },
-    botApprovalTemplateSet(payload) {
-      const slug = asSlug(payload);
-      const template = asObject(payload)['template'];
-      if (slug === undefined || (template !== null && typeof template !== 'string'))
-        return invalidInput('slug and template (a template name, or null for none) are required');
-      if (
-        typeof template === 'string' &&
-        template !== INHERIT_APPROVAL_TEMPLATE &&
-        approvalTemplateLibrary.get(template) === undefined
-      )
-        return invalidInput('unknown Approval Template ' + template);
-      const result = deps.registry.setApprovalTemplate(slug, template ?? undefined);
-      if (!result.ok) return unknownBot(slug);
-      return { ok: true, value: detailOf(result.record) };
-    },
-    async approvalReviewerModel() {
-      if (deps.approvalReviewer === undefined) return unavailable();
-      const setting = deps.approvalReviewer.model();
-      if (setting.kind === 'invalid')
-        return {
-          ok: true,
-          value: {
-            follows: 'invalid',
-            model: null,
-            available: false,
-            unavailableReason: 'The reviewer model setting cannot be read.',
-          },
-        };
-      return {
-        ok: true,
-        value: await reviewerModelView(setting.kind === 'bot' ? undefined : setting.route),
-      };
-    },
-    async approvalReviewerModelSet(payload) {
-      if (deps.approvalReviewer === undefined) return unavailable();
-      const model = asObject(payload)['model'];
-      if (model !== null && !isModelRoute(model))
-        return invalidInput(
-          'model must be {provider, model, reasoningEffort?}, or null to follow each Bot',
-        );
-      const route =
-        model === null
-          ? undefined
-          : {
-              provider: model.provider.trim(),
-              model: model.model.trim(),
-              ...(model.reasoningEffort === undefined
-                ? {}
-                : { reasoningEffort: model.reasoningEffort.trim() }),
-            };
-      try {
-        deps.approvalReviewer.setModel(route);
-      } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
-      }
-      return { ok: true, value: await reviewerModelView(route) };
-    },
+    approvalTemplateDeletePreview: approvalsMethods.approvalTemplateDeletePreview,
+    approvalTemplateDelete: approvalsMethods.approvalTemplateDelete,
+    approvalTemplateGlobalSet: approvalsMethods.approvalTemplateGlobalSet,
+    botApprovalTemplateSet: approvalsMethods.botApprovalTemplateSet,
+    approvalReviewerModel: approvalsMethods.approvalReviewerModel,
+    approvalReviewerModelSet: approvalsMethods.approvalReviewerModelSet,
     idleCompaction() {
       if (deps.idleCompaction === undefined) return unavailable();
       return { ok: true, value: idleCompactionView(deps.idleCompaction) };
@@ -9430,229 +6962,11 @@ function buildBridgeMethods(
         throw error;
       }
     },
-    grants(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      const source = asObject(payload);
-      if (source?.['scope'] !== undefined) {
-        const parsed = z
-          .object({ channelId: z.string().min(1), path: z.string().min(1) })
-          .safeParse(source['scope']);
-        if (!parsed.success) return invalidInput('Invalid Group workspace scope');
-        const channel = deps.channels.get(parsed.data.channelId);
-        if (
-          channel?.type !== 'group' ||
-          !channel.members.includes(slug) ||
-          deps.registry.get(slug)?.paused
-        )
-          return invalidInput('Bot is no longer an eligible Group member');
-        try {
-          const grants = (deps.grants?.list(slug) ?? [])
-            .filter(
-              (grant) => grant.revokedAt === undefined && grant.workspacePath === parsed.data.path,
-            )
-            .map((grant) => deps.grants!.requireActive(slug, grant.id));
-          return { ok: true, value: { grants } };
-        } catch (error) {
-          if (error instanceof WorkspaceGrantError)
-            return {
-              ok: false,
-              error: {
-                code: error.code,
-                message: error.message,
-                ...(error instanceof WorkspaceGrantError && error.details
-                  ? { details: error.details }
-                  : {}),
-              },
-            };
-          throw error;
-        }
-      }
-      return { ok: true, value: { grants: deps.grants?.list(slug) ?? [] } };
-    },
-    async grantCreate(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const workspaceId = asNonBlank(source, 'workspaceId');
-      if (slug === undefined || workspaceId === undefined) {
-        return invalidInput('slug and workspaceId are required');
-      }
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.grants === undefined)
-        return {
-          ok: false,
-          error: {
-            code: 'unavailable',
-            message: 'Workspace Grants are unavailable',
-          },
-        };
-      const scope = source?.['scope'];
-      const parsedScope =
-        scope === undefined
-          ? undefined
-          : z
-              .object({
-                channelId: z.string().min(1),
-                path: z.string().min(1),
-              })
-              .safeParse(scope);
-      if (parsedScope !== undefined && !parsedScope.success)
-        return invalidInput('Invalid Group workspace scope');
-      const validate = (): void => {
-        if (parsedScope?.success !== true) return;
-        const channel = deps.channels.get(parsedScope.data.channelId);
-        const bot = deps.registry.get(slug);
-        if (
-          channel?.type !== 'group' ||
-          !channel.members.includes(slug) ||
-          bot === undefined ||
-          bot.paused
-        ) {
-          throw new WorkspaceGrantError(
-            'invalid-grant',
-            'Bot is no longer an eligible Group member',
-          );
-        }
-        if (
-          deps.grants?.availableWorkspaces().find((workspace) => workspace.id === workspaceId)
-            ?.path !== parsedScope.data.path
-        ) {
-          throw new WorkspaceGrantError(
-            'unavailable-workspace',
-            'Workspace no longer matches the confirmed directory',
-          );
-        }
-      };
-      try {
-        validate();
-        let created = false;
-        const grant = await deps.grants.create(slug, workspaceId, {
-          validate,
-          onCreated: () => {
-            created = true;
-          },
-        });
-        return {
-          ok: true,
-          value: { grant, ...(scope === undefined ? {} : { created }) },
-        };
-      } catch (error) {
-        if (error instanceof WorkspaceGrantError) {
-          return {
-            ok: false,
-            error: {
-              code: error.code,
-              message: error.message,
-              ...(error instanceof WorkspaceGrantError && error.details
-                ? { details: error.details }
-                : {}),
-            },
-          };
-        }
-        throw error;
-      }
-    },
-    grantRevoke(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const grantId = asNonBlank(source, 'grantId');
-      if (slug === undefined || grantId === undefined) {
-        return invalidInput('slug and grantId are required');
-      }
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.grants === undefined)
-        return {
-          ok: false,
-          error: {
-            code: 'unavailable',
-            message: 'Workspace Grants are unavailable',
-          },
-        };
-      try {
-        const grant = deps.grants.revoke(slug, grantId);
-        deps.toolApproval?.cancelInvalid();
-        return { ok: true, value: { grant } };
-      } catch (error) {
-        if (error instanceof WorkspaceGrantError) {
-          return {
-            ok: false,
-            error: {
-              code: error.code,
-              message: error.message,
-              ...(error instanceof WorkspaceGrantError && error.details
-                ? { details: error.details }
-                : {}),
-            },
-          };
-        }
-        throw error;
-      }
-    },
-    async grantRequestApprove(payload) {
-      const parsed = z
-        .object({
-          slug: z.string().min(1),
-          channelId: z.string().min(1),
-          requestMessageId: z.string().min(1),
-          workspaceId: z.string().min(1),
-          acknowledgeReadWrite: z.literal(true),
-        })
-        .safeParse(asObject(payload));
-      if (!parsed.success)
-        return invalidInput(
-          'Bot, Channel, request, Workspace and explicit read/write confirmation are required',
-        );
-      if (!deps.grants) return unavailable();
-      try {
-        return {
-          ok: true,
-          value: await approveGrantRequest(human, { ...deps, grants: deps.grants }, parsed.data),
-        };
-      } catch (error) {
-        if (error instanceof WorkspaceGrantError)
-          return {
-            ok: false,
-            error: {
-              code: error.code,
-              message: error.message,
-              ...(error instanceof WorkspaceGrantError && error.details
-                ? { details: error.details }
-                : {}),
-            },
-          };
-        throw error;
-      }
-    },
-    grantWriteSet(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const grantId = asNonBlank(source, 'grantId');
-      const enabled = source?.['enabled'];
-      if (slug === undefined || grantId === undefined || typeof enabled !== 'boolean')
-        return invalidInput('slug, grantId and boolean enabled are required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.grants === undefined)
-        return {
-          ok: false,
-          error: {
-            code: 'unavailable',
-            message: 'Workspace Grants are unavailable',
-          },
-        };
-      try {
-        const grant = deps.grants.setOrchestratorWrite(slug, grantId, enabled);
-        deps.toolApproval?.cancelInvalid();
-        return { ok: true, value: { grant } };
-      } catch (error) {
-        if (error instanceof WorkspaceGrantError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
-        throw error;
-      }
-    },
+    grants: workspacesMethods.grants,
+    grantCreate: workspacesMethods.grantCreate,
+    grantRevoke: workspacesMethods.grantRevoke,
+    grantRequestApprove: workspacesMethods.grantRequestApprove,
+    grantWriteSet: workspacesMethods.grantWriteSet,
     assignmentAccessGet(payload) {
       const slug = asSlug(payload);
       if (slug === undefined) return invalidInput('slug is required');
@@ -9688,240 +7002,14 @@ function buildBridgeMethods(
         value: { preset: deps.assignmentAccess.set(slug, mode, scope, human) },
       };
     },
-    toolApprovalRules(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      return { ok: true, value: { rules: deps.toolRules?.list(slug) ?? [] } };
-    },
-    toolApprovalRuleRevoke(payload) {
-      const slug = asSlug(payload);
-      const id = asNonBlank(asObject(payload), 'id');
-      if (slug === undefined || id === undefined) return invalidInput('slug and id are required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      const rule = deps.toolRules?.revoke(slug, id);
-      if (rule) deps.externalMessaging?.approvals.refreshRules(slug);
-      return rule === undefined
-        ? invalidInput('Unknown tool approval rule')
-        : { ok: true, value: { rule } };
-    },
-    toolApprovalHistory(payload) {
-      const source = asObject(payload);
-      const slug = asSlug(payload);
-      const cursor = source['cursor'];
-      const limit = source['limit'];
-      if (slug === undefined) return invalidInput('slug is required');
-      if (
-        limit !== undefined &&
-        (typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 1 || limit > 100)
-      )
-        return invalidInput('limit must be an integer from 1 to 100');
-      let after: ToolApprovalHistoryPosition | undefined;
-      if (cursor !== undefined) {
-        after = typeof cursor === 'string' ? historyPosition(cursor) : undefined;
-        if (after === undefined)
-          return invalidInput('cursor must be the nextCursor of the previous page');
-      }
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.channels.toolApprovalHistory === undefined)
-        return {
-          ok: false,
-          error: {
-            code: 'storage-unavailable',
-            message: 'approval history is unavailable',
-          },
-        };
-      const size = limit ?? 30;
-      const read = deps.channels.toolApprovalHistory(slug, {
-        ...(after === undefined ? {} : { after }),
-        limit: size + 1,
-      });
-      const entries = read.slice(0, size);
-      const last = entries.at(-1);
-      return {
-        ok: true,
-        value: {
-          entries,
-          ...(read.length > size && last !== undefined
-            ? {
-                nextCursor: Buffer.from(
-                  JSON.stringify({
-                    at: last.decidedAt,
-                    id: last.decisionMessageId,
-                  }),
-                ).toString('base64url'),
-              }
-            : {}),
-        },
-      };
-    },
-    toolApprovalStatus(payload) {
-      const source = asObject(payload);
-      const channelId = asNonBlank(source, 'channelId');
-      const messageId = asNonBlank(source, 'messageId');
-      if (channelId === undefined || messageId === undefined) {
-        return invalidInput('channelId and messageId are required');
-      }
-      const asker = askingBot(channelId, messageId);
-      if (asker === undefined) {
-        return invalidInput('Tool approval is available only in a PersonaBot DM or Group');
-      }
-      const request = deps.channels.message(channelId, messageId)?.toolApprovalRequest;
-      if (request === undefined) {
-        return invalidInput('Unknown tool approval request');
-      }
-      return {
-        ok: true,
-        value: readToolApprovalState(deps, { ...request, botSlug: asker, messageId }),
-      };
-    },
-    async toolApprovalDecide(payload) {
-      const source = asObject(payload);
-      const channelId = asNonBlank(source, 'channelId');
-      const messageId = asNonBlank(source, 'messageId');
-      const outcome = source['outcome'];
-      if (
-        channelId === undefined ||
-        messageId === undefined ||
-        (outcome !== 'allowed-once' &&
-          outcome !== 'allowed-always-tool' &&
-          outcome !== 'allowed-always-exact' &&
-          outcome !== 'allowed-always-all' &&
-          outcome !== 'allowed-always-kind' &&
-          outcome !== 'rejected')
-      ) {
-        return invalidInput('channelId, messageId, and a valid outcome are required');
-      }
-      const asker = askingBot(channelId, messageId);
-      if (asker === undefined) {
-        return invalidInput('Tool approval is available only in a PersonaBot DM or Group');
-      }
-      const channel = { botSlug: asker };
-      const request = deps.channels.message(channelId, messageId)?.toolApprovalRequest;
-      if (request === undefined) {
-        return invalidInput('Unknown tool approval request');
-      }
-      if (outcome === 'allowed-always-tool' && request.allowAlways !== true)
-        return invalidInput('Always allow is unavailable for this request');
-      if (outcome === 'allowed-always-kind' && request.toolName !== 'secret_cli')
-        return invalidInput('allowed-always-kind applies only to a secret_cli approval');
-      const accepted = await deps.toolApproval?.decide(
-        human,
-        channel.botSlug,
-        messageId,
-        outcome === 'allowed-always-kind' ? 'allowed-always-exact' : outcome,
-      );
-      if (accepted !== true) return invalidInput('Tool approval request is no longer pending');
-      return { ok: true, value: { accepted: true } };
-    },
-    async toolAutoRejectionOverride(payload) {
-      const source = asObject(payload);
-      const itemId = asNonBlank(source, 'itemId');
-      if (itemId === undefined || itemId.length > 350 || !itemId.startsWith('autoreject:'))
-        return invalidInput('itemId must name an auto-rejected Inbox item');
-      let item;
-      try {
-        item = deps.humanAttention?.item(human, itemId);
-      } catch (error) {
-        return invalidInput(String(error));
-      }
-      if (
-        item?.kind !== 'auto-rejection' ||
-        item.channelId === undefined ||
-        item.messageId === undefined
-      )
-        return {
-          ok: false,
-          error: {
-            code: 'auto-rejection-unavailable',
-            message: 'This auto-rejected call is no longer waiting for the Human',
-          },
-        };
-      const channel = deps.channels.get(item.channelId);
-      const bot = deps.registry.get(item.botSlug);
-      if (
-        channel === undefined ||
-        bot === undefined ||
-        bot.paused === true ||
-        (channel.type === 'dm'
-          ? channel.botSlug !== item.botSlug
-          : !channel.members.includes(item.botSlug))
-      )
-        return invalidInput('The PersonaBot is no longer active in this Channel');
-      const result = await deps.toolApproval?.overrideRejection(
-        human,
-        item.channelId,
-        item.messageId,
-      );
-      if (result === undefined || !result.ok)
-        return {
-          ok: false,
-          error: {
-            code: 'auto-rejection-unavailable',
-            message: 'This auto-rejected call is no longer waiting for the Human',
-          },
-        };
-      try {
-        if (channel.type === 'group')
-          deps.runtime?.admitGroupMessage(item.channelId, result.message.id);
-        else
-          deps.runtime?.admitDmMessage(human, {
-            channelId: item.channelId,
-            messageId: result.message.id,
-            body: result.message.body,
-          });
-      } catch {}
-      return {
-        ok: true,
-        value: {
-          accepted: true,
-          channelId: item.channelId,
-          messageId: result.message.id,
-        },
-      };
-    },
-    userQuestionStatus(payload) {
-      const source = asObject(payload);
-      const channelId = asNonBlank(source, 'channelId');
-      const messageId = asNonBlank(source, 'messageId');
-      if (channelId === undefined || messageId === undefined)
-        return invalidInput('channelId and messageId are required');
-      const asker = askingBot(channelId, messageId);
-      if (asker === undefined)
-        return invalidInput('Questions are available only in a PersonaBot DM or Group');
-      const channel = { botSlug: asker };
-      if (deps.channels.message(channelId, messageId)?.userQuestionRequest === undefined)
-        return invalidInput('Unknown user question');
-      return {
-        ok: true,
-        value: {
-          status: deps.userQuestions?.status(channel.botSlug, messageId, channelId) ?? 'expired',
-        },
-      };
-    },
-    async userQuestionAnswer(payload) {
-      const source = asObject(payload);
-      const channelId = asNonBlank(source, 'channelId');
-      const messageId = asNonBlank(source, 'messageId');
-      const answer = asObject(source['answer']);
-      if (channelId === undefined || messageId === undefined || !Array.isArray(answer['answers']))
-        return invalidInput('channelId, messageId, and answers are required');
-      const asker = askingBot(channelId, messageId);
-      if (asker === undefined)
-        return invalidInput('Questions are available only in a PersonaBot DM or Group');
-      const channel = { botSlug: asker };
-      if (deps.channels.message(channelId, messageId)?.userQuestionRequest === undefined)
-        return invalidInput('Unknown user question');
-      const accepted = await deps.userQuestions?.answer(
-        channel.botSlug,
-        messageId,
-        answer as unknown as AskUserQuestionAnswer,
-        human,
-      );
-      if (accepted !== true)
-        return invalidInput('Question is no longer pending or answer is invalid');
-      return { ok: true, value: { accepted: true } };
-    },
+    toolApprovalRules: approvalsMethods.toolApprovalRules,
+    toolApprovalRuleRevoke: approvalsMethods.toolApprovalRuleRevoke,
+    toolApprovalHistory: approvalsMethods.toolApprovalHistory,
+    toolApprovalStatus: approvalsMethods.toolApprovalStatus,
+    toolApprovalDecide: approvalsMethods.toolApprovalDecide,
+    toolAutoRejectionOverride: approvalsMethods.toolAutoRejectionOverride,
+    userQuestionStatus: approvalsMethods.userQuestionStatus,
+    userQuestionAnswer: approvalsMethods.userQuestionAnswer,
     async botToolTrace(payload) {
       const slug = asSlug(payload);
       if (slug === undefined) return invalidInput('slug is required');

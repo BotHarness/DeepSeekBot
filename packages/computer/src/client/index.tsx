@@ -1,3 +1,4 @@
+import { setComputerAccess, type ConnectionRpcLike } from './bridge.js';
 import type { ObserveResource } from '../../../core/src/channels/resource-events.js';
 import { cancelled, watchComputerStatus } from './status-live.js';
 import { Button } from '../../../client/src/client/ds/button.js';
@@ -116,18 +117,6 @@ interface ChannelSidebarEntryProps {
   readonly actions: unknown;
   readonly setExpanded?: (expanded: boolean) => void;
   readonly setExpandable?: (expandable: boolean) => void;
-}
-
-interface ConnectionRpcLike {
-  call(
-    channel: string,
-    endpoint: string,
-    payload: unknown,
-    signal?: AbortSignal,
-  ): Promise<
-    | { readonly ok: true; readonly value: unknown }
-    | { readonly ok: false; readonly error: { readonly message?: string } }
-  >;
 }
 
 let connectionRpc: ConnectionRpcLike | undefined;
@@ -621,8 +610,7 @@ function ComputerHeaderAction({
     inFlight.current = true;
     setBusy(true);
     setError(false);
-    void rpc
-      .call('/api', 'botharness/computerAccessSet', { args: { slug: botSlug, enabled: next } })
+    void setComputerAccess(rpc, botSlug, next)
       .then((result) => {
         if (!result.ok) {
           setError(true);

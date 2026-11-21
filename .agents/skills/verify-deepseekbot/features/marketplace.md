@@ -4,7 +4,7 @@
 
 - `packages/market/**`
 - `packages/core/src/marketplace/**`
-- `packages/client/src/client/{marketplace,market-panel,market-avatars,personabot-avatar-crop}.tsx`
+- `packages/client/src/client/{marketplace,market-panel,market-avatars,market-avatar-apply,personabot-avatar-crop}.tsx`
 - `apps/mobile/src/marketplace/**`
 - `apps/mobile/src/ui/shell/marketplace-*`
 - `apps/mobile/src/ui/primitives/marketplace-topic-sheet*`
@@ -66,3 +66,9 @@ Install opens a review step: Tob reads the staged files and the step shows **Tob
 - The default `verify-app shot` locale is English; Chinese accessible names require `--locale zh`. The fresh Profile welcome dialog must be dismissed before market interaction.
 - Production tie ordering changes only after the Worker and migration `0011_star_tiebreaks.sql` deploy. Old three-field stars cursors receive `invalid-cursor`; reopening/retrying starts from page one. Other cursors remain compatible.
 - Browser sorting preferences are device-local; target-Client CLI preference control remains tracked by #2096. The existing `marketplace-list --sort` exercises each catalog order directly.
+
+### Apply a Marketplace Avatar
+
+1. Open a published Avatar in the Marketplace on the connected Host. Click **Apply** and select a Bot with a plain avatar. Confirm that the picker shows the Bot and omits the replacement warning.
+2. Choose a Bot with an editable Appearance. Confirm the warning appears before the write, apply the Avatar, and open the Bot’s profile to check the new image. Check the same Bot with the CLI.
+3. After the receipt reaches the Worker, run `deepseekbot marketplace-avatar-detail <id>` to confirm the increment. Apply again to the same Bot and check that the count stays the same.

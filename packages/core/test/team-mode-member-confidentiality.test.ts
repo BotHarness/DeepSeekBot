@@ -392,6 +392,10 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
       create: { displayName: 'Member Bot' },
       createLookup: { operationKey: 'audit-create-0001', displayName: 'Member Bot' },
       marketplaceAvatarDetail: { id: '00000000-0000-4000-8000-000000000000' },
+      marketplaceAvatarApply: {
+        id: '00000000-0000-4000-8000-000000000000',
+        bot: 'owner-secret-bot',
+      },
       followChannel: { limit: 10 },
     };
     const forbidden = [
@@ -490,6 +494,8 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
           });
         else if (method === 'voiceProviders')
           expect(error).toMatchObject({ code: 'voice-unavailable' });
+        else if (method === 'marketplaceAvatarApply')
+          expect(error).toMatchObject({ code: 'bot-not-found' });
         else if (method === 'marketplaceAvatarList' || method === 'marketplaceAvatarDetail')
           expect(error).toMatchObject({ code: 'marketplace-unavailable' });
         else if (method === 'usageByMember')
@@ -510,6 +516,12 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
         result = { code };
       } finally {
         abort.abort();
+      }
+      if (method === 'marketplaceAvatarApplyCandidates') {
+        expect(result).toMatchObject({ bots: expect.any(Array) });
+        expect(result).not.toMatchObject({
+          bots: expect.arrayContaining([expect.objectContaining({ slug: 'owner-secret-bot' })]),
+        });
       }
       const encoded = JSON.stringify(result) ?? '';
       for (const value of forbidden)

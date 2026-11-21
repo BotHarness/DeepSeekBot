@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useId, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import {
@@ -23,6 +23,7 @@ import { StepProgress } from './ds/step-progress.js';
 import { Tag } from './ds/tag.js';
 import { layer, space, style } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { MarketAvatarApplyDialog, type AvatarApplyActions } from './market-avatar-apply.js';
 import { MarketPage } from './market-page.js';
 import { marketplaceError } from './marketplace-feedback.js';
 import { MarketplaceLoadMoreButton } from './marketplace-list-status.js';
@@ -57,7 +58,8 @@ const styles = stylex.create({
   description: { whiteSpace: 'pre-wrap' },
 });
 
-type BrowseActions = Pick<BridgeActions, 'marketplaceAvatarList' | 'marketplaceAvatarDetail'>;
+type BrowseActions = AvatarApplyActions &
+  Pick<BridgeActions, 'marketplaceAvatarList' | 'marketplaceAvatarDetail'>;
 type PublishActions = Pick<
   BridgeActions,
   'marketplaceAccount' | 'marketplaceAuthorSave' | 'marketplaceAvatarPublish'
@@ -152,6 +154,19 @@ export function MarketAvatars({
   const fetchingNext = useRef(false);
   const [reload, setReload] = useState(0);
   const [selected, setSelected] = useState<MarketplaceAvatar>();
+  const updateListedCount = useCallback((avatar: MarketplaceAvatar) => {
+    setListing((current) =>
+      current.kind === 'ready'
+        ? {
+            kind: 'ready',
+            value: {
+              ...current.value,
+              avatars: current.value.avatars.map((item) => (item.id === avatar.id ? avatar : item)),
+            },
+          }
+        : current,
+    );
+  }, []);
   const mount = useMountedResource<HTMLDivElement>(() => {
     let subscribed = true;
     void actions.marketplaceAvatarList().then(
@@ -253,6 +268,7 @@ export function MarketAvatars({
         <MarketAvatarDetail
           key={selected.id}
           initial={selected}
+          onRead={updateListedCount}
           actions={actions}
           t={t}
           onBack={() => setSelected(undefined)}
@@ -290,21 +306,28 @@ export function MarketAvatars({
 function MarketAvatarDetail({
   initial,
   actions,
+  onRead,
   t,
   onBack,
 }: {
   initial: MarketplaceAvatar;
   actions: BrowseActions;
+  onRead: (avatar: MarketplaceAvatar) => void;
   t: BotHarnessTranslate;
   onBack: () => void;
 }): ReactElement {
+  const [picking, setPicking] = useState(false);
+  const [appliedName, setAppliedName] = useState<string>();
   const [detail, setDetail] = useState<Read<MarketplaceAvatar>>({ kind: 'loading' });
   const [reload, setReload] = useState(0);
   const mount = useMountedResource<HTMLDivElement>(() => {
     let subscribed = true;
     void actions.marketplaceAvatarDetail(initial.id).then(
       (value) => {
-        if (subscribed) setDetail({ kind: 'ready', value });
+        if (subscribed) {
+          setDetail({ kind: 'ready', value });
+          onRead(value);
+        }
       },
       (error: unknown) => {
         if (subscribed) setDetail({ kind: 'failed', error });
@@ -313,10 +336,43 @@ function MarketAvatarDetail({
     return () => {
       subscribed = false;
     };
-  }, [actions, initial.id, reload]);
+  }, [actions, initial.id, onRead, reload]);
   const avatar = detail.kind === 'ready' ? detail.value : initial;
   return (
-    <MarketPage page="avatar-detail" title={avatar.name} hidden={false} t={t} onBack={onBack}>
+    <MarketPage
+      page="avatar-detail"
+      title={avatar.name}
+      hidden={false}
+      t={t}
+      onBack={onBack}
+      secondary={
+        appliedName === undefined ? undefined : (
+          <Note tone="success">{t('market.avatar.applied', { name: appliedName })}</Note>
+        )
+      }
+      actions={
+        <Button
+          variant="primary"
+          disabled={detail.kind !== 'ready'}
+          onClick={() => setPicking(true)}
+        >
+          {t('market.avatar.apply')}
+        </Button>
+      }
+    >
+      {picking && (
+        <MarketAvatarApplyDialog
+          id={avatar.id}
+          actions={actions}
+          t={t}
+          onClose={() => setPicking(false)}
+          onApplied={(bot) => {
+            setPicking(false);
+            setAppliedName(bot.displayName);
+            setReload((value) => value + 1);
+          }}
+        />
+      )}
       <div ref={mount} className="bh-market-detail">
         <div className="bh-market-hero">
           <img

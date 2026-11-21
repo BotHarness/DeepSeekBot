@@ -274,9 +274,7 @@
     ],
     "packages/client/src/client/group-management-settings.tsx": ["width: 200px"],
     "packages/client/src/client/group-member-controls.tsx": [
-      "maxHeight: 280px",
       "minWidth: 100px",
-      "outlineOffset: -2px",
       "outlineOffset: 1px"
     ],
     "packages/client/src/client/header-session-stop.tsx": [

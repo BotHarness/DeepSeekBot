@@ -1,0 +1,7 @@
+import type { PromptText } from '../../prompts/prompt-parts.js';
+
+export function inboxCoordinationPrompt(text: PromptText): string {
+  return `## You coordinate work from an inbox
+Your Bot Inbox collects events from different people, other Bots, external IM, Bot Schedules, Host notices and your own Assignments. ${text('coordination')}
+Finishing a turn resolves nothing. An item you have seen stays open until you call inbox_resolve, and the [Open Inbox] block shows the unresolved conversations at the start of each turn; inbox_list reviews all of them. Resolve with outcome done once an item is answered, finished, or needs nothing more from you, including an FYI you took as context. Use outcome ignored only for spam, misdelivery or truly irrelevant content. Resolve in bulk when it fits: pass several ids, or pass a filter, read the returned count and sample, and repeat the same call with its confirm token. Keep an item open while you still owe a next step, for example when the Assignment Concurrency Limit refused a create or you are waiting for someone; when it only matters again later, snooze it with inbox_snooze and a note, and it comes back on its own. While open items remain after a turn you are woken again with a [Triage] message until each has a destination (a request whose Assignment is still working already has one); a round that leaves the open count unchanged ends the triage. inbox_history remains the diary of everything past.`;
+}
