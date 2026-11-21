@@ -70,7 +70,8 @@ export function createOutboundReplies(context: {
     ensureConsumer: boolean,
   ) => {
     if (
-      entry.inspected.target.receiveScope?.conversationId !== source.event.conversation.id ||
+      (source.grantId !== value.id &&
+        entry.inspected.target.receiveScope?.conversationId !== source.event.conversation.id) ||
       !entry.provider.qualifyReply ||
       !entry.provider.reply
     )
@@ -111,15 +112,24 @@ export function createOutboundReplies(context: {
     return qualifyProviderReply(botSlug, source, value, entry, signal, true);
   };
 
-  async function replyGrantId(
-    botSlug: string,
-    source: ExternalSource,
-    recordChanges: boolean,
-    signal?: AbortSignal,
-  ) {
+  async function replyGrantId({
+    botSlug,
+    source,
+    recordChanges,
+    signal,
+  }: {
+    botSlug: string;
+    source: ExternalSource;
+    recordChanges: boolean;
+    signal?: AbortSignal;
+  }) {
     const ingress = database.read((db) =>
-      db.prepare('SELECT bot_slug FROM messaging_grants WHERE id = ?').get(source.grantId),
-    ) as { bot_slug: string } | undefined;
+      db
+        .prepare(
+          "SELECT bot_slug, json_extract(body, '$.providerId') AS provider_id FROM messaging_grants WHERE id = ?",
+        )
+        .get(source.grantId),
+    ) as { bot_slug: string; provider_id: string | null } | undefined;
     if (ingress?.bot_slug === botSlug) return source.grantId;
     const rows = database.read((db) =>
       db.prepare('SELECT body FROM messaging_grants WHERE bot_slug = ?').all(botSlug),
@@ -130,6 +140,7 @@ export function createOutboundReplies(context: {
       const value = JSON.parse(row.body) as MessagingGrant;
       if (
         value.platform !== source.platform ||
+        (ingress?.provider_id != null && value.providerId !== ingress.provider_id) ||
         value.revokedAt ||
         value.suspendedReason ||
         (value.receiveScope !== undefined &&
@@ -180,7 +191,7 @@ export function createOutboundReplies(context: {
         throw new MessagingError('source-unavailable');
       throw error;
     }
-    const grantId = await replyGrantId(botSlug, source, true);
+    const grantId = await replyGrantId({ botSlug, source, recordChanges: true });
     if (grantId === source.grantId) {
       const result = await context.service.send(
         botSlug,
@@ -214,7 +225,12 @@ export function createOutboundReplies(context: {
       const probe = signal === undefined ? timeout : AbortSignal.any([signal, timeout]);
       const inspect = async (): Promise<SourceReplyCapability> => {
         probe.throwIfAborted();
-        const grantId = await replyGrantId(botSlug, source, false, probe);
+        const grantId = await replyGrantId({
+          botSlug,
+          source,
+          recordChanges: false,
+          signal: probe,
+        });
         probe.throwIfAborted();
         const value = context.grant(botSlug, grantId);
         const entry = await check(value, undefined, false);

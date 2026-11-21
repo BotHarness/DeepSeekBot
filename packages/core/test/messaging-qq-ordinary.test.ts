@@ -226,6 +226,7 @@ async function fixture(proactive = true, media = false, allByDefault = false, se
     },
     grant,
     otherGrant,
+    provider,
     transport,
     runs,
     logs,
@@ -314,6 +315,15 @@ it('explains a non-addressed QQ source and prevents a proactive fallback in the 
     expect.objectContaining({ conversationId: 'own-group', messageId: 'addressed-request' }),
     expect.anything(),
   );
+  const inspect = fx.provider.inspect;
+  vi.spyOn(fx.provider, 'inspect').mockImplementationOnce(async (...args) => {
+    const result = await inspect(...args);
+    const target = { ...result.target };
+    delete target.receiveScope;
+    return { ...result, target };
+  });
+  const checkedWithoutReportedScope = await messagingSource(methods, 'ada', addressed);
+  expect(checkedWithoutReportedScope.source.replyCapability).toEqual({ state: 'provider-checked' });
   qualify.mockRejectedValueOnce(
     Object.assign(new Error('expired'), { code: 'reply-window-expired' }),
   );
