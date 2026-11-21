@@ -16,7 +16,10 @@ import { ChannelQuoteError, MAX_CHANNEL_QUOTES, parseQuotesInput } from '../chan
 import type { OrchestratorAgentRun } from './bot-runtime.js';
 import type { VoiceAttachOutcome } from '../voice/messages.js';
 import { SESSION_DIRECT_MESSAGE_PREFIX } from './session-direct-message.js';
-import { sourceReplyCapability } from '../messaging/source-reply-capability.js';
+import {
+  qqReplyFailureCapability,
+  sourceReplyCapability,
+} from '../messaging/source-reply-capability.js';
 import { MessagingError } from '../messaging/provider.js';
 
 const QQ_REPLY_NOTICE =
@@ -443,6 +446,7 @@ export function createBotMessageTool(
           return JSON.stringify({
             status: 'refused',
             reason: qqReply.reason,
+            replyCapability: qqReply,
             notice: QQ_REPLY_NOTICE,
             inboxResolution: { outcome: 'not-requested' },
           });
@@ -490,6 +494,7 @@ export function createBotMessageTool(
           return JSON.stringify({
             status: 'refused',
             reason: error.code,
+            replyCapability: qqReplyFailureCapability(error.code),
             notice: QQ_REPLY_NOTICE,
             inboxResolution: { outcome: 'not-requested' },
           });
@@ -503,6 +508,9 @@ export function createBotMessageTool(
             ...(qqReply === undefined
               ? {}
               : {
+                  replyCapability: qqReplyFailureCapability(
+                    result.state === 'unknown-outcome' ? undefined : result.reason,
+                  ),
                   notice:
                     result.state === 'unknown-outcome' || result.state === 'provider-accepted'
                       ? 'Delivery is unconfirmed. Inspect the Outbox receipt before any further send. Keep the answer in its original QQ conversation.'

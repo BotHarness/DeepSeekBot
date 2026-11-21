@@ -280,14 +280,33 @@ it('explains a non-addressed QQ source and prevents a proactive fallback in the 
   const context = (id: string) =>
     ({ callId: ToolCallId(id), signal: AbortSignal.timeout(5000) }) as ToolRunContext;
   const body = 'Answer from the original group';
-  expect(
-    await createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core }).messagingSource({
-      slug: 'ada',
-      sourceEventId: ordinary,
-    }),
-  ).toMatchObject({
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
+  const qualify = vi.fn<NonNullable<DshImOutboundService['qualifyReplyChecked']>>(
+    async (_account, route) => route,
+  );
+  fx.transport.qualifyReplyChecked = qualify;
+  expect(await methods.messagingSource({ slug: 'ada', sourceEventId: ordinary })).toMatchObject({
     ok: true,
     value: { source: { replyCapability: { state: 'unavailable', reason: 'qq-mention-required' } } },
+  });
+  expect(qualify).not.toHaveBeenCalled();
+  expect(await methods.messagingSource({ slug: 'ada', sourceEventId: addressed })).toMatchObject({
+    ok: true,
+    value: { source: { replyCapability: { state: 'provider-checked' } } },
+  });
+  expect(qualify).toHaveBeenCalledWith(
+    'own-app',
+    expect.objectContaining({ conversationId: 'own-group', messageId: 'addressed-request' }),
+    expect.anything(),
+  );
+  qualify.mockRejectedValueOnce(
+    Object.assign(new Error('expired'), { code: 'reply-window-expired' }),
+  );
+  expect(await methods.messagingSource({ slug: 'ada', sourceEventId: addressed })).toMatchObject({
+    ok: true,
+    value: {
+      source: { replyCapability: { state: 'unavailable', reason: 'reply-window-expired' } },
+    },
   });
   const failure = JSON.parse(
     String(await tool.execute({ source_event_id: ordinary, body }, context('ordinary'))),
@@ -305,8 +324,13 @@ it('explains a non-addressed QQ source and prevents a proactive fallback in the 
   const expired = JSON.parse(
     String(await tool.execute({ source_event_id: addressed, body }, context('expired'))),
   );
-  expect(expired).toMatchObject({ status: 'failed', reason: 'reply-window-expired' });
+  expect(expired).toMatchObject({
+    status: 'failed',
+    reason: 'reply-window-expired',
+    replyCapability: { state: 'unavailable', reason: 'reply-window-expired' },
+  });
   expect(expired).not.toHaveProperty('grantId');
+  expect(expired).not.toHaveProperty('conversationId');
   fx.transport.replyChecked = vi.fn(async (_account, route) => ({
     sent: true as const,
     receipt: {

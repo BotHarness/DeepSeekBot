@@ -15,7 +15,7 @@ import type { MessagingIdentity } from '../../messaging/identity.js';
 import { threadReceptionInput } from '../../messaging/thread-policy.js';
 import { groupReceptionInput } from '../../messaging/group-policy.js';
 import type { ExternalSource } from '../../messaging/inbound.js';
-import { sourceReplyCapability } from '../../messaging/source-reply-capability.js';
+import type { SourceReplyCapability } from '../../messaging/source-reply-capability.js';
 import type {
   OutboundMessaging,
   MessagingApp,
@@ -97,7 +97,11 @@ export interface MessagingBridgeMethods {
   messagingThreadPolicy(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   messagingGroupPolicy(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   messagingReceive(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
-  messagingSource(payload: unknown): Promise<BridgeResult<{ source: ExternalSource }>>;
+  messagingSource(
+    payload: unknown,
+  ): Promise<
+    BridgeResult<{ source: ExternalSource & { replyCapability?: SourceReplyCapability } }>
+  >;
   messagingDefaults(payload: unknown): Promise<BridgeResult<MessagingDefaults>>;
   messagingDefaultsSet(payload: unknown): Promise<BridgeResult<MessagingDefaults>>;
   messagingApps(): Promise<BridgeResult<MessagingAppsView>>;
@@ -253,7 +257,10 @@ export function createMessagingBridgeMethods(
       if (!input.success) return Promise.resolve(invalidInput('Invalid external source'));
       return messagingCall(async (service) => {
         const source = service.inbound.read(input.data.slug, input.data.sourceEventId);
-        return { source: { ...source, replyCapability: sourceReplyCapability(source) } };
+        const replyCapability = await service.replyCapability(input.data.slug, source);
+        return {
+          source: { ...source, ...(replyCapability === undefined ? {} : { replyCapability }) },
+        };
       });
     },
     failureAlertsSet(payload) {

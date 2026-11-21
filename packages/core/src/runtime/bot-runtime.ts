@@ -494,6 +494,10 @@ export interface OrchestratorAgentRun {
     threads(): Promise<Array<ThreadReceptionView & { grantId: string; group: string }>>;
     setThread(sourceEventId: string, input: ThreadReceptionInput): Promise<ThreadReceptionPolicy>;
     read(sourceEventId: string): ExternalSource;
+    replyCapability?(
+      source: ExternalSource,
+      signal?: AbortSignal,
+    ): ReturnType<OutboundMessaging['replyCapability']>;
     share(
       sourceEventId: string,
       channelId: string,
@@ -6384,6 +6388,8 @@ class BotRuntimeImplementation implements BotRuntime {
                   this.#messagingEvents.observeExternalRead(bot.slug, [id], turn.readAdmissions);
                 return source;
               },
+              replyCapability: (source, signal) =>
+                this.#externalMessaging!.replyCapability(bot.slug, source, signal),
               share: (id, destinationChannelId) => {
                 turn.markSideEffect();
                 return this.#externalMessaging!.inbound.share(bot.slug, id, destinationChannelId);
