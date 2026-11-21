@@ -20,7 +20,6 @@
     "packages/client/src/client/channel-message-body.tsx",
     "packages/client/src/client/channel-sidebar-builtins.tsx",
     "packages/client/src/client/channel-sidebar-icon.tsx",
-    "packages/client/src/client/remote-hosts.ts",
     "packages/client/src/client/schedules-entry.tsx",
     "packages/client/src/client/styles.ts",
     "packages/client/src/client/window-companion-view.tsx",
