@@ -14,6 +14,7 @@ import { createEngineGateway, type EngineGateway } from '../src/engines/engine-g
 import { EngineHost, type EngineTool } from '../src/engines/engine-host.js';
 import { resolveEngineCommand } from '../src/engines/engine-launch.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
+import { ownerEngineSelection } from './engine-route-fixture.js';
 import { EngineRefusal } from '../src/engines/engine-session.js';
 import { summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
 import {
@@ -389,9 +390,11 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
 
   it('lists Claude Code beside Codex and starts its sign-in through the Host route', async () => {
     const { host } = setup();
+    const botExists = (slug: string) => slug === 'ada';
     const deps = {
       host,
-      botExists: (slug: string) => slug === 'ada',
+      botExists,
+      ...ownerEngineSelection(host, botExists),
       authorizeLogin: () => undefined,
     };
     const listed = await (

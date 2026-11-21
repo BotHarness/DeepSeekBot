@@ -310,6 +310,31 @@ describe('Team CLI', () => {
       payload: { roleId: 'member', models: { kind: 'all' } },
     },
     {
+      args: [
+        'roles',
+        'create',
+        '--name',
+        'Workers',
+        '--permissions',
+        'models.use',
+        '--models',
+        'all',
+        '--engine-accounts',
+        'codex-work,claude-work',
+      ],
+      method: 'roleCreate',
+      payload: {
+        name: 'Workers',
+        permissions: ['models.use'],
+        models: { kind: 'all', engineAccounts: ['codex-work', 'claude-work'] },
+      },
+    },
+    {
+      args: ['roles', 'update', 'member', '--engine-accounts', ''],
+      method: 'roleUpdate',
+      payload: { roleId: 'member', models: { kind: 'only', routes: [], engineAccounts: [] } },
+    },
+    {
       args: ['roles', 'update', 'member', '--model-providers', 'go', '--models', 'exact/model'],
       method: 'roleUpdate',
       payload: {

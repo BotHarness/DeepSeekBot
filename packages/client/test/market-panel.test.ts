@@ -35,12 +35,7 @@ import { CHANNEL_BODY_PANEL } from '../src/client/channel-dock-layout.js';
 import type { DockPanelRegistry } from '../src/client/dock-panels.js';
 import { BridgeCallError } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
-import {
-  MarketHeaderAction,
-  MarketPanelView,
-  createMarketPanel,
-  MARKET_PANEL,
-} from '../src/client/market-panel.js';
+import { createMarketPanel, MARKET_PANEL } from '../src/client/market-panel.js';
 import { MyUploadsSettingsRow } from '../src/client/market-mine.js';
 import { MarketUploadDialog } from '../src/client/market-upload.js';
 import { store } from '../src/client/store.js';
@@ -143,18 +138,21 @@ async function withPanel(
     ...extra,
   };
   const registry = { open: vi.fn() };
+  const panel = createMarketPanel(
+    actions as unknown as BridgeActions,
+    registry as unknown as DockPanelRegistry,
+    zhTranslate,
+  );
+  const Header = panel.headerAction;
+  if (Header === undefined) throw new Error('Missing Marketplace header');
   try {
     await act(async () =>
       root.render(
         createElement(
           'div',
           null,
-          createElement(MarketHeaderAction, { t: zhTranslate }),
-          createElement(MarketPanelView, {
-            actions: actions as unknown as BridgeActions,
-            registry: registry as unknown as DockPanelRegistry,
-            t: zhTranslate,
-          }),
+          createElement('header', null, createElement(Header, { channel: undefined })),
+          createElement(panel.component, { channel: undefined }),
         ),
       ),
     );
@@ -182,6 +180,90 @@ afterEach(() => {
 });
 
 describe('Market panel', () => {
+  it.each(['owner', 'member'] as const)(
+    'routes the header actions for an Avatar %s',
+    async (kind) => {
+      const t = zhTranslate;
+      const marketplaceAccount = vi.fn(async () => ({ signedIn: false, author: null }));
+      await withPanel(
+        async () => ({ bots: [] }),
+        async ({ host }) => {
+          const tabs = host.querySelector('[role="tablist"][aria-label="市场"]');
+          expect(tabs?.closest('[data-market-panel]')).not.toBeNull();
+          expect(tabs?.closest('header')).toBeNull();
+          expect(button(host, t('market.panel.upload')).closest('header')).not.toBeNull();
+          expect(button(host, t('market.mine.open'))).toBeTruthy();
+          await click(host, t('market.avatar.title'));
+          expect(
+            host.querySelector('#bh-market-section-avatars')?.getAttribute('aria-selected'),
+          ).toBe('true');
+          expect(host.querySelector(`button[aria-label="${t('market.mine.open')}"]`)).toBeNull();
+          expect(host.querySelector(`button[aria-label="${t('market.panel.upload')}"]`)).toBeNull();
+          expect(host.querySelector('#bh-market-section-avatars-panel')?.textContent).not.toContain(
+            t('market.avatar.publish'),
+          );
+          if (kind === 'owner') {
+            expect(button(host, t('market.avatar.publish')).closest('header')).not.toBeNull();
+            await click(host, t('market.avatar.publish'));
+            expect(document.querySelector('[data-market-avatar-publish="account"]')).not.toBeNull();
+            expect(
+              host.querySelector('#bh-market-section-avatars')?.getAttribute('aria-selected'),
+            ).toBe('true');
+            expect(marketplaceAccount).toHaveBeenCalledTimes(1);
+          } else {
+            expect(
+              host.querySelector(`button[aria-label="${t('market.avatar.publish')}"]`),
+            ).toBeNull();
+            expect(marketplaceAccount).not.toHaveBeenCalled();
+          }
+        },
+        {
+          marketplaceAccount,
+          marketplaceAvatarList: vi.fn(async () => ({ avatars: [], nextCursor: null })),
+          teamCall: vi.fn(async () => ({
+            ok: true,
+            value: {
+              enabled: true,
+              activeMembers: 2,
+              ownerPasswordSet: true,
+              insecureHttpAllowed: false,
+              memberUrls: [],
+              isolation: 'trial',
+              viewer: {
+                humanId: 'market-test-human',
+                kind,
+                displayName: 'Market test Human',
+                mustChangePassword: false,
+                models: { all: true },
+                owner: kind === 'owner',
+                permissions: [],
+                roleIds: [],
+              },
+            },
+          })),
+        },
+      );
+    },
+  );
+
+  it('fetches Avatars only when opened and keeps the Bots results mounted', async () => {
+    const avatars = vi.fn(async () => ({ avatars: [], nextCursor: null }));
+    await withPanel(
+      async () => ({ bots: [entry('writer')] }),
+      async ({ host, list }) => {
+        expect(list).toHaveBeenCalledTimes(1);
+        expect(avatars).not.toHaveBeenCalled();
+        await click(host, zhTranslate('market.avatar.title'));
+        expect(avatars).toHaveBeenCalledTimes(1);
+        expect(host.textContent).toContain(zhTranslate('market.avatar.empty'));
+        await click(host, zhTranslate('market.avatar.bots'));
+        expect(list).toHaveBeenCalledTimes(1);
+        expect(host.textContent).toContain('writer');
+      },
+      { marketplaceAvatarList: avatars },
+    );
+  });
+
   it('shows the Daily Picks row with a cover per pick count and at most seven days', async () => {
     const pick = (name: string) => ({
       id: `R_${name}`,
@@ -740,7 +822,7 @@ describe('Market panel', () => {
     const panel = createMarketPanel({} as BridgeActions, {} as DockPanelRegistry, zhTranslate);
     expect(panel).toMatchObject({
       id: MARKET_PANEL,
-      title: 'Bot 市场',
+      title: '市场',
       icon: 'store',
       scope: 'global',
     });

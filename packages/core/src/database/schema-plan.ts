@@ -4062,6 +4062,19 @@ const SESSION_TURN_TARGET_MIGRATION: SchemaMigration = {
   },
 };
 
+const ROLE_ENGINE_ACCOUNTS_MIGRATION: SchemaMigration = {
+  id: 'role-engine-accounts',
+  module: 'team',
+  description: 'Start existing Host Roles with no subscription account grants',
+  migrate(database) {
+    database.exec(`
+      UPDATE host_roles
+      SET models_json = json_set(models_json, '$.engineAccounts', json('[]'))
+      WHERE json_type(models_json, '$.engineAccounts') IS NULL
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -4238,4 +4251,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   MODELS_CONFIGURE_PERMISSION_MIGRATION,
   ROLE_MODEL_PROVIDERS_MIGRATION,
   SESSION_TURN_TARGET_MIGRATION,
+  ROLE_ENGINE_ACCOUNTS_MIGRATION,
 ]);

@@ -1,3 +1,4 @@
+import { setBrowserAccess, setBrowserProfile, type ConnectionRpcLike } from './bridge.js';
 import type { ObserveResource } from '../../../core/src/channels/resource-events.js';
 import { visibleInterval } from '../../../client/src/client/visible-interval.js';
 import { Icon } from '../../../client/src/client/ds/icon.js';
@@ -87,14 +88,6 @@ interface ChannelSidebarRegistryLike {
     readonly badge?: ComponentType<ChannelSidebarEntryProps>;
     readonly tab?: string;
   }): () => void;
-}
-
-interface ConnectionRpcLike {
-  call(
-    path: string,
-    method: string,
-    options?: { args?: unknown },
-  ): Promise<{ ok: boolean; value?: unknown; error?: { message?: string } }>;
 }
 
 let connectionRpc: ConnectionRpcLike | undefined;
@@ -351,8 +344,7 @@ function BrowserHeaderAction({
     inFlight.current = true;
     setBusy(true);
     setError(false);
-    void rpc
-      .call('/api', 'botharness/browserAccessSet', { args: { slug: botSlug, enabled: next } })
+    void setBrowserAccess(rpc, botSlug, next)
       .then((result) => {
         if (!result.ok) {
           setError(true);
@@ -657,8 +649,7 @@ function BrowserBody({
     setBusy(true);
     setProfileInvalid(false);
     setFailure(undefined);
-    void rpc
-      .call('/api', 'botharness/browserProfileSet', { args: { slug: botSlug, profile: next } })
+    void setBrowserProfile(rpc, botSlug, next)
       .then((result) => {
         if (!result.ok) {
           setProfileInvalid(true);

@@ -274,7 +274,7 @@ function RoleDialog({
                 roleId: role.roleId,
                 ...(builtin === null ? { name: name.trim() } : {}),
                 permissions: [...chosen],
-                ...(builtin === 'admin' ? {} : { models }),
+                models,
                 policy: trimmedPolicy(policy),
               }),
         )
@@ -321,16 +321,15 @@ function RoleDialog({
             </fieldset>
           );
         })}
-        {builtin === 'admin' ? null : (
-          <RoleModelsField
-            call={call}
-            t={t}
-            viewer={viewer}
-            value={models}
-            disabled={busy}
-            onChange={setModels}
-          />
-        )}
+        <RoleModelsField
+          call={call}
+          t={t}
+          viewer={viewer}
+          value={models}
+          disabled={busy}
+          apiLocked={builtin === 'admin'}
+          onChange={setModels}
+        />
         <RolePolicyField t={t} value={policy} disabled={busy} onChange={setPolicy} />
       </FieldStack>
     </FormDialog>

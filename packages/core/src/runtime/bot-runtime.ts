@@ -72,24 +72,36 @@ import {
   requireSourceContent,
   requireSourceEffects,
 } from '../purge/fence.js';
+import { saveAttachmentFile } from '../attachments/file-operations.js';
+import { OriginalAttachmentAccess } from '../attachments/original-access.js';
 import {
-  OriginalAttachmentAccess,
-  type OriginalAttachmentInput,
-} from '../attachments/original-access.js';
+  createChannelFileAccess,
+  type ChannelFileAccess,
+} from '../features/channel-files/events.js';
+import { createMemoryEvents } from '../features/memory/events.js';
 import {
-  saveAttachmentFile,
-  importAttachmentFile,
-  type AttachmentSaveInput,
-} from '../attachments/file-operations.js';
+  bindScheduleCommands,
+  hasPendingScheduleFiring,
+  linkScheduleFiringsToSession,
+  scheduleInboxFacts,
+} from '../features/schedules/events.js';
+import {
+  callTimelineNote,
+  callVisualNote,
+  createVoiceAccess,
+  lastCallNote,
+  queryCallWindow,
+  timelineSuffix,
+  type CallFrameAccess,
+  type VoiceChannelAccess,
+} from '../features/voice/events.js';
+import {
+  recordSchedulingDiagnostic,
+  schedulingIdentity,
+} from '../process/scheduling-diagnostics.js';
 import { authorizedPathRoot } from '../workspaces/grant-native-tools.js';
 import { withMentionNames } from '../messaging/mention-text.js';
-import {
-  EXTERNAL_GUIDANCE_CHARS,
-  inboxLine,
-  renderInbox,
-  type InboxUnit,
-  type ScheduleFiringFacts,
-} from './inbox-render.js';
+import { EXTERNAL_GUIDANCE_CHARS, inboxLine, renderInbox, type InboxUnit } from './inbox-render.js';
 import type { MessagingInboundEvent } from '../messaging/provider.js';
 import type { OutboxIntent, OutboundMessaging } from '../messaging/outbound.js';
 import { PrivateInputRefusal, type PrivateInputOrigin } from '../credentials/im-origin.js';
@@ -100,7 +112,6 @@ import type {
   ExternalContextQuery,
   ExternalContextResult,
 } from '../messaging/inbound.js';
-import { sniffAttachmentMime } from '../attachments/store.js';
 import { createHash, randomUUID } from 'node:crypto';
 import {
   createInboxHistoryQuery,
@@ -149,11 +160,7 @@ import type {
   ToolApprovalOrigin,
   ToolApprovalOriginQuery,
 } from '../workspaces/tool-approval.js';
-import {
-  MemoryAcceptError,
-  type MemoryChangeDelta,
-  type MemoryChangeScan,
-} from '../memory/accepted.js';
+import { MemoryAcceptError, type MemoryChangeDelta } from '../memory/accepted.js';
 import type { MemoryService } from '../memory/service.js';
 import {
   isBotDmChannel,
@@ -173,14 +180,7 @@ import {
   type ChannelTurnStop,
   type SessionFailureProgress,
 } from '../channels/channel.js';
-import type { ChannelVoiceCallRecord } from '../channels/voice-call-record.js';
-import { formatCallDuration } from '../voice/call-view.js';
-import {
-  ChannelCallReadError,
-  hasChannelCallWindow,
-  resolveChannelCallWindow,
-  type ChannelCallWindow,
-} from '../channels/call-window.js';
+import { hasChannelCallWindow, type ChannelCallWindow } from '../channels/call-window.js';
 import { ChannelReplyTargetError, MAX_MESSAGE_PAGE } from '../channels/store.js';
 import type { TakeoverResolution } from '../takeover/contracts.js';
 import type { MessagePerfTracker } from '../usage/message-perf.js';
@@ -644,7 +644,7 @@ export const MAX_CREATED_BOT_TAGS = 8;
 export const MAX_CREATED_BOT_TAG_LENGTH = 32;
 export const MAX_CREATED_BOT_BIO_LENGTH = 160;
 
-export interface OrchestratorChannelAccess {
+export interface OrchestratorChannelAccess extends ChannelFileAccess, VoiceChannelAccess {
   startHumanDm?(humanId: string): ChannelRecord;
   replySource?(sourceEventId: string): { channelId: string; messageId: string };
   list(input?: ChannelListInput): ChannelListPage;
@@ -662,26 +662,6 @@ export interface OrchestratorChannelAccess {
   };
   query(input?: ChannelQueryInput): ChannelQueryPage;
   readModel(input?: ChannelQueryInput & { messageId?: string; contentCursor?: string }): string;
-  openAttachment?(input: OriginalAttachmentInput): {
-    path: string;
-    source: ChannelAttachmentRef;
-    access: OriginalAttachmentInput['access'];
-  };
-  saveAttachment?(
-    input: AttachmentSaveInput,
-  ): Promise<{ path: string; source: ChannelAttachmentRef; size: number }>;
-  importAttachment?(input: {
-    filePath: string;
-    signal?: AbortSignal;
-  }): Promise<ChannelAttachmentRef>;
-  readAttachment?(input: {
-    channelId?: string;
-    messageId: string;
-    hash?: string;
-    attachmentId?: string;
-    maxBytes: number;
-    signal?: AbortSignal;
-  }): Promise<{ ref: ChannelAttachmentRef; data: Uint8Array }>;
   requestGrant(reason: string, channelId?: string): Promise<ChannelMessage>;
   contacts(input?: BotContactQuery): Promise<BotContactPage>;
   createGroup(name: string): ChannelRecord;
@@ -709,16 +689,6 @@ export interface OrchestratorChannelAccess {
     left: boolean;
   };
   react?(input: BotReactionInput & { channelId?: string }): BotReactionResult;
-  attachVoice?(input: {
-    channelId: string;
-    messageId: string;
-    signal?: AbortSignal;
-  }): Promise<import('../voice/messages.js').VoiceAttachOutcome>;
-  callFrame?(input: {
-    channelId?: string;
-    messageId: string;
-    cell: number;
-  }): import('../voice/call-contract.js').VoiceCallZoom;
   sendToBot(input: {
     botSlug: string;
     body: string;
@@ -1116,13 +1086,7 @@ export interface BotRuntimeOptions {
     >;
   attachments?: AttachmentStore;
   voiceMessages?: import('../voice/messages.js').VoiceMessages;
-  callFrames?: {
-    zoom(input: {
-      slug: string;
-      messageId: string;
-      cell: number;
-    }): import('../voice/call-contract.js').VoiceCallZoom;
-  };
+  callFrames?: CallFrameAccess;
 
   ownership?: SessionOwnership;
 
@@ -1535,15 +1499,7 @@ function coalesceInbox(rows: InboxReportRow[]): InboxUnit[] {
         sourceEventId: row.source_event_id,
         sourceKind: row.source_kind,
         ...(row.external === undefined ? {} : { external: row.external }),
-        ...(row.schedule_json == null
-          ? {}
-          : {
-              schedule: (
-                JSON.parse(row.schedule_json) as {
-                  schedule: ScheduleFiringFacts;
-                }
-              ).schedule,
-            }),
+        ...scheduleInboxFacts(row.schedule_json),
         assignmentSessionId: row.assignment_session_id,
         summary: row.body,
         createdAt: row.created_at,
@@ -1860,7 +1816,7 @@ class BotRuntimeImplementation implements BotRuntime {
     }
   >();
   readonly #memoryTurnOperations = new Set<string>();
-  readonly #steerMemoryScans = new Map<string, { again: boolean; done: Promise<void> }>();
+  readonly #memoryEvents: ReturnType<typeof createMemoryEvents>;
   readonly #activeMemoryEvents = new Map<
     string,
     { eventIds: string[]; preserveObservation: boolean }
@@ -1973,6 +1929,16 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#botHopLimit = options.botHopLimit ?? (() => DEFAULT_BOT_HOP_LIMIT);
     this.#sessionArchive = options.sessionArchive;
     this.#warn = options.warn;
+    this.#memoryEvents = createMemoryEvents({
+      database: this.#database,
+      registry: this.#registry,
+      memory: this.#memory,
+      now: () => this.#now(),
+      createEventId: () => this.#createEventId(),
+      insertMemoryChange: (db, eventId, botSlug, change) =>
+        this.#insertMemoryChange(db, eventId, botSlug, change),
+      warn: this.#warn === undefined ? undefined : (message) => this.#warn?.(message),
+    });
     this.#triageContinuation = options.triageContinuation === true;
     this.#approvalCapacity = new AssignmentApprovalCapacity({
       valid: (sessionId) => this.#assignmentExecutionAvailable(sessionId),
@@ -3303,7 +3269,17 @@ class BotRuntimeImplementation implements BotRuntime {
       turn: schedulingIdentity(activeEvents),
       delivered,
     });
-    this.#scanMemoryWhileSteering(botSlug, activeEvents);
+    this.#memoryEvents.scanMemoryWhileSteering(
+      botSlug,
+      activeEvents,
+      () =>
+        !this.#closed &&
+        this.#activeMemoryEvents.get(botSlug) === activeEvents &&
+        !this.#memoryTurnOperations.has(botSlug),
+      () => {
+        this.#steerMemoryInbox(botSlug, activeEvents, undefined);
+      },
+    );
     return delivered;
   }
 
@@ -3312,7 +3288,7 @@ class BotRuntimeImplementation implements BotRuntime {
     activeEvents: { eventIds: string[]; preserveObservation: boolean },
     prompt: string | undefined,
   ): boolean {
-    const memoryInbox = this.#collectMemoryInbox(botSlug);
+    const memoryInbox = this.#memoryEvents.collectMemoryInbox(botSlug, coalesceInbox);
     if (prompt === undefined && memoryInbox.units.length === 0) return false;
     const rendered =
       memoryInbox.units.length === 0
@@ -3325,74 +3301,6 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#setObserved(memoryInbox.eventIds, this.#now().toISOString());
     }
     return delivered;
-  }
-
-  #scanMemoryWhileSteering(
-    botSlug: string,
-    activeEvents: { eventIds: string[]; preserveObservation: boolean },
-  ): void {
-    const running = this.#steerMemoryScans.get(botSlug);
-    if (running !== undefined) {
-      if (!running.again)
-        recordSchedulingDiagnostic({
-          kind: 'scan-coalesced',
-          turn: schedulingIdentity(activeEvents),
-          operation: schedulingIdentity(running),
-        });
-      running.again = true;
-      return;
-    }
-    const memory = this.#memory;
-    const scan =
-      memory?.scanChangesAsync ??
-      (memory?.scanChanges === undefined
-        ? undefined
-        : async (slug: string) => memory.scanChanges!(slug));
-    if (scan === undefined) return;
-    const current = this.#activeTurn(botSlug, activeEvents);
-    const entry = { again: false, done: Promise.resolve() };
-    entry.done = (async () => {
-      do {
-        entry.again = false;
-        const operation = schedulingIdentity(entry);
-        const turn = schedulingIdentity(activeEvents);
-        recordSchedulingDiagnostic({ kind: 'scan-start', turn, operation });
-        let outcome: 'ok' | 'stale' | 'error' = 'error';
-        try {
-          const observation = await withinSchedulingScan(operation, () => scan(botSlug));
-          if (!current()) {
-            outcome = 'stale';
-            return;
-          }
-          this.#recordMemoryObservation(botSlug, observation);
-          this.#steerMemoryInbox(botSlug, activeEvents, undefined);
-          outcome = 'ok';
-        } catch (error) {
-          activeEvents.preserveObservation = true;
-          this.#warn?.(`Memory observation failed for ${botSlug}: ${String(error)}`);
-          return;
-        } finally {
-          recordSchedulingDiagnostic({ kind: 'scan-end', turn, operation, outcome });
-        }
-      } while (entry.again && current());
-    })().finally(() => {
-      if (this.#steerMemoryScans.get(botSlug) === entry) this.#steerMemoryScans.delete(botSlug);
-    });
-    this.#steerMemoryScans.set(botSlug, entry);
-  }
-
-  #activeTurn(
-    botSlug: string,
-    activeEvents: { eventIds: string[]; preserveObservation: boolean },
-  ): () => boolean {
-    return () =>
-      !this.#closed &&
-      this.#activeMemoryEvents.get(botSlug) === activeEvents &&
-      !this.#memoryTurnOperations.has(botSlug);
-  }
-
-  async #settleSteerMemoryScan(botSlug: string): Promise<void> {
-    await this.#steerMemoryScans.get(botSlug)?.done;
   }
 
   #claimDmContext(
@@ -3954,19 +3862,10 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#scheduleHarvest(botSlug);
       return;
     }
-    const scheduled = this.#database.read((database) =>
-      database
-        .prepare(
-          `
-        SELECT 1 AS found FROM inbox_admissions a JOIN source_events e USING(source_event_id)
-         WHERE a.bot_slug = ? AND a.reason = 'schedule' AND a.attempt_state = 'pending'
-           AND e.observed_at IS NULL
-         LIMIT 1
-      `,
-        )
-        .get(botSlug),
-    );
-    if (scheduled !== undefined && this.#dmChannel(botSlug) !== undefined) {
+    if (
+      hasPendingScheduleFiring(this.#database, botSlug) &&
+      this.#dmChannel(botSlug) !== undefined
+    ) {
       this.#scheduleHarvest(botSlug);
       return;
     }
@@ -4691,30 +4590,6 @@ class BotRuntimeImplementation implements BotRuntime {
       .join('');
   }
 
-  #lastCallNote(channelId: string, messageId: string): string | undefined {
-    let record: ChannelVoiceCallRecord | undefined;
-    try {
-      record = this.#channels.queryMessages(channelId, {
-        text: 'voice call',
-        authorKind: 'system',
-        limit: 1,
-      }).messages[0]?.voiceCallRecord;
-    } catch {
-      return undefined;
-    }
-    if (record?.state !== 'ended') return undefined;
-    let typed: ChannelMessage[];
-    try {
-      typed = this.#channels
-        .queryMessages(channelId, { authorKind: 'human', from: record.endedAt, limit: 50 })
-        .messages.filter((item) => item.voiceCall === undefined);
-    } catch {
-      return undefined;
-    }
-    if (typed.at(-1)?.id !== messageId) return undefined;
-    return `[Last voice call with the Human in this DM: ${record.callId}, from ${record.startedAt} to ${record.endedAt} (${formatCallDuration(record.durationMs)}, ${record.heard} spoken message${record.heard === 1 ? '' : 's'} heard). The Human is typing again now. Read what was said and shown on it with channel_read call=${record.callId}; add from_ms/to_ms (milliseconds from the call's start) for part of it. channel_read text "voice call" with author_kind system lists earlier calls, each read the same way by its callId.]`;
-  }
-
   #rowQuotes(channelId: string, messageId: string): string {
     return this.#quotePrompt(channelId, this.#channels.message(channelId, messageId));
   }
@@ -4856,7 +4731,7 @@ class BotRuntimeImplementation implements BotRuntime {
       );
       if (visual !== undefined) parts.push(visual);
     } else {
-      const call = this.#lastCallNote(channelId, messageId);
+      const call = lastCallNote(this.#channels, channelId, messageId);
       if (call !== undefined) parts.push(call);
     }
     if (message.assignmentReply !== undefined)
@@ -7302,15 +7177,15 @@ class BotRuntimeImplementation implements BotRuntime {
         : undefined;
       if (observation !== undefined) {
         preserveObservation = true;
-        this.#recordMemoryObservation(bot.slug, observation);
+        this.#memoryEvents.recordMemoryObservation(bot.slug, observation);
         preserveObservation = false;
       } else if (change !== undefined) {
         preserveObservation = true;
-        this.#admitMemoryChange(bot.slug, change);
+        this.#memoryEvents.admitMemoryChange(bot.slug, change);
         preserveObservation = false;
       }
       const memoryInbox = observeMemory
-        ? this.#collectMemoryInbox(bot.slug)
+        ? this.#memoryEvents.collectMemoryInbox(bot.slug, coalesceInbox)
         : { units: [], eventIds: [] };
       memoryEventIds = memoryInbox.eventIds;
       const units = [...inboxUnits, ...memoryInbox.units];
@@ -7432,7 +7307,7 @@ class BotRuntimeImplementation implements BotRuntime {
       if (tobCliTurn !== undefined && sourceEventId !== undefined)
         run.triage.resolve({ ids: [sourceEventId], outcome: 'done' });
       if (observeMemory) {
-        await this.#settleSteerMemoryScan(bot.slug);
+        await this.#memoryEvents.settleSteerMemoryScan(bot.slug);
         this.#memoryTurnOperations.add(bot.slug);
         await (this.#memory?.reconcileTurnAsync ?? this.#memory?.reconcileTurn)?.({
           botSlug: bot.slug,
@@ -7453,7 +7328,7 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#settleHarvestFailure(bot.slug, [...readAdmissions], String(error));
       this.#notifyReadAdmissions(readAdmissions);
       if (observeMemory) {
-        await this.#settleSteerMemoryScan(bot.slug);
+        await this.#memoryEvents.settleSteerMemoryScan(bot.slug);
         this.#memoryTurnOperations.add(bot.slug);
         await (this.#memory?.abortTurnAsync ?? this.#memory?.abortTurn)?.(
           bot.slug,
@@ -7973,23 +7848,7 @@ class BotRuntimeImplementation implements BotRuntime {
       },
       ...(this.#schedules === undefined
         ? {}
-        : {
-            schedules: ((store) => ({
-              list: () => store.list(bot.slug),
-              create: (input: BotScheduleInput) => {
-                turn.markSideEffect();
-                return store.create(bot.slug, input, 'personabot');
-              },
-              update: (id: string, change: BotScheduleChange) => {
-                turn.markSideEffect();
-                return store.update(bot.slug, id, change, 'personabot');
-              },
-              remove: (id: string) => {
-                turn.markSideEffect();
-                return store.remove(bot.slug, id, 'personabot');
-              },
-            }))(this.#schedules),
-          }),
+        : { schedules: bindScheduleCommands(this.#schedules, bot, () => turn.markSideEffect()) }),
       ...(turn.observeMemory
         ? {
             memory: {
@@ -8698,22 +8557,6 @@ class BotRuntimeImplementation implements BotRuntime {
       }
       return this.#requireMembership(botSlug, id);
     };
-    const attachmentSource = (input: { channelId?: string; messageId: string; fileId: string }) => {
-      const bot = this.#registry.get(botSlug);
-      if (this.#closed || bot === undefined || bot.paused === true)
-        throw new Error('Source Bot is unavailable');
-      const channel = resolve(input.channelId);
-      const message = this.#channels.message(channel.id, input.messageId);
-      if (message === undefined) throw new Error('Source message is unavailable');
-      const owned =
-        this.#channels.attachmentReference === undefined
-          ? message.attachments?.find((ref) => attachmentIdentity(ref) === input.fileId)
-          : this.#channels.attachmentReference(channel.id, input.messageId, input.fileId);
-      if (owned === undefined) throw new Error('File is not attached to this source message');
-      if (this.#attachments === undefined)
-        throw new Error('Attachment file operations are unavailable');
-      return this.#attachments.current(owned);
-    };
     const humanNames = (channel: ChannelRecord): Record<string, string> =>
       Object.fromEntries(
         this.#channels
@@ -8749,30 +8592,10 @@ class BotRuntimeImplementation implements BotRuntime {
         throw new Error('channel_read: invalid scope');
       }
       if (hasChannelCallWindow(input)) {
-        if (input.scope === 'joined')
-          throw new ChannelCallReadError(
-            'call-range-conflict',
-            'call reads one Channel; omit scope joined',
-          );
-        const channel = resolve(input.channelId);
-        const window = resolveChannelCallWindow(
-          (messageId) => this.#channels.message(channel.id, messageId),
+        const { channel, window, page } = queryCallWindow({
+          channels: this.#channels,
+          resolve,
           input,
-        )!;
-        const { call: _call, fromMs: _fromMs, toMs: _toMs, ...filters } = input;
-        const page = this.#channels.queryMessages(channel.id, {
-          ...filters,
-          from: window.startedAt,
-          ...(window.endedAt === undefined ? {} : { to: window.endedAt }),
-          orderBy: 'time',
-          ascending: true,
-          callWindow: {
-            callId: window.callId,
-            fromMs: window.fromMs,
-            ...(window.toMs === undefined ? {} : { toMs: window.toMs }),
-            from: window.from,
-            ...(window.to === undefined ? {} : { to: window.to }),
-          },
         });
         const humans = humanNames(channel);
         return {
@@ -9296,34 +9119,13 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#team?.bots.requireChannel(botSlug, channel, true);
         return this.#react(botSlug, channel, input);
       },
-      ...(this.#voiceMessages === undefined
-        ? {}
-        : {
-            attachVoice: (input: { channelId: string; messageId: string; signal?: AbortSignal }) =>
-              this.#voiceMessages!.attach({ botSlug, ...input }),
-          }),
-      ...(this.#callFrames === undefined
-        ? {}
-        : {
-            callFrame: (input: { channelId?: string; messageId: string; cell: number }) => {
-              const channel = resolve(input.channelId);
-              const message = this.#channels.message(channel.id, input.messageId);
-              if (message === undefined)
-                throw new Error(`Channel message not found: ${input.messageId}`);
-              if (
-                message.voiceCallRecord?.state !== 'frames' &&
-                (message.voiceCall?.visual === undefined || 'sameAs' in message.voiceCall.visual)
-              )
-                throw new Error(
-                  `Message ${input.messageId} carries no call grid; use the message the grid is attached to.`,
-                );
-              return this.#callFrames!.zoom({
-                slug: botSlug,
-                messageId: input.messageId,
-                cell: input.cell,
-              });
-            },
-          }),
+      ...createVoiceAccess({
+        botSlug,
+        channels: this.#channels,
+        resolve,
+        voiceMessages: this.#voiceMessages,
+        callFrames: this.#callFrames,
+      }),
       leaveGroup: (input) => {
         requireOrdinaryGroupActor();
         const channel = this.#channels.get(input.channelId);
@@ -9566,133 +9368,22 @@ class BotRuntimeImplementation implements BotRuntime {
               ...(Object.keys(observationIds).length === 0 ? {} : { observationIds }),
             });
       },
-      openAttachment: (input) => {
-        const target = this.#originalAttachments.open(sessionId, input, () => {
-          const source = attachmentSource(input);
-          if (source.fileId === undefined)
-            throw new Error('Original attachment identity is unavailable');
-          return {
-            source,
-            path: this.#attachments!.fileTarget(source.fileId).path,
-          };
-        });
-        if (input.access === 'edit-original') beforeSend();
-        return target;
-      },
-      saveAttachment: async (input) => {
-        if (this.#attachments === undefined || this.#grants === undefined)
-          throw new Error('Attachment file operations are unavailable');
-        return saveAttachmentFile(input, {
-          botSlug,
-          grants: this.#grants,
-          attachments: this.#attachments,
-          source: () => attachmentSource(input),
-        });
-      },
-      importAttachment: async (input) => {
-        if (
-          this.#attachments === undefined ||
-          this.#grants === undefined ||
-          this.#ownership === undefined
-        )
-          throw new Error('Attachment file operations are unavailable');
-        const ref = await importAttachmentFile(input, {
-          attachments: this.#attachments,
-          authorize: (path) => {
-            const bot = this.#registry.get(botSlug);
-            if (this.#closed || bot === undefined || bot.paused === true)
-              throw new Error('Result Bot is unavailable');
-            if (defaultChannelId !== undefined) resolve();
-            const roots = this.#grants!
-              .list(botSlug)
-              .filter((grant) => grant.revokedAt === undefined)
-              .flatMap((grant) => {
-                try {
-                  return [this.#grants!.requireActive(botSlug, grant.id).workspacePath];
-                } catch {
-                  return [];
-                }
-              });
-            const memory = this.#registry.memoryDirFor(botSlug);
-            if (memory !== undefined) roots.push(memory);
-            this.#grants!.validatePath?.(botSlug, path);
-            if (authorizedPathRoot(roots, path) === undefined)
-              throw new Error('Selected file is outside current authorized directories');
-          },
-        });
-        onImport?.(ref);
-        return ref;
-      },
-      readAttachment: async (input) => {
-        const channel = resolve(input.channelId);
-        const message = this.#channels.message(channel.id, input.messageId);
-        if (message === undefined) throw new Error(`Channel message not found: ${input.messageId}`);
-        const identity = input.attachmentId ?? input.hash;
-        if (
-          identity === undefined ||
-          (input.attachmentId !== undefined && input.hash !== undefined)
-        )
-          throw new Error('Exactly one attachment identity is required');
-        const owned =
-          this.#channels.attachmentReference === undefined
-            ? message.attachments?.find((candidate) => attachmentIdentity(candidate) === identity)
-            : this.#channels.attachmentReference(channel.id, input.messageId, identity);
-        const ref = owned === undefined ? undefined : this.#attachments?.current(owned);
-        if (ref === undefined) {
-          throw new Error(
-            `Attachment ${identity} is not attached to Channel message ${input.messageId}`,
-          );
-        }
-        if (!ref.mime.startsWith('image/')) {
-          throw new Error(`Attachment ${ref.name} is not a supported Channel image`);
-        }
-        if (ref.size > input.maxBytes) {
-          throw new Error(
-            `Attachment ${ref.name} exceeds the ${input.maxBytes}-byte model read limit`,
-          );
-        }
-        if (this.#attachments === undefined)
-          throw new Error('Channel attachment store unavailable');
-        const downloaded = await this.#attachments.download(
-          attachmentIdentity(ref),
-          ref.name,
-          input.signal,
-        );
-        if (downloaded.ref.size > input.maxBytes || !downloaded.ref.mime.startsWith('image/')) {
-          await downloaded.body.cancel();
-          throw new Error('Attachment changed while opening; retry');
-        }
-        const reader = downloaded.body.getReader();
-        const parts: Uint8Array[] = [];
-        let length = 0;
-        try {
-          while (true) {
-            const next = await reader.read();
-            if (next.done) break;
-            length += next.value.byteLength;
-            if (length > input.maxBytes) {
-              await reader.cancel();
-              throw new Error('Attachment exceeds model read limit');
-            }
-            parts.push(next.value);
-          }
-        } finally {
-          reader.releaseLock();
-        }
-        const data = new Uint8Array(length);
-        let offset = 0;
-        for (const part of parts) {
-          data.set(part, offset);
-          offset += part.byteLength;
-        }
-        if (
-          data.byteLength !== downloaded.ref.size ||
-          sniffAttachmentMime(data.subarray(0, 512)) !== downloaded.ref.mime
-        ) {
-          throw new Error(`Attachment ${ref.name} changed while being read`);
-        }
-        return { ref: downloaded.ref, data };
-      },
+      ...createChannelFileAccess({
+        botSlug,
+        sessionId,
+        defaultChannelId,
+        channels: this.#channels,
+        attachments: this.#attachments,
+        grants: this.#grants,
+        ownership: this.#ownership,
+        registry: this.#registry,
+        originalAttachments: this.#originalAttachments,
+        isClosed: () => this.#closed,
+        authorizedPathRoot,
+        resolve,
+        beforeSend,
+        onImport,
+      }),
       requestGrant: async (reason, channelId) => {
         const channel = resolve(channelId);
         if (
@@ -12482,132 +12173,38 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   reconcileMemoryChangesOnStartup(): void {
-    if (this.#closed || this.#memory?.scanChanges === undefined) return;
-    for (const bot of this.#registry.list()) {
-      try {
-        this.#recordMemoryObservation(bot.slug, this.#memory.scanChanges(bot.slug));
-      } catch (error) {
-        this.#warn?.(`Memory observation failed for ${bot.slug}: ${String(error)}`);
-      }
-    }
+    this.#memoryEvents.reconcileMemoryChangesOnStartup(this.#closed);
   }
 
-  #admitMemoryChange(botSlug: string, change: MemoryChangeDelta): string {
-    const sourceEventId = this.#createEventId();
-    this.#database.transaction(
-      (database) => {
-        database
-          .prepare(
-            `
-            INSERT INTO source_events (
-              source_event_id, source_kind, bot_slug, body, created_at, payload_json
-            ) VALUES (?, 'memory-change', ?, ?, ?, ?)
-          `,
-          )
-          .run(
-            sourceEventId,
-            botSlug,
-            change.summary,
-            this.#now().toISOString(),
-            JSON.stringify({ memoryChange: change }),
-          );
-        database
-          .prepare(
-            `
-            INSERT INTO inbox_admissions (source_event_id, bot_slug, reason)
-            VALUES (?, ?, 'memory-change')
-          `,
-          )
-          .run(sourceEventId, botSlug);
-      },
-      ['source-event', 'bot-inbox'],
-    );
-    return sourceEventId;
-  }
-
-  #recordMemoryObservation(botSlug: string, scan: MemoryChangeScan): void {
-    const sourceEventId = scan.change === undefined ? undefined : this.#createEventId();
-    this.#database.transaction(
-      (database) => {
-        if (scan.change !== undefined && sourceEventId !== undefined) {
-          database
-            .prepare(
-              `
-              INSERT INTO source_events (
-                source_event_id, source_kind, bot_slug, body, created_at, payload_json
-              ) VALUES (?, 'memory-change', ?, ?, ?, ?)
-            `,
-            )
-            .run(
-              sourceEventId,
-              botSlug,
-              scan.change.summary,
-              this.#now().toISOString(),
-              JSON.stringify({ memoryChange: scan.change }),
-            );
-          database
-            .prepare(
-              `
-              INSERT INTO inbox_admissions (source_event_id, bot_slug, reason)
-              VALUES (?, ?, 'memory-change')
-            `,
-            )
-            .run(sourceEventId, botSlug);
-        }
-        database
-          .prepare(
-            `
-            INSERT INTO memory_change_checkpoints
-              (bot_slug, repository_root, repository_identity, observation_json, observed_at)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(bot_slug) DO UPDATE SET
-              repository_root = excluded.repository_root,
-              repository_identity = excluded.repository_identity,
-              observation_json = excluded.observation_json,
-              observed_at = excluded.observed_at
-          `,
-          )
-          .run(
-            botSlug,
-            scan.repositoryRoot,
-            scan.repositoryIdentity,
-            scan.observationJson,
-            this.#now().toISOString(),
-          );
-      },
-      ['source-event', 'bot-inbox', 'memory'],
-    );
-  }
-
-  #collectMemoryInbox(botSlug: string): {
-    units: InboxUnit[];
-    eventIds: string[];
-  } {
-    const rows = this.#database.read(
-      (database) =>
-        database
-          .prepare(
-            `
-          SELECT e.source_event_id, e.source_kind, e.assignment_session_id,
-                 e.body, e.created_at, e.expects_reply,
-                 NULL AS continuity_key, NULL AS activity
-            FROM source_events e
-            JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
-           WHERE e.bot_slug = ? AND a.bot_slug = ?
-             AND e.source_kind = 'memory-change'
-             AND a.reason = 'memory-change'
-             AND a.attempt_state IN ('pending', 'retryable')
-             AND e.observed_at IS NULL
-           ORDER BY e.rowid ASC
-           LIMIT 20
-        `,
-          )
-          .all(botSlug, botSlug) as unknown as InboxReportRow[],
-    );
-    return {
-      units: coalesceInbox(rows),
-      eventIds: rows.map((row) => row.source_event_id),
-    };
+  #insertMemoryChange(
+    database: DatabaseSync,
+    sourceEventId: string,
+    botSlug: string,
+    change: MemoryChangeDelta,
+  ): void {
+    database
+      .prepare(
+        `
+        INSERT INTO source_events (
+          source_event_id, source_kind, bot_slug, body, created_at, payload_json
+        ) VALUES (?, 'memory-change', ?, ?, ?, ?)
+      `,
+      )
+      .run(
+        sourceEventId,
+        botSlug,
+        change.summary,
+        this.#now().toISOString(),
+        JSON.stringify({ memoryChange: change }),
+      );
+    database
+      .prepare(
+        `
+        INSERT INTO inbox_admissions (source_event_id, bot_slug, reason)
+        VALUES (?, ?, 'memory-change')
+      `,
+      )
+      .run(sourceEventId, botSlug);
   }
 
   #dmChannel(botSlug: string): ChannelRecord | undefined {
@@ -12859,14 +12456,7 @@ class BotRuntimeImplementation implements BotRuntime {
             ...sourceEventIds,
           );
         if (sessionId !== undefined)
-          database
-            .prepare(
-              `
-              UPDATE bot_schedule_firings SET session_id = ?
-               WHERE session_id IS NULL AND source_event_id IN (${placeholders})
-            `,
-            )
-            .run(sessionId, ...sourceEventIds);
+          linkScheduleFiringsToSession(database, sourceEventIds, placeholders, sessionId);
       },
       ['bot-inbox', 'bot-schedules'],
     );
@@ -12925,50 +12515,8 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 }
 
+export { callTimelineNote, callVisualNote } from '../features/voice/events.js';
+
 export function createBotRuntime(options: BotRuntimeOptions): BotRuntime {
   return new BotRuntimeImplementation(options);
 }
-
-export function callTimelineNote(voiceCall: ChannelMessage['voiceCall']): string | undefined {
-  if (voiceCall === undefined) return undefined;
-  const parts: string[] = [];
-  if (voiceCall.speechFromMs !== undefined && voiceCall.speechToMs !== undefined)
-    parts.push(
-      `this message ${formatCallDuration(voiceCall.speechFromMs)}–${formatCallDuration(voiceCall.speechToMs)}`,
-    );
-  if (voiceCall.atMs !== undefined) parts.push(`typed at ${formatCallDuration(voiceCall.atMs)}`);
-  const visual = voiceCall.visual;
-  if (visual !== undefined && 'fromMs' in visual)
-    parts.push(`picture ${formatCallDuration(visual.fromMs)}–${formatCallDuration(visual.toMs)}`);
-  return parts.length === 0 ? undefined : parts.join(', ');
-}
-
-export function callVisualNote(
-  channelId: string,
-  message: ChannelMessage,
-  hint: string,
-): string | undefined {
-  const visual = message.voiceCall?.visual;
-  if (visual === undefined) return undefined;
-  if ('sameAs' in visual)
-    return `[Call ${visual.source} view] Nothing changed in the Human's ${visual.source} since message ${visual.sameAs}; that message's image is still what they see. To look at it again, open it with channel_read_image, channel_id ${channelId} and message_id ${visual.sameAs}.`;
-  const what =
-    visual.frames === 1 ? 'one keyframe' : `a ${visual.layout} grid of ${visual.frames} keyframes`;
-  const span = `${formatCallDuration(visual.fromMs)}–${formatCallDuration(visual.toMs)}`;
-  if (visual.unseen === true)
-    return `[Call ${visual.source} view] The Human is sharing their ${visual.source}, and this message keeps ${what} (picture ${span}) for the DM history, but your current model cannot read images, so do not open it. If they ask about what they are showing, tell them you cannot see it with this model and ask them to describe it.`;
-  const image = message.attachments?.findLast((ref) => ref.mime === 'image/jpeg');
-  if (image === undefined) return undefined;
-  const earlier =
-    visual.fromMs > 0
-      ? ` Anything shown before ${formatCallDuration(visual.fromMs)} on this call is saved as frame records: channel_read with call ${message.voiceCall!.callId} and to_ms ${visual.fromMs}, then channel_read_image on a record.`
-      : '';
-  return `[Call ${visual.source} view] This message carries ${what} from the Human's ${visual.source}, picture ${span} of the call: channel_read_image with channel_id ${channelId}, message_id ${message.id} and attachment_id ${attachmentIdentity(image)}.${earlier} ${hint}`;
-}
-
-const timelineSuffix = (note: string | undefined) => (note === undefined ? '' : `: ${note}`);
-import {
-  recordSchedulingDiagnostic,
-  schedulingIdentity,
-  withinSchedulingScan,
-} from '../process/scheduling-diagnostics.js';

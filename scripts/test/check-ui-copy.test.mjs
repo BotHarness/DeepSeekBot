@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collect, compare, findings, fixSource, RULES } from '../check-ui-copy.mjs';
+import { collect, compare, duplicateKeys, findings, fixSource, RULES } from '../check-ui-copy.mjs';
 
 const source = `
 export const zh = {
@@ -62,5 +62,20 @@ describe('check-ui-copy', () => {
       'client:zh.a.new: drop 「请」 unless the reader must go outside the app (system settings, another computer, the browser) (docs/agents/ui-copy.md § Please and failures)',
     ]);
     expect(stale).toEqual(['zhPlease client:zh.a.gone']);
+  });
+});
+
+describe('duplicateKeys', () => {
+  it('rejects a top-level key that two dictionaries of one app both define', () => {
+    const a =
+      "export const en = { chat: { send: 'Send' } };\nexport const zh = { chat: { send: '发送' } };";
+    const b = "export const en = { chat: { stop: 'Stop' }, voice: { mute: 'Mute' } };";
+    expect(
+      duplicateKeys([
+        { name: 'mobile', file: 'a.ts', source: a },
+        { name: 'mobile', file: 'b.ts', source: b },
+        { name: 'client', file: 'c.ts', source: b },
+      ]),
+    ).toEqual(['duplicate key mobile:en.chat in a.ts and b.ts']);
   });
 });

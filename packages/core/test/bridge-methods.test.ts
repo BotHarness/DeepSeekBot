@@ -1,5 +1,6 @@
 import { EngineHost } from '../src/engines/engine-host.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
+import { createEngineSelectionBridge } from '../src/engines/engine-selection-bridge.js';
 import { createEngineGateway } from '../src/engines/engine-gateway.js';
 import { createEngineStore, engineStorePath } from '../src/engines/engine-store.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
@@ -4306,7 +4307,14 @@ it('returns the live Orchestrator runner through list and detail after engine us
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ action: 'use', bot: 'ada', role: 'orchestrator', engine }),
       }),
-      { host, botExists: (slug) => f.registry.get(slug) !== undefined },
+      {
+        host,
+        botExists: (slug) => f.registry.get(slug) !== undefined,
+        ...createEngineSelectionBridge(OWNER_HUMAN_CONTEXT, {
+          engineSelection: host,
+          registry: f.registry,
+        }),
+      },
     );
   const bots = () => {
     const result = methods.list({});

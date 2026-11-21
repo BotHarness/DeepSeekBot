@@ -29,9 +29,10 @@ function concreteModels(models: readonly EngineModel[]): RoutingGroupEngineModel
 
 export async function routingGroupEngineOptions(
   host: Pick<EngineHost, 'status' | 'models'>,
+  allowed?: (accountId: string) => boolean,
 ): Promise<RoutingGroupEngineOptions[]> {
-  const report = await host.status();
-  if (report.length === 0)
+  const report = await host.status(undefined, allowed);
+  if (report.length === 0 && allowed === undefined)
     return ENGINE_IDS.map((engine) => ({ engine, available: false, reason: 'host-not-local' }));
   return Promise.all(
     report.map(async (status): Promise<RoutingGroupEngineOptions> => {

@@ -252,24 +252,29 @@ export class EngineHostAccounts {
     return probe;
   }
 
-  async status(target?: string): Promise<EngineStatusReport[]> {
+  async status(
+    target?: string,
+    allowed?: (accountId: string) => boolean,
+  ): Promise<EngineStatusReport[]> {
     if (!this.#options.local && target === undefined) return [];
     const accounts = target === undefined ? this.#store.accounts().accounts : [this.target(target)];
     return Promise.all(
-      accounts.map(async (account) => {
-        const { id, engine, name } = account;
-        const detected = await this.#probeStatus(account);
-        return {
-          ...statusReport(
-            engine,
-            detected,
-            engine === 'codex' ? 'chatgpt' : 'subscription',
-            this.quota(engine, id),
-          ),
-          accountId: id,
-          accountName: name,
-        };
-      }),
+      accounts
+        .filter(({ id }) => allowed?.(id) ?? true)
+        .map(async (account) => {
+          const { id, engine, name } = account;
+          const detected = await this.#probeStatus(account);
+          return {
+            ...statusReport(
+              engine,
+              detected,
+              engine === 'codex' ? 'chatgpt' : 'subscription',
+              this.quota(engine, id),
+            ),
+            accountId: id,
+            accountName: name,
+          };
+        }),
     );
   }
 
