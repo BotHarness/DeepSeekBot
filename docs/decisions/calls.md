@@ -49,7 +49,7 @@ One call runs per Host: the same device or window replaces its call, and another
 
 Why: one seam keeps later work (streaming, barge-in, new clients) on the Host side, and makes the owner the test seam: tests feed PCM and fake providers and assert events. Coughs and short noise must not interrupt the Human, so the VAD needs pitch, not just energy.
 
-Enforced by: `voice-calls.test.ts`, `voice-vad.test.ts`, `voice-call-record.test.ts`, `voice-call-session.test.ts`, `cli-call.test.ts`.
+Enforced by: `voice-calls-recognition-and-playback.test.ts`, `voice-calls-owner-lifecycle.test.ts`, `voice-calls-streamed-replies.test.ts`, `voice-calls-dm-records.test.ts`, `voice-vad.test.ts`, `voice-call-record.test.ts`, `voice-call-session.test.ts`, `cli-call.test.ts`.
 
 ## 5. The Human can cut in, and the Host never speaks on the Bot's behalf
 
@@ -60,7 +60,7 @@ A `voice: true` reply is spoken sentence by sentence while its draft streams (a 
 
 Why: a short automatic "嗯" after each sentence sounded like the Bot answering on its own, also when it was busy or the VAD let noise through. Thresholds were tuned on synthetic fixtures assuming the client's echo canceller keeps converged echo about 35 dB below speech, then checked on an iPhone on loudspeaker.
 
-Enforced by: `voice-calls.test.ts` (barge-in, filler dismissal, echo guard).
+Enforced by: `voice-calls-barge-in.test.ts` (barge-in, filler dismissal, echo guard).
 
 ## 6. A call is alive while its heartbeat or its WebRTC connection is
 
@@ -71,7 +71,7 @@ Clients send a heartbeat every second in the foreground and every 3 s in the bac
 
 Why: measured on Windows, a minimized page's JavaScript stalls for up to 12 s while WebRTC keeps sending on its own threads, so a heartbeat alone ended live calls. A closed window, crashed renderer, quit app and system sleep stop both signals, so they still end within seconds.
 
-Enforced by: `voice-calls.test.ts`, `call-gateway-deadline.test.ts`, `voice-call-client.test.ts`, `voice-call-stats.test.ts`.
+Enforced by: `voice-calls-owner-lifecycle.test.ts`, `call-gateway-deadline.test.ts`, `voice-call-client.test.ts`, `voice-call-stats.test.ts`.
 
 ## 7. Phone calls keep running in the background, with a lock-screen surface
 
@@ -108,7 +108,7 @@ The Host keeps a 768 px copy of each keyframe and composes grids at most 1536 px
 
 Why: real-time video is heavy to carry and the model does not read video frame by frame, while separate images lose their order. Square grids left black cells and shrank tiles until small text was unreadable.
 
-Enforced by: `call-grid.property.test.ts` (every count from one to nine, and validators accept only the matching layout), `call-visual.test.ts`, `call-grid-rows-migration.test.ts`, `call-visual-migration.test.ts`, `packages/client/test/desktop-call.test.tsx`, `apps/mobile/test/call-camera.test.ts`, `call-camera-android.test.ts`, `call-camera-share.test.ts`.
+Enforced by: `call-grid.property.test.ts` (every count from one to nine, and validators accept only the matching layout), `call-visual-camera-and-screen.test.ts`, `call-visual-channel-messages.test.ts`, `call-visual-frame-harvest.test.ts`, `call-visual-grid-imaging.test.ts`, `call-visual-keyframes.test.ts`, `call-visual-typed-text.test.ts`, `call-grid-rows-migration.test.ts`, `call-visual-migration.test.ts`, `packages/client/test/desktop-call.test.tsx`, `apps/mobile/test/call-camera.test.ts`, `call-camera-android.test.ts`, `call-camera-share.test.ts`.
 
 ## 10. Keyframes are picked on the client by perceptual hash
 
