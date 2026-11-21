@@ -73,6 +73,9 @@ async function submit(element: ParentNode) {
 
 it('rejects an HTTP address before calling the Host session', async () => {
   const screen = await render();
+  expect(screen.textContent).toContain(t.teamSignIn.address);
+  expect(screen.textContent).toContain(t.teamSignIn.username);
+  expect(screen.textContent).toContain(t.teamSignIn.password);
   await fill(screen, 'address', 'http://host.example');
   await fill(screen, 'username', 'owner');
   await fill(screen, 'password', 'test-password');

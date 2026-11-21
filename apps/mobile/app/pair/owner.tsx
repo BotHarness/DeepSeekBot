@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 
 import { ownerSignInOrigin } from '@botharness/host-client/owner-sign-in';
 import { computerEnvironmentKey } from '../../src/host/conversation-environments';
@@ -11,9 +11,18 @@ import { space } from '../../src/ui/design/tokens';
 import { Button } from '../../src/ui/primitives/button';
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
-import { TextField } from '../../src/ui/primitives/text-field';
+import { TextField, type TextFieldProps } from '../../src/ui/primitives/text-field';
 import { closeWorkspacePageWhenShown } from '../../src/ui/shell/workspace-paging';
 import { useStrings } from '../../src/ui/strings';
+
+function SignInField({ label, ...props }: TextFieldProps & { label: string }) {
+  return (
+    <View style={{ gap: space.x1 }}>
+      <Text>{label}</Text>
+      <TextField {...props} accessibilityLabel={label} />
+    </View>
+  );
+}
 
 export default function OwnerSignInScreen() {
   const t = useStrings();
@@ -78,10 +87,9 @@ export default function OwnerSignInScreen() {
   return (
     <KeyboardFormScroll contentContainerStyle={{ padding: space.x5, gap: space.x4 }}>
       <Text tone="muted">{t.ownerSignIn.hint}</Text>
-      <TextField
+      <SignInField
         testID="owner-sign-in-address"
         label={t.teamSignIn.address}
-        accessibilityLabel={t.teamSignIn.address}
         placeholder="https://…"
         value={address}
         onChangeText={setAddress}
@@ -91,10 +99,9 @@ export default function OwnerSignInScreen() {
         returnKeyType="next"
         editable={!busy}
       />
-      <TextField
+      <SignInField
         testID="owner-sign-in-username"
         label={t.teamSignIn.username}
-        accessibilityLabel={t.teamSignIn.username}
         value={username}
         onChangeText={setUsername}
         textContentType="username"
@@ -105,10 +112,9 @@ export default function OwnerSignInScreen() {
         returnKeyType="next"
         editable={!busy}
       />
-      <TextField
+      <SignInField
         testID="owner-sign-in-password"
         label={t.teamSignIn.password}
-        accessibilityLabel={t.teamSignIn.password}
         value={password}
         onChangeText={setPassword}
         secureTextEntry

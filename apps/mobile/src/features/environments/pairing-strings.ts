@@ -4,6 +4,7 @@ import type { PairingFailure } from '@botharness/host-client/pairing';
 export const en = {
   pairTitle: 'Pair with your computer',
   ownerSignIn: {
+    title: 'Owner sign-in',
     hint: 'Use a trusted HTTPS address from the Host Owner.',
     disabled: 'Password sign-in is turned off on this Host.',
     alreadyPaired: 'This Host is already on this phone.',
@@ -201,6 +202,7 @@ export const en = {
 export const zh: typeof en = {
   pairTitle: '与电脑配对',
   ownerSignIn: {
+    title: 'Owner 登录',
     hint: '使用 Host Owner 提供的可信 HTTPS 地址。',
     disabled: '此 Host 已关闭账密登录。',
     alreadyPaired: '这台手机已添加此 Host。',
