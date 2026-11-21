@@ -2,8 +2,6 @@ export const zh = {
   'composerHeader.settings': '顶部栏设置',
   'composerHeader.restoreHint':
     '全部隐藏后，可在输入框输入 /header 重新打开设置，也可以右键或长按顶部栏的标签。',
-  'composerContext.runner': '由 {engine} 运行，模型由订阅决定',
-  'composerContext.runnerAccount': '由 {engine}（{account}）运行，模型由订阅决定',
   'composerContext.avgPerf.title':
     '本频道最近 200 条消息中，最近 {count} 条 Bot 回复的平均输出速度',
   'composer.recallOmitted': '召回的输入未带回原来的附件和回复对象。',
@@ -143,8 +141,6 @@ export const en = {
   'composerHeader.settings': 'Header bar settings',
   'composerHeader.restoreHint':
     'Right-click or long-press the header chip to open these settings. When all items are hidden, type /header in the composer.',
-  'composerContext.runner': 'Runs on {engine}; the subscription picks the model',
-  'composerContext.runnerAccount': 'Runs on {engine} ({account}); the subscription picks the model',
   'composerContext.avgPerf.title':
     "Average output speed of the last {count} Bot replies among this chat's latest 200 messages",
   'composer.recallOmitted':

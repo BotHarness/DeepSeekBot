@@ -5,7 +5,7 @@ import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { SettingsGroupContext } from './ds/settings-row.js';
 
 const styles = stylex.create({
-  inGroup: { display: 'contents' },
+  inGroup: { display: 'contents', listStyle: 'none' },
 });
 
 export function SidebarCardList({

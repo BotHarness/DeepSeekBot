@@ -676,7 +676,11 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 
 ## 5 · Orchestrator 与 Assignment control plane
 
+应用定义的 Bot Runtime 持有每个 PersonaBot 的轮次队列，Orchestrator 调度、取消与继续模块共用该队列，并沿用 Session Ownership 与 DSH Agent adapter。参见[共享内核](feature-map.md#shared-kernel)。
+
 DSH Agent adapter 管理原生 Agent 生命周期，并注册 `packages/core/src/features/` 中 Schedule、GenUI、Memory、Channel files、Channel、IM Messaging、Activity、Assignment 和 Models 的工具与提示词。原生回合和直调共用同一套工具定义。
+
+Orchestrator、Assignment 和替代引擎的生命周期位于 `runtime/dsh-bot-agent-adapter-*` 模块。Adapter state 持有唯一的原生 Agent handle 表。替代引擎 Session 继续由 Engine Host 管理，Assignment 工具通过类型化输入使用现有运行时接口。
 
 M6 adds application-owned account/shared roots, separate grantable `files/` and protected Bot Memory, current audience checks (including for the Owner's own Bots), and the bound `core.currentRoots(session, kind)` seam for M12. The persistence, migration, M9 lifecycle and wire contracts are in [M6 runtime boundaries](team-mode-m6-runtime.md).
 
