@@ -1,11 +1,11 @@
 ---
-section: Added
+section: Changed
 ---
 
 ## en
 
-- Choose from 108 more Tilties avatars in the Genshin Impact, Star Rail and Wuthering Waves collections on Web and mobile ([#4784](https://github.com/BotHarness/DeepSeekBot/issues/4784)).
+- Browse all built-in Tilties in one gallery on Web and mobile, with a consistent avatar preview and larger, aligned avatars in the Web Channel list ([#4784](https://github.com/BotHarness/DeepSeekBot/issues/4784)).
 
 ## zh
 
-- Web 和移动端的歪头团头像新增 108 张，分为原神、星穹铁道和鸣潮三个系列（[#4784](https://github.com/BotHarness/DeepSeekBot/issues/4784)）。
+- Web 和移动端可在同一个列表浏览全部内置歪头团头像。Web 统一头像预览圆角，并放大频道列表头像，让它与右侧两行内容齐边（[#4784](https://github.com/BotHarness/DeepSeekBot/issues/4784)）。

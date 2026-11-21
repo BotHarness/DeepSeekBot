@@ -1,9 +1,5 @@
 import * as stylex from '@stylexjs/stylex';
-import {
-  DEFAULT_TILTIES_COLLECTION,
-  TILTIES_COLLECTIONS,
-  type TiltiesCollectionId,
-} from '@botharness/host-client/tilties-avatars';
+import { TILTIES_PORTRAITS } from '@botharness/host-client/tilties-avatars';
 import { useId, useState, type ReactElement } from 'react';
 
 import { Button } from './ds/button.js';
@@ -73,12 +69,9 @@ export function AvatarPresetPicker<Recipe>({
   t: BotHarnessTranslate;
 }): ReactElement {
   const id = useId();
-  const collectionId = `${id}-collection`;
   const [style, switchStyle] = useState<AvatarStyle>(
     pixelDisabled && hasTilties ? 'tilties' : 'pixel',
   );
-  const [collection, selectCollection] = useState<TiltiesCollectionId>(DEFAULT_TILTIES_COLLECTION);
-  const portraits = TILTIES_COLLECTIONS.find(({ id }) => id === collection)?.portraits ?? [];
   return (
     <div {...stylex.props(styles.picker)}>
       {hasTilties ? (
@@ -150,57 +143,41 @@ export function AvatarPresetPicker<Recipe>({
             </Button>
           </>
         ) : (
-          <>
-            <SegmentedControl<TiltiesCollectionId>
-              id={collectionId}
-              controlsPanel
-              wrap
-              label={t('profile.avatar.collections')}
-              options={TILTIES_COLLECTIONS.map(({ id, en, zh }) => ({
-                value: id,
-                label: t('profile.avatar.tiltiesName', { en, zh }),
-              }))}
-              value={collection}
-              onChange={selectCollection}
-              disabled={disabled}
-            />
-            <div
-              {...stylex.props(styles.gallery)}
-              id={`${collectionId}-${collection}-panel`}
-              role="tabpanel"
-              aria-labelledby={`${collectionId}-${collection}`}
-            >
-              {portraits.map(({ id, en, zh, image }) => {
-                const label = t('profile.avatar.tiltiesName', { en, zh });
-                const pressed = selected?.kind === 'tilties' && selected.image === image;
-                return (
-                  <Button
-                    key={id}
-                    variant="preview"
-                    type="button"
-                    xstyle={styles.tile}
-                    aria-label={label}
-                    aria-pressed={pressed}
-                    title={label}
-                    data-tilties-avatar={id}
-                    disabled={disabled}
-                    onClick={() => onChoose({ kind: 'tilties', image })}
-                  >
-                    <img
-                      src={image}
-                      alt=""
-                      decoding="async"
-                      loading="lazy"
-                      {...stylex.props(styles.image)}
-                    />
-                    {pressed ? (
-                      <span aria-hidden="true" {...stylex.props(styles.selectionRing)} />
-                    ) : null}
-                  </Button>
-                );
-              })}
-            </div>
-          </>
+          <div
+            {...stylex.props(styles.gallery)}
+            role="group"
+            aria-label={t('profile.avatar.tilties')}
+          >
+            {TILTIES_PORTRAITS.map(({ id, en, zh, image }) => {
+              const label = t('profile.avatar.tiltiesName', { en, zh });
+              const pressed = selected?.kind === 'tilties' && selected.image === image;
+              return (
+                <Button
+                  key={id}
+                  variant="preview"
+                  type="button"
+                  xstyle={styles.tile}
+                  aria-label={label}
+                  aria-pressed={pressed}
+                  title={label}
+                  data-tilties-avatar={id}
+                  disabled={disabled}
+                  onClick={() => onChoose({ kind: 'tilties', image })}
+                >
+                  <img
+                    src={image}
+                    alt=""
+                    decoding="async"
+                    loading="lazy"
+                    {...stylex.props(styles.image)}
+                  />
+                  {pressed ? (
+                    <span aria-hidden="true" {...stylex.props(styles.selectionRing)} />
+                  ) : null}
+                </Button>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>

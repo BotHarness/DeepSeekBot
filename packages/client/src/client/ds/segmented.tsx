@@ -16,11 +16,6 @@ const styles = stylex.create({
     backgroundColor: on.track,
     boxShadow: `inset 0 0 0 1px ${style.segmentedEdge}`,
   },
-  wrap: {
-    display: 'inline-flex',
-    flexWrap: 'wrap',
-    maxWidth: '100%',
-  },
   tab: {
     boxSizing: 'border-box',
     height: `calc(${style.controlHeight} - 4px)`,
@@ -63,7 +58,6 @@ export interface SegmentedControlProps<Value extends string> {
   readonly disabled?: boolean | undefined;
   readonly className?: string | undefined;
   readonly controlsPanel?: boolean | undefined;
-  readonly wrap?: boolean | undefined;
 }
 
 const WALK = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End']);
@@ -94,7 +88,6 @@ export function SegmentedControl<Value extends string>({
   disabled = false,
   className,
   controlsPanel = false,
-  wrap = false,
 }: SegmentedControlProps<Value>): ReactElement {
   const selected = options.findIndex((option) => option.value === value);
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
@@ -109,7 +102,7 @@ export function SegmentedControl<Value extends string>({
     <div
       role="tablist"
       aria-label={label}
-      className={joinClass(stylex.props(styles.track, wrap && styles.wrap).className, className)}
+      className={joinClass(stylex.props(styles.track).className, className)}
     >
       {options.map((option) => {
         const active = option.value === value;

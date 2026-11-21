@@ -1,61 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
 import { isPersonaBotAvatar } from '../../core/src/bots/persona-bot';
-import originalWebp from '../assets/tilties.json';
-import gameWebp from '../assets/tilties-games.json';
-import {
-  isTiltiesAvatar,
-  randomTiltiesAvatar,
-  TILTIES_COLLECTIONS,
-  DEFAULT_TILTIES_COLLECTION,
-} from '../src/tilties-avatars';
+import webp from '../assets/tilties.json';
+import { isTiltiesAvatar, randomTiltiesAvatar, TILTIES_PORTRAITS } from '../src/tilties-avatars';
 
 describe('Tilties avatars', () => {
-  const portraits = TILTIES_COLLECTIONS.flatMap((collection) => collection.portraits);
-  const images = portraits.map(({ image }) => image);
+  const images = TILTIES_PORTRAITS.map(({ image }) => image);
 
-  it('ships seven collections of distinct 512 px WebP portraits within their budgets', () => {
-    expect(TILTIES_COLLECTIONS.map(({ id }) => id)).toEqual([
-      'ai',
-      'pioneers',
-      'town',
-      'fantasy',
-      'genshin',
-      'star-rail',
-      'wuthering-waves',
-    ]);
-    expect(DEFAULT_TILTIES_COLLECTION).toBe('ai');
-    expect(TILTIES_COLLECTIONS[0]?.portraits.map(({ id }) => id)).toEqual([
-      'deepseek',
-      'gpt',
-      'claude',
-      'gemini',
-      'qwen',
-      'doubao',
-      'kimi',
-      'grok',
-      'mistral',
-    ]);
-    expect(TILTIES_COLLECTIONS.map(({ portraits }) => portraits.length)).toEqual([
-      9, 9, 9, 9, 54, 27, 27,
-    ]);
-    expect(
-      portraits
-        .slice(0, 36)
-        .map(({ id }) => id)
-        .sort(),
-    ).toEqual(Object.keys(originalWebp).sort());
-    expect(
-      portraits
-        .slice(36)
-        .map(({ id }) => id)
-        .sort(),
-    ).toEqual(Object.keys(gameWebp).sort());
-    expect(new Set(images).size).toBe(144);
-
-    let originalBytes = 0;
-    let gameBytes = 0;
-    for (const { id, image } of portraits) {
+  it('ships the 36 built-in portraits as a single gallery of distinct 512 px WebP images', () => {
+    expect(TILTIES_PORTRAITS).toHaveLength(36);
+    expect(TILTIES_PORTRAITS.map(({ id }) => id).sort()).toEqual(Object.keys(webp).sort());
+    expect(new Set(images).size).toBe(36);
+    let totalBytes = 0;
+    for (const { image } of TILTIES_PORTRAITS) {
       expect(isPersonaBotAvatar(image)).toBe(true);
       expect(isTiltiesAvatar(image)).toBe(true);
       const bytes = Buffer.from(image.slice('data:image/webp;base64,'.length), 'base64');
@@ -63,11 +20,9 @@ describe('Tilties avatars', () => {
       expect(bytes.readUInt16LE(26) & 0x3fff).toBe(512);
       expect(bytes.readUInt16LE(28) & 0x3fff).toBe(512);
       expect(bytes.length).toBeLessThanOrEqual(24 * 1024);
-      if (Object.hasOwn(originalWebp, id)) originalBytes += bytes.length;
-      else gameBytes += bytes.length;
+      totalBytes += bytes.length;
     }
-    expect(originalBytes).toBeLessThanOrEqual(640 * 1024);
-    expect(gameBytes).toBeLessThanOrEqual(1600 * 1024);
+    expect(totalBytes).toBeLessThanOrEqual(640 * 1024);
   });
 
   it('shuffles among bundled portraits and excludes the one already shown', () => {

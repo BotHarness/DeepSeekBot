@@ -2,15 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { writeFile } from 'node:fs/promises';
 import { basename, extname, resolve } from 'node:path';
 
-const [first, ...rest] = process.argv.slice(2);
-const games = first === '--games';
-const sources = (games ? rest : process.argv.slice(2)).toSorted();
-const expectedCount = games ? 108 : 36;
-const byteBudget = games ? 1600 * 1024 : 640 * 1024;
-const output = games ? 'tilties-games.json' : 'tilties.json';
-if (sources.length !== expectedCount) {
-  throw new Error(`Expected ${expectedCount} portraits, got ${sources.length}.`);
-}
+const sources = process.argv.slice(2).toSorted();
 const portraits = {};
 let totalBytes = 0;
 for (const source of sources) {
@@ -43,18 +35,16 @@ for (const source of sources) {
   portraits[id] = image.toString('base64');
 }
 
-if (totalBytes > byteBudget) {
+if (sources.length !== 36 || totalBytes > 640 * 1024) {
   throw new Error(
-    `Expected ${expectedCount} portraits within ${byteBudget} bytes, got ${totalBytes} bytes.`,
+    `Expected 36 portraits within 640 KiB, got ${sources.length} and ${totalBytes} bytes.`,
   );
 }
 const ordered = Object.fromEntries(
   Object.entries(portraits).toSorted(([left], [right]) => left.localeCompare(right, 'en')),
 );
 await writeFile(
-  new URL(`../packages/host-client/assets/${output}`, import.meta.url),
+  new URL('../packages/host-client/assets/tilties.json', import.meta.url),
   `${JSON.stringify(ordered, null, 2)}\n`,
 );
-process.stdout.write(
-  `Wrote ${expectedCount} Tilties portraits (512 × 512, ${totalBytes} bytes total).\n`,
-);
+process.stdout.write(`Wrote 36 Tilties portraits (512 × 512, ${totalBytes} bytes total).\n`);

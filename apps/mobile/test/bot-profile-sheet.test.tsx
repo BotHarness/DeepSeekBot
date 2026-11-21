@@ -335,20 +335,14 @@ describe('Bot profile page', () => {
     await act(async () =>
       view.querySelector<HTMLButtonElement>('[data-testid="bot-avatar-settings-tilties"]')!.click(),
     );
-    expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(9);
+    expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(36);
     expect(view.querySelector('[data-testid="tilties-avatar-deepseek"]')).not.toBeNull();
-    expect(view.querySelectorAll('[data-testid^="tilties-collection-"]')).toHaveLength(7);
-    const starRail = view.querySelector<HTMLButtonElement>(
-      '[data-testid="tilties-collection-star-rail"]',
-    )!;
-    expect(starRail.textContent).toBe('Star Rail');
-    await act(async () => starRail.click());
-    expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(27);
-    expect(view.querySelector('[data-testid="tilties-avatar-deepseek"]')).toBeNull();
+    expect(view.querySelector('[data-testid^="tilties-collection-"]')).toBeNull();
+    expect(view.querySelector('[data-testid="tilties-avatar-star-rail-robin"]')).toBeNull();
     await act(async () =>
       view
-        .querySelector<HTMLButtonElement>('[data-testid="tilties-avatar-star-rail-robin"]')
-        ?.click(),
+        .querySelector<HTMLButtonElement>('[data-testid="tilties-avatar-frost-archivist"]')!
+        .click(),
     );
     expect(avatar.save).toHaveBeenCalledOnce();
     expect(avatar.save).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/webp;base64,/u));
