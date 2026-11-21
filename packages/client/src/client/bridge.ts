@@ -1,4 +1,135 @@
-import type { ModelRouteView } from './features/models/bridge.js';
+export { parseSessionModelRoute } from './session-model-route.js';
+export type { SessionModelRoute } from './session-model-route.js';
+import { createSessionOwnerBridge, parseItems, finite } from './features/sessions/bridge.js';
+import type { SessionLiveSnapshot } from './features/sessions/bridge.js';
+export {
+  parseOwnedSessionSummaries,
+  parseIdleCompactionStatus,
+  loadIdleCompaction,
+  setIdleCompaction,
+  setCompactionThreshold,
+  parseSessionEngineQuota,
+  parseSessionToolDetail,
+  loadSessionToolDetail,
+  loadSessionTranscript,
+  loadBotSessionIds,
+  loadBotSessionGroups,
+  loadSessions,
+  setSessionArchived,
+  stopSession,
+  stopBot,
+} from './features/sessions/bridge.js';
+export type {
+  CompactionThresholdRange,
+  CompactionThreshold,
+  IdleCompactionStatus,
+  BotCompactResult,
+  SessionTranscriptTrigger,
+  SessionTurnUsage,
+  SessionToolTargets,
+  SessionTranscriptEnvelope,
+  SessionTranscriptItem,
+  SessionToolKind,
+  SessionEngineQuota,
+  SessionEngine,
+  SessionTranscript,
+  SessionLiveSnapshot,
+  SessionToolDetail,
+  StoppedSessionRef,
+  SessionStopResult,
+} from './features/sessions/bridge.js';
+export {
+  loadChannelAssignments,
+  loadSessionSubagents,
+  loadSessionProgress,
+  loadAssignmentWork,
+  loadHumanAssignmentContext,
+  loadAssignmentAccess,
+  setAssignmentAccess,
+} from './features/assignments/bridge.js';
+export type {
+  SessionSubagent,
+  SessionGoal,
+  SessionTodo,
+  SessionProgress,
+  AssignmentWorkStep,
+  AssignmentWorkLane,
+  AssignmentWorkRound,
+  AssignmentWork,
+  AssignmentAccessPresetView,
+} from './features/assignments/bridge.js';
+export {
+  moveMemoryLocation,
+  loadMemoryVersions,
+  loadMemorySnapshot,
+  loadMemoryFileTarget,
+  loadMemoryFile,
+  loadMemoryHistory,
+  loadMemoryDiff,
+  loadMemoryGitGraph,
+  loadMemoryGitCommitDiff,
+  loadMemoryWorkingChanges,
+  loadMemoryWorkingDiff,
+  loadMemoryRecoveryHistory,
+  restoreMemoryCheckpoint,
+  restoreMemoryCommit,
+  nameMemoryVersion,
+  removeMemoryVersionName,
+  saveMemoryFile,
+  repairMemory,
+  loadOverviewMemory,
+} from './features/memory/bridge.js';
+export type {
+  MemoryVersion,
+  MemoryWorkingKind,
+  MemoryWorkingChange,
+  MemoryWorkingDiff,
+  MemoryRecoveryCheckpoint,
+  MemoryRepairEvent,
+} from './features/memory/bridge.js';
+import {
+  createApprovalTemplateDeletionBridge,
+  parseApprovalCard,
+} from './features/approvals/bridge.js';
+export {
+  parseApprovalCard,
+  loadToolApprovalRules,
+  loadApprovalTemplates,
+  setGlobalApprovalTemplate,
+  createApprovalTemplate,
+  updateApprovalTemplate,
+  setBotApprovalTemplate,
+  loadApprovalReviewerModel,
+  setApprovalReviewerModel,
+  revokeToolApprovalRule,
+  loadToolApprovalStatus,
+  loadToolApprovalState,
+  loadToolApprovalExecutionState,
+  decideToolApproval,
+  loadUserQuestionStatus,
+  answerUserQuestion,
+  overrideAutoRejection,
+  setApprovalRoute,
+  testApprovalRoute,
+  retryApprovalNotification,
+  retryQuestionNotification,
+} from './features/approvals/bridge.js';
+export type {
+  ToolApprovalRuleView,
+  ApprovalTemplateView,
+  ApprovalReviewerModelView,
+  ToolApprovalExecutionState,
+} from './features/approvals/bridge.js';
+export {
+  loadWorkspaceGrants,
+  createWorkspaceGrant,
+  createGroupWorkspaceGrant,
+  readGroupWorkspaceGrant,
+  approveWorkspaceGrantRequest,
+  setWorkspaceGrantWrite,
+  revokeWorkspaceGrant,
+} from './features/workspaces/bridge.js';
+export type { WorkspaceGrantView } from './features/workspaces/bridge.js';
 export {
   setModelFavorite,
   loadModelCatalog,
@@ -55,6 +186,7 @@ import {
   asRecord,
   bridgeHost,
   BridgeCallError,
+  stringArray,
   unwrap,
   type BridgeCall,
 } from './bridge-transport.js';
@@ -69,28 +201,10 @@ export {
   previewBotSchedule,
 } from './features/schedules/bridge.js';
 import * as people from '@botharness/host-client/people';
-import * as accessReaders from '@botharness/host-client/access-readers';
 import * as rosterReaders from '@botharness/host-client/roster-readers';
-import { readAssignmentTimeline } from '@botharness/host-client/assignment-timeline';
 import { readProfileActivity } from '@botharness/host-client/profile-activity';
-import type {
-  WireAssignmentAccessPreset,
-  WireWorkspaceGrant,
-} from '@botharness/host-protocol/wire';
 import * as botControl from '@botharness/host-client/bot-control';
-import * as approvalReaders from '@botharness/host-client/approval-readers';
-import type {
-  WireApprovalRule,
-  WireBotCompactResult,
-  WireSessionStopResult,
-  WireStoppedSessionRef,
-  WireToolApprovalExecution,
-} from '@botharness/host-protocol/wire';
 import { parseToolEffects } from '../../../core/src/workspaces/tool-effects-contract.js';
-import {
-  approvalTemplateDeletionPreviewSchema,
-  type ApprovalTemplateDeletionPreview,
-} from '../../../core/src/workspaces/approval-template-deletion-contract.js';
 
 import {
   skillCatalogChangeSchema,
@@ -121,26 +235,8 @@ import {
   browseHostFolders,
   loadWorkspaceOptions as loadHostWorkspaceOptions,
 } from '@botharness/host-client/bot-settings';
-import type { ModelChoice } from '@botharness/host-client/model-catalog';
 import { listBots, updateBot } from '@botharness/host-client/bots';
-import { loadMemoryActivity, loadUsage } from '@botharness/host-client/usage';
-import {
-  loadMemoryFile as loadHostMemoryFile,
-  loadMemoryGitCommitDiff as loadHostMemoryGitCommitDiff,
-  loadMemoryGitGraph as loadHostMemoryGitGraph,
-  loadMemorySnapshot as loadHostMemorySnapshot,
-  parseMemoryCommit,
-  parseVersionNames,
-  saveMemoryFile as saveHostMemoryFile,
-  type MemoryAcceptedCommit,
-  type MemoryFile,
-  type MemoryGitCommitDiff,
-  type MemoryGitGraph,
-  type MemoryImageComparison,
-  type MemoryMarkdownComparison,
-  type MemorySnapshot,
-  type MemoryVersionName,
-} from '@botharness/host-client/memory';
+import { loadUsage } from '@botharness/host-client/usage';
 export type {
   MemoryAcceptedCommit,
   MemoryFile,
@@ -172,7 +268,6 @@ import {
   isChannelTurnStopEngine,
   isChannelTurnStopRests,
 } from '../../../core/src/channels/turn-stop.js';
-import { isTurnTargetPath, type TurnTarget } from '@botharness/host-protocol/turn-target';
 import { isChannelModelSwitch } from '../../../core/src/channels/model-switch.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
@@ -192,7 +287,6 @@ import type {
   ChannelSkillInvocationToken,
   GroupMemberWakePolicy,
 } from '../../../core/src/channels/channel.js';
-import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
 
 import type {
@@ -203,7 +297,6 @@ import type {
   MessagingIdentity,
   MessagingIdentityInput,
 } from '../../../core/src/messaging/identity.js';
-import type { OverviewMemory } from '../../../core/src/memory/overview.js';
 import {
   parseMarketplaceDetail,
   parseAuthoredBots,
@@ -234,6 +327,7 @@ import type {
 } from '../../../core/src/marketplace/install-review.js';
 import { parseChallenge, type AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
+import { approvalTemplateDeletionPreviewSchema } from '../../../core/src/workspaces/approval-template-deletion-contract.js';
 export type {
   MarketplaceAuthoredBot,
   MarketplaceDetail,
@@ -280,7 +374,6 @@ import type {
   ConversationIngestInput,
   ConversationIngestSnapshot,
 } from '../../../core/src/messaging/conversation-ingest.js';
-import type { HumanAssignmentContext } from '../../../core/src/runtime/assignment-human-context.js';
 export type { HumanAssignmentContext } from '../../../core/src/runtime/assignment-human-context.js';
 import type {
   MessagingApp,
@@ -322,11 +415,9 @@ import type {
   ChannelReplyPreview,
   ChannelReaction,
   ChannelSummary,
-  OwnedSessionSummary,
   QuoteRef,
   StandingLimitsView,
   UserQuestionAnswerItem,
-  ApprovalCardView,
 } from './store.js';
 import { quoteRefOf } from './store.js';
 import {
@@ -514,12 +605,6 @@ export function createBridgeCall(ctx: ClientContext): BridgeCall {
 
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function stringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === 'string')
-    : [];
 }
 
 export function parseBotSummary(value: unknown): BotSummary | undefined {
@@ -985,43 +1070,6 @@ export async function uploadChannelAttachment(
 
 function isMaskedRequest(value: unknown): boolean {
   return asRecord(value)?.['masked'] === true;
-}
-
-export function parseApprovalCard(value: unknown): ApprovalCardView | undefined {
-  const row = asRecord(value);
-  const kind = row?.['kind'];
-  if (
-    row === undefined ||
-    (kind !== 'tool-approval' && kind !== 'user-question' && kind !== 'private-input') ||
-    typeof row['state'] !== 'string' ||
-    typeof row['botSlug'] !== 'string' ||
-    typeof row['requestedAt'] !== 'string'
-  )
-    return undefined;
-  const base = {
-    kind,
-    state: row['state'],
-    botSlug: row['botSlug'],
-    requestedAt: row['requestedAt'],
-    ...(typeof row['decidedAt'] === 'string' ? { decidedAt: row['decidedAt'] } : {}),
-  } as const;
-  if (row['masked'] === true) return { masked: true, ...base };
-  const decider = asRecord(row['decidedBy']);
-  return {
-    masked: false,
-    ...base,
-    opaque: row['opaque'] === true,
-    ...(typeof decider?.['humanId'] === 'string'
-      ? {
-          decidedBy: {
-            humanId: decider['humanId'],
-            ...(typeof decider['displayName'] === 'string'
-              ? { displayName: decider['displayName'] }
-              : {}),
-          },
-        }
-      : {}),
-  };
 }
 
 function parseSkillInvocations(
@@ -2118,116 +2166,8 @@ export interface SessionBotOwner {
   role: 'orchestrator' | 'assignment';
 }
 
-export function parseSessionBotOwner(value: unknown): SessionBotOwner | undefined {
-  const owner = asRecord(asRecord(value)?.['owner']);
-  if (owner === undefined) return undefined;
-  const botSlug = owner['botSlug'];
-  const displayName = owner['displayName'];
-  const role = owner['role'];
-  if (typeof botSlug !== 'string' || botSlug.length === 0) return undefined;
-  if (typeof displayName !== 'string' || displayName.length === 0) return undefined;
-  if (role !== 'orchestrator' && role !== 'assignment') return undefined;
-  const avatar = owner['avatar'];
-  return {
-    botSlug,
-    displayName,
-    ...(typeof avatar === 'string' && avatar.length > 0 ? { avatar } : {}),
-    ...(isAvatarAppearance(owner['appearance']) ? { appearance: owner['appearance'] } : {}),
-    ...(owner['avatarSeed'] === 2 ? { avatarSeed: 2 as const } : {}),
-    role,
-  };
-}
-
-export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[] {
-  const sessions = asRecord(value)?.['sessions'];
-  if (!Array.isArray(sessions)) return [];
-  return sessions.flatMap((entry) => {
-    const record = asRecord(entry);
-    if (record === undefined) return [];
-    const sessionId = record['sessionId'];
-    const role = record['role'];
-    const createdAt = record['createdAt'];
-    const activity = record['assignmentActivity'];
-    const accessMode = record['assignmentAccessMode'];
-    if (typeof sessionId !== 'string' || sessionId.length === 0) return [];
-    if (role !== 'orchestrator' && role !== 'assignment') return [];
-    if (typeof createdAt !== 'string' || !Number.isFinite(Date.parse(createdAt))) return [];
-    if (
-      activity !== undefined &&
-      activity !== 'working' &&
-      activity !== 'idle' &&
-      activity !== 'error' &&
-      activity !== 'stopping' &&
-      activity !== 'stopped'
-    )
-      return [];
-    const cwdReference = record['cwdReference'];
-    const currentOrchestrator = record['currentOrchestrator'];
-    const reportState = record['assignmentReportState'];
-    const executionWait = record['assignmentExecutionWait'];
-    const engine = parseSessionEngine(record['engine']);
-    return [
-      {
-        sessionId,
-        role,
-        createdAt,
-        ...(typeof cwdReference === 'string' ? { cwdReference } : {}),
-        ...(role === 'orchestrator' && typeof currentOrchestrator === 'boolean'
-          ? { currentOrchestrator }
-          : {}),
-        ...(role === 'orchestrator' &&
-        typeof record['triageOpenCount'] === 'number' &&
-        Number.isSafeInteger(record['triageOpenCount']) &&
-        record['triageOpenCount'] > 0
-          ? { triageOpenCount: record['triageOpenCount'] }
-          : {}),
-        ...(activity === undefined ? {} : { assignmentActivity: activity }),
-        ...(role === 'assignment' &&
-        (accessMode === 'workspace-write' || accessMode === 'danger-full-access')
-          ? { assignmentAccessMode: accessMode }
-          : {}),
-        ...(role === 'assignment' &&
-        (reportState === 'progress' ||
-          reportState === 'completed' ||
-          reportState === 'blocked' ||
-          reportState === 'waiting-human' ||
-          reportState === 'failed')
-          ? { assignmentReportState: reportState }
-          : {}),
-        ...(role === 'assignment' &&
-        (executionWait === 'waiting-human' || executionWait === 'waiting-capacity')
-          ? { assignmentExecutionWait: executionWait }
-          : {}),
-        ...(role === 'assignment' && record['assignmentArchived'] === true
-          ? { assignmentArchived: true as const }
-          : {}),
-        ...(role === 'assignment' && typeof record['assignmentTitle'] === 'string'
-          ? { assignmentTitle: record['assignmentTitle'] }
-          : {}),
-        ...(role === 'assignment' && typeof record['assignmentDescription'] === 'string'
-          ? { assignmentDescription: record['assignmentDescription'] }
-          : {}),
-        ...(role === 'assignment' && parseSessionModelRoute(record['assignmentModelRoute'])
-          ? {
-              assignmentModelRoute: parseSessionModelRoute(record['assignmentModelRoute'])!,
-            }
-          : {}),
-        ...(parseSessionModelRoute(record['modelRoute'])
-          ? { modelRoute: parseSessionModelRoute(record['modelRoute'])! }
-          : {}),
-        ...(engine === undefined ? {} : { engine }),
-        ...(typeof record['agentPreset'] === 'string' && record['agentPreset'].length > 0
-          ? { agentPreset: record['agentPreset'] }
-          : {}),
-        ...(typeof record['subagentCount'] === 'number' &&
-        Number.isSafeInteger(record['subagentCount']) &&
-        record['subagentCount'] > 0
-          ? { subagentCount: record['subagentCount'] }
-          : {}),
-      },
-    ];
-  });
-}
+export const { parseSessionBotOwner, loadSessionBotOwner } =
+  createSessionOwnerBridge(isAvatarAppearance);
 
 export async function loadBots(call: BridgeCall, signal?: AbortSignal): Promise<BotSummary[]> {
   return parseBotSummaries({ bots: await listBots(bridgeHost(call, signal)) });
@@ -2556,95 +2496,7 @@ export async function loadGitAvailability(
 export async function startGitInstall(call: BridgeCall): Promise<GitAvailability> {
   return parseGitAvailability(await unwrap(call, 'gitInstall', {}));
 }
-
-export interface CompactionThresholdRange {
-  defaultValue: number;
-  min: number;
-  max: number;
-}
-
-export interface CompactionThreshold {
-  ratio: number;
-  headroomTokens: number;
-  ratioSet: boolean;
-  headroomSet: boolean;
-  ratioRange: CompactionThresholdRange;
-  headroomRange: CompactionThresholdRange;
-}
-
-export interface IdleCompactionStatus {
-  enabled: boolean;
-  settingReadable: boolean;
-  threshold?: CompactionThreshold;
-}
-
-function parseThresholdRange(value: unknown): CompactionThresholdRange | undefined {
-  const item = asRecord(value);
-  const numbers = [item?.['defaultValue'], item?.['min'], item?.['max']];
-  if (!numbers.every((entry) => typeof entry === 'number' && Number.isFinite(entry)))
-    return undefined;
-  const [defaultValue, min, max] = numbers as number[];
-  return { defaultValue: defaultValue!, min: min!, max: max! };
-}
-
-function parseCompactionThreshold(value: unknown): CompactionThreshold | undefined {
-  const item = asRecord(value);
-  const ratioRange = parseThresholdRange(item?.['ratioRange']);
-  const headroomRange = parseThresholdRange(item?.['headroomRange']);
-  const ratio = item?.['ratio'];
-  const headroomTokens = item?.['headroomTokens'];
-  if (
-    ratioRange === undefined ||
-    headroomRange === undefined ||
-    typeof ratio !== 'number' ||
-    typeof headroomTokens !== 'number'
-  )
-    return undefined;
-  return {
-    ratio,
-    headroomTokens,
-    ratioSet: item?.['ratioSet'] === true,
-    headroomSet: item?.['headroomSet'] === true,
-    ratioRange,
-    headroomRange,
-  };
-}
-
-export function parseIdleCompactionStatus(value: unknown): IdleCompactionStatus {
-  const item =
-    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
-  if (typeof item['enabled'] !== 'boolean') throw new Error('invalid idle compaction status');
-  const threshold = parseCompactionThreshold(item['threshold']);
-  return {
-    enabled: item['enabled'],
-    settingReadable: item['settingReadable'] !== false,
-    ...(threshold === undefined ? {} : { threshold }),
-  };
-}
-
-export type BotCompactResult = WireBotCompactResult;
 export { parseBotCompactResult } from '@botharness/host-client/bot-control';
-
-export async function loadIdleCompaction(
-  call: BridgeCall,
-  signal?: AbortSignal,
-): Promise<IdleCompactionStatus> {
-  return parseIdleCompactionStatus(await unwrap(call, 'idleCompaction', {}, signal));
-}
-
-export async function setIdleCompaction(
-  call: BridgeCall,
-  enabled: boolean,
-): Promise<IdleCompactionStatus> {
-  return parseIdleCompactionStatus(await unwrap(call, 'idleCompactionSet', { enabled }));
-}
-
-export async function setCompactionThreshold(
-  call: BridgeCall,
-  threshold: { thresholdRatio?: number | null; headroomTokens?: number | null },
-): Promise<IdleCompactionStatus> {
-  return parseIdleCompactionStatus(await unwrap(call, 'compactionThresholdSet', threshold));
-}
 
 export interface DataResetPreview {
   token: string;
@@ -2874,491 +2726,6 @@ export async function removeGroupMember(
 
 const ASSIGNMENT_ACTIVITIES = ['working', 'idle', 'error', 'stopping', 'stopped'];
 
-export async function loadChannelAssignments(
-  call: BridgeCall,
-  channelId: string,
-): Promise<ChannelAssignmentSummary[]> {
-  return channels.readChannelAssignments(bridgeHost(call), channelId);
-}
-
-const SUBAGENT_LANE_STATES = ['running', 'done', 'failed', 'cancelled', 'idle'];
-
-export interface SessionModelRoute {
-  provider: string;
-  model: string;
-  reasoningEffort?: string;
-}
-
-export interface SessionSubagent {
-  sessionId: string;
-  index: number;
-  title?: string;
-  route?: SessionModelRoute;
-  state: 'running' | 'done' | 'failed' | 'cancelled' | 'idle';
-  updatedAt?: string;
-  toolCount: number;
-}
-
-export function parseSessionModelRoute(value: unknown): SessionModelRoute | undefined {
-  const record = asRecord(value);
-  const provider = record?.['provider'];
-  const model = record?.['model'];
-  const effort = record?.['reasoningEffort'];
-  if (typeof provider !== 'string' || provider === '' || typeof model !== 'string' || model === '')
-    return undefined;
-  return {
-    provider,
-    model,
-    ...(typeof effort === 'string' ? { reasoningEffort: effort } : {}),
-  };
-}
-
-export async function loadSessionSubagents(
-  call: BridgeCall,
-  slug: string,
-  sessionId: string,
-): Promise<{ subagents: SessionSubagent[]; omitted: number }> {
-  const value = asRecord(await unwrap(call, 'sessionSubagents', { slug, sessionId }));
-  const lanes = value?.['lanes'];
-  const omitted = value?.['omittedSubagents'];
-  if (!Array.isArray(lanes) || typeof omitted !== 'number')
-    throw new Error('invalid sessionSubagents response');
-  const subagents = lanes.flatMap((entry): SessionSubagent[] => {
-    const lane = asRecord(entry);
-    const id = lane?.['sessionId'];
-    const index = lane?.['index'];
-    const state = lane?.['state'];
-    if (
-      typeof id !== 'string' ||
-      typeof index !== 'number' ||
-      !SUBAGENT_LANE_STATES.includes(state as string)
-    )
-      return [];
-    const title = lane?.['title'];
-    const updatedAt = lane?.['updatedAt'];
-    const route = parseSessionModelRoute(lane?.['route']);
-    const entries = lane?.['entries'];
-    const extra = lane?.['omitted'];
-    return [
-      {
-        sessionId: id,
-        index,
-        ...(typeof title === 'string' && title !== '' ? { title } : {}),
-        ...(route === undefined ? {} : { route }),
-        state: state as SessionSubagent['state'],
-        ...(typeof updatedAt === 'string' ? { updatedAt } : {}),
-        toolCount:
-          (Array.isArray(entries) ? entries.length : 0) + (typeof extra === 'number' ? extra : 0),
-      },
-    ];
-  });
-  return { subagents, omitted };
-}
-
-export interface SessionGoal {
-  objective: string;
-  phase: 'active' | 'paused' | 'blocked' | 'complete';
-  roundsStarted: number;
-  maxGoalRounds: number;
-  blockedReason?: string;
-}
-
-export interface SessionTodo {
-  content: string;
-  status: 'pending' | 'in_progress' | 'completed';
-}
-
-export interface SessionProgress {
-  goal?: SessionGoal;
-  todos?: SessionTodo[];
-  lastEventAt?: number;
-}
-
-const GOAL_PHASES = ['active', 'paused', 'blocked', 'complete'];
-const TODO_STATUSES = ['pending', 'in_progress', 'completed'];
-
-function parseSessionGoal(value: unknown): SessionGoal | undefined {
-  const goal = asRecord(value);
-  const objective = goal?.['objective'];
-  const phase = goal?.['phase'];
-  const rounds = goal?.['roundsStarted'];
-  const max = goal?.['maxGoalRounds'];
-  const reason = goal?.['blockedReason'];
-  if (
-    typeof objective !== 'string' ||
-    !GOAL_PHASES.includes(phase as string) ||
-    typeof rounds !== 'number' ||
-    typeof max !== 'number'
-  )
-    return undefined;
-  return {
-    objective,
-    phase: phase as SessionGoal['phase'],
-    roundsStarted: rounds,
-    maxGoalRounds: max,
-    ...(typeof reason === 'string' ? { blockedReason: reason } : {}),
-  };
-}
-
-function parseSessionTodos(value: unknown): SessionTodo[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const todos = value.flatMap((entry): SessionTodo[] => {
-    const todo = asRecord(entry);
-    const content = todo?.['content'];
-    const status = todo?.['status'];
-    return typeof content === 'string' && TODO_STATUSES.includes(status as string)
-      ? [{ content, status: status as SessionTodo['status'] }]
-      : [];
-  });
-  return todos.length === 0 ? undefined : todos;
-}
-
-export async function loadSessionProgress(
-  call: BridgeCall,
-  slug: string,
-  sessionIds: readonly string[],
-): Promise<Record<string, SessionProgress>> {
-  const value = asRecord(await unwrap(call, 'sessionProgress', { slug, sessionIds }));
-  const sessions = value?.['sessions'];
-  if (!Array.isArray(sessions)) throw new Error('invalid sessionProgress response');
-  const progress: Record<string, SessionProgress> = {};
-  for (const entry of sessions) {
-    const session = asRecord(entry);
-    const id = session?.['sessionId'];
-    if (session === undefined || typeof id !== 'string' || session['error'] !== undefined) continue;
-    const goal = parseSessionGoal(session['goal']);
-    const todos = parseSessionTodos(session['todos']);
-    const at = session['lastEventAt'];
-    progress[id] = {
-      ...(goal === undefined ? {} : { goal }),
-      ...(todos === undefined ? {} : { todos }),
-      ...(typeof at === 'number' ? { lastEventAt: at } : {}),
-    };
-  }
-  return progress;
-}
-
-export type SessionTranscriptTrigger =
-  | 'request'
-  | 'goal'
-  | 'agent'
-  | 'team'
-  | 'subagent'
-  | 'github'
-  | 'webhook'
-  | 'schedule'
-  | 'job'
-  | 'plugin';
-
-const SESSION_TRIGGERS: readonly string[] = [
-  'request',
-  'goal',
-  'agent',
-  'team',
-  'subagent',
-  'github',
-  'webhook',
-  'schedule',
-  'job',
-  'plugin',
-];
-
-export interface SessionTurnUsage {
-  tokens: number;
-  output: number;
-  outputMs: number;
-}
-
-export interface SessionToolTargets {
-  command?: string;
-  path?: string;
-  url?: string;
-}
-
-export interface SessionTranscriptEnvelope {
-  kind: 'human-dm' | 'group' | 'bot-dm' | 'inbox' | 'other';
-  channelId?: string;
-  messageId?: string;
-}
-
-const ENVELOPE_KINDS = ['human-dm', 'group', 'bot-dm', 'inbox', 'other'] as const;
-
-function parseTranscriptEnvelope(value: unknown): SessionTranscriptEnvelope | undefined {
-  const record = asRecord(value);
-  const kind = record?.['kind'];
-  if (record === undefined || !ENVELOPE_KINDS.includes(kind as SessionTranscriptEnvelope['kind']))
-    return undefined;
-  return {
-    kind: kind as SessionTranscriptEnvelope['kind'],
-    ...(typeof record['channelId'] === 'string' ? { channelId: record['channelId'] } : {}),
-    ...(typeof record['messageId'] === 'string' ? { messageId: record['messageId'] } : {}),
-  };
-}
-
-export type SessionTranscriptItem =
-  | {
-      kind: 'input';
-      text: string;
-      at: string;
-      turn: number;
-      source: 'user' | 'system';
-      trigger?: SessionTranscriptTrigger;
-      envelope?: SessionTranscriptEnvelope;
-    }
-  | { kind: 'reply'; text: string; at: string; live?: true; turnTargets?: TurnTarget[] }
-  | {
-      kind: 'reasoning';
-      text: string;
-      at: string;
-      durationMs?: number;
-      live?: true;
-    }
-  | ({
-      kind: 'tool';
-      id: string;
-      tool: string;
-      toolKind: SessionToolKind;
-      status: 'running' | 'done' | 'failed' | 'denied' | 'cancelled';
-      detail?: string;
-      added?: number;
-      removed?: number;
-      at: string;
-      endedAt?: string;
-      live?: true;
-    } & SessionToolTargets)
-  | {
-      kind: 'turn-end';
-      state: 'done' | 'failed' | 'cancelled';
-      at: string;
-      message?: string;
-      usage?: SessionTurnUsage;
-      turnTargets?: TurnTarget[];
-    };
-
-export type SessionToolKind =
-  | 'read'
-  | 'edit'
-  | 'delete'
-  | 'move'
-  | 'search'
-  | 'execute'
-  | 'fetch'
-  | 'other';
-
-const SESSION_TOOL_KINDS: readonly string[] = [
-  'read',
-  'edit',
-  'delete',
-  'move',
-  'search',
-  'execute',
-  'fetch',
-];
-
-export interface SessionEngineQuota {
-  usedPercent?: number;
-  resetsAt?: string;
-  limitedUntil?: string;
-  observedAt: string;
-}
-
-export interface SessionEngine {
-  engine: string;
-  account?: string;
-  state: 'starting' | 'running' | 'waiting-approval' | 'idle';
-  quota?: SessionEngineQuota;
-}
-
-export function parseSessionEngineQuota(value: unknown): SessionEngineQuota | undefined {
-  const quota = asRecord(value);
-  if (quota === undefined || typeof quota['observedAt'] !== 'string') return undefined;
-  const time = (field: unknown) =>
-    typeof field === 'string' && Number.isFinite(Date.parse(field)) ? field : undefined;
-  const percent = quota['usedPercent'];
-  const resetsAt = time(quota['resetsAt']);
-  const limitedUntil = time(quota['limitedUntil']);
-  return {
-    ...(typeof percent === 'number' && Number.isFinite(percent) ? { usedPercent: percent } : {}),
-    ...(resetsAt === undefined ? {} : { resetsAt }),
-    ...(limitedUntil === undefined ? {} : { limitedUntil }),
-    observedAt: quota['observedAt'],
-  };
-}
-
-export interface SessionTranscript {
-  role: 'orchestrator' | 'assignment';
-  items: SessionTranscriptItem[];
-  omitted: number;
-  running: boolean;
-  seq: number;
-  engine?: SessionEngine;
-}
-
-function parseSessionEngine(value: unknown): SessionEngine | undefined {
-  const engine = asRecord(value);
-  if (engine === undefined || typeof engine['engine'] !== 'string') return undefined;
-  const state = engine['state'];
-  const quota = parseSessionEngineQuota(engine['quota']);
-  return {
-    engine: engine['engine'],
-    ...(typeof engine['account'] === 'string' ? { account: engine['account'] } : {}),
-    state:
-      state === 'starting' || state === 'running' || state === 'waiting-approval' ? state : 'idle',
-    ...(quota === undefined ? {} : { quota }),
-  };
-}
-
-export interface SessionLiveSnapshot {
-  revision: number;
-  seq: number;
-  items: SessionTranscriptItem[];
-}
-
-export type SessionToolDetail =
-  | { card: 'terminal'; command?: string; output: string; exitCode?: number }
-  | {
-      card: 'diff';
-      files: { path: string; oldText: string | null; newText: string }[];
-    }
-  | {
-      card: 'read';
-      path: string;
-      offset: number;
-      totalLines: number;
-      lines: { number: number; text: string }[];
-    }
-  | {
-      card: 'search';
-      total: number;
-      truncated: boolean;
-      files: {
-        path: string;
-        matches: { lineNumber: number; line: string }[];
-      }[];
-      paths: string[];
-    }
-  | {
-      card: 'web';
-      url?: string;
-      statusCode?: number;
-      sources: { url: string; title?: string }[];
-      output: string;
-    }
-  | { card: 'text'; input?: string; output: string };
-
-const TRANSCRIPT_TOOL_STATUSES = ['running', 'done', 'failed', 'denied', 'cancelled'];
-const TRANSCRIPT_END_STATES = ['done', 'failed', 'cancelled'];
-
-function finite(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
-}
-
-function targets(item: Record<string, unknown>): SessionToolTargets {
-  const { command, path, url } = item;
-  return {
-    ...(typeof command === 'string' ? { command } : {}),
-    ...(typeof path === 'string' ? { path } : {}),
-    ...(typeof url === 'string' && /^https?:\/\//iu.test(url) ? { url } : {}),
-  };
-}
-
-function parseUsage(value: unknown): SessionTurnUsage | undefined {
-  const usage = asRecord(value);
-  const tokens = finite(usage?.['tokens']);
-  const output = finite(usage?.['output']);
-  const outputMs = finite(usage?.['outputMs']);
-  return tokens === undefined || output === undefined || outputMs === undefined
-    ? undefined
-    : { tokens, output, outputMs };
-}
-
-function parseTranscriptItem(value: unknown): SessionTranscriptItem | undefined {
-  const item = asRecord(value);
-  const at = item?.['at'];
-  const text = item?.['text'];
-  if (item === undefined || typeof at !== 'string') return undefined;
-  const path = item['turnTargets'];
-  const attribution = isTurnTargetPath(path) ? { turnTargets: path } : {};
-  switch (item['kind']) {
-    case 'input':
-      return typeof text === 'string' && typeof item['turn'] === 'number'
-        ? {
-            kind: 'input',
-            text,
-            at,
-            turn: item['turn'],
-            source: item['source'] === 'system' ? 'system' : 'user',
-            ...(SESSION_TRIGGERS.includes(item['trigger'] as string)
-              ? { trigger: item['trigger'] as SessionTranscriptTrigger }
-              : {}),
-            ...(parseTranscriptEnvelope(item['envelope']) === undefined
-              ? {}
-              : { envelope: parseTranscriptEnvelope(item['envelope'])! }),
-          }
-        : undefined;
-    case 'reply':
-      return typeof text === 'string' ? { kind: 'reply', text, at, ...attribution } : undefined;
-    case 'reasoning': {
-      const durationMs = finite(item['durationMs']);
-      return typeof text === 'string'
-        ? {
-            kind: 'reasoning',
-            text,
-            at,
-            ...(durationMs === undefined ? {} : { durationMs }),
-          }
-        : undefined;
-    }
-    case 'tool': {
-      const { id, tool, status, detail, toolKind, endedAt } = item;
-      const added = finite(item['added']);
-      const removed = finite(item['removed']);
-      const resolvedStatus = status === undefined ? 'running' : status;
-      return typeof id === 'string' &&
-        typeof tool === 'string' &&
-        TRANSCRIPT_TOOL_STATUSES.includes(resolvedStatus as string)
-        ? {
-            kind: 'tool',
-            id,
-            tool,
-            toolKind: SESSION_TOOL_KINDS.includes(toolKind as string)
-              ? (toolKind as SessionToolKind)
-              : 'other',
-            status: resolvedStatus as Extract<SessionTranscriptItem, { kind: 'tool' }>['status'],
-            ...(typeof detail === 'string' ? { detail } : {}),
-            ...targets(item),
-            ...(added === undefined ? {} : { added }),
-            ...(removed === undefined ? {} : { removed }),
-            at,
-            ...(typeof endedAt === 'string' ? { endedAt } : {}),
-          }
-        : undefined;
-    }
-    case 'turn-end': {
-      const usage = parseUsage(item['usage']);
-      return TRANSCRIPT_END_STATES.includes(item['state'] as string)
-        ? {
-            kind: 'turn-end',
-            state: item['state'] as Extract<SessionTranscriptItem, { kind: 'turn-end' }>['state'],
-            at,
-            ...(typeof item['message'] === 'string' ? { message: item['message'] } : {}),
-            ...(usage === undefined ? {} : { usage }),
-            ...attribution,
-          }
-        : undefined;
-    }
-    default:
-      return undefined;
-  }
-}
-
-function parseItems(items: unknown[]): SessionTranscriptItem[] {
-  return items.flatMap((entry) => {
-    const item = parseTranscriptItem(entry);
-    return item === undefined ? [] : [item];
-  });
-}
-
 export async function loadSessionLive(
   call: BridgeCall,
   slug: string,
@@ -3385,143 +2752,6 @@ export async function loadSessionLive(
         ? { ...item, live: true as const }
         : item,
     ),
-  };
-}
-
-function strings(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === 'string')
-    : [];
-}
-
-export function parseSessionToolDetail(value: unknown): SessionToolDetail | undefined {
-  const detail = asRecord(value);
-  const output = typeof detail?.['output'] === 'string' ? detail['output'] : '';
-  switch (detail?.['card']) {
-    case 'terminal':
-      return {
-        card: 'terminal',
-        ...(typeof detail['command'] === 'string' ? { command: detail['command'] } : {}),
-        output,
-        ...(typeof detail['exitCode'] === 'number' ? { exitCode: detail['exitCode'] } : {}),
-      };
-    case 'diff':
-      return {
-        card: 'diff',
-        files: (Array.isArray(detail['files']) ? detail['files'] : []).flatMap((entry) => {
-          const file = asRecord(entry);
-          return file !== undefined &&
-            typeof file['path'] === 'string' &&
-            typeof file['newText'] === 'string'
-            ? [
-                {
-                  path: file['path'],
-                  oldText: typeof file['oldText'] === 'string' ? file['oldText'] : null,
-                  newText: file['newText'],
-                },
-              ]
-            : [];
-        }),
-      };
-    case 'read':
-      return typeof detail['path'] === 'string'
-        ? {
-            card: 'read',
-            path: detail['path'],
-            offset: finite(detail['offset']) ?? 1,
-            totalLines: finite(detail['totalLines']) ?? 0,
-            lines: (Array.isArray(detail['lines']) ? detail['lines'] : []).flatMap((entry) => {
-              const line = asRecord(entry);
-              return line !== undefined &&
-                typeof line['number'] === 'number' &&
-                typeof line['text'] === 'string'
-                ? [{ number: line['number'], text: line['text'] }]
-                : [];
-            }),
-          }
-        : undefined;
-    case 'search':
-      return {
-        card: 'search',
-        total: finite(detail['total']) ?? 0,
-        truncated: detail['truncated'] === true,
-        files: (Array.isArray(detail['files']) ? detail['files'] : []).flatMap((entry) => {
-          const file = asRecord(entry);
-          if (file === undefined || typeof file['path'] !== 'string') return [];
-          return [
-            {
-              path: file['path'],
-              matches: (Array.isArray(file['matches']) ? file['matches'] : []).flatMap((item) => {
-                const match = asRecord(item);
-                return match !== undefined &&
-                  typeof match['lineNumber'] === 'number' &&
-                  typeof match['line'] === 'string'
-                  ? [{ lineNumber: match['lineNumber'], line: match['line'] }]
-                  : [];
-              }),
-            },
-          ];
-        }),
-        paths: strings(detail['paths']),
-      };
-    case 'web':
-      return {
-        card: 'web',
-        ...(typeof detail['url'] === 'string' ? { url: detail['url'] } : {}),
-        ...(typeof detail['statusCode'] === 'number' ? { statusCode: detail['statusCode'] } : {}),
-        sources: (Array.isArray(detail['sources']) ? detail['sources'] : []).flatMap((entry) => {
-          const source = asRecord(entry);
-          return source !== undefined && typeof source['url'] === 'string'
-            ? [
-                {
-                  url: source['url'],
-                  ...(typeof source['title'] === 'string' ? { title: source['title'] } : {}),
-                },
-              ]
-            : [];
-        }),
-        output,
-      };
-    case 'text':
-      return {
-        card: 'text',
-        ...(typeof detail['input'] === 'string' ? { input: detail['input'] } : {}),
-        output,
-      };
-    default:
-      return undefined;
-  }
-}
-
-export async function loadSessionToolDetail(
-  call: BridgeCall,
-  slug: string,
-  sessionId: string,
-  callId: string,
-): Promise<SessionToolDetail> {
-  const value = asRecord(await unwrap(call, 'sessionToolDetail', { slug, sessionId, callId }));
-  const detail = parseSessionToolDetail(value?.['detail']);
-  if (detail === undefined) throw new Error('invalid sessionToolDetail response');
-  return detail;
-}
-
-export async function loadSessionTranscript(
-  call: BridgeCall,
-  slug: string,
-  sessionId: string,
-): Promise<SessionTranscript> {
-  const value = asRecord(await unwrap(call, 'sessionTranscript', { slug, sessionId }));
-  const items = value?.['items'];
-  if (value === undefined || !Array.isArray(items))
-    throw new Error('invalid sessionTranscript response');
-  const engine = parseSessionEngine(value['engine']);
-  return {
-    role: value['role'] === 'orchestrator' ? 'orchestrator' : 'assignment',
-    items: parseItems(items),
-    omitted: typeof value['omitted'] === 'number' ? value['omitted'] : 0,
-    running: value['running'] === true,
-    seq: finite(value['seq']) ?? 0,
-    ...(engine === undefined ? {} : { engine }),
   };
 }
 
@@ -3565,69 +2795,6 @@ export async function sendOrchestratorMessage(
   text: string,
 ): Promise<void> {
   await unwrap(call, 'sessionMessageSend', { botSlug, sessionId, text });
-}
-
-export interface AssignmentWorkStep {
-  status: 'running' | 'done' | 'failed' | 'denied' | 'cancelled';
-  kind: string;
-  tool: string;
-  detail?: string;
-  at: string;
-  round?: number;
-}
-
-export interface AssignmentWorkLane {
-  role: 'main' | 'subagent';
-  index: number;
-  sessionId: string;
-  title?: string;
-  route?: SessionModelRoute;
-  state: SessionSubagent['state'];
-  round?: number;
-  entries: AssignmentWorkStep[];
-  omitted: number;
-}
-
-export interface AssignmentWorkRound {
-  index: number;
-  kind: 'created' | 'continued';
-  at: string;
-  instruction?: string;
-}
-
-export interface AssignmentWork {
-  title: string;
-  description: string;
-  activity: ChannelAssignmentSummary['activity'];
-  latestReport?: {
-    state: NonNullable<ChannelAssignmentSummary['latestReport']>['state'];
-    summary: string;
-    at?: string;
-  };
-  rounds: AssignmentWorkRound[];
-  lanes: AssignmentWorkLane[];
-  omittedSubagents: number;
-  omittedRounds: number;
-}
-
-export async function loadAssignmentWork(
-  call: BridgeCall,
-  slug: string,
-  sessionId: string,
-): Promise<AssignmentWork> {
-  const { assignment, rounds, lanes, omittedSubagents, omittedRounds } =
-    await readAssignmentTimeline(bridgeHost(call), { slug, sessionId });
-  const { title, description, activity, latestReport } = assignment;
-  return {
-    title,
-    description,
-    activity,
-    ...(latestReport === undefined ? {} : { latestReport }),
-    rounds: rounds ?? [],
-    lanes,
-    omittedSubagents,
-    omittedRounds: omittedRounds ?? 0,
-  };
 }
 
 export async function loadGroupWakePolicies(
@@ -3828,21 +2995,6 @@ export async function markReadPosition(
   await channelHost.markChannelRead(bridgeHost(call), channelId, messageId);
 }
 
-export async function loadHumanAssignmentContext(
-  call: BridgeCall,
-  slug: string,
-  sessionId: string,
-  sourceEventId: string,
-  signal?: AbortSignal,
-): Promise<HumanAssignmentContext> {
-  const { context } = await people.readHumanAssignmentContext(bridgeHost(call, signal), {
-    slug,
-    sessionId,
-    sourceEventId,
-  });
-  return context;
-}
-
 export async function loadAllBotPreview(
   call: BridgeCall,
   channelId: string,
@@ -3899,258 +3051,7 @@ export async function sendChannelMessage(
 export const { parseGenuiView, loadGenuiView, saveGenuiView } =
   createGenuiReportBridge(genuiViewSchema);
 
-export type AssignmentAccessPresetView = WireAssignmentAccessPreset;
-
-export async function loadAssignmentAccess(
-  call: BridgeCall,
-  slug: string,
-): Promise<AssignmentAccessPresetView> {
-  return (await accessReaders.readAssignmentAccess(bridgeHost(call), slug)).preset;
-}
-
-export async function setAssignmentAccess(
-  call: BridgeCall,
-  slug: string,
-  mode: AssignmentAccessPresetView['mode'],
-  acknowledgeRisk: boolean,
-  scope?: 'chat' | 'assignments',
-): Promise<AssignmentAccessPresetView> {
-  return (
-    await accessReaders.writeAssignmentAccess(bridgeHost(call), {
-      slug,
-      mode,
-      acknowledgeRisk,
-      ...(scope === undefined ? {} : { scope }),
-    })
-  ).preset;
-}
-
-export type ToolApprovalRuleView = WireApprovalRule;
-
-export async function loadToolApprovalRules(
-  call: BridgeCall,
-  slug: string,
-): Promise<ToolApprovalRuleView[]> {
-  return (await approvalReaders.readToolApprovalRules(bridgeHost(call), slug)).rules;
-}
-
-export interface ApprovalTemplateView {
-  name: string;
-  title: string;
-  description: string;
-  builtIn: boolean;
-  usedBy: string[];
-  text?: string;
-}
-function parseApprovalTemplate(item: unknown): ApprovalTemplateView | undefined {
-  const template = asRecord(item);
-  if (
-    typeof template?.['name'] !== 'string' ||
-    typeof template['title'] !== 'string' ||
-    typeof template['description'] !== 'string'
-  )
-    return undefined;
-  const text = template['text'];
-  return {
-    name: template['name'],
-    title: template['title'],
-    description: template['description'],
-    builtIn: template['builtIn'] !== false,
-    usedBy: stringArray(template['usedBy']),
-    ...(typeof text === 'string' ? { text } : {}),
-  };
-}
-export async function loadApprovalTemplates(
-  call: BridgeCall,
-  slug?: string,
-): Promise<{
-  templates: ApprovalTemplateView[];
-  selected: string | null;
-  globalDefault?: string | null;
-}> {
-  const { templates, selected, globalDefault } = await approvalReaders.readApprovalTemplates(
-    bridgeHost(call),
-    slug,
-  );
-  return {
-    templates,
-    selected: selected ?? null,
-    ...(globalDefault === undefined ? {} : { globalDefault }),
-  };
-}
-export async function setGlobalApprovalTemplate(
-  call: BridgeCall,
-  template: string | null,
-): Promise<void> {
-  await unwrap(call, 'approvalTemplateGlobalSet', { template });
-}
-async function writtenApprovalTemplate(
-  call: BridgeCall,
-  endpoint: 'approvalTemplateCreate' | 'approvalTemplateUpdate',
-  payload: Record<string, unknown>,
-): Promise<ApprovalTemplateView> {
-  const template = parseApprovalTemplate(
-    asRecord(await unwrap(call, endpoint, payload))?.['template'],
-  );
-  if (template === undefined) throw new Error('invalid ' + endpoint + ' response');
-  return template;
-}
-export function createApprovalTemplate(
-  call: BridgeCall,
-  name: string,
-  source: { text: string } | { from: string },
-): Promise<ApprovalTemplateView> {
-  return writtenApprovalTemplate(call, 'approvalTemplateCreate', {
-    name,
-    ...source,
-  });
-}
-export function updateApprovalTemplate(
-  call: BridgeCall,
-  name: string,
-  text: string,
-): Promise<ApprovalTemplateView> {
-  return writtenApprovalTemplate(call, 'approvalTemplateUpdate', {
-    name,
-    text,
-  });
-}
-export async function previewApprovalTemplateDeletion(
-  call: BridgeCall,
-  name: string,
-): Promise<ApprovalTemplateDeletionPreview> {
-  const response = asRecord(await unwrap(call, 'approvalTemplateDeletePreview', { name }));
-  const preview = approvalTemplateDeletionPreviewSchema.parse(response?.['preview']);
-  if (preview.name !== name) throw new Error('invalid approval template deletion target');
-  return preview;
-}
-export async function deleteApprovalTemplate(
-  call: BridgeCall,
-  preview: ApprovalTemplateDeletionPreview,
-): Promise<{ inheritedBots: string[] }> {
-  const response = asRecord(
-    await unwrap(call, 'approvalTemplateDelete', {
-      name: preview.name,
-      confirmed: true,
-      revision: preview.revision,
-    }),
-  );
-  if (!Array.isArray(response?.['inheritedBots']))
-    throw new Error('invalid approvalTemplateDelete response');
-  return { inheritedBots: stringArray(response['inheritedBots']) };
-}
-export async function setBotApprovalTemplate(
-  call: BridgeCall,
-  slug: string,
-  template: string | null,
-): Promise<void> {
-  await approvalReaders.setBotApprovalTemplate(bridgeHost(call), slug, template);
-}
-export interface ApprovalReviewerModelView {
-  follows: 'bot' | 'model' | 'invalid';
-  model: ModelRouteView | null;
-  available?: boolean;
-  unavailableReason?: string;
-}
-function approvalReviewerModelView(response: unknown, method: string): ApprovalReviewerModelView {
-  const view = asRecord(response);
-  const follows = view?.['follows'];
-  const model = asRecord(view?.['model']);
-  if (
-    (follows !== 'bot' && follows !== 'model' && follows !== 'invalid') ||
-    (view?.['model'] !== null &&
-      (typeof model?.['provider'] !== 'string' || typeof model['model'] !== 'string'))
-  )
-    throw new Error(`invalid ${method} response`);
-  return {
-    follows,
-    model:
-      model === undefined
-        ? null
-        : {
-            provider: model['provider'] as string,
-            model: model['model'] as string,
-            ...(typeof model['reasoningEffort'] === 'string'
-              ? { reasoningEffort: model['reasoningEffort'] }
-              : {}),
-          },
-    ...(typeof view?.['available'] === 'boolean' ? { available: view['available'] } : {}),
-    ...(typeof view?.['unavailableReason'] === 'string'
-      ? { unavailableReason: view['unavailableReason'] }
-      : {}),
-  };
-}
-export async function loadApprovalReviewerModel(
-  call: BridgeCall,
-): Promise<ApprovalReviewerModelView> {
-  return approvalReviewerModelView(
-    await unwrap(call, 'approvalReviewerModel', {}),
-    'approvalReviewerModel',
-  );
-}
-export async function setApprovalReviewerModel(
-  call: BridgeCall,
-  model: ModelRouteView | null,
-): Promise<ApprovalReviewerModelView> {
-  return approvalReviewerModelView(
-    await unwrap(call, 'approvalReviewerModelSet', { model }),
-    'approvalReviewerModelSet',
-  );
-}
-export async function revokeToolApprovalRule(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-): Promise<void> {
-  await approvalReaders.revokeToolApprovalRule(bridgeHost(call), slug, id);
-}
-
 export type { ToolApprovalStatus } from '@botharness/host-protocol/wire';
-export type ToolApprovalExecutionState = WireToolApprovalExecution;
-
-export async function loadToolApprovalStatus(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-) {
-  return (await approvalReaders.readToolApprovalStatus(bridgeHost(call), channelId, messageId))
-    .status;
-}
-
-export async function loadToolApprovalState(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-) {
-  const { status, expiresAt, execution } = await approvalReaders.readToolApprovalStatus(
-    bridgeHost(call),
-    channelId,
-    messageId,
-  );
-  return {
-    status,
-    ...(status !== 'pending' || expiresAt === undefined ? {} : { expiresAt }),
-    ...(execution === undefined ? {} : { execution }),
-  };
-}
-
-export async function loadToolApprovalExecutionState(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-) {
-  return (await approvalReaders.readToolApprovalStatus(bridgeHost(call), channelId, messageId))
-    .execution;
-}
-
-export async function decideToolApproval(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-  outcome: Parameters<typeof approvalReaders.decideToolApproval>[3],
-): Promise<void> {
-  await approvalReaders.decideToolApproval(bridgeHost(call), channelId, messageId, outcome);
-}
 
 export async function loadPrivateInputStatus(
   call: BridgeCall,
@@ -4226,49 +3127,13 @@ export async function cancelPrivateInput(
     throw new Error('Private input cancellation was not accepted');
 }
 
-export async function loadUserQuestionStatus(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-): Promise<'pending' | 'submitted' | 'answered' | 'expired'> {
-  return (await approvalReaders.readUserQuestionStatus(bridgeHost(call), channelId, messageId))
-    .status;
-}
-
-export async function answerUserQuestion(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-  answers: UserQuestionAnswerItem[],
-): Promise<void> {
-  await approvalReaders.answerUserQuestion(bridgeHost(call), channelId, messageId, { answers });
-}
+export const { previewApprovalTemplateDeletion, deleteApprovalTemplate } =
+  createApprovalTemplateDeletionBridge(approvalTemplateDeletionPreviewSchema);
 
 export interface WorkspaceOption {
   id: string;
   path: string;
   title: string;
-}
-
-export interface WorkspaceGrantView extends WorkspaceOption {
-  botSlug: string;
-  workspaceId: string;
-  workspacePath: string;
-  workspaceTitle: string;
-  createdAt: string;
-  revokedAt?: string;
-  orchestratorWrite?: boolean;
-  writeRevision?: number;
-}
-
-function workspaceGrantView(grant: WireWorkspaceGrant): WorkspaceGrantView {
-  return {
-    ...grant,
-    path: grant.workspacePath,
-    title: grant.workspaceTitle,
-    orchestratorWrite: grant.orchestratorWrite === true,
-    writeRevision: grant.writeRevision ?? 0,
-  };
 }
 
 export async function loadHostFolders(
@@ -4282,90 +3147,6 @@ export async function loadHostFolders(
 
 export async function loadWorkspaceOptions(call: BridgeCall): Promise<WorkspaceOption[]> {
   return loadHostWorkspaceOptions(bridgeHost(call));
-}
-
-export async function loadWorkspaceGrants(
-  call: BridgeCall,
-  slug: string,
-): Promise<WorkspaceGrantView[]> {
-  return (await accessReaders.readWorkspaceGrants(bridgeHost(call), { slug })).grants.map(
-    workspaceGrantView,
-  );
-}
-
-export async function createWorkspaceGrant(
-  call: BridgeCall,
-  slug: string,
-  workspaceId: string,
-): Promise<WorkspaceGrantView> {
-  return workspaceGrantView(
-    (await accessReaders.createGrant(bridgeHost(call), { slug, workspaceId })).grant,
-  );
-}
-
-export async function createGroupWorkspaceGrant(
-  call: BridgeCall,
-  slug: string,
-  workspaceId: string,
-  channelId: string,
-  path: string,
-): Promise<{ grant: WorkspaceGrantView; created: boolean }> {
-  const { grant, created } = await accessReaders.createGrant(bridgeHost(call), {
-    slug,
-    workspaceId,
-    scope: { channelId, path },
-  });
-  return { grant: workspaceGrantView(grant), created: created! };
-}
-
-export async function readGroupWorkspaceGrant(
-  call: BridgeCall,
-  slug: string,
-  channelId: string,
-  path: string,
-): Promise<WorkspaceGrantView | undefined> {
-  const { grants } = await accessReaders.readWorkspaceGrants(bridgeHost(call), {
-    slug,
-    scope: { channelId, path },
-  });
-  const grant = grants[0];
-  return grant === undefined ? undefined : workspaceGrantView(grant);
-}
-
-export async function approveWorkspaceGrantRequest(
-  call: BridgeCall,
-  slug: string,
-  channelId: string,
-  requestMessageId: string,
-  workspaceId: string,
-): Promise<WorkspaceGrantView> {
-  const { grant } = await accessReaders.approveGrantRequest(bridgeHost(call), {
-    slug,
-    channelId,
-    requestMessageId,
-    workspaceId,
-  });
-  return workspaceGrantView(grant);
-}
-
-export async function setWorkspaceGrantWrite(
-  call: BridgeCall,
-  slug: string,
-  grantId: string,
-  enabled: boolean,
-): Promise<WorkspaceGrantView> {
-  const value = await unwrap(call, 'grantWriteSet', { slug, grantId, enabled });
-  return workspaceGrantView(accessReaders.readGrantReceipt(value, 'grantWriteSet', slug));
-}
-
-export async function revokeWorkspaceGrant(
-  call: BridgeCall,
-  slug: string,
-  grantId: string,
-): Promise<WorkspaceGrantView> {
-  return workspaceGrantView(
-    (await accessReaders.revokeGrant(bridgeHost(call), { slug, grantId })).grant,
-  );
 }
 
 export async function loadBotAttention(
@@ -4481,10 +3262,6 @@ export async function dismissAllActivityListItems(
   return { dismissed, more };
 }
 
-export async function overrideAutoRejection(call: BridgeCall, itemId: string): Promise<void> {
-  await approvalReaders.overrideAutoRejection(bridgeHost(call), itemId);
-}
-
 export async function snoozeActivityListItem(
   call: BridgeCall,
   itemId: string,
@@ -4501,104 +3278,6 @@ export async function ignoreHumanAssignmentReport(
 ): Promise<void> {
   const response = asRecord(await unwrap(call, 'humanAttentionIgnore', { sourceEventId }));
   if (response?.['accepted'] !== true) throw new Error('Human attention decision was not accepted');
-}
-
-export async function loadSessionBotOwner(
-  call: BridgeCall,
-  sessionId: string,
-  signal?: AbortSignal,
-): Promise<SessionBotOwner | undefined> {
-  return parseSessionBotOwner(await unwrap(call, 'sessionOwner', { sessionId }, signal));
-}
-
-export async function loadBotSessionIds(call: BridgeCall, signal?: AbortSignal): Promise<string[]> {
-  const value = await unwrap(call, 'botSessionIds', {}, signal);
-  const ids =
-    typeof value === 'object' && value !== null
-      ? (value as { sessionIds?: unknown }).sessionIds
-      : [];
-  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
-}
-
-export async function loadBotSessionGroups(
-  call: BridgeCall,
-  signal?: AbortSignal,
-): Promise<{ botSlug: string; displayName: string; sessionIds: string[] }[]> {
-  const value = asRecord(await unwrap(call, 'botSessionIds', {}, signal));
-  const groups = value?.['groups'];
-  if (!Array.isArray(groups)) return [];
-  return groups.flatMap((item) => {
-    const group = asRecord(item);
-    if (
-      typeof group?.['botSlug'] !== 'string' ||
-      typeof group['displayName'] !== 'string' ||
-      !Array.isArray(group['sessionIds'])
-    )
-      return [];
-    return [
-      {
-        botSlug: group['botSlug'],
-        displayName: group['displayName'],
-        sessionIds: group['sessionIds'].filter((id): id is string => typeof id === 'string'),
-      },
-    ];
-  });
-}
-
-export async function loadSessions(
-  call: BridgeCall,
-  slug: string,
-  signal?: AbortSignal,
-): Promise<OwnedSessionSummary[]> {
-  return parseOwnedSessionSummaries(await unwrap(call, 'sessions', { slug }, signal));
-}
-
-export async function setSessionArchived(
-  call: BridgeCall,
-  slug: string,
-  sessionId: string,
-  archived: boolean,
-): Promise<boolean> {
-  const value = asRecord(await unwrap(call, 'sessionArchiveSet', { slug, sessionId, archived }));
-  return value?.['archived'] === true;
-}
-
-export type StoppedSessionRef = WireStoppedSessionRef;
-export type SessionStopResult = WireSessionStopResult;
-
-export async function stopSession(
-  call: BridgeCall,
-  botSlug: string,
-  session: string | { activityId: string },
-  channelId?: string,
-): Promise<SessionStopResult> {
-  return botControl.stopSession(bridgeHost(call), {
-    botSlug,
-    ...(typeof session === 'string' ? { sessionId: session } : session),
-    ...(channelId === undefined ? {} : { channelId }),
-  });
-}
-
-export async function stopBot(
-  call: BridgeCall,
-  botSlug: string,
-  channelId?: string,
-): Promise<SessionStopResult> {
-  return botControl.stopBot(bridgeHost(call), {
-    botSlug,
-    ...(channelId === undefined ? {} : { channelId }),
-  });
-}
-
-export async function moveMemoryLocation(
-  call: BridgeCall,
-  slug: string,
-  location: string | null,
-): Promise<string> {
-  const value = asRecord(await unwrap(call, 'memoryMove', { slug, location }));
-  const memoryDir = value?.['memoryDir'];
-  if (typeof memoryDir !== 'string') throw new Error('Memory location is invalid');
-  return memoryDir;
 }
 
 export async function loadRoster(call: BridgeCall, signal?: AbortSignal): Promise<RosterSnapshot> {
@@ -4702,74 +3381,6 @@ export async function setChannelMute(
   await channels.setChannelMuted(bridgeHost(call, signal), channelId, muted);
 }
 
-export interface MemoryVersion extends MemoryVersionName {
-  sha: string;
-  subject: string;
-  namedAt: string;
-}
-
-export async function loadMemoryVersions(
-  call: BridgeCall,
-  channelId: string,
-): Promise<MemoryVersion[]> {
-  const response = asRecord(await unwrap(call, 'memoryVersions', { channelId }));
-  const versions = response?.['versions'];
-  if (!Array.isArray(versions)) throw new Error('invalid Memory versions');
-  return versions.flatMap((item) => {
-    const version = asRecord(item);
-    return typeof version?.['tag'] === 'string' &&
-      typeof version['name'] === 'string' &&
-      typeof version['sha'] === 'string' &&
-      typeof version['subject'] === 'string' &&
-      typeof version['namedAt'] === 'string'
-      ? [
-          {
-            tag: version['tag'],
-            name: version['name'],
-            sha: version['sha'],
-            subject: version['subject'],
-            namedAt: version['namedAt'],
-          },
-        ]
-      : [];
-  });
-}
-
-export type MemoryWorkingKind = 'staged' | 'unstaged' | 'untracked' | 'current';
-export interface MemoryWorkingChange {
-  path: string;
-  kind: MemoryWorkingKind;
-  status: string;
-}
-export interface MemoryWorkingDiff extends MemoryWorkingChange {
-  images?: MemoryImageComparison;
-  markdown?: MemoryMarkdownComparison;
-  diff: string;
-  binary: boolean;
-}
-
-export interface MemoryRecoveryCheckpoint {
-  id: string;
-  branch: string;
-  head: string;
-  indexTree: string;
-  workingTree: string;
-  origin: 'host-observation' | 'agent-session' | 'human-command';
-  originId: string;
-  causeKind: 'memory-scan' | 'source-event' | 'human-edit' | 'turn-abort' | 'human-restore';
-  causeId: string;
-  capturedAt: string;
-}
-
-export interface MemoryRepairEvent {
-  id: string;
-  acceptedHeadSha: string;
-  provisionalHeadSha: string;
-  backupPath: string;
-  status: 'started' | 'completed';
-  completedAt: string | null;
-}
-
 export interface ProfileActivityDay {
   day: string;
   count: number;
@@ -4836,13 +3447,6 @@ export interface GroupProfileActivity {
   authors: GroupProfileAuthorActivity[];
 }
 
-export async function loadMemorySnapshot(
-  call: BridgeCall,
-  channelId: string,
-): Promise<MemorySnapshot> {
-  return loadHostMemorySnapshot(bridgeHost(call), channelId);
-}
-
 export async function loadWorkspaceFileTarget(
   call: BridgeCall,
   slug: string,
@@ -4857,68 +3461,6 @@ export async function loadWorkspaceFileTarget(
   )
     throw new Error('Invalid Workspace directory target');
   return { path: target['path'], relativePath: '', kind: 'directory' };
-}
-
-export async function loadMemoryFileTarget(
-  call: BridgeCall,
-  slug: string,
-  path: string,
-): Promise<HostFileTarget> {
-  const response = asRecord(await unwrap(call, 'memoryFileTarget', { slug, path }));
-  const target = asRecord(response?.['target']);
-  if (
-    typeof target?.['path'] !== 'string' ||
-    typeof target['relativePath'] !== 'string' ||
-    !['file', 'directory'].includes(String(target['kind']))
-  )
-    throw new Error('Invalid Memory file target');
-  return target as unknown as HostFileTarget;
-}
-
-export async function loadMemoryFile(
-  call: BridgeCall,
-  channelId: string,
-  path: string,
-): Promise<MemoryFile | undefined> {
-  return loadHostMemoryFile(bridgeHost(call), channelId, path);
-}
-
-export async function loadMemoryHistory(
-  call: BridgeCall,
-  channelId: string,
-): Promise<MemoryAcceptedCommit[]> {
-  const response = asRecord(await unwrap(call, 'memoryHistory', { channelId }));
-  const commits = response?.['commits'];
-  if (!Array.isArray(commits)) throw new Error('invalid Memory history');
-  return commits.map(parseMemoryCommit);
-}
-
-export async function loadMemoryDiff(
-  call: BridgeCall,
-  channelId: string,
-  sha: string,
-): Promise<string> {
-  const response = asRecord(await unwrap(call, 'memoryDiff', { channelId, sha }));
-  if (response?.['sha'] !== sha || typeof response['diff'] !== 'string') {
-    throw new Error('invalid Memory diff');
-  }
-  return response['diff'];
-}
-
-export async function loadMemoryGitGraph(
-  call: BridgeCall,
-  channelId: string,
-  offset: number,
-): Promise<MemoryGitGraph> {
-  return loadHostMemoryGitGraph(bridgeHost(call), channelId, offset);
-}
-
-export async function loadMemoryGitCommitDiff(
-  call: BridgeCall,
-  channelId: string,
-  sha: string,
-): Promise<MemoryGitCommitDiff> {
-  return loadHostMemoryGitCommitDiff(bridgeHost(call), channelId, sha);
 }
 
 function isActivityDays(value: unknown): value is ProfileActivityDay[] {
@@ -5067,171 +3609,6 @@ export async function loadGroupProfileActivity(
   )
     throw new Error('invalid Group Profile activity');
   return response as unknown as GroupProfileActivity;
-}
-
-function parseWorkingChange(value: unknown, allowCurrent = false): MemoryWorkingChange {
-  const change = asRecord(value);
-  if (
-    typeof change?.['path'] !== 'string' ||
-    !['staged', 'unstaged', 'untracked', ...(allowCurrent ? ['current'] : [])].includes(
-      String(change['kind']),
-    ) ||
-    typeof change['status'] !== 'string'
-  )
-    throw new Error('invalid Memory working change');
-  return change as unknown as MemoryWorkingChange;
-}
-
-export async function loadMemoryWorkingChanges(
-  call: BridgeCall,
-  channelId: string,
-): Promise<MemoryWorkingChange[]> {
-  const response = asRecord(await unwrap(call, 'memoryWorkingChanges', { channelId }));
-  if (!Array.isArray(response?.['changes'])) throw new Error('invalid Memory working changes');
-  return response['changes'].map((change: unknown) => parseWorkingChange(change));
-}
-
-export async function loadMemoryWorkingDiff(
-  call: BridgeCall,
-  channelId: string,
-  path: string,
-  kind: MemoryWorkingKind,
-): Promise<MemoryWorkingDiff> {
-  const response = asRecord(await unwrap(call, 'memoryWorkingDiff', { channelId, path, kind }));
-  parseWorkingChange(response, true);
-  if (
-    response?.['path'] !== path ||
-    response['kind'] !== kind ||
-    typeof response['diff'] !== 'string' ||
-    typeof response['binary'] !== 'boolean'
-  )
-    throw new Error('invalid Memory working diff');
-  return response as unknown as MemoryWorkingDiff;
-}
-
-export async function loadMemoryRecoveryHistory(
-  call: BridgeCall,
-  channelId: string,
-): Promise<MemoryRecoveryCheckpoint[]> {
-  const response = asRecord(await unwrap(call, 'memoryRecoveryHistory', { channelId }));
-  if (!Array.isArray(response?.['checkpoints'])) throw new Error('invalid Memory checkpoints');
-  return response['checkpoints'].map((value: unknown) => {
-    const point = asRecord(value);
-    if (
-      point === undefined ||
-      typeof point['id'] !== 'string' ||
-      typeof point['branch'] !== 'string' ||
-      typeof point['head'] !== 'string' ||
-      typeof point['indexTree'] !== 'string' ||
-      typeof point['workingTree'] !== 'string' ||
-      typeof point['origin'] !== 'string' ||
-      typeof point['originId'] !== 'string' ||
-      typeof point['causeKind'] !== 'string' ||
-      typeof point['causeId'] !== 'string' ||
-      typeof point['capturedAt'] !== 'string'
-    )
-      throw new Error('invalid Memory checkpoint');
-    return point as unknown as MemoryRecoveryCheckpoint;
-  });
-}
-
-export async function restoreMemoryCheckpoint(
-  call: BridgeCall,
-  input: { channelId: string; checkpointId: string; expectedCurrentId: string },
-): Promise<{ checkpoint: MemoryRecoveryCheckpoint; archivePath: string }> {
-  const response = asRecord(await unwrap(call, 'memoryRestore', input));
-  const checkpoint = asRecord(response?.['checkpoint']);
-  if (
-    checkpoint === undefined ||
-    typeof checkpoint['id'] !== 'string' ||
-    typeof response?.['archivePath'] !== 'string'
-  )
-    throw new Error('invalid Memory restore result');
-  return {
-    checkpoint: checkpoint as unknown as MemoryRecoveryCheckpoint,
-    archivePath: response['archivePath'] as string,
-  };
-}
-
-export async function restoreMemoryCommit(
-  call: BridgeCall,
-  input: {
-    channelId: string;
-    sha: string;
-    expectedHead: string;
-    restoreId: string;
-    name?: string;
-  },
-): Promise<{
-  head: string;
-  backup: string | null;
-  version: MemoryVersionName | null;
-  saved: MemoryRecoveryCheckpoint;
-}> {
-  const response = asRecord(await unwrap(call, 'memoryRestoreCommit', input));
-  const saved = asRecord(response?.['saved']);
-  if (
-    saved === undefined ||
-    typeof saved['id'] !== 'string' ||
-    typeof response?.['head'] !== 'string' ||
-    (response['backup'] !== null && typeof response['backup'] !== 'string')
-  )
-    throw new Error('invalid Memory restore result');
-  return {
-    head: response['head'] as string,
-    backup: response['backup'] as string | null,
-    version: parseVersionNames([response['version']])[0] ?? null,
-    saved: saved as unknown as MemoryRecoveryCheckpoint,
-  };
-}
-
-export async function nameMemoryVersion(
-  call: BridgeCall,
-  input: { channelId: string; sha: string; name: string },
-): Promise<MemoryVersionName> {
-  const response = asRecord(await unwrap(call, 'memoryNameVersion', input));
-  const version = parseVersionNames([response?.['version']])[0];
-  if (version === undefined) throw new Error('invalid Memory version name result');
-  return version;
-}
-
-export async function removeMemoryVersionName(
-  call: BridgeCall,
-  input: { channelId: string; tag: string },
-): Promise<void> {
-  await unwrap(call, 'memoryRemoveVersionName', input);
-}
-
-export async function saveMemoryFile(
-  call: BridgeCall,
-  input: {
-    channelId: string;
-    path: string;
-    body: string;
-    expectedHead: string;
-    editId: string;
-  },
-): Promise<MemoryAcceptedCommit> {
-  return saveHostMemoryFile(bridgeHost(call), input);
-}
-
-export async function repairMemory(
-  call: BridgeCall,
-  input: { channelId: string; expectedHead: string; repairId: string },
-): Promise<MemoryRepairEvent> {
-  const response = asRecord(await unwrap(call, 'memoryRepair', input));
-  const repair = asRecord(response?.['repair']);
-  if (
-    repair === undefined ||
-    typeof repair['id'] !== 'string' ||
-    typeof repair['acceptedHeadSha'] !== 'string' ||
-    typeof repair['provisionalHeadSha'] !== 'string' ||
-    typeof repair['backupPath'] !== 'string' ||
-    repair['status'] !== 'completed' ||
-    typeof repair['completedAt'] !== 'string'
-  )
-    throw new Error('invalid Memory repair result');
-  return repair as unknown as MemoryRepairEvent;
 }
 
 export async function manageMessagingIdentity(
@@ -5409,32 +3786,6 @@ export async function manageChannelBridge(
   input: ChannelBridgeInput,
 ): Promise<void> {
   await unwrap(call, 'channelBridge', { channelId, input });
-}
-export async function setApprovalRoute(
-  call: BridgeCall,
-  slug: string,
-  pairingId: string | null,
-  expectedRevision: number,
-): Promise<void> {
-  await unwrap(call, 'approvalRoute', { slug, pairingId, expectedRevision });
-}
-export async function testApprovalRoute(call: BridgeCall, slug: string): Promise<void> {
-  await unwrap(call, 'approvalTest', { slug });
-}
-export async function retryApprovalNotification(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-): Promise<void> {
-  await unwrap(call, 'approvalRetry', { slug, id });
-}
-
-export async function retryQuestionNotification(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-): Promise<void> {
-  await unwrap(call, 'questionRetry', { slug, id });
 }
 
 export async function setFailureAlerts(
@@ -6027,13 +4378,6 @@ export async function loadOverviewUsage(
   after?: string,
 ): Promise<OverviewUsage> {
   return loadUsage(bridgeHost(call), period, after);
-}
-
-export async function loadOverviewMemory(
-  call: BridgeCall,
-  after?: string,
-): Promise<OverviewMemory> {
-  return loadMemoryActivity(bridgeHost(call), after);
 }
 
 function parseQuotePreview(value: unknown): ChannelReplyPreview | null | false {
