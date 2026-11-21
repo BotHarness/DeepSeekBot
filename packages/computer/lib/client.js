@@ -33,6 +33,14 @@ window.__ModuleLoader__.load({
 		let _deepseek_ai_dsh_client_ui_primitives = require("@deepseek-ai/dsh-client-ui-primitives");
 		let react_dom = require("react-dom");
 		react_dom = __toESM(react_dom, 1);
+		//#region packages/computer/src/client/bridge.ts
+		function setComputerAccess(rpc, botSlug, next) {
+			return rpc.call("/api", "botharness/computerAccessSet", { args: {
+				slug: botSlug,
+				enabled: next
+			} });
+		}
+		//#endregion
 		//#region packages/client/src/client/visible-interval.ts
 		function visibleInterval(run, ms, page = typeof document === "undefined" ? void 0 : document) {
 			let timer;
@@ -15067,10 +15075,7 @@ window.__ModuleLoader__.load({
 				inFlight.current = true;
 				setBusy(true);
 				setError(false);
-				rpc.call("/api", "botharness/computerAccessSet", { args: {
-					slug: botSlug,
-					enabled: next
-				} }).then((result) => {
+				setComputerAccess(rpc, botSlug, next).then((result) => {
 					if (!result.ok) {
 						setError(true);
 						return;

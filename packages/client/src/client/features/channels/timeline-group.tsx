@@ -23,6 +23,7 @@ export interface TimelineGroupInputs {
   channels: readonly ChannelSummary[];
   dmBotSlug: string | undefined;
   memoryDisplay: DmMemoryDisplay;
+  switchToModel(botSlug: string): Promise<void>;
   onOpenInbox(target: InboxTarget): void;
   onOpenChannelMessage(channelId: string, messageId: string): void;
   onOpenMemoryCommit(commit: NonNullable<ChannelMessage['memoryCommit']>): void;
@@ -49,6 +50,7 @@ export function renderTimelineGroup(
     channels,
     dmBotSlug,
     memoryDisplay,
+    switchToModel,
     onOpenInbox,
     onOpenChannelMessage,
     onOpenMemoryCommit,
@@ -101,7 +103,12 @@ export function renderTimelineGroup(
       ) : first.modelSwitch !== undefined ? (
         <ModelSwitchLine messageId={first.id} record={first.modelSwitch} bots={bots} t={t} />
       ) : first.turnStop !== undefined ? (
-        <TurnStopLine messageId={first.id} stop={first.turnStop} t={t} />
+        <TurnStopLine
+          messageId={first.id}
+          stop={first.turnStop}
+          t={t}
+          switchToModel={switchToModel}
+        />
       ) : first.memberDeparture !== undefined ? (
         <div className="bh-member-departure" data-message-id={first.id}>
           <span>

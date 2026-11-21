@@ -1,4 +1,4 @@
-import { useId, useRef, useState, type ReactElement } from 'react';
+import { useCallback, useId, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import {
@@ -23,6 +23,7 @@ import { StepProgress } from './ds/step-progress.js';
 import { Tag } from './ds/tag.js';
 import { layer, space, style } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { MarketAvatarApplyDialog, type AvatarApplyActions } from './market-avatar-apply.js';
 import { MarketPage } from './market-page.js';
 import { marketplaceError } from './marketplace-feedback.js';
 import { MarketplaceLoadMoreButton } from './marketplace-list-status.js';
@@ -57,10 +58,14 @@ const styles = stylex.create({
   description: { whiteSpace: 'pre-wrap' },
 });
 
-type BrowseActions = Pick<BridgeActions, 'marketplaceAvatarList' | 'marketplaceAvatarDetail'>;
+type BrowseActions = AvatarApplyActions &
+  Pick<BridgeActions, 'marketplaceAvatarList' | 'marketplaceAvatarDetail'>;
 type PublishActions = Pick<
   BridgeActions,
-  'marketplaceAccount' | 'marketplaceAuthorSave' | 'marketplaceAvatarPublish'
+  | 'marketplaceAccount'
+  | 'marketplaceAuthorSave'
+  | 'marketplaceAvatarPublish'
+  | 'marketplaceAvatarSource'
 >;
 type MarketplaceAccount = Awaited<ReturnType<BridgeActions['marketplaceAccount']>>;
 
@@ -139,11 +144,13 @@ export function MarketAvatars({
   actions,
   t,
   publishing,
+  avatarSource,
   onClosePublish,
 }: {
   actions: BrowseActions & PublishActions;
   t: BotHarnessTranslate;
   publishing: boolean;
+  avatarSource?: { slug: string; actions: BrowseActions & PublishActions } | undefined;
   onClosePublish: () => void;
 }): ReactElement {
   const [listing, setListing] = useState<Read<MarketplaceAvatarPage>>({ kind: 'loading' });
@@ -151,7 +158,21 @@ export function MarketAvatars({
   const [loadingMore, setLoadingMore] = useState(false);
   const fetchingNext = useRef(false);
   const [reload, setReload] = useState(0);
-  const [selected, setSelected] = useState<MarketplaceAvatar>();
+  const [selected, setSelected] = useState<{ avatar: MarketplaceAvatar; actions: BrowseActions }>();
+  const publishActions = avatarSource?.actions ?? actions;
+  const updateListedCount = useCallback((avatar: MarketplaceAvatar) => {
+    setListing((current) =>
+      current.kind === 'ready'
+        ? {
+            kind: 'ready',
+            value: {
+              ...current.value,
+              avatars: current.value.avatars.map((item) => (item.id === avatar.id ? avatar : item)),
+            },
+          }
+        : current,
+    );
+  }, []);
   const mount = useMountedResource<HTMLDivElement>(() => {
     let subscribed = true;
     void actions.marketplaceAvatarList().then(
@@ -228,7 +249,7 @@ export function MarketAvatars({
                     key={avatar.id}
                     avatar={avatar}
                     t={t}
-                    onOpen={() => setSelected(avatar)}
+                    onOpen={() => setSelected({ avatar, actions })}
                   />
                 ))}
               </div>
@@ -251,22 +272,25 @@ export function MarketAvatars({
       </div>
       {selected !== undefined && (
         <MarketAvatarDetail
-          key={selected.id}
-          initial={selected}
-          actions={actions}
+          key={selected.avatar.id}
+          initial={selected.avatar}
+          onRead={updateListedCount}
+          actions={selected.actions}
           t={t}
           onBack={() => setSelected(undefined)}
         />
       )}
       {publishing && (
         <MarketAvatarPublishDialog
-          actions={actions}
+          key={avatarSource?.slug}
+          actions={publishActions}
+          avatarSource={avatarSource?.slug}
           t={t}
           onClose={onClosePublish}
           onPublished={(avatar) => {
             onClosePublish();
             setListing((current) =>
-              current.kind === 'ready'
+              current.kind === 'ready' && publishActions === actions
                 ? {
                     kind: 'ready',
                     value: {
@@ -279,7 +303,7 @@ export function MarketAvatars({
                   }
                 : current,
             );
-            setSelected(avatar);
+            setSelected({ avatar, actions: publishActions });
           }}
         />
       )}
@@ -290,21 +314,28 @@ export function MarketAvatars({
 function MarketAvatarDetail({
   initial,
   actions,
+  onRead,
   t,
   onBack,
 }: {
   initial: MarketplaceAvatar;
   actions: BrowseActions;
+  onRead: (avatar: MarketplaceAvatar) => void;
   t: BotHarnessTranslate;
   onBack: () => void;
 }): ReactElement {
+  const [picking, setPicking] = useState(false);
+  const [appliedName, setAppliedName] = useState<string>();
   const [detail, setDetail] = useState<Read<MarketplaceAvatar>>({ kind: 'loading' });
   const [reload, setReload] = useState(0);
   const mount = useMountedResource<HTMLDivElement>(() => {
     let subscribed = true;
     void actions.marketplaceAvatarDetail(initial.id).then(
       (value) => {
-        if (subscribed) setDetail({ kind: 'ready', value });
+        if (subscribed) {
+          setDetail({ kind: 'ready', value });
+          onRead(value);
+        }
       },
       (error: unknown) => {
         if (subscribed) setDetail({ kind: 'failed', error });
@@ -313,10 +344,43 @@ function MarketAvatarDetail({
     return () => {
       subscribed = false;
     };
-  }, [actions, initial.id, reload]);
+  }, [actions, initial.id, onRead, reload]);
   const avatar = detail.kind === 'ready' ? detail.value : initial;
   return (
-    <MarketPage page="avatar-detail" title={avatar.name} hidden={false} t={t} onBack={onBack}>
+    <MarketPage
+      page="avatar-detail"
+      title={avatar.name}
+      hidden={false}
+      t={t}
+      onBack={onBack}
+      secondary={
+        appliedName === undefined ? undefined : (
+          <Note tone="success">{t('market.avatar.applied', { name: appliedName })}</Note>
+        )
+      }
+      actions={
+        <Button
+          variant="primary"
+          disabled={detail.kind !== 'ready'}
+          onClick={() => setPicking(true)}
+        >
+          {t('market.avatar.apply')}
+        </Button>
+      }
+    >
+      {picking && (
+        <MarketAvatarApplyDialog
+          id={avatar.id}
+          actions={actions}
+          t={t}
+          onClose={() => setPicking(false)}
+          onApplied={(bot) => {
+            setPicking(false);
+            setAppliedName(bot.displayName);
+            setReload((value) => value + 1);
+          }}
+        />
+      )}
       <div ref={mount} className="bh-market-detail">
         <div className="bh-market-hero">
           <img
@@ -374,17 +438,22 @@ function MarketAvatarDetail({
 
 export function MarketAvatarPublishDialog({
   actions,
+  avatarSource,
   t,
   onClose,
   onPublished,
 }: {
   actions: PublishActions;
+  avatarSource?: string | undefined;
   t: BotHarnessTranslate;
   onClose: () => void;
   onPublished: (avatar: MarketplaceAvatar) => void;
 }): ReactElement {
   const formId = useId();
   const [file, setFile] = useState<File>();
+  const [sourceFile, setSourceFile] = useState<File>();
+  const [sourceError, setSourceError] = useState<unknown>();
+  const [sourceAttempt, setSourceAttempt] = useState(0);
   const [image, setImage] = useState<string>();
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -399,6 +468,29 @@ export function MarketAvatarPublishDialog({
   const lock = useRef(false);
   const requestKey = useRef<string>();
   const input = useRef<HTMLInputElement>(null);
+  const sourceMount = useMountedResource<HTMLSpanElement>(() => {
+    if (avatarSource === undefined) return;
+    let subscribed = true;
+    void actions
+      .marketplaceAvatarSource(avatarSource)
+      .then(({ image }) => {
+        if (!subscribed) return;
+        const separator = image.indexOf(',');
+        const type = image.slice(5, image.indexOf(';'));
+        const bytes = Uint8Array.from(atob(image.slice(separator + 1)), (byte) =>
+          byte.charCodeAt(0),
+        );
+        const stored = new File([bytes], 'avatar', { type });
+        setSourceFile(stored);
+        setFile(stored);
+      })
+      .catch((cause: unknown) => {
+        if (subscribed) setSourceError(cause);
+      });
+    return () => {
+      subscribed = false;
+    };
+  }, [actions, avatarSource, sourceAttempt]);
   const mount = useMountedResource<HTMLDivElement>(() => {
     let subscribed = true;
     void actions.marketplaceAccount().then(
@@ -483,6 +575,7 @@ export function MarketAvatarPublishDialog({
 
   return (
     <>
+      <span ref={sourceMount} hidden />
       <PanelDialog
         title={t('market.avatar.publish')}
         size="small"
@@ -604,25 +697,34 @@ export function MarketAvatarPublishDialog({
                         />
                       </span>
                     )}
-                    <HiddenFileInput
-                      ref={input}
-                      aria-label={t('market.avatar.chooseFile')}
-                      accept="image/png,image/jpeg,image/webp"
-                      disabled={busy}
-                      onChange={(event) => {
-                        const chosen = event.currentTarget.files?.[0];
-                        event.currentTarget.value = '';
-                        if (chosen !== undefined) setFile(chosen);
-                      }}
-                    />
+                    {avatarSource === undefined && (
+                      <HiddenFileInput
+                        ref={input}
+                        aria-label={t('market.avatar.chooseFile')}
+                        accept="image/png,image/jpeg,image/webp"
+                        disabled={busy}
+                        onChange={(event) => {
+                          const chosen = event.currentTarget.files?.[0];
+                          event.currentTarget.value = '';
+                          if (chosen !== undefined) setFile(chosen);
+                        }}
+                      />
+                    )}
                     <Button
                       variant="outline"
                       type="button"
                       size="sm"
-                      disabled={busy}
-                      onClick={() => input.current?.click()}
+                      disabled={busy || (avatarSource !== undefined && sourceFile === undefined)}
+                      onClick={() => {
+                        if (sourceFile !== undefined) setFile(sourceFile);
+                        else input.current?.click();
+                      }}
                     >
-                      {t('market.avatar.chooseFile')}
+                      {t(
+                        avatarSource === undefined
+                          ? 'market.avatar.chooseFile'
+                          : 'market.avatar.cropImage',
+                      )}
                     </Button>
                   </div>
                   <TextField
@@ -654,6 +756,17 @@ export function MarketAvatarPublishDialog({
           </form>
         )}
         {error !== undefined && <Note tone="danger">{marketplaceError(error, t)}</Note>}
+        {sourceError !== undefined && (
+          <ReadFailure
+            retryLabel={t('market.retry')}
+            onRetry={() => {
+              setSourceError(undefined);
+              setSourceAttempt((attempt) => attempt + 1);
+            }}
+          >
+            {marketplaceError(sourceError, t)}
+          </ReadFailure>
+        )}
       </PanelDialog>
       {file !== undefined && (
         <PersonaBotAvatarCropModal

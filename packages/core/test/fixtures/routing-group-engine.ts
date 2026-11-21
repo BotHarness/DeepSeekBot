@@ -1,5 +1,6 @@
 import { summarizeSessionTranscript } from '../../src/runtime/session-transcript.js';
 import { join } from 'node:path';
+import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 
 import { Context } from '@deepseek-ai/cordis';
 import { AgentRegistry } from '@deepseek-ai/dsh-agent';
@@ -234,10 +235,11 @@ export function setup(options: {
   members: RoutingGroupMember[];
   allowed?: (route: typeof API) => void;
   enginesAllowed?: boolean;
+  requireAccountGrant?(slug: string, id: string): void;
   codexRecording?: typeof LIMIT;
   claudeRecording?: typeof CLAUDE_REPLY;
   idleMs?: number;
-  nativeReply?: string;
+  nativeReply?: string | (() => Record<string, unknown>);
   beforeEngineLimit?(engine: string, clock: { now: number }): void;
   inherited?: boolean;
   namedEngine?: 'codex' | 'claude';
@@ -270,7 +272,10 @@ export function setup(options: {
         await executeFixtureNativeTool(
           {
             name: 'bot_send_message',
-            arguments: { body: options.nativeReply, channel_id: dmChannelId('ada') },
+            arguments:
+              typeof options.nativeReply === 'function'
+                ? options.nativeReply()
+                : { body: options.nativeReply, channel_id: dmChannelId('ada') },
             callId: ToolCallId('native-reply'),
             signal: new AbortController().signal,
           },
@@ -287,6 +292,9 @@ export function setup(options: {
     root: join(root, 'engines'),
     local: true,
     gateway,
+    ...(options.requireAccountGrant === undefined
+      ? {}
+      : { requireAccountGrant: options.requireAccountGrant }),
     ...(options.idleMs === undefined ? {} : { idleMs: options.idleMs }),
     now: () => clock.now,
     sessions: () => dsh.store,
@@ -314,7 +322,10 @@ export function setup(options: {
     routes: (id): (typeof API)[] => core.routingGroups.routes(id),
     engines: {
       targets: (id) => core.routingGroups.targets(id),
-      allowed: () => options.enginesAllowed ?? true,
+      allowed: (slug, target) => {
+        options.requireAccountGrant?.(slug, engineAccountKey(target.engine, target.accountId));
+        return options.enginesAllowed ?? true;
+      },
       limit: (engine, accountId) => {
         options.beforeEngineLimit?.(engine, clock);
         return host.limit(engine, accountId);
@@ -393,7 +404,7 @@ export function setup(options: {
   if (options.inherited) core.routingGroups.setDefaultGroup(group.id, 0);
   else expect(core.registry.customizeModelPlan('ada', API, 0, group.id).ok).toBe(true);
   const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
-  async function message(id: string, body: string) {
+  async function message(id: string, body: string, onAdmitted?: () => void) {
     await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
       id,
       at: new Date(clock.now).toISOString(),
@@ -405,10 +416,12 @@ export function setup(options: {
       messageId: id,
       body,
     });
+    onAdmitted?.();
     await core.runtime.whenIdle();
   }
   return {
     host,
+    core,
     account,
     adapter,
     dsh,

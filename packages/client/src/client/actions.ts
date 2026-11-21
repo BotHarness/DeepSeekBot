@@ -1,6 +1,7 @@
 import type {
   MarketplaceAvatar,
   MarketplaceAvatarPage,
+  MarketplaceAvatarApplyCandidate,
   MarketplaceAvatarPublish,
 } from '@botharness/host-protocol/marketplace-avatar';
 import { botModeActions, type BotModeActions } from './bot-mode-actions.js';
@@ -121,7 +122,10 @@ import { createConversationActions, type ConversationActions } from './actions-c
 import { createFileActions, type FileActions } from './actions-files.js';
 import { createMemoryActions, type MemoryActions } from './actions-memory.js';
 import { createUsageActions, type UsageActions } from './actions-usage.js';
-import { createMarketplaceActions, type MarketplaceActions } from './actions-marketplace.js';
+import {
+  createMarketplaceActions,
+  type MarketplaceActions,
+} from './features/marketplace/actions.js';
 import { createMessagingActions, type MessagingActions } from './actions-messaging.js';
 import { createTriggerActions, type TriggerActions } from './actions-triggers.js';
 import { createSessionActions, type SessionActions } from './actions-sessions.js';
@@ -339,8 +343,11 @@ export interface BridgeActions
   marketplaceDigests(lang?: MarketplaceLanguage): Promise<MarketplaceDigestSummary[]>;
   marketplaceDigest(day?: string, lang?: MarketplaceLanguage): Promise<MarketplaceDigest>;
   marketplaceAvatarList(cursor?: string): Promise<MarketplaceAvatarPage>;
+  marketplaceAvatarApplyCandidates(): Promise<{ bots: MarketplaceAvatarApplyCandidate[] }>;
+  marketplaceAvatarApply(id: string, bot: string): Promise<{ applied: true }>;
   marketplaceAvatarDetail(id: string): Promise<MarketplaceAvatar>;
   marketplaceAvatarPublish(input: MarketplaceAvatarPublish): Promise<MarketplaceAvatar>;
+  marketplaceAvatarSource(slug: string): Promise<{ image: string }>;
   marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail>;
   marketplaceFile(id: string, path: string): Promise<MarketplaceFileView>;
   marketplaceAccount(): Promise<MarketplaceAccount>;
@@ -785,8 +792,11 @@ export function createActions(
     marketplaceDigests: marketplaceActions.marketplaceDigests,
     marketplaceDigest: marketplaceActions.marketplaceDigest,
     marketplaceAvatarList: marketplaceActions.marketplaceAvatarList,
+    marketplaceAvatarApplyCandidates: marketplaceActions.marketplaceAvatarApplyCandidates,
+    marketplaceAvatarApply: marketplaceActions.marketplaceAvatarApply,
     marketplaceAvatarDetail: marketplaceActions.marketplaceAvatarDetail,
     marketplaceAvatarPublish: marketplaceActions.marketplaceAvatarPublish,
+    marketplaceAvatarSource: marketplaceActions.marketplaceAvatarSource,
     marketplaceDetail: marketplaceActions.marketplaceDetail,
     marketplaceFile: marketplaceActions.marketplaceFile,
     marketplaceAccount: marketplaceActions.marketplaceAccount,

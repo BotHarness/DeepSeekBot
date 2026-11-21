@@ -97,7 +97,9 @@ export const GENUI_OPTIONS = {
 } as const;
 
 export const HOST_ADMIN_OPTIONS = {
+  bot: { type: 'string' },
   'avatar-tag': { type: 'string', multiple: true },
+  'from-bot': { type: 'string' },
   force: { type: 'boolean' },
   action: { type: 'string' },
   query: { type: 'string' },
@@ -269,6 +271,7 @@ export const TEAM_OPTIONS = {
   audience: { type: 'string' },
   models: { type: 'string' },
   'model-providers': { type: 'string' },
+  'engine-accounts': { type: 'string' },
   'human-id': { type: 'string' },
   post: { type: 'string' },
   'add-members': { type: 'string' },
@@ -402,6 +405,7 @@ export const LIVE_OPTIONS = {
   'route-id': { type: 'string' },
   'args-stdin': { type: 'boolean' },
   'code-stdin': { type: 'boolean' },
+  grantable: { type: 'boolean' },
   'cause-event': { type: 'string' },
   session: { type: 'string' },
   turns: { type: 'string' },

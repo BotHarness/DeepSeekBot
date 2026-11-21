@@ -58,3 +58,26 @@ export function unknownChannel(id: string): BridgeResult<never> {
     error: { code: 'not-found', message: `unknown Channel: ${id}` },
   };
 }
+
+export type ParsedField<T> = { ok: true; value: T | undefined } | { ok: false };
+
+export function parseOptional(source: Record<string, unknown>, key: string): ParsedField<string> {
+  const value = source[key];
+  if (value === undefined) return { ok: true, value: undefined };
+  return typeof value === 'string' ? { ok: true, value } : { ok: false };
+}
+
+export function parseStringArray(
+  source: Record<string, unknown>,
+  key: string,
+): ParsedField<string[]> {
+  const value = source[key];
+  if (value === undefined) return { ok: true, value: undefined };
+  if (!Array.isArray(value) || !value.every((entry) => typeof entry === 'string')) {
+    return { ok: false };
+  }
+  return { ok: true, value: [...value] };
+}
+
+export const parseRoles = (source: Record<string, unknown>): ParsedField<string[]> =>
+  parseStringArray(source, 'roles');

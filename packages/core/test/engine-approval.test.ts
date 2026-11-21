@@ -10,6 +10,7 @@ import {
   type EngineSessionState,
 } from '../src/engines/engine-host.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
+import { ownerEngineSelection } from './engine-route-fixture.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createCore } from '../src/plugin.js';
 import type { BotAgentAdapter } from '../src/runtime/bot-runtime.js';
@@ -274,6 +275,7 @@ describe('Codex approvals as Channel tool approval cards', () => {
       const listed = await engineRouteFetch(new Request('http://host/api/botharness/engines'), {
         host,
         botExists: () => true,
+        ...ownerEngineSelection(host, () => true),
         approvals: () =>
           broker.requests('ada').map((notice) => ({
             botSlug: notice.botSlug,

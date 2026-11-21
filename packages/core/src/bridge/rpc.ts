@@ -1,11 +1,23 @@
+import * as sessionsRpc from '../features/sessions/rpc.js';
+import * as assignmentsRpc from '../features/assignments/rpc.js';
+import * as memoryRpc from '../features/memory/rpc.js';
+import * as approvalsRpc from '../features/approvals/rpc.js';
+import * as workspacesRpc from '../features/workspaces/rpc.js';
+import * as voiceRpc from '../features/voice/rpc.js';
+import * as browserRpc from '../features/browser/rpc.js';
+import * as computerRpc from '../features/computer/rpc.js';
+import * as modelsRpc from '../features/models/rpc.js';
+import * as marketplaceRpc from '../features/marketplace/rpc.js';
+import * as genuiRpc from '../features/genui/rpc.js';
 import * as avatarsRpc from '../features/avatars/rpc.js';
 import * as skillsRpc from '../features/skills/rpc.js';
 import * as schedulesRpc from '../features/schedules/rpc.js';
 import * as promptsRpc from '../features/prompts/rpc.js';
-import { toRemoteError, unwrap, unwrapAsync } from './rpc-result.js';
+import { toRemoteError, unwrap, unwrapAsync, type AdminResult } from './rpc-result.js';
 import type {
   MarketplaceAvatar,
   MarketplaceAvatarPage,
+  MarketplaceAvatarApplyCandidate,
 } from '@botharness/host-protocol/marketplace-avatar';
 import { markRemoteMethods, markRemoteStreams } from './remote-descriptors.js';
 import type {
@@ -347,25 +359,7 @@ export function resolveInvocationHuman(
   return undefined;
 }
 
-type AdminResult<T, M = BotMetadataResult> = T | M;
-
 export type InvocationBridgeMethods = (human: HumanContext) => BridgeMethods;
-
-function presetGroupArgs(
-  orchestratorGroupId: string | null | undefined,
-  assignmentGroups: string[] | undefined,
-  assignmentDefaultGroupId: string | null | undefined,
-  assignmentGroupOptions: AssignmentGroupOption[] | null | undefined,
-  orchestratorGroupEffort?: string | null,
-): Record<string, unknown> {
-  return {
-    ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
-    ...(orchestratorGroupEffort === undefined ? {} : { orchestratorGroupEffort }),
-    ...(assignmentGroups === undefined ? {} : { assignmentGroups }),
-    ...(assignmentDefaultGroupId === undefined ? {} : { assignmentDefaultGroupId }),
-    ...(assignmentGroupOptions === undefined ? {} : { assignmentGroupOptions }),
-  };
-}
 
 export class BotharnessBridgeService extends TypertRemoteService {
   private readonly invocationMethods: InvocationBridgeMethods;
@@ -928,15 +922,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     pairingId: string | null,
     expectedRevision: number,
   ): Promise<{ updated: true }> {
-    return unwrapAsync(this.methods.approvalRoute({ slug, pairingId, expectedRevision }));
+    return approvalsRpc.approvalRoute(this.methods, slug, pairingId, expectedRevision);
   }
   approvalTest(slug: string): Promise<{
     delivery: import('../messaging/approval-messaging.js').ApprovalDelivery;
   }> {
-    return unwrapAsync(this.methods.approvalTest({ slug }));
+    return approvalsRpc.approvalTest(this.methods, slug);
   }
   questionRetry(slug: string, id: string): Promise<{ updated: true }> {
-    return unwrapAsync(this.methods.questionRetry({ slug, id }));
+    return approvalsRpc.questionRetry(this.methods, slug, id);
   }
   approvalRetry(
     slug: string,
@@ -944,7 +938,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   ): Promise<{
     delivery: import('../messaging/approval-messaging.js').ApprovalDelivery;
   }> {
-    return unwrapAsync(this.methods.approvalRetry({ slug, id }));
+    return approvalsRpc.approvalRetry(this.methods, slug, id);
   }
   failureAlertsSet(
     slug: string,
@@ -1134,7 +1128,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.telemetryEvent({ event, properties: properties ?? {} }));
   }
   modelPlanInherit(slug: string, expectedRevision: number): AdminResult<{ revision: number }> {
-    return unwrap(this.methods.modelPlanInherit({ slug, expectedRevision }));
+    return modelsRpc.modelPlanInherit(this.methods, slug, expectedRevision);
   }
   channelRetry(
     channelId: string,
@@ -1152,14 +1146,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
   botNewSession(slug: string): Promise<{ started: true }> {
-    return unwrapAsync(this.methods.botNewSession({ slug }));
+    return sessionsRpc.botNewSession(this.methods, slug);
   }
 
   botCompact(slug: string): Promise<ManualCompactionResult> {
-    return unwrapAsync(this.methods.botCompact({ slug }));
+    return sessionsRpc.botCompact(this.methods, slug);
   }
   botContext(slug: string): Promise<import('../runtime/context-window.js').BotContextWindow> {
-    return unwrapAsync(this.methods.botContext({ slug }));
+    return sessionsRpc.botContext(this.methods, slug);
   }
   botSystemPrompt(
     slug: string,
@@ -1190,13 +1184,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   ): Promise<{
     stopped: { botSlug: string; sessionId: string; messageId: string };
   }> {
-    return unwrapAsync(
-      this.methods.channelBotStop({
-        channelId,
-        botSlug,
-        ...(autoContinueFor === undefined ? {} : { autoContinueFor }),
-      }),
-    );
+    return sessionsRpc.channelBotStop(this.methods, channelId, botSlug, autoContinueFor);
   }
   sessionMessageSend(
     botSlug: string,
@@ -1215,14 +1203,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
     messageId?: string;
   }> {
-    return unwrapAsync(
-      this.methods.sessionStop({
-        botSlug,
-        ...(sessionId === undefined ? {} : { sessionId }),
-        ...(channelId === undefined ? {} : { channelId }),
-        ...(activityId === undefined ? {} : { activityId }),
-      }),
-    );
+    return sessionsRpc.sessionStop(this.methods, botSlug, sessionId, channelId, activityId);
   }
   botStop(
     botSlug: string,
@@ -1233,16 +1214,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
     messageId?: string;
   }> {
-    return unwrapAsync(
-      this.methods.botStop({
-        botSlug,
-        ...(channelId === undefined ? {} : { channelId }),
-        ...(autoContinueFor === undefined ? {} : { autoContinueFor }),
-      }),
-    );
+    return sessionsRpc.botStop(this.methods, botSlug, channelId, autoContinueFor);
   }
   modelProviders(): Promise<ModelProvidersView> {
-    return unwrapAsync(this.methods.modelProviders({}));
+    return modelsRpc.modelProviders(this.methods);
   }
 
   modelProviderAdd(
@@ -1253,8 +1228,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     endpoint?: string,
     model?: string,
   ): Promise<ModelProviderSave> {
-    return unwrapAsync(
-      this.methods.modelProviderAdd({ template, name, key, expectedRevision, endpoint, model }),
+    return modelsRpc.modelProviderAdd(
+      this.methods,
+      template,
+      name,
+      key,
+      expectedRevision,
+      endpoint,
+      model,
     );
   }
 
@@ -1264,35 +1245,39 @@ export class BotharnessBridgeService extends TypertRemoteService {
     name?: string,
     key?: string,
   ): Promise<ModelProviderSave> {
-    return unwrapAsync(this.methods.modelProviderEdit({ id, expectedRevision, name, key }));
+    return modelsRpc.modelProviderEdit(this.methods, id, expectedRevision, name, key);
   }
 
   modelProviderRemove(id: string, expectedRevision: number): Promise<ModelProviderRemoval> {
-    return unwrapAsync(this.methods.modelProviderRemove({ id, expectedRevision }));
+    return modelsRpc.modelProviderRemove(this.methods, id, expectedRevision);
   }
 
-  engineAccounts() {
-    return unwrapAsync(this.methods.engineAccounts({}));
+  engineAccounts(grantable?: boolean) {
+    return modelsRpc.engineAccounts(this.methods, grantable);
+  }
+
+  engineSelection(request: import('../engines/engine-selection-bridge.js').EngineSelectionRequest) {
+    return modelsRpc.engineSelection(this.methods, request);
   }
 
   engineAccountAdd(engine: string, name: string, expectedRevision: number) {
-    return unwrapAsync(this.methods.engineAccountAdd({ engine, name, expectedRevision }));
+    return modelsRpc.engineAccountAdd(this.methods, engine, name, expectedRevision);
   }
 
   engineAccountRename(id: string, name: string, expectedRevision: number) {
-    return unwrapAsync(this.methods.engineAccountRename({ id, name, expectedRevision }));
+    return modelsRpc.engineAccountRename(this.methods, id, name, expectedRevision);
   }
 
   engineAccountRemove(id: string, expectedRevision: number, confirm: boolean) {
-    return unwrapAsync(this.methods.engineAccountRemove({ id, expectedRevision, confirm }));
+    return modelsRpc.engineAccountRemove(this.methods, id, expectedRevision, confirm);
   }
 
   engineAccountLogin(id: string, engine?: string) {
-    return unwrapAsync(this.methods.engineAccountLogin({ id, engine }));
+    return modelsRpc.engineAccountLogin(this.methods, id, engine);
   }
 
   engineAccountSubmitCode(id: string, code: string) {
-    return unwrapAsync(this.methods.engineAccountSubmitCode({ id, code }));
+    return modelsRpc.engineAccountSubmitCode(this.methods, id, code);
   }
 
   modelCatalog(includeRoutingGroupEngines?: boolean): Promise<{
@@ -1302,23 +1287,19 @@ export class BotharnessBridgeService extends TypertRemoteService {
     favorites?: ModelFavorite[];
     routingGroupEngines?: RoutingGroupEngineOptions[];
   }> {
-    return unwrapAsync(
-      this.methods.modelCatalog(
-        includeRoutingGroupEngines === true ? { includeRoutingGroupEngines } : {},
-      ),
-    );
+    return modelsRpc.modelCatalog(this.methods, includeRoutingGroupEngines);
   }
 
   modelFavoriteSet(choice: ModelFavorite, favorite: boolean): { favorites: ModelFavorite[] } {
-    return unwrap(this.methods.modelFavoriteSet({ choice, favorite }));
+    return modelsRpc.modelFavoriteSet(this.methods, choice, favorite);
   }
 
   modelPresets(includeUsage?: boolean): { presets: ModelPreset[]; usage?: ModelPresetUsage[] } {
-    return unwrap(this.methods.modelPresets({ includeUsage }));
+    return modelsRpc.modelPresets(this.methods, includeUsage);
   }
 
   modelPresetDelete(id: string, expectedRevision: number, confirmed: boolean): { id: string } {
-    return unwrap(this.methods.modelPresetDelete({ id, expectedRevision, confirmed }));
+    return modelsRpc.modelPresetDelete(this.methods, id, expectedRevision, confirmed);
   }
 
   modelPresetCreate(
@@ -1335,23 +1316,20 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestratorEngine?: ModelPresetEngine | null,
     assignmentEngine?: ModelPresetEngine | null,
   ): Promise<{ preset: ModelPreset }> {
-    return unwrapAsync(
-      this.methods.modelPresetCreate({
-        name,
-        ...(orchestrator === undefined ? {} : { orchestrator }),
-        assignmentDefault,
-        ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
-        ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
-        ...(assignmentModels === undefined ? {} : { assignmentModels }),
-        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-        ...presetGroupArgs(
-          orchestratorGroupId,
-          assignmentGroups,
-          assignmentDefaultGroupId,
-          assignmentGroupOptions,
-          orchestratorGroupEffort,
-        ),
-      }),
+    return modelsRpc.modelPresetCreate(
+      this.methods,
+      name,
+      orchestrator,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+      orchestratorGroupId,
+      assignmentGroups,
+      assignmentDefaultGroupId,
+      assignmentGroupOptions,
+      orchestratorGroupEffort,
+      orchestratorEngine,
+      assignmentEngine,
     );
   }
 
@@ -1371,25 +1349,22 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestratorEngine?: ModelPresetEngine | null,
     assignmentEngine?: ModelPresetEngine | null,
   ): Promise<{ preset: ModelPreset }> {
-    return unwrapAsync(
-      this.methods.modelPresetUpdate({
-        id,
-        expectedRevision,
-        name,
-        ...(orchestrator === undefined ? {} : { orchestrator }),
-        assignmentDefault,
-        ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
-        ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
-        ...(assignmentModels === undefined ? {} : { assignmentModels }),
-        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-        ...presetGroupArgs(
-          orchestratorGroupId,
-          assignmentGroups,
-          assignmentDefaultGroupId,
-          assignmentGroupOptions,
-          orchestratorGroupEffort,
-        ),
-      }),
+    return modelsRpc.modelPresetUpdate(
+      this.methods,
+      id,
+      expectedRevision,
+      name,
+      orchestrator,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+      orchestratorGroupId,
+      assignmentGroups,
+      assignmentDefaultGroupId,
+      assignmentGroupOptions,
+      orchestratorGroupEffort,
+      orchestratorEngine,
+      assignmentEngine,
     );
   }
 
@@ -1399,26 +1374,25 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedRevision?: number,
     expectedPresetRevision?: number,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
-    return unwrapAsync(
-      this.methods.modelPresetApply({
-        slug,
-        presetId,
-        expectedRevision,
-        expectedPresetRevision,
-      }),
+    return modelsRpc.modelPresetApply(
+      this.methods,
+      slug,
+      presetId,
+      expectedRevision,
+      expectedPresetRevision,
     );
   }
 
   modelGroups(): { groups: RoutingGroup[] } {
-    return unwrap(this.methods.modelGroups({}));
+    return modelsRpc.modelGroups(this.methods);
   }
 
   modelGroup(id: string): { group: RoutingGroup; routes: ModelRoute[] } {
-    return unwrap(this.methods.modelGroup({ id }));
+    return modelsRpc.modelGroup(this.methods, id);
   }
 
   modelGroupCreate(name: string, members: RoutingGroupMember[]): Promise<{ group: RoutingGroup }> {
-    return unwrapAsync(this.methods.modelGroupCreate({ name, members }));
+    return modelsRpc.modelGroupCreate(this.methods, name, members);
   }
 
   modelGroupUpdate(
@@ -1427,15 +1401,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     name: string,
     members: RoutingGroupMember[],
   ): Promise<{ group: RoutingGroup }> {
-    return unwrapAsync(this.methods.modelGroupUpdate({ id, expectedRevision, name, members }));
+    return modelsRpc.modelGroupUpdate(this.methods, id, expectedRevision, name, members);
   }
 
   modelGroupDelete(id: string, expectedRevision: number): { group: RoutingGroup } {
-    return unwrap(this.methods.modelGroupDelete({ id, expectedRevision }));
+    return modelsRpc.modelGroupDelete(this.methods, id, expectedRevision);
   }
 
   modelPlan(slug: string): Promise<AdminResult<ModelPlanState>> {
-    return unwrapAsync(this.methods.modelPlan({ slug }));
+    return modelsRpc.modelPlan(this.methods, slug);
   }
 
   modelPlanCustomize(
@@ -1445,14 +1419,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestratorGroupId?: string,
     orchestratorGroupEffort?: string,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
-    return unwrapAsync(
-      this.methods.modelPlanCustomize({
-        slug,
-        ...(orchestrator === undefined ? {} : { orchestrator }),
-        expectedRevision,
-        ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
-        ...(orchestratorGroupEffort === undefined ? {} : { orchestratorGroupEffort }),
-      }),
+    return modelsRpc.modelPlanCustomize(
+      this.methods,
+      slug,
+      orchestrator,
+      expectedRevision,
+      orchestratorGroupId,
+      orchestratorGroupEffort,
     );
   }
 
@@ -1466,17 +1439,16 @@ export class BotharnessBridgeService extends TypertRemoteService {
     assignmentDefaultGroupId?: string,
     assignmentGroupOptions?: AssignmentGroupOption[] | null,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
-    return unwrapAsync(
-      this.methods.modelPlanAssignmentsSet({
-        slug,
-        expectedRevision,
-        assignmentDefault,
-        assignmentModels,
-        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-        ...(assignmentGroups === undefined ? {} : { assignmentGroups }),
-        ...(assignmentDefaultGroupId === undefined ? {} : { assignmentDefaultGroupId }),
-        ...(assignmentGroupOptions === undefined ? {} : { assignmentGroupOptions }),
-      }),
+    return modelsRpc.modelPlanAssignmentsSet(
+      this.methods,
+      slug,
+      expectedRevision,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+      assignmentGroups,
+      assignmentDefaultGroupId,
+      assignmentGroupOptions,
     );
   }
 
@@ -1493,22 +1465,19 @@ export class BotharnessBridgeService extends TypertRemoteService {
     assignmentGroupOptions?: AssignmentGroupOption[] | null,
     orchestratorGroupEffort?: string | null,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
-    return unwrapAsync(
-      this.methods.modelPlanSet({
-        slug,
-        expectedRevision,
-        ...(orchestrator === undefined ? {} : { orchestrator }),
-        assignmentDefault,
-        assignmentModels,
-        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-        ...presetGroupArgs(
-          orchestratorGroupId,
-          assignmentGroups,
-          assignmentDefaultGroupId,
-          assignmentGroupOptions,
-          orchestratorGroupEffort,
-        ),
-      }),
+    return modelsRpc.modelPlanSet(
+      this.methods,
+      slug,
+      expectedRevision,
+      orchestrator,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+      orchestratorGroupId,
+      assignmentGroups,
+      assignmentDefaultGroupId,
+      assignmentGroupOptions,
+      orchestratorGroupEffort,
     );
   }
 
@@ -1618,7 +1587,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
   zipUploadBegin(uploadKey: string, sha256: string, sizeBytes: number): BotZipUploadStatus {
-    return unwrap(this.methods.zipUploadBegin({ uploadKey, sha256, sizeBytes }));
+    return marketplaceRpc.zipUploadBegin(this.methods, uploadKey, sha256, sizeBytes);
   }
 
   zipUploadChunk(
@@ -1628,19 +1597,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     offset: number,
     dataBase64: string,
   ): BotZipUploadStatus {
-    return unwrap(
-      this.methods.zipUploadChunk({
-        uploadKey,
-        sha256,
-        sizeBytes,
-        offset,
-        dataBase64,
-      }),
+    return marketplaceRpc.zipUploadChunk(
+      this.methods,
+      uploadKey,
+      sha256,
+      sizeBytes,
+      offset,
+      dataBase64,
     );
   }
 
   zipUploadPreview(uploadKey: string, sha256: string, sizeBytes: number): BotZipPreview {
-    return unwrap(this.methods.zipUploadPreview({ uploadKey, sha256, sizeBytes }));
+    return marketplaceRpc.zipUploadPreview(this.methods, uploadKey, sha256, sizeBytes);
   }
 
   zipImportLookup(
@@ -1650,14 +1618,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     roles?: string[],
     description?: string,
   ): { receipt: BotCreationReceipt | null } {
-    return unwrap(
-      this.methods.zipImportLookup({
-        operationKey,
-        sha256,
-        displayName,
-        roles,
-        description,
-      }),
+    return marketplaceRpc.zipImportLookup(
+      this.methods,
+      operationKey,
+      sha256,
+      displayName,
+      roles,
+      description,
     );
   }
 
@@ -1674,16 +1641,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     channelId: string;
     receipt?: BotCreationReceipt;
   }> {
-    return unwrapAsync(
-      this.methods.zipImport({
-        operationKey,
-        uploadKey,
-        sha256,
-        sizeBytes,
-        displayName,
-        roles,
-        description,
-      }),
+    return marketplaceRpc.zipImport(
+      this.methods,
+      operationKey,
+      uploadKey,
+      sha256,
+      sizeBytes,
+      displayName,
+      roles,
+      description,
     );
   }
 
@@ -1767,15 +1733,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.resume({ slug }));
   }
   computerAccessSet(slug: string, enabled: boolean): { bot: PersonaBotDetail } {
-    return unwrap(this.methods.computerAccessSet({ slug, enabled }));
+    return computerRpc.computerAccessSet(this.methods, slug, enabled);
   }
 
   browserAccessSet(slug: string, enabled: boolean): { bot: PersonaBotDetail } {
-    return unwrap(this.methods.browserAccessSet({ slug, enabled }));
+    return browserRpc.browserAccessSet(this.methods, slug, enabled);
   }
 
   browserProfileSet(slug: string, profile: string): { bot: PersonaBotDetail } {
-    return unwrap(this.methods.browserProfileSet({ slug, profile }));
+    return browserRpc.browserProfileSet(this.methods, slug, profile);
   }
 
   approvalTemplates(slug?: string): {
@@ -1785,7 +1751,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     effective?: string | null;
     source?: 'global' | 'specific' | 'off';
   } {
-    return unwrap(this.methods.approvalTemplates(slug === undefined ? {} : { slug }));
+    return approvalsRpc.approvalTemplates(this.methods, slug);
   }
 
   approvalTemplateCreate(
@@ -1793,17 +1759,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     text?: string,
     from?: string,
   ): { template: ApprovalTemplateEntry } {
-    return unwrap(
-      this.methods.approvalTemplateCreate({
-        name,
-        ...(text === undefined ? {} : { text }),
-        ...(from === undefined ? {} : { from }),
-      }),
-    );
+    return approvalsRpc.approvalTemplateCreate(this.methods, name, text, from);
   }
 
   approvalTemplateUpdate(name: string, text: string): { template: ApprovalTemplateEntry } {
-    return unwrap(this.methods.approvalTemplateUpdate({ name, text }));
+    return approvalsRpc.approvalTemplateUpdate(this.methods, name, text);
   }
 
   promptParts(): { parts: PromptPartView[]; limits: PromptLimitView[] } {
@@ -1854,7 +1814,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   approvalTemplateDeletePreview(name: string): { preview: ApprovalTemplateDeletionPreview } {
-    return unwrap(this.methods.approvalTemplateDeletePreview({ name }));
+    return approvalsRpc.approvalTemplateDeletePreview(this.methods, name);
   }
 
   approvalTemplateDelete(
@@ -1867,19 +1827,19 @@ export class BotharnessBridgeService extends TypertRemoteService {
     inheritedBots: string[];
     globalDefault: string | null;
   } {
-    return unwrap(this.methods.approvalTemplateDelete({ name, confirmed, revision }));
+    return approvalsRpc.approvalTemplateDelete(this.methods, name, confirmed, revision);
   }
 
   approvalTemplateGlobalSet(template: string | null): { template: string | null } {
-    return unwrap(this.methods.approvalTemplateGlobalSet({ template }));
+    return approvalsRpc.approvalTemplateGlobalSet(this.methods, template);
   }
 
   botApprovalTemplateSet(slug: string, template: string | null): { bot: PersonaBotDetail } {
-    return unwrap(this.methods.botApprovalTemplateSet({ slug, template }));
+    return approvalsRpc.botApprovalTemplateSet(this.methods, slug, template);
   }
 
   voiceProviders(slug?: string): VoiceProvidersView {
-    return unwrap(this.methods.voiceProviders(slug === undefined ? {} : { slug }));
+    return voiceRpc.voiceProviders(this.methods, slug);
   }
 
   voiceProviderAdd(
@@ -1892,26 +1852,25 @@ export class BotharnessBridgeService extends TypertRemoteService {
     kind?: string,
     language?: string,
   ): Promise<{ provider: VoiceProviderView }> {
-    return unwrapAsync(
-      this.methods.voiceProviderAdd({
-        preset,
-        name,
-        baseUrl,
-        model,
-        defaultVoice,
-        key,
-        kind,
-        language,
-      }),
+    return voiceRpc.voiceProviderAdd(
+      this.methods,
+      preset,
+      name,
+      baseUrl,
+      model,
+      defaultVoice,
+      key,
+      kind,
+      language,
     );
   }
 
   voiceProviderRemove(id: string): Promise<{ provider: VoiceProviderView; clearedBots: string[] }> {
-    return unwrapAsync(this.methods.voiceProviderRemove({ id }));
+    return voiceRpc.voiceProviderRemove(this.methods, id);
   }
 
   voiceProviderTest(id: string, voiceId?: string): Promise<ProviderHealth> {
-    return unwrapAsync(this.methods.voiceProviderTest({ id, voiceId }));
+    return voiceRpc.voiceProviderTest(this.methods, id, voiceId);
   }
 
   voiceSynthesize(
@@ -1921,7 +1880,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     voiceId?: string,
     markdown?: boolean,
   ): Promise<VoiceSynthesisView> {
-    return unwrapAsync(this.methods.voiceSynthesize({ text, slug, providerId, voiceId, markdown }));
+    return voiceRpc.voiceSynthesize(this.methods, text, slug, providerId, voiceId, markdown);
   }
 
   botVoiceSet(
@@ -1929,7 +1888,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     providerId: string | null,
     voiceId?: string,
   ): { slug: string; voice: PersonaBotVoice | null } {
-    return unwrap(this.methods.botVoiceSet({ slug, providerId, voiceId }));
+    return voiceRpc.botVoiceSet(this.methods, slug, providerId, voiceId);
   }
 
   voiceTranscribe(
@@ -1938,7 +1897,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     providerId?: string,
     language?: string,
   ): Promise<VoiceTranscriptionView> {
-    return unwrapAsync(this.methods.voiceTranscribe({ audio, slug, providerId, language }));
+    return voiceRpc.voiceTranscribe(this.methods, audio, slug, providerId, language);
   }
 
   botAsrSet(
@@ -1946,7 +1905,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     providerId: string | null,
     language?: string,
   ): { slug: string; asr: PersonaBotAsr | null } {
-    return unwrap(this.methods.botAsrSet({ slug, providerId, language }));
+    return voiceRpc.botAsrSet(this.methods, slug, providerId, language);
   }
 
   voiceDefaultSet(
@@ -1955,7 +1914,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     voiceId?: string,
     language?: string,
   ): { defaults: VoiceDefaults } {
-    return unwrap(this.methods.voiceDefaultSet({ kind, providerId, voiceId, language }));
+    return voiceRpc.voiceDefaultSet(this.methods, kind, providerId, voiceId, language);
   }
 
   botModes(slug?: string): Promise<BotModesView> {
@@ -1985,7 +1944,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   voiceSpeechThresholdSet(dbfs: number | null): { speechThreshold: VoiceSpeechThreshold } {
-    return unwrap(this.methods.voiceSpeechThresholdSet({ dbfs }));
+    return voiceRpc.voiceSpeechThresholdSet(this.methods, dbfs);
   }
 
   voiceDictation(
@@ -1996,35 +1955,30 @@ export class BotharnessBridgeService extends TypertRemoteService {
     providerId?: string,
     language?: string,
   ): Promise<{ readiness: VoiceDictationReadiness } | { dictation: VoiceDictationView }> {
-    return unwrapAsync(this.methods.voiceDictation({ kind, id, pcm, slug, providerId, language }));
+    return voiceRpc.voiceDictation(this.methods, kind, id, pcm, slug, providerId, language);
   }
 
   approvalReviewerModel(): Promise<ApprovalReviewerModelView> {
-    return unwrapAsync(this.methods.approvalReviewerModel({}));
+    return approvalsRpc.approvalReviewerModel(this.methods);
   }
 
   approvalReviewerModelSet(model: ModelRoute | null): Promise<ApprovalReviewerModelView> {
-    return unwrapAsync(this.methods.approvalReviewerModelSet({ model }));
+    return approvalsRpc.approvalReviewerModelSet(this.methods, model);
   }
 
   idleCompaction(): IdleCompactionView {
-    return unwrap(this.methods.idleCompaction({}));
+    return sessionsRpc.idleCompaction(this.methods);
   }
 
   idleCompactionSet(enabled: boolean): IdleCompactionView {
-    return unwrap(this.methods.idleCompactionSet({ enabled }));
+    return sessionsRpc.idleCompactionSet(this.methods, enabled);
   }
 
   compactionThresholdSet(
     thresholdRatio?: number | null,
     headroomTokens?: number | null,
   ): IdleCompactionView {
-    return unwrap(
-      this.methods.compactionThresholdSet({
-        ...(thresholdRatio === undefined ? {} : { thresholdRatio }),
-        ...(headroomTokens === undefined ? {} : { headroomTokens }),
-      }),
-    );
+    return sessionsRpc.compactionThresholdSet(this.methods, thresholdRatio, headroomTokens);
   }
 
   idleCompactionCacheLifetimeSet(
@@ -2032,7 +1986,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     model: string,
     seconds: number | null,
   ): IdleCompactionView {
-    return unwrap(this.methods.idleCompactionCacheLifetimeSet({ provider, model, seconds }));
+    return sessionsRpc.idleCompactionCacheLifetimeSet(this.methods, provider, model, seconds);
   }
 
   standingLimitsSet(
@@ -2502,7 +2456,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   channelGenuiView(channelId: string, messageId: string): GenuiPrivateView {
-    return unwrap(this.methods.channelGenuiView({ channelId, messageId }));
+    return genuiRpc.channelGenuiView(this.methods, channelId, messageId);
   }
   channelGenuiViewSave(
     channelId: string,
@@ -2511,14 +2465,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedVersion: number,
     state: GenuiViewState | GenuiDocumentState,
   ): GenuiPrivateView {
-    return unwrap(
-      this.methods.channelGenuiViewSave({
-        channelId,
-        messageId,
-        snapshotId,
-        expectedVersion,
-        state,
-      }),
+    return genuiRpc.channelGenuiViewSave(
+      this.methods,
+      channelId,
+      messageId,
+      snapshotId,
+      expectedVersion,
+      state,
     );
   }
 
@@ -2616,7 +2569,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     sessionId: string,
     sourceEventId: string,
   ): { context: HumanAssignmentContext } {
-    return unwrap(this.methods.humanAssignmentContext({ slug, sessionId, sourceEventId }));
+    return assignmentsRpc.humanAssignmentContext(this.methods, slug, sessionId, sourceEventId);
   }
   humanAttentionDismiss(itemId: string, sourceKey: string): { accepted: boolean } {
     return unwrap(this.methods.humanAttentionDismiss({ itemId, sourceKey }));
@@ -2653,26 +2606,25 @@ export class BotharnessBridgeService extends TypertRemoteService {
     limit?: number,
     cursor?: string,
   ): { assignments: AssignmentSummary[]; nextCursor?: string } {
-    return unwrap(
-      this.methods.assignments({
-        slug,
-        query,
-        activity,
-        includeArchived,
-        limit,
-        cursor,
-      }),
+    return assignmentsRpc.assignments(
+      this.methods,
+      slug,
+      query,
+      activity,
+      includeArchived,
+      limit,
+      cursor,
     );
   }
 
   channelAssignments(channelId: string): {
     assignments: ChannelAssignmentSummary[];
   } {
-    return unwrap(this.methods.channelAssignments({ channelId }));
+    return assignmentsRpc.channelAssignments(this.methods, channelId);
   }
 
   assignment(slug: string, sessionId: string): { assignment: AssignmentDetail } {
-    return unwrap(this.methods.assignment({ slug, sessionId }));
+    return assignmentsRpc.assignment(this.methods, slug, sessionId);
   }
 
   assignmentTimeline(
@@ -2683,7 +2635,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     lanes: AssignmentTimelineLane[];
     omittedSubagents: number;
   }> {
-    return unwrapAsync(this.methods.assignmentTimeline({ slug, sessionId }));
+    return assignmentsRpc.assignmentTimeline(this.methods, slug, sessionId);
   }
 
   sessionSubagents(
@@ -2695,21 +2647,21 @@ export class BotharnessBridgeService extends TypertRemoteService {
     lanes: AssignmentTimelineLane[];
     omittedSubagents: number;
   }> {
-    return unwrapAsync(this.methods.sessionSubagents({ slug, sessionId }));
+    return assignmentsRpc.sessionSubagents(this.methods, slug, sessionId);
   }
 
   sessionProgress(
     slug: string,
     sessionIds: readonly string[],
   ): Promise<{ sessions: SessionProgressEntry[] }> {
-    return unwrapAsync(this.methods.sessionProgress({ slug, sessionIds }));
+    return assignmentsRpc.sessionProgress(this.methods, slug, sessionIds);
   }
 
   sessionTranscript(
     slug: string,
     sessionId: string,
   ): Promise<{ sessionId: string; role: SessionRootRole } & SessionTranscript> {
-    return unwrapAsync(this.methods.sessionTranscript({ slug, sessionId }));
+    return sessionsRpc.sessionTranscript(this.methods, slug, sessionId);
   }
 
   sessionLive(
@@ -2727,7 +2679,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     sessionId: string,
     callId: string,
   ): Promise<{ sessionId: string; callId: string; detail: SessionToolDetail }> {
-    return unwrapAsync(this.methods.sessionToolDetail({ slug, sessionId, callId }));
+    return sessionsRpc.sessionToolDetail(this.methods, slug, sessionId, callId);
   }
 
   workspaceOptions(): {
@@ -2775,7 +2727,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   grants(slug: string, scope?: { channelId: string; path: string }): { grants: WorkspaceGrant[] } {
-    return unwrap(this.methods.grants({ slug, ...(scope === undefined ? {} : { scope }) }));
+    return workspacesRpc.grants(this.methods, slug, scope);
   }
 
   grantCreate(
@@ -2783,17 +2735,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     workspaceId: string,
     scope?: { channelId: string; path: string },
   ): Promise<{ grant: WorkspaceGrant; created?: boolean }> {
-    return unwrapAsync(
-      this.methods.grantCreate({
-        slug,
-        workspaceId,
-        ...(scope === undefined ? {} : { scope }),
-      }),
-    );
+    return workspacesRpc.grantCreate(this.methods, slug, workspaceId, scope);
   }
 
   grantRevoke(slug: string, grantId: string): { grant: WorkspaceGrant } {
-    return unwrap(this.methods.grantRevoke({ slug, grantId }));
+    return workspacesRpc.grantRevoke(this.methods, slug, grantId);
   }
 
   grantRequestApprove(
@@ -2804,23 +2750,22 @@ export class BotharnessBridgeService extends TypertRemoteService {
     acknowledgeReadWrite: boolean,
   ) {
     this.invocationHuman();
-    return unwrapAsync(
-      this.methods.grantRequestApprove({
-        slug,
-        channelId,
-        requestMessageId,
-        workspaceId,
-        acknowledgeReadWrite,
-      }),
+    return workspacesRpc.grantRequestApprove(
+      this.methods,
+      slug,
+      channelId,
+      requestMessageId,
+      workspaceId,
+      acknowledgeReadWrite,
     );
   }
 
   grantWriteSet(slug: string, grantId: string, enabled: boolean): { grant: WorkspaceGrant } {
-    return unwrap(this.methods.grantWriteSet({ slug, grantId, enabled }));
+    return workspacesRpc.grantWriteSet(this.methods, slug, grantId, enabled);
   }
 
   assignmentAccessGet(slug: string): { preset: AssignmentAccessPreset } {
-    return unwrap(this.methods.assignmentAccessGet({ slug }));
+    return assignmentsRpc.assignmentAccessGet(this.methods, slug);
   }
 
   assignmentAccessSet(
@@ -2829,22 +2774,22 @@ export class BotharnessBridgeService extends TypertRemoteService {
     acknowledgeRisk: boolean,
     scope?: 'chat' | 'assignments',
   ): { preset: AssignmentAccessPreset } {
-    return unwrap(this.methods.assignmentAccessSet({ slug, mode, acknowledgeRisk, scope }));
+    return assignmentsRpc.assignmentAccessSet(this.methods, slug, mode, acknowledgeRisk, scope);
   }
 
   toolApprovalRules(slug: string): { rules: ToolApprovalRule[] } {
-    return unwrap(this.methods.toolApprovalRules({ slug }));
+    return approvalsRpc.toolApprovalRules(this.methods, slug);
   }
 
   toolApprovalRuleRevoke(slug: string, id: string): { rule: ToolApprovalRule } {
-    return unwrap(this.methods.toolApprovalRuleRevoke({ slug, id }));
+    return approvalsRpc.toolApprovalRuleRevoke(this.methods, slug, id);
   }
 
   toolApprovalHistory(
     slug: string,
     page?: { cursor?: string; limit?: number },
   ): { entries: ToolApprovalHistoryEntry[]; nextCursor?: string } {
-    return unwrap(this.methods.toolApprovalHistory({ slug, ...page }));
+    return approvalsRpc.toolApprovalHistory(this.methods, slug, page);
   }
 
   toolApprovalStatus(
@@ -2855,7 +2800,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     status: 'pending' | 'expired' | 'stopped';
     execution?: 'waiting-human' | 'waiting-capacity' | 'running' | 'settled' | 'needs-repair';
   } {
-    return unwrap(this.methods.toolApprovalStatus({ channelId, messageId }));
+    return approvalsRpc.toolApprovalStatus(this.methods, channelId, messageId);
   }
 
   toolApprovalDecide(
@@ -2868,20 +2813,20 @@ export class BotharnessBridgeService extends TypertRemoteService {
       | 'allowed-always-all'
       | 'rejected',
   ): Promise<{ accepted: boolean }> {
-    return unwrapAsync(this.methods.toolApprovalDecide({ channelId, messageId, outcome }));
+    return approvalsRpc.toolApprovalDecide(this.methods, channelId, messageId, outcome);
   }
 
   toolAutoRejectionOverride(
     itemId: string,
   ): Promise<{ accepted: true; channelId: string; messageId: string }> {
-    return unwrapAsync(this.methods.toolAutoRejectionOverride({ itemId }));
+    return approvalsRpc.toolAutoRejectionOverride(this.methods, itemId);
   }
 
   userQuestionStatus(
     channelId: string,
     messageId: string,
   ): { status: 'pending' | 'submitted' | 'answered' | 'expired'; approval?: ApprovalCard } {
-    return unwrap(this.methods.userQuestionStatus({ channelId, messageId }));
+    return approvalsRpc.userQuestionStatus(this.methods, channelId, messageId);
   }
 
   userQuestionAnswer(
@@ -2889,11 +2834,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     messageId: string,
     answer: { answers: { id: string; selected: string[]; custom?: string }[] },
   ): Promise<{ accepted: boolean }> {
-    return unwrapAsync(this.methods.userQuestionAnswer({ channelId, messageId, answer }));
+    return approvalsRpc.userQuestionAnswer(this.methods, channelId, messageId, answer);
   }
 
   sessions(slug: string): { sessions: OwnedSessionSummary[] } {
-    return unwrap(this.methods.sessions({ slug }));
+    return sessionsRpc.sessions(this.methods, slug);
   }
 
   botToolTrace(
@@ -2901,13 +2846,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     sessionId?: string,
     turns?: number,
   ): Promise<{ slug: string; sessionId: string; turns: TurnTrace[] }> {
-    return unwrapAsync(
-      this.methods.botToolTrace({
-        slug,
-        ...(sessionId === undefined ? {} : { sessionId }),
-        ...(turns === undefined ? {} : { turns }),
-      }),
-    );
+    return sessionsRpc.botToolTrace(this.methods, slug, sessionId, turns);
   }
 
   botTools(): { sessionId: 'direct'; tools: DirectBotToolSpec[] } {
@@ -2942,29 +2881,29 @@ export class BotharnessBridgeService extends TypertRemoteService {
     sessionId: string,
     archived: boolean,
   ): Promise<{ archived: boolean }> {
-    return unwrapAsync(this.methods.sessionArchiveSet({ slug, sessionId, archived }));
+    return sessionsRpc.sessionArchiveSet(this.methods, slug, sessionId, archived);
   }
 
   memoryMove(
     slug: string,
     location: string | null,
   ): Promise<{ memoryDir: string; moved: boolean; leftover?: string }> {
-    return unwrapAsync(this.methods.memoryMove({ slug, location }));
+    return memoryRpc.memoryMove(this.methods, slug, location);
   }
 
   sessionOwner(sessionId: string): { owner: OwnedSessionBot | null } {
-    return unwrap(this.methods.sessionOwner({ sessionId }));
+    return sessionsRpc.sessionOwner(this.methods, sessionId);
   }
 
   botSessionIds(): {
     sessionIds: string[];
     groups: { botSlug: string; displayName: string; sessionIds: string[] }[];
   } {
-    return unwrap(this.methods.botSessionIds({}));
+    return sessionsRpc.botSessionIds(this.methods);
   }
 
   memoryFileTarget(slug: string, path: string): { target: MemoryFileTarget } {
-    return unwrap(this.methods.memoryFileTarget({ slug, path }));
+    return memoryRpc.memoryFileTarget(this.methods, slug, path);
   }
 
   memoryImage(
@@ -2974,19 +2913,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     revision: string,
     reference?: string,
   ): { mime: string; dataBase64: string } {
-    return unwrap(
-      this.methods.memoryImage({
-        slug,
-        path,
-        source,
-        revision,
-        ...(reference === undefined ? {} : { reference }),
-      }),
-    );
+    return memoryRpc.memoryImage(this.methods, slug, path, source, revision, reference);
   }
 
   memorySnapshot(channelId: string): { snapshot: MemoryAcceptedSnapshot } {
-    return unwrap(this.methods.memorySnapshot({ channelId }));
+    return memoryRpc.memorySnapshot(this.methods, channelId);
   }
 
   memoryFile(
@@ -3002,37 +2933,37 @@ export class BotharnessBridgeService extends TypertRemoteService {
       markdown?: import('../memory/markdown.js').MemoryMarkdown;
     };
   } {
-    return unwrap(this.methods.memoryFile({ channelId, path }));
+    return memoryRpc.memoryFile(this.methods, channelId, path);
   }
 
   memoryHistory(channelId: string): { commits: MemoryAcceptedCommit[] } {
-    return unwrap(this.methods.memoryHistory({ channelId }));
+    return memoryRpc.memoryHistory(this.methods, channelId);
   }
 
   memoryDiff(channelId: string, sha: string): { sha: string; diff: string } {
-    return unwrap(this.methods.memoryDiff({ channelId, sha }));
+    return memoryRpc.memoryDiff(this.methods, channelId, sha);
   }
 
   memoryGitGraph(channelId: string, offset: number): MemoryGitGraph {
-    return unwrap(this.methods.memoryGitGraph({ channelId, offset }));
+    return memoryRpc.memoryGitGraph(this.methods, channelId, offset);
   }
 
   memoryGitCommitDiff(channelId: string, sha: string): MemoryGitCommitDiff {
-    return unwrap(this.methods.memoryGitCommitDiff({ channelId, sha }));
+    return memoryRpc.memoryGitCommitDiff(this.methods, channelId, sha);
   }
 
   memoryWorkingChanges(channelId: string): { changes: MemoryWorkingChange[] } {
-    return unwrap(this.methods.memoryWorkingChanges({ channelId }));
+    return memoryRpc.memoryWorkingChanges(this.methods, channelId);
   }
 
   memoryWorkingDiff(channelId: string, path: string, kind: MemoryWorkingKind): MemoryWorkingDiff {
-    return unwrap(this.methods.memoryWorkingDiff({ channelId, path, kind }));
+    return memoryRpc.memoryWorkingDiff(this.methods, channelId, path, kind);
   }
 
   memoryRecoveryHistory(channelId: string): {
     checkpoints: MemoryRecoveryCheckpoint[];
   } {
-    return unwrap(this.methods.memoryRecoveryHistory({ channelId }));
+    return memoryRpc.memoryRecoveryHistory(this.methods, channelId);
   }
 
   memoryRestore(
@@ -3043,13 +2974,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     checkpoint: MemoryRecoveryCheckpoint;
     archivePath: string;
   } {
-    return unwrap(
-      this.methods.memoryRestore({
-        channelId,
-        checkpointId,
-        expectedCurrentId,
-      }),
-    );
+    return memoryRpc.memoryRestore(this.methods, channelId, checkpointId, expectedCurrentId);
   }
 
   memoryRestoreCommit(
@@ -3064,27 +2989,26 @@ export class BotharnessBridgeService extends TypertRemoteService {
     version: MemoryVersionName | null;
     saved: MemoryRecoveryCheckpoint;
   } {
-    return unwrap(
-      this.methods.memoryRestoreCommit({
-        channelId,
-        sha,
-        expectedHead,
-        restoreId,
-        name,
-      }),
+    return memoryRpc.memoryRestoreCommit(
+      this.methods,
+      channelId,
+      sha,
+      expectedHead,
+      restoreId,
+      name,
     );
   }
 
   memoryNameVersion(channelId: string, sha: string, name: string): { version: MemoryVersionName } {
-    return unwrap(this.methods.memoryNameVersion({ channelId, sha, name }));
+    return memoryRpc.memoryNameVersion(this.methods, channelId, sha, name);
   }
 
   memoryVersions(channelId: string): { versions: MemoryVersion[] } {
-    return unwrap(this.methods.memoryVersions({ channelId }));
+    return memoryRpc.memoryVersions(this.methods, channelId);
   }
 
   memoryRemoveVersionName(channelId: string, tag: string): { removed: true } {
-    return unwrap(this.methods.memoryRemoveVersionName({ channelId, tag }));
+    return memoryRpc.memoryRemoveVersionName(this.methods, channelId, tag);
   }
 
   memorySave(
@@ -3094,7 +3018,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedHead: string,
     editId: string,
   ): { commit: MemoryAcceptedCommit } {
-    return unwrap(this.methods.memorySave({ channelId, path, body, expectedHead, editId }));
+    return memoryRpc.memorySave(this.methods, channelId, path, body, expectedHead, editId);
   }
 
   memoryRepair(
@@ -3102,11 +3026,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedHead: string,
     repairId: string,
   ): { repair: MemoryRepairEvent } {
-    return unwrap(this.methods.memoryRepair({ channelId, expectedHead, repairId }));
+    return memoryRpc.memoryRepair(this.methods, channelId, expectedHead, repairId);
   }
 
   overviewMemory(after?: string): Promise<OverviewMemory> {
-    return unwrapAsync(this.methods.overviewMemory({ after }));
+    return memoryRpc.overviewMemory(this.methods, after);
   }
 
   overviewUsage(period: UsageOverviewPeriod, after?: string): OverviewUsage {
@@ -3188,15 +3112,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   async marketplaceList(query?: MarketplaceQuery): Promise<MarketplacePage> {
-    return unwrapAsync(this.methods.marketplaceList(query ?? {}));
+    return marketplaceRpc.marketplaceList(this.methods, query);
   }
 
   async marketplaceSubmit(url: string, altcha: string): Promise<{ bot: MarketplaceEntry }> {
-    return unwrapAsync(this.methods.marketplaceSubmit({ url, altcha }));
+    return marketplaceRpc.marketplaceSubmit(this.methods, url, altcha);
   }
 
   async marketplaceChallenge(): Promise<AltchaChallenge> {
-    return unwrapAsync(this.methods.marketplaceChallenge());
+    return marketplaceRpc.marketplaceChallenge(this.methods);
   }
 
   async marketplaceReport(
@@ -3204,49 +3128,54 @@ export class BotharnessBridgeService extends TypertRemoteService {
     altcha: string,
     reason?: string,
   ): Promise<{ received: true }> {
-    return unwrapAsync(
-      this.methods.marketplaceReport({
-        id,
-        altcha,
-        ...(reason === undefined ? {} : { reason }),
-      }),
-    );
+    return marketplaceRpc.marketplaceReport(this.methods, id, altcha, reason);
   }
 
   async marketplaceTopics(): Promise<MarketplaceTopic[]> {
-    return unwrapAsync(this.methods.marketplaceTopics());
+    return marketplaceRpc.marketplaceTopics(this.methods);
   }
 
   async marketplaceSections(
     lang?: MarketplaceLanguage,
   ): Promise<{ sections: MarketplaceSection[] }> {
-    return unwrapAsync(this.methods.marketplaceSections(lang === undefined ? {} : { lang }));
+    return marketplaceRpc.marketplaceSections(this.methods, lang);
   }
 
   async marketplaceDigests(
     lang?: MarketplaceLanguage,
   ): Promise<{ digests: MarketplaceDigestSummary[] }> {
-    return unwrapAsync(this.methods.marketplaceDigests(lang === undefined ? {} : { lang }));
+    return marketplaceRpc.marketplaceDigests(this.methods, lang);
   }
 
   async marketplaceDigest(
     day?: string,
     lang?: MarketplaceLanguage,
   ): Promise<{ digest: MarketplaceDigest }> {
-    return unwrapAsync(
-      this.methods.marketplaceDigest({
-        ...(day === undefined ? {} : { day }),
-        ...(lang === undefined ? {} : { lang }),
-      }),
-    );
+    return marketplaceRpc.marketplaceDigest(this.methods, day, lang);
   }
 
   async marketplaceAvatarList(cursor?: string): Promise<MarketplaceAvatarPage> {
-    return unwrapAsync(this.methods.marketplaceAvatarList(cursor === undefined ? {} : { cursor }));
+    return marketplaceRpc.marketplaceAvatarList(this.methods, cursor);
   }
 
   async marketplaceAvatarDetail(id: string): Promise<MarketplaceAvatar> {
-    return unwrapAsync(this.methods.marketplaceAvatarDetail({ id }));
+    return marketplaceRpc.marketplaceAvatarDetail(this.methods, id);
+  }
+
+  marketplaceAvatarApplyCandidates(): { bots: MarketplaceAvatarApplyCandidate[] } {
+    return marketplaceRpc.marketplaceAvatarApplyCandidates(this.methods);
+  }
+
+  async marketplaceAvatarApply(
+    id: string,
+    bot: string,
+    operationKey?: string,
+  ): Promise<{ applied: true }> {
+    return marketplaceRpc.marketplaceAvatarApply(this.methods, id, bot, operationKey);
+  }
+
+  marketplaceAvatarSource(bot: string): { image: string } {
+    return marketplaceRpc.marketplaceAvatarSource(this.methods, bot);
   }
 
   async marketplaceAvatarPublish(
@@ -3258,44 +3187,43 @@ export class BotharnessBridgeService extends TypertRemoteService {
     tags?: string[],
     expectedAuthorId?: string,
   ): Promise<MarketplaceAvatar> {
-    return unwrapAsync(
-      this.methods.marketplaceAvatarPublish({
-        name,
-        image,
-        requestKey,
-        confirm,
-        description,
-        tags,
-        expectedAuthorId,
-      }),
+    return marketplaceRpc.marketplaceAvatarPublish(
+      this.methods,
+      name,
+      image,
+      requestKey,
+      confirm,
+      description,
+      tags,
+      expectedAuthorId,
     );
   }
 
   async marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail> {
-    return unwrapAsync(this.methods.marketplaceDetail(lang === undefined ? { id } : { id, lang }));
+    return marketplaceRpc.marketplaceDetail(this.methods, id, lang);
   }
 
   async marketplaceFileView(id: string, path: string): Promise<MarketplaceFileView> {
-    return unwrapAsync(this.methods.marketplaceFileView({ id, path }));
+    return marketplaceRpc.marketplaceFileView(this.methods, id, path);
   }
 
   async marketplaceAccount(): Promise<MarketplaceAccount> {
-    return unwrapAsync(this.methods.marketplaceAccount());
+    return marketplaceRpc.marketplaceAccount(this.methods);
   }
 
   async marketplaceAuthorSave(
     displayName: string,
     acceptTerms?: boolean,
   ): Promise<MarketplaceAuthorAccount> {
-    return unwrapAsync(this.methods.marketplaceAuthorSave({ displayName, acceptTerms }));
+    return marketplaceRpc.marketplaceAuthorSave(this.methods, displayName, acceptTerms);
   }
 
   async marketplaceAuthorAvatarSet(avatar: string | null): Promise<MarketplaceAuthorAccount> {
-    return unwrapAsync(this.methods.marketplaceAuthorAvatarSet({ avatar }));
+    return marketplaceRpc.marketplaceAuthorAvatarSet(this.methods, avatar);
   }
 
   marketplaceUploadPlan(slug: string): UploadPlan {
-    return unwrap(this.methods.marketplaceUploadPlan({ slug }));
+    return marketplaceRpc.marketplaceUploadPlan(this.methods, slug);
   }
 
   async marketplaceUpload(
@@ -3305,41 +3233,31 @@ export class BotharnessBridgeService extends TypertRemoteService {
     tags?: string[],
     replaces?: string,
   ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
-    return unwrapAsync(
-      this.methods.marketplaceUpload({
-        slug,
-        displayName,
-        bio,
-        tags,
-        replaces,
-      }),
-    );
+    return marketplaceRpc.marketplaceUpload(this.methods, slug, displayName, bio, tags, replaces);
   }
 
   async marketplaceMine(lang?: MarketplaceLanguage): Promise<{ bots: MarketplaceAuthoredBot[] }> {
-    return unwrapAsync(this.methods.marketplaceMine(lang === undefined ? {} : { lang }));
+    return marketplaceRpc.marketplaceMine(this.methods, lang);
   }
 
   async marketplaceDelete(id: string): Promise<{ deleted: true }> {
-    return unwrapAsync(this.methods.marketplaceDelete({ id }));
+    return marketplaceRpc.marketplaceDelete(this.methods, id);
   }
 
   async marketplaceInstallReview(id: string, lang?: 'en' | 'zh'): Promise<InstallReviewResult> {
-    return unwrapAsync(
-      this.methods.marketplaceInstallReview(lang === undefined ? { id } : { id, lang }),
-    );
+    return marketplaceRpc.marketplaceInstallReview(this.methods, id, lang);
   }
 
   shareDraftStart(slug: string): ShareDraftView {
-    return unwrap(this.methods.shareDraftStart({ slug }));
+    return marketplaceRpc.shareDraftStart(this.methods, slug);
   }
 
   shareDraftGet(slug: string): ShareDraftView {
-    return unwrap(this.methods.shareDraftGet({ slug }));
+    return marketplaceRpc.shareDraftGet(this.methods, slug);
   }
 
   shareDraftFile(slug: string, path: string): { path: string; kind: string; text?: string } {
-    return unwrap(this.methods.shareDraftFile({ slug, path }));
+    return marketplaceRpc.shareDraftFile(this.methods, slug, path);
   }
 
   shareDraftDecide(
@@ -3348,19 +3266,19 @@ export class BotharnessBridgeService extends TypertRemoteService {
     decision: 'keep' | 'drop' | 'rewrite',
     text?: string,
   ): ShareDraftView {
-    return unwrap(this.methods.shareDraftDecide({ slug, path, decision, text }));
+    return marketplaceRpc.shareDraftDecide(this.methods, slug, path, decision, text);
   }
 
   shareDraftFinish(slug: string): ShareDraftView {
-    return unwrap(this.methods.shareDraftFinish({ slug }));
+    return marketplaceRpc.shareDraftFinish(this.methods, slug);
   }
 
   shareDraftDiscard(slug: string): { discarded: boolean } {
-    return unwrap(this.methods.shareDraftDiscard({ slug }));
+    return marketplaceRpc.shareDraftDiscard(this.methods, slug);
   }
 
   async shareDraftExport(slug: string): Promise<{ path: string; files: number }> {
-    return unwrapAsync(this.methods.shareDraftExport({ slug }));
+    return marketplaceRpc.shareDraftExport(this.methods, slug);
   }
 
   async marketplaceInstall(
@@ -3374,7 +3292,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     receipt?: BotCreationReceipt;
     listing: MarketplaceEntry;
   }> {
-    return unwrapAsync(this.methods.marketplaceInstall({ id, reviewId, operationKey, source }));
+    return marketplaceRpc.marketplaceInstall(this.methods, id, reviewId, operationKey, source);
   }
 
   async releaseInfo(since?: string): Promise<ReleaseInfo> {
@@ -3625,6 +3543,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'modelProviderEdit',
   'modelProviderRemove',
   'engineAccounts',
+  'engineSelection',
   'engineAccountAdd',
   'engineAccountRename',
   'engineAccountRemove',
@@ -3866,6 +3785,9 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceAvatarList',
   'marketplaceAvatarDetail',
   'marketplaceAvatarPublish',
+  'marketplaceAvatarSource',
+  'marketplaceAvatarApplyCandidates',
+  'marketplaceAvatarApply',
   'marketplaceDetail',
   'marketplaceFileView',
   'marketplaceChallenge',

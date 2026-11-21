@@ -4,6 +4,7 @@ import { size as tobsSize } from '../../ds/tobs.stylex.js';
 export const personabotsCss = {
   contact: `.bh-contact .bh-body,
 .bh-channel-row .bh-body {
+  display: block;
   min-width: 0;
   flex: 1;
 }
@@ -13,6 +14,8 @@ export const personabotsCss = {
   align-items: center;
   gap: ${space.x2};
   min-width: 0;
+  min-height: calc(${tobsSize.rowMedium} / 2);
+  line-height: calc(${tobsSize.rowMedium} / 2);
 }
 .bh-contact .bh-name,
 .bh-channel-row .bh-name {
@@ -68,6 +71,8 @@ export const personabotsCss = {
   align-items: center;
   gap: ${space.x2};
   min-width: 0;
+  min-height: calc(${tobsSize.rowMedium} / 2);
+  line-height: calc(${tobsSize.rowMedium} / 2);
 }
 .bh-bottom .bh-msg {
   min-width: 0;
@@ -77,17 +82,7 @@ export const personabotsCss = {
   color: var(--tobs-ink-secondary);
 }
 `,
-  rowAvatar: `.bh-row-avatar {
-  position: relative;
-  display: inline-flex;
-  flex: none;
-}
-/* Channel list rows use a rounded-square avatar frame (Bot and group alike). */
-.bh-row-avatar > .bh-persona-avatar {
-  overflow: hidden;
-  border-radius: 28%;
-}
-.bh-row-avatar .bh-avatar-media-image {
+  rowAvatar: `.bh-row-avatar .bh-avatar-media-image {
   border-radius: 0;
 }
 .bh-paused .bh-row-avatar > .bh-persona-avatar {
@@ -151,10 +146,8 @@ export const personabotsCss = {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: ${tobsSize.iconSlot};
-  height: ${tobsSize.iconSlot};
-  border-radius: ${radius.md};
-  overflow: hidden;
+  width: 100%;
+  height: 100%;
   background: var(--tobs-layer-elevated);
   color: var(--tobs-ink-tertiary);
 }

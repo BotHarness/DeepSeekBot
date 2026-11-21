@@ -120,6 +120,7 @@ import { LoadingSkeleton } from './loading-skeleton.js';
 import { groupChannelMessages } from './message-groups.js';
 import { ProfileView } from './personabot-profile.js';
 import { ShareFlowHost } from './share-flow.js';
+import { openMarketplaceAvatarPublish } from './market-panel.js';
 import { GroupProfileView } from './group-profile.js';
 import { personaBotActivity } from './persona-activity.js';
 import { BotDmActionLabel } from './bot-dm-action-line.js';
@@ -181,6 +182,7 @@ import {
 import { inlineImageAttachment } from './message-attachment.js';
 import { MessageAvatarsContext } from './message-avatars.js';
 import { channelAttachmentUrl } from './bridge.js';
+import { switchEngineToModel } from './turn-stop-line.js';
 import { observeHumanAttention } from './messaging-defaults-live.js';
 import { reportFailure } from './diagnostic-log.js';
 import {
@@ -1659,6 +1661,8 @@ function ConversationView({
     channels: state.channels,
     dmBotSlug,
     memoryDisplay,
+    switchToModel: (slug) =>
+      actions.subscriptionEngine?.use(slug, 'orchestrator', null) ?? switchEngineToModel(slug),
     onOpenInbox: setInboxTarget,
     onOpenChannelMessage: (targetChannelId, messageId) => {
       void actions
@@ -1976,6 +1980,11 @@ function ConversationView({
           activity={profileActivity}
           cards={profileCards}
           actions={actions}
+          onPublishAvatar={
+            dockPanels === undefined
+              ? undefined
+              : (slug) => openMarketplaceAvatarPublish(dockPanels, slug, actions)
+          }
           t={t}
           onClose={() => setProfileViewOpen(false)}
         />

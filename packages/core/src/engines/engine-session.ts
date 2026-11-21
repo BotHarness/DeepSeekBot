@@ -117,6 +117,7 @@ export interface EngineStartOptions {
 
 export interface EngineSendOptions {
   onEvent(event: EngineEvent): void;
+  onInputAccepted?(): void;
   signal?: AbortSignal;
   verbatimInput?: boolean;
 }

@@ -14,6 +14,7 @@ import { createEngineGateway, type EngineGateway } from '../src/engines/engine-g
 import { EngineHost, type EngineTool } from '../src/engines/engine-host.js';
 import { resolveEngineCommand } from '../src/engines/engine-launch.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
+import { ownerEngineSelection } from './engine-route-fixture.js';
 import { EngineRefusal } from '../src/engines/engine-session.js';
 import { summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
 import {
@@ -246,6 +247,36 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
     });
   });
 
+  it('declines a steer when the replacement is stopped before Claude accepts its input', async () => {
+    const firstPrompt = RECORDING.findIndex((line) => line.kind === 'await-input');
+    const { host, request, replay } = setup([
+      [
+        ...RECORDING.slice(0, firstPrompt + 1),
+        { kind: 'await-interrupt' },
+        { kind: 'message', msg: { type: 'result', subtype: 'success' } },
+        { kind: 'await-input' },
+      ],
+    ]);
+    const stop = new AbortController();
+    const running = host.runTurn({ ...request, signal: stop.signal });
+    try {
+      await vi.waitFor(() => expect(replay.prompts).toHaveLength(1));
+      const requireAccess = vi
+        .fn()
+        .mockImplementationOnce(() => {})
+        .mockImplementationOnce(() => {
+          stop.abort();
+        });
+      const delivered = host.steerOrchestrator(request.sessionId, 'Update', requireAccess);
+      await running;
+      expect(await delivered).toBe(false);
+      expect(replay.interrupts).toBe(1);
+      expect(replay.prompts).toHaveLength(1);
+    } finally {
+      await host.close();
+    }
+  });
+
   it('stops a turn whose init reports an API key, even after the account looked like a subscription', async () => {
     const metered = RECORDING.map((line) =>
       line.kind === 'message' && line.msg['subtype'] === 'init'
@@ -389,9 +420,11 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
 
   it('lists Claude Code beside Codex and starts its sign-in through the Host route', async () => {
     const { host } = setup();
+    const botExists = (slug: string) => slug === 'ada';
     const deps = {
       host,
-      botExists: (slug: string) => slug === 'ada',
+      botExists,
+      ...ownerEngineSelection(host, botExists),
       authorizeLogin: () => undefined,
     };
     const listed = await (

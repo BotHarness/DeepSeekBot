@@ -1,6 +1,6 @@
-import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { TeamError } from '../team/error.js';
 import type { EngineHost } from './engine-host.js';
+import type { EngineSelectionBridgeMethods } from './engine-selection-bridge.js';
 import { EngineRefusal, isEngineId } from './engine-session.js';
 import { type EngineBotTool, searchEngineTools } from './engine-tools.js';
 
@@ -19,11 +19,10 @@ export interface EngineApprovalCard {
   expiresAt: string;
 }
 
-export interface EngineRouteDeps {
+export interface EngineRouteDeps extends EngineSelectionBridgeMethods {
   host: EngineHost;
   botExists(slug: string): boolean;
   authorizeLogin?(): void;
-  releaseQuotaHold?(slug: string): void;
   approvals?(): EngineApprovalCard[];
   tools?(bot: string): Promise<readonly EngineBotTool[]>;
   runTool?(bot: string, tool: string, args: Record<string, unknown>): Promise<unknown>;
@@ -31,13 +30,27 @@ export interface EngineRouteDeps {
 
 export async function engineRouteFetch(request: Request, deps: EngineRouteDeps): Promise<Response> {
   const { host } = deps;
-  if (request.method === 'GET') {
-    return Response.json({
-      engines: await host.status(),
-      selections: host.store.selections().filter((entry) => deps.botExists(entry.botSlug)),
-      approvals: deps.approvals?.() ?? [],
-    });
-  }
+  const select = async (input: object, includeApprovals = false) => {
+    const result = await deps.engineSelection(input);
+    if (!result.ok) {
+      const { code, message } = result.error;
+      if (code === 'bot-not-found') return refusal('unknown-bot', 'Unknown PersonaBot', 404);
+      if (code === 'model-not-allowed' || code === 'permission-required')
+        return refusal(code, message, 403);
+      return refusal(
+        code,
+        message,
+        ['invalid-input', 'unknown-engine', 'unknown-model', 'unknown-effort'].includes(code)
+          ? 400
+          : 409,
+      );
+    }
+    return Response.json(
+      includeApprovals ? { ...result.value, approvals: deps.approvals?.() ?? [] } : result.value,
+    );
+  };
+  if (request.method === 'GET') return select({ action: 'status' }, true);
+
   let body: Record<string, unknown>;
   try {
     const parsed = (await request.json()) as unknown;
@@ -55,83 +68,17 @@ export async function engineRouteFetch(request: Request, deps: EngineRouteDeps):
       const account = host.target(body['engine']);
       return Response.json(await host.login(account.engine, account.id));
     }
-    if (body['action'] === 'models') {
-      const target = body['engine'];
-      if (typeof target !== 'string') return refusal('unknown-engine', 'Unknown engine');
-      const { engine, id } = host.target(target);
-      return Response.json({ engine, models: await host.models(engine, id) });
-    }
-    if (body['action'] === 'status') {
-      const target = body['engine'];
-      if (typeof target !== 'string') return refusal('unknown-engine', 'Unknown engine');
-      const account = host.target(target);
-      return Response.json({
-        engines: await host.status(target),
-        selections: host.store
-          .selections()
-          .filter(
-            (row) =>
-              deps.botExists(row.botSlug) &&
-              row.engine === account.engine &&
-              engineAccountKey(row.engine, row.accountId) === account.id,
-          ),
-        approvals: deps.approvals?.() ?? [],
-      });
+    if (body['action'] === 'models' || body['action'] === 'status') {
+      if (typeof body['engine'] !== 'string' || body['engine'] === '')
+        return refusal('unknown-engine', 'Unknown engine');
+      return select(body, body['action'] === 'status');
     }
     if (body['action'] === 'use') {
-      const bot = body['bot'];
-      const engine = body['engine'];
-      if (typeof bot !== 'string' || !deps.botExists(bot))
+      if (typeof body['bot'] !== 'string' || body['bot'] === '')
         return refusal('unknown-bot', 'Unknown PersonaBot', 404);
-      const role = body['role'];
-      if (role !== 'orchestrator' && role !== 'assignment')
-        return refusal('invalid-input', 'role must be orchestrator or assignment');
-      if (engine !== null && !isEngineId(engine))
+      if (body['engine'] !== null && !isEngineId(body['engine']))
         return refusal('unknown-engine', 'Unknown engine');
-      const fallback = body['fallback'];
-      if (fallback !== undefined && typeof fallback !== 'boolean')
-        return refusal('invalid-input', 'fallback must be true or false');
-      if (engine === null && fallback === true)
-        return refusal('invalid-input', 'fallback needs an engine');
-      if (role === 'assignment' && fallback !== undefined)
-        return refusal('invalid-input', 'fallback applies only to the orchestrator role');
-      const model = body['model'];
-      const effort = body['effort'];
-      const accountId = body['accountId'];
-      for (const [name, value] of [
-        ['model', model],
-        ['effort', effort],
-        ['accountId', accountId],
-      ] as const)
-        if (value !== undefined && (typeof value !== 'string' || value === ''))
-          return refusal('invalid-input', `${name} must be a non-empty string`);
-      if (
-        engine === null &&
-        (model !== undefined || effort !== undefined || accountId !== undefined)
-      )
-        return refusal('invalid-input', 'model and effort need an engine');
-      const choice = {
-        ...(typeof model === 'string' ? { model } : {}),
-        ...(typeof effort === 'string' ? { effort } : {}),
-        ...(typeof accountId === 'string' ? { accountId } : {}),
-      };
-      if (engine !== null && (choice.model !== undefined || choice.effort !== undefined))
-        await host.validateChoice(engine, choice);
-      host.use(bot, role, engine ?? undefined, {
-        fallback: fallback === true,
-        ...choice,
-      });
-      if (role === 'orchestrator') deps.releaseQuotaHold?.(bot);
-      return Response.json({
-        bot,
-        role,
-        engine,
-        ...(engine === null
-          ? {}
-          : role === 'orchestrator'
-            ? { fallback: fallback === true, ...choice }
-            : choice),
-      });
+      return select(body);
     }
     if (body['action'] === 'tools' || body['action'] === 'tool') {
       const bot = body['bot'];

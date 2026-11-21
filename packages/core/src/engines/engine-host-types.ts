@@ -37,6 +37,7 @@ export interface EngineHostOptions {
   claudeCommand?: string;
   env?: Readonly<Record<string, string | undefined>>;
   gateway: EngineGateway;
+  requireAccountGrant?(botSlug: string, accountId: string): void;
   routingGroupEffort?(botSlug: string): string | undefined;
   sessions(): EngineSessionStore | undefined;
   persistence(): EngineSessionPersistence | undefined;
@@ -76,6 +77,8 @@ export interface EngineTurnRequest {
   releaseNativeSession?(): Promise<boolean>;
   sessionId: string;
   channelId: string | undefined;
+  canUseChannel?(channelId: string): boolean;
+  priorReplies?(): ReadonlySet<string>;
   input: string;
   instructions: string;
   readRecoveryContext?(): readonly EngineContextRecord[] | undefined;
@@ -105,6 +108,7 @@ export interface EngineToolApproval {
 export interface EngineToolContext {
   session: Session;
   readonly assignmentInputRevision?: number | undefined;
+  readonly priorReplies?: ReadonlySet<string> | undefined;
   ask(request: EngineToolApproval): Promise<ApprovalOutcome>;
 }
 

@@ -106,6 +106,24 @@ it('gives each engine tool call its own delivery key', async () => {
   expect(new Set(keys).size).toBe(2);
 });
 
+it('writes a member selection through the caller-scoped subscription bridge', async () => {
+  const selection = { bot: 'ada', role: 'orchestrator', engine: 'codex', accountId: 'codex-work' };
+  const http = vi.fn(async () => {
+    throw new Error('Member selection used the native Owner route');
+  });
+  const rpc = vi.fn(async () => selection);
+  expect(
+    await runEngineCommand(
+      'engine-use',
+      ['ada', 'codex'],
+      { as: 'bob', role: ['orchestrator'], account: 'codex-work' },
+      async () => ({ http, rpc }),
+    ),
+  ).toEqual(selection);
+  expect(rpc).toHaveBeenCalledWith('engineSelection', { request: { action: 'use', ...selection } });
+  expect(http).not.toHaveBeenCalled();
+});
+
 it('drives engine list, status, login and use through the Host engine route', async () => {
   const http = vi.fn(async (_path: string, body?: Record<string, unknown>) => ({
     bytes: new TextEncoder().encode(

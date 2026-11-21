@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { createHash, randomBytes } from 'node:crypto';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -27,6 +27,7 @@ export function ensureMarketplaceHostId(
 
 export interface InstallReceipts {
   send(listingId: string): Promise<void>;
+  sendAvatar?(avatarId: string, personaBotId: string): Promise<void>;
 }
 
 export function createInstallReceipts(deps: {
@@ -35,20 +36,32 @@ export function createInstallReceipts(deps: {
   log?: (event: Record<string, string | number | boolean>) => void;
 }): InstallReceipts {
   let hostId: string | undefined;
+  const send = async (
+    module: string,
+    report: (id: string) => ReturnType<MarketplaceClient['avatarApplyReceipt']>,
+  ) => {
+    const started = performance.now();
+    try {
+      hostId ??= ensureMarketplaceHostId(deps.dataDir);
+      const result = await report(hostId);
+      deps.log?.({
+        module,
+        phase: 'send',
+        outcome: result.ok ? 'ok' : 'refused',
+        durationMs: Math.round(performance.now() - started),
+        ...(result.ok ? { counted: result.value.counted } : { reason: result.code }),
+      });
+    } catch {}
+  };
   return {
-    async send(listingId) {
-      const started = performance.now();
-      try {
-        hostId ??= ensureMarketplaceHostId(deps.dataDir);
-        const result = await deps.client.installReceipt(listingId, hostId);
-        deps.log?.({
-          module: 'marketplace-receipt',
-          phase: 'send',
-          outcome: result.ok ? 'ok' : 'refused',
-          durationMs: Math.round(performance.now() - started),
-          ...(result.ok ? { counted: result.value.counted } : { reason: result.code }),
-        });
-      } catch {}
-    },
+    send: (listingId) =>
+      send('marketplace-receipt', (id) => deps.client.installReceipt(listingId, id)),
+    sendAvatar: (avatarId, personaBotId) =>
+      send('marketplace-avatar-receipt', (id) => {
+        const botHash = createHash('sha256')
+          .update(JSON.stringify([id, personaBotId]))
+          .digest('hex');
+        return deps.client.avatarApplyReceipt(avatarId, botHash);
+      }),
   };
 }

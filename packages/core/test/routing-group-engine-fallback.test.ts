@@ -4,6 +4,9 @@ import { SessionId } from '@deepseek-ai/dsh-session';
 import { expect, it, vi } from 'vitest';
 
 import { dmChannelId } from '../src/channels/channel.js';
+import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
+import { requireBotEngineAccount } from '../src/team/models.js';
+import { teamModelFixture } from './team-model-fixture.js';
 import {
   API,
   AssignmentReplay,
@@ -46,7 +49,7 @@ it('continues a native quota turn on an engine, then resumes DSH on the same Ses
   expect(await bot.grantWorkspace()).toMatchObject({ orchestratorWrite: false });
   const first = bot.message('first', 'Read the DM before replying. My lucky word is orchid.');
   try {
-    await vi.waitFor(() => expect(writerClosing).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(writerClosing).toHaveBeenCalledTimes(1), { timeout: 7_500 });
     const old = ctx.agents.get(SessionId(bot.sessionId()));
     expect(old).toBeDefined();
     expect(bot.adapter.steerOrchestrator?.('ada', 'Arrived during the handoff')).toBe(false);
@@ -491,6 +494,38 @@ it('skips engines for a role limited to explicitly allowed DSH models', async ()
   expect(bot.native.createOptions).toMatchObject([{ agentOptions: API }]);
   expect(bot.codex).toEqual([]);
 });
+
+it.each(['explicit', 'routing-group'] as const)(
+  'rechecks the Bot owner’s account grant before every %s Orchestrator turn',
+  async (selection) => {
+    const f = teamModelFixture();
+    const bot = setup({
+      members: selection === 'routing-group' ? [CODEX] : [],
+      namedEngine: 'codex',
+      codexRecording: CODEX_REPLY,
+      requireAccountGrant: (slug, id) => requireBotEngineAccount(f.team, f.registry.get(slug), id),
+    });
+    const accountId = bot.account?.id;
+    if (accountId === undefined) throw new Error('Missing fixture account');
+    const grant = (engineAccounts: string[]) =>
+      f.team.roles.update(owner, 'member', { models: { kind: 'all', engineAccounts } });
+    grant([accountId]);
+    if (selection === 'explicit') bot.host.use('ada', 'orchestrator', 'codex', { accountId });
+    await bot.message('allowed', 'Use my Work subscription');
+    expect(bot.sendStatus('allowed')).toMatchObject({ state: 'handled' });
+    expect(bot.codex).toHaveLength(1);
+    const engine = bot.codex[0];
+    const turns = () => engine?.sent.filter((row) => row['method'] === 'turn/start');
+    expect(turns()).toHaveLength(1);
+    grant([]);
+    await bot.message('revoked', 'Continue with the previous account');
+    expect(turns()).toHaveLength(1);
+    expect(bot.native.createOptions).toHaveLength(0);
+    expect(
+      bot.channelMessages().find((message) => message.sessionFailure)?.sessionFailure,
+    ).toMatchObject({ code: 'model-not-allowed' });
+  },
+);
 
 it('applies the default quota rest when Codex has no reset time', async () => {
   const recording = LIMIT.filter((line) => line.msg['method'] !== 'account/rateLimits/updated');

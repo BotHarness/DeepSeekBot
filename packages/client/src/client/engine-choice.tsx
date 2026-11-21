@@ -5,10 +5,16 @@ import {
   type EngineAccountIdentity,
   type EngineId,
   type EngineModelView,
+  type NamedEngineAccount,
 } from '@botharness/host-protocol/subscription-engine';
 import { useRef, useState } from 'react';
 
-import { parseSessionEngineQuota, type SessionEngineQuota } from './bridge.js';
+import {
+  bridgeHost,
+  parseSessionEngineQuota,
+  type BridgeCall,
+  type SessionEngineQuota,
+} from './bridge.js';
 import { observeResource } from './messaging-defaults-live.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -142,6 +148,72 @@ async function post(body: Record<string, unknown>): Promise<Record<string, unkno
   throw new Error(typeof message === 'string' ? message : `HTTP ${response.status}`);
 }
 
+function parseEngineModels(value: unknown): EngineModelView[] {
+  const models = record(value)?.['models'];
+  if (!Array.isArray(models)) throw new Error('Invalid Subscription Engine models');
+  return models.flatMap((value): EngineModelView[] => {
+    const row = record(value);
+    if (typeof row?.['id'] !== 'string' || typeof row['name'] !== 'string') return [];
+    return [
+      {
+        id: row['id'],
+        name: row['name'],
+        ...(typeof row['resolvedModel'] === 'string'
+          ? { resolvedModel: row['resolvedModel'] }
+          : {}),
+        efforts: Array.isArray(row['efforts'])
+          ? row['efforts'].flatMap((value) => {
+              const effort = record(value);
+              return typeof effort?.['id'] === 'string' && typeof effort['name'] === 'string'
+                ? [{ id: effort['id'], name: effort['name'] }]
+                : [];
+            })
+          : [],
+        ...(typeof row['defaultEffort'] === 'string'
+          ? { defaultEffort: row['defaultEffort'] }
+          : {}),
+        ...(row['isDefault'] === true ? { isDefault: true } : {}),
+      },
+    ];
+  });
+}
+
+export async function loadGrantableEngineAccounts(
+  call: BridgeCall,
+  signal: AbortSignal,
+): Promise<NamedEngineAccount[]> {
+  const value = await bridgeHost(call, signal).call('engineAccounts', { grantable: true });
+  const accounts = record(value)?.['accounts'];
+  if (!Array.isArray(accounts)) throw new Error('Invalid subscription accounts');
+  return accounts.flatMap((raw): NamedEngineAccount[] => {
+    const account = record(raw);
+    const engine = account?.['engine'];
+    const id = account?.['id'];
+    const name = account?.['name'];
+    return isEngineId(engine) && typeof id === 'string' && typeof name === 'string'
+      ? [{ engine, id, name }]
+      : [];
+  });
+}
+
+export function bridgeEngineApi(call: BridgeCall): EngineApi {
+  const host = bridgeHost(call);
+  const request = (input: Record<string, unknown>) =>
+    host.call('engineSelection', { request: input });
+  return {
+    async read() {
+      return parseEngines(await request({ action: 'status' }));
+    },
+    async models(engine, accountId) {
+      return parseEngineModels(await request({ action: 'models', engine: accountId ?? engine }));
+    },
+    async use(bot, role, engine, options) {
+      await request({ action: 'use', bot, role, engine, ...options });
+    },
+    login: (engine, accountId) => host.call('engineAccountLogin', { id: accountId ?? engine }),
+  };
+}
+
 export const engineApi: EngineApi = {
   async read() {
     const response = await fetch(ENGINES, {
@@ -152,33 +224,7 @@ export const engineApi: EngineApi = {
     return parseEngines(await response.json());
   },
   async models(engine, accountId) {
-    const { models } = await post({ action: 'models', engine: accountId ?? engine });
-    if (!Array.isArray(models)) throw new Error('Invalid Subscription Engine models');
-    return models.flatMap((value): EngineModelView[] => {
-      const row = record(value);
-      if (typeof row?.['id'] !== 'string' || typeof row['name'] !== 'string') return [];
-      return [
-        {
-          id: row['id'],
-          name: row['name'],
-          ...(typeof row['resolvedModel'] === 'string'
-            ? { resolvedModel: row['resolvedModel'] }
-            : {}),
-          efforts: Array.isArray(row['efforts'])
-            ? row['efforts'].flatMap((value) => {
-                const effort = record(value);
-                return typeof effort?.['id'] === 'string' && typeof effort['name'] === 'string'
-                  ? [{ id: effort['id'], name: effort['name'] }]
-                  : [];
-              })
-            : [],
-          ...(typeof row['defaultEffort'] === 'string'
-            ? { defaultEffort: row['defaultEffort'] }
-            : {}),
-          ...(row['isDefault'] === true ? { isDefault: true } : {}),
-        },
-      ];
-    });
+    return parseEngineModels(await post({ action: 'models', engine: accountId ?? engine }));
   },
   async use(bot, role, engine, options) {
     await post({ action: 'use', bot, role, engine, ...options });

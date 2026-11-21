@@ -1,7 +1,8 @@
-import type {
-  MarketplaceAvatar as MarketplaceAvatarListing,
-  MarketplaceAvatarPage,
-  MarketplaceAvatarPublish,
+import {
+  MAX_MARKETPLACE_AVATAR_BYTES,
+  type MarketplaceAvatar as MarketplaceAvatarListing,
+  type MarketplaceAvatarPage,
+  type MarketplaceAvatarPublish,
 } from '@botharness/host-protocol/marketplace-avatar';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 
@@ -163,6 +164,8 @@ export type MarketplaceResult<T> =
 export interface MarketplaceClient {
   avatarList(cursor?: string): Promise<MarketplaceResult<MarketplaceAvatarPage>>;
   avatarDetail(id: string): Promise<MarketplaceResult<MarketplaceAvatarListing>>;
+  avatarImage(id: string): Promise<MarketplaceResult<Uint8Array>>;
+  avatarApplyReceipt(id: string, botHash: string): Promise<MarketplaceResult<{ counted: boolean }>>;
   avatarPublish(
     token: string,
     input: MarketplaceAvatarPublish,
@@ -686,6 +689,50 @@ export function createMarketplaceClient(options: {
         `/v1/avatars/${encodeURIComponent(id)}`,
         { method: 'GET', headers: { accept: 'application/json' } },
         (value) => parseAvatarListing(record(value)?.['avatar']),
+      ),
+    async avatarImage(id) {
+      const response = await send(`/v1/avatars/${encodeURIComponent(id)}/image`, {
+        method: 'GET',
+        cache: 'no-store',
+        headers: { 'cache-control': 'no-cache' },
+        redirect: 'error',
+      });
+      if (response === undefined) return { ok: false, code: 'marketplace-unavailable' };
+      if (!response.ok) return refusal(response);
+      const reader = response.body?.getReader();
+      if (reader === undefined) return { ok: false, code: 'unprocessed-image' };
+      const bytes = new Uint8Array(MAX_MARKETPLACE_AVATAR_BYTES);
+      let size = 0;
+      try {
+        for (;;) {
+          const chunk = await reader.read();
+          if (chunk.done) break;
+          if (size + chunk.value.length > bytes.length) {
+            void reader.cancel().catch(() => undefined);
+            return { ok: false, code: 'unprocessed-image' };
+          }
+          bytes.set(chunk.value, size);
+          size += chunk.value.length;
+        }
+      } catch {
+        return { ok: false, code: 'marketplace-unavailable' };
+      } finally {
+        reader.releaseLock();
+      }
+      return { ok: true, value: bytes.subarray(0, size) };
+    },
+    avatarApplyReceipt: (id, botHash) =>
+      request(
+        `/v1/avatars/${encodeURIComponent(id)}/applies`,
+        {
+          method: 'POST',
+          headers: { accept: 'application/json', 'content-type': 'application/json' },
+          body: JSON.stringify({ botHash }),
+        },
+        (value) => {
+          const counted = record(value)?.['counted'];
+          return typeof counted === 'boolean' ? { counted } : undefined;
+        },
       ),
     avatarPublish: (token, input) =>
       request(

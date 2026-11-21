@@ -254,7 +254,7 @@
     "legacyCss": 14
   },
   "packages/client/src/client/features/personabots/styles.ts": {
-    "legacyCss": 57,
+    "legacyCss": 55,
     "lineBorder": 1
   },
   "packages/client/src/client/features/private-input/styles.ts": {
@@ -295,7 +295,7 @@
     "rawControl": 1
   },
   "packages/client/src/client/group-member-controls.tsx": {
-    "rawControl": 7,
+    "rawControl": 6,
     "lineBorder": 1
   },
   "packages/client/src/client/header-session-stop.tsx": {

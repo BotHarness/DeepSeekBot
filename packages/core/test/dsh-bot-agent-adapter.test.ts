@@ -40,6 +40,58 @@ const TOB_GROUP_TOOL_CASES = [
 ] as const;
 const TOB_CLI_TOOL_NAMES = ['bot_create', ...TOB_GROUP_TOOL_CASES.map(([name]) => name)];
 
+const ORCHESTRATOR_TOOL_ORDER = [
+  'genui_diagram',
+  'genui_preview',
+  'channel_action',
+  'bot_send_message',
+  'memory_switch_branch',
+  'memory_continue_from_commit',
+  'list_assignment_models',
+  'create_assignment',
+  'request_workspace_grant',
+  'list_workspace_grants',
+  'list_assignments',
+  'archive_assignment',
+  'unarchive_assignment',
+  'inspect_assignment',
+  'send_assignment_request',
+  'link_message_sessions',
+  'wait_for_assignment',
+  'stop_assignment',
+  'channel_list',
+  'channel_read',
+  'inbox_history',
+  'inbox_list',
+  'inbox_resolve',
+  'inbox_snooze',
+  'inbox_ignore',
+  'channel_attachment_open',
+  'channel_attachment_save',
+  'channel_attachment_import',
+  'channel_read_image',
+  'call_frame',
+  'list_bot_contacts',
+  'group_create',
+  'bot_create',
+  'group_invite_bot',
+  'group_invite_respond',
+  'group_join_request',
+  'group_join_decide',
+  'group_rename',
+  'group_remove_member',
+  'group_attention_get',
+  'group_attention_set',
+  'source_attention_get',
+  'source_attention_set',
+  'source_attention_reset',
+  'bot_schedule_list',
+  'bot_schedule_create',
+  'bot_schedule_update',
+  'bot_schedule_delete',
+  'group_leave',
+];
+
 const ASSIGNMENT = {
   sessionId: 'assignment-1',
   title: '核对发布状态',
@@ -2404,102 +2456,76 @@ describe('DSH Bot Agent adapter', () => {
     }
   });
 
-  it('lists bridge Tools and the external IM prompt only on turns where the Bot has IM', async () => {
-    const listed: string[][] = [];
-    const host = new FakeAgentHost(
-      { kind: 'completed' },
-      {
-        onTurn: async (_session, tools) => {
-          listed.push(tools.map((tool) => tool.name).filter((name) => name.startsWith('bridge_')));
-        },
-      },
-    );
-    const adapter = createDshBotAgentAdapter({
-      agents: host,
-      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
-      orchestratorCwd: () => '/memory/ada',
-      ensureWorkspace: () => undefined,
-    });
-    let connected = false;
-    const run: OrchestratorAgentRun = {
-      sessionId: 'orchestrator-ada',
-      resume: false,
-      bot: BOT,
-      message: 'Turn',
-      inbox: '',
-      inboundChannelId: 'dm-test',
-      externalMessaging: {
-        connected: () => connected,
-      } as unknown as NonNullable<OrchestratorAgentRun['externalMessaging']>,
-      channels: {
-        ...groupTools,
-        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
-        sendToBot: async () => {
-          throw new Error('unexpected Bot DM');
-        },
-        ignore: () => ({
-          sourceEventId: 'source-1',
-          ignoredAt: BOT.createdAt,
-          alreadyIgnored: false,
-        }),
-        read: () => [],
-        requestGrant: async () => undefined as never,
-        send: async () => {
-          throw new Error('unexpected send');
-        },
-      },
-      assignments: {
-        create: () => ({ outcome: 'created', assignment: ASSIGNMENT }),
-        grants: () => [],
-        list: () => [],
-        inspect: () => undefined,
-        stop: async () => ASSIGNMENT,
-        request: () => ({ assignment: ASSIGNMENT, delivery: 'followup' }),
-      },
-    };
-    const sections = () =>
-      host.scopes.get(run.sessionId)?.sections.map(({ name, order }) => [name, order]);
-    const baseSections = [
-      ['botharness:orchestrator-role', 10_350],
-      ['botharness:reply-delivery', 10_450],
-      ['botharness:genui-authoring', 10_451],
-    ];
-    const bridgeToolNames = [
-      'bridge_sender_permissions',
-      'bridge_directory',
-      'bridge_targets',
-      'bridge_reachable_groups',
-      'bridge_outbox',
-      'bridge_read',
-      'bridge_share',
-      'bridge_group_policy_list',
-      'bridge_group_policy_set',
-      'bridge_thread_policy_list',
-      'bridge_thread_policy_set',
-      'bridge_context',
-      'bridge_attachment_save',
-    ];
-    try {
-      await adapter.runOrchestrator(run);
-      expect(listed.at(-1)).toEqual([]);
-      expect(sections()).toEqual(baseSections);
+  it.each([false, true])(
+    'keeps tool and prompt registration order as IM connectivity changes (Tob CLI %s)',
+    async (tobCli) => {
+      const host = new FakeAgentHost({ kind: 'completed' }, { onTurn: async () => undefined });
+      const adapter = createDshBotAgentAdapter({
+        agents: host,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+      });
+      let connected = false;
+      const run: OrchestratorAgentRun = {
+        ...reportRun,
+        tobCli,
+        externalMessaging: {
+          connected: () => connected,
+        } as NonNullable<OrchestratorAgentRun['externalMessaging']>,
+      };
+      const baseTools = ORCHESTRATOR_TOOL_ORDER.filter(
+        (name) => !tobCli || !TOB_CLI_TOOL_NAMES.includes(name),
+      );
+      const baseSections = [
+        ['botharness:orchestrator-role', 10_350],
+        ...(tobCli ? [['botharness:tob-cli', 10_351]] : []),
+        ['botharness:reply-delivery', 10_450],
+        ['botharness:genui-authoring', 10_451],
+      ];
+      const bridgeToolNames = [
+        'bridge_sender_permissions',
+        'bridge_directory',
+        'bridge_targets',
+        'bridge_reachable_groups',
+        'bridge_outbox',
+        'bridge_read',
+        'bridge_share',
+        'bridge_group_policy_list',
+        'bridge_group_policy_set',
+        'bridge_thread_policy_list',
+        'bridge_thread_policy_set',
+        'bridge_context',
+        'bridge_attachment_save',
+      ];
+      const expectRegistration = () => {
+        const scope = host.scopes.get(run.sessionId)!;
+        expect(scope.tools.map((tool) => tool.name)).toEqual(
+          connected ? [...baseTools, ...bridgeToolNames] : baseTools,
+        );
+        expect(scope.sections.map(({ name, order }) => [name, order])).toEqual(
+          connected ? [...baseSections, ['botharness:external-im', 10_351]] : baseSections,
+        );
+      };
+      try {
+        await adapter.runOrchestrator(run);
+        expectRegistration();
 
-      connected = true;
-      await adapter.runOrchestrator({ ...run, resume: true });
-      expect(listed.at(-1)).toEqual(bridgeToolNames);
-      expect(sections()).toEqual([...baseSections, ['botharness:external-im', 10_351]]);
+        connected = true;
+        await adapter.runOrchestrator({ ...run, resume: true });
+        expectRegistration();
 
-      await adapter.runOrchestrator({ ...run, resume: true });
-      expect(listed.at(-1)).toEqual(bridgeToolNames);
+        await adapter.runOrchestrator({ ...run, resume: true });
+        expectRegistration();
 
-      connected = false;
-      await adapter.runOrchestrator({ ...run, resume: true });
-      expect(listed.at(-1)).toEqual([]);
-      expect(sections()).toEqual(baseSections);
-    } finally {
-      await adapter.close();
-    }
-  });
+        connected = false;
+        await adapter.runOrchestrator({ ...run, resume: true });
+        expectRegistration();
+      } finally {
+        await adapter.close();
+      }
+    },
+  );
 
   it('rejects when the durable turn outcome is an error even though the Agent becomes idle', async () => {
     const host = new FakeAgentHost({
@@ -2931,57 +2957,9 @@ describe('DSH Bot Agent adapter', () => {
       'standard',
     ]);
     expect(preparedWorkspaces).toEqual(['/memory/ada']);
-    expect(host.scopes.get('orchestrator-ada')?.tools.map((tool) => tool.name)).toEqual([
-      'genui_diagram',
-      'genui_preview',
-      'channel_action',
-      'bot_send_message',
-      'memory_switch_branch',
-      'memory_continue_from_commit',
-      'list_assignment_models',
-      'create_assignment',
-      'request_workspace_grant',
-      'list_workspace_grants',
-      'list_assignments',
-      'archive_assignment',
-      'unarchive_assignment',
-      'inspect_assignment',
-      'send_assignment_request',
-      'link_message_sessions',
-      'wait_for_assignment',
-      'stop_assignment',
-      'channel_list',
-      'channel_read',
-      'inbox_history',
-      'inbox_list',
-      'inbox_resolve',
-      'inbox_snooze',
-      'inbox_ignore',
-      'channel_attachment_open',
-      'channel_attachment_save',
-      'channel_attachment_import',
-      'channel_read_image',
-      'call_frame',
-      'list_bot_contacts',
-      'group_create',
-      'bot_create',
-      'group_invite_bot',
-      'group_invite_respond',
-      'group_join_request',
-      'group_join_decide',
-      'group_rename',
-      'group_remove_member',
-      'group_attention_get',
-      'group_attention_set',
-      'source_attention_get',
-      'source_attention_set',
-      'source_attention_reset',
-      'bot_schedule_list',
-      'bot_schedule_create',
-      'bot_schedule_update',
-      'bot_schedule_delete',
-      'group_leave',
-    ]);
+    expect(host.scopes.get('orchestrator-ada')?.tools.map((tool) => tool.name)).toEqual(
+      ORCHESTRATOR_TOOL_ORDER,
+    );
     expect(
       host.scopes
         .get('orchestrator-ada')
@@ -3124,6 +3102,9 @@ describe('DSH Bot Agent adapter', () => {
     expect(orchestratorPrompt).toContain('Memory Repository');
     expect(orchestratorPrompt).toContain('frozen for this Session');
     expect(orchestratorPrompt).toContain('SOUL.md');
+    expect(
+      host.scopes.get('assignment-1')?.sections.map(({ name, order }) => [name, order]),
+    ).toEqual([['botharness:assignment-role', 10_350]]);
     const assignmentPrompt = host.scopes.get('assignment-1')?.sections[0]?.text ?? '';
     expect(assignmentPrompt).toContain('Assignment');
     expect(assignmentPrompt).toContain('Never access another workspace or the PersonaBot');

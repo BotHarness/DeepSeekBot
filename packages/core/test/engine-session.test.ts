@@ -27,6 +27,7 @@ import { createEngineGateway, type EngineGateway } from '../src/engines/engine-g
 import { createEngineStore, engineStorePath } from '../src/engines/engine-store.js';
 import { EngineHost, type EngineTool } from '../src/engines/engine-host.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
+import { ownerEngineSelection } from './engine-route-fixture.js';
 import { EngineRefusal } from '../src/engines/engine-session.js';
 import { subscriptionEnginesAllowed } from '../src/engines/engine-plugin.js';
 import { summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
@@ -34,6 +35,7 @@ import { codexReplay, type CodexReplay, readCodexRecording } from './fixtures/co
 import { memoryDsh } from './fixtures/engine-dsh.js';
 import { createTempRoot } from './helpers.js';
 
+const BEFORE_RECORDED_QUOTA_RESET = new Date('2026-11-19T00:00:00Z');
 const RECORDING = readCodexRecording(join(import.meta.dirname, 'fixtures', 'codex-dm-turn.jsonl'));
 
 const TOOLS: EngineTool[] = [
@@ -52,6 +54,7 @@ const TOOLS: EngineTool[] = [
 
 const gateways: EngineGateway[] = [];
 afterEach(async () => {
+  vi.useRealTimers();
   await Promise.all(gateways.splice(0).map((gateway) => gateway.close()));
 });
 
@@ -115,6 +118,7 @@ describe('Codex Subscription Engine Session (replay)', () => {
   });
 
   it('answers a DM through bot_send_message and writes the turn into the DSH Session', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: BEFORE_RECORDED_QUOTA_RESET });
     const { host, dsh, replays, opened, execute, request, root } = setup();
     host.use('ada', 'orchestrator', 'codex');
     await host.runTurn(request);
@@ -380,9 +384,11 @@ describe('Engine selection, status and route', () => {
 
   it('serves list, use and login through the Host route', async () => {
     const { host } = setup();
+    const botExists = (slug: string) => slug === 'ada';
     const deps = {
       host,
-      botExists: (slug: string) => slug === 'ada',
+      botExists,
+      ...ownerEngineSelection(host, botExists),
       authorizeLogin: () => undefined,
     };
     const post = (body: unknown) =>
