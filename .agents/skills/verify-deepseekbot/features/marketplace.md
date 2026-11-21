@@ -57,7 +57,7 @@ For Worker tie/paging proof run `pnpm exec vitest run packages/market/test/marke
 
 ## Tob install review
 
-The import confirmation shows the standing memory usage and effective limits from the staged files. Check an older listing that exceeds a default limit and a listing carrying a valid custom pair. Before confirming, compare the usage to the CLI's `marketplace-install <listing-id>` review result. After confirming, read the new Bot's standing memory limits.
+The import confirmation shows the standing memory usage and effective limits from the staged files. Check an older Bot Marketplace entry that exceeds a default limit and an entry carrying a valid custom pair. Before confirming, compare the usage to the CLI's `marketplace-install <listing-id>` review result. After confirming, read the new Bot's standing memory limits.
 
 Install opens a review step: Tob reads the staged files and the step shows **Tob found nothing risky**, the findings (prompt injection, sends data out, script) with **Install anyway**, or **Tob couldn't review this Bot** with **Install without review**. Back creates nothing. The real-model journey is `node scripts/e2e-install-review.mjs`: it serves a local Marketplace with a planted-injection Bot and a clean Bot, launches an isolated Host pointed at it, and asserts the planted file is flagged, the clean Bot is not, a review creates no Bot, and `marketplace-install <id> --review <review-id> --confirm` installs. Use the AX model selection on the newest DeepSeek model.
 
