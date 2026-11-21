@@ -38,6 +38,8 @@ const styles = stylex.create({
   codeForm: { display: 'grid', gap: space.x2 },
   codeControls: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
   codeInput: { flexGrow: 1 },
+  signInDetail: { display: 'grid', gap: space.x3 },
+  signInLinks: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
   status: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -127,7 +129,7 @@ function CopyLinkButton({ url, t }: { url: string; t: BotHarnessTranslate }): Re
       .catch(() => setCopied(false));
   };
   return (
-    <Button variant="outline" onClick={copy}>
+    <Button size="sm" variant="outline" onClick={copy}>
       {copied ? t('modelProviders.linkCopied') : t('modelProviders.copySignInLink')}
     </Button>
   );
@@ -395,22 +397,35 @@ export function SubscriptionAccounts({
                   }
                   meta={status.available ? engineQuotaText(status.quota, t) : undefined}
                   detail={
-                    engine === 'claude' && signingIn ? (
-                      <ClaudeSignInCode call={call} id={accountId ?? engine} t={t} />
+                    signingIn ? (
+                      <div {...stylex.props(styles.signInDetail)}>
+                        {engines.loginUrl === undefined ? null : (
+                          <div {...stylex.props(styles.signInLinks)}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() =>
+                                window.open(engines.loginUrl, '_blank', 'noopener,noreferrer')
+                              }
+                            >
+                              {t('engine.openSignIn')}
+                            </Button>
+                            <CopyLinkButton url={engines.loginUrl} t={t} />
+                          </div>
+                        )}
+                        {engine === 'claude' ? (
+                          <ClaudeSignInCode call={call} id={accountId ?? engine} t={t} />
+                        ) : null}
+                      </div>
                     ) : undefined
                   }
                   trailing={
                     canManage || canSignIn ? (
                       <div {...stylex.props(styles.actions)}>
                         {signingIn ? (
-                          <>
-                            {engines.loginUrl === undefined ? null : (
-                              <CopyLinkButton url={engines.loginUrl} t={t} />
-                            )}
-                            <Button variant="outline" onClick={() => engines.cancelSignIn()}>
-                              {t('modelProviders.cancelSignIn')}
-                            </Button>
-                          </>
+                          <Button variant="outline" onClick={() => engines.cancelSignIn()}>
+                            {t('modelProviders.cancelSignIn')}
+                          </Button>
                         ) : canSignIn ? (
                           <Button
                             variant="outline"
@@ -437,13 +452,6 @@ export function SubscriptionAccounts({
               );
             })}
           </SidebarCardList>
-        )}
-        {engines.signInUrl === undefined ? null : (
-          <Note>
-            <a href={engines.signInUrl} target="_blank" rel="noopener noreferrer">
-              {t('engine.openSignIn')}
-            </a>
-          </Note>
         )}
         {engines.error === undefined ? null : (
           <Note tone="danger">{t('modelProviders.signInFailed')}</Note>
