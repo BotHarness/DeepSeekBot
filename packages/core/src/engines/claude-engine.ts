@@ -408,6 +408,7 @@ export class ClaudeEngineSession implements EngineSession {
         parent_tool_use_id: null,
         ...(options.verbatimInput === true ? { client_composed: true } : {}),
       });
+      options.onInputAccepted?.();
       return await ended;
     } finally {
       options.signal?.removeEventListener('abort', abort);

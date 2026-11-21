@@ -90,3 +90,8 @@ export function readSharedPrimaryColor(memoryDir: string): BotPrimaryColor | und
   const policy = parseBotDescriptor(file.toString('utf8'))?.primaryColor;
   return isBotPrimaryColor(policy) ? policy : undefined;
 }
+
+export function readSharedStandingLimits(memoryDir: string) {
+  const file = readInside(memoryDir, BOT_DESCRIPTOR_PATH, MAX_DESCRIPTOR_BYTES);
+  return file === undefined ? undefined : parseBotDescriptor(file.toString('utf8'))?.standingLimits;
+}

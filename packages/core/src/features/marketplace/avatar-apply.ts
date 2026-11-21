@@ -42,7 +42,11 @@ export function createMarketplaceAvatarApply(
   const allowed = (bot: PersonaBotRecord) => active() && (ownsBot(human, bot) || canManageAll());
   const apply = async (id: string, target: PersonaBotRecord): Promise<ApplyResult> => {
     const image = await marketplaceCall((client) => client.avatarImage(id));
-    if (!image.ok) return image;
+    if (!image.ok) {
+      return image.error.code === 'avatar-not-found'
+        ? { ok: false, error: { ...image.error, message: 'This Avatar is no longer available.' } }
+        : image;
+    }
     const avatar = personaBotAvatarFromBytes(image.value);
     if (avatar === undefined)
       return {

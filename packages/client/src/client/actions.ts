@@ -1,6 +1,9 @@
 import type {
   MarketplaceAvatar,
+  MarketplaceAvatarEdit,
   MarketplaceAvatarPage,
+  MarketplaceAvatarQuery,
+  MarketplaceAvatarTag,
   MarketplaceAvatarApplyCandidate,
   MarketplaceAvatarPublish,
 } from '@botharness/host-protocol/marketplace-avatar';
@@ -342,11 +345,17 @@ export interface BridgeActions
   marketplaceSections(lang?: MarketplaceLanguage): Promise<MarketplaceSection[]>;
   marketplaceDigests(lang?: MarketplaceLanguage): Promise<MarketplaceDigestSummary[]>;
   marketplaceDigest(day?: string, lang?: MarketplaceLanguage): Promise<MarketplaceDigest>;
-  marketplaceAvatarList(cursor?: string): Promise<MarketplaceAvatarPage>;
+  marketplaceAvatarList(query?: MarketplaceAvatarQuery): Promise<MarketplaceAvatarPage>;
+  marketplaceAvatarTags(): Promise<MarketplaceAvatarTag[]>;
   marketplaceAvatarApplyCandidates(): Promise<{ bots: MarketplaceAvatarApplyCandidate[] }>;
   marketplaceAvatarApply(id: string, bot: string): Promise<{ applied: true }>;
+  marketplaceAvatarReport(id: string, altcha: string, reason?: string): Promise<void>;
   marketplaceAvatarDetail(id: string): Promise<MarketplaceAvatar>;
   marketplaceAvatarPublish(input: MarketplaceAvatarPublish): Promise<MarketplaceAvatar>;
+  marketplaceAvatarSource(slug: string): Promise<{ image: string }>;
+  marketplaceAvatarMine(): Promise<{ avatars: MarketplaceAvatar[] }>;
+  marketplaceAvatarEdit(id: string, patch: MarketplaceAvatarEdit): Promise<MarketplaceAvatar>;
+  marketplaceAvatarDelete(id: string): Promise<{ deleted: true }>;
   marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail>;
   marketplaceFile(id: string, path: string): Promise<MarketplaceFileView>;
   marketplaceAccount(): Promise<MarketplaceAccount>;
@@ -791,10 +800,16 @@ export function createActions(
     marketplaceDigests: marketplaceActions.marketplaceDigests,
     marketplaceDigest: marketplaceActions.marketplaceDigest,
     marketplaceAvatarList: marketplaceActions.marketplaceAvatarList,
+    marketplaceAvatarTags: marketplaceActions.marketplaceAvatarTags,
     marketplaceAvatarApplyCandidates: marketplaceActions.marketplaceAvatarApplyCandidates,
     marketplaceAvatarApply: marketplaceActions.marketplaceAvatarApply,
+    marketplaceAvatarReport: marketplaceActions.marketplaceAvatarReport,
     marketplaceAvatarDetail: marketplaceActions.marketplaceAvatarDetail,
     marketplaceAvatarPublish: marketplaceActions.marketplaceAvatarPublish,
+    marketplaceAvatarSource: marketplaceActions.marketplaceAvatarSource,
+    marketplaceAvatarMine: marketplaceActions.marketplaceAvatarMine,
+    marketplaceAvatarEdit: marketplaceActions.marketplaceAvatarEdit,
+    marketplaceAvatarDelete: marketplaceActions.marketplaceAvatarDelete,
     marketplaceDetail: marketplaceActions.marketplaceDetail,
     marketplaceFile: marketplaceActions.marketplaceFile,
     marketplaceAccount: marketplaceActions.marketplaceAccount,

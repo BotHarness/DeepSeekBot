@@ -45,7 +45,7 @@ export async function fixture(
   options: {
     onRun?: (run: OrchestratorAgentRun) => Promise<void>;
     imCommands?: () => ImCommandServices;
-    steer?: (botSlug: string, text: string) => boolean;
+    steer?: NonNullable<BotAgentAdapter['steerOrchestrator']>;
     receipts?: boolean;
     secondIdentity?: boolean;
     inheritedProvider?: boolean;
