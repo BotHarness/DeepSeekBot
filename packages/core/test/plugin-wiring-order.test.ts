@@ -123,4 +123,31 @@ it('preserves the startup order and Fiber ownership of feature wiring', async ()
       "fetch: /api/botharness/bot-banner",
     ]
   `);
+  expect(
+    startup.filter((entry) =>
+      /device pairing logs|external messaging|cloud (work|connections)|IM (tool controls|question answers)|voice calls|Bot calls \(Host owner|Activity Tool detail references|session\/event|\/api\/voice\/call/u.test(
+        entry,
+      ),
+    ),
+  ).toMatchInlineSnapshot(`
+    [
+      "root | botharness: device pairing logs",
+      "root | botharness: external messaging",
+      "root | botharness: cloud work",
+      "root | botharness: cloud work tool name",
+      "root | botharness: cloud work tool",
+      "root | botharness: cloud connections",
+      "root | botharness: approved IM tool controls",
+      "root | botharness: checked IM question answers",
+      "root | ctx.on("session/event")",
+      "root | botharness: voice calls",
+      "root | botharness: Activity Tool detail references",
+      "root | ctx.on("session/event")",
+      "connection | botharness: Bot calls (Host owner and CLI)",
+      "fetch: /api/voice/call",
+    ]
+  `);
+  expect(cleanup.filter((entry) => entry === 'fetch: /api/voice/call')).toEqual([
+    'fetch: /api/voice/call',
+  ]);
 });

@@ -104,6 +104,12 @@ export const RULES = [
     AUTH,
   ),
   related(
+    'packages/core/src/features/environments/connect-account*.ts',
+    'Host Connect account lifecycle and authorization',
+    true,
+    AUTH,
+  ),
+  related(
     'packages/*/src/{auth,password-auth,email-code}.ts',
     'Service authentication and email-code sign-in',
     false,
