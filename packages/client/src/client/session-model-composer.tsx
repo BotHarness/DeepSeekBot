@@ -96,6 +96,8 @@ export function SessionModelComposer({
   const [state, setState] = useState<SessionModelState>();
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reload, setReload] = useState(0);
   const order = useRef(0);
   const trigger = useRef<HTMLButtonElement>(null);
   const known = useRef(new Map<string, { short: string; brand: ModelMenuItem['brand'] }>());
@@ -105,14 +107,18 @@ export function SessionModelComposer({
     let mounted = true;
     void action(botSlug, sessionId).then(
       (next) => {
-        if (mounted && request === order.current) setState(next);
+        if (!mounted || request !== order.current) return;
+        setState(next);
+        setLoadFailed(false);
       },
-      () => undefined,
+      () => {
+        if (mounted && request === order.current) setLoadFailed(true);
+      },
     );
     return () => {
       mounted = false;
     };
-  }, [action, botSlug, sessionId, running, saving]);
+  }, [action, botSlug, sessionId, running, saving, reload]);
   const items = useMemo(() => {
     if (!open) return undefined;
     const choices = new Map<string, SessionModelChoice | null>([[DEFAULT, null]]);
@@ -209,7 +215,14 @@ export function SessionModelComposer({
     visible !== undefined &&
     label?.short === visible.model &&
     (visible.kind === 'engine' ? engines === undefined : models === undefined);
-  const shown = resolving ? undefined : pending ? t('sessions.model.next', { model: name }) : name;
+  const retry = state === undefined && loadFailed;
+  const shown = retry
+    ? t('sessions.model.loadFailed')
+    : resolving
+      ? undefined
+      : pending
+        ? t('sessions.model.next', { model: name })
+        : name;
   function select(key: string) {
     if (items === undefined) return;
     const selected = items.choices.get(key);
@@ -253,7 +266,7 @@ export function SessionModelComposer({
       ? models?.find((item) => item.provider === choice.provider && item.model === choice.model)
           ?.defaultEffort
       : undefined) ??
-    (pending ? undefined : recorded?.kind === 'engine' ? recorded.reasoningEffort : undefined);
+    (visible === recorded && recorded?.kind === 'engine' ? recorded.reasoningEffort : undefined);
   const effortEfforts =
     choice?.kind === 'engine'
       ? engineCatalogModel(engines ?? [], { engine: choice.engine, model: choice.model })?.efforts
@@ -284,8 +297,8 @@ export function SessionModelComposer({
         aria-expanded={open}
         aria-label={accessible}
         title={accessible}
-        disabled={saving || state === undefined}
-        onClick={() => setOpen(!open)}
+        disabled={saving || (state === undefined && !retry)}
+        onClick={() => (retry ? setReload((value) => value + 1) : setOpen(!open))}
         xstyle={[styles.chip, open && styles.open]}
         icon={
           label !== undefined ? (

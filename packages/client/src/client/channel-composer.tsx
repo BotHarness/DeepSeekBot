@@ -1716,13 +1716,7 @@ export function ChannelComposer({
           <span key={index} ref={mount} hidden />
         ))}
 
-        <div
-          className={
-            modelControl === undefined
-              ? 'bh-composer-footer'
-              : `bh-composer-footer ${stylex.props(sessionStyles.footer).className ?? ''}`
-          }
-        >
+        <div {...hooked('bh-composer-footer', modelControl !== undefined && sessionStyles.footer)}>
           {modelControl === undefined ? null : (
             <div {...stylex.props(sessionStyles.modelControl)}>{modelControl}</div>
           )}

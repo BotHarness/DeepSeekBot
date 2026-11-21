@@ -19,8 +19,16 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   reason: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' },
-  model: { display: 'inline-flex', alignItems: 'center', gap: space.x1, flex: 'none' },
-  arrow: { flex: 'none' },
+  pair: { display: 'inline-flex', alignItems: 'center', gap: space.x1, minWidth: 0 },
+  model: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x1,
+    minWidth: 0,
+    flex: '0 1 auto',
+  },
+  name: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis' },
+  fixed: { flex: 'none' },
 });
 
 export function SessionModelSwitch({
@@ -36,9 +44,11 @@ export function SessionModelSwitch({
   const from = turnTargetLabel(item.from, catalog);
   const to = turnTargetLabel(item.to, catalog);
   const model = (label: ReturnType<typeof turnTargetLabel>) => (
-    <span {...stylex.props(styles.model)}>
-      <ModelBrandIcon brand={label.brand} size={14} />
-      <span>{label.short}</span>
+    <span title={label.short} {...stylex.props(styles.model)}>
+      <span {...stylex.props(styles.fixed)}>
+        <ModelBrandIcon brand={label.brand} size={14} />
+      </span>
+      <span {...stylex.props(styles.name)}>{label.short}</span>
     </span>
   );
   return (
@@ -56,9 +66,9 @@ export function SessionModelSwitch({
           {t(`sessions.model.reason.${reason}` as const)} ·
         </span>
       )}
-      <span aria-hidden {...stylex.props(styles.model)}>
+      <span aria-hidden {...stylex.props(styles.pair)}>
         {model(from)}
-        <span {...stylex.props(styles.arrow)}>→</span>
+        <span {...stylex.props(styles.fixed)}>→</span>
         {model(to)}
       </span>
     </div>

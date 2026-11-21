@@ -5013,7 +5013,7 @@ class BotRuntimeImplementation implements BotRuntime {
                   continuity_key, open_ask_source_event_id, open_ask_at,
                   grant_id, workspace_id, primary_cwd, permission_mode,
                   approval_policy, preset_revision, created_at, updated_at
-                  , model_route_json, agent_preset, archived_at, (SELECT body FROM source_events WHERE source_event_id = assignments.open_ask_source_event_id) AS open_ask_summary
+                  , model_route_json, model_group_id, model_effort, agent_preset, archived_at, (SELECT body FROM source_events WHERE source_event_id = assignments.open_ask_source_event_id) AS open_ask_summary
              FROM assignments
             WHERE bot_slug = ?
             ORDER BY updated_at DESC, session_id ASC`,
@@ -5043,7 +5043,7 @@ class BotRuntimeImplementation implements BotRuntime {
                   a.continuity_key, a.open_ask_source_event_id, a.open_ask_at,
                   a.grant_id, a.workspace_id, a.primary_cwd, a.permission_mode,
                   a.approval_policy, a.preset_revision, a.created_at, a.updated_at,
-                  a.model_route_json, a.archived_at
+                  a.model_route_json, a.model_group_id, a.model_effort, a.archived_at
              FROM assignments a
              JOIN source_events s ON s.source_event_id = a.source_event_id
             WHERE s.channel_id = ?
@@ -5183,7 +5183,7 @@ class BotRuntimeImplementation implements BotRuntime {
                   continuity_key, open_ask_source_event_id, open_ask_at,
                   grant_id, workspace_id, primary_cwd, permission_mode,
                   approval_policy, preset_revision, created_at, updated_at
-                  , model_route_json, agent_preset, archived_at, (SELECT body FROM source_events WHERE source_event_id = assignments.open_ask_source_event_id) AS open_ask_summary
+                  , model_route_json, model_group_id, model_effort, agent_preset, archived_at, (SELECT body FROM source_events WHERE source_event_id = assignments.open_ask_source_event_id) AS open_ask_summary
              FROM assignments
             WHERE bot_slug = ? AND session_id = ?`,
         )
@@ -10403,6 +10403,7 @@ class BotRuntimeImplementation implements BotRuntime {
       if (!ownsContinuation()) return;
       continuation.refreshing = true;
       const cause = continuation.error ?? new Error('The Assignment model stopped');
+      const restReason = this.#routeRests?.restingUntil(failed)?.reason;
       const next = await this.refreshAssignmentRoute(botSlug, sessionId);
       const bot = this.#registry.get(botSlug);
       const row = runningAssignment();
@@ -10421,7 +10422,7 @@ class BotRuntimeImplementation implements BotRuntime {
         },
         undefined,
         undefined,
-        this.#routeRests?.restingUntil(failed)?.reason,
+        restReason ?? this.#routeRests?.restingUntil(failed)?.reason,
       );
       if (request.delivery === 'refused' || request.delivery === 'capacity') fail(cause);
     } catch (error) {

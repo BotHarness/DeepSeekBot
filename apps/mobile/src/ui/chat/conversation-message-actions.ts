@@ -61,31 +61,38 @@ export function useConversationMessageState({
       actionsFor?.message.turnTargets?.some(
         (target) => target.kind === 'engine' && target.model !== undefined,
       ));
+  const keepCatalog = (host: NonNullable<typeof client>, catalog: TurnTargetCatalog) =>
+    setMenuCatalog((previous) => ({
+      ...(previous?.host === host ? previous : undefined),
+      host,
+      ...catalog,
+    }));
   useLayoutEffect(() => {
-    if ((!needsModels && !needsEngines) || client === undefined) return;
+    if (!needsModels || client === undefined) return;
     let active = true;
-    const keep = (catalog: TurnTargetCatalog) => {
-      if (active)
-        setMenuCatalog((previous) => ({
-          ...(previous?.host === client ? previous : undefined),
-          host: client,
-          ...catalog,
-        }));
-    };
-    if (needsModels)
-      void loadModelCatalog(client).then(
-        ({ models }) => keep({ models }),
-        () => undefined,
-      );
-    if (needsEngines)
-      void loadRoutingGroupEngines(client).then(
-        (engines) => keep({ engines }),
-        () => undefined,
-      );
+    void loadModelCatalog(client).then(
+      ({ models }) => {
+        if (active) keepCatalog(client, { models });
+      },
+      () => undefined,
+    );
     return () => {
       active = false;
     };
-  }, [client, needsModels, needsEngines]);
+  }, [client, needsModels]);
+  useLayoutEffect(() => {
+    if (!needsEngines || client === undefined) return;
+    let active = true;
+    void loadRoutingGroupEngines(client).then(
+      (engines) => {
+        if (active) keepCatalog(client, { engines });
+      },
+      () => undefined,
+    );
+    return () => {
+      active = false;
+    };
+  }, [client, needsEngines]);
   const [initiatedRequest, setInitiatedRequest] = useState<InitiatedActivityRequest>();
   const selectionScope = (saved?.hostId ?? '') + ':' + (activeChannel ?? '');
   const {

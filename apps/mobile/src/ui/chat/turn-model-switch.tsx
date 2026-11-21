@@ -36,7 +36,10 @@ export function TurnModelSwitchMarker({
     <View
       testID="turn-model-switch"
       accessible
-      accessibilityLabel={line(from.short, to.short)}
+      accessibilityLabel={line(
+        `${from.short} ${change.from.kind === 'engine' ? t.sub : t.api}`,
+        `${to.short} ${change.to.kind === 'engine' ? t.sub : t.api}`,
+      )}
       style={{
         flexDirection: 'row',
         flexWrap: 'wrap',

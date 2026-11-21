@@ -124,7 +124,8 @@ export function engineCatalogModel(
   const preferred =
     target.account === undefined
       ? undefined
-      : options.find((status) => status.accountName === target.account);
+      : (options.find((status) => status.accountId === target.account) ??
+        options.find((status) => status.accountName === target.account));
   const models = options.flatMap((status) => status.models);
   const exact =
     findEngineModel(preferred?.models ?? [], target.model) ?? findEngineModel(models, target.model);

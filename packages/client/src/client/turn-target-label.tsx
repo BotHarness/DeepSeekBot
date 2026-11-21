@@ -55,25 +55,37 @@ export function TurnTargetLabel({
   );
 }
 
+const ENGINE_RETRIES = 3;
+const ENGINE_RETRY_MS = 5_000;
+
 export function useTurnTargetEngines<T extends Element>(actions: BridgeActions, needed: boolean) {
   const [catalog, setCatalog] = useState<{
     host: BridgeActions;
     engines: Awaited<ReturnType<BridgeActions['routingGroupEngines']>>;
   }>();
   const engines = catalog?.host === actions ? catalog.engines : undefined;
+  const [attempt, setAttempt] = useState(0);
   const mount = useMountedResource<T>(() => {
     if (!needed || engines !== undefined || actions.routingGroupEngines === undefined) return;
     let active = true;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     void actions.routingGroupEngines().then(
       (engines) => {
         if (active) setCatalog({ host: actions, engines });
       },
-      () => undefined,
+      () => {
+        if (active && attempt < ENGINE_RETRIES)
+          retry = setTimeout(
+            () => setAttempt((value) => value + 1),
+            ENGINE_RETRY_MS * 2 ** attempt,
+          );
+      },
     );
     return () => {
       active = false;
+      if (retry !== undefined) clearTimeout(retry);
     };
-  }, [actions, needed, engines]);
+  }, [actions, needed, engines, attempt]);
   return { engines, mount };
 }
 
