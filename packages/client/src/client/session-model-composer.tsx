@@ -6,6 +6,7 @@ import type {
 } from '@botharness/host-protocol/session-model';
 import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
 import { engineCatalogModel } from '@botharness/host-client/model-catalog';
+import { engineEffortName } from '@botharness/host-protocol/subscription-engine';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 
 import type { BridgeActions } from './actions.js';
@@ -59,10 +60,6 @@ function labelKey(target: TurnTarget): string {
     target.kind === 'engine' ? target.engine : target.provider,
     target.model,
   ]);
-}
-
-function effortName(efforts: readonly { id: string; name: string }[] | undefined, id: string) {
-  return efforts?.find((item) => item.id === id)?.name ?? id.charAt(0).toUpperCase() + id.slice(1);
 }
 
 function choiceKey(choice: SessionModelChoice | null): string {
@@ -267,7 +264,11 @@ export function SessionModelComposer({
   const effort =
     resolving || effortId === undefined || effortId === ''
       ? undefined
-      : effortName(effortEfforts, effortId);
+      : engineEffortName(
+          effortId,
+          (level) => t(`engine.effort.${level}`),
+          effortEfforts?.find((item) => item.id === effortId)?.name,
+        );
   const kind =
     label === undefined
       ? undefined

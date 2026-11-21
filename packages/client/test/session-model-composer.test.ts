@@ -61,6 +61,7 @@ it('never shows the raw model id while the engine catalog loads or briefly drops
   expect(trigger()?.textContent).toBe('');
   await act(async () => root.render(view(opus)));
   expect(trigger()?.textContent).toContain('Opus 5.5');
+  expect(trigger()?.textContent).toContain('高');
   await act(async () => root.render(view([])));
   expect(trigger()?.textContent).toContain('Opus 5.5');
   expect(trigger()?.textContent).not.toContain('claude-opus-5-5');
