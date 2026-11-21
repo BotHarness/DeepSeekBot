@@ -2611,6 +2611,14 @@
       "behaviors": ["desktop.window-zoom"]
     },
     {
+      "path": "scripts/e2e-windows-caption-strip.mjs",
+      "sha256": "2670592910759b681918269379dd6e7086c55301ce938d0ae6cb62dbb5e6281d",
+      "category": "mapped",
+      "reason": "Checks the Windows caption strip in Session and Bot mode on a real isolated Host in Chromium with simulated Windows chrome. A Bot-only negative control distinguishes caption drag from rail controls and Session drag.",
+      "task": 4873,
+      "behaviors": ["desktop.bot-mode.dock"]
+    },
+    {
       "path": "scripts/e2e-workspace-chrome.mjs",
       "sha256": "cb3a9da48097f1640eb4f231aa2e49bfc890209fed08e1cc66398c209723f0b8",
       "category": "mapped",
