@@ -39,6 +39,7 @@ const mounted: Array<() => Promise<void>> = [];
 
 afterEach(async () => {
   for (const unmount of mounted.splice(0)) await unmount();
+  vi.unstubAllGlobals();
 });
 
 async function mount(element: ReturnType<typeof createElement>): Promise<HTMLDivElement> {
@@ -65,10 +66,21 @@ async function chooseFile(host: HTMLElement, file: File): Promise<void> {
   await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })));
 }
 
+function zipPreview(standing: { path: string; role: string; chars: number; limit: number }[] = []) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => Response.json({ standing })),
+  );
+}
+
 const BOT = { slug: 'ada', displayName: 'Ada' } as BotSummary;
 
 describe('Import from zip', () => {
   it('shows the third-party notice and imports the chosen zip into the section', async () => {
+    zipPreview([
+      { path: 'SOUL.md', role: 'soul', chars: 5_003, limit: 5_000 },
+      { path: 'MEMORY.md', role: 'coreMemory', chars: 3_001, limit: 4_000 },
+    ]);
     const importBotZip = vi.fn(async () => BOT);
     const onImported = vi.fn();
     const host = await mount(
@@ -90,6 +102,8 @@ describe('Import from zip', () => {
     const file = new File([new Uint8Array([0x50, 0x4b])], 'Ada.zip', { type: 'application/zip' });
     await chooseFile(host, file);
     expect(document.body.textContent).toContain('Ada.zip');
+    expect(document.body.textContent).toContain('3 字符不会进入提示词');
+    expect(document.body.textContent).toContain('可再用 999 字符');
     await act(async () => button(host, '导入').click());
 
     expect(importBotZip).toHaveBeenCalledWith(file, 'section-work');
@@ -97,6 +111,7 @@ describe('Import from zip', () => {
   });
 
   it('keeps the dialog open with a clear reason when the Host refuses the zip', async () => {
+    zipPreview();
     const importBotZip = vi.fn(async () => {
       throw new BridgeCallError('unsafe-path', 'Unsafe entry path: ../evil.md');
     });
@@ -321,6 +336,7 @@ describe('Share from the App Sidebar', () => {
 
 describe('Bot Zip dialogs', () => {
   it('imports the chosen zip on Enter and cancels without importing', async () => {
+    zipPreview();
     const importBotZip = vi.fn(async () => BOT);
     const onCancel = vi.fn();
     const host = await mount(

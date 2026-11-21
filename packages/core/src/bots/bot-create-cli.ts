@@ -8,6 +8,7 @@ import { readBotZip, BOT_ZIP_HISTORY_PATH } from './bot-zip.js';
 import { writeZip } from './zip-archive.js';
 import { INBOX_HOST_COMMANDS } from './cli-inbox.js';
 import { canonicalCliCommandName } from './cli-command-names.js';
+import { runMarketplaceBlocklist } from './cli-marketplace-blocklist.js';
 import { CliLiveError, LIVE_COMMANDS, runLiveCli } from './cli-live.js';
 import { isActivityCommandName } from './cli-inbox.js';
 import { hasAgentCliContext, runAgentCli } from './cli-agent.js';
@@ -113,6 +114,10 @@ const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
     description: 'transfer, inspect or recover a portable Bot Zip on a chosen Host',
   })),
   ...SSH_COMMANDS,
+  {
+    command: 'marketplace-blocklist',
+    description: 'moderate a Marketplace entry / 封禁或恢复市场条目',
+  },
   ...LIVE_COMMANDS,
   ...DIAGNOSTIC_COMMANDS,
   ...LIFECYCLE_COMMANDS,
@@ -278,6 +283,10 @@ export async function runBotCreateCli(
       return 0;
     }
     if (!hasCliDeclaration(command)) throw usageError('Unknown command.');
+    if (command === 'marketplace-blocklist') {
+      out.stdout(JSON.stringify(await runMarketplaceBlocklist(rest, io.env), null, 2));
+      return 0;
+    }
     if (command === 'ssh-tunnel') return await runSshCli(rest, values, out);
     const online = values.host !== undefined || io.env['DEEPSEEKBOT_HOST'] !== undefined;
     const teamChannels = command === 'channels' && (online || rest.length > 0);

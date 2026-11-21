@@ -122,7 +122,7 @@ function MarketHeaderAction({
   const uploadLabel = t(section === 'bots' ? 'market.panel.upload' : 'market.avatar.publish');
   return (
     <>
-      {section === 'bots' && (
+      {(section === 'bots' || owner) && (
         <Tooltip label={t('market.mine.open')} side="bottom" delayMs={500}>
           <IconButton
             size="row"
@@ -261,6 +261,7 @@ function MarketPanelView({
             t={t}
             publishing={section === 'avatars' && owner && dialog === 'upload'}
             avatarSource={avatarSource}
+            managing={section === 'avatars' && owner && dialog === 'mine'}
             onClosePublish={() => navigation.open(undefined)}
           />
         )}

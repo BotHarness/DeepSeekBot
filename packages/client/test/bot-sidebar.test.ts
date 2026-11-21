@@ -214,11 +214,16 @@ function stubActions(): BridgeActions {
     }),
     marketplaceList: vi.fn(async () => ({ bots: [] })),
     marketplaceAvatarList: vi.fn(),
+    marketplaceAvatarTags: vi.fn(),
     marketplaceAvatarDetail: vi.fn(),
+    marketplaceAvatarReport: vi.fn(),
     marketplaceAvatarApplyCandidates: vi.fn(),
     marketplaceAvatarApply: vi.fn(),
     marketplaceAvatarPublish: vi.fn(),
     marketplaceAvatarSource: vi.fn(),
+    marketplaceAvatarMine: vi.fn(),
+    marketplaceAvatarEdit: vi.fn(),
+    marketplaceAvatarDelete: vi.fn(),
     marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
     marketplaceAuthorSave: vi.fn(async () => {
       throw new Error('unused');

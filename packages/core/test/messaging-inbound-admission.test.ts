@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
 import { parseImCommand, type ImCommandServices } from '../src/messaging/im-commands.js';
+import type { BotAgentAdapter } from '../src/runtime/bot-runtime.js';
 import { event, fixture, cleanup } from './messaging-inbound-fixtures.js';
 
 afterEach(cleanup);
@@ -285,7 +286,11 @@ it('uses existing group-mention steer when an Orchestrator is already active', a
   });
   await fx.receive(second);
   await tick();
-  expect(steer).toHaveBeenCalledWith('ada', expect.stringContaining('second mention'));
+  expect(steer).toHaveBeenCalledWith(
+    'ada',
+    expect.stringContaining('second mention'),
+    expect.any(Function),
+  );
   release?.();
   await fx.idle();
   expect(fx.runs).toHaveLength(1);
@@ -293,6 +298,48 @@ it('uses existing group-mention steer when an Orchestrator is already active', a
     'open',
     'open',
   ]);
+});
+
+it('refuses a queued external steer after its reception grant is revoked', async () => {
+  let finishTurn!: () => void;
+  const turn = new Promise<void>((resolve) => (finishTurn = resolve));
+  let deliver!: () => void;
+  const delivery = new Promise<void>((resolve) => (deliver = resolve));
+  const delivered = vi.fn();
+  const steer = vi.fn<NonNullable<BotAgentAdapter['steerOrchestrator']>>(
+    (_botSlug, text, requireAccess) =>
+      delivery.then(() => {
+        requireAccess?.();
+        delivered(text);
+        return true;
+      }),
+  );
+  const fx = await fixture({ onRun: () => turn, steer });
+  try {
+    await fx.enable();
+    await fx.receive();
+    await vi.waitFor(() => expect(fx.runs).toHaveLength(1));
+    const queued = event({
+      eventId: 'queued-event',
+      messageId: 'queued-message',
+      text: 'Queued mention',
+      reply: { ...event().reply, messageId: 'queued-message' },
+    });
+    expect(await fx.receive(queued)).toEqual({ accepted: true });
+    await vi.waitFor(() =>
+      expect(steer).toHaveBeenCalledWith(
+        'ada',
+        expect.stringContaining(queued.text),
+        expect.any(Function),
+      ),
+    );
+    fx.core.externalMessaging.revoke('ada', fx.grant.id);
+  } finally {
+    deliver();
+    finishTurn();
+    await fx.idle();
+  }
+  expect(delivered).not.toHaveBeenCalled();
 });
 
 it('restores exclusive intake after a cold-start account registration race without widening the grant', async () => {

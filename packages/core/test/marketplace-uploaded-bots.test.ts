@@ -631,10 +631,30 @@ it('publishes an Avatar as the Host owner and lets a Team member browse without 
   expect(await f.bridge.marketplaceAvatarPublish(input)).toEqual(published);
   f.session.state = 'signed-out';
   expect(await memberBridge.marketplaceAvatarDetail({ id: published.value.id })).toEqual(published);
-  expect(await memberBridge.marketplaceAvatarList({})).toEqual({
+  expect(await memberBridge.marketplaceAvatarList({ q: 'river', tag: 'BLUE' })).toEqual({
     ok: true,
     value: { avatars: [published.value], nextCursor: null },
   });
+  expect(await memberBridge.marketplaceAvatarTags()).toEqual({
+    ok: true,
+    value: [{ tag: 'blue', count: 1 }],
+  });
+  expect(await memberBridge.marketplaceAvatarList({ sort: 'new' })).toEqual({
+    ok: true,
+    value: { avatars: [], nextCursor: null },
+  });
+  await f.market.daily();
+  expect(await memberBridge.marketplaceAvatarList({ sort: 'new', tag: 'BLUE' })).toEqual({
+    ok: true,
+    value: { avatars: [published.value], nextCursor: null },
+  });
+  for (const sort of ['hot', 'rising']) {
+    expect(await memberBridge.marketplaceAvatarList({ sort })).toEqual({
+      ok: true,
+      value: { avatars: [], nextCursor: null },
+    });
+  }
+  expect(await memberBridge.marketplaceAvatarList({ sort: 'stars' })).toMatchObject({ ok: false });
   expect(f.market.bucket.objects.size).toBe(1);
 });
 
@@ -707,4 +727,66 @@ it('publishes stored images from Bots, including a member’s Appearance still, 
     expect(response.headers.get('content-type')).toBe(contentType);
     expect(Buffer.from(await response.arrayBuffer()).toString('base64')).toBe(expected);
   }
+});
+
+it('manages Avatar listings only through the Host owner’s signed-in Connect account', async () => {
+  const f = fixture();
+  f.session.state = 'signed-in';
+  await f.bridge.marketplaceAuthorSave({ displayName: 'River Artist', acceptTerms: true });
+  const published = await f.bridge.marketplaceAvatarPublish({
+    name: 'Otter',
+    image: avatarDataUrl('png'),
+    confirm: true,
+    requestKey: 'manage-otter',
+  });
+  if (!published.ok) throw new Error(published.error.code);
+  const { id } = published.value;
+  const memberContext = humanContext('member');
+  attachOperationalModule(
+    f.core.operationalDatabase,
+    'marketplace-avatar-management-test',
+  ).transaction((sql) => {
+    sql.prepare('UPDATE team_settings SET enabled=1').run();
+    sql
+      .prepare("INSERT INTO humans VALUES (?,?,'active','now')")
+      .run(memberContext.humanId, 'Member');
+    sql.prepare("INSERT INTO human_roles VALUES (?,'member')").run(memberContext.humanId);
+  });
+  f.core.team.spaces.ensureAccount(memberContext.humanId);
+  const member = createBridgeMethods(memberContext, f.bridgeDeps);
+  for (const result of [
+    await member.marketplaceAvatarMine({}),
+    await member.marketplaceAvatarEdit({ id, name: 'Bear' }),
+    await member.marketplaceAvatarDelete({ id }),
+  ]) {
+    expect(result).toMatchObject({ ok: false, error: { code: 'permission-required' } });
+  }
+  f.session.tokens = ['token-bob', 'token-bob', 'token-bob'];
+  expect(await f.bridge.marketplaceAvatarMine({})).toEqual({ ok: true, value: { avatars: [] } });
+  expect(await f.bridge.marketplaceAvatarEdit({ id, name: 'Bear' })).toMatchObject({
+    ok: false,
+    error: { code: 'avatar-not-found' },
+  });
+  expect(await f.bridge.marketplaceAvatarDelete({ id })).toMatchObject({
+    ok: false,
+    error: { code: 'avatar-not-found' },
+  });
+  expect(await f.bridge.marketplaceAvatarMine({})).toEqual({
+    ok: true,
+    value: { avatars: [published.value] },
+  });
+  expect(await f.bridge.marketplaceAvatarEdit({ id, description: 'River' })).toEqual({
+    ok: true,
+    value: { ...published.value, description: 'River' },
+  });
+  expect(await f.bridge.marketplaceAvatarDelete({ id })).toEqual({
+    ok: true,
+    value: { deleted: true },
+  });
+  expect(await f.bridge.marketplaceAvatarMine({})).toEqual({ ok: true, value: { avatars: [] } });
+  f.session.state = 'signed-out';
+  expect(await f.bridge.marketplaceAvatarMine({})).toMatchObject({
+    ok: false,
+    error: { code: 'sign-in-required' },
+  });
 });

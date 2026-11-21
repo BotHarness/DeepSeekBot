@@ -2,14 +2,18 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { createChallenge } from '../../core/src/marketplace/altcha.js';
 import { avatarDataUrl } from '../../market/test/avatar-fixtures.js';
+import type { MarketplaceAvatarEdit } from '@botharness/host-protocol/marketplace-avatar';
 import { buttonNamed, fieldNamed, typeInto } from './primitive-mocks.js';
+import { BridgeCallError } from '../src/client/bridge.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 import { MarketAvatars, MarketAvatarPublishDialog } from '../src/client/market-avatars.js';
 import {
   BannerCropModal,
   PersonaBotAvatarCropModal,
 } from '../src/client/personabot-avatar-crop.js';
+import type { MarketplaceAvatarQuery } from '@botharness/host-protocol/marketplace-avatar';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives, shellPrimitives } = await import('./primitive-mocks.js');
@@ -68,12 +72,33 @@ function actionsFor() {
     })),
     marketplaceAvatarPublish: vi.fn(async () => avatar),
     marketplaceAvatarSource: vi.fn(async () => ({ image })),
-    marketplaceAvatarList: vi.fn(async (cursor?: string) =>
+    marketplaceAvatarTags: vi.fn(async () => [{ tag: 'blue', count: 2 }]),
+    marketplaceAvatarMine: vi.fn(async () => ({ avatars: [{ ...avatar, applyCount: 4 }] })),
+    marketplaceAvatarEdit: vi.fn(async (_id: string, patch: MarketplaceAvatarEdit) => ({
+      ...avatar,
+      applyCount: 4,
+      ...patch,
+    })),
+    marketplaceAvatarDelete: vi.fn(async () => ({ deleted: true as const })),
+    marketplaceAvatarList: vi.fn(async ({ cursor }: MarketplaceAvatarQuery = {}) =>
       cursor === undefined
         ? { avatars: [avatar], nextCursor: 'next' }
         : { avatars: [{ ...avatar, id: 'avatar-b', name: 'Bear' }], nextCursor: null },
     ),
     marketplaceAvatarDetail: vi.fn(async () => avatar),
+    marketplaceChallenge: vi.fn(async () => {
+      const number = 4;
+      const challenge = await createChallenge({
+        key: 'test',
+        tier: 'default',
+        now: new Date(),
+        number,
+      });
+      return { ...challenge, maxnumber: number };
+    }),
+    marketplaceAvatarReport: vi.fn<(id: string, altcha: string, reason?: string) => Promise<void>>(
+      async () => {},
+    ),
     marketplaceAvatarApplyCandidates: vi.fn(async () => ({
       bots: [
         { slug: 'plain', displayName: 'Plain Bot', hasAppearance: false },
@@ -83,6 +108,73 @@ function actionsFor() {
     marketplaceAvatarApply: vi.fn(async () => ({ applied: true as const })),
   };
 }
+
+it('submits keyword search, combines it with a counted tag and shows the filtered empty state', async () => {
+  const actions = actionsFor();
+  await act(async () =>
+    root.render(
+      createElement(MarketAvatars, { actions, t, publishing: false, onClosePublish: vi.fn() }),
+    ),
+  );
+  const search = host.querySelector('input[type="search"]');
+  expect(search).toBeInstanceOf(HTMLInputElement);
+  if (!(search instanceof HTMLInputElement)) throw new Error('Missing avatar search');
+  expect(search.getAttribute('aria-label')).toBe(t('market.avatar.search.label'));
+  await typeInto(search, ' river ');
+  expect(actions.marketplaceAvatarList).toHaveBeenCalledTimes(1);
+  await act(async () =>
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+  );
+  expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith({ q: 'river' });
+  const chip = buttonNamed('blue2', host);
+  await act(async () => chip.click());
+  expect(chip.getAttribute('aria-pressed')).toBe('true');
+  expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith({ q: 'river', tag: 'blue' });
+  await act(async () => buttonNamed(t('market.loadMore'), host).click());
+  expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith({
+    q: 'river',
+    tag: 'blue',
+    cursor: 'next',
+  });
+  actions.marketplaceAvatarList.mockResolvedValueOnce({ avatars: [], nextCursor: null });
+  await act(async () => buttonNamed(t('market.topics.all'), host).click());
+  expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith({ q: 'river' });
+  expect(host.textContent).toContain(t('market.avatar.search.empty'));
+  expect(host.textContent).not.toContain(avatar.name);
+});
+
+it('shows the selected Avatar ranking, keeps tag filters and restores the browse grid', async () => {
+  const actions = actionsFor();
+  actions.marketplaceAvatarList.mockImplementation(async ({ sort } = {}) => ({
+    avatars: sort === 'rising' ? [] : [{ ...avatar, name: sort ?? avatar.name }],
+    nextCursor: null,
+  }));
+  await act(async () =>
+    root.render(
+      createElement(MarketAvatars, { actions, t, publishing: false, onClosePublish: vi.fn() }),
+    ),
+  );
+  expect(host.textContent).toContain(avatar.name);
+  await act(async () => buttonNamed('blue2', host).click());
+  const tabs = host.querySelector<HTMLElement>('[role="tablist"]');
+  if (tabs === null) throw new Error('Missing Avatar ranking tabs');
+  expect(tabs.closest('.bh-market-browse')?.querySelector('input[type="search"]')).toBeInstanceOf(
+    HTMLInputElement,
+  );
+  for (const sort of ['hot', 'new', 'rising'] as const) {
+    const tab = buttonNamed(t(`market.section.${sort}`), tabs);
+    await act(async () => tab.click());
+    expect(tab.getAttribute('aria-selected')).toBe('true');
+    expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith({ sort, tag: 'blue' });
+    if (sort !== 'rising') expect(host.textContent).toContain(sort);
+  }
+  expect(host.textContent).toContain(t('market.avatar.search.empty'));
+  await act(async () => buttonNamed(t('market.topics.all'), host).click());
+  expect(host.textContent).toContain(t('market.avatar.ranking.empty'));
+  await act(async () => buttonNamed(t('market.avatar.ranking.all'), tabs).click());
+  expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith({});
+  expect(host.textContent).toContain(avatar.name);
+});
 
 async function loadSource(width: number, height: number) {
   const preview = document.querySelector('img[src="blob:crop"]');
@@ -322,7 +414,7 @@ it('paginates the grid and opens the Avatar hero and tags', async () => {
   });
   await act(async () => buttonNamed(t('market.loadMore')).click());
   expect(buttonNamed(t('market.loadingMore')).disabled).toBe(true);
-  expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith('next');
+  expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith({ cursor: 'next' });
   await act(async () => finishPage());
   expect(buttonNamed(t('market.detail.open', { name: 'Bear' }))).toBeTruthy();
   await act(async () => buttonNamed(t('market.detail.open', { name: 'Otter' })).click());
@@ -334,6 +426,64 @@ it('paginates the grid and opens the Avatar hero and tags', async () => {
     t('market.applyCount', { count: 0 }),
   );
   expect(host.querySelector('.bh-market-hero [data-tone="neutral"]')?.textContent).toBe('Blue');
+});
+
+it('lists Apply Counts, edits text and confirms deletion in My Avatars', async () => {
+  const actions = actionsFor();
+  await act(async () =>
+    root.render(
+      createElement(MarketAvatars, {
+        actions,
+        publishing: false,
+        managing: true,
+        onClosePublish: vi.fn(),
+        t,
+      }),
+    ),
+  );
+  const row = () => document.querySelector('[data-market-mine-avatar="avatar-a"]');
+  expect(row()?.textContent).toContain(t('market.applyCount', { count: 4 }));
+  await act(async () => buttonNamed(t('market.avatar.mine.editLabel', { name: 'Otter' })).click());
+  expect(document.querySelector('[role="dialog"] input[type="file"]')).toBeNull();
+  const name = fieldNamed(t('market.direct.name'));
+  expect(name.value).toBe('Otter');
+  await act(async () => typeInto(name, 'A'.repeat(41)));
+  expect(buttonNamed(t('market.avatar.mine.save')).disabled).toBe(true);
+  await act(async () => typeInto(name, 'Seal'));
+  await act(async () => buttonNamed(t('market.avatar.mine.save')).click());
+  expect(actions.marketplaceAvatarEdit).toHaveBeenCalledWith('avatar-a', { name: 'Seal' });
+  expect(row()?.textContent).toContain('Seal');
+  await act(async () => buttonNamed(t('market.mine.deleteLabel', { name: 'Seal' })).click());
+  expect(document.body.textContent).toContain(t('market.avatar.mine.deleteBody'));
+  expect(actions.marketplaceAvatarDelete).not.toHaveBeenCalled();
+  await act(async () => buttonNamed(t('market.mine.deleteConfirm')).click());
+  expect(actions.marketplaceAvatarDelete).toHaveBeenCalledWith('avatar-a');
+  expect(document.body.textContent).toContain(t('market.avatar.mine.empty'));
+});
+
+it('explains when applying from an already open Avatar detail fails after deletion', async () => {
+  const actions = actionsFor();
+  actions.marketplaceAvatarApply.mockRejectedValue(new BridgeCallError('avatar-not-found', 'gone'));
+  await act(async () =>
+    root.render(
+      createElement(MarketAvatars, {
+        actions,
+        publishing: false,
+        onClosePublish: vi.fn(),
+        t,
+      }),
+    ),
+  );
+  await act(async () => buttonNamed(t('market.detail.open', { name: 'Otter' })).click());
+  await act(async () => buttonNamed(t('market.avatar.apply')).click());
+  await act(async () => buttonNamed('Plain Bot').click());
+  const dialog = document.querySelector('[role="dialog"]');
+  const apply = Array.from(dialog?.querySelectorAll('button') ?? []).find(
+    (button) => button.textContent === t('market.avatar.apply'),
+  );
+  await act(async () => apply?.click());
+  expect(actions.marketplaceAvatarApply).toHaveBeenCalledWith('avatar-a', 'plain');
+  expect(dialog?.textContent).toContain(t('market.avatar.notFound'));
 });
 
 it('applies only to a Bot returned by the Host and warns before replacing an editable Appearance', async () => {
@@ -370,5 +520,42 @@ it('applies only to a Bot returned by the Host and warns before replacing an edi
   expect(host.textContent).toContain(t('market.avatar.applied', { name: 'Editable Bot' }));
   expect(host.querySelector('.bh-market-hero .bh-market-meta')?.textContent).toContain(
     t('market.applyCount', { count: 1 }),
+  );
+});
+
+it('reports the opened Avatar through the shared challenge and report panel', async () => {
+  const actions = actionsFor();
+  await act(async () =>
+    root.render(
+      createElement(MarketAvatars, { actions, publishing: false, onClosePublish: vi.fn(), t }),
+    ),
+  );
+  await act(async () => buttonNamed(t('market.detail.open', { name: 'Otter' })).click());
+  await act(async () => buttonNamed(t('market.report.open')).click());
+  const report = host.querySelector('[data-market-report="open"]')?.textContent;
+  expect(report).toContain(t('market.avatar.report.title'));
+  expect(report).toContain(t('market.avatar.report.hint'));
+  const textarea = host.querySelector('textarea');
+  if (textarea === null) throw new Error('Missing report reason field');
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(
+      textarea,
+      '  spam  ',
+    );
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    buttonNamed(t('market.report.send')).click();
+    await vi.waitFor(() => {
+      expect(actions.marketplaceAvatarReport).toHaveBeenCalledWith(
+        'avatar-a',
+        expect.any(String),
+        'spam',
+      );
+    });
+  });
+  expect(actions.marketplaceChallenge).toHaveBeenCalledOnce();
+  expect(host.querySelector('[data-market-report="done"]')?.textContent).toContain(
+    t('market.report.doneTitle'),
   );
 });
