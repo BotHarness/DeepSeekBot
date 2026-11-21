@@ -4,9 +4,11 @@ A Human creates a PersonaBot bound to a native Workspace. The Bot gets a DM Chan
 
 ## Sources
 
+- `packages/core/src/features/personabots/plugin.ts`
 - `packages/client/src/client/{persona-bot-create,bot-create-source,bot-create-approval,bot-zip,standing-import-usage}.tsx`
 - `packages/core/src/bots/{bot-create-cli,memory-move,zip-import}.ts`
 - `packages/core/src/tob/cli-bot-create.ts`
+- `packages/core/src/features/personabots/cli-*.ts`
 - `packages/core/src/features/personabots/methods.ts`
 - `packages/client/src/client/features/personabots/bridge.ts`
 

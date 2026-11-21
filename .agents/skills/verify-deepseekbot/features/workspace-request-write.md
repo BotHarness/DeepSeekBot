@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/workspaces/plugin.ts`
 - `packages/core/src/workspaces/grant-requests.ts`
 - `packages/core/src/channels/grant-request.ts`
 - `apps/mobile/src/ui/chat/grant-request-card.tsx`
