@@ -482,5 +482,6 @@ export const BOT_CLI_OPTIONS = {
   ...LIVE_OPTIONS,
   ...SSH_OPTIONS,
   compact: { type: 'boolean' },
+  json: { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
 } as const;

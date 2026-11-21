@@ -102,6 +102,55 @@ describe('Team subscription grants', () => {
     expect(await f.methods.sessionModel({ ...payload, choice })).toMatchObject(refusal(f.work.id));
   });
 
+  it('lets members read their granted quota without the email and reserves refresh for managers', async () => {
+    const f = fixture();
+    f.grant(f.work.id);
+    const email = 'work@example.test';
+    const quota = {
+      source: 'live' as const,
+      observedAt: '2026-11-20T08:00:00.000Z',
+      windows: { weekly: { remainingPercent: 55 } },
+    };
+    f.host.store.rememberQuota('codex', { ...quota, email }, f.work.id);
+    const refresh = vi.spyOn(f.host, 'refreshQuota').mockResolvedValue({ status: 'ok', quota });
+    await expect(f.methods.engineAccounts({})).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'permission-required' },
+    });
+    const member = await f.methods.engineAccounts({ grantable: true });
+    expect(member).toMatchObject({
+      ok: true,
+      value: { accounts: [{ id: f.work.id, quota }] },
+    });
+    expect(JSON.stringify(member)).not.toContain('email');
+    expect(JSON.stringify(member)).not.toContain(f.personal.id);
+    await expect(f.methods.engineAccountQuotaRefresh({ id: f.work.id })).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'permission-required' },
+    });
+    expect(refresh).not.toHaveBeenCalled();
+
+    const manager = f.team.roles.create(owner, 'Model source manager', [
+      'modelSources.manage',
+    ]).role;
+    f.team.roles.set(owner, f.member.humanId, [f.role.roleId, manager.roleId]);
+    await expect(f.methods.engineAccounts({ grantable: true })).resolves.toMatchObject({
+      ok: true,
+      value: { accounts: [{ id: f.work.id, email, quota }] },
+    });
+    await expect(f.ownerMethods.engineAccounts({})).resolves.toMatchObject({
+      ok: true,
+      value: {
+        accounts: expect.arrayContaining([expect.objectContaining({ id: f.work.id, email })]),
+      },
+    });
+    await expect(f.methods.engineAccountQuotaRefresh({ id: f.work.id })).resolves.toEqual({
+      ok: true,
+      value: { status: 'ok', quota },
+    });
+    expect(refresh).toHaveBeenCalledExactlyOnceWith(f.work.id);
+  });
+
   it('unions explicit accounts across API policies and applies the delegation ceiling', () => {
     const f = fixture();
     f.grant(f.work.id, f.work.id);

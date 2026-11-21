@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/profile-storage/plugin.ts`
 - `packages/core/src/portability/**`
 - `packages/core/src/bots/cli-profile-backup.ts`
 - `packages/core/src/*/backup.ts`

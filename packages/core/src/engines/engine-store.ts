@@ -15,6 +15,7 @@ import {
   isEngineId,
   EngineRefusal,
 } from './engine-session.js';
+import { parseStoredEngineQuota } from './engine-quota.js';
 
 export type EngineRole = 'orchestrator' | 'assignment';
 
@@ -143,6 +144,7 @@ export interface EngineStore {
   ): StoredEngineAccount;
   quota(engine: EngineId, accountId?: string): EngineQuota | undefined;
   rememberQuota(engine: EngineId, quota: EngineQuota, accountId?: string): void;
+  clearQuota(engine: EngineId, accountId?: string): void;
   nativeSession(sessionId: string): EngineThread | undefined;
   rememberNativeSession(
     sessionId: string,
@@ -203,7 +205,7 @@ function parse(text: string, path: string): EngineFile {
     };
   }
   for (const [key, raw] of Object.entries(fields(value['quota']) ?? {})) {
-    const quota = parseQuota(raw);
+    const quota = parseStoredEngineQuota(raw);
     const id = isEngineId(key) ? engineAccountKey(key) : key;
     if (accountIds.has(id) && quota !== undefined) (file.quota ??= {})[id] = quota;
   }
@@ -235,20 +237,6 @@ function choiceOf(entry: Fields | undefined): EngineChoice {
     ...(typeof model === 'string' && model !== '' ? { model } : {}),
     ...(typeof effort === 'string' && effort !== '' ? { effort } : {}),
     ...(typeof accountId === 'string' && accountId !== '' ? { accountId } : {}),
-  };
-}
-
-function parseQuota(raw: unknown): EngineQuota | undefined {
-  const entry = fields(raw);
-  if (typeof entry?.['limited'] !== 'boolean' || typeof entry['observedAt'] !== 'string')
-    return undefined;
-  const { account, usedPercent, resetsAt } = entry;
-  return {
-    ...(typeof account === 'string' ? { account } : {}),
-    ...(typeof usedPercent === 'number' && Number.isFinite(usedPercent) ? { usedPercent } : {}),
-    ...(typeof resetsAt === 'string' ? { resetsAt } : {}),
-    limited: entry['limited'],
-    observedAt: entry['observedAt'],
   };
 }
 
@@ -422,6 +410,13 @@ export function createEngineStore(path: string): EngineStore {
     rememberQuota: (engine, quota, accountId) => {
       const file = structuredClone(read());
       (file.quota ??= {})[engineAccountKey(engine, accountId)] = quota;
+      write(file);
+    },
+    clearQuota: (engine, accountId) => {
+      const id = engineAccountKey(engine, accountId);
+      if (read().quota?.[id] === undefined) return;
+      const file = structuredClone(read());
+      delete file.quota?.[id];
       write(file);
     },
     nativeSession: (sessionId) => read().sessions[sessionId],

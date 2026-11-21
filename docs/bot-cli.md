@@ -560,6 +560,8 @@ For a qualified WeChat private connector, the update JSON also accepts independe
 
 These call the same Host bridge methods as the Bot's IM settings, the Channel bridge list and the approval and failure-alert cards, so the Host applies the same checks and refuses with the same codes. `messaging-grants` lists the Bot's authorized conversations (grant ids, revisions, reception, group and thread policies) and bindings with their post limits, without target digests or app fingerprints. Structured changes read one JSON object from `--input-stdin` in the shape the Web UI sends, including its `expectedRevision`, so a concurrent change fails instead of being overwritten; `approval-route`, `failure-alerts-set` and `messaging-post-limit` read the current revision themselves. `messaging-send` and `messaging-post` print the `requestId` they used: retrying with the same `--request-id` returns the existing post instead of sending twice, and `messaging-post-status` reads it back without posting. Like the confirmation dialogs in the Web UI, `messaging-revoke`, blocking a conversation, deleting a bridge and `delete-*` sender-access changes need `--confirm`. Send only to IM conversations you are authorized to test in.
 
+For QQ group messages, `messaging-source` returns `source.replyCapability` and `bridge_read` returns a top-level `replyCapability`. Both check the original conversation and message. `unavailable` includes the reason, such as `qq-mention-required`, `provider-unavailable`, or `reply-window-expired`. `provider-checked` means the grant and the Provider reply route passed the check at query time. `requires-provider-check` means the Provider cannot confirm the route ahead of sending. The send still checks the route and returns a `replyCapability` and reason on failure. `bot-tool <bot-id> bot_send_message --args-stdin` exposes the same result. A failed source reply blocks source-free sends for that Bot run.
+
 ### Browser and Computer from the CLI
 
 ```bash
@@ -1123,6 +1125,7 @@ deepseekbot engine tools <bot> [--query memory]
 echo '{"path":"MEMORY.md"}' | deepseekbot engine tool <bot> memory_read --args-stdin
 deepseekbot engine accounts
 deepseekbot engine accounts --grantable
+deepseekbot engine quota <account-id> [--refresh] [--json]
 deepseekbot engine account-add codex|claude --name <name> --expected-revision <r>
 deepseekbot engine account-rename <account-id> --name <name> --expected-revision <r>
 deepseekbot engine account-remove <account-id> --expected-revision <r> --confirm
@@ -1149,6 +1152,10 @@ An Orchestrator engine process closes after 30 idle seconds. An Assignment engin
 The Host Owner and Humans with `modelSources.manage` can list, add, rename, remove and sign in to subscription accounts. Each Codex or Claude Code account has its own Bot-owned config directory. Existing choices and the engine names `codex` and `claude` still resolve to their original directories, under account IDs `codex-default` and `claude`. Read `revision` from `engine accounts` before changing the list. A stale revision returns `engine-account-conflict`. A Bot selection, Model Preset or Routing Group that uses the account prevents removal with `engine-account-in-use` and the references. Successful removal also deletes the account’s local home. Use the named account ID for status, models and login, and `engine use --account` to choose it for either Bot role. Sign-in state, model cache and quota belong to the account. A removed or missing account returns `engine-account-not-found`. Switching accounts starts a new native thread with the existing DSH Session context.
 
 Use `engine accounts --grantable` to list the accounts granted to the signed-in Human, for example when choosing IDs to delegate to another Host Role. This view skips subscription status probes.
+
+`engine accounts` includes cached quota and, after a provider read reports it, the full sign-in email for callers with `modelSources.manage`. `engine quota <account-id>` returns the cached quota for an account visible to the caller. With `--refresh`, the Host reads the provider in that account's own home. Refresh requires `modelSources.manage`, shares concurrent requests for the same account, and reuses the result for 30 seconds. A provider read has a 15-second deadline. It returns `ok`, `unavailable`, `signed-out` or `timeout`.
+
+Quota includes the reported five-hour `session` and `weekly` windows, each with `remainingPercent`, `resetsAt` and `windowMinutes` where available. An absent value is unknown. `observedAt` identifies the last observation, `source` is `live` for a refresh or `turn` for a Turn event, and `limitedUntil` is present while a known account hold applies.
 
 Use `engine login-cancel <account-id>` after closing the browser sign-in tab. It requires `modelSources.manage` and returns `{"cancelled":true}` once the Host has stopped the pending process and you can retry. It returns `{"cancelled":false}` if the account has no pending sign-in. Use `codex` or `claude` for the default account.
 

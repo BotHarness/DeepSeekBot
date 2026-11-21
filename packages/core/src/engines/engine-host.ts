@@ -129,8 +129,11 @@ export class EngineHost {
     );
   }
 
-  accounts() {
-    return this.#accounts.accounts();
+  accounts(includeEmail = false) {
+    return this.#accounts.accounts(includeEmail);
+  }
+  refreshQuota(id: string) {
+    return this.#accounts.refreshQuota(id);
   }
   resolveAccount(engine: EngineId, id?: string): NamedEngineAccount {
     return this.#accounts.resolveAccount(engine, id);
@@ -504,7 +507,7 @@ export class EngineHost {
                 void this.#approve(live, scope, log, event, request.sessionId, signal);
               if (event.kind === 'rate-limit') {
                 limitedNow = event.limited;
-                this.#accounts.record(engine, live.accountId, live.account, event);
+                this.#accounts.record(engine, live.accountId, event);
               }
             },
           });

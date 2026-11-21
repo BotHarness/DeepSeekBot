@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/team/plugin.ts`
 - `packages/core/src/team/**`
 - `packages/client/src/client/team-*`
 - `packages/host-client/src/team-*.ts`
