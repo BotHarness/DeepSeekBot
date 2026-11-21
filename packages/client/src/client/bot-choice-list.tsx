@@ -30,7 +30,7 @@ const styles = stylex.create({
     borderRadius: radius.sm,
     backgroundColor: { default: 'transparent', ':hover': color.hover },
     color: color.fg,
-    fontWeight: 'normal',
+    fontWeight: text.regular,
     fontSize: text.bodySize,
     lineHeight: text.bodyLine,
     textAlign: 'start',
