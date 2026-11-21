@@ -1,4 +1,18 @@
 import {
+  createApprovalsBridgeMethods,
+  type ApprovalsBridgeMethods,
+  type ApprovalsBridgeDeps,
+} from '../features/approvals/methods.js';
+export type {
+  ApprovalTemplateEntry,
+  ApprovalReviewerModelView,
+} from '../features/approvals/methods.js';
+import {
+  createWorkspacesBridgeMethods,
+  type WorkspacesBridgeMethods,
+  type WorkspacesBridgeDeps,
+} from '../features/workspaces/methods.js';
+import {
   createBrowserBridgeMethods,
   type BrowserBridgeMethods,
   type BrowserBridgeDeps,
@@ -70,7 +84,6 @@ export type {
 } from '../features/prompts/methods.js';
 import { modelFailure } from '../models/provider-bridge.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
-import { ApprovalTemplateDeletion } from '../workspaces/approval-template-deletion.js';
 import {
   assertQuoteTargets,
   ChannelQuoteError,
@@ -79,15 +92,13 @@ import {
   quoteTextMatches,
   sameQuoteIntent,
 } from '../channels/quotes.js';
-import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
-import type { ApprovalCard } from '../team/approval-contract.js';
 import { botModelAllowed } from '../team/models.js';
 import { TeamError } from '../team/error.js';
 import type { UsageByMemberResult } from '../usage/overview.js';
 import { MEMBER_CHANNEL_METHODS } from '../team/member-methods.js';
 import type { TeamChannels } from '../team/channels.js';
 import { guardHumanBridge } from '../team/bridge-access.js';
-import { botOwner, ownsBot, privateBotRegistry } from '../team/bot-access.js';
+import { botOwner, privateBotRegistry } from '../team/bot-access.js';
 import { privateBotCreations } from '../bots/creation.js';
 import { createHash } from 'node:crypto';
 import { createTeamBridge, type TeamBridgeMethods } from '../team/bridge.js';
@@ -113,10 +124,6 @@ import { createBotImports, type BotImportsService } from '../bots/imports.js';
 import { SessionRecoveryError } from '../runtime/session-recovery.js';
 import type { BotContextWindow } from '../runtime/context-window.js';
 import { summarizeTurnInput, type TurnInputView } from '../runtime/prompt-inspection.js';
-import {
-  approveGrantRequest,
-  type GrantRequestApprovalResult,
-} from '../workspaces/grant-requests.js';
 import { notificationAttentionPage } from '../runtime/notification-attention.js';
 import { MemoryImageError } from '../memory/image.js';
 import { inspectImage } from '../media/image-format.js';
@@ -412,25 +419,13 @@ import {
   MIN_STANDING_LIMIT,
   type StandingLimits,
 } from '../memory/soul.js';
-import {
-  WorkspaceGrantError,
-  type WorkspaceGrant,
-  type WorkspaceGrantStore,
-} from '../workspaces/grants.js';
+import { WorkspaceGrantError } from '../workspaces/grants.js';
 import {
   FolderBrowseError,
   type FolderBrowser,
   type FolderListing,
 } from '../workspaces/folder-browse.js';
 import type { ChannelToolApproval } from '../workspaces/tool-approval.js';
-import { readToolApprovalState } from '../workspaces/tool-approval-state.js';
-import type { ChannelUserQuestions } from '../channels/user-questions.js';
-import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/types';
-import type { ToolApprovalRuleStore, ToolApprovalRule } from '../workspaces/tool-approval-rules.js';
-import type {
-  ToolApprovalHistoryEntry,
-  ToolApprovalHistoryPosition,
-} from '../channels/approval-history.js';
 import type {
   AssignmentAccessMode,
   AssignmentAccessStore,
@@ -468,17 +463,6 @@ import type {
   DmAdmissionFailure,
 } from '../runtime/bot-runtime.js';
 import type { AssignmentExecutionWait } from '../runtime/assignment-approval-capacity.js';
-import {
-  INHERIT_APPROVAL_TEMPLATE,
-  createApprovalTemplateLibrary,
-  type ApprovalTemplate,
-  type ApprovalTemplateDefault,
-  type ApprovalTemplateLibrary,
-  type ApprovalTemplateWriteResult,
-} from '../workspaces/approval-templates.js';
-import type { ApprovalReviewerSettings } from '../workspaces/approval-reviewer-settings.js';
-
-export type ApprovalTemplateEntry = ApprovalTemplate & { usedBy: string[] };
 import type {
   AggregatedState,
   BotStateSnapshot,
@@ -700,7 +684,9 @@ export interface BridgeMethods
     ModelsBridgeMethods,
     ComputerBridgeMethods,
     BrowserBridgeMethods,
-    VoiceBridgeMethods {
+    VoiceBridgeMethods,
+    ApprovalsBridgeMethods,
+    WorkspacesBridgeMethods {
   tobHome(
     payload: unknown,
   ): Promise<
@@ -739,7 +725,6 @@ export interface BridgeMethods
       messageId?: string;
     }>
   >;
-  approvalRoute(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   failureAlertsSet(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   failureAlertsTest(payload: unknown): Promise<
     BridgeResult<{
@@ -749,17 +734,6 @@ export interface BridgeMethods
   failureAlertsRetry(payload: unknown): Promise<
     BridgeResult<{
       delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery;
-    }>
-  >;
-  approvalTest(payload: unknown): Promise<
-    BridgeResult<{
-      delivery: import('../messaging/approval-messaging.js').ApprovalDelivery;
-    }>
-  >;
-  questionRetry(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
-  approvalRetry(payload: unknown): Promise<
-    BridgeResult<{
-      delivery: import('../messaging/approval-messaging.js').ApprovalDelivery;
     }>
   >;
   pairingReview(payload: unknown): Promise<BridgeResult<{ pairing: PairingRequest }>>;
@@ -945,35 +919,8 @@ export interface BridgeMethods
     target: { path: string; relativePath: ''; kind: 'directory' };
   }>;
   folderBrowse(payload: unknown): Promise<BridgeResult<FolderListing>>;
-  grants(payload: unknown): BridgeResult<{ grants: WorkspaceGrant[] }>;
-  grantCreate(
-    payload: unknown,
-  ): Promise<BridgeResult<{ grant: WorkspaceGrant; created?: boolean }>>;
-  grantRevoke(payload: unknown): BridgeResult<{ grant: WorkspaceGrant }>;
-  grantRequestApprove(payload: unknown): Promise<BridgeResult<GrantRequestApprovalResult>>;
-  grantWriteSet(payload: unknown): BridgeResult<{ grant: WorkspaceGrant }>;
   assignmentAccessGet(payload: unknown): BridgeResult<{ preset: AssignmentAccessPreset }>;
   assignmentAccessSet(payload: unknown): BridgeResult<{ preset: AssignmentAccessPreset }>;
-  toolApprovalRules(payload: unknown): BridgeResult<{ rules: ToolApprovalRule[] }>;
-  toolApprovalRuleRevoke(payload: unknown): BridgeResult<{ rule: ToolApprovalRule }>;
-  toolApprovalHistory(
-    payload: unknown,
-  ): BridgeResult<{ entries: ToolApprovalHistoryEntry[]; nextCursor?: string }>;
-  toolApprovalStatus(payload: unknown): BridgeResult<{
-    approval?: ApprovalCard;
-    status: 'pending' | 'expired' | 'stopped';
-    expiresAt?: string;
-    execution?: 'waiting-human' | 'waiting-capacity' | 'running' | 'settled' | 'needs-repair';
-  }>;
-  toolApprovalDecide(payload: unknown): Promise<BridgeResult<{ accepted: boolean }>>;
-  toolAutoRejectionOverride(
-    payload: unknown,
-  ): Promise<BridgeResult<{ accepted: true; channelId: string; messageId: string }>>;
-  userQuestionStatus(payload: unknown): BridgeResult<{
-    status: 'pending' | 'submitted' | 'answered' | 'expired';
-    approval?: ApprovalCard;
-  }>;
-  userQuestionAnswer(payload: unknown): Promise<BridgeResult<{ accepted: boolean }>>;
   sessions(payload: unknown): BridgeResult<{ sessions: OwnedSessionSummary[] }>;
   botToolTrace(
     payload: unknown,
@@ -1057,34 +1004,12 @@ export interface BridgeMethods
   channelMuteSet(payload: unknown): Promise<BridgeResult<{ muted: string[] }>>;
   rosterBatch(payload: unknown): Promise<BridgeResult<RosterSnapshot>>;
   developerModeSet(payload: unknown): BridgeResult<{ accepted: boolean }>;
-  approvalTemplates(payload?: unknown): BridgeResult<{
-    templates: ApprovalTemplateEntry[];
-    selected?: string | null;
-    globalDefault?: string | null;
-    effective?: string | null;
-    source?: 'global' | 'specific' | 'off';
-  }>;
-  approvalTemplateCreate(payload: unknown): BridgeResult<{ template: ApprovalTemplateEntry }>;
-  approvalTemplateUpdate(payload: unknown): BridgeResult<{ template: ApprovalTemplateEntry }>;
-  approvalTemplateDeletePreview(
-    payload: unknown,
-  ): BridgeResult<{ preview: ApprovalTemplateDeletionPreview }>;
-  approvalTemplateDelete(payload: unknown): BridgeResult<{
-    template: { name: string };
-    clearedBots: string[];
-    inheritedBots: string[];
-    globalDefault: string | null;
-  }>;
-  approvalTemplateGlobalSet(payload: unknown): BridgeResult<{ template: string | null }>;
-  botApprovalTemplateSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   botModes: BotModeBridgeMethods['botModes'];
   botModeDefaultSet: BotModeBridgeMethods['botModeDefaultSet'];
   botModeSet: BotModeBridgeMethods['botModeSet'];
   botModeTemplateSave: BotModeBridgeMethods['botModeTemplateSave'];
   botModeTemplateDelete: BotModeBridgeMethods['botModeTemplateDelete'];
   botModeTemplateSet: BotModeBridgeMethods['botModeTemplateSet'];
-  approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
-  approvalReviewerModelSet(payload: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   idleCompaction(payload?: unknown): BridgeResult<IdleCompactionView>;
   idleCompactionSet(payload: unknown): BridgeResult<IdleCompactionView>;
   idleCompactionCacheLifetimeSet(payload: unknown): BridgeResult<IdleCompactionView>;
@@ -1108,13 +1033,6 @@ export interface BridgeMethods
   takeoverRequest(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
   takeoverComplete(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
   takeoverCancel(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
-}
-
-export interface ApprovalReviewerModelView {
-  follows: 'bot' | 'model' | 'invalid';
-  model: ModelRoute | null;
-  available?: boolean;
-  unavailableReason?: string;
 }
 
 export interface IdleCompactionView {
@@ -1197,14 +1115,15 @@ export interface BridgeMethodsDeps
     ModelsBridgeDeps,
     ComputerBridgeDeps,
     BrowserBridgeDeps,
-    VoiceBridgeDeps {
+    VoiceBridgeDeps,
+    ApprovalsBridgeDeps,
+    WorkspacesBridgeDeps {
   team?: TeamService;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
   botContext?(slug: string): Promise<BotContextWindow>;
   idleCompaction?: IdleCompactionDeps;
   cloudConnections?: CloudConnections;
   cloudWork?: CloudWork;
-  approvalReviewer?: ApprovalReviewerSettings;
   botModes?: BotModesDeps;
   composerIdentity?: (human: HumanContext) => ComposerRecoveryIdentity;
   warn?: (message: string) => void;
@@ -1212,7 +1131,6 @@ export interface BridgeMethodsDeps
   creations?: BotCreationService;
   imports?: BotImportsService;
   channelManagement?: ChannelManagementService;
-  approvalTemplates?: ApprovalTemplateLibrary;
   deletions?: PersonaBotDeletions;
   contentPurge?: ContentPurge;
   storage?: StorageCleanup;
@@ -1248,12 +1166,9 @@ export interface BridgeMethodsDeps
   takeovers?: TakeoverHandoffs;
   humanAttention?: HumanAttentionQuery;
   humanAttentionDecisions?: HumanAttentionDecisions;
-  grants?: WorkspaceGrantStore;
   folders?: FolderBrowser;
   externalMessaging?: OutboundMessaging;
   toolApproval?: ChannelToolApproval;
-  userQuestions?: ChannelUserQuestions;
-  toolRules?: ToolApprovalRuleStore;
   assignmentAccess?: AssignmentAccessStore;
   developerMode?: { set(enabled: boolean): void };
   createBotId?: () => string;
@@ -1378,65 +1293,6 @@ function takeoverFailure(error: unknown): BridgeResult<never> {
 
 function takeoverSurface(value: unknown): string {
   return typeof value === 'string' && /^[a-z][a-z0-9-]{0,31}$/u.test(value) ? value : 'client';
-}
-
-function templateDeletionFailure(
-  name: string,
-  reason: Extract<ReturnType<ApprovalTemplateDeletion['preview']>, { ok: false }>['reason'],
-): BridgeResult<never> {
-  if (reason === 'invalid-name' || reason === 'not-found' || reason === 'built-in')
-    return templateWriteFailure(name, reason);
-  const errors = {
-    'selection-unavailable': [
-      'approval-selection-unavailable',
-      'Approval template selection could not be read.',
-    ],
-    'confirmation-required': [
-      'confirmation-required',
-      'Preview the deletion and confirm its revision before deleting.',
-    ],
-    changed: [
-      'approval-template-delete-changed',
-      'Template references or selection changed. Preview the deletion again.',
-    ],
-    unavailable: [
-      'approval-template-delete-unavailable',
-      'The template could not be deleted. Reload its current references.',
-    ],
-    'rollback-failed': [
-      'approval-template-delete-incomplete',
-      'Deletion did not complete. Reload the current template choices.',
-    ],
-  } as const;
-  const [code, message] = errors[reason];
-  return { ok: false, error: { code, message } };
-}
-
-function templateWriteFailure(
-  name: string,
-  reason: Extract<ApprovalTemplateWriteResult, { ok: false }>['reason'],
-): BridgeResult<never> {
-  const messages = {
-    'invalid-name':
-      'A template name uses lowercase letters, digits and dashes (at most 64), like my-rules',
-    'invalid-text': 'Template text must be non-empty Markdown of at most 32 KiB',
-    exists: `An Approval Template named ${name} already exists`,
-    'not-found': `The Host has no Approval Template named ${name}`,
-    'built-in': `${name} is a built-in Approval Template and is read-only; copy it under a new name`,
-    unavailable: 'Approval Templates cannot be written on this Host',
-  } as const;
-  const codes = {
-    'invalid-name': 'invalid-input',
-    'invalid-text': 'invalid-input',
-    exists: 'template-exists',
-    'not-found': 'unknown-template',
-    'built-in': 'template-read-only',
-    unavailable: 'unavailable',
-  } as const;
-  return {
-    ok: false,
-    error: { code: codes[reason], message: messages[reason] },
-  };
 }
 
 function botInChannel(channel: ChannelRecord, botSlug: string): boolean {
@@ -1787,20 +1643,6 @@ function detail(
     ...(record.memoryDir === undefined ? {} : { memoryDir: record.memoryDir }),
   };
 }
-
-function historyPosition(cursor: string): ToolApprovalHistoryPosition | undefined {
-  if (cursor.length === 0 || cursor.length > 512) return undefined;
-  try {
-    const decoded: unknown = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
-    if (typeof decoded !== 'object' || decoded === null) return undefined;
-    const { at, id } = decoded as { at?: unknown; id?: unknown };
-    return typeof at === 'string' && typeof id === 'string'
-      ? { decidedAt: at, decisionMessageId: id }
-      : undefined;
-  } catch {
-    return undefined;
-  }
-}
 const MAX_CHANNEL_SEND_ATTACHMENTS = 10;
 const MAX_SKILL_INVOCATIONS = 5;
 
@@ -2020,62 +1862,6 @@ function buildBridgeMethods(
       },
     };
   }
-
-  const approvalTemplateLibrary = deps.approvalTemplates ?? createApprovalTemplateLibrary();
-  const templateDeletion = new ApprovalTemplateDeletion(
-    approvalTemplateLibrary,
-    globalRegistry,
-    (bot) => ownsBot(human, bot),
-  );
-  const templateUsers = (name: string, registry = deps.registry): string[] =>
-    registry
-      .list()
-      .filter((record) => record.approvalTemplate === name)
-      .map((record) => record.slug);
-  const templateEntry = (
-    template: ApprovalTemplate,
-    global: ApprovalTemplateDefault,
-  ): ApprovalTemplateEntry => {
-    return {
-      ...template,
-      usedBy: [
-        ...templateUsers(template.name),
-        ...(global.kind === 'selected' && global.name === template.name
-          ? deps.registry
-              .list()
-              .filter((record) => record.approvalTemplate === INHERIT_APPROVAL_TEMPLATE)
-              .map((record) => record.slug)
-          : []),
-      ],
-    };
-  };
-  const reviewerModelView = async (
-    route: ModelRoute | undefined,
-  ): Promise<ApprovalReviewerModelView> => {
-    if (route === undefined) return { follows: 'bot', model: null };
-    if (deps.modelCatalog === undefined) return { follows: 'model', model: route };
-    try {
-      await deps.modelCatalog.validate(route);
-      return { follows: 'model', model: route, available: true };
-    } catch (error) {
-      return {
-        follows: 'model',
-        model: route,
-        available: false,
-        unavailableReason: error instanceof Error ? error.message : String(error),
-      };
-    }
-  };
-  const askingBot = (channelId: string, messageId: string): string | undefined => {
-    const channel = deps.channels.get(channelId);
-    if (channel === undefined) return undefined;
-    if (channel.type === 'dm' && !channel.humanParticipants) return channel.botSlug;
-    const author = deps.channels.message(channelId, messageId)?.author;
-    return author?.kind === 'bot' &&
-      (channel.humanParticipants !== undefined || channel.members.includes(author.slug))
-      ? author.slug
-      : undefined;
-  };
   const channelView = (channel: ChannelRecord): ChannelListItem => {
     if (!isHostOwner()) {
       const {
@@ -2333,6 +2119,14 @@ function buildBridgeMethods(
   );
   const computerMethods = createComputerBridgeMethods(deps, detailOf);
   const browserMethods = createBrowserBridgeMethods(deps, detailOf);
+  const approvalsMethods = createApprovalsBridgeMethods(
+    human,
+    deps,
+    globalRegistry,
+    detailOf,
+    messagingCall,
+  );
+  const workspacesMethods = createWorkspacesBridgeMethods(human, deps);
   const methods: BridgeMethods = {
     ...createTeamBridge(human, deps.team),
     ...createModelProviderBridge(human, deps),
@@ -2517,56 +2311,10 @@ function buildBridgeMethods(
         delivery: await service.failureAlerts.retry(input.data.slug, input.data.id),
       }));
     },
-    approvalRoute(payload) {
-      const input = z
-        .object({
-          slug: z.string().min(1),
-          pairingId: z.string().uuid().nullable(),
-          expectedRevision: z.number().int().nonnegative(),
-        })
-        .strict()
-        .safeParse(payload);
-      if (!input.success) return Promise.resolve(invalidInput('Invalid approval destination'));
-      return messagingCall(async (service) => {
-        await service.approvals.setRoute(
-          input.data.slug,
-          input.data.pairingId ?? undefined,
-          input.data.expectedRevision,
-        );
-        return { updated: true as const };
-      });
-    },
-    approvalTest(payload) {
-      const input = z
-        .object({ slug: z.string().min(1) })
-        .strict()
-        .safeParse(payload);
-      if (!input.success) return Promise.resolve(invalidInput('Invalid Bot'));
-      return messagingCall(async (service) => ({
-        delivery: await service.approvals.test(input.data.slug),
-      }));
-    },
-    questionRetry(payload) {
-      const input = z
-        .object({ slug: z.string().min(1), id: z.string().uuid() })
-        .strict()
-        .safeParse(payload);
-      if (!input.success) return Promise.resolve(invalidInput('Invalid question notification'));
-      return messagingCall(async (service) => {
-        await service.questions.retry(input.data.slug, input.data.id);
-        return { updated: true as const };
-      });
-    },
-    approvalRetry(payload) {
-      const input = z
-        .object({ slug: z.string().min(1), id: z.string().uuid() })
-        .strict()
-        .safeParse(payload);
-      if (!input.success) return Promise.resolve(invalidInput('Invalid notification'));
-      return messagingCall(async (service) => ({
-        delivery: await service.approvals.retry(input.data.slug, input.data.id),
-      }));
-    },
+    approvalRoute: approvalsMethods.approvalRoute,
+    approvalTest: approvalsMethods.approvalTest,
+    questionRetry: approvalsMethods.questionRetry,
+    approvalRetry: approvalsMethods.approvalRetry,
     senderAccess(payload) {
       const input = z
         .object({ slug: z.string().min(1), input: senderAccessInput })
@@ -4161,187 +3909,16 @@ function buildBridgeMethods(
     },
     ...computerMethods,
     ...browserMethods,
-    approvalTemplates(payload) {
-      const global = approvalTemplateLibrary.global();
-      if (global.kind === 'invalid')
-        return {
-          ok: false,
-          error: {
-            code: 'approval-selection-unavailable',
-            message: 'Approval template selection could not be read.',
-          },
-        };
-      const templates = approvalTemplateLibrary
-        .list()
-        .map((template) => templateEntry(template, global));
-      const globalDefault = global.kind === 'selected' ? global.name : null;
-      if (asObject(payload)['slug'] === undefined)
-        return { ok: true, value: { templates, globalDefault } };
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug must be a Bot id');
-      const record = deps.registry.get(slug);
-      if (record === undefined) return unknownBot(slug);
-      return {
-        ok: true,
-        value: {
-          templates,
-          globalDefault,
-          selected: record.approvalTemplate ?? null,
-          effective:
-            record.approvalTemplate === INHERIT_APPROVAL_TEMPLATE
-              ? globalDefault
-              : (record.approvalTemplate ?? null),
-          source:
-            record.approvalTemplate === INHERIT_APPROVAL_TEMPLATE
-              ? 'global'
-              : record.approvalTemplate === undefined
-                ? 'off'
-                : 'specific',
-        },
-      };
-    },
-    approvalTemplateCreate(payload) {
-      const object = asObject(payload);
-      const name = object['name'];
-      const from = object['from'];
-      let text = object['text'];
-      if (typeof name !== 'string') return invalidInput('name is required');
-      if (from !== undefined) {
-        if (typeof from !== 'string' || text !== undefined)
-          return invalidInput('from names one template to copy, in place of text');
-        const source = approvalTemplateLibrary.get(from);
-        if (source === undefined) return templateWriteFailure(from, 'not-found');
-        text = source.text;
-      }
-      if (typeof text !== 'string') return invalidInput('text (Markdown) or from is required');
-      const result = approvalTemplateLibrary.create(name, text);
-      if (!result.ok) return templateWriteFailure(name, result.reason);
-      return {
-        ok: true,
-        value: { template: templateEntry(result.template, approvalTemplateLibrary.global()) },
-      };
-    },
-    approvalTemplateUpdate(payload) {
-      const object = asObject(payload);
-      const name = object['name'];
-      const text = object['text'];
-      if (typeof name !== 'string' || typeof text !== 'string')
-        return invalidInput('name and text (Markdown) are required');
-      const result = approvalTemplateLibrary.update(name, text);
-      if (!result.ok) return templateWriteFailure(name, result.reason);
-      return {
-        ok: true,
-        value: { template: templateEntry(result.template, approvalTemplateLibrary.global()) },
-      };
-    },
+    approvalTemplates: approvalsMethods.approvalTemplates,
+    approvalTemplateCreate: approvalsMethods.approvalTemplateCreate,
+    approvalTemplateUpdate: approvalsMethods.approvalTemplateUpdate,
     ...promptPresets,
-    approvalTemplateDeletePreview(payload) {
-      const name = asObject(payload)['name'];
-      if (typeof name !== 'string') return invalidInput('name is required');
-      const result = templateDeletion.preview(name);
-      return result.ok
-        ? { ok: true, value: { preview: result.preview } }
-        : templateDeletionFailure(name, result.reason);
-    },
-    approvalTemplateDelete(payload) {
-      const object = asObject(payload);
-      const name = object['name'];
-      if (typeof name !== 'string') return invalidInput('name is required');
-      const revision = object['revision'];
-      const result = templateDeletion.delete(name, {
-        confirmed: object['confirmed'] === true,
-        ...(typeof revision === 'string' ? { revision } : {}),
-      });
-      if (!result.ok) return templateDeletionFailure(name, result.reason);
-      const inheritedBots = result.preview.affectedBots
-        .filter((bot) => bot.source === 'specific')
-        .map((bot) => bot.slug);
-      return {
-        ok: true,
-        value: {
-          template: { name },
-          clearedBots: inheritedBots,
-          inheritedBots,
-          globalDefault: result.preview.globalDefaultAfter,
-        },
-      };
-    },
-    approvalTemplateGlobalSet(payload) {
-      const template = asObject(payload)['template'];
-      if (template !== null && typeof template !== 'string')
-        return invalidInput('template name or null required');
-      if (typeof template === 'string' && approvalTemplateLibrary.get(template) === undefined)
-        return invalidInput('unknown Approval Template ' + template);
-      try {
-        approvalTemplateLibrary.setGlobal(template);
-      } catch {
-        return {
-          ok: false,
-          error: {
-            code: 'approval-selection-unavailable',
-            message: 'Approval template selection could not be saved.',
-          },
-        };
-      }
-      return { ok: true, value: { template } };
-    },
-    botApprovalTemplateSet(payload) {
-      const slug = asSlug(payload);
-      const template = asObject(payload)['template'];
-      if (slug === undefined || (template !== null && typeof template !== 'string'))
-        return invalidInput('slug and template (a template name, or null for none) are required');
-      if (
-        typeof template === 'string' &&
-        template !== INHERIT_APPROVAL_TEMPLATE &&
-        approvalTemplateLibrary.get(template) === undefined
-      )
-        return invalidInput('unknown Approval Template ' + template);
-      const result = deps.registry.setApprovalTemplate(slug, template ?? undefined);
-      if (!result.ok) return unknownBot(slug);
-      return { ok: true, value: detailOf(result.record) };
-    },
-    async approvalReviewerModel() {
-      if (deps.approvalReviewer === undefined) return unavailable();
-      const setting = deps.approvalReviewer.model();
-      if (setting.kind === 'invalid')
-        return {
-          ok: true,
-          value: {
-            follows: 'invalid',
-            model: null,
-            available: false,
-            unavailableReason: 'The reviewer model setting cannot be read.',
-          },
-        };
-      return {
-        ok: true,
-        value: await reviewerModelView(setting.kind === 'bot' ? undefined : setting.route),
-      };
-    },
-    async approvalReviewerModelSet(payload) {
-      if (deps.approvalReviewer === undefined) return unavailable();
-      const model = asObject(payload)['model'];
-      if (model !== null && !isModelRoute(model))
-        return invalidInput(
-          'model must be {provider, model, reasoningEffort?}, or null to follow each Bot',
-        );
-      const route =
-        model === null
-          ? undefined
-          : {
-              provider: model.provider.trim(),
-              model: model.model.trim(),
-              ...(model.reasoningEffort === undefined
-                ? {}
-                : { reasoningEffort: model.reasoningEffort.trim() }),
-            };
-      try {
-        deps.approvalReviewer.setModel(route);
-      } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
-      }
-      return { ok: true, value: await reviewerModelView(route) };
-    },
+    approvalTemplateDeletePreview: approvalsMethods.approvalTemplateDeletePreview,
+    approvalTemplateDelete: approvalsMethods.approvalTemplateDelete,
+    approvalTemplateGlobalSet: approvalsMethods.approvalTemplateGlobalSet,
+    botApprovalTemplateSet: approvalsMethods.botApprovalTemplateSet,
+    approvalReviewerModel: approvalsMethods.approvalReviewerModel,
+    approvalReviewerModelSet: approvalsMethods.approvalReviewerModelSet,
     idleCompaction() {
       if (deps.idleCompaction === undefined) return unavailable();
       return { ok: true, value: idleCompactionView(deps.idleCompaction) };
@@ -7385,229 +6962,11 @@ function buildBridgeMethods(
         throw error;
       }
     },
-    grants(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      const source = asObject(payload);
-      if (source?.['scope'] !== undefined) {
-        const parsed = z
-          .object({ channelId: z.string().min(1), path: z.string().min(1) })
-          .safeParse(source['scope']);
-        if (!parsed.success) return invalidInput('Invalid Group workspace scope');
-        const channel = deps.channels.get(parsed.data.channelId);
-        if (
-          channel?.type !== 'group' ||
-          !channel.members.includes(slug) ||
-          deps.registry.get(slug)?.paused
-        )
-          return invalidInput('Bot is no longer an eligible Group member');
-        try {
-          const grants = (deps.grants?.list(slug) ?? [])
-            .filter(
-              (grant) => grant.revokedAt === undefined && grant.workspacePath === parsed.data.path,
-            )
-            .map((grant) => deps.grants!.requireActive(slug, grant.id));
-          return { ok: true, value: { grants } };
-        } catch (error) {
-          if (error instanceof WorkspaceGrantError)
-            return {
-              ok: false,
-              error: {
-                code: error.code,
-                message: error.message,
-                ...(error instanceof WorkspaceGrantError && error.details
-                  ? { details: error.details }
-                  : {}),
-              },
-            };
-          throw error;
-        }
-      }
-      return { ok: true, value: { grants: deps.grants?.list(slug) ?? [] } };
-    },
-    async grantCreate(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const workspaceId = asNonBlank(source, 'workspaceId');
-      if (slug === undefined || workspaceId === undefined) {
-        return invalidInput('slug and workspaceId are required');
-      }
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.grants === undefined)
-        return {
-          ok: false,
-          error: {
-            code: 'unavailable',
-            message: 'Workspace Grants are unavailable',
-          },
-        };
-      const scope = source?.['scope'];
-      const parsedScope =
-        scope === undefined
-          ? undefined
-          : z
-              .object({
-                channelId: z.string().min(1),
-                path: z.string().min(1),
-              })
-              .safeParse(scope);
-      if (parsedScope !== undefined && !parsedScope.success)
-        return invalidInput('Invalid Group workspace scope');
-      const validate = (): void => {
-        if (parsedScope?.success !== true) return;
-        const channel = deps.channels.get(parsedScope.data.channelId);
-        const bot = deps.registry.get(slug);
-        if (
-          channel?.type !== 'group' ||
-          !channel.members.includes(slug) ||
-          bot === undefined ||
-          bot.paused
-        ) {
-          throw new WorkspaceGrantError(
-            'invalid-grant',
-            'Bot is no longer an eligible Group member',
-          );
-        }
-        if (
-          deps.grants?.availableWorkspaces().find((workspace) => workspace.id === workspaceId)
-            ?.path !== parsedScope.data.path
-        ) {
-          throw new WorkspaceGrantError(
-            'unavailable-workspace',
-            'Workspace no longer matches the confirmed directory',
-          );
-        }
-      };
-      try {
-        validate();
-        let created = false;
-        const grant = await deps.grants.create(slug, workspaceId, {
-          validate,
-          onCreated: () => {
-            created = true;
-          },
-        });
-        return {
-          ok: true,
-          value: { grant, ...(scope === undefined ? {} : { created }) },
-        };
-      } catch (error) {
-        if (error instanceof WorkspaceGrantError) {
-          return {
-            ok: false,
-            error: {
-              code: error.code,
-              message: error.message,
-              ...(error instanceof WorkspaceGrantError && error.details
-                ? { details: error.details }
-                : {}),
-            },
-          };
-        }
-        throw error;
-      }
-    },
-    grantRevoke(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const grantId = asNonBlank(source, 'grantId');
-      if (slug === undefined || grantId === undefined) {
-        return invalidInput('slug and grantId are required');
-      }
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.grants === undefined)
-        return {
-          ok: false,
-          error: {
-            code: 'unavailable',
-            message: 'Workspace Grants are unavailable',
-          },
-        };
-      try {
-        const grant = deps.grants.revoke(slug, grantId);
-        deps.toolApproval?.cancelInvalid();
-        return { ok: true, value: { grant } };
-      } catch (error) {
-        if (error instanceof WorkspaceGrantError) {
-          return {
-            ok: false,
-            error: {
-              code: error.code,
-              message: error.message,
-              ...(error instanceof WorkspaceGrantError && error.details
-                ? { details: error.details }
-                : {}),
-            },
-          };
-        }
-        throw error;
-      }
-    },
-    async grantRequestApprove(payload) {
-      const parsed = z
-        .object({
-          slug: z.string().min(1),
-          channelId: z.string().min(1),
-          requestMessageId: z.string().min(1),
-          workspaceId: z.string().min(1),
-          acknowledgeReadWrite: z.literal(true),
-        })
-        .safeParse(asObject(payload));
-      if (!parsed.success)
-        return invalidInput(
-          'Bot, Channel, request, Workspace and explicit read/write confirmation are required',
-        );
-      if (!deps.grants) return unavailable();
-      try {
-        return {
-          ok: true,
-          value: await approveGrantRequest(human, { ...deps, grants: deps.grants }, parsed.data),
-        };
-      } catch (error) {
-        if (error instanceof WorkspaceGrantError)
-          return {
-            ok: false,
-            error: {
-              code: error.code,
-              message: error.message,
-              ...(error instanceof WorkspaceGrantError && error.details
-                ? { details: error.details }
-                : {}),
-            },
-          };
-        throw error;
-      }
-    },
-    grantWriteSet(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const grantId = asNonBlank(source, 'grantId');
-      const enabled = source?.['enabled'];
-      if (slug === undefined || grantId === undefined || typeof enabled !== 'boolean')
-        return invalidInput('slug, grantId and boolean enabled are required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.grants === undefined)
-        return {
-          ok: false,
-          error: {
-            code: 'unavailable',
-            message: 'Workspace Grants are unavailable',
-          },
-        };
-      try {
-        const grant = deps.grants.setOrchestratorWrite(slug, grantId, enabled);
-        deps.toolApproval?.cancelInvalid();
-        return { ok: true, value: { grant } };
-      } catch (error) {
-        if (error instanceof WorkspaceGrantError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
-        throw error;
-      }
-    },
+    grants: workspacesMethods.grants,
+    grantCreate: workspacesMethods.grantCreate,
+    grantRevoke: workspacesMethods.grantRevoke,
+    grantRequestApprove: workspacesMethods.grantRequestApprove,
+    grantWriteSet: workspacesMethods.grantWriteSet,
     assignmentAccessGet(payload) {
       const slug = asSlug(payload);
       if (slug === undefined) return invalidInput('slug is required');
@@ -7643,240 +7002,14 @@ function buildBridgeMethods(
         value: { preset: deps.assignmentAccess.set(slug, mode, scope, human) },
       };
     },
-    toolApprovalRules(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      return { ok: true, value: { rules: deps.toolRules?.list(slug) ?? [] } };
-    },
-    toolApprovalRuleRevoke(payload) {
-      const slug = asSlug(payload);
-      const id = asNonBlank(asObject(payload), 'id');
-      if (slug === undefined || id === undefined) return invalidInput('slug and id are required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      const rule = deps.toolRules?.revoke(slug, id);
-      if (rule) deps.externalMessaging?.approvals.refreshRules(slug);
-      return rule === undefined
-        ? invalidInput('Unknown tool approval rule')
-        : { ok: true, value: { rule } };
-    },
-    toolApprovalHistory(payload) {
-      const source = asObject(payload);
-      const slug = asSlug(payload);
-      const cursor = source['cursor'];
-      const limit = source['limit'];
-      if (slug === undefined) return invalidInput('slug is required');
-      if (
-        limit !== undefined &&
-        (typeof limit !== 'number' || !Number.isSafeInteger(limit) || limit < 1 || limit > 100)
-      )
-        return invalidInput('limit must be an integer from 1 to 100');
-      let after: ToolApprovalHistoryPosition | undefined;
-      if (cursor !== undefined) {
-        after = typeof cursor === 'string' ? historyPosition(cursor) : undefined;
-        if (after === undefined)
-          return invalidInput('cursor must be the nextCursor of the previous page');
-      }
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.channels.toolApprovalHistory === undefined)
-        return {
-          ok: false,
-          error: {
-            code: 'storage-unavailable',
-            message: 'approval history is unavailable',
-          },
-        };
-      const size = limit ?? 30;
-      const read = deps.channels.toolApprovalHistory(slug, {
-        ...(after === undefined ? {} : { after }),
-        limit: size + 1,
-      });
-      const entries = read.slice(0, size);
-      const last = entries.at(-1);
-      return {
-        ok: true,
-        value: {
-          entries,
-          ...(read.length > size && last !== undefined
-            ? {
-                nextCursor: Buffer.from(
-                  JSON.stringify({
-                    at: last.decidedAt,
-                    id: last.decisionMessageId,
-                  }),
-                ).toString('base64url'),
-              }
-            : {}),
-        },
-      };
-    },
-    toolApprovalStatus(payload) {
-      const source = asObject(payload);
-      const channelId = asNonBlank(source, 'channelId');
-      const messageId = asNonBlank(source, 'messageId');
-      if (channelId === undefined || messageId === undefined) {
-        return invalidInput('channelId and messageId are required');
-      }
-      const asker = askingBot(channelId, messageId);
-      if (asker === undefined) {
-        return invalidInput('Tool approval is available only in a PersonaBot DM or Group');
-      }
-      const request = deps.channels.message(channelId, messageId)?.toolApprovalRequest;
-      if (request === undefined) {
-        return invalidInput('Unknown tool approval request');
-      }
-      return {
-        ok: true,
-        value: readToolApprovalState(deps, { ...request, botSlug: asker, messageId }),
-      };
-    },
-    async toolApprovalDecide(payload) {
-      const source = asObject(payload);
-      const channelId = asNonBlank(source, 'channelId');
-      const messageId = asNonBlank(source, 'messageId');
-      const outcome = source['outcome'];
-      if (
-        channelId === undefined ||
-        messageId === undefined ||
-        (outcome !== 'allowed-once' &&
-          outcome !== 'allowed-always-tool' &&
-          outcome !== 'allowed-always-exact' &&
-          outcome !== 'allowed-always-all' &&
-          outcome !== 'allowed-always-kind' &&
-          outcome !== 'rejected')
-      ) {
-        return invalidInput('channelId, messageId, and a valid outcome are required');
-      }
-      const asker = askingBot(channelId, messageId);
-      if (asker === undefined) {
-        return invalidInput('Tool approval is available only in a PersonaBot DM or Group');
-      }
-      const channel = { botSlug: asker };
-      const request = deps.channels.message(channelId, messageId)?.toolApprovalRequest;
-      if (request === undefined) {
-        return invalidInput('Unknown tool approval request');
-      }
-      if (outcome === 'allowed-always-tool' && request.allowAlways !== true)
-        return invalidInput('Always allow is unavailable for this request');
-      if (outcome === 'allowed-always-kind' && request.toolName !== 'secret_cli')
-        return invalidInput('allowed-always-kind applies only to a secret_cli approval');
-      const accepted = await deps.toolApproval?.decide(
-        human,
-        channel.botSlug,
-        messageId,
-        outcome === 'allowed-always-kind' ? 'allowed-always-exact' : outcome,
-      );
-      if (accepted !== true) return invalidInput('Tool approval request is no longer pending');
-      return { ok: true, value: { accepted: true } };
-    },
-    async toolAutoRejectionOverride(payload) {
-      const source = asObject(payload);
-      const itemId = asNonBlank(source, 'itemId');
-      if (itemId === undefined || itemId.length > 350 || !itemId.startsWith('autoreject:'))
-        return invalidInput('itemId must name an auto-rejected Inbox item');
-      let item;
-      try {
-        item = deps.humanAttention?.item(human, itemId);
-      } catch (error) {
-        return invalidInput(String(error));
-      }
-      if (
-        item?.kind !== 'auto-rejection' ||
-        item.channelId === undefined ||
-        item.messageId === undefined
-      )
-        return {
-          ok: false,
-          error: {
-            code: 'auto-rejection-unavailable',
-            message: 'This auto-rejected call is no longer waiting for the Human',
-          },
-        };
-      const channel = deps.channels.get(item.channelId);
-      const bot = deps.registry.get(item.botSlug);
-      if (
-        channel === undefined ||
-        bot === undefined ||
-        bot.paused === true ||
-        (channel.type === 'dm'
-          ? channel.botSlug !== item.botSlug
-          : !channel.members.includes(item.botSlug))
-      )
-        return invalidInput('The PersonaBot is no longer active in this Channel');
-      const result = await deps.toolApproval?.overrideRejection(
-        human,
-        item.channelId,
-        item.messageId,
-      );
-      if (result === undefined || !result.ok)
-        return {
-          ok: false,
-          error: {
-            code: 'auto-rejection-unavailable',
-            message: 'This auto-rejected call is no longer waiting for the Human',
-          },
-        };
-      try {
-        if (channel.type === 'group')
-          deps.runtime?.admitGroupMessage(item.channelId, result.message.id);
-        else
-          deps.runtime?.admitDmMessage(human, {
-            channelId: item.channelId,
-            messageId: result.message.id,
-            body: result.message.body,
-          });
-      } catch {}
-      return {
-        ok: true,
-        value: {
-          accepted: true,
-          channelId: item.channelId,
-          messageId: result.message.id,
-        },
-      };
-    },
-    userQuestionStatus(payload) {
-      const source = asObject(payload);
-      const channelId = asNonBlank(source, 'channelId');
-      const messageId = asNonBlank(source, 'messageId');
-      if (channelId === undefined || messageId === undefined)
-        return invalidInput('channelId and messageId are required');
-      const asker = askingBot(channelId, messageId);
-      if (asker === undefined)
-        return invalidInput('Questions are available only in a PersonaBot DM or Group');
-      const channel = { botSlug: asker };
-      if (deps.channels.message(channelId, messageId)?.userQuestionRequest === undefined)
-        return invalidInput('Unknown user question');
-      return {
-        ok: true,
-        value: {
-          status: deps.userQuestions?.status(channel.botSlug, messageId, channelId) ?? 'expired',
-        },
-      };
-    },
-    async userQuestionAnswer(payload) {
-      const source = asObject(payload);
-      const channelId = asNonBlank(source, 'channelId');
-      const messageId = asNonBlank(source, 'messageId');
-      const answer = asObject(source['answer']);
-      if (channelId === undefined || messageId === undefined || !Array.isArray(answer['answers']))
-        return invalidInput('channelId, messageId, and answers are required');
-      const asker = askingBot(channelId, messageId);
-      if (asker === undefined)
-        return invalidInput('Questions are available only in a PersonaBot DM or Group');
-      const channel = { botSlug: asker };
-      if (deps.channels.message(channelId, messageId)?.userQuestionRequest === undefined)
-        return invalidInput('Unknown user question');
-      const accepted = await deps.userQuestions?.answer(
-        channel.botSlug,
-        messageId,
-        answer as unknown as AskUserQuestionAnswer,
-        human,
-      );
-      if (accepted !== true)
-        return invalidInput('Question is no longer pending or answer is invalid');
-      return { ok: true, value: { accepted: true } };
-    },
+    toolApprovalRules: approvalsMethods.toolApprovalRules,
+    toolApprovalRuleRevoke: approvalsMethods.toolApprovalRuleRevoke,
+    toolApprovalHistory: approvalsMethods.toolApprovalHistory,
+    toolApprovalStatus: approvalsMethods.toolApprovalStatus,
+    toolApprovalDecide: approvalsMethods.toolApprovalDecide,
+    toolAutoRejectionOverride: approvalsMethods.toolAutoRejectionOverride,
+    userQuestionStatus: approvalsMethods.userQuestionStatus,
+    userQuestionAnswer: approvalsMethods.userQuestionAnswer,
     async botToolTrace(payload) {
       const slug = asSlug(payload);
       if (slug === undefined) return invalidInput('slug is required');

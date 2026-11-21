@@ -1,3 +1,5 @@
+import * as approvalsRpc from '../features/approvals/rpc.js';
+import * as workspacesRpc from '../features/workspaces/rpc.js';
 import * as voiceRpc from '../features/voice/rpc.js';
 import * as browserRpc from '../features/browser/rpc.js';
 import * as computerRpc from '../features/computer/rpc.js';
@@ -917,15 +919,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     pairingId: string | null,
     expectedRevision: number,
   ): Promise<{ updated: true }> {
-    return unwrapAsync(this.methods.approvalRoute({ slug, pairingId, expectedRevision }));
+    return approvalsRpc.approvalRoute(this.methods, slug, pairingId, expectedRevision);
   }
   approvalTest(slug: string): Promise<{
     delivery: import('../messaging/approval-messaging.js').ApprovalDelivery;
   }> {
-    return unwrapAsync(this.methods.approvalTest({ slug }));
+    return approvalsRpc.approvalTest(this.methods, slug);
   }
   questionRetry(slug: string, id: string): Promise<{ updated: true }> {
-    return unwrapAsync(this.methods.questionRetry({ slug, id }));
+    return approvalsRpc.questionRetry(this.methods, slug, id);
   }
   approvalRetry(
     slug: string,
@@ -933,7 +935,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   ): Promise<{
     delivery: import('../messaging/approval-messaging.js').ApprovalDelivery;
   }> {
-    return unwrapAsync(this.methods.approvalRetry({ slug, id }));
+    return approvalsRpc.approvalRetry(this.methods, slug, id);
   }
   failureAlertsSet(
     slug: string,
@@ -1765,7 +1767,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     effective?: string | null;
     source?: 'global' | 'specific' | 'off';
   } {
-    return unwrap(this.methods.approvalTemplates(slug === undefined ? {} : { slug }));
+    return approvalsRpc.approvalTemplates(this.methods, slug);
   }
 
   approvalTemplateCreate(
@@ -1773,17 +1775,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     text?: string,
     from?: string,
   ): { template: ApprovalTemplateEntry } {
-    return unwrap(
-      this.methods.approvalTemplateCreate({
-        name,
-        ...(text === undefined ? {} : { text }),
-        ...(from === undefined ? {} : { from }),
-      }),
-    );
+    return approvalsRpc.approvalTemplateCreate(this.methods, name, text, from);
   }
 
   approvalTemplateUpdate(name: string, text: string): { template: ApprovalTemplateEntry } {
-    return unwrap(this.methods.approvalTemplateUpdate({ name, text }));
+    return approvalsRpc.approvalTemplateUpdate(this.methods, name, text);
   }
 
   promptParts(): { parts: PromptPartView[]; limits: PromptLimitView[] } {
@@ -1834,7 +1830,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   approvalTemplateDeletePreview(name: string): { preview: ApprovalTemplateDeletionPreview } {
-    return unwrap(this.methods.approvalTemplateDeletePreview({ name }));
+    return approvalsRpc.approvalTemplateDeletePreview(this.methods, name);
   }
 
   approvalTemplateDelete(
@@ -1847,15 +1843,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     inheritedBots: string[];
     globalDefault: string | null;
   } {
-    return unwrap(this.methods.approvalTemplateDelete({ name, confirmed, revision }));
+    return approvalsRpc.approvalTemplateDelete(this.methods, name, confirmed, revision);
   }
 
   approvalTemplateGlobalSet(template: string | null): { template: string | null } {
-    return unwrap(this.methods.approvalTemplateGlobalSet({ template }));
+    return approvalsRpc.approvalTemplateGlobalSet(this.methods, template);
   }
 
   botApprovalTemplateSet(slug: string, template: string | null): { bot: PersonaBotDetail } {
-    return unwrap(this.methods.botApprovalTemplateSet({ slug, template }));
+    return approvalsRpc.botApprovalTemplateSet(this.methods, slug, template);
   }
 
   voiceProviders(slug?: string): VoiceProvidersView {
@@ -1979,11 +1975,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   approvalReviewerModel(): Promise<ApprovalReviewerModelView> {
-    return unwrapAsync(this.methods.approvalReviewerModel({}));
+    return approvalsRpc.approvalReviewerModel(this.methods);
   }
 
   approvalReviewerModelSet(model: ModelRoute | null): Promise<ApprovalReviewerModelView> {
-    return unwrapAsync(this.methods.approvalReviewerModelSet({ model }));
+    return approvalsRpc.approvalReviewerModelSet(this.methods, model);
   }
 
   idleCompaction(): IdleCompactionView {
@@ -2753,7 +2749,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   grants(slug: string, scope?: { channelId: string; path: string }): { grants: WorkspaceGrant[] } {
-    return unwrap(this.methods.grants({ slug, ...(scope === undefined ? {} : { scope }) }));
+    return workspacesRpc.grants(this.methods, slug, scope);
   }
 
   grantCreate(
@@ -2761,17 +2757,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     workspaceId: string,
     scope?: { channelId: string; path: string },
   ): Promise<{ grant: WorkspaceGrant; created?: boolean }> {
-    return unwrapAsync(
-      this.methods.grantCreate({
-        slug,
-        workspaceId,
-        ...(scope === undefined ? {} : { scope }),
-      }),
-    );
+    return workspacesRpc.grantCreate(this.methods, slug, workspaceId, scope);
   }
 
   grantRevoke(slug: string, grantId: string): { grant: WorkspaceGrant } {
-    return unwrap(this.methods.grantRevoke({ slug, grantId }));
+    return workspacesRpc.grantRevoke(this.methods, slug, grantId);
   }
 
   grantRequestApprove(
@@ -2782,19 +2772,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     acknowledgeReadWrite: boolean,
   ) {
     this.invocationHuman();
-    return unwrapAsync(
-      this.methods.grantRequestApprove({
-        slug,
-        channelId,
-        requestMessageId,
-        workspaceId,
-        acknowledgeReadWrite,
-      }),
+    return workspacesRpc.grantRequestApprove(
+      this.methods,
+      slug,
+      channelId,
+      requestMessageId,
+      workspaceId,
+      acknowledgeReadWrite,
     );
   }
 
   grantWriteSet(slug: string, grantId: string, enabled: boolean): { grant: WorkspaceGrant } {
-    return unwrap(this.methods.grantWriteSet({ slug, grantId, enabled }));
+    return workspacesRpc.grantWriteSet(this.methods, slug, grantId, enabled);
   }
 
   assignmentAccessGet(slug: string): { preset: AssignmentAccessPreset } {
@@ -2811,18 +2800,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   toolApprovalRules(slug: string): { rules: ToolApprovalRule[] } {
-    return unwrap(this.methods.toolApprovalRules({ slug }));
+    return approvalsRpc.toolApprovalRules(this.methods, slug);
   }
 
   toolApprovalRuleRevoke(slug: string, id: string): { rule: ToolApprovalRule } {
-    return unwrap(this.methods.toolApprovalRuleRevoke({ slug, id }));
+    return approvalsRpc.toolApprovalRuleRevoke(this.methods, slug, id);
   }
 
   toolApprovalHistory(
     slug: string,
     page?: { cursor?: string; limit?: number },
   ): { entries: ToolApprovalHistoryEntry[]; nextCursor?: string } {
-    return unwrap(this.methods.toolApprovalHistory({ slug, ...page }));
+    return approvalsRpc.toolApprovalHistory(this.methods, slug, page);
   }
 
   toolApprovalStatus(
@@ -2833,7 +2822,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     status: 'pending' | 'expired' | 'stopped';
     execution?: 'waiting-human' | 'waiting-capacity' | 'running' | 'settled' | 'needs-repair';
   } {
-    return unwrap(this.methods.toolApprovalStatus({ channelId, messageId }));
+    return approvalsRpc.toolApprovalStatus(this.methods, channelId, messageId);
   }
 
   toolApprovalDecide(
@@ -2846,20 +2835,20 @@ export class BotharnessBridgeService extends TypertRemoteService {
       | 'allowed-always-all'
       | 'rejected',
   ): Promise<{ accepted: boolean }> {
-    return unwrapAsync(this.methods.toolApprovalDecide({ channelId, messageId, outcome }));
+    return approvalsRpc.toolApprovalDecide(this.methods, channelId, messageId, outcome);
   }
 
   toolAutoRejectionOverride(
     itemId: string,
   ): Promise<{ accepted: true; channelId: string; messageId: string }> {
-    return unwrapAsync(this.methods.toolAutoRejectionOverride({ itemId }));
+    return approvalsRpc.toolAutoRejectionOverride(this.methods, itemId);
   }
 
   userQuestionStatus(
     channelId: string,
     messageId: string,
   ): { status: 'pending' | 'submitted' | 'answered' | 'expired'; approval?: ApprovalCard } {
-    return unwrap(this.methods.userQuestionStatus({ channelId, messageId }));
+    return approvalsRpc.userQuestionStatus(this.methods, channelId, messageId);
   }
 
   userQuestionAnswer(
@@ -2867,7 +2856,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     messageId: string,
     answer: { answers: { id: string; selected: string[]; custom?: string }[] },
   ): Promise<{ accepted: boolean }> {
-    return unwrapAsync(this.methods.userQuestionAnswer({ channelId, messageId, answer }));
+    return approvalsRpc.userQuestionAnswer(this.methods, channelId, messageId, answer);
   }
 
   sessions(slug: string): { sessions: OwnedSessionSummary[] } {

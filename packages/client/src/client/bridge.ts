@@ -1,4 +1,46 @@
-import type { ModelRouteView } from './features/models/bridge.js';
+import {
+  createApprovalTemplateDeletionBridge,
+  parseApprovalCard,
+} from './features/approvals/bridge.js';
+export {
+  parseApprovalCard,
+  loadToolApprovalRules,
+  loadApprovalTemplates,
+  setGlobalApprovalTemplate,
+  createApprovalTemplate,
+  updateApprovalTemplate,
+  setBotApprovalTemplate,
+  loadApprovalReviewerModel,
+  setApprovalReviewerModel,
+  revokeToolApprovalRule,
+  loadToolApprovalStatus,
+  loadToolApprovalState,
+  loadToolApprovalExecutionState,
+  decideToolApproval,
+  loadUserQuestionStatus,
+  answerUserQuestion,
+  overrideAutoRejection,
+  setApprovalRoute,
+  testApprovalRoute,
+  retryApprovalNotification,
+  retryQuestionNotification,
+} from './features/approvals/bridge.js';
+export type {
+  ToolApprovalRuleView,
+  ApprovalTemplateView,
+  ApprovalReviewerModelView,
+  ToolApprovalExecutionState,
+} from './features/approvals/bridge.js';
+export {
+  loadWorkspaceGrants,
+  createWorkspaceGrant,
+  createGroupWorkspaceGrant,
+  readGroupWorkspaceGrant,
+  approveWorkspaceGrantRequest,
+  setWorkspaceGrantWrite,
+  revokeWorkspaceGrant,
+} from './features/workspaces/bridge.js';
+export type { WorkspaceGrantView } from './features/workspaces/bridge.js';
 export {
   setModelFavorite,
   loadModelCatalog,
@@ -55,6 +97,7 @@ import {
   asRecord,
   bridgeHost,
   BridgeCallError,
+  stringArray,
   unwrap,
   type BridgeCall,
 } from './bridge-transport.js';
@@ -73,24 +116,14 @@ import * as accessReaders from '@botharness/host-client/access-readers';
 import * as rosterReaders from '@botharness/host-client/roster-readers';
 import { readAssignmentTimeline } from '@botharness/host-client/assignment-timeline';
 import { readProfileActivity } from '@botharness/host-client/profile-activity';
-import type {
-  WireAssignmentAccessPreset,
-  WireWorkspaceGrant,
-} from '@botharness/host-protocol/wire';
+import type { WireAssignmentAccessPreset } from '@botharness/host-protocol/wire';
 import * as botControl from '@botharness/host-client/bot-control';
-import * as approvalReaders from '@botharness/host-client/approval-readers';
 import type {
-  WireApprovalRule,
   WireBotCompactResult,
   WireSessionStopResult,
   WireStoppedSessionRef,
-  WireToolApprovalExecution,
 } from '@botharness/host-protocol/wire';
 import { parseToolEffects } from '../../../core/src/workspaces/tool-effects-contract.js';
-import {
-  approvalTemplateDeletionPreviewSchema,
-  type ApprovalTemplateDeletionPreview,
-} from '../../../core/src/workspaces/approval-template-deletion-contract.js';
 
 import {
   skillCatalogChangeSchema,
@@ -121,7 +154,6 @@ import {
   browseHostFolders,
   loadWorkspaceOptions as loadHostWorkspaceOptions,
 } from '@botharness/host-client/bot-settings';
-import type { ModelChoice } from '@botharness/host-client/model-catalog';
 import { listBots, updateBot } from '@botharness/host-client/bots';
 import { loadMemoryActivity, loadUsage } from '@botharness/host-client/usage';
 import {
@@ -234,6 +266,7 @@ import type {
 } from '../../../core/src/marketplace/install-review.js';
 import { parseChallenge, type AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
+import { approvalTemplateDeletionPreviewSchema } from '../../../core/src/workspaces/approval-template-deletion-contract.js';
 export type {
   MarketplaceAuthoredBot,
   MarketplaceDetail,
@@ -326,7 +359,6 @@ import type {
   QuoteRef,
   StandingLimitsView,
   UserQuestionAnswerItem,
-  ApprovalCardView,
 } from './store.js';
 import { quoteRefOf } from './store.js';
 import {
@@ -514,12 +546,6 @@ export function createBridgeCall(ctx: ClientContext): BridgeCall {
 
 export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
-}
-
-function stringArray(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === 'string')
-    : [];
 }
 
 export function parseBotSummary(value: unknown): BotSummary | undefined {
@@ -985,43 +1011,6 @@ export async function uploadChannelAttachment(
 
 function isMaskedRequest(value: unknown): boolean {
   return asRecord(value)?.['masked'] === true;
-}
-
-export function parseApprovalCard(value: unknown): ApprovalCardView | undefined {
-  const row = asRecord(value);
-  const kind = row?.['kind'];
-  if (
-    row === undefined ||
-    (kind !== 'tool-approval' && kind !== 'user-question' && kind !== 'private-input') ||
-    typeof row['state'] !== 'string' ||
-    typeof row['botSlug'] !== 'string' ||
-    typeof row['requestedAt'] !== 'string'
-  )
-    return undefined;
-  const base = {
-    kind,
-    state: row['state'],
-    botSlug: row['botSlug'],
-    requestedAt: row['requestedAt'],
-    ...(typeof row['decidedAt'] === 'string' ? { decidedAt: row['decidedAt'] } : {}),
-  } as const;
-  if (row['masked'] === true) return { masked: true, ...base };
-  const decider = asRecord(row['decidedBy']);
-  return {
-    masked: false,
-    ...base,
-    opaque: row['opaque'] === true,
-    ...(typeof decider?.['humanId'] === 'string'
-      ? {
-          decidedBy: {
-            humanId: decider['humanId'],
-            ...(typeof decider['displayName'] === 'string'
-              ? { displayName: decider['displayName'] }
-              : {}),
-          },
-        }
-      : {}),
-  };
 }
 
 function parseSkillInvocations(
@@ -3925,232 +3914,7 @@ export async function setAssignmentAccess(
   ).preset;
 }
 
-export type ToolApprovalRuleView = WireApprovalRule;
-
-export async function loadToolApprovalRules(
-  call: BridgeCall,
-  slug: string,
-): Promise<ToolApprovalRuleView[]> {
-  return (await approvalReaders.readToolApprovalRules(bridgeHost(call), slug)).rules;
-}
-
-export interface ApprovalTemplateView {
-  name: string;
-  title: string;
-  description: string;
-  builtIn: boolean;
-  usedBy: string[];
-  text?: string;
-}
-function parseApprovalTemplate(item: unknown): ApprovalTemplateView | undefined {
-  const template = asRecord(item);
-  if (
-    typeof template?.['name'] !== 'string' ||
-    typeof template['title'] !== 'string' ||
-    typeof template['description'] !== 'string'
-  )
-    return undefined;
-  const text = template['text'];
-  return {
-    name: template['name'],
-    title: template['title'],
-    description: template['description'],
-    builtIn: template['builtIn'] !== false,
-    usedBy: stringArray(template['usedBy']),
-    ...(typeof text === 'string' ? { text } : {}),
-  };
-}
-export async function loadApprovalTemplates(
-  call: BridgeCall,
-  slug?: string,
-): Promise<{
-  templates: ApprovalTemplateView[];
-  selected: string | null;
-  globalDefault?: string | null;
-}> {
-  const { templates, selected, globalDefault } = await approvalReaders.readApprovalTemplates(
-    bridgeHost(call),
-    slug,
-  );
-  return {
-    templates,
-    selected: selected ?? null,
-    ...(globalDefault === undefined ? {} : { globalDefault }),
-  };
-}
-export async function setGlobalApprovalTemplate(
-  call: BridgeCall,
-  template: string | null,
-): Promise<void> {
-  await unwrap(call, 'approvalTemplateGlobalSet', { template });
-}
-async function writtenApprovalTemplate(
-  call: BridgeCall,
-  endpoint: 'approvalTemplateCreate' | 'approvalTemplateUpdate',
-  payload: Record<string, unknown>,
-): Promise<ApprovalTemplateView> {
-  const template = parseApprovalTemplate(
-    asRecord(await unwrap(call, endpoint, payload))?.['template'],
-  );
-  if (template === undefined) throw new Error('invalid ' + endpoint + ' response');
-  return template;
-}
-export function createApprovalTemplate(
-  call: BridgeCall,
-  name: string,
-  source: { text: string } | { from: string },
-): Promise<ApprovalTemplateView> {
-  return writtenApprovalTemplate(call, 'approvalTemplateCreate', {
-    name,
-    ...source,
-  });
-}
-export function updateApprovalTemplate(
-  call: BridgeCall,
-  name: string,
-  text: string,
-): Promise<ApprovalTemplateView> {
-  return writtenApprovalTemplate(call, 'approvalTemplateUpdate', {
-    name,
-    text,
-  });
-}
-export async function previewApprovalTemplateDeletion(
-  call: BridgeCall,
-  name: string,
-): Promise<ApprovalTemplateDeletionPreview> {
-  const response = asRecord(await unwrap(call, 'approvalTemplateDeletePreview', { name }));
-  const preview = approvalTemplateDeletionPreviewSchema.parse(response?.['preview']);
-  if (preview.name !== name) throw new Error('invalid approval template deletion target');
-  return preview;
-}
-export async function deleteApprovalTemplate(
-  call: BridgeCall,
-  preview: ApprovalTemplateDeletionPreview,
-): Promise<{ inheritedBots: string[] }> {
-  const response = asRecord(
-    await unwrap(call, 'approvalTemplateDelete', {
-      name: preview.name,
-      confirmed: true,
-      revision: preview.revision,
-    }),
-  );
-  if (!Array.isArray(response?.['inheritedBots']))
-    throw new Error('invalid approvalTemplateDelete response');
-  return { inheritedBots: stringArray(response['inheritedBots']) };
-}
-export async function setBotApprovalTemplate(
-  call: BridgeCall,
-  slug: string,
-  template: string | null,
-): Promise<void> {
-  await approvalReaders.setBotApprovalTemplate(bridgeHost(call), slug, template);
-}
-export interface ApprovalReviewerModelView {
-  follows: 'bot' | 'model' | 'invalid';
-  model: ModelRouteView | null;
-  available?: boolean;
-  unavailableReason?: string;
-}
-function approvalReviewerModelView(response: unknown, method: string): ApprovalReviewerModelView {
-  const view = asRecord(response);
-  const follows = view?.['follows'];
-  const model = asRecord(view?.['model']);
-  if (
-    (follows !== 'bot' && follows !== 'model' && follows !== 'invalid') ||
-    (view?.['model'] !== null &&
-      (typeof model?.['provider'] !== 'string' || typeof model['model'] !== 'string'))
-  )
-    throw new Error(`invalid ${method} response`);
-  return {
-    follows,
-    model:
-      model === undefined
-        ? null
-        : {
-            provider: model['provider'] as string,
-            model: model['model'] as string,
-            ...(typeof model['reasoningEffort'] === 'string'
-              ? { reasoningEffort: model['reasoningEffort'] }
-              : {}),
-          },
-    ...(typeof view?.['available'] === 'boolean' ? { available: view['available'] } : {}),
-    ...(typeof view?.['unavailableReason'] === 'string'
-      ? { unavailableReason: view['unavailableReason'] }
-      : {}),
-  };
-}
-export async function loadApprovalReviewerModel(
-  call: BridgeCall,
-): Promise<ApprovalReviewerModelView> {
-  return approvalReviewerModelView(
-    await unwrap(call, 'approvalReviewerModel', {}),
-    'approvalReviewerModel',
-  );
-}
-export async function setApprovalReviewerModel(
-  call: BridgeCall,
-  model: ModelRouteView | null,
-): Promise<ApprovalReviewerModelView> {
-  return approvalReviewerModelView(
-    await unwrap(call, 'approvalReviewerModelSet', { model }),
-    'approvalReviewerModelSet',
-  );
-}
-export async function revokeToolApprovalRule(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-): Promise<void> {
-  await approvalReaders.revokeToolApprovalRule(bridgeHost(call), slug, id);
-}
-
 export type { ToolApprovalStatus } from '@botharness/host-protocol/wire';
-export type ToolApprovalExecutionState = WireToolApprovalExecution;
-
-export async function loadToolApprovalStatus(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-) {
-  return (await approvalReaders.readToolApprovalStatus(bridgeHost(call), channelId, messageId))
-    .status;
-}
-
-export async function loadToolApprovalState(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-) {
-  const { status, expiresAt, execution } = await approvalReaders.readToolApprovalStatus(
-    bridgeHost(call),
-    channelId,
-    messageId,
-  );
-  return {
-    status,
-    ...(status !== 'pending' || expiresAt === undefined ? {} : { expiresAt }),
-    ...(execution === undefined ? {} : { execution }),
-  };
-}
-
-export async function loadToolApprovalExecutionState(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-) {
-  return (await approvalReaders.readToolApprovalStatus(bridgeHost(call), channelId, messageId))
-    .execution;
-}
-
-export async function decideToolApproval(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-  outcome: Parameters<typeof approvalReaders.decideToolApproval>[3],
-): Promise<void> {
-  await approvalReaders.decideToolApproval(bridgeHost(call), channelId, messageId, outcome);
-}
 
 export async function loadPrivateInputStatus(
   call: BridgeCall,
@@ -4226,49 +3990,13 @@ export async function cancelPrivateInput(
     throw new Error('Private input cancellation was not accepted');
 }
 
-export async function loadUserQuestionStatus(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-): Promise<'pending' | 'submitted' | 'answered' | 'expired'> {
-  return (await approvalReaders.readUserQuestionStatus(bridgeHost(call), channelId, messageId))
-    .status;
-}
-
-export async function answerUserQuestion(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-  answers: UserQuestionAnswerItem[],
-): Promise<void> {
-  await approvalReaders.answerUserQuestion(bridgeHost(call), channelId, messageId, { answers });
-}
+export const { previewApprovalTemplateDeletion, deleteApprovalTemplate } =
+  createApprovalTemplateDeletionBridge(approvalTemplateDeletionPreviewSchema);
 
 export interface WorkspaceOption {
   id: string;
   path: string;
   title: string;
-}
-
-export interface WorkspaceGrantView extends WorkspaceOption {
-  botSlug: string;
-  workspaceId: string;
-  workspacePath: string;
-  workspaceTitle: string;
-  createdAt: string;
-  revokedAt?: string;
-  orchestratorWrite?: boolean;
-  writeRevision?: number;
-}
-
-function workspaceGrantView(grant: WireWorkspaceGrant): WorkspaceGrantView {
-  return {
-    ...grant,
-    path: grant.workspacePath,
-    title: grant.workspaceTitle,
-    orchestratorWrite: grant.orchestratorWrite === true,
-    writeRevision: grant.writeRevision ?? 0,
-  };
 }
 
 export async function loadHostFolders(
@@ -4282,90 +4010,6 @@ export async function loadHostFolders(
 
 export async function loadWorkspaceOptions(call: BridgeCall): Promise<WorkspaceOption[]> {
   return loadHostWorkspaceOptions(bridgeHost(call));
-}
-
-export async function loadWorkspaceGrants(
-  call: BridgeCall,
-  slug: string,
-): Promise<WorkspaceGrantView[]> {
-  return (await accessReaders.readWorkspaceGrants(bridgeHost(call), { slug })).grants.map(
-    workspaceGrantView,
-  );
-}
-
-export async function createWorkspaceGrant(
-  call: BridgeCall,
-  slug: string,
-  workspaceId: string,
-): Promise<WorkspaceGrantView> {
-  return workspaceGrantView(
-    (await accessReaders.createGrant(bridgeHost(call), { slug, workspaceId })).grant,
-  );
-}
-
-export async function createGroupWorkspaceGrant(
-  call: BridgeCall,
-  slug: string,
-  workspaceId: string,
-  channelId: string,
-  path: string,
-): Promise<{ grant: WorkspaceGrantView; created: boolean }> {
-  const { grant, created } = await accessReaders.createGrant(bridgeHost(call), {
-    slug,
-    workspaceId,
-    scope: { channelId, path },
-  });
-  return { grant: workspaceGrantView(grant), created: created! };
-}
-
-export async function readGroupWorkspaceGrant(
-  call: BridgeCall,
-  slug: string,
-  channelId: string,
-  path: string,
-): Promise<WorkspaceGrantView | undefined> {
-  const { grants } = await accessReaders.readWorkspaceGrants(bridgeHost(call), {
-    slug,
-    scope: { channelId, path },
-  });
-  const grant = grants[0];
-  return grant === undefined ? undefined : workspaceGrantView(grant);
-}
-
-export async function approveWorkspaceGrantRequest(
-  call: BridgeCall,
-  slug: string,
-  channelId: string,
-  requestMessageId: string,
-  workspaceId: string,
-): Promise<WorkspaceGrantView> {
-  const { grant } = await accessReaders.approveGrantRequest(bridgeHost(call), {
-    slug,
-    channelId,
-    requestMessageId,
-    workspaceId,
-  });
-  return workspaceGrantView(grant);
-}
-
-export async function setWorkspaceGrantWrite(
-  call: BridgeCall,
-  slug: string,
-  grantId: string,
-  enabled: boolean,
-): Promise<WorkspaceGrantView> {
-  const value = await unwrap(call, 'grantWriteSet', { slug, grantId, enabled });
-  return workspaceGrantView(accessReaders.readGrantReceipt(value, 'grantWriteSet', slug));
-}
-
-export async function revokeWorkspaceGrant(
-  call: BridgeCall,
-  slug: string,
-  grantId: string,
-): Promise<WorkspaceGrantView> {
-  return workspaceGrantView(
-    (await accessReaders.revokeGrant(bridgeHost(call), { slug, grantId })).grant,
-  );
 }
 
 export async function loadBotAttention(
@@ -4479,10 +4123,6 @@ export async function dismissAllActivityListItems(
     ...(filter.channelId === undefined ? {} : { channelId: filter.channelId }),
   });
   return { dismissed, more };
-}
-
-export async function overrideAutoRejection(call: BridgeCall, itemId: string): Promise<void> {
-  await approvalReaders.overrideAutoRejection(bridgeHost(call), itemId);
 }
 
 export async function snoozeActivityListItem(
@@ -5409,32 +5049,6 @@ export async function manageChannelBridge(
   input: ChannelBridgeInput,
 ): Promise<void> {
   await unwrap(call, 'channelBridge', { channelId, input });
-}
-export async function setApprovalRoute(
-  call: BridgeCall,
-  slug: string,
-  pairingId: string | null,
-  expectedRevision: number,
-): Promise<void> {
-  await unwrap(call, 'approvalRoute', { slug, pairingId, expectedRevision });
-}
-export async function testApprovalRoute(call: BridgeCall, slug: string): Promise<void> {
-  await unwrap(call, 'approvalTest', { slug });
-}
-export async function retryApprovalNotification(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-): Promise<void> {
-  await unwrap(call, 'approvalRetry', { slug, id });
-}
-
-export async function retryQuestionNotification(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-): Promise<void> {
-  await unwrap(call, 'questionRetry', { slug, id });
 }
 
 export async function setFailureAlerts(
