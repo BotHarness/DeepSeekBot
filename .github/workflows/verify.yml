@@ -198,6 +198,7 @@ jobs:
         env:
           CI: '1'
           EXPO_OFFLINE: '1'
+          EXPO_PUBLIC_MARKETPLACE_AVATARS: 'on'
 
   mobile-native:
     name: Android native module tests

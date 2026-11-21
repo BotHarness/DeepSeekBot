@@ -133,6 +133,13 @@ export function engineAccountLogin(
   return unwrapAsync(methods.engineAccountLogin({ id, engine }));
 }
 
+export function engineAccountLoginCancel(
+  methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
+  id: string,
+) {
+  return unwrapAsync(methods.engineAccountLoginCancel({ id }));
+}
+
 export function engineAccountSubmitCode(
   methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
   id: string,

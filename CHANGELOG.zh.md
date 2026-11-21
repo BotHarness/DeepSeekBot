@@ -44,6 +44,8 @@ Tobs 1.7.1 修复 QQ 热修复版本的升级和重启后的限时提问回答�
 
 ### Documentation
 
+- 设置指南的入口地图新增新手教程，并说明何时可以开始、继续或重新开始教程（[#3768](https://github.com/BotHarness/DeepSeekBot/issues/3768)）。
+
 - 安装指引已更新为验证通过的 Tobs 1.7.0 npm 正式包，列明四个已验证的 DSH 版本，并使压缩包文件名和本地导入命令与精确正式包版本保持一致（[#4021](https://github.com/BotHarness/DeepSeekBot/issues/4021)）。
 
 ## [1.7.0] - 2026-11-12

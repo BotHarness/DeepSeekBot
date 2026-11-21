@@ -30,6 +30,8 @@ import { botPrimaryColorOf } from './bot-primary-color.js';
 import { PrimaryColorModal } from './primary-color-editor.js';
 import { ProfileTags } from './profile-tags.js';
 import { openShareFlow } from './share-flow.js';
+import { hasMarketplaceAvatarSource } from './market-panel.js';
+import { useTeamMode } from './team-state.js';
 import type { BotBannerView, BotSummary, ChannelSummary } from './store.js';
 import {
   MAX_BOT_BIO_LENGTH,
@@ -440,28 +442,49 @@ export function ProfileHeader({
   actions,
   t,
   onDelete,
+  onPublishAvatar,
 }: {
   bot: BotSummary;
   channel: ChannelSummary;
   actions: BridgeActions;
   t: BotHarnessTranslate;
   onDelete(): void;
+  onPublishAvatar?: ((slug: string) => void) | undefined;
 }): ReactElement {
   const viewOnly = bot.deleted === true || bot.sharedBy !== undefined;
+  const eligible = onPublishAvatar !== undefined && hasMarketplaceAvatarSource(bot);
+  const canPublish = useTeamMode(eligible ? actions.teamCall : undefined)?.viewer.kind === 'owner';
   const [panel, setPanel] = useState<'edit' | 'avatar' | 'banner'>();
   const [menuOpen, setMenuOpen] = useState(false);
   const menuItems: readonly MenuEntry[] = [
-    {
-      id: 'share-market',
-      label: t('market.share'),
-      icon: <Icon name="share" size={16} />,
-    },
-    {
-      id: 'delete',
-      label: t('deletion.title'),
-      icon: <Icon name="trash" size={16} />,
-      danger: true,
-    },
+    ...(viewOnly
+      ? []
+      : [
+          {
+            id: 'share-market',
+            label: t('market.share'),
+            icon: <Icon name="share" size={16} />,
+          },
+        ]),
+    ...(canPublish
+      ? [
+          {
+            id: 'publish-avatar',
+            label: t('market.avatar.publish'),
+            icon: <Icon name="image-up" size={16} />,
+          },
+        ]
+      : []),
+    ...(viewOnly
+      ? []
+      : [
+          {
+            id: 'delete',
+            label: t('deletion.title'),
+            icon: <Icon name="trash" size={16} />,
+            danger: true,
+          },
+        ]),
   ];
   return (
     <header {...hooked('bh-profile-header', profileStyles.bannerCard)}>
@@ -518,12 +541,16 @@ export function ProfileHeader({
               )}
             </Button>
           </Tooltip>
-          {viewOnly ? null : (
+          {menuItems.length === 0 ? null : (
             <div {...hooked('bh-profile-header-actions', profileStyles.actions)}>
-              <BotZipShareButton bot={bot} actions={actions} t={t} />
-              <Button size="sm" variant="outline" onClick={() => setPanel('edit')}>
-                {t('profile.edit')}
-              </Button>
+              {!viewOnly && (
+                <>
+                  <BotZipShareButton bot={bot} actions={actions} t={t} />
+                  <Button size="sm" variant="outline" onClick={() => setPanel('edit')}>
+                    {t('profile.edit')}
+                  </Button>
+                </>
+              )}
               <Menu
                 open={menuOpen}
                 portal
@@ -544,6 +571,7 @@ export function ProfileHeader({
                   setMenuOpen(false);
                   if (id === 'delete') onDelete();
                   if (id === 'share-market') openShareFlow(bot.slug);
+                  if (id === 'publish-avatar') onPublishAvatar?.(bot.slug);
                 }}
                 onClose={() => setMenuOpen(false)}
               />

@@ -32,6 +32,9 @@
       "developmentClient": true,
       "distribution": "internal",
       "corepack": true,
+      "env": {
+        "EXPO_PUBLIC_MARKETPLACE_AVATARS": "on"
+      },
       "android": {
         "buildType": "apk"
       }

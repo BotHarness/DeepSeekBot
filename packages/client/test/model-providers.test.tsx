@@ -277,7 +277,8 @@ it('lists named subscription accounts and adds, renames and removes one', async 
       undefined,
     );
     expect(page.host.textContent).toContain('Codex · Work');
-    await page.click('重命名 Codex · Work');
+    await page.click('Codex · Work 的操作');
+    await act(async () => menuItem('重命名').click());
     expect(page.nameField().value).toBe('Work');
     await fillName('Studio');
     await page.click('保存', true);
@@ -287,7 +288,8 @@ it('lists named subscription accounts and adds, renames and removes one', async 
       undefined,
     );
     expect(page.host.textContent).toContain('Codex · Studio');
-    await page.click('移除 Codex · Studio');
+    await page.click('Codex · Studio 的操作');
+    await act(async () => menuItem('移除').click());
     expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
       zhTranslate('modelProviders.removeAccountWarning'),
     );
@@ -356,8 +358,10 @@ it('adds a named Claude Code account and submits a manual code from its sign-in 
     expect(page.host.textContent).not.toContain('Claude Code · Claude Code');
     expect(page.button('登录 Claude Code')?.textContent).toBe('登录');
     await page.click('添加账号');
-    await page.click('订阅引擎', true);
-    await act(async () => menuItem('Claude Code').click());
+    const claude = document.querySelector<HTMLButtonElement>('[data-engine-choice="claude"]');
+    expect(claude?.getAttribute('aria-checked')).toBe('false');
+    await act(async () => claude!.click());
+    expect(claude?.getAttribute('aria-checked')).toBe('true');
     await typeInto(page.nameField(), 'Work');
     await page.click('保存', true);
     expect(call).toHaveBeenCalledWith(
@@ -443,13 +447,82 @@ it('shows the signing-in state only for the selected subscription account', asyn
     await page.render();
     await page.click('登录 Codex · Work');
     expect(call).toHaveBeenCalledWith('engineAccountLogin', { id: 'codex-work' }, undefined);
-    expect(page.button('等待登录…')?.disabled).toBe(true);
+    expect(page.host.textContent).toContain('等待登录…');
+    expect(page.button('取消')).toBeDefined();
     expect(page.button('登录 Codex · Personal')?.disabled).toBe(true);
     expect(page.button('登录 Codex · Work')).toBeUndefined();
+    await page.click('取消');
+    expect(call).toHaveBeenCalledWith('engineAccountLoginCancel', { id: 'codex-work' }, undefined);
+    expect(page.button('登录 Codex · Work')?.disabled).toBe(false);
+    expect(page.host.textContent).not.toContain('等待登录…');
     await act(async () => finishLogin());
   } finally {
     await page.close();
     open.mockRestore();
+  }
+});
+
+it('keeps a sign-in pending until cancel settles and offers Cancel again when it fails', async () => {
+  let settleCancel: (result: Awaited<ReturnType<BridgeCall>>) => void = () => {};
+  const call = vi.fn<BridgeCall>(async (method) => {
+    if (method === 'teamMode')
+      return {
+        ok: true,
+        value: {
+          ...fakeTeamMode({
+            kind: 'member',
+            humanId: 'manager',
+            permissions: ['modelSources.manage'],
+          }),
+          enabled: true,
+        },
+      };
+    if (method === 'engineAccountLogin')
+      return { ok: true, value: { url: 'https://example.test/sign-in' } };
+    if (method === 'engineAccountLoginCancel')
+      return new Promise((resolve) => {
+        settleCancel = resolve;
+      });
+    if (method === 'modelProviders') return { ok: true, value: { revision: 1, providers: [] } };
+    return {
+      ok: true,
+      value: {
+        revision: 1,
+        engines: [
+          {
+            engine: 'codex',
+            accountId: 'codex-work',
+            accountName: 'Work',
+            installed: true,
+            available: false,
+            reason: 'signed-out',
+          },
+        ],
+        selections: [],
+      },
+    };
+  });
+  const page = subscriptionTestPage(call);
+  try {
+    await page.render();
+    await page.click('登录 Codex · Work');
+    expect(page.host.textContent).toContain('等待登录…');
+    await page.click('取消');
+    expect(page.button('正在取消…')?.disabled).toBe(true);
+    expect(page.host.textContent).toContain('等待登录…');
+    await act(async () =>
+      settleCancel({ ok: false, error: { code: 'unavailable', message: 'down', details: {} } }),
+    );
+    expect(page.host.textContent).toContain('取消登录失败，再试一次。');
+    expect(page.button('取消')?.disabled).toBe(false);
+    expect(page.host.textContent).toContain('等待登录…');
+    await page.click('取消');
+    await act(async () => settleCancel({ ok: true, value: { cancelled: true } }));
+    expect(page.host.textContent).not.toContain('等待登录…');
+    expect(page.host.textContent).not.toContain('取消登录失败，再试一次。');
+    expect(page.button('登录 Codex · Work')?.disabled).toBe(false);
+  } finally {
+    await page.close();
   }
 });
 
