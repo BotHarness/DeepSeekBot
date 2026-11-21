@@ -24,6 +24,59 @@ import {
   setup,
 } from './fixtures/routing-group-engine.js';
 
+it('keeps a running Turn on its captured model and persists the next Turn choice on the same Session', async () => {
+  let start!: () => void;
+  let release!: () => void;
+  const started = new Promise<void>((resolve) => (start = resolve));
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  class PausedTurn extends NativeReplay {
+    override async *stream(options: Parameters<NativeReplay['stream']>[0]) {
+      if (this.requests.length === 0) {
+        start();
+        await gate;
+      }
+      yield* super.stream(options);
+    }
+  }
+  const model = new PausedTurn(false, 'Native Turn settled');
+  const bot = setup({
+    members: [],
+    codexRecording: CODEX_REPLY,
+    nativeRuntime: await nativeRuntime(model),
+  });
+  const first = bot.message('first', 'Start on the Bot default.');
+  await started;
+  const sessionId = bot.sessionId();
+  const chosen = { ...CODEX, model: 'gpt-6-astra' } as const;
+  try {
+    bot.sessionModels.set(sessionId, chosen);
+    expect(bot.core.runtime.activeSessionModel?.(sessionId)).toBeNull();
+    expect(bot.codex).toHaveLength(0);
+  } finally {
+    release();
+    await first;
+  }
+  expect(bot.sendStatus('first')).toMatchObject({
+    replies: [{ body: 'Native Turn settled' }],
+  });
+  await bot.message('second', 'Continue on the saved choice.');
+  expect(bot.sessionId()).toBe(sessionId);
+  expect(bot.codex).toHaveLength(1);
+  expect(bot.sendStatus('second')).toMatchObject({
+    replies: [{ body: 'Hello from Codex' }],
+  });
+  const reopened = await bot.reopen(sessionId);
+  expect(reopened.override).toEqual(chosen);
+  expect(reopened.transcript).toContainEqual(
+    expect.objectContaining({
+      kind: 'model-switch',
+      from: { kind: 'dsh', ...API },
+      to: expect.objectContaining({ kind: 'engine', engine: 'codex', model: CODEX.model }),
+    }),
+  );
+  expect(reopened.messages.filter(({ turnModelSwitch }) => turnModelSwitch)).toHaveLength(1);
+});
+
 it('continues a native quota turn on an engine, then resumes DSH on the same Session', async () => {
   const model = new NativeReplay(true);
   const writerClosing = vi.fn();
@@ -575,6 +628,7 @@ it.each([
         step: index < members.length ? 0 : 1,
         request: expect.any(String),
         target,
+        ...(members.length === 1 && index === 1 ? { switchReason: 'quota' } : {}),
       })),
     );
     expect(new Set(reopened.segments.map((segment) => segment.request)).size).toBe(1);
@@ -640,11 +694,11 @@ it.each([
     const targets = members.map((member) =>
       expect.objectContaining({ kind: 'engine', engine: member.engine, model: expect.any(String) }),
     );
-    expect(bot.current()).toMatchObject({ kind: 'engine', engine });
+    expect(bot.current()).toMatchObject({ kind: 'engine', engine, account: expect.any(String) });
     expect(bot.channelMessages()).toContainEqual(expect.objectContaining({ turnTargets: targets }));
 
     const reopened = await bot.reopen(sessionId);
-    expect(reopened.current).toMatchObject({ kind: 'engine', engine });
+    expect(reopened.current).toMatchObject({ kind: 'engine', engine, account: expect.any(String) });
     expect(reopened.messages).toContainEqual(expect.objectContaining({ turnTargets: targets }));
     expect(reopened.transcript.at(-1)).toMatchObject({ kind: 'turn-end', turnTargets: targets });
     if (engine === 'claude')
@@ -722,6 +776,14 @@ it.each(['api-first', 'engine-first'] as const)(
       expect(bot.host.limit('codex')).toBeUndefined();
       expect(bot.host.limit('codex', accountId)?.until).toBe(RESETS_AT);
     }
+    expect(bot.core.runtime.sessionTurnTargets?.(sessionId)).toContainEqual(
+      expect.objectContaining({
+        switchReason: 'quota',
+        target: apiFirst
+          ? expect.objectContaining({ kind: 'engine', engine: 'claude' })
+          : { kind: 'dsh', ...API },
+      }),
+    );
     expect(bot.assignment(sessionId)).toMatchObject({
       activity: 'idle',
       latestReport: { state: 'completed' },

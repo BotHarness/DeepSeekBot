@@ -3,11 +3,16 @@
 ## Sources
 
 - `packages/core/src/engines/{engine-context,engine-host,engine-store}.ts`
+- `packages/core/src/runtime/{session-model-choices,session-transcript,turn-targets}.ts`
+- `packages/client/src/client/session-model-*.tsx`
+- `apps/mobile/src/ui/chat/turn-model-switch.tsx`
 
 ## Terms
 
 - Orchestrator Session
 - Subscription Engine
+- Model Choice
+- Routing Group
 
 ## Sub-features
 
@@ -16,6 +21,9 @@
 - An idle Orchestrator and a settled Assignment release their child process. The next turn resumes the saved native ID.
 - If the native session is lost, an existing Session detail row announces the rebuild. An Assignment with missing saved records reports failure to its Orchestrator.
 - Returning to a DSH model resumes the same DSH Session with the engine turns in its model-visible history.
+- `session-model-presentation`: The desktop Session detail header shows the title and progress. Its timeline marks only Turns where the recorded model changed and shows the Routing Group fallback reason when available. Check the short catalog name, brand logo and Sub or API badge. Models without a catalog entry display their ID. The phone conversation shows the Turn marker on its first visible reply, and the message menu retains time and the full model path.
+- `session-model-choice`: Open a root Session in the desktop Sessions panel and use Model Choice in its composer. Pick a model or Routing Group while a Turn runs. The chip says “Next turn” with the selected name. When the current Turn completes, send the next prompt and verify the model switch. Use “Use Bot default” to clear and verify the next Turn returns to its default. Repeat for an Assignment when its composer is available. A Team member’s list and Host mutation require grants for the choices. Use `session-model` and `session-transcript` to compare the saved choice, the active Turn’s choice and recorded model switches.
+- `session-human-input`: Send a DM and a Group mention to an engine-backed Bot. Open its Orchestrator Session from Sessions and check that the title and each input use the Human text. Repeat with a message steered into an active turn and compare to the inputs in `session-transcript`.
 
 ## How to get to it (user POV)
 

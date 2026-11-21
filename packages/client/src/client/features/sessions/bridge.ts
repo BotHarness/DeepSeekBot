@@ -1,3 +1,8 @@
+import {
+  sessionModelChoice,
+  type SessionModelChoice,
+  type SessionModelState,
+} from '@botharness/host-protocol/session-model';
 import { asRecord, bridgeHost, unwrap, type BridgeCall } from '../../bridge-transport.js';
 import * as botControl from '@botharness/host-client/bot-control';
 import type {
@@ -5,7 +10,13 @@ import type {
   WireSessionStopResult,
   WireStoppedSessionRef,
 } from '@botharness/host-protocol/wire';
-import { isTurnTargetPath, type TurnTarget } from '@botharness/host-protocol/turn-target';
+import {
+  isTurnTarget,
+  isTurnTargetPath,
+  isTurnTargetSwitchReason,
+  type TurnModelSwitch,
+  type TurnTarget,
+} from '@botharness/host-protocol/turn-target';
 import type { OwnedSessionSummary } from '../../store.js';
 import { parseSessionModelRoute } from '../../session-model-route.js';
 import type { SessionBotOwner } from '../../bridge.js';
@@ -71,6 +82,7 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
     const reportState = record['assignmentReportState'];
     const executionWait = record['assignmentExecutionWait'];
     const engine = parseSessionEngine(record['engine']);
+    const currentTarget = record['currentTarget'];
     return [
       {
         sessionId,
@@ -121,6 +133,7 @@ export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[
           ? { modelRoute: parseSessionModelRoute(record['modelRoute'])! }
           : {}),
         ...(engine === undefined ? {} : { engine }),
+        ...(isTurnTarget(currentTarget) ? { currentTarget } : {}),
         ...(typeof record['agentPreset'] === 'string' && record['agentPreset'].length > 0
           ? { agentPreset: record['agentPreset'] }
           : {}),
@@ -289,6 +302,7 @@ export type SessionTranscriptItem =
       trigger?: SessionTranscriptTrigger;
       envelope?: SessionTranscriptEnvelope;
     }
+  | ({ kind: 'model-switch'; at: string } & TurnModelSwitch)
   | { kind: 'reply'; text: string; at: string; live?: true; turnTargets?: TurnTarget[] }
   | {
       kind: 'reasoning';
@@ -376,6 +390,7 @@ export interface SessionTranscript {
   running: boolean;
   seq: number;
   engine?: SessionEngine;
+  currentTarget?: TurnTarget;
 }
 
 function parseSessionEngine(value: unknown): SessionEngine | undefined {
@@ -516,6 +531,18 @@ function parseTranscriptItem(value: unknown): SessionTranscriptItem | undefined 
             ...(removed === undefined ? {} : { removed }),
             at,
             ...(typeof endedAt === 'string' ? { endedAt } : {}),
+          }
+        : undefined;
+    }
+    case 'model-switch': {
+      const { from, to, reason } = item;
+      return isTurnTarget(from) && isTurnTarget(to)
+        ? {
+            kind: 'model-switch',
+            at,
+            from,
+            to,
+            ...(isTurnTargetSwitchReason(reason) ? { reason } : {}),
           }
         : undefined;
     }
@@ -661,6 +688,28 @@ export async function loadSessionToolDetail(
   return detail;
 }
 
+export async function sessionModel(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+  choice?: SessionModelChoice | null,
+): Promise<SessionModelState> {
+  const value = asRecord(
+    await unwrap(call, 'sessionModel', {
+      slug,
+      sessionId,
+      ...(choice === undefined ? {} : { choice }),
+    }),
+  );
+  if (value === undefined || !('override' in value) || !('default' in value))
+    throw new Error('invalid sessionModel response');
+  return {
+    override: sessionModelChoice(value.override) ?? null,
+    default: sessionModelChoice(value.default) ?? null,
+    ...(value.active === undefined ? {} : { active: sessionModelChoice(value.active) ?? null }),
+  };
+}
+
 export async function loadSessionTranscript(
   call: BridgeCall,
   slug: string,
@@ -671,6 +720,7 @@ export async function loadSessionTranscript(
   if (value === undefined || !Array.isArray(items))
     throw new Error('invalid sessionTranscript response');
   const engine = parseSessionEngine(value['engine']);
+  const currentTarget = value['currentTarget'];
   return {
     role: value['role'] === 'orchestrator' ? 'orchestrator' : 'assignment',
     items: parseItems(items),
@@ -678,6 +728,7 @@ export async function loadSessionTranscript(
     running: value['running'] === true,
     seq: finite(value['seq']) ?? 0,
     ...(engine === undefined ? {} : { engine }),
+    ...(isTurnTarget(currentTarget) ? { currentTarget } : {}),
   };
 }
 

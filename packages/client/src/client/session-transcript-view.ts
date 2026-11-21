@@ -17,6 +17,7 @@ export type TranscriptSegment =
 
 export type TranscriptBlock =
   | { kind: 'input'; key: string; item: Item<'input'> }
+  | { kind: 'model-switch'; key: string; item: Item<'model-switch'> }
   | {
       kind: 'turn';
       key: string;
@@ -72,6 +73,10 @@ export function transcriptBlocks(
   let number = 0;
   items.forEach((item, index) => {
     const key = `${item.kind}-${item.at}-${index}`;
+    if (item.kind === 'model-switch') {
+      blocks.push({ kind: 'model-switch', key, item });
+      return;
+    }
     if (item.kind === 'input') {
       turn = undefined;
       startedAt = item.at;

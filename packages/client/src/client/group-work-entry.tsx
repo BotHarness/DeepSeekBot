@@ -2,7 +2,7 @@ import { Icon } from './ds/icon.js';
 import { Tag } from './ds/tag.js';
 import type { ConversationStateView } from './store.js';
 import type { NativeSessionCatalog } from './sessions-entry.js';
-import { personaBotSessionRows } from './session-rows.js';
+import { modelRouteText, personaBotSessionRows } from './session-rows.js';
 import { useRef, useSyncExternalStore } from 'react';
 import { useState, type ReactElement } from 'react';
 
@@ -22,7 +22,7 @@ import { PanelEmptyState } from './ds/empty-state.js';
 import { IconButton } from './ds/icon-button.js';
 import { Tooltip } from './ds/tooltip.js';
 import { color } from './ds/tokens.stylex.js';
-import { modelRouteText, SessionSubagentList, SessionSubagentToggle } from './session-subagents.js';
+import { SessionSubagentList, SessionSubagentToggle } from './session-subagents.js';
 import { AssignmentWorkButton, AssignmentWorkDialog } from './assignment-work.js';
 
 const styles = stylex.create({

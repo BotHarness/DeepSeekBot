@@ -451,6 +451,9 @@ export interface BridgeMethodsDeps
   runningSessionIds?: () => ReadonlySet<string>;
   channels: ChannelStore;
   ownership: SessionOwnership;
+  sessionModels?: ReturnType<
+    typeof import('../runtime/session-model-choices.js').sessionModelChoices
+  >;
   usage?: UsageProjection;
   readUsageSessionLog?: DshUsageSessionLogReader;
   describeToolCall?(sessionId: string, name: string, args: unknown): PublicToolCall | undefined;
@@ -645,7 +648,7 @@ function buildBridgeMethods(
     messagingCall,
   );
   const workspacesMethods = createWorkspacesBridgeMethods(human, deps);
-  const sessionsMethods = createSessionsBridgeMethods(human, deps, botInChannel);
+  const sessionsMethods = createSessionsBridgeMethods(human, deps, botInChannel, modelRouting);
   const assignmentsMethods = createAssignmentsBridgeMethods(human, deps);
   const memoryMethods = createMemoryBridgeMethods(human, deps, dmMemory);
   const cloudMethods = createCloudBridgeMethods(deps);
@@ -889,6 +892,7 @@ function buildBridgeMethods(
     assignmentTimeline: assignmentsMethods.assignmentTimeline,
     sessionProgress: assignmentsMethods.sessionProgress,
     sessionTranscript: sessionsMethods.sessionTranscript,
+    sessionModel: sessionsMethods.sessionModel,
     async sessionLive(payload) {
       const source = asObject(payload);
       const slug = asNonBlank(source, 'slug');

@@ -5,6 +5,7 @@ import {
   engineEffortName,
   isEngineId,
   isRoutingGroupEngineMember,
+  type EngineId,
   type RoutingGroupEngineModel,
   type RoutingGroupEngineMember,
   type RoutingGroupEngineOptions,
@@ -107,6 +108,41 @@ export function routingGroupEngineChoices(engines: readonly RoutingGroupEngineOp
   });
 }
 
+function findEngineModel(models: readonly RoutingGroupEngineModel[], id: string) {
+  return (
+    models.find((model) => model.id === id) ?? models.find((model) => model.aliases?.includes(id))
+  );
+}
+
+export function engineCatalogModel(
+  engines: readonly RoutingGroupEngineOptions[],
+  target: { engine: EngineId; model: string; account?: string },
+): RoutingGroupEngineModel | undefined {
+  const options = engines
+    .filter((status) => status.available)
+    .filter((status) => status.engine === target.engine);
+  const preferred =
+    target.account === undefined
+      ? undefined
+      : options.find((status) => status.accountName === target.account);
+  const models = options.flatMap((status) => status.models);
+  const exact =
+    findEngineModel(preferred?.models ?? [], target.model) ?? findEngineModel(models, target.model);
+  if (exact !== undefined) return exact;
+
+  const normalize = (id: string) => {
+    const key = id
+      .toLowerCase()
+      .trim()
+      .replace(/[\s._-]+/gu, '-');
+    return target.engine === 'claude' ? key.replace(/^claude-/u, '') : key;
+  };
+  const key = normalize(target.model);
+  const matches = (model: RoutingGroupEngineModel) =>
+    normalize(model.id) === key || model.aliases?.some((alias) => normalize(alias) === key);
+  return preferred?.models.find(matches) ?? models.find(matches);
+}
+
 export function routingGroupEngineMemberRow(
   member: RoutingGroupEngineMember,
   status: RoutingGroupEngineOptions | undefined,
@@ -117,11 +153,7 @@ export function routingGroupEngineMemberRow(
     member.model === undefined
       ? defaults
       : status?.available
-        ? status.models.find(
-            (item) =>
-              item.id === member.model ||
-              (member.model !== undefined && item.aliases?.includes(member.model)),
-          )
+        ? findEngineModel(status.models, member.model)
         : undefined;
   const shown = model === undefined ? member : { ...member, model: model.id };
   const effort = member.reasoningEffort;
@@ -230,6 +262,7 @@ export function modelCatalogGroupMemberLabels(
   models: readonly ModelCatalogEntry[],
   groups: readonly ModelCatalogGroup[],
   copy: RoutingGroupEngineCopy,
+  engines?: readonly RoutingGroupEngineOptions[],
 ): string[] {
   return (group.members ?? group.routes.map((route) => ({ kind: 'model' as const, ...route }))).map(
     (member) => {
@@ -237,7 +270,23 @@ export function modelCatalogGroupMemberLabels(
         case 'group':
           return groups.find((group) => group.id === member.id)?.name ?? member.id;
         case 'engine': {
-          const row = routingGroupEnginePresentation(member, copy);
+          const status = engines?.find(
+            (option) => option.engine === member.engine && option.accountId === member.accountId,
+          );
+          const model = member.model;
+          const entry =
+            model === undefined || engines === undefined
+              ? undefined
+              : engineCatalogModel(status === undefined ? engines : [status], {
+                  engine: member.engine,
+                  model,
+                });
+          const row = routingGroupEnginePresentation(
+            member,
+            copy,
+            entry?.name,
+            status?.accountName,
+          );
           return `${row.name} · ${row.detail}`;
         }
         case 'model': {

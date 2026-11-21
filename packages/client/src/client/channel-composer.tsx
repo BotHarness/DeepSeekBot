@@ -87,9 +87,14 @@ import { hasSessionMentions } from './session-links.js';
 import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { MenuRowButton } from './ds/menu-row-button.js';
 import * as stylex from '@stylexjs/stylex';
-import { ink, space } from './ds/tobs.stylex.js';
+import { ink, space, style } from './ds/tobs.stylex.js';
 
 const sessionStyles = stylex.create({
+  modelControl: { display: 'flex', minWidth: 0, flexShrink: 1 },
+  footer: {
+    gap: space.x2,
+    maxWidth: `calc(100% - ${style.controlHeightSmall} - ${space.x8})`,
+  },
   title: {
     display: 'inline-flex',
     alignItems: 'center',
@@ -133,6 +138,7 @@ export interface ChannelComposerUpload {
 }
 
 export interface ChannelComposerProps {
+  modelControl?: React.ReactNode;
   onOverlayResize?: ((timeline: HTMLElement) => void) | undefined;
   context?: ComposerContext | undefined;
   sendKey?: ComposerSendKey | undefined;
@@ -444,6 +450,7 @@ export function fitComposerTextarea(
 }
 
 export function ChannelComposer({
+  modelControl,
   context,
   sendKey = 'enter',
   value,
@@ -755,7 +762,11 @@ export function ChannelComposer({
     animateFirstExpand: false,
   });
   const hasFooter =
-    fit.expanded || reply !== undefined || quotes.length > 0 || attachments.length > 0;
+    modelControl !== undefined ||
+    fit.expanded ||
+    reply !== undefined ||
+    quotes.length > 0 ||
+    attachments.length > 0;
 
   const syncTextarea = useCallback((element: HTMLElement): void => {
     const nextFit = fitComposerTextarea(element);
@@ -1705,7 +1716,16 @@ export function ChannelComposer({
           <span key={index} ref={mount} hidden />
         ))}
 
-        <div className="bh-composer-footer">
+        <div
+          className={
+            modelControl === undefined
+              ? 'bh-composer-footer'
+              : `bh-composer-footer ${stylex.props(sessionStyles.footer).className ?? ''}`
+          }
+        >
+          {modelControl === undefined ? null : (
+            <div {...stylex.props(sessionStyles.modelControl)}>{modelControl}</div>
+          )}
           {voice.ready ? <ComposerMicButton voice={voice} disabled={locked} t={t} /> : null}
           {stops ? (
             <ComposerControl

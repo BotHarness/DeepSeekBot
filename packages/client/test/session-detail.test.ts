@@ -71,25 +71,93 @@ const transcript = (role: SessionTranscript['role'], running = false): SessionTr
   ],
 });
 
-it('shows the localized engine effort next to the model in an attributed reply', async () => {
+it('shows one localized model switch and keeps model names out of replies and the header', async () => {
   const current = transcript('orchestrator');
+  const codex = { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol' } as const;
+  const opus = { kind: 'engine', engine: 'claude', model: 'claude-opus-5-5' } as const;
   const host = await render({
+    routingGroupEngines: async () => [
+      {
+        engine: 'codex',
+        available: true,
+        models: [{ id: codex.model, name: 'GPT-6.2-Sol', efforts: [] }],
+      },
+      {
+        engine: 'claude',
+        available: true,
+        models: [{ id: opus.model, name: 'Opus 5.5', efforts: [] }],
+      },
+    ],
     sessionTranscript: async () => ({
       ...current,
-      items: current.items.map((item) =>
-        item.kind === 'reply'
-          ? {
-              ...item,
-              turnTargets: [
-                { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol', reasoningEffort: 'high' },
-              ],
-            }
-          : item,
-      ),
+      currentTarget: opus,
+      items: [
+        { kind: 'model-switch', from: codex, to: opus, at: current.items[0]!.at, reason: 'quota' },
+        ...current.items.map((item) =>
+          item.kind === 'reply' ? { ...item, turnTargets: [opus] } : item,
+        ),
+      ],
     }),
   });
-  const path = host.querySelector('[data-transcript="reply"] [data-turn-targets]');
-  expect(path?.textContent).toBe('GPT-6.2-Sol · 高');
+  expect(host.querySelectorAll('[data-session-model-switch]')).toHaveLength(1);
+  expect(host.querySelector('[data-session-model-switch]')?.getAttribute('aria-label')).toBe(
+    '额度用完，从 GPT-6.2-Sol 切换到 Opus 5.5',
+  );
+  expect(host.querySelector('[data-transcript="reply"] [data-turn-targets]')).toBeNull();
+  expect(host.querySelector('[data-session-meta-chip="engine"]')).toBeNull();
+});
+
+it('applies a picker change through the Host and shows the next Turn while a Turn is active', async () => {
+  const model = { kind: 'engine', engine: 'claude', model: 'claude-opus-5-5' } as const;
+  const current = { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol' } as const;
+  const sessionModel = vi.fn<NonNullable<BridgeActions['sessionModel']>>(
+    async (_slug, _id, override) => ({
+      override: override ?? null,
+      default: current,
+      active: null,
+    }),
+  );
+  const host = await render({
+    modelCatalog: async () => ({ models: [] }),
+    routingGroupEngines: async () => [
+      {
+        engine: 'claude',
+        available: true,
+        models: [
+          {
+            id: model.model,
+            name: 'Opus 5.5',
+            efforts: [{ id: 'medium', name: '中' }],
+            defaultEffort: 'medium',
+          },
+        ],
+      },
+      {
+        engine: 'codex',
+        available: true,
+        models: [{ id: current.model, name: 'GPT-6.2-Sol', efforts: [] }],
+      },
+    ],
+    sessionTranscript: async () => ({
+      ...transcript('orchestrator', true),
+      currentTarget: current,
+    }),
+    sendOrchestratorMessage: vi.fn(async () => {}),
+    sessionModel,
+  });
+  const trigger = host.querySelector<HTMLButtonElement>(
+    '[data-session-composer] .bh-composer-footer [data-session-model-control] button',
+  );
+  expect(trigger?.textContent).toContain('GPT-6.2-Sol');
+  expect(trigger?.closest('.bh-composer-footer')?.querySelector('.bh-send-btn')).not.toBeNull();
+  await act(async () => trigger?.click());
+  const option = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')].find((item) =>
+    item.textContent?.includes('Opus 5.5'),
+  );
+  await act(async () => option?.click());
+  expect(sessionModel).toHaveBeenCalledWith('tobs', 'asg-1', { ...model, effort: 'medium' });
+  expect(trigger?.textContent).toContain('下一轮使用 Opus 5.5');
+  expect(trigger?.textContent).toContain('中');
 });
 
 function label(node: HTMLElement): string {

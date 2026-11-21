@@ -1,6 +1,15 @@
 import { productName } from '../../ui/product-name';
 
 export const en = {
+  turnModel: {
+    sub: 'Sub',
+    api: 'API',
+    switched: (from: string, to: string) => `Switched from ${from} to ${to}`,
+    quota: (from: string, to: string) => `Out of quota, switched from ${from} to ${to}`,
+    'rate-limit': (from: string, to: string) => `Rate limited, switched from ${from} to ${to}`,
+    credential: (from: string, to: string) =>
+      `Credentials unavailable, switched from ${from} to ${to}`,
+  },
   delivery: {
     label: 'Delivery status',
     setting: 'Delivery status',
@@ -248,6 +257,14 @@ export const en = {
 };
 
 export const zh: typeof en = {
+  turnModel: {
+    sub: '订阅',
+    api: 'API',
+    switched: (from: string, to: string) => `从 ${from} 切换到 ${to}`,
+    quota: (from: string, to: string) => `额度用完，从 ${from} 切换到 ${to}`,
+    'rate-limit': (from: string, to: string) => `达到限流，从 ${from} 切换到 ${to}`,
+    credential: (from: string, to: string) => `凭据不可用，从 ${from} 切换到 ${to}`,
+  },
   delivery: {
     label: '投递状态',
     setting: '投递状态',

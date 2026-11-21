@@ -15,11 +15,13 @@ export { INHERIT_APPROVAL_TEMPLATE } from './approval-readers';
 import { MethodRefused, type HostClient } from './client';
 import { HostAnswerInvalid, record, some, text, type HostCall } from './host-answer';
 import {
+  loadRoutingGroupEngines,
   modelChoice as favoriteChoice,
   type ModelCatalogEntry,
   type ModelCatalogGroup,
   type ModelChoice,
 } from './model-catalog';
+import type { TurnTargetCatalog } from './turn-target';
 import {
   applyModelPreset,
   customizeModelPlan,
@@ -49,6 +51,7 @@ export type Loadable<T> =
 
 export interface BotModel {
   currentTarget?: import('@botharness/host-protocol/turn-target').TurnTarget;
+  engines?: TurnTargetCatalog['engines'];
   revision: number;
   defaultRevision?: number;
   plan?: ModelPlan;
@@ -118,13 +121,19 @@ export async function loadBotModel(
   slug: string,
   requirePresets = false,
 ): Promise<BotModel> {
-  const [state, catalog, presets] = await Promise.all([
-    loadModelPlanState(client, slug),
+  const stateRequest = loadModelPlanState(client, slug);
+  const [state, catalog, presets, engines] = await Promise.all([
+    stateRequest,
     loadModelCatalog(client),
     loadModelPresets(client).catch((cause: unknown) => {
       if (requirePresets) throw cause;
       return [];
     }),
+    stateRequest.then(({ currentTarget }) =>
+      currentTarget?.kind === 'engine' && currentTarget.model !== undefined
+        ? loadRoutingGroupEngines(client).catch(() => undefined)
+        : undefined,
+    ),
   ]);
   const {
     models,
@@ -138,6 +147,7 @@ export async function loadBotModel(
     revision: state.revision ?? state.plan?.revision ?? 0,
     ...(state.plan === undefined ? {} : { plan: state.plan }),
     ...(state.currentTarget === undefined ? {} : { currentTarget: state.currentTarget }),
+    ...(engines === undefined ? {} : { engines }),
     ...(state.repair === undefined ? {} : { repair: state.repair.code }),
     models,
     ...(groups === undefined ? {} : { groups }),

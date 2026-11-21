@@ -1,3 +1,4 @@
+import { sessionModelChoices } from './runtime/session-model-choices.js';
 import { recordTurnTarget } from './runtime/turn-targets.js';
 import { engineAccountKey, type EngineId } from '@botharness/host-protocol/subscription-engine';
 import { requireModelSources } from './models/provider-bridge.js';
@@ -3740,6 +3741,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     memory: core.memory,
     ...(core.usage === undefined ? {} : { usage: core.usage }),
     sessionLive,
+    sessionModels: sessionModelChoices(
+      attachOperationalModule(core.operationalDatabase, 'bot-runtime'),
+    ),
     presentToolResult: (sessionId, name, args, result) => {
       const agent = ctx.agents.list().find((candidate) => candidate.session.id === sessionId);
       const definition = agent === undefined ? ctx.tools.get(name) : ctx.tools.get(name, agent);

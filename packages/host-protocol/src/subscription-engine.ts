@@ -99,6 +99,7 @@ export type RoutingGroupEngineUnavailable =
 export interface EngineModelView {
   id: string;
   name: string;
+  resolvedModel?: string;
   efforts: { id: string; name: string }[];
   defaultEffort?: string;
   isDefault?: boolean;

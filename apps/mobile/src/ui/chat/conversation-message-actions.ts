@@ -1,10 +1,11 @@
 import type { InitiatedActivityRequest } from '../../host/live-activity-routing';
 import { toggleMessageSelection } from './message-selection';
 import type { useRouter } from 'expo-router';
-import { useCallback, useLayoutEffect, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import type { HostClient } from '@botharness/host-client/client';
 import { loadModelCatalog } from '@botharness/host-client/model-plans';
-import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
+import { loadRoutingGroupEngines } from '@botharness/host-client/model-catalog';
+import type { TurnTargetCatalog } from '@botharness/host-client/turn-target';
 import {
   type ConversationMessage,
   type MessageAttachment,
@@ -31,27 +32,60 @@ export function useConversationMessageState({
   const [shareError, setShareError] = useState(false);
   const [viewing, setViewing] = useState<MessageAttachment>();
   const [actionsFor, setActionsFor] = useState<MessageMenuTarget>();
-  const [menuCatalog, setMenuCatalog] = useState<{
-    host: HostClient;
-    models: ModelCatalogEntry[];
-  }>();
-  const menuModels = menuCatalog?.host === client ? menuCatalog?.models : undefined;
-  const needsMenuCatalog =
-    menuModels === undefined &&
-    actionsFor?.message.turnTargets?.some((target) => target.kind === 'dsh');
+  const [cachedCatalog, setMenuCatalog] = useState<
+    TurnTargetCatalog & {
+      host: HostClient;
+    }
+  >();
+  const menuCatalog = cachedCatalog?.host === client ? cachedCatalog : undefined;
+  const timelineTargets = useMemo(() => {
+    let models = false;
+    let engines = false;
+    for (const { turnModelSwitch } of snapshot.messages) {
+      if (turnModelSwitch === undefined) continue;
+      for (const target of [turnModelSwitch.from, turnModelSwitch.to]) {
+        models ||= target.kind === 'dsh';
+        engines ||= target.kind === 'engine';
+      }
+      if (models && engines) break;
+    }
+    return { models, engines };
+  }, [snapshot.messages]);
+  const needsModels =
+    menuCatalog?.models === undefined &&
+    (timelineTargets.models ||
+      actionsFor?.message.turnTargets?.some((target) => target.kind === 'dsh'));
+  const needsEngines =
+    menuCatalog?.engines === undefined &&
+    (timelineTargets.engines ||
+      actionsFor?.message.turnTargets?.some(
+        (target) => target.kind === 'engine' && target.model !== undefined,
+      ));
   useLayoutEffect(() => {
-    if (!needsMenuCatalog || client === undefined) return;
+    if ((!needsModels && !needsEngines) || client === undefined) return;
     let active = true;
-    void loadModelCatalog(client).then(
-      ({ models }) => {
-        if (active) setMenuCatalog({ host: client, models });
-      },
-      () => undefined,
-    );
+    const keep = (catalog: TurnTargetCatalog) => {
+      if (active)
+        setMenuCatalog((previous) => ({
+          ...(previous?.host === client ? previous : undefined),
+          host: client,
+          ...catalog,
+        }));
+    };
+    if (needsModels)
+      void loadModelCatalog(client).then(
+        ({ models }) => keep({ models }),
+        () => undefined,
+      );
+    if (needsEngines)
+      void loadRoutingGroupEngines(client).then(
+        (engines) => keep({ engines }),
+        () => undefined,
+      );
     return () => {
       active = false;
     };
-  }, [client, needsMenuCatalog]);
+  }, [client, needsModels, needsEngines]);
   const [initiatedRequest, setInitiatedRequest] = useState<InitiatedActivityRequest>();
   const selectionScope = (saved?.hostId ?? '') + ':' + (activeChannel ?? '');
   const {
@@ -90,7 +124,7 @@ export function useConversationMessageState({
     setViewing,
     actionsFor,
     setActionsFor,
-    menuModels,
+    menuCatalog,
     initiatedRequest,
     setInitiatedRequest,
     selectionScope,

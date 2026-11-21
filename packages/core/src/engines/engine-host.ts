@@ -193,8 +193,8 @@ export class EngineHost {
   async #routingGroupSelection(request: EngineTurnRequest, target: RoutingGroupEngineMember) {
     this.#requireAccountGrant(request.botSlug, target.engine, target.accountId);
     const groupEffort =
-      request.role === 'assignment'
-        ? request.groupEffort
+      request.groupEffort !== undefined || request.role === 'assignment'
+        ? (request.groupEffort ?? undefined)
         : this.#options.routingGroupEffort?.(request.botSlug);
     const shared = target.reasoningEffort === undefined ? groupEffort : undefined;
     const models =
@@ -454,6 +454,7 @@ export class EngineHost {
           const target: TurnTarget = {
             kind: 'engine',
             engine,
+            account: live.account,
             ...(model === undefined ? {} : { model }),
             ...(effort === undefined ? {} : { reasoningEffort: effort }),
           };

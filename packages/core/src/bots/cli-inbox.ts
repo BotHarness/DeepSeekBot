@@ -1,3 +1,4 @@
+import { sessionModelChoice } from '@botharness/host-protocol/session-model';
 import {
   readHumanAttention,
   dismissHumanAttention,
@@ -66,6 +67,11 @@ export const INBOX_COMMANDS = [
       "read the goal and current to-do list of up to 30 of a Bot's root Sessions (--session a,b)",
   },
   {
+    command: 'session-model',
+    description:
+      'show, set (--set <Model Choice JSON>) or clear (--clear) a root Session’s Model Choice',
+  },
+  {
     command: 'session-transcript',
     description: "read a root Session's history, with reply targets and public tool steps",
   },
@@ -124,6 +130,7 @@ export const INBOX_COMMANDS = [
 export const INBOX_HOST_COMMANDS = ['grant-revoke', 'grant-write-set'] as const;
 
 export interface InboxValues {
+  set?: string;
   notifications?: boolean;
   category?: string;
   'watch-seconds'?: string;
@@ -516,6 +523,24 @@ function prepare(
       if (sessionIds.length === 0 || sessionIds.length > 30)
         usage('--session must list 1 to 30 comma-separated Session ids.');
       return { method: 'sessionProgress', args: { slug, sessionIds } };
+    }
+    case 'session-model': {
+      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      const sessionId = required(values.session, 'session', command);
+      if (values.set !== undefined && values.clear === true)
+        usage('session-model accepts one of --set and --clear.');
+      if (values.clear === true)
+        return { method: 'sessionModel', args: { slug, sessionId, choice: null } };
+      if (values.set === undefined) return { method: 'sessionModel', args: { slug, sessionId } };
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(values.set);
+      } catch {
+        usage('session-model --set needs Model Choice JSON.');
+      }
+      const choice = sessionModelChoice(parsed);
+      if (choice === undefined) usage('session-model --set needs a model, engine or group choice.');
+      return { method: 'sessionModel', args: { slug, sessionId, choice } };
     }
     case 'session-transcript': {
       const [slug] = positionals(command, rest, 1, 'exactly one bot id');
