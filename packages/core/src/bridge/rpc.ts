@@ -1,3 +1,6 @@
+import * as sessionsRpc from '../features/sessions/rpc.js';
+import * as assignmentsRpc from '../features/assignments/rpc.js';
+import * as memoryRpc from '../features/memory/rpc.js';
 import * as approvalsRpc from '../features/approvals/rpc.js';
 import * as workspacesRpc from '../features/workspaces/rpc.js';
 import * as voiceRpc from '../features/voice/rpc.js';
@@ -1143,14 +1146,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
   botNewSession(slug: string): Promise<{ started: true }> {
-    return unwrapAsync(this.methods.botNewSession({ slug }));
+    return sessionsRpc.botNewSession(this.methods, slug);
   }
 
   botCompact(slug: string): Promise<ManualCompactionResult> {
-    return unwrapAsync(this.methods.botCompact({ slug }));
+    return sessionsRpc.botCompact(this.methods, slug);
   }
   botContext(slug: string): Promise<import('../runtime/context-window.js').BotContextWindow> {
-    return unwrapAsync(this.methods.botContext({ slug }));
+    return sessionsRpc.botContext(this.methods, slug);
   }
   botSystemPrompt(
     slug: string,
@@ -1181,13 +1184,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   ): Promise<{
     stopped: { botSlug: string; sessionId: string; messageId: string };
   }> {
-    return unwrapAsync(
-      this.methods.channelBotStop({
-        channelId,
-        botSlug,
-        ...(autoContinueFor === undefined ? {} : { autoContinueFor }),
-      }),
-    );
+    return sessionsRpc.channelBotStop(this.methods, channelId, botSlug, autoContinueFor);
   }
   sessionMessageSend(
     botSlug: string,
@@ -1206,14 +1203,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
     messageId?: string;
   }> {
-    return unwrapAsync(
-      this.methods.sessionStop({
-        botSlug,
-        ...(sessionId === undefined ? {} : { sessionId }),
-        ...(channelId === undefined ? {} : { channelId }),
-        ...(activityId === undefined ? {} : { activityId }),
-      }),
-    );
+    return sessionsRpc.sessionStop(this.methods, botSlug, sessionId, channelId, activityId);
   }
   botStop(
     botSlug: string,
@@ -1224,13 +1214,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     alreadyIdle: import('../runtime/bot-runtime.js').StoppedSessionRef[];
     messageId?: string;
   }> {
-    return unwrapAsync(
-      this.methods.botStop({
-        botSlug,
-        ...(channelId === undefined ? {} : { channelId }),
-        ...(autoContinueFor === undefined ? {} : { autoContinueFor }),
-      }),
-    );
+    return sessionsRpc.botStop(this.methods, botSlug, channelId, autoContinueFor);
   }
   modelProviders(): Promise<ModelProvidersView> {
     return modelsRpc.modelProviders(this.methods);
@@ -1983,23 +1967,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   idleCompaction(): IdleCompactionView {
-    return unwrap(this.methods.idleCompaction({}));
+    return sessionsRpc.idleCompaction(this.methods);
   }
 
   idleCompactionSet(enabled: boolean): IdleCompactionView {
-    return unwrap(this.methods.idleCompactionSet({ enabled }));
+    return sessionsRpc.idleCompactionSet(this.methods, enabled);
   }
 
   compactionThresholdSet(
     thresholdRatio?: number | null,
     headroomTokens?: number | null,
   ): IdleCompactionView {
-    return unwrap(
-      this.methods.compactionThresholdSet({
-        ...(thresholdRatio === undefined ? {} : { thresholdRatio }),
-        ...(headroomTokens === undefined ? {} : { headroomTokens }),
-      }),
-    );
+    return sessionsRpc.compactionThresholdSet(this.methods, thresholdRatio, headroomTokens);
   }
 
   idleCompactionCacheLifetimeSet(
@@ -2007,7 +1986,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     model: string,
     seconds: number | null,
   ): IdleCompactionView {
-    return unwrap(this.methods.idleCompactionCacheLifetimeSet({ provider, model, seconds }));
+    return sessionsRpc.idleCompactionCacheLifetimeSet(this.methods, provider, model, seconds);
   }
 
   standingLimitsSet(
@@ -2590,7 +2569,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     sessionId: string,
     sourceEventId: string,
   ): { context: HumanAssignmentContext } {
-    return unwrap(this.methods.humanAssignmentContext({ slug, sessionId, sourceEventId }));
+    return assignmentsRpc.humanAssignmentContext(this.methods, slug, sessionId, sourceEventId);
   }
   humanAttentionDismiss(itemId: string, sourceKey: string): { accepted: boolean } {
     return unwrap(this.methods.humanAttentionDismiss({ itemId, sourceKey }));
@@ -2627,26 +2606,25 @@ export class BotharnessBridgeService extends TypertRemoteService {
     limit?: number,
     cursor?: string,
   ): { assignments: AssignmentSummary[]; nextCursor?: string } {
-    return unwrap(
-      this.methods.assignments({
-        slug,
-        query,
-        activity,
-        includeArchived,
-        limit,
-        cursor,
-      }),
+    return assignmentsRpc.assignments(
+      this.methods,
+      slug,
+      query,
+      activity,
+      includeArchived,
+      limit,
+      cursor,
     );
   }
 
   channelAssignments(channelId: string): {
     assignments: ChannelAssignmentSummary[];
   } {
-    return unwrap(this.methods.channelAssignments({ channelId }));
+    return assignmentsRpc.channelAssignments(this.methods, channelId);
   }
 
   assignment(slug: string, sessionId: string): { assignment: AssignmentDetail } {
-    return unwrap(this.methods.assignment({ slug, sessionId }));
+    return assignmentsRpc.assignment(this.methods, slug, sessionId);
   }
 
   assignmentTimeline(
@@ -2657,7 +2635,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     lanes: AssignmentTimelineLane[];
     omittedSubagents: number;
   }> {
-    return unwrapAsync(this.methods.assignmentTimeline({ slug, sessionId }));
+    return assignmentsRpc.assignmentTimeline(this.methods, slug, sessionId);
   }
 
   sessionSubagents(
@@ -2669,21 +2647,21 @@ export class BotharnessBridgeService extends TypertRemoteService {
     lanes: AssignmentTimelineLane[];
     omittedSubagents: number;
   }> {
-    return unwrapAsync(this.methods.sessionSubagents({ slug, sessionId }));
+    return assignmentsRpc.sessionSubagents(this.methods, slug, sessionId);
   }
 
   sessionProgress(
     slug: string,
     sessionIds: readonly string[],
   ): Promise<{ sessions: SessionProgressEntry[] }> {
-    return unwrapAsync(this.methods.sessionProgress({ slug, sessionIds }));
+    return assignmentsRpc.sessionProgress(this.methods, slug, sessionIds);
   }
 
   sessionTranscript(
     slug: string,
     sessionId: string,
   ): Promise<{ sessionId: string; role: SessionRootRole } & SessionTranscript> {
-    return unwrapAsync(this.methods.sessionTranscript({ slug, sessionId }));
+    return sessionsRpc.sessionTranscript(this.methods, slug, sessionId);
   }
 
   sessionLive(
@@ -2701,7 +2679,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     sessionId: string,
     callId: string,
   ): Promise<{ sessionId: string; callId: string; detail: SessionToolDetail }> {
-    return unwrapAsync(this.methods.sessionToolDetail({ slug, sessionId, callId }));
+    return sessionsRpc.sessionToolDetail(this.methods, slug, sessionId, callId);
   }
 
   workspaceOptions(): {
@@ -2787,7 +2765,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   assignmentAccessGet(slug: string): { preset: AssignmentAccessPreset } {
-    return unwrap(this.methods.assignmentAccessGet({ slug }));
+    return assignmentsRpc.assignmentAccessGet(this.methods, slug);
   }
 
   assignmentAccessSet(
@@ -2796,7 +2774,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     acknowledgeRisk: boolean,
     scope?: 'chat' | 'assignments',
   ): { preset: AssignmentAccessPreset } {
-    return unwrap(this.methods.assignmentAccessSet({ slug, mode, acknowledgeRisk, scope }));
+    return assignmentsRpc.assignmentAccessSet(this.methods, slug, mode, acknowledgeRisk, scope);
   }
 
   toolApprovalRules(slug: string): { rules: ToolApprovalRule[] } {
@@ -2860,7 +2838,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   sessions(slug: string): { sessions: OwnedSessionSummary[] } {
-    return unwrap(this.methods.sessions({ slug }));
+    return sessionsRpc.sessions(this.methods, slug);
   }
 
   botToolTrace(
@@ -2868,13 +2846,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     sessionId?: string,
     turns?: number,
   ): Promise<{ slug: string; sessionId: string; turns: TurnTrace[] }> {
-    return unwrapAsync(
-      this.methods.botToolTrace({
-        slug,
-        ...(sessionId === undefined ? {} : { sessionId }),
-        ...(turns === undefined ? {} : { turns }),
-      }),
-    );
+    return sessionsRpc.botToolTrace(this.methods, slug, sessionId, turns);
   }
 
   botTools(): { sessionId: 'direct'; tools: DirectBotToolSpec[] } {
@@ -2909,29 +2881,29 @@ export class BotharnessBridgeService extends TypertRemoteService {
     sessionId: string,
     archived: boolean,
   ): Promise<{ archived: boolean }> {
-    return unwrapAsync(this.methods.sessionArchiveSet({ slug, sessionId, archived }));
+    return sessionsRpc.sessionArchiveSet(this.methods, slug, sessionId, archived);
   }
 
   memoryMove(
     slug: string,
     location: string | null,
   ): Promise<{ memoryDir: string; moved: boolean; leftover?: string }> {
-    return unwrapAsync(this.methods.memoryMove({ slug, location }));
+    return memoryRpc.memoryMove(this.methods, slug, location);
   }
 
   sessionOwner(sessionId: string): { owner: OwnedSessionBot | null } {
-    return unwrap(this.methods.sessionOwner({ sessionId }));
+    return sessionsRpc.sessionOwner(this.methods, sessionId);
   }
 
   botSessionIds(): {
     sessionIds: string[];
     groups: { botSlug: string; displayName: string; sessionIds: string[] }[];
   } {
-    return unwrap(this.methods.botSessionIds({}));
+    return sessionsRpc.botSessionIds(this.methods);
   }
 
   memoryFileTarget(slug: string, path: string): { target: MemoryFileTarget } {
-    return unwrap(this.methods.memoryFileTarget({ slug, path }));
+    return memoryRpc.memoryFileTarget(this.methods, slug, path);
   }
 
   memoryImage(
@@ -2941,19 +2913,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     revision: string,
     reference?: string,
   ): { mime: string; dataBase64: string } {
-    return unwrap(
-      this.methods.memoryImage({
-        slug,
-        path,
-        source,
-        revision,
-        ...(reference === undefined ? {} : { reference }),
-      }),
-    );
+    return memoryRpc.memoryImage(this.methods, slug, path, source, revision, reference);
   }
 
   memorySnapshot(channelId: string): { snapshot: MemoryAcceptedSnapshot } {
-    return unwrap(this.methods.memorySnapshot({ channelId }));
+    return memoryRpc.memorySnapshot(this.methods, channelId);
   }
 
   memoryFile(
@@ -2969,37 +2933,37 @@ export class BotharnessBridgeService extends TypertRemoteService {
       markdown?: import('../memory/markdown.js').MemoryMarkdown;
     };
   } {
-    return unwrap(this.methods.memoryFile({ channelId, path }));
+    return memoryRpc.memoryFile(this.methods, channelId, path);
   }
 
   memoryHistory(channelId: string): { commits: MemoryAcceptedCommit[] } {
-    return unwrap(this.methods.memoryHistory({ channelId }));
+    return memoryRpc.memoryHistory(this.methods, channelId);
   }
 
   memoryDiff(channelId: string, sha: string): { sha: string; diff: string } {
-    return unwrap(this.methods.memoryDiff({ channelId, sha }));
+    return memoryRpc.memoryDiff(this.methods, channelId, sha);
   }
 
   memoryGitGraph(channelId: string, offset: number): MemoryGitGraph {
-    return unwrap(this.methods.memoryGitGraph({ channelId, offset }));
+    return memoryRpc.memoryGitGraph(this.methods, channelId, offset);
   }
 
   memoryGitCommitDiff(channelId: string, sha: string): MemoryGitCommitDiff {
-    return unwrap(this.methods.memoryGitCommitDiff({ channelId, sha }));
+    return memoryRpc.memoryGitCommitDiff(this.methods, channelId, sha);
   }
 
   memoryWorkingChanges(channelId: string): { changes: MemoryWorkingChange[] } {
-    return unwrap(this.methods.memoryWorkingChanges({ channelId }));
+    return memoryRpc.memoryWorkingChanges(this.methods, channelId);
   }
 
   memoryWorkingDiff(channelId: string, path: string, kind: MemoryWorkingKind): MemoryWorkingDiff {
-    return unwrap(this.methods.memoryWorkingDiff({ channelId, path, kind }));
+    return memoryRpc.memoryWorkingDiff(this.methods, channelId, path, kind);
   }
 
   memoryRecoveryHistory(channelId: string): {
     checkpoints: MemoryRecoveryCheckpoint[];
   } {
-    return unwrap(this.methods.memoryRecoveryHistory({ channelId }));
+    return memoryRpc.memoryRecoveryHistory(this.methods, channelId);
   }
 
   memoryRestore(
@@ -3010,13 +2974,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     checkpoint: MemoryRecoveryCheckpoint;
     archivePath: string;
   } {
-    return unwrap(
-      this.methods.memoryRestore({
-        channelId,
-        checkpointId,
-        expectedCurrentId,
-      }),
-    );
+    return memoryRpc.memoryRestore(this.methods, channelId, checkpointId, expectedCurrentId);
   }
 
   memoryRestoreCommit(
@@ -3031,27 +2989,26 @@ export class BotharnessBridgeService extends TypertRemoteService {
     version: MemoryVersionName | null;
     saved: MemoryRecoveryCheckpoint;
   } {
-    return unwrap(
-      this.methods.memoryRestoreCommit({
-        channelId,
-        sha,
-        expectedHead,
-        restoreId,
-        name,
-      }),
+    return memoryRpc.memoryRestoreCommit(
+      this.methods,
+      channelId,
+      sha,
+      expectedHead,
+      restoreId,
+      name,
     );
   }
 
   memoryNameVersion(channelId: string, sha: string, name: string): { version: MemoryVersionName } {
-    return unwrap(this.methods.memoryNameVersion({ channelId, sha, name }));
+    return memoryRpc.memoryNameVersion(this.methods, channelId, sha, name);
   }
 
   memoryVersions(channelId: string): { versions: MemoryVersion[] } {
-    return unwrap(this.methods.memoryVersions({ channelId }));
+    return memoryRpc.memoryVersions(this.methods, channelId);
   }
 
   memoryRemoveVersionName(channelId: string, tag: string): { removed: true } {
-    return unwrap(this.methods.memoryRemoveVersionName({ channelId, tag }));
+    return memoryRpc.memoryRemoveVersionName(this.methods, channelId, tag);
   }
 
   memorySave(
@@ -3061,7 +3018,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedHead: string,
     editId: string,
   ): { commit: MemoryAcceptedCommit } {
-    return unwrap(this.methods.memorySave({ channelId, path, body, expectedHead, editId }));
+    return memoryRpc.memorySave(this.methods, channelId, path, body, expectedHead, editId);
   }
 
   memoryRepair(
@@ -3069,11 +3026,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedHead: string,
     repairId: string,
   ): { repair: MemoryRepairEvent } {
-    return unwrap(this.methods.memoryRepair({ channelId, expectedHead, repairId }));
+    return memoryRpc.memoryRepair(this.methods, channelId, expectedHead, repairId);
   }
 
   overviewMemory(after?: string): Promise<OverviewMemory> {
-    return unwrapAsync(this.methods.overviewMemory({ after }));
+    return memoryRpc.overviewMemory(this.methods, after);
   }
 
   overviewUsage(period: UsageOverviewPeriod, after?: string): OverviewUsage {
