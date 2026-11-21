@@ -9,7 +9,7 @@ const store = resolve(root, 'node_modules/.pnpm');
 const entry = readdirSync(store).find((name) => name.startsWith('puppeteer@'));
 const puppeteer = createRequire(resolve(store, entry, 'node_modules/'))('puppeteer');
 const instancePath = process.env.BH_E2E_INSTANCE;
-assert.ok(instancePath, 'Set BH_E2E_INSTANCE to an isolated verify-app instance.json');
+assert.ok(instancePath, 'Set BH_E2E_INSTANCE to the instance.json of an isolated Host');
 const windowsButtonReserve = 144;
 const { url, dshVersion } = JSON.parse(readFileSync(instancePath, 'utf8'));
 
