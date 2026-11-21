@@ -97,6 +97,7 @@ export function OwnerSignInDialog({
       title={t('ownerSignIn.title')}
       description={t('ownerSignIn.hint')}
       inline={inline}
+      showCancel={!inline}
       footerContainer={footerContainer}
       labels={{ close: t('common.close'), cancel: t('connections.back') }}
       submitLabel={t('teamSignIn.signIn')}

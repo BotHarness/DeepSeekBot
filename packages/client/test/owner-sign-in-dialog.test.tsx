@@ -33,6 +33,9 @@ it('signs in from one form, gives one invalid-credentials error, and clears the 
     await act(async () =>
       root.render(<OwnerSignInDialog inline onBack={vi.fn()} onClose={onClose} t={zhTranslate} />),
     );
+    expect(
+      [...container.querySelectorAll('button')].map((button) => button.textContent),
+    ).not.toContain(zhTranslate('connections.back'));
     const password = container.querySelector<HTMLInputElement>('input[type="password"]');
     const submit = container.querySelector<HTMLButtonElement>('button[type="submit"]');
     await act(async () => {
