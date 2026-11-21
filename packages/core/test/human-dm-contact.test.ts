@@ -286,6 +286,58 @@ describe('Human DM selected contact context', () => {
     }
   });
 
+  it('delivers reconciled Memory changes in Source Event order', async () => {
+    const runs: OrchestratorAgentRun[] = [];
+    const core = createCore({
+      dshHome: createTempRoot('botharness-memory-order-'),
+      agents: {
+        async runOrchestrator(run) {
+          runs.push(run);
+        },
+        async runAssignment() {},
+        requestAssignment() {
+          throw new Error('No Assignment expected');
+        },
+        async close() {},
+      },
+    });
+    try {
+      core.registry.create({ slug: 'ada', displayName: 'Ada' });
+      const memoryDir = core.registry.memoryDirFor('ada')!;
+      core.runtime.reconcileMemoryChangesOnStartup?.();
+      writeFileSync(join(memoryDir, 'z-first.md'), 'First observation\n');
+      core.runtime.reconcileMemoryChangesOnStartup?.();
+      writeFileSync(join(memoryDir, 'a-second.md'), 'Second observation\n');
+      core.runtime.reconcileMemoryChangesOnStartup?.();
+      core.runtime.reconcileMemoryChangesOnStartup?.();
+
+      const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
+      const body = 'What changed?';
+      await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
+        id: 'ask-memory',
+        at: '2026-09-26T00:00:00.000Z',
+        author: { kind: 'human' },
+        body,
+      });
+      core.runtime.admitDmMessage(OWNER_HUMAN_CONTEXT, {
+        channelId: dm.id,
+        messageId: 'ask-memory',
+        body,
+      });
+      await core.runtime.whenIdle();
+
+      expect(runs).toHaveLength(1);
+      const changes = runs[0]?.inbox?.split('- Memory change (event ').slice(1);
+      expect(changes).toEqual([
+        expect.stringContaining('z-first.md'),
+        expect.stringContaining('a-second.md'),
+      ]);
+    } finally {
+      await core.runtime.close();
+      core.operationalDatabase.close();
+    }
+  });
+
   it('keeps the old checkpoint when Memory Inbox admission fails', async () => {
     const core = createCore({ dshHome: createTempRoot('botharness-memory-atomic-') });
     try {

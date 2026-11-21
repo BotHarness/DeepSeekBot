@@ -1,16 +1,20 @@
 import { useId, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { providerBrand } from '@botharness/host-client/shared/model-brand';
+import type { NamedEngineAccount } from '@botharness/host-protocol/subscription-engine';
 import type { ModelProvidersView } from '@botharness/host-client/model-providers';
 import { bridgeHost, loadModelCatalog, type BridgeCall } from './bridge.js';
 import { Button } from './ds/button.js';
 import { Checkbox } from './ds/checkbox.js';
 import { Icon } from './ds/icon.js';
 import { Note } from './ds/note.js';
+import { ReadFailure } from './ds/read-failure.js';
 import { Select } from './ds/select.js';
 import { ink, layer, space, style } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { ModelBrandIcon } from './model-brand.js';
+import { loadGrantableEngineAccounts } from './engine-choice.js';
+import { engineAccountTitle } from './session-engine.js';
+import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
 import { useMountedResource } from './mounted-resource.js';
 import {
   canManage,
@@ -40,6 +44,7 @@ const styles = stylex.create({
     paddingBlock: space.x1,
   },
   disclosure: { paddingInline: space.x2 },
+  account: { minHeight: style.controlHeight },
   routes: {
     display: 'flex',
     flexDirection: 'column',
@@ -54,7 +59,13 @@ type Provider = { id: string; name: string; models: Map<string, string> };
 type Catalog =
   | { state: 'loading' }
   | { state: 'failed' }
-  | { state: 'ready'; providers: readonly Provider[]; allowed: RoleModels };
+  | {
+      state: 'ready';
+      providers: readonly Provider[];
+      accounts: NamedEngineAccount[];
+      accountsFailed: boolean;
+      allowed: RoleModels;
+    };
 
 function roleProviders(
   known: readonly { id: string; name: string }[],
@@ -95,6 +106,7 @@ export function RoleModelsField({
   viewer,
   value,
   disabled,
+  apiLocked,
   onChange,
 }: {
   call: BridgeCall;
@@ -102,11 +114,13 @@ export function RoleModelsField({
   viewer: GrantingViewer;
   value: RoleModels;
   disabled: boolean;
+  apiLocked?: boolean;
   onChange(next: RoleModels): void;
 }): ReactElement {
   const id = useId();
   const [catalog, setCatalog] = useState<Catalog>({ state: 'loading' });
   const [expanded, setExpanded] = useState<readonly string[]>([]);
+  const [attempt, setAttempt] = useState(0);
   const canReadProviders = canManage(viewer, 'modelSources.manage');
   const mount = useMountedResource<HTMLFieldSetElement>(() => {
     const request = new AbortController();
@@ -119,13 +133,19 @@ export function RoleModelsField({
     Promise.all([
       inventory,
       loadModelCatalog(call),
+      loadGrantableEngineAccounts(call, request.signal).then(
+        (accounts) => ({ accounts, failed: false }),
+        () => ({ accounts: [] as NamedEngineAccount[], failed: true }),
+      ),
       viewer.owner ? { kind: 'all' as const } : loadModelsAllowed(call, request.signal),
     ])
-      .then(([known, view, allowed]) => {
+      .then(([known, view, accounts, allowed]) => {
         if (!request.signal.aborted)
           setCatalog({
             state: 'ready',
             providers: roleProviders(known, view.models, [allowed]),
+            accounts: accounts.accounts,
+            accountsFailed: accounts.failed,
             allowed,
           });
       })
@@ -133,7 +153,7 @@ export function RoleModelsField({
         if (!request.signal.aborted) setCatalog({ state: 'failed' });
       });
     return () => request.abort();
-  }, [call, canReadProviders, viewer.owner]);
+  }, [call, canReadProviders, viewer.owner, attempt]);
   const providers = value.kind === 'only' ? value.providers : [];
   const routes = value.kind === 'only' ? value.routes : [];
   const listed = catalog.state === 'ready' ? catalog.providers : [];
@@ -147,6 +167,11 @@ export function RoleModelsField({
         : { ...known, models: new Map([...provider.models, ...known.models]) },
     );
   }
+  const engineAccounts = value.engineAccounts ?? [];
+  const accounts = catalog.state === 'ready' ? catalog.accounts : [];
+  const accountById = new Map(accounts.map((account) => [account.id, account]));
+  const accountIds = [...new Set([...accountById.keys(), ...engineAccounts])];
+  const accountGrants = value.engineAccounts === undefined ? {} : { engineAccounts };
   const canGrantAll = viewer.owner || (catalog.state === 'ready' && catalog.allowed.kind === 'all');
   return (
     <fieldset ref={mount} {...stylex.props(styles.group, styles.fieldset)} data-role-models="">
@@ -154,7 +179,7 @@ export function RoleModelsField({
       <Select
         label={t('team.roles.models')}
         value={value.kind}
-        disabled={disabled}
+        disabled={disabled || apiLocked === true}
         options={[
           ...(canGrantAll || value.kind === 'all'
             ? [{ value: 'all' as const, label: t('team.roles.modelsAll') }]
@@ -162,7 +187,11 @@ export function RoleModelsField({
           { value: 'only', label: t('team.roles.modelsOnly') },
         ]}
         onChange={(kind) =>
-          onChange(kind === 'all' ? { kind: 'all' } : { kind: 'only', providers, routes })
+          onChange(
+            kind === 'all'
+              ? { kind: 'all', ...accountGrants }
+              : { kind: 'only', providers, routes, ...accountGrants },
+          )
         }
       />
       {value.kind === 'all' ? null : catalog.state === 'loading' ? (
@@ -197,6 +226,7 @@ export function RoleModelsField({
                     onChange={(next) =>
                       onChange({
                         kind: 'only',
+                        ...accountGrants,
                         providers: toggled(providers, provider.id, next),
                         routes,
                       })
@@ -233,6 +263,7 @@ export function RoleModelsField({
                             onChange={(next) =>
                               onChange({
                                 kind: 'only',
+                                ...accountGrants,
                                 providers,
                                 routes: toggled(routes, route, next),
                               })
@@ -246,11 +277,54 @@ export function RoleModelsField({
               </div>
             );
           })}
-          {providers.length + routes.length === 0 ? (
-            <Note tone="warning">{t('team.roles.modelsNone')}</Note>
-          ) : null}
         </>
       )}
+      {catalog.state === 'ready' && catalog.accountsFailed ? (
+        <ReadFailure
+          retryLabel={t('engine.reload')}
+          onRetry={() => setAttempt((current) => current + 1)}
+        >
+          {t('team.roles.accountsFailed')}
+        </ReadFailure>
+      ) : null}
+      {catalog.state === 'ready' && accountIds.length > 0 ? (
+        <>
+          <Note>{t('modelProviders.subscriptions')}</Note>
+          {accountIds.map((id) => {
+            const account = accountById.get(id);
+            const checked = engineAccounts.includes(id);
+            return (
+              <div key={id} {...stylex.props(styles.provider, styles.row, styles.account)}>
+                <Checkbox
+                  label={
+                    account === undefined ? (
+                      id
+                    ) : (
+                      <>
+                        <EngineBrandIcon
+                          brand={account.engine === 'codex' ? 'openai' : 'claude'}
+                          size={20}
+                        />
+                        {engineAccountTitle(account.engine, account.name)}
+                      </>
+                    )
+                  }
+                  checked={checked}
+                  disabled={disabled}
+                  onChange={(next) =>
+                    onChange({ ...value, engineAccounts: toggled(engineAccounts, id, next) })
+                  }
+                />
+              </div>
+            );
+          })}
+        </>
+      ) : null}
+      {catalog.state === 'ready' &&
+      value.kind === 'only' &&
+      providers.length + routes.length + engineAccounts.length === 0 ? (
+        <Note tone="warning">{t('team.roles.modelsNone')}</Note>
+      ) : null}
       <Note>{t('team.roles.modelsServerCheck')}</Note>
     </fieldset>
   );

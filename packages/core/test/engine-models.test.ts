@@ -14,6 +14,7 @@ import {
 import { createEngineGateway, type EngineGateway } from '../src/engines/engine-gateway.js';
 import { EngineHost, type EngineHostOptions, type EngineTool } from '../src/engines/engine-host.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
+import { ownerEngineSelection } from './engine-route-fixture.js';
 import { routingGroupEngineOptions } from '../src/models/routing-group-engine-options.js';
 import {
   type ClaudeRecordedLine,
@@ -98,13 +99,14 @@ function setup(
     execute: vi.fn(async () => JSON.stringify({ outcome: 'sent' })),
     signal: new AbortController().signal,
   };
+  const botExists = (slug: string) => slug === 'ada';
   const route = async (body: Record<string, unknown>) => {
     const response = await engineRouteFetch(
       new Request('http://host/api/botharness/engines', {
         method: 'POST',
         body: JSON.stringify(body),
       }),
-      { host, botExists: (slug) => slug === 'ada' },
+      { host, botExists, ...ownerEngineSelection(host, botExists) },
     );
     return { status: response.status, body: (await response.json()) as Record<string, unknown> };
   };

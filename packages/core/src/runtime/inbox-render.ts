@@ -1,7 +1,7 @@
 import type { ExternalSource } from '../messaging/inbound.js';
 import { mentionPeople, withMentionNames } from '../messaging/mention-text.js';
 import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js';
-import type { AssignmentActivity } from './bot-runtime.js';
+import type { AssignmentActivity } from '@botharness/host-protocol/wire';
 
 export type InboxSourceKind =
   | 'assignment-report'

@@ -14,9 +14,9 @@ import {
   loadMyMarketplaceUploads,
   uploadMarketplaceBot,
   type BridgeCall,
-} from './bridge.js';
-import type { InvokeAction, BridgeActions } from './actions.js';
-import type { createBotActions } from './actions-bots.js';
+} from '../../bridge.js';
+import type { InvokeAction, BridgeActions } from '../../actions.js';
+import type { createBotActions } from '../../actions-bots.js';
 
 export interface MarketplaceActions {
   marketplaceReport(id: string, altcha: string, reason?: string): Promise<void>;
@@ -31,6 +31,12 @@ export function createMarketplaceActions(
   openCreatedBot: ReturnType<typeof createBotActions>['openCreatedBot'],
 ) {
   return {
+    marketplaceAvatarList: (cursor) =>
+      invoke('marketplaceAvatarList', cursor === undefined ? {} : { cursor }),
+    marketplaceAvatarApplyCandidates: () => invoke('marketplaceAvatarApplyCandidates', {}),
+    marketplaceAvatarApply: (id, bot) => invoke('marketplaceAvatarApply', { id, bot }),
+    marketplaceAvatarDetail: (id) => invoke('marketplaceAvatarDetail', { id }),
+    marketplaceAvatarPublish: (input) => invoke('marketplaceAvatarPublish', { ...input }),
     marketplaceList: (query) => loadMarketplacePage(call, query),
     marketplaceChallenge: () => loadMarketplaceChallenge(call),
     marketplaceSubmit: (url, altcha) => submitMarketplaceRepository(call, url, altcha),
@@ -63,6 +69,11 @@ export function createMarketplaceActions(
   } satisfies MarketplaceActions &
     Pick<
       BridgeActions,
+      | 'marketplaceAvatarList'
+      | 'marketplaceAvatarDetail'
+      | 'marketplaceAvatarApplyCandidates'
+      | 'marketplaceAvatarApply'
+      | 'marketplaceAvatarPublish'
       | 'marketplaceList'
       | 'marketplaceChallenge'
       | 'marketplaceSubmit'

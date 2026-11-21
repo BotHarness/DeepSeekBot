@@ -40,7 +40,7 @@ export const TEAM_COMMANDS = [
   {
     command: 'roles',
     description:
-      'list | catalog | create --name --permissions [--models] [--model-providers] | update <roleId> [--models] [--model-providers] | delete <roleId> --confirm',
+      'list | catalog | create --name --permissions [--models] [--model-providers] [--engine-accounts] | update <roleId> [--models] [--model-providers] [--engine-accounts] | delete <roleId> --confirm',
   },
   {
     command: 'team-mode',
@@ -71,6 +71,7 @@ type TeamValues = {
   audience?: string;
   models?: string;
   'model-providers'?: string;
+  'engine-accounts'?: string;
   period?: string;
   'human-id'?: string;
   post?: string;
@@ -297,15 +298,18 @@ export async function runTeamCommand(
   if (command === 'roles') {
     const providers = values['model-providers'];
     if (values.models === 'all' && providers !== undefined) return usage();
+    const accounts = values['engine-accounts'];
+    const accountGrants = accounts === undefined ? {} : { engineAccounts: ids(accounts) };
     const models =
       values.models === 'all'
-        ? { kind: 'all' }
-        : values.models === undefined && providers === undefined
+        ? { kind: 'all', ...accountGrants }
+        : values.models === undefined && providers === undefined && accounts === undefined
           ? undefined
           : {
               kind: 'only',
               routes: ids(values.models ?? ''),
               ...(providers === undefined ? {} : { providers: ids(providers) }),
+              ...accountGrants,
             };
     if (action === 'conflicts' && argument && rest.length === 2)
       return rpc('roleConflicts', { username: argument });

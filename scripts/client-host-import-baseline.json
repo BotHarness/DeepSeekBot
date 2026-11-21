@@ -107,7 +107,7 @@
   },
   "packages/client/src/client/bridge.ts": {
     "../../../core/src/attachments/ref.js": 1,
-    "../../../core/src/bots/avatar-appearance.js": 2,
+    "../../../core/src/bots/avatar-appearance.js": 1,
     "../../../core/src/bots/part-library.js": 1,
     "../../../core/src/bots/primary-color.js": 1,
     "../../../core/src/bridge/composer-recovery.js": 1,
@@ -143,8 +143,6 @@
     "../../../core/src/messaging/thread-policy.js": 1,
     "../../../core/src/runtime/assignment-human-context.js": 2,
     "../../../core/src/runtime/bot-runtime.js": 1,
-    "../../../core/src/schedules/bot-schedules.js": 2,
-    "../../../core/src/skills/entries.js": 1,
     "../../../core/src/skills/events.js": 1,
     "../../../core/src/takeover/contracts.js": 1,
     "../../../core/src/team/member-methods.js": 1,

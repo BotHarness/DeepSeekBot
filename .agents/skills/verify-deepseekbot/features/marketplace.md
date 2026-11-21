@@ -4,7 +4,7 @@
 
 - `packages/market/**`
 - `packages/core/src/marketplace/**`
-- `packages/client/src/client/{marketplace,market-panel}.tsx`
+- `packages/client/src/client/{marketplace,market-panel,market-avatars,market-avatar-apply,personabot-avatar-crop}.tsx`
 - `apps/mobile/src/marketplace/**`
 - `apps/mobile/src/ui/shell/marketplace-*`
 - `apps/mobile/src/ui/primitives/marketplace-topic-sheet*`
@@ -47,6 +47,14 @@ Launch a task-owned instance with `node scripts/verify-app.mjs launch --name <n>
 
 For Worker tie/paging proof run `pnpm exec vitest run packages/market/test/market-search.test.ts`; it walks 1/2/3/50-item pages through the production Worker and D1 adapter with independent ties at every level. A live Host can point at a task-local Worker using the existing `marketplaceUrl` Plugin configuration, then exercise `deepseekbot marketplace-list --sort stars`.
 
+## Marketplace Avatars on Web
+
+1. Point a task-owned Host at an isolated Marketplace Worker with its D1 migrations and R2 binding. Sign the owner in to Connect and accept upload terms.
+2. Open **Avatars → Publish Avatar**, choose a rectangular image with both sides at least 256 px, move the crop, and save. Fill in the name, description and tags. Verify the confirmation identifies the author by display name and Author ID and explains that applied copies stay with other Bots.
+3. Publish and compare the detail image with the form preview. Verify the description, tags, author and Apply Count of 0. Read the canonical result with `deepseekbot marketplace-avatar-detail <id>`. Confirm a file with a 255 px side is refused.
+4. Seed more than 24 listings from at least two accounts, use **Load more**, and compare the visible IDs with `deepseekbot marketplace-avatar-list [--cursor <cursor>]`. Browse as a Team member, verify the publish entry is absent, and verify a member publish call receives `permission-required`.
+5. Return to **Bots** and verify the current search, sort and cards are preserved. Initial Bots browsing makes no Avatar list request.
+
 ## Tob install review
 
 Install opens a review step: Tob reads the staged files and the step shows **Tob found nothing risky**, the findings (prompt injection, sends data out, script) with **Install anyway**, or **Tob couldn't review this Bot** with **Install without review**. Back creates nothing. The real-model journey is `node scripts/e2e-install-review.mjs`: it serves a local Marketplace with a planted-injection Bot and a clean Bot, launches an isolated Host pointed at it, and asserts the planted file is flagged, the clean Bot is not, a review creates no Bot, and `marketplace-install <id> --review <review-id> --confirm` installs. Use the AX model selection on the newest DeepSeek model.
@@ -58,3 +66,9 @@ Install opens a review step: Tob reads the staged files and the step shows **Tob
 - The default `verify-app shot` locale is English; Chinese accessible names require `--locale zh`. The fresh Profile welcome dialog must be dismissed before market interaction.
 - Production tie ordering changes only after the Worker and migration `0011_star_tiebreaks.sql` deploy. Old three-field stars cursors receive `invalid-cursor`; reopening/retrying starts from page one. Other cursors remain compatible.
 - Browser sorting preferences are device-local; target-Client CLI preference control remains tracked by #2096. The existing `marketplace-list --sort` exercises each catalog order directly.
+
+### Apply a Marketplace Avatar
+
+1. Open a published Avatar in the Marketplace on the connected Host. Click **Apply** and select a Bot with a plain avatar. Confirm that the picker shows the Bot and omits the replacement warning.
+2. Choose a Bot with an editable Appearance. Confirm the warning appears before the write, apply the Avatar, and open the Bot’s profile to check the new image. Check the same Bot with the CLI.
+3. After the receipt reaches the Worker, run `deepseekbot marketplace-avatar-detail <id>` to confirm the increment. Apply again to the same Bot and check that the count stays the same.

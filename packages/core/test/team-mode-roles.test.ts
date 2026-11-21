@@ -293,13 +293,21 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
               peer,
             ),
           ).role;
-        expect(created.models).toEqual(models);
-        expect(f.team.roles.update(human, created.roleId, { models }).role.models).toEqual(models);
+        expect(created.models).toEqual({ ...models, engineAccounts: [] });
+        expect(f.team.roles.update(human, created.roleId, { models }).role.models).toEqual({
+          ...models,
+          engineAccounts: [],
+        });
         f.team.roles.set(human, f.alice.member.humanId, [created.roleId]);
         expect(f.team.mode(humanContext(f.alice.member.humanId)).viewer.models).toEqual(
           models.kind === 'all'
-            ? { all: true }
-            : { all: false, providers: models.providers, routes: models.routes },
+            ? { all: true, engineAccounts: [] }
+            : {
+                all: false,
+                providers: models.providers,
+                routes: models.routes,
+                engineAccounts: [],
+              },
         );
         const member = await f.team.createMember(human, 'delegated-models', 'Delegated', [
           created.roleId,
@@ -308,7 +316,7 @@ describe('M3 Host Roles and devices', { timeout: 60_000 }, () => {
         const existing = f.team.roles.create(owner, 'Existing all', []).role;
         expect(
           f.team.roles.update(human, existing.roleId, { name: 'Existing renamed' }).role.models,
-        ).toEqual({ kind: 'all' });
+        ).toEqual({ kind: 'all', engineAccounts: [] });
       },
     );
 

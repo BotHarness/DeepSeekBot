@@ -28,10 +28,17 @@ export function ownerGrantedPermission(id: string): boolean {
 }
 export const ADMIN_PERMISSIONS = ALL_PERMISSIONS.filter((id) => !ownerGrantedPermission(id));
 export const MEMBER_PERMISSIONS: HostPermission[] = ['dm.humans'];
+const engineAccounts = z
+  .array(z.string().regex(/^[^/\s]+$/u))
+  .max(10000)
+  .default([])
+  .transform((accounts) => [...new Set(accounts)].sort());
+
 export const roleModelsSchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('all') }),
+  z.object({ kind: z.literal('all'), engineAccounts }),
   z.object({
     kind: z.literal('only'),
+    engineAccounts,
     providers: z
       .array(z.string().regex(/^[^/\s]+$/u))
       .max(10000)
@@ -45,7 +52,13 @@ export const roleModelsSchema = z.discriminatedUnion('kind', [
 ]);
 export type RoleModels = z.infer<typeof roleModelsSchema>;
 export type RoleModelsInput = z.input<typeof roleModelsSchema>;
-export type ModelsAllowed = { all: true } | { all: false; providers: string[]; routes: string[] };
+export type ModelsAllowed =
+  | { all: true; engineAccounts?: string[] }
+  | { all: false; providers: string[]; routes: string[]; engineAccounts: string[] };
+
+export function allowsEngineAccount(allowed: ModelsAllowed, accountId: string): boolean {
+  return allowed.engineAccounts?.includes(accountId) ?? allowed.all;
+}
 
 export function allowsModel(
   allowed: ModelsAllowed,

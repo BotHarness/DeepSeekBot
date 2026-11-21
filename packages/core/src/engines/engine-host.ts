@@ -177,8 +177,8 @@ export class EngineHost {
   removeAccount(id: string, revision: number) {
     return this.#accounts.removeAccount(id, revision);
   }
-  status(target?: string) {
-    return this.#accounts.status(target);
+  status(target?: string, allowed?: (accountId: string) => boolean) {
+    return this.#accounts.status(target, allowed);
   }
   login(engine: EngineId, id?: string) {
     return this.#accounts.login(engine, id);
@@ -217,6 +217,7 @@ export class EngineHost {
   }
 
   async #routingGroupSelection(request: EngineTurnRequest, target: RoutingGroupEngineMember) {
+    this.#requireAccountGrant(request.botSlug, target.engine, target.accountId);
     const groupEffort =
       request.role === 'assignment'
         ? request.groupEffort
@@ -240,7 +241,7 @@ export class EngineHost {
         'engine-unavailable',
         'Subscription Engines run only on a local Host',
       );
-    if (engine !== undefined) this.resolveAccount(engine, options.accountId);
+    if (engine !== undefined) this.#requireAccountGrant(botSlug, engine, options.accountId);
     const previous = this.choiceFor(botSlug, role);
     this.store.select(botSlug, role, engine, options);
     if (previous !== this.choiceFor(botSlug, role))
@@ -299,7 +300,7 @@ export class EngineHost {
     const engine = this.engineFor(botSlug, role);
     if (engine === undefined) return false;
     const { accountId } = this.store.choice(botSlug, role);
-    this.resolveAccount(engine, accountId);
+    this.#requireAccountGrant(botSlug, engine, accountId);
     return !(this.fallsBack(botSlug, role) && this.limit(engine, accountId) !== undefined);
   }
 
@@ -314,7 +315,7 @@ export class EngineHost {
       );
     const accountId =
       target === undefined ? this.store.choice(botSlug, 'assignment').accountId : target.accountId;
-    this.resolveAccount(engine, accountId);
+    this.#requireAccountGrant(botSlug, engine, accountId);
     const limited = this.limit(engine, accountId);
     if (limited !== undefined) throw new EngineLimitError(engine, limited.account, limited.until);
   }
@@ -335,6 +336,12 @@ export class EngineHost {
     if (base === undefined) return undefined;
     const quota = this.quota(base.engine, base.accountId);
     return quota === undefined ? base : { ...base, quota };
+  }
+
+  #requireAccountGrant(botSlug: string, engine: EngineId, accountId: string | undefined) {
+    const account = this.store.resolveAccount(engine, accountId);
+    this.#options.requireAccountGrant?.(botSlug, account.id);
+    return account;
   }
 
   steerAssignment(sessionId: string, text: string): boolean {
@@ -377,7 +384,8 @@ export class EngineHost {
           : 'This Bot does not run on a Subscription Engine',
       );
     if (request.signal.aborted) return {};
-    const selectedAccount = this.resolveAccount(
+    const selectedAccount = this.#requireAccountGrant(
+      request.botSlug,
       selected,
       target === undefined ? direct.choice.accountId : target.accountId,
     );
@@ -421,6 +429,7 @@ export class EngineHost {
           throw error;
         }
         if (live.workspaceMode !== mode) return this.#runTurn(request, steering, continuation);
+        this.#options.requireAccountGrant?.(request.botSlug, live.accountId);
         if (role === 'orchestrator') this.#rememberAccount(request.botSlug, engine, live.account);
         const input = steering?.takeInput(request.input) ?? request.input;
         const stop = new AbortController();
@@ -788,7 +797,7 @@ export class EngineHost {
         'engine-unavailable',
         'This Bot does not run on a Subscription Engine',
       );
-    const selectedAccount = this.store.resolveAccount(engineId, choice.accountId);
+    const selectedAccount = this.#requireAccountGrant(botSlug, engineId, choice.accountId);
     const accountId = selectedAccount.id;
     this.#openingAccounts.set(sessionId, accountId);
     this.#roles.set(sessionId, request.role ?? 'orchestrator');

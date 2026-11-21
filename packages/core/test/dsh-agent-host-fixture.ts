@@ -51,7 +51,7 @@ interface FakeScope {
   tools: ToolDefinition[];
   restrictions: Array<{ allow?: readonly string[]; deny?: readonly string[] }>;
   guards: Array<(execution: { name: string }) => string | undefined>;
-  sections: Array<{ name: string; text: string }>;
+  sections: Array<{ name: string; order: number; text: string }>;
   skillProviders: Array<{ name: string; list(options: { cwd?: string }): Promise<unknown> }>;
   listeners: Map<string, (...args: unknown[]) => unknown>;
 }
@@ -265,9 +265,14 @@ export class FakeAgentHost implements DshAgentHost {
         },
       },
       systemPrompt: {
-        section: (section: { name: string; text: string | ((context: object) => string) }) => {
+        section: (section: {
+          name: string;
+          order: number;
+          text: string | ((context: object) => string);
+        }) => {
           const entry = {
             name: section.name,
+            order: section.order,
             get text() {
               return typeof section.text === 'function' ? section.text({}) : section.text;
             },

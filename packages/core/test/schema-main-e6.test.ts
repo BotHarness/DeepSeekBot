@@ -118,13 +118,22 @@ it('appends account150 after published Team models148 and usage149 while preserv
           table,
           db
             .prepare(
-              `SELECT ${table === 'host_roles' ? 'role_id,name,builtin,permissions_json,models_json' : '*'} FROM ${table} ORDER BY 1`,
+              `SELECT ${table === 'host_roles' ? "role_id,name,builtin,permissions_json,json_remove(models_json, '$.engineAccounts') AS models_json" : '*'} FROM ${table} ORDER BY 1`,
             )
             .all(),
         ]),
       ),
     ),
   ).toEqual(before);
+  expect(
+    current.read((db) =>
+      db
+        .prepare(
+          "SELECT json_extract(models_json, '$.engineAccounts') AS accounts FROM host_roles ORDER BY role_id",
+        )
+        .all(),
+    ),
+  ).toEqual([{ accounts: '[]' }, { accounts: '[]' }]);
   expect(
     current.read(
       (db) =>
