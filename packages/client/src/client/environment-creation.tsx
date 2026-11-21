@@ -7,6 +7,7 @@ import { remoteHosts } from './remote-hosts.js';
 import { memberPage } from './member-page.js';
 import { useThisHost } from './this-host.js';
 import { hostLooks, useHostName } from './host-looks.js';
+import { RemoteAvatar } from './remote-avatar.js';
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import type { HostClient } from '@botharness/host-client/client';
 import {
@@ -294,6 +295,7 @@ function OwnerEnvironmentCreation({
   if (request.kind === 'channel') {
     const client =
       target === undefined || target.id === 'local' ? undefined : remoteHosts().client(target.id);
+    const remote = state.hosts.find((entry) => entry.host.hostId === target?.id);
     const pickerCall =
       target?.id === 'local'
         ? localGroupCall
@@ -309,6 +311,17 @@ function OwnerEnvironmentCreation({
           target && {
             scope: target.id === 'local' ? (local.id ?? 'local') : target.id,
             call: pickerCall,
+            botPortrait:
+              remote &&
+              ((bot) => (
+                <RemoteAvatar
+                  roster={remote.snapshot.roster}
+                  avatars={state.avatars}
+                  target={{ botSlug: bot.id, title: bot.displayName }}
+                  size={28}
+                  t={t}
+                />
+              )),
           }
         }
         targetUnavailable={!online || connectionChanged || !pickerCall}

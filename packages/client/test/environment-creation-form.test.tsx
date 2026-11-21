@@ -348,7 +348,7 @@ it('keeps the offline last Host visible and requires an explicit online choice',
   expect(buttonNamed('创建').disabled).toBe(true);
   expect(document.body.textContent).toContain('此环境离线');
   expect(
-    document.querySelector('input[placeholder="' + zhTranslate('groupMembers.search') + '"]'),
+    document.querySelector('input[placeholder="' + zhTranslate('groupMembers.searchHint') + '"]'),
   ).toBeNull();
   await act(async () => buttonNamed('创建').click());
   expect(fixture.call).not.toHaveBeenCalled();

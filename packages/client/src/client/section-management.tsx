@@ -13,6 +13,7 @@ import {
   groupSelectionNeedsOwner,
   useGroupMemberBatch,
   type PickedGroupMember,
+  type GroupBotPortrait,
 } from './group-member-picker.js';
 import type { ChannelSummary } from './store.js';
 import { ungroupedLabel } from './labels.js';
@@ -295,7 +296,9 @@ export interface CreateChannelModalProps {
   targetUnavailable?: boolean;
   sectionName?: string | undefined;
   t: BotHarnessTranslate;
-  members?: { scope: string; call: BridgeCall } | undefined;
+  members?:
+    | { scope: string; call: BridgeCall; botPortrait?: GroupBotPortrait | undefined }
+    | undefined;
   onCancel: () => void;
   onCreate: (
     name: string,
@@ -451,6 +454,7 @@ export function CreateChannelModal({
         <GroupMemberPicker
           key={scope}
           call={members.call}
+          botPortrait={members.botPortrait}
           t={t}
           selected={selected}
           disabled={creating || submitted || submittedHere}

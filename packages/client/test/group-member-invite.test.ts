@@ -55,13 +55,12 @@ afterEach(async () => {
   vi.useRealTimers();
 });
 
-function check(name: string): HTMLInputElement {
-  const row = [...dialog().querySelectorAll('label')].find(
-    (label) => label.textContent?.startsWith(name) && label.querySelector('input[type=checkbox]'),
+function memberRow(name: string): HTMLButtonElement {
+  const row = [...dialog().querySelectorAll<HTMLButtonElement>('button[aria-pressed]')].find(
+    (button) => button.getAttribute('aria-label')?.startsWith(name + ' · '),
   );
-  const input = row?.querySelector<HTMLInputElement>('input');
-  if (!input) throw new Error('Missing choice ' + name);
-  return input;
+  if (!row) throw new Error('Missing choice ' + name);
+  return row;
 }
 
 async function renderExisting(call: BridgeCall): Promise<void> {
@@ -109,19 +108,19 @@ it('keeps selections across search and retries failed targets after a mixed resu
     return ok(choices);
   };
   await openExisting(call);
-  expect(check('Bob Bot').disabled).toBe(true);
-  const bob = check('Bob');
+  expect(memberRow('Bob Bot').disabled).toBe(true);
+  const bob = memberRow('Bob');
   await act(async () => {
     bob.focus();
     bob.click();
   });
   expect(document.activeElement).toBe(bob);
-  expect(check('Bob Bot').disabled).toBe(false);
-  await act(async () => check('Bob Bot').click());
+  expect(memberRow('Bob Bot').disabled).toBe(false);
+  await act(async () => memberRow('Bob Bot').click());
   await typeInto(fieldNamed(t('groupMembers.search')), 'Eve');
   await act(async () => void vi.advanceTimersByTime(250));
-  expect(check('Bob Bot').checked).toBe(true);
-  await act(async () => check('Eve').click());
+  expect(memberRow('Bob Bot').getAttribute('aria-pressed')).toBe('true');
+  await act(async () => memberRow('Eve').click());
   expect(dialog().textContent).toContain(t('groupMembers.history'));
   await submit();
 
@@ -134,6 +133,48 @@ it('keeps selections across search and retries failed targets after a mixed resu
     targets: [{ kind: 'bot', id: 'eve', operationKey: expect.any(String) }],
   });
   expect(dialog().textContent).toContain('Eve · ' + t('groupMembers.joined'));
+});
+
+it('mixes avatar rows and filters by type, name, or handle while keeping selected rows', async () => {
+  const onePhoto = 'data:image/png;base64,AA==';
+  const people = [
+    { id: 'bob', displayName: 'Bob', username: 'bob' },
+    { id: 'zoe', displayName: 'Zoe' },
+  ];
+  const call: BridgeCall = async (method, input) => {
+    if (method === 'humanAvatars')
+      return ok({ avatars: [{ humanId: 'bob', version: 'a'.repeat(16), avatar: onePhoto }] });
+    if (input.query === 'Eve') return ok({ ...choices, people: [], bots: choices.bots.slice(1) });
+    if (input.query === 'bob')
+      return ok({ ...choices, people: people.slice(0, 1), bots: choices.bots.slice(0, 1) });
+    return ok({ ...choices, people });
+  };
+  await openExisting(call);
+  const rows = () => [...dialog().querySelectorAll('button[aria-pressed]')];
+  expect(rows().map((row) => row.getAttribute('aria-label')?.split(' · ')[0])).toEqual([
+    'Bob',
+    'Bob Bot',
+    'Eve',
+    'Zoe',
+  ]);
+  expect(dialog().querySelector('input[type="checkbox"]')).toBeNull();
+  expect(memberRow('Bob').querySelector('img')?.getAttribute('src')).toBe(onePhoto);
+  expect(memberRow('Eve').querySelector('[data-media="seeded"]')).not.toBeNull();
+  expect(memberRow('Bob').getAttribute('aria-label')).toContain(t('groupMembers.typeHuman'));
+  expect(memberRow('Eve').getAttribute('aria-label')).toContain(t('groupMembers.typeBot'));
+
+  await act(async () => memberRow('Bob').click());
+  const search = fieldNamed(t('groupMembers.search'));
+  await typeInto(search, 'Bot: Eve');
+  await act(async () => void vi.advanceTimersByTime(250));
+  expect(rows()).toEqual([memberRow('Bob'), memberRow('Eve')]);
+  expect(memberRow('Bob').getAttribute('aria-pressed')).toBe('true');
+  await act(async () => memberRow('Bob').click());
+  expect(rows()).toEqual([memberRow('Eve')]);
+
+  await typeInto(search, '@bob');
+  await act(async () => void vi.advanceTimersByTime(250));
+  expect(rows()).toEqual([memberRow('Bob'), memberRow('Bob Bot')]);
 });
 
 it('keeps the same creation and invitation keys after ambiguous responses', async () => {
@@ -161,7 +202,7 @@ it('keeps the same creation and invitation keys after ambiguous responses', asyn
     ),
   );
   await typeInto(fieldNamed(t('channel.name.label')), 'QA');
-  await act(async () => check('Eve').click());
+  await act(async () => memberRow('Eve').click());
   await submit();
   expect(add).not.toHaveBeenCalled();
   await submit();
@@ -200,19 +241,19 @@ it('keeps search Enter in the picker and blocks an orphaned Bot until its Human 
   await openExisting(async (method, args) =>
     method === 'channelGroupMembersAdd' ? add(method, args) : ok(choices),
   );
-  await act(async () => check('Bob').click());
-  await act(async () => check('Bob Bot').click());
+  await act(async () => memberRow('Bob').click());
+  await act(async () => memberRow('Bob Bot').click());
   const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
   await act(async () => void fieldNamed(t('groupMembers.search')).dispatchEvent(enter));
   expect(enter.defaultPrevented).toBe(true);
   expect(add).not.toHaveBeenCalled();
 
-  await act(async () => check('Bob').click());
-  expect(check('Bob Bot').checked).toBe(true);
+  await act(async () => memberRow('Bob').click());
+  expect(memberRow('Bob Bot').getAttribute('aria-pressed')).toBe('true');
   expect(buttonNamed(t('groupMembers.submit'), dialog()).disabled).toBe(true);
   await submit();
   expect(add).not.toHaveBeenCalled();
-  await act(async () => check('Bob').click());
+  await act(async () => memberRow('Bob').click());
   await submit();
   expect(add).toHaveBeenCalledTimes(1);
 });
@@ -266,10 +307,10 @@ it('clears the Host-scoped selection when the creation target changes', async ()
     );
   await render('local');
   await typeInto(fieldNamed(t('channel.name.label')), 'QA');
-  await act(async () => check('Eve').click());
+  await act(async () => memberRow('Eve').click());
   await render('other');
   await render('local');
-  expect(check('Eve').checked).toBe(false);
+  expect(memberRow('Eve').getAttribute('aria-pressed')).toBe('false');
   expect(fieldNamed(t('channel.name.label')).value).toBe('QA');
   await submit();
   expect(create).toHaveBeenCalledTimes(1);
