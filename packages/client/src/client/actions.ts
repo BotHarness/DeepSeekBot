@@ -1,6 +1,8 @@
 import type {
   MarketplaceAvatar,
   MarketplaceAvatarPage,
+  MarketplaceAvatarQuery,
+  MarketplaceAvatarTag,
   MarketplaceAvatarApplyCandidate,
   MarketplaceAvatarPublish,
 } from '@botharness/host-protocol/marketplace-avatar';
@@ -342,7 +344,8 @@ export interface BridgeActions
   marketplaceSections(lang?: MarketplaceLanguage): Promise<MarketplaceSection[]>;
   marketplaceDigests(lang?: MarketplaceLanguage): Promise<MarketplaceDigestSummary[]>;
   marketplaceDigest(day?: string, lang?: MarketplaceLanguage): Promise<MarketplaceDigest>;
-  marketplaceAvatarList(cursor?: string): Promise<MarketplaceAvatarPage>;
+  marketplaceAvatarList(query?: MarketplaceAvatarQuery): Promise<MarketplaceAvatarPage>;
+  marketplaceAvatarTags(): Promise<MarketplaceAvatarTag[]>;
   marketplaceAvatarApplyCandidates(): Promise<{ bots: MarketplaceAvatarApplyCandidate[] }>;
   marketplaceAvatarApply(id: string, bot: string): Promise<{ applied: true }>;
   marketplaceAvatarReport(id: string, altcha: string, reason?: string): Promise<void>;
@@ -793,6 +796,7 @@ export function createActions(
     marketplaceDigests: marketplaceActions.marketplaceDigests,
     marketplaceDigest: marketplaceActions.marketplaceDigest,
     marketplaceAvatarList: marketplaceActions.marketplaceAvatarList,
+    marketplaceAvatarTags: marketplaceActions.marketplaceAvatarTags,
     marketplaceAvatarApplyCandidates: marketplaceActions.marketplaceAvatarApplyCandidates,
     marketplaceAvatarApply: marketplaceActions.marketplaceAvatarApply,
     marketplaceAvatarReport: marketplaceActions.marketplaceAvatarReport,

@@ -1,4 +1,4 @@
-import { AVATAR_ROUTE } from './avatars.js';
+import { AVATAR_ROUTE, AVATAR_TAGS_PATH } from './avatars.js';
 
 export const PUBLIC_ORIGINS: readonly string[] = [
   'https://tobs.app',
@@ -18,6 +18,7 @@ export function isPublicRead(pathname: string): boolean {
   return (
     pathname === '/v1/bots' ||
     AVATAR_ROUTE.test(pathname) ||
+    pathname === AVATAR_TAGS_PATH ||
     pathname === '/v1/topics' ||
     /^\/v1\/sections\/[^/]+$/u.test(pathname) ||
     pathname === '/v1/digests' ||

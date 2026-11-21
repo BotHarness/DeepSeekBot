@@ -23,6 +23,7 @@ export const MODEL_CONFIGURATION_METHODS: ReadonlySet<string> = new Set([
 
 export const MEMBER_GLOBAL_METHODS = [
   'marketplaceAvatarList',
+  'marketplaceAvatarTags',
   'marketplaceAvatarDetail',
   'marketplaceAvatarReport',
   'marketplaceChallenge',

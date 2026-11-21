@@ -1,17 +1,8 @@
 import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
-import { Input } from './ds/input.js';
-import { SegmentedControl } from './ds/segmented.js';
+import { MarketplaceBotSort, MarketplaceSearchField } from './marketplace-browse-controls.js';
 import { ReadFailure } from './ds/read-failure.js';
-import {
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type ReactElement,
-  type ReactNode,
-  type Ref,
-} from 'react';
+import { useMemo, useRef, useState, type ReactElement, type ReactNode, type Ref } from 'react';
 
 import { MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives';
 
@@ -38,7 +29,6 @@ import type { BotHarnessTranslate } from './locale.js';
 import { Note } from './ds/note.js';
 import { Tooltip } from './ds/tooltip.js';
 import { CommunityIcon } from './community-icons.js';
-import { Select } from './ds/select.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { MarketplaceFileReader, MarketplaceFileTree } from './market-files.js';
 import { MarketplaceSkills } from './bot-skills-card.js';
@@ -63,7 +53,6 @@ import {
 } from './marketplace-report.js';
 import { MarketplaceListStatus, MarketplaceLoadMore } from './marketplace-list-status.js';
 import {
-  committedEnter,
   MarketplaceSubmitField,
   useMarketplaceSubmission,
   type MarketplaceSubmit,
@@ -105,7 +94,47 @@ export async function proveHuman(actions: MarketplaceChallengeActions): Promise<
 }
 
 const VISIBLE_TOPICS = 12;
-const MAX_QUERY_LENGTH = 100;
+
+export function MarketplaceTopicChips({
+  topics,
+  selected,
+  onChoose,
+  label,
+  t,
+}: {
+  topics: readonly MarketplaceTopic[];
+  selected: string | undefined;
+  onChoose: (topic: string | undefined) => void;
+  label: string;
+  t: BotHarnessTranslate;
+}): ReactElement | null {
+  if (topics.length === 0) return null;
+  return (
+    <div className="bh-market-topics" role="group" aria-label={label}>
+      <button
+        type="button"
+        className="bh-market-topic"
+        aria-pressed={selected === undefined}
+        onClick={() => onChoose(undefined)}
+      >
+        {t('market.topics.all')}
+      </button>
+      {topics.slice(0, VISIBLE_TOPICS).map(({ topic, count }) => (
+        <button
+          key={topic}
+          type="button"
+          className="bh-market-topic"
+          data-market-topic={topic}
+          aria-pressed={selected === topic}
+          onClick={() => onChoose(selected === topic ? undefined : topic)}
+        >
+          {topic}
+          <span className="bh-market-topic-count">{count}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export interface Filters {
   sort: MarketplaceSort;
@@ -480,7 +509,7 @@ export function useMarketplaceBrowse(
   const mount = useMountedResource<HTMLDivElement>(() => {
     load();
     void actions.marketplaceTopics().then(
-      (loaded) => setTopics(loaded.slice(0, VISIBLE_TOPICS)),
+      (loaded) => setTopics(loaded),
       () => setTopics([]),
     );
     return () => {
@@ -556,81 +585,35 @@ export function MarketplaceBrowseControls({
   t: BotHarnessTranslate;
   action?: ReactNode;
 }): ReactElement {
-  const sortId = useId();
   const { filters, topics } = browse;
-  const sortOptions = [
-    { value: 'created' as const, label: t('market.sort.created') },
-    { value: 'updated' as const, label: t('market.sort.updated') },
-    { value: 'stars' as const, label: t('market.sort.stars') },
-  ];
   return (
     <>
       <div className="bh-market-browse">
-        <Input
-          type="search"
-          aria-label={t('market.search.label')}
+        <MarketplaceSearchField
+          label={t('market.search.label')}
           placeholder={t('market.search.placeholder')}
-          autoComplete="off"
-          enterKeyHint="search"
-          maxLength={MAX_QUERY_LENGTH}
           value={browse.searchText}
-          onChange={(event) => browse.setSearchText(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (!committedEnter(event)) return;
-            event.preventDefault();
-            browse.search();
-          }}
+          onChange={browse.setSearchText}
+          onSearch={browse.search}
         />
         {action}
-        <div className="bh-market-sort">
-          <SegmentedControl
-            id={sortId}
-            label={t('market.sort.label')}
-            value={filters.sort}
-            options={sortOptions}
-            disabled={filters.query.length > 0}
-            onChange={browse.chooseSort}
-          />
-          <span className="bh-market-sort-menu">
-            <Select
-              label={t('market.sort.label')}
-              value={filters.sort}
-              options={sortOptions}
-              disabled={filters.query.length > 0}
-              align="start"
-              onChange={browse.chooseSort}
-            />
-          </span>
-        </div>
+        <MarketplaceBotSort
+          value={filters.sort}
+          disabled={filters.query.length > 0}
+          onChange={browse.chooseSort}
+          t={t}
+        />
       </div>
       {filters.query.length > 0 ? (
         <span className="bh-market-hint">{t('market.search.relevance')}</span>
       ) : null}
-      {topics.length === 0 ? null : (
-        <div className="bh-market-topics" role="group" aria-label={t('market.topics.label')}>
-          <button
-            type="button"
-            className="bh-market-topic"
-            aria-pressed={filters.topic === undefined}
-            onClick={() => browse.chooseTopic(undefined)}
-          >
-            {t('market.topics.all')}
-          </button>
-          {topics.map(({ topic, count }) => (
-            <button
-              key={topic}
-              type="button"
-              className="bh-market-topic"
-              data-market-topic={topic}
-              aria-pressed={filters.topic === topic}
-              onClick={() => browse.chooseTopic(filters.topic === topic ? undefined : topic)}
-            >
-              {topic}
-              <span className="bh-market-topic-count">{count}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      <MarketplaceTopicChips
+        topics={topics}
+        selected={filters.topic}
+        onChoose={browse.chooseTopic}
+        label={t('market.topics.label')}
+        t={t}
+      />
     </>
   );
 }

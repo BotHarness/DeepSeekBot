@@ -1287,7 +1287,8 @@ deepseekbot marketplace-report <owner/repo> [--reason <说明>]
 deepseekbot marketplace-account
 deepseekbot marketplace-author --name <显示名> [--accept-terms]
 deepseekbot marketplace-author-avatar (--file <图片> | --clear)
-deepseekbot marketplace-avatar-list [--cursor <游标>]
+deepseekbot marketplace-avatar-list [--query <关键词>] [--tag <标签>] [--cursor <游标>]
+deepseekbot marketplace-avatar-tags
 deepseekbot marketplace-avatar-detail <条目 ID>
 deepseekbot marketplace-avatar-report <条目 ID> [--reason <说明>]
 deepseekbot marketplace-avatar-apply <条目 ID> --bot <Bot> [--operation-key <请求键>]
@@ -1337,7 +1338,9 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 
 **上传的 Bot**（[ADR-0267](decisions/marketplace.md#adr-0267)）和 GitHub 仓库在同一个目录里。`marketplace-list --include-uploads` 会把它们加进来；每个条目带 `source`（`github` 或 `upload`），上传的条目还带 `author`（`name`、区分同名作者且永不改变的作者 `id`，以及头像图片地址 `avatar` 或 `null`）。上传的 Bot 的 `marketplace-detail` 还返回 `files`（`path`、`size`、`kind`：`text`、`script` 或 `image`）和 `fileSummary`：`count`、`size` 和 `types`，即每种类型（`markdown`、`text`、`data`、`script`、`image`）的文件数和字节数，按大小从大到小。`marketplace-file <listing-id> <path>` 以 `file`（`path`、`size`、`type`、`text`）读取一个文本文件：Markdown 像 README 一样经过整理和清洗，相对链接指向这个 Bot 的文件；脚本和其他文本原样返回，从不当作 Markdown 整理。图片被拒绝，错误码 `file-not-text`；不在列表里的路径返回 `file-not-found`。上传要求这个 Host 已登录 Tobs Connect（设置 → 设备）；`marketplace-account` 返回 `signedIn` 和 `author`，即已登录账户的**账户资料**（`name`、`id`、`avatar`、`termsAcceptedAt`），在 `marketplace-author --name <名称>` 创建资料之前为 `null`；之后再调用会改名，它的条目也随之更新。第一次上传还需要用 `--accept-terms` 接受一次条款（之前返回 `author-required`）。`marketplace-author-avatar --file <图片>` 用不超过 1 MB 的 PNG、JPEG 或 WebP 设置资料头像（`avatar-type-refused`、`avatar-too-large`），头像公开提供，并显示在作者的条目上；`--clear` 移除头像。`marketplace-upload-plan` 列出上传会包含的文件和跳过的文件（二进制和压缩包为 `file-type-refused`，超过 5 MB 为 `file-too-large`）。`marketplace-upload` 用给定的名称、简介和标签发布 Bot 已就绪的分享草稿（不含 Git 历史），必须带 `--confirm`：文件会公开。Bot 在自己的 Shell 里运行它时总会弹出给人类的批准卡片，即使开了完全访问。拒绝带错误码：`sign-in-required`、`author-required`、`too-many-files`（超过 2,000 个）、`too-large`（超过 50 MB）、`bot-limit`（每个账号 20 个）、`nothing-to-upload`、`share-draft-required`（还没有草稿）、`share-draft-not-ready`（还有文件没有结论）。`marketplace-install` 对两种条目都分两步。先运行 `marketplace-install <listing-id>`：暂存文件（上传的 Bot 的文件，或按目录索引到的提交克隆的 GitHub 仓库，没有索引提交时返回 `listing-not-installable`），由 Tob 用 Tob 的模型检查，输出 `reviewId`、`review` 和 `installed: false`，不会创建任何东西。`review.status` 为 `reviewed` 时带 `findings`（`kind`：`prompt-injection`、`exfiltration` 或 `script`，`path`，可选的 `note`）、`files`、`read`，有文本太长没读完时 `partial` 为 true；Tob 没能检查时为 `unavailable`，带 `reason`（`no-model`、`model-unavailable`、`llm-unavailable`、`timeout`、`model-error`、`unparseable`）。脚本文件无论如何都会列出。`--lang` 决定说明的语言。然后运行 `marketplace-install <listing-id> --review <review-id> --confirm`，把刚才暂存的这些文件（或这个提交）安装成全新的 Bot，用条目的名称、简介和标签，只有一次初始提交，返回新的 `bot`、它的 `channelId`、`listing` 和 `installed: true`。检查结果保留 30 分钟（过期为 `review-expired`，换了条目为 `review-mismatch`）；用同一个 `--operation-key` 重试会返回那个 Bot，不会装两次。Bot 建好之后，Host 发送一次**安装回执**，用一个只给市场用的随机 Host 标识（Host 数据目录里的 `marketplace-host.json`，从不使用遥测安装 ID）；每个 Host 对每个条目只计一次，安装失败不发送；`marketplace-list` 和 `marketplace-detail` 的每个条目都带 `installs`。
 
-任何人都可以浏览市场头像。用 `marketplace-avatar-list` 返回的 `nextCursor` 读取下一页。只有 Host 所有者可以用已登录并接受上传条款的 Connect 账户发布。`--file` 和 `--from-bot` 二选一。图片必须是 256–512 像素见方、不超过 128 KiB、无元数据的静态 PNG、JPEG 或 WebP。`--from-bot` 读取此 Host 上任意 Bot 保存的头像图片，包括 Avatar Appearance 的静态 PNG。只有 Blobatar 的 Bot 会返回 `no-stored-avatar`。如果返回 `unprocessed-image`，请在 Web 客户端裁剪并发布。重试发布时请沿用同一个 `--operation-key`。
+任何人都可以浏览市场头像。用 `--query` 搜索名称、简介和标签，或用 `--tag` 按完整标签筛选，忽略大小写。`marketplace-avatar-tags` 列出标签和各自的公开头像数量。读取下一页时保留原有的搜索和筛选条件，并把返回的 `nextCursor` 传给 `--cursor`。
+
+只有 Host 所有者可以用已登录并接受上传条款的 Connect 账户发布。`--file` 和 `--from-bot` 二选一。图片必须是 256–512 像素见方、不超过 128 KiB、无元数据的静态 PNG、JPEG 或 WebP。`--from-bot` 读取此 Host 上任意 Bot 保存的头像图片，包括 Avatar Appearance 的静态 PNG。只有 Blobatar 的 Bot 会返回 `no-stored-avatar`。如果返回 `unprocessed-image`，请在 Web 客户端裁剪并发布。重试发布时请沿用同一个 `--operation-key`。
 
 列出当前 Host 上有权更换头像的 Bot，再用 `marketplace-avatar-apply <条目 ID> --bot <Bot>` 应用。Host 会保存图片副本。使用同一个 `--operation-key` 可重试当前 Host 进程最近处理的应用。
 

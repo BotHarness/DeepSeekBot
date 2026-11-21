@@ -100,6 +100,7 @@ export const HOST_ADMIN_OPTIONS = {
   bot: { type: 'string' },
   'avatar-tag': { type: 'string', multiple: true },
   'from-bot': { type: 'string' },
+  tag: { type: 'string' },
   force: { type: 'boolean' },
   action: { type: 'string' },
   query: { type: 'string' },
