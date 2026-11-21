@@ -384,6 +384,7 @@ export class CodexEngineSession implements EngineSession {
       }).then((response) => text(record(record(response)['turn'])['id']));
       turnId = (await active.started) || undefined;
       acknowledged = true;
+      if (turnId !== undefined) options.onInputAccepted?.();
       if (active.stopping === true) interrupt();
       return await ended;
     } catch (error) {
@@ -402,12 +403,12 @@ export class CodexEngineSession implements EngineSession {
     if (expectedTurnId === '' || this.#turn !== turn || turn.options.signal?.aborted === true)
       return false;
     try {
-      await this.#request('turn/steer', {
+      const response = await this.#request('turn/steer', {
         threadId: this.#threadId,
         expectedTurnId,
         input: [{ type: 'text', text: input, text_elements: [] }],
       });
-      return true;
+      return text(record(response)['turnId']) === expectedTurnId;
     } catch (error) {
       if (error instanceof CodexRequestRefused) return false;
       throw error;

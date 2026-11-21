@@ -7,7 +7,14 @@ import { attachOperationalModule } from '../src/database/owner.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { ClaudeRecordedLine } from './fixtures/claude-replay.js';
 import { readCodexRecording } from './fixtures/codex-replay.js';
-import { CLAUDE, CLAUDE_REPLY, CODEX, setup, START } from './fixtures/routing-group-engine.js';
+import {
+  CLAUDE,
+  CLAUDE_REPLY,
+  CODEX,
+  LIMIT,
+  setup,
+  START,
+} from './fixtures/routing-group-engine.js';
 
 const OWNER = OWNER_HUMAN_CONTEXT;
 const CODEX_DM = readCodexRecording(join(import.meta.dirname, 'fixtures/codex-dm-turn.jsonl'));
@@ -41,8 +48,8 @@ function claudeReply(id: string, input: Record<string, unknown>): ClaudeRecorded
   };
 }
 
-function codexEnd(id: string) {
-  return { method: 'turn/completed', params: { turn: { id, status: 'completed' } } };
+function codexEnd(id: string, status: 'completed' | 'failed' = 'completed') {
+  return { method: 'turn/completed', params: { turn: { id, status } } };
 }
 
 function sources(fixture: ReturnType<typeof setup>, messageId: string) {
@@ -74,7 +81,9 @@ async function groupMessage(
 function botReplies(fixture: ReturnType<typeof setup>, channelId: string) {
   return fixture.core.channels
     .readMessages(channelId)
-    .filter((message) => message.author.kind === 'bot' && message.body !== '')
+    .filter(
+      (message) => message.author.kind === 'bot' && message.body !== '' && !message.sessionFailure,
+    )
     .map((message) => message.body);
 }
 
@@ -154,21 +163,39 @@ describe('Orchestrator steering through the engine and Channel', () => {
     }
   });
 
-  it('queues a refused Codex steer behind the unmodified active turn', async () => {
+  it.each([
+    { status: 'completed', steering: 'declines', description: 'answers' },
+    { status: 'failed', steering: 'declines', description: 'can Continue' },
+    { status: 'completed', steering: 'acknowledges a different turn', description: 'answers' },
+  ] as const)('$description a queued DM when Codex $steering', async ({ status, steering }) => {
     const channel_id = dmChannelId('ada');
     const fixture = setup({
       members: [CODEX],
       codexRecording: [
         ...CODEX_DM.slice(0, 11),
         { dir: 'out', msg: { id: 5, method: 'turn/steer' } },
-        { dir: 'in', msg: { id: 5, error: { code: -32601, message: 'Method not found' } } },
+        {
+          dir: 'in',
+          msg:
+            steering === 'declines'
+              ? { id: 5, error: { code: -32601, message: 'Method not found' } }
+              : { id: 5, result: { turnId: 'other-turn' } },
+        },
         { dir: 'in', msg: codexReply('first', { channel_id, body: 'First answer' }) },
         { dir: 'in', msg: codexEnd(FIRST_TURN_ID) },
         ...CODEX_DM.slice(3, 5),
         { dir: 'out', msg: { id: 7, method: 'turn/start' } },
         { dir: 'in', msg: { id: 7, result: { turn: { id: 'next' } } } },
+        ...(status === 'failed'
+          ? ([
+              { dir: 'in', msg: codexEnd('next', status) },
+              ...CODEX_DM.slice(3, 5),
+              { dir: 'out', msg: { id: 9, method: 'turn/start' } },
+              { dir: 'in', msg: { id: 9, result: { turn: { id: 'continued' } } } },
+            ] as const)
+          : []),
         { dir: 'in', msg: codexReply('next', { channel_id, body: 'Second answer' }) },
-        { dir: 'in', msg: codexEnd('next') },
+        { dir: 'in', msg: codexEnd(status === 'failed' ? 'continued' : 'next') },
       ],
     });
     const first = fixture.message('first', 'First task');
@@ -187,11 +214,78 @@ describe('Orchestrator steering through the engine and Channel', () => {
       expect(turns[1]?.['params']).toMatchObject({
         input: [expect.objectContaining({ text: expect.stringContaining('Next task') })],
       });
+      if (status === 'failed') {
+        const failure = fixture
+          .channelMessages()
+          .find((message) => message.sessionFailure?.requestMessageId === 'next');
+        if (failure === undefined) throw new Error('Expected a failure card for the queued DM');
+        await fixture.core.runtime.recoverDmMessage!({
+          channelId: channel_id,
+          failureMessageId: failure.id,
+          action: 'continue',
+          compact: async () => false,
+        });
+        await fixture.idle();
+        expect(replay.mismatches).toEqual([]);
+      }
       expect(botReplies(fixture, channel_id).sort()).toEqual(['First answer', 'Second answer']);
     } finally {
       await fixture.host.release(fixture.sessionId());
     }
   });
+
+  it.each(['Claude', 'DSH'] as const)(
+    'refuses a duplicate reply to a steered DM after switching from Codex to %s',
+    async (fallback) => {
+      const firstReply = { source_event_id: '', body: 'DM answer from Codex' };
+      const duplicate = () => ({
+        source_event_id: firstReply.source_event_id,
+        body: 'Duplicate DM answer',
+      });
+      const claudeArgs = duplicate();
+      const quota = LIMIT.findIndex((line) => line.msg['method'] === 'account/rateLimits/updated');
+      const fixture = setup({
+        members: fallback === 'Claude' ? [CODEX, CLAUDE] : [CODEX],
+        codexRecording: [
+          ...CODEX_DM.slice(0, 11),
+          { dir: 'out', msg: { id: 5, method: 'turn/steer' } },
+          { dir: 'in', msg: { id: 5, result: { turnId: FIRST_TURN_ID } } },
+          { dir: 'in', msg: codexReply('dm', firstReply) },
+          ...LIMIT.slice(quota),
+        ],
+        claudeRecording: [
+          ...CLAUDE_REPLY.slice(0, -1),
+          claudeReply('duplicate', claudeArgs),
+          CLAUDE_REPLY.at(-1)!,
+        ],
+        nativeReply: duplicate,
+      });
+      const group = fixture.core.channels.createGroup(OWNER, { name: 'Group', members: ['ada'] });
+      try {
+        await groupMessage(fixture, group.id, 'initial', 'Initial Group request');
+        await vi.waitFor(
+          () => expect(fixture.codex[0]?.sent.at(-1)?.['method']).toBe('turn/start'),
+          COLD_SESSION_STARTUP,
+        );
+        await fixture.message('steered-dm', 'Independent DM request', () => {
+          const id = sources(fixture, 'steered-dm');
+          if (typeof id !== 'string') throw new Error('DM Source Event is not ready');
+          firstReply.source_event_id = id;
+          claudeArgs.source_event_id = id;
+        });
+        expect(fixture.codex[0]?.mismatches).toEqual([]);
+        expect(fixture.codex[0]?.gatewayCalls[0]?.result).toMatchObject({ isError: false });
+        const result =
+          fallback === 'Claude'
+            ? fixture.claude.gatewayCalls[0]?.result
+            : fixture.replies.mock.calls[0]?.[0];
+        expect(botReplies(fixture, dmChannelId('ada'))).toEqual([firstReply.body]);
+        expect(result).toMatchObject({ isError: true });
+      } finally {
+        await fixture.host.release(fixture.sessionId());
+      }
+    },
+  );
 
   it('continues a Claude Orchestrator in the same Session and refuses to repeat a committed reply', async () => {
     const start = CLAUDE_REPLY.slice(0, -1);

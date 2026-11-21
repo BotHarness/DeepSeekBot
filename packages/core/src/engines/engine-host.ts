@@ -510,6 +510,9 @@ export class EngineHost {
           const sending = live.engine.send(input, {
             signal,
             verbatimInput: continuation,
+            onInputAccepted: () => {
+              for (const update of prepared.updates) update.settle?.(true);
+            },
             onEvent: (event) => {
               observeTarget();
               log.accept(event);
@@ -523,7 +526,6 @@ export class EngineHost {
               }
             },
           });
-          for (const update of prepared.updates) update.settle?.(true);
           const steered = await steering.duringTurn({
             sending,
             engine: live.engine,

@@ -2939,7 +2939,8 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   admitExternalSource(botSlug: string, sourceEventId: string): void {
-    if (this.#closed || !this.#externalMessaging?.inbound.available(botSlug, sourceEventId)) return;
+    const inbound = this.#externalMessaging?.inbound;
+    if (this.#closed || !inbound?.available(botSlug, sourceEventId)) return;
     const row = this.#database.read((db) =>
       db
         .prepare(
@@ -2957,10 +2958,7 @@ class BotRuntimeImplementation implements BotRuntime {
         }
       | undefined;
     if (row?.reason === 'human-dm' || row?.reason === 'group-mention') this.#release(botSlug);
-    if (
-      row?.reason === 'group-ordinary' &&
-      this.#externalMessaging.inbound.read(botSlug, sourceEventId).receptionPaths
-    ) {
+    if (row?.reason === 'group-ordinary' && inbound.read(botSlug, sourceEventId).receptionPaths) {
       this.#checkHarvestReadiness(botSlug);
       return;
     }
@@ -2977,7 +2975,7 @@ class BotRuntimeImplementation implements BotRuntime {
       active &&
       this.#agents.steerOrchestrator
     ) {
-      const source = this.#externalMessaging.inbound.read(botSlug, sourceEventId);
+      const source = inbound.read(botSlug, sourceEventId);
       const unit: InboxUnit = {
         sourceEventId,
         sourceKind: 'bridge-message',
@@ -2995,10 +2993,10 @@ class BotRuntimeImplementation implements BotRuntime {
       for (const candidate of this.#pendingExternalRows(botSlug, true)) {
         if (
           candidate.source_event_id === sourceEventId ||
-          !this.#externalMessaging.inbound.available(botSlug, candidate.source_event_id, true)
+          !inbound.available(botSlug, candidate.source_event_id, true)
         )
           continue;
-        const context = this.#externalMessaging.inbound.read(botSlug, candidate.source_event_id);
+        const context = inbound.read(botSlug, candidate.source_event_id);
         const next: InboxUnit = {
           ...unit,
           sourceEventId: candidate.source_event_id,
@@ -3036,6 +3034,10 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#markAdmissionsSideEffect(botSlug, sourceIds, false);
       const turn = this.#turnSources.get(botSlug);
       const requireAccess = () => {
+        for (const id of included) {
+          if (!inbound.available(botSlug, id, id !== sourceEventId))
+            throw new Error('source-unavailable');
+        }
         this.#requireTurnAccess(botSlug, sourceIds);
         this.#database.read((db) => {
           for (const id of sourceIds) requireSourceEffects(db, id, botSlug);
@@ -4923,6 +4925,7 @@ class BotRuntimeImplementation implements BotRuntime {
     botSlug: string,
     channelId: string,
     messageId: string,
+    claimPending = false,
   ): void {
     const changed = this.#database.transaction(
       (database) =>
@@ -4930,11 +4933,13 @@ class BotRuntimeImplementation implements BotRuntime {
           .prepare(
             `
         UPDATE inbox_admissions
-           SET observed_at = COALESCE(observed_at, ?)
-         WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
+           SET observed_at = COALESCE(observed_at, ?), attempt_state = 'running',
+               last_error = CASE WHEN attempt_state = 'running' THEN last_error ELSE NULL END
+         WHERE source_event_id = ? AND bot_slug = ?
+           AND (attempt_state = 'running' OR (? AND attempt_state IN ('pending', 'retryable')))
       `,
           )
-          .run(this.#now().toISOString(), sourceEventId, botSlug).changes > 0,
+          .run(this.#now().toISOString(), sourceEventId, botSlug, Number(claimPending)).changes > 0,
       ['bot-inbox'],
     );
     if (changed) this.#channels.admissionChanged?.(channelId, messageId);
@@ -7063,7 +7068,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#setObserved(collected.eventIds, timestamp, bot.slug);
     try {
       tobCliTurn?.signal.throwIfAborted();
-      this.#observeAdmission(claim.sourceEventId, bot.slug, channelId, messageId);
+      this.#observeAdmission(claim.sourceEventId, bot.slug, channelId, messageId, true);
       await this.#runOnLiveOrchestrator(bot, orchestrator, (session) => {
         orchestrator = session;
         return this.#runOrchestratorTurn(
@@ -7594,6 +7599,7 @@ class BotRuntimeImplementation implements BotRuntime {
     inputRecorded: boolean,
   ): OrchestratorAgentRun {
     const priorReply = this.#routingGroupReplyState(run.bot.slug, run.sessionId, sourceEventId);
+    const priorReplies = run.priorEngineReplies?.();
     const replyInstruction =
       priorReply === 'delivered'
         ? 'The previous target already delivered a reply to this Source Event. Continue any remaining work without answering it again.'
@@ -7609,20 +7615,23 @@ class BotRuntimeImplementation implements BotRuntime {
       message: inputRecorded ? note : `${note}\n\n${run.message}`,
       inbox: inputRecorded ? '' : run.inbox,
     };
-    if (priorReply === undefined) return continuation;
+    if (priorReply === undefined && !priorReplies?.size) return continuation;
 
-    const refuseDuplicate = (): never => {
-      throw new Error(replyInstruction);
+    const requireUnanswered = (id: string | undefined): void => {
+      if (id === undefined) return;
+      if (id === sourceEventId && priorReply !== undefined) throw new Error(replyInstruction);
+      if (priorReplies?.has(id))
+        throw new Error(
+          'A reply to this Source Event is already recorded. Check its delivery receipt.',
+        );
     };
     const channelId = run.inboundChannelId;
     continuation.channels = {
       ...run.channels,
       send: (input) => {
-        if (
-          (input.replySourceEventId ?? sourceEventId) === sourceEventId &&
-          (input.channelId ?? channelId) === channelId
-        )
-          refuseDuplicate();
+        const implicitSource =
+          (input.channelId ?? channelId) === channelId ? sourceEventId : undefined;
+        requireUnanswered(input.replySourceEventId ?? implicitSource);
         return run.channels.send(input);
       },
     };
@@ -7630,10 +7639,14 @@ class BotRuntimeImplementation implements BotRuntime {
     if (external !== undefined)
       continuation.externalMessaging = {
         ...external,
-        reply: (id, text, key) =>
-          id === sourceEventId ? refuseDuplicate() : external.reply(id, text, key),
-        replyFile: (id, file, key) =>
-          id === sourceEventId ? refuseDuplicate() : external.replyFile(id, file, key),
+        reply: (id, text, key) => {
+          requireUnanswered(id);
+          return external.reply(id, text, key);
+        },
+        replyFile: (id, file, key) => {
+          requireUnanswered(id);
+          return external.replyFile(id, file, key);
+        },
       };
     return continuation;
   }

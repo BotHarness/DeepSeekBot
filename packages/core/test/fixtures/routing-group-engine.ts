@@ -239,7 +239,7 @@ export function setup(options: {
   codexRecording?: typeof LIMIT;
   claudeRecording?: typeof CLAUDE_REPLY;
   idleMs?: number;
-  nativeReply?: string;
+  nativeReply?: string | (() => Record<string, unknown>);
   beforeEngineLimit?(engine: string, clock: { now: number }): void;
   inherited?: boolean;
   namedEngine?: 'codex' | 'claude';
@@ -272,7 +272,10 @@ export function setup(options: {
         await executeFixtureNativeTool(
           {
             name: 'bot_send_message',
-            arguments: { body: options.nativeReply, channel_id: dmChannelId('ada') },
+            arguments:
+              typeof options.nativeReply === 'function'
+                ? options.nativeReply()
+                : { body: options.nativeReply, channel_id: dmChannelId('ada') },
             callId: ToolCallId('native-reply'),
             signal: new AbortController().signal,
           },
