@@ -398,6 +398,7 @@ export const CLI_EFFECTS = {
   'engine-account-rename': { effects: management, brokerRead: false },
   'engine-account-remove': { effects: destructiveManagement, brokerRead: false },
   'engine-login': { effects: externalManagement, brokerRead: false },
+  'engine-login-cancel': { effects: externalManagement, brokerRead: false },
   'engine-models': { effects: read, brokerRead: true },
   'engine-status': { effects: read, brokerRead: true },
   'engine-tool': { effects: opaque, brokerRead: false },

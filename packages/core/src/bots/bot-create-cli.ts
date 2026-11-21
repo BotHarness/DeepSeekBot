@@ -182,6 +182,7 @@ Usage:
   tobs engine account-remove <account-id> --expected-revision <r> --confirm --host <url>
   tobs engine login <account-id>|codex|claude [--account <id>] --host <url>
   tobs engine login claude [--account <id>] --code-stdin --host <url> < <code-file>
+  tobs engine login-cancel <account-id>|codex|claude --host <url>
   tobs engine models <account-id>|codex|claude --host <url>
   tobs engine use <id> codex|claude|none --role orchestrator|assignment [--account <id>] [--model <id>] [--effort <level>] [--fallback on|off] --host <url>
   tobs pause <id> [--home <dsh-home>]
@@ -2702,6 +2703,7 @@ export async function runBotCreateCli(
           'tools',
           'tool',
           'login',
+          'login-cancel',
           'models',
           'use',
         ].includes(action)
@@ -2710,7 +2712,7 @@ export async function runBotCreateCli(
         rest = targets;
       } else if (values.help !== true)
         throw usageError(
-          'engine needs list, status, accounts, account-add, account-rename, account-remove, approvals, tools, tool, login, models or use.',
+          'engine needs list, status, accounts, account-add, account-rename, account-remove, approvals, tools, tool, login, login-cancel, models or use.',
         );
     } else if (command === 'activity' && rest[0] === 'list') rest = rest.slice(1);
     if (values.administration && command !== 'list') throw usageError('invalid-input');
