@@ -608,7 +608,10 @@ it('opens Avatars from Bots on the same paired Host and hides owner controls fro
 
 it('offers the full built-in Bot Avatar galleries and saves a preset without Photos', async () => {
   const pick = vi.fn(async () => undefined);
-  const save = vi.fn(async () => undefined);
+  const save = vi
+    .fn<(_image: string | null) => Promise<void>>()
+    .mockRejectedValueOnce(new Error('unlocalized backend error'))
+    .mockResolvedValue(undefined);
   const saveRecipe = vi.fn(async () => undefined);
   const onClose = vi.fn();
   const onMarketplace = vi.fn();
@@ -636,13 +639,19 @@ it('offers the full built-in Bot Avatar galleries and saves a preset without Pho
       .click(),
   );
   expect(save).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/webp;base64,/u));
+  expect(onClose).not.toHaveBeenCalled();
+  expect(element.textContent).toContain(t.avatarEditor.saveFailed);
+  expect(element.textContent).not.toContain('unlocalized backend error');
+  await act(async () => button(t.retry).click());
+  expect(save).toHaveBeenCalledTimes(2);
+  expect(save.mock.calls[0]).toEqual(save.mock.calls[1]);
   expect(onClose).toHaveBeenCalledOnce();
   expect(pick).not.toHaveBeenCalled();
 });
 
 it('confirms and applies a Marketplace Avatar to the originating Bot instead of showing the candidate picker', async () => {
   fixture.avatarsAvailable = true;
-  fixture.params = { id: 'blue', hostId: 'A', targetBot: 'ada' };
+  fixture.params = { hostId: 'A', targetBot: 'ada' };
   const host = avatarHost();
   host.methods.set('marketplaceAvatarApplyCandidates', () => ({
     bots: [
@@ -651,6 +660,15 @@ it('confirms and applies a Marketplace Avatar to the originating Bot instead of 
     ],
   }));
   host.methods.set('marketplaceAvatarApply', () => ({ applied: true }));
+  await act(async () => root.render(<MarketplaceAvatarScreen />));
+  await act(async () =>
+    element.querySelector<HTMLButtonElement>('[data-testid="marketplace-avatar-blue"]')!.click(),
+  );
+  expect(fixture.push).toHaveBeenCalledWith({
+    pathname: '/marketplace-avatar',
+    params: { id: 'blue', hostId: 'A', targetBot: 'ada' },
+  });
+  fixture.params = fixture.push.mock.lastCall?.[0].params;
   await act(async () => root.render(<MarketplaceAvatarDetailScreen />));
   await act(async () => button(t.marketplaceAvatars.apply).click());
   expect(element.textContent).toContain(t.marketplaceAvatars.applyTo('Ada Bot'));
@@ -662,6 +680,15 @@ it('confirms and applies a Marketplace Avatar to the originating Bot instead of 
     id: 'blue',
     bot: 'ada',
   });
+});
+
+it('does not load a scoped Marketplace catalogue without its source Host', async () => {
+  fixture.avatarsAvailable = true;
+  fixture.params = { targetBot: 'ada' };
+  const host = avatarHost();
+  await act(async () => root.render(<MarketplaceAvatarScreen />));
+  expect(host.calls.some(({ method }) => method === 'marketplaceAvatarList')).toBe(false);
+  expect(element.querySelector('[data-testid="marketplace-avatar-grid"]')).toBeNull();
 });
 
 it('shows the Appearance warning before confirming the chosen Bot', async () => {

@@ -46,7 +46,7 @@ export function ProfileHero({
         ...(banner.headers === undefined ? {} : { headers: banner.headers }),
       }}
       recyclingKey={banner.source}
-      contentFit="cover"
+      contentFit="contain"
       cachePolicy="memory-disk"
       style={StyleSheet.absoluteFill}
     />

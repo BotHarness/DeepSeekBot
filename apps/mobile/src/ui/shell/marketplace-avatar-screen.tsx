@@ -30,7 +30,8 @@ export function MarketplaceAvatarScreen() {
   const theme = useDesignTheme();
   const { hostId, targetBot } = useLocalSearchParams<{ hostId?: string; targetBot?: string }>();
   const { client, saved } = useHostSession(hostId);
-  const actions = client && saved ? marketplaceAvatars(client) : undefined;
+  const hasSource = targetBot === undefined || (hostId !== undefined && saved?.hostId === hostId);
+  const actions = hasSource && client && saved ? marketplaceAvatars(client) : undefined;
   const [searching, setSearching] = useState(false);
   const [search, setSearch] = useState('');
   const [q, setQuery] = useState('');

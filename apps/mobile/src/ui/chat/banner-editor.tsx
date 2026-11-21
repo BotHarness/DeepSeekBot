@@ -1,5 +1,5 @@
 import { Image } from 'expo-image';
-import { View } from 'react-native';
+import { ScrollView, View } from 'react-native';
 import { useRef, useState } from 'react';
 import { profileShell, radius, space } from '../design/tokens';
 import { Button } from '../primitives/button';
@@ -50,46 +50,48 @@ export function BannerEditor({ actions, onClose }: { actions: BannerActions; onC
 
   return (
     <Sheet visible label={copy.change} title={copy.change} onClose={close}>
-      <View style={{ gap: space.x3, paddingHorizontal: space.x5 }}>
-        {draft === undefined ? null : (
-          <Image
-            accessible
-            accessibilityLabel={copy.preview}
-            source={{ uri: draft }}
-            contentFit="contain"
-            style={{
-              width: '100%',
-              aspectRatio: profileShell.bannerAspect,
-              borderRadius: radius.md,
+      <ScrollView bounces={false} nestedScrollEnabled>
+        <View style={{ gap: space.x3, paddingHorizontal: space.x5 }}>
+          {draft === undefined ? null : (
+            <Image
+              accessible
+              accessibilityLabel={copy.preview}
+              source={{ uri: draft }}
+              contentFit="contain"
+              style={{
+                width: '100%',
+                aspectRatio: profileShell.bannerAspect,
+                borderRadius: radius.md,
+              }}
+            />
+          )}
+          <Button label={copy.photos} testID="bot-banner-pick" disabled={busy} onPress={choose} />
+          <Button
+            label={copy.restore}
+            testID="bot-banner-restore"
+            disabled={busy}
+            onPress={() => save(null)}
+          />
+          {error === undefined ? null : (
+            <Text accessibilityRole="alert" accessibilityLiveRegion="polite" tone="danger">
+              {error}
+            </Text>
+          )}
+        </View>
+        <SheetActions>
+          <Button label={t.cancel} disabled={busy} onPress={close} />
+          <Button
+            tone="primary"
+            label={copy.save}
+            testID="bot-banner-save"
+            busy={busy}
+            disabled={draft === undefined}
+            onPress={() => {
+              if (draft !== undefined) save(draft);
             }}
           />
-        )}
-        <Button label={t.avatarChoose} testID="bot-banner-pick" disabled={busy} onPress={choose} />
-        <Button
-          label={copy.restore}
-          testID="bot-banner-restore"
-          disabled={busy}
-          onPress={() => save(null)}
-        />
-        {error === undefined ? null : (
-          <Text accessibilityRole="alert" accessibilityLiveRegion="polite" tone="danger">
-            {error}
-          </Text>
-        )}
-      </View>
-      <SheetActions>
-        <Button label={t.cancel} disabled={busy} onPress={close} />
-        <Button
-          tone="primary"
-          label={copy.save}
-          testID="bot-banner-save"
-          busy={busy}
-          disabled={draft === undefined}
-          onPress={() => {
-            if (draft !== undefined) save(draft);
-          }}
-        />
-      </SheetActions>
+        </SheetActions>
+      </ScrollView>
     </Sheet>
   );
 }

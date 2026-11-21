@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { setBotAvatar } from '../src/host/bot-avatar';
+import { setBotBanner } from '../src/host/bot-banner';
 import { createHostClient, type HostClient } from '@botharness/host-client/client';
 import { fakeBotDetail, FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
@@ -46,6 +47,34 @@ describe('mobile Bot avatars', () => {
     ]);
     expect(host.calls.filter((call) => call.method === 'list')).toHaveLength(2);
     expect(host.calls.filter((call) => call.method === 'channelGroupAvatarSet')).toHaveLength(0);
+  });
+
+  it('keeps an Avatar write exclusive to the Bot until the Host settles it', async () => {
+    const { host, client } = await setup();
+    const bot = { slug: 'ada', dmChannelId: 'dm-ada' };
+    const pending = Promise.withResolvers<{ bot: ReturnType<typeof fakeBotDetail> }>();
+    host.methods.set('botAvatarSet', () => pending.promise);
+    const initial = setBotAvatar(client, bot, null);
+    await expect(setBotAvatar(client, bot, null)).rejects.toThrow(
+      'Avatar change already in progress',
+    );
+    pending.resolve({ bot: fakeBotDetail('ada', 'Ada') });
+    await initial;
+    await setBotAvatar(client, bot, null);
+    expect(host.calls.filter((entry) => entry.method === 'botAvatarSet')).toHaveLength(2);
+  });
+
+  it('sets and restores the Profile Banner through the owning Bot DM', async () => {
+    const { host, client } = await setup();
+    const bot = { slug: 'ada', dmChannelId: 'dm-ada' };
+    host.methods.set('botBannerSet', () => ({ bot: fakeBotDetail('ada', 'Ada') }));
+    const image = 'data:image/png;base64,preview';
+    await setBotBanner(client, bot, image);
+    await setBotBanner(client, bot, null);
+    expect(host.calls.filter((entry) => entry.method === 'botBannerSet')).toEqual([
+      { method: 'botBannerSet', args: { channelId: 'dm-ada', banner: { image } } },
+      { method: 'botBannerSet', args: { channelId: 'dm-ada', banner: null } },
+    ]);
   });
 
   it('resolves a DM if the roster has no DM id yet', async () => {

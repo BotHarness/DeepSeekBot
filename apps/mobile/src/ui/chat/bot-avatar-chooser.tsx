@@ -3,6 +3,7 @@ import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
 import { useRef, useState } from 'react';
 import { FlatList, Pressable, View, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MethodRefused } from '@botharness/host-client/client';
 import { TILTIES_PORTRAITS } from '@botharness/host-client/tilties-avatars';
 import {
   avatarSvg,
@@ -22,6 +23,7 @@ import { Text } from '../primitives/text';
 import { useMounted } from '../mounted';
 import { useStrings } from '../strings';
 import { useAvatarEditor, type AvatarActions } from './avatar-editor';
+import { useProfileFocused } from './profile-visibility';
 
 type Gallery = 'illustrated' | 'line' | 'tilties';
 type Portrait =
@@ -32,26 +34,26 @@ const tilties: Portrait[] = TILTIES_PORTRAITS.map((portrait) => ({
   ...portrait,
   kind: 'image',
 }));
+function presetPortraits(recipes: readonly AvatarRecipe[]): Portrait[] {
+  return recipes.map((recipe, index) => ({
+    id: String(index + 1),
+    kind: 'recipe',
+    recipe,
+    number: index + 1,
+  }));
+}
+
 const galleries: Record<Gallery, Portrait[]> = {
-  illustrated: avatarFamilyOptions.illustrated.presets.map((recipe, index) => ({
-    id: String(index + 1),
-    kind: 'recipe',
-    recipe,
-    number: index + 1,
-  })),
-  line: avatarFamilyOptions.line.presets.map((recipe, index) => ({
-    id: String(index + 1),
-    kind: 'recipe',
-    recipe,
-    number: index + 1,
-  })),
+  illustrated: presetPortraits(avatarFamilyOptions.illustrated.presets),
+  line: presetPortraits(avatarFamilyOptions.line.presets),
   tilties,
 };
 
 export function BotAvatarChooserScreen() {
   const { slug, hostId } = useLocalSearchParams<{ slug: string; hostId?: string }>();
   const { saved, client } = useHostSession(hostId);
-  const snapshot = useHostSnapshot(client);
+  const focused = useProfileFocused();
+  const snapshot = useHostSnapshot(client, focused);
   const bot = snapshot.roster?.bots.find((entry) => entry.slug === slug);
   const loading =
     client &&
@@ -111,7 +113,11 @@ export function BotAvatarChooser({
   const t = useStrings();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
-  const editor = useAvatarEditor(actions);
+  const editor = useAvatarEditor(actions, (failure) =>
+    failure instanceof MethodRefused && failure.code === 'permission-required'
+      ? t.marketplaceAvatars.permission
+      : t.avatarEditor.saveFailed,
+  );
   const [gallery, setGallery] = useState<Gallery>('illustrated');
   const active = useRef(false);
   const mount = useMounted<ViewInstance>(() => {
@@ -126,6 +132,9 @@ export function BotAvatarChooser({
         ? await editor.chooseRecipe?.(portrait.recipe)
         : await editor.choose(portrait?.image);
     if (saved && active.current) onClose();
+  };
+  const retry = async () => {
+    if ((await editor.retry?.()) && active.current) onClose();
   };
   const columns = theme.largeText ? avatarEditor.largeColumns : avatarEditor.columns;
 
@@ -146,7 +155,7 @@ export function BotAvatarChooser({
           <View style={{ gap: space.x3 }}>
             <Button
               testID="bot-avatar-pick-photo"
-              label={t.avatarChoose}
+              label={t.avatarEditor.photos}
               disabled={editor.busy}
               onPress={() => void choose()}
             />
@@ -159,9 +168,19 @@ export function BotAvatarChooser({
               />
             ) : null}
             {editor.error ? (
-              <Text accessibilityLiveRegion="polite" accessibilityRole="alert" tone="danger">
-                {editor.error}
-              </Text>
+              <>
+                <Text accessibilityLiveRegion="polite" accessibilityRole="alert" tone="danger">
+                  {editor.error}
+                </Text>
+                {editor.retry ? (
+                  <Button
+                    label={t.retry}
+                    testID="bot-avatar-retry"
+                    disabled={editor.busy}
+                    onPress={() => void retry()}
+                  />
+                ) : null}
+              </>
             ) : null}
             <Segmented<Gallery>
               label={t.avatarEditor.style}
@@ -196,7 +215,7 @@ export function BotAvatarChooser({
               onPress={() => void choose(item)}
               style={({ pressed }) => ({
                 flexBasis: avatarEditor.tile,
-                minHeight: avatarEditor.tile,
+                minHeight: Math.max(avatarEditor.tile, theme.touch),
                 flexGrow: 1,
                 maxWidth: 100 / columns + '%',
                 aspectRatio: 1,

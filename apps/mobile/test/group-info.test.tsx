@@ -274,9 +274,10 @@ describe('Group profile', () => {
     const props = sheet({
       pickAvatar: vi.fn(async () => 'data:image/jpeg;base64,/9j/AA=='),
       actions: actions({
-        setAvatar: vi.fn(async () => {
-          throw new Error('save failed');
-        }),
+        setAvatar: vi
+          .fn<(_image: string | null) => Promise<void>>()
+          .mockRejectedValueOnce(new Error('save failed'))
+          .mockResolvedValue(undefined),
       }),
     });
     const view = await render(<GroupProfilePage {...props} />);
@@ -286,6 +287,11 @@ describe('Group profile', () => {
       `${t.avatarSaveFailed} save failed`,
     );
     expect(avatar.disabled).toBe(false);
+    const retry = view.querySelector<HTMLButtonElement>('[data-testid="group-avatar-retry"]')!;
+    await act(async () => retry.click());
+    expect(props.pickAvatar).toHaveBeenCalledOnce();
+    expect(props.actions.setAvatar).toHaveBeenCalledTimes(2);
+    expect(view.querySelector('[role="alert"]')).toBeNull();
   });
 
   it('lists the members, the creator, pending invitations and join requests', async () => {

@@ -3,6 +3,7 @@ export const en = {
     title: 'Customize',
     style: 'Avatar style',
     pixel: 'Pixel',
+    photos: 'Choose from Photos',
     line: 'Line',
     preset: (n: number) => 'Preset ' + n,
     tilties: 'Tilties',
@@ -13,6 +14,7 @@ export const en = {
   },
   profileBanner: {
     change: 'Change banner',
+    photos: 'Choose from Photos',
     restore: 'Restore default',
     preview: 'Banner crop preview',
     save: 'Save banner',
@@ -30,6 +32,7 @@ export const zh: typeof en = {
     title: '捏人',
     style: '头像风格',
     pixel: '像素风',
+    photos: '从相册选择',
     line: '线条风',
     preset: (n) => '预设 ' + n,
     tilties: '歪头团',
@@ -40,6 +43,7 @@ export const zh: typeof en = {
   },
   profileBanner: {
     change: '更换横幅',
+    photos: '从相册选择',
     restore: '恢复默认',
     preview: '横幅裁剪预览',
     save: '保存横幅',
