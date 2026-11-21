@@ -15,7 +15,7 @@ export function StandingImportUsage({
   return (
     <div>
       {standing.map(({ path, chars, limit }) => (
-        <Note key={path} tone={chars > limit ? 'warning' : 'muted'}>
+        <Note key={path}>
           {t(chars > limit ? 'standing.import.over' : 'standing.import.within', {
             path,
             chars: count(chars),
