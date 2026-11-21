@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "engine.orchestrator-steering",
+      "label": "Steer a Subscription Engine Orchestrator and route each reply to its Source Event's Channel",
+      "source": "packages/core/src/engines/engine-host.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/engine-orchestrator-steering.md",
+      "task": 4559,
+      "gap": "Protocol replay covers both engines, queued fallback and Channel authorization. Subscription runs qualify model behavior."
+    },
+    {
       "id": "engine.session-context",
       "label": "Session context across a Subscription Engine switch",
       "source": "packages/core/src/engines/engine-context.ts",
@@ -94,7 +102,7 @@
     {
       "id": "connect.account-recovery",
       "label": "Connect authorization expiry, transient retries and truthful recovery instructions",
-      "source": "packages/core/src/devices/connect-account.ts",
+      "source": "packages/core/src/features/environments/connect-account.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/connect-channel.md",
       "task": 3567,
       "gap": "Controlled WorkOS/relay fixtures qualify Host/Client behavior, not production account or Cloudflare availability."
@@ -395,7 +403,7 @@
     {
       "id": "desktop.personabot.create",
       "label": "Create PersonaBot, Memory and DM; retain identity after restart",
-      "source": "packages/core/src/bots/registry.ts",
+      "source": "packages/core/src/features/personabots/registry-creation.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/personabot-create.md",
       "task": 1967,
       "gap": null

@@ -1,4 +1,12 @@
-import { asRecord, BridgeCallError, unwrap, type BridgeCall } from '../../bridge-transport.js';
+import { loadMarketplaceChallenge as readMarketplaceChallenge } from '@botharness/host-client/marketplace-avatars';
+import { parseStandingUsage } from '@botharness/host-client/memory';
+import {
+  asRecord,
+  bridgeHost,
+  BridgeCallError,
+  unwrap,
+  type BridgeCall,
+} from '../../bridge-transport.js';
 import type { BotSummary } from '../../store.js';
 import type {
   MarketplaceAuthoredBot,
@@ -41,7 +49,6 @@ export function createMarketplaceBridge({
   parseMarketplaceDigests,
   parseMarketplaceSubmission,
   parseMarketplaceTopics,
-  parseChallenge,
   parseBotSummary,
 }: MarketplaceBridgeReaders) {
   function botZipUrl(path: string, params: Record<string, string>): string {
@@ -83,6 +90,18 @@ export function createMarketplaceBridge({
     const bot = parseBotSummary(asRecord(await response.json())?.['bot']);
     if (bot === undefined) throw new Error('invalid Bot zip import response');
     return bot;
+  }
+
+  async function previewBotZip(file: File, signal?: AbortSignal) {
+    const response = await fetch(botZipUrl('bot-zip/import', {}), {
+      method: 'POST',
+      headers: { 'content-type': 'application/vnd.botharness.bot-zip-preview' },
+      body: file,
+      credentials: 'same-origin',
+      ...(signal === undefined ? {} : { signal }),
+    });
+    if (!response.ok) throw await botZipError(response);
+    return parseStandingUsage(asRecord(await response.json())?.['standing']);
   }
 
   async function loadBotZipFiles(slug: string, signal?: AbortSignal): Promise<BotZipFileListing> {
@@ -212,9 +231,7 @@ export function createMarketplaceBridge({
   }
 
   async function loadMarketplaceChallenge(call: BridgeCall): Promise<AltchaChallenge> {
-    const challenge = parseChallenge(await unwrap(call, 'marketplaceChallenge', {}));
-    if (challenge === undefined) throw new Error('invalid marketplaceChallenge response');
-    return challenge;
+    return readMarketplaceChallenge(bridgeHost(call));
   }
 
   async function submitMarketplaceRepository(
@@ -274,7 +291,14 @@ export function createMarketplaceBridge({
         files,
       };
     } else return undefined;
-    return { reviewId, listing, review: parsed };
+    return {
+      reviewId,
+      listing,
+      review: parsed,
+      ...(result?.['standing'] === undefined
+        ? {}
+        : { standing: parseStandingUsage(result['standing']) }),
+    };
   }
 
   async function reviewMarketplaceInstall(
@@ -349,6 +373,7 @@ export function createMarketplaceBridge({
   }
   return {
     importBotZip,
+    previewBotZip,
     loadBotZipFiles,
     downloadBotZip,
     loadMarketplacePage,

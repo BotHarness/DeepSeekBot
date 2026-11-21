@@ -8,10 +8,10 @@ import type { OutboundMessaging } from '../../messaging/outbound.js';
 import type { MessagingProcessing } from '../../messaging/typing.js';
 import type { DatabaseSync } from 'node:sqlite';
 import type { OperationalDatabaseModulePort } from '../../database/owner.js';
+import { requireSourceEffects } from '../../purge/fence.js';
 import type { PromptText } from '../../prompts/prompt-parts.js';
 import type { PromptLimits } from '../../prompts/prompt-limits.js';
 import type {
-  BotAgentAdapter,
   BotHoldCause,
   GroupContext,
   GroupPromptBudget,
@@ -27,13 +27,17 @@ export function createMessagingEvents({
   admitChannelMessage,
   activeTurns,
   delivery,
-  agents,
+  steerWithMemory,
   promptText,
   promptLimits,
   claimGroupContext,
   setObserved,
   now,
   markAdmissionsSideEffect,
+  requireTurnAccess,
+  turnSessionId,
+  routingGroupReplyState,
+  noteSteeredChannel,
   groupContextSection,
   settleHarvestFailure,
   acceptTurnSources,
@@ -41,7 +45,7 @@ export function createMessagingEvents({
   observeAdmission,
   markReportsHandled,
   settleHarvestHandled,
-  steerSettlements,
+  trackSteer,
   held,
   armDigest,
 }: {
@@ -66,7 +70,9 @@ export function createMessagingEvents({
     botSlug: string,
     sourceClass: 'human-dm' | 'bot-dm' | 'group-mention',
   ) => 'steer' | 'turn';
-  agents: Pick<BotAgentAdapter, 'steerOrchestrator'>;
+  steerWithMemory:
+    | ((botSlug: string, prompt: string, requireAccess: () => void) => boolean | Promise<boolean>)
+    | undefined;
   promptText: (botSlug: string) => PromptText;
   promptLimits: (botSlug: string) => PromptLimits;
   claimGroupContext: (
@@ -78,6 +84,14 @@ export function createMessagingEvents({
   setObserved: (sourceEventIds: string[], at: string | null, botSlug?: string) => void;
   now: () => Date;
   markAdmissionsSideEffect: (botSlug: string, sourceEventIds: string[]) => void;
+  requireTurnAccess: (botSlug: string, sourceEventIds: readonly string[]) => void;
+  turnSessionId: (botSlug: string) => string | undefined;
+  routingGroupReplyState: (
+    botSlug: string,
+    sessionId: string,
+    sourceEventId: string,
+  ) => 'delivered' | 'uncertain' | undefined;
+  noteSteeredChannel: (botSlug: string, channelId: string) => void;
   groupContextSection: (context: GroupContext) => string;
   settleHarvestFailure: (botSlug: string, sourceEventIds: string[], error: string) => void;
   acceptTurnSources: (botSlug: string, sourceEventIds: readonly string[]) => void;
@@ -90,7 +104,7 @@ export function createMessagingEvents({
   ) => void;
   markReportsHandled: (sourceEventIds: string[], botSlug?: string, sessionId?: string) => void;
   settleHarvestHandled: (botSlug: string, sourceEventIds: string[]) => void;
-  steerSettlements: Set<Promise<void>>;
+  trackSteer: (settlement: Promise<void>) => void;
   held: Map<string, BotHoldCause>;
   armDigest: (
     botSlug: string,
@@ -105,7 +119,8 @@ export function createMessagingEvents({
   ) => void;
 }) {
   function admitExternalSource(botSlug: string, sourceEventId: string): void {
-    if (closed() || !externalMessaging?.inbound.available(botSlug, sourceEventId)) return;
+    const inbound = externalMessaging?.inbound;
+    if (closed() || !inbound?.available(botSlug, sourceEventId)) return;
     const row = database.read((db) =>
       db
         .prepare(
@@ -123,10 +138,7 @@ export function createMessagingEvents({
         }
       | undefined;
     if (row?.reason === 'human-dm' || row?.reason === 'group-mention') release(botSlug);
-    if (
-      row?.reason === 'group-ordinary' &&
-      externalMessaging.inbound.read(botSlug, sourceEventId).receptionPaths
-    ) {
+    if (row?.reason === 'group-ordinary' && inbound.read(botSlug, sourceEventId).receptionPaths) {
       checkHarvestReadiness(botSlug);
       return;
     }
@@ -141,9 +153,9 @@ export function createMessagingEvents({
       (row.reason === 'group-mention' || row.reason === 'human-dm') &&
       delivery(botSlug, row.reason) === 'steer' &&
       active &&
-      agents.steerOrchestrator
+      steerWithMemory
     ) {
-      const source = externalMessaging.inbound.read(botSlug, sourceEventId);
+      const source = inbound.read(botSlug, sourceEventId);
       const unit: InboxUnit = {
         sourceEventId,
         sourceKind: 'bridge-message',
@@ -160,10 +172,10 @@ export function createMessagingEvents({
       for (const candidate of pendingExternalRows(botSlug, true)) {
         if (
           candidate.source_event_id === sourceEventId ||
-          !externalMessaging.inbound.available(botSlug, candidate.source_event_id, true)
+          !inbound.available(botSlug, candidate.source_event_id, true)
         )
           continue;
-        const context = externalMessaging.inbound.read(botSlug, candidate.source_event_id);
+        const context = inbound.read(botSlug, candidate.source_event_id);
         const next: InboxUnit = {
           ...unit,
           sourceEventId: candidate.source_event_id,
@@ -197,27 +209,31 @@ export function createMessagingEvents({
       const contextIds = context?.rows.map((item) => item.source_event_id) ?? [];
       const included = units.map((item) => item.sourceEventId);
       setObserved(included, now().toISOString(), botSlug);
-      markAdmissionsSideEffect(botSlug, [...included, ...contextIds]);
-      let delivered = false;
-      try {
-        delivered = agents.steerOrchestrator(
-          botSlug,
-          [
-            renderInbox(units, promptText(botSlug)),
-            ...(context ? [groupContextSection(context)] : []),
-          ].join('\n\n'),
-        );
-      } catch {
+      const sourceIds = [...included, ...contextIds];
+      markAdmissionsSideEffect(botSlug, sourceIds);
+      const sessionId = turnSessionId(botSlug);
+      const requireAccess = () => {
+        for (const id of included) {
+          if (!inbound.available(botSlug, id, id !== sourceEventId))
+            throw new Error('source-unavailable');
+        }
+        requireTurnAccess(botSlug, sourceIds);
+        database.read((db) => {
+          for (const id of sourceIds) requireSourceEffects(db, id, botSlug);
+        });
+      };
+      const failed = () => {
         setObserved(included, null, botSlug);
         settleHarvestFailure(botSlug, contextIds, 'external-steer-failed');
-        return;
-      }
-      if (delivered) {
-        acceptTurnSources(botSlug, [...included, ...contextIds]);
+      };
+      const accepted = () => {
+        if (source.localChannelId !== undefined) noteSteeredChannel(botSlug, source.localChannelId);
+        acceptTurnSources(botSlug, sourceIds);
         typingTurns.get(botSlug)?.add(included);
-        for (const row of context?.rows ?? [])
-          observeAdmission(row.source_event_id, botSlug, context!.channelId, row.message_id);
-        const settled = active.then(
+        if (context)
+          for (const row of context.rows)
+            observeAdmission(row.source_event_id, botSlug, context.channelId, row.message_id);
+        return active.then(
           () => {
             markReportsHandled(included, botSlug);
             settleHarvestHandled(botSlug, contextIds);
@@ -227,23 +243,66 @@ export function createMessagingEvents({
             settleHarvestFailure(botSlug, contextIds, 'external-steered-turn-failed');
           },
         );
-        steerSettlements.add(settled);
-        void settled.finally(() => steerSettlements.delete(settled)).catch(() => undefined);
+      };
+      const restore = () => {
+        const pending: string[] = [];
+        const handled: string[] = [];
+        for (const id of sourceIds) {
+          const reply =
+            sessionId === undefined ? undefined : routingGroupReplyState(botSlug, sessionId, id);
+          if (reply === 'delivered') handled.push(id);
+          else if (reply === 'uncertain')
+            settleHarvestFailure(botSlug, [id], 'external-reply-uncertain');
+          else pending.push(id);
+        }
+        settleHarvestHandled(botSlug, handled);
+        database.transaction(
+          (db) => {
+            for (const id of pending) {
+              db.prepare(
+                'UPDATE source_events SET observed_at = NULL WHERE source_event_id = ?',
+              ).run(id);
+              db.prepare(
+                "UPDATE inbox_admissions SET observed_at = NULL, side_effect_started_at = NULL, attempt_state = 'pending' WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'",
+              ).run(id, botSlug);
+            }
+          },
+          ['bot-inbox'],
+        );
+      };
+      let steering: boolean | Promise<boolean>;
+      try {
+        steering = steerWithMemory(
+          botSlug,
+          [
+            renderInbox(units, promptText(botSlug)),
+            ...(context ? [groupContextSection(context)] : []),
+          ].join('\n\n'),
+          requireAccess,
+        );
+      } catch {
+        failed();
         return;
       }
-      database.transaction(
-        (db) => {
-          for (const id of [...included, ...contextIds]) {
-            db.prepare('UPDATE source_events SET observed_at = NULL WHERE source_event_id = ?').run(
-              id,
-            );
-            db.prepare(
-              "UPDATE inbox_admissions SET observed_at = NULL, side_effect_started_at = NULL, attempt_state = 'pending' WHERE source_event_id = ? AND bot_slug = ?",
-            ).run(id, botSlug);
-          }
-        },
-        ['bot-inbox'],
-      );
+      if (steering === true) {
+        trackSteer(accepted());
+        return;
+      }
+      if (steering !== false) {
+        trackSteer(
+          steering.then((delivered) => {
+            if (delivered) return accepted();
+            return active
+              .catch(() => undefined)
+              .then(() => {
+                restore();
+                checkHarvestReadiness(botSlug);
+              });
+          }, failed),
+        );
+        return;
+      }
+      restore();
     }
     checkHarvestReadiness(botSlug);
   }

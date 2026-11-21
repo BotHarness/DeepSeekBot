@@ -39,6 +39,7 @@ A Session's system prompt is byte-identical for its whole life, across Host rest
 Why:
 
 - Providers cache the prompt prefix. Anything re-derived per request (a file tree, a re-read persona, pinned bodies) replaces the head, invalidates the cache for the rest of the Session and re-prices every later turn. Appending at the bottom costs only the delta.
+- A shared Bot carries its custom standing limits in `.botharness/bot.json` so the receiving Host can reproduce the author's prompt. The receiving Registry validates and stores the pair at creation. An older or invalid descriptor falls back to the Host defaults, and the ZIP and Marketplace previews calculate usage from the actual source files.
 - A fresh Session that has no index does not know what it remembers, so Core Memory is injected. Freezing keeps the cache argument intact.
 - A fixed two-file convention is easier for Humans and Bots to reason about than per-file pins. Limits are in characters because a Human can count them, while bytes penalise Chinese and tokens vary by model.
 - The earlier human-only persona and the injected memory tree were dropped: the Bot may revise its own Soul (the change is visible in Git), and it lists files itself when it needs to.
