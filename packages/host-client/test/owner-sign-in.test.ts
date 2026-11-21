@@ -4,6 +4,7 @@ import type { HostCarrier, HostRequest, HostSocketEvents } from '@botharness/hos
 import { ConnectChannel } from '@botharness/host-protocol/noise/channel';
 import { noiseFingerprint, noisePublicKey } from '@botharness/host-protocol/noise/xk';
 import { teamRecord } from '@botharness/host-protocol/team-invitation';
+import { createHostResources } from '../src/client-resources';
 import { encryptedCarrier } from '../src/encrypted-carrier';
 import { parseSavedHost, serializeSavedHost } from '../src/hosts';
 import { signInOwnerDevice } from '../src/owner-sign-in';
@@ -12,6 +13,7 @@ const route = 'https://studio.example';
 const password = 'test-only-sign-in-password';
 const deviceId = 'test-device-1234';
 const credential = deviceId + '.' + 'a'.repeat(43);
+const avatarPath = '/api/bots/avatar';
 
 function host({ differentSocketKey = false } = {}) {
   const privateKey = randomBytes(32);
@@ -54,13 +56,16 @@ function host({ differentSocketKey = false } = {}) {
                 });
               if (message['type'] === 'admit' && message['credential'] === credential)
                 send({ type: 'admitted' });
-              if (message['type'] === 'request')
+              if (message['type'] === 'request') {
+                const avatar = message['path'] === '/botharness-device' + avatarPath;
                 send({
                   type: 'response',
                   id: message['id'],
                   status: 200,
-                  body: btoa('{"bots":[]}'),
+                  ...(avatar ? { contentType: 'image/png' } : {}),
+                  body: btoa(avatar ? 'test-avatar' : '{"bots":[]}'),
                 });
+              }
             }
           } catch {
             events.closed('channel-handshake-rejected');
@@ -174,6 +179,33 @@ describe('Owner password sign-in', () => {
       expect(test.openSocket).toHaveBeenCalledTimes(2);
       expect(test.messages).toContainEqual(expect.objectContaining({ type: 'admit', credential }));
       expect(test.wire.join('')).not.toContain(credential);
+    } finally {
+      transport.close?.();
+    }
+  });
+
+  it('loads a Host avatar through Noise on a password-enrolled custom HTTPS origin', async () => {
+    const test = host();
+    const signed = await signInOwnerDevice(test.input);
+    if (!signed.ok) throw new Error(signed.code);
+    const transport = encryptedCarrier({ ...signed.value, raw: test.carrier });
+    const resources = createHostResources(
+      { ...signed.value, carrier: test.carrier },
+      transport,
+      { authorization: `Device ${credential}` },
+      3000,
+      { route, running: true },
+      () => {},
+    );
+    try {
+      expect(resources.avatar(avatarPath)).toEqual({});
+      await vi.waitFor(() =>
+        expect(resources.avatar(avatarPath)).toEqual({
+          avatarUrl: `data:image/png;base64,${btoa('test-avatar')}`,
+          avatarHeaders: {},
+        }),
+      );
+      expect(test.request).toHaveBeenCalledOnce();
     } finally {
       transport.close?.();
     }

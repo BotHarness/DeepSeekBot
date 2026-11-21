@@ -78,6 +78,16 @@ export function isHttpsOrigin(input: string): boolean {
   }
 }
 
+export function isDeviceRoute(
+  route: string,
+  encryption?: { privateRelay?: PrivateOrigins; required?: true },
+): boolean {
+  return (
+    checkRoute(route, encryption?.privateRelay).ok ||
+    (encryption?.required === true && isHttpsOrigin(route))
+  );
+}
+
 export function isConnectRoute(route: string): boolean {
   try {
     return CONNECT_HOSTNAME.test(new URL(route).hostname);

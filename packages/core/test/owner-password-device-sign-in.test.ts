@@ -1,7 +1,8 @@
 import { randomBytes } from 'node:crypto';
 import { encryptedCarrier, openNoiseSocket } from '@botharness/host-client/encrypted-carrier';
 import { Peer } from '@deepseek-ai/dsh-client-connection';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
+import { WebSocket } from 'ws';
 import { z } from 'zod';
 import { OWNER_HUMAN_CONTEXT as owner, humanContext } from '../src/humans/context.js';
 import { cleanup, memberDeviceHost, teamFixture } from './team-mode-fixtures.js';
@@ -122,6 +123,30 @@ it('enrolls an Owner device through Noise with Team mode off and revokes its adm
     await expect(acknowledge()).rejects.toThrow();
   } finally {
     carrier.close?.();
+  }
+});
+
+it('revokes the new Owner device when the encrypted reply cannot be sent', async () => {
+  const f = teamFixture();
+  await f.methods(owner).ownerPasswordSignInSet({ enabled: true, username: 'my-owner', password });
+  const host = await memberDeviceHost(f);
+  const send = vi.spyOn(WebSocket.prototype, 'send');
+  const signInOwner = f.devices.signInOwner.bind(f.devices);
+  const enroll = vi.spyOn(f.devices, 'signInOwner').mockImplementationOnce(async (...args) => {
+    const result = await signInOwner(...args);
+    send.mockImplementationOnce(() => {
+      throw new Error('socket send failed');
+    });
+    return result;
+  });
+  try {
+    await expect(signIn(f, host, deviceEncryption(f))).rejects.toThrow();
+    expect(f.pairing.list()).toMatchObject([
+      { enrollment: 'owner-password', revokedAt: expect.any(String) },
+    ]);
+  } finally {
+    enroll.mockRestore();
+    send.mockRestore();
   }
 });
 

@@ -655,8 +655,8 @@ export function createEncryptedGateway(options: {
             const result = ownerSignIn
               ? await options.memberDevices.signInOwner(input['input'], remoteAddress, publicKey)
               : await options.memberDevices.signIn(input['input'], remoteAddress, publicKey);
-            if (!closed) send({ type: reply, result: { ok: true, value: result } });
-            else if (ownerSignIn) options.pairing.revoke(result.deviceId);
+            const sent = send({ type: reply, result: { ok: true, value: result } });
+            if (!sent && ownerSignIn) options.pairing.revoke(result.deviceId);
           } catch (error) {
             if (!closed)
               send({
