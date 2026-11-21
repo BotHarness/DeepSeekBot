@@ -299,7 +299,7 @@ describe('Group profile', () => {
     const headers = [...view.querySelectorAll('[role="header"]')]
       .filter((node) => node.closest('[hidden]') === null)
       .map((node) => node.textContent);
-    expect(headers).toEqual(['Launch', t.groupJoinsSection, t.groupMembersSection]);
+    expect(headers).toEqual([t.groupJoinsSection, t.groupMembersSection]);
     for (const slug of ['ada', 'bo', 'cy', 'di'])
       expect(view.querySelector(`[data-testid="avatar-${slug}"]`)).not.toBeNull();
     expect(button(view, t.groupInvite)).not.toBeNull();
@@ -396,6 +396,14 @@ describe('Group profile', () => {
     expect(alert.mock.calls[1]![0]).toBe(t.groupRemoveConfirm('Bo'));
     await pressAlert(1, t.groupRemove);
     expect(props.actions.removeMember).toHaveBeenCalledWith('bo');
+  });
+
+  it('opens the group name editor directly from the Profile heading', async () => {
+    const view = await render(<GroupProfilePage {...sheet()} />);
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[data-testid="profile-name-edit"]')!.click(),
+    );
+    expect(view.querySelector(`textarea[aria-label="${t.groupName}"]`)).not.toBeNull();
   });
 
   it('renames the group and sets the photo the Human picked', async () => {

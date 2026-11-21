@@ -1,8 +1,7 @@
-import { Image } from 'expo-image';
-import { TILTIES_PORTRAITS } from '@botharness/host-client/tilties-avatars';
 import { useRef, useState, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
+import type { AvatarRecipe } from '../../../../../packages/core/src/bots/avatar-appearance';
 import { errorText } from '@botharness/host-client/bot-settings';
 import type { LayerName } from '../design/layers';
 import { pressTint, useDesignTheme } from '../design/theme';
@@ -14,38 +13,40 @@ import { useStrings } from '../strings';
 export interface AvatarActions {
   pick(): Promise<string | undefined>;
   save(avatar: string | null): Promise<void>;
+  saveRecipe?(recipe: AvatarRecipe): Promise<void>;
 }
 
-export function useAvatarEditor({ pick, save }: AvatarActions) {
+export function useAvatarEditor({ pick, save, saveRecipe }: AvatarActions): AvatarEditor {
   const t = useStrings();
   const pending = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const change = async (choice: 'photo' | { image: string | null }) => {
-    if (pending.current) return;
+  const change = async (choice: 'photo' | { image: string | null } | { recipe: AvatarRecipe }) => {
+    if (pending.current) return false;
     pending.current = true;
     setBusy(true);
     setError(undefined);
     try {
-      let avatar: string | null;
       if (choice === 'photo') {
         let picked: string | undefined;
         try {
           picked = await pick();
         } catch {
           setError(t.avatarPickFailed);
-          return;
+          return false;
         }
-        if (picked === undefined) return;
-        avatar = picked;
+        if (picked === undefined) return false;
+        await save(picked);
+      } else if ('recipe' in choice) {
+        if (!saveRecipe) return false;
+        await saveRecipe(choice.recipe);
       } else {
-        avatar = choice.image;
+        await save(choice.image);
       }
-      try {
-        await save(avatar);
-      } catch (failure) {
-        setError(`${t.avatarSaveFailed} ${errorText(failure)}`);
-      }
+      return true;
+    } catch (failure) {
+      setError(t.avatarSaveFailed + ' ' + errorText(failure));
+      return false;
     } finally {
       pending.current = false;
       setBusy(false);
@@ -55,11 +56,18 @@ export function useAvatarEditor({ pick, save }: AvatarActions) {
     busy,
     error,
     choose: (image?: string) => change(image === undefined ? 'photo' : { image }),
+    chooseRecipe: saveRecipe && ((recipe) => change({ recipe })),
     remove: () => change({ image: null }),
   };
 }
 
-type AvatarEditor = ReturnType<typeof useAvatarEditor>;
+type AvatarEditor = {
+  busy: boolean;
+  error: string | undefined;
+  choose(image?: string): Promise<boolean>;
+  chooseRecipe?: ((recipe: AvatarRecipe) => Promise<boolean>) | undefined;
+  remove(): Promise<boolean>;
+};
 
 export function EditableAvatar({
   editor,
@@ -67,12 +75,14 @@ export function EditableAvatar({
   corner,
   testID,
   label,
+  onChange,
 }: {
   editor: AvatarEditor;
   children: ReactNode;
   corner: number;
   testID: string;
   label?: string;
+  onChange?: (() => void) | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -83,7 +93,7 @@ export function EditableAvatar({
       accessibilityLabel={label ?? t.avatarChange}
       accessibilityState={{ disabled: editor.busy, busy: editor.busy }}
       disabled={editor.busy}
-      onPress={() => void editor.choose()}
+      onPress={onChange ?? (() => void editor.choose())}
       android_ripple={{ color: pressTint(theme.color.fg) }}
       style={({ pressed }) => ({
         minWidth: theme.touch,
@@ -104,18 +114,17 @@ export function AvatarSettings({
   portrait,
   testID,
   on = 'sheet',
-  showTilties = false,
+  onChange,
 }: {
   editor: AvatarEditor;
   hasAvatar: boolean;
   portrait: ReactNode;
   testID: string;
   on?: LayerName;
-  showTilties?: boolean;
+  onChange?: (() => void) | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const [tiltiesOpen, setTiltiesOpen] = useState(false);
   return (
     <View style={{ alignSelf: 'stretch', gap: space.x2 }}>
       <SettingsSection title={t.avatarTitle} on={on}>
@@ -125,17 +134,8 @@ export function AvatarSettings({
           title={t.avatarChange}
           leading={portrait}
           control={{ kind: 'chevron' }}
-          onPress={editor.busy ? undefined : () => void editor.choose()}
+          onPress={editor.busy ? undefined : (onChange ?? (() => void editor.choose()))}
         />
-        {showTilties ? (
-          <SettingsRow
-            on={on}
-            testID={`${testID}-tilties`}
-            title={t.avatarEditor.tilties}
-            expanded={tiltiesOpen}
-            onPress={editor.busy ? undefined : () => setTiltiesOpen(!tiltiesOpen)}
-          />
-        ) : null}
         {hasAvatar ? (
           <View style={{ borderTopWidth: edge.hairline, borderTopColor: theme.layer[on].divider }}>
             <SettingsRow
@@ -147,31 +147,6 @@ export function AvatarSettings({
           </View>
         ) : null}
       </SettingsSection>
-      {showTilties && tiltiesOpen ? (
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}>
-          {TILTIES_PORTRAITS.map(({ id, en, zh, image }) => (
-            <Pressable
-              key={id}
-              testID={`tilties-avatar-${id}`}
-              accessibilityRole="button"
-              accessibilityLabel={t.avatarEditor.tiltiesName(en, zh)}
-              accessibilityState={{ disabled: editor.busy }}
-              disabled={editor.busy}
-              onPress={() => void editor.choose(image)}
-              android_ripple={{ color: pressTint(theme.color.fg) }}
-              style={({ pressed }) => ({
-                width: theme.touch,
-                height: theme.touch,
-                borderRadius: theme.touch / 2,
-                overflow: 'hidden',
-                opacity: pressed || editor.busy ? 0.7 : 1,
-              })}
-            >
-              <Image source={{ uri: image }} contentFit="cover" style={{ flex: 1 }} />
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
       {editor.error === undefined ? null : (
         <Text accessibilityRole="alert" accessibilityLiveRegion="polite" tone="danger">
           {editor.error}

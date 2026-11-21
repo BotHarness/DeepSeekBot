@@ -28,7 +28,7 @@ import { MarketplaceTopics } from './marketplace-topics';
 export function MarketplaceAvatarScreen() {
   const copy = useStrings().marketplaceAvatars;
   const theme = useDesignTheme();
-  const { hostId } = useLocalSearchParams<{ hostId?: string }>();
+  const { hostId, targetBot } = useLocalSearchParams<{ hostId?: string; targetBot?: string }>();
   const { client, saved } = useHostSession(hostId);
   const actions = client && saved ? marketplaceAvatars(client) : undefined;
   const [searching, setSearching] = useState(false);
@@ -83,7 +83,7 @@ export function MarketplaceAvatarScreen() {
           },
         }}
         menu={
-          actions && saved && saved.member === undefined
+          targetBot === undefined && actions && saved && saved.member === undefined
             ? {
                 label: copy.moreActions,
                 actions: [
@@ -119,6 +119,7 @@ export function MarketplaceAvatarScreen() {
           key={saved.hostId}
           resource={resource}
           hostId={saved.hostId}
+          targetBot={targetBot}
           q={q}
           tag={tag}
           onBots={goToBots}
@@ -128,7 +129,9 @@ export function MarketplaceAvatarScreen() {
           contentInsetAdjustmentBehavior="automatic"
           contentContainerStyle={{ padding: space.x5, gap: space.x5 }}
         >
-          <MarketplaceSectionPicker section="avatars" onChange={goToBots} />
+          {targetBot === undefined ? (
+            <MarketplaceSectionPicker section="avatars" onChange={goToBots} />
+          ) : null}
           {saved === undefined ? (
             <AvatarLoadState loading onRetry={() => {}} />
           ) : (
@@ -157,12 +160,14 @@ export function MarketplaceAvatarScreen() {
 function AvatarCatalogue({
   resource,
   hostId,
+  targetBot,
   q,
   tag,
   onBots,
 }: {
   resource: ReturnType<MarketplaceAvatars['list']>;
   hostId: string;
+  targetBot?: string | undefined;
   q: string;
   tag: string;
   onBots(): void;
@@ -197,7 +202,9 @@ function AvatarCatalogue({
           columnWrapperStyle={columns === 1 ? undefined : { gap: space.x4 }}
           ListHeaderComponent={
             <View style={{ gap: space.x4 }}>
-              <MarketplaceSectionPicker section="avatars" onChange={onBots} />
+              {targetBot === undefined ? (
+                <MarketplaceSectionPicker section="avatars" onChange={onBots} />
+              ) : null}
               {q || tag ? (
                 <Text variant="meta" tone="muted">
                   {[q, tag].filter(Boolean).join(' · ')}
@@ -234,7 +241,11 @@ function AvatarCatalogue({
                 onPress={() =>
                   router.push({
                     pathname: '/marketplace-avatar',
-                    params: { id: item.id, hostId },
+                    params: {
+                      id: item.id,
+                      hostId,
+                      ...(targetBot === undefined ? {} : { targetBot }),
+                    },
                   })
                 }
               />
