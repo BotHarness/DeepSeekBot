@@ -1244,6 +1244,7 @@
         "setting:packages/client/src/client/team-settings.tsx:{t('team.members.title')}",
         "setting:packages/client/src/client/team-settings.tsx:{t('team.mode.title')}",
         "setting:packages/client/src/client/team-settings.tsx:{t('team.ownerPassword.title')}",
+        "setting:packages/client/src/client/settings-environment.tsx:{t('team.ownerPassword.title')}",
         "setting:packages/client/src/client/team-settings.tsx:{view.viewer.displayName}",
         "setting:packages/client/src/client/channel-access-settings.tsx:{t('channelAccess.admins')}",
         "setting:packages/client/src/client/channel-access-settings.tsx:{t('channelAccess.visibility')}",
