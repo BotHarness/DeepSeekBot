@@ -2256,6 +2256,10 @@ QQ also supports `deepseekbot messaging-defaults qq` and `messaging-defaults-set
 
 ### Team mode and Host Members
 
+Use `team-mode owner-sign-in status` to read the standalone Owner sign-in setting on the selected Host. To create the first credential, run `team-mode owner-sign-in on --username <username> --password-stdin --confirm` with the password on stdin. To reuse a configured credential, run `team-mode owner-sign-in on --confirm`. The `off` action stops new password sign-ins and keeps existing Owner devices connected.
+
+On another Client, use `device-owner-sign-in <trusted-https-origin> <username> --password-stdin --confirm --out <absolute-private-device-file>`. The CLI validates the HTTPS origin and sends the password through the authenticated encrypted device channel. It writes keys and credentials to the new private file and prints the Host ID, device ID, and output path. Use `device-probe --device-file <absolute-private-device-file>` to read the real Host Feed with that device grant.
+
 `dm <username>` opens or creates the authenticated Human's canonical DM with that active person on the selected Host. Opening from either participant returns the same Channel; another Human's DM remains inaccessible. Use `channels send <channel-id> --body-stdin` and `channel-messages <channel-id>` for messages. Pure Human DMs have no Bot participant; Group messages remain readable by their eligible Bot members.
 
 The Owner CLI also accepts private LAN IPv4 HTTPS origins with normal certificate verification. Plain LAN HTTP remains refused. A private test CA can be supplied through the machine-local `NODE_EXTRA_CA_CERTS` setting.

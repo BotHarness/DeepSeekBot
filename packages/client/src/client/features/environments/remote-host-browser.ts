@@ -31,6 +31,7 @@ export function browserCarrier(options: { teamViaHost?: boolean } = {}): HostCar
       }
       const response = await fetch(url, {
         method: init.method,
+        ...(init.redirect ? { redirect: init.redirect } : {}),
         signal: init.signal,
         credentials: 'omit',
         mode: 'cors',

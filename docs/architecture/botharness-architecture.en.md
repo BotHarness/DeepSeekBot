@@ -66,6 +66,12 @@ Welcome messages kept from earlier versions still offer capability introduction,
 
 Native model and credential Services remain authoritative. Default-on Profile setup saves and verifies the native global selection, leaving the Bot inheriting; opting out writes an individual Model Plan. New Bots without a plan follow the global default. A retained revision counter protects return to inheritance; global edits preserve fixed plans and running Assignment Sessions. Manual retry uses the original Human message and Admission through the existing retryability/side-effect gate, without adding another Human message.
 
+## Accepted target for Remote Host password sign-in
+
+Desktop, iOS, and Android share the Host identity and password sign-in flow when adding a Remote Host. The application-defined Team Service owns the Host's sign-in policy and Member Credentials. The Client uses a saved key, an independently verified fingerprint, a Host sign-in link, or a trusted HTTPS origin to establish trust in the Host key. It submits credentials through the device gateway's Noise channel, which can also run over a tunnel or an HTTP-only LAN.
+
+The Host issues a Paired Device grant for the authenticated Human and binds it to the Client device key. The existing Devices module owns the grant and records its issuance method for selective revocation during Owner password changes. Team mode enables password sign-in. With Team mode off, the standalone Owner setting controls new Owner password sign-ins. The first delivery covers standalone Owner sign-in over HTTPS in desktop and Web Clients. See [connection decisions](../decisions/connections.md#remote-host-password-sign-in-uses-the-same-encrypted-device-channel-on-every-route) and [Team mode decisions](../decisions/team-mode.md#host-password-sign-in-and-team-mode).
+
 ## 1 · System context
 
 ```mermaid

@@ -9,6 +9,7 @@ export interface HostResponse {
 
 export interface HostRequest {
   method: 'GET' | 'POST';
+  redirect?: 'error';
   body?: string | Blob;
   headers?: Record<string, string>;
   signal: AbortSignal;

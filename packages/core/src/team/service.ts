@@ -93,6 +93,7 @@ function credentialPasswordJson(
   return JSON.stringify(ownerIssuerHumanId === undefined ? hash : { ...hash, ownerIssuerHumanId });
 }
 const credentialSchema = z.object({
+  username: z.string(),
   password_json: z.string(),
   history_json: z.string(),
   must_change: z.coerce.boolean(),
@@ -426,7 +427,7 @@ export class TeamService {
     const row = this.db.read((db) =>
       db
         .prepare(
-          'SELECT password_json, history_json, must_change FROM member_credentials WHERE human_id = ?',
+          'SELECT username, password_json, history_json, must_change FROM member_credentials WHERE human_id = ?',
         )
         .get(humanId),
     );
@@ -434,6 +435,7 @@ export class TeamService {
     const parsed = credentialSchema.parse(row);
     const password = credentialPasswordSchema.parse(JSON.parse(parsed.password_json));
     return {
+      username: parsed.username,
       hash: passwordHashSchema.parse(password),
       ownerIssuerHumanId: password.ownerIssuerHumanId,
       history: z.array(passwordHashSchema).parse(JSON.parse(parsed.history_json)),
@@ -492,6 +494,91 @@ export class TeamService {
   private owner(human: HumanContext): void {
     if (!this.isOwner(human))
       throw new TeamError('permission-required', undefined, { permission: 'owner' });
+  }
+
+  private ownerPasswordEnabled(): boolean {
+    return this.db.read(
+      (db) =>
+        db.prepare('SELECT owner_password_sign_in FROM team_settings WHERE singleton = 1').get()
+          ?.owner_password_sign_in === 1,
+    );
+  }
+
+  ownerPasswordSignIn(human: HumanContext): { enabled: boolean; username?: string } {
+    this.owner(human);
+    const username = this.credential(human.humanId)?.username;
+    return {
+      enabled: this.ownerPasswordEnabled(),
+      ...(username === undefined ? {} : { username }),
+    };
+  }
+
+  async ownerPasswordSignInSet(
+    human: HumanContext,
+    input: { enabled: boolean; username?: string | undefined; password?: string | undefined },
+  ): Promise<{ enabled: boolean; username?: string }> {
+    const previous = this.ownerPasswordSignIn(human);
+    const { enabled, username, password } = input;
+    if (enabled && previous.username === undefined) {
+      if (username === undefined || password === undefined)
+        throw new TeamError('owner-password-required');
+      if (!/^[a-z0-9][a-z0-9._-]{1,31}$/u.test(username)) throw new TeamError('username-invalid');
+      if (!strongPassword(password)) throw new TeamError('password-weak');
+      if (this.byUsername(username)) throw new TeamError('username-taken');
+      const hash = await hashPassword(password);
+      this.owner(human);
+      if (this.hasCredential(human.humanId)) throw new TeamError('invalid-input');
+      if (this.byUsername(username)) throw new TeamError('username-taken');
+      this.db.transaction(
+        (db) => {
+          db.prepare('INSERT INTO member_credentials VALUES (?, ?, ?, ?, 0)').run(
+            human.humanId,
+            username,
+            credentialPasswordJson(hash, human.humanId),
+            '[]',
+          );
+          db.prepare(
+            'UPDATE team_settings SET owner_password_sign_in = 1 WHERE singleton = 1',
+          ).run();
+        },
+        ['team'],
+      );
+    } else {
+      if (username !== undefined || password !== undefined) throw new TeamError('invalid-input');
+      if (previous.enabled === enabled) return previous;
+      this.db.transaction(
+        (db) =>
+          db
+            .prepare('UPDATE team_settings SET owner_password_sign_in = ? WHERE singleton = 1')
+            .run(Number(enabled)),
+        ['team'],
+      );
+    }
+    this.invalidate();
+    this.log('owner-password-sign-in-changed', { initiator: 'owner', enabled });
+    return this.ownerPasswordSignIn(human);
+  }
+
+  async signInOwnerDevice<T>(
+    username: string,
+    password: string,
+    ip: string,
+    issue: (humanId: string) => T,
+  ): Promise<T> {
+    if (!this.ownerPasswordEnabled()) throw new TeamError('owner-sign-in-disabled');
+    this.passwordAttempt(username, ip);
+    const { humanId } = this.ownerContext();
+    const credential = this.credential(humanId);
+    const matches = credential?.username === username;
+    const valid = await verifyPassword(password, matches ? credential.hash : DUMMY_PASSWORD_HASH);
+    if (!matches || !valid) throw new TeamError('credentials-invalid');
+    if (!this.ownerPasswordEnabled()) throw new TeamError('owner-sign-in-disabled');
+    if (
+      this.ownerContext().humanId !== humanId ||
+      this.credential(humanId)?.hash.hash !== credential.hash.hash
+    )
+      throw new TeamError('credentials-invalid');
+    return issue(humanId);
   }
 
   async setMode(human: HumanContext, enabled: boolean): Promise<TeamModeView> {
