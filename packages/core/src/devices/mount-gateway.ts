@@ -36,8 +36,7 @@ export function mountDeviceGateway(
     write,
     videoOwner,
     voiceCall,
-    push,
-    activity,
+    delivery,
     account,
     connectBots,
     encryption,
@@ -54,8 +53,7 @@ export function mountDeviceGateway(
       command: unknown,
       signal: AbortSignal,
     ) => Promise<VoiceCallResult>;
-    push: PushDelivery | undefined;
-    activity: ActivityDelivery | undefined;
+    delivery: () => { push: PushDelivery | undefined; activity: ActivityDelivery | undefined };
     account: ConnectAccount;
     connectBots: ReturnType<typeof createConnectBotBridge> | undefined;
     encryption: NonNullable<Parameters<typeof createDevicesHttp>[0]['encryption']>;
@@ -112,6 +110,7 @@ export function mountDeviceGateway(
         },
       }
     : undefined;
+  const { push, activity } = delivery();
   const gateway = createDeviceGateway({
     ...(team ? { team } : {}),
     pairing,
