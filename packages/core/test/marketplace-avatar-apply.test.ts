@@ -3,10 +3,11 @@ import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { avatarDataUrl } from '../../market/test/avatar-fixtures.js';
 import { createBotAvatarHttp } from '../src/bots/avatar-http.js';
-import { createMarket } from '../../market/test/market-harness.js';
+import { admin, createMarket, post, solve } from '../../market/test/market-harness.js';
 import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
+import { solveChallenge } from '../src/marketplace/altcha.js';
 import { createMarketplaceClient } from '../src/marketplace/client.js';
 import {
   createInstallReceipts,
@@ -287,8 +288,8 @@ it('rechecks the target and roles after image fetch and sends no receipt on refu
   expect(await count(market, id)()).toBe(0);
 });
 
-it('sets the Tob custom-avatar flag despite a receipt failure and refuses a hidden or deleted source', async () => {
-  const market = createMarket();
+it('preserves the applied Tob avatar through report takedown, block and deletion despite a lost receipt', async () => {
+  const market = createMarket({ env: { REPORT_THRESHOLD: '2' } });
   const id = await publish(market);
   const host = makeHost(market);
   const { botSlug } = await host.core.tob.ensure();
@@ -301,19 +302,34 @@ it('sets the Tob custom-avatar flag despite a receipt failure and refuses a hidd
   expect(bridge.get({ slug: botSlug })).toMatchObject({
     value: { bot: { tob: { defaultAvatar: false } } },
   });
-  for (const sql of [
-    "UPDATE marketplace_avatars SET visibility = 'hidden_reported' WHERE id = ?",
-    'DELETE FROM marketplace_avatars WHERE id = ?',
-  ]) {
-    market.sqlite.prepare(sql).run(id);
+  const challenge = await bridge.marketplaceChallenge();
+  if (!challenge.ok) throw new Error('No reporting challenge');
+  const proof = await solveChallenge(challenge.value);
+  expect(await bridge.marketplaceAvatarReport({ id, altcha: proof, reason: 'spam' })).toEqual({
+    ok: true,
+    value: { received: true },
+  });
+  const ip = '203.0.113.2';
+  expect(
+    (await post(market, `/v1/avatars/${id}/reports`, { altcha: await solve(market, ip) }, ip))
+      .status,
+  ).toBe(202);
+
+  const expectUnavailable = async () => {
     expect(await bridge.marketplaceAvatarApply(target(id, botSlug))).toMatchObject({
       ok: false,
       error: { code: 'avatar-not-found' },
     });
     await expectAvatar(host, botSlug, 'png');
-  }
+  };
+  await expectUnavailable();
+  expect((await admin(market, { kind: 'avatar', id, action: 'restore' })).status).toBe(200);
+  expect((await admin(market, { kind: 'avatar', id, action: 'block' })).status).toBe(200);
+  await expectUnavailable();
+  market.sqlite.prepare('DELETE FROM marketplace_avatars WHERE id = ?').run(id);
+  await expectUnavailable();
   expect(receipt).toHaveBeenCalledTimes(1);
-});
+}, 45_000);
 
 it('replays a successful operation key on the same Host without overwriting a later Avatar', async () => {
   const market = createMarket();

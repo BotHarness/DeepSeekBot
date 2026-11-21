@@ -1289,6 +1289,7 @@ deepseekbot marketplace-author --name <显示名> [--accept-terms]
 deepseekbot marketplace-author-avatar (--file <图片> | --clear)
 deepseekbot marketplace-avatar-list [--cursor <游标>]
 deepseekbot marketplace-avatar-detail <条目 ID>
+deepseekbot marketplace-avatar-report <条目 ID> [--reason <说明>]
 deepseekbot marketplace-avatar-apply <条目 ID> --bot <Bot> [--operation-key <请求键>]
 deepseekbot marketplace-avatar-apply-candidates
 deepseekbot marketplace-avatar-publish (--file <图片> | --from-bot <Bot>) --name <名称> [--description <简介>] [--avatar-tag <标签> ...] [--operation-key <请求键>] --confirm
@@ -1341,6 +1342,10 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 列出当前 Host 上有权更换头像的 Bot，再用 `marketplace-avatar-apply <条目 ID> --bot <Bot>` 应用。Host 会保存图片副本。使用同一个 `--operation-key` 可重试当前 Host 进程最近处理的应用。
 
 上传和推送到 GitHub 读的都是**分享草稿**，源 Memory 不会被改动。`share-draft-start` 把 Bot 可分享的记忆文件（和 `marketplace-upload-plan` 会包含的一样）复制到 Host 自己的数据目录，并替换之前的草稿。`share-draft-show` 返回草稿的 `state`（`reviewing` 或 `ready`）、计数 `summary`，以及每个文件的 `path`、`kind`、`size`、`status`（`pending`、`kept`、`rewritten` 或 `dropped`）和模式扫描发现的 `flags`（`secret`、`private-key`、`url-credential`、`email`、`phone`）。`share-draft-file --path` 返回一个文本文件在草稿里的当前内容。`share-draft-decide` 记录一个结论：`--keep`、`--drop`（删除草稿里的副本）或 `--rewrite-stdin`（完整的新内容，最多 5 MB）。任何结论都会让已就绪的草稿回到 `reviewing`。`share-draft-finish` 在没有 `pending` 文件时把草稿标为 `ready`（`share-draft-pending` 会给出第一个未决文件）。`share-draft-export` 把已就绪的草稿复制到 Tob 工作区里一个不带 `.git` 的新文件夹并返回 `path`，用于推送到 GitHub。`share-draft-discard` 删除草稿。Tob 的受限 CLI 只有 `share-draft-show`、`share-draft-file`、`share-draft-decide` 和 `share-draft-finish`，而且只能处理人类已开始的草稿；开始、导出和删除草稿由人类操作。
+
+`marketplace-avatar-report` 和举报 Bot 使用相同的工作量证明。举报说明选填，最多 500 个字符。
+
+平台管理员可用 `marketplace-blocklist <block|restore> <bot|avatar> <ID 或 URL>`，并将 `MARKETPLACE_ADMIN_TOKEN` 设为 Worker 的管理员令牌。命令默认直连 `https://market.botharness.ai`，可用 `MARKETPLACE_ADMIN_URL` 指定其他 Worker。Bot 可传 GitHub 仓库 URL，头像用条目 ID。恢复头像会清空举报并保留应用次数，Host 上已应用的副本会继续保留。
 
 `marketplace-mine` 按时间从新到旧列出已登录作者自己上传的 Bot，每项为 `{ bot, files, bytes, blocked }`；`blocked` 的条目别人看不到，但仍可更新或删除。`marketplace-upload --replaces <listing-id>` 用这个 Bot 当前的记忆文件整体替换其中一个：没有版本，条目 id 不变，新文件全部存好后才对外可见，随后删除旧文件。每小时最多替换 10 次（`replace-limit`）；替换不占 20 个 Bot 的名额。`marketplace-delete` 删除条目、文件和计数，必须带 `--confirm`；和 `marketplace-upload` 一样，Bot 在自己的 Shell 里运行它时总会弹出给人类的批准卡片。已安装的副本永远不会被改动：本 Host 装过的条目在 `marketplace-list` 和 `marketplace-detail` 里带 `installed`（`bots` 为装出来的 Bot id，作者在安装之后替换过文件时 `authorUpdated` 为 true）。注销 Connect 账号会一并删除它上传的所有 Bot 和作者信息。
 

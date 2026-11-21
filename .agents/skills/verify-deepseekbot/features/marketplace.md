@@ -5,6 +5,7 @@
 - `packages/market/**`
 - `packages/core/src/marketplace/**`
 - `packages/core/src/features/marketplace/**`
+- `packages/client/src/client/marketplace-report.tsx`
 - `packages/client/src/client/{marketplace,market-panel,market-avatars,market-avatar-apply,personabot-avatar-crop}.tsx`
 - `packages/client/src/client/{profile-header,bot-sidebar-channel-actions}.tsx`
 - `apps/mobile/src/marketplace/**`
@@ -81,3 +82,13 @@ Install opens a review step: Tob reads the staged files and the step shows **Tob
 1. Open a published Avatar in the Marketplace on the connected Host. Click **Apply** and select a Bot with a plain avatar. Confirm that the picker shows the Bot and omits the replacement warning.
 2. Choose a Bot with an editable Appearance. Confirm the warning appears before the write, apply the Avatar, and open the Bot’s profile to check the new image. Check the same Bot with the CLI.
 3. After the receipt reaches the Worker, run `deepseekbot marketplace-avatar-detail <id>` to confirm the increment. Apply again to the same Bot and check that the count stays the same.
+
+
+### Report a Marketplace Avatar
+
+1. Publish an Avatar on the isolated Worker and apply it to a test Bot. Open the loaded Avatar detail as a browsing Human. Click **Report**, add a reason, submit, and wait for **Report received**.
+2. Run `deepseekbot marketplace-avatar-report <id> --reason <text>` from the same Host. Confirm the combined reports from that source count once.
+3. On the isolated Worker, complete the report challenge from enough distinct sources to reach the configured threshold. Confirm the Avatar disappears from the list, its detail and image return 404, and another attempt to apply it is refused. Reopen the original Bot profile and compare its local Avatar.
+4. With the isolated Worker's admin token and URL in the CLI environment, use `deepseekbot marketplace-blocklist restore avatar <id>` and confirm the original Apply Count. Use `block` and `restore` again and check that the same visibility rule applies.
+
+The Worker HTTP coverage is in `packages/market/test/market-avatars.test.ts`. The Host copy check is in `packages/core/test/marketplace-avatar-apply.test.ts`.

@@ -105,6 +105,7 @@ export interface MarketplaceBridgeMethods {
   marketplaceDetail(payload: unknown): Promise<BridgeResult<MarketplaceDetail>>;
   marketplaceFileView(payload: unknown): Promise<BridgeResult<MarketplaceFileView>>;
   marketplaceChallenge(): Promise<BridgeResult<AltchaChallenge>>;
+  marketplaceAvatarReport(payload: unknown): Promise<BridgeResult<{ received: true }>>;
   marketplaceReport(payload: unknown): Promise<BridgeResult<{ received: true }>>;
   marketplaceAccount(): Promise<BridgeResult<MarketplaceAccount>>;
   marketplaceAuthorSave(payload: unknown): Promise<BridgeResult<MarketplaceAuthorAccount>>;
@@ -328,6 +329,30 @@ export function createMarketplaceBridgeMethods(
       },
     };
   };
+  const report = (payload: unknown, kind: 'bot' | 'avatar') => {
+    const { id, altcha, reason } = asObject(payload);
+    if (typeof id !== 'string' || id.trim().length === 0) {
+      return Promise.resolve(invalidInput('id is required'));
+    }
+    if (typeof altcha !== 'string' || altcha.length === 0) {
+      return Promise.resolve(invalidInput('altcha is required'));
+    }
+    if (reason !== undefined && typeof reason !== 'string') {
+      return Promise.resolve(invalidInput('invalid reason'));
+    }
+    const trimmed = reason?.trim() ?? '';
+    return marketplaceCall((client) =>
+      client.report(
+        id.trim(),
+        {
+          altcha,
+          ...(trimmed.length === 0 ? {} : { reason: trimmed }),
+        },
+        kind,
+      ),
+    );
+  };
+
   return {
     marketplaceZip: {
       zipUploadBegin(payload) {
@@ -580,25 +605,8 @@ export function createMarketplaceBridgeMethods(
       marketplaceChallenge() {
         return marketplaceCall((client) => client.challenge());
       },
-      marketplaceReport(payload) {
-        const { id, altcha, reason } = asObject(payload);
-        if (typeof id !== 'string' || id.trim().length === 0) {
-          return Promise.resolve(invalidInput('id is required'));
-        }
-        if (typeof altcha !== 'string' || altcha.length === 0) {
-          return Promise.resolve(invalidInput('altcha is required'));
-        }
-        if (reason !== undefined && typeof reason !== 'string') {
-          return Promise.resolve(invalidInput('invalid reason'));
-        }
-        const trimmed = reason?.trim() ?? '';
-        return marketplaceCall((client) =>
-          client.report(id.trim(), {
-            altcha,
-            ...(trimmed.length === 0 ? {} : { reason: trimmed }),
-          }),
-        );
-      },
+      marketplaceReport: (payload) => report(payload, 'bot'),
+      marketplaceAvatarReport: (payload) => report(payload, 'avatar'),
       async marketplaceAccount() {
         if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
         return uploadResult(await deps.marketplaceUploads.account());
@@ -855,6 +863,7 @@ export function createMarketplaceBridgeMethods(
       | 'marketplaceSubmit'
       | 'marketplaceChallenge'
       | 'marketplaceReport'
+      | 'marketplaceAvatarReport'
       | 'marketplaceAccount'
       | 'marketplaceAuthorSave'
       | 'marketplaceAuthorAvatarSet'

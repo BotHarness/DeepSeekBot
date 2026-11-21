@@ -369,6 +369,7 @@ export const bridgeMethodInventory = [
   'marketplaceFileView',
   'marketplaceChallenge',
   'marketplaceReport',
+  'marketplaceAvatarReport',
   'marketplaceAccount',
   'marketplaceAuthorSave',
   'marketplaceAuthorAvatarSet',

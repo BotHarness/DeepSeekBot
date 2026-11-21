@@ -35,6 +35,13 @@ export function createMarketplaceActions(
       invoke('marketplaceAvatarList', cursor === undefined ? {} : { cursor }),
     marketplaceAvatarApplyCandidates: () => invoke('marketplaceAvatarApplyCandidates', {}),
     marketplaceAvatarApply: (id, bot) => invoke('marketplaceAvatarApply', { id, bot }),
+    async marketplaceAvatarReport(id, altcha, reason) {
+      await invoke('marketplaceAvatarReport', {
+        id,
+        altcha,
+        ...(reason === undefined ? {} : { reason }),
+      });
+    },
     marketplaceAvatarDetail: (id) => invoke('marketplaceAvatarDetail', { id }),
     marketplaceAvatarPublish: (input) => invoke('marketplaceAvatarPublish', { ...input }),
     marketplaceAvatarSource: (bot) => invoke('marketplaceAvatarSource', { bot }),
@@ -72,6 +79,7 @@ export function createMarketplaceActions(
       BridgeActions,
       | 'marketplaceAvatarList'
       | 'marketplaceAvatarDetail'
+      | 'marketplaceAvatarReport'
       | 'marketplaceAvatarApplyCandidates'
       | 'marketplaceAvatarApply'
       | 'marketplaceAvatarPublish'

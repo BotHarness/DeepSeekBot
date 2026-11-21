@@ -345,6 +345,7 @@ export interface BridgeActions
   marketplaceAvatarList(cursor?: string): Promise<MarketplaceAvatarPage>;
   marketplaceAvatarApplyCandidates(): Promise<{ bots: MarketplaceAvatarApplyCandidate[] }>;
   marketplaceAvatarApply(id: string, bot: string): Promise<{ applied: true }>;
+  marketplaceAvatarReport(id: string, altcha: string, reason?: string): Promise<void>;
   marketplaceAvatarDetail(id: string): Promise<MarketplaceAvatar>;
   marketplaceAvatarPublish(input: MarketplaceAvatarPublish): Promise<MarketplaceAvatar>;
   marketplaceAvatarSource(slug: string): Promise<{ image: string }>;
@@ -794,6 +795,7 @@ export function createActions(
     marketplaceAvatarList: marketplaceActions.marketplaceAvatarList,
     marketplaceAvatarApplyCandidates: marketplaceActions.marketplaceAvatarApplyCandidates,
     marketplaceAvatarApply: marketplaceActions.marketplaceAvatarApply,
+    marketplaceAvatarReport: marketplaceActions.marketplaceAvatarReport,
     marketplaceAvatarDetail: marketplaceActions.marketplaceAvatarDetail,
     marketplaceAvatarPublish: marketplaceActions.marketplaceAvatarPublish,
     marketplaceAvatarSource: marketplaceActions.marketplaceAvatarSource,

@@ -148,6 +148,21 @@ export async function marketplaceReport(
   );
 }
 
+export async function marketplaceAvatarReport(
+  methods: MarketplaceBridgeMethods,
+  id: string,
+  altcha: string,
+  reason?: string,
+): Promise<{ received: true }> {
+  return unwrapAsync(
+    methods.marketplaceAvatarReport({
+      id,
+      altcha,
+      ...(reason === undefined ? {} : { reason }),
+    }),
+  );
+}
+
 export async function marketplaceTopics(
   methods: MarketplaceBridgeMethods,
 ): Promise<MarketplaceTopic[]> {

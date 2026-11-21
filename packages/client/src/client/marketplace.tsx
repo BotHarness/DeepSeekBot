@@ -55,7 +55,12 @@ import {
   marketplaceName,
 } from './marketplace-listing.js';
 import { marketplaceError } from './marketplace-feedback.js';
-import { MAX_REPORT_REASON_LENGTH, ReportPanel, type ReportState } from './marketplace-report.js';
+import {
+  ReportActions,
+  ReportButton,
+  ReportPanel,
+  useMarketplaceReport,
+} from './marketplace-report.js';
 import { MarketplaceListStatus, MarketplaceLoadMore } from './marketplace-list-status.js';
 import {
   committedEnter,
@@ -87,14 +92,15 @@ export {
   shortSha,
 } from './marketplace-listing.js';
 
-export async function proveHuman(actions: BridgeActions): Promise<string> {
+type MarketplaceChallengeActions = Pick<BridgeActions, 'marketplaceChallenge'>;
+
+export async function proveHuman(actions: MarketplaceChallengeActions): Promise<string> {
   const challenge = await actions.marketplaceChallenge();
   const payload = await solveChallenge(challenge, {
     yieldEvery: () => new Promise((resolve) => setTimeout(resolve, 0)),
   });
-  if (payload === undefined) {
+  if (payload === undefined)
     throw new BridgeCallError('challenge-invalid', 'challenge could not be solved');
-  }
   return payload;
 }
 
@@ -665,7 +671,7 @@ export function MarketplaceBotFlow({
     start.step === 'install' ? start.bot : undefined,
   );
   const [detail, setDetail] = useState<DetailState>({ status: 'loading' });
-  const [report, setReport] = useState<ReportState>({ status: 'closed' });
+  const report = useMarketplaceReport(() => proveHuman(actions), actions.marketplaceReport);
   const [installing, setInstalling] = useState(false);
   const [installCause, setInstallCause] = useState<unknown | undefined>(undefined);
   const [review, setReview] = useState<ReviewState>({ status: 'reviewing' });
@@ -701,7 +707,7 @@ export function MarketplaceBotFlow({
 
   const openDetail = (bot: MarketplaceEntry): void => {
     const ticket = ++detailGeneration.current;
-    setReport({ status: 'closed' });
+    report.close();
     setDetail({ status: 'loading' });
     void actions.marketplaceDetail(bot.id, lang).then(
       (loaded) => {
@@ -719,39 +725,6 @@ export function MarketplaceBotFlow({
       detailGeneration.current += 1;
     };
   }, [lang]);
-
-  const sendReport = (bot: MarketplaceEntry): void => {
-    if (report.status !== 'open' || report.phase !== 'idle') return;
-    const reason = report.reason.trim();
-    const ticket = detailGeneration.current;
-    setReport({ status: 'open', reason: report.reason, phase: 'verifying' });
-    void proveHuman(actions)
-      .then((altcha) => {
-        if (ticket === detailGeneration.current) {
-          setReport({
-            status: 'open',
-            reason: report.reason,
-            phase: 'sending',
-          });
-        }
-        return actions.marketplaceReport(bot.id, altcha, reason.length === 0 ? undefined : reason);
-      })
-      .then(
-        () => {
-          if (ticket === detailGeneration.current) setReport({ status: 'done' });
-        },
-        (cause: unknown) => {
-          if (ticket === detailGeneration.current) {
-            setReport({
-              status: 'open',
-              reason: report.reason,
-              phase: 'idle',
-              cause,
-            });
-          }
-        },
-      );
-  };
 
   const install = (): void => {
     if (selected === undefined || installing || review.status !== 'ready') return;
@@ -833,36 +806,10 @@ export function MarketplaceBotFlow({
   const bot = viewing ?? start.bot;
   const shown = detail.status === 'ready' ? detail.detail.bot : bot;
   const secondary =
-    report.status === 'closed' ? (
-      <Button
-        variant="ghost"
-        onClick={() => setReport({ status: 'open', reason: '', phase: 'idle' })}
-      >
-        {t('market.report.open')}
-      </Button>
-    ) : undefined;
+    report.state.status === 'closed' ? <ReportButton report={report} t={t} /> : undefined;
   const footer =
-    report.status === 'open' ? (
-      <>
-        <Button
-          variant="outline"
-          disabled={report.phase !== 'idle'}
-          onClick={() => setReport({ status: 'closed' })}
-        >
-          {t('common.cancel')}
-        </Button>
-        <Button
-          variant="primary"
-          disabled={report.phase !== 'idle'}
-          onClick={() => sendReport(shown)}
-        >
-          {report.phase === 'verifying'
-            ? t('market.challenge.verifying')
-            : report.phase === 'sending'
-              ? t('market.report.sending')
-              : t('market.report.send')}
-        </Button>
-      </>
+    report.state.status === 'open' ? (
+      <ReportActions report={report} id={shown.id} t={t} />
     ) : (
       <>
         {page === undefined ? (
@@ -882,17 +829,7 @@ export function MarketplaceBotFlow({
       state={detail}
       t={t}
       onRetry={() => openDetail(bot)}
-      report={
-        <ReportPanel
-          state={report}
-          t={t}
-          onReason={(reason) =>
-            setReport((current) =>
-              current.status === 'open' ? { ...current, reason, cause: undefined } : current,
-            )
-          }
-        />
-      }
+      report={<ReportPanel report={report} t={t} />}
     />
   );
 

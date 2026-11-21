@@ -28,6 +28,13 @@ import { MarketPage } from './market-page.js';
 import { marketplaceError } from './marketplace-feedback.js';
 import { MarketplaceLoadMoreButton } from './marketplace-list-status.js';
 import { marketplaceLanguage } from './marketplace-listing.js';
+import {
+  ReportActions,
+  ReportButton,
+  ReportPanel,
+  useMarketplaceReport,
+} from './marketplace-report.js';
+import { proveHuman } from './marketplace.js';
 import { observeResource } from './messaging-defaults-live.js';
 import { useMountedResource } from './mounted-resource.js';
 import { PersonaBotAvatarCropModal } from './personabot-avatar-crop.js';
@@ -59,7 +66,13 @@ const styles = stylex.create({
 });
 
 type BrowseActions = AvatarApplyActions &
-  Pick<BridgeActions, 'marketplaceAvatarList' | 'marketplaceAvatarDetail'>;
+  Pick<
+    BridgeActions,
+    | 'marketplaceAvatarList'
+    | 'marketplaceAvatarDetail'
+    | 'marketplaceAvatarReport'
+    | 'marketplaceChallenge'
+  >;
 type PublishActions = Pick<
   BridgeActions,
   | 'marketplaceAccount'
@@ -324,6 +337,7 @@ function MarketAvatarDetail({
   t: BotHarnessTranslate;
   onBack: () => void;
 }): ReactElement {
+  const report = useMarketplaceReport(() => proveHuman(actions), actions.marketplaceAvatarReport);
   const [picking, setPicking] = useState(false);
   const [appliedName, setAppliedName] = useState<string>();
   const [detail, setDetail] = useState<Read<MarketplaceAvatar>>({ kind: 'loading' });
@@ -352,20 +366,32 @@ function MarketAvatarDetail({
       title={avatar.name}
       hidden={false}
       t={t}
-      onBack={onBack}
+      onBack={() => {
+        report.close();
+        onBack();
+      }}
       secondary={
-        appliedName === undefined ? undefined : (
-          <Note tone="success">{t('market.avatar.applied', { name: appliedName })}</Note>
-        )
+        report.state.status === 'closed' ? (
+          <>
+            {appliedName === undefined ? null : (
+              <Note tone="success">{t('market.avatar.applied', { name: appliedName })}</Note>
+            )}
+            <ReportButton report={report} t={t} disabled={detail.kind !== 'ready'} />
+          </>
+        ) : undefined
       }
       actions={
-        <Button
-          variant="primary"
-          disabled={detail.kind !== 'ready'}
-          onClick={() => setPicking(true)}
-        >
-          {t('market.avatar.apply')}
-        </Button>
+        report.state.status === 'open' ? (
+          <ReportActions report={report} id={avatar.id} t={t} />
+        ) : (
+          <Button
+            variant="primary"
+            disabled={detail.kind !== 'ready'}
+            onClick={() => setPicking(true)}
+          >
+            {t('market.avatar.apply')}
+          </Button>
+        )
       }
     >
       {picking && (
@@ -431,6 +457,7 @@ function MarketAvatarDetail({
             {t('market.detail.error', { error: marketplaceError(detail.error, t) })}
           </ReadFailure>
         )}
+        <ReportPanel report={report} t={t} kind="avatar" />
       </div>
     </MarketPage>
   );

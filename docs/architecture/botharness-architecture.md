@@ -987,6 +987,8 @@ Web Marketplace 的 Avatars 分区使用独立的 D1 表和 R2 `avatars/` 前缀
 
 应用时，当前 Host 通过 Worker 的公开图片路由读取原始字节，验证头像并在写入前重新检查 Bot 和权限。Host 复用手动换头像的 Registry 路径，写入成功后异步发送回执。Worker 根据头像条目和 Host ID 与 PersonaBot ID 的 SHA-256 去重，由回执计算应用次数。见 [ADR-0358](../adr/0358-apply-count-counts-persona-bots-without-anti-abuse.md)。
 
+Avatar 与 Bot 共用 Worker 的 ALTCHA、来源限流、举报阈值和 D1 举报表。举报达到阈值后，Worker 在同一事务内将该条目的 visibility 设为 `hidden_reported`。公开列表、详情、图片和 Apply 均须读取到 `listed` 状态。管理员恢复 Avatar 时同一条语句更新 visibility 并清除该条目的举报，保留 Apply Count。Host 向 Worker 举报时不需要 Connect 账户。已应用的图片由各 Host 的 Registry 存储。
+
 [ADR-0240](../decisions/marketplace.md#adr-0240) 让列表按读者语言（中文/英文）显示：作者在仓库根目录放 `README.zh-CN.md`／`README.en.md`，在 `.botharness/bot.json` 的 `i18n` 里写翻译后的名称和简介；Worker 推送后一并抓取，`lang=zh|en` 时优先返回。某语言没有作者简介时，Worker 在每小时刷新后经 OpenCode Go 的免费模型按 README 生成一句简介（按输入哈希缓存、每轮限量，标记 `bioGenerated`），作者文本总是优先；README 正文不做机器翻译。Host 的 Marketplace modal 与 CLI 按界面语言传 `lang`。
 
 [ADR-0267](../decisions/marketplace.md#adr-0267) 加入安装计数：Host 在 Bot 建成之后（UI 或 CLI，上传条目或 GitHub 条目）向 Worker 发送一次 Install Receipt（`POST /v1/bots/{id}/installs`），键是 Host 数据目录 `marketplace-host.json` 里只给市场用的随机标识，与遥测安装 ID 无关；Worker 只存它的 SHA-256，`install_receipts` 以 (条目, Host) 去重并按来源地址限流，`installs` 随列表和详情返回。

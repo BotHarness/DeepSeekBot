@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { MAX_MARKETPLACE_AVATAR_BYTES } from '../../host-protocol/src/marketplace-avatar.js';
 import { MAX_BOTS_PER_ACCOUNT } from '../src/upload-files.js';
 import { avatarDataUrl, avatarFixtures } from './avatar-fixtures.js';
-import { createMarket, fakeRepository, submit } from './market-harness.js';
+import { admin, createMarket, fakeRepository, post, solve, submit } from './market-harness.js';
 
 type Market = ReturnType<typeof createMarket>;
 const png = Buffer.from(avatarFixtures.png, 'base64');
@@ -305,4 +305,58 @@ it('rate limits Avatar apply receipts by source', async () => {
   const limited = await write(market, path, { botHash: 'b'.repeat(64) });
   expect(limited.status).toBe(429);
   expect(limited.headers.get('retry-after')).toBe('3600');
+});
+
+it('shares the report challenge and threshold, hides all public reads and restores without losing applies', async () => {
+  const market = createMarket();
+  await author(market);
+  const { avatar } = await (await publish(market)).json();
+  const { avatar: other } = await (await publish(market, { requestKey: 'other' })).json();
+  const id = avatar.id;
+  const path = `/v1/avatars/${id}`;
+  const from = async (source: number) => {
+    const ip = `203.0.113.${source}`;
+    return post(market, `${path}/reports`, { altcha: await solve(market, ip), reason: 'spam' }, ip);
+  };
+  const list = async () => (await (await market.request('/v1/avatars')).json()).avatars;
+  const hidden = async () => {
+    expect(await list()).toEqual([other]);
+    expect((await market.request(path)).status).toBe(404);
+    expect((await market.request(`${path}/image`)).status).toBe(404);
+    expect((await write(market, `${path}/applies`, { botHash: 'b'.repeat(64) })).status).toBe(404);
+  };
+
+  expect((await write(market, `${path}/applies`, { botHash: 'a'.repeat(64) })).status).toBe(202);
+  expect((await post(market, `${path}/reports`, { altcha: 'invalid' })).status).toBe(400);
+  for (const source of [1, 1, 2]) {
+    expect(await (await from(source)).json()).toEqual({ received: true });
+  }
+  expect((await market.request(path)).status).toBe(200);
+  expect((await from(3)).status).toBe(202);
+  await hidden();
+  expect((await from(4)).status).toBe(404);
+
+  const action = (action: string) => ({ kind: 'avatar', id, action });
+  expect((await admin(market, action('restore'), 'wrong-token')).status).toBe(401);
+  expect((await admin(market, { action: 'restore', id })).status).toBe(404);
+  const restore = async () => {
+    expect(await (await admin(market, action('restore'))).json()).toEqual({
+      avatar: { id, name: avatar.name, visibility: 'listed' },
+    });
+    expect(await list()).toEqual(expect.arrayContaining([{ ...avatar, applyCount: 1 }, other]));
+    expect((await market.request(`${path}/image`)).status).toBe(200);
+  };
+
+  await restore();
+  expect((await from(1)).status).toBe(202);
+  expect((await market.request(path)).status).toBe(200);
+  expect(await (await admin(market, action('block'))).json()).toEqual({
+    avatar: { id, name: avatar.name, visibility: 'blocked' },
+  });
+  await hidden();
+  await restore();
+  for (const source of [2, 3]) expect((await from(source)).status).toBe(202);
+  expect((await market.request(path)).status).toBe(200);
+  expect((await from(4)).status).toBe(202);
+  await hidden();
 });

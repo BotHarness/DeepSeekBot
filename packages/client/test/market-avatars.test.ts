@@ -2,6 +2,7 @@
 import { act, createElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { createChallenge } from '../../core/src/marketplace/altcha.js';
 import { avatarDataUrl } from '../../market/test/avatar-fixtures.js';
 import { buttonNamed, fieldNamed, typeInto } from './primitive-mocks.js';
 import { zhTranslate as t } from '../src/client/locale.js';
@@ -74,6 +75,12 @@ function actionsFor() {
         : { avatars: [{ ...avatar, id: 'avatar-b', name: 'Bear' }], nextCursor: null },
     ),
     marketplaceAvatarDetail: vi.fn(async () => avatar),
+    marketplaceChallenge: vi.fn(() =>
+      createChallenge({ key: 'test', tier: 'default', now: new Date(), number: 4 }),
+    ),
+    marketplaceAvatarReport: vi.fn<(id: string, altcha: string, reason?: string) => Promise<void>>(
+      async () => {},
+    ),
     marketplaceAvatarApplyCandidates: vi.fn(async () => ({
       bots: [
         { slug: 'plain', displayName: 'Plain Bot', hasAppearance: false },
@@ -370,5 +377,42 @@ it('applies only to a Bot returned by the Host and warns before replacing an edi
   expect(host.textContent).toContain(t('market.avatar.applied', { name: 'Editable Bot' }));
   expect(host.querySelector('.bh-market-hero .bh-market-meta')?.textContent).toContain(
     t('market.applyCount', { count: 1 }),
+  );
+});
+
+it('reports the opened Avatar through the shared challenge and report panel', async () => {
+  const actions = actionsFor();
+  await act(async () =>
+    root.render(
+      createElement(MarketAvatars, { actions, publishing: false, onClosePublish: vi.fn(), t }),
+    ),
+  );
+  await act(async () => buttonNamed(t('market.detail.open', { name: 'Otter' })).click());
+  await act(async () => buttonNamed(t('market.report.open')).click());
+  expect(host.querySelector('[data-market-report="open"]')?.textContent).toContain(
+    t('market.avatar.report.title'),
+  );
+  const textarea = host.querySelector('textarea');
+  if (textarea === null) throw new Error('Missing report reason field');
+  await act(async () => {
+    Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')?.set?.call(
+      textarea,
+      '  spam  ',
+    );
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () => {
+    buttonNamed(t('market.report.send')).click();
+    await vi.waitFor(() => {
+      expect(actions.marketplaceAvatarReport).toHaveBeenCalledWith(
+        'avatar-a',
+        expect.any(String),
+        'spam',
+      );
+    });
+  });
+  expect(actions.marketplaceChallenge).toHaveBeenCalledOnce();
+  expect(host.querySelector('[data-market-report="done"]')?.textContent).toContain(
+    t('market.report.doneTitle'),
   );
 });
