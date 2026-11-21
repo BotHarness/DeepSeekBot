@@ -1,3 +1,161 @@
+import { MEMBER_METHODS } from '../../../core/src/team/member-methods.js';
+import { isBotPrimaryColor } from '../../../core/src/bots/primary-color.js';
+import { createPersonaBotReaders } from './features/personabots/bridge.js';
+import { createChannelHumanNameBridge } from './features/humans/bridge.js';
+import { createMemberBridgeGuard } from './features/team/bridge.js';
+import { parseRemoteChannelMetadata } from './features/environments/bridge.js';
+import { parseAuthor } from './bridge-channel-author.js';
+import type { ThreadReceptionInput } from '../../../core/src/messaging/thread-policy.js';
+export {
+  loadActivitySnapshot,
+  loadBotSourcePolicies,
+  setBotSourcePolicy,
+  resetBotSourcePolicy,
+  loadBotAttention,
+  loadHumanAttention,
+  loadHumanAttentionStatus,
+  loadChannelUnreadCounts,
+  dismissActivityListItem,
+  dismissAllActivityListItems,
+  snoozeActivityListItem,
+  ignoreHumanAssignmentReport,
+  loadProfileActivity,
+  loadGroupProfileActivity,
+  loadChannelActivityToday,
+} from './features/activity/bridge.js';
+export type {
+  BotSourcePolicyView,
+  BotSourcePolicyEdit,
+  ProfileActivityDay,
+  ProfileActivityReasonDay,
+  ProfileTokenBuckets,
+  ProfileActivityTokensDay,
+  ProfileModelUsageRow,
+  ProfileActivity,
+  GroupProfileAuthorActivity,
+  GroupProfileActivity,
+  ProfileActivityWindow,
+} from './features/activity/bridge.js';
+export {
+  manageMessagingIdentity,
+  loadMessagingDefaults,
+  saveMessagingDefaults,
+  loadChannelBridges,
+  loadChannelIngests,
+  manageChannelIngest,
+  manageChannelBridge,
+  setFailureAlerts,
+  testFailureAlerts,
+  retryFailureAlerts,
+  reviewPairing,
+  changeExternalSenderAccess,
+  loadMessagingApps,
+  loadMessagingSnapshot,
+  loadMessagingTargets,
+  authorizeMessaging,
+  revokeMessaging,
+  loadMessagingReachable,
+  readMessagingPostRequest,
+  postMessagingConversation,
+  setMessagingPostLimit,
+  sendMessaging,
+  loadChannelMediaTarget,
+  setMessagingChannelTarget,
+  setMessagingThreadPolicy,
+  setMessagingGroupPolicy,
+  manageMessagingConversation,
+  setMessagingReceive,
+  readMessagingSource,
+} from './features/messaging/bridge.js';
+export { parseSessionModelRoute } from './session-model-route.js';
+export type { SessionModelRoute } from './session-model-route.js';
+import { createSessionOwnerBridge, parseItems, finite } from './features/sessions/bridge.js';
+import type { SessionLiveSnapshot } from './features/sessions/bridge.js';
+export {
+  parseOwnedSessionSummaries,
+  parseIdleCompactionStatus,
+  loadIdleCompaction,
+  setIdleCompaction,
+  setCompactionThreshold,
+  parseSessionEngineQuota,
+  parseSessionToolDetail,
+  loadSessionToolDetail,
+  loadSessionTranscript,
+  loadBotSessionIds,
+  loadBotSessionGroups,
+  loadSessions,
+  setSessionArchived,
+  stopSession,
+  stopBot,
+} from './features/sessions/bridge.js';
+export type {
+  CompactionThresholdRange,
+  CompactionThreshold,
+  IdleCompactionStatus,
+  BotCompactResult,
+  SessionTranscriptTrigger,
+  SessionTurnUsage,
+  SessionToolTargets,
+  SessionTranscriptEnvelope,
+  SessionTranscriptItem,
+  SessionToolKind,
+  SessionEngineQuota,
+  SessionEngine,
+  SessionTranscript,
+  SessionLiveSnapshot,
+  SessionToolDetail,
+  StoppedSessionRef,
+  SessionStopResult,
+} from './features/sessions/bridge.js';
+export {
+  loadChannelAssignments,
+  loadSessionSubagents,
+  loadSessionProgress,
+  loadAssignmentWork,
+  loadHumanAssignmentContext,
+  loadAssignmentAccess,
+  setAssignmentAccess,
+} from './features/assignments/bridge.js';
+export type {
+  SessionSubagent,
+  SessionGoal,
+  SessionTodo,
+  SessionProgress,
+  AssignmentWorkStep,
+  AssignmentWorkLane,
+  AssignmentWorkRound,
+  AssignmentWork,
+  AssignmentAccessPresetView,
+} from './features/assignments/bridge.js';
+export {
+  moveMemoryLocation,
+  loadMemoryVersions,
+  loadMemorySnapshot,
+  loadMemoryFileTarget,
+  loadMemoryFile,
+  loadMemoryHistory,
+  loadMemoryDiff,
+  loadMemoryGitGraph,
+  loadMemoryGitCommitDiff,
+  loadMemoryWorkingChanges,
+  loadMemoryWorkingDiff,
+  loadMemoryRecoveryHistory,
+  restoreMemoryCheckpoint,
+  restoreMemoryCommit,
+  nameMemoryVersion,
+  removeMemoryVersionName,
+  saveMemoryFile,
+  repairMemory,
+  loadOverviewMemory,
+} from './features/memory/bridge.js';
+export type {
+  MemoryVersion,
+  MemoryWorkingKind,
+  MemoryWorkingChange,
+  MemoryWorkingDiff,
+  MemoryRecoveryCheckpoint,
+  MemoryRepairEvent,
+} from './features/memory/bridge.js';
 import {
   createApprovalTemplateDeletionBridge,
   parseApprovalCard,
@@ -111,36 +269,15 @@ export {
   runBotScheduleNow,
   previewBotSchedule,
 } from './features/schedules/bridge.js';
-import * as people from '@botharness/host-client/people';
-import * as accessReaders from '@botharness/host-client/access-readers';
-import * as rosterReaders from '@botharness/host-client/roster-readers';
-import { readAssignmentTimeline } from '@botharness/host-client/assignment-timeline';
-import { readProfileActivity } from '@botharness/host-client/profile-activity';
-import type { WireAssignmentAccessPreset } from '@botharness/host-protocol/wire';
-import * as botControl from '@botharness/host-client/bot-control';
-import type {
-  WireBotCompactResult,
-  WireSessionStopResult,
-  WireStoppedSessionRef,
-} from '@botharness/host-protocol/wire';
+
 import { parseToolEffects } from '../../../core/src/workspaces/tool-effects-contract.js';
 
 import {
   skillCatalogChangeSchema,
   type SkillCatalogChange,
 } from '../../../core/src/skills/events.js';
-import { MEMBER_METHODS } from '../../../core/src/team/member-methods.js';
-import {
-  humanAvatarVersionOf,
-  readHumanAvatars,
-  readHumanIdentity,
-  setHumanName,
-  setHumanAvatar as writeHumanAvatar,
-  finishHumanProfile,
-  type HumanAvatarImage,
-  type HumanIdentity,
-} from '@botharness/host-client/human-profile';
-import { memberPage } from './member-page.js';
+
+import { humanAvatarVersionOf, type HumanIdentity } from '@botharness/host-client/human-profile';
 import {
   isTakeoverRequestCard,
   isTakeoverResolution,
@@ -149,30 +286,13 @@ import {
   parseFailureAutoContinue,
   parseFailureProgress,
 } from '@botharness/host-client/shared/turn-continuation';
-import { isPixelBannerRecipe } from '@botharness/pixel-banner';
+
 import {
   browseHostFolders,
   loadWorkspaceOptions as loadHostWorkspaceOptions,
 } from '@botharness/host-client/bot-settings';
-import { listBots, updateBot } from '@botharness/host-client/bots';
-import { loadMemoryActivity, loadUsage } from '@botharness/host-client/usage';
-import {
-  loadMemoryFile as loadHostMemoryFile,
-  loadMemoryGitCommitDiff as loadHostMemoryGitCommitDiff,
-  loadMemoryGitGraph as loadHostMemoryGitGraph,
-  loadMemorySnapshot as loadHostMemorySnapshot,
-  parseMemoryCommit,
-  parseVersionNames,
-  saveMemoryFile as saveHostMemoryFile,
-  type MemoryAcceptedCommit,
-  type MemoryFile,
-  type MemoryGitCommitDiff,
-  type MemoryGitGraph,
-  type MemoryImageComparison,
-  type MemoryMarkdownComparison,
-  type MemorySnapshot,
-  type MemoryVersionName,
-} from '@botharness/host-client/memory';
+
+import { loadUsage } from '@botharness/host-client/usage';
 export type {
   MemoryAcceptedCommit,
   MemoryFile,
@@ -204,7 +324,6 @@ import {
   isChannelTurnStopEngine,
   isChannelTurnStopRests,
 } from '../../../core/src/channels/turn-stop.js';
-import { isTurnTargetPath, type TurnTarget } from '@botharness/host-protocol/turn-target';
 import { isChannelModelSwitch } from '../../../core/src/channels/model-switch.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PairingRequest, PairingReviewInput } from '../../../core/src/messaging/pairing.js';
@@ -224,7 +343,6 @@ import type {
   ChannelSkillInvocationToken,
   GroupMemberWakePolicy,
 } from '../../../core/src/channels/channel.js';
-import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
 
 import type {
@@ -235,7 +353,6 @@ import type {
   MessagingIdentity,
   MessagingIdentityInput,
 } from '../../../core/src/messaging/identity.js';
-import type { OverviewMemory } from '../../../core/src/memory/overview.js';
 import {
   parseMarketplaceDetail,
   parseAuthoredBots,
@@ -264,7 +381,7 @@ import type {
   InstallReview,
   InstallReviewResult,
 } from '../../../core/src/marketplace/install-review.js';
-import { parseChallenge, type AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
+import type { AltchaChallenge } from '../../../core/src/marketplace/altcha.js';
 import type { MarketplaceLanguage } from '../../../core/src/marketplace/language.js';
 import { approvalTemplateDeletionPreviewSchema } from '../../../core/src/workspaces/approval-template-deletion-contract.js';
 export type {
@@ -296,7 +413,6 @@ export interface MarketplaceBridgeReaders {
   parseMarketplaceDigests: typeof parseMarketplaceDigests;
   parseMarketplaceSubmission: typeof parseMarketplaceSubmission;
   parseMarketplaceTopics: typeof parseMarketplaceTopics;
-  parseChallenge: typeof parseChallenge;
   parseBotSummary: typeof parseBotSummary;
 }
 import type { OverviewUsage } from '@botharness/host-client/usage';
@@ -307,13 +423,12 @@ import type { ChannelActivityToday } from '../../../core/src/channels/activity-t
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
 import { isPartLibraryEntry } from '../../../core/src/bots/part-library.js';
-import { isBotPrimaryColor } from '../../../core/src/bots/primary-color.js';
+
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import type {
   ConversationIngestInput,
   ConversationIngestSnapshot,
 } from '../../../core/src/messaging/conversation-ingest.js';
-import type { HumanAssignmentContext } from '../../../core/src/runtime/assignment-human-context.js';
 export type { HumanAssignmentContext } from '../../../core/src/runtime/assignment-human-context.js';
 import type {
   MessagingApp,
@@ -322,9 +437,12 @@ import type {
   MessagingGrant,
   OutboxIntent,
 } from '../../../core/src/messaging/outbound.js';
-import type { MessagingTarget } from '../../../core/src/messaging/provider.js';
+import type {
+  MessagingReachablePage,
+  MessagingTarget,
+} from '../../../core/src/messaging/provider.js';
 import type { HostFileTarget } from './host-file-actions.js';
-import type { ComposerRecoveryIdentity } from '../../../core/src/bridge/composer-recovery.js';
+
 import {
   isChannelAttachmentRef,
   isChannelClearedAttachment,
@@ -340,33 +458,18 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import type { ConnectionRpcResult } from '@deepseek-ai/dsh-client-connection/client';
 
 import type {
-  BotAttentionPage,
-  BotAttentionStatus,
-  HumanAttentionItem,
-  HumanAttentionPage,
-  ActivityListCategory,
-  ActivityListFilters,
-  BotBannerView,
   BotSummary,
-  ChannelAuthor,
   ChannelAttachmentRef,
   ChannelMessage,
   ChannelMessageQuote,
   ChannelReplyPreview,
   ChannelReaction,
   ChannelSummary,
-  OwnedSessionSummary,
   QuoteRef,
   StandingLimitsView,
   UserQuestionAnswerItem,
 } from './store.js';
 import { quoteRefOf } from './store.js';
-import {
-  parseRosterSnapshot,
-  type RosterSection,
-  type RosterSnapshot,
-  type TopOrderEntry,
-} from './roster.js';
 
 export interface BridgeRpc {
   call(
@@ -377,108 +480,6 @@ export interface BridgeRpc {
   ): Promise<ConnectionRpcResult<unknown>>;
 }
 
-export async function loadActivitySnapshot(
-  call: BridgeCall,
-  signal: AbortSignal,
-): Promise<unknown> {
-  return unwrap(call, 'activitySnapshot', {}, signal);
-}
-
-export interface CreatePersonaBotInput {
-  operationKey?: string;
-  expectedCommit?: string;
-  displayName: string;
-  persona?: string;
-  roles: string[];
-  description?: string;
-  gitUrl?: string;
-  avatar?: string;
-  origin?: 'marketplace';
-  listingId?: string;
-  memoryLocation?: string;
-}
-
-export interface BotSourcePolicyView {
-  sourceClass:
-    | 'human-dm'
-    | 'bot-dm'
-    | 'group-mention'
-    | 'group-ordinary'
-    | 'group-invite'
-    | 'group-join-request'
-    | 'group-join-decision'
-    | 'assignment-report'
-    | 'assignment-lifecycle';
-  admission: 'admit';
-  wake: 'immediate' | 'digest' | 'conditional' | 'mentions' | 'silent';
-  delivery: 'steer' | 'turn';
-  digestCount?: number;
-  digestIntervalSeconds?: number;
-  revision: number;
-  lastActor: { kind: 'built-in' | 'human' | 'template' } | { kind: 'bot'; botSlug: string };
-  changedAt: string;
-  overrideActive: boolean;
-  recentWakeCount: number;
-}
-
-export type BotSourcePolicyEdit =
-  | { sourceClass: 'assignment-report'; wake: 'conditional' | 'immediate' }
-  | {
-      sourceClass: 'group-ordinary';
-      wake: 'immediate' | 'digest' | 'mentions' | 'silent';
-      digestCount: number;
-      digestIntervalSeconds: number;
-    }
-  | {
-      sourceClass: 'human-dm' | 'bot-dm' | 'group-mention';
-      wake: 'immediate';
-      delivery: 'steer' | 'turn';
-    };
-
-export async function loadBotSourcePolicies(
-  call: BridgeCall,
-  slug: string,
-): Promise<BotSourcePolicyView[]> {
-  const result = asRecord(await unwrap(call, 'botSourcePolicies', { slug }));
-  const raw = result?.['policies'];
-  if (!Array.isArray(raw)) throw new Error('invalid Bot source policies');
-  return raw.map((entry): BotSourcePolicyView => {
-    const policy = asRecord(entry);
-    const actor = asRecord(policy?.['lastActor']);
-    if (
-      policy === undefined ||
-      ![
-        'human-dm',
-        'bot-dm',
-        'group-mention',
-        'group-ordinary',
-        'group-invite',
-        'group-join-request',
-        'group-join-decision',
-        'assignment-report',
-        'assignment-lifecycle',
-      ].includes(String(policy?.['sourceClass'])) ||
-      policy['admission'] !== 'admit' ||
-      !['immediate', 'digest', 'conditional', 'mentions', 'silent'].includes(
-        String(policy['wake']),
-      ) ||
-      typeof policy['revision'] !== 'number' ||
-      !Number.isSafeInteger(policy['revision']) ||
-      !['built-in', 'human', 'bot', 'template'].includes(String(actor?.['kind'])) ||
-      (actor?.['kind'] === 'bot' && typeof actor['botSlug'] !== 'string') ||
-      typeof policy['changedAt'] !== 'string' ||
-      typeof policy['overrideActive'] !== 'boolean' ||
-      !Number.isSafeInteger(policy['recentWakeCount']) ||
-      (policy['recentWakeCount'] as number) < 0 ||
-      (policy['wake'] === 'digest' &&
-        (!Number.isSafeInteger(policy['digestCount']) ||
-          !Number.isSafeInteger(policy['digestIntervalSeconds'])))
-    )
-      throw new Error('invalid Bot source policy');
-    return policy as unknown as BotSourcePolicyView;
-  });
-}
-
 export type {
   BotSchedule as BotScheduleView,
   BotScheduleChange,
@@ -486,22 +487,6 @@ export type {
   BotScheduleInput,
   BotScheduleTrigger,
 } from '@botharness/host-client/schedules';
-
-export async function setBotSourcePolicy(
-  call: BridgeCall,
-  slug: string,
-  edit: BotSourcePolicyEdit,
-): Promise<void> {
-  await unwrap(call, 'botSourcePolicySet', { slug, ...edit });
-}
-
-export async function resetBotSourcePolicy(
-  call: BridgeCall,
-  slug: string,
-  sourceClass: BotSourcePolicyEdit['sourceClass'],
-): Promise<void> {
-  await unwrap(call, 'botSourcePolicyReset', { slug, sourceClass });
-}
 
 export function connectionRpc(ctx: ClientContext): BridgeRpc | undefined {
   const candidate = (ctx as unknown as { connection?: { rpc?: BridgeRpc } }).connection;
@@ -517,9 +502,9 @@ function remoteArgs(payload: Record<string, unknown>): Record<string, unknown> {
 }
 
 export function createBridgeCall(ctx: ClientContext): BridgeCall {
-  const member = memberPage();
+  const memberBridgeUnavailable = createMemberBridgeGuard(MEMBER_METHODS);
   return async (endpoint, payload, signal) => {
-    if (member && !MEMBER_METHODS.has(endpoint))
+    if (memberBridgeUnavailable(endpoint))
       return {
         ok: false,
         error: { code: 'member-unavailable', message: endpoint, details: {} },
@@ -548,121 +533,14 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-export function parseBotSummary(value: unknown): BotSummary | undefined {
-  const record = asRecord(value);
-  if (record === undefined) return undefined;
-  const slug = record['slug'];
-  const displayName = record['displayName'];
-  if (typeof slug !== 'string' || slug.length === 0 || typeof displayName !== 'string') {
-    return undefined;
-  }
-  const aggregateState = record['aggregateState'];
-  const createdAt = record['createdAt'];
-  const roles = stringArray(record['roles']);
-  const legacyTag = record['tag'];
-  const description = record['description'];
-  const avatar = record['avatar'];
-  const runner = asRecord(record['orchestratorRunner']);
-  const engine = runner?.['engine'];
-  const runnerName = runner?.['displayName'];
-  const account = runner?.['account'];
-  const runnerModel = runner?.['model'];
-  return {
-    ...(typeof engine === 'string' &&
-    engine.trim() &&
-    typeof runnerName === 'string' &&
-    runnerName.trim() &&
-    (account === undefined || typeof account === 'string')
-      ? {
-          orchestratorRunner: {
-            engine,
-            displayName: runnerName,
-            ...(account === undefined ? {} : { account }),
-            ...(typeof runnerModel === 'string' && runnerModel.trim()
-              ? { model: runnerModel }
-              : {}),
-          },
-        }
-      : {}),
-    slug,
-    displayName,
-    ...(typeof asRecord(record['tob'])?.['defaultName'] === 'boolean' &&
-    typeof asRecord(record['tob'])?.['defaultAvatar'] === 'boolean'
-      ? {
-          tob: record['tob'] as {
-            defaultName: boolean;
-            defaultAvatar: boolean;
-          },
-        }
-      : {}),
-    ...(typeof record['lastActivityAt'] === 'number' && Number.isFinite(record['lastActivityAt'])
-      ? { lastActivityAt: record['lastActivityAt'] }
-      : {}),
-    ...(typeof asRecord(record['sharedBy'])?.['displayName'] === 'string'
-      ? { sharedBy: asRecord(record['sharedBy'])?.['displayName'] as string }
-      : {}),
-    aggregateState: typeof aggregateState === 'string' ? aggregateState : 'idle',
-    workspaces: stringArray(record['workspaces']),
-    createdAt: typeof createdAt === 'string' ? createdAt : '',
-    roles: roles.length > 0 ? roles : typeof legacyTag === 'string' ? [legacyTag] : [],
-    ...(typeof description === 'string' ? { description } : {}),
-    ...(typeof avatar === 'string' ? { avatar } : {}),
-    ...(isAvatarAppearance(record['appearance'])
-      ? { appearance: record['appearance'] }
-      : isRetainedAvatarAppearance(record['appearance'])
-        ? { appearanceUnsupported: true as const }
-        : {}),
-    ...(parseBanner(record['banner']) ?? {}),
-    ...(isBotPrimaryColor(record['primaryColor']) ? { primaryColor: record['primaryColor'] } : {}),
-    ...(record['avatarSeed'] === 2 ? { avatarSeed: 2 as const } : {}),
-    ...(typeof record['paused'] === 'boolean' ? { paused: record['paused'] } : {}),
-    ...(record['deleted'] === true ? { deleted: true } : {}),
-    ...(record['modelAllowed'] === false ? { modelAllowed: false as const } : {}),
-    ...(typeof record['uploadedListing'] === 'string'
-      ? { uploadedListing: record['uploadedListing'] }
-      : {}),
-    ...(typeof record['installedListing'] === 'string'
-      ? { installedListing: record['installedListing'] }
-      : {}),
-    ...(parseStandingLimits(record['standingLimits']) ?? {}),
-  };
-}
-
-function parseBanner(value: unknown): { banner: BotBannerView } | undefined {
-  const banner = asRecord(value);
-  if (banner === undefined) return undefined;
-  if (isPixelBannerRecipe(banner['recipe'])) return { banner: { recipe: banner['recipe'] } };
-  const image = banner['image'];
-  return typeof image === 'string' && image.length > 0 ? { banner: { image } } : undefined;
-}
-
-function parseStandingLimits(value: unknown): { standingLimits: StandingLimitsView } | undefined {
-  const limits = asRecord(value);
-  const soul = limits?.['soul'];
-  const coreMemory = limits?.['coreMemory'];
-  if (typeof soul !== 'number' || typeof coreMemory !== 'number') return undefined;
-  return { standingLimits: { soul, coreMemory } };
-}
-
-export async function setStandingLimits(
-  call: BridgeCall,
-  slug: string,
-  limits: StandingLimitsView,
-): Promise<BotSummary> {
-  const value = asRecord(await unwrap(call, 'standingLimitsSet', { slug, ...limits }));
-  const bot = parseBotSummary(value?.['bot']);
-  if (bot === undefined) throw new Error('Invalid PersonaBot result');
-  return bot;
-}
-
-export function parseBotSummaries(value: unknown): BotSummary[] {
-  const bots = asRecord(value)?.['bots'];
-  if (!Array.isArray(bots)) return [];
-  return bots.flatMap((entry) => {
-    const bot = parseBotSummary(entry);
-    return bot === undefined ? [] : [bot];
-  });
-}
+export const {
+  parseBotSummary,
+  parseBotSummaries,
+  loadBots,
+  createPersonaBot,
+  updateBotProfile,
+  setStandingLimits,
+} = createPersonaBotReaders(isAvatarAppearance, isRetainedAvatarAppearance, isBotPrimaryColor);
 
 export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
   const record = asRecord(value);
@@ -674,56 +552,8 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
   if (type !== 'dm' && type !== 'group') return undefined;
   if (typeof name !== 'string') return undefined;
   const botSlug = record['botSlug'];
-  const remote = asRecord(record['remoteBot']);
-  const remoteBot =
-    remote !== undefined &&
-    typeof remote['hostId'] === 'string' &&
-    /^[a-zA-Z0-9_-]{1,128}$/u.test(remote['hostId']) &&
-    typeof remote['botSlug'] === 'string' &&
-    typeof remote['displayName'] === 'string'
-      ? {
-          hostId: remote['hostId'],
-          botSlug: remote['botSlug'],
-          displayName: remote['displayName'],
-        }
-      : undefined;
-  if (
-    record['remoteBot'] !== undefined &&
-    (remoteBot === undefined ||
-      type !== 'dm' ||
-      botSlug !== undefined ||
-      stringArray(record['members']).length !== 1)
-  )
-    return undefined;
-  const contact = asRecord(record['remoteContact']);
-  const availability = record['remoteAvailability'];
-  const remoteAvailability =
-    availability === 'available' ||
-    availability === 'withdrawn' ||
-    availability === 'bot-unavailable'
-      ? availability
-      : 'unavailable';
-  const device = asRecord(contact?.['device']);
-  const remoteContact =
-    remoteBot !== undefined &&
-    contact?.['hostId'] === remoteBot.hostId &&
-    contact['botSlug'] === remoteBot.botSlug &&
-    typeof contact['displayName'] === 'string' &&
-    device !== undefined
-      ? {
-          hostId: remoteBot.hostId,
-          botSlug: remoteBot.botSlug,
-          displayName: contact['displayName'],
-          ...(typeof contact['description'] === 'string'
-            ? { description: contact['description'] }
-            : {}),
-          device: {
-            model: typeof device['model'] === 'string' ? device['model'] : null,
-            platform: typeof device['platform'] === 'string' ? device['platform'] : null,
-          },
-          capabilities: stringArray(contact['capabilities']),
-        }
-      : undefined;
+  const remoteChannelMetadata = parseRemoteChannelMetadata(record, type, botSlug);
+  if (remoteChannelMetadata === undefined) return undefined;
   const createdAt = record['createdAt'];
   const updatedAt = record['updatedAt'];
   const latestMessage = parseChannelMessage(record['latestMessage']);
@@ -848,9 +678,7 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
     createdAt: typeof createdAt === 'string' ? createdAt : '',
     updatedAt: typeof updatedAt === 'string' ? updatedAt : '',
     ...(typeof botSlug === 'string' ? { botSlug } : {}),
-    ...(remoteBot === undefined ? {} : { remoteBot }),
-    ...(remoteContact === undefined ? {} : { remoteContact }),
-    ...(remoteBot === undefined ? {} : { remoteAvailability }),
+    ...remoteChannelMetadata,
     ...(typeof record['ownerBotSlug'] === 'string' ? { ownerBotSlug: record['ownerBotSlug'] } : {}),
     ...(type === 'dm' && record['readOnly'] === true ? { readOnly: true } : {}),
     ...(type === 'dm' && typeof record['proactiveOptOut'] === 'boolean'
@@ -877,48 +705,6 @@ export function parseChannelRecord(value: unknown): ChannelSummary | undefined {
     ...(wakePolicies === undefined ? {} : { wakePolicies }),
     ...(latestMessage === undefined ? {} : { latestMessage }),
   };
-}
-
-function parseAuthor(value: unknown): ChannelAuthor | undefined {
-  const record = asRecord(value);
-  if (record === undefined) return undefined;
-  switch (record['kind']) {
-    case 'human': {
-      const humanId = record['humanId'];
-      const displayName = record['displayName'];
-      return {
-        kind: 'human',
-        ...(typeof humanId === 'string' && humanId.length > 0 ? { humanId } : {}),
-        ...(typeof displayName === 'string' && displayName.length > 0 ? { displayName } : {}),
-        ...(record['deleted'] === true ? { deleted: true } : {}),
-      };
-    }
-    case 'system':
-      return { kind: 'system' };
-    case 'bot':
-      return typeof record['slug'] === 'string' && record['slug'].length > 0
-        ? {
-            kind: 'bot',
-            slug: record['slug'],
-            ...(typeof record['displayName'] === 'string' && record['displayName'].length > 0
-              ? { displayName: record['displayName'] }
-              : {}),
-          }
-        : undefined;
-    case 'remote-bot':
-      return typeof record['hostId'] === 'string' &&
-        /^[a-zA-Z0-9_-]{1,128}$/u.test(record['hostId']) &&
-        typeof record['slug'] === 'string' &&
-        record['slug'].length > 0
-        ? { kind: 'remote-bot', hostId: record['hostId'], slug: record['slug'] }
-        : undefined;
-    case 'bridged':
-      return typeof record['source'] === 'string' && record['source'].length > 0
-        ? { kind: 'bridged', source: record['source'] }
-        : undefined;
-    default:
-      return undefined;
-  }
 }
 
 export function parseChannelAttachment(value: unknown): ChannelAttachmentRef | undefined {
@@ -2107,180 +1893,12 @@ export interface SessionBotOwner {
   role: 'orchestrator' | 'assignment';
 }
 
-export function parseSessionBotOwner(value: unknown): SessionBotOwner | undefined {
-  const owner = asRecord(asRecord(value)?.['owner']);
-  if (owner === undefined) return undefined;
-  const botSlug = owner['botSlug'];
-  const displayName = owner['displayName'];
-  const role = owner['role'];
-  if (typeof botSlug !== 'string' || botSlug.length === 0) return undefined;
-  if (typeof displayName !== 'string' || displayName.length === 0) return undefined;
-  if (role !== 'orchestrator' && role !== 'assignment') return undefined;
-  const avatar = owner['avatar'];
-  return {
-    botSlug,
-    displayName,
-    ...(typeof avatar === 'string' && avatar.length > 0 ? { avatar } : {}),
-    ...(isAvatarAppearance(owner['appearance']) ? { appearance: owner['appearance'] } : {}),
-    ...(owner['avatarSeed'] === 2 ? { avatarSeed: 2 as const } : {}),
-    role,
-  };
-}
-
-export function parseOwnedSessionSummaries(value: unknown): OwnedSessionSummary[] {
-  const sessions = asRecord(value)?.['sessions'];
-  if (!Array.isArray(sessions)) return [];
-  return sessions.flatMap((entry) => {
-    const record = asRecord(entry);
-    if (record === undefined) return [];
-    const sessionId = record['sessionId'];
-    const role = record['role'];
-    const createdAt = record['createdAt'];
-    const activity = record['assignmentActivity'];
-    const accessMode = record['assignmentAccessMode'];
-    if (typeof sessionId !== 'string' || sessionId.length === 0) return [];
-    if (role !== 'orchestrator' && role !== 'assignment') return [];
-    if (typeof createdAt !== 'string' || !Number.isFinite(Date.parse(createdAt))) return [];
-    if (
-      activity !== undefined &&
-      activity !== 'working' &&
-      activity !== 'idle' &&
-      activity !== 'error' &&
-      activity !== 'stopping' &&
-      activity !== 'stopped'
-    )
-      return [];
-    const cwdReference = record['cwdReference'];
-    const currentOrchestrator = record['currentOrchestrator'];
-    const reportState = record['assignmentReportState'];
-    const executionWait = record['assignmentExecutionWait'];
-    const engine = parseSessionEngine(record['engine']);
-    return [
-      {
-        sessionId,
-        role,
-        createdAt,
-        ...(typeof cwdReference === 'string' ? { cwdReference } : {}),
-        ...(role === 'orchestrator' && typeof currentOrchestrator === 'boolean'
-          ? { currentOrchestrator }
-          : {}),
-        ...(role === 'orchestrator' &&
-        typeof record['triageOpenCount'] === 'number' &&
-        Number.isSafeInteger(record['triageOpenCount']) &&
-        record['triageOpenCount'] > 0
-          ? { triageOpenCount: record['triageOpenCount'] }
-          : {}),
-        ...(activity === undefined ? {} : { assignmentActivity: activity }),
-        ...(role === 'assignment' &&
-        (accessMode === 'workspace-write' || accessMode === 'danger-full-access')
-          ? { assignmentAccessMode: accessMode }
-          : {}),
-        ...(role === 'assignment' &&
-        (reportState === 'progress' ||
-          reportState === 'completed' ||
-          reportState === 'blocked' ||
-          reportState === 'waiting-human' ||
-          reportState === 'failed')
-          ? { assignmentReportState: reportState }
-          : {}),
-        ...(role === 'assignment' &&
-        (executionWait === 'waiting-human' || executionWait === 'waiting-capacity')
-          ? { assignmentExecutionWait: executionWait }
-          : {}),
-        ...(role === 'assignment' && record['assignmentArchived'] === true
-          ? { assignmentArchived: true as const }
-          : {}),
-        ...(role === 'assignment' && typeof record['assignmentTitle'] === 'string'
-          ? { assignmentTitle: record['assignmentTitle'] }
-          : {}),
-        ...(role === 'assignment' && typeof record['assignmentDescription'] === 'string'
-          ? { assignmentDescription: record['assignmentDescription'] }
-          : {}),
-        ...(role === 'assignment' && parseSessionModelRoute(record['assignmentModelRoute'])
-          ? {
-              assignmentModelRoute: parseSessionModelRoute(record['assignmentModelRoute'])!,
-            }
-          : {}),
-        ...(parseSessionModelRoute(record['modelRoute'])
-          ? { modelRoute: parseSessionModelRoute(record['modelRoute'])! }
-          : {}),
-        ...(engine === undefined ? {} : { engine }),
-        ...(typeof record['agentPreset'] === 'string' && record['agentPreset'].length > 0
-          ? { agentPreset: record['agentPreset'] }
-          : {}),
-        ...(typeof record['subagentCount'] === 'number' &&
-        Number.isSafeInteger(record['subagentCount']) &&
-        record['subagentCount'] > 0
-          ? { subagentCount: record['subagentCount'] }
-          : {}),
-      },
-    ];
-  });
-}
-
-export async function loadBots(call: BridgeCall, signal?: AbortSignal): Promise<BotSummary[]> {
-  return parseBotSummaries({ bots: await listBots(bridgeHost(call, signal)) });
-}
-
-export async function botExists(call: BridgeCall, slug: string): Promise<boolean> {
-  return (await listBots(bridgeHost(call))).some((bot) => bot.slug === slug);
-}
-
-export type SshFailureReason =
-  | 'auth'
-  | 'host-key'
-  | 'unreachable'
-  | 'ssh-missing'
-  | 'timeout'
-  | 'other';
-
-const SSH_FAILURE_REASONS: readonly SshFailureReason[] = [
-  'auth',
-  'host-key',
-  'unreachable',
-  'ssh-missing',
-  'timeout',
-  'other',
-];
-
-export interface HttpsFallback {
-  from: string;
-  to: string;
-  reason: SshFailureReason;
-  detail?: string;
-}
-
-export type CreatedBot = BotSummary & { httpsFallback?: HttpsFallback };
-
-function parseHttpsFallback(value: unknown): HttpsFallback | undefined {
-  const item = asRecord(value);
-  if (typeof item?.['from'] !== 'string' || typeof item['to'] !== 'string') return undefined;
-  const reason = SSH_FAILURE_REASONS.find((known) => known === item['reason']) ?? 'other';
-  const detail = item['detail'];
-  return typeof detail === 'string' && detail.length > 0
-    ? { from: item['from'], to: item['to'], reason, detail }
-    : { from: item['from'], to: item['to'], reason };
-}
-
-export async function createPersonaBot(
-  call: BridgeCall,
-  input: CreatePersonaBotInput,
-  signal?: AbortSignal,
-): Promise<CreatedBot> {
-  const value = await unwrap(
-    call,
-    input.gitUrl === undefined ? 'create' : 'createFromGit',
-    { ...input },
-    signal,
-  );
-  const bot = parseBotSummary(asRecord(value)?.['bot']);
-  if (bot === undefined) throw new Error('invalid create response');
-  const httpsFallback = parseHttpsFallback(asRecord(value)?.['httpsFallback']);
-  return httpsFallback === undefined ? bot : { ...bot, httpsFallback };
-}
+export const { parseSessionBotOwner, loadSessionBotOwner } =
+  createSessionOwnerBridge(isAvatarAppearance);
 
 export const {
   importBotZip,
+  previewBotZip,
   loadBotZipFiles,
   downloadBotZip,
   loadMarketplacePage,
@@ -2308,7 +1926,6 @@ export const {
   parseMarketplaceDigests,
   parseMarketplaceSubmission,
   parseMarketplaceTopics,
-  parseChallenge,
   parseBotSummary,
 });
 
@@ -2320,25 +1937,6 @@ export async function loadChannels(
     const channel = parseChannelRecord(entry);
     return channel === undefined ? [] : [channel];
   });
-}
-
-export async function loadComposerIdentity(
-  call: BridgeCall,
-  signal?: AbortSignal,
-): Promise<ComposerRecoveryIdentity> {
-  const value = asRecord(await unwrap(call, 'composerIdentity', {}, signal));
-  if (
-    value === undefined ||
-    !['hostId', 'profileId', 'humanId'].every(
-      (key) => typeof value[key] === 'string' && (value[key] as string).length > 0,
-    )
-  )
-    throw new Error('invalid composer identity');
-  return {
-    hostId: value['hostId'] as string,
-    profileId: value['profileId'] as string,
-    humanId: value['humanId'] as string,
-  };
 }
 
 export async function validateComposerDraft(
@@ -2431,6 +2029,7 @@ export async function renameChannel(
   return { channel, ...(bot === undefined ? {} : { bot }) };
 }
 
+export const setChannelHumanName = createChannelHumanNameBridge(presentChannel);
 export type LocalHumanIdentity = HumanIdentity;
 
 export type TelemetryLock = 'config' | 'DO_NOT_TRACK' | 'BOTHARNESS_TELEMETRY';
@@ -2545,95 +2144,7 @@ export async function loadGitAvailability(
 export async function startGitInstall(call: BridgeCall): Promise<GitAvailability> {
   return parseGitAvailability(await unwrap(call, 'gitInstall', {}));
 }
-
-export interface CompactionThresholdRange {
-  defaultValue: number;
-  min: number;
-  max: number;
-}
-
-export interface CompactionThreshold {
-  ratio: number;
-  headroomTokens: number;
-  ratioSet: boolean;
-  headroomSet: boolean;
-  ratioRange: CompactionThresholdRange;
-  headroomRange: CompactionThresholdRange;
-}
-
-export interface IdleCompactionStatus {
-  enabled: boolean;
-  settingReadable: boolean;
-  threshold?: CompactionThreshold;
-}
-
-function parseThresholdRange(value: unknown): CompactionThresholdRange | undefined {
-  const item = asRecord(value);
-  const numbers = [item?.['defaultValue'], item?.['min'], item?.['max']];
-  if (!numbers.every((entry) => typeof entry === 'number' && Number.isFinite(entry)))
-    return undefined;
-  const [defaultValue, min, max] = numbers as number[];
-  return { defaultValue: defaultValue!, min: min!, max: max! };
-}
-
-function parseCompactionThreshold(value: unknown): CompactionThreshold | undefined {
-  const item = asRecord(value);
-  const ratioRange = parseThresholdRange(item?.['ratioRange']);
-  const headroomRange = parseThresholdRange(item?.['headroomRange']);
-  const ratio = item?.['ratio'];
-  const headroomTokens = item?.['headroomTokens'];
-  if (
-    ratioRange === undefined ||
-    headroomRange === undefined ||
-    typeof ratio !== 'number' ||
-    typeof headroomTokens !== 'number'
-  )
-    return undefined;
-  return {
-    ratio,
-    headroomTokens,
-    ratioSet: item?.['ratioSet'] === true,
-    headroomSet: item?.['headroomSet'] === true,
-    ratioRange,
-    headroomRange,
-  };
-}
-
-export function parseIdleCompactionStatus(value: unknown): IdleCompactionStatus {
-  const item =
-    typeof value === 'object' && value !== null ? (value as Record<string, unknown>) : {};
-  if (typeof item['enabled'] !== 'boolean') throw new Error('invalid idle compaction status');
-  const threshold = parseCompactionThreshold(item['threshold']);
-  return {
-    enabled: item['enabled'],
-    settingReadable: item['settingReadable'] !== false,
-    ...(threshold === undefined ? {} : { threshold }),
-  };
-}
-
-export type BotCompactResult = WireBotCompactResult;
 export { parseBotCompactResult } from '@botharness/host-client/bot-control';
-
-export async function loadIdleCompaction(
-  call: BridgeCall,
-  signal?: AbortSignal,
-): Promise<IdleCompactionStatus> {
-  return parseIdleCompactionStatus(await unwrap(call, 'idleCompaction', {}, signal));
-}
-
-export async function setIdleCompaction(
-  call: BridgeCall,
-  enabled: boolean,
-): Promise<IdleCompactionStatus> {
-  return parseIdleCompactionStatus(await unwrap(call, 'idleCompactionSet', { enabled }));
-}
-
-export async function setCompactionThreshold(
-  call: BridgeCall,
-  threshold: { thresholdRatio?: number | null; headroomTokens?: number | null },
-): Promise<IdleCompactionStatus> {
-  return parseIdleCompactionStatus(await unwrap(call, 'compactionThresholdSet', threshold));
-}
 
 export interface DataResetPreview {
   token: string;
@@ -2738,47 +2249,6 @@ export async function setTelemetryPreference(
   return parseTelemetryStatus(await unwrap(call, 'telemetrySet', { enabled }));
 }
 
-export async function loadHumanIdentity(
-  call: BridgeCall,
-  signal?: AbortSignal,
-): Promise<LocalHumanIdentity> {
-  return readHumanIdentity(bridgeHost(call, signal));
-}
-
-export async function setHumanDefaultName(
-  call: BridgeCall,
-  displayName: string | null,
-): Promise<LocalHumanIdentity> {
-  return setHumanName(bridgeHost(call), displayName);
-}
-
-export async function setHumanAvatar(
-  call: BridgeCall,
-  avatar: string | null,
-): Promise<LocalHumanIdentity> {
-  return writeHumanAvatar(bridgeHost(call), avatar);
-}
-
-export async function finishHumanProfileSetup(call: BridgeCall): Promise<LocalHumanIdentity> {
-  return finishHumanProfile(bridgeHost(call));
-}
-
-export async function loadHumanAvatars(
-  call: BridgeCall,
-  humanIds: string[],
-): Promise<HumanAvatarImage[]> {
-  return readHumanAvatars(bridgeHost(call), humanIds);
-}
-
-export async function setChannelHumanName(
-  call: BridgeCall,
-  channelId: string,
-  nickname: string | null,
-): Promise<ChannelSummary> {
-  const { channel } = await channels.setChannelHumanName(bridgeHost(call), channelId, nickname);
-  return presentChannel(channel);
-}
-
 export async function setGroupAvatar(
   call: BridgeCall,
   channelId: string,
@@ -2801,16 +2271,6 @@ export const {
   importLibraryImage,
   addLibraryPart,
 } = createAvatarsBridge(parseBotSummary, isPartLibraryEntry);
-
-export async function updateBotProfile(
-  call: BridgeCall,
-  slug: string,
-  patch: { roles?: string[]; description?: string },
-): Promise<BotSummary> {
-  const bot = parseBotSummary(await updateBot(bridgeHost(call), slug, patch));
-  if (bot === undefined) throw new Error('invalid update response');
-  return bot;
-}
 
 export async function inviteGroupBot(
   call: BridgeCall,
@@ -2863,491 +2323,6 @@ export async function removeGroupMember(
 
 const ASSIGNMENT_ACTIVITIES = ['working', 'idle', 'error', 'stopping', 'stopped'];
 
-export async function loadChannelAssignments(
-  call: BridgeCall,
-  channelId: string,
-): Promise<ChannelAssignmentSummary[]> {
-  return channels.readChannelAssignments(bridgeHost(call), channelId);
-}
-
-const SUBAGENT_LANE_STATES = ['running', 'done', 'failed', 'cancelled', 'idle'];
-
-export interface SessionModelRoute {
-  provider: string;
-  model: string;
-  reasoningEffort?: string;
-}
-
-export interface SessionSubagent {
-  sessionId: string;
-  index: number;
-  title?: string;
-  route?: SessionModelRoute;
-  state: 'running' | 'done' | 'failed' | 'cancelled' | 'idle';
-  updatedAt?: string;
-  toolCount: number;
-}
-
-export function parseSessionModelRoute(value: unknown): SessionModelRoute | undefined {
-  const record = asRecord(value);
-  const provider = record?.['provider'];
-  const model = record?.['model'];
-  const effort = record?.['reasoningEffort'];
-  if (typeof provider !== 'string' || provider === '' || typeof model !== 'string' || model === '')
-    return undefined;
-  return {
-    provider,
-    model,
-    ...(typeof effort === 'string' ? { reasoningEffort: effort } : {}),
-  };
-}
-
-export async function loadSessionSubagents(
-  call: BridgeCall,
-  slug: string,
-  sessionId: string,
-): Promise<{ subagents: SessionSubagent[]; omitted: number }> {
-  const value = asRecord(await unwrap(call, 'sessionSubagents', { slug, sessionId }));
-  const lanes = value?.['lanes'];
-  const omitted = value?.['omittedSubagents'];
-  if (!Array.isArray(lanes) || typeof omitted !== 'number')
-    throw new Error('invalid sessionSubagents response');
-  const subagents = lanes.flatMap((entry): SessionSubagent[] => {
-    const lane = asRecord(entry);
-    const id = lane?.['sessionId'];
-    const index = lane?.['index'];
-    const state = lane?.['state'];
-    if (
-      typeof id !== 'string' ||
-      typeof index !== 'number' ||
-      !SUBAGENT_LANE_STATES.includes(state as string)
-    )
-      return [];
-    const title = lane?.['title'];
-    const updatedAt = lane?.['updatedAt'];
-    const route = parseSessionModelRoute(lane?.['route']);
-    const entries = lane?.['entries'];
-    const extra = lane?.['omitted'];
-    return [
-      {
-        sessionId: id,
-        index,
-        ...(typeof title === 'string' && title !== '' ? { title } : {}),
-        ...(route === undefined ? {} : { route }),
-        state: state as SessionSubagent['state'],
-        ...(typeof updatedAt === 'string' ? { updatedAt } : {}),
-        toolCount:
-          (Array.isArray(entries) ? entries.length : 0) + (typeof extra === 'number' ? extra : 0),
-      },
-    ];
-  });
-  return { subagents, omitted };
-}
-
-export interface SessionGoal {
-  objective: string;
-  phase: 'active' | 'paused' | 'blocked' | 'complete';
-  roundsStarted: number;
-  maxGoalRounds: number;
-  blockedReason?: string;
-}
-
-export interface SessionTodo {
-  content: string;
-  status: 'pending' | 'in_progress' | 'completed';
-}
-
-export interface SessionProgress {
-  goal?: SessionGoal;
-  todos?: SessionTodo[];
-  lastEventAt?: number;
-}
-
-const GOAL_PHASES = ['active', 'paused', 'blocked', 'complete'];
-const TODO_STATUSES = ['pending', 'in_progress', 'completed'];
-
-function parseSessionGoal(value: unknown): SessionGoal | undefined {
-  const goal = asRecord(value);
-  const objective = goal?.['objective'];
-  const phase = goal?.['phase'];
-  const rounds = goal?.['roundsStarted'];
-  const max = goal?.['maxGoalRounds'];
-  const reason = goal?.['blockedReason'];
-  if (
-    typeof objective !== 'string' ||
-    !GOAL_PHASES.includes(phase as string) ||
-    typeof rounds !== 'number' ||
-    typeof max !== 'number'
-  )
-    return undefined;
-  return {
-    objective,
-    phase: phase as SessionGoal['phase'],
-    roundsStarted: rounds,
-    maxGoalRounds: max,
-    ...(typeof reason === 'string' ? { blockedReason: reason } : {}),
-  };
-}
-
-function parseSessionTodos(value: unknown): SessionTodo[] | undefined {
-  if (!Array.isArray(value)) return undefined;
-  const todos = value.flatMap((entry): SessionTodo[] => {
-    const todo = asRecord(entry);
-    const content = todo?.['content'];
-    const status = todo?.['status'];
-    return typeof content === 'string' && TODO_STATUSES.includes(status as string)
-      ? [{ content, status: status as SessionTodo['status'] }]
-      : [];
-  });
-  return todos.length === 0 ? undefined : todos;
-}
-
-export async function loadSessionProgress(
-  call: BridgeCall,
-  slug: string,
-  sessionIds: readonly string[],
-): Promise<Record<string, SessionProgress>> {
-  const value = asRecord(await unwrap(call, 'sessionProgress', { slug, sessionIds }));
-  const sessions = value?.['sessions'];
-  if (!Array.isArray(sessions)) throw new Error('invalid sessionProgress response');
-  const progress: Record<string, SessionProgress> = {};
-  for (const entry of sessions) {
-    const session = asRecord(entry);
-    const id = session?.['sessionId'];
-    if (session === undefined || typeof id !== 'string' || session['error'] !== undefined) continue;
-    const goal = parseSessionGoal(session['goal']);
-    const todos = parseSessionTodos(session['todos']);
-    const at = session['lastEventAt'];
-    progress[id] = {
-      ...(goal === undefined ? {} : { goal }),
-      ...(todos === undefined ? {} : { todos }),
-      ...(typeof at === 'number' ? { lastEventAt: at } : {}),
-    };
-  }
-  return progress;
-}
-
-export type SessionTranscriptTrigger =
-  | 'request'
-  | 'goal'
-  | 'agent'
-  | 'team'
-  | 'subagent'
-  | 'github'
-  | 'webhook'
-  | 'schedule'
-  | 'job'
-  | 'plugin';
-
-const SESSION_TRIGGERS: readonly string[] = [
-  'request',
-  'goal',
-  'agent',
-  'team',
-  'subagent',
-  'github',
-  'webhook',
-  'schedule',
-  'job',
-  'plugin',
-];
-
-export interface SessionTurnUsage {
-  tokens: number;
-  output: number;
-  outputMs: number;
-}
-
-export interface SessionToolTargets {
-  command?: string;
-  path?: string;
-  url?: string;
-}
-
-export interface SessionTranscriptEnvelope {
-  kind: 'human-dm' | 'group' | 'bot-dm' | 'inbox' | 'other';
-  channelId?: string;
-  messageId?: string;
-}
-
-const ENVELOPE_KINDS = ['human-dm', 'group', 'bot-dm', 'inbox', 'other'] as const;
-
-function parseTranscriptEnvelope(value: unknown): SessionTranscriptEnvelope | undefined {
-  const record = asRecord(value);
-  const kind = record?.['kind'];
-  if (record === undefined || !ENVELOPE_KINDS.includes(kind as SessionTranscriptEnvelope['kind']))
-    return undefined;
-  return {
-    kind: kind as SessionTranscriptEnvelope['kind'],
-    ...(typeof record['channelId'] === 'string' ? { channelId: record['channelId'] } : {}),
-    ...(typeof record['messageId'] === 'string' ? { messageId: record['messageId'] } : {}),
-  };
-}
-
-export type SessionTranscriptItem =
-  | {
-      kind: 'input';
-      text: string;
-      at: string;
-      turn: number;
-      source: 'user' | 'system';
-      trigger?: SessionTranscriptTrigger;
-      envelope?: SessionTranscriptEnvelope;
-    }
-  | { kind: 'reply'; text: string; at: string; live?: true; turnTargets?: TurnTarget[] }
-  | {
-      kind: 'reasoning';
-      text: string;
-      at: string;
-      durationMs?: number;
-      live?: true;
-    }
-  | ({
-      kind: 'tool';
-      id: string;
-      tool: string;
-      toolKind: SessionToolKind;
-      status: 'running' | 'done' | 'failed' | 'denied' | 'cancelled';
-      detail?: string;
-      added?: number;
-      removed?: number;
-      at: string;
-      endedAt?: string;
-      live?: true;
-    } & SessionToolTargets)
-  | {
-      kind: 'turn-end';
-      state: 'done' | 'failed' | 'cancelled';
-      at: string;
-      message?: string;
-      usage?: SessionTurnUsage;
-      turnTargets?: TurnTarget[];
-    };
-
-export type SessionToolKind =
-  | 'read'
-  | 'edit'
-  | 'delete'
-  | 'move'
-  | 'search'
-  | 'execute'
-  | 'fetch'
-  | 'other';
-
-const SESSION_TOOL_KINDS: readonly string[] = [
-  'read',
-  'edit',
-  'delete',
-  'move',
-  'search',
-  'execute',
-  'fetch',
-];
-
-export interface SessionEngineQuota {
-  usedPercent?: number;
-  resetsAt?: string;
-  limitedUntil?: string;
-  observedAt: string;
-}
-
-export interface SessionEngine {
-  engine: string;
-  account?: string;
-  state: 'starting' | 'running' | 'waiting-approval' | 'idle';
-  quota?: SessionEngineQuota;
-}
-
-export function parseSessionEngineQuota(value: unknown): SessionEngineQuota | undefined {
-  const quota = asRecord(value);
-  if (quota === undefined || typeof quota['observedAt'] !== 'string') return undefined;
-  const time = (field: unknown) =>
-    typeof field === 'string' && Number.isFinite(Date.parse(field)) ? field : undefined;
-  const percent = quota['usedPercent'];
-  const resetsAt = time(quota['resetsAt']);
-  const limitedUntil = time(quota['limitedUntil']);
-  return {
-    ...(typeof percent === 'number' && Number.isFinite(percent) ? { usedPercent: percent } : {}),
-    ...(resetsAt === undefined ? {} : { resetsAt }),
-    ...(limitedUntil === undefined ? {} : { limitedUntil }),
-    observedAt: quota['observedAt'],
-  };
-}
-
-export interface SessionTranscript {
-  role: 'orchestrator' | 'assignment';
-  items: SessionTranscriptItem[];
-  omitted: number;
-  running: boolean;
-  seq: number;
-  engine?: SessionEngine;
-}
-
-function parseSessionEngine(value: unknown): SessionEngine | undefined {
-  const engine = asRecord(value);
-  if (engine === undefined || typeof engine['engine'] !== 'string') return undefined;
-  const state = engine['state'];
-  const quota = parseSessionEngineQuota(engine['quota']);
-  return {
-    engine: engine['engine'],
-    ...(typeof engine['account'] === 'string' ? { account: engine['account'] } : {}),
-    state:
-      state === 'starting' || state === 'running' || state === 'waiting-approval' ? state : 'idle',
-    ...(quota === undefined ? {} : { quota }),
-  };
-}
-
-export interface SessionLiveSnapshot {
-  revision: number;
-  seq: number;
-  items: SessionTranscriptItem[];
-}
-
-export type SessionToolDetail =
-  | { card: 'terminal'; command?: string; output: string; exitCode?: number }
-  | {
-      card: 'diff';
-      files: { path: string; oldText: string | null; newText: string }[];
-    }
-  | {
-      card: 'read';
-      path: string;
-      offset: number;
-      totalLines: number;
-      lines: { number: number; text: string }[];
-    }
-  | {
-      card: 'search';
-      total: number;
-      truncated: boolean;
-      files: {
-        path: string;
-        matches: { lineNumber: number; line: string }[];
-      }[];
-      paths: string[];
-    }
-  | {
-      card: 'web';
-      url?: string;
-      statusCode?: number;
-      sources: { url: string; title?: string }[];
-      output: string;
-    }
-  | { card: 'text'; input?: string; output: string };
-
-const TRANSCRIPT_TOOL_STATUSES = ['running', 'done', 'failed', 'denied', 'cancelled'];
-const TRANSCRIPT_END_STATES = ['done', 'failed', 'cancelled'];
-
-function finite(value: unknown): number | undefined {
-  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined;
-}
-
-function targets(item: Record<string, unknown>): SessionToolTargets {
-  const { command, path, url } = item;
-  return {
-    ...(typeof command === 'string' ? { command } : {}),
-    ...(typeof path === 'string' ? { path } : {}),
-    ...(typeof url === 'string' && /^https?:\/\//iu.test(url) ? { url } : {}),
-  };
-}
-
-function parseUsage(value: unknown): SessionTurnUsage | undefined {
-  const usage = asRecord(value);
-  const tokens = finite(usage?.['tokens']);
-  const output = finite(usage?.['output']);
-  const outputMs = finite(usage?.['outputMs']);
-  return tokens === undefined || output === undefined || outputMs === undefined
-    ? undefined
-    : { tokens, output, outputMs };
-}
-
-function parseTranscriptItem(value: unknown): SessionTranscriptItem | undefined {
-  const item = asRecord(value);
-  const at = item?.['at'];
-  const text = item?.['text'];
-  if (item === undefined || typeof at !== 'string') return undefined;
-  const path = item['turnTargets'];
-  const attribution = isTurnTargetPath(path) ? { turnTargets: path } : {};
-  switch (item['kind']) {
-    case 'input':
-      return typeof text === 'string' && typeof item['turn'] === 'number'
-        ? {
-            kind: 'input',
-            text,
-            at,
-            turn: item['turn'],
-            source: item['source'] === 'system' ? 'system' : 'user',
-            ...(SESSION_TRIGGERS.includes(item['trigger'] as string)
-              ? { trigger: item['trigger'] as SessionTranscriptTrigger }
-              : {}),
-            ...(parseTranscriptEnvelope(item['envelope']) === undefined
-              ? {}
-              : { envelope: parseTranscriptEnvelope(item['envelope'])! }),
-          }
-        : undefined;
-    case 'reply':
-      return typeof text === 'string' ? { kind: 'reply', text, at, ...attribution } : undefined;
-    case 'reasoning': {
-      const durationMs = finite(item['durationMs']);
-      return typeof text === 'string'
-        ? {
-            kind: 'reasoning',
-            text,
-            at,
-            ...(durationMs === undefined ? {} : { durationMs }),
-          }
-        : undefined;
-    }
-    case 'tool': {
-      const { id, tool, status, detail, toolKind, endedAt } = item;
-      const added = finite(item['added']);
-      const removed = finite(item['removed']);
-      const resolvedStatus = status === undefined ? 'running' : status;
-      return typeof id === 'string' &&
-        typeof tool === 'string' &&
-        TRANSCRIPT_TOOL_STATUSES.includes(resolvedStatus as string)
-        ? {
-            kind: 'tool',
-            id,
-            tool,
-            toolKind: SESSION_TOOL_KINDS.includes(toolKind as string)
-              ? (toolKind as SessionToolKind)
-              : 'other',
-            status: resolvedStatus as Extract<SessionTranscriptItem, { kind: 'tool' }>['status'],
-            ...(typeof detail === 'string' ? { detail } : {}),
-            ...targets(item),
-            ...(added === undefined ? {} : { added }),
-            ...(removed === undefined ? {} : { removed }),
-            at,
-            ...(typeof endedAt === 'string' ? { endedAt } : {}),
-          }
-        : undefined;
-    }
-    case 'turn-end': {
-      const usage = parseUsage(item['usage']);
-      return TRANSCRIPT_END_STATES.includes(item['state'] as string)
-        ? {
-            kind: 'turn-end',
-            state: item['state'] as Extract<SessionTranscriptItem, { kind: 'turn-end' }>['state'],
-            at,
-            ...(typeof item['message'] === 'string' ? { message: item['message'] } : {}),
-            ...(usage === undefined ? {} : { usage }),
-            ...attribution,
-          }
-        : undefined;
-    }
-    default:
-      return undefined;
-  }
-}
-
-function parseItems(items: unknown[]): SessionTranscriptItem[] {
-  return items.flatMap((entry) => {
-    const item = parseTranscriptItem(entry);
-    return item === undefined ? [] : [item];
-  });
-}
-
 export async function loadSessionLive(
   call: BridgeCall,
   slug: string,
@@ -3374,143 +2349,6 @@ export async function loadSessionLive(
         ? { ...item, live: true as const }
         : item,
     ),
-  };
-}
-
-function strings(value: unknown): string[] {
-  return Array.isArray(value)
-    ? value.filter((entry): entry is string => typeof entry === 'string')
-    : [];
-}
-
-export function parseSessionToolDetail(value: unknown): SessionToolDetail | undefined {
-  const detail = asRecord(value);
-  const output = typeof detail?.['output'] === 'string' ? detail['output'] : '';
-  switch (detail?.['card']) {
-    case 'terminal':
-      return {
-        card: 'terminal',
-        ...(typeof detail['command'] === 'string' ? { command: detail['command'] } : {}),
-        output,
-        ...(typeof detail['exitCode'] === 'number' ? { exitCode: detail['exitCode'] } : {}),
-      };
-    case 'diff':
-      return {
-        card: 'diff',
-        files: (Array.isArray(detail['files']) ? detail['files'] : []).flatMap((entry) => {
-          const file = asRecord(entry);
-          return file !== undefined &&
-            typeof file['path'] === 'string' &&
-            typeof file['newText'] === 'string'
-            ? [
-                {
-                  path: file['path'],
-                  oldText: typeof file['oldText'] === 'string' ? file['oldText'] : null,
-                  newText: file['newText'],
-                },
-              ]
-            : [];
-        }),
-      };
-    case 'read':
-      return typeof detail['path'] === 'string'
-        ? {
-            card: 'read',
-            path: detail['path'],
-            offset: finite(detail['offset']) ?? 1,
-            totalLines: finite(detail['totalLines']) ?? 0,
-            lines: (Array.isArray(detail['lines']) ? detail['lines'] : []).flatMap((entry) => {
-              const line = asRecord(entry);
-              return line !== undefined &&
-                typeof line['number'] === 'number' &&
-                typeof line['text'] === 'string'
-                ? [{ number: line['number'], text: line['text'] }]
-                : [];
-            }),
-          }
-        : undefined;
-    case 'search':
-      return {
-        card: 'search',
-        total: finite(detail['total']) ?? 0,
-        truncated: detail['truncated'] === true,
-        files: (Array.isArray(detail['files']) ? detail['files'] : []).flatMap((entry) => {
-          const file = asRecord(entry);
-          if (file === undefined || typeof file['path'] !== 'string') return [];
-          return [
-            {
-              path: file['path'],
-              matches: (Array.isArray(file['matches']) ? file['matches'] : []).flatMap((item) => {
-                const match = asRecord(item);
-                return match !== undefined &&
-                  typeof match['lineNumber'] === 'number' &&
-                  typeof match['line'] === 'string'
-                  ? [{ lineNumber: match['lineNumber'], line: match['line'] }]
-                  : [];
-              }),
-            },
-          ];
-        }),
-        paths: strings(detail['paths']),
-      };
-    case 'web':
-      return {
-        card: 'web',
-        ...(typeof detail['url'] === 'string' ? { url: detail['url'] } : {}),
-        ...(typeof detail['statusCode'] === 'number' ? { statusCode: detail['statusCode'] } : {}),
-        sources: (Array.isArray(detail['sources']) ? detail['sources'] : []).flatMap((entry) => {
-          const source = asRecord(entry);
-          return source !== undefined && typeof source['url'] === 'string'
-            ? [
-                {
-                  url: source['url'],
-                  ...(typeof source['title'] === 'string' ? { title: source['title'] } : {}),
-                },
-              ]
-            : [];
-        }),
-        output,
-      };
-    case 'text':
-      return {
-        card: 'text',
-        ...(typeof detail['input'] === 'string' ? { input: detail['input'] } : {}),
-        output,
-      };
-    default:
-      return undefined;
-  }
-}
-
-export async function loadSessionToolDetail(
-  call: BridgeCall,
-  slug: string,
-  sessionId: string,
-  callId: string,
-): Promise<SessionToolDetail> {
-  const value = asRecord(await unwrap(call, 'sessionToolDetail', { slug, sessionId, callId }));
-  const detail = parseSessionToolDetail(value?.['detail']);
-  if (detail === undefined) throw new Error('invalid sessionToolDetail response');
-  return detail;
-}
-
-export async function loadSessionTranscript(
-  call: BridgeCall,
-  slug: string,
-  sessionId: string,
-): Promise<SessionTranscript> {
-  const value = asRecord(await unwrap(call, 'sessionTranscript', { slug, sessionId }));
-  const items = value?.['items'];
-  if (value === undefined || !Array.isArray(items))
-    throw new Error('invalid sessionTranscript response');
-  const engine = parseSessionEngine(value['engine']);
-  return {
-    role: value['role'] === 'orchestrator' ? 'orchestrator' : 'assignment',
-    items: parseItems(items),
-    omitted: typeof value['omitted'] === 'number' ? value['omitted'] : 0,
-    running: value['running'] === true,
-    seq: finite(value['seq']) ?? 0,
-    ...(engine === undefined ? {} : { engine }),
   };
 }
 
@@ -3554,69 +2392,6 @@ export async function sendOrchestratorMessage(
   text: string,
 ): Promise<void> {
   await unwrap(call, 'sessionMessageSend', { botSlug, sessionId, text });
-}
-
-export interface AssignmentWorkStep {
-  status: 'running' | 'done' | 'failed' | 'denied' | 'cancelled';
-  kind: string;
-  tool: string;
-  detail?: string;
-  at: string;
-  round?: number;
-}
-
-export interface AssignmentWorkLane {
-  role: 'main' | 'subagent';
-  index: number;
-  sessionId: string;
-  title?: string;
-  route?: SessionModelRoute;
-  state: SessionSubagent['state'];
-  round?: number;
-  entries: AssignmentWorkStep[];
-  omitted: number;
-}
-
-export interface AssignmentWorkRound {
-  index: number;
-  kind: 'created' | 'continued';
-  at: string;
-  instruction?: string;
-}
-
-export interface AssignmentWork {
-  title: string;
-  description: string;
-  activity: ChannelAssignmentSummary['activity'];
-  latestReport?: {
-    state: NonNullable<ChannelAssignmentSummary['latestReport']>['state'];
-    summary: string;
-    at?: string;
-  };
-  rounds: AssignmentWorkRound[];
-  lanes: AssignmentWorkLane[];
-  omittedSubagents: number;
-  omittedRounds: number;
-}
-
-export async function loadAssignmentWork(
-  call: BridgeCall,
-  slug: string,
-  sessionId: string,
-): Promise<AssignmentWork> {
-  const { assignment, rounds, lanes, omittedSubagents, omittedRounds } =
-    await readAssignmentTimeline(bridgeHost(call), { slug, sessionId });
-  const { title, description, activity, latestReport } = assignment;
-  return {
-    title,
-    description,
-    activity,
-    ...(latestReport === undefined ? {} : { latestReport }),
-    rounds: rounds ?? [],
-    lanes,
-    omittedSubagents,
-    omittedRounds: omittedRounds ?? 0,
-  };
 }
 
 export async function loadGroupWakePolicies(
@@ -3817,21 +2592,6 @@ export async function markReadPosition(
   await channelHost.markChannelRead(bridgeHost(call), channelId, messageId);
 }
 
-export async function loadHumanAssignmentContext(
-  call: BridgeCall,
-  slug: string,
-  sessionId: string,
-  sourceEventId: string,
-  signal?: AbortSignal,
-): Promise<HumanAssignmentContext> {
-  const { context } = await people.readHumanAssignmentContext(bridgeHost(call, signal), {
-    slug,
-    sessionId,
-    sourceEventId,
-  });
-  return context;
-}
-
 export async function loadAllBotPreview(
   call: BridgeCall,
   channelId: string,
@@ -3887,32 +2647,6 @@ export async function sendChannelMessage(
 
 export const { parseGenuiView, loadGenuiView, saveGenuiView } =
   createGenuiReportBridge(genuiViewSchema);
-
-export type AssignmentAccessPresetView = WireAssignmentAccessPreset;
-
-export async function loadAssignmentAccess(
-  call: BridgeCall,
-  slug: string,
-): Promise<AssignmentAccessPresetView> {
-  return (await accessReaders.readAssignmentAccess(bridgeHost(call), slug)).preset;
-}
-
-export async function setAssignmentAccess(
-  call: BridgeCall,
-  slug: string,
-  mode: AssignmentAccessPresetView['mode'],
-  acknowledgeRisk: boolean,
-  scope?: 'chat' | 'assignments',
-): Promise<AssignmentAccessPresetView> {
-  return (
-    await accessReaders.writeAssignmentAccess(bridgeHost(call), {
-      slug,
-      mode,
-      acknowledgeRisk,
-      ...(scope === undefined ? {} : { scope }),
-    })
-  ).preset;
-}
 
 export type { ToolApprovalStatus } from '@botharness/host-protocol/wire';
 
@@ -4012,476 +2746,7 @@ export async function loadWorkspaceOptions(call: BridgeCall): Promise<WorkspaceO
   return loadHostWorkspaceOptions(bridgeHost(call));
 }
 
-export async function loadBotAttention(
-  call: BridgeCall,
-  slug: string,
-  limit = 50,
-  cursor?: string,
-  state?: BotAttentionStatus,
-): Promise<BotAttentionPage> {
-  return botControl.readBotAttention(bridgeHost(call), { slug, limit, cursor, state });
-}
-
 export { parseHumanAttentionPage } from '@botharness/host-client/people';
-
-export async function loadHumanAttention(
-  call: BridgeCall,
-  category: ActivityListCategory,
-  limit = 50,
-  cursor?: string,
-  filters: ActivityListFilters & {
-    search?: string;
-    mentionsFirst?: boolean;
-  } = {
-    botSlug: undefined,
-    channelId: undefined,
-    sort: 'newest',
-  },
-): Promise<HumanAttentionPage> {
-  const extended = filters.search !== undefined || filters.mentionsFirst === true;
-  const value = await people.readHumanAttention(bridgeHost(call), {
-    category,
-    limit,
-    cursor,
-    botSlug: filters.botSlug,
-    channelId: filters.channelId,
-    sort: filters.mentionsFirst ? 'mentions-first' : filters.sort,
-    ...(extended ? { queryVersion: 1, search: filters.search } : {}),
-    ...(filters.snoozed === true ? { snoozed: true } : {}),
-  });
-  if (extended && value.queryVersion !== 1) throw new Error('Update the Host to search Activity.');
-  return {
-    items: value.items,
-    ...(value.nextCursor === undefined ? {} : { nextCursor: value.nextCursor }),
-  };
-}
-export async function loadHumanAttentionStatus(call: BridgeCall): Promise<{
-  unreadCount: number;
-  hasAction: boolean;
-  messageCounts: { replies: number; other: number } | undefined;
-}> {
-  const row = asRecord(await unwrap(call, 'humanAttentionStatus', { messageCounts: true }));
-  if (
-    row === undefined ||
-    !Number.isSafeInteger(row['unreadCount']) ||
-    (row['unreadCount'] as number) < 0 ||
-    typeof row['hasAction'] !== 'boolean'
-  )
-    throw new Error('invalid Human attention status');
-  const counts = asRecord(row['messageCounts']);
-  if (
-    row['messageCounts'] !== undefined &&
-    (counts === undefined ||
-      !Number.isSafeInteger(counts['replies']) ||
-      !Number.isSafeInteger(counts['other']) ||
-      (counts['replies'] as number) < 0 ||
-      (counts['other'] as number) < 0 ||
-      (counts['replies'] as number) + (counts['other'] as number) !== row['unreadCount'])
-  )
-    throw new Error('invalid Human attention message counts');
-  return {
-    unreadCount: row['unreadCount'] as number,
-    hasAction: row['hasAction'],
-    messageCounts: counts
-      ? {
-          replies: counts['replies'] as number,
-          other: counts['other'] as number,
-        }
-      : undefined,
-  };
-}
-export async function loadChannelUnreadCounts(call: BridgeCall): Promise<Record<string, number>> {
-  return Object.fromEntries(
-    (await channelHost.loadUnreadCounts(bridgeHost(call)))
-      .filter((entry) => entry.unreadCount > 0)
-      .map((entry) => [entry.channelId, entry.unreadCount]),
-  );
-}
-
-export async function dismissActivityListItem(
-  call: BridgeCall,
-  itemId: string,
-  sourceKey: string,
-): Promise<void> {
-  const value = asRecord(await unwrap(call, 'humanAttentionDismiss', { itemId, sourceKey }));
-  if (value?.['accepted'] !== true) throw new Error('Inbox dismissal was not confirmed');
-}
-
-export async function dismissAllActivityListItems(
-  call: BridgeCall,
-  filter: {
-    kind?: HumanAttentionItem['kind'] | undefined;
-    category?: 'action' | 'info' | 'replies' | 'unread' | undefined;
-    botSlug?: string | undefined;
-    channelId?: string | undefined;
-  },
-): Promise<{ dismissed: number; more: boolean }> {
-  const { dismissed, more } = await people.dismissHumanAttention(bridgeHost(call), {
-    ...(filter.kind === undefined ? {} : { kind: filter.kind }),
-    ...(filter.category === undefined ? {} : { category: filter.category }),
-    ...(filter.botSlug === undefined ? {} : { botSlug: filter.botSlug }),
-    ...(filter.channelId === undefined ? {} : { channelId: filter.channelId }),
-  });
-  return { dismissed, more };
-}
-
-export async function snoozeActivityListItem(
-  call: BridgeCall,
-  itemId: string,
-  sourceKey: string,
-  until: string | null,
-): Promise<void> {
-  const value = asRecord(await unwrap(call, 'humanAttentionSnooze', { itemId, sourceKey, until }));
-  if (value?.['accepted'] !== true) throw new Error('Inbox snooze was not confirmed');
-}
-
-export async function ignoreHumanAssignmentReport(
-  call: BridgeCall,
-  sourceEventId: string,
-): Promise<void> {
-  const response = asRecord(await unwrap(call, 'humanAttentionIgnore', { sourceEventId }));
-  if (response?.['accepted'] !== true) throw new Error('Human attention decision was not accepted');
-}
-
-export async function loadSessionBotOwner(
-  call: BridgeCall,
-  sessionId: string,
-  signal?: AbortSignal,
-): Promise<SessionBotOwner | undefined> {
-  return parseSessionBotOwner(await unwrap(call, 'sessionOwner', { sessionId }, signal));
-}
-
-export async function loadBotSessionIds(call: BridgeCall, signal?: AbortSignal): Promise<string[]> {
-  const value = await unwrap(call, 'botSessionIds', {}, signal);
-  const ids =
-    typeof value === 'object' && value !== null
-      ? (value as { sessionIds?: unknown }).sessionIds
-      : [];
-  return Array.isArray(ids) ? ids.filter((id): id is string => typeof id === 'string') : [];
-}
-
-export async function loadBotSessionGroups(
-  call: BridgeCall,
-  signal?: AbortSignal,
-): Promise<{ botSlug: string; displayName: string; sessionIds: string[] }[]> {
-  const value = asRecord(await unwrap(call, 'botSessionIds', {}, signal));
-  const groups = value?.['groups'];
-  if (!Array.isArray(groups)) return [];
-  return groups.flatMap((item) => {
-    const group = asRecord(item);
-    if (
-      typeof group?.['botSlug'] !== 'string' ||
-      typeof group['displayName'] !== 'string' ||
-      !Array.isArray(group['sessionIds'])
-    )
-      return [];
-    return [
-      {
-        botSlug: group['botSlug'],
-        displayName: group['displayName'],
-        sessionIds: group['sessionIds'].filter((id): id is string => typeof id === 'string'),
-      },
-    ];
-  });
-}
-
-export async function loadSessions(
-  call: BridgeCall,
-  slug: string,
-  signal?: AbortSignal,
-): Promise<OwnedSessionSummary[]> {
-  return parseOwnedSessionSummaries(await unwrap(call, 'sessions', { slug }, signal));
-}
-
-export async function setSessionArchived(
-  call: BridgeCall,
-  slug: string,
-  sessionId: string,
-  archived: boolean,
-): Promise<boolean> {
-  const value = asRecord(await unwrap(call, 'sessionArchiveSet', { slug, sessionId, archived }));
-  return value?.['archived'] === true;
-}
-
-export type StoppedSessionRef = WireStoppedSessionRef;
-export type SessionStopResult = WireSessionStopResult;
-
-export async function stopSession(
-  call: BridgeCall,
-  botSlug: string,
-  session: string | { activityId: string },
-  channelId?: string,
-): Promise<SessionStopResult> {
-  return botControl.stopSession(bridgeHost(call), {
-    botSlug,
-    ...(typeof session === 'string' ? { sessionId: session } : session),
-    ...(channelId === undefined ? {} : { channelId }),
-  });
-}
-
-export async function stopBot(
-  call: BridgeCall,
-  botSlug: string,
-  channelId?: string,
-): Promise<SessionStopResult> {
-  return botControl.stopBot(bridgeHost(call), {
-    botSlug,
-    ...(channelId === undefined ? {} : { channelId }),
-  });
-}
-
-export async function moveMemoryLocation(
-  call: BridgeCall,
-  slug: string,
-  location: string | null,
-): Promise<string> {
-  const value = asRecord(await unwrap(call, 'memoryMove', { slug, location }));
-  const memoryDir = value?.['memoryDir'];
-  if (typeof memoryDir !== 'string') throw new Error('Memory location is invalid');
-  return memoryDir;
-}
-
-export async function loadRoster(call: BridgeCall, signal?: AbortSignal): Promise<RosterSnapshot> {
-  return parseRosterSnapshot(await rosterReaders.readRoster(bridgeHost(call, signal)));
-}
-
-export interface RosterBatchInput {
-  action: 'pin' | 'unpin' | 'hide' | 'move';
-  channelIds: readonly string[];
-  sectionId?: string;
-}
-
-export async function applyRosterBatch(
-  call: BridgeCall,
-  input: RosterBatchInput,
-  signal?: AbortSignal,
-): Promise<RosterSnapshot> {
-  const payload = {
-    action: input.action,
-    channelIds: [...input.channelIds],
-    ...(input.sectionId === undefined ? {} : { sectionId: input.sectionId }),
-  };
-  return parseRosterSnapshot(
-    await rosterReaders.applyRosterBatch(bridgeHost(call, signal), payload),
-  );
-}
-
-export async function createRosterSection(
-  call: BridgeCall,
-  name: string,
-  signal?: AbortSignal,
-): Promise<RosterSection> {
-  return channels.createRosterSection(bridgeHost(call, signal), name);
-}
-
-export async function renameRosterSection(
-  call: BridgeCall,
-  sectionId: string,
-  name: string,
-  signal?: AbortSignal,
-): Promise<void> {
-  await unwrap(call, 'sectionRename', { sectionId, name }, signal);
-}
-
-export async function removeRosterSection(
-  call: BridgeCall,
-  sectionId: string,
-  signal?: AbortSignal,
-): Promise<void> {
-  await channels.removeRosterSection(bridgeHost(call, signal), sectionId);
-}
-
-export async function assignRosterChannel(
-  call: BridgeCall,
-  channelId: string,
-  sectionId: string | undefined,
-  index?: number,
-  signal?: AbortSignal,
-): Promise<void> {
-  await channels.assignRosterChannel(bridgeHost(call, signal), { channelId, sectionId, index });
-}
-
-export async function reorderRosterSections(
-  call: BridgeCall,
-  order: readonly string[],
-  signal?: AbortSignal,
-): Promise<void> {
-  await unwrap(call, 'sectionReorder', { order }, signal);
-}
-
-export async function reorderTopOrder(
-  call: BridgeCall,
-  order: readonly TopOrderEntry[],
-  signal?: AbortSignal,
-): Promise<void> {
-  await unwrap(call, 'topReorder', { order }, signal);
-}
-
-export async function setRosterPins(
-  call: BridgeCall,
-  pins: readonly string[],
-  signal?: AbortSignal,
-): Promise<void> {
-  await unwrap(call, 'pinsSet', { pins }, signal);
-}
-
-export async function setRosterHidden(
-  call: BridgeCall,
-  hidden: readonly string[],
-  signal?: AbortSignal,
-): Promise<void> {
-  await unwrap(call, 'hiddenSet', { hidden }, signal);
-}
-
-export async function setChannelMute(
-  call: BridgeCall,
-  channelId: string,
-  muted: boolean,
-  signal?: AbortSignal,
-): Promise<void> {
-  await channels.setChannelMuted(bridgeHost(call, signal), channelId, muted);
-}
-
-export interface MemoryVersion extends MemoryVersionName {
-  sha: string;
-  subject: string;
-  namedAt: string;
-}
-
-export async function loadMemoryVersions(
-  call: BridgeCall,
-  channelId: string,
-): Promise<MemoryVersion[]> {
-  const response = asRecord(await unwrap(call, 'memoryVersions', { channelId }));
-  const versions = response?.['versions'];
-  if (!Array.isArray(versions)) throw new Error('invalid Memory versions');
-  return versions.flatMap((item) => {
-    const version = asRecord(item);
-    return typeof version?.['tag'] === 'string' &&
-      typeof version['name'] === 'string' &&
-      typeof version['sha'] === 'string' &&
-      typeof version['subject'] === 'string' &&
-      typeof version['namedAt'] === 'string'
-      ? [
-          {
-            tag: version['tag'],
-            name: version['name'],
-            sha: version['sha'],
-            subject: version['subject'],
-            namedAt: version['namedAt'],
-          },
-        ]
-      : [];
-  });
-}
-
-export type MemoryWorkingKind = 'staged' | 'unstaged' | 'untracked' | 'current';
-export interface MemoryWorkingChange {
-  path: string;
-  kind: MemoryWorkingKind;
-  status: string;
-}
-export interface MemoryWorkingDiff extends MemoryWorkingChange {
-  images?: MemoryImageComparison;
-  markdown?: MemoryMarkdownComparison;
-  diff: string;
-  binary: boolean;
-}
-
-export interface MemoryRecoveryCheckpoint {
-  id: string;
-  branch: string;
-  head: string;
-  indexTree: string;
-  workingTree: string;
-  origin: 'host-observation' | 'agent-session' | 'human-command';
-  originId: string;
-  causeKind: 'memory-scan' | 'source-event' | 'human-edit' | 'turn-abort' | 'human-restore';
-  causeId: string;
-  capturedAt: string;
-}
-
-export interface MemoryRepairEvent {
-  id: string;
-  acceptedHeadSha: string;
-  provisionalHeadSha: string;
-  backupPath: string;
-  status: 'started' | 'completed';
-  completedAt: string | null;
-}
-
-export interface ProfileActivityDay {
-  day: string;
-  count: number;
-}
-
-export interface ProfileActivityReasonDay extends ProfileActivityDay {
-  reason: string;
-}
-
-export interface ProfileTokenBuckets {
-  inputTokens: number;
-  outputTokens: number;
-  cacheReadTokens: number;
-  cacheWriteTokens: number;
-}
-
-export interface ProfileActivityTokensDay extends ProfileTokenBuckets {
-  day: string;
-}
-
-export interface ProfileModelUsageRow {
-  day: string;
-  purpose: string;
-  provider: string;
-  model: string;
-  inputTokens: number | null;
-  outputTokens: number | null;
-  cacheReadTokens: number | null;
-  cacheWriteTokens: number | null;
-  totalTokens: number | null;
-}
-
-export interface ProfileActivity {
-  slug: string;
-  weeks: number;
-  since: string;
-  before?: string;
-  createdDay?: string;
-  today: string;
-  events: ProfileActivityReasonDay[];
-  memoryCommits: ProfileActivityDay[];
-  tokens: ProfileActivityTokensDay[];
-  tokenTotals: ProfileTokenBuckets;
-  modelUsageRows?: ProfileModelUsageRow[];
-  modelUsageStatus?: 'ready' | 'unavailable';
-}
-
-export interface GroupProfileAuthorActivity {
-  author: ChannelAuthor;
-  bridgeOrigin?: Pick<
-    NonNullable<ChannelMessage['bridgeOrigin']>,
-    'platform' | 'conversationId' | 'conversationName' | 'accountRef' | 'accountName'
-  >;
-  total: number;
-  days: ProfileActivityDay[];
-}
-
-export interface GroupProfileActivity {
-  channelId: string;
-  weeks: number;
-  since: string;
-  today: string;
-  days: ProfileActivityDay[];
-  authors: GroupProfileAuthorActivity[];
-}
-
-export async function loadMemorySnapshot(
-  call: BridgeCall,
-  channelId: string,
-): Promise<MemorySnapshot> {
-  return loadHostMemorySnapshot(bridgeHost(call), channelId);
-}
 
 export async function loadWorkspaceFileTarget(
   call: BridgeCall,
@@ -4497,78 +2762,6 @@ export async function loadWorkspaceFileTarget(
   )
     throw new Error('Invalid Workspace directory target');
   return { path: target['path'], relativePath: '', kind: 'directory' };
-}
-
-export async function loadMemoryFileTarget(
-  call: BridgeCall,
-  slug: string,
-  path: string,
-): Promise<HostFileTarget> {
-  const response = asRecord(await unwrap(call, 'memoryFileTarget', { slug, path }));
-  const target = asRecord(response?.['target']);
-  if (
-    typeof target?.['path'] !== 'string' ||
-    typeof target['relativePath'] !== 'string' ||
-    !['file', 'directory'].includes(String(target['kind']))
-  )
-    throw new Error('Invalid Memory file target');
-  return target as unknown as HostFileTarget;
-}
-
-export async function loadMemoryFile(
-  call: BridgeCall,
-  channelId: string,
-  path: string,
-): Promise<MemoryFile | undefined> {
-  return loadHostMemoryFile(bridgeHost(call), channelId, path);
-}
-
-export async function loadMemoryHistory(
-  call: BridgeCall,
-  channelId: string,
-): Promise<MemoryAcceptedCommit[]> {
-  const response = asRecord(await unwrap(call, 'memoryHistory', { channelId }));
-  const commits = response?.['commits'];
-  if (!Array.isArray(commits)) throw new Error('invalid Memory history');
-  return commits.map(parseMemoryCommit);
-}
-
-export async function loadMemoryDiff(
-  call: BridgeCall,
-  channelId: string,
-  sha: string,
-): Promise<string> {
-  const response = asRecord(await unwrap(call, 'memoryDiff', { channelId, sha }));
-  if (response?.['sha'] !== sha || typeof response['diff'] !== 'string') {
-    throw new Error('invalid Memory diff');
-  }
-  return response['diff'];
-}
-
-export async function loadMemoryGitGraph(
-  call: BridgeCall,
-  channelId: string,
-  offset: number,
-): Promise<MemoryGitGraph> {
-  return loadHostMemoryGitGraph(bridgeHost(call), channelId, offset);
-}
-
-export async function loadMemoryGitCommitDiff(
-  call: BridgeCall,
-  channelId: string,
-  sha: string,
-): Promise<MemoryGitCommitDiff> {
-  return loadHostMemoryGitCommitDiff(bridgeHost(call), channelId, sha);
-}
-
-function isActivityDays(value: unknown): value is ProfileActivityDay[] {
-  return (
-    Array.isArray(value) &&
-    value.every((entry) => {
-      const record = asRecord(entry);
-      return typeof record?.['day'] === 'string' && typeof record['count'] === 'number';
-    })
-  );
 }
 
 export async function loadProfileUsage(
@@ -4655,701 +2848,31 @@ export async function loadProfileSessionUsage(
   return value as unknown as ProfileSessionUsage;
 }
 
-export interface ProfileActivityWindow {
-  before: string;
-  weeks: number;
-}
-
-export async function loadProfileActivity(
-  call: BridgeCall,
-  channelId: string,
-  window?: ProfileActivityWindow,
-): Promise<ProfileActivity> {
-  const activity = await readProfileActivity(bridgeHost(call), { channelId, ...window });
-  return {
-    ...activity,
-    modelUsageRows: activity.modelUsageRows ?? [],
-    modelUsageStatus: activity.modelUsageStatus ?? 'unavailable',
-  };
-}
-
-export async function loadGroupProfileActivity(
-  call: BridgeCall,
-  channelId: string,
-): Promise<GroupProfileActivity> {
-  const response = asRecord(await unwrap(call, 'groupProfileActivity', { channelId }));
-  if (
-    response === undefined ||
-    response['channelId'] !== channelId ||
-    typeof response['weeks'] !== 'number' ||
-    typeof response['since'] !== 'string' ||
-    typeof response['today'] !== 'string' ||
-    !isActivityDays(response['days']) ||
-    !Array.isArray(response['authors']) ||
-    !response['authors'].every((value) => {
-      const entry = asRecord(value);
-      return (
-        entry !== undefined &&
-        parseAuthor(entry['author']) !== undefined &&
-        typeof entry['total'] === 'number' &&
-        isActivityDays(entry['days']) &&
-        (entry['bridgeOrigin'] === undefined ||
-          (asRecord(entry['bridgeOrigin']) !== undefined &&
-            ['platform', 'conversationId', 'conversationName'].every(
-              (key) => typeof asRecord(entry['bridgeOrigin'])![key] === 'string',
-            ) &&
-            ['accountRef', 'accountName'].every((key) => {
-              const value = asRecord(entry['bridgeOrigin'])![key];
-              return value === undefined || (typeof value === 'string' && value.trim().length > 0);
-            })))
-      );
-    })
-  )
-    throw new Error('invalid Group Profile activity');
-  return response as unknown as GroupProfileActivity;
-}
-
-function parseWorkingChange(value: unknown, allowCurrent = false): MemoryWorkingChange {
-  const change = asRecord(value);
-  if (
-    typeof change?.['path'] !== 'string' ||
-    !['staged', 'unstaged', 'untracked', ...(allowCurrent ? ['current'] : [])].includes(
-      String(change['kind']),
-    ) ||
-    typeof change['status'] !== 'string'
-  )
-    throw new Error('invalid Memory working change');
-  return change as unknown as MemoryWorkingChange;
-}
-
-export async function loadMemoryWorkingChanges(
-  call: BridgeCall,
-  channelId: string,
-): Promise<MemoryWorkingChange[]> {
-  const response = asRecord(await unwrap(call, 'memoryWorkingChanges', { channelId }));
-  if (!Array.isArray(response?.['changes'])) throw new Error('invalid Memory working changes');
-  return response['changes'].map((change: unknown) => parseWorkingChange(change));
-}
-
-export async function loadMemoryWorkingDiff(
-  call: BridgeCall,
-  channelId: string,
-  path: string,
-  kind: MemoryWorkingKind,
-): Promise<MemoryWorkingDiff> {
-  const response = asRecord(await unwrap(call, 'memoryWorkingDiff', { channelId, path, kind }));
-  parseWorkingChange(response, true);
-  if (
-    response?.['path'] !== path ||
-    response['kind'] !== kind ||
-    typeof response['diff'] !== 'string' ||
-    typeof response['binary'] !== 'boolean'
-  )
-    throw new Error('invalid Memory working diff');
-  return response as unknown as MemoryWorkingDiff;
-}
-
-export async function loadMemoryRecoveryHistory(
-  call: BridgeCall,
-  channelId: string,
-): Promise<MemoryRecoveryCheckpoint[]> {
-  const response = asRecord(await unwrap(call, 'memoryRecoveryHistory', { channelId }));
-  if (!Array.isArray(response?.['checkpoints'])) throw new Error('invalid Memory checkpoints');
-  return response['checkpoints'].map((value: unknown) => {
-    const point = asRecord(value);
-    if (
-      point === undefined ||
-      typeof point['id'] !== 'string' ||
-      typeof point['branch'] !== 'string' ||
-      typeof point['head'] !== 'string' ||
-      typeof point['indexTree'] !== 'string' ||
-      typeof point['workingTree'] !== 'string' ||
-      typeof point['origin'] !== 'string' ||
-      typeof point['originId'] !== 'string' ||
-      typeof point['causeKind'] !== 'string' ||
-      typeof point['causeId'] !== 'string' ||
-      typeof point['capturedAt'] !== 'string'
-    )
-      throw new Error('invalid Memory checkpoint');
-    return point as unknown as MemoryRecoveryCheckpoint;
-  });
-}
-
-export async function restoreMemoryCheckpoint(
-  call: BridgeCall,
-  input: { channelId: string; checkpointId: string; expectedCurrentId: string },
-): Promise<{ checkpoint: MemoryRecoveryCheckpoint; archivePath: string }> {
-  const response = asRecord(await unwrap(call, 'memoryRestore', input));
-  const checkpoint = asRecord(response?.['checkpoint']);
-  if (
-    checkpoint === undefined ||
-    typeof checkpoint['id'] !== 'string' ||
-    typeof response?.['archivePath'] !== 'string'
-  )
-    throw new Error('invalid Memory restore result');
-  return {
-    checkpoint: checkpoint as unknown as MemoryRecoveryCheckpoint,
-    archivePath: response['archivePath'] as string,
-  };
-}
-
-export async function restoreMemoryCommit(
-  call: BridgeCall,
-  input: {
-    channelId: string;
-    sha: string;
-    expectedHead: string;
-    restoreId: string;
-    name?: string;
-  },
-): Promise<{
-  head: string;
-  backup: string | null;
-  version: MemoryVersionName | null;
-  saved: MemoryRecoveryCheckpoint;
-}> {
-  const response = asRecord(await unwrap(call, 'memoryRestoreCommit', input));
-  const saved = asRecord(response?.['saved']);
-  if (
-    saved === undefined ||
-    typeof saved['id'] !== 'string' ||
-    typeof response?.['head'] !== 'string' ||
-    (response['backup'] !== null && typeof response['backup'] !== 'string')
-  )
-    throw new Error('invalid Memory restore result');
-  return {
-    head: response['head'] as string,
-    backup: response['backup'] as string | null,
-    version: parseVersionNames([response['version']])[0] ?? null,
-    saved: saved as unknown as MemoryRecoveryCheckpoint,
-  };
-}
-
-export async function nameMemoryVersion(
-  call: BridgeCall,
-  input: { channelId: string; sha: string; name: string },
-): Promise<MemoryVersionName> {
-  const response = asRecord(await unwrap(call, 'memoryNameVersion', input));
-  const version = parseVersionNames([response?.['version']])[0];
-  if (version === undefined) throw new Error('invalid Memory version name result');
-  return version;
-}
-
-export async function removeMemoryVersionName(
-  call: BridgeCall,
-  input: { channelId: string; tag: string },
-): Promise<void> {
-  await unwrap(call, 'memoryRemoveVersionName', input);
-}
-
-export async function saveMemoryFile(
-  call: BridgeCall,
-  input: {
-    channelId: string;
-    path: string;
-    body: string;
-    expectedHead: string;
-    editId: string;
-  },
-): Promise<MemoryAcceptedCommit> {
-  return saveHostMemoryFile(bridgeHost(call), input);
-}
-
-export async function repairMemory(
-  call: BridgeCall,
-  input: { channelId: string; expectedHead: string; repairId: string },
-): Promise<MemoryRepairEvent> {
-  const response = asRecord(await unwrap(call, 'memoryRepair', input));
-  const repair = asRecord(response?.['repair']);
-  if (
-    repair === undefined ||
-    typeof repair['id'] !== 'string' ||
-    typeof repair['acceptedHeadSha'] !== 'string' ||
-    typeof repair['provisionalHeadSha'] !== 'string' ||
-    typeof repair['backupPath'] !== 'string' ||
-    repair['status'] !== 'completed' ||
-    typeof repair['completedAt'] !== 'string'
-  )
-    throw new Error('invalid Memory repair result');
-  return repair as unknown as MemoryRepairEvent;
-}
-
-export async function manageMessagingIdentity(
-  call: BridgeCall,
-  slug: string,
-  input: MessagingIdentityInput,
-): Promise<MessagingIdentity> {
-  const record = asRecord(await unwrap(call, 'messagingIdentity', { slug, input }));
-  const identity = asRecord(record?.['identity']);
-  if (
-    !identity ||
-    typeof identity['id'] !== 'string' ||
-    typeof identity['revision'] !== 'number' ||
-    typeof identity['enabled'] !== 'boolean'
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid identity result');
-  return identity as unknown as MessagingIdentity;
-}
-export async function loadMessagingDefaults(
-  call: BridgeCall,
-  platform: MessagingDefaultsInput['platform'] = 'feishu',
-): Promise<MessagingDefaults> {
-  const value = asRecord(
-    await unwrap(call, 'messagingDefaults', platform === 'feishu' ? {} : { platform }),
-  );
-  if (
-    !value ||
-    value['platform'] !== platform ||
-    !Number.isInteger(value['revision']) ||
-    Number(value['revision']) < 0 ||
-    typeof value['changedAt'] !== 'string' ||
-    typeof value['identityEnabled'] !== 'boolean' ||
-    (platform === 'weixin' && typeof value['typingEnabled'] !== 'boolean') ||
-    !['mentions', 'all'].includes(String(value['collection'])) ||
-    !['immediate', 'digest', 'mentions', 'silent'].includes(String(value['wake'])) ||
-    !Number.isInteger(value['count']) ||
-    !Number.isInteger(value['intervalSeconds']) ||
-    Number(value['count']) < 1 ||
-    Number(value['count']) > 100 ||
-    Number(value['intervalSeconds']) < 1 ||
-    Number(value['intervalSeconds']) > 86400
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid platform defaults');
-  return value as unknown as MessagingDefaults;
-}
-export async function saveMessagingDefaults(
-  call: BridgeCall,
-  input: MessagingDefaultsInput,
-): Promise<MessagingDefaults> {
-  await unwrap(call, 'messagingDefaultsSet', { input });
-  return loadMessagingDefaults(call, input.platform);
-}
-function validReceptionRecovery(value: unknown): boolean {
-  if (value === undefined) return true;
-  const row = asRecord(value);
-  if (row?.['kind'] === 'action-required')
-    return typeof row['reason'] === 'string' && row['reason'].length > 0;
-  return (
-    row?.['kind'] === 'retrying' &&
-    row['reason'] === 'provider-unavailable' &&
-    Number.isSafeInteger(row['attempt']) &&
-    Number(row['attempt']) > 0 &&
-    typeof row['nextRetryAt'] === 'string' &&
-    Number.isFinite(Date.parse(row['nextRetryAt']))
-  );
-}
-
-export async function loadChannelBridges(
-  call: BridgeCall,
-  channelId: string,
-  mode?: MessagingReadMode,
-): Promise<ChannelBridgeSnapshot> {
-  const value = asRecord(
-    await unwrap(call, 'channelBridges', {
-      channelId,
-      ...(mode ? { mode } : {}),
-    }),
-  );
-  const source = (item: unknown) => {
-    const row = asRecord(item);
-    return (
-      row &&
-      ['grantId', 'botSlug', 'platform', 'accountName', 'conversationName'].every(
-        (key) => typeof row[key] === 'string',
-      ) &&
-      Number.isInteger(row['grantRevision']) &&
-      Number(row['grantRevision']) > 0 &&
-      ['verified', 'unverified'].includes(String(row['ordinaryDelivery']))
-    );
-  };
-  if (
-    !value ||
-    value['channelId'] !== channelId ||
-    (value['checks'] !== undefined && !['pending', 'complete'].includes(String(value['checks']))) ||
-    (value['canTargetInbox'] !== undefined && typeof value['canTargetInbox'] !== 'boolean') ||
-    (value['receptionNeedsAttention'] !== undefined &&
-      typeof value['receptionNeedsAttention'] !== 'boolean') ||
-    !Array.isArray(value['sources']) ||
-    !value['sources'].every(source) ||
-    !Array.isArray(value['bridges']) ||
-    !value['bridges'].every((item) => {
-      const row = asRecord(item);
-      return (
-        source(item) &&
-        (row?.['routeId'] === undefined || typeof row['routeId'] === 'string') &&
-        (row?.['delivery'] === undefined ||
-          ['channel', 'inbox'].includes(String(row['delivery']))) &&
-        typeof row?.['name'] === 'string' &&
-        typeof row['enabled'] === 'boolean' &&
-        Number.isInteger(row['revision']) &&
-        Number(row['revision']) > 0 &&
-        ['mentions', 'all'].includes(String(row['collection'])) &&
-        ['available', 'unavailable', 'rebind-required'].includes(String(row['availability'])) &&
-        ['off', 'connecting', 'receiving', 'unavailable'].includes(String(row['reception'])) &&
-        validReceptionRecovery(row['recovery'])
-      );
-    })
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid Channel Bridge snapshot');
-  return value as unknown as ChannelBridgeSnapshot;
-}
-export async function loadChannelIngests(
-  call: BridgeCall,
-  channelId: string,
-): Promise<ConversationIngestSnapshot> {
-  const value = asRecord(await unwrap(call, 'channelIngests', { channelId }));
-  if (
-    !value ||
-    value['channelId'] !== channelId ||
-    !Array.isArray(value['ingests']) ||
-    !value['ingests'].every((item) => {
-      const row = asRecord(item);
-      const conversation = asRecord(row?.['conversation']);
-      const wake = asRecord(row?.['wake']);
-      return (
-        row &&
-        conversation &&
-        wake &&
-        ['id', 'channelId', 'platform', 'accountName', 'intakeAfter'].every(
-          (key) => typeof row[key] === 'string',
-        ) &&
-        typeof conversation['id'] === 'string' &&
-        typeof conversation['name'] === 'string' &&
-        typeof row['enabled'] === 'boolean' &&
-        Number.isInteger(row['revision']) &&
-        ['mentions', 'digest', 'all'].includes(String(wake['mode'])) &&
-        ['waiting', 'receiving', 'paused', 'unavailable'].includes(String(row['state']))
-      );
-    }) ||
-    !Array.isArray(value['candidates']) ||
-    !value['candidates'].every((item) => {
-      const row = asRecord(item);
-      return (
-        row &&
-        ['bindingId', 'botSlug', 'platform', 'accountName'].every(
-          (key) => typeof row[key] === 'string',
-        ) &&
-        Array.isArray(row['conversations'])
-      );
-    })
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid external conversation snapshot');
-  return value as unknown as ConversationIngestSnapshot;
-}
-export async function manageChannelIngest(
-  call: BridgeCall,
-  channelId: string,
-  input: ConversationIngestInput,
-): Promise<void> {
-  await unwrap(call, 'channelIngest', { channelId, input });
-}
-export async function manageChannelBridge(
-  call: BridgeCall,
-  channelId: string,
-  input: ChannelBridgeInput,
-): Promise<void> {
-  await unwrap(call, 'channelBridge', { channelId, input });
-}
-
-export async function setFailureAlerts(
-  call: BridgeCall,
-  slug: string,
-  enabled: boolean,
-  expectedRevision: number,
-): Promise<void> {
-  await unwrap(call, 'failureAlertsSet', { slug, enabled, expectedRevision });
-}
-export async function testFailureAlerts(call: BridgeCall, slug: string): Promise<void> {
-  await unwrap(call, 'failureAlertsTest', { slug });
-}
-export async function retryFailureAlerts(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-): Promise<void> {
-  await unwrap(call, 'failureAlertsRetry', { slug, id });
-}
-
-export async function reviewPairing(
-  call: BridgeCall,
-  slug: string,
-  input: PairingReviewInput,
-): Promise<PairingRequest> {
-  const value = asRecord(await unwrap(call, 'pairingReview', { slug, input }));
-  const pairing = asRecord(value?.['pairing']);
-  if (
-    !pairing ||
-    pairing['botSlug'] !== slug ||
-    typeof pairing['id'] !== 'string' ||
-    !Array.isArray(pairing['capabilities']) ||
-    typeof pairing['revision'] !== 'number'
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid pairing review');
-  return pairing as unknown as PairingRequest;
-}
-export async function changeExternalSenderAccess(
-  call: BridgeCall,
-  slug: string,
-  input: SenderAccessInput,
-): Promise<void> {
-  await unwrap(call, 'senderAccess', { slug, input });
-}
-export type { MessagingApp } from '../../../core/src/messaging/outbound.js';
-
-export async function loadMessagingApps(call: BridgeCall): Promise<{
-  apps: MessagingApp[];
-  setups: NonNullable<MessagingSnapshot['appSetups']>;
-}> {
-  const record = asRecord(await unwrap(call, 'messagingApps', {}));
-  const apps = record?.['apps'];
-  const setups = record?.['setups'];
-  if (
-    !Array.isArray(apps) ||
-    !Array.isArray(setups) ||
-    !setups.every((value) => typeof asRecord(value)?.['providerId'] === 'string') ||
-    !apps.every((value) => {
-      const app = asRecord(value);
-      return (
-        typeof app?.['providerId'] === 'string' &&
-        typeof app['ref'] === 'string' &&
-        typeof app['platform'] === 'string' &&
-        typeof app['name'] === 'string' &&
-        typeof app['fingerprint'] === 'string' &&
-        typeof app['connected'] === 'boolean' &&
-        (app['boundBotSlug'] === undefined || typeof app['boundBotSlug'] === 'string')
-      );
-    })
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid messaging apps');
-  return {
-    apps: apps as MessagingApp[],
-    setups: setups as NonNullable<MessagingSnapshot['appSetups']>,
-  };
-}
-
-export async function loadMessagingSnapshot(
-  call: BridgeCall,
-  slug: string,
-  mode?: MessagingReadMode,
-): Promise<MessagingSnapshot> {
-  const value = await unwrap(call, 'messagingSnapshot', {
-    slug,
-    ...(mode ? { mode } : {}),
-  });
-  const record = asRecord(value);
-  if (
-    !record ||
-    (record['checks'] !== undefined &&
-      !['pending', 'complete'].includes(String(record['checks']))) ||
-    !Array.isArray(record['accounts']) ||
-    !Array.isArray(record['grants']) ||
-    !record['grants'].every((item: unknown) =>
-      validReceptionRecovery(asRecord(item)?.['recovery']),
-    ) ||
-    (record['identities'] !== undefined &&
-      (!Array.isArray(record['identities']) ||
-        !record['identities'].every((item: unknown) =>
-          validReceptionRecovery(asRecord(item)?.['recovery']),
-        ))) ||
-    !Array.isArray(record['intents']) ||
-    (record['setup'] !== undefined && !validLarkSetupSnapshot(record['setup'])) ||
-    (record['channelTargets'] !== undefined &&
-      (!Array.isArray(record['channelTargets']) ||
-        !record['channelTargets'].every((value) => {
-          const target = asRecord(value);
-          return (
-            typeof target?.['id'] === 'string' &&
-            target['id'].length > 0 &&
-            typeof target['name'] === 'string'
-          );
-        })))
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid messaging snapshot');
-  return value as MessagingSnapshot;
-}
-
-function validLarkSetupSnapshot(value: unknown): boolean {
-  const setup = asRecord(value);
-  return (
-    typeof setup?.['providerReady'] === 'boolean' &&
-    Array.isArray(setup['receipts']) &&
-    setup['receipts'].length <= 20 &&
-    setup['receipts'].every((item: unknown) => {
-      const row = asRecord(item);
-      return (
-        !!row &&
-        ['sourceEventId', 'grantId', 'messageId', 'conversationId', 'at'].every(
-          (key) => typeof row[key] === 'string' && row[key].length > 0,
-        ) &&
-        typeof row['echoObserved'] === 'boolean' &&
-        (row['replyMessageId'] === undefined ||
-          (typeof row['replyMessageId'] === 'string' && row['replyMessageId'].length > 0)) &&
-        (row['threadId'] === undefined || typeof row['threadId'] === 'string') &&
-        (row['replyState'] === undefined ||
-          [
-            'provider-accepted',
-            'unknown-outcome',
-            'pending',
-            'in-flight',
-            'grant-revoked',
-            'cancelled',
-            'failed',
-          ].includes(String(row['replyState'])))
-      );
-    })
-  );
-}
-export async function loadMessagingTargets(
-  call: BridgeCall,
-  providerId: string,
-  accountRef: string,
-): Promise<MessagingTarget[]> {
-  const record = asRecord(await unwrap(call, 'messagingTargets', { providerId, accountRef }));
-  if (!record || !Array.isArray(record['targets']))
-    throw new BridgeCallError('invalid-response', 'Invalid targets');
-  return record['targets'] as MessagingTarget[];
-}
-export async function authorizeMessaging(
-  call: BridgeCall,
-  input: {
-    botSlug: string;
-    providerId: string;
-    accountRef: string;
-    targetRef: string;
-    fingerprint: string;
-    targetDigest: string;
-  },
-): Promise<MessagingGrant> {
-  const record = asRecord(await unwrap(call, 'messagingAuthorize', input));
-  if (!record || !asRecord(record['grant']))
-    throw new BridgeCallError('invalid-response', 'Invalid grant');
-  return record['grant'] as MessagingGrant;
-}
-export async function revokeMessaging(
-  call: BridgeCall,
-  slug: string,
-  grantId: string,
-): Promise<void> {
-  await unwrap(call, 'messagingRevoke', { slug, grantId });
-}
-export async function loadMessagingReachable(
-  call: BridgeCall,
-  slug: string,
-  bindingId: string,
-  cursor?: string,
-): Promise<import('../../../core/src/messaging/provider.js').MessagingReachablePage> {
-  const page = asRecord(
-    await unwrap(call, 'messagingReachable', {
-      slug,
-      bindingId,
-      ...(cursor ? { cursor } : {}),
-    }),
-  );
-  if (
-    !page ||
-    page['version'] !== 1 ||
-    !Array.isArray(page['conversations']) ||
-    typeof page['hasMore'] !== 'boolean'
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid group page');
-  return page as unknown as import('../../../core/src/messaging/provider.js').MessagingReachablePage;
-}
-export async function readMessagingPostRequest(
-  call: BridgeCall,
-  slug: string,
-  bindingId: string,
-  conversationId: string,
-  requestId: string,
-  text: string,
-): Promise<OutboxIntent | undefined> {
-  const record = asRecord(
-    await unwrap(call, 'messagingPostRequest', {
-      slug,
-      bindingId,
-      conversationId,
-      requestId,
-      text,
-    }),
-  );
-  if (record?.['intent'] === null) return undefined;
-  if (!record || !asRecord(record['intent']))
-    throw new BridgeCallError('invalid-response', 'Invalid intent');
-  return record['intent'] as OutboxIntent;
-}
-export async function postMessagingConversation(
-  call: BridgeCall,
-  slug: string,
-  bindingId: string,
-  conversationId: string,
-  requestId: string,
-  text: string,
-): Promise<OutboxIntent> {
-  const record = asRecord(
-    await unwrap(call, 'messagingPostConversation', {
-      slug,
-      bindingId,
-      conversationId,
-      requestId,
-      text,
-    }),
-  );
-  if (!record || !asRecord(record['intent']))
-    throw new BridgeCallError('invalid-response', 'Invalid intent');
-  return record['intent'] as OutboxIntent;
-}
-export async function setMessagingPostLimit(
-  call: BridgeCall,
-  slug: string,
-  bindingId: string,
-  expectedRevision: number,
-  limit: number | null,
-): Promise<void> {
-  await unwrap(call, 'messagingPostLimit', {
-    slug,
-    bindingId,
-    expectedRevision,
-    limit,
-  });
-}
-export async function sendMessaging(
-  call: BridgeCall,
-  slug: string,
-  grantId: string,
-  requestId: string,
-  text: string,
-): Promise<OutboxIntent> {
-  const record = asRecord(await unwrap(call, 'messagingSend', { slug, grantId, requestId, text }));
-  if (!record || !asRecord(record['intent']))
-    throw new BridgeCallError('invalid-response', 'Invalid intent');
-  return record['intent'] as OutboxIntent;
-}
-
-export async function loadChannelMediaTarget(
-  call: BridgeCall,
-  channelId: string,
-  sourceEventId: string,
-  attachmentId: string,
-): Promise<HostFileTarget> {
-  const response = asRecord(
-    await unwrap(call, 'channelMediaTarget', {
-      channelId,
-      sourceEventId,
-      attachmentId,
-    }),
-  );
-  const target = asRecord(response?.['target']);
-  if (
-    typeof target?.['path'] !== 'string' ||
-    typeof target['relativePath'] !== 'string' ||
-    target['kind'] !== 'file'
-  )
-    throw new Error('Invalid Channel media target');
-  return {
-    path: target['path'],
-    relativePath: target['relativePath'],
-    kind: 'file',
-  };
-}
+export type { MessagingApp };
+export type {
+  PairingRequest,
+  PairingReviewInput,
+  SenderAccessInput,
+  MessagingDefaults,
+  MessagingDefaultsInput,
+  ChannelBridgeInput,
+  ChannelBridgeSnapshot,
+  MessagingIdentity,
+  MessagingIdentityInput,
+  GroupReceptionInput,
+  MessagingConversationInput,
+  ExternalSource,
+  ConversationIngestInput,
+  ConversationIngestSnapshot,
+  MessagingSnapshot,
+  MessagingReadMode,
+  MessagingGrant,
+  OutboxIntent,
+  MessagingTarget,
+  MessagingReachablePage,
+  ThreadReceptionInput,
+  ChannelActivityToday,
+};
 
 export async function loadMessageAttachmentTarget(
   call: BridgeCall,
@@ -5378,256 +2901,6 @@ export async function loadMessageAttachmentTarget(
   };
 }
 
-export async function setMessagingChannelTarget(
-  call: BridgeCall,
-  slug: string,
-  grantId: string,
-  channelId: string | null,
-): Promise<void> {
-  await unwrap(call, 'messagingChannelTarget', { slug, grantId, channelId });
-}
-export async function setMessagingThreadPolicy(
-  call: BridgeCall,
-  slug: string,
-  sourceEventId: string,
-  policy: import('../../../core/src/messaging/thread-policy.js').ThreadReceptionInput,
-): Promise<void> {
-  await unwrap(call, 'messagingThreadPolicy', { slug, sourceEventId, policy });
-}
-export async function setMessagingGroupPolicy(
-  call: BridgeCall,
-  slug: string,
-  grantId: string,
-  policy: GroupReceptionInput,
-): Promise<void> {
-  await unwrap(call, 'messagingGroupPolicy', { slug, grantId, policy });
-}
-export async function manageMessagingConversation(
-  call: BridgeCall,
-  slug: string,
-  input: MessagingConversationInput,
-): Promise<void> {
-  await unwrap(call, 'messagingConversation', { slug, input });
-}
-export async function setMessagingReceive(
-  call: BridgeCall,
-  slug: string,
-  grantId: string,
-  enabled: boolean,
-): Promise<void> {
-  await unwrap(call, 'messagingReceive', { slug, grantId, enabled });
-}
-export async function readMessagingSource(
-  call: BridgeCall,
-  slug: string,
-  sourceEventId: string,
-): Promise<ExternalSource> {
-  const record = asRecord(await unwrap(call, 'messagingSource', { slug, sourceEventId }));
-  const source = asRecord(record?.['source']);
-  const event = asRecord(source?.['event']);
-  const actor = asRecord(event?.['actor']);
-  const conversation = asRecord(event?.['conversation']);
-  const reply = asRecord(event?.['reply']);
-  const replay = asRecord(event?.['replay']);
-  const strings = (value: Record<string, unknown> | undefined, keys: string[]): boolean =>
-    value !== undefined && keys.every((key) => typeof value[key] === 'string');
-  if (
-    !strings(source, [
-      'body',
-      'id',
-      'platform',
-      'accountName',
-      'conversationName',
-      'at',
-      'grantId',
-    ]) ||
-    (source?.['localChannelId'] !== undefined &&
-      (typeof source['localChannelId'] !== 'string' || source['localChannelId'].length === 0)) ||
-    !Number.isInteger(source?.['grantRevision']) ||
-    Number(source?.['grantRevision']) < 1 ||
-    event?.['version'] !== 1 ||
-    !['feishu', 'slack', 'discord', 'weixin', 'qq'].includes(String(event['channel'])) ||
-    !strings(event, ['botId', 'fingerprint', 'eventId', 'messageId', 'at']) ||
-    typeof event['mentionedAccount'] !== 'boolean' ||
-    actor?.['kind'] !== 'user' ||
-    !strings(actor, ['id']) ||
-    (actor?.['name'] !== undefined && typeof actor['name'] !== 'string') ||
-    !['group', 'dm'].includes(String(conversation?.['kind'])) ||
-    !strings(conversation, ['id']) ||
-    !strings(reply, ['messageId', 'conversationId', 'actorId']) ||
-    ['threadId', 'rootId', 'parentId'].some(
-      (key) => reply?.[key] !== undefined && typeof reply[key] !== 'string',
-    ) ||
-    !Array.isArray(event['mentions']) ||
-    !event['mentions'].every(
-      (mention) =>
-        strings(asRecord(mention), ['id', 'key']) &&
-        (asRecord(mention)?.['name'] === undefined ||
-          typeof asRecord(mention)?.['name'] === 'string'),
-    ) ||
-    (event['attachments'] !== undefined &&
-      (!Array.isArray(event['attachments']) ||
-        event['attachments'].length > 1 ||
-        !event['attachments'].every(
-          (file) =>
-            strings(asRecord(file), ['id', 'messageId', 'resourceKey', 'name']) &&
-            (asRecord(file)?.['sizeBytes'] === undefined ||
-              (Number.isSafeInteger(asRecord(file)?.['sizeBytes']) &&
-                Number(asRecord(file)?.['sizeBytes']) > 0 &&
-                Number(asRecord(file)?.['sizeBytes']) <= Number.MAX_SAFE_INTEGER)) &&
-            (asRecord(file)?.['mediaType'] === undefined ||
-              typeof asRecord(file)?.['mediaType'] === 'string'),
-        ))) ||
-    replay?.['kind'] !== 'provider-redelivery' ||
-    replay['resumeCursor'] !== false ||
-    replay['gapPossible'] !== true
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid source');
-  if (
-    source?.['receptionPaths'] !== undefined &&
-    (!Array.isArray(source['receptionPaths']) ||
-      !source['receptionPaths'].every((value) => {
-        const path = asRecord(value);
-        return (
-          path &&
-          strings(path, ['routeId', 'grantId', 'reason', 'mode']) &&
-          (path['channelId'] === null || typeof path['channelId'] === 'string') &&
-          ['group-mention', 'group-ordinary', 'human-dm'].includes(String(path['reason'])) &&
-          ['all', 'immediate', 'digest', 'mentions', 'silent', 'context', 'conditional'].includes(
-            String(path['mode']),
-          ) &&
-          [
-            'grantRevision',
-            'routeRevision',
-            'count',
-            'intervalMs',
-            'policyRevision',
-            'sourceRevision',
-            'defaultRevision',
-          ].every((key) => Number.isInteger(path[key]))
-        );
-      }))
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid reception paths');
-  if (
-    source?.['contextReads'] !== undefined &&
-    (!Array.isArray(source['contextReads']) ||
-      source['contextReads'].length > 20 ||
-      !source['contextReads'].every((value) => {
-        const read = asRecord(value);
-        return (
-          strings(read, ['at', 'sessionId', 'scope', 'outcome']) &&
-          ['group', 'nearby', 'thread', 'retained', 'retained-nearby'].includes(
-            String(read?.['scope']),
-          ) &&
-          (read?.['coverage'] === undefined ||
-            ['provider-visible-human-text', 'retained-local-sources'].includes(
-              String(read['coverage']),
-            )) &&
-          ['read', 'refused'].includes(String(read?.['outcome'])) &&
-          typeof read?.['incomplete'] === 'boolean' &&
-          Number.isInteger(read?.['omitted']) &&
-          Array.isArray(read?.['sourceEventIds']) &&
-          read['sourceEventIds'].length <= 20 &&
-          read['sourceEventIds'].every((id: unknown) => typeof id === 'string') &&
-          (read['reason'] === undefined || typeof read['reason'] === 'string')
-        );
-      }))
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid context audit');
-  if (
-    source?.['contextMessages'] !== undefined &&
-    (!Array.isArray(source['contextMessages']) ||
-      source['contextMessages'].length > 20 ||
-      !source['contextMessages'].every((value) => {
-        const message = asRecord(value);
-        const senderName = message?.['senderName'];
-        const mentions = message?.['mentions'];
-        return (
-          strings(message, ['sourceEventId', 'messageId', 'senderId', 'at', 'text']) &&
-          (senderName === undefined || typeof senderName === 'string') &&
-          (mentions === undefined ||
-            (Array.isArray(mentions) &&
-              mentions.every((value: unknown) => {
-                const mention = asRecord(value);
-                const name = mention?.['name'];
-                return (
-                  strings(mention, ['id', 'key']) &&
-                  (name === undefined || typeof name === 'string')
-                );
-              })))
-        );
-      }))
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid context messages');
-  return source as unknown as ExternalSource;
-}
-
-export async function loadChannelActivityToday(call: BridgeCall): Promise<ChannelActivityToday> {
-  const data = asRecord(await unwrap(call, 'channelActivityToday', {}));
-  const count = (value: unknown): value is number =>
-    typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
-  if (
-    !data ||
-    !count(data['total']) ||
-    !Array.isArray(data['channels']) ||
-    typeof data['day'] !== 'string' ||
-    !/^\d{4}-\d{2}-\d{2}$/u.test(data['day']) ||
-    typeof data['timezone'] !== 'string' ||
-    typeof data['from'] !== 'string' ||
-    typeof data['to'] !== 'string' ||
-    !Number.isFinite(Date.parse(data['from'])) ||
-    !(Date.parse(data['to']) > Date.parse(data['from']))
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid Channel activity');
-  const ids = new Set<string>();
-  for (const raw of data['channels']) {
-    const row = asRecord(raw);
-    if (
-      !row ||
-      typeof row['channelId'] !== 'string' ||
-      !row['channelId'] ||
-      ids.has(row['channelId']) ||
-      typeof row['name'] !== 'string' ||
-      !['dm', 'group'].includes(String(row['type'])) ||
-      !count(row['total']) ||
-      !count(row['human']) ||
-      !count(row['bot']) ||
-      !count(row['other']) ||
-      row['total'] !== row['human'] + row['bot'] + row['other'] ||
-      !Array.isArray(row['senders'])
-    )
-      throw new BridgeCallError('invalid-response', 'Invalid Channel activity');
-    ids.add(row['channelId']);
-    const sums = { human: 0, bot: 0, other: 0 };
-    for (const rawSender of row['senders']) {
-      const sender = asRecord(rawSender);
-      const author = asRecord(sender?.['author']);
-      if (
-        !sender ||
-        !author ||
-        !count(sender['count']) ||
-        typeof sender['displayName'] !== 'string' ||
-        !['human', 'bot', 'system', 'bridged'].includes(String(author['kind'])) ||
-        (author['kind'] === 'bot' && (typeof author['slug'] !== 'string' || !author['slug'])) ||
-        (author['kind'] === 'bridged' &&
-          (typeof author['source'] !== 'string' || !author['source']))
-      )
-        throw new BridgeCallError('invalid-response', 'Invalid Channel activity');
-      sums[author['kind'] === 'human' ? 'human' : author['kind'] === 'bot' ? 'bot' : 'other'] +=
-        sender['count'];
-    }
-    if (sums.human !== row['human'] || sums.bot !== row['bot'] || sums.other !== row['other'])
-      throw new BridgeCallError('invalid-response', 'Invalid Channel activity');
-  }
-  if (
-    data['channels'].reduce((sum: number, row: { total: number }) => sum + row.total, 0) !==
-    data['total']
-  )
-    throw new BridgeCallError('invalid-response', 'Invalid Channel activity');
-  return data as unknown as ChannelActivityToday;
-}
-
 export async function markAllReadPositions(
   call: BridgeCall,
   scope: { channelId?: string | undefined; botSlug?: string | undefined } = {},
@@ -5641,13 +2914,6 @@ export async function loadOverviewUsage(
   after?: string,
 ): Promise<OverviewUsage> {
   return loadUsage(bridgeHost(call), period, after);
-}
-
-export async function loadOverviewMemory(
-  call: BridgeCall,
-  after?: string,
-): Promise<OverviewMemory> {
-  return loadMemoryActivity(bridgeHost(call), after);
 }
 
 function parseQuotePreview(value: unknown): ChannelReplyPreview | null | false {
@@ -5685,3 +2951,34 @@ function parseMessageQuotes(value: unknown): ChannelMessageQuote[] | undefined |
   }
   return quotes;
 }
+
+export {
+  loadComposerIdentity,
+  loadHumanIdentity,
+  setHumanDefaultName,
+  setHumanAvatar,
+  finishHumanProfileSetup,
+  loadHumanAvatars,
+} from './features/humans/bridge.js';
+
+export {
+  type CreatePersonaBotInput,
+  botExists,
+  type SshFailureReason,
+  type HttpsFallback,
+  type CreatedBot,
+  loadRoster,
+  type RosterBatchInput,
+  applyRosterBatch,
+  createRosterSection,
+  renameRosterSection,
+  removeRosterSection,
+  assignRosterChannel,
+  reorderRosterSections,
+  reorderTopOrder,
+  setRosterPins,
+  setRosterHidden,
+  setChannelMute,
+} from './features/personabots/bridge.js';
+
+export type { ComposerRecoveryIdentity } from '../../../core/src/bridge/composer-recovery.js';

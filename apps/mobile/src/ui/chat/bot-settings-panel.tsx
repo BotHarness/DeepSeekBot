@@ -8,6 +8,7 @@ import { dmChannel } from '../../host/bot-profile';
 import { renameBot } from '../../host/bot-name';
 import type { HostClient, RosterBot } from '@botharness/host-client/client';
 import { useHostSession } from '../../host/host-session';
+import { marketplaceAvatarsAvailable } from '../../marketplace/available';
 import { useDesignTheme } from '../design/theme';
 import { edge, space } from '../design/tokens';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
@@ -125,6 +126,21 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
                 }
               />,
             )}
+        {marketplaceAvatarsAvailable &&
+        saved &&
+        saved.member === undefined &&
+        (bot.avatarUrl || bot.appearance) ? (
+          <SettingsRow
+            title={t.marketplaceAvatars.fromBot}
+            testID="marketplace-avatar-publish-from-bot"
+            onPress={() =>
+              router.push({
+                pathname: '/marketplace-avatar-editor',
+                params: { hostId: saved.hostId, bot: bot.slug },
+              })
+            }
+          />
+        ) : null}
       </SettingsSection>
       {backgroundError === undefined ? null : (
         <Text accessibilityRole="alert" tone="danger">

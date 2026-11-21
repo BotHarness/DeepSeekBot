@@ -132,6 +132,7 @@ export function avatarSvg(
     turns?: readonly number[];
     surface?: 'portrait' | 'companion';
     mouthLayers?: boolean;
+    squareBackdrop?: boolean;
   } = {},
 ): string {
   if (recipe.family === 'illustrated' && options.surface === 'companion') {
@@ -150,9 +151,9 @@ export function avatarSvg(
       .join('');
     return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="512" height="512" shape-rendering="crispEdges" aria-hidden="true">${base.body}${base.head}${turns}<g data-avatar-pixel-morph=""></g></svg>`;
   }
-  return recipe.family === 'line'
-    ? lineAvatarSvg(recipe, options)
-    : pixelAvatarSvg(recipe, options);
+  const svg =
+    recipe.family === 'line' ? lineAvatarSvg(recipe, options) : pixelAvatarSvg(recipe, options);
+  return options.squareBackdrop ? svg.replace(/^(<svg\b[^>]*><rect\b[^>]*?) rx="\d+"/u, '$1') : svg;
 }
 
 export interface RetainedAvatarAppearance {

@@ -153,6 +153,7 @@ interface IllustratedAvatarProps {
   symbol?: PixelSymbol | undefined;
   mouth?: PixelMouthState | undefined;
   surface?: 'portrait' | 'companion' | undefined;
+  squareBackdrop?: boolean | undefined;
   still?: boolean | undefined;
   facing?: 'front' | 'left' | 'right' | undefined;
 }
@@ -171,11 +172,12 @@ const staticAvatarMarkup = new Map<string, string>();
 export function cachedStaticAvatarSvg(
   recipe: AvatarRecipe,
   surface: 'portrait' | 'companion',
+  squareBackdrop = false,
 ): string {
-  const key = `${surface}:${JSON.stringify(recipe)}`;
+  const key = `${surface}:${squareBackdrop}:${JSON.stringify(recipe)}`;
   const cached = staticAvatarMarkup.get(key);
   if (cached !== undefined) return cached;
-  const markup = avatarSvg(recipe, { surface });
+  const markup = avatarSvg(recipe, { surface, squareBackdrop });
   if (staticAvatarMarkup.size >= STATIC_AVATAR_CACHE_LIMIT) {
     const oldest = staticAvatarMarkup.keys().next().value;
     if (oldest !== undefined) staticAvatarMarkup.delete(oldest);
@@ -188,6 +190,7 @@ function StaticIllustratedAvatar({
   recipe,
   facing,
   surface = 'portrait',
+  squareBackdrop = false,
 }: IllustratedAvatarProps): ReactElement {
   const markup = useMemo(
     () =>
@@ -196,8 +199,9 @@ function StaticIllustratedAvatar({
           ? { ...recipe, pose: facing }
           : recipe,
         surface,
+        squareBackdrop,
       ),
-    [recipe, facing, surface],
+    [recipe, facing, surface, squareBackdrop],
   );
   const source = useMemo(
     () =>

@@ -140,8 +140,8 @@ export function useBotSidebar(
   const unhideChannels = async (ids: readonly string[]): Promise<void> => {
     for (const id of ids) await actions.setChannelHidden(id, false);
   };
-  const channelMenu = useSidebarChannelMenu({ state, actions, t });
-  const { setChannelMenu, menuModelMount } = channelMenu;
+  const channelMenu = useSidebarChannelMenu({ state, actions });
+  const { setChannelMenu } = channelMenu;
   const [channelSelection, setChannelSelection] = useState<ChannelSelection>({
     ids: [],
     anchorId: undefined,
@@ -479,7 +479,7 @@ export function useBotSidebar(
     avatarDialog,
     sharingDialog,
     deletionDialog,
-    modelErrorToast,
+    modelDialog,
   } = renderSidebarChannelActions({
     menu: channelMenu,
     allScope,
@@ -734,14 +734,13 @@ export function useBotSidebar(
         />
       ) : null}
       {sectionMenu}
-      <span ref={menuModelMount} aria-hidden="true" style={{ display: 'contents' }} />
       {channelActionsMenu}
       {nicknameDialog}
       {publishingDialog}
       {avatarDialog}
       {sharingDialog}
       {deletionDialog}
-      {modelErrorToast}
+      {modelDialog}
       {undoToast === undefined ? null : (
         <Toast
           key={undoToast.seq}

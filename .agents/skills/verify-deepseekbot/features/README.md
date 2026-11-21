@@ -84,6 +84,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 
 | Assignment Report identity, continuation, restart and refusals | no for reads; yes to produce reports | none (isolated Host CLI journey) | [assignment-report-continuation.md](assignment-report-continuation.md) |
 | Steer a running Subscription Engine Assignment | yes (Codex or Claude subscription) | none (isolated Host CLI journey) | [engine-assignment-steering.md](engine-assignment-steering.md) |
+| Steer a Subscription Engine Orchestrator from a Group or DM | yes (Codex or Claude subscription) | `verify-app` isolated Host, authenticated Team members and `session-transcript` | [engine-orchestrator-steering.md](engine-orchestrator-steering.md) |
 
 ## Coverage and maintenance
 
