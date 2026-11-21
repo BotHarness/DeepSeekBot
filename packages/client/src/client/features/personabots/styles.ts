@@ -1,5 +1,5 @@
 import { border, color, radius, space, text } from '../../ds/tokens.stylex.js';
-import { size as tobsSize, style } from '../../ds/tobs.stylex.js';
+import { size as tobsSize } from '../../ds/tobs.stylex.js';
 
 export const personabotsCss = {
   contact: `.bh-contact .bh-body,
@@ -14,9 +14,6 @@ export const personabotsCss = {
   align-items: center;
   gap: ${space.x2};
   min-width: 0;
-}
-.bh-contact :is(.bh-top, .bh-bottom),
-.bh-channel-row :is(.bh-top, .bh-bottom) {
   min-height: calc(${tobsSize.rowMedium} / 2);
   line-height: calc(${tobsSize.rowMedium} / 2);
 }
@@ -74,6 +71,8 @@ export const personabotsCss = {
   align-items: center;
   gap: ${space.x2};
   min-width: 0;
+  min-height: calc(${tobsSize.rowMedium} / 2);
+  line-height: calc(${tobsSize.rowMedium} / 2);
 }
 .bh-bottom .bh-msg {
   min-width: 0;
@@ -85,9 +84,6 @@ export const personabotsCss = {
 `,
   rowAvatar: `.bh-row-avatar .bh-avatar-media-image {
   border-radius: 0;
-}
-.bh-row-avatar .bh-group-avatar-stack > .bh-persona-avatar {
-  border-radius: ${style.radiusSmall};
 }
 .bh-paused .bh-row-avatar > .bh-persona-avatar {
   opacity: 0.5;
@@ -150,16 +146,10 @@ export const personabotsCss = {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: ${tobsSize.iconSlot};
-  height: ${tobsSize.iconSlot};
-  border-radius: ${radius.md};
-  overflow: hidden;
-  background: var(--tobs-layer-elevated);
-  color: var(--tobs-ink-tertiary);
-}
-.bh-row-avatar > .bh-channel-slot {
   width: 100%;
   height: 100%;
+  background: var(--tobs-layer-elevated);
+  color: var(--tobs-ink-tertiary);
 }
 
 /* 原生 ui-workspace sessionRow 的拖拽插入线（ADR-0031）：伪元素绝对定位，

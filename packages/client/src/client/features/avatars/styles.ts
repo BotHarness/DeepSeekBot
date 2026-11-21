@@ -6,7 +6,6 @@ export const avatarsCss = {
 .bh-illustrated-gaze { transform-box: fill-box; transform-origin: center; }
 `,
   avatarEditorPreview: `.bh-avatar-editor-preview { display: flex; align-items: center; justify-content: center; }
-.bh-avatar-editor-preview .bh-avatar-media-image { border-radius: 0; }
 .bh-avatar-editor-controls h3 { margin: 0; font-size: ${text.titleSize}; }
 .bh-avatar-editor-controls p { margin: ${space.x3} 0 ${space.x4}; color: var(--tobs-ink-secondary); font-size: ${text.bodySize}; }
 .bh-avatar-editor-fields { border: 0; margin: 0 0 ${space.x4}; padding: 0; display: flex; flex-direction: column; gap: ${space.x4}; min-width: 0; }

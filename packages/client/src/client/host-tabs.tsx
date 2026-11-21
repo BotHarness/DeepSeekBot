@@ -1,6 +1,7 @@
 import { NavGroupHeading, NavItem } from './ds/nav-item.js';
-import { CHANNEL_LIST_AVATAR_SIZE, rosterStyles } from './ds/roster-styles.js';
+import { CHANNEL_LIST_AVATAR_SIZE } from './ds/roster-styles.js';
 import { hooked } from './ds/hooked.js';
+import { avatarFrameStyles } from './ds/avatar-frame.js';
 import { Button } from './ds/button.js';
 import { remoteChannelRows } from './environment-channels.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
@@ -661,7 +662,7 @@ export function RemoteHostRows({
             });
           }}
           icon={
-            <span {...hooked('bh-row-avatar', rosterStyles.channelAvatar)}>
+            <span {...hooked('bh-row-avatar', avatarFrameStyles.channel)}>
               <RemoteAvatar
                 roster={remote.snapshot.roster}
                 avatars={avatars}

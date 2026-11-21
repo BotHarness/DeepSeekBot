@@ -1,4 +1,6 @@
 import { useMemo, useState, type ReactElement } from 'react';
+import { hooked } from './ds/hooked.js';
+import { avatarFrameStyles } from './ds/avatar-frame.js';
 import { attentionCount } from './activity-attention.js';
 import { BotIcon } from './bot-icon.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -225,16 +227,23 @@ function AvatarMedia({
   personaBotId,
   name,
   src,
+  squareBackdrop,
 }: {
   personaBotId: string;
   name: string;
   src?: string | undefined;
+  squareBackdrop?: boolean | undefined;
 }): ReactElement {
   const [failedSrc, setFailedSrc] = useState<string | undefined>(undefined);
 
   if (src !== undefined && src.length > 0 && failedSrc !== src) {
     return (
-      <span className="bh-avatar-media bh-avatar-media-image">
+      <span
+        {...hooked(
+          'bh-avatar-media bh-avatar-media-image',
+          !squareBackdrop && avatarFrameStyles.roundImage,
+        )}
+      >
         <img
           src={src}
           alt=""
@@ -412,7 +421,13 @@ export function PersonaBotAvatar({
           facing={facing}
         />
       ) : (
-        <AvatarMedia key={src ?? ''} personaBotId={personaBotId} name={name} src={src} />
+        <AvatarMedia
+          key={src ?? ''}
+          personaBotId={personaBotId}
+          name={name}
+          src={src}
+          squareBackdrop={squareBackdrop}
+        />
       )}
       {indicator ? <ActivityIndicator state={state} /> : null}
       {indicator ? <AttentionBadge attention={attention} /> : null}

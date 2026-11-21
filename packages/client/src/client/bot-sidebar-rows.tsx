@@ -5,6 +5,7 @@ import { attachmentReferenceLabels } from './attachment-refs.js';
 import { humanIdOf, selfHumanId } from './self-human.js';
 import * as stylex from '@stylexjs/stylex';
 import { hooked } from './ds/hooked.js';
+import { avatarFrameStyles } from './ds/avatar-frame.js';
 import { CHANNEL_LIST_AVATAR_SIZE, rosterStyles } from './ds/roster-styles.js';
 import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
@@ -219,7 +220,7 @@ function BotRow({
         }}
         iconDecorative={false}
         icon={
-          <span {...hooked('bh-row-avatar', rosterStyles.channelAvatar)}>
+          <span {...hooked('bh-row-avatar', avatarFrameStyles.channel)}>
             <PersonaBotAvatar
               t={t}
               personaBotId={bot.slug}
@@ -367,7 +368,7 @@ function ChannelRow({
         onMenu({ channelId: channel.id, x: rect.left + 8, y: rect.bottom });
       }}
       icon={
-        <span {...hooked('bh-row-avatar', rosterStyles.channelAvatar)}>
+        <span {...hooked('bh-row-avatar', avatarFrameStyles.channel)}>
           {isHumanDmChannel(channel) ? (
             <span className="bh-channel-slot" aria-hidden="true">
               {renderSidebarIcon({ name: 'user', size: 16 })}

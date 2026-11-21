@@ -1,6 +1,7 @@
 import * as stylex from '@stylexjs/stylex';
 import { useMemo, useState, type ReactElement } from 'react';
-import { space, style } from './ds/tobs.stylex.js';
+import { space } from './ds/tobs.stylex.js';
+import { avatarFrameStyles } from './ds/avatar-frame.js';
 import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import { joinClass } from './ds/class-name.js';
@@ -405,7 +406,6 @@ const editorStyles = stylex.create({
     maxWidth: '100%',
     justifySelf: 'center',
   },
-  previewFrame: { borderRadius: style.radiusCard, overflow: 'hidden' },
   fullAction: { width: '100%' },
   remove: { alignSelf: 'center' },
   actions: { marginTop: space.x3 },
@@ -890,7 +890,7 @@ export function AvatarAppearanceEditor({
           <div
             className={joinClass(
               'bh-avatar-editor-preview',
-              stylex.props(editorStyles.previewFrame).className,
+              stylex.props(avatarFrameStyles.preview).className,
             )}
             data-avatar-preview
           >
