@@ -209,7 +209,7 @@ export const zh: typeof en = {
     storageFailed: '保存 Host 失败，再试一次。',
     failed: '登录失败，检查地址后重试。',
     credentialsInvalid: '检查用户名和密码后重试。',
-    fingerprintMismatch: '此地址对应另一台 Host，请向 Owner 核对。',
+    fingerprintMismatch: '此地址对应另一台 Host，向 Owner 核对。',
   },
   allowCamera: '允许使用相机扫码',
   pairImage: {
