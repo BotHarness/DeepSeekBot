@@ -1,13 +1,18 @@
 import type { MarketplaceAvatarApplyCandidate } from '@botharness/host-protocol/marketplace-avatar';
-import { botAvatarUrl } from '../bots/avatar-http.js';
-import { isAvatarAppearance } from '../bots/avatar-appearance.js';
-import { personaBotAvatarFromBytes, type PersonaBotRecord } from '../bots/persona-bot.js';
-import { asNonBlank, asObject, invalidInput, type BridgeResult } from '../bridge/method-utils.js';
-import type { BridgeMethodsDeps } from '../bridge/methods.js';
-import { writeBotAvatar } from '../features/avatars/methods.js';
-import type { HumanContext } from '../humans/context.js';
-import { ownsBot } from '../team/bot-access.js';
-import type { MarketplaceClient, MarketplaceResult } from './client.js';
+import { botAvatarUrl } from '../../bots/avatar-http.js';
+import { isAvatarAppearance } from '../../bots/avatar-appearance.js';
+import { personaBotAvatarFromBytes, type PersonaBotRecord } from '../../bots/persona-bot.js';
+import {
+  asNonBlank,
+  asObject,
+  invalidInput,
+  type BridgeResult,
+} from '../../bridge/method-utils.js';
+import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import { writeBotAvatar } from '../avatars/methods.js';
+import type { HumanContext } from '../../humans/context.js';
+import { ownsBot } from '../../team/bot-access.js';
+import type { MarketplaceClient, MarketplaceResult } from '../../marketplace/client.js';
 
 type ApplyResult = BridgeResult<{ applied: true }>;
 const MAX_OPERATION_KEYS = 128;

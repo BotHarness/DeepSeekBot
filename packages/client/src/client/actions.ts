@@ -122,7 +122,10 @@ import { createConversationActions, type ConversationActions } from './actions-c
 import { createFileActions, type FileActions } from './actions-files.js';
 import { createMemoryActions, type MemoryActions } from './actions-memory.js';
 import { createUsageActions, type UsageActions } from './actions-usage.js';
-import { createMarketplaceActions, type MarketplaceActions } from './actions-marketplace.js';
+import {
+  createMarketplaceActions,
+  type MarketplaceActions,
+} from './features/marketplace/actions.js';
 import { createMessagingActions, type MessagingActions } from './actions-messaging.js';
 import { createTriggerActions, type TriggerActions } from './actions-triggers.js';
 import { createSessionActions, type SessionActions } from './actions-sessions.js';

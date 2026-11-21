@@ -1,3 +1,4 @@
+import * as marketplaceRpc from '../features/marketplace/rpc.js';
 import * as genuiRpc from '../features/genui/rpc.js';
 import * as avatarsRpc from '../features/avatars/rpc.js';
 import * as skillsRpc from '../features/skills/rpc.js';
@@ -1624,7 +1625,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
   zipUploadBegin(uploadKey: string, sha256: string, sizeBytes: number): BotZipUploadStatus {
-    return unwrap(this.methods.zipUploadBegin({ uploadKey, sha256, sizeBytes }));
+    return marketplaceRpc.zipUploadBegin(this.methods, uploadKey, sha256, sizeBytes);
   }
 
   zipUploadChunk(
@@ -1634,19 +1635,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     offset: number,
     dataBase64: string,
   ): BotZipUploadStatus {
-    return unwrap(
-      this.methods.zipUploadChunk({
-        uploadKey,
-        sha256,
-        sizeBytes,
-        offset,
-        dataBase64,
-      }),
+    return marketplaceRpc.zipUploadChunk(
+      this.methods,
+      uploadKey,
+      sha256,
+      sizeBytes,
+      offset,
+      dataBase64,
     );
   }
 
   zipUploadPreview(uploadKey: string, sha256: string, sizeBytes: number): BotZipPreview {
-    return unwrap(this.methods.zipUploadPreview({ uploadKey, sha256, sizeBytes }));
+    return marketplaceRpc.zipUploadPreview(this.methods, uploadKey, sha256, sizeBytes);
   }
 
   zipImportLookup(
@@ -1656,14 +1656,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     roles?: string[],
     description?: string,
   ): { receipt: BotCreationReceipt | null } {
-    return unwrap(
-      this.methods.zipImportLookup({
-        operationKey,
-        sha256,
-        displayName,
-        roles,
-        description,
-      }),
+    return marketplaceRpc.zipImportLookup(
+      this.methods,
+      operationKey,
+      sha256,
+      displayName,
+      roles,
+      description,
     );
   }
 
@@ -1680,16 +1679,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     channelId: string;
     receipt?: BotCreationReceipt;
   }> {
-    return unwrapAsync(
-      this.methods.zipImport({
-        operationKey,
-        uploadKey,
-        sha256,
-        sizeBytes,
-        displayName,
-        roles,
-        description,
-      }),
+    return marketplaceRpc.zipImport(
+      this.methods,
+      operationKey,
+      uploadKey,
+      sha256,
+      sizeBytes,
+      displayName,
+      roles,
+      description,
     );
   }
 
@@ -3193,15 +3191,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   async marketplaceList(query?: MarketplaceQuery): Promise<MarketplacePage> {
-    return unwrapAsync(this.methods.marketplaceList(query ?? {}));
+    return marketplaceRpc.marketplaceList(this.methods, query);
   }
 
   async marketplaceSubmit(url: string, altcha: string): Promise<{ bot: MarketplaceEntry }> {
-    return unwrapAsync(this.methods.marketplaceSubmit({ url, altcha }));
+    return marketplaceRpc.marketplaceSubmit(this.methods, url, altcha);
   }
 
   async marketplaceChallenge(): Promise<AltchaChallenge> {
-    return unwrapAsync(this.methods.marketplaceChallenge());
+    return marketplaceRpc.marketplaceChallenge(this.methods);
   }
 
   async marketplaceReport(
@@ -3209,53 +3207,42 @@ export class BotharnessBridgeService extends TypertRemoteService {
     altcha: string,
     reason?: string,
   ): Promise<{ received: true }> {
-    return unwrapAsync(
-      this.methods.marketplaceReport({
-        id,
-        altcha,
-        ...(reason === undefined ? {} : { reason }),
-      }),
-    );
+    return marketplaceRpc.marketplaceReport(this.methods, id, altcha, reason);
   }
 
   async marketplaceTopics(): Promise<MarketplaceTopic[]> {
-    return unwrapAsync(this.methods.marketplaceTopics());
+    return marketplaceRpc.marketplaceTopics(this.methods);
   }
 
   async marketplaceSections(
     lang?: MarketplaceLanguage,
   ): Promise<{ sections: MarketplaceSection[] }> {
-    return unwrapAsync(this.methods.marketplaceSections(lang === undefined ? {} : { lang }));
+    return marketplaceRpc.marketplaceSections(this.methods, lang);
   }
 
   async marketplaceDigests(
     lang?: MarketplaceLanguage,
   ): Promise<{ digests: MarketplaceDigestSummary[] }> {
-    return unwrapAsync(this.methods.marketplaceDigests(lang === undefined ? {} : { lang }));
+    return marketplaceRpc.marketplaceDigests(this.methods, lang);
   }
 
   async marketplaceDigest(
     day?: string,
     lang?: MarketplaceLanguage,
   ): Promise<{ digest: MarketplaceDigest }> {
-    return unwrapAsync(
-      this.methods.marketplaceDigest({
-        ...(day === undefined ? {} : { day }),
-        ...(lang === undefined ? {} : { lang }),
-      }),
-    );
+    return marketplaceRpc.marketplaceDigest(this.methods, day, lang);
   }
 
   async marketplaceAvatarList(cursor?: string): Promise<MarketplaceAvatarPage> {
-    return unwrapAsync(this.methods.marketplaceAvatarList(cursor === undefined ? {} : { cursor }));
+    return marketplaceRpc.marketplaceAvatarList(this.methods, cursor);
   }
 
   async marketplaceAvatarDetail(id: string): Promise<MarketplaceAvatar> {
-    return unwrapAsync(this.methods.marketplaceAvatarDetail({ id }));
+    return marketplaceRpc.marketplaceAvatarDetail(this.methods, id);
   }
 
   marketplaceAvatarApplyCandidates(): { bots: MarketplaceAvatarApplyCandidate[] } {
-    return unwrap(this.methods.marketplaceAvatarApplyCandidates({}));
+    return marketplaceRpc.marketplaceAvatarApplyCandidates(this.methods);
   }
 
   async marketplaceAvatarApply(
@@ -3263,7 +3250,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     bot: string,
     operationKey?: string,
   ): Promise<{ applied: true }> {
-    return unwrapAsync(this.methods.marketplaceAvatarApply({ id, bot, operationKey }));
+    return marketplaceRpc.marketplaceAvatarApply(this.methods, id, bot, operationKey);
   }
 
   async marketplaceAvatarPublish(
@@ -3275,44 +3262,43 @@ export class BotharnessBridgeService extends TypertRemoteService {
     tags?: string[],
     expectedAuthorId?: string,
   ): Promise<MarketplaceAvatar> {
-    return unwrapAsync(
-      this.methods.marketplaceAvatarPublish({
-        name,
-        image,
-        requestKey,
-        confirm,
-        description,
-        tags,
-        expectedAuthorId,
-      }),
+    return marketplaceRpc.marketplaceAvatarPublish(
+      this.methods,
+      name,
+      image,
+      requestKey,
+      confirm,
+      description,
+      tags,
+      expectedAuthorId,
     );
   }
 
   async marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail> {
-    return unwrapAsync(this.methods.marketplaceDetail(lang === undefined ? { id } : { id, lang }));
+    return marketplaceRpc.marketplaceDetail(this.methods, id, lang);
   }
 
   async marketplaceFileView(id: string, path: string): Promise<MarketplaceFileView> {
-    return unwrapAsync(this.methods.marketplaceFileView({ id, path }));
+    return marketplaceRpc.marketplaceFileView(this.methods, id, path);
   }
 
   async marketplaceAccount(): Promise<MarketplaceAccount> {
-    return unwrapAsync(this.methods.marketplaceAccount());
+    return marketplaceRpc.marketplaceAccount(this.methods);
   }
 
   async marketplaceAuthorSave(
     displayName: string,
     acceptTerms?: boolean,
   ): Promise<MarketplaceAuthorAccount> {
-    return unwrapAsync(this.methods.marketplaceAuthorSave({ displayName, acceptTerms }));
+    return marketplaceRpc.marketplaceAuthorSave(this.methods, displayName, acceptTerms);
   }
 
   async marketplaceAuthorAvatarSet(avatar: string | null): Promise<MarketplaceAuthorAccount> {
-    return unwrapAsync(this.methods.marketplaceAuthorAvatarSet({ avatar }));
+    return marketplaceRpc.marketplaceAuthorAvatarSet(this.methods, avatar);
   }
 
   marketplaceUploadPlan(slug: string): UploadPlan {
-    return unwrap(this.methods.marketplaceUploadPlan({ slug }));
+    return marketplaceRpc.marketplaceUploadPlan(this.methods, slug);
   }
 
   async marketplaceUpload(
@@ -3322,41 +3308,31 @@ export class BotharnessBridgeService extends TypertRemoteService {
     tags?: string[],
     replaces?: string,
   ): Promise<{ bot: MarketplaceEntry; skipped: UploadPlan['skipped'] }> {
-    return unwrapAsync(
-      this.methods.marketplaceUpload({
-        slug,
-        displayName,
-        bio,
-        tags,
-        replaces,
-      }),
-    );
+    return marketplaceRpc.marketplaceUpload(this.methods, slug, displayName, bio, tags, replaces);
   }
 
   async marketplaceMine(lang?: MarketplaceLanguage): Promise<{ bots: MarketplaceAuthoredBot[] }> {
-    return unwrapAsync(this.methods.marketplaceMine(lang === undefined ? {} : { lang }));
+    return marketplaceRpc.marketplaceMine(this.methods, lang);
   }
 
   async marketplaceDelete(id: string): Promise<{ deleted: true }> {
-    return unwrapAsync(this.methods.marketplaceDelete({ id }));
+    return marketplaceRpc.marketplaceDelete(this.methods, id);
   }
 
   async marketplaceInstallReview(id: string, lang?: 'en' | 'zh'): Promise<InstallReviewResult> {
-    return unwrapAsync(
-      this.methods.marketplaceInstallReview(lang === undefined ? { id } : { id, lang }),
-    );
+    return marketplaceRpc.marketplaceInstallReview(this.methods, id, lang);
   }
 
   shareDraftStart(slug: string): ShareDraftView {
-    return unwrap(this.methods.shareDraftStart({ slug }));
+    return marketplaceRpc.shareDraftStart(this.methods, slug);
   }
 
   shareDraftGet(slug: string): ShareDraftView {
-    return unwrap(this.methods.shareDraftGet({ slug }));
+    return marketplaceRpc.shareDraftGet(this.methods, slug);
   }
 
   shareDraftFile(slug: string, path: string): { path: string; kind: string; text?: string } {
-    return unwrap(this.methods.shareDraftFile({ slug, path }));
+    return marketplaceRpc.shareDraftFile(this.methods, slug, path);
   }
 
   shareDraftDecide(
@@ -3365,19 +3341,19 @@ export class BotharnessBridgeService extends TypertRemoteService {
     decision: 'keep' | 'drop' | 'rewrite',
     text?: string,
   ): ShareDraftView {
-    return unwrap(this.methods.shareDraftDecide({ slug, path, decision, text }));
+    return marketplaceRpc.shareDraftDecide(this.methods, slug, path, decision, text);
   }
 
   shareDraftFinish(slug: string): ShareDraftView {
-    return unwrap(this.methods.shareDraftFinish({ slug }));
+    return marketplaceRpc.shareDraftFinish(this.methods, slug);
   }
 
   shareDraftDiscard(slug: string): { discarded: boolean } {
-    return unwrap(this.methods.shareDraftDiscard({ slug }));
+    return marketplaceRpc.shareDraftDiscard(this.methods, slug);
   }
 
   async shareDraftExport(slug: string): Promise<{ path: string; files: number }> {
-    return unwrapAsync(this.methods.shareDraftExport({ slug }));
+    return marketplaceRpc.shareDraftExport(this.methods, slug);
   }
 
   async marketplaceInstall(
@@ -3391,7 +3367,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     receipt?: BotCreationReceipt;
     listing: MarketplaceEntry;
   }> {
-    return unwrapAsync(this.methods.marketplaceInstall({ id, reviewId, operationKey, source }));
+    return marketplaceRpc.marketplaceInstall(this.methods, id, reviewId, operationKey, source);
   }
 
   async releaseInfo(since?: string): Promise<ReleaseInfo> {

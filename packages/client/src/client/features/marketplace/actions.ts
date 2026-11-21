@@ -14,9 +14,9 @@ import {
   loadMyMarketplaceUploads,
   uploadMarketplaceBot,
   type BridgeCall,
-} from './bridge.js';
-import type { InvokeAction, BridgeActions } from './actions.js';
-import type { createBotActions } from './actions-bots.js';
+} from '../../bridge.js';
+import type { InvokeAction, BridgeActions } from '../../actions.js';
+import type { createBotActions } from '../../actions-bots.js';
 
 export interface MarketplaceActions {
   marketplaceReport(id: string, altcha: string, reason?: string): Promise<void>;
