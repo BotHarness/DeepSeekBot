@@ -1,6 +1,5 @@
 import { Icon } from './ds/icon.js';
 import { Note } from './ds/note.js';
-import { Button } from './ds/button.js';
 import { ComposerControl, ComposerTextarea, composer } from './ds/chat-chrome.js';
 import { IconButton } from './ds/icon-button.js';
 import { HiddenFileInput } from './ds/input.js';
@@ -9,7 +8,6 @@ import { QuoteChip, QuoteChipList } from './ds/quote-chip.js';
 import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
 import {
-  composerSlashQuery,
   composerShortcutOptions,
   type ComposerContext,
   type ComposerSlashQuery,
@@ -25,61 +23,29 @@ import {
   type KeyboardEvent,
   type ReactElement,
 } from 'react';
-
 import { ImageLightbox, fileSizeText } from '@deepseek-ai/dsh-client-ui-primitives';
 import { FileTypeIcon } from './ds/file-type-icon.js';
 import { createPortal } from 'react-dom';
-
-import { PersonaBotAvatar, type PersonaBotFacepileItem } from './avatar.js';
-import {
-  activeMentionQuery,
-  deleteSelectedMention,
-  rebaseMentions,
-  selectMention,
-  type MentionQuery,
-  type SelectedMention,
-} from './mentions.js';
-import {
-  insertRichPlainText,
-  normalizeRichInput,
-  readRichMentionDraft,
-  renderRichMentionDraft,
-  richSelectionOffsets,
-  sameRichMentionDraft,
-  setRichSelection,
-  type MentionAvatarMount,
-} from './rich-mention-editor.js';
+import { PersonaBotAvatar } from './avatar.js';
+import { rebaseMentions, type MentionQuery, type SelectedMention } from './mentions.js';
+import type { MentionAvatarMount } from './rich-mention-editor.js';
 import { botNameSource, paintBotName } from './bot-primary-color.js';
 import type { BotSummary, ChannelSummary } from './store.js';
 import {
-  activeChannelRefQuery,
-  deleteSelectedChannelRef,
   rebaseChannelRefs,
-  selectChannelRef,
   type ChannelRefQuery,
   type SelectedChannelRef,
 } from './channel-refs.js';
-import type { ChannelAttachmentRef } from './store.js';
-import { deleteAttachmentReference, insertAttachmentReferences } from './attachment-refs.js';
 import type { ComposerSendKey } from './composer-send-key.js';
 import {
   rankSkillEntries,
   skillOwnerKey,
   type SkillCatalogEntry,
 } from '../../../core/src/skills/entries.js';
-import {
-  activeSkillQuery,
-  rebaseSkills,
-  selectSkill,
-  type SelectedSkill,
-  type SkillQuery,
-} from './skill-refs.js';
+import type { SelectedSkill, SkillQuery } from './skill-refs.js';
 import { chipSkill, useSkillPeek, type SkillDocument } from './skill-preview.js';
 import {
-  activeSessionQuery,
-  deleteSessionReference,
   rankSessionOptions,
-  selectSession,
   type ComposerSessionOption,
   type SessionQuery,
 } from './session-refs.js';
@@ -88,6 +54,61 @@ import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-i
 import { MenuRowButton } from './ds/menu-row-button.js';
 import * as stylex from '@stylexjs/stylex';
 import { ink, space } from './ds/tobs.stylex.js';
+import { zhTranslate, type BotHarnessTranslate } from './locale.js';
+import type { DictationMic, VoiceDictationPort } from './composer-dictation.js';
+import {
+  ComposerMicButton,
+  composerVoicePlaceholder,
+  composerVoiceStatus,
+  useComposerVoice,
+} from './composer-voice.js';
+import { useMountedResource } from './mounted-resource.js';
+import {
+  NO_QUOTES,
+  NONE,
+  isImageAttachment,
+  matchingSkills,
+  composerChipBots,
+  matchingBots,
+  matchingChannels,
+  composerAvatarKey,
+  composerAttachmentKey,
+} from './features/channels/composer-suggestions.js';
+import {
+  readComposerSelection,
+  clearComposerShortcut,
+  selectComposerSession,
+  selectComposerSkill,
+  selectComposerChannel,
+  selectComposerMention,
+  insertComposerFiles,
+  pasteComposerFiles,
+  measureComposerInput,
+  queueComposerMeasurement,
+  mountRichComposer,
+  mountPlainComposer,
+  observeComposerOverlay,
+  mountComposerBody,
+  insertComposerAttachment,
+  updateRichComposerDraft,
+  openComposerChip,
+  pasteRichComposerText,
+  dropRichComposerText,
+  updatePlainComposerDraft,
+} from './features/channels/composer-editor.js';
+import type { ComposerTextareaFit } from './features/channels/composer-input-layout.js';
+import { handleComposerKeyDown } from './features/channels/composer-keyboard.js';
+import type { ChannelComposerUpload } from './features/channels/composer-types.js';
+
+export {
+  fitComposerTextarea,
+  shouldSubmitComposerKey,
+} from './features/channels/composer-input-layout.js';
+export type { ComposerTextareaFit } from './features/channels/composer-input-layout.js';
+export type {
+  ChannelComposerActivity,
+  ChannelComposerUpload,
+} from './features/channels/composer-types.js';
 
 const sessionStyles = stylex.create({
   title: {
@@ -106,31 +127,6 @@ const sessionStyles = stylex.create({
 export type ComposerSkillOption = SkillCatalogEntry & {
   bot?: BotSummary | undefined;
 };
-
-export interface ChannelComposerActivity {
-  presentation?: 'group' | undefined;
-  items: readonly PersonaBotFacepileItem[];
-  summary: string;
-}
-
-import { zhTranslate, type BotHarnessTranslate } from './locale.js';
-import type { DictationMic, VoiceDictationPort } from './composer-dictation.js';
-import {
-  ComposerMicButton,
-  composerVoicePlaceholder,
-  composerVoiceStatus,
-  useComposerVoice,
-} from './composer-voice.js';
-import { useMountedResource } from './mounted-resource.js';
-
-export interface ChannelComposerUpload {
-  id: string;
-  file: File;
-  status: 'uploading' | 'ready' | 'error';
-  ref?: ChannelAttachmentRef;
-  error?: string | undefined;
-  fileAvailable?: boolean;
-}
 
 export interface ChannelComposerProps {
   onOverlayResize?: ((timeline: HTMLElement) => void) | undefined;
@@ -176,17 +172,6 @@ export interface ChannelComposerProps {
   onRecall?(direction: 'older' | 'newer'): boolean;
   onSubmit(): void | Promise<void>;
   onStop?: (() => void) | undefined;
-}
-
-const NO_QUOTES: readonly ComposerQuote[] = [];
-const NONE: readonly never[] = [];
-
-const IMAGE_ATTACHMENT_EXTENSION = /\.(?:avif|bmp|gif|jpe?g|png|svg|webp)$/iu;
-
-function isImageAttachment(file: File): boolean {
-  return (
-    file.type.toLocaleLowerCase().startsWith('image/') || IMAGE_ATTACHMENT_EXTENSION.test(file.name)
-  );
 }
 
 function AttachmentUploadStatus({
@@ -377,72 +362,6 @@ function ComposerFileAttachment({
   );
 }
 
-export function shouldSubmitComposerKey(
-  event: Pick<KeyboardEvent<HTMLElement>, 'key' | 'shiftKey' | 'nativeEvent'> &
-    Partial<Pick<KeyboardEvent<HTMLElement>, 'ctrlKey' | 'metaKey'>>,
-  sendKey: ComposerSendKey = 'enter',
-): boolean {
-  return (
-    event.key === 'Enter' &&
-    (sendKey === 'shift-enter' ? event.shiftKey : !event.shiftKey) &&
-    (sendKey !== 'mod-enter' || event.ctrlKey === true || event.metaKey === true) &&
-    !event.nativeEvent.isComposing &&
-    event.nativeEvent.keyCode !== 229
-  );
-}
-
-export interface ComposerTextareaFit {
-  expanded: boolean;
-  height: number;
-}
-
-function compactComposerScrollHeight(element: HTMLElement, currentHeight: number): number {
-  const composer = element.closest<HTMLElement>('.bh-composer');
-  if (!composer?.classList.contains('bh-composer-with-footer')) return currentHeight;
-  const style = getComputedStyle(composer);
-  const left = Number.parseFloat(style.getPropertyValue('--bh-composer-compact-padding-left'));
-  const right = Number.parseFloat(style.getPropertyValue('--bh-composer-compact-padding-right'));
-  const compactWidth = composer.clientWidth - left - right;
-  if (!Number.isFinite(compactWidth) || compactWidth <= 0) return currentHeight;
-
-  const mirror = element.cloneNode(true) as HTMLElement;
-  if (element instanceof HTMLTextAreaElement && mirror instanceof HTMLTextAreaElement)
-    mirror.value = element.value;
-  mirror.setAttribute('aria-hidden', 'true');
-  mirror.style.position = 'absolute';
-  mirror.style.visibility = 'hidden';
-  mirror.style.pointerEvents = 'none';
-  mirror.style.width = compactWidth + 'px';
-  mirror.style.height = '0px';
-  mirror.style.minHeight = '0px';
-  mirror.style.maxHeight = 'none';
-  mirror.style.overflow = 'hidden';
-  mirror.style.transition = 'none';
-  composer.append(mirror);
-  const compactHeight = mirror.scrollHeight;
-  mirror.remove();
-  return compactHeight;
-}
-
-export function fitComposerTextarea(
-  element: Pick<HTMLElement, 'scrollHeight' | 'style'>,
-  maxHeight = 144,
-  singleLineHeight = 34,
-): ComposerTextareaFit {
-  element.style.height = '0px';
-  const scrollHeight = element.scrollHeight;
-  const height = Math.min(scrollHeight, maxHeight);
-  element.style.height = `${height}px`;
-  element.style.overflowY = scrollHeight > maxHeight ? 'auto' : 'hidden';
-  const compactHeight =
-    scrollHeight <= singleLineHeight &&
-    typeof HTMLElement !== 'undefined' &&
-    element instanceof HTMLElement
-      ? compactComposerScrollHeight(element, scrollHeight)
-      : scrollHeight;
-  return { expanded: compactHeight > singleLineHeight, height };
-}
-
 export function ChannelComposer({
   context,
   sendKey = 'enter',
@@ -515,11 +434,7 @@ export function ChannelComposer({
   >([]);
   const savedFileSelection = useRef<{ start: number; end: number } | undefined>(undefined);
   const selectionOffsets = (): { start: number; end: number } | undefined => {
-    if (richRef.current !== null) return richSelectionOffsets(richRef.current);
-    const textarea = textareaRef.current;
-    return textarea === null
-      ? undefined
-      : { start: textarea.selectionStart, end: textarea.selectionEnd };
+    return readComposerSelection(richRef, textareaRef);
   };
   const rich =
     attachments.length > 0 ||
@@ -544,29 +459,11 @@ export function ChannelComposer({
     context?.shortcuts ?? [],
     slashTarget.current === context?.target ? slashQuery : undefined,
   );
-  const skillMatches =
-    skillQuery === undefined
-      ? []
-      : rankSkillEntries(skillOptions, skillQuery.query, (option) =>
-          option.owner.kind === 'host'
-            ? []
-            : option.owner.kind === 'workspace'
-              ? [option.owner.name]
-              : [option.bot?.displayName ?? option.owner.botSlug, option.owner.botSlug],
-        ).slice(0, 8);
+  const skillMatches = matchingSkills(skillQuery, skillOptions, rankSkillEntries);
   const sessionMatches =
     sessionQuery === undefined ? [] : rankSessionOptions(sessionOptions, sessionQuery.query);
   const menuLength = shortcutOptions.length + skillMatches.length + sessionMatches.length;
-  const chipBots = [
-    ...mentionCandidates,
-    ...skillOptions.flatMap((option) =>
-      option.bot === undefined ||
-      mentionCandidates.some((candidate) => candidate.slug === option.bot!.slug)
-        ? []
-        : [option.bot],
-    ),
-    ...sessionOptions.flatMap((option) => (option.bot === undefined ? [] : [option.bot])),
-  ].filter((bot, index, all) => all.findIndex((item) => item.slug === bot.slug) === index);
+  const chipBots = composerChipBots(mentionCandidates, skillOptions, sessionOptions);
   const hasShortcutArgument =
     slashTarget.current === context?.target &&
     slashQuery?.argument !== undefined &&
@@ -574,15 +471,15 @@ export function ChannelComposer({
       (shortcut) => shortcut.id === slashQuery.filter && shortcut.choices !== undefined,
     ) === true;
   const clearShortcut = (): void => {
-    if (slashQuery === undefined) return;
-    const next = value.slice(0, slashQuery.start) + value.slice(slashQuery.end);
-    requestedCaret.current = slashQuery.start;
-    onChange(
-      next,
-      rebaseMentions(value, next, mentions),
-      rebaseChannelRefs(value, next, channelRefs),
-    );
-    setSlashQuery(undefined);
+    clearComposerShortcut({
+      slashQuery,
+      value,
+      requestedCaret,
+      onChange,
+      mentions,
+      channelRefs,
+      setSlashQuery,
+    });
   };
   const chooseShortcut = (shortcut: ComposerShortcut): void => {
     if (locked || shortcut.disabled || voice.active) return;
@@ -592,61 +489,42 @@ export function ChannelComposer({
     shortcut.run();
   };
   const chooseSession = (option: ComposerSessionOption): void => {
-    if (locked || sessionQuery === undefined || voice.active) return;
-    const selected = selectSession(value, sessionQuery, option);
-    onChange(
-      selected.value,
-      rebaseMentions(value, selected.value, mentions),
-      rebaseChannelRefs(value, selected.value, channelRefs),
-      rebaseSkills(value, selected.value, skills),
-    );
-    setSessionQuery(undefined);
-    setSkillQuery(undefined);
-    setSlashQuery(undefined);
-    requestedCaret.current = selected.caret;
-    requestAnimationFrame(() => {
-      const editor = richRef.current;
-      if (editor !== null) {
-        editor.focus();
-        setRichSelection(editor, selected.caret);
-      }
+    selectComposerSession({
+      locked,
+      sessionQuery,
+      voice,
+      value,
+      option,
+      onChange,
+      mentions,
+      channelRefs,
+      skills,
+      setSessionQuery,
+      setSkillQuery,
+      setSlashQuery,
+      requestedCaret,
+      richRef,
     });
   };
   const chooseSkill = (option: ComposerSkillOption): void => {
-    if (locked || skillQuery === undefined || voice.active) return;
-    const selected = selectSkill(value, skills, skillQuery, option);
-    onChange(
-      selected.value,
-      rebaseMentions(value, selected.value, mentions),
-      rebaseChannelRefs(value, selected.value, channelRefs),
-      selected.skills,
-    );
-    setSkillQuery(undefined);
-    setSlashQuery(undefined);
-    setSessionQuery(undefined);
-    requestedCaret.current = selected.caret;
-    requestAnimationFrame(() => {
-      const editor = richRef.current;
-      if (editor !== null) {
-        editor.focus();
-        setRichSelection(editor, selected.caret);
-      }
+    selectComposerSkill({
+      locked,
+      skillQuery,
+      voice,
+      value,
+      skills,
+      option,
+      onChange,
+      mentions,
+      channelRefs,
+      setSkillQuery,
+      setSlashQuery,
+      setSessionQuery,
+      requestedCaret,
+      richRef,
     });
   };
-  const botCandidates =
-    mentionQuery === undefined
-      ? []
-      : mentionCandidates
-          .filter(
-            (bot) =>
-              !bot.paused &&
-              !bot.deleted &&
-              (bot.displayName
-                .toLocaleLowerCase()
-                .includes(mentionQuery.query.toLocaleLowerCase()) ||
-                bot.slug.toLocaleLowerCase().includes(mentionQuery.query.toLocaleLowerCase())),
-          )
-          .slice(0, 8);
+  const botCandidates = matchingBots(mentionQuery, mentionCandidates);
   const allBotLabel = t('composer.allBots');
   const offerAll =
     allBotPreview !== undefined &&
@@ -658,95 +536,44 @@ export function ChannelComposer({
   const candidates: Array<BotSummary | { preview: AllBotPreview }> = offerAll
     ? [{ preview: allBotPreview }, ...botCandidates]
     : botCandidates;
-  const channelOptions =
-    channelQuery === undefined
-      ? []
-      : channelCandidates
-          .filter((channel) =>
-            channel.name.toLocaleLowerCase().includes(channelQuery.query.toLocaleLowerCase()),
-          )
-          .slice(0, 8);
+  const channelOptions = matchingChannels(channelQuery, channelCandidates);
   const chooseChannel = (channel: ChannelSummary): void => {
-    if (locked || channelQuery === undefined || voice.active) return;
-    const selected = selectChannelRef(value, channelRefs, channelQuery, channel.id, channel.name);
-    onChange(selected.value, rebaseMentions(value, selected.value, mentions), selected.refs);
-    setChannelQuery(undefined);
-    requestedCaret.current = selected.caret;
-    requestAnimationFrame(() => {
-      const editor = richRef.current;
-      if (editor !== null) {
-        editor.focus();
-        setRichSelection(editor, selected.caret);
-      }
+    selectComposerChannel({
+      locked,
+      channelQuery,
+      voice,
+      value,
+      channelRefs,
+      channel,
+      onChange,
+      mentions,
+      setChannelQuery,
+      requestedCaret,
+      richRef,
     });
   };
   const chooseMention = (bot: BotSummary | { preview: AllBotPreview }): void => {
-    if (locked || mentionQuery === undefined || voice.active) return;
-    if ('preview' in bot && bot.preview.recipients.length === 0) return;
-    const selected =
-      'preview' in bot
-        ? selectMention(value, mentions, mentionQuery, '', allBotLabel)
-        : selectMention(value, mentions, mentionQuery, bot.slug, bot.displayName);
-    if ('preview' in bot)
-      selected.mentions = selected.mentions.map((item) =>
-        item.botSlug === ''
-          ? {
-              kind: 'all-bots',
-              label: item.label,
-              start: item.start,
-              end: item.end,
-              preview: bot.preview,
-            }
-          : item,
-      );
-    onChange(
-      selected.value,
-      selected.mentions,
-      rebaseChannelRefs(value, selected.value, channelRefs),
-    );
-    setMentionQuery(undefined);
-    requestedCaret.current = selected.caret;
-    requestAnimationFrame(() => {
-      const editor = richRef.current;
-      if (editor !== null) {
-        editor.focus();
-        setRichSelection(editor, selected.caret);
-      } else {
-        textareaRef.current?.focus();
-        textareaRef.current?.setSelectionRange(selected.caret, selected.caret);
-      }
+    selectComposerMention({
+      locked,
+      mentionQuery,
+      voice,
+      bot,
+      value,
+      mentions,
+      allBotLabel,
+      onChange,
+      channelRefs,
+      setMentionQuery,
+      requestedCaret,
+      richRef,
+      textareaRef,
     });
   };
   const addFilesAtSelection = (files: File[], selection = selectionOffsets()): void => {
-    if (voice.active) return;
-    const caret = onAddFiles?.(files, selection);
-    if (caret === undefined) return;
-    requestedCaret.current = caret;
-    requestAnimationFrame(() => {
-      richRef.current?.focus();
-      if (richRef.current !== null) setRichSelection(richRef.current, caret);
-    });
+    insertComposerFiles({ voice, onAddFiles, files, selection, requestedCaret, richRef });
   };
   const handleFilePaste = (event: ClipboardEvent<HTMLElement>): boolean => {
-    if (voice.active) {
-      event.preventDefault();
-      event.stopPropagation();
-      return true;
-    }
-    const clipboard = event.clipboardData;
-    const listed = Array.from(clipboard.files);
-    const files =
-      listed.length > 0
-        ? listed
-        : Array.from(clipboard.items).flatMap((item) => {
-            const file = item.kind === 'file' ? item.getAsFile() : null;
-            return file === null ? [] : [file];
-          });
-    if (files.length === 0 || onAddFiles === undefined || locked) return false;
-    event.preventDefault();
-    event.stopPropagation();
-    addFilesAtSelection(files);
-    return true;
+    return pasteComposerFiles({ voice, event, onAddFiles, locked, addFilesAtSelection });
   };
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [fit, setFit] = useState<ComposerTextareaFit & { animateFirstExpand: boolean }>({
@@ -758,121 +585,55 @@ export function ChannelComposer({
     fit.expanded || reply !== undefined || quotes.length > 0 || attachments.length > 0;
 
   const syncTextarea = useCallback((element: HTMLElement): void => {
-    const nextFit = fitComposerTextarea(element);
-    setFit((current) => {
-      if (current.expanded === nextFit.expanded && current.height === nextFit.height) {
-        return current;
-      }
-      return {
-        ...nextFit,
-        animateFirstExpand: current.expanded !== nextFit.expanded,
-      };
-    });
+    measureComposerInput(element, setFit);
   }, []);
   const pendingFit = useRef<{ element: HTMLElement } | undefined>(undefined);
   const scheduleSync = useCallback(
     (element: HTMLElement): void => {
-      const pending = pendingFit.current;
-      if (pending !== undefined) {
-        pending.element = element;
-        return;
-      }
-      const entry = { element };
-      pendingFit.current = entry;
-      requestAnimationFrame(() => {
-        pendingFit.current = undefined;
-        if (entry.element.isConnected) syncTextarea(entry.element);
-      });
+      queueComposerMeasurement(element, pendingFit, syncTextarea);
     },
     [syncTextarea],
   );
 
-  const avatarKey = [
-    ...mentions.map((mention) => mention.botSlug),
-    ...skills.flatMap((skill) => (skill.owner.kind === 'bot' ? [skill.owner.botSlug] : [])),
-    ...sessionOptions.map((option) => option.sessionId + '>' + option.botSlug + '>' + option.title),
-  ]
-    .map((slug) => {
-      const bot = chipBots.find((candidate) => candidate.slug === slug);
-      return [slug, bot?.displayName, bot?.avatar, botNameSource(bot)].join(':');
-    })
-    .join('|');
-  const attachmentKey = attachments
-    .map((item) =>
-      [
-        item.id,
-        item.status,
-        item.ref?.fileId,
-        item.ref?.hash,
-        item.ref?.size,
-        item.file.name,
-        item.file.size,
-      ].join(':'),
-    )
-    .join('|');
+  const avatarKey = composerAvatarKey(mentions, skills, sessionOptions, chipBots);
+  const attachmentKey = composerAttachmentKey(attachments);
   const renderedAttachmentKey = useRef('');
   const referenceAttachment = (item: ChannelComposerUpload): void => {
-    if (voice.active) return;
-    const selected = insertAttachmentReferences(value, [item], selectionOffsets());
-    requestedCaret.current = selected.caret;
-    onChange(
-      selected.value,
-      rebaseMentions(value, selected.value, mentions),
-      rebaseChannelRefs(value, selected.value, channelRefs),
-    );
-    setMentionQuery(undefined);
-    setChannelQuery(undefined);
-    requestAnimationFrame(() => {
-      richRef.current?.focus();
-      if (richRef.current !== null) setRichSelection(richRef.current, selected.caret);
+    insertComposerAttachment({
+      voice,
+      value,
+      item,
+      selectionOffsets,
+      requestedCaret,
+      onChange,
+      mentions,
+      channelRefs,
+      setMentionQuery,
+      setChannelQuery,
+      richRef,
     });
   };
   const richMount = useMountedResource<HTMLDivElement>(
     (editor) => {
-      richRef.current = editor;
-      const current = readRichMentionDraft(editor);
-      if (
-        sameRichMentionDraft(current, value, mentions, channelRefs, skills) &&
-        renderedAvatarKey.current === avatarKey &&
-        renderedAttachmentKey.current === attachmentKey
-      )
-        return () => {
-          richRef.current = null;
-        };
-      const caret =
-        requestedCaret.current ??
-        (editor.ownerDocument.activeElement === editor
-          ? richSelectionOffsets(editor)?.end
-          : undefined);
-      const mounts = renderRichMentionDraft(
+      return mountRichComposer({
         editor,
+        richRef,
         value,
         mentions,
-        chipBots,
         channelRefs,
-        attachments,
         skills,
+        renderedAvatarKey,
+        avatarKey,
+        renderedAttachmentKey,
+        attachmentKey,
+        requestedCaret,
+        chipBots,
+        attachments,
         sessionOptions,
-      );
-      setAvatarMounts(mounts);
-      setAttachmentMounts(
-        Array.from(editor.querySelectorAll<HTMLElement>('[data-attachment-icon]')).flatMap(
-          (target) => {
-            const item = attachments.find(
-              (candidate) => candidate.id === target.dataset.attachmentIcon,
-            );
-            return item === undefined ? [] : [{ target, name: item.file.name }];
-          },
-        ),
-      );
-      renderedAvatarKey.current = avatarKey;
-      renderedAttachmentKey.current = attachmentKey;
-      requestedCaret.current = undefined;
-      if (caret !== undefined) setRichSelection(editor, Math.min(caret, value.length));
-      scheduleSync(editor);
-      return () => {
-        richRef.current = null;
-      };
+        setAvatarMounts,
+        setAttachmentMounts,
+        scheduleSync,
+      });
     },
     [
       value,
@@ -888,304 +649,93 @@ export function ChannelComposer({
   );
   const textareaMount = useMountedResource<HTMLTextAreaElement>(
     (element) => {
-      textareaRef.current = element;
-      const caret = requestedCaret.current;
-      if (caret !== undefined && richRef.current === null) {
-        requestedCaret.current = undefined;
-        const at = Math.min(caret, element.value.length);
-        element.setSelectionRange(at, at);
-      }
-      setAvatarMounts((current) => (current.length === 0 ? current : []));
-      setAttachmentMounts((current) => (current.length === 0 ? current : []));
-      scheduleSync(element);
-      return () => {
-        textareaRef.current = null;
-      };
+      return mountPlainComposer({
+        element,
+        textareaRef,
+        requestedCaret,
+        richRef,
+        setAvatarMounts,
+        setAttachmentMounts,
+        scheduleSync,
+      });
     },
     [scheduleSync, value],
   );
   const shellMount = useMountedResource<HTMLDivElement>((shell) => {
-    const pane = shell.closest<HTMLElement>('.bh-chat-pane');
-    const timeline = pane?.querySelector<HTMLElement>('.bh-chat-body') ?? null;
-    if (pane === null || timeline === null || typeof ResizeObserver === 'undefined') return;
-    let applied: number | undefined;
-    const sync = (): void => {
-      const shellBounds = shell.getBoundingClientRect();
-      const overlay =
-        shellBounds.height === 0
-          ? 0
-          : Math.max(0, Math.round(pane.getBoundingClientRect().bottom - shellBounds.top));
-      if (overlay !== applied) {
-        applied = overlay;
-        timeline.style.setProperty('--bh-composer-overlay', String(overlay) + 'px');
-      }
-      overlayResize.current?.(timeline);
-    };
-    sync();
-    const observer = new ResizeObserver(sync);
-    observer.observe(shell);
-    observer.observe(pane);
-    return () => {
-      observer.disconnect();
-      timeline.style.removeProperty('--bh-composer-overlay');
-    };
+    return observeComposerOverlay(shell, overlayResize);
   }, []);
   const replyId = reply?.id;
   const bodyMount = useMountedResource<HTMLDivElement>(
     (body) => {
-      const element = body.querySelector<HTMLElement>('.bh-composer-input');
-      if (replyId !== undefined || focusSignal > 0) element?.focus();
-      if (focusSignal > 0 && element !== null && element === richRef.current)
-        setRichSelection(element, readRichMentionDraft(element).value.length);
-      else if (focusSignal > 0 && element instanceof HTMLTextAreaElement)
-        element.setSelectionRange(element.value.length, element.value.length);
-      if (element === null || typeof ResizeObserver === 'undefined') return;
-
-      let width = element.clientWidth;
-      const observer = new ResizeObserver(([entry]) => {
-        const nextWidth = entry?.contentRect.width;
-        if (nextWidth === undefined || nextWidth === width) return;
-        width = nextWidth;
-        scheduleSync(element);
-      });
-      observer.observe(element);
-      return () => observer.disconnect();
+      return mountComposerBody({ body, replyId, focusSignal, richRef, scheduleSync });
     },
     [scheduleSync, rich, replyId, focusSignal],
   );
 
   const emitRichChange = (editor: HTMLDivElement): void => {
-    normalizeRichInput(editor);
-    const next = readRichMentionDraft(editor);
-    scheduleSync(editor);
-    onChange(next.value, next.mentions, next.channelRefs, next.skills);
-    const caret = richSelectionOffsets(editor)?.end ?? next.value.length;
-    slashTarget.current = context?.target;
-    const command = context === undefined ? undefined : composerSlashQuery(next.value, caret);
-    setSlashQuery(
-      command !== undefined &&
-        next.skills.some((skill) => skill.start < command.end && skill.end > command.start)
-        ? undefined
-        : command,
-    );
-    setSkillQuery(
-      skillOptions.length === 0 ? undefined : activeSkillQuery(next.value, caret, next.skills),
-    );
-    const nextSessionQuery =
-      sessionOptions.length === 0 && onSessionMenu === undefined
-        ? undefined
-        : activeSessionQuery(next.value, caret);
-    if (nextSessionQuery !== undefined && sessionQuery === undefined) onSessionMenu?.();
-    setSessionQuery(nextSessionQuery);
-    setShortcutIndex(0);
-    setMentionQuery(activeMentionQuery(next.value, caret, next.mentions));
-    setChannelQuery(activeChannelRefQuery(next.value, caret, next.channelRefs));
-    setActiveMentionIndex(0);
+    updateRichComposerDraft({
+      editor,
+      scheduleSync,
+      onChange,
+      slashTarget,
+      context,
+      setSlashQuery,
+      skillOptions,
+      setSkillQuery,
+      sessionOptions,
+      onSessionMenu,
+      sessionQuery,
+      setSessionQuery,
+      setShortcutIndex,
+      setMentionQuery,
+      setChannelQuery,
+      setActiveMentionIndex,
+    });
   };
 
   const handleKeyDown = (event: KeyboardEvent<HTMLElement>): void => {
-    if (locked) return;
-    if (voice.active && event.key === 'Enter') {
-      event.preventDefault();
-      return;
-    }
-    if (
-      hasShortcutArgument &&
-      shortcutOptions.length === 0 &&
-      event.key === 'Enter' &&
-      !event.nativeEvent.isComposing
-    ) {
-      event.preventDefault();
-      return;
-    }
-    if (menuLength > 0 && !event.nativeEvent.isComposing) {
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        if (shortcutOptions.length > 0) clearShortcut();
-        setSkillQuery(undefined);
-        setSessionQuery(undefined);
-        return;
-      }
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        event.preventDefault();
-        setShortcutIndex(
-          (current) => (current + (event.key === 'ArrowDown' ? 1 : -1) + menuLength) % menuLength,
-        );
-        return;
-      }
-      if (event.key === 'Enter' || event.key === 'Tab') {
-        event.preventDefault();
-        const index = shortcutIndex % menuLength;
-        const shortcut = shortcutOptions[index];
-        if (shortcut !== undefined) chooseShortcut(shortcut);
-        else {
-          const option = skillMatches[index - shortcutOptions.length];
-          if (option !== undefined) chooseSkill(option);
-          else {
-            const session = sessionMatches[index - shortcutOptions.length - skillMatches.length];
-            if (session !== undefined) chooseSession(session);
-          }
-        }
-        return;
-      }
-    }
-    const input = event.currentTarget;
-    const selection =
-      input instanceof HTMLTextAreaElement
-        ? { start: input.selectionStart, end: input.selectionEnd }
-        : richSelectionOffsets(input);
-    if (
-      (event.key === 'Backspace' || event.key === 'Delete') &&
-      !event.nativeEvent.isComposing &&
-      selection !== undefined
-    ) {
-      const deleted =
-        deleteAttachmentReference(value, attachments, selection, event.key) ??
-        deleteSessionReference(value, selection, event.key);
-      if (deleted !== undefined) {
-        event.preventDefault();
-        requestedCaret.current = deleted.caret;
-        onChange(
-          deleted.value,
-          rebaseMentions(value, deleted.value, mentions),
-          rebaseChannelRefs(value, deleted.value, channelRefs),
-          rebaseSkills(value, deleted.value, skills),
-        );
-        setMentionQuery(undefined);
-        setChannelQuery(undefined);
-        return;
-      }
-    }
-    if (
-      (event.key === 'Backspace' || event.key === 'Delete') &&
-      !event.nativeEvent.isComposing &&
-      selection !== undefined
-    ) {
-      const deleted = deleteSelectedMention(
-        value,
-        mentions,
-        selection.start,
-        selection.end,
-        event.key,
-      );
-      if (deleted !== undefined) {
-        event.preventDefault();
-        requestedCaret.current = deleted.caret;
-        onChange(
-          deleted.value,
-          deleted.mentions,
-          rebaseChannelRefs(value, deleted.value, channelRefs),
-        );
-        setMentionQuery(undefined);
-        setChannelQuery(undefined);
-        if (input instanceof HTMLTextAreaElement)
-          requestAnimationFrame(() => input.setSelectionRange(deleted.caret, deleted.caret));
-        return;
-      }
-    }
-    if (
-      (event.key === 'Backspace' || event.key === 'Delete') &&
-      !event.nativeEvent.isComposing &&
-      selection !== undefined
-    ) {
-      const deleted = deleteSelectedChannelRef(
-        value,
-        channelRefs,
-        selection.start,
-        selection.end,
-        event.key,
-      );
-      if (deleted !== undefined) {
-        event.preventDefault();
-        requestedCaret.current = deleted.caret;
-        onChange(deleted.value, rebaseMentions(value, deleted.value, mentions), deleted.refs);
-        setMentionQuery(undefined);
-        setChannelQuery(undefined);
-        return;
-      }
-    }
-    if (channelQuery !== undefined && channelOptions.length > 0) {
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        event.preventDefault();
-        setActiveMentionIndex(
-          (index) =>
-            (index + (event.key === 'ArrowDown' ? 1 : -1) + channelOptions.length) %
-            channelOptions.length,
-        );
-        return;
-      }
-      if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-        event.preventDefault();
-        chooseChannel(channelOptions[activeMentionIndex] ?? channelOptions[0]!);
-        return;
-      }
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setChannelQuery(undefined);
-        return;
-      }
-    }
-    if (mentionQuery !== undefined && candidates.length > 0) {
-      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-        event.preventDefault();
-        setActiveMentionIndex(
-          (index) =>
-            (index + (event.key === 'ArrowDown' ? 1 : -1) + candidates.length) % candidates.length,
-        );
-        return;
-      }
-      if (event.key === 'Enter' && !event.shiftKey && !event.nativeEvent.isComposing) {
-        event.preventDefault();
-        chooseMention(candidates[activeMentionIndex] ?? candidates[0]!);
-        return;
-      }
-      if (event.key === 'Escape') {
-        event.preventDefault();
-        setMentionQuery(undefined);
-        return;
-      }
-    }
-    if (event.key === 'Escape' && reply !== undefined) {
-      event.preventDefault();
-      onCancelReply?.();
-      return;
-    }
-    if (
-      input instanceof HTMLDivElement &&
-      event.key === 'Enter' &&
-      !event.nativeEvent.isComposing &&
-      event.nativeEvent.keyCode !== 229 &&
-      !shouldSubmitComposerKey(event, sendKey)
-    ) {
-      event.preventDefault();
-      insertRichPlainText(input, '\n');
-      emitRichChange(input);
-      return;
-    }
-    if (
-      (event.key === 'ArrowUp' || event.key === 'ArrowDown') &&
-      !voice.active &&
-      !event.nativeEvent.isComposing &&
-      !event.shiftKey &&
-      !event.altKey &&
-      !event.ctrlKey &&
-      !event.metaKey &&
-      onRecall?.(event.key === 'ArrowUp' ? 'older' : 'newer') === true
-    ) {
-      event.preventDefault();
-      return;
-    }
-    if (!shouldSubmitComposerKey(event, sendKey)) return;
-    if (!hasVisibleText(value) && attachments.length === 0) {
-      event.preventDefault();
-      return;
-    }
-    if (mentions.some((item) => item.kind === 'all-bots' && item.preview.recipients.length === 0)) {
-      event.preventDefault();
-      return;
-    }
-    event.preventDefault();
-    void onSubmit();
+    handleComposerKeyDown({
+      event,
+      locked,
+      voice,
+      hasShortcutArgument,
+      shortcutOptions,
+      menuLength,
+      clearShortcut,
+      setSkillQuery,
+      setSessionQuery,
+      setShortcutIndex,
+      shortcutIndex,
+      chooseShortcut,
+      skillMatches,
+      chooseSkill,
+      sessionMatches,
+      chooseSession,
+      value,
+      attachments,
+      requestedCaret,
+      onChange,
+      mentions,
+      channelRefs,
+      skills,
+      setMentionQuery,
+      setChannelQuery,
+      channelQuery,
+      channelOptions,
+      setActiveMentionIndex,
+      chooseChannel,
+      activeMentionIndex,
+      mentionQuery,
+      candidates,
+      chooseMention,
+      reply,
+      onCancelReply,
+      sendKey,
+      emitRichChange,
+      onRecall,
+      onSubmit,
+      hasVisibleText,
+    });
   };
 
   return (
@@ -1556,49 +1106,16 @@ export function ChannelComposer({
                   event.preventDefault();
               }}
               onClick={(event) => {
-                const target = event.target;
-                if (!(target instanceof Element)) return;
-                const chip = chipSkill(target, skillOptions, t);
-                if (chip !== undefined && readSkill !== undefined) {
-                  skillPeek.open({
-                    ...chip.peek,
-                    load: () => readSkill(chip.peek.name, chip.ownerKey),
-                  });
-                  return;
-                }
-                const badge = target.closest<HTMLElement>('[data-attachment-id]');
-                if (badge === null) return;
-                const card = Array.from(
-                  event.currentTarget
-                    .closest('.bh-composer')
-                    ?.querySelectorAll<HTMLElement>('[data-attachment-card]') ?? [],
-                ).find((item) => item.dataset.attachmentCard === badge.dataset.attachmentId);
-                card?.querySelector<HTMLButtonElement>('button')?.focus();
+                openComposerChip({ event, skillOptions, t, readSkill, skillPeek });
               }}
               onInput={(event) => {
                 if (!locked && !voice.active) emitRichChange(event.currentTarget);
               }}
               onPasteCapture={(event) => {
-                if (locked || voice.active) {
-                  event.preventDefault();
-                  return;
-                }
-                if (handleFilePaste(event)) return;
-                event.preventDefault();
-                insertRichPlainText(
-                  event.currentTarget,
-                  event.clipboardData.getData('text/plain').replace(/\r\n?/gu, '\n'),
-                );
-                emitRichChange(event.currentTarget);
+                pasteRichComposerText({ event, locked, voice, handleFilePaste, emitRichChange });
               }}
               onDrop={(event) => {
-                event.preventDefault();
-                if (locked || voice.active) return;
-                const text = event.dataTransfer.getData('text/plain');
-                if (text.length > 0) {
-                  insertRichPlainText(event.currentTarget, text.replace(/\r\n?/gu, '\n'));
-                  emitRichChange(event.currentTarget);
-                }
+                dropRichComposerText(event, locked, voice, emitRichChange);
               }}
               onKeyDown={handleKeyDown}
             />
@@ -1612,31 +1129,25 @@ export function ChannelComposer({
               disabled={locked}
               readOnly={voice.active}
               onChange={(event) => {
-                scheduleSync(event.currentTarget);
-                const next = event.target.value;
-                slashTarget.current = context?.target;
-                setSlashQuery(
-                  context === undefined
-                    ? undefined
-                    : composerSlashQuery(next, event.currentTarget.selectionStart),
-                );
-                setShortcutIndex(0);
-                const nextSessionQuery =
-                  sessionOptions.length === 0 && onSessionMenu === undefined
-                    ? undefined
-                    : activeSessionQuery(next, event.currentTarget.selectionStart);
-                if (nextSessionQuery !== undefined && sessionQuery === undefined) onSessionMenu?.();
-                setSessionQuery(nextSessionQuery);
-                const nextMentions = rebaseMentions(value, next, mentions);
-                const nextRefs = rebaseChannelRefs(value, next, channelRefs);
-                onChange(next, nextMentions, nextRefs);
-                setMentionQuery(
-                  activeMentionQuery(next, event.currentTarget.selectionStart, nextMentions),
-                );
-                setChannelQuery(
-                  activeChannelRefQuery(next, event.currentTarget.selectionStart, nextRefs),
-                );
-                setActiveMentionIndex(0);
+                updatePlainComposerDraft({
+                  event,
+                  scheduleSync,
+                  slashTarget,
+                  context,
+                  setSlashQuery,
+                  setShortcutIndex,
+                  sessionOptions,
+                  onSessionMenu,
+                  sessionQuery,
+                  setSessionQuery,
+                  value,
+                  mentions,
+                  channelRefs,
+                  onChange,
+                  setMentionQuery,
+                  setChannelQuery,
+                  setActiveMentionIndex,
+                });
               }}
               onPasteCapture={(event) => {
                 handleFilePaste(event);
