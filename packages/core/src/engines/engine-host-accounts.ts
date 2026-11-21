@@ -40,6 +40,7 @@ const MODELS_TTL_MS = 5 * 60_000;
 
 interface AccountLogin {
   controller: AbortController;
+  closed: Promise<void>;
   submitCode?: EngineLoginCodeInput;
 }
 
@@ -58,8 +59,10 @@ export class EngineHostAccounts {
     this.#busy = busy;
   }
 
-  close(): void {
-    for (const login of this.#logins.values()) login.controller.abort();
+  async close(): Promise<void> {
+    const logins = [...this.#logins.values()];
+    for (const login of logins) login.controller.abort();
+    await Promise.all(logins.map(({ closed }) => closed));
   }
 
   codex(account: StoredEngineAccount): {
@@ -289,13 +292,19 @@ export class EngineHostAccounts {
         'engine-account-busy',
         'Sign-in has already started for this account',
       );
-    const login: AccountLogin = { controller: new AbortController() };
+    let resolveClosed!: () => void;
+    const closed = new Promise<void>((resolve) => {
+      resolveClosed = resolve;
+    });
+    const login: AccountLogin = { controller: new AbortController(), closed };
     this.#logins.set(account.id, login);
     this.#models.delete(account.id);
     const onExit = () => {
-      if (this.#logins.get(account.id) !== login) return;
-      this.#logins.delete(account.id);
-      this.#models.delete(account.id);
+      if (this.#logins.get(account.id) === login) {
+        this.#logins.delete(account.id);
+        this.#models.delete(account.id);
+      }
+      resolveClosed();
     };
     try {
       const process = {
@@ -321,6 +330,15 @@ export class EngineHostAccounts {
       onExit();
       throw error;
     }
+  }
+
+  async cancelLogin(id: string): Promise<{ cancelled: boolean }> {
+    const account = this.target(id);
+    const login = this.#logins.get(account.id);
+    if (login === undefined) return { cancelled: false };
+    login.controller.abort();
+    await login.closed;
+    return { cancelled: true };
   }
 
   async submitClaudeCode(id: string, code: string): Promise<{ submitted: true }> {
