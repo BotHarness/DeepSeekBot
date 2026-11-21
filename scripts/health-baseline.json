@@ -67,7 +67,6 @@
     "packages/core/test/team-bot-visibility.test.ts",
     "packages/core/test/team-member-lifecycle.test.ts",
     "packages/core/test/team-spaces.test.ts",
-    "packages/host-client/src/bot-creation.ts",
     "packages/vrm-companion/src/client/stage.ts",
     "prototype/avatar-hair/app.js",
     "prototype/dot-matrix/dotmatrix.js",
