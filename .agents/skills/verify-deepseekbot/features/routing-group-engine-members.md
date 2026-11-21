@@ -4,7 +4,7 @@
 
 - `packages/core/src/models/{routing-groups,group-fallback}.ts`
 - `packages/core/src/models/routing-group-engine-options.ts`
-- `packages/core/src/runtime/{bot-runtime,dsh-bot-agent-adapter}.ts`
+- `packages/core/src/runtime/{bot-runtime,dsh-bot-agent-adapter,dsh-bot-agent-adapter-assignment,dsh-bot-agent-adapter-engine,dsh-bot-agent-adapter-orchestrator,dsh-bot-agent-adapter-tools}.ts`
 - `packages/core/src/engines/engine-host.ts`
 - `packages/client/src/client/turn-stop-line.tsx`
 - `packages/client/src/client/routing-group-settings.tsx`
