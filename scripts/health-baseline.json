@@ -44,7 +44,6 @@
     "packages/core/src/database/schema-plan.ts",
     "packages/core/src/plugin.ts",
     "packages/core/src/runtime/bot-runtime.ts",
-    "packages/core/src/team/service.ts",
     "packages/core/test/bot-create-cli.test.ts",
     "packages/core/test/bot-pairing.test.ts",
     "packages/core/test/bot-runtime.test.ts",
