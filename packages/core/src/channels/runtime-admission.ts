@@ -57,6 +57,7 @@ interface ChannelAdmissionPorts {
     { eventIds: string[]; preserveObservation: boolean }
   >;
   readonly activeTurns: ReadonlyMap<string, Promise<void>>;
+  readonly admitGroupMessage: (channelId: string, messageId: string) => void;
   readonly agents: Pick<BotAgentAdapter, 'steerOrchestrator'>;
   readonly autoContinues: ReadonlyMap<string, PendingAutoContinue>;
   readonly channels: ChannelStore;
@@ -313,7 +314,7 @@ export function createChannelAdmission(ports: ChannelAdmissionPorts) {
           ports.groupAdmissionRetries.delete(key);
           if (ports.closed()) return;
           try {
-            admitGroupMessage(channelId, messageId);
+            ports.admitGroupMessage(channelId, messageId);
           } catch {
             schedule(attempt + 1);
             try {

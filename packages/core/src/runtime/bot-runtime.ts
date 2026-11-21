@@ -1930,6 +1930,7 @@ class BotRuntimeImplementation implements BotRuntime {
       acceptTurnSources: (...args) => this.#acceptTurnSources(...args),
       activeMemoryEvents: this.#activeMemoryEvents,
       activeTurns: this.#activeTurns,
+      admitGroupMessage: (...args) => this.admitGroupMessage(...args),
       agents: this.#agents,
       autoContinues: this.#autoContinues,
       channels: this.#channels,
