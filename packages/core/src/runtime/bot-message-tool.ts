@@ -436,8 +436,7 @@ export function createBotMessageTool(
         const key = createHash('sha256')
           .update(JSON.stringify([run.sessionId, String(exec.callId)]))
           .digest('hex');
-        const source =
-          args.source_event_id === undefined ? undefined : messaging.read(args.source_event_id);
+        const source = reply?.kind === 'external' ? reply.source : undefined;
         const qqReply = source === undefined ? undefined : sourceReplyCapability(source);
         if (qqReply?.state === 'unavailable') {
           runsWithFailedQqReply.add(run);

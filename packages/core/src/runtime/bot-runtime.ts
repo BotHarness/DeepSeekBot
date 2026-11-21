@@ -425,7 +425,9 @@ export interface OrchestratorAgentRun {
   ): ReturnType<TeamService['speakerPolicy']['forHuman']>;
   replyDestination?(
     sourceEventId: string,
-  ): { kind: 'external' } | { kind: 'channel'; channelId: string; messageId: string };
+  ):
+    | { kind: 'external'; source: ExternalSource }
+    | { kind: 'channel'; channelId: string; messageId: string };
   tobCli?: boolean;
   tobCliTurn?: TobCliTurn;
   inboxHistory?(input?: InboxHistoryInput): InboxHistoryPage;
@@ -6462,8 +6464,10 @@ class BotRuntimeImplementation implements BotRuntime {
             .get(id);
         });
         if (source?.source_kind === 'bridge-message') {
-          this.#externalMessaging!.inbound.readShared(bot.slug, id);
-          return { kind: 'external' };
+          return {
+            kind: 'external',
+            source: this.#externalMessaging!.inbound.readShared(bot.slug, id),
+          };
         }
         const reply = channels.replySource!(id);
         return { kind: 'channel', ...reply };
