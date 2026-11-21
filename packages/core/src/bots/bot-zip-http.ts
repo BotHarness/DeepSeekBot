@@ -2,7 +2,13 @@ import { randomUUID } from 'node:crypto';
 
 import { safeAttachmentName } from '../attachments/store.js';
 import { syncBotDescriptor } from './bot-descriptor-sync.js';
-import { BOT_ZIP_MAX_BYTES, exportBotZip, listBotZipFiles, readBotZip } from './bot-zip.js';
+import {
+  BOT_ZIP_MAX_BYTES,
+  botZipStandingUsage,
+  exportBotZip,
+  listBotZipFiles,
+  readBotZip,
+} from './bot-zip.js';
 import type { PersonaBotRegistry } from './registry.js';
 import { ZipArchiveError } from './zip-archive.js';
 import { parseBotDescriptor } from '../marketplace/descriptor.js';
@@ -181,7 +187,8 @@ export function createBotZipHttp(deps: BotZipHttpDeps): (request: Request) => Pr
     const overrides = parseBotDescriptor(JSON.stringify(metadata), { strict: true });
     if (overrides === undefined) return failure(400, 'invalid-input', 'Invalid import metadata');
     const type = request.headers.get('content-type')?.split(';', 1)[0]?.trim().toLowerCase();
-    if (type !== 'application/octet-stream' && type !== 'application/zip') {
+    const preview = type === 'application/vnd.botharness.bot-zip-preview';
+    if (!preview && type !== 'application/octet-stream' && type !== 'application/zip') {
       return failure(415, 'invalid-input', 'content type must be application/zip');
     }
     const declared = request.headers.get('content-length');
@@ -200,6 +207,9 @@ export function createBotZipHttp(deps: BotZipHttpDeps): (request: Request) => Pr
         return zipFailure(error);
       }
       throw error;
+    }
+    if (preview) {
+      return Response.json({ standing: botZipStandingUsage(contents) }, { headers: NO_STORE });
     }
     const slug = deps.createBotId?.() ?? 'bot-' + randomUUID().replaceAll('-', '');
     const displayName =

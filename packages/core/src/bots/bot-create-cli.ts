@@ -84,6 +84,7 @@ import { createPersonaBotRegistry, type PersonaBotRegistry } from './registry.js
 import { ZipArchiveError, writeZip, type ZipEntry } from './zip-archive.js';
 import { INBOX_HOST_COMMANDS } from './cli-inbox.js';
 import { canonicalCliCommandName } from './cli-command-names.js';
+import { runMarketplaceBlocklist } from './cli-marketplace-blocklist.js';
 import { CliLiveError, LIVE_COMMANDS, runLiveCli } from './cli-live.js';
 import { isActivityCommandName } from './cli-inbox.js';
 import { hasAgentCliContext, runAgentCli } from './cli-agent.js';
@@ -244,11 +245,18 @@ Usage:
   tobs marketplace-digest [--day YYYY-MM-DD] [--lang zh|en]
   tobs marketplace-digests [--lang zh|en]
   tobs marketplace-detail <owner/repo>
-  tobs marketplace-avatar-list [--cursor <cursor>]  Browse Marketplace Avatars / 浏览市场头像
+  tobs marketplace-avatar-list [--query <words>] [--tag <tag>] [--sort hot|new|rising | --cursor <cursor>]  Browse, search or rank Marketplace Avatars / 浏览、搜索或查看市场头像排行
+  tobs marketplace-avatar-tags  List Marketplace Avatar tags with counts / 列出市场头像标签及数量
+  tobs marketplace-avatar-mine  List your Marketplace Avatars / 列出我发布的市场头像
+  tobs marketplace-avatar-edit <id> [--name <name>] [--description <text>] [--avatar-tag <tag> ...]
+    Edit Avatar text / 编辑头像的名称、简介和标签
+  tobs marketplace-avatar-delete <id> --confirm  Delete a Marketplace Avatar / 删除市场头像
   tobs marketplace-avatar-detail <id>  Read a Marketplace Avatar / 查看市场头像详情
+  tobs marketplace-avatar-report <id> [--reason <text>]  Report a Marketplace Avatar / 举报市场头像
+  tobs marketplace-blocklist <block|restore> <bot|avatar> <id-or-url>  Moderate a Marketplace entry / 封禁或恢复市场条目
   tobs marketplace-avatar-apply <id> --bot <bot> [--operation-key <key>]  Apply to a Bot / 应用到 Bot
   tobs marketplace-avatar-apply-candidates  List eligible Bots / 列出可应用头像的 Bot
-  tobs marketplace-avatar-publish --file <image> --name <name> [--description <text>] [--avatar-tag <tag> ...] [--operation-key <key>] --confirm
+  tobs marketplace-avatar-publish (--file <image> | --from-bot <bot>) --name <name> [--description <text>] [--avatar-tag <tag> ...] [--operation-key <key>] --confirm
     Publish a processed image as the Host owner / Host 所有者从文件发布已处理的头像
   tobs marketplace-file <listing-id> <path>
   tobs marketplace-submit <github-repo-url>
@@ -2570,6 +2578,10 @@ const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
     description: 'transfer, inspect or recover a portable Bot Zip on a chosen Host',
   })),
   ...SSH_COMMANDS,
+  {
+    command: 'marketplace-blocklist',
+    description: 'moderate a Marketplace entry / 封禁或恢复市场条目',
+  },
   ...LIVE_COMMANDS,
   ...DIAGNOSTIC_COMMANDS,
   ...LIFECYCLE_COMMANDS,
@@ -2735,6 +2747,10 @@ export async function runBotCreateCli(
       return 0;
     }
     if (!hasCliDeclaration(command)) throw usageError('Unknown command.');
+    if (command === 'marketplace-blocklist') {
+      out.stdout(JSON.stringify(await runMarketplaceBlocklist(rest, io.env), null, 2));
+      return 0;
+    }
     if (command === 'ssh-tunnel') return await runSshCli(rest, values, out);
     const online = values.host !== undefined || io.env['DEEPSEEKBOT_HOST'] !== undefined;
     const teamChannels = command === 'channels' && (online || rest.length > 0);
@@ -2764,6 +2780,8 @@ export async function runBotCreateCli(
       out.stdout(JSON.stringify(await runZipUploadCli(command, rest, values, io), null, 2));
       return 0;
     }
+    if (values['from-bot'] !== undefined && command !== 'marketplace-avatar-publish')
+      throw usageError('--from-bot only applies to marketplace-avatar-publish.');
     if (
       values['operation-key'] !== undefined &&
       (!online ||

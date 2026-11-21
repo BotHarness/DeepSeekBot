@@ -1,9 +1,5 @@
 import { Image } from 'expo-image';
-import {
-  DEFAULT_TILTIES_COLLECTION,
-  TILTIES_COLLECTIONS,
-  type TiltiesCollectionId,
-} from '@botharness/host-client/tilties-avatars';
+import { TILTIES_PORTRAITS } from '@botharness/host-client/tilties-avatars';
 import { useRef, useState, type ReactNode } from 'react';
 import { Pressable, View } from 'react-native';
 
@@ -11,7 +7,6 @@ import { errorText } from '@botharness/host-client/bot-settings';
 import type { LayerName } from '../design/layers';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { edge, space } from '../design/tokens';
-import { Segmented } from '../primitives/segmented';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
@@ -121,8 +116,6 @@ export function AvatarSettings({
   const t = useStrings();
   const theme = useDesignTheme();
   const [tiltiesOpen, setTiltiesOpen] = useState(false);
-  const [collection, selectCollection] = useState<TiltiesCollectionId>(DEFAULT_TILTIES_COLLECTION);
-  const portraits = TILTIES_COLLECTIONS.find(({ id }) => id === collection)?.portraits ?? [];
   return (
     <View style={{ alignSelf: 'stretch', gap: space.x2 }}>
       <SettingsSection title={t.avatarTitle} on={on}>
@@ -155,40 +148,28 @@ export function AvatarSettings({
         ) : null}
       </SettingsSection>
       {showTilties && tiltiesOpen ? (
-        <View style={{ gap: space.x3 }}>
-          <Segmented<TiltiesCollectionId>
-            label={t.avatarEditor.collections}
-            options={TILTIES_COLLECTIONS.map(({ id, en, zh }) => ({
-              value: id,
-              label: t.avatarEditor.tiltiesName(en, zh),
-            }))}
-            value={collection}
-            onChange={selectCollection}
-            disabled={editor.busy}
-          />
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}>
-            {portraits.map(({ id, en, zh, image }) => (
-              <Pressable
-                key={id}
-                testID={`tilties-avatar-${id}`}
-                accessibilityRole="button"
-                accessibilityLabel={t.avatarEditor.tiltiesName(en, zh)}
-                accessibilityState={{ disabled: editor.busy }}
-                disabled={editor.busy}
-                onPress={() => void editor.choose(image)}
-                android_ripple={{ color: pressTint(theme.color.fg) }}
-                style={({ pressed }) => ({
-                  width: theme.touch,
-                  height: theme.touch,
-                  borderRadius: theme.touch / 2,
-                  overflow: 'hidden',
-                  opacity: pressed || editor.busy ? 0.7 : 1,
-                })}
-              >
-                <Image source={{ uri: image }} contentFit="cover" style={{ flex: 1 }} />
-              </Pressable>
-            ))}
-          </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}>
+          {TILTIES_PORTRAITS.map(({ id, en, zh, image }) => (
+            <Pressable
+              key={id}
+              testID={`tilties-avatar-${id}`}
+              accessibilityRole="button"
+              accessibilityLabel={t.avatarEditor.tiltiesName(en, zh)}
+              accessibilityState={{ disabled: editor.busy }}
+              disabled={editor.busy}
+              onPress={() => void editor.choose(image)}
+              android_ripple={{ color: pressTint(theme.color.fg) }}
+              style={({ pressed }) => ({
+                width: theme.touch,
+                height: theme.touch,
+                borderRadius: theme.touch / 2,
+                overflow: 'hidden',
+                opacity: pressed || editor.busy ? 0.7 : 1,
+              })}
+            >
+              <Image source={{ uri: image }} contentFit="cover" style={{ flex: 1 }} />
+            </Pressable>
+          ))}
         </View>
       ) : null}
       {editor.error === undefined ? null : (

@@ -23,8 +23,9 @@
  */
 
 import type { ReactElement } from 'react';
+import { size as iconSize } from './ds/tobs.stylex.js';
 
-export function ExitIcon({ size = 16 }: { size?: number }): ReactElement {
+export function ExitIcon({ size = iconSize.icon }: { size?: number | string }): ReactElement {
   return (
     <svg
       width={size}

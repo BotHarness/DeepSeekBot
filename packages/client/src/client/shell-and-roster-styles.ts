@@ -690,7 +690,6 @@ span:has(> [data-session-schedule-mark]) > .bh-native-session-owner {
 }
 .bh-avatar-media-image {
   overflow: hidden;
-  border-radius: ${radius.round};
   background: var(--tobs-layer-elevated);
 }
 .bh-avatar-media-image img {
