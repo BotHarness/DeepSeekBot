@@ -23,7 +23,7 @@ const opus = [
   },
 ] as unknown as RoutingGroupEngineOptions[];
 
-it('keeps the display name when the engine catalog briefly drops the chosen model', async () => {
+it('never shows the raw model id while the engine catalog loads or briefly drops the model', async () => {
   const host = document.createElement('div');
   document.body.append(host);
   const root = createRoot(host);
@@ -31,7 +31,7 @@ it('keeps the display name when the engine catalog briefly drops the chosen mode
     act(() => root.unmount());
     host.remove();
   });
-  const view = (engines: RoutingGroupEngineOptions[]) =>
+  const view = (engines: RoutingGroupEngineOptions[] | undefined) =>
     createElement(SessionModelComposer, {
       action: vi.fn(async () => ({ override: saved, default: saved, active: null })),
       botSlug: 'tobs',
@@ -44,8 +44,10 @@ it('keeps the display name when the engine catalog briefly drops the chosen mode
       onError: () => undefined,
       t: zhTranslate,
     });
-  await act(async () => root.render(view(opus)));
   const trigger = () => host.querySelector('[data-session-model-control] button');
+  await act(async () => root.render(view(undefined)));
+  expect(trigger()?.textContent).not.toContain('claude-opus-5-5');
+  await act(async () => root.render(view(opus)));
   expect(trigger()?.textContent).toContain('Opus 5.5');
   await act(async () => root.render(view([])));
   expect(trigger()?.textContent).toContain('Opus 5.5');

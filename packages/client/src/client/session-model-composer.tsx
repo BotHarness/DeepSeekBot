@@ -208,7 +208,11 @@ export function SessionModelComposer({
     label?.short ??
     group?.name ??
     (choice?.kind === 'group' ? choice.id : t('sessions.model.choice'));
-  const shown = pending ? t('sessions.model.next', { model: name }) : name;
+  const resolving =
+    visible !== undefined &&
+    label?.short === visible.model &&
+    (visible.kind === 'engine' ? engines === undefined : models === undefined);
+  const shown = resolving ? undefined : pending ? t('sessions.model.next', { model: name }) : name;
   function select(key: string) {
     if (items === undefined) return;
     const selected = items.choices.get(key);
@@ -288,7 +292,7 @@ export function SessionModelComposer({
           )
         }
       >
-        <span {...stylex.props(styles.name)}>{shown}</span>
+        {shown === undefined ? null : <span {...stylex.props(styles.name)}>{shown}</span>}
         {effort === undefined ? null : <span {...stylex.props(styles.effort)}>{effort}</span>}
       </Button>
       {open && items !== undefined ? (
