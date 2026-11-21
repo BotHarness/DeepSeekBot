@@ -27,6 +27,7 @@ import { MarketplaceRow } from './marketplace-row';
 import { MarketplaceTopics } from './marketplace-topics';
 import { MarketplaceDailyPicks } from './marketplace-daily-picks';
 import { marketplaceTarget, openMarketplaceBot } from './marketplace-navigation';
+import { MarketplaceSectionPicker } from './marketplace-section-picker';
 import { MarketplaceSections } from './marketplace-sections';
 import type { CatalogueList } from '../../marketplace/catalogue';
 
@@ -251,6 +252,16 @@ const MarketplaceCatalogue = memo(function MarketplaceCatalogue({
             }}
             ListHeaderComponent={
               <View style={{ gap: space.x4 }}>
+                <MarketplaceSectionPicker
+                  section="bots"
+                  onChange={(section) => {
+                    if (section === 'avatars')
+                      router.push({
+                        pathname: '/marketplace-avatars',
+                        params: target.entry === 'host' ? { hostId: target.hostId } : {},
+                      });
+                  }}
+                />
                 {home ? (
                   <View testID="marketplace-home" style={{ gap: space.x6 }}>
                     <MarketplaceDailyPicks target={target} />

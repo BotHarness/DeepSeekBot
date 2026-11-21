@@ -7,6 +7,8 @@ import {
   createBotCreationController,
   type CreationRecord,
 } from '@botharness/host-client/bot-creation';
+import { createHostClient, type HostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../../packages/host-client/test/fake-host';
 
 const fixture = vi.hoisted(() => {
   const fetch = vi.fn<typeof globalThis.fetch>();
@@ -86,6 +88,16 @@ vi.mock('expo-image', () => ({
     return createElement('img', { 'data-testid': testID, src: source.uri, alt: '' });
   },
 }));
+let avatarClient: HostClient | undefined;
+let member = false;
+vi.mock('../src/host/host-session', () => ({
+  useHostSession: () => ({
+    client: avatarClient,
+    saved: { hostId: 'A', ...(member ? { member: {} } : {}) },
+  }),
+}));
+vi.mock('expo-crypto', () => ({}));
+vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 34 }),
@@ -148,6 +160,8 @@ vi.mock('../src/host/native-bot-creation', () => ({
 }));
 
 import { MarketplaceScreen } from '../src/ui/shell/marketplace-screen';
+import { MarketplaceAvatarScreen } from '../src/ui/shell/marketplace-avatar-screen';
+import { MarketplaceAvatarDetailScreen } from '../src/ui/shell/marketplace-avatar-detail-screen';
 import { MarketplaceBotScreen } from '../src/ui/shell/marketplace-bot-screen';
 import { t } from '../src/ui/strings';
 
@@ -216,6 +230,9 @@ beforeEach(() => {
 afterEach(() => {
   act(() => root.unmount());
   element.remove();
+  avatarClient?.stop();
+  avatarClient = undefined;
+  member = false;
 });
 const button = (name: string) =>
   [...element.querySelectorAll('button')].find(
@@ -509,4 +526,69 @@ it('loads another page through the accessible action without a touch scroll', as
   expect(element.querySelector('[data-testid="marketplace-bot-accessible-first"]')).not.toBeNull();
   expect(element.querySelector('[data-testid="marketplace-bot-accessible-second"]')).not.toBeNull();
   expect(element.querySelector('[data-testid="marketplace-more"]')).toBeNull();
+});
+
+function avatarHost() {
+  const host = new FakeHost();
+  avatarClient = createHostClient({
+    routes: ['https://studio.tailnet-example.ts.net'],
+    credential: host.credential,
+    carrier: host.carrier,
+  });
+  avatarClient.start();
+  const avatar = {
+    id: 'blue',
+    imageUrl: 'https://market.example.test/blue.webp',
+    name: 'Ocean Blue',
+    description: 'A test Avatar',
+    tags: ['ocean'],
+    author: { name: 'Ada', id: 'abc234' },
+    applyCount: 2,
+  };
+  host.methods.set('marketplaceAvatarList', () => ({ avatars: [avatar], nextCursor: null }));
+  host.methods.set('marketplaceAvatarDetail', () => avatar);
+  return host;
+}
+
+it('opens Avatars from Bots on the same paired Host and hides owner controls from members', async () => {
+  fixture.params = { entry: 'host', hostId: 'A' };
+  const host = avatarHost();
+  await act(async () => root.render(<MarketplaceScreen />));
+  expect(host.calls.some(({ method }) => method.startsWith('marketplaceAvatar'))).toBe(false);
+  await act(async () => button(t.marketplaceAvatars.title).click());
+  expect(fixture.push).toHaveBeenCalledWith({
+    pathname: '/marketplace-avatars',
+    params: { hostId: 'A' },
+  });
+
+  await act(async () => root.render(<MarketplaceAvatarScreen />));
+  expect(element.textContent).toContain('Ocean Blue');
+  expect(element.querySelector('[data-testid="marketplace-avatar-publish"]')).not.toBeNull();
+  expect(element.querySelector('[data-testid="marketplace-avatar-mine"]')).not.toBeNull();
+  member = true;
+  await act(async () => root.render(<MarketplaceAvatarScreen />));
+  expect(element.querySelector('[data-testid="marketplace-avatar-publish"]')).toBeNull();
+  expect(element.querySelector('[data-testid="marketplace-avatar-mine"]')).toBeNull();
+  expect(element.textContent).toContain('Ocean Blue');
+});
+
+it('shows the Appearance warning before confirming the chosen Bot', async () => {
+  fixture.params = { id: 'blue', hostId: 'A' };
+  const host = avatarHost();
+  host.methods.set('marketplaceAvatarApplyCandidates', () => ({
+    bots: [{ slug: 'ada', displayName: 'Ada Bot', hasAppearance: true }],
+  }));
+  host.methods.set('marketplaceAvatarApply', () => ({ applied: true }));
+  await act(async () => root.render(<MarketplaceAvatarDetailScreen />));
+  expect(element.textContent).toContain('Ada #abc234');
+  await act(async () => button(t.marketplaceAvatars.apply).click());
+  await act(async () => button('Ada Bot').click());
+  expect(element.textContent).toContain(t.marketplaceAvatars.applyWarning);
+  expect(host.calls.some(({ method }) => method === 'marketplaceAvatarApply')).toBe(false);
+  await act(async () => button(t.marketplaceAvatars.apply).click());
+  expect(host.calls.find(({ method }) => method === 'marketplaceAvatarApply')?.args).toEqual({
+    id: 'blue',
+    bot: 'ada',
+  });
+  expect(element.textContent).toContain(t.marketplaceAvatars.applied('Ada Bot'));
 });

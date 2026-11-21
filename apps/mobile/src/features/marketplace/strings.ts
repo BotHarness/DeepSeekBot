@@ -1,4 +1,7 @@
+import { avatarEn, avatarZh } from './avatar-strings';
+
 export const en = {
+  marketplaceAvatars: avatarEn,
   marketplace: {
     title: 'Bot Marketplace',
     browse: 'Bot Marketplace',
@@ -45,6 +48,7 @@ export const en = {
 };
 
 export const zh: typeof en = {
+  marketplaceAvatars: avatarZh,
   marketplace: {
     title: 'Bot 市场',
     browse: 'Bot市场',

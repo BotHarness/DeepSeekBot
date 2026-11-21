@@ -232,7 +232,7 @@ export interface MarketplaceClient {
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
-function parseAvatarListing(value: unknown): MarketplaceAvatarListing | undefined {
+export function parseAvatarListing(value: unknown): MarketplaceAvatarListing | undefined {
   const entry = record(value);
   const author = record(entry?.['author']);
   if (entry === undefined || author === undefined) return;
@@ -260,7 +260,7 @@ function parseAvatarListing(value: unknown): MarketplaceAvatarListing | undefine
   };
 }
 
-function parseAvatarPage(value: unknown): MarketplaceAvatarPage | undefined {
+export function parseAvatarPage(value: unknown): MarketplaceAvatarPage | undefined {
   const page = record(value);
   if (page === undefined) return;
   const { avatars, nextCursor } = page;
@@ -269,7 +269,7 @@ function parseAvatarPage(value: unknown): MarketplaceAvatarPage | undefined {
   if (parsed.every((avatar) => avatar !== undefined)) return { avatars: parsed, nextCursor };
 }
 
-function parseAvatarTags(value: unknown): MarketplaceAvatarTag[] | undefined {
+export function parseAvatarTags(value: unknown): MarketplaceAvatarTag[] | undefined {
   const tags = record(value)?.['tags'];
   if (!Array.isArray(tags)) return;
   const parsed: MarketplaceAvatarTag[] = [];
@@ -403,7 +403,7 @@ function parseAuthor(value: unknown): MarketplaceAuthor | undefined {
     : undefined;
 }
 
-function parseAuthorAccount(value: unknown): MarketplaceAuthorAccount | undefined {
+export function parseAuthorAccount(value: unknown): MarketplaceAuthorAccount | undefined {
   const author = parseAuthor(value);
   const accepted = record(value)?.['termsAcceptedAt'];
   return author === undefined || (typeof accepted !== 'string' && accepted !== null)

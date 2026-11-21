@@ -125,6 +125,18 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
                 }
               />,
             )}
+        {saved && saved.member === undefined && (bot.avatarUrl || bot.appearance) ? (
+          <SettingsRow
+            title={t.marketplaceAvatars.fromBot}
+            testID="marketplace-avatar-publish-from-bot"
+            onPress={() =>
+              router.push({
+                pathname: '/marketplace-avatar-editor',
+                params: { hostId: saved.hostId, bot: bot.slug },
+              })
+            }
+          />
+        ) : null}
       </SettingsSection>
       {backgroundError === undefined ? null : (
         <Text accessibilityRole="alert" tone="danger">
