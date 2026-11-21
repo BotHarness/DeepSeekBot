@@ -13,6 +13,9 @@ import {
   type MarketplaceAvatar,
   type MarketplaceAvatarApplyCandidate,
   type MarketplaceAvatarPage,
+  type MarketplaceAvatarTag,
+  MAX_MARKETPLACE_AVATAR_QUERY,
+  MAX_MARKETPLACE_AVATAR_TAG_FILTER,
 } from '@botharness/host-protocol/marketplace-avatar';
 import { TeamError } from '../../team/error.js';
 import { join } from 'node:path';
@@ -95,6 +98,7 @@ export interface MarketplaceBridgeMethods {
   ): Promise<BridgeResult<{ digests: MarketplaceDigestSummary[] }>>;
   marketplaceDigest(payload: unknown): Promise<BridgeResult<{ digest: MarketplaceDigest }>>;
   marketplaceAvatarList(payload: unknown): Promise<BridgeResult<MarketplaceAvatarPage>>;
+  marketplaceAvatarTags(): Promise<BridgeResult<MarketplaceAvatarTag[]>>;
   marketplaceAvatarDetail(payload: unknown): Promise<BridgeResult<MarketplaceAvatar>>;
   marketplaceAvatarApplyCandidates(
     payload: unknown,
@@ -532,10 +536,29 @@ export function createMarketplaceBridgeMethods(
         marketplaceCall,
       ),
       marketplaceAvatarList(payload) {
-        const { cursor } = asObject(payload);
+        const { cursor, q, tag } = asObject(payload);
         if (cursor !== undefined && (typeof cursor !== 'string' || cursor.length > 100))
           return Promise.resolve(invalidInput('invalid cursor'));
-        return marketplaceCall((client) => client.avatarList(cursor));
+        if (
+          q !== undefined &&
+          (typeof q !== 'string' || q.trim().length > MAX_MARKETPLACE_AVATAR_QUERY)
+        )
+          return Promise.resolve(invalidInput('invalid query'));
+        if (
+          tag !== undefined &&
+          (typeof tag !== 'string' || [...tag.trim()].length > MAX_MARKETPLACE_AVATAR_TAG_FILTER)
+        )
+          return Promise.resolve(invalidInput('invalid tag'));
+        return marketplaceCall((client) =>
+          client.avatarList({
+            ...(cursor === undefined ? {} : { cursor }),
+            ...(q === undefined ? {} : { q: q.trim() }),
+            ...(tag === undefined ? {} : { tag: tag.trim() }),
+          }),
+        );
+      },
+      marketplaceAvatarTags() {
+        return marketplaceCall((client) => client.avatarTags());
       },
       marketplaceAvatarDetail(payload) {
         const { id } = asObject(payload);
@@ -855,6 +878,7 @@ export function createMarketplaceBridgeMethods(
       | 'marketplaceAvatarApplyCandidates'
       | 'marketplaceAvatarApply'
       | 'marketplaceAvatarList'
+      | 'marketplaceAvatarTags'
       | 'marketplaceAvatarDetail'
       | 'marketplaceAvatarPublish'
       | 'marketplaceAvatarSource'

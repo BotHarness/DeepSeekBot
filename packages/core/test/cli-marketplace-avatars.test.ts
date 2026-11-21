@@ -19,7 +19,7 @@ it('browses and publishes Marketplace Avatars through the live Host and surfaces
           ok: false,
           error: { code: 'permission-required', message: 'Only the Host owner may publish' },
         }
-      : ok({ method }),
+      : ok(method === 'marketplaceAvatarTags' ? [{ tag: 'blue', count: 1 }] : { method }),
   );
   const publish = [
     'marketplace-avatar-publish',
@@ -37,11 +37,22 @@ it('browses and publishes Marketplace Avatars through the live Host and surfaces
     'otter',
     '--confirm',
   ];
-  expect((await invoke(['marketplace-avatar-list', '--cursor', 'page2'], live.url)).code).toBe(0);
+  expect(
+    (
+      await invoke(
+        ['marketplace-avatar-list', '--query', 'River', '--tag', 'BLUE', '--cursor', 'page2'],
+        live.url,
+      )
+    ).code,
+  ).toBe(0);
+  expect((await invoke(['marketplace-avatar-tags'], live.url)).json).toEqual({
+    tags: [{ tag: 'blue', count: 1 }],
+  });
   expect((await invoke(['marketplace-avatar-detail', 'avatar-id'], live.url)).code).toBe(0);
   expect((await invoke(publish, live.url)).code).toBe(0);
   expect(live.calls).toEqual([
-    { method: 'marketplaceAvatarList', args: { cursor: 'page2' } },
+    { method: 'marketplaceAvatarList', args: { q: 'River', tag: 'BLUE', cursor: 'page2' } },
+    { method: 'marketplaceAvatarTags', args: {} },
     { method: 'marketplaceAvatarDetail', args: { id: 'avatar-id' } },
     {
       method: 'marketplaceAvatarPublish',
@@ -63,7 +74,7 @@ it('browses and publishes Marketplace Avatars through the live Host and surfaces
     code: 'unprocessed-image',
     message: expect.stringContaining('256'),
   });
-  expect(live.calls).toHaveLength(4);
+  expect(live.calls).toHaveLength(5);
 });
 
 it('applies through the same live Host method, requires a target, and preserves a refusal', async () => {

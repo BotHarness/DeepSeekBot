@@ -360,6 +360,7 @@ export const bridgeMethodInventory = [
   'marketplaceDigests',
   'marketplaceDigest',
   'marketplaceAvatarList',
+  'marketplaceAvatarTags',
   'marketplaceAvatarDetail',
   'marketplaceAvatarPublish',
   'marketplaceAvatarSource',

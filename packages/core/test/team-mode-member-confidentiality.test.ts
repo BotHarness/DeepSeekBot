@@ -500,7 +500,11 @@ describe('member confidentiality', { timeout: 60_000 }, () => {
           expect(error).toMatchObject({ code: 'voice-unavailable' });
         else if (method === 'marketplaceAvatarApply')
           expect(error).toMatchObject({ code: 'bot-not-found' });
-        else if (method === 'marketplaceAvatarReport' || method === 'marketplaceChallenge')
+        else if (
+          method === 'marketplaceAvatarReport' ||
+          method === 'marketplaceChallenge' ||
+          method === 'marketplaceAvatarTags'
+        )
           expect(error).toMatchObject({ code: 'marketplace-unavailable' });
         else if (method === 'marketplaceAvatarList' || method === 'marketplaceAvatarDetail')
           expect(error).toMatchObject({ code: 'marketplace-unavailable' });

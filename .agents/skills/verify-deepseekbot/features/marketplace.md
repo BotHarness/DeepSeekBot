@@ -6,7 +6,7 @@
 - `packages/core/src/marketplace/**`
 - `packages/core/src/features/marketplace/**`
 - `packages/client/src/client/marketplace-report.tsx`
-- `packages/client/src/client/{marketplace,marketplace-install-review,market-panel,market-avatars,market-avatar-apply,personabot-avatar-crop,standing-import-usage}.tsx`
+- `packages/client/src/client/{marketplace,marketplace-browse-controls,marketplace-install-review,market-panel,market-avatars,market-avatar-apply,personabot-avatar-crop,standing-import-usage}.tsx`
 - `packages/client/src/client/{profile-header,bot-sidebar-channel-actions}.tsx`
 - `apps/mobile/src/marketplace/**`
 - `apps/mobile/src/ui/shell/marketplace-*`
@@ -56,6 +56,8 @@ For Worker tie/paging proof run `pnpm exec vitest run packages/market/test/marke
 2. Open **Avatars → Publish Avatar**, choose a rectangular image with both sides at least 256 px, move the crop, and save. Fill in the name, description and tags. Verify the confirmation identifies the author by display name and Author ID and explains that applied copies stay with other Bots.
 3. Publish and compare the detail image with the form preview. Verify the description, tags, author and Apply Count of 0. Read the canonical result with `deepseekbot marketplace-avatar-detail <id>`. Confirm a file with a 255 px side is refused.
 4. Seed more than 24 listings from at least two accounts, use **Load more**, and compare the visible IDs with `deepseekbot marketplace-avatar-list [--cursor <cursor>]`. Browse as a Team member, verify the publish entry is absent, and verify a member publish call receives `permission-required`.
+5. Return to **Bots** and verify the current search, sort and cards are preserved. Initial Bots browsing makes no Avatar list request.
+6. With listed Avatars tagged `Blue` and `blue`, open **Avatars** and verify that the `blue` chip shows their combined count. Select the chip, enter a keyword from a listing's name, description or tags, and press Enter. Compare the cards and each subsequent page with `deepseekbot marketplace-avatar-list --query <keyword> --tag BLUE`, and compare counts with `deepseekbot marketplace-avatar-tags`. Search for an absent keyword and verify the filtered empty state. Clear the keyword and select **All** to restore the full grid. Hide or remove a listing in the isolated Worker and verify it disappears from search and counts.
 
 ### Publish a Bot's current Avatar
 
@@ -63,7 +65,6 @@ For Worker tie/paging proof run `pnpm exec vitest run packages/market/test/marke
 2. Zoom in one step. Confirm the 256 px crop message and disabled Save action. Return the slider to minimum, save, and publish using the existing author form. Compare the detail image with the crop and read it with `deepseekbot marketplace-avatar-detail <id>`.
 3. Repeat with a Bot that has an Avatar Appearance. Verify the published still matches the Bot's appearance. Verify both menu entries are absent for a Blobatar-only Bot and for a Team member with `bots.manageAll`.
 4. Run `deepseekbot marketplace-avatar-publish --from-bot <bot> --name <name> --confirm` as owner. Use a compliant stored image for success. Verify `no-stored-avatar` for a Blobatar, `unprocessed-image` with a Web instruction for a noncompliant image, and `permission-required` as a member.
-5. Return to **Bots** and verify the current search, sort and cards are preserved. Initial Bots browsing makes no Avatar list request.
 
 ## Tob install review
 

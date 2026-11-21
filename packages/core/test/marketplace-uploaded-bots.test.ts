@@ -631,9 +631,13 @@ it('publishes an Avatar as the Host owner and lets a Team member browse without 
   expect(await f.bridge.marketplaceAvatarPublish(input)).toEqual(published);
   f.session.state = 'signed-out';
   expect(await memberBridge.marketplaceAvatarDetail({ id: published.value.id })).toEqual(published);
-  expect(await memberBridge.marketplaceAvatarList({})).toEqual({
+  expect(await memberBridge.marketplaceAvatarList({ q: 'river', tag: 'BLUE' })).toEqual({
     ok: true,
     value: { avatars: [published.value], nextCursor: null },
+  });
+  expect(await memberBridge.marketplaceAvatarTags()).toEqual({
+    ok: true,
+    value: [{ tag: 'blue', count: 1 }],
   });
   expect(f.market.bucket.objects.size).toBe(1);
 });

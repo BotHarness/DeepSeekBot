@@ -5,6 +5,10 @@ export const MAX_MARKETPLACE_AVATAR_NAME = 40;
 export const MAX_MARKETPLACE_AVATAR_DESCRIPTION = 160;
 export const MAX_MARKETPLACE_AVATAR_TAGS = 5;
 export const MAX_MARKETPLACE_AVATAR_TAG = 24;
+const MAX_NFKC_CODE_POINT_EXPANSION = 18;
+export const MAX_MARKETPLACE_AVATAR_TAG_FILTER =
+  MAX_MARKETPLACE_AVATAR_TAG * MAX_NFKC_CODE_POINT_EXPANSION;
+export const MAX_MARKETPLACE_AVATAR_QUERY = 100;
 
 export interface MarketplaceAvatarText {
   name: string;
@@ -37,6 +41,21 @@ export interface MarketplaceAvatarApplyCandidate {
 export interface MarketplaceAvatarPage {
   avatars: MarketplaceAvatar[];
   nextCursor: string | null;
+}
+
+export interface MarketplaceAvatarQuery {
+  cursor?: string;
+  q?: string;
+  tag?: string;
+}
+
+export interface MarketplaceAvatarTag {
+  tag: string;
+  count: number;
+}
+
+export function normalizeMarketplaceAvatarTag(tag: string): string {
+  return tag.normalize('NFKC').trim().toLowerCase().replaceAll('ς', 'σ');
 }
 
 export function parseMarketplaceAvatarText(input: {

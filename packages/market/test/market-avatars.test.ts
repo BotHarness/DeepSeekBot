@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { MAX_MARKETPLACE_AVATAR_BYTES } from '../../host-protocol/src/marketplace-avatar.js';
+import {
+  MAX_MARKETPLACE_AVATAR_BYTES,
+  type MarketplaceAvatarPage,
+} from '../../host-protocol/src/marketplace-avatar.js';
 import { MAX_BOTS_PER_ACCOUNT } from '../src/upload-files.js';
 import { avatarDataUrl, avatarFixtures } from './avatar-fixtures.js';
 import { admin, createMarket, fakeRepository, post, solve, submit } from './market-harness.js';
@@ -208,7 +211,9 @@ describe('Marketplace Avatars HTTP', () => {
     expect(bodies[0]).toEqual(bodies[1]);
     expect(market.bucket.objects.size).toBe(1);
     for (let index = 1; index < MAX_BOTS_PER_ACCOUNT; index++) {
-      expect((await publish(market, { requestKey: `a-${index}` })).status).toBe(201);
+      expect((await publish(market, { requestKey: `a-${index}`, tags: ['Blue'] })).status).toBe(
+        201,
+      );
     }
     const capped = await publish(market, { requestKey: 'one-too-many' });
     expect(capped.status).toBe(409);
@@ -220,7 +225,7 @@ describe('Marketplace Avatars HTTP', () => {
         (
           await publish(
             market,
-            { requestKey: index === 0 ? input.requestKey : `b-${index}` },
+            { requestKey: index === 0 ? input.requestKey : `b-${index}`, tags: ['blue'] },
             'token-bob',
           )
         ).status,
@@ -236,6 +241,96 @@ describe('Marketplace Avatars HTTP', () => {
     expect(second.nextCursor).toBeNull();
     expect(new Set([...first.avatars, ...second.avatars].map(({ id }) => id)).size).toBe(27);
     expect((await market.request('/v1/avatars?cursor=garbage')).status).toBe(400);
+
+    const search = '/v1/avatars?q=OTT&tag=BLUE';
+    const found = await (await market.request(search)).json();
+    expect(found.avatars).toHaveLength(24);
+    const next = await (
+      await market.request(`${search}&cursor=${encodeURIComponent(found.nextCursor)}`)
+    ).json();
+    expect(next.avatars).toHaveLength(2);
+    expect(next.nextCursor).toBeNull();
+    expect(new Set([...found.avatars, ...next.avatars].map(({ id }) => id)).size).toBe(26);
+  });
+
+  it('searches names, descriptions and tags and updates public counts on visibility changes', async () => {
+    const market = createMarket();
+    await author(market);
+    const save = async (requestKey: string, overrides: Record<string, unknown>) => {
+      const response = await publish(market, { requestKey, ...overrides });
+      expect(response.status).toBe(201);
+      return (await response.json()).avatar.id;
+    };
+    const listed = await save('listed', {
+      name: 'Moonlight',
+      description: 'A 河流 scene',
+      tags: ['Blue Sky', 'ＢＬＵＥ ＳＫＹ', 'Pixel', 'ÉTOILE', 'ΦΩΣ'],
+    });
+    const hidden = await save('hidden', { name: 'Moonlight', tags: ['Blue Sky', 'Hidden'] });
+    const deleted = await save('deleted', { name: 'Moonlight', tags: ['blue sky', 'Deleted'] });
+    market.sqlite
+      .prepare("UPDATE marketplace_avatars SET visibility = 'hidden_reported' WHERE id = ?")
+      .run(hidden);
+    market.sqlite.prepare('DELETE FROM marketplace_avatars WHERE id = ?').run(deleted);
+    for (const query of ['moon', '河流', 'pixel', 'moon 河流 pixel', 'sky']) {
+      const page: MarketplaceAvatarPage = await (
+        await market.request(`/v1/avatars?${new URLSearchParams({ q: query, tag: 'BLUE SKY' })}`)
+      ).json();
+      expect(page.avatars.map(({ id }) => id)).toEqual([listed]);
+    }
+    expect(await (await market.request('/v1/avatars?tag=blue')).json()).toEqual({
+      avatars: [],
+      nextCursor: null,
+    });
+    for (const tag of ['étoile', 'φως', 'ＢＬＵＥ ＳＫＹ']) {
+      const page: MarketplaceAvatarPage = await (
+        await market.request(`/v1/avatars?${new URLSearchParams({ tag })}`)
+      ).json();
+      expect(page.avatars.map(({ id }) => id)).toEqual([listed]);
+    }
+    const tags = async () => {
+      const response = await market.request('/v1/avatars/tags');
+      expect(response.headers.get('cache-control')).toBe('no-cache');
+      return response.json();
+    };
+    expect(await tags()).toEqual({
+      tags: [
+        { tag: 'blue sky', count: 1 },
+        { tag: 'pixel', count: 1 },
+        { tag: 'étoile', count: 1 },
+        { tag: 'φωσ', count: 1 },
+      ],
+    });
+    market.sqlite
+      .prepare("UPDATE marketplace_avatars SET visibility = 'listed' WHERE id = ?")
+      .run(hidden);
+    expect(await tags()).toEqual({
+      tags: [
+        { tag: 'blue sky', count: 2 },
+        { tag: 'hidden', count: 1 },
+        { tag: 'pixel', count: 1 },
+        { tag: 'étoile', count: 1 },
+        { tag: 'φωσ', count: 1 },
+      ],
+    });
+    expect((await market.request(`/v1/avatars?q=${'x'.repeat(101)}`)).status).toBe(400);
+  });
+
+  it('accepts normalized tag keys returned by the tag endpoint even when NFKC expands them', async () => {
+    const market = createMarket();
+    await author(market);
+    const tag = 'ﷺ'.repeat(3);
+    const published = await publish(market, { tags: [tag] });
+    expect(published.status).toBe(201);
+    const { avatar } = await published.json();
+    const key = 'صلى الله عليه وسلم'.repeat(3);
+    expect(await (await market.request('/v1/avatars/tags')).json()).toEqual({
+      tags: [{ tag: key, count: 1 }],
+    });
+    const page = await (
+      await market.request(`/v1/avatars?${new URLSearchParams({ tag: key })}`)
+    ).json();
+    expect(page).toEqual({ avatars: [avatar], nextCursor: null });
   });
 
   it('keeps the Bots browse response and upstream requests unchanged when Avatars are published and browsed', async () => {
@@ -359,4 +454,49 @@ it('shares the report challenge and threshold, hides all public reads and restor
   expect((await market.request(path)).status).toBe(200);
   expect((await from(4)).status).toBe(202);
   await hidden();
+});
+
+it('removes reported and blocked Avatars from search and tag counts until admin restore', async () => {
+  const market = createMarket();
+  await author(market);
+  const published = await publish(market, { name: 'River Otter', tags: ['Blue', 'River'] });
+  expect(published.status).toBe(201);
+  const { avatar } = await published.json();
+  expect((await publish(market, { requestKey: 'other', tags: ['blue'] })).status).toBe(201);
+
+  const expectDiscoverable = async (listed: boolean) => {
+    for (const path of ['/v1/avatars?q=river', '/v1/avatars?tag=RIVER']) {
+      const response = await market.request(path);
+      expect(response.status).toBe(200);
+      expect(await response.json()).toEqual({ avatars: listed ? [avatar] : [], nextCursor: null });
+    }
+    const response = await market.request('/v1/avatars/tags');
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({
+      tags: listed
+        ? [
+            { tag: 'blue', count: 2 },
+            { tag: 'river', count: 1 },
+          ]
+        : [{ tag: 'blue', count: 1 }],
+    });
+  };
+
+  await expectDiscoverable(true);
+  for (const source of [1, 2, 3]) {
+    const ip = `203.0.113.${source}`;
+    const report = await post(
+      market,
+      `/v1/avatars/${avatar.id}/reports`,
+      { altcha: await solve(market, ip), reason: 'spam' },
+      ip,
+    );
+    expect(report.status).toBe(202);
+  }
+  await expectDiscoverable(false);
+
+  for (const action of ['restore', 'block', 'restore']) {
+    expect((await admin(market, { kind: 'avatar', id: avatar.id, action })).status).toBe(200);
+    await expectDiscoverable(action === 'restore');
+  }
 });

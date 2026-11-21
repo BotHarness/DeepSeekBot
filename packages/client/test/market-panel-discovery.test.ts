@@ -50,6 +50,7 @@ describe('Market panel', () => {
         {
           marketplaceAccount,
           marketplaceAvatarList: vi.fn(async () => ({ avatars: [], nextCursor: null })),
+          marketplaceAvatarTags: vi.fn(async () => []),
           teamCall: vi.fn(async () => ({
             ok: true,
             value: {
@@ -90,7 +91,7 @@ describe('Market panel', () => {
         expect(list).toHaveBeenCalledTimes(1);
         expect(host.textContent).toContain('writer');
       },
-      { marketplaceAvatarList: avatars },
+      { marketplaceAvatarList: avatars, marketplaceAvatarTags: vi.fn(async () => []) },
     );
   });
 

@@ -11,6 +11,7 @@ import {
   BannerCropModal,
   PersonaBotAvatarCropModal,
 } from '../src/client/personabot-avatar-crop.js';
+import type { MarketplaceAvatarQuery } from '@botharness/host-protocol/marketplace-avatar';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives, shellPrimitives } = await import('./primitive-mocks.js');
@@ -69,7 +70,8 @@ function actionsFor() {
     })),
     marketplaceAvatarPublish: vi.fn(async () => avatar),
     marketplaceAvatarSource: vi.fn(async () => ({ image })),
-    marketplaceAvatarList: vi.fn(async (cursor?: string) =>
+    marketplaceAvatarTags: vi.fn(async () => [{ tag: 'blue', count: 2 }]),
+    marketplaceAvatarList: vi.fn(async ({ cursor }: MarketplaceAvatarQuery = {}) =>
       cursor === undefined
         ? { avatars: [avatar], nextCursor: 'next' }
         : { avatars: [{ ...avatar, id: 'avatar-b', name: 'Bear' }], nextCursor: null },
@@ -97,6 +99,40 @@ function actionsFor() {
     marketplaceAvatarApply: vi.fn(async () => ({ applied: true as const })),
   };
 }
+
+it('submits keyword search, combines it with a counted tag and shows the filtered empty state', async () => {
+  const actions = actionsFor();
+  await act(async () =>
+    root.render(
+      createElement(MarketAvatars, { actions, t, publishing: false, onClosePublish: vi.fn() }),
+    ),
+  );
+  const search = host.querySelector('input[type="search"]');
+  expect(search).toBeInstanceOf(HTMLInputElement);
+  if (!(search instanceof HTMLInputElement)) throw new Error('Missing avatar search');
+  expect(search.getAttribute('aria-label')).toBe(t('market.avatar.search.label'));
+  await typeInto(search, ' river ');
+  expect(actions.marketplaceAvatarList).toHaveBeenCalledTimes(1);
+  await act(async () =>
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })),
+  );
+  expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith({ q: 'river' });
+  const chip = buttonNamed('blue2', host);
+  await act(async () => chip.click());
+  expect(chip.getAttribute('aria-pressed')).toBe('true');
+  expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith({ q: 'river', tag: 'blue' });
+  await act(async () => buttonNamed(t('market.loadMore'), host).click());
+  expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith({
+    q: 'river',
+    tag: 'blue',
+    cursor: 'next',
+  });
+  actions.marketplaceAvatarList.mockResolvedValueOnce({ avatars: [], nextCursor: null });
+  await act(async () => buttonNamed(t('market.topics.all'), host).click());
+  expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith({ q: 'river' });
+  expect(host.textContent).toContain(t('market.avatar.search.empty'));
+  expect(host.textContent).not.toContain(avatar.name);
+});
 
 async function loadSource(width: number, height: number) {
   const preview = document.querySelector('img[src="blob:crop"]');
@@ -336,7 +372,7 @@ it('paginates the grid and opens the Avatar hero and tags', async () => {
   });
   await act(async () => buttonNamed(t('market.loadMore')).click());
   expect(buttonNamed(t('market.loadingMore')).disabled).toBe(true);
-  expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith('next');
+  expect(actions.marketplaceAvatarList).toHaveBeenLastCalledWith({ cursor: 'next' });
   await act(async () => finishPage());
   expect(buttonNamed(t('market.detail.open', { name: 'Bear' }))).toBeTruthy();
   await act(async () => buttonNamed(t('market.detail.open', { name: 'Otter' })).click());

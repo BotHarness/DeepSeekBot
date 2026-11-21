@@ -1,8 +1,11 @@
 import {
   MAX_MARKETPLACE_AVATAR_BYTES,
+  normalizeMarketplaceAvatarTag,
   parseMarketplaceAvatarPublish,
   type MarketplaceAvatar,
   type MarketplaceAvatarPage,
+  type MarketplaceAvatarQuery,
+  type MarketplaceAvatarTag,
 } from '../../host-protocol/src/marketplace-avatar.js';
 import { readMarketplaceAvatarImage } from '../../host-protocol/src/marketplace-avatar-image.js';
 import type { D1Database } from './d1.js';
@@ -12,6 +15,7 @@ import { MAX_BOTS_PER_ACCOUNT } from './upload-files.js';
 const PAGE_SIZE = 24;
 const MAX_PUBLISH_BODY = Math.ceil(MAX_MARKETPLACE_AVATAR_BYTES / 3) * 4 + 4096;
 export const AVATAR_ROUTE = /^\/v1\/avatars(?:\/([0-9a-f-]{36})(\/image)?)?$/u;
+export const AVATAR_TAGS_PATH = '/v1/avatars/tags';
 export const AVATAR_APPLY_ROUTE = /^\/v1\/avatars\/([0-9a-f-]{36})\/applies$/u;
 const CURSOR = /^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z)\/([0-9a-f-]{36})$/u;
 
@@ -96,19 +100,47 @@ export function createMarketAvatars({
       .first<AvatarRow>();
 
   return {
-    async list(cursor: string | null, origin: string): Promise<MarketplaceAvatarPage | undefined> {
-      const bounds = cursor === null ? null : CURSOR.exec(cursor);
-      if (cursor !== null && bounds === null) return;
-      const order = 'ORDER BY a.created_at DESC, a.id DESC LIMIT ?';
-      const query =
-        bounds === null
-          ? db.prepare(`${selected} WHERE a.visibility = 'listed' ${order}`).bind(PAGE_SIZE + 1)
-          : db
-              .prepare(
-                `${selected} WHERE a.visibility = 'listed' AND (a.created_at, a.id) < (?, ?) ${order}`,
-              )
-              .bind(bounds[1]!, bounds[2]!, PAGE_SIZE + 1);
-      const { results } = await query.all<AvatarRow>();
+    async list(
+      { cursor, q, tag }: MarketplaceAvatarQuery,
+      origin: string,
+    ): Promise<MarketplaceAvatarPage | undefined> {
+      const bounds = cursor === undefined ? null : CURSOR.exec(cursor);
+      if (cursor !== undefined && bounds === null) return;
+      const terms = q?.match(/\S+/gu) ?? [];
+      const long = terms.filter((term) => [...term].length >= 3);
+      const short = terms.filter((term) => [...term].length < 3);
+      const joins: string[] = [];
+      const filters = ["a.visibility = 'listed'"];
+      const values: string[] = [];
+      if (long.length > 0) {
+        joins.push('JOIN marketplace_avatars_fts f ON f.rowid = a.rowid');
+        filters.push('marketplace_avatars_fts MATCH ?');
+        values.push(long.map((term) => `"${term.replaceAll('"', '""')}"`).join(' '));
+      }
+      if (short.length > 0) {
+        filters.push(`NOT EXISTS (
+          SELECT 1 FROM json_each(?) term
+          WHERE instr(lower(a.name), lower(term.value)) = 0
+            AND instr(lower(a.description), lower(term.value)) = 0
+            AND NOT EXISTS (SELECT 1 FROM json_each(a.tags) WHERE instr(lower(value), lower(term.value)) > 0)
+        )`);
+        values.push(JSON.stringify(short));
+      }
+      if (tag !== undefined) {
+        joins.push('JOIN marketplace_avatar_tags t ON t.avatar_id = a.id');
+        filters.push('t.tag = ?');
+        values.push(normalizeMarketplaceAvatarTag(tag));
+      }
+      const sort = tag === undefined ? ['a.created_at', 'a.id'] : ['t.created_at', 't.avatar_id'];
+      if (bounds !== null) {
+        filters.push(`(${sort.join(', ')}) < (?, ?)`);
+        values.push(bounds[1]!, bounds[2]!);
+      }
+      const { results } = await db
+        .prepare(`${selected} ${joins.join(' ')} WHERE ${filters.join(' AND ')}
+          ORDER BY ${sort.join(' DESC, ')} DESC LIMIT ?`)
+        .bind(...values, PAGE_SIZE + 1)
+        .all<AvatarRow>();
       const page = results.slice(0, PAGE_SIZE);
       const last = page.at(-1);
       return {
@@ -116,6 +148,14 @@ export function createMarketAvatars({
         nextCursor:
           results.length > PAGE_SIZE && last !== undefined ? `${last.created_at}/${last.id}` : null,
       };
+    },
+
+    async tags(): Promise<MarketplaceAvatarTag[]> {
+      const { results } = await db
+        .prepare(`SELECT tag, count(*) AS count FROM marketplace_avatar_tags
+          GROUP BY tag ORDER BY count DESC, tag LIMIT 30`)
+        .all<MarketplaceAvatarTag>();
+      return results;
     },
 
     async detail(id: string, origin: string) {
@@ -185,8 +225,8 @@ export function createMarketAvatars({
       try {
         await db
           .prepare(`
-          INSERT INTO marketplace_avatars (id, account, request_key, name, description, tags, content_type, created_at, updated_at)
-          SELECT ?, account, ?, ?, ?, ?, ?, ?, ? FROM authors
+          INSERT INTO marketplace_avatars (id, account, request_key, name, description, tags, tag_keys, content_type, created_at, updated_at)
+          SELECT ?, account, ?, ?, ?, ?, ?, ?, ?, ? FROM authors
           WHERE account = ? AND author_id = ? AND terms_accepted_at IS NOT NULL
             AND (SELECT COUNT(*) FROM marketplace_avatars WHERE account = ?) < ?
           ON CONFLICT (account, request_key) DO NOTHING
@@ -197,6 +237,7 @@ export function createMarketAvatars({
             publish.name,
             publish.description,
             JSON.stringify(publish.tags),
+            JSON.stringify([...new Set(publish.tags.map(normalizeMarketplaceAvatarTag))]),
             image.contentType,
             timestamp,
             timestamp,

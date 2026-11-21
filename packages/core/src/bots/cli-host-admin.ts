@@ -18,6 +18,7 @@ export interface HostAdminValues {
   action?: string;
   query?: string;
   topic?: string;
+  tag?: string;
   sort?: string;
   lang?: string;
   cursor?: string;
@@ -62,7 +63,14 @@ export const HOST_ADMIN_COMMANDS = [
     description: 'prepare/reuse protected Tob, its Memory/Workspace/DM and Home status',
   },
   { command: 'marketplace-list', description: 'browse or search Bot Marketplace listings' },
-  { command: 'marketplace-avatar-list', description: 'browse Marketplace Avatars / 浏览市场头像' },
+  {
+    command: 'marketplace-avatar-list',
+    description: 'browse or search Marketplace Avatars / 浏览或搜索市场头像',
+  },
+  {
+    command: 'marketplace-avatar-tags',
+    description: 'list Marketplace Avatar tags with counts / 列出市场头像标签及数量',
+  },
   {
     command: 'marketplace-avatar-detail',
     description: 'read a Marketplace Avatar / 查看市场头像详情',
@@ -206,6 +214,7 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   acknowledge: 1,
   'marketplace-list': 0,
   'marketplace-avatar-list': 0,
+  'marketplace-avatar-tags': 0,
   'marketplace-avatar-detail': 1,
   'marketplace-avatar-report': 1,
   'marketplace-avatar-publish': 0,
@@ -298,6 +307,8 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
   }
   if (values['include-uploads'] === true && command !== 'marketplace-list')
     usage('--include-uploads only applies to marketplace-list.');
+  if (values.tag !== undefined && command !== 'marketplace-avatar-list')
+    usage('--tag only applies to marketplace-avatar-list.');
   if (command === 'marketplace-avatar-apply' && !values.bot?.trim())
     usage('marketplace-avatar-apply needs --bot <bot>.');
   if (values.bot !== undefined && command !== 'marketplace-avatar-apply')
@@ -504,10 +515,13 @@ export async function runHostAdminCommand(
         },
       });
     case 'marketplace-avatar-list':
-      return rpc(
-        'marketplaceAvatarList',
-        values.cursor === undefined ? {} : { cursor: values.cursor },
-      );
+      return rpc('marketplaceAvatarList', {
+        ...(values.cursor === undefined ? {} : { cursor: values.cursor }),
+        ...(values.query === undefined ? {} : { q: values.query }),
+        ...(values.tag === undefined ? {} : { tag: values.tag }),
+      });
+    case 'marketplace-avatar-tags':
+      return { tags: await rpc('marketplaceAvatarTags', {}) };
     case 'marketplace-avatar-detail':
       return rpc('marketplaceAvatarDetail', { id: target });
     case 'marketplace-avatar-apply':

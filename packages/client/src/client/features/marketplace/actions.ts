@@ -31,8 +31,8 @@ export function createMarketplaceActions(
   openCreatedBot: ReturnType<typeof createBotActions>['openCreatedBot'],
 ) {
   return {
-    marketplaceAvatarList: (cursor) =>
-      invoke('marketplaceAvatarList', cursor === undefined ? {} : { cursor }),
+    marketplaceAvatarList: (query = {}) => invoke('marketplaceAvatarList', { ...query }),
+    marketplaceAvatarTags: () => invoke('marketplaceAvatarTags', {}),
     marketplaceAvatarApplyCandidates: () => invoke('marketplaceAvatarApplyCandidates', {}),
     marketplaceAvatarApply: (id, bot) => invoke('marketplaceAvatarApply', { id, bot }),
     async marketplaceAvatarReport(id, altcha, reason) {
@@ -78,6 +78,7 @@ export function createMarketplaceActions(
     Pick<
       BridgeActions,
       | 'marketplaceAvatarList'
+      | 'marketplaceAvatarTags'
       | 'marketplaceAvatarDetail'
       | 'marketplaceAvatarReport'
       | 'marketplaceAvatarApplyCandidates'

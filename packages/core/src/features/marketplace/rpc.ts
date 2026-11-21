@@ -3,6 +3,7 @@ import type {
   MarketplaceAvatar,
   MarketplaceAvatarApplyCandidate,
   MarketplaceAvatarPage,
+  MarketplaceAvatarTag,
 } from '@botharness/host-protocol/marketplace-avatar';
 import type { BotCreationReceipt } from '../../bots/creation.js';
 import type { BotZipUploadStatus } from '../../bots/zip-upload.js';
@@ -199,8 +200,16 @@ export async function marketplaceDigest(
 export async function marketplaceAvatarList(
   methods: MarketplaceBridgeMethods,
   cursor?: string,
+  q?: string,
+  tag?: string,
 ): Promise<MarketplaceAvatarPage> {
-  return unwrapAsync(methods.marketplaceAvatarList(cursor === undefined ? {} : { cursor }));
+  return unwrapAsync(methods.marketplaceAvatarList({ cursor, q, tag }));
+}
+
+export async function marketplaceAvatarTags(
+  methods: MarketplaceBridgeMethods,
+): Promise<MarketplaceAvatarTag[]> {
+  return unwrapAsync(methods.marketplaceAvatarTags());
 }
 
 export async function marketplaceAvatarDetail(

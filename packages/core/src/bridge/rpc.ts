@@ -20,6 +20,7 @@ import { toRemoteError, unwrap, unwrapAsync, type AdminResult } from './rpc-resu
 import type {
   MarketplaceAvatar,
   MarketplaceAvatarPage,
+  MarketplaceAvatarTag,
   MarketplaceAvatarApplyCandidate,
 } from '@botharness/host-protocol/marketplace-avatar';
 import { markRemoteMethods, markRemoteStreams } from './remote-descriptors.js';
@@ -3139,8 +3140,16 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return marketplaceRpc.marketplaceDigest(this.methods, day, lang);
   }
 
-  async marketplaceAvatarList(cursor?: string): Promise<MarketplaceAvatarPage> {
-    return marketplaceRpc.marketplaceAvatarList(this.methods, cursor);
+  async marketplaceAvatarList(
+    cursor?: string,
+    q?: string,
+    tag?: string,
+  ): Promise<MarketplaceAvatarPage> {
+    return marketplaceRpc.marketplaceAvatarList(this.methods, cursor, q, tag);
+  }
+
+  async marketplaceAvatarTags(): Promise<MarketplaceAvatarTag[]> {
+    return marketplaceRpc.marketplaceAvatarTags(this.methods);
   }
 
   async marketplaceAvatarDetail(id: string): Promise<MarketplaceAvatar> {
@@ -3768,6 +3777,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceDigests',
   'marketplaceDigest',
   'marketplaceAvatarList',
+  'marketplaceAvatarTags',
   'marketplaceAvatarDetail',
   'marketplaceAvatarPublish',
   'marketplaceAvatarSource',

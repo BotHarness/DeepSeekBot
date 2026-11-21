@@ -290,6 +290,7 @@ export const CLI_EFFECTS = {
   'marketplace-account': { effects: externalRead, brokerRead: true },
   'marketplace-author': { effects: external, brokerRead: false },
   'marketplace-avatar-list': { effects: externalRead, brokerRead: true },
+  'marketplace-avatar-tags': { effects: externalRead, brokerRead: true },
   'marketplace-avatar-detail': { effects: externalRead, brokerRead: true },
   'marketplace-avatar-report': { effects: external, brokerRead: false },
   'marketplace-blocklist': { effects: externalSecretManagement, brokerRead: false },

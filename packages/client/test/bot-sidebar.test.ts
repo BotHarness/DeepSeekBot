@@ -214,6 +214,7 @@ function stubActions(): BridgeActions {
     }),
     marketplaceList: vi.fn(async () => ({ bots: [] })),
     marketplaceAvatarList: vi.fn(),
+    marketplaceAvatarTags: vi.fn(),
     marketplaceAvatarDetail: vi.fn(),
     marketplaceAvatarReport: vi.fn(),
     marketplaceAvatarApplyCandidates: vi.fn(),

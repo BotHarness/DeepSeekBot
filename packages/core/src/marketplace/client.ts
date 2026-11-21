@@ -3,6 +3,8 @@ import {
   type MarketplaceAvatar as MarketplaceAvatarListing,
   type MarketplaceAvatarPage,
   type MarketplaceAvatarPublish,
+  type MarketplaceAvatarQuery,
+  type MarketplaceAvatarTag,
 } from '@botharness/host-protocol/marketplace-avatar';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 
@@ -162,7 +164,8 @@ export type MarketplaceResult<T> =
   | { ok: false; code: string; path?: string };
 
 export interface MarketplaceClient {
-  avatarList(cursor?: string): Promise<MarketplaceResult<MarketplaceAvatarPage>>;
+  avatarList(query: MarketplaceAvatarQuery): Promise<MarketplaceResult<MarketplaceAvatarPage>>;
+  avatarTags(): Promise<MarketplaceResult<MarketplaceAvatarTag[]>>;
   avatarDetail(id: string): Promise<MarketplaceResult<MarketplaceAvatarListing>>;
   avatarImage(id: string): Promise<MarketplaceResult<Uint8Array>>;
   avatarApplyReceipt(id: string, botHash: string): Promise<MarketplaceResult<{ counted: boolean }>>;
@@ -256,6 +259,26 @@ function parseAvatarPage(value: unknown): MarketplaceAvatarPage | undefined {
   if (!Array.isArray(avatars) || (nextCursor !== null && typeof nextCursor !== 'string')) return;
   const parsed = avatars.map(parseAvatarListing);
   if (parsed.every((avatar) => avatar !== undefined)) return { avatars: parsed, nextCursor };
+}
+
+function parseAvatarTags(value: unknown): MarketplaceAvatarTag[] | undefined {
+  const tags = record(value)?.['tags'];
+  if (!Array.isArray(tags)) return;
+  const parsed: MarketplaceAvatarTag[] = [];
+  for (const item of tags) {
+    const entry = record(item);
+    const tag = entry?.['tag'];
+    const count = entry?.['count'];
+    if (
+      typeof tag !== 'string' ||
+      typeof count !== 'number' ||
+      !Number.isSafeInteger(count) ||
+      count < 1
+    )
+      return;
+    parsed.push({ tag, count });
+  }
+  return parsed;
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -679,11 +702,22 @@ export function createMarketplaceClient(options: {
   };
 
   return {
-    avatarList: (cursor) =>
-      request(
-        '/v1/avatars' + (cursor === undefined ? '' : `?cursor=${encodeURIComponent(cursor)}`),
+    avatarList: ({ cursor, q, tag }) => {
+      const params = new URLSearchParams();
+      if (cursor !== undefined) params.set('cursor', cursor);
+      if (q !== undefined) params.set('q', q);
+      if (tag !== undefined) params.set('tag', tag);
+      return request(
+        params.size === 0 ? '/v1/avatars' : `/v1/avatars?${params}`,
         { method: 'GET', headers: { accept: 'application/json' } },
         parseAvatarPage,
+      );
+    },
+    avatarTags: () =>
+      request(
+        '/v1/avatars/tags',
+        { method: 'GET', headers: { accept: 'application/json' } },
+        parseAvatarTags,
       ),
     avatarDetail: (id) =>
       request(

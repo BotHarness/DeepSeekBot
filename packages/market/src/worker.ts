@@ -1,4 +1,8 @@
 import {
+  MAX_MARKETPLACE_AVATAR_QUERY,
+  MAX_MARKETPLACE_AVATAR_TAG_FILTER,
+} from '../../host-protocol/src/marketplace-avatar.js';
+import {
   createCatalog,
   MAX_QUERY_LENGTH,
   type BrowseSort,
@@ -50,6 +54,7 @@ import {
 import {
   AVATAR_APPLY_ROUTE,
   AVATAR_ROUTE,
+  AVATAR_TAGS_PATH,
   createMarketAvatars,
   readAvatarPublishBody,
 } from './avatars.js';
@@ -189,13 +194,31 @@ export function createMarketHandler(
       const receipt = await deps.avatars.recordApply(appliedAvatarId, botHash);
       return receipt === undefined ? failure(404, 'avatar-not-found') : json(202, receipt);
     }
+    if (url.pathname === AVATAR_TAGS_PATH) {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      if (deps.avatars === undefined) return failure(503, 'avatars-unavailable');
+      return json(200, { tags: await deps.avatars.tags() });
+    }
     const avatar = AVATAR_ROUTE.exec(url.pathname);
     if (avatar !== null) {
       if (request.method === 'GET') {
         if (deps.avatars === undefined) return failure(503, 'avatars-unavailable');
         const id = avatar[1];
         if (id === undefined) {
-          const page = await deps.avatars.list(url.searchParams.get('cursor'), url.origin);
+          const cursor = url.searchParams.get('cursor') ?? undefined;
+          const q = url.searchParams.get('q')?.trim() ?? '';
+          const tag = url.searchParams.get('tag')?.trim() ?? '';
+          if (q.length > MAX_MARKETPLACE_AVATAR_QUERY) return failure(400, 'invalid-query');
+          if ([...tag].length > MAX_MARKETPLACE_AVATAR_TAG_FILTER)
+            return failure(400, 'invalid-tag');
+          const page = await deps.avatars.list(
+            {
+              ...(cursor === undefined ? {} : { cursor }),
+              ...(q === '' ? {} : { q }),
+              ...(tag === '' ? {} : { tag }),
+            },
+            url.origin,
+          );
           return page === undefined ? failure(400, 'invalid-cursor') : json(200, page);
         }
         if (avatar[2] !== undefined) {
@@ -576,7 +599,7 @@ export function createMarketHandler(
       await route(request),
       pathname.endsWith('/image') && AVATAR_ROUTE.test(pathname)
         ? 'no-store'
-        : AVATAR_ROUTE.test(pathname)
+        : AVATAR_ROUTE.test(pathname) || pathname === AVATAR_TAGS_PATH
           ? 'no-cache'
           : undefined,
     );

@@ -245,7 +245,8 @@ Usage:
   tobs marketplace-digest [--day YYYY-MM-DD] [--lang zh|en]
   tobs marketplace-digests [--lang zh|en]
   tobs marketplace-detail <owner/repo>
-  tobs marketplace-avatar-list [--cursor <cursor>]  Browse Marketplace Avatars / 浏览市场头像
+  tobs marketplace-avatar-list [--query <words>] [--tag <tag>] [--cursor <cursor>]  Browse or search Marketplace Avatars / 浏览或搜索市场头像
+  tobs marketplace-avatar-tags  List Marketplace Avatar tags with counts / 列出市场头像标签及数量
   tobs marketplace-avatar-detail <id>  Read a Marketplace Avatar / 查看市场头像详情
   tobs marketplace-avatar-report <id> [--reason <text>]  Report a Marketplace Avatar / 举报市场头像
   tobs marketplace-blocklist <block|restore> <bot|avatar> <id-or-url>  Moderate a Marketplace entry / 封禁或恢复市场条目
