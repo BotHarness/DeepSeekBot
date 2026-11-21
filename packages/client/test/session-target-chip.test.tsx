@@ -30,30 +30,29 @@ it('uses a single provider badge and the model name in a Sessions row', () => {
     />,
   );
   expect(result).toContain('data-model-brand="openai"');
-  expect(result.match(/data-external-engine-badge/g)).toHaveLength(1);
-  expect(result).toContain('aria-label="外部引擎"');
+  expect(result).toContain('>订阅<');
+  expect(result).not.toContain('ChatGPT');
   expect(result).toContain('>GPT-6.2-Sol<');
 });
 
-it('shows the catalog model, engine and account in the header and labels a native fallback as a native model', () => {
+it('shows short names and distinguishes subscriptions from API routes', () => {
   const engine = renderToStaticMarkup(
     <SessionTargetChip
       target={{ kind: 'engine', engine: 'claude', account: 'Claude Max', model: 'claude-opus-5-5' }}
       catalog={catalog}
-      header
       t={zhTranslate}
     />,
   );
-  expect(engine).toContain('>Opus 5.5 · Claude Code · Max<');
-  expect(engine).toContain('title="Claude Code · Max · Opus 5.5"');
+  expect(engine).toContain('>Opus 5.5<');
+  expect(engine).not.toContain('Claude Code');
+  expect(engine).not.toContain('Claude Max');
   const fallback = renderToStaticMarkup(
     <SessionTargetChip
       target={{ kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' }}
       engine={{ engine: 'codex', account: 'ChatGPT Pro' }}
-      header
       t={zhTranslate}
     />,
   );
   expect(fallback).toContain('data-model-brand="deepseek"');
-  expect(fallback).not.toContain('data-external-engine-badge');
+  expect(fallback).toContain('>API<');
 });

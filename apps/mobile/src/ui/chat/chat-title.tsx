@@ -1,9 +1,7 @@
-import { HeaderSessionModel } from './header-session-model';
 import { useHeaderStatus } from './use-header-status';
 import { HeaderTitleButton } from './header-title-button';
 import { ConnectionProgress } from '../primitives/connection-progress';
-import type { RefCallback } from 'react';
-import { View, type ViewInstance } from 'react-native';
+import { View } from 'react-native';
 
 import type { RosterBot } from '@botharness/host-client/client';
 import { BotAvatar } from '../bot-avatar';
@@ -12,7 +10,6 @@ import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { titleChipFill } from './header-chrome';
-import type { HeaderModel } from './composer-labels';
 import {
   barLabelStyle,
   barLabelProps,
@@ -27,15 +24,11 @@ export function ChatTitle({
   bot,
   fallback,
   connectionLabel,
-  model,
-  modelMount,
   onPress,
 }: {
   bot: RosterBot | undefined;
   fallback: string;
   connectionLabel?: string | undefined;
-  model?: HeaderModel | undefined;
-  modelMount?: RefCallback<ViewInstance> | undefined;
   onPress(): void;
 }) {
   const t = useStrings();
@@ -44,8 +37,6 @@ export function ChatTitle({
   const avatarSize = AVATAR * contentScale;
   const headerStatus = useHeaderStatus(bot, undefined);
   const name = bot?.displayName ?? fallback;
-  const shownModel = connectionLabel === undefined ? model : undefined;
-  const external = shownModel?.external === true;
   const status = (
     <Text
       {...barLabelProps}
@@ -61,15 +52,7 @@ export function ChatTitle({
     <HeaderTitleButton
       testID="bot-details-chip"
       accessibilityRole="button"
-      accessibilityLabel={[
-        name,
-        shownModel?.name,
-        shownModel?.external ? t.routingGroup.externalEngine : undefined,
-        headerStatus.label,
-        connectionLabel,
-      ]
-        .filter(Boolean)
-        .join(', ')}
+      accessibilityLabel={[name, headerStatus.label, connectionLabel].filter(Boolean).join(', ')}
       accessibilityState={{ busy: connectionLabel !== undefined }}
       accessibilityHint={t.openProfile}
       disabled={bot === undefined}
@@ -92,7 +75,7 @@ export function ChatTitle({
       ) : (
         <View style={{ width: avatarSize, height: avatarSize }} />
       )}
-      <View ref={modelMount} style={{ flex: 1, minWidth: 0 }}>
+      <View style={{ flex: 1, minWidth: 0 }}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x2 }}>
           <Text
             {...barLabelProps}
@@ -103,17 +86,8 @@ export function ChatTitle({
           >
             {name}
           </Text>
-          {external ? status : null}
         </View>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
-          {shownModel === undefined ? null : <HeaderSessionModel model={shownModel} />}
-          {shownModel !== undefined && !external ? (
-            <Text variant="meta" tone="muted">
-              ·
-            </Text>
-          ) : null}
-          {external ? null : status}
-        </View>
+        {status}
       </View>
       <ConnectionProgress active={connectionLabel !== undefined} />
     </HeaderTitleButton>

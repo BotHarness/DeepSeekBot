@@ -1,3 +1,5 @@
+import { attachOperationalModule } from '../src/database/owner.js';
+import { sessionModelChoices } from '../src/runtime/session-model-choices.js';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createBridgeMethods } from '../src/bridge/methods.js';
@@ -54,7 +56,13 @@ function fixture(local = true) {
     f.team.roles.update(owner, role.roleId, { models: { kind: 'all', engineAccounts } });
   grant();
   const modelPresets = createModelPresetStore({ database: f.db, rootDir: f.root });
+  attachOperationalModule(f.db, 'session-ownership').transaction((db) => {
+    db.prepare(
+      "INSERT INTO session_ownership (session_id, bot_slug, root_role, created_at) VALUES ('session', 'ada', 'orchestrator', '2026-11-14T12:00:00Z')",
+    ).run();
+  });
   const deps = {
+    sessionModels: sessionModelChoices(attachOperationalModule(f.db, 'bot-runtime')),
     ...f.deps,
     modelPresets,
     subscriptionEngines: host,
@@ -80,6 +88,20 @@ function fixture(local = true) {
 }
 
 describe('Team subscription grants', () => {
+  it('checks the acting Team member’s account grant before saving a Session Model Choice', async () => {
+    const f = fixture();
+    const choice = { kind: 'engine', engine: 'codex', accountId: f.work.id, model: 'gpt-test' };
+    const payload = { slug: 'ada', sessionId: 'session' };
+    expect(await f.methods.sessionModel({ ...payload, choice })).toMatchObject(refusal(f.work.id));
+    f.grant(f.work.id);
+    expect(await f.methods.sessionModel({ ...payload, choice })).toMatchObject({
+      ok: true,
+      value: { override: choice },
+    });
+    f.grant();
+    expect(await f.methods.sessionModel({ ...payload, choice })).toMatchObject(refusal(f.work.id));
+  });
+
   it('unions explicit accounts across API policies and applies the delegation ceiling', () => {
     const f = fixture();
     f.grant(f.work.id, f.work.id);

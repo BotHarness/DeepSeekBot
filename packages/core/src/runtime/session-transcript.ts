@@ -1,6 +1,6 @@
 import { isEngineId } from '@botharness/host-protocol/subscription-engine';
-import type { TurnTarget } from '@botharness/host-protocol/turn-target';
-import type { TurnTargetSegment } from './turn-targets.js';
+import type { TurnModelSwitch, TurnTarget } from '@botharness/host-protocol/turn-target';
+import { turnSwitchBetween, type TurnTargetSegment } from './turn-targets.js';
 import type { ToolCallKind } from '@deepseek-ai/dsh-tools';
 
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
@@ -49,6 +49,7 @@ export type SessionTranscriptItem =
       origin?: 'session-detail';
       envelope?: SessionTranscriptEnvelope;
     }
+  | ({ kind: 'model-switch'; at: string } & TurnModelSwitch)
   | { kind: 'reply'; text: string; at: string; turnTargets?: TurnTarget[] }
   | { kind: 'reasoning'; text: string; at: string; durationMs?: number }
   | {
@@ -260,6 +261,14 @@ export function summarizeSessionTranscript(input: {
   let request: string | undefined;
   let targets: TurnTarget[] = [];
   const segments = input.segments ?? [];
+  const switches = new Map<number, TurnModelSwitch>();
+  let previous: TurnTargetSegment | undefined;
+  for (const [index, segment] of segments.entries()) {
+    if (segments[index + 1]?.turn === segment.turn || segment.target.model === undefined) continue;
+    const change = turnSwitchBetween(previous?.target, segment.target, segment.switchReason);
+    if (change !== undefined) switches.set(segment.turn, change);
+    previous = segment;
+  }
   const advanceTargets = (step: number) => {
     while (segmentIndex < segments.length) {
       const segment = segments[segmentIndex]!;
@@ -284,6 +293,8 @@ export function summarizeSessionTranscript(input: {
     if (event.type === 'turn/start') {
       turn += 1;
       recordedTurn = typeof data['turn'] === 'number' ? data['turn'] : turn;
+      const modelSwitch = switches.get(recordedTurn);
+      if (modelSwitch !== undefined) items.push({ kind: 'model-switch', at, ...modelSwitch });
       const previousTargets = targets;
       targets = [];
       const next = segments[segmentIndex];

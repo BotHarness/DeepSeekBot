@@ -947,7 +947,11 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         botSlug: run.bot.slug,
         ...(run.observeTurnTarget === undefined
           ? {}
-          : { observeTurnTarget: run.observeTurnTarget }),
+          : {
+              observeTurnTarget: (turn, step, target) =>
+                run.observeTurnTarget?.(turn, step, target, run.switchReason),
+            }),
+        ...(run.groupEffort === undefined ? {} : { groupEffort: run.groupEffort }),
         ...(run.routingTarget?.kind === 'engine' ? { target: run.routingTarget } : {}),
         ...(run.continuingFromNativeRoute ? { continuingFromNativeRoute: true } : {}),
         ...(sessionCwd === undefined ? {} : { sessionCwd }),
@@ -1288,12 +1292,17 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     if (frame.type === 'start') {
       const active = this.#runs.get(sessionId);
       const config = agent?.session.requestHeader()?.config;
-      if (active?.role === 'orchestrator' && config !== undefined)
-        active.run.observeTurnTarget?.(frame.turn, frame.step, {
-          kind: 'dsh',
-          provider: config.provider,
-          model: config.model,
-        });
+      if (active !== undefined && config !== undefined)
+        active.run.observeTurnTarget?.(
+          frame.turn,
+          frame.step,
+          {
+            kind: 'dsh',
+            provider: config.provider,
+            model: config.model,
+          },
+          active.run.switchReason,
+        );
     }
     this.#drafts.accept(sessionId, frame);
   }
@@ -1352,7 +1361,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     const handle = this.#handles.get(run.sessionId);
     const active = this.#runs.get(run.sessionId);
     if (handle !== undefined && active?.role === 'assignment') {
-      this.#selectAssignmentModel(run);
+      if (active.run.routingTarget === undefined) this.#selectAssignmentModel(run);
       try {
         handle.agent.steer(assignmentMessage(run.text));
       } catch (error) {
@@ -1433,6 +1442,15 @@ class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #assignmentGroupRuns = new Set<string>();
 
   async #driveAssignment(run: AssignmentAgentRun, accepted?: () => void): Promise<void> {
+    const model = run.sessionModel?.();
+    try {
+      await this.#runAssignmentTurn(model?.apply(run) ?? run, accepted);
+    } finally {
+      model?.finish();
+    }
+  }
+
+  async #runAssignmentTurn(run: AssignmentAgentRun, accepted?: () => void): Promise<void> {
     const select = run.selectGroupTarget;
     if (select === undefined) return this.#driveAssignmentAttempt(run, accepted);
     const { bot, sessionId, modelRoute: _modelRoute, ...initial } = run;
@@ -1633,6 +1651,12 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         (await engines.runTurn({
           botSlug: run.bot.slug,
           role: 'assignment',
+          ...(run.observeTurnTarget === undefined
+            ? {}
+            : {
+                observeTurnTarget: (turn, step, observed) =>
+                  run.observeTurnTarget?.(turn, step, observed, run.switchReason),
+              }),
           ...(target === undefined ? {} : { target }),
           ...(run.groupEffort === undefined ? {} : { groupEffort: run.groupEffort }),
           ...(run.continuingFromNativeRoute ? { continuingFromNativeRoute: true } : {}),

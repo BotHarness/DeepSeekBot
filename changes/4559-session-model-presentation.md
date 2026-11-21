@@ -1,11 +1,11 @@
 ---
-section: Fixed
+section: Changed
 ---
 
 ## en
 
-- Session headers show the model name, subscription engine and account. Session model labels show the engine catalog’s model name, the model’s logo, and an external engine badge. Group messages in Session detail show the Human’s text without the Bot’s reply instructions. ([#4559](https://github.com/BotHarness/DeepSeekBot/issues/4559))
+- Choose a model or Routing Group for an Orchestrator or Assignment Session in its desktop composer. A choice made during a Turn applies from the next Turn. Session timelines mark model changes and explain quota fallbacks. ([#4559](https://github.com/BotHarness/DeepSeekBot/issues/4559))
 
 ## zh
 
-- 会话标题栏显示模型名称、订阅引擎和账号。会话的模型标签显示引擎目录中的模型名称、模型标志和外部引擎标记。会话详情中的群聊消息显示用户原文，不再显示给 Bot 的回复指令。([#4559](https://github.com/BotHarness/DeepSeekBot/issues/4559))
+- 在桌面端会话的输入框中为 Orchestrator 或 Assignment 会话选择模型或路由组。运行期间修改的选择从下一轮生效。会话时间线标记模型切换，并显示因额度用完而切换的原因。([#4559](https://github.com/BotHarness/DeepSeekBot/issues/4559))

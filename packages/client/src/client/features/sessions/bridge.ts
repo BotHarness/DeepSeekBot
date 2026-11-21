@@ -1,3 +1,8 @@
+import {
+  sessionModelChoice,
+  type SessionModelChoice,
+  type SessionModelState,
+} from '@botharness/host-protocol/session-model';
 import { asRecord, bridgeHost, unwrap, type BridgeCall } from '../../bridge-transport.js';
 import * as botControl from '@botharness/host-client/bot-control';
 import type {
@@ -8,6 +13,8 @@ import type {
 import {
   isTurnTarget,
   isTurnTargetPath,
+  isTurnTargetSwitchReason,
+  type TurnModelSwitch,
   type TurnTarget,
 } from '@botharness/host-protocol/turn-target';
 import type { OwnedSessionSummary } from '../../store.js';
@@ -295,6 +302,7 @@ export type SessionTranscriptItem =
       trigger?: SessionTranscriptTrigger;
       envelope?: SessionTranscriptEnvelope;
     }
+  | ({ kind: 'model-switch'; at: string } & TurnModelSwitch)
   | { kind: 'reply'; text: string; at: string; live?: true; turnTargets?: TurnTarget[] }
   | {
       kind: 'reasoning';
@@ -526,6 +534,18 @@ function parseTranscriptItem(value: unknown): SessionTranscriptItem | undefined 
           }
         : undefined;
     }
+    case 'model-switch': {
+      const { from, to, reason } = item;
+      return isTurnTarget(from) && isTurnTarget(to)
+        ? {
+            kind: 'model-switch',
+            at,
+            from,
+            to,
+            ...(isTurnTargetSwitchReason(reason) ? { reason } : {}),
+          }
+        : undefined;
+    }
     case 'turn-end': {
       const usage = parseUsage(item['usage']);
       return TRANSCRIPT_END_STATES.includes(item['state'] as string)
@@ -666,6 +686,28 @@ export async function loadSessionToolDetail(
   const detail = parseSessionToolDetail(value?.['detail']);
   if (detail === undefined) throw new Error('invalid sessionToolDetail response');
   return detail;
+}
+
+export async function sessionModel(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+  choice?: SessionModelChoice | null,
+): Promise<SessionModelState> {
+  const value = asRecord(
+    await unwrap(call, 'sessionModel', {
+      slug,
+      sessionId,
+      ...(choice === undefined ? {} : { choice }),
+    }),
+  );
+  if (value === undefined || !('override' in value) || !('default' in value))
+    throw new Error('invalid sessionModel response');
+  return {
+    override: sessionModelChoice(value.override) ?? null,
+    default: sessionModelChoice(value.default) ?? null,
+    ...(value.active === undefined ? {} : { active: sessionModelChoice(value.active) ?? null }),
+  };
 }
 
 export async function loadSessionTranscript(

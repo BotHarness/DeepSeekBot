@@ -1,4 +1,12 @@
 import {
+  sessionModelChoice,
+  type SessionModelChoice,
+  type SessionModelState,
+} from '@botharness/host-protocol/session-model';
+import { sessionRouteChoice } from '../../runtime/session-model-choices.js';
+import { routingGroupFailure, type createModelRoutingHelpers } from '../models/routing.js';
+import { EngineRefusal } from '../../engines/engine-session.js';
+import {
   asNonBlank,
   asObject,
   asSlug,
@@ -77,6 +85,7 @@ export interface SessionsBridgeMethods {
   idleCompactionSet(payload: unknown): BridgeResult<IdleCompactionView>;
   idleCompactionCacheLifetimeSet(payload: unknown): BridgeResult<IdleCompactionView>;
   compactionThresholdSet(payload: unknown): BridgeResult<IdleCompactionView>;
+  sessionModel(payload: unknown): Promise<BridgeResult<SessionModelState>>;
   sessionTranscript(
     payload: unknown,
   ): Promise<
@@ -191,6 +200,11 @@ export function createSessionsBridgeMethods(
   deps: Pick<
     BridgeMethodsDeps,
     | 'botContext'
+    | 'sessionModels'
+    | 'engineSelection'
+    | 'routingGroups'
+    | 'modelCatalog'
+    | 'subscriptionEngines'
     | 'channels'
     | 'defaultModel'
     | 'describeEngineSession'
@@ -206,6 +220,7 @@ export function createSessionsBridgeMethods(
     | 'usage'
   >,
   botInChannel: (channel: ChannelRecord, botSlug: string) => boolean,
+  routing: ReturnType<typeof createModelRoutingHelpers>,
 ): SessionsBridgeMethods {
   async function appendStopNotice(
     channelId: string,
@@ -543,6 +558,118 @@ export function createSessionsBridgeMethods(
       deps.idleCompaction.applyThreshold?.();
       deps.idleCompaction.rescan();
       return { ok: true, value: idleCompactionView(deps.idleCompaction) };
+    },
+    async sessionModel(payload) {
+      const input = asObject(payload);
+      const slug = asSlug(payload);
+      const sessionId = asNonBlank(input, 'sessionId');
+      if (slug === undefined || sessionId === undefined)
+        return invalidInput('slug and sessionId are required');
+      const bot = deps.registry.get(slug);
+      if (bot === undefined) return unknownBot(slug);
+      const owner = deps.ownership.resolve(sessionId);
+      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+        return { ok: false, error: { code: 'not-found', message: 'Unknown root Session' } };
+      const store = deps.sessionModels;
+      if (store === undefined) return unavailable();
+      const proposed = input['choice'];
+      if (proposed !== undefined) {
+        const choice = proposed === null ? null : sessionModelChoice(proposed);
+        if (choice === undefined) return invalidInput('Invalid Session Model Choice');
+        try {
+          const requireChoice = () => {
+            deps.team?.roles.require(human, 'models.use');
+            if (choice?.kind === 'group') {
+              routing.requireRoutes(slug, routing.groupRoutes(choice.id));
+              routing.requireGroupEngines(choice.id, slug);
+            } else if (choice?.kind === 'engine') {
+              routing.requireEngineChoices([choice], slug);
+              routing.assertEngineAccounts([choice]);
+            } else if (choice?.kind === 'model') {
+              const { provider, model, effort } = choice;
+              routing.requireRoutes(slug, [
+                { provider, model, ...(effort === undefined ? {} : { reasoningEffort: effort }) },
+              ]);
+            }
+          };
+          requireChoice();
+          if (choice?.kind === 'engine') {
+            if (deps.subscriptionEngines === undefined)
+              throw new EngineRefusal('engine-unavailable', 'Subscription Engines are unavailable');
+            await deps.subscriptionEngines.validateChoice(choice.engine, choice);
+          } else if (choice?.kind === 'model') {
+            if (deps.modelCatalog === undefined) return unavailable();
+            const { provider, model, effort } = choice;
+            await deps.modelCatalog.validate({
+              provider,
+              model,
+              ...(effort === undefined ? {} : { reasoningEffort: effort }),
+            });
+          } else if (choice?.kind === 'group') {
+            await routing.requireGroupEfforts(
+              choice.id,
+              choice.effort === undefined ? [] : [choice.effort],
+            );
+          }
+          requireChoice();
+          if (
+            deps.ownership.resolve(sessionId)?.botSlug !== slug ||
+            deps.registry.get(slug) === undefined
+          )
+            return unknownBot(slug);
+          store.set(sessionId, choice);
+        } catch (error) {
+          return routingGroupFailure(error);
+        }
+      }
+      const role = owner.rootRole;
+      const plan = bot.modelPlan;
+      const engine = deps.engineSelection?.store
+        .selections()
+        .find((entry) => entry.botSlug === slug && entry.role === role);
+      const inherited = deps.routingGroups?.defaultGroup();
+      const assignment =
+        role === 'assignment' ? deps.runtime?.getAssignment(slug, sessionId) : undefined;
+      const group =
+        role === 'assignment'
+          ? (assignment?.modelGroupId ?? plan?.assignmentDefaultGroupId)
+          : plan === undefined
+            ? inherited?.groupId
+            : plan.orchestratorGroupId;
+      const groupEffort =
+        role === 'orchestrator'
+          ? plan === undefined
+            ? inherited?.effort
+            : plan.orchestratorGroupEffort
+          : assignment?.modelGroupEffort;
+      const route =
+        (role === 'assignment'
+          ? (assignment?.modelRoute ?? plan?.assignmentDefault)
+          : plan?.orchestrator) ??
+        deps.defaultModel?.currentSelection() ??
+        deps.modelCatalog?.defaultRoute?.();
+      const defaultChoice: SessionModelChoice | null =
+        engine !== undefined
+          ? (sessionModelChoice({ ...engine, kind: 'engine', model: engine.model ?? 'default' }) ??
+            null)
+          : group !== undefined
+            ? {
+                kind: 'group',
+                id: group,
+                ...(groupEffort === undefined ? {} : { effort: groupEffort }),
+              }
+            : route === undefined
+              ? null
+              : sessionRouteChoice(route);
+      const active = deps.runtime?.activeSessionModel?.(sessionId);
+      return {
+        ok: true,
+        value: {
+          override: store.get(sessionId),
+          default: defaultChoice,
+          ...(active === undefined ? {} : { active }),
+        },
+      };
     },
     async sessionTranscript(payload) {
       const source = asObject(payload);

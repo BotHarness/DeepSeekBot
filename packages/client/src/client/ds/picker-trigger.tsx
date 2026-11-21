@@ -30,6 +30,7 @@ const styles = stylex.create({
     cursor: { default: 'pointer', ':disabled': 'default' },
     opacity: { default: 1, ':disabled': 0.5 },
   },
+  compact: { height: style.controlHeightSmall, boxShadow: 'none', backgroundColor: 'transparent' },
   invalid: { boxShadow: `inset 0 0 0 1px ${status.dangerBase}` },
   icon: { display: 'inline-flex', flexShrink: 0 },
   label: {
@@ -59,6 +60,7 @@ const styles = stylex.create({
 
 export interface PickerTriggerProps {
   readonly label: string;
+  readonly compact?: boolean;
   readonly icon?: ReactNode;
   readonly hint?: string | undefined;
   readonly hintIcon?: ReactNode;
@@ -75,6 +77,7 @@ export const PickerTrigger = forwardRef<HTMLButtonElement, PickerTriggerProps>(
   function PickerTrigger(
     {
       label,
+      compact = false,
       icon,
       hint,
       hintIcon,
@@ -100,7 +103,7 @@ export const PickerTrigger = forwardRef<HTMLButtonElement, PickerTriggerProps>(
         data-picker-trigger=""
         disabled={disabled}
         onClick={onClick}
-        {...stylex.props(styles.trigger, invalid && styles.invalid)}
+        {...stylex.props(styles.trigger, compact && styles.compact, invalid && styles.invalid)}
       >
         {icon === undefined ? null : <span {...stylex.props(styles.icon)}>{icon}</span>}
         <span {...stylex.props(styles.label, placeholder && styles.placeholder)}>{label}</span>

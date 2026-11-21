@@ -1,3 +1,7 @@
+import type { SessionModelChoice } from '@botharness/host-protocol/session-model';
+import type { TurnTargetSwitchReason } from '@botharness/host-protocol/turn-target';
+import { routingTargetRestKey } from '../models/group-fallback.js';
+import { directSessionTarget, sessionModelChoices } from './session-model-choices.js';
 import { createOrchestratorScheduling } from './orchestrator-scheduling.js';
 import {
   createOrchestratorCancellation,
@@ -24,6 +28,7 @@ import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import {
   lastTurnTarget,
   readTurnTargets,
+  readTurnModelSwitch,
   recordTurnTarget,
   type TurnTargetSegment,
 } from './turn-targets.js';
@@ -283,6 +288,8 @@ export interface AssignmentSummary {
   openAsk?: AssignmentOpenAsk;
   permission?: AssignmentPermissionSnapshot;
   modelRoute?: ModelRoute;
+  modelGroupId?: string;
+  modelGroupEffort?: string;
   agentPreset?: string;
   archivedAt?: string;
   createdAt: string;
@@ -415,7 +422,14 @@ export interface OrchestratorAssignmentAccess {
 
 export interface OrchestratorAgentRun {
   routingTarget?: RoutingTarget;
-  observeTurnTarget?(turn: number, step: number, target: TurnTarget): void;
+  observeTurnTarget?(
+    turn: number,
+    step: number,
+    target: TurnTarget,
+    reason?: TurnTargetSwitchReason,
+  ): void;
+  switchReason?: TurnTargetSwitchReason;
+  groupEffort?: string | null;
   continuingFromNativeRoute?: true;
   inputAccepted?(): void;
   canUseEngineChannel?(channelId: string): boolean;
@@ -557,6 +571,13 @@ export interface InterruptedToolCall {
 }
 
 export interface AssignmentAgentRun {
+  observeTurnTarget?: OrchestratorAgentRun['observeTurnTarget'];
+  switchReason?: TurnTargetSwitchReason;
+  sessionModel?(): {
+    choice: SessionModelChoice | null;
+    apply(run: AssignmentAgentRun): AssignmentAgentRun;
+    finish(): void;
+  };
   beginTurn?(): void;
   acceptNativeInput?: () => boolean;
   setExecutionReady?(ready: boolean): void;
@@ -765,7 +786,7 @@ export interface BotReactionResult {
 }
 
 export interface OrchestratorServiceTurn {
-  replyTargets?: () => readonly TurnTarget[];
+  replyTargets?: () => readonly TurnTargetSegment[];
   modelContent?: string;
   sessionId: string;
   channelId: string | undefined;
@@ -1015,6 +1036,7 @@ export interface BotRuntime {
   latestAssignmentActivity?(): ReadonlyMap<string, number>;
   currentOrchestratorSessionId?(botSlug: string): string | undefined;
   currentTurnTarget?(botSlug: string): TurnTarget | undefined;
+  activeSessionModel?(sessionId: string): SessionModelChoice | null | undefined;
   sessionTurnTarget?(sessionId: string): TurnTarget | undefined;
   sessionTurnTargets?(sessionId: string): TurnTargetSegment[];
   replaceOrchestrator?<T>(botSlug: string, body: () => T): Promise<OrchestratorReplacement<T>>;
@@ -1353,6 +1375,8 @@ function assignmentFromRow(row: AssignmentRow): AssignmentDetail {
     ...(openAsk === undefined ? {} : { openAsk }),
     ...(permissionFromRow(row) === undefined ? {} : { permission: permissionFromRow(row)! }),
     ...(modelRouteFromRow(row) === undefined ? {} : { modelRoute: modelRouteFromRow(row)! }),
+    ...(typeof row.model_group_id === 'string' ? { modelGroupId: row.model_group_id } : {}),
+    ...(typeof row.model_effort === 'string' ? { modelGroupEffort: row.model_effort } : {}),
     ...(typeof row.agent_preset === 'string' ? { agentPreset: row.agent_preset } : {}),
     ...(isArchivedRow(row) ? { archivedAt: row.archived_at } : {}),
   };
@@ -1670,6 +1694,8 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #team: TeamService | undefined;
   readonly #externalMessaging: OutboundMessaging | undefined;
   readonly #database: OperationalDatabaseModulePort;
+  readonly #sessionModels: ReturnType<typeof sessionModelChoices>;
+  readonly #activeSessionModels = new Map<string, SessionModelChoice | null>();
   readonly #ownership: SessionOwnership;
   readonly #grants: WorkspaceGrantStore | undefined;
   readonly #assignmentAccessPresetStore: AssignmentAccessStore | undefined;
@@ -1795,6 +1821,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#onTobDelegation = options.onTobDelegation ?? (() => {});
     this.#externalMessaging = options.externalMessaging;
     this.#database = attachOperationalModule(options.database, 'bot-runtime');
+    this.#sessionModels = sessionModelChoices(this.#database);
     this.#grants = options.grants;
     this.#assignmentAccessPresetStore = options.assignmentAccess;
     this.#ownership =
@@ -4892,6 +4919,10 @@ class BotRuntimeImplementation implements BotRuntime {
     return sessionId === undefined ? undefined : this.sessionTurnTarget(sessionId);
   }
 
+  activeSessionModel(sessionId: string): SessionModelChoice | null | undefined {
+    return this.#activeSessionModels.get(sessionId);
+  }
+
   sessionTurnTarget(sessionId: string): TurnTarget | undefined {
     return lastTurnTarget(this.#database, sessionId);
   }
@@ -5324,6 +5355,7 @@ class BotRuntimeImplementation implements BotRuntime {
           );
           try {
             await this.#agents.runAssignment({
+              ...this.#assignmentModelSelection(bot.slug, sessionId),
               sessionId,
               bot,
               text: '',
@@ -5885,15 +5917,24 @@ class BotRuntimeImplementation implements BotRuntime {
     if (!this.#memberBotEnabled(bot)) throw new TobError('permission-required');
     const readAdmissions = new Set<string>();
     this.#requireExecution?.(bot.slug);
+    const choice =
+      tobCliTurn === undefined ? this.#sessionModels.get(orchestrator.sessionId) : null;
     const explicitEngine =
       tobCliTurn === undefined && this.#agents.runsOnEngine?.(bot.slug) === true;
+    const selectGroup = async (attempted?: ReadonlySet<string>) =>
+      choice?.kind === 'group'
+        ? this.#pickSessionGroup(bot.slug, choice, attempted)
+        : this.#groupFallback?.pickMixedOrchestrator?.(bot.slug, attempted);
     const group =
-      tobCliTurn === undefined && !explicitEngine
-        ? await this.#groupFallback?.pickMixedOrchestrator?.(bot.slug)
+      tobCliTurn === undefined && (choice?.kind === 'group' || (choice === null && !explicitEngine))
+        ? await selectGroup()
         : undefined;
     if (group?.kind === 'exhausted') throw new RouteRestingError(group.rests, group.subscription);
     if (group?.kind === 'unavailable') throw new RoutingGroupUnavailableError();
-    const routingTarget = group?.target;
+    const routingTarget =
+      choice !== null && choice.kind !== 'group' ? directSessionTarget(choice) : group?.target;
+    if (routingTarget?.kind === 'route') this.#requireModelRoute?.(bot.slug, routingTarget.route);
+    let switchReason = group?.switchReason;
     if (routingTarget === undefined && !explicitEngine) {
       if (!orchestrator.resume) await this.#groupFallback?.start(bot.slug, orchestrator.sessionId);
       const fallback = await this.#continuation.fallBack(
@@ -5902,6 +5943,7 @@ class BotRuntimeImplementation implements BotRuntime {
         channelId,
       );
       if (fallback !== undefined && !('kind' in fallback)) throw new RouteRestingError(fallback);
+      if (fallback?.kind === 'switch') switchReason = fallback.reason;
     }
     const turnSources = new Set([
       ...(sourceEventId === undefined ? [] : [sourceEventId]),
@@ -5909,6 +5951,7 @@ class BotRuntimeImplementation implements BotRuntime {
       ...reportEventIds,
       ...nativeSourceIds,
     ]);
+    this.#activeSessionModels.set(orchestrator.sessionId, choice);
     this.#turnSources.set(bot.slug, {
       sessionId: orchestrator.sessionId,
       eventIds: turnSources,
@@ -6052,17 +6095,30 @@ class BotRuntimeImplementation implements BotRuntime {
       const envelope = this.#speakerInput(bot.slug, orchestrator.sessionId, [...turnSources], body);
       const request = randomUUID();
       const segments: TurnTargetSegment[] = [];
-      const observeTurnTarget = (turn: number, step: number, target: TurnTarget): void => {
+      const observeTurnTarget: NonNullable<OrchestratorAgentRun['observeTurnTarget']> = (
+        turn,
+        step,
+        target,
+        reason,
+      ) => {
         const previous = segments.at(-1);
         if (previous?.turn === turn && JSON.stringify(previous.target) === JSON.stringify(target))
           return;
-        const segment = { turn, step, request, target };
+        const segment = {
+          turn,
+          step,
+          request,
+          target,
+          ...(reason === undefined ? {} : { switchReason: reason }),
+        };
         recordTurnTarget(this.#database, orchestrator.sessionId, segment);
         if (previous?.turn === turn && previous.step === step) segments.pop();
         segments.push(segment);
       };
       const run: OrchestratorAgentRun & { triage: OrchestratorInboxTriage } = {
         observeTurnTarget,
+        ...(switchReason === undefined ? {} : { switchReason }),
+        ...(choice === null ? {} : { groupEffort: choice.effort ?? null }),
         ...(tobCliTurn === undefined ? {} : { tobCliTurn }),
         setExecutionReady: (ready) => {
           if (ready) {
@@ -6144,11 +6200,26 @@ class BotRuntimeImplementation implements BotRuntime {
           observeMemory,
           observeReads: true,
           modelContent: body + '\n' + inbox,
-          replyTargets: () => segments.map((segment) => segment.target),
+          replyTargets: () => segments,
         }),
       };
-      if (routingTarget === undefined) await this.#agents.runOrchestrator(run);
-      else await this.#continuation.runMixedGroupTurn(run, routingTarget, sourceEventId);
+      if (group?.kind === 'target') {
+        await this.#continuation.runMixedGroupTurn(run, group.target, sourceEventId, selectGroup);
+      } else {
+        try {
+          await this.#agents.runOrchestrator({
+            ...run,
+            ...(routingTarget === undefined ? {} : { routingTarget }),
+          });
+        } catch (error) {
+          const rest =
+            routingTarget === undefined
+              ? undefined
+              : this.#continuation.routingTargetFailure(routingTarget, error);
+          if (rest !== undefined) throw new RouteRestingError([rest]);
+          throw error;
+        }
+      }
       this.#requireTurnAccess(bot.slug, turnSources);
       if (acceptNativeInput === undefined) envelope?.commit();
       if (tobCliTurn !== undefined && sourceEventId !== undefined)
@@ -6193,6 +6264,7 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#stoppedTurns.delete(bot.slug);
       }
       if (observeMemory) this.#activeMemoryEvents.delete(bot.slug);
+      this.#activeSessionModels.delete(orchestrator.sessionId);
       this.#originalAttachments.clear(orchestrator.sessionId);
     }
   }
@@ -7122,7 +7194,7 @@ class BotRuntimeImplementation implements BotRuntime {
     onImport?: (ref: ChannelAttachmentRef) => void,
     observeReads = true,
     modelContent?: string,
-    replyTargets?: () => readonly TurnTarget[],
+    replyTargets?: () => readonly TurnTargetSegment[],
   ): OrchestratorChannelAccess {
     const actorHuman = humanContext(botOwner(this.#registry.get(botSlug)!));
     const reviewOwner = sessionId.startsWith('direct-')
@@ -8132,8 +8204,14 @@ class BotRuntimeImplementation implements BotRuntime {
         return result;
       },
       send: async (input) => {
-        const targets = replyTargets?.().slice(-MAX_MIXED_GROUP_ATTEMPTS);
-        const attribution = targets?.length ? { turnTargets: targets } : {};
+        const segments = replyTargets?.().slice(-MAX_MIXED_GROUP_ATTEMPTS);
+        const last = segments?.at(-1);
+        const turnModelSwitch =
+          last === undefined ? undefined : readTurnModelSwitch(this.#database, sessionId, last);
+        const attribution = {
+          ...(segments?.length ? { turnTargets: segments.map((segment) => segment.target) } : {}),
+          ...(turnModelSwitch === undefined ? {} : { turnModelSwitch }),
+        };
         if (input.replySourceEventId !== undefined) {
           const reply = replySource(input.replySourceEventId);
           if (
@@ -8433,6 +8511,7 @@ class BotRuntimeImplementation implements BotRuntime {
     afterSend?: () => void;
     body: string;
     turnTargets?: TurnTarget[];
+    turnModelSwitch?: import('@botharness/host-protocol/turn-target').SessionTurnModelSwitch;
     replyTo?: string | undefined;
     quotes?: ChannelQuote[] | undefined;
     attachments?: ChannelAttachmentRef[] | undefined;
@@ -8522,6 +8601,7 @@ class BotRuntimeImplementation implements BotRuntime {
       at: this.#now().toISOString(),
       author: { kind: 'bot', slug: botSlug },
       ...(input.turnTargets === undefined ? {} : { turnTargets: input.turnTargets }),
+      ...(input.turnModelSwitch === undefined ? {} : { turnModelSwitch: input.turnModelSwitch }),
       body,
       botCausation: this.#botCausation(
         input.replySourceEventId ??
@@ -8871,6 +8951,7 @@ class BotRuntimeImplementation implements BotRuntime {
     sourceEventId: string | undefined;
     body: string;
     turnTargets?: TurnTarget[];
+    turnModelSwitch?: import('@botharness/host-protocol/turn-target').SessionTurnModelSwitch;
     beforeSend: () => void;
     deliveryKey?: string;
   }): Promise<{ channelId: string; message: ChannelMessage }> {
@@ -8892,6 +8973,7 @@ class BotRuntimeImplementation implements BotRuntime {
       at: this.#now().toISOString(),
       author: { kind: 'bot', slug: botSlug },
       ...(input.turnTargets === undefined ? {} : { turnTargets: input.turnTargets }),
+      ...(input.turnModelSwitch === undefined ? {} : { turnModelSwitch: input.turnModelSwitch }),
       body: input.body,
       botCausation: causation,
     };
@@ -8955,6 +9037,7 @@ class BotRuntimeImplementation implements BotRuntime {
     afterSend?: () => void;
     body: string;
     turnTargets?: TurnTarget[];
+    turnModelSwitch?: import('@botharness/host-protocol/turn-target').SessionTurnModelSwitch;
     replyTo?: string | undefined;
     quotes?: ChannelQuote[] | undefined;
     attachments?: ChannelAttachmentRef[] | undefined;
@@ -9003,6 +9086,7 @@ class BotRuntimeImplementation implements BotRuntime {
       at: this.#now().toISOString(),
       author: { kind: 'bot', slug: botSlug },
       ...(input.turnTargets === undefined ? {} : { turnTargets: input.turnTargets }),
+      ...(input.turnModelSwitch === undefined ? {} : { turnModelSwitch: input.turnModelSwitch }),
       body: input.body,
       botCausation,
       ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
@@ -9432,6 +9516,7 @@ class BotRuntimeImplementation implements BotRuntime {
     trackDelivery?.(sessionId, true);
     this.#trackAssignmentRun(sessionId, () =>
       this.#agents.runAssignment({
+        ...this.#assignmentModelSelection(bot.slug, sessionId),
         setExecutionReady: (ready) => this.#setAssignmentExecutionReady(sessionId, ready),
         requireContent: () => {
           this.#requireTurnAccess(bot.slug, sourceEventId ? [sourceEventId] : []);
@@ -9542,7 +9627,8 @@ class BotRuntimeImplementation implements BotRuntime {
         throw new Error('Apply a Model Preset before choosing an Assignment model');
       modelRoute = selectAssignmentRoute(plan, input.model);
     }
-    if (modelRoute) this.#requireModelRoute?.(bot.slug, modelRoute);
+    if (modelRoute && this.#sessionModels.get(input.sessionId) === null)
+      this.#requireModelRoute?.(bot.slug, modelRoute);
     const interrupted = this.#interruptedTools.get(input.sessionId);
     const initiatingHuman = this.#database.read((db) => {
       const source = db
@@ -9558,6 +9644,7 @@ class BotRuntimeImplementation implements BotRuntime {
       return typeof parent?.['human_id'] === 'string' ? parent['human_id'] : undefined;
     });
     const run: AssignmentAgentRun = {
+      ...this.#assignmentModelSelection(bot.slug, input.sessionId),
       beginTurn: () => {
         if (typeof initiatingHuman !== 'string') return;
         this.#database.transaction(
@@ -10019,6 +10106,113 @@ class BotRuntimeImplementation implements BotRuntime {
     const assignment = this.getAssignment(botSlug, sessionId);
     if (assignment === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
     return assignment;
+  }
+
+  async #pickSessionGroup(
+    botSlug: string,
+    choice: Extract<SessionModelChoice, { kind: 'group' }>,
+    attempted?: ReadonlySet<string>,
+  ): Promise<import('../models/group-fallback.js').MixedGroupPick> {
+    const groups = this.#groupFallback;
+    const mixed = await groups?.pickMixedAssignment?.(botSlug, choice.id, choice.effort, attempted);
+    if (mixed !== undefined) return mixed;
+    const native = await groups?.pick(botSlug, choice.id, choice.effort);
+    if (native?.kind === 'exhausted') return native;
+    if (native?.kind !== 'route') return { kind: 'unavailable' };
+    const { route, switchReason } = native;
+    return {
+      kind: 'target',
+      target: { kind: 'route', route },
+      ...(switchReason === undefined ? {} : { switchReason }),
+    };
+  }
+
+  #assignmentModelSelection(
+    botSlug: string,
+    sessionId: string,
+  ): Pick<AssignmentAgentRun, 'sessionModel' | 'observeTurnTarget'> {
+    const request = randomUUID();
+    return {
+      observeTurnTarget: (turn, step, target, reason) =>
+        recordTurnTarget(this.#database, sessionId, {
+          turn,
+          step,
+          target,
+          request,
+          ...(reason === undefined ? {} : { switchReason: reason }),
+        }),
+      sessionModel: () => {
+        const choice = this.#sessionModels.get(sessionId);
+        this.#activeSessionModels.set(sessionId, choice);
+        return {
+          choice,
+          finish: () => this.#activeSessionModels.delete(sessionId),
+          apply: (run) => {
+            if (choice === null) return run;
+            const {
+              modelRoute: _route,
+              routingTarget: _target,
+              selectGroupTarget: _select,
+              groupEffort: _effort,
+              failedTurn: _failure,
+              ...rest
+            } = run;
+            const base: AssignmentAgentRun = {
+              ...rest,
+              failedTurn: (execution) =>
+                this.#assignmentReporting.recordUnsuccessfulAssignment(
+                  botSlug,
+                  sessionId,
+                  execution,
+                  'failed',
+                ),
+            };
+            if (choice.kind !== 'group') {
+              const target = directSessionTarget(choice);
+              if (target.kind === 'route') this.#requireModelRoute?.(botSlug, target.route);
+              return {
+                ...base,
+                routingTarget: target,
+                ...(target.kind === 'route' ? { modelRoute: target.route } : {}),
+              };
+            }
+            let current: RoutingTarget | undefined;
+            let reason: TurnTargetSwitchReason | undefined;
+            return {
+              ...base,
+              ...(choice.effort === undefined ? {} : { groupEffort: choice.effort }),
+              observeTurnTarget: (turn, step, target) =>
+                run.observeTurnTarget?.(turn, step, target, reason),
+              selectGroupTarget: async (attempted, error) => {
+                const rest =
+                  current === undefined || error === undefined
+                    ? undefined
+                    : this.#continuation.routingTargetFailure(current, error);
+                if (error !== undefined && rest === undefined && !unavailableRoutingEngine(error))
+                  throw error instanceof Error
+                    ? error
+                    : new Error('Assignment failed', { cause: error });
+                const next = await this.#pickSessionGroup(botSlug, choice, attempted);
+                if (next.kind === 'exhausted')
+                  throw new RouteRestingError(next.rests, next.subscription);
+                if (
+                  next.kind !== 'target' ||
+                  attempted.size >= MAX_MIXED_GROUP_ATTEMPTS ||
+                  attempted.has(routingTargetRestKey(next.target))
+                )
+                  throw new RoutingGroupUnavailableError(error);
+                current = next.target;
+                reason =
+                  next.switchReason ??
+                  rest?.reason ??
+                  (error === undefined ? undefined : 'credential');
+                return current;
+              },
+            };
+          },
+        };
+      },
+    };
   }
 
   #assignmentGroupExecution(

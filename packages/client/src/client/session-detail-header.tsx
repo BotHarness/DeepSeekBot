@@ -1,14 +1,12 @@
 import * as stylex from '@stylexjs/stylex';
 import { useContext } from 'react';
 import { createPortal } from 'react-dom';
-import type { TurnTargetCatalog } from '@botharness/host-client/turn-target';
 
-import type { SessionGoal, SessionTodo, SessionTranscript } from './bridge.js';
+import type { SessionGoal, SessionTodo } from './bridge.js';
 import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { SessionHeaderSlot } from './session-header-slot.js';
 import { SessionProgressChips } from './session-progress-view.js';
-import { SessionTargetChip } from './session-target-chip.js';
 
 const styles = stylex.create({
   chips: {
@@ -22,16 +20,12 @@ const styles = stylex.create({
 });
 
 export function SessionDetailHeaderChips({
-  transcript,
-  catalog,
   goal,
   todos,
   open,
   toggle,
   t,
 }: {
-  transcript: SessionTranscript | undefined;
-  catalog: TurnTargetCatalog;
   goal: SessionGoal | undefined;
   todos: SessionTodo[] | undefined;
   open: 'goal' | 'todos' | undefined;
@@ -39,24 +33,9 @@ export function SessionDetailHeaderChips({
   t: BotHarnessTranslate;
 }) {
   const slot = useContext(SessionHeaderSlot);
-  if (
-    transcript?.currentTarget === undefined &&
-    transcript?.engine === undefined &&
-    goal === undefined &&
-    todos === undefined
-  )
-    return null;
+  if (goal === undefined && todos === undefined) return null;
   const chips = (
-    <>
-      <SessionTargetChip
-        target={transcript?.currentTarget}
-        engine={transcript?.engine}
-        catalog={catalog}
-        header
-        t={t}
-      />
-      <SessionProgressChips goal={goal} todos={todos} open={open} toggle={toggle} t={t} />
-    </>
+    <SessionProgressChips goal={goal} todos={todos} open={open} toggle={toggle} t={t} />
   );
   return slot === null ? (
     <div {...stylex.props(styles.chips)}>{chips}</div>

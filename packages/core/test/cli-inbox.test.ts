@@ -385,6 +385,23 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
 
+  it('reads, sets and clears a Session Model Choice through the Host', async () => {
+    const live = await host(echo);
+    const choice = { kind: 'engine', engine: 'codex', model: 'gpt-test' };
+    const args = ['session-model', 'ada', '--session', 'orch-1'];
+    expect((await invoke(args, live.url)).json).toMatchObject({
+      method: 'sessionModel',
+      args: { slug: 'ada', sessionId: 'orch-1' },
+    });
+    expect((await invoke([...args, '--set', JSON.stringify(choice)], live.url)).json).toMatchObject(
+      { method: 'sessionModel', args: { choice } },
+    );
+    expect((await invoke([...args, '--clear'], live.url)).json).toMatchObject({
+      method: 'sessionModel',
+      args: { choice: null },
+    });
+  });
+
   it('prints the Host’s ordered reply targets in the Session transcript', async () => {
     const currentTarget = {
       kind: 'engine',

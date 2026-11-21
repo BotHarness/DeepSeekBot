@@ -2,12 +2,15 @@ import * as stylex from '@stylexjs/stylex';
 import { useCallback, useMemo, useState } from 'react';
 
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
-import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
 import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
 import { ink, space, type } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BridgeActions } from './actions.js';
-import type { SessionTranscriptItem } from './bridge.js';
+import type {
+  ModelCatalogEntryView,
+  ModelCatalogGroupView,
+  SessionTranscriptItem,
+} from './bridge.js';
 import { useMountedResource } from './mounted-resource.js';
 import { TargetBrandIcon } from './model-brand.js';
 import { routingGroupEngineCopy } from './session-engine.js';
@@ -78,35 +81,40 @@ export function useTurnTargetCatalog(
   actions: BridgeActions,
   current: TurnTarget | undefined,
   items: readonly SessionTranscriptItem[] | undefined,
+  picker = false,
 ) {
-  const [catalog, setCatalog] = useState<{ host: BridgeActions; models: ModelCatalogEntry[] }>();
+  const [catalog, setCatalog] = useState<{
+    host: BridgeActions;
+    models: ModelCatalogEntryView[];
+    groups: ModelCatalogGroupView[];
+  }>();
   const needsEngines = useMemo(() => {
     const hasEngineModel = (target: TurnTarget) =>
       target.kind === 'engine' && target.model !== undefined;
     return (
+      picker ||
       (current !== undefined && hasEngineModel(current)) ||
       items?.some(
         (item) =>
-          (item.kind === 'reply' || item.kind === 'turn-end') &&
-          item.turnTargets?.some(hasEngineModel),
+          item.kind === 'model-switch' && (hasEngineModel(item.from) || hasEngineModel(item.to)),
       ) === true
     );
-  }, [current, items]);
+  }, [current, items, picker]);
   const engine = useTurnTargetEngines<HTMLDivElement>(actions, needsEngines);
   const needsCatalog =
     catalog?.host !== actions &&
-    (current?.kind === 'dsh' ||
+    (picker ||
+      current?.kind === 'dsh' ||
       items?.some(
         (item) =>
-          (item.kind === 'reply' || item.kind === 'turn-end') &&
-          item.turnTargets?.some((target) => target.kind === 'dsh'),
+          item.kind === 'model-switch' && (item.from.kind === 'dsh' || item.to.kind === 'dsh'),
       ));
   const catalogMount = useMountedResource<HTMLDivElement>(() => {
     if (!needsCatalog) return;
     let active = true;
     void actions.modelCatalog().then(
-      ({ models }) => {
-        if (active) setCatalog({ host: actions, models });
+      ({ models, groups }) => {
+        if (active) setCatalog({ host: actions, models, groups: groups ?? [] });
       },
       () => undefined,
     );
@@ -115,6 +123,7 @@ export function useTurnTargetCatalog(
     };
   }, [actions, needsCatalog]);
   return {
+    groups: catalog?.host === actions ? catalog.groups : undefined,
     catalog: {
       models: catalog?.host === actions ? catalog.models : undefined,
       engines: engine.engines,

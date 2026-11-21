@@ -34,3 +34,37 @@ export function isTurnTargetPath(value: unknown): value is TurnTarget[] {
     Array.isArray(value) && value.length > 0 && value.length <= 32 && value.every(isTurnTarget)
   );
 }
+
+export type TurnTargetSwitchReason = 'quota' | 'rate-limit' | 'credential';
+
+export function isTurnTargetSwitchReason(value: unknown): value is TurnTargetSwitchReason {
+  return value === 'quota' || value === 'rate-limit' || value === 'credential';
+}
+
+export interface TurnModelSwitch {
+  from: TurnTarget;
+  to: TurnTarget;
+  reason?: TurnTargetSwitchReason;
+}
+
+export interface SessionTurnModelSwitch extends TurnModelSwitch {
+  sessionId: string;
+  turn: number;
+}
+
+export function isSessionTurnModelSwitch(value: unknown): value is SessionTurnModelSwitch {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'sessionId' in value &&
+    nonBlank(value.sessionId) &&
+    'turn' in value &&
+    typeof value.turn === 'number' &&
+    Number.isSafeInteger(value.turn) &&
+    'from' in value &&
+    isTurnTarget(value.from) &&
+    'to' in value &&
+    isTurnTarget(value.to) &&
+    (!('reason' in value) || isTurnTargetSwitchReason(value.reason))
+  );
+}

@@ -890,6 +890,7 @@ export function createActions(
     assignmentWork: sessionsActions.actions.assignmentWork,
     sessionProgress: sessionsActions.actions.sessionProgress,
     sessionTranscript: sessionsActions.actions.sessionTranscript,
+    sessionModel: sessionsActions.actions.sessionModel,
     sessionLive: sessionsActions.actions.sessionLive,
     sessionToolDetail: sessionsActions.actions.sessionToolDetail,
     sendSessionRequest: sessionsActions.actions.sendSessionRequest,

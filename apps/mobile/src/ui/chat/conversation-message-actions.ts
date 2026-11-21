@@ -1,7 +1,7 @@
 import type { InitiatedActivityRequest } from '../../host/live-activity-routing';
 import { toggleMessageSelection } from './message-selection';
 import type { useRouter } from 'expo-router';
-import { useCallback, useLayoutEffect, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import type { HostClient } from '@botharness/host-client/client';
 import { loadModelCatalog } from '@botharness/host-client/model-plans';
 import { loadRoutingGroupEngines } from '@botharness/host-client/model-catalog';
@@ -38,14 +38,29 @@ export function useConversationMessageState({
     }
   >();
   const menuCatalog = cachedCatalog?.host === client ? cachedCatalog : undefined;
+  const timelineTargets = useMemo(() => {
+    let models = false;
+    let engines = false;
+    for (const { turnModelSwitch } of snapshot.messages) {
+      if (turnModelSwitch === undefined) continue;
+      for (const target of [turnModelSwitch.from, turnModelSwitch.to]) {
+        models ||= target.kind === 'dsh';
+        engines ||= target.kind === 'engine';
+      }
+      if (models && engines) break;
+    }
+    return { models, engines };
+  }, [snapshot.messages]);
   const needsModels =
     menuCatalog?.models === undefined &&
-    actionsFor?.message.turnTargets?.some((target) => target.kind === 'dsh');
+    (timelineTargets.models ||
+      actionsFor?.message.turnTargets?.some((target) => target.kind === 'dsh'));
   const needsEngines =
     menuCatalog?.engines === undefined &&
-    actionsFor?.message.turnTargets?.some(
-      (target) => target.kind === 'engine' && target.model !== undefined,
-    );
+    (timelineTargets.engines ||
+      actionsFor?.message.turnTargets?.some(
+        (target) => target.kind === 'engine' && target.model !== undefined,
+      ));
   useLayoutEffect(() => {
     if ((!needsModels && !needsEngines) || client === undefined) return;
     let active = true;

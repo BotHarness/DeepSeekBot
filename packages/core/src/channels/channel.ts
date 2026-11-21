@@ -1,4 +1,9 @@
-import { isTurnTargetPath, type TurnTarget } from '@botharness/host-protocol/turn-target';
+import {
+  isSessionTurnModelSwitch,
+  isTurnTargetPath,
+  type TurnTarget,
+  type SessionTurnModelSwitch,
+} from '@botharness/host-protocol/turn-target';
 import type { ApprovalCard } from '../team/approval-contract.js';
 import { isSkillWorkspaceId, type SkillOwner } from '../skills/entries.js';
 import type { ChannelMessageAuthor } from './message-author.js';
@@ -611,6 +616,7 @@ export interface ChannelMessage {
   turnStop?: ChannelTurnStop;
   modelSwitch?: ChannelModelSwitch;
   turnTargets?: TurnTarget[];
+  turnModelSwitch?: SessionTurnModelSwitch;
   toolAutoApproval?: ChannelToolAutoApproval;
   toolAutoApprovalPause?: ChannelToolAutoApprovalPause;
   toolAutoApprovalOverride?: ChannelToolAutoApprovalOverride;
@@ -948,6 +954,11 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
   if (typeof message['id'] !== 'string' || message['id'].length === 0) return false;
   if (typeof message['at'] !== 'string' || message['at'].length === 0) return false;
   if (typeof message['body'] !== 'string') return false;
+  if (
+    message['turnModelSwitch'] !== undefined &&
+    !isSessionTurnModelSwitch(message['turnModelSwitch'])
+  )
+    return false;
   if (message['turnTargets'] !== undefined && !isTurnTargetPath(message['turnTargets']))
     return false;
   const welcome = message['onboardingWelcome'];

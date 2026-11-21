@@ -1,85 +1,44 @@
-import {
-  sessionHeaderTargetLabel,
-  turnTargetLabel,
-  type TurnTargetCatalog,
-} from '@botharness/host-client/turn-target';
+import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
 import { isEngineId } from '@botharness/host-protocol/subscription-engine';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 
 import type { SessionEngine, SessionModelRoute } from './bridge.js';
+import { Tag } from './ds/tag.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { modelShortName, TargetBrandIcon } from './model-brand.js';
-import { engineChipLabel, engineQuotaText, routingGroupEngineCopy } from './session-engine.js';
+import { ModelBrandIcon } from './model-brand.js';
 import { SessionMetaChip } from './session-progress-view.js';
-import { modelRouteText } from './session-rows.js';
 
 export function SessionTargetChip({
   target,
   engine,
   route,
   catalog,
-  header,
   t,
 }: {
   target?: TurnTarget | undefined;
   engine?: Omit<SessionEngine, 'state'> | undefined;
   route?: SessionModelRoute | undefined;
   catalog?: TurnTargetCatalog | undefined;
-  header?: boolean;
   t: BotHarnessTranslate;
 }) {
   const selected: TurnTarget | undefined =
     target ??
     (engine !== undefined && isEngineId(engine.engine)
-      ? {
-          kind: 'engine',
-          engine: engine.engine,
-          ...(engine.account === undefined ? {} : { account: engine.account }),
-        }
+      ? { kind: 'engine', engine: engine.engine }
       : route === undefined
         ? undefined
         : { kind: 'dsh', provider: route.provider, model: route.model });
   if (selected === undefined) return null;
-  const label = header
-    ? sessionHeaderTargetLabel(selected, catalog)
-    : turnTargetLabel(selected, catalog, routingGroupEngineCopy(t));
-  const nativeModel =
-    selected.kind === 'dsh'
-      ? catalog?.models?.find(
-          (item) => item.provider === selected.provider && item.model === selected.model,
-        )
-      : undefined;
-  const nativeRoute =
-    selected.kind === 'dsh' &&
-    route?.provider === selected.provider &&
-    route.model === selected.model
-      ? route
-      : undefined;
-  const nativeEffortId = nativeRoute?.reasoningEffort;
-  const nativeEffort =
-    nativeModel?.efforts?.find((item) => item.id === nativeEffortId)?.name ?? nativeEffortId;
-  const short =
-    !header && selected.kind === 'dsh' && nativeModel === undefined
-      ? modelShortName(selected.model, label.brand)
-      : label.short;
-  const text = [short, header ? undefined : (label.effort ?? nativeEffort)]
-    .filter(Boolean)
-    .join(' · ');
-  const title =
-    selected.kind === 'dsh'
-      ? modelRouteText(nativeRoute ?? selected)
-      : [
-          header ? label.name : sessionHeaderTargetLabel(selected, catalog).name,
-          engineQuotaText(engine?.quota, t),
-        ]
-          .filter(Boolean)
-          .join(' · ');
+  const label = turnTargetLabel(selected, catalog);
   return (
     <SessionMetaChip
       kind={label.external ? 'engine' : 'model'}
-      icon={<TargetBrandIcon {...label} size={14} externalLabel={t('engine.externalLabel')} />}
-      label={header || !label.external ? text : engineChipLabel(text, engine?.quota, t)}
-      title={title}
+      icon={<ModelBrandIcon brand={label.brand} size={14} />}
+      label={label.short}
+      badge={
+        <Tag tone="quiet">{t(label.external ? 'sessions.model.sub' : 'sessions.model.api')}</Tag>
+      }
+      title={label.short}
     />
   );
 }

@@ -1,5 +1,5 @@
-import { TurnTargetLabel, useTurnTargetCatalog } from './turn-target-label.js';
-import { createContext, useContext, useRef, useState, type ReactElement } from 'react';
+import { useTurnTargetCatalog } from './turn-target-label.js';
+import { createContext, useContext, useMemo, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import {
@@ -10,7 +10,6 @@ import {
   type SessionDetailLevel,
   type SessionFoldedReplies,
 } from '@botharness/host-client/shared/bot-mode-settings';
-import type { TurnTargetCatalog } from '@botharness/host-client/turn-target';
 
 import type { BridgeActions } from './actions.js';
 import type {
@@ -28,12 +27,12 @@ import { ChipButton } from './ds/chip-button.js';
 import { WorkRow } from './ds/work-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { sessionEngineText } from './session-engine.js';
 import { useMountedResource } from './mounted-resource.js';
 import { cachedSessionDetail, rememberSessionDetail } from './session-detail-cache.js';
 import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
 import { SessionDetailHeaderChips } from './session-detail-header.js';
-import { SessionTargetChip } from './session-target-chip.js';
+import { SessionModelComposer } from './session-model-composer.js';
+import { SessionModelSwitch } from './session-model-switch.js';
 import { SessionJump } from './session-jump.js';
 import { quotedRequest, quoteSourceId, SessionQuoteToolbar } from './session-quotes.js';
 import { ChangedFiles } from './session-changed-files.js';
@@ -224,7 +223,6 @@ function LiveClock({ from, t }: { from: string; t: BotHarnessTranslate }): React
 
 interface DetailContext {
   actions: BridgeActions;
-  catalog: TurnTargetCatalog;
   botSlug: string;
   sessionId: string;
   t: BotHarnessTranslate;
@@ -470,9 +468,6 @@ function TurnBlock({
           {...(foldable ? { expanded: open, onToggle: () => setOpen(!open) } : {})}
         />
       ) : null}
-      {visible.some((segment) => segment.kind === 'reply') ? null : (
-        <TurnTargetLabel targets={end?.turnTargets} catalog={context.catalog} t={t} />
-      )}
       {end?.message === undefined ? null : (
         <div {...stylex.props(styles.quiet, styles.bad)}>{end.message}</div>
       )}
@@ -485,7 +480,6 @@ function TurnBlock({
             {...stylex.props(styles.reply)}
           >
             <MessageMarkdown text={segment.item.text} t={t} />
-            <TurnTargetLabel targets={segment.item.turnTargets} catalog={context.catalog} t={t} />
           </div>
         ) : (
           <ProcessGroup
@@ -588,17 +582,27 @@ export function SessionDetail({
   const [draft, setDraft] = useState('');
   const [quotes, setQuotes] = useState<ComposerQuote[]>([]);
   const [sending, setSending] = useState(false);
+  const [savingModel, setSavingModel] = useState(false);
+  const canCompose =
+    (transcript?.role === 'assignment' && actions.sendSessionRequest !== undefined) ||
+    (transcript?.role === 'orchestrator' && actions.sendOrchestratorMessage !== undefined);
   const [sendError, setSendError] = useState<string | undefined>();
   const [revision, setRevision] = useState(0);
   const [away, setAway] = useState(false);
   const [skillOptions, setSkillOptions] = useState<readonly SkillCatalogEntry[]>([]);
   const [skills, setSkills] = useState<SelectedSkill[]>([]);
-  const { catalog, mount: catalogMount } = useTurnTargetCatalog(
+  const {
+    catalog,
+    groups,
+    mount: catalogMount,
+  } = useTurnTargetCatalog(
     actions,
     transcript?.currentTarget,
     transcript?.items,
+    canCompose && actions.sessionModel !== undefined,
   );
-  const running = transcript?.running === true || live.length > 0;
+  const running =
+    transcript?.running === true || transcript?.engine?.state === 'running' || live.length > 0;
   const mount = useMountedResource<HTMLDivElement>(
     (node) => {
       const read = actions.sessionTranscript;
@@ -773,7 +777,7 @@ export function SessionDetail({
           ? (slug: string, session: string) =>
               actions.sendOrchestratorMessage!(slug, session, quotedRequest(quotes, draft))
           : undefined;
-    if (message === '' || deliver === undefined) return;
+    if (message === '' || deliver === undefined || savingModel) return;
     setSending(true);
     setSendError(undefined);
     try {
@@ -808,27 +812,21 @@ export function SessionDetail({
   const todos = progress?.todos;
   const context: DetailContext = {
     actions,
-    catalog,
     botSlug,
     sessionId,
     t,
     defaults: detailDefaults(prefs.level),
   };
-  const blocks =
-    transcript === undefined ? [] : transcriptBlocks(mergeLive(transcript.items, live), running);
+  const items = transcript?.items;
+  const blocks = useMemo(
+    () => (items === undefined ? [] : transcriptBlocks(mergeLive(items, live), running)),
+    [items, live, running],
+  );
   const toggle = (key: 'goal' | 'todos') =>
     setOpen((current) => (current === key ? undefined : key));
   return (
     <div ref={catalogMount} data-session-detail={sessionId} {...stylex.props(styles.root)}>
-      <SessionDetailHeaderChips
-        transcript={transcript}
-        catalog={catalog}
-        goal={goal}
-        todos={todos}
-        open={open}
-        toggle={toggle}
-        t={t}
-      />
+      <SessionDetailHeaderChips goal={goal} todos={todos} open={open} toggle={toggle} t={t} />
       {open === 'goal' && goal !== undefined ? (
         <div data-session-panel="goal" {...stylex.props(styles.panel)}>
           <div>{goal.objective}</div>
@@ -888,18 +886,6 @@ export function SessionDetail({
         }}
         {...stylex.props(styles.transcript)}
       >
-        {transcript?.engine === undefined ? null : (
-          <div
-            data-session-engine={transcript.engine.state}
-            {...stylex.props(styles.quiet, styles.center)}
-          >
-            {sessionEngineText(transcript.engine, t)}
-            {transcript.currentTarget?.kind === 'engine' &&
-            transcript.currentTarget.model !== undefined ? (
-              <SessionTargetChip target={transcript.currentTarget} catalog={catalog} t={t} />
-            ) : null}
-          </div>
-        )}
         {transcript !== undefined && failed ? (
           <div role="status" {...stylex.props(styles.quiet, styles.center)}>
             {t('sessions.detail.refreshFailed')}
@@ -921,6 +907,8 @@ export function SessionDetail({
             {blocks.map((block) =>
               block.kind === 'input' ? (
                 <InputBlock key={block.key} block={block} sessionId={sessionId} t={t} />
+              ) : block.kind === 'model-switch' ? (
+                <SessionModelSwitch key={block.key} item={block.item} catalog={catalog} t={t} />
               ) : (
                 <TurnBlock key={block.key} block={block} context={context} />
               ),
@@ -929,8 +917,7 @@ export function SessionDetail({
         )}
       </div>
       <TurnNav blocks={blocks} t={t} />
-      {(transcript?.role === 'assignment' && actions.sendSessionRequest !== undefined) ||
-      (transcript?.role === 'orchestrator' && actions.sendOrchestratorMessage !== undefined) ? (
+      {canCompose ? (
         <div ref={composerMount} data-session-composer="" {...stylex.props(styles.composer)}>
           {away ? <SessionJump floating={false} t={t} /> : null}
           {sendError === undefined ? null : (
@@ -947,6 +934,23 @@ export function SessionDetail({
                 : 'sessions.detail.composer',
             )}
             sending={sending}
+            disabled={savingModel}
+            modelControl={
+              actions.sessionModel === undefined ? undefined : (
+                <SessionModelComposer
+                  action={actions.sessionModel}
+                  botSlug={botSlug}
+                  sessionId={sessionId}
+                  catalog={catalog}
+                  groups={groups ?? []}
+                  target={transcript?.currentTarget}
+                  running={running}
+                  onSaving={setSavingModel}
+                  onError={setSendError}
+                  t={t}
+                />
+              )
+            }
             t={t}
             quotes={quotes}
             onRemoveQuote={(quote) =>

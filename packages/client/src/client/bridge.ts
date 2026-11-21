@@ -76,6 +76,7 @@ export {
   parseSessionToolDetail,
   loadSessionToolDetail,
   loadSessionTranscript,
+  sessionModel,
   loadBotSessionIds,
   loadBotSessionGroups,
   loadSessions,
