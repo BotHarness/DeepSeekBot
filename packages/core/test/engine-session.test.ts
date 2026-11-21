@@ -36,6 +36,7 @@ import { memoryDsh } from './fixtures/engine-dsh.js';
 import { createTempRoot } from './helpers.js';
 
 const RECORDING = readCodexRecording(join(import.meta.dirname, 'fixtures', 'codex-dm-turn.jsonl'));
+const RECORDED_AT = Date.parse('2026-11-18T13:53:20Z');
 
 const TOOLS: EngineTool[] = [
   {
@@ -66,6 +67,7 @@ function setup(recording = RECORDING, local = true) {
   const host = new EngineHost({
     root,
     local,
+    now: () => RECORDED_AT,
     gateway,
     sessions: () => dsh.store,
     persistence: () => dsh.persistence,
