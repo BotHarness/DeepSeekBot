@@ -60,6 +60,7 @@ export interface EngineApi {
     options?: { model?: string; effort?: string; fallback?: boolean; accountId?: string },
   ): Promise<void>;
   login(engine: EngineId, accountId?: string): Promise<{ url?: string }>;
+  cancelLogin?(engine: EngineId, accountId?: string): Promise<void>;
 }
 
 const ENGINES = './api/botharness/engines';
@@ -254,6 +255,7 @@ export function useSubscriptionEngines(
   const [modelLoadFailed, setModelLoadFailed] = useState(false);
   const [signingIn, setSigningIn] = useState<string>();
   const [signInUrl, setSignInUrl] = useState<string>();
+  const [loginUrl, setLoginUrl] = useState<string>();
   const [error, setError] = useState<string>();
   const alive = useRef(false);
   const generation = useRef(0);
@@ -261,6 +263,7 @@ export function useSubscriptionEngines(
   const poll = useRef<ReturnType<typeof setTimeout>>(undefined);
   const deadline = useRef<ReturnType<typeof setTimeout>>(undefined);
   const activeLogin = useRef<symbol>(undefined);
+  const activeTarget = useRef<{ engine: EngineId; accountId?: string }>(undefined);
 
   const refresh = async (retry = true): Promise<EnginesView | undefined> => {
     if (!enabled) return undefined;
@@ -332,6 +335,7 @@ export function useSubscriptionEngines(
       generation.current += 1;
       loads.current = {};
       activeLogin.current = undefined;
+      activeTarget.current = undefined;
       clearTimeout(poll.current);
       clearTimeout(deadline.current);
     };
@@ -382,8 +386,10 @@ export function useSubscriptionEngines(
     if (tab !== null) tab.opener = null;
     const attempt = Symbol();
     activeLogin.current = attempt;
+    activeTarget.current = accountId === undefined ? { engine } : { engine, accountId };
     setSigningIn(key);
     setSignInUrl(undefined);
+    setLoginUrl(undefined);
     setError(undefined);
     const login = accountId === undefined ? api.login(engine) : api.login(engine, accountId);
     void login.then(
@@ -392,15 +398,20 @@ export function useSubscriptionEngines(
         else if (tab === null || tab.closed) setSignInUrl(url);
         else tab.location.href = url;
         if (!alive.current || activeLogin.current !== attempt) return;
+        if (url !== undefined) setLoginUrl(url);
         let done = false;
         const finish = (ready: boolean): void => {
           done = true;
           activeLogin.current = undefined;
+          activeTarget.current = undefined;
           clearTimeout(poll.current);
           clearTimeout(deadline.current);
           setSigningIn(undefined);
+          setLoginUrl(undefined);
           if (ready) setSignInUrl(undefined);
         };
+        const codexTabClosedWithoutSignIn = (): boolean =>
+          engine === 'codex' && url !== undefined && tab !== null && tab.closed;
         deadline.current = setTimeout(() => finish(false), SIGN_IN_POLL_DEADLINE_MS);
         const check = async (): Promise<void> => {
           const next = await refresh(false);
@@ -411,7 +422,11 @@ export function useSubscriptionEngines(
             )
           )
             finish(true);
-          else poll.current = setTimeout(() => void check(), SIGN_IN_POLL_MS);
+          else if (codexTabClosedWithoutSignIn()) {
+            finish(false);
+            setSignInUrl(undefined);
+            void api.cancelLogin?.(engine, accountId).catch(() => undefined);
+          } else poll.current = setTimeout(() => void check(), SIGN_IN_POLL_MS);
         };
         poll.current = setTimeout(() => void check(), SIGN_IN_POLL_MS);
       },
@@ -419,10 +434,26 @@ export function useSubscriptionEngines(
         tab?.close();
         if (!alive.current || activeLogin.current !== attempt) return;
         activeLogin.current = undefined;
+        activeTarget.current = undefined;
         setSigningIn(undefined);
         setError(cause instanceof Error ? cause.message : String(cause));
       },
     );
+  };
+
+  const cancelSignIn = (): void => {
+    const target = activeTarget.current;
+    if (activeLogin.current === undefined || target === undefined) return;
+    activeLogin.current = undefined;
+    activeTarget.current = undefined;
+    clearTimeout(poll.current);
+    clearTimeout(deadline.current);
+    setSigningIn(undefined);
+    setSignInUrl(undefined);
+    setLoginUrl(undefined);
+    void (api.cancelLogin?.(target.engine, target.accountId) ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(() => refresh(false));
   };
 
   return {
@@ -430,8 +461,10 @@ export function useSubscriptionEngines(
     view,
     models,
     signIn,
+    cancelSignIn,
     signingIn,
     signInUrl,
+    loginUrl,
     loadFailed: loadFailed || modelLoadFailed,
     refresh,
     saveSelection,

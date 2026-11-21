@@ -8,13 +8,17 @@ import * as stylex from '@stylexjs/stylex';
 
 import { bridgeHost, BridgeCallError, type BridgeCall } from './bridge.js';
 import { Button } from './ds/button.js';
+import { IconButton } from './ds/icon-button.js';
+import { Menu } from './ds/menu.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { Input } from './ds/input.js';
 import { Note } from './ds/note.js';
 import { ReadFailure } from './ds/read-failure.js';
-import { Select } from './ds/select.js';
+import { PreviewChoices } from './ds/preview-choice.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { space } from './ds/tokens.stylex.js';
+import { ink, status as statusColor, type as typeScale } from './ds/tobs.stylex.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import {
   engineApi,
   engineModelKey,
@@ -34,24 +38,121 @@ const styles = stylex.create({
   codeForm: { display: 'grid', gap: space.x2 },
   codeControls: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
   codeInput: { flexGrow: 1 },
+  status: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x2,
+    fontSize: typeScale.captionSize,
+    lineHeight: typeScale.captionLine,
+    fontWeight: typeScale.captionWeight,
+    color: ink.secondary,
+    whiteSpace: 'nowrap',
+  },
+  rowMain: { minHeight: '36px', alignItems: 'center' },
+  titleLine: { display: 'flex', alignItems: 'center', gap: space.x3, minWidth: 0 },
+  titleText: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  dot: { width: 6, height: 6, flexShrink: 0, borderRadius: '50%' },
+  success: { backgroundColor: statusColor.successBase },
+  warning: { backgroundColor: statusColor.warningBase },
+  danger: { backgroundColor: statusColor.dangerBase },
+  neutral: { backgroundColor: ink.tertiary },
 });
+
+type StatusTone = 'success' | 'warning' | 'danger' | 'neutral';
+
+function StatusLabel({ tone, label }: { tone: StatusTone; label: string }): ReactElement {
+  return (
+    <span {...stylex.props(styles.status)} data-account-status={tone}>
+      <span aria-hidden {...stylex.props(styles.dot, styles[tone])} />
+      {label}
+    </span>
+  );
+}
+
+function AccountMenu({
+  label,
+  renameLabel,
+  removeLabel,
+  onRename,
+  onRemove,
+}: {
+  label: string;
+  renameLabel: string;
+  removeLabel: string;
+  onRename(): void;
+  onRemove(): void;
+}): ReactElement {
+  const [open, setOpen] = useState(false);
+  return (
+    <Menu
+      open={open}
+      portal
+      dense
+      align="end"
+      anchor={
+        <IconButton
+          aria-label={label}
+          aria-haspopup="menu"
+          aria-expanded={open}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <ChannelSidebarIcon name="ellipsis-vertical" size={16} />
+        </IconButton>
+      }
+      items={[
+        { id: 'rename', label: renameLabel },
+        { id: 'remove', label: removeLabel, danger: true },
+      ]}
+      onSelect={(id) => {
+        setOpen(false);
+        if (id === 'rename') onRename();
+        else onRemove();
+      }}
+      onClose={() => setOpen(false)}
+    />
+  );
+}
+
+function CopyLinkButton({ url, t }: { url: string; t: BotHarnessTranslate }): ReactElement {
+  const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const copy = () => {
+    clearTimeout(timer.current);
+    void navigator.clipboard
+      .writeText(url)
+      .then(() => {
+        setCopied(true);
+        timer.current = setTimeout(() => setCopied(false), 2000);
+      })
+      .catch(() => setCopied(false));
+  };
+  return (
+    <Button variant="outline" onClick={copy}>
+      {copied ? t('modelProviders.linkCopied') : t('modelProviders.copySignInLink')}
+    </Button>
+  );
+}
 
 type AccountDialog =
   | { kind: 'add'; revision: number }
   | { kind: 'rename' | 'remove'; revision: number; id: string; name: string; title: string };
 
-function signInStatus(status: EngineStatusView, label: string, t: BotHarnessTranslate): string {
-  if (status.available) return t('modelProviders.signedIn');
+function signInStatus(
+  status: EngineStatusView,
+  label: string,
+  t: BotHarnessTranslate,
+): { tone: StatusTone; label: string } {
+  if (status.available) return { tone: 'success', label: t('modelProviders.signedIn') };
   switch (status.reason) {
     case 'not-installed':
-      return t('engine.notInstalled', { engine: label });
+      return { tone: 'neutral', label: t('engine.notInstalled', { engine: label }) };
     case 'signed-out':
-      return t('modelProviders.signedOut');
+      return { tone: 'neutral', label: t('modelProviders.signedOut') };
     case 'not-subscription':
-      return t('engine.notSubscription');
+      return { tone: 'danger', label: t('engine.notSubscription') };
     case 'host-not-local':
     case 'login-unknown':
-      return t('engine.loginUnknown');
+      return { tone: 'warning', label: t('engine.loginUnknown') };
   }
 }
 
@@ -163,6 +264,9 @@ export function SubscriptionAccounts({
       },
       login: (engine: EngineStatusView['engine'], accountId?: string) =>
         bridgeHost(call).call<{ url?: string }>('engineAccountLogin', { id: accountId ?? engine }),
+      async cancelLogin(engine: EngineStatusView['engine'], accountId?: string) {
+        await bridgeHost(call).call('engineAccountLoginCancel', { id: accountId ?? engine });
+      },
     }),
     [call],
   );
@@ -256,23 +360,39 @@ export function SubscriptionAccounts({
                   (role) => accountId !== undefined && roleAllowsEngineAccount(role, accountId),
                 )
                 .map((role) => roleLabel(t, role));
+              const state = signingIn
+                ? { tone: 'warning' as const, label: t('engine.signingIn') }
+                : signInStatus(status, brand, t);
+              const edit = (kind: 'rename' | 'remove') =>
+                canManage
+                  ? open({
+                      kind,
+                      id: accountId,
+                      name: status.accountName ?? brand,
+                      title,
+                      revision,
+                    })
+                  : undefined;
               return (
                 <SidebarCardRow
                   key={key}
+                  mainClassName={stylex.props(styles.rowMain).className}
                   leading={
                     <EngineBrandIcon brand={engine === 'codex' ? 'openai' : 'claude'} size={20} />
                   }
-                  title={title}
-                  summary={[
-                    signInStatus(status, brand, t),
-                    ...(roleNames.length === 0
-                      ? []
-                      : [
-                          t('modelProviders.rolesAllowed', {
-                            roles: roleNames.join(t('modelProviders.roleSeparator')),
-                          }),
-                        ]),
-                  ].join(' · ')}
+                  title={
+                    <span {...stylex.props(styles.titleLine)}>
+                      <span {...stylex.props(styles.titleText)}>{title}</span>
+                      <StatusLabel tone={state.tone} label={state.label} />
+                    </span>
+                  }
+                  summary={
+                    roleNames.length === 0
+                      ? undefined
+                      : t('modelProviders.rolesAllowed', {
+                          roles: roleNames.join(t('modelProviders.roleSeparator')),
+                        })
+                  }
                   meta={status.available ? engineQuotaText(status.quota, t) : undefined}
                   detail={
                     engine === 'claude' && signingIn ? (
@@ -282,51 +402,33 @@ export function SubscriptionAccounts({
                   trailing={
                     canManage || canSignIn ? (
                       <div {...stylex.props(styles.actions)}>
-                        {canSignIn ? (
+                        {signingIn ? (
+                          <>
+                            {engines.loginUrl === undefined ? null : (
+                              <CopyLinkButton url={engines.loginUrl} t={t} />
+                            )}
+                            <Button variant="outline" onClick={() => engines.cancelSignIn()}>
+                              {t('modelProviders.cancelSignIn')}
+                            </Button>
+                          </>
+                        ) : canSignIn ? (
                           <Button
                             variant="outline"
                             disabled={engines.signingIn !== undefined}
-                            aria-label={
-                              signingIn ? undefined : t('engine.signInLabel', { engine: title })
-                            }
+                            aria-label={t('engine.signInLabel', { engine: title })}
                             onClick={() => engines.signIn(engine, accountId)}
                           >
-                            {signingIn ? t('engine.signingIn') : t('modelProviders.signIn')}
+                            {t('modelProviders.signIn')}
                           </Button>
                         ) : null}
                         {canManage ? (
-                          <>
-                            <Button
-                              variant="outline"
-                              aria-label={t('modelProviders.renameAccountTitle', { name: title })}
-                              onClick={() =>
-                                open({
-                                  kind: 'rename',
-                                  id: accountId,
-                                  name: status.accountName ?? brand,
-                                  title,
-                                  revision,
-                                })
-                              }
-                            >
-                              {t('modelProviders.renameAccount')}
-                            </Button>
-                            <Button
-                              variant="outline"
-                              aria-label={t('modelProviders.removeTitle', { name: title })}
-                              onClick={() =>
-                                open({
-                                  kind: 'remove',
-                                  id: accountId,
-                                  name: status.accountName ?? brand,
-                                  title,
-                                  revision,
-                                })
-                              }
-                            >
-                              {t('modelProviders.remove')}
-                            </Button>
-                          </>
+                          <AccountMenu
+                            label={t('modelProviders.accountActions', { name: title })}
+                            renameLabel={t('modelProviders.renameAccount')}
+                            removeLabel={t('modelProviders.remove')}
+                            onRename={() => edit('rename')}
+                            onRemove={() => edit('remove')}
+                          />
                         ) : null}
                       </div>
                     ) : undefined
@@ -378,23 +480,25 @@ export function SubscriptionAccounts({
         >
           <SettingsRows>
             {dialog.kind === 'add' ? (
-              <SettingsRow
-                title={t('modelProviders.accountEngine')}
-                control={
-                  <Select
-                    label={t('modelProviders.accountEngine')}
-                    value={selectedEngine}
-                    options={ENGINE_IDS.map((engine) => ({
-                      value: engine,
-                      label: engineName(engine),
-                    }))}
-                    onChange={(value) => {
-                      if (isEngineId(value)) setSelectedEngine(value);
-                    }}
-                    disabled={busy}
-                  />
-                }
-              />
+              <SettingsRow title={t('modelProviders.accountEngine')}>
+                <PreviewChoices
+                  variant="icon"
+                  label={t('modelProviders.accountEngine')}
+                  value={selectedEngine}
+                  disabled={busy}
+                  options={ENGINE_IDS.map((engine) => ({
+                    id: engine,
+                    label: engineName(engine),
+                    preview: (
+                      <EngineBrandIcon brand={engine === 'codex' ? 'openai' : 'claude'} size={28} />
+                    ),
+                    data: { 'data-engine-choice': engine },
+                  }))}
+                  onChange={(engine) => {
+                    if (isEngineId(engine)) setSelectedEngine(engine);
+                  }}
+                />
+              </SettingsRow>
             ) : null}
             <SettingsRow
               title={t('modelProviders.name')}
