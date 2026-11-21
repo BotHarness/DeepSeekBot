@@ -75,9 +75,16 @@ function actionsFor() {
         : { avatars: [{ ...avatar, id: 'avatar-b', name: 'Bear' }], nextCursor: null },
     ),
     marketplaceAvatarDetail: vi.fn(async () => avatar),
-    marketplaceChallenge: vi.fn(() =>
-      createChallenge({ key: 'test', tier: 'default', now: new Date(), number: 4 }),
-    ),
+    marketplaceChallenge: vi.fn(async () => {
+      const number = 4;
+      const challenge = await createChallenge({
+        key: 'test',
+        tier: 'default',
+        now: new Date(),
+        number,
+      });
+      return { ...challenge, maxnumber: number };
+    }),
     marketplaceAvatarReport: vi.fn<(id: string, altcha: string, reason?: string) => Promise<void>>(
       async () => {},
     ),
