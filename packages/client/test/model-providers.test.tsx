@@ -656,7 +656,10 @@ it('masks the bound email until clicked and shows remaining quota per window wit
     expect(meter('session')?.getAttribute('aria-valuetext')).toBe('剩余 27%');
     expect(meter('weekly')?.getAttribute('aria-valuenow')).toBe('41');
     expect(meter('session')?.textContent).toContain('1 小时 0 分');
-    expect(panel?.textContent).toContain('刚刚更新');
+    expect(page.button('刷新')?.getAttribute('title')).toContain('刚刚更新');
+    expect(page.host.querySelector('[data-quota-chip="claude-work"]')?.textContent).toBe(
+      '剩余 27%',
+    );
     expect(page.button('Claude Code · Work 的额度：剩余 27%')).toBeDefined();
 
     refreshStatus = 'timeout';

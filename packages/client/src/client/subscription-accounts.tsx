@@ -9,6 +9,7 @@ import * as stylex from '@stylexjs/stylex';
 import {
   MaskedEmail,
   QuotaPanel,
+  QuotaRefreshButton,
   quotaStale,
   quotaSummary,
   type QuotaRefreshState,
@@ -26,7 +27,7 @@ import { PreviewChoices } from './ds/preview-choice.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { space } from './ds/tokens.stylex.js';
 import { Icon } from './ds/icon.js';
-import { ink, radius, size, status as statusColor, type as typeScale } from './ds/tobs.stylex.js';
+import { ink, radius, status as statusColor, type as typeScale } from './ds/tobs.stylex.js';
 import {
   engineApi,
   engineModelKey,
@@ -37,12 +38,18 @@ import {
 import type { BotHarnessTranslate } from './locale.js';
 import { EngineBrandIcon } from './model-brand.js';
 import { engineAccountTitle, engineName } from './session-engine.js';
-import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
+import { aboveCardToggle, SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { roleLabel } from './team-roles.js';
 import { roleAllowsEngineAccount, type TeamRole } from './team-roles-bridge.js';
 
 const styles = stylex.create({
-  actions: { display: 'flex', justifyContent: 'end', flexWrap: 'wrap', gap: space.x2 },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'end',
+    flexWrap: 'wrap',
+    gap: space.x2,
+  },
   codeForm: { display: 'grid', gap: space.x2 },
   codeControls: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
   codeInput: { flexGrow: 1 },
@@ -58,10 +65,16 @@ const styles = stylex.create({
     color: ink.secondary,
     whiteSpace: 'nowrap',
   },
-  rowMain: { minHeight: size.rowMedium, alignItems: 'center' },
+  rowMain: { alignItems: 'center' },
   titleLine: { display: 'flex', alignItems: 'center', gap: space.x3, minWidth: 0 },
   titleText: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  quotaToggle: { whiteSpace: 'nowrap' },
+  quotaChip: {
+    fontSize: typeScale.captionSize,
+    lineHeight: typeScale.captionLine,
+    fontWeight: typeScale.labelWeight,
+    color: ink.primary,
+    whiteSpace: 'nowrap',
+  },
   dot: {
     width: `calc(${space.x2} + ${space.x1})`,
     height: `calc(${space.x2} + ${space.x1})`,
@@ -107,6 +120,7 @@ function AccountMenu({
       align="end"
       anchor={
         <IconButton
+          xstyle={aboveCardToggle}
           aria-label={label}
           aria-haspopup="menu"
           aria-expanded={open}
@@ -421,6 +435,7 @@ export function SubscriptionAccounts({
                 accountId !== undefined &&
                 expanded.has(accountId);
               const quotaId = `account-quota-${key}`;
+              const canToggleQuota = !signingIn && status.available && accountId !== undefined;
               const rolesText =
                 roleNames.length === 0
                   ? undefined
@@ -443,6 +458,20 @@ export function SubscriptionAccounts({
               return (
                 <SidebarCardRow
                   key={key}
+                  tight
+                  toggle={
+                    canToggleQuota && accountId !== undefined
+                      ? {
+                          label: t('modelProviders.quotaToggle', {
+                            name: title,
+                            summary: quotaSummary(status.quota, now, t),
+                          }),
+                          expanded: quotaOpen,
+                          controls: quotaOpen ? quotaId : undefined,
+                          onToggle: () => toggleQuota(status, accountId),
+                        }
+                      : undefined
+                  }
                   mainClassName={stylex.props(styles.rowMain).className}
                   leading={
                     <EngineBrandIcon brand={engine === 'codex' ? 'openai' : 'claude'} size={20} />
@@ -490,7 +519,6 @@ export function SubscriptionAccounts({
                         quota={status.quota}
                         refresh={quotaRefresh[accountId] ?? { state: 'idle' }}
                         now={now}
-                        onRefresh={canRefreshQuota ? () => void refreshQuota(accountId) : undefined}
                         t={t}
                       />
                     ) : undefined
@@ -498,23 +526,19 @@ export function SubscriptionAccounts({
                   trailing={
                     canManage || canSignIn || status.available ? (
                       <div {...stylex.props(styles.actions)}>
-                        {!signingIn && status.available && accountId !== undefined ? (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            xstyle={styles.quotaToggle}
-                            aria-expanded={quotaOpen}
-                            aria-controls={quotaOpen ? quotaId : undefined}
-                            aria-label={t('modelProviders.quotaToggle', {
-                              name: title,
-                              summary: quotaSummary(status.quota, now, t),
-                            })}
-                            data-quota-toggle={accountId}
-                            onClick={() => toggleQuota(status, accountId)}
-                          >
+                        {canToggleQuota ? (
+                          <span {...stylex.props(styles.quotaChip)} data-quota-chip={accountId}>
                             {quotaSummary(status.quota, now, t)}
-                            <Icon name={quotaOpen ? 'chevron-up' : 'chevron-down'} />
-                          </Button>
+                          </span>
+                        ) : null}
+                        {quotaOpen && canRefreshQuota && accountId !== undefined ? (
+                          <QuotaRefreshButton
+                            quota={status.quota}
+                            refresh={quotaRefresh[accountId] ?? { state: 'idle' }}
+                            now={now}
+                            onRefresh={() => void refreshQuota(accountId)}
+                            t={t}
+                          />
                         ) : null}
                         {signingIn ? (
                           <Button

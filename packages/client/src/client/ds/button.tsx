@@ -68,6 +68,20 @@ const styles = stylex.create({
     textDecorationLine: { default: 'none', ':hover:enabled': 'underline' },
     textDecorationStyle: 'dotted',
   },
+  overlay: {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 0,
+    height: 'auto',
+    padding: 0,
+    borderRadius: 0,
+    outlineOffset: `calc(-1 * ${border.focus})`,
+    backgroundColor: {
+      default: 'transparent',
+      ':hover:enabled': state.hover,
+      ':active:enabled': state.pressed,
+    },
+  },
   toolbar: {
     backgroundColor: layer.well,
     backgroundImage: {
@@ -104,7 +118,14 @@ const styles = stylex.create({
   },
 });
 
-export type ButtonVariant = 'primary' | 'ghost' | 'outline' | 'text' | 'toolbar' | 'preview';
+export type ButtonVariant =
+  | 'primary'
+  | 'ghost'
+  | 'outline'
+  | 'text'
+  | 'overlay'
+  | 'toolbar'
+  | 'preview';
 
 export type ButtonProps = {
   readonly variant?: ButtonVariant;

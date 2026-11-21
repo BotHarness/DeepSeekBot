@@ -13,34 +13,41 @@ import { Note } from './ds/note.js';
 import { space } from './ds/tokens.stylex.js';
 import { ink, layer, radius, status as statusColor, type as typeScale } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { aboveCardToggle } from './sidebar-card.js';
 import { shortTime } from './session-engine.js';
 
 const STALE_MS = 5 * 60_000;
 
 const styles = stylex.create({
-  panel: { display: 'grid', gap: space.x3 },
+  panel: { display: 'grid', gap: space.x3, paddingBottom: space.x3 },
   windows: { display: 'grid', gap: space.x3, margin: 0, padding: 0, listStyle: 'none' },
   window: {
     display: 'grid',
-    gridTemplateColumns: 'minmax(0, 7rem) minmax(0, 1fr)',
+    gridTemplateColumns: 'minmax(0, 9rem) minmax(0, 1fr)',
     alignItems: 'center',
-    gap: space.x5,
+    gap: space.x4,
   },
-  head: { display: 'grid', gap: space.x1, minWidth: 0 },
-  name: {
+  amount: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: space.x2,
+    minWidth: 0,
+    whiteSpace: 'nowrap',
+  },
+  percent: {
+    fontSize: typeScale.titleSize,
+    lineHeight: typeScale.titleLine,
+    fontWeight: typeScale.headingWeight,
+    fontVariantNumeric: 'tabular-nums',
+    color: ink.primary,
+  },
+  unit: {
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
     fontSize: typeScale.captionSize,
     lineHeight: typeScale.captionLine,
     color: ink.secondary,
   },
-  amount: { display: 'flex', alignItems: 'baseline', gap: space.x2, whiteSpace: 'nowrap' },
-  percent: {
-    fontSize: typeScale.displaySize,
-    lineHeight: typeScale.displayLine,
-    fontWeight: typeScale.displayWeight,
-    fontVariantNumeric: 'tabular-nums',
-    color: ink.primary,
-  },
-  unit: { fontSize: typeScale.captionSize, lineHeight: typeScale.captionLine, color: ink.tertiary },
   track: {
     display: 'block',
     position: 'relative',
@@ -66,15 +73,6 @@ const styles = stylex.create({
     fontVariantNumeric: 'tabular-nums',
     color: ink.secondary,
   },
-  footer: {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'end',
-    gap: space.x2,
-    fontSize: typeScale.captionSize,
-    lineHeight: typeScale.captionLine,
-    color: ink.tertiary,
-  },
 });
 
 export type QuotaRefreshState =
@@ -98,6 +96,7 @@ export function MaskedEmail({ email, t }: { email: string; t: BotHarnessTranslat
   return (
     <Button
       variant="text"
+      xstyle={aboveCardToggle}
       aria-pressed={shown}
       aria-label={shown ? t('modelProviders.hideEmail') : t('modelProviders.showEmail')}
       title={shown ? t('modelProviders.hideEmail') : t('modelProviders.showEmail')}
@@ -163,7 +162,7 @@ export function quotaStale(quota: SessionEngineQuota | undefined, now: number): 
   );
 }
 
-function updatedText(observedAt: string, now: number, t: BotHarnessTranslate): string {
+export function updatedText(observedAt: string, now: number, t: BotHarnessTranslate): string {
   const minutes = Math.floor((now - Date.parse(observedAt)) / 60_000);
   if (minutes < 1) return t('modelProviders.quotaUpdatedNow');
   if (minutes < 60) return t('modelProviders.quotaUpdatedMinutes', { count: String(minutes) });
@@ -172,6 +171,12 @@ function updatedText(observedAt: string, now: number, t: BotHarnessTranslate): s
 
 function windowLabel(id: EngineQuotaWindowId, t: BotHarnessTranslate): string {
   return id === 'session' ? t('modelProviders.quotaSession') : t('modelProviders.quotaWeekly');
+}
+
+function windowLeft(id: EngineQuotaWindowId, t: BotHarnessTranslate): string {
+  return id === 'session'
+    ? t('modelProviders.quotaSessionLeft')
+    : t('modelProviders.quotaWeeklyLeft');
 }
 
 type Level = 'high' | 'medium' | 'low';
@@ -192,7 +197,7 @@ function countdown(resetsAt: string, now: number, t: BotHarnessTranslate): strin
   return t('modelProviders.quotaInMinutes', { minutes: String(minutes) });
 }
 
-export function QuotaPanel({
+export function QuotaRefreshButton({
   quota,
   refresh,
   now,
@@ -202,7 +207,38 @@ export function QuotaPanel({
   quota: SessionEngineQuota | undefined;
   refresh: QuotaRefreshState;
   now: number;
-  onRefresh?: (() => void) | undefined;
+  onRefresh(): void;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const status =
+    refresh.state === 'refreshing'
+      ? t('modelProviders.quotaRefreshing')
+      : quota === undefined
+        ? t('modelProviders.quotaNeverRead')
+        : updatedText(quota.observedAt, now, t);
+  return (
+    <IconButton
+      xstyle={aboveCardToggle}
+      aria-label={t('modelProviders.quotaRefresh')}
+      title={`${status} · ${t('modelProviders.quotaRefresh')}`}
+      disabled={refresh.state === 'refreshing'}
+      data-quota-refresh=""
+      onClick={onRefresh}
+    >
+      <Icon name="refresh-cw" />
+    </IconButton>
+  );
+}
+
+export function QuotaPanel({
+  quota,
+  refresh,
+  now,
+  t,
+}: {
+  quota: SessionEngineQuota | undefined;
+  refresh: QuotaRefreshState;
+  now: number;
   t: BotHarnessTranslate;
 }): ReactElement {
   const windows = shownWindows(quota, now);
@@ -217,12 +253,9 @@ export function QuotaPanel({
         <ul {...stylex.props(styles.windows)}>
           {windows.map((window) => (
             <li key={window.id} {...stylex.props(styles.window)} data-quota-window={window.id}>
-              <span {...stylex.props(styles.head)}>
-                <span {...stylex.props(styles.name)}>{windowLabel(window.id, t)}</span>
-                <span {...stylex.props(styles.amount)}>
-                  <span {...stylex.props(styles.percent)}>{window.remaining}%</span>
-                  <span {...stylex.props(styles.unit)}>{t('modelProviders.quotaLeft')}</span>
-                </span>
+              <span {...stylex.props(styles.amount)}>
+                <span {...stylex.props(styles.percent)}>{window.remaining}%</span>
+                <span {...stylex.props(styles.unit)}>{windowLeft(window.id, t)}</span>
               </span>
               <span
                 role="meter"
@@ -270,25 +303,6 @@ export function QuotaPanel({
               : t('modelProviders.quotaUnavailable')}
         </Note>
       ) : null}
-      <div {...stylex.props(styles.footer)}>
-        <span>
-          {refresh.state === 'refreshing'
-            ? t('modelProviders.quotaRefreshing')
-            : quota === undefined
-              ? t('modelProviders.quotaNeverRead')
-              : updatedText(quota.observedAt, now, t)}
-        </span>
-        {onRefresh === undefined ? null : (
-          <IconButton
-            aria-label={t('modelProviders.quotaRefresh')}
-            title={t('modelProviders.quotaRefresh')}
-            disabled={refresh.state === 'refreshing'}
-            onClick={onRefresh}
-          >
-            <Icon name="refresh-cw" />
-          </IconButton>
-        )}
-      </div>
     </div>
   );
 }
