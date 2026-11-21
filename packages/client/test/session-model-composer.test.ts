@@ -14,12 +14,24 @@ import { SessionModelComposer } from '../src/client/session-model-composer.js';
 const cleanups: (() => void)[] = [];
 afterEach(() => cleanups.splice(0).forEach((cleanup) => cleanup()));
 
-const saved = { kind: 'engine', engine: 'claude', model: 'claude-opus-5-5' } as const;
+const saved = {
+  kind: 'engine',
+  engine: 'claude',
+  model: 'claude-opus-5-5',
+  effort: 'high',
+} as const;
 const opus = [
   {
     engine: 'claude',
     available: true,
-    models: [{ id: saved.model, name: 'Opus 5.5', efforts: [] }],
+    models: [
+      {
+        id: saved.model,
+        name: 'Opus 5.5',
+        efforts: [{ id: 'high', name: 'High' }],
+        defaultEffort: 'high',
+      },
+    ],
   },
 ] as unknown as RoutingGroupEngineOptions[];
 
@@ -46,7 +58,7 @@ it('never shows the raw model id while the engine catalog loads or briefly drops
     });
   const trigger = () => host.querySelector('[data-session-model-control] button');
   await act(async () => root.render(view(undefined)));
-  expect(trigger()?.textContent).not.toContain('claude-opus-5-5');
+  expect(trigger()?.textContent).toBe('');
   await act(async () => root.render(view(opus)));
   expect(trigger()?.textContent).toContain('Opus 5.5');
   await act(async () => root.render(view([])));

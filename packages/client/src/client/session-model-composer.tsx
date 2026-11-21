@@ -265,7 +265,9 @@ export function SessionModelComposer({
             ?.efforts
         : undefined;
   const effort =
-    effortId === undefined || effortId === '' ? undefined : effortName(effortEfforts, effortId);
+    resolving || effortId === undefined || effortId === ''
+      ? undefined
+      : effortName(effortEfforts, effortId);
   const kind =
     label === undefined
       ? undefined
