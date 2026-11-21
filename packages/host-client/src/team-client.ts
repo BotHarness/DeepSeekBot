@@ -1,9 +1,9 @@
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import type { HostEncryption, SavedHost } from './hosts';
-import { encryptedCarrier, keyBytes, keyHex, secureRandom } from './encrypted-carrier';
+import { encryptedCarrier, keyHex, secureRandom } from './encrypted-carrier';
 import { encryptedSignIn, signInRefusal, signInTransportFailure } from './encrypted-sign-in';
 import { isConnectRoute } from '@botharness/host-protocol/route';
-import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
+import { discoverSignInHost } from './sign-in-discovery';
 import {
   parseTeamInvitation,
   teamHostIdentity,
@@ -133,26 +133,16 @@ async function signInTeamRoute(
 ): Promise<TeamResult<SavedHost>> {
   const { invitation, route, signal } = options;
   try {
-    const response = await options.carrier.request(`${route}/botharness-device/channel`, {
-      method: 'GET',
+    const discovered = await discoverSignInHost({
+      carrier: options.carrier,
+      route,
       signal,
+      invitedHost: invitation.host,
     });
-    if (response.status !== 200) return { ok: false, code: 'unreachable' };
-    const discovery = teamRecord(JSON.parse(await response.text()));
-    const host = teamRecord(discovery['host']);
-    const remote = teamRecord(discovery['encryption']);
-    const publicKey = remote['publicKey'];
-    if (
-      host['id'] !== invitation.host.id ||
-      typeof publicKey !== 'string' ||
-      !/^[a-f0-9]{64}$/u.test(publicKey) ||
-      noiseFingerprint(keyBytes(publicKey)) !== invitation.host.fingerprint ||
-      remote['fingerprint'] !== invitation.host.fingerprint
-    )
-      return { ok: false, code: 'fingerprint-mismatch' };
+    if (!discovered.ok) return discovered;
     const encryption: HostEncryption = {
       protocol: 'connect-noise-xk-v1',
-      hostKey: publicKey,
+      hostKey: discovered.value.publicKey,
       deviceKey: keyHex(secureRandom(options.carrier)),
     };
     const input = {

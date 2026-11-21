@@ -130,6 +130,23 @@ describe('Owner password sign-in', () => {
     expect(test.wire.join('')).not.toContain(password);
   });
 
+  it('rejects a channel fingerprint that does not match its advertised key', async () => {
+    const test = host();
+    test.request.mockResolvedValueOnce({
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          host: { id: 'studio', name: 'Studio' },
+          encryption: { ...test.encryption, fingerprint: '01'.repeat(32) },
+        }),
+    });
+    expect(await signInOwnerDevice(test.input)).toEqual({
+      ok: false,
+      code: 'fingerprint-mismatch',
+    });
+    expect(test.openSocket).not.toHaveBeenCalled();
+  });
+
   it('refuses an origin whose saved Host public key changed before opening a socket', async () => {
     const test = host();
     expect(
