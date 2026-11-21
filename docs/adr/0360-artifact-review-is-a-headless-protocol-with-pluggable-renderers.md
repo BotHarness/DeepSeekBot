@@ -54,18 +54,23 @@ Rendering is only for display. The Bot still processes files with native tools (
 - **Partially reopens [ADR-0100](../decisions/workspaces.md#adr-0100)** ("no attachment version archive"). Attachments stay live, mutable files with the identity and current-content semantics of ADR-0100. Review does not add continuous version retention. It stores a snapshot only when a Human starts a review or a Bot publishes one for review. That snapshot belongs to the review owner, is deleted with its threads, and follows existing purge ([ADR-0146](../decisions/persistence.md#adr-0146)) and backup ([ADR-0042](../decisions/persistence.md#adr-0042)) rules. Without it, an external edit would silently invalidate every Anchor.
 - **[ADR-0178](../decisions/workspaces.md#adr-0178)**: the built-in reader for Memory files becomes the first consumer of the renderer registry. Message file cards gain a **View** action next to the existing split-button open and download controls, and download remains available.
 - **[ADR-0301](../decisions/genui.md#adr-0301)**: unchanged, and reused. Artifact HTML is one more consumer of the GenUI isolated surface; review adds Anchors on the trusted side only. An earlier draft of this record proposed a separate MCP Apps sandbox for HTML; that was dropped (amended 2026-11-22).
-- **#2819** (mobile Channel files) asks for no second file ledger before first-slice Human feedback. Delivery steps 1 and 2 below store no review state and can sit behind its Channel files entry. Review Snapshots arrive in step 3, after that feedback.
+- **#2819** (mobile Channel files) asks for no second file ledger before first-slice Human feedback. Phase 1 below stores no review state and can sit behind its Channel files entry. Review Snapshots arrive in phase 2, after that feedback.
 - **[ADR-0105](../decisions/im-providers.md#adr-0105)**: unchanged. Opening a viewer grants the Bot no file access. Viewing and commenting use the Human's current Channel authority over that message and file.
 
 ## Delivery
 
-The spec and its user stories are in [#4883](https://github.com/BotHarness/DeepSeekBot/issues/4883) (milestone v1.9.0, project "Artifacts & File Preview").
+Delivery has two phases with separate specs (amended 2026-11-22). Both are tracked in the project "Artifacts & File Preview".
 
-1. **Viewer (no review state)**: the renderer registry and renderers for Markdown, code, CSV, PDF, HTML and images. Desktop/Web via message file cards and the Memory reader; mobile via a viewer screen. This removes the "open it on a computer" problem on its own.
-2. **Review**: Review Snapshot, Anchors, threads and verdicts; Source Event delivery to the Bot; Bot tool and `deepseekbot artifact` CLI; re-anchoring.
+1. **Phase 1: file preview, milestone v1.9.0 ([#4883](https://github.com/BotHarness/DeepSeekBot/issues/4883))**. The renderer registry and renderers for Markdown, code, CSV, PDF, HTML (through the GenUI surface), images and best-effort Office.
+   - Entry points: Desktop/Web message file cards and the Memory reader; mobile through a viewer screen from message attachments and Channel files.
+   - It stores no review state, creates no snapshot and allows no editing. It removes the "open it on a computer" problem on its own.
+   - The renderer contract is display-only, but the registry holds one replaceable component per media type, so phase 2 editors register without replacing it.
+2. **Phase 2: collaborative artifacts and review ([#4885](https://github.com/BotHarness/DeepSeekBot/issues/4885))**. Humans and Bots co-edit native documents and whiteboards through a CRDT. Comments and verdicts cover both opaque files (Review Snapshot Anchors, as above) and collaborative artifacts (CRDT-position Anchors). This adds Source Event delivery to the Bot, a Bot tool and `deepseekbot artifact` review commands.
+   - Research and Human decisions come first: CRDT library and React Native viability, collaborative artifact versus Attachment identity, how a Bot edits, and multi-Human scope. They are recorded in a new or amended ADR before tickets are split.
+   - The review design in this record is the starting point for the opaque-file half, not yet a commitment. Review waits for phase 2 because the two anchor kinds should share one Review Thread model, designed once.
 3. **Extraction**: once the Desktop/Web Client and mobile both use core through the adapter interface, publish `artifact-spec`, `artifact-core` and the React renderers under the `bot-harness` organization under a permissive license. The spec stays versioned and BotHarness-free before publication. It is not published before two consumers have exercised it.
 
-Each step needs proof in the running app: the file opens on a phone without a download, a selection becomes a stored Anchor, a comment reaches the Bot as a Source Event, the Bot's reply appears under the thread, and an edited file orphans or re-anchors threads as described.
+Each step needs proof in the running app. Phase 1: the file opens on a phone and on Desktop without a download or another application. Phase 2: a selection becomes a stored Anchor, a comment reaches the Bot as a Source Event, the Bot's reply appears under the thread, and an edited file orphans or re-anchors threads as described.
 
 ## Considered Options
 
