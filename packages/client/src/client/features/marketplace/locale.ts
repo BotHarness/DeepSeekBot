@@ -71,6 +71,8 @@ export const zh = {
   'market.error.fileNotFound': '这个文件已经不在了。',
   'market.challenge.verifying': '正在验证…',
   'market.avatar.report.title': '举报这个头像',
+  'market.avatar.report.hint':
+    '不需要账号。多个不同来源举报后，这个头像会先从市场中隐藏，等待管理员复核。',
   'market.avatar.report.placeholder': '例如：冒充他人、垃圾内容、不当图片',
   'market.avatar.report.done':
     '谢谢。达到一定数量的独立举报后，这个头像会先被隐藏，等待管理员复核。',
@@ -354,6 +356,8 @@ export const en = {
   'market.error.fileNotFound': 'This file is no longer there.',
   'market.challenge.verifying': 'Verifying…',
   'market.avatar.report.title': 'Report this Avatar',
+  'market.avatar.report.hint':
+    'No account needed. After reports from several different sources, this Avatar is hidden from the Marketplace until an administrator reviews it.',
   'market.avatar.report.placeholder': 'For example: impersonation, spam, inappropriate imagery',
   'market.avatar.report.done':
     'Thanks. Enough independent reports will hide this Avatar until an administrator reviews it.',

@@ -389,9 +389,9 @@ it('reports the opened Avatar through the shared challenge and report panel', as
   );
   await act(async () => buttonNamed(t('market.detail.open', { name: 'Otter' })).click());
   await act(async () => buttonNamed(t('market.report.open')).click());
-  expect(host.querySelector('[data-market-report="open"]')?.textContent).toContain(
-    t('market.avatar.report.title'),
-  );
+  const report = host.querySelector('[data-market-report="open"]')?.textContent;
+  expect(report).toContain(t('market.avatar.report.title'));
+  expect(report).toContain(t('market.avatar.report.hint'));
   const textarea = host.querySelector('textarea');
   if (textarea === null) throw new Error('Missing report reason field');
   await act(async () => {

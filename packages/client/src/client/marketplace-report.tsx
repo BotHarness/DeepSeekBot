@@ -116,7 +116,9 @@ export function ReportPanel({
   return (
     <div className="bh-market-report" data-market-report="open">
       <strong>{t(kind === 'bot' ? 'market.report.title' : 'market.avatar.report.title')}</strong>
-      <span className="bh-market-hint">{t('market.report.hint')}</span>
+      <span className="bh-market-hint">
+        {t(kind === 'bot' ? 'market.report.hint' : 'market.avatar.report.hint')}
+      </span>
       <label>
         <span>{t('market.report.reason')}</span>
         <textarea
