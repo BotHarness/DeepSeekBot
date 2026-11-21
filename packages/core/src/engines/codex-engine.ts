@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import readline from 'node:readline';
 
 import { engineLaunch } from './engine-launch.js';
+import { quotaEmail, quotaTime, quotaWindow, type ProviderQuota } from './engine-quota.js';
 
 import {
   type EngineAccount,
@@ -137,8 +138,15 @@ const text = (value: unknown): string => (typeof value === 'string' ? value : ''
 
 export function codexAccount(result: unknown): EngineAccount {
   const account = record(record(result)['account']);
-  if (account['type'] === 'chatgpt')
-    return { kind: 'subscription', engine: 'codex', plan: text(account['planType']) || 'chatgpt' };
+  if (account['type'] === 'chatgpt') {
+    const email = quotaEmail(account['email']);
+    return {
+      kind: 'subscription',
+      engine: 'codex',
+      plan: text(account['planType']) || 'chatgpt',
+      ...(email === undefined ? {} : { email }),
+    };
+  }
   if (account['type'] === 'apiKey')
     return { kind: 'metered', engine: 'codex', detail: 'Codex is signed in with an API key' };
   if (typeof account['type'] === 'string')
@@ -156,30 +164,50 @@ export function codexUsageLimit(error: Json): boolean {
 }
 
 export function codexRateLimit(limits: Json): Extract<EngineEvent, { kind: 'rate-limit' }> {
-  const limited = limits['rateLimitReachedType'] != null || limits['spendControlReached'] === true;
-  const windows = [record(limits['primary']), record(limits['secondary'])].filter(
-    (window) => typeof window['usedPercent'] === 'number',
-  );
-  const percent = (window: Json) => window['usedPercent'] as number;
-  const reset = (window: Json) =>
-    typeof window['resetsAt'] === 'number' ? window['resetsAt'] : undefined;
-  const spent = windows.filter((window) => percent(window) >= 100);
-  const shown =
-    limited && spent.length
-      ? spent.reduce((latest, window) =>
-          (reset(window) ?? 0) > (reset(latest) ?? 0) ? window : latest,
-        )
-      : windows.reduce<Json | undefined>(
-          (most, window) => (most === undefined || percent(window) > percent(most) ? window : most),
-          undefined,
-        );
-  const resetsAt = shown === undefined ? undefined : reset(shown);
+  const windows: NonNullable<Extract<EngineEvent, { kind: 'rate-limit' }>['windows']> = {};
+  let unclassified;
+  let limited = limits['rateLimitReachedType'] != null || limits['spendControlReached'] === true;
+  let resetsAt: string | undefined;
+  for (const name of ['primary', 'secondary']) {
+    const row = record(limits[name]);
+    const used = row['usedPercent'];
+    if (typeof used !== 'number' || !Number.isFinite(used)) continue;
+    const reset =
+      typeof row['resetsAt'] === 'number' ? quotaTime(row['resetsAt'] * 1000) : undefined;
+    const duration = row['windowDurationMins'];
+    const minutes =
+      typeof duration === 'number' && Number.isFinite(duration) && duration > 0
+        ? duration
+        : undefined;
+    const window = quotaWindow(used, reset, minutes);
+    if (minutes === 300) windows.session = window;
+    else if (minutes === 10_080) windows.weekly = window;
+    else if ((window.remainingPercent ?? Infinity) < (unclassified?.remainingPercent ?? Infinity))
+      unclassified = window;
+    if (used >= 100 || limits['rateLimitReachedType'] === name) {
+      limited = true;
+      if (reset !== undefined && (resetsAt === undefined || reset > resetsAt)) resetsAt = reset;
+    }
+  }
   return {
     kind: 'rate-limit',
-    ...(shown === undefined ? {} : { usedPercent: percent(shown) }),
+    ...(Object.keys(windows).length === 0 ? {} : { windows }),
+    ...(unclassified === undefined ? {} : { unclassified }),
     ...(resetsAt === undefined ? {} : { resetsAt }),
-    limited: limited || spent.length > 0,
+    limited,
   };
+}
+
+export function codexQuotaReport(
+  response: unknown,
+): Pick<Extract<ProviderQuota, { status: 'ok' }>, 'windows' | 'blocked'> | undefined {
+  const value = record(response);
+  if (typeof value['rateLimits'] !== 'object' || value['rateLimits'] === null) return undefined;
+  const snapshot = record(value['rateLimits']);
+  const codex = record(record(value['rateLimitsByLimitId'])['codex']);
+  const { windows = {} } = codexRateLimit(Object.keys(codex).length ? codex : snapshot);
+  const allowed = value['ordinaryUsageAllowed'];
+  return { windows, ...(typeof allowed === 'boolean' ? { blocked: !allowed } : {}) };
 }
 
 export function codexModels(pages: readonly unknown[]): EngineModel[] {
@@ -263,6 +291,7 @@ export class CodexEngineSession implements EngineSession {
   #turn: ActiveTurn | undefined;
   #exited: string | undefined;
   #abandoned = false;
+  #closing: Promise<void> | undefined;
   readonly #requestTimeoutMs: number;
 
   constructor(
@@ -311,6 +340,22 @@ export class CodexEngineSession implements EngineSession {
   async account(): Promise<EngineAccount> {
     await this.#initialize();
     return codexAccount(await this.#request('account/read', {}));
+  }
+
+  async readQuota(signal: AbortSignal): Promise<ProviderQuota> {
+    const account = await this.account();
+    signal.throwIfAborted();
+    if (account.kind === 'signed-out') return { status: 'signed-out' };
+    if (account.kind !== 'subscription') return { status: 'unavailable' };
+    const identity = account.email === undefined ? {} : { email: account.email };
+    try {
+      const report = codexQuotaReport(await this.#request('account/rateLimits/read', undefined));
+      return report === undefined
+        ? { status: 'unavailable', ...identity }
+        : { status: 'ok', ...report, ...identity };
+    } catch {
+      return { status: 'unavailable', ...identity };
+    }
   }
 
   async start(resume?: string): Promise<string> {
@@ -384,12 +429,16 @@ export class CodexEngineSession implements EngineSession {
       }).then((response) => text(record(record(response)['turn'])['id']));
       turnId = (await active.started) || undefined;
       acknowledged = true;
+      if (turnId !== undefined) options.onInputAccepted?.();
       if (active.stopping === true) interrupt();
       return await ended;
     } catch (error) {
       if (this.#turn === active) this.#turn = undefined;
       if (active.stopping === true) return { status: 'interrupted' };
-      return { status: 'failed', message: error instanceof Error ? error.message : String(error) };
+      const message = error instanceof Error ? error.message : String(error);
+      if (codexUsageLimit({ message }))
+        options.onEvent({ kind: 'rate-limit', limited: true, retryMessage: message });
+      return { status: 'failed', message };
     } finally {
       options.signal?.removeEventListener('abort', abort);
     }
@@ -402,12 +451,12 @@ export class CodexEngineSession implements EngineSession {
     if (expectedTurnId === '' || this.#turn !== turn || turn.options.signal?.aborted === true)
       return false;
     try {
-      await this.#request('turn/steer', {
+      const response = await this.#request('turn/steer', {
         threadId: this.#threadId,
         expectedTurnId,
         input: [{ type: 'text', text: input, text_elements: [] }],
       });
-      return true;
+      return text(record(response)['turnId']) === expectedTurnId;
     } catch (error) {
       if (error instanceof CodexRequestRefused) return false;
       throw error;
@@ -440,7 +489,7 @@ export class CodexEngineSession implements EngineSession {
   }
 
   async close(): Promise<void> {
-    await this.#transport.close();
+    await (this.#closing ??= this.#transport.close());
   }
 
   #initialize(): Promise<void> {
@@ -463,7 +512,7 @@ export class CodexEngineSession implements EngineSession {
         if (!this.#pending.delete(id)) return;
         this.#abandoned = true;
         reject(new Error(`Codex did not answer ${method} within ${this.#requestTimeoutMs} ms`));
-        void this.#transport.close();
+        void this.close().catch(() => undefined);
       }, this.#requestTimeoutMs);
       timer.unref?.();
       this.#pending.set(id, {
@@ -517,7 +566,8 @@ export class CodexEngineSession implements EngineSession {
         if (params['willRetry'] === true || this.#turn === undefined) return;
         const error = record(params['error']);
         this.#turn.failure = text(error['message']) || 'Codex turn failed';
-        if (codexUsageLimit(error)) this.#emit({ kind: 'rate-limit', limited: true });
+        if (codexUsageLimit(error))
+          this.#emit({ kind: 'rate-limit', limited: true, retryMessage: text(error['message']) });
         return;
       }
       case 'turn/completed': {
@@ -529,8 +579,13 @@ export class CodexEngineSession implements EngineSession {
         if (status === 'completed') active.resolve({ status: 'completed' });
         else if (status === 'interrupted') active.resolve({ status: 'interrupted' });
         else {
-          if (codexUsageLimit(record(turn['error'])))
-            active.options.onEvent({ kind: 'rate-limit', limited: true });
+          const error = record(turn['error']);
+          if (codexUsageLimit(error))
+            active.options.onEvent({
+              kind: 'rate-limit',
+              limited: true,
+              retryMessage: text(error['message']),
+            });
           active.resolve({
             status: 'failed',
             message:

@@ -39,6 +39,8 @@ export async function runModelProviderGate(s, { as, password }, check) {
       String(accountRevision),
     ],
     ['engine', 'login', accountId],
+    ['engine', 'login-cancel', accountId],
+    ['engine', 'quota', accountId, '--refresh'],
     [
       'model-provider-add',
       '--template',
@@ -82,6 +84,8 @@ export async function runModelProviderGate(s, { as, password }, check) {
       ['engineAccountRename', { id: accountId, name: 'M15', expectedRevision: accountRevision }],
       ['engineAccountRemove', { id: accountId, confirm: true, expectedRevision: accountRevision }],
       ['engineAccountLogin', { id: accountId }],
+      ['engineAccountLoginCancel', { id: accountId }],
+      ['engineAccountQuotaRefresh', { id: accountId }],
       ['engineAccountSubmitCode', { id: 'claude', code: 'm15-fixture' }],
       [
         'modelProviderAdd',

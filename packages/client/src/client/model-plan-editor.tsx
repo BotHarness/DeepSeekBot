@@ -6,12 +6,13 @@ import { Switch } from './ds/switch.js';
 import { space, color, text } from './ds/tokens.stylex.js';
 import type { ModelCatalogEntryView, ModelCatalogGroupView } from './bridge.js';
 import { AssignmentModelPolicy } from './assignment-model-policy.js';
-import { Combobox, type ComboboxOption } from './combobox.js';
+import type { ComboboxOption } from './combobox.js';
 import type { EngineRole } from './engine-choice.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { groupMenuId, groupMenuKey } from './model-menu.js';
+import { groupMenuId, groupMenuItems, modelMenuItems } from './model-menu.js';
 import { ModelPicker } from './model-picker.js';
 import { modelKey, withAdvanced, type ModelDraft } from './model-preset-draft.js';
+import { ModelTrigger } from './model-trigger.js';
 
 const styles = stylex.create({
   section: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
@@ -140,18 +141,21 @@ export function ModelPlanEditor({
       )}
       {draft.advanced && (
         <div {...stylex.props(styles.section)}>
-          <Combobox
+          <ModelTrigger
             value=""
-            options={[
-              ...catalogGroups
-                .filter((group) => !draft.groups.some((item) => item.group === group.id))
-                .map((group) => ({
-                  value: groupMenuKey(group.id),
-                  label: group.name,
-                  hint: t('modelPreset.groupCount', { count: group.routes.length }),
-                })),
-              ...modelOptions.filter(
-                (option) => !draft.allowed.some((item) => modelKey(item) === option.value),
+            items={[
+              ...groupMenuItems(catalog, t, catalogGroups)
+                .filter(
+                  (item) =>
+                    item.group !== undefined &&
+                    !draft.groups.some((choice) => choice.group === item.group),
+                )
+                .map((group) => ({ ...group, disabled: false })),
+              ...modelMenuItems(
+                modelOptions.filter(
+                  (option) => !draft.allowed.some((item) => modelKey(item) === option.value),
+                ),
+                catalog,
               ),
             ]}
             onSelect={(key) => {
@@ -170,10 +174,9 @@ export function ModelPlanEditor({
               });
             }}
             label={t('modelPreset.addAllowed')}
-            toggleLabel={t('modelPreset.showModels')}
             placeholder={t('modelPreset.addAllowed')}
-            emptyLabel={t('modelPreset.noMatch')}
             disabled={busy}
+            t={t}
           />
           <AssignmentModelPolicy
             draft={draft}

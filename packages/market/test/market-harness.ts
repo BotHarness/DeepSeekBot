@@ -66,7 +66,21 @@ export function createLocalD1(): { db: D1Database; sqlite: DatabaseSync } {
       }),
     run: () => Promise.resolve(sqlite.prepare(query).run(...(values as SQLInputValue[]))),
   });
-  return { db: { prepare: (query) => statement(query, []) }, sqlite };
+  const db: D1Database = {
+    prepare: (query) => statement(query, []),
+    async batch<T>(statements: D1PreparedStatement[]) {
+      sqlite.exec('BEGIN');
+      try {
+        const results = statements.map((item) => item.all<T>());
+        sqlite.exec('COMMIT');
+        return Promise.all(results);
+      } catch (error) {
+        sqlite.exec('ROLLBACK');
+        throw error;
+      }
+    },
+  };
+  return { db, sqlite };
 }
 
 export interface FakeRepository extends GitHubRepository {

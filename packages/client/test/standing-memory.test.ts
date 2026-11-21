@@ -73,6 +73,9 @@ describe('Standing memory', () => {
     );
     expect(rows[1]?.querySelector('[data-standing="over"]')?.textContent).toContain('3,600/3,000');
     expect(rows[2]?.querySelector('[data-standing]')).toBeNull();
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(
+      'MEMORY.md 有 600 字符不会进入提示词。',
+    );
   });
 
   it('parses standing limits and usage from the bridge', async () => {

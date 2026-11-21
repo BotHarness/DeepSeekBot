@@ -66,7 +66,7 @@
     "dshImport": 1
   },
   "packages/client/src/client/bot-sidebar.tsx": {
-    "rawControl": 6,
+    "rawControl": 5,
     "legacyCss": 1
   },
   "packages/client/src/client/bot-skills-card.tsx": {
@@ -232,7 +232,7 @@
     "legacyCss": 63
   },
   "packages/client/src/client/features/channels/styles.ts": {
-    "legacyCss": 155,
+    "legacyCss": 152,
     "lineBorder": 2
   },
   "packages/client/src/client/features/channels/timeline-styles.ts": {
@@ -487,7 +487,7 @@
     "rawControl": 2
   },
   "packages/client/src/client/styles.ts": {
-    "legacyCss": 356,
+    "legacyCss": 355,
     "lineBorder": 36
   },
   "packages/client/src/client/telemetry-notice-view.tsx": {

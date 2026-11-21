@@ -111,7 +111,7 @@
     "../../../core/src/bots/part-library.js": 1,
     "../../../core/src/bots/primary-color.js": 1,
     "../../../core/src/bridge/composer-recovery.js": 1,
-    "../../../core/src/bridge/methods.js": 2,
+    "../../../core/src/bridge/methods.js": 1,
     "../../../core/src/channels/activity-today.js": 1,
     "../../../core/src/channels/all-bot-mention.js": 1,
     "../../../core/src/channels/channel.js": 1,
@@ -135,9 +135,9 @@
     "../../../core/src/messaging/group-policy.js": 1,
     "../../../core/src/messaging/identity.js": 1,
     "../../../core/src/messaging/inbound.js": 1,
-    "../../../core/src/messaging/outbound.js": 2,
+    "../../../core/src/messaging/outbound.js": 1,
     "../../../core/src/messaging/pairing.js": 1,
-    "../../../core/src/messaging/provider.js": 3,
+    "../../../core/src/messaging/provider.js": 1,
     "../../../core/src/messaging/sender-access.js": 1,
     "../../../core/src/messaging/thread-policy.js": 1,
     "../../../core/src/runtime/assignment-human-context.js": 1,
@@ -145,7 +145,7 @@
     "../../../core/src/takeover/contracts.js": 1,
     "../../../core/src/team/member-methods.js": 1,
     "../../../core/src/usage/overview.js": 1,
-    "../../../core/src/usage/query.js": 2,
+    "../../../core/src/usage/query.js": 1,
     "../../../core/src/workspaces/approval-template-deletion-contract.js": 1,
     "../../../core/src/workspaces/folder-browse.js": 1,
     "../../../core/src/workspaces/tool-approval-actor.js": 1,
@@ -343,7 +343,6 @@
   "packages/client/src/client/marketplace.tsx": {
     "../../../core/src/marketplace/altcha.js": 1,
     "../../../core/src/marketplace/client.js": 1,
-    "../../../core/src/marketplace/install-review.js": 1,
     "../../../core/src/marketplace/language.js": 1
   },
   "packages/client/src/client/mentions.ts": {

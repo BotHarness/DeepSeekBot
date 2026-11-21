@@ -21,7 +21,6 @@ import {
   type ModelScope,
   type ModelSettingsState,
 } from '@botharness/host-client/model-settings';
-import { Combobox } from './combobox.js';
 import { TextField } from './ds/field.js';
 import { Note } from './ds/note.js';
 import { PillButton } from './ds/pill-button.js';
@@ -29,8 +28,16 @@ import { Select } from './ds/select.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { groupFrontHint, groupMenuId, groupMenuKey } from './model-menu.js';
+import {
+  groupFrontHint,
+  groupMenuId,
+  groupMenuKey,
+  groupMenuItems,
+  modelMenuItems,
+  type ModelMenuFavorites,
+} from './model-menu.js';
 import { ModelPicker } from './model-picker.js';
+import { ModelTrigger } from './model-trigger.js';
 import { useMountedResource } from './mounted-resource.js';
 
 const styles = stylex.create({
@@ -293,6 +300,16 @@ function Models({
     ...group,
     revision: group.revision ?? 0,
   }));
+  const favoriteSource: ModelMenuFavorites | null =
+    value?.favorites === undefined
+      ? null
+      : {
+          choices: value.favorites,
+          write: async (choice, favorite) => {
+            const favorites = await resource.favorite(choice, favorite);
+            setValue((current) => (current === undefined ? current : { ...current, favorites }));
+          },
+        };
   const pickerGroup = (field: 'orchestrator' | 'assignment') =>
     field === 'assignment'
       ? routes?.groups.assignmentDefaultGroupId
@@ -331,6 +348,7 @@ function Models({
             : { key: groupMenuKey(pickerGroup(field)!), effort: pickerGroupEffort(field) }
         }
         catalog={catalog}
+        favoriteSource={favoriteSource}
         groups={catalogGroups}
         groupEffort
         options={value.models.map((entry) => ({
@@ -411,33 +429,36 @@ function Models({
             <>
               {picker('assignment', routes?.assignmentDefault)}
               <div {...stylex.props(styles.choices)}>
-                <Combobox
+                <ModelTrigger
                   value=""
-                  options={[
-                    ...catalogGroups
-                      .filter((group) => !routes?.groups.assignmentGroups?.includes(group.id))
-                      .map((group) => ({
-                        value: groupMenuKey(group.id),
-                        label: group.name,
-                        hint: t('modelPreset.groupCount', { count: group.routes.length }),
-                      })),
-                    ...value.models
+                  items={[
+                    ...groupMenuItems(catalog, t, catalogGroups)
                       .filter(
-                        (entry) =>
-                          entry.credential === undefined &&
-                          !routes?.assignmentModels.some((option) => sameModel(option, entry)),
+                        (item) =>
+                          item.group !== undefined &&
+                          !routes?.groups.assignmentGroups?.includes(item.group),
                       )
-                      .map((entry) => ({
-                        value: JSON.stringify([entry.provider, entry.model]),
-                        label: entry.modelName,
-                        hint: entry.providerName,
-                      })),
+                      .map((item) => ({ ...item, disabled: false })),
+                    ...modelMenuItems(
+                      value.models
+                        .filter(
+                          (entry) =>
+                            entry.credential === undefined &&
+                            !routes?.assignmentModels.some((option) => sameModel(option, entry)),
+                        )
+                        .map((entry) => ({
+                          value: JSON.stringify([entry.provider, entry.model]),
+                          label: entry.modelName,
+                          hint: entry.providerName,
+                        })),
+                      catalog,
+                    ),
                   ]}
                   label={t('modelPreset.allowedTitle')}
-                  toggleLabel={t('modelPreset.showModels')}
                   placeholder={t('modelPreset.chooseModel')}
-                  emptyLabel={t('modelPreset.noMatch')}
                   disabled={busy || !available || routes?.assignmentDefault === undefined}
+                  favoriteSource={favoriteSource}
+                  t={t}
                   onSelect={(key) => {
                     const group = groupMenuId(key);
                     if (group !== undefined) {

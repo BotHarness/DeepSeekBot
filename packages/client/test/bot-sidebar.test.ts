@@ -214,11 +214,16 @@ function stubActions(): BridgeActions {
     }),
     marketplaceList: vi.fn(async () => ({ bots: [] })),
     marketplaceAvatarList: vi.fn(),
+    marketplaceAvatarTags: vi.fn(),
     marketplaceAvatarDetail: vi.fn(),
+    marketplaceAvatarReport: vi.fn(),
     marketplaceAvatarApplyCandidates: vi.fn(),
     marketplaceAvatarApply: vi.fn(),
     marketplaceAvatarPublish: vi.fn(),
     marketplaceAvatarSource: vi.fn(),
+    marketplaceAvatarMine: vi.fn(),
+    marketplaceAvatarEdit: vi.fn(),
+    marketplaceAvatarDelete: vi.fn(),
     marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
     marketplaceAuthorSave: vi.fn(async () => {
       throw new Error('unused');
@@ -2249,6 +2254,52 @@ describe('bot sidebar rows', () => {
     expect(menu.items[0]).toMatchObject({ id: 'profile', label: '查看资料' });
     menu.onSelect?.('profile');
     expect(profileAction).toHaveBeenCalledOnce();
+  });
+
+  it('opens the shared model picker from a Bot DM row', async () => {
+    const actions = stubActions();
+    const route = { provider: 'deepseek', model: 'flash' };
+    actions.modelCatalog = vi.fn(async () => ({
+      default: route,
+      models: [{ ...route, providerName: 'DeepSeek', modelName: 'Flash', efforts: [] }],
+    }));
+    store.setRoster([BOT], [DM_CHANNEL]);
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      await act(async () =>
+        root.render(
+          createElement(BotSidebar, {
+            wide: true,
+            actions,
+            useBotModePrefs: (selector) => selector(prefs),
+            setSortMode,
+            setSectionSortMode,
+            t: zhTranslate,
+          }),
+        ),
+      );
+      await act(async () =>
+        host
+          .querySelector(`[data-channel-id="${DM_CHANNEL.id}"]`)!
+          .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+      );
+      await act(async () => menuWithItem('bot-model').onSelect?.('bot-model'));
+      const modelTrigger = document.body.querySelector<HTMLButtonElement>(
+        'button[data-picker-trigger]',
+      )!;
+      await act(async () => modelTrigger.click());
+      expect(
+        document.body.querySelector('[role="dialog"] [data-picker-filter="deepseek"]'),
+      ).not.toBeNull();
+      expect(
+        document.body.querySelector('[data-filter-picker] input[role="combobox"]'),
+      ).not.toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
   });
 
   it('renders the 移动到 menu from every section plus 未分组 and maps picks to scopes', () => {

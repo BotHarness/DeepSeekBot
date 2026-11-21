@@ -290,10 +290,16 @@ export const CLI_EFFECTS = {
   'marketplace-account': { effects: externalRead, brokerRead: true },
   'marketplace-author': { effects: external, brokerRead: false },
   'marketplace-avatar-list': { effects: externalRead, brokerRead: true },
+  'marketplace-avatar-tags': { effects: externalRead, brokerRead: true },
   'marketplace-avatar-detail': { effects: externalRead, brokerRead: true },
+  'marketplace-avatar-report': { effects: external, brokerRead: false },
+  'marketplace-blocklist': { effects: externalSecretManagement, brokerRead: false },
   'marketplace-avatar-apply': { effects: external, brokerRead: false },
   'marketplace-avatar-apply-candidates': { effects: read, brokerRead: false },
   'marketplace-avatar-publish': { effects: external, brokerRead: false },
+  'marketplace-avatar-mine': { effects: externalRead, brokerRead: false },
+  'marketplace-avatar-edit': { effects: externalWrite, brokerRead: false },
+  'marketplace-avatar-delete': { effects: external, brokerRead: false },
   'marketplace-author-avatar': { effects: external, brokerRead: false },
   'marketplace-delete': { effects: external, brokerRead: false },
   'marketplace-detail': { effects: externalRead, brokerRead: true },
@@ -394,10 +400,12 @@ export const CLI_EFFECTS = {
   'engine-approvals': { effects: read, brokerRead: true },
   'engine-list': { effects: read, brokerRead: true },
   'engine-accounts': { effects: read, brokerRead: false },
+  'engine-quota': { effects: undefined, brokerRead: false },
   'engine-account-add': { effects: management, brokerRead: false },
   'engine-account-rename': { effects: management, brokerRead: false },
   'engine-account-remove': { effects: destructiveManagement, brokerRead: false },
   'engine-login': { effects: externalManagement, brokerRead: false },
+  'engine-login-cancel': { effects: externalManagement, brokerRead: false },
   'engine-models': { effects: read, brokerRead: true },
   'engine-status': { effects: read, brokerRead: true },
   'engine-tool': { effects: opaque, brokerRead: false },
@@ -596,11 +604,14 @@ function familyEffects(
       }
     }
     case 'engine':
+      if (action === 'quota') return values.refresh ? externalManagement : read;
       if (['list', 'status', 'approvals', 'tools', 'models', 'accounts'].includes(action ?? ''))
         return read;
       if (action === 'tool') return opaque;
       if (action === 'account-remove') return destructiveManagement;
       return action === 'login' ? externalManagement : management;
+    case 'engine-quota':
+      return values.refresh ? externalManagement : read;
     case 'bot-access':
       return botAccessEffects(action, values);
     case 'channels':

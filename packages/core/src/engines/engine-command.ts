@@ -1,4 +1,4 @@
-import { execFile, spawn } from 'node:child_process';
+import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { stripVTControlCharacters } from 'node:util';
 
 import { engineLaunch } from './engine-launch.js';
@@ -66,6 +66,24 @@ export function engineLoginUrl(line: string): string | undefined {
   return LOGIN_URL.exec(stripVTControlCharacters(line))?.[0];
 }
 
+function stopLoginProcessTree(child: ChildProcess): void | Promise<void> {
+  const { pid } = child;
+  if (pid === undefined) return;
+  if (process.platform === 'win32') {
+    return new Promise((resolve) => {
+      execFile('taskkill', ['/PID', String(pid), '/T', '/F'], { windowsHide: true }, (error) => {
+        if (error) child.kill('SIGKILL');
+        resolve();
+      });
+    });
+  }
+  try {
+    process.kill(-pid, 'SIGKILL');
+  } catch {
+    child.kill('SIGKILL');
+  }
+}
+
 export function startEngineLogin(
   target: EngineCommand &
     EngineLoginProcess & {
@@ -83,7 +101,7 @@ export function startEngineLogin(
     const child = spawn(spec.file, spec.args, {
       env: spec.env,
       stdio: [manual ? 'pipe' : 'ignore', 'pipe', 'pipe'],
-      ...(target.signal === undefined ? {} : { signal: target.signal }),
+      detached: process.platform !== 'win32',
       ...(spec.windowsVerbatimArguments === true ? { windowsVerbatimArguments: true } : {}),
       shell: false,
       windowsHide: true,
@@ -121,6 +139,8 @@ export function startEngineLogin(
     }
     let tail = '';
     let settled = false;
+    let failure: EngineRefusal | undefined;
+    let termination: void | Promise<void>;
     const finish = (outcome: { url?: string } | Error) => {
       if (settled) return;
       settled = true;
@@ -128,15 +148,22 @@ export function startEngineLogin(
       if (outcome instanceof Error) reject(outcome);
       else resolve(outcome);
     };
-    const timer = setTimeout(() => {
-      child.kill();
-      finish(
-        new EngineRefusal(
-          'engine-failed',
-          `${command} did not print a sign-in URL${tail.trim() ? `: ${tail.trim()}` : ''}`,
+    const stop = (error: EngineRefusal) => {
+      if (failure !== undefined) return;
+      failure = error;
+      termination = stopLoginProcessTree(child);
+    };
+    const abort = () => stop(new EngineRefusal('engine-failed', `${command} was cancelled`));
+    const timer = setTimeout(
+      () =>
+        stop(
+          new EngineRefusal(
+            'engine-failed',
+            `${command} did not print a sign-in URL${tail.trim() ? `: ${tail.trim()}` : ''}`,
+          ),
         ),
-      );
-    }, timeoutMs);
+      timeoutMs,
+    );
     const reader = () => {
       let partial = '';
       let promptTail = '';
@@ -149,7 +176,7 @@ export function startEngineLogin(
             promptTail = '';
           } else promptTail = prompt.slice(-160);
         }
-        if (settled) return;
+        if (settled || failure !== undefined) return;
         const text = partial + output;
         const lines = text.split(/\r?\n/u);
         partial = (lines.pop() ?? '').slice(-8192);
@@ -162,8 +189,8 @@ export function startEngineLogin(
     };
     child.stdout?.on('data', reader());
     child.stderr?.on('data', reader());
-    child.on('error', (error: NodeJS.ErrnoException) =>
-      finish(
+    child.on('error', (error: NodeJS.ErrnoException) => {
+      failure ??=
         error.code === 'ENOENT'
           ? new EngineRefusal(
               'engine-not-installed',
@@ -172,21 +199,26 @@ export function startEngineLogin(
           : new EngineRefusal(
               'engine-failed',
               `${command} did not start${manual ? '' : `: ${error.message}`}`,
-            ),
-      ),
-    );
+            );
+    });
     child.on('close', (code) => {
       exited = true;
-      target.onExit?.();
-      if (code === 0) finish({});
-      else
-        finish(
-          new EngineRefusal(
-            'engine-failed',
-            `${command} exited (${String(code)}) before sign-in started${tail.trim() ? `: ${tail.trim()}` : ''}`,
-          ),
-        );
+      target.signal?.removeEventListener('abort', abort);
+      void Promise.resolve(termination).then(() => {
+        target.onExit?.();
+        if (failure !== undefined) finish(failure);
+        else if (code === 0) finish({});
+        else
+          finish(
+            new EngineRefusal(
+              'engine-failed',
+              `${command} exited (${String(code)}) before sign-in started${tail.trim() ? `: ${tail.trim()}` : ''}`,
+            ),
+          );
+      });
     });
+    if (target.signal?.aborted) abort();
+    else target.signal?.addEventListener('abort', abort, { once: true });
     child.unref();
   });
 }

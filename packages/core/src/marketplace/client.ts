@@ -1,8 +1,11 @@
 import {
   MAX_MARKETPLACE_AVATAR_BYTES,
   type MarketplaceAvatar as MarketplaceAvatarListing,
+  type MarketplaceAvatarEdit,
   type MarketplaceAvatarPage,
   type MarketplaceAvatarPublish,
+  type MarketplaceAvatarQuery,
+  type MarketplaceAvatarTag,
 } from '@botharness/host-protocol/marketplace-avatar';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 
@@ -162,8 +165,16 @@ export type MarketplaceResult<T> =
   | { ok: false; code: string; path?: string };
 
 export interface MarketplaceClient {
-  avatarList(cursor?: string): Promise<MarketplaceResult<MarketplaceAvatarPage>>;
+  avatarList(query: MarketplaceAvatarQuery): Promise<MarketplaceResult<MarketplaceAvatarPage>>;
+  avatarTags(): Promise<MarketplaceResult<MarketplaceAvatarTag[]>>;
   avatarDetail(id: string): Promise<MarketplaceResult<MarketplaceAvatarListing>>;
+  avatarMine(token: string): Promise<MarketplaceResult<MarketplaceAvatarListing[]>>;
+  avatarEdit(
+    token: string,
+    id: string,
+    patch: MarketplaceAvatarEdit,
+  ): Promise<MarketplaceResult<MarketplaceAvatarListing>>;
+  avatarDelete(token: string, id: string): Promise<MarketplaceResult<{ deleted: true }>>;
   avatarImage(id: string): Promise<MarketplaceResult<Uint8Array>>;
   avatarApplyReceipt(id: string, botHash: string): Promise<MarketplaceResult<{ counted: boolean }>>;
   avatarPublish(
@@ -184,6 +195,7 @@ export interface MarketplaceClient {
   report(
     id: string,
     options: { altcha: string; reason?: string },
+    kind?: 'bot' | 'avatar',
   ): Promise<MarketplaceResult<{ received: true }>>;
   author(token: string): Promise<MarketplaceResult<MarketplaceAuthorAccount | null>>;
   saveAuthor(
@@ -220,7 +232,7 @@ export interface MarketplaceClient {
 
 const REQUEST_TIMEOUT_MS = 15_000;
 
-function parseAvatarListing(value: unknown): MarketplaceAvatarListing | undefined {
+export function parseAvatarListing(value: unknown): MarketplaceAvatarListing | undefined {
   const entry = record(value);
   const author = record(entry?.['author']);
   if (entry === undefined || author === undefined) return;
@@ -248,13 +260,33 @@ function parseAvatarListing(value: unknown): MarketplaceAvatarListing | undefine
   };
 }
 
-function parseAvatarPage(value: unknown): MarketplaceAvatarPage | undefined {
+export function parseAvatarPage(value: unknown): MarketplaceAvatarPage | undefined {
   const page = record(value);
   if (page === undefined) return;
   const { avatars, nextCursor } = page;
   if (!Array.isArray(avatars) || (nextCursor !== null && typeof nextCursor !== 'string')) return;
   const parsed = avatars.map(parseAvatarListing);
   if (parsed.every((avatar) => avatar !== undefined)) return { avatars: parsed, nextCursor };
+}
+
+export function parseAvatarTags(value: unknown): MarketplaceAvatarTag[] | undefined {
+  const tags = record(value)?.['tags'];
+  if (!Array.isArray(tags)) return;
+  const parsed: MarketplaceAvatarTag[] = [];
+  for (const item of tags) {
+    const entry = record(item);
+    const tag = entry?.['tag'];
+    const count = entry?.['count'];
+    if (
+      typeof tag !== 'string' ||
+      typeof count !== 'number' ||
+      !Number.isSafeInteger(count) ||
+      count < 1
+    )
+      return;
+    parsed.push({ tag, count });
+  }
+  return parsed;
 }
 
 function record(value: unknown): Record<string, unknown> | undefined {
@@ -371,7 +403,7 @@ function parseAuthor(value: unknown): MarketplaceAuthor | undefined {
     : undefined;
 }
 
-function parseAuthorAccount(value: unknown): MarketplaceAuthorAccount | undefined {
+export function parseAuthorAccount(value: unknown): MarketplaceAuthorAccount | undefined {
   const author = parseAuthor(value);
   const accepted = record(value)?.['termsAcceptedAt'];
   return author === undefined || (typeof accepted !== 'string' && accepted !== null)
@@ -678,11 +710,23 @@ export function createMarketplaceClient(options: {
   };
 
   return {
-    avatarList: (cursor) =>
-      request(
-        '/v1/avatars' + (cursor === undefined ? '' : `?cursor=${encodeURIComponent(cursor)}`),
+    avatarList: ({ cursor, q, tag, sort }) => {
+      const params = new URLSearchParams();
+      if (cursor !== undefined) params.set('cursor', cursor);
+      if (q !== undefined) params.set('q', q);
+      if (tag !== undefined) params.set('tag', tag);
+      const path = sort === undefined ? '/v1/avatars' : `/v1/avatars/sections/${sort}`;
+      return request(
+        params.size === 0 ? path : `${path}?${params}`,
         { method: 'GET', headers: { accept: 'application/json' } },
         parseAvatarPage,
+      );
+    },
+    avatarTags: () =>
+      request(
+        '/v1/avatars/tags',
+        { method: 'GET', headers: { accept: 'application/json' } },
+        parseAvatarTags,
       ),
     avatarDetail: (id) =>
       request(
@@ -740,6 +784,25 @@ export function createMarketplaceClient(options: {
         { method: 'POST', headers: authorized(token, true), body: JSON.stringify(input) },
         (value) => parseAvatarListing(record(value)?.['avatar']),
       ),
+    avatarMine: (token) =>
+      request('/v1/me/avatars', { method: 'GET', headers: authorized(token, false) }, (value) => {
+        const avatars = record(value)?.['avatars'];
+        if (!Array.isArray(avatars)) return;
+        const parsed = avatars.map(parseAvatarListing);
+        return parsed.every((avatar) => avatar !== undefined) ? parsed : undefined;
+      }),
+    avatarEdit: (token, id, patch) =>
+      request(
+        `/v1/me/avatars/${encodeURIComponent(id)}`,
+        { method: 'PATCH', headers: authorized(token, true), body: JSON.stringify(patch) },
+        (value) => parseAvatarListing(record(value)?.['avatar']),
+      ),
+    avatarDelete: (token, id) =>
+      request(
+        `/v1/me/avatars/${encodeURIComponent(id)}`,
+        { method: 'DELETE', headers: authorized(token, false) },
+        (value) => (record(value)?.['deleted'] === true ? { deleted: true as const } : undefined),
+      ),
     list: (query) =>
       request(
         listPath(query),
@@ -792,9 +855,9 @@ export function createMarketplaceClient(options: {
         },
         parseMarketplaceSubmission,
       ),
-    report: (id, options) =>
+    report: (id, options, kind = 'bot') =>
       request(
-        `/v1/bots/${encodeURIComponent(id)}/reports`,
+        `/v1/${kind === 'bot' ? 'bots' : 'avatars'}/${encodeURIComponent(id)}/reports`,
         {
           method: 'POST',
           headers: { accept: 'application/json', 'content-type': 'application/json' },

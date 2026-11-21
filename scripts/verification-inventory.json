@@ -4,6 +4,14 @@
   "boundary": "All scripts/e2e-*.mjs files and all current feature-map documents, augmented by implemented Client/CLI/mobile source entry points. Behavior rows group related acceptance paths; they are not an exhaustive product behavior denominator. Planned unmerged #1954 work and packaged/restart identity promises are excluded.",
   "behaviors": [
     {
+      "id": "engine.orchestrator-steering",
+      "label": "Steer a Subscription Engine Orchestrator and route each reply to its Source Event's Channel",
+      "source": "packages/core/src/engines/engine-host.ts",
+      "guide": ".agents/skills/verify-deepseekbot/features/engine-orchestrator-steering.md",
+      "task": 4559,
+      "gap": "Protocol replay covers both engines, queued fallback and Channel authorization. Subscription runs qualify model behavior."
+    },
+    {
       "id": "engine.session-context",
       "label": "Session context across a Subscription Engine switch",
       "source": "packages/core/src/engines/engine-context.ts",
@@ -94,7 +102,7 @@
     {
       "id": "connect.account-recovery",
       "label": "Connect authorization expiry, transient retries and truthful recovery instructions",
-      "source": "packages/core/src/devices/connect-account.ts",
+      "source": "packages/core/src/features/environments/connect-account.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/connect-channel.md",
       "task": 3567,
       "gap": "Controlled WorkOS/relay fixtures qualify Host/Client behavior, not production account or Cloudflare availability."
@@ -395,7 +403,7 @@
     {
       "id": "desktop.personabot.create",
       "label": "Create PersonaBot, Memory and DM; retain identity after restart",
-      "source": "packages/core/src/bots/registry.ts",
+      "source": "packages/core/src/features/personabots/registry-creation.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/personabot-create.md",
       "task": 1967,
       "gap": null
@@ -667,7 +675,7 @@
     {
       "id": "desktop.channel.purge",
       "label": "Preview/cancel/confirm purge and retain unselected/shared attachments",
-      "source": "packages/core/src/channels/store.ts",
+      "source": "packages/core/src/purge/owner.ts",
       "guide": null,
       "task": 1967,
       "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
@@ -2601,6 +2609,14 @@
       "reason": "Real pinned Dockview dependency fixture for zoomed persistent overlay allocation and horizontal/vertical splitter movement; not a DSH/native acceptance journey.",
       "task": 2268,
       "behaviors": ["desktop.window-zoom"]
+    },
+    {
+      "path": "scripts/e2e-windows-caption-strip.mjs",
+      "sha256": "2670592910759b681918269379dd6e7086c55301ce938d0ae6cb62dbb5e6281d",
+      "category": "mapped",
+      "reason": "Checks the Windows caption strip in Session and Bot mode on a real isolated Host in Chromium with simulated Windows chrome. A Bot-only negative control distinguishes caption drag from rail controls and Session drag.",
+      "task": 4873,
+      "behaviors": ["desktop.bot-mode.dock"]
     },
     {
       "path": "scripts/e2e-workspace-chrome.mjs",

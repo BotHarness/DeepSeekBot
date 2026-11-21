@@ -347,9 +347,11 @@ describe('Memory turn Host responsiveness', () => {
     }
   }, 60_000);
 
-  it.each([false, true])(
-    'steers before scanning and reports follow-up failure=%s',
-    async (failFollowup) => {
+  it.each(['delivered', 'throws', 'async-delivered', 'async-refused', 'async-rejected'])(
+    'steers before scanning and settles a %s memory follow-up',
+    async (followup) => {
+      const failFollowup = followup === 'throws';
+      const asyncFollowup = followup.startsWith('async-');
       vi.stubEnv('BOTHARNESS_SCHEDULING_DIAGNOSTICS', '1');
       const diagnostics: SchedulingDiagnostic[] = [];
       const observer = (event: unknown) => {
@@ -360,6 +362,7 @@ describe('Memory turn Host responsiveness', () => {
       const released = deferred();
       const scanEntered = deferred();
       const scanGate = deferred();
+      const deliveryGate = deferred();
       const steered: string[] = [];
       let allowSteer = false;
       const core = createCore({
@@ -371,9 +374,14 @@ describe('Memory turn Host responsiveness', () => {
           },
           steerOrchestrator(_botSlug, text) {
             if (!allowSteer) return false;
-            if (failFollowup && text.includes('steer-note.md'))
-              throw new Error('Synthetic follow-up failure');
+            const includesMemory = text.includes('steer-note.md');
+            if (failFollowup && includesMemory) throw new Error('Synthetic follow-up failure');
             steered.push(text);
+            if (asyncFollowup && includesMemory)
+              return deliveryGate.promise.then(() => {
+                if (followup === 'async-rejected') throw new Error('Synthetic delivery failure');
+                return followup === 'async-delivered';
+              });
             return true;
           },
           async runAssignment() {},
@@ -448,8 +456,40 @@ describe('Memory turn Host responsiveness', () => {
           expect(steered).toHaveLength(3);
           expect(steered[2]).toContain('steer-note.md');
         }
+        const database = attachOperationalModule(core.operationalDatabase, 'memory-steer-test');
+        const memoryAdmission = () =>
+          database.read((db) =>
+            db
+              .prepare(
+                `SELECT a.attempt_state, e.observed_at
+                   FROM inbox_admissions a JOIN source_events e USING (source_event_id)
+                  WHERE a.reason = 'memory-change' AND e.body LIKE '%steer-note.md%'`,
+              )
+              .get(),
+          );
+        if (asyncFollowup) {
+          await vi.waitFor(
+            () => expect(diagnostics.filter((event) => event.kind === 'scan-end')).toHaveLength(2),
+            { timeout: 30_000 },
+          );
+          expect(steered).toHaveLength(3);
+          expect(memoryAdmission()).toMatchObject({
+            attempt_state: 'running',
+            observed_at: expect.any(String),
+          });
+          deliveryGate.resolve();
+          if (followup !== 'async-delivered')
+            await vi.waitFor(() =>
+              expect(memoryAdmission()).toMatchObject({
+                attempt_state: 'retryable',
+                observed_at: null,
+              }),
+            );
+        }
         released.resolve();
         await core.runtime.whenIdle();
+        if (followup === 'async-delivered')
+          expect(memoryAdmission()).toMatchObject({ attempt_state: 'handled' });
         expect(diagnostics.filter((event) => event.kind === 'scan-start')).toHaveLength(
           failFollowup ? 1 : 2,
         );
@@ -464,6 +504,7 @@ describe('Memory turn Host responsiveness', () => {
         ).toBe(true);
         expect(JSON.stringify(diagnostics)).not.toMatch(/STEER|steer-note|atlas|edited while/);
       } finally {
+        deliveryGate.resolve();
         scanGate.resolve();
         released.resolve();
         await core.runtime.close();

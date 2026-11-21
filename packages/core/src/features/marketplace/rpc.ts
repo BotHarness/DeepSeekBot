@@ -1,8 +1,11 @@
+import type { MarketplaceAvatarEdit } from '@botharness/host-protocol/marketplace-avatar';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type {
   MarketplaceAvatar,
   MarketplaceAvatarApplyCandidate,
   MarketplaceAvatarPage,
+  MarketplaceAvatarRanking,
+  MarketplaceAvatarTag,
 } from '@botharness/host-protocol/marketplace-avatar';
 import type { BotCreationReceipt } from '../../bots/creation.js';
 import type { BotZipUploadStatus } from '../../bots/zip-upload.js';
@@ -148,6 +151,21 @@ export async function marketplaceReport(
   );
 }
 
+export async function marketplaceAvatarReport(
+  methods: MarketplaceBridgeMethods,
+  id: string,
+  altcha: string,
+  reason?: string,
+): Promise<{ received: true }> {
+  return unwrapAsync(
+    methods.marketplaceAvatarReport({
+      id,
+      altcha,
+      ...(reason === undefined ? {} : { reason }),
+    }),
+  );
+}
+
 export async function marketplaceTopics(
   methods: MarketplaceBridgeMethods,
 ): Promise<MarketplaceTopic[]> {
@@ -184,8 +202,17 @@ export async function marketplaceDigest(
 export async function marketplaceAvatarList(
   methods: MarketplaceBridgeMethods,
   cursor?: string,
+  q?: string,
+  tag?: string,
+  sort?: MarketplaceAvatarRanking,
 ): Promise<MarketplaceAvatarPage> {
-  return unwrapAsync(methods.marketplaceAvatarList(cursor === undefined ? {} : { cursor }));
+  return unwrapAsync(methods.marketplaceAvatarList({ cursor, q, tag, sort }));
+}
+
+export async function marketplaceAvatarTags(
+  methods: MarketplaceBridgeMethods,
+): Promise<MarketplaceAvatarTag[]> {
+  return unwrapAsync(methods.marketplaceAvatarTags());
 }
 
 export async function marketplaceAvatarDetail(
@@ -381,4 +408,25 @@ export async function marketplaceInstall(
   listing: MarketplaceEntry;
 }> {
   return unwrapAsync(methods.marketplaceInstall({ id, reviewId, operationKey, source }));
+}
+
+export async function marketplaceAvatarMine(
+  methods: MarketplaceBridgeMethods,
+): Promise<{ avatars: MarketplaceAvatar[] }> {
+  return unwrapAsync(methods.marketplaceAvatarMine({}));
+}
+
+export async function marketplaceAvatarEdit(
+  methods: MarketplaceBridgeMethods,
+  id: string,
+  patch: MarketplaceAvatarEdit,
+): Promise<MarketplaceAvatar> {
+  return unwrapAsync(methods.marketplaceAvatarEdit({ id, ...patch }));
+}
+
+export async function marketplaceAvatarDelete(
+  methods: MarketplaceBridgeMethods,
+  id: string,
+): Promise<{ deleted: true }> {
+  return unwrapAsync(methods.marketplaceAvatarDelete({ id }));
 }

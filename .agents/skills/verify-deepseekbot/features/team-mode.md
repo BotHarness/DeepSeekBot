@@ -2,11 +2,16 @@
 
 ## Sources
 
+- `packages/core/src/features/team/plugin.ts`
 - `packages/core/src/team/**`
 - `packages/client/src/client/team-*`
 - `packages/host-client/src/team-*.ts`
 - `packages/host-client/src/shared/team-sign-in-page.ts`
 - `apps/mobile/src/team/**`
+- `packages/core/src/features/team/{methods,rpc}.ts`
+- `packages/client/src/client/features/team/bridge.ts`
+- `packages/core/src/features/humans/{methods,rpc}.ts`
+- `packages/client/src/client/features/humans/bridge.ts`
 
 ## Terms
 

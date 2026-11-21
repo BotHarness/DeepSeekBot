@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/memory/plugin.ts`
 - `packages/core/src/memory/recovery.ts`
 - `packages/client/src/client/memory-recovery.tsx`
 - `scripts/memory-restore-report.mjs`

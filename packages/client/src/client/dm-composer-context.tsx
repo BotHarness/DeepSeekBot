@@ -21,6 +21,7 @@ import type {
   ModelCatalogView,
   ModelCatalogEntryView,
   ModelPlanStateView,
+  ModelPlanView,
   ModelRouteView,
   ProfileActivity,
   WorkspaceGrantView,
@@ -55,14 +56,19 @@ import { DmComposerUsagePopover } from './dm-composer-usage.js';
 import { BotPromptViewer, type BotPromptView } from './bot-prompt-viewer.js';
 import { ComposerContextBar, type ComposerFooterHandle } from './composer-context-bar.js';
 import { ChipButton } from './ds/chip-button.js';
+import { engineModelKey, useSubscriptionEngines } from './engine-choice.js';
 import { EngineBrandIcon, ModelBrandIcon, modelBrand, modelShortName } from './model-brand.js';
 import {
   ModelMenu,
   catalogMenuItems,
+  engineMenuItems,
+  engineModelOf,
+  engineSelectionOf,
   groupMenuId,
   groupMenuKey,
   presetMenuId,
   presetMenuItems,
+  selectedEngineMenuItem,
 } from './model-menu.js';
 import { ContextRing } from './context-ring.js';
 
@@ -234,53 +240,33 @@ export function useDmComposerContext({
   const open = (kind: 'model' | 'workspace') => setPanel({ slug, kind });
   const route = plan?.orchestrator ?? data?.inheritedRoute;
   const defaultEffort = t('modelPreset.providerDefault');
-  const applyModelRoute = (route: ModelRouteView): void => {
-    if (planState === undefined || modelBusy) return;
+  const changeModel = (work: () => Promise<void>): void => {
+    if (modelBusy) return;
     setModelBusy(true);
-    void applyBotModelRoute(actions, slug, planState, route)
-      .then((next) =>
-        setModelData((current) =>
-          current?.slug === slug && (current.state.revision ?? 0) <= next.revision
-            ? { ...current, state: { revision: next.revision, plan: next } }
-            : current,
-        ),
-      )
+    setModelError(undefined);
+    void work()
       .catch((failure: unknown) => {
         setModelError(t('modelPreset.changeFailed', { error: errorMessage(failure) }));
       })
       .finally(() => setModelBusy(false));
   };
-  const applyModelGroup = (groupId: string): void => {
-    if (planState === undefined || modelBusy) return;
-    setModelBusy(true);
-    void applyBotModelGroup(actions, slug, planState, groupId)
-      .then((next) =>
-        setModelData((current) =>
-          current?.slug === slug && (current.state.revision ?? 0) <= next.revision
-            ? { ...current, state: { revision: next.revision, plan: next } }
-            : current,
-        ),
-      )
-      .catch((failure: unknown) => {
-        setModelError(t('modelPreset.changeFailed', { error: errorMessage(failure) }));
-      })
-      .finally(() => setModelBusy(false));
+  const updatePlan = (next: ModelPlanView): void => {
+    setModelData((current) =>
+      current?.slug === slug && (current.state.revision ?? 0) <= next.revision
+        ? { ...current, state: { revision: next.revision, plan: next } }
+        : current,
+    );
   };
-  const applyModelPresetChoice = (presetId: string): void => {
-    if (planState === undefined || modelBusy) return;
-    setModelBusy(true);
-    void applyBotModelPreset(actions, slug, presetId)
-      .then((next) =>
-        setModelData((current) =>
-          current?.slug === slug && (current.state.revision ?? 0) <= next.revision
-            ? { ...current, state: { revision: next.revision, plan: next } }
-            : current,
-        ),
-      )
-      .catch((failure: unknown) => {
-        setModelError(t('modelPreset.changeFailed', { error: errorMessage(failure) }));
-      })
-      .finally(() => setModelBusy(false));
+  const applyModelRoute = async (route: ModelRouteView): Promise<void> => {
+    if (planState !== undefined)
+      updatePlan(await applyBotModelRoute(actions, slug, planState, route));
+  };
+  const applyModelGroup = async (groupId: string): Promise<void> => {
+    if (planState !== undefined)
+      updatePlan(await applyBotModelGroup(actions, slug, planState, groupId));
+  };
+  const applyModelPresetChoice = async (presetId: string): Promise<void> => {
+    updatePlan(await applyBotModelPreset(actions, slug, presetId));
   };
   const routeChoice = (
     id: 'model' | 'effort',
@@ -292,7 +278,7 @@ export function useDmComposerContext({
     label: choice.label,
     selected: choice.current,
     disabled: modelStatus !== 'ready' || modelBusy || planState === undefined,
-    run: () => applyModelRoute(choice.route),
+    run: () => changeModel(() => applyModelRoute(choice.route)),
   });
   const shortcuts: ComposerShortcut[] = [
     {
@@ -368,7 +354,9 @@ export function useDmComposerContext({
           currentTarget={planState?.currentTarget}
           modelStatus={modelStatus}
           route={route}
-          modelBusy={modelBusy || planState === undefined || modelStatus !== 'ready'}
+          modelBusy={modelBusy}
+          planReady={planState !== undefined && modelStatus === 'ready'}
+          changeModel={changeModel}
           onChooseModel={applyModelRoute}
           onChooseGroup={applyModelGroup}
           onChoosePreset={applyModelPresetChoice}
@@ -408,6 +396,8 @@ function DmComposerContextView({
   modelStatus,
   route,
   modelBusy,
+  planReady,
+  changeModel,
   onChooseModel,
   onChooseGroup,
   onChoosePreset,
@@ -433,12 +423,50 @@ function DmComposerContextView({
   modelStatus: 'loading' | 'ready' | 'unavailable';
   route: ModelRouteView | undefined;
   modelBusy: boolean;
-  onChooseModel(route: ModelRouteView): void;
-  onChooseGroup(groupId: string): void;
-  onChoosePreset(presetId: string): void;
+  planReady: boolean;
+  changeModel(work: () => Promise<void>): void;
+  onChooseModel(route: ModelRouteView): Promise<void>;
+  onChooseGroup(groupId: string): Promise<void>;
+  onChoosePreset(presetId: string): Promise<void>;
 }): ReactElement {
-  const modelTrigger = useRef<HTMLButtonElement>(null);
+  const modelTrigger = useRef<HTMLButtonElement | null>(null);
   const [modelMenuOpen, setModelMenuOpen] = useState(false);
+  const [enginePickerStarted, setEnginePickerStarted] = useState(false);
+  const engines = useSubscriptionEngines(
+    enginePickerStarted && actions.subscriptionEngine !== undefined,
+    actions.subscriptionEngine,
+    true,
+    false,
+  );
+  const runnerSummary = bot.orchestratorRunner;
+  const mountModelTrigger = useMountedResource<HTMLButtonElement>(
+    (button) => {
+      modelTrigger.current = button;
+      if (engines.view !== undefined) void engines.refresh();
+      return () => {
+        modelTrigger.current = null;
+      };
+    },
+    [runnerSummary?.engine, runnerSummary?.model, runnerSummary?.account],
+  );
+  const engine = engines.view?.selections.find(
+    ({ botSlug, role }) => botSlug === bot.slug && role === 'orchestrator',
+  );
+  const engineModel = engine === undefined ? undefined : engineModelOf(engine, engines.models);
+  const selectedEngine =
+    engine === undefined ? undefined : selectedEngineMenuItem(engine, engineModel, t);
+  const engineItems = modelMenuOpen
+    ? engineMenuItems(engines.view?.engines ?? [], engines.models, engines.signingIn, t, false)
+    : [];
+  const runnerAccount =
+    engine === undefined
+      ? undefined
+      : engines.view?.engines.find(
+          (status) =>
+            status.engine === engine.engine &&
+            engineModelKey(status.engine, status.accountId) ===
+              engineModelKey(engine.engine, engine.accountId),
+        );
   const [grants, setGrants] = useState<WorkspaceGrantView[]>();
   const [grantError, setGrantError] = useState(false);
   const [usageOpen, setUsageOpen] = useState(false);
@@ -512,30 +540,22 @@ function DmComposerContextView({
           : 'composerContext.noModel',
     );
   const brand = modelBrand({ provider: route?.provider, model: route?.model, name: modelName });
-  const runner = bot.orchestratorRunner;
-  const runnerBrand =
-    runner === undefined
-      ? undefined
-      : modelBrand({
-          provider: runner.engine,
-          model: runner.model ?? runner.engine,
-          name: runner.model ?? runner.displayName,
-        });
-  const runnerChipLabel =
-    runner === undefined
-      ? ''
-      : runner.model === undefined
-        ? runner.displayName
-        : modelShortName(runner.model, runnerBrand);
-  const runnerLabel =
-    runner === undefined
-      ? ''
-      : runner.account === undefined
-        ? t('composerContext.runner', { engine: runner.displayName })
-        : t('composerContext.runnerAccount', {
-            engine: runner.displayName,
-            account: runner.account,
-          });
+  const runner = engines.view === undefined ? runnerSummary : undefined;
+  const activeBrand =
+    selectedEngine?.brand ??
+    modelBrand({
+      provider: runner?.engine,
+      model: runner?.model ?? runner?.engine,
+      name: runner?.model ?? runner?.displayName,
+    });
+  const activeName =
+    engineModel?.name ?? selectedEngine?.name ?? runner?.model ?? runner?.displayName;
+  const subscriptionActive = engine !== undefined || runner !== undefined;
+  const canChoosePlan = planReady && runner === undefined;
+  const switchFromEngine = async (work: () => Promise<void>): Promise<void> => {
+    await work();
+    if (engine !== undefined) await engines.saveSelection(bot.slug, 'orchestrator', null);
+  };
   const currentEntry = models.find(
     (entry) => entry.provider === route?.provider && entry.model === route?.model,
   );
@@ -554,11 +574,34 @@ function DmComposerContextView({
             .filter((effort) => effort.id !== '')
             .map((effort) => ({ value: effort.id, label: effort.name })),
         ];
+  const engineEfforts =
+    engineModel === undefined
+      ? undefined
+      : [
+          { value: '', label: t('modelPreset.providerDefault') },
+          ...engineModel.efforts
+            .filter(({ id }) => id !== '')
+            .map(({ id, name }) => ({ value: id, label: name })),
+        ];
   const modelChipLabel =
     modelStatus === 'unavailable' || (modelName ?? route?.model) === undefined
       ? modelLabel
       : modelShortName(modelLabel, brand);
-  const chipLabel = executed?.short ?? group?.name ?? modelChipLabel;
+  const chipLabel =
+    activeName === undefined
+      ? (executed?.short ?? group?.name ?? modelChipLabel)
+      : modelShortName(activeName, activeBrand);
+  const chipTitle = subscriptionActive
+    ? [activeName, runnerAccount?.accountName ?? runner?.account, t('engine.externalLabel')]
+        .filter(Boolean)
+        .join(' · ')
+    : [
+        group?.name === chipName ? undefined : group?.name,
+        chipName,
+        executed?.external ? t('engine.externalLabel') : undefined,
+      ]
+        .filter(Boolean)
+        .join(' · ');
   const workspaceCount = grantError || grants === undefined ? undefined : String(grants.length);
   const workspaceLabel = grantError
     ? t('composerContext.unavailable')
@@ -587,6 +630,7 @@ function DmComposerContextView({
         });
   return (
     <>
+      {enginePickerStarted ? <div ref={engines.mount} hidden /> : null}
       <ComposerContextBar
         settingsRef={footerSettings}
         t={t}
@@ -611,50 +655,43 @@ function DmComposerContextView({
           />
         }
       >
-        {runner === undefined ? (
-          <ChipButton
-            data-composer-chip="model"
-            collapseLabel
-            icon={
-              executed?.external ? (
-                <EngineBrandIcon brand={executed.brand} />
-              ) : (
-                <ModelBrandIcon
-                  brand={executed?.brand ?? (group === undefined ? brand : undefined)}
-                />
-              )
+        <ChipButton
+          data-composer-chip="model"
+          data-runner={engine?.engine ?? runner?.engine}
+          collapseLabel
+          icon={
+            subscriptionActive ? (
+              <EngineBrandIcon brand={activeBrand} />
+            ) : executed?.external ? (
+              <EngineBrandIcon brand={executed.brand} />
+            ) : (
+              <ModelBrandIcon
+                brand={executed?.brand ?? (group === undefined ? brand : undefined)}
+              />
+            )
+          }
+          label={chipLabel}
+          title={chipTitle}
+          ref={mountModelTrigger}
+          onClick={() => {
+            if (
+              !subscriptionActive &&
+              (modelStatus === 'unavailable' ||
+                (models.length === 0 && actions.subscriptionEngine === undefined))
+            ) {
+              onOpen('model');
+              return;
             }
-            label={chipLabel}
-            title={[
-              group?.name === chipName ? undefined : group?.name,
-              chipName,
-              executed?.external ? t('engine.externalLabel') : undefined,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-            ref={modelTrigger}
-            onClick={() =>
-              modelStatus === 'unavailable' || models.length === 0
-                ? onOpen('model')
-                : setModelMenuOpen((open) => !open)
+            if (!modelMenuOpen) {
+              if (enginePickerStarted) void engines.refresh();
+              else setEnginePickerStarted(true);
             }
-            aria-haspopup="dialog"
-            aria-expanded={modelMenuOpen}
-            aria-label={`${t('entry.model')} · ${bot.displayName} · ${chipName}`}
-          />
-        ) : (
-          <ChipButton
-            data-composer-chip="model"
-            data-runner={runner.engine}
-            collapseLabel
-            icon={<EngineBrandIcon brand={runnerBrand} />}
-            label={runnerChipLabel}
-            title={runner.model === undefined ? runnerLabel : `${runnerLabel} · ${runner.model}`}
-            tabIndex={-1}
-            disabled
-            aria-label={`${t('entry.model')} · ${bot.displayName} · ${runnerLabel}`}
-          />
-        )}
+            setModelMenuOpen(!modelMenuOpen);
+          }}
+          aria-haspopup="dialog"
+          aria-expanded={modelMenuOpen}
+          aria-label={`${t('entry.model')} · ${bot.displayName} · ${subscriptionActive ? chipTitle : chipName}`}
+        />
         {avgPerf === undefined ? null : (
           <ChipButton
             data-composer-chip="avg-perf"
@@ -680,61 +717,106 @@ function DmComposerContextView({
         <ModelMenu
           label={`${t('entry.model')} · ${bot.displayName}`}
           items={[
-            ...presetMenuItems(presets, models, groups, sourcePresetId || undefined, t),
-            ...catalogMenuItems(
-              models,
-              t,
-              groups,
-              groupId === undefined || currentTarget === undefined
-                ? undefined
-                : { groupId, target: currentTarget },
-            ),
+            ...[
+              ...presetMenuItems(presets, models, groups, sourcePresetId || undefined, t),
+              ...catalogMenuItems(
+                models,
+                t,
+                groups,
+                groupId === undefined || currentTarget === undefined
+                  ? undefined
+                  : { groupId, target: currentTarget },
+              ),
+            ].map((item) => (canChoosePlan ? item : { ...item, disabled: true })),
+            ...engineItems,
           ]}
           value={
-            group !== undefined
+            selectedEngine?.value ??
+            (group !== undefined
               ? groupMenuKey(group.id)
               : route === undefined
                 ? ''
-                : JSON.stringify([route.provider, route.model])
+                : JSON.stringify([route.provider, route.model]))
           }
           onSelect={(key) => {
+            if (modelBusy) return;
+            const pickedEngine = engineItems.find((item) => item.value === key);
+            if (pickedEngine !== undefined) {
+              const next = engineSelectionOf(pickedEngine, engines.models);
+              if (
+                next !== undefined &&
+                (engine?.model === undefined || key !== selectedEngine?.value)
+              )
+                changeModel(() =>
+                  engines.saveSelection(bot.slug, 'orchestrator', next, engine?.fallback),
+                );
+              return;
+            }
+            if (!canChoosePlan) return;
             const chosenPreset = presetMenuId(key);
             if (chosenPreset !== undefined) {
-              if (!modelBusy) onChoosePreset(chosenPreset);
+              changeModel(async () => {
+                await onChoosePreset(chosenPreset);
+                await engines.refresh();
+              });
               return;
             }
             const chosenGroup = groupMenuId(key);
             if (chosenGroup !== undefined) {
-              if (!modelBusy && chosenGroup !== group?.id) onChooseGroup(chosenGroup);
+              if (subscriptionActive || chosenGroup !== group?.id)
+                changeModel(() => switchFromEngine(() => onChooseGroup(chosenGroup)));
               return;
             }
             const entry = models.find(
               (item) => JSON.stringify([item.provider, item.model]) === key,
             );
-            if (entry === undefined || modelBusy) return;
+            if (entry === undefined) return;
             const same =
               group === undefined &&
               entry.provider === route?.provider &&
               entry.model === route.model;
             const reasoningEffort = same ? route.reasoningEffort : entry.defaultEffort;
-            onChooseModel({
-              provider: entry.provider,
-              model: entry.model,
-              ...(reasoningEffort === undefined || reasoningEffort === ''
-                ? {}
-                : { reasoningEffort }),
-            });
+            changeModel(() =>
+              switchFromEngine(() =>
+                onChooseModel({
+                  provider: entry.provider,
+                  model: entry.model,
+                  ...(reasoningEffort === undefined || reasoningEffort === ''
+                    ? {}
+                    : { reasoningEffort }),
+                }),
+              ),
+            );
           }}
           busy={modelBusy}
-          efforts={modelEfforts}
-          effort={route?.reasoningEffort ?? ''}
+          efforts={subscriptionActive ? engineEfforts : modelEfforts}
+          effort={subscriptionActive ? engine?.effort : (route?.reasoningEffort ?? '')}
           onEffort={(effort) => {
-            if (route === undefined || modelBusy) return;
-            onChooseModel({
-              provider: route.provider,
-              model: route.model,
-              ...(effort === '' ? {} : { reasoningEffort: effort }),
-            });
+            if (modelBusy) return;
+            if (engine !== undefined) {
+              const { botSlug, role, fallback, effort: _effort, ...selection } = engine;
+              changeModel(() =>
+                engines.saveSelection(
+                  botSlug,
+                  role,
+                  {
+                    ...selection,
+                    ...(engineModel === undefined ? {} : { model: engineModel.id }),
+                    ...(effort === '' ? {} : { effort }),
+                  },
+                  fallback,
+                ),
+              );
+              return;
+            }
+            if (route === undefined || !canChoosePlan) return;
+            changeModel(() =>
+              onChooseModel({
+                provider: route.provider,
+                model: route.model,
+                ...(effort === '' ? {} : { reasoningEffort: effort }),
+              }),
+            );
           }}
           onSettings={() => onOpen('model')}
           anchorRef={modelTrigger}
@@ -778,7 +860,10 @@ function DmComposerContextView({
           slug={bot.slug}
           actions={actions}
           t={t}
-          onClose={onClose}
+          onClose={() => {
+            onClose();
+            if (enginePickerStarted) void engines.refresh();
+          }}
         />
       ) : panel === 'workspace' ? (
         <PanelDialog

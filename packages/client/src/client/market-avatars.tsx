@@ -2,9 +2,13 @@ import { useCallback, useId, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import {
+  MARKETPLACE_AVATAR_RANKINGS,
+  MAX_MARKETPLACE_AVATAR_QUERY,
   parseMarketplaceAvatarText,
   type MarketplaceAvatar,
   type MarketplaceAvatarPage,
+  type MarketplaceAvatarQuery,
+  type MarketplaceAvatarTag,
 } from '@botharness/host-protocol/marketplace-avatar';
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
@@ -24,10 +28,21 @@ import { Tag } from './ds/tag.js';
 import { layer, space, style } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { MarketAvatarApplyDialog, type AvatarApplyActions } from './market-avatar-apply.js';
+import { MyAvatarsDialog, type AvatarMineActions } from './market-avatar-mine.js';
 import { MarketPage } from './market-page.js';
+import { SECTION_TITLES } from './market-rankings.js';
+import { MarketplaceSearchField, MarketplaceSortTabs } from './marketplace-browse-controls.js';
+import { MarketplaceTopicChips } from './marketplace.js';
 import { marketplaceError } from './marketplace-feedback.js';
 import { MarketplaceLoadMoreButton } from './marketplace-list-status.js';
 import { marketplaceLanguage } from './marketplace-listing.js';
+import {
+  ReportActions,
+  ReportButton,
+  ReportPanel,
+  useMarketplaceReport,
+} from './marketplace-report.js';
+import { proveHuman } from './marketplace.js';
 import { observeResource } from './messaging-defaults-live.js';
 import { useMountedResource } from './mounted-resource.js';
 import { PersonaBotAvatarCropModal } from './personabot-avatar-crop.js';
@@ -36,6 +51,7 @@ const styles = stylex.create({
   grid: {
     gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 8rem), 1fr))',
   },
+  gridAfterTags: { marginBlockStart: `calc(${space.x4} - ${space.x3})` },
   cardOpen: {
     alignItems: 'stretch',
     justifyContent: 'flex-start',
@@ -59,7 +75,14 @@ const styles = stylex.create({
 });
 
 type BrowseActions = AvatarApplyActions &
-  Pick<BridgeActions, 'marketplaceAvatarList' | 'marketplaceAvatarDetail'>;
+  Pick<
+    BridgeActions,
+    | 'marketplaceAvatarList'
+    | 'marketplaceAvatarTags'
+    | 'marketplaceAvatarDetail'
+    | 'marketplaceAvatarReport'
+    | 'marketplaceChallenge'
+  >;
 type PublishActions = Pick<
   BridgeActions,
   | 'marketplaceAccount'
@@ -145,21 +168,27 @@ export function MarketAvatars({
   t,
   publishing,
   avatarSource,
+  managing = false,
   onClosePublish,
 }: {
-  actions: BrowseActions & PublishActions;
+  actions: BrowseActions & PublishActions & AvatarMineActions;
   t: BotHarnessTranslate;
   publishing: boolean;
   avatarSource?: { slug: string; actions: BrowseActions & PublishActions } | undefined;
+  managing?: boolean;
   onClosePublish: () => void;
 }): ReactElement {
   const [listing, setListing] = useState<Read<MarketplaceAvatarPage>>({ kind: 'loading' });
   const [nextError, setNextError] = useState<unknown>();
   const [loadingMore, setLoadingMore] = useState(false);
   const fetchingNext = useRef(false);
+  const generation = useRef(0);
   const [reload, setReload] = useState(0);
   const [selected, setSelected] = useState<{ avatar: MarketplaceAvatar; actions: BrowseActions }>();
   const publishActions = avatarSource?.actions ?? actions;
+  const [searchText, setSearchText] = useState('');
+  const [filters, setFilters] = useState<Omit<MarketplaceAvatarQuery, 'cursor'>>({});
+  const [tags, setTags] = useState<MarketplaceAvatarTag[]>([]);
   const updateListedCount = useCallback((avatar: MarketplaceAvatar) => {
     setListing((current) =>
       current.kind === 'ready'
@@ -173,14 +202,14 @@ export function MarketAvatars({
         : current,
     );
   }, []);
-  const mount = useMountedResource<HTMLDivElement>(() => {
+  const tagMount = useMountedResource<HTMLDivElement>(() => {
     let subscribed = true;
-    void actions.marketplaceAvatarList().then(
+    void actions.marketplaceAvatarTags().then(
       (value) => {
-        if (subscribed) setListing({ kind: 'ready', value });
+        if (subscribed) setTags(value);
       },
-      (error: unknown) => {
-        if (subscribed) setListing({ kind: 'failed', error });
+      () => {
+        if (subscribed) setTags([]);
       },
     );
     return () => {
@@ -188,14 +217,38 @@ export function MarketAvatars({
     };
   }, [actions, reload]);
 
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    const ticket = ++generation.current;
+    fetchingNext.current = false;
+    setLoadingMore(false);
+    setNextError(undefined);
+    setListing({ kind: 'loading' });
+    void actions.marketplaceAvatarList(filters).then(
+      (value) => {
+        if (ticket === generation.current) setListing({ kind: 'ready', value });
+      },
+      (error: unknown) => {
+        if (ticket === generation.current) setListing({ kind: 'failed', error });
+      },
+    );
+    return () => {
+      generation.current += 1;
+    };
+  }, [actions, filters, reload]);
+
   const more = async () => {
     if (listing.kind !== 'ready' || listing.value.nextCursor === null || fetchingNext.current)
       return;
     fetchingNext.current = true;
+    const ticket = generation.current;
     setLoadingMore(true);
     setNextError(undefined);
     try {
-      const next = await actions.marketplaceAvatarList(listing.value.nextCursor);
+      const next = await actions.marketplaceAvatarList({
+        ...filters,
+        cursor: listing.value.nextCursor,
+      });
+      if (ticket !== generation.current) return;
       setListing((current) => {
         if (current.kind !== 'ready') return current;
         const ids = new Set(current.value.avatars.map(({ id }) => id));
@@ -208,17 +261,65 @@ export function MarketAvatars({
         };
       });
     } catch (error) {
-      setNextError(error);
+      if (ticket === generation.current) setNextError(error);
     } finally {
-      fetchingNext.current = false;
-      setLoadingMore(false);
+      if (ticket === generation.current) {
+        fetchingNext.current = false;
+        setLoadingMore(false);
+      }
     }
   };
 
   return (
     <>
-      <div className="bh-market-page" hidden={selected !== undefined}>
+      <div className="bh-market-page" hidden={selected !== undefined} ref={tagMount}>
         <div className="bh-market-panel" ref={mount}>
+          <div className="bh-market-browse">
+            <MarketplaceSearchField
+              label={t('market.avatar.search.label')}
+              placeholder={t('market.avatar.search.placeholder')}
+              maxLength={MAX_MARKETPLACE_AVATAR_QUERY}
+              value={searchText}
+              onChange={setSearchText}
+              onSearch={() => {
+                const q = searchText.trim();
+                setFilters(({ q: _q, ...filters }) => ({
+                  ...filters,
+                  ...(q ? { q } : {}),
+                }));
+              }}
+            />
+            <MarketplaceSortTabs
+              value={filters.sort ?? 'all'}
+              options={[
+                { value: 'all', label: t('market.avatar.ranking.all') },
+                ...MARKETPLACE_AVATAR_RANKINGS.map((value) => ({
+                  value,
+                  label: t(SECTION_TITLES[value]),
+                })),
+              ]}
+              label={t('market.sort.label')}
+              separateTrack
+              onChange={(sort) =>
+                setFilters(({ sort: _sort, ...filters }) => ({
+                  ...filters,
+                  ...(sort === 'all' ? {} : { sort }),
+                }))
+              }
+            />
+          </div>
+          <MarketplaceTopicChips
+            topics={tags.map(({ tag, count }) => ({ topic: tag, count }))}
+            selected={filters.tag}
+            onChoose={(tag) =>
+              setFilters(({ tag: _tag, ...filters }) => ({
+                ...filters,
+                ...(tag === undefined ? {} : { tag }),
+              }))
+            }
+            label={t('market.avatar.tags.label')}
+            t={t}
+          />
           {listing.kind === 'loading' && (
             <div className="bh-market-state" role="status">
               {t('market.loading')}
@@ -237,10 +338,21 @@ export function MarketAvatars({
           )}
           {listing.kind === 'ready' &&
             (listing.value.avatars.length === 0 ? (
-              <div className="bh-market-state">{t('market.avatar.empty')}</div>
+              <div className="bh-market-state">
+                {t(
+                  filters.q || filters.tag
+                    ? 'market.avatar.search.empty'
+                    : filters.sort
+                      ? 'market.avatar.ranking.empty'
+                      : 'market.avatar.empty',
+                )}
+              </div>
             ) : (
               <div
-                className={joinClass('bh-market-grid', stylex.props(styles.grid).className)}
+                className={joinClass(
+                  'bh-market-grid',
+                  stylex.props(styles.grid, tags.length > 0 && styles.gridAfterTags).className,
+                )}
                 role="list"
                 aria-label={t('market.avatar.title')}
               >
@@ -272,12 +384,33 @@ export function MarketAvatars({
       </div>
       {selected !== undefined && (
         <MarketAvatarDetail
-          key={selected.avatar.id}
+          key={`${selected.avatar.id}:${reload}`}
           initial={selected.avatar}
           onRead={updateListedCount}
           actions={selected.actions}
           t={t}
           onBack={() => setSelected(undefined)}
+        />
+      )}
+      {managing && (
+        <MyAvatarsDialog
+          actions={actions}
+          t={t}
+          onClose={onClosePublish}
+          onUpdated={(avatar) => {
+            setSelected((current) =>
+              current?.actions === actions && current.avatar.id === avatar.id
+                ? { ...current, avatar }
+                : current,
+            );
+            setReload((value) => value + 1);
+          }}
+          onDeleted={(id) => {
+            setSelected((current) =>
+              current?.actions === actions && current.avatar.id === id ? undefined : current,
+            );
+            setReload((value) => value + 1);
+          }}
         />
       )}
       {publishing && (
@@ -289,20 +422,7 @@ export function MarketAvatars({
           onClose={onClosePublish}
           onPublished={(avatar) => {
             onClosePublish();
-            setListing((current) =>
-              current.kind === 'ready' && publishActions === actions
-                ? {
-                    kind: 'ready',
-                    value: {
-                      ...current.value,
-                      avatars: [
-                        avatar,
-                        ...current.value.avatars.filter((item) => item.id !== avatar.id),
-                      ],
-                    },
-                  }
-                : current,
-            );
+            if (publishActions === actions) setReload((value) => value + 1);
             setSelected({ avatar, actions: publishActions });
           }}
         />
@@ -324,6 +444,7 @@ function MarketAvatarDetail({
   t: BotHarnessTranslate;
   onBack: () => void;
 }): ReactElement {
+  const report = useMarketplaceReport(() => proveHuman(actions), actions.marketplaceAvatarReport);
   const [picking, setPicking] = useState(false);
   const [appliedName, setAppliedName] = useState<string>();
   const [detail, setDetail] = useState<Read<MarketplaceAvatar>>({ kind: 'loading' });
@@ -352,20 +473,32 @@ function MarketAvatarDetail({
       title={avatar.name}
       hidden={false}
       t={t}
-      onBack={onBack}
+      onBack={() => {
+        report.close();
+        onBack();
+      }}
       secondary={
-        appliedName === undefined ? undefined : (
-          <Note tone="success">{t('market.avatar.applied', { name: appliedName })}</Note>
-        )
+        report.state.status === 'closed' ? (
+          <>
+            {appliedName === undefined ? null : (
+              <Note tone="success">{t('market.avatar.applied', { name: appliedName })}</Note>
+            )}
+            <ReportButton report={report} t={t} disabled={detail.kind !== 'ready'} />
+          </>
+        ) : undefined
       }
       actions={
-        <Button
-          variant="primary"
-          disabled={detail.kind !== 'ready'}
-          onClick={() => setPicking(true)}
-        >
-          {t('market.avatar.apply')}
-        </Button>
+        report.state.status === 'open' ? (
+          <ReportActions report={report} id={avatar.id} t={t} />
+        ) : (
+          <Button
+            variant="primary"
+            disabled={detail.kind !== 'ready'}
+            onClick={() => setPicking(true)}
+          >
+            {t('market.avatar.apply')}
+          </Button>
+        )
       }
     >
       {picking && (
@@ -431,6 +564,7 @@ function MarketAvatarDetail({
             {t('market.detail.error', { error: marketplaceError(detail.error, t) })}
           </ReadFailure>
         )}
+        <ReportPanel report={report} t={t} kind="avatar" />
       </div>
     </MarketPage>
   );

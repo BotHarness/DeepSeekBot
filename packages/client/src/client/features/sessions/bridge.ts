@@ -1,3 +1,8 @@
+import {
+  ENGINE_QUOTA_WINDOWS,
+  type EngineQuotaWindow,
+  type EngineQuotaWindowId,
+} from '@botharness/host-protocol/subscription-engine';
 import { asRecord, bridgeHost, unwrap, type BridgeCall } from '../../bridge-transport.js';
 import * as botControl from '@botharness/host-client/bot-control';
 import type {
@@ -7,7 +12,7 @@ import type {
 } from '@botharness/host-protocol/wire';
 import { isTurnTargetPath, type TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { OwnedSessionSummary } from '../../store.js';
-import { parseSessionModelRoute, type SessionModelRoute } from '../../session-model-route.js';
+import { parseSessionModelRoute } from '../../session-model-route.js';
 import type { SessionBotOwner } from '../../bridge.js';
 
 export function createSessionOwnerBridge(
@@ -344,6 +349,35 @@ export interface SessionEngineQuota {
   resetsAt?: string;
   limitedUntil?: string;
   observedAt: string;
+  windows?: Partial<Record<EngineQuotaWindowId, EngineQuotaWindow>>;
+  source?: 'live' | 'turn';
+}
+
+function parseQuotaWindows(
+  value: unknown,
+): Partial<Record<EngineQuotaWindowId, EngineQuotaWindow>> | undefined {
+  const windows = asRecord(value);
+  if (windows === undefined) return undefined;
+  const parsed: Partial<Record<EngineQuotaWindowId, EngineQuotaWindow>> = {};
+  for (const id of ENGINE_QUOTA_WINDOWS) {
+    const window = asRecord(windows[id]);
+    if (window === undefined) continue;
+    const remaining = window['remainingPercent'];
+    const resetsAt = window['resetsAt'];
+    const minutes = window['windowMinutes'];
+    parsed[id] = {
+      ...(typeof remaining === 'number' && Number.isFinite(remaining)
+        ? { remainingPercent: Math.min(100, Math.max(0, remaining)) }
+        : {}),
+      ...(typeof resetsAt === 'string' && Number.isFinite(Date.parse(resetsAt))
+        ? { resetsAt }
+        : {}),
+      ...(typeof minutes === 'number' && Number.isFinite(minutes) && minutes > 0
+        ? { windowMinutes: minutes }
+        : {}),
+    };
+  }
+  return parsed;
 }
 
 export interface SessionEngine {
@@ -361,11 +395,15 @@ export function parseSessionEngineQuota(value: unknown): SessionEngineQuota | un
   const percent = quota['usedPercent'];
   const resetsAt = time(quota['resetsAt']);
   const limitedUntil = time(quota['limitedUntil']);
+  const windows = parseQuotaWindows(quota['windows']);
+  const source = quota['source'];
   return {
     ...(typeof percent === 'number' && Number.isFinite(percent) ? { usedPercent: percent } : {}),
     ...(resetsAt === undefined ? {} : { resetsAt }),
     ...(limitedUntil === undefined ? {} : { limitedUntil }),
     observedAt: quota['observedAt'],
+    ...(windows === undefined ? {} : { windows }),
+    ...(source === 'live' || source === 'turn' ? { source } : {}),
   };
 }
 
@@ -759,4 +797,46 @@ export async function stopBot(
     botSlug,
     ...(channelId === undefined ? {} : { channelId }),
   });
+}
+
+export async function sendSessionRequest(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+  text: string,
+  steer: boolean,
+): Promise<void> {
+  const value = asRecord(
+    await unwrap(call, 'botToolRun', {
+      slug,
+      tool: 'unarchive_assignment',
+      args: {
+        session_id: sessionId,
+        message: text,
+        mode: steer ? 'next-step' : 'next-turn',
+      },
+    }),
+  );
+  let result: unknown = value?.['result'];
+  if (typeof result === 'string') {
+    try {
+      result = JSON.parse(result);
+    } catch {
+      result = undefined;
+    }
+  }
+  const outcome = asRecord(result);
+  if (outcome?.['code'] !== undefined)
+    throw new Error(
+      typeof outcome['message'] === 'string' ? outcome['message'] : String(outcome['code']),
+    );
+}
+
+export async function sendOrchestratorMessage(
+  call: BridgeCall,
+  botSlug: string,
+  sessionId: string,
+  text: string,
+): Promise<void> {
+  await unwrap(call, 'sessionMessageSend', { botSlug, sessionId, text });
 }

@@ -186,6 +186,14 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
         observedAt: expect.any(String),
         resetsAt: new Date(1795400000 * 1000).toISOString(),
         usedPercent: 12,
+        windows: {
+          weekly: {
+            remainingPercent: 88,
+            resetsAt: new Date(1795400000 * 1000).toISOString(),
+            windowMinutes: 10_080,
+          },
+        },
+        source: 'turn',
       },
     });
     expect((await host.status()).find((report) => report.engine === 'claude')?.quota).toMatchObject(
@@ -245,6 +253,36 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
     await expect(signedOut.host.runTurn(signedOut.request)).rejects.toMatchObject({
       code: 'engine-signed-out',
     });
+  });
+
+  it('declines a steer when the replacement is stopped before Claude accepts its input', async () => {
+    const firstPrompt = RECORDING.findIndex((line) => line.kind === 'await-input');
+    const { host, request, replay } = setup([
+      [
+        ...RECORDING.slice(0, firstPrompt + 1),
+        { kind: 'await-interrupt' },
+        { kind: 'message', msg: { type: 'result', subtype: 'success' } },
+        { kind: 'await-input' },
+      ],
+    ]);
+    const stop = new AbortController();
+    const running = host.runTurn({ ...request, signal: stop.signal });
+    try {
+      await vi.waitFor(() => expect(replay.prompts).toHaveLength(1));
+      const requireAccess = vi
+        .fn()
+        .mockImplementationOnce(() => {})
+        .mockImplementationOnce(() => {
+          stop.abort();
+        });
+      const delivered = host.steerOrchestrator(request.sessionId, 'Update', requireAccess);
+      await running;
+      expect(await delivered).toBe(false);
+      expect(replay.interrupts).toBe(1);
+      expect(replay.prompts).toHaveLength(1);
+    } finally {
+      await host.close();
+    }
   });
 
   it('stops a turn whose init reports an API key, even after the account looked like a subscription', async () => {
@@ -472,9 +510,23 @@ describe('Claude Code engine boundaries', () => {
   });
 
   it('turns a rate-limit report into the engine quota event', () => {
-    expect(claudeRateLimit({ status: 'allowed', utilization: 0.42, resetsAt: 1795400000 })).toEqual(
-      { kind: 'rate-limit', usedPercent: 42, resetsAt: 1795400000, limited: false },
-    );
+    const resetsAt = new Date(1795400000 * 1000).toISOString();
+    expect(
+      claudeRateLimit({
+        status: 'allowed',
+        rateLimitType: 'five_hour',
+        utilization: 0.42,
+        resetsAt: 1795400000,
+      }),
+    ).toEqual({
+      kind: 'rate-limit',
+      windows: { session: { remainingPercent: 58, resetsAt, windowMinutes: 300 } },
+      resetsAt,
+      limited: false,
+    });
+    expect(claudeRateLimit({ status: 'allowed', rateLimitType: 'seven_day' })).toMatchObject({
+      windows: { weekly: { windowMinutes: 10_080 } },
+    });
     expect(claudeRateLimit({ status: 'rejected' })).toMatchObject({ limited: true });
     expect(claudeRateLimit({ status: 'allowed', isUsingOverage: true })).toMatchObject({
       limited: true,

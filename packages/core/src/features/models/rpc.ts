@@ -91,6 +91,10 @@ export function engineAccounts(
   return unwrapAsync(methods.engineAccounts({ grantable }));
 }
 
+export function engineAccountQuotaRefresh(methods: EngineAccountBridgeMethods, id: string) {
+  return unwrapAsync(methods.engineAccountQuotaRefresh({ id }));
+}
+
 export function engineSelection(
   methods: import('../../engines/engine-selection-bridge.js').EngineSelectionBridgeMethods,
   request: import('../../engines/engine-selection-bridge.js').EngineSelectionRequest,
@@ -131,6 +135,13 @@ export function engineAccountLogin(
   engine?: string,
 ) {
   return unwrapAsync(methods.engineAccountLogin({ id, engine }));
+}
+
+export function engineAccountLoginCancel(
+  methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
+  id: string,
+) {
+  return unwrapAsync(methods.engineAccountLoginCancel({ id }));
 }
 
 export function engineAccountSubmitCode(

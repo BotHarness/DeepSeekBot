@@ -100,6 +100,7 @@ export const HOST_ADMIN_OPTIONS = {
   bot: { type: 'string' },
   'avatar-tag': { type: 'string', multiple: true },
   'from-bot': { type: 'string' },
+  tag: { type: 'string' },
   force: { type: 'boolean' },
   action: { type: 'string' },
   query: { type: 'string' },
@@ -480,5 +481,6 @@ export const BOT_CLI_OPTIONS = {
   ...LIVE_OPTIONS,
   ...SSH_OPTIONS,
   compact: { type: 'boolean' },
+  json: { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
 } as const;
