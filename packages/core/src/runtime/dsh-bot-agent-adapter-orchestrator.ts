@@ -43,7 +43,7 @@ import {
   turnAborted,
   untilAborted,
 } from './dsh-bot-agent-adapter-shared.js';
-import { runsOnEngine, runEngineTurn } from './dsh-bot-agent-adapter-engine.js';
+import { runEngineTurn } from './dsh-bot-agent-adapter-engine.js';
 import { orchestratorTools, TOB_CLI_ONLY_TOOLS } from './dsh-bot-agent-adapter-tools.js';
 import { orchestratorPromptSections } from './dsh-bot-agent-adapter-orchestrator-prompt.js';
 import type { DshBotAgentAdapterState } from './dsh-bot-agent-adapter-state.js';
@@ -66,11 +66,11 @@ type RunOrchestratorContext = Pick<
   | 'promptText'
   | 'requireNoPreparation'
   | 'runs'
+  | 'runsOnEngine'
   | 'stopSeqs'
   | 'stoppedBots'
   | 'turnRefusal'
 > &
-  Parameters<typeof runsOnEngine>[0] &
   Parameters<typeof runEngineTurn>[0] &
   OrchestratorHandleContext &
   OrchestratorSelectionContext &
@@ -229,7 +229,7 @@ export async function runOrchestrator(
       run.tobCliTurn === undefined &&
       engines !== undefined &&
       (run.routingTarget === undefined
-        ? runsOnEngine(adapter, run.bot.slug)
+        ? adapter.runsOnEngine(run.bot.slug)
         : run.routingTarget.kind === 'engine')
     ) {
       await runEngineTurn(adapter, run, engines, abandonable.abandoned);

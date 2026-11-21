@@ -72,7 +72,6 @@ type RunDirectToolContext = Pick<
   | 'observeDirectToolCleanupFailure'
   | 'orchestratorHandle'
   | 'prepare'
-  | 'releaseSession'
   | 'runs'
   | 'stoppedBots'
   | 'subagentTools'
@@ -464,6 +463,7 @@ export function directTools(adapter: DirectToolsContext): DirectBotToolSpec[] {
 
 export async function runDirectTool(
   adapter: RunDirectToolContext,
+  releaseSession: DshBotAgentAdapterState['releaseSession'],
   run: OrchestratorAgentRun,
   name: string,
   args: Record<string, unknown>,
@@ -564,7 +564,7 @@ export async function runDirectTool(
     adapter.runs.delete(run.sessionId);
     const cleanupStarted = Date.now();
     try {
-      await adapter.releaseSession(run.sessionId);
+      await releaseSession(run.sessionId);
     } catch {
       try {
         adapter.observeDirectToolCleanupFailure?.({

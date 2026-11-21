@@ -171,7 +171,7 @@ export interface DshDefaultModelHost {
 class DshBotAgentAdapter implements BotAgentAdapter {
   readonly #state: DshBotAgentAdapterState;
   constructor(options: DshBotAgentAdapterOptions) {
-    this.#state = new DshBotAgentAdapterState(options);
+    this.#state = new DshBotAgentAdapterState(options, (...args) => this.runsOnEngine(...args));
   }
   runOrchestrator(run: OrchestratorAgentRun): Promise<void> {
     return runOrchestrator(this.#state, run);
@@ -265,7 +265,15 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     signal: AbortSignal,
     parentSessionId?: string,
   ): Promise<unknown> {
-    return runDirectTool(this.#state, run, name, args, signal, parentSessionId);
+    return runDirectTool(
+      this.#state,
+      (sessionId) => this.releaseSession(sessionId),
+      run,
+      name,
+      args,
+      signal,
+      parentSessionId,
+    );
   }
 }
 

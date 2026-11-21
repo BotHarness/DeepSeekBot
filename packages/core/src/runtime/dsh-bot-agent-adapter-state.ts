@@ -109,7 +109,10 @@ export class DshBotAgentAdapterState {
     return orchestratorHandle(this, run, signal);
   }
 
-  constructor(options: DshBotAgentAdapterOptions) {
+  constructor(
+    options: DshBotAgentAdapterOptions,
+    readonly runsOnEngine: (botSlug: string, role?: 'orchestrator' | 'assignment') => boolean,
+  ) {
     this.tobCliInvocation = options.tobCliInvocation ?? new ModelFreeTobCliInvocation();
     this.onGenuiDiagnostic = options.onGenuiDiagnostic;
     this.genuiPreviewBrowserPath = options.genuiPreviewBrowserPath;

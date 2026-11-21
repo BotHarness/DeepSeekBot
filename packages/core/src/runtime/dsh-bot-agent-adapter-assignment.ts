@@ -33,7 +33,7 @@ import {
   PreparationStopped,
   interruptedToolCalls,
 } from './dsh-bot-agent-adapter-shared.js';
-import { runsOnEngine, runEngineAssignment } from './dsh-bot-agent-adapter-engine.js';
+import { runEngineAssignment } from './dsh-bot-agent-adapter-engine.js';
 import { UNREPORTED_FINAL_PREFIX } from '../features/assignments/prompt.js';
 import type { DshBotAgentAdapterState } from './dsh-bot-agent-adapter-state.js';
 
@@ -66,12 +66,12 @@ type DriveAssignmentAttemptContext = Pick<
   | 'prepare'
   | 'prepareModelRoute'
   | 'runs'
+  | 'runsOnEngine'
   | 'stopSeqs'
   | 'stoppedBots'
   | 'stopping'
   | 'turnRefusal'
 > &
-  Parameters<typeof runsOnEngine>[0] &
   Parameters<typeof runEngineAssignment>[0] &
   AssignmentHandleContext &
   SelectAssignmentModelContext;
@@ -281,7 +281,7 @@ async function driveAssignmentAttempt(
     if (
       engines !== undefined &&
       (run.routingTarget === undefined
-        ? runsOnEngine(adapter, run.bot.slug, 'assignment')
+        ? adapter.runsOnEngine(run.bot.slug, 'assignment')
         : run.routingTarget.kind === 'engine')
     ) {
       await runEngineAssignment(adapter, run, engines, entry, abandonable.abandoned, accepted);
