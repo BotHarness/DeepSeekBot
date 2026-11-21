@@ -1,5 +1,4 @@
 import { useState, type Dispatch, type SetStateAction } from 'react';
-import { Toast } from './ds/toast.js';
 import type { BridgeActions } from './actions.js';
 import type { WindowCompanions } from './window-companions.js';
 import type { ChannelSelection } from './channel-selection.js';
@@ -26,15 +25,7 @@ import {
 import { useTeamMode } from './team-state.js';
 import type { DockPanelRegistry } from './dock-panels.js';
 import { store, type BotSummary, type ChannelSummary } from './store.js';
-import {
-  errorMessage,
-  type ModelCatalogView,
-  type ModelPlanStateView,
-  type ModelRouteView,
-} from './bridge.js';
-import { rememberModelPlan } from './model-plan-store.js';
-import { applyBotModelRoute, botModelMenuGroups } from './bot-model-route.js';
-import { useMountedResource } from './mounted-resource.js';
+import { ModelPresetProfile } from './model-preset-profile.js';
 import { reportFailure } from './diagnostic-log.js';
 import type {
   SidebarState,
@@ -56,11 +47,9 @@ function hasChannelSettings(
 export function useSidebarChannelMenu({
   state,
   actions,
-  t,
 }: {
   state: SidebarState;
   actions: BridgeActions;
-  t: BotHarnessTranslate;
 }) {
   const [channelMenu, setChannelMenu] = useState<ChannelMenuRequest | undefined>(undefined);
   const [sharing, setSharing] = useState<BotSummary | undefined>(undefined);
@@ -82,51 +71,7 @@ export function useSidebarChannelMenu({
   const menuModelSlug = state.bots.some((bot) => bot.slug === menuBotSlug && bot.deleted !== true)
     ? menuBotSlug
     : undefined;
-  const [menuModelOptions, setMenuModelOptions] = useState<{
-    slug: string;
-    catalog: ModelCatalogView;
-    state: ModelPlanStateView;
-  }>();
-  const menuModelData = menuModelOptions?.slug === menuModelSlug ? menuModelOptions : undefined;
-  const [menuModelBusy, setMenuModelBusy] = useState(false);
-  const [menuModelError, setMenuModelError] = useState<string | undefined>(undefined);
-  const menuModelMount = useMountedResource<HTMLSpanElement>(() => {
-    setMenuModelOptions(undefined);
-    if (menuModelSlug === undefined) return;
-    let active = true;
-    void Promise.all([actions.modelCatalog(), actions.modelPlanState(menuModelSlug)]).then(
-      ([catalog, planState]) => {
-        if (!active) return;
-        rememberModelPlan(menuModelSlug, planState.plan, actions);
-        setMenuModelOptions({ slug: menuModelSlug, catalog, state: planState });
-      },
-      (failure: unknown) => {
-        if (active) setMenuModelError(`${t('modelPreset.loadFailed')}: ${errorMessage(failure)}`);
-      },
-    );
-    return () => {
-      active = false;
-    };
-  }, [actions, menuModelSlug]);
-  const applyMenuModel = (route: ModelRouteView): void => {
-    if (menuModelSlug === undefined || menuModelData === undefined || menuModelBusy) return;
-    setMenuModelBusy(true);
-    void applyBotModelRoute(actions, menuModelSlug, menuModelData.state, route)
-      .then((plan) => {
-        setMenuModelOptions((current) =>
-          current?.slug === menuModelSlug
-            ? { ...current, state: { revision: plan.revision, plan } }
-            : current,
-        );
-      })
-      .catch((failure: unknown) => {
-        setMenuModelError(t('modelPreset.changeFailed', { error: errorMessage(failure) }));
-      })
-      .finally(() => {
-        setMenuModelBusy(false);
-        setChannelMenu((current) => (current === channelMenu ? undefined : current));
-      });
-  };
+  const [modelTarget, setModelTarget] = useState<string>();
   const menuHiddenDmActions = useHiddenDmActions(
     channelMenu === undefined
       ? undefined
@@ -158,12 +103,8 @@ export function useSidebarChannelMenu({
     nicknameTarget,
     setNicknameTarget,
     menuModelSlug,
-    menuModelData,
-    menuModelBusy,
-    menuModelError,
-    setMenuModelError,
-    menuModelMount,
-    applyMenuModel,
+    modelTarget,
+    setModelTarget,
     menuHiddenDmActions,
     menuMemoryDisplay,
     openChannelSettings,
@@ -181,7 +122,7 @@ export function sidebarChannelMenuOpener({
   setSectionCreateMenuId,
   setSectionContextMenu,
 }: {
-  menu: Pick<ReturnType<typeof useSidebarChannelMenu>, 'setMenuModelError' | 'setChannelMenu'>;
+  menu: Pick<ReturnType<typeof useSidebarChannelMenu>, 'setChannelMenu'>;
   selectedChannelSet: Set<string>;
   selectedChannelIds: readonly string[];
   setChannelSelection: Dispatch<SetStateAction<ChannelSelection>>;
@@ -191,7 +132,7 @@ export function sidebarChannelMenuOpener({
   setSectionCreateMenuId: Dispatch<SetStateAction<string | undefined>>;
   setSectionContextMenu: Dispatch<SetStateAction<SectionMenuRequest | undefined>>;
 }) {
-  const { setMenuModelError, setChannelMenu } = menu;
+  const { setChannelMenu } = menu;
   return (request: ChannelMenuRequest): void => {
     const inSelection = selectedChannelSet.has(request.channelId);
     const channelIds =
@@ -202,7 +143,6 @@ export function sidebarChannelMenuOpener({
     setSectionMenuId(undefined);
     setSectionCreateMenuId(undefined);
     setSectionContextMenu(undefined);
-    setMenuModelError(undefined);
     setChannelMenu({ ...request, channelIds });
   };
 }
@@ -278,11 +218,8 @@ export function renderSidebarChannelActions({
     nicknameTarget,
     setNicknameTarget,
     menuModelSlug,
-    menuModelData,
-    menuModelBusy,
-    menuModelError,
-    setMenuModelError,
-    applyMenuModel,
+    modelTarget,
+    setModelTarget,
     menuHiddenDmActions,
     menuMemoryDisplay,
     openChannelSettings,
@@ -398,14 +335,9 @@ export function renderSidebarChannelActions({
           modelAction={
             menuModelSlug === undefined
               ? undefined
-              : {
-                  groups: botModelMenuGroups(
-                    menuModelData?.state.plan?.orchestrator ?? menuModelData?.catalog.default,
-                    menuModelData?.catalog,
-                    t('modelPreset.providerDefault'),
-                  ),
-                  disabled: menuModelBusy || menuModelData === undefined,
-                  apply: applyMenuModel,
+              : () => {
+                  setModelTarget(menuModelSlug);
+                  setChannelMenu(undefined);
                 }
           }
           shareAction={(() => {
@@ -570,13 +502,14 @@ export function renderSidebarChannelActions({
           onClose={() => setDeleting(undefined)}
         />
       ),
-    modelErrorToast:
-      menuModelError === undefined ? null : (
-        <Toast
-          key="menu-model-error"
-          text={menuModelError}
-          holdMs={6000}
-          onDone={() => setMenuModelError(undefined)}
+    modelDialog:
+      modelTarget === undefined ? null : (
+        <ModelPresetProfile
+          key={modelTarget}
+          slug={modelTarget}
+          actions={actions}
+          t={t}
+          onClose={() => setModelTarget(undefined)}
         />
       ),
   };

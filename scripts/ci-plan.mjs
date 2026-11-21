@@ -121,6 +121,12 @@ export const RULES = [
     true,
     AUTH,
   ),
+  related(
+    'packages/core/src/features/{team,humans,personabots}/{methods,rpc,onboarding-methods,roster-methods}.ts',
+    'Team, Human identity and PersonaBot bridge permissions and protocol',
+    true,
+    AUTH,
+  ),
   related('packages/host-protocol/src/**', 'Connect pairing and wire protocol', false, PROTOCOL),
   related(
     'packages/core/src/{**/*-contract.ts,live-activity/contract.ts,bridge/methods.ts,bridge/rpc.ts}',

@@ -2256,6 +2256,52 @@ describe('bot sidebar rows', () => {
     expect(profileAction).toHaveBeenCalledOnce();
   });
 
+  it('opens the shared model picker from a Bot DM row', async () => {
+    const actions = stubActions();
+    const route = { provider: 'deepseek', model: 'flash' };
+    actions.modelCatalog = vi.fn(async () => ({
+      default: route,
+      models: [{ ...route, providerName: 'DeepSeek', modelName: 'Flash', efforts: [] }],
+    }));
+    store.setRoster([BOT], [DM_CHANNEL]);
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      await act(async () =>
+        root.render(
+          createElement(BotSidebar, {
+            wide: true,
+            actions,
+            useBotModePrefs: (selector) => selector(prefs),
+            setSortMode,
+            setSectionSortMode,
+            t: zhTranslate,
+          }),
+        ),
+      );
+      await act(async () =>
+        host
+          .querySelector(`[data-channel-id="${DM_CHANNEL.id}"]`)!
+          .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+      );
+      await act(async () => menuWithItem('bot-model').onSelect?.('bot-model'));
+      const modelTrigger = document.body.querySelector<HTMLButtonElement>(
+        'button[data-picker-trigger]',
+      )!;
+      await act(async () => modelTrigger.click());
+      expect(
+        document.body.querySelector('[role="dialog"] [data-picker-filter="deepseek"]'),
+      ).not.toBeNull();
+      expect(
+        document.body.querySelector('[data-filter-picker] input[role="combobox"]'),
+      ).not.toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
+  });
+
   it('renders the 移动到 menu from every section plus 未分组 and maps picks to scopes', () => {
     const onPick = vi.fn();
     const onClose = vi.fn();

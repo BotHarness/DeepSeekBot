@@ -1,6 +1,6 @@
 ---
 name: verify-harvest
-description: Model-check the Bot Inbox harvest (no replay after a side effect, handled only after seen, every pending Admission eventually claimed) with TLA+. Use when a change touches #scheduleHarvest, #checkHarvestReadiness, #claimHarvest, #markAdmissionsSideEffect, #settleHarvestHandled, #settleHarvestFailure or the startup recovery of inbox_admissions in packages/core/src/runtime/bot-runtime.ts, or verification/harvest/.
+description: Model-check the Bot Inbox harvest (no replay after a side effect, handled only after seen, every pending Admission eventually claimed) with TLA+. Use when a change touches scheduleHarvest in orchestrator-scheduling.ts, #checkHarvestReadiness, #claimHarvest, #markAdmissionsSideEffect, #settleHarvestHandled, #settleHarvestFailure or the startup recovery of inbox_admissions in packages/core/src/runtime/bot-runtime.ts, or verification/harvest/.
 ---
 
 # Verify the Bot Inbox harvest
@@ -46,20 +46,20 @@ When a change to the harvest is intended:
 
 ## Coverage
 
-Last confirmed against commit `10eefc6b7`. Line numbers are in `packages/core/src/runtime/bot-runtime.ts`.
+The scheduling step is in [orchestrator-scheduling.ts](../../../packages/core/src/runtime/orchestrator-scheduling.ts). Other steps use [bot-runtime.ts](../../../packages/core/src/runtime/bot-runtime.ts).
 
 | Model step | Code |
 | --- | --- |
-| Admit | `#admitChannelMessage` → `#checkHarvestReadiness` (2866, 3865-3882) |
-| Schedule (inside Admit and AfterTurn) | `#scheduleHarvest` 3850-3862 (`#pendingHarvests` 3854) |
-| Claim, Empty | `#runHarvestTurn` 3964-3998; `#claimHarvest` 4167-4222 |
-| Cross | `#markAdmissionsSideEffect` 4530-4550 |
-| Succeed | `#settleHarvestHandled` 4552-4569 |
-| Fail | `#settleHarvestFailure` 4571-4590 |
-| AfterTurn | the `finally` of `#scheduleHarvest` 3857-3860 |
-| Restart | `#recoverInterruptedAttempts` 8100-8108; `#recoverPendingChannelAdmissions` 3638, 3098 |
+| Admit | `#admitChannelMessage` → `#checkHarvestReadiness` |
+| Schedule (inside Admit and AfterTurn) | `scheduleHarvest` checks `pendingHarvests` |
+| Claim, Empty | `#runHarvestTurn` → `#claimHarvest` |
+| Cross | `#markAdmissionsSideEffect` |
+| Succeed | `#settleHarvestHandled` |
+| Fail | `#settleHarvestFailure` |
+| AfterTurn | The `finally` of `scheduleHarvest` |
+| Restart | `#recoverInterruptedAttempts` and `#recoverPendingChannelAdmissions` |
 
-When any of these changes after that commit, read the diff against the model before you trust a pass. Move the commit forward only after you have confirmed that the model still describes the code.
+Review the current code against the model when any of these steps change.
 
 ## Not covered
 
