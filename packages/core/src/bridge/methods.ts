@@ -1,4 +1,17 @@
 import {
+  createEngineAccountBridge,
+  type EngineAccountBridgeMethods,
+  createEngineSelectionBridge,
+  type EngineSelectionBridgeMethods,
+  createModelProviderBridge,
+  type ModelProviderBridgeMethods,
+  createModelsBridgeMethods,
+  type ModelsBridgeMethods,
+} from '../features/models/methods.js';
+import type { ModelsBridgeDeps } from '../features/models/deps.js';
+import { createModelRoutingHelpers, routingGroupFailure } from '../features/models/routing.js';
+export type { ModelCatalogGroup } from '../features/models/routing.js';
+import {
   createMarketplaceBridgeMethods,
   type MarketplaceBridgeMethods,
   type MarketplaceBridgeDeps,
@@ -45,30 +58,7 @@ export type {
   PromptLimitView,
   PromptPartView,
 } from '../features/prompts/methods.js';
-import {
-  createEngineAccountBridge,
-  type EngineAccountBridgeMethods,
-  type EngineAccountOperations,
-} from '../engines/engine-account-bridge.js';
-import {
-  createEngineSelectionBridge,
-  type EngineSelectionBridgeMethods,
-  type EngineSelectionOperations,
-} from '../engines/engine-selection-bridge.js';
-import {
-  createModelProviderBridge,
-  modelFailure,
-  type ModelProviderBridgeMethods,
-} from '../models/provider-bridge.js';
-import type { ModelProviders } from '../models/providers.js';
-import {
-  engineAccountKey,
-  type EngineId,
-  type RoutingGroupEngineMember,
-  type RoutingGroupEngineOptions,
-} from '@botharness/host-protocol/subscription-engine';
-import type { EngineHost } from '../engines/engine-host.js';
-import { EngineRefusal } from '../engines/engine-session.js';
+import { modelFailure } from '../models/provider-bridge.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
 import { ApprovalTemplateDeletion } from '../workspaces/approval-template-deletion.js';
 import {
@@ -81,9 +71,7 @@ import {
 } from '../channels/quotes.js';
 import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
 import type { ApprovalCard } from '../team/approval-contract.js';
-import { botModelGrants, requireBotModel, botModelAllowed } from '../team/models.js';
-import { requireEngineAccountGrant } from '../team/roles.js';
-import { allowsEngineAccount, allowsModel } from '../team/permissions.js';
+import { botModelAllowed } from '../team/models.js';
 import { TeamError } from '../team/error.js';
 import type { UsageByMemberResult } from '../usage/overview.js';
 import { MEMBER_CHANNEL_METHODS } from '../team/member-methods.js';
@@ -362,20 +350,6 @@ import {
 } from '../data-reset/reset.js';
 import { SkillContentTooLargeError, skillOwnerKey, type ResolvedSkill } from '../skills/catalog.js';
 
-export interface ModelCatalogGroup {
-  id: string;
-  name: string;
-  revision: number;
-  mode: 'order';
-  members: RoutingGroupMember[];
-  routes: ModelRoute[];
-  restingUntil?: string;
-}
-
-function routeKey(route: { provider: string; model: string }): string {
-  return JSON.stringify([route.provider, route.model]);
-}
-
 import { isValidSlug } from '../bots/slug.js';
 import {
   memoryMoveTarget,
@@ -413,42 +387,9 @@ import type {
   SessionUsageSummary,
 } from '../usage/usage.js';
 import { usageFilterSchema, type UsageQueryResult } from '../usage/query.js';
-import {
-  isAssignmentGroupOption,
-  isAssignmentModelOption,
-  hasPresetGroups,
-  hasPresetEngines,
-  isModelPresetEngine,
-  type ModelPresetEngineInput,
-  isModelRoute,
-  validateAssignmentModels,
-  type AssignmentGroupOption,
-  type AssignmentModelOption,
-  type ModelRoute,
-  type ModelPresetUsage,
-  type ModelPreset,
-  type ModelPresetGroups,
-  type ModelPresetStore,
-  type PersonaBotModelPlan,
-} from '../models/presets.js';
-import { modelFavorite, type ModelFavorite, type ModelFavoriteStore } from '../models/favorites.js';
-import {
-  isRoutingGroupMember,
-  ROUTING_GROUP_MEMBER_SHAPES,
-  RoutingGroupError,
-  type RoutingGroup,
-  type RoutingGroupInput,
-  type RoutingGroupMember,
-  type RoutingGroupStore,
-} from '../models/routing-groups.js';
-import {
-  groupEfforts,
-  groupMemberRoute,
-  type ModelCatalog,
-  type ModelCatalogEntry,
-} from '../models/catalog.js';
-
-import type { ModelPlanState, ModelRouteReadiness } from '../models/readiness.js';
+import { isModelRoute, type ModelRoute, type PersonaBotModelPlan } from '../models/presets.js';
+import { RoutingGroupError } from '../models/routing-groups.js';
+import { groupMemberRoute } from '../models/catalog.js';
 import { MemoryFileError, type MemoryFileTarget } from '../memory/file-actions.js';
 import { MemoryPathError } from '../memory/jail.js';
 import {
@@ -742,7 +683,8 @@ export interface BridgeMethods
     SkillsBridgeMethods,
     AvatarsBridgeMethods,
     GenuiBridgeMethods,
-    MarketplaceBridgeMethods {
+    MarketplaceBridgeMethods,
+    ModelsBridgeMethods {
   tobHome(
     payload: unknown,
   ): Promise<
@@ -753,7 +695,6 @@ export interface BridgeMethods
   onboarding(payload: unknown): Promise<BridgeResult<OnboardingSnapshot>>;
   acknowledgements(payload: unknown): BridgeResult<{ items: Record<string, string> }>;
   acknowledge(payload: unknown): BridgeResult<{ key: string; value: string }>;
-  modelPlanInherit(payload: unknown): BridgeResult<{ revision: number }>;
   onboardingModel(
     payload: unknown,
   ): Promise<BridgeResult<{ revision: number; groupRevision?: number }>>;
@@ -834,41 +775,6 @@ export interface BridgeMethods
   messagingRevoke(payload: unknown): Promise<BridgeResult<{ revoked: true }>>;
   messagingConversation(payload: unknown): Promise<BridgeResult<{ updated: true }>>;
   messagingSend(payload: unknown): Promise<BridgeResult<{ intent: OutboxIntent }>>;
-
-  modelCatalog(payload: unknown): Promise<
-    BridgeResult<{
-      models: ModelCatalogEntry[];
-      default?: ModelRoute;
-      defaultRevision?: number;
-      defaultGroupId?: string;
-      favorites?: ModelFavorite[];
-      groups?: ModelCatalogGroup[];
-      routingGroupEngines?: RoutingGroupEngineOptions[];
-    }>
-  >;
-  modelFavoriteSet(payload: unknown): BridgeResult<{ favorites: ModelFavorite[] }>;
-  modelPresets(
-    payload: unknown,
-  ): BridgeResult<{ presets: ModelPreset[]; usage?: ModelPresetUsage[] }>;
-  modelPresetDelete(payload: unknown): BridgeResult<{ id: string }>;
-  modelPresetCreate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
-  modelPresetUpdate(payload: unknown): Promise<BridgeResult<{ preset: ModelPreset }>>;
-  modelPresetApply(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
-  modelGroups(payload: unknown): BridgeResult<{
-    groups: RoutingGroup[];
-    rests: import('../models/route-rest.js').RestingRoute[];
-  }>;
-  modelGroup(payload: unknown): BridgeResult<{ group: RoutingGroup; routes: ModelRoute[] }>;
-  modelGroupCreate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
-  modelGroupUpdate(payload: unknown): Promise<BridgeResult<{ group: RoutingGroup }>>;
-  modelGroupDelete(payload: unknown): BridgeResult<{ group: RoutingGroup }>;
-  modelPlan(payload: unknown): Promise<BridgeResult<ModelPlanState>>;
-  modelPlanCustomize(
-    payload: unknown,
-    beforeCommit?: () => void,
-  ): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
-  modelPlanAssignmentsSet(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
-  modelPlanSet(payload: unknown): Promise<BridgeResult<{ plan: PersonaBotModelPlan }>>;
   list(payload: unknown): BridgeResult<{ bots: Array<PersonaBotSummary | SharedBotSummary> }>;
   activitySnapshot(payload: unknown): BridgeResult<PersonaBotActivitySnapshot>;
   get(payload: unknown): BridgeResult<{ bot: PersonaBotDetail; profileFingerprint: string }>;
@@ -1285,7 +1191,8 @@ export interface BridgeMethodsDeps
     SchedulesBridgeDeps,
     SkillsBridgeDeps,
     AvatarsBridgeDeps,
-    MarketplaceBridgeDeps {
+    MarketplaceBridgeDeps,
+    ModelsBridgeDeps {
   team?: TeamService;
   voiceProviders?: VoiceProviders;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
@@ -1308,39 +1215,10 @@ export interface BridgeMethodsDeps
   storage?: StorageCleanup;
   dataReset?: DataReset;
   attachments?: AttachmentStore;
-  modelPresets?: ModelPresetStore;
-  subscriptionEngines?: Pick<EngineHost, 'validateChoice' | 'use' | 'fallsBack'> & {
-    store: Pick<EngineHost['store'], 'selection'>;
-  };
-  engineAccounts?: EngineAccountOperations;
-  engineSelection?: EngineSelectionOperations;
-  localSubscriptionEngines?: boolean;
-  routingGroupEngineOptions?(
-    allowed: (id: string) => boolean,
-  ): Promise<RoutingGroupEngineOptions[]>;
-  releaseEngineQuotaHold?(slug: string): void;
-  modelFavorites?: ModelFavoriteStore;
-  routingGroups?: RoutingGroupStore;
-  routeRests?: Pick<import('../models/route-rest.js').RouteRests, 'list'>;
-  modelCatalog?: ModelCatalog;
-  modelProviders?: ModelProviders;
-  modelReadiness?: ModelRouteReadiness;
   onboarding?: BotOnboarding;
   acknowledgements?: ClientAcknowledgements;
   tob?: TobService;
   onboardingNews?: (slug?: string) => Promise<boolean>;
-  defaultModel?: {
-    currentSelection(): ModelRoute;
-    saveSelection(route: ModelRoute): Promise<void>;
-  };
-  defaultModelSettings?: () =>
-    | {
-        describe(options: {
-          redactSecrets: boolean;
-        }): { ns: string; value: unknown; revision: number }[];
-        replace(ns: string, value: object, expectedRevision: number): Promise<void>;
-      }
-    | undefined;
   states: BotStateTracker;
   runningSessionIds?: () => ReadonlySet<string>;
   channels: ChannelStore;
@@ -1489,106 +1367,6 @@ function telemetryUnavailable(): BridgeResult<never> {
       code: 'telemetry-unavailable',
       message: 'Usage statistics are unavailable',
     },
-  };
-}
-
-function routingGroupInput(source: Record<string, unknown>): RoutingGroupInput {
-  const name = source['name'];
-  const members = source['members'];
-  if (typeof name !== 'string' || !Array.isArray(members) || !members.every(isRoutingGroupMember))
-    throw new RoutingGroupError(
-      'invalid-input',
-      `A name and members are required. Member shapes: ${ROUTING_GROUP_MEMBER_SHAPES}`,
-    );
-  return { name, members };
-}
-const PRESET_GROUP_KEYS = [
-  'orchestratorGroupId',
-  'orchestratorGroupEffort',
-  'assignmentGroups',
-  'assignmentDefaultGroupId',
-  'assignmentGroupOptions',
-] as const;
-function presetGroupsInput(
-  source: Record<string, unknown>,
-):
-  | { given: false }
-  | { given: true; groups: ModelPresetGroups; optionsGiven?: true }
-  | { given: true; invalid: true } {
-  if (!PRESET_GROUP_KEYS.some((key) => key in source)) return { given: false };
-  const orchestrator = source['orchestratorGroupId'] ?? undefined;
-  const effort = source['orchestratorGroupEffort'] ?? undefined;
-  const ids = source['assignmentGroups'] ?? [];
-  const defaultId = source['assignmentDefaultGroupId'] ?? undefined;
-  const options = assignmentGroupOptionsInput(source['assignmentGroupOptions'], ids);
-  if (
-    (orchestrator !== undefined && (typeof orchestrator !== 'string' || !orchestrator.trim())) ||
-    (effort !== undefined &&
-      (typeof effort !== 'string' || orchestrator === undefined || effort.trim() === '')) ||
-    !Array.isArray(ids) ||
-    !ids.every((id) => typeof id === 'string' && id.trim() !== '') ||
-    new Set(ids).size !== ids.length ||
-    (defaultId !== undefined && (typeof defaultId !== 'string' || !ids.includes(defaultId))) ||
-    options === 'invalid'
-  )
-    return { given: true, invalid: true };
-  return {
-    given: true,
-    groups: {
-      ...(orchestrator === undefined ? {} : { orchestratorGroupId: orchestrator.trim() }),
-      ...(effort === undefined ? {} : { orchestratorGroupEffort: effort.trim() }),
-      ...(ids.length === 0 ? {} : { assignmentGroups: ids as string[] }),
-      ...(defaultId === undefined ? {} : { assignmentDefaultGroupId: defaultId }),
-      ...(options === undefined || options.length === 0 ? {} : { assignmentGroupOptions: options }),
-    },
-    ...(options === undefined ? {} : { optionsGiven: true }),
-  };
-}
-function assignmentGroupOptionsInput(
-  value: unknown,
-  ids: unknown,
-): AssignmentGroupOption[] | undefined | 'invalid' {
-  if (value === undefined) return undefined;
-  if (value === null) return [];
-  if (
-    !Array.isArray(value) ||
-    !value.every(isAssignmentGroupOption) ||
-    !Array.isArray(ids) ||
-    !value.every((option) => ids.includes(option.group)) ||
-    new Set(value.map((option) => option.group)).size !== value.length
-  )
-    return 'invalid';
-  return value;
-}
-const presetClientOutdated: BridgeResult<never> = {
-  ok: false,
-  error: {
-    code: 'client-update-required',
-    message: 'This Model Preset uses Routing Groups; update the client before editing it',
-  },
-};
-function routingGroupFailure(error: unknown): BridgeResult<never> {
-  if (!(error instanceof RoutingGroupError)) return modelFailure(error);
-  return {
-    ok: false,
-    error: {
-      code: error.code === 'invalid-input' ? 'invalid-input' : `routing-group-${error.code}`,
-      message: error.message,
-      ...(error.references.length > 0 ? { details: { references: error.references } } : {}),
-    },
-  };
-}
-function presetEnginesInput(source: Record<string, unknown>): ModelPresetEngineInput {
-  const read = (key: keyof ModelPresetEngineInput) => {
-    const value = source[key];
-    if (value == null || isModelPresetEngine(value)) return value;
-    throw new Error('Invalid Model Preset Subscription Engine');
-  };
-  const orchestratorEngine = read('orchestratorEngine');
-  const assignmentEngine = read('assignmentEngine');
-  return {
-    ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
-    ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
   };
 }
 
@@ -2106,101 +1884,8 @@ function buildBridgeMethods(
   globalRegistry = deps.registry,
 ): BridgeMethods {
   const { botSystemPrompt, ...promptPresets } = createPromptBridgeMethods(deps, globalRegistry);
-  const catalogRests = (): Map<string, string> =>
-    new Map((deps.routeRests?.list() ?? []).map((rest) => [routeKey(rest), rest.until]));
-  const catalogEntry = <T extends { provider: string; model: string }>(
-    entry: T,
-    rests: ReadonlyMap<string, string>,
-  ): T & { restingUntil?: string } => {
-    const until = rests.get(routeKey(entry));
-    return until === undefined ? entry : { ...entry, restingUntil: until };
-  };
-  const catalogGroups = (
-    rests: ReadonlyMap<string, string>,
-    allowed: (route: ModelRoute) => boolean,
-    engineAllowed: (id: string) => boolean,
-  ): { groups?: ModelCatalogGroup[] } => {
-    const store = deps.routingGroups;
-    if (store === undefined) return {};
-    return {
-      groups: store.list().flatMap((group) => {
-        let routes: ModelRoute[];
-        try {
-          const targets = store.targets(group.id);
-          if (
-            targets.some(
-              (target) =>
-                target.kind === 'engine' &&
-                !engineAllowed(engineAccountKey(target.engine, target.accountId)),
-            )
-          )
-            return [];
-          routes = targets.flatMap((target) => (target.kind === 'route' ? [target.route] : []));
-        } catch {
-          return [];
-        }
-        if (routes.length === 0 || !routes.every(allowed)) return [];
-        const untils = routes.map((route) => rests.get(routeKey(route)));
-        const restingUntil = untils.every((until) => until !== undefined)
-          ? [...(untils as string[])].sort()[0]
-          : undefined;
-        return [
-          {
-            id: group.id,
-            name: group.name,
-            revision: group.revision,
-            mode: group.mode,
-            members: group.members,
-            routes,
-            ...(restingUntil === undefined ? {} : { restingUntil }),
-          },
-        ];
-      }),
-    };
-  };
-  const favoritesOf = (): { favorites?: ModelFavorite[] } =>
-    deps.modelFavorites === undefined ? {} : { favorites: deps.modelFavorites.list(human.humanId) };
   const isHostOwner = () =>
     deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
-  type EngineChoice = { engine: EngineId; accountId?: string };
-  const groupEngineChoices = (id: string): RoutingGroupEngineMember[] =>
-    deps.routingGroups?.targets(id).filter((target) => target.kind === 'engine') ?? [];
-  const memberEngineChoices = (members: readonly RoutingGroupMember[]): EngineChoice[] =>
-    members.flatMap((member) =>
-      member.kind === 'engine'
-        ? [member]
-        : member.kind === 'group'
-          ? groupEngineChoices(member.id)
-          : [],
-    );
-  const engineChoiceFilter = () => {
-    const owner = isHostOwner();
-    const grants = owner ? undefined : deps.team?.roles.modelsAllowed(human);
-    return ({ engine, accountId }: EngineChoice) =>
-      deps.localSubscriptionEngines !== false &&
-      (owner ||
-        (grants !== undefined && allowsEngineAccount(grants, engineAccountKey(engine, accountId))));
-  };
-  const requireEngineChoices = (choices: readonly EngineChoice[], slug?: string): void => {
-    if (choices.length === 0) return;
-    if (deps.localSubscriptionEngines === false)
-      throw new EngineRefusal(
-        'engine-unavailable',
-        'Subscription Engines run only on a local Host',
-      );
-    const actor = deps.team?.roles.modelsAllowed(human);
-    const bot = slug === undefined ? undefined : deps.registry.get(slug);
-    if (slug !== undefined && bot === undefined) throw new TeamError('bot-not-found');
-    const botGrants = deps.team && bot ? botModelGrants(deps.team, bot) : undefined;
-    for (const { engine, accountId } of choices) {
-      const id = engineAccountKey(engine, accountId);
-      if (actor !== undefined) requireEngineAccountGrant(actor, id);
-      else if (!isHostOwner()) throw new TeamError('model-not-allowed', undefined, { route: id });
-      if (botGrants !== undefined) requireEngineAccountGrant(botGrants, id);
-    }
-  };
-  const requireGroupEngines = (id: string, slug?: string): void =>
-    requireEngineChoices(groupEngineChoices(id), slug);
   const channelSkillBots = (channel: ChannelRecord): string[] => {
     if (channel.type === 'group')
       return channel.members.filter((slug) => {
@@ -2220,159 +1905,9 @@ function buildBridgeMethods(
     )
       throw new TeamError('bot-not-found');
   };
-  const validateGroupMembers = async (
-    members: RoutingGroupMember[],
-    previous: readonly RoutingGroupMember[] = [],
-  ): Promise<void> => {
-    requireEngineChoices(memberEngineChoices(members));
-    const engineEfforts = members.flatMap((member) =>
-      member.kind === 'engine' &&
-      member.model !== undefined &&
-      member.reasoningEffort !== undefined &&
-      !previous.some(
-        (saved) =>
-          saved.kind === 'engine' &&
-          saved.engine === member.engine &&
-          engineAccountKey(saved.engine, saved.accountId) ===
-            engineAccountKey(member.engine, member.accountId) &&
-          saved.model === member.model?.trim() &&
-          saved.reasoningEffort === member.reasoningEffort?.trim(),
-      )
-        ? [
-            {
-              engine: member.engine,
-              ...(member.accountId === undefined ? {} : { accountId: member.accountId }),
-              model: member.model.trim(),
-              effort: member.reasoningEffort.trim(),
-            },
-          ]
-        : [],
-    );
-    if (engineEfforts.length > 0) {
-      const engines = deps.subscriptionEngines;
-      if (engines === undefined)
-        throw new EngineRefusal('engine-unavailable', 'Subscription Engines are unavailable');
-      try {
-        await Promise.all(
-          engineEfforts.map(({ engine, ...choice }) => engines.validateChoice(engine, choice)),
-        );
-      } catch (error) {
-        if (error instanceof EngineRefusal)
-          throw new RoutingGroupError('invalid-input', error.message);
-        throw error;
-      }
-    }
-    const routes = members.filter((member) => member.kind === 'model');
-    if (routes.length === 0) return;
-    const known = new Set(
-      (await deps.modelCatalog!.list()).map((entry) =>
-        JSON.stringify([entry.provider, entry.model]),
-      ),
-    );
-    const unknown = routes.find(
-      (route) => !known.has(JSON.stringify([route.provider, route.model])),
-    );
-    if (unknown !== undefined)
-      throw new RoutingGroupError(
-        'invalid-input',
-        `Model ${unknown.provider}/${unknown.model} is not in this Host's model list`,
-      );
-  };
-  const assertEngineAccounts = (
-    choices: readonly (
-      | Pick<import('../models/presets.js').ModelPresetEngine, 'engine' | 'accountId'>
-      | null
-      | undefined
-    )[],
-  ) => {
-    if (!deps.engineAccounts) return;
-    for (const choice of choices)
-      if (choice != null) deps.engineAccounts.resolveAccount(choice.engine, choice.accountId);
-  };
-  const firstUsableRoute = async (routes: readonly ModelRoute[]): Promise<ModelRoute> => {
-    let failure: Error | undefined;
-    const rests = catalogRests();
-    const ordered = [
-      ...routes.filter((route) => !rests.has(routeKey(route))),
-      ...routes.filter((route) => rests.has(routeKey(route))),
-    ];
-    for (const route of ordered) {
-      try {
-        await deps.modelCatalog!.validate(route);
-        return { ...route };
-      } catch (error) {
-        failure ??= error instanceof Error ? error : new Error(String(error), { cause: error });
-      }
-    }
-    throw failure ?? new RoutingGroupError('empty-group', 'The Routing Group has no model');
-  };
-  const requireRoutes = (slug: string, routes: readonly ModelRoute[]): void => {
-    requireOwnedBot(slug);
-    deps.team?.roles.require(human, 'models.use');
-    for (const route of routes) requireBotModel(deps.team, deps.registry.get(slug), route);
-  };
-  const groupRoutes = (id: string): ModelRoute[] => {
-    if (deps.routingGroups?.get(id) === undefined)
-      throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
-    return deps.routingGroups.routes(id);
-  };
-  const presetEngineChoices = (choices: ModelPresetEngineInput): EngineChoice[] =>
-    [choices.orchestratorEngine, choices.assignmentEngine].filter((choice) => choice != null);
-  const checkPresetEngines = async (
-    choices: ModelPresetEngineInput,
-    slug?: string,
-  ): Promise<void> => {
-    const selected = [choices.orchestratorEngine, choices.assignmentEngine].filter(
-      (choice) => choice != null,
-    );
-    if (selected.length === 0) return;
-    requireEngineChoices(selected, slug);
-    const engines = deps.subscriptionEngines;
-    if (engines === undefined)
-      throw new EngineRefusal('engine-unavailable', 'Subscription Engines are unavailable');
-    await Promise.all(selected.map((choice) => engines.validateChoice(choice.engine, choice)));
-  };
-  const presetGroupIds = (groups: ModelPresetGroups): string[] => [
-    ...(groups.orchestratorGroupId === undefined ? [] : [groups.orchestratorGroupId]),
-    ...(groups.assignmentGroups ?? []),
-  ];
-  const presetGroupRoutes = (groups: ModelPresetGroups, slug?: string): ModelRoute[] =>
-    presetGroupIds(groups).flatMap((id) => {
-      const routes = groupRoutes(id);
-      requireGroupEngines(id, slug);
-      return routes;
-    });
-  const requireGroupEfforts = async (group: string, efforts: readonly string[]): Promise<void> => {
-    if (efforts.length === 0) return;
-    if (deps.modelCatalog === undefined) throw new Error('Model catalog is unavailable');
-    const shared = groupEfforts(groupRoutes(group), await deps.modelCatalog.list());
-    const outside = efforts.filter((effort) => !shared.includes(effort));
-    if (outside.length > 0)
-      throw new RoutingGroupError(
-        'invalid-input',
-        `Routing Group ${deps.routingGroups?.get(group)?.name ?? group}: effort ${outside.join(', ')} is not supported by every reasoning member; shared levels: ${shared.join(', ') || 'none'}`,
-      );
-  };
-  const validateGroupOptions = async (
-    options: readonly AssignmentGroupOption[] | undefined,
-  ): Promise<void> => {
-    for (const option of options ?? [])
-      await requireGroupEfforts(option.group, option.allowedEfforts ?? []);
-  };
-  const validateGroupEffort = async (groups: ModelPresetGroups | undefined): Promise<void> => {
-    if (groups?.orchestratorGroupId === undefined || groups.orchestratorGroupEffort === undefined)
-      return;
-    await requireGroupEfforts(groups.orchestratorGroupId, [groups.orchestratorGroupEffort]);
-  };
-  const presetOrchestrator = async (
-    orchestrator: unknown,
-    groups: ModelPresetGroups | undefined,
-  ): Promise<ModelRoute | undefined> => {
-    if (groups?.orchestratorGroupId === undefined)
-      return isModelRoute(orchestrator) ? orchestrator : undefined;
-    if (orchestrator !== undefined) return undefined;
-    return firstUsableRoute(groupRoutes(groups.orchestratorGroupId));
-  };
+  const modelRouting = createModelRoutingHelpers(human, deps, isHostOwner, requireOwnedBot);
+  const { firstUsableRoute, requireGroupEfforts, requireGroupEngines, requireRoutes } =
+    modelRouting;
   const allowed = (record: PersonaBotRecord): boolean =>
     botModelAllowed(
       deps.team,
@@ -2776,25 +2311,6 @@ function buildBridgeMethods(
     return { ok: true, value: detailOf(result.record) };
   };
 
-  const validateAssignmentCatalog = async (
-    assignmentDefault: ModelRoute,
-    assignmentModels: AssignmentModelOption[],
-  ): Promise<void> => {
-    validateAssignmentModels(assignmentDefault, assignmentModels);
-    if (deps.modelCatalog === undefined) throw new Error('Model catalog is unavailable');
-    await Promise.all(
-      assignmentModels.flatMap((option) =>
-        option.allowedEfforts.map((effort) =>
-          deps.modelCatalog!.validate({
-            provider: option.provider,
-            model: option.model,
-            ...(effort === '' ? {} : { reasoningEffort: effort }),
-          }),
-        ),
-      ),
-    );
-  };
-
   const schedulesMethods = createSchedulesBridgeMethods(human, deps);
   const skillsMethods = createSkillsBridgeMethods(deps, channelSkillBots, requireOwnedBot);
   const avatarsMethods = createAvatarsBridgeMethods(deps, dmMemory, detailOf);
@@ -2806,6 +2322,14 @@ function buildBridgeMethods(
     isHostOwner,
     detailOf,
     sendReceipt,
+  );
+  const { modelInheritance, modelSettings, modelPlan } = createModelsBridgeMethods(
+    human,
+    deps,
+    globalRegistry,
+    isHostOwner,
+    requireOwnedBot,
+    modelRouting,
   );
   const methods: BridgeMethods = {
     ...createTeamBridge(human, deps.team),
@@ -3491,25 +3015,7 @@ function buildBridgeMethods(
       if (recorded === undefined) return invalidInput('Invalid acknowledgement');
       return { ok: true, value: recorded };
     },
-    modelPlanInherit(payload) {
-      const slug = asSlug(payload);
-      const revision = asObject(payload)['expectedRevision'];
-      if (slug === undefined || !Number.isSafeInteger(revision))
-        return invalidInput('Bot and expected revision required');
-      try {
-        const route = deps.defaultModel?.currentSelection() ?? deps.modelCatalog?.defaultRoute?.();
-        requireOwnedBot(slug);
-        if (route) requireRoutes(slug, [route]);
-      } catch (error) {
-        return modelFailure(error);
-      }
-      const result = deps.registry.inheritModel(slug, revision as number);
-      if (!result.ok) return invalidInput('Bot model changed; reopen before saving');
-      return {
-        ok: true,
-        value: { revision: result.record.modelPlanRevision ?? 0 },
-      };
-    },
+    ...modelInheritance,
     telemetryEvent(payload) {
       const source = asObject(payload);
       const event = source['event'];
@@ -3984,706 +3490,7 @@ function buildBridgeMethods(
         },
       };
     },
-    async modelCatalog(payload) {
-      if (deps.modelCatalog === undefined) return unavailable();
-      try {
-        const models = await deps.modelCatalog.list();
-        const rests = catalogRests();
-        const owner = isHostOwner();
-        const allowed = !owner ? deps.team?.roles.modelsAllowed(human) : undefined;
-        const isAllowed = (route: ModelRoute) =>
-          allowed === undefined || allowsModel(allowed, route);
-        const credentialGated = owner
-          ? new Set<string>()
-          : new Set(models.filter((route) => route.credential !== undefined).map(routeKey));
-        const isListed = (route: ModelRoute) =>
-          isAllowed(route) && !credentialGated.has(routeKey(route));
-        const defaultRoute =
-          deps.defaultModel?.currentSelection() ?? deps.modelCatalog.defaultRoute?.();
-        const defaultRevision = deps
-          .defaultModelSettings?.()
-          ?.describe({ redactSecrets: true })
-          .find((entry) => entry.ns === 'agent-default-model')?.revision;
-        const defaultGroup = deps.routingGroups?.defaultGroup();
-        const canUseEngine = (id: string) =>
-          deps.localSubscriptionEngines !== false &&
-          (owner || (allowed !== undefined && allowsEngineAccount(allowed, id)));
-        const groups = catalogGroups(rests, isListed, canUseEngine);
-        const defaultGroupVisible = groups.groups?.some(
-          (group) => group.id === defaultGroup?.groupId,
-        );
-        return {
-          ok: true,
-          value: {
-            models: models.filter(isListed).map((entry) => {
-              if (owner) return catalogEntry(entry, rests);
-              const { credential: _credential, ...route } = entry;
-              return catalogEntry(route, rests);
-            }),
-            ...(defaultRoute === undefined ? {} : { default: defaultRoute }),
-            ...(defaultRevision === undefined ? {} : { defaultRevision }),
-            ...(!defaultGroupVisible || defaultGroup?.groupId === undefined
-              ? {}
-              : { defaultGroupId: defaultGroup.groupId }),
-            ...(!defaultGroupVisible || defaultGroup?.effort === undefined
-              ? {}
-              : { defaultGroupEffort: defaultGroup.effort }),
-            ...(defaultGroup === undefined ? {} : { defaultGroupRevision: defaultGroup.revision }),
-            ...favoritesOf(),
-            ...groups,
-            ...(asObject(payload)['includeRoutingGroupEngines'] === true &&
-            (owner || deps.team?.roles.permissions(human).includes('models.configure')) &&
-            deps.routingGroupEngineOptions !== undefined
-              ? { routingGroupEngines: await deps.routingGroupEngineOptions(canUseEngine) }
-              : {}),
-          },
-        };
-      } catch (error) {
-        return !deps.team || deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-    },
-    modelFavoriteSet(payload) {
-      if (deps.modelFavorites === undefined) return unavailable();
-      const input = asObject(payload);
-      const favorite = modelFavorite(input['choice']);
-      if (favorite === undefined || typeof input['favorite'] !== 'boolean')
-        return invalidInput(
-          "modelFavoriteSet needs {choice: {kind: 'model', provider, model} | {kind: 'group', id} | {kind: 'preset', id}, favorite: boolean}",
-        );
-      try {
-        return {
-          ok: true,
-          value: { favorites: deps.modelFavorites.set(human.humanId, favorite, input['favorite']) },
-        };
-      } catch (error) {
-        return invalidInput(error instanceof Error ? error.message : String(error));
-      }
-    },
-    modelPresets(payload) {
-      if (deps.modelPresets === undefined) return unavailable();
-      const owner = isHostOwner();
-      const engineAllowed = engineChoiceFilter();
-      const presets = deps.modelPresets.list().filter((preset) => {
-        if (owner) return true;
-        try {
-          return [
-            ...presetEngineChoices(preset),
-            ...presetGroupIds(preset).flatMap(groupEngineChoices),
-          ].every(engineAllowed);
-        } catch {
-          return false;
-        }
-      });
-      if (asObject(payload)['includeUsage'] !== true) return { ok: true, value: { presets } };
-      const entries = new Map<string, ModelPresetUsage>(
-        presets.map(({ id }) => [id, { presetId: id, count: 0, botNames: [] }]),
-      );
-      if (entries.size === 0) return { ok: true, value: { presets, usage: [] } };
-      const canSeeAllBots =
-        isHostOwner() || deps.team?.roles.permissions(human).includes('bots.manageAll');
-      for (const bot of globalRegistry.list()) {
-        const id = bot.modelPlan?.sourcePresetId;
-        const usage = id === undefined ? undefined : entries.get(id);
-        if (usage === undefined) continue;
-        usage.count += 1;
-        if (canSeeAllBots || ownsBot(human, bot) || deps.team?.bots.canReach(human, bot.slug))
-          usage.botNames.push(bot.displayName);
-      }
-      return { ok: true, value: { presets, usage: [...entries.values()] } };
-    },
-    modelPresetDelete(payload) {
-      const store = deps.modelPresets;
-      if (store === undefined) return unavailable();
-      const { id, expectedRevision, confirmed } = asObject(payload);
-      if (confirmed !== true)
-        return {
-          ok: false,
-          error: { code: 'confirmation-required', message: 'Confirm the Model Preset deletion.' },
-        };
-      if (
-        typeof id !== 'string' ||
-        id.trim() === '' ||
-        typeof expectedRevision !== 'number' ||
-        !Number.isSafeInteger(expectedRevision) ||
-        expectedRevision < 1
-      )
-        return invalidInput('A Model Preset id and expected revision are required');
-      try {
-        return store.delete(id, expectedRevision)
-          ? { ok: true, value: { id } }
-          : {
-              ok: false,
-              error: {
-                code: 'stale-setting',
-                message: 'The Model Preset changed; reload the list.',
-              },
-            };
-      } catch (error) {
-        return modelFailure(error);
-      }
-    },
-    async modelPresetCreate(payload) {
-      if (deps.modelPresets === undefined || deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      const name = source['name'];
-      const assignmentDefault = source['assignmentDefault'];
-      const assignmentModels = source['assignmentModels'];
-      const openAssignmentModels = source['openAssignmentModels'];
-      const groupInput = presetGroupsInput(source);
-      if ('invalid' in groupInput) return invalidInput('Model Preset Routing Groups are invalid');
-      const groups = groupInput.given ? groupInput.groups : undefined;
-      if (
-        groups?.orchestratorGroupId === undefined
-          ? !isModelRoute(source['orchestrator'])
-          : source['orchestrator'] !== undefined
-      )
-        return invalidInput('Choose either an Orchestrator route or an Orchestrator Routing Group');
-      if (
-        typeof name !== 'string' ||
-        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
-        !isModelRoute(assignmentDefault) ||
-        (assignmentModels !== undefined &&
-          (!Array.isArray(assignmentModels) || !assignmentModels.every(isAssignmentModelOption)))
-      )
-        return invalidInput('A name and valid Orchestrator and Assignment routes are required');
-      try {
-        const engines = presetEnginesInput(source);
-        await checkPresetEngines(engines);
-        if (groups !== undefined) presetGroupRoutes(groups);
-        await validateGroupOptions(groups?.assignmentGroupOptions);
-        await validateGroupEffort(groups);
-        const orchestrator = (await presetOrchestrator(source['orchestrator'], groups))!;
-        await deps.modelCatalog.validate(orchestrator);
-        await validateAssignmentCatalog(
-          assignmentDefault,
-          assignmentModels ?? [
-            {
-              provider: assignmentDefault.provider,
-              model: assignmentDefault.model,
-              allowedEfforts: [assignmentDefault.reasoningEffort ?? ''],
-              defaultEffort: assignmentDefault.reasoningEffort ?? '',
-            },
-          ],
-        );
-        if (groups !== undefined) presetGroupRoutes(groups);
-        requireEngineChoices(presetEngineChoices(engines));
-        assertEngineAccounts(presetEngineChoices(engines));
-        const preset = deps.modelPresets.create({
-          name,
-          orchestrator,
-          assignmentDefault,
-          ...(assignmentModels === undefined ? {} : { assignmentModels }),
-          ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-          ...(groups === undefined ? {} : { groups }),
-          ...(Object.keys(engines).length === 0 ? {} : { engines }),
-        });
-        return { ok: true, value: { preset } };
-      } catch (error) {
-        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError ||
-          error instanceof EngineRefusal ||
-          !deps.team ||
-          deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-    },
-    async modelPresetUpdate(payload) {
-      if (deps.modelPresets === undefined || deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      const id = source['id'];
-      const expectedRevision = source['expectedRevision'];
-      const name = source['name'];
-      const assignmentDefault = source['assignmentDefault'];
-      const assignmentModels = source['assignmentModels'];
-      const openAssignmentModels = source['openAssignmentModels'];
-      const groupInput = presetGroupsInput(source);
-      if ('invalid' in groupInput) return invalidInput('Model Preset Routing Groups are invalid');
-      const given = groupInput.given ? groupInput.groups : undefined;
-      if (
-        given?.orchestratorGroupId === undefined
-          ? !isModelRoute(source['orchestrator'])
-          : source['orchestrator'] !== undefined
-      )
-        return invalidInput('Choose either an Orchestrator route or an Orchestrator Routing Group');
-      if (
-        typeof id !== 'string' ||
-        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
-        typeof expectedRevision !== 'number' ||
-        !Number.isSafeInteger(expectedRevision) ||
-        expectedRevision < 1 ||
-        typeof name !== 'string' ||
-        !isModelRoute(assignmentDefault) ||
-        (assignmentModels !== undefined &&
-          (!Array.isArray(assignmentModels) || !assignmentModels.every(isAssignmentModelOption)))
-      )
-        return invalidInput(
-          'An id, expected revision, name, and valid Orchestrator and Assignment routes are required',
-        );
-      const current = deps.modelPresets.get(id);
-      if (current === undefined) return invalidInput('Model Preset was not found');
-      if (!groupInput.given && hasPresetGroups(current)) return presetClientOutdated;
-      const groups =
-        given === undefined || ('optionsGiven' in groupInput && groupInput.optionsGiven)
-          ? given
-          : current.assignmentGroupOptions === undefined
-            ? given
-            : { ...given, assignmentGroupOptions: current.assignmentGroupOptions };
-      try {
-        const engines = presetEnginesInput(source);
-        await checkPresetEngines(engines);
-        if (groups !== undefined) presetGroupRoutes(groups);
-        await validateGroupOptions(groups?.assignmentGroupOptions);
-        await validateGroupEffort(groups);
-        const orchestrator = (await presetOrchestrator(source['orchestrator'], groups))!;
-        await deps.modelCatalog.validate(orchestrator);
-        await validateAssignmentCatalog(
-          assignmentDefault,
-          assignmentModels ??
-            current.assignmentModels ?? [
-              {
-                provider: assignmentDefault.provider,
-                model: assignmentDefault.model,
-                allowedEfforts: [assignmentDefault.reasoningEffort ?? ''],
-                defaultEffort: assignmentDefault.reasoningEffort ?? '',
-              },
-            ],
-        );
-        if (groups !== undefined) presetGroupRoutes(groups);
-        requireEngineChoices(presetEngineChoices(engines));
-        assertEngineAccounts(presetEngineChoices(engines));
-        const preset = deps.modelPresets.update(id, {
-          expectedRevision,
-          name,
-          orchestrator,
-          assignmentDefault,
-          ...(assignmentModels === undefined ? {} : { assignmentModels }),
-          ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-          ...(groups === undefined ? {} : { groups }),
-          ...(Object.keys(engines).length === 0 ? {} : { engines }),
-        });
-        if (preset === undefined) return invalidInput('Model Preset was not found');
-        return { ok: true, value: { preset } };
-      } catch (error) {
-        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError ||
-          error instanceof EngineRefusal ||
-          !deps.team ||
-          deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-    },
-    async modelPresetApply(payload) {
-      if (deps.modelPresets === undefined || deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      const slug = source['slug'];
-      const presetId = source['presetId'];
-      if (typeof slug !== 'string' || typeof presetId !== 'string') {
-        return invalidInput('slug and presetId are required');
-      }
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      const expectedRevision = source['expectedRevision'];
-      const expectedPresetRevision = source['expectedPresetRevision'];
-      if (
-        [expectedRevision, expectedPresetRevision].some(
-          (value) => value !== undefined && (!Number.isSafeInteger(value) || Number(value) < 0),
-        )
-      )
-        return invalidInput('Expected revisions must be nonnegative integers');
-      const preset = deps.modelPresets.get(presetId);
-      if (preset === undefined) return invalidInput('Model Preset was not found');
-      const changed = () => {
-        const current = deps.registry.get(slug);
-        return (
-          (expectedRevision !== undefined &&
-            (current?.modelPlan?.revision ?? current?.modelPlanRevision ?? 0) !==
-              expectedRevision) ||
-          deps.modelPresets?.get(presetId)?.revision !== (expectedPresetRevision ?? preset.revision)
-        );
-      };
-      const stale = (): BridgeResult<{ plan: PersonaBotModelPlan }> => ({
-        ok: false,
-        error: {
-          code: 'stale-setting',
-          message: 'Bot plan or Model Preset changed; read both again before applying',
-        },
-      });
-      if (changed()) return stale();
-      try {
-        requireRoutes(slug, [
-          preset.orchestrator,
-          preset.assignmentDefault,
-          ...(preset.assignmentModels ?? []),
-          ...presetGroupRoutes(preset, slug),
-        ]);
-        const orchestrator =
-          preset.orchestratorGroupId === undefined
-            ? preset.orchestrator
-            : await firstUsableRoute(groupRoutes(preset.orchestratorGroupId));
-        await deps.modelCatalog.validate(orchestrator);
-        await deps.modelCatalog.validate(preset.assignmentDefault);
-        if (preset.assignmentModels !== undefined)
-          await validateAssignmentCatalog(preset.assignmentDefault, preset.assignmentModels);
-        if (hasPresetEngines(preset)) await checkPresetEngines(preset, slug);
-        await validateGroupOptions(preset.assignmentGroupOptions);
-        await validateGroupEffort(preset);
-        if (changed()) return stale();
-        requireRoutes(slug, [
-          orchestrator,
-          preset.orchestrator,
-          preset.assignmentDefault,
-          ...(preset.assignmentModels ?? []),
-          ...presetGroupRoutes(preset, slug),
-        ]);
-        requireEngineChoices(presetEngineChoices(preset), slug);
-        assertEngineAccounts(presetEngineChoices(preset));
-        const result = deps.registry.applyModelPreset(slug, { ...preset, orchestrator });
-        if (!result.ok || result.record.modelPlan === undefined) return unknownBot(slug);
-        const engines = deps.subscriptionEngines;
-        if (engines !== undefined) {
-          for (const [role, selection] of [
-            ['orchestrator', preset.orchestratorEngine],
-            ['assignment', preset.assignmentEngine],
-          ] as const) {
-            if (selection === undefined && engines.store.selection(slug, role) === undefined)
-              continue;
-            const { engine, ...choice } = selection ?? {};
-            engines.use(
-              slug,
-              role,
-              engine,
-              role === 'orchestrator'
-                ? { ...choice, fallback: engine !== undefined && engines.fallsBack(slug) }
-                : choice,
-            );
-            if (role === 'orchestrator') deps.releaseEngineQuotaHold?.(slug);
-          }
-        }
-        return { ok: true, value: { plan: result.record.modelPlan } };
-      } catch (error) {
-        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError ||
-          error instanceof EngineRefusal ||
-          !deps.team ||
-          deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-    },
-    modelGroups() {
-      if (deps.routingGroups === undefined) return unavailable();
-      const owner = isHostOwner();
-      const engineAllowed = engineChoiceFilter();
-      return {
-        ok: true,
-        value: {
-          groups: deps.routingGroups.list().filter((group) => {
-            if (owner) return true;
-            try {
-              return groupEngineChoices(group.id).every(engineAllowed);
-            } catch {
-              return false;
-            }
-          }),
-          rests: deps.routeRests?.list() ?? [],
-        },
-      };
-    },
-    modelGroup(payload) {
-      if (deps.routingGroups === undefined) return unavailable();
-      const id = asObject(payload)['id'];
-      if (typeof id !== 'string' || !id.trim())
-        return invalidInput('A Routing Group id is required');
-      try {
-        const group = deps.routingGroups.get(id.trim());
-        if (group === undefined)
-          throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
-        if (!isHostOwner()) requireGroupEngines(group.id);
-        return { ok: true, value: { group, routes: deps.routingGroups.routes(group.id) } };
-      } catch (error) {
-        return routingGroupFailure(error);
-      }
-    },
-    async modelGroupCreate(payload) {
-      if (deps.routingGroups === undefined || deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      try {
-        const input = routingGroupInput(source);
-        await validateGroupMembers(input.members);
-        requireEngineChoices(memberEngineChoices(input.members));
-        assertEngineAccounts(input.members.filter((member) => member.kind === 'engine'));
-        return { ok: true, value: { group: deps.routingGroups.create(input) } };
-      } catch (error) {
-        return routingGroupFailure(error);
-      }
-    },
-    async modelGroupUpdate(payload) {
-      if (deps.routingGroups === undefined || deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      const id = source['id'];
-      const expectedRevision = source['expectedRevision'];
-      if (
-        typeof id !== 'string' ||
-        !Number.isSafeInteger(expectedRevision) ||
-        (expectedRevision as number) < 1
-      )
-        return invalidInput('A Routing Group id and expected revision are required');
-      try {
-        const input = routingGroupInput(source);
-        const current = deps.routingGroups.get(id);
-        await validateGroupMembers(
-          input.members,
-          current?.revision === expectedRevision ? current?.members : undefined,
-        );
-        requireEngineChoices(memberEngineChoices(input.members));
-        assertEngineAccounts(input.members.filter((member) => member.kind === 'engine'));
-        const group = deps.routingGroups.update(id, {
-          ...input,
-          expectedRevision: expectedRevision as number,
-        });
-        return { ok: true, value: { group } };
-      } catch (error) {
-        return routingGroupFailure(error);
-      }
-    },
-    modelGroupDelete(payload) {
-      if (deps.routingGroups === undefined) return unavailable();
-      const source = asObject(payload);
-      const id = source['id'];
-      const expectedRevision = source['expectedRevision'];
-      if (
-        typeof id !== 'string' ||
-        !Number.isSafeInteger(expectedRevision) ||
-        (expectedRevision as number) < 1
-      )
-        return invalidInput('A Routing Group id and expected revision are required');
-      try {
-        return {
-          ok: true,
-          value: { group: deps.routingGroups.delete(id, expectedRevision as number) },
-        };
-      } catch (error) {
-        return routingGroupFailure(error);
-      }
-    },
-    async modelPlan(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      const bot = deps.registry.get(slug);
-      if (bot === undefined) return unknownBot(slug);
-      try {
-        requireOwnedBot(slug);
-      } catch (error) {
-        return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-      const currentTarget = deps.runtime?.currentTurnTarget?.(slug);
-      const executed = currentTarget === undefined ? {} : { currentTarget };
-      if (deps.modelReadiness !== undefined && (!deps.team || deps.team.isOwner(human))) {
-        try {
-          const state = await deps.modelReadiness.inspect(slug);
-          const current = deps.registry.get(slug);
-          return {
-            ok: true,
-            value: {
-              ...state,
-              ...executed,
-              revision: current?.modelPlan?.revision ?? current?.modelPlanRevision ?? 0,
-            },
-          };
-        } catch (failure) {
-          return invalidInput(failure instanceof Error ? failure.message : String(failure));
-        }
-      }
-      return {
-        ok: true,
-        value: {
-          ...executed,
-          revision: bot.modelPlan?.revision ?? bot.modelPlanRevision ?? 0,
-          ...(bot.modelPlan === undefined ? {} : { plan: bot.modelPlan }),
-        },
-      };
-    },
-    async modelPlanCustomize(payload, beforeCommit) {
-      if (deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      const slug = source['slug'];
-      const groupId = source['orchestratorGroupId'];
-      const groupEffort = source['orchestratorGroupEffort'] ?? undefined;
-      if (
-        (groupEffort !== undefined &&
-          (typeof groupEffort !== 'string' ||
-            groupEffort.trim() === '' ||
-            groupId === undefined)) ||
-        typeof slug !== 'string' ||
-        (groupId === undefined
-          ? !isModelRoute(source['orchestrator'])
-          : typeof groupId !== 'string' || !groupId.trim() || source['orchestrator'] !== undefined)
-      ) {
-        return invalidInput(
-          'slug and either a valid Orchestrator route or an Orchestrator Routing Group are required',
-        );
-      }
-      const bot = deps.registry.get(slug);
-      if (bot === undefined) return unknownBot(slug);
-      if (bot.model !== undefined)
-        return invalidInput('Repair the legacy model before customizing');
-      const expectedRevision =
-        source['expectedRevision'] ?? bot.modelPlan?.revision ?? bot.modelPlanRevision ?? 0;
-      if (
-        typeof expectedRevision !== 'number' ||
-        !Number.isSafeInteger(expectedRevision) ||
-        expectedRevision < 0
-      )
-        return invalidInput('A valid expected revision is required');
-      try {
-        const group =
-          typeof groupId === 'string'
-            ? (() => {
-                if (deps.routingGroups === undefined)
-                  throw new RoutingGroupError('not-found', 'Routing Groups are unavailable');
-                const found = deps.routingGroups.get(groupId.trim());
-                if (found === undefined)
-                  throw new RoutingGroupError(
-                    'not-found',
-                    `Routing Group ${groupId} does not exist`,
-                  );
-                return found;
-              })()
-            : undefined;
-        const candidates =
-          group === undefined
-            ? [source['orchestrator'] as ModelRoute]
-            : deps.routingGroups!.routes(group.id);
-        if (group !== undefined) requireGroupEngines(group.id, slug);
-        requireRoutes(slug, candidates);
-        if (group !== undefined && typeof groupEffort === 'string')
-          await requireGroupEfforts(group.id, [groupEffort.trim()]);
-        const orchestrator = await firstUsableRoute(candidates);
-        beforeCommit?.();
-        if (group !== undefined) requireGroupEngines(group.id, slug);
-        requireRoutes(slug, candidates);
-        if (group !== undefined && deps.routingGroups!.get(group.id)?.revision !== group.revision)
-          return invalidInput('Routing Group changed; read it again before saving');
-        const result = deps.registry.customizeModelPlan(
-          slug,
-          orchestrator,
-          expectedRevision,
-          group?.id,
-          typeof groupEffort === 'string' ? groupEffort.trim() : undefined,
-        );
-        if (!result.ok)
-          return result.reason === 'not-found'
-            ? unknownBot(slug)
-            : invalidInput('Bot Model Plan changed; reopen Profile before saving');
-        if (result.record.modelPlan === undefined)
-          return invalidInput('Apply a Model Preset first');
-        return { ok: true, value: { plan: result.record.modelPlan } };
-      } catch (error) {
-        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError ||
-          error instanceof EngineRefusal ||
-          !deps.team ||
-          deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-    },
-    async modelPlanAssignmentsSet(payload) {
-      if (deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      const slug = source['slug'];
-      const assignmentDefault = source['assignmentDefault'];
-      const assignmentModels = source['assignmentModels'];
-      const expectedRevision = source['expectedRevision'];
-      const openAssignmentModels = source['openAssignmentModels'];
-      const assignmentGroups = source['assignmentGroups'];
-      const assignmentDefaultGroupId = source['assignmentDefaultGroupId'];
-      const groupOptions = assignmentGroupOptionsInput(
-        source['assignmentGroupOptions'],
-        assignmentGroups ?? deps.registry.get(String(slug))?.modelPlan?.assignmentGroups ?? [],
-      );
-      if (
-        typeof slug !== 'string' ||
-        groupOptions === 'invalid' ||
-        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
-        (assignmentGroups !== undefined &&
-          (!Array.isArray(assignmentGroups) ||
-            !assignmentGroups.every((id) => typeof id === 'string' && id.trim() !== '') ||
-            new Set(assignmentGroups).size !== assignmentGroups.length)) ||
-        (assignmentDefaultGroupId !== undefined &&
-          (typeof assignmentDefaultGroupId !== 'string' ||
-            !Array.isArray(assignmentGroups) ||
-            !assignmentGroups.includes(assignmentDefaultGroupId))) ||
-        !isModelRoute(assignmentDefault) ||
-        !Array.isArray(assignmentModels) ||
-        !assignmentModels.every(isAssignmentModelOption) ||
-        typeof expectedRevision !== 'number' ||
-        !Number.isSafeInteger(expectedRevision)
-      )
-        return invalidInput('A Bot, expected revision, and valid Assignment choices are required');
-      const bot = deps.registry.get(slug);
-      if (bot === undefined) return unknownBot(slug);
-      if (bot.modelPlan === undefined) return invalidInput('Apply a Model Preset first');
-      try {
-        requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
-        await validateAssignmentCatalog(assignmentDefault, assignmentModels);
-        await validateGroupOptions(groupOptions);
-        requireRoutes(slug, [
-          assignmentDefault,
-          ...assignmentModels,
-          ...presetGroupRoutes(
-            {
-              assignmentGroups:
-                (assignmentGroups as string[] | undefined) ?? bot.modelPlan.assignmentGroups ?? [],
-            },
-            slug,
-          ),
-        ]);
-        const result = deps.registry.setAssignmentModels(
-          slug,
-          assignmentDefault,
-          assignmentModels,
-          expectedRevision,
-          typeof openAssignmentModels === 'boolean' ? openAssignmentModels : undefined,
-          assignmentGroups === undefined && groupOptions === undefined
-            ? undefined
-            : {
-                ids:
-                  (assignmentGroups as string[] | undefined) ??
-                  bot.modelPlan.assignmentGroups ??
-                  [],
-                ...(assignmentGroups === undefined
-                  ? bot.modelPlan.assignmentDefaultGroupId === undefined
-                    ? {}
-                    : { defaultId: bot.modelPlan.assignmentDefaultGroupId }
-                  : typeof assignmentDefaultGroupId === 'string'
-                    ? { defaultId: assignmentDefaultGroupId }
-                    : {}),
-                ...(groupOptions === undefined ? {} : { options: groupOptions }),
-              },
-        );
-        if (!result.ok)
-          return result.reason === 'not-found'
-            ? unknownBot(slug)
-            : invalidInput('Bot Model Plan changed; reopen Profile before saving');
-        if (result.record.modelPlan === undefined)
-          return invalidInput('Apply a Model Preset first');
-        return { ok: true, value: { plan: result.record.modelPlan } };
-      } catch (error) {
-        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError ||
-          error instanceof EngineRefusal ||
-          !deps.team ||
-          deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-    },
+    ...modelSettings,
     dataResetPreview() {
       if (deps.dataReset === undefined) return unavailable();
       try {
@@ -4767,78 +3574,7 @@ function buildBridgeMethods(
         return invalidInput(error instanceof Error ? error.message : 'Memory folder unavailable');
       }
     },
-    async modelPlanSet(payload) {
-      if (deps.modelCatalog === undefined) return unavailable();
-      const source = asObject(payload);
-      const slug = source['slug'];
-      const orchestrator = source['orchestrator'];
-      const assignmentDefault = source['assignmentDefault'];
-      const assignmentModels = source['assignmentModels'];
-      const expectedRevision = source['expectedRevision'];
-      const openAssignmentModels = source['openAssignmentModels'];
-      const groupInput = presetGroupsInput(source);
-      if ('invalid' in groupInput) return invalidInput('Model Plan Routing Groups are invalid');
-      const groups = groupInput.given ? groupInput.groups : undefined;
-      if (
-        typeof slug !== 'string' ||
-        (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
-        (groups?.orchestratorGroupId === undefined
-          ? !isModelRoute(orchestrator)
-          : orchestrator !== undefined) ||
-        !isModelRoute(assignmentDefault) ||
-        !Array.isArray(assignmentModels) ||
-        !assignmentModels.every(isAssignmentModelOption) ||
-        typeof expectedRevision !== 'number' ||
-        !Number.isSafeInteger(expectedRevision)
-      )
-        return invalidInput(
-          'A Bot, expected revision, and valid Orchestrator and Assignment choices are required',
-        );
-      const bot = deps.registry.get(slug);
-      if (bot === undefined) return unknownBot(slug);
-      try {
-        const grouped = groups === undefined ? [] : presetGroupRoutes(groups, slug);
-        requireRoutes(slug, grouped);
-        await validateGroupOptions(groups?.assignmentGroupOptions);
-        await validateGroupEffort(groups);
-        const route = (await presetOrchestrator(orchestrator, groups))!;
-        requireRoutes(slug, [route]);
-        await deps.modelCatalog.validate(route);
-        requireRoutes(slug, [assignmentDefault, ...assignmentModels]);
-        await validateAssignmentCatalog(assignmentDefault, assignmentModels);
-        requireRoutes(slug, [
-          route,
-          assignmentDefault,
-          ...assignmentModels,
-          ...(groups === undefined ? grouped : presetGroupRoutes(groups, slug)),
-        ]);
-        const result = deps.registry.setModelPlan(
-          slug,
-          {
-            orchestrator: route,
-            assignmentDefault,
-            assignmentModels,
-            ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-            ...(groups === undefined ? {} : { groups }),
-          },
-          expectedRevision,
-        );
-        if (!result.ok)
-          return result.reason === 'not-found'
-            ? unknownBot(slug)
-            : invalidInput('Bot Model Plan changed; reopen it before saving');
-        if (result.record.modelPlan === undefined) return unknownBot(slug);
-        return { ok: true, value: { plan: result.record.modelPlan } };
-      } catch (error) {
-        if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError ||
-          error instanceof EngineRefusal ||
-          !deps.team ||
-          deps.team.isOwner(human)
-          ? modelFailure(error)
-          : invalidInput('model-unavailable');
-      }
-    },
+    ...modelPlan,
     list(payload) {
       const activity = new Map(deps.channels.latestBotActivity?.(human));
       for (const [slug, at] of deps.runtime?.latestAssignmentActivity?.() ?? [])

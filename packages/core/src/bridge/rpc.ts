@@ -1,10 +1,11 @@
+import * as modelsRpc from '../features/models/rpc.js';
 import * as marketplaceRpc from '../features/marketplace/rpc.js';
 import * as genuiRpc from '../features/genui/rpc.js';
 import * as avatarsRpc from '../features/avatars/rpc.js';
 import * as skillsRpc from '../features/skills/rpc.js';
 import * as schedulesRpc from '../features/schedules/rpc.js';
 import * as promptsRpc from '../features/prompts/rpc.js';
-import { toRemoteError, unwrap, unwrapAsync } from './rpc-result.js';
+import { toRemoteError, unwrap, unwrapAsync, type AdminResult } from './rpc-result.js';
 import type {
   MarketplaceAvatar,
   MarketplaceAvatarPage,
@@ -350,25 +351,7 @@ export function resolveInvocationHuman(
   return undefined;
 }
 
-type AdminResult<T, M = BotMetadataResult> = T | M;
-
 export type InvocationBridgeMethods = (human: HumanContext) => BridgeMethods;
-
-function presetGroupArgs(
-  orchestratorGroupId: string | null | undefined,
-  assignmentGroups: string[] | undefined,
-  assignmentDefaultGroupId: string | null | undefined,
-  assignmentGroupOptions: AssignmentGroupOption[] | null | undefined,
-  orchestratorGroupEffort?: string | null,
-): Record<string, unknown> {
-  return {
-    ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
-    ...(orchestratorGroupEffort === undefined ? {} : { orchestratorGroupEffort }),
-    ...(assignmentGroups === undefined ? {} : { assignmentGroups }),
-    ...(assignmentDefaultGroupId === undefined ? {} : { assignmentDefaultGroupId }),
-    ...(assignmentGroupOptions === undefined ? {} : { assignmentGroupOptions }),
-  };
-}
 
 export class BotharnessBridgeService extends TypertRemoteService {
   private readonly invocationMethods: InvocationBridgeMethods;
@@ -1137,7 +1120,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.telemetryEvent({ event, properties: properties ?? {} }));
   }
   modelPlanInherit(slug: string, expectedRevision: number): AdminResult<{ revision: number }> {
-    return unwrap(this.methods.modelPlanInherit({ slug, expectedRevision }));
+    return modelsRpc.modelPlanInherit(this.methods, slug, expectedRevision);
   }
   channelRetry(
     channelId: string,
@@ -1245,7 +1228,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
   modelProviders(): Promise<ModelProvidersView> {
-    return unwrapAsync(this.methods.modelProviders({}));
+    return modelsRpc.modelProviders(this.methods);
   }
 
   modelProviderAdd(
@@ -1256,8 +1239,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     endpoint?: string,
     model?: string,
   ): Promise<ModelProviderSave> {
-    return unwrapAsync(
-      this.methods.modelProviderAdd({ template, name, key, expectedRevision, endpoint, model }),
+    return modelsRpc.modelProviderAdd(
+      this.methods,
+      template,
+      name,
+      key,
+      expectedRevision,
+      endpoint,
+      model,
     );
   }
 
@@ -1267,39 +1256,39 @@ export class BotharnessBridgeService extends TypertRemoteService {
     name?: string,
     key?: string,
   ): Promise<ModelProviderSave> {
-    return unwrapAsync(this.methods.modelProviderEdit({ id, expectedRevision, name, key }));
+    return modelsRpc.modelProviderEdit(this.methods, id, expectedRevision, name, key);
   }
 
   modelProviderRemove(id: string, expectedRevision: number): Promise<ModelProviderRemoval> {
-    return unwrapAsync(this.methods.modelProviderRemove({ id, expectedRevision }));
+    return modelsRpc.modelProviderRemove(this.methods, id, expectedRevision);
   }
 
   engineAccounts(grantable?: boolean) {
-    return unwrapAsync(this.methods.engineAccounts({ grantable }));
+    return modelsRpc.engineAccounts(this.methods, grantable);
   }
 
   engineSelection(request: import('../engines/engine-selection-bridge.js').EngineSelectionRequest) {
-    return unwrapAsync(this.methods.engineSelection(request));
+    return modelsRpc.engineSelection(this.methods, request);
   }
 
   engineAccountAdd(engine: string, name: string, expectedRevision: number) {
-    return unwrapAsync(this.methods.engineAccountAdd({ engine, name, expectedRevision }));
+    return modelsRpc.engineAccountAdd(this.methods, engine, name, expectedRevision);
   }
 
   engineAccountRename(id: string, name: string, expectedRevision: number) {
-    return unwrapAsync(this.methods.engineAccountRename({ id, name, expectedRevision }));
+    return modelsRpc.engineAccountRename(this.methods, id, name, expectedRevision);
   }
 
   engineAccountRemove(id: string, expectedRevision: number, confirm: boolean) {
-    return unwrapAsync(this.methods.engineAccountRemove({ id, expectedRevision, confirm }));
+    return modelsRpc.engineAccountRemove(this.methods, id, expectedRevision, confirm);
   }
 
   engineAccountLogin(id: string, engine?: string) {
-    return unwrapAsync(this.methods.engineAccountLogin({ id, engine }));
+    return modelsRpc.engineAccountLogin(this.methods, id, engine);
   }
 
   engineAccountSubmitCode(id: string, code: string) {
-    return unwrapAsync(this.methods.engineAccountSubmitCode({ id, code }));
+    return modelsRpc.engineAccountSubmitCode(this.methods, id, code);
   }
 
   modelCatalog(includeRoutingGroupEngines?: boolean): Promise<{
@@ -1309,23 +1298,19 @@ export class BotharnessBridgeService extends TypertRemoteService {
     favorites?: ModelFavorite[];
     routingGroupEngines?: RoutingGroupEngineOptions[];
   }> {
-    return unwrapAsync(
-      this.methods.modelCatalog(
-        includeRoutingGroupEngines === true ? { includeRoutingGroupEngines } : {},
-      ),
-    );
+    return modelsRpc.modelCatalog(this.methods, includeRoutingGroupEngines);
   }
 
   modelFavoriteSet(choice: ModelFavorite, favorite: boolean): { favorites: ModelFavorite[] } {
-    return unwrap(this.methods.modelFavoriteSet({ choice, favorite }));
+    return modelsRpc.modelFavoriteSet(this.methods, choice, favorite);
   }
 
   modelPresets(includeUsage?: boolean): { presets: ModelPreset[]; usage?: ModelPresetUsage[] } {
-    return unwrap(this.methods.modelPresets({ includeUsage }));
+    return modelsRpc.modelPresets(this.methods, includeUsage);
   }
 
   modelPresetDelete(id: string, expectedRevision: number, confirmed: boolean): { id: string } {
-    return unwrap(this.methods.modelPresetDelete({ id, expectedRevision, confirmed }));
+    return modelsRpc.modelPresetDelete(this.methods, id, expectedRevision, confirmed);
   }
 
   modelPresetCreate(
@@ -1342,23 +1327,20 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestratorEngine?: ModelPresetEngine | null,
     assignmentEngine?: ModelPresetEngine | null,
   ): Promise<{ preset: ModelPreset }> {
-    return unwrapAsync(
-      this.methods.modelPresetCreate({
-        name,
-        ...(orchestrator === undefined ? {} : { orchestrator }),
-        assignmentDefault,
-        ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
-        ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
-        ...(assignmentModels === undefined ? {} : { assignmentModels }),
-        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-        ...presetGroupArgs(
-          orchestratorGroupId,
-          assignmentGroups,
-          assignmentDefaultGroupId,
-          assignmentGroupOptions,
-          orchestratorGroupEffort,
-        ),
-      }),
+    return modelsRpc.modelPresetCreate(
+      this.methods,
+      name,
+      orchestrator,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+      orchestratorGroupId,
+      assignmentGroups,
+      assignmentDefaultGroupId,
+      assignmentGroupOptions,
+      orchestratorGroupEffort,
+      orchestratorEngine,
+      assignmentEngine,
     );
   }
 
@@ -1378,25 +1360,22 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestratorEngine?: ModelPresetEngine | null,
     assignmentEngine?: ModelPresetEngine | null,
   ): Promise<{ preset: ModelPreset }> {
-    return unwrapAsync(
-      this.methods.modelPresetUpdate({
-        id,
-        expectedRevision,
-        name,
-        ...(orchestrator === undefined ? {} : { orchestrator }),
-        assignmentDefault,
-        ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
-        ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
-        ...(assignmentModels === undefined ? {} : { assignmentModels }),
-        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-        ...presetGroupArgs(
-          orchestratorGroupId,
-          assignmentGroups,
-          assignmentDefaultGroupId,
-          assignmentGroupOptions,
-          orchestratorGroupEffort,
-        ),
-      }),
+    return modelsRpc.modelPresetUpdate(
+      this.methods,
+      id,
+      expectedRevision,
+      name,
+      orchestrator,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+      orchestratorGroupId,
+      assignmentGroups,
+      assignmentDefaultGroupId,
+      assignmentGroupOptions,
+      orchestratorGroupEffort,
+      orchestratorEngine,
+      assignmentEngine,
     );
   }
 
@@ -1406,26 +1385,25 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedRevision?: number,
     expectedPresetRevision?: number,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
-    return unwrapAsync(
-      this.methods.modelPresetApply({
-        slug,
-        presetId,
-        expectedRevision,
-        expectedPresetRevision,
-      }),
+    return modelsRpc.modelPresetApply(
+      this.methods,
+      slug,
+      presetId,
+      expectedRevision,
+      expectedPresetRevision,
     );
   }
 
   modelGroups(): { groups: RoutingGroup[] } {
-    return unwrap(this.methods.modelGroups({}));
+    return modelsRpc.modelGroups(this.methods);
   }
 
   modelGroup(id: string): { group: RoutingGroup; routes: ModelRoute[] } {
-    return unwrap(this.methods.modelGroup({ id }));
+    return modelsRpc.modelGroup(this.methods, id);
   }
 
   modelGroupCreate(name: string, members: RoutingGroupMember[]): Promise<{ group: RoutingGroup }> {
-    return unwrapAsync(this.methods.modelGroupCreate({ name, members }));
+    return modelsRpc.modelGroupCreate(this.methods, name, members);
   }
 
   modelGroupUpdate(
@@ -1434,15 +1412,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     name: string,
     members: RoutingGroupMember[],
   ): Promise<{ group: RoutingGroup }> {
-    return unwrapAsync(this.methods.modelGroupUpdate({ id, expectedRevision, name, members }));
+    return modelsRpc.modelGroupUpdate(this.methods, id, expectedRevision, name, members);
   }
 
   modelGroupDelete(id: string, expectedRevision: number): { group: RoutingGroup } {
-    return unwrap(this.methods.modelGroupDelete({ id, expectedRevision }));
+    return modelsRpc.modelGroupDelete(this.methods, id, expectedRevision);
   }
 
   modelPlan(slug: string): Promise<AdminResult<ModelPlanState>> {
-    return unwrapAsync(this.methods.modelPlan({ slug }));
+    return modelsRpc.modelPlan(this.methods, slug);
   }
 
   modelPlanCustomize(
@@ -1452,14 +1430,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestratorGroupId?: string,
     orchestratorGroupEffort?: string,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
-    return unwrapAsync(
-      this.methods.modelPlanCustomize({
-        slug,
-        ...(orchestrator === undefined ? {} : { orchestrator }),
-        expectedRevision,
-        ...(orchestratorGroupId === undefined ? {} : { orchestratorGroupId }),
-        ...(orchestratorGroupEffort === undefined ? {} : { orchestratorGroupEffort }),
-      }),
+    return modelsRpc.modelPlanCustomize(
+      this.methods,
+      slug,
+      orchestrator,
+      expectedRevision,
+      orchestratorGroupId,
+      orchestratorGroupEffort,
     );
   }
 
@@ -1473,17 +1450,16 @@ export class BotharnessBridgeService extends TypertRemoteService {
     assignmentDefaultGroupId?: string,
     assignmentGroupOptions?: AssignmentGroupOption[] | null,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
-    return unwrapAsync(
-      this.methods.modelPlanAssignmentsSet({
-        slug,
-        expectedRevision,
-        assignmentDefault,
-        assignmentModels,
-        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-        ...(assignmentGroups === undefined ? {} : { assignmentGroups }),
-        ...(assignmentDefaultGroupId === undefined ? {} : { assignmentDefaultGroupId }),
-        ...(assignmentGroupOptions === undefined ? {} : { assignmentGroupOptions }),
-      }),
+    return modelsRpc.modelPlanAssignmentsSet(
+      this.methods,
+      slug,
+      expectedRevision,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+      assignmentGroups,
+      assignmentDefaultGroupId,
+      assignmentGroupOptions,
     );
   }
 
@@ -1500,22 +1476,19 @@ export class BotharnessBridgeService extends TypertRemoteService {
     assignmentGroupOptions?: AssignmentGroupOption[] | null,
     orchestratorGroupEffort?: string | null,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
-    return unwrapAsync(
-      this.methods.modelPlanSet({
-        slug,
-        expectedRevision,
-        ...(orchestrator === undefined ? {} : { orchestrator }),
-        assignmentDefault,
-        assignmentModels,
-        ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
-        ...presetGroupArgs(
-          orchestratorGroupId,
-          assignmentGroups,
-          assignmentDefaultGroupId,
-          assignmentGroupOptions,
-          orchestratorGroupEffort,
-        ),
-      }),
+    return modelsRpc.modelPlanSet(
+      this.methods,
+      slug,
+      expectedRevision,
+      orchestrator,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+      orchestratorGroupId,
+      assignmentGroups,
+      assignmentDefaultGroupId,
+      assignmentGroupOptions,
+      orchestratorGroupEffort,
     );
   }
 
