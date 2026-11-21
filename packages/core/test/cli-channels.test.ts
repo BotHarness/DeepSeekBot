@@ -248,7 +248,7 @@ describe('Channel and group CLI commands', () => {
       args: { channelId: 'team' },
     });
     const targets = [
-      { kind: 'human', id: 'bob-human' },
+      { kind: 'human', id: 'bob-human', operationKey: 'bulk-team-bob-human' },
       { kind: 'bot', id: 'bob-bot', operationKey: 'bulk-team-bob-bot' },
     ];
     const result = await invoke(

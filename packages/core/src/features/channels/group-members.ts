@@ -17,13 +17,10 @@ const pickerInput = z.object({
   channelId: id.optional(),
   query: z.string().trim().max(200).default(''),
 });
+const operationKey = z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u);
 const targetsInput = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('human'), id }),
-  z.object({
-    kind: z.literal('bot'),
-    id: id.refine(isValidSlug),
-    operationKey: z.string().regex(/^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$/u),
-  }),
+  z.object({ kind: z.literal('human'), id, operationKey }),
+  z.object({ kind: z.literal('bot'), id: id.refine(isValidSlug), operationKey }),
 ]);
 const addInput = z.object({ channelId: id, targets: z.array(targetsInput).min(1).max(100) });
 const missingGroup = (): BridgeResult<never> => ({
@@ -41,16 +38,6 @@ export function createGroupMemberMethods(
   { channels, registry, team, tob }: BridgeMethodsDeps,
   invite: ChannelsManagementAdapterMethods['channelGroupInvite'],
 ): GroupMemberMethods {
-  const group = (id: string) => {
-    const channel = channels.get(id);
-    if (
-      channel?.type !== 'group' ||
-      channel.deletedAt ||
-      (team && !team.channelAccess.canRead(human, id, true))
-    )
-      return undefined;
-    return channel;
-  };
   const can = (channelId: string, policy: 'addBots' | 'addMembers') => {
     try {
       team?.channelAccess.requirePolicy(human, channelId, policy);
@@ -59,6 +46,18 @@ export function createGroupMemberMethods(
       if (error instanceof TeamError) return false;
       throw error;
     }
+  };
+
+  const group = (id: string) => {
+    const channel = channels.get(id);
+    if (channel?.type !== 'group' || channel.deletedAt) return undefined;
+    if (
+      team &&
+      !team.channelAccess.canRead(human, id, true) &&
+      !(team.enabled() && can(id, 'addMembers'))
+    )
+      return undefined;
+    return channel;
   };
 
   return {
@@ -131,7 +130,10 @@ export function createGroupMemberMethods(
         const identity = { kind: target.kind, id: target.id };
         try {
           if (!team?.enabled()) throw new TeamError('team-mode-off');
-          team.channelAccess.addMember(human, channelId, { humanId: target.id });
+          team.channelAccess.addMember(human, channelId, {
+            humanId: target.id,
+            operationKey: target.operationKey,
+          });
           results.push({ ...identity, status: 'joined' });
         } catch (error) {
           if (!(error instanceof TeamError)) throw error;
@@ -151,10 +153,10 @@ export function createGroupMemberMethods(
             results.push({ ...identity, status: 'failed', code: invited.error.code });
             continue;
           }
-          const channel = invited.value.channel;
-          if (channel.members.includes(target.id)) results.push({ ...identity, status: 'joined' });
+          const channel = channels.get(channelId);
+          if (channel?.members.includes(target.id)) results.push({ ...identity, status: 'joined' });
           else if (
-            channel.invitations?.some(
+            channel?.invitations?.some(
               (entry) => entry.targetBotSlug === target.id && entry.status === 'pending',
             )
           )

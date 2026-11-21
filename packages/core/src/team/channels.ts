@@ -308,20 +308,51 @@ export class TeamChannels {
     this.changed(true);
     return null;
   }
-  addMember(human: HumanContext, channelId: string, reference: string | { humanId: string }): null {
+  addMember(
+    human: HumanContext,
+    channelId: string,
+    reference: string | { humanId: string; operationKey?: string },
+  ): null {
     this.requirePolicy(human, channelId, 'addMembers');
     const humanId = typeof reference === 'string' ? this.memberId(reference) : reference.humanId;
+    const operationKey = typeof reference === 'string' ? undefined : reference.operationKey;
     if (!this.active(humanContext(humanId))) throw new TeamError('member-not-found');
-    this.db.transaction(
-      (db) =>
-        db
-          .prepare(
+    const outcome = this.db.transaction(
+      (db): 'applied' | 'joined' | 'ended' | 'key-conflict' => {
+        let alreadyJoined = false;
+        if (operationKey !== undefined) {
+          const previous = db
+            .prepare(
+              'SELECT channel_id, target_human_id FROM channel_human_add_receipts WHERE actor_human_id = ? AND operation_key = ?',
+            )
+            .get(human.humanId, operationKey);
+          alreadyJoined =
+            db
+              .prepare(
+                'SELECT 1 FROM channel_human_members WHERE channel_id = ? AND human_id = ? AND left_at IS NULL',
+              )
+              .get(channelId, humanId) !== undefined;
+          if (previous) {
+            if (previous.channel_id !== channelId || previous.target_human_id !== humanId)
+              return 'key-conflict';
+            return alreadyJoined ? 'joined' : 'ended';
+          }
+        }
+        if (!alreadyJoined)
+          db.prepare(
             `INSERT INTO channel_human_members(channel_id,human_id,display_name,visible_from_revision,joined_at) SELECT ?,human_id,display_name,1,? FROM humans WHERE human_id = ? ON CONFLICT(channel_id,human_id) DO UPDATE SET left_at = NULL, membership_basis = 'invited'`,
-          )
-          .run(channelId, new Date().toISOString(), humanId),
+          ).run(channelId, new Date().toISOString(), humanId);
+        if (operationKey !== undefined)
+          db.prepare(
+            'INSERT INTO channel_human_add_receipts (actor_human_id, operation_key, channel_id, target_human_id) VALUES (?, ?, ?, ?)',
+          ).run(human.humanId, operationKey, channelId, humanId);
+        return alreadyJoined ? 'joined' : 'applied';
+      },
       ['channels', 'team'],
     );
-    this.changed();
+    if (outcome === 'key-conflict') throw new TeamError('operation-key-conflict');
+    if (outcome === 'ended') throw new TeamError('channel-membership-ended');
+    if (outcome === 'applied') this.changed();
     return null;
   }
   descriptionSet(human: HumanContext, channelId: string, description: string): null {

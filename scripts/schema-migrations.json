@@ -702,5 +702,9 @@
   {
     "id": "role-engine-accounts",
     "sha256": "d818f03571a8220333a79b53b7b7db4243bf7ba60a8678a9647019773742987e"
+  },
+  {
+    "id": "channel-human-add-receipts",
+    "sha256": "a6fea0bb5e3dd63a854422c0a34d00e7cf0627709419c16ad47906e4c148dd3b"
   }
 ]

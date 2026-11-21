@@ -1,6 +1,8 @@
-export type GroupMemberTarget =
-  | { kind: 'human'; id: string }
-  | { kind: 'bot'; id: string; operationKey: string };
+export interface GroupMemberTarget {
+  kind: 'human' | 'bot';
+  id: string;
+  operationKey: string;
+}
 
 export interface GroupMemberCandidate {
   id: string;

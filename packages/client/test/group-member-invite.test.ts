@@ -106,7 +106,12 @@ it('keeps selections across search and retries failed targets after a mixed resu
   };
   await openExisting(call);
   expect(check('Bob Bot').disabled).toBe(true);
-  await act(async () => check('Bob').click());
+  const bob = check('Bob');
+  await act(async () => {
+    bob.focus();
+    bob.click();
+  });
+  expect(document.activeElement).toBe(bob);
   expect(check('Bob Bot').disabled).toBe(false);
   await act(async () => check('Bob Bot').click());
   await typeInto(fieldNamed(t('groupMembers.search')), 'Eve');

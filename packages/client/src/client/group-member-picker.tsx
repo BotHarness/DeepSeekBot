@@ -7,10 +7,10 @@ import type {
 } from '@botharness/host-protocol/group-members';
 import type { BridgeCall } from './bridge.js';
 import { useDelayedSearch } from './delayed-search.js';
-import { Button } from './ds/button.js';
 import { Checkbox } from './ds/checkbox.js';
 import { TextField } from './ds/field.js';
 import { Note } from './ds/note.js';
+import { ReadFailure } from './ds/read-failure.js';
 import { ink, space, style } from './ds/tobs.stylex.js';
 import { addGroupMembers, groupMemberKey, loadGroupMemberPicker } from './group-member-bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -69,41 +69,38 @@ export function GroupMemberPicker({
     { query: string; value: GroupMemberPickerResult } | { query: string; failed: true }
   >();
   const [attempt, setAttempt] = useState(0);
-  const mount = useMountedResource<HTMLDivElement>(
-    (node) => {
-      cancelOnUnmount(node);
-      const controller = new AbortController();
-      void loadGroupMemberPicker(call, channelId, delayedQuery, controller.signal).then(
-        (value) => {
-          if (!controller.signal.aborted) setResponse({ query: delayedQuery, value });
-        },
-        () => {
-          if (!controller.signal.aborted) setResponse({ query: delayedQuery, failed: true });
-        },
-      );
-      return () => {
-        controller.abort();
-        cancelOnUnmount(null);
-      };
-    },
-    [call, channelId, delayedQuery, attempt],
-  );
-  const answer = response && 'value' in response ? response.value : undefined;
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    const controller = new AbortController();
+    void loadGroupMemberPicker(call, channelId, delayedQuery, controller.signal).then(
+      (value) => {
+        if (!controller.signal.aborted) setResponse({ query: delayedQuery, value });
+      },
+      () => {
+        if (!controller.signal.aborted) setResponse({ query: delayedQuery, failed: true });
+      },
+    );
+    return () => controller.abort();
+  }, [call, channelId, delayedQuery, attempt]);
+  const current = response?.query === query.trim() ? response : undefined;
+  const candidates = current && 'value' in current ? current.value : undefined;
   const keys = new Set(selected.map(groupMemberKey));
   const people: PickedGroupMember[] =
-    answer?.people.map((person) => ({ ...person, kind: 'human' })) ?? [];
-  const bots: PickedGroupMember[] = answer?.bots.map((bot) => ({ ...bot, kind: 'bot' })) ?? [];
-  const remaining = (rows: PickedGroupMember[]) =>
-    rows.filter((row) => !keys.has(groupMemberKey(row)));
+    candidates?.people.map((person) => ({ ...person, kind: 'human' })) ?? [];
+  const bots: PickedGroupMember[] = candidates?.bots.map((bot) => ({ ...bot, kind: 'bot' })) ?? [];
+  const visible = new Set([...people, ...bots].map(groupMemberKey));
+  const outsideSearch = selected.filter((member) => !visible.has(groupMemberKey(member)));
   const requiresOwner = (row: PickedGroupMember) =>
     row.requiresOwner === true &&
     (row.requiredHumanId === undefined || !keys.has('human:' + row.requiredHumanId));
-  const selection = (row: PickedGroupMember, selectedRow: boolean) => (
+  const selection = (row: PickedGroupMember) => (
     <Checkbox
       key={groupMemberKey(row)}
       className={stylex.props(styles.row).className}
-      checked={selectedRow}
-      disabled={disabled || (!selectedRow && (requiresOwner(row) || selected.length >= 100))}
+      checked={keys.has(groupMemberKey(row))}
+      disabled={
+        disabled ||
+        (!keys.has(groupMemberKey(row)) && (requiresOwner(row) || selected.length >= 100))
+      }
       label={
         <span>
           {row.displayName}
@@ -120,10 +117,8 @@ export function GroupMemberPicker({
       }
     />
   );
-  const candidates =
-    response?.query === delayedQuery && query.trim() === delayedQuery ? answer : undefined;
   return (
-    <div {...stylex.props(styles.picker)}>
+    <div ref={cancelOnUnmount} {...stylex.props(styles.picker)}>
       <TextField
         label={t('groupMembers.search')}
         placeholder={t('groupMembers.search')}
@@ -132,11 +127,7 @@ export function GroupMemberPicker({
         disabled={disabled}
         maxLength={200}
       />
-      <div
-        ref={mount}
-        aria-busy={response?.query !== delayedQuery}
-        {...stylex.props(styles.results)}
-      >
+      <div ref={mount} aria-busy={current === undefined} {...stylex.props(styles.results)}>
         {selected.length > 0 ? (
           <div
             role="group"
@@ -146,45 +137,42 @@ export function GroupMemberPicker({
             <p {...stylex.props(styles.heading)}>
               {t('groupMembers.selected', { count: selected.length })}
             </p>
-            {selected.map((row) => selection(row, true))}
+            {outsideSearch.map(selection)}
           </div>
         ) : null}
-        {response && 'failed' in response && response.query === delayedQuery ? (
-          <div>
-            <Note tone="danger">{t('groupMembers.loadFailed')}</Note>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => {
-                setResponse(undefined);
-                setAttempt((current) => current + 1);
-              }}
-            >
-              {t('groupMembers.retry')}
-            </Button>
-          </div>
+        {current && 'failed' in current ? (
+          <ReadFailure
+            disabled={disabled}
+            retryLabel={t('groupMembers.retry')}
+            onRetry={() => {
+              setResponse(undefined);
+              setAttempt((current) => current + 1);
+            }}
+          >
+            {t('groupMembers.loadFailed')}
+          </ReadFailure>
         ) : null}
         {candidates ? (
           <>
-            {candidates.canAddPeople && remaining(people).length > 0 ? (
+            {candidates.canAddPeople && people.length > 0 ? (
               <div
                 role="group"
                 aria-label={t('groupMembers.people')}
                 {...stylex.props(styles.group)}
               >
                 <p {...stylex.props(styles.heading)}>{t('groupMembers.people')}</p>
-                {remaining(people).map((row) => selection(row, false))}
+                {people.map(selection)}
               </div>
             ) : null}
-            {candidates.canAddBots && remaining(bots).length > 0 ? (
+            {candidates.canAddBots && bots.length > 0 ? (
               <div role="group" aria-label={t('groupMembers.bots')} {...stylex.props(styles.group)}>
                 {candidates.canAddPeople ? (
                   <p {...stylex.props(styles.heading)}>{t('groupMembers.bots')}</p>
                 ) : null}
-                {remaining(bots).map((row) => selection(row, false))}
+                {bots.map(selection)}
               </div>
             ) : null}
-            {remaining(people).length === 0 && remaining(bots).length === 0 ? (
+            {people.length === 0 && bots.length === 0 ? (
               <Note>{t('groupMembers.empty')}</Note>
             ) : null}
           </>
@@ -204,9 +192,7 @@ type BatchItem = {
 };
 
 function memberTarget(member: PickedGroupMember): GroupMemberTarget {
-  return member.kind === 'human'
-    ? { kind: 'human', id: member.id }
-    : { kind: 'bot', id: member.id, operationKey: crypto.randomUUID() };
+  return { kind: member.kind, id: member.id, operationKey: crypto.randomUUID() };
 }
 
 export function useGroupMemberBatch() {
@@ -249,6 +235,8 @@ function failureReason(t: BotHarnessTranslate, code: string): string {
   switch (code) {
     case 'bot-principal-channel-denied':
       return t('groupMembers.requiresOwner');
+    case 'channel-membership-ended':
+      return t('groupMembers.membershipEnded');
     case 'member-not-found':
     case 'bot-not-found':
     case 'bot-principal-inactive':

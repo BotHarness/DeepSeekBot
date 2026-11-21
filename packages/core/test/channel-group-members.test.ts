@@ -5,6 +5,81 @@ import { cleanup, enabledFixture } from './team-mode-fixtures.js';
 afterEach(cleanup);
 
 describe('Desktop Group member batches', () => {
+  it('uses the signed-in creator on the member gateway and confirms a pending invitation', async () => {
+    const f = await enabledFixture();
+    const alice = await f.team.createMember(owner, 'alice', 'Alice');
+    f.team.roles.set(owner, f.human.humanId, ['admin']);
+    await f.team.changePassword(f.human, f.initialPassword, 'batch-member-fixture-2', false);
+    const login = await f.team.signIn('bob', 'batch-member-fixture-2', 'batch-member-ip');
+    f.registry.create({
+      slug: 'bob-helper',
+      displayName: 'Bob Helper',
+      ownerHumanId: f.human.humanId,
+    });
+    const invoke = (method: string, args: Record<string, unknown>) =>
+      f.gateway.invoke({ namespace: 'botharness', method, args, peer: login.peer });
+
+    await expect(invoke('channelGroupMemberPicker', { query: 'Alice' })).resolves.toMatchObject({
+      people: [{ id: alice.member.humanId, displayName: 'Alice' }],
+    });
+    const creation = {
+      name: 'Bob private Group',
+      members: [],
+      operationKey: 'batch-bob-group-001',
+    };
+    await expect(invoke('channelCreate', creation)).resolves.toMatchObject({
+      channel: { type: 'group', name: creation.name },
+    });
+    const group = f.channels.list().find((channel) => channel.name === creation.name);
+    if (!group) throw new Error('Group was not created');
+    const manager = f.methods(owner);
+    expect(manager.channelCreate(creation)).toMatchObject({
+      ok: false,
+      error: { code: 'operation-key-conflict' },
+    });
+    expect(manager.channelGroupMemberPicker({ channelId: group.id, query: 'Alice' })).toMatchObject(
+      {
+        ok: true,
+        value: { canAddPeople: true, canAddBots: false, people: [{ id: alice.member.humanId }] },
+      },
+    );
+    await expect(
+      invoke('channelGroupMembersAdd', {
+        channelId: group.id,
+        targets: [{ kind: 'bot', id: 'bob-helper', operationKey: 'batch-bob-helper-001' }],
+      }),
+    ).resolves.toMatchObject({
+      results: [{ kind: 'bot', id: 'bob-helper', status: 'pending' }],
+    });
+  });
+
+  it('replays a Human receipt without restoring role access that ended', async () => {
+    const f = await enabledFixture();
+    const group = f.channels.createGroup(owner, { name: 'Role Group', members: [] });
+    const methods = f.methods(owner);
+    const target = { kind: 'human', id: f.human.humanId, operationKey: 'batch-role-bob-001' };
+    const request = { channelId: group.id, targets: [target] };
+
+    f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'roles', roleIds: ['member'] });
+    expect(f.team.channelAccess.canRead(f.human, group.id, true)).toBe(true);
+    expect(methods.channelGroupMembersAdd(request)).toMatchObject({
+      ok: true,
+      value: { results: [{ kind: 'human', id: target.id, status: 'joined' }] },
+    });
+
+    f.team.channelAccess.visibilitySet(owner, group.id, { kind: 'private' });
+    expect(f.team.channelAccess.canRead(f.human, group.id, true)).toBe(false);
+    expect(methods.channelGroupMembersAdd(request)).toMatchObject({
+      ok: true,
+      value: {
+        results: [
+          { kind: 'human', id: target.id, status: 'failed', code: 'channel-membership-ended' },
+        ],
+      },
+    });
+    expect(f.team.channelAccess.canRead(f.human, group.id, true)).toBe(false);
+  });
+
   it('scopes creation candidates and keeps Human and Bot permissions independent', async () => {
     const fixture = await enabledFixture();
     const { team, registry, channels, human } = fixture;
@@ -32,7 +107,7 @@ describe('Desktop Group member batches', () => {
       member.channelGroupMembersAdd({
         channelId: group.id,
         targets: [
-          { kind: 'human', id: other.member.humanId },
+          { kind: 'human', id: other.member.humanId, operationKey: 'alice-policy-test' },
           { kind: 'bot', id: 'bob-helper', operationKey: 'bob-helper-policy-test' },
         ],
       }),
@@ -59,8 +134,12 @@ describe('Desktop Group member batches', () => {
     const group = channels.createGroup(owner, { name: 'Mixed roster', members: [] });
     const methods = fixture.methods(owner);
     const bot = { kind: 'bot', id: 'bob-bot', operationKey: 'mixed-roster-bob-bot' } as const;
-    const person = { kind: 'human', id: human.humanId } as const;
-    const unavailable = { kind: 'human', id: 'missing-human' } as const;
+    const person = { kind: 'human', id: human.humanId, operationKey: 'mixed-roster-bob' } as const;
+    const unavailable = {
+      kind: 'human',
+      id: 'missing-human',
+      operationKey: 'mixed-roster-missing',
+    } as const;
 
     expect(
       await methods.channelGroupMemberPicker({ channelId: group.id, query: 'bob' }),
@@ -87,8 +166,8 @@ describe('Desktop Group member batches', () => {
       ok: true,
       value: {
         results: [
-          { ...unavailable, status: 'failed', code: 'member-not-found' },
-          { ...person, status: 'joined' },
+          { kind: 'human', id: unavailable.id, status: 'failed', code: 'member-not-found' },
+          { kind: 'human', id: person.id, status: 'joined' },
           { kind: 'bot', id: 'bob-bot', status: 'pending' },
         ],
       },

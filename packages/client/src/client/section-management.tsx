@@ -325,12 +325,13 @@ export function CreateChannelModal({
     call: members?.call,
     members: [],
   });
+  const [submittedHere, setSubmittedHere] = useState(false);
   const scope = members?.scope;
   const pickerCall = members?.call;
   const sameHost = selection.scope === scope && selection.call === pickerCall;
-  if (!sameHost) setSelection({ scope, call: pickerCall, members: [] });
-  const selected = sameHost ? selection.members : [];
-  const [submittedHere, setSubmittedHere] = useState(false);
+  if (!sameHost && !submittedHere) setSelection({ scope, call: pickerCall, members: [] });
+  const bindingChanged = submittedHere && !sameHost;
+  const selected = bindingChanged ? [] : selection.members;
   const createKey = useRef<string>();
   const created = useRef<ChannelSummary>();
   const batch = useGroupMemberBatch();
@@ -340,23 +341,21 @@ export function CreateChannelModal({
       onCancel();
       return;
     }
-    if (pending.current || !hasVisibleText(trimmed) || targetUnavailable) return;
+    if (pending.current || !hasVisibleText(trimmed) || targetUnavailable || bindingChanged) return;
     pending.current = true;
     setCreating(true);
     setError(undefined);
-    createKey.current ??= crypto.randomUUID();
-    const operationKey = createKey.current;
+    setSubmittedHere(true);
     const run = async () => {
-      created.current ??= (await onCreate(trimmed, operationKey)) ?? undefined;
+      createKey.current ??= crypto.randomUUID();
+      created.current ??= (await onCreate(trimmed, createKey.current)) ?? undefined;
       if (!members || selected.length === 0 || !created.current) {
         if (created.current) onCancel();
         return;
       }
-      setSubmittedHere(true);
       await batch.apply(members.call, created.current.id, selected);
       onMembersChanged?.(created.current);
     };
-    if (selected.length > 0) setSubmittedHere(true);
     void run().then(
       () => {
         pending.current = false;
@@ -392,7 +391,9 @@ export function CreateChannelModal({
                 ? 'environment.create.retry'
                 : 'common.create',
       )}
-      submitDisabled={!batch.complete && (!hasVisibleText(trimmed) || targetUnavailable)}
+      submitDisabled={
+        !batch.complete && (!hasVisibleText(trimmed) || targetUnavailable || bindingChanged)
+      }
       busy={creating}
       showCancel={!batch.complete}
       scroll
