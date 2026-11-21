@@ -10718,7 +10718,7 @@ window.__ModuleLoader__.load({
 		//#region packages/client/src/client/sidebar-card.tsx
 		function SidebarCardList({ label, className, listRef, flush = false, children }) {
 			if ((0, react.useContext)(SettingsGroupContext)) {
-				const part = { className: "bhx-default-marker bhxjp7ctv" };
+				const part = { className: "bhx-default-marker bhxjp7ctv bhxe8uvvx" };
 				return /* @__PURE__ */ (0, react_jsx_runtime.jsx)("ul", {
 					ref: listRef,
 					"aria-label": label,
@@ -14749,6 +14749,7 @@ window.__ModuleLoader__.load({
 .bhx2zm2ee:not(#\\#):not(#\\#){gap:8px}
 .bhxvdlyrv:not(#\\#):not(#\\#){gap:8px}
 .bhx103m73q:not(#\\#):not(#\\#){gap:var(--tobs-style-list-gap)}
+.bhxe8uvvx:not(#\\#):not(#\\#){list-style:none}
 .bhx1d3k6p2:not(#\\#):not(#\\#){margin-block:12px}
 .bhx14t6loe:not(#\\#):not(#\\#){margin-block:2px}
 .bhx14zrpzh:not(#\\#):not(#\\#){margin-inline:2px}

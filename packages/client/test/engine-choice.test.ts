@@ -68,21 +68,18 @@ it('does not read the origin route from a remote dialog', async () => {
   expect(read).not.toHaveBeenCalled();
 });
 
-it('opens the official URL from a synchronous click and fetches the catalog after sign-in', async () => {
+it('leaves opening the browser to the engine CLI, keeps the link and fetches the catalog after sign-in', async () => {
   vi.useFakeTimers();
   let view = local;
-  const tab = { opener: window as unknown, closed: false, location: { href: '' }, close: vi.fn() };
-  const open = vi.spyOn(window, 'open').mockReturnValue(tab as unknown as Window);
-  const login = vi.fn(async () => {
-    expect(open).toHaveBeenCalledWith('', '_blank');
-    return { url: 'https://claude.ai/oauth/authorize?x=1' };
-  });
+  const open = vi.spyOn(window, 'open');
+  const login = vi.fn(async () => ({ url: 'https://claude.ai/oauth/authorize?x=1' }));
   const models = vi.fn(async () => [model]);
   const state = await render({ read: async () => view, login, models });
   await act(async () => state().signIn('claude'));
   expect(login).toHaveBeenCalledWith('claude');
-  expect(tab.location.href).toBe('https://claude.ai/oauth/authorize?x=1');
-  expect(tab.opener).toBeNull();
+  expect(open).not.toHaveBeenCalled();
+  expect(state().signInUrl).toBe('https://claude.ai/oauth/authorize?x=1');
+  expect(state().loginUrl).toBe('https://claude.ai/oauth/authorize?x=1');
   expect(state().signingIn).toBe('claude');
   view = {
     ...local,
@@ -90,13 +87,13 @@ it('opens the official URL from a synchronous click and fetches the catalog afte
   };
   await act(async () => vi.advanceTimersByTimeAsync(3000));
   expect(state().signingIn).toBeUndefined();
+  expect(state().signInUrl).toBeUndefined();
   expect(state().models.claude).toEqual([model]);
   expect(models.mock.calls).toEqual([['codex'], ['claude']]);
 });
 
-it('keeps a blocked popup link and stops polling at three minutes even if a status read hangs', async () => {
+it('keeps the sign-in link and stops polling at three minutes even if a status read hangs', async () => {
   vi.useFakeTimers();
-  vi.spyOn(window, 'open').mockReturnValue(null);
   const read = vi
     .fn()
     .mockResolvedValueOnce(local)
@@ -108,6 +105,72 @@ it('keeps a blocked popup link and stops polling at three minutes even if a stat
   await act(async () => vi.advanceTimersByTimeAsync(3 * 60_000));
   expect(state().signingIn).toBeUndefined();
   expect(read).toHaveBeenCalledTimes(2);
+});
+
+it('stays pending without a sign-in error when login rejects while cancel is in flight', async () => {
+  let rejectLogin: (cause: Error) => void = () => {};
+  let settleCancel: () => void = () => {};
+  const login = vi.fn(
+    () =>
+      new Promise<{ url?: string }>((_resolve, reject) => {
+        rejectLogin = reject;
+      }),
+  );
+  const cancelLogin = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        settleCancel = resolve;
+      }),
+  );
+  const state = await render({ login, cancelLogin });
+  await act(async () => state().signIn('codex'));
+  let cancelled: Promise<void> | undefined;
+  await act(async () => {
+    cancelled = state().cancelSignIn();
+  });
+  expect(state().cancelling).toBe(true);
+  await act(async () => rejectLogin(new Error('aborted')));
+  expect(state().signingIn).toBe('codex');
+  expect(state().error).toBeUndefined();
+  await act(async () => {
+    settleCancel();
+    await cancelled;
+  });
+  expect(cancelLogin).toHaveBeenCalledWith('codex', undefined);
+  expect(state().cancelling).toBe(false);
+  expect(state().signingIn).toBeUndefined();
+  expect(state().error).toBeUndefined();
+});
+
+it('keeps a sign-in pending past the deadline while cancel is in flight and offers Cancel after it fails', async () => {
+  vi.useFakeTimers();
+  let rejectCancel: (cause: Error) => void = () => {};
+  const cancelLogin = vi.fn(
+    () =>
+      new Promise<void>((_resolve, reject) => {
+        rejectCancel = reject;
+      }),
+  );
+  const login = async () => ({ url: 'https://example.test/sign-in' });
+  const state = await render({
+    read: () => new Promise<EnginesView>(() => {}),
+    login,
+    cancelLogin,
+  });
+  await act(async () => state().signIn('codex'));
+  let cancelled: Promise<void> | undefined;
+  await act(async () => {
+    cancelled = state().cancelSignIn();
+  });
+  await act(async () => vi.advanceTimersByTimeAsync(3 * 60_000 + 1));
+  expect(state().signingIn).toBe('codex');
+  await act(async () => {
+    rejectCancel(new Error('down'));
+    await cancelled;
+  });
+  expect(state().cancelFailed).toBe(true);
+  expect(state().cancelling).toBe(false);
+  expect(state().signingIn).toBe('codex');
 });
 
 it('keeps the committed choice when readback fails and reloads without repeating the write', async () => {

@@ -1266,6 +1266,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return modelsRpc.engineAccountLogin(this.methods, id, engine);
   }
 
+  engineAccountLoginCancel(id: string) {
+    return modelsRpc.engineAccountLoginCancel(this.methods, id);
+  }
+
   engineAccountSubmitCode(id: string, code: string) {
     return modelsRpc.engineAccountSubmitCode(this.methods, id, code);
   }
@@ -3560,6 +3564,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'engineAccountRename',
   'engineAccountRemove',
   'engineAccountLogin',
+  'engineAccountLoginCancel',
   'engineAccountSubmitCode',
   'modelFavoriteSet',
   'modelPresets',
