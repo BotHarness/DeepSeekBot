@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/tob/plugin.ts`
 - `packages/core/src/features/tob/{methods,rpc}.ts`
 - `packages/core/src/tob/**`
 - `packages/core/src/bots/cli-tob.ts`

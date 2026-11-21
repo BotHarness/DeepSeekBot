@@ -87,7 +87,7 @@ Human 确认以 [#4337](https://github.com/BotHarness/BotHarness/pull/4337) 恢�
 | 卡片规则   | #4203、E3 AC-3 要求保留确定性执行及来源标签                     | 延续，并保持 Bot 归属                         |
 | 引用中删除 | 本次访谈前尚未确定                                              | 二次确认后统一回退继承，删除默认时清空全局    |
 
-代码来源：[Bot 记录](../../packages/core/src/bots/persona-bot.ts)、[模板查找](../../packages/core/src/plugin.ts)、[Reviewer](../../packages/core/src/workspaces/approval-reviewer.ts)、[审批 owner](../../packages/core/src/workspaces/tool-approval.ts)、[自动审查](../../packages/core/src/features/approvals/tool-approval-review.ts)、[规则](../../packages/core/src/workspaces/tool-approval-rules.ts)。ADR-0205／0207／0239／0249 记录演进，不能单独把 ADR-0207 当作当前完整管线。
+代码来源：[Bot 记录](../../packages/core/src/bots/persona-bot.ts)、[模板查找](../../packages/core/src/features/approvals/plugin.ts)、[Reviewer](../../packages/core/src/workspaces/approval-reviewer.ts)、[审批 owner](../../packages/core/src/workspaces/tool-approval.ts)、[自动审查](../../packages/core/src/features/approvals/tool-approval-review.ts)、[规则](../../packages/core/src/workspaces/tool-approval-rules.ts)。ADR-0205／0207／0239／0249 记录演进，不能单独把 ADR-0207 当作当前完整管线。
 
 2026-11-15 核查时，[#4203](https://github.com/BotHarness/DeepSeekBot/issues/4203)、E1、E2、[E3 #4211](https://github.com/BotHarness/DeepSeekBot/issues/4211)、E4 均 open、无 assignee、全部评论为 0。所查证据未发现认领记录或新范围的可核实实施 PR，但不能据此断言绝无实施。本机 gh 未认证，未确认 timeline 事件的完整性。旧模板 Reviewer 与卡片规则已有合并前身，例如 PR #1835、#2739。访谈未创建、认领或编辑任何 issue／评论。
 

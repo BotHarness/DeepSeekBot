@@ -4,6 +4,7 @@ Candidate journey for #1980; packaged/restart qualification is still pending.
 
 ## Sources
 
+- `packages/core/src/features/release/plugin.ts`
 - `packages/core/src/features/release/{methods,rpc}.ts`
 - `packages/core/src/release/**`
 - `packages/client/src/client/release-notes*.{ts,tsx}`
