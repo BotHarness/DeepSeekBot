@@ -5,6 +5,7 @@
 - `packages/core/src/credentials/{im-origin,private-inputs}.ts`
 - `packages/core/src/runtime/bot-runtime.ts`
 - `packages/core/src/workspaces/tool-approval.ts`
+- `packages/core/src/features/approvals/tool-approval-{review,types}.ts`
 - `packages/client/src/client/private-input-*`
 - `apps/mobile/src/host/private-input.ts`
 - `apps/mobile/src/ui/chat/private-input-card.tsx`
