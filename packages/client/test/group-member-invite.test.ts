@@ -161,7 +161,7 @@ it('mixes avatar rows and filters by type, name, or handle while keeping selecte
   expect(memberRow('Bob').querySelector('img')?.getAttribute('src')).toBe(onePhoto);
   expect(memberRow('Eve').querySelector('[data-media="seeded"]')).not.toBeNull();
   expect(memberRow('Bob').getAttribute('aria-label')).toContain(t('groupMembers.typeHuman'));
-  expect(memberRow('Eve').getAttribute('aria-label')).toContain(t('groupMembers.typeBot'));
+  expect(memberRow('Eve').getAttribute('aria-label')).toBe('Eve · ' + t('groupMembers.typeBot'));
 
   await act(async () => memberRow('Bob').click());
   const search = fieldNamed(t('groupMembers.search'));

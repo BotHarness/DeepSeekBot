@@ -218,7 +218,7 @@ export function GroupMemberPicker({
     const pressed = keys.has(key);
     const ownerNeeded = needsOwner(row, keys);
     const kindLabel = t(row.kind === 'human' ? 'groupMembers.typeHuman' : 'groupMembers.typeBot');
-    const handle = row.kind === 'human' ? row.username : row.id;
+    const handle = row.kind === 'human' ? row.username : undefined;
     const identity = [row.displayName, kindLabel, handle && '@' + handle]
       .filter(Boolean)
       .join(' · ');
