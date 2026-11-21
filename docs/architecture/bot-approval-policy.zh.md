@@ -78,16 +78,16 @@ Human 确认以 [#4337](https://github.com/BotHarness/BotHarness/pull/4337) 恢�
 
 静态核查基线为 fc29d448467392b1e9ed2f3d048d3d1df0b14381，不是 live Host 验证：
 
-| 事项       | 原有事实或规格                                                 | 本次确认目标                                  |
-| ---------- | -------------------------------------------------------------- | --------------------------------------------- |
-| 模板选择   | Bot 单个可选字段，plugin.ts:2491 无全局默认层                  | 继承全局／特定模板／关闭                      |
-| 模板结构   | ADR-0207 为整段 Markdown；#4203、E3 为三部分加 Bot 额外行      | 一份选定模板的三部分，不叠加 Bot 层           |
-| 模型输出   | approval-reviewer.ts:189 为 allow/reject/ask-human             | 仅 allow/ask-human                            |
-| 确定性顺序 | tool-approval.ts:306–349 先 Full Access、保存规则，再 Reviewer | 保留确定性授权优先；效果准入以后续 #4337 为准 |
-| 卡片规则   | #4203、E3 AC-3 要求保留确定性执行及来源标签                    | 延续，并保持 Bot 归属                         |
-| 引用中删除 | 本次访谈前尚未确定                                             | 二次确认后统一回退继承，删除默认时清空全局    |
+| 事项       | 原有事实或规格                                                  | 本次确认目标                                  |
+| ---------- | --------------------------------------------------------------- | --------------------------------------------- |
+| 模板选择   | Bot 单个可选字段，plugin.ts:2491 无全局默认层                   | 继承全局／特定模板／关闭                      |
+| 模板结构   | ADR-0207 为整段 Markdown；#4203、E3 为三部分加 Bot 额外行       | 一份选定模板的三部分，不叠加 Bot 层           |
+| 模型输出   | approval-reviewer.ts:189 为 allow/reject/ask-human              | 仅 allow/ask-human                            |
+| 确定性顺序 | `ChannelToolApproval.ask` 先 Full Access、保存规则，再 Reviewer | 保留确定性授权优先；效果准入以后续 #4337 为准 |
+| 卡片规则   | #4203、E3 AC-3 要求保留确定性执行及来源标签                     | 延续，并保持 Bot 归属                         |
+| 引用中删除 | 本次访谈前尚未确定                                              | 二次确认后统一回退继承，删除默认时清空全局    |
 
-代码来源：[Bot 记录](../../packages/core/src/bots/persona-bot.ts)、[模板查找](../../packages/core/src/plugin.ts)、[Reviewer](../../packages/core/src/workspaces/approval-reviewer.ts)、[审批 owner](../../packages/core/src/workspaces/tool-approval.ts)、[规则](../../packages/core/src/workspaces/tool-approval-rules.ts)。ADR-0205／0207／0239／0249 记录演进，不能单独把 ADR-0207 当作当前完整管线。
+代码来源：[Bot 记录](../../packages/core/src/bots/persona-bot.ts)、[模板查找](../../packages/core/src/plugin.ts)、[Reviewer](../../packages/core/src/workspaces/approval-reviewer.ts)、[审批 owner](../../packages/core/src/workspaces/tool-approval.ts)、[自动审查](../../packages/core/src/features/approvals/tool-approval-review.ts)、[规则](../../packages/core/src/workspaces/tool-approval-rules.ts)。ADR-0205／0207／0239／0249 记录演进，不能单独把 ADR-0207 当作当前完整管线。
 
 2026-11-15 核查时，[#4203](https://github.com/BotHarness/DeepSeekBot/issues/4203)、E1、E2、[E3 #4211](https://github.com/BotHarness/DeepSeekBot/issues/4211)、E4 均 open、无 assignee、全部评论为 0。所查证据未发现认领记录或新范围的可核实实施 PR，但不能据此断言绝无实施。本机 gh 未认证，未确认 timeline 事件的完整性。旧模板 Reviewer 与卡片规则已有合并前身，例如 PR #1835、#2739。访谈未创建、认领或编辑任何 issue／评论。
 

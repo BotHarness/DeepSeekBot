@@ -3,6 +3,7 @@
 ## Sources
 
 - `packages/core/src/workspaces/{tool-approval,approval-reviewer,grants}.ts`
+- `packages/core/src/features/approvals/tool-approval-review.ts`
 - `packages/client/src/client/{tool-approval-card,approval-settings}.tsx`
 
 ## Terms
