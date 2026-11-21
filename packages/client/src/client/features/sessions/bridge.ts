@@ -18,7 +18,7 @@ import {
   type TurnTarget,
 } from '@botharness/host-protocol/turn-target';
 import type { OwnedSessionSummary } from '../../store.js';
-import { parseSessionModelRoute, type SessionModelRoute } from '../../session-model-route.js';
+import { parseSessionModelRoute } from '../../session-model-route.js';
 import type { SessionBotOwner } from '../../bridge.js';
 
 export function createSessionOwnerBridge(
@@ -810,4 +810,46 @@ export async function stopBot(
     botSlug,
     ...(channelId === undefined ? {} : { channelId }),
   });
+}
+
+export async function sendSessionRequest(
+  call: BridgeCall,
+  slug: string,
+  sessionId: string,
+  text: string,
+  steer: boolean,
+): Promise<void> {
+  const value = asRecord(
+    await unwrap(call, 'botToolRun', {
+      slug,
+      tool: 'unarchive_assignment',
+      args: {
+        session_id: sessionId,
+        message: text,
+        mode: steer ? 'next-step' : 'next-turn',
+      },
+    }),
+  );
+  let result: unknown = value?.['result'];
+  if (typeof result === 'string') {
+    try {
+      result = JSON.parse(result);
+    } catch {
+      result = undefined;
+    }
+  }
+  const outcome = asRecord(result);
+  if (outcome?.['code'] !== undefined)
+    throw new Error(
+      typeof outcome['message'] === 'string' ? outcome['message'] : String(outcome['code']),
+    );
+}
+
+export async function sendOrchestratorMessage(
+  call: BridgeCall,
+  botSlug: string,
+  sessionId: string,
+  text: string,
+): Promise<void> {
+  await unwrap(call, 'sessionMessageSend', { botSlug, sessionId, text });
 }

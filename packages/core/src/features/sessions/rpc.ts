@@ -11,6 +11,7 @@ import type {
   OwnedSessionBot,
   SessionsBridgeMethods,
 } from './methods.js';
+import type { SessionsAdapterMethods } from './methods.js';
 
 export function botNewSession(
   methods: SessionsBridgeMethods,
@@ -194,4 +195,13 @@ export function botSessionIds(methods: SessionsBridgeMethods): {
   groups: { botSlug: string; displayName: string; sessionIds: string[] }[];
 } {
   return unwrap(methods.botSessionIds({}));
+}
+
+export function sessionMessageSend(
+  methods: SessionsAdapterMethods,
+  botSlug: string,
+  sessionId: string,
+  text: string,
+): Promise<{ sourceEventId: string }> {
+  return unwrapAsync(methods.sessionMessageSend({ botSlug, sessionId, text }));
 }
