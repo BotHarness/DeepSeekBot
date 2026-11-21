@@ -343,7 +343,6 @@
   "packages/client/src/client/marketplace.tsx": {
     "../../../core/src/marketplace/altcha.js": 1,
     "../../../core/src/marketplace/client.js": 1,
-    "../../../core/src/marketplace/install-review.js": 1,
     "../../../core/src/marketplace/language.js": 1
   },
   "packages/client/src/client/mentions.ts": {

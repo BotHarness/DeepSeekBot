@@ -1,8 +1,5 @@
 import type { ReactElement } from 'react';
-import type {
-  InstallFinding,
-  InstallReviewResult,
-} from '../../../core/src/marketplace/install-review.js';
+import type { InstallFinding, InstallReviewResult } from './bridge.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { Callout } from './ds/callout.js';
 import { Note } from './ds/note.js';
