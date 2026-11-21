@@ -6,7 +6,10 @@ import { avatarDataUrl } from '../../market/test/avatar-fixtures.js';
 import { buttonNamed, fieldNamed, typeInto } from './primitive-mocks.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 import { MarketAvatars, MarketAvatarPublishDialog } from '../src/client/market-avatars.js';
-import { PersonaBotAvatarCropModal } from '../src/client/personabot-avatar-crop.js';
+import {
+  BannerCropModal,
+  PersonaBotAvatarCropModal,
+} from '../src/client/personabot-avatar-crop.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives, shellPrimitives } = await import('./primitive-mocks.js');
@@ -99,6 +102,36 @@ function mockCanvas() {
   const encode = vi.spyOn(HTMLCanvasElement.prototype, 'toDataURL').mockReturnValue(image);
   return { drawImage, encode };
 }
+
+it.each([
+  ['Bot Avatar', PersonaBotAvatarCropModal],
+  ['banner', BannerCropModal],
+] as const)('applies the shared crop layout to the %s editor', async (_name, CropModal) => {
+  const props = {
+    file: new File(['source'], 'crop.png', { type: 'image/png' }),
+    t,
+    onClose: vi.fn(),
+    onSave: vi.fn(async () => true),
+  };
+  const layout = () => {
+    const preview = document.querySelector('img[src="blob:crop"]');
+    const viewport = preview?.parentElement;
+    const frame = viewport?.parentElement;
+    if (!preview || !viewport || !frame) throw new Error('Missing crop viewport');
+    return [frame.className, viewport.className, preview.className];
+  };
+  await act(async () =>
+    root.render(createElement(PersonaBotAvatarCropModal, { ...props, marketplace: true })),
+  );
+  const marketplaceLayout = layout();
+  expect(marketplaceLayout).not.toEqual([
+    'bh-group-avatar-crop',
+    'bh-group-avatar-crop-viewport',
+    '',
+  ]);
+  await act(async () => root.render(createElement(CropModal, props)));
+  expect(layout()).toEqual(marketplaceLayout);
+});
 
 it.each([
   [320, 1000, 320],

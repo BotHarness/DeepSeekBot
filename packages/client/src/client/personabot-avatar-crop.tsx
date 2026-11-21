@@ -19,7 +19,7 @@ const styles = stylex.create({
   viewport: {
     position: 'relative',
     overflow: 'hidden',
-    marginInline: 'auto',
+    justifySelf: 'center',
     backgroundColor: layer.well,
     borderRadius: style.radiusCard,
     cursor: 'grab',
@@ -238,16 +238,13 @@ function ImageCropModal({
       onSubmit={() => void save()}
     >
       <div
-        className={joinClass(
-          'bh-group-avatar-crop',
-          stylex.props(marketplace && styles.crop).className,
-        )}
+        className={joinClass('bh-group-avatar-crop', stylex.props(styles.crop).className)}
         ref={sourceMount}
       >
         <div
           className={joinClass(
             'bh-group-avatar-crop-viewport',
-            stylex.props(marketplace && styles.viewport).className,
+            stylex.props(styles.viewport).className,
           )}
           style={{ width: previewWidth, height: previewHeight }}
           role="img"
@@ -288,7 +285,7 @@ function ImageCropModal({
         >
           {source ? (
             <img
-              {...stylex.props(marketplace && styles.image)}
+              {...stylex.props(styles.image)}
               src={source}
               alt=""
               draggable={false}
