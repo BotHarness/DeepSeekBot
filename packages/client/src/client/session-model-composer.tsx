@@ -53,6 +53,14 @@ const styles = stylex.create({
   },
 });
 
+function labelKey(target: TurnTarget): string {
+  return JSON.stringify([
+    target.kind,
+    target.kind === 'engine' ? target.engine : target.provider,
+    target.model,
+  ]);
+}
+
 function effortName(efforts: readonly { id: string; name: string }[] | undefined, id: string) {
   return efforts?.find((item) => item.id === id)?.name ?? id.charAt(0).toUpperCase() + id.slice(1);
 }
@@ -93,7 +101,7 @@ export function SessionModelComposer({
   const [saving, setSaving] = useState(false);
   const order = useRef(0);
   const trigger = useRef<HTMLButtonElement>(null);
-  const picked = useRef<{ key: string; name: string; brand: ModelMenuItem['brand'] }>(undefined);
+  const known = useRef(new Map<string, { short: string; brand: ModelMenuItem['brand'] }>());
   const mount = useMountedResource<HTMLSpanElement>(() => {
     if (saving) return;
     const request = ++order.current;
@@ -187,13 +195,13 @@ export function SessionModelComposer({
   const recorded = target?.model === undefined ? undefined : target;
   const visible = pending ? preferred : running ? (recorded ?? preferred) : (preferred ?? recorded);
   const resolved = visible === undefined ? undefined : turnTargetLabel(visible, catalog);
-  const remembered = picked.current;
+  const targetKey = visible === undefined ? undefined : labelKey(visible);
+  if (targetKey !== undefined && resolved !== undefined && resolved.short !== visible?.model)
+    known.current.set(targetKey, { short: resolved.short, brand: resolved.brand });
+  const cached = targetKey === undefined ? undefined : known.current.get(targetKey);
   const label =
-    resolved !== undefined &&
-    visible?.model !== undefined &&
-    resolved.short === visible.model &&
-    remembered?.key === choiceKey(choice)
-      ? { ...resolved, short: remembered.name, brand: remembered.brand ?? resolved.brand }
+    resolved !== undefined && cached !== undefined && resolved.short === visible?.model
+      ? { ...resolved, short: cached.short, brand: cached.brand ?? resolved.brand }
       : resolved;
   const group = choice?.kind === 'group' ? groups.find((item) => item.id === choice.id) : undefined;
   const name =
@@ -207,7 +215,14 @@ export function SessionModelComposer({
     if (selected === undefined || saving) return;
     const item = items.menu.find((entry) => entry.value === key);
     if (item !== undefined && selected !== null && selected.kind !== 'group')
-      picked.current = { key: choiceKey(selected), name: item.label, brand: item.brand };
+      known.current.set(
+        labelKey(
+          selected.kind === 'model'
+            ? { kind: 'dsh', provider: selected.provider, model: selected.model }
+            : { kind: 'engine', engine: selected.engine, model: selected.model },
+        ),
+        { short: item.label, brand: item.brand },
+      );
     order.current += 1;
     setSaving(true);
     onSaving(true);
