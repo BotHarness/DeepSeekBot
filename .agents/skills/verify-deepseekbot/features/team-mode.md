@@ -85,6 +85,8 @@ Managed Tailscale qualification: launch a named isolated Host, save private Serv
 
 M15 security suite: `node scripts/e2e-team-security.mjs --launch` (or `--name <instance>` on a running Host) drives real model turns against Role Policy (A), file, Shell and grant boundaries (B) and the shipped hard boundaries (C), asserting on Host state and tool results. Shell boundaries count only when `team-mode status` reports `isolation: enforced`. Publish `.humanlayer/team-security/<time>/` with `pnpm evidence:publish`; AGENTS.md requires it for permission-affecting PRs.
 
+For a Bot owned by an ordinary Team member, send a real DM with `send --as` and take its root Session ID from `bot-sessions --as`. Read `session-transcript --as` and `session-model --as`, save a granted API Model Choice, then verify that saving an ungranted Subscription Engine account returns `model-not-allowed`. Read the Session Model Choice again and confirm it still matches the granted choice. The refusal can be checked on a fresh Host without signing in to a Subscription Engine.
+
 C5 checks subscription selection with an explicit account grant and after revocation. It also checks that a second account stays unavailable and a member cannot change another member's Bot. Run it with `--scenario C5 --no-subscriptions`. In the Web Client, open Bot Settings, Team, then edit a role. Select a named account in Available models, save, and confirm the role name appears on the account row in Model providers.
 
 B2 checks fixed synthetic paths, the secret environment count and the local test Host socket. Verify that the Shell trace and the own-file marker establish the positive control. Retry `inconclusive` results on an isolated Host. They exit nonzero and leave the M15 gate unsatisfied.

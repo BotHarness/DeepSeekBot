@@ -649,6 +649,8 @@ printf '{"message_id":"<message-id>","session_ids":["<assignment-session-id>"]}'
 - 订阅引擎：`{"kind":"engine","engine":"claude","model":"claude-opus-5-5"}`。使用 `accountId` 指定获准使用的账号。
 - 路由组：`{"kind":"group","id":"<group-id>"}`。
 
+团队模式下，可用 `--as <username>` 访问该成员拥有的 Bot 的会话。如果该 Bot 有其他用户的私聊，Host 会拒绝访问会话。保存使用未获授权的订阅引擎账号的模型选择时，Host 会返回 `model-not-allowed`。
+
 `--clear` 恢复会话的默认选择。更改从下一轮生效，Bot 的模型方案不受影响。Host 检查会话归属、模型选择和账号授权。实际使用的模型在两轮之间变化时，`session-transcript` 返回一条 `model-switch`，包含 `from`、`to` 及可用的路由组回退原因 `reason`。
 
 `bot-sessions` 和 `session-transcript` 在能确认运行目标时，返回正在运行或最近运行的 `currentTarget`。订阅引擎目标返回 `engine`、公开的订阅名称 `account` 和能确认的 `model`。原生目标返回 `provider` 和 `model`，混合路由组回退到 DSH 模型时也会如此。

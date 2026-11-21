@@ -1,8 +1,17 @@
 import { attachOperationalModule } from '../src/database/owner.js';
+import { SessionLiveStreams } from '../src/runtime/session-live.js';
 import { sessionModelChoices } from '../src/runtime/session-model-choices.js';
+import { createServer } from 'node:http';
 import { join } from 'node:path';
+import { Context } from '@deepseek-ai/cordis';
+import { TypertGatewayService } from '@deepseek-ai/dsh-api-gateway';
+import { RemoteAccessService } from '@deepseek-ai/dsh-api-remote-access';
+import { Peer } from '@deepseek-ai/dsh-client-connection';
+import { z } from 'zod';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createBridgeMethods } from '../src/bridge/methods.js';
+import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
+import { createBridgeMethods, createBridgeMethodsForHumans } from '../src/bridge/methods.js';
+import { registerBridge } from '../src/bridge/rpc.js';
 import { createEngineGateway } from '../src/engines/engine-gateway.js';
 import { EngineHost } from '../src/engines/engine-host.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
@@ -10,6 +19,9 @@ import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { createModelPresetStore } from '../src/models/presets.js';
 import { routingGroupEngineOptions } from '../src/models/routing-group-engine-options.js';
 import { requireBotEngineAccount } from '../src/team/models.js';
+import { DUMMY_PASSWORD_HASH } from '../src/team/password.js';
+import { memberPolicy } from '../src/team/policy.js';
+import { requestListener } from './async-listener.js';
 import { permitted, teamModelFixture } from './team-model-fixture.js';
 
 const hosts: EngineHost[] = [];
@@ -64,6 +76,8 @@ function fixture(local = true) {
   const deps = {
     sessionModels: sessionModelChoices(attachOperationalModule(f.db, 'bot-runtime')),
     ...f.deps,
+    readUsageSessionLog: async () => undefined,
+    sessionLive: new SessionLiveStreams(),
     modelPresets,
     subscriptionEngines: host,
     engineSelection: host,
@@ -74,6 +88,7 @@ function fixture(local = true) {
   };
   return {
     ...f,
+    deps,
     host,
     work,
     personal,
@@ -87,7 +102,163 @@ function fixture(local = true) {
   };
 }
 
+async function memberCli(f: ReturnType<typeof fixture>) {
+  const username = 'session-member';
+  f.database.transaction((db) =>
+    db
+      .prepare('INSERT INTO member_credentials VALUES (?, ?, ?, ?, 0)')
+      .run(f.member.humanId, username, JSON.stringify(DUMMY_PASSWORD_HASH), '[]'),
+  );
+  const ctx = new Context();
+  ctx.provide('typert');
+  ctx.set('typert', {
+    local: { get: () => undefined, hasSeen: () => false },
+    lookups: { definitions: () => [], get: () => undefined },
+    resources: { entries: () => [{ kind: 'session', field: 'sessionId' }] },
+  });
+  const access = new RemoteAccessService(ctx);
+  access.registerPolicy('botharness-member', memberPolicy(f.team));
+  const gateway = new TypertGatewayService(ctx, {});
+  registerBridge(ctx, createBridgeMethodsForHumans(f.deps), undefined, undefined, f.team);
+  const unbind = f.team.bindRuntime({
+    createPeer: (principal) => new Peer(ctx, { principal }),
+    invalidate: () => access.invalidate(),
+    urls: () => [],
+  });
+  const server = createServer(
+    requestListener(async (request, response) => {
+      if (request.method === 'GET') {
+        response.writeHead(302, { 'set-cookie': 'authority=owner', location: '/' }).end();
+        return;
+      }
+      expect(request.url).toBe('/api/botharness/team-as');
+      const chunks: Buffer[] = [];
+      for await (const chunk of request) chunks.push(Buffer.from(chunk));
+      const input = z
+        .object({
+          username: z.literal(username),
+          namespace: z.literal('botharness'),
+          method: z.string(),
+          args: z.record(z.string(), z.unknown()),
+        })
+        .parse(JSON.parse(Buffer.concat(chunks).toString()));
+      try {
+        const value = await f.team.asMember(input.username, (peer) => {
+          f.team.assertCall(peer.principal, input.method);
+          return gateway.invoke({ ...input, peer });
+        });
+        response.end(JSON.stringify({ ok: true, value }));
+      } catch (error) {
+        response.end(JSON.stringify({ ok: false, error: gateway.wireStream.failure(error) }));
+      }
+    }),
+  );
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  if (!address || typeof address === 'string') throw new Error('missing address');
+  return {
+    async run(...args: string[]) {
+      const stdout: string[] = [];
+      const exit = await runBotCreateCli([...args, '--as', username], {
+        env: {
+          DEEPSEEKBOT_HOST: `http://127.0.0.1:${address.port}`,
+          DEEPSEEKBOT_HOST_TOKEN: 'test-owner-token',
+        },
+        stdout: (value) => stdout.push(value),
+        stderr: () => {},
+      });
+      expect(stdout).toHaveLength(1);
+      const output: unknown = JSON.parse(stdout.join(''));
+      return { exit, output };
+    },
+    async close() {
+      server.closeAllConnections();
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+      await unbind();
+      await ctx.fiber.dispose();
+    },
+  };
+}
+
 describe('Team subscription grants', () => {
+  it('reads and sets an owned Session through the member CLI with account grants enforced', async () => {
+    const f = fixture();
+    const cli = await memberCli(f);
+    const session = ['ada', '--session', 'session'];
+    const model = { kind: 'model', ...permitted };
+    const engine = { kind: 'engine', engine: 'codex', accountId: f.work.id, model: 'gpt-test' };
+    try {
+      expect(await cli.run('bot-sessions', 'ada')).toMatchObject({ exit: 0 });
+      expect(await cli.run('session-transcript', ...session)).toMatchObject({
+        exit: 0,
+        output: { sessionId: 'session', role: 'orchestrator', items: [] },
+      });
+      expect(await cli.run('session-model', ...session)).toMatchObject({
+        exit: 0,
+        output: { override: null, default: model },
+      });
+      expect(
+        await cli.run('session-model', ...session, '--set', JSON.stringify(model)),
+      ).toMatchObject({
+        exit: 0,
+        output: { override: model },
+      });
+      expect(
+        await cli.run('session-model', ...session, '--set', JSON.stringify(engine)),
+      ).toMatchObject({
+        exit: 1,
+        output: { error: { code: 'model-not-allowed', details: { route: f.work.id } } },
+      });
+      expect(await cli.run('session-model', ...session)).toMatchObject({
+        exit: 0,
+        output: { override: model },
+      });
+      expect(await cli.run('session-transcript', 'bob', '--session', 'session')).toMatchObject({
+        exit: 1,
+        output: { error: { code: 'bot-not-found' } },
+      });
+      expect(await cli.run('session-subagents', ...session)).toMatchObject({
+        exit: 0,
+        output: { sessionId: 'session', lanes: [] },
+      });
+      expect(await cli.run('session-progress', ...session)).toMatchObject({
+        exit: 0,
+        output: { sessions: [{ sessionId: 'session' }] },
+      });
+      expect(await cli.run('session-live', ...session)).toMatchObject({
+        exit: 0,
+        output: { sessionId: 'session', revision: 0 },
+      });
+      expect(await cli.run('session-tool', ...session, '--call', 'missing')).toMatchObject({
+        exit: 1,
+        output: { error: { code: 'not-found' } },
+      });
+      for (const args of [
+        ['session-transcript', 'ada', '--session', 'unowned'],
+        ['session-model', 'ada', '--session', 'unowned', '--set', JSON.stringify(model)],
+      ]) {
+        expect(await cli.run(...args)).toMatchObject({
+          exit: 1,
+          output: { error: { code: 'not-found' } },
+        });
+      }
+      f.team.bots.setVisibility(owner, 'ada', { kind: 'public', audience: { kind: 'everyone' } });
+      expect(f.team.bots.dm(owner, 'ada')?.dmHumanId).toBe(owner.humanId);
+      for (const command of [
+        'session-transcript',
+        'session-model',
+        'session-live',
+        'session-progress',
+      ])
+        expect(await cli.run(command, ...session)).toMatchObject({
+          exit: 1,
+          output: { error: { code: 'bot-session-private' } },
+        });
+    } finally {
+      await cli.close();
+    }
+  });
+
   it('checks the acting Team member’s account grant before saving a Session Model Choice', async () => {
     const f = fixture();
     const choice = { kind: 'engine', engine: 'codex', accountId: f.work.id, model: 'gpt-test' };
