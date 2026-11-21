@@ -610,7 +610,7 @@ A cold Host excludes the tombstone even when cleanup needs repair. Future Profil
 enumerate historical Registry records and deletion locators and distinguish intentional erasure.
 Channel Content Purge and its restore-safe ledger remain #897.
 
-Bot ZIP and Marketplace installation use the optional `standingLimits` pair in `.botharness/bot.json`. The import owner validates the source pair and persists it in the new PersonaBot record. The install preview counts the same characters as prompt assembly and uses the defaults when the source carries no usable pair.
+Bot Zip and Marketplace imports use the optional `standingLimits` pair in `.botharness/bot.json`. The import owner validates the source pair and persists it in the new PersonaBot record. The import preview counts the same characters as prompt assembly and uses the defaults when the source carries no usable pair.
 
 ### Bot Marketplace (accepted design, not implemented)
 
