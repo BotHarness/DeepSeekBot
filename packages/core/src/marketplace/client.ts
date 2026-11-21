@@ -1,6 +1,7 @@
 import {
   MAX_MARKETPLACE_AVATAR_BYTES,
   type MarketplaceAvatar as MarketplaceAvatarListing,
+  type MarketplaceAvatarEdit,
   type MarketplaceAvatarPage,
   type MarketplaceAvatarPublish,
   type MarketplaceAvatarQuery,
@@ -167,6 +168,13 @@ export interface MarketplaceClient {
   avatarList(query: MarketplaceAvatarQuery): Promise<MarketplaceResult<MarketplaceAvatarPage>>;
   avatarTags(): Promise<MarketplaceResult<MarketplaceAvatarTag[]>>;
   avatarDetail(id: string): Promise<MarketplaceResult<MarketplaceAvatarListing>>;
+  avatarMine(token: string): Promise<MarketplaceResult<MarketplaceAvatarListing[]>>;
+  avatarEdit(
+    token: string,
+    id: string,
+    patch: MarketplaceAvatarEdit,
+  ): Promise<MarketplaceResult<MarketplaceAvatarListing>>;
+  avatarDelete(token: string, id: string): Promise<MarketplaceResult<{ deleted: true }>>;
   avatarImage(id: string): Promise<MarketplaceResult<Uint8Array>>;
   avatarApplyReceipt(id: string, botHash: string): Promise<MarketplaceResult<{ counted: boolean }>>;
   avatarPublish(
@@ -774,6 +782,25 @@ export function createMarketplaceClient(options: {
         '/v1/avatars',
         { method: 'POST', headers: authorized(token, true), body: JSON.stringify(input) },
         (value) => parseAvatarListing(record(value)?.['avatar']),
+      ),
+    avatarMine: (token) =>
+      request('/v1/me/avatars', { method: 'GET', headers: authorized(token, false) }, (value) => {
+        const avatars = record(value)?.['avatars'];
+        if (!Array.isArray(avatars)) return;
+        const parsed = avatars.map(parseAvatarListing);
+        return parsed.every((avatar) => avatar !== undefined) ? parsed : undefined;
+      }),
+    avatarEdit: (token, id, patch) =>
+      request(
+        `/v1/me/avatars/${encodeURIComponent(id)}`,
+        { method: 'PATCH', headers: authorized(token, true), body: JSON.stringify(patch) },
+        (value) => parseAvatarListing(record(value)?.['avatar']),
+      ),
+    avatarDelete: (token, id) =>
+      request(
+        `/v1/me/avatars/${encodeURIComponent(id)}`,
+        { method: 'DELETE', headers: authorized(token, false) },
+        (value) => (record(value)?.['deleted'] === true ? { deleted: true as const } : undefined),
       ),
     list: (query) =>
       request(

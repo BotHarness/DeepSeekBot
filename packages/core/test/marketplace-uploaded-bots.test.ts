@@ -712,3 +712,65 @@ it('publishes stored images from Bots, including a member’s Appearance still, 
     expect(Buffer.from(await response.arrayBuffer()).toString('base64')).toBe(expected);
   }
 });
+
+it('manages Avatar listings only through the Host owner’s signed-in Connect account', async () => {
+  const f = fixture();
+  f.session.state = 'signed-in';
+  await f.bridge.marketplaceAuthorSave({ displayName: 'River Artist', acceptTerms: true });
+  const published = await f.bridge.marketplaceAvatarPublish({
+    name: 'Otter',
+    image: avatarDataUrl('png'),
+    confirm: true,
+    requestKey: 'manage-otter',
+  });
+  if (!published.ok) throw new Error(published.error.code);
+  const { id } = published.value;
+  const memberContext = humanContext('member');
+  attachOperationalModule(
+    f.core.operationalDatabase,
+    'marketplace-avatar-management-test',
+  ).transaction((sql) => {
+    sql.prepare('UPDATE team_settings SET enabled=1').run();
+    sql
+      .prepare("INSERT INTO humans VALUES (?,?,'active','now')")
+      .run(memberContext.humanId, 'Member');
+    sql.prepare("INSERT INTO human_roles VALUES (?,'member')").run(memberContext.humanId);
+  });
+  f.core.team.spaces.ensureAccount(memberContext.humanId);
+  const member = createBridgeMethods(memberContext, f.bridgeDeps);
+  for (const result of [
+    await member.marketplaceAvatarMine({}),
+    await member.marketplaceAvatarEdit({ id, name: 'Bear' }),
+    await member.marketplaceAvatarDelete({ id }),
+  ]) {
+    expect(result).toMatchObject({ ok: false, error: { code: 'permission-required' } });
+  }
+  f.session.tokens = ['token-bob', 'token-bob', 'token-bob'];
+  expect(await f.bridge.marketplaceAvatarMine({})).toEqual({ ok: true, value: { avatars: [] } });
+  expect(await f.bridge.marketplaceAvatarEdit({ id, name: 'Bear' })).toMatchObject({
+    ok: false,
+    error: { code: 'avatar-not-found' },
+  });
+  expect(await f.bridge.marketplaceAvatarDelete({ id })).toMatchObject({
+    ok: false,
+    error: { code: 'avatar-not-found' },
+  });
+  expect(await f.bridge.marketplaceAvatarMine({})).toEqual({
+    ok: true,
+    value: { avatars: [published.value] },
+  });
+  expect(await f.bridge.marketplaceAvatarEdit({ id, description: 'River' })).toEqual({
+    ok: true,
+    value: { ...published.value, description: 'River' },
+  });
+  expect(await f.bridge.marketplaceAvatarDelete({ id })).toEqual({
+    ok: true,
+    value: { deleted: true },
+  });
+  expect(await f.bridge.marketplaceAvatarMine({})).toEqual({ ok: true, value: { avatars: [] } });
+  f.session.state = 'signed-out';
+  expect(await f.bridge.marketplaceAvatarMine({})).toMatchObject({
+    ok: false,
+    error: { code: 'sign-in-required' },
+  });
+});

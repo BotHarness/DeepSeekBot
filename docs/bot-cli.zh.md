@@ -1289,6 +1289,9 @@ deepseekbot marketplace-author --name <显示名> [--accept-terms]
 deepseekbot marketplace-author-avatar (--file <图片> | --clear)
 deepseekbot marketplace-avatar-list [--query <关键词>] [--tag <标签>] [--cursor <游标>]
 deepseekbot marketplace-avatar-tags
+deepseekbot marketplace-avatar-mine
+deepseekbot marketplace-avatar-edit <条目 ID> [--name <名称>] [--description <简介>] [--avatar-tag <标签> ...]
+deepseekbot marketplace-avatar-delete <条目 ID> --confirm
 deepseekbot marketplace-avatar-detail <条目 ID>
 deepseekbot marketplace-avatar-report <条目 ID> [--reason <说明>]
 deepseekbot marketplace-avatar-apply <条目 ID> --bot <Bot> [--operation-key <请求键>]
@@ -1341,6 +1344,8 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 任何人都可以浏览市场头像。用 `--query` 搜索名称、简介和标签，或用 `--tag` 按完整标签筛选，忽略大小写。`marketplace-avatar-tags` 列出标签和各自的公开头像数量。读取下一页时保留原有的搜索和筛选条件，并把返回的 `nextCursor` 传给 `--cursor`。
 
 只有 Host 所有者可以用已登录并接受上传条款的 Connect 账户发布。`--file` 和 `--from-bot` 二选一。图片必须是 256–512 像素见方、不超过 128 KiB、无元数据的静态 PNG、JPEG 或 WebP。`--from-bot` 读取此 Host 上任意 Bot 保存的头像图片，包括 Avatar Appearance 的静态 PNG。只有 Blobatar 的 Bot 会返回 `no-stored-avatar`。如果返回 `unprocessed-image`，请在 Web 客户端裁剪并发布。重试发布时请沿用同一个 `--operation-key`。
+
+Host 所有者可以用 `marketplace-avatar-mine` 查看已登录的 Connect 作者发布的头像及其应用次数。编辑时至少填写一项，省略的字段保持原值。用空的 `--description=` 或 `--avatar-tag=` 清空对应字段。加上 `--confirm` 删除条目、图片和应用统计，已应用头像的 Bot 会保留自己的副本。
 
 列出当前 Host 上有权更换头像的 Bot，再用 `marketplace-avatar-apply <条目 ID> --bot <Bot>` 应用。Host 会保存图片副本。使用同一个 `--operation-key` 可重试当前 Host 进程最近处理的应用。
 

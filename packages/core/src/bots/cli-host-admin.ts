@@ -3,7 +3,10 @@ import {
   marketplaceAvatarImageType,
   readMarketplaceAvatarImage,
 } from '@botharness/host-protocol/marketplace-avatar-image';
-import { parseMarketplaceAvatarText } from '@botharness/host-protocol/marketplace-avatar';
+import {
+  parseMarketplaceAvatarEdit,
+  parseMarketplaceAvatarText,
+} from '@botharness/host-protocol/marketplace-avatar';
 export { HOST_ADMIN_OPTIONS } from './cli-option-spec.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
 import { parseChallenge, solveChallenge } from '../marketplace/altcha.js';
@@ -70,6 +73,19 @@ export const HOST_ADMIN_COMMANDS = [
   {
     command: 'marketplace-avatar-tags',
     description: 'list Marketplace Avatar tags with counts / 列出市场头像标签及数量',
+  },
+  {
+    command: 'marketplace-avatar-mine',
+    description: 'list your Marketplace Avatars / 列出我发布的市场头像',
+  },
+  {
+    command: 'marketplace-avatar-edit',
+    description:
+      '<id> [--name <name>] [--description <text>] [--avatar-tag <tag> ...] edit Avatar text / 编辑头像的名称、简介和标签',
+  },
+  {
+    command: 'marketplace-avatar-delete',
+    description: '<id> --confirm delete a Marketplace Avatar / 删除市场头像',
   },
   {
     command: 'marketplace-avatar-detail',
@@ -215,6 +231,9 @@ const POSITIONALS: Record<HostAdminCommand, number> = {
   'marketplace-list': 0,
   'marketplace-avatar-list': 0,
   'marketplace-avatar-tags': 0,
+  'marketplace-avatar-mine': 0,
+  'marketplace-avatar-edit': 1,
+  'marketplace-avatar-delete': 1,
   'marketplace-avatar-detail': 1,
   'marketplace-avatar-report': 1,
   'marketplace-avatar-publish': 0,
@@ -344,6 +363,12 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     usage(
       'marketplace-delete erases the Uploaded Bot, its files and counts for everyone. Pass --confirm.',
     );
+  if (command === 'marketplace-avatar-delete' && values.confirm !== true)
+    usage(
+      'marketplace-avatar-delete erases the listing, its image and Apply Count. Pass --confirm.',
+    );
+  if (command === 'marketplace-avatar-edit' && values.file !== undefined)
+    usage('marketplace-avatar-edit accepts only --name, --description and --avatar-tag.');
   if (
     command === 'marketplace-avatar-publish' &&
     ((values.file === undefined) === (values['from-bot'] === undefined) ||
@@ -522,6 +547,23 @@ export async function runHostAdminCommand(
       });
     case 'marketplace-avatar-tags':
       return { tags: await rpc('marketplaceAvatarTags', {}) };
+    case 'marketplace-avatar-mine':
+      return rpc('marketplaceAvatarMine', {});
+    case 'marketplace-avatar-edit': {
+      const tags = values['avatar-tag'];
+      const patch = parseMarketplaceAvatarEdit({
+        name: values.name,
+        description: values.description,
+        tags: tags?.length === 1 && tags[0] === '' ? [] : tags,
+      });
+      if (patch === undefined)
+        return usage(
+          'Supply --name (1–40 characters), --description (up to 160 characters), or up to five --avatar-tag values (1–24 characters each).',
+        );
+      return rpc('marketplaceAvatarEdit', { id: target, ...patch });
+    }
+    case 'marketplace-avatar-delete':
+      return rpc('marketplaceAvatarDelete', { id: target });
     case 'marketplace-avatar-detail':
       return rpc('marketplaceAvatarDetail', { id: target });
     case 'marketplace-avatar-apply':

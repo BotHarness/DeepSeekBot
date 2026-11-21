@@ -1320,6 +1320,9 @@ deepseekbot marketplace-author --name <display name> [--accept-terms]
 deepseekbot marketplace-author-avatar (--file <image> | --clear)
 deepseekbot marketplace-avatar-list [--query <words>] [--tag <tag>] [--cursor <cursor>]
 deepseekbot marketplace-avatar-tags
+deepseekbot marketplace-avatar-mine
+deepseekbot marketplace-avatar-edit <id> [--name <name>] [--description <text>] [--avatar-tag <tag> ...]
+deepseekbot marketplace-avatar-delete <id> --confirm
 deepseekbot marketplace-avatar-detail <id>
 deepseekbot marketplace-avatar-report <id> [--reason <text>]
 deepseekbot marketplace-avatar-apply <id> --bot <bot> [--operation-key <key>]
@@ -1372,6 +1375,8 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 Anyone can browse Marketplace Avatars. Use `--query` to search names, descriptions and tags, and `--tag` to filter by an exact tag regardless of case. `marketplace-avatar-tags` lists tags and the number of listed Avatars for each. To fetch the next page, pass the returned `nextCursor` as `--cursor` with the same filters.
 
 Only the Host owner can publish, using the signed-in Connect Account Profile with accepted upload terms. Choose either `--file` or `--from-bot`. Both require a still, metadata-free PNG, JPEG or WebP, 256–512 px square and at most 128 KiB. `--from-bot` reads the stored Avatar of any Bot on the Host, including the still PNG of an Avatar Appearance. A Bot with only a Blobatar returns `no-stored-avatar`. If the image returns `unprocessed-image`, use Web to crop and publish. Reuse the same `--operation-key` when retrying a publish.
+
+As the Host owner, use `marketplace-avatar-mine` to list the signed-in Connect author's Avatars and their Apply Counts. Edit at least one text field. Omitted fields stay as they are. Pass an empty `--description=` or `--avatar-tag=` to clear that field. Delete with `--confirm` to remove the listing, image and Apply Count. Bots that already applied the Avatar keep their copies.
 
 Use `marketplace-avatar-apply-candidates` to find the Bots whose avatars you can change. Apply with `marketplace-avatar-apply <id> --bot <bot>`. The connected Host saves a local copy. Reuse an `--operation-key` to replay a recent apply within the same Host process.
 
