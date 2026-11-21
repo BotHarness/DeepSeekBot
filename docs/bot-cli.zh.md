@@ -2181,6 +2181,8 @@ QQ 同样支持 `deepseekbot messaging-defaults qq` 和 `messaging-defaults-set 
 
 使用 `team-mode owner-sign-in status` 查看目标 Host 的独立 Owner 账密登录设置。首次创建账密时执行 `team-mode owner-sign-in on --username <用户名> --password-stdin --confirm`，通过标准输入提供密码。已有账密时，执行 `team-mode owner-sign-in on --confirm` 即可继续使用。用 `off` 停止新的账密登录，已登记的 Owner 设备可以继续连接。
 
+更改现有 Owner 密码时，把含有 `current` 和 `password` 字段的私有 JSON 文件通过标准输入传给 `team-mode owner-password --password-stdin`。添加 `--sign-out-others=true --confirm` 可撤销其他通过账密登记的 Owner 设备。扫码配对设备和当前 Owner 会话可继续访问。省略该选项或设为 `false` 时，已有设备可继续访问。
+
 在另一端执行 `device-owner-sign-in <可信 HTTPS 地址> <用户名> --password-stdin --confirm --out <私有设备文件绝对路径>`。CLI 验证 HTTPS 地址，经已认证的设备加密通道提交密码，将设备密钥和凭据写入新建的私有文件。标准输出只报告 Host ID、设备 ID 和文件路径等连接信息。使用 `device-probe --device-file <私有设备文件绝对路径>` 验证可用该设备授权读取真实 Host Feed。
 
 `dm <username>` 在指定 Host 上打开或创建当前 Human 与该活跃联系人的唯一私聊。双方打开会返回同一频道，其他 Human 无权读取。使用 `channels send <channel-id> --body-stdin` 和 `channel-messages <channel-id>` 收发、读取消息。纯 Human 私聊没有 Bot 参与者；群消息仍可由有权参与的 Bot 阅读。

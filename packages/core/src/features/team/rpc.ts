@@ -141,8 +141,9 @@ export function teamOwnerPasswordSet(
   methods: TeamBridgeMethods,
   password: string,
   current?: string,
+  signOutOthers?: boolean,
 ) {
-  return unwrapAsync(methods.teamOwnerPasswordSet({ password, current }));
+  return unwrapAsync(methods.teamOwnerPasswordSet({ password, current, signOutOthers }));
 }
 
 export function teamInsecureHttpSet(methods: TeamBridgeMethods, allowed: boolean) {

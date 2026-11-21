@@ -6,6 +6,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { BridgeCall } from '../src/client/bridge.js';
 import { ConnectionsPage } from '../src/client/connections-dialog.js';
 import { zhTranslate } from '../src/client/locale.js';
+import { OwnerPasswordDialog } from '../src/client/team-settings.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
@@ -66,6 +67,31 @@ function signInSwitch(): HTMLButtonElement {
   if (!toggle) throw new Error('Missing sign-in switch');
   return toggle;
 }
+
+it.each([true, false])('submits the selected Owner device sign-out choice %s', async (signOut) => {
+  const submit = vi.fn(async () => {});
+  await act(async () =>
+    root.render(
+      <OwnerPasswordDialog
+        t={zhTranslate}
+        hasPassword
+        thenEnable={false}
+        onCancel={() => {}}
+        onSubmit={submit}
+      />,
+    ),
+  );
+  const checkbox = field(zhTranslate('team.ownerPassword.signOutOthers'));
+  expect(checkbox.checked).toBe(true);
+  if (!signOut) await act(async () => checkbox.click());
+  await fill(zhTranslate('team.password.current'), 'current-owner-password');
+  await fill(zhTranslate('team.password.new'), 'next-owner-password');
+  await fill(zhTranslate('team.password.confirm'), 'next-owner-password');
+  const dialog = document.querySelector('[role="dialog"]');
+  if (!dialog) throw new Error('Missing Owner password dialog');
+  await act(async () => button(zhTranslate('team.save'), dialog).click());
+  expect(submit).toHaveBeenCalledWith('next-owner-password', 'current-owner-password', signOut);
+});
 
 it('sets up sign-in, then toggles it without re-entering credentials', async () => {
   let configured = false;

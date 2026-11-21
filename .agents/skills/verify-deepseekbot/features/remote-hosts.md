@@ -24,6 +24,12 @@ With Team mode off, open the target Host's Connections settings. Turn on **Passw
 
 Use `team-mode owner-sign-in status` to inspect the setting. Sign in a separate CLI device with `device-owner-sign-in` and validate `device-probe` with its private device file. Disable password sign-in on the target. Verify that a new login is refused and both enrolled devices still read the target Feed. Revoke the CLI device by its ID and verify it loses access. Restart the target Profile and verify the setting and selected username persist. Remove test device files during cleanup.
 
+## Change the Owner password (#4899)
+
+On a fresh Host with Team mode off, enroll two Owner devices by password and one by QR code. On the first device, open the target **Host settings → Connections → Your password → Change**. On the Host itself, use **Settings → Team → Your password → Change**. Confirm the sign-out checkbox defaults to selected. Save the new password. The other password-enrolled device loses its live connection and its next authenticated read is refused. The device that changed the password and the QR-paired device still read the target Host Feed. Verify the old password is refused for new sign-ins and the new password works. Repeat with the checkbox cleared and verify all existing devices keep their access.
+
+For CLI parity, pass the private JSON containing `current` and `password` on stdin to `team-mode owner-password --password-stdin --sign-out-others=true --confirm`. Compare `devices` and `device-probe` results for password and QR grants, and repeat with `--sign-out-others=false`. Redact credentials from visual and console evidence.
+
 ## Reciprocal relationship (E1)
 
 Use fresh schema144 Homes after published Team141–143; do not launch internal Environment141–143 preview databases with this source. Relationship management is current-Owner-only: member/Admin HTTP carriers and CLI `--as` must refuse list/initiate/approve/enroll/disconnect. Transfer Owner and require old derived credentials and pending old-Owner offers to refuse; a newly enrolled Client records the new Owner Human. A valid current-Owner credential still cannot bypass inactive-relationship admission. Retain private Source Event Human readback, spoofed Human rejection and private-Bot access refusals through the same per-Human bridge factory.

@@ -72,6 +72,8 @@ Desktop, iOS, and Android share the Host identity and password sign-in flow when
 
 The Host issues a Paired Device grant for the authenticated Human and binds it to the Client device key. The existing Devices module owns the grant and records its issuance method for selective revocation during Owner password changes. Team mode enables password sign-in. With Team mode off, the standalone Owner setting controls new Owner password sign-ins. The first delivery covers standalone Owner sign-in over HTTPS in desktop and Web Clients. See [connection decisions](../decisions/connections.md#remote-host-password-sign-in-uses-the-same-encrypted-device-channel-on-every-route) and [Team mode decisions](../decisions/team-mode.md#host-password-sign-in-and-team-mode).
 
+When the Owner chooses to sign out other devices during a password change, the Team Service commits the new password and targeted revocations together. The device gateway supplies the current device from its authenticated connection. The Devices module then closes the revoked connections.
+
 ## 1 · System context
 
 ```mermaid

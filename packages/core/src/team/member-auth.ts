@@ -133,6 +133,74 @@ function ownerPasswordEnabled(db: MemberAuthHost['db']): boolean {
   );
 }
 
+export async function setOwnerPassword(
+  this: MemberAuthHost,
+  human: HumanContext,
+  password: string,
+  current?: string,
+  options?: { signOutOthers?: boolean; currentDeviceId?: string },
+): Promise<void> {
+  this.owner(human);
+  const previous = this.credential(human.humanId);
+  if (previous && !(await verifyPassword(current ?? '', previous.hash)))
+    throw new TeamError('credentials-invalid');
+  this.owner(human);
+  if (!strongPassword(password)) throw new TeamError('password-weak');
+  const hash = await hashPassword(password);
+  this.owner(human);
+  if (this.credential(human.humanId)?.hash.hash !== previous?.hash.hash)
+    throw new TeamError('credentials-invalid');
+
+  const currentDeviceId = options?.currentDeviceId;
+  if (
+    currentDeviceId !== undefined &&
+    !this.db.read((db) =>
+      db
+        .prepare(`SELECT 1 FROM paired_devices WHERE device_id = ? AND human_id = ?
+          AND enrollment = 'owner-password' AND revoked_at IS NULL`)
+        .get(currentDeviceId, human.humanId),
+    )
+  )
+    throw new TeamError('device-revoked');
+
+  const others =
+    previous && options?.signOutOthers
+      ? this.db.read((db) =>
+          z.array(z.object({ device_id: z.string() })).parse(
+            db
+              .prepare(`SELECT device_id FROM paired_devices WHERE human_id = ?
+                AND enrollment = 'owner-password' AND revoked_at IS NULL AND device_id <> ?`)
+              .all(human.humanId, currentDeviceId ?? ''),
+          ),
+        )
+      : [];
+  const pairing = this.pairing;
+  if (others.length > 0 && !pairing) throw new TeamError('unavailable');
+
+  this.db.transaction(
+    (db) => {
+      if (previous)
+        db.prepare(
+          'UPDATE member_credentials SET password_json = ?, must_change = 0 WHERE human_id = ?',
+        ).run(credentialPasswordJson(hash, human.humanId), human.humanId);
+      else
+        db.prepare("INSERT INTO member_credentials VALUES (?, 'owner', ?, '[]', 0)").run(
+          human.humanId,
+          credentialPasswordJson(hash, human.humanId),
+        );
+      if (others.length > 0) {
+        const revoke = db.prepare('UPDATE paired_devices SET revoked_at = ? WHERE device_id = ?');
+        const revokedAt = new Date(this.now()).toISOString();
+        for (const { device_id } of others) revoke.run(revokedAt, device_id);
+      }
+    },
+    others.length > 0 ? ['team', 'paired-devices'] : ['team'],
+  );
+  for (const { device_id } of others) pairing?.revoke(device_id);
+  this.invalidate();
+  this.log('owner-password-updated', { initiator: 'owner', revokedDevices: others.length });
+}
+
 export function ownerPasswordSignIn(
   this: MemberAuthHost,
   human: HumanContext,

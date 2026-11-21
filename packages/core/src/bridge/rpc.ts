@@ -504,8 +504,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
   ownerPasswordSignInSet(enabled: boolean, username?: string, password?: string) {
     return teamRpc.ownerPasswordSignInSet(this.methods, enabled, username, password);
   }
-  teamOwnerPasswordSet(password: string, current?: string) {
-    return teamRpc.teamOwnerPasswordSet(this.methods, password, current);
+  teamOwnerPasswordSet(password: string, current?: string, signOutOthers?: boolean) {
+    return teamRpc.teamOwnerPasswordSet(this.methods, password, current, signOutOthers);
   }
   teamInsecureHttpSet(allowed: boolean) {
     return teamRpc.teamInsecureHttpSet(this.methods, allowed);

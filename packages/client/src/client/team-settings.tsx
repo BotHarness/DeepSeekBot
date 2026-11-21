@@ -1,4 +1,5 @@
 import { Button } from './ds/button.js';
+import { Checkbox } from './ds/checkbox.js';
 import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
@@ -542,9 +543,9 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
             passwordSaved.current = false;
             setDialog(undefined);
           }}
-          onSubmit={async (password, current) => {
+          onSubmit={async (password, current, signOutOthers) => {
             if (!passwordSaved.current) {
-              publish(await setOwnerPassword(call, password, current));
+              publish(await setOwnerPassword(call, password, current, signOutOthers));
               passwordSaved.current = true;
             }
             if (dialog.thenEnable) publish(await setTeamMode(call, true));
@@ -613,7 +614,7 @@ function memberMeta(
   return parts.join(' · ');
 }
 
-function OwnerPasswordDialog({
+export function OwnerPasswordDialog({
   t,
   hasPassword,
   thenEnable,
@@ -624,11 +625,12 @@ function OwnerPasswordDialog({
   hasPassword: boolean;
   thenEnable: boolean;
   onCancel(): void;
-  onSubmit(password: string, current: string | undefined): Promise<void>;
+  onSubmit(password: string, current?: string, signOutOthers?: boolean): Promise<void>;
 }): ReactElement {
   const [current, setCurrent] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [signOutOthers, setSignOutOthers] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const short = password.length > 0 && password.length < TEAM_PASSWORD_MIN_LENGTH;
@@ -650,7 +652,11 @@ function OwnerPasswordDialog({
       onSubmit={() => {
         setBusy(true);
         setError(undefined);
-        onSubmit(password, hasPassword ? current : undefined)
+        onSubmit(
+          password,
+          hasPassword ? current : undefined,
+          hasPassword ? signOutOthers : undefined,
+        )
           .catch((failure: unknown) => setError(teamErrorText(t, failure)))
           .finally(() => setBusy(false));
       }}
@@ -686,6 +692,14 @@ function OwnerPasswordDialog({
           onChange={setConfirm}
           error={mismatch ? t('team.password.mismatch') : undefined}
         />
+        {hasPassword ? (
+          <Checkbox
+            label={t('team.ownerPassword.signOutOthers')}
+            checked={signOutOthers}
+            onChange={setSignOutOthers}
+            disabled={busy}
+          />
+        ) : null}
       </FieldStack>
     </FormDialog>
   );
