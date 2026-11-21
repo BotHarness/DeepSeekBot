@@ -1,3 +1,18 @@
+import { createOrchestratorScheduling } from './orchestrator-scheduling.js';
+import {
+  createOrchestratorCancellation,
+  interruptedToolsNote,
+} from './orchestrator-cancellation.js';
+import {
+  createOrchestratorContinuation,
+  MAX_MIXED_GROUP_ATTEMPTS,
+  routingTargetKey,
+  type PendingAutoContinue,
+  type DmContinuation,
+  continuationNote,
+  RouteRestingError,
+  RoutingGroupUnavailableError,
+} from './orchestrator-continuation.js';
 import type { AssignmentRow } from '../features/assignments/events-types.js';
 import { requireNonBlank } from './require-non-blank.js';
 import { createMessagingEvents } from '../features/messaging/events.js';
@@ -40,7 +55,7 @@ import { humanContext } from '../humans/context.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { BotNetworkDeliveryError } from './bot-network.js';
 import { BotHopLimitReached } from '../channels/hop-limit.js';
-import { SessionRecoveryError, type SessionRecoveryAction } from './session-recovery.js';
+import type { SessionRecoveryAction } from './session-recovery.js';
 import type { AssignmentReportContent } from './assignment-report.js';
 import type {
   AssignmentReportRead,
@@ -148,16 +163,14 @@ import {
   selectAssignmentRoute,
   type ModelRoute,
 } from '../models/presets.js';
-import type { RestingRoute, RouteRests } from '../models/route-rest.js';
+import type { RouteRests } from '../models/route-rest.js';
 import {
   type GroupFallback,
   type ModelSwitch,
-  type SubscriptionRest,
-  routingTargetRestKey,
   unavailableRoutingEngine,
 } from '../models/group-fallback.js';
 import { isRoutingGroupMember, type RoutingTarget } from '../models/routing-groups.js';
-import { EngineLimitError, EngineRefusal } from '../engines/engine-session.js';
+import { EngineLimitError } from '../engines/engine-session.js';
 import { isValidSlug } from '../bots/slug.js';
 import type { AssignmentAccessStore } from '../workspaces/assignment-access.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
@@ -882,7 +895,7 @@ export type DmMessageAdmission =
   | { admitted: true; settled: Promise<void> }
   | { admitted: false; reason: DmAdmissionFailure };
 
-interface TobCliRequestLease {
+export interface TobCliRequestLease {
   humanId: string;
   botSlug: string;
   controller: AbortController;
@@ -1250,7 +1263,7 @@ interface SourceEventRow {
   attempt_state: SourceEventAttemptState;
 }
 
-interface SourceEventClaim {
+export interface SourceEventClaim {
   sourceEventId: string;
   shouldRun: boolean;
   reconciliationRequired?: true;
@@ -1587,39 +1600,8 @@ const TRANSIENT_FAILURE_CODES = new Set([
 ]);
 const AUTO_CONTINUE_DELAYS_MS: readonly number[] = [60_000, 180_000];
 const FAILURE_HOLD_THRESHOLD = 3;
-const MAX_MIXED_GROUP_ATTEMPTS = 32;
 
 export type BotHoldCause = 'human-stop' | 'failures' | 'quota';
-
-class RouteRestingError extends Error {
-  readonly code = 'ROUTE_RESTING';
-  constructor(
-    readonly rests: readonly RestingRoute[],
-    readonly subscription?: SubscriptionRest,
-  ) {
-    super(
-      subscription === undefined
-        ? `ROUTE_RESTING: ${rests.map((rest) => `${rest.provider}/${rest.model} rests until ${rest.until}`).join('; ')}; no request was sent.`
-        : 'ROUTE_RESTING: All Routing Group targets are resting.',
-    );
-  }
-}
-
-class RoutingGroupUnavailableError extends Error {
-  readonly code = 'ROUTING_GROUP_UNAVAILABLE';
-  constructor(
-    cause?: unknown,
-    message = 'The Routing Group has no usable target. Check its model permissions and credentials.',
-  ) {
-    super(message, { cause });
-  }
-}
-
-function routingTargetKey(target: RoutingTarget): ModelSwitch['to'] {
-  return target.kind === 'route'
-    ? target.route
-    : { provider: target.engine, model: target.model ?? target.engine };
-}
 
 export interface StoppedSessionRef {
   botSlug: string;
@@ -1640,15 +1622,6 @@ const STOP_SETTLE_TIMEOUT_MS = 30_000;
 
 const SESSION_STOPPED_REFUSAL =
   'The Human stopped this Session. This action was not performed; wait for the Human before doing more.';
-
-function interruptedToolsNote(calls: readonly InterruptedToolCall[]): string {
-  const lines = calls.map((call) => {
-    const line = call.arguments.replace(/\s*[\r\n]+\s*/gu, ' ');
-    const args = line.length > 300 ? `${line.slice(0, 300)}…` : line;
-    return `- ${call.name} (call ${call.callId}): ${args}`;
-  });
-  return `[Host: the Human stopped this Session while these tool calls were still running. Each is recorded as stopped by the Human with an unknown result: it may or may not have taken effect. Check its effect before you redo any of them, and do not repeat a side effect blindly.\n${lines.join('\n')}]\n\n`;
-}
 
 const ASSIGNMENT_FALLBACK_NOTE =
   'The previous model stopped before finishing this Turn (out of quota or unavailable). The Host moved this Session to the next model in its Routing Group. Continue the work from where it stopped.';
@@ -1678,29 +1651,6 @@ const HUMAN_TURN_STOP_NOTICE =
 
 const ORCHESTRATOR_STOP_NOTICE =
   'Stopped by the Orchestrator; it is now a Stopped Session with its history kept. When a later request fits it, send_assignment_request to this Session id wakes it and delivers the request.';
-
-interface PendingAutoContinue {
-  timer: NodeJS.Timeout;
-  channelId: string;
-  messageId: string;
-  sessionId: string;
-  attempt: number;
-}
-
-type DmContinuation =
-  | { kind: 'failure'; code?: string; autoAttempts: number }
-  | { kind: 'host-restart'; autoAttempts: number };
-
-const CONTINUE_FROM_SESSION =
-  "The tool calls and results it completed are in this Session's history. Continue from where you stopped instead of starting over. A tool call with no recorded result has an unknown outcome: check its effect before repeating it.";
-
-function continuationNote(continuation: DmContinuation): string {
-  const cause =
-    continuation.kind === 'host-restart'
-      ? 'the Host restarted'
-      : `it failed${continuation.code === undefined ? '' : ` with ${continuation.code}`}`;
-  return `[Host: your earlier turn for the message below stopped before it finished because ${cause}. ${CONTINUE_FROM_SESSION}]\n\n`;
-}
 
 class BotRuntimeImplementation implements BotRuntime {
   readonly #requireModelRoute: BotRuntimeOptions['requireModelRoute'];
@@ -1827,6 +1777,10 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #activityEvents: ReturnType<typeof createActivityEvents>;
   readonly #messagingEvents: ReturnType<typeof createMessagingEvents>;
 
+  readonly #scheduling: ReturnType<typeof createOrchestratorScheduling>;
+  readonly #cancellation: ReturnType<typeof createOrchestratorCancellation>;
+  readonly #continuation: ReturnType<typeof createOrchestratorContinuation>;
+
   constructor(options: BotRuntimeOptions) {
     this.#waitOptions = options;
     this.#tob = options.tob;
@@ -1931,7 +1885,7 @@ class BotRuntimeImplementation implements BotRuntime {
 
     this.#assignmentEvents = createAssignmentEvents({
       database: this.#database,
-      scheduleHarvest: (...args) => this.#scheduleHarvest(...args),
+      scheduleHarvest: (...args) => this.#scheduling.scheduleHarvest(...args),
       completionDigestTimers: this.#completionDigestTimers,
       getAssignment: (...args) => this.getAssignment(...args),
       waitOptions: this.#waitOptions,
@@ -1945,7 +1899,7 @@ class BotRuntimeImplementation implements BotRuntime {
       now: (...args) => this.#now(...args),
       database: this.#database,
       sourcePolicy: this.#sourcePolicy,
-      scheduleHarvest: (...args) => this.#scheduleHarvest(...args),
+      scheduleHarvest: (...args) => this.#scheduling.scheduleHarvest(...args),
       ownership: this.#ownership,
       closed: () => this.#closed,
       registry: this.#registry,
@@ -1976,7 +1930,7 @@ class BotRuntimeImplementation implements BotRuntime {
       database: this.#database,
       now: (...args) => this.#now(...args),
       held: this.#held,
-      enqueue: (...args) => this.#enqueue(...args),
+      enqueue: (...args) => this.#scheduling.enqueue(...args),
       triageContinuation: this.#triageContinuation,
       triageQueued: this.#triageQueued,
       inboxTriage: this.#inboxTriage,
@@ -2019,6 +1973,90 @@ class BotRuntimeImplementation implements BotRuntime {
       armDigest: (...args) => this.#armDigest(...args),
     });
 
+    this.#scheduling = createOrchestratorScheduling({
+      activeTurns: this.#activeTurns,
+      activityEvents: this.#activityEvents,
+      checkHarvestReadiness: (...args) => this.#checkHarvestReadiness(...args),
+      closed: () => this.#closed,
+      database: this.#database,
+      held: this.#held,
+      inboxFactoryRetries: this.#inboxFactoryRetries,
+      pendingHarvests: this.#pendingHarvests,
+      recoverPendingDigests: (...args) => this.#recoverPendingDigests(...args),
+      registry: this.#registry,
+      runHarvestTurn: (...args) => this.#runHarvestTurn(...args),
+      tails: this.#tails,
+      warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
+    });
+    this.#continuation = createOrchestratorContinuation({
+      admitDmMessage: (...args) => this.admitDmMessage(...args),
+      agents: this.#agents,
+      appendModelSwitch: (...args) => this.#appendModelSwitch(...args),
+      autoContinues: this.#autoContinues,
+      channels: this.#channels,
+      closed: () => this.#closed,
+      currentOrchestratorSessionId: (...args) => this.currentOrchestratorSessionId(...args),
+      database: this.#database,
+      engineFallback:
+        this.#engineFallback === undefined
+          ? undefined
+          : (...args) => this.#engineFallback?.(...args),
+      enqueue: (...args) => this.#scheduling.enqueue(...args),
+      failureStreaks: this.#failureStreaks,
+      groupFallback: this.#groupFallback,
+      memberBotEnabled: (...args) => this.#memberBotEnabled(...args),
+      now: () => this.#now(),
+      orchestratorServices: (...args) => this.#orchestratorServices(...args),
+      registry: this.#registry,
+      release: (...args) => this.#release(...args),
+      replaceOrchestrator: (...args) => this.#replaceOrchestrator(...args),
+      requireExecution:
+        this.#requireExecution === undefined
+          ? undefined
+          : (...args) => this.#requireExecution?.(...args),
+      routeRests: this.#routeRests,
+      runHumanDmTurn: (...args) => this.#runHumanDmTurn(...args),
+      sessionRoute:
+        this.#sessionRoute === undefined ? undefined : (...args) => this.#sessionRoute?.(...args),
+      stoppedTurns: this.#stoppedTurns,
+      switchingRoutingGroups: this.#switchingRoutingGroups,
+      tails: this.#tails,
+      team: this.#team,
+      warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
+    });
+    this.#cancellation = createOrchestratorCancellation({
+      activeTurns: this.#activeTurns,
+      agents: this.#agents,
+      assignmentAcceptances: this.#assignmentAcceptances,
+      assignmentRow: (...args) => this.#assignmentRow(...args),
+      assignmentRuns: this.#assignmentRuns,
+      cancelAutoContinue: (...args) => this.#continuation.cancelAutoContinue(...args),
+      closed: () => this.#closed,
+      closeSessionApprovals:
+        this.#closeSessionApprovals === undefined
+          ? undefined
+          : (...args) => this.#closeSessionApprovals?.(...args),
+      currentOrchestratorSessionId: (...args) => this.currentOrchestratorSessionId(...args),
+      database: this.#database,
+      groupSendReview: this.groupSendReview,
+      interruptedTools: this.#interruptedTools,
+      memoryTurnOperations: this.#memoryTurnOperations,
+      now: () => this.#now(),
+      ownership: this.#ownership,
+      pendingDeliveries: this.#pendingDeliveries,
+      pendingHarvests: this.#pendingHarvests,
+      registry: this.#registry,
+      stopAssignment: (...args) => this.#stopAssignment(...args),
+      stopNotices: this.#stopNotices,
+      stoppedTurns: this.#stoppedTurns,
+      stopSettleTimeoutMs: this.#stopSettleTimeoutMs,
+      switchingRoutingGroups: this.#switchingRoutingGroups,
+      tails: this.#tails,
+      tobCliRequests: this.#tobCliRequests,
+      turnSources: this.#turnSources,
+      warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
+    });
+
     if (options.database.mode === 'ready') {
       const interruptedDms = this.#recoverInterruptedAttempts();
       this.#retireRevokedGroupRetries();
@@ -2028,13 +2066,17 @@ class BotRuntimeImplementation implements BotRuntime {
         const botSlug = channel?.type === 'dm' ? channel.botSlug : undefined;
         if (botSlug === undefined) continue;
         const failure = this.#channels.latestMessage(row.channel_id)?.sessionFailure;
-        void this.#continueDmTurn(botSlug, row.channel_id, row.message_id, {
-          kind: 'host-restart',
-          autoAttempts:
-            failure?.requestMessageId === row.message_id ? (failure.autoContinue?.attempt ?? 0) : 0,
-        })?.catch(() => undefined);
+        void this.#continuation
+          .continueDmTurn(botSlug, row.channel_id, row.message_id, {
+            kind: 'host-restart',
+            autoAttempts:
+              failure?.requestMessageId === row.message_id
+                ? (failure.autoContinue?.attempt ?? 0)
+                : 0,
+          })
+          ?.catch(() => undefined);
       }
-      this.#rearmAutoContinues();
+      this.#continuation.rearmAutoContinues();
       this.#recoverPendingDigests();
       this.#assignmentEvents.recoverPendingAssignmentReports();
       for (const bot of this.#registry.list()) this.#activityEvents.armSnooze(bot.slug);
@@ -2061,187 +2103,15 @@ class BotRuntimeImplementation implements BotRuntime {
     return { channelId: channel.id, messageId: input.messageId, reactions };
   }
 
-  async retryDmMessage(
+  retryDmMessage(
     channelId: string,
     messageId: string,
     human: HumanContext = OWNER_HUMAN_CONTEXT,
   ): Promise<void> {
-    const message = this.#retryableDmMessage(channelId, messageId);
-    const admission = this.admitDmMessage(human, {
-      channelId,
-      messageId,
-      body: message.body,
-    });
-    if (!admission.admitted) throw new Error(admission.reason);
-    void admission.settled.catch(() => undefined);
+    return this.#continuation.retryDmMessage(channelId, messageId, human);
   }
 
-  #retryableDmMessage(channelId: string, messageId: string) {
-    const channel = this.#channels.get(channelId);
-    const message = this.#channels.message(channelId, messageId);
-    const direct = message === undefined && messageId.startsWith(SESSION_DIRECT_MESSAGE_PREFIX);
-    if (channel?.type !== 'dm' || !channel.botSlug || (message?.author.kind !== 'human' && !direct))
-      throw new Error('Retry requires the original Human DM message');
-    if (message?.tobCliRequestId !== undefined) throw new TobError('cli-request-expired');
-    const safe = this.#database.read((database) =>
-      database
-        .prepare(
-          `
-      SELECT e.body FROM source_events e JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
-      WHERE e.channel_id = ? AND e.message_id = ? AND a.bot_slug = ?
-        AND e.attempt_state = 'retryable' AND a.attempt_state = 'retryable'
-        AND e.side_effect_started_at IS NULL AND a.side_effect_started_at IS NULL
-    `,
-        )
-        .get(channelId, messageId, channel.botSlug!),
-    ) as { body: string } | undefined;
-    if (!safe)
-      throw new Error('This message cannot be safely retried; inspect its original Session');
-    return { body: message?.body ?? safe.body };
-  }
-
-  #continuableDmEvent(channelId: string, messageId: string): string | undefined {
-    if (this.#channels.message(channelId, messageId)?.tobCliRequestId !== undefined)
-      return undefined;
-    const channel = this.#channels.get(channelId);
-    const message = this.#channels.message(channelId, messageId);
-    if (
-      channel?.type !== 'dm' ||
-      !channel.botSlug ||
-      (message?.author.kind !== 'human' && !messageId.startsWith(SESSION_DIRECT_MESSAGE_PREFIX))
-    )
-      return undefined;
-    const row = this.#database.read((database) =>
-      database
-        .prepare(
-          `
-      SELECT e.source_event_id FROM source_events e
-        JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
-       WHERE e.channel_id = ? AND e.message_id = ? AND a.bot_slug = ?
-         AND e.source_kind = 'human-message' AND a.reason = 'human-dm'
-         AND e.attempt_state IN ('retryable', 'needs-repair')
-         AND a.attempt_state IN ('retryable', 'needs-repair')
-    `,
-        )
-        .get(channelId, messageId, channel.botSlug!),
-    ) as { source_event_id: string } | undefined;
-    return row?.source_event_id;
-  }
-
-  #continueDmTurn(
-    botSlug: string,
-    channelId: string,
-    messageId: string,
-    continuation: DmContinuation,
-  ): Promise<void> | undefined {
-    const bot = this.#registry.get(botSlug);
-    if (this.#closed || bot === undefined || bot.paused === true) return undefined;
-    const sourceEventId = this.#continuableDmEvent(channelId, messageId);
-    if (sourceEventId === undefined) return undefined;
-    const body =
-      this.#channels.message(channelId, messageId)?.body ??
-      (
-        this.#database.read((database) =>
-          database
-            .prepare('SELECT body FROM source_events WHERE source_event_id = ?')
-            .get(sourceEventId),
-        ) as { body: string } | undefined
-      )?.body;
-    if (body === undefined) return undefined;
-    const claimed = this.#database.transaction(
-      (database) => {
-        const events = database
-          .prepare(
-            `UPDATE source_events SET attempt_state = 'running'
-              WHERE source_event_id = ? AND attempt_state IN ('retryable', 'needs-repair')`,
-          )
-          .run(sourceEventId).changes;
-        database
-          .prepare(
-            `
-          UPDATE inbox_admissions SET attempt_state = 'running', last_error = NULL
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state IN ('retryable', 'needs-repair')
-        `,
-          )
-          .run(sourceEventId, botSlug);
-        return events > 0;
-      },
-      ['source-event', 'bot-inbox'],
-    );
-    if (!claimed) return undefined;
-    return this.#enqueue(botSlug, () =>
-      this.#runHumanDmTurn(
-        bot,
-        channelId,
-        body,
-        { sourceEventId, shouldRun: true },
-        messageId,
-        continuation,
-      ),
-    );
-  }
-
-  #rearmAutoContinues(): void {
-    for (const bot of this.#registry.list()) {
-      if (bot.paused === true || this.#autoContinues.has(bot.slug)) continue;
-      const channelId = dmChannelId(bot.slug);
-      const card = this.#channels.latestMessage(channelId);
-      const failure = card?.sessionFailure;
-      if (
-        card?.author.kind !== 'bot' ||
-        failure?.autoContinue === undefined ||
-        failure.requestMessageId === undefined ||
-        failure.role !== 'orchestrator' ||
-        failure.code === undefined ||
-        this.currentOrchestratorSessionId(bot.slug) !== failure.sessionId ||
-        this.#continuableDmEvent(channelId, failure.requestMessageId) === undefined
-      )
-        continue;
-      this.#armAutoContinue(
-        bot.slug,
-        {
-          channelId,
-          messageId: failure.requestMessageId,
-          sessionId: failure.sessionId,
-          attempt: failure.autoContinue.attempt,
-        },
-        Math.max(0, Date.parse(failure.autoContinue.at) - this.#now().getTime()),
-        failure.code,
-      );
-    }
-  }
-
-  #cancelAutoContinue(botSlug: string): PendingAutoContinue | undefined {
-    const pending = this.#autoContinues.get(botSlug);
-    if (pending === undefined) return undefined;
-    clearTimeout(pending.timer);
-    this.#autoContinues.delete(botSlug);
-    return pending;
-  }
-
-  #armAutoContinue(
-    botSlug: string,
-    pending: Omit<PendingAutoContinue, 'timer'>,
-    delayMs: number,
-    code: string,
-  ): void {
-    this.#cancelAutoContinue(botSlug);
-    const timer = setTimeout(() => {
-      if (this.#autoContinues.get(botSlug)?.timer !== timer) return;
-      this.#autoContinues.delete(botSlug);
-      if (this.#closed || this.currentOrchestratorSessionId(botSlug) !== pending.sessionId) return;
-      const settled = this.#continueDmTurn(botSlug, pending.channelId, pending.messageId, {
-        kind: 'failure',
-        code,
-        autoAttempts: pending.attempt,
-      });
-      void settled?.catch(() => undefined);
-    }, delayMs);
-    timer.unref?.();
-    this.#autoContinues.set(botSlug, { ...pending, timer });
-  }
-
-  async recoverDmMessage(
+  recoverDmMessage(
     input: {
       channelId: string;
       failureMessageId: string;
@@ -2250,163 +2120,11 @@ class BotRuntimeImplementation implements BotRuntime {
     },
     human: HumanContext = OWNER_HUMAN_CONTEXT,
   ): Promise<void> {
-    const card = this.#channels.message(input.channelId, input.failureMessageId);
-    const failure = card?.sessionFailure;
-    const channel = this.#channels.get(input.channelId);
-    const botSlug = channel?.type === 'dm' ? channel.botSlug : undefined;
-    if (
-      !botSlug ||
-      card?.author.kind !== 'bot' ||
-      card.author.slug !== botSlug ||
-      failure?.role !== 'orchestrator' ||
-      !failure.requestMessageId
-    )
-      throw new SessionRecoveryError(
-        'retry-unavailable',
-        'Recovery requires the original Bot failure',
-      );
-    const messageId = failure.requestMessageId;
-    const continuing = input.action === 'continue';
-    const assertAllowed = () => {
-      const bot = this.#registry.get(botSlug);
-      if (
-        !bot ||
-        bot.paused ||
-        this.#closed ||
-        (this.#team
-          ? !this.#team.channelAccess.canRead(human, input.channelId) ||
-            !this.#team.bots.canReach(human, bot.slug)
-          : botOwner(bot) !== human.humanId) ||
-        !this.#memberBotEnabled(bot)
-      )
-        throw new SessionRecoveryError('recovery-unavailable', 'This Bot is unavailable');
-      this.#requireExecution?.(botSlug);
-      if (continuing) {
-        if (this.#continuableDmEvent(input.channelId, messageId) === undefined)
-          throw new SessionRecoveryError(
-            'retry-unavailable',
-            'This message has nothing left to continue. Inspect its original Session.',
-          );
-        return;
-      }
-      try {
-        this.#retryableDmMessage(input.channelId, messageId);
-      } catch {
-        throw new SessionRecoveryError(
-          'retry-unavailable',
-          'This message cannot be safely retried. Inspect its original Session.',
-        );
-      }
-    };
-    const assertCurrent = () => {
-      if (this.currentOrchestratorSessionId(botSlug) !== failure.sessionId)
-        throw new SessionRecoveryError(
-          'session-changed',
-          'The Session has changed. Retry the message without resetting it.',
-        );
-      assertAllowed();
-    };
-    assertCurrent();
-    if (this.#tails.has(botSlug))
-      throw new SessionRecoveryError(
-        'bot-busy',
-        'Wait for the current reply or stop the Bot first',
-      );
-    this.#cancelAutoContinue(botSlug);
-    this.#release(botSlug);
-    if (continuing) {
-      const settled = this.#continueDmTurn(botSlug, input.channelId, messageId, {
-        kind: 'failure',
-        ...(failure.code === undefined ? {} : { code: failure.code }),
-        autoAttempts: 0,
-      });
-      if (settled === undefined)
-        throw new SessionRecoveryError(
-          'retry-unavailable',
-          'This message has nothing left to continue. Inspect its original Session.',
-        );
-      void settled.catch(() => undefined);
-      return;
-    }
-    await this.#enqueue(botSlug, async () => {
-      assertCurrent();
-      if (input.action === 'new-session') {
-        const result = await this.#replaceOrchestrator(botSlug, assertAllowed);
-        if (result.outcome === 'refused')
-          throw new SessionRecoveryError(
-            'bot-busy',
-            'Wait for the current reply or stop the Bot first',
-          );
-      } else {
-        await this.#loadOrchestrator(botSlug, failure.sessionId);
-        assertCurrent();
-        const compacted = await input.compact(failure.sessionId).catch(() => false);
-        if (!compacted)
-          throw new SessionRecoveryError(
-            'compaction-failed',
-            'Could not compact this Session. Start a new Session to recover.',
-          );
-        assertCurrent();
-      }
-      await this.retryDmMessage(input.channelId, messageId, human);
-    });
+    return this.#continuation.recoverDmMessage(input, human);
   }
 
-  async #loadOrchestrator(botSlug: string, sessionId: string): Promise<void> {
-    const bot = this.#registry.get(botSlug);
-    if (!bot || bot.paused || !this.#agents.loadOrchestrator)
-      throw new SessionRecoveryError('recovery-unavailable', 'Could not load the original Session');
-    this.#requireExecution?.(botSlug);
-    const loading = this.#agents.loadOrchestrator({
-      sessionId,
-      resume: true,
-      bot,
-      message: '',
-      inbox: '',
-      inboundChannelId: undefined,
-      ...this.#orchestratorServices(bot, {
-        sessionId,
-        channelId: undefined,
-        sourceEventId: `maintenance-${randomUUID()}`,
-        markSideEffect: () => {
-          throw new Error('Maintenance cannot perform Bot actions');
-        },
-        readAdmissions: new Set(),
-        importedFiles: new Map(),
-        turnSources: new Set(),
-        observeMemory: false,
-        observeReads: false,
-      }),
-    });
-    await loading.catch((error: unknown) => {
-      if (error instanceof Error && error.name === 'SessionUnavailableError')
-        throw new SessionRecoveryError(
-          'session-unsaved',
-          'This Session was never saved, so there is nothing to compact. Start a new Session to recover.',
-        );
-      throw error;
-    });
-  }
-
-  async compactOrchestrator<T>(
-    botSlug: string,
-    compact: (sessionId: string) => Promise<T>,
-  ): Promise<T> {
-    if (this.#tails.has(botSlug))
-      throw new SessionRecoveryError(
-        'bot-busy',
-        'Wait for the current reply or stop the Bot first',
-      );
-    let result: { value: T } | undefined;
-    await this.#enqueue(botSlug, async () => {
-      const sessionId = this.currentOrchestratorSessionId(botSlug);
-      if (!sessionId)
-        throw new SessionRecoveryError('recovery-unavailable', 'No Session to compact');
-      await this.#loadOrchestrator(botSlug, sessionId);
-      result = { value: await compact(sessionId) };
-    });
-    if (!result) throw new SessionRecoveryError('recovery-unavailable', 'This Bot is unavailable');
-    return result.value;
+  compactOrchestrator<T>(botSlug: string, compact: (sessionId: string) => Promise<T>): Promise<T> {
+    return this.#continuation.compactOrchestrator(botSlug, compact);
   }
 
   async tobCli(human: HumanContext, input: TobCliRequest): Promise<TobCliStatus> {
@@ -2565,7 +2283,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const body = persistedBody?.trim() ? persistedBody : input.body;
     if (body.trim().length === 0) return { admitted: false, reason: 'blank-body' };
     if (this.#autoContinues.get(bot.slug)?.messageId !== input.messageId)
-      this.#cancelAutoContinue(bot.slug);
+      this.#continuation.cancelAutoContinue(bot.slug);
     this.#release(bot.slug);
 
     const timestamp = this.#now().toISOString();
@@ -2602,7 +2320,7 @@ class BotRuntimeImplementation implements BotRuntime {
       admitted: true,
       settled: steered
         ? Promise.resolve()
-        : this.#enqueue(bot.slug, () =>
+        : this.#scheduling.enqueue(bot.slug, () =>
             this.#runHumanDmTurn(
               bot,
               channel.id,
@@ -2653,7 +2371,7 @@ class BotRuntimeImplementation implements BotRuntime {
       input.text,
       this.#now().toISOString(),
     );
-    this.#cancelAutoContinue(bot.slug);
+    this.#continuation.cancelAutoContinue(bot.slug);
     this.#release(bot.slug);
     const steered =
       claim.shouldRun &&
@@ -2673,7 +2391,7 @@ class BotRuntimeImplementation implements BotRuntime {
       sourceEventId: claim.sourceEventId,
       settled: steered
         ? Promise.resolve()
-        : this.#enqueue(bot.slug, () =>
+        : this.#scheduling.enqueue(bot.slug, () =>
             this.#runHumanDmTurn(bot, channel.id, input.text, claim, messageId),
           ),
     };
@@ -2834,7 +2552,7 @@ class BotRuntimeImplementation implements BotRuntime {
         )
           continue;
       }
-      this.#scheduleHarvest(row.bot_slug);
+      this.#scheduling.scheduleHarvest(row.bot_slug);
     }
   }
 
@@ -3418,7 +3136,7 @@ class BotRuntimeImplementation implements BotRuntime {
         !Number.isFinite(deadline) ||
         deadline <= now
       ) {
-        this.#scheduleHarvest(botSlug);
+        this.#scheduling.scheduleHarvest(botSlug);
         return;
       }
       nextDeadline = Math.min(nextDeadline, deadline);
@@ -3432,21 +3150,6 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     timer.unref();
     this.#digestTimers.set(key, timer);
-  }
-
-  #scheduleHarvest(botSlug: string): void {
-    if (this.#closed || this.#held.has(botSlug)) return;
-    const bot = this.#registry.get(botSlug);
-    if (bot === undefined || bot.paused === true) return;
-    if (this.#pendingHarvests.has(botSlug)) return;
-    this.#pendingHarvests.add(botSlug);
-    const settled = this.#enqueue(botSlug, () => this.#runHarvestTurn(botSlug));
-    void settled
-      .finally(() => {
-        this.#pendingHarvests.delete(botSlug);
-        this.#checkHarvestReadiness(botSlug);
-      })
-      .catch(() => undefined);
   }
 
   #checkHarvestReadiness(botSlug: string): void {
@@ -3466,14 +3169,14 @@ class BotRuntimeImplementation implements BotRuntime {
         .get(botSlug),
     );
     if (immediate !== undefined) {
-      this.#scheduleHarvest(botSlug);
+      this.#scheduling.scheduleHarvest(botSlug);
       return;
     }
     if (
       hasPendingScheduleFiring(this.#database, botSlug) &&
       this.#dmChannel(botSlug) !== undefined
     ) {
-      this.#scheduleHarvest(botSlug);
+      this.#scheduling.scheduleHarvest(botSlug);
       return;
     }
     const externalPending = this.#messagingEvents.pendingExternalRows(botSlug);
@@ -3484,7 +3187,7 @@ class BotRuntimeImplementation implements BotRuntime {
           this.#externalMessaging?.inbound.available(botSlug, row.source_event_id),
       )
     ) {
-      this.#scheduleHarvest(botSlug);
+      this.#scheduling.scheduleHarvest(botSlug);
       return;
     }
     if (this.#dmChannel(botSlug) !== undefined) {
@@ -3682,7 +3385,7 @@ class BotRuntimeImplementation implements BotRuntime {
       }
       if (
         collected.eventIds.length > 0 &&
-        this.#retryInboxAfterAgentFactoryStarts(botSlug, collected.eventIds, error)
+        this.#scheduling.retryInboxAfterAgentFactoryStarts(botSlug, collected.eventIds, error)
       )
         return;
       const retry = this.#inboxFactoryRetries.get(botSlug);
@@ -4824,31 +4527,33 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#nativeStepReady.set(sessionId, finish);
       cancellation.addEventListener('abort', abort, { once: true });
       if (cancellation.aborted) return abort();
-      void this.#enqueue(owner.botSlug, async () => {
-        if (settled || !available()) return;
-        const bot = this.#registry.get(owner.botSlug)!;
-        await this.#runOrchestratorTurn(
-          bot,
-          { sessionId, resume: true },
-          undefined,
-          undefined,
-          '',
-          [],
-          false,
+      void this.#scheduling
+        .enqueue(owner.botSlug, async () => {
+          if (settled || !available()) return;
+          const bot = this.#registry.get(owner.botSlug)!;
+          await this.#runOrchestratorTurn(
+            bot,
+            { sessionId, resume: true },
+            undefined,
+            undefined,
+            '',
+            [],
+            false,
+            () => {
+              if (!admissible()) throw new Error('Native Orchestrator is unavailable');
+            },
+            [],
+            [],
+            admissible,
+          );
+        })
+        .then(
+          () => finish(false),
           () => {
-            if (!admissible()) throw new Error('Native Orchestrator is unavailable');
+            finish(false);
+            this.#warn?.('native-subagent-input-run-failed');
           },
-          [],
-          [],
-          admissible,
         );
-      }).then(
-        () => finish(false),
-        () => {
-          finish(false);
-          this.#warn?.('native-subagent-input-run-failed');
-        },
-      );
     });
   }
 
@@ -4891,7 +4596,7 @@ class BotRuntimeImplementation implements BotRuntime {
       const accepted = new Promise<boolean>((resolve) => {
         accept = resolve;
       });
-      const done = this.#enqueue(owner.botSlug, async () => {
+      const done = this.#scheduling.enqueue(owner.botSlug, async () => {
         try {
           phase = 'authority';
           const bot = this.#registry.get(owner.botSlug);
@@ -4983,27 +4688,6 @@ class BotRuntimeImplementation implements BotRuntime {
       );
       return accepted;
     };
-  }
-
-  #enqueue(turnKey: string, task: () => Promise<void>): Promise<void> {
-    const previous = this.#tails.get(turnKey) ?? Promise.resolve();
-    let run: Promise<void>;
-    const invoke = (): Promise<void> => {
-      if (this.#registry.get(turnKey) === undefined) return Promise.resolve();
-      this.#activeTurns.set(turnKey, run);
-      return task();
-    };
-    run = previous.then(invoke, invoke);
-    const tail = run.then(
-      () => undefined,
-      () => undefined,
-    );
-    this.#tails.set(turnKey, tail);
-    void tail.then(() => {
-      if (this.#tails.get(turnKey) === tail) this.#tails.delete(turnKey);
-      if (this.#activeTurns.get(turnKey) === run) this.#activeTurns.delete(turnKey);
-    });
-    return run;
   }
 
   directBotTools(): DirectBotToolSpec[] {
@@ -5374,7 +5058,7 @@ class BotRuntimeImplementation implements BotRuntime {
   ): Promise<OrchestratorReplacement<T>> {
     if (this.#tails.has(botSlug)) return BOT_BUSY;
     let result: OrchestratorReplacement<T> | undefined;
-    await this.#enqueue(botSlug, async () => {
+    await this.#scheduling.enqueue(botSlug, async () => {
       result = await this.#replaceOrchestrator(botSlug, body);
     });
     if (result === undefined) throw new Error(`Unknown PersonaBot: ${botSlug}`);
@@ -5710,111 +5394,12 @@ class BotRuntimeImplementation implements BotRuntime {
     }
   }
 
-  #cancelTobCli(botSlug: string): boolean {
-    let cancelled = false;
-    for (const request of this.#tobCliRequests.values()) {
-      if (
-        request.botSlug !== botSlug ||
-        request.status.state !== 'running' ||
-        request.controller.signal.aborted
-      )
-        continue;
-      request.status = { ...request.status, cancelRequested: true };
-      request.controller.abort();
-      cancelled = true;
-    }
-    return cancelled;
+  stopBot(botSlug: string): Promise<void> {
+    return this.#cancellation.stopBot(botSlug);
   }
 
-  async stopBot(botSlug: string): Promise<void> {
-    this.#cancelTobCli(botSlug);
-    const owned = () =>
-      this.#ownership
-        .rootsFor(botSlug)
-        .flatMap((root) => [
-          root.sessionId,
-          ...this.#ownership.descendantsOf(root.sessionId).map((child) => child.sessionId),
-        ]);
-    const sessionIds = owned();
-    const active = [
-      this.#tails.get(botSlug),
-      ...sessionIds.map((id) => this.#assignmentRuns.get(id)),
-    ].filter((run): run is Promise<void> => run !== undefined);
-    if (this.#agents.stopBot === undefined && active.length > 0)
-      throw new Error('Agent adapter cannot stop this Bot safely');
-    this.groupSendReview.stop(botSlug);
-    this.#database.transaction(
-      (database) => {
-        database
-          .prepare(
-            "UPDATE assignments SET stop_state = 'requested', updated_at = ? WHERE bot_slug = ? AND stop_state = 'running'",
-          )
-          .run(this.#now().toISOString(), botSlug);
-      },
-      ['assignments'],
-    );
-    await this.#agents.stopBot?.(botSlug, sessionIds);
-    await Promise.allSettled(active);
-    await this.#agents.stopBot?.(botSlug, owned());
-    this.#database.transaction(
-      (database) => {
-        database
-          .prepare(
-            "UPDATE assignments SET stop_state = 'stopped', activity = 'idle', continuity_key = NULL, updated_at = ? WHERE bot_slug = ? AND stop_state = 'requested'",
-          )
-          .run(this.#now().toISOString(), botSlug);
-      },
-      ['assignments'],
-    );
-    this.#pendingHarvests.delete(botSlug);
-  }
-
-  async stopSession(botSlug: string, sessionId: string): Promise<SessionStopOutcome> {
-    const bot = this.#registry.get(botSlug);
-    const row = this.#assignmentRow(botSlug, sessionId);
-    if (bot === undefined || row === undefined) {
-      const owned =
-        bot !== undefined &&
-        this.#ownership
-          .rootsFor(botSlug, 'orchestrator')
-          .some((root) => root.sessionId === sessionId);
-      if (!owned || bot === undefined)
-        return {
-          outcome: 'refused',
-          code: 'unknown-session',
-          message: `${sessionId} is not a Session of ${botSlug}`,
-        };
-      const ref: StoppedSessionRef = { botSlug, sessionId, role: 'orchestrator' };
-      const current = this.currentOrchestratorSessionId(botSlug);
-      const cliStopped = current === sessionId && this.#cancelTobCli(botSlug);
-      const stopped =
-        (current === undefined || current === sessionId) &&
-        (await this.#humanStopOrchestrator(
-          bot,
-          `[Host: the Human stopped your previous turn at ${this.#now().toISOString()} before it finished. Only your Orchestrator Session stopped; your Assignment Sessions keep running. Do not resume that work unless they ask again.]\n\n`,
-        )) !== undefined;
-      this.#warn?.(
-        JSON.stringify({
-          component: 'bot-runtime',
-          event: 'session-stop',
-          role: 'orchestrator',
-          botSlug,
-          sessionId,
-          stopped: stopped || cliStopped,
-        }),
-      );
-      return stopped || cliStopped
-        ? { outcome: 'settled', stopped: [ref], alreadyIdle: [] }
-        : { outcome: 'settled', stopped: [], alreadyIdle: [ref] };
-    }
-    const ref: StoppedSessionRef = { botSlug, sessionId, role: 'assignment' };
-    if (!this.#assignmentActive(row))
-      return { outcome: 'settled', stopped: [], alreadyIdle: [ref] };
-    await this.#stopAssignment(bot, sessionId, () => undefined, 'human-session-stop');
-    this.#warn?.(
-      JSON.stringify({ component: 'bot-runtime', event: 'session-stop', botSlug, sessionId }),
-    );
-    return { outcome: 'settled', stopped: [ref], alreadyIdle: [] };
+  stopSession(botSlug: string, sessionId: string): Promise<SessionStopOutcome> {
+    return this.#cancellation.stopSession(botSlug, sessionId);
   }
 
   async stopTurn(
@@ -5829,7 +5414,7 @@ class BotRuntimeImplementation implements BotRuntime {
         pending.channelId !== scope.channelId
       )
         return undefined;
-      this.#cancelAutoContinue(botSlug);
+      this.#continuation.cancelAutoContinue(botSlug);
       return { sessionId: pending.sessionId };
     }
     const outcome = await this.stopAllSessions(botSlug);
@@ -5840,91 +5425,8 @@ class BotRuntimeImplementation implements BotRuntime {
     return sessionId === undefined ? undefined : { sessionId };
   }
 
-  async stopAllSessions(botSlug: string): Promise<BotStopOutcome> {
-    const cliStopped = this.#cancelTobCli(botSlug);
-    const bot = this.#registry.get(botSlug);
-    if (bot === undefined) return { stopped: [], alreadyIdle: [] };
-    const orchestratorId = this.currentOrchestratorSessionId(botSlug);
-    const assignmentIds = this.#activeAssignmentIds(botSlug);
-    const turn = await this.#humanStopOrchestrator(
-      bot,
-      `[Host: the Human stopped your previous turn at ${this.#now().toISOString()} before it finished${assignmentIds.length > 0 ? ', together with your running Assignment Sessions' : ''}. Do not resume that work unless they ask again.]\n\n`,
-    );
-    const stopped: StoppedSessionRef[] = [];
-    const alreadyIdle: StoppedSessionRef[] = [];
-    const orchestratorSession = turn?.sessionId ?? orchestratorId;
-    if (orchestratorSession !== undefined)
-      (turn !== undefined || cliStopped ? stopped : alreadyIdle).push({
-        botSlug,
-        sessionId: orchestratorSession,
-        role: 'orchestrator',
-      });
-    if (this.#agents.stopAssignment !== undefined)
-      for (const sessionId of assignmentIds) {
-        try {
-          await this.#stopAssignment(bot, sessionId, () => undefined, 'human-session-stop');
-          stopped.push({ botSlug, sessionId, role: 'assignment' });
-        } catch (error) {
-          this.#warn?.(
-            JSON.stringify({
-              component: 'bot-runtime',
-              event: 'human-stop-assignment-failed',
-              botSlug,
-              sessionId,
-              error: String(error).slice(0, 500),
-            }),
-          );
-        }
-      }
-    this.#warn?.(
-      JSON.stringify({
-        component: 'bot-runtime',
-        event: 'human-stop',
-        botSlug,
-        turn: turn !== undefined,
-        assignments: stopped.filter((ref) => ref.role === 'assignment').length,
-      }),
-    );
-    return { stopped, alreadyIdle };
-  }
-
-  async #humanStopOrchestrator(
-    bot: PersonaBotRecord,
-    notice: string,
-  ): Promise<{ sessionId: string } | undefined> {
-    const orchestratorSessionId = this.currentOrchestratorSessionId(bot.slug);
-    if (orchestratorSessionId !== undefined)
-      this.#beginSessionStop(bot.slug, orchestratorSessionId, 'orchestrator');
-    this.groupSendReview.stop(bot.slug);
-    const turn = await this.#stopTurn(bot.slug, notice);
-    if (turn !== undefined) await this.#cancelPendingDeliveries(bot, turn.sessionId);
-    return turn;
-  }
-
-  #assignmentActive(row: { stop_state: string; activity: string; session_id: string }): boolean {
-    return (
-      row.stop_state === 'requested' ||
-      (row.stop_state === 'running' &&
-        (row.activity === 'working' ||
-          this.#assignmentAcceptances.has(row.session_id) ||
-          this.#assignmentRuns.has(row.session_id)))
-    );
-  }
-
-  #activeAssignmentIds(botSlug: string): string[] {
-    return (
-      this.#database.read((database) =>
-        database
-          .prepare(
-            `SELECT session_id, stop_state, activity FROM assignments
-              WHERE bot_slug = ? AND stop_state IN ('running', 'requested')
-              ORDER BY session_id`,
-          )
-          .all(botSlug),
-      ) as unknown as Array<{ session_id: string; stop_state: string; activity: string }>
-    )
-      .filter((row) => this.#assignmentActive(row))
-      .map((row) => row.session_id);
+  stopAllSessions(botSlug: string): Promise<BotStopOutcome> {
+    return this.#cancellation.stopAllSessions(botSlug);
   }
 
   heldCause(botSlug: string): BotHoldCause | undefined {
@@ -5961,71 +5463,7 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#digestRetryAt.delete(key);
         this.#digestFailureCount.delete(key);
       }
-    this.#resumeAutomaticWakes(botSlug);
-  }
-
-  #resumeAutomaticWakes(botSlug: string): void {
-    queueMicrotask(() => {
-      if (this.#closed || this.#held.has(botSlug)) return;
-      this.#checkHarvestReadiness(botSlug);
-      this.#recoverPendingDigests(botSlug);
-      this.#activityEvents.armSnooze(botSlug);
-    });
-  }
-
-  #restingRoute(botSlug: string, sessionId: string | undefined): RestingRoute | undefined {
-    if (this.#routeRests === undefined || sessionId === undefined) return undefined;
-    const route = this.#sessionRoute?.(botSlug, sessionId);
-    return route === undefined ? undefined : this.#routeRests.restingUntil(route);
-  }
-
-  #restsOf(botSlug: string, error: unknown): readonly RestingRoute[] | undefined {
-    if (error instanceof RouteRestingError || error instanceof EngineLimitError) return error.rests;
-    if (error instanceof RoutingGroupUnavailableError || error instanceof EngineRefusal)
-      return undefined;
-    const rest = this.#restingRoute(botSlug, this.currentOrchestratorSessionId(botSlug));
-    return rest === undefined ? undefined : [rest];
-  }
-
-  async #fallBack(
-    botSlug: string,
-    sessionId: string,
-    channelId: string | undefined,
-    error?: unknown,
-  ): Promise<ModelSwitch | readonly RestingRoute[] | undefined> {
-    if (error instanceof EngineLimitError) {
-      const choice = this.#engineFallback?.(botSlug, error);
-      if (choice === undefined) return error.rests;
-      this.#warn?.(
-        JSON.stringify({
-          component: 'bot-runtime',
-          event: 'engine-fallback',
-          botSlug,
-          engine: error.engine,
-          to: `${choice.to.provider}/${choice.to.model}`,
-          until: choice.until,
-        }),
-      );
-      await this.#appendModelSwitch(botSlug, sessionId, channelId, choice);
-      return choice;
-    }
-    const rest = this.#restingRoute(botSlug, sessionId);
-    if (rest === undefined) return undefined;
-    const choice = await this.#groupFallback?.choose(botSlug, sessionId, rest);
-    if (choice?.kind !== 'switch') return choice?.rests ?? [rest];
-    this.#warn?.(
-      JSON.stringify({
-        component: 'bot-runtime',
-        event: 'model-fallback',
-        botSlug,
-        from: `${choice.from.provider}/${choice.from.model}`,
-        to: `${choice.to.provider}/${choice.to.model}`,
-        reason: choice.reason,
-        until: choice.until,
-      }),
-    );
-    await this.#appendModelSwitch(botSlug, sessionId, channelId, choice);
-    return choice;
+    this.#scheduling.resumeAutomaticWakes(botSlug);
   }
 
   async #appendModelSwitch(
@@ -6068,11 +5506,11 @@ class BotRuntimeImplementation implements BotRuntime {
     channelId: string | undefined,
     error: unknown,
   ): Promise<boolean> {
-    const rests = this.#restsOf(botSlug, error);
+    const rests = this.#continuation.restsOf(botSlug, error);
     if (rests === undefined || rests.length === 0) return false;
     const sessionId = this.currentOrchestratorSessionId(botSlug);
     if (!(error instanceof RouteRestingError) && sessionId !== undefined) {
-      const fallback = await this.#fallBack(botSlug, sessionId, channelId, error);
+      const fallback = await this.#continuation.fallBack(botSlug, sessionId, channelId, error);
       if (fallback !== undefined && 'kind' in fallback) {
         this.#failureStreaks.delete(botSlug);
         return true;
@@ -6217,140 +5655,12 @@ class BotRuntimeImplementation implements BotRuntime {
       [...this.#turnSources]
         .filter(([, turn]) => turn.inboundChannelId === channelId)
         .map(([botSlug]) =>
-          this.#stopTurn(
+          this.#cancellation.stopTurn(
             botSlug,
             `[Host: the Human disbanded the group your previous turn was answering at ${at}, and its messages were deleted. Do not continue that work.]\n\n`,
           ),
         ),
     );
-  }
-
-  async #stopTurn(botSlug: string, notice: string): Promise<{ sessionId: string } | undefined> {
-    const turn = this.#turnSources.get(botSlug);
-    const active = this.#activeTurns.get(botSlug);
-    const waiting = this.#cancelAutoContinue(botSlug);
-    if (waiting !== undefined && (turn === undefined || active === undefined))
-      return this.#closed ? undefined : { sessionId: waiting.sessionId };
-    if (this.#closed || turn === undefined || active === undefined) return undefined;
-    const sessionId =
-      this.#agents.stopOrchestratorTurn?.(botSlug) ??
-      (this.#memoryTurnOperations.has(botSlug) || this.#switchingRoutingGroups.has(botSlug)
-        ? turn.sessionId
-        : undefined);
-    if (sessionId === undefined) return undefined;
-    this.#stoppedTurns.add(botSlug);
-    this.groupSendReview.stop(botSlug);
-    this.#stopNotices.set(botSlug, notice);
-    await this.#settleStop(
-      botSlug,
-      sessionId,
-      active.catch(() => undefined),
-    );
-    return { sessionId };
-  }
-
-  #beginSessionStop(botSlug: string, sessionId: string, role: 'orchestrator' | 'assignment'): void {
-    const tree = [
-      sessionId,
-      ...this.#ownership.descendantsOf(sessionId).map((child) => child.sessionId),
-    ];
-    try {
-      this.#closeSessionApprovals?.(tree);
-    } catch (error) {
-      this.#warn?.(
-        JSON.stringify({
-          component: 'bot-runtime',
-          event: 'stop-approvals-failed',
-          botSlug,
-          sessionId,
-          error: String(error).slice(0, 500),
-        }),
-      );
-    }
-    if (role === 'orchestrator') this.groupSendReview.stopOwner(`${botSlug}:${sessionId}`);
-  }
-
-  async #settleStop(botSlug: string, sessionId: string, settling: Promise<unknown>): Promise<void> {
-    let timer: NodeJS.Timeout | undefined;
-    let outcome: 'settled' | 'timeout';
-    try {
-      outcome = await Promise.race([
-        settling.then(() => 'settled' as const),
-        new Promise<'timeout'>((resolve) => {
-          timer = setTimeout(() => resolve('timeout'), this.#stopSettleTimeoutMs);
-          timer.unref?.();
-        }),
-      ]);
-    } finally {
-      clearTimeout(timer);
-    }
-    if (outcome === 'settled') return;
-    this.#warn?.(
-      JSON.stringify({
-        component: 'bot-runtime',
-        event: 'stop-settle-timeout',
-        botSlug,
-        sessionId,
-        timeoutMs: this.#stopSettleTimeoutMs,
-      }),
-    );
-    await this.#agents.abandonSession?.(sessionId).catch(() => undefined);
-  }
-
-  async #cancelPendingDeliveries(
-    bot: PersonaBotRecord,
-    orchestratorSessionId: string,
-  ): Promise<number> {
-    let cancelled = 0;
-    for (const [sessionId, owner] of [...this.#pendingDeliveries]) {
-      if (owner !== orchestratorSessionId) continue;
-      this.#pendingDeliveries.delete(sessionId);
-      try {
-        await this.#stopAssignment(bot, sessionId, () => undefined, 'human-session-stop');
-        cancelled += 1;
-      } catch (error) {
-        this.#warn?.(
-          JSON.stringify({
-            component: 'bot-runtime',
-            event: 'stop-pending-delivery-failed',
-            botSlug: bot.slug,
-            sessionId,
-            error: String(error).slice(0, 500),
-          }),
-        );
-      }
-    }
-    return cancelled;
-  }
-
-  #recordInterruptedTools(
-    botSlug: string,
-    sessionId: string,
-    calls: readonly InterruptedToolCall[],
-  ): void {
-    if (calls.length === 0) return;
-    this.#interruptedTools.set(sessionId, [
-      ...(this.#interruptedTools.get(sessionId) ?? []),
-      ...calls,
-    ]);
-    this.#warn?.(
-      JSON.stringify({
-        component: 'bot-runtime',
-        event: 'stop-interrupted-tools',
-        botSlug,
-        sessionId,
-        result: 'unknown',
-        stoppedBy: 'human',
-        calls: calls.map((call) => ({ callId: call.callId, name: call.name })),
-      }),
-    );
-  }
-
-  #takeInterruptedToolsNote(sessionId: string): string {
-    const calls = this.#interruptedTools.get(sessionId);
-    if (calls === undefined) return '';
-    this.#interruptedTools.delete(sessionId);
-    return interruptedToolsNote(calls);
   }
 
   async whenIdle(): Promise<void> {
@@ -6386,15 +5696,12 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#completionDigestTimers.clear();
     for (const timer of this.#snoozeTimers.values()) clearTimeout(timer);
     this.#snoozeTimers.clear();
-    for (const pending of this.#autoContinues.values()) clearTimeout(pending.timer);
-    this.#autoContinues.clear();
+    this.#continuation.clearAutoContinues();
     for (const timer of this.#groupAdmissionRetries.values()) clearTimeout(timer);
     this.#groupAdmissionRetries.clear();
     this.#digestRetryAt.clear();
     this.#digestFailureCount.clear();
-    for (const retry of this.#inboxFactoryRetries.values())
-      if (retry.timer !== undefined) clearTimeout(retry.timer);
-    this.#inboxFactoryRetries.clear();
+    this.#scheduling.clearInboxFactoryRetries();
     await Promise.allSettled([
       ...this.#tails.values(),
       ...this.#assignmentRuns.values(),
@@ -6433,7 +5740,7 @@ class BotRuntimeImplementation implements BotRuntime {
     if (!claim.shouldRun) return;
     if (this.#admissionHandled(claim.sourceEventId, bot.slug)) return;
     if (continuation === undefined && this.#autoContinues.get(bot.slug)?.messageId !== messageId)
-      this.#cancelAutoContinue(bot.slug);
+      this.#continuation.cancelAutoContinue(bot.slug);
 
     const timestamp = this.#now().toISOString();
     let orchestrator = this.#ensureOrchestrator(bot, timestamp);
@@ -6470,7 +5777,7 @@ class BotRuntimeImplementation implements BotRuntime {
       const code = sessionFailureDetails(error).code;
       const autoAttempts = continuation?.autoAttempts ?? 0;
       const delayMs = this.#autoContinueDelaysMs[autoAttempts];
-      const resting = this.#restsOf(bot.slug, error) !== undefined;
+      const resting = this.#continuation.restsOf(bot.slug, error) !== undefined;
       if (
         resting &&
         !(error instanceof RouteRestingError) &&
@@ -6479,10 +5786,15 @@ class BotRuntimeImplementation implements BotRuntime {
         !this.#held.has(bot.slug) &&
         channelId === dmChannelId(bot.slug)
       ) {
-        const fallback = await this.#fallBack(bot.slug, orchestrator.sessionId, channelId, error);
+        const fallback = await this.#continuation.fallBack(
+          bot.slug,
+          orchestrator.sessionId,
+          channelId,
+          error,
+        );
         if (fallback !== undefined && 'kind' in fallback) {
           this.#failureStreaks.delete(bot.slug);
-          this.#armAutoContinue(
+          this.#continuation.armAutoContinue(
             bot.slug,
             { channelId, messageId, sessionId: orchestrator.sessionId, attempt: autoAttempts },
             0,
@@ -6519,7 +5831,7 @@ class BotRuntimeImplementation implements BotRuntime {
       });
       if (resting) await this.#holdForRestingRoute(bot.slug, channelId, error);
       if (autoContinue !== undefined && code !== undefined && delayMs !== undefined)
-        this.#armAutoContinue(
+        this.#continuation.armAutoContinue(
           bot.slug,
           { channelId, messageId, sessionId, attempt: autoContinue.attempt },
           delayMs,
@@ -6593,7 +5905,11 @@ class BotRuntimeImplementation implements BotRuntime {
     const routingTarget = group?.target;
     if (routingTarget === undefined && !explicitEngine) {
       if (!orchestrator.resume) await this.#groupFallback?.start(bot.slug, orchestrator.sessionId);
-      const fallback = await this.#fallBack(bot.slug, orchestrator.sessionId, channelId);
+      const fallback = await this.#continuation.fallBack(
+        bot.slug,
+        orchestrator.sessionId,
+        channelId,
+      );
       if (fallback !== undefined && !('kind' in fallback)) throw new RouteRestingError(fallback);
     }
     const turnSources = new Set([
@@ -6776,7 +6092,7 @@ class BotRuntimeImplementation implements BotRuntime {
         resume: orchestrator.resume,
         bot,
         toolsInterrupted: (calls) =>
-          this.#recordInterruptedTools(bot.slug, orchestrator.sessionId, calls),
+          this.#cancellation.recordInterruptedTools(bot.slug, orchestrator.sessionId, calls),
         message: (() => {
           const human =
             channelId === undefined
@@ -6788,7 +6104,7 @@ class BotRuntimeImplementation implements BotRuntime {
           this.#stopNotices.delete(bot.slug);
           return (
             stopped +
-            this.#takeInterruptedToolsNote(orchestrator.sessionId) +
+            this.#cancellation.takeInterruptedToolsNote(orchestrator.sessionId) +
             this.#interruptedDmNotice(bot.slug, channelId) +
             (envelope
               ? envelope.text
@@ -6820,7 +6136,7 @@ class BotRuntimeImplementation implements BotRuntime {
         }),
       };
       if (routingTarget === undefined) await this.#agents.runOrchestrator(run);
-      else await this.#runMixedGroupTurn(run, routingTarget, sourceEventId);
+      else await this.#continuation.runMixedGroupTurn(run, routingTarget, sourceEventId);
       this.#requireTurnAccess(bot.slug, turnSources);
       if (acceptNativeInput === undefined) envelope?.commit();
       if (tobCliTurn !== undefined && sourceEventId !== undefined)
@@ -6867,175 +6183,6 @@ class BotRuntimeImplementation implements BotRuntime {
       if (observeMemory) this.#activeMemoryEvents.delete(bot.slug);
       this.#originalAttachments.clear(orchestrator.sessionId);
     }
-  }
-
-  async #runMixedGroupTurn(
-    run: OrchestratorAgentRun,
-    target: RoutingTarget,
-    sourceEventId: string | undefined,
-  ): Promise<void> {
-    const { acceptNativeInput, ...initial } = run;
-    const { bot, sessionId, inboundChannelId: channelId } = initial;
-    const attempted = new Set<string>();
-    let current = initial;
-    let accepted = false;
-    let inputRecorded = false;
-    try {
-      for (;;) {
-        attempted.add(routingTargetRestKey(target));
-        let inputAccepted = false;
-        try {
-          await this.#agents.runOrchestrator({
-            ...current,
-            routingTarget: target,
-            inputAccepted: () => {
-              inputAccepted = true;
-              run.inputAccepted?.();
-            },
-            ...(accepted || acceptNativeInput === undefined
-              ? {}
-              : { acceptNativeInput: () => (accepted = acceptNativeInput()) }),
-          });
-          return;
-        } catch (error) {
-          const rest = this.#routingTargetFailure(target, error);
-          if (rest === undefined && !(target.kind === 'engine' && unavailableRoutingEngine(error)))
-            throw error;
-          this.#switchingRoutingGroups.add(bot.slug);
-          const next = await this.#groupFallback?.pickMixedOrchestrator?.(bot.slug, attempted);
-          if (this.#closed || this.#stoppedTurns.has(bot.slug)) return;
-          if (next?.kind === 'exhausted')
-            throw new RouteRestingError(next.rests, next.subscription);
-          if (next?.kind !== 'target') throw new RoutingGroupUnavailableError(error);
-          if (
-            attempted.size >= MAX_MIXED_GROUP_ATTEMPTS ||
-            attempted.has(routingTargetRestKey(next.target))
-          )
-            throw new RoutingGroupUnavailableError(
-              error,
-              'The Routing Group reached its continuation limit for this turn.',
-            );
-          inputRecorded ||= error instanceof EngineLimitError ? error.inputRecorded : inputAccepted;
-          current = {
-            ...(rest === undefined
-              ? current
-              : this.#mixedGroupContinuation(initial, sourceEventId, rest, inputRecorded)),
-            ...(target.kind === 'route' && inputAccepted
-              ? { continuingFromNativeRoute: true }
-              : {}),
-          };
-          this.#failureStreaks.delete(bot.slug);
-          await this.#appendModelSwitch(bot.slug, sessionId, channelId, {
-            kind: 'switch',
-            from: routingTargetKey(target),
-            to: routingTargetKey(next.target),
-            reason: rest?.reason ?? 'credential',
-            ...(rest === undefined ? {} : { until: rest.until }),
-          });
-          if (this.#closed || this.#stoppedTurns.has(bot.slug)) return;
-          this.#requireExecution?.(bot.slug);
-          target = next.target;
-        }
-      }
-    } finally {
-      this.#switchingRoutingGroups.delete(bot.slug);
-    }
-  }
-
-  #routingTargetFailure(target: RoutingTarget, error: unknown): RestingRoute | undefined {
-    if (target.kind === 'route') return this.#routeRests?.restingUntil(target.route);
-    return error instanceof EngineLimitError ? error.rests[0] : undefined;
-  }
-
-  #mixedGroupContinuation(
-    run: OrchestratorAgentRun,
-    sourceEventId: string | undefined,
-    rest: RestingRoute,
-    inputRecorded: boolean,
-  ): OrchestratorAgentRun {
-    const priorReply = this.#routingGroupReplyState(run.bot.slug, run.sessionId, sourceEventId);
-    const replyInstruction =
-      priorReply === 'delivered'
-        ? 'The previous target already delivered a reply to this Source Event. Continue any remaining work without answering it again.'
-        : priorReply === 'uncertain'
-          ? 'The previous reply may have been sent. Check its delivery receipt before considering another send.'
-          : 'Reply to the original request if it still needs an answer.';
-    const source = sourceEventId === undefined ? '' : ` Source Event ${sourceEventId}.`;
-    const cause = rest.reason === 'credential' ? 'lost its credentials' : 'reached its limit';
-    const note = `[Host: the previous target ${cause} mid-turn.${source} ${CONTINUE_FROM_SESSION} Use completed tool results without repeating their calls. Verify the effects of any interrupted tool before retrying. ${replyInstruction}]`;
-    const continuation: OrchestratorAgentRun = {
-      ...run,
-      resume: true,
-      message: inputRecorded ? note : `${note}\n\n${run.message}`,
-      inbox: inputRecorded ? '' : run.inbox,
-    };
-    if (priorReply === undefined) return continuation;
-
-    const refuseDuplicate = (): never => {
-      throw new Error(replyInstruction);
-    };
-    const channelId = run.inboundChannelId;
-    continuation.channels = {
-      ...run.channels,
-      send: (input) => {
-        if (
-          (input.replySourceEventId ?? sourceEventId) === sourceEventId &&
-          (input.channelId ?? channelId) === channelId
-        )
-          refuseDuplicate();
-        return run.channels.send(input);
-      },
-    };
-    const external = run.externalMessaging;
-    if (external !== undefined)
-      continuation.externalMessaging = {
-        ...external,
-        reply: (id, text, key) =>
-          id === sourceEventId ? refuseDuplicate() : external.reply(id, text, key),
-        replyFile: (id, file, key) =>
-          id === sourceEventId ? refuseDuplicate() : external.replyFile(id, file, key),
-      };
-    return continuation;
-  }
-
-  #routingGroupReplyState(
-    botSlug: string,
-    sessionId: string,
-    sourceEventId: string | undefined,
-  ): 'delivered' | 'uncertain' | undefined {
-    if (sourceEventId === undefined) return undefined;
-    return this.#database.read((db) => {
-      const output = db
-        .prepare(`
-        SELECT 1 FROM channel_output_origins origin
-        JOIN source_events output ON output.source_event_id = origin.source_event_id
-        JOIN source_events request ON request.source_event_id = origin.request_source_event_id
-        WHERE origin.request_source_event_id = ? AND origin.session_id = ?
-          AND output.channel_id = request.channel_id AND output.source_kind = 'bot-message'
-        LIMIT 1
-      `)
-        .get(sourceEventId, sessionId);
-      if (output !== undefined) return 'delivered';
-      const request = db
-        .prepare(
-          "SELECT 1 FROM source_events WHERE source_event_id = ? AND source_kind = 'bridge-message'",
-        )
-        .get(sourceEventId);
-      if (request === undefined) return undefined;
-      const reply = db
-        .prepare(`
-        SELECT state FROM messaging_outbox
-        WHERE bot_slug = ? AND json_extract(body, '$.sourceEventId') = ?
-          AND state IN ('provider-accepted', 'pending', 'in-flight', 'unknown-outcome')
-        ORDER BY state = 'provider-accepted' DESC, created_at DESC LIMIT 1
-      `)
-        .get(botSlug, sourceEventId);
-      return reply === undefined
-        ? undefined
-        : reply['state'] === 'provider-accepted'
-          ? 'delivered'
-          : 'uncertain';
-    });
   }
 
   #orchestratorServices(
@@ -10278,7 +9425,8 @@ class BotRuntimeImplementation implements BotRuntime {
           this.#database.read((db) => requireAssignmentSource(db, sourceEventId, bot.slug));
         },
         accepted: () => trackDelivery?.(sessionId, false),
-        toolsInterrupted: (calls) => this.#recordInterruptedTools(bot.slug, sessionId, calls),
+        toolsInterrupted: (calls) =>
+          this.#cancellation.recordInterruptedTools(bot.slug, sessionId, calls),
         sessionId,
         bot,
         text,
@@ -10416,7 +9564,8 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#database.read((db) => requireAssignmentSource(db, row.source_event_id, bot.slug));
       },
       accepted: () => trackDelivery?.(input.sessionId, false),
-      toolsInterrupted: (calls) => this.#recordInterruptedTools(bot.slug, input.sessionId, calls),
+      toolsInterrupted: (calls) =>
+        this.#cancellation.recordInterruptedTools(bot.slug, input.sessionId, calls),
       sessionId: input.sessionId,
       bot,
       text:
@@ -10478,7 +9627,7 @@ class BotRuntimeImplementation implements BotRuntime {
       throw new Error('Assignment stop is unavailable');
     markSideEffect();
     this.#pendingDeliveries.delete(sessionId);
-    this.#beginSessionStop(bot.slug, sessionId, 'assignment');
+    this.#cancellation.beginSessionStop(bot.slug, sessionId, 'assignment');
     if (row.stop_state === 'running') {
       const at = this.#now().toISOString();
       this.#database.transaction(
@@ -10496,7 +9645,7 @@ class BotRuntimeImplementation implements BotRuntime {
     }
     await this.#typingAssignments.get(sessionId)?.stop();
     const stopAssignment = this.#agents.stopAssignment.bind(this.#agents);
-    await this.#settleStop(
+    await this.#cancellation.settleStop(
       bot.slug,
       sessionId,
       (async () => {
@@ -10561,7 +9710,7 @@ class BotRuntimeImplementation implements BotRuntime {
       },
       ['assignments', 'source-event', 'bot-inbox'],
     );
-    if (stopped) this.#scheduleHarvest(bot.slug);
+    if (stopped) this.#scheduling.scheduleHarvest(bot.slug);
     return this.#requireAssignmentSummary(bot.slug, sessionId);
   }
 
@@ -10888,7 +10037,7 @@ class BotRuntimeImplementation implements BotRuntime {
         const rest =
           error === undefined || current === undefined
             ? undefined
-            : this.#routingTargetFailure(current, error);
+            : this.#continuation.routingTargetFailure(current, error);
         if (
           error !== undefined &&
           rest === undefined &&
@@ -11118,59 +10267,6 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     await this.#appendModelSwitch(botSlug, sessionId, undefined, choice);
     return route;
-  }
-
-  #retryInboxAfterAgentFactoryStarts(
-    botSlug: string,
-    sourceEventIds: string[],
-    error: unknown,
-  ): boolean {
-    if (!(error instanceof Error) || !error.message.includes('no agent factory registered'))
-      return false;
-    const retryable = this.#database.read((database) => {
-      const placeholders = sourceEventIds.map(() => '?').join(', ');
-      const row = database
-        .prepare(
-          `SELECT COUNT(*) AS count FROM inbox_admissions
-                  WHERE bot_slug = ? AND source_event_id IN (${placeholders})
-                    AND attempt_state = 'retryable'`,
-        )
-        .get(botSlug, ...sourceEventIds) as { count: number };
-      return row.count === sourceEventIds.length;
-    });
-    const prior = this.#inboxFactoryRetries.get(botSlug);
-    const attempts = prior?.attempts ?? 0;
-    if (!retryable || attempts >= 5 || this.#closed) {
-      this.#warn?.(
-        JSON.stringify({
-          component: 'bot-runtime',
-          event: 'inbox-factory-retry-declined',
-          botSlug,
-          attempts,
-          reason: !retryable ? 'non-retryable-admission' : this.#closed ? 'closed' : 'exhausted',
-        }),
-      );
-      return false;
-    }
-    if (prior?.timer !== undefined) clearTimeout(prior.timer);
-
-    const delayMs = Math.min(250 * 2 ** attempts, 2_000);
-    this.#warn?.(
-      JSON.stringify({
-        component: 'bot-runtime',
-        event: 'inbox-factory-retry-scheduled',
-        botSlug,
-        attempt: attempts + 1,
-        delayMs,
-      }),
-    );
-    const timer = setTimeout(() => {
-      this.#inboxFactoryRetries.set(botSlug, { attempts: attempts + 1 });
-      if (!this.#closed) this.#scheduleHarvest(botSlug);
-    }, delayMs);
-    timer.unref();
-    this.#inboxFactoryRetries.set(botSlug, { attempts: attempts + 1, timer });
-    return true;
   }
 
   #collectInbox(botSlug: string): { units: InboxUnit[]; eventIds: string[] } {
