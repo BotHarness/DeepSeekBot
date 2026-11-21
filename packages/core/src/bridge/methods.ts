@@ -1,17 +1,66 @@
+import { createGenuiBridgeMethods, type GenuiBridgeMethods } from '../features/genui/methods.js';
+import {
+  createAvatarsBridgeMethods,
+  type AvatarsBridgeMethods,
+  type AvatarsBridgeDeps,
+} from '../features/avatars/methods.js';
+export type { SkillDetail } from '../features/skills/methods.js';
+import {
+  createSkillsBridgeMethods,
+  type SkillsBridgeMethods,
+  type SkillsBridgeDeps,
+} from '../features/skills/methods.js';
+import {
+  createSchedulesBridgeMethods,
+  type SchedulesBridgeMethods,
+  type SchedulesBridgeDeps,
+} from '../features/schedules/methods.js';
+import {
+  asNonBlank,
+  asObject,
+  asSlug,
+  invalidInput,
+  unavailable,
+  unknownBot,
+  unknownChannel,
+  type BridgeResult,
+} from './method-utils.js';
+export type { BridgeError, BridgeResult } from './method-utils.js';
+import {
+  createPromptBridgeMethods,
+  type PromptBridgeMethods,
+  type PromptBridgeDeps,
+} from '../features/prompts/methods.js';
+export type {
+  BotPromptView,
+  PromptLimitView,
+  PromptPartView,
+} from '../features/prompts/methods.js';
+import {
+  parseMarketplaceAvatarPublish,
+  type MarketplaceAvatar,
+  type MarketplaceAvatarPage,
+} from '@botharness/host-protocol/marketplace-avatar';
 import {
   createEngineAccountBridge,
   type EngineAccountBridgeMethods,
   type EngineAccountOperations,
 } from '../engines/engine-account-bridge.js';
 import {
+  createEngineSelectionBridge,
+  type EngineSelectionBridgeMethods,
+  type EngineSelectionOperations,
+} from '../engines/engine-selection-bridge.js';
+import {
   createModelProviderBridge,
-  invalidInput,
   modelFailure,
   type ModelProviderBridgeMethods,
 } from '../models/provider-bridge.js';
 import type { ModelProviders } from '../models/providers.js';
 import {
   engineAccountKey,
+  type EngineId,
+  type RoutingGroupEngineMember,
   type RoutingGroupEngineOptions,
 } from '@botharness/host-protocol/subscription-engine';
 import type { EngineHost } from '../engines/engine-host.js';
@@ -28,8 +77,9 @@ import {
 } from '../channels/quotes.js';
 import type { ApprovalTemplateDeletionPreview } from '../workspaces/approval-template-deletion-contract.js';
 import type { ApprovalCard } from '../team/approval-contract.js';
-import { botIsHostOwner, requireBotModel, botModelAllowed } from '../team/models.js';
-import { allowsModel } from '../team/permissions.js';
+import { botModelGrants, requireBotModel, botModelAllowed } from '../team/models.js';
+import { requireEngineAccountGrant } from '../team/roles.js';
+import { allowsEngineAccount, allowsModel } from '../team/permissions.js';
 import { TeamError } from '../team/error.js';
 import type { UsageByMemberResult } from '../usage/overview.js';
 import { MEMBER_CHANNEL_METHODS } from '../team/member-methods.js';
@@ -52,21 +102,12 @@ import type { VoiceProviders } from '../voice/providers.js';
 import { networkBotId, type BotContact } from '../runtime/bot-contact-discovery.js';
 import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
 import { join } from 'node:path';
-import {
-  GenuiError,
-  parseGenuiContent,
-  validateGenuiMessageReply,
-  type GenuiPrivateView,
-} from '../channels/genui.js';
+import { GenuiError, parseGenuiContent, validateGenuiMessageReply } from '../channels/genui.js';
 import { buildGenuiReplyContext } from '../channels/genui-message.js';
 import { createBotImports, type BotImportsService } from '../bots/imports.js';
 import { SessionRecoveryError } from '../runtime/session-recovery.js';
 import type { BotContextWindow } from '../runtime/context-window.js';
-import {
-  summarizeTurnInput,
-  type BotSystemPromptView,
-  type TurnInputView,
-} from '../runtime/prompt-inspection.js';
+import { summarizeTurnInput, type TurnInputView } from '../runtime/prompt-inspection.js';
 import {
   approveGrantRequest,
   type GrantRequestApprovalResult,
@@ -321,30 +362,6 @@ import {
 } from '../channels/channel.js';
 import { botAvatarUrl } from '../bots/avatar-http.js';
 import { botBannerSummary, type BotBannerSummary } from '../bots/banner-http.js';
-import { isBotBanner, seededBotBanner } from '../bots/bot-banner.js';
-import {
-  PART_SLOTS,
-  customPartId,
-  isPixelCustomPart,
-  type PartSlot,
-} from '../bots/avatar-appearance.js';
-import {
-  MAX_PART_IMAGE_BYTES,
-  MAX_PART_IMAGE_COLORS,
-  MAX_PART_IMAGE_SCALE,
-  partFromImage,
-  readPartImage,
-  type PartImageError,
-} from '../bots/part-image.js';
-import { MAX_PART_NAME, type PartLibrary, type PartLibraryEntry } from '../bots/part-library.js';
-import {
-  MAX_PART_LIBRARY_FILES,
-  MAX_PART_LIBRARY_FILE_BYTES,
-  decodePartFiles,
-  encodePartFile,
-  encodePartLibrary,
-  partFileName,
-} from '../bots/part-file.js';
 import type { AvatarAppearance, RetainedAvatarAppearance } from '../bots/avatar-appearance.js';
 import {
   currentBotPrimaryColor,
@@ -376,7 +393,6 @@ import type {
   PersonaBotPatch,
   PersonaBotRecord,
 } from '../bots/persona-bot.js';
-import { isPersonaBotAvatar } from '../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type {
   PersonaBotDeletions,
@@ -389,24 +405,7 @@ import {
   type DataResetPreview,
   type DataResetResult,
 } from '../data-reset/reset.js';
-import {
-  SkillContentTooLargeError,
-  parseSkillOwnerKey,
-  skillOwnerKey,
-  type SkillCatalog,
-  type SkillCatalogEntry,
-  type SkillOwner,
-  type ResolvedSkill,
-  sessionSkills,
-} from '../skills/catalog.js';
-import {
-  BotSkillIgnoredFilesError,
-  BotSkillNotFoundError,
-  listBotSkills,
-  readBotSkill,
-  removeBotSkill,
-  type BotSkill,
-} from '../skills/bot-skills.js';
+import { SkillContentTooLargeError, skillOwnerKey, type ResolvedSkill } from '../skills/catalog.js';
 
 export interface ModelCatalogGroup {
   id: string;
@@ -422,13 +421,6 @@ function routeKey(route: { provider: string; model: string }): string {
   return JSON.stringify([route.provider, route.model]);
 }
 
-export interface SkillDetail {
-  name: string;
-  description: string;
-  owner: SkillOwner;
-  path?: string;
-  content: string;
-}
 import { isValidSlug } from '../bots/slug.js';
 import {
   memoryMoveTarget,
@@ -544,15 +536,6 @@ import type { BotSourcePolicy, BotSourcePolicyStore } from '../runtime/source-po
 import { probeGit } from '../memory/git-probe.js';
 import type { GitService, GitStatus } from '../memory/managed-git.js';
 import {
-  BotScheduleError,
-  type BotSchedule,
-  type BotScheduleChange,
-  type BotScheduleFiring,
-  type BotScheduleStore,
-  type BotScheduleTrigger,
-  previewBotScheduleTrigger,
-} from '../schedules/bot-schedules.js';
-import {
   HUMAN_INBOX_SNOOZE_MAX_MS,
   type HumanAttentionQuery,
   type HumanAttentionStatus,
@@ -593,21 +576,6 @@ import type {
   BotStateTracker,
   SessionState,
 } from '../state/bot-state.js';
-import { PROMPT_PARTS, promptTextHash, type PromptPartId } from '../prompts/prompt-parts.js';
-import {
-  PROMPT_LIMITS,
-  applyPromptLimitEdits,
-  parsePromptLimitEdits,
-} from '../prompts/prompt-limits.js';
-import {
-  applyPromptPartEdits,
-  parsePromptPartEdits,
-  type PromptPreset,
-  type PromptPresetFailure,
-  type ResolvedPromptLimit,
-  type ResolvedPromptPart,
-} from '../prompts/prompt-presets.js';
-import type { PromptSettings } from '../prompts/prompt-settings.js';
 import { MIN_PHONE_APP_VERSION } from '../devices/client-compat.js';
 
 export interface ActivityOverview {
@@ -803,28 +771,22 @@ export interface OwnedSessionBot {
   role: SessionRootRole;
 }
 
-export interface BridgeError {
-  details?: {
-    preview?: AllBotPreview;
-    permission?: string;
-    path?: string;
-    spaceId?: string;
-    route?: string;
-    references?: string[];
-  };
-  code: string;
-  message: string;
-}
-
-export type BridgeResult<T> = { ok: true; value: T } | { ok: false; error: BridgeError };
-
 export interface MessagingAppsView {
   apps: MessagingApp[];
   setups: NonNullable<MessagingSnapshot['appSetups']>;
 }
 
 export interface BridgeMethods
-  extends TeamBridgeMethods, ModelProviderBridgeMethods, EngineAccountBridgeMethods {
+  extends
+    TeamBridgeMethods,
+    ModelProviderBridgeMethods,
+    EngineAccountBridgeMethods,
+    EngineSelectionBridgeMethods,
+    PromptBridgeMethods,
+    SchedulesBridgeMethods,
+    SkillsBridgeMethods,
+    AvatarsBridgeMethods,
+    GenuiBridgeMethods {
   tobHome(
     payload: unknown,
   ): Promise<
@@ -844,7 +806,6 @@ export interface BridgeMethods
   botNewSession(payload: unknown): Promise<BridgeResult<{ started: true }>>;
   botCompact(payload: unknown): Promise<BridgeResult<ManualCompactionResult>>;
   botContext(payload: unknown): Promise<BridgeResult<BotContextWindow>>;
-  botSystemPrompt(payload: unknown): Promise<BridgeResult<BotSystemPromptView>>;
   channelBotStop(payload: unknown): Promise<
     BridgeResult<{
       stopped: { botSlug: string; sessionId: string; messageId: string };
@@ -1058,15 +1019,8 @@ export interface BridgeMethods
   channelMessages(payload: unknown): BridgeResult<{ messages: ChannelMessage[]; revision: number }>;
   channelAllBotPreview(payload: unknown): BridgeResult<AllBotPreview>;
   tobCli(payload: unknown): Promise<BridgeResult<TobCliStatus>>;
-  channelSkillCatalog(payload: unknown): Promise<BridgeResult<{ skills: SkillCatalogEntry[] }>>;
-  sessionSkillCatalog(payload: unknown): Promise<BridgeResult<{ skills: SkillCatalogEntry[] }>>;
-  botSkills(payload: unknown): Promise<BridgeResult<{ skills: BotSkill[] }>>;
-  skillShow(payload: unknown): Promise<BridgeResult<{ skill: SkillDetail }>>;
-  botSkillRemove(payload: unknown): Promise<BridgeResult<{ name: string; removed: string }>>;
   channelSend(payload: unknown): Promise<BridgeResult<{ message: ChannelMessage }>>;
   channelSendStatus(payload: unknown): BridgeResult<ChannelSendStatus>;
-  channelGenuiView(payload: unknown): BridgeResult<GenuiPrivateView>;
-  channelGenuiViewSave(payload: unknown): BridgeResult<GenuiPrivateView>;
   botAttention(payload: unknown): BridgeResult<BotAttentionPage>;
   botSourcePolicies(payload: unknown): BridgeResult<{ policies: BotSourcePolicy[] }>;
   botSourcePolicySet(payload: unknown): BridgeResult<{ policy: BotSourcePolicy }>;
@@ -1248,18 +1202,6 @@ export interface BridgeMethods
   }>;
   approvalTemplateCreate(payload: unknown): BridgeResult<{ template: ApprovalTemplateEntry }>;
   approvalTemplateUpdate(payload: unknown): BridgeResult<{ template: ApprovalTemplateEntry }>;
-  promptParts(
-    payload: unknown,
-  ): BridgeResult<{ parts: PromptPartView[]; limits: PromptLimitView[] }>;
-  promptPresets(
-    payload: unknown,
-  ): BridgeResult<{ presets: PromptPreset[]; globalPresetId: string | null }>;
-  promptPresetCreate(payload: unknown): BridgeResult<{ preset: PromptPreset }>;
-  promptPresetUpdate(payload: unknown): BridgeResult<{ preset: PromptPreset }>;
-  promptPresetDelete(payload: unknown): BridgeResult<{ id: string; clearedBots: string[] }>;
-  promptGlobalSet(payload: unknown): BridgeResult<{ presetId: string | null }>;
-  botPrompt(payload: unknown): BridgeResult<BotPromptView>;
-  botPromptSet(payload: unknown): BridgeResult<BotPromptView>;
   approvalTemplateDeletePreview(
     payload: unknown,
   ): BridgeResult<{ preview: ApprovalTemplateDeletionPreview }>;
@@ -1295,24 +1237,6 @@ export interface BridgeMethods
   idleCompactionCacheLifetimeSet(payload: unknown): BridgeResult<IdleCompactionView>;
   compactionThresholdSet(payload: unknown): BridgeResult<IdleCompactionView>;
   standingLimitsSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  botAvatarSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  botBannerSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  botAppearanceSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  botPrimaryColorSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  partLibraryList(): BridgeResult<{ parts: PartLibraryEntry[] }>;
-  partLibraryAdd(payload: unknown): BridgeResult<{ entry: PartLibraryEntry }>;
-  partLibraryExport(payload: unknown): BridgeResult<{ fileName: string; data: string }>;
-  partLibraryImport(payload: unknown): BridgeResult<{
-    added: PartLibraryEntry[];
-    refused: { name: string; reason: string }[];
-    image?: {
-      width: number;
-      height: number;
-      colors: number;
-      slots: PartSlot[];
-    };
-  }>;
-  partLibraryImportImage(payload: unknown): BridgeResult<{ entry: PartLibraryEntry }>;
   marketplaceList(payload: unknown): Promise<BridgeResult<MarketplacePage>>;
   marketplaceSubmit(payload: unknown): Promise<BridgeResult<{ bot: MarketplaceEntry }>>;
   marketplaceTopics(): Promise<BridgeResult<MarketplaceTopic[]>>;
@@ -1321,6 +1245,9 @@ export interface BridgeMethods
     payload: unknown,
   ): Promise<BridgeResult<{ digests: MarketplaceDigestSummary[] }>>;
   marketplaceDigest(payload: unknown): Promise<BridgeResult<{ digest: MarketplaceDigest }>>;
+  marketplaceAvatarList(payload: unknown): Promise<BridgeResult<MarketplaceAvatarPage>>;
+  marketplaceAvatarDetail(payload: unknown): Promise<BridgeResult<MarketplaceAvatar>>;
+  marketplaceAvatarPublish(payload: unknown): Promise<BridgeResult<MarketplaceAvatar>>;
   marketplaceDetail(payload: unknown): Promise<BridgeResult<MarketplaceDetail>>;
   marketplaceFileView(payload: unknown): Promise<BridgeResult<MarketplaceFileView>>;
   marketplaceChallenge(): Promise<BridgeResult<AltchaChallenge>>;
@@ -1370,13 +1297,6 @@ export interface BridgeMethods
   takeoverRequest(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
   takeoverComplete(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
   takeoverCancel(payload: unknown): Promise<BridgeResult<{ takeover: TakeoverHandoff }>>;
-  scheduleList(payload: unknown): BridgeResult<{ schedules: BotSchedule[] }>;
-  scheduleCreate(payload: unknown): BridgeResult<{ schedule: BotSchedule }>;
-  scheduleUpdate(payload: unknown): BridgeResult<{ schedule: BotSchedule }>;
-  scheduleDelete(payload: unknown): BridgeResult<{ removed: boolean }>;
-  scheduleHistory(payload: unknown): BridgeResult<{ firings: BotScheduleFiring[] }>;
-  scheduleRunNow(payload: unknown): BridgeResult<{ firing: BotScheduleFiring }>;
-  schedulePreview(payload: unknown): BridgeResult<{ occurrences: string[] }>;
 }
 
 export interface ApprovalReviewerModelView {
@@ -1456,15 +1376,13 @@ function storageFailure(
   };
 }
 
-export interface BridgeMethodsDeps {
+export interface BridgeMethodsDeps
+  extends PromptBridgeDeps, SchedulesBridgeDeps, SkillsBridgeDeps, AvatarsBridgeDeps {
   team?: TeamService;
   voiceProviders?: VoiceProviders;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
-  skills?: SkillCatalog;
   voiceLog?: (phase: string, fields: Record<string, string | number>) => void;
   botContext?(slug: string): Promise<BotContextWindow>;
-  botSystemPrompt?(slug: string): Promise<BotSystemPromptView>;
-  prompts?: PromptSettings;
   idleCompaction?: IdleCompactionDeps;
   cloudConnections?: CloudConnections;
   cloudWork?: CloudWork;
@@ -1488,8 +1406,11 @@ export interface BridgeMethodsDeps {
     store: Pick<EngineHost['store'], 'selection'>;
   };
   engineAccounts?: EngineAccountOperations;
+  engineSelection?: EngineSelectionOperations;
   localSubscriptionEngines?: boolean;
-  routingGroupEngineOptions?(): Promise<RoutingGroupEngineOptions[]>;
+  routingGroupEngineOptions?(
+    allowed: (id: string) => boolean,
+  ): Promise<RoutingGroupEngineOptions[]>;
   releaseEngineQuotaHold?(slug: string): void;
   modelFavorites?: ModelFavoriteStore;
   routingGroups?: RoutingGroupStore;
@@ -1500,7 +1421,6 @@ export interface BridgeMethodsDeps {
   onboarding?: BotOnboarding;
   acknowledgements?: ClientAcknowledgements;
   tob?: TobService;
-  partLibrary?: PartLibrary;
   onboardingNews?: (slug?: string) => Promise<boolean>;
   defaultModel?: {
     currentSelection(): ModelRoute;
@@ -1537,7 +1457,6 @@ export interface BridgeMethodsDeps {
   runtime?: BotRuntime;
   attention?: BotAttentionQuery;
   sourcePolicy?: BotSourcePolicyStore;
-  schedules?: BotScheduleStore;
   takeovers?: TakeoverHandoffs;
   humanAttention?: HumanAttentionQuery;
   humanAttentionDecisions?: HumanAttentionDecisions;
@@ -1583,39 +1502,11 @@ function unmanagedGitStatus(): GitStatus {
     : { ...git, installable: false, install: { phase: 'idle' } };
 }
 
-function partImageMessage(error: PartImageError): string {
-  switch (error) {
-    case 'too-large':
-      return 'The image is larger than 1 MB';
-    case 'wrong-size':
-      return `The image must be 32×32 or 32×16 pixels, or a whole-number scale of it up to ×${MAX_PART_IMAGE_SCALE}`;
-    case 'too-many-colors':
-      return `The image has more than ${MAX_PART_IMAGE_COLORS} colors, or more colors than a part can keep`;
-    case 'empty':
-      return 'The image has no opaque pixels';
-    case 'unsupported':
-      return 'Interlaced and 16-bit PNGs are not supported';
-    case 'not-png':
-      return 'The file is not a PNG';
-  }
-}
-
 type ParsedField<T> = { ok: true; value: T | undefined } | { ok: false };
-
-function asObject(payload: unknown): Record<string, unknown> {
-  return typeof payload === 'object' && payload !== null
-    ? (payload as Record<string, unknown>)
-    : {};
-}
 
 function asQuery(payload: unknown): string | undefined {
   const value = asObject(payload)['query'];
   return typeof value === 'string' ? value : undefined;
-}
-
-function asSlug(payload: unknown): string | undefined {
-  const value = asObject(payload)['slug'];
-  return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
 function marketplaceLang(value: unknown): MarketplaceLanguage | undefined | false {
@@ -1783,63 +1674,6 @@ function telemetryUnavailable(): BridgeResult<never> {
   };
 }
 
-export interface PromptPartView {
-  id: PromptPartId;
-  kind: 'system' | 'turn';
-  section: string;
-  defaultText: string;
-  defaultHash: string;
-}
-
-export interface BotPromptView {
-  slug: string;
-  presetId: string | null;
-  globalPresetId: string | null;
-  sessionId: string | null;
-  pending: boolean;
-  parts: ResolvedPromptPart[];
-  limits: ResolvedPromptLimit[];
-}
-
-export interface PromptLimitView {
-  id: (typeof PROMPT_LIMITS)[number]['id'];
-  group: 'inbox' | 'review';
-  defaultValue: number;
-  min: number;
-  max: number;
-}
-
-function promptPresetFailure(reason: PromptPresetFailure): BridgeResult<never> {
-  const message: Record<PromptPresetFailure, string> = {
-    'invalid-input': 'The Prompt Preset name or part text is invalid',
-    'not-found': 'Unknown Prompt Preset',
-    'stale-revision': 'The Prompt Preset changed; read it again before editing',
-    'duplicate-name': 'Another Prompt Preset already has this name',
-    unavailable: 'Prompt Presets are unavailable',
-  };
-  return {
-    ok: false,
-    error: { code: `prompt-preset-${reason}`, message: message[reason] },
-  };
-}
-
-function botPromptView(
-  deps: Pick<BridgeMethodsDeps, 'registry' | 'runtime'>,
-  prompts: PromptSettings,
-  slug: string,
-): BotPromptView {
-  const sessionId = deps.runtime?.currentOrchestratorSessionId?.(slug) ?? null;
-  return {
-    slug,
-    presetId: deps.registry.get(slug)?.promptPreset ?? null,
-    globalPresetId: prompts.library.globalPresetId() ?? null,
-    sessionId,
-    pending: prompts.pending(slug, sessionId ?? undefined),
-    parts: prompts.resolved(slug),
-    limits: prompts.resolvedLimits(slug),
-  };
-}
-
 function routingGroupInput(source: Record<string, unknown>): RoutingGroupInput {
   const name = source['name'];
   const members = source['members'];
@@ -1940,29 +1774,6 @@ function presetEnginesInput(source: Record<string, unknown>): ModelPresetEngineI
   };
 }
 
-function parseScheduleTrigger(value: unknown): BotScheduleTrigger | undefined {
-  const source = asObject(value);
-  const time = source['time'];
-  const timeZone = source['timeZone'];
-  if (source['kind'] === 'every' && Number.isSafeInteger(source['everySeconds']))
-    return { kind: 'every', everySeconds: source['everySeconds'] as number };
-  if (typeof timeZone !== 'string') return undefined;
-  if (source['kind'] === 'cron' && typeof source['expression'] === 'string')
-    return { kind: 'cron', expression: source['expression'], timeZone };
-  if (typeof time !== 'string') return undefined;
-  if (source['kind'] === 'daily') return { kind: 'daily', time, timeZone };
-  const weekdays = source['weekdays'];
-  if (
-    source['kind'] === 'weekly' &&
-    Array.isArray(weekdays) &&
-    weekdays.every((day) => Number.isSafeInteger(day))
-  )
-    return { kind: 'weekly', time, timeZone, weekdays: weekdays as number[] };
-  if (source['kind'] === 'once' && typeof source['date'] === 'string')
-    return { kind: 'once', date: source['date'], time, timeZone };
-  return undefined;
-}
-
 function takeoverFailure(error: unknown): BridgeResult<never> {
   if (error instanceof TakeoverError)
     return { ok: false, error: { code: error.code, message: error.message } };
@@ -1971,12 +1782,6 @@ function takeoverFailure(error: unknown): BridgeResult<never> {
 
 function takeoverSurface(value: unknown): string {
   return typeof value === 'string' && /^[a-z][a-z0-9-]{0,31}$/u.test(value) ? value : 'client';
-}
-
-function scheduleFailure(error: unknown): BridgeResult<never> {
-  if (error instanceof BotScheduleError)
-    return { ok: false, error: { code: error.code, message: error.message } };
-  return invalidInput(String(error));
 }
 
 function templateDeletionFailure(
@@ -2038,22 +1843,8 @@ function templateWriteFailure(
   };
 }
 
-function unknownBot(slug: string): BridgeResult<never> {
-  return {
-    ok: false,
-    error: { code: 'not-found', message: `unknown PersonaBot: ${slug}` },
-  };
-}
-
 function botInChannel(channel: ChannelRecord, botSlug: string): boolean {
   return channel.type === 'group' ? channel.members.includes(botSlug) : channel.botSlug === botSlug;
-}
-
-function unknownChannel(id: string): BridgeResult<never> {
-  return {
-    ok: false,
-    error: { code: 'not-found', message: `unknown Channel: ${id}` },
-  };
 }
 
 function dmAdmissionFailure(
@@ -2202,16 +1993,6 @@ async function subagentSessionsOf(
   ];
 }
 
-function unavailable(): BridgeResult<never> {
-  return {
-    ok: false,
-    error: {
-      code: 'storage-unavailable',
-      message: 'roster storage is unavailable',
-    },
-  };
-}
-
 function unknownSection(sectionId: string): BridgeResult<never> {
   return {
     ok: false,
@@ -2252,11 +2033,6 @@ const rosterBatchPayload = z.object({
     .refine((ids) => new Set(ids).size === ids.length),
   sectionId: z.union([z.string().min(1), z.null()]).optional(),
 });
-
-function asNonBlank(source: Record<string, unknown>, key: string): string | undefined {
-  const value = source[key];
-  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
-}
 
 function createFailure(
   slug: string,
@@ -2511,6 +2287,7 @@ function buildBridgeMethods(
   deps: BridgeMethodsDeps,
   globalRegistry = deps.registry,
 ): BridgeMethods {
+  const { botSystemPrompt, ...promptPresets } = createPromptBridgeMethods(deps, globalRegistry);
   const catalogRests = (): Map<string, string> =>
     new Map((deps.routeRests?.list() ?? []).map((rest) => [routeKey(rest), rest.until]));
   const catalogEntry = <T extends { provider: string; model: string }>(
@@ -2523,24 +2300,28 @@ function buildBridgeMethods(
   const catalogGroups = (
     rests: ReadonlyMap<string, string>,
     allowed: (route: ModelRoute) => boolean,
+    engineAllowed: (id: string) => boolean,
   ): { groups?: ModelCatalogGroup[] } => {
     const store = deps.routingGroups;
     if (store === undefined) return {};
-    const engineGroupsAllowed = canChooseRoutingEngines();
     return {
       groups: store.list().flatMap((group) => {
         let routes: ModelRoute[];
         try {
-          routes = store.routes(group.id);
+          const targets = store.targets(group.id);
+          if (
+            targets.some(
+              (target) =>
+                target.kind === 'engine' &&
+                !engineAllowed(engineAccountKey(target.engine, target.accountId)),
+            )
+          )
+            return [];
+          routes = targets.flatMap((target) => (target.kind === 'route' ? [target.route] : []));
         } catch {
           return [];
         }
-        if (
-          routes.length === 0 ||
-          !routes.every(allowed) ||
-          (!engineGroupsAllowed && hasGroupEngine(group.id))
-        )
-          return [];
+        if (routes.length === 0 || !routes.every(allowed)) return [];
         const untils = routes.map((route) => rests.get(routeKey(route)));
         const restingUntil = untils.every((until) => until !== undefined)
           ? [...(untils as string[])].sort()[0]
@@ -2563,18 +2344,45 @@ function buildBridgeMethods(
     deps.modelFavorites === undefined ? {} : { favorites: deps.modelFavorites.list(human.humanId) };
   const isHostOwner = () =>
     deps.team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId;
-  const canChooseRoutingEngines = () => isHostOwner() && deps.localSubscriptionEngines !== false;
-  const hasGroupEngine = (id: string): boolean =>
-    deps.routingGroups?.targets(id).some((target) => target.kind === 'engine') ?? false;
-  const requireGroupEngineOwner = (id: string, slug?: string): void => {
-    if (!hasGroupEngine(id)) return;
-    const bot = slug === undefined ? undefined : deps.registry.get(slug);
-    if (
-      !canChooseRoutingEngines() ||
-      (bot !== undefined && deps.team && !botIsHostOwner(deps.team, bot))
-    )
-      throw new TeamError('model-not-allowed');
+  type EngineChoice = { engine: EngineId; accountId?: string };
+  const groupEngineChoices = (id: string): RoutingGroupEngineMember[] =>
+    deps.routingGroups?.targets(id).filter((target) => target.kind === 'engine') ?? [];
+  const memberEngineChoices = (members: readonly RoutingGroupMember[]): EngineChoice[] =>
+    members.flatMap((member) =>
+      member.kind === 'engine'
+        ? [member]
+        : member.kind === 'group'
+          ? groupEngineChoices(member.id)
+          : [],
+    );
+  const engineChoiceFilter = () => {
+    const owner = isHostOwner();
+    const grants = owner ? undefined : deps.team?.roles.modelsAllowed(human);
+    return ({ engine, accountId }: EngineChoice) =>
+      deps.localSubscriptionEngines !== false &&
+      (owner ||
+        (grants !== undefined && allowsEngineAccount(grants, engineAccountKey(engine, accountId))));
   };
+  const requireEngineChoices = (choices: readonly EngineChoice[], slug?: string): void => {
+    if (choices.length === 0) return;
+    if (deps.localSubscriptionEngines === false)
+      throw new EngineRefusal(
+        'engine-unavailable',
+        'Subscription Engines run only on a local Host',
+      );
+    const actor = deps.team?.roles.modelsAllowed(human);
+    const bot = slug === undefined ? undefined : deps.registry.get(slug);
+    if (slug !== undefined && bot === undefined) throw new TeamError('bot-not-found');
+    const botGrants = deps.team && bot ? botModelGrants(deps.team, bot) : undefined;
+    for (const { engine, accountId } of choices) {
+      const id = engineAccountKey(engine, accountId);
+      if (actor !== undefined) requireEngineAccountGrant(actor, id);
+      else if (!isHostOwner()) throw new TeamError('model-not-allowed', undefined, { route: id });
+      if (botGrants !== undefined) requireEngineAccountGrant(botGrants, id);
+    }
+  };
+  const requireGroupEngines = (id: string, slug?: string): void =>
+    requireEngineChoices(groupEngineChoices(id), slug);
   const channelSkillBots = (channel: ChannelRecord): string[] => {
     if (channel.type === 'group')
       return channel.members.filter((slug) => {
@@ -2598,6 +2406,7 @@ function buildBridgeMethods(
     members: RoutingGroupMember[],
     previous: readonly RoutingGroupMember[] = [],
   ): Promise<void> => {
+    requireEngineChoices(memberEngineChoices(members));
     const engineEfforts = members.flatMap((member) =>
       member.kind === 'engine' &&
       member.model !== undefined &&
@@ -2623,11 +2432,8 @@ function buildBridgeMethods(
     );
     if (engineEfforts.length > 0) {
       const engines = deps.subscriptionEngines;
-      if (engines === undefined || (deps.team !== undefined && !deps.team.isOwner(human)))
-        throw new RoutingGroupError(
-          'invalid-input',
-          'Subscription Engines require the local Host owner',
-        );
+      if (engines === undefined)
+        throw new EngineRefusal('engine-unavailable', 'Subscription Engines are unavailable');
       try {
         await Promise.all(
           engineEfforts.map(({ engine, ...choice }) => engines.validateChoice(engine, choice)),
@@ -2692,31 +2498,30 @@ function buildBridgeMethods(
       throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
     return deps.routingGroups.routes(id);
   };
+  const presetEngineChoices = (choices: ModelPresetEngineInput): EngineChoice[] =>
+    [choices.orchestratorEngine, choices.assignmentEngine].filter((choice) => choice != null);
   const checkPresetEngines = async (
     choices: ModelPresetEngineInput,
-    applyingToBot = false,
+    slug?: string,
   ): Promise<void> => {
-    if (choices.orchestratorEngine == null && choices.assignmentEngine == null) return;
-    const engines = deps.subscriptionEngines;
-    if (engines === undefined || (applyingToBot && !isHostOwner()))
-      throw new EngineRefusal(
-        'engine-unavailable',
-        'Subscription Engines require the local Host owner',
-      );
-    await Promise.all(
-      [choices.orchestratorEngine, choices.assignmentEngine].flatMap((choice) =>
-        choice == null ? [] : [engines.validateChoice(choice.engine, choice)],
-      ),
+    const selected = [choices.orchestratorEngine, choices.assignmentEngine].filter(
+      (choice) => choice != null,
     );
+    if (selected.length === 0) return;
+    requireEngineChoices(selected, slug);
+    const engines = deps.subscriptionEngines;
+    if (engines === undefined)
+      throw new EngineRefusal('engine-unavailable', 'Subscription Engines are unavailable');
+    await Promise.all(selected.map((choice) => engines.validateChoice(choice.engine, choice)));
   };
-
+  const presetGroupIds = (groups: ModelPresetGroups): string[] => [
+    ...(groups.orchestratorGroupId === undefined ? [] : [groups.orchestratorGroupId]),
+    ...(groups.assignmentGroups ?? []),
+  ];
   const presetGroupRoutes = (groups: ModelPresetGroups, slug?: string): ModelRoute[] =>
-    [
-      ...(groups.orchestratorGroupId === undefined ? [] : [groups.orchestratorGroupId]),
-      ...(groups.assignmentGroups ?? []),
-    ].flatMap((id) => {
+    presetGroupIds(groups).flatMap((id) => {
       const routes = groupRoutes(id);
-      if (slug !== undefined) requireGroupEngineOwner(id, slug);
+      requireGroupEngines(id, slug);
       return routes;
     });
   const requireGroupEfforts = async (group: string, efforts: readonly string[]): Promise<void> => {
@@ -3264,10 +3069,15 @@ function buildBridgeMethods(
     );
   };
 
+  const schedulesMethods = createSchedulesBridgeMethods(human, deps);
+  const skillsMethods = createSkillsBridgeMethods(deps, channelSkillBots, requireOwnedBot);
+  const avatarsMethods = createAvatarsBridgeMethods(deps, dmMemory, detailOf);
+  const genuiMethods = createGenuiBridgeMethods(human, deps);
   const methods: BridgeMethods = {
     ...createTeamBridge(human, deps.team),
     ...createModelProviderBridge(human, deps),
     ...createEngineAccountBridge(human, deps),
+    ...createEngineSelectionBridge(human, { ...deps, registry: globalRegistry }),
     ...createVoiceBridgeMethods({
       providers: deps.voiceProviders,
       registry: deps.registry,
@@ -4018,7 +3828,7 @@ function buildBridgeMethods(
         try {
           if (deps.routingGroups?.get(groupId) === undefined)
             throw new RoutingGroupError('not-found', `Routing Group ${groupId} does not exist`);
-          requireGroupEngineOwner(groupId);
+          requireGroupEngines(groupId);
           if (effort !== undefined) await requireGroupEfforts(groupId, [effort]);
           const first = await firstUsableRoute(deps.routingGroups.routes(groupId));
           route =
@@ -4026,9 +3836,7 @@ function buildBridgeMethods(
               ? first
               : groupMemberRoute(first, effort, await deps.modelCatalog.list());
         } catch (error) {
-          return error instanceof RoutingGroupError
-            ? routingGroupFailure(error)
-            : invalidInput(error instanceof Error ? error.message : 'Model unavailable');
+          return routingGroupFailure(error);
         }
       }
       if (
@@ -4054,6 +3862,7 @@ function buildBridgeMethods(
       try {
         if (slug !== undefined && !source['globalDefault']) requireRoutes(slug, [route]);
         await deps.modelCatalog.validate(route);
+        if (typeof groupId === 'string') requireGroupEngines(groupId);
         if (source['globalDefault']) {
           let savedDefaultRevision = 0;
           const groups = deps.routingGroups;
@@ -4310,17 +4119,7 @@ function buildBridgeMethods(
         return unavailable();
       }
     },
-    async botSystemPrompt(payload) {
-      const slug = asSlug(payload);
-      if (!slug) return invalidInput('slug is required');
-      if (!deps.registry.get(slug)) return unknownBot(slug);
-      if (!deps.botSystemPrompt) return unavailable();
-      try {
-        return { ok: true, value: await deps.botSystemPrompt(slug) };
-      } catch {
-        return unavailable();
-      }
-    },
+    botSystemPrompt,
     async channelBotStop(payload) {
       const source = asObject(payload);
       const channelId = asNonBlank(source, 'channelId');
@@ -4472,7 +4271,10 @@ function buildBridgeMethods(
           ?.describe({ redactSecrets: true })
           .find((entry) => entry.ns === 'agent-default-model')?.revision;
         const defaultGroup = deps.routingGroups?.defaultGroup();
-        const groups = catalogGroups(rests, isListed);
+        const canUseEngine = (id: string) =>
+          deps.localSubscriptionEngines !== false &&
+          (owner || (allowed !== undefined && allowsEngineAccount(allowed, id)));
+        const groups = catalogGroups(rests, isListed, canUseEngine);
         const defaultGroupVisible = groups.groups?.some(
           (group) => group.id === defaultGroup?.groupId,
         );
@@ -4498,7 +4300,7 @@ function buildBridgeMethods(
             ...(asObject(payload)['includeRoutingGroupEngines'] === true &&
             (owner || deps.team?.roles.permissions(human).includes('models.configure')) &&
             deps.routingGroupEngineOptions !== undefined
-              ? { routingGroupEngines: await deps.routingGroupEngineOptions() }
+              ? { routingGroupEngines: await deps.routingGroupEngineOptions(canUseEngine) }
               : {}),
           },
         };
@@ -4527,7 +4329,19 @@ function buildBridgeMethods(
     },
     modelPresets(payload) {
       if (deps.modelPresets === undefined) return unavailable();
-      const presets = deps.modelPresets.list();
+      const owner = isHostOwner();
+      const engineAllowed = engineChoiceFilter();
+      const presets = deps.modelPresets.list().filter((preset) => {
+        if (owner) return true;
+        try {
+          return [
+            ...presetEngineChoices(preset),
+            ...presetGroupIds(preset).flatMap(groupEngineChoices),
+          ].every(engineAllowed);
+        } catch {
+          return false;
+        }
+      });
       if (asObject(payload)['includeUsage'] !== true) return { ok: true, value: { presets } };
       const entries = new Map<string, ModelPresetUsage>(
         presets.map(({ id }) => [id, { presetId: id, count: 0, botNames: [] }]),
@@ -4620,7 +4434,8 @@ function buildBridgeMethods(
           ],
         );
         if (groups !== undefined) presetGroupRoutes(groups);
-        assertEngineAccounts([engines.orchestratorEngine, engines.assignmentEngine]);
+        requireEngineChoices(presetEngineChoices(engines));
+        assertEngineAccounts(presetEngineChoices(engines));
         const preset = deps.modelPresets.create({
           name,
           orchestrator,
@@ -4633,7 +4448,10 @@ function buildBridgeMethods(
         return { ok: true, value: { preset } };
       } catch (error) {
         if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return !deps.team || deps.team.isOwner(human)
+        return error instanceof TeamError ||
+          error instanceof EngineRefusal ||
+          !deps.team ||
+          deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');
       }
@@ -4700,7 +4518,8 @@ function buildBridgeMethods(
             ],
         );
         if (groups !== undefined) presetGroupRoutes(groups);
-        assertEngineAccounts([engines.orchestratorEngine, engines.assignmentEngine]);
+        requireEngineChoices(presetEngineChoices(engines));
+        assertEngineAccounts(presetEngineChoices(engines));
         const preset = deps.modelPresets.update(id, {
           expectedRevision,
           name,
@@ -4715,7 +4534,10 @@ function buildBridgeMethods(
         return { ok: true, value: { preset } };
       } catch (error) {
         if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return !deps.team || deps.team.isOwner(human)
+        return error instanceof TeamError ||
+          error instanceof EngineRefusal ||
+          !deps.team ||
+          deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');
       }
@@ -4771,7 +4593,7 @@ function buildBridgeMethods(
         await deps.modelCatalog.validate(preset.assignmentDefault);
         if (preset.assignmentModels !== undefined)
           await validateAssignmentCatalog(preset.assignmentDefault, preset.assignmentModels);
-        if (hasPresetEngines(preset)) await checkPresetEngines(preset, true);
+        if (hasPresetEngines(preset)) await checkPresetEngines(preset, slug);
         await validateGroupOptions(preset.assignmentGroupOptions);
         await validateGroupEffort(preset);
         if (changed()) return stale();
@@ -4782,7 +4604,8 @@ function buildBridgeMethods(
           ...(preset.assignmentModels ?? []),
           ...presetGroupRoutes(preset, slug),
         ]);
-        assertEngineAccounts([preset.orchestratorEngine, preset.assignmentEngine]);
+        requireEngineChoices(presetEngineChoices(preset), slug);
+        assertEngineAccounts(presetEngineChoices(preset));
         const result = deps.registry.applyModelPreset(slug, { ...preset, orchestrator });
         if (!result.ok || result.record.modelPlan === undefined) return unknownBot(slug);
         const engines = deps.subscriptionEngines;
@@ -4808,16 +4631,31 @@ function buildBridgeMethods(
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
         if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
+        return error instanceof TeamError ||
+          error instanceof EngineRefusal ||
+          !deps.team ||
+          deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');
       }
     },
     modelGroups() {
       if (deps.routingGroups === undefined) return unavailable();
+      const owner = isHostOwner();
+      const engineAllowed = engineChoiceFilter();
       return {
         ok: true,
-        value: { groups: deps.routingGroups.list(), rests: deps.routeRests?.list() ?? [] },
+        value: {
+          groups: deps.routingGroups.list().filter((group) => {
+            if (owner) return true;
+            try {
+              return groupEngineChoices(group.id).every(engineAllowed);
+            } catch {
+              return false;
+            }
+          }),
+          rests: deps.routeRests?.list() ?? [],
+        },
       };
     },
     modelGroup(payload) {
@@ -4829,6 +4667,7 @@ function buildBridgeMethods(
         const group = deps.routingGroups.get(id.trim());
         if (group === undefined)
           throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
+        if (!isHostOwner()) requireGroupEngines(group.id);
         return { ok: true, value: { group, routes: deps.routingGroups.routes(group.id) } };
       } catch (error) {
         return routingGroupFailure(error);
@@ -4840,6 +4679,7 @@ function buildBridgeMethods(
       try {
         const input = routingGroupInput(source);
         await validateGroupMembers(input.members);
+        requireEngineChoices(memberEngineChoices(input.members));
         assertEngineAccounts(input.members.filter((member) => member.kind === 'engine'));
         return { ok: true, value: { group: deps.routingGroups.create(input) } };
       } catch (error) {
@@ -4864,6 +4704,7 @@ function buildBridgeMethods(
           input.members,
           current?.revision === expectedRevision ? current?.members : undefined,
         );
+        requireEngineChoices(memberEngineChoices(input.members));
         assertEngineAccounts(input.members.filter((member) => member.kind === 'engine'));
         const group = deps.routingGroups.update(id, {
           ...input,
@@ -4984,13 +4825,13 @@ function buildBridgeMethods(
           group === undefined
             ? [source['orchestrator'] as ModelRoute]
             : deps.routingGroups!.routes(group.id);
-        if (group !== undefined) requireGroupEngineOwner(group.id, slug);
+        if (group !== undefined) requireGroupEngines(group.id, slug);
         requireRoutes(slug, candidates);
         if (group !== undefined && typeof groupEffort === 'string')
           await requireGroupEfforts(group.id, [groupEffort.trim()]);
         const orchestrator = await firstUsableRoute(candidates);
         beforeCommit?.();
-        if (group !== undefined) requireGroupEngineOwner(group.id, slug);
+        if (group !== undefined) requireGroupEngines(group.id, slug);
         requireRoutes(slug, candidates);
         if (group !== undefined && deps.routingGroups!.get(group.id)?.revision !== group.revision)
           return invalidInput('Routing Group changed; read it again before saving');
@@ -5010,7 +4851,10 @@ function buildBridgeMethods(
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
         if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
+        return error instanceof TeamError ||
+          error instanceof EngineRefusal ||
+          !deps.team ||
+          deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');
       }
@@ -5098,7 +4942,10 @@ function buildBridgeMethods(
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
         if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
+        return error instanceof TeamError ||
+          error instanceof EngineRefusal ||
+          !deps.team ||
+          deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');
       }
@@ -5250,7 +5097,10 @@ function buildBridgeMethods(
         return { ok: true, value: { plan: result.record.modelPlan } };
       } catch (error) {
         if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        return error instanceof TeamError || !deps.team || deps.team.isOwner(human)
+        return error instanceof TeamError ||
+          error instanceof EngineRefusal ||
+          !deps.team ||
+          deps.team.isOwner(human)
           ? modelFailure(error)
           : invalidInput('model-unavailable');
       }
@@ -5894,6 +5744,32 @@ function buildBridgeMethods(
         };
       }
     },
+    marketplaceAvatarList(payload) {
+      const { cursor } = asObject(payload);
+      if (cursor !== undefined && (typeof cursor !== 'string' || cursor.length > 100))
+        return Promise.resolve(invalidInput('invalid cursor'));
+      return marketplaceCall((client) => client.avatarList(cursor));
+    },
+    marketplaceAvatarDetail(payload) {
+      const { id } = asObject(payload);
+      if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/u.test(id))
+        return Promise.resolve(invalidInput('invalid Avatar ID'));
+      return marketplaceCall((client) => client.avatarDetail(id));
+    },
+    async marketplaceAvatarPublish(payload) {
+      if (!isHostOwner() || human.caller === 'bot')
+        return {
+          ok: false,
+          error: {
+            code: 'permission-required',
+            message: 'Only the Host owner may publish Marketplace Avatars',
+          },
+        };
+      if (deps.marketplaceUploads === undefined) return marketplaceUnavailable();
+      const input = parseMarketplaceAvatarPublish(asObject(payload));
+      if (input === undefined) return invalidInput('invalid Marketplace Avatar publish payload');
+      return uploadResult(await deps.marketplaceUploads.publishAvatar(input));
+    },
     marketplaceDetail(payload) {
       const { id, lang: langValue } = asObject(payload);
       if (typeof id !== 'string' || id.trim().length === 0) {
@@ -6403,157 +6279,7 @@ function buildBridgeMethods(
         value: { template: templateEntry(result.template, approvalTemplateLibrary.global()) },
       };
     },
-    promptParts() {
-      return {
-        ok: true,
-        value: {
-          parts: PROMPT_PARTS.map((part) => ({
-            id: part.id,
-            kind: part.kind,
-            section: part.section,
-            defaultText: part.defaultText,
-            defaultHash: promptTextHash(part.defaultText),
-          })),
-          limits: PROMPT_LIMITS.map(({ id, group, defaultValue, min, max }) => ({
-            id,
-            group,
-            defaultValue,
-            min,
-            max,
-          })),
-        },
-      };
-    },
-    promptPresets() {
-      if (deps.prompts === undefined) return unavailable();
-      const library = deps.prompts.library;
-      return {
-        ok: true,
-        value: {
-          presets: library.list(),
-          globalPresetId: library.globalPresetId() ?? null,
-        },
-      };
-    },
-    promptPresetCreate(payload) {
-      if (deps.prompts === undefined) return unavailable();
-      const source = asObject(payload);
-      const parts = source['parts'] === undefined ? {} : parsePromptPartEdits(source['parts']);
-      const limits = source['limits'] === undefined ? {} : parsePromptLimitEdits(source['limits']);
-      if (typeof source['name'] !== 'string' || parts === undefined || limits === undefined)
-        return invalidInput(
-          'name, optional parts ({partId: text}) and limits ({limitId: integer in range}) are required',
-        );
-      const result = deps.prompts.library.create({
-        name: source['name'],
-        parts,
-        limits,
-      });
-      return result.ok
-        ? { ok: true, value: { preset: result.value } }
-        : promptPresetFailure(result.reason);
-    },
-    promptPresetUpdate(payload) {
-      if (deps.prompts === undefined) return unavailable();
-      const source = asObject(payload);
-      const parts =
-        source['parts'] === undefined ? undefined : parsePromptPartEdits(source['parts']);
-      const limits =
-        source['limits'] === undefined ? undefined : parsePromptLimitEdits(source['limits']);
-      const expected = source['expectedRevision'];
-      if (
-        typeof source['id'] !== 'string' ||
-        (source['name'] !== undefined && typeof source['name'] !== 'string') ||
-        (source['parts'] !== undefined && parts === undefined) ||
-        (source['limits'] !== undefined && limits === undefined) ||
-        (expected !== undefined && !Number.isSafeInteger(expected))
-      )
-        return invalidInput(
-          'id, and optional name, parts, limits and expectedRevision are required',
-        );
-      const result = deps.prompts.library.update(source['id'], {
-        ...(typeof source['name'] === 'string' ? { name: source['name'] } : {}),
-        ...(parts === undefined ? {} : { parts }),
-        ...(limits === undefined ? {} : { limits }),
-        ...(expected === undefined ? {} : { expectedRevision: expected as number }),
-      });
-      return result.ok
-        ? { ok: true, value: { preset: result.value } }
-        : promptPresetFailure(result.reason);
-    },
-    promptPresetDelete(payload) {
-      if (deps.prompts === undefined) return unavailable();
-      const id = asObject(payload)['id'];
-      if (typeof id !== 'string') return invalidInput('id is required');
-      const result = deps.prompts.library.delete(id);
-      if (!result.ok) return promptPresetFailure(result.reason);
-      const clearedBots = globalRegistry
-        .list()
-        .filter((record) => record.promptPreset === id)
-        .map((record) => record.slug);
-      for (const slug of clearedBots) globalRegistry.setPromptSettings(slug, { preset: null });
-      return {
-        ok: true,
-        value: {
-          id,
-          clearedBots: clearedBots.filter((slug) => deps.registry.get(slug) !== undefined),
-        },
-      };
-    },
-    promptGlobalSet(payload) {
-      if (deps.prompts === undefined) return unavailable();
-      const presetId = asObject(payload)['presetId'];
-      if (presetId !== null && typeof presetId !== 'string')
-        return invalidInput('presetId (a Prompt Preset id, or null for built-in) is required');
-      const result = deps.prompts.library.setGlobalPresetId(presetId ?? undefined);
-      return result.ok ? { ok: true, value: result.value } : promptPresetFailure(result.reason);
-    },
-    botPrompt(payload) {
-      if (deps.prompts === undefined) return unavailable();
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      return { ok: true, value: botPromptView(deps, deps.prompts, slug) };
-    },
-    botPromptSet(payload) {
-      const prompts = deps.prompts;
-      if (prompts === undefined) return unavailable();
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      const record = deps.registry.get(slug);
-      if (record === undefined) return unknownBot(slug);
-      const source = asObject(payload);
-      const presetId = source['presetId'];
-      const parts =
-        source['parts'] === undefined ? undefined : parsePromptPartEdits(source['parts']);
-      const limits =
-        source['limits'] === undefined ? undefined : parsePromptLimitEdits(source['limits']);
-      if (
-        (presetId !== undefined && presetId !== null && typeof presetId !== 'string') ||
-        (source['parts'] !== undefined && parts === undefined) ||
-        (source['limits'] !== undefined && limits === undefined)
-      )
-        return invalidInput(
-          'optional presetId (id or null), parts ({partId: text|null}) and limits ({limitId: integer|null}) are required',
-        );
-      if (typeof presetId === 'string' && prompts.library.get(presetId) === undefined)
-        return promptPresetFailure('not-found');
-      const result = deps.registry.setPromptSettings(slug, {
-        ...(presetId === undefined ? {} : { preset: presetId }),
-        ...(parts === undefined
-          ? {}
-          : {
-              overrides: applyPromptPartEdits(record.promptOverrides ?? {}, parts),
-            }),
-        ...(limits === undefined
-          ? {}
-          : {
-              limits: applyPromptLimitEdits(record.promptLimits ?? {}, limits),
-            }),
-      });
-      if (!result.ok) return unknownBot(slug);
-      return { ok: true, value: botPromptView(deps, prompts, slug) };
-    },
+    ...promptPresets,
     approvalTemplateDeletePreview(payload) {
       const name = asObject(payload)['name'];
       if (typeof name !== 'string') return invalidInput('name is required');
@@ -6735,241 +6461,7 @@ function buildBridgeMethods(
       if (!result.ok) return unknownBot(slug);
       return { ok: true, value: detailOf(result.record) };
     },
-    botAppearanceSet(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const result = deps.registry.setAppearance(scope.botSlug, asObject(payload)['recipe']);
-      if (!result.ok)
-        return result.reason === 'not-found'
-          ? unknownBot(scope.botSlug)
-          : invalidInput('invalid Avatar Appearance');
-      return { ok: true, value: detailOf(result.record) };
-    },
-    partLibraryList() {
-      if (!deps.partLibrary) return unavailable();
-      try {
-        return { ok: true, value: { parts: deps.partLibrary.list() } };
-      } catch (error) {
-        if (error instanceof OperationalDatabaseError) return unavailable();
-        throw error;
-      }
-    },
-    partLibraryAdd(payload) {
-      if (!deps.partLibrary) return unavailable();
-      const input = asObject(payload);
-      const part = input['part'];
-      const name = input['name'] ?? '';
-      const parent = input['parent'];
-      if (!isPixelCustomPart(part)) return invalidInput('part must be a valid Custom Part');
-      if (typeof name !== 'string' || name.length > MAX_PART_NAME)
-        return invalidInput(`name must be a string of at most ${MAX_PART_NAME} characters`);
-      if (parent !== undefined && (typeof parent !== 'string' || !/^[\da-f]{64}$/u.test(parent)))
-        return invalidInput('parent must be a Custom Part id');
-      try {
-        const source = parent === undefined ? undefined : deps.partLibrary.get(parent);
-        const parentAuthor = source?.author ?? source?.parentAuthor;
-        const entry = deps.partLibrary.add({
-          part,
-          name,
-          origin: source ? 'derived' : 'drawn',
-          parent,
-          ...(parentAuthor ? { parentAuthor } : {}),
-        });
-        return { ok: true, value: { entry } };
-      } catch (error) {
-        if (error instanceof OperationalDatabaseError) return unavailable();
-        throw error;
-      }
-    },
-    partLibraryExport(payload) {
-      if (!deps.partLibrary) return unavailable();
-      const input = asObject(payload);
-      const id = input['id'];
-      const worn = input['part'];
-      try {
-        if (worn !== undefined) {
-          if (!isPixelCustomPart(worn)) return invalidInput('part must be a valid Custom Part');
-          const saved = deps.partLibrary.get(customPartId(worn));
-          const file = {
-            part: worn,
-            name: saved?.name ?? '',
-            ...(saved?.author ? { author: saved.author } : {}),
-          };
-          return {
-            ok: true,
-            value: {
-              fileName: partFileName(file),
-              data: encodePartFile(file).toString('base64'),
-            },
-          };
-        }
-        if (id === undefined) {
-          const listed = deps.partLibrary.list();
-          if (listed.length > MAX_PART_LIBRARY_FILES)
-            return invalidInput(
-              `The library has more than ${MAX_PART_LIBRARY_FILES} parts; export parts one at a time`,
-            );
-          const files = listed.map((entry) => ({
-            part: entry.part,
-            name: entry.name,
-            ...(entry.author ? { author: entry.author } : {}),
-          }));
-          return {
-            ok: true,
-            value: {
-              fileName: 'part-library.zip',
-              data: encodePartLibrary(files).toString('base64'),
-            },
-          };
-        }
-        const entry = typeof id === 'string' ? deps.partLibrary.get(id) : undefined;
-        if (!entry) return invalidInput('id must name a Part Library part');
-        const file = {
-          part: entry.part,
-          name: entry.name,
-          ...(entry.author ? { author: entry.author } : {}),
-        };
-        return {
-          ok: true,
-          value: {
-            fileName: partFileName(file),
-            data: encodePartFile(file).toString('base64'),
-          },
-        };
-      } catch (error) {
-        if (error instanceof OperationalDatabaseError) return unavailable();
-        throw error;
-      }
-    },
-    partLibraryImport(payload) {
-      if (!deps.partLibrary) return unavailable();
-      const data = asObject(payload)['data'];
-      if (typeof data !== 'string' || data.length > (MAX_PART_LIBRARY_FILE_BYTES * 4) / 3 + 4)
-        return invalidInput('data must be a base64 PNG or zip of at most 8 MB');
-      const bytes = Buffer.from(data, 'base64');
-      const decoded = decodePartFiles(bytes);
-      if (decoded === 'no-part-data') {
-        const image = readPartImage(bytes);
-        if (typeof image === 'string') return invalidInput(partImageMessage(image));
-        return {
-          ok: true,
-          value: {
-            added: [],
-            refused: [],
-            image: {
-              width: image.width,
-              height: image.height,
-              colors: image.colors,
-              slots: image.slots,
-            },
-          },
-        };
-      }
-      if (typeof decoded === 'string')
-        return invalidInput(
-          decoded === 'too-large'
-            ? 'The file is too large'
-            : decoded === 'invalid-part'
-              ? 'The part data in this file is invalid'
-              : 'The file is not a part PNG or a zip of part PNGs',
-        );
-      try {
-        const added = decoded.files.map((file) =>
-          deps.partLibrary!.add({
-            part: file.part,
-            name: file.name,
-            origin: 'imported-file',
-            author: file.author,
-          }),
-        );
-        return { ok: true, value: { added, refused: decoded.refused } };
-      } catch (error) {
-        if (error instanceof OperationalDatabaseError) return unavailable();
-        throw error;
-      }
-    },
-    partLibraryImportImage(payload) {
-      if (!deps.partLibrary) return unavailable();
-      const input = asObject(payload);
-      const data = input['data'];
-      const slot = input['slot'];
-      const colors = input['colors'];
-      const name = input['name'] ?? '';
-      if (typeof data !== 'string' || data.length > (MAX_PART_IMAGE_BYTES * 4) / 3 + 4)
-        return invalidInput('data must be a base64 PNG of at most 1 MB');
-      if (typeof slot !== 'string' || !Object.hasOwn(PART_SLOTS, slot))
-        return invalidInput('slot must be a Custom Part slot');
-      if (typeof name !== 'string' || name.length > MAX_PART_NAME)
-        return invalidInput(`name must be a string of at most ${MAX_PART_NAME} characters`);
-      if (typeof colors !== 'number' || !Number.isInteger(colors) || colors < 1)
-        return invalidInput('colors must be a positive integer');
-      const image = readPartImage(Buffer.from(data, 'base64'));
-      if (typeof image === 'string') return invalidInput(partImageMessage(image));
-      const part = partFromImage(image, slot as PartSlot, colors);
-      if (typeof part === 'string') return invalidInput(partImageMessage(part));
-      try {
-        const entry = deps.partLibrary.add({
-          part,
-          name,
-          origin: 'imported-image',
-        });
-        return { ok: true, value: { entry } };
-      } catch (error) {
-        if (error instanceof OperationalDatabaseError) return unavailable();
-        throw error;
-      }
-    },
-    botBannerSet(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const record = deps.registry.get(scope.botSlug);
-      if (record === undefined) return unknownBot(scope.botSlug);
-      const banner = asObject(payload)['banner'];
-      const next = banner === null ? seededBotBanner(record.displayName || record.slug) : banner;
-      if (!isBotBanner(next)) {
-        return invalidInput(
-          'banner must be null, { recipe: { scene, seed } } or { image } as a 3:1 PNG data URL',
-        );
-      }
-      const result = deps.registry.setBanner(scope.botSlug, next);
-      if (!result.ok)
-        return result.reason === 'not-found'
-          ? unknownBot(scope.botSlug)
-          : invalidInput('invalid banner');
-      return { ok: true, value: detailOf(result.record) };
-    },
-    botPrimaryColorSet(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const result = deps.registry.setPrimaryColor(
-        scope.botSlug,
-        asObject(payload)['primaryColor'],
-      );
-      if (!result.ok)
-        return result.reason === 'not-found'
-          ? unknownBot(scope.botSlug)
-          : invalidInput(
-              "primaryColor must be { mode: 'automatic' } or { mode: 'custom', color: '#rrggbb' }",
-            );
-      return { ok: true, value: detailOf(result.record) };
-    },
-    botAvatarSet(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const avatar = asObject(payload)['avatar'];
-      if (avatar !== null && !isPersonaBotAvatar(avatar)) {
-        return invalidInput('avatar must be a bounded PNG, JPEG, or WebP data URL');
-      }
-      const result = deps.registry.update(scope.botSlug, {
-        avatar: avatar ?? '',
-      });
-      if (!result.ok) {
-        return result.reason === 'not-found'
-          ? unknownBot(scope.botSlug)
-          : invalidInput('invalid avatar');
-      }
-      return { ok: true, value: detailOf(result.record) };
-    },
+    ...avatarsMethods,
     ping() {
       const version = deps.hostVersion?.();
       return {
@@ -8263,164 +7755,7 @@ function buildBridgeMethods(
         return invalidInput(String(error));
       }
     },
-    async channelSkillCatalog(payload) {
-      const channelId = asNonBlank(asObject(payload), 'channelId');
-      if (channelId === undefined) return invalidInput('channelId is required');
-      const channel = deps.channels.get(channelId);
-      if (channel === undefined) return unknownChannel(channelId);
-      if (deps.skills === undefined) return { ok: true, value: { skills: [] } };
-      const bots = channelSkillBots(channel);
-      try {
-        return { ok: true, value: { skills: await deps.skills.list(bots) } };
-      } catch (error) {
-        return {
-          ok: false,
-          error: { code: 'skills-unavailable', message: (error as Error).message },
-        };
-      }
-    },
-    async sessionSkillCatalog(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const sessionId = asNonBlank(source, 'sessionId');
-      if (slug === undefined) return invalidInput('slug is required');
-      if (sessionId === undefined) return invalidInput('sessionId is required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      const owner = deps.ownership.resolve(sessionId);
-      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
-        return {
-          ok: false,
-          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
-        };
-      if (deps.skills === undefined) return { ok: true, value: { skills: [] } };
-      const cwd = owner.cwdReference;
-      const workspaceIds = new Set(
-        deps.skills
-          .workspaces([slug])
-          .filter((workspace) => cwd !== undefined && workspace.path === cwd)
-          .map((workspace) => workspace.workspaceId),
-      );
-      try {
-        return {
-          ok: true,
-          value: { skills: sessionSkills(await deps.skills.list([slug]), slug, workspaceIds) },
-        };
-      } catch (error) {
-        return {
-          ok: false,
-          error: { code: 'skills-unavailable', message: (error as Error).message },
-        };
-      }
-    },
-    async botSkills(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      const memoryDir =
-        deps.registry.get(slug) === undefined ? undefined : deps.registry.memoryDirFor(slug);
-      if (memoryDir === undefined) return unknownBot(slug);
-      try {
-        return { ok: true, value: { skills: await listBotSkills(memoryDir) } };
-      } catch (error) {
-        return {
-          ok: false,
-          error: { code: 'skills-unavailable', message: (error as Error).message },
-        };
-      }
-    },
-    async skillShow(payload) {
-      const source = asObject(payload);
-      const name = asNonBlank(source, 'name');
-      const ownerKey = asNonBlank(source, 'owner');
-      const owner = ownerKey === undefined ? undefined : parseSkillOwnerKey(ownerKey);
-      if (name === undefined || owner === undefined)
-        return invalidInput('name and owner (host, bot:<slug> or workspace:<id>) are required');
-      const missing = (): BridgeResult<never> => ({
-        ok: false,
-        error: { code: 'skill-not-found', message: `Skill not found: ${ownerKey}/${name}` },
-      });
-      try {
-        if (owner.kind === 'bot') {
-          const memoryDir =
-            deps.registry.get(owner.botSlug) === undefined
-              ? undefined
-              : deps.registry.memoryDirFor(owner.botSlug);
-          if (memoryDir === undefined) return unknownBot(owner.botSlug);
-          const skill = await readBotSkill(memoryDir, name);
-          if (skill === undefined) return missing();
-          return {
-            ok: true,
-            value: {
-              skill: {
-                name: skill.name,
-                description: skill.description,
-                owner,
-                path: skill.path,
-                content: skill.content,
-              },
-            },
-          };
-        }
-        if (deps.skills === undefined) return missing();
-        const bots = deps.registry
-          .list()
-          .filter((bot) => bot.paused !== true)
-          .map((bot) => bot.slug);
-        const viewer = bots[0];
-        if (viewer === undefined) return missing();
-        const resolved = await deps.skills.resolve(name, owner, viewer, bots);
-        if (resolved === undefined) return missing();
-        const listed = (await deps.skills.list(bots)).find(
-          (entry) =>
-            entry.name === name && skillOwnerKey(entry.owner) === skillOwnerKey(resolved.owner),
-        );
-        return {
-          ok: true,
-          value: {
-            skill: {
-              name: resolved.name,
-              description: listed?.description ?? '',
-              owner: resolved.owner,
-              ...(resolved.path === undefined ? {} : { path: resolved.path }),
-              content: resolved.content,
-            },
-          },
-        };
-      } catch (error) {
-        return {
-          ok: false,
-          error: { code: 'skills-unavailable', message: (error as Error).message },
-        };
-      }
-    },
-    async botSkillRemove(payload) {
-      const slug = asSlug(payload);
-      const name = asNonBlank(asObject(payload), 'name');
-      if (slug === undefined || name === undefined)
-        return invalidInput('slug and name are required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      try {
-        requireOwnedBot(slug);
-      } catch {
-        return unknownBot(slug);
-      }
-      const memoryDir = deps.registry.memoryDirFor(slug);
-      if (memoryDir === undefined) return unknownBot(slug);
-      try {
-        const result = await removeBotSkill(memoryDir, name);
-        return { ok: true, value: result };
-      } catch (error) {
-        if (error instanceof BotSkillNotFoundError)
-          return { ok: false, error: { code: 'skill-not-found', message: error.message } };
-        if (error instanceof BotSkillIgnoredFilesError)
-          return { ok: false, error: { code: 'skill-has-ignored-files', message: error.message } };
-        return {
-          ok: false,
-          error: { code: 'skills-unavailable', message: (error as Error).message },
-        };
-      } finally {
-        deps.skills?.invalidateMemory(slug);
-      }
-    },
+    ...skillsMethods,
     channelAllBotPreview(payload) {
       const channelId = asNonBlank(asObject(payload), 'channelId');
       if (channelId === undefined) return invalidInput('channelId is required');
@@ -8442,61 +7777,7 @@ function buildBridgeMethods(
       const value = deps.channels.humanSendStatus?.(channelId, messageId);
       return value === undefined ? invalidInput('Unknown Human DM request') : { ok: true, value };
     },
-    channelGenuiView(payload) {
-      const source = asObject(payload);
-      const channelId = asNonBlank(source, 'channelId');
-      const messageId = asNonBlank(source, 'messageId');
-      if (!channelId || !messageId || deps.channels.genuiView === undefined)
-        return invalidInput('Report view is unavailable');
-      try {
-        return {
-          ok: true,
-          value: deps.channels.genuiView(human, channelId, messageId),
-        };
-      } catch (error) {
-        if (error instanceof GenuiError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
-        throw error;
-      }
-    },
-    channelGenuiViewSave(payload) {
-      const source = asObject(payload);
-      const channelId = asNonBlank(source, 'channelId');
-      const messageId = asNonBlank(source, 'messageId');
-      const snapshotId = asNonBlank(source, 'snapshotId');
-      const expectedVersion = source['expectedVersion'];
-      if (
-        !channelId ||
-        !messageId ||
-        !snapshotId ||
-        typeof expectedVersion !== 'number' ||
-        deps.channels.saveGenuiView === undefined
-      )
-        return invalidInput('Report view and expectedVersion are required');
-      try {
-        return {
-          ok: true,
-          value: deps.channels.saveGenuiView(
-            human,
-            channelId,
-            messageId,
-            snapshotId,
-            expectedVersion,
-            source['state'],
-          ),
-        };
-      } catch (error) {
-        if (error instanceof GenuiError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
-        throw error;
-      }
-    },
+    ...genuiMethods,
     async channelSend(payload) {
       const source = asObject(payload);
       const channelId = asNonBlank(source, 'channelId');
@@ -9255,155 +8536,7 @@ function buildBridgeMethods(
         return takeoverFailure(error);
       }
     },
-    scheduleList(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.schedules === undefined) return invalidInput('Bot Schedules are unavailable');
-      try {
-        return { ok: true, value: { schedules: deps.schedules.list(slug) } };
-      } catch (error) {
-        return scheduleFailure(error);
-      }
-    },
-    scheduleCreate(payload) {
-      const source = asObject(payload);
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.schedules === undefined) return invalidInput('Bot Schedules are unavailable');
-      const trigger = parseScheduleTrigger(source['trigger']);
-      if (
-        typeof source['title'] !== 'string' ||
-        typeof source['prompt'] !== 'string' ||
-        trigger === undefined ||
-        (source['enabled'] !== undefined && typeof source['enabled'] !== 'boolean') ||
-        (source['locked'] !== undefined && typeof source['locked'] !== 'boolean')
-      )
-        return invalidInput('title, prompt and a valid trigger are required');
-      try {
-        return {
-          ok: true,
-          value: {
-            schedule: deps.schedules.create(
-              slug,
-              {
-                title: source['title'],
-                prompt: source['prompt'],
-                trigger,
-                ...(source['enabled'] === undefined
-                  ? {}
-                  : { enabled: source['enabled'] as boolean }),
-                ...(source['locked'] === undefined ? {} : { locked: source['locked'] as boolean }),
-              },
-              'human',
-              human.humanId,
-            ),
-          },
-        };
-      } catch (error) {
-        return scheduleFailure(error);
-      }
-    },
-    scheduleUpdate(payload) {
-      const source = asObject(payload);
-      const slug = asSlug(payload);
-      const id = source['id'];
-      if (slug === undefined || typeof id !== 'string')
-        return invalidInput('slug and id are required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.schedules === undefined) return invalidInput('Bot Schedules are unavailable');
-      const change: BotScheduleChange = {};
-      if (source['title'] !== undefined) {
-        if (typeof source['title'] !== 'string') return invalidInput('title must be a string');
-        change.title = source['title'];
-      }
-      if (source['prompt'] !== undefined) {
-        if (typeof source['prompt'] !== 'string') return invalidInput('prompt must be a string');
-        change.prompt = source['prompt'];
-      }
-      if (source['enabled'] !== undefined) {
-        if (typeof source['enabled'] !== 'boolean')
-          return invalidInput('enabled must be a boolean');
-        change.enabled = source['enabled'];
-      }
-      if (source['locked'] !== undefined) {
-        if (typeof source['locked'] !== 'boolean') return invalidInput('locked must be a boolean');
-        change.locked = source['locked'];
-      }
-      if (source['trigger'] !== undefined) {
-        const trigger = parseScheduleTrigger(source['trigger']);
-        if (trigger === undefined)
-          return invalidInput('trigger must be every, daily, weekly, once or cron');
-        change.trigger = trigger;
-      }
-      try {
-        return {
-          ok: true,
-          value: { schedule: deps.schedules.update(slug, id, change, 'human') },
-        };
-      } catch (error) {
-        return scheduleFailure(error);
-      }
-    },
-    scheduleDelete(payload) {
-      const slug = asSlug(payload);
-      const id = asObject(payload)['id'];
-      if (slug === undefined || typeof id !== 'string')
-        return invalidInput('slug and id are required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.schedules === undefined) return invalidInput('Bot Schedules are unavailable');
-      try {
-        return {
-          ok: true,
-          value: { removed: deps.schedules.remove(slug, id, 'human') },
-        };
-      } catch (error) {
-        return scheduleFailure(error);
-      }
-    },
-    scheduleHistory(payload) {
-      const slug = asSlug(payload);
-      const id = asObject(payload)['id'];
-      if (slug === undefined || typeof id !== 'string')
-        return invalidInput('slug and id are required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.schedules === undefined) return invalidInput('Bot Schedules are unavailable');
-      try {
-        return {
-          ok: true,
-          value: { firings: deps.schedules.history(slug, id) },
-        };
-      } catch (error) {
-        return scheduleFailure(error);
-      }
-    },
-    scheduleRunNow(payload) {
-      const slug = asSlug(payload);
-      const id = asObject(payload)['id'];
-      if (slug === undefined || typeof id !== 'string')
-        return invalidInput('slug and id are required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      if (deps.schedules === undefined) return invalidInput('Bot Schedules are unavailable');
-      try {
-        return { ok: true, value: { firing: deps.schedules.runNow(slug, id) } };
-      } catch (error) {
-        return scheduleFailure(error);
-      }
-    },
-    schedulePreview(payload) {
-      const trigger = parseScheduleTrigger(asObject(payload)['trigger']);
-      if (trigger === undefined)
-        return invalidInput('trigger must be every, daily, weekly, once or cron');
-      try {
-        return {
-          ok: true,
-          value: { occurrences: previewBotScheduleTrigger(trigger) },
-        };
-      } catch (error) {
-        return scheduleFailure(error);
-      }
-    },
+    ...schedulesMethods,
     botSourcePolicies(payload) {
       const slug = asSlug(payload);
       if (slug === undefined) return invalidInput('slug is required');

@@ -8,6 +8,7 @@ import { codexRateLimit, codexUsageLimit } from '../src/engines/codex-engine.js'
 import { createEngineGateway, type EngineGateway } from '../src/engines/engine-gateway.js';
 import { EngineHost, type EngineTool } from '../src/engines/engine-host.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
+import { ownerEngineSelection } from './engine-route-fixture.js';
 import { EngineLimitError } from '../src/engines/engine-session.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createCore } from '../src/plugin.js';
@@ -165,10 +166,11 @@ describe('Codex quota and limits (#4493)', () => {
   it('switches through the Host route and the CLI, and resumes a paused Bot', async () => {
     const { host } = setup([]);
     const released: string[] = [];
+    const botExists = (slug: string) => slug === 'ada';
     const deps = {
       host,
-      botExists: (slug: string) => slug === 'ada',
-      releaseQuotaHold: (slug: string) => void released.push(slug),
+      botExists,
+      ...ownerEngineSelection(host, botExists, (slug) => void released.push(slug)),
     };
     const connect = async () => ({
       http: async (_path: string, body?: Record<string, unknown>) => {

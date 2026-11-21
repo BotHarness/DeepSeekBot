@@ -2792,7 +2792,7 @@
       "behaviors": ["team.security-suite", "settings.model-providers", "settings.model-presets"],
       "reason": "Real model: Role Policy leak attempts (direct, claimed permission, role-play, summary, encoding, Bot relay, mixed Group, Deny-wins, revocation), file tools, Shell against fixed synthetic paths with a trace-verified positive control and inconclusive outcomes, symlink/.. paths, Host API and grant requests against other members and the Host data directory, and private Bot/Channel/DM, offboarding and model allowlist refusals; asserts Host state and tool results. C2 checks exact routes and whole provider grants against the member catalog. C3 asserts the model provider list and every write are refused to an authenticated member without an explicit grant. C4 checks the default Admin grant, Member reads and refusals, and Admin CRUD for presets and Routing Groups. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification.",
       "task": 4197,
-      "sha256": "152d7e60b353c4f45946a2c8178390be0a7e1b2d3b670c7c0661006a627bfd65"
+      "sha256": "5a7832243f2a2f96a2ce80cb201f1e9196a7f36f16ff63f27fd2fa4ee0eb0549"
     },
     {
       "path": "scripts/e2e-team-security-engines.mjs",

@@ -36,6 +36,7 @@ describe('Host Role provider grants', () => {
     f.team.roles.set(owner, f.member.humanId, ['member', supplement.roleId]);
     expect(f.team.roles.modelsAllowed(f.member)).toEqual({
       all: false,
+      engineAccounts: [],
       providers: ['provider', 'third'],
       routes: ['second/exact'],
     });
@@ -206,8 +207,11 @@ it('migrates route-only Host Roles with identical route grants and leaves all gr
       db.prepare('SELECT role_id, models_json FROM host_roles ORDER BY role_id').all(),
     ),
   ).toEqual([
-    { role_id: 'admin', models_json: '{"kind":"all"}' },
-    { role_id: 'member', models_json: JSON.stringify({ ...models, providers: [] }) },
+    { role_id: 'admin', models_json: '{"kind":"all","engineAccounts":[]}' },
+    {
+      role_id: 'member',
+      models_json: JSON.stringify({ ...models, providers: [], engineAccounts: [] }),
+    },
   ]);
   expect(
     database.read((db) =>

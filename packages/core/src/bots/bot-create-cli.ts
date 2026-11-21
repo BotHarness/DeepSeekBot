@@ -177,10 +177,11 @@ Usage:
   tobs engine tools <id> [--query memory] --host <url>
   tobs engine tool <id> memory_read --args-stdin --host <url>
   tobs engine accounts --host <url>
-  tobs engine account-add codex --name <name> --expected-revision <r> --host <url>
+  tobs engine account-add codex|claude --name <name> --expected-revision <r> --host <url>
   tobs engine account-rename <account-id> --name <name> --expected-revision <r> --host <url>
   tobs engine account-remove <account-id> --expected-revision <r> --confirm --host <url>
-  tobs engine login <account-id>|codex|claude --host <url>
+  tobs engine login <account-id>|codex|claude [--account <id>] --host <url>
+  tobs engine login claude [--account <id>] --code-stdin --host <url> < <code-file>
   tobs engine models <account-id>|codex|claude --host <url>
   tobs engine use <id> codex|claude|none --role orchestrator|assignment [--account <id>] [--model <id>] [--effort <level>] [--fallback on|off] --host <url>
   tobs pause <id> [--home <dsh-home>]
@@ -243,6 +244,10 @@ Usage:
   tobs marketplace-digest [--day YYYY-MM-DD] [--lang zh|en]
   tobs marketplace-digests [--lang zh|en]
   tobs marketplace-detail <owner/repo>
+  tobs marketplace-avatar-list [--cursor <cursor>]  Browse Marketplace Avatars / 浏览市场头像
+  tobs marketplace-avatar-detail <id>  Read a Marketplace Avatar / 查看市场头像详情
+  tobs marketplace-avatar-publish --file <image> --name <name> [--description <text>] [--avatar-tag <tag> ...] [--operation-key <key>] --confirm
+    Publish a processed image as the Host owner / Host 所有者从文件发布已处理的头像
   tobs marketplace-file <listing-id> <path>
   tobs marketplace-submit <github-repo-url>
   tobs marketplace-report <owner/repo> [--reason <text>]
@@ -2766,10 +2771,11 @@ export async function runBotCreateCli(
           'group-create',
           'group-invite',
           'marketplace-install',
+          'marketplace-avatar-publish',
         ].includes(command))
     )
       throw usageError(
-        '--operation-key is supported only for online Bot creation or status, Marketplace install, group creation or group invitation.',
+        '--operation-key is supported only for online Bot creation or status, Marketplace install or Avatar publish, group creation or group invitation.',
       );
     if (
       values['expected-channel'] !== undefined &&

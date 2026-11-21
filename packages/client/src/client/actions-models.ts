@@ -1,4 +1,5 @@
 import { loadRoutingGroupEngines } from '@botharness/host-client/model-catalog';
+import { bridgeEngineApi, type EngineApi } from './engine-choice.js';
 import type * as prompts from '@botharness/host-client/prompt-presets';
 import { inheritModelPlan, setOnboardingModel } from '@botharness/host-client/model-plans';
 import { invalidateInheritedModelPlans } from './model-plan-store.js';
@@ -38,6 +39,7 @@ import type { BridgeActions } from './actions.js';
 import { recorded } from './actions-telemetry.js';
 
 export interface ModelActions {
+  subscriptionEngine?: EngineApi;
   onboardingModel(
     slug: string | undefined,
     expectedRevision: number,
@@ -131,6 +133,7 @@ export function createModelActions(
       });
     },
     setModelFavorite: (choice, favorite) => setModelFavorite(call, choice, favorite),
+    subscriptionEngine: bridgeEngineApi(call),
     modelPresets: () => loadModelPresets(call),
     routingGroups: () => loadRoutingGroups(call),
     routingGroupEngines: () => loadRoutingGroupEngines(bridgeHost(call)),

@@ -1,3 +1,8 @@
+import type {
+  MarketplaceAvatar as MarketplaceAvatarListing,
+  MarketplaceAvatarPage,
+  MarketplaceAvatarPublish,
+} from '@botharness/host-protocol/marketplace-avatar';
 import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
 
 import { canonicalRecipe, isAvatarRecipe, type AvatarRecipe } from '../bots/avatar-appearance.js';
@@ -156,6 +161,12 @@ export type MarketplaceResult<T> =
   | { ok: false; code: string; path?: string };
 
 export interface MarketplaceClient {
+  avatarList(cursor?: string): Promise<MarketplaceResult<MarketplaceAvatarPage>>;
+  avatarDetail(id: string): Promise<MarketplaceResult<MarketplaceAvatarListing>>;
+  avatarPublish(
+    token: string,
+    input: MarketplaceAvatarPublish,
+  ): Promise<MarketplaceResult<MarketplaceAvatarListing>>;
   list(query: MarketplaceQuery): Promise<MarketplaceResult<MarketplacePage>>;
   topics(): Promise<MarketplaceResult<MarketplaceTopic[]>>;
   section(
@@ -205,6 +216,43 @@ export interface MarketplaceClient {
 }
 
 const REQUEST_TIMEOUT_MS = 15_000;
+
+function parseAvatarListing(value: unknown): MarketplaceAvatarListing | undefined {
+  const entry = record(value);
+  const author = record(entry?.['author']);
+  if (entry === undefined || author === undefined) return;
+  const { id, imageUrl, name, description, tags, applyCount } = entry;
+  if (
+    typeof id !== 'string' ||
+    typeof imageUrl !== 'string' ||
+    typeof name !== 'string' ||
+    typeof description !== 'string' ||
+    typeof applyCount !== 'number' ||
+    !Array.isArray(tags) ||
+    !tags.every((tag): tag is string => typeof tag === 'string') ||
+    typeof author.id !== 'string' ||
+    typeof author.name !== 'string'
+  )
+    return;
+  return {
+    id,
+    imageUrl,
+    name,
+    description,
+    tags,
+    applyCount,
+    author: { id: author.id, name: author.name },
+  };
+}
+
+function parseAvatarPage(value: unknown): MarketplaceAvatarPage | undefined {
+  const page = record(value);
+  if (page === undefined) return;
+  const { avatars, nextCursor } = page;
+  if (!Array.isArray(avatars) || (nextCursor !== null && typeof nextCursor !== 'string')) return;
+  const parsed = avatars.map(parseAvatarListing);
+  if (parsed.every((avatar) => avatar !== undefined)) return { avatars: parsed, nextCursor };
+}
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -627,6 +675,24 @@ export function createMarketplaceClient(options: {
   };
 
   return {
+    avatarList: (cursor) =>
+      request(
+        '/v1/avatars' + (cursor === undefined ? '' : `?cursor=${encodeURIComponent(cursor)}`),
+        { method: 'GET', headers: { accept: 'application/json' } },
+        parseAvatarPage,
+      ),
+    avatarDetail: (id) =>
+      request(
+        `/v1/avatars/${encodeURIComponent(id)}`,
+        { method: 'GET', headers: { accept: 'application/json' } },
+        (value) => parseAvatarListing(record(value)?.['avatar']),
+      ),
+    avatarPublish: (token, input) =>
+      request(
+        '/v1/avatars',
+        { method: 'POST', headers: authorized(token, true), body: JSON.stringify(input) },
+        (value) => parseAvatarListing(record(value)?.['avatar']),
+      ),
     list: (query) =>
       request(
         listPath(query),

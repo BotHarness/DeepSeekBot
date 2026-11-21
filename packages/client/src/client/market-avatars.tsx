@@ -1,0 +1,672 @@
+import { useId, useRef, useState, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
+
+import {
+  parseMarketplaceAvatarText,
+  type MarketplaceAvatar,
+  type MarketplaceAvatarPage,
+} from '@botharness/host-protocol/marketplace-avatar';
+import type { BridgeActions } from './actions.js';
+import { PersonaBotAvatar } from './avatar.js';
+import { formatStars } from './community-links.js';
+import { startConnectSignIn, type ConnectSignInCode } from './connect-sign-in.js';
+import { ConnectSignInBlock } from './connect-sign-in-block.js';
+import { Button } from './ds/button.js';
+import { Checkbox } from './ds/checkbox.js';
+import { joinClass } from './ds/class-name.js';
+import { FieldStack, TextAreaField, TextField } from './ds/field.js';
+import { HiddenFileInput } from './ds/input.js';
+import { Note } from './ds/note.js';
+import { PanelDialog } from './ds/panel-dialog.js';
+import { ReadFailure } from './ds/read-failure.js';
+import { StepProgress } from './ds/step-progress.js';
+import { Tag } from './ds/tag.js';
+import { layer, space, style } from './ds/tobs.stylex.js';
+import type { BotHarnessTranslate } from './locale.js';
+import { MarketPage } from './market-page.js';
+import { marketplaceError } from './marketplace-feedback.js';
+import { MarketplaceLoadMoreButton } from './marketplace-list-status.js';
+import { marketplaceLanguage } from './marketplace-listing.js';
+import { observeResource } from './messaging-defaults-live.js';
+import { useMountedResource } from './mounted-resource.js';
+import { PersonaBotAvatarCropModal } from './personabot-avatar-crop.js';
+
+const styles = stylex.create({
+  grid: {
+    gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 8rem), 1fr))',
+  },
+  cardOpen: {
+    alignItems: 'stretch',
+    justifyContent: 'flex-start',
+    aspectRatio: 'auto',
+    backgroundColor: 'transparent',
+    gap: 0,
+    whiteSpace: 'normal',
+  },
+  thumbnail: {
+    display: 'block',
+    width: '100%',
+    height: 'auto',
+    aspectRatio: '1',
+    objectFit: 'cover',
+    backgroundColor: layer.well,
+  },
+  title: { flexDirection: 'column', alignItems: 'flex-start', overflowWrap: 'anywhere' },
+  artwork: { width: 'min(100%, 16rem)', borderRadius: style.radiusCard },
+  photoField: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: space.x3 },
+  description: { whiteSpace: 'pre-wrap' },
+});
+
+type BrowseActions = Pick<BridgeActions, 'marketplaceAvatarList' | 'marketplaceAvatarDetail'>;
+type PublishActions = Pick<
+  BridgeActions,
+  'marketplaceAccount' | 'marketplaceAuthorSave' | 'marketplaceAvatarPublish'
+>;
+type MarketplaceAccount = Awaited<ReturnType<BridgeActions['marketplaceAccount']>>;
+
+type Read<T> =
+  | { kind: 'loading' }
+  | { kind: 'failed'; error: unknown }
+  | { kind: 'ready'; value: T };
+
+function AvatarOwner({
+  avatar,
+  t,
+}: {
+  avatar: MarketplaceAvatar;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const { name, id } = avatar.author;
+  return (
+    <span className="bh-market-owner" title={t('market.avatar.author', { name, id })}>
+      {name} #{id}
+    </span>
+  );
+}
+
+function AvatarApplyCount({ count, t }: { count: number; t: BotHarnessTranslate }): ReactElement {
+  const label = t('market.applyCount', { count: String(count) });
+  return (
+    <span className="bh-market-installs" title={label} aria-label={label}>
+      {t('market.applyCount', { count: formatStars(count, marketplaceLanguage(t)) })}
+    </span>
+  );
+}
+
+function MarketAvatarCard({
+  avatar,
+  t,
+  onOpen,
+}: {
+  avatar: MarketplaceAvatar;
+  t: BotHarnessTranslate;
+  onOpen: () => void;
+}): ReactElement {
+  return (
+    <div className="bh-market-tile" role="listitem">
+      <Button
+        variant="preview"
+        className="bh-market-open bh-market-tile-open"
+        xstyle={styles.cardOpen}
+        aria-label={t('market.detail.open', { name: avatar.name })}
+        onClick={onOpen}
+      >
+        <img
+          {...stylex.props(styles.thumbnail)}
+          src={avatar.imageUrl}
+          alt=""
+          loading="lazy"
+          width={128}
+          height={128}
+        />
+        <span className="bh-market-tile-head">
+          <span className="bh-market-copy">
+            <span className="bh-market-card-name">{avatar.name}</span>
+            <AvatarOwner avatar={avatar} t={t} />
+          </span>
+        </span>
+        <span className="bh-market-tile-foot">
+          <span className="bh-market-meta">
+            <AvatarApplyCount count={avatar.applyCount} t={t} />
+          </span>
+        </span>
+      </Button>
+    </div>
+  );
+}
+
+export function MarketAvatars({
+  actions,
+  t,
+  publishing,
+  onClosePublish,
+}: {
+  actions: BrowseActions & PublishActions;
+  t: BotHarnessTranslate;
+  publishing: boolean;
+  onClosePublish: () => void;
+}): ReactElement {
+  const [listing, setListing] = useState<Read<MarketplaceAvatarPage>>({ kind: 'loading' });
+  const [nextError, setNextError] = useState<unknown>();
+  const [loadingMore, setLoadingMore] = useState(false);
+  const fetchingNext = useRef(false);
+  const [reload, setReload] = useState(0);
+  const [selected, setSelected] = useState<MarketplaceAvatar>();
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    let subscribed = true;
+    void actions.marketplaceAvatarList().then(
+      (value) => {
+        if (subscribed) setListing({ kind: 'ready', value });
+      },
+      (error: unknown) => {
+        if (subscribed) setListing({ kind: 'failed', error });
+      },
+    );
+    return () => {
+      subscribed = false;
+    };
+  }, [actions, reload]);
+
+  const more = async () => {
+    if (listing.kind !== 'ready' || listing.value.nextCursor === null || fetchingNext.current)
+      return;
+    fetchingNext.current = true;
+    setLoadingMore(true);
+    setNextError(undefined);
+    try {
+      const next = await actions.marketplaceAvatarList(listing.value.nextCursor);
+      setListing((current) => {
+        if (current.kind !== 'ready') return current;
+        const ids = new Set(current.value.avatars.map(({ id }) => id));
+        return {
+          kind: 'ready',
+          value: {
+            avatars: [...current.value.avatars, ...next.avatars.filter(({ id }) => !ids.has(id))],
+            nextCursor: next.nextCursor,
+          },
+        };
+      });
+    } catch (error) {
+      setNextError(error);
+    } finally {
+      fetchingNext.current = false;
+      setLoadingMore(false);
+    }
+  };
+
+  return (
+    <>
+      <div className="bh-market-page" hidden={selected !== undefined}>
+        <div className="bh-market-panel" ref={mount}>
+          {listing.kind === 'loading' && (
+            <div className="bh-market-state" role="status">
+              {t('market.loading')}
+            </div>
+          )}
+          {listing.kind === 'failed' && (
+            <ReadFailure
+              retryLabel={t('market.retry')}
+              onRetry={() => {
+                setListing({ kind: 'loading' });
+                setReload((value) => value + 1);
+              }}
+            >
+              {t('market.error.load', { error: marketplaceError(listing.error, t) })}
+            </ReadFailure>
+          )}
+          {listing.kind === 'ready' &&
+            (listing.value.avatars.length === 0 ? (
+              <div className="bh-market-state">{t('market.avatar.empty')}</div>
+            ) : (
+              <div
+                className={joinClass('bh-market-grid', stylex.props(styles.grid).className)}
+                role="list"
+                aria-label={t('market.avatar.title')}
+              >
+                {listing.value.avatars.map((avatar) => (
+                  <MarketAvatarCard
+                    key={avatar.id}
+                    avatar={avatar}
+                    t={t}
+                    onOpen={() => setSelected(avatar)}
+                  />
+                ))}
+              </div>
+            ))}
+          {nextError !== undefined ? (
+            <ReadFailure retryLabel={t('market.retry')} onRetry={() => void more()}>
+              {t('market.error.load', { error: marketplaceError(nextError, t) })}
+            </ReadFailure>
+          ) : (
+            listing.kind === 'ready' &&
+            listing.value.nextCursor !== null && (
+              <MarketplaceLoadMoreButton
+                loading={loadingMore}
+                onLoadMore={() => void more()}
+                t={t}
+              />
+            )
+          )}
+        </div>
+      </div>
+      {selected !== undefined && (
+        <MarketAvatarDetail
+          key={selected.id}
+          initial={selected}
+          actions={actions}
+          t={t}
+          onBack={() => setSelected(undefined)}
+        />
+      )}
+      {publishing && (
+        <MarketAvatarPublishDialog
+          actions={actions}
+          t={t}
+          onClose={onClosePublish}
+          onPublished={(avatar) => {
+            onClosePublish();
+            setListing((current) =>
+              current.kind === 'ready'
+                ? {
+                    kind: 'ready',
+                    value: {
+                      ...current.value,
+                      avatars: [
+                        avatar,
+                        ...current.value.avatars.filter((item) => item.id !== avatar.id),
+                      ],
+                    },
+                  }
+                : current,
+            );
+            setSelected(avatar);
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+function MarketAvatarDetail({
+  initial,
+  actions,
+  t,
+  onBack,
+}: {
+  initial: MarketplaceAvatar;
+  actions: BrowseActions;
+  t: BotHarnessTranslate;
+  onBack: () => void;
+}): ReactElement {
+  const [detail, setDetail] = useState<Read<MarketplaceAvatar>>({ kind: 'loading' });
+  const [reload, setReload] = useState(0);
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    let subscribed = true;
+    void actions.marketplaceAvatarDetail(initial.id).then(
+      (value) => {
+        if (subscribed) setDetail({ kind: 'ready', value });
+      },
+      (error: unknown) => {
+        if (subscribed) setDetail({ kind: 'failed', error });
+      },
+    );
+    return () => {
+      subscribed = false;
+    };
+  }, [actions, initial.id, reload]);
+  const avatar = detail.kind === 'ready' ? detail.value : initial;
+  return (
+    <MarketPage page="avatar-detail" title={avatar.name} hidden={false} t={t} onBack={onBack}>
+      <div ref={mount} className="bh-market-detail">
+        <div className="bh-market-hero">
+          <img
+            {...stylex.props(styles.thumbnail, styles.artwork)}
+            alt={avatar.name}
+            src={avatar.imageUrl}
+            width={256}
+            height={256}
+          />
+          <div className="bh-market-hero-name">
+            <div className={joinClass('bh-market-name', stylex.props(styles.title).className)}>
+              <span>{avatar.name}</span>
+              <AvatarOwner avatar={avatar} t={t} />
+            </div>
+          </div>
+          {avatar.description && (
+            <span
+              className={joinClass(
+                'bh-market-description',
+                stylex.props(styles.description).className,
+              )}
+            >
+              {avatar.description}
+            </span>
+          )}
+          <div className="bh-market-meta">
+            <AvatarApplyCount count={avatar.applyCount} t={t} />
+            {avatar.tags.map((tag) => (
+              <Tag key={tag} tone="neutral" wrap>
+                {tag}
+              </Tag>
+            ))}
+          </div>
+        </div>
+        {detail.kind === 'loading' && (
+          <div className="bh-market-state" role="status">
+            {t('market.detail.loading')}
+          </div>
+        )}
+        {detail.kind === 'failed' && (
+          <ReadFailure
+            retryLabel={t('market.retry')}
+            onRetry={() => {
+              setDetail({ kind: 'loading' });
+              setReload((value) => value + 1);
+            }}
+          >
+            {t('market.detail.error', { error: marketplaceError(detail.error, t) })}
+          </ReadFailure>
+        )}
+      </div>
+    </MarketPage>
+  );
+}
+
+export function MarketAvatarPublishDialog({
+  actions,
+  t,
+  onClose,
+  onPublished,
+}: {
+  actions: PublishActions;
+  t: BotHarnessTranslate;
+  onClose: () => void;
+  onPublished: (avatar: MarketplaceAvatar) => void;
+}): ReactElement {
+  const formId = useId();
+  const [file, setFile] = useState<File>();
+  const [image, setImage] = useState<string>();
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [tags, setTags] = useState('');
+  const [account, setAccount] = useState<Read<MarketplaceAccount>>({ kind: 'loading' });
+  const [authorName, setAuthorName] = useState<string>();
+  const [terms, setTerms] = useState(false);
+  const [signIn, setSignIn] = useState<ConnectSignInCode>();
+  const [error, setError] = useState<unknown>();
+  const [busy, setBusy] = useState(false);
+  const [reload, setReload] = useState(0);
+  const lock = useRef(false);
+  const requestKey = useRef<string>();
+  const input = useRef<HTMLInputElement>(null);
+  const mount = useMountedResource<HTMLDivElement>(() => {
+    let subscribed = true;
+    void actions.marketplaceAccount().then(
+      (value) => {
+        if (subscribed) setAccount({ kind: 'ready', value });
+      },
+      (cause: unknown) => {
+        if (subscribed) setAccount({ kind: 'failed', error: cause });
+      },
+    );
+    return () => {
+      subscribed = false;
+    };
+  }, [actions, reload]);
+  const signedIn = account.kind === 'ready' && account.value.signedIn;
+  const issue = account.kind === 'ready' ? account.value.issue : undefined;
+  const signInResource = useMountedResource<HTMLSpanElement>(
+    () =>
+      observeResource(
+        'account',
+        () => {
+          if (!lock.current) setReload((value) => value + 1);
+        },
+        15_000,
+        15_000,
+        true,
+      ),
+    [actions, signIn],
+  );
+  const author = account.kind === 'ready' ? account.value.author : null;
+  const readyAuthor = signedIn && author?.termsAcceptedAt != null ? author : undefined;
+  const draftName = authorName ?? author?.name ?? '';
+  const text = parseMarketplaceAvatarText({
+    name,
+    description,
+    tags: tags.trim() ? tags.split(/[,，]/u) : [],
+  });
+  const allowed =
+    readyAuthor !== undefined
+      ? image !== undefined && text !== undefined
+      : terms && draftName.trim().length > 0;
+
+  const run = async (submit: () => Promise<void>) => {
+    if (lock.current) return;
+    lock.current = true;
+    setError(undefined);
+    setBusy(true);
+    try {
+      await submit();
+    } catch (cause) {
+      setError(cause);
+    } finally {
+      lock.current = false;
+      setBusy(false);
+    }
+  };
+  const submit = () => {
+    if (account.kind !== 'ready' || !signedIn || !allowed) return;
+    if (readyAuthor === undefined) {
+      void run(async () => {
+        const saved = await actions.marketplaceAuthorSave(draftName.trim(), true);
+        setAccount({ kind: 'ready', value: { ...account.value, author: saved } });
+      });
+    } else if (image !== undefined && text !== undefined) {
+      const key = (requestKey.current ??= crypto.randomUUID());
+      void run(async () =>
+        onPublished(
+          await actions.marketplaceAvatarPublish({
+            ...text,
+            image,
+            requestKey: key,
+            confirm: true,
+            expectedAuthorId: readyAuthor.id,
+          }),
+        ),
+      );
+    }
+  };
+  const close = () => {
+    if (!lock.current) onClose();
+  };
+
+  return (
+    <>
+      <PanelDialog
+        title={t('market.avatar.publish')}
+        size="small"
+        closeLabel={t('common.close')}
+        onClose={close}
+        scroll
+        bodyRef={mount}
+        data={{ 'data-market-avatar-publish': readyAuthor === undefined ? 'account' : 'details' }}
+        actions={
+          signedIn ? (
+            <Button variant="primary" type="submit" form={formId} disabled={busy || !allowed}>
+              {t(
+                readyAuthor === undefined
+                  ? 'market.author.continue'
+                  : busy
+                    ? 'market.direct.uploading'
+                    : 'market.avatar.publish',
+              )}
+            </Button>
+          ) : undefined
+        }
+      >
+        <StepProgress
+          label={t('market.direct.progress')}
+          steps={[t('market.direct.step.account'), t('market.direct.step.details')]}
+          step={readyAuthor === undefined ? 0 : 1}
+          titles="current"
+        />
+        {account.kind === 'loading' && <Note>{t('market.direct.loading')}</Note>}
+        {account.kind === 'failed' && (
+          <ReadFailure
+            retryLabel={t('market.retry')}
+            onRetry={() => {
+              setAccount({ kind: 'loading' });
+              setReload((value) => value + 1);
+            }}
+          >
+            {t('market.direct.accountFailed', { error: marketplaceError(account.error, t) })}
+          </ReadFailure>
+        )}
+        {account.kind === 'ready' && !signedIn && (
+          <ConnectSignInBlock
+            t={t}
+            code={issue === undefined ? signIn : undefined}
+            title={t('accountProfile.signInTitle')}
+            body={t('market.direct.signInHint')}
+            signInLabel={t('market.direct.signIn')}
+            busy={busy}
+            onSignIn={() =>
+              void run(async () => {
+                setSignIn(await startConnectSignIn());
+                setAccount((current) =>
+                  current.kind === 'ready'
+                    ? {
+                        kind: 'ready',
+                        value: { signedIn: false, author: null },
+                      }
+                    : current,
+                );
+              })
+            }
+            codeMarker="data-market-sign-in"
+            {...(issue === undefined
+              ? {}
+              : {
+                  failed: t(
+                    issue === 'relay-unavailable' || issue === 'relay-full'
+                      ? 'accountProfile.signInRelay'
+                      : 'accountProfile.signInFailed',
+                  ),
+                })}
+          >
+            {signIn !== undefined && issue === undefined && <span ref={signInResource} hidden />}
+          </ConnectSignInBlock>
+        )}
+        {signedIn && (
+          <form
+            id={formId}
+            onSubmit={(event) => {
+              event.preventDefault();
+              submit();
+            }}
+          >
+            <FieldStack>
+              {readyAuthor === undefined ? (
+                <>
+                  <TextField
+                    label={t('market.author.name')}
+                    value={draftName}
+                    maxLength={40}
+                    initialFocus
+                    onChange={setAuthorName}
+                    disabled={busy}
+                  />
+                  <Checkbox checked={terms} onChange={setTerms} label={t('market.author.terms')} />
+                </>
+              ) : (
+                <>
+                  <span className="bh-market-owner">
+                    {t('market.avatar.author', { name: readyAuthor.name, id: readyAuthor.id })}
+                  </span>
+                  <div {...stylex.props(styles.photoField)}>
+                    {image !== undefined && (
+                      <span
+                        data-market-avatar-preview=""
+                        role="img"
+                        aria-label={t('market.avatar.preview')}
+                      >
+                        <PersonaBotAvatar
+                          personaBotId={formId}
+                          name={t('market.avatar.preview')}
+                          src={image}
+                          size={40}
+                          still
+                          preview
+                          indicator={false}
+                          nativeTitle={false}
+                          t={t}
+                        />
+                      </span>
+                    )}
+                    <HiddenFileInput
+                      ref={input}
+                      aria-label={t('market.avatar.chooseFile')}
+                      accept="image/png,image/jpeg,image/webp"
+                      disabled={busy}
+                      onChange={(event) => {
+                        const chosen = event.currentTarget.files?.[0];
+                        event.currentTarget.value = '';
+                        if (chosen !== undefined) setFile(chosen);
+                      }}
+                    />
+                    <Button
+                      variant="outline"
+                      type="button"
+                      size="sm"
+                      disabled={busy}
+                      onClick={() => input.current?.click()}
+                    >
+                      {t('market.avatar.chooseFile')}
+                    </Button>
+                  </div>
+                  <TextField
+                    label={t('market.direct.name')}
+                    value={name}
+                    disabled={busy}
+                    onChange={setName}
+                    hint={t('market.avatar.nameHint')}
+                  />
+                  <TextAreaField
+                    label={t('market.direct.bio')}
+                    value={description}
+                    disabled={busy}
+                    onChange={setDescription}
+                    hint={t('market.avatar.bioHint')}
+                    rows={2}
+                  />
+                  <TextField
+                    label={t('market.direct.tags')}
+                    value={tags}
+                    disabled={busy}
+                    onChange={setTags}
+                    hint={t('market.avatar.tagsHint')}
+                  />
+                  <Note>{t('market.avatar.publicNotice')}</Note>
+                </>
+              )}
+            </FieldStack>
+          </form>
+        )}
+        {error !== undefined && <Note tone="danger">{marketplaceError(error, t)}</Note>}
+      </PanelDialog>
+      {file !== undefined && (
+        <PersonaBotAvatarCropModal
+          marketplace
+          file={file}
+          t={t}
+          onClose={() => setFile(undefined)}
+          onSave={async (crop) => {
+            setImage(crop);
+            return true;
+          }}
+        />
+      )}
+    </>
+  );
+}

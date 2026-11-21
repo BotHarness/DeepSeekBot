@@ -17,6 +17,7 @@ import { detectClaude, startClaudeLogin, type ClaudeStatus } from './claude-stat
 import { CodexEngineSession, spawnCodexTransport } from './codex-engine.js';
 import { detectCodex, startCodexLogin, type CodexStatus } from './codex-status.js';
 import { readEngineAccount, requireSubscription, statusReport } from './engine-account.js';
+import type { EngineLoginCodeInput } from './engine-command.js';
 import type { EngineHostOptions } from './engine-host.js';
 import type { EngineStatusReport } from './engine-host-types.js';
 import {
@@ -37,6 +38,11 @@ import type { EngineStore, StoredEngineAccount } from './engine-store.js';
 
 const MODELS_TTL_MS = 5 * 60_000;
 
+interface AccountLogin {
+  controller: AbortController;
+  submitCode?: EngineLoginCodeInput;
+}
+
 export class EngineHostAccounts {
   readonly #store: EngineStore;
   readonly #options: EngineHostOptions;
@@ -44,7 +50,7 @@ export class EngineHostAccounts {
   readonly #models = new Map<string, { at: number; models: Promise<EngineModel[]> }>();
   readonly #statusProbes = new Map<string, Promise<CodexStatus | ClaudeStatus>>();
   readonly #readingModels = new Map<string, Promise<EngineModel[]>>();
-  readonly #logins = new Map<string, AbortController>();
+  readonly #logins = new Map<string, AccountLogin>();
 
   constructor(store: EngineStore, options: EngineHostOptions, busy: (id: string) => boolean) {
     this.#store = store;
@@ -53,7 +59,7 @@ export class EngineHostAccounts {
   }
 
   close(): void {
-    for (const login of this.#logins.values()) login.abort();
+    for (const login of this.#logins.values()) login.controller.abort();
   }
 
   codex(account: StoredEngineAccount): {
@@ -63,12 +69,12 @@ export class EngineHostAccounts {
   } {
     return {
       command: this.#options.codexCommand ?? 'codex',
-      home: this.#codexHome(account),
+      home: this.#accountHome(account),
       ...(this.#options.env === undefined ? {} : { env: this.#options.env }),
     };
   }
 
-  #codexHome({ homeDir }: StoredEngineAccount): string {
+  #accountHome({ homeDir }: StoredEngineAccount): string {
     let home = this.#options.root;
     for (const part of homeDir.split('/')) {
       home = join(home, part);
@@ -76,7 +82,7 @@ export class EngineHostAccounts {
       if (entry !== undefined && !entry.isDirectory())
         throw new EngineRefusal(
           'engine-unavailable',
-          'The Codex home must be a Bot-owned directory',
+          'The subscription account home must be a Bot-owned directory',
         );
     }
     return home;
@@ -102,18 +108,15 @@ export class EngineHostAccounts {
   }
 
   target(id: string): StoredEngineAccount {
-    if (id !== 'claude' && id !== 'codex' && !id.startsWith('codex-'))
+    if (id !== 'claude' && id !== 'codex' && !/^(?:codex|claude)-/u.test(id))
       throw new EngineRefusal('unknown-engine', `Unknown Subscription Engine or account: ${id}`);
     this.#requireLocal();
-    return this.#store.resolveAccount(
-      id === 'claude' ? 'claude' : 'codex',
-      id === 'codex' ? undefined : id,
-    );
+    return this.#store.accountById(id === 'codex' ? engineAccountKey('codex') : id);
   }
 
-  addAccount(name: string, expectedRevision: number): NamedEngineAccount {
+  addAccount(engine: EngineId, name: string, expectedRevision: number): NamedEngineAccount {
     this.#requireLocal();
-    const { id, engine, name: displayName } = this.#store.addAccount(name, expectedRevision);
+    const { id, name: displayName } = this.#store.addAccount(engine, name, expectedRevision);
     this.#options.accountsChanged?.();
     return { id, engine, name: displayName };
   }
@@ -132,14 +135,14 @@ export class EngineHostAccounts {
         'engine-account-conflict',
         'Subscription accounts changed. Read them again.',
       );
-    const account = this.#store.resolveAccount('codex', id);
-    const home = this.#codexHome(account);
+    const account = this.#store.accountById(id);
+    const home = this.#accountHome(account);
     this.#store.removeAccount(id, expectedRevision, () => {
       const references = [
         ...this.#store
           .selections()
           .flatMap((row) =>
-            row.engine === 'codex' && engineAccountKey(row.engine, row.accountId) === id
+            row.engine === account.engine && engineAccountKey(row.engine, row.accountId) === id
               ? [`Bot ${row.botSlug} (${row.role})`]
               : [],
           ),
@@ -168,25 +171,26 @@ export class EngineHostAccounts {
     }
   }
 
-  #claude(): {
+  #claude(account: StoredEngineAccount): {
     command: string;
     home: string;
     env?: Readonly<Record<string, string | undefined>>;
   } {
     return {
       command: this.#options.claudeCommand ?? 'claude',
-      home: join(this.#options.root, 'claude', 'home'),
+      home: this.#accountHome(account),
       ...(this.#options.env === undefined ? {} : { env: this.#options.env }),
     };
   }
 
   async openClaudeSession(
+    account: StoredEngineAccount,
     options: { cwd: string; instructions: string; resume?: string } & Pick<
       ClaudeEngineOptions,
       'gateway' | 'model' | 'effort' | 'permissionMode' | 'contextSeed' | 'workspaceMode'
     >,
   ): Promise<ClaudeEngineSession> {
-    const claude = this.#claude();
+    const claude = this.#claude(account);
     const executable = resolveEngineCommand(claude.command, { env: claude.env ?? process.env });
     if (executable === undefined)
       throw new EngineRefusal(
@@ -236,35 +240,41 @@ export class EngineHostAccounts {
     );
   }
 
-  #codexStatus(account: StoredEngineAccount): Promise<CodexStatus | ClaudeStatus> {
+  #probeStatus(account: StoredEngineAccount): Promise<CodexStatus | ClaudeStatus> {
     const current = this.#statusProbes.get(account.id);
     if (current !== undefined) return current;
     const probe = probeStatus(() =>
-      (this.#options.detectCodex ?? detectCodex)(this.codex(account)),
+      account.engine === 'codex'
+        ? (this.#options.detectCodex ?? detectCodex)(this.codex(account))
+        : (this.#options.detectClaude ?? detectClaude)(this.#claude(account)),
     ).finally(() => this.#statusProbes.delete(account.id));
     this.#statusProbes.set(account.id, probe);
     return probe;
   }
 
-  async status(target?: string): Promise<EngineStatusReport[]> {
+  async status(
+    target?: string,
+    allowed?: (accountId: string) => boolean,
+  ): Promise<EngineStatusReport[]> {
     if (!this.#options.local && target === undefined) return [];
     const accounts = target === undefined ? this.#store.accounts().accounts : [this.target(target)];
     return Promise.all(
-      accounts.map(async (account) => {
-        const { id, engine, name } = account;
-        if (engine === 'claude') {
-          const detected = await probeStatus(() =>
-            (this.#options.detectClaude ?? detectClaude)(this.#claude()),
-          );
-          return statusReport(engine, detected, 'subscription', this.quota(engine));
-        }
-        const detected = await this.#codexStatus(account);
-        return {
-          ...statusReport(engine, detected, 'chatgpt', this.quota(engine, id)),
-          accountId: id,
-          accountName: name,
-        };
-      }),
+      accounts
+        .filter(({ id }) => allowed?.(id) ?? true)
+        .map(async (account) => {
+          const { id, engine, name } = account;
+          const detected = await this.#probeStatus(account);
+          return {
+            ...statusReport(
+              engine,
+              detected,
+              engine === 'codex' ? 'chatgpt' : 'subscription',
+              this.quota(engine, id),
+            ),
+            accountId: id,
+            accountName: name,
+          };
+        }),
     );
   }
 
@@ -274,36 +284,61 @@ export class EngineHostAccounts {
   ): Promise<{ engine: EngineId; started: true; url?: string }> {
     this.#requireLocal();
     const account = this.#store.resolveAccount(engine, accountId);
-    if (engine === 'claude')
-      return {
-        engine,
-        started: true,
-        ...(await (this.#options.startClaudeLogin ?? startClaudeLogin)(this.#claude())),
-      };
     if (this.#logins.has(account.id))
       throw new EngineRefusal(
         'engine-account-busy',
         'Sign-in has already started for this account',
       );
-    const controller = new AbortController();
-    this.#logins.set(account.id, controller);
+    const login: AccountLogin = { controller: new AbortController() };
+    this.#logins.set(account.id, login);
     this.#models.delete(account.id);
     const onExit = () => {
-      if (this.#logins.get(account.id) === controller) this.#logins.delete(account.id);
+      if (this.#logins.get(account.id) !== login) return;
+      this.#logins.delete(account.id);
       this.#models.delete(account.id);
     };
     try {
-      const started = await (this.#options.startCodexLogin ?? startCodexLogin)({
-        ...this.codex(account),
-        signal: AbortSignal.any([controller.signal, AbortSignal.timeout(3 * 60_000)]),
+      const process = {
+        signal: AbortSignal.any([login.controller.signal, AbortSignal.timeout(3 * 60_000)]),
         onExit,
-      });
-      if (this.#options.startCodexLogin !== undefined) onExit();
+      };
+      const started =
+        engine === 'codex'
+          ? await (this.#options.startCodexLogin ?? startCodexLogin)({
+              ...this.codex(account),
+              ...process,
+            })
+          : await (this.#options.startClaudeLogin ?? startClaudeLogin)({
+              ...this.#claude(account),
+              ...process,
+              onCodeInput: (submit) => (login.submitCode = submit),
+            });
+      const injected =
+        engine === 'codex' ? this.#options.startCodexLogin : this.#options.startClaudeLogin;
+      if (injected !== undefined) onExit();
       return { engine, started: true, ...started };
     } catch (error) {
       onExit();
       throw error;
     }
+  }
+
+  async submitClaudeCode(id: string, code: string): Promise<{ submitted: true }> {
+    this.#requireLocal();
+    const account = this.#store.resolveAccount('claude', id);
+    const login = this.#logins.get(account.id);
+    if (login === undefined)
+      throw new EngineRefusal(
+        'engine-login-not-pending',
+        'Start sign-in for this Claude Code account before submitting a code.',
+      );
+    if (login.submitCode === undefined)
+      throw new EngineRefusal(
+        'engine-code-not-requested',
+        'Claude Code has not opened a code input for this sign-in.',
+      );
+    await login.submitCode(code);
+    return { submitted: true };
   }
 
   async validateChoice(engine: EngineId, choice: EngineChoice): Promise<void> {
@@ -337,7 +372,7 @@ export class EngineHostAccounts {
             (this.#options.openCodex ?? spawnCodexTransport)({ ...this.codex(account), cwd }),
             { cwd, instructions: '' },
           )
-        : await this.openClaudeSession({ cwd, instructions: '' });
+        : await this.openClaudeSession(account, { cwd, instructions: '' });
     try {
       requireSubscription(await readEngineAccount(session), account.id);
       return await session.models();

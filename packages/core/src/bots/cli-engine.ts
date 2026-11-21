@@ -1,3 +1,4 @@
+import { isEngineId } from '@botharness/host-protocol/subscription-engine';
 import { CliLiveError } from './cli-live-error.js';
 
 export const ENGINE_COMMANDS = [
@@ -26,14 +27,17 @@ export const ENGINE_COMMANDS = [
     description:
       'run an engine-only Bot tool such as memory_write without the model (engine tool <bot> memory_read --args-stdin)',
   },
-  { command: 'engine-accounts', description: 'list subscription accounts and their revision' },
-  { command: 'engine-account-add', description: 'add a named Codex subscription account' },
-  { command: 'engine-account-rename', description: 'rename a Codex subscription account' },
-  { command: 'engine-account-remove', description: 'remove an unused Codex account and its home' },
+  {
+    command: 'engine-accounts',
+    description:
+      'list subscription accounts and their revision, or use --grantable to list accounts granted to the caller',
+  },
+  { command: 'engine-account-add', description: 'add a named Codex or Claude Code account' },
+  { command: 'engine-account-rename', description: 'rename a subscription account' },
+  { command: 'engine-account-remove', description: 'remove an unused account and its home' },
   {
     command: 'engine-login',
-    description:
-      'start the Bot engine sign-in on the Host computer and print its URL (engine login codex|claude)',
+    description: 'start sign-in on the Host or submit a Claude Code authorization code from stdin',
   },
   {
     command: 'engine-models',
@@ -63,8 +67,15 @@ const isObject = (value: unknown): value is Record<string, unknown> =>
 async function call(
   connect: Connect,
   body?: Record<string, unknown>,
+  selection = false,
 ): Promise<Record<string, unknown>> {
-  const result = await (await connect()).http(PATH, body);
+  const host = await connect();
+  if (selection && host.rpc) {
+    const value = await host.rpc('engineSelection', { request: body ?? { action: 'status' } });
+    if (!isObject(value)) throw protocolError();
+    return value;
+  }
+  const result = await host.http(PATH, body);
   let value: unknown;
   try {
     value = JSON.parse(new TextDecoder().decode(result.bytes));
@@ -90,6 +101,7 @@ export async function runEngineCommand(
     role?: string[];
     name?: string;
     account?: string;
+    as?: string;
     confirm?: boolean;
     'expected-revision'?: string;
     fallback?: string;
@@ -97,16 +109,23 @@ export async function runEngineCommand(
     model?: string;
     effort?: string;
     'args-stdin'?: boolean;
+    'code-stdin'?: boolean;
+    grantable?: boolean;
   },
   connect: Connect,
   readStdin: () => Promise<string> = async () => '',
 ): Promise<unknown> {
+  if (values['code-stdin'] && (command !== 'engine-login' || rest[0] !== 'claude'))
+    throw new CliLiveError('usage', '--code-stdin requires engine login claude.');
+  if (values.grantable && command !== 'engine-accounts')
+    throw new CliLiveError('usage', '--grantable requires engine accounts.');
   if (command === 'engine-list' || command === 'engine-status') {
     if (rest.length > (command === 'engine-status' ? 1 : 0))
       throw new CliLiveError('usage', 'engine status accepts one optional engine or account ID.');
     const value = await call(
       connect,
       rest.length === 0 ? undefined : { action: 'status', engine: rest[0] },
+      values.as !== undefined,
     );
     const engines = value['engines'];
     if (!Array.isArray(engines) || !engines.every(isObject) || !Array.isArray(value['selections']))
@@ -177,13 +196,30 @@ export async function runEngineCommand(
     if (command === 'engine-accounts') {
       if (rest.length)
         throw new CliLiveError('usage', 'engine accounts takes no positional arguments.');
-      return rpc('engineAccounts', {});
+      return rpc('engineAccounts', values.grantable ? { grantable: true } : {});
     }
     if (rest.length !== 1 || !rest[0])
       throw new CliLiveError('usage', `${command} needs one engine or account ID.`);
     const [id] = rest;
     if (command === 'engine-login') {
-      const result = await rpc('engineAccountLogin', { id });
+      if (values.account !== undefined && (!isEngineId(id) || values.account.trim() === ''))
+        throw new CliLiveError(
+          'usage',
+          '--account needs an account ID and a codex or claude engine.',
+        );
+      const accountId = values.account ?? id;
+      if (values['code-stdin']) {
+        const code = (await readStdin()).trim();
+        if (!/^[!-~]{1,2048}$/u.test(code))
+          throw new CliLiveError('usage', '--code-stdin needs one authorization code on stdin.');
+        const result = await rpc('engineAccountSubmitCode', { id: accountId, code });
+        if (!isObject(result) || result['submitted'] !== true) throw protocolError();
+        return { submitted: true };
+      }
+      const result = await rpc(
+        'engineAccountLogin',
+        values.account === undefined ? { id } : { id: accountId, engine: id },
+      );
       if (!isObject(result) || result['started'] !== true || typeof result['engine'] !== 'string')
         throw protocolError();
       return result;
@@ -211,7 +247,11 @@ export async function runEngineCommand(
   if (command === 'engine-models') {
     if (rest.length !== 1)
       throw new CliLiveError('usage', 'engine models needs one engine or account ID.');
-    const value = await call(connect, { action: 'models', engine: rest[0] });
+    const value = await call(
+      connect,
+      { action: 'models', engine: rest[0] },
+      values.as !== undefined,
+    );
     if (!Array.isArray(value['models']) || !value['models'].every(isObject)) throw protocolError();
     return value;
   }
@@ -236,16 +276,20 @@ export async function runEngineCommand(
     const { model, effort, account } = values;
     if ((model !== undefined || effort !== undefined || account !== undefined) && engine === 'none')
       throw new CliLiveError('usage', 'engine use none takes no --model, --effort or --account.');
-    const value = await call(connect, {
-      action: 'use',
-      bot,
-      role: chosen,
-      engine: engine === 'none' ? null : engine,
-      ...(fallback === undefined ? {} : { fallback: fallback === 'on' }),
-      ...(model === undefined ? {} : { model }),
-      ...(effort === undefined ? {} : { effort }),
-      ...(account === undefined ? {} : { accountId: account }),
-    });
+    const value = await call(
+      connect,
+      {
+        action: 'use',
+        bot,
+        role: chosen,
+        engine: engine === 'none' ? null : engine,
+        ...(fallback === undefined ? {} : { fallback: fallback === 'on' }),
+        ...(model === undefined ? {} : { model }),
+        ...(effort === undefined ? {} : { effort }),
+        ...(account === undefined ? {} : { accountId: account }),
+      },
+      values.as !== undefined,
+    );
     if (value['bot'] !== bot || value['role'] !== chosen) throw protocolError();
     return value;
   }

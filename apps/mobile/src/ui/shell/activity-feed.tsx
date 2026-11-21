@@ -19,22 +19,14 @@ import {
 } from 'react';
 import { AccessibilityInfo, Platform, Pressable, View } from 'react-native';
 import Animated, { FadeOut, LinearTransition } from 'react-native-reanimated';
-
 import type { HostClient, RosterBot } from '@botharness/host-client/client';
-import {
-  INBOX_SECTIONS,
-  observeInbox,
-  type Inbox,
-  type InboxSection,
-  type InboxSnapshot,
-} from '@botharness/host-client/inbox';
+import { observeInbox, type Inbox, type InboxSnapshot } from '@botharness/host-client/inbox';
 import {
   answerQuestion,
   approvalSummaryTool,
   decideApproval,
   loadApproval,
   loadQuestion,
-  requestRef,
   type DecisionResult,
   type RequestRef,
 } from '@botharness/host-client/requests';
@@ -49,14 +41,7 @@ import {
 import {
   attentionItemUnread,
   clearAllAttention,
-  clearAttentionItem,
   markAllAttentionRead,
-  markAttentionItemRead,
-  restoreAttentionItem,
-  SNOOZE_CHOICES,
-  snoozeAttentionItem,
-  snoozeUntil,
-  type SnoozeChoice,
 } from '@botharness/host-client/attention-actions';
 import { useFocusedSnapshot } from '../../host/use-focused-snapshot';
 import { BotAvatar } from '../bot-avatar';
@@ -75,10 +60,9 @@ import { useChatHeaderHeight } from '../chat/header-chrome';
 import { Button } from '../primitives/button';
 import { DeferredContent } from '../primitives/deferred-content';
 import { ListSkeleton } from '../primitives/list-skeleton';
-import { confirmDestructive, showActionMenu } from '../primitives/app-dialog';
+import { confirmDestructive } from '../primitives/app-dialog';
 import { SwipeRow, swipeActionProps, type SwipeAction } from '../primitives/swipe-row';
 import { UndoBar, type UndoNotice } from '../primitives/undo-bar';
-import { ArchiveIcon, CheckIcon, ClockIcon, UndoIcon } from './icons';
 import type {
   ActivityManage,
   ActivityManageItem,
@@ -96,6 +80,9 @@ import {
   type ActivityFilter,
   type ActivitySort,
 } from './activity-filters';
+import { feedRows, type HiddenItems } from './activity-feed-rows';
+import { activityItemActions } from './activity-item-actions';
+export { type HiddenItems, feedRows } from './activity-feed-rows';
 
 const AVATAR = 32;
 const LOADING: InboxSnapshot = { status: 'loading' };
@@ -113,99 +100,6 @@ function summaryPreview(summary: string): string {
   return summary.length <= SUMMARY_PREVIEW_LIMIT
     ? summary
     : `${summary.slice(0, SUMMARY_PREVIEW_LIMIT).replace(/[\uD800-\uDBFF]$/, '')}…`;
-}
-
-type FeedRow =
-  | { kind: 'empty'; key: string }
-  | { kind: 'more'; key: string; section: InboxSection }
-  | { kind: 'post'; key: string; item: HumanAttentionItem; ref: RequestRef; section: InboxSection }
-  | {
-      kind: 'row';
-      key: string;
-      item: HumanAttentionItem;
-      settled: boolean;
-      section: InboxSection;
-    };
-
-export type HiddenItems = ReadonlyMap<string, string>;
-
-function setAside(section: ActivityFilter['section']): boolean {
-  return section === 'cleared' || section === 'snoozed';
-}
-
-function decidable(item: HumanAttentionItem): RequestRef | undefined {
-  if (item.kind !== 'user-question' && item.kind !== 'tool-approval') return undefined;
-  return requestRef(item);
-}
-
-function sectionItems(
-  snapshot: Extract<InboxSnapshot, { status: 'ready' }>,
-  section: InboxSection,
-  gone: ReadonlySet<string>,
-  held: readonly HumanAttentionItem[],
-  bot: string | undefined,
-  hidden: HiddenItems,
-): HumanAttentionItem[] {
-  const listed = snapshot.sections[section].filter(
-    (item) =>
-      (section !== 'action' || !gone.has(activityKey(item))) &&
-      hidden.get(activityKey(item)) !== (item.sourceEventId ?? ''),
-  );
-  const items =
-    section === 'action'
-      ? [
-          ...listed,
-          ...held.filter(
-            (kept) =>
-              (bot === undefined || activityBotKey(kept) === bot) &&
-              !listed.some((item) => activityKey(item) === activityKey(kept)),
-          ),
-        ]
-      : listed;
-  return bot === undefined || snapshot.botSlug === bot
-    ? items
-    : items.filter((item) => activityBotKey(item) === bot);
-}
-
-export function feedRows(
-  snapshot: InboxSnapshot,
-  gone: ReadonlySet<string>,
-  held: readonly HumanAttentionItem[],
-  filter: ActivityFilter = DEFAULT_ACTIVITY,
-  search = '',
-  hidden: HiddenItems = new Map(),
-  sort: ActivitySort = 'default',
-): FeedRow[] {
-  if (snapshot.status !== 'ready') return [];
-  const rows: FeedRow[] = [];
-  const aside = setAside(filter.section);
-  for (const section of INBOX_SECTIONS) {
-    if ((filter.section === 'all' || aside) && section === 'handled') continue;
-    if (filter.section !== 'all' && !aside && filter.section !== section) continue;
-    const items = sectionItems(snapshot, section, gone, aside ? [] : held, filter.bot, hidden);
-    if (search.trim() && items.length === 0 && !snapshot.cursors?.[section]) continue;
-    for (const item of items) {
-      const ref = section === 'action' && !aside ? decidable(item) : undefined;
-      rows.push(
-        ref === undefined
-          ? { kind: 'row', key: activityKey(item), item, settled: section === 'handled', section }
-          : { kind: 'post', key: activityKey(item), item, ref, section },
-      );
-    }
-    if (snapshot.cursors?.[section]) rows.push({ kind: 'more', key: `more-${section}`, section });
-  }
-  if (sort !== 'default') {
-    rows.sort((a, b) => {
-      if (a.kind === 'more') return b.kind === 'more' ? 0 : 1;
-      if (b.kind === 'more') return -1;
-      if (a.kind === 'empty' || b.kind === 'empty') return 0;
-      const delta = Date.parse(a.item.createdAt) - Date.parse(b.item.createdAt);
-      return sort === 'oldest' ? delta : -delta;
-    });
-  }
-  if (rows.length === 0 && !search.trim())
-    rows.push({ kind: 'empty', key: `empty-${filter.section}` });
-  return rows;
 }
 
 function minutesSince(at: string, now: number): number {
@@ -748,172 +642,16 @@ const ActivityPage = memo(function ActivityPage({
           sources.some((source) => source.client === item.activitySource?.client),
         );
   const rows = feedRows(visible, gone, retained, filter, search, hidden, sort);
-  const hide = (item: HumanAttentionItem, on: boolean) =>
-    setHidden((current) => {
-      const next = new Map(current);
-      if (on) next.set(activityKey(item), item.sourceEventId ?? '');
-      else if (next.get(activityKey(item)) === (item.sourceEventId ?? ''))
-        next.delete(activityKey(item));
-      return next;
-    });
-  const change = async (
-    item: HumanAttentionItem,
-    apply: () => Promise<void>,
-    message: string,
-    undo?: () => Promise<void>,
-  ) => {
-    hide(item, true);
-    try {
-      if (clientFor(item)?.getSnapshot().connection.status !== 'connected')
-        throw new Error('activity-source-unavailable');
-      await apply();
-      onNotice?.({
-        message,
-        ...(undo === undefined
-          ? {}
-          : {
-              undoLabel: t.activityUndo,
-              undo: () =>
-                void Promise.resolve()
-                  .then(() => {
-                    if (clientFor(item)?.getSnapshot().connection.status !== 'connected')
-                      throw new Error('activity-source-unavailable');
-                    return undo();
-                  })
-                  .catch(() => onNotice?.({ message: t.activityChangeFailed }))
-                  .finally(() => void currentInbox()?.refresh()),
-            }),
-      });
-      await currentInbox()?.refresh();
-    } catch {
-      onNotice?.({ message: t.activityChangeFailed });
-    } finally {
-      hide(item, false);
-    }
-  };
-  const clientFor = (item: HumanAttentionItem) =>
-    sources === undefined
-      ? client
-      : sources.find((source) => source.client === item.activitySource?.client)?.client;
-  const snoozeTo = (item: HumanAttentionItem, choice: SnoozeChoice) => {
-    const client = clientFor(item);
-    if (client === undefined) return;
-    const until = snoozeUntil(choice, new Date());
-    if (until === undefined) return;
-    const time = until.toLocaleString(undefined, {
-      weekday: choice === 'week' ? 'short' : undefined,
-      hour: '2-digit',
-      minute: '2-digit',
-    });
-    void change(
-      item,
-      () => snoozeAttentionItem(client, item, until),
-      t.activitySnoozedNotice(t.activitySnoozeChoice[choice](time)),
-      () => snoozeAttentionItem(client, item, null),
-    );
-  };
-  const actionsFor = (item: HumanAttentionItem, section: InboxSection): SwipeAction[] => {
-    const client = clientFor(item);
-    if (client === undefined || section === 'handled') return [];
-    if (filter.section === 'cleared')
-      return [
-        {
-          key: 'restore',
-          label: t.activityRestore,
-          tone: 'accent',
-          icon: UndoIcon,
-          run: () =>
-            void change(
-              item,
-              () => restoreAttentionItem(client, item),
-              t.activityRestoredNotice,
-              () => clearAttentionItem(client, item),
-            ),
-        },
-      ];
-    if (filter.section === 'snoozed') {
-      const until = item.snoozedUntil === undefined ? undefined : new Date(item.snoozedUntil);
-      return [
-        {
-          key: 'unsnooze',
-          label: t.activityUnsnooze,
-          tone: 'accent',
-          icon: UndoIcon,
-          run: () =>
-            void change(
-              item,
-              () => snoozeAttentionItem(client, item, null),
-              t.activityRestoredNotice,
-              until === undefined || until.getTime() <= Date.now()
-                ? undefined
-                : () => snoozeAttentionItem(client, item, until),
-            ),
-        },
-      ];
-    }
-    const clear: SwipeAction = {
-      key: 'clear',
-      label: t.activityClear,
-      tone: 'accent',
-      icon: ArchiveIcon,
-      run: () =>
-        void change(
-          item,
-          () => clearAttentionItem(client, item),
-          t.activityClearedNotice,
-          () => restoreAttentionItem(client, item),
-        ),
-    };
-    const later: SwipeAction = {
-      key: 'snooze',
-      label: t.activitySnooze,
-      tone: 'neutral',
-      icon: ClockIcon,
-      run: () =>
-        showActionMenu(
-          t.activitySnoozeTitle,
-          SNOOZE_CHOICES.flatMap((choice) => {
-            const until = snoozeUntil(choice, new Date());
-            if (until === undefined) return [];
-            const time = until.toLocaleString(undefined, {
-              weekday: choice === 'week' ? 'short' : undefined,
-              hour: '2-digit',
-              minute: '2-digit',
-            });
-            return [
-              {
-                text: t.activitySnoozeChoice[choice](time),
-                icon: 'clock' as const,
-                onPress: () => snoozeTo(item, choice),
-              },
-            ];
-          }),
-        ),
-    };
-    const read: SwipeAction = {
-      key: 'read',
-      label: t.activityMarkRead,
-      tone: 'accent',
-      icon: CheckIcon,
-      run: () =>
-        void markAttentionItemRead(client, item)
-          .catch(() => onNotice?.({ message: t.activityChangeFailed }))
-          .finally(() => void currentInbox()?.refresh()),
-    };
-    if (section === 'action' && item.kind === 'bot-message-needs-repair') return [clear, later];
-    if (section === 'action')
-      return [
-        {
-          key: 'snooze-tomorrow',
-          label: t.activitySnoozeTomorrow,
-          tone: 'warning',
-          icon: ClockIcon,
-          run: () => snoozeTo(item, 'tomorrow'),
-        },
-        later,
-      ];
-    return attentionItemUnread(item) ? [read, { ...clear, tone: 'neutral' }] : [clear];
-  };
+  const { actionsFor, clientFor } = activityItemActions({
+    setHidden,
+    sources,
+    client,
+    filter,
+    t,
+    onNotice,
+    currentInbox,
+  });
+
   const settled = (item: HumanAttentionItem, result: DecisionResult) => {
     if (activeSettlementScope.current !== settlementScope) return;
     if (result === 'accepted') setGone((current) => new Set(current).add(activityKey(item)));

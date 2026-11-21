@@ -90,7 +90,7 @@ export function createGroupFallback(options: {
   routes(groupId: string): ModelRoute[];
   engines?: {
     targets(groupId: string): RoutingTarget[];
-    allowed(botSlug: string): boolean;
+    allowed(botSlug: string, target: Extract<RoutingTarget, { kind: 'engine' }>): boolean;
     limit(engine: EngineId, accountId?: string): Omit<SubscriptionRest, 'engine'> | undefined;
   };
   allowsGroup?(botSlug: string, groupId: string): boolean;
@@ -149,8 +149,10 @@ export function createGroupFallback(options: {
     if (engines === undefined) return undefined;
     const targets = targetsOf(groupId);
     if (!targets.some((target) => target.kind === 'engine')) return undefined;
+    const permitted = new Set(
+      targets.filter((target) => target.kind === 'engine' && engines.allowed(botSlug, target)),
+    );
     if (options.allowsGroup?.(botSlug, groupId) === false) return { kind: 'unavailable' };
-    const enginesAllowed = engines.allowed(botSlug);
     const rests: RestingRoute[] = [];
     let unavailable = false;
     let subscription: SubscriptionRest | undefined;
@@ -158,7 +160,7 @@ export function createGroupFallback(options: {
     const restingRoutes = new Set<string>();
     for (const target of targets) {
       if (target.kind === 'engine') {
-        if (!enginesAllowed) {
+        if (!permitted.has(target)) {
           unavailable = true;
           continue;
         }

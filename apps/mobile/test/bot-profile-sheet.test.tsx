@@ -317,6 +317,42 @@ describe('Bot profile page', () => {
     expect(avatar.save).toHaveBeenCalledTimes(2);
   });
 
+  it('saves a Tilties portrait from Bot settings without launching the photo picker', async () => {
+    const avatar = {
+      pick: vi.fn(async () => undefined),
+      save: vi.fn(async () => undefined),
+    };
+    const view = await render(
+      <BotProfileSheet
+        tab="settings"
+        bot={bot}
+        channels={[]}
+        load={async () => empty}
+        actions={actions()}
+        avatar={avatar}
+      />,
+    );
+    await act(async () =>
+      view.querySelector<HTMLButtonElement>('[data-testid="bot-avatar-settings-tilties"]')!.click(),
+    );
+    expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(9);
+    expect(view.querySelector('[data-testid="tilties-avatar-deepseek"]')).not.toBeNull();
+    const fantasy = [...view.querySelectorAll('button')].find((button) =>
+      ['Fantasy', '奇幻'].includes(button.textContent?.trim() ?? ''),
+    );
+    expect(fantasy).toBeDefined();
+    await act(async () => fantasy?.click());
+    expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(9);
+    await act(async () =>
+      view
+        .querySelector<HTMLButtonElement>('[data-testid="tilties-avatar-frost-archivist"]')!
+        .click(),
+    );
+    expect(avatar.save).toHaveBeenCalledOnce();
+    expect(avatar.save).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/webp;base64,/u));
+    expect(avatar.pick).not.toHaveBeenCalled();
+  });
+
   it('can remove a custom Bot avatar and recover from a failed save', async () => {
     const avatar = {
       pick: vi.fn(async () => 'data:image/jpeg;base64,/9j/AA=='),

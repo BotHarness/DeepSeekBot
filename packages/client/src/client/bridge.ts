@@ -1,3 +1,38 @@
+import { createGenuiReportBridge } from './features/genui/bridge.js';
+export {
+  parseGenuiDocumentView,
+  loadGenuiDocumentView,
+  saveGenuiDocumentView,
+} from './features/genui/bridge.js';
+import { createAvatarsBridge } from './features/avatars/bridge.js';
+export type { BotPrimaryColorChoice, PartImageInfo } from './features/avatars/bridge.js';
+import { parseSkillOwner } from './features/skills/bridge.js';
+export {
+  type BotSkillRow,
+  type SkillDetailView,
+  loadBotSkills,
+  loadSkillDetail,
+  removeBotSkill,
+  loadChannelSkillCatalog,
+  loadSessionSkillCatalog,
+} from './features/skills/bridge.js';
+import {
+  asRecord,
+  bridgeHost,
+  BridgeCallError,
+  unwrap,
+  type BridgeCall,
+} from './bridge-transport.js';
+export { bridgeHost, BridgeCallError, unwrap, type BridgeCall } from './bridge-transport.js';
+export {
+  loadBotSchedules,
+  createBotSchedule,
+  updateBotSchedule,
+  deleteBotSchedule,
+  loadBotScheduleHistory,
+  runBotScheduleNow,
+  previewBotSchedule,
+} from './features/schedules/bridge.js';
 import * as people from '@botharness/host-client/people';
 import * as accessReaders from '@botharness/host-client/access-readers';
 import * as rosterReaders from '@botharness/host-client/roster-readers';
@@ -46,8 +81,7 @@ import {
   parseFailureAutoContinue,
   parseFailureProgress,
 } from '@botharness/host-client/shared/turn-continuation';
-import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
-import type { HostClient } from '@botharness/host-client/client';
+import { isPixelBannerRecipe } from '@botharness/pixel-banner';
 import {
   browseHostFolders,
   loadWorkspaceOptions as loadHostWorkspaceOptions,
@@ -106,38 +140,17 @@ import {
   type ModelPreset,
   type ModelRoute,
 } from '@botharness/host-client/model-plans';
-import {
-  createSchedule,
-  deleteSchedule,
-  loadScheduleHistory,
-  loadSchedules,
-  previewSchedule,
-  runScheduleNow,
-  updateSchedule,
-} from '@botharness/host-client/schedules';
 import * as channelHost from '@botharness/host-client/channel-messages';
 import * as channels from '@botharness/host-client/channel-management';
 import { HostAnswerInvalid } from '@botharness/host-client/host-answer';
-import { loadSkillCatalog } from '@botharness/host-client/skill-catalog';
-import {
-  loadGenuiDocumentView as loadGenuiDocumentViewFrom,
-  parseGenuiDocumentView as parseHostGenuiDocumentView,
-  saveGenuiDocumentView as saveGenuiDocumentViewTo,
-} from '@botharness/host-client/genui/view';
 import { clientLog, reportFailure } from './diagnostic-log.js';
 import {
   genuiReplySchema,
   genuiViewSchema,
   parseGenuiContent,
   type GenuiMessageReply,
-  type GenuiView,
-  type GenuiViewState,
 } from '../../../core/src/channels/genui.js';
-import {
-  genuiDocumentReplySchema,
-  type GenuiDocument,
-  type GenuiDocumentState,
-} from '../../../core/src/channels/genui-document.js';
+import { genuiDocumentReplySchema } from '../../../core/src/channels/genui-document.js';
 import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approval-actor.js';
 import { isChannelVoiceCallRecord } from '../../../core/src/channels/voice-call-record.js';
 import {
@@ -154,7 +167,6 @@ import {
   isAvatarAppearance,
   isRetainedAvatarAppearance,
   type AvatarAppearance,
-  type AvatarRecipe,
 } from '../../../core/src/bots/avatar-appearance.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type {
@@ -165,7 +177,6 @@ import type {
   ChannelSkillInvocationToken,
   GroupMemberWakePolicy,
 } from '../../../core/src/channels/channel.js';
-import type { SkillCatalogEntry, SkillOwner } from '../../../core/src/skills/entries.js';
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
 
@@ -178,13 +189,6 @@ import type {
   MessagingIdentityInput,
 } from '../../../core/src/messaging/identity.js';
 import type { OverviewMemory } from '../../../core/src/memory/overview.js';
-import type {
-  BotSchedule,
-  BotScheduleChange,
-  BotScheduleFiring,
-  BotScheduleInput,
-  BotScheduleTrigger,
-} from '../../../core/src/schedules/bot-schedules.js';
 import {
   parseMarketplaceDetail,
   parseAuthoredBots,
@@ -222,8 +226,7 @@ import type { UsageOverviewPeriod } from '../../../core/src/usage/overview.js';
 import type { ChannelActivityToday } from '../../../core/src/channels/activity-today.js';
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
-import { isPartLibraryEntry, type PartLibraryEntry } from '../../../core/src/bots/part-library.js';
-import type { PixelCustomPart } from '../../../core/src/bots/avatar-appearance.js';
+import { isPartLibraryEntry } from '../../../core/src/bots/part-library.js';
 import { isBotPrimaryColor } from '../../../core/src/bots/primary-color.js';
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import type {
@@ -286,17 +289,6 @@ import {
   type TopOrderEntry,
 } from './roster.js';
 
-export class BridgeCallError extends Error {
-  constructor(
-    readonly code: string,
-    message: string,
-    readonly details?: unknown,
-  ) {
-    super(message);
-    this.name = 'BridgeCallError';
-  }
-}
-
 export interface BridgeRpc {
   call(
     channel: string,
@@ -305,12 +297,6 @@ export interface BridgeRpc {
     signal?: AbortSignal,
   ): Promise<ConnectionRpcResult<unknown>>;
 }
-
-export type BridgeCall = (
-  endpoint: string,
-  payload: Record<string, unknown>,
-  signal?: AbortSignal,
-) => Promise<ConnectionRpcResult<unknown>>;
 
 export type ModelRouteView = ModelRoute;
 export type AssignmentModelOptionView = AssignmentModelOption;
@@ -547,6 +533,7 @@ export interface CreatePersonaBotInput {
   roles: string[];
   description?: string;
   gitUrl?: string;
+  avatar?: string;
   origin?: 'marketplace';
   listingId?: string;
   memoryLocation?: string;
@@ -639,55 +626,7 @@ export type {
   BotScheduleFiring as BotScheduleFiringView,
   BotScheduleInput,
   BotScheduleTrigger,
-} from '../../../core/src/schedules/bot-schedules.js';
-
-export async function loadBotSchedules(call: BridgeCall, slug: string): Promise<BotSchedule[]> {
-  return loadSchedules(bridgeHost(call), slug);
-}
-
-export async function createBotSchedule(
-  call: BridgeCall,
-  slug: string,
-  input: BotScheduleInput,
-): Promise<BotSchedule> {
-  return createSchedule(bridgeHost(call), slug, input);
-}
-
-export async function updateBotSchedule(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-  change: BotScheduleChange,
-): Promise<BotSchedule> {
-  return updateSchedule(bridgeHost(call), slug, id, change);
-}
-
-export async function deleteBotSchedule(call: BridgeCall, slug: string, id: string): Promise<void> {
-  await deleteSchedule(bridgeHost(call), slug, id);
-}
-
-export async function loadBotScheduleHistory(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-): Promise<BotScheduleFiring[]> {
-  return loadScheduleHistory(bridgeHost(call), slug, id);
-}
-
-export async function runBotScheduleNow(
-  call: BridgeCall,
-  slug: string,
-  id: string,
-): Promise<BotScheduleFiring> {
-  return runScheduleNow(bridgeHost(call), slug, id);
-}
-
-export async function previewBotSchedule(
-  call: BridgeCall,
-  trigger: BotScheduleTrigger,
-): Promise<string[]> {
-  return previewSchedule(bridgeHost(call), trigger);
-}
+} from '@botharness/host-client/schedules';
 
 export async function setBotSourcePolicy(
   call: BridgeCall,
@@ -750,38 +689,11 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
 function stringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === 'string')
     : [];
 }
-
-export function bridgeHost(call: BridgeCall, signal?: AbortSignal): Pick<HostClient, 'call'> {
-  return {
-    call: async <T>(method: string, args: Record<string, unknown> = {}) =>
-      (await unwrap(call, method, args, signal)) as T,
-  };
-}
-
-export async function unwrap(
-  call: BridgeCall,
-  endpoint: string,
-  payload: Record<string, unknown>,
-  signal?: AbortSignal,
-): Promise<unknown> {
-  const result = await call(endpoint, payload, signal);
-  if (!result.ok)
-    throw new BridgeCallError(result.error.code, result.error.message, result.error.details);
-  return result.value;
-}
-
-export type BotPrimaryColorChoice = { mode: 'automatic' } | { mode: 'custom'; color: string };
 
 export function parseBotSummary(value: unknown): BotSummary | undefined {
   const record = asRecord(value);
@@ -1285,24 +1197,6 @@ export function parseApprovalCard(value: unknown): ApprovalCardView | undefined 
   };
 }
 
-function parseSkillOwner(owner: Record<string, unknown> | undefined): SkillOwner | undefined {
-  if (owner?.['kind'] === 'host') return { kind: 'host' };
-  if (owner?.['kind'] === 'bot' && typeof owner['botSlug'] === 'string')
-    return { kind: 'bot', botSlug: owner['botSlug'] };
-  if (
-    owner?.['kind'] === 'workspace' &&
-    typeof owner['workspaceId'] === 'string' &&
-    owner['workspaceId'] !== '' &&
-    typeof owner['name'] === 'string'
-  )
-    return {
-      kind: 'workspace',
-      workspaceId: owner['workspaceId'],
-      name: owner['name'],
-    };
-  return undefined;
-}
-
 function parseSkillInvocations(
   value: unknown,
   body: string,
@@ -1349,108 +1243,6 @@ export function parseSkillCatalogChange(value: unknown): SkillCatalogChange | un
   } catch {
     return undefined;
   }
-}
-
-export interface BotSkillRow {
-  name: string;
-  description: string;
-  path: string;
-  userInvocable: boolean;
-}
-
-export interface SkillDetailView {
-  name: string;
-  description: string;
-  owner: SkillOwner;
-  path?: string;
-  content: string;
-}
-
-export async function loadBotSkills(call: BridgeCall, slug: string): Promise<BotSkillRow[]> {
-  const value = asRecord(await unwrap(call, 'botSkills', { slug }));
-  if (!Array.isArray(value?.['skills'])) throw new Error('invalid botSkills response');
-  return value['skills'].flatMap((entry: unknown): BotSkillRow[] => {
-    const item = asRecord(entry);
-    const name = item?.['name'];
-    const description = item?.['description'];
-    const path = item?.['path'];
-    if (typeof name !== 'string' || typeof description !== 'string' || typeof path !== 'string')
-      return [];
-    return [
-      {
-        name,
-        description,
-        path,
-        userInvocable: item?.['userInvocable'] !== false,
-      },
-    ];
-  });
-}
-
-export async function loadSkillDetail(
-  call: BridgeCall,
-  name: string,
-  owner: string,
-): Promise<SkillDetailView> {
-  const skill = asRecord(asRecord(await unwrap(call, 'skillShow', { name, owner }))?.['skill']);
-  const parsedOwner = parseSkillOwner(asRecord(skill?.['owner']));
-  const content = skill?.['content'];
-  if (
-    typeof skill?.['name'] !== 'string' ||
-    typeof content !== 'string' ||
-    parsedOwner === undefined
-  )
-    throw new Error('invalid skillShow response');
-  const path = skill['path'];
-  return {
-    name: skill['name'],
-    description: typeof skill['description'] === 'string' ? skill['description'] : '',
-    owner: parsedOwner,
-    ...(typeof path === 'string' ? { path } : {}),
-    content,
-  };
-}
-
-export async function removeBotSkill(call: BridgeCall, slug: string, name: string): Promise<void> {
-  await unwrap(call, 'botSkillRemove', { slug, name });
-}
-
-export async function loadChannelSkillCatalog(
-  call: BridgeCall,
-  channelId: string,
-): Promise<SkillCatalogEntry[]> {
-  return loadSkillCatalog(bridgeHost(call), channelId);
-}
-
-export async function loadSessionSkillCatalog(
-  call: BridgeCall,
-  slug: string,
-  sessionId: string,
-): Promise<SkillCatalogEntry[]> {
-  return skillCatalogEntries(await unwrap(call, 'sessionSkillCatalog', { slug, sessionId }));
-}
-
-function skillCatalogEntries(response: unknown): SkillCatalogEntry[] {
-  const value = asRecord(response);
-  if (!Array.isArray(value?.['skills'])) throw new Error('invalid Skill catalog response');
-  return value['skills'].flatMap((entry: unknown): SkillCatalogEntry[] => {
-    const item = asRecord(entry);
-    const owner = asRecord(item?.['owner']);
-    const name = item?.['name'];
-    const description = item?.['description'];
-    if (typeof name !== 'string' || typeof description !== 'string') return [];
-    const parsedOwner = parseSkillOwner(owner);
-    if (parsedOwner === undefined) return [];
-    const path = item?.['path'];
-    return [
-      {
-        name,
-        description,
-        owner: parsedOwner,
-        ...(typeof path === 'string' ? { path } : {}),
-      },
-    ];
-  });
 }
 
 export function parseSessionLinks(value: unknown): NonNullable<ChannelMessage['sessionLinks']> {
@@ -3466,25 +3258,17 @@ export async function setGroupAvatar(
   return channel;
 }
 
-export async function setBotAvatar(
-  call: BridgeCall,
-  channelId: string,
-  avatar: string | null,
-): Promise<BotSummary> {
-  const { bot } = await botControl.setBotAvatar(bridgeHost(call), { channelId, avatar });
-  return parseBotSummary(bot)!;
-}
-
-export async function setBotBanner(
-  call: BridgeCall,
-  channelId: string,
-  banner: { recipe: PixelBannerRecipe } | { image: string } | null,
-): Promise<BotSummary> {
-  const value = asRecord(await unwrap(call, 'botBannerSet', { channelId, banner }));
-  const bot = parseBotSummary(value?.['bot']);
-  if (bot === undefined) throw new Error('invalid botBannerSet response');
-  return bot;
-}
+export const {
+  setBotAvatar,
+  setBotBanner,
+  setBotAppearance,
+  setBotPrimaryColor,
+  loadPartLibrary,
+  exportLibraryParts,
+  importLibraryParts,
+  importLibraryImage,
+  addLibraryPart,
+} = createAvatarsBridge(parseBotSummary, isPartLibraryEntry);
 
 export async function updateBotProfile(
   call: BridgeCall,
@@ -3494,126 +3278,6 @@ export async function updateBotProfile(
   const bot = parseBotSummary(await updateBot(bridgeHost(call), slug, patch));
   if (bot === undefined) throw new Error('invalid update response');
   return bot;
-}
-
-export async function setBotAppearance(
-  call: BridgeCall,
-  channelId: string,
-  recipe: AvatarRecipe,
-): Promise<BotSummary> {
-  const value = asRecord(await unwrap(call, 'botAppearanceSet', { channelId, recipe }));
-  const bot = parseBotSummary(value?.['bot']);
-  if (bot === undefined) throw new Error('invalid botAppearanceSet response');
-  return bot;
-}
-
-export async function setBotPrimaryColor(
-  call: BridgeCall,
-  channelId: string,
-  primaryColor: BotPrimaryColorChoice,
-): Promise<BotSummary> {
-  const value = asRecord(await unwrap(call, 'botPrimaryColorSet', { channelId, primaryColor }));
-  const bot = parseBotSummary(value?.['bot']);
-  if (bot === undefined) throw new Error('invalid botPrimaryColorSet response');
-  return bot;
-}
-
-export async function loadPartLibrary(call: BridgeCall): Promise<PartLibraryEntry[]> {
-  const parts = asRecord(await unwrap(call, 'partLibraryList', {}))?.['parts'];
-  if (!Array.isArray(parts)) throw new Error('invalid partLibraryList response');
-  return parts.filter(isPartLibraryEntry);
-}
-
-export async function exportLibraryParts(
-  call: BridgeCall,
-  id?: string,
-  part?: PixelCustomPart,
-): Promise<{ fileName: string; data: string }> {
-  const value = asRecord(
-    await unwrap(
-      call,
-      'partLibraryExport',
-      part !== undefined ? { part } : id === undefined ? {} : { id },
-    ),
-  );
-  const fileName = value?.['fileName'];
-  const data = value?.['data'];
-  if (typeof fileName !== 'string' || typeof data !== 'string')
-    throw new Error('invalid partLibraryExport response');
-  return { fileName, data };
-}
-
-export async function importLibraryParts(
-  call: BridgeCall,
-  data: string,
-): Promise<{
-  added: PartLibraryEntry[];
-  refused: number;
-  image?: PartImageInfo;
-}> {
-  const value = asRecord(await unwrap(call, 'partLibraryImport', { data }));
-  const added = value?.['added'];
-  const refused = value?.['refused'];
-  if (!Array.isArray(added) || !Array.isArray(refused))
-    throw new Error('invalid partLibraryImport response');
-  const image = asRecord(value?.['image']);
-  const info =
-    image &&
-    typeof image['width'] === 'number' &&
-    typeof image['height'] === 'number' &&
-    typeof image['colors'] === 'number' &&
-    Array.isArray(image['slots']) &&
-    image['slots'].every((slot) => typeof slot === 'string')
-      ? {
-          width: image['width'],
-          height: image['height'],
-          colors: image['colors'],
-          slots: image['slots'] as string[],
-        }
-      : undefined;
-  return {
-    added: added.filter(isPartLibraryEntry),
-    refused: refused.length,
-    ...(info ? { image: info } : {}),
-  };
-}
-
-export interface PartImageInfo {
-  width: number;
-  height: number;
-  colors: number;
-  slots: string[];
-}
-
-export async function importLibraryImage(
-  call: BridgeCall,
-  data: string,
-  slot: string,
-  colors: number,
-  name: string,
-): Promise<PartLibraryEntry> {
-  const entry = asRecord(
-    await unwrap(call, 'partLibraryImportImage', { data, slot, colors, name }),
-  )?.['entry'];
-  if (!isPartLibraryEntry(entry)) throw new Error('invalid partLibraryImportImage response');
-  return entry;
-}
-
-export async function addLibraryPart(
-  call: BridgeCall,
-  part: PixelCustomPart,
-  name: string,
-  parent?: string,
-): Promise<PartLibraryEntry> {
-  const entry = asRecord(
-    await unwrap(call, 'partLibraryAdd', {
-      part,
-      name,
-      ...(parent ? { parent } : {}),
-    }),
-  )?.['entry'];
-  if (!isPartLibraryEntry(entry)) throw new Error('invalid partLibraryAdd response');
-  return entry;
 }
 
 export async function inviteGroupBot(
@@ -4689,79 +4353,8 @@ export async function sendChannelMessage(
   );
 }
 
-function genuiViewState(state: unknown): GenuiViewState {
-  const parsed = genuiViewSchema.safeParse(state);
-  if (!parsed.success) throw new Error('Invalid private report view');
-  return parsed.data;
-}
-
-export function parseGenuiView(value: unknown): GenuiView {
-  const record = asRecord(value);
-  const version = record?.['version'];
-  if (typeof version !== 'number' || !Number.isSafeInteger(version) || version < 0)
-    throw new Error('Invalid private report view');
-  return { version, state: genuiViewState(record?.['state']) };
-}
-
-export async function loadGenuiView(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-): Promise<GenuiView> {
-  return channelHost.loadPrivateView(bridgeHost(call), channelId, messageId, genuiViewState);
-}
-
-export async function saveGenuiView(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-  snapshotId: string,
-  expectedVersion: number,
-  state: GenuiViewState,
-): Promise<GenuiView> {
-  return channelHost.savePrivateView(
-    bridgeHost(call),
-    { channelId, messageId, snapshotId, expectedVersion, state: genuiViewSchema.parse(state) },
-    genuiViewState,
-  );
-}
-
-export function parseGenuiDocumentView(
-  value: unknown,
-  document: GenuiDocument,
-): {
-  version: number;
-  state: GenuiDocumentState;
-} {
-  return parseHostGenuiDocumentView(value, document);
-}
-
-export async function loadGenuiDocumentView(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-  document: GenuiDocument,
-) {
-  return loadGenuiDocumentViewFrom(bridgeHost(call), channelId, messageId, document);
-}
-
-export async function saveGenuiDocumentView(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-  document: GenuiDocument,
-  expectedVersion: number,
-  state: GenuiDocumentState,
-) {
-  return saveGenuiDocumentViewTo(
-    bridgeHost(call),
-    channelId,
-    messageId,
-    document,
-    expectedVersion,
-    state,
-  );
-}
+export const { parseGenuiView, loadGenuiView, saveGenuiView } =
+  createGenuiReportBridge(genuiViewSchema);
 
 export type AssignmentAccessPresetView = WireAssignmentAccessPreset;
 

@@ -27,6 +27,7 @@ import { createEngineGateway, type EngineGateway } from '../src/engines/engine-g
 import { createEngineStore, engineStorePath } from '../src/engines/engine-store.js';
 import { EngineHost, type EngineTool } from '../src/engines/engine-host.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
+import { ownerEngineSelection } from './engine-route-fixture.js';
 import { EngineRefusal } from '../src/engines/engine-session.js';
 import { subscriptionEnginesAllowed } from '../src/engines/engine-plugin.js';
 import { summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
@@ -99,7 +100,7 @@ function setup(recording = RECORDING, local = true) {
 describe('Codex Subscription Engine Session (replay)', () => {
   it('resumes a legacy Codex thread in its original home and opens a fresh thread for another account', async () => {
     const { host, opened, replays, request, root } = setup();
-    const other = host.addAccount('Work', 0);
+    const other = host.addAccount('codex', 'Work', 0);
     host.use('ada', 'orchestrator', 'codex');
     host.store.rememberNativeSession(request.sessionId, 'codex', 'legacy-thread', 'ChatGPT pro');
     await host.runTurn(request);
@@ -380,9 +381,11 @@ describe('Engine selection, status and route', () => {
 
   it('serves list, use and login through the Host route', async () => {
     const { host } = setup();
+    const botExists = (slug: string) => slug === 'ada';
     const deps = {
       host,
-      botExists: (slug: string) => slug === 'ada',
+      botExists,
+      ...ownerEngineSelection(host, botExists),
       authorizeLogin: () => undefined,
     };
     const post = (body: unknown) =>
@@ -427,6 +430,8 @@ describe('Engine selection, status and route', () => {
         {
           engine: 'claude',
           displayName: 'Claude Code',
+          accountId: 'claude',
+          accountName: 'Claude Code',
           available: false,
           reason: 'signed-out',
           installed: true,

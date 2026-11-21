@@ -8,7 +8,8 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 
 import type { Context } from '@deepseek-ai/cordis';
-import Schema from '@deepseek-ai/schemastery';
+import { createBrowserConfig, type BrowserConfig } from './browser-config.js';
+import { createBrowserInteractionHandlers } from './browser-interaction-http.js';
 import { registerBrowserViewer, type BrowserViewerHost } from './viewer.js';
 import {
   LOCAL_VIEWER_PREFIX,
@@ -24,7 +25,7 @@ import { createBorrowService } from './borrow.js';
 import { registerBorrowHttp } from './borrow-http.js';
 
 import { createBrowserDiagnostics, toLogEntry } from './diagnostics.js';
-import { CHROME_LIB_PACKAGES, toBrowserErrorBody } from './runtime/provision.js';
+import { CHROME_LIB_PACKAGES } from './runtime/provision.js';
 import {
   createSpawnRunner,
   installSystemPackages,
@@ -38,11 +39,7 @@ import {
   refuseWebRtcUpgrade,
   type SelkiesWebRtc,
 } from '../../core/src/http/selkies-webrtc.js';
-import {
-  type BrowserViewerRegistration,
-  createBotBrowserRuntimes,
-  listStoredProfileNames,
-} from './runtimes.js';
+import { type BrowserViewerRegistration, createBotBrowserRuntimes } from './runtimes.js';
 import {
   browserToolNames,
   createBrowserToolProvider,
@@ -53,54 +50,8 @@ import {
 export const name = 'botharness-browser';
 stampReleaseComponent(apply, import.meta.url);
 
-export interface BrowserConfig {
-  target?: 'local' | 'container' | 'extension' | 'daily-control' | 'profile-control';
-  localDriver?: 'current' | 'agent-browser';
-  containerDriver?: 'current' | 'agent-browser';
-  enabled: boolean;
-  browserPath: string;
-  headless: boolean;
-  idleStopMinutes: number;
-  autoAllowActions: boolean;
-}
-
-export const DEFAULT_CONFIG: BrowserConfig = {
-  target: 'local',
-  localDriver: 'current',
-  containerDriver: 'current',
-  enabled: true,
-  browserPath: '',
-  headless: false,
-  idleStopMinutes: 30,
-  autoAllowActions: false,
-};
-
-export const Config: Schema<Partial<BrowserConfig>, Parameters<typeof apply>[1]> = Schema.object({
-  target: Schema.union([
-    Schema.const('local'),
-    Schema.const('container'),
-    Schema.const('extension'),
-    Schema.const('daily-control'),
-    Schema.const('profile-control'),
-  ])
-    .default('local')
-    .volatile(),
-  localDriver: Schema.union([Schema.const('current'), Schema.const('agent-browser')])
-    .default('current')
-    .volatile(),
-  containerDriver: Schema.union([Schema.const('current'), Schema.const('agent-browser')])
-    .default('current')
-    .volatile(),
-  enabled: Schema.boolean().default(DEFAULT_CONFIG.enabled).description('启用 Browser'),
-  browserPath: Schema.string()
-    .default(DEFAULT_CONFIG.browserPath)
-    .description('浏览器可执行文件路径；留空自动探测 Chrome / Edge / Chromium'),
-  headless: Schema.boolean()
-    .default(DEFAULT_CONFIG.headless)
-    .description('无窗口运行；默认关闭，Human 需要在窗口里登录一次'),
-  idleStopMinutes: Schema.number().default(DEFAULT_CONFIG.idleStopMinutes),
-  autoAllowActions: Schema.boolean().default(DEFAULT_CONFIG.autoAllowActions),
-});
+export const { DEFAULT_CONFIG, Config } = createBrowserConfig();
+export type { BrowserConfig } from './browser-config.js';
 
 interface HostConnectionLike {
   readonly fetch: {
@@ -613,6 +564,21 @@ export function apply(
     const json = (value: unknown, status = 200): Response =>
       Response.json(value as Record<string, unknown>, { status });
 
+    const interaction = createBrowserInteractionHandlers({
+      json,
+      target,
+      diagnostics,
+      runtimes,
+      provider,
+      switching: () => switching,
+      previewScope,
+      profile,
+      daily,
+      borrow,
+      profileDirectory,
+      observationChanged,
+    });
+
     connectionCtx.effect(
       () =>
         connection.fetch.register({
@@ -723,46 +689,7 @@ export function apply(
       path: '/api/browser/open',
       methods: ['POST'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (request: Request): Promise<Response> => {
-        if (
-          target() === 'extension' ||
-          target() === 'daily-control' ||
-          target() === 'profile-control'
-        )
-          return json(
-            { ok: false, error: 'Connect a Daily Browser document in the Browser entry' },
-            409,
-          );
-        let body: { slug?: unknown; tab?: unknown } = {};
-        try {
-          body = (await request.json()) as typeof body;
-        } catch {
-          void 0;
-        }
-        const slug = typeof body.slug === 'string' ? body.slug : '';
-        if (slug === '') return json({ ok: false, error: 'slug is required' }, 400);
-        diagnostics.record('lifecycle', `open requested (panel) slug=${slug}`);
-        runtimes.touch(slug);
-        provider.touch(slug);
-        try {
-          await switching;
-          const scope = previewScope(slug);
-          const requested = typeof body.tab === 'string' && body.tab !== '' ? body.tab : undefined;
-          const tab = await provider.openForHuman(slug, requested);
-          if (scope !== previewScope(slug))
-            throw new Error('Browser authority changed while opening');
-          const opened = runtimes.for(slug);
-          return json({
-            ok: true,
-            tabId: tab.tabId,
-            viewerUrl:
-              opened.viewerUrl?.() ??
-              (target() === 'local' && opened.isRunning() ? localViewerUrl(slug) : null),
-          });
-        } catch (error) {
-          return json(toBrowserErrorBody(error), 500);
-        }
-      },
+      fetch: interaction.open,
     };
     const installRoute = {
       path: '/api/browser/install-packages',
@@ -846,114 +773,7 @@ export function apply(
       path: '/api/browser/observation',
       methods: ['GET'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (request: Request): Promise<Response> => {
-        const url = new URL(request.url);
-        const slug = url.searchParams.get('slug') ?? '';
-        try {
-          await switching;
-        } catch {
-          return json({
-            ok: true,
-            target: target(),
-            cleanupRequired: true,
-            running: false,
-            frame: null,
-            focused: null,
-            takeover: false,
-            handoffPending: false,
-            tabs: [],
-          });
-        }
-        const scope = previewScope(slug);
-        const requested = url.searchParams.get('tab') ?? '';
-        if (target() === 'profile-control')
-          return json({
-            ok: true,
-            target: 'profile-control',
-            running: false,
-            frame: null,
-            focused: null,
-            takeover: provider.isTakeover(slug),
-            handoffPending: provider.takeoverPending(slug),
-            tabs: [],
-            profile: await profile.view(),
-          });
-        if (target() === 'daily-control')
-          return json({
-            ok: true,
-            target: 'daily-control',
-            running: false,
-            frame: null,
-            focused: null,
-            takeover: provider.isTakeover(slug),
-            handoffPending: provider.takeoverPending(slug),
-            tabs: [],
-            daily: daily.view(slug) ?? null,
-          });
-        if (target() === 'extension')
-          return json({
-            ok: true,
-            target: 'extension',
-            running: false,
-            frame: null,
-            focused: null,
-            takeover: false,
-            handoffPending: false,
-            tabs: [],
-            borrowed: borrow.view(slug) ?? null,
-          });
-        if (slug === '') {
-          return json({
-            ok: true,
-            running: false,
-            frame: null,
-            focused: null,
-            takeover: false,
-            handoffPending: false,
-            tabs: [],
-          });
-        }
-        runtimes.touch(slug);
-        provider.touch(slug);
-        const runtime = runtimes.for(slug);
-        const tabId =
-          requested !== '' && provider.ownsTab(slug, requested)
-            ? requested
-            : provider.currentTab(slug);
-        let frame: string | null = null;
-        if (tabId !== undefined && runtime.isRunning()) {
-          const shot = await runtime.captureScreenshot(tabId).catch(() => undefined);
-          if (shot !== undefined) frame = `data:${shot.mimeType};base64,${shot.data}`;
-        }
-        const discoveryStarted = Date.now();
-        const profiles = await listStoredProfileNames(profileDirectory()).catch(() => {
-          diagnostics.record(
-            'lifecycle',
-            `initiator=observation phase=profile-discovery outcome=unavailable reason=directory-unavailable durationMs=${Date.now() - discoveryStarted}`,
-          );
-          return [];
-        });
-        const tabs = await provider.listTabs(slug);
-        if (scope !== previewScope(slug))
-          return json({ ok: false, error: 'Browser authority changed during observation' }, 409);
-        return json({
-          ok: true,
-          running: runtime.isRunning(),
-          frame,
-          focused: tabId ?? null,
-          takeover: provider.isTakeover(slug),
-          handoffPending: provider.takeoverPending(slug),
-          tabs,
-          profiles,
-          target: target(),
-          viewerUrl:
-            runtime.viewerUrl?.() ??
-            (target() === 'local' && runtime.isRunning() && tabId !== undefined
-              ? localViewerUrl(slug)
-              : null),
-          provisioning: runtimes.installProgress(slug) ?? null,
-        });
-      },
+      fetch: interaction.observation,
     };
     connectionCtx.effect(
       () => connection.fetch.register(observationRoute),
@@ -964,51 +784,7 @@ export function apply(
       path: '/api/browser/takeover',
       methods: ['POST'] as const,
       requestBody: 'buffered' as const,
-      fetch: async (request: Request): Promise<Response> => {
-        if (target() === 'extension')
-          return json({ ok: false, error: 'Daily Browser is read-only; use Return tab' }, 409);
-        let body: { slug?: unknown; active?: unknown } = {};
-        try {
-          body = (await request.json()) as typeof body;
-        } catch {
-          void 0;
-        }
-        const slug = typeof body.slug === 'string' ? body.slug : '';
-        if (slug === '' || typeof body.active !== 'boolean') {
-          return json({ ok: false, error: 'slug and active are required' }, 400);
-        }
-        runtimes.touch(slug);
-        provider.touch(slug);
-        await switching;
-        const takeover = provider.setTakeover(slug, body.active);
-        if (target() === 'daily-control') {
-          try {
-            await daily.pause(slug, body.active);
-          } catch (error) {
-            daily.returnBot(slug);
-            return json(
-              {
-                ok: false,
-                error: error instanceof Error ? error.message : 'Daily Browser control changed',
-              },
-              409,
-            );
-          }
-        }
-        if (target() === 'profile-control') {
-          try {
-            await profile.pause(slug, body.active);
-          } catch {
-            profile.returnBot(slug);
-            return json(
-              { ok: false, error: 'Chrome Profile disconnected; reconnect and observe again' },
-              409,
-            );
-          }
-        }
-        observationChanged.schedule();
-        return json({ ok: true, takeover });
-      },
+      fetch: interaction.takeover,
     };
     connectionCtx.effect(
       () => connection.fetch.register(takeoverRoute),

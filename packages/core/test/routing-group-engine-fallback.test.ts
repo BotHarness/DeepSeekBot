@@ -1,8 +1,12 @@
+import { join } from 'node:path';
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import { expect, it, vi } from 'vitest';
 
 import { dmChannelId } from '../src/channels/channel.js';
+import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
+import { requireBotEngineAccount } from '../src/team/models.js';
+import { teamModelFixture } from './team-model-fixture.js';
 import {
   API,
   AssignmentReplay,
@@ -276,13 +280,27 @@ it('continues from the completed engine tool call and result in the same DSH Ses
 it('carries Session context through Codex to Claude Code to DSH in the same turn chain', async () => {
   const bot = setup({
     members: [CODEX, CLAUDE],
+    namedEngine: 'claude',
     codexRecording: limitAfter('channel_read'),
     claudeRecording: CLAUDE_LIMIT,
     nativeReply: 'The lucky word is orchid.',
   });
   await bot.message('first', 'My lucky word is orchid');
   const sessionId = bot.sessionId();
-  expect(bot.claude.options).toMatchObject([{ model: CLAUDE.model }]);
+  const accountId = bot.account?.id;
+  expect(accountId).toEqual(expect.any(String));
+  expect(bot.claude.options).toMatchObject([
+    {
+      model: CLAUDE.model,
+      env: {
+        CLAUDE_CONFIG_DIR: expect.stringContaining(join('claude', 'accounts', accountId ?? '')),
+      },
+    },
+  ]);
+  expect(bot.host.limit('claude')).toBeUndefined();
+  expect(bot.host.limit('claude', accountId)?.until).toBe(
+    new Date(Date.parse(RESETS_AT) + 60_000).toISOString(),
+  );
   expect(bot.claude.prompts).toEqual([
     expect.stringMatching(
       /My lucky word is orchid[\s\S]+Tool result \(item-mcp-read\)[\s\S]+Current input:[\s\S]+Continue from where you stopped/u,
@@ -477,6 +495,38 @@ it('skips engines for a role limited to explicitly allowed DSH models', async ()
   expect(bot.codex).toEqual([]);
 });
 
+it.each(['explicit', 'routing-group'] as const)(
+  'rechecks the Bot owner’s account grant before every %s Orchestrator turn',
+  async (selection) => {
+    const f = teamModelFixture();
+    const bot = setup({
+      members: selection === 'routing-group' ? [CODEX] : [],
+      namedEngine: 'codex',
+      codexRecording: CODEX_REPLY,
+      requireAccountGrant: (slug, id) => requireBotEngineAccount(f.team, f.registry.get(slug), id),
+    });
+    const accountId = bot.account?.id;
+    if (accountId === undefined) throw new Error('Missing fixture account');
+    const grant = (engineAccounts: string[]) =>
+      f.team.roles.update(owner, 'member', { models: { kind: 'all', engineAccounts } });
+    grant([accountId]);
+    if (selection === 'explicit') bot.host.use('ada', 'orchestrator', 'codex', { accountId });
+    await bot.message('allowed', 'Use my Work subscription');
+    expect(bot.sendStatus('allowed')).toMatchObject({ state: 'handled' });
+    expect(bot.codex).toHaveLength(1);
+    const engine = bot.codex[0];
+    const turns = () => engine?.sent.filter((row) => row['method'] === 'turn/start');
+    expect(turns()).toHaveLength(1);
+    grant([]);
+    await bot.message('revoked', 'Continue with the previous account');
+    expect(turns()).toHaveLength(1);
+    expect(bot.native.createOptions).toHaveLength(0);
+    expect(
+      bot.channelMessages().find((message) => message.sessionFailure)?.sessionFailure,
+    ).toMatchObject({ code: 'model-not-allowed' });
+  },
+);
+
 it('applies the default quota rest when Codex has no reset time', async () => {
   const recording = LIMIT.filter((line) => line.msg['method'] !== 'account/rateLimits/updated');
   const bot = setup({ members: [CODEX], codexRecording: recording });
@@ -612,7 +662,7 @@ it.each(['api-first', 'engine-first'] as const)(
     const native = await nativeRuntime(model);
     const bot = setup({
       members: [apiFirst ? CLAUDE : CODEX],
-      namedCodex: !apiFirst,
+      namedEngine: apiFirst ? 'claude' : 'codex',
       nativeFirst: apiFirst,
       nativeRuntime: native,
       inherited: true,
@@ -637,7 +687,9 @@ it.each(['api-first', 'engine-first'] as const)(
         assignmentGroups: [
           {
             group: bot.groupId,
-            members: apiFirst ? [API, CLAUDE] : [{ ...CODEX, accountId: bot.account?.id }, API],
+            members: apiFirst
+              ? [API, { ...CLAUDE, accountId: bot.account?.id }]
+              : [{ ...CODEX, accountId: bot.account?.id }, API],
           },
         ],
       },
@@ -685,7 +737,12 @@ it.each(['api-first', 'engine-first'] as const)(
       bot.dsh.stored.get(sessionId)?.events.filter((event) => event.type === 'turn/end'),
     ).toHaveLength(2);
     expect(model.requests.filter((request) => request.sessionId === sessionId)).toHaveLength(1);
-    if (apiFirst) expect(bot.claude.prompts[0]).toContain('Finish the fixture task and report.');
-    else expect(bot.codex).toHaveLength(1);
+    if (apiFirst) {
+      expect(bot.claude.prompts[0]).toContain('Finish the fixture task and report.');
+      expect(bot.claude.options[0]?.env?.CLAUDE_CONFIG_DIR).toContain(
+        join('claude', 'accounts', bot.account?.id ?? ''),
+      );
+      expect(bot.host.store.nativeSession(sessionId)?.accountId).toBe(bot.account?.id);
+    } else expect(bot.codex).toHaveLength(1);
   },
 );

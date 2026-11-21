@@ -14,6 +14,7 @@ import {
 import { createEngineGateway, type EngineGateway } from '../src/engines/engine-gateway.js';
 import { EngineHost, type EngineHostOptions, type EngineTool } from '../src/engines/engine-host.js';
 import { engineRouteFetch } from '../src/engines/engine-route.js';
+import { ownerEngineSelection } from './engine-route-fixture.js';
 import { routingGroupEngineOptions } from '../src/models/routing-group-engine-options.js';
 import {
   type ClaudeRecordedLine,
@@ -98,13 +99,14 @@ function setup(
     execute: vi.fn(async () => JSON.stringify({ outcome: 'sent' })),
     signal: new AbortController().signal,
   };
+  const botExists = (slug: string) => slug === 'ada';
   const route = async (body: Record<string, unknown>) => {
     const response = await engineRouteFetch(
       new Request('http://host/api/botharness/engines', {
         method: 'POST',
         body: JSON.stringify(body),
       }),
-      { host, botExists: (slug) => slug === 'ada' },
+      { host, botExists, ...ownerEngineSelection(host, botExists) },
     );
     return { status: response.status, body: (await response.json()) as Record<string, unknown> };
   };
@@ -112,6 +114,25 @@ function setup(
 }
 
 describe('Subscription Engine models', () => {
+  it('keeps each Claude account model list in its own cache and config directory', async () => {
+    const { host, replay, route, root } = setup([LISTING, LISTING]);
+    const work = host.addAccount('claude', 'Work', 0);
+    try {
+      const personal = await route({ action: 'models', engine: 'claude' });
+      const named = await route({ action: 'models', engine: work.id });
+      expect(personal.status).toBe(200);
+      expect(named).toEqual(personal);
+      await route({ action: 'models', engine: work.id });
+      await route({ action: 'models', engine: 'claude' });
+      expect(replay.options.map((options) => options.env?.CLAUDE_CONFIG_DIR)).toEqual([
+        join(root, 'claude', 'home'),
+        join(root, 'claude', 'accounts', work.id),
+      ]);
+    } finally {
+      await host.close();
+    }
+  });
+
   it('keeps the healthy engine and its models when another status probe fails', async () => {
     const { host, replay } = setup([LISTING], {
       detectCodex: async () => {

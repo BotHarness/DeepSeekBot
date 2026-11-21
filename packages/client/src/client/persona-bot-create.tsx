@@ -4,6 +4,7 @@ import { SegmentedControl } from './ds/segmented.js';
 import { BotCreateSteps } from './bot-create-source.js';
 import { useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
+import { randomTiltiesAvatar } from '@botharness/host-client/tilties-avatars';
 
 import type { BridgeActions } from './actions.js';
 import { BridgeCallError, errorMessage, type CreatedBot } from './bridge.js';
@@ -56,6 +57,12 @@ const styles = stylex.create({
     minWidth: 0,
   },
   avatar: { display: 'inline-flex', flexShrink: 0 },
+  avatarActions: {
+    display: 'flex',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: space.x3,
+  },
   grow: { flexGrow: 1, minWidth: 0 },
   fallback: {
     display: 'flex',
@@ -150,6 +157,8 @@ export function CreatePersonaBotModal({
   submitted?: boolean;
 }): ReactElement {
   const personaPresetId = useId();
+  const avatarStyleId = useId();
+  const [avatar, setAvatar] = useState<string>();
   const [displayName, setDisplayName] = useState('');
   const [personaPreset, setPersonaPreset] = useState<'blank' | 'colleague' | 'roleplay'>('blank');
   const [personaDrafts, setPersonaDrafts] = useState(() => ({
@@ -214,6 +223,7 @@ export function CreatePersonaBotModal({
             ? { gitUrl: gitUrl.trim() }
             : { persona: personaDrafts[personaPreset] }),
           roles: submittedRoles,
+          ...(source === 'empty' && avatar !== undefined ? { avatar } : {}),
           ...(submittedDescription.length === 0 ? {} : { description: submittedDescription }),
           ...(source === 'empty' && chosenLocation.length > 0
             ? { memoryLocation: chosenLocation }
@@ -345,6 +355,7 @@ export function CreatePersonaBotModal({
               <PersonaBotAvatar
                 personaBotId=""
                 name={displayName.trim() || t('bot.create.name.placeholder')}
+                src={avatar}
                 avatarSeed={2}
                 size={44}
                 indicator={false}
@@ -363,6 +374,32 @@ export function CreatePersonaBotModal({
           </div>
         )}
       </Field>
+      {source === 'empty' ? (
+        <div {...stylex.props(styles.avatarActions)}>
+          <SegmentedControl
+            id={avatarStyleId}
+            label={t('profile.avatar.style')}
+            value={avatar === undefined ? 'pixel' : 'tilties'}
+            options={[
+              { value: 'pixel', label: t('profile.avatar.pixel') },
+              { value: 'tilties', label: t('profile.avatar.tilties') },
+            ]}
+            disabled={fieldsLocked}
+            onChange={(style) => setAvatar(style === 'tilties' ? randomTiltiesAvatar() : undefined)}
+          />
+          {avatar === undefined ? null : (
+            <Button
+              size="sm"
+              variant="outline"
+              type="button"
+              disabled={fieldsLocked}
+              onClick={() => setAvatar(randomTiltiesAvatar(avatar))}
+            >
+              {t('profile.avatar.shuffle')}
+            </Button>
+          )}
+        </div>
+      ) : null}
       <Field label={t('bot.create.roles.label')} hint={t('bot.create.roles.hint')}>
         {(control) => (
           <TagEditor

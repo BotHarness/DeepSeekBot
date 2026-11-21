@@ -1,4 +1,9 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import {
+  ENGINE_IDS,
+  isEngineId,
+  type EngineId,
+} from '@botharness/host-protocol/subscription-engine';
+import { useMemo, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import { bridgeHost, BridgeCallError, type BridgeCall } from './bridge.js';
@@ -19,11 +24,16 @@ import {
 } from './engine-choice.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { EngineBrandIcon } from './model-brand.js';
-import { engineName } from './session-engine.js';
+import { engineAccountTitle, engineName, engineQuotaText } from './session-engine.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
+import { roleLabel } from './team-roles.js';
+import { roleAllowsEngineAccount, type TeamRole } from './team-roles-bridge.js';
 
 const styles = stylex.create({
   actions: { display: 'flex', justifyContent: 'end', flexWrap: 'wrap', gap: space.x2 },
+  codeForm: { display: 'grid', gap: space.x2 },
+  codeControls: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
+  codeInput: { flexGrow: 1 },
 });
 
 type AccountDialog =
@@ -61,11 +71,88 @@ function accountError(error: unknown, t: BotHarnessTranslate): string {
   return t('modelProviders.accountWriteFailed');
 }
 
-export function SubscriptionAccounts({
+function ClaudeSignInCode({
   call,
+  id,
   t,
 }: {
   call: BridgeCall;
+  id: string;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const [code, setCode] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string>();
+  const sending = useRef(false);
+
+  const send = async () => {
+    if (sending.current || submitted || code.trim() === '') return;
+    sending.current = true;
+    setBusy(true);
+    setError(undefined);
+    setCode('');
+    try {
+      await bridgeHost(call).call('engineAccountSubmitCode', { id, code: code.trim() });
+      setSubmitted(true);
+    } catch (cause) {
+      const reason = cause instanceof BridgeCallError ? cause.code : undefined;
+      setError(
+        t(
+          reason === 'engine-code-not-requested'
+            ? 'modelProviders.codeUnavailable'
+            : reason === 'engine-login-not-pending'
+              ? 'modelProviders.codeExpired'
+              : reason === 'invalid-input'
+                ? 'modelProviders.codeInvalid'
+                : reason === 'permission-required'
+                  ? 'modelProviders.forbidden'
+                  : 'modelProviders.codeFailed',
+        ),
+      );
+    } finally {
+      sending.current = false;
+      setBusy(false);
+    }
+  };
+
+  return (
+    <form
+      {...stylex.props(styles.codeForm)}
+      onSubmit={(event) => {
+        event.preventDefault();
+        void send();
+      }}
+    >
+      <div {...stylex.props(styles.codeControls)}>
+        <Input
+          className={stylex.props(styles.codeInput).className}
+          type="password"
+          aria-label={t('modelProviders.authorizationCode')}
+          placeholder={t('modelProviders.authorizationCode')}
+          autoComplete="off"
+          spellCheck={false}
+          value={code}
+          onChange={(event) => setCode(event.currentTarget.value)}
+          disabled={busy || submitted}
+        />
+        <Button type="submit" variant="outline" disabled={busy || submitted || code.trim() === ''}>
+          {t('modelProviders.submitCode')}
+        </Button>
+      </div>
+      {submitted ? <Note>{t('modelProviders.codeSubmitted')}</Note> : null}
+      {error === undefined ? null : <Note tone="danger">{error}</Note>}
+    </form>
+  );
+}
+
+export function SubscriptionAccounts({
+  call,
+  roles = [],
+  t,
+}: {
+  call: BridgeCall;
+  roles?: readonly TeamRole[];
   t: BotHarnessTranslate;
 }): ReactElement {
   const api = useMemo(
@@ -81,6 +168,7 @@ export function SubscriptionAccounts({
   );
   const engines = useSubscriptionEngines(true, api, false, true);
   const [dialog, setDialog] = useState<AccountDialog>();
+  const [selectedEngine, setSelectedEngine] = useState<EngineId>('codex');
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
@@ -90,6 +178,7 @@ export function SubscriptionAccounts({
 
   const open = (next: AccountDialog) => {
     setError(undefined);
+    if (next.kind === 'add') setSelectedEngine('codex');
     setName(next.kind === 'add' ? '' : next.name);
     setDialog(next);
   };
@@ -103,7 +192,7 @@ export function SubscriptionAccounts({
       const host = bridgeHost(call);
       if (current.kind === 'add')
         await host.call('engineAccountAdd', {
-          engine: 'codex',
+          engine: selectedEngine,
           name: name.trim(),
           expectedRevision,
         });
@@ -157,14 +246,16 @@ export function SubscriptionAccounts({
             {engines.view.engines.map((status) => {
               const { engine, accountId } = status;
               const brand = engineName(engine);
-              const title =
-                status.accountName === undefined || status.accountName === brand
-                  ? brand
-                  : `${brand} · ${status.accountName}`;
+              const title = engineAccountTitle(engine, status.accountName);
               const key = engineModelKey(engine, accountId);
-              const canManage =
-                accountId !== undefined && engine === 'codex' && revision !== undefined;
+              const canManage = accountId !== undefined && revision !== undefined;
               const canSignIn = status.installed && !status.available;
+              const signingIn = engines.signingIn === key;
+              const roleNames = roles
+                .filter(
+                  (role) => accountId !== undefined && roleAllowsEngineAccount(role, accountId),
+                )
+                .map((role) => roleLabel(t, role));
               return (
                 <SidebarCardRow
                   key={key}
@@ -172,7 +263,22 @@ export function SubscriptionAccounts({
                     <EngineBrandIcon brand={engine === 'codex' ? 'openai' : 'claude'} size={20} />
                   }
                   title={title}
-                  summary={signInStatus(status, brand, t)}
+                  summary={[
+                    signInStatus(status, brand, t),
+                    ...(roleNames.length === 0
+                      ? []
+                      : [
+                          t('modelProviders.rolesAllowed', {
+                            roles: roleNames.join(t('modelProviders.roleSeparator')),
+                          }),
+                        ]),
+                  ].join(' · ')}
+                  meta={status.available ? engineQuotaText(status.quota, t) : undefined}
+                  detail={
+                    engine === 'claude' && signingIn ? (
+                      <ClaudeSignInCode call={call} id={accountId ?? engine} t={t} />
+                    ) : undefined
+                  }
                   trailing={
                     canManage || canSignIn ? (
                       <div {...stylex.props(styles.actions)}>
@@ -181,15 +287,11 @@ export function SubscriptionAccounts({
                             variant="outline"
                             disabled={engines.signingIn !== undefined}
                             aria-label={
-                              engines.signingIn === key
-                                ? undefined
-                                : t('engine.signInLabel', { engine: title })
+                              signingIn ? undefined : t('engine.signInLabel', { engine: title })
                             }
                             onClick={() => engines.signIn(engine, accountId)}
                           >
-                            {engines.signingIn === key
-                              ? t('engine.signingIn')
-                              : t('modelProviders.signIn')}
+                            {signingIn ? t('engine.signingIn') : t('modelProviders.signIn')}
                           </Button>
                         ) : null}
                         {canManage ? (
@@ -281,9 +383,14 @@ export function SubscriptionAccounts({
                 control={
                   <Select
                     label={t('modelProviders.accountEngine')}
-                    value="codex"
-                    options={[{ value: 'codex', label: engineName('codex') }]}
-                    onChange={() => undefined}
+                    value={selectedEngine}
+                    options={ENGINE_IDS.map((engine) => ({
+                      value: engine,
+                      label: engineName(engine),
+                    }))}
+                    onChange={(value) => {
+                      if (isEngineId(value)) setSelectedEngine(value);
+                    }}
                     disabled={busy}
                   />
                 }
