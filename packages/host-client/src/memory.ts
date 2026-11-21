@@ -151,7 +151,7 @@ export function parseMemoryCommit(value: unknown): MemoryAcceptedCommit {
   };
 }
 
-function standing(value: unknown): MemoryStandingUsage[] {
+export function parseStandingUsage(value: unknown): MemoryStandingUsage[] {
   if (!Array.isArray(value)) return [];
   return value.flatMap((entry): MemoryStandingUsage[] => {
     const row = record(entry);
@@ -159,7 +159,11 @@ function standing(value: unknown): MemoryStandingUsage[] {
       !text(row?.['path']) ||
       (row['role'] !== 'soul' && row['role'] !== 'coreMemory') ||
       typeof row['chars'] !== 'number' ||
-      typeof row['limit'] !== 'number'
+      typeof row['limit'] !== 'number' ||
+      !Number.isSafeInteger(row['chars']) ||
+      row['chars'] < 0 ||
+      !Number.isSafeInteger(row['limit']) ||
+      row['limit'] < 1
     )
       return [];
     return [
@@ -189,7 +193,7 @@ export async function loadMemorySnapshot(
     head: snapshot['head'],
     files: snapshot['files'],
     provisional: snapshot['provisional'],
-    standing: standing(snapshot['standing']),
+    standing: parseStandingUsage(snapshot['standing']),
   };
 }
 

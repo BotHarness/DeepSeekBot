@@ -58,6 +58,7 @@ export interface SegmentedControlProps<Value extends string> {
   readonly disabled?: boolean | undefined;
   readonly className?: string | undefined;
   readonly controlsPanel?: boolean | undefined;
+  readonly separateTrack?: boolean | undefined;
 }
 
 const WALK = new Set(['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End']);
@@ -88,6 +89,7 @@ export function SegmentedControl<Value extends string>({
   disabled = false,
   className,
   controlsPanel = false,
+  separateTrack = false,
 }: SegmentedControlProps<Value>): ReactElement {
   const selected = options.findIndex((option) => option.value === value);
   const onKeyDown = (event: KeyboardEvent<HTMLButtonElement>): void => {
@@ -98,39 +100,39 @@ export function SegmentedControl<Value extends string>({
     onChange(target.value);
     event.currentTarget.ownerDocument.getElementById(target.id ?? `${id}-${target.value}`)?.focus();
   };
+  const tabs = options.map((option) => {
+    const active = option.value === value;
+    return (
+      <button
+        key={option.value}
+        id={option.id ?? `${id}-${option.value}`}
+        type="button"
+        role="tab"
+        aria-selected={active}
+        aria-controls={
+          controlsPanel && active ? (option.panelId ?? `${id}-${option.value}-panel`) : undefined
+        }
+        tabIndex={active ? 0 : -1}
+        disabled={disabled || option.disabled === true}
+        title={option.title}
+        onClick={() => {
+          if (!active) onChange(option.value);
+        }}
+        onKeyDown={onKeyDown}
+        {...stylex.props(styles.tab, active && styles.selected)}
+      >
+        {option.label}
+      </button>
+    );
+  });
+  const trackClassName = stylex.props(styles.track).className;
   return (
     <div
       role="tablist"
       aria-label={label}
-      className={joinClass(stylex.props(styles.track).className, className)}
+      className={joinClass(separateTrack ? undefined : trackClassName, className)}
     >
-      {options.map((option) => {
-        const active = option.value === value;
-        return (
-          <button
-            key={option.value}
-            id={option.id ?? `${id}-${option.value}`}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            aria-controls={
-              controlsPanel && active
-                ? (option.panelId ?? `${id}-${option.value}-panel`)
-                : undefined
-            }
-            tabIndex={active ? 0 : -1}
-            disabled={disabled || option.disabled === true}
-            title={option.title}
-            onClick={() => {
-              if (!active) onChange(option.value);
-            }}
-            onKeyDown={onKeyDown}
-            {...stylex.props(styles.tab, active && styles.selected)}
-          >
-            {option.label}
-          </button>
-        );
-      })}
+      {separateTrack ? <div className={trackClassName}>{tabs}</div> : tabs}
     </div>
   );
 }

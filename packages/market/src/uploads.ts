@@ -3,6 +3,7 @@ import {
   MAX_DESCRIPTOR_BYTES,
   parseBotDescriptor,
 } from '../../core/src/marketplace/descriptor.js';
+import { removeMarketAvatar } from './avatars.js';
 import type { D1Database } from './d1.js';
 import type { R2Bucket } from './r2.js';
 import { MAX_README_LENGTH } from './repositories.js';
@@ -338,9 +339,24 @@ export function createUploads(deps: {
       for (const row of results) await remove(account, row.node_id);
       await discardPending('account', account);
       await db.prepare('DELETE FROM upload_replacements WHERE account = ?').bind(account).run();
-      const key = avatarKeyOf((await author(account))?.avatar ?? null);
+      const existing = await author(account);
+      if (existing === null) return;
+      const key = avatarKeyOf(existing.avatar);
       if (key !== undefined) await bucket.delete(key);
-      await db.prepare('DELETE FROM authors WHERE account = ?').bind(account).run();
+      do {
+        const { results: avatars } = await db
+          .prepare(`SELECT a.id FROM marketplace_avatars a JOIN authors USING (account)
+            WHERE a.account = ? AND authors.author_id = ?`)
+          .bind(account, existing.id)
+          .all<{ id: string }>();
+        for (const avatar of avatars) await removeMarketAvatar(db, bucket, account, avatar.id);
+        const deleted = await db
+          .prepare(`DELETE FROM authors WHERE account = ? AND author_id = ?
+            AND NOT EXISTS (SELECT 1 FROM marketplace_avatars WHERE account = ?) RETURNING author_id`)
+          .bind(account, existing.id, account)
+          .first();
+        if (deleted !== null) return;
+      } while ((await author(account))?.id === existing.id);
     },
 
     async saveAuthor(account, input) {

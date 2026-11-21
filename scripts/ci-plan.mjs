@@ -104,6 +104,12 @@ export const RULES = [
     AUTH,
   ),
   related(
+    'packages/core/src/features/environments/connect-account*.ts',
+    'Host Connect account lifecycle and authorization',
+    true,
+    AUTH,
+  ),
+  related(
     'packages/*/src/{auth,password-auth,email-code}.ts',
     'Service authentication and email-code sign-in',
     false,
@@ -112,6 +118,12 @@ export const RULES = [
   related(
     'packages/core/src/messaging/{behavior-permissions,permission-groups}.ts',
     'Host Messaging authorization',
+    true,
+    AUTH,
+  ),
+  related(
+    'packages/core/src/features/{team,humans,personabots}/{methods,rpc,onboarding-methods,roster-methods}.ts',
+    'Team, Human identity and PersonaBot bridge permissions and protocol',
     true,
     AUTH,
   ),

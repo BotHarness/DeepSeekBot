@@ -4,6 +4,7 @@ import {
   cards,
   catalog,
   choose,
+  openPicker,
   translate,
   trigger,
 } from './model-preset-profile-fixtures.js';
@@ -12,12 +13,17 @@ import type { ModelPlanView } from '../src/client/bridge.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { BridgeActions } from '../src/client/actions.js';
+import { createActions, type BridgeActions } from '../src/client/actions.js';
+import { createStore } from '../src/client/store.js';
 import { en } from '../src/client/locale.js';
 import { invalidateModelPlan, modelPlanOf } from '../src/client/model-plan-store.js';
 import { OnboardingController } from '../src/client/onboarding.js';
 import { ModelPresetProfile } from '../src/client/model-preset-profile.js';
-import { OnboardingModelDialog, OnboardingWelcome } from '../src/client/onboarding-view.js';
+import {
+  DefaultModelSettings,
+  OnboardingModelDialog,
+  OnboardingWelcome,
+} from '../src/client/onboarding-view.js';
 import { createCore } from '../../core/src/plugin.js';
 
 let root: Root | undefined;
@@ -49,6 +55,52 @@ async function render(actions: BridgeActions, onClose?: () => void): Promise<HTM
   );
   return container;
 }
+
+it('keeps the searchable model picker within the Default model dialog in Models & execution', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  container = document.createElement('div');
+  document.body.append(container);
+  root = createRoot(container);
+  const route = { provider: 'deepseek', model: 'flash' };
+  const save = vi.fn();
+  const actions = createActions(async (method, payload) => {
+    if (method === 'modelCatalog')
+      return { ok: true, value: { models: catalog.slice(0, 2), default: route, favorites: [] } };
+    if (method === 'onboardingModel') {
+      save(payload);
+      return { ok: true, value: { revision: 1 } };
+    }
+    throw new Error(`Unexpected method ${method}`);
+  }, createStore());
+  await act(async () =>
+    root!.render(
+      createElement(DefaultModelSettings, {
+        actions,
+        canConfigure: true,
+        t: translate,
+      }),
+    ),
+  );
+  await act(async () => container!.querySelector('button')!.click());
+  await openPicker('Model');
+  const dialog = document.querySelector(
+    `[role="dialog"][aria-label="${translate('onboarding.defaultTitle')}"]`,
+  )!;
+  expect(dialog).not.toBeNull();
+  expect(document.querySelector('[data-filter-picker]')).not.toBeNull();
+  expect(dialog.querySelector('[data-picker-filter="favorites"]')).not.toBeNull();
+  expect(dialog.querySelector('[data-picker-filter="all"]')).not.toBeNull();
+  expect(dialog.querySelector('[data-picker-filter="deepseek"]')).not.toBeNull();
+  expect(dialog.querySelector('input[role="combobox"]')).not.toBeNull();
+  await act(async () => trigger('Model')!.click());
+  await choose('Model', 'Pro', 'Pro');
+  await act(async () => button('Save global default model').click());
+  expect(save).toHaveBeenCalledExactlyOnceWith({
+    expectedRevision: 0,
+    route: { provider: 'deepseek', model: 'pro' },
+    globalDefault: true,
+  });
+});
 
 it.each([400, 1280])('saves the selected model and effort at %i px', async (width) => {
   vi.stubGlobal('innerWidth', width);

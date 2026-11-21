@@ -8,6 +8,7 @@ import {
   parseBotDescriptor,
   type BotDescriptor,
 } from '../marketplace/descriptor.js';
+import { standingUsageFromFiles } from '../memory/soul.js';
 import { BOT_BANNER_FILE } from './bot-banner.js';
 import { AVATAR_RECIPE_FILE } from './shared-presentation.js';
 import {
@@ -159,6 +160,10 @@ export interface BotZipContents {
   files: ZipEntry[];
   descriptor?: BotDescriptor;
   history?: Buffer;
+}
+
+export function botZipStandingUsage(contents: BotZipContents) {
+  return standingUsageFromFiles(contents.files, contents.descriptor?.standingLimits);
 }
 
 function stripSharedRoot(files: ZipEntry[]): ZipEntry[] {

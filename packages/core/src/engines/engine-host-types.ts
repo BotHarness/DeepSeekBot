@@ -77,6 +77,8 @@ export interface EngineTurnRequest {
   releaseNativeSession?(): Promise<boolean>;
   sessionId: string;
   channelId: string | undefined;
+  canUseChannel?(channelId: string): boolean;
+  priorReplies?(): ReadonlySet<string>;
   input: string;
   instructions: string;
   readRecoveryContext?(): readonly EngineContextRecord[] | undefined;
@@ -106,6 +108,7 @@ export interface EngineToolApproval {
 export interface EngineToolContext {
   session: Session;
   readonly assignmentInputRevision?: number | undefined;
+  readonly priorReplies?: ReadonlySet<string> | undefined;
   ask(request: EngineToolApproval): Promise<ApprovalOutcome>;
 }
 

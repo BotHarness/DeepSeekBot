@@ -1,17 +1,8 @@
 import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
-import { Input } from './ds/input.js';
-import { SegmentedControl } from './ds/segmented.js';
+import { MarketplaceBotSort, MarketplaceSearchField } from './marketplace-browse-controls.js';
 import { ReadFailure } from './ds/read-failure.js';
-import {
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type ReactElement,
-  type ReactNode,
-  type Ref,
-} from 'react';
+import { useMemo, useRef, useState, type ReactElement, type ReactNode, type Ref } from 'react';
 
 import { MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives';
 
@@ -26,24 +17,18 @@ import type {
   MarketplaceTopic,
   MarketplaceInstallSource,
 } from '../../../core/src/marketplace/client.js';
-import type {
-  InstallFinding,
-  InstallReviewResult,
-} from '../../../core/src/marketplace/install-review.js';
 import type { BridgeActions } from './actions.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
-import { Callout } from './ds/callout.js';
 import { BridgeCallError } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { Note } from './ds/note.js';
 import { Tooltip } from './ds/tooltip.js';
 import { CommunityIcon } from './community-icons.js';
-import { Select } from './ds/select.js';
 import { PanelDialog } from './ds/panel-dialog.js';
 import { MarketplaceFileReader, MarketplaceFileTree } from './market-files.js';
 import { MarketplaceSkills } from './bot-skills-card.js';
 import { MarketPage } from './market-page.js';
 import { useMountedResource } from './mounted-resource.js';
+import { StandingImportUsage } from './standing-import-usage.js';
+import { installLabel, InstallReviewView, type ReviewState } from './marketplace-install-review.js';
 
 import {
   MarketplaceAvatar,
@@ -55,10 +40,14 @@ import {
   marketplaceName,
 } from './marketplace-listing.js';
 import { marketplaceError } from './marketplace-feedback.js';
-import { MAX_REPORT_REASON_LENGTH, ReportPanel, type ReportState } from './marketplace-report.js';
+import {
+  ReportActions,
+  ReportButton,
+  ReportPanel,
+  useMarketplaceReport,
+} from './marketplace-report.js';
 import { MarketplaceListStatus, MarketplaceLoadMore } from './marketplace-list-status.js';
 import {
-  committedEnter,
   MarketplaceSubmitField,
   useMarketplaceSubmission,
   type MarketplaceSubmit,
@@ -87,19 +76,60 @@ export {
   shortSha,
 } from './marketplace-listing.js';
 
-export async function proveHuman(actions: BridgeActions): Promise<string> {
+type MarketplaceChallengeActions = Pick<BridgeActions, 'marketplaceChallenge'>;
+
+export async function proveHuman(actions: MarketplaceChallengeActions): Promise<string> {
   const challenge = await actions.marketplaceChallenge();
   const payload = await solveChallenge(challenge, {
     yieldEvery: () => new Promise((resolve) => setTimeout(resolve, 0)),
   });
-  if (payload === undefined) {
+  if (payload === undefined)
     throw new BridgeCallError('challenge-invalid', 'challenge could not be solved');
-  }
   return payload;
 }
 
 const VISIBLE_TOPICS = 12;
-const MAX_QUERY_LENGTH = 100;
+
+export function MarketplaceTopicChips({
+  topics,
+  selected,
+  onChoose,
+  label,
+  t,
+}: {
+  topics: readonly MarketplaceTopic[];
+  selected: string | undefined;
+  onChoose: (topic: string | undefined) => void;
+  label: string;
+  t: BotHarnessTranslate;
+}): ReactElement | null {
+  if (topics.length === 0) return null;
+  return (
+    <div className="bh-market-topics" role="group" aria-label={label}>
+      <button
+        type="button"
+        className="bh-market-topic"
+        aria-pressed={selected === undefined}
+        onClick={() => onChoose(undefined)}
+      >
+        {t('market.topics.all')}
+      </button>
+      {topics.slice(0, VISIBLE_TOPICS).map(({ topic, count }) => (
+        <button
+          key={topic}
+          type="button"
+          className="bh-market-topic"
+          data-market-topic={topic}
+          aria-pressed={selected === topic}
+          onClick={() => onChoose(selected === topic ? undefined : topic)}
+        >
+          {topic}
+          <span className="bh-market-topic-count">{count}</span>
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export interface Filters {
   sort: MarketplaceSort;
@@ -301,113 +331,6 @@ function MarketplaceDetailView({
   );
 }
 
-type ReviewState =
-  | { status: 'reviewing' }
-  | { status: 'ready'; result: InstallReviewResult }
-  | { status: 'error'; cause: unknown };
-
-const FINDING_ICONS: Record<InstallFinding['kind'], string> = {
-  'prompt-injection': 'text-quote',
-  exfiltration: 'globe',
-  script: 'terminal',
-};
-
-function InstallFindings({
-  findings,
-  t,
-}: {
-  findings: readonly InstallFinding[];
-  t: BotHarnessTranslate;
-}): ReactElement {
-  return (
-    <ul className="bh-market-findings">
-      {findings.map((finding) => (
-        <li
-          key={finding.kind + finding.path}
-          className="bh-market-finding"
-          data-market-finding={finding.kind}
-        >
-          <span className="bh-market-finding-icon" data-tone={finding.kind}>
-            <ChannelSidebarIcon name={FINDING_ICONS[finding.kind]} size={14} />
-          </span>
-          <span className="bh-market-finding-body">
-            <span className="bh-market-finding-head">
-              <strong>{t(`market.review.kind.${finding.kind}`)}</strong>
-              <code>{finding.path}</code>
-            </span>
-            {finding.note === undefined ? null : <span>{finding.note}</span>}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
-function InstallReviewView({
-  state,
-  t,
-  onRetry,
-}: {
-  state: ReviewState;
-  t: BotHarnessTranslate;
-  onRetry: () => void;
-}): ReactElement {
-  if (state.status === 'reviewing')
-    return (
-      <div className="bh-market-review" data-market-review="reviewing" role="status">
-        <span className="bh-market-review-pulse" aria-hidden="true" />
-        {t('market.review.reviewing')}
-      </div>
-    );
-  if (state.status === 'error')
-    return (
-      <ReadFailure retryLabel={t('market.retry')} onRetry={onRetry}>
-        {t('market.review.failed', { error: marketplaceError(state.cause, t) })}
-      </ReadFailure>
-    );
-  const { review } = state.result;
-  if (review.status === 'unavailable')
-    return (
-      <div className="bh-market-review-result" data-market-review="unavailable">
-        <Callout tone="warning" role="alert" title={t('market.review.unavailable')}>
-          {t('market.review.unavailableHint')}
-        </Callout>
-        {review.findings.length === 0 ? null : <InstallFindings findings={review.findings} t={t} />}
-      </div>
-    );
-  if (review.findings.length === 0)
-    return (
-      <div className="bh-market-review" data-market-review="clean" data-tone="clean" role="status">
-        <ChannelSidebarIcon name="shield-check" size={16} />
-        {t('market.review.clean')}
-        {review.partial ? <Note tone="subtle">{t('market.review.partial')}</Note> : null}
-      </div>
-    );
-  return (
-    <div className="bh-market-review-result" data-market-review="findings">
-      <Callout
-        tone="danger"
-        role="alert"
-        title={t('market.review.found', {
-          count: String(review.findings.length),
-        })}
-      >
-        <InstallFindings findings={review.findings} t={t} />
-      </Callout>
-      {review.partial ? <Note tone="subtle">{t('market.review.partial')}</Note> : null}
-    </div>
-  );
-}
-
-function installLabel(review: ReviewState, installing: boolean, t: BotHarnessTranslate): string {
-  if (installing) return t('market.confirm.installing');
-  if (review.status !== 'ready') return t('market.confirm.reviewing');
-  if (review.result.review.status === 'unavailable') return t('market.confirm.installUnreviewed');
-  return review.result.review.findings.length === 0
-    ? t('market.confirm.install')
-    : t('market.confirm.installAnyway');
-}
-
 export interface MarketplaceBrowse {
   readonly list: ListState;
   readonly filters: Filters;
@@ -474,7 +397,7 @@ export function useMarketplaceBrowse(
   const mount = useMountedResource<HTMLDivElement>(() => {
     load();
     void actions.marketplaceTopics().then(
-      (loaded) => setTopics(loaded.slice(0, VISIBLE_TOPICS)),
+      (loaded) => setTopics(loaded),
       () => setTopics([]),
     );
     return () => {
@@ -550,81 +473,35 @@ export function MarketplaceBrowseControls({
   t: BotHarnessTranslate;
   action?: ReactNode;
 }): ReactElement {
-  const sortId = useId();
   const { filters, topics } = browse;
-  const sortOptions = [
-    { value: 'created' as const, label: t('market.sort.created') },
-    { value: 'updated' as const, label: t('market.sort.updated') },
-    { value: 'stars' as const, label: t('market.sort.stars') },
-  ];
   return (
     <>
       <div className="bh-market-browse">
-        <Input
-          type="search"
-          aria-label={t('market.search.label')}
+        <MarketplaceSearchField
+          label={t('market.search.label')}
           placeholder={t('market.search.placeholder')}
-          autoComplete="off"
-          enterKeyHint="search"
-          maxLength={MAX_QUERY_LENGTH}
           value={browse.searchText}
-          onChange={(event) => browse.setSearchText(event.currentTarget.value)}
-          onKeyDown={(event) => {
-            if (!committedEnter(event)) return;
-            event.preventDefault();
-            browse.search();
-          }}
+          onChange={browse.setSearchText}
+          onSearch={browse.search}
         />
         {action}
-        <div className="bh-market-sort">
-          <SegmentedControl
-            id={sortId}
-            label={t('market.sort.label')}
-            value={filters.sort}
-            options={sortOptions}
-            disabled={filters.query.length > 0}
-            onChange={browse.chooseSort}
-          />
-          <span className="bh-market-sort-menu">
-            <Select
-              label={t('market.sort.label')}
-              value={filters.sort}
-              options={sortOptions}
-              disabled={filters.query.length > 0}
-              align="start"
-              onChange={browse.chooseSort}
-            />
-          </span>
-        </div>
+        <MarketplaceBotSort
+          value={filters.sort}
+          disabled={filters.query.length > 0}
+          onChange={browse.chooseSort}
+          t={t}
+        />
       </div>
       {filters.query.length > 0 ? (
         <span className="bh-market-hint">{t('market.search.relevance')}</span>
       ) : null}
-      {topics.length === 0 ? null : (
-        <div className="bh-market-topics" role="group" aria-label={t('market.topics.label')}>
-          <button
-            type="button"
-            className="bh-market-topic"
-            aria-pressed={filters.topic === undefined}
-            onClick={() => browse.chooseTopic(undefined)}
-          >
-            {t('market.topics.all')}
-          </button>
-          {topics.map(({ topic, count }) => (
-            <button
-              key={topic}
-              type="button"
-              className="bh-market-topic"
-              data-market-topic={topic}
-              aria-pressed={filters.topic === topic}
-              onClick={() => browse.chooseTopic(filters.topic === topic ? undefined : topic)}
-            >
-              {topic}
-              <span className="bh-market-topic-count">{count}</span>
-            </button>
-          ))}
-        </div>
-      )}
+      <MarketplaceTopicChips
+        topics={topics}
+        selected={filters.topic}
+        onChoose={browse.chooseTopic}
+        label={t('market.topics.label')}
+        t={t}
+      />
     </>
   );
 }
@@ -665,7 +542,7 @@ export function MarketplaceBotFlow({
     start.step === 'install' ? start.bot : undefined,
   );
   const [detail, setDetail] = useState<DetailState>({ status: 'loading' });
-  const [report, setReport] = useState<ReportState>({ status: 'closed' });
+  const report = useMarketplaceReport(() => proveHuman(actions), actions.marketplaceReport);
   const [installing, setInstalling] = useState(false);
   const [installCause, setInstallCause] = useState<unknown | undefined>(undefined);
   const [review, setReview] = useState<ReviewState>({ status: 'reviewing' });
@@ -701,7 +578,7 @@ export function MarketplaceBotFlow({
 
   const openDetail = (bot: MarketplaceEntry): void => {
     const ticket = ++detailGeneration.current;
-    setReport({ status: 'closed' });
+    report.close();
     setDetail({ status: 'loading' });
     void actions.marketplaceDetail(bot.id, lang).then(
       (loaded) => {
@@ -719,39 +596,6 @@ export function MarketplaceBotFlow({
       detailGeneration.current += 1;
     };
   }, [lang]);
-
-  const sendReport = (bot: MarketplaceEntry): void => {
-    if (report.status !== 'open' || report.phase !== 'idle') return;
-    const reason = report.reason.trim();
-    const ticket = detailGeneration.current;
-    setReport({ status: 'open', reason: report.reason, phase: 'verifying' });
-    void proveHuman(actions)
-      .then((altcha) => {
-        if (ticket === detailGeneration.current) {
-          setReport({
-            status: 'open',
-            reason: report.reason,
-            phase: 'sending',
-          });
-        }
-        return actions.marketplaceReport(bot.id, altcha, reason.length === 0 ? undefined : reason);
-      })
-      .then(
-        () => {
-          if (ticket === detailGeneration.current) setReport({ status: 'done' });
-        },
-        (cause: unknown) => {
-          if (ticket === detailGeneration.current) {
-            setReport({
-              status: 'open',
-              reason: report.reason,
-              phase: 'idle',
-              cause,
-            });
-          }
-        },
-      );
-  };
 
   const install = (): void => {
     if (selected === undefined || installing || review.status !== 'ready') return;
@@ -821,7 +665,12 @@ export function MarketplaceBotFlow({
           bot={review.status === 'ready' ? review.result.listing : selected}
           t={t}
           reviewView={
-            <InstallReviewView state={review} t={t} onRetry={() => startReview(selected)} />
+            <>
+              {review.status === 'ready' && review.result.standing ? (
+                <StandingImportUsage standing={review.result.standing} t={t} />
+              ) : null}
+              <InstallReviewView state={review} t={t} onRetry={() => startReview(selected)} />
+            </>
           }
           cause={installCause}
         />
@@ -833,36 +682,10 @@ export function MarketplaceBotFlow({
   const bot = viewing ?? start.bot;
   const shown = detail.status === 'ready' ? detail.detail.bot : bot;
   const secondary =
-    report.status === 'closed' ? (
-      <Button
-        variant="ghost"
-        onClick={() => setReport({ status: 'open', reason: '', phase: 'idle' })}
-      >
-        {t('market.report.open')}
-      </Button>
-    ) : undefined;
+    report.state.status === 'closed' ? <ReportButton report={report} t={t} /> : undefined;
   const footer =
-    report.status === 'open' ? (
-      <>
-        <Button
-          variant="outline"
-          disabled={report.phase !== 'idle'}
-          onClick={() => setReport({ status: 'closed' })}
-        >
-          {t('common.cancel')}
-        </Button>
-        <Button
-          variant="primary"
-          disabled={report.phase !== 'idle'}
-          onClick={() => sendReport(shown)}
-        >
-          {report.phase === 'verifying'
-            ? t('market.challenge.verifying')
-            : report.phase === 'sending'
-              ? t('market.report.sending')
-              : t('market.report.send')}
-        </Button>
-      </>
+    report.state.status === 'open' ? (
+      <ReportActions report={report} id={shown.id} t={t} />
     ) : (
       <>
         {page === undefined ? (
@@ -882,17 +705,7 @@ export function MarketplaceBotFlow({
       state={detail}
       t={t}
       onRetry={() => openDetail(bot)}
-      report={
-        <ReportPanel
-          state={report}
-          t={t}
-          onReason={(reason) =>
-            setReport((current) =>
-              current.status === 'open' ? { ...current, reason, cause: undefined } : current,
-            )
-          }
-        />
-      }
+      report={<ReportPanel report={report} t={t} />}
     />
   );
 
