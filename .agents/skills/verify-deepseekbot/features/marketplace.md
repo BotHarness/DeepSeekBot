@@ -4,7 +4,7 @@
 
 - `packages/market/**`
 - `packages/core/src/marketplace/**`
-- `packages/client/src/client/{marketplace,market-panel,market-avatars,market-avatar-apply,personabot-avatar-crop}.tsx`
+- `packages/client/src/client/{marketplace,marketplace-install-review,market-panel,market-avatars,market-avatar-apply,personabot-avatar-crop,standing-import-usage}.tsx`
 - `apps/mobile/src/marketplace/**`
 - `apps/mobile/src/ui/shell/marketplace-*`
 - `apps/mobile/src/ui/primitives/marketplace-topic-sheet*`
