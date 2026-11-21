@@ -189,7 +189,7 @@ function backupCredentialFile(path: string, lines: string[]): string {
 }
 
 function writeCredentialFile(path: string, lines: string[]): void {
-  writeFileSync(path, lines.join('\n'));
+  writeFileSync(path, lines.join('\n'), { mode: 0o600 });
   if (process.platform !== 'win32') chmodSync(path, 0o600);
 }
 
