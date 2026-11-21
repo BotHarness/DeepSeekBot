@@ -371,7 +371,6 @@ export async function readClaudeQuota(
     prompt: input,
     options: {
       ...queryOptions,
-      env: { ...queryOptions.env, HOME: options.home, USERPROFILE: options.home },
       tools: [],
       persistSession: false,
       abortController,

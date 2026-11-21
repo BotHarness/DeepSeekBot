@@ -237,12 +237,13 @@ it('gets the Claude SDK usage report and account email with a tool-free slash co
   expect(openClaude).toHaveBeenCalledExactlyOnceWith({
     prompt: expect.anything(),
     options: expect.objectContaining({
-      env: expect.objectContaining({ CLAUDE_CONFIG_DIR: home, HOME: home }),
+      env: expect.objectContaining({ CLAUDE_CONFIG_DIR: home }),
       tools: [],
       settingSources: [],
       persistSession: false,
     }),
   });
+  expect(openClaude.mock.calls[0]?.[0].options.env?.['HOME']).not.toBe(home);
   expect(accountInfo).toHaveBeenCalledTimes(1);
   expect(close).toHaveBeenCalledTimes(1);
   expect(host.accounts(true).accounts.find((account) => account.id === id)).toMatchObject({
