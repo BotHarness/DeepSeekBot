@@ -17,8 +17,8 @@ import { ReadFailure } from './ds/read-failure.js';
 import { PreviewChoices } from './ds/preview-choice.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { space } from './ds/tokens.stylex.js';
-import { ink, status as statusColor, type as typeScale } from './ds/tobs.stylex.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { Icon } from './ds/icon.js';
+import { ink, radius, size, status as statusColor, type as typeScale } from './ds/tobs.stylex.js';
 import {
   engineApi,
   engineModelKey,
@@ -50,10 +50,15 @@ const styles = stylex.create({
     color: ink.secondary,
     whiteSpace: 'nowrap',
   },
-  rowMain: { minHeight: '36px', alignItems: 'center' },
+  rowMain: { minHeight: size.rowMedium, alignItems: 'center' },
   titleLine: { display: 'flex', alignItems: 'center', gap: space.x3, minWidth: 0 },
   titleText: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
-  dot: { width: 6, height: 6, flexShrink: 0, borderRadius: '50%' },
+  dot: {
+    width: `calc(${space.x2} + ${space.x1})`,
+    height: `calc(${space.x2} + ${space.x1})`,
+    flexShrink: 0,
+    borderRadius: radius.full,
+  },
   success: { backgroundColor: statusColor.successBase },
   warning: { backgroundColor: statusColor.warningBase },
   danger: { backgroundColor: statusColor.dangerBase },
@@ -98,7 +103,7 @@ function AccountMenu({
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
         >
-          <ChannelSidebarIcon name="ellipsis-vertical" size={16} />
+          <Icon name="ellipsis-vertical" />
         </IconButton>
       }
       items={[
