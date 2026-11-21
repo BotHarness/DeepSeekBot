@@ -560,6 +560,8 @@ For a qualified WeChat private connector, the update JSON also accepts independe
 
 These call the same Host bridge methods as the Bot's IM settings, the Channel bridge list and the approval and failure-alert cards, so the Host applies the same checks and refuses with the same codes. `messaging-grants` lists the Bot's authorized conversations (grant ids, revisions, reception, group and thread policies) and bindings with their post limits, without target digests or app fingerprints. Structured changes read one JSON object from `--input-stdin` in the shape the Web UI sends, including its `expectedRevision`, so a concurrent change fails instead of being overwritten; `approval-route`, `failure-alerts-set` and `messaging-post-limit` read the current revision themselves. `messaging-send` and `messaging-post` print the `requestId` they used: retrying with the same `--request-id` returns the existing post instead of sending twice, and `messaging-post-status` reads it back without posting. Like the confirmation dialogs in the Web UI, `messaging-revoke`, blocking a conversation, deleting a bridge and `delete-*` sender-access changes need `--confirm`. Send only to IM conversations you are authorized to test in.
 
+For QQ group messages, `messaging-source` reports `source.replyCapability`. `unavailable` with `qq-mention-required` means the source is an ordinary group message. `requires-provider-check` means the source carries a real mention and the Provider still checks its reply window and availability. `bot-tool <bot-id> bot_send_message --args-stdin` exposes the same reason as the Bot tool. A failed source reply in a Bot run keeps the answer on the source path and blocks source-free sends for that run.
+
 ### Browser and Computer from the CLI
 
 ```bash

@@ -1,5 +1,6 @@
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { withMentionNames } from '../../messaging/mention-text.js';
+import { sourceReplyCapability } from '../../messaging/source-reply-capability.js';
 import type { MessagingInboundEvent } from '../../messaging/provider.js';
 import type { OrchestratorAgentRun } from '../../runtime/bot-runtime.js';
 
@@ -174,6 +175,7 @@ export function registerExternalMessagingTools(
         const source = active.externalMessaging.read(args.source_event_id);
         return JSON.stringify({
           ...source,
+          replyCapability: sourceReplyCapability(source),
           body: withMentionNames(source.body, source.event.mentions),
           ...(source.contextMessages === undefined
             ? {}

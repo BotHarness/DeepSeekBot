@@ -15,6 +15,7 @@ import type { MessagingIdentity } from '../../messaging/identity.js';
 import { threadReceptionInput } from '../../messaging/thread-policy.js';
 import { groupReceptionInput } from '../../messaging/group-policy.js';
 import type { ExternalSource } from '../../messaging/inbound.js';
+import { sourceReplyCapability } from '../../messaging/source-reply-capability.js';
 import type {
   OutboundMessaging,
   MessagingApp,
@@ -250,9 +251,10 @@ export function createMessagingBridgeMethods(
         .strict()
         .safeParse(payload);
       if (!input.success) return Promise.resolve(invalidInput('Invalid external source'));
-      return messagingCall(async (service) => ({
-        source: service.inbound.read(input.data.slug, input.data.sourceEventId),
-      }));
+      return messagingCall(async (service) => {
+        const source = service.inbound.read(input.data.slug, input.data.sourceEventId);
+        return { source: { ...source, replyCapability: sourceReplyCapability(source) } };
+      });
     },
     failureAlertsSet(payload) {
       const input = z
