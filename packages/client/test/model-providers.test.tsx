@@ -569,3 +569,109 @@ it('omits the subscription write controls for a Team member without modelSources
     await page.close();
   }
 });
+
+it('masks the bound email until clicked and shows remaining quota per window with refresh', async () => {
+  const now = Date.now();
+  const hour = 3_600_000;
+  const cachedStatus: Record<string, unknown> = {
+    usedPercent: 50,
+    resetsAt: new Date(now + 2 * hour).toISOString(),
+    observedAt: new Date(now - 2 * hour).toISOString(),
+    source: 'turn',
+    windows: {
+      session: { remainingPercent: 50, resetsAt: new Date(now + 2 * hour).toISOString() },
+    },
+  };
+  let quota = cachedStatus;
+  let refreshStatus = 'ok';
+  const call = vi.fn<BridgeCall>(async (method) => {
+    switch (method) {
+      case 'teamMode':
+        return { ok: true, value: { ...fakeTeamMode(), enabled: true } };
+      case 'modelProviders':
+        return { ok: true, value: { revision: 1, providers: [] } };
+      case 'engineAccounts':
+        return {
+          ok: true,
+          value: {
+            revision: 3,
+            accounts: [
+              {
+                id: 'claude-work',
+                engine: 'claude',
+                name: 'Work',
+                email: 'vain.test@example.org',
+                quota,
+              },
+            ],
+            engines: [
+              {
+                engine: 'claude',
+                accountId: 'claude-work',
+                accountName: 'Work',
+                installed: true,
+                available: true,
+                quota: cachedStatus,
+              },
+            ],
+            selections: [],
+          },
+        };
+      case 'engineAccountQuotaRefresh':
+        if (refreshStatus !== 'ok') return { ok: true, value: { status: refreshStatus } };
+        quota = {
+          observedAt: new Date(now).toISOString(),
+          source: 'live',
+          windows: {
+            session: { remainingPercent: 27, resetsAt: new Date(now + hour).toISOString() },
+            weekly: { remainingPercent: 41, resetsAt: new Date(now + 90 * hour).toISOString() },
+          },
+        };
+        return { ok: true, value: { status: 'ok', quota } };
+      default:
+        throw new Error('Unexpected bridge method ' + method);
+    }
+  });
+  const page = subscriptionTestPage(call);
+  try {
+    await page.render();
+    expect(page.host.textContent).toContain('va•••@e•••.org');
+    expect(page.host.textContent).not.toContain('vain.test@example.org');
+    await page.click('显示完整邮箱');
+    expect(page.host.textContent).toContain('vain.test@example.org');
+    await page.click('隐藏邮箱');
+    expect(page.host.textContent).not.toContain('vain.test@example.org');
+
+    expect(page.button('Claude Code · Work 的额度：剩余 50%')).toBeDefined();
+    await page.click('Claude Code · Work 的额度：剩余 50%');
+    expect(call).toHaveBeenCalledWith(
+      'engineAccountQuotaRefresh',
+      { id: 'claude-work' },
+      undefined,
+    );
+    const panel = page.host.querySelector('[data-account-quota]');
+    const meter = (id: string) =>
+      panel?.querySelector(`[data-quota-window="${id}"] [role="meter"]`);
+    expect(meter('session')?.getAttribute('aria-valuenow')).toBe('27');
+    expect(meter('session')?.getAttribute('aria-valuetext')).toBe('剩余 27%');
+    expect(meter('weekly')?.getAttribute('aria-valuenow')).toBe('41');
+    expect(meter('session')?.textContent).toContain('1 小时 0 分');
+    expect(page.button('刷新')?.getAttribute('title')).toContain('刚刚更新');
+    expect(page.host.querySelector('[data-quota-chip="claude-work"]')?.textContent).toBe(
+      '剩余 27%',
+    );
+    expect(page.button('Claude Code · Work 的额度：剩余 27%')).toBeDefined();
+
+    refreshStatus = 'timeout';
+    await page.click('刷新');
+    expect(page.host.textContent).toContain('读取额度超时，再试一次。');
+    expect(
+      call.mock.calls.filter(([method]) => method === 'engineAccountQuotaRefresh'),
+    ).toHaveLength(2);
+
+    await page.click('Claude Code · Work 的额度：剩余 27%');
+    expect(page.host.querySelector('[data-account-quota]')).toBeNull();
+  } finally {
+    await page.close();
+  }
+});

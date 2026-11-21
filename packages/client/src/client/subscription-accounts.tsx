@@ -6,7 +6,16 @@ import {
 import { useMemo, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
+import {
+  MaskedEmail,
+  QuotaPanel,
+  QuotaRefreshButton,
+  quotaStale,
+  quotaSummary,
+  type QuotaRefreshState,
+} from './account-quota.js';
 import { bridgeHost, BridgeCallError, type BridgeCall } from './bridge.js';
+import { refreshEngineAccountQuota } from './features/models/bridge.js';
 import { Button } from './ds/button.js';
 import { IconButton } from './ds/icon-button.js';
 import { Menu } from './ds/menu.js';
@@ -18,7 +27,7 @@ import { PreviewChoices } from './ds/preview-choice.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { space } from './ds/tokens.stylex.js';
 import { Icon } from './ds/icon.js';
-import { ink, radius, size, status as statusColor, type as typeScale } from './ds/tobs.stylex.js';
+import { ink, radius, status as statusColor, type as typeScale } from './ds/tobs.stylex.js';
 import {
   engineApi,
   engineModelKey,
@@ -28,13 +37,19 @@ import {
 } from './engine-choice.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { EngineBrandIcon } from './model-brand.js';
-import { engineAccountTitle, engineName, engineQuotaText } from './session-engine.js';
-import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
+import { engineAccountTitle, engineName } from './session-engine.js';
+import { aboveListToggle, ListCard, ListCardItem } from './ds/list-card.js';
 import { roleLabel } from './team-roles.js';
 import { roleAllowsEngineAccount, type TeamRole } from './team-roles-bridge.js';
 
 const styles = stylex.create({
-  actions: { display: 'flex', justifyContent: 'end', flexWrap: 'wrap', gap: space.x2 },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'end',
+    flexWrap: 'wrap',
+    gap: space.x2,
+  },
   codeForm: { display: 'grid', gap: space.x2 },
   codeControls: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
   codeInput: { flexGrow: 1 },
@@ -50,9 +65,15 @@ const styles = stylex.create({
     color: ink.secondary,
     whiteSpace: 'nowrap',
   },
-  rowMain: { minHeight: size.rowMedium, alignItems: 'center' },
   titleLine: { display: 'flex', alignItems: 'center', gap: space.x3, minWidth: 0 },
   titleText: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  quotaChip: {
+    fontSize: typeScale.captionSize,
+    lineHeight: typeScale.captionLine,
+    fontWeight: typeScale.labelWeight,
+    color: ink.primary,
+    whiteSpace: 'nowrap',
+  },
   dot: {
     width: `calc(${space.x2} + ${space.x1})`,
     height: `calc(${space.x2} + ${space.x1})`,
@@ -98,6 +119,7 @@ function AccountMenu({
       align="end"
       anchor={
         <IconButton
+          xstyle={aboveListToggle}
           aria-label={label}
           aria-haspopup="menu"
           aria-expanded={open}
@@ -288,7 +310,41 @@ export function SubscriptionAccounts({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [quotaRefresh, setQuotaRefresh] = useState<Readonly<Record<string, QuotaRefreshState>>>({});
   const revision = engines.view?.revision;
+  const canRefreshQuota = revision !== undefined;
+
+  const refreshQuota = async (accountId: string) => {
+    setQuotaRefresh((current) => ({ ...current, [accountId]: { state: 'refreshing' } }));
+    let next: QuotaRefreshState;
+    try {
+      const result = await refreshEngineAccountQuota(call, accountId);
+      next =
+        result.status === 'ok' ? { state: 'idle' } : { state: 'failed', reason: result.status };
+    } catch {
+      next = { state: 'failed', reason: 'unavailable' };
+    }
+    setQuotaRefresh((current) => ({ ...current, [accountId]: next }));
+    await engines.refresh();
+  };
+
+  const toggleQuota = (status: EngineStatusView, accountId: string) => {
+    const opening = !expanded.has(accountId);
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (opening) next.add(accountId);
+      else next.delete(accountId);
+      return next;
+    });
+    if (
+      opening &&
+      canRefreshQuota &&
+      quotaRefresh[accountId]?.state !== 'refreshing' &&
+      quotaStale(status.quota, Date.now())
+    )
+      void refreshQuota(accountId);
+  };
   const labels = { cancel: t('common.cancel'), close: t('common.close') };
 
   const open = (next: AccountDialog) => {
@@ -357,9 +413,10 @@ export function SubscriptionAccounts({
         ) : engines.view.engines.length === 0 ? (
           <Note>{t('engine.localOnly')}</Note>
         ) : (
-          <SidebarCardList label={t('modelProviders.subscriptions')}>
+          <ListCard label={t('modelProviders.subscriptions')}>
             {engines.view.engines.map((status) => {
               const { engine, accountId } = status;
+              const now = Date.now();
               const brand = engineName(engine);
               const title = engineAccountTitle(engine, status.accountName);
               const key = engineModelKey(engine, accountId);
@@ -371,6 +428,19 @@ export function SubscriptionAccounts({
                   (role) => accountId !== undefined && roleAllowsEngineAccount(role, accountId),
                 )
                 .map((role) => roleLabel(t, role));
+              const quotaOpen =
+                !signingIn &&
+                status.available &&
+                accountId !== undefined &&
+                expanded.has(accountId);
+              const quotaId = `account-quota-${key}`;
+              const canToggleQuota = !signingIn && status.available && accountId !== undefined;
+              const rolesText =
+                roleNames.length === 0
+                  ? undefined
+                  : t('modelProviders.rolesAllowed', {
+                      roles: roleNames.join(t('modelProviders.roleSeparator')),
+                    });
               const state = signingIn
                 ? { tone: 'warning' as const, label: t('engine.signingIn') }
                 : signInStatus(status, brand, t);
@@ -385,9 +455,21 @@ export function SubscriptionAccounts({
                     })
                   : undefined;
               return (
-                <SidebarCardRow
+                <ListCardItem
                   key={key}
-                  mainClassName={stylex.props(styles.rowMain).className}
+                  toggle={
+                    canToggleQuota && accountId !== undefined
+                      ? {
+                          label: t('modelProviders.quotaToggle', {
+                            name: title,
+                            summary: quotaSummary(status.quota, now, t),
+                          }),
+                          expanded: quotaOpen,
+                          controls: quotaOpen ? quotaId : undefined,
+                          onToggle: () => toggleQuota(status, accountId),
+                        }
+                      : undefined
+                  }
                   leading={
                     <EngineBrandIcon brand={engine === 'codex' ? 'openai' : 'claude'} size={20} />
                   }
@@ -398,13 +480,16 @@ export function SubscriptionAccounts({
                     </span>
                   }
                   summary={
-                    roleNames.length === 0
-                      ? undefined
-                      : t('modelProviders.rolesAllowed', {
-                          roles: roleNames.join(t('modelProviders.roleSeparator')),
-                        })
+                    status.email === undefined ? (
+                      rolesText
+                    ) : (
+                      <>
+                        <MaskedEmail email={status.email} t={t} />
+                        {rolesText === undefined ? null : ` · ${rolesText}`}
+                      </>
+                    )
                   }
-                  meta={status.available ? engineQuotaText(status.quota, t) : undefined}
+                  detailId={quotaOpen ? quotaId : undefined}
                   detail={
                     signingIn ? (
                       <div {...stylex.props(styles.signInDetail)}>
@@ -426,11 +511,32 @@ export function SubscriptionAccounts({
                           <ClaudeSignInCode call={call} id={accountId ?? engine} t={t} />
                         ) : null}
                       </div>
+                    ) : quotaOpen && accountId !== undefined ? (
+                      <QuotaPanel
+                        quota={status.quota}
+                        refresh={quotaRefresh[accountId] ?? { state: 'idle' }}
+                        now={now}
+                        t={t}
+                      />
                     ) : undefined
                   }
                   trailing={
-                    canManage || canSignIn ? (
+                    canManage || canSignIn || status.available ? (
                       <div {...stylex.props(styles.actions)}>
+                        {canToggleQuota ? (
+                          <span {...stylex.props(styles.quotaChip)} data-quota-chip={accountId}>
+                            {quotaSummary(status.quota, now, t)}
+                          </span>
+                        ) : null}
+                        {quotaOpen && canRefreshQuota && accountId !== undefined ? (
+                          <QuotaRefreshButton
+                            quota={status.quota}
+                            refresh={quotaRefresh[accountId] ?? { state: 'idle' }}
+                            now={now}
+                            onRefresh={() => void refreshQuota(accountId)}
+                            t={t}
+                          />
+                        ) : null}
                         {signingIn ? (
                           <Button
                             variant="outline"
@@ -466,7 +572,7 @@ export function SubscriptionAccounts({
                 />
               );
             })}
-          </SidebarCardList>
+          </ListCard>
         )}
         {engines.cancelFailed ? (
           <Note tone="danger">{t('modelProviders.cancelSignInFailed')}</Note>
