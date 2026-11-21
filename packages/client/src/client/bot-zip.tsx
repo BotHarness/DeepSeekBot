@@ -6,7 +6,7 @@ import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 're
 import * as stylex from '@stylexjs/stylex';
 
 import type { BridgeActions } from './actions.js';
-import { BridgeCallError, type BotZipFileListing } from './bridge.js';
+import { BridgeCallError, previewBotZip, type BotZipFileListing } from './bridge.js';
 import { Callout } from './ds/callout.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
@@ -15,6 +15,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 import { personaBotCreateError } from './persona-bot-create.js';
 import type { BotSummary } from './store.js';
+import { StandingImportUsage } from './standing-import-usage.js';
 
 const styles = stylex.create({
   file: {
@@ -173,9 +174,30 @@ export function ImportBotZipModal({
   const [file, setFile] = useState<File>();
   const [importing, setImporting] = useState(false);
   const [cause, setCause] = useState<unknown>();
+  const [preview, setPreview] = useState<
+    | { file: File; status: 'ready'; standing: Awaited<ReturnType<typeof previewBotZip>> }
+    | { file: File; status: 'failed'; error: unknown }
+  >();
+  const currentPreview = preview?.file === file ? preview : undefined;
+  const standing = currentPreview?.status === 'ready' ? currentPreview.standing : undefined;
+  const error = currentPreview?.status === 'failed' ? currentPreview.error : cause;
+
+  const previewMount = useMountedResource<HTMLDivElement>(() => {
+    if (file === undefined) return;
+    const controller = new AbortController();
+    void previewBotZip(file, controller.signal).then(
+      (usage) => {
+        if (!controller.signal.aborted) setPreview({ file, status: 'ready', standing: usage });
+      },
+      (error: unknown) => {
+        if (!controller.signal.aborted) setPreview({ file, status: 'failed', error });
+      },
+    );
+    return () => controller.abort();
+  }, [file]);
 
   const submit = (): void => {
-    if (file === undefined || importing) return;
+    if (file === undefined || standing === undefined || importing) return;
     setImporting(true);
     setCause(undefined);
     void actions.importBotZip(file, sectionId).then(
@@ -200,12 +222,12 @@ export function ImportBotZipModal({
       description={t('botZip.import.description')}
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
       submitLabel={importing ? t('botZip.import.importing') : t('botZip.import.submit')}
-      submitDisabled={file === undefined}
+      submitDisabled={standing === undefined}
       busy={importing}
       error={
-        cause === undefined
+        error === undefined
           ? undefined
-          : t('botZip.import.failed', { error: botZipError(cause, t) })
+          : t('botZip.import.failed', { error: botZipError(error, t) })
       }
       onCancel={() => {
         if (!importing) onCancel();
@@ -214,7 +236,7 @@ export function ImportBotZipModal({
     >
       {onBack ? <BotCreateSteps t={t} onBack={onBack} disabled={importing} /> : null}
       {target}
-      <div {...stylex.props(styles.file)}>
+      <div ref={previewMount} {...stylex.props(styles.file)}>
         <span {...stylex.props(styles.fileName, file === undefined && styles.fileEmpty)}>
           {file?.name ?? t('botZip.import.none')}
         </span>
@@ -242,6 +264,13 @@ export function ImportBotZipModal({
           }}
         />
       </div>
+      {standing === undefined ? (
+        file !== undefined && currentPreview === undefined ? (
+          <Note>{t('standing.import.reading')}</Note>
+        ) : null
+      ) : (
+        <StandingImportUsage standing={standing} t={t} />
+      )}
       <Callout tone="warning" role="note" title={t('botZip.import.riskTitle')}>
         {t('botZip.import.risk')}
       </Callout>

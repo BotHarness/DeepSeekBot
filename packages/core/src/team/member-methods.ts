@@ -23,7 +23,10 @@ export const MODEL_CONFIGURATION_METHODS: ReadonlySet<string> = new Set([
 
 export const MEMBER_GLOBAL_METHODS = [
   'marketplaceAvatarList',
+  'marketplaceAvatarTags',
   'marketplaceAvatarDetail',
+  'marketplaceAvatarReport',
+  'marketplaceChallenge',
   'marketplaceAvatarApplyCandidates',
   'marketplaceAvatarApply',
   ...MODEL_CONFIGURATION_METHODS,
@@ -59,6 +62,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'engineAccountRename',
   'engineAccountRemove',
   'engineAccountLogin',
+  'engineAccountLoginCancel',
   'engineAccountSubmitCode',
   'modelFavoriteSet',
   'usageByMember',

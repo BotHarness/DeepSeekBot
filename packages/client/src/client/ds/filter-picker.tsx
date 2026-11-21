@@ -256,7 +256,6 @@ export function FilterPicker({
   onBrowse,
   onSearchChange,
   filters,
-  showSingleFilter = false,
   filtersLabel,
   allFilter,
   searchLabel,
@@ -278,7 +277,6 @@ export function FilterPicker({
   onBrowse?: (() => void) | undefined;
   onSearchChange?: ((query: string) => void) | undefined;
   filters: readonly FilterPickerFilter[];
-  showSingleFilter?: boolean;
   filtersLabel: string;
   allFilter: FilterPickerFilter;
   searchLabel: string;
@@ -304,7 +302,6 @@ export function FilterPicker({
       : allFilter.key,
   );
   const favoriteKey = favorites?.filter.key;
-  const showFilters = filters.length > 1 || (showSingleFilter && filters.length > 0);
   const [query, setQuery] = useState('');
   const [held, setHeld] = useState<ReadonlySet<string>>();
   const listed = (option: FilterPickerOption) =>
@@ -440,34 +437,32 @@ export function FilterPicker({
       style={position}
     >
       <div {...stylex.props(styles.body)}>
-        {showFilters || favorites !== undefined ? (
+        {filters.length > 0 || favorites !== undefined ? (
           <div role="group" aria-label={filtersLabel} {...stylex.props(styles.rail)}>
-            {[
-              ...(favorites === undefined ? [] : [favorites.filter]),
-              allFilter,
-              ...(showFilters ? filters : []),
-            ].map((entry) => (
-              <button
-                key={entry.key}
-                type="button"
-                data-picker-filter={entry.key}
-                aria-pressed={filter === entry.key}
-                aria-label={entry.label}
-                title={entry.label}
-                onClick={() => {
-                  if (filter !== entry.key) {
-                    entry.onActivate?.();
-                    onBrowse?.();
-                  }
-                  setFilter(entry.key);
-                  setActive(undefined);
-                  setHeld(undefined);
-                }}
-                {...stylex.props(styles.railButton, filter === entry.key && styles.railSelected)}
-              >
-                {entry.icon}
-              </button>
-            ))}
+            {[...(favorites === undefined ? [] : [favorites.filter]), allFilter, ...filters].map(
+              (entry) => (
+                <button
+                  key={entry.key}
+                  type="button"
+                  data-picker-filter={entry.key}
+                  aria-pressed={filter === entry.key}
+                  aria-label={entry.label}
+                  title={entry.label}
+                  onClick={() => {
+                    if (filter !== entry.key) {
+                      entry.onActivate?.();
+                      onBrowse?.();
+                    }
+                    setFilter(entry.key);
+                    setActive(undefined);
+                    setHeld(undefined);
+                  }}
+                  {...stylex.props(styles.railButton, filter === entry.key && styles.railSelected)}
+                >
+                  {entry.icon}
+                </button>
+              ),
+            )}
           </div>
         ) : null}
         <div {...stylex.props(styles.main)}>

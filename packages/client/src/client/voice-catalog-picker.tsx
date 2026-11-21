@@ -329,7 +329,6 @@ function VoiceCatalogPanel({
               ]
             : []
         }
-        showSingleFilter
         filtersLabel={t('voice.catalog.filters')}
         searchLabel={t('voice.catalog.search', { label })}
         emptyLabel={t('voice.catalog.empty')}

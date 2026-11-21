@@ -122,14 +122,10 @@ describe('Profile Avatar Appearance editing', () => {
       );
       expect(tilties).toBeDefined();
       await act(() => tilties!.click());
-      expect(container.querySelectorAll('[data-tilties-avatar]')).toHaveLength(9);
-      expect(
-        container.querySelector('[aria-selected="true"][role="tab"]:last-child')?.textContent,
-      ).toBe('歪头团');
-      expect(
-        container.querySelector('[role="tablist"][aria-label="歪头团分组"] [aria-selected="true"]')
-          ?.textContent,
-      ).toBe('AI 娘');
+      expect(container.querySelectorAll('[data-tilties-avatar]')).toHaveLength(36);
+      expect(tilties?.getAttribute('aria-selected')).toBe('true');
+      expect(container.querySelectorAll('[role="tablist"]')).toHaveLength(1);
+      expect(container.querySelector('[data-tilties-avatar="genshin-yelan"]')).toBeNull();
       const deepseek = '[data-tilties-avatar="deepseek"]';
       const image = container.querySelector(`${deepseek} img`)?.getAttribute('src');
       await click(deepseek);
@@ -137,9 +133,12 @@ describe('Profile Avatar Appearance editing', () => {
       expect(container.querySelector('[data-avatar-preview] img')?.getAttribute('src')).toBe(image);
       await click('[data-avatar-cancel]');
       expect(container.querySelector('[data-avatar-save]')).toBeNull();
-      await click(deepseek);
+      const frostArchivist = '[data-tilties-avatar="frost-archivist"]';
+      const newImage = container.querySelector(`${frostArchivist} img`)?.getAttribute('src');
+      expect(newImage).toMatch(/^data:image\/webp;base64,/u);
+      await click(frostArchivist);
       await click('[data-avatar-save]');
-      expect(saveImage).toHaveBeenCalledExactlyOnceWith(image);
+      expect(saveImage).toHaveBeenCalledExactlyOnceWith(newImage);
     } finally {
       await act(() => root.unmount());
       container.remove();

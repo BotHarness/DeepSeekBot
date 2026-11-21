@@ -6,14 +6,32 @@ import { createRepositoryStore, type RepositoryRow, type Visibility } from './re
 export const MAX_REPORT_REASON_LENGTH = 500;
 export const DEFAULT_REPORT_THRESHOLD = 3;
 
-export type BlocklistTarget = { id: string } | { url: string };
+export type EntryKind = 'bot' | 'avatar';
+export type BlocklistTarget =
+  | { kind: 'bot'; id: string }
+  | { kind: 'bot'; url: string }
+  | { kind: 'avatar'; id: string };
+
+const entries = {
+  bot: { table: 'indexed_repositories', id: 'node_id' },
+  avatar: { table: 'marketplace_avatars', id: 'id' },
+} satisfies Record<EntryKind, { table: string; id: string }>;
 
 export type BlocklistResult =
   | { ok: true; bot: { id: string; fullName: string; visibility: Visibility } }
-  | { ok: false; code: 'bot-not-found' | 'invalid-repository-url' | 'upstream-unavailable' };
+  | { ok: true; avatar: { id: string; name: string; visibility: Visibility } }
+  | {
+      ok: false;
+      code:
+        | 'bot-not-found'
+        | 'avatar-not-found'
+        | 'invalid-repository-url'
+        | 'upstream-unavailable';
+    };
 
 export interface Moderation {
   report(options: {
+    kind: EntryKind;
     id: string;
     source: string;
     reason: string | undefined;
@@ -32,7 +50,7 @@ export function createModeration(deps: {
   const { db, github, catalog } = deps;
   const store = createRepositoryStore(deps);
 
-  const setVisibility = (nodeId: string, visibility: Visibility) =>
+  const setBotVisibility = (nodeId: string, visibility: Visibility) =>
     db
       .prepare(
         'UPDATE indexed_repositories SET visibility = ?, last_refreshed_at = ? WHERE node_id = ?',
@@ -40,8 +58,8 @@ export function createModeration(deps: {
       .bind(visibility, deps.now().toISOString(), nodeId)
       .run();
 
-  const resolve = async (
-    target: BlocklistTarget,
+  const resolveBot = async (
+    target: Extract<BlocklistTarget, { kind: 'bot' }>,
     fetchMissing: boolean,
   ): Promise<
     RepositoryRow | 'bot-not-found' | 'invalid-repository-url' | 'upstream-unavailable'
@@ -63,7 +81,7 @@ export function createModeration(deps: {
     return (await store.index(lookup.value, undefined)) ?? 'upstream-unavailable';
   };
 
-  const summary = async (nodeId: string): Promise<BlocklistResult> => {
+  const summarizeBot = async (nodeId: string): Promise<BlocklistResult> => {
     const row = await store.find(nodeId);
     return row === null
       ? { ok: false, code: 'bot-not-found' }
@@ -77,49 +95,64 @@ export function createModeration(deps: {
         };
   };
 
+  const moderateAvatar = async (
+    id: string,
+    visibility: 'listed' | 'blocked',
+  ): Promise<BlocklistResult> => {
+    const avatar = await db
+      .prepare(
+        'UPDATE marketplace_avatars SET visibility = ? WHERE id = ? RETURNING id, name, visibility',
+      )
+      .bind(visibility, id)
+      .first<{ id: string; name: string; visibility: Visibility }>();
+    return avatar === null ? { ok: false, code: 'avatar-not-found' } : { ok: true, avatar };
+  };
+
   return {
-    async report({ id, source, reason, threshold }) {
-      const row = await store.find(id);
-      if (row?.visibility !== 'listed') return false;
-      await db
-        .prepare(
-          'INSERT INTO reports (node_id, source_hash, reason, created_at) VALUES (?, ?, ?, ?) ON CONFLICT (node_id, source_hash) DO NOTHING',
-        )
-        .bind(id, source, reason ?? null, deps.now().toISOString())
-        .run();
-      const counted = await db
-        .prepare('SELECT COUNT(*) AS total FROM reports WHERE node_id = ?')
-        .bind(id)
-        .first<{ total: number }>();
-      if ((counted?.total ?? 0) >= threshold) {
-        await db
-          .prepare(
-            "UPDATE indexed_repositories SET visibility = 'hidden_reported' WHERE node_id = ? AND visibility = 'listed'",
-          )
-          .bind(id)
-          .run();
-      }
-      return true;
+    async report({ kind, id, source, reason, threshold }) {
+      const entry = entries[kind];
+      const reportKey = kind === 'bot' ? id : `avatar:${id}`;
+      const listed = `FROM ${entry.table} WHERE ${entry.id} = ? AND visibility = 'listed'`;
+      const [admission] = await db.batch([
+        db.prepare(`SELECT 1 ${listed}`).bind(id),
+        db
+          .prepare(`
+            INSERT INTO reports (node_id, source_hash, reason, created_at)
+            SELECT ?, ?, ?, ? ${listed}
+            ON CONFLICT (node_id, source_hash) DO NOTHING
+          `)
+          .bind(reportKey, source, reason ?? null, deps.now().toISOString(), id),
+        db
+          .prepare(`
+            UPDATE ${entry.table} SET visibility = 'hidden_reported'
+            WHERE ${entry.id} = ? AND visibility = 'listed'
+              AND (SELECT COUNT(*) FROM reports WHERE node_id = ?) >= ?
+          `)
+          .bind(id, reportKey, threshold),
+      ]);
+      return (admission?.results.length ?? 0) > 0;
     },
 
     async block(target) {
-      const row = await resolve(target, true);
+      if (target.kind === 'avatar') return moderateAvatar(target.id, 'blocked');
+      const row = await resolveBot(target, true);
       if (typeof row === 'string') return { ok: false, code: row };
-      await setVisibility(row.node_id, 'blocked');
-      return summary(row.node_id);
+      await setBotVisibility(row.node_id, 'blocked');
+      return summarizeBot(row.node_id);
     },
 
     async restore(target) {
-      const row = await resolve(target, false);
+      if (target.kind === 'avatar') return moderateAvatar(target.id, 'listed');
+      const row = await resolveBot(target, false);
       if (typeof row === 'string') return { ok: false, code: row };
       await db.prepare('DELETE FROM reports WHERE node_id = ?').bind(row.node_id).run();
       if (row.source === 'upload') {
-        await setVisibility(row.node_id, 'listed');
-        return summary(row.node_id);
+        await setBotVisibility(row.node_id, 'listed');
+        return summarizeBot(row.node_id);
       }
-      await setVisibility(row.node_id, 'hidden_missing');
+      await setBotVisibility(row.node_id, 'hidden_missing');
       await catalog.submit(row.html_url);
-      return summary(row.node_id);
+      return summarizeBot(row.node_id);
     },
   };
 }

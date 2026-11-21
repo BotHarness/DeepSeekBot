@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { parseMemoryGitUrl, previewMemoryRepository } from '../memory/clone.js';
-import { BOT_ZIP_MAX_BYTES, readBotZip } from './bot-zip.js';
+import { BOT_ZIP_MAX_BYTES, botZipStandingUsage, readBotZip } from './bot-zip.js';
 import type { BotCreationService, BotImportInput, BotImportReference } from './creation.js';
 import { BotCreationError } from './creation.js';
 
@@ -45,6 +45,7 @@ function buildBotImports(
       },
       ...(contents.descriptor === undefined ? {} : { descriptor: contents.descriptor }),
       files: contents.files.map((file) => ({ path: file.path, size: file.data.length })),
+      standing: botZipStandingUsage(contents),
       history: contents.history !== undefined,
     };
   };
@@ -77,8 +78,8 @@ function buildBotImports(
       roles?: string[];
     },
   ): BotImportInput => {
-    const preview = previewArchive(archive);
-    if (preview.source.sha256 !== input.expectedArchive)
+    const sha256 = createHash('sha256').update(archive).digest('hex');
+    if (sha256 !== input.expectedArchive)
       throw new BotCreationError(
         'stale-import-source',
         'Archive bytes changed after source inspection.',
@@ -92,7 +93,7 @@ function buildBotImports(
       ...(roles === undefined ? {} : { roles }),
       source: {
         kind: 'archive',
-        sha256: preview.source.sha256,
+        sha256,
         files: contents.files,
         ...(contents.history === undefined ? {} : { history: contents.history }),
       },
