@@ -49,7 +49,6 @@
     "packages/core/src/credentials/private-inputs.ts",
     "packages/core/src/database/owner.ts",
     "packages/core/src/database/schema-plan.ts",
-    "packages/core/src/devices/mount.ts",
     "packages/core/src/messaging/dsh-im.ts",
     "packages/core/src/plugin.ts",
     "packages/core/src/purge/owner.ts",
