@@ -117,4 +117,4 @@ _Formerly ADR-0158._
 
 Why: the credential file is strictly validated YAML that stops the Host from starting when malformed, and a round trip could mangle opaque grant payloads. Shell history and process listings make argv values a leak by construction.
 
-Enforced by: `bot-create-cli.test.ts`, `bot-secret-regression.test.ts`.
+Enforced by: `bot-offline-operations-cli.test.ts`, `bot-secret-regression.test.ts`.

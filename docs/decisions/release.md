@@ -76,7 +76,7 @@ Model Preset operations validate route shape before writes. Offline preset opera
 
 Why: Local validation catches simple mistakes before a Bot or preset is changed. The actual provider and Host credential owner are needed to assess whether a configured model will answer.
 
-Enforced by: [model plan, invalid provider refusal and preset application](../../packages/core/test/bot-create-cli.test.ts).
+Enforced by: [model plan, invalid provider refusal and preset application](../../packages/core/test/bot-create-model-cli.test.ts).
 
 ## The live CLI invokes the authenticated Host owner
 
@@ -86,7 +86,7 @@ Live commands use DSH's authenticated HTTP unary carrier, with a matching method
 
 Why: The running Host holds the exclusive Profile writer lease. Reusing its authenticated interface preserves permissions and keeps command behavior consistent with the Client.
 
-Enforced by: [live adapter import boundary](../../scripts/check-package-boundaries.mjs), [unary carrier and online commands](../../packages/core/test/bot-management-cli.test.ts), [exclusive offline lease](../../packages/core/test/bot-create-cli.test.ts).
+Enforced by: [live adapter import boundary](../../scripts/check-package-boundaries.mjs), [unary carrier and online commands](../../packages/core/test/bot-management-cli.test.ts), [exclusive offline lease](../../packages/core/test/bot-offline-operations-cli.test.ts).
 
 ## One umbrella Bundle composes the product
 
@@ -116,7 +116,7 @@ An explicit `--host` or `DEEPSEEKBOT_HOST` selects online management through exi
 
 Why: Choosing the target directly protects scripts from accidentally applying a change to a different Host or local Profile. Owner receipts let callers recover from a lost response without silently repeating an uncertain effect.
 
-Enforced by: [management, receipts and lost responses](../../packages/core/test/bot-management-cli.test.ts), [CLI import](../../packages/core/test/bot-create-cli.test.ts).
+Enforced by: [management, receipts and lost responses](../../packages/core/test/bot-management-cli.test.ts), [CLI import](../../packages/core/test/bot-create-model-cli.test.ts).
 
 ## A Product Release Version identifies immutable artifacts
 
