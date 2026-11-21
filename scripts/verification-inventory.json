@@ -102,7 +102,7 @@
     {
       "id": "connect.account-recovery",
       "label": "Connect authorization expiry, transient retries and truthful recovery instructions",
-      "source": "packages/core/src/devices/connect-account.ts",
+      "source": "packages/core/src/features/environments/connect-account.ts",
       "guide": ".agents/skills/verify-deepseekbot/features/connect-channel.md",
       "task": 3567,
       "gap": "Controlled WorkOS/relay fixtures qualify Host/Client behavior, not production account or Cloudflare availability."
