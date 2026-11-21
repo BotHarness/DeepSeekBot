@@ -186,6 +186,14 @@ describe('Claude Code Subscription Engine Session (replay)', () => {
         observedAt: expect.any(String),
         resetsAt: new Date(1795400000 * 1000).toISOString(),
         usedPercent: 12,
+        windows: {
+          weekly: {
+            remainingPercent: 88,
+            resetsAt: new Date(1795400000 * 1000).toISOString(),
+            windowMinutes: 10_080,
+          },
+        },
+        source: 'turn',
       },
     });
     expect((await host.status()).find((report) => report.engine === 'claude')?.quota).toMatchObject(
@@ -502,9 +510,23 @@ describe('Claude Code engine boundaries', () => {
   });
 
   it('turns a rate-limit report into the engine quota event', () => {
-    expect(claudeRateLimit({ status: 'allowed', utilization: 0.42, resetsAt: 1795400000 })).toEqual(
-      { kind: 'rate-limit', usedPercent: 42, resetsAt: 1795400000, limited: false },
-    );
+    const resetsAt = new Date(1795400000 * 1000).toISOString();
+    expect(
+      claudeRateLimit({
+        status: 'allowed',
+        rateLimitType: 'five_hour',
+        utilization: 0.42,
+        resetsAt: 1795400000,
+      }),
+    ).toEqual({
+      kind: 'rate-limit',
+      windows: { session: { remainingPercent: 58, resetsAt, windowMinutes: 300 } },
+      resetsAt,
+      limited: false,
+    });
+    expect(claudeRateLimit({ status: 'allowed', rateLimitType: 'seven_day' })).toMatchObject({
+      windows: { weekly: { windowMinutes: 10_080 } },
+    });
     expect(claudeRateLimit({ status: 'rejected' })).toMatchObject({ limited: true });
     expect(claudeRateLimit({ status: 'allowed', isUsingOverage: true })).toMatchObject({
       limited: true,

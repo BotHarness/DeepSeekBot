@@ -1079,6 +1079,7 @@ deepseekbot engine tools <bot> [--query memory]
 echo '{"path":"MEMORY.md"}' | deepseekbot engine tool <bot> memory_read --args-stdin
 deepseekbot engine accounts
 deepseekbot engine accounts --grantable
+deepseekbot engine quota <account-id> [--refresh] [--json]
 deepseekbot engine account-add codex|claude --name <name> --expected-revision <r>
 deepseekbot engine account-rename <account-id> --name <name> --expected-revision <r>
 deepseekbot engine account-remove <account-id> --expected-revision <r> --confirm
@@ -1099,6 +1100,10 @@ deepseekbot engine use <bot> codex|claude|none --role assignment [--account <acc
 Host Owner 和具有 `modelSources.manage` 权限的 Human 可以列出、添加、重命名、移除及登录订阅账号。每个 Codex 或 Claude Code 账号都使用独立的 Bot 专用配置目录。已有模型选择以及 `codex` 和 `claude` 参数继续使用原来的目录，对应账号 ID 为 `codex-default` 和 `claude`。修改列表前先用 `engine accounts` 读取 `revision`。过期版本返回 `engine-account-conflict`。账号仍被 Bot、模型预设或路由组使用时，移除会返回 `engine-account-in-use` 并列出引用。移除成功后也会删除账号目录。状态查询、模型列表和登录可指定账号 ID。用 `engine use --account` 为 Bot 的任一角色选择账号。登录状态、模型缓存和额度按账号保存。账号不存在或已移除时返回 `engine-account-not-found`。切换账号会依据现有 DSH Session 上下文启动新引擎线程。
 
 用 `engine accounts --grantable` 查看已授权给当前 Human 的订阅账号，例如为其他 Host Role 选择可转授的账号 ID。此视图不会探测订阅状态。
+
+`engine accounts` 包含缓存的额度。服务商返回登录邮箱后，具有 `modelSources.manage` 权限的调用者可以看到完整邮箱。`engine quota <account-id>` 查询当前调用者可见账号的缓存额度。加上 `--refresh` 后，Host 使用该账号的专属目录向服务商查询。刷新需要 `modelSources.manage` 权限。同一账号的并发请求共用一次查询，30 秒内复用结果。查询时限为 15 秒，返回 `ok`、`unavailable`、`signed-out` 或 `timeout`。
+
+额度包含服务商上报的五小时窗口 `session` 和每周窗口 `weekly`。每个窗口在已知时包含 `remainingPercent`（剩余百分比）、`resetsAt`（重置时间）和 `windowMinutes`（窗口分钟数）。缺少的值表示未知。`observedAt` 是观测时间，`source` 的 `live` 表示主动刷新，`turn` 表示来自轮次事件。已知账号仍处于额度限制时会返回 `limitedUntil`。
 
 关闭浏览器的登录标签页后，可用 `engine login-cancel <account-id>` 取消登录。命令需要 `modelSources.manage` 权限。Host 停止登录进程后返回 `{"cancelled":true}`，此时可以重试。如果没有正在进行的登录，则返回 `{"cancelled":false}`。默认账号可用 `codex` 或 `claude` 指定。
 

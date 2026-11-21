@@ -2,6 +2,8 @@ import {
   engineEffortName,
   type EngineId,
   type EngineModelView,
+  type EngineQuotaSnapshot,
+  type EngineQuotaWindow,
   type RoutingGroupEngineMember,
 } from '@botharness/host-protocol/subscription-engine';
 
@@ -13,7 +15,7 @@ export {
 } from '@botharness/host-protocol/subscription-engine';
 
 export type EngineAccount =
-  | { kind: 'subscription'; engine: EngineId; plan: string }
+  | { kind: 'subscription'; engine: EngineId; plan: string; email?: string }
   | { kind: 'metered'; engine: EngineId; detail: string }
   | { kind: 'signed-out'; engine: EngineId };
 
@@ -95,7 +97,14 @@ export type EngineEvent =
       summary: string;
       input: Record<string, unknown>;
     }
-  | { kind: 'rate-limit'; usedPercent?: number; resetsAt?: number; limited: boolean };
+  | {
+      kind: 'rate-limit';
+      windows?: EngineQuotaSnapshot['windows'];
+      unclassified?: EngineQuotaWindow;
+      limited: boolean;
+      resetsAt?: string;
+      retryMessage?: string;
+    };
 
 export type EngineTurnEnd =
   | { status: 'completed' }
@@ -137,12 +146,9 @@ export interface EngineSession {
   close(): Promise<void>;
 }
 
-export interface EngineQuota {
-  account?: string;
-  usedPercent?: number;
-  resetsAt?: string;
-  limited: boolean;
-  observedAt: string;
+export interface EngineQuota extends EngineQuotaSnapshot {
+  unclassified?: EngineQuotaWindow;
+  email?: string;
 }
 
 export class EngineLimitError extends Error {
