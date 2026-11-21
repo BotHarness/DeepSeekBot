@@ -1,3 +1,4 @@
+import type { MarketplaceAvatarEdit } from '@botharness/host-protocol/marketplace-avatar';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type {
   MarketplaceAvatar,
@@ -407,4 +408,25 @@ export async function marketplaceInstall(
   listing: MarketplaceEntry;
 }> {
   return unwrapAsync(methods.marketplaceInstall({ id, reviewId, operationKey, source }));
+}
+
+export async function marketplaceAvatarMine(
+  methods: MarketplaceBridgeMethods,
+): Promise<{ avatars: MarketplaceAvatar[] }> {
+  return unwrapAsync(methods.marketplaceAvatarMine({}));
+}
+
+export async function marketplaceAvatarEdit(
+  methods: MarketplaceBridgeMethods,
+  id: string,
+  patch: MarketplaceAvatarEdit,
+): Promise<MarketplaceAvatar> {
+  return unwrapAsync(methods.marketplaceAvatarEdit({ id, ...patch }));
+}
+
+export async function marketplaceAvatarDelete(
+  methods: MarketplaceBridgeMethods,
+  id: string,
+): Promise<{ deleted: true }> {
+  return unwrapAsync(methods.marketplaceAvatarDelete({ id }));
 }

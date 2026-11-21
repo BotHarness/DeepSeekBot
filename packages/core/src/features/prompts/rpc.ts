@@ -6,6 +6,7 @@ import type {
   PromptLimitView,
   PromptPartView,
 } from './methods.js';
+import type { PromptsAdapterMethods } from './methods.js';
 
 export function botSystemPrompt(
   methods: PromptBridgeMethods,
@@ -93,6 +94,25 @@ export function botPromptSet(
       ...(presetId === undefined ? {} : { presetId }),
       ...(parts === undefined ? {} : { parts }),
       ...(limits === undefined ? {} : { limits }),
+    }),
+  );
+}
+
+export function botTurnInput(
+  methods: PromptsAdapterMethods,
+  slug: string,
+  sessionId?: string,
+  turns?: number,
+): Promise<{
+  slug: string;
+  sessionId: string;
+  turns: import('../../runtime/prompt-inspection.js').TurnInputView[];
+}> {
+  return unwrapAsync(
+    methods.botTurnInput({
+      slug,
+      ...(sessionId === undefined ? {} : { sessionId }),
+      ...(turns === undefined ? {} : { turns }),
     }),
   );
 }

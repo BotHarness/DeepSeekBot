@@ -1,5 +1,6 @@
 import { unwrap } from '../../bridge/rpc-result.js';
 import type { HumansBridgeMethods } from './methods.js';
+import type { HumansAdapterMethods } from './methods.js';
 
 export function humanIdentity(methods: HumansBridgeMethods) {
   return unwrap(methods.humanIdentity({}));
@@ -31,4 +32,16 @@ export function humanAvatars(methods: HumansBridgeMethods, humanIds: string[]) {
 
 export function humanProfileSetupFinish(methods: HumansBridgeMethods) {
   return unwrap(methods.humanProfileSetupFinish({}));
+}
+
+export function acknowledgements(methods: HumansAdapterMethods): { items: Record<string, string> } {
+  return unwrap(methods.acknowledgements({}));
+}
+
+export function acknowledge(
+  methods: HumansAdapterMethods,
+  key: string,
+  value?: string,
+): { key: string; value: string } {
+  return unwrap(methods.acknowledge(value === undefined ? { key } : { key, value }));
 }
