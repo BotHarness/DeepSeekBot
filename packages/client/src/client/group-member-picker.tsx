@@ -47,6 +47,18 @@ export interface PickedGroupMember {
   requiredHumanId?: string;
 }
 
+function needsOwner(row: PickedGroupMember, keys: ReadonlySet<string>): boolean {
+  return (
+    row.requiresOwner === true &&
+    (row.requiredHumanId === undefined || !keys.has('human:' + row.requiredHumanId))
+  );
+}
+
+export function groupSelectionNeedsOwner(selected: readonly PickedGroupMember[]): boolean {
+  const keys = new Set(selected.map(groupMemberKey));
+  return selected.some((row) => needsOwner(row, keys));
+}
+
 export function GroupMemberPicker({
   call,
   channelId,
@@ -89,9 +101,6 @@ export function GroupMemberPicker({
   const bots: PickedGroupMember[] = candidates?.bots.map((bot) => ({ ...bot, kind: 'bot' })) ?? [];
   const visible = new Set([...people, ...bots].map(groupMemberKey));
   const outsideSearch = selected.filter((member) => !visible.has(groupMemberKey(member)));
-  const requiresOwner = (row: PickedGroupMember) =>
-    row.requiresOwner === true &&
-    (row.requiredHumanId === undefined || !keys.has('human:' + row.requiredHumanId));
   const selection = (row: PickedGroupMember) => (
     <Checkbox
       key={groupMemberKey(row)}
@@ -99,13 +108,13 @@ export function GroupMemberPicker({
       checked={keys.has(groupMemberKey(row))}
       disabled={
         disabled ||
-        (!keys.has(groupMemberKey(row)) && (requiresOwner(row) || selected.length >= 100))
+        (!keys.has(groupMemberKey(row)) && (needsOwner(row, keys) || selected.length >= 100))
       }
       label={
         <span>
           {row.displayName}
           {row.username === undefined ? '' : ' @' + row.username}
-          {requiresOwner(row) ? ' · ' + t('groupMembers.requiresOwner') : ''}
+          {needsOwner(row, keys) ? ' · ' + t('groupMembers.requiresOwner') : ''}
         </span>
       }
       onChange={(checked) =>
@@ -124,6 +133,9 @@ export function GroupMemberPicker({
         placeholder={t('groupMembers.search')}
         value={query}
         onChange={updateQuery}
+        onKeyDown={(event) => {
+          if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.preventDefault();
+        }}
         disabled={disabled}
         maxLength={200}
       />

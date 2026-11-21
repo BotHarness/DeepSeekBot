@@ -18,7 +18,7 @@
 ## Sub-features
 
 - `desktop-create`: fill the name with no selections to create an empty Group. Select multiple Bots before creating a second Group to see an outcome for each Bot. Switching Hosts clears selected identities and keeps the name.
-- `desktop-existing`: Add members opens the same picker. Search for a second target and verify the first selection remains available to review and remove.
+- `desktop-existing`: Add members opens the same picker. Search for a second target and verify the first selection remains available to review and remove. On a failed capability read, use the retry control in the Members header. A confirmed denial hides the action.
 - `eligible-candidates`: invitation candidates exclude protected Tob, archived/deleted Bots, current members and pending invitees. Tob is identified by the Host's protected identity check. The existing Group dialog retains private-chat guidance for Tob.
 - `mixed-team-batch`: an authorized user can add an eligible Host Member and invite their reachable Bot in one batch. Show the prerequisite when the Human is absent. The selected Human gets immediate private Channel and history access. A Bot joins or remains pending according to auto-accept.
 - `retry`: a target that becomes unavailable before submission has an individual failure result. Retry that result in the same Group. Replaying a submission with the original operation keys after an unconfirmed response produces no duplicate Group or invitation.
@@ -34,6 +34,7 @@ Launch a task-owned Host and run doctor. Seed a Group and two ordinary Bots thro
 
 - In Create channel, fill the name, select two Bot checkboxes and create. Read the resulting Group using `botharness/channelGet` and compare its members and invitations with the rows in the result dialog.
 - Open the seeded Group and its Members panel, then select Add members. Select one Bot, change the search, select another Bot, and submit. Save screenshots in light and dark. Verify protected Tob and current Bot members are absent. Repeat with Bot auto-accept disabled and require a pending result.
+- In both Desktop dialogs, focus Search members and press Enter after selecting a member. Verify the form stays open and the Host state stays unchanged until explicit submission. With a dependent Bot selected, uncheck its Human owner and verify that submission is disabled until the owner is restored or the Bot is removed.
 - With Team mode on, use an authorized Human and a second active Host Member who owns a reachable Bot. Check the prerequisite from the Bot row, select the Human and Bot, confirm the history hint and submit. Verify the Human's Channel access and the Bot outcome through the Host. Repeat with a stale target and compare a confirmed partial result and retry with canonical membership and invitation state.
 - Compare CLI candidate and result projections with the UI for the same Host using `group-member-picker` and `group-members-add`. Exposing the member candidates without the corresponding Channel permission must be refused or omit that participant type. No model reply is needed for accepted invitations.
 

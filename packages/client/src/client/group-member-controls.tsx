@@ -33,6 +33,7 @@ import { loadGroupMemberPicker } from './group-member-bridge.js';
 import {
   GroupMemberPicker,
   GroupMemberResults,
+  groupSelectionNeedsOwner,
   useGroupMemberBatch,
   type PickedGroupMember,
 } from './group-member-picker.js';
@@ -142,13 +143,13 @@ function AddGroupMembersDialog({
   const inFlight = useRef(false);
   const batch = useGroupMemberBatch();
   const apply = async () => {
-    if (inFlight.current) return;
+    if (inFlight.current || (!batch.items && groupSelectionNeedsOwner(selected))) return;
     inFlight.current = true;
     setBusy(true);
     setError(false);
     try {
       await batch.apply(call, channelId, selected);
-      void actions.openChannel(channelId).catch(() => undefined);
+      void actions.openChannel(channelId, call).catch(() => undefined);
     } catch {
       setError(true);
     } finally {
@@ -170,7 +171,7 @@ function AddGroupMembersDialog({
             ? 'groupMembers.retry'
             : 'groupMembers.submit',
       )}
-      submitDisabled={selected.length === 0}
+      submitDisabled={selected.length === 0 || (!batch.items && groupSelectionNeedsOwner(selected))}
       busy={busy}
       showCancel={!batch.complete}
       scroll
@@ -334,23 +335,25 @@ function MembersHeaderActionForChannel({
 }: ChannelSidebarEntryProps): ReactElement {
   const group = useClientStore((state) => state.conversation.channel);
   const bots = useClientStore((state) => state.bots, shallowEqual);
-  const [inviteOpen, setInviteOpen] = useState(false);
+  const [inviteCall, setInviteCall] = useState<BridgeCall>();
   const [attentionOpen, setAttentionOpen] = useState(false);
-  const [canAdd, setCanAdd] = useState(false);
+  const [capability, setCapability] = useState<'allowed' | 'denied' | 'failed' | 'retrying'>();
+  const [attempt, setAttempt] = useState(0);
   const call = actions.teamCall;
   const discover = useMountedResource<HTMLSpanElement>(() => {
     if (call === undefined) return;
     const controller = new AbortController();
     void loadGroupMemberPicker(call, channelId, '', controller.signal).then(
       (picker) => {
-        if (!controller.signal.aborted) setCanAdd(picker.canAddPeople || picker.canAddBots);
+        if (!controller.signal.aborted)
+          setCapability(picker.canAddPeople || picker.canAddBots ? 'allowed' : 'denied');
       },
       () => {
-        if (!controller.signal.aborted) setCanAdd(false);
+        if (!controller.signal.aborted) setCapability('failed');
       },
     );
     return () => controller.abort();
-  }, [call, channelId, group?.updatedAt]);
+  }, [call, channelId, group?.updatedAt, attempt]);
   if (group?.id !== channelId || group.type !== 'group') return <></>;
   const pending =
     (group.invitations?.filter((item) => item.status === 'pending').length ?? 0) +
@@ -358,16 +361,37 @@ function MembersHeaderActionForChannel({
   return (
     <>
       <span ref={discover} hidden />
-      {canAdd ? (
+      {call && capability === 'allowed' ? (
         <Tooltip label={t('groupMembers.add')} side="bottom" delayMs={500}>
           <IconButton
             size="row"
             tone="subtle"
             aria-label={t('groupMembers.add')}
             aria-haspopup="dialog"
-            onClick={() => setInviteOpen(true)}
+            onClick={() => {
+              const bound = call.bindConnection ? call.bindConnection() : call;
+              if (bound) setInviteCall(() => bound);
+              else setCapability('failed');
+            }}
           >
             <Icon name="plus" size={16} />
+          </IconButton>
+        </Tooltip>
+      ) : null}
+      {call && (capability === 'failed' || capability === 'retrying') ? (
+        <Tooltip label={t('groupMembers.retryLoad')} side="bottom" delayMs={500}>
+          <IconButton
+            size="row"
+            tone="subtle"
+            aria-label={t('groupMembers.retryLoad')}
+            aria-busy={capability === 'retrying'}
+            disabled={capability === 'retrying'}
+            onClick={() => {
+              setCapability('retrying');
+              setAttempt((value) => value + 1);
+            }}
+          >
+            <Icon name="refresh-cw" size={16} />
           </IconButton>
         </Tooltip>
       ) : null}
@@ -387,13 +411,13 @@ function MembersHeaderActionForChannel({
           ) : null}
         </IconButton>
       </Tooltip>
-      {inviteOpen && call ? (
+      {inviteCall && call ? (
         <AddGroupMembersDialog
           channelId={channelId}
-          call={call}
+          call={inviteCall}
           actions={actions}
           t={t}
-          onClose={() => setInviteOpen(false)}
+          onClose={() => setInviteCall(undefined)}
         />
       ) : null}
       {attentionOpen ? (

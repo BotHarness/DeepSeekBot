@@ -27,7 +27,7 @@ import type { createComposerActions } from './actions-composer.js';
 
 export interface ConversationActions {
   openBot(slug: string, view?: 'profile' | 'inbox'): Promise<void>;
-  openChannel(channelId: string): Promise<void>;
+  openChannel(channelId: string, scopedCall?: BridgeCall): Promise<void>;
   openChannelAtMessage(channelId: string, messageId: string): Promise<void>;
   loadOlder(channelId: string): Promise<void>;
   loadNewer(channelId: string): Promise<void>;
@@ -46,7 +46,7 @@ export interface ConversationActions {
   ): Promise<{ messages: ChannelMessage[]; nextCursor?: string }>;
   searchMessages?(text: string, cursor?: string): Promise<MessageSearchPage>;
   markChannelRead(channelId: string): Promise<void>;
-  refreshChannelMessages(channelId: string): Promise<void>;
+  refreshChannelMessages(channelId: string, scopedCall?: BridgeCall): Promise<void>;
   applyChannelTail(
     channelId: string,
     page: {
@@ -92,19 +92,23 @@ export function createConversationActions(
   refreshActivityListStatus: ActivityActions['refreshActivityListStatus'],
   remainingFailures: ReturnType<typeof createComposerActions>['remainingFailures'],
 ) {
-  const loadOpeningTimeline = async (channelId: string, active: ConversationSelection) => {
+  const loadOpeningTimeline = async (
+    channelId: string,
+    active: ConversationSelection,
+    scopedCall = call,
+  ) => {
     const controller = new AbortController();
     const unsubscribe = clientStore.subscribe(() => {
       if (currentSelection() !== active) controller.abort();
     });
     try {
       if (currentSelection() !== active) return;
-      const anchor = await loadReadPosition(call, channelId, controller.signal);
+      const anchor = await loadReadPosition(scopedCall, channelId, controller.signal);
       if (currentSelection() !== active) return;
       if (anchor !== undefined) {
         try {
           const opened = await loadTimelinePage(
-            call,
+            scopedCall,
             channelId,
             { direction: 'around', around: anchor },
             controller.signal,
@@ -124,7 +128,7 @@ export function createConversationActions(
       }
       if (currentSelection() !== active) return;
       return {
-        ...(await loadTimelinePage(call, channelId, {}, controller.signal)),
+        ...(await loadTimelinePage(scopedCall, channelId, {}, controller.signal)),
         focusMessageId: undefined,
         unreadAfterMessageId: undefined,
       };
@@ -135,8 +139,9 @@ export function createConversationActions(
   const refreshUnreadDivider = async (
     channelId: string,
     active: ConversationSelection,
+    scopedCall = call,
   ): Promise<void> => {
-    const anchor = await loadReadPosition(call, channelId).catch(() => undefined);
+    const anchor = await loadReadPosition(scopedCall, channelId).catch(() => undefined);
     const conversation = clientStore.getSnapshot().conversation;
     if (currentSelection() !== active || conversation.channel?.id !== channelId) return;
     const unreadAfterMessageId = unreadAfterAnchor(
@@ -146,12 +151,17 @@ export function createConversationActions(
     );
     if (unreadAfterMessageId !== undefined) clientStore.setConversation({ unreadAfterMessageId });
   };
-  const openChannelById = async (channelId: string, messageId?: string): Promise<void> => {
+  const openChannelById = async (
+    channelId: string,
+    messageId?: string,
+    scopedCall = call,
+  ): Promise<void> => {
+    scopedCall.assertCurrent?.();
     const snapshot = clientStore.getSnapshot();
     const requestedFrom = currentSelection();
     let channel = snapshot.channels.find((candidate) => candidate.id === channelId);
     if (channel === undefined && messageId !== undefined) {
-      const channels = await loadChannels(call);
+      const channels = await loadChannels(scopedCall);
       if (currentSelection() !== requestedFrom) return;
       clientStore.setRoster(clientStore.getSnapshot().bots, channels);
       channel = channels.find((candidate) => candidate.id === channelId);
@@ -163,7 +173,7 @@ export function createConversationActions(
     const sourcePage =
       messageId === undefined
         ? undefined
-        : await loadTimelinePage(call, channelId, {
+        : await loadTimelinePage(scopedCall, channelId, {
             direction: 'around',
             around: messageId,
           });
@@ -177,8 +187,8 @@ export function createConversationActions(
     if (messageId === undefined && clientStore.getSnapshot().conversation.status === 'ready') {
       clientStore.setConversation({ channel, error: undefined });
       try {
-        await getActions().refreshChannelMessages(channelId);
-        await refreshUnreadDivider(channelId, active);
+        await getActions().refreshChannelMessages(channelId, scopedCall);
+        await refreshUnreadDivider(channelId, active, scopedCall);
       } catch (error) {
         if (currentSelection() === active)
           clientStore.setConversation({ error: errorMessage(error) });
@@ -200,7 +210,7 @@ export function createConversationActions(
     try {
       const opened =
         sourcePage === undefined
-          ? await loadOpeningTimeline(channelId, active)
+          ? await loadOpeningTimeline(channelId, active, scopedCall)
           : {
               ...sourcePage,
               focusMessageId: messageId,
@@ -336,8 +346,8 @@ export function createConversationActions(
       if (bot.sharedBy === undefined)
         await Promise.all([loadSessionsFor(slug, active), loadBotInboxFor(slug, active)]);
     },
-    openChannel(channelId) {
-      return openChannelById(channelId);
+    openChannel(channelId, scopedCall) {
+      return openChannelById(channelId, undefined, scopedCall);
     },
     openChannelAtMessage(channelId, messageId) {
       return openChannelById(channelId, messageId);
@@ -587,10 +597,10 @@ export function createConversationActions(
         },
       });
     },
-    async refreshChannelMessages(channelId) {
+    async refreshChannelMessages(channelId, scopedCall = call) {
       const before = clientStore.getSnapshot().conversation.messages;
       const beforeById = new Map(before.map((message) => [message.id, message]));
-      const { page, revision } = await loadTimelinePage(call, channelId);
+      const { page, revision } = await loadTimelinePage(scopedCall, channelId);
       const snapshot = clientStore.getSnapshot();
       if (snapshot.conversation.channel?.id !== channelId) return;
       if (revision < snapshot.conversation.revision) return;

@@ -137,10 +137,12 @@ export function createRosterActions(
   const placeCreatedChannelFirst = async (
     channelId: string,
     sectionId: string | undefined,
+    scopedCall = call,
   ): Promise<boolean> => {
     if (sectionId !== undefined) {
       return rosterMutate(async () => {
-        await assignRosterChannel(call, channelId, sectionId, 0);
+        await assignRosterChannel(scopedCall, channelId, sectionId, 0);
+        scopedCall.assertCurrent?.();
       });
     }
     const snapshot = clientStore.getSnapshot();
@@ -157,7 +159,8 @@ export function createRosterActions(
       ...flat.filter((entry) => entry.kind !== 'channel' || entry.id !== channelId),
     ];
     return rosterMutate(async () => {
-      await reorderTopOrder(call, order);
+      await reorderTopOrder(scopedCall, order);
+      scopedCall.assertCurrent?.();
     });
   };
 

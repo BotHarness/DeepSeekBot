@@ -311,11 +311,20 @@ describe('channel create modal', () => {
   });
 
   it('shows a failed create inline and lets the Human retry', async () => {
-    const onCreate = vi
-      .fn<(name: string) => Promise<void>>()
+    const create = vi
+      .fn<(name: string, key: string) => Promise<void>>()
       .mockRejectedValueOnce(new Error('磁盘已满'))
       .mockResolvedValueOnce(undefined);
-    await render(createElement(CreateChannelModal, { t, onCancel: () => undefined, onCreate }));
+    await render(
+      createElement(CreateChannelModal, {
+        t,
+        onCancel: () => undefined,
+        onCreate: (name, key, onDispatch) => {
+          onDispatch();
+          return create(name, key);
+        },
+      }),
+    );
 
     expect(buttonNamed('创建').disabled).toBe(true);
     await typeInto(fieldNamed('频道名称'), '\u200b\u200d');
@@ -326,7 +335,8 @@ describe('channel create modal', () => {
     expect(dialog().querySelector('[role="alert"]')?.textContent).toContain('磁盘已满');
     expect(fieldNamed('频道名称').disabled).toBe(true);
     await click(buttonNamed(t('environment.create.retry')));
-    expect(onCreate).toHaveBeenLastCalledWith('周报', expect.any(String));
+    expect(create).toHaveBeenNthCalledWith(1, '周报', expect.any(String));
+    expect(create.mock.calls[1]).toEqual(create.mock.calls[0]);
     expect(dialog().querySelector('[role="alert"]')).toBeNull();
   });
 });

@@ -10,6 +10,7 @@ import { BridgeCallError, errorMessage, type BridgeCall } from './bridge.js';
 import {
   GroupMemberPicker,
   GroupMemberResults,
+  groupSelectionNeedsOwner,
   useGroupMemberBatch,
   type PickedGroupMember,
 } from './group-member-picker.js';
@@ -296,7 +297,11 @@ export interface CreateChannelModalProps {
   t: BotHarnessTranslate;
   members?: { scope: string; call: BridgeCall } | undefined;
   onCancel: () => void;
-  onCreate: (name: string, operationKey: string) => Promise<ChannelSummary | void>;
+  onCreate: (
+    name: string,
+    operationKey: string,
+    onDispatch: () => void,
+  ) => Promise<ChannelSummary | void>;
   onMembersChanged?: ((channel: ChannelSummary) => void) | undefined;
 }
 
@@ -336,19 +341,32 @@ export function CreateChannelModal({
   const created = useRef<ChannelSummary>();
   const batch = useGroupMemberBatch();
   const trimmed = draft.trim();
+  const missingOwner = !batch.items && groupSelectionNeedsOwner(selected);
   const submit = (): void => {
     if (batch.complete) {
       onCancel();
       return;
     }
-    if (pending.current || !hasVisibleText(trimmed) || targetUnavailable || bindingChanged) return;
+    if (
+      pending.current ||
+      !hasVisibleText(trimmed) ||
+      targetUnavailable ||
+      bindingChanged ||
+      missingOwner
+    )
+      return;
     pending.current = true;
     setCreating(true);
     setError(undefined);
-    setSubmittedHere(true);
     const run = async () => {
-      createKey.current ??= crypto.randomUUID();
-      created.current ??= (await onCreate(trimmed, createKey.current)) ?? undefined;
+      if (!created.current) {
+        const operationKey = createKey.current ?? crypto.randomUUID();
+        created.current =
+          (await onCreate(trimmed, operationKey, () => {
+            createKey.current = operationKey;
+            setSubmittedHere(true);
+          })) ?? undefined;
+      }
       if (!members || selected.length === 0 || !created.current) {
         if (created.current) onCancel();
         return;
@@ -392,7 +410,8 @@ export function CreateChannelModal({
                 : 'common.create',
       )}
       submitDisabled={
-        !batch.complete && (!hasVisibleText(trimmed) || targetUnavailable || bindingChanged)
+        !batch.complete &&
+        (!hasVisibleText(trimmed) || targetUnavailable || bindingChanged || missingOwner)
       }
       busy={creating}
       showCancel={!batch.complete}

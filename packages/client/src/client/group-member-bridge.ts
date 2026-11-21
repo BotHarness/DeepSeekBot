@@ -25,7 +25,13 @@ export async function loadGroupMemberPicker(
       signal,
     ),
   );
-  if (!result || typeof result.canAddBots !== 'boolean' || typeof result.canAddPeople !== 'boolean')
+  if (
+    !result ||
+    typeof result.canAddBots !== 'boolean' ||
+    typeof result.canAddPeople !== 'boolean' ||
+    !Array.isArray(result.people) ||
+    !Array.isArray(result.bots)
+  )
     throw new BridgeCallError('invalid-response', 'Invalid Group member candidates');
   const people = list(result.people, (value): GroupHumanCandidate | undefined => {
     const row = record(value);

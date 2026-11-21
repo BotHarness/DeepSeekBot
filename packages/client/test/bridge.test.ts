@@ -205,6 +205,33 @@ describe('bridge transport', () => {
     expect(calls).toEqual([['/api', 'botharness/list', { args: { limit: 5 } }, undefined]]);
   });
 
+  it('refuses a bound Group dispatch after the connection RPC is replaced', async () => {
+    const requests: string[] = [];
+    const oldRpc = {
+      call: async (_channel: string, endpoint: string) => {
+        requests.push(endpoint);
+        return { ok: true, value: {} };
+      },
+    };
+    const replacement = {
+      call: async () => {
+        throw new Error('The replacement received a Group request');
+      },
+    };
+    const ctx = { connection: { rpc: oldRpc } };
+    const call = createBridgeCall(ctx as never);
+    const bound = call.bindConnection?.();
+    if (!bound) throw new Error('Expected a live connection');
+    await bound('channelCreate', { name: 'QA', members: [] });
+    ctx.connection.rpc = replacement;
+    await expect(
+      bound('channelGroupMembersAdd', { channelId: 'group-qa', targets: [] }),
+    ).rejects.toMatchObject({
+      code: 'connection-host-changed',
+    });
+    expect(requests).toEqual(['botharness/channelCreate']);
+  });
+
   it('reports unavailable when the connection rpc is absent', async () => {
     const call = createBridgeCall({} as never);
 

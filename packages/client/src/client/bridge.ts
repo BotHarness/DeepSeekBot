@@ -10,7 +10,7 @@ import { createApprovalTemplateDeletionBridge } from './features/approvals/bridg
 import { createMarketplaceBridge } from './features/marketplace/bridge.js';
 import { createGenuiReportBridge } from './features/genui/bridge.js';
 import { createAvatarsBridge } from './features/avatars/bridge.js';
-import { asRecord, unwrap, type BridgeCall } from './bridge-transport.js';
+import { asRecord, BridgeCallError, unwrap, type BridgeCall } from './bridge-transport.js';
 import { parseToolEffects } from '../../../core/src/workspaces/tool-effects-contract.js';
 import {
   skillCatalogChangeSchema,
@@ -465,30 +465,48 @@ function remoteArgs(payload: Record<string, unknown>): Record<string, unknown> {
 
 export function createBridgeCall(ctx: ClientContext): BridgeCall {
   const memberBridgeUnavailable = createMemberBridgeGuard(MEMBER_METHODS);
-  return async (endpoint, payload, signal) => {
-    if (memberBridgeUnavailable(endpoint))
-      return {
-        ok: false,
-        error: { code: 'member-unavailable', message: endpoint, details: {} },
-      };
+  const createCall =
+    (resolveRpc: () => BridgeRpc | undefined): BridgeCall =>
+    async (endpoint, payload, signal) => {
+      if (memberBridgeUnavailable(endpoint))
+        return {
+          ok: false,
+          error: { code: 'member-unavailable', message: endpoint, details: {} },
+        };
+      const rpc = resolveRpc();
+      if (rpc === undefined) {
+        return {
+          ok: false,
+          error: {
+            code: 'unavailable',
+            message: 'Connection RPC is not available',
+            details: {},
+          },
+        };
+      }
+      const run = () =>
+        rpc.call('/api', `botharness/${endpoint}`, { args: remoteArgs(payload) }, signal);
+      const recorder = clientLog();
+      return recorder === undefined
+        ? run()
+        : recorder.timeRpc(endpoint, run, (result) => (result.ok ? undefined : result.error.code));
+    };
+  const call = createCall(() => connectionRpc(ctx));
+  call.bindConnection = () => {
     const rpc = connectionRpc(ctx);
-    if (rpc === undefined) {
-      return {
-        ok: false,
-        error: {
-          code: 'unavailable',
-          message: 'Connection RPC is not available',
-          details: {},
-        },
-      };
-    }
-    const run = () =>
-      rpc.call('/api', `botharness/${endpoint}`, { args: remoteArgs(payload) }, signal);
-    const recorder = clientLog();
-    return recorder === undefined
-      ? run()
-      : recorder.timeRpc(endpoint, run, (result) => (result.ok ? undefined : result.error.code));
+    if (rpc === undefined) return undefined;
+    const assertCurrent = () => {
+      if (connectionRpc(ctx) !== rpc)
+        throw new BridgeCallError('connection-host-changed', 'This connection changed.');
+    };
+    const bound = createCall(() => {
+      assertCurrent();
+      return rpc;
+    });
+    bound.assertCurrent = assertCurrent;
+    return bound;
   };
+  return call;
 }
 
 export function errorMessage(error: unknown): string {

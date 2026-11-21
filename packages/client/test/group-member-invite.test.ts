@@ -64,7 +64,7 @@ function check(name: string): HTMLInputElement {
   return input;
 }
 
-async function openExisting(call: BridgeCall): Promise<void> {
+async function renderExisting(call: BridgeCall): Promise<void> {
   const actions = {
     teamCall: call,
     openChannel: vi.fn(async () => undefined),
@@ -80,6 +80,10 @@ async function openExisting(call: BridgeCall): Promise<void> {
       }),
     ),
   );
+}
+
+async function openExisting(call: BridgeCall): Promise<void> {
+  await renderExisting(call);
   await act(async () => buttonNamed(t('groupMembers.add'), document.body).click());
 }
 
@@ -147,7 +151,10 @@ it('keeps the same creation and invitation keys after ambiguous responses', asyn
     root.render(
       createElement(CreateChannelModal, {
         t,
-        onCreate: create,
+        onCreate: (name, key, onDispatch) => {
+          onDispatch();
+          return create(name, key);
+        },
         onCancel: vi.fn(),
         members: { call, scope: 'local' },
       }),
@@ -164,6 +171,80 @@ it('keeps the same creation and invitation keys after ambiguous responses', asyn
   expect(create).toHaveBeenCalledTimes(2);
   expect(add.mock.calls).toEqual([add.mock.calls[0], add.mock.calls[0]]);
   expect(dialog().textContent).toContain('Eve · ' + t('groupMembers.joined'));
+});
+
+it('offers capability retry for malformed responses and hides the action on confirmed denial', async () => {
+  const result = vi
+    .fn()
+    .mockResolvedValueOnce(ok({ ...choices, people: null }))
+    .mockResolvedValueOnce(
+      ok({ ...choices, canAddPeople: false, canAddBots: false, people: [], bots: [] }),
+    );
+  await renderExisting(result);
+  const retry = buttonNamed(t('groupMembers.retryLoad'), document.body);
+  await act(async () => retry.click());
+  expect(result).toHaveBeenCalledTimes(2);
+  expect(document.querySelector('[aria-label="' + t('groupMembers.retryLoad') + '"]')).toBeNull();
+  expect(document.querySelector('[aria-label="' + t('groupMembers.add') + '"]')).toBeNull();
+});
+
+it('keeps search Enter in the picker and blocks an orphaned Bot until its Human is restored', async () => {
+  const add = vi.fn(async (_method: string, _args: Record<string, unknown>) =>
+    ok({
+      results: [
+        { kind: 'human', id: 'bob', status: 'joined' },
+        { kind: 'bot', id: 'bob-bot', status: 'pending' },
+      ],
+    }),
+  );
+  await openExisting(async (method, args) =>
+    method === 'channelGroupMembersAdd' ? add(method, args) : ok(choices),
+  );
+  await act(async () => check('Bob').click());
+  await act(async () => check('Bob Bot').click());
+  const enter = new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true });
+  await act(async () => void fieldNamed(t('groupMembers.search')).dispatchEvent(enter));
+  expect(enter.defaultPrevented).toBe(true);
+  expect(add).not.toHaveBeenCalled();
+
+  await act(async () => check('Bob').click());
+  expect(check('Bob Bot').checked).toBe(true);
+  expect(buttonNamed(t('groupMembers.submit'), dialog()).disabled).toBe(true);
+  await submit();
+  expect(add).not.toHaveBeenCalled();
+  await act(async () => check('Bob').click());
+  await submit();
+  expect(add).toHaveBeenCalledTimes(1);
+});
+
+it('keeps the creation target editable after rejection before dispatch', async () => {
+  const call: BridgeCall = async () => ok(choices);
+  const close = vi.fn();
+  const create = vi.fn();
+  const render = (scope: string) =>
+    act(async () =>
+      root.render(
+        createElement(CreateChannelModal, {
+          t,
+          members: { call, scope },
+          onCancel: close,
+          onCreate: async (name, key, onDispatch) => {
+            if (scope === 'offline') throw new Error('Host not ready');
+            onDispatch();
+            create(name, key);
+            return GROUP;
+          },
+        }),
+      ),
+    );
+  await render('offline');
+  await typeInto(fieldNamed(t('channel.name.label')), 'QA');
+  await submit();
+  await render('online');
+  expect(fieldNamed(t('channel.name.label')).disabled).toBe(false);
+  await submit();
+  expect(create).toHaveBeenCalledExactlyOnceWith('QA', expect.any(String));
+  expect(close).toHaveBeenCalledTimes(1);
 });
 
 it('clears the Host-scoped selection when the creation target changes', async () => {

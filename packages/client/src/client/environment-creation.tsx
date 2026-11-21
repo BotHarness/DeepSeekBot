@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactElement } from 'react';
+import { useMemo, useRef, useState, type ReactElement } from 'react';
 import type { BridgeActions } from './actions.js';
 import { Field } from './ds/field.js';
 import { Select } from './ds/select.js';
@@ -34,8 +34,13 @@ export type EnvironmentCreateRequest =
 export function EnvironmentCreation(
   props: Parameters<typeof OwnerEnvironmentCreation>[0],
 ): ReactElement {
-  if (!memberPage()) return <OwnerEnvironmentCreation {...props} />;
   const { request, actions, t, onClose, sectionName, onBack } = props;
+  const teamCall = actions.teamCall;
+  const memberCall = useMemo(
+    () => (teamCall?.bindConnection ? teamCall.bindConnection() : teamCall),
+    [teamCall],
+  );
+  if (!memberPage()) return <OwnerEnvironmentCreation {...props} />;
   if (request.kind === 'human-dm')
     return (
       <MessagePersonDialog
@@ -56,11 +61,16 @@ export function EnvironmentCreation(
       <CreateChannelModal
         t={t}
         sectionName={sectionName}
-        members={actions.teamCall && { scope: 'member-host', call: actions.teamCall }}
+        members={memberCall && { scope: 'member-host', call: memberCall }}
+        targetUnavailable={!memberCall}
         onCancel={onClose}
-        onCreate={(name, key) => actions.createGroup(name, request.sectionId, key)}
+        onCreate={async (name, key, onDispatch) => {
+          memberCall?.assertCurrent?.();
+          onDispatch();
+          return actions.createGroup(name, request.sectionId, key, memberCall);
+        }}
         onMembersChanged={(channel) => {
-          void actions.openChannel(channel.id).catch(() => undefined);
+          void actions.openChannel(channel.id, memberCall).catch(() => undefined);
         }}
       />
     );
@@ -132,6 +142,13 @@ function OwnerEnvironmentCreation({
   const selectedId = selected?.id === local.id ? 'local' : selected?.id;
   const target = hosts.find((host) => host.id === selectedId) ?? selected;
   const online = target !== undefined && hosts.some((host) => host.id === target.id && host.online);
+  const teamCall = actions.teamCall;
+  const localReady = request.kind === 'channel' && target?.id === 'local' && local.id !== undefined;
+  const localGroupCall = useMemo(
+    () =>
+      localReady ? (teamCall?.bindConnection ? teamCall.bindConnection() : teamCall) : undefined,
+    [localReady, local.id, teamCall],
+  );
   const connectionChanged =
     submitted &&
     capturedOwner.current !== undefined &&
@@ -250,41 +267,48 @@ function OwnerEnvironmentCreation({
   if (request.kind === 'channel') {
     const client =
       target === undefined || target.id === 'local' ? undefined : remoteHosts().client(target.id);
-    const bound =
+    const pickerCall =
       target?.id === 'local'
-        ? localOwner
+        ? localGroupCall
         : target && client
-          ? remoteOwner({ id: target.id, client })
+          ? remoteOwner({ id: target.id, client }).call
           : undefined;
     return (
       <CreateChannelModal
         t={t}
         target={targetField}
         members={
-          bound?.call &&
+          pickerCall &&
           target && {
             scope: target.id === 'local' ? (local.id ?? 'local') : target.id,
-            call: bound.call,
+            call: pickerCall,
           }
         }
-        targetUnavailable={!online || connectionChanged}
+        targetUnavailable={!online || connectionChanged || !pickerCall}
         sectionName={sectionName}
         committed={committed}
         submitted={submitted}
         onCancel={onClose}
-        onCreate={async (name) => {
+        onCreate={async (name, operationKey, onDispatch) => {
           const remote = owner();
+          if (!pickerCall) throw new Error(t('environment.create.offline'));
+          pickerCall.assertCurrent?.();
           setBusy(true);
           try {
-            if (!remote) return await localOwner.createGroup(name, request.sectionId);
-            return await remoteOwner(remote).channel(name, request.sectionId);
+            onDispatch();
+            if (!remote)
+              return await localOwner.createGroup(name, request.sectionId, {
+                call: pickerCall,
+                operationKey,
+              });
+            return await remoteOwner(remote).channel(name, request.sectionId, operationKey);
           } finally {
             setBusy(false);
           }
         }}
         onMembersChanged={(channel) => {
           if (client) void client.refresh().catch(() => undefined);
-          else void actions.openChannel(channel.id).catch(() => undefined);
+          else void actions.openChannel(channel.id, pickerCall).catch(() => undefined);
         }}
       />
     );
