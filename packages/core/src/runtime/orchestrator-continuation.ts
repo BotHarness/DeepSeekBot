@@ -97,6 +97,7 @@ interface OrchestratorContinuationPorts {
   ) => Promise<void>;
   autoContinues: Map<string, PendingAutoContinue>;
   channels: ChannelStore;
+  claimDmContinuation: (botSlug: string, sourceEventId: string) => boolean;
   closed: () => boolean;
   currentOrchestratorSessionId: (botSlug: string) => string | undefined;
   database: OperationalDatabaseModulePort;
@@ -223,27 +224,7 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
         ) as { body: string } | undefined
       )?.body;
     if (body === undefined) return undefined;
-    const claimed = ports.database.transaction(
-      (database) => {
-        const events = database
-          .prepare(
-            `UPDATE source_events SET attempt_state = 'running'
-              WHERE source_event_id = ? AND attempt_state IN ('retryable', 'needs-repair')`,
-          )
-          .run(sourceEventId).changes;
-        database
-          .prepare(
-            `
-          UPDATE inbox_admissions SET attempt_state = 'running', last_error = NULL
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state IN ('retryable', 'needs-repair')
-        `,
-          )
-          .run(sourceEventId, botSlug);
-        return events > 0;
-      },
-      ['source-event', 'bot-inbox'],
-    );
-    if (!claimed) return undefined;
+    if (!ports.claimDmContinuation(botSlug, sourceEventId)) return undefined;
     return ports.enqueue(botSlug, () =>
       ports.runHumanDmTurn(
         bot,
@@ -570,6 +551,7 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
     inputRecorded: boolean,
   ): OrchestratorAgentRun {
     const priorReply = routingGroupReplyState(run.bot.slug, run.sessionId, sourceEventId);
+    const priorReplies = run.priorEngineReplies?.();
     const replyInstruction =
       priorReply === 'delivered'
         ? 'The previous target already delivered a reply to this Source Event. Continue any remaining work without answering it again.'
@@ -585,20 +567,23 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
       message: inputRecorded ? note : `${note}\n\n${run.message}`,
       inbox: inputRecorded ? '' : run.inbox,
     };
-    if (priorReply === undefined) return continuation;
+    if (priorReply === undefined && !priorReplies?.size) return continuation;
 
-    const refuseDuplicate = (): never => {
-      throw new Error(replyInstruction);
+    const requireUnanswered = (id: string | undefined): void => {
+      if (id === undefined) return;
+      if (id === sourceEventId && priorReply !== undefined) throw new Error(replyInstruction);
+      if (priorReplies?.has(id))
+        throw new Error(
+          'A reply to this Source Event is already recorded. Check its delivery receipt.',
+        );
     };
     const channelId = run.inboundChannelId;
     continuation.channels = {
       ...run.channels,
       send: (input) => {
-        if (
-          (input.replySourceEventId ?? sourceEventId) === sourceEventId &&
-          (input.channelId ?? channelId) === channelId
-        )
-          refuseDuplicate();
+        const implicitSource =
+          (input.channelId ?? channelId) === channelId ? sourceEventId : undefined;
+        requireUnanswered(input.replySourceEventId ?? implicitSource);
         return run.channels.send(input);
       },
     };
@@ -606,10 +591,14 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
     if (external !== undefined)
       continuation.externalMessaging = {
         ...external,
-        reply: (id, text, key) =>
-          id === sourceEventId ? refuseDuplicate() : external.reply(id, text, key),
-        replyFile: (id, file, key) =>
-          id === sourceEventId ? refuseDuplicate() : external.replyFile(id, file, key),
+        reply: (id, text, key) => {
+          requireUnanswered(id);
+          return external.reply(id, text, key);
+        },
+        replyFile: (id, file, key) => {
+          requireUnanswered(id);
+          return external.replyFile(id, file, key);
+        },
       };
     return continuation;
   }
@@ -724,6 +713,7 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
     fallBack,
     armAutoContinue,
     runMixedGroupTurn,
+    routingGroupReplyState,
     routingTargetFailure,
     continueDmTurn,
     rearmAutoContinues,

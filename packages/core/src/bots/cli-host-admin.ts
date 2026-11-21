@@ -1,5 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import { marketplaceAvatarImageType } from '@botharness/host-protocol/marketplace-avatar-image';
+import {
+  marketplaceAvatarImageType,
+  readMarketplaceAvatarImage,
+} from '@botharness/host-protocol/marketplace-avatar-image';
 import { parseMarketplaceAvatarText } from '@botharness/host-protocol/marketplace-avatar';
 export { HOST_ADMIN_OPTIONS } from './cli-option-spec.js';
 import type { AltchaChallenge } from '../marketplace/altcha.js';
@@ -24,6 +27,7 @@ export interface HostAdminValues {
   capability?: string[];
   role?: string[];
   'avatar-tag'?: string[];
+  'from-bot'?: string;
   confirm?: boolean;
   'confirmation-stdin'?: boolean;
   enabled?: boolean;
@@ -73,7 +77,8 @@ export const HOST_ADMIN_COMMANDS = [
   },
   {
     command: 'marketplace-avatar-publish',
-    description: 'publish a processed image from --file / 从文件发布已处理的头像',
+    description:
+      'publish a processed Avatar from --file or --from-bot / 从文件或 Bot 发布已处理的头像',
   },
   { command: 'marketplace-topics', description: 'list Bot Marketplace topics with counts' },
   {
@@ -322,9 +327,14 @@ function validate(command: HostAdminCommand, rest: string[], values: HostAdminVa
     );
   if (
     command === 'marketplace-avatar-publish' &&
-    (!values.file?.trim() || !values.name?.trim() || values.confirm !== true)
+    ((values.file === undefined) === (values['from-bot'] === undefined) ||
+      !(values.file ?? values['from-bot'])?.trim() ||
+      !values.name?.trim() ||
+      values.confirm !== true)
   )
-    usage('marketplace-avatar-publish needs --file <image> --name <name> --confirm.');
+    usage(
+      'marketplace-avatar-publish needs exactly one of --file <image> or --from-bot <bot>, plus --name <name> --confirm.',
+    );
   if (command === 'marketplace-upload') {
     if (values.name === undefined || !values.name.trim())
       usage('marketplace-upload needs --name <listing name>.');
@@ -501,13 +511,6 @@ export async function runHostAdminCommand(
     case 'marketplace-avatar-apply-candidates':
       return rpc('marketplaceAvatarApplyCandidates', {});
     case 'marketplace-avatar-publish': {
-      const bytes = readBytes(values.file);
-      const contentType = marketplaceAvatarImageType(bytes);
-      if (contentType === undefined)
-        throw new CliLiveError(
-          'unprocessed-image',
-          'Use a still, metadata-free PNG, JPEG or WebP, square at 256–512 px and at most 128 KiB.',
-        );
       const text = parseMarketplaceAvatarText({
         name: values.name,
         description: values.description,
@@ -519,9 +522,29 @@ export async function runHostAdminCommand(
         );
       const requestKey = values['operation-key'] ?? randomUUID();
       if (!/^[a-zA-Z0-9_-]{1,100}$/u.test(requestKey)) usage('Invalid --operation-key.');
+      const slug = values['from-bot']?.trim();
+      let image: string;
+      if (slug !== undefined) {
+        const source = await rpc<{ image: string }>('marketplaceAvatarSource', { bot: slug });
+        image = source.image;
+        if (readMarketplaceAvatarImage(image) === undefined)
+          throw new CliLiveError(
+            'unprocessed-image',
+            'This Bot’s Avatar needs cropping or re-encoding. Publish it from Web.',
+          );
+      } else {
+        const bytes = readBytes(values.file);
+        const contentType = marketplaceAvatarImageType(bytes);
+        if (contentType === undefined)
+          throw new CliLiveError(
+            'unprocessed-image',
+            'Use a still, metadata-free PNG, JPEG or WebP, square at 256–512 px and at most 128 KiB.',
+          );
+        image = `data:${contentType};base64,${bytes.toString('base64')}`;
+      }
       return rpc('marketplaceAvatarPublish', {
         ...text,
-        image: `data:${contentType};base64,${bytes.toString('base64')}`,
+        image,
         requestKey,
         confirm: true,
       });

@@ -618,6 +618,8 @@ Channel Content Purge and its restore-safe ledger remain #897.
 
 Marketplace Avatar apply uses the connected Host to fetch the current listed image from the Worker. The Host validates the bytes and rechecks the target and Avatar-change permission before writing through the same Registry path as a manual change. After the write, the Host sends a best-effort receipt. The Worker calculates Apply Count from distinct SHA-256 receipts derived from the Marketplace Host ID and PersonaBot ID. See [ADR-0358](../adr/0358-apply-count-counts-persona-bots-without-anti-abuse.md).
 
+Web and CLI can publish the stored Avatar of a Bot through an owner-only Host read. The Registry supplies the image, including the stored still PNG of an Avatar Appearance. Web crops and re-encodes it, and CLI checks that it already meets the Marketplace image requirements. Both use the existing publish operation.
+
 ## 7 · Critical boundaries
 
 - Normal runtime uses explicit Session ownership only. `cwd` may be a migration or repair hint but never decides PersonaBot identity.

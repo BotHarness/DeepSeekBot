@@ -58,6 +58,7 @@ const styles = stylex.create({
     fontWeight: type.labelWeight,
   },
   slotCurrent: { color: style.navSelectedIcon },
+  largeSlot: { width: size.rowMedium, height: size.rowMedium },
   multiline: { paddingBlock: space.x2 },
   iconOnly: { width: style.rowNav, paddingInline: 0, justifyContent: 'center' },
   pressed: { backgroundColor: { default: state.selected, ':hover': state.selected } },
@@ -126,6 +127,7 @@ export interface NavItemProps extends Omit<
   readonly description?: string | undefined;
   readonly current?: boolean;
   readonly iconOnly?: boolean;
+  readonly largeIcon?: boolean;
   readonly multiline?: boolean;
   readonly attention?: string | undefined;
   readonly trailing?: ReactNode;
@@ -142,6 +144,7 @@ export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavI
     description,
     current = false,
     iconOnly = false,
+    largeIcon = false,
     multiline = false,
     attention,
     trailing,
@@ -182,7 +185,7 @@ export const NavItem = forwardRef<HTMLButtonElement, NavItemProps>(function NavI
     >
       <span
         aria-hidden={iconDecorative || undefined}
-        {...stylex.props(styles.slot, current && styles.slotCurrent)}
+        {...stylex.props(styles.slot, current && styles.slotCurrent, largeIcon && styles.largeSlot)}
       >
         {icon}
       </span>

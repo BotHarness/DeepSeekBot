@@ -1207,14 +1207,14 @@ describe('Skill Invocation in a Group Channel', () => {
         }),
       ).toMatchObject({ ok: true });
       expect(steer).toHaveBeenCalledTimes(1);
-      const prompt = steer.mock.calls[0];
-      expect(prompt).toEqual(['ada', expect.stringContaining('[/review]')]);
-      expect(prompt).toEqual([
+      expect(steer).toHaveBeenCalledWith(
         'ada',
-        expect.stringContaining(
-          `<skill_invocation name="review" owner="host" path="/host/review/SKILL.md">\n${content}\n</skill_invocation>`,
-        ),
-      ]);
+        expect.stringContaining('[/review]'),
+        expect.any(Function),
+      );
+      expect(steer.mock.calls[0]?.[1]).toContain(
+        `<skill_invocation name="review" owner="host" path="/host/review/SKILL.md">\n${content}\n</skill_invocation>`,
+      );
     } finally {
       releaseTurn();
       core.externalMessaging.close();

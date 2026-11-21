@@ -417,6 +417,8 @@ export interface OrchestratorAgentRun {
   observeTurnTarget?(turn: number, step: number, target: TurnTarget): void;
   continuingFromNativeRoute?: true;
   inputAccepted?(): void;
+  canUseEngineChannel?(channelId: string): boolean;
+  priorEngineReplies?(): ReadonlySet<string>;
   speakerPolicy?(
     humanId?: string,
     topic?: string,
@@ -850,7 +852,11 @@ export interface BotAgentAdapter {
   runOrchestrator(run: OrchestratorAgentRun): Promise<void>;
   loadOrchestrator?(run: OrchestratorAgentRun): Promise<void>;
 
-  steerOrchestrator?(botSlug: string, text: string): boolean;
+  steerOrchestrator?(
+    botSlug: string,
+    text: string,
+    requireAccess?: () => void,
+  ): boolean | Promise<boolean>;
   stopOrchestratorTurn?(botSlug: string): string | undefined;
   runAssignment(run: AssignmentAgentRun): Promise<void>;
   requestAssignment(run: AssignmentAgentRun): AssignmentRequestDelivery;
@@ -1860,6 +1866,10 @@ class BotRuntimeImplementation implements BotRuntime {
       createEventId: () => this.#createEventId(),
       insertMemoryChange: (db, eventId, botSlug, change) =>
         this.#insertMemoryChange(db, eventId, botSlug, change),
+      coalesceInbox,
+      promptText: (botSlug) => this.#promptText(botSlug),
+      setObserved: (eventIds, at) => this.#setObserved(eventIds, at),
+      trackSteer: (settlement) => this.#trackSteer(settlement),
       warn: this.#warn === undefined ? undefined : (message) => this.#warn?.(message),
     });
     this.#triageContinuation = options.triageContinuation === true;
@@ -1945,34 +1955,6 @@ class BotRuntimeImplementation implements BotRuntime {
       noteAutomaticFailure: (...args) => this.#noteAutomaticFailure(...args),
       warn: this.#warn === undefined ? undefined : (message) => this.#warn?.(message),
     });
-    this.#messagingEvents = createMessagingEvents({
-      closed: () => this.#closed,
-      externalMessaging: this.#externalMessaging,
-      database: this.#database,
-      release: (...args) => this.#release(...args),
-      checkHarvestReadiness: (...args) => this.#checkHarvestReadiness(...args),
-      admitChannelMessage: (...args) => this.#admitChannelMessage(...args),
-      activeTurns: this.#activeTurns,
-      delivery: (...args) => this.#delivery(...args),
-      agents: this.#agents,
-      promptText: (...args) => this.#promptText(...args),
-      promptLimits: (...args) => this.#promptLimits(...args),
-      claimGroupContext: (...args) => this.#claimGroupContext(...args),
-      setObserved: (...args) => this.#setObserved(...args),
-      now: (...args) => this.#now(...args),
-      markAdmissionsSideEffect: (...args) => this.#markAdmissionsSideEffect(...args),
-      groupContextSection: (...args) => this.#groupContextSection(...args),
-      settleHarvestFailure: (...args) => this.#settleHarvestFailure(...args),
-      acceptTurnSources: (...args) => this.#acceptTurnSources(...args),
-      typingTurns: this.#typingTurns,
-      observeAdmission: (...args) => this.#observeAdmission(...args),
-      markReportsHandled: (...args) => this.#markReportsHandled(...args),
-      settleHarvestHandled: (...args) => this.#settleHarvestHandled(...args),
-      steerSettlements: this.#steerSettlements,
-      held: this.#held,
-      armDigest: (...args) => this.#armDigest(...args),
-    });
-
     this.#scheduling = createOrchestratorScheduling({
       activeTurns: this.#activeTurns,
       activityEvents: this.#activityEvents,
@@ -1994,6 +1976,7 @@ class BotRuntimeImplementation implements BotRuntime {
       appendModelSwitch: (...args) => this.#appendModelSwitch(...args),
       autoContinues: this.#autoContinues,
       channels: this.#channels,
+      claimDmContinuation: (...args) => this.#claimDmContinuation(...args),
       closed: () => this.#closed,
       currentOrchestratorSessionId: (...args) => this.currentOrchestratorSessionId(...args),
       database: this.#database,
@@ -2023,6 +2006,42 @@ class BotRuntimeImplementation implements BotRuntime {
       tails: this.#tails,
       team: this.#team,
       warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
+    });
+    this.#messagingEvents = createMessagingEvents({
+      closed: () => this.#closed,
+      externalMessaging: this.#externalMessaging,
+      database: this.#database,
+      release: (...args) => this.#release(...args),
+      checkHarvestReadiness: (...args) => this.#checkHarvestReadiness(...args),
+      admitChannelMessage: (...args) => this.#admitChannelMessage(...args),
+      activeTurns: this.#activeTurns,
+      delivery: (...args) => this.#delivery(...args),
+      steerWithMemory:
+        this.#agents.steerOrchestrator === undefined
+          ? undefined
+          : (botSlug, prompt, requireAccess) =>
+              this.#steerWithMemory(botSlug, prompt, requireAccess),
+      promptText: (...args) => this.#promptText(...args),
+      promptLimits: (...args) => this.#promptLimits(...args),
+      claimGroupContext: (...args) => this.#claimGroupContext(...args),
+      setObserved: (...args) => this.#setObserved(...args),
+      now: (...args) => this.#now(...args),
+      markAdmissionsSideEffect: (botSlug, sourceIds) =>
+        this.#markAdmissionsSideEffect(botSlug, sourceIds, false),
+      requireTurnAccess: (...args) => this.#requireTurnAccess(...args),
+      turnSessionId: (botSlug) => this.#turnSources.get(botSlug)?.sessionId,
+      routingGroupReplyState: (...args) => this.#continuation.routingGroupReplyState(...args),
+      noteSteeredChannel: (...args) => this.#noteSteeredChannel(...args),
+      groupContextSection: (...args) => this.#groupContextSection(...args),
+      settleHarvestFailure: (...args) => this.#settleHarvestFailure(...args),
+      acceptTurnSources: (...args) => this.#acceptTurnSources(...args),
+      typingTurns: this.#typingTurns,
+      observeAdmission: (...args) => this.#observeAdmission(...args),
+      markReportsHandled: (...args) => this.#markReportsHandled(...args),
+      settleHarvestHandled: (...args) => this.#settleHarvestHandled(...args),
+      trackSteer: (settlement) => this.#trackSteer(settlement),
+      held: this.#held,
+      armDigest: (...args) => this.#armDigest(...args),
     });
     this.#cancellation = createOrchestratorCancellation({
       activeTurns: this.#activeTurns,
@@ -2109,6 +2128,29 @@ class BotRuntimeImplementation implements BotRuntime {
     human: HumanContext = OWNER_HUMAN_CONTEXT,
   ): Promise<void> {
     return this.#continuation.retryDmMessage(channelId, messageId, human);
+  }
+
+  #claimDmContinuation(botSlug: string, sourceEventId: string): boolean {
+    return this.#database.transaction(
+      (database) => {
+        const events = database
+          .prepare(
+            `UPDATE source_events SET attempt_state = 'running'
+              WHERE source_event_id = ? AND attempt_state IN ('retryable', 'needs-repair')`,
+          )
+          .run(sourceEventId).changes;
+        database
+          .prepare(
+            `
+          UPDATE inbox_admissions SET attempt_state = 'running', last_error = NULL
+           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state IN ('retryable', 'needs-repair')
+        `,
+          )
+          .run(sourceEventId, botSlug);
+        return events > 0;
+      },
+      ['source-event', 'bot-inbox'],
+    );
   }
 
   recoverDmMessage(
@@ -2295,6 +2337,10 @@ class BotRuntimeImplementation implements BotRuntime {
       persistedBody ?? body,
       timestamp,
     );
+    const queue = () =>
+      this.#scheduling.enqueue(bot.slug, () =>
+        this.#runHumanDmTurn(bot, channel.id, body, claim, input.messageId, undefined, tobCliTurn),
+      );
     const steered =
       claim.shouldRun &&
       tobCliTurn === undefined &&
@@ -2315,22 +2361,11 @@ class BotRuntimeImplementation implements BotRuntime {
           body,
           claim.sourceEventId,
         ),
+        queue,
       );
     return {
       admitted: true,
-      settled: steered
-        ? Promise.resolve()
-        : this.#scheduling.enqueue(bot.slug, () =>
-            this.#runHumanDmTurn(
-              bot,
-              channel.id,
-              body,
-              claim,
-              input.messageId,
-              undefined,
-              tobCliTurn,
-            ),
-          ),
+      settled: steered ? Promise.resolve() : queue(),
     };
   }
 
@@ -2373,6 +2408,10 @@ class BotRuntimeImplementation implements BotRuntime {
     );
     this.#continuation.cancelAutoContinue(bot.slug);
     this.#release(bot.slug);
+    const queue = () =>
+      this.#scheduling.enqueue(bot.slug, () =>
+        this.#runHumanDmTurn(bot, channel.id, input.text, claim, messageId),
+      );
     const steered =
       claim.shouldRun &&
       ![...this.#tobCliRequests.values()].some(
@@ -2385,15 +2424,12 @@ class BotRuntimeImplementation implements BotRuntime {
         claim.sourceEventId,
         'human-dm',
         sessionDirectPrompt(input.text, claim.sourceEventId),
+        queue,
       );
     return {
       delivered: true,
       sourceEventId: claim.sourceEventId,
-      settled: steered
-        ? Promise.resolve()
-        : this.#scheduling.enqueue(bot.slug, () =>
-            this.#runHumanDmTurn(bot, channel.id, input.text, claim, messageId),
-          ),
+      settled: steered ? Promise.resolve() : queue(),
     };
   }
 
@@ -2572,6 +2608,7 @@ class BotRuntimeImplementation implements BotRuntime {
     sourceEventId: string,
     reason: 'human-dm' | 'bot-dm',
     prompt: string,
+    queue: () => void | Promise<void> = () => this.#scheduling.scheduleHarvest(botSlug),
   ): boolean {
     const active = this.#activeTurns.get(botSlug);
     if (active === undefined || this.#agents.steerOrchestrator === undefined) return false;
@@ -2597,97 +2634,29 @@ class BotRuntimeImplementation implements BotRuntime {
         messageId: row.message_id,
       })),
     ];
-    this.#channels.admissionChanged?.(channelId, messageId);
-    for (const row of claimed?.rows ?? [])
-      this.#channels.admissionChanged?.(channelId, row.message_id);
-    this.#markAdmissionsSideEffect(
-      botSlug,
-      admissions.map((admission) => admission.sourceEventId),
-    );
-    let delivered: boolean;
     const text = claimed === undefined ? prompt : `${prompt}\n\n${this.#dmContextSection(claimed)}`;
-    const sessionId = this.#turnSources.get(botSlug)?.sessionId;
-    const envelope = sessionId
-      ? this.#speakerInput(
-          botSlug,
-          sessionId,
-          admissions.map((a) => a.sourceEventId),
-          text,
-        )
-      : undefined;
-    try {
-      this.#requireTurnAccess(
-        botSlug,
-        admissions.map((a) => a.sourceEventId),
-      );
-      delivered = this.#steerWithMemory(botSlug, envelope?.text ?? text);
-      if (delivered) envelope?.commit();
-    } catch (error) {
-      this.#database.transaction(
-        (database) => {
-          for (const admission of admissions)
-            database
-              .prepare(
-                `
-          UPDATE inbox_admissions SET attempt_state = 'needs-repair', last_error = ?
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
-        `,
-              )
-              .run(String(error).slice(0, 500), admission.sourceEventId, botSlug);
-        },
-        ['bot-inbox'],
-      );
-      for (const admission of admissions)
-        this.#channels.admissionChanged?.(channelId, admission.messageId);
-      return true;
-    }
-    if (!delivered) {
-      this.#database.transaction(
-        (database) => {
-          for (const admission of admissions)
-            database
-              .prepare(
-                `
-          UPDATE inbox_admissions
-             SET attempt_state = 'pending', side_effect_started_at = NULL
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
-        `,
-              )
-              .run(admission.sourceEventId, botSlug);
-        },
-        ['bot-inbox'],
-      );
-      for (const admission of admissions)
-        this.#channels.admissionChanged?.(channelId, admission.messageId);
-      return false;
-    }
-    this.#noteSteeredChannel(botSlug, channelId);
-    this.#acceptTurnSources(
-      botSlug,
-      admissions.map((admission) => admission.sourceEventId),
-    );
-    for (const admission of admissions)
-      this.#observeAdmission(admission.sourceEventId, botSlug, channelId, admission.messageId);
-    const settlement = active.then(
-      () => this.#settleSteeredAdmission(admissions, botSlug, channelId, true),
-      () => this.#settleSteeredAdmission(admissions, botSlug, channelId, false),
-    );
-    this.#steerSettlements.add(settlement);
-    void settlement.finally(() => this.#steerSettlements.delete(settlement)).catch(() => undefined);
-    return true;
+    return this.#deliverChannelSteer(botSlug, channelId, active, admissions, text, queue);
   }
 
-  #steerWithMemory(botSlug: string, prompt: string): boolean {
+  #steerWithMemory(botSlug: string, prompt: string, requireAccess?: () => void) {
     if (this.#memoryTurnOperations.has(botSlug)) return false;
     const activeEvents = this.#activeMemoryEvents.get(botSlug);
     if (activeEvents === undefined || this.#memory?.scanChanges === undefined)
-      return this.#agents.steerOrchestrator?.(botSlug, prompt) ?? false;
-    const delivered = this.#steerMemoryInbox(botSlug, activeEvents, prompt);
-    recordSchedulingDiagnostic({
-      kind: 'steer',
-      turn: schedulingIdentity(activeEvents),
-      delivered,
-    });
+      return this.#agents.steerOrchestrator?.(botSlug, prompt, requireAccess) ?? false;
+    const delivery = this.#memoryEvents.steerMemoryInbox(
+      botSlug,
+      activeEvents,
+      prompt,
+      (text) => this.#agents.steerOrchestrator?.(botSlug, text, requireAccess) ?? false,
+    );
+    const record = (delivered: boolean) =>
+      recordSchedulingDiagnostic({
+        kind: 'steer',
+        turn: schedulingIdentity(activeEvents),
+        delivered,
+      });
+    if (typeof delivery === 'boolean') record(delivery);
+    else void delivery.then(record, () => record(false));
     this.#memoryEvents.scanMemoryWhileSteering(
       botSlug,
       activeEvents,
@@ -2696,30 +2665,15 @@ class BotRuntimeImplementation implements BotRuntime {
         this.#activeMemoryEvents.get(botSlug) === activeEvents &&
         !this.#memoryTurnOperations.has(botSlug),
       () => {
-        this.#steerMemoryInbox(botSlug, activeEvents, undefined);
+        void this.#memoryEvents.steerMemoryInbox(
+          botSlug,
+          activeEvents,
+          undefined,
+          (text) => this.#agents.steerOrchestrator?.(botSlug, text) ?? false,
+        );
       },
     );
-    return delivered;
-  }
-
-  #steerMemoryInbox(
-    botSlug: string,
-    activeEvents: { eventIds: string[]; preserveObservation: boolean },
-    prompt: string | undefined,
-  ): boolean {
-    const memoryInbox = this.#memoryEvents.collectMemoryInbox(botSlug, coalesceInbox);
-    if (prompt === undefined && memoryInbox.units.length === 0) return false;
-    const rendered =
-      memoryInbox.units.length === 0
-        ? undefined
-        : renderInbox(memoryInbox.units, this.#promptText(botSlug));
-    const text = [prompt, rendered].filter((part) => part !== undefined).join('\n\n');
-    const delivered = this.#agents.steerOrchestrator?.(botSlug, text) ?? false;
-    if (delivered) {
-      activeEvents.eventIds.push(...memoryInbox.eventIds);
-      this.#setObserved(memoryInbox.eventIds, this.#now().toISOString());
-    }
-    return delivered;
+    return delivery;
   }
 
   #claimDmContext(
@@ -2882,90 +2836,111 @@ class BotRuntimeImplementation implements BotRuntime {
         messageId: row.message_id,
       })),
     ];
-    this.#channels.admissionChanged?.(channelId, messageId);
-    for (const row of claimed?.rows ?? [])
-      this.#channels.admissionChanged?.(channelId, row.message_id);
-
-    this.#markAdmissionsSideEffect(
-      botSlug,
-      admissions.map((item) => item.sourceEventId),
+    const text = [mentionPrompt, ...(claimed ? [this.#groupContextSection(claimed)] : [])].join(
+      '\n\n',
     );
-    const body = [
-      mentionPrompt,
-      ...(claimed === undefined ? [] : [this.#groupContextSection(claimed)]),
-    ].join('\n\n');
-    const sessionId = this.#turnSources.get(botSlug)?.sessionId;
-    const envelope =
-      sessionId === undefined
-        ? undefined
-        : this.#speakerInput(
-            botSlug,
-            sessionId,
-            admissions.map((item) => item.sourceEventId),
-            body,
-          );
-    let delivered: boolean;
-    try {
-      this.#requireTurnAccess(
-        botSlug,
-        admissions.map((item) => item.sourceEventId),
+    return this.#deliverChannelSteer(botSlug, channelId, active, admissions, text, () =>
+      this.#scheduling.scheduleHarvest(botSlug),
+    );
+  }
+
+  #deliverChannelSteer(
+    botSlug: string,
+    channelId: string,
+    active: Promise<void>,
+    admissions: Array<{ sourceEventId: string; messageId: string }>,
+    text: string,
+    queue: () => void | Promise<void>,
+  ): boolean {
+    const turn = this.#turnSources.get(botSlug);
+    const sourceIds = admissions.map((item) => item.sourceEventId);
+    const envelope = turn && this.#speakerInput(botSlug, turn.sessionId, sourceIds, text);
+    const requireAccess = () => {
+      this.#requireTurnAccess(botSlug, sourceIds);
+      this.#requireMembership(botSlug, channelId);
+      this.#database.read((db) => {
+        for (const id of sourceIds) requireSourceEffects(db, id, botSlug);
+      });
+    };
+    const accepted = () => {
+      envelope?.commit();
+      this.#noteSteeredChannel(botSlug, channelId);
+      this.#acceptTurnSources(botSlug, sourceIds);
+      for (const { sourceEventId, messageId } of admissions)
+        this.#observeAdmission(sourceEventId, botSlug, channelId, messageId);
+      return active.then(
+        () => this.#settleSteeredAdmission(admissions, botSlug, channelId, true),
+        () => this.#settleSteeredAdmission(admissions, botSlug, channelId, false),
       );
-      delivered = this.#steerWithMemory(botSlug, envelope?.text ?? body);
-      if (delivered) envelope?.commit();
-    } catch (error) {
+    };
+    const restore = (error?: { cause: unknown }) => {
+      const now = this.#now().toISOString();
       this.#database.transaction(
-        (database) => {
-          for (const admission of admissions)
-            database
-              .prepare(
-                `
-          UPDATE inbox_admissions SET attempt_state = 'needs-repair', last_error = ?
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
-        `,
-              )
-              .run(String(error).slice(0, 500), admission.sourceEventId, botSlug);
+        (db) => {
+          for (const { sourceEventId } of admissions) {
+            const reply =
+              turn &&
+              this.#continuation.routingGroupReplyState(botSlug, turn.sessionId, sourceEventId);
+            const state =
+              reply === 'delivered'
+                ? 'handled'
+                : error || reply === 'uncertain'
+                  ? 'needs-repair'
+                  : 'pending';
+            db.prepare(`UPDATE inbox_admissions SET attempt_state = ?,
+            side_effect_started_at = CASE WHEN ? = 'pending' THEN NULL ELSE side_effect_started_at END,
+            handled_at = CASE WHEN ? = 'handled' THEN ? ELSE handled_at END,
+            last_error = ?
+            WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'`).run(
+              state,
+              state,
+              state,
+              now,
+              error ? String(error.cause).slice(0, 500) : null,
+              sourceEventId,
+              botSlug,
+            );
+          }
         },
         ['bot-inbox'],
       );
-      for (const admission of admissions)
-        this.#channels.admissionChanged?.(channelId, admission.messageId);
+      for (const { messageId } of admissions)
+        this.#channels.admissionChanged?.(channelId, messageId);
+    };
+    for (const { messageId } of admissions) this.#channels.admissionChanged?.(channelId, messageId);
+    let delivery: boolean | Promise<boolean>;
+    try {
+      requireAccess();
+      this.#markAdmissionsSideEffect(botSlug, sourceIds, false);
+      delivery = this.#steerWithMemory(botSlug, envelope?.text ?? text, requireAccess);
+    } catch (cause) {
+      restore({ cause });
       return true;
     }
-    if (!delivered) {
-      this.#database.transaction(
-        (database) => {
-          for (const admission of admissions)
-            database
-              .prepare(
-                `
-          UPDATE inbox_admissions
-             SET attempt_state = 'pending', side_effect_started_at = NULL
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
-        `,
-              )
-              .run(admission.sourceEventId, botSlug);
-        },
-        ['bot-inbox'],
-      );
-      for (const admission of admissions)
-        this.#channels.admissionChanged?.(channelId, admission.messageId);
-      return false;
+    if (typeof delivery === 'boolean') {
+      if (delivery) this.#trackSteer(accepted());
+      else restore();
+      return delivery;
     }
-    this.#noteSteeredChannel(botSlug, channelId);
-    this.#acceptTurnSources(
-      botSlug,
-      admissions.map((admission) => admission.sourceEventId),
+    const afterTurn = () => active.catch(() => undefined);
+    this.#trackSteer(
+      delivery.then(
+        (delivered) => {
+          if (delivered) return accepted();
+          return afterTurn().then(() => {
+            restore();
+            if (!this.#closed) return queue();
+          });
+        },
+        (cause: unknown) => afterTurn().then(() => restore({ cause })),
+      ),
     );
-    for (const admission of admissions)
-      this.#observeAdmission(admission.sourceEventId, botSlug, channelId, admission.messageId);
+    return true;
+  }
 
-    const settlement = active.then(
-      () => this.#settleSteeredAdmission(admissions, botSlug, channelId, true),
-      () => this.#settleSteeredAdmission(admissions, botSlug, channelId, false),
-    );
+  #trackSteer(settlement: Promise<void>): void {
     this.#steerSettlements.add(settlement);
     void settlement.finally(() => this.#steerSettlements.delete(settlement)).catch(() => undefined);
-    return true;
   }
 
   #settleSteeredAdmission(
@@ -3787,12 +3762,19 @@ class BotRuntimeImplementation implements BotRuntime {
 
   #acceptTurnSources(botSlug: string, sourceEventIds: readonly string[]): void {
     const turn = this.#turnSources.get(botSlug);
-    for (const id of sourceEventIds) turn?.acceptedEventIds.add(id);
+    if (turn === undefined) return;
+    for (const id of sourceEventIds) {
+      turn.eventIds.add(id);
+      turn.acceptedEventIds.add(id);
+    }
   }
 
-  #markAdmissionsSideEffect(botSlug: string, sourceEventIds: string[]): void {
+  #markAdmissionsSideEffect(botSlug: string, sourceEventIds: string[], recordInTurn = true): void {
     if (sourceEventIds.length === 0) return;
-    for (const id of sourceEventIds) this.#turnSources.get(botSlug)?.eventIds.add(id);
+    if (recordInTurn) {
+      const turn = this.#turnSources.get(botSlug);
+      if (turn !== undefined) for (const id of sourceEventIds) turn.eventIds.add(id);
+    }
     this.#database.transaction(
       (database) => {
         for (const id of sourceEventIds) {
@@ -4076,6 +4058,7 @@ class BotRuntimeImplementation implements BotRuntime {
     botSlug: string,
     channelId: string,
     messageId: string,
+    claimPending = false,
   ): void {
     const changed = this.#database.transaction(
       (database) =>
@@ -4083,11 +4066,13 @@ class BotRuntimeImplementation implements BotRuntime {
           .prepare(
             `
         UPDATE inbox_admissions
-           SET observed_at = COALESCE(observed_at, ?)
-         WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
+           SET observed_at = COALESCE(observed_at, ?), attempt_state = 'running',
+               last_error = CASE WHEN attempt_state = 'running' THEN last_error ELSE NULL END
+         WHERE source_event_id = ? AND bot_slug = ?
+           AND (attempt_state = 'running' OR (? AND attempt_state IN ('pending', 'retryable')))
       `,
           )
-          .run(this.#now().toISOString(), sourceEventId, botSlug).changes > 0,
+          .run(this.#now().toISOString(), sourceEventId, botSlug, Number(claimPending)).changes > 0,
       ['bot-inbox'],
     );
     if (changed) this.#channels.admissionChanged?.(channelId, messageId);
@@ -5750,7 +5735,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#setObserved(collected.eventIds, timestamp, bot.slug);
     try {
       tobCliTurn?.signal.throwIfAborted();
-      this.#observeAdmission(claim.sourceEventId, bot.slug, channelId, messageId);
+      this.#observeAdmission(claim.sourceEventId, bot.slug, channelId, messageId, true);
       await this.#runOnLiveOrchestrator(bot, orchestrator, (session) => {
         orchestrator = session;
         return this.#runOrchestratorTurn(
@@ -6020,7 +6005,7 @@ class BotRuntimeImplementation implements BotRuntime {
         preserveObservation = false;
       }
       const memoryInbox = observeMemory
-        ? this.#memoryEvents.collectMemoryInbox(bot.slug, coalesceInbox)
+        ? this.#memoryEvents.collectMemoryInbox(bot.slug)
         : { units: [], eventIds: [] };
       memoryEventIds = memoryInbox.eventIds;
       const units = [...inboxUnits, ...memoryInbox.units];
@@ -6078,6 +6063,27 @@ class BotRuntimeImplementation implements BotRuntime {
             this.#preparedOrchestrators.add(orchestrator.sessionId);
             this.#nativeStepReady.get(orchestrator.sessionId)?.(true);
           } else this.#preparedOrchestrators.delete(orchestrator.sessionId);
+        },
+        canUseEngineChannel: (id) => {
+          const turn = this.#turnSources.get(bot.slug);
+          if (turn?.sessionId !== orchestrator.sessionId) return false;
+          const channel = this.#channels.get(id);
+          if (channel === undefined || !this.#isMember(bot.slug, channel)) return false;
+          return (
+            turn.steeredChannelIds.has(id) ||
+            this.#turnSourceIn(bot.slug, id, readAdmissions, turn.acceptedEventIds) !== undefined
+          );
+        },
+        priorEngineReplies: () => {
+          const turn = this.#turnSources.get(bot.slug);
+          if (turn?.sessionId !== orchestrator.sessionId) return new Set();
+          return new Set(
+            [...turn.acceptedEventIds].filter(
+              (id) =>
+                this.#continuation.routingGroupReplyState(bot.slug, orchestrator.sessionId, id) !==
+                undefined,
+            ),
+          );
         },
         inputAccepted: () => envelope?.commit(),
         ...(acceptNativeInput === undefined ? {} : { acceptNativeInput }),
@@ -8631,8 +8637,9 @@ class BotRuntimeImplementation implements BotRuntime {
     botSlug: string,
     channelId: string,
     read: Iterable<string> = [],
+    turnSources: Iterable<string> = this.#turnSources.get(botSlug)?.eventIds ?? [],
   ): string | undefined {
-    const sources = [...new Set([...(this.#turnSources.get(botSlug)?.eventIds ?? []), ...read])];
+    const sources = [...new Set([...turnSources, ...read])];
     if (sources.length === 0) return undefined;
     const row = this.#database.read(
       (database) =>

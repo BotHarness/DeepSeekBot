@@ -362,6 +362,7 @@ export const bridgeMethodInventory = [
   'marketplaceAvatarList',
   'marketplaceAvatarDetail',
   'marketplaceAvatarPublish',
+  'marketplaceAvatarSource',
   'marketplaceAvatarApplyCandidates',
   'marketplaceAvatarApply',
   'marketplaceDetail',

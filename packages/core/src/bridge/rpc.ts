@@ -3174,6 +3174,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return marketplaceRpc.marketplaceAvatarApply(this.methods, id, bot, operationKey);
   }
 
+  marketplaceAvatarSource(bot: string): { image: string } {
+    return marketplaceRpc.marketplaceAvatarSource(this.methods, bot);
+  }
+
   async marketplaceAvatarPublish(
     name: string,
     image: string,
@@ -3781,6 +3785,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceAvatarList',
   'marketplaceAvatarDetail',
   'marketplaceAvatarPublish',
+  'marketplaceAvatarSource',
   'marketplaceAvatarApplyCandidates',
   'marketplaceAvatarApply',
   'marketplaceDetail',
