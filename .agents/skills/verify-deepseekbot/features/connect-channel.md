@@ -3,6 +3,7 @@
 ## Sources
 
 - `packages/core/src/devices/{connect,connect-*,bot-connect-*}.ts`
+- `packages/core/src/features/environments/connect-account*.ts`
 - `apps/mobile/src/host/{native-connect-account,connect-follow}.ts`
 - `packages/client/src/client/connect-panel.tsx`
 - `packages/connect-relay/src/{auth,cloudflare,relay,worker}.ts`
@@ -49,7 +50,7 @@ that Host retires its stored session while the control still refreshes. Never ca
 session IDs. For the implemented relay route, verify tombstone-first refusal, current identification,
 cancel without requests, explicit confirmation, slot recovery and no re-link after a watcher cycle.
 `packages/connect-relay/test/connect-relay.test.ts`,
-`packages/core/test/connect-account.test.ts`, `packages/core/test/cli-connect.test.ts` and
+`packages/core/test/connect-account*.test.ts`, `packages/core/test/cli-connect.test.ts` and
 `packages/client/test/connect-account-hosts.test.tsx` cover the corresponding source boundaries.
 Real Cloudflare/WorkOS, isolated Host/browser and production deploy are separate evidence gates;
 local fixtures cannot qualify the deployment. Mobile remote sign-out is deliberately deferred.
