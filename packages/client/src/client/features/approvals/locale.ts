@@ -82,7 +82,7 @@ export const zh = {
     '自动审批每次复核都会开一个短会话。默认不显示，打开后可以在 DeepSeek Harness 里查看它是怎么判断的。',
   'standing.badge': '常驻',
   'standing.usage': '{chars}/{limit}',
-  'standing.usageOver': '{chars}/{limit} · 少注入 {difference} 字符',
+  'standing.details.over': '{path} 有 {difference} 字符不会进入提示词。',
   'standing.import.reading': '正在检查常驻记忆用量…',
   'standing.import.within': '{path}：已用 {chars} / {limit} 字符，可再用 {difference} 字符。',
   'standing.import.over':
@@ -407,7 +407,7 @@ export const en = {
     'Auto approval opens a short session for each review. They stay hidden by default. Turn this on to see how each call was judged in DeepSeek Harness.',
   'standing.badge': 'Standing',
   'standing.usage': '{chars}/{limit}',
-  'standing.usageOver': '{chars}/{limit} · {difference} excluded',
+  'standing.details.over': '{path} has {difference} characters excluded from the prompt.',
   'standing.import.reading': 'Checking standing memory usage…',
   'standing.import.within': '{path}: {chars} / {limit} characters used, {difference} available.',
   'standing.import.over':

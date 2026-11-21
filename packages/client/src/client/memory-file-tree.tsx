@@ -10,6 +10,7 @@ import type { MemoryStandingUsage } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { memoryFileTree, type MemoryFileNode } from './memory-file-tree-model.js';
 import { IconButton } from './ds/icon-button.js';
+import { Note } from './ds/note.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 
 const styles = stylex.create({
@@ -127,7 +128,6 @@ function StandingBadge({
     percent: Math.round((usage.chars / usage.limit) * 100),
     chars: usage.chars.toLocaleString('en-US'),
     limit: usage.limit.toLocaleString('en-US'),
-    difference: (usage.chars - usage.limit).toLocaleString('en-US'),
   };
   return (
     <span
@@ -143,7 +143,7 @@ function StandingBadge({
         title={t('standing.usageTitle', counts)}
         {...stylex.props(styles.usage, over && styles.over)}
       >
-        {t(over ? 'standing.usageOver' : 'standing.usage', counts)}
+        {t('standing.usage', counts)}
       </span>
     </span>
   );
@@ -301,20 +301,32 @@ export function MemoryFileTree({
     });
 
   return (
-    <div
-      {...stylex.props(styles.tree)}
-      role="tree"
-      aria-label={t('entry.memoryFiles')}
-      onKeyDown={onTreeKeyDown}
-    >
-      {render(
-        memoryFileTree(
-          paths,
-          standing.map((usage) => usage.path),
-        ),
-      )}
-      {menu.menu}
-      {menu.feedback}
-    </div>
+    <>
+      {standing
+        .filter(({ chars, limit }) => chars > limit)
+        .map(({ path, chars, limit }) => (
+          <Note key={path} inset>
+            {t('standing.details.over', {
+              path,
+              difference: (chars - limit).toLocaleString('en-US'),
+            })}
+          </Note>
+        ))}
+      <div
+        {...stylex.props(styles.tree)}
+        role="tree"
+        aria-label={t('entry.memoryFiles')}
+        onKeyDown={onTreeKeyDown}
+      >
+        {render(
+          memoryFileTree(
+            paths,
+            standing.map((usage) => usage.path),
+          ),
+        )}
+        {menu.menu}
+        {menu.feedback}
+      </div>
+    </>
   );
 }
