@@ -4,6 +4,8 @@ export const zh = {
   'market.avatar.bots': 'Bot',
   'market.avatar.publish': '发布头像',
   'market.avatar.cropImage': '裁剪图片',
+  'market.avatar.cropTitle': '裁剪市场头像',
+  'market.avatar.cropDescription': '拖动图片调整位置，使用缩放滑块调整裁剪范围。',
   'market.avatar.sourceMissing': '此 Bot 没有保存的头像图片。',
   'market.avatar.apply': '应用',
   'market.avatar.applyTitle': '选择 Bot',
@@ -277,6 +279,9 @@ export const en = {
   'market.avatar.bots': 'Bots',
   'market.avatar.publish': 'Publish Avatar',
   'market.avatar.cropImage': 'Crop image',
+  'market.avatar.cropTitle': 'Crop Marketplace Avatar',
+  'market.avatar.cropDescription':
+    'Drag the image to move it and use the zoom slider to adjust the crop.',
   'market.avatar.sourceMissing': 'This Bot has no stored Avatar image.',
   'market.avatar.apply': 'Apply',
   'market.avatar.applyTitle': 'Choose a Bot',
