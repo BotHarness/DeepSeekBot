@@ -69,7 +69,7 @@ type StatusTone = 'success' | 'warning' | 'danger' | 'neutral';
 
 function StatusLabel({ tone, label }: { tone: StatusTone; label: string }): ReactElement {
   return (
-    <span {...stylex.props(styles.status)} data-account-status={tone}>
+    <span role="status" {...stylex.props(styles.status)} data-account-status={tone}>
       <span aria-hidden {...stylex.props(styles.dot, styles[tone])} />
       {label}
     </span>
@@ -121,21 +121,25 @@ function AccountMenu({
 }
 
 function CopyLinkButton({ url, t }: { url: string; t: BotHarnessTranslate }): ReactElement {
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<'copied' | 'failed'>();
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const copy = () => {
     clearTimeout(timer.current);
     void navigator.clipboard
       .writeText(url)
       .then(() => {
-        setCopied(true);
-        timer.current = setTimeout(() => setCopied(false), 2000);
+        setCopied('copied');
+        timer.current = setTimeout(() => setCopied(undefined), 2000);
       })
-      .catch(() => setCopied(false));
+      .catch(() => setCopied('failed'));
   };
   return (
     <Button size="sm" variant="outline" onClick={copy}>
-      {copied ? t('modelProviders.linkCopied') : t('modelProviders.copySignInLink')}
+      {copied === 'copied'
+        ? t('modelProviders.linkCopied')
+        : copied === 'failed'
+          ? t('modelProviders.copyFailed')
+          : t('modelProviders.copySignInLink')}
     </Button>
   );
 }
@@ -428,8 +432,14 @@ export function SubscriptionAccounts({
                     canManage || canSignIn ? (
                       <div {...stylex.props(styles.actions)}>
                         {signingIn ? (
-                          <Button variant="outline" onClick={() => engines.cancelSignIn()}>
-                            {t('modelProviders.cancelSignIn')}
+                          <Button
+                            variant="outline"
+                            disabled={engines.cancelling}
+                            onClick={() => void engines.cancelSignIn()}
+                          >
+                            {engines.cancelling
+                              ? t('modelProviders.cancellingSignIn')
+                              : t('modelProviders.cancelSignIn')}
                           </Button>
                         ) : canSignIn ? (
                           <Button
@@ -458,6 +468,9 @@ export function SubscriptionAccounts({
             })}
           </SidebarCardList>
         )}
+        {engines.cancelFailed ? (
+          <Note tone="danger">{t('modelProviders.cancelSignInFailed')}</Note>
+        ) : null}
         {engines.error === undefined ? null : (
           <Note tone="danger">{t('modelProviders.signInFailed')}</Note>
         )}

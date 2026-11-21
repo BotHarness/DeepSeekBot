@@ -256,6 +256,8 @@ export function useSubscriptionEngines(
   const [signingIn, setSigningIn] = useState<string>();
   const [signInUrl, setSignInUrl] = useState<string>();
   const [loginUrl, setLoginUrl] = useState<string>();
+  const [cancelling, setCancelling] = useState(false);
+  const [cancelFailed, setCancelFailed] = useState(false);
   const [error, setError] = useState<string>();
   const alive = useRef(false);
   const generation = useRef(0);
@@ -388,6 +390,7 @@ export function useSubscriptionEngines(
     setSigningIn(key);
     setSignInUrl(undefined);
     setLoginUrl(undefined);
+    setCancelFailed(false);
     setError(undefined);
     const login = accountId === undefined ? api.login(engine) : api.login(engine, accountId);
     void login.then(
@@ -432,19 +435,33 @@ export function useSubscriptionEngines(
     );
   };
 
-  const cancelSignIn = (): void => {
+  const cancelSignIn = async (): Promise<void> => {
+    const attempt = activeLogin.current;
     const target = activeTarget.current;
-    if (activeLogin.current === undefined || target === undefined) return;
-    activeLogin.current = undefined;
-    activeTarget.current = undefined;
-    clearTimeout(poll.current);
-    clearTimeout(deadline.current);
-    setSigningIn(undefined);
-    setSignInUrl(undefined);
-    setLoginUrl(undefined);
-    void (api.cancelLogin?.(target.engine, target.accountId) ?? Promise.resolve())
-      .catch(() => undefined)
-      .then(() => refresh(false));
+    if (attempt === undefined || target === undefined || cancelling) return;
+    setCancelling(true);
+    setCancelFailed(false);
+    try {
+      await (api.cancelLogin?.(target.engine, target.accountId) ?? Promise.resolve());
+    } catch {
+      if (alive.current) {
+        setCancelling(false);
+        setCancelFailed(true);
+      }
+      return;
+    }
+    if (!alive.current) return;
+    setCancelling(false);
+    if (activeLogin.current === attempt) {
+      activeLogin.current = undefined;
+      activeTarget.current = undefined;
+      clearTimeout(poll.current);
+      clearTimeout(deadline.current);
+      setSigningIn(undefined);
+      setSignInUrl(undefined);
+      setLoginUrl(undefined);
+    }
+    await refresh(false);
   };
 
   return {
@@ -453,6 +470,8 @@ export function useSubscriptionEngines(
     models,
     signIn,
     cancelSignIn,
+    cancelling,
+    cancelFailed,
     signingIn,
     signInUrl,
     loginUrl,
