@@ -42,6 +42,11 @@ import { nativeNotifications } from './native-notifications';
 import { notificationAvatars } from './native-notification-avatars';
 import { avatarInputs } from './notification-avatars';
 import { revokePairing } from '@botharness/host-client/pairing';
+import {
+  signInOwnerDevice,
+  type OwnerSignInError,
+  type OwnerSignInOptions,
+} from '@botharness/host-client/owner-sign-in';
 import { createHostPush, type PushDelivery } from '@botharness/host-client/push';
 import { createPushSession, type PushStatus } from './push-session';
 import { notificationPreferences } from './native-notification-preferences';
@@ -641,6 +646,53 @@ export const hostSession = {
     feeds.find((host) => host.saved.hostId === hostId),
   getSelectionRevision: (): number => selectionIntent,
   getSourceChangeRevision: (): number => sourceChangeRevision,
+  async signInOwner(
+    input: Pick<OwnerSignInOptions, 'route' | 'username' | 'password' | 'deviceName'> & {
+      signal: AbortSignal;
+    },
+  ): Promise<TeamResult<SavedHost, OwnerSignInError | 'storage-failed'>> {
+    let previous: SavedHost[];
+    try {
+      previous = await serialize(async () => stored.hosts);
+    } catch {
+      return { ok: false, code: 'storage-failed' };
+    }
+    const carrier = nativeCarrier();
+    const signed = await signInOwnerDevice({
+      ...input,
+      carrier,
+      previous: (id, route) =>
+        previous.find((host) => host.routes.includes(route)) ??
+        previous.find((host) => host.hostId === id),
+      allowExisting: () => false,
+    });
+    if (!signed.ok) return signed;
+
+    const host = signed.value;
+    let saved = false;
+    try {
+      return await serialize(async () => {
+        if (input.signal.aborted) return { ok: false, code: 'request-cancelled' };
+        if (
+          stored.hosts.some(
+            (item) => item.hostId === host.hostId || item.routes.includes(input.route),
+          )
+        )
+          return { ok: false, code: 'already-paired' };
+        const intent = ++selectionIntent;
+        sourceChangeRevision++;
+        const current = () => !input.signal.aborted && intent === selectionIntent;
+        saved = await commit(withHost(stored, host), 'pair', current);
+        if (!saved) return { ok: false, code: 'request-cancelled' };
+        void pushSession.enable(stored.hosts);
+        return signed;
+      });
+    } catch {
+      return { ok: false, code: 'storage-failed' };
+    } finally {
+      if (!saved) void revokePairing({ host, carrier }).catch(() => undefined);
+    }
+  },
   async pair(host: SavedHost, options: { confirmedIdentitySwitch?: boolean } = {}): Promise<void> {
     selectionIntent++;
     if (state.saved?.hostId !== host.hostId) sourceChangeRevision++;

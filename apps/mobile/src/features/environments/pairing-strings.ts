@@ -3,6 +3,15 @@ import type { PairingFailure } from '@botharness/host-client/pairing';
 
 export const en = {
   pairTitle: 'Pair with your computer',
+  ownerSignIn: {
+    hint: 'Use a trusted HTTPS address from the Host Owner.',
+    disabled: 'Password sign-in is turned off on this Host.',
+    alreadyPaired: 'This Host is already on this phone.',
+    storageFailed: 'Could not save this Host. Try again.',
+    failed: 'Could not sign in. Check the address and try again.',
+    credentialsInvalid: 'Check your username and password, then try again.',
+    fingerprintMismatch: 'The address identifies a different Host. Check it with the Owner.',
+  },
   allowCamera: 'Allow the camera to scan',
   pairImage: {
     choose: 'Choose QR image',
@@ -70,6 +79,8 @@ export const en = {
     refresh: 'Refresh',
   },
   pairChoice: {
+    owner: 'Sign in with username and password',
+    ownerDetail: 'Connect to your own Host using its HTTPS address.',
     private: 'Private connection',
     privateDetail: 'Recommended. No account or Docker needed.',
     privateHint:
@@ -189,6 +200,15 @@ export const en = {
 
 export const zh: typeof en = {
   pairTitle: '与电脑配对',
+  ownerSignIn: {
+    hint: '使用 Host Owner 提供的可信 HTTPS 地址。',
+    disabled: '此 Host 已关闭账密登录。',
+    alreadyPaired: '这台手机已添加此 Host。',
+    storageFailed: '保存 Host 失败，再试一次。',
+    failed: '登录失败，检查地址后重试。',
+    credentialsInvalid: '检查用户名和密码后重试。',
+    fingerprintMismatch: '此地址对应另一台 Host，请向 Owner 核对。',
+  },
   allowCamera: '允许使用相机扫码',
   pairImage: {
     choose: '从相册选择二维码',
@@ -255,6 +275,8 @@ export const zh: typeof en = {
     refresh: '刷新',
   },
   pairChoice: {
+    owner: '使用用户名和密码登录',
+    ownerDetail: '通过 HTTPS 地址连接自己的 Host。',
     private: '私有连接',
     privateDetail: '推荐。不需要账号或 Docker。',
     privateHint: '先在电脑上开启私有连接。它只公开加密的手机通道，并需要你在电脑上批准这台手机。',

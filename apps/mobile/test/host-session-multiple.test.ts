@@ -8,6 +8,10 @@ import {
   preferenceRetry,
 } from './host-session-fixture';
 import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import type { signInOwnerDevice } from '@botharness/host-client/owner-sign-in';
+
+const ownerSignIn = vi.hoisted(() => vi.fn<typeof signInOwnerDevice>());
+vi.mock('@botharness/host-client/owner-sign-in', () => ({ signInOwnerDevice: ownerSignIn }));
 vi.mock('expo-router', () => ({ useFocusEffect: () => undefined }));
 vi.mock('react-native', () => ({
   AppState: {
@@ -124,4 +128,52 @@ it('revokes the replaced member grant on the Host after a confirmed identity swi
   await vi.waitFor(() =>
     expect(host.requests).toContain('POST https://m.tailnet.ts.net/botharness-device/unpair'),
   );
+});
+
+it('keeps existing Hosts and commits only one grant from concurrent Owner sign-ins', async () => {
+  const existing = new FakeHost('existing');
+  const target = new FakeHost('target');
+  remotes.set('existing.tailnet.ts.net', existing);
+  remotes.set('target.tailnet.ts.net', target);
+  const firstHost = {
+    hostId: 'existing',
+    hostName: 'Existing Host',
+    routes: ['https://existing.tailnet.ts.net'],
+    deviceId: 'existing-device',
+    credential: existing.credential,
+  };
+  const targetHost = {
+    hostId: 'target',
+    hostName: 'Target Host',
+    routes: ['https://target.tailnet.ts.net'],
+    deviceId: 'first-owner-device',
+    credential: target.credential,
+  };
+  session = (await import('../src/host/host-session')).hostSession;
+  await session.pair(firstHost);
+  const existingClient = session.getHost(firstHost.hostId)?.client;
+  const first = Promise.withResolvers<Awaited<ReturnType<typeof signInOwnerDevice>>>();
+  ownerSignIn.mockReturnValueOnce(first.promise);
+  const second = Promise.withResolvers<Awaited<ReturnType<typeof signInOwnerDevice>>>();
+  ownerSignIn.mockReturnValueOnce(second.promise);
+  const input = {
+    route: 'https://target.tailnet.ts.net',
+    username: 'owner',
+    password: 'test-password',
+    deviceName: 'Test phone',
+    signal: new AbortController().signal,
+  };
+  const original = session.signInOwner(input);
+  const competing = session.signInOwner(input);
+  await vi.waitFor(() => expect(ownerSignIn).toHaveBeenCalledTimes(2));
+  first.resolve({ ok: true, value: targetHost });
+  expect(await original).toEqual({ ok: true, value: targetHost });
+  second.resolve({
+    ok: true,
+    value: { ...targetHost, deviceId: 'second-owner-device', credential: 'new-grant' },
+  });
+  expect(await competing).toEqual({ ok: false, code: 'already-paired' });
+  expect(session.getState().hosts).toEqual([firstHost, targetHost]);
+  expect(session.getHost(firstHost.hostId)?.client).toBe(existingClient);
+  expect(session.getState().saved).toEqual(targetHost);
 });

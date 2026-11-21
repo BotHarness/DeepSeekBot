@@ -40,6 +40,22 @@ export interface OwnerSignInOptions {
   signal?: AbortSignal;
 }
 
+export function ownerSignInOrigin(input: string): string | undefined {
+  const value = input.trim();
+  try {
+    const url = new URL(value.includes('://') ? value : 'https://' + value);
+    if (
+      isHttpsOrigin(url.origin) &&
+      !url.username &&
+      !url.password &&
+      !url.hash &&
+      !url.search &&
+      url.pathname === '/'
+    )
+      return url.origin;
+  } catch {}
+}
+
 export async function signInOwnerDevice(
   options: OwnerSignInOptions,
 ): Promise<TeamResult<SavedHost, OwnerSignInError>> {

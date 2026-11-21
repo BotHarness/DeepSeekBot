@@ -52,6 +52,7 @@ it('offers LAN, account sign-in and Tailscale through the existing pairing flow'
   expect(view.textContent).not.toContain(t.cloud.title);
   expect(view.querySelector('input')).toBeNull();
   expect(view.textContent).toContain(t.pairChoice.lan);
+  expect(view.textContent).toContain(t.pairChoice.owner);
   await act(async () =>
     view.querySelector<HTMLElement>('[data-testid="pair-choice-lan"]')!.click(),
   );
@@ -59,6 +60,11 @@ it('offers LAN, account sign-in and Tailscale through the existing pairing flow'
     pathname: '/pair/tailscale',
     params: { mode: 'lan' },
   });
+
+  await act(async () =>
+    view.querySelector<HTMLElement>('[data-testid="pair-choice-owner"]')!.click(),
+  );
+  expect(router.push).toHaveBeenLastCalledWith('/pair/owner');
 
   await act(async () =>
     view.querySelector<HTMLElement>('[data-testid="pair-choice-account"]')!.click(),

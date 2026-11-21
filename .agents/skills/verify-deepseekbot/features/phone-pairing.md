@@ -2,6 +2,8 @@
 
 ## Sources
 
+- `apps/mobile/app/pair/{_layout,index,owner}.tsx`
+- `apps/mobile/src/host/{host-session,native-carrier}.ts`
 - `apps/mobile/app/member-pairing.tsx`
 - `apps/mobile/src/host/{account-pairing,pairing-image}.ts`
 - `apps/mobile/src/ui/pairing-failure.ts`
@@ -15,6 +17,12 @@
 - Pairing
 - Paired Device
 - Host Relationship
+
+## Owner sign-in over HTTPS (#4900)
+
+In the shared device QA lanes, use two isolated Hosts with separate Feed markers and trusted HTTPS addresses. On each platform, start without a saved Host, then choose **Sign in with username and password** under **Pair with your computer**. The Host records an Owner password-enrolled device and the phone opens its Feed. Open the workspace drawer, choose **Add computer**, and sign in to the second Host through the same entry. Open each Feed and verify the markers stay scoped to their Host. Confirm a duplicate attempt leaves the original saved grant intact.
+
+Exercise an untrusted certificate, a redirect and a changed key for a saved Host. In each case, verify the Host receives no password. Correct a wrong credential and retry with the address and username still populated. Verify QR pairing, fingerprint comparison and approval from the same menu. Repeat the form with the software keyboard and default, intermediate and maximum text sizes in both themes. Save redacted visuals for the menu and form on each platform.
 
 ## Connect desktop self-check (#4170)
 
