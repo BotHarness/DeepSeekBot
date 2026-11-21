@@ -98,7 +98,7 @@ export function MaskedEmail({ email, t }: { email: string; t: BotHarnessTranslat
       variant="text"
       xstyle={aboveListToggle}
       aria-pressed={shown}
-      aria-label={shown ? t('modelProviders.hideEmail') : t('modelProviders.showEmail')}
+      aria-label={shown ? t('modelProviders.emailShown', { email }) : t('modelProviders.showEmail')}
       title={shown ? t('modelProviders.hideEmail') : t('modelProviders.showEmail')}
       data-account-email={shown ? 'shown' : 'masked'}
       onClick={() => setShown((value) => !value)}

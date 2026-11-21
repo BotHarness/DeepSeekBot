@@ -107,7 +107,12 @@ function parseStatus(
   if (entry === undefined || !isEngineId(engine)) return undefined;
   const detail =
     typeof entry['accountId'] === 'string' ? details.get(entry['accountId']) : undefined;
-  const quota = detail?.quota ?? parseSessionEngineQuota(entry['quota']);
+  const snapshot = detail?.quota;
+  const quota =
+    snapshot !== undefined &&
+    (Object.keys(snapshot.windows ?? {}).length > 0 || snapshot.usedPercent !== undefined)
+      ? snapshot
+      : (parseSessionEngineQuota(entry['quota']) ?? snapshot);
   const email = detail?.email;
   const base = {
     engine,

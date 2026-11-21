@@ -639,7 +639,8 @@ it('masks the bound email until clicked and shows remaining quota per window wit
     expect(page.host.textContent).not.toContain('vain.test@example.org');
     await page.click('显示完整邮箱');
     expect(page.host.textContent).toContain('vain.test@example.org');
-    await page.click('隐藏邮箱');
+    expect(page.button('vain.test@example.org，点击隐藏')).toBeDefined();
+    await page.click('vain.test@example.org，点击隐藏');
     expect(page.host.textContent).not.toContain('vain.test@example.org');
 
     expect(page.button('Claude Code · Work 的额度：剩余 50%')).toBeDefined();
