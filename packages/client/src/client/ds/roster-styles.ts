@@ -3,6 +3,8 @@ import * as stylex from '@stylexjs/stylex';
 import { dimension } from './dimensions.stylex.js';
 import { accent, ink, layer, radius, size, space, state, style, type } from './tobs.stylex.js';
 
+export const CHANNEL_LIST_AVATAR_SIZE = Number.parseInt(size.rowMedium, 10);
+
 export const rosterStyles = stylex.create({
   railGroup: {
     display: 'flex',

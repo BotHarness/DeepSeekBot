@@ -335,14 +335,10 @@ describe('Bot profile page', () => {
     await act(async () =>
       view.querySelector<HTMLButtonElement>('[data-testid="bot-avatar-settings-tilties"]')!.click(),
     );
-    expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(9);
+    expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(36);
     expect(view.querySelector('[data-testid="tilties-avatar-deepseek"]')).not.toBeNull();
-    const fantasy = [...view.querySelectorAll('button')].find((button) =>
-      ['Fantasy', '奇幻'].includes(button.textContent?.trim() ?? ''),
-    );
-    expect(fantasy).toBeDefined();
-    await act(async () => fantasy?.click());
-    expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(9);
+    expect(view.querySelector('[data-testid^="tilties-collection-"]')).toBeNull();
+    expect(view.querySelector('[data-testid="tilties-avatar-star-rail-robin"]')).toBeNull();
     await act(async () =>
       view
         .querySelector<HTMLButtonElement>('[data-testid="tilties-avatar-frost-archivist"]')!

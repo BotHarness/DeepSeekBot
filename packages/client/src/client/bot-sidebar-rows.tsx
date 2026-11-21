@@ -5,7 +5,8 @@ import { attachmentReferenceLabels } from './attachment-refs.js';
 import { humanIdOf, selfHumanId } from './self-human.js';
 import * as stylex from '@stylexjs/stylex';
 import { hooked } from './ds/hooked.js';
-import { rosterStyles } from './ds/roster-styles.js';
+import { avatarFrameStyles } from './ds/avatar-frame.js';
+import { CHANNEL_LIST_AVATAR_SIZE, rosterStyles } from './ds/roster-styles.js';
 import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { NavItem } from './ds/nav-item.js';
@@ -174,6 +175,7 @@ function BotRow({
     >
       <NavItem
         multiline
+        largeIcon
         current={selected}
         data={{ 'data-channel-id': channel.id }}
         className={`bh-contact${unread > 0 ? ' bh-has-unread' : ''}${bot.paused ? ' bh-paused' : ''}${muted ? ' bh-muted' : ''}${showShortcutHints && shortcut !== undefined ? ' bh-shortcut-active' : ''}${markerClass}${sourceClass}`}
@@ -218,7 +220,7 @@ function BotRow({
         }}
         iconDecorative={false}
         icon={
-          <span className="bh-row-avatar">
+          <span {...hooked('bh-row-avatar', avatarFrameStyles.channel)}>
             <PersonaBotAvatar
               t={t}
               personaBotId={bot.slug}
@@ -229,7 +231,8 @@ function BotRow({
               state={activity}
               activity={bot?.activity}
               attention={bot?.attention}
-              size={20}
+              size={CHANNEL_LIST_AVATAR_SIZE}
+              squareBackdrop
               indicator={false}
               still
             />
@@ -306,6 +309,7 @@ function ChannelRow({
   return (
     <NavItem
       multiline
+      largeIcon
       current={selected}
       data={{ 'data-channel-id': channel.id }}
       className={`bh-channel-row${unread > 0 ? ' bh-has-unread' : ''}${muted ? ' bh-muted' : ''}${showShortcutHints && shortcut !== undefined ? ' bh-shortcut-active' : ''}${markerClass}${sourceClass}`}
@@ -364,7 +368,7 @@ function ChannelRow({
         onMenu({ channelId: channel.id, x: rect.left + 8, y: rect.bottom });
       }}
       icon={
-        <span className="bh-row-avatar">
+        <span {...hooked('bh-row-avatar', avatarFrameStyles.channel)}>
           {isHumanDmChannel(channel) ? (
             <span className="bh-channel-slot" aria-hidden="true">
               {renderSidebarIcon({ name: 'user', size: 16 })}
@@ -375,7 +379,7 @@ function ChannelRow({
               bots={bots}
               className="bh-channel-slot"
               groupClassName="bh-group-channel-slot"
-              size={20}
+              size={CHANNEL_LIST_AVATAR_SIZE}
               hashSize={16}
               t={t}
             />
