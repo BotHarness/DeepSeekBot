@@ -122,7 +122,7 @@ const styles = stylex.create({
     paddingInline: space.x5,
     paddingTop: space.x4,
     paddingBottom: `calc(${space.x4} + var(--session-composer-overlay, 0px))`,
-    maskImage: `linear-gradient(to bottom, transparent, black ${space.x4}, black calc(100% - var(--session-composer-overlay, 0px)), transparent 100%)`,
+    maskImage: `linear-gradient(to bottom, transparent, black ${space.x4}, black calc(100% - var(--session-composer-overlay, 0px)), transparent calc(100% - var(--session-composer-overlay, 0px) + ${space.x4}))`,
     overscrollBehavior: 'contain',
   },
   quiet: {

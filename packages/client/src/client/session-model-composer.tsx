@@ -93,6 +93,7 @@ export function SessionModelComposer({
   const [saving, setSaving] = useState(false);
   const order = useRef(0);
   const trigger = useRef<HTMLButtonElement>(null);
+  const picked = useRef<{ key: string; name: string; brand: ModelMenuItem['brand'] }>(undefined);
   const mount = useMountedResource<HTMLSpanElement>(() => {
     if (saving) return;
     const request = ++order.current;
@@ -185,7 +186,15 @@ export function SessionModelComposer({
   })();
   const recorded = target?.model === undefined ? undefined : target;
   const visible = pending ? preferred : running ? (recorded ?? preferred) : (preferred ?? recorded);
-  const label = visible === undefined ? undefined : turnTargetLabel(visible, catalog);
+  const resolved = visible === undefined ? undefined : turnTargetLabel(visible, catalog);
+  const remembered = picked.current;
+  const label =
+    resolved !== undefined &&
+    visible?.model !== undefined &&
+    resolved.short === visible.model &&
+    remembered?.key === choiceKey(choice)
+      ? { ...resolved, short: remembered.name, brand: remembered.brand ?? resolved.brand }
+      : resolved;
   const group = choice?.kind === 'group' ? groups.find((item) => item.id === choice.id) : undefined;
   const name =
     label?.short ??
@@ -196,6 +205,9 @@ export function SessionModelComposer({
     if (items === undefined) return;
     const selected = items.choices.get(key);
     if (selected === undefined || saving) return;
+    const item = items.menu.find((entry) => entry.value === key);
+    if (item !== undefined && selected !== null && selected.kind !== 'group')
+      picked.current = { key: choiceKey(selected), name: item.label, brand: item.brand };
     order.current += 1;
     setSaving(true);
     onSaving(true);
