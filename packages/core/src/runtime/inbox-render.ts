@@ -1,6 +1,5 @@
 import type { ExternalSource } from '../messaging/inbound.js';
 import { mentionPeople, withMentionNames } from '../messaging/mention-text.js';
-import { sourceReplyCapability } from '../messaging/source-reply-capability.js';
 import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js';
 import type { AssignmentActivity } from '@botharness/host-protocol/wire';
 
@@ -58,7 +57,6 @@ export function inboxLine(unit: InboxUnit, text: PromptText = DEFAULT_PROMPT_TEX
       conversation: unit.external.conversationName,
       conversationKind: event.conversation.kind,
       conversationId: event.conversation.id,
-      replyCapability: sourceReplyCapability(unit.external),
       localChannelId: unit.external.localChannelId,
       receptionPaths: unit.external.receptionPaths?.map((path) => ({
         channelId: path.channelId,

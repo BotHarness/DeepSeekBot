@@ -75,14 +75,13 @@ export function createOutboundReplies(context: {
     )
       throw new MessagingError('capability-unavailable');
     if (ensureConsumer) await inbound.ensureReplyConsumer(botSlug, value.id, signal);
-    const route = await bounded(
-      entry.provider.qualifyReply({
-        accountRef: value.accountRef,
-        fingerprint: value.fingerprint,
-        route: source.event.reply,
-        signal,
-      }),
-    );
+    const qualification = entry.provider.qualifyReply({
+      accountRef: value.accountRef,
+      fingerprint: value.fingerprint,
+      route: source.event.reply,
+      signal,
+    });
+    const route = await (ensureConsumer ? qualification : bounded(qualification));
     signal.throwIfAborted();
     current(value.providerId, entry.token);
     sourceForReply(botSlug, source.id, value);
@@ -111,11 +110,11 @@ export function createOutboundReplies(context: {
     return qualifyProviderReply(botSlug, source, value, entry, signal, true);
   };
 
-  async function replyGrant(botSlug: string, source: ExternalSource, recordChanges: boolean) {
+  async function replyGrantId(botSlug: string, source: ExternalSource, recordChanges: boolean) {
     const ingress = database.read((db) =>
       db.prepare('SELECT bot_slug FROM messaging_grants WHERE id = ?').get(source.grantId),
     ) as { bot_slug: string } | undefined;
-    if (ingress?.bot_slug === botSlug) return context.grant(botSlug, source.grantId);
+    if (ingress?.bot_slug === botSlug) return source.grantId;
     const rows = database.read((db) =>
       db.prepare('SELECT body FROM messaging_grants WHERE bot_slug = ?').all(botSlug),
     ) as { body: string }[];
@@ -152,7 +151,7 @@ export function createOutboundReplies(context: {
       throw new MessagingError(
         matches.length ? 'reply-target-ambiguous' : 'own-reply-grant-unavailable',
       );
-    return matches[0]!;
+    return matches[0]!.id;
   }
 
   async function routedReply(
@@ -172,8 +171,8 @@ export function createOutboundReplies(context: {
         throw new MessagingError('source-unavailable');
       throw error;
     }
-    const value = await replyGrant(botSlug, source, true);
-    if (value.id === source.grantId) {
+    const grantId = await replyGrantId(botSlug, source, true);
+    if (grantId === source.grantId) {
       const result = await context.service.send(
         botSlug,
         source.grantId,
@@ -192,7 +191,7 @@ export function createOutboundReplies(context: {
         createHash('sha256')
           .update(JSON.stringify([botSlug, sourceEventId]))
           .digest('hex');
-    return context.service.send(botSlug, value.id, requestId, text, sourceEventId);
+    return context.service.send(botSlug, grantId, requestId, text, sourceEventId);
   }
 
   const methods: Pick<
@@ -205,7 +204,8 @@ export function createOutboundReplies(context: {
       const timeout = AbortSignal.timeout(10000);
       const probe = signal === undefined ? timeout : AbortSignal.any([signal, timeout]);
       try {
-        const value = await replyGrant(botSlug, source, false);
+        const grantId = await replyGrantId(botSlug, source, false);
+        const value = context.grant(botSlug, grantId);
         const entry = await check(value, undefined, false);
         const admitted = sourceForReply(botSlug, source.id, value);
         probe.throwIfAborted();

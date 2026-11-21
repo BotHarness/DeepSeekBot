@@ -8,6 +8,7 @@ import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
+import { messagingSource } from '../src/features/messaging/rpc.js';
 import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
 import { ToolCallId } from '@deepseek-ai/dsh-llm';
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
@@ -271,14 +272,30 @@ it('explains a non-addressed QQ source and prevents a proactive fallback in the 
   await fx.receive('ordinary-follow-up');
   await fx.receive('addressed-request', true);
   const run = fx.runs.at(-1)!;
-  const [ordinary, addressed] = ['ordinary-follow-up', 'addressed-request'].map((messageId) =>
-    run
+  const sourceFor = (messageId: string) => {
+    const sourceId = run
       .triage!.current()
-      .find((id) => run.externalMessaging?.read(id).event.messageId === messageId)!,
-  );
+      .find((id) => run.externalMessaging?.read(id).event.messageId === messageId);
+    if (sourceId === undefined) throw new Error(`Missing QQ source for ${messageId}`);
+    return sourceId;
+  };
+  const ordinary = sourceFor('ordinary-follow-up');
+  const addressed = sourceFor('addressed-request');
   const tool = createBotMessageTool(() => run);
-  const context = (id: string) =>
-    ({ callId: ToolCallId(id), signal: AbortSignal.timeout(5000) }) as ToolRunContext;
+  const send = async (id: string, args: Parameters<typeof tool.execute>[0]) => {
+    const callId = ToolCallId(id);
+    const execution: ToolRunContext = {
+      callId,
+      rootCallId: callId,
+      token: Symbol(id) as ToolRunContext['token'],
+      name: tool.name,
+      arguments: args,
+      signal: AbortSignal.timeout(5000),
+      deferContext: vi.fn(),
+      concludeTurn: vi.fn(),
+    };
+    return JSON.parse(String(await tool.execute(args, execution)));
+  };
   const body = 'Answer from the original group';
   const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
   const qualify = vi.fn<NonNullable<DshImOutboundService['qualifyReplyChecked']>>(
@@ -290,10 +307,8 @@ it('explains a non-addressed QQ source and prevents a proactive fallback in the 
     value: { source: { replyCapability: { state: 'unavailable', reason: 'qq-mention-required' } } },
   });
   expect(qualify).not.toHaveBeenCalled();
-  expect(await methods.messagingSource({ slug: 'ada', sourceEventId: addressed })).toMatchObject({
-    ok: true,
-    value: { source: { replyCapability: { state: 'provider-checked' } } },
-  });
+  const checked = await messagingSource(methods, 'ada', addressed);
+  expect(checked.source.replyCapability).toEqual({ state: 'provider-checked' });
   expect(qualify).toHaveBeenCalledWith(
     'own-app',
     expect.objectContaining({ conversationId: 'own-group', messageId: 'addressed-request' }),
@@ -308,22 +323,16 @@ it('explains a non-addressed QQ source and prevents a proactive fallback in the 
       source: { replyCapability: { state: 'unavailable', reason: 'reply-window-expired' } },
     },
   });
-  const failure = JSON.parse(
-    String(await tool.execute({ source_event_id: ordinary, body }, context('ordinary'))),
-  );
+  const failure = await send('ordinary', { source_event_id: ordinary, body });
   expect(failure).toMatchObject({ status: 'refused', reason: 'qq-mention-required' });
   expect(fx.transport.replyChecked).not.toHaveBeenCalled();
-  const fallback = JSON.parse(
-    String(await tool.execute({ grant_id: fx.otherGrant!.id, body }, context('fallback'))),
-  );
+  const fallback = await send('fallback', { grant_id: fx.otherGrant!.id, body });
   expect(fallback).toMatchObject({ status: 'refused', reason: 'reply-destination-required' });
   expect(fx.transport.sendChecked).not.toHaveBeenCalled();
   fx.transport.replyChecked = vi.fn(async () => {
     throw Object.assign(new Error('provider diagnostic'), { code: 'reply-window-expired' });
   });
-  const expired = JSON.parse(
-    String(await tool.execute({ source_event_id: addressed, body }, context('expired'))),
-  );
+  const expired = await send('expired', { source_event_id: addressed, body });
   expect(expired).toMatchObject({
     status: 'failed',
     reason: 'reply-window-expired',
@@ -339,9 +348,7 @@ it('explains a non-addressed QQ source and prevents a proactive fallback in the 
       conversationId: route.conversationId,
     },
   }));
-  const reply = JSON.parse(
-    String(await tool.execute({ source_event_id: addressed, body }, context('addressed'))),
-  );
+  const reply = await send('addressed', { source_event_id: addressed, body });
   expect(reply).toMatchObject({ status: 'committed', messageId: 'addressed-answer' });
 });
 
