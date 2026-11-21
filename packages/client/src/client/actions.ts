@@ -593,6 +593,7 @@ export function createActions(
     stopBot: sessionsActions.actions.stopBot,
     cancelAutoContinue: sessionsActions.actions.cancelAutoContinue,
     modelCatalog: modelsActions.modelCatalog,
+    subscriptionEngine: modelsActions.subscriptionEngine,
     setModelFavorite: modelsActions.setModelFavorite,
     modelPresets: modelsActions.modelPresets,
     routingGroups: modelsActions.routingGroups,
