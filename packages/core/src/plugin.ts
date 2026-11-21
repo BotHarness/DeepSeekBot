@@ -44,19 +44,14 @@ import { createWindowZoomSetup, WINDOW_ZOOM_SETUP_PATH } from './window-zoom/set
 import { nativeReleaseRuntime } from './release/compatibility.js';
 import { createFolderBrowser } from './workspaces/folder-browse.js';
 import { APPEARANCE_CONTROL_PATH, createAppearanceControl } from './appearance/control.js';
-import { VoiceProviders } from './voice/providers.js';
-import { createVoiceMessages, type VoiceMessages } from './voice/messages.js';
-import { createVoiceCalls, type VoiceCallMedia, type VoiceCalls } from './voice/calls.js';
-import { callVisualMessage, createCallTextHarvest } from './voice/call-text.js';
-import { voiceCallFramesAt, voiceCallRecordBody } from './channels/voice-call-record.js';
+import type { VoiceProviders } from './voice/providers.js';
+import type { createVoiceMessages, VoiceMessages } from './voice/messages.js';
+import type { VoiceCallMedia, VoiceCalls } from './voice/calls.js';
+import { createCallTextHarvest } from './voice/call-text.js';
 import { DESKTOP_WINDOW_PATH, createDesktopWindowReveal } from './desktop-window/reveal.js';
-import { VOICE_CALL_PATH } from './voice/call-contract.js';
-import { createVoiceCallHttp } from './voice/call-http.js';
-import { CloudConnections } from './cloud/connections.js';
-import { createCloudProvider } from './cloud/provider.js';
+import type { CloudConnections } from './cloud/connections.js';
 import { createChannelManagement, type ChannelManagementService } from './channels/management.js';
-import { CloudWork } from './cloud/work.js';
-import { createCloudWorkTool } from './cloud/work-tool.js';
+import type { CloudWork } from './cloud/work.js';
 import {
   createTobChannelOperations,
   TOB_CHANNEL_CAPABILITIES,
@@ -106,16 +101,7 @@ import {
 } from './tob/cli-maintenance-operations.js';
 import { cliModulePath, installTobCliShell } from './tob/cli-shell.js';
 import { ModelFreeTobCliInvocation } from './tob/cli-invocation.js';
-import { createTobVoiceOperations, TOB_VOICE_CAPABILITIES } from './tob/cli-voice-operations.js';
-import {
-  LOCAL_VOICE_SKILL_CONTENT,
-  LOCAL_VOICE_SKILL_DESCRIPTION,
-  LOCAL_VOICE_SKILL_INVOCATION,
-  LOCAL_VOICE_SKILL_NAME,
-  LOCAL_VOICE_SKILL_PROVIDER,
-  LOCAL_VOICE_SKILL_SOURCE,
-  LOCAL_VOICE_SKILL_WHEN_TO_USE,
-} from './voice/skill.js';
+import { TOB_VOICE_CAPABILITIES } from './tob/cli-voice-operations.js';
 import { approveTobCliOperation } from './tob/cli-approval.js';
 import { onboardingNewsAvailable } from './onboarding/search.js';
 import {
@@ -129,7 +115,7 @@ import { rememberedStarts, secretMcpDenial } from './credentials/secret-mcp.js';
 import { createSecretMcpStore } from './credentials/secret-mcp-store.js';
 import { createBotOnboarding, type BotOnboarding } from './onboarding/service.js';
 import type { PartLibrary } from './bots/part-library.js';
-import { createOutboundMessaging, type OutboundMessaging } from './messaging/outbound.js';
+import type { OutboundMessaging } from './messaging/outbound.js';
 import { createProfileRecovery, type ProfileRecovery } from './portability/recovery.js';
 import { createProfileBackupHttp, PROFILE_BACKUP_PATH } from './portability/http.js';
 import {
@@ -147,7 +133,6 @@ import { feedbackUploader } from './diagnostics/feedback-upload.js';
 import { feedbackLinks } from './diagnostics/feedback-links.js';
 import { mountContentPurge } from './purge/owner.js';
 import type { ContentPurge } from './purge/contracts.js';
-import { createDshImProvider } from './messaging/dsh-im.js';
 import { mkdirSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
 import { routingGroupEngineOptions } from './models/routing-group-engine-options.js';
@@ -211,8 +196,6 @@ import { recordGenuiPreviewDiagnostic } from './runtime/genui-preview.js';
 import { recordDatabaseStartup } from './diagnostics/database-startup.js';
 import { createCoreTakeoverHandoffs, mountTakeoverTools } from './takeover/mount.js';
 import { createTurnLog } from './diagnostics/turn-log.js';
-import { mountDevicePairing } from './devices/mount.js';
-import { activityListPushSource } from './push/source.js';
 import type { ConnectAccount } from './devices/connect-account.js';
 import {
   createLoadingReleaseService,
@@ -404,8 +387,6 @@ import {
   type BotStateTracker,
   type PersonaBotActivityEvent,
 } from './state/bot-state.js';
-import { ActivityToolDetails, createToolDetailIndex } from './state/tool-details.js';
-import { createDshActivityProjection } from './state/dsh-activity.js';
 import { readPublicToolDetail, toolKindForView } from './state/tool-activity.js';
 import { createUsageProjection, type UsageProjection } from './usage/usage.js';
 import { createMessagePerfTracker, type MessagePerfTracker } from './usage/message-perf.js';
@@ -418,21 +399,18 @@ import {
 import { installNativeSubagentWake } from './runtime/native-subagent-wake.js';
 import { restartEmptyToolSeries } from './runtime/tool-declaration-series.js';
 import type { PromptSettings } from './prompts/prompt-settings.js';
+import * as activityFeature from './features/activity/plugin.js';
 import * as avatars from './features/avatars/plugin.js';
+import * as cloud from './features/cloud/plugin.js';
+import * as environments from './features/environments/plugin.js';
 import * as marketplace from './features/marketplace/plugin.js';
+import * as messaging from './features/messaging/plugin.js';
 import * as promptPresets from './features/prompts/plugin.js';
 import * as botSchedules from './features/schedules/plugin.js';
 import * as skillsFeature from './features/skills/plugin.js';
+import * as voice from './features/voice/plugin.js';
 
 export const name = 'botharness-core';
-
-const PUSH_TOPICS = new Set([
-  'source-event',
-  'channel',
-  'human-attention',
-  'bot-inbox',
-  'assignments',
-]);
 
 const installedPackage = installedRelease(import.meta.url);
 stampReleaseComponent(apply, import.meta.url);
@@ -985,37 +963,35 @@ function initializeCore(
   const sourcePolicy = createBotSourcePolicyStore(
     attachOperationalModule(operationalDatabase, 'bot-inbox'),
   );
-  startup.enter('messaging', 'outbound');
-  const externalMessaging = createOutboundMessaging({
-    channels: {
-      get: (id) => channels.get(id),
-      getOrCreateDm: (human, slug) => channels.getOrCreateDm(human, slug),
+  const externalMessaging = messaging.apply(
+    startup,
+    operationalDatabase,
+    (slug) => registry.get(slug),
+    {
+      channels: {
+        get: (id) => channels.get(id),
+        getOrCreateDm: (human, slug) => channels.getOrCreateDm(human, slug),
+      },
+      ownsFailure: (slug, sessionId, role) => {
+        const owner = ownership.resolve(sessionId);
+        return owner?.botSlug === slug && owner.rootRole === role;
+      },
+      onAuthorizationChanged: (slug) => reconcileToolRuleCreators?.(slug),
+      onDefaultsChanged: () => live?.publishRosterCommitted(),
+      onReceptionChanged: () => live?.publishRosterCommitted(),
+      ...(options.capture === undefined ? {} : { capture: options.capture }),
+      attachments,
+      sourcePolicy,
+      onAdmitted: (slug, sourceEventId) => runtime?.admitExternalSource?.(slug, sourceEventId),
+      onPlaced: (commit) => live?.publishCommitted(commit),
+      onShared: (slugs) => {
+        for (const slug of slugs) runtime?.resumePendingDigests?.(slug);
+      },
+      onIngested: (channelId, messageId) => runtime?.admitGroupMessage(channelId, messageId),
+      ...(options.imCommands === undefined ? {} : { imCommands: options.imCommands }),
+      ...(options.warn === undefined ? {} : { warn: options.warn }),
     },
-    ownsFailure: (slug, sessionId, role) => {
-      const owner = ownership.resolve(sessionId);
-      return owner?.botSlug === slug && owner.rootRole === role;
-    },
-    onAuthorizationChanged: (slug) => reconcileToolRuleCreators?.(slug),
-    onDefaultsChanged: () => live?.publishRosterCommitted(),
-    onReceptionChanged: () => live?.publishRosterCommitted(),
-    ...(options.capture === undefined ? {} : { capture: options.capture }),
-    attachments,
-    database: attachOperationalModule(operationalDatabase, 'messaging'),
-    sourcePolicy,
-    onAdmitted: (slug, sourceEventId) => runtime?.admitExternalSource?.(slug, sourceEventId),
-    onPlaced: (commit) => live?.publishCommitted(commit),
-    onShared: (slugs) => {
-      for (const slug of slugs) runtime?.resumePendingDigests?.(slug);
-    },
-    onIngested: (channelId, messageId) => runtime?.admitGroupMessage(channelId, messageId),
-    ...(options.imCommands === undefined ? {} : { imCommands: options.imCommands }),
-    recover: operationalDatabase.mode === 'ready',
-    isBotActive: (slug) => {
-      const bot = registry.get(slug);
-      return operationalDatabase.mode === 'ready' && bot !== undefined && bot.paused !== true;
-    },
-    ...(options.warn === undefined ? {} : { warn: options.warn }),
-  });
+  );
   const initialGroupInvitationPolicy = options.autoAcceptGroupInvitations ?? (() => true);
   const assignmentLimits: { read: () => number }[] = [];
   const botHopLimits: { read: () => number }[] = [];
@@ -1400,26 +1376,14 @@ function initializeCore(
   const messagePerf: MessagePerfTracker = createMessagePerfTracker();
   startup.enter('prompt-settings', 'initialize');
   const prompts = promptPresets.apply({ dshHome, registry, ownership });
-  startup.enter('voice-providers', 'initialize');
-  const voiceProviders = new VoiceProviders({
-    database: attachOperationalModule(operationalDatabase, 'voice'),
-    credentials: options.credentials ?? (() => undefined),
-    ...(options.voiceFetch === undefined ? {} : { fetch: options.voiceFetch }),
-    ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
-  });
-  const voiceSpeech: {
-    speak?: Parameters<typeof createVoiceMessages>[0]['speak'];
-  } = {};
-  startup.enter('voice-messages', 'initialize');
-  const voiceMessages = createVoiceMessages({
-    providers: voiceProviders,
-    bot: (slug) => voiceProviders.effective(registry.get(slug)),
+  const { voiceProviders, voiceMessages, voiceSpeech, voiceZoom } = voice.apply(
+    startup,
+    operationalDatabase,
+    registry,
     channels,
-    attachments: () => attachments,
-    speak: async (input) => voiceSpeech.speak?.(input),
-    ...(options.voiceLog === undefined ? {} : { log: options.voiceLog }),
-  });
-  const voiceZoom: { zoom?: VoiceCalls['zoom'] | undefined } = {};
+    attachments,
+    options,
+  );
   startup.enter('bot-runtime', 'initialize');
   runtime = createBotRuntime({
     ...(options.routeRests === undefined ? {} : { routeRests: options.routeRests }),
@@ -2490,52 +2454,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   ctx.provide('botharnessResourcePublisher', (resource) =>
     core.live.publishResourceChanged(resource),
   );
-  mountDevicePairing(ctx, {
+  environments.apply(ctx, core, {
     team,
-    onDevicesChanged: () => core.live.publishResourceChanged('devices'),
-    onAccountChanged: () => core.live.publishResourceChanged('account'),
     calls: () => voiceCalls,
-    botNetwork: {
-      registry: core.registry,
-      channels: core.channels,
-      admitBotDmMessage: (channelId, messageId) =>
-        core.runtime.admitBotDmMessage(channelId, messageId),
-      withdrawNetworkMembership: (hostId) => core.runtime.withdrawNetworkMembership(hostId),
-      available: (port) => {
-        botNetwork = port;
-      },
+    onNetwork: (port) => {
+      botNetwork = port;
     },
     telemetry,
     onAccount: (account) => {
       connectAccount = account;
     },
-    requestStatus: (channelId, messageId) => core.channels.humanSendStatus?.(channelId, messageId),
-    database: core.operationalDatabase,
     dshHome,
     packageAnchors: releaseAnchors,
-    credentials: () => ctx.get('credentials'),
-    push: {
-      source: activityListPushSource(
-        core.humanAttention,
-        (slug) => core.registry.get(slug)?.displayName,
-        (channelId, messageId) => core.channels.message(channelId, messageId)?.toolApprovalRequest,
-      ),
-      watch: (changed) => {
-        const offDatabase = core.operationalDatabase.subscribe(({ topics }) => {
-          if (topics.some((topic) => PUSH_TOPICS.has(topic))) changed();
-        });
-        const offActivity = core.states.onActivity((event) => {
-          if (event.cause === 'attention-changed') changed();
-        });
-        const offPresence = presence.subscribe(changed);
-        return () => {
-          offDatabase();
-          offActivity();
-          offPresence();
-        };
-      },
-      held: (human) => presence.active(human),
-    },
+    push: activityFeature.createPush(core, presence),
   });
   if (core.operationalDatabase.mode === 'ready' && telemetryState.lockedBy === undefined) {
     const usageDatabase = attachOperationalModule(core.operationalDatabase, 'telemetry');
@@ -2606,27 +2537,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   const takeovers = createCoreTakeoverHandoffs(ctx, core, diagnosticEvents);
   mountTakeoverTools(ctx, core, takeovers);
-  ctx.effect(() => () => core.externalMessaging.close(), 'botharness: external messaging');
-  const cloudConnections = new CloudConnections(
-    attachOperationalModule(core.operationalDatabase, 'messaging'),
-    () => ctx.get('credentials'),
-    undefined,
-    (phase, id) => ctx.logger.info('cloud-connection %j', { phase, id }),
-  );
-  core.cloudConnections = cloudConnections;
-  const cloudWork = new CloudWork(
-    attachOperationalModule(core.operationalDatabase, 'messaging'),
-    cloudConnections,
-    core.externalMessaging.inbound,
-    (slug) => {
-      const bot = core.registry.get(slug);
-      return bot !== undefined && bot.paused !== true;
-    },
-    (phase, requestId) => ctx.logger.info('cloud-work %j', { phase, requestId }),
-  );
-  core.cloudWork = cloudWork;
-  ctx.effect(() => () => cloudWork.close(), 'botharness: cloud work');
-  core.hostTools.add('cloud_work');
+  messaging.mountCleanup(ctx, core);
+  const { cloudConnections, cloudWork } = cloud.apply(ctx, core);
   ctx.effect(
     () =>
       core.contributeEngineTools(({ botSlug }) =>
@@ -2641,44 +2553,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     'botharness: engine Memory tool names',
   );
-  ctx.effect(
-    () => () => {
-      core.hostTools.delete('cloud_work');
-    },
-    'botharness: cloud work tool name',
-  );
-  ctx.effect(
-    () =>
-      core.contributeBotAgentSetup((agentCtx, agent, info) => {
-        if (info.rootRole === 'orchestrator')
-          agentCtx.tools.register(
-            createCloudWorkTool(
-              cloudWork,
-              info.botSlug,
-              (call) =>
-                call.agent === agent &&
-                ctx.agents.get(agent.id) === agent &&
-                core.ownership.resolve(agent.session.id)?.botSlug === info.botSlug,
-            ),
-          );
-      }),
-    'botharness: cloud work tool',
-  );
-  ctx.effect(() => () => cloudConnections.close(), 'botharness: cloud connections');
-  if (core.operationalDatabase.mode === 'ready')
-    ctx.effect(() =>
-      core.externalMessaging.register(
-        createCloudProvider(cloudConnections, (phase, id, code) =>
-          ctx.logger.info('cloud-messaging %j', { phase, id, code }),
-        ),
-      ),
-    );
-  ctx.inject(['dshIm'], (child) => {
-    for (const platform of ['feishu', 'slack', 'discord', 'weixin', 'qq'] as const) {
-      const provider = createDshImProvider(child.get('dshIm'), platform);
-      if (provider !== undefined) child.effect(() => core.externalMessaging.register(provider));
-    }
-  });
+  cloud.mount(ctx, core, cloudConnections, cloudWork);
+  messaging.mountProviders(ctx, core);
 
   const permissionDenial = (session: import('@deepseek-ai/dsh-session').Session) =>
     grantExecutionDenial(core, session, ctx.get('sandboxPolicy'), ctx.get('approval'));
@@ -3069,10 +2945,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     core.team.approvals,
     (query) => core.runtime.hasDirectToolInvocation?.(query) === true,
   );
-  ctx.effect(
-    () => core.externalMessaging.approvals.attach(toolApproval, core.channels),
-    'botharness: approved IM tool controls',
-  );
+  messaging.mountApprovals(ctx, core, toolApproval);
   ctx.effect(
     () => core.companions.attachApprovals(toolApproval),
     'botharness: companion approval observation',
@@ -3117,11 +2990,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       ),
     'botharness: approval projection status',
   );
-  if (core.operationalDatabase.mode === 'ready')
-    ctx.effect(
-      () => core.externalMessaging.questions.attach(userQuestions, core.channels),
-      'botharness: checked IM question answers',
-    );
+  messaging.mountQuestions(ctx, core, userQuestions);
   const approvedCalls = new Map<symbol, (name: string, args: unknown) => boolean>();
   const deviceCallReleases = new Map<symbol, () => void>();
   ctx.effect(() => () => approvedCalls.clear(), 'botharness: one-call approval execution fences');
@@ -4093,128 +3962,20 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     registry: core.registry,
     isProtectedBot: (slug) => core.tob.isTob(slug),
   });
-  voiceCalls = createVoiceCalls({
-    bot: (slug) => core.voiceProviders.effective(core.registry.get(slug)),
-    speechDbfs: () => core.voiceProviders.speechThreshold().dbfs,
-    async seesImages(slug) {
-      const route =
-        core.registry.get(slug)?.modelPlan?.orchestrator ?? modelCatalog.defaultRoute?.();
-      if (route === undefined) return true;
-      const info = await ctx.llm.resolveModelInfo(route.provider, route.model);
-      return info.inputModalities === undefined || info.inputModalities.includes('image');
+  const tobVoiceOperations = voice.mountCalls(
+    ctx,
+    core,
+    modelCatalog,
+    bridgeMethods,
+    diagnosticEvents,
+    () => (ctx.get('botharnessComputer') as { callMedia?: VoiceCallMedia } | undefined)?.callMedia,
+    (calls) => {
+      voiceCalls = calls;
     },
-    providers: core.voiceProviders,
-    media: () =>
-      (ctx.get('botharnessComputer') as { callMedia?: VoiceCallMedia } | undefined)?.callMedia,
-    async send({ channelId, messageId, body, callId, speech, visual }) {
-      const { attachments, meta } = await callVisualMessage(core.attachments, messageId, visual);
-      const result = await bridgeMethods.channelSend({
-        channelId,
-        messageId,
-        body,
-        ...(attachments === undefined ? {} : { attachments }),
-        voiceCall: {
-          callId,
-          ...(speech === undefined ? {} : { speechFromMs: speech.fromMs, speechToMs: speech.toMs }),
-          ...(meta === undefined ? {} : { visual: meta }),
-        },
-      });
-      if (!result.ok)
-        throw Object.assign(new Error(result.error.message), {
-          code: result.error.code,
-        });
+    (drafts) => {
+      voiceDrafts = drafts;
     },
-    async recordFrames({
-      slug,
-      channelId,
-      callId,
-      startedAt,
-      source,
-      image,
-      frames,
-      fromMs,
-      toMs,
-    }) {
-      if (core.channels.get(channelId) === undefined) return undefined;
-      const record = {
-        callId,
-        botSlug: slug,
-        state: 'frames' as const,
-        startedAt,
-        source,
-        frames,
-        layout: image.layout,
-        fromMs,
-        toMs,
-      };
-      const attachment = await core.attachments.upload({
-        data: (async function* () {
-          yield image.jpeg;
-        })(),
-        name: `call-${source}-record-${Math.round(toMs / 1000)}s.jpg`,
-      });
-      const appended = await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
-        id: `voice-call-frames-${callId}-${toMs}`,
-        at: voiceCallFramesAt(startedAt, toMs, Date.now()),
-        author: { kind: 'system' },
-        body: voiceCallRecordBody(record),
-        attachments: [attachment],
-        voiceCallRecord: record,
-      });
-      return appended?.id;
-    },
-    async record({ slug, channelId, record }) {
-      const bot = core.registry.get(slug);
-      if (core.channels.get(channelId) === undefined)
-        core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug, bot?.displayName);
-      const appended = await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channelId, {
-        id:
-          'atMs' in record
-            ? `voice-call-${record.state}-${record.callId}-${record.atMs}`
-            : `voice-call-${record.state}-${record.callId}`,
-        at:
-          record.state === 'started'
-            ? record.startedAt
-            : record.state === 'ended'
-              ? record.endedAt
-              : new Date(Date.parse(record.startedAt) + record.atMs).toISOString(),
-        author: { kind: 'system' },
-        body: voiceCallRecordBody(record),
-        voiceCallRecord: record,
-      });
-      return appended?.id;
-    },
-    busy: (slug) => {
-      const overview = bridgeMethods.activityOverview({});
-      return (
-        overview.ok &&
-        overview.value.bots.some(
-          (bot) =>
-            bot.slug === slug && bot.sessions.some((session) => session.role === 'orchestrator'),
-        )
-      );
-    },
-    log: (phase, fields) => diagnosticEvents.record('voice', phase, fields),
-  });
-  const calls = voiceCalls;
-  core.voiceSpeech.speak = (input) => calls.speak(input);
-  core.voiceZoom.zoom = (input) => calls.zoom(input);
-  voiceDrafts = (event) => calls.draft(event);
-  ctx.effect(
-    () => async () => {
-      core.voiceSpeech.speak = undefined;
-      core.voiceZoom.zoom = undefined;
-      voiceDrafts = () => undefined;
-      voiceCalls = undefined;
-      await calls.dispose();
-    },
-    'botharness: voice calls',
   );
-  const tobVoiceOperations = createTobVoiceOperations({
-    providers: () => core.voiceProviders,
-    registry: core.registry,
-    isProtectedBot: (slug) => core.tob.isTob(slug),
-  });
   registerBridge(
     ctx,
     invocationBridgeMethods,
@@ -4240,15 +4001,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   skills.mountNative({
     developerMode,
     getRegistrar: (skillsCtx) => (skillsCtx as unknown as { skills: SkillRegistrar }).skills,
-    localVoiceSkill: () => ({
-      name: LOCAL_VOICE_SKILL_NAME,
-      description: LOCAL_VOICE_SKILL_DESCRIPTION,
-      whenToUse: LOCAL_VOICE_SKILL_WHEN_TO_USE,
-      content: LOCAL_VOICE_SKILL_CONTENT,
-      invocation: LOCAL_VOICE_SKILL_INVOCATION,
-      source: LOCAL_VOICE_SKILL_SOURCE,
-      provider: LOCAL_VOICE_SKILL_PROVIDER,
-    }),
+    localVoiceSkill: voice.localVoiceSkill,
   });
 
   ctx.inject(['connection'], (connectionCtx) => {
@@ -4370,16 +4123,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         fetch: desktopWindow.fetch,
       });
     }, 'botharness: bring the Desktop window back from a notification');
-    connectionCtx.effect(
-      () =>
-        connection.fetch.register({
-          path: VOICE_CALL_PATH,
-          methods: ['POST'],
-          requestBody: 'buffered',
-          fetch: createVoiceCallHttp(() => voiceCalls),
-        }),
-      'botharness: Bot calls (Host owner and CLI)',
-    );
+    voice.mountFetch(connectionCtx, connection.fetch, () => voiceCalls);
     connectionCtx.effect(() => {
       return connection.fetch.register({
         path: CHANNEL_STREAM_PATH,
@@ -4602,35 +4346,12 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         }),
     });
   });
-  const toolDetails = createToolDetailIndex({
-    owner: (sessionId) => core.ownership.resolve(sessionId),
-    repairRevision: (sessionId) => core.ownership.repairRevision(sessionId),
-    events: (sessionId) => dshSessions.get(sessionId)?.snapshotEvents(),
-  });
-  new ActivityToolDetails(
+  const activity = activityFeature.apply(
     ctx,
-    toolDetails,
-    [...(config.activityDetailConsumers ?? [])],
-    (event) => {
-      ctx.logger.info(
-        `activity-tool-detail consumer=${event.consumer} outcome=${event.outcome} bytes=${event.bytes}`,
-      );
-    },
-  );
-  ctx.effect(() => () => toolDetails.clear(), 'botharness: Activity Tool detail references');
-  const activity = createDshActivityProjection({
-    details: toolDetails,
-    ownership: core.ownership,
-    states: core.states,
-    running: (sessionId) =>
-      ctx.agents
-        .list()
-        .some((agent) => agent.session.id === sessionId && agent.status === 'running'),
-    describeCall: (sessionId, name, args) => describeToolCall(ctx, sessionId, name, args),
-    assignmentTitle: (botSlug, sessionId) => core.runtime.getAssignment(botSlug, sessionId)?.title,
-  });
-  ctx.effect(() =>
-    core.states.onActivity((event) => ctx.emit('botharness/personabot/activity', event)),
+    core,
+    dshSessions,
+    config.activityDetailConsumers,
+    (sessionId, name, args) => describeToolCall(ctx, sessionId, name, args),
   );
 
   ctx.on(

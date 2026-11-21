@@ -5,6 +5,7 @@ One Windows x64 primary display reaches one Android viewer through a supervised 
 ## Sources
 
 - `packages/computer/src/local-video-*.ts`
+- `packages/computer/src/computer-pause-store.ts`
 - `packages/computer/native/local-video/{main.cjs,preload.cjs,renderer.html,renderer.js,launcher.cs,launcher-macos.cjs}`
 - `apps/mobile/src/host/local-video-*.ts`
 - `apps/mobile/src/ui/chat/{local-video-notice.ts,local-computer-screen.android.tsx}`
