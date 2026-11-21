@@ -654,7 +654,6 @@ export function createSessionsBridgeMethods(
       const roots = deps.ownership.rootsFor(slug);
       const subagentCounts = deps.ownership.subagentCounts(roots.map((root) => root.sessionId));
       const plan = deps.registry.get(slug)?.modelPlan;
-      const fallbackRoute = deps.defaultModel?.currentSelection();
       const sessions = roots.map((root) => {
         const assignment = assignments.get(root.sessionId);
         const subagentCount = subagentCounts.get(root.sessionId);
@@ -666,7 +665,7 @@ export function createSessionsBridgeMethods(
               (root.rootRole === 'assignment'
                 ? (assignment?.modelRoute ?? plan?.assignmentDefault)
                 : plan?.orchestrator) ??
-              fallbackRoute);
+              deps.defaultModel?.currentSelection(root.rootRole));
         return {
           sessionId: root.sessionId,
           role: root.rootRole,

@@ -35,7 +35,7 @@ node scripts/dev-instance.mjs --home <isolated-DSH_HOME> --port <n> --build
 ```
 
 Each launch reads the shared selection, injects only `OPENCODE_GO_API_KEY` into its child Host,
-and adds a final launch Patch for native `llm-pi-ai` and `agent-default-model`. The Patch contains
+and adds a final launch Patch for native `llm-pi-ai` and `agent-default-model`. On a fresh BotHarness Profile, the migration copies that native selection into the pinned Default preset. For a reused BotHarness Profile, use `deepseekbot model-default` to read the current preset and `home-model-set` to change it. The Patch contains
 the credential reference, preserves other Provider configuration, and selects the requested
 model without copying any Profile credential store. It retains DSH's native request attribution
 and real Session handling. Existing Profiles and independently launched Hosts are untouched.

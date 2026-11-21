@@ -178,18 +178,26 @@ export class EngineHost {
 
   engineFor(botSlug: string, role: EngineRole = 'orchestrator'): EngineId | undefined {
     if (!this.#options.local) return undefined;
-    return this.store.selection(botSlug, role);
+    return (
+      this.store.selection(botSlug, role) ?? this.#options.inheritedChoice?.(botSlug, role)?.engine
+    );
+  }
+
+  #choice(botSlug: string, role: EngineRole): EngineChoice {
+    if (this.store.selection(botSlug, role) !== undefined) return this.store.choice(botSlug, role);
+    const { engine: _engine, ...choice } = this.#options.inheritedChoice?.(botSlug, role) ?? {};
+    return choice;
   }
 
   choiceFor(botSlug: string, role: EngineRole = 'orchestrator'): string | undefined {
-    return choiceKey(this.engineFor(botSlug, role), this.store.choice(botSlug, role));
+    return choiceKey(this.engineFor(botSlug, role), this.#choice(botSlug, role));
   }
 
   #directSelection(request: EngineTurnRequest) {
     const role = request.role ?? 'orchestrator';
     return {
       engine: this.engineFor(request.botSlug, role),
-      choice: this.store.choice(request.botSlug, role),
+      choice: this.#choice(request.botSlug, role),
     };
   }
 
@@ -231,9 +239,9 @@ export class EngineHost {
   orchestratorRunner(botSlug: string): OrchestratorRunner | undefined {
     const engine = this.engineFor(botSlug);
     if (engine === undefined) return undefined;
+    const choice = this.#choice(botSlug, 'orchestrator');
     const account = this.store.account(botSlug, engine) ?? this.#previousAccount(botSlug, engine);
-    const model =
-      this.store.choice(botSlug, 'orchestrator').model ?? this.store.model(botSlug, engine);
+    const model = choice.model ?? this.store.model(botSlug, engine);
     return {
       engine,
       displayName: ENGINE_DEFINITIONS[engine].displayName,
@@ -270,13 +278,17 @@ export class EngineHost {
   }
 
   fallsBack(botSlug: string, role: EngineRole = 'orchestrator'): boolean {
-    return this.engineFor(botSlug, role) !== undefined && this.store.fallback(botSlug, role);
+    return (
+      this.#options.local &&
+      this.store.selection(botSlug, role) !== undefined &&
+      this.store.fallback(botSlug, role)
+    );
   }
 
   runsOnEngine(botSlug: string, role: EngineRole = 'orchestrator'): boolean {
     const engine = this.engineFor(botSlug, role);
     if (engine === undefined) return false;
-    const { accountId } = this.store.choice(botSlug, role);
+    const { accountId } = this.#choice(botSlug, role);
     this.#requireAccountGrant(botSlug, engine, accountId);
     return !(this.fallsBack(botSlug, role) && this.limit(engine, accountId) !== undefined);
   }
@@ -291,7 +303,7 @@ export class EngineHost {
         'This Bot does not run its Assignments on a Subscription Engine',
       );
     const accountId =
-      target === undefined ? this.store.choice(botSlug, 'assignment').accountId : target.accountId;
+      target === undefined ? this.#choice(botSlug, 'assignment').accountId : target.accountId;
     this.#requireAccountGrant(botSlug, engine, accountId);
     const limited = this.limit(engine, accountId);
     if (limited !== undefined) throw new EngineLimitError(engine, limited.account, limited.until);

@@ -793,7 +793,7 @@ describe('M10 member usage and role models', () => {
       name: 'Nested',
       members: [{ kind: 'group', id: mixed.id }],
     });
-    f.deps.routingGroups.setDefaultGroup(nested.id, 0);
+    f.deps.modelPresets.migrateDefault({ main: permitted, groupId: nested.id });
     const catalog = await f.methods.modelCatalog({});
     expect(catalog).toMatchObject({ ok: true, value: { models: [permitted], groups: [] } });
     expect(JSON.stringify(catalog)).not.toContain(nested.id);

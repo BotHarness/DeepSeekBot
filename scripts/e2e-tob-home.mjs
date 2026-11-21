@@ -410,17 +410,8 @@ try {
   );
   steps.push('concurrent Tob identity converges');
   if (phase === 'configure') {
-    const desc = await rpc('describe', {}, 'settings');
-    const d = desc.namespaces.find((x) => x.ns === 'agent-default-model');
-    await rpc(
-      'update',
-      {
-        ns: d.ns,
-        patch: { provider: 'tob-qa-unconfigured', model: 'unconfigured' },
-        expectedRevision: d.revision,
-      },
-      'settings',
-    );
+    const { default: before } = await rpc('modelCatalog');
+    assert.ok(before?.provider && before?.model, 'Default preset fixture has no route');
     await page.reload({ waitUntil: 'networkidle2' });
     await showTobDm(true);
     const draft = 'QA draft kept while the default model is configured';
@@ -430,10 +421,10 @@ try {
       .length;
     await click('Bot settings');
     await click('Models');
-    await click('tob-qa-unconfigured / unconfigured');
+    await click(`${before.provider} / ${before.model}`);
     await shot('model-required');
     await click('Close');
-    await click('tob-qa-unconfigured / unconfigured');
+    await click(`${before.provider} / ${before.model}`);
     await shot('model-dialog');
     const picker = await page.$('[role="dialog"] [role="combobox"]');
     if (picker) await picker.click();
@@ -441,11 +432,10 @@ try {
     await shot('model-options');
     await click('DeepSeek-V41-Flash DeepSeek');
     await click('保存全局默认模型');
-    const current = (await rpc('describe', {}, 'settings')).namespaces.find(
-      (x) => x.ns === 'agent-default-model',
-    );
-    assert.equal(current.value.provider, 'deepseek-official');
-    assert.equal(current.value.model, 'deepseek-flash');
+    const { presets } = await rpc('modelPresets');
+    const current = presets.find((preset) => preset.id === 'default');
+    assert.equal(current.orchestrator.provider, 'deepseek-official');
+    assert.equal(current.orchestrator.model, 'deepseek-flash');
     await page.keyboard.press('Escape');
     await page.waitForSelector(TOB_INPUT, { visible: true });
     assert.equal(await page.$eval(TOB_INPUT, (n) => n.value), draft);

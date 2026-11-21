@@ -55,7 +55,7 @@ The scripted journey owns its Host: it launches a fresh instance on a free port,
 
 - Method-dialog verification on DSH `0.2.2-rc.1` (#4224): the three cards, blank/GitHub forms and return step rendered without page errors; the dialog fit within 1024 × 667 in dark mode. Escape did not dismiss the native Modal in this run. At 800px and below the shell switched to the separate mobile surface, so resizing an open desktop dialog did not qualify that surface. Zip selection and member/remote restrictions have focused component coverage; the local zip form was not driven in this run.
 - The journey needs no model credential. It discards the blank create response and recovers by lookup; this is live recovery coverage, not a claim of actual network fault injection. Device gateway tests separately drop the response. The CLI receives the current launch token only in its environment, including after restart.
-- `bot_create` returns `model: host-default` for a Bot without its own Model Plan; it still answers on the Host default model.
+- `bot_create` returns `model: host-default` for a Bot without its own Model Plan; it still answers on the Host’s pinned Default Model Preset.
 - `--locale zh` does not switch the Client language on a fresh Profile; read accessible names from the English UI.
 - It uses its own temporary `DSH_HOME`, so it never touches a `verify-app` instance.
 

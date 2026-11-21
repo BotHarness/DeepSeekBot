@@ -11,7 +11,7 @@ import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { createGroupFallback } from '../src/models/group-fallback.js';
 import type { ModelRoute, PersonaBotModelPlan } from '../src/models/presets.js';
-import { createModelPresetStore } from '../src/models/presets.js';
+import { DEFAULT_MODEL_PRESET_ID, createModelPresetStore } from '../src/models/presets.js';
 import { createRouteRests } from '../src/models/route-rest.js';
 import { createRoutingGroupStore } from '../src/models/routing-groups.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
@@ -37,24 +37,21 @@ function mount() {
   return { root, database };
 }
 
-function setup(onSave: (route: ModelRoute) => void = () => undefined) {
+function setup(onValidate: (route: ModelRoute) => void = () => undefined) {
   const { root, database } = mount();
   const registry = createTestRegistry({ rootDir: root, database });
-  const routingGroups = createRoutingGroupStore({ database, references: () => [] });
+  const modelPresets = createModelPresetStore({ rootDir: root, database });
+  modelPresets.migrateDefault({ main: DEEPSEEK });
+  const pinned = () => modelPresets.get(DEFAULT_MODEL_PRESET_ID)!;
+  const routingGroups = createRoutingGroupStore({
+    database,
+    references: (id) => (pinned().orchestratorGroupId === id ? ['Default Model Preset'] : []),
+  });
   const attachments = createAttachmentStore({ rootDir: join(root, 'attachments') });
-  let selection: ModelRoute = { ...DEEPSEEK };
   const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     registry,
-    modelPresets: createModelPresetStore({ rootDir: root, database }),
+    modelPresets,
     routingGroups,
-    defaultModel: {
-      currentSelection: () => selection,
-      saveSelection: async (route: ModelRoute) => {
-        await Promise.resolve();
-        onSave(route);
-        selection = { ...route };
-      },
-    },
     modelCatalog: {
       list: async () =>
         [GO, DEEPSEEK].map((route) => ({
@@ -70,6 +67,7 @@ function setup(onSave: (route: ModelRoute) => void = () => undefined) {
               : [],
         })),
       validate: async (route) => {
+        onValidate(route);
         if (route.provider === 'opencode-go') throw new Error('opencode-go is not configured');
       },
     },
@@ -79,28 +77,10 @@ function setup(onSave: (route: ModelRoute) => void = () => undefined) {
     ownership: createTestOwnership(),
     roster: createTestRosterStore(),
   });
-  return { root, database, registry, routingGroups, methods, selection: () => selection };
+  return { registry, routingGroups, methods, pinned, selection: () => pinned().orchestrator };
 }
 
 describe('The default model can be a Routing Group (#4500)', () => {
-  it('keeps the default group with a revision and refuses stale, unknown and deleting it', () => {
-    const { root, database } = mount();
-    const store = createRoutingGroupStore({ database });
-    expect(store.defaultGroup()).toEqual({ revision: 0 });
-    const group = store.create({ name: 'Main', members: [{ kind: 'model', ...GO }] });
-    expect(store.setDefaultGroup(group.id, 0)).toEqual({ groupId: group.id, revision: 1 });
-    expect(createRoutingGroupStore({ database }).defaultGroup()).toEqual({
-      groupId: group.id,
-      revision: 1,
-    });
-    expect(() => store.setDefaultGroup(undefined, 0)).toThrow('changed');
-    expect(() => store.setDefaultGroup('missing', 1)).toThrow('does not exist');
-    expect(() => store.delete(group.id, 1)).toThrow('the default model');
-    expect(store.setDefaultGroup(undefined, 1)).toEqual({ revision: 2 });
-    expect(store.delete(group.id, 1).id).toBe(group.id);
-    expect(root).toBeTruthy();
-  });
-
   it('sets the default to the group with its first usable member, and a model clears it', async () => {
     const { methods, selection } = setup();
     const created = await methods.modelGroupCreate({
@@ -114,7 +94,7 @@ describe('The default model can be a Routing Group (#4500)', () => {
     const id = created.value.group.id;
     expect(
       await methods.onboardingModel({ expectedRevision: 0, globalDefault: true, groupId: id }),
-    ).toEqual({ ok: true, value: { revision: 0, groupRevision: 1 } });
+    ).toEqual({ ok: true, value: { revision: 2, groupRevision: 2 } });
     expect(selection()).toEqual(DEEPSEEK);
     expect(await methods.modelCatalog({})).toMatchObject({
       ok: true,
@@ -131,79 +111,42 @@ describe('The default model can be a Routing Group (#4500)', () => {
 
     expect(
       await methods.onboardingModel({ expectedRevision: 0, globalDefault: true, route: DEEPSEEK }),
-    ).toEqual({ ok: true, value: { revision: 0, groupRevision: 2 } });
+    ).toEqual({ ok: true, value: { revision: 3, groupRevision: 3 } });
     const catalog = await methods.modelCatalog({});
     expect(catalog.ok ? catalog.value.defaultGroupId : 'unread').toBeUndefined();
   });
-  it('refuses a stale default group revision and keeps the group while the default is saved', async () => {
-    let during: unknown;
-    let fail = false;
-    const { methods, routingGroups, selection } = setup(() => {
-      const group = routingGroups.list()[0]!;
-      if (fail) throw new Error('native settings refused');
-      try {
-        routingGroups.delete(group.id, group.revision);
-      } catch (error) {
-        during = error;
-      }
-    });
-    const created = await methods.modelGroupCreate({
-      name: 'Main',
-      members: [{ kind: 'model', ...DEEPSEEK }],
-    });
-    if (!created.ok) throw new Error(created.error.message);
-    const id = created.value.group.id;
+  it('protects the Routing Group used by Default and checks edits against the preset revision', async () => {
+    const { methods, routingGroups, pinned } = setup();
+    const group = routingGroups.create({ name: 'Main', members: [{ kind: 'model', ...DEEPSEEK }] });
+    const input = { expectedRevision: 0, globalDefault: true, groupId: group.id };
     expect(
       await methods.onboardingModel({
-        expectedRevision: 0,
-        expectedDefaultGroupRevision: 3,
-        globalDefault: true,
-        groupId: id,
-      }),
-    ).toMatchObject({ ok: false, error: { code: 'routing-group-stale-revision' } });
-    expect(routingGroups.defaultGroup()).toEqual({ revision: 0 });
-    expect(
-      await methods.onboardingModel({
-        expectedRevision: 0,
+        ...input,
         expectedDefaultGroupRevision: 0,
-        globalDefault: true,
-        groupId: id,
       }),
-    ).toEqual({ ok: true, value: { revision: 0, groupRevision: 1 } });
-    expect(String(during)).toContain('the default model');
-    expect(routingGroups.get(id)).toBeDefined();
-    expect(await methods.modelCatalog({})).toMatchObject({
-      ok: true,
-      value: { defaultGroupId: id, defaultGroupRevision: 1 },
-    });
-    fail = true;
+    ).toMatchObject({ ok: false, error: { code: 'stale-setting' } });
+    expect(pinned().orchestratorGroupId).toBeUndefined();
     expect(
       await methods.onboardingModel({
-        expectedRevision: 0,
+        ...input,
         expectedDefaultGroupRevision: 1,
-        globalDefault: true,
-        route: { ...DEEPSEEK, reasoningEffort: 'high' },
       }),
-    ).toMatchObject({ ok: false });
-    expect(routingGroups.defaultGroup().groupId).toBe(id);
-    const other = await methods.modelGroupCreate({
-      name: 'Other',
-      members: [{ kind: 'model', ...DEEPSEEK }],
-    });
-    if (!other.ok) throw new Error(other.error.message);
+    ).toMatchObject({ ok: true, value: { revision: 2 } });
+    expect(() => routingGroups.delete(group.id, group.revision)).toThrow('Default Model Preset');
+    expect(pinned()).toMatchObject({ orchestratorGroupId: group.id, assignmentFollowsMain: true });
     expect(
       await methods.onboardingModel({
         expectedRevision: 0,
         globalDefault: true,
-        groupId: other.value.group.id,
+        expectedDefaultRevision: 2,
+        route: DEEPSEEK,
       }),
-    ).toMatchObject({ ok: false });
-    expect(routingGroups.defaultGroup().groupId).toBe(id);
-    expect(selection()).toEqual(DEEPSEEK);
+    ).toMatchObject({ ok: true, value: { revision: 3 } });
+    expect(routingGroups.delete(group.id, group.revision).id).toBe(group.id);
   });
 
   it('keeps one effort with the default group and runs a member at it only when the member reasons', async () => {
-    const { methods, routingGroups, selection } = setup();
+    const { methods, pinned, selection } = setup();
     const created = await methods.modelGroupCreate({
       name: 'Main',
       members: [
@@ -236,11 +179,11 @@ describe('The default model can be a Routing Group (#4500)', () => {
         groupId: id,
         groupEffort: 'high',
       }),
-    ).toEqual({ ok: true, value: { revision: 0, groupRevision: 1 } });
+    ).toEqual({ ok: true, value: { revision: 2, groupRevision: 2 } });
     expect(selection()).toEqual({ ...DEEPSEEK, reasoningEffort: 'high' });
     expect(await methods.modelCatalog({})).toMatchObject({
       ok: true,
-      value: { defaultGroupId: id, defaultGroupEffort: 'high', defaultGroupRevision: 1 },
+      value: { defaultGroupId: id, defaultGroupEffort: 'high', defaultGroupRevision: 2 },
     });
     expect(
       await methods.onboardingModel({
@@ -249,12 +192,17 @@ describe('The default model can be a Routing Group (#4500)', () => {
         groupId: id,
         groupEffort: 'max',
       }),
-    ).toEqual({ ok: true, value: { revision: 0, groupRevision: 2 } });
-    expect(routingGroups.defaultGroup()).toEqual({ groupId: id, effort: 'max', revision: 2 });
+    ).toEqual({ ok: true, value: { revision: 3, groupRevision: 3 } });
+    expect(pinned()).toMatchObject({
+      orchestratorGroupId: id,
+      orchestratorGroupEffort: 'max',
+      revision: 3,
+    });
     expect(
       await methods.onboardingModel({ expectedRevision: 0, globalDefault: true, groupId: id }),
-    ).toEqual({ ok: true, value: { revision: 0, groupRevision: 3 } });
-    expect(routingGroups.defaultGroup()).toEqual({ groupId: id, revision: 3 });
+    ).toEqual({ ok: true, value: { revision: 4, groupRevision: 4 } });
+    expect(pinned()).toMatchObject({ orchestratorGroupId: id, revision: 4 });
+    expect(pinned().orchestratorGroupEffort).toBeUndefined();
     expect(selection()).toEqual(DEEPSEEK);
   });
 

@@ -273,7 +273,7 @@ export async function startTobCliBroker(options: TobCliBrokerOptions): Promise<T
                       (entry.command === 'cli'
                         ? 'deepseekbot <any command> [options]; find one with deepseekbot search <words>'
                         : entry.command === 'settings'
-                          ? 'deepseekbot settings [botharness-client|agent-default-model]'
+                          ? 'deepseekbot settings [botharness-client]'
                           : 'deepseekbot settings-set <namespace> --patch-stdin --expected-revision <observed revision> --previous-value <JSON of previous values for patched fields>'),
                   })),
                 }

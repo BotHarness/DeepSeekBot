@@ -170,7 +170,7 @@ export interface BotAgentSetupInfo {
 }
 
 export interface DshDefaultModelHost {
-  currentSelection(): ModelSelection;
+  currentSelection(role?: 'orchestrator' | 'assignment'): ModelSelection;
 }
 
 class DshBotAgentAdapter implements BotAgentAdapter {

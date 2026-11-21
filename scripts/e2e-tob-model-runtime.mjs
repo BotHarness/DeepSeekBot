@@ -642,10 +642,10 @@ try {
         'This isolated development-profile test has telemetry disabled by an environment lock and no installable release or pending restart. Use native bash and deepseekbot to exercise exactly these three expected refusals, each in its own short Shell call: deepseekbot telemetry-set --enabled; deepseekbot release-install 999.0.0 --confirm; deepseekbot release-restart --confirm. Run each once and continue to the next after its expected refusal; do not retry any command. Report each exact CLI refusal code. Do not install another version, change environment/config files, seek credentials, delegate, or work around the refusals.';
     } else if (phase === 'model-approve') {
       command = 'model-plan-customize';
-      const defaultSetting = (await rpc('describe', {}, 'settings')).namespaces.find(
-        (x) => x.ns === 'agent-default-model',
-      );
-      route = beforePlan.plan?.orchestrator ?? defaultSetting.value;
+      const { presets } = await rpc('modelPresets');
+      route =
+        beforePlan.plan?.orchestrator ??
+        presets.find((preset) => preset.id === 'default')?.orchestrator;
       assert.ok(route?.provider && route?.model, 'effective model route unavailable');
       prompt = `Use native bash and the scoped deepseekbot CLI. Read deepseekbot model-catalog and deepseekbot model-plan ${target}, then request approval to customize exactly this Bot's Orchestrator route to provider ${route.provider}, model ${route.model}${route.reasoningEffort ? ', reasoning effort ' + route.reasoningEffort : ''}. Invoke deepseekbot model-plan-customize ${target} with --orchestrator-provider, --orchestrator-model${route.reasoningEffort ? ', --orchestrator-effort' : ''} and --expected-revision from the read. Preserve Assignment choices and all other Bots. After approval, read back deepseekbot model-plan ${target}. Keep the same provider credential. Do not delegate or edit config files.`;
     } else {

@@ -3,7 +3,7 @@ import { CliLiveError } from './cli-live-error.js';
 import { parseAgentManagement } from './cli-agent-management.js';
 import { parseReviewedSettings } from './cli-live.js';
 
-const TYPED_SETTINGS = new Set(['botharness-client', 'agent-default-model']);
+const TYPED_SETTINGS = new Set(['botharness-client']);
 
 function hostArgv(command: string, argv: readonly string[]): string[] {
   const index = argv.indexOf(command);

@@ -8,13 +8,12 @@ import {
   type BridgeResult,
 } from '../../bridge/method-utils.js';
 import { modelFailure } from '../../models/provider-bridge.js';
-import { TeamError } from '../../team/error.js';
 import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
 import { type HumanContext } from '../../humans/context.js';
 
 import type { OnboardingSnapshot, TutorialAction } from '../../onboarding/service.js';
 import { type TelemetryEventName } from '../../telemetry/events.js';
-import { isModelRoute } from '../../models/presets.js';
+import { DEFAULT_MODEL_PRESET_ID, ModelPresetError, isModelRoute } from '../../models/presets.js';
 import { RoutingGroupError } from '../../models/routing-groups.js';
 import { groupMemberRoute } from '../../models/catalog.js';
 import type { BridgeMethods, BridgeMethodsDeps } from '../../bridge/methods.js';
@@ -101,7 +100,7 @@ export function createOnboardingBridgeMethods(
       }
     },
     async onboardingModel(this: Pick<BridgeMethods, 'modelPlanInherit'>, payload) {
-      if (deps.modelCatalog === undefined || deps.defaultModel === undefined) return unavailable();
+      if (deps.modelCatalog === undefined) return unavailable();
       const source = asObject(payload);
       const slug = asSlug(payload);
       const groupId = source['groupId'];
@@ -109,6 +108,10 @@ export function createOnboardingBridgeMethods(
       const revision = source['expectedRevision'];
       const defaultRevision = source['expectedDefaultRevision'];
       const defaultGroupRevision = source['expectedDefaultGroupRevision'];
+      const defaultPreset =
+        source['globalDefault'] === true
+          ? deps.modelPresets?.get(DEFAULT_MODEL_PRESET_ID)
+          : undefined;
       if (
         defaultGroupRevision !== undefined &&
         (!Number.isSafeInteger(defaultGroupRevision) ||
@@ -155,7 +158,7 @@ export function createOnboardingBridgeMethods(
           slug !== undefined)
       )
         return invalidInput(
-          'A nonnegative native default revision requires global scope without a Bot target',
+          'A nonnegative Default preset revision requires global scope without a Bot target',
         );
       if (
         !isModelRoute(route) ||
@@ -172,109 +175,26 @@ export function createOnboardingBridgeMethods(
         await deps.modelCatalog.validate(route);
         if (typeof groupId === 'string') requireGroupEngines(groupId);
         if (source['globalDefault']) {
-          let savedDefaultRevision = 0;
-          const groups = deps.routingGroups;
-          const previous = groups?.defaultGroup();
-          const nextGroup = typeof groupId === 'string' ? groupId : undefined;
-          if (
-            previous !== undefined &&
-            defaultGroupRevision !== undefined &&
-            previous.revision !== defaultGroupRevision
-          )
-            return routingGroupFailure(
-              new RoutingGroupError(
-                'stale-revision',
-                `The default model changed (revision ${previous.revision}); read it again before saving`,
+          const store = deps.modelPresets;
+          if (store === undefined || defaultPreset === undefined) return unavailable();
+          const expectedRevision =
+            defaultRevision ?? defaultGroupRevision ?? defaultPreset.revision;
+          if (defaultGroupRevision !== undefined && defaultGroupRevision !== expectedRevision)
+            return modelFailure(
+              new ModelPresetError(
+                'stale-setting',
+                'Default preset changed; read it again before saving',
               ),
             );
-          const settings =
-            defaultRevision === undefined ? undefined : deps.defaultModelSettings?.();
-          if (defaultRevision !== undefined) {
-            const current = settings
-              ?.describe({ redactSecrets: true })
-              .find((entry) => entry.ns === 'agent-default-model');
-            if (!settings || !current) return unavailable();
-            if (current.revision !== defaultRevision)
-              return {
-                ok: false,
-                error: {
-                  code: 'stale-setting',
-                  message: 'Host default model changed; read it again before saving',
-                },
-              };
-          }
-          const reserved =
-            groups === undefined ||
-            previous === undefined ||
-            nextGroup === undefined ||
-            (previous.groupId === nextGroup && previous.effort === effort)
-              ? undefined
-              : groups.setDefaultGroup(nextGroup, previous.revision, effort);
-          const restore = (): void => {
-            if (reserved === undefined || previous === undefined) return;
-            try {
-              groups?.setDefaultGroup(previous.groupId, reserved.revision, previous.effort);
-            } catch {}
-          };
-          try {
-            if (settings === undefined) await deps.defaultModel.saveSelection(route);
-            else
-              await settings.replace(
-                'agent-default-model',
-                {
-                  provider: route.provider,
-                  model: route.model,
-                  ...(route.reasoningEffort === undefined
-                    ? {}
-                    : { reasoningEffort: route.reasoningEffort }),
-                },
-                Number(defaultRevision),
-              );
-          } catch (error) {
-            restore();
-            throw error;
-          }
-          if (settings !== undefined) {
-            const saved = settings
-              .describe({ redactSecrets: true })
-              .find((entry) => entry.ns === 'agent-default-model');
-            if (!saved)
-              return {
-                ok: false,
-                error: {
-                  code: 'setting-outcome-uncertain',
-                  message:
-                    'The Host default model was submitted but its settings owner is unavailable for readback',
-                },
-              };
-            savedDefaultRevision = saved.revision;
-          }
-          const saved = deps.defaultModel.currentSelection();
-          if (
-            saved.provider !== route.provider ||
-            saved.model !== route.model ||
-            saved.reasoningEffort !== route.reasoningEffort
-          ) {
-            restore();
-            return invalidInput('Profile default model was not saved; open native model settings');
-          }
-          const groupRevision =
-            reserved?.revision ??
-            (groups === undefined || previous === undefined
-              ? undefined
-              : nextGroup !== undefined
-                ? previous.revision
-                : previous.groupId === undefined
-                  ? undefined
-                  : groups.setDefaultGroup(undefined, previous.revision).revision);
+          const saved = store.setDefaultMain({
+            expectedRevision: Number(expectedRevision),
+            route,
+            preserveSub: defaultRevision !== undefined || defaultGroupRevision !== undefined,
+            ...(typeof groupId === 'string' ? { groupId } : {}),
+            ...(effort === undefined ? {} : { effort }),
+          });
           if (slug === undefined)
-            return {
-              ok: true,
-              value: {
-                revision: savedDefaultRevision,
-                ...(groupRevision === undefined ? {} : { groupRevision }),
-              },
-            };
+            return { ok: true, value: { revision: saved.revision, groupRevision: saved.revision } };
           return this.modelPlanInherit({ slug, expectedRevision: revision });
         }
         if (slug === undefined) return invalidInput('Choose a Bot for an individual model');
@@ -301,17 +221,8 @@ export function createOnboardingBridgeMethods(
           value: { revision: result.record.modelPlan!.revision },
         };
       } catch (error) {
-        if ((error as { code?: string }).code === 'SETTINGS_CONFLICT')
-          return {
-            ok: false,
-            error: {
-              code: 'stale-setting',
-              message: 'Host default model changed; read it again before saving',
-            },
-          };
         if (error instanceof RoutingGroupError) return routingGroupFailure(error);
-        if (error instanceof TeamError) return modelFailure(error);
-        return invalidInput(error instanceof Error ? error.message : 'Model unavailable');
+        return modelFailure(error);
       }
     },
   };

@@ -4075,6 +4075,20 @@ const ROLE_ENGINE_ACCOUNTS_MIGRATION: SchemaMigration = {
   },
 };
 
+const DEFAULT_MODEL_PRESET_MIGRATION: SchemaMigration = {
+  id: 'default-model-preset',
+  module: 'model-presets',
+  description: 'Reserve the pinned Model Preset and stage the legacy Routing Group selection',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE routing_group_default RENAME TO legacy_routing_group_default;
+      CREATE TRIGGER model_presets_keep_default
+        BEFORE DELETE ON model_presets WHEN OLD.id = 'default'
+        BEGIN SELECT RAISE(ABORT, 'default-preset-pinned'); END;
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -4252,4 +4266,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   ROLE_MODEL_PROVIDERS_MIGRATION,
   SESSION_TURN_TARGET_MIGRATION,
   ROLE_ENGINE_ACCOUNTS_MIGRATION,
+  DEFAULT_MODEL_PRESET_MIGRATION,
 ]);
