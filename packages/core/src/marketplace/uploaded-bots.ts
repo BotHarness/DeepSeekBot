@@ -1,4 +1,7 @@
-import type { MarketplaceAvatarPublish } from '@botharness/host-protocol/marketplace-avatar';
+import type {
+  MarketplaceAvatarEdit,
+  MarketplaceAvatarPublish,
+} from '@botharness/host-protocol/marketplace-avatar';
 import { createHash } from 'node:crypto';
 import { lstatSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -168,6 +171,18 @@ export function createMarketplaceUploads(deps: {
 
     publishAvatar(input: MarketplaceAvatarPublish) {
       return signed((token) => client.avatarPublish(token, input));
+    },
+
+    mineAvatars() {
+      return signed((token) => client.avatarMine(token));
+    },
+
+    editAvatar(id: string, patch: MarketplaceAvatarEdit) {
+      return signed((token) => client.avatarEdit(token, id, patch));
+    },
+
+    removeAvatar(id: string) {
+      return signed((token) => client.avatarDelete(token, id));
     },
 
     saveAuthor(input: { displayName: string; acceptTerms: boolean }) {

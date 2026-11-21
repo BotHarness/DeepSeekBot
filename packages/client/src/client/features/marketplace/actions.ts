@@ -1,4 +1,6 @@
+import { marketplaceAvatarActions } from '@botharness/host-client/marketplace-avatars';
 import {
+  bridgeHost,
   loadMarketplaceDetail,
   loadMarketplaceFile,
   loadMarketplacePage,
@@ -31,13 +33,7 @@ export function createMarketplaceActions(
   openCreatedBot: ReturnType<typeof createBotActions>['openCreatedBot'],
 ) {
   return {
-    marketplaceAvatarList: (cursor) =>
-      invoke('marketplaceAvatarList', cursor === undefined ? {} : { cursor }),
-    marketplaceAvatarApplyCandidates: () => invoke('marketplaceAvatarApplyCandidates', {}),
-    marketplaceAvatarApply: (id, bot) => invoke('marketplaceAvatarApply', { id, bot }),
-    marketplaceAvatarDetail: (id) => invoke('marketplaceAvatarDetail', { id }),
-    marketplaceAvatarPublish: (input) => invoke('marketplaceAvatarPublish', { ...input }),
-    marketplaceAvatarSource: (bot) => invoke('marketplaceAvatarSource', { bot }),
+    ...marketplaceAvatarActions(bridgeHost(call)),
     marketplaceList: (query) => loadMarketplacePage(call, query),
     marketplaceChallenge: () => loadMarketplaceChallenge(call),
     marketplaceSubmit: (url, altcha) => submitMarketplaceRepository(call, url, altcha),
@@ -48,9 +44,6 @@ export function createMarketplaceActions(
     marketplaceDigest: (day, lang) => loadMarketplaceDigest(call, day, lang),
     marketplaceDetail: (id, lang) => loadMarketplaceDetail(call, id, lang),
     marketplaceFile: (id, path) => loadMarketplaceFile(call, id, path),
-    marketplaceAccount: () => invoke('marketplaceAccount', {}),
-    marketplaceAuthorSave: (displayName, acceptTerms) =>
-      invoke('marketplaceAuthorSave', { displayName, acceptTerms }),
     marketplaceAuthorAvatarSet: (avatar) => invoke('marketplaceAuthorAvatarSet', { avatar }),
     marketplaceUploadPlan: (slug) => invoke('marketplaceUploadPlan', { slug }),
     marketplaceUpload: (slug, presentation) => uploadMarketplaceBot(call, slug, presentation),
@@ -71,11 +64,16 @@ export function createMarketplaceActions(
     Pick<
       BridgeActions,
       | 'marketplaceAvatarList'
+      | 'marketplaceAvatarTags'
       | 'marketplaceAvatarDetail'
+      | 'marketplaceAvatarReport'
       | 'marketplaceAvatarApplyCandidates'
       | 'marketplaceAvatarApply'
       | 'marketplaceAvatarPublish'
       | 'marketplaceAvatarSource'
+      | 'marketplaceAvatarMine'
+      | 'marketplaceAvatarEdit'
+      | 'marketplaceAvatarDelete'
       | 'marketplaceList'
       | 'marketplaceChallenge'
       | 'marketplaceSubmit'

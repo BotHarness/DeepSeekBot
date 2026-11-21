@@ -67,7 +67,7 @@ Client 线路偏好检查或文件替换失败时，Host 线路可能已经更�
 
 连接手机使用的同一个已认证 Host，运行 `bot-zip-upload --from-zip <文件> --upload-key <稳定键> --host <地址>`。结果包含 `sha256`、`sizeBytes`、`offset`、`chunkBytes` 和 `expiresAt`。命令通过 `zipUploadBegin` 和 `zipUploadChunk` 上传，使用相同键和文件可继续已确认的分块。每块原始数据为 256 KiB，base64 请求封装后仍小于加密设备通道的 4 MiB 限制。
 
-创建前运行 `bot-zip-preview --upload-key <键> --archive-sha256 <摘要> --archive-size <字节数> --host <地址>`。`zipUploadPreview` 校验完整压缩包并返回名称等信息、文件数、解压字节数和历史标志。确认名称、可选 `--description` 和重复的 `--role` 后，使用相同来源参数运行 `bot-zip-import`，并增加 `--operation-key <稳定操作键> --name <名称>`。`zipImport` 通过既有导入 owner 创建一个 Bot 及其私聊，不启动模型或授予工作区权限。
+创建前运行 `bot-zip-preview --upload-key <键> --archive-sha256 <摘要> --archive-size <字节数> --host <地址>`。`zipUploadPreview` 校验完整压缩包并返回名称等信息、文件数、解压字节数、历史标志和 `standing` 用量（每份常驻文件的字符数与生效上限）。确认名称、可选 `--description` 和重复的 `--role` 后，使用相同来源参数运行 `bot-zip-import`，并增加 `--operation-key <稳定操作键> --name <名称>`。`zipImport` 通过既有导入 owner 创建一个 Bot 及其私聊，不启动模型或授予工作区权限。
 
 导入响应丢失后，运行 `bot-zip-import-status --archive-sha256 <摘要> --operation-key <键> --name <名称>`，并原样携带可选描述和标签。`zipImportLookup` 不需要文件或上传会话。已完成回执在 Host 重启和上传过期后仍保留；重复 `bot-zip-import` 返回同一个 Bot 和私聊。相同操作键换摘要或元数据会被拒绝。未完成的上传过期后可明确重新传输，继续使用原导入操作键。
 
@@ -1287,8 +1287,13 @@ deepseekbot marketplace-report <owner/repo> [--reason <说明>]
 deepseekbot marketplace-account
 deepseekbot marketplace-author --name <显示名> [--accept-terms]
 deepseekbot marketplace-author-avatar (--file <图片> | --clear)
-deepseekbot marketplace-avatar-list [--cursor <游标>]
+deepseekbot marketplace-avatar-list [--query <关键词>] [--tag <标签>] [--sort hot|new|rising | --cursor <游标>]
+deepseekbot marketplace-avatar-tags
+deepseekbot marketplace-avatar-mine
+deepseekbot marketplace-avatar-edit <条目 ID> [--name <名称>] [--description <简介>] [--avatar-tag <标签> ...]
+deepseekbot marketplace-avatar-delete <条目 ID> --confirm
 deepseekbot marketplace-avatar-detail <条目 ID>
+deepseekbot marketplace-avatar-report <条目 ID> [--reason <说明>]
 deepseekbot marketplace-avatar-apply <条目 ID> --bot <Bot> [--operation-key <请求键>]
 deepseekbot marketplace-avatar-apply-candidates
 deepseekbot marketplace-avatar-publish (--file <图片> | --from-bot <Bot>) --name <名称> [--description <简介>] [--avatar-tag <标签> ...] [--operation-key <请求键>] --confirm
@@ -1336,11 +1341,21 @@ deepseekbot pairing-review <bot-id> <pairing-id> --decision revoke --confirm
 
 **上传的 Bot**（[ADR-0267](decisions/marketplace.md#adr-0267)）和 GitHub 仓库在同一个目录里。`marketplace-list --include-uploads` 会把它们加进来；每个条目带 `source`（`github` 或 `upload`），上传的条目还带 `author`（`name`、区分同名作者且永不改变的作者 `id`，以及头像图片地址 `avatar` 或 `null`）。上传的 Bot 的 `marketplace-detail` 还返回 `files`（`path`、`size`、`kind`：`text`、`script` 或 `image`）和 `fileSummary`：`count`、`size` 和 `types`，即每种类型（`markdown`、`text`、`data`、`script`、`image`）的文件数和字节数，按大小从大到小。`marketplace-file <listing-id> <path>` 以 `file`（`path`、`size`、`type`、`text`）读取一个文本文件：Markdown 像 README 一样经过整理和清洗，相对链接指向这个 Bot 的文件；脚本和其他文本原样返回，从不当作 Markdown 整理。图片被拒绝，错误码 `file-not-text`；不在列表里的路径返回 `file-not-found`。上传要求这个 Host 已登录 Tobs Connect（设置 → 设备）；`marketplace-account` 返回 `signedIn` 和 `author`，即已登录账户的**账户资料**（`name`、`id`、`avatar`、`termsAcceptedAt`），在 `marketplace-author --name <名称>` 创建资料之前为 `null`；之后再调用会改名，它的条目也随之更新。第一次上传还需要用 `--accept-terms` 接受一次条款（之前返回 `author-required`）。`marketplace-author-avatar --file <图片>` 用不超过 1 MB 的 PNG、JPEG 或 WebP 设置资料头像（`avatar-type-refused`、`avatar-too-large`），头像公开提供，并显示在作者的条目上；`--clear` 移除头像。`marketplace-upload-plan` 列出上传会包含的文件和跳过的文件（二进制和压缩包为 `file-type-refused`，超过 5 MB 为 `file-too-large`）。`marketplace-upload` 用给定的名称、简介和标签发布 Bot 已就绪的分享草稿（不含 Git 历史），必须带 `--confirm`：文件会公开。Bot 在自己的 Shell 里运行它时总会弹出给人类的批准卡片，即使开了完全访问。拒绝带错误码：`sign-in-required`、`author-required`、`too-many-files`（超过 2,000 个）、`too-large`（超过 50 MB）、`bot-limit`（每个账号 20 个）、`nothing-to-upload`、`share-draft-required`（还没有草稿）、`share-draft-not-ready`（还有文件没有结论）。`marketplace-install` 对两种条目都分两步。先运行 `marketplace-install <listing-id>`：暂存文件（上传的 Bot 的文件，或按目录索引到的提交克隆的 GitHub 仓库，没有索引提交时返回 `listing-not-installable`），由 Tob 用 Tob 的模型检查，输出 `reviewId`、`review` 和 `installed: false`，不会创建任何东西。`review.status` 为 `reviewed` 时带 `findings`（`kind`：`prompt-injection`、`exfiltration` 或 `script`，`path`，可选的 `note`）、`files`、`read`，有文本太长没读完时 `partial` 为 true；Tob 没能检查时为 `unavailable`，带 `reason`（`no-model`、`model-unavailable`、`llm-unavailable`、`timeout`、`model-error`、`unparseable`）。脚本文件无论如何都会列出。`--lang` 决定说明的语言。然后运行 `marketplace-install <listing-id> --review <review-id> --confirm`，把刚才暂存的这些文件（或这个提交）安装成全新的 Bot，用条目的名称、简介和标签，只有一次初始提交，返回新的 `bot`、它的 `channelId`、`listing` 和 `installed: true`。检查结果保留 30 分钟（过期为 `review-expired`，换了条目为 `review-mismatch`）；用同一个 `--operation-key` 重试会返回那个 Bot，不会装两次。Bot 建好之后，Host 发送一次**安装回执**，用一个只给市场用的随机 Host 标识（Host 数据目录里的 `marketplace-host.json`，从不使用遥测安装 ID）；每个 Host 对每个条目只计一次，安装失败不发送；`marketplace-list` 和 `marketplace-detail` 的每个条目都带 `installs`。
 
-任何人都可以浏览市场头像。用 `marketplace-avatar-list` 返回的 `nextCursor` 读取下一页。只有 Host 所有者可以用已登录并接受上传条款的 Connect 账户发布。`--file` 和 `--from-bot` 二选一。图片必须是 256–512 像素见方、不超过 128 KiB、无元数据的静态 PNG、JPEG 或 WebP。`--from-bot` 读取此 Host 上任意 Bot 保存的头像图片，包括 Avatar Appearance 的静态 PNG。只有 Blobatar 的 Bot 会返回 `no-stored-avatar`。如果返回 `unprocessed-image`，请在 Web 客户端裁剪并发布。重试发布时请沿用同一个 `--operation-key`。
+任何人都可以浏览市场头像。用 `--query` 搜索名称、简介和标签，或用 `--tag` 按完整标签筛选，忽略大小写。`marketplace-avatar-tags` 列出标签和各自的公开头像数量。读取下一页时保留原有的搜索和筛选条件，并把返回的 `nextCursor` 传给 `--cursor`。
+
+`--sort hot|new|rising` 从最近一次每日快照读取头像榜单。热门按近七天的应用次数排序，新上架按近七天的首次上架时间排序，上升最快按近七天相对前七天的应用次数增量排序，且近七天至少应用三次。关键词和标签筛选仍然有效。每个榜单最多返回 20 条，无需翻页。
+
+只有 Host 所有者可以用已登录并接受上传条款的 Connect 账户发布。`--file` 和 `--from-bot` 二选一。图片必须是 256–512 像素见方、不超过 128 KiB、无元数据的静态 PNG、JPEG 或 WebP。`--from-bot` 读取此 Host 上任意 Bot 保存的头像图片，包括 Avatar Appearance 的静态 PNG。只有 Blobatar 的 Bot 会返回 `no-stored-avatar`。如果返回 `unprocessed-image`，请在 Web 客户端裁剪并发布。重试发布时请沿用同一个 `--operation-key`。
+
+Host 所有者可以用 `marketplace-avatar-mine` 查看已登录的 Connect 作者发布的头像及其应用次数。编辑时至少填写一项，省略的字段保持原值。用空的 `--description=` 或 `--avatar-tag=` 清空对应字段。加上 `--confirm` 删除条目、图片和应用统计，已应用头像的 Bot 会保留自己的副本。
 
 列出当前 Host 上有权更换头像的 Bot，再用 `marketplace-avatar-apply <条目 ID> --bot <Bot>` 应用。Host 会保存图片副本。使用同一个 `--operation-key` 可重试当前 Host 进程最近处理的应用。
 
 上传和推送到 GitHub 读的都是**分享草稿**，源 Memory 不会被改动。`share-draft-start` 把 Bot 可分享的记忆文件（和 `marketplace-upload-plan` 会包含的一样）复制到 Host 自己的数据目录，并替换之前的草稿。`share-draft-show` 返回草稿的 `state`（`reviewing` 或 `ready`）、计数 `summary`，以及每个文件的 `path`、`kind`、`size`、`status`（`pending`、`kept`、`rewritten` 或 `dropped`）和模式扫描发现的 `flags`（`secret`、`private-key`、`url-credential`、`email`、`phone`）。`share-draft-file --path` 返回一个文本文件在草稿里的当前内容。`share-draft-decide` 记录一个结论：`--keep`、`--drop`（删除草稿里的副本）或 `--rewrite-stdin`（完整的新内容，最多 5 MB）。任何结论都会让已就绪的草稿回到 `reviewing`。`share-draft-finish` 在没有 `pending` 文件时把草稿标为 `ready`（`share-draft-pending` 会给出第一个未决文件）。`share-draft-export` 把已就绪的草稿复制到 Tob 工作区里一个不带 `.git` 的新文件夹并返回 `path`，用于推送到 GitHub。`share-draft-discard` 删除草稿。Tob 的受限 CLI 只有 `share-draft-show`、`share-draft-file`、`share-draft-decide` 和 `share-draft-finish`，而且只能处理人类已开始的草稿；开始、导出和删除草稿由人类操作。
+
+`marketplace-avatar-report` 和举报 Bot 使用相同的工作量证明。举报说明选填，最多 500 个字符。
+
+平台管理员可用 `marketplace-blocklist <block|restore> <bot|avatar> <ID 或 URL>`，并将 `MARKETPLACE_ADMIN_TOKEN` 设为 Worker 的管理员令牌。命令默认直连 `https://market.botharness.ai`，可用 `MARKETPLACE_ADMIN_URL` 指定其他 Worker。Bot 可传 GitHub 仓库 URL，头像用条目 ID。恢复头像会清空举报并保留应用次数，Host 上已应用的副本会继续保留。
 
 `marketplace-mine` 按时间从新到旧列出已登录作者自己上传的 Bot，每项为 `{ bot, files, bytes, blocked }`；`blocked` 的条目别人看不到，但仍可更新或删除。`marketplace-upload --replaces <listing-id>` 用这个 Bot 当前的记忆文件整体替换其中一个：没有版本，条目 id 不变，新文件全部存好后才对外可见，随后删除旧文件。每小时最多替换 10 次（`replace-limit`）；替换不占 20 个 Bot 的名额。`marketplace-delete` 删除条目、文件和计数，必须带 `--confirm`；和 `marketplace-upload` 一样，Bot 在自己的 Shell 里运行它时总会弹出给人类的批准卡片。已安装的副本永远不会被改动：本 Host 装过的条目在 `marketplace-list` 和 `marketplace-detail` 里带 `installed`（`bots` 为装出来的 Bot id，作者在安装之后替换过文件时 `authorUpdated` 为 true）。注销 Connect 账号会一并删除它上传的所有 Bot 和作者信息。
 

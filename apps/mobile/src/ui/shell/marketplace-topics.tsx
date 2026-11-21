@@ -1,5 +1,6 @@
 import { FlatList, Platform, Pressable, View, type ViewInstance } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import type { CatalogueResource } from '../../marketplace/catalogue';
 import { marketplace, useCatalogueResource } from '../../marketplace/native-catalogue';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
@@ -17,13 +18,21 @@ export function MarketplaceTopics({
   value,
   onChange,
   onClose,
+  resource = marketplace.topics,
+  title,
+  allLabel,
+  testIDPrefix = 'marketplace-topic',
 }: {
   value: string;
   onChange(value: string): void;
   onClose(): void;
+  resource?: CatalogueResource<{ topic: string; count: number }[]>;
+  title?: string;
+  allLabel?: string;
+  testIDPrefix?: string;
 }) {
   const t = useStrings();
-  const resource = marketplace.topics;
+  const all = allLabel ?? t.marketplace.allTopics;
   const state = useCatalogueResource(resource);
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -40,13 +49,13 @@ export function MarketplaceTopics({
           style={{ paddingHorizontal: space.x5, paddingTop: space.x5, paddingBottom: space.x3 }}
         >
           <DrawerHeader
-            title={t.marketplace.topics}
+            title={title ?? t.marketplace.topics}
             onClose={onClose}
             glassClose={Platform.OS === 'ios'}
           />
         </View>
         <FlatList
-          testID="marketplace-topic-list"
+          testID={`${testIDPrefix}-list`}
           contentInsetAdjustmentBehavior="automatic"
           data={[{ topic: '', count: 0 }, ...(state.value ?? [])]}
           keyExtractor={(item) => item.topic}
@@ -59,7 +68,7 @@ export function MarketplaceTopics({
                 <View>
                   <Text accessibilityRole="alert">{t.marketplace.unavailable}</Text>
                   <Button
-                    testID="marketplace-topics-retry"
+                    testID={`${testIDPrefix}s-retry`}
                     label={t.marketplace.retry}
                     onPress={() => void resource.refresh()}
                   />
@@ -70,8 +79,8 @@ export function MarketplaceTopics({
             </View>
           }
           renderItem={({ item }) => {
-            const label = item.topic ? `${item.topic} (${item.count})` : t.marketplace.allTopics;
-            const testID = `marketplace-topic-${item.topic || 'all'}`;
+            const label = item.topic ? `${item.topic} (${item.count})` : all;
+            const testID = `${testIDPrefix}-${item.topic || 'all'}`;
             if (Platform.OS === 'ios')
               return (
                 <View style={{ backgroundColor: theme.layer.raised.fill }}>
@@ -87,7 +96,7 @@ export function MarketplaceTopics({
               <Pressable
                 testID={testID}
                 accessibilityRole="radio"
-                accessibilityLabel={item.topic || t.marketplace.allTopics}
+                accessibilityLabel={label}
                 accessibilityState={{ checked: item.topic === value }}
                 onPress={() => onChange(item.topic)}
                 android_ripple={{ color: pressTint(theme.color.fg) }}
