@@ -156,7 +156,7 @@ export function registerExternalMessagingTools(
     defineTool({
       name: 'bridge_read',
       description:
-        'Read one canonical external source from your Bot Inbox, including its original group/topic and current QQ reply capability. The check sends no message and grants no reply authority.',
+        'Read one canonical external source from your Bot Inbox, including its original group or Thread and current QQ reply capability. The check sends no message and grants no reply authority.',
       parameters: {
         source_event_id: {
           type: 'string',
