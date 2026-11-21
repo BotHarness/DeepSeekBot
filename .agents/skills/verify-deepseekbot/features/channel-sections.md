@@ -5,6 +5,8 @@
 - `packages/core/src/roster/**`
 - `packages/client/src/client/{roster,roster-config,roster-migration,roster-order,section-management}.{ts,tsx}`
 - `packages/host-client/src/roster-sorting.ts`
+- `packages/core/src/features/personabots/roster-methods.ts`
+- `packages/client/src/client/features/personabots/bridge.ts`
 
 ## Terms
 

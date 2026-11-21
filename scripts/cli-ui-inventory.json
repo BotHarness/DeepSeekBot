@@ -1110,6 +1110,7 @@
         "engine-tools",
         "engine-tool",
         "engine-login",
+        "engine-login-cancel",
         "engine-models",
         "engine-use",
         "model-preset-create",

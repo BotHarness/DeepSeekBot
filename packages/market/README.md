@@ -26,6 +26,10 @@ Most-starred browsing orders by `stars DESC, pushed_at DESC, created_at DESC, no
 - `POST /v1/avatars` takes a Connect bearer token and a JSON body with `name`, `description`, `tags`, `image` (an image data URL), `confirm: true` and `requestKey`. An optional `expectedAuthorId` binds the request to the identity the user confirmed. The same account and request key return the existing Avatar. Each account can publish up to 20.
 - Clients process the image before upload. The Worker checks signatures, dimensions, animation markers, metadata chunks, and the 128 KiB limit. See [ADR-0359](../../docs/adr/0359-marketplace-avatar-images-are-processed-on-the-client.md).
 
+Avatar reports use `POST /v1/avatars/{id}/reports` with the shared challenge and optional reason. The report threshold hides public reads and Apply. To block or restore, platform admins send `{ "kind": "avatar", "id": "...", "action": "block" | "restore" }` to `POST /v1/admin/blocklist`. The response includes `{ avatar: { id, name, visibility } }`. Restoring clears reports and preserves Apply Count.
+
+Apply D1 migration `0023_entry_reports.sql` before deploying the Worker. It adds cleanup triggers for Avatar report keys and preserves the existing reports table and Bot report keys.
+
 ## Public read API (v1)
 
 The product site ([deepseekbot.app](https://deepseekbot.app) `/market` and `/en/market`, repository `BotHarness/deepseekbot-site`) reads the same `/v1` routes the Host uses. They need no authentication. The `v1` contract only grows: new fields may be added, existing fields keep their names and types, and a breaking change gets a new `/v2` path.

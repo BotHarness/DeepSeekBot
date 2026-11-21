@@ -1,4 +1,5 @@
 import { parseBotDescriptor } from '../marketplace/descriptor.js';
+import type { StandingUsage } from '../memory/soul.js';
 import { BotCreationError, type BotCreationResult, type BotImportReference } from './creation.js';
 import type { BotImportsService } from './imports.js';
 import type { PersonaBotRegistry } from './registry.js';
@@ -22,6 +23,7 @@ export interface BotZipPreview {
   fileCount: number;
   expandedBytes: number;
   history: boolean;
+  standing: StandingUsage[];
 }
 
 function reference(input: BotZipImportReference): BotImportReference {
@@ -144,6 +146,7 @@ function buildBotZipImport(options: BotZipImportOptions) {
           fileCount: preview.files.length,
           expandedBytes: preview.files.reduce((total, file) => total + file.size, 0),
           history: preview.history,
+          standing: preview.standing,
         };
       });
     },

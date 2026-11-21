@@ -35,7 +35,9 @@ import { codexReplay, type CodexReplay, readCodexRecording } from './fixtures/co
 import { memoryDsh } from './fixtures/engine-dsh.js';
 import { createTempRoot } from './helpers.js';
 
+const BEFORE_RECORDED_QUOTA_RESET = new Date('2026-11-19T00:00:00Z');
 const RECORDING = readCodexRecording(join(import.meta.dirname, 'fixtures', 'codex-dm-turn.jsonl'));
+const RECORDED_AT = Date.parse('2026-11-18T13:53:20Z');
 
 const TOOLS: EngineTool[] = [
   {
@@ -53,6 +55,7 @@ const TOOLS: EngineTool[] = [
 
 const gateways: EngineGateway[] = [];
 afterEach(async () => {
+  vi.useRealTimers();
   await Promise.all(gateways.splice(0).map((gateway) => gateway.close()));
 });
 
@@ -66,6 +69,7 @@ function setup(recording = RECORDING, local = true) {
   const host = new EngineHost({
     root,
     local,
+    now: () => RECORDED_AT,
     gateway,
     sessions: () => dsh.store,
     persistence: () => dsh.persistence,
@@ -116,6 +120,7 @@ describe('Codex Subscription Engine Session (replay)', () => {
   });
 
   it('answers a DM through bot_send_message and writes the turn into the DSH Session', async () => {
+    vi.useFakeTimers({ toFake: ['Date'], now: BEFORE_RECORDED_QUOTA_RESET });
     const { host, dsh, replays, opened, execute, request, root } = setup();
     host.use('ada', 'orchestrator', 'codex');
     await host.runTurn(request);

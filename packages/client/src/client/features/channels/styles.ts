@@ -420,10 +420,6 @@ html[data-botharness-motion='reduce'] .bh-timeline-new {
   position: static;
 }
 .bh-sidebar-settings-list > [role="presentation"] { overflow: visible; }
-.bh-model-menu-anchor { display: flex; width: 100%; min-width: 0; }
-`,
-  modelMenuList: `.bh-model-menu-list > [role="presentation"] { overflow: auto; }
-.bh-model-menu-list .bh-move-checked { min-width: 0; }
 .bh-sidebar-settings-group { position: relative; }
 `,
   sidebarSettingsTrigger: `.bh-sidebar-settings-trigger > span { flex: 1; white-space: nowrap; }

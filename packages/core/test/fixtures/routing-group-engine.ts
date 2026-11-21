@@ -239,7 +239,7 @@ export function setup(options: {
   codexRecording?: typeof LIMIT;
   claudeRecording?: typeof CLAUDE_REPLY;
   idleMs?: number;
-  nativeReply?: string;
+  nativeReply?: string | (() => Record<string, unknown>);
   beforeEngineLimit?(engine: string, clock: { now: number }): void;
   inherited?: boolean;
   namedEngine?: 'codex' | 'claude';
@@ -272,7 +272,10 @@ export function setup(options: {
         await executeFixtureNativeTool(
           {
             name: 'bot_send_message',
-            arguments: { body: options.nativeReply, channel_id: dmChannelId('ada') },
+            arguments:
+              typeof options.nativeReply === 'function'
+                ? options.nativeReply()
+                : { body: options.nativeReply, channel_id: dmChannelId('ada') },
             callId: ToolCallId('native-reply'),
             signal: new AbortController().signal,
           },
@@ -401,7 +404,7 @@ export function setup(options: {
   if (options.inherited) core.routingGroups.setDefaultGroup(group.id, 0);
   else expect(core.registry.customizeModelPlan('ada', API, 0, group.id).ok).toBe(true);
   const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
-  async function message(id: string, body: string) {
+  async function message(id: string, body: string, onAdmitted?: () => void) {
     await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
       id,
       at: new Date(clock.now).toISOString(),
@@ -413,10 +416,12 @@ export function setup(options: {
       messageId: id,
       body,
     });
+    onAdmitted?.();
     await core.runtime.whenIdle();
   }
   return {
     host,
+    core,
     account,
     adapter,
     dsh,

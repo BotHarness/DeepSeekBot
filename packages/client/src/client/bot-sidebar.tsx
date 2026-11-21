@@ -1,5 +1,3 @@
-import * as stylex from '@stylexjs/stylex';
-import { rosterStyles } from './ds/roster-styles.js';
 import { Icon } from './ds/icon.js';
 import { MEMBER_MENU_ITEMS, menuItemAllowed } from './team-menu.js';
 import { Menu } from './appearance-primitives.js';
@@ -18,7 +16,7 @@ import {
   type RefCallback,
   type MutableRefObject,
 } from 'react';
-import { MenuItemButton, type MenuEntry } from './ds/menu.js';
+import type { MenuEntry } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 import type { BotModePrefsSnapshot } from './bot-mode-prefs.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -42,8 +40,6 @@ import {
   UNGROUPED_MOVE_TARGET,
 } from './section-management.js';
 import { store, type BotSummary, type ChannelSummary } from './store.js';
-import type { ModelRouteView } from './bridge.js';
-import type { BotModelGroup } from './bot-model-route.js';
 import { useMountedResource } from './mounted-resource.js';
 import type { TeamModeView } from './team-bridge.js';
 import type { SidebarState, SidebarProps, ChannelMenuRequest } from './bot-sidebar-types.js';
@@ -363,104 +359,6 @@ export function BulkChannelMenu({
   );
 }
 
-function BotModelMenu({
-  label,
-  groups,
-  disabled,
-  open,
-  setOpen,
-  apply,
-}: {
-  label: string;
-  groups: readonly BotModelGroup[];
-  disabled: boolean;
-  open: boolean;
-  setOpen(open: boolean): void;
-  apply(route: ModelRouteView): void;
-}): ReactElement {
-  const anchor = useRef<HTMLElement | null>(null);
-  const [active, setActive] = useState<string>();
-  return (
-    <span onPointerDown={(event) => event.stopPropagation()}>
-      <Menu
-        open={open}
-        portal
-        dense
-        autoFocus
-        side="right"
-        closeOnPointerLeave
-        className="bh-model-menu-anchor"
-        listClassName="bh-model-menu-list"
-        anchorRef={anchor}
-        anchor={
-          <span
-            ref={(node) => {
-              anchor.current = node?.closest('button') ?? null;
-            }}
-            {...stylex.props(rosterStyles.menuLabel)}
-            onMouseEnter={() => {
-              if (!disabled) setOpen(true);
-            }}
-          >
-            <span {...stylex.props(rosterStyles.truncate)}>{label}</span>
-            <Icon name="chevron-right" size={16} />
-          </span>
-        }
-        onClose={() => {
-          setOpen(false);
-          setActive(undefined);
-        }}
-      >
-        {groups.map((group) => (
-          <Menu
-            key={group.key}
-            open={active === group.key}
-            portal
-            dense
-            side="right"
-            closeOnPointerLeave
-            className="bh-model-menu-anchor"
-            listClassName="bh-model-menu-list"
-            anchor={
-              <button
-                type="button"
-                role="menuitem"
-                className="bh-sidebar-settings-trigger"
-                aria-haspopup="menu"
-                aria-expanded={active === group.key}
-                disabled={disabled}
-                onMouseEnter={() => setActive(group.key)}
-                onFocus={() => setActive(group.key)}
-                onClick={() => setActive(group.key)}
-              >
-                <span {...stylex.props(rosterStyles.menuLabel)}>
-                  <span {...stylex.props(rosterStyles.truncate)}>{group.label}</span>
-                  {group.current ? <Icon name="check" size={16} /> : null}
-                </span>
-                <Icon name="chevron-right" size={16} />
-              </button>
-            }
-            onClose={() => setActive(undefined)}
-          >
-            {group.efforts.map((effort) => (
-              <MenuItemButton
-                key={effort.route.reasoningEffort ?? ''}
-                disabled={disabled}
-                onSelect={() => apply(effort.route)}
-              >
-                <span {...stylex.props(rosterStyles.menuLabel)}>
-                  <span {...stylex.props(rosterStyles.truncate)}>{effort.label}</span>
-                  {effort.current ? <Icon name="check" size={16} /> : null}
-                </span>
-              </MenuItemButton>
-            ))}
-          </Menu>
-        ))}
-      </Menu>
-    </span>
-  );
-}
-
 export function ChannelMoveMenu({
   sectionManagement = true,
   readAction,
@@ -468,6 +366,7 @@ export function ChannelMoveMenu({
   companionAction,
   shareAction,
   marketAction,
+  publishAvatarAction,
   deleteAction,
   settingsAction,
   profileAction,
@@ -493,6 +392,7 @@ export function ChannelMoveMenu({
   companionAction?: { label: string; run(): void } | undefined;
   shareAction?: { label: string; run(): void } | undefined;
   marketAction?: (() => void) | undefined;
+  publishAvatarAction?: (() => void) | undefined;
   deleteAction?: { label: string; run(): void } | undefined;
   settingsAction?: { attention: boolean; run(): void } | undefined;
   profileAction?: (() => void) | undefined;
@@ -506,13 +406,7 @@ export function ChannelMoveMenu({
         setMemoryDisplay(value: DmMemoryDisplay): void;
       }
     | undefined;
-  modelAction?:
-    | {
-        groups: readonly BotModelGroup[];
-        disabled: boolean;
-        apply(route: ModelRouteView): void;
-      }
-    | undefined;
+  modelAction?: (() => void) | undefined;
   menu: ChannelMenuRequest;
   sections: readonly RosterSection[];
   currentSectionId: string | undefined;
@@ -525,7 +419,6 @@ export function ChannelMoveMenu({
   onPick: (sectionId: string | undefined) => void;
   onClose: () => void;
 }): ReactElement {
-  const [modelOpen, setModelOpen] = useState(false);
   const proxy = useRef<HTMLSpanElement | null>(null);
   const menuMount = useMountedResource<HTMLSpanElement>(() => {
     const timer = window.setTimeout(() => {
@@ -591,6 +484,15 @@ export function ChannelMoveMenu({
             icon: <ChannelSidebarIcon name="store" size={16} />,
           },
         ]),
+    ...(publishAvatarAction === undefined
+      ? []
+      : [
+          {
+            id: 'publish-avatar',
+            label: t('market.avatar.publish'),
+            icon: <ChannelSidebarIcon name="image-up" size={16} />,
+          },
+        ]),
     {
       id: pinned ? 'unpin' : 'pin',
       label: t(pinned ? 'pin.remove' : 'pin.add'),
@@ -620,16 +522,8 @@ export function ChannelMoveMenu({
       : [
           {
             id: 'bot-model',
-            label: (
-              <BotModelMenu
-                label={t('roster.menu.model')}
-                {...modelAction}
-                open={modelOpen}
-                setOpen={setModelOpen}
-              />
-            ),
+            label: t('roster.menu.model'),
             icon: <Icon name="bot" size={16} />,
-            disabled: modelAction.disabled || modelAction.groups.length === 0,
           },
         ]),
     ...(sectionManagement ? channelMoveMenuItems(t, sections, currentSectionId) : []).map(
@@ -699,7 +593,7 @@ export function ChannelMoveMenu({
             return;
           }
           if (id === 'bot-model') {
-            setModelOpen(true);
+            modelAction?.();
             return;
           }
           if (id === CHANNEL_SETTINGS_ITEM) {
@@ -720,6 +614,10 @@ export function ChannelMoveMenu({
           }
           if (id === 'share-market') {
             marketAction?.();
+            return;
+          }
+          if (id === 'publish-avatar') {
+            publishAvatarAction?.();
             return;
           }
           if (id === 'delete') {

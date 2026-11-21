@@ -4,9 +4,11 @@ A Human creates a PersonaBot bound to a native Workspace. The Bot gets a DM Chan
 
 ## Sources
 
-- `packages/client/src/client/{persona-bot-create,bot-create-source,bot-create-approval}.tsx`
+- `packages/client/src/client/{persona-bot-create,bot-create-source,bot-create-approval,bot-zip,standing-import-usage}.tsx`
 - `packages/core/src/bots/{bot-create-cli,memory-move,zip-import}.ts`
 - `packages/core/src/tob/cli-bot-create.ts`
+- `packages/core/src/features/personabots/methods.ts`
+- `packages/client/src/client/features/personabots/bridge.ts`
 
 ## Terms
 
@@ -20,6 +22,7 @@ A Human creates a PersonaBot bound to a native Workspace. The Bot gets a DM Chan
 - `workspace` registers a native DSH Workspace that BotHarness lists in its options.
 - `create` creates the PersonaBot with a role and Workspace grant.
 - `creation-method-dialog` opens a two-step dialog from the Channel list or section's New menu. Three cards choose blank, GitHub or zip; the first step returns from the form, while submission locks it. Remote zip import remains disabled and members only see blank creation.
+- `zip-standing-preview` shows the standing memory usage and effective limits after a Web ZIP is selected. It identifies the number of characters that will be excluded from the prompt.
 - `memory` initializes the Bot's Git Memory with an accepted HEAD.
 - `restart` keeps the Bot, its DM and the Human message after a Host restart.
 - `blank-recovery` queries an absent operation, creates an independent blank Bot, recovers its receipt through RPC and the built `create-status` CLI, and retries the same input/key before and after Host restart with exactly one Bot and DM.
@@ -35,11 +38,13 @@ A Human creates a PersonaBot bound to a native Workspace. The Bot gets a DM Chan
 
 ## Driving it with verify-app
 
+- **ZIP limits.** Choose a ZIP with a `SOUL.md` and `MEMORY.md` and an optional `standingLimits` pair in `.botharness/bot.json`. Check each file's usage before importing, then open Memory files for the new Bot and compare its limits. Repeat with a legacy ZIP above a default limit and check the excluded count in both places. Use `bot-zip-preview` to confirm the same counts without creating a Bot.
+
 The scripted journey owns its Host: it launches a fresh instance on a free port, drives the same `/api` calls the Client makes, restarts the Host and stops it.
 
 - **Run.** `pnpm build`, then `node scripts/e2e-personabot-create.mjs --with-dm`. It prints JSON with `"result":"pass"` and `workspaceCreated`, `personaBotCreated`, `persistedAfterRestart`, `gitMemoryReady` and `dmHistoryAfterRestart` all `true`; `blankCreationLookup`, `blankCreationCli`, `blankCreationRetry` and `blankCreationAfterRestart` prove the independent blank recovery path. CI runs this journey on every pull request that changes code.
 - **UI, narrow screens.** At 375 × 667, open Create Bot, fill Name, expand Advanced settings and scroll the form. The dialog title and Cancel/Create actions stay within the viewport while its body scrolls. Submit and verify the new Bot appears, then send a real DM. Capture the dialog before/after; the scripted journey above proves the API path only.
-- **Tilties.** In the blank form, select Tilties and confirm the round preview changes to a built-in portrait. Shuffle once and confirm it shows a different portrait. Return to Pixel, switch to Tilties again, create the Bot and check the same avatar in its DM and profile. In the profile avatar editor, confirm the Pixel presets are visible and Upload image is beneath the preview. Choose a Pixel preset and open Customize pixel avatar to edit it. Return to the presets, select Tilties, confirm AI Girls opens first, switch collections, and pick a named portrait. Confirm the preview changes before saving, then save and verify the replacement in the DM after reload. Use the Bot readback and served avatar bytes to confirm the WebP was saved.
+- **Tilties.** In the blank form, select Tilties and confirm the round preview changes to a built-in portrait. Shuffle once and confirm it shows a different portrait. Return to Pixel, switch to Tilties again, create the Bot and check the same avatar in its DM and profile. In the profile avatar editor, confirm the Pixel presets are visible and Upload image is beneath the preview. Choose a Pixel preset and open Customize pixel avatar to edit it. Return to the presets, select Tilties, confirm all 36 built-in portraits appear together, and pick a portrait near the end of the gallery. Check that Pixel and Tilties previews share the same rounded-square frame. Confirm the preview changes before saving, then save and verify the replacement in the DM after reload. Use the Bot readback and served avatar bytes to confirm the WebP was saved.
 - **Memory location.** Make an empty folder on the Host, then `shot <label> --bot-mode --click "New" --click "Create Bot" --click-text "Start empty" --fill "Name=Ada" --click "Advanced settings" --fill "Memory location=<folder>" --click "Create" --wait-text "Hi, I'm Ada"`. Proof: `<folder>/<bot id>` is a Git repository, and `rpc botharness/get '{"slug":"<bot id>"}'` reports that path as `memoryDir`. A folder that does not exist shows the inline refusal instead.
 - **Memory move.** Send one DM first so the Bot has a main session. Make an empty folder on the Host, then `shot <label> --bot-mode --click-text Ada --click "Workspace Grants · Ada · 0 workspaces" --click-text "Memory Repository" --fill "New Memory location=<folder>" --click "Move Memory" --wait-text "<folder>/<bot id>"`. Proof: `git -C <folder>/<bot id> rev-parse HEAD` matches the HEAD before the move, the old folder is gone, `rpc botharness/get` reports the new `memoryDir`, and after the next DM `rpc botharness/botSessionIds '{}'` lists a second session whose `cwd` (in `<DSH_HOME>/storages/session_projcache/sessions/<id>.json`) is the new folder. `deepseekbot memory-move <bot id> --default-location` moves it back. The turn may fail for lack of model credit; the move is still provable.
 - **Bot creates Bot, without the model.** `printf '{"display_name":"Tim","tags":["translator"],"soul":"# Tim"}' | deepseekbot bot-tool <bot id> bot_create --args-stdin`. Proof: the result has `bot_id`, `dm_channel_id` and `memory_dir`; `<memory_dir>/SOUL.md` holds the Soul; Tim shows in the sidebar; the creating Bot's DM shows "<Bot> created a new Bot, Tim". Bad input exits non-zero with `invalid-input`, `invalid-avatar` or `invalid-memory-dir`.
