@@ -1,3 +1,6 @@
+import * as cloudRpc from '../features/cloud/rpc.js';
+import * as activityRpc from '../features/activity/rpc.js';
+import * as messagingRpc from '../features/messaging/rpc.js';
 import * as sessionsRpc from '../features/sessions/rpc.js';
 import * as assignmentsRpc from '../features/assignments/rpc.js';
 import * as memoryRpc from '../features/memory/rpc.js';
@@ -16,7 +19,10 @@ import * as promptsRpc from '../features/prompts/rpc.js';
 import { toRemoteError, unwrap, unwrapAsync, type AdminResult } from './rpc-result.js';
 import type {
   MarketplaceAvatar,
+  MarketplaceAvatarEdit,
   MarketplaceAvatarPage,
+  MarketplaceAvatarRanking,
+  MarketplaceAvatarTag,
   MarketplaceAvatarApplyCandidate,
 } from '@botharness/host-protocol/marketplace-avatar';
 import { markRemoteMethods, markRemoteStreams } from './remote-descriptors.js';
@@ -877,45 +883,45 @@ export class BotharnessBridgeService extends TypertRemoteService {
     grantId: string,
     channelId: string | null,
   ): Promise<{ updated: true }> {
-    return unwrapAsync(this.methods.messagingChannelTarget({ slug, grantId, channelId }));
+    return messagingRpc.messagingChannelTarget(this.methods, slug, grantId, channelId);
   }
   messagingThreadPolicy(
     slug: string,
     sourceEventId: string,
     policy: ThreadReceptionInput,
   ): Promise<{ updated: true }> {
-    return unwrapAsync(this.methods.messagingThreadPolicy({ slug, sourceEventId, policy }));
+    return messagingRpc.messagingThreadPolicy(this.methods, slug, sourceEventId, policy);
   }
   messagingGroupPolicy(
     slug: string,
     grantId: string,
     policy: GroupReceptionInput,
   ): Promise<{ updated: true }> {
-    return unwrapAsync(this.methods.messagingGroupPolicy({ slug, grantId, policy }));
+    return messagingRpc.messagingGroupPolicy(this.methods, slug, grantId, policy);
   }
   messagingDefaults(platform?: MessagingDefaultsPlatform): Promise<MessagingDefaults> {
-    return unwrapAsync(this.methods.messagingDefaults(platform === undefined ? {} : { platform }));
+    return messagingRpc.messagingDefaults(this.methods, platform);
   }
   messagingDefaultsSet(input: MessagingDefaultsInput): Promise<MessagingDefaults> {
-    return unwrapAsync(this.methods.messagingDefaultsSet(input));
+    return messagingRpc.messagingDefaultsSet(this.methods, input);
   }
   channelBridges(channelId: string, mode?: MessagingReadMode): Promise<ChannelBridgeSnapshot> {
-    return unwrapAsync(this.methods.channelBridges({ channelId, ...(mode ? { mode } : {}) }));
+    return messagingRpc.channelBridges(this.methods, channelId, mode);
   }
   channelIngests(channelId: string): Promise<ConversationIngestSnapshot> {
-    return unwrapAsync(this.methods.channelIngests({ channelId }));
+    return messagingRpc.channelIngests(this.methods, channelId);
   }
   channelIngest(channelId: string, input: ConversationIngestInput): Promise<{ updated: true }> {
-    return unwrapAsync(this.methods.channelIngest({ channelId, input }));
+    return messagingRpc.channelIngest(this.methods, channelId, input);
   }
   channelBridge(channelId: string, input: ChannelBridgeInput): Promise<{ updated: true }> {
-    return unwrapAsync(this.methods.channelBridge({ channelId, input }));
+    return messagingRpc.channelBridge(this.methods, channelId, input);
   }
   messagingReceive(slug: string, grantId: string, enabled: boolean): Promise<{ updated: true }> {
-    return unwrapAsync(this.methods.messagingReceive({ slug, grantId, enabled }));
+    return messagingRpc.messagingReceive(this.methods, slug, grantId, enabled);
   }
   messagingSource(slug: string, sourceEventId: string): Promise<{ source: ExternalSource }> {
-    return unwrapAsync(this.methods.messagingSource({ slug, sourceEventId }));
+    return messagingRpc.messagingSource(this.methods, slug, sourceEventId);
   }
   approvalRoute(
     slug: string,
@@ -945,12 +951,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
     enabled: boolean,
     expectedRevision: number,
   ): Promise<{ updated: true }> {
-    return unwrapAsync(this.methods.failureAlertsSet({ slug, enabled, expectedRevision }));
+    return messagingRpc.failureAlertsSet(this.methods, slug, enabled, expectedRevision);
   }
   failureAlertsTest(slug: string): Promise<{
     delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery;
   }> {
-    return unwrapAsync(this.methods.failureAlertsTest({ slug }));
+    return messagingRpc.failureAlertsTest(this.methods, slug);
   }
   failureAlertsRetry(
     slug: string,
@@ -958,44 +964,38 @@ export class BotharnessBridgeService extends TypertRemoteService {
   ): Promise<{
     delivery: import('../messaging/failure-alerts.js').FailureAlertDelivery;
   }> {
-    return unwrapAsync(this.methods.failureAlertsRetry({ slug, id }));
+    return messagingRpc.failureAlertsRetry(this.methods, slug, id);
   }
   pairingReview(slug: string, input: PairingReviewInput): Promise<{ pairing: PairingRequest }> {
-    return unwrapAsync(this.methods.pairingReview({ slug, input }));
+    return messagingRpc.pairingReview(this.methods, slug, input);
   }
   senderAccess(slug: string, input: SenderAccessInput): Promise<void> {
-    return unwrapAsync(this.methods.senderAccess({ slug, input }));
+    return messagingRpc.senderAccess(this.methods, slug, input);
   }
   messagingIdentity(
     slug: string,
     input: MessagingIdentityInput,
   ): Promise<{ identity: MessagingIdentity }> {
-    return unwrapAsync(this.methods.messagingIdentity({ slug, input }));
+    return messagingRpc.messagingIdentity(this.methods, slug, input);
   }
   cloudConnections(input: CloudManagementInput): Promise<CloudManagementResult> {
-    return unwrapAsync(this.methods.cloudConnections(input));
+    return cloudRpc.cloudConnections(this.methods, input);
   }
   cloudWork(slug: string, input: CloudWorkInput): Promise<Awaited<ReturnType<CloudWork['run']>>> {
-    return unwrapAsync(this.methods.cloudWork({ slug, input }));
+    return cloudRpc.cloudWork(this.methods, slug, input);
   }
   messagingApps(): Promise<MessagingAppsView> {
-    return unwrapAsync(this.methods.messagingApps());
+    return messagingRpc.messagingApps(this.methods);
   }
   messagingSnapshot(slug: string, mode?: MessagingReadMode): Promise<MessagingSnapshot> {
-    return unwrapAsync(this.methods.messagingSnapshot({ slug, ...(mode ? { mode } : {}) }));
+    return messagingRpc.messagingSnapshot(this.methods, slug, mode);
   }
   messagingReachable(
     slug: string,
     bindingId: string,
     cursor?: string,
   ): Promise<import('../messaging/provider.js').MessagingReachablePage> {
-    return unwrapAsync(
-      this.methods.messagingReachable({
-        slug,
-        bindingId,
-        ...(cursor ? { cursor } : {}),
-      }),
-    );
+    return messagingRpc.messagingReachable(this.methods, slug, bindingId, cursor);
   }
   messagingPostRequest(
     slug: string,
@@ -1004,14 +1004,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     requestId: string,
     text: string,
   ): Promise<{ intent: OutboxIntent | null }> {
-    return unwrapAsync(
-      this.methods.messagingPostRequest({
-        slug,
-        bindingId,
-        conversationId,
-        requestId,
-        text,
-      }),
+    return messagingRpc.messagingPostRequest(
+      this.methods,
+      slug,
+      bindingId,
+      conversationId,
+      requestId,
+      text,
     );
   }
   messagingPostConversation(
@@ -1021,14 +1020,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     requestId: string,
     text: string,
   ): Promise<{ intent: OutboxIntent }> {
-    return unwrapAsync(
-      this.methods.messagingPostConversation({
-        slug,
-        bindingId,
-        conversationId,
-        requestId,
-        text,
-      }),
+    return messagingRpc.messagingPostConversation(
+      this.methods,
+      slug,
+      bindingId,
+      conversationId,
+      requestId,
+      text,
     );
   }
   messagingPostLimit(
@@ -1037,20 +1035,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedRevision: number,
     limit: number | null,
   ): Promise<{ identity: MessagingIdentity }> {
-    return unwrapAsync(
-      this.methods.messagingPostLimit({
-        slug,
-        bindingId,
-        expectedRevision,
-        limit,
-      }),
-    );
+    return messagingRpc.messagingPostLimit(this.methods, slug, bindingId, expectedRevision, limit);
   }
   messagingTargets(
     providerId: string,
     accountRef: string,
   ): Promise<{ targets: MessagingTarget[] }> {
-    return unwrapAsync(this.methods.messagingTargets({ providerId, accountRef }));
+    return messagingRpc.messagingTargets(this.methods, providerId, accountRef);
   }
   messagingAuthorize(
     botSlug: string,
@@ -1060,25 +1051,24 @@ export class BotharnessBridgeService extends TypertRemoteService {
     fingerprint: string,
     targetDigest: string,
   ): Promise<{ grant: MessagingGrant }> {
-    return unwrapAsync(
-      this.methods.messagingAuthorize({
-        botSlug,
-        providerId,
-        accountRef,
-        targetRef,
-        fingerprint,
-        targetDigest,
-      }),
+    return messagingRpc.messagingAuthorize(
+      this.methods,
+      botSlug,
+      providerId,
+      accountRef,
+      targetRef,
+      fingerprint,
+      targetDigest,
     );
   }
   messagingRevoke(slug: string, grantId: string): Promise<{ revoked: true }> {
-    return unwrapAsync(this.methods.messagingRevoke({ slug, grantId }));
+    return messagingRpc.messagingRevoke(this.methods, slug, grantId);
   }
   messagingConversation(
     slug: string,
     input: MessagingConversationInput,
   ): Promise<{ updated: true }> {
-    return unwrapAsync(this.methods.messagingConversation({ slug, input }));
+    return messagingRpc.messagingConversation(this.methods, slug, input);
   }
   messagingSend(
     slug: string,
@@ -1086,7 +1076,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     requestId: string,
     text: string,
   ): Promise<{ intent: OutboxIntent }> {
-    return unwrapAsync(this.methods.messagingSend({ slug, grantId, requestId, text }));
+    return messagingRpc.messagingSend(this.methods, slug, grantId, requestId, text);
   }
 
   tobHome() {
@@ -1491,7 +1481,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   activitySnapshot(): PersonaBotActivitySnapshot {
-    return unwrap(this.methods.activitySnapshot({}));
+    return activityRpc.activitySnapshot(this.methods);
   }
 
   get(slug: string): AdminResult<{ bot: PersonaBotDetail; profileFingerprint: string }> {
@@ -2481,11 +2471,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     cursor?: string,
     state?: BotAttentionState,
   ): BotAttentionPage {
-    return unwrap(this.methods.botAttention({ slug, limit, cursor, state }));
+    return activityRpc.botAttention(this.methods, slug, limit, cursor, state);
   }
 
   botSourcePolicies(slug: string): { policies: BotSourcePolicy[] } {
-    return unwrap(this.methods.botSourcePolicies({ slug }));
+    return activityRpc.botSourcePolicies(this.methods, slug);
   }
 
   botSourcePolicySet(
@@ -2496,15 +2486,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     digestIntervalSeconds?: number,
     delivery?: 'steer' | 'turn',
   ): { policy: BotSourcePolicy } {
-    return unwrap(
-      this.methods.botSourcePolicySet({
-        slug,
-        wake,
-        sourceClass,
-        digestCount,
-        digestIntervalSeconds,
-        delivery,
-      }),
+    return activityRpc.botSourcePolicySet(
+      this.methods,
+      slug,
+      wake,
+      sourceClass,
+      digestCount,
+      digestIntervalSeconds,
+      delivery,
     );
   }
 
@@ -2512,15 +2501,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     slug: string,
     sourceClass?: 'assignment-report' | 'group-ordinary' | 'human-dm' | 'bot-dm' | 'group-mention',
   ): { policy: BotSourcePolicy } {
-    return unwrap(this.methods.botSourcePolicyReset({ slug, sourceClass }));
+    return activityRpc.botSourcePolicyReset(this.methods, slug, sourceClass);
   }
 
   channelActivityToday(): ChannelActivityToday {
-    return unwrap(this.methods.channelActivityToday({}));
+    return activityRpc.channelActivityToday(this.methods);
   }
 
   activityOverview() {
-    return unwrap(this.methods.activityOverview({}));
+    return activityRpc.activityOverview(this.methods);
   }
 
   humanAttention(
@@ -2538,31 +2527,30 @@ export class BotharnessBridgeService extends TypertRemoteService {
     dismissed?: boolean,
     notifications?: boolean,
   ): HumanAttentionPage {
-    return unwrap(
-      this.methods.humanAttention({
-        category,
-        botSlug,
-        channelId,
-        limit,
-        cursor,
-        sort,
-        snoozed,
-        kind,
-        search,
-        unreadOnly,
-        queryVersion,
-        dismissed,
-        notifications,
-      }),
+    return activityRpc.humanAttention(
+      this.methods,
+      category,
+      botSlug,
+      channelId,
+      limit,
+      cursor,
+      sort,
+      snoozed,
+      kind,
+      search,
+      unreadOnly,
+      queryVersion,
+      dismissed,
+      notifications,
     );
   }
   humanAttentionStatus(messageCounts?: boolean): HumanAttentionStatus {
-    return unwrap(this.methods.humanAttentionStatus({ messageCounts }));
+    return activityRpc.humanAttentionStatus(this.methods, messageCounts);
   }
   channelUnreadCounts(): {
     channels: Array<{ channelId: string; unreadCount: number }>;
   } {
-    return unwrap(this.methods.channelUnreadCounts({}));
+    return activityRpc.channelUnreadCounts(this.methods);
   }
   humanAssignmentContext(
     slug: string,
@@ -2572,10 +2560,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return assignmentsRpc.humanAssignmentContext(this.methods, slug, sessionId, sourceEventId);
   }
   humanAttentionDismiss(itemId: string, sourceKey: string): { accepted: boolean } {
-    return unwrap(this.methods.humanAttentionDismiss({ itemId, sourceKey }));
+    return activityRpc.humanAttentionDismiss(this.methods, itemId, sourceKey);
   }
   humanAttentionRestore(itemId: string, sourceKey: string): { accepted: boolean } {
-    return unwrap(this.methods.humanAttentionRestore({ itemId, sourceKey }));
+    return activityRpc.humanAttentionRestore(this.methods, itemId, sourceKey);
   }
   async humanAttentionDismissAll(
     kind?: string,
@@ -2583,19 +2571,17 @@ export class BotharnessBridgeService extends TypertRemoteService {
     botSlug?: string,
     channelId?: string,
   ): Promise<{ accepted: boolean; dismissed: number; read: number; more: boolean }> {
-    return unwrap(
-      await this.methods.humanAttentionDismissAll({ kind, category, botSlug, channelId }),
-    );
+    return activityRpc.humanAttentionDismissAll(this.methods, kind, category, botSlug, channelId);
   }
   humanAttentionIgnore(sourceEventId: string): { accepted: boolean } {
-    return unwrap(this.methods.humanAttentionIgnore({ sourceEventId }));
+    return activityRpc.humanAttentionIgnore(this.methods, sourceEventId);
   }
   humanAttentionSnooze(
     itemId: string,
     sourceKey: string,
     until: string | null,
   ): { accepted: boolean } {
-    return unwrap(this.methods.humanAttentionSnooze({ itemId, sourceKey, until }));
+    return activityRpc.humanAttentionSnooze(this.methods, itemId, sourceKey, until);
   }
 
   assignments(
@@ -2693,13 +2679,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     sourceEventId: string,
     attachmentId: string,
   ): Promise<{ target: MemoryFileTarget }> {
-    return unwrapAsync(
-      this.methods.channelMediaTarget({
-        channelId,
-        sourceEventId,
-        attachmentId,
-      }),
-    );
+    return messagingRpc.channelMediaTarget(this.methods, channelId, sourceEventId, attachmentId);
   }
 
   messageAttachmentTarget(
@@ -3045,7 +3025,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     before?: string,
     weeks?: number,
   ): Promise<ProfileActivity> {
-    return unwrap(await this.methods.profileActivity({ channelId, before, weeks }));
+    return activityRpc.profileActivity(this.methods, channelId, before, weeks);
   }
 
   async profileSessionUsage(channelId: string): Promise<ProfileSessionUsage> {
@@ -3053,7 +3033,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   groupProfileActivity(channelId: string): GroupProfileActivity {
-    return unwrap(this.methods.groupProfileActivity({ channelId }));
+    return activityRpc.groupProfileActivity(this.methods, channelId);
   }
 
   rosterGet(): RosterSnapshot {
@@ -3131,6 +3111,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return marketplaceRpc.marketplaceReport(this.methods, id, altcha, reason);
   }
 
+  async marketplaceAvatarReport(
+    id: string,
+    altcha: string,
+    reason?: string,
+  ): Promise<{ received: true }> {
+    return marketplaceRpc.marketplaceAvatarReport(this.methods, id, altcha, reason);
+  }
+
   async marketplaceTopics(): Promise<MarketplaceTopic[]> {
     return marketplaceRpc.marketplaceTopics(this.methods);
   }
@@ -3154,8 +3142,17 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return marketplaceRpc.marketplaceDigest(this.methods, day, lang);
   }
 
-  async marketplaceAvatarList(cursor?: string): Promise<MarketplaceAvatarPage> {
-    return marketplaceRpc.marketplaceAvatarList(this.methods, cursor);
+  async marketplaceAvatarList(
+    cursor?: string,
+    q?: string,
+    tag?: string,
+    sort?: MarketplaceAvatarRanking,
+  ): Promise<MarketplaceAvatarPage> {
+    return marketplaceRpc.marketplaceAvatarList(this.methods, cursor, q, tag, sort);
+  }
+
+  async marketplaceAvatarTags(): Promise<MarketplaceAvatarTag[]> {
+    return marketplaceRpc.marketplaceAvatarTags(this.methods);
   }
 
   async marketplaceAvatarDetail(id: string): Promise<MarketplaceAvatar> {
@@ -3172,6 +3169,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     operationKey?: string,
   ): Promise<{ applied: true }> {
     return marketplaceRpc.marketplaceAvatarApply(this.methods, id, bot, operationKey);
+  }
+
+  marketplaceAvatarSource(bot: string): { image: string } {
+    return marketplaceRpc.marketplaceAvatarSource(this.methods, bot);
   }
 
   async marketplaceAvatarPublish(
@@ -3193,6 +3194,21 @@ export class BotharnessBridgeService extends TypertRemoteService {
       tags,
       expectedAuthorId,
     );
+  }
+
+  async marketplaceAvatarMine(): Promise<{ avatars: MarketplaceAvatar[] }> {
+    return unwrapAsync(this.methods.marketplaceAvatarMine({}));
+  }
+
+  async marketplaceAvatarEdit(
+    id: string,
+    patch: MarketplaceAvatarEdit,
+  ): Promise<MarketplaceAvatar> {
+    return unwrapAsync(this.methods.marketplaceAvatarEdit({ id, ...patch }));
+  }
+
+  async marketplaceAvatarDelete(id: string): Promise<{ deleted: true }> {
+    return unwrapAsync(this.methods.marketplaceAvatarDelete({ id }));
   }
 
   async marketplaceDetail(id: string, lang?: MarketplaceLanguage): Promise<MarketplaceDetail> {
@@ -3779,14 +3795,20 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'marketplaceDigests',
   'marketplaceDigest',
   'marketplaceAvatarList',
+  'marketplaceAvatarTags',
   'marketplaceAvatarDetail',
   'marketplaceAvatarPublish',
+  'marketplaceAvatarSource',
+  'marketplaceAvatarMine',
+  'marketplaceAvatarEdit',
+  'marketplaceAvatarDelete',
   'marketplaceAvatarApplyCandidates',
   'marketplaceAvatarApply',
   'marketplaceDetail',
   'marketplaceFileView',
   'marketplaceChallenge',
   'marketplaceReport',
+  'marketplaceAvatarReport',
   'marketplaceAccount',
   'marketplaceAuthorSave',
   'marketplaceAuthorAvatarSet',

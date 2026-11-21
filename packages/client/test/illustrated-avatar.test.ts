@@ -29,6 +29,20 @@ const pixelMarkup = (...args: Parameters<typeof rawPixelMarkup>) => {
 };
 import { DEFAULT_LINE_RECIPE } from '../../core/src/bots/avatar-line.js';
 
+it.each([DEFAULT_ILLUSTRATED_RECIPE, DEFAULT_LINE_RECIPE])(
+  'lets the outer frame own the $family portrait corners',
+  (recipe) => {
+    const backdrop = (svg: string) =>
+      new DOMParser().parseFromString(svg, 'image/svg+xml').documentElement.firstElementChild;
+    const rounded = backdrop(cachedStaticAvatarSvg(recipe, 'portrait'));
+    const square = backdrop(cachedStaticAvatarSvg(recipe, 'portrait', true));
+    expect(rounded?.hasAttribute('rx')).toBe(true);
+    expect(square?.hasAttribute('rx')).toBe(false);
+    expect(square?.getAttribute('fill')).toBe(rounded?.getAttribute('fill'));
+    expect(backdrop(cachedStaticAvatarSvg(recipe, 'portrait'))?.hasAttribute('rx')).toBe(true);
+  },
+);
+
 it('renders the same pixel recipe as a transparent companion while retaining the portrait tile', async () => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   const node = document.createElement('div');

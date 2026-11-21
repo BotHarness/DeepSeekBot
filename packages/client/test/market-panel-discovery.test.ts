@@ -15,6 +15,7 @@ describe('Market panel', () => {
     async (kind) => {
       const t = zhTranslate;
       const marketplaceAccount = vi.fn(async () => ({ signedIn: false, author: null }));
+      const marketplaceAvatarMine = vi.fn(async () => ({ avatars: [] }));
       await withPanel(
         async () => ({ bots: [] }),
         async ({ host }) => {
@@ -27,12 +28,19 @@ describe('Market panel', () => {
           expect(
             host.querySelector('#bh-market-section-avatars')?.getAttribute('aria-selected'),
           ).toBe('true');
-          expect(host.querySelector(`button[aria-label="${t('market.mine.open')}"]`)).toBeNull();
           expect(host.querySelector(`button[aria-label="${t('market.panel.upload')}"]`)).toBeNull();
           expect(host.querySelector('#bh-market-section-avatars-panel')?.textContent).not.toContain(
             t('market.avatar.publish'),
           );
           if (kind === 'owner') {
+            expect(button(host, t('market.mine.open')).closest('header')).not.toBeNull();
+            expect(marketplaceAvatarMine).not.toHaveBeenCalled();
+            await click(host, t('market.mine.open'));
+            expect(document.querySelector('[role="dialog"]')?.textContent).toContain(
+              t('market.avatar.mine.title'),
+            );
+            expect(marketplaceAvatarMine).toHaveBeenCalledOnce();
+            await click(host, t('common.close'));
             expect(button(host, t('market.avatar.publish')).closest('header')).not.toBeNull();
             await click(host, t('market.avatar.publish'));
             expect(document.querySelector('[data-market-avatar-publish="account"]')).not.toBeNull();
@@ -41,15 +49,19 @@ describe('Market panel', () => {
             ).toBe('true');
             expect(marketplaceAccount).toHaveBeenCalledTimes(1);
           } else {
+            expect(host.querySelector(`button[aria-label="${t('market.mine.open')}"]`)).toBeNull();
             expect(
               host.querySelector(`button[aria-label="${t('market.avatar.publish')}"]`),
             ).toBeNull();
             expect(marketplaceAccount).not.toHaveBeenCalled();
+            expect(marketplaceAvatarMine).not.toHaveBeenCalled();
           }
         },
         {
           marketplaceAccount,
+          marketplaceAvatarMine,
           marketplaceAvatarList: vi.fn(async () => ({ avatars: [], nextCursor: null })),
+          marketplaceAvatarTags: vi.fn(async () => []),
           teamCall: vi.fn(async () => ({
             ok: true,
             value: {
@@ -90,7 +102,7 @@ describe('Market panel', () => {
         expect(list).toHaveBeenCalledTimes(1);
         expect(host.textContent).toContain('writer');
       },
-      { marketplaceAvatarList: avatars },
+      { marketplaceAvatarList: avatars, marketplaceAvatarTags: vi.fn(async () => []) },
     );
   });
 

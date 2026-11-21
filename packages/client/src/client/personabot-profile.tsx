@@ -36,6 +36,7 @@ export interface ProfileViewProps {
   actions: BridgeActions;
   t: BotHarnessTranslate;
   onClose(): void;
+  onPublishAvatar?: ((slug: string) => void) | undefined;
 }
 
 export function ProfileView({
@@ -46,6 +47,7 @@ export function ProfileView({
   actions,
   t,
   onClose,
+  onPublishAvatar,
 }: ProfileViewProps): ReactElement {
   const [deleting, setDeleting] = useState(false);
   const visibleCards =
@@ -74,6 +76,7 @@ export function ProfileView({
         actions={actions}
         t={t}
         onDelete={() => setDeleting(true)}
+        onPublishAvatar={onPublishAvatar}
       />
       {deleting && !bot.deleted ? (
         <PersonaBotDeletionView

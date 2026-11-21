@@ -24,6 +24,7 @@ import { useKeptScroll } from './market-page.js';
 import { MarketRankingPage, MarketplaceSections, MarketplaceTile } from './market-rankings.js';
 import { MarketUploadDialog } from './market-upload.js';
 import { useMountedResource } from './mounted-resource.js';
+import type { BotSummary } from './store.js';
 import {
   MarketplaceBotFlow,
   MarketplaceBrowseControls,
@@ -42,11 +43,33 @@ const styles = stylex.create({
 
 export const MARKET_PANEL = 'bot-market';
 
+const navigationByDock = new WeakMap<DockPanelRegistry, MarketNavigation>();
+
+export function hasMarketplaceAvatarSource(bot: BotSummary): boolean {
+  return (
+    bot.deleted !== true &&
+    (bot.appearance !== undefined ||
+      /^data:image\/(?:png|jpeg|webp);base64,|^\/api\/botharness\/bot-avatar\?/u.test(
+        bot.avatar ?? '',
+      ))
+  );
+}
+
+export function openMarketplaceAvatarPublish(
+  registry: DockPanelRegistry,
+  slug: string,
+  actions: BridgeActions,
+): void {
+  navigationByDock.get(registry)?.publishFromBot(slug, actions);
+  registry.open(MARKET_PANEL);
+}
+
 type MarketSection = 'bots' | 'avatars';
 type MarketNavigationState = {
   section: MarketSection;
   dialog: 'upload' | 'mine' | undefined;
   visitedAvatars: boolean;
+  avatarSource?: { slug: string; actions: BridgeActions };
 };
 
 function createMarketNavigation() {
@@ -70,7 +93,15 @@ function createMarketNavigation() {
         dialog: undefined,
         visitedAvatars: state.visitedAvatars || section === 'avatars',
       }),
-    open: (dialog: MarketNavigationState['dialog']) => set({ ...state, dialog }),
+    open: (dialog: MarketNavigationState['dialog']) =>
+      set({ section: state.section, visitedAvatars: state.visitedAvatars, dialog }),
+    publishFromBot: (slug: string, actions: BridgeActions) =>
+      set({
+        section: 'avatars',
+        dialog: 'upload',
+        visitedAvatars: true,
+        avatarSource: { slug, actions },
+      }),
   };
 }
 
@@ -91,7 +122,7 @@ function MarketHeaderAction({
   const uploadLabel = t(section === 'bots' ? 'market.panel.upload' : 'market.avatar.publish');
   return (
     <>
-      {section === 'bots' && (
+      {(section === 'bots' || owner) && (
         <Tooltip label={t('market.mine.open')} side="bottom" delayMs={500}>
           <IconButton
             size="row"
@@ -149,13 +180,15 @@ function MarketPanelView({
   });
   const lang = marketplaceLanguage(t);
   const keepHome = useKeptScroll<HTMLDivElement>();
-  const { section, dialog, visitedAvatars } = useSyncExternalStore(
+  const { section, dialog, visitedAvatars, avatarSource } = useSyncExternalStore(
     navigation.subscribe,
     navigation.read,
     navigation.read,
   );
+  const publishActions = avatarSource?.actions ?? actions;
   const owner =
-    useTeamMode(section === 'avatars' ? actions.teamCall : undefined)?.viewer.kind === 'owner';
+    useTeamMode(section === 'avatars' ? publishActions.teamCall : undefined)?.viewer.kind ===
+    'owner';
   const [pages, setPages] = useState<readonly MarketPageEntry[]>([]);
   const [flow, setFlow] = useState<MarketplaceFlowStart | undefined>(undefined);
 
@@ -227,6 +260,8 @@ function MarketPanelView({
             actions={actions}
             t={t}
             publishing={section === 'avatars' && owner && dialog === 'upload'}
+            avatarSource={avatarSource}
+            managing={section === 'avatars' && owner && dialog === 'mine'}
             onClosePublish={() => navigation.open(undefined)}
           />
         )}
@@ -381,6 +416,7 @@ export function createMarketPanel(
   t: BotHarnessTranslate,
 ): DockPanel {
   const navigation = createMarketNavigation();
+  navigationByDock.set(registry, navigation);
   return {
     id: MARKET_PANEL,
     title: t('market.panel.title'),

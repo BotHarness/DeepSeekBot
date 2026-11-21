@@ -1,4 +1,6 @@
 import { useMemo, useState, type ReactElement } from 'react';
+import { hooked } from './ds/hooked.js';
+import { avatarFrameStyles } from './ds/avatar-frame.js';
 import { attentionCount } from './activity-attention.js';
 import { BotIcon } from './bot-icon.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
@@ -59,6 +61,7 @@ export interface PersonaBotAvatarProps {
   t?: BotHarnessTranslate | undefined;
   className?: string | undefined;
   surface?: 'portrait' | 'companion' | undefined;
+  squareBackdrop?: boolean | undefined;
   still?: boolean | undefined;
   mouth?: PixelMouthState | undefined;
   facing?: 'front' | 'left' | 'right' | undefined;
@@ -224,16 +227,23 @@ function AvatarMedia({
   personaBotId,
   name,
   src,
+  squareBackdrop,
 }: {
   personaBotId: string;
   name: string;
   src?: string | undefined;
+  squareBackdrop?: boolean | undefined;
 }): ReactElement {
   const [failedSrc, setFailedSrc] = useState<string | undefined>(undefined);
 
   if (src !== undefined && src.length > 0 && failedSrc !== src) {
     return (
-      <span className="bh-avatar-media bh-avatar-media-image">
+      <span
+        {...hooked(
+          'bh-avatar-media bh-avatar-media-image',
+          !squareBackdrop && avatarFrameStyles.roundImage,
+        )}
+      >
         <img
           src={src}
           alt=""
@@ -338,6 +348,7 @@ export function PersonaBotAvatar({
   indicator = true,
   className,
   surface = 'portrait',
+  squareBackdrop,
   still = false,
   mouth = 'saved',
   facing,
@@ -404,12 +415,19 @@ export function PersonaBotAvatar({
             attention?.approvalCount ?? 0,
           )}
           surface={surface}
+          squareBackdrop={squareBackdrop}
           still={still}
           mouth={mouth}
           facing={facing}
         />
       ) : (
-        <AvatarMedia key={src ?? ''} personaBotId={personaBotId} name={name} src={src} />
+        <AvatarMedia
+          key={src ?? ''}
+          personaBotId={personaBotId}
+          name={name}
+          src={src}
+          squareBackdrop={squareBackdrop}
+        />
       )}
       {indicator ? <ActivityIndicator state={state} /> : null}
       {indicator ? <AttentionBadge attention={attention} /> : null}

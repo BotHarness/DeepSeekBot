@@ -353,6 +353,11 @@ export interface DshBotEngines {
   assertAssignmentAccount?(botSlug: string, target?: RoutingGroupEngineMember): void;
   runTurn(request: EngineTurnRequest): Promise<EngineTurnOutcome | void>;
   steerAssignment?(sessionId: string, text: string): boolean;
+  steerOrchestrator?(
+    sessionId: string,
+    text: string,
+    requireAccess: () => void,
+  ): boolean | Promise<boolean>;
   release(sessionId: string): Promise<void>;
   isLive(sessionId: string): boolean;
 }
@@ -950,6 +955,10 @@ class DshBotAgentAdapter implements BotAgentAdapter {
         releaseNativeSession: () => this.#releaseNativeSession(run.sessionId, 'orchestrator'),
         sessionId: run.sessionId,
         channelId: run.inboundChannelId,
+        ...(run.canUseEngineChannel === undefined
+          ? {}
+          : { canUseChannel: run.canUseEngineChannel }),
+        ...(run.priorEngineReplies === undefined ? {} : { priorReplies: run.priorEngineReplies }),
         input: `${text}\n\n${replyReminderText(promptText)}`,
         readRecoveryContext: () => {
           run.requireContent?.();
@@ -982,6 +991,18 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             (name !== TOOL_CALL.name && !tools.some((entry) => entry.name === name))
           )
             throw new Error(`refused: ${toolName} is not available to this engine Session`);
+          if (toolName === 'bot_send_message' && typeof toolArgs['source_event_id'] === 'string') {
+            const sourceId = toolArgs['source_event_id'];
+            const destination = run.replyDestination?.(sourceId);
+            if (
+              destination?.kind === 'channel' &&
+              destination.channelId !== run.inboundChannelId &&
+              run.canUseEngineChannel?.(destination.channelId) !== true
+            )
+              throw new Error('refused: channel-out-of-scope');
+            if (context.priorReplies?.has(sourceId))
+              throw new Error('refused: a reply to this Source Event was already sent');
+          }
           if (this.#engineToolGate !== undefined) {
             const refusal = await this.#engineToolGate({
               botSlug: run.bot.slug,
@@ -1223,19 +1244,31 @@ class DshBotAgentAdapter implements BotAgentAdapter {
     return [{ type: 'text', text: context }];
   }
 
-  steerOrchestrator(botSlug: string, text: string): boolean {
+  steerOrchestrator(botSlug: string, text: string, requireAccess: () => void = () => undefined) {
     this.#assertOpen();
     for (const [sessionId, active] of this.#runs) {
       if (
         active.role !== 'orchestrator' ||
         active.direct ||
-        this.#engineStops.has(sessionId) ||
         active.run.tobCliTurn !== undefined ||
         active.run.bot.slug !== botSlug
       )
         continue;
+      if (this.#engineStops.has(sessionId))
+        return (
+          this.#engines?.steerOrchestrator?.(
+            sessionId,
+            [
+              text,
+              'Use bot_send_message with the trusted source_event_id for each Channel you are answering.',
+              replyReminderText(this.#promptText(sessionId)),
+            ].join('\n\n'),
+            requireAccess,
+          ) ?? false
+        );
       const handle = this.#handles.get(sessionId);
       if (handle === undefined) return false;
+      requireAccess();
       handle.agent.steer(
         createUserMessage({
           content: [
