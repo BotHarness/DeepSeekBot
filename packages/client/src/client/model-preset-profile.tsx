@@ -99,7 +99,13 @@ export function ModelPresetProfile({
   const [editorOpen, setEditorOpen] = useState(onClose !== undefined);
   const [selectionMode, setSelectionMode] = useState('models');
   const origin = isOriginActions(actions);
-  const engines = useSubscriptionEngines(origin && editorOpen);
+  const subscriptionsEnabled = origin || actions.subscriptionEngine !== undefined;
+  const engines = useSubscriptionEngines(
+    editorOpen && subscriptionsEnabled,
+    actions.subscriptionEngine,
+    true,
+    true,
+  );
   const [engineDraft, setEngineDraft] = useState<
     Partial<Record<EngineRole, SubscriptionModel | null>>
   >({});
@@ -108,14 +114,15 @@ export function ModelPresetProfile({
     engines.models,
     engines.signingIn,
     t,
+    origin,
   );
   const liveEngine = (role: EngineRole) =>
-    origin && engines.view !== undefined
+    engines.view !== undefined
       ? (engines.view.selections.find((item) => item.botSlug === slug && item.role === role) ??
         null)
       : null;
   const desiredEngine = (role: EngineRole) =>
-    origin && engineDraft[role] !== undefined ? engineDraft[role] : liveEngine(role);
+    engineDraft[role] !== undefined ? engineDraft[role] : liveEngine(role);
   const pendingEngines = engineRoles.filter(
     (role) => !sameEngine(liveEngine(role), desiredEngine(role)),
   );
@@ -232,7 +239,7 @@ export function ModelPresetProfile({
   };
 
   const subscription = (role: EngineRole) =>
-    origin
+    subscriptionsEnabled
       ? {
           choice: desiredEngine(role),
           items: engineItems,
@@ -578,9 +585,11 @@ export function ModelPresetProfile({
               )}
             </>
           )}
-          {origin ? (
+          {subscriptionsEnabled ? (
             <div ref={engines.mount} hidden={selectionMode !== 'models'}>
-              {engines.view?.engines.length === 0 ? <Note>{t('engine.localOnly')}</Note> : null}
+              {origin && engines.view?.engines.length === 0 ? (
+                <Note>{t('engine.localOnly')}</Note>
+              ) : null}
               {engines.signInUrl === undefined ? null : (
                 <Note>
                   <a href={engines.signInUrl} target="_blank" rel="noopener noreferrer">

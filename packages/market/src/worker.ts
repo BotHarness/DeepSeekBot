@@ -47,6 +47,12 @@ import {
   type UploadResult,
   type Uploads,
 } from './uploads.js';
+import {
+  AVATAR_APPLY_ROUTE,
+  AVATAR_ROUTE,
+  createMarketAvatars,
+  readAvatarPublishBody,
+} from './avatars.js';
 import { logLine, logWorker } from './worker-log.js';
 
 export interface MarketEnv {
@@ -72,6 +78,7 @@ export interface MarketHandlerDeps {
   rankings?: Rankings | undefined;
   digests?: Digests | undefined;
   uploads?: { store: Uploads; verifier: AccessTokenVerifier } | undefined;
+  avatars?: ReturnType<typeof createMarketAvatars> | undefined;
 }
 
 export interface MarketOptions {
@@ -166,6 +173,70 @@ export function createMarketHandler(
 
   const route = async (request: Request): Promise<Response> => {
     const url = new URL(request.url);
+    const appliedAvatarId = AVATAR_APPLY_ROUTE.exec(url.pathname)?.[1];
+    if (appliedAvatarId !== undefined) {
+      if (request.method !== 'POST') return failure(405, 'method-not-allowed');
+      if (deps.avatars === undefined || protection === undefined)
+        return failure(503, 'avatars-unavailable');
+      const botHash = (await readBody(request))?.['botHash'];
+      if (typeof botHash !== 'string' || !/^[0-9a-f]{64}$/u.test(botHash))
+        return failure(400, 'invalid-receipt');
+      if (!(await protection.allow(await protection.source(request), 'install')))
+        return failure(429, 'rate-limited', { 'retry-after': '3600' });
+      const receipt = await deps.avatars.recordApply(appliedAvatarId, botHash);
+      return receipt === undefined ? failure(404, 'avatar-not-found') : json(202, receipt);
+    }
+    const avatar = AVATAR_ROUTE.exec(url.pathname);
+    if (avatar !== null) {
+      if (request.method === 'GET') {
+        if (deps.avatars === undefined) return failure(503, 'avatars-unavailable');
+        const id = avatar[1];
+        if (id === undefined) {
+          const page = await deps.avatars.list(url.searchParams.get('cursor'), url.origin);
+          return page === undefined ? failure(400, 'invalid-cursor') : json(200, page);
+        }
+        if (avatar[2] !== undefined) {
+          const image = await deps.avatars.image(id);
+          return image === undefined
+            ? failure(404, 'avatar-not-found')
+            : new Response(image.bytes, {
+                headers: {
+                  'content-type': image.contentType,
+                  'x-content-type-options': 'nosniff',
+                },
+              });
+        }
+        const detail = await deps.avatars.detail(id, url.origin);
+        return detail === undefined
+          ? failure(404, 'avatar-not-found')
+          : json(200, { avatar: detail });
+      }
+      if (request.method !== 'POST' || avatar[1] !== undefined)
+        return failure(405, 'method-not-allowed');
+      if (deps.avatars === undefined || deps.uploads === undefined)
+        return failure(503, 'avatars-unavailable');
+      const token = bearer(request);
+      const account =
+        token === undefined ? undefined : (await deps.uploads.verifier.verify(token))?.account;
+      if (account === undefined) return failure(401, 'unauthorized');
+      const input = await readAvatarPublishBody(request);
+      if (input.kind === 'oversize') return failure(413, 'unprocessed-image');
+      if (input.kind === 'invalid') return failure(400, 'invalid-avatar-publish');
+      const result = await deps.avatars.publish(account, input.body, url.origin);
+      if ('avatar' in result) {
+        const response = json(result.created ? 201 : 200, { avatar: result.avatar });
+        response.headers.set('cache-control', 'no-store');
+        return response;
+      }
+      const status = {
+        'invalid-avatar-publish': 400,
+        'unprocessed-image': 415,
+        'author-required': 409,
+        'author-changed': 409,
+        'avatar-limit': 409,
+      }[result.code];
+      return failure(status, result.code);
+    }
     if (url.pathname === '/v1/challenge') {
       if (request.method !== 'GET') return failure(405, 'method-not-allowed');
       if (protection === undefined) return failure(503, 'challenge-unavailable');
@@ -492,9 +563,19 @@ export function createMarketHandler(
   };
 
   return async (request) => {
-    if (!isPublicRead(new URL(request.url).pathname)) return route(request);
+    const { pathname } = new URL(request.url);
+    if (!isPublicRead(pathname)) return route(request);
     if (request.method === 'OPTIONS') return preflight(request);
-    return publicResponse(request, await route(request));
+    if (pathname === '/v1/avatars' && request.method === 'POST') return route(request);
+    return publicResponse(
+      request,
+      await route(request),
+      pathname.endsWith('/image') && AVATAR_ROUTE.test(pathname)
+        ? 'no-store'
+        : AVATAR_ROUTE.test(pathname)
+          ? 'no-cache'
+          : undefined,
+    );
   };
 }
 
@@ -546,6 +627,7 @@ export function handlerForEnv(
     receipts: createReceipts({ db, now }),
     rankings: createRankings({ db, now }),
     digests: createDigests({ db }),
+    avatars: bucket === undefined ? undefined : createMarketAvatars({ db, bucket, now }),
     uploads: store === undefined || verifier === undefined ? undefined : { store, verifier },
   });
 }

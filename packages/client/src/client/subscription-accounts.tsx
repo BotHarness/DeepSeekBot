@@ -26,6 +26,8 @@ import type { BotHarnessTranslate } from './locale.js';
 import { EngineBrandIcon } from './model-brand.js';
 import { engineAccountTitle, engineName, engineQuotaText } from './session-engine.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
+import { roleLabel } from './team-roles.js';
+import { roleAllowsEngineAccount, type TeamRole } from './team-roles-bridge.js';
 
 const styles = stylex.create({
   actions: { display: 'flex', justifyContent: 'end', flexWrap: 'wrap', gap: space.x2 },
@@ -146,9 +148,11 @@ function ClaudeSignInCode({
 
 export function SubscriptionAccounts({
   call,
+  roles = [],
   t,
 }: {
   call: BridgeCall;
+  roles?: readonly TeamRole[];
   t: BotHarnessTranslate;
 }): ReactElement {
   const api = useMemo(
@@ -247,6 +251,11 @@ export function SubscriptionAccounts({
               const canManage = accountId !== undefined && revision !== undefined;
               const canSignIn = status.installed && !status.available;
               const signingIn = engines.signingIn === key;
+              const roleNames = roles
+                .filter(
+                  (role) => accountId !== undefined && roleAllowsEngineAccount(role, accountId),
+                )
+                .map((role) => roleLabel(t, role));
               return (
                 <SidebarCardRow
                   key={key}
@@ -254,7 +263,16 @@ export function SubscriptionAccounts({
                     <EngineBrandIcon brand={engine === 'codex' ? 'openai' : 'claude'} size={20} />
                   }
                   title={title}
-                  summary={signInStatus(status, brand, t)}
+                  summary={[
+                    signInStatus(status, brand, t),
+                    ...(roleNames.length === 0
+                      ? []
+                      : [
+                          t('modelProviders.rolesAllowed', {
+                            roles: roleNames.join(t('modelProviders.roleSeparator')),
+                          }),
+                        ]),
+                  ].join(' · ')}
                   meta={status.available ? engineQuotaText(status.quota, t) : undefined}
                   detail={
                     engine === 'claude' && signingIn ? (

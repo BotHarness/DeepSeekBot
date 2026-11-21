@@ -9,6 +9,7 @@ import { type MenuEntry } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 
 import type { BridgeActions } from './actions.js';
+import { BotChoiceList } from './bot-choice-list.js';
 import { HumanAvatarImage } from './human-avatar.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { AtSignIcon } from './at-sign-icon.js';
@@ -58,46 +59,6 @@ const styles = stylex.create({
     justifyContent: 'flex-end',
     gap: space.x3,
     width: '100%',
-  },
-  results: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x1,
-    minWidth: 0,
-    maxHeight: '280px',
-    overflowY: 'auto',
-  },
-  option: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: space.x3,
-    width: '100%',
-    minWidth: 0,
-    minHeight: size.nav,
-    paddingInline: space.x3,
-    borderWidth: 0,
-    borderRadius: radius.sm,
-    backgroundColor: { default: 'transparent', ':hover': color.hover },
-    color: color.fg,
-    fontFamily: 'inherit',
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
-    textAlign: 'start',
-    cursor: 'pointer',
-    outline: {
-      default: 'none',
-      ':focus-visible': `${border.focus} solid ${color.accent}`,
-    },
-    outlineOffset: '-2px',
-  },
-  optionOn: {
-    backgroundColor: { default: color.selected, ':hover': color.selected },
-  },
-  optionName: {
-    minWidth: 0,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
   },
   choices: {
     display: 'grid',
@@ -211,39 +172,17 @@ function InviteMemberModal({
         initialFocus
       />
       {bots.some((bot) => bot.tob !== undefined) ? <Note>{t('group.tobPrivateOnly')}</Note> : null}
-      <div
-        ref={cancelOnUnmount}
-        role="group"
-        aria-label={t('group.inviteSelect')}
-        data-group-invite=""
-        {...stylex.props(styles.results)}
-      >
-        {filtered.length === 0 ? (
-          <Note>{t('group.inviteEmpty')}</Note>
-        ) : (
-          filtered.map((bot) => (
-            <button
-              type="button"
-              key={bot.slug}
-              data-group-invite-option={bot.slug}
-              aria-pressed={selected === bot.slug}
-              onClick={() => setSelected(bot.slug)}
-              {...stylex.props(styles.option, selected === bot.slug && styles.optionOn)}
-            >
-              <PersonaBotAvatar
-                t={t}
-                personaBotId={bot.slug}
-                name={bot.displayName}
-                src={bot.avatar}
-                appearance={bot.appearance}
-                avatarSeed={bot.avatarSeed}
-                size={28}
-              />
-              <span {...stylex.props(styles.optionName)}>{bot.displayName}</span>
-            </button>
-          ))
-        )}
-      </div>
+      <BotChoiceList
+        bots={filtered}
+        selected={selected}
+        onSelect={setSelected}
+        label={t('group.inviteSelect')}
+        empty={<Note>{t('group.inviteEmpty')}</Note>}
+        t={t}
+        listRef={cancelOnUnmount}
+        data={{ 'data-group-invite': '' }}
+        optionMarker="data-group-invite-option"
+      />
     </FormDialog>
   );
 }

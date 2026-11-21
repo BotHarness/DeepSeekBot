@@ -14,6 +14,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { engineWorkspaceScenario } from './e2e-team-security-engines.mjs';
 import { runModelConfigurationGate } from './team-security-model-configuration-gate.mjs';
+import { runEngineAccountGrantGate } from './team-security-engine-account-gate.mjs';
 import { runModelProviderGate } from './team-security-model-provider-gate.mjs';
 import {
   buildShellIsolationProbe,
@@ -950,6 +951,9 @@ export async function main(argv = process.argv.slice(2)) {
     await define('C4', 'Shared model settings require models.configure', async (check) => {
       runModelConfigurationGate(s, { member: fx.users.bob, tag }, check);
     });
+    await define('C5', 'Subscription account grants', (check) =>
+      runEngineAccountGrantGate(s, fx, check),
+    );
   } catch (error) {
     process.stdout.write(`setup failed: ${error?.message ?? error}\n`);
     exit = 1;

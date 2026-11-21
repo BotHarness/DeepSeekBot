@@ -37,6 +37,7 @@ export interface EngineHostOptions {
   claudeCommand?: string;
   env?: Readonly<Record<string, string | undefined>>;
   gateway: EngineGateway;
+  requireAccountGrant?(botSlug: string, accountId: string): void;
   routingGroupEffort?(botSlug: string): string | undefined;
   sessions(): EngineSessionStore | undefined;
   persistence(): EngineSessionPersistence | undefined;

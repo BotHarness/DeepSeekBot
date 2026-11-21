@@ -7,6 +7,7 @@ import { TeamError } from './error.js';
 import { channelRoleMembershipEntrySql, channelRoleMembershipExitSql } from './channel-contract.js';
 import {
   ALL_PERMISSIONS,
+  allowsEngineAccount,
   allowsModel,
   ownerGrantedPermission,
   roleSchema,
@@ -20,6 +21,11 @@ import {
 
 const roleFields = `r.role_id AS roleId, r.name, r.builtin, r.permissions_json AS permissions, r.models_json AS models, r.policy_json AS policy, r.policy_revision AS policyRevision,
   (SELECT COUNT(*) FROM human_roles m WHERE m.role_id = r.role_id) AS memberCount`;
+
+export function requireEngineAccountGrant(allowed: ModelsAllowed, accountId: string): void {
+  if (!allowsEngineAccount(allowed, accountId))
+    throw new TeamError('model-not-allowed', undefined, { route: accountId });
+}
 
 type RoleAuthority = { kind: 'owner' } | { kind: 'member'; permissions: ReadonlySet<string> };
 
@@ -80,17 +86,26 @@ export class TeamRoles {
         ),
       );
     if (rows.some((row) => row.owner)) return { all: true };
+    let all = false;
+    const accounts = new Set<string>();
     const providers = new Set<string>();
     const routes = new Set<string>();
     for (const row of rows) {
       if (row.models === null) continue;
       const model = roleModelsSchema.parse(JSON.parse(row.models));
-      if (model.kind === 'all') return { all: true };
+      for (const id of model.engineAccounts) accounts.add(id);
+      if (model.kind === 'all') {
+        all = true;
+        continue;
+      }
       for (const provider of model.providers) providers.add(provider);
       for (const route of model.routes) routes.add(route);
     }
+    const engineAccounts = [...accounts].sort();
+    if (all) return { all: true, engineAccounts };
     return {
       all: false,
+      engineAccounts,
       providers: [...providers].sort(),
       routes: [...routes].sort(),
     };
@@ -176,6 +191,7 @@ export class TeamRoles {
   }
 
   private checkModelGrant(actor: ModelsAllowed, models: RoleModels): void {
+    for (const id of models.engineAccounts) requireEngineAccountGrant(actor, id);
     if (actor.all) return;
     if (models.kind === 'all')
       throw new TeamError('model-not-allowed', undefined, { route: 'all' });

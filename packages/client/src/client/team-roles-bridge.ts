@@ -10,13 +10,14 @@ export interface PermissionEntry {
 
 export type BuiltinRole = 'admin' | 'member';
 
-export type RoleModels =
+export type RoleModels = { readonly engineAccounts?: readonly string[] } & (
   | { readonly kind: 'all' }
   | {
       readonly kind: 'only';
       readonly providers: readonly string[];
       readonly routes: readonly string[];
-    };
+    }
+);
 
 export interface TeamRole {
   readonly roleId: string;
@@ -103,9 +104,17 @@ export function parseRole(row: Record<string, unknown>): TeamRole | undefined {
 
 export function parseRoleModels(value: unknown): RoleModels {
   const row = record(value);
+  const accounts = Array.isArray(row?.['engineAccounts'])
+    ? { engineAccounts: strings(row['engineAccounts']) }
+    : {};
   return row?.['kind'] === 'only'
-    ? { kind: 'only', providers: strings(row['providers']), routes: strings(row['routes']) }
-    : { kind: 'all' };
+    ? {
+        kind: 'only',
+        providers: strings(row['providers']),
+        routes: strings(row['routes']),
+        ...accounts,
+      }
+    : { kind: 'all', ...accounts };
 }
 
 export function routeKey(provider: string, model: string): string {
@@ -114,11 +123,18 @@ export function routeKey(provider: string, model: string): string {
 
 function modelsPayload(models: RoleModels | undefined): Record<string, unknown> {
   if (models === undefined) return {};
+  const accounts =
+    models.engineAccounts === undefined ? {} : { engineAccounts: [...models.engineAccounts] };
   return {
     models:
       models.kind === 'all'
-        ? { kind: 'all' }
-        : { kind: 'only', providers: [...models.providers], routes: [...models.routes] },
+        ? { kind: 'all', ...accounts }
+        : {
+            kind: 'only',
+            providers: [...models.providers],
+            routes: [...models.routes],
+            ...accounts,
+          },
   };
 }
 
@@ -127,9 +143,13 @@ export async function loadModelsAllowed(
   signal?: AbortSignal,
 ): Promise<RoleModels> {
   const row = record(await unwrap(call, 'modelsAllowed', {}, signal));
-  if (row?.['all'] === true) return { kind: 'all' };
+  if (row?.['all'] === true) return parseRoleModels({ ...row, kind: 'all' });
   if (row?.['all'] === false) return parseRoleModels({ ...row, kind: 'only' });
   throw new Error('invalid model grants response');
+}
+
+export function roleAllowsEngineAccount(role: TeamRole, id: string): boolean {
+  return role.models.engineAccounts?.includes(id) ?? false;
 }
 
 export function roleAllowsProvider(role: TeamRole, provider: string): boolean {
