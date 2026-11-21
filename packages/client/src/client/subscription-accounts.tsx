@@ -6,7 +6,15 @@ import {
 import { useMemo, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
+import {
+  MaskedEmail,
+  QuotaPanel,
+  quotaStale,
+  quotaSummary,
+  type QuotaRefreshState,
+} from './account-quota.js';
 import { bridgeHost, BridgeCallError, type BridgeCall } from './bridge.js';
+import { refreshEngineAccountQuota } from './features/models/bridge.js';
 import { Button } from './ds/button.js';
 import { IconButton } from './ds/icon-button.js';
 import { Menu } from './ds/menu.js';
@@ -28,7 +36,7 @@ import {
 } from './engine-choice.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { EngineBrandIcon } from './model-brand.js';
-import { engineAccountTitle, engineName, engineQuotaText } from './session-engine.js';
+import { engineAccountTitle, engineName } from './session-engine.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { roleLabel } from './team-roles.js';
 import { roleAllowsEngineAccount, type TeamRole } from './team-roles-bridge.js';
@@ -53,6 +61,7 @@ const styles = stylex.create({
   rowMain: { minHeight: size.rowMedium, alignItems: 'center' },
   titleLine: { display: 'flex', alignItems: 'center', gap: space.x3, minWidth: 0 },
   titleText: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+  quotaToggle: { whiteSpace: 'nowrap' },
   dot: {
     width: `calc(${space.x2} + ${space.x1})`,
     height: `calc(${space.x2} + ${space.x1})`,
@@ -288,7 +297,41 @@ export function SubscriptionAccounts({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [notice, setNotice] = useState<string>();
+  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
+  const [quotaRefresh, setQuotaRefresh] = useState<Readonly<Record<string, QuotaRefreshState>>>({});
   const revision = engines.view?.revision;
+  const canRefreshQuota = revision !== undefined;
+
+  const refreshQuota = async (accountId: string) => {
+    setQuotaRefresh((current) => ({ ...current, [accountId]: { state: 'refreshing' } }));
+    let next: QuotaRefreshState;
+    try {
+      const result = await refreshEngineAccountQuota(call, accountId);
+      next =
+        result.status === 'ok' ? { state: 'idle' } : { state: 'failed', reason: result.status };
+    } catch {
+      next = { state: 'failed', reason: 'unavailable' };
+    }
+    setQuotaRefresh((current) => ({ ...current, [accountId]: next }));
+    await engines.refresh();
+  };
+
+  const toggleQuota = (status: EngineStatusView, accountId: string) => {
+    const opening = !expanded.has(accountId);
+    setExpanded((current) => {
+      const next = new Set(current);
+      if (opening) next.add(accountId);
+      else next.delete(accountId);
+      return next;
+    });
+    if (
+      opening &&
+      canRefreshQuota &&
+      quotaRefresh[accountId]?.state !== 'refreshing' &&
+      quotaStale(status.quota, Date.now())
+    )
+      void refreshQuota(accountId);
+  };
   const labels = { cancel: t('common.cancel'), close: t('common.close') };
 
   const open = (next: AccountDialog) => {
@@ -360,6 +403,7 @@ export function SubscriptionAccounts({
           <SidebarCardList label={t('modelProviders.subscriptions')}>
             {engines.view.engines.map((status) => {
               const { engine, accountId } = status;
+              const now = Date.now();
               const brand = engineName(engine);
               const title = engineAccountTitle(engine, status.accountName);
               const key = engineModelKey(engine, accountId);
@@ -371,6 +415,18 @@ export function SubscriptionAccounts({
                   (role) => accountId !== undefined && roleAllowsEngineAccount(role, accountId),
                 )
                 .map((role) => roleLabel(t, role));
+              const quotaOpen =
+                !signingIn &&
+                status.available &&
+                accountId !== undefined &&
+                expanded.has(accountId);
+              const quotaId = `account-quota-${key}`;
+              const rolesText =
+                roleNames.length === 0
+                  ? undefined
+                  : t('modelProviders.rolesAllowed', {
+                      roles: roleNames.join(t('modelProviders.roleSeparator')),
+                    });
               const state = signingIn
                 ? { tone: 'warning' as const, label: t('engine.signingIn') }
                 : signInStatus(status, brand, t);
@@ -398,13 +454,16 @@ export function SubscriptionAccounts({
                     </span>
                   }
                   summary={
-                    roleNames.length === 0
-                      ? undefined
-                      : t('modelProviders.rolesAllowed', {
-                          roles: roleNames.join(t('modelProviders.roleSeparator')),
-                        })
+                    status.email === undefined ? (
+                      rolesText
+                    ) : (
+                      <>
+                        <MaskedEmail email={status.email} t={t} />
+                        {rolesText === undefined ? null : ` · ${rolesText}`}
+                      </>
+                    )
                   }
-                  meta={status.available ? engineQuotaText(status.quota, t) : undefined}
+                  controls={quotaOpen ? quotaId : undefined}
                   detail={
                     signingIn ? (
                       <div {...stylex.props(styles.signInDetail)}>
@@ -426,11 +485,37 @@ export function SubscriptionAccounts({
                           <ClaudeSignInCode call={call} id={accountId ?? engine} t={t} />
                         ) : null}
                       </div>
+                    ) : quotaOpen && accountId !== undefined ? (
+                      <QuotaPanel
+                        quota={status.quota}
+                        refresh={quotaRefresh[accountId] ?? { state: 'idle' }}
+                        now={now}
+                        onRefresh={canRefreshQuota ? () => void refreshQuota(accountId) : undefined}
+                        t={t}
+                      />
                     ) : undefined
                   }
                   trailing={
-                    canManage || canSignIn ? (
+                    canManage || canSignIn || status.available ? (
                       <div {...stylex.props(styles.actions)}>
+                        {!signingIn && status.available && accountId !== undefined ? (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            xstyle={styles.quotaToggle}
+                            aria-expanded={quotaOpen}
+                            aria-controls={quotaOpen ? quotaId : undefined}
+                            aria-label={t('modelProviders.quotaToggle', {
+                              name: title,
+                              summary: quotaSummary(status.quota, now, t),
+                            })}
+                            data-quota-toggle={accountId}
+                            onClick={() => toggleQuota(status, accountId)}
+                          >
+                            {quotaSummary(status.quota, now, t)}
+                            <Icon name={quotaOpen ? 'chevron-up' : 'chevron-down'} />
+                          </Button>
+                        ) : null}
                         {signingIn ? (
                           <Button
                             variant="outline"

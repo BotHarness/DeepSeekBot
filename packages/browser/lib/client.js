@@ -1349,6 +1349,21 @@ window.__ModuleLoader__.load({
 				kWkggS: "bhxjbqb8w bhxqta4pg bhx9mj4i6",
 				$$css: true
 			},
+			text: {
+				kZKoxP: "bhxt7dq6l",
+				kg3NbH: "bhxnjsko4",
+				kjj79g: "bhxlqzeqv",
+				kMwMTN: "bhx1heor9g",
+				kGuDYH: "bhx1qlqyl8",
+				kLWn49: "bhx15bjb6t",
+				k63SB2: "bhx1pd3egz",
+				khDVqt: "bhxeaf4i8",
+				kHjlTd: "bhxj0a0fe",
+				k9WMMc: "bhx1yc453h",
+				kMnn75: "bhxkrqix3 bhxrd11fi",
+				kmVMDM: "bhxi2nhp4",
+				$$css: true
+			},
 			toolbar: {
 				kWkggS: "bhxp02wjs",
 				kKwaWg: "bhx18o3ruo bhxfdnnug",
@@ -14765,6 +14780,7 @@ window.__ModuleLoader__.load({
 .bhx1kz1gct:not(#\\#):not(#\\#){padding-block:8px}
 .bhxggp0jn:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-group-padding-block)}
 .bhx1nxcsqp:not(#\\#):not(#\\#){padding-block:var(--tobs-style-list-item-padding-block)}
+.bhxnjsko4:not(#\\#):not(#\\#){padding-inline:0}
 .bhx1vid4s1:not(#\\#):not(#\\#){padding-inline:12px 8px}
 .bhxq23ktl:not(#\\#):not(#\\#){padding-inline:12px}
 .bhx1xa34d1:not(#\\#):not(#\\#){padding-inline:16px}
@@ -14870,6 +14886,7 @@ window.__ModuleLoader__.load({
 .bhxgowt09:not(#\\#):not(#\\#):not(#\\#){font-size:12px}
 .bhxh82noc:not(#\\#):not(#\\#):not(#\\#){font-size:12px}
 .bhx1cwq2zs:not(#\\#):not(#\\#):not(#\\#){font-size:calc(12px - 1px)}
+.bhx1qlqyl8:not(#\\#):not(#\\#):not(#\\#){font-size:inherit}
 .bhx1779mkw:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}
 .bhx5g6txa:not(#\\#):not(#\\#):not(#\\#){font-size:var(--tobs-style-text-ui-size)}
 .bhx134zi0a:not(#\\#):not(#\\#):not(#\\#){font-weight:400}
@@ -14877,14 +14894,17 @@ window.__ModuleLoader__.load({
 .bhx1nj67n:not(#\\#):not(#\\#):not(#\\#){font-weight:500}
 .bhxc9sfzf:not(#\\#):not(#\\#):not(#\\#){font-weight:500}
 .bhxk50ysn:not(#\\#):not(#\\#):not(#\\#){font-weight:500}
+.bhx1pd3egz:not(#\\#):not(#\\#):not(#\\#){font-weight:inherit}
 .bhxl56j7k:not(#\\#):not(#\\#):not(#\\#){justify-content:center}
 .bhx13a6bvl:not(#\\#):not(#\\#):not(#\\#){justify-content:flex-end}
 .bhx1qughib:not(#\\#):not(#\\#):not(#\\#){justify-content:space-between}
+.bhxlqzeqv:not(#\\#):not(#\\#):not(#\\#){justify-content:start}
 .bhx619ttb:not(#\\#):not(#\\#):not(#\\#){justify-items:start}
 .bhxo5v014:not(#\\#):not(#\\#):not(#\\#){line-height:1}
 .bhx12cu2lo:not(#\\#):not(#\\#):not(#\\#){line-height:16px}
 .bhx1g71p44:not(#\\#):not(#\\#):not(#\\#){line-height:16px}
 .bhxsxgpsl:not(#\\#):not(#\\#):not(#\\#){line-height:calc(16px + 1px)}
+.bhx15bjb6t:not(#\\#):not(#\\#):not(#\\#){line-height:inherit}
 .bhx3350y7:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}
 .bhxe5wb2f:not(#\\#):not(#\\#):not(#\\#){line-height:var(--tobs-style-text-ui-line)}
 .bhxf9vgkq:not(#\\#):not(#\\#):not(#\\#){opacity:.72}
@@ -14905,6 +14925,8 @@ window.__ModuleLoader__.load({
 .bhx2b8uid:not(#\\#):not(#\\#):not(#\\#){text-align:center}
 .bhxp4054r:not(#\\#):not(#\\#):not(#\\#){text-align:end}
 .bhx1yc453h:not(#\\#):not(#\\#):not(#\\#){text-align:start}
+.bhxkrqix3:not(#\\#):not(#\\#):not(#\\#){text-decoration-line:none}
+.bhxi2nhp4:not(#\\#):not(#\\#):not(#\\#){text-decoration-style:dotted}
 .bhxlyipyv:not(#\\#):not(#\\#):not(#\\#){text-overflow:ellipsis}
 .bhxs12ov2:not(#\\#):not(#\\#):not(#\\#){transform:translate(calc((var(--tobs-style-switch-height) - var(--tobs-style-switch-thumb-off)) / 2),-50%)}
 .bhxyl194i:not(#\\#):not(#\\#):not(#\\#){transform:translate(calc(var(--tobs-style-switch-width) - (var(--tobs-style-switch-height) + var(--tobs-style-switch-thumb-on)) / 2),-50%)}
@@ -14940,6 +14962,7 @@ window.__ModuleLoader__.load({
 .bhx1n57e5r:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-accent-solid-hover)}
 .bhxqta4pg:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-hover)}
 .bhxfdnnug:hover:enabled:not(#\\#):not(#\\#):not(#\\#){background-image:linear-gradient(var(--tobs-state-hover),var(--tobs-state-hover))}
+.bhxrd11fi:hover:enabled:not(#\\#):not(#\\#):not(#\\#){text-decoration-line:underline}
 .bhx9mj4i6:active:enabled:not(#\\#):not(#\\#):not(#\\#){background-color:var(--tobs-state-pressed)}
 @container bh-settings (max-width: 480px){.bhx4bgz6.bhx4bgz6:not(#\\#):not(#\\#):not(#\\#){align-items:stretch}}
 @container bh-settings (max-width: 480px){.bhxcxmu7o.bhxcxmu7o:not(#\\#):not(#\\#):not(#\\#){flex-direction:column}}

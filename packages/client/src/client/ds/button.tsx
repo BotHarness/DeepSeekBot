@@ -54,6 +54,20 @@ const styles = stylex.create({
       ':active:enabled': state.pressed,
     },
   },
+  text: {
+    height: 'auto',
+    paddingInline: 0,
+    justifyContent: 'start',
+    color: 'inherit',
+    fontSize: 'inherit',
+    lineHeight: 'inherit',
+    fontWeight: 'inherit',
+    whiteSpace: 'normal',
+    overflowWrap: 'anywhere',
+    textAlign: 'start',
+    textDecorationLine: { default: 'none', ':hover:enabled': 'underline' },
+    textDecorationStyle: 'dotted',
+  },
   toolbar: {
     backgroundColor: layer.well,
     backgroundImage: {
@@ -90,7 +104,7 @@ const styles = stylex.create({
   },
 });
 
-export type ButtonVariant = 'primary' | 'ghost' | 'outline' | 'toolbar' | 'preview';
+export type ButtonVariant = 'primary' | 'ghost' | 'outline' | 'text' | 'toolbar' | 'preview';
 
 export type ButtonProps = {
   readonly variant?: ButtonVariant;
