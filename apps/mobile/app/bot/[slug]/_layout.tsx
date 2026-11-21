@@ -35,6 +35,7 @@ export default function BotProfileLayout() {
       <SheetStack fullScreen screenLayout={screenLayout}>
         <Stack.Screen name="chat-background" options={{ title: t.chatBackground.title }} />
         <Stack.Screen name="index" options={{ headerShown: false }} />
+        <Stack.Screen name="avatar" />
         <Stack.Screen name="memory" />
         <Stack.Screen name="memory-commit" />
         <Stack.Screen name="memory-history" />
