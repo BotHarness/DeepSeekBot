@@ -64,12 +64,12 @@ export function sessionHeaderTargetLabel(target: TurnTarget, catalog?: TurnTarge
       /\b(plus|pro|max)\b/giu,
       (plan) => plan.charAt(0).toUpperCase() + plan.slice(1).toLowerCase(),
     );
-  const short = [ENGINE_DEFINITIONS[target.engine].displayName, account]
+  const engineAccount = [ENGINE_DEFINITIONS[target.engine].displayName, account]
     .filter(Boolean)
     .join(' · ');
   return {
     ...model,
-    short,
-    name: target.model === undefined ? short : `${short} · ${model.short}`,
+    short: target.model === undefined ? engineAccount : `${model.short} · ${engineAccount}`,
+    name: target.model === undefined ? engineAccount : `${engineAccount} · ${model.short}`,
   };
 }

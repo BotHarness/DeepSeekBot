@@ -35,7 +35,7 @@ it('uses a single provider badge and the model name in a Sessions row', () => {
   expect(result).toContain('>GPT-6.2-Sol<');
 });
 
-it('shows engine and account in the header and labels a native fallback as a native model', () => {
+it('shows the catalog model, engine and account in the header and labels a native fallback as a native model', () => {
   const engine = renderToStaticMarkup(
     <SessionTargetChip
       target={{ kind: 'engine', engine: 'claude', account: 'Claude Max', model: 'claude-opus-5-5' }}
@@ -44,7 +44,7 @@ it('shows engine and account in the header and labels a native fallback as a nat
       t={zhTranslate}
     />,
   );
-  expect(engine).toContain('>Claude Code · Max<');
+  expect(engine).toContain('>Opus 5.5 · Claude Code · Max<');
   expect(engine).toContain('title="Claude Code · Max · Opus 5.5"');
   const fallback = renderToStaticMarkup(
     <SessionTargetChip

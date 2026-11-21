@@ -11,7 +11,7 @@ const model = (value: Partial<BotModel>): BotModel => ({
 });
 
 describe('chat header model', () => {
-  it('shows the engine and account of a direct Session regardless of its configured DSH route', () => {
+  it('shows the catalog model, engine and account of a direct Session regardless of its configured DSH route', () => {
     expect(
       headerModel({
         status: 'ready',
@@ -34,7 +34,7 @@ describe('chat header model', () => {
     ).toMatchObject({
       brand: 'openai',
       external: true,
-      short: 'Codex · ChatGPT Pro',
+      short: 'GPT-6.2-Sol · Codex · ChatGPT Pro',
       name: 'Codex · ChatGPT Pro · GPT-6.2-Sol',
     });
   });

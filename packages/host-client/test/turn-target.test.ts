@@ -29,7 +29,7 @@ it('uses the engine catalog display name for recorded ids and aliases', async ()
     const target = { kind: 'engine', engine: 'claude', model, account: 'Claude Pro' } as const;
     expect(turnTargetLabel(target, catalog).short).toBe('Opus 5.5');
     expect(sessionHeaderTargetLabel(target, catalog)).toMatchObject({
-      short: 'Claude Code · Pro',
+      short: 'Opus 5.5 · Claude Code · Pro',
       name: 'Claude Code · Pro · Opus 5.5',
     });
   }
@@ -39,6 +39,12 @@ it('uses the engine catalog display name for recorded ids and aliases', async ()
   expect(
     turnTargetLabel({ kind: 'engine', engine: 'claude', model: 'claude-custom-1' }, catalog).short,
   ).toBe('claude-custom-1');
+  expect(
+    sessionHeaderTargetLabel(
+      { kind: 'engine', engine: 'claude', model: 'claude-custom-1' },
+      catalog,
+    ).short,
+  ).toBe('claude-custom-1 · Claude Code');
   expect(
     turnTargetLabel({ kind: 'engine', engine: 'codex', model: 'claude-opus-5-5' }, catalog).short,
   ).toBe('claude-opus-5-5');
