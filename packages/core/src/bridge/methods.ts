@@ -1,3 +1,4 @@
+import { createGenuiBridgeMethods, type GenuiBridgeMethods } from '../features/genui/methods.js';
 import {
   createAvatarsBridgeMethods,
   type AvatarsBridgeMethods,
@@ -93,12 +94,7 @@ import type { VoiceProviders } from '../voice/providers.js';
 import { networkBotId, type BotContact } from '../runtime/bot-contact-discovery.js';
 import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
 import { join } from 'node:path';
-import {
-  GenuiError,
-  parseGenuiContent,
-  validateGenuiMessageReply,
-  type GenuiPrivateView,
-} from '../channels/genui.js';
+import { GenuiError, parseGenuiContent, validateGenuiMessageReply } from '../channels/genui.js';
 import { buildGenuiReplyContext } from '../channels/genui-message.js';
 import { createBotImports, type BotImportsService } from '../bots/imports.js';
 import { SessionRecoveryError } from '../runtime/session-recovery.js';
@@ -780,7 +776,8 @@ export interface BridgeMethods
     PromptBridgeMethods,
     SchedulesBridgeMethods,
     SkillsBridgeMethods,
-    AvatarsBridgeMethods {
+    AvatarsBridgeMethods,
+    GenuiBridgeMethods {
   tobHome(
     payload: unknown,
   ): Promise<
@@ -1015,8 +1012,6 @@ export interface BridgeMethods
   tobCli(payload: unknown): Promise<BridgeResult<TobCliStatus>>;
   channelSend(payload: unknown): Promise<BridgeResult<{ message: ChannelMessage }>>;
   channelSendStatus(payload: unknown): BridgeResult<ChannelSendStatus>;
-  channelGenuiView(payload: unknown): BridgeResult<GenuiPrivateView>;
-  channelGenuiViewSave(payload: unknown): BridgeResult<GenuiPrivateView>;
   botAttention(payload: unknown): BridgeResult<BotAttentionPage>;
   botSourcePolicies(payload: unknown): BridgeResult<{ policies: BotSourcePolicy[] }>;
   botSourcePolicySet(payload: unknown): BridgeResult<{ policy: BotSourcePolicy }>;
@@ -3037,6 +3032,7 @@ function buildBridgeMethods(
   const schedulesMethods = createSchedulesBridgeMethods(human, deps);
   const skillsMethods = createSkillsBridgeMethods(deps, channelSkillBots, requireOwnedBot);
   const avatarsMethods = createAvatarsBridgeMethods(deps, dmMemory, detailOf);
+  const genuiMethods = createGenuiBridgeMethods(human, deps);
   const methods: BridgeMethods = {
     ...createTeamBridge(human, deps.team),
     ...createModelProviderBridge(human, deps),
@@ -7690,61 +7686,7 @@ function buildBridgeMethods(
       const value = deps.channels.humanSendStatus?.(channelId, messageId);
       return value === undefined ? invalidInput('Unknown Human DM request') : { ok: true, value };
     },
-    channelGenuiView(payload) {
-      const source = asObject(payload);
-      const channelId = asNonBlank(source, 'channelId');
-      const messageId = asNonBlank(source, 'messageId');
-      if (!channelId || !messageId || deps.channels.genuiView === undefined)
-        return invalidInput('Report view is unavailable');
-      try {
-        return {
-          ok: true,
-          value: deps.channels.genuiView(human, channelId, messageId),
-        };
-      } catch (error) {
-        if (error instanceof GenuiError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
-        throw error;
-      }
-    },
-    channelGenuiViewSave(payload) {
-      const source = asObject(payload);
-      const channelId = asNonBlank(source, 'channelId');
-      const messageId = asNonBlank(source, 'messageId');
-      const snapshotId = asNonBlank(source, 'snapshotId');
-      const expectedVersion = source['expectedVersion'];
-      if (
-        !channelId ||
-        !messageId ||
-        !snapshotId ||
-        typeof expectedVersion !== 'number' ||
-        deps.channels.saveGenuiView === undefined
-      )
-        return invalidInput('Report view and expectedVersion are required');
-      try {
-        return {
-          ok: true,
-          value: deps.channels.saveGenuiView(
-            human,
-            channelId,
-            messageId,
-            snapshotId,
-            expectedVersion,
-            source['state'],
-          ),
-        };
-      } catch (error) {
-        if (error instanceof GenuiError)
-          return {
-            ok: false,
-            error: { code: error.code, message: error.message },
-          };
-        throw error;
-      }
-    },
+    ...genuiMethods,
     async channelSend(payload) {
       const source = asObject(payload);
       const channelId = asNonBlank(source, 'channelId');

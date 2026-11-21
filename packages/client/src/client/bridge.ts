@@ -1,3 +1,9 @@
+import { createGenuiReportBridge } from './features/genui/bridge.js';
+export {
+  parseGenuiDocumentView,
+  loadGenuiDocumentView,
+  saveGenuiDocumentView,
+} from './features/genui/bridge.js';
 import { createAvatarsBridge } from './features/avatars/bridge.js';
 export type { BotPrimaryColorChoice, PartImageInfo } from './features/avatars/bridge.js';
 import { parseSkillOwner } from './features/skills/bridge.js';
@@ -137,25 +143,14 @@ import {
 import * as channelHost from '@botharness/host-client/channel-messages';
 import * as channels from '@botharness/host-client/channel-management';
 import { HostAnswerInvalid } from '@botharness/host-client/host-answer';
-import {
-  loadGenuiDocumentView as loadGenuiDocumentViewFrom,
-  parseGenuiDocumentView as parseHostGenuiDocumentView,
-  saveGenuiDocumentView as saveGenuiDocumentViewTo,
-} from '@botharness/host-client/genui/view';
 import { clientLog, reportFailure } from './diagnostic-log.js';
 import {
   genuiReplySchema,
   genuiViewSchema,
   parseGenuiContent,
   type GenuiMessageReply,
-  type GenuiView,
-  type GenuiViewState,
 } from '../../../core/src/channels/genui.js';
-import {
-  genuiDocumentReplySchema,
-  type GenuiDocument,
-  type GenuiDocumentState,
-} from '../../../core/src/channels/genui-document.js';
+import { genuiDocumentReplySchema } from '../../../core/src/channels/genui-document.js';
 import { parseToolApprovalActor } from '../../../core/src/workspaces/tool-approval-actor.js';
 import { isChannelVoiceCallRecord } from '../../../core/src/channels/voice-call-record.js';
 import {
@@ -4358,79 +4353,8 @@ export async function sendChannelMessage(
   );
 }
 
-function genuiViewState(state: unknown): GenuiViewState {
-  const parsed = genuiViewSchema.safeParse(state);
-  if (!parsed.success) throw new Error('Invalid private report view');
-  return parsed.data;
-}
-
-export function parseGenuiView(value: unknown): GenuiView {
-  const record = asRecord(value);
-  const version = record?.['version'];
-  if (typeof version !== 'number' || !Number.isSafeInteger(version) || version < 0)
-    throw new Error('Invalid private report view');
-  return { version, state: genuiViewState(record?.['state']) };
-}
-
-export async function loadGenuiView(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-): Promise<GenuiView> {
-  return channelHost.loadPrivateView(bridgeHost(call), channelId, messageId, genuiViewState);
-}
-
-export async function saveGenuiView(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-  snapshotId: string,
-  expectedVersion: number,
-  state: GenuiViewState,
-): Promise<GenuiView> {
-  return channelHost.savePrivateView(
-    bridgeHost(call),
-    { channelId, messageId, snapshotId, expectedVersion, state: genuiViewSchema.parse(state) },
-    genuiViewState,
-  );
-}
-
-export function parseGenuiDocumentView(
-  value: unknown,
-  document: GenuiDocument,
-): {
-  version: number;
-  state: GenuiDocumentState;
-} {
-  return parseHostGenuiDocumentView(value, document);
-}
-
-export async function loadGenuiDocumentView(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-  document: GenuiDocument,
-) {
-  return loadGenuiDocumentViewFrom(bridgeHost(call), channelId, messageId, document);
-}
-
-export async function saveGenuiDocumentView(
-  call: BridgeCall,
-  channelId: string,
-  messageId: string,
-  document: GenuiDocument,
-  expectedVersion: number,
-  state: GenuiDocumentState,
-) {
-  return saveGenuiDocumentViewTo(
-    bridgeHost(call),
-    channelId,
-    messageId,
-    document,
-    expectedVersion,
-    state,
-  );
-}
+export const { parseGenuiView, loadGenuiView, saveGenuiView } =
+  createGenuiReportBridge(genuiViewSchema);
 
 export type AssignmentAccessPresetView = WireAssignmentAccessPreset;
 

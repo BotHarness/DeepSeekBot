@@ -1,3 +1,4 @@
+import * as genuiRpc from '../features/genui/rpc.js';
 import * as avatarsRpc from '../features/avatars/rpc.js';
 import * as skillsRpc from '../features/skills/rpc.js';
 import * as schedulesRpc from '../features/schedules/rpc.js';
@@ -2502,7 +2503,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   channelGenuiView(channelId: string, messageId: string): GenuiPrivateView {
-    return unwrap(this.methods.channelGenuiView({ channelId, messageId }));
+    return genuiRpc.channelGenuiView(this.methods, channelId, messageId);
   }
   channelGenuiViewSave(
     channelId: string,
@@ -2511,14 +2512,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedVersion: number,
     state: GenuiViewState | GenuiDocumentState,
   ): GenuiPrivateView {
-    return unwrap(
-      this.methods.channelGenuiViewSave({
-        channelId,
-        messageId,
-        snapshotId,
-        expectedVersion,
-        state,
-      }),
+    return genuiRpc.channelGenuiViewSave(
+      this.methods,
+      channelId,
+      messageId,
+      snapshotId,
+      expectedVersion,
+      state,
     );
   }
 
