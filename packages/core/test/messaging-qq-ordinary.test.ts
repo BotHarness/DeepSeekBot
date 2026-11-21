@@ -8,6 +8,9 @@ import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
+import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
+import { ToolCallId } from '@deepseek-ai/dsh-llm';
+import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 
 const cores = new Set<BotHarnessCore>();
 async function stop(core: BotHarnessCore) {
@@ -22,7 +25,7 @@ afterEach(async () => {
 });
 
 const policy = { collection: 'all', wake: 'digest', count: 2, intervalSeconds: 60 } as const;
-async function fixture(proactive = true, media = false, allByDefault = false) {
+async function fixture(proactive = true, media = false, allByDefault = false, secondGroup = false) {
   const fingerprint = 'a'.repeat(64);
   const home = createTempRoot('qq-ordinary-');
   type Consumer = Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1];
@@ -39,6 +42,16 @@ async function fixture(proactive = true, media = false, allByDefault = false) {
     listBots: async () => [{ botId: 'own-app', channel: 'qq' }],
     listTargets: async () => [
       { targetId: 'qa-group', kind: 'group', name: 'QQ QA', route: { groupOpenId: 'own-group' } },
+      ...(secondGroup
+        ? [
+            {
+              targetId: 'other-qa-group',
+              kind: 'group',
+              name: 'Other QA',
+              route: { groupOpenId: 'other-group' },
+            },
+          ]
+        : []),
     ],
     describeBot: async (botId) => ({
       version: 1,
@@ -93,14 +106,14 @@ async function fixture(proactive = true, media = false, allByDefault = false) {
         code: 'capability-unavailable',
       });
     }),
-    sendChecked: vi.fn(async (_account, _target, _text, options) => {
+    sendChecked: vi.fn(async (_account, target, _text, options) => {
       expect(options.beforeSend?.()).toBe(true);
       return {
         sent: true as const,
         receipt: {
           version: 1 as const,
           messageId: 'own-contribution',
-          conversationId: 'own-group',
+          conversationId: target === 'other-qa-group' ? 'other-group' : 'own-group',
         },
       };
     }),
@@ -160,6 +173,21 @@ async function fixture(proactive = true, media = false, allByDefault = false) {
     targetRef: target.ref,
     targetDigest: target.digest,
   });
+  const otherTarget = secondGroup
+    ? (await provider.targets('own-app')).find(
+        (item) => item.receiveScope?.conversationId === 'other-group',
+      )
+    : undefined;
+  const otherGrant =
+    otherTarget &&
+    (await core.externalMessaging.authorize({
+      botSlug: 'ada',
+      providerId: provider.id,
+      accountRef: 'own-app',
+      fingerprint,
+      targetRef: otherTarget.ref,
+      targetDigest: otherTarget.digest,
+    }));
   const enabled = async () => {
     await core.externalMessaging.inbound.setEnabled('ada', grant.id, true);
     for (let i = 0; i < 5; i++) await tick();
@@ -196,6 +224,7 @@ async function fixture(proactive = true, media = false, allByDefault = false) {
       return consumer;
     },
     grant,
+    otherGrant,
     transport,
     runs,
     logs,
@@ -235,6 +264,85 @@ it('QQ inherits all-message defaults before delivery proof and retains collectio
     2,
   );
   expect(fx.runs).toHaveLength(0);
+});
+
+it('explains a non-addressed QQ source and prevents a proactive fallback in the same run', async () => {
+  const fx = await fixture(true, false, true, true);
+  await fx.receive('ordinary-follow-up');
+  await fx.receive('addressed-request', true);
+  const run = fx.runs.at(-1)!;
+  const [ordinary, addressed] = ['ordinary-follow-up', 'addressed-request'].map((messageId) =>
+    run
+      .triage!.current()
+      .find((id) => run.externalMessaging?.read(id).event.messageId === messageId)!,
+  );
+  const tool = createBotMessageTool(() => run);
+  const context = (id: string) =>
+    ({ callId: ToolCallId(id), signal: AbortSignal.timeout(5000) }) as ToolRunContext;
+  const body = 'Answer from the original group';
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
+  const qualify = vi.fn<NonNullable<DshImOutboundService['qualifyReplyChecked']>>(
+    async (_account, route) => route,
+  );
+  fx.transport.qualifyReplyChecked = qualify;
+  expect(await methods.messagingSource({ slug: 'ada', sourceEventId: ordinary })).toMatchObject({
+    ok: true,
+    value: { source: { replyCapability: { state: 'unavailable', reason: 'qq-mention-required' } } },
+  });
+  expect(qualify).not.toHaveBeenCalled();
+  expect(await methods.messagingSource({ slug: 'ada', sourceEventId: addressed })).toMatchObject({
+    ok: true,
+    value: { source: { replyCapability: { state: 'provider-checked' } } },
+  });
+  expect(qualify).toHaveBeenCalledWith(
+    'own-app',
+    expect.objectContaining({ conversationId: 'own-group', messageId: 'addressed-request' }),
+    expect.anything(),
+  );
+  qualify.mockRejectedValueOnce(
+    Object.assign(new Error('expired'), { code: 'reply-window-expired' }),
+  );
+  expect(await methods.messagingSource({ slug: 'ada', sourceEventId: addressed })).toMatchObject({
+    ok: true,
+    value: {
+      source: { replyCapability: { state: 'unavailable', reason: 'reply-window-expired' } },
+    },
+  });
+  const failure = JSON.parse(
+    String(await tool.execute({ source_event_id: ordinary, body }, context('ordinary'))),
+  );
+  expect(failure).toMatchObject({ status: 'refused', reason: 'qq-mention-required' });
+  expect(fx.transport.replyChecked).not.toHaveBeenCalled();
+  const fallback = JSON.parse(
+    String(await tool.execute({ grant_id: fx.otherGrant!.id, body }, context('fallback'))),
+  );
+  expect(fallback).toMatchObject({ status: 'refused', reason: 'reply-destination-required' });
+  expect(fx.transport.sendChecked).not.toHaveBeenCalled();
+  fx.transport.replyChecked = vi.fn(async () => {
+    throw Object.assign(new Error('provider diagnostic'), { code: 'reply-window-expired' });
+  });
+  const expired = JSON.parse(
+    String(await tool.execute({ source_event_id: addressed, body }, context('expired'))),
+  );
+  expect(expired).toMatchObject({
+    status: 'failed',
+    reason: 'reply-window-expired',
+    replyCapability: { state: 'unavailable', reason: 'reply-window-expired' },
+  });
+  expect(expired).not.toHaveProperty('grantId');
+  expect(expired).not.toHaveProperty('conversationId');
+  fx.transport.replyChecked = vi.fn(async (_account, route) => ({
+    sent: true as const,
+    receipt: {
+      version: 1 as const,
+      messageId: 'addressed-answer',
+      conversationId: route.conversationId,
+    },
+  }));
+  const reply = JSON.parse(
+    String(await tool.execute({ source_event_id: addressed, body }, context('addressed'))),
+  );
+  expect(reply).toMatchObject({ status: 'committed', messageId: 'addressed-answer' });
 });
 
 it('QQ ordinary permission evidence does not collect or wake until the conversation explicitly opts in', async () => {

@@ -425,7 +425,9 @@ export interface OrchestratorAgentRun {
   ): ReturnType<TeamService['speakerPolicy']['forHuman']>;
   replyDestination?(
     sourceEventId: string,
-  ): { kind: 'external' } | { kind: 'channel'; channelId: string; messageId: string };
+  ):
+    | { kind: 'external'; source: ExternalSource }
+    | { kind: 'channel'; channelId: string; messageId: string };
   tobCli?: boolean;
   tobCliTurn?: TobCliTurn;
   inboxHistory?(input?: InboxHistoryInput): InboxHistoryPage;
@@ -492,6 +494,10 @@ export interface OrchestratorAgentRun {
     threads(): Promise<Array<ThreadReceptionView & { grantId: string; group: string }>>;
     setThread(sourceEventId: string, input: ThreadReceptionInput): Promise<ThreadReceptionPolicy>;
     read(sourceEventId: string): ExternalSource;
+    replyCapability?(
+      source: ExternalSource,
+      signal?: AbortSignal,
+    ): ReturnType<OutboundMessaging['replyCapability']>;
     share(
       sourceEventId: string,
       channelId: string,
@@ -6382,6 +6388,8 @@ class BotRuntimeImplementation implements BotRuntime {
                   this.#messagingEvents.observeExternalRead(bot.slug, [id], turn.readAdmissions);
                 return source;
               },
+              replyCapability: (source, signal) =>
+                this.#externalMessaging!.replyCapability(bot.slug, source, signal),
               share: (id, destinationChannelId) => {
                 turn.markSideEffect();
                 return this.#externalMessaging!.inbound.share(bot.slug, id, destinationChannelId);
@@ -6462,8 +6470,10 @@ class BotRuntimeImplementation implements BotRuntime {
             .get(id);
         });
         if (source?.source_kind === 'bridge-message') {
-          this.#externalMessaging!.inbound.readShared(bot.slug, id);
-          return { kind: 'external' };
+          return {
+            kind: 'external',
+            source: this.#externalMessaging!.inbound.readShared(bot.slug, id),
+          };
         }
         const reply = channels.replySource!(id);
         return { kind: 'channel', ...reply };

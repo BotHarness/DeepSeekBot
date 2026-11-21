@@ -1,5 +1,6 @@
 import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools';
 import { withMentionNames } from '../../messaging/mention-text.js';
+import { sourceReplyCapability } from '../../messaging/source-reply-capability.js';
 import type { MessagingInboundEvent } from '../../messaging/provider.js';
 import type { OrchestratorAgentRun } from '../../runtime/bot-runtime.js';
 
@@ -155,7 +156,7 @@ export function registerExternalMessagingTools(
     defineTool({
       name: 'bridge_read',
       description:
-        'Read one canonical external source from your own Bot Inbox, including its receiving identity, sender, time and original group/topic. Does not fetch remote history or grant reply authority.',
+        'Read one canonical external source from your Bot Inbox, including its original group/topic and current QQ reply capability. The check sends no message and grants no reply authority.',
       parameters: {
         source_event_id: {
           type: 'string',
@@ -167,13 +168,17 @@ export function registerExternalMessagingTools(
         schema: { type: 'string' },
         render: (_args, value) => [{ type: 'text', text: value }],
       },
-      execute: async (args) => {
+      execute: async (args, exec) => {
         const active = currentRun();
         if (active === undefined || !active.externalMessaging)
           throw new Error('bridge_read: unavailable');
         const source = active.externalMessaging.read(args.source_event_id);
+        const replyCapability = active.externalMessaging.replyCapability
+          ? await active.externalMessaging.replyCapability(source, exec.signal)
+          : sourceReplyCapability(source);
         return JSON.stringify({
           ...source,
+          replyCapability,
           body: withMentionNames(source.body, source.event.mentions),
           ...(source.contextMessages === undefined
             ? {}

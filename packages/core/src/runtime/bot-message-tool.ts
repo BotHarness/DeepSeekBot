@@ -16,6 +16,14 @@ import { ChannelQuoteError, MAX_CHANNEL_QUOTES, parseQuotesInput } from '../chan
 import type { OrchestratorAgentRun } from './bot-runtime.js';
 import type { VoiceAttachOutcome } from '../voice/messages.js';
 import { SESSION_DIRECT_MESSAGE_PREFIX } from './session-direct-message.js';
+import {
+  qqReplyFailureCapability,
+  sourceReplyCapability,
+} from '../messaging/source-reply-capability.js';
+import { MessagingError } from '../messaging/provider.js';
+
+const QQ_REPLY_NOTICE =
+  'Keep the answer in the original QQ conversation. Use its actual @-mention Source Event if it is still replyable. A failed reply does not authorize a proactive post.';
 
 function unsupportedVoice(): VoiceAttachOutcome {
   return {
@@ -124,6 +132,7 @@ export function createBotMessageTool(
   },
   sentToHumanDm?: (messageId: string) => void,
 ) {
+  const runsWithFailedQqReply = new WeakSet<OrchestratorAgentRun>();
   return defineTool({
     name: 'bot_send_message',
     description:
@@ -273,6 +282,14 @@ export function createBotMessageTool(
         throw new BotMessageError('unavailable-source', 'The trusted reply source is unavailable.');
       const external =
         reply?.kind === 'external' || args.grant_id !== undefined || args.binding_id !== undefined;
+      if (args.source_event_id === undefined && runsWithFailedQqReply.has(run)) {
+        return JSON.stringify({
+          status: 'refused',
+          reason: 'reply-destination-required',
+          notice: QQ_REPLY_NOTICE,
+          inboxResolution: { outcome: 'not-requested' },
+        });
+      }
       let channelId =
         args.human_id === undefined
           ? reply?.kind === 'channel'
@@ -422,10 +439,18 @@ export function createBotMessageTool(
         const key = createHash('sha256')
           .update(JSON.stringify([run.sessionId, String(exec.callId)]))
           .digest('hex');
-        const source =
-          args.source_event_id !== undefined && /<@!?[A-Za-z0-9_-]+>/u.test(args.body)
-            ? messaging.read(args.source_event_id)
-            : undefined;
+        const source = reply?.kind === 'external' ? reply.source : undefined;
+        const qqReply = source === undefined ? undefined : sourceReplyCapability(source);
+        if (qqReply?.state === 'unavailable') {
+          runsWithFailedQqReply.add(run);
+          return JSON.stringify({
+            status: 'refused',
+            reason: qqReply.reason,
+            replyCapability: qqReply,
+            notice: QQ_REPLY_NOTICE,
+            inboxResolution: { outcome: 'not-requested' },
+          });
+        }
         const plain = withoutSessionMentions(args.body);
         const body =
           source === undefined
@@ -435,38 +460,65 @@ export function createBotMessageTool(
                 plain,
                 mentionPeople(source.event.actor, source.event.mentions),
               );
-        const result = args.attachments?.length
-          ? await messaging.replyFile(args.source_event_id!, args.attachments[0]!.fileId!, key)
-          : args.binding_id !== undefined
-            ? await (() => {
-                if (messaging.postConversation === undefined)
-                  throw new BotMessageError(
-                    'unavailable-destination',
-                    'Reachable external posting is unavailable.',
-                  );
-                return messaging.postConversation(
-                  args.binding_id!,
-                  args.conversation_id!,
-                  key,
-                  body,
-                );
-              })()
-            : args.grant_id === undefined
-              ? await messaging.reply(args.source_event_id!, body, key)
-              : await (() => {
-                  if (messaging.post === undefined)
+        let result;
+        try {
+          result = args.attachments?.length
+            ? await messaging.replyFile(args.source_event_id!, args.attachments[0]!.fileId!, key)
+            : args.binding_id !== undefined
+              ? await (() => {
+                  if (messaging.postConversation === undefined)
                     throw new BotMessageError(
                       'unavailable-destination',
-                      'Proactive external messaging is unavailable.',
+                      'Reachable external posting is unavailable.',
                     );
-                  return messaging.post(args.grant_id!, key, body);
-                })();
-        if (result.state !== 'provider-accepted' || result.receipt === undefined)
+                  return messaging.postConversation(
+                    args.binding_id!,
+                    args.conversation_id!,
+                    key,
+                    body,
+                  );
+                })()
+              : args.grant_id === undefined
+                ? await messaging.reply(args.source_event_id!, body, key)
+                : await (() => {
+                    if (messaging.post === undefined)
+                      throw new BotMessageError(
+                        'unavailable-destination',
+                        'Proactive external messaging is unavailable.',
+                      );
+                    return messaging.post(args.grant_id!, key, body);
+                  })();
+        } catch (error) {
+          if (qqReply === undefined || !(error instanceof MessagingError)) throw error;
+          runsWithFailedQqReply.add(run);
+          return JSON.stringify({
+            status: 'refused',
+            reason: error.code,
+            replyCapability: qqReplyFailureCapability(error.code),
+            notice: QQ_REPLY_NOTICE,
+            inboxResolution: { outcome: 'not-requested' },
+          });
+        }
+        if (result.state !== 'provider-accepted' || result.receipt === undefined) {
+          if (qqReply !== undefined) runsWithFailedQqReply.add(run);
           return JSON.stringify({
             status: result.state,
             intentId: result.id,
+            ...(result.reason === undefined ? {} : { reason: result.reason }),
+            ...(qqReply === undefined
+              ? {}
+              : {
+                  replyCapability: qqReplyFailureCapability(
+                    result.state === 'unknown-outcome' ? undefined : result.reason,
+                  ),
+                  notice:
+                    result.state === 'unknown-outcome' || result.state === 'provider-accepted'
+                      ? 'Delivery is unconfirmed. Inspect the Outbox receipt before any further send. Keep the answer in its original QQ conversation.'
+                      : QQ_REPLY_NOTICE,
+                }),
             inboxResolution: { outcome: 'not-requested' },
           });
+        }
         messageId = result.receipt.messageId;
         intentId = result.id;
         if (args.voice) voice = unsupportedVoice();

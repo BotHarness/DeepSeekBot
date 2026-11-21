@@ -542,6 +542,8 @@ deepseekbot failure-alerts-retry <bot-id> --delivery <delivery-id>
 
 这些命令调用的 Host bridge 方法，与 Bot 的 IM 设置、Channel 桥接列表以及审批和失败提醒卡片相同，所以 Host 会做同样的检查，并以同样的错误码拒绝。`messaging-grants` 列出 Bot 已授权的会话（授权 id、版本、接收状态、群聊和话题策略）以及各绑定的发帖上限，不输出目标摘要和应用指纹。结构化修改从 `--input-stdin` 读取一个 JSON 对象，格式与 Web UI 发送的一致，包括其中的 `expectedRevision`，因此并发修改会失败而不会被覆盖；`approval-route`、`failure-alerts-set` 和 `messaging-post-limit` 会自己读取当前版本。`messaging-send` 和 `messaging-post` 会打印所用的 `requestId`：用同一个 `--request-id` 重试会返回已有的帖子而不会重复发送，`messaging-post-status` 只读回结果、不会再发。与 Web UI 的确认对话框一致，`messaging-revoke`、屏蔽会话、删除桥接以及 `delete-*` 类发送者权限修改都需要 `--confirm`。只向你有权测试的 IM 会话发送消息。
 
+`messaging-source` 和 `bridge_read` 查询 QQ 原群及原消息的 `replyCapability`。`unavailable` 会附上原因，比如缺少 @、Provider 不可用或回复窗口已过期。`provider-checked` 表示查询时授权和 Provider 回复路径通过检查。`requires-provider-check` 表示发送前无法确认。实际发送时仍会检查路径，失败时返回能力状态和原因。`bot-tool <bot-id> bot_send_message --args-stdin` 返回同样的结果。Bot 回复失败后，同一轮直接指定目的地的发送会被拒绝。
+
 ### 用命令行操作浏览器和 Computer
 
 ```bash
