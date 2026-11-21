@@ -9,6 +9,7 @@ import {
   createModelPresetStore,
   DEFAULT_MODEL_PRESET_ID,
   defaultPresetPlan,
+  defaultPresetRoute,
   resolveBotModelPlan,
 } from '../src/models/presets.js';
 import { createRoutingGroupStore } from '../src/models/routing-groups.js';
@@ -189,4 +190,24 @@ describe('Default Model Preset cutover', () => {
       }),
     ).toEqual({ status: 'already-migrated', preset: edited });
   });
+});
+
+it('reads the Default preset route per role and falls back to the DSH default without it', () => {
+  const main = { provider: 'opencode-go', model: 'deepseek-flash' };
+  const sub = { provider: 'opencode-go', model: 'deepseek-pro', reasoningEffort: 'high' };
+  const preset = {
+    id: 'default',
+    name: 'Default',
+    revision: 1,
+    createdAt: '2026-11-22T00:00:00.000Z',
+    orchestrator: main,
+    assignmentDefault: sub,
+  };
+  const dsh = { provider: 'deepseek-official', model: 'deepseek-flash' };
+  expect(defaultPresetRoute(preset, 'orchestrator', () => dsh)).toEqual(main);
+  expect(defaultPresetRoute(preset, 'assignment', () => dsh)).toEqual(sub);
+  expect(defaultPresetRoute(undefined, 'orchestrator', () => dsh)).toEqual(dsh);
+  expect(() => defaultPresetRoute(undefined, 'orchestrator', () => undefined)).toThrow(
+    'Default Model Preset is unavailable',
+  );
 });

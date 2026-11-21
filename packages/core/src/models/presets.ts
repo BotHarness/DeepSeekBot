@@ -384,6 +384,18 @@ export function defaultPresetPlan(preset: ModelPreset): PersonaBotModelPlan {
   };
 }
 
+export function defaultPresetRoute(
+  preset: ModelPreset | undefined,
+  role: 'orchestrator' | 'assignment',
+  fallback: () => ModelRoute | undefined,
+): ModelRoute {
+  if (preset !== undefined)
+    return role === 'assignment' ? preset.assignmentDefault : preset.orchestrator;
+  const route = fallback();
+  if (route === undefined) throw new Error('Default Model Preset is unavailable');
+  return route;
+}
+
 export function resolveBotModelPlan(
   bot: { modelPlan?: PersonaBotModelPlan; model?: string },
   inherited: () => PersonaBotModelPlan | undefined,

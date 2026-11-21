@@ -154,6 +154,7 @@ import {
   assignmentGroupOptionOf,
   createModelPresetStore,
   DEFAULT_MODEL_PRESET_ID,
+  defaultPresetRoute,
   defaultPresetPlan,
   resolveBotModelPlan,
   type LegacyDefaultModel,
@@ -1504,9 +1505,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   };
   const defaultModel: DshDefaultModelHost = {
     currentSelection(role = 'orchestrator') {
-      const preset = defaultPreset();
-      if (preset === undefined) throw new Error('Default Model Preset is unavailable');
-      const route = role === 'assignment' ? preset.assignmentDefault : preset.orchestrator;
+      const route = defaultPresetRoute(defaultPreset(), role, () =>
+        ctx.get('agentDefaultModel')?.currentSelection(),
+      );
       return {
         provider: route.provider,
         model: route.model,
