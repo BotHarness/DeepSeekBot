@@ -17,6 +17,8 @@ import { avatarDataUrl } from '../../market/test/avatar-fixtures.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { createMarket } from '../../market/test/market-harness.js';
 import { createTempRoot } from './helpers.js';
+import { BOT_AVATAR_PATH, createBotAvatarHttp } from '../src/bots/avatar-http.js';
+import { DEEPSEEKBOT_RECIPE } from '../src/onboarding/service.js';
 
 const closes: Array<() => Promise<void>> = [];
 afterEach(async () => {
@@ -629,9 +631,162 @@ it('publishes an Avatar as the Host owner and lets a Team member browse without 
   expect(await f.bridge.marketplaceAvatarPublish(input)).toEqual(published);
   f.session.state = 'signed-out';
   expect(await memberBridge.marketplaceAvatarDetail({ id: published.value.id })).toEqual(published);
-  expect(await memberBridge.marketplaceAvatarList({})).toEqual({
+  expect(await memberBridge.marketplaceAvatarList({ q: 'river', tag: 'BLUE' })).toEqual({
     ok: true,
     value: { avatars: [published.value], nextCursor: null },
   });
+  expect(await memberBridge.marketplaceAvatarTags()).toEqual({
+    ok: true,
+    value: [{ tag: 'blue', count: 1 }],
+  });
+  expect(await memberBridge.marketplaceAvatarList({ sort: 'new' })).toEqual({
+    ok: true,
+    value: { avatars: [], nextCursor: null },
+  });
+  await f.market.daily();
+  expect(await memberBridge.marketplaceAvatarList({ sort: 'new', tag: 'BLUE' })).toEqual({
+    ok: true,
+    value: { avatars: [published.value], nextCursor: null },
+  });
+  for (const sort of ['hot', 'rising']) {
+    expect(await memberBridge.marketplaceAvatarList({ sort })).toEqual({
+      ok: true,
+      value: { avatars: [], nextCursor: null },
+    });
+  }
+  expect(await memberBridge.marketplaceAvatarList({ sort: 'stars' })).toMatchObject({ ok: false });
   expect(f.market.bucket.objects.size).toBe(1);
+});
+
+it('publishes stored images from Bots, including a member’s Appearance still, as the Host owner', async () => {
+  const f = fixture();
+  const member = humanContext('avatar-member');
+  attachOperationalModule(f.core.operationalDatabase, 'market-avatar-source-test').transaction(
+    (sql) => {
+      sql.prepare('UPDATE team_settings SET enabled=1').run();
+      sql.prepare("INSERT INTO humans VALUES (?,?,'active','now')").run(member.humanId, 'Member');
+      sql.prepare("INSERT INTO human_roles VALUES (?,'member')").run(member.humanId);
+    },
+  );
+  f.core.team.spaces.ensureAccount(member.humanId);
+  const role = f.core.team.roles.create(OWNER_HUMAN_CONTEXT, 'Bot manager', [
+    'bots.manageAll',
+  ]).role;
+  f.core.team.roles.set(OWNER_HUMAN_CONTEXT, member.humanId, ['member', role.roleId]);
+
+  for (const slug of ['uploaded', 'appearance', 'blobatar']) {
+    expect(
+      f.core.registry.create({ slug, displayName: slug, ownerHumanId: member.humanId }).ok,
+    ).toBe(true);
+  }
+  expect(f.core.registry.update('uploaded', { avatar: avatarDataUrl('webp') }).ok).toBe(true);
+  expect(f.core.registry.setAppearance('appearance', DEEPSEEKBOT_RECIPE).ok).toBe(true);
+
+  for (const human of [member, { ...OWNER_HUMAN_CONTEXT, caller: 'bot' as const }]) {
+    const bridge = createBridgeMethods(human, f.bridgeDeps);
+    expect(bridge.marketplaceAvatarSource({ bot: 'uploaded' })).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required' },
+    });
+    expect(await bridge.marketplaceAvatarPublish({})).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required' },
+    });
+  }
+  expect(f.bridge.marketplaceAvatarSource({ bot: 'blobatar' })).toMatchObject({
+    ok: false,
+    error: { code: 'no-stored-avatar' },
+  });
+
+  f.session.state = 'signed-in';
+  expect(
+    (await f.bridge.marketplaceAuthorSave({ displayName: 'Host Owner', acceptTerms: true })).ok,
+  ).toBe(true);
+  for (const [slug, contentType] of [
+    ['uploaded', 'image/webp'],
+    ['appearance', 'image/png'],
+  ] as const) {
+    const source = f.bridge.marketplaceAvatarSource({ bot: slug });
+    if (!source.ok) throw new Error(source.error.code);
+    const stored = await createBotAvatarHttp(f.core.registry)(
+      new Request(`https://host.test${BOT_AVATAR_PATH}?slug=${slug}`),
+    );
+    expect(stored.ok).toBe(true);
+    const expected = Buffer.from(await stored.arrayBuffer()).toString('base64');
+    expect(source.value).toEqual({ image: `data:${contentType};base64,${expected}` });
+    const published = await f.bridge.marketplaceAvatarPublish({
+      ...source.value,
+      name: slug,
+      requestKey: slug,
+      confirm: true,
+    });
+    if (!published.ok) throw new Error(published.error.code);
+    expect(published.value.author.name).toBe('Host Owner');
+    expect(published.value).not.toHaveProperty('appearance');
+    const response = await f.market.request(`/v1/avatars/${published.value.id}/image`);
+    expect(response.headers.get('content-type')).toBe(contentType);
+    expect(Buffer.from(await response.arrayBuffer()).toString('base64')).toBe(expected);
+  }
+});
+
+it('manages Avatar listings only through the Host owner’s signed-in Connect account', async () => {
+  const f = fixture();
+  f.session.state = 'signed-in';
+  await f.bridge.marketplaceAuthorSave({ displayName: 'River Artist', acceptTerms: true });
+  const published = await f.bridge.marketplaceAvatarPublish({
+    name: 'Otter',
+    image: avatarDataUrl('png'),
+    confirm: true,
+    requestKey: 'manage-otter',
+  });
+  if (!published.ok) throw new Error(published.error.code);
+  const { id } = published.value;
+  const memberContext = humanContext('member');
+  attachOperationalModule(
+    f.core.operationalDatabase,
+    'marketplace-avatar-management-test',
+  ).transaction((sql) => {
+    sql.prepare('UPDATE team_settings SET enabled=1').run();
+    sql
+      .prepare("INSERT INTO humans VALUES (?,?,'active','now')")
+      .run(memberContext.humanId, 'Member');
+    sql.prepare("INSERT INTO human_roles VALUES (?,'member')").run(memberContext.humanId);
+  });
+  f.core.team.spaces.ensureAccount(memberContext.humanId);
+  const member = createBridgeMethods(memberContext, f.bridgeDeps);
+  for (const result of [
+    await member.marketplaceAvatarMine({}),
+    await member.marketplaceAvatarEdit({ id, name: 'Bear' }),
+    await member.marketplaceAvatarDelete({ id }),
+  ]) {
+    expect(result).toMatchObject({ ok: false, error: { code: 'permission-required' } });
+  }
+  f.session.tokens = ['token-bob', 'token-bob', 'token-bob'];
+  expect(await f.bridge.marketplaceAvatarMine({})).toEqual({ ok: true, value: { avatars: [] } });
+  expect(await f.bridge.marketplaceAvatarEdit({ id, name: 'Bear' })).toMatchObject({
+    ok: false,
+    error: { code: 'avatar-not-found' },
+  });
+  expect(await f.bridge.marketplaceAvatarDelete({ id })).toMatchObject({
+    ok: false,
+    error: { code: 'avatar-not-found' },
+  });
+  expect(await f.bridge.marketplaceAvatarMine({})).toEqual({
+    ok: true,
+    value: { avatars: [published.value] },
+  });
+  expect(await f.bridge.marketplaceAvatarEdit({ id, description: 'River' })).toEqual({
+    ok: true,
+    value: { ...published.value, description: 'River' },
+  });
+  expect(await f.bridge.marketplaceAvatarDelete({ id })).toEqual({
+    ok: true,
+    value: { deleted: true },
+  });
+  expect(await f.bridge.marketplaceAvatarMine({})).toEqual({ ok: true, value: { avatars: [] } });
+  f.session.state = 'signed-out';
+  expect(await f.bridge.marketplaceAvatarMine({})).toMatchObject({
+    ok: false,
+    error: { code: 'sign-in-required' },
+  });
 });

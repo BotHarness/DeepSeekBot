@@ -18,11 +18,12 @@ import {
   readSharedBanner,
   readSharedPresentation,
   readSharedPrimaryColor,
+  readSharedStandingLimits,
 } from '../../bots/shared-presentation.js';
 import { isValidSlug } from '../../bots/slug.js';
 import { OperationalDatabaseError } from '../../database/owner.js';
 import { memoryRepositoryMatchesCommit, type HttpsFallback } from '../../memory/clone.js';
-import { migrateLegacySoul, seedStandingFiles } from '../../memory/soul.js';
+import { migrateLegacySoul, seedStandingFiles, type StandingLimits } from '../../memory/soul.js';
 import type { TelemetryEventName } from '../../telemetry/events.js';
 
 function isDirectory(path: string): boolean {
@@ -71,6 +72,7 @@ export function createRegistryCreationMethods(
   function* createSteps(
     input: CreatePersonaBotInput,
     sync: boolean,
+    standingLimits?: StandingLimits,
   ): Generator<Preparation, CreatePersonaBotResult, MemoryRepositoryInitialization> {
     if (!isValidSlug(input.slug)) return { ok: false, reason: 'invalid-slug' };
     if (read(input.slug) !== undefined) return { ok: false, reason: 'duplicate' };
@@ -123,6 +125,7 @@ export function createRegistryCreationMethods(
       ...(model ? { model } : {}),
       ...(preset ? { preset } : {}),
       ...(memoryDir ? { memoryDir } : {}),
+      ...(standingLimits === undefined ? {} : { standingLimits }),
     };
     const targetMemoryDir = memoryDirOf(record);
     try {
@@ -183,9 +186,13 @@ export function createRegistryCreationMethods(
     }
     return { ok: true, record };
   }
-  const create = (input: CreatePersonaBotInput, sync: boolean): CreatePersonaBotResult => {
+  const create = (
+    input: CreatePersonaBotInput,
+    sync: boolean,
+    standingLimits?: StandingLimits,
+  ): CreatePersonaBotResult => {
     if (creating.has(input.slug)) return { ok: false, reason: 'duplicate' };
-    const steps = createSteps(input, sync);
+    const steps = createSteps(input, sync, standingLimits);
     let step = steps.next();
     while (!step.done) {
       const work = step.value;
@@ -248,7 +255,7 @@ export function createRegistryCreationMethods(
       try {
         migrateLegacySoul(defaultMemoryDir(input.slug, input.ownerHumanId ?? 'local-human'));
       } catch {}
-      const result = create(input, false);
+      const result = create(input, false, readSharedStandingLimits(target));
       created = result.ok;
       if (!result.ok) return result;
       recordMemoryOwnership(port, result.record.slug, memoryDirOf(result.record));

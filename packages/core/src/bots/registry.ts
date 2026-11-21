@@ -782,6 +782,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         delete record.standingLimits;
       else record.standingLimits = { soul: limits.soul, coreMemory: limits.coreMemory };
       write(record);
+      syncDescriptor(record);
       return { ok: true, record };
     },
     inheritModel(slug, expectedRevision) {

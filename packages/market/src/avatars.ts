@@ -1,8 +1,12 @@
 import {
   MAX_MARKETPLACE_AVATAR_BYTES,
+  normalizeMarketplaceAvatarTag,
+  parseMarketplaceAvatarEdit,
   parseMarketplaceAvatarPublish,
   type MarketplaceAvatar,
   type MarketplaceAvatarPage,
+  type MarketplaceAvatarQuery,
+  type MarketplaceAvatarTag,
 } from '../../host-protocol/src/marketplace-avatar.js';
 import { readMarketplaceAvatarImage } from '../../host-protocol/src/marketplace-avatar-image.js';
 import type { D1Database } from './d1.js';
@@ -12,6 +16,8 @@ import { MAX_BOTS_PER_ACCOUNT } from './upload-files.js';
 const PAGE_SIZE = 24;
 const MAX_PUBLISH_BODY = Math.ceil(MAX_MARKETPLACE_AVATAR_BYTES / 3) * 4 + 4096;
 export const AVATAR_ROUTE = /^\/v1\/avatars(?:\/([0-9a-f-]{36})(\/image)?)?$/u;
+export const AVATAR_RANKING_ROUTE = /^\/v1\/avatars\/sections\/([^/]+)$/u;
+export const AVATAR_TAGS_PATH = '/v1/avatars/tags';
 export const AVATAR_APPLY_ROUTE = /^\/v1\/avatars\/([0-9a-f-]{36})\/applies$/u;
 const CURSOR = /^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d\.\d{3}Z)\/([0-9a-f-]{36})$/u;
 
@@ -31,6 +37,27 @@ const applyCount = `(SELECT COUNT(*) FROM avatar_apply_receipts WHERE avatar_id 
 const selected = `SELECT a.*, authors.author_id, authors.display_name, ${applyCount} AS apply_count
   FROM marketplace_avatars a JOIN authors USING (account)`;
 const objectKey = (id: string) => `avatars/${id}`;
+const serializeTagKeys = (tags: string[]) =>
+  JSON.stringify([...new Set(tags.map(normalizeMarketplaceAvatarTag))]);
+
+export async function removeMarketAvatar(
+  db: D1Database,
+  bucket: R2Bucket,
+  account: string,
+  id: string,
+): Promise<boolean> {
+  const owned = await db
+    .prepare('SELECT id FROM marketplace_avatars WHERE account = ? AND id = ?')
+    .bind(account, id)
+    .first();
+  if (owned === null) return false;
+  await bucket.delete(objectKey(id));
+  await db
+    .prepare('DELETE FROM marketplace_avatars WHERE account = ? AND id = ?')
+    .bind(account, id)
+    .run();
+  return true;
+}
 
 function avatarFromRow(row: AvatarRow, origin: string): MarketplaceAvatar {
   return {
@@ -96,19 +123,54 @@ export function createMarketAvatars({
       .first<AvatarRow>();
 
   return {
-    async list(cursor: string | null, origin: string): Promise<MarketplaceAvatarPage | undefined> {
-      const bounds = cursor === null ? null : CURSOR.exec(cursor);
-      if (cursor !== null && bounds === null) return;
-      const order = 'ORDER BY a.created_at DESC, a.id DESC LIMIT ?';
-      const query =
-        bounds === null
-          ? db.prepare(`${selected} WHERE a.visibility = 'listed' ${order}`).bind(PAGE_SIZE + 1)
-          : db
-              .prepare(
-                `${selected} WHERE a.visibility = 'listed' AND (a.created_at, a.id) < (?, ?) ${order}`,
-              )
-              .bind(bounds[1]!, bounds[2]!, PAGE_SIZE + 1);
-      const { results } = await query.all<AvatarRow>();
+    async list(
+      { cursor, q, tag, sort }: MarketplaceAvatarQuery,
+      origin: string,
+    ): Promise<MarketplaceAvatarPage | undefined> {
+      const bounds = cursor === undefined ? null : CURSOR.exec(cursor);
+      if (cursor !== undefined && (bounds === null || sort !== undefined)) return;
+      const terms = q?.match(/\S+/gu) ?? [];
+      const long = terms.filter((term) => [...term].length >= 3);
+      const short = terms.filter((term) => [...term].length < 3);
+      const joins: string[] = [];
+      const filters = ["a.visibility = 'listed'"];
+      const values: string[] = [];
+      if (sort !== undefined) {
+        joins.push('JOIN avatar_ranking_snapshots s ON s.avatar_id = a.id');
+        filters.push('s.day = (SELECT day FROM avatar_ranking_runs ORDER BY day DESC LIMIT 1)');
+        filters.push('s.section = ?');
+        values.push(sort);
+      }
+      if (long.length > 0) {
+        joins.push('JOIN marketplace_avatars_fts f ON f.rowid = a.rowid');
+        filters.push('marketplace_avatars_fts MATCH ?');
+        values.push(long.map((term) => `"${term.replaceAll('"', '""')}"`).join(' '));
+      }
+      if (short.length > 0) {
+        filters.push(`NOT EXISTS (
+          SELECT 1 FROM json_each(?) term
+          WHERE instr(lower(a.name), lower(term.value)) = 0
+            AND instr(lower(a.description), lower(term.value)) = 0
+            AND NOT EXISTS (SELECT 1 FROM json_each(a.tags) WHERE instr(lower(value), lower(term.value)) > 0)
+        )`);
+        values.push(JSON.stringify(short));
+      }
+      if (tag !== undefined) {
+        joins.push('JOIN marketplace_avatar_tags t ON t.avatar_id = a.id');
+        filters.push('t.tag = ?');
+        values.push(normalizeMarketplaceAvatarTag(tag));
+      }
+      const browseOrder =
+        tag === undefined ? ['a.created_at', 'a.id'] : ['t.created_at', 't.avatar_id'];
+      if (bounds !== null) {
+        filters.push(`(${browseOrder.join(', ')}) < (?, ?)`);
+        values.push(bounds[1]!, bounds[2]!);
+      }
+      const { results } = await db
+        .prepare(`${selected} ${joins.join(' ')} WHERE ${filters.join(' AND ')}
+          ORDER BY ${sort === undefined ? `${browseOrder.join(' DESC, ')} DESC` : 's.rank'} LIMIT ?`)
+        .bind(...values, PAGE_SIZE + 1)
+        .all<AvatarRow>();
       const page = results.slice(0, PAGE_SIZE);
       const last = page.at(-1);
       return {
@@ -118,10 +180,58 @@ export function createMarketAvatars({
       };
     },
 
+    async tags(): Promise<MarketplaceAvatarTag[]> {
+      const { results } = await db
+        .prepare(`SELECT tag, count(*) AS count FROM marketplace_avatar_tags
+          GROUP BY tag ORDER BY count DESC, tag LIMIT 30`)
+        .all<MarketplaceAvatarTag>();
+      return results;
+    },
+
     async detail(id: string, origin: string) {
       const row = await listed(id);
       return row === null ? undefined : avatarFromRow(row, origin);
     },
+
+    async mine(account: string, origin: string) {
+      const { results } = await db
+        .prepare(`${selected} WHERE a.account = ? ORDER BY a.created_at DESC, a.id DESC`)
+        .bind(account)
+        .all<AvatarRow>();
+      return results.map((row) => avatarFromRow(row, origin));
+    },
+
+    async edit(account: string, id: string, input: Record<string, unknown>, origin: string) {
+      const patch = parseMarketplaceAvatarEdit(input);
+      if (patch === undefined) return { code: 'invalid-avatar-edit' as const };
+      const changed = await db
+        .prepare(`
+          UPDATE marketplace_avatars SET name = COALESCE(?, name),
+            description = COALESCE(?, description), tags = COALESCE(?, tags),
+            tag_keys = COALESCE(?, tag_keys), updated_at = ?
+          WHERE account = ? AND id = ? RETURNING id
+        `)
+        .bind(
+          patch.name ?? null,
+          patch.description ?? null,
+          patch.tags === undefined ? null : JSON.stringify(patch.tags),
+          patch.tags === undefined ? null : serializeTagKeys(patch.tags),
+          now().toISOString(),
+          account,
+          id,
+        )
+        .first();
+      if (changed === null) return { code: 'avatar-not-found' as const };
+      const row = await db
+        .prepare(`${selected} WHERE a.account = ? AND a.id = ?`)
+        .bind(account, id)
+        .first<AvatarRow>();
+      return row === null
+        ? { code: 'avatar-not-found' as const }
+        : { avatar: avatarFromRow(row, origin) };
+    },
+
+    remove: (account: string, id: string) => removeMarketAvatar(db, bucket, account, id),
 
     async recordApply(id: string, botHash: string) {
       const inserted = await db
@@ -185,8 +295,8 @@ export function createMarketAvatars({
       try {
         await db
           .prepare(`
-          INSERT INTO marketplace_avatars (id, account, request_key, name, description, tags, content_type, created_at, updated_at)
-          SELECT ?, account, ?, ?, ?, ?, ?, ?, ? FROM authors
+          INSERT INTO marketplace_avatars (id, account, request_key, name, description, tags, tag_keys, content_type, created_at, updated_at)
+          SELECT ?, account, ?, ?, ?, ?, ?, ?, ?, ? FROM authors
           WHERE account = ? AND author_id = ? AND terms_accepted_at IS NOT NULL
             AND (SELECT COUNT(*) FROM marketplace_avatars WHERE account = ?) < ?
           ON CONFLICT (account, request_key) DO NOTHING
@@ -197,6 +307,7 @@ export function createMarketAvatars({
             publish.name,
             publish.description,
             JSON.stringify(publish.tags),
+            serializeTagKeys(publish.tags),
             image.contentType,
             timestamp,
             timestamp,

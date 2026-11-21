@@ -1,4 +1,9 @@
 import {
+  isMarketplaceAvatarRanking,
+  MAX_MARKETPLACE_AVATAR_QUERY,
+  MAX_MARKETPLACE_AVATAR_TAG_FILTER,
+} from '../../host-protocol/src/marketplace-avatar.js';
+import {
   createCatalog,
   MAX_QUERY_LENGTH,
   type BrowseSort,
@@ -37,7 +42,12 @@ import {
   type Digests,
   type DigestWriter,
 } from './digest.js';
-import { createRankings, isRankingSection, type Rankings } from './rankings.js';
+import {
+  createRankings,
+  isRankingSection,
+  snapshotAvatarRankings,
+  type Rankings,
+} from './rankings.js';
 import { createReceipts, isMarketplaceHostId, type Receipts } from './receipts.js';
 import { MAX_UPLOAD_FILE_BYTES } from './upload-files.js';
 import {
@@ -49,7 +59,9 @@ import {
 } from './uploads.js';
 import {
   AVATAR_APPLY_ROUTE,
+  AVATAR_RANKING_ROUTE,
   AVATAR_ROUTE,
+  AVATAR_TAGS_PATH,
   createMarketAvatars,
   readAvatarPublishBody,
 } from './avatars.js';
@@ -98,10 +110,10 @@ const refusalStatus: Record<SubmissionRefusal, number> = {
   'upstream-unavailable': 502,
 };
 
-function json(status: number, body: unknown): Response {
+function json(status: number, body: unknown, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { 'content-type': 'application/json; charset=utf-8' },
+    headers: { 'content-type': 'application/json; charset=utf-8', ...headers },
   });
 }
 
@@ -128,9 +140,12 @@ async function readBody(request: Request): Promise<Record<string, unknown> | und
 }
 
 function blocklistTarget(body: Record<string, unknown>): BlocklistTarget | undefined {
-  const { id, url } = body;
-  if (typeof id === 'string' && id.length > 0 && url === undefined) return { id };
-  if (typeof url === 'string' && url.length > 0 && id === undefined) return { url };
+  const { id, url, kind = 'bot' } = body;
+  if (kind !== 'bot' && kind !== 'avatar') return undefined;
+  if (typeof id === 'string' && id.length > 0 && url === undefined)
+    return kind === 'bot' ? { kind: 'bot', id } : { kind: 'avatar', id };
+  if (kind === 'bot' && typeof url === 'string' && url.length > 0 && id === undefined)
+    return { kind, url };
   return undefined;
 }
 
@@ -186,15 +201,42 @@ export function createMarketHandler(
       const receipt = await deps.avatars.recordApply(appliedAvatarId, botHash);
       return receipt === undefined ? failure(404, 'avatar-not-found') : json(202, receipt);
     }
+    if (url.pathname === AVATAR_TAGS_PATH) {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      if (deps.avatars === undefined) return failure(503, 'avatars-unavailable');
+      return json(200, { tags: await deps.avatars.tags() });
+    }
+    const avatarRanking = AVATAR_RANKING_ROUTE.exec(url.pathname)?.[1];
+    if (
+      avatarRanking !== undefined ||
+      (url.pathname === '/v1/avatars' && request.method === 'GET')
+    ) {
+      if (request.method !== 'GET') return failure(405, 'method-not-allowed');
+      if (avatarRanking !== undefined && !isMarketplaceAvatarRanking(avatarRanking))
+        return failure(404, 'section-not-found');
+      if (deps.avatars === undefined) return failure(503, 'avatars-unavailable');
+      const cursor = url.searchParams.get('cursor') ?? undefined;
+      const q = url.searchParams.get('q')?.trim() ?? '';
+      const tag = url.searchParams.get('tag')?.trim() ?? '';
+      if (q.length > MAX_MARKETPLACE_AVATAR_QUERY) return failure(400, 'invalid-query');
+      if ([...tag].length > MAX_MARKETPLACE_AVATAR_TAG_FILTER) return failure(400, 'invalid-tag');
+      const page = await deps.avatars.list(
+        {
+          ...(cursor === undefined ? {} : { cursor }),
+          ...(q === '' ? {} : { q }),
+          ...(tag === '' ? {} : { tag }),
+          ...(avatarRanking === undefined ? {} : { sort: avatarRanking }),
+        },
+        url.origin,
+      );
+      return page === undefined ? failure(400, 'invalid-cursor') : json(200, page);
+    }
     const avatar = AVATAR_ROUTE.exec(url.pathname);
     if (avatar !== null) {
       if (request.method === 'GET') {
         if (deps.avatars === undefined) return failure(503, 'avatars-unavailable');
         const id = avatar[1];
-        if (id === undefined) {
-          const page = await deps.avatars.list(url.searchParams.get('cursor'), url.origin);
-          return page === undefined ? failure(400, 'invalid-cursor') : json(200, page);
-        }
+        if (id === undefined) return failure(404, 'avatar-not-found');
         if (avatar[2] !== undefined) {
           const image = await deps.avatars.image(id);
           return image === undefined
@@ -262,8 +304,10 @@ export function createMarketHandler(
       }
       const result =
         action === 'block' ? await moderation.block(target) : await moderation.restore(target);
-      if (result.ok) return json(200, { bot: result.bot });
+      if (result.ok)
+        return json(200, 'bot' in result ? { bot: result.bot } : { avatar: result.avatar });
       const status = {
+        'avatar-not-found': 404,
         'bot-not-found': 404,
         'invalid-repository-url': 400,
         'upstream-unavailable': 502,
@@ -345,6 +389,31 @@ export function createMarketHandler(
         token === undefined ? undefined : (await deps.uploads.verifier.verify(token))?.account;
       if (account === undefined) return failure(401, 'unauthorized');
       const store = deps.uploads.store;
+      const ownedAvatar = /^\/v1\/me\/avatars(?:\/([0-9a-f-]{36}))?$/u.exec(url.pathname);
+      if (ownedAvatar !== null) {
+        if (deps.avatars === undefined) return failure(503, 'avatars-unavailable');
+        const id = ownedAvatar[1];
+        if (id === undefined && request.method === 'GET')
+          return json(
+            200,
+            { avatars: await deps.avatars.mine(account, url.origin) },
+            {
+              'cache-control': 'no-store',
+            },
+          );
+        if (id !== undefined && request.method === 'PATCH') {
+          const input = await readBody(request);
+          if (input === undefined) return failure(400, 'invalid-avatar-edit');
+          const result = await deps.avatars.edit(account, id, input, url.origin);
+          if ('avatar' in result) return json(200, result, { 'cache-control': 'no-store' });
+          return failure(result.code === 'avatar-not-found' ? 404 : 400, result.code);
+        }
+        if (id !== undefined && request.method === 'DELETE')
+          return (await deps.avatars.remove(account, id))
+            ? json(200, { deleted: true })
+            : failure(404, 'avatar-not-found');
+        return failure(405, 'method-not-allowed');
+      }
       if (url.pathname === '/v1/me') {
         if (request.method === 'GET') return json(200, { author: await store.author(account) });
         if (request.method === 'DELETE') {
@@ -434,15 +503,13 @@ export function createMarketHandler(
         ? json(202, { counted: recorded.counted, installs: recorded.installs })
         : failure(404, 'bot-not-found');
     }
-    const reportId = /^\/v1\/bots\/([^/]+)\/reports$/u.exec(url.pathname)?.[1];
-    if (reportId !== undefined) {
+    const reportRoute = /^\/v1\/(bots|avatars)\/([^/]+)\/reports$/u.exec(url.pathname);
+    if (reportRoute !== null) {
       if (request.method !== 'POST') return failure(405, 'method-not-allowed');
-      let id: string;
-      try {
-        id = decodeURIComponent(reportId);
-      } catch {
-        return failure(404, 'bot-not-found');
-      }
+      const kind = reportRoute[1] === 'avatars' ? 'avatar' : 'bot';
+      const notFound = kind === 'avatar' ? 'avatar-not-found' : 'bot-not-found';
+      const id = decodePath(reportRoute[2]!);
+      if (id === undefined) return failure(404, notFound);
       const body = await readBody(request);
       const reasonValue = body?.['reason'];
       const reason = typeof reasonValue === 'string' ? reasonValue.trim() : '';
@@ -455,12 +522,13 @@ export function createMarketHandler(
       const guarded = await guard(request, body?.['altcha'], 'report');
       if (!guarded.ok) return guarded.response;
       const received = await moderation.report({
+        kind,
         id,
         source: guarded.source,
         reason: reason.length === 0 ? undefined : reason,
         threshold: deps.reportThreshold,
       });
-      return received ? json(202, { received: true }) : failure(404, 'bot-not-found');
+      return received ? json(202, { received: true }) : failure(404, notFound);
     }
     if (url.pathname === '/v1/bots') {
       if (request.method !== 'GET') return failure(405, 'method-not-allowed');
@@ -572,7 +640,9 @@ export function createMarketHandler(
       await route(request),
       pathname.endsWith('/image') && AVATAR_ROUTE.test(pathname)
         ? 'no-store'
-        : AVATAR_ROUTE.test(pathname)
+        : AVATAR_ROUTE.test(pathname) ||
+            pathname === AVATAR_TAGS_PATH ||
+            AVATAR_RANKING_ROUTE.test(pathname)
           ? 'no-cache'
           : undefined,
     );
@@ -778,25 +848,28 @@ export async function runDaily(
   now: () => Date = () => new Date(),
   digestWriter: DigestWriter | undefined = digestWriterForEnv(env),
 ): Promise<void> {
-  await snapshotRankings(env, log, now);
+  const rankingDate = now();
+  const rankingDeps = { db: env.MARKET_DB, now: () => rankingDate };
+  await snapshotRankings('rankings', () => createRankings(rankingDeps).snapshot(), log);
+  await snapshotRankings('avatar-rankings', () => snapshotAvatarRankings(rankingDeps), log);
   await writeDigest(env, digestWriter, log, now);
 }
 
 async function snapshotRankings(
-  env: MarketEnv,
+  phase: 'rankings' | 'avatar-rankings',
+  snapshot: () => Promise<{ day: string }>,
   log: (line: string) => void,
-  now: () => Date,
 ): Promise<void> {
   const started = Date.now();
   try {
-    const snapshot = await createRankings({ db: env.MARKET_DB, now }).snapshot();
+    const report = await snapshot();
     log(
       JSON.stringify({
         module: 'marketplace-worker',
         initiator: 'scheduled',
-        phase: 'rankings',
+        phase,
         durationMs: Date.now() - started,
-        ...snapshot,
+        ...report,
       }),
     );
   } catch (error) {
@@ -804,7 +877,7 @@ async function snapshotRankings(
       JSON.stringify({
         module: 'marketplace-worker',
         initiator: 'scheduled',
-        phase: 'rankings',
+        phase,
         durationMs: Date.now() - started,
         failed: error instanceof Error ? error.message : 'unknown',
       }),

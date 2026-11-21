@@ -13,6 +13,7 @@ import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import type { DockPanelRegistry } from './dock-panels.js';
 import { hooked } from './ds/hooked.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
+import { size } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 
 export interface PinnedPanelBadge {
@@ -234,7 +235,7 @@ export function PinnedPanelCards({
                   aria-hidden="true"
                 />
               )}
-              <ChannelSidebarIcon name={panel.icon} size={collapsed ? 18 : 16} />
+              <ChannelSidebarIcon name={panel.icon} size={size.icon} />
               {mark === undefined ? null : collapsed && mark.indicator !== undefined ? (
                 mark.indicator === 'on' ? (
                   <span {...stylex.props(styles.dot)} data-pinned-panel-dot="" aria-hidden="true" />
@@ -285,7 +286,8 @@ const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: '40px',
-    padding: 0,
+    paddingBlock: 0,
+    paddingInline: 0,
     borderRadius: radius.md,
     cornerShape: 'round',
     color: color.muted,

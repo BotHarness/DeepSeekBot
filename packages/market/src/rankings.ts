@@ -43,6 +43,77 @@ export function utcDay(at: Date): string {
   return at.toISOString().slice(0, 10);
 }
 
+export async function snapshotAvatarRankings({
+  db,
+  now,
+}: {
+  db: D1Database;
+  now: () => Date;
+}): Promise<{ day: string }> {
+  const date = now();
+  const at = date.getTime();
+  const day = utcDay(date);
+  const recent = at - RANKING_WINDOW_MS;
+  const previous = recent - RANKING_WINDOW_MS;
+  const oldest = utcDay(new Date(at - SNAPSHOT_RETENTION_DAYS * DAY_MS));
+  await db.batch([
+    db.prepare('DELETE FROM avatar_ranking_snapshots WHERE day = ?').bind(day),
+    db
+      .prepare(
+        `INSERT INTO avatar_ranking_snapshots (day, section, rank, avatar_id, score)
+         SELECT ?, 'hot', row_number() OVER (ORDER BY recent DESC, applies DESC, id), id, recent
+         FROM (
+           SELECT a.id, count(*) AS recent,
+             (SELECT count(*) FROM avatar_apply_receipts WHERE avatar_id = a.id) AS applies
+           FROM avatar_apply_receipts i JOIN marketplace_avatars a ON a.id = i.avatar_id
+           WHERE i.created_at >= ? AND a.visibility = 'listed'
+           GROUP BY a.id
+           ORDER BY recent DESC, applies DESC, a.id
+           LIMIT ?
+         )`,
+      )
+      .bind(day, recent, SECTION_SIZE),
+    db
+      .prepare(
+        `INSERT INTO avatar_ranking_snapshots (day, section, rank, avatar_id, score)
+         SELECT ?, 'new', row_number() OVER (ORDER BY created_at DESC, id), id, 0
+         FROM (
+           SELECT id, created_at FROM marketplace_avatars
+           WHERE visibility = 'listed' AND created_at >= ?
+           ORDER BY created_at DESC, id
+           LIMIT ?
+         )`,
+      )
+      .bind(day, new Date(recent).toISOString(), SECTION_SIZE),
+    db
+      .prepare(
+        `INSERT INTO avatar_ranking_snapshots (day, section, rank, avatar_id, score)
+         SELECT ?, 'rising', row_number() OVER (ORDER BY recent - earlier DESC, recent DESC, id),
+           id, recent - earlier
+         FROM (
+           SELECT a.id,
+             sum(CASE WHEN i.created_at >= ? THEN 1 ELSE 0 END) AS recent,
+             sum(CASE WHEN i.created_at < ? THEN 1 ELSE 0 END) AS earlier
+           FROM avatar_apply_receipts i JOIN marketplace_avatars a ON a.id = i.avatar_id
+           WHERE i.created_at >= ? AND a.visibility = 'listed'
+           GROUP BY a.id
+           HAVING recent >= ? AND recent > earlier
+           ORDER BY recent - earlier DESC, recent DESC, a.id
+           LIMIT ?
+         )`,
+      )
+      .bind(day, recent, recent, previous, RISING_FLOOR, SECTION_SIZE),
+    db
+      .prepare(
+        'INSERT INTO avatar_ranking_runs (day, created_at) VALUES (?, ?) ON CONFLICT (day) DO UPDATE SET created_at = excluded.created_at',
+      )
+      .bind(day, at),
+    db.prepare('DELETE FROM avatar_ranking_snapshots WHERE day < ?').bind(oldest),
+    db.prepare('DELETE FROM avatar_ranking_runs WHERE day < ?').bind(oldest),
+  ]);
+  return { day };
+}
+
 export function createRankings(deps: { db: D1Database; now: () => Date }): Rankings {
   const { db } = deps;
 

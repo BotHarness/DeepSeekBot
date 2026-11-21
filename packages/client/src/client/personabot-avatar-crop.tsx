@@ -1,6 +1,9 @@
 import { useRef, useState, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 
+import { joinClass } from './ds/class-name.js';
 import { FormDialog } from './ds/form-dialog.js';
+import { layer, space, style } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
 
@@ -10,6 +13,26 @@ import {
   MIN_MARKETPLACE_AVATAR_SIDE,
 } from '@botharness/host-protocol/marketplace-avatar';
 import { readMarketplaceAvatarImage } from '@botharness/host-protocol/marketplace-avatar-image';
+
+const styles = stylex.create({
+  crop: { display: 'grid', gap: space.x3 },
+  viewport: {
+    position: 'relative',
+    overflow: 'hidden',
+    justifySelf: 'center',
+    backgroundColor: layer.well,
+    borderRadius: style.radiusCard,
+    cursor: 'grab',
+    touchAction: 'none',
+  },
+  image: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    maxWidth: 'none',
+    pointerEvents: 'none',
+  },
+});
 
 function encodeMarketplaceAvatar(canvas: HTMLCanvasElement): string {
   const png = canvas.toDataURL('image/png');
@@ -129,9 +152,10 @@ function ImageCropModal({
     height: number;
   }>();
   const sourceSide = dimensions === undefined ? 0 : Math.min(dimensions.width, dimensions.height);
-  const tooSmall =
-    marketplace && dimensions !== undefined && sourceSide < MIN_MARKETPLACE_AVATAR_SIDE;
   const [zoom, setZoom] = useState(1);
+  const croppedSide = Math.floor(sourceSide / zoom);
+  const tooSmall =
+    marketplace && dimensions !== undefined && croppedSide < MIN_MARKETPLACE_AVATAR_SIDE;
   const [offset, setOffset] = useState({ x: 0, y: 0 });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
@@ -175,7 +199,7 @@ function ImageCropModal({
       const bitmap = await createImageBitmap(file);
       try {
         const canvas = document.createElement('canvas');
-        const side = Math.min(sourceSide, MAX_MARKETPLACE_AVATAR_SIDE);
+        const side = Math.min(croppedSide, MAX_MARKETPLACE_AVATAR_SIDE);
         canvas.width = marketplace ? side : outputWidth;
         canvas.height = marketplace ? side : outputHeight;
         const context = canvas.getContext('2d');
@@ -202,8 +226,8 @@ function ImageCropModal({
   };
   return (
     <FormDialog
-      title={t(shape.titleKey)}
-      description={t(shape.descriptionKey)}
+      title={t(marketplace ? 'market.avatar.cropTitle' : shape.titleKey)}
+      description={t(marketplace ? 'market.avatar.cropDescription' : shape.descriptionKey)}
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
       submitLabel={t('profile.avatar.crop.save')}
       submitDisabled={!dimensions || tooSmall || busy}
@@ -213,9 +237,15 @@ function ImageCropModal({
       onCancel={onClose}
       onSubmit={() => void save()}
     >
-      <div className="bh-group-avatar-crop" ref={sourceMount}>
+      <div
+        className={joinClass('bh-group-avatar-crop', stylex.props(styles.crop).className)}
+        ref={sourceMount}
+      >
         <div
-          className="bh-group-avatar-crop-viewport"
+          className={joinClass(
+            'bh-group-avatar-crop-viewport',
+            stylex.props(styles.viewport).className,
+          )}
           style={{ width: previewWidth, height: previewHeight }}
           role="img"
           tabIndex={0}
@@ -255,6 +285,7 @@ function ImageCropModal({
         >
           {source ? (
             <img
+              {...stylex.props(styles.image)}
               src={source}
               alt=""
               draggable={false}

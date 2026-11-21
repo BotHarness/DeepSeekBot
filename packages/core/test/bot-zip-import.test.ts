@@ -70,6 +70,7 @@ it('previews and imports uploaded Zip once, retaining its receipt after staging 
     value: {
       descriptor: { displayName: 'Archive name', description: 'Portable', roles: ['research'] },
       fileCount: 2,
+      standing: [{ path: 'SOUL.md', role: 'soul', chars: 23, limit: 5_000 }],
     },
   });
   expect(f.core.registry.list()).toHaveLength(0);
