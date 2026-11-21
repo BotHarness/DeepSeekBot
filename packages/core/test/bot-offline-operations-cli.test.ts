@@ -1,7 +1,9 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { chmodSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import nativeFs from 'node:fs';
+import { syncBuiltinESMExports } from 'node:module';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
@@ -415,6 +417,40 @@ describe('deepseekbot secrets', () => {
   const credentialFile = (home: string): string => join(home, '.credentials.yaml');
   const backups = (home: string): string[] =>
     readdirSync(home).filter((name) => name.startsWith('.credentials.yaml.bak-'));
+
+  it.skipIf(process.platform === 'win32')(
+    'creates the credential file with mode 0600',
+    async () => {
+      const home = createTempRoot('botharness-secrets-mode-');
+      const path = credentialFile(home);
+      const originalChmod = nativeFs.chmodSync;
+      let modeBeforeChmod: number | undefined;
+      const chmod = vi.spyOn(nativeFs, 'chmodSync').mockImplementation((target, mode) => {
+        if (target === path) modeBeforeChmod = statSync(path).mode & 0o777;
+        originalChmod(target, mode);
+      });
+      syncBuiltinESMExports();
+      try {
+        const put = await invoke(['secret-put', 'E2E_FAKE_KEY'], home, {}, 'fake-value');
+        expect(put.code).toBe(0);
+        expect(modeBeforeChmod).toBe(0o600);
+        expect(statSync(path).mode & 0o777).toBe(0o600);
+      } finally {
+        chmod.mockRestore();
+        syncBuiltinESMExports();
+      }
+    },
+  );
+
+  it.skipIf(process.platform === 'win32')('normalizes an existing file to mode 0600', async () => {
+    const home = createTempRoot('botharness-secrets-mode-existing-');
+    const path = credentialFile(home);
+    writeFileSync(path, 'version: 1\n\nrefs:\n', { mode: 0o600 });
+    chmodSync(path, 0o700);
+    const put = await invoke(['secret-put', 'E2E_FAKE_KEY'], home, {}, 'fake-value');
+    expect(put.code).toBe(0);
+    expect(statSync(path).mode & 0o777).toBe(0o600);
+  });
 
   it('puts, lists, and unsets a secret without ever echoing the value', async () => {
     const home = createTempRoot('botharness-secrets-');
