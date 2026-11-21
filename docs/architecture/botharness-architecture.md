@@ -678,6 +678,8 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 
 应用定义的 Bot Runtime 持有每个 PersonaBot 的轮次队列，Orchestrator 调度、取消与继续模块共用该队列，并沿用 Session Ownership 与 DSH Agent adapter。参见[共享内核](feature-map.md#shared-kernel)。
 
+DM 与 Group 的准入、因果消息发送和 Group 摘要由共享的 Channel 与 Runtime 内核模块处理，入口仍是同一个 Bot Runtime Service。这些模块使用 Runtime 的实时轮次状态，并沿用现有的 Channel Store 和准入事务。
+
 DSH Agent adapter 管理原生 Agent 生命周期，并注册 `packages/core/src/features/` 中 Schedule、GenUI、Memory、Channel files、Channel、IM Messaging、Activity、Assignment 和 Models 的工具与提示词。原生回合和直调共用同一套工具定义。
 
 M6 adds application-owned account/shared roots, separate grantable `files/` and protected Bot Memory, current audience checks (including for the Owner's own Bots), and the bound `core.currentRoots(session, kind)` seam for M12. The persistence, migration, M9 lifecycle and wire contracts are in [M6 runtime boundaries](team-mode-m6-runtime.md).

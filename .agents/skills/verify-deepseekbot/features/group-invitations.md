@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/channels/runtime-admission.ts`
 - `packages/client/src/client/{group-member-controls,personabot-deletion}.tsx`
 - `apps/mobile/src/ui/chat/{invite-selection,invite-sheet,invite-sheet.android}.{ts,tsx}`
 

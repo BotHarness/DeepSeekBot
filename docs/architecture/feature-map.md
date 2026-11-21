@@ -301,6 +301,8 @@ Each product feature is owned by a Cordis-native Plugin that injects application
 
 The shared Bot runtime passes its live per-Bot turn queues and Session ownership ports to the Orchestrator lifecycle modules. See [scheduling](../../packages/core/src/runtime/orchestrator-scheduling.ts), [cancellation](../../packages/core/src/runtime/orchestrator-cancellation.ts), and [continuation](../../packages/core/src/runtime/orchestrator-continuation.ts).
 
+Feature ingress still calls the Bot Runtime Service. The shared [Channel admission](../../packages/core/src/channels/runtime-admission.ts), [causal sending](../../packages/core/src/channels/causal-sending.ts), [Group digest](../../packages/core/src/runtime/group-digest.ts), and [Channel prompt](../../packages/core/src/runtime/channel-prompts.ts) modules use existing Runtime ports. The Runtime keeps the admission write transactions, and the Channel Store still owns the message append transaction.
+
 ## DSH construct map
 
 This is the target ownership map for the 35 features above. Folder slugs and Service names describe proposed boundaries. The inventory above records current registrations, method names and authorities. H-2 extracts to these boundaries in stages. [DSH/Cordis Context](../../.agents/skills/dsh-plugin-dev/references/context.md), [DSH-first composition, ADR-0015](../decisions/bots.md#adr-0015)
