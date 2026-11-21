@@ -1,3 +1,6 @@
+import * as voiceRpc from '../features/voice/rpc.js';
+import * as browserRpc from '../features/browser/rpc.js';
+import * as computerRpc from '../features/computer/rpc.js';
 import * as modelsRpc from '../features/models/rpc.js';
 import * as marketplaceRpc from '../features/marketplace/rpc.js';
 import * as genuiRpc from '../features/genui/rpc.js';
@@ -1744,15 +1747,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return unwrap(this.methods.resume({ slug }));
   }
   computerAccessSet(slug: string, enabled: boolean): { bot: PersonaBotDetail } {
-    return unwrap(this.methods.computerAccessSet({ slug, enabled }));
+    return computerRpc.computerAccessSet(this.methods, slug, enabled);
   }
 
   browserAccessSet(slug: string, enabled: boolean): { bot: PersonaBotDetail } {
-    return unwrap(this.methods.browserAccessSet({ slug, enabled }));
+    return browserRpc.browserAccessSet(this.methods, slug, enabled);
   }
 
   browserProfileSet(slug: string, profile: string): { bot: PersonaBotDetail } {
-    return unwrap(this.methods.browserProfileSet({ slug, profile }));
+    return browserRpc.browserProfileSet(this.methods, slug, profile);
   }
 
   approvalTemplates(slug?: string): {
@@ -1856,7 +1859,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   voiceProviders(slug?: string): VoiceProvidersView {
-    return unwrap(this.methods.voiceProviders(slug === undefined ? {} : { slug }));
+    return voiceRpc.voiceProviders(this.methods, slug);
   }
 
   voiceProviderAdd(
@@ -1869,26 +1872,25 @@ export class BotharnessBridgeService extends TypertRemoteService {
     kind?: string,
     language?: string,
   ): Promise<{ provider: VoiceProviderView }> {
-    return unwrapAsync(
-      this.methods.voiceProviderAdd({
-        preset,
-        name,
-        baseUrl,
-        model,
-        defaultVoice,
-        key,
-        kind,
-        language,
-      }),
+    return voiceRpc.voiceProviderAdd(
+      this.methods,
+      preset,
+      name,
+      baseUrl,
+      model,
+      defaultVoice,
+      key,
+      kind,
+      language,
     );
   }
 
   voiceProviderRemove(id: string): Promise<{ provider: VoiceProviderView; clearedBots: string[] }> {
-    return unwrapAsync(this.methods.voiceProviderRemove({ id }));
+    return voiceRpc.voiceProviderRemove(this.methods, id);
   }
 
   voiceProviderTest(id: string, voiceId?: string): Promise<ProviderHealth> {
-    return unwrapAsync(this.methods.voiceProviderTest({ id, voiceId }));
+    return voiceRpc.voiceProviderTest(this.methods, id, voiceId);
   }
 
   voiceSynthesize(
@@ -1898,7 +1900,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     voiceId?: string,
     markdown?: boolean,
   ): Promise<VoiceSynthesisView> {
-    return unwrapAsync(this.methods.voiceSynthesize({ text, slug, providerId, voiceId, markdown }));
+    return voiceRpc.voiceSynthesize(this.methods, text, slug, providerId, voiceId, markdown);
   }
 
   botVoiceSet(
@@ -1906,7 +1908,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     providerId: string | null,
     voiceId?: string,
   ): { slug: string; voice: PersonaBotVoice | null } {
-    return unwrap(this.methods.botVoiceSet({ slug, providerId, voiceId }));
+    return voiceRpc.botVoiceSet(this.methods, slug, providerId, voiceId);
   }
 
   voiceTranscribe(
@@ -1915,7 +1917,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     providerId?: string,
     language?: string,
   ): Promise<VoiceTranscriptionView> {
-    return unwrapAsync(this.methods.voiceTranscribe({ audio, slug, providerId, language }));
+    return voiceRpc.voiceTranscribe(this.methods, audio, slug, providerId, language);
   }
 
   botAsrSet(
@@ -1923,7 +1925,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     providerId: string | null,
     language?: string,
   ): { slug: string; asr: PersonaBotAsr | null } {
-    return unwrap(this.methods.botAsrSet({ slug, providerId, language }));
+    return voiceRpc.botAsrSet(this.methods, slug, providerId, language);
   }
 
   voiceDefaultSet(
@@ -1932,7 +1934,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     voiceId?: string,
     language?: string,
   ): { defaults: VoiceDefaults } {
-    return unwrap(this.methods.voiceDefaultSet({ kind, providerId, voiceId, language }));
+    return voiceRpc.voiceDefaultSet(this.methods, kind, providerId, voiceId, language);
   }
 
   botModes(slug?: string): Promise<BotModesView> {
@@ -1962,7 +1964,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
 
   voiceSpeechThresholdSet(dbfs: number | null): { speechThreshold: VoiceSpeechThreshold } {
-    return unwrap(this.methods.voiceSpeechThresholdSet({ dbfs }));
+    return voiceRpc.voiceSpeechThresholdSet(this.methods, dbfs);
   }
 
   voiceDictation(
@@ -1973,7 +1975,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     providerId?: string,
     language?: string,
   ): Promise<{ readiness: VoiceDictationReadiness } | { dictation: VoiceDictationView }> {
-    return unwrapAsync(this.methods.voiceDictation({ kind, id, pcm, slug, providerId, language }));
+    return voiceRpc.voiceDictation(this.methods, kind, id, pcm, slug, providerId, language);
   }
 
   approvalReviewerModel(): Promise<ApprovalReviewerModelView> {

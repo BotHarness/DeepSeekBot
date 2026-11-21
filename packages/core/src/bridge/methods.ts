@@ -1,4 +1,14 @@
 import {
+  createBrowserBridgeMethods,
+  type BrowserBridgeMethods,
+  type BrowserBridgeDeps,
+} from '../features/browser/methods.js';
+import {
+  createComputerBridgeMethods,
+  type ComputerBridgeMethods,
+  type ComputerBridgeDeps,
+} from '../features/computer/methods.js';
+import {
   createEngineAccountBridge,
   type EngineAccountBridgeMethods,
   createEngineSelectionBridge,
@@ -84,13 +94,16 @@ import { createTeamBridge, type TeamBridgeMethods } from '../team/bridge.js';
 import type { TeamService } from '../team/service.js';
 import { OWNER_HUMAN_CONTEXT } from '../humans/context.js';
 import { type HumanContext, type HumanId } from '../humans/context.js';
-import { createVoiceBridgeMethods, type VoiceBridgeMethods } from '../voice/bridge.js';
+import {
+  createVoiceBridgeMethods,
+  type VoiceBridgeMethods,
+  type VoiceBridgeDeps,
+} from '../features/voice/methods.js';
 import {
   createBotModeBridgeMethods,
   type BotModeBridgeMethods,
   type BotModesDeps,
 } from './bot-modes.js';
-import type { VoiceProviders } from '../voice/providers.js';
 import { networkBotId, type BotContact } from '../runtime/bot-contact-discovery.js';
 import { BotNetworkDeliveryError } from '../runtime/bot-network.js';
 import { join } from 'node:path';
@@ -684,7 +697,10 @@ export interface BridgeMethods
     AvatarsBridgeMethods,
     GenuiBridgeMethods,
     MarketplaceBridgeMethods,
-    ModelsBridgeMethods {
+    ModelsBridgeMethods,
+    ComputerBridgeMethods,
+    BrowserBridgeMethods,
+    VoiceBridgeMethods {
   tobHome(
     payload: unknown,
   ): Promise<
@@ -1041,9 +1057,6 @@ export interface BridgeMethods
   channelMuteSet(payload: unknown): Promise<BridgeResult<{ muted: string[] }>>;
   rosterBatch(payload: unknown): Promise<BridgeResult<RosterSnapshot>>;
   developerModeSet(payload: unknown): BridgeResult<{ accepted: boolean }>;
-  computerAccessSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  browserAccessSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  browserProfileSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
   approvalTemplates(payload?: unknown): BridgeResult<{
     templates: ApprovalTemplateEntry[];
     selected?: string | null;
@@ -1064,23 +1077,12 @@ export interface BridgeMethods
   }>;
   approvalTemplateGlobalSet(payload: unknown): BridgeResult<{ template: string | null }>;
   botApprovalTemplateSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  voiceProviders: VoiceBridgeMethods['voiceProviders'];
-  voiceProviderAdd: VoiceBridgeMethods['voiceProviderAdd'];
-  voiceProviderRemove: VoiceBridgeMethods['voiceProviderRemove'];
-  voiceProviderTest: VoiceBridgeMethods['voiceProviderTest'];
-  voiceSynthesize: VoiceBridgeMethods['voiceSynthesize'];
-  botVoiceSet: VoiceBridgeMethods['botVoiceSet'];
-  voiceTranscribe: VoiceBridgeMethods['voiceTranscribe'];
-  botAsrSet: VoiceBridgeMethods['botAsrSet'];
-  voiceDefaultSet: VoiceBridgeMethods['voiceDefaultSet'];
   botModes: BotModeBridgeMethods['botModes'];
   botModeDefaultSet: BotModeBridgeMethods['botModeDefaultSet'];
   botModeSet: BotModeBridgeMethods['botModeSet'];
   botModeTemplateSave: BotModeBridgeMethods['botModeTemplateSave'];
   botModeTemplateDelete: BotModeBridgeMethods['botModeTemplateDelete'];
   botModeTemplateSet: BotModeBridgeMethods['botModeTemplateSet'];
-  voiceSpeechThresholdSet: VoiceBridgeMethods['voiceSpeechThresholdSet'];
-  voiceDictation: VoiceBridgeMethods['voiceDictation'];
   approvalReviewerModel(payload?: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   approvalReviewerModelSet(payload: unknown): Promise<BridgeResult<ApprovalReviewerModelView>>;
   idleCompaction(payload?: unknown): BridgeResult<IdleCompactionView>;
@@ -1192,11 +1194,12 @@ export interface BridgeMethodsDeps
     SkillsBridgeDeps,
     AvatarsBridgeDeps,
     MarketplaceBridgeDeps,
-    ModelsBridgeDeps {
+    ModelsBridgeDeps,
+    ComputerBridgeDeps,
+    BrowserBridgeDeps,
+    VoiceBridgeDeps {
   team?: TeamService;
-  voiceProviders?: VoiceProviders;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
-  voiceLog?: (phase: string, fields: Record<string, string | number>) => void;
   botContext?(slug: string): Promise<BotContextWindow>;
   idleCompaction?: IdleCompactionDeps;
   cloudConnections?: CloudConnections;
@@ -1253,9 +1256,6 @@ export interface BridgeMethodsDeps
   toolRules?: ToolApprovalRuleStore;
   assignmentAccess?: AssignmentAccessStore;
   developerMode?: { set(enabled: boolean): void };
-  computerAccess?: { changed(slug: string): void };
-  browserAccess?: { changed(slug: string): void };
-  browserProfile?: { changed(slug: string): void };
   createBotId?: () => string;
   marketplaceReceipts?: InstallReceipts;
   release?: ReleaseService;
@@ -2331,6 +2331,8 @@ function buildBridgeMethods(
     requireOwnedBot,
     modelRouting,
   );
+  const computerMethods = createComputerBridgeMethods(deps, detailOf);
+  const browserMethods = createBrowserBridgeMethods(deps, detailOf);
   const methods: BridgeMethods = {
     ...createTeamBridge(human, deps.team),
     ...createModelProviderBridge(human, deps),
@@ -4157,49 +4159,8 @@ function buildBridgeMethods(
     resume(payload) {
       return setPaused(payload, false);
     },
-    computerAccessSet(payload) {
-      const slug = asSlug(payload);
-      const enabled = asObject(payload)['enabled'];
-      if (slug === undefined || typeof enabled !== 'boolean') {
-        return invalidInput('slug and enabled are required');
-      }
-      const result = deps.registry.setComputerAccess(slug, enabled);
-      if (!result.ok) return unknownBot(slug);
-      deps.computerAccess?.changed(slug);
-      return { ok: true, value: detailOf(result.record) };
-    },
-    browserAccessSet(payload) {
-      const slug = asSlug(payload);
-      const enabled = asObject(payload)['enabled'];
-      if (slug === undefined || typeof enabled !== 'boolean') {
-        return invalidInput('slug and enabled are required');
-      }
-      const result = deps.registry.setBrowserAccess(slug, enabled);
-      if (!result.ok) return unknownBot(slug);
-      deps.browserAccess?.changed(slug);
-      return { ok: true, value: detailOf(result.record) };
-    },
-    browserProfileSet(payload) {
-      const slug = asSlug(payload);
-      const profile = asObject(payload)['profile'];
-      if (slug === undefined || typeof profile !== 'string') {
-        return invalidInput('slug and profile are required');
-      }
-      const trimmed = profile.trim();
-      const normalized = trimmed === 'default' ? '' : trimmed;
-      if (normalized === '.' || normalized === '..') {
-        return invalidInput(
-          'Profile names "." and ".." are reserved; choose a named profile or default',
-        );
-      }
-      if (normalized !== '' && !/^[a-zA-Z0-9._-]{1,40}$/u.test(normalized)) {
-        return invalidInput('profile must use letters, digits, dot, dash, or underscore (max 40)');
-      }
-      const result = deps.registry.setBrowserProfile(slug, normalized);
-      if (!result.ok) return unknownBot(slug);
-      deps.browserProfile?.changed(slug);
-      return { ok: true, value: detailOf(result.record) };
-    },
+    ...computerMethods,
+    ...browserMethods,
     approvalTemplates(payload) {
       const global = approvalTemplateLibrary.global();
       if (global.kind === 'invalid')
