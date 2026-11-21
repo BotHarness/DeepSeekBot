@@ -167,3 +167,17 @@ Header hit-area regression: in both global and Channel child Panels, the close/d
 Use actual packaged Windows Desktop 0.2.0-rc.2 and 0.2.1-rc.2 in separate task-owned Profiles. Install published DSB 1.4.0, resize its legacy flat panels, save a layout observation and close normally before installing the candidate into the same Profile. Retain Electron user data and existing layout configuration. Compare the imported child direction/ratio and the `before-workspace-shell` backup; a fresh Profile is not an upgrade test.
 
 Capture old/new native chrome and Side column/control-rail scenes, nested Messages panels, narrow windows, actual Windows display scaling at 100/125/150%, and the layout after reopening panels and restarting Desktop. Test native menus, minimize, maximize/restore, close, caption drag and double-click, blank header/rail window drag, title-only panel drag/click-close, and Channel identity/action isolation. Restore the original OS scaling afterward. Drag proof needs a recording or before/after geometry and screenshots. A source test, browser screenshot or double-click alone cannot pass the drag gate. Exit Bot mode and reenter to verify native shell restoration. Record each untested or blocked action explicitly.
+
+### Windows caption strip (#4873)
+
+DSH's `AppFrame::before` owns the Windows caption drag strip and sets its height from the Desktop shell. Bot mode claims the center column inside that frame and adds drag regions for workspace headers and rail space. DSH Desktop supplies the Application/Edit menus and the window buttons.
+
+Run the renderer geometry regression on a fresh isolated Host. No model call is needed.
+
+```sh
+BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json node scripts/e2e-windows-caption-strip.mjs
+```
+
+The probe applies the Windows titlebar marker in Chromium and measures the real DSH caption pseudo-element. It samples the blank span between the simulated menu and reserved window buttons, checks the menu cutouts and real Bot exit button, and verifies the content sits below the caption. The negative control removes caption drag only in Bot mode. The same Session strip must still pass after leaving Bot mode with the fault in place.
+
+For installed-native verification, use an authorized Windows Desktop and a task-owned Profile. Start with the #4873 versions and use a restored window on one monitor. Record OS build, display scale, Desktop and plugin versions, and before/after window bounds. With the same input driver and drag path, first move the window from the empty Session caption strip between Application/Edit and the window buttons. Repeat at the same window-relative point in Bot mode, after switching back to Session mode, and after reentering Bot mode. Check blank rail drag separately, and verify click behavior for the menus, window buttons and workspace controls. If the Session drag does not move the window, record the Bot drag comparison as inconclusive even if rail drag or double-click maximize works. The Chromium probe qualifies renderer geometry only.
