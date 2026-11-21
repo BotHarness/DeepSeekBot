@@ -107,6 +107,41 @@ it('keeps the sign-in link and stops polling at three minutes even if a status r
   expect(read).toHaveBeenCalledTimes(2);
 });
 
+it('stays pending without a sign-in error when login rejects while cancel is in flight', async () => {
+  let rejectLogin: (cause: Error) => void = () => {};
+  let settleCancel: () => void = () => {};
+  const login = vi.fn(
+    () =>
+      new Promise<{ url?: string }>((_resolve, reject) => {
+        rejectLogin = reject;
+      }),
+  );
+  const cancelLogin = vi.fn(
+    () =>
+      new Promise<void>((resolve) => {
+        settleCancel = resolve;
+      }),
+  );
+  const state = await render({ login, cancelLogin });
+  await act(async () => state().signIn('codex'));
+  let cancelled: Promise<void> | undefined;
+  await act(async () => {
+    cancelled = state().cancelSignIn();
+  });
+  expect(state().cancelling).toBe(true);
+  await act(async () => rejectLogin(new Error('aborted')));
+  expect(state().signingIn).toBe('codex');
+  expect(state().error).toBeUndefined();
+  await act(async () => {
+    settleCancel();
+    await cancelled;
+  });
+  expect(cancelLogin).toHaveBeenCalledWith('codex', undefined);
+  expect(state().cancelling).toBe(false);
+  expect(state().signingIn).toBeUndefined();
+  expect(state().error).toBeUndefined();
+});
+
 it('keeps the committed choice when readback fails and reloads without repeating the write', async () => {
   const selection = {
     botSlug: 'ada',

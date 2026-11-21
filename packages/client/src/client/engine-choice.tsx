@@ -266,6 +266,7 @@ export function useSubscriptionEngines(
   const deadline = useRef<ReturnType<typeof setTimeout>>(undefined);
   const activeLogin = useRef<symbol>(undefined);
   const activeTarget = useRef<{ engine: EngineId; accountId?: string }>(undefined);
+  const cancelRequested = useRef<symbol>(undefined);
 
   const refresh = async (retry = true): Promise<EnginesView | undefined> => {
     if (!enabled) return undefined;
@@ -427,6 +428,7 @@ export function useSubscriptionEngines(
       },
       (cause: unknown) => {
         if (!alive.current || activeLogin.current !== attempt) return;
+        if (cancelRequested.current === attempt) return;
         activeLogin.current = undefined;
         activeTarget.current = undefined;
         setSigningIn(undefined);
@@ -441,15 +443,18 @@ export function useSubscriptionEngines(
     if (attempt === undefined || target === undefined || cancelling) return;
     setCancelling(true);
     setCancelFailed(false);
+    cancelRequested.current = attempt;
     try {
       await (api.cancelLogin?.(target.engine, target.accountId) ?? Promise.resolve());
     } catch {
+      if (cancelRequested.current === attempt) cancelRequested.current = undefined;
       if (alive.current) {
         setCancelling(false);
         setCancelFailed(true);
       }
       return;
     }
+    if (cancelRequested.current === attempt) cancelRequested.current = undefined;
     if (!alive.current) return;
     setCancelling(false);
     if (activeLogin.current === attempt) {
