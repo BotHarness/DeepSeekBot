@@ -1469,6 +1469,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
           return;
         }
         const current = target;
+        const switchReason = run.groupSwitchReason?.();
         attempted.add(routingTargetRestKey(current));
         let acceptedThisAttempt = false;
         try {
@@ -1477,6 +1478,7 @@ class DshBotAgentAdapter implements BotAgentAdapter {
             bot,
             sessionId,
             routingTarget: current,
+            ...(switchReason === undefined ? {} : { switchReason }),
             ...(current.kind === 'route' ? { modelRoute: current.route } : {}),
             report: async (input, execution) => {
               const report = await run.report(input, execution);

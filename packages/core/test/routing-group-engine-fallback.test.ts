@@ -776,6 +776,14 @@ it.each(['api-first', 'engine-first'] as const)(
       expect(bot.host.limit('codex')).toBeUndefined();
       expect(bot.host.limit('codex', accountId)?.until).toBe(RESETS_AT);
     }
+    expect(bot.core.runtime.sessionTurnTargets?.(sessionId)).toContainEqual(
+      expect.objectContaining({
+        switchReason: 'quota',
+        target: apiFirst
+          ? expect.objectContaining({ kind: 'engine', engine: 'claude' })
+          : { kind: 'dsh', ...API },
+      }),
+    );
     expect(bot.assignment(sessionId)).toMatchObject({
       activity: 'idle',
       latestReport: { state: 'completed' },

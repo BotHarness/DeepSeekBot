@@ -573,6 +573,7 @@ export interface InterruptedToolCall {
 export interface AssignmentAgentRun {
   observeTurnTarget?: OrchestratorAgentRun['observeTurnTarget'];
   switchReason?: TurnTargetSwitchReason;
+  groupSwitchReason?(): TurnTargetSwitchReason | undefined;
   sessionModel?(): {
     choice: SessionModelChoice | null;
     apply(run: AssignmentAgentRun): AssignmentAgentRun;
@@ -9571,6 +9572,7 @@ class BotRuntimeImplementation implements BotRuntime {
     },
     trackDelivery?: (sessionId: string, pending: boolean) => void,
     sourceEventId?: string,
+    switchReason?: TurnTargetSwitchReason,
   ): AssignmentRequestOutcome {
     let row = this.#assignmentRow(bot.slug, input.sessionId);
     if (row === undefined) throw new Error(`Unknown Assignment Session: ${input.sessionId}`);
@@ -9645,6 +9647,7 @@ class BotRuntimeImplementation implements BotRuntime {
     });
     const run: AssignmentAgentRun = {
       ...this.#assignmentModelSelection(bot.slug, input.sessionId),
+      ...(switchReason === undefined ? {} : { switchReason }),
       beginTurn: () => {
         if (typeof initiatingHuman !== 'string') return;
         this.#database.transaction(
@@ -10154,6 +10157,8 @@ class BotRuntimeImplementation implements BotRuntime {
               routingTarget: _target,
               selectGroupTarget: _select,
               groupEffort: _effort,
+              groupSwitchReason: _groupReason,
+              switchReason: _reason,
               failedTurn: _failure,
               ...rest
             } = run;
@@ -10181,8 +10186,7 @@ class BotRuntimeImplementation implements BotRuntime {
             return {
               ...base,
               ...(choice.effort === undefined ? {} : { groupEffort: choice.effort }),
-              observeTurnTarget: (turn, step, target) =>
-                run.observeTurnTarget?.(turn, step, target, reason),
+              groupSwitchReason: () => reason,
               selectGroupTarget: async (attempted, error) => {
                 const rest =
                   current === undefined || error === undefined
@@ -10220,7 +10224,7 @@ class BotRuntimeImplementation implements BotRuntime {
     sessionId: string,
     groupId: string | null | undefined,
     effort: string | null | undefined,
-  ): Pick<AssignmentAgentRun, 'selectGroupTarget' | 'groupEffort'> {
+  ): Pick<AssignmentAgentRun, 'selectGroupTarget' | 'groupEffort' | 'groupSwitchReason'> {
     const groups = this.#groupFallback;
     if (groupId == null || !groups?.pickMixedAssignment) return {};
     const row = this.#assignmentRow(botSlug, sessionId);
@@ -10229,7 +10233,9 @@ class BotRuntimeImplementation implements BotRuntime {
       (row === undefined || assignmentTargetFromRow(row)?.kind !== 'engine')
     )
       return {};
+    let reason: TurnTargetSwitchReason | undefined;
     return {
+      groupSwitchReason: () => reason,
       ...(effort == null ? {} : { groupEffort: effort }),
       selectGroupTarget: async (attempted, error) => {
         const row = this.#assignmentRow(botSlug, sessionId);
@@ -10264,12 +10270,18 @@ class BotRuntimeImplementation implements BotRuntime {
             : undefined;
         const next =
           native?.kind === 'route'
-            ? { kind: 'target' as const, target: { kind: 'route' as const, route: native.route } }
+            ? {
+                kind: 'target' as const,
+                target: { kind: 'route' as const, route: native.route },
+                switchReason: native.switchReason,
+              }
             : mixed;
         if (next?.kind === 'exhausted') throw new RouteRestingError(next.rests, next.subscription);
         if (next?.kind !== 'target' || attempted.size >= MAX_MIXED_GROUP_ATTEMPTS)
           throw new RoutingGroupUnavailableError(error);
         const target = next.target;
+        reason =
+          next.switchReason ?? rest?.reason ?? (error === undefined ? undefined : 'credential');
         const serialized = saveAssignmentTarget(target);
         if (serialized === row.model_route_json) return target;
         const written = this.#database.transaction(
@@ -10383,11 +10395,18 @@ class BotRuntimeImplementation implements BotRuntime {
         fail(cause);
         return;
       }
-      const request = this.#requestAssignment(bot, {
-        sessionId,
-        mode: 'next-turn',
-        text: row.model_group_id == null ? ASSIGNMENT_MODEL_CHANGE_NOTE : ASSIGNMENT_FALLBACK_NOTE,
-      });
+      const request = this.#requestAssignment(
+        bot,
+        {
+          sessionId,
+          mode: 'next-turn',
+          text:
+            row.model_group_id == null ? ASSIGNMENT_MODEL_CHANGE_NOTE : ASSIGNMENT_FALLBACK_NOTE,
+        },
+        undefined,
+        undefined,
+        this.#routeRests?.restingUntil(failed)?.reason,
+      );
       if (request.delivery === 'refused' || request.delivery === 'capacity') fail(cause);
     } catch (error) {
       fail(continuation.error ?? error);
