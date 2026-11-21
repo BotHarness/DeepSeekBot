@@ -8,7 +8,7 @@ import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 
 import type { BridgeActions } from './actions.js';
 import type { ModelCatalogEntryView, ModelCatalogGroupView } from './bridge.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { Icon } from './ds/icon.js';
 import { PickerTrigger } from './ds/picker-trigger.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { ModelBrandIcon } from './model-brand.js';
@@ -187,7 +187,7 @@ export function SessionModelComposer({
           label !== undefined ? (
             <ModelBrandIcon brand={label.brand} size={14} />
           ) : choice?.kind === 'group' ? (
-            <ChannelSidebarIcon name="git-branch" size={14} />
+            <Icon name="git-branch" size={14} />
           ) : undefined
         }
         hint={
