@@ -25,6 +25,7 @@ export function RemoteAvatar({
   avatars,
   target,
   size,
+  squareBackdrop,
   activity,
   t,
 }: {
@@ -32,6 +33,7 @@ export function RemoteAvatar({
   avatars: ReadonlyMap<string, string>;
   target: Pick<RemoteConversationTarget, 'botSlug' | 'channelId' | 'title'>;
   size: number;
+  squareBackdrop?: boolean | undefined;
   activity?: RemoteBotActivity | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
@@ -69,6 +71,7 @@ export function RemoteAvatar({
       appearance={portrait?.appearance}
       avatarSeed={portrait?.avatarSeed}
       size={size}
+      squareBackdrop={squareBackdrop}
       state={activity?.state}
       activity={activity?.activity}
       indicator={activity !== undefined}

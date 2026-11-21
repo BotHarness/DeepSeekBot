@@ -1,9 +1,10 @@
 import { border, color, radius, space, text } from '../../ds/tokens.stylex.js';
-import { size as tobsSize } from '../../ds/tobs.stylex.js';
+import { size as tobsSize, style } from '../../ds/tobs.stylex.js';
 
 export const personabotsCss = {
   contact: `.bh-contact .bh-body,
 .bh-channel-row .bh-body {
+  display: block;
   min-width: 0;
   flex: 1;
 }
@@ -13,6 +14,11 @@ export const personabotsCss = {
   align-items: center;
   gap: ${space.x2};
   min-width: 0;
+}
+.bh-contact :is(.bh-top, .bh-bottom),
+.bh-channel-row :is(.bh-top, .bh-bottom) {
+  min-height: calc(${tobsSize.rowMedium} / 2);
+  line-height: calc(${tobsSize.rowMedium} / 2);
 }
 .bh-contact .bh-name,
 .bh-channel-row .bh-name {
@@ -77,18 +83,11 @@ export const personabotsCss = {
   color: var(--tobs-ink-secondary);
 }
 `,
-  rowAvatar: `.bh-row-avatar {
-  position: relative;
-  display: inline-flex;
-  flex: none;
-}
-/* Channel list rows use a rounded-square avatar frame (Bot and group alike). */
-.bh-row-avatar > .bh-persona-avatar {
-  overflow: hidden;
-  border-radius: 28%;
-}
-.bh-row-avatar .bh-avatar-media-image {
+  rowAvatar: `.bh-row-avatar .bh-avatar-media-image {
   border-radius: 0;
+}
+.bh-row-avatar .bh-group-avatar-stack > .bh-persona-avatar {
+  border-radius: ${style.radiusSmall};
 }
 .bh-paused .bh-row-avatar > .bh-persona-avatar {
   opacity: 0.5;
@@ -157,6 +156,10 @@ export const personabotsCss = {
   overflow: hidden;
   background: var(--tobs-layer-elevated);
   color: var(--tobs-ink-tertiary);
+}
+.bh-row-avatar > .bh-channel-slot {
+  width: 100%;
+  height: 100%;
 }
 
 /* 原生 ui-workspace sessionRow 的拖拽插入线（ADR-0031）：伪元素绝对定位，

@@ -1,6 +1,6 @@
 import * as stylex from '@stylexjs/stylex';
 import { useMemo, useState, type ReactElement } from 'react';
-import { space } from './ds/tobs.stylex.js';
+import { space, style } from './ds/tobs.stylex.js';
 import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import { joinClass } from './ds/class-name.js';
@@ -405,6 +405,7 @@ const editorStyles = stylex.create({
     maxWidth: '100%',
     justifySelf: 'center',
   },
+  previewFrame: { borderRadius: style.radiusCard, overflow: 'hidden' },
   fullAction: { width: '100%' },
   remove: { alignSelf: 'center' },
   actions: { marginTop: space.x3 },
@@ -414,10 +415,7 @@ let pixelPresets: readonly { recipe: AvatarRecipe; image: string }[] | undefined
 
 function getPixelPresets() {
   return (pixelPresets ??= AVATAR_PRESETS.map((recipe) => {
-    const svg = avatarSvg(recipe).replace(
-      '<rect width="32" height="32" rx="6" ',
-      '<rect width="32" height="32" ',
-    );
+    const svg = avatarSvg(recipe, { squareBackdrop: true });
     return { recipe, image: `data:image/svg+xml,${encodeURIComponent(svg)}` };
   }));
 }
@@ -889,7 +887,13 @@ export function AvatarAppearanceEditor({
     <section aria-label={t('profile.avatar.section')}>
       <div className="bh-avatar-editor">
         <div data-avatar-preview-column {...stylex.props(editorStyles.previewColumn)}>
-          <div className="bh-avatar-editor-preview" data-avatar-preview>
+          <div
+            className={joinClass(
+              'bh-avatar-editor-preview',
+              stylex.props(editorStyles.previewFrame).className,
+            )}
+            data-avatar-preview
+          >
             <PersonaBotAvatar
               preview={editing}
               personaBotId={bot.slug}
@@ -905,6 +909,7 @@ export function AvatarAppearanceEditor({
               }
               avatarSeed={bot.avatarSeed}
               size={160}
+              squareBackdrop
               state={state}
               activity={bot.activity}
               attention={bot.attention}

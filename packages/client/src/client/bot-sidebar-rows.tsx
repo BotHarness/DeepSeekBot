@@ -219,7 +219,7 @@ function BotRow({
         }}
         iconDecorative={false}
         icon={
-          <span className="bh-row-avatar">
+          <span {...hooked('bh-row-avatar', rosterStyles.channelAvatar)}>
             <PersonaBotAvatar
               t={t}
               personaBotId={bot.slug}
@@ -231,6 +231,7 @@ function BotRow({
               activity={bot?.activity}
               attention={bot?.attention}
               size={CHANNEL_LIST_AVATAR_SIZE}
+              squareBackdrop
               indicator={false}
               still
             />
@@ -366,7 +367,7 @@ function ChannelRow({
         onMenu({ channelId: channel.id, x: rect.left + 8, y: rect.bottom });
       }}
       icon={
-        <span className="bh-row-avatar">
+        <span {...hooked('bh-row-avatar', rosterStyles.channelAvatar)}>
           {isHumanDmChannel(channel) ? (
             <span className="bh-channel-slot" aria-hidden="true">
               {renderSidebarIcon({ name: 'user', size: 16 })}

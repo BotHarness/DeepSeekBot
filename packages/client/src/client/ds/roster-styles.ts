@@ -6,6 +6,13 @@ import { accent, ink, layer, radius, size, space, state, style, type } from './t
 export const CHANNEL_LIST_AVATAR_SIZE = Number.parseInt(size.rowMedium, 10);
 
 export const rosterStyles = stylex.create({
+  channelAvatar: {
+    display: 'inline-flex',
+    width: '100%',
+    height: '100%',
+    overflow: 'hidden',
+    borderRadius: style.radiusContainer,
+  },
   railGroup: {
     display: 'flex',
     flexDirection: 'column',
