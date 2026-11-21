@@ -1,16 +1,27 @@
-import type { TurnTarget } from '@botharness/host-protocol/turn-target';
-import { sessionTarget } from './session-target.js';
+import {
+  createAvatarsBridgeMethods,
+  type AvatarsBridgeMethods,
+  type AvatarsBridgeDeps,
+} from '../features/avatars/methods.js';
+export type { SkillDetail } from '../features/skills/methods.js';
+import {
+  createSkillsBridgeMethods,
+  type SkillsBridgeMethods,
+  type SkillsBridgeDeps,
+} from '../features/skills/methods.js';
 import {
   createSchedulesBridgeMethods,
   type SchedulesBridgeMethods,
   type SchedulesBridgeDeps,
 } from '../features/schedules/methods.js';
 import {
+  asNonBlank,
   asObject,
   asSlug,
   invalidInput,
   unavailable,
   unknownBot,
+  unknownChannel,
   type BridgeResult,
 } from './method-utils.js';
 export type { BridgeError, BridgeResult } from './method-utils.js';
@@ -44,6 +55,7 @@ import {
   engineAccountKey,
   type RoutingGroupEngineOptions,
 } from '@botharness/host-protocol/subscription-engine';
+import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { EngineHost } from '../engines/engine-host.js';
 import { EngineRefusal } from '../engines/engine-session.js';
 import type { OrchestratorRunner } from '@botharness/host-protocol/wire';
@@ -301,6 +313,7 @@ import {
   summarizeSessionTranscript,
   type SessionTranscript,
 } from '../runtime/session-transcript.js';
+import { sessionTarget } from './session-target.js';
 import type { SessionLiveSnapshot, SessionLiveStreams } from '../runtime/session-live.js';
 import {
   summarizeSessionToolDetail,
@@ -347,30 +360,6 @@ import {
 } from '../channels/channel.js';
 import { botAvatarUrl } from '../bots/avatar-http.js';
 import { botBannerSummary, type BotBannerSummary } from '../bots/banner-http.js';
-import { isBotBanner, seededBotBanner } from '../bots/bot-banner.js';
-import {
-  PART_SLOTS,
-  customPartId,
-  isPixelCustomPart,
-  type PartSlot,
-} from '../bots/avatar-appearance.js';
-import {
-  MAX_PART_IMAGE_BYTES,
-  MAX_PART_IMAGE_COLORS,
-  MAX_PART_IMAGE_SCALE,
-  partFromImage,
-  readPartImage,
-  type PartImageError,
-} from '../bots/part-image.js';
-import { MAX_PART_NAME, type PartLibrary, type PartLibraryEntry } from '../bots/part-library.js';
-import {
-  MAX_PART_LIBRARY_FILES,
-  MAX_PART_LIBRARY_FILE_BYTES,
-  decodePartFiles,
-  encodePartFile,
-  encodePartLibrary,
-  partFileName,
-} from '../bots/part-file.js';
 import type { AvatarAppearance, RetainedAvatarAppearance } from '../bots/avatar-appearance.js';
 import {
   currentBotPrimaryColor,
@@ -402,7 +391,6 @@ import type {
   PersonaBotPatch,
   PersonaBotRecord,
 } from '../bots/persona-bot.js';
-import { isPersonaBotAvatar } from '../bots/persona-bot.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type {
   PersonaBotDeletions,
@@ -415,24 +403,7 @@ import {
   type DataResetPreview,
   type DataResetResult,
 } from '../data-reset/reset.js';
-import {
-  SkillContentTooLargeError,
-  parseSkillOwnerKey,
-  skillOwnerKey,
-  type SkillCatalog,
-  type SkillCatalogEntry,
-  type SkillOwner,
-  type ResolvedSkill,
-  sessionSkills,
-} from '../skills/catalog.js';
-import {
-  BotSkillIgnoredFilesError,
-  BotSkillNotFoundError,
-  listBotSkills,
-  readBotSkill,
-  removeBotSkill,
-  type BotSkill,
-} from '../skills/bot-skills.js';
+import { SkillContentTooLargeError, skillOwnerKey, type ResolvedSkill } from '../skills/catalog.js';
 
 export interface ModelCatalogGroup {
   id: string;
@@ -448,13 +419,6 @@ function routeKey(route: { provider: string; model: string }): string {
   return JSON.stringify([route.provider, route.model]);
 }
 
-export interface SkillDetail {
-  name: string;
-  description: string;
-  owner: SkillOwner;
-  path?: string;
-  content: string;
-}
 import { isValidSlug } from '../bots/slug.js';
 import {
   memoryMoveTarget,
@@ -817,7 +781,9 @@ export interface BridgeMethods
     ModelProviderBridgeMethods,
     EngineAccountBridgeMethods,
     PromptBridgeMethods,
-    SchedulesBridgeMethods {
+    SchedulesBridgeMethods,
+    SkillsBridgeMethods,
+    AvatarsBridgeMethods {
   tobHome(
     payload: unknown,
   ): Promise<
@@ -1050,11 +1016,6 @@ export interface BridgeMethods
   channelMessages(payload: unknown): BridgeResult<{ messages: ChannelMessage[]; revision: number }>;
   channelAllBotPreview(payload: unknown): BridgeResult<AllBotPreview>;
   tobCli(payload: unknown): Promise<BridgeResult<TobCliStatus>>;
-  channelSkillCatalog(payload: unknown): Promise<BridgeResult<{ skills: SkillCatalogEntry[] }>>;
-  sessionSkillCatalog(payload: unknown): Promise<BridgeResult<{ skills: SkillCatalogEntry[] }>>;
-  botSkills(payload: unknown): Promise<BridgeResult<{ skills: BotSkill[] }>>;
-  skillShow(payload: unknown): Promise<BridgeResult<{ skill: SkillDetail }>>;
-  botSkillRemove(payload: unknown): Promise<BridgeResult<{ name: string; removed: string }>>;
   channelSend(payload: unknown): Promise<BridgeResult<{ message: ChannelMessage }>>;
   channelSendStatus(payload: unknown): BridgeResult<ChannelSendStatus>;
   channelGenuiView(payload: unknown): BridgeResult<GenuiPrivateView>;
@@ -1281,24 +1242,6 @@ export interface BridgeMethods
   idleCompactionCacheLifetimeSet(payload: unknown): BridgeResult<IdleCompactionView>;
   compactionThresholdSet(payload: unknown): BridgeResult<IdleCompactionView>;
   standingLimitsSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  botAvatarSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  botBannerSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  botAppearanceSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  botPrimaryColorSet(payload: unknown): BridgeResult<{ bot: PersonaBotDetail }>;
-  partLibraryList(): BridgeResult<{ parts: PartLibraryEntry[] }>;
-  partLibraryAdd(payload: unknown): BridgeResult<{ entry: PartLibraryEntry }>;
-  partLibraryExport(payload: unknown): BridgeResult<{ fileName: string; data: string }>;
-  partLibraryImport(payload: unknown): BridgeResult<{
-    added: PartLibraryEntry[];
-    refused: { name: string; reason: string }[];
-    image?: {
-      width: number;
-      height: number;
-      colors: number;
-      slots: PartSlot[];
-    };
-  }>;
-  partLibraryImportImage(payload: unknown): BridgeResult<{ entry: PartLibraryEntry }>;
   marketplaceList(payload: unknown): Promise<BridgeResult<MarketplacePage>>;
   marketplaceSubmit(payload: unknown): Promise<BridgeResult<{ bot: MarketplaceEntry }>>;
   marketplaceTopics(): Promise<BridgeResult<MarketplaceTopic[]>>;
@@ -1438,11 +1381,11 @@ function storageFailure(
   };
 }
 
-export interface BridgeMethodsDeps extends PromptBridgeDeps, SchedulesBridgeDeps {
+export interface BridgeMethodsDeps
+  extends PromptBridgeDeps, SchedulesBridgeDeps, SkillsBridgeDeps, AvatarsBridgeDeps {
   team?: TeamService;
   voiceProviders?: VoiceProviders;
   callText?: (input: CallTextInput) => Promise<CallTextHarvest | undefined>;
-  skills?: SkillCatalog;
   voiceLog?: (phase: string, fields: Record<string, string | number>) => void;
   botContext?(slug: string): Promise<BotContextWindow>;
   idleCompaction?: IdleCompactionDeps;
@@ -1480,7 +1423,6 @@ export interface BridgeMethodsDeps extends PromptBridgeDeps, SchedulesBridgeDeps
   onboarding?: BotOnboarding;
   acknowledgements?: ClientAcknowledgements;
   tob?: TobService;
-  partLibrary?: PartLibrary;
   onboardingNews?: (slug?: string) => Promise<boolean>;
   defaultModel?: {
     currentSelection(): ModelRoute;
@@ -1560,23 +1502,6 @@ function unmanagedGitStatus(): GitStatus {
         install: { phase: 'idle' },
       }
     : { ...git, installable: false, install: { phase: 'idle' } };
-}
-
-function partImageMessage(error: PartImageError): string {
-  switch (error) {
-    case 'too-large':
-      return 'The image is larger than 1 MB';
-    case 'wrong-size':
-      return `The image must be 32×32 or 32×16 pixels, or a whole-number scale of it up to ×${MAX_PART_IMAGE_SCALE}`;
-    case 'too-many-colors':
-      return `The image has more than ${MAX_PART_IMAGE_COLORS} colors, or more colors than a part can keep`;
-    case 'empty':
-      return 'The image has no opaque pixels';
-    case 'unsupported':
-      return 'Interlaced and 16-bit PNGs are not supported';
-    case 'not-png':
-      return 'The file is not a PNG';
-  }
 }
 
 type ParsedField<T> = { ok: true; value: T | undefined } | { ok: false };
@@ -1924,13 +1849,6 @@ function botInChannel(channel: ChannelRecord, botSlug: string): boolean {
   return channel.type === 'group' ? channel.members.includes(botSlug) : channel.botSlug === botSlug;
 }
 
-function unknownChannel(id: string): BridgeResult<never> {
-  return {
-    ok: false,
-    error: { code: 'not-found', message: `unknown Channel: ${id}` },
-  };
-}
-
 function dmAdmissionFailure(
   channelId: string,
   botSlug: string | undefined,
@@ -2117,11 +2035,6 @@ const rosterBatchPayload = z.object({
     .refine((ids) => new Set(ids).size === ids.length),
   sectionId: z.union([z.string().min(1), z.null()]).optional(),
 });
-
-function asNonBlank(source: Record<string, unknown>, key: string): string | undefined {
-  const value = source[key];
-  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
-}
 
 function createFailure(
   slug: string,
@@ -3131,6 +3044,8 @@ function buildBridgeMethods(
   };
 
   const schedulesMethods = createSchedulesBridgeMethods(human, deps);
+  const skillsMethods = createSkillsBridgeMethods(deps, channelSkillBots, requireOwnedBot);
+  const avatarsMethods = createAvatarsBridgeMethods(deps, dmMemory, detailOf);
   const methods: BridgeMethods = {
     ...createTeamBridge(human, deps.team),
     ...createModelProviderBridge(human, deps),
@@ -6472,241 +6387,7 @@ function buildBridgeMethods(
       if (!result.ok) return unknownBot(slug);
       return { ok: true, value: detailOf(result.record) };
     },
-    botAppearanceSet(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const result = deps.registry.setAppearance(scope.botSlug, asObject(payload)['recipe']);
-      if (!result.ok)
-        return result.reason === 'not-found'
-          ? unknownBot(scope.botSlug)
-          : invalidInput('invalid Avatar Appearance');
-      return { ok: true, value: detailOf(result.record) };
-    },
-    partLibraryList() {
-      if (!deps.partLibrary) return unavailable();
-      try {
-        return { ok: true, value: { parts: deps.partLibrary.list() } };
-      } catch (error) {
-        if (error instanceof OperationalDatabaseError) return unavailable();
-        throw error;
-      }
-    },
-    partLibraryAdd(payload) {
-      if (!deps.partLibrary) return unavailable();
-      const input = asObject(payload);
-      const part = input['part'];
-      const name = input['name'] ?? '';
-      const parent = input['parent'];
-      if (!isPixelCustomPart(part)) return invalidInput('part must be a valid Custom Part');
-      if (typeof name !== 'string' || name.length > MAX_PART_NAME)
-        return invalidInput(`name must be a string of at most ${MAX_PART_NAME} characters`);
-      if (parent !== undefined && (typeof parent !== 'string' || !/^[\da-f]{64}$/u.test(parent)))
-        return invalidInput('parent must be a Custom Part id');
-      try {
-        const source = parent === undefined ? undefined : deps.partLibrary.get(parent);
-        const parentAuthor = source?.author ?? source?.parentAuthor;
-        const entry = deps.partLibrary.add({
-          part,
-          name,
-          origin: source ? 'derived' : 'drawn',
-          parent,
-          ...(parentAuthor ? { parentAuthor } : {}),
-        });
-        return { ok: true, value: { entry } };
-      } catch (error) {
-        if (error instanceof OperationalDatabaseError) return unavailable();
-        throw error;
-      }
-    },
-    partLibraryExport(payload) {
-      if (!deps.partLibrary) return unavailable();
-      const input = asObject(payload);
-      const id = input['id'];
-      const worn = input['part'];
-      try {
-        if (worn !== undefined) {
-          if (!isPixelCustomPart(worn)) return invalidInput('part must be a valid Custom Part');
-          const saved = deps.partLibrary.get(customPartId(worn));
-          const file = {
-            part: worn,
-            name: saved?.name ?? '',
-            ...(saved?.author ? { author: saved.author } : {}),
-          };
-          return {
-            ok: true,
-            value: {
-              fileName: partFileName(file),
-              data: encodePartFile(file).toString('base64'),
-            },
-          };
-        }
-        if (id === undefined) {
-          const listed = deps.partLibrary.list();
-          if (listed.length > MAX_PART_LIBRARY_FILES)
-            return invalidInput(
-              `The library has more than ${MAX_PART_LIBRARY_FILES} parts; export parts one at a time`,
-            );
-          const files = listed.map((entry) => ({
-            part: entry.part,
-            name: entry.name,
-            ...(entry.author ? { author: entry.author } : {}),
-          }));
-          return {
-            ok: true,
-            value: {
-              fileName: 'part-library.zip',
-              data: encodePartLibrary(files).toString('base64'),
-            },
-          };
-        }
-        const entry = typeof id === 'string' ? deps.partLibrary.get(id) : undefined;
-        if (!entry) return invalidInput('id must name a Part Library part');
-        const file = {
-          part: entry.part,
-          name: entry.name,
-          ...(entry.author ? { author: entry.author } : {}),
-        };
-        return {
-          ok: true,
-          value: {
-            fileName: partFileName(file),
-            data: encodePartFile(file).toString('base64'),
-          },
-        };
-      } catch (error) {
-        if (error instanceof OperationalDatabaseError) return unavailable();
-        throw error;
-      }
-    },
-    partLibraryImport(payload) {
-      if (!deps.partLibrary) return unavailable();
-      const data = asObject(payload)['data'];
-      if (typeof data !== 'string' || data.length > (MAX_PART_LIBRARY_FILE_BYTES * 4) / 3 + 4)
-        return invalidInput('data must be a base64 PNG or zip of at most 8 MB');
-      const bytes = Buffer.from(data, 'base64');
-      const decoded = decodePartFiles(bytes);
-      if (decoded === 'no-part-data') {
-        const image = readPartImage(bytes);
-        if (typeof image === 'string') return invalidInput(partImageMessage(image));
-        return {
-          ok: true,
-          value: {
-            added: [],
-            refused: [],
-            image: {
-              width: image.width,
-              height: image.height,
-              colors: image.colors,
-              slots: image.slots,
-            },
-          },
-        };
-      }
-      if (typeof decoded === 'string')
-        return invalidInput(
-          decoded === 'too-large'
-            ? 'The file is too large'
-            : decoded === 'invalid-part'
-              ? 'The part data in this file is invalid'
-              : 'The file is not a part PNG or a zip of part PNGs',
-        );
-      try {
-        const added = decoded.files.map((file) =>
-          deps.partLibrary!.add({
-            part: file.part,
-            name: file.name,
-            origin: 'imported-file',
-            author: file.author,
-          }),
-        );
-        return { ok: true, value: { added, refused: decoded.refused } };
-      } catch (error) {
-        if (error instanceof OperationalDatabaseError) return unavailable();
-        throw error;
-      }
-    },
-    partLibraryImportImage(payload) {
-      if (!deps.partLibrary) return unavailable();
-      const input = asObject(payload);
-      const data = input['data'];
-      const slot = input['slot'];
-      const colors = input['colors'];
-      const name = input['name'] ?? '';
-      if (typeof data !== 'string' || data.length > (MAX_PART_IMAGE_BYTES * 4) / 3 + 4)
-        return invalidInput('data must be a base64 PNG of at most 1 MB');
-      if (typeof slot !== 'string' || !Object.hasOwn(PART_SLOTS, slot))
-        return invalidInput('slot must be a Custom Part slot');
-      if (typeof name !== 'string' || name.length > MAX_PART_NAME)
-        return invalidInput(`name must be a string of at most ${MAX_PART_NAME} characters`);
-      if (typeof colors !== 'number' || !Number.isInteger(colors) || colors < 1)
-        return invalidInput('colors must be a positive integer');
-      const image = readPartImage(Buffer.from(data, 'base64'));
-      if (typeof image === 'string') return invalidInput(partImageMessage(image));
-      const part = partFromImage(image, slot as PartSlot, colors);
-      if (typeof part === 'string') return invalidInput(partImageMessage(part));
-      try {
-        const entry = deps.partLibrary.add({
-          part,
-          name,
-          origin: 'imported-image',
-        });
-        return { ok: true, value: { entry } };
-      } catch (error) {
-        if (error instanceof OperationalDatabaseError) return unavailable();
-        throw error;
-      }
-    },
-    botBannerSet(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const record = deps.registry.get(scope.botSlug);
-      if (record === undefined) return unknownBot(scope.botSlug);
-      const banner = asObject(payload)['banner'];
-      const next = banner === null ? seededBotBanner(record.displayName || record.slug) : banner;
-      if (!isBotBanner(next)) {
-        return invalidInput(
-          'banner must be null, { recipe: { scene, seed } } or { image } as a 3:1 PNG data URL',
-        );
-      }
-      const result = deps.registry.setBanner(scope.botSlug, next);
-      if (!result.ok)
-        return result.reason === 'not-found'
-          ? unknownBot(scope.botSlug)
-          : invalidInput('invalid banner');
-      return { ok: true, value: detailOf(result.record) };
-    },
-    botPrimaryColorSet(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const result = deps.registry.setPrimaryColor(
-        scope.botSlug,
-        asObject(payload)['primaryColor'],
-      );
-      if (!result.ok)
-        return result.reason === 'not-found'
-          ? unknownBot(scope.botSlug)
-          : invalidInput(
-              "primaryColor must be { mode: 'automatic' } or { mode: 'custom', color: '#rrggbb' }",
-            );
-      return { ok: true, value: detailOf(result.record) };
-    },
-    botAvatarSet(payload) {
-      const scope = dmMemory(payload);
-      if (!('botSlug' in scope)) return scope;
-      const avatar = asObject(payload)['avatar'];
-      if (avatar !== null && !isPersonaBotAvatar(avatar)) {
-        return invalidInput('avatar must be a bounded PNG, JPEG, or WebP data URL');
-      }
-      const result = deps.registry.update(scope.botSlug, {
-        avatar: avatar ?? '',
-      });
-      if (!result.ok) {
-        return result.reason === 'not-found'
-          ? unknownBot(scope.botSlug)
-          : invalidInput('invalid avatar');
-      }
-      return { ok: true, value: detailOf(result.record) };
-    },
+    ...avatarsMethods,
     ping() {
       const version = deps.hostVersion?.();
       return {
@@ -8000,164 +7681,7 @@ function buildBridgeMethods(
         return invalidInput(String(error));
       }
     },
-    async channelSkillCatalog(payload) {
-      const channelId = asNonBlank(asObject(payload), 'channelId');
-      if (channelId === undefined) return invalidInput('channelId is required');
-      const channel = deps.channels.get(channelId);
-      if (channel === undefined) return unknownChannel(channelId);
-      if (deps.skills === undefined) return { ok: true, value: { skills: [] } };
-      const bots = channelSkillBots(channel);
-      try {
-        return { ok: true, value: { skills: await deps.skills.list(bots) } };
-      } catch (error) {
-        return {
-          ok: false,
-          error: { code: 'skills-unavailable', message: (error as Error).message },
-        };
-      }
-    },
-    async sessionSkillCatalog(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const sessionId = asNonBlank(source, 'sessionId');
-      if (slug === undefined) return invalidInput('slug is required');
-      if (sessionId === undefined) return invalidInput('sessionId is required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      const owner = deps.ownership.resolve(sessionId);
-      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
-        return {
-          ok: false,
-          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
-        };
-      if (deps.skills === undefined) return { ok: true, value: { skills: [] } };
-      const cwd = owner.cwdReference;
-      const workspaceIds = new Set(
-        deps.skills
-          .workspaces([slug])
-          .filter((workspace) => cwd !== undefined && workspace.path === cwd)
-          .map((workspace) => workspace.workspaceId),
-      );
-      try {
-        return {
-          ok: true,
-          value: { skills: sessionSkills(await deps.skills.list([slug]), slug, workspaceIds) },
-        };
-      } catch (error) {
-        return {
-          ok: false,
-          error: { code: 'skills-unavailable', message: (error as Error).message },
-        };
-      }
-    },
-    async botSkills(payload) {
-      const slug = asSlug(payload);
-      if (slug === undefined) return invalidInput('slug is required');
-      const memoryDir =
-        deps.registry.get(slug) === undefined ? undefined : deps.registry.memoryDirFor(slug);
-      if (memoryDir === undefined) return unknownBot(slug);
-      try {
-        return { ok: true, value: { skills: await listBotSkills(memoryDir) } };
-      } catch (error) {
-        return {
-          ok: false,
-          error: { code: 'skills-unavailable', message: (error as Error).message },
-        };
-      }
-    },
-    async skillShow(payload) {
-      const source = asObject(payload);
-      const name = asNonBlank(source, 'name');
-      const ownerKey = asNonBlank(source, 'owner');
-      const owner = ownerKey === undefined ? undefined : parseSkillOwnerKey(ownerKey);
-      if (name === undefined || owner === undefined)
-        return invalidInput('name and owner (host, bot:<slug> or workspace:<id>) are required');
-      const missing = (): BridgeResult<never> => ({
-        ok: false,
-        error: { code: 'skill-not-found', message: `Skill not found: ${ownerKey}/${name}` },
-      });
-      try {
-        if (owner.kind === 'bot') {
-          const memoryDir =
-            deps.registry.get(owner.botSlug) === undefined
-              ? undefined
-              : deps.registry.memoryDirFor(owner.botSlug);
-          if (memoryDir === undefined) return unknownBot(owner.botSlug);
-          const skill = await readBotSkill(memoryDir, name);
-          if (skill === undefined) return missing();
-          return {
-            ok: true,
-            value: {
-              skill: {
-                name: skill.name,
-                description: skill.description,
-                owner,
-                path: skill.path,
-                content: skill.content,
-              },
-            },
-          };
-        }
-        if (deps.skills === undefined) return missing();
-        const bots = deps.registry
-          .list()
-          .filter((bot) => bot.paused !== true)
-          .map((bot) => bot.slug);
-        const viewer = bots[0];
-        if (viewer === undefined) return missing();
-        const resolved = await deps.skills.resolve(name, owner, viewer, bots);
-        if (resolved === undefined) return missing();
-        const listed = (await deps.skills.list(bots)).find(
-          (entry) =>
-            entry.name === name && skillOwnerKey(entry.owner) === skillOwnerKey(resolved.owner),
-        );
-        return {
-          ok: true,
-          value: {
-            skill: {
-              name: resolved.name,
-              description: listed?.description ?? '',
-              owner: resolved.owner,
-              ...(resolved.path === undefined ? {} : { path: resolved.path }),
-              content: resolved.content,
-            },
-          },
-        };
-      } catch (error) {
-        return {
-          ok: false,
-          error: { code: 'skills-unavailable', message: (error as Error).message },
-        };
-      }
-    },
-    async botSkillRemove(payload) {
-      const slug = asSlug(payload);
-      const name = asNonBlank(asObject(payload), 'name');
-      if (slug === undefined || name === undefined)
-        return invalidInput('slug and name are required');
-      if (deps.registry.get(slug) === undefined) return unknownBot(slug);
-      try {
-        requireOwnedBot(slug);
-      } catch {
-        return unknownBot(slug);
-      }
-      const memoryDir = deps.registry.memoryDirFor(slug);
-      if (memoryDir === undefined) return unknownBot(slug);
-      try {
-        const result = await removeBotSkill(memoryDir, name);
-        return { ok: true, value: result };
-      } catch (error) {
-        if (error instanceof BotSkillNotFoundError)
-          return { ok: false, error: { code: 'skill-not-found', message: error.message } };
-        if (error instanceof BotSkillIgnoredFilesError)
-          return { ok: false, error: { code: 'skill-has-ignored-files', message: error.message } };
-        return {
-          ok: false,
-          error: { code: 'skills-unavailable', message: (error as Error).message },
-        };
-      } finally {
-        deps.skills?.invalidateMemory(slug);
-      }
-    },
+    ...skillsMethods,
     channelAllBotPreview(payload) {
       const channelId = asNonBlank(asObject(payload), 'channelId');
       if (channelId === undefined) return invalidInput('channelId is required');

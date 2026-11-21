@@ -1,0 +1,82 @@
+import { unwrap } from '../../bridge/rpc-result.js';
+import type { PersonaBotDetail } from '../../bridge/methods.js';
+import type { PartLibraryEntry } from '../../bots/part-library.js';
+import type { BotMetadataResult } from '../../team/bot-administration.js';
+import type { AvatarsBridgeMethods } from './methods.js';
+
+type AdminResult<T> = T | BotMetadataResult;
+
+export function botAvatarSet(
+  methods: AvatarsBridgeMethods,
+  channelId: string,
+  avatar: string | null,
+): AdminResult<{ bot: PersonaBotDetail }> {
+  return unwrap(methods.botAvatarSet({ channelId, avatar }));
+}
+
+export function botBannerSet(
+  methods: AvatarsBridgeMethods,
+  channelId: string,
+  banner: unknown,
+): AdminResult<{ bot: PersonaBotDetail }> {
+  return unwrap(methods.botBannerSet({ channelId, banner }));
+}
+
+export function botAppearanceSet(
+  methods: AvatarsBridgeMethods,
+  channelId: string,
+  recipe: unknown,
+): AdminResult<{ bot: PersonaBotDetail }> {
+  return unwrap(methods.botAppearanceSet({ channelId, recipe }));
+}
+
+export function botPrimaryColorSet(
+  methods: AvatarsBridgeMethods,
+  channelId: string,
+  primaryColor: unknown,
+): AdminResult<{ bot: PersonaBotDetail }> {
+  return unwrap(methods.botPrimaryColorSet({ channelId, primaryColor }));
+}
+
+export function partLibraryList(methods: AvatarsBridgeMethods): { parts: PartLibraryEntry[] } {
+  return unwrap(methods.partLibraryList());
+}
+
+export function partLibraryAdd(
+  methods: AvatarsBridgeMethods,
+  part: unknown,
+  name: string,
+  parent?: string,
+): { entry: PartLibraryEntry } {
+  return unwrap(methods.partLibraryAdd({ part, name, parent }));
+}
+
+export function partLibraryExport(
+  methods: AvatarsBridgeMethods,
+  id?: string,
+  part?: unknown,
+): { fileName: string; data: string } {
+  return unwrap(
+    methods.partLibraryExport(part !== undefined ? { part } : id === undefined ? {} : { id }),
+  );
+}
+
+export function partLibraryImport(
+  methods: AvatarsBridgeMethods,
+  data: string,
+): {
+  added: PartLibraryEntry[];
+  refused: { name: string; reason: string }[];
+} {
+  return unwrap(methods.partLibraryImport({ data }));
+}
+
+export function partLibraryImportImage(
+  methods: AvatarsBridgeMethods,
+  data: string,
+  slot: string,
+  colors: number,
+  name: string,
+): { entry: PartLibraryEntry } {
+  return unwrap(methods.partLibraryImportImage({ data, slot, colors, name }));
+}

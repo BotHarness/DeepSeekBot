@@ -1,4 +1,22 @@
-import { bridgeHost, BridgeCallError, unwrap, type BridgeCall } from './bridge-transport.js';
+import { createAvatarsBridge } from './features/avatars/bridge.js';
+export type { BotPrimaryColorChoice, PartImageInfo } from './features/avatars/bridge.js';
+import { parseSkillOwner } from './features/skills/bridge.js';
+export {
+  type BotSkillRow,
+  type SkillDetailView,
+  loadBotSkills,
+  loadSkillDetail,
+  removeBotSkill,
+  loadChannelSkillCatalog,
+  loadSessionSkillCatalog,
+} from './features/skills/bridge.js';
+import {
+  asRecord,
+  bridgeHost,
+  BridgeCallError,
+  unwrap,
+  type BridgeCall,
+} from './bridge-transport.js';
 export { bridgeHost, BridgeCallError, unwrap, type BridgeCall } from './bridge-transport.js';
 export {
   loadBotSchedules,
@@ -57,7 +75,7 @@ import {
   parseFailureAutoContinue,
   parseFailureProgress,
 } from '@botharness/host-client/shared/turn-continuation';
-import { isPixelBannerRecipe, type PixelBannerRecipe } from '@botharness/pixel-banner';
+import { isPixelBannerRecipe } from '@botharness/pixel-banner';
 import {
   browseHostFolders,
   loadWorkspaceOptions as loadHostWorkspaceOptions,
@@ -119,7 +137,6 @@ import {
 import * as channelHost from '@botharness/host-client/channel-messages';
 import * as channels from '@botharness/host-client/channel-management';
 import { HostAnswerInvalid } from '@botharness/host-client/host-answer';
-import { loadSkillCatalog } from '@botharness/host-client/skill-catalog';
 import {
   loadGenuiDocumentView as loadGenuiDocumentViewFrom,
   parseGenuiDocumentView as parseHostGenuiDocumentView,
@@ -159,7 +176,6 @@ import {
   isAvatarAppearance,
   isRetainedAvatarAppearance,
   type AvatarAppearance,
-  type AvatarRecipe,
 } from '../../../core/src/bots/avatar-appearance.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import type {
@@ -170,7 +186,6 @@ import type {
   ChannelSkillInvocationToken,
   GroupMemberWakePolicy,
 } from '../../../core/src/channels/channel.js';
-import type { SkillCatalogEntry, SkillOwner } from '../../../core/src/skills/entries.js';
 import type { ChannelAssignmentSummary } from '../../../core/src/runtime/bot-runtime.js';
 import type { AllBotPreview, AllBotMention } from '../../../core/src/channels/all-bot-mention.js';
 
@@ -220,8 +235,7 @@ import type { UsageOverviewPeriod } from '../../../core/src/usage/overview.js';
 import type { ChannelActivityToday } from '../../../core/src/channels/activity-today.js';
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
-import { isPartLibraryEntry, type PartLibraryEntry } from '../../../core/src/bots/part-library.js';
-import type { PixelCustomPart } from '../../../core/src/bots/avatar-appearance.js';
+import { isPartLibraryEntry } from '../../../core/src/bots/part-library.js';
 import { isBotPrimaryColor } from '../../../core/src/bots/primary-color.js';
 import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import type {
@@ -684,19 +698,11 @@ export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function asRecord(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
 function stringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((entry): entry is string => typeof entry === 'string')
     : [];
 }
-
-export type BotPrimaryColorChoice = { mode: 'automatic' } | { mode: 'custom'; color: string };
 
 export function parseBotSummary(value: unknown): BotSummary | undefined {
   const record = asRecord(value);
@@ -1200,24 +1206,6 @@ export function parseApprovalCard(value: unknown): ApprovalCardView | undefined 
   };
 }
 
-function parseSkillOwner(owner: Record<string, unknown> | undefined): SkillOwner | undefined {
-  if (owner?.['kind'] === 'host') return { kind: 'host' };
-  if (owner?.['kind'] === 'bot' && typeof owner['botSlug'] === 'string')
-    return { kind: 'bot', botSlug: owner['botSlug'] };
-  if (
-    owner?.['kind'] === 'workspace' &&
-    typeof owner['workspaceId'] === 'string' &&
-    owner['workspaceId'] !== '' &&
-    typeof owner['name'] === 'string'
-  )
-    return {
-      kind: 'workspace',
-      workspaceId: owner['workspaceId'],
-      name: owner['name'],
-    };
-  return undefined;
-}
-
 function parseSkillInvocations(
   value: unknown,
   body: string,
@@ -1264,108 +1252,6 @@ export function parseSkillCatalogChange(value: unknown): SkillCatalogChange | un
   } catch {
     return undefined;
   }
-}
-
-export interface BotSkillRow {
-  name: string;
-  description: string;
-  path: string;
-  userInvocable: boolean;
-}
-
-export interface SkillDetailView {
-  name: string;
-  description: string;
-  owner: SkillOwner;
-  path?: string;
-  content: string;
-}
-
-export async function loadBotSkills(call: BridgeCall, slug: string): Promise<BotSkillRow[]> {
-  const value = asRecord(await unwrap(call, 'botSkills', { slug }));
-  if (!Array.isArray(value?.['skills'])) throw new Error('invalid botSkills response');
-  return value['skills'].flatMap((entry: unknown): BotSkillRow[] => {
-    const item = asRecord(entry);
-    const name = item?.['name'];
-    const description = item?.['description'];
-    const path = item?.['path'];
-    if (typeof name !== 'string' || typeof description !== 'string' || typeof path !== 'string')
-      return [];
-    return [
-      {
-        name,
-        description,
-        path,
-        userInvocable: item?.['userInvocable'] !== false,
-      },
-    ];
-  });
-}
-
-export async function loadSkillDetail(
-  call: BridgeCall,
-  name: string,
-  owner: string,
-): Promise<SkillDetailView> {
-  const skill = asRecord(asRecord(await unwrap(call, 'skillShow', { name, owner }))?.['skill']);
-  const parsedOwner = parseSkillOwner(asRecord(skill?.['owner']));
-  const content = skill?.['content'];
-  if (
-    typeof skill?.['name'] !== 'string' ||
-    typeof content !== 'string' ||
-    parsedOwner === undefined
-  )
-    throw new Error('invalid skillShow response');
-  const path = skill['path'];
-  return {
-    name: skill['name'],
-    description: typeof skill['description'] === 'string' ? skill['description'] : '',
-    owner: parsedOwner,
-    ...(typeof path === 'string' ? { path } : {}),
-    content,
-  };
-}
-
-export async function removeBotSkill(call: BridgeCall, slug: string, name: string): Promise<void> {
-  await unwrap(call, 'botSkillRemove', { slug, name });
-}
-
-export async function loadChannelSkillCatalog(
-  call: BridgeCall,
-  channelId: string,
-): Promise<SkillCatalogEntry[]> {
-  return loadSkillCatalog(bridgeHost(call), channelId);
-}
-
-export async function loadSessionSkillCatalog(
-  call: BridgeCall,
-  slug: string,
-  sessionId: string,
-): Promise<SkillCatalogEntry[]> {
-  return skillCatalogEntries(await unwrap(call, 'sessionSkillCatalog', { slug, sessionId }));
-}
-
-function skillCatalogEntries(response: unknown): SkillCatalogEntry[] {
-  const value = asRecord(response);
-  if (!Array.isArray(value?.['skills'])) throw new Error('invalid Skill catalog response');
-  return value['skills'].flatMap((entry: unknown): SkillCatalogEntry[] => {
-    const item = asRecord(entry);
-    const owner = asRecord(item?.['owner']);
-    const name = item?.['name'];
-    const description = item?.['description'];
-    if (typeof name !== 'string' || typeof description !== 'string') return [];
-    const parsedOwner = parseSkillOwner(owner);
-    if (parsedOwner === undefined) return [];
-    const path = item?.['path'];
-    return [
-      {
-        name,
-        description,
-        owner: parsedOwner,
-        ...(typeof path === 'string' ? { path } : {}),
-      },
-    ];
-  });
 }
 
 export function parseSessionLinks(value: unknown): NonNullable<ChannelMessage['sessionLinks']> {
@@ -3383,25 +3269,17 @@ export async function setGroupAvatar(
   return channel;
 }
 
-export async function setBotAvatar(
-  call: BridgeCall,
-  channelId: string,
-  avatar: string | null,
-): Promise<BotSummary> {
-  const { bot } = await botControl.setBotAvatar(bridgeHost(call), { channelId, avatar });
-  return parseBotSummary(bot)!;
-}
-
-export async function setBotBanner(
-  call: BridgeCall,
-  channelId: string,
-  banner: { recipe: PixelBannerRecipe } | { image: string } | null,
-): Promise<BotSummary> {
-  const value = asRecord(await unwrap(call, 'botBannerSet', { channelId, banner }));
-  const bot = parseBotSummary(value?.['bot']);
-  if (bot === undefined) throw new Error('invalid botBannerSet response');
-  return bot;
-}
+export const {
+  setBotAvatar,
+  setBotBanner,
+  setBotAppearance,
+  setBotPrimaryColor,
+  loadPartLibrary,
+  exportLibraryParts,
+  importLibraryParts,
+  importLibraryImage,
+  addLibraryPart,
+} = createAvatarsBridge(parseBotSummary, isPartLibraryEntry);
 
 export async function updateBotProfile(
   call: BridgeCall,
@@ -3411,126 +3289,6 @@ export async function updateBotProfile(
   const bot = parseBotSummary(await updateBot(bridgeHost(call), slug, patch));
   if (bot === undefined) throw new Error('invalid update response');
   return bot;
-}
-
-export async function setBotAppearance(
-  call: BridgeCall,
-  channelId: string,
-  recipe: AvatarRecipe,
-): Promise<BotSummary> {
-  const value = asRecord(await unwrap(call, 'botAppearanceSet', { channelId, recipe }));
-  const bot = parseBotSummary(value?.['bot']);
-  if (bot === undefined) throw new Error('invalid botAppearanceSet response');
-  return bot;
-}
-
-export async function setBotPrimaryColor(
-  call: BridgeCall,
-  channelId: string,
-  primaryColor: BotPrimaryColorChoice,
-): Promise<BotSummary> {
-  const value = asRecord(await unwrap(call, 'botPrimaryColorSet', { channelId, primaryColor }));
-  const bot = parseBotSummary(value?.['bot']);
-  if (bot === undefined) throw new Error('invalid botPrimaryColorSet response');
-  return bot;
-}
-
-export async function loadPartLibrary(call: BridgeCall): Promise<PartLibraryEntry[]> {
-  const parts = asRecord(await unwrap(call, 'partLibraryList', {}))?.['parts'];
-  if (!Array.isArray(parts)) throw new Error('invalid partLibraryList response');
-  return parts.filter(isPartLibraryEntry);
-}
-
-export async function exportLibraryParts(
-  call: BridgeCall,
-  id?: string,
-  part?: PixelCustomPart,
-): Promise<{ fileName: string; data: string }> {
-  const value = asRecord(
-    await unwrap(
-      call,
-      'partLibraryExport',
-      part !== undefined ? { part } : id === undefined ? {} : { id },
-    ),
-  );
-  const fileName = value?.['fileName'];
-  const data = value?.['data'];
-  if (typeof fileName !== 'string' || typeof data !== 'string')
-    throw new Error('invalid partLibraryExport response');
-  return { fileName, data };
-}
-
-export async function importLibraryParts(
-  call: BridgeCall,
-  data: string,
-): Promise<{
-  added: PartLibraryEntry[];
-  refused: number;
-  image?: PartImageInfo;
-}> {
-  const value = asRecord(await unwrap(call, 'partLibraryImport', { data }));
-  const added = value?.['added'];
-  const refused = value?.['refused'];
-  if (!Array.isArray(added) || !Array.isArray(refused))
-    throw new Error('invalid partLibraryImport response');
-  const image = asRecord(value?.['image']);
-  const info =
-    image &&
-    typeof image['width'] === 'number' &&
-    typeof image['height'] === 'number' &&
-    typeof image['colors'] === 'number' &&
-    Array.isArray(image['slots']) &&
-    image['slots'].every((slot) => typeof slot === 'string')
-      ? {
-          width: image['width'],
-          height: image['height'],
-          colors: image['colors'],
-          slots: image['slots'] as string[],
-        }
-      : undefined;
-  return {
-    added: added.filter(isPartLibraryEntry),
-    refused: refused.length,
-    ...(info ? { image: info } : {}),
-  };
-}
-
-export interface PartImageInfo {
-  width: number;
-  height: number;
-  colors: number;
-  slots: string[];
-}
-
-export async function importLibraryImage(
-  call: BridgeCall,
-  data: string,
-  slot: string,
-  colors: number,
-  name: string,
-): Promise<PartLibraryEntry> {
-  const entry = asRecord(
-    await unwrap(call, 'partLibraryImportImage', { data, slot, colors, name }),
-  )?.['entry'];
-  if (!isPartLibraryEntry(entry)) throw new Error('invalid partLibraryImportImage response');
-  return entry;
-}
-
-export async function addLibraryPart(
-  call: BridgeCall,
-  part: PixelCustomPart,
-  name: string,
-  parent?: string,
-): Promise<PartLibraryEntry> {
-  const entry = asRecord(
-    await unwrap(call, 'partLibraryAdd', {
-      part,
-      name,
-      ...(parent ? { parent } : {}),
-    }),
-  )?.['entry'];
-  if (!isPartLibraryEntry(entry)) throw new Error('invalid partLibraryAdd response');
-  return entry;
 }
 
 export async function inviteGroupBot(
