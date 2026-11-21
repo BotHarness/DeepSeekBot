@@ -112,19 +112,6 @@ const styles = stylex.create({
   todo: { display: 'flex', gap: space.x3, alignItems: 'flex-start' },
   todoDone: { color: color.subtle, textDecoration: 'line-through' },
   todoActive: { fontWeight: text.strong },
-  transcript: {
-    flex: 1,
-    minHeight: 0,
-    overflowY: 'auto',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x1,
-    paddingInline: space.x5,
-    paddingTop: space.x4,
-    paddingBottom: `calc(${space.x4} + var(--session-composer-overlay, 0px))`,
-    maskImage: `linear-gradient(to bottom, transparent, black ${space.x4}, black calc(100% - var(--session-composer-overlay, 0px)), transparent calc(100% - var(--session-composer-overlay, 0px) + ${space.x4}))`,
-    overscrollBehavior: 'contain',
-  },
   quiet: {
     color: color.subtle,
     fontSize: text.metaSize,
@@ -880,7 +867,7 @@ export function SessionDetail({
           const node = event.currentTarget;
           setAway(node.scrollHeight - node.scrollTop - node.clientHeight > 80);
         }}
-        {...stylex.props(styles.transcript)}
+        {...stylex.props(sessionComposerFrame.transcript)}
       >
         {transcript !== undefined && failed ? (
           <div role="status" {...stylex.props(styles.quiet, styles.center)}>
