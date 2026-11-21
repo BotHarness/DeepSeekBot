@@ -90,11 +90,10 @@ import * as stylex from '@stylexjs/stylex';
 import { ink, space, style } from './ds/tobs.stylex.js';
 
 const sessionStyles = stylex.create({
-  modelControl: {
-    position: 'absolute',
-    insetInlineStart: `calc(${style.controlHeightSmall} + ${space.x4})`,
-    bottom: space.x2,
-    maxWidth: `calc(100% - ${style.controlHeightSmall} * 2 - ${space.x8})`,
+  modelControl: { display: 'flex', minWidth: 0, flexShrink: 1 },
+  footer: {
+    gap: space.x2,
+    maxWidth: `calc(100% - ${style.controlHeightSmall} - ${space.x8})`,
   },
   title: {
     display: 'inline-flex',
@@ -1717,10 +1716,16 @@ export function ChannelComposer({
           <span key={index} ref={mount} hidden />
         ))}
 
-        {modelControl === undefined ? null : (
-          <div {...stylex.props(sessionStyles.modelControl)}>{modelControl}</div>
-        )}
-        <div className="bh-composer-footer">
+        <div
+          className={
+            modelControl === undefined
+              ? 'bh-composer-footer'
+              : `bh-composer-footer ${stylex.props(sessionStyles.footer).className ?? ''}`
+          }
+        >
+          {modelControl === undefined ? null : (
+            <div {...stylex.props(sessionStyles.modelControl)}>{modelControl}</div>
+          )}
           {voice.ready ? <ComposerMicButton voice={voice} disabled={locked} t={t} /> : null}
           {stops ? (
             <ComposerControl

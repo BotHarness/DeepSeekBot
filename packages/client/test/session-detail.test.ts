@@ -123,7 +123,14 @@ it('applies a picker change through the Host and shows the next Turn while a Tur
       {
         engine: 'claude',
         available: true,
-        models: [{ id: model.model, name: 'Opus 5.5', efforts: [] }],
+        models: [
+          {
+            id: model.model,
+            name: 'Opus 5.5',
+            efforts: [{ id: 'medium', name: '中' }],
+            defaultEffort: 'medium',
+          },
+        ],
       },
       {
         engine: 'codex',
@@ -139,16 +146,18 @@ it('applies a picker change through the Host and shows the next Turn while a Tur
     sessionModel,
   });
   const trigger = host.querySelector<HTMLButtonElement>(
-    '[data-session-composer] [data-picker-trigger]',
+    '[data-session-composer] .bh-composer-footer [data-session-model-control] button',
   );
   expect(trigger?.textContent).toContain('GPT-6.2-Sol');
+  expect(trigger?.closest('.bh-composer-footer')?.querySelector('.bh-send-btn')).not.toBeNull();
   await act(async () => trigger?.click());
   const option = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')].find((item) =>
     item.textContent?.includes('Opus 5.5'),
   );
   await act(async () => option?.click());
-  expect(sessionModel).toHaveBeenCalledWith('tobs', 'asg-1', model);
+  expect(sessionModel).toHaveBeenCalledWith('tobs', 'asg-1', { ...model, effort: 'medium' });
   expect(trigger?.textContent).toContain('下一轮使用 Opus 5.5');
+  expect(trigger?.textContent).toContain('中');
 });
 
 function label(node: HTMLElement): string {

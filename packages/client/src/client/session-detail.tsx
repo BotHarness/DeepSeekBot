@@ -31,6 +31,7 @@ import { useMountedResource } from './mounted-resource.js';
 import { cachedSessionDetail, rememberSessionDetail } from './session-detail-cache.js';
 import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
 import { SessionDetailHeaderChips } from './session-detail-header.js';
+import { sessionComposerFrame } from './session-composer-frame.js';
 import { SessionModelComposer } from './session-model-composer.js';
 import { SessionModelSwitch } from './session-model-switch.js';
 import { SessionJump } from './session-jump.js';
@@ -190,7 +191,6 @@ const styles = stylex.create({
   bad: { color: color.danger },
   ok: { color: color.success, display: 'inline-flex' },
   run: { color: color.accent, display: 'inline-flex' },
-  composer: { position: 'absolute', insetInline: 0, bottom: 0, zIndex: 1 },
   error: { color: color.danger, paddingInline: space.x5, paddingBottom: space.x2 },
 });
 
@@ -914,7 +914,11 @@ export function SessionDetail({
       </div>
       <TurnNav blocks={blocks} t={t} />
       {canCompose ? (
-        <div ref={composerMount} data-session-composer="" {...stylex.props(styles.composer)}>
+        <div
+          ref={composerMount}
+          data-session-composer=""
+          {...stylex.props(sessionComposerFrame.frame)}
+        >
           {away ? <SessionJump floating={false} t={t} /> : null}
           {sendError === undefined ? null : (
             <div role="alert" {...stylex.props(styles.quiet, styles.error)}>

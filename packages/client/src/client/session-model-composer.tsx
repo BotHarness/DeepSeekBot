@@ -1,15 +1,18 @@
 import { useMemo, useRef, useState } from 'react';
+import * as stylex from '@stylexjs/stylex';
 import type {
   SessionModelChoice,
   SessionModelState,
 } from '@botharness/host-protocol/session-model';
 import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
+import { engineCatalogModel } from '@botharness/host-client/model-catalog';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 
 import type { BridgeActions } from './actions.js';
 import type { ModelCatalogEntryView, ModelCatalogGroupView } from './bridge.js';
+import { Button } from './ds/button.js';
 import { Icon } from './ds/icon.js';
-import { PickerTrigger } from './ds/picker-trigger.js';
+import { ink, space, state as hoverState, style } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { ModelBrandIcon } from './model-brand.js';
 import {
@@ -22,6 +25,37 @@ import {
 import { useMountedResource } from './mounted-resource.js';
 
 const DEFAULT = 'session-default';
+const NO_EFFORT = '@container session-composer (max-width: 300px)';
+const ICON_ONLY = '@container session-composer (max-width: 220px)';
+
+const styles = stylex.create({
+  chip: {
+    flexShrink: 1,
+    minWidth: 0,
+    maxWidth: '100%',
+    height: style.controlHeightSmall,
+    gap: space.x1,
+    paddingInline: space.x2,
+    fontWeight: 400,
+  },
+  open: { backgroundColor: hoverState.selected },
+  wrap: { display: 'inline-flex', minWidth: 0 },
+  name: {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    display: { default: 'inline', [ICON_ONLY]: 'none' },
+  },
+  effort: {
+    flexShrink: 0,
+    color: ink.secondary,
+    display: { default: 'inline', [NO_EFFORT]: 'none' },
+  },
+});
+
+function effortName(efforts: readonly { id: string; name: string }[] | undefined, id: string) {
+  return efforts?.find((item) => item.id === id)?.name ?? id.charAt(0).toUpperCase() + id.slice(1);
+}
 
 function choiceKey(choice: SessionModelChoice | null): string {
   if (choice === null) return DEFAULT;
@@ -178,31 +212,58 @@ export function SessionModelComposer({
         onSaving(false);
       });
   }
+  const effortId =
+    choice?.effort ??
+    (choice?.kind === 'engine'
+      ? engineCatalogModel(engines ?? [], {
+          engine: choice.engine,
+          model: choice.model,
+          ...(choice.accountId === undefined ? {} : { account: choice.accountId }),
+        })?.defaultEffort
+      : undefined) ??
+    (choice?.kind === 'model'
+      ? models?.find((item) => item.provider === choice.provider && item.model === choice.model)
+          ?.defaultEffort
+      : undefined) ??
+    (pending ? undefined : recorded?.kind === 'engine' ? recorded.reasoningEffort : undefined);
+  const effortEfforts =
+    choice?.kind === 'engine'
+      ? engineCatalogModel(engines ?? [], { engine: choice.engine, model: choice.model })?.efforts
+      : choice?.kind === 'model'
+        ? models?.find((item) => item.provider === choice.provider && item.model === choice.model)
+            ?.efforts
+        : undefined;
+  const effort =
+    effortId === undefined || effortId === '' ? undefined : effortName(effortEfforts, effortId);
+  const kind =
+    label === undefined
+      ? undefined
+      : t(label.external ? 'sessions.model.sub' : 'sessions.model.api');
+  const accessible = [t('sessions.model.choice'), shown, effort, kind].filter(Boolean).join(', ');
   return (
-    <span ref={mount} data-session-model-control="">
-      <PickerTrigger
+    <span ref={mount} data-session-model-control="" {...stylex.props(styles.wrap)}>
+      <Button
         ref={trigger}
-        compact
-        label={shown}
+        variant="ghost"
+        size="sm"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={accessible}
+        title={accessible}
+        disabled={saving || state === undefined}
+        onClick={() => setOpen(!open)}
+        xstyle={[styles.chip, open && styles.open]}
         icon={
           label !== undefined ? (
             <ModelBrandIcon brand={label.brand} size={14} />
-          ) : choice?.kind === 'group' ? (
-            <Icon name="git-branch" size={14} />
-          ) : undefined
+          ) : (
+            <Icon name={choice?.kind === 'group' ? 'git-branch' : 'layers-2'} size={14} />
+          )
         }
-        hint={
-          label === undefined
-            ? undefined
-            : t(label.external ? 'sessions.model.sub' : 'sessions.model.api')
-        }
-        expanded={open}
-        disabled={saving || state === undefined}
-        accessibleLabel={
-          shown === t('sessions.model.choice') ? shown : `${t('sessions.model.choice')}, ${shown}`
-        }
-        onClick={() => setOpen(!open)}
-      />
+      >
+        <span {...stylex.props(styles.name)}>{shown}</span>
+        {effort === undefined ? null : <span {...stylex.props(styles.effort)}>{effort}</span>}
+      </Button>
       {open && items !== undefined ? (
         <ModelMenu
           label={t('sessions.model.choice')}
