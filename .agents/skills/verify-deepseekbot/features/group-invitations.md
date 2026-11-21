@@ -10,6 +10,7 @@
 
 - Group invitation
 - Channel membership
+- DM
 - Team mode
 - Host Member
 - PersonaBot Deletion
@@ -19,7 +20,7 @@
 
 - `desktop-create`: fill the name with no selections to create an empty Group. Select multiple Bots before creating a second Group to see an outcome for each Bot. Switching Hosts clears selected identities and keeps the name.
 - `desktop-existing`: Add members opens the same picker. Search for a second target and verify the first selection remains available to review and remove. On a failed capability read, use the retry control in the Members header. A confirmed denial hides the action.
-- `eligible-candidates`: invitation candidates exclude protected Tob, archived/deleted Bots, current members and pending invitees. Tob is identified by the Host's protected identity check. The existing Group dialog retains private-chat guidance for Tob.
+- `eligible-candidates`: invitation candidates exclude protected Tob, archived/deleted Bots, current members and pending invitees. Tob is identified by the Host's protected identity check. The existing Group dialog directs Humans to their DM with Tob.
 - `mixed-team-batch`: an authorized user can add an eligible Host Member and invite their reachable Bot in one batch. Show the prerequisite when the Human is absent. The selected Human gets immediate private Channel and history access. A Bot joins or remains pending according to auto-accept.
 - `retry`: a target that becomes unavailable before submission has an individual failure result. Retry that result in the same Group. Replaying a submission with the original operation keys after an unconfirmed response produces no duplicate Group or invitation.
 - `deleted-member-recovery`: deleting an ordinary Bot that belongs to two Groups clears both memberships and any owner/wake-policy references atomically. Restart repairs legacy missing members without changing history. Group reads omit references that became invalid after startup. The existing member-removal command can remove a legacy missing reference.
