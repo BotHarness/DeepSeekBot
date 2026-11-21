@@ -18,7 +18,7 @@ it('shows a retryable error when subscription accounts fail to load', async () =
   const call = vi.fn<BridgeCall>(async (method) => {
     if (method === 'engineAccounts')
       return accountsFail
-        ? { ok: false, error: { code: 'unavailable', message: 'down' } }
+        ? { ok: false, error: { code: 'unavailable', message: 'down', details: {} } }
         : {
             ok: true,
             value: { accounts: [{ id: 'codex-work', engine: 'codex', name: 'Work' }] },
