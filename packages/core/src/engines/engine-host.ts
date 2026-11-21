@@ -153,12 +153,16 @@ export class EngineHost {
   status(target?: string, allowed?: (accountId: string) => boolean) {
     return this.#accounts.status(target, allowed);
   }
-  login(engine: EngineId, id?: string) {
-    return this.#accounts.login(engine, id);
+  login(engine: EngineId, id?: string, mode?: 'device-auth') {
+    return this.#accounts.login(engine, id, mode);
   }
 
-  cancelLogin(id: string) {
-    return this.#accounts.cancelLogin(id);
+  deviceLoginStatus(id: string, attemptId: string) {
+    return this.#accounts.deviceLoginStatus(id, attemptId);
+  }
+
+  cancelLogin(id: string, attemptId?: string) {
+    return this.#accounts.cancelLogin(id, attemptId);
   }
   submitClaudeCode(id: string, code: string) {
     return this.#accounts.submitClaudeCode(id, code);

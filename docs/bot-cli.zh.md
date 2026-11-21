@@ -1086,6 +1086,7 @@ deepseekbot engine account-add codex|claude --name <name> --expected-revision <r
 deepseekbot engine account-rename <account-id> --name <name> --expected-revision <r>
 deepseekbot engine account-remove <account-id> --expected-revision <r> --confirm
 deepseekbot engine login codex
+deepseekbot engine login codex --device-auth [--account <account-id>]
 deepseekbot engine login <account-id>
 deepseekbot engine login claude [--account <account-id>]
 deepseekbot engine login claude [--account <account-id>] --code-stdin < <code-file>
@@ -1108,6 +1109,8 @@ Host Owner 和具有 `modelSources.manage` 权限的 Human 可以列出、添加
 额度包含服务商上报的五小时窗口 `session` 和每周窗口 `weekly`。每个窗口在已知时包含 `remainingPercent`（剩余百分比）、`resetsAt`（重置时间）和 `windowMinutes`（窗口分钟数）。缺少的值表示未知。`observedAt` 是观测时间，`source` 的 `live` 表示主动刷新，`turn` 表示来自轮次事件。已知账号仍处于额度限制时会返回 `limitedUntil`。
 
 关闭浏览器的登录标签页后，可用 `engine login-cancel <account-id>` 取消登录。命令需要 `modelSources.manage` 权限。Host 停止登录进程后返回 `{"cancelled":true}`，此时可以重试。如果没有正在进行的登录，则返回 `{"cancelled":false}`。默认账号可用 `codex` 或 `claude` 指定。
+
+在另一台设备上登录 Codex 时，运行 `engine login codex --device-auth`，并用 `--account` 指定要登录的账号。先在 ChatGPT 安全设置中启用设备码授权，再打开标准错误输出中的验证链接，并在有效期内输入一次性登录码。命令会等待 Host 确认登录，然后在标准输出写入一份 JSON 结果。使用 `--json` 时输出格式相同。成功返回 `{"engine":"codex","status":"completed"}`。过期、取消或其他失败分别返回 `engine-login-expired`、`engine-login-cancelled` 和 `engine-failed`。若要停止 Host 上等待中的进程，请在另一终端运行 `engine login-cancel <account-id>`。在模型提供商页面，可在 Codex 账号上选择 **在其他设备上登录**。
 
 如果 Claude 的浏览器回调无法连接 Host，且页面给出授权码，可在模型提供商页面使用 **粘贴授权码**，或运行 `engine login claude --code-stdin` 从标准输入读取授权码。指定与发起登录时相同的 `--account`。Claude Code 的登录进程必须先提示输入授权码。如果没有提示，Host 返回 `engine-code-not-requested`。登录未开始或已结束时返回 `engine-login-not-pending`。成功写入标准输入后返回 `{"submitted":true}`。用 `engine status` 确认登录结果。
 

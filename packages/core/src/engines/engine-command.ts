@@ -66,7 +66,7 @@ export function engineLoginUrl(line: string): string | undefined {
   return LOGIN_URL.exec(stripVTControlCharacters(line))?.[0];
 }
 
-function stopLoginProcessTree(child: ChildProcess): void | Promise<void> {
+export function stopLoginProcessTree(child: ChildProcess): void | Promise<void> {
   const { pid } = child;
   if (pid === undefined) return;
   if (process.platform === 'win32') {
@@ -84,6 +84,18 @@ function stopLoginProcessTree(child: ChildProcess): void | Promise<void> {
   }
 }
 
+export function spawnEngineLogin(target: EngineCommand, args: string[], acceptsInput: boolean) {
+  const spec = launch(target, args);
+  return spawn(spec.file, spec.args, {
+    env: spec.env,
+    stdio: [acceptsInput ? 'pipe' : 'ignore', 'pipe', 'pipe'],
+    detached: process.platform !== 'win32',
+    ...(spec.windowsVerbatimArguments === true ? { windowsVerbatimArguments: true } : {}),
+    shell: false,
+    windowsHide: true,
+  });
+}
+
 export function startEngineLogin(
   target: EngineCommand &
     EngineLoginProcess & {
@@ -94,18 +106,10 @@ export function startEngineLogin(
   args: string[],
   timeoutMs = 10_000,
 ): Promise<{ url?: string }> {
-  const spec = launch(target, args);
   const command = `${target.name} ${args.join(' ')}`;
   const manual = target.onCodeInput !== undefined;
   return new Promise((resolve, reject) => {
-    const child = spawn(spec.file, spec.args, {
-      env: spec.env,
-      stdio: [manual ? 'pipe' : 'ignore', 'pipe', 'pipe'],
-      detached: process.platform !== 'win32',
-      ...(spec.windowsVerbatimArguments === true ? { windowsVerbatimArguments: true } : {}),
-      shell: false,
-      windowsHide: true,
-    });
+    const child = spawnEngineLogin(target, args, manual);
     let acceptsCode = false;
     let exited = false;
     const stdin = child.stdin;

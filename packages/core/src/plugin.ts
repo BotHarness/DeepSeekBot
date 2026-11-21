@@ -1047,7 +1047,7 @@ function initializeCore(
         changed,
       ),
     (human, resource) =>
-      resource === 'model-providers'
+      resource === 'model-providers' || resource === 'engine-device-login'
         ? human.caller !== 'bot' &&
           (team.isOwner(human) || team.roles.permissions(human).includes('modelSources.manage'))
         : team.isOwner(human),
@@ -1517,6 +1517,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       requireBotEngineAccount(core.team, core.registry.get(slug), id),
     gateway: engineGateway,
     accountsChanged: () => core.live.publishResourceChanged('model-providers'),
+    observeDeviceLogin: (event) => {
+      ctx.logger.info('codex-device-login %j', event);
+      if (event.phase !== 'starting') core.live.publishResourceChanged('engine-device-login');
+    },
     accountUses: (id) => {
       const uses = (choice: { engine: EngineId; accountId?: string } | undefined) =>
         choice !== undefined && engineAccountKey(choice.engine, choice.accountId) === id;

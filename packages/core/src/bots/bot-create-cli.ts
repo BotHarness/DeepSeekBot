@@ -264,8 +264,12 @@ export async function runBotCreateCli(
         );
     } else if (command === 'activity' && rest[0] === 'list') rest = rest.slice(1);
     if (values.administration && command !== 'list') throw usageError('invalid-input');
-    if (values.json && command !== 'engine-quota')
-      throw usageError('--json requires engine quota.');
+    if (
+      values.json &&
+      command !== 'engine-quota' &&
+      (command !== 'engine-login' || !values['device-auth'])
+    )
+      throw usageError('--json requires engine quota or engine login codex --device-auth.');
     compactOutput = values.compact === true || values.json === true;
     if (command === 'voice-local-kit') {
       out.stdout(

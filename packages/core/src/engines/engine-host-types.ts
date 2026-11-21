@@ -1,3 +1,4 @@
+import type { EngineDeviceLoginProgress } from '@botharness/host-protocol/engine-device-login';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { RoutingGroupEngineMember } from '@botharness/host-protocol/subscription-engine';
 
@@ -45,6 +46,11 @@ export interface EngineHostOptions {
   observeTurnTarget?(sessionId: string, turn: number, target: TurnTarget): void;
   changed?(): void;
   accountsChanged?(): void;
+  observeDeviceLogin?(event: {
+    attemptId: string;
+    phase: EngineDeviceLoginProgress['status'];
+    durationMs: number;
+  }): void;
   accountUses?(id: string): readonly string[];
   observe?(botSlug: string, sessionId: string, state: EngineSessionState, role: EngineRole): void;
   approve?(request: EngineApprovalRequest): Promise<ApprovalOutcome>;
