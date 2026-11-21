@@ -48,7 +48,6 @@
     "packages/core/src/purge/owner.ts",
     "packages/core/src/runtime/bot-runtime.ts",
     "packages/core/src/team/service.ts",
-    "packages/core/src/voice/providers.ts",
     "packages/core/test/bot-create-cli.test.ts",
     "packages/core/test/bot-pairing.test.ts",
     "packages/core/test/bot-runtime.test.ts",
