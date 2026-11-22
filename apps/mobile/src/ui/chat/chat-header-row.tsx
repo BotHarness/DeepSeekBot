@@ -3,17 +3,23 @@ import { View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useDesignTheme } from '../design/theme';
 import { glassPress, space } from '../design/tokens';
-import { ChatHeaderActions, type ChatHeaderAction } from './chat-header-actions';
+import {
+  ChatHeaderActions,
+  type ChatHeaderAction,
+  type ChatHeaderMenu,
+} from './chat-header-actions';
 import { headerControlHeight } from './native-header';
 
 export function ChatHeaderRow({
   title,
   back,
-  actions,
+  actions = [],
+  menu,
 }: {
   title?: ReactNode;
   back: Omit<ChatHeaderAction, 'icon'>;
-  actions: readonly ChatHeaderAction[];
+  actions?: readonly ChatHeaderAction[];
+  menu?: ChatHeaderMenu | undefined;
 }) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
@@ -30,7 +36,11 @@ export function ChatHeaderRow({
     >
       <ChatHeaderActions back={back} />
       <View style={{ flex: 1, minWidth: 0 }}>{title}</View>
-      {actions.length > 0 ? <ChatHeaderActions actions={actions} /> : null}
+      {menu !== undefined ? (
+        <ChatHeaderActions menu={menu} />
+      ) : actions.length > 0 ? (
+        <ChatHeaderActions actions={actions} />
+      ) : null}
     </View>
   );
 }

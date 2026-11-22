@@ -42,6 +42,16 @@ export async function sessionOwner(host: HostCall, sessionId: string) {
   return parseSessionOwner(await host.call('sessionOwner', { sessionId }));
 }
 
+export async function setSessionArchived(
+  host: HostCall,
+  slug: string,
+  sessionId: string,
+  archived: boolean,
+): Promise<boolean> {
+  const value = asRecord(await host.call('sessionArchiveSet', { slug, sessionId, archived }));
+  return value?.['archived'] === true;
+}
+
 export type SessionTranscriptTrigger =
   | 'request'
   | 'goal'

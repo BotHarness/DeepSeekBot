@@ -6,6 +6,9 @@ import { createHostClient, MethodRefused } from '@botharness/host-client/client'
 import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import type { SessionTranscriptItem } from '@botharness/host-client/session-detail';
 import type { Composer } from '../src/ui/chat/composer';
+import type { ChatHeaderActionsProps } from '../src/ui/chat/chat-header-actions';
+
+const navigation = vi.hoisted(() => ({ back: vi.fn(), canGoBack: () => true }));
 
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
@@ -14,9 +17,18 @@ vi.mock('react-native', async () => ({
   ),
 }));
 vi.mock('expo-router', () => ({
-  Stack: { Screen: ({ options }: { options: { title: string } }) => <h1>{options.title}</h1> },
+  Stack: {
+    Screen: ({
+      options,
+    }: {
+      options: { title: string; headerTitle?(): ReactNode; header?(): ReactNode };
+    }) => options.header?.() ?? options.headerTitle?.() ?? <h1>{options.title}</h1>,
+  },
   useFocusEffect: (work: () => void | (() => void)) => useLayoutEffect(work, [work]),
+  useRouter: () => navigation,
 }));
+vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 0 }));
+vi.mock('react-native-svg', () => ({ default: () => null }));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
@@ -29,7 +41,39 @@ vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }));
 vi.mock('../src/ui/primitives/loading-indicator', () => ({ LoadingIndicator: () => null }));
 vi.mock('../src/ui/primitives/drawer-header', () => ({ DrawerHeader: () => null }));
-vi.mock('../src/ui/chat/sheet-frame', () => ({ SheetFrame: () => null }));
+vi.mock('../src/ui/chat/sheet-frame', () => ({
+  SheetFrame: ({ visible, label }: { visible: boolean; label: string }) =>
+    visible ? <section aria-label={label} /> : null,
+}));
+vi.mock('../src/ui/chat/chat-header-actions', async () => {
+  const { useState } = await import('react');
+  return {
+    ChatHeaderActions: (props: ChatHeaderActionsProps) => {
+      const [expanded, setExpanded] = useState(false);
+      if ('back' in props) return <button onClick={props.back.onPress}>{props.back.label}</button>;
+      return 'menu' in props ? (
+        <>
+          <button onClick={() => setExpanded(!expanded)}>{props.menu.label}</button>
+          {expanded ? (
+            <div role="menu">
+              {props.menu.items.map((item) => (
+                <button
+                  key={item.label}
+                  onClick={() => {
+                    setExpanded(false);
+                    item.run();
+                  }}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </>
+      ) : null;
+    },
+  };
+});
 vi.mock('../src/ui/primitives/settings-row', () => ({}));
 vi.mock('../src/ui/primitives/button', () => ({
   Button: ({ label, onPress }: { label: string; onPress(): void }) => (
@@ -111,11 +155,13 @@ afterEach(() => act(() => root?.unmount()));
 async function open({
   role = 'orchestrator',
   running = false,
+  live = false,
   refused = false,
   failAssignment = false,
 }: {
   role?: 'orchestrator' | 'assignment';
   running?: boolean;
+  live?: boolean;
   refused?: boolean;
   failAssignment?: boolean;
 } = {}) {
@@ -128,12 +174,14 @@ async function open({
     carrier: fake.carrier,
   });
   let assignmentReads = 0;
+  let archived = false;
+  let sessionRunning = running;
   const call = vi.spyOn(client, 'call').mockImplementation(async (method, args) => {
     if (method === 'sessionTranscript') {
       if (refused) throw new MethodRefused('forbidden', 'Restricted Session');
       return {
         role,
-        running,
+        running: sessionRunning,
         seq: 4,
         items,
         currentTarget: to,
@@ -142,9 +190,21 @@ async function open({
     }
     if (method === 'sessionLive') {
       if (args?.['after'] !== undefined) return new Promise(() => {});
-      return { seq: 4, revision: 1, items: [{ kind: 'reply', at, text: 'Live reply' }, items[2]] };
+      return {
+        seq: 4,
+        revision: 1,
+        items: live ? [{ kind: 'reply', at, text: 'Live reply' }, items[2]] : [],
+      };
     }
     if (method === 'sessionModel') return { override: null, default: null };
+    if (method === 'sessionStop') {
+      sessionRunning = false;
+      return { stopped: [], alreadyIdle: [] };
+    }
+    if (method === 'sessionArchiveSet') {
+      archived = args?.['archived'] === true;
+      return { archived };
+    }
     if (method === 'assignmentTimeline') {
       if (++assignmentReads === 1 && failAssignment) throw new Error('Assignment read unavailable');
       return {
@@ -157,6 +217,7 @@ async function open({
           activity: 'idle',
           updatedAt: at,
           sourceEventId: 'test-source',
+          ...(archived ? { archivedAt: at } : {}),
         },
         lanes: [],
         omittedSubagents: 0,
@@ -181,8 +242,10 @@ async function press(view: HTMLElement, label: string) {
 }
 
 it('renders user input, saved and live replies, compact activity and the model switch', async () => {
-  const { view } = await open();
-  expect(view.querySelector('h1')?.textContent).toBe('Review the release');
+  const { view } = await open({ live: true });
+  expect(view.querySelector('[data-testid="session-header-title"]')?.textContent).toBe(
+    'Review the release',
+  );
   expect(view.textContent).toContain('Direct message');
   expect(view.textContent).toContain('Inbox');
   expect(view.textContent).not.toContain('Source Event');
@@ -220,6 +283,51 @@ it('sends a draft to the selected Orchestrator', async () => {
     text: 'Follow up',
   });
   expect(view.textContent).not.toContain('Follow up');
+});
+
+it('shows the Session title, Back, and Model Choice in the header', async () => {
+  const { view } = await open();
+  expect(view.textContent).toContain('Review the release');
+  await press(view, 'Back');
+  expect(navigation.back).toHaveBeenCalledOnce();
+  await press(view, 'Session options');
+  const menu = view.querySelector<HTMLElement>('[role="menu"]')!;
+  expect(menu.textContent).toBe('Model choice');
+  await press(menu, 'Model choice');
+  const picker = view.querySelector('section[aria-label]');
+  expect(picker).not.toBeNull();
+  await act(async () => root?.unmount());
+  root = undefined;
+  const composer = await open();
+  await act(async () =>
+    composer.view.querySelector<HTMLElement>('[data-testid="composer-session-model"]')?.click(),
+  );
+  expect(composer.view.querySelector('section[aria-label]')?.getAttribute('aria-label')).toBe(
+    picker?.getAttribute('aria-label'),
+  );
+});
+
+it('uses the selected Assignment for Stop, Archive, and Unarchive', async () => {
+  const { view, call } = await open({ role: 'assignment', running: true });
+  await press(view, 'Session options');
+  const menu = view.querySelector<HTMLElement>('[role="menu"]')!;
+  expect(menu.textContent).toBe('StopModel choice');
+  await press(menu, 'Stop');
+  expect(call).toHaveBeenCalledWith('sessionStop', { botSlug: 'ada', sessionId: 'chosen' });
+  await press(view, 'Session options');
+  await press(view.querySelector<HTMLElement>('[role="menu"]')!, 'Archive');
+  expect(call).toHaveBeenCalledWith('sessionArchiveSet', {
+    slug: 'ada',
+    sessionId: 'chosen',
+    archived: true,
+  });
+  await press(view, 'Session options');
+  await press(view.querySelector<HTMLElement>('[role="menu"]')!, 'Unarchive');
+  expect(call).toHaveBeenCalledWith('sessionArchiveSet', {
+    slug: 'ada',
+    sessionId: 'chosen',
+    archived: false,
+  });
 });
 
 it('steers and stops a running Assignment by its selected Session ID', async () => {
@@ -261,5 +369,7 @@ it('retries only the failed Assignment detail read and keeps the transcript moun
   expect(view.querySelector('[data-testid="session-transcript"]')).toBe(transcript);
   expect(view.textContent).not.toContain('Couldn’t load assignment details.');
   expect(view.querySelector('[data-testid="session-assignment-details"]')).not.toBeNull();
-  expect(view.querySelector('h1')?.textContent).toBe('Canonical Assignment');
+  expect(view.querySelector('[data-testid="session-header-title"]')?.textContent).toBe(
+    'Canonical Assignment',
+  );
 });

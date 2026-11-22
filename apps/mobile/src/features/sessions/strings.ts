@@ -91,6 +91,10 @@ export const en = {
   },
   sessionDetail: {
     title: 'Session',
+    options: 'Session options',
+    archive: 'Archive',
+    unarchive: 'Unarchive',
+    archiveFailed: (detail: string) => `Couldn’t change archive status. ${detail}`,
     list: 'Sessions',
     listFailed: 'Couldn’t load sessions.',
     assignmentFailed: 'Couldn’t load assignment details.',
@@ -214,6 +218,10 @@ export const zh: typeof en = {
   },
   sessionDetail: {
     title: '会话',
+    options: '会话选项',
+    archive: '归档',
+    unarchive: '取消归档',
+    archiveFailed: (detail: string) => `无法更改归档状态。${detail}`,
     list: '会话',
     listFailed: '无法加载会话列表。',
     assignmentFailed: '无法加载事项详情。',

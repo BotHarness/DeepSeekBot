@@ -262,7 +262,7 @@ vi.mock('../src/ui/chat/chat-header-actions', () => ({
   ChatHeaderActions: (
     props: import('../src/ui/chat/chat-header-actions').ChatHeaderActionsProps,
   ) => {
-    const actions = 'back' in props ? [props.back] : props.actions;
+    const actions = 'back' in props ? [props.back] : 'actions' in props ? props.actions : [];
     return (
       <>
         {actions.map((action) => (
@@ -409,22 +409,29 @@ vi.mock('../src/ui/chat/clipboard-image', () => ({
 }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/chat/message-actions', () => ({ MessageActions: () => null }));
-vi.mock('../src/ui/chat/message-bubble', () => ({
-  PlaybackBubble: ({
-    message,
-    onOpenDelivery,
-  }: {
-    message?: { body: string };
-    onOpenDelivery?: unknown;
-  }) =>
-    message === undefined ? (
-      <span data-testid="draft">visible draft</span>
-    ) : (
-      <span data-testid="message" data-receipt={onOpenDelivery === undefined ? 'off' : 'on'}>
-        {message.body}
-      </span>
-    ),
-}));
+vi.mock('../src/ui/chat/message-bubble', async () => {
+  const { SessionLinkChips } = await import('../src/ui/chat/session-link-chips');
+  return {
+    PlaybackBubble: ({
+      message,
+      onOpenDelivery,
+      onOpenSession,
+    }: React.ComponentProps<typeof import('../src/ui/chat/message-bubble').PlaybackBubble>) =>
+      message === undefined ? (
+        <span data-testid="draft">visible draft</span>
+      ) : (
+        <div data-testid="message" data-receipt={onOpenDelivery === undefined ? 'off' : 'on'}>
+          {message.body}
+          {onOpenSession !== undefined && message.sessionLinks !== undefined ? (
+            <SessionLinkChips
+              links={message.sessionLinks}
+              onOpen={(link) => onOpenSession(link, message.bot)}
+            />
+          ) : null}
+        </div>
+      ),
+  };
+});
 vi.mock('../src/ui/chat/message-menu', () => ({ copyMessage: vi.fn(), shareText: vi.fn() }));
 vi.mock('../src/ui/chat/mention-suggestions', () => ({ MentionSuggestions: () => null }));
 vi.mock('../src/ui/chat/working-status', () => ({

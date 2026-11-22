@@ -42,6 +42,8 @@ import {
   type ConversationReaction,
   type MessageAttachment,
 } from '@botharness/host-client/conversation';
+import { SessionLinkChips } from './session-link-chips';
+import type { WireSessionLink } from '@botharness/host-protocol/wire';
 import type { RosterBot } from '@botharness/host-client/client';
 import type { ConversationPlayback } from '../../host/conversation-playback';
 import { spring } from '../design/motion';
@@ -124,6 +126,8 @@ function usePendingFeedback(message: ConversationMessage): boolean {
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 
+type OpenSessionLink = (link: WireSessionLink, slug: string | undefined) => void;
+
 export function BubbleBody({
   message,
   group,
@@ -135,7 +139,9 @@ export function BubbleBody({
   onImageReady,
   onLayout,
   quote,
+  onOpenSession,
 }: {
+  onOpenSession?: OpenSessionLink | undefined;
   quote?: ReactNode;
   onLayout?: ((event: LayoutChangeEvent) => void) | undefined;
   onImageReady?: ((key: string, ready: boolean) => void) | undefined;
@@ -157,12 +163,22 @@ export function BubbleBody({
   const files = message.attachments.filter((attachment) => attachment.kind !== 'image');
   const album = images.length > 0;
   const hasBody = message.body.trim() !== '';
+  const chips =
+    onOpenSession !== undefined &&
+    message.source?.message.contentPurge === undefined &&
+    message.sessionLinks?.length ? (
+      <SessionLinkChips
+        links={message.sessionLinks}
+        onOpen={(link) => onOpenSession(link, message.bot)}
+      />
+    ) : null;
   const captioned =
     hasBody ||
     streaming ||
     files.length > 0 ||
     message.card !== undefined ||
-    message.voice !== undefined;
+    message.voice !== undefined ||
+    chips !== null;
   const width = album ? albumWidth(screen) : undefined;
   const details = (
     <>
@@ -183,6 +199,7 @@ export function BubbleBody({
           {t.card}
         </Text>
       ) : null}
+      {chips}
     </>
   );
   return (
@@ -469,6 +486,7 @@ export const MessageBubble = memo(function MessageBubble({
   onOpenReply,
   onOpenDelivery,
   onInteractionStart,
+  onOpenSession,
   readers = NO_READERS,
   bots = NO_BOTS,
   botName = (id) => id,
@@ -492,6 +510,7 @@ export const MessageBubble = memo(function MessageBubble({
   onOpenReply?: ((messageId: string) => void) | undefined;
   onOpenDelivery?: ((message: ConversationMessage) => void) | undefined;
   onInteractionStart?: () => void;
+  onOpenSession?: OpenSessionLink | undefined;
   readers?: readonly string[] | undefined;
   bots?: readonly RosterBot[] | undefined;
   botName?: (id: string) => string;
@@ -549,6 +568,7 @@ export const MessageBubble = memo(function MessageBubble({
     <BubbleBody
       message={message}
       group={group}
+      onOpenSession={onOpenSession}
       onLayout={(event) =>
         setCompact(singleLine(event.nativeEvent.layout.height, theme.type.body.line, fontScale))
       }
@@ -588,7 +608,10 @@ export const MessageBubble = memo(function MessageBubble({
           ? { onInteractionStart }
           : {})}
         pending={human && message.delivery === 'pending'}
-        ungrouped={human && message.delivery === 'pending' && message.attachments.length > 0}
+        ungrouped={
+          (human && message.delivery === 'pending' && message.attachments.length > 0) ||
+          (onOpenSession !== undefined && (message.sessionLinks?.length ?? 0) > 0)
+        }
         {...(failed ? { accessibilityRole: 'button' as const, accessibilityLabel: label } : {})}
         {...(actionable
           ? {

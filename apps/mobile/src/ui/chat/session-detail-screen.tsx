@@ -1,4 +1,4 @@
-import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { Stack, useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { FlatList, Platform, Pressable, View } from 'react-native';
 import { stopSession } from '@botharness/host-client/bot-control';
@@ -8,6 +8,7 @@ import {
   sendOrchestratorMessage,
   sendSessionRequest,
   sessionOwner,
+  setSessionArchived,
   type SessionTranscriptItem,
 } from '@botharness/host-client/session-detail';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
@@ -21,7 +22,11 @@ import { Text } from '../primitives/text';
 import { ChevronDownIcon, ChevronUpIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { AssignmentDetail } from './assignment-screen';
+import type { ChatHeaderMenu } from './chat-header-actions';
+import { ChatHeaderRow } from './chat-header-row';
+import { ChatTitleCapsule } from './chat-title-capsule';
 import { Composer } from './composer';
+import { ConversationTopBar } from './conversation-top-bar';
 import {
   SessionModelChip,
   SessionModelPicker,
@@ -30,6 +35,45 @@ import {
 import { SessionTranscriptRow } from './session-transcript-row';
 import { SheetFailed, SheetLoading, SheetNote } from './sheet';
 import { useSessionTranscript } from './use-session-transcript';
+
+function SessionHeader({ title, menu }: { title: string; menu?: ChatHeaderMenu | undefined }) {
+  const t = useStrings();
+  const router = useRouter();
+  const back = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/');
+  };
+  return (
+    <Stack.Screen
+      options={{
+        title,
+        headerBackVisible: false,
+        ...(Platform.OS === 'android'
+          ? {
+              header: () => (
+                <ConversationTopBar variant="session" title={title} onBack={back} menu={menu} />
+              ),
+            }
+          : {
+              headerTitle: () => (
+                <ChatHeaderRow
+                  back={{ label: t.back, testID: 'session-back-button', onPress: back }}
+                  title={
+                    <ChatTitleCapsule
+                      title={title}
+                      staticLabel
+                      accessibilityLabel={title}
+                      testID="session-header-title"
+                    />
+                  }
+                  menu={menu}
+                />
+              ),
+            }),
+      }}
+    />
+  );
+}
 
 export function SessionDetailScreen() {
   const { hostId, slug, id, session, title } = useLocalSearchParams<{
@@ -47,7 +91,7 @@ export function SessionDetailScreen() {
   const matchingHost = (hostId ?? openedOn) === saved?.hostId;
   return client === undefined || !matchingHost || sessionId === undefined ? (
     <>
-      <Stack.Screen options={{ title: title ?? t.title }} />
+      <SessionHeader title={title ?? t.title} />
       <SheetNote>{t.unavailable}</SheetNote>
     </>
   ) : (
@@ -96,7 +140,7 @@ function SessionTarget({
   if (resolved == null)
     return (
       <>
-        <Stack.Screen options={{ title: title ?? t.title }} />
+        <SessionHeader title={title ?? t.title} />
         {resolved === null ? (
           <SheetFailed message={t.unavailable} onRetry={() => setAttempt((value) => value + 1)} />
         ) : online ? (
@@ -110,6 +154,11 @@ function SessionTarget({
     <SessionDetailBody client={client} slug={resolved} id={id} title={title} online={online} />
   );
 }
+
+type SessionCommand =
+  | { kind: 'send'; text: string }
+  | { kind: 'stop' }
+  | { kind: 'archive'; archived: boolean };
 
 export function SessionDetailBody({
   client,
@@ -149,6 +198,9 @@ export function SessionDetailBody({
   }>({ loading: false });
   const [assignmentAttempt, setAssignmentAttempt] = useState(0);
   const assignment = assignmentRead.timeline;
+  const [busy, setBusy] = useState<SessionCommand['kind']>();
+  const [error, setError] = useState<string>();
+  const pending = useRef(false);
   useFocusEffect(
     useCallback(() => {
       if (!online || role !== 'assignment') return;
@@ -177,9 +229,75 @@ export function SessionDetailBody({
     title ||
     id;
 
+  async function run(command: SessionCommand): Promise<boolean> {
+    if (!online || role === undefined || pending.current) return false;
+    pending.current = true;
+    setBusy(command.kind);
+    setError(undefined);
+    try {
+      switch (command.kind) {
+        case 'stop':
+          await stopSession(client, { botSlug: slug, sessionId: id });
+          break;
+        case 'archive':
+          await setSessionArchived(client, slug, id, command.archived);
+          setAssignmentAttempt((attempt) => attempt + 1);
+          break;
+        case 'send':
+          if (role === 'assignment')
+            await sendSessionRequest(client, slug, id, command.text, view.running);
+          else await sendOrchestratorMessage(client, slug, id, command.text);
+          break;
+      }
+      view.refresh();
+      return true;
+    } catch (cause) {
+      const message = errorText(cause);
+      setError(
+        {
+          send: t.sessionDetail.sendFailed,
+          stop: t.sessionStopFailed,
+          archive: t.sessionDetail.archiveFailed,
+        }[command.kind](message),
+      );
+      return false;
+    } finally {
+      pending.current = false;
+      setBusy(undefined);
+    }
+  }
+
+  const stop = () => void run({ kind: 'stop' });
+  const canArchive =
+    !view.running &&
+    assignment !== undefined &&
+    assignment.assignment.activity !== 'working' &&
+    assignment.assignment.activity !== 'stopping';
+  const isArchived = assignment?.assignment.archivedAt !== undefined;
+  const menu: ChatHeaderMenu | undefined =
+    online && role !== undefined
+      ? {
+          label: t.sessionDetail.options,
+          testID: 'session-options',
+          items: [
+            ...(view.running ? [{ label: t.sessionStop, icon: 'stop' as const, run: stop }] : []),
+            ...(canArchive
+              ? [
+                  {
+                    label: isArchived ? t.sessionDetail.unarchive : t.sessionDetail.archive,
+                    icon: isArchived ? ('unarchive' as const) : ('archive' as const),
+                    run: () => void run({ kind: 'archive', archived: !isArchived }),
+                  },
+                ]
+              : []),
+            { label: t.sessionModel.choice, icon: 'model', run: model.show },
+          ],
+        }
+      : undefined;
+
   return (
     <>
-      <Stack.Screen options={{ title: sessionTitle }} />
+      <SessionHeader title={sessionTitle} menu={menu} />
       {transcript === undefined ? (
         view.error !== undefined ? (
           <SheetFailed
@@ -203,13 +321,11 @@ export function SessionDetailBody({
             composer={
               <View style={{ backgroundColor: theme.color.surface }}>
                 <SessionComposer
-                  client={client}
-                  slug={slug}
-                  id={id}
-                  role={transcript.role}
-                  running={view.running}
                   online={online}
-                  refresh={view.refresh}
+                  busy={busy}
+                  error={error}
+                  onStop={view.running ? stop : undefined}
+                  onSend={(text) => run({ kind: 'send', text })}
                   model={model}
                 />
               </View>
@@ -323,59 +439,26 @@ export function SessionDetailBody({
   );
 }
 
-export function SessionComposer({
-  client,
-  slug,
-  id,
-  role,
-  running,
+function SessionComposer({
   online,
-  refresh,
+  busy,
+  error,
+  onStop,
+  onSend,
   model,
 }: {
-  client: Pick<HostClient, 'call'>;
-  slug: string;
-  id: string;
-  role: 'assignment' | 'orchestrator';
-  running: boolean;
+  busy: SessionCommand['kind'] | undefined;
+  error: string | undefined;
   online: boolean;
-  refresh(): void;
+  onStop: (() => void) | undefined;
+  onSend(text: string): Promise<boolean>;
   model: ReturnType<typeof useSessionModelControl>;
 }) {
-  const t = useStrings();
   const [draft, setDraft] = useState('');
-  const [busy, setBusy] = useState<'send' | 'stop'>();
-  const [error, setError] = useState<string>();
-  const pending = useRef(false);
-  async function run(action: 'send' | 'stop') {
+  async function send() {
     const text = draft.trim();
-    if (
-      !online ||
-      pending.current ||
-      (action === 'send' && (text === '' || model.saving !== undefined || model.visible))
-    )
-      return;
-    pending.current = true;
-    setBusy(action);
-    setError(undefined);
-    try {
-      if (action === 'stop') await stopSession(client, { botSlug: slug, sessionId: id });
-      else {
-        if (role === 'assignment') await sendSessionRequest(client, slug, id, text, running);
-        else await sendOrchestratorMessage(client, slug, id, text);
-        setDraft((current) => (current === draft ? '' : current));
-      }
-      refresh();
-    } catch (cause) {
-      setError(
-        action === 'stop'
-          ? t.sessionStopFailed(errorText(cause))
-          : t.sessionDetail.sendFailed(errorText(cause)),
-      );
-    } finally {
-      pending.current = false;
-      setBusy(undefined);
-    }
+    if (text === '' || model.saving !== undefined || model.visible) return;
+    if (await onSend(text)) setDraft((current) => (current === draft ? '' : current));
   }
 
   return (
@@ -387,7 +470,7 @@ export function SessionComposer({
       dictation="idle"
       canDictate={false}
       onChange={setDraft}
-      onSend={() => void run('send')}
+      onSend={() => void send()}
       onPick={() => {}}
       onRemove={() => {}}
       onDictate={() => {}}
@@ -404,8 +487,8 @@ export function SessionComposer({
       }
       sessionControls={{
         blocksSend: model.visible || model.saving !== undefined,
-        stopping: busy === 'stop' || !online,
-        onStop: running ? () => void run('stop') : undefined,
+        stopping: busy !== undefined || !online,
+        onStop,
         render: (width) => (
           <SessionModelChip
             control={model}

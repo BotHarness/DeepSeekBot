@@ -101,7 +101,7 @@ vi.mock('react-native', async () => {
           onClick={props['onPress'] as (() => void) | undefined}
           onTouchStart={typeof touch === 'function' ? () => touch() : undefined}
         >
-          {children as never}
+          {(typeof children === 'function' ? children({ pressed: false }) : children) as never}
         </div>
       );
     };
@@ -209,7 +209,7 @@ vi.mock('react-native-svg', () => ({
   Rect: () => null,
 }));
 
-const { MessageBubble, DraftBubble, deliveryLabel, secondTap, replyable } =
+const { BubbleBody, MessageBubble, DraftBubble, deliveryLabel, secondTap, replyable } =
   await import('../src/ui/chat/message-bubble');
 const { createSpeakerRegistry } = await import('../src/ui/chat/speaker-row');
 const { t } = await import('../src/ui/strings');
@@ -240,6 +240,67 @@ const human = (overrides: Partial<ConversationMessage>): ConversationMessage => 
   attachments: [],
   delivery: 'committed',
   ...overrides,
+});
+
+describe('linked Sessions', () => {
+  const message = human({
+    author: 'bot',
+    bot: 'ada',
+    body: 'I queued the review and sent a follow-up.',
+    sessionLinks: [
+      { sessionId: 'review', kind: 'created', title: 'Release review' },
+      { sessionId: 'follow-up', kind: 'sent', title: 'Follow up' },
+    ],
+  });
+  it('renders Session chips below the text inside the bubble and passes through the selected Session', () => {
+    const onOpenSession = vi.fn();
+    const holder = document.createElement('div');
+    holder.innerHTML = renderToStaticMarkup(
+      <BubbleBody
+        message={message}
+        group={{ first: true, last: true }}
+        onOpenSession={onOpenSession}
+      />,
+    );
+    expect(holder.children).toHaveLength(1);
+    const bubble = holder.firstElementChild!;
+    const text = bubble.querySelector('[data-markdown]')!;
+    const chips = bubble.querySelectorAll('[data-testid^="message-session-"]');
+    expect(text?.getAttribute('data-markdown')).toBe(message.body);
+    expect(Array.from(chips, (chip) => chip.textContent)).toEqual(['Release review', 'Follow up']);
+    expect(text.compareDocumentPosition(chips[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    native.presses.get(t.sessionDetail.open('Release review'))?.();
+    expect(onOpenSession).toHaveBeenCalledWith(
+      { sessionId: 'review', kind: 'created', title: 'Release review' },
+      'ada',
+    );
+  });
+
+  it('omits Session chips from a purged message even when cached links are present', () => {
+    const markup = renderToStaticMarkup(
+      <BubbleBody
+        message={{
+          ...message,
+          body: '',
+          source: {
+            channelId: 'dm-ada',
+            revision: 1,
+            message: {
+              id: message.id,
+              at: message.at,
+              body: '',
+              author: { kind: 'bot', slug: 'ada' },
+              contentPurge: {},
+            },
+          },
+        }}
+        group={{ first: true, last: true }}
+        onOpenSession={vi.fn()}
+      />,
+    );
+    expect(markup).not.toContain('message-session-');
+    expect(markup).not.toContain('Release review');
+  });
 });
 
 describe('GenUI keyboard interaction', () => {
