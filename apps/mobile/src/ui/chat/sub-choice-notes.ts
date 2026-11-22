@@ -1,0 +1,30 @@
+export interface NoteQueue {
+  commit(text: string, saved: string): boolean;
+  settled(): Promise<void>;
+}
+
+export function noteQueue(
+  write: (text: string) => Promise<void>,
+  onSaved: (text: string) => void,
+  onError: (cause: unknown) => void,
+): NoteQueue {
+  let chain = Promise.resolve();
+  let queued: string | undefined;
+  return {
+    commit(text, saved) {
+      if (text === (queued ?? saved)) return false;
+      queued = text;
+      chain = chain.then(() =>
+        write(text).then(
+          () => onSaved(text),
+          (cause: unknown) => {
+            if (queued === text) queued = undefined;
+            onError(cause);
+          },
+        ),
+      );
+      return true;
+    },
+    settled: () => chain,
+  };
+}

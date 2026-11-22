@@ -1,6 +1,6 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 
 import type { HostClient } from '@botharness/host-client/client';
 import { errorText } from '@botharness/host-client/bot-settings';
@@ -26,6 +26,7 @@ import { matchesPresetSubChoice } from '@botharness/host-protocol/preset-sub';
 
 import { useHostSession } from '../../host/host-session';
 import { space } from '../design/tokens';
+import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { LoadingIndicator } from '../primitives/loading-indicator';
 import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { SheetPage } from '../primitives/sheet-page';
@@ -34,6 +35,7 @@ import { useStrings } from '../strings';
 import { useModels } from './model-settings-screen';
 import { SHEET_GROUP, SheetFailed, SheetLoading, SheetNote } from './sheet';
 import { useEngineOptions } from './sub-choice-engines';
+import { noteQueue, type NoteQueue } from './sub-choice-notes';
 import { subChoiceKey, subChoiceTarget, subChoiceView } from './sub-choice-text';
 
 export function subChoiceTargetParams(target: AssignmentEffortTarget): Record<string, string> {
@@ -95,29 +97,24 @@ function SubChoiceDetail({
   const [noteError, setNoteError] = useState<string>();
   const scopeKey = modelScopeKey(scope);
   const resource = useMemo(() => modelSettingsResource(client, scope), [client, scopeKey]);
-  const noteWrites = useRef<Promise<void>>(Promise.resolve());
-  const queuedNote = useRef<string | undefined>(undefined);
-  const writeNote = (text: string) => {
-    if (queuedNote.current === text) return;
-    queuedNote.current = text;
-    const selected = JSON.parse(choiceKey) as SubSelection;
-    noteWrites.current = noteWrites.current
-      .then(async () => {
-        await resource.write(async () => {
-          const fresh = await resource.refresh();
-          const list = modelSub(fresh);
-          if (!list.choices.some((entry) => subChoiceKey(entry) === choiceKey)) return;
-          await setModelSub(client, scope, fresh, setSubNote(list, selected, text));
-        });
-        setNoteError(undefined);
-        setNote((current) => (current === text ? undefined : current));
-        models.refresh();
-      })
-      .catch((cause: unknown) => {
-        queuedNote.current = undefined;
-        setNoteError(errorText(cause));
+  const notes = useRef<NoteQueue | undefined>(undefined);
+  notes.current ??= noteQueue(
+    async (text) => {
+      const selected = JSON.parse(choiceKey) as SubSelection;
+      await resource.write(async () => {
+        const fresh = await resource.refresh();
+        const list = modelSub(fresh);
+        if (!list.choices.some((entry) => subChoiceKey(entry) === choiceKey)) return;
+        await setModelSub(client, scope, fresh, setSubNote(list, selected, text));
       });
-  };
+    },
+    (text) => {
+      setNoteError(undefined);
+      setNote((current) => (current === text ? undefined : current));
+      models.refresh();
+    },
+    (cause) => setNoteError(errorText(cause)),
+  );
   const leave = useRef<() => void>(() => undefined);
   useFocusEffect(useCallback(() => () => leave.current(), []));
   const view =
@@ -159,14 +156,12 @@ function SubChoiceDetail({
   };
   const shownNote = note ?? choice.note ?? '';
   const commitNote = () => {
-    if (note === undefined || note === (choice.note ?? '')) return;
-    writeNote(note);
+    if (note !== undefined) notes.current?.commit(note, choice.note ?? '');
   };
   leave.current = commitNote;
   return page(
-    <ScrollView
+    <KeyboardFormScroll
       style={{ flex: 1 }}
-      keyboardDismissMode="on-drag"
       contentContainerStyle={{ paddingVertical: space.x3, gap: space.x4 }}
     >
       {models.error === undefined ? null : <SheetNote>{models.error}</SheetNote>}
@@ -237,6 +232,6 @@ function SubChoiceDetail({
           />
         </SettingsSection>
       </View>
-    </ScrollView>,
+    </KeyboardFormScroll>,
   );
 }

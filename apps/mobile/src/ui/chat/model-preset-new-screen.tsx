@@ -1,6 +1,6 @@
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { ScrollView, View } from 'react-native';
+import { View } from 'react-native';
 
 import { errorText } from '@botharness/host-client/bot-settings';
 import type { HostClient } from '@botharness/host-client/client';
@@ -9,6 +9,7 @@ import { presetSubFromLegacy, presetSubWithEngine } from '@botharness/host-proto
 import { useHostSession } from '../../host/host-session';
 import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
+import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { SheetPage } from '../primitives/sheet-page';
 import { TextField } from '../primitives/text-field';
 import { useStrings } from '../strings';
@@ -79,9 +80,8 @@ function ModelPresetNewView({ client }: { client: HostClient }) {
           <SheetFailed message={t.modelFailed} onRetry={models.refresh} />
         )
       ) : (
-        <ScrollView
+        <KeyboardFormScroll
           style={{ flex: 1 }}
-          keyboardShouldPersistTaps="handled"
           contentContainerStyle={{ gap: space.x4, paddingVertical: space.x3 }}
         >
           <SheetNote>{t.modelConfig.newPresetHint}</SheetNote>
@@ -104,7 +104,7 @@ function ModelPresetNewView({ client }: { client: HostClient }) {
             />
           </View>
           {error === undefined ? null : <SheetNote>{error}</SheetNote>}
-        </ScrollView>
+        </KeyboardFormScroll>
       )}
     </SheetPage>
   );
