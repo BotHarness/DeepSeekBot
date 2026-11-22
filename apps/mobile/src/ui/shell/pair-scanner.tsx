@@ -13,6 +13,7 @@ import { clearsPastedLink } from '../pairing-failure';
 import { Button } from '../primitives/button';
 import { ConnectionNameField } from '../primitives/connection-name-field';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
+import { labelInField } from '../primitives/field-label';
 import { Text } from '../primitives/text';
 import { TextField } from '../primitives/text-field';
 import { useStrings } from '../strings';
@@ -198,9 +199,11 @@ export function PairScanner({
         <Button label={t.retry} disabled={readingImage} onPress={() => void retry()} />
       ) : null}
       <View style={{ gap: space.x2 }}>
-        <Text variant="meta" tone="muted" accessibilityRole="header">
-          {t.pasteLink}
-        </Text>
+        {labelInField ? null : (
+          <Text variant="meta" tone="muted" accessibilityRole="header">
+            {t.pasteLink}
+          </Text>
+        )}
         <TextField
           testID="pair-link-input"
           accessibilityLabel={t.pasteLink}
