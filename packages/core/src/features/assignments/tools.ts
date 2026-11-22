@@ -5,11 +5,13 @@ import type { EngineTool } from '../../engines/engine-host.js';
 import type { GroupFallback, GroupPick, MixedGroupPick } from '../../models/group-fallback.js';
 import type { OpenAssignmentRoutes } from '../../models/open-assignments.js';
 import {
+  AssignmentChoiceError,
   assignmentGroupOptionOf,
   type ModelRoute,
   type PersonaBotModelPlan,
 } from '../../models/presets.js';
 import type { RoutingTarget } from '../../models/routing-groups.js';
+import { TeamError } from '../../team/error.js';
 import type {
   AssignmentActivity,
   AssignmentAgentRun,
@@ -186,7 +188,7 @@ export function createAssignmentTool({
   return defineTool({
     name: 'create_assignment',
     description:
-      'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models before selecting an explicit provider/model/effort or mode; omitted choices use the Human-selected default. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
+      'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models for the current allowed sub choices, default and modes. Omit provider, model and group to use the default, or pick one listed model or Routing Group. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
     parameters: {
       title: {
         type: 'string',
@@ -249,6 +251,20 @@ export function createAssignmentTool({
       if (args.group !== undefined && args.provider !== undefined)
         throw new Error('create_assignment: pass either group or provider/model');
       const plan = resolveModelPlan();
+      const refusal = (error: unknown): string => {
+        if (
+          plan?.sub !== undefined &&
+          (error instanceof AssignmentChoiceError ||
+            (error instanceof TeamError && error.code === 'model-not-allowed'))
+        )
+          return JSON.stringify({
+            outcome: 'refused',
+            code: error.code,
+            retryable: false,
+            message: error.message,
+          });
+        throw error;
+      };
       const inherited =
         plan?.assignmentDefault === undefined ? assignmentGroups?.inherited?.() : undefined;
       const groupId =
@@ -256,13 +272,27 @@ export function createAssignmentTool({
         (args.provider === undefined ? (plan?.assignmentDefaultGroupId ?? inherited) : undefined);
       if ((args.provider === undefined) !== (args.model === undefined))
         throw new Error('create_assignment: provider and model must be specified together');
+      if (
+        groupId !== undefined &&
+        groupId !== inherited &&
+        !(plan?.assignmentGroups ?? []).includes(groupId)
+      )
+        return refusal(
+          new AssignmentChoiceError(
+            'assignment-choice-not-allowed',
+            `create_assignment: Routing Group ${groupId} is not allowed`,
+          ),
+        );
       if (args.reasoning_effort !== undefined && args.provider === undefined) {
         if (groupId === undefined)
           throw new Error('create_assignment: reasoning_effort requires provider and model');
         const allowed = assignmentGroupOptionOf(plan, groupId)?.allowedEfforts ?? [];
         if (!allowed.includes(args.reasoning_effort))
-          throw new Error(
-            `create_assignment: Routing Group ${groupId} allows ${allowed.length === 0 ? 'no effort choice' : `efforts ${allowed.join(', ')}`}`,
+          return refusal(
+            new AssignmentChoiceError(
+              'assignment-choice-not-allowed',
+              `create_assignment: Routing Group ${groupId} allows ${allowed.length === 0 ? 'no effort choice' : `efforts ${allowed.join(', ')}`}`,
+            ),
           );
       }
       const groupEffort =
@@ -273,13 +303,26 @@ export function createAssignmentTool({
             (groupId === inherited ? assignmentGroups?.inheritedEffort?.() : undefined));
       let picked: RoutingTarget | undefined;
       if (groupId !== undefined) {
-        if (groupId !== inherited && !(plan?.assignmentGroups ?? []).includes(groupId))
-          throw new Error(`create_assignment: Routing Group ${groupId} is not allowed`);
-        const pick = await assignmentGroups?.pick(run.bot.slug, groupId, groupEffort);
+        let pick: GroupPick | MixedGroupPick | undefined;
+        try {
+          pick = await assignmentGroups?.pick(run.bot.slug, groupId, groupEffort);
+        } catch (error) {
+          return refusal(error);
+        }
         if (pick?.kind !== 'route' && pick?.kind !== 'target')
           return JSON.stringify({
             outcome: 'refused',
             retryable: false,
+            ...(plan?.sub === undefined
+              ? {}
+              : {
+                  code:
+                    pick?.kind === 'exhausted' &&
+                    (pick.rests.length > 0 ||
+                      ('subscription' in pick && pick.subscription !== undefined))
+                      ? 'assignment-choice-resting'
+                      : 'assignment-choice-unavailable',
+                }),
             message:
               pick?.kind === 'exhausted' && pick.rests.length > 0
                 ? `Every model in Routing Group ${groupId} is resting: ${pick.rests.map((rest) => `${rest.provider}/${rest.model} until ${rest.until}`).join('; ')}`
@@ -287,12 +330,17 @@ export function createAssignmentTool({
           });
         picked = pick.kind === 'target' ? pick.target : { kind: 'route', route: pick.route };
       }
-      if (args.provider !== undefined)
-        await openAssignmentRoutes?.require(run.bot.slug, {
-          provider: args.provider,
-          model: args.model!,
-          ...(args.reasoning_effort ? { reasoningEffort: args.reasoning_effort } : {}),
-        });
+      if (args.provider !== undefined) {
+        try {
+          await openAssignmentRoutes?.require(run.bot.slug, {
+            provider: args.provider,
+            model: args.model!,
+            ...(args.reasoning_effort ? { reasoningEffort: args.reasoning_effort } : {}),
+          });
+        } catch (error) {
+          return refusal(error);
+        }
+      }
       if (args.mode !== undefined) {
         const modes = await loadAssignmentModes();
         if (modes === undefined)
@@ -303,31 +351,36 @@ export function createAssignmentTool({
           );
       }
       const grantId = args.grant_id ?? onlyActiveGrant(active.run.assignments);
-      const outcome = active.run.assignments.create({
-        title: args.title,
-        description: args.description,
-        ...(args.instructions === undefined ? {} : { instructions: args.instructions }),
-        grantId,
-        ...(args.key === undefined ? {} : { key: args.key }),
-        ...(args.mode === undefined ? {} : { mode: args.mode }),
-        ...(picked !== undefined && groupId !== undefined
-          ? {
-              ...(picked.kind === 'route' ? { model: picked.route } : { routingTarget: picked }),
-              modelGroupId: groupId,
-              ...(groupEffort === undefined ? {} : { modelGroupEffort: groupEffort }),
-            }
-          : args.provider === undefined
-            ? {}
-            : {
-                model: {
-                  provider: args.provider,
-                  model: args.model!,
-                  ...(args.reasoning_effort === undefined
-                    ? {}
-                    : { reasoningEffort: args.reasoning_effort }),
-                },
-              }),
-      });
+      let outcome: ReturnType<OrchestratorAgentRun['assignments']['create']>;
+      try {
+        outcome = active.run.assignments.create({
+          title: args.title,
+          description: args.description,
+          ...(args.instructions === undefined ? {} : { instructions: args.instructions }),
+          grantId,
+          ...(args.key === undefined ? {} : { key: args.key }),
+          ...(args.mode === undefined ? {} : { mode: args.mode }),
+          ...(picked !== undefined && groupId !== undefined
+            ? {
+                ...(picked.kind === 'route' ? { model: picked.route } : { routingTarget: picked }),
+                modelGroupId: groupId,
+                ...(groupEffort === undefined ? {} : { modelGroupEffort: groupEffort }),
+              }
+            : args.provider === undefined
+              ? {}
+              : {
+                  model: {
+                    provider: args.provider,
+                    model: args.model!,
+                    ...(args.reasoning_effort === undefined
+                      ? {}
+                      : { reasoningEffort: args.reasoning_effort }),
+                  },
+                }),
+        });
+      } catch (error) {
+        return refusal(error);
+      }
       if (outcome.outcome === 'created' || outcome.outcome === 'reused') {
         linkSession(
           active,

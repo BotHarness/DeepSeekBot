@@ -200,6 +200,7 @@ import type {
   ModelPreset,
   ModelPresetUsage,
   ModelPresetEngine,
+  PresetSub,
   ModelRoute,
   PersonaBotModelPlan,
 } from '../models/presets.js';
@@ -1287,10 +1288,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return modelsRpc.modelPresetDelete(this.methods, id, expectedRevision, confirmed);
   }
 
+  modelPresetSub(id: string) {
+    return modelsRpc.modelPresetSub(this.methods, id);
+  }
+
+  modelPresetSubSet(id: string, expectedRevision: number, sub: PresetSub) {
+    return modelsRpc.modelPresetSubSet(this.methods, id, expectedRevision, sub);
+  }
+
   modelPresetCreate(
     name: string,
     orchestrator: ModelRoute | undefined,
-    assignmentDefault: ModelRoute,
+    assignmentDefault: ModelRoute | undefined,
     assignmentModels?: AssignmentModelOption[],
     openAssignmentModels?: boolean,
     orchestratorGroupId?: string | null,
@@ -3515,6 +3524,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'modelPresets',
   'modelPresetCreate',
   'modelPresetUpdate',
+  'modelPresetSub',
+  'modelPresetSubSet',
   'modelPresetDelete',
   'modelPresetApply',
   'modelGroups',

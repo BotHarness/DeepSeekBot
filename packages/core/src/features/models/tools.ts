@@ -4,6 +4,7 @@ import type { OpenAssignmentRoutes } from '../../models/open-assignments.js';
 import {
   assignmentGroupOptionOf,
   assignmentModelsOf,
+  matchesPresetSubChoice,
   type ModelRoute,
   type PersonaBotModelPlan,
 } from '../../models/presets.js';
@@ -128,18 +129,53 @@ export function createListAssignmentModelsTool({
       const assignmentGroups = (plan.assignmentGroups ?? []).flatMap((id) =>
         describeGroup(id, id === plan.assignmentDefaultGroupId),
       );
+      const assignmentModels = assignmentModelsOf(plan).filter(allowed).map(resting);
+      const openModels = open
+        ? ((await openAssignmentRoutes?.list(run.bot.slug)) ?? []).map(resting)
+        : [];
+      const choices = plan.sub?.choices.flatMap((choice) => {
+        const entry =
+          choice.kind === 'group'
+            ? assignmentGroups.find(({ group }) => group === choice.group)
+            : assignmentModels.find(
+                ({ provider, model }) => provider === choice.provider && model === choice.model,
+              );
+        return entry === undefined ? [] : [{ ...entry, kind: choice.kind }];
+      });
+      const selection = plan.sub?.default;
+      const listedDefault =
+        selection == null
+          ? undefined
+          : plan.sub?.choices.find((choice) => matchesPresetSubChoice(choice, selection));
+      const defaultVisible =
+        listedDefault?.kind === 'group'
+          ? assignmentGroups.some(({ group }) => group === listedDefault.group)
+          : assignmentModels.some(
+              ({ provider, model }) =>
+                provider === listedDefault?.provider && model === listedDefault.model,
+            );
       return JSON.stringify({
         configured: true,
         revision: plan.revision,
-        ...(allowed(plan.assignmentDefault)
+        ...(choices === undefined
+          ? {}
+          : {
+              sub: {
+                choices: [...choices, ...openModels.map((model) => ({ ...model, kind: 'model' }))],
+                default: defaultVisible
+                  ? { ...selection, defaultEffort: listedDefault?.defaultEffort ?? '' }
+                  : null,
+              },
+            }),
+        ...(plan.sub?.default?.kind !== 'group' && allowed(plan.assignmentDefault)
           ? { assignmentDefault: resting(plan.assignmentDefault) }
           : {}),
-        assignmentModels: assignmentModelsOf(plan).filter(allowed).map(resting),
+        assignmentModels,
         ...(assignmentGroups.length === 0 ? {} : { assignmentGroups }),
         ...(open
           ? {
               open: true,
-              openModels: ((await openAssignmentRoutes?.list(run.bot.slug)) ?? []).map(resting),
+              openModels,
             }
           : {}),
         ...modeChoices,

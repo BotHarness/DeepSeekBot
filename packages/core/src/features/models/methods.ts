@@ -1,5 +1,6 @@
 import { isDeepStrictEqual } from 'node:util';
 import { createModelCatalogMethods } from './catalog-methods.js';
+import { createPresetSubMethods, type PresetSubBridgeMethods } from './preset-sub-methods.js';
 import {
   routingGroupInput,
   presetGroupsInput,
@@ -46,7 +47,7 @@ import {
   type ModelCatalogGroup,
   type createModelRoutingHelpers,
 } from './routing.js';
-export interface ModelsBridgeMethods {
+export interface ModelsBridgeMethods extends PresetSubBridgeMethods {
   modelPlanInherit(payload: unknown): BridgeResult<{ revision: number }>;
   modelCatalog(payload: unknown): Promise<
     BridgeResult<{
@@ -139,7 +140,7 @@ export function createModelsBridgeMethods(
             const plan = defaultPresetPlan(preset);
             requireRoutes(slug, [
               plan.orchestrator,
-              preset.assignmentDefault,
+              ...assignmentModelsOf(plan),
               ...presetGroupRoutes(plan, slug),
             ]);
             requireEngineChoices(presetEngineChoices(preset), slug);
@@ -198,6 +199,7 @@ export function createModelsBridgeMethods(
         }
         return { ok: true, value: { ...result, usage: [...entries.values()] } };
       },
+      ...createPresetSubMethods(human, deps, isHostOwner, routing),
       modelPresetDelete(payload) {
         const store = deps.modelPresets;
         if (store === undefined) return unavailable();
@@ -240,6 +242,12 @@ export function createModelsBridgeMethods(
         const groupInput = presetGroupsInput(source);
         if ('invalid' in groupInput) return invalidInput('Model Preset Routing Groups are invalid');
         const groups = groupInput.given ? groupInput.groups : undefined;
+        const followsMain =
+          assignmentDefault === undefined &&
+          assignmentModels === undefined &&
+          !groups?.assignmentGroups?.length &&
+          openAssignmentModels !== true &&
+          source['assignmentEngine'] == null;
         if (
           groups?.orchestratorGroupId === undefined
             ? !isModelRoute(source['orchestrator'])
@@ -251,7 +259,7 @@ export function createModelsBridgeMethods(
         if (
           typeof name !== 'string' ||
           (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
-          !isModelRoute(assignmentDefault) ||
+          (!followsMain && !isModelRoute(assignmentDefault)) ||
           (assignmentModels !== undefined &&
             (!Array.isArray(assignmentModels) || !assignmentModels.every(isAssignmentModelOption)))
         )
@@ -264,24 +272,22 @@ export function createModelsBridgeMethods(
           await validateGroupEffort(groups);
           const orchestrator = (await presetOrchestrator(source['orchestrator'], groups))!;
           await deps.modelCatalog.validate(orchestrator);
-          await validateAssignmentCatalog(
-            assignmentDefault,
-            assignmentModels ?? [
-              {
-                provider: assignmentDefault.provider,
-                model: assignmentDefault.model,
-                allowedEfforts: [assignmentDefault.reasoningEffort ?? ''],
-                defaultEffort: assignmentDefault.reasoningEffort ?? '',
-              },
-            ],
-          );
+          const assignmentRoute = isModelRoute(assignmentDefault)
+            ? assignmentDefault
+            : orchestrator;
+          if (!followsMain)
+            await validateAssignmentCatalog(
+              assignmentRoute,
+              assignmentModels ?? assignmentModelsOf({ assignmentDefault: assignmentRoute }),
+            );
           if (groups !== undefined) presetGroupRoutes(groups);
           requireEngineChoices(presetEngineChoices(engines));
           assertEngineAccounts(presetEngineChoices(engines));
           const preset = deps.modelPresets.create({
             name,
             orchestrator,
-            assignmentDefault,
+            assignmentDefault: assignmentRoute,
+            assignmentFollowsMain: followsMain,
             ...(assignmentModels === undefined ? {} : { assignmentModels }),
             ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
             ...(groups === undefined ? {} : { groups }),
@@ -322,8 +328,7 @@ export function createModelsBridgeMethods(
           );
         if (
           typeof id !== 'string' ||
-          (assignmentFollowsMain !== undefined &&
-            (id !== DEFAULT_MODEL_PRESET_ID || typeof assignmentFollowsMain !== 'boolean')) ||
+          (assignmentFollowsMain !== undefined && typeof assignmentFollowsMain !== 'boolean') ||
           (openAssignmentModels !== undefined && typeof openAssignmentModels !== 'boolean') ||
           typeof expectedRevision !== 'number' ||
           !Number.isSafeInteger(expectedRevision) ||
@@ -356,7 +361,7 @@ export function createModelsBridgeMethods(
             source['assignmentEngine'] == null &&
             openAssignmentModels !== true &&
             (assignmentModels === undefined ||
-              isDeepStrictEqual(assignmentModels, assignmentModelsOf(current))));
+              isDeepStrictEqual(assignmentModels, assignmentModelsOf({ assignmentDefault }))));
         try {
           const engines = presetEnginesInput(source);
           await checkPresetEngines(engines);
@@ -386,7 +391,7 @@ export function createModelsBridgeMethods(
             name,
             orchestrator,
             assignmentDefault,
-            ...(id === DEFAULT_MODEL_PRESET_ID ? { assignmentFollowsMain: followsMain } : {}),
+            assignmentFollowsMain: followsMain,
             ...(assignmentModels === undefined ? {} : { assignmentModels }),
             ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
             ...(groups === undefined ? {} : { groups }),
@@ -454,10 +459,10 @@ export function createModelsBridgeMethods(
         });
         if (changed()) return stale();
         try {
+          const assignmentModels = assignmentModelsOf(preset);
           requireRoutes(slug, [
             preset.orchestrator,
-            preset.assignmentDefault,
-            ...(preset.assignmentModels ?? []),
+            ...assignmentModels,
             ...presetGroupRoutes(preset, slug),
           ]);
           const orchestrator =
@@ -465,9 +470,8 @@ export function createModelsBridgeMethods(
               ? preset.orchestrator
               : await firstUsableRoute(groupRoutes(preset.orchestratorGroupId));
           await deps.modelCatalog.validate(orchestrator);
-          await deps.modelCatalog.validate(preset.assignmentDefault);
-          if (preset.assignmentModels !== undefined)
-            await validateAssignmentCatalog(preset.assignmentDefault, preset.assignmentModels);
+          if (assignmentModels.length > 0)
+            await validateAssignmentCatalog(preset.assignmentDefault, assignmentModels);
           if (hasPresetEngines(preset)) await checkPresetEngines(preset, slug);
           await validateGroupOptions(preset.assignmentGroupOptions);
           await validateGroupEffort(preset);
@@ -475,8 +479,7 @@ export function createModelsBridgeMethods(
           requireRoutes(slug, [
             orchestrator,
             preset.orchestrator,
-            preset.assignmentDefault,
-            ...(preset.assignmentModels ?? []),
+            ...assignmentModels,
             ...presetGroupRoutes(preset, slug),
           ]);
           requireEngineChoices(presetEngineChoices(preset), slug);
@@ -850,6 +853,8 @@ export function createModelsBridgeMethods(
       | 'modelPresetDelete'
       | 'modelPresetCreate'
       | 'modelPresetUpdate'
+      | 'modelPresetSub'
+      | 'modelPresetSubSet'
       | 'modelPresetApply'
       | 'modelGroups'
       | 'modelGroup'

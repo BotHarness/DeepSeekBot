@@ -12,6 +12,7 @@ import { defineSchemaPlan } from '../src/database/schema.js';
 import {
   createModelPresetStore,
   DEFAULT_MODEL_PRESET_ID,
+  presetSubFromLegacy,
   defaultPresetPlan,
   defaultPresetRoute,
   resolveBotModelPlan,
@@ -22,6 +23,134 @@ import { agentOptions } from '../src/runtime/dsh-bot-agent-adapter-shared.js';
 const homes: Array<{ root: string; close(): void }> = [];
 const main = { provider: 'opencode-go', model: 'deepseek-v4-pro', reasoningEffort: 'high' };
 const sub = { provider: 'opencode-go', model: 'deepseek-v4-flash', reasoningEffort: 'low' };
+
+it('backfills each legacy sub field combination by id without changing revisions', () => {
+  const root = mkdtempSync(join(tmpdir(), 'bh-preset-sub-upgrade-'));
+  const prior = mountOperationalDatabase({
+    dshHome: root,
+    schemaPlan: defineSchemaPlan(BOT_HARNESS_SCHEMA_PLAN.migrations.slice(0, -1)),
+  });
+  const flash = {
+    provider: sub.provider,
+    model: sub.model,
+    allowedEfforts: ['low', 'high'],
+    defaultEffort: 'low',
+    note: 'Quick tasks',
+  };
+  const pro = {
+    provider: main.provider,
+    model: main.model,
+    allowedEfforts: ['high'],
+    defaultEffort: 'high',
+  };
+  const modelDefault = { kind: 'model', provider: sub.provider, model: sub.model };
+  const groupDefault = { kind: 'group', group: 'backup' };
+  const fallback = {
+    group: 'backup',
+    allowedEfforts: ['low'],
+    defaultEffort: 'low',
+    note: 'Fallback',
+  };
+  const fixtures = [
+    {
+      id: 'default',
+      fields: {
+        assignmentFollowsMain: true,
+        orchestratorGroupId: 'backup',
+        orchestratorGroupEffort: 'high',
+      },
+      expected: { choices: [], default: null },
+    },
+    {
+      id: 'route',
+      fields: {},
+      expected: {
+        choices: [{ ...modelDefault, allowedEfforts: ['low'], defaultEffort: 'low' }],
+        default: modelDefault,
+      },
+    },
+    {
+      id: 'listed',
+      fields: { assignmentModels: [flash, pro] },
+      expected: {
+        choices: [
+          { kind: 'model', ...flash },
+          { kind: 'model', ...pro },
+        ],
+        default: modelDefault,
+      },
+    },
+    {
+      id: 'groups',
+      fields: { assignmentGroups: ['backup'] },
+      expected: {
+        choices: [{ ...modelDefault, allowedEfforts: ['low'], defaultEffort: 'low' }, groupDefault],
+        default: modelDefault,
+      },
+    },
+    {
+      id: 'mixed',
+      fields: {
+        assignmentModels: [flash, pro],
+        assignmentGroups: ['backup'],
+        assignmentDefaultGroupId: 'backup',
+        assignmentGroupOptions: [fallback],
+        openAssignmentModels: true,
+      },
+      expected: {
+        choices: [
+          { kind: 'model', ...flash },
+          { kind: 'model', ...pro },
+          { kind: 'group', ...fallback },
+        ],
+        default: groupDefault,
+      },
+    },
+    {
+      id: 'already-shaped',
+      fields: { sub: { choices: [], default: null } },
+      expected: { choices: [], default: null },
+    },
+  ];
+  homes.push({ root, close: () => prior.close() });
+  attachOperationalModule(prior, 'test').transaction(
+    (db) => {
+      const insert = db.prepare('INSERT INTO model_presets (id, body) VALUES (?, ?)');
+      for (const { id, fields } of fixtures)
+        insert.run(
+          id,
+          JSON.stringify({
+            id,
+            name: id,
+            revision: 7,
+            createdAt: '2026-11-21',
+            orchestrator: main,
+            assignmentDefault: sub,
+            ...fields,
+          }),
+        );
+      db.prepare("INSERT INTO model_presets_import VALUES (1, '2026-11-21')").run();
+    },
+    ['model-presets'],
+  );
+  prior.close();
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const database = mountOperationalDatabase({
+      dshHome: root,
+      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    });
+    homes.push({ root, close: () => database.close() });
+    const store = createModelPresetStore({ rootDir: root, database });
+    expect(store.list()).toHaveLength(fixtures.length);
+    for (const { id, fields, expected } of fixtures)
+      expect(store.get(id)).toMatchObject({ id, revision: 7, ...fields, sub: expected });
+    expect(defaultPresetPlan(store.get('default')!).sub).toEqual({
+      choices: [{ ...groupDefault, allowedEfforts: ['high'], defaultEffort: 'high' }],
+      default: groupDefault,
+    });
+    database.close();
+  }
+});
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'bh-default-preset-'));
@@ -77,7 +206,7 @@ describe('Default Model Preset cutover', () => {
     const root = mkdtempSync(join(tmpdir(), 'bh-default-preset-upgrade-'));
     const previous = mountOperationalDatabase({
       dshHome: root,
-      schemaPlan: defineSchemaPlan(BOT_HARNESS_SCHEMA_PLAN.migrations.slice(0, -1)),
+      schemaPlan: defineSchemaPlan(BOT_HARNESS_SCHEMA_PLAN.migrations.slice(0, -2)),
     });
     homes.push({ root, close: () => previous.close() });
     const account = {
@@ -146,6 +275,7 @@ describe('Default Model Preset cutover', () => {
     expect(resolveBotModelPlan({ modelPlan: orphan }, () => defaults)).toEqual({
       ...orphan,
       assignmentDefault: sub,
+      sub: defaults.sub,
     });
     expect(resolveBotModelPlan({ model: 'legacy-route' }, () => defaults)).toBeUndefined();
   });
@@ -181,7 +311,7 @@ describe('Default Model Preset cutover', () => {
     writeFileSync(join(root, 'model-presets.json'), JSON.stringify([custom]));
     const store = open();
     const migrated = store.migrateDefault({ main }).preset;
-    expect(store.list()).toEqual([migrated, custom]);
+    expect(store.list()).toEqual([migrated, { ...custom, sub: presetSubFromLegacy(custom) }]);
     const edited = store.update(DEFAULT_MODEL_PRESET_ID, {
       ...migrated,
       expectedRevision: migrated.revision,

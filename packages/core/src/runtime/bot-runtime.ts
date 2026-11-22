@@ -151,6 +151,7 @@ import {
   selectAssignmentGroup,
   type PersonaBotModelPlan,
   selectAssignmentRoute,
+  AssignmentChoiceError,
   type ModelRoute,
 } from '../models/presets.js';
 import type { RouteRests } from '../models/route-rest.js';
@@ -7998,6 +7999,14 @@ class BotRuntimeImplementation implements BotRuntime {
       }
     }
     if (modelRoute) this.#requireModelRoute?.(bot.slug, modelRoute);
+    if (plan?.sub !== undefined && modelGroupId === undefined && modelRoute !== undefined) {
+      const rest = this.#routeRests?.restingUntil(modelRoute);
+      if (rest !== undefined)
+        throw new AssignmentChoiceError(
+          'assignment-choice-resting',
+          `Assignment model ${rest.provider}/${rest.model} is resting until ${rest.until}`,
+        );
+    }
     const target =
       input.routingTarget ??
       (modelRoute === undefined ? undefined : { kind: 'route' as const, route: modelRoute });

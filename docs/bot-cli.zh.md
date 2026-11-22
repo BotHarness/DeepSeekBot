@@ -1204,6 +1204,8 @@ printf '%s' "$ASSIGNMENTS_JSON" | deepseekbot model-plan-assignments-set <bot-id
 deepseekbot model-plan-inherit <bot-id>
 deepseekbot model-preset-update <preset-id> --name Nightly --orchestrator-effort high
 deepseekbot model-presets --include-usage
+deepseekbot model-preset-sub <preset-id>
+deepseekbot model-preset-sub-set <preset-id> --expected-revision <revision> --plan-stdin < sub.json
 deepseekbot model-preset-delete <preset-id> --expected-revision <revision> --confirm
 deepseekbot model-groups
 deepseekbot model-group <group-id>
@@ -1222,6 +1224,8 @@ deepseekbot bot-session-usage <bot-id>
 deepseekbot bot-activity-history <bot-id> [--before 2026-10-14] [--weeks 26]
 deepseekbot group-activity <group-channel>
 ```
+
+`model-preset-sub` 读取指定预设的副模型配置与版本，包括 `default`。`model-preset-sub-set` 从 stdin 读取一个 `{"choices":[...],"default":...}` 对象，同时替换列表和默认项。模型项格式为 `{"kind":"model","provider":"<提供商>","model":"<模型>","allowedEfforts":[""],"defaultEffort":""}`，路由组项格式为 `{"kind":"group","group":"<路由组 ID>"}`。`default` 以 `kind` 及模型或路由组 ID 指向列表中的一项，使用该项的默认推理强度。`""` 表示提供商默认；路由组可省略强度，也可指定组内推理模型共有的强度。传 `{"choices":[],"default":null}` 则跟随主模型。写入要求 `models.configure` 和相应模型或账号授权，会替换旧的开放模式或独立 Assignment 订阅引擎设置，不影响已应用的 Bot 方案和已有 Assignment。`list_assignment_models` 展示 Bot 获准使用的选项及默认项；`create_assignment` 拒绝未列出或未授权的选项，单个模型达到限额时不会替换为其他选项。
 
 连接在线 Host 时，`model-preset-create` 也支持 `--plan-stdin`，stdin 仅包含 `{"assignmentModels":[...]}`，创建预设时保留可选模型、推理强度和备注。创建与更新都通过移动端编辑器使用的同一 Host bridge 转发完整策略，不会悄悄缩减为默认模型。
 

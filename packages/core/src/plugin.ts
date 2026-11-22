@@ -1671,12 +1671,18 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     resolveModelPlan: effectivePlan,
     modelFilter: (slug) => botModelFilter(core.team, core.registry.get(slug)),
     assignmentGroups: {
-      pick: (botSlug, groupId, effort) =>
-        groupFallback.isMixed(groupId)
-          ? groupFallback
-              .pickMixedAssignment(botSlug, groupId, effort)
-              .then((pick) => pick ?? { kind: 'missing' })
-          : groupFallback.pick(botSlug, groupId, effort),
+      pick: async (botSlug, groupId, effort) => {
+        if (
+          core.routingGroups.get(groupId) !== undefined &&
+          allowedGroupTargets(botSlug, groupId) === undefined
+        )
+          throw new TeamError('model-not-allowed');
+        return groupFallback.isMixed(groupId)
+          ? ((await groupFallback.pickMixedAssignment(botSlug, groupId, effort)) ?? {
+              kind: 'missing',
+            })
+          : groupFallback.pick(botSlug, groupId, effort);
+      },
       describe: (groupId, slug) => {
         const group = core.routingGroups.get(groupId);
         const targets = allowedGroupTargets(slug, groupId);

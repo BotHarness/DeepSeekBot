@@ -1236,6 +1236,8 @@ printf '%s' "$ASSIGNMENTS_JSON" | deepseekbot model-plan-assignments-set <bot-id
 deepseekbot model-plan-inherit <bot-id>
 deepseekbot model-preset-update <preset-id> --name Nightly --orchestrator-effort high
 deepseekbot model-presets --include-usage
+deepseekbot model-preset-sub <preset-id>
+deepseekbot model-preset-sub-set <preset-id> --expected-revision <revision> --plan-stdin < sub.json
 deepseekbot model-preset-delete <preset-id> --expected-revision <revision> --confirm
 deepseekbot model-groups
 deepseekbot model-group <group-id>
@@ -1255,6 +1257,26 @@ deepseekbot bot-session-usage <bot-id>
 deepseekbot bot-activity-history <bot-id> [--before 2026-10-14] [--weeks 26]
 deepseekbot group-activity <group-channel>
 ```
+
+`model-preset-sub` returns the stored `sub` and its revision for any preset, including `default`. To replace both the choices and the default, send one JSON object on stdin to `model-preset-sub-set`:
+
+```json
+{
+  "choices": [
+    {
+      "kind": "model",
+      "provider": "opencode-go",
+      "model": "example",
+      "allowedEfforts": [""],
+      "defaultEffort": ""
+    },
+    { "kind": "group", "group": "routing-group-id" }
+  ],
+  "default": { "kind": "group", "group": "routing-group-id" }
+}
+```
+
+Use real IDs from `model-catalog` and `model-groups`. The default must identify exactly one choice; it uses that choice’s `defaultEffort`. `""` means provider-default effort. Groups can omit effort or supply `allowedEfforts` and `defaultEffort` shared by their reasoning members. Send `{"choices":[],"default":null}` to follow main. Writes require `models.configure` and model/account grants. The write replaces legacy open mode or a preset-specific Assignment Subscription Engine; no already-applied Bot plan or running Assignment changes. `list_assignment_models` shows the Bot’s permitted choices and default. `create_assignment` refuses unlisted or ungranted choices and does not silently substitute another choice when a single model is resting.
 
 `model-preset-create` also accepts `--plan-stdin` against an online Host, with only `{"assignmentModels":[...]}` in stdin, to preserve allowed models, reasoning efforts and notes when creating a preset. Creation and update forward the complete policy through the same Host bridge as the mobile editor; neither silently reduces it to the default model.
 

@@ -305,6 +305,12 @@ describe('Team subscription grants', () => {
     const savedPreset = await f.ownerMethods.modelPresetCreate(preset);
     if (!savedPreset.ok) throw new Error(savedPreset.error.code);
     const presetId = savedPreset.value.preset.id;
+    const groupSub = { kind: 'group', group: nested.id };
+    const subUpdate = {
+      id: presetId,
+      expectedRevision: 1,
+      sub: { choices: [groupSub], default: groupSub },
+    };
     const groupPlan = {
       slug: 'ada',
       expectedRevision: 1,
@@ -324,11 +330,13 @@ describe('Team subscription grants', () => {
       f.methods.modelPlanSet(groupPlan),
       f.methods.modelPresetCreate(preset),
       f.methods.modelPresetUpdate({ ...preset, id: presetId, expectedRevision: 1 }),
+      f.methods.modelPresetSubSet(subUpdate),
       f.methods.modelPresetApply({ slug: 'ada', presetId }),
     ])
       expect(await result).toMatchObject(refusal(f.work.id));
     expect(f.methods.modelPresets({})).toMatchObject({ ok: true, value: { presets: [] } });
     f.grant(f.work.id);
+    expect(f.methods.modelPresetSub({ id: presetId })).toMatchObject({ ok: true });
     expect(await f.methods.modelCatalog({ includeRoutingGroupEngines: true })).toMatchObject({
       ok: true,
       value: {

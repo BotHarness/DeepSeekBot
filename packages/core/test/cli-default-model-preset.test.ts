@@ -88,3 +88,32 @@ it('reads, updates sub, and surfaces pinned deletion from the Default preset', a
     ).json.error.code,
   ).toBe('default-preset-pinned');
 });
+
+it('lists and replaces sub choices through the Host without a local fallback', async () => {
+  const id = 'default';
+  const choices = [
+    {
+      kind: 'model',
+      provider: 'go',
+      model: 'flash',
+      allowedEfforts: ['low'],
+      defaultEffort: 'low',
+    },
+    { kind: 'group', group: 'fallback' },
+  ];
+  const sub = { choices, default: { kind: 'group', group: 'fallback' } };
+  const live = await host((method) =>
+    method === 'modelPresetSubSet'
+      ? { ok: false, error: { code: 'stale-setting', message: 'read again' } }
+      : { ok: true, value: { id, sub, revision: 3 } },
+  );
+  expect((await invoke(['model-preset-sub', id], live.url)).json).toEqual({ id, sub, revision: 3 });
+  const argv = ['model-preset-sub-set', id, '--expected-revision', '3', '--plan-stdin'];
+  expect((await invoke(argv, live.url, JSON.stringify(sub))).json.error.code).toBe('stale-setting');
+  expect(live.calls).toEqual([
+    { method: 'modelPresetSub', args: { id } },
+    { method: 'modelPresetSubSet', args: { id, expectedRevision: 3, sub } },
+  ]);
+  expect((await invoke(argv, live.url, '{"choices":[]}')).json.error.code).toBe('usage');
+  expect(live.calls).toHaveLength(2);
+});

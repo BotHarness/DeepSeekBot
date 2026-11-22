@@ -1,6 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
+import { HarnessError } from '@deepseek-ai/dsh-llm';
 
 import {
   attachOperationalModule,
@@ -8,28 +10,45 @@ import {
   type OperationalDatabaseOwner,
 } from '../database/owner.js';
 import { isEngineId, type EngineChoice, type EngineId } from '../engines/engine-session.js';
+import {
+  assignmentGroupOption,
+  assignmentModelsOf,
+  cleanPresetSub,
+  effectivePresetSub,
+  isAssignmentGroupChoice,
+  isAssignmentGroupOption,
+  isAssignmentModelOption,
+  isPresetSub,
+  presetSubFromLegacy,
+  presetSubProjection,
+  type AssignmentGroupChoice,
+  type AssignmentGroupOption,
+  type AssignmentModelOption,
+  type PresetSub,
+} from './preset-sub.js';
+
+export {
+  ASSIGNMENT_MODEL_NOTE_MAX,
+  assignmentModelsOf,
+  effectivePresetSub,
+  isAssignmentGroupChoice,
+  isAssignmentGroupOption,
+  isAssignmentModelOption,
+  isPresetSub,
+  matchesPresetSubChoice,
+  presetSubFromLegacy,
+  presetSubProjection,
+  type AssignmentGroupChoice,
+  type AssignmentGroupOption,
+  type AssignmentModelOption,
+  type PresetSub,
+  type PresetSubChoice,
+} from './preset-sub.js';
 
 export interface ModelRoute {
   provider: string;
   model: string;
   reasoningEffort?: string;
-}
-
-export interface AssignmentModelOption {
-  provider: string;
-  model: string;
-  allowedEfforts: string[];
-  defaultEffort: string;
-  note?: string;
-}
-
-export const ASSIGNMENT_MODEL_NOTE_MAX = 500;
-
-export interface AssignmentGroupOption {
-  group: string;
-  allowedEfforts?: string[];
-  defaultEffort?: string;
-  note?: string;
 }
 
 export interface ModelPresetEngine extends EngineChoice {
@@ -90,6 +109,7 @@ export interface ModelPreset extends ModelPresetEngines {
   name: string;
   revision: number;
   orchestrator: ModelRoute;
+  sub?: PresetSub;
   assignmentDefault: ModelRoute;
   assignmentFollowsMain?: true;
   assignmentModels?: AssignmentModelOption[];
@@ -142,41 +162,6 @@ function groupOptionsWithin(
     : { assignmentGroupOptions: kept.map((option) => assignmentGroupOption(option)) };
 }
 
-function assignmentGroupOption(option: AssignmentGroupOption): AssignmentGroupOption {
-  return {
-    group: option.group,
-    ...(option.allowedEfforts === undefined
-      ? {}
-      : { allowedEfforts: [...option.allowedEfforts], defaultEffort: option.defaultEffort! }),
-    ...(option.note === undefined ? {} : { note: option.note }),
-  };
-}
-
-export function isAssignmentGroupOption(value: unknown): value is AssignmentGroupOption {
-  if (typeof value !== 'object' || value === null) return false;
-  const option = value as Record<string, unknown>;
-  const efforts = option['allowedEfforts'];
-  const note = option['note'];
-  return (
-    typeof option['group'] === 'string' &&
-    option['group'].trim().length > 0 &&
-    (efforts === undefined
-      ? option['defaultEffort'] === undefined
-      : Array.isArray(efforts) &&
-        efforts.length > 0 &&
-        efforts.length <= 16 &&
-        efforts.every((effort) => typeof effort === 'string' && effort.trim().length > 0) &&
-        new Set(efforts).size === efforts.length &&
-        typeof option['defaultEffort'] === 'string' &&
-        efforts.includes(option['defaultEffort'])) &&
-    (note === undefined ||
-      (typeof note === 'string' &&
-        note.trim().length > 0 &&
-        note.length <= ASSIGNMENT_MODEL_NOTE_MAX)) &&
-    (efforts !== undefined || note !== undefined)
-  );
-}
-
 function isAssignmentGroupOptions(value: unknown, groups: unknown): boolean {
   if (value === undefined) return true;
   if (!Array.isArray(value) || !Array.isArray(groups) || value.length === 0) return false;
@@ -225,6 +210,7 @@ export interface PersonaBotModelPlan {
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRoute;
+  sub?: PresetSub;
   orchestratorGroupId?: string;
   orchestratorGroupEffort?: string;
   assignmentDefault?: ModelRoute;
@@ -236,14 +222,13 @@ export interface PersonaBotModelPlan {
   appliedAt: string;
 }
 
-export interface AssignmentGroupChoice {
-  group: string;
-}
-
-export function isAssignmentGroupChoice(value: unknown): value is AssignmentGroupChoice {
-  if (typeof value !== 'object' || value === null) return false;
-  const group = (value as Record<string, unknown>)['group'];
-  return typeof group === 'string' && group.trim().length > 0;
+export class AssignmentChoiceError extends HarnessError {
+  constructor(
+    code: 'assignment-choice-not-allowed' | 'assignment-choice-resting',
+    message: string,
+  ) {
+    super(message, code);
+  }
 }
 
 export function selectAssignmentGroup(
@@ -254,7 +239,10 @@ export function selectAssignmentGroup(
   if (!isAssignmentGroupChoice(requested)) return undefined;
   const id = requested.group.trim();
   if (!(plan.assignmentGroups ?? []).includes(id))
-    throw new Error(`Assignment Routing Group ${id} is not allowed`);
+    throw new AssignmentChoiceError(
+      'assignment-choice-not-allowed',
+      `Assignment Routing Group ${id} is not allowed`,
+    );
   return id;
 }
 
@@ -289,10 +277,12 @@ export interface ModelPresetStore {
     effort?: string;
     preserveSub?: boolean;
   }): ModelPreset;
+  setSub(id: string, expectedRevision: number, sub: PresetSub): ModelPreset;
   create(input: {
     name: string;
     orchestrator: ModelRoute;
     assignmentDefault: ModelRoute;
+    assignmentFollowsMain?: boolean;
     assignmentModels?: AssignmentModelOption[];
     openAssignmentModels?: boolean;
     groups?: ModelPresetGroups;
@@ -380,7 +370,10 @@ export function defaultPresetPlan(preset: ModelPreset): PersonaBotModelPlan {
     sourcePresetId: preset.id,
     sourcePresetName: preset.name,
     orchestrator: preset.orchestrator,
-    assignmentDefault: preset.assignmentDefault,
+    assignmentDefault: preset.assignmentFollowsMain
+      ? preset.orchestrator
+      : preset.assignmentDefault,
+    ...(preset.sub === undefined ? {} : { sub: effectivePresetSub(preset) }),
     ...(preset.assignmentModels === undefined ? {} : { assignmentModels: preset.assignmentModels }),
     ...(preset.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
     ...presetGroups(groups),
@@ -456,45 +449,6 @@ export function isAssignmentModelChoice(value: unknown): value is ModelRoute {
   );
 }
 
-export function isAssignmentModelOption(value: unknown): value is AssignmentModelOption {
-  if (typeof value !== 'object' || value === null) return false;
-  const option = value as Record<string, unknown>;
-  const efforts = option['allowedEfforts'];
-  return (
-    typeof option['provider'] === 'string' &&
-    option['provider'].trim().length > 0 &&
-    typeof option['model'] === 'string' &&
-    option['model'].trim().length > 0 &&
-    Array.isArray(efforts) &&
-    efforts.length > 0 &&
-    efforts.length <= 16 &&
-    efforts.every((effort) => typeof effort === 'string') &&
-    new Set(efforts).size === efforts.length &&
-    typeof option['defaultEffort'] === 'string' &&
-    efforts.includes(option['defaultEffort']) &&
-    (option['note'] === undefined ||
-      (typeof option['note'] === 'string' &&
-        option['note'].trim().length > 0 &&
-        option['note'].length <= ASSIGNMENT_MODEL_NOTE_MAX))
-  );
-}
-
-export function assignmentModelsOf(
-  plan: Pick<PersonaBotModelPlan, 'assignmentDefault' | 'assignmentModels'>,
-): AssignmentModelOption[] {
-  if (plan.assignmentDefault === undefined) return [];
-  return (
-    plan.assignmentModels ?? [
-      {
-        provider: plan.assignmentDefault.provider,
-        model: plan.assignmentDefault.model,
-        allowedEfforts: [plan.assignmentDefault.reasoningEffort ?? ''],
-        defaultEffort: plan.assignmentDefault.reasoningEffort ?? '',
-      },
-    ]
-  );
-}
-
 export function validateAssignmentModels(
   assignmentDefault: ModelRoute,
   assignmentModels: AssignmentModelOption[],
@@ -519,7 +473,7 @@ export function validateAssignmentModels(
 }
 
 export function isListedAssignmentRoute(
-  plan: Pick<PersonaBotModelPlan, 'assignmentDefault' | 'assignmentModels'>,
+  plan: Pick<PersonaBotModelPlan, 'assignmentDefault' | 'assignmentModels' | 'sub'>,
   route: Pick<ModelRoute, 'provider' | 'model'>,
 ): boolean {
   return assignmentModelsOf(plan).some(
@@ -536,8 +490,13 @@ export function selectAssignmentRoute(
   plan: PersonaBotModelPlan,
   requested?: ModelRoute,
 ): ModelRoute | undefined {
-  if (requested === undefined)
+  if (requested === undefined) {
+    const selection = plan.sub?.default;
+    if (selection?.kind === 'group') return undefined;
+    if (selection?.kind === 'model')
+      return selectAssignmentRoute(plan, { provider: selection.provider, model: selection.model });
     return plan.assignmentDefault === undefined ? undefined : { ...plan.assignmentDefault };
+  }
   const option = assignmentModelsOf(plan).find(
     (candidate) => candidate.provider === requested.provider && candidate.model === requested.model,
   );
@@ -550,10 +509,14 @@ export function selectAssignmentRoute(
         : { reasoningEffort: requested.reasoningEffort }),
     };
   if (option === undefined)
-    throw new Error(`Assignment model ${requested.provider}/${requested.model} is not allowed`);
+    throw new AssignmentChoiceError(
+      'assignment-choice-not-allowed',
+      `Assignment model ${requested.provider}/${requested.model} is not allowed`,
+    );
   const effort = requested.reasoningEffort ?? option.defaultEffort;
   if (!option.allowedEfforts.includes(effort))
-    throw new Error(
+    throw new AssignmentChoiceError(
+      'assignment-choice-not-allowed',
       `Assignment effort ${effort || 'provider default'} is not allowed for ${requested.provider}/${requested.model}`,
     );
   return {
@@ -573,6 +536,7 @@ export function isPersonaBotModelPlan(value: unknown): value is PersonaBotModelP
     typeof plan['sourcePresetName'] === 'string' &&
     typeof plan['appliedAt'] === 'string' &&
     isModelRoute(plan['orchestrator']) &&
+    (plan['sub'] === undefined || isPresetSub(plan['sub'])) &&
     (plan['openAssignmentModels'] === undefined ||
       (plan['openAssignmentModels'] === true && plan['assignmentDefault'] !== undefined)) &&
     (plan['orchestratorGroupId'] === undefined ||
@@ -610,8 +574,8 @@ function isModelPreset(value: unknown): value is ModelPreset {
     typeof preset['createdAt'] === 'string' &&
     isModelRoute(preset['orchestrator']) &&
     isModelRoute(preset['assignmentDefault']) &&
-    (preset['assignmentFollowsMain'] === undefined ||
-      (preset['id'] === DEFAULT_MODEL_PRESET_ID && preset['assignmentFollowsMain'] === true)) &&
+    (preset['sub'] === undefined || isPresetSub(preset['sub'])) &&
+    (preset['assignmentFollowsMain'] === undefined || preset['assignmentFollowsMain'] === true) &&
     (preset['openAssignmentModels'] === undefined || preset['openAssignmentModels'] === true) &&
     isModelPresetGroups(preset) &&
     (preset['orchestratorEngine'] === undefined ||
@@ -641,6 +605,7 @@ function presetRecord(preset: ModelPreset): ModelPreset {
     revision: preset.revision,
     createdAt: preset.createdAt,
     orchestrator: route(preset.orchestrator),
+    sub: cleanPresetSub(preset.sub ?? presetSubFromLegacy(preset)),
     assignmentDefault: route(preset.assignmentDefault),
     ...(preset.assignmentFollowsMain === true ? { assignmentFollowsMain: true } : {}),
     ...(preset.assignmentModels === undefined
@@ -809,6 +774,33 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
       write(preset);
       return preset;
     },
+    setSub(id, expectedRevision, sub) {
+      if (!isPresetSub(sub)) throw new Error('Invalid Model Preset sub choices or default');
+      const current = get(id);
+      if (current === undefined || current.revision !== expectedRevision)
+        throw new ModelPresetError(
+          'stale-setting',
+          'Model Preset changed; read it again before saving',
+        );
+      const {
+        assignmentFollowsMain: _followsMain,
+        assignmentModels: _models,
+        assignmentGroups: _groups,
+        assignmentDefaultGroupId: _group,
+        assignmentGroupOptions: _options,
+        assignmentEngine: _engine,
+        openAssignmentModels: _open,
+        ...kept
+      } = current;
+      const preset = presetRecord({
+        ...kept,
+        ...presetSubProjection(sub, current.orchestrator),
+        sub,
+        revision: current.revision + 1,
+      });
+      write(preset);
+      return preset;
+    },
     create(input) {
       if (input.assignmentModels !== undefined)
         validateAssignmentModels(input.assignmentDefault, input.assignmentModels);
@@ -818,12 +810,13 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
       if (presets.some((preset) => preset.name.toLowerCase() === name.toLowerCase())) {
         throw new Error('Model Preset name already exists');
       }
-      const preset: ModelPreset = {
+      const preset = presetRecord({
         id: randomUUID(),
         name,
         revision: 1,
         orchestrator: { ...input.orchestrator },
         assignmentDefault: { ...input.assignmentDefault },
+        ...(input.assignmentFollowsMain === true ? { assignmentFollowsMain: true } : {}),
         ...(input.assignmentModels === undefined
           ? {}
           : {
@@ -836,7 +829,7 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
         ...presetGroups(input.groups ?? {}),
         ...presetEngines(input.engines ?? {}),
         createdAt: now().toISOString(),
-      };
+      });
       if (!isModelPresetGroups(preset as unknown as Record<string, unknown>))
         throw new Error('Model Preset Routing Groups are invalid');
       write(preset);
@@ -854,9 +847,7 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
         if (id === DEFAULT_MODEL_PRESET_ID) throw new ModelPresetError('stale-setting', message);
         throw new Error(message);
       }
-      const followsMain =
-        id === DEFAULT_MODEL_PRESET_ID &&
-        (input.assignmentFollowsMain ?? current.assignmentFollowsMain) === true;
+      const followsMain = (input.assignmentFollowsMain ?? current.assignmentFollowsMain) === true;
       const assignmentDefault = followsMain ? input.orchestrator : input.assignmentDefault;
       const assignmentModels = followsMain
         ? undefined
@@ -884,6 +875,7 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
         assignmentModels: _assignmentModels,
         orchestratorEngine: _orchestratorEngine,
         assignmentEngine: _assignmentEngine,
+        sub: currentSub,
         ...rest
       } = current;
       const open = input.openAssignmentModels ?? currentOpen === true;
@@ -906,14 +898,22 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
       );
       if (!isModelPresetGroups(groups as Record<string, unknown>))
         throw new Error('Model Preset Routing Groups are invalid');
-      const updated: ModelPreset = {
+      const groupOnly =
+        !followsMain &&
+        currentSub?.default?.kind === 'group' &&
+        currentSub.choices.every((choice) => choice.kind === 'group') &&
+        groups.assignmentDefaultGroupId !== undefined &&
+        (input.assignmentModels === undefined ||
+          isDeepStrictEqual(input.assignmentModels, assignmentModelsOf({ assignmentDefault }))) &&
+        isDeepStrictEqual(assignmentDefault, current.assignmentDefault);
+      const updated = presetRecord({
         ...rest,
         name,
         revision: current.revision + 1,
         orchestrator: { ...input.orchestrator },
         assignmentDefault: { ...assignmentDefault },
         ...(followsMain ? { assignmentFollowsMain: true } : {}),
-        ...(assignmentModels === undefined
+        ...(assignmentModels === undefined || groupOnly
           ? {}
           : {
               assignmentModels: assignmentModels.map((option) => ({
@@ -938,7 +938,14 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
           followsMain ? { ...input.engines, assignmentEngine: null } : (input.engines ?? {}),
           current,
         ),
-      };
+      });
+      if (groupOnly)
+        updated.sub!.choices = updated.sub!.choices.filter((choice) => choice.kind === 'group');
+      if (
+        currentSub !== undefined &&
+        isDeepStrictEqual(presetSubFromLegacy(current), presetSubFromLegacy(updated))
+      )
+        updated.sub = currentSub;
       write(updated);
       return updated;
     },
