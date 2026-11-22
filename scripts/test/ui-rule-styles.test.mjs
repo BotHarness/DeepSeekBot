@@ -194,20 +194,24 @@ const css = \`.tile {animation: pulse \${motion.base};}
   });
 });
 
-it('allows a new rule seed but prevents existing entries from being added or replaced', () => {
+it('allows rule totals to shrink or move and rejects growth for an unbudgeted rule', () => {
   const previous = { styleLiteral: { 'a.tsx': ['old', 'old'] }, reducedMotion: {} };
   expect(
-    baselineGrowth(
-      { styleLiteral: { 'a.tsx': ['old'] }, reducedMotion: {}, breakpoint: { 'a.tsx': ['600px'] } },
-      previous,
-    ),
+    baselineGrowth({ styleLiteral: { 'b.tsx': ['old'] }, reducedMotion: {} }, previous),
   ).toEqual([]);
   expect(
     baselineGrowth(
-      { styleLiteral: { 'a.tsx': ['new', 'old'] }, reducedMotion: { 'a.tsx': ['animation'] } },
+      {
+        styleLiteral: { 'a.tsx': ['old'], 'b.tsx': ['old', 'new'] },
+        reducedMotion: {},
+        breakpoint: { 'a.tsx': ['600px'] },
+      },
       previous,
     ),
-  ).toEqual(['styleLiteral a.tsx "new"', 'reducedMotion a.tsx "animation"']);
+  ).toEqual([
+    'breakpoint total grew from 0 to 1; counts rose in a.tsx (0 → 1)',
+    'styleLiteral total grew from 2 to 3; counts rose in b.tsx (0 → 2)',
+  ]);
   expect(baselineGrowth({ styleLiteral: {} }, previous)).toEqual([
     'missing baseline key reducedMotion; keep an empty object when the last finding is fixed',
   ]);
