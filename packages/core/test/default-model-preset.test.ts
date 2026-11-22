@@ -77,7 +77,12 @@ describe('Default Model Preset cutover', () => {
     const root = mkdtempSync(join(tmpdir(), 'bh-default-preset-upgrade-'));
     const previous = mountOperationalDatabase({
       dshHome: root,
-      schemaPlan: defineSchemaPlan(BOT_HARNESS_SCHEMA_PLAN.migrations.slice(0, -1)),
+      schemaPlan: defineSchemaPlan(
+        BOT_HARNESS_SCHEMA_PLAN.migrations.slice(
+          0,
+          BOT_HARNESS_SCHEMA_PLAN.migrations.findIndex(({ id }) => id === 'default-model-preset'),
+        ),
+      ),
     });
     homes.push({ root, close: () => previous.close() });
     const account = {

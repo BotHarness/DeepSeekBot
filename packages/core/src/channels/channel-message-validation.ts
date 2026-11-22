@@ -1,4 +1,4 @@
-import { isTurnTargetPath } from '@botharness/host-protocol/turn-target';
+import { isSessionTurnModelSwitch, isTurnTargetPath } from '@botharness/host-protocol/turn-target';
 import { isChannelQuoteList } from './quotes.js';
 import { isChannelMessageVoice } from './voice.js';
 import { parseToolApprovalActor } from '../workspaces/tool-approval-actor.js';
@@ -88,6 +88,11 @@ export function isChannelMessage(value: unknown): value is ChannelMessage {
   if (typeof message['id'] !== 'string' || message['id'].length === 0) return false;
   if (typeof message['at'] !== 'string' || message['at'].length === 0) return false;
   if (typeof message['body'] !== 'string') return false;
+  if (
+    message['turnModelSwitch'] !== undefined &&
+    !isSessionTurnModelSwitch(message['turnModelSwitch'])
+  )
+    return false;
   if (message['turnTargets'] !== undefined && !isTurnTargetPath(message['turnTargets']))
     return false;
   const welcome = message['onboardingWelcome'];

@@ -30,6 +30,7 @@ import { createRouteRests } from '../../src/models/route-rest.js';
 import type { RoutingGroupMember } from '../../src/models/routing-groups.js';
 import { createCore } from '../../src/plugin.js';
 import { createDshBotAgentAdapter } from '../../src/runtime/dsh-bot-agent-adapter.js';
+import { sessionModelChoices } from '../../src/runtime/session-model-choices.js';
 import { readTurnTargets } from '../../src/runtime/turn-targets.js';
 import { engineWorkspaceMode } from '../../src/workspaces/grant-execution.js';
 import { FakeAgentHost } from '../dsh-agent-host-fixture.js';
@@ -430,6 +431,9 @@ export function setup(options: {
     native,
     clock,
     routeRests,
+    sessionModels: sessionModelChoices(
+      attachOperationalModule(core.operationalDatabase, 'bot-runtime'),
+    ),
     prepareModelRoute,
     replies,
     memoryDirectory,
@@ -457,6 +461,9 @@ export function setup(options: {
           events,
           segments,
           messages: reopened.channels.readMessages(channel.id),
+          override: sessionModelChoices(
+            attachOperationalModule(reopened.operationalDatabase, 'bot-runtime'),
+          ).get(id),
           current: reopened.runtime.currentTurnTarget?.('ada'),
           transcript: summarizeSessionTranscript({ sessionId: id, events, segments }).items,
         };

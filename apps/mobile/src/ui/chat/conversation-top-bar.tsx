@@ -1,8 +1,4 @@
-import type { RefCallback } from 'react';
-import type { ViewInstance } from 'react-native';
-
 import type { RosterBot } from '@botharness/host-client/client';
-import type { HeaderModel } from './composer-labels';
 
 export type HeaderSelection = {
   count: number;
@@ -20,8 +16,6 @@ export type ConversationTopBarProps = {
   avatar?: string | undefined;
   initial?: string | undefined;
   connectionLabel?: string | undefined;
-  model?: HeaderModel | undefined;
-  modelMount?: RefCallback<ViewInstance> | undefined;
   onBack(): void;
   onProfile?: (() => void) | undefined;
   onCall?: (() => void) | undefined;

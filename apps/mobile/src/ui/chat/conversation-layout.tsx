@@ -194,7 +194,7 @@ export function renderConversation({
     setViewing,
     actionsFor,
     setActionsFor,
-    menuModels,
+    menuCatalog,
     selectionScope,
     sourceMessage,
     selectSource,
@@ -269,7 +269,6 @@ export function renderConversation({
     openProfile,
     swipeProfile,
     headerStatus,
-    headerModel,
     title,
     canOpenProfile,
     placeCall,
@@ -622,8 +621,6 @@ export function renderConversation({
                   subtitle={headerStatus.label}
                   activeBots={headerStatus.bots}
                   connectionLabel={connectionLabel}
-                  model={dm ? headerModel.model : undefined}
-                  modelMount={dm ? headerModel.mount : undefined}
                   onBack={leave}
                   onProfile={canOpenProfile ? openProfile : undefined}
                   onCall={canOpenProfile ? placeCall : undefined}
@@ -688,7 +685,7 @@ export function renderConversation({
             />
             <MessageActions
               target={actionsFor}
-              catalog={menuModels}
+              catalog={menuCatalog}
               readOnly={botDm || !online}
               onClose={() => setActionsFor(undefined)}
               onReact={(message, emoji, active) => react(message.id, emoji, active)}

@@ -4,6 +4,7 @@ import type {
   PendingAutoContinue,
   DmContinuation,
 } from '../runtime/orchestrator-continuation.js';
+import { GROUP_MENTION_REMINDER } from '../runtime/inbound-envelope.js';
 import type { TobCliTurn } from '../tob/cli-request.js';
 import type { TeamService } from '../team/service.js';
 import { botOwner } from '../team/bot-access.js';
@@ -671,7 +672,7 @@ export function createChannelAdmission(ports: ChannelAdmissionPorts) {
       message?.mentions ?? [],
       message?.author.kind === 'human' ? message.skillInvocations : undefined,
     );
-    return `[Bot Inbox: direct Group mention from ${sender}]\nChannel: ${channelId}\nMessage ID: ${messageId}\nMessage: ${text}\n${ports.promptText(botSlug)('group-mention-hint')}`;
+    return `[Bot Inbox: direct Group mention from ${sender}]\nChannel: ${channelId}\nMessage ID: ${messageId}\nMessage: ${text}\n${GROUP_MENTION_REMINDER}\n${ports.promptText(botSlug)('group-mention-hint')}`;
   }
 
   function inboundChannelMessage(

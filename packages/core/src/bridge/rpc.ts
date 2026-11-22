@@ -1,3 +1,4 @@
+import type { SessionModelState } from '@botharness/host-protocol/session-model';
 import * as personabotsRpc from '../features/personabots/rpc.js';
 import * as humansRpc from '../features/humans/rpc.js';
 import * as teamRpc from '../features/team/rpc.js';
@@ -2606,6 +2607,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return assignmentsRpc.sessionProgress(this.methods, slug, sessionIds);
   }
 
+  sessionModel(slug: string, sessionId: string, choice?: unknown): Promise<SessionModelState> {
+    return sessionsRpc.sessionModel(this.methods, slug, sessionId, choice);
+  }
+
   sessionTranscript(
     slug: string,
     sessionId: string,
@@ -3621,6 +3626,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'sessionSubagents',
   'sessionProgress',
   'sessionTranscript',
+  'sessionModel',
   'sessionLive',
   'sessionToolDetail',
   'workspaceOptions',

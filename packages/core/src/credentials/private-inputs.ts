@@ -3,20 +3,20 @@ import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { randomUUID } from 'node:crypto';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { credentialKey, type CredentialProvider } from '@deepseek-ai/dsh-credentials';
-import { z } from 'zod';
+import type { z } from 'zod';
 
 import { dmChannelId } from '../channels/channel.js';
-import type { ChannelStore, ChannelAppendOnceResult } from '../channels/store.js';
+import type { ChannelStore } from '../channels/store.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { SessionOwnership } from '../sessions/ownership.js';
-import { PrivateInputFailure, type PrivateInputLog } from './diagnostics.js';
+import { type PrivateInputLog } from './diagnostics.js';
 import {
   PrivateInputRefusal,
   type PrivateInputOrigin,
   type PrivateReplyAuthority,
 } from './im-origin.js';
 import { PrivateAccountBindings, type PrivateAccountScope } from './account-bindings.js';
-import { PRIVATE_REFERENCE, privateReference } from './references.js';
+import { privateReference } from './references.js';
 import {
   privateRequestSchema,
   privateSubmissionSchema,
@@ -29,53 +29,19 @@ import {
   type PrivateSubmissionRefusal,
   type PrivateSubmissionResult,
 } from './contracts.js';
+import {
+  accountStatus,
+  accounts,
+  consume,
+  eraseBot,
+  replace,
+  revoke,
+  stopUses,
+  storedGrant,
+  type AccountOperations,
+} from './private-input-account-operations.js';
+import type { Pending, PrivateReplyScope, PrivateUse, Terminal } from './private-input-types.js';
 
-const grantFields = {
-  botSlug: z.string(),
-  botCreatedAt: z.string(),
-  account: z.string(),
-  values: z.record(z.string(), z.string()),
-};
-const storedGrant = z.discriminatedUnion('version', [
-  z.strictObject({ version: z.literal(1), ...grantFields }),
-  z.strictObject({
-    version: z.literal(2),
-    ...grantFields,
-    channelId: z.string(),
-    requestMessageId: z.string().uuid(),
-  }),
-  z.strictObject({
-    version: z.literal(3),
-    ...grantFields,
-    channelId: z.string(),
-    requestMessageId: z.string().uuid(),
-  }),
-]);
-type Terminal = 'cancelled' | 'expired';
-type Pending = {
-  agent: Agent | undefined;
-  botSlug: string;
-  channelId: string;
-  botCreatedAt: string;
-  request: PrivateInputDeclaration;
-  expectedRevision: string | undefined;
-  signal: AbortSignal;
-  origin?: PrivateInputOrigin;
-  deadline: number;
-  committed: boolean;
-  commit?: Promise<ChannelAppendOnceResult>;
-  terminal?: Terminal;
-  decidingHuman?: HumanContext;
-  operation?: Promise<boolean> | undefined;
-  abort(): void;
-  resolve(result: PrivateInputResult): void;
-};
-type PrivateUse = {
-  scope: PrivateAccountScope;
-  controller: AbortController;
-  done: Promise<'stopped' | 'completed'>;
-  origin?: PrivateInputOrigin;
-};
 export class PrivateInputs {
   mcpServers?: {
     list(botSlug: string): Array<{
@@ -102,13 +68,8 @@ export class PrivateInputs {
   readonly #uses = new Set<PrivateUse>();
   readonly #completed = new Set<string>();
   readonly #origins = new WeakMap<Agent, Map<string, Map<string, PrivateInputOrigin>>>();
-  readonly #replyScopes = new Set<{
-    scope: PrivateAccountScope;
-    origin: PrivateInputOrigin;
-    controller: AbortController;
-    ready(): boolean;
-    dispose(): void;
-  }>();
+  readonly #replyScopes = new Set<PrivateReplyScope>();
+  readonly #accountOperations: AccountOperations;
 
   constructor(
     readonly deps: {
@@ -139,6 +100,25 @@ export class PrivateInputs {
     },
   ) {
     this.#accounts = new PrivateAccountBindings(deps.credentials);
+    this.#accountOperations = {
+      inputs: this,
+      isClosed: () => this.#closed,
+      accounts: this.#accounts,
+      pending: this.#pending,
+      origins: this.#origins,
+      uses: this.#uses,
+      completed: this.#completed,
+      replyScopes: this.#replyScopes,
+      owner: (agent) => this.#owner(agent),
+      cardChannel: (botSlug, channelId) => this.#cardChannel(botSlug, channelId),
+      resolution: (channelId, messageId) => this.#resolution(channelId, messageId),
+      grantCommitted: (grant, id) => this.#grantCommitted(grant, id),
+      guardReply: (agent, scope, origin, ready) => this.#guardReply(agent, scope, origin, ready),
+      valid: (pending) => this.#valid(pending),
+      open: (...args) => this.#open(...args),
+      publish: (botSlug) => this.#publish(botSlug),
+      stop: (id, pending, state) => this.#stop(id, pending, state),
+    };
     const timeout = deps.requestTimeoutMs ?? 15 * 60_000;
     if (!Number.isSafeInteger(timeout) || timeout < 1)
       throw new Error('Invalid private input lifetime');
@@ -790,7 +770,7 @@ export class PrivateInputs {
       );
       activated = true;
       stage = 'not-committed';
-      stopping = this.#stopUses(this.#scope(pending), 'replacement');
+      stopping = stopUses(this.#accountOperations, this.#scope(pending), 'replacement');
       try {
         await this.deps.channels.appendMessageOnce(
           human,
@@ -888,7 +868,7 @@ export class PrivateInputs {
     return this.#stop(messageId, pending, 'cancelled', human);
   }
 
-  async consume<T>(
+  consume<T>(
     agent: Agent,
     account: string,
     references: Record<string, string>,
@@ -896,563 +876,40 @@ export class PrivateInputs {
     signal?: AbortSignal,
     sharedFrom?: string,
   ): Promise<T> {
-    await this.recover();
-    const grantOwner = () => {
-      const caller = this.#owner(agent);
-      if (caller === undefined || sharedFrom === undefined) return caller;
-      const bot = this.deps.registry.get(sharedFrom);
-      return bot === undefined ? undefined : { botSlug: sharedFrom, createdAt: bot.createdAt };
-    };
-    const owner = grantOwner();
-    if (owner === undefined)
-      throw new PrivateInputFailure(
-        sharedFrom === undefined
-          ? 'Protected credential use needs the live main conversation Session of a PersonaBot; this Session is not one.'
-          : 'The PersonaBot that shares this account is unavailable.',
-        'no-owner',
-      );
-    if (!(await this.deps.qualified()))
-      throw new PrivateInputFailure(
-        'Protected credential use is unavailable in this Profile.',
-        'unqualified',
-      );
-    const invalidReferences = () =>
-      new PrivateInputFailure(
-        'Credential references are invalid: pass 1 to 8 references from one ask_secret result, each private:<id>:<field> used for its own field.',
-        'invalid-references',
-      );
-    const entries = Object.entries(references);
-    if (entries.length === 0 || entries.length > 8) throw invalidReferences();
-    const matches = entries.map(([field, ref]) => ({
-      field,
-      match: PRIVATE_REFERENCE.exec(ref),
-    }));
-    const id = matches[0]?.match?.[1];
-    if (
-      id === undefined ||
-      matches.some(({ field, match }) => match?.[1] !== id || match?.[2] !== field)
-    )
-      throw invalidReferences();
-    const scope = {
-      botSlug: owner.botSlug,
-      botCreatedAt: owner.createdAt,
-      account,
-    };
-    const remembered = [...(this.#origins.get(agent)?.get(account)?.values() ?? [])].filter(
-      (origin) => origin.applies(),
-    );
-    if (remembered.length > 1) throw new PrivateInputRefusal('private-source-ambiguous');
-    const origin =
-      sharedFrom === undefined ? (remembered[0] ?? this.deps.origin?.(agent)) : undefined;
-    if (origin !== undefined && !origin.current())
-      throw new PrivateInputRefusal('private-source-revoked');
-    const startedUse = await this.#accounts
-      .serial(scope, async () => {
-        const record = await this.deps
-          .credentials()
-          ?.readRecord(credentialKey('botharness-private', 'grant-' + id));
-        const grant = storedGrant.safeParse(record?.kind === 'grant' ? record.payload : undefined);
-        if (
-          !grant.success ||
-          grant.data.botSlug !== owner.botSlug ||
-          grant.data.botCreatedAt !== owner.createdAt ||
-          grant.data.account !== account ||
-          !this.#grantCommitted(grant.data, id) ||
-          matches.some(({ field }) => grant.data.values[field] === undefined)
-        )
-          throw new PrivateInputRefusal('private-account-unavailable');
-        const binding = await this.#accounts.read(scope);
-        if (
-          (binding !== undefined && binding.grantId !== id) ||
-          (grant.data.version === 3 && binding?.grantId !== id)
-        )
-          throw new PrivateInputRefusal('private-account-unavailable');
-        const currentOwner = grantOwner();
-        if (currentOwner?.botSlug !== owner.botSlug || currentOwner.createdAt !== owner.createdAt)
-          throw new PrivateInputFailure(
-            'The PersonaBot that owns this account changed while the request was starting.',
-            'authority-changed',
-          );
-        if (signal?.aborted)
-          throw new PrivateInputFailure(
-            'The protected request was cancelled before it started.',
-            'cancelled',
-          );
-        if (origin !== undefined && !origin.current())
-          throw new PrivateInputRefusal('private-source-revoked');
-        if (origin !== undefined) this.#guardReply(agent, scope, origin, () => true);
-        const controller = new AbortController();
-        const abort = () => controller.abort();
-        signal?.addEventListener('abort', abort, { once: true });
-        origin?.signal.addEventListener('abort', abort, { once: true });
-        const resolved = Object.fromEntries(
-          matches.map(({ field }) => [field, grant.data.values[field]!]),
-        );
-        let settle!: (outcome: 'stopped' | 'completed') => void;
-        const done = new Promise<'stopped' | 'completed'>((resolve) => {
-          settle = resolve;
-        });
-        const use: PrivateUse = {
-          scope,
-          controller,
-          done,
-          ...(origin === undefined ? {} : { origin }),
-        };
-        this.#uses.add(use);
-        this.#completed.delete(this.#accounts.key(scope));
-        const promise = Promise.resolve()
-          .then(() => {
-            if (origin !== undefined && !origin.current())
-              throw new PrivateInputRefusal('private-source-revoked');
-            if (controller.signal.aborted)
-              throw controller.signal.reason instanceof PrivateInputRefusal
-                ? controller.signal.reason
-                : new Error('Protected credential consumer was cancelled');
-            return run(resolved, controller.signal);
-          })
-          .then(
-            (result) => {
-              if (origin !== undefined && !origin.current()) {
-                settle('completed');
-                throw new PrivateInputRefusal('private-source-revoked');
-              }
-              settle('completed');
-              return result;
-            },
-            (error: unknown) => {
-              settle(controller.signal.aborted ? 'stopped' : 'completed');
-              if (origin !== undefined && !origin.current())
-                throw new PrivateInputRefusal('private-source-revoked');
-              if (controller.signal.reason instanceof PrivateInputRefusal)
-                throw controller.signal.reason;
-              throw error;
-            },
-          )
-          .finally(() => {
-            for (const field of Object.keys(resolved)) delete resolved[field];
-            signal?.removeEventListener('abort', abort);
-            origin?.signal.removeEventListener('abort', abort);
-            this.#uses.delete(use);
-            this.#completed.add(this.#accounts.key(scope));
-            if (this.#completed.size > 100)
-              this.#completed.delete(this.#completed.values().next().value!);
-          });
-        return { promise };
-      })
-      .catch((error: unknown) => {
-        if (error instanceof PrivateInputRefusal || error instanceof PrivateInputFailure) {
-          this.deps.log('consume-refused', {
-            requestId: id,
-            botSlug: owner.botSlug,
-            sessionId: agent.session.id,
-            reason: error instanceof PrivateInputFailure ? error.reason : String(error.code),
-          });
-          throw error;
-        }
-        this.deps.log('consume-refused', {
-          requestId: id,
-          botSlug: owner.botSlug,
-          sessionId: agent.session.id,
-          reason: 'store-unreadable',
-          errorName: error instanceof Error ? error.name : typeof error,
-        });
-        throw new PrivateInputFailure(
-          'The Host could not read the saved private information for this account from its credential store. Report this to the Owner; asking for the secret again will not help until the store is readable.',
-          'store-unreadable',
-        );
-      });
-    const started = Date.now();
-    const details = {
-      requestId: id,
-      botSlug: owner.botSlug,
-      sessionId: agent.session.id,
-    };
-    this.deps.log('consume-started', details);
-    try {
-      const result = await startedUse.promise;
-      this.deps.log('consume-completed', {
-        ...details,
-        durationMs: Date.now() - started,
-      });
-      return result;
-    } catch (error) {
-      const known = error instanceof PrivateInputRefusal || error instanceof PrivateInputFailure;
-      this.deps.log('consume-failed', {
-        ...details,
-        durationMs: Date.now() - started,
-        reason:
-          error instanceof PrivateInputFailure
-            ? error.reason
-            : error instanceof PrivateInputRefusal
-              ? String(error.code)
-              : 'consumer-error',
-        ...(known ? {} : { errorName: error instanceof Error ? error.name : typeof error }),
-      });
-      if (known) throw error;
-      throw new PrivateInputFailure(
-        `Protected credential consumer failed (${error instanceof Error ? error.name : typeof error}); the Host diagnostic log has the details.`,
-        'consumer-error',
-      );
-    }
+    return consume(this.#accountOperations, agent, account, references, run, signal, sharedFrom);
   }
 
-  #configuredCard(channelId: string, messageId: string) {
-    const card = this.deps.channels.message(channelId, messageId);
-    const request = card?.privateInputRequest;
-    const resolution = this.#resolution(channelId, messageId);
-    const bot = card?.author.kind === 'bot' ? this.deps.registry.get(card.author.slug) : undefined;
-    const references = resolution?.references;
-    const grantId =
-      references === undefined
-        ? undefined
-        : PRIVATE_REFERENCE.exec(Object.values(references)[0] ?? '')?.[1];
-    if (
-      this.#closed ||
-      bot === undefined ||
-      !this.#cardChannel(bot.slug, channelId) ||
-      request === undefined ||
-      resolution?.state !== 'configured' ||
-      grantId === undefined
-    )
-      return undefined;
-    return {
-      scope: {
-        botSlug: bot.slug,
-        botCreatedAt: bot.createdAt,
-        account: request.account,
-      },
-      grantId,
-      request,
-      references: resolution.references,
-    };
-  }
-
-  async accountStatus(
+  accountStatus(
     owner: boolean,
     channelId: string,
     messageId: string,
   ): Promise<PrivateAccountStatus> {
-    if (!owner) return { status: 'unavailable', references: {} };
-    const card = this.#configuredCard(channelId, messageId);
-    if (card === undefined) return { status: 'unavailable', references: {} };
-    return this.#accounts.serial(card.scope, async () => {
-      const binding = await this.#accounts.read(card.scope);
-      if (binding?.grantId === null) return { status: 'revoked', references: {} };
-      if (binding !== undefined && binding.grantId !== card.grantId)
-        return { status: 'superseded', references: {} };
-      const record = await this.deps
-        .credentials()
-        ?.readRecord(credentialKey('botharness-private', 'grant-' + card.grantId));
-      const grant = storedGrant.safeParse(record?.kind === 'grant' ? record.payload : undefined);
-      if (
-        !grant.success ||
-        grant.data.botSlug !== card.scope.botSlug ||
-        grant.data.botCreatedAt !== card.scope.botCreatedAt ||
-        grant.data.account !== card.scope.account ||
-        !this.#grantCommitted(grant.data, card.grantId) ||
-        (grant.data.version === 3 && binding?.grantId !== card.grantId)
-      )
-        return { status: 'unavailable', references: {} };
-      return { status: 'configured', references: card.references };
-    });
+    return accountStatus(this.#accountOperations, owner, channelId, messageId);
   }
 
-  async accounts(owner: boolean, botSlug: string): Promise<PrivateAccountSummary[] | undefined> {
-    if (!owner) return undefined;
-    const bot = this.deps.registry.get(botSlug);
-    if (bot === undefined || this.#closed) return [];
-    try {
-      await this.recover();
-      const credentials = this.deps.credentials();
-      if (credentials === undefined) return undefined;
-      const bindings = await this.#accounts.list(bot.slug, bot.createdAt);
-      const rows: PrivateAccountSummary[] = [];
-      for (const listed of bindings) {
-        const scope = {
-          botSlug: bot.slug,
-          botCreatedAt: bot.createdAt,
-          account: listed.account,
-        };
-        const row = await this.#accounts.serial(scope, async () => {
-          const binding = await this.#accounts.read(scope);
-          if (binding?.grantId === undefined || binding.grantId === null) return undefined;
-          const grantId = binding.grantId;
-          const record = await credentials.readRecord(
-            credentialKey('botharness-private', 'grant-' + grantId),
-          );
-          const grant = storedGrant.safeParse(
-            record?.kind === 'grant' ? record.payload : undefined,
-          );
-          const card =
-            grant.success && grant.data.version !== 1
-              ? {
-                  channelId: grant.data.channelId,
-                  messageId: grant.data.requestMessageId,
-                  request: this.deps.channels.message(
-                    grant.data.channelId,
-                    grant.data.requestMessageId,
-                  )?.privateInputRequest,
-                }
-              : undefined;
-          const verified =
-            grant.success &&
-            card !== undefined &&
-            grant.data.botSlug === scope.botSlug &&
-            grant.data.botCreatedAt === scope.botCreatedAt &&
-            grant.data.account === scope.account &&
-            this.#grantCommitted(grant.data, grantId);
-          const replacement = [...this.#pending.entries()].find(
-            ([, pending]) =>
-              pending.agent === undefined &&
-              pending.committed &&
-              pending.botSlug === scope.botSlug &&
-              pending.botCreatedAt === scope.botCreatedAt &&
-              pending.request.account === scope.account &&
-              pending.expectedRevision === binding.revision &&
-              this.#valid(pending),
-          );
-          const request = verified ? card.request : undefined;
-          const configuredAt = verified
-            ? this.deps.channels.message(card.channelId, 'private-resolution-' + card.messageId)?.at
-            : undefined;
-          return {
-            account: scope.account,
-            ...(request === undefined ? {} : { purpose: request.purpose }),
-            fields:
-              request?.fields.map((field) => ({
-                id: field.id,
-                label: field.label,
-                required: field.required,
-              })) ?? [],
-            status: !verified
-              ? 'unavailable'
-              : replacement === undefined
-                ? 'configured'
-                : 'replacing',
-            ...(configuredAt === undefined ? {} : { configuredAt }),
-            ...(verified ? { channelId: card.channelId, messageId: card.messageId } : {}),
-            ...(verified && replacement !== undefined
-              ? { replacementMessageId: replacement[0] }
-              : {}),
-          } satisfies PrivateAccountSummary;
-        });
-        if (row !== undefined) rows.push(row);
-      }
-      return rows.sort((left, right) => left.account.localeCompare(right.account));
-    } catch {
-      this.deps.log('account-list-failed', { botSlug });
-      return undefined;
-    }
+  accounts(owner: boolean, botSlug: string): Promise<PrivateAccountSummary[] | undefined> {
+    return accounts(this.#accountOperations, owner, botSlug);
   }
 
   async replaceable(): Promise<boolean> {
     return !this.#closed && this.deps.credentials() !== undefined && (await this.deps.qualified());
   }
 
-  async replace(owner: boolean, channelId: string, messageId: string): Promise<string | undefined> {
-    if (!owner || !(await this.deps.qualified())) return undefined;
-    await this.recover();
-    const card = this.#configuredCard(channelId, messageId);
-    if (card === undefined) return undefined;
-    return this.#accounts.serial(card.scope, async () => {
-      const binding = await this.#accounts.read(card.scope);
-      if (binding !== undefined && binding.grantId !== card.grantId) return undefined;
-      const pending = [...this.#pending.entries()].find(
-        ([, request]) =>
-          request.agent === undefined &&
-          request.botSlug === card.scope.botSlug &&
-          request.botCreatedAt === card.scope.botCreatedAt &&
-          request.request.account === card.scope.account &&
-          request.expectedRevision === binding?.revision &&
-          this.#valid(request),
-      );
-      if (pending !== undefined) return pending[0];
-      const record = await this.deps
-        .credentials()
-        ?.readRecord(credentialKey('botharness-private', 'grant-' + card.grantId));
-      const grant = storedGrant.safeParse(record?.kind === 'grant' ? record.payload : undefined);
-      if (
-        !grant.success ||
-        grant.data.botCreatedAt !== card.scope.botCreatedAt ||
-        grant.data.botSlug !== card.scope.botSlug ||
-        grant.data.account !== card.scope.account ||
-        !this.#grantCommitted(grant.data, card.grantId) ||
-        (grant.data.version === 3 && binding?.grantId !== card.grantId)
-      )
-        return undefined;
-      const opened = await this.#open(
-        undefined,
-        { botSlug: card.scope.botSlug, createdAt: card.scope.botCreatedAt },
-        {
-          account: card.request.account,
-          purpose: card.request.purpose,
-          fields: card.request.fields,
-        },
-        new AbortController().signal,
-        binding?.revision,
-        messageId,
-        undefined,
-        channelId,
-      );
-      return opened.messageId;
-    });
+  replace(owner: boolean, channelId: string, messageId: string): Promise<string | undefined> {
+    return replace(this.#accountOperations, owner, channelId, messageId);
   }
 
-  async #stopUses(
-    scope: PrivateAccountScope,
-    initiator: 'replacement' | 'revocation',
-  ): Promise<Omit<PrivateRevocationResult, 'accepted'>> {
-    const started = Date.now();
-    for (const reply of this.#replyScopes)
-      if (this.#accounts.key(reply.scope) === this.#accounts.key(scope) && reply.ready())
-        reply.controller.abort();
-    const uses = [...this.#uses].filter(
-      (use) => this.#accounts.key(use.scope) === this.#accounts.key(scope),
-    );
-    const summary = {
-      stopped: 0,
-      completed: uses.length === 0 && this.#completed.has(this.#accounts.key(scope)) ? 1 : 0,
-      uncertain: 0,
-    };
-    for (const use of uses)
-      use.controller.abort(new PrivateInputRefusal('private-account-unavailable'));
-    this.deps.log('consumer-stop-requested', {
-      botSlug: scope.botSlug,
-      initiator,
-      active: uses.length,
-    });
-    await Promise.all(
-      uses.map(async (use) => {
-        let timer: ReturnType<typeof setTimeout> | undefined;
-        const timeout = new Promise<'uncertain'>((resolve) => {
-          timer = setTimeout(() => resolve('uncertain'), 1000);
-        });
-        const outcome = await Promise.race([use.done, timeout]);
-        clearTimeout(timer);
-        summary[outcome] += 1;
-      }),
-    );
-    this.deps.log('consumer-stop-settled', {
-      botSlug: scope.botSlug,
-      initiator,
-      durationMs: Date.now() - started,
-      ...summary,
-    });
-    return summary;
-  }
-
-  async revoke(
+  revoke(
     owner: boolean,
     channelId: string,
     messageId: string,
     human: HumanContext = OWNER_HUMAN_CONTEXT,
   ): Promise<PrivateRevocationResult> {
-    const refused = { accepted: false, stopped: 0, completed: 0, uncertain: 0 };
-    if (!owner) return refused;
-    await this.recover();
-    const card = this.#configuredCard(channelId, messageId);
-    if (card === undefined) return refused;
-    const accepted = await this.#accounts.serial(card.scope, async () => {
-      const binding = await this.#accounts.read(card.scope);
-      if (binding !== undefined && binding.grantId !== card.grantId) return undefined;
-      const record = await this.deps
-        .credentials()
-        ?.readRecord(credentialKey('botharness-private', 'grant-' + card.grantId));
-      const grant = storedGrant.safeParse(record?.kind === 'grant' ? record.payload : undefined);
-      if (
-        !grant.success ||
-        grant.data.botCreatedAt !== card.scope.botCreatedAt ||
-        grant.data.botSlug !== card.scope.botSlug ||
-        grant.data.account !== card.scope.account ||
-        !this.#grantCommitted(grant.data, card.grantId) ||
-        (grant.data.version === 3 && binding?.grantId !== card.grantId)
-      )
-        return undefined;
-      await this.#accounts.commit(
-        card.scope,
-        binding?.revision,
-        null,
-        () =>
-          this.#configuredCard(channelId, messageId)?.scope.botCreatedAt ===
-          card.scope.botCreatedAt,
-      );
-      this.#publish(card.scope.botSlug);
-      this.deps.log('account-revoked', {
-        botSlug: card.scope.botSlug,
-        requestId: card.grantId,
-      });
-      await this.deps
-        .credentials()
-        ?.deleteRecord(credentialKey('botharness-private', 'grant-' + card.grantId))
-        .catch(() => this.deps.log('cleanup-failed', { requestId: card.grantId }));
-      return { stopping: this.#stopUses(card.scope, 'revocation') };
-    });
-    if (!accepted) return refused;
-    const summary = await accepted.stopping;
-    await this.deps.channels
-      .appendMessageOnce(human, channelId, {
-        id: 'private-revocation-' + randomUUID(),
-        at: new Date().toISOString(),
-        author: { kind: 'human' },
-        replyTo: messageId,
-        body: `Private account access revoked locally. Stopped: ${summary.stopped}; already completed: ${summary.completed}; uncertain: ${summary.uncertain}. Remote token validity and completed effects are unchanged.`,
-      })
-      .catch(() =>
-        this.deps.log('revocation-report-failed', {
-          botSlug: card.scope.botSlug,
-          requestId: card.grantId,
-        }),
-      );
-    return { accepted: true, ...summary };
+    return revoke(this.#accountOperations, owner, channelId, messageId, human);
   }
 
-  async eraseBot(botSlug: string): Promise<number> {
-    const bot = this.deps.registry.getHistorical(botSlug);
-    const credentials = this.deps.credentials();
-    if (bot === undefined || credentials === undefined) return 0;
-    await this.recover();
-    for (const [id, pending] of this.#pending)
-      if (pending.botSlug === bot.slug && pending.botCreatedAt === bot.createdAt)
-        await this.#stop(id, pending, 'cancelled');
-    let erased = 0;
-    for (const listed of await this.#accounts.list(bot.slug, bot.createdAt)) {
-      const scope = {
-        botSlug: bot.slug,
-        botCreatedAt: bot.createdAt,
-        account: listed.account,
-      };
-      await this.#accounts.serial(scope, async () => {
-        const binding = await this.#accounts.read(scope);
-        if (binding === undefined) return;
-        await this.#stopUses(scope, 'revocation');
-        if (binding.grantId !== null) {
-          await credentials.deleteRecord(
-            credentialKey('botharness-private', 'grant-' + binding.grantId),
-          );
-          erased += 1;
-        }
-        await credentials.deleteRecord(this.#accounts.key(scope));
-      });
-    }
-    for (const entry of await credentials.listRecords()) {
-      if (entry.kind !== 'grant' || !/^botharness-private\/grant-[0-9a-f-]{36}$/.test(entry.key))
-        continue;
-      const record = await credentials.readRecord(entry.key);
-      const grant = storedGrant.safeParse(record?.kind === 'grant' ? record.payload : undefined);
-      if (
-        grant.success &&
-        grant.data.botSlug === bot.slug &&
-        grant.data.botCreatedAt === bot.createdAt
-      ) {
-        await credentials.deleteRecord(entry.key);
-        erased += 1;
-      }
-    }
-    this.deps.log('bot-accounts-erased', {
-      botSlug: bot.slug,
-      completed: erased,
-    });
-    return erased;
+  eraseBot(botSlug: string): Promise<number> {
+    return eraseBot(this.#accountOperations, botSlug);
   }
 
   async close(): Promise<void> {

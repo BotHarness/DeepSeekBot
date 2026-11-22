@@ -1,4 +1,4 @@
-import type { TurnTarget } from '@botharness/host-protocol/turn-target';
+import type { SessionTurnModelSwitch, TurnTarget } from '@botharness/host-protocol/turn-target';
 import {
   assertQuoteTargets as assertChannelQuoteTargets,
   sameQuoteIntent,
@@ -82,6 +82,7 @@ export function createCausalSending(ports: CausalSendingPorts) {
     afterSend?: () => void;
     body: string;
     turnTargets?: TurnTarget[];
+    turnModelSwitch?: SessionTurnModelSwitch;
     replyTo?: string | undefined;
     quotes?: ChannelQuote[] | undefined;
     attachments?: ChannelAttachmentRef[] | undefined;
@@ -171,6 +172,7 @@ export function createCausalSending(ports: CausalSendingPorts) {
       at: ports.now().toISOString(),
       author: { kind: 'bot', slug: botSlug },
       ...(input.turnTargets === undefined ? {} : { turnTargets: input.turnTargets }),
+      ...(input.turnModelSwitch === undefined ? {} : { turnModelSwitch: input.turnModelSwitch }),
       body,
       botCausation: botCausation(
         input.replySourceEventId ??
@@ -371,6 +373,7 @@ export function createCausalSending(ports: CausalSendingPorts) {
     sourceEventId: string | undefined;
     body: string;
     turnTargets?: TurnTarget[];
+    turnModelSwitch?: SessionTurnModelSwitch;
     beforeSend: () => void;
     deliveryKey?: string;
   }): Promise<{ channelId: string; message: ChannelMessage }> {
@@ -392,6 +395,7 @@ export function createCausalSending(ports: CausalSendingPorts) {
       at: ports.now().toISOString(),
       author: { kind: 'bot', slug: botSlug },
       ...(input.turnTargets === undefined ? {} : { turnTargets: input.turnTargets }),
+      ...(input.turnModelSwitch === undefined ? {} : { turnModelSwitch: input.turnModelSwitch }),
       body: input.body,
       botCausation: causation,
     };
@@ -455,6 +459,7 @@ export function createCausalSending(ports: CausalSendingPorts) {
     afterSend?: () => void;
     body: string;
     turnTargets?: TurnTarget[];
+    turnModelSwitch?: SessionTurnModelSwitch;
     replyTo?: string | undefined;
     quotes?: ChannelQuote[] | undefined;
     attachments?: ChannelAttachmentRef[] | undefined;
@@ -503,6 +508,7 @@ export function createCausalSending(ports: CausalSendingPorts) {
       at: ports.now().toISOString(),
       author: { kind: 'bot', slug: botSlug },
       ...(input.turnTargets === undefined ? {} : { turnTargets: input.turnTargets }),
+      ...(input.turnModelSwitch === undefined ? {} : { turnModelSwitch: input.turnModelSwitch }),
       body: input.body,
       botCausation: causation,
       ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
