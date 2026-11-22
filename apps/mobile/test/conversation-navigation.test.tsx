@@ -393,6 +393,8 @@ vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null, BotPortrait: () 
 vi.mock('../src/ui/chat/composer', () => ({
   Composer: () => <div data-testid="composer-input" />,
 }));
+vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
+vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('../src/ui/chat/image-viewer', () => ({ ImageViewer: () => null }));
 vi.mock('../src/ui/chat/jump-to-latest', () => ({ JumpToLatest: () => null }));
 vi.mock('../src/ui/chat/pull-to-compose-hint', () => ({ PullToComposeHint: () => null }));

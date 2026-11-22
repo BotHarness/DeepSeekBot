@@ -3,6 +3,8 @@
 ## Sources
 
 - `apps/mobile/src/ui/chat/{composer,composer-*,native-composer-*}.{ts,tsx}`
+- `apps/mobile/src/ui/chat/session-model-*.{ts,tsx}`
+- `packages/host-client/src/session-model.ts`
 - `apps/mobile/src/ui/primitives/hardware-send*.tsx`
 - `apps/mobile/modules/hardware-send/**`
 
@@ -13,7 +15,7 @@
 
 ## Sub-features
 
-Integrated iOS attachment control and taller island, compact and multiline drafts, native attachment menu, dictation controls, expanded editing, local draft save failure and retry, system text and keyboard clearance. Android retains its separate attachment button.
+Integrated iOS attachment control and taller island, compact and multiline drafts, native attachment menu, dictation controls, expanded editing, local draft save failure and retry, system text and keyboard clearance. Bot DMs use a two-row composer with Session Model Choice beside Send. Android retains its separate attachment button.
 
 ## How to get to it (user POV)
 
@@ -23,7 +25,7 @@ Open a paired computer, then a Human/Bot DM or a group conversation. Use the mes
 
 Use `docs/agents/device-qa.md` and its designated runner, qualified native client and isolated QA Host. Drive the actual native app by accessible labels or `composer-input`, `composer-attach`, `composer-send`, `composer-expand`, `composer-dictation`, `composer-dictation-cancel` and `jump-to-latest`. Source tests in `apps/mobile/test/dictation.test.ts` and the style/system-text guards do not prove native geometry.
 
-1. Capture matched base/candidate empty and short-draft states: iOS has one continuous rounded surface around +, field and trailing control; default compact height is 56pt and the controls are at least 44pt. Check opaque Reduce Transparency fallback too.
+1. Capture matched base/candidate empty and short-draft states. In a group, iOS has one continuous rounded surface around +, field and trailing control. Default compact height is 56pt and the controls are at least 44pt. Check the opaque Reduce Transparency fallback and use step 12 for the Bot DM layout.
 2. Open the real soft keyboard, type several lines and move the caret. Open the native attachment menu with and without the keyboard: Photos, Camera and File are anchored to + without expanding the input area. Dismiss outside, reopen, cancel each available picker and retain the draft; pick and remove an owned fixture, expand/return from editing and preserve the draft and selection. Required controls and the current editing line remain reachable.
 3. Repeat light/dark at default, intermediate and maximum system text. Change default → maximum → default live with a draft open; retain the editable field, draft and focus. Record CJK IME, VoiceOver and orientation separately if unavailable.
 4. Send a uniquely marked message and read the QA Host Channel timeline: exact text, attachments and mention metadata agree. A Bot reply requires a usable model. Exercise dictation start, cancel and stop with microphone permission; audio/transcription availability is a separate prerequisite.
@@ -37,6 +39,8 @@ Use `docs/agents/device-qa.md` and its designated runner, qualified native clien
 10. On iOS or iPadOS with a physical keyboard and a real CJK input method, begin a candidate and press Command+Return: keep the marked text, draft and selection, with no Channel message sent. Confirm the candidate, then use the next normal Command+Return and observe exactly one message. Move focus outside the composer while a shortcut is pending and ensure its old action cannot send. Repeat in compact and expanded editing. `apps/mobile/modules/hardware-send/ios/Tests/HardwareSendViewTests.swift` covers the real UIKit View→onSend boundary with `setMarkedText`, a cached action and an actual focus transfer; it does not prove a real CJK input method, physical keyboard or selection/latency while streaming.
 
 11. For iOS keyboard/background recovery (#2933), use the assigned physical-device window and `scripts/e2e-mobile-chat-resume.mjs`. Follow [the native resume regression](../references/ios-chat-resume.md) for its private lease, static reading region, empty/multiline drafts, 5/30-second cases, image review and caller-owned cleanup. Completion requires visible known content and composer, unchanged draft, the same Dev PID, and an unchanged nonempty static message pixel region. jsdom layout shims cannot establish this UIKit behavior.
+
+12. In a Bot DM with a current Orchestrator Session, type a draft and open `composer-session-model` beside Send. Check the iOS form sheet or Android modal bottom sheet for Bot default, Routing Groups, API models and available Subscription Engines. Pick an allowed choice while a Turn is running. The chip shows “Next turn” or “下一轮使用”, the draft remains editable, and the following Turn uses the saved choice and records a single model switch when its target changes. Clear the override with Use Bot default. Check light and dark in English and Chinese, including the logo-only layout at narrow width or with large system text. Verify a Group composer and a Bot with no current Session.
 
 ## Observable proof
 

@@ -180,6 +180,7 @@ export function Composer({
   onSelection,
   inputRef,
   onFocusChange,
+  modelControl,
 }: {
   value: string;
   disabled: boolean;
@@ -201,6 +202,7 @@ export function Composer({
   onSelection?(caret: number): void;
   inputRef?: Ref<ComposerInput>;
   onFocusChange?(focused: boolean): void;
+  modelControl?: { render(width: number): ReactNode; blocksSend: boolean } | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -225,11 +227,13 @@ export function Composer({
   const button = composerControl(theme);
   const inset = (bar - button) / 2;
   const corner = bar / 2;
-  const ownPill = useSharedValue(lineHeight + 2 * inset);
+  const restingHeight =
+    lineHeight + 2 * inset + (modelControl === undefined ? 0 : button + space.x2);
+  const ownPill = useSharedValue(restingHeight);
   const sharedPill = useContext(ComposerPillContext);
   const pillHeight = sharedPill?.height ?? ownPill;
-  const pillRest = useRef(lineHeight + 2 * inset);
-  pillRest.current = lineHeight + 2 * inset;
+  const pillRest = useRef(restingHeight);
+  pillRest.current = restingHeight;
   const pillStyle = useAnimatedStyle(() => ({ height: pillHeight.value }));
   const holdPill = useCallback(
     (node: unknown) => {
@@ -256,14 +260,14 @@ export function Composer({
     canDictate,
     keepDisabledMic: Platform.OS === 'android',
   });
-  const canSend = actions.includes('send') && !disabled;
+  const canSend = actions.includes('send') && !disabled && modelControl?.blocksSend !== true;
   const send = () => {
     if (!canSend) return;
     haptic('send');
     onSend();
   };
   const expanded = theme.largeText || (wraps && value !== '');
-  const stacked = composerStacked(actions, files.length, expanded);
+  const stacked = modelControl !== undefined || composerStacked(actions, files.length, expanded);
   const icon = theme.type.title.line;
   const leading = held ? (
     <HoldDot key="lead" size={integratedLeading ? button : bar} />
@@ -397,8 +401,9 @@ export function Composer({
   const compactWidth =
     pill.width -
     2 * (inset + space.x3) -
-    leadingWidth -
-    (trailing.length === 0 ? 0 : button + space.x2);
+    (modelControl !== undefined
+      ? 0
+      : leadingWidth + (trailing.length === 0 ? 0 : button + space.x2));
   const expand =
     expanded && !listening ? (
       <ComposerActionButton
@@ -519,7 +524,11 @@ export function Composer({
                   {field}
                 </ComposerHold>
               </HardwareSend>
-              {stacked && expand === null && trailing.length === 0 && leadingWidth === 0 ? null : (
+              {modelControl === undefined &&
+              stacked &&
+              expand === null &&
+              trailing.length === 0 &&
+              leadingWidth === 0 ? null : (
                 <View
                   pointerEvents="box-none"
                   style={{
@@ -534,6 +543,7 @@ export function Composer({
                   {integratedLeading ? leading : null}
                   {expand}
                   <View pointerEvents="none" style={{ flex: 1 }} />
+                  {modelControl?.render(pill.width)}
                   {trailing}
                 </View>
               )}

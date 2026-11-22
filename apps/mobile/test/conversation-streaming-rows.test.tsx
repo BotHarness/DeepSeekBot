@@ -389,6 +389,8 @@ vi.mock('../src/ui/chat/channel-title', () => ({ ChannelTitle: () => null }));
 vi.mock('../src/ui/chat/chat-title', () => ({
   ChatTitle: ({ onPress }: { onPress(): void }) => <button onClick={onPress}>Open profile</button>,
 }));
+vi.mock('../src/ui/primitives/system-symbol', () => ({ SystemSymbol: () => null }));
+vi.mock('react-native-keyboard-controller', async () => import('./keyboard-controller-shim'));
 vi.mock('../src/ui/chat/composer', () => ({
   Composer: ({
     onChange,

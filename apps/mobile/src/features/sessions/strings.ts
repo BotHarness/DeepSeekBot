@@ -1,4 +1,21 @@
+import { en as modelsEn, zh as modelsZh } from '../models/strings';
+
 export const en = {
+  sessionModel: {
+    choice: 'Model choice',
+    defaultLabel: 'Bot default',
+    default: 'Use Bot default',
+    groups: 'Routing Groups',
+    apiModels: 'API models',
+    api: 'API',
+    sub: 'Sub',
+    next: (name: string) => `Next turn: ${name}`,
+    accessible: (parts: string[]) => parts.join(', '),
+    effort: modelsEn.routingGroup.engineRow.effort,
+    loadFailed: 'Couldn’t load model choices.',
+    saveFailed: 'Couldn’t change the model for this session.',
+    saving: 'Saving…',
+  },
   sessionRecovery: {
     report: 'Report this error',
     uploadScope:
@@ -84,6 +101,21 @@ export const en = {
 };
 
 export const zh: typeof en = {
+  sessionModel: {
+    choice: '模型选择',
+    defaultLabel: 'Bot 默认模型',
+    default: '使用 Bot 默认模型',
+    groups: '路由组',
+    apiModels: 'API 模型',
+    api: 'API',
+    sub: '订阅',
+    next: (name: string) => `下一轮使用 ${name}`,
+    accessible: (parts: string[]) => parts.join('，'),
+    effort: modelsZh.routingGroup.engineRow.effort,
+    loadFailed: '无法加载模型选项。',
+    saveFailed: '无法更改此会话的模型。',
+    saving: '正在保存…',
+  },
   sessionRecovery: {
     report: '上报此错误',
     uploadScope: '提交会上传本轮输入及工具调用（已脱敏）。诊断包另行下载。',

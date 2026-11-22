@@ -1,8 +1,11 @@
-import {
-  sessionModelChoice,
-  type SessionModelChoice,
-  type SessionModelState,
+import type {
+  SessionModelChoice,
+  SessionModelState,
 } from '@botharness/host-protocol/session-model';
+import {
+  ownedSessions,
+  sessionModel as callSessionModel,
+} from '@botharness/host-client/session-model';
 import {
   ENGINE_QUOTA_WINDOWS,
   type EngineQuotaWindow,
@@ -732,20 +735,7 @@ export async function sessionModel(
   sessionId: string,
   choice?: SessionModelChoice | null,
 ): Promise<SessionModelState> {
-  const value = asRecord(
-    await unwrap(call, 'sessionModel', {
-      slug,
-      sessionId,
-      ...(choice === undefined ? {} : { choice }),
-    }),
-  );
-  if (value === undefined || !('override' in value) || !('default' in value))
-    throw new Error('invalid sessionModel response');
-  return {
-    override: sessionModelChoice(value.override) ?? null,
-    default: sessionModelChoice(value.default) ?? null,
-    ...(value.active === undefined ? {} : { active: sessionModelChoice(value.active) ?? null }),
-  };
+  return callSessionModel(bridgeHost(call), slug, sessionId, choice);
 }
 
 export async function loadSessionTranscript(
@@ -809,7 +799,9 @@ export async function loadSessions(
   slug: string,
   signal?: AbortSignal,
 ): Promise<OwnedSessionSummary[]> {
-  return parseOwnedSessionSummaries(await unwrap(call, 'sessions', { slug }, signal));
+  return parseOwnedSessionSummaries({
+    sessions: await ownedSessions(bridgeHost(call, signal), slug),
+  });
 }
 
 export async function setSessionArchived(
