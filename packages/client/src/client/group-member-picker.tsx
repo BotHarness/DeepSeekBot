@@ -17,7 +17,7 @@ import { Icon } from './ds/icon.js';
 import { TextField } from './ds/field.js';
 import { Note } from './ds/note.js';
 import { ReadFailure } from './ds/read-failure.js';
-import { accent, edge, ink, size, space, style } from './ds/tobs.stylex.js';
+import { accent, edge, ink, radius, size, space, style } from './ds/tobs.stylex.js';
 import { addGroupMembers, groupMemberKey, loadGroupMemberPicker } from './group-member-bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -67,7 +67,7 @@ const styles = stylex.create({
     flexShrink: 0,
   },
   humanPortrait: {
-    borderRadius: '50%',
+    borderRadius: radius.full,
     overflow: 'hidden',
     backgroundColor: accent.container,
     color: accent.onContainer,
