@@ -227,6 +227,7 @@ function RootNavigator() {
                       title: t.privateInputOpen,
                     }}
                   />
+                  <Stack.Screen name="session/[id]" />
                   <Stack.Screen name="inbox/[id]" options={{ title: t.inbox }} />
                   <Stack.Screen
                     name="conversation-section"

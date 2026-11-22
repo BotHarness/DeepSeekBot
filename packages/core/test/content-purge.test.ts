@@ -371,6 +371,32 @@ describe('owning Content Purge tracer', () => {
       'launch on Friday',
     );
   });
+  it('removes Session links and refuses a late link to a purged Bot message', async () => {
+    const core = mount(createTempRoot('purge-session-links-'));
+    const channel = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+      name: 'Link QA',
+      members: ['ada'],
+    });
+    await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, channel.id, {
+      id: 'bot-message',
+      at: '2026-11-22T00:00:00.000Z',
+      author: { kind: 'bot', slug: 'ada' },
+      body: 'I created an assignment.',
+    });
+    const link = { sessionId: 'as-1', kind: 'created', title: 'Private assignment' } as const;
+    expect(
+      core.channels.addMessageSessionLinks?.(channel.id, 'bot-message', [link])?.sessionLinks,
+    ).toEqual([link]);
+    core.channels.deleteGroup(channel.id);
+    const [source] = core.purge.sources(OWNER_HUMAN_CONTEXT, channel.id).sources;
+    const preview = core.purge.preview(OWNER_HUMAN_CONTEXT, channel.id, [source!.sourceEventId]);
+    core.purge.confirm(OWNER_HUMAN_CONTEXT, channel.id, preview.sourceEventIds, preview.token);
+
+    core.channels.addMessageSessionLinks?.(channel.id, 'bot-message', [link]);
+    const purged = core.channels.message(channel.id, 'bot-message');
+    expect(purged).toHaveProperty('contentPurge');
+    expect(purged?.sessionLinks).toBeUndefined();
+  });
   it('purges one shared managed-file occurrence and retains current bytes across restart', async () => {
     const home = createTempRoot('purge-files-');
     const core = mount(home);

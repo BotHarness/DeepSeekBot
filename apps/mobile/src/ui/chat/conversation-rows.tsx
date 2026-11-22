@@ -33,6 +33,8 @@ import type {
 import type { useConversationTimeline, useConversationTimelineRows } from './conversation-timeline';
 import type { useConversationComposer } from './conversation-composition';
 import type { Row } from './conversation-focus';
+import { SessionLinkChips } from './session-link-chips';
+import { sessionRoute } from './session-navigation';
 import { TurnModelSwitchMarker } from './turn-model-switch';
 import { REQUEST_CARDS, RequestCard } from './conversation-request-card';
 
@@ -178,7 +180,9 @@ export function useConversationRowRendering({
   const nativeRows = nativeChatRecycler;
   const nativeRow = useCallback(
     (row: Row) =>
-      row.kind === 'draft' || (row.kind === 'message' && switchMessages.has(row.message.id))
+      row.kind === 'draft' ||
+      (row.kind === 'message' &&
+        (switchMessages.has(row.message.id) || row.message.sessionLinks !== undefined))
         ? undefined
         : nativeTextRow(row, {
             dm,
@@ -342,13 +346,32 @@ export function useConversationRowRendering({
             {children}
           </MessageSelectionRow>
         );
-        const change = item.message.turnModelSwitch;
-        return change === undefined || !switchMessages.has(item.message.id) ? (
-          row
-        ) : (
+        const { turnModelSwitch, sessionLinks, bot } = item.message;
+        const change = switchMessages.has(item.message.id) ? turnModelSwitch : undefined;
+        const links = selected === undefined && saved !== undefined ? sessionLinks : undefined;
+        if (change === undefined && links === undefined) return row;
+        const open = (link: NonNullable<typeof links>[number]) => {
+          router.push(
+            sessionRoute({
+              id: link.sessionId,
+              hostId: saved?.hostId,
+              slug: bot,
+              title: link.title,
+            }),
+          );
+        };
+        return (
           <View>
-            <TurnModelSwitchMarker change={change} catalog={menuCatalog} />
+            {change === undefined ? null : (
+              <TurnModelSwitchMarker change={change} catalog={menuCatalog} />
+            )}
+            {links === undefined ? null : (
+              <SessionLinkChips links={links} kind="sent" onOpen={open} />
+            )}
             {row}
+            {links === undefined ? null : (
+              <SessionLinkChips links={links} kind="created" onOpen={open} />
+            )}
           </View>
         );
       };

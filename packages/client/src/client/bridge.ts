@@ -4,13 +4,14 @@ import { createPersonaBotReaders } from './features/personabots/bridge.js';
 import { createChannelHumanNameBridge } from './features/humans/bridge.js';
 import { createMemberBridgeGuard } from './features/team/bridge.js';
 import type { ThreadReceptionInput } from '../../../core/src/messaging/thread-policy.js';
-import { createSessionOwnerBridge, parseItems, finite } from './features/sessions/bridge.js';
+import { createSessionOwnerBridge } from './features/sessions/bridge.js';
+import { sessionLive } from '@botharness/host-client/session-detail';
 import type { SessionLiveSnapshot } from './features/sessions/bridge.js';
 import { createApprovalTemplateDeletionBridge } from './features/approvals/bridge.js';
 import { createMarketplaceBridge } from './features/marketplace/bridge.js';
 import { createGenuiReportBridge } from './features/genui/bridge.js';
 import { createAvatarsBridge } from './features/avatars/bridge.js';
-import { asRecord, unwrap, type BridgeCall } from './bridge-transport.js';
+import { asRecord, bridgeHost, unwrap, type BridgeCall } from './bridge-transport.js';
 import { parseToolEffects } from '../../../core/src/workspaces/tool-effects-contract.js';
 import {
   skillCatalogChangeSchema,
@@ -627,33 +628,14 @@ export const {
 
 const ASSIGNMENT_ACTIVITIES = ['working', 'idle', 'error', 'stopping', 'stopped'];
 
-export async function loadSessionLive(
+export function loadSessionLive(
   call: BridgeCall,
   slug: string,
   sessionId: string,
   after: number | undefined,
   signal?: AbortSignal,
 ): Promise<SessionLiveSnapshot> {
-  const value = asRecord(
-    await unwrap(
-      call,
-      'sessionLive',
-      { slug, sessionId, ...(after === undefined ? {} : { after }) },
-      signal,
-    ),
-  );
-  const items = value?.['items'];
-  if (value === undefined || !Array.isArray(items) || typeof value['revision'] !== 'number')
-    throw new Error('invalid sessionLive response');
-  return {
-    revision: value['revision'],
-    seq: finite(value['seq']) ?? 0,
-    items: parseItems(items).map((item) =>
-      item.kind === 'reply' || item.kind === 'reasoning' || item.kind === 'tool'
-        ? { ...item, live: true as const }
-        : item,
-    ),
-  };
+  return sessionLive(bridgeHost(call, signal), slug, sessionId, after);
 }
 
 export interface TimelinePage {

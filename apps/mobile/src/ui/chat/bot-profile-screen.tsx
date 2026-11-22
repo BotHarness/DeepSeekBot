@@ -21,6 +21,7 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
+import { sessionRoute } from './session-navigation';
 import { useProfileFocused } from './profile-visibility';
 
 export type BotProfileParams = {
@@ -173,10 +174,23 @@ export function BotProfileScreen({
             params: { slug: bot.slug, hostId: saved?.hostId, id: routine.id },
           }),
         onOpenAssignment: (assignment) =>
-          router.push({
-            pathname: '/bot/[slug]/assignment/[id]',
-            params: { slug: bot.slug, hostId: saved?.hostId, id: assignment.sessionId },
-          }),
+          router.push(
+            sessionRoute({
+              id: assignment.sessionId,
+              hostId: saved?.hostId,
+              slug: bot.slug,
+              title: assignment.title,
+            }),
+          ),
+        onOpenSession: (id, title) =>
+          router.push(
+            sessionRoute({
+              id,
+              hostId: saved?.hostId,
+              slug: bot.slug,
+              title,
+            }),
+          ),
         onNewRoutine: () =>
           router.push({
             pathname: '/bot/[slug]/routine-new',

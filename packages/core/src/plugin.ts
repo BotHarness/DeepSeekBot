@@ -11,6 +11,7 @@ import * as workspacesFeature from './features/workspaces/plugin.js';
 import * as teamFeature from './features/team/plugin.js';
 import { engineAccountKey, type EngineId } from '@botharness/host-protocol/subscription-engine';
 import { requireModelSources } from './models/provider-bridge.js';
+import { readSessionTitles } from './runtime/session-transcript.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
 import { mountCardContextLive } from './channels/card-context-live.js';
 import { contextSources } from './runtime/context-sources.js';
@@ -2421,6 +2422,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         ...(call.publicDetail === undefined ? {} : { detail: call.publicDetail }),
       };
     },
+    readSessionTitles: (ids) => readSessionTitles(ctx.get('sessionQuery'), ids),
     readUsageSessionLog: async (sessionId) => {
       const query = ctx.get('sessionQuery') as unknown as
         | {

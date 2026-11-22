@@ -40,6 +40,7 @@ import {
 import { directToolTrace, summarizeToolTrace, type TurnTrace } from '../../bots/tool-trace.js';
 import type { ChannelTurnStopTarget } from '../../channels/channel.js';
 import {
+  sessionDisplayTitle,
   summarizeSessionTranscript,
   type SessionTranscript,
 } from '../../runtime/session-transcript.js';
@@ -99,7 +100,7 @@ export interface SessionsBridgeMethods {
   botToolTrace(
     payload: unknown,
   ): Promise<BridgeResult<{ slug: string; sessionId: string; turns: TurnTrace[] }>>;
-  sessions(payload: unknown): BridgeResult<{ sessions: OwnedSessionSummary[] }>;
+  sessions(payload: unknown): SessionListResult | Promise<SessionListResult>;
   sessionArchiveSet(payload: unknown): Promise<BridgeResult<{ archived: boolean }>>;
   sessionOwner(payload: unknown): BridgeResult<{ owner: OwnedSessionBot | null }>;
   botSessionIds(payload: unknown): BridgeResult<{
@@ -163,11 +164,12 @@ export interface SessionEngineQuota {
   limitedUntil?: string;
   observedAt: string;
 }
-
+type SessionListResult = BridgeResult<{ sessions: OwnedSessionSummary[] }>;
 export interface OwnedSessionSummary {
   sessionId: string;
   role: SessionRootRole;
   createdAt: string;
+  displayTitle?: string;
   cwdReference?: string;
   assignmentActivity?: AssignmentActivity;
   assignmentAccessMode?: AssignmentAccessMode;
@@ -185,7 +187,6 @@ export interface OwnedSessionSummary {
   triageOpenCount?: number;
   subagentCount?: number;
 }
-
 export interface OwnedSessionBot {
   botSlug: string;
   displayName: string;
@@ -213,6 +214,7 @@ export function createSessionsBridgeMethods(
     | 'idleCompaction'
     | 'ownership'
     | 'presentToolResult'
+    | 'readSessionTitles'
     | 'readUsageSessionLog'
     | 'registry'
     | 'runtime'
@@ -707,6 +709,7 @@ export function createSessionsBridgeMethods(
       const read = deps.readUsageSessionLog;
       if (read === undefined) return unavailable();
       const log = await read(sessionId);
+      const displayTitle = sessionDisplayTitle(log?.events ?? []);
       const engine = deps.describeEngineSession?.(sessionId);
       const segments = deps.runtime?.sessionTurnTargets?.(sessionId) ?? [];
       const currentTarget = sessionTarget(segments.at(-1)?.target, engine);
@@ -715,6 +718,7 @@ export function createSessionsBridgeMethods(
         value: {
           sessionId,
           role: owner.rootRole,
+          ...(displayTitle === undefined ? {} : { displayTitle }),
           ...(engine === undefined || currentTarget?.kind === 'dsh' ? {} : { engine }),
           ...(currentTarget === undefined ? {} : { currentTarget }),
           ...summarizeSessionTranscript({
@@ -811,7 +815,7 @@ export function createSessionsBridgeMethods(
       const roots = deps.ownership.rootsFor(slug);
       const subagentCounts = deps.ownership.subagentCounts(roots.map((root) => root.sessionId));
       const plan = deps.registry.get(slug)?.modelPlan;
-      const sessions = roots.map((root) => {
+      const sessions: OwnedSessionSummary[] = roots.map((root) => {
         const assignment = assignments.get(root.sessionId);
         const subagentCount = subagentCounts.get(root.sessionId);
         const described = deps.describeEngineSession?.(root.sessionId);
@@ -874,7 +878,18 @@ export function createSessionsBridgeMethods(
           ...(subagentCount === undefined ? {} : { subagentCount }),
         };
       });
-      return { ok: true, value: { sessions } };
+      const result: SessionListResult = { ok: true, value: { sessions } };
+      const readTitles = deps.readSessionTitles;
+      if (readTitles === undefined || asObject(payload)['includeTitles'] !== true) return result;
+      const orchestrators = sessions.filter((session) => session.role === 'orchestrator');
+      if (orchestrators.length === 0) return result;
+      return readTitles(orchestrators.map((session) => session.sessionId)).then((titles) => {
+        for (const session of orchestrators) {
+          const displayTitle = titles.get(session.sessionId);
+          if (displayTitle !== undefined) session.displayTitle = displayTitle;
+        }
+        return result;
+      });
     },
     async sessionArchiveSet(payload) {
       const input = asObject(payload);

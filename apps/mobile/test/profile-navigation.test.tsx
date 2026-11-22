@@ -59,7 +59,7 @@ const fixture = vi.hoisted(() => {
     hostId: 'host-a',
     pairedSourceAvailable: false,
     client: {
-      call: async () => ({}),
+      call: async (_method?: string) => ({}),
       subscribe: () => () => {},
       follow: () => () => {},
       getSnapshot: () => snapshot,
@@ -228,6 +228,7 @@ const options = {
     'channel/[id]',
     'channel-files',
     'channel-details',
+    'session/[id]',
   ],
   routeParamList: {},
   routeGetIdList: {
@@ -846,4 +847,72 @@ it('splits the profile Files tab into Media and Files segments with their own em
   expect(node.querySelector('[data-testid="channel-media-empty"]')?.textContent).toBe(
     t.channelFiles.mediaEmpty,
   );
+});
+
+it('retries the Bot Profile Session list and opens the selected Orchestrator', async () => {
+  let reads = 0;
+  vi.spyOn(fixture.client, 'call').mockImplementation(async (method?: string) => {
+    if (method === 'sessions') {
+      if (++reads === 1) throw new Error('Session read unavailable');
+      return {
+        sessions: [
+          {
+            sessionId: 'current-root',
+            role: 'orchestrator',
+            currentOrchestrator: true,
+            createdAt: '2026-11-22T00:00:00Z',
+          },
+          {
+            sessionId: 'older-root',
+            displayTitle: 'Review the release',
+            role: 'orchestrator',
+            currentOrchestrator: false,
+            createdAt: '2026-11-21T00:00:00Z',
+          },
+        ],
+      };
+    }
+    return {};
+  });
+  state = {
+    stale: false,
+    type: 'stack',
+    key: 'root',
+    routeKeySeq: 2,
+    index: 1,
+    routeNames: options.routeNames,
+    routes: [
+      { key: 'tabs', name: '(tabs)' },
+      { key: 'profile', name: 'bot/[slug]', params: { slug: 'ada', hostId: 'host-a' } },
+    ],
+  };
+  node = document.createElement('div');
+  document.body.append(node);
+  root = createRoot(node);
+  await act(async () => root!.render(<BotProfileScreen />));
+  const alert = [...node.querySelectorAll('[role="alert"]')].find(
+    (element) => element.textContent === t.sessionDetail.listFailed,
+  );
+  expect(alert).toBeDefined();
+  const retry = [...alert!.parentElement!.querySelectorAll('button')].find(
+    (button) => button.textContent === t.tryAgain,
+  );
+  expect(retry).toBeDefined();
+  await act(async () => retry!.click());
+  expect(reads).toBe(2);
+  expect(node.textContent).not.toContain(t.sessionDetail.listFailed);
+  const rows = [...node.querySelectorAll<HTMLButtonElement>('[data-testid^="profile-session-"]')];
+  expect(rows.map((row) => row.dataset['testid'])).toEqual([
+    'profile-session-current-root',
+    'profile-session-older-root',
+  ]);
+  expect(rows[0]?.textContent).toContain('current-root');
+  expect(rows[1]?.textContent).toContain('Review the release');
+  await act(async () => rows[1]!.click());
+  expect(state.routes[state.index]).toMatchObject({
+    name: 'session/[id]',
+    params: { id: 'older-root', slug: 'ada', hostId: 'host-a', title: 'Review the release' },
+  });
+  navigation.dispatch({ type: 'GO_BACK' });
+  expect(state.routes[state.index]?.key).toBe('profile');
 });

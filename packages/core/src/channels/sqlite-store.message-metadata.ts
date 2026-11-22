@@ -83,7 +83,7 @@ export function createChannelMessageMetadata({
           if (row === undefined) return false;
           const payload = JSON.parse(row.payload_json) as Record<string, unknown>;
           const author = payload['author'] as ChannelMessage['author'] | undefined;
-          if (author?.kind !== 'bot') return false;
+          if (author?.kind !== 'bot' || payload['contentPurge'] !== undefined) return false;
           const current = Array.isArray(payload['sessionLinks'])
             ? (payload['sessionLinks'] as ChannelSessionLink[])
             : [];
