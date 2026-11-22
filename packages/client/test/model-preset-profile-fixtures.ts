@@ -125,7 +125,7 @@ export function taskTiles(): string[] {
 }
 
 export async function addTask(query: string, option: string): Promise<void> {
-  await choose('Add an allowed model', query, option);
+  await choose('Add a task model', query, option);
 }
 
 export const followsMain = { choices: [], default: null };

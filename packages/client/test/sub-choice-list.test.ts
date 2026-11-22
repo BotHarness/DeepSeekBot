@@ -2,7 +2,7 @@
 import { catalog, choose, translate } from './model-preset-profile-fixtures.js';
 import { act, createElement, useState } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 
 import { SubChoiceList } from '../src/client/sub-choice-list.js';
 import type { SubChoices } from '../src/client/sub-choices.js';
@@ -50,8 +50,8 @@ const byLabel = (label: string) =>
 it('shows "same as main model" when empty and makes the first added choice the default', async () => {
   const view = await render({ choices: [], default: null });
   expect(tiles()).toEqual([expect.stringContaining('Same as main model')]);
-  await choose('Add an allowed model', 'Flash', 'Flash');
-  await choose('Add an allowed model', 'Kimi', 'Kimi K2');
+  await choose('Add a task model', 'Flash', 'Flash');
+  await choose('Add a task model', 'Kimi', 'Kimi K2');
   expect(view.current().default).toEqual({ kind: 'model', provider: 'deepseek', model: 'flash' });
   expect(view.current().choices.map((choice) => choice.kind === 'model' && choice.model)).toEqual([
     'flash',
@@ -105,4 +105,43 @@ it('edits a choice effort and note in its expanded tile and keeps the effort all
     allowedEfforts: ['', 'high'],
   });
   expect(tiles()[0]).toContain('High');
+});
+
+it('expands a tile inside a form without submitting the form', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const submit = vi.fn((event: Event) => event.preventDefault());
+  const host = document.createElement('div');
+  document.body.append(host);
+  root = createRoot(host);
+  await act(async () =>
+    root!.render(
+      createElement(
+        'form',
+        { onSubmit: (event: { nativeEvent: Event }) => submit(event.nativeEvent) },
+        createElement(SubChoiceList, {
+          sub: {
+            choices: [
+              {
+                kind: 'model',
+                provider: 'deepseek',
+                model: 'flash',
+                allowedEfforts: [''],
+                defaultEffort: '',
+              },
+            ],
+            default: { kind: 'model', provider: 'deepseek', model: 'flash' },
+          },
+          catalog,
+          catalogGroups: [],
+          modelOptions: options,
+          busy: false,
+          onChange: () => undefined,
+          t: translate,
+        }),
+      ),
+    ),
+  );
+  await act(async () => byLabel('Edit Flash').click());
+  expect(submit).not.toHaveBeenCalled();
+  expect(document.querySelector('input[aria-label="When to use Flash"]')).not.toBeNull();
 });

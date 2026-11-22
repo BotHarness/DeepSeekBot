@@ -112,7 +112,7 @@ export const zh = {
   'modelPreset.groupEffortsClear': '清除强度限制',
   'modelPreset.noteLabel': '{model} 的使用说明',
   'modelPreset.notePlaceholder': '什么时候用这个模型？（可选）',
-  'modelPreset.addAllowed': '添加可选模型',
+  'modelPreset.addAllowed': '添加副模型',
   'modelPreset.removeAllowed': '移除 {model}',
   'modelPreset.subHint': '分派任务时，主模型可以从这些里挑选；没有指定时用标为「默认」的那个。',
   'modelPreset.subEdit': '设置 {model}',
@@ -249,7 +249,7 @@ export const en = {
   'modelPreset.groupEffortsClear': 'Clear effort limit',
   'modelPreset.noteLabel': 'When to use {model}',
   'modelPreset.notePlaceholder': 'When should tasks use it? (optional)',
-  'modelPreset.addAllowed': 'Add an allowed model',
+  'modelPreset.addAllowed': 'Add a task model',
   'modelPreset.removeAllowed': 'Remove {model}',
   'modelPreset.subHint':
     'The main model can pick any of these for a delegated task. Without a pick, it uses the default.',

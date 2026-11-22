@@ -489,10 +489,10 @@ describe('Model entry', () => {
     } as unknown as BridgeActions);
     await openEditor(host);
     expect(taskTiles()).toEqual([expect.stringContaining('Pro')]);
-    await openPicker('Add an allowed model');
+    await openPicker('Add a task model');
     expect(document.querySelector('[data-picker-filter="all"]')).not.toBeNull();
     expect(document.querySelector('[data-picker-filter="deepseek"]')).not.toBeNull();
-    await openPicker('Add an allowed model');
+    await openPicker('Add a task model');
 
     await addTask('kimi', 'Kimi K2');
     await addTask('flash', 'Flash');
