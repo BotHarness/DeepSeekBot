@@ -7,7 +7,7 @@ import {
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { style } from './tobs.stylex.js';
+import { layer, style } from './tobs.stylex.js';
 import { border, color, space, text } from './tokens.stylex.js';
 
 const styles = stylex.create({
@@ -54,6 +54,15 @@ const styles = stylex.create({
     borderWidth: 0,
     borderRadius: 0,
   },
+  filled: {
+    borderColor: 'transparent',
+    borderRadius: style.radiusSmall,
+    backgroundColor: {
+      default: layer.well,
+      ':hover': color.hover,
+      ':focus-visible': color.hover,
+    },
+  },
   wrap: { whiteSpace: 'normal' },
   trailing: { flexShrink: 0 },
   icon: { display: 'inline-flex', flexShrink: 0 },
@@ -81,13 +90,23 @@ export interface ChipButtonProps extends Omit<
   readonly wrap?: boolean;
   readonly collapseLabel?: boolean;
   readonly trailing?: boolean;
+  readonly filled?: boolean;
   readonly [data: `data-${string}`]: string | boolean | undefined;
 }
 
 export const ChipSegmentContext = createContext(false);
 
 export const ChipButton = forwardRef<HTMLButtonElement, ChipButtonProps>(function ChipButton(
-  { icon, label, wrap = false, collapseLabel = false, trailing = false, type = 'button', ...rest },
+  {
+    icon,
+    label,
+    wrap = false,
+    collapseLabel = false,
+    trailing = false,
+    filled = false,
+    type = 'button',
+    ...rest
+  },
   ref,
 ) {
   const segment = useContext(ChipSegmentContext);
@@ -103,6 +122,7 @@ export const ChipButton = forwardRef<HTMLButtonElement, ChipButtonProps>(functio
       {...stylex.props(
         styles.chip,
         segment && styles.segment,
+        filled && styles.filled,
         wrap && styles.wrap,
         trailing && styles.trailing,
       )}

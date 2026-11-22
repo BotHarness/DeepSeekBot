@@ -107,6 +107,7 @@ export function SessionLinkRail({
         own.length > 1 ? (
           <ChipButton
             key="toggle"
+            filled
             data-session-links-toggle=""
             aria-expanded={!folded}
             onClick={() => setExpanded(!expanded)}
@@ -121,6 +122,7 @@ export function SessionLinkRail({
               return (
                 <span key={link.sessionId} {...stylex.props(styles.row)}>
                   <ChipButton
+                    filled
                     data-session-link={link.sessionId}
                     icon={<ChannelSidebarIcon name={ASSIGNMENT_SESSION_ICON} size={14} />}
                     disabled={open === undefined}
