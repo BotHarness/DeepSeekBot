@@ -6,8 +6,9 @@ import { noiseFingerprint, noisePublicKey } from '@botharness/host-protocol/nois
 import { teamRecord } from '@botharness/host-protocol/team-invitation';
 import { createHostResources } from '../src/client-resources';
 import { encryptedCarrier } from '../src/encrypted-carrier';
-import { parseSavedHost, serializeSavedHost } from '../src/hosts';
+import { parseSavedHost, serializeSavedHost, type SavedHost } from '../src/hosts';
 import { signInOwnerDevice } from '../src/owner-sign-in';
+import { discoverHostAddress, signInWithPassword } from '@botharness/host-client/password-sign-in';
 
 const route = 'https://studio.example';
 const password = 'test-only-sign-in-password';
@@ -15,7 +16,15 @@ const deviceId = 'test-device-1234';
 const credential = deviceId + '.' + 'a'.repeat(43);
 const avatarPath = '/api/bots/avatar';
 
-function host({ differentSocketKey = false } = {}) {
+function host({
+  differentSocketKey = false,
+  passwordAvailable,
+  passwordReply,
+}: {
+  differentSocketKey?: boolean;
+  passwordAvailable?: boolean;
+  passwordReply?: object;
+} = {}) {
   const privateKey = randomBytes(32);
   const publicKey = noisePublicKey(privateKey);
   const identity = { id: 'studio', name: 'Studio', fingerprint: noiseFingerprint(publicKey) };
@@ -25,7 +34,12 @@ function host({ differentSocketKey = false } = {}) {
   };
   const request = vi.fn(async (_url: string, _init: HostRequest) => ({
     status: 200,
-    text: async () => JSON.stringify({ host: identity, encryption }),
+    text: async () =>
+      JSON.stringify({
+        host: identity,
+        encryption,
+        ...(passwordAvailable === undefined ? {} : { signIn: { password: passwordAvailable } }),
+      }),
   }));
   const messages: unknown[] = [];
   const wire: string[] = [];
@@ -53,6 +67,14 @@ function host({ differentSocketKey = false } = {}) {
                 send({
                   type: 'owner-signed-in',
                   result: { ok: true, value: { host: identity, deviceId, credential } },
+                });
+              if (message['type'] === 'password-sign-in')
+                send({
+                  type: 'password-signed-in',
+                  result: passwordReply ?? {
+                    ok: true,
+                    value: { host: identity, deviceId, credential, role: 'owner' },
+                  },
                 });
               if (message['type'] === 'admit' && message['credential'] === credential)
                 send({ type: 'admitted' });
@@ -86,6 +108,7 @@ function host({ differentSocketKey = false } = {}) {
     messages,
     wire,
     encryption,
+    identity,
     input: { carrier, route, username: 'owner', password, deviceName: 'Desktop' },
   };
 }
@@ -238,5 +261,134 @@ describe('Owner password sign-in', () => {
     test.request.mockRejectedValueOnce(new TypeError('TLS certificate rejected'));
     expect(await signInOwnerDevice(test.input)).toEqual({ ok: false, code: 'unreachable' });
     expect(test.openSocket).not.toHaveBeenCalled();
+  });
+});
+
+describe('HTTPS address discovery and unified sign-in', () => {
+  it.each([true, false, undefined])(
+    'normalizes a typed address and returns password availability %s',
+    async (passwordAvailable) => {
+      const test = host(passwordAvailable === undefined ? {} : { passwordAvailable });
+      expect(
+        await discoverHostAddress({ carrier: test.carrier, input: ' Studio.Example/ ' }),
+      ).toEqual({
+        ok: true,
+        value: {
+          route,
+          host: test.identity,
+          publicKey: test.encryption.publicKey,
+          ...(passwordAvailable === undefined ? {} : { signIn: { password: passwordAvailable } }),
+        },
+      });
+      expect(test.request).toHaveBeenCalledWith(route + '/botharness-device/channel', {
+        method: 'GET',
+        redirect: 'error',
+        signal: expect.any(AbortSignal),
+      });
+      expect(test.openSocket).not.toHaveBeenCalled();
+    },
+  );
+
+  it('codes cancellation, unreachable responses, malformed JSON and fingerprint mismatches', async () => {
+    const test = host();
+    const discover = (signal?: AbortSignal) =>
+      discoverHostAddress({ carrier: test.carrier, input: route, ...(signal ? { signal } : {}) });
+    expect(await discover(AbortSignal.abort())).toEqual({ ok: false, code: 'request-cancelled' });
+    expect(test.request).not.toHaveBeenCalled();
+    test.request.mockRejectedValueOnce(new Error('discovery redirect'));
+    expect(await discover()).toEqual({ ok: false, code: 'unreachable' });
+    test.request.mockResolvedValueOnce({ status: 200, text: async () => '{' });
+    expect(await discover()).toEqual({ ok: false, code: 'response-invalid' });
+    test.request.mockResolvedValueOnce({
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          host: test.identity,
+          encryption: { ...test.encryption, fingerprint: '01'.repeat(32) },
+        }),
+    });
+    expect(await discover()).toEqual({ ok: false, code: 'fingerprint-mismatch' });
+    expect(test.openSocket).not.toHaveBeenCalled();
+  });
+
+  it('uses the unified frame and saves the Owner grant', async () => {
+    const test = host({ passwordAvailable: true });
+    expect(await signInWithPassword(test.input)).toMatchObject({
+      ok: true,
+      value: { role: 'owner', hostId: 'studio', routes: [route], credential, deviceId },
+    });
+    expect(test.messages).toEqual([
+      expect.objectContaining({
+        type: 'password-sign-in',
+        input: {
+          username: 'owner',
+          password,
+          deviceName: 'Desktop',
+          fingerprint: test.identity.fingerprint,
+        },
+      }),
+    ]);
+    expect(test.wire.join('')).not.toContain(password);
+  });
+
+  it.each([
+    [undefined, 'host-update-required'],
+    [false, 'password-sign-in-unavailable'],
+  ] as const)('does not send a password when discovery advertises %s', async (available, code) => {
+    const test = host(available === undefined ? {} : { passwordAvailable: available });
+    expect(await signInWithPassword(test.input)).toEqual({ ok: false, code });
+    expect(test.openSocket).not.toHaveBeenCalled();
+  });
+
+  it('checks the existing pairing, local Host and encryption before submitting a password', async () => {
+    const test = host({ passwordAvailable: true, differentSocketKey: true });
+    const previous: SavedHost = {
+      hostId: 'studio',
+      hostName: 'Studio',
+      deviceId,
+      credential,
+      routes: [route],
+      encryption: {
+        protocol: 'connect-noise-xk-v1',
+        hostKey: test.encryption.publicKey,
+        deviceKey: 'ab'.repeat(32),
+      },
+    };
+    expect(await signInWithPassword({ ...test.input, localHostId: 'studio' })).toEqual({
+      ok: false,
+      code: 'this-host',
+    });
+    expect(
+      await signInWithPassword({
+        ...test.input,
+        previous: () => previous,
+        allowExisting: () => false,
+      }),
+    ).toEqual({ ok: false, code: 'already-paired' });
+    expect(
+      await signInWithPassword({
+        ...test.input,
+        previous: () => ({
+          ...previous,
+          encryption: { ...previous.encryption!, hostKey: 'ef'.repeat(32) },
+        }),
+      }),
+    ).toEqual({ ok: false, code: 'fingerprint-mismatch' });
+    expect(test.openSocket).not.toHaveBeenCalled();
+    expect(
+      await signInWithPassword({
+        ...test.input,
+        previous: () => previous,
+        allowExisting: () => true,
+      }),
+    ).toEqual({ ok: false, code: 'fingerprint-mismatch' });
+    expect(test.openSocket).toHaveBeenCalledOnce();
+    expect(test.messages).toHaveLength(0);
+  });
+
+  it('preserves coded refusals and their retry time', async () => {
+    const refusal = { ok: false, code: 'rate-limited', retryAfterSeconds: 10 };
+    const test = host({ passwordAvailable: true, passwordReply: refusal });
+    expect(await signInWithPassword(test.input)).toEqual(refusal);
   });
 });

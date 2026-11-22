@@ -2,6 +2,7 @@ import { createDevicePairing } from '../src/devices/pairing.js';
 import { createMemberDevices } from '../src/team/devices.js';
 import { createDeviceGateway } from '../src/devices/gateway.js';
 import { createEncryptedGateway } from '../src/devices/encrypted-gateway.js';
+import { createChannelDiscovery } from '../src/devices/channel-discovery.js';
 import {
   noisePublicKey,
   noiseFingerprint,
@@ -351,10 +352,14 @@ export async function memberDeviceHost(
     key: async () => Uint8Array.from(f.privateKey),
     port: () => port,
   });
+  const discover = createChannelDiscovery({
+    host: () => f.pairing.host(),
+    encryption: async () => f.encryption,
+    passwordSignInAvailable: f.devices.passwordSignInAvailable,
+  });
   const server = createServer((req, res) => {
     if (req.url === '/botharness-device/channel') {
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({ host: f.pairing.host(), encryption: f.encryption }));
+      void discover(req, res);
       return;
     }
     if (options.remote)

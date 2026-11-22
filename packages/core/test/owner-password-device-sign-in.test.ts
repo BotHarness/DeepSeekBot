@@ -1,11 +1,15 @@
 import { randomBytes } from 'node:crypto';
+import type { AddressInfo } from 'node:net';
 import { encryptedCarrier, openNoiseSocket } from '@botharness/host-client/encrypted-carrier';
+import { signInWithPassword } from '@botharness/host-client/password-sign-in';
 import { Peer } from '@deepseek-ai/dsh-client-connection';
 import { afterEach, expect, it, vi } from 'vitest';
 import { WebSocket } from 'ws';
 import { z } from 'zod';
 import { OWNER_HUMAN_CONTEXT as owner, humanContext } from '../src/humans/context.js';
-import { cleanup, memberDeviceHost, teamFixture } from './team-mode-fixtures.js';
+import { createGatewayOrigin } from '../src/devices/connect.js';
+import * as passwordHashing from '../src/team/password.js';
+import { cleanup, enabledFixture, memberDeviceHost, teamFixture } from './team-mode-fixtures.js';
 
 afterEach(cleanup);
 
@@ -26,6 +30,8 @@ async function signIn(
     attempt = password,
     fingerprint = f.encryption.fingerprint,
     repeat = false,
+    type = 'owner-sign-in',
+    repeatType = type,
   } = {},
 ) {
   return new Promise<unknown>((resolve, reject) => {
@@ -41,7 +47,8 @@ async function signIn(
           socket.close();
           return;
         }
-        if (frame['type'] !== 'owner-signed-in') return;
+        const reply = type === 'password-sign-in' ? 'password-signed-in' : 'owner-signed-in';
+        if (frame['type'] !== reply) return;
         result = frame['result'];
         if (!repeat) {
           resolve(result);
@@ -52,14 +59,144 @@ async function signIn(
     });
     void socket.ready.then(() => {
       const request = {
-        type: 'owner-sign-in',
+        type,
         input: { username, password: attempt, deviceName: 'Desktop', fingerprint },
       };
       socket.send(request);
-      if (repeat) socket.send(request);
+      if (repeat) socket.send({ ...request, type: repeatType });
     }, reject);
   });
 }
+
+it('discovers password availability at the Host and through the Connect origin', async () => {
+  const f = await enabledFixture();
+  const host = await memberDeviceHost(f);
+  const proxy = createGatewayOrigin(() => Number(new URL(host.origin).port));
+  await new Promise<void>((resolve) => proxy.listen(0, '127.0.0.1', resolve));
+  const proxyOrigin = `http://127.0.0.1:${(proxy.address() as AddressInfo).port}`;
+  const discover = async (password: boolean) => {
+    for (const origin of [host.origin, proxyOrigin]) {
+      const response = await fetch(origin + '/botharness-device/channel');
+      expect(response.status).toBe(200);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(await response.json()).toEqual({
+        host: f.pairing.host(),
+        encryption: f.encryption,
+        signIn: { password },
+      });
+    }
+  };
+  try {
+    await discover(true);
+    await f.team.suspend(owner, f.human.humanId);
+    await discover(false);
+    await f.team.setMode(owner, false);
+    await f.team.ownerPasswordSignInSet(owner, { enabled: true });
+    await discover(true);
+    await f.team.ownerPasswordSignInSet(owner, { enabled: false });
+    await discover(false);
+  } finally {
+    proxy.closeAllConnections();
+    await new Promise<void>((resolve) => proxy.close(() => resolve()));
+  }
+});
+
+it('uses the existing Owner and member grants for unified password sign-in', async () => {
+  const f = await enabledFixture();
+  await f.team.ownerPasswordSignInSet(owner, { enabled: true });
+  const host = await memberDeviceHost(f);
+  const enroll = (username: string, password: string) =>
+    signInWithPassword({
+      carrier: host.carrier,
+      route: target,
+      username,
+      password,
+      deviceName: 'Phone',
+    });
+  const signedOwner = await enroll('owner', 'owner-password-1');
+  expect(signedOwner).toMatchObject({ ok: true, value: { role: 'owner' } });
+  expect(f.pairing.list()).toMatchObject([{ enrollment: 'owner-password' }]);
+  const member = await enroll('bob', f.initialPassword);
+  expect(member).toMatchObject({
+    ok: true,
+    value: { role: 'member', member: { humanId: f.human.humanId, mustChangePassword: true } },
+  });
+  if (!member.ok || !member.value.encryption) throw new Error('missing member grant');
+  const { credential, encryption } = member.value;
+  expect(f.team.admitDevice(`Device ${credential}`, f.encryption.publicKey)).toBeUndefined();
+  expect(f.pairing.list()).toHaveLength(1);
+  expect(credential).toMatch(/^member\./u);
+  const deviceKey = Buffer.from(encryption.deviceKey, 'hex');
+  const { noisePublicKey } = await import('@botharness/host-protocol/noise/xk');
+  expect(
+    f.team.admitDevice(
+      `Device ${credential}`,
+      Buffer.from(noisePublicKey(deviceKey)).toString('hex'),
+    )?.principal,
+  ).toMatchObject({ kind: 'botharness-member', humanId: f.human.humanId });
+});
+
+it('uses identical refusals and hash costs for wrong and unknown passwords, including a disabled Owner', async () => {
+  const f = await enabledFixture();
+  const host = await memberDeviceHost(f);
+  const authenticate = (username: string, attempt: string) =>
+    signIn(f, host, deviceEncryption(f), { type: 'password-sign-in', username, attempt });
+  const verify = vi.spyOn(passwordHashing, 'verifyPassword');
+  try {
+    for (const username of ['owner', 'bob', 'no-such-user'])
+      expect(await authenticate(username, 'wrong')).toEqual({
+        ok: false,
+        code: 'credentials-invalid',
+      });
+    expect(verify.mock.calls.map(([, hash]) => hash.params)).toEqual(
+      Array.from({ length: 3 }, () => passwordHashing.ARGON2_PARAMS),
+    );
+    expect(verify).toHaveBeenLastCalledWith('wrong', passwordHashing.DUMMY_PASSWORD_HASH);
+    expect(await authenticate('owner', 'owner-password-1')).toEqual({
+      ok: false,
+      code: 'owner-sign-in-disabled',
+    });
+    await f.team.setMode(owner, false);
+    expect(await authenticate('owner', 'owner-password-1')).toEqual({
+      ok: false,
+      code: 'password-sign-in-unavailable',
+    });
+  } finally {
+    verify.mockRestore();
+  }
+});
+
+it.each([
+  ['password-sign-in', 'password-sign-in'],
+  ['password-sign-in', 'owner-sign-in'],
+  ['owner-sign-in', 'password-sign-in'],
+])('allows only one password attempt when %s is followed by %s', async (type, repeatType) => {
+  const f = teamFixture();
+  await f.team.ownerPasswordSignInSet(owner, { enabled: true, username: 'my-owner', password });
+  const host = await memberDeviceHost(f);
+  await expect(
+    signIn(f, host, deviceEncryption(f), { type, repeatType, repeat: true }),
+  ).resolves.toMatchObject({ ok: true });
+  expect(f.pairing.list()).toHaveLength(1);
+});
+
+it('shares one username limit between unified and standalone Owner sign-in', async () => {
+  const f = teamFixture();
+  await f.team.ownerPasswordSignInSet(owner, { enabled: true, username: 'my-owner', password });
+  const host = await memberDeviceHost(f);
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const type = attempt % 2 === 0 ? 'password-sign-in' : 'owner-sign-in';
+    expect(await signIn(f, host, deviceEncryption(f), { type, attempt: 'wrong' })).toEqual({
+      ok: false,
+      code: 'credentials-invalid',
+    });
+  }
+  expect(await signIn(f, host, deviceEncryption(f), { type: 'password-sign-in' })).toEqual({
+    ok: false,
+    code: 'rate-limited',
+    retryAfterSeconds: 60,
+  });
+});
 
 it('enrolls an Owner device through Noise with Team mode off and revokes its admitted connection', async () => {
   const f = teamFixture();

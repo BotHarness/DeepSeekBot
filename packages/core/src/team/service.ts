@@ -709,6 +709,14 @@ export class TeamService {
     );
   }
 
+  passwordSignInAvailable(): boolean {
+    return memberAuth.passwordSignInAvailable.call(this.#memberOperations);
+  }
+
+  signInPasswordDevice<T>(input: Parameters<typeof memberAuth.signInPasswordDevice<T>>[0]) {
+    return (memberAuth.signInPasswordDevice<T>).call(this.#memberOperations, input);
+  }
+
   private createGrant(
     member: TeamMember,
     device?: { kind: 'paired-device'; name: string; publicKey?: string },

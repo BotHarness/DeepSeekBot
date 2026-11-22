@@ -18,7 +18,7 @@ export async function discoverSignInHost(options: {
   invitedHost?: TeamHostIdentity;
 }): Promise<
   TeamResult<
-    { host: TeamHostIdentity; publicKey: string },
+    { host: TeamHostIdentity; publicKey: string; signIn?: { password: boolean } },
     'unreachable' | 'response-invalid' | 'fingerprint-mismatch'
   >
 > {
@@ -30,7 +30,13 @@ export async function discoverSignInHost(options: {
   });
   if (response.status !== 200) return { ok: false, code: 'unreachable' };
 
-  const discovery = teamRecord(JSON.parse(await response.text()));
+  const body = await response.text();
+  let discovery: Record<string, unknown>;
+  try {
+    discovery = teamRecord(JSON.parse(body));
+  } catch {
+    return { ok: false, code: 'response-invalid' };
+  }
   const identity = teamRecord(discovery['host']);
   const encryption = teamRecord(discovery['encryption']);
   const publicKey = encryption['publicKey'];
@@ -46,7 +52,11 @@ export async function discoverSignInHost(options: {
     (invitedHost && (invitedHost.id !== host.id || invitedHost.fingerprint !== host.fingerprint))
   )
     return { ok: false, code: 'fingerprint-mismatch' };
-  return { ok: true, value: { host, publicKey } };
+  const password = teamRecord(discovery['signIn'])['password'];
+  return {
+    ok: true,
+    value: { host, publicKey, ...(typeof password === 'boolean' ? { signIn: { password } } : {}) },
+  };
 }
 
 export function matchesSavedSignInHost(

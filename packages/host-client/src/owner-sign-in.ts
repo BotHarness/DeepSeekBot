@@ -3,6 +3,7 @@ import { isHttpsOrigin } from '@botharness/host-protocol/route';
 import {
   teamHostIdentity,
   teamRecord,
+  type TeamHostIdentity,
   type TeamResult,
 } from '@botharness/host-protocol/team-invitation';
 import { keyHex, secureRandom } from './encrypted-carrier';
@@ -10,7 +11,7 @@ import { encryptedSignIn, signInTransportFailure } from './encrypted-sign-in';
 import type { HostEncryption, SavedHost } from './hosts';
 import { discoverSignInHost, matchesSavedSignInHost } from './sign-in-discovery';
 
-const refusals = [
+export const ownerSignInRefusals = [
   'credentials-invalid',
   'rate-limited',
   'owner-sign-in-disabled',
@@ -21,7 +22,7 @@ const refusals = [
 ] as const;
 
 export type OwnerSignInError =
-  | (typeof refusals)[number]
+  | (typeof ownerSignInRefusals)[number]
   | 'already-paired'
   | 'this-host'
   | 'response-invalid'
@@ -42,6 +43,7 @@ export interface OwnerSignInOptions {
 
 export function ownerSignInOrigin(input: string): string | undefined {
   const value = input.trim();
+  if (!/^(?:https:\/\/)?[^/\\?#@\s]+\/?$/iu.test(value)) return undefined;
   try {
     const url = new URL(value.includes('://') ? value : 'https://' + value);
     if (
@@ -59,6 +61,31 @@ export function ownerSignInOrigin(input: string): string | undefined {
 export async function signInOwnerDevice(
   options: OwnerSignInOptions,
 ): Promise<TeamResult<SavedHost, OwnerSignInError>> {
+  return withPasswordSignInChannel(options, async ({ host, encryption, signal }) => {
+    const { carrier, route, username, password, deviceName } = options;
+    const result = await encryptedSignIn({
+      type: 'owner-sign-in',
+      carrier,
+      route,
+      host,
+      encryption,
+      signal,
+      input: { username, password, deviceName, fingerprint: host.fingerprint },
+      codes: ownerSignInRefusals,
+    });
+    return result.ok ? signedOwnerHost(result.value, host, route, encryption) : result;
+  });
+}
+
+export async function withPasswordSignInChannel<T, E extends string>(
+  options: OwnerSignInOptions,
+  run: (channel: {
+    host: TeamHostIdentity;
+    encryption: HostEncryption;
+    signal: AbortSignal;
+    signIn?: { password: boolean };
+  }) => Promise<TeamResult<T, E>>,
+): Promise<TeamResult<T, E | OwnerSignInError>> {
   const { carrier, route, username, password, deviceName } = options;
   if (!isHttpsOrigin(route)) return { ok: false, code: 'insecure-transport' };
   if (
@@ -82,8 +109,9 @@ export async function signInOwnerDevice(
       redirect: 'error',
       signal,
     });
+    if (signal.aborted) return { ok: false, code: 'request-cancelled' };
     if (!discovered.ok) return discovered;
-    const { host, publicKey } = discovered.value;
+    const { host, publicKey, signIn } = discovered.value;
     if (host.id === options.localHostId) return { ok: false, code: 'this-host' };
     const previous = options.previous?.(host.id, route);
     if (!matchesSavedSignInHost(previous, host, publicKey))
@@ -96,40 +124,38 @@ export async function signInOwnerDevice(
       hostKey: publicKey,
       deviceKey: keyHex(secureRandom(carrier)),
     };
-    const result = await encryptedSignIn({
-      type: 'owner-sign-in',
-      carrier,
-      route,
-      host,
-      encryption,
-      signal,
-      input: { username, password, deviceName, fingerprint: host.fingerprint },
-      codes: refusals,
-    });
-    if (!result.ok) return result;
-    const { host: reply, deviceId, credential } = teamRecord(result.value);
-    const signedHost = teamHostIdentity(reply);
-    if (signedHost?.id !== host.id || signedHost.fingerprint !== host.fingerprint)
-      return { ok: false, code: 'fingerprint-mismatch' };
-    if (
-      typeof deviceId !== 'string' ||
-      typeof credential !== 'string' ||
-      !/^[A-Za-z0-9_-]{16,64}\.[A-Za-z0-9_-]{32,128}$/u.test(credential) ||
-      !credential.startsWith(deviceId + '.')
-    )
-      return { ok: false, code: 'response-invalid' };
-    return {
-      ok: true,
-      value: {
-        hostId: host.id,
-        hostName: signedHost.name,
-        routes: [route],
-        deviceId,
-        credential,
-        encryption,
-      },
-    };
+    return await run({ host, encryption, signal, ...(signIn === undefined ? {} : { signIn }) });
   } catch (error) {
     return signInTransportFailure(error, signal);
   }
+}
+
+export function signedOwnerHost(
+  value: unknown,
+  host: TeamHostIdentity,
+  route: string,
+  encryption: HostEncryption,
+): TeamResult<SavedHost, 'fingerprint-mismatch' | 'response-invalid'> {
+  const { host: reply, deviceId, credential } = teamRecord(value);
+  const signedHost = teamHostIdentity(reply);
+  if (signedHost?.id !== host.id || signedHost.fingerprint !== host.fingerprint)
+    return { ok: false, code: 'fingerprint-mismatch' };
+  if (
+    typeof deviceId !== 'string' ||
+    typeof credential !== 'string' ||
+    !/^[A-Za-z0-9_-]{16,64}\.[A-Za-z0-9_-]{32,128}$/u.test(credential) ||
+    !credential.startsWith(deviceId + '.')
+  )
+    return { ok: false, code: 'response-invalid' };
+  return {
+    ok: true,
+    value: {
+      hostId: host.id,
+      hostName: signedHost.name,
+      routes: [route],
+      deviceId,
+      credential,
+      encryption,
+    },
+  };
 }
