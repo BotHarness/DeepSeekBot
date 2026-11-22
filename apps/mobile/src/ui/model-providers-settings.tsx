@@ -317,18 +317,19 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
   const [emailShown, setEmailShown] = useState(false);
   const [copied, setCopied] = useState(false);
   const [starting, setStarting] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [, setTick] = useState(0);
   const signingSince = useRef<number | undefined>(undefined);
 
-  const read = useCallback(
-    () =>
-      port.accounts().then((view) => {
-        const next = view.accounts.find((entry) => entry.id === id) ?? null;
-        setAccount(next);
-        return next;
-      }),
-    [port, id],
-  );
+  const reads = useRef(0);
+  const read = useCallback(() => {
+    const ticket = ++reads.current;
+    return port.accounts().then((view) => {
+      const next = view.accounts.find((entry) => entry.id === id) ?? null;
+      if (ticket === reads.current) setAccount(next);
+      return next;
+    });
+  }, [port, id]);
 
   const runRefresh = useCallback(() => {
     setRefresh({ state: 'refreshing' });
@@ -369,8 +370,10 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
       };
       read().then(
         (next) => {
-          if (next?.available) finish(false);
-          else if (expired) finish(true);
+          if (next?.available) {
+            finish(false);
+            if (quotaStale(next.quota, Date.now())) runRefresh();
+          } else if (expired) finish(true);
         },
         () => {
           if (expired) finish(true);
@@ -378,7 +381,7 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
       );
     }, 15_000);
     return () => clearInterval(timer);
-  }, [read]);
+  }, [read, runRefresh]);
 
   const signIn = () => {
     if (starting) return;
@@ -400,15 +403,22 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
   };
 
   const cancelSignIn = () => {
-    port.cancelSignIn(id).then(
-      () => {
-        signingSince.current = undefined;
-        setSignInUrl(undefined);
-        setCopied(false);
-        void read().catch(() => undefined);
-      },
-      () => setSignInError('failed'),
-    );
+    const attempt = signingSince.current;
+    if (cancelling || attempt === undefined) return;
+    setCancelling(true);
+    port
+      .cancelSignIn(id)
+      .then(
+        () => {
+          if (signingSince.current !== attempt) return;
+          signingSince.current = undefined;
+          setSignInUrl(undefined);
+          setCopied(false);
+          void read().catch(() => undefined);
+        },
+        () => setSignInError('failed'),
+      )
+      .finally(() => setCancelling(false));
   };
 
   const now = Date.now();
@@ -548,7 +558,9 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
                   testID="account-cancel-sign-in"
                   title={t.modelProviders.cancelSignIn}
                   tone="danger"
-                  onPress={cancelSignIn}
+                  {...(cancelling
+                    ? { control: { kind: 'busy' as const } }
+                    : { onPress: cancelSignIn })}
                 />
               ) : null}
             </SettingsSection>

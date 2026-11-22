@@ -236,6 +236,7 @@ it('reports a failed read after refresh and clears sign-in once the Host finishe
     await act(async () => undefined);
     expect(signedOut.textContent).not.toContain(t.modelProviders.signInOnComputer);
     expect(signedOut.textContent).toContain(t.modelProviders.signedIn);
+    expect(port.refresh).toHaveBeenCalledWith('codex-b');
   } finally {
     vi.useRealTimers();
   }
@@ -316,4 +317,26 @@ it('treats a sign-in that finished while the timer was late as signed in, not ti
   } finally {
     vi.useRealTimers();
   }
+});
+
+it('sends one cancel for a sign-in even when Cancel is pressed twice', async () => {
+  let finishCancel: () => void = () => undefined;
+  const port: ProviderAccountPort = {
+    accounts: vi.fn(async () => accountsFixture(Date.now())),
+    refresh: vi.fn(async () => 'ok' as const),
+    signIn: vi.fn(async () => ({ url: 'https://example.org/sign-in' })),
+    cancelSignIn: vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishCancel = resolve;
+        }),
+    ),
+  };
+  const view = await render(<ProviderAccountSettings port={port} id="codex-b" />);
+  await act(async () => button(view, t.modelProviders.signIn)!.click());
+  await act(async () => button(view, t.modelProviders.cancelSignIn)!.click());
+  await act(async () => button(view, t.modelProviders.cancelSignIn)?.click());
+  expect(port.cancelSignIn).toHaveBeenCalledTimes(1);
+  await act(async () => finishCancel());
+  expect(button(view, t.modelProviders.signIn)).toBeDefined();
 });
