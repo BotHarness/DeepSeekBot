@@ -4,6 +4,7 @@
 
 - `packages/client/src/client/{environment-creation,section-management,group-member-controls,group-member-picker,personabot-deletion}.tsx`
 - `packages/core/src/features/channels/group-members.ts`
+- `packages/core/src/channels/runtime-access.ts`
 - `packages/core/src/channels/runtime-admission.ts`
 - `apps/mobile/src/ui/chat/{invite-selection,invite-sheet,invite-sheet.android}.{ts,tsx}`
 

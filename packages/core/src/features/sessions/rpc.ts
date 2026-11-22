@@ -5,12 +5,7 @@ import type { SessionTranscript } from '../../runtime/session-transcript.js';
 import type { SessionToolDetail } from '../../runtime/session-tool-detail.js';
 import type { SessionRootRole } from '../../sessions/ownership.js';
 import type { ManualCompactionResult } from '../../runtime/idle-compaction.js';
-import type {
-  IdleCompactionView,
-  OwnedSessionSummary,
-  OwnedSessionBot,
-  SessionsBridgeMethods,
-} from './methods.js';
+import type { IdleCompactionView, OwnedSessionBot, SessionsBridgeMethods } from './methods.js';
 import type { SessionsAdapterMethods } from './methods.js';
 
 export function botNewSession(
@@ -167,11 +162,9 @@ export function botToolTrace(
   );
 }
 
-export function sessions(
-  methods: SessionsBridgeMethods,
-  slug: string,
-): { sessions: OwnedSessionSummary[] } {
-  return unwrap(methods.sessions({ slug }));
+export function sessions(methods: SessionsBridgeMethods, slug: string, includeTitles?: boolean) {
+  const result = methods.sessions({ slug, includeTitles });
+  return result instanceof Promise ? unwrapAsync(result) : unwrap(result);
 }
 
 export function sessionArchiveSet(

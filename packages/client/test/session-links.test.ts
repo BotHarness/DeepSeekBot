@@ -11,6 +11,8 @@ import {
   withSessionMentionLinks,
 } from '../src/client/session-links.js';
 import { updateSessionViewPreference } from '../src/client/session-view-prefs.js';
+import { store, type ClientState, type ClientStore } from '../src/client/store.js';
+import { ClientStoreContext } from '../src/client/use-client-store.js';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -106,4 +108,45 @@ it('marks Assignment Session chips with the Sessions panel icon', async () => {
   const icon = host.querySelector('[data-session-link="asg-1"] svg');
   const paths = [...(icon?.querySelectorAll('path') ?? [])].map((path) => path.getAttribute('d'));
   expect(paths).toEqual(['M17 5H3', 'M21 12H8', 'M21 19H8', 'M3 12v7']);
+});
+
+it('keeps the saved link title when the Session list only knows the raw id', async () => {
+  const base = store.getSnapshot();
+  const snapshot = {
+    ...base,
+    sessions: {
+      ...base.sessions,
+      items: [
+        {
+          sessionId: 'asg-3',
+          botSlug: 'tobs',
+          role: 'assignment',
+          createdAt: '2026-11-22T00:00:00.000Z',
+        },
+      ],
+    },
+  } as unknown as ClientState;
+  const fake = {
+    getSnapshot: () => snapshot,
+    subscribe: () => () => undefined,
+  } as unknown as ClientStore;
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  mounted.push(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+  await act(async () => {
+    root.render(
+      createElement(
+        ClientStoreContext.Provider,
+        { value: fake },
+        createElement(SessionLinkRail, { botSlug: 'tobs', kind: 'created', links, t: zhTranslate }),
+      ),
+    );
+  });
+  const chip = host.querySelector('[data-session-link="asg-3"]');
+  expect(chip?.textContent).toContain('调研 Lark 签名');
+  expect(chip?.textContent).not.toContain('asg-3');
 });

@@ -483,7 +483,7 @@ describe('Model entry', () => {
     } as unknown as BridgeActions);
     await openEditor(host);
     expect(button('Choose preset')).toBeTruthy();
-    await act(async () => button('Open Model Presets').click());
+    await act(async () => button('Open Model configuration').click());
     expect(openModelPresets).toHaveBeenCalledOnce();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });

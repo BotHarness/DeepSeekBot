@@ -3,7 +3,7 @@ import babelTraverse from '@babel/traverse';
 
 const traverse = babelTraverse.default ?? babelTraverse;
 const DS = 'packages/client/src/client/ds';
-const LEGACY_RENDERER = 'packages/client/src/client/channel-sidebar-icon.tsx';
+const LEGACY_RENDERER = 'packages/client/src/client/features/channels/channel-sidebar-icon.tsx';
 const DSH_UI = /^@deepseek-ai\/dsh-client-ui(?:-[\w-]+)?(?:\/|$)/u;
 const ICON_LIB = /^(?:lucide-react|react-icons(?:\/|$)|@tabler\/icons-react)/u;
 const ICON_EXPORT = /^(?:Icon[A-Z]|[A-Z]\w*(?:Icon|Glyph)$)/u;

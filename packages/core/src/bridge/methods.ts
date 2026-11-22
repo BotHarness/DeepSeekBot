@@ -461,6 +461,7 @@ export interface BridgeMethodsDeps
   >;
   usage?: UsageProjection;
   readUsageSessionLog?: DshUsageSessionLogReader;
+  readSessionTitles?: (ids: readonly string[]) => Promise<ReadonlyMap<string, string>>;
   describeToolCall?(sessionId: string, name: string, args: unknown): PublicToolCall | undefined;
   orchestratorRunner?(botSlug: string): OrchestratorRunner | undefined;
   describeEngineSession?(sessionId: string):

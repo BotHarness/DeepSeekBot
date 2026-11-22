@@ -1,3 +1,4 @@
+import { parseSessionLinks } from './session-links';
 import { openBotDm } from './channel-management';
 import { forgetGenuiDocumentViews } from './genui/view';
 import { forgetMedia } from './media-cache';
@@ -346,7 +347,12 @@ export function createConversation(options: ConversationOptions): Conversation {
   };
 
   const blank = (entry: JournalEntry): JournalEntry => {
-    const { attachments: _attachments, bridgeMedia: _bridgeMedia, ...message } = entry.message;
+    const {
+      attachments: _attachments,
+      bridgeMedia: _bridgeMedia,
+      sessionLinks: _sessionLinks,
+      ...message
+    } = entry.message;
     return { ...entry, message: { ...message, body: '', contentPurge: { actor: 'local-human' } } };
   };
 
@@ -528,6 +534,22 @@ export function createConversation(options: ConversationOptions): Conversation {
           notification.attachments,
           notification.clearedAttachments,
         );
+    } else if (notification.kind === 'session-links') {
+      if (notification.channelId !== channelId) return false;
+      const index = window.findIndex((entry) => entry.message.id === notification.messageId);
+      const entry = window[index];
+      if (entry?.message.author.kind !== 'bot' || entry.message.contentPurge !== undefined)
+        return false;
+      const sessionLinks = parseSessionLinks(notification.sessionLinks);
+      window = window.map((current, i) =>
+        i === index
+          ? {
+              ...entry,
+              message: { ...entry.message, sessionLinks },
+            }
+          : current,
+      );
+      return true;
     } else if (notification.kind === 'draft-baseline') {
       clearDrafts();
       for (const draft of notification.drafts) upsertDraft(draft);
@@ -778,11 +800,7 @@ export function createConversation(options: ConversationOptions): Conversation {
         )
           return entry;
         changed = true;
-        const { attachments: _attachments, bridgeMedia: _bridgeMedia, ...message } = entry.message;
-        return {
-          ...entry,
-          message: { ...message, body: '', contentPurge: { actor: 'local-human' } },
-        };
+        return blank(entry);
       });
       if (!changed) return;
       publish();

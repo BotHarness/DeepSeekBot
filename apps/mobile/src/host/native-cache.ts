@@ -83,13 +83,25 @@ export function redactHostConversationCache(
         if (!Array.isArray(value.entries)) continue;
         let changed = false;
         const entries = value.entries.map((item) => {
-          if (item.message.contentPurge !== undefined || !purged(item.channelId, item.message.id))
+          if (
+            !purged(item.channelId, item.message.id) ||
+            (item.message.contentPurge !== undefined && item.message.sessionLinks === undefined)
+          )
             return item;
           changed = true;
-          const { attachments: _attachments, bridgeMedia: _bridgeMedia, ...message } = item.message;
+          const {
+            attachments: _attachments,
+            bridgeMedia: _bridgeMedia,
+            sessionLinks: _sessionLinks,
+            ...message
+          } = item.message;
           return {
             ...item,
-            message: { ...message, body: '', contentPurge: { actor: 'local-human' } },
+            message: {
+              ...message,
+              body: '',
+              contentPurge: message.contentPurge ?? { actor: 'local-human' },
+            },
           };
         });
         if (changed) entry.writeSync(JSON.stringify({ ...value, entries }));

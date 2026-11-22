@@ -1,6 +1,8 @@
+import { randomUUID } from 'node:crypto';
 import { chmodSync, lstatSync, readFileSync, writeFileSync, unlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { isMap, isScalar, parseDocument } from 'yaml';
+import { withFileLock } from '@deepseek-ai/dsh-atomic-write';
 import { parseCredentialsDocument } from '@deepseek-ai/dsh-credentials-local';
 import type { BotCreateCliIo, CreateValues } from './cli-types.js';
 import { CliFailure } from './cli-errors.js';
@@ -50,6 +52,7 @@ interface CredentialRefs {
   lines: string[];
   spans: Map<string, { start: number; end: number }>;
   valueRanges: Map<string, { start: number; end: number }>;
+  indent: number;
 }
 
 function credentialPath(dshHome: string): string {
@@ -104,6 +107,7 @@ function parseCredentialRefs(path: string, text: string): CredentialRefs {
   const tops = new Map<string, number>();
   let section: string | undefined;
   let entry: { name: string; start: number; indent: number } | undefined;
+  let refsIndent: number | undefined;
   const spans = new Map<string, { start: number; end: number }>();
   const closeEntry = (end: number): void => {
     if (entry === undefined) return;
@@ -146,6 +150,7 @@ function parseCredentialRefs(path: string, text: string): CredentialRefs {
     }
     const name = item[2].trim();
     if (!SECRET_NAME_RE.test(name)) throw invalid(`unaddressable key ${name}`);
+    refsIndent ??= item[1].length;
     entry = { name, start: index, indent: item[1].length };
   });
   closeEntry(lines.length);
@@ -159,15 +164,15 @@ function parseCredentialRefs(path: string, text: string): CredentialRefs {
           .trim()
           .replace(/^(['"])(.*)\1$/u, '$2');
   if (versionLine !== '1') throw invalid('missing or unsupported version (want version: 1)');
-  return { lines, spans, valueRanges };
+  return { lines, spans, valueRanges, indent: refsIndent ?? 2 };
 }
 
-function renderSecretEntry(name: string, value: string): string[] {
-  return [`  ${name}: ${JSON.stringify(value)}`];
+function renderSecretEntry(name: string, value: string, indent: number): string[] {
+  return [`${' '.repeat(indent)}${name}: ${JSON.stringify(value)}`];
 }
 
-function checkCredentialMode(path: string): void {
-  if (process.platform === 'win32') return;
+function credentialWriteMode(path: string): number {
+  if (process.platform === 'win32') return 0o600;
   let mode: number;
   try {
     mode = lstatSync(path).mode;
@@ -179,37 +184,58 @@ function checkCredentialMode(path: string): void {
       `The credential file ${path} is readable beyond its owner; run chmod 600 ${path}.`,
     );
   }
+  return mode & 0o600;
 }
 
-function backupCredentialFile(path: string, lines: string[]): string {
+function backupCredentialFile(path: string, text: string): void {
   const stamp = new Date().toISOString().replace(/[:.]/gu, '-');
-  const backup = `${path}.bak-${stamp}`;
-  writeFileSync(backup, lines.join('\n'), { mode: 0o600 });
-  return backup;
+  writeFileSync(`${path}.bak-${stamp}-${randomUUID()}`, text, { mode: 0o600, flag: 'wx' });
 }
 
-function writeCredentialFile(path: string, lines: string[]): void {
-  writeFileSync(path, lines.join('\n'), { mode: 0o600 });
-  if (process.platform !== 'win32') chmodSync(path, 0o600);
+function writeCredentialFile(path: string, lines: string[], mode: number): void {
+  writeFileSync(path, lines.join('\n'), { mode });
+  if (process.platform !== 'win32') chmodSync(path, mode);
 }
 
-function readCredentialStore(dshHome: string): {
-  path: string;
-  exists: boolean;
-  refs: CredentialRefs | undefined;
-} {
-  const path = credentialPath(dshHome);
+function isMissingFile(error: unknown): boolean {
+  return error instanceof Error && 'code' in error && error.code === 'ENOENT';
+}
+
+function readCredentialStore(path: string):
+  | {
+      text: string;
+      refs: CredentialRefs;
+      mode: number;
+    }
+  | undefined {
   let text: string;
   try {
     text = readFileSync(path, 'utf8');
   } catch (error) {
-    if (typeof error === 'object' && error !== null && 'code' in error && error.code === 'ENOENT')
-      return { path, exists: false, refs: undefined };
+    if (isMissingFile(error)) return undefined;
     throw badCredentials('The credential file cannot be read.');
   }
   if (text.trim().length === 0) throw badCredentials('The credential file is empty.');
-  checkCredentialMode(path);
-  return { path, exists: true, refs: parseCredentialRefs(path, text) };
+  const mode = credentialWriteMode(path);
+  return { text, refs: parseCredentialRefs(path, text), mode };
+}
+
+async function withCredentialWrite<T>(
+  path: string,
+  operation: () => T,
+  allowMissingHome = false,
+): Promise<T | undefined> {
+  let acquired = false;
+  try {
+    return await withFileLock(path, () => {
+      acquired = true;
+      return Promise.resolve(operation());
+    });
+  } catch (error) {
+    if (acquired) throw error;
+    if (allowMissingHome && isMissingFile(error)) return undefined;
+    throw badCredentials('The credential file could not be locked for writing.');
+  }
 }
 
 function secretRecord(
@@ -232,8 +258,8 @@ export function runSecretList(
   io: BotCreateCliIo,
 ): { secrets: Array<{ name: string; configured: boolean; source: string; writable: boolean }> } {
   const dshHome = resolveHome(values, io);
-  const store = readCredentialStore(dshHome);
-  if (!store.exists || store.refs === undefined) return { secrets: [] };
+  const store = readCredentialStore(credentialPath(dshHome));
+  if (store === undefined) return { secrets: [] };
   return {
     secrets: [...store.refs.spans.keys()].sort().map((name) => secretRecord(name, io.env, true)),
   };
@@ -261,32 +287,27 @@ export async function runSecretPut(
       1,
     );
   }
-  const dshHome = resolveHome(values, io);
-  const store = readCredentialStore(dshHome);
-  let lines: string[];
-  let spans: Map<string, { start: number; end: number }>;
-  if (!store.exists || store.refs === undefined) {
-    lines = ['version: 1', '', 'refs:'];
-    spans = new Map();
-  } else {
-    lines = [...store.refs.lines];
-    spans = new Map(store.refs.spans);
-    backupCredentialFile(store.path, lines);
-  }
-  const original = store.exists ? readFileSync(store.path, 'utf8') : undefined;
-  const entry = renderSecretEntry(rawName, value);
-  const span = spans.get(rawName);
+  const path = credentialPath(resolveHome(values, io));
+  await withCredentialWrite(path, () => putSecret(path, rawName, value));
+  io.stderr(`tobs: saved secret ${rawName}`);
+  return { secret: secretRecord(rawName, io.env, true) };
+}
+
+function putSecret(path: string, name: string, value: string): void {
+  const store = readCredentialStore(path);
+  const original = store?.text;
+  const lines = store ? [...store.refs.lines] : ['version: 1', '', 'refs:'];
+  if (original !== undefined) backupCredentialFile(path, original);
+  const range = store?.refs.valueRanges.get(name);
   let next: string[];
-  if (span !== undefined) {
-    const range = store.refs?.valueRanges.get(rawName);
-    if (!range || original === undefined)
-      throw badCredentials('The secret has no editable source range.');
+  if (range !== undefined && original !== undefined) {
     const suffix = original.slice(range.end);
     const separator = original.slice(range.start, range.end).endsWith('\n') ? '\n' : '';
     next = (original.slice(0, range.start) + JSON.stringify(value) + separator + suffix).split(
       '\n',
     );
   } else {
+    const entry = renderSecretEntry(name, value, store?.refs.indent ?? 2);
     const refsLine = lines.findIndex((line) => /^refs:(.*)$/u.test(line));
     if (refsLine === -1) {
       const tail = lines.length > 0 && lines[lines.length - 1] !== '' ? [''] : [];
@@ -307,42 +328,34 @@ export async function runSecretPut(
     }
   }
   if (next.length > 0 && next[next.length - 1] !== '') next.push('');
+  parseCredentialRefs(path, next.join('\n'));
+  const mode = store?.mode ?? 0o600;
   try {
-    parseCredentialRefs(store.path, next.join('\n'));
-    writeCredentialFile(store.path, next);
-    const text = readFileSync(store.path, 'utf8');
-    const reread = parseCredentialRefs(store.path, text);
-    if (!reread.spans.has(rawName) || parseDocument(text).getIn(['refs', rawName]) !== value)
+    writeCredentialFile(path, next, mode);
+    const text = readFileSync(path, 'utf8');
+    const reread = parseCredentialRefs(path, text);
+    if (!reread.spans.has(name) || parseDocument(text).getIn(['refs', name]) !== value)
       throw badCredentials('The secret write did not round-trip.');
   } catch {
     if (original === undefined) {
       try {
-        unlinkSync(store.path);
+        unlinkSync(path);
       } catch (error) {
-        if (
-          !(
-            typeof error === 'object' &&
-            error !== null &&
-            'code' in error &&
-            error.code === 'ENOENT'
-          )
-        )
+        if (!isMissingFile(error))
           throw badCredentials('The failed new credential file could not be removed.');
       }
-    } else writeFileSync(store.path, original, { mode: 0o600 });
+    } else writeFileSync(path, original, { mode });
     throw badCredentials(
       'The secret write failed validation; the previous credential file was restored.',
     );
   }
-  io.stderr(`tobs: saved secret ${rawName}`);
-  return { secret: secretRecord(rawName, io.env, true) };
 }
 
-export function runSecretUnset(
+export async function runSecretUnset(
   name: string,
   values: CreateValues,
   io: BotCreateCliIo,
-): { secret: { name: string; configured: boolean; source: string; writable: boolean } } {
+): Promise<{ secret: { name: string; configured: boolean; source: string; writable: boolean } }> {
   const rawName = name.trim();
   if (!SECRET_NAME_RE.test(rawName)) {
     throw new CliFailure(
@@ -351,35 +364,34 @@ export function runSecretUnset(
       1,
     );
   }
-  const dshHome = resolveHome(values, io);
-  const store = readCredentialStore(dshHome);
-  if (!store.exists || store.refs === undefined) {
-    return { secret: secretRecord(rawName, io.env, false) };
-  }
-  const span = store.refs.spans.get(rawName);
-  if (span === undefined) {
-    return { secret: secretRecord(rawName, io.env, false) };
-  }
-  const lines = [...store.refs.lines];
-  backupCredentialFile(store.path, lines);
-  const original = readFileSync(store.path, 'utf8');
-  const range = store.refs.valueRanges.get(rawName);
+  const path = credentialPath(resolveHome(values, io));
+  const removed = await withCredentialWrite(path, () => unsetSecret(path, rawName), true);
+  if (removed) io.stderr(`tobs: removed secret ${rawName}`);
+  return { secret: secretRecord(rawName, io.env, false) };
+}
+
+function unsetSecret(path: string, name: string): boolean {
+  const store = readCredentialStore(path);
+  const span = store?.refs.spans.get(name);
+  if (store === undefined || span === undefined) return false;
+  const { text, refs, mode } = store;
+  const range = refs.valueRanges.get(name);
   if (!range) throw badCredentials('The secret has no editable source range.');
-  const entryStart = lines
+  const entryStart = refs.lines
     .slice(0, span.start)
     .reduce((offset, line) => offset + line.length + 1, 0);
-  const next = (original.slice(0, entryStart) + original.slice(range.end)).split('\n');
+  const next = (text.slice(0, entryStart) + text.slice(range.end)).split('\n');
+  backupCredentialFile(path, text);
+  parseCredentialRefs(path, next.join('\n'));
   try {
-    parseCredentialRefs(store.path, next.join('\n'));
-    writeCredentialFile(store.path, next);
-    const reread = parseCredentialRefs(store.path, readFileSync(store.path, 'utf8'));
-    if (reread.spans.has(rawName)) throw badCredentials('The secret delete did not round-trip.');
+    writeCredentialFile(path, next, mode);
+    const reread = parseCredentialRefs(path, readFileSync(path, 'utf8'));
+    if (reread.spans.has(name)) throw badCredentials('The secret delete did not round-trip.');
   } catch {
-    writeFileSync(store.path, original, { mode: 0o600 });
+    writeFileSync(path, text, { mode });
     throw badCredentials(
       'The secret delete failed validation; the previous credential file was restored.',
     );
   }
-  io.stderr(`tobs: removed secret ${rawName}`);
-  return { secret: secretRecord(rawName, io.env, false) };
+  return true;
 }

@@ -14,9 +14,6 @@
   "packages/client/src/client/activity-list-detail-controls.tsx": {
     "rawControl": 2
   },
-  "packages/client/src/client/activity-list-view.tsx": {
-    "rawControl": 4
-  },
   "packages/client/src/client/anchored-panel.ts": {
     "dshImport": 1
   },
@@ -28,9 +25,6 @@
   },
   "packages/client/src/client/assignment-work.tsx": {
     "lineBorder": 3
-  },
-  "packages/client/src/client/avatar-appearance-editor.tsx": {
-    "rawControl": 11
   },
   "packages/client/src/client/behavior-permission-settings.tsx": {
     "rawControl": 1
@@ -47,9 +41,6 @@
   "packages/client/src/client/bot-intro.tsx": {
     "rawControl": 5,
     "lineBorder": 2
-  },
-  "packages/client/src/client/bot-main.tsx": {
-    "rawControl": 8
   },
   "packages/client/src/client/bot-mode-setting-rows.tsx": {
     "dshImport": 1
@@ -124,14 +115,6 @@
     "rawControl": 1,
     "lineBorder": 1
   },
-  "packages/client/src/client/channel-message-body.tsx": {
-    "dshImport": 1,
-    "rawControl": 2
-  },
-  "packages/client/src/client/channel-sidebar-builtins.tsx": {
-    "rawControl": 2,
-    "lineBorder": 1
-  },
   "packages/client/src/client/channel-sidebar-settings.tsx": {
     "rawControl": 2
   },
@@ -203,6 +186,13 @@
   "packages/client/src/client/environment-panel.tsx": {
     "rawControl": 2
   },
+  "packages/client/src/client/features/activity/activity-list-view.tsx": {
+    "rawControl": 4
+  },
+  "packages/client/src/client/features/activity/activity-panel-styles.ts": {
+    "legacyCss": 36,
+    "lineBorder": 5
+  },
   "packages/client/src/client/features/activity/styles.ts": {
     "legacyCss": 131,
     "lineBorder": 9
@@ -211,11 +201,26 @@
     "legacyCss": 26,
     "lineBorder": 1
   },
+  "packages/client/src/client/features/appearance/window-companion-view.tsx": {
+    "rawControl": 5,
+    "inlineStyle": 1,
+    "lineBorder": 2
+  },
   "packages/client/src/client/features/approvals/styles.ts": {
     "legacyCss": 3
   },
   "packages/client/src/client/features/assignments/styles.ts": {
     "legacyCss": 1
+  },
+  "packages/client/src/client/features/avatars/avatar-appearance-editor.tsx": {
+    "rawControl": 10
+  },
+  "packages/client/src/client/features/avatars/avatar-editor-options.tsx": {
+    "rawControl": 1
+  },
+  "packages/client/src/client/features/avatars/editor-styles.ts": {
+    "legacyCss": 25,
+    "lineBorder": 9
   },
   "packages/client/src/client/features/avatars/styles.ts": {
     "legacyCss": 46,
@@ -224,7 +229,21 @@
   "packages/client/src/client/features/channel-files/styles.ts": {
     "legacyCss": 63
   },
+  "packages/client/src/client/features/channels/action-card-styles.ts": {
+    "legacyCss": 4
+  },
+  "packages/client/src/client/features/channels/bot-inbox-entry.tsx": {
+    "rawControl": 1,
+    "lineBorder": 1
+  },
   "packages/client/src/client/features/channels/channel-composer.tsx": {
+    "rawControl": 1
+  },
+  "packages/client/src/client/features/channels/channel-message-body.tsx": {
+    "dshImport": 1,
+    "rawControl": 2
+  },
+  "packages/client/src/client/features/channels/channel-sidebar-builtins.tsx": {
     "rawControl": 1
   },
   "packages/client/src/client/features/channels/composer-attachments.tsx": {
@@ -234,6 +253,35 @@
   "packages/client/src/client/features/channels/composer-mention-options.tsx": {
     "rawControl": 3
   },
+  "packages/client/src/client/features/channels/conversation-composer-styles.ts": {
+    "legacyCss": 27,
+    "lineBorder": 4
+  },
+  "packages/client/src/client/features/channels/conversation-header-styles.ts": {
+    "legacyCss": 8,
+    "lineBorder": 1
+  },
+  "packages/client/src/client/features/channels/conversation-pane.tsx": {
+    "rawControl": 1
+  },
+  "packages/client/src/client/features/channels/conversation-shell.tsx": {
+    "rawControl": 3
+  },
+  "packages/client/src/client/features/channels/conversation-timeline.tsx": {
+    "rawControl": 4
+  },
+  "packages/client/src/client/features/channels/message-timeline-styles.ts": {
+    "legacyCss": 58,
+    "lineBorder": 2
+  },
+  "packages/client/src/client/features/channels/roster-styles.ts": {
+    "legacyCss": 19,
+    "lineBorder": 1
+  },
+  "packages/client/src/client/features/channels/sidebar-settings-styles.ts": {
+    "legacyCss": 46,
+    "lineBorder": 2
+  },
   "packages/client/src/client/features/channels/styles.ts": {
     "legacyCss": 152,
     "lineBorder": 2
@@ -241,13 +289,30 @@
   "packages/client/src/client/features/channels/timeline-styles.ts": {
     "legacyCss": 65
   },
+  "packages/client/src/client/features/interface-controls/card-list-styles.ts": {
+    "legacyCss": 7
+  },
+  "packages/client/src/client/features/interface-controls/loading-styles.ts": {
+    "legacyCss": 4
+  },
+  "packages/client/src/client/features/marketplace/catalog-styles.ts": {
+    "legacyCss": 25,
+    "lineBorder": 3
+  },
   "packages/client/src/client/features/marketplace/styles.ts": {
     "legacyCss": 122,
     "lineBorder": 3
   },
+  "packages/client/src/client/features/memory/conversation-memory-styles.ts": {
+    "legacyCss": 42,
+    "lineBorder": 5
+  },
   "packages/client/src/client/features/memory/styles.ts": {
     "legacyCss": 155,
     "lineBorder": 5
+  },
+  "packages/client/src/client/features/messaging/administration-styles.ts": {
+    "legacyCss": 37
   },
   "packages/client/src/client/features/messaging/styles.ts": {
     "legacyCss": 93,
@@ -263,9 +328,18 @@
   "packages/client/src/client/features/private-input/styles.ts": {
     "legacyCss": 6
   },
+  "packages/client/src/client/features/release/release-notice-styles.ts": {
+    "legacyCss": 7,
+    "lineBorder": 2
+  },
   "packages/client/src/client/features/release/styles.ts": {
     "legacyCss": 16,
     "lineBorder": 1
+  },
+  "packages/client/src/client/features/schedules/schedules-entry.tsx": {
+    "rawControl": 2,
+    "literalColor": 1,
+    "lineBorder": 2
   },
   "packages/client/src/client/features/schedules/styles.ts": {
     "legacyCss": 5
@@ -275,6 +349,10 @@
   },
   "packages/client/src/client/features/skills/styles.ts": {
     "legacyCss": 13
+  },
+  "packages/client/src/client/features/usage/profile-usage-styles.ts": {
+    "legacyCss": 10,
+    "lineBorder": 2
   },
   "packages/client/src/client/features/usage/styles.ts": {
     "legacyCss": 91,
@@ -470,11 +548,6 @@
     "dshImport": 1,
     "inlineStyle": 15
   },
-  "packages/client/src/client/schedules-entry.tsx": {
-    "rawControl": 2,
-    "literalColor": 1,
-    "lineBorder": 2
-  },
   "packages/client/src/client/session-return-action.tsx": {
     "dshImport": 1
   },
@@ -488,10 +561,6 @@
   },
   "packages/client/src/client/sidebar-card.tsx": {
     "rawControl": 2
-  },
-  "packages/client/src/client/styles.ts": {
-    "legacyCss": 355,
-    "lineBorder": 36
   },
   "packages/client/src/client/telemetry-notice-view.tsx": {
     "dshImport": 1
@@ -517,11 +586,6 @@
   "packages/client/src/client/window-companion-styles.ts": {
     "legacyCss": 27,
     "lineBorder": 1
-  },
-  "packages/client/src/client/window-companion-view.tsx": {
-    "rawControl": 5,
-    "inlineStyle": 1,
-    "lineBorder": 2
   },
   "packages/client/src/client/window-companions-view.tsx": {
     "rawControl": 1

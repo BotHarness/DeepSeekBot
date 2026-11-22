@@ -98,6 +98,7 @@ export type TrackedCall = ToolApprovalRequestCard &
     humanReviewed?: boolean;
     reviewerApproved?: boolean;
     authorizationScope?: () => string;
+    origin?: ToolApprovalOrigin;
     rememberable?: boolean;
     remembered?: boolean;
     execution: ToolExecution;

@@ -655,7 +655,7 @@ printf '{"message_id":"<message-id>","session_ids":["<assignment-session-id>"]}'
 
 `--clear` 恢复会话的默认选择。更改从下一轮生效，Bot 的模型方案不受影响。Host 检查会话归属、模型选择和账号授权。实际使用的模型在两轮之间变化时，`session-transcript` 返回一条 `model-switch`，包含 `from`、`to` 及可用的路由组回退原因 `reason`。
 
-`bot-sessions` 和 `session-transcript` 在能确认运行目标时，返回正在运行或最近运行的 `currentTarget`。订阅引擎目标返回 `engine`、公开的订阅名称 `account` 和能确认的 `model`。原生目标返回 `provider` 和 `model`，混合路由组回退到 DSH 模型时也会如此。
+`bot-sessions` 和 `session-transcript` 会在标题可用时返回 Orchestrator 会话的 `displayTitle`。能确认运行目标时，这两个命令还会返回正在运行或最近运行的 `currentTarget`。订阅引擎目标返回 `engine`、公开的订阅名称 `account` 和能确认的 `model`。原生目标返回 `provider` 和 `model`，混合路由组回退到 DSH 模型时也会如此。
 
 ### 在线 Host 上的定时任务
 
@@ -1492,7 +1492,7 @@ Bot 名字只是标签，身份是 id。不带 operation key 时，每次创建�
 
 ## Channel、授权、计划与配对
 
-`channels` 列出 Channel，`channel-messages` 读一页消息（从新到旧，`--limit`、`--before` 分页）。`grants` 列出 Bot 的 workspace 授权，`grant-revoke`/`grant-write-set` 管理它们；新建授权需要 Host 的 workspace 注册表，仍是 Host 侧动作。`schedules` 列出 Bot 的计划；`schedule-create` 要 `--title`、`--prompt` 和唯一一种触发器（`--every` 秒数、`--daily`/`--weekly` 时间加 `--weekdays`、`--once-date` 加 `--once-time`、`--cron`），日历触发器必须传 `--timezone`；`schedule-update`/`schedule-delete`/`schedule-history` 用 `--sid` 指定计划；`schedule-run-now` 记录一次手动触发，Host 启动后执行；`schedule-preview` 不指定 Bot、只渲染触发器的未来时刻。`pairings` 列出 Bot 的 IM 配对请求。不存在的计划报 `unknown-schedule`；删除返回 `removed`。
+`channels` 列出 Channel，`channel-messages` 读一页消息（从新到旧，`--limit`、`--before` 分页）。`grants` 列出 Bot 的 workspace 授权，`grant-revoke`/`grant-write-set` 管理它们；新建授权需要 Host 的 workspace 注册表，仍是 Host 侧动作。使用 `--home` 时，`grant-write-set` 可以修改 BotHarness 空间的有效授权。修改 DSH 原生工作区授权时，请连接正在运行的 Host。`schedules` 列出 Bot 的计划；`schedule-create` 要 `--title`、`--prompt` 和唯一一种触发器（`--every` 秒数、`--daily`/`--weekly` 时间加 `--weekdays`、`--once-date` 加 `--once-time`、`--cron`），日历触发器必须传 `--timezone`；`schedule-update`/`schedule-delete`/`schedule-history` 用 `--sid` 指定计划；`schedule-run-now` 记录一次手动触发，Host 启动后执行；`schedule-preview` 不指定 Bot、只渲染触发器的未来时刻。`pairings` 列出 Bot 的 IM 配对请求。不存在的计划报 `unknown-schedule`；删除返回 `removed`。
 
 ### 在线批准工作区请求
 

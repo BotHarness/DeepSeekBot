@@ -487,6 +487,7 @@ describe('Tob canonical identity and settings', () => {
     let checked = false;
     const f = fixture(async (run) => {
       const authority = f.core.runtime.captureTobCliAuthority!(run.sessionId);
+      const operation = authority.beginWrite();
       const port = attachOperationalModule(f.core.operationalDatabase, 'tob-cli-test');
       const marked = () =>
         port.read((db) =>
@@ -499,9 +500,9 @@ describe('Tob canonical identity and settings', () => {
       expect(marked()).toEqual([{ side_effect_started_at: null }]);
       authority();
       expect(marked()).toEqual([{ side_effect_started_at: null }]);
-      authority.markSideEffect();
+      operation.markSideEffect();
       expect(marked()).toEqual([{ side_effect_started_at: expect.any(String) }]);
-      mark = authority.markSideEffect;
+      mark = operation.markSideEffect;
       checked = true;
     });
     try {
@@ -522,9 +523,11 @@ describe('Tob canonical identity and settings', () => {
     let checked = false;
     const f = fixture(async (run) => {
       const authority = f.core.runtime.captureTobCliAuthority!(run.sessionId);
+      const operation = authority.beginWrite();
       f.core.ownership.markContentUnavailable();
       expect(authority).toThrow('tob-authority-required');
-      expect(authority.markSideEffect).toThrow('tob-authority-required');
+      expect(operation.authorize).toThrow('tob-authority-required');
+      expect(operation.markSideEffect).toThrow('tob-authority-required');
       checked = true;
     });
     try {

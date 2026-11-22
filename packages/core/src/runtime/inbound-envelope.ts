@@ -22,8 +22,7 @@ function afterSpeakerPolicies(lines: readonly string[], offset: number): number 
     : offset;
 }
 
-export function parseInboundEnvelope(text: string): InboundEnvelope | undefined {
-  const lines = text.split(/\r?\n/u);
+function afterHostPreamble(lines: readonly string[]): number {
   let offset = 0;
   while (lines[offset]?.startsWith('[Host: ')) {
     const end = lines.indexOf('', offset + 1);
@@ -31,6 +30,12 @@ export function parseInboundEnvelope(text: string): InboundEnvelope | undefined 
     offset = end + 1;
   }
   if (lines[offset]?.startsWith('Current Channel Human: {')) offset += 1;
+  return offset;
+}
+
+export function parseInboundEnvelope(text: string): InboundEnvelope | undefined {
+  const lines = text.split(/\r?\n/u);
+  let offset = afterHostPreamble(lines);
   const envelope: InboundEnvelope = { kind: 'other', body: '' };
   const source = sourceLine(lines[offset] ?? '');
   if (source !== undefined) {
@@ -96,9 +101,27 @@ export function inboundEnvelopeBody(envelope: InboundEnvelope): string {
   return legacyReminder === -1 ? body : body.slice(0, legacyReminder);
 }
 
+const INBOX_WAKE =
+  /^\[(?:Bot Inbox\] External mentions,|Open Inbox\] \d+ items? you have seen|Bot Inbox harvest\] \d+ attention items are ready)/u;
+
+export function inboxWakeBody(text: string): string | undefined {
+  const lines = text.split(/\r?\n/u);
+  let offset = afterHostPreamble(lines);
+  const source = sourceLine(lines[offset] ?? '');
+  if (source !== undefined) {
+    offset += 1;
+    if (source.speaker) offset = afterSpeakerPolicies(lines, offset);
+  }
+  return INBOX_WAKE.test(lines[offset] ?? '') ? lines.slice(offset).join('\n') : undefined;
+}
+
 export function inboundSessionTitle(text: string): string | undefined {
+  if (inboxWakeBody(text) !== undefined) return undefined;
   const envelope = parseInboundEnvelope(text);
-  const body = envelope === undefined ? text : inboundEnvelopeBody(envelope);
+  return sessionTitleFromBody(envelope === undefined ? text : inboundEnvelopeBody(envelope));
+}
+
+export function sessionTitleFromBody(body: string): string | undefined {
   const line = body.split(/\r?\n/u).find((line) => line.trim());
   if (line === undefined) return undefined;
   const title = line.replace(/\s+/gu, ' ').trim();

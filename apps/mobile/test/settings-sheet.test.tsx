@@ -65,6 +65,7 @@ function actions(overrides: Partial<SettingsActions> = {}): SettingsActions {
     onAppIcon: vi.fn(),
     onNotifications: vi.fn(),
     onStorage: vi.fn(),
+    onModelProviders: vi.fn(),
     onModels: vi.fn(),
     onPrompts: vi.fn(),
     onCopyVersion: vi.fn(),
@@ -87,6 +88,7 @@ describe('Settings sheet', () => {
       [t.appIcon, 'onAppIcon'],
       [t.notifications, 'onNotifications'],
       [`${t.storage.title}, ${t.storage.hint}`, 'onStorage'],
+      [`${t.modelProviders.title}, ${t.modelProviders.hint}`, 'onModelProviders'],
       [`${t.modelSettings.title}, ${t.modelSettings.global}`, 'onModels'],
     ];
     for (const [label, action] of rows) {

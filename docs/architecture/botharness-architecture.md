@@ -686,6 +686,8 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 
 DM 与 Group 的准入、因果消息发送和 Group 摘要由共享的 Channel 与 Runtime 内核模块处理，入口仍是同一个 Bot Runtime Service。这些模块使用 Runtime 的实时轮次状态，并沿用现有的 Channel Store 和准入事务。
 
+Channel 工具、Human 输入绑定、Bot 工具直接执行和 Tob CLI 请求使用 Bot Runtime Service 提供的端口。Bot Runtime 管理轮次状态，以及忽略 Inbox Admission 和记录直接工具调用 Source Event 的事务。
+
 DSH Agent adapter 管理原生 Agent 生命周期，并注册 `packages/core/src/features/` 中 Schedule、GenUI、Memory、Channel files、Channel、IM Messaging、Activity、Assignment 和 Models 的工具与提示词。原生回合和直调共用同一套工具定义。
 
 Orchestrator、Assignment 和替代引擎的生命周期位于 `runtime/dsh-bot-agent-adapter-*` 模块。Adapter state 持有唯一的原生 Agent handle 表。替代引擎 Session 继续由 Engine Host 管理，Assignment 工具通过类型化输入使用现有运行时接口。
@@ -1827,6 +1829,8 @@ E3 的 Human 审批卡在允许这次、始终允许或拒绝后保留完整请�
 ### CLI effect declaration ownership
 
 The application-defined CLI declaration table in `bots/cli-effects.ts` supplies effects to direct command dispatch and Channel Tool Approval for typed and exact-argv Tob operations. Each declaration separately retains the broker's existing read admission; effect metadata does not confer caller authority. The broker continues to own Human DM provenance, target authorization, exact operation identity and live revocation fences. Unknown commands and arbitrary Shell text retain the existing protected path. The dispatch inventory check follows real command-family arrays and entry branches rather than help or search text.
+
+The Tob broker admits each new request against the Shell's accepted Human DM sources. Before sending a prepared write to Channel Tool Approval, it captures those sources and the approval DM for that proposal. Additional Inbox sources can steer the turn while the write is pending. The broker continues the same operation only while its original sources, Session owner, turn and execution remain live, and the operation still passes its exact approval, target and revision checks. See [Tob CLI authority](../decisions/tob.md#adr-0224).
 
 CLI flag declarations live in the data-only `bots/cli-option-spec.ts` module. `cli-options.ts` owns strict parsing for both dispatch and effect resolution without importing runtime handlers; the existing command-family modules re-export their option groups. Effect-contract type consumers therefore do not acquire the Host credential and child-process implementation graph.
 

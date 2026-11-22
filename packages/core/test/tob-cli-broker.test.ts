@@ -248,10 +248,10 @@ describe('Tob scoped CLI broker', () => {
     expect(f.approve).not.toHaveBeenCalled();
   });
   it('marks side effects only when a prepared operation reaches its owning mutation', async () => {
-    const beforeWrite = vi.fn();
+    const markSideEffect = vi.fn();
     let stale = true;
     const f = await fixture({
-      beforeWrite,
+      beginWrite: () => ({ authorize: () => {}, markSideEffect }),
       prepareOperation: async () => ({
         proposal: {
           command: 'telemetry-set',
@@ -270,13 +270,13 @@ describe('Tob scoped CLI broker', () => {
     expect(await f.invoke('telemetry-set', { enabled: false })).toMatchObject({
       error: { code: 'stale-setting' },
     });
-    expect(beforeWrite).not.toHaveBeenCalled();
+    expect(markSideEffect).not.toHaveBeenCalled();
     stale = false;
     expect(await f.invoke('telemetry-set', { enabled: false })).toMatchObject({
       ok: true,
       value: { enabled: false },
     });
-    expect(beforeWrite).toHaveBeenCalledOnce();
+    expect(markSideEffect).toHaveBeenCalledOnce();
   });
   it('discovers the bounded CLI contract and reads only the permitted field', async () => {
     const f = await fixture();
