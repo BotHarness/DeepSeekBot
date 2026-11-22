@@ -1,4 +1,10 @@
 import { QueryClient } from '@tanstack/query-core';
+import {
+  matchesPresetSubChoice,
+  presetSubFromLegacy,
+  presetSubWithEngine,
+} from '@botharness/host-protocol/preset-sub';
+import type { RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
 
 import {
   currentModel,
@@ -11,6 +17,7 @@ import {
   type AssignmentModelOption,
   type BotModel,
   type ModelCatalogEntry,
+  type ModelCatalogGroup,
   type ModelChoice,
   type ModelPlanGroups,
   type ModelPreset,
@@ -20,10 +27,12 @@ import {
 import { recordFeature } from './telemetry/features';
 import { answerRecord, record } from './host-answer';
 import {
+  engineCatalogModel,
   modelCatalogGroupEfforts,
   modelCatalogGroupFront,
   modelEffortChoices,
   parseRoutingGroup,
+  routingGroupEngineChoices,
   serialWrites,
   type RoutingGroup,
   type RoutingGroupMember,
@@ -31,11 +40,21 @@ import {
 import {
   createModelPreset,
   customizeModelPlan,
+  DEFAULT_MODEL_PRESET_ID,
   inheritModelPlan,
   setModelPlan,
   setOnboardingModel,
   updateModelPreset,
 } from './model-plans';
+import {
+  canAddSubChoice,
+  cleanSub,
+  savePlanSub,
+  savePresetSub,
+  type SubChoice,
+  type SubChoices,
+  type SubSelection,
+} from './preset-sub';
 
 export const ASSIGNMENT_GROUP_NOTE_MAX = 500;
 
@@ -49,7 +68,9 @@ export type ModelField =
   | 'allowed'
   | 'allowed-effort'
   | 'orchestrator-effort'
-  | 'assignment-effort';
+  | 'assignment-effort'
+  | 'sub-add'
+  | 'sub-effort';
 export type ModelSettingsState = BotModel & { preset?: ModelPreset };
 
 export function modelScopeKey(scope: ModelScope): string {
@@ -163,6 +184,89 @@ export function modelRoutes(state: ModelSettingsState) {
   return { orchestrator, assignmentDefault, assignmentModels, groups };
 }
 
+export function subInherited(state: ModelSettingsState): boolean {
+  return (
+    state.preset === undefined &&
+    state.plan?.sub === undefined &&
+    state.plan?.assignmentDefault === undefined
+  );
+}
+
+function defaultPreset(state: ModelSettingsState): ModelPreset | undefined {
+  return state.presets.find((entry) => entry.id === DEFAULT_MODEL_PRESET_ID);
+}
+
+export function modelSub(state: ModelSettingsState): SubChoices {
+  const preset = state.preset ?? (subInherited(state) ? defaultPreset(state) : undefined);
+  if (preset !== undefined) {
+    const sub =
+      preset.sub ?? presetSubWithEngine(presetSubFromLegacy(preset), preset.assignmentEngine);
+    return state.preset === undefined && sub.choices.length === 0 ? presetMainSub(preset) : sub;
+  }
+  return state.plan?.sub ?? presetSubFromLegacy(state.plan ?? {});
+}
+
+function presetMainSub(preset: ModelPreset): SubChoices {
+  const group = preset.orchestratorGroupId;
+  if (group !== undefined) {
+    const effort = preset.orchestratorGroupEffort;
+    return {
+      choices: [
+        {
+          kind: 'group',
+          group,
+          ...(effort === undefined ? {} : { allowedEfforts: [effort], defaultEffort: effort }),
+        },
+      ],
+      default: { kind: 'group', group },
+    };
+  }
+  const { provider, model, reasoningEffort = '' } = preset.orchestrator;
+  return {
+    choices: [
+      {
+        kind: 'model',
+        provider,
+        model,
+        allowedEfforts: [reasoningEffort],
+        defaultEffort: reasoningEffort,
+      },
+    ],
+    default: { kind: 'model', provider, model },
+  };
+}
+
+export async function setModelSub(
+  client: ModelSettingsClient,
+  scope: ModelScope,
+  state: ModelSettingsState,
+  next: SubChoices,
+): Promise<void> {
+  if (scope.kind === 'global') throw new HostAnswerInvalid('USE_DEFAULT_PRESET');
+  const sub = cleanSub(next);
+  if (scope.kind === 'preset') {
+    if (state.preset?.id !== scope.id || state.preset.revision === undefined)
+      throw new HostAnswerInvalid('MODEL_PRESET_REVISION_REQUIRED');
+    await savePresetSub(client, { id: scope.id, expectedRevision: state.preset.revision, sub });
+  } else if (state.plan !== undefined) {
+    await savePlanSub(client, { slug: scope.slug, expectedRevision: state.plan.revision, sub });
+  } else {
+    const { defaultGroupId, defaultGroupEffort } = state;
+    await setModelPlan(client, scope.slug, state.revision, {
+      ...(defaultGroupId === undefined
+        ? { orchestrator: requireRoute(currentModel(state).route) }
+        : {
+            orchestratorGroupId: defaultGroupId,
+            ...(defaultGroupEffort === undefined
+              ? {}
+              : { orchestratorGroupEffort: defaultGroupEffort }),
+          }),
+      sub,
+    });
+  }
+  recordFeature('model:plan_update', { via: 'sub' });
+}
+
 function groupFields(groups: ModelPlanGroups, orchestrator: ModelRoute) {
   const ids = groups.assignmentGroups ?? [];
   return {
@@ -187,14 +291,63 @@ export function searchModels(
   models: readonly ModelCatalogEntry[],
   query: string,
 ): ModelCatalogEntry[] {
-  const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  const matches = catalogSearch(query);
   return models
-    .filter((entry) => {
-      const text =
-        `${entry.provider} ${entry.providerName} ${entry.model} ${entry.modelName}`.toLocaleLowerCase();
-      return terms.every((term) => text.includes(term));
-    })
+    .filter((entry) =>
+      matches(`${entry.provider} ${entry.providerName} ${entry.model} ${entry.modelName}`),
+    )
     .sort((a, b) => Number(a.credential !== undefined) - Number(b.credential !== undefined));
+}
+
+function catalogSearch(query: string): (label: string) => boolean {
+  const terms = query.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+  return (label) => {
+    const text = label.toLocaleLowerCase();
+    return terms.every((term) => text.includes(term));
+  };
+}
+
+type EnginePickerEntry = ReturnType<typeof routingGroupEngineChoices>[number];
+
+export type SubAddOption =
+  | { kind: 'model'; entry: ModelCatalogEntry; choice: Extract<SubChoice, { kind: 'model' }> }
+  | { kind: 'group'; group: ModelCatalogGroup; choice: Extract<SubChoice, { kind: 'group' }> }
+  | { kind: 'engine'; entry: EnginePickerEntry; choice: Extract<SubChoice, { kind: 'engine' }> };
+
+export function searchSubChoices(
+  state: ModelSettingsState,
+  query: string,
+  engines: readonly RoutingGroupEngineOptions[] = state.engines ?? [],
+): SubAddOption[] {
+  const matches = catalogSearch(query);
+  const options: SubAddOption[] = [
+    ...(state.groups ?? [])
+      .filter((group) => matches(`${group.name} ${group.id}`))
+      .map((group): SubAddOption => ({
+        kind: 'group',
+        group,
+        choice: { kind: 'group', group: group.id },
+      })),
+    ...searchModels(state.models, query)
+      .filter((entry) => entry.credential === undefined)
+      .map((entry): SubAddOption => ({
+        kind: 'model',
+        entry,
+        choice: {
+          kind: 'model',
+          provider: entry.provider,
+          model: entry.model,
+          ...modelEffortChoices(entry),
+        },
+      })),
+    ...routingGroupEngineChoices(engines)
+      .filter(({ member, model, accountName }) =>
+        matches(`${member.engine} ${model.id} ${model.name} ${accountName ?? ''}`),
+      )
+      .map((entry): SubAddOption => ({ kind: 'engine', entry, choice: entry.member })),
+  ];
+  const current = modelSub(state);
+  return options.filter(({ choice }) => canAddSubChoice(current, choice));
 }
 
 function requireRoute(route: ModelRoute | undefined): ModelRoute {
@@ -559,13 +712,58 @@ export async function setAssignmentGroupNote(
 }
 
 export type AssignmentEffortTarget =
-  | { kind: 'model'; provider: string; model: string }
+  | Extract<SubSelection, { kind: 'model' | 'engine' }>
   | { kind: 'group'; id: string };
+
+export function subEffortOptions(
+  state: ModelSettingsState,
+  target: AssignmentEffortTarget,
+  engines: readonly RoutingGroupEngineOptions[] = state.engines ?? [],
+):
+  | { selection: SubSelection; effort: string; options: { id: string; name: string }[] }
+  | undefined {
+  const selection: SubSelection =
+    target.kind === 'group' ? { kind: 'group', group: target.id } : target;
+  const choice = modelSub(state).choices.find((entry) => matchesPresetSubChoice(entry, selection));
+  if (choice === undefined) return undefined;
+  switch (choice.kind) {
+    case 'model': {
+      const entry = state.models.find((entry) => sameModel(entry, choice));
+      return {
+        selection,
+        effort: choice.defaultEffort,
+        options: entry?.efforts?.filter((effort) => effort.id !== '') ?? [],
+      };
+    }
+    case 'group': {
+      const group = state.groups?.find((entry) => entry.id === choice.group);
+      return {
+        selection,
+        effort: choice.defaultEffort ?? '',
+        options: group === undefined ? [] : modelCatalogGroupEfforts(group, state.models),
+      };
+    }
+    case 'engine': {
+      const accounts = engines.filter(
+        (entry) =>
+          entry.available &&
+          entry.engine === choice.engine &&
+          (choice.accountId === undefined || choice.accountId === entry.accountId),
+      );
+      const model =
+        choice.model === undefined
+          ? routingGroupEngineChoices(accounts).find((entry) => entry.isDefault)?.model
+          : engineCatalogModel(accounts, { engine: choice.engine, model: choice.model });
+      return { selection, effort: choice.effort ?? '', options: model?.efforts ?? [] };
+    }
+  }
+}
 
 export function assignmentEffortRange(
   state: ModelSettingsState,
   target: AssignmentEffortTarget,
 ): { allowed: string[]; defaultEffort: string; locked?: string } | undefined {
+  if (target.kind === 'engine') return undefined;
   const routes = modelRoutes(state);
   if (target.kind === 'model') {
     const option = routes.assignmentModels.find((item) => sameModel(item, target));
