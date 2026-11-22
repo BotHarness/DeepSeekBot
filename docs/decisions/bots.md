@@ -34,7 +34,7 @@ The Host mints an opaque, filesystem-safe ID for each independent creation and s
 
 Why: Filesystem constraints should not restrict the names Humans use. Stable IDs keep a rename or duplicate name from retargeting history, mentions or authority.
 
-Enforced by: [Host-assigned identity](../../packages/core/test/bot-creation.test.ts), [CLI duplicate-name creation](../../packages/core/test/bot-create-cli.test.ts), [Group mentions](../../packages/core/test/group-mention.test.ts).
+Enforced by: [Host-assigned identity](../../packages/core/test/bot-creation.test.ts), [CLI duplicate-name creation](../../packages/core/test/bot-create-model-cli.test.ts), [Group mentions](../../packages/core/test/group-mention.test.ts).
 
 ## Product chrome shares the configured Bot mark
 
@@ -96,7 +96,7 @@ The `tobs create` and compatible `deepseekbot create` command support blank crea
 
 Why: Automation needs a machine-readable entry point and the same import, validation and initialization behavior as the UI. Keeping model setup independent lets the Human create and configure the Bot in separate steps.
 
-Enforced by: [creation CLI contract](../../packages/core/test/bot-create-cli.test.ts), [live Bot CLI](../../packages/core/test/bot-live-cli.test.ts).
+Enforced by: [creation CLI contract](../../packages/core/test/bot-create-model-cli.test.ts), [live Bot CLI](../../packages/core/test/bot-live-cli.test.ts).
 
 ## Bot Primary Color is portable identity
 
