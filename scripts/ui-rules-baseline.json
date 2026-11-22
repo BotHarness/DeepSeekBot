@@ -1222,7 +1222,6 @@
     "packages/client/src/client/bug-icon.tsx": ["<svg>"],
     "packages/client/src/client/bug-report-annotate-dialog.tsx": ["<svg>"],
     "packages/client/src/client/call-rail-button.tsx": ["ChannelSidebarIcon"],
-    "packages/client/src/client/channel-composer.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/channel-dock.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/channel-message-body.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/channel-options.tsx": ["ChannelSidebarIcon"],
@@ -1251,6 +1250,7 @@
     "packages/client/src/client/ds/work-row.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/environment-panel.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/exit-icon.tsx": ["<svg>"],
+    "packages/client/src/client/features/channels/channel-composer.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/git-commit-icon.tsx": ["<svg>"],
     "packages/client/src/client/group-composer-context.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/group-member-controls.tsx": ["<svg>"],
@@ -1424,14 +1424,14 @@
   "jsxCopy": {
     "apps/mobile/src/ui/widgets/call-activity.tsx": ["Hang Up", "取消静音", "挂断", "静音"],
     "apps/mobile/src/ui/widgets/request-activity.tsx": ["更新于"],
-    "packages/client/src/client/channel-composer.tsx": [
-      "Mention a PersonaBot",
-      "Reference a Group Channel"
-    ],
     "packages/client/src/client/channel-message-body.tsx": ["Open channel {…}"],
     "packages/client/src/client/connection-hosts.tsx": ["Tobs Connect"],
     "packages/client/src/client/create-app-form.tsx": ["App ID", "App Secret"],
     "packages/client/src/client/external-source-content.tsx": ["Source Event:"],
+    "packages/client/src/client/features/channels/composer-mention-options.tsx": [
+      "Mention a PersonaBot",
+      "Reference a Group Channel"
+    ],
     "packages/client/src/client/paired-devices.tsx": ["Tobs Connect", "Tobs Connect"]
   },
   "pressableLabel": {
