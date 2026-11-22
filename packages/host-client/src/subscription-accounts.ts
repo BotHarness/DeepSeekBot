@@ -1,36 +1,29 @@
 import {
   ENGINE_QUOTA_WINDOWS,
   isEngineId,
+  type EngineAccountIdentity,
   type EngineId,
   type EngineQuotaRefreshError,
+  type EngineQuotaWindow,
   type EngineQuotaWindowId,
+  type NamedEngineAccount,
 } from '@botharness/host-protocol/subscription-engine';
 
-import { answerRecord, finiteNumber, record, text, type HostCall } from './host-answer';
+import { answerRecord, finiteNumber, record, some, text, type HostCall } from './host-answer';
+import type { SubscriptionModel } from './model-plans';
 
-export type AccountUnavailableReason =
-  | 'host-not-local'
-  | 'not-installed'
-  | 'signed-out'
-  | 'not-subscription'
-  | 'login-unknown';
-
-const REASONS: readonly AccountUnavailableReason[] = [
+const REASONS = [
   'host-not-local',
   'not-installed',
   'signed-out',
   'not-subscription',
   'login-unknown',
-];
+] as const;
 
-export interface AccountQuotaWindow {
-  remainingPercent?: number;
-  resetsAt?: string;
-  windowMinutes?: number;
-}
+export type AccountUnavailableReason = (typeof REASONS)[number];
 
 export interface AccountQuota {
-  windows: Partial<Record<EngineQuotaWindowId, AccountQuotaWindow>>;
+  windows: Partial<Record<EngineQuotaWindowId, EngineQuotaWindow>>;
   usedPercent?: number;
   resetsAt?: string;
   limitedUntil?: string;
@@ -38,16 +31,38 @@ export interface AccountQuota {
   source?: 'live' | 'turn';
 }
 
-export interface SubscriptionAccountView {
+export type EngineStatusView = {
   engine: EngineId;
-  id?: string;
-  name?: string;
   installed: boolean;
-  available: boolean;
-  reason?: AccountUnavailableReason;
+  version?: string;
   email?: string;
   quota?: AccountQuota;
+} & EngineAccountIdentity &
+  ({ available: true } | { available: false; reason: AccountUnavailableReason });
+
+export type EngineRole = 'orchestrator' | 'assignment';
+
+export interface EngineSelectionView extends SubscriptionModel {
+  botSlug: string;
+  role: EngineRole;
+  fallback?: boolean;
 }
+
+export interface EngineAccountsView {
+  revision?: number;
+  engines: EngineStatusView[];
+  selections: EngineSelectionView[];
+  accounts: NamedEngineAccount[];
+}
+
+export type SubscriptionAccountView = Omit<
+  EngineStatusView,
+  keyof EngineAccountIdentity | 'version'
+> & {
+  id?: string;
+  name?: string;
+  reason?: AccountUnavailableReason;
+};
 
 export interface SubscriptionAccountsView {
   revision?: number;
@@ -59,7 +74,7 @@ export type QuotaRefreshStatus = 'ok' | EngineQuotaRefreshError;
 const isTime = (value: unknown): value is string =>
   text(value) && Number.isFinite(Date.parse(value));
 
-function parseWindow(value: unknown): AccountQuotaWindow | undefined {
+function parseWindow(value: unknown): EngineQuotaWindow | undefined {
   const window = record(value);
   if (window === undefined) return undefined;
   const remaining = window['remainingPercent'];
@@ -95,57 +110,109 @@ export function parseAccountQuota(value: unknown): AccountQuota | undefined {
 const usable = (quota: AccountQuota | undefined): quota is AccountQuota =>
   quota !== undefined && (Object.keys(quota.windows).length > 0 || quota.usedPercent !== undefined);
 
-export function parseSubscriptionAccounts(value: unknown): SubscriptionAccountsView {
+type AccountDetail = Pick<EngineStatusView, 'email' | 'quota'>;
+
+function parseStatus(
+  value: unknown,
+  details: ReadonlyMap<string, AccountDetail>,
+): EngineStatusView | undefined {
+  const entry = record(value);
+  const engine = entry?.['engine'];
+  if (entry === undefined || !isEngineId(engine)) return undefined;
+  const accountId = text(entry['accountId']) ? entry['accountId'] : undefined;
+  const detail = accountId === undefined ? undefined : details.get(accountId);
+  const snapshot = detail?.quota;
+  const quota = usable(snapshot) ? snapshot : (parseAccountQuota(entry['quota']) ?? snapshot);
+  const base = {
+    engine,
+    installed: entry['installed'] === true,
+    ...(accountId === undefined ? {} : { accountId }),
+    ...(text(entry['accountName']) ? { accountName: entry['accountName'] } : {}),
+    ...(text(entry['version']) ? { version: entry['version'] } : {}),
+    ...(detail?.email === undefined ? {} : { email: detail.email }),
+    ...(quota === undefined ? {} : { quota }),
+  };
+  if (entry['available'] === true) return { ...base, available: true };
+  return {
+    ...base,
+    available: false,
+    reason: REASONS.find((reason) => reason === entry['reason']) ?? 'login-unknown',
+  };
+}
+
+function parseSelection(value: unknown): EngineSelectionView | undefined {
+  const row = record(value);
+  const engine = row?.['engine'];
+  const role = row?.['role'];
+  if (
+    !text(row?.['botSlug']) ||
+    !isEngineId(engine) ||
+    (role !== 'orchestrator' && role !== 'assignment')
+  ) {
+    return undefined;
+  }
+  return {
+    botSlug: row['botSlug'],
+    role,
+    engine,
+    ...(text(row['accountId']) ? { accountId: row['accountId'] } : {}),
+    ...(text(row['model']) ? { model: row['model'] } : {}),
+    ...(text(row['effort']) ? { effort: row['effort'] } : {}),
+    ...(typeof row['fallback'] === 'boolean' ? { fallback: row['fallback'] } : {}),
+  };
+}
+
+export function parseEngineAccounts(value: unknown, grantable = false): EngineAccountsView {
   const body = answerRecord(value, 'engineAccounts');
-  const engines = body['engines'];
-  if (!Array.isArray(engines)) throw new Error('Invalid subscription accounts');
-  const details = new Map<string, { email?: string; quota?: AccountQuota }>();
-  for (const raw of Array.isArray(body['accounts']) ? body['accounts'] : []) {
+  const { engines, selections, accounts: rows, revision } = body;
+  if (
+    !Array.isArray(engines) ||
+    !Array.isArray(selections) ||
+    (grantable && !Array.isArray(rows))
+  ) {
+    throw new Error('Invalid subscription accounts');
+  }
+  const accounts: NamedEngineAccount[] = [];
+  const details = new Map<string, AccountDetail>();
+  for (const raw of Array.isArray(rows) ? rows : []) {
     const account = record(raw);
     if (!text(account?.['id'])) continue;
+    const { id, engine, name, email } = account;
+    if (isEngineId(engine) && text(name)) accounts.push({ id, engine, name });
     const quota = parseAccountQuota(account['quota']);
-    details.set(account['id'], {
-      ...(text(account['email']) ? { email: account['email'] } : {}),
+    details.set(id, {
+      ...(text(email) ? { email } : {}),
       ...(quota === undefined ? {} : { quota }),
     });
   }
-  const accounts = engines.flatMap((raw): SubscriptionAccountView[] => {
-    const entry = record(raw);
-    const engine = entry?.['engine'];
-    if (entry === undefined || !isEngineId(engine)) return [];
-    const id = text(entry['accountId']) ? entry['accountId'] : undefined;
-    const detail = id === undefined ? undefined : details.get(id);
-    const status = parseAccountQuota(entry['quota']);
-    const quota = usable(detail?.quota) ? detail.quota : (status ?? detail?.quota);
-    const available = entry['available'] === true;
-    const reason = entry['reason'];
-    return [
-      {
-        engine,
-        ...(id === undefined ? {} : { id }),
-        ...(text(entry['accountName']) ? { name: entry['accountName'] } : {}),
-        installed: entry['installed'] === true,
-        available,
-        ...(available
-          ? {}
-          : {
-              reason: REASONS.includes(reason as AccountUnavailableReason)
-                ? (reason as AccountUnavailableReason)
-                : 'login-unknown',
-            }),
-        ...(detail?.email === undefined ? {} : { email: detail.email }),
-        ...(quota === undefined ? {} : { quota }),
-      },
-    ];
-  });
   return {
-    ...(finiteNumber(body['revision']) ? { revision: body['revision'] } : {}),
+    ...(finiteNumber(revision) ? { revision } : {}),
+    engines: some(engines, (entry) => parseStatus(entry, details)),
+    selections: some(selections, parseSelection),
     accounts,
   };
 }
 
+export async function loadEngineAccounts(
+  host: HostCall,
+  grantable?: boolean,
+): Promise<EngineAccountsView> {
+  return parseEngineAccounts(
+    await host.call('engineAccounts', grantable === undefined ? {} : { grantable }),
+    grantable,
+  );
+}
+
 export async function loadSubscriptionAccounts(host: HostCall): Promise<SubscriptionAccountsView> {
-  return parseSubscriptionAccounts(await host.call('engineAccounts', {}));
+  const { revision, engines } = await loadEngineAccounts(host);
+  return {
+    ...(revision === undefined ? {} : { revision }),
+    accounts: engines.map(({ accountId, accountName, version: _version, ...status }) => ({
+      ...status,
+      ...(accountId === undefined ? {} : { id: accountId }),
+      ...(accountName === undefined ? {} : { name: accountName }),
+    })),
+  };
 }
 
 export async function refreshAccountQuota(host: HostCall, id: string): Promise<QuotaRefreshStatus> {

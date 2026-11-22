@@ -3,8 +3,8 @@ import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
+import { parseEngineAccounts } from '@botharness/host-client/subscription-accounts';
 import {
-  parseEngines,
   useSubscriptionEngines,
   type EngineApi,
   type EnginesView,
@@ -231,7 +231,7 @@ it('ignores a status read that started before changing the selection', async () 
 });
 
 it('rejects malformed status and preserves the role, model, effort and fallback', () => {
-  expect(() => parseEngines({ engines: null, selections: [] })).toThrow();
+  expect(() => parseEngineAccounts({ engines: null, selections: [] })).toThrow();
   const choice = {
     botSlug: 'ada',
     role: 'orchestrator',
@@ -241,13 +241,14 @@ it('rejects malformed status and preserves the role, model, effort and fallback'
     fallback: true,
   };
   expect(
-    parseEngines({
+    parseEngineAccounts({
       engines: [{ engine: 'codex', available: false, installed: true }, { engine: 'other' }],
       selections: [choice, { botSlug: 1 }],
     }),
   ).toEqual({
     engines: [{ engine: 'codex', available: false, reason: 'login-unknown', installed: true }],
     selections: [choice],
+    accounts: [],
   });
 });
 
@@ -260,7 +261,7 @@ it('prefers the account quota snapshot but keeps the status remaining value when
   };
   const empty = { observedAt: '2026-11-22T01:00:00.000Z', source: 'turn', windows: {} };
   const read = (snapshot: unknown) =>
-    parseEngines({
+    parseEngineAccounts({
       accounts: [{ id: 'codex-a', engine: 'codex', name: 'A', quota: snapshot }],
       engines: [
         { engine: 'codex', accountId: 'codex-a', available: true, installed: true, quota: status },
@@ -268,5 +269,5 @@ it('prefers the account quota snapshot but keeps the status remaining value when
       selections: [],
     }).engines[0]?.quota;
   expect(read(fresh)).toEqual({ ...fresh, windows: { weekly: { remainingPercent: 70 } } });
-  expect(read(empty)).toEqual(status);
+  expect(read(empty)).toEqual({ ...status, windows: {} });
 });
