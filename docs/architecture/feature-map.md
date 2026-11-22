@@ -8,7 +8,7 @@ Each product feature is owned by a Cordis-native Plugin that injects application
 
 “Both bridge files” refers to the Host implementation in `methods.ts` and the Typert adapter in `rpc.ts`. Registration names refer to `createCore` or `apply` in `plugin.ts` unless the row names a separate Plugin. Storage lists the primary table and migration owners. Cross-feature migrations also update shared Channel, Session or PersonaBot records. Panel and settings entries identify consumers of the Host's data. [Host methods](../../packages/core/src/bridge/methods.ts), [Typert adapter](../../packages/core/src/bridge/rpc.ts), [Plugin](../../packages/core/src/plugin.ts), [Schema plan](../../packages/core/src/database/schema-plan.ts)
 
-The [Typert bridge composition](../../packages/core/src/bridge/rpc.ts) assembles the Service prototype from the feature-owned `rpc.ts` modules in declaration order. The bridge keeps the ordered Typert method and stream descriptors and resolves the Human on every invocation.
+The [Typert bridge composition](../../packages/core/src/bridge/rpc.ts) assembles the Service prototype from the feature-owned `rpc.ts` modules in declaration order. The bridge keeps the ordered Typert method and stream descriptors. Human-scoped handlers resolve the Human at invocation time; owner-only handlers use a separate Owner check.
 
 ### Memory
 
