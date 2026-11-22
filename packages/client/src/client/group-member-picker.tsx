@@ -136,6 +136,11 @@ function candidateSearch(query: string, t: BotHarnessTranslate) {
   return { kind, name: name.replace(/^@/u, '') };
 }
 
+function memberIdentity(row: PickedGroupMember, kindLabel: string): string {
+  const handle = row.kind === 'human' && row.username ? '@' + row.username : undefined;
+  return [row.displayName, kindLabel, handle].filter(Boolean).join(' · ');
+}
+
 function needsOwner(row: PickedGroupMember, keys: ReadonlySet<string>): boolean {
   return (
     row.kind === 'bot' &&
@@ -233,9 +238,7 @@ export function GroupMemberPicker({
     const ownerNeeded = needsOwner(row, keys);
     const kindLabel = t(row.kind === 'human' ? 'groupMembers.typeHuman' : 'groupMembers.typeBot');
     const handle = row.kind === 'human' ? row.username : undefined;
-    const identity = [row.displayName, kindLabel, handle && '@' + handle]
-      .filter(Boolean)
-      .join(' · ');
+    const identity = memberIdentity(row, kindLabel);
     const photo =
       row.kind === 'human' && photos?.call === call ? photos.images.get(row.id) : undefined;
     return (
@@ -412,7 +415,11 @@ export function GroupMemberResults({
     <ul aria-live="polite" {...stylex.props(styles.outcomes)}>
       {items.map(({ member, target, outcome }) => (
         <li key={groupMemberKey(target)}>
-          {member.displayName} ·{' '}
+          {memberIdentity(
+            member,
+            t(member.kind === 'human' ? 'groupMembers.typeHuman' : 'groupMembers.typeBot'),
+          )}{' '}
+          ·{' '}
           {outcome?.status === 'joined'
             ? t('groupMembers.joined')
             : outcome?.status === 'pending'

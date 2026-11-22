@@ -34,11 +34,15 @@ export interface GroupMemberMethods {
   channelGroupMembersAdd(payload: unknown): BridgeResult<GroupMembersAddResult>;
 }
 
-export function createGroupMemberMethods(
-  human: HumanContext,
-  { channels, registry, team, tob, warn }: BridgeMethodsDeps,
-  invite: ChannelsManagementAdapterMethods['channelGroupInvite'],
-): GroupMemberMethods {
+export function createGroupMemberMethods({
+  human,
+  deps: { channels, registry, team, tob, warn },
+  invite,
+}: {
+  human: HumanContext;
+  deps: Pick<BridgeMethodsDeps, 'channels' | 'registry' | 'team' | 'tob' | 'warn'>;
+  invite: ChannelsManagementAdapterMethods['channelGroupInvite'];
+}): GroupMemberMethods {
   const can = (channelId: string, policy: 'addBots' | 'addMembers') => {
     try {
       team?.channelAccess.requirePolicy(human, channelId, policy);
@@ -67,27 +71,29 @@ export function createGroupMemberMethods(
     error: unknown,
   ): GroupMemberOutcome => {
     if (error instanceof TeamError) return { ...identity, status: 'failed', code: error.code };
-    const name = error instanceof Error ? error.name : typeof error;
-    const code = error instanceof Error && 'code' in error ? error.code : undefined;
-    warn?.(
-      `botharness.group_members_add.unconfirmed ${JSON.stringify({
-        channelId,
-        targetKind: identity.kind,
-        targetId: identity.id,
-        errorType: /^(?:Error|TypeError|RangeError|SyntaxError|AggregateError)$/u.test(name)
-          ? name
-          : error instanceof Error
-            ? 'Error'
-            : 'non-error',
-        errorCode:
-          typeof code === 'string' &&
-          /^(?:ERR_SQLITE_ERROR|SQLITE_[A-Z_]{1,40}|EACCES|EPERM|ENOENT|ENOSPC|EBUSY|EIO)$/u.test(
-            code,
-          )
-            ? code
-            : undefined,
-      })}`,
-    );
+    try {
+      const name = error instanceof Error ? error.name : typeof error;
+      const code = error instanceof Error && 'code' in error ? error.code : undefined;
+      warn?.(
+        `botharness.group_members_add.unconfirmed ${JSON.stringify({
+          channelId,
+          targetKind: identity.kind,
+          targetId: identity.id,
+          errorType: /^(?:Error|TypeError|RangeError|SyntaxError|AggregateError)$/u.test(name)
+            ? name
+            : error instanceof Error
+              ? 'Error'
+              : 'non-error',
+          errorCode:
+            typeof code === 'string' &&
+            /^(?:ERR_SQLITE_ERROR|SQLITE_[A-Z_]{1,40}|EACCES|EPERM|ENOENT|ENOSPC|EBUSY|EIO)$/u.test(
+              code,
+            )
+              ? code
+              : undefined,
+        })}`,
+      );
+    } catch {}
     return { ...identity, status: 'failed', code: GROUP_MEMBER_UNCONFIRMED };
   };
 
@@ -183,13 +189,13 @@ export function createGroupMemberMethods(
             results.push({ ...identity, status: 'failed', code: invited.error.code });
             continue;
           }
+          const invitationId =
+            'invitation' in invited.value ? invited.value.invitation?.id : undefined;
           const channel = channels.get(channelId);
-          if (channel?.members.includes(target.id)) results.push({ ...identity, status: 'joined' });
-          else if (
-            channel?.invitations?.some(
-              (entry) => entry.targetBotSlug === target.id && entry.status === 'pending',
-            )
-          )
+          const invitation = channel?.invitations?.find((entry) => entry.id === invitationId);
+          if (invitation?.status === 'accepted' && channel?.members.includes(target.id))
+            results.push({ ...identity, status: 'joined' });
+          else if (invitation?.status === 'pending')
             results.push({ ...identity, status: 'pending' });
           else results.push({ ...identity, status: 'failed', code: 'group-invite-unavailable' });
         } catch (error) {

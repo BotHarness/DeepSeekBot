@@ -178,7 +178,9 @@ describe('Desktop Group member batches', () => {
   });
 
   it('reports unconfirmed targets and continues after unexpected errors on both target kinds', async () => {
-    const warn = vi.fn<(message: string) => void>();
+    const warn = vi.fn<(message: string) => void>().mockImplementationOnce(() => {
+      throw new Error('Diagnostic sink unavailable');
+    });
     const { team, registry, channels, human, methods } = await enabledFixture({ warn });
     const alice = await team.createMember(owner, 'alice', 'Alice');
     registry.create({ slug: 'first-bot', displayName: 'First Bot' });
@@ -243,5 +245,53 @@ describe('Desktop Group member batches', () => {
       },
     });
     expect(channels.get(group.id)?.invitations).toHaveLength(2);
+  });
+
+  it('reports the invitation belonging to the replayed operation key', async () => {
+    const { channels, registry, methods } = await enabledFixture();
+    const created = registry.create({ slug: 'invitee', displayName: 'Invitee' });
+    if (!created.ok) throw new Error('Invitee fixture missing');
+    const bot = created.record;
+    const group = channels.createGroup(owner, { name: 'Invitation history', members: [] });
+    const manager = methods(owner);
+    const add = (operationKey: string) =>
+      manager.channelGroupMembersAdd({
+        channelId: group.id,
+        targets: [{ kind: 'bot', id: bot.slug, operationKey }],
+      });
+
+    expect(add('first-invitation')).toMatchObject({
+      ok: true,
+      value: { results: [{ status: 'pending' }] },
+    });
+    const original = channels.get(group.id)?.invitations?.[0];
+    if (!original) throw new Error('First invitation missing');
+    channels.cancelGroupInvite(group.id, original.id);
+    expect(add('second-invitation')).toMatchObject({
+      ok: true,
+      value: { results: [{ status: 'pending' }] },
+    });
+    expect(add('first-invitation')).toMatchObject({
+      ok: true,
+      value: { results: [{ status: 'failed', code: 'group-invite-unavailable' }] },
+    });
+    const replacement = channels
+      .get(group.id)
+      ?.invitations?.find(({ status }) => status === 'pending');
+    if (!replacement) throw new Error('Replacement invitation missing');
+    channels.respondToGroupInvite({
+      invitationId: replacement.id,
+      targetBotSlug: bot.slug,
+      targetBotCreatedAt: bot.createdAt,
+      accept: true,
+    });
+    expect(add('second-invitation')).toMatchObject({
+      ok: true,
+      value: { results: [{ status: 'joined' }] },
+    });
+    expect(add('first-invitation')).toMatchObject({
+      ok: true,
+      value: { results: [{ status: 'failed', code: 'group-invite-unavailable' }] },
+    });
   });
 });

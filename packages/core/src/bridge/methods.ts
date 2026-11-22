@@ -843,11 +843,11 @@ function buildBridgeMethods(
     channelRename: channelsManagementAdapterMethods.channelRename,
     channelGroupAvatarSet: channelsManagementAdapterMethods.channelGroupAvatarSet,
     channelGroupInvite: channelsManagementAdapterMethods.channelGroupInvite,
-    ...createGroupMemberMethods(
+    ...createGroupMemberMethods({
       human,
-      { ...deps, registry: globalRegistry },
-      channelsManagementAdapterMethods.channelGroupInvite,
-    ),
+      deps: { ...deps, registry: globalRegistry },
+      invite: channelsManagementAdapterMethods.channelGroupInvite,
+    }),
     channelGroupInviteCancel: channelsManagementAdapterMethods.channelGroupInviteCancel,
     channelGroupJoinDecide: channelsManagementAdapterMethods.channelGroupJoinDecide,
     channelGroupMemberRemove: channelsManagementAdapterMethods.channelGroupMemberRemove,

@@ -12,7 +12,7 @@ import type { GroupMemberPickerResult } from '@botharness/host-protocol/group-me
 import type { BridgeActions } from '../src/client/actions.js';
 import type { BridgeCall } from '../src/client/bridge.js';
 import { MembersHeaderAction } from '../src/client/group-member-controls.js';
-import { GroupMemberPicker } from '../src/client/group-member-picker.js';
+import { GroupMemberPicker, GroupMemberResults } from '../src/client/group-member-picker.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 import { CreateChannelModal } from '../src/client/section-management.js';
 import { store, type ChannelSummary } from '../src/client/store.js';
@@ -89,6 +89,8 @@ async function openExisting(call: BridgeCall): Promise<void> {
 
 const ok = (value: unknown) => ({ ok: true as const, value });
 const submit = async () => act(async () => dialog().querySelector('form')!.requestSubmit());
+const humanResult = 'Bob · ' + t('groupMembers.typeHuman') + ' · ';
+const botResult = (name: string) => name + ' · ' + t('groupMembers.typeBot') + ' · ';
 
 it('keeps selections across search and retries failed targets after a mixed result', async () => {
   const calls = vi
@@ -125,15 +127,48 @@ it('keeps selections across search and retries failed targets after a mixed resu
   expect(dialog().textContent).toContain(t('groupMembers.history'));
   await submit();
 
-  expect(dialog().textContent).toContain('Bob · ' + t('groupMembers.joined'));
-  expect(dialog().textContent).toContain('Bob Bot · ' + t('members.pending'));
-  expect(dialog().textContent).toContain('Eve · ' + t('groupMembers.unavailable'));
+  expect(dialog().textContent).toContain(humanResult + t('groupMembers.joined'));
+  expect(dialog().textContent).toContain(botResult('Bob Bot') + t('members.pending'));
+  expect(dialog().textContent).toContain(botResult('Eve') + t('groupMembers.unavailable'));
   await submit();
   expect(calls).toHaveBeenLastCalledWith({
     channelId: GROUP.id,
     targets: [{ kind: 'bot', id: 'eve', operationKey: expect.any(String) }],
   });
-  expect(dialog().textContent).toContain('Eve · ' + t('groupMembers.joined'));
+  expect(dialog().textContent).toContain(botResult('Eve') + t('groupMembers.joined'));
+});
+
+it('identifies outcomes for two members and a Bot with the same name', async () => {
+  await act(async () =>
+    root.render(
+      createElement(GroupMemberResults, {
+        busy: false,
+        t,
+        items: [
+          {
+            member: { kind: 'human', id: 'sam-1', displayName: 'Sam', username: 'sam1' },
+            target: { kind: 'human', id: 'sam-1', operationKey: 'sam-key-1' },
+            outcome: { kind: 'human', id: 'sam-1', status: 'joined' },
+          },
+          {
+            member: { kind: 'human', id: 'sam-2', displayName: 'Sam', username: 'sam2' },
+            target: { kind: 'human', id: 'sam-2', operationKey: 'sam-key-2' },
+            outcome: { kind: 'human', id: 'sam-2', status: 'failed', code: 'member-not-found' },
+          },
+          {
+            member: { kind: 'bot', id: 'sam', displayName: 'Sam' },
+            target: { kind: 'bot', id: 'sam', operationKey: 'sam-key-3' },
+            outcome: { kind: 'bot', id: 'sam', status: 'pending' },
+          },
+        ],
+      }),
+    ),
+  );
+  expect([...document.querySelectorAll('li')].map((item) => item.textContent)).toEqual([
+    ['Sam', t('groupMembers.typeHuman'), '@sam1', t('groupMembers.joined')].join(' · '),
+    ['Sam', t('groupMembers.typeHuman'), '@sam2', t('groupMembers.unavailable')].join(' · '),
+    botResult('Sam') + t('members.pending'),
+  ]);
 });
 
 it('mixes avatar rows and filters by type, name, or handle while keeping selected rows', async () => {
@@ -241,14 +276,14 @@ it('keeps the original key for a target the Host could not confirm', async () =>
   await act(async () => memberRow('Bob').click());
   await act(async () => memberRow('Eve').click());
   await submit();
-  expect(dialog().textContent).toContain('Bob · ' + t('groupMembers.joined'));
-  expect(dialog().textContent).toContain('Eve · ' + t('groupMembers.unconfirmed'));
+  expect(dialog().textContent).toContain(humanResult + t('groupMembers.joined'));
+  expect(dialog().textContent).toContain(botResult('Eve') + t('groupMembers.unconfirmed'));
   await submit();
   expect(add).toHaveBeenNthCalledWith(2, {
     channelId: GROUP.id,
     targets: [add.mock.calls[0]?.[0].targets[1]],
   });
-  expect(dialog().textContent).toContain('Eve · ' + t('groupMembers.joined'));
+  expect(dialog().textContent).toContain(botResult('Eve') + t('groupMembers.joined'));
 });
 
 it('keeps the same creation and invitation keys after ambiguous responses', async () => {
@@ -285,7 +320,7 @@ it('keeps the same creation and invitation keys after ambiguous responses', asyn
   await submit();
   expect(create).toHaveBeenCalledTimes(2);
   expect(add.mock.calls).toEqual([add.mock.calls[0], add.mock.calls[0]]);
-  expect(dialog().textContent).toContain('Eve · ' + t('groupMembers.joined'));
+  expect(dialog().textContent).toContain(botResult('Eve') + t('groupMembers.joined'));
 });
 
 it('offers capability retry for malformed responses and hides the action on confirmed denial', async () => {
