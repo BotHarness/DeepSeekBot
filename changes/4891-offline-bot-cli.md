@@ -4,7 +4,7 @@ section: Fixed
 
 ## en
 
-- The offline Bot CLI can toggle Orchestrator write access on active BotHarness Space grants. It also preserves existing credential YAML indentation and coordinates secret edits with the native credential store ([#4891](https://github.com/BotHarness/DeepSeekBot/issues/4891)).
+- The offline Bot CLI can toggle Orchestrator write access on active BotHarness Space grants. It also preserves existing credential YAML indentation and coordinates Credential reference edits with the native credential store ([#4891](https://github.com/BotHarness/DeepSeekBot/issues/4891)).
 
 ## zh
 
