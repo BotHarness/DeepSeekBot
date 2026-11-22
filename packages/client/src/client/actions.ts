@@ -618,6 +618,7 @@ export function createActions(
     setStandingLimits: modelsActions.setStandingLimits,
     setModelPlanAssignments: modelsActions.setModelPlanAssignments,
     setModelPlan: modelsActions.setModelPlan,
+    setModelPlanSub: modelsActions.setModelPlanSub,
     listHostFolders: workspaceActions.listHostFolders,
     addWorkspaceFolder: workspaceActions.addWorkspaceFolder,
     authorizeWorkspacePath: workspaceActions.authorizeWorkspacePath,

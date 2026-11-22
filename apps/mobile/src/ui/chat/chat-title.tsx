@@ -1,22 +1,14 @@
 import { useHeaderStatus } from './use-header-status';
-import { HeaderTitleButton } from './header-title-button';
+import { ChatTitleCapsule } from './chat-title-capsule';
 import { ConnectionProgress } from '../primitives/connection-progress';
 import { View } from 'react-native';
 
 import type { RosterBot } from '@botharness/host-client/client';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
-import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { titleChipFill } from './header-chrome';
-import {
-  barLabelStyle,
-  barLabelProps,
-  headerContentScale,
-  headerControlHeight,
-  glassHeader,
-} from './native-header';
+import { barLabelProps, headerContentScale, glassHeader } from './native-header';
 
 const AVATAR = 28;
 
@@ -48,49 +40,26 @@ export function ChatTitle({
       {connectionLabel ?? headerStatus.label}
     </Text>
   );
-  const chip = (press: () => void) => (
-    <HeaderTitleButton
+  return (
+    <ChatTitleCapsule
+      kind="button"
+      title={name}
+      subtitle={status}
       testID="bot-details-chip"
-      accessibilityRole="button"
       accessibilityLabel={[name, headerStatus.label, connectionLabel].filter(Boolean).join(', ')}
       accessibilityState={{ busy: connectionLabel !== undefined }}
       accessibilityHint={t.openProfile}
       disabled={bot === undefined}
-      onPress={press}
-      style={({ pressed }) => ({
-        flexShrink: 1,
-        width: '100%',
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: space.x3,
-        minHeight: headerControlHeight(theme),
-        paddingLeft: ((glassHeader ? headerControlHeight(theme) : theme.touch) - avatarSize) / 2,
-        paddingRight: theme.touch / 2,
-        borderRadius: radius.round,
-        ...titleChipFill(theme, pressed),
-      })}
-    >
-      {bot ? (
-        <BotAvatar bot={bot} size={avatarSize} ring={false} />
-      ) : (
-        <View style={{ width: avatarSize, height: avatarSize }} />
-      )}
-      <View style={{ flex: 1, minWidth: 0 }}>
-        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x2 }}>
-          <Text
-            {...barLabelProps}
-            strong
-            numberOfLines={1}
-            ellipsizeMode="tail"
-            style={[barLabelStyle, { flexShrink: 1 }]}
-          >
-            {name}
-          </Text>
-        </View>
-        {status}
-      </View>
-      <ConnectionProgress active={connectionLabel !== undefined} />
-    </HeaderTitleButton>
+      onPress={onPress}
+      leadingSize={avatarSize}
+      leading={
+        bot ? (
+          <BotAvatar bot={bot} size={avatarSize} ring={false} />
+        ) : (
+          <View style={{ width: avatarSize, height: avatarSize }} />
+        )
+      }
+      trailing={<ConnectionProgress active={connectionLabel !== undefined} />}
+    />
   );
-  return chip(onPress);
 }

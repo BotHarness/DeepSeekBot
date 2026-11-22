@@ -4164,6 +4164,25 @@ const OWNER_PASSWORD_SIGN_IN_MIGRATION: SchemaMigration = {
   },
 };
 
+const CHANNEL_HUMAN_ADD_RECEIPTS_MIGRATION: SchemaMigration = {
+  id: 'channel-human-add-receipts',
+  module: 'team',
+  description: 'Replay bulk Human additions without restoring ended access',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE channel_human_add_receipts (
+        actor_human_id TEXT NOT NULL REFERENCES humans(human_id) ON DELETE CASCADE,
+        operation_key TEXT NOT NULL,
+        channel_id TEXT NOT NULL REFERENCES channel_records(channel_id) ON DELETE CASCADE,
+        target_human_id TEXT NOT NULL REFERENCES humans(human_id) ON DELETE CASCADE,
+        PRIMARY KEY (actor_human_id, operation_key)
+      ) STRICT;
+      CREATE INDEX channel_human_add_receipts_channel ON channel_human_add_receipts(channel_id);
+      CREATE INDEX channel_human_add_receipts_target ON channel_human_add_receipts(target_human_id);
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -4346,4 +4365,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   MODEL_PRESET_SUB_MIGRATION,
   MODEL_PRESET_SUB_ENGINE_MIGRATION,
   OWNER_PASSWORD_SIGN_IN_MIGRATION,
+  CHANNEL_HUMAN_ADD_RECEIPTS_MIGRATION,
 ]);

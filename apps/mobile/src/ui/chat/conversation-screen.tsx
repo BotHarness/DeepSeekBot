@@ -10,9 +10,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MAX_PICKED } from '../../host/pick-files';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { botColor } from '../bot-color';
-import { useChatHeaderHeight } from './header-chrome';
+import { useChatInitialScroll, useChatTimelineChrome } from './chat-timeline-chrome';
 import { useStackRoot } from '../shell/stack-root';
-import { useHeaderOverlap, useHeaderPadding } from './native-header';
 import { nativeChatRecycler } from '../primitives/chat-list';
 import { usePullToCompose } from './pull-to-compose';
 import { chatHref, useRecentChat } from '../shell/recent-chats';
@@ -20,13 +19,11 @@ import { useMarkRead } from './mark-read';
 import { MessageIdentities } from './message-identities';
 import { useHostLook } from '../../host/native-host-look';
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
-import { LatestAnchor } from './latest-anchor';
 import { AccentProvider, useDesignTheme } from '../design/theme';
 import { pullToCompose } from '../design/tokens';
 import { navigateChannel } from '../shell/channel-navigation';
 import { leaveScreen } from '../shell/leave-screen';
 import { Text } from '../primitives/text';
-import { useListBottomSafeArea } from '../primitives/keyboard-frame';
 import { useStrings } from '../strings';
 import { useConversationSource } from './conversation-source';
 import {
@@ -167,14 +164,10 @@ function ChatConversation({
     [routeFocusKey],
   );
   const navigation = useNavigationContainerRef();
-  const headerOverlap = useHeaderOverlap();
-  const nativeHeaderPadding = useHeaderPadding();
-  const inlineHeaderHeight = useChatHeaderHeight();
-  const [measuredHeaderHeight, setMeasuredHeaderHeight] = useState(0);
+  const { headerOverlap, headerPadding, nativeSpacer, setMeasuredHeaderHeight, listSafeArea } =
+    useChatTimelineChrome();
   const insets = useSafeAreaInsets();
   const android = Platform.OS === 'android';
-  const nativeSpacer = !android && LatestAnchor !== undefined;
-  const headerPadding = android ? measuredHeaderHeight || inlineHeaderHeight : nativeHeaderPadding;
   const [profileOpen, setProfileOpen] = useState(false);
   const nestedChange = presentation?.onNestedChange;
   useLayoutEffect(() => {
@@ -189,7 +182,6 @@ function ChatConversation({
     Keyboard.dismiss();
   };
   const { width: windowWidth } = useWindowDimensions();
-  const listSafeArea = useListBottomSafeArea();
   const source = useConversationSource({ place, focused });
   const { client, inbox, saved, bot, channel, botDm, conversation, activeChannel, snapshot } =
     source;
@@ -338,10 +330,7 @@ function ChatConversation({
     rowRendering,
   });
   const ios = Platform.OS === 'ios';
-  const openAtLatest =
-    ios && process.env.EXPO_PUBLIC_IOS_OPEN_AT_LATEST !== '0' && focus === undefined;
-  const [openedAtLatest, setOpenedAtLatest] = useState(false);
-  if (!openedAtLatest && openAtLatest && rows.length > 0) setOpenedAtLatest(true);
+  const initialScroll = useChatInitialScroll(focus === undefined, rows.length);
   const header = conversationHeader({ t, theme, insets, windowWidth, leave, ios, profile });
   const notice = conversationNotice({
     latestWindowOnly,
@@ -385,8 +374,7 @@ function ChatConversation({
     markdownViewport,
     screenRef,
     ios,
-    openAtLatest,
-    openedAtLatest,
+    initialScroll,
     source,
     draftState,
     messageState,

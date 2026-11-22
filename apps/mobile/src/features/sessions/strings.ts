@@ -90,7 +90,18 @@ export const en = {
     } as Record<string, readonly [string, string?]>,
   },
   sessionDetail: {
+    linkCount: (kind: 'created' | 'sent', count: number) =>
+      `${kind === 'created' ? 'New' : 'Sent to'} · ${count}`,
+    linkNeeds: {
+      'needs-you': 'Needs you',
+      'waiting-human': 'Waiting on you',
+      blocked: 'Blocked',
+    },
     title: 'Session',
+    options: 'Session options',
+    archive: 'Archive',
+    unarchive: 'Unarchive',
+    archiveFailed: (detail: string) => `Couldn’t change archive status. ${detail}`,
     list: 'Sessions',
     listFailed: 'Couldn’t load sessions.',
     assignmentFailed: 'Couldn’t load assignment details.',
@@ -213,7 +224,18 @@ export const zh: typeof en = {
     },
   },
   sessionDetail: {
+    linkCount: (kind: 'created' | 'sent', count: number) =>
+      `${kind === 'created' ? '新建' : '转给'} · ${count}`,
+    linkNeeds: {
+      'needs-you': '需要你处理',
+      'waiting-human': '等你回复',
+      blocked: '受阻',
+    },
     title: '会话',
+    options: '会话选项',
+    archive: '归档',
+    unarchive: '取消归档',
+    archiveFailed: (detail: string) => `无法更改归档状态。${detail}`,
     list: '会话',
     listFailed: '无法加载会话列表。',
     assignmentFailed: '无法加载事项详情。',

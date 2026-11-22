@@ -94,6 +94,8 @@ export const MEMBER_GLOBAL_METHODS = [
   'channelPolicySet',
   'channelHumanAdd',
   'channelMemberCandidates',
+  'channelGroupMemberPicker',
+  'channelGroupMembersAdd',
   'teamDirectory',
   'humanDm',
   'humanDmByUsername',

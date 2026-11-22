@@ -12,6 +12,7 @@ vi.mock('../src/host/native-host-look', () => ({
 vi.mock('../src/ui/chat/skill-suggestions', () => ({ SkillSuggestions: () => null }));
 vi.mock('../src/ui/chat/mark-read', () => ({ useMarkRead: () => visibility.read }));
 import type { ChannelListItem } from '@botharness/host-protocol/wire';
+import type { InboxSnapshot } from '@botharness/host-client/inbox';
 import type { RosterBot, RosterChannel } from '@botharness/host-client/client';
 import type { Conversation, ConversationSnapshot } from '@botharness/host-client/conversation';
 
@@ -48,6 +49,7 @@ const state = vi.hoisted(() => ({
   focused: true,
   display: { mode: 'streaming', loaded: true },
   receipts: false,
+  inbox: { status: 'idle' } as InboxSnapshot,
   glassHeader: true,
 }));
 const navigation = vi.hoisted(() => ({ push: vi.fn(), loadOlder: vi.fn(async () => {}) }));
@@ -206,6 +208,7 @@ vi.mock('react-native-worklets', () => ({ scheduleOnRN: (callback: () => void) =
 vi.mock('../src/host/host-session', async () => ({
   useHostSession: () => ({ client: undefined, inbox: undefined, saved: { hostId: state.hostId } }),
   useHostSnapshot: () => state.host,
+  useInbox: () => state.inbox,
   useConversation: () =>
     state.target ?? (state.active ? { loadOlder: navigation.loadOlder } : undefined),
   useChannelConversation: () => undefined,
@@ -262,7 +265,7 @@ vi.mock('../src/ui/chat/chat-header-actions', () => ({
   ChatHeaderActions: (
     props: import('../src/ui/chat/chat-header-actions').ChatHeaderActionsProps,
   ) => {
-    const actions = 'back' in props ? [props.back] : props.actions;
+    const actions = 'back' in props ? [props.back] : 'actions' in props ? props.actions : [];
     return (
       <>
         {actions.map((action) => (
@@ -409,22 +412,32 @@ vi.mock('../src/ui/chat/clipboard-image', () => ({
 }));
 vi.mock('expo-haptics', () => import('./expo-haptics-shim'));
 vi.mock('../src/ui/chat/message-actions', () => ({ MessageActions: () => null }));
-vi.mock('../src/ui/chat/message-bubble', () => ({
-  PlaybackBubble: ({
-    message,
-    onOpenDelivery,
-  }: {
-    message?: { body: string };
-    onOpenDelivery?: unknown;
-  }) =>
-    message === undefined ? (
-      <span data-testid="draft">visible draft</span>
-    ) : (
-      <span data-testid="message" data-receipt={onOpenDelivery === undefined ? 'off' : 'on'}>
-        {message.body}
-      </span>
-    ),
-}));
+vi.mock('../src/ui/chat/message-bubble', async () => {
+  const { SessionLinkChips } = await import('../src/ui/chat/session-link-chips');
+  return {
+    PlaybackBubble: ({
+      message,
+      onOpenDelivery,
+      onOpenSession,
+      sessionLinkNeeds,
+    }: React.ComponentProps<typeof import('../src/ui/chat/message-bubble').PlaybackBubble>) =>
+      message === undefined ? (
+        <span data-testid="draft">visible draft</span>
+      ) : (
+        <div data-testid="message" data-receipt={onOpenDelivery === undefined ? 'off' : 'on'}>
+          {message.body}
+          {onOpenSession !== undefined && message.sessionLinks !== undefined ? (
+            <SessionLinkChips
+              kind="created"
+              links={message.sessionLinks}
+              needs={sessionLinkNeeds}
+              onOpen={(link) => onOpenSession(link, message.bot)}
+            />
+          ) : null}
+        </div>
+      ),
+  };
+});
 vi.mock('../src/ui/chat/message-menu', () => ({ copyMessage: vi.fn(), shareText: vi.fn() }));
 vi.mock('../src/ui/chat/mention-suggestions', () => ({ MentionSuggestions: () => null }));
 vi.mock('../src/ui/chat/working-status', () => ({
@@ -467,6 +480,7 @@ beforeEach(() => {
   state.focused = true;
   state.display = { mode: 'streaming', loaded: true };
   state.receipts = false;
+  state.inbox = { status: 'idle' };
   state.glassHeader = true;
 });
 
@@ -1683,11 +1697,30 @@ it('opens the related Session from a Bot message and leaves the DM composer with
     },
     ...rest,
   ];
+  state.inbox = {
+    status: 'ready',
+    sections: {
+      action: [
+        {
+          id: 'assignment:release-task',
+          category: 'action',
+          kind: 'assignment-waiting-human',
+          createdAt: '2026-01-01T00:00:00Z',
+          botSlug: 'ada',
+          summary: 'Which version?',
+          assignmentSessionId: 'release-task',
+        },
+      ],
+      unread: [],
+      replies: [],
+      handled: [],
+    },
+  };
   const view = await render(place);
   const chip = view.querySelector<HTMLButtonElement>(
     '[data-testid="message-session-release-task"]',
   );
-  expect(chip?.getAttribute('aria-label')).toBe('Open session: Release review');
+  expect(chip?.getAttribute('aria-label')).toBe('Open session: Release review · Waiting on you');
   expect(
     view.querySelector('[data-testid="composer-input"]')?.getAttribute('data-session-controls'),
   ).toBeNull();

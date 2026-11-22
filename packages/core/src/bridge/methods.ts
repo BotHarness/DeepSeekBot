@@ -222,6 +222,10 @@ import {
   type ChannelsSendAdapterMethods,
 } from '../features/channels/send-methods.js';
 import {
+  createGroupMemberMethods,
+  type GroupMemberMethods,
+} from '../features/channels/group-members.js';
+import {
   createChannelsManagementAdapterMethods,
   type ChannelsManagementAdapterMethods,
 } from '../features/channels/management-methods.js';
@@ -388,6 +392,7 @@ export interface BridgeMethods
     HumansBridgeMethods,
     ChannelsAdapterMethods,
     ChannelsManagementAdapterMethods,
+    GroupMemberMethods,
     ChannelsSendAdapterMethods,
     ChannelFilesAdapterMethods,
     ProfileStorageAdapterMethods,
@@ -839,6 +844,11 @@ function buildBridgeMethods(
     channelRename: channelsManagementAdapterMethods.channelRename,
     channelGroupAvatarSet: channelsManagementAdapterMethods.channelGroupAvatarSet,
     channelGroupInvite: channelsManagementAdapterMethods.channelGroupInvite,
+    ...createGroupMemberMethods({
+      human,
+      deps: { ...deps, registry: globalRegistry },
+      invite: channelsManagementAdapterMethods.channelGroupInvite,
+    }),
     channelGroupInviteCancel: channelsManagementAdapterMethods.channelGroupInviteCancel,
     channelGroupJoinDecide: channelsManagementAdapterMethods.channelGroupJoinDecide,
     channelGroupMemberRemove: channelsManagementAdapterMethods.channelGroupMemberRemove,

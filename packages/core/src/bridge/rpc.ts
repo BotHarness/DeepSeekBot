@@ -20,7 +20,8 @@ import * as avatarsRpc from '../features/avatars/rpc.js';
 import * as skillsRpc from '../features/skills/rpc.js';
 import * as schedulesRpc from '../features/schedules/rpc.js';
 import * as promptsRpc from '../features/prompts/rpc.js';
-import { toRemoteError, unwrapAsync, type AdminResult } from './rpc-result.js';
+import { toRemoteError, unwrap, unwrapAsync, type AdminResult } from './rpc-result.js';
+import type { GroupMemberTarget } from '@botharness/host-protocol/group-members';
 import type {
   MarketplaceAvatar,
   MarketplaceAvatarEdit,
@@ -2105,6 +2106,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
+  channelGroupMemberPicker(channelId?: string, query?: string) {
+    return unwrap(this.methods.channelGroupMemberPicker({ channelId, query }));
+  }
+
+  channelGroupMembersAdd(channelId: string, targets: GroupMemberTarget[]) {
+    return unwrap(this.methods.channelGroupMembersAdd({ channelId, targets }));
+  }
+
   channelGroupInvite(
     channelId: string,
     botSlug: string,
@@ -3614,6 +3623,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelRename',
   'channelGroupAvatarSet',
   'channelGroupInvite',
+  'channelGroupMemberPicker',
+  'channelGroupMembersAdd',
   'channelGroupInviteCancel',
   'channelGroupMemberRemove',
   'channelGroupJoinDecide',

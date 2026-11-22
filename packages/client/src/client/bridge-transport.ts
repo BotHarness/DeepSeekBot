@@ -12,11 +12,15 @@ export class BridgeCallError extends Error {
   }
 }
 
-export type BridgeCall = (
-  endpoint: string,
-  payload: Record<string, unknown>,
-  signal?: AbortSignal,
-) => Promise<ConnectionRpcResult<unknown>>;
+export interface BridgeCall {
+  (
+    endpoint: string,
+    payload: Record<string, unknown>,
+    signal?: AbortSignal,
+  ): Promise<ConnectionRpcResult<unknown>>;
+  bindConnection?(): BridgeCall | undefined;
+  assertCurrent?(): void;
+}
 
 export function bridgeHost(call: BridgeCall, signal?: AbortSignal): Pick<HostClient, 'call'> {
   return {
