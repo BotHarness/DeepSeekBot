@@ -384,6 +384,7 @@ export interface OwnedSessionSummary {
   assignmentDescription?: string;
   assignmentModelRoute?: { provider: string; model: string; reasoningEffort?: string };
   modelRoute?: { provider: string; model: string; reasoningEffort?: string };
+  currentTarget?: import('@botharness/host-protocol/turn-target').TurnTarget;
   engine?: {
     engine: string;
     account?: string;

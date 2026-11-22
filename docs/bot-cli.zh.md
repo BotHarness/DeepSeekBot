@@ -590,6 +590,7 @@ deepseekbot assignment-timeline <bot-id> --session <session-id>
 deepseekbot session-subagents <bot-id> --session <root-session-id>
 deepseekbot session-progress <bot-id> --session <root-session-id>[,<root-session-id>…]
 deepseekbot session-transcript <bot-id> --session <root-session-id>
+deepseekbot session-model <bot-id> --session <root-session-id> [--set '<choice-json>' | --clear]
 deepseekbot session-live <bot-id> --session <root-session-id> --after <revision>
 deepseekbot session-tool <bot-id> --session <root-session-id> --call <tool-call-id>
 deepseekbot channel-assignments <group-channel>
@@ -643,6 +644,18 @@ printf '{"message_id":"<message-id>","session_ids":["<assignment-session-id>"]}'
 `activity*` 命令在 #3321 之前叫 `inbox*`，旧名字仍然可用。`activity` 返回「活动」的一页（`items` 和 `nextCursor`），可以像「活动」的筛选一样按 `--category`（`action`、`info`、`unread`、`replies`、`handled`）、`--bot` 或 `--channel` 筛选。`activity-dismiss` 接收条目的 `id`，条目带有 `sourceEventId` 时把它作为 `--source-key` 传入；`activity-dismiss-all --confirm` 一次移除所有活动条目，或只移除某个 `--kind`（例如 `bot-message-needs-repair`）的条目，并可用 `--category`、`--bot`、`--channel` 限定范围；被清理的未读会话、回复和提及会一并标为已读（读到该条消息为止）；返回 `dismissed`、`read`（标为已读的会话数）和 `more`（每次最多 1000 条，仍有剩余时 `more: true`），对应网页和手机「活动」里的「清理…」菜单。`activity --dismissed` 列出已移除的条目（对应手机上的「已清理」筛选），`activity-restore` 用同样的 `id` 和 `--source-key` 把一条恢复回来，旧版 Host 会以 `host-query-unsupported` 失败；`activity-ignore` 把一条仅供知悉的委派汇报标为已读。`activity-snooze` 把需要处理、通知或回复里的条目隐藏到 `--until`（最多 30 天后），对应网页 Inbox 的「稍后提醒」；`--clear` 立即让它回来，`activity --snoozed` 列出仍在延后的条目及其 `snoozedUntil`。`assignment-context` 读取 `assignment-report` 条目背后的汇报。`assignments` 按最近更新顺序列出 Bot 的委派任务，每条都带 `title`（委派标题）和 `description`（委派描述）、活动状态、Continuity Key 和最新汇报；`--search` 不区分大小写地匹配标题、描述、Continuity Key 和最新汇报摘要，`--activity` 用逗号列出要保留的 `working`、`idle`、`error`、`stopping`、`stopped`，`--include-archived` 同时列出已归档的，`--cursor` 用上一页的 `nextCursor` 在相同筛选下继续（`--limit` 为 1–50，默认 20）。它读取的就是 Bot 的 `list_assignments` 所用的 Assignment Directory。`assignment` 按 `--session` 查看一个委派任务。`assignment-timeline` 返回该委派任务、它的 `rounds`（轮次）及 `lanes` 中的时间线。每一轮是委派 Agent 的一个 turn：第 1 轮为 `created`，之后为 `continued`（Orchestrator 又发来一个请求），每轮带开始时间和 Orchestrator 指令 `instruction` 的前 280 个字符；保留最新 20 轮，`omittedRounds` 统计其余。MAIN 条目和 Subagent 泳道带有所属的 `round`。泳道先是 `main`（委派 Agent），再按创建顺序列出每个 DSH Subagent，记为 `subagent` 1、2…（最多最近 20 个，其余数量见 `omittedSubagents`）。每条泳道保留最近 40 条 `entries`，每条带工具名、`kind`、`status`（`running`、`done`、`failed`、`denied` 或 `cancelled`）、时间，以及仅在工具声明时才有的简短公开 `detail`；原始工具输入和输出不会出现。每条泳道还带 `state`（`running`、`done`、`failed`、`cancelled` 或 `idle`）、首末事件时间，以及该会话调用过模型后实际使用的 `route`（`provider`、`model`、`reasoningEffort`）。Sessions 面板和群组 Work 面板里 Assignment 行上的“执行过程”按钮读取的就是它：按轮次列出 Orchestrator 的指示、MAIN 步骤和这一轮开出的 Subagent。`session-subagents` 对 Bot 拥有的任一根会话（Orchestrator 或 Assignment）返回同样的 `subagent` 泳道，因此也覆盖 Orchestrator 自己用 `bot_subagent` 派出的 Subagent；会话面板和群聊 Work 面板展开某一行时读取它。`session-progress` 读取 Bot 拥有的至多 30 个根会话（`--session a,b,c`）的 DSH 目标（`objective`、`phase` 为 `active`/`paused`/`blocked`/`complete`、`roundsStarted`、`maxGoalRounds`，受阻时还有 `blockedReason`）和来自 `todo_write` 的当前任务清单（每项 `content` 和 `status` 为 `pending`/`in_progress`/`completed`，与 DSH 一样保留到下一轮开始），以及 `lastEventAt`；不属于该 Bot 的会话返回 `error: "not-found"`。会话面板用它显示每一行的进度和目标。`session-transcript` 按顺序以 `items` 读取一个根会话的记录：每条 `input`（文本、`turn` 和 `source`，指示或 Human 消息为 `user`，唤醒为 `system`）、`reasoning` 和 `reply` 文本（各最多 8000 个字符）、`tool` 步骤（`status` 和仅公开的 `detail` 与 `assignment-timeline` 相同），以及带 `state` 的 `turn-end`；保留最新 200 条，其余数量见 `omitted`，并用 `running` 说明是否有 turn 正在运行。`system` 输入还带 `trigger`（`request`、`goal`、`agent`、`team`、`subagent`、`github`、`webhook`、`schedule`、`job` 或 `plugin`），Host 自行注入的上下文（运行环境、技能目录）不列出。模型流式输出过的 `reasoning` 带 `durationMs`；`tool` 步骤带 `command`、`path` 或 `url`（私密输入的工具不带），改文件时带 `added` 和 `removed` 行数，并带 `endedAt`；`turn-end` 带 `usage`（总 `tokens`、输出 `output` 和生成用时 `outputMs`，可算出每秒 token 数）。`seq` 是读到的最后一个事件。会话详情面板读取的就是它。`session-live` 读取正在运行的根会话此刻的流式内容：还没写入记录的思考、回复和工具调用，以及 `revision` 和它们接在其后的记录 `seq`；加 `--after <revision>` 时最多等 12 秒直到下一次变化，会话详情面板就是这样流式显示的。`session-tool` 按 `--call` 读取一个工具步骤的全部内容：命令及其输出和退出码、改文件前后的文本、读到的文件行、搜索匹配、网页或搜索链接，或其他工具的输入和结果。`channel-assignments` 列出群组 Channel 的委派工作；`channel-assign` 把 Channel 移到侧栏的某个分组（`--unsectioned` 移出分组）。`session-ids` 列出 Bot 拥有的根会话，`session-owner` 说明某个会话属于哪个 Bot、以什么角色运行。`tool-approval-rules` 列出 Bot 的"始终允许"规则；每条规则的 `autoApprovedCount` 是它不经询问就批准的请求次数，每个请求只计一次。`tool-approval-history` 按从新到旧列出 Human 对该 Bot 批准卡片的答复：每条包含工具、输入、`outcome`（`allowed-once`、`allowed-always-tool`、`allowed-always-exact`、`allowed-always-all` 或 `rejected`）、`channelId` 和两条消息 ID；答复来自已配对的 IM 账号时还带 `actor`。`--cursor` 用上一页的 `nextCursor` 继续（`--limit` 为 1–100，默认 30）。撤销规则、工作区授权或私有 MCP 服务器都需要 `--confirm`，与 Web UI 的确认一致。指定了 Host 时，`grant-revoke` 和 `grant-write-set` 经由 Host 执行；使用 `--home` 时仍是离线维护命令。私有 MCP 服务器由 `ask-secret-accounts` 列出；Host 不认识的名称会以 `private-mcp-server-unavailable` 失败。
 
 `session-transcript` 在能确认运行目标时，为 `reply` 和 `turn-end` 返回按执行顺序排列的 `turnTargets`。回复由最后一个目标生成。DSH 条目包含 `provider` 和 `model`，订阅引擎条目包含 `engine` 以及能确认的模型和推理强度。当前主会话首次运行后，`model-plan <bot-id>` 也会返回 `currentTarget`。
+
+`session-model` 读取根会话保存的覆盖项 `override` 和 Bot 默认项 `default`。执行期间，`active` 是本轮开始时读取的覆盖项。`--set` 接收一个模型选择 JSON 对象：
+
+- API 模型：`{"kind":"model","provider":"opencode-go","model":"deepseek-v4.1-flash"}`
+- 订阅引擎：`{"kind":"engine","engine":"claude","model":"claude-opus-5-5"}`。使用 `accountId` 指定获准使用的账号。
+- 路由组：`{"kind":"group","id":"<group-id>"}`。
+
+团队模式下，可用 `--as <username>` 读取该成员拥有的 Bot 的会话记录、实时更新、工具调用、子代理和进度，或设置其模型选择。如果该 Bot 有其他用户的私聊，Host 会拒绝访问会话。保存使用未获授权的订阅引擎账号的模型选择时，Host 会返回 `model-not-allowed`。
+
+`--clear` 恢复会话的默认选择。更改从下一轮生效，Bot 的模型方案不受影响。Host 检查会话归属、模型选择和账号授权。实际使用的模型在两轮之间变化时，`session-transcript` 返回一条 `model-switch`，包含 `from`、`to` 及可用的路由组回退原因 `reason`。
+
+`bot-sessions` 和 `session-transcript` 在能确认运行目标时，返回正在运行或最近运行的 `currentTarget`。订阅引擎目标返回 `engine`、公开的订阅名称 `account` 和能确认的 `model`。原生目标返回 `provider` 和 `model`，混合路由组回退到 DSH 模型时也会如此。
 
 ### 在线 Host 上的定时任务
 
@@ -1256,7 +1269,9 @@ DSH Subagent 从已授权组内的第一个可用 DSH 成员启动。`list_bot_s
 
 在线模式下，`home-model-set` 以及路由组和模型预设的写入均由 Host 校验 `models.configure`。内置 Admin 默认拥有此权限。`model-presets --include-usage` 返回使用数量以及调用者可见的 Bot 名称。删除时请提供列表中的预设版本和 `--confirm`。Bot 会保留已应用的模型方案。应用预设仍遵循既有 Bot 管理和模型使用权限。
 
-在线 Human CLI 的 `home-model-set` 支持 `--orchestrator-effort` 和 `--expected-revision`；后者对应 `model-catalog.defaultRevision`，省略时先读取当前默认模型 revision，同时带上 `model-catalog.defaultGroupRevision`：若其他客户端在此期间改了默认路由组，会返回 `routing-group-stale-revision`，不会被覆盖。`model-preset-apply` 可通过 `--expected-revision` 约束 Bot 计划、`--preset-revision` 约束预设；省略这些参数时保留原有 Human 行为。受限 Tob 调用必须明确传入对应 revision，不能借省略参数跳过已审核快照。
+用 `deepseekbot model-default` 查看置顶的「默认」预设。升级前对旧 Host 运行 `deepseekbot model-default --migration-dry-run`，可预览迁移且不会写入。升级后返回 `already-migrated`。迁移仅执行一次，回退需恢复升级前的 Profile 备份。
+
+用 `home-model-set --provider <id> --model <id>` 或 `home-model-set --group <id>` 修改主模型，已单独设置的副模型继续保留。可用 `--orchestrator-effort` 指定推理级别，`--expected-revision` 使用读到的预设版本。用 `model-preset-update default --assignment-provider <id> --assignment-model <id>` 设置副模型，或用 `model-preset-update default --assignment-follows-main` 恢复继承。删除默认预设返回 `default-preset-pinned`。
 
 `overview-usage`（`--period today|week|month|quarter`，`month` 为近 28 天，`quarter` 为近 84 天，默认 `today`）和 `overview-memory` 返回总览页上每个 Bot 的数据行；把返回的 `nextCursor` 作为 `--after` 传回可以继续读取。`activity-overview` 显示每个 Bot 正在做什么，`channel-activity-today` 显示每个 Channel 今天的消息。`bot-*` 读取命令按 Bot ID 定位，通过它的私聊读取 Profile 面板：`bot-usage` 需要不晚于今天、跨度小于 182 天的 `--start`/`--end`，`bot-session-usage` 按会话和 Assignment 汇总用量，`bot-activity-history` 返回活动日历（`--weeks` 为 1–104）。`group-activity` 接受群组 Channel ID。
 
@@ -1698,7 +1713,7 @@ deepseekbot model-preset-apply <bot-id> --preset <preset-id> --expected-revision
 | `showApprovalReviewSessions` | 布尔值      |
 | `developerMode`              | 布尔值      |
 
-`settings-set botharness-client --patch-stdin` 必须配合成对的审核参数；previous-value JSON 必须与 patch 使用完全一致的字段。`settings agent-default-model` 读取默认模型路由，通过 `home-model-set` 修改。未知字段、其他命名空间和直接 patch 默认模型均拒绝，不绕过 owner 编辑配置文件。本片范围不包含动效、主题、语言、快捷键、布局等其他偏好。
+`settings-set botharness-client --patch-stdin` 必须配合成对的审核参数；previous-value JSON 必须与 patch 使用完全一致的字段。用 `model-presets` 读取默认预设，并通过 `home-model-set` 修改主模型。未知字段、其他命名空间和直接 patch 默认模型均拒绝，不绕过 owner 编辑配置文件。本片范围不包含动效、主题、语言、快捷键、布局等其他偏好。
 
 ### Tob 隐私、Git 与更新
 

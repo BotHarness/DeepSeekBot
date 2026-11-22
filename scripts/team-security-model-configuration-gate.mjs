@@ -14,6 +14,15 @@ export function runModelConfigurationGate(s, { member, tag }, check) {
   );
   if (!route) throw new Error('Expected the OpenCode Go model in the isolated Host');
   const { provider, model } = route;
+  const { preset: pinned } = s.cli(['model-default']);
+  const updateDefault = ['model-preset-update', pinned.id, '--name', `M15 Default ${tag}`];
+  const deleteDefault = [
+    'model-preset-delete',
+    pinned.id,
+    '--expected-revision',
+    String(pinned.revision),
+    '--confirm',
+  ];
   const create = [
     'model-preset-create',
     '--name',
@@ -57,6 +66,8 @@ export function runModelConfigurationGate(s, { member, tag }, check) {
       String(catalog.defaultRevision ?? 0),
     ],
     create,
+    updateDefault,
+    deleteDefault,
     update,
     deletePreset(1),
     createGroup,
@@ -77,6 +88,16 @@ export function runModelConfigurationGate(s, { member, tag }, check) {
 
   const list = s.cli(['model-presets', '--include-usage'], { as: member });
   const groups = s.cli(['model-groups'], { as: member });
+  check('Member reads the pinned Default first', list.presets[0]?.id === pinned.id);
+  const pinnedRefusal = s.cli(deleteDefault, { as: operator, allowFail: true });
+  check(
+    'Admin cannot delete the pinned Default',
+    pinnedRefusal?.error?.code === 'default-preset-pinned',
+  );
+  check(
+    'Refused writes leave the pinned Default intact',
+    s.cli(['model-default']).preset.revision === pinned.revision,
+  );
   const defaultModel = s.cli(['model-catalog'], { as: member }).default;
   check(
     'Member reads all three shared settings',

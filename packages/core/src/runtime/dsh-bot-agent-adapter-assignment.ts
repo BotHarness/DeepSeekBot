@@ -145,7 +145,7 @@ export function requestAssignment(
   const handle = adapter.handles.get(run.sessionId);
   const active = adapter.runs.get(run.sessionId);
   if (handle !== undefined && active?.role === 'assignment') {
-    selectAssignmentModel(adapter, run);
+    if (active.run.routingTarget === undefined) selectAssignmentModel(adapter, run);
     try {
       handle.agent.steer(assignmentMessage(run.text));
     } catch (error) {
@@ -189,6 +189,19 @@ async function driveAssignment(
   run: AssignmentAgentRun,
   accepted?: () => void,
 ): Promise<void> {
+  const model = run.sessionModel?.();
+  try {
+    await runAssignmentTurn(adapter, model?.apply(run) ?? run, accepted);
+  } finally {
+    model?.finish();
+  }
+}
+
+async function runAssignmentTurn(
+  adapter: DriveAssignmentContext,
+  run: AssignmentAgentRun,
+  accepted?: () => void,
+): Promise<void> {
   const select = run.selectGroupTarget;
   if (select === undefined) return driveAssignmentAttempt(adapter, run, accepted);
   const { bot, sessionId, modelRoute: _modelRoute, ...initial } = run;
@@ -207,6 +220,7 @@ async function driveAssignment(
         return;
       }
       const current = target;
+      const switchReason = run.groupSwitchReason?.();
       attempted.add(routingTargetRestKey(current));
       let acceptedThisAttempt = false;
       try {
@@ -215,6 +229,7 @@ async function driveAssignment(
           bot,
           sessionId,
           routingTarget: current,
+          ...(switchReason === undefined ? {} : { switchReason }),
           ...(current.kind === 'route' ? { modelRoute: current.route } : {}),
           report: async (input, execution) => {
             const report = await run.report(input, execution);
@@ -388,7 +403,7 @@ async function assignmentHandle(
   if (existing !== undefined) return existing;
   const resolvedAgentOptions = agentOptions(
     run,
-    adapter.defaultModel.currentSelection(),
+    adapter.defaultModel,
     adapter.resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan,
   );
   const selection = {
@@ -504,7 +519,7 @@ function selectAssignmentModel(
   if (selection === undefined) return;
   selection.current = agentOptions(
     run,
-    adapter.defaultModel.currentSelection(),
+    adapter.defaultModel,
     adapter.resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan,
   );
   selectNativeModel(adapter.handles.get(run.sessionId)?.agent, selection.current);

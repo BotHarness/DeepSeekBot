@@ -464,7 +464,7 @@ it('lists the Subagents an Orchestrator started under its row, with their model'
     }
     expect(work).toEqual([zhTranslate('assignmentWork.tooltip')]);
     const modelChips = [...container.querySelectorAll('[data-session-meta-chip="model"]')];
-    expect(modelChips.map((chip) => chip.textContent)).toContain('v4 pro · high');
+    expect(modelChips.map((chip) => chip.textContent)).toContain('v4 pro · 高API');
     expect(modelChips.map((chip) => chip.getAttribute('title'))).toContain(
       'deepseek/deepseek-v4-pro · high',
     );

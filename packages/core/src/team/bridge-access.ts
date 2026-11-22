@@ -11,6 +11,7 @@ import type { BridgeMethods, BridgeMethodsDeps, BridgeResult } from '../bridge/m
 import {
   MEMBER_METHODS,
   MEMBER_BOT_METHODS,
+  MEMBER_BOT_SESSION_ID_METHODS,
   MEMBER_BOT_IMPORT_METHODS,
   MEMBER_APPROVAL_METHODS,
   MODEL_CONFIGURATION_METHODS,
@@ -417,6 +418,15 @@ export function guardHumanBridge(
           })
         )
           return refuse('bot-not-found');
+        if (
+          !owner &&
+          deps.team &&
+          (MEMBER_BOT_SESSION_ID_METHODS.has(property) || property === 'sessionProgress')
+        ) {
+          const sessionBot = slug ?? input['botSlug'];
+          if (typeof sessionBot === 'string' && deps.team.bots.hasForeignDms(human, sessionBot))
+            return refuse('bot-session-private', { slug: sessionBot });
+        }
         if (
           !owner &&
           ['create', 'createLookup'].includes(property) &&

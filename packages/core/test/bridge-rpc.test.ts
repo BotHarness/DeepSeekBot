@@ -582,6 +582,7 @@ describe('bridge typert service', () => {
       'orchestratorGroupEffort',
       'orchestratorEngine',
       'assignmentEngine',
+      'assignmentFollowsMain',
     ]);
     expect(parameterNames(service.modelPlanSet)).toEqual([
       'slug',
@@ -653,7 +654,7 @@ describe('bridge typert service', () => {
       assignmentEngine,
     });
     await service.modelPresetUpdate(
-      'p',
+      'default',
       1,
       'Daily',
       route,
@@ -667,9 +668,10 @@ describe('bridge typert service', () => {
       undefined,
       orchestratorEngine,
       null,
+      false,
     );
     expect(update).toHaveBeenCalledWith({
-      id: 'p',
+      id: 'default',
       expectedRevision: 1,
       name: 'Daily',
       orchestrator: route,
@@ -677,6 +679,7 @@ describe('bridge typert service', () => {
       assignmentModels,
       orchestratorEngine,
       assignmentEngine: null,
+      assignmentFollowsMain: false,
     });
   });
   it('exposes Activity and notification query arguments and refuses an unavailable owner', () => {
@@ -794,6 +797,7 @@ describe('bridge typert service', () => {
       'orchestratorGroupEffort',
       'orchestratorEngine',
       'assignmentEngine',
+      'assignmentFollowsMain',
     ]);
     const route = { provider: 'official', model: 'fast', reasoningEffort: 'high' };
     const assignmentModels = [

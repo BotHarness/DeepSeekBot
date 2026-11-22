@@ -215,6 +215,8 @@ export async function runBotCreateCli(
     rejectSecretArgv(argv);
     const { values, positionals } = parseBotCliArgs(argv);
     let [command, ...rest] = positionals;
+    if (values['migration-dry-run'] && command !== 'model-default')
+      throw usageError('--migration-dry-run requires model-default.');
     if (command === 'bots') {
       const [action, ...targets] = rest;
       const aliases: Record<string, string> = {

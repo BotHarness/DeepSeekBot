@@ -8,6 +8,7 @@ import type {
 import type { BridgeMethodsDeps, BridgeResult } from '../bridge/methods.js';
 import { EngineRefusal } from '../engines/engine-session.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
+import { ModelPresetError } from './presets.js';
 import { TeamError } from '../team/error.js';
 import {
   addModelProviderInput,
@@ -25,6 +26,8 @@ export interface ModelProviderBridgeMethods {
 }
 
 export function modelFailure(error: unknown): BridgeResult<never> {
+  if (error instanceof ModelPresetError)
+    return { ok: false, error: { code: error.code, message: error.message } };
   if (error instanceof EngineRefusal)
     return {
       ok: false,

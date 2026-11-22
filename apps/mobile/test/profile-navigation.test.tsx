@@ -136,6 +136,7 @@ vi.mock('../src/ui/chat/native-profile-tab-memory', async () => {
 });
 vi.mock('../src/host/pick-avatar-image', () => ({
   pickAvatarImage: async () => undefined,
+  pickBannerImage: async () => undefined,
 }));
 vi.mock('../src/host/host-session', () => ({
   useConversation: () => ({

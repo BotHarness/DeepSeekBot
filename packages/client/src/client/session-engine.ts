@@ -1,3 +1,4 @@
+import type { RoutingGroupEngineCopy } from '@botharness/host-client/model-catalog';
 import type {
   EngineId,
   RoutingGroupEngineUnavailable,
@@ -5,7 +6,13 @@ import type {
 import type { SessionEngine, SessionEngineQuota } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 
-export const ENGINE_MARKER_ICON = 'puzzle';
+export function routingGroupEngineCopy(t: BotHarnessTranslate): RoutingGroupEngineCopy {
+  return {
+    defaultModel: (engine) => t('routingGroups.engineDefault', { engine }),
+    subscription: (source) => t('engine.subscription', { engine: source }),
+    effort: (level) => t(`engine.effort.${level}`),
+  };
+}
 
 export function shortTime(at: string): string {
   return new Date(at).toLocaleString(undefined, {
@@ -79,12 +86,11 @@ export function sessionEngineText(engine: SessionEngine, t: BotHarnessTranslate)
 }
 
 export function engineChipLabel(
-  engine: { engine: string; quota?: SessionEngineQuota },
+  model: string,
+  quota: SessionEngineQuota | undefined,
   t: BotHarnessTranslate,
 ): string {
-  const name = engineName(engine.engine);
-  const quota = engine.quota;
-  if (quota?.limitedUntil !== undefined) return `${name} · ${t('sessions.engineLimitedShort')}`;
-  if (quota?.usedPercent === undefined) return name;
-  return `${name} · ${Math.round(quota.usedPercent)}%`;
+  if (quota?.limitedUntil !== undefined) return `${model} · ${t('sessions.engineLimitedShort')}`;
+  if (quota?.usedPercent === undefined) return model;
+  return `${model} · ${Math.round(quota.usedPercent)}%`;
 }

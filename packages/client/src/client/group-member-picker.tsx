@@ -48,7 +48,7 @@ const styles = stylex.create({
     justifyContent: 'flex-start',
     gap: space.x3,
     paddingBlock: space.x2,
-    paddingInline: space.x2,
+    paddingInline: space.x3,
     textAlign: 'start',
     whiteSpace: 'normal',
     outlineOffset: `calc(-1 * ${edge.focusOffset})`,

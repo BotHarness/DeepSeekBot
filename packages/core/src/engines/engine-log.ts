@@ -36,7 +36,8 @@ export function nextTurnNumber(events: readonly SessionEvent[]): number {
   return last + 1;
 }
 
-const ENVELOPE_TITLE = /^\[(?:Human DM|Group|Bot DM|Bot Inbox)/u;
+const ENVELOPE_TITLE =
+  /^(?:\[(?:Human DM|Group|Bot DM|Bot Inbox|Host:)|Source Event ID: |Current Channel Human: )/u;
 
 export class EngineTurnLog {
   readonly #target: EngineLogTarget;

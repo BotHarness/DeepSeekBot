@@ -1,4 +1,7 @@
-import { type TurnTarget } from '@botharness/host-protocol/turn-target';
+import {
+  type TurnTarget,
+  type SessionTurnModelSwitch,
+} from '@botharness/host-protocol/turn-target';
 import type { HostClient, RemoteSource } from './client';
 import { type GenuiDocument, type GenuiDocumentReply } from './genui/document';
 import { type ChannelActivity } from './channel-activity';
@@ -69,6 +72,7 @@ export interface ReplyThumbnail {
 
 export interface ConversationMessage {
   turnTargets?: TurnTarget[];
+  turnModelSwitch?: SessionTurnModelSwitch;
   source?: JournalEntry;
   voice?: MessageVoice;
   sessionFailure?: import('./session-failure').SessionFailure;
