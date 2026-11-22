@@ -502,7 +502,8 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
             throw error;
           ports.switchingRoutingGroups.add(bot.slug);
           const next = await select(attempted);
-          if (ports.closed() || ports.stoppedTurns.has(bot.slug)) return;
+          if (ports.closed() || ports.stoppedTurns.has(bot.slug))
+            throw new Error('The Routing Group switch was cancelled', { cause: error });
           if (next?.kind === 'exhausted')
             throw new RouteRestingError(next.rests, next.subscription);
           if (next?.kind !== 'target') throw new RoutingGroupUnavailableError(error);
@@ -532,7 +533,8 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
             reason: rest?.reason ?? 'credential',
             ...(rest === undefined ? {} : { until: rest.until }),
           });
-          if (ports.closed() || ports.stoppedTurns.has(bot.slug)) return;
+          if (ports.closed() || ports.stoppedTurns.has(bot.slug))
+            throw new Error('The Routing Group switch was cancelled', { cause: error });
           ports.requireExecution?.(bot.slug);
           target = next.target;
         }

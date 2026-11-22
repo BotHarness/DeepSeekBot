@@ -3,6 +3,8 @@ import { describe, expect, it } from 'vitest';
 
 import { createCore } from '../src/plugin.js';
 import { attachOperationalModule } from '../src/database/owner.js';
+import { EngineRefusal } from '../src/engines/engine-session.js';
+import { createGroupFallback } from '../src/models/group-fallback.js';
 import type {
   AssignmentAgentRun,
   AssignmentRequestDelivery,
@@ -57,6 +59,89 @@ function admit(core: ReturnType<typeof createCore>, groupId: string, id: string)
 }
 
 describe('turn-time harvest', () => {
+  it.each(['fallback selection', 'switch notice'])(
+    'leaves the unseen Admission retryable when stopped during %s',
+    async (phase) => {
+      let signalWaiting!: () => void;
+      let releaseSwitch!: () => void;
+      const waiting = new Promise<void>((resolve) => {
+        signalWaiting = resolve;
+      });
+      const resume = new Promise<void>((resolve) => {
+        releaseSwitch = resolve;
+      });
+      const pause = async () => {
+        signalWaiting();
+        await resume;
+      };
+      const route = { provider: 'test', model: 'fallback' };
+      const groupFallback = createGroupFallback({
+        plan: () => undefined,
+        inheritedGroup: () => 'mixed',
+        routes: () => [route],
+        engines: {
+          targets: () => [
+            { kind: 'engine', engine: 'codex' },
+            { kind: 'route', route },
+          ],
+          allowed: () => true,
+          limit: () => undefined,
+        },
+        rests: { restingUntil: () => undefined },
+        requireAllowed: () => undefined,
+        validate: phase === 'fallback selection' ? pause : async () => undefined,
+      });
+      const runs: OrchestratorAgentRun['routingTarget'][] = [];
+      const core = createCore({
+        dshHome: createTempRoot('bh-harvest-cancelled-switch-'),
+        groupFallback,
+        agents: {
+          async runOrchestrator(run) {
+            runs.push(run.routingTarget);
+            if (run.routingTarget?.kind === 'engine')
+              throw new EngineRefusal('engine-signed-out', 'Codex is signed out');
+            run.inputAccepted?.();
+          },
+          async runAssignment() {},
+          requestAssignment() {
+            throw new Error('No Assignment expected');
+          },
+          async close() {},
+        },
+      });
+      try {
+        core.registry.create({ slug: 'ada', displayName: 'Ada' });
+        const group = core.channels.createGroup(OWNER_HUMAN_CONTEXT, {
+          name: 'Team',
+          members: ['ada'],
+        });
+        if (phase === 'switch notice') {
+          const append = core.channels.appendMessage.bind(core.channels);
+          core.channels.appendMessage = async (human, channelId, message) => {
+            if (message.modelSwitch !== undefined) await pause();
+            return append(human, channelId, message);
+          };
+        }
+        await admitMention(core, group.id, 'cancelled-switch', '@Ada check this Group');
+        admit(core, group.id, 'cancelled-switch');
+        await waiting;
+        const sessionId = core.runtime.currentOrchestratorSessionId?.('ada');
+        if (sessionId === undefined) throw new Error('Expected an Orchestrator Session');
+        const stop = core.runtime.stopSession?.('ada', sessionId);
+        releaseSwitch();
+
+        expect(await stop).toMatchObject({ outcome: 'settled', stopped: [{ sessionId }] });
+        await core.runtime.whenIdle();
+        expect(runs).toEqual([{ kind: 'engine', engine: 'codex' }]);
+        expect(admissionStateFor(core, 'ada', 'cancelled-switch')).toBe('retryable');
+      } finally {
+        releaseSwitch();
+        await core.runtime.close();
+        core.operationalDatabase.close();
+      }
+    },
+  );
+
   it('handles only the silent Group messages returned by channel_read after a successful turn', async () => {
     const home = createTempRoot('botharness-silent-read-settlement-');
     let groupId = '';
