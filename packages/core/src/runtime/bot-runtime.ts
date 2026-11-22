@@ -10230,7 +10230,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const keepLegacyEffort =
       row.model_effort == null &&
       (assignmentGroupOptionOf(
-        this.#registry.get(botSlug)?.modelPlan ?? this.#inheritedModelPlan?.(),
+        resolveBotModelPlan(this.#registry.get(botSlug) ?? {}, () => this.#inheritedModelPlan?.()),
         groupId,
       )?.allowedEfforts?.includes(current.reasoningEffort ?? '') ??
         (groupId === this.#groupFallback.inherited() &&

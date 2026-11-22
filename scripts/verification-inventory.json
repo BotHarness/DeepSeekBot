@@ -2438,17 +2438,17 @@
       "path": "scripts/e2e-tob-home.mjs",
       "category": "mapped",
       "behaviors": ["desktop.tob.home"],
-      "reason": "Home model configuration, canonical identity, native Shell CLI discovery/read/write and structured approval/deny/stale through the shared Web/native UI. #3089 re-audit: Home removed; configure uses Bot settings › Models, composer and requests use Tob Mode, and the layout phase proves the v8-with-Home to v9 migration, backup, switch slot and default/custom shortcut. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list, and the layout phase proves no Tob switch and that the default/custom Home shortcut opens the Tob DM. Classification unchanged. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification. #4860 re-audit: reads the pinned Default Model Preset through the Host bridge. Classification unchanged.",
+      "reason": "Home model configuration, canonical identity, native Shell CLI discovery/read/write and structured approval/deny/stale through the shared Web/native UI. #3089 re-audit: Home removed; configure uses Bot settings › Models, composer and requests use Tob Mode, and the layout phase proves the v8-with-Home to v9 migration, backup, switch slot and default/custom shortcut. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list, and the layout phase proves no Tob switch and that the default/custom Home shortcut opens the Tob DM. Classification unchanged. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification. #4860 re-audit: reads the pinned Default Model Preset through the Host bridge. Classification unchanged. Review follow-up for #4860: The configure and approval steps use the current Default model control, rich-text composer and approval card. Classification unchanged.",
       "task": 3092,
-      "sha256": "bf65a58fcfa8c272b6115edae9bdaa89c5f74e17cdda170306fe7676501445af"
+      "sha256": "b37a927fad4dc6e7f64f0a24abfe8bbc4e9e450ae73f31ee5e17db7e311577a4"
     },
     {
       "path": "scripts/e2e-tob-model-runtime.mjs",
       "category": "mapped",
       "behaviors": ["desktop.tob.home"],
-      "reason": "Scoped CLI model/runtime discovery and actual Tob approval, denial, stale refusal and settings UI persistence in Web and native Desktop. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification. #4860 re-audit: reads the pinned Default Model Preset through the Host bridge. Classification unchanged.",
+      "reason": "Scoped CLI model/runtime discovery and actual Tob approval, denial, stale refusal and settings UI persistence in Web and native Desktop. #3089 re-audit: Home removed; steps open the Tob DM or the target panel instead of Home. Classification unchanged. #3092 re-audit: Tob Mode removed; steps open the Tob DM from the Channel list. Classification unchanged. L-4 re-audit: child-process calls set shell: false and windowsHide; journey classification unchanged; this hash is not runtime qualification. #4860 re-audit: reads the pinned Default Model Preset through the Host bridge. Classification unchanged. Review follow-up for #4860: The model approval step uses the current approval card and checks the catalog model label in Model settings. Classification unchanged.",
       "task": 3092,
-      "sha256": "83ce79967aacb52e9e9243bdf17a81a41fb47a46a12a2bb7dbf1318cad0c4d3b"
+      "sha256": "ff055765aac6d869c225c2a3c62e9532d13412b8ccbd026ae3bceeda6991d234"
     },
     {
       "path": "scripts/e2e-tob-bot-management.mjs",

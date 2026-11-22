@@ -15,8 +15,13 @@ async function showTobDm(on) {
   const { channelId } = await rpc('tobHome');
   const row = `.bh-workspace-channels [data-channel-id=${JSON.stringify(channelId)}]`;
   await page.waitForSelector(row, { visible: true });
+  const tourSkip = '.bh-internal-tour-skip';
+  if (await page.$(tourSkip)) {
+    await page.locator(tourSkip).click();
+    await page.waitForSelector(tourSkip, { hidden: true });
+  }
   await page.click(row);
-  await page.waitForSelector(`${row}.bh-selected`);
+  await page.waitForSelector(`${row}[aria-current="page"]`, { visible: true });
   await page.waitForSelector(TOB_INPUT, { visible: true });
 }
 
@@ -117,9 +122,9 @@ const click = async (name, scope = '') => {
     'Bot mode': ['Bot 模式', 'Bot mode'],
     'Bot settings': ['Bot 设置', 'Bot settings'],
     Advanced: ['高级', 'Advanced'],
-    'Task model settings': ['任务模型设置…', 'Task model settings…'],
+    'Model settings': ['模型设置', 'Model settings'],
     Cancel: ['取消', 'Cancel'],
-    'Approve once': ['仅批准这一次', 'Allow once'],
+    'Approve once': ['允许这次', 'Allow once'],
     Deny: ['拒绝', 'Deny'],
     'Review CLI change': ['使用 deepseekbot settings-set', 'Use deepseekbot settings-set'],
   }[name] ?? [name];
@@ -259,19 +264,25 @@ async function developerUi(expected) {
 }
 async function modelUi(route) {
   mark('model-ui-open');
-  await page.locator('[data-composer-chip="model"]').click();
-  await page.waitForSelector('[role="dialog"] .bh-model-picker', { visible: true });
-  await click('Task model settings', '[role="dialog"]');
-  await page.waitForSelector('.bh-model-entry', { visible: true });
-  await page.waitForFunction(
-    ({ model }) => {
-      const content = document.querySelector('.bh-model-entry')?.textContent ?? '';
-      return content.includes(model);
-    },
-    {},
-    route,
+  const { models } = await rpc('modelCatalog');
+  const entry = models.find(
+    (model) => model.provider === route.provider && model.model === route.model,
   );
-  await page.$eval('.bh-model-entry', (node) => node.scrollIntoView({ block: 'center' }));
+  assert.ok(entry, 'approved route is absent from the model catalog');
+  await page.locator('[data-composer-chip="model"]').click();
+  await click('Model settings');
+  const picker = '[role="dialog"] .bh-model-picker';
+  await page.waitForSelector(picker, { visible: true });
+  await page.waitForFunction(
+    (selector, label) =>
+      [...(document.querySelector(selector)?.querySelectorAll('button') ?? [])].some((button) =>
+        button.getAttribute('aria-label')?.endsWith(` · ${label}`),
+      ),
+    {},
+    picker,
+    entry.modelName ?? route.model,
+  );
+  await page.$eval(picker, (node) => node.scrollIntoView({ block: 'center' }));
   await shot('model-plan-setting');
   await click('Cancel', '[role="dialog"]');
   steps.push('real Bot model settings UI shows the approved model route');
@@ -400,7 +411,9 @@ async function showApproval(message) {
   await page.waitForSelector(selector, { timeout: 10000 });
   await page.waitForFunction(
     (s) =>
-      [...document.querySelectorAll(s + ' button.bh-request-primary')].some((n) => !n.disabled),
+      [...document.querySelectorAll(s + ' button')].some(
+        (n) => ['允许这次', 'Allow once'].includes(n.textContent?.trim()) && !n.disabled,
+      ),
     { timeout: 10000 },
     selector,
   );
@@ -430,7 +443,8 @@ async function showApproval(message) {
   mark('approval-payload');
   const foldSelector = selector + ' .bh-tool-approval-fold[aria-expanded="false"]';
   if (await page.$(foldSelector)) await page.locator(foldSelector).setTimeout(5000).click();
-  const payload = await page.waitForSelector(selector + ' .bh-tool-approval-input');
+  const inputSelector = '.bh-tool-approval-details-body pre:not([data-folded])';
+  const payload = await page.waitForSelector(`${selector} ${inputSelector}`);
   await payload.evaluate((n) => n.scrollIntoView({ block: 'start', inline: 'nearest' }));
   assert.deepEqual(
     JSON.parse(await payload.evaluate((n) => n.textContent)),
@@ -439,25 +453,30 @@ async function showApproval(message) {
   await pause(300);
   await dismissBubble();
   mark('approval-capture');
-  const crop = await page.$eval(selector, (card) => {
-    const input = card.querySelector('.bh-tool-approval-input').getBoundingClientRect();
-    const actions = card.querySelector('.bh-tool-approval-actions').getBoundingClientRect();
-    if (input.top < 0 || actions.bottom > window.innerHeight)
-      throw Error('approval payload and decision controls must both be visible');
-    return {
-      x: Math.max(0, Math.min(input.left, actions.left)),
-      y: Math.max(0, input.top),
-      width: Math.max(input.right, actions.right) - Math.max(0, Math.min(input.left, actions.left)),
-      height: Math.min(window.innerHeight, actions.bottom) - Math.max(0, input.top),
-    };
-  });
+  const crop = await page.$eval(
+    selector,
+    (card, inputSelector) => {
+      const input = card.querySelector(inputSelector).getBoundingClientRect();
+      const actions = card.querySelector('.bh-tool-approval-actions').getBoundingClientRect();
+      if (input.top < 0 || actions.bottom > window.innerHeight)
+        throw Error('approval payload and decision controls must both be visible');
+      return {
+        x: Math.max(0, Math.min(input.left, actions.left)),
+        y: Math.max(0, input.top),
+        width:
+          Math.max(input.right, actions.right) - Math.max(0, Math.min(input.left, actions.left)),
+        height: Math.min(window.innerHeight, actions.bottom) - Math.max(0, input.top),
+      };
+    },
+    inputSelector,
+  );
   assert.ok(crop.width > 0 && crop.height > 0, 'approval operation is outside viewport');
   await page.screenshot({ path: resolve(out, 'approval-operation.png'), clip: crop });
   return selector;
 }
 
 async function decideApproval(selector, deny) {
-  const labels = deny ? ['拒绝', 'Deny'] : ['仅批准这一次', 'Allow once'];
+  const labels = deny ? ['拒绝', 'Deny'] : ['允许这次', 'Allow once'];
   await page.waitForSelector(selector, { visible: true });
   const summary = selector + ' .bh-request-summary';
   for (let attempt = 0; attempt < 3; attempt++) {
