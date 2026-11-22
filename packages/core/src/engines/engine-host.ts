@@ -321,6 +321,10 @@ export class EngineHost {
     if (limited !== undefined) throw new EngineLimitError(engine, limited.account, limited.until);
   }
 
+  describeAssignmentAccount(botSlug: string, engine: EngineId, accountId?: string) {
+    return this.#accounts.describeAssignment(botSlug, engine, accountId);
+  }
+
   describe(sessionId: string): EngineSessionDescription | undefined {
     const live = this.#states.get(sessionId);
     const stored = live === undefined ? this.store.nativeSession(sessionId) : undefined;

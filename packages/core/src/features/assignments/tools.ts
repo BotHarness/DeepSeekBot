@@ -4,12 +4,15 @@ import type { ChannelSessionLink } from '../../channels/channel.js';
 import type { EngineTool } from '../../engines/engine-host.js';
 import type { GroupFallback, GroupPick, MixedGroupPick } from '../../models/group-fallback.js';
 import type { OpenAssignmentRoutes } from '../../models/open-assignments.js';
+import { isPresetSubEngineSelection } from '../../models/preset-sub.js';
 import {
+  AssignmentChoiceError,
   assignmentGroupOptionOf,
   type ModelRoute,
   type PersonaBotModelPlan,
 } from '../../models/presets.js';
 import type { RoutingTarget } from '../../models/routing-groups.js';
+import { TeamError } from '../../team/error.js';
 import type {
   AssignmentActivity,
   AssignmentAgentRun,
@@ -186,7 +189,7 @@ export function createAssignmentTool({
   return defineTool({
     name: 'create_assignment',
     description:
-      'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models before selecting an explicit provider/model/effort or mode; omitted choices use the Human-selected default. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
+      'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models for the current allowed sub choices, default and modes. Omit the model selection to use the default, or pick one listed API model, Subscription Engine account model, or Routing Group. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
     parameters: {
       title: {
         type: 'string',
@@ -223,7 +226,15 @@ export function createAssignmentTool({
       model: {
         type: 'string',
         description:
-          'Optional exact model id from the current Assignment model set; specify with provider.',
+          'Exact model id from the listed choice, paired with provider for an API model or engine for a Subscription Engine model.',
+      },
+      engine: {
+        type: 'string',
+        description: 'Subscription Engine id from a kind: engine choice in list_assignment_models.',
+      },
+      account_id: {
+        type: 'string',
+        description: 'Exact accountId of the selected Subscription Engine choice, when present.',
       },
       reasoning_effort: {
         type: 'string',
@@ -246,23 +257,83 @@ export function createAssignmentTool({
       if (active === undefined) {
         throw new Error('create_assignment: Orchestrator run is unavailable');
       }
-      if (args.group !== undefined && args.provider !== undefined)
-        throw new Error('create_assignment: pass either group or provider/model');
+      if (
+        (args.group !== undefined &&
+          (args.provider !== undefined || args.model !== undefined || args.engine !== undefined)) ||
+        (args.engine !== undefined && args.provider !== undefined) ||
+        (args.account_id !== undefined && args.engine === undefined)
+      )
+        throw new Error(
+          'create_assignment: choose one API model, Subscription Engine choice, or Routing Group',
+        );
       const plan = resolveModelPlan();
+      const refusal = (error: unknown): string => {
+        if (
+          (plan?.sub !== undefined || args.engine !== undefined) &&
+          (error instanceof AssignmentChoiceError ||
+            (error instanceof TeamError && error.code === 'model-not-allowed'))
+        )
+          return JSON.stringify({
+            outcome: 'refused',
+            code: error.code,
+            retryable: false,
+            message: error.message,
+          });
+        throw error;
+      };
       const inherited =
         plan?.assignmentDefault === undefined ? assignmentGroups?.inherited?.() : undefined;
+      const engineSelection =
+        args.engine === undefined
+          ? undefined
+          : {
+              kind: 'engine',
+              engine: args.engine,
+              ...(args.account_id === undefined ? {} : { accountId: args.account_id }),
+              ...(args.model === undefined ? {} : { model: args.model }),
+            };
+      if (engineSelection !== undefined && !isPresetSubEngineSelection(engineSelection))
+        return refusal(
+          new AssignmentChoiceError(
+            'assignment-choice-not-allowed',
+            'create_assignment: choose a listed Subscription Engine account and model',
+          ),
+        );
       const groupId =
         args.group ??
-        (args.provider === undefined ? (plan?.assignmentDefaultGroupId ?? inherited) : undefined);
-      if ((args.provider === undefined) !== (args.model === undefined))
+        (args.provider === undefined && engineSelection === undefined
+          ? (plan?.assignmentDefaultGroupId ?? inherited)
+          : undefined);
+      if (
+        engineSelection === undefined &&
+        (args.provider === undefined) !== (args.model === undefined)
+      )
         throw new Error('create_assignment: provider and model must be specified together');
-      if (args.reasoning_effort !== undefined && args.provider === undefined) {
+      if (
+        groupId !== undefined &&
+        groupId !== inherited &&
+        !(plan?.assignmentGroups ?? []).includes(groupId)
+      )
+        return refusal(
+          new AssignmentChoiceError(
+            'assignment-choice-not-allowed',
+            `create_assignment: Routing Group ${groupId} is not allowed`,
+          ),
+        );
+      if (
+        args.reasoning_effort !== undefined &&
+        args.provider === undefined &&
+        engineSelection === undefined
+      ) {
         if (groupId === undefined)
           throw new Error('create_assignment: reasoning_effort requires provider and model');
         const allowed = assignmentGroupOptionOf(plan, groupId)?.allowedEfforts ?? [];
         if (!allowed.includes(args.reasoning_effort))
-          throw new Error(
-            `create_assignment: Routing Group ${groupId} allows ${allowed.length === 0 ? 'no effort choice' : `efforts ${allowed.join(', ')}`}`,
+          return refusal(
+            new AssignmentChoiceError(
+              'assignment-choice-not-allowed',
+              `create_assignment: Routing Group ${groupId} allows ${allowed.length === 0 ? 'no effort choice' : `efforts ${allowed.join(', ')}`}`,
+            ),
           );
       }
       const groupEffort =
@@ -273,13 +344,30 @@ export function createAssignmentTool({
             (groupId === inherited ? assignmentGroups?.inheritedEffort?.() : undefined));
       let picked: RoutingTarget | undefined;
       if (groupId !== undefined) {
-        if (groupId !== inherited && !(plan?.assignmentGroups ?? []).includes(groupId))
-          throw new Error(`create_assignment: Routing Group ${groupId} is not allowed`);
-        const pick = await assignmentGroups?.pick(run.bot.slug, groupId, groupEffort);
+        let pick: GroupPick | MixedGroupPick | undefined;
+        try {
+          pick = await assignmentGroups?.pick(run.bot.slug, groupId, groupEffort);
+        } catch (error) {
+          if (
+            plan?.sub !== undefined ||
+            !(error instanceof TeamError && error.code === 'model-not-allowed')
+          )
+            return refusal(error);
+        }
         if (pick?.kind !== 'route' && pick?.kind !== 'target')
           return JSON.stringify({
             outcome: 'refused',
             retryable: false,
+            ...(plan?.sub === undefined
+              ? {}
+              : {
+                  code:
+                    pick?.kind === 'exhausted' &&
+                    (pick.rests.length > 0 ||
+                      ('subscription' in pick && pick.subscription !== undefined))
+                      ? 'assignment-choice-resting'
+                      : 'assignment-choice-unavailable',
+                }),
             message:
               pick?.kind === 'exhausted' && pick.rests.length > 0
                 ? `Every model in Routing Group ${groupId} is resting: ${pick.rests.map((rest) => `${rest.provider}/${rest.model} until ${rest.until}`).join('; ')}`
@@ -287,12 +375,17 @@ export function createAssignmentTool({
           });
         picked = pick.kind === 'target' ? pick.target : { kind: 'route', route: pick.route };
       }
-      if (args.provider !== undefined)
-        await openAssignmentRoutes?.require(run.bot.slug, {
-          provider: args.provider,
-          model: args.model!,
-          ...(args.reasoning_effort ? { reasoningEffort: args.reasoning_effort } : {}),
-        });
+      if (args.provider !== undefined) {
+        try {
+          await openAssignmentRoutes?.require(run.bot.slug, {
+            provider: args.provider,
+            model: args.model!,
+            ...(args.reasoning_effort ? { reasoningEffort: args.reasoning_effort } : {}),
+          });
+        } catch (error) {
+          return refusal(error);
+        }
+      }
       if (args.mode !== undefined) {
         const modes = await loadAssignmentModes();
         if (modes === undefined)
@@ -303,31 +396,43 @@ export function createAssignmentTool({
           );
       }
       const grantId = args.grant_id ?? onlyActiveGrant(active.run.assignments);
-      const outcome = active.run.assignments.create({
-        title: args.title,
-        description: args.description,
-        ...(args.instructions === undefined ? {} : { instructions: args.instructions }),
-        grantId,
-        ...(args.key === undefined ? {} : { key: args.key }),
-        ...(args.mode === undefined ? {} : { mode: args.mode }),
-        ...(picked !== undefined && groupId !== undefined
-          ? {
-              ...(picked.kind === 'route' ? { model: picked.route } : { routingTarget: picked }),
-              modelGroupId: groupId,
-              ...(groupEffort === undefined ? {} : { modelGroupEffort: groupEffort }),
-            }
-          : args.provider === undefined
-            ? {}
-            : {
-                model: {
-                  provider: args.provider,
-                  model: args.model!,
+      let outcome: ReturnType<OrchestratorAgentRun['assignments']['create']>;
+      try {
+        outcome = active.run.assignments.create({
+          title: args.title,
+          description: args.description,
+          ...(args.instructions === undefined ? {} : { instructions: args.instructions }),
+          grantId,
+          ...(args.key === undefined ? {} : { key: args.key }),
+          ...(args.mode === undefined ? {} : { mode: args.mode }),
+          ...(picked !== undefined && groupId !== undefined
+            ? {
+                ...(picked.kind === 'route' ? { model: picked.route } : { routingTarget: picked }),
+                modelGroupId: groupId,
+                ...(groupEffort === undefined ? {} : { modelGroupEffort: groupEffort }),
+              }
+            : engineSelection !== undefined
+              ? {
+                  engine: engineSelection,
                   ...(args.reasoning_effort === undefined
                     ? {}
-                    : { reasoningEffort: args.reasoning_effort }),
-                },
-              }),
-      });
+                    : { engineEffort: args.reasoning_effort }),
+                }
+              : args.provider === undefined
+                ? {}
+                : {
+                    model: {
+                      provider: args.provider,
+                      model: args.model!,
+                      ...(args.reasoning_effort === undefined
+                        ? {}
+                        : { reasoningEffort: args.reasoning_effort }),
+                    },
+                  }),
+        });
+      } catch (error) {
+        return refusal(error);
+      }
       if (outcome.outcome === 'created' || outcome.outcome === 'reused') {
         linkSession(
           active,

@@ -132,13 +132,8 @@ export function createModelRoutingHelpers(
       (owner ||
         (grants !== undefined && allowsEngineAccount(grants, engineAccountKey(engine, accountId))));
   };
-  const requireEngineChoices = (choices: readonly EngineChoice[], slug?: string): void => {
+  const requireEngineChoiceGrants = (choices: readonly EngineChoice[], slug?: string): void => {
     if (choices.length === 0) return;
-    if (deps.localSubscriptionEngines === false)
-      throw new EngineRefusal(
-        'engine-unavailable',
-        'Subscription Engines run only on a local Host',
-      );
     const actor = deps.team?.roles.modelsAllowed(human);
     const bot = slug === undefined ? undefined : deps.registry.get(slug);
     if (slug !== undefined && bot === undefined) throw new TeamError('bot-not-found');
@@ -149,6 +144,14 @@ export function createModelRoutingHelpers(
       else if (!isHostOwner()) throw new TeamError('model-not-allowed', undefined, { route: id });
       if (botGrants !== undefined) requireEngineAccountGrant(botGrants, id);
     }
+  };
+  const requireEngineChoices = (choices: readonly EngineChoice[], slug?: string): void => {
+    if (choices.length > 0 && deps.localSubscriptionEngines === false)
+      throw new EngineRefusal(
+        'engine-unavailable',
+        'Subscription Engines run only on a local Host',
+      );
+    requireEngineChoiceGrants(choices, slug);
   };
   const requireGroupEngines = (id: string, slug?: string): void =>
     requireEngineChoices(groupEngineChoices(id), slug);
@@ -248,15 +251,21 @@ export function createModelRoutingHelpers(
       throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
     return deps.routingGroups.routes(id);
   };
-  const presetEngineChoices = (choices: ModelPresetEngineInput): EngineChoice[] =>
-    [choices.orchestratorEngine, choices.assignmentEngine].filter((choice) => choice != null);
+  const presetEngineChoices = (
+    choices: ModelPresetEngineInput & Pick<import('../../models/presets.js').ModelPreset, 'sub'>,
+  ) => [
+    ...(choices.orchestratorEngine == null ? [] : [choices.orchestratorEngine]),
+    ...(choices.sub === undefined
+      ? choices.assignmentEngine == null
+        ? []
+        : [choices.assignmentEngine]
+      : choices.sub.choices.filter((choice) => choice.kind === 'engine')),
+  ];
   const checkPresetEngines = async (
-    choices: ModelPresetEngineInput,
+    choices: Parameters<typeof presetEngineChoices>[0],
     slug?: string,
   ): Promise<void> => {
-    const selected = [choices.orchestratorEngine, choices.assignmentEngine].filter(
-      (choice) => choice != null,
-    );
+    const selected = presetEngineChoices(choices);
     if (selected.length === 0) return;
     requireEngineChoices(selected, slug);
     const engines = deps.subscriptionEngines;
@@ -332,6 +341,7 @@ export function createModelRoutingHelpers(
     memberEngineChoices,
     engineChoiceFilter,
     requireEngineChoices,
+    requireEngineChoiceGrants,
     requireGroupEngines,
     validateGroupMembers,
     assertEngineAccounts,

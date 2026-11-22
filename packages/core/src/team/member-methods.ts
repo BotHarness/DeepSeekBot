@@ -18,6 +18,7 @@ export const MODEL_CONFIGURATION_METHODS: ReadonlySet<string> = new Set([
   'modelGroupDelete',
   'modelPresetCreate',
   'modelPresetUpdate',
+  'modelPresetSubSet',
   'modelPresetDelete',
 ]);
 
@@ -133,6 +134,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'createLookup',
   ...MEMBER_BOT_IMPORT_METHODS,
   'modelPresets',
+  'modelPresetSub',
   'modelGroups',
   'modelGroup',
   'voiceProviders',

@@ -4,6 +4,7 @@ import type { OpenAssignmentRoutes } from '../../models/open-assignments.js';
 import {
   assignmentGroupOptionOf,
   assignmentModelsOf,
+  matchesPresetSubChoice,
   type ModelRoute,
   type PersonaBotModelPlan,
 } from '../../models/presets.js';
@@ -25,6 +26,11 @@ interface AssignmentModelToolOptions {
           botSlug: string,
         ): { name: string; routes: ModelRoute[]; targets?: RoutingTarget[] } | undefined;
         engineRestingUntil?(engine: EngineId, accountId?: string): string | undefined;
+        describeEngine?(
+          botSlug: string,
+          engine: EngineId,
+          accountId?: string,
+        ): { accountName: string; restingUntil?: string } | undefined;
         restingUntil(route: ModelRoute): RestingRoute | undefined;
         inherited?(): string | undefined;
       }
@@ -45,7 +51,7 @@ export function createListAssignmentModelsTool({
   return defineTool({
     name: 'list_assignment_models',
     description:
-      'Read the Human-approved provider/model and effort choices for new Assignments, including each model’s default effort, the overall default model, and any Human note on when to use a model. assignmentGroups lists Routing Groups you may pass as group: an Assignment on a group moves to the next member when one runs out and keeps its effort. front is the member it starts on; efforts and defaultEffort, when present, are the levels you may pass as reasoning_effort for that group. A route with restingUntil is out of quota or unavailable until then; avoid it. When open is true, openModels also lists every other model the Human allows for Assignments, with its catalog name and efforts. assignmentModes lists the DSH modes a new Assignment may run in. Call before selecting a non-default route or mode, and follow the notes to pick the cheapest choice that fits the task.',
+      'Read the Human-approved model and effort choices for new Assignments, the default, and any Human notes. For a Subscription Engine choice in sub, pass its engine, model and accountId as engine, model and account_id in create_assignment, omitting any unset values. For a Routing Group pass its group id; an Assignment on a Routing Group moves to the next member when one runs out and keeps its effort. front is the member it starts on; efforts and defaultEffort, when present, are the levels you may pass as reasoning_effort for that Routing Group. A choice with restingUntil is out of quota or unavailable until then; avoid it. When open is true, openModels also lists every other API model the Human allows for Assignments. assignmentModes lists the DSH modes a new Assignment may run in.',
     parameters: {},
     output: {
       schema: { type: 'string' },
@@ -61,6 +67,8 @@ export function createListAssignmentModelsTool({
           assignmentModesError: `DSH modes could not be read, so new Assignments use this Bot's mode: ${error instanceof Error ? error.message : String(error)}`,
         }),
       );
+      const open = plan?.assignmentDefault !== undefined && plan.openAssignmentModels === true;
+      const openChoices = open ? ((await openAssignmentRoutes?.list(run.bot.slug)) ?? []) : [];
       const allowed = modelFilter() ?? (() => true);
       const resting = <T extends { provider: string; model: string }>(route: T) => {
         const rest = groups?.restingUntil(route);
@@ -124,22 +132,59 @@ export function createListAssignmentModelsTool({
               },
         );
       }
-      const open = plan.openAssignmentModels === true;
       const assignmentGroups = (plan.assignmentGroups ?? []).flatMap((id) =>
         describeGroup(id, id === plan.assignmentDefaultGroupId),
       );
+      const assignmentModels = assignmentModelsOf(plan).filter(allowed).map(resting);
+      const openModels = openChoices.filter(allowed).map(resting);
+      const choices = plan.sub?.choices
+        .map((choice) => {
+          if (choice.kind === 'engine') {
+            const details = groups?.describeEngine?.(run.bot.slug, choice.engine, choice.accountId);
+            return details === undefined ? undefined : { ...choice, ...details };
+          }
+          if (choice.kind === 'group') {
+            const group = assignmentGroups.find(({ group }) => group === choice.group);
+            return group === undefined ? undefined : { ...group, kind: choice.kind };
+          }
+          const model = assignmentModels.find(
+            ({ provider, model }) => provider === choice.provider && model === choice.model,
+          );
+          return model === undefined ? undefined : { ...model, kind: choice.kind };
+        })
+        .filter((choice) => choice !== undefined);
+      const selection = plan.sub?.default;
+      const listedDefault =
+        selection == null
+          ? undefined
+          : plan.sub?.choices.find((choice) => matchesPresetSubChoice(choice, selection));
+      const defaultVisible =
+        selection != null && choices?.some((choice) => matchesPresetSubChoice(choice, selection));
+      const defaultEffort =
+        listedDefault?.kind === 'engine' ? listedDefault.effort : listedDefault?.defaultEffort;
       return JSON.stringify({
         configured: true,
         revision: plan.revision,
-        ...(allowed(plan.assignmentDefault)
+        ...(choices === undefined
+          ? {}
+          : {
+              sub: {
+                choices: [...choices, ...openModels.map((model) => ({ ...model, kind: 'model' }))],
+                default: defaultVisible
+                  ? { ...selection, defaultEffort: defaultEffort ?? '' }
+                  : null,
+              },
+            }),
+        ...((plan.sub === undefined || plan.sub.default?.kind === 'model') &&
+        allowed(plan.assignmentDefault)
           ? { assignmentDefault: resting(plan.assignmentDefault) }
           : {}),
-        assignmentModels: assignmentModelsOf(plan).filter(allowed).map(resting),
+        assignmentModels,
         ...(assignmentGroups.length === 0 ? {} : { assignmentGroups }),
         ...(open
           ? {
               open: true,
-              openModels: ((await openAssignmentRoutes?.list(run.bot.slug)) ?? []).map(resting),
+              openModels,
             }
           : {}),
         ...modeChoices,
