@@ -149,7 +149,7 @@ To style one panel, open its header menu → **Appearance settings**. Each field
 A Bot's main session (its Orchestrator Session) grows with every turn. Compaction replaces the long history with a summary so the next message re-reads less.
 
 - **Compact now:** type `/compact` in the Bot's DM composer, send `/compact` (or `/压缩`) in an IM DM, or run `deepseekbot bot-compact <bot-id>`. The result shows tokens before and after. It is refused while the Bot is working; stop the turn or wait.
-- **Compact idle conversations early:** **Bot settings → Models & execution**, on by default. When a Bot has been quiet for half of its model's prompt-cache lifetime (never before 15 minutes; DeepSeek models assume 2 hours until observed), the Host compacts the session while the cache is still warm, which costs less than compacting a cold session later. Nothing shows in the chat; each run appears in the Bot's activity. Details and per-model overrides are in the [CLI guide](bot-cli.md#idle-compaction).
+- **Compact idle conversations early:** **Bot settings → Bot runtime**, on by default. When a Bot has been quiet for half of its model's prompt-cache lifetime (never before 15 minutes; DeepSeek models assume 2 hours until observed), the Host compacts the session while the cache is still warm, which costs less than compacting a cold session later. Nothing shows in the chat; each run appears in the Bot's activity. Details and per-model overrides are in the [CLI guide](bot-cli.md#idle-compaction).
 
 If a turn still fails because the context is full, the failed-turn notice says so; retry with a smaller request.
 

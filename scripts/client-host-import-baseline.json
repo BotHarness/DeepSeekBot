@@ -169,11 +169,6 @@
   "packages/client/src/client/channel-bridge-list.tsx": {
     "../../../core/src/messaging/channel-bridge.js": 1
   },
-  "packages/client/src/client/channel-composer.tsx": {
-    "../../../core/src/channels/all-bot-mention.js": 1,
-    "../../../core/src/channels/message-preview.js": 1,
-    "../../../core/src/skills/entries.js": 1
-  },
   "packages/client/src/client/channel-history.tsx": {
     "../../../core/src/purge/contracts.js": 1
   },
@@ -268,6 +263,11 @@
   },
   "packages/client/src/client/failure-alert-settings.tsx": {
     "../../../core/src/messaging/failure-alerts.js": 1
+  },
+  "packages/client/src/client/features/channels/channel-composer.tsx": {
+    "../../../../../core/src/channels/all-bot-mention.js": 1,
+    "../../../../../core/src/channels/message-preview.js": 1,
+    "../../../../../core/src/skills/entries.js": 1
   },
   "packages/client/src/client/generated-files-panel.tsx": {
     "../../../core/src/attachments/ref.js": 1,

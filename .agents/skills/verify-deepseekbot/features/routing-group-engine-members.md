@@ -31,7 +31,7 @@
 
 ## How to get to it (user POV)
 
-On desktop open Bot settings → Models & execution → Routing Groups. On a paired phone open Settings → Models and presets → Routing Groups. Open a group, then **Add member** → **Codex subscription** or **Claude Code subscription**. You can also search across sources in **All models**.
+On desktop open Bot settings → Model configuration → Routing Groups. On a paired phone open Settings → Models and presets → Routing Groups. Open a group, then **Add member** → **Codex subscription** or **Claude Code subscription**. You can also search across sources in **All models**.
 
 For the group picker, open the global default model picker on desktop or a Bot's model picker on phone. Use the Routing Groups filter.
 

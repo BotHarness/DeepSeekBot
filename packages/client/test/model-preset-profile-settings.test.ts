@@ -142,6 +142,10 @@ describe('Model Presets Settings', () => {
           actions: {
             modelCatalog: async () => ({ models: catalog }),
             routingGroups: async () => ({ groups: [], rests: [] }),
+            routingGroupEngines: async () => [],
+            createRoutingGroup: vi.fn(),
+            updateRoutingGroup: vi.fn(),
+            deleteRoutingGroup: vi.fn(),
           },
           t: translate,
         }),
