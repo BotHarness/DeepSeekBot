@@ -56,7 +56,7 @@ After saving, the two sidebar cards show the expected `model · effort`. Each Bo
 
 ## 4. Use presets (optional)
 
-Every Profile has a pinned **Default** preset at the top of **Bot Settings → Model Presets**. New Bots and Bots that inherit use its current choices. The task model follows the main model until you choose a separate task model. The **Models & execution** main-model control edits the same preset. The Default preset can be renamed and stays pinned.
+**Bot Settings → Model configuration** holds every model choice: the pinned **Default** preset at the top, your other presets below it, and Routing Groups. New Bots and Bots that inherit use the Default preset's current choices. The task model follows the main model until you choose a separate task model. The Default preset can be renamed and stays pinned. **Bot Settings → Bot runtime** keeps only runtime settings: the default Bot mode, mode templates, context compaction and run limits.
 
 A preset is a reusable set of model settings, handy when several Bots share the same models.
 

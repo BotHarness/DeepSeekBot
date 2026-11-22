@@ -37,7 +37,7 @@ import { routingGroupEngineReason } from './session-engine.js';
 import { useMountedResource } from './mounted-resource.js';
 import { RoutingGroupMemberPicker, routingGroupMemberKey } from './routing-group-member-picker.js';
 
-type GroupActions = Pick<
+export type RoutingGroupActions = Pick<
   BridgeActions,
   | 'modelCatalog'
   | 'routingGroups'
@@ -180,7 +180,7 @@ function memberName(
   };
 }
 
-async function loadLibrary(actions: GroupActions): Promise<Library> {
+async function loadLibrary(actions: RoutingGroupActions): Promise<Library> {
   const [groups, catalog] = await Promise.all([actions.routingGroups(), actions.modelCatalog()]);
   return { ...groups, models: catalog.models, catalogGroups: catalog.groups ?? [] };
 }
@@ -231,7 +231,7 @@ function MemberEditor({
 }: {
   editor: Editor;
   library: Library;
-  loadEngines: GroupActions['routingGroupEngines'];
+  loadEngines: RoutingGroupActions['routingGroupEngines'];
   onChange(members: RoutingGroupMemberView[]): void;
   t: BotHarnessTranslate;
 }): ReactElement {
@@ -378,7 +378,7 @@ export function RoutingGroupSettings({
   canConfigure,
   t,
 }: {
-  actions: GroupActions;
+  actions: RoutingGroupActions;
   canConfigure: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
