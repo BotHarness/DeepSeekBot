@@ -158,3 +158,85 @@ it('shows one account: refreshes stale quota, reveals the email and runs sign-in
   await act(async () => button(signedOut, t.modelProviders.cancelSignIn)!.click());
   expect(port.cancelSignIn).toHaveBeenCalledWith('codex-b');
 });
+
+it('shows a stored key without its suffix as stored, not missing', async () => {
+  const port: ModelProvidersPort = {
+    providers: vi.fn(async () => ({
+      providers: [
+        {
+          id: 'opencode-go',
+          name: 'Go',
+          keyStored: true,
+          modelCount: 1,
+          availability: 'available' as const,
+          canRename: true,
+          canReplaceKey: true,
+          canRemove: true,
+          revision: 1,
+        },
+      ],
+    })),
+    accounts: vi.fn(async () => ({ accounts: [] })),
+    openAccount: vi.fn(),
+  };
+  const view = await render(<ModelProvidersSettings port={port} />);
+  expect(view.textContent).toContain(t.modelProviders.keyStored);
+  expect(view.textContent).not.toContain(t.modelProviders.noKey);
+});
+
+it('reports a failed read after refresh and clears sign-in once the Host finishes it', async () => {
+  vi.useFakeTimers();
+  try {
+    const now = Date.now();
+    let accounts = accountsFixture(now);
+    let readFails = false;
+    let resolveSignIn: (value: { url?: string }) => void = () => undefined;
+    const port: ProviderAccountPort = {
+      accounts: vi.fn(async () => {
+        if (readFails) throw new Error('offline');
+        return accounts;
+      }),
+      refresh: vi.fn(async () => {
+        readFails = true;
+        return 'ok' as const;
+      }),
+      signIn: vi.fn(
+        () =>
+          new Promise<{ url?: string }>((resolve) => {
+            resolveSignIn = resolve;
+          }),
+      ),
+      cancelSignIn: vi.fn(async () => undefined),
+    };
+    const view = await render(<ProviderAccountSettings port={port} id="claude" />);
+    await act(async () => undefined);
+    expect(port.refresh).toHaveBeenCalledWith('claude');
+    expect(view.textContent).toContain(t.modelProviders.refreshFailed.unavailable);
+    act(() => root?.unmount());
+    host?.remove();
+
+    readFails = false;
+    const signedOut = await render(<ProviderAccountSettings port={port} id="codex-b" />);
+    await act(async () => button(signedOut, t.modelProviders.signIn)!.click());
+    expect(signedOut.querySelector('[data-testid="account-sign-in"]')?.textContent).toContain(
+      t.modelProviders.signingIn,
+    );
+    await act(async () => button(signedOut, t.modelProviders.signingIn)?.click());
+    expect(port.signIn).toHaveBeenCalledTimes(1);
+    await act(async () => resolveSignIn({ url: 'https://example.org/sign-in' }));
+    expect(signedOut.textContent).toContain(t.modelProviders.signInOnComputer);
+
+    accounts = {
+      ...accounts,
+      accounts: accounts.accounts.map((account) =>
+        account.id === 'codex-b' ? { ...account, available: true } : account,
+      ),
+    };
+    await act(async () => vi.advanceTimersByTime(5_000));
+    await act(async () => undefined);
+    expect(signedOut.textContent).not.toContain(t.modelProviders.signInOnComputer);
+    expect(signedOut.textContent).toContain(t.modelProviders.signedIn);
+  } finally {
+    vi.useRealTimers();
+  }
+});
