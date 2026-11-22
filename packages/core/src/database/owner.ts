@@ -5,18 +5,24 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import { atomicWriteFile } from '../fs/atomic-write.js';
-import { closeDatabase } from './connection.js';
 import {
   OperationalDatabaseError,
   injectFault,
   isThenable,
   toOperationalError,
 } from './owner-errors.js';
-import { prepareDatabase, summarizeOrphans } from './schema-preparation.js';
+import {
+  assertPageIntegrity,
+  foreignKeyOrphans,
+  migrateInStaging,
+  readSchemaGeneration,
+  summarizeOrphans,
+  validateSchemaPlan,
+  verifyMigrationLedger,
+} from './schema-preparation.js';
 import { FOUNDATION_SCHEMA_PLAN, type SchemaPlan } from './schema.js';
 
 export { OperationalDatabaseError } from './owner-errors.js';
-export { validateOperationalSnapshot } from './schema-preparation.js';
 
 export const OPERATIONAL_DATABASE_FILENAME = 'botharness.db';
 
@@ -495,6 +501,16 @@ export function withOperationalBackup<T>(
   }
 }
 
+export function validateOperationalSnapshot(path: string): number {
+  const database = new DatabaseSync(path, { readOnly: true });
+  try {
+    assertPageIntegrity(database);
+    return readSchemaGeneration(database);
+  } finally {
+    database.close();
+  }
+}
+
 export function onOperationalDatabaseClose(
   owner: OperationalDatabaseOwner,
   cleanup: () => void,
@@ -519,6 +535,100 @@ function acquireWriterLease(
     closeDatabase(lease);
     throw error;
   }
+}
+
+function prepareDatabase(
+  databasePath: string,
+  plan: SchemaPlan,
+  internal: InternalOwner,
+): { database: DatabaseSync; generation: number; orphans: Map<string, number> } {
+  internal.startup.stage = 'source-validation';
+  validateSchemaPlan(plan);
+
+  let sourceGeneration = 0;
+  let sourceOrphans = new Map<string, number>();
+  let needsLedger = false;
+  if (existsSync(databasePath)) {
+    let source: DatabaseSync | undefined;
+    try {
+      source = openDatabase(databasePath);
+      assertPageIntegrity(source);
+      sourceOrphans = foreignKeyOrphans(source);
+      sourceGeneration = readSchemaGeneration(source);
+      needsLedger = !verifyMigrationLedger(source, sourceGeneration, plan);
+      if (sourceGeneration < plan.targetGeneration || needsLedger) {
+        const checkpoint = source.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get() as
+          | { busy?: number | bigint }
+          | undefined;
+        if (Number(checkpoint?.busy) !== 0) {
+          throw new OperationalDatabaseError(
+            'migration-failed',
+            'Could not checkpoint the active database before staged migration',
+          );
+        }
+      }
+    } catch (error) {
+      if (error instanceof OperationalDatabaseError) throw error;
+      throw toOperationalError('open-failed', 'Could not open operational database', error);
+    } finally {
+      closeDatabase(source);
+    }
+  }
+
+  if (sourceGeneration < plan.targetGeneration || needsLedger) {
+    migrateInStaging(databasePath, sourceGeneration, sourceOrphans, plan, internal, {
+      openDatabase,
+      closeDatabase,
+    });
+  }
+
+  try {
+    internal.startup.stage = 'active-validation';
+    const database = openDatabase(databasePath);
+    configureActiveDatabase(database);
+    assertPageIntegrity(database);
+    const orphans = foreignKeyOrphans(database);
+    const generation = readSchemaGeneration(database);
+    try {
+      verifyMigrationLedger(database, generation, plan, false);
+    } catch (error) {
+      closeDatabase(database);
+      throw error;
+    }
+    if (generation !== plan.targetGeneration) {
+      closeDatabase(database);
+      throw new OperationalDatabaseError(
+        'migration-failed',
+        `Expected schema generation ${plan.targetGeneration}, found ${generation}`,
+      );
+    }
+    return { database, generation, orphans };
+  } catch (error) {
+    if (error instanceof OperationalDatabaseError) throw error;
+    throw toOperationalError('open-failed', 'Could not mount operational database', error);
+  }
+}
+
+function openDatabase(path: string): DatabaseSync {
+  return new DatabaseSync(path, {
+    timeout: 0,
+    enableForeignKeyConstraints: true,
+    enableDoubleQuotedStringLiterals: false,
+    allowExtension: false,
+  });
+}
+
+function configureActiveDatabase(database: DatabaseSync): void {
+  database.exec(`
+    PRAGMA journal_mode = WAL;
+    PRAGMA synchronous = FULL;
+    PRAGMA foreign_keys = ON;
+    PRAGMA busy_timeout = 0;
+  `);
+}
+
+function closeDatabase(database: DatabaseSync | undefined): void {
+  if (database?.isOpen === true) database.close();
 }
 
 function readyDatabase(internal: InternalOwner): DatabaseSync {

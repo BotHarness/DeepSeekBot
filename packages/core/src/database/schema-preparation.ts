@@ -8,9 +8,8 @@ import {
   rmSync,
 } from 'node:fs';
 import { dirname } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import type { DatabaseSync } from 'node:sqlite';
 
-import { closeDatabase, configureActiveDatabase, openDatabase } from './connection.js';
 import type {
   OperationalDatabaseOwner,
   OperationalDatabaseOwnerOptions,
@@ -40,85 +39,22 @@ interface MigrationContext extends Pick<
   owner: OperationalDatabaseOwner;
 }
 
+interface DatabaseConnections {
+  openDatabase(path: string): DatabaseSync;
+  closeDatabase(database: DatabaseSync | undefined): void;
+}
+
 const SCHEMA_TABLE = '_botharness_schema';
 const MIGRATIONS_TABLE = 'schema_migrations';
 const INTEGRITY_FINDINGS_SHOWN = 5;
 
-export function prepareDatabase(
-  databasePath: string,
-  plan: SchemaPlan,
-  internal: MigrationContext,
-): { database: DatabaseSync; generation: number; orphans: Map<string, number> } {
-  internal.startup.stage = 'source-validation';
-  validateSchemaPlan(plan);
-
-  let sourceGeneration = 0;
-  let sourceOrphans = new Map<string, number>();
-  let needsLedger = false;
-  if (existsSync(databasePath)) {
-    let source: DatabaseSync | undefined;
-    try {
-      source = openDatabase(databasePath);
-      assertPageIntegrity(source);
-      sourceOrphans = foreignKeyOrphans(source);
-      sourceGeneration = readSchemaGeneration(source);
-      needsLedger = !verifyMigrationLedger(source, sourceGeneration, plan);
-      if (sourceGeneration < plan.targetGeneration || needsLedger) {
-        const checkpoint = source.prepare('PRAGMA wal_checkpoint(TRUNCATE)').get() as
-          | { busy?: number | bigint }
-          | undefined;
-        if (Number(checkpoint?.busy) !== 0) {
-          throw new OperationalDatabaseError(
-            'migration-failed',
-            'Could not checkpoint the active database before staged migration',
-          );
-        }
-      }
-    } catch (error) {
-      if (error instanceof OperationalDatabaseError) throw error;
-      throw toOperationalError('open-failed', 'Could not open operational database', error);
-    } finally {
-      closeDatabase(source);
-    }
-  }
-
-  if (sourceGeneration < plan.targetGeneration || needsLedger) {
-    migrateInStaging(databasePath, sourceGeneration, sourceOrphans, plan, internal);
-  }
-
-  try {
-    internal.startup.stage = 'active-validation';
-    const database = openDatabase(databasePath);
-    configureActiveDatabase(database);
-    assertPageIntegrity(database);
-    const orphans = foreignKeyOrphans(database);
-    const generation = readSchemaGeneration(database);
-    try {
-      verifyMigrationLedger(database, generation, plan, false);
-    } catch (error) {
-      closeDatabase(database);
-      throw error;
-    }
-    if (generation !== plan.targetGeneration) {
-      closeDatabase(database);
-      throw new OperationalDatabaseError(
-        'migration-failed',
-        `Expected schema generation ${plan.targetGeneration}, found ${generation}`,
-      );
-    }
-    return { database, generation, orphans };
-  } catch (error) {
-    if (error instanceof OperationalDatabaseError) throw error;
-    throw toOperationalError('open-failed', 'Could not mount operational database', error);
-  }
-}
-
-function migrateInStaging(
+export function migrateInStaging(
   databasePath: string,
   sourceGeneration: number,
   sourceOrphans: ReadonlyMap<string, number>,
   plan: SchemaPlan,
   internal: MigrationContext,
+  { openDatabase, closeDatabase }: DatabaseConnections,
 ): void {
   internal.startup.stage = 'migration';
   const stagingPath = `${databasePath}.${internal.leaseMetadata.instanceId}.migrating`;
@@ -224,7 +160,7 @@ function bootstrapFoundation(database: DatabaseSync): void {
   `);
 }
 
-function readSchemaGeneration(database: DatabaseSync): number {
+export function readSchemaGeneration(database: DatabaseSync): number {
   const table = database
     .prepare("SELECT 1 AS present FROM sqlite_master WHERE type = 'table' AND name = ?")
     .get(SCHEMA_TABLE) as { present?: number } | undefined;
@@ -247,7 +183,7 @@ function hasMigrationLedger(database: DatabaseSync): boolean {
   );
 }
 
-function verifyMigrationLedger(
+export function verifyMigrationLedger(
   database: DatabaseSync,
   generation: number,
   plan: SchemaPlan,
@@ -293,7 +229,7 @@ function writeSchemaGeneration(database: DatabaseSync, generation: number): void
   database.prepare(`UPDATE ${SCHEMA_TABLE} SET generation = ? WHERE singleton = 1`).run(generation);
 }
 
-function assertPageIntegrity(database: DatabaseSync): void {
+export function assertPageIntegrity(database: DatabaseSync): void {
   const rows = database.prepare('PRAGMA integrity_check').all() as Array<Record<string, unknown>>;
   const values = rows.flatMap((row) => Object.values(row)).map(String);
   if (values.length !== 1 || values[0] !== 'ok') {
@@ -304,7 +240,7 @@ function assertPageIntegrity(database: DatabaseSync): void {
   }
 }
 
-function foreignKeyOrphans(database: DatabaseSync): Map<string, number> {
+export function foreignKeyOrphans(database: DatabaseSync): Map<string, number> {
   const orphans = new Map<string, number>();
   const rows = database.prepare('PRAGMA foreign_key_check').all() as Array<Record<string, unknown>>;
   for (const row of rows) {
@@ -338,17 +274,7 @@ function summarizeFindings(findings: readonly string[]): string {
   return hidden > 0 ? `${shown}; +${hidden} more` : shown;
 }
 
-export function validateOperationalSnapshot(path: string): number {
-  const database = new DatabaseSync(path, { readOnly: true });
-  try {
-    assertPageIntegrity(database);
-    return readSchemaGeneration(database);
-  } finally {
-    database.close();
-  }
-}
-
-function validateSchemaPlan(plan: SchemaPlan): void {
+export function validateSchemaPlan(plan: SchemaPlan): void {
   if (!Number.isSafeInteger(plan.targetGeneration) || plan.targetGeneration < 1) {
     throw new OperationalDatabaseError(
       'migration-failed',
