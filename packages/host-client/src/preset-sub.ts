@@ -1,4 +1,10 @@
-import { isPresetSub, type PresetSub as SubChoices } from '@botharness/host-protocol/preset-sub';
+import {
+  isPresetSub,
+  matchesPresetSubChoice,
+  type PresetSub as SubChoices,
+  type PresetSubChoice as SubChoice,
+  type PresetSubSelection as SubSelection,
+} from '@botharness/host-protocol/preset-sub';
 import { HostAnswerInvalid, count, record, type HostCall } from './host-answer';
 
 export type {
@@ -6,6 +12,134 @@ export type {
   PresetSubChoice as SubChoice,
   PresetSubSelection as SubSelection,
 } from '@botharness/host-protocol/preset-sub';
+
+export function subSelectionOf(choice: SubChoice): SubSelection {
+  switch (choice.kind) {
+    case 'model':
+      return { kind: 'model', provider: choice.provider, model: choice.model };
+    case 'group':
+      return { kind: 'group', group: choice.group };
+    case 'engine': {
+      const { engine, accountId, model } = choice;
+      return {
+        kind: 'engine',
+        engine,
+        ...(accountId === undefined ? {} : { accountId }),
+        ...(model === undefined ? {} : { model }),
+      };
+    }
+  }
+}
+
+export const SUB_MODEL_LIMIT = 20;
+export const SUB_EFFORT_LIMIT = 16;
+
+export function canAddSubChoice(sub: SubChoices, choice: SubChoice): boolean {
+  const selection = subSelectionOf(choice);
+  if (sub.choices.some((entry) => matchesPresetSubChoice(entry, selection))) return false;
+  return (
+    choice.kind !== 'model' ||
+    sub.choices.filter((entry) => entry.kind === 'model').length < SUB_MODEL_LIMIT
+  );
+}
+
+export function addSubChoice(sub: SubChoices, choice: SubChoice): SubChoices {
+  const selection = subSelectionOf(choice);
+  if (!canAddSubChoice(sub, choice)) return sub;
+  return { choices: [...sub.choices, choice], default: sub.default ?? selection };
+}
+
+export function removeSubChoice(sub: SubChoices, selection: SubSelection): SubChoices {
+  const choices = sub.choices.filter((choice) => !matchesPresetSubChoice(choice, selection));
+  if (choices.length === sub.choices.length) return sub;
+  const first = choices[0];
+  const removedDefault = sub.default !== null && matchesPresetSubChoice(sub.default, selection);
+  return {
+    choices,
+    default: removedDefault ? (first === undefined ? null : subSelectionOf(first)) : sub.default,
+  };
+}
+
+export function setSubDefault(sub: SubChoices, selection: SubSelection): SubChoices {
+  const choice = sub.choices.find((entry) => matchesPresetSubChoice(entry, selection));
+  return choice === undefined ? sub : { ...sub, default: subSelectionOf(choice) };
+}
+
+function withAllowedEffort(allowed: string[], effort: string, previous?: string): string[] {
+  if (allowed.includes(effort)) return allowed;
+  if (allowed.length < SUB_EFFORT_LIMIT) return [...allowed, effort];
+  const slot = previous === undefined ? -1 : allowed.indexOf(previous);
+  return allowed.map((entry, index) =>
+    index === (slot < 0 ? allowed.length - 1 : slot) ? effort : entry,
+  );
+}
+
+export function setSubEffort(
+  sub: SubChoices,
+  selection: SubSelection,
+  effort: string,
+  groupEfforts: string[],
+): SubChoices {
+  return {
+    ...sub,
+    choices: sub.choices.map((choice): SubChoice => {
+      if (!matchesPresetSubChoice(choice, selection)) return choice;
+      switch (choice.kind) {
+        case 'model':
+          return {
+            ...choice,
+            allowedEfforts: withAllowedEffort(choice.allowedEfforts, effort, choice.defaultEffort),
+            defaultEffort: effort,
+          };
+        case 'group': {
+          const { allowedEfforts, defaultEffort, ...rest } = choice;
+          if (effort === '') return rest;
+          return {
+            ...rest,
+            allowedEfforts: withAllowedEffort(
+              allowedEfforts ?? groupEfforts.slice(0, SUB_EFFORT_LIMIT),
+              effort,
+              defaultEffort,
+            ),
+            defaultEffort: effort,
+          };
+        }
+        case 'engine': {
+          const { effort: _effort, ...rest } = choice;
+          return effort === '' ? rest : { ...rest, effort };
+        }
+      }
+    }),
+  };
+}
+
+export function setSubNote(sub: SubChoices, selection: SubSelection, note: string): SubChoices {
+  return {
+    ...sub,
+    choices: sub.choices.map((choice) =>
+      matchesPresetSubChoice(choice, selection) ? { ...choice, note } : choice,
+    ),
+  };
+}
+
+export function cleanSub(sub: SubChoices): SubChoices {
+  return {
+    ...sub,
+    choices: sub.choices.map((choice): SubChoice => {
+      if (choice.note === undefined || choice.note.trim() !== '') return choice;
+      const { note: _note, ...rest } = choice;
+      return rest;
+    }),
+  };
+}
+
+export function staleGroupEfforts(choice: SubChoice, groupEfforts: readonly string[]): boolean {
+  return (
+    choice.kind === 'group' &&
+    (choice.allowedEfforts?.some((effort) => !groupEfforts.includes(effort)) === true ||
+      (choice.defaultEffort !== undefined && !groupEfforts.includes(choice.defaultEffort)))
+  );
+}
 
 interface SubAnswer {
   revision: number;

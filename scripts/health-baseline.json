@@ -25,7 +25,6 @@
     "packages/client/test/window-companion-view.test.ts",
     "packages/computer/test/docker-provider.test.ts",
     "packages/connect-relay/test/connect-relay.test.ts",
-    "packages/core/src/bridge/rpc.ts",
     "packages/core/src/database/schema-plan.ts",
     "packages/core/src/runtime/bot-runtime.ts",
     "packages/core/test/bot-pairing.test.ts",

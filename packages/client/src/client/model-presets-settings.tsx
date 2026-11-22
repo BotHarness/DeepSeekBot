@@ -11,6 +11,7 @@ import {
   type ModelPresetUsage,
   type SubscriptionModel,
 } from '@botharness/host-client/model-plans';
+import { cleanSub } from '@botharness/host-client/preset-sub';
 import type { BridgeActions } from './actions.js';
 import { bridgeHost, errorMessage, type BridgeCall } from './bridge.js';
 import { CodexDeviceSignIn } from './codex-device-sign-in.js';
@@ -26,7 +27,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { engineMenuItems } from './model-menu.js';
 import { ModelPlanEditor } from './model-plan-editor.js';
 import { draftOf, mainParts, modelKey, type ModelDraft } from './model-preset-draft.js';
-import { cleanSubChoices, subOf } from './sub-choices.js';
+import { subOf } from './sub-choices.js';
 import { useMountedResource } from './mounted-resource.js';
 import { engineName } from './session-engine.js';
 import { ListCard, ListCardItem } from './ds/list-card.js';
@@ -150,7 +151,7 @@ function PresetEditor({
       name: name.trim(),
       ...main,
       orchestratorEngine,
-      sub: cleanSubChoices(sub),
+      sub: cleanSub(sub),
     };
     setBusy(true);
     setError(undefined);
