@@ -26,9 +26,6 @@
   "packages/client/src/client/assignment-work.tsx": {
     "lineBorder": 3
   },
-  "packages/client/src/client/avatar-appearance-editor.tsx": {
-    "rawControl": 11
-  },
   "packages/client/src/client/behavior-permission-settings.tsx": {
     "rawControl": 1
   },
@@ -124,10 +121,6 @@
     "rawControl": 1,
     "lineBorder": 1
   },
-  "packages/client/src/client/channel-message-body.tsx": {
-    "dshImport": 1,
-    "rawControl": 2
-  },
   "packages/client/src/client/channel-sidebar-settings.tsx": {
     "rawControl": 2
   },
@@ -216,6 +209,12 @@
   "packages/client/src/client/features/assignments/styles.ts": {
     "legacyCss": 1
   },
+  "packages/client/src/client/features/avatars/avatar-appearance-editor.tsx": {
+    "rawControl": 10
+  },
+  "packages/client/src/client/features/avatars/avatar-editor-options.tsx": {
+    "rawControl": 1
+  },
   "packages/client/src/client/features/avatars/styles.ts": {
     "legacyCss": 46,
     "lineBorder": 3
@@ -229,6 +228,10 @@
   },
   "packages/client/src/client/features/channels/channel-composer.tsx": {
     "rawControl": 1
+  },
+  "packages/client/src/client/features/channels/channel-message-body.tsx": {
+    "dshImport": 1,
+    "rawControl": 2
   },
   "packages/client/src/client/features/channels/channel-sidebar-builtins.tsx": {
     "rawControl": 1
