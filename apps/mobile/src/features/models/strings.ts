@@ -68,6 +68,7 @@ export const en = {
     linkCopied: 'Copied',
     cancelSignIn: 'Cancel sign-in',
     signInFailed: 'Couldn’t start sign-in. Try again.',
+    signInTimedOut: 'Sign-in didn’t finish on the computer. Try again.',
   },
   modelSettings: {
     title: 'Models and presets',
@@ -243,6 +244,7 @@ export const zh: typeof en = {
     linkCopied: '已复制',
     cancelSignIn: '取消登录',
     signInFailed: '无法开始登录，再试一次。',
+    signInTimedOut: '电脑上的登录没有完成，再试一次。',
   },
   modelSettings: {
     title: '模型与预设',

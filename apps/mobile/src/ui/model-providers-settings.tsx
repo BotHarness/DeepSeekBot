@@ -45,6 +45,8 @@ export interface ProviderAccountPort {
   cancelSignIn(id: string): Promise<void>;
 }
 
+const SIGN_IN_LIMIT_MS = 190_000;
+
 type RefreshState =
   | { state: 'idle' }
   | { state: 'refreshing' }
@@ -311,12 +313,12 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
   const [loadError, setLoadError] = useState<string>();
   const [refresh, setRefresh] = useState<RefreshState>({ state: 'idle' });
   const [signInUrl, setSignInUrl] = useState<string>();
-  const [signInError, setSignInError] = useState(false);
+  const [signInError, setSignInError] = useState<false | 'failed' | 'timeout'>(false);
   const [emailShown, setEmailShown] = useState(false);
   const [copied, setCopied] = useState(false);
   const [starting, setStarting] = useState(false);
   const [, setTick] = useState(0);
-  const signingRef = useRef(false);
+  const signingSince = useRef<number | undefined>(undefined);
 
   const read = useCallback(
     () =>
@@ -332,8 +334,11 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
     setRefresh({ state: 'refreshing' });
     port.refresh(id).then(
       (status) => {
-        setRefresh(status === 'ok' ? { state: 'idle' } : { state: 'failed', reason: status });
-        read().catch(() => setRefresh({ state: 'failed', reason: 'unavailable' }));
+        read().then(
+          () =>
+            setRefresh(status === 'ok' ? { state: 'idle' } : { state: 'failed', reason: status }),
+          () => setRefresh({ state: 'failed', reason: 'unavailable' }),
+        );
       },
       () => setRefresh({ state: 'failed', reason: 'unavailable' }),
     );
@@ -352,11 +357,18 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
   const ticker = useMounted<ViewInstance>(() => {
     const timer = setInterval(() => {
       setTick((tick) => tick + 1);
-      if (!signingRef.current) return;
+      if (signingSince.current === undefined) return;
+      if (Date.now() - signingSince.current > SIGN_IN_LIMIT_MS) {
+        signingSince.current = undefined;
+        setSignInUrl(undefined);
+        setCopied(false);
+        setSignInError('timeout');
+        return;
+      }
       read().then(
         (next) => {
           if (next?.available) {
-            signingRef.current = false;
+            signingSince.current = undefined;
             setSignInUrl(undefined);
             setCopied(false);
           }
@@ -376,12 +388,12 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
       .then(
         ({ url }) => {
           if (url !== undefined) {
-            signingRef.current = true;
+            signingSince.current = Date.now();
             setSignInUrl(url);
           }
           void read().catch(() => undefined);
         },
-        () => setSignInError(true),
+        () => setSignInError('failed'),
       )
       .finally(() => setStarting(false));
   };
@@ -389,12 +401,12 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
   const cancelSignIn = () => {
     port.cancelSignIn(id).then(
       () => {
-        signingRef.current = false;
+        signingSince.current = undefined;
         setSignInUrl(undefined);
         setCopied(false);
         void read().catch(() => undefined);
       },
-      () => setSignInError(true),
+      () => setSignInError('failed'),
     );
   };
 
@@ -476,7 +488,11 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
           ) : null}
           {signInError ? (
             <SettingsFormItem>
-              <Notice tone="danger">{t.modelProviders.signInFailed}</Notice>
+              <Notice tone="danger">
+                {signInError === 'timeout'
+                  ? t.modelProviders.signInTimedOut
+                  : t.modelProviders.signInFailed}
+              </Notice>
             </SettingsFormItem>
           ) : null}
           {account?.available ? (

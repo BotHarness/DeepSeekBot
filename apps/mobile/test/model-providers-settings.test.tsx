@@ -240,3 +240,51 @@ it('reports a failed read after refresh and clears sign-in once the Host finishe
     vi.useRealTimers();
   }
 });
+
+it('keeps refresh busy until the account read finishes and times out an unfinished sign-in', async () => {
+  vi.useFakeTimers();
+  try {
+    const now = Date.now();
+    const accounts = accountsFixture(now);
+    let finishRead: () => void = () => undefined;
+    let slowReads = 0;
+    const port: ProviderAccountPort = {
+      accounts: vi.fn(() =>
+        slowReads > 0
+          ? new Promise<SubscriptionAccountsView>((resolve) => {
+              slowReads -= 1;
+              finishRead = () => resolve(accounts);
+            })
+          : Promise.resolve(accounts),
+      ),
+      refresh: vi.fn(async () => {
+        slowReads = 1;
+        return 'ok' as const;
+      }),
+      signIn: vi.fn(async () => ({ url: 'https://example.org/sign-in' })),
+      cancelSignIn: vi.fn(async () => undefined),
+    };
+    const view = await render(<ProviderAccountSettings port={port} id="claude" />);
+    await act(async () => undefined);
+    expect(view.querySelector('[data-testid="account-refresh"]')?.textContent).toContain(
+      t.modelProviders.refreshing,
+    );
+    await act(async () => finishRead());
+    expect(view.querySelector('[data-testid="account-refresh"]')?.textContent).toContain(
+      t.modelProviders.refresh,
+    );
+    act(() => root?.unmount());
+    host?.remove();
+
+    const signedOut = await render(<ProviderAccountSettings port={port} id="codex-b" />);
+    await act(async () => button(signedOut, t.modelProviders.signIn)!.click());
+    expect(signedOut.textContent).toContain(t.modelProviders.signInOnComputer);
+    await act(async () => vi.advanceTimersByTime(200_000));
+    await act(async () => undefined);
+    expect(signedOut.textContent).not.toContain(t.modelProviders.signInOnComputer);
+    expect(signedOut.textContent).toContain(t.modelProviders.signInTimedOut);
+    expect(button(signedOut, t.modelProviders.signIn)).toBeDefined();
+  } finally {
+    vi.useRealTimers();
+  }
+});
