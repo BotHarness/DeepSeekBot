@@ -2,24 +2,160 @@ import { expect, it, vi } from 'vitest';
 import { HostAnswerInvalid } from '../src/host-answer';
 import { createModelPreset, setModelPlan, updateModelPreset } from '../src/model-plans';
 import {
+  addSubChoice,
+  cleanSub,
   loadPlanSub,
   loadPresetSub,
   parseSubChoices,
+  removeSubChoice,
   savePlanSub,
   savePresetSub,
+  setSubDefault,
+  setSubEffort,
+  setSubNote,
+  staleGroupEfforts,
+  subSelectionOf,
+  type SubChoice,
   type SubChoices,
+  type SubSelection,
 } from '../src/preset-sub';
 
 const group = { kind: 'group', group: 'fast' } as const;
 const engine = { kind: 'engine', engine: 'codex', accountId: 'work', model: 'fast' } as const;
+const model = {
+  kind: 'model',
+  provider: 'local',
+  model: 'small',
+  allowedEfforts: [''],
+  defaultEffort: '',
+} satisfies SubChoice;
 const sub = {
-  choices: [
-    { kind: 'model', provider: 'local', model: 'small', allowedEfforts: [''], defaultEffort: '' },
-    group,
-    { ...engine, effort: 'high', note: 'Work' },
-  ],
+  choices: [model, group, { ...engine, effort: 'high', note: 'Work' }],
   default: engine,
 } satisfies SubChoices;
+
+it('extracts only the selection fields for each choice kind', () => {
+  expect(subSelectionOf({ ...model, note: 'Draft' })).toEqual({
+    kind: 'model',
+    provider: 'local',
+    model: 'small',
+  });
+  expect(subSelectionOf({ ...group, note: 'Draft' })).toEqual(group);
+  expect(subSelectionOf({ ...engine, note: 'Draft', effort: 'high' })).toEqual(engine);
+  expect(subSelectionOf({ kind: 'engine', engine: 'claude', effort: 'high' })).toEqual({
+    kind: 'engine',
+    engine: 'claude',
+  });
+});
+
+it('adds a first default and distinguishes engine accounts while deduplicating selections', () => {
+  const added = addSubChoice({ choices: [], default: null }, { ...group, note: 'Draft' });
+  expect(added).toEqual({ choices: [{ ...group, note: 'Draft' }], default: group });
+  expect(addSubChoice(added, group)).toBe(added);
+  expect(addSubChoice(sub, { ...engine, effort: 'low' })).toBe(sub);
+  const otherAccount = { ...engine, accountId: 'personal' };
+  expect(addSubChoice(sub, otherAccount)).toEqual({
+    choices: [...sub.choices, otherAccount],
+    default: engine,
+  });
+});
+
+it('promotes the first remaining choice only when removing the default', () => {
+  expect(removeSubChoice(sub, group)).toEqual({
+    choices: [model, sub.choices[2]],
+    default: engine,
+  });
+  expect(removeSubChoice(sub, engine)).toEqual({
+    choices: [model, group],
+    default: subSelectionOf(model),
+  });
+  expect(removeSubChoice(sub, { ...engine, accountId: 'other' })).toBe(sub);
+  expect(removeSubChoice({ choices: [group], default: group }, group)).toEqual({
+    choices: [],
+    default: null,
+  });
+});
+
+it('sets the default to a listed selection', () => {
+  expect(setSubDefault(sub, group)).toEqual({ choices: sub.choices, default: group });
+  expect(setSubDefault(sub, { ...group, group: 'missing' })).toBe(sub);
+});
+
+it('changes a model effort and adds it to the allowed list only once', () => {
+  const selection = subSelectionOf(model);
+  const changed = setSubEffort(sub, selection, 'high', []);
+  expect(changed.choices).toEqual([
+    { ...model, allowedEfforts: ['', 'high'], defaultEffort: 'high' },
+    ...sub.choices.slice(1),
+  ]);
+  expect(changed.default).toBe(engine);
+  expect(setSubEffort(changed, selection, '', []).choices[0]).toEqual({
+    ...model,
+    allowedEfforts: ['', 'high'],
+  });
+  expect(model.allowedEfforts).toEqual(['']);
+});
+
+it('seeds group efforts from the shared catalog, keeps stored efforts and clears the override', () => {
+  const noted = setSubNote(sub, group, '  Draft  ');
+  const groupEfforts = ['low', 'high'];
+  const configured = setSubEffort(noted, group, 'high', groupEfforts);
+  expect(configured.choices[1]).toEqual({
+    ...group,
+    note: '  Draft  ',
+    allowedEfforts: ['low', 'high'],
+    defaultEffort: 'high',
+  });
+  expect(setSubEffort(noted, group, 'medium', groupEfforts).choices[1]).toEqual({
+    ...group,
+    note: '  Draft  ',
+    allowedEfforts: ['low', 'high', 'medium'],
+    defaultEffort: 'medium',
+  });
+  expect(setSubEffort(configured, group, 'max', ['max']).choices[1]).toEqual({
+    ...group,
+    note: '  Draft  ',
+    allowedEfforts: ['low', 'high', 'max'],
+    defaultEffort: 'max',
+  });
+  expect(setSubEffort(configured, group, '', []).choices[1]).toEqual({
+    ...group,
+    note: '  Draft  ',
+  });
+});
+
+it('sets or removes the effort on the selected engine model', () => {
+  expect(setSubEffort(sub, engine, 'low', []).choices[2]).toEqual({
+    ...engine,
+    effort: 'low',
+    note: 'Work',
+  });
+  expect(setSubEffort(sub, engine, '', []).choices[2]).toEqual({ ...engine, note: 'Work' });
+  expect(setSubEffort(sub, { ...engine, accountId: 'other' }, 'low', [])).toEqual(sub);
+});
+
+it('stores notes verbatim and removes only blank notes before saving', () => {
+  const selections: SubSelection[] = [subSelectionOf(model), group, engine];
+  const drafts = selections.reduce<SubChoices>(
+    (current, selection, index) =>
+      setSubNote(current, selection, index === 1 ? '  Work  ' : ' \n '),
+    sub,
+  );
+  expect(drafts.choices.map((choice) => choice.note)).toEqual([' \n ', '  Work  ', ' \n ']);
+  expect(cleanSub(drafts)).toEqual({
+    choices: [model, { ...group, note: '  Work  ' }, { ...engine, effort: 'high' }],
+    default: engine,
+  });
+  expect(sub.choices[2]).toMatchObject({ note: 'Work' });
+});
+
+it('detects a stored group effort that the current group no longer shares', () => {
+  const configured = { ...group, allowedEfforts: ['low', 'high'], defaultEffort: 'low' };
+  expect(staleGroupEfforts(configured, ['low'])).toBe(true);
+  expect(staleGroupEfforts(configured, ['low', 'high', 'max'])).toBe(false);
+  expect(staleGroupEfforts(group, [])).toBe(false);
+  expect(staleGroupEfforts(model, [])).toBe(false);
+});
 
 it.each([
   null,
