@@ -10,7 +10,7 @@ import { BotPortrait } from '../bot-avatar';
 import { SheetLoading } from '../chat/sheet';
 import { pressTint, useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
-import { useSessionsTab } from '../interface-settings';
+import { useSessionsTab } from '../interface-preferences';
 import { ReadFailure } from '../primitives/read-failure';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';

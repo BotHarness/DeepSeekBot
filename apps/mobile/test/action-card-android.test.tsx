@@ -15,6 +15,10 @@ await vi.hoisted(async () => {
       asset.exports = name;
       local.cache[path] = asset;
     }
+  const sessionsIcon = local.resolve('../assets/toolbar/sessions.xml');
+  const asset = new Module(sessionsIcon);
+  asset.exports = 'sessions.xml';
+  local.cache[sessionsIcon] = asset;
 });
 
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));

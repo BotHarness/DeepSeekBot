@@ -32,7 +32,7 @@ import { creationMenuItems } from './creation-menu-items';
 import { CreationMenuButton } from './creation-menu-button';
 import { showAppDialog } from '../primitives/app-dialog';
 import { FloatingTabInset } from './floating-tab-inset';
-import { useSessionsTab } from '../interface-settings';
+import { useSessionsTab } from '../interface-preferences';
 import { useStrings } from '../strings';
 import { useSelectionFeedback } from '../selection-feedback';
 import type { NavigationDestination } from './navigation-destination';

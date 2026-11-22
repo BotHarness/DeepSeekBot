@@ -96,13 +96,3 @@ export function SessionsTabSetting({ on = 'sheet' }: { on?: LayerName }) {
     />
   );
 }
-
-const sessionsTabSnapshot = () => interfacePreferences.getSnapshot().sessionsTab;
-
-export function useSessionsTab() {
-  return useSyncExternalStore(
-    interfacePreferences.subscribe,
-    sessionsTabSnapshot,
-    sessionsTabSnapshot,
-  );
-}

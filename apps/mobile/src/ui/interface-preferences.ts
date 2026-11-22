@@ -1,3 +1,5 @@
+import { useSyncExternalStore } from 'react';
+
 export type LanguagePreference = 'system' | 'en' | 'zh';
 export type AppearancePreference = 'system' | 'light' | 'dark';
 export type InAppAlertStyle = 'inline' | 'overlay';
@@ -136,3 +138,13 @@ export function createInterfacePreferences() {
 }
 
 export const interfacePreferences = createInterfacePreferences();
+
+const sessionsTabSnapshot = () => interfacePreferences.getSnapshot().sessionsTab;
+
+export function useSessionsTab() {
+  return useSyncExternalStore(
+    interfacePreferences.subscribe,
+    sessionsTabSnapshot,
+    sessionsTabSnapshot,
+  );
+}
