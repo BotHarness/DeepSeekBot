@@ -121,10 +121,6 @@
     "rawControl": 1,
     "lineBorder": 1
   },
-  "packages/client/src/client/channel-message-body.tsx": {
-    "dshImport": 1,
-    "rawControl": 2
-  },
   "packages/client/src/client/channel-sidebar-settings.tsx": {
     "rawControl": 2
   },
@@ -232,6 +228,10 @@
   },
   "packages/client/src/client/features/channels/channel-composer.tsx": {
     "rawControl": 1
+  },
+  "packages/client/src/client/features/channels/channel-message-body.tsx": {
+    "dshImport": 1,
+    "rawControl": 2
   },
   "packages/client/src/client/features/channels/channel-sidebar-builtins.tsx": {
     "rawControl": 1
