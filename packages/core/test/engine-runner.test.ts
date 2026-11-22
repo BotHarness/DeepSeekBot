@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createEngineGateway } from '../src/engines/engine-gateway.js';
 import { EngineHost } from '../src/engines/engine-host.js';
 import { createEngineStore, engineStorePath } from '../src/engines/engine-store.js';
+import { ownerEngineSelection } from './engine-route-fixture.js';
 import { createTempRoot } from './helpers.js';
 
 describe('Orchestrator runner summaries', () => {
@@ -66,6 +67,43 @@ describe('Orchestrator runner summaries', () => {
     }
   });
 });
+
+it.each(['orchestrator', 'assignment'] as const)(
+  'keeps an explicit native %s selection instead of inheriting the Default preset engine',
+  async (role) => {
+    const root = createTempRoot('runner-native-selection-');
+    const open = () =>
+      new EngineHost({
+        root,
+        local: true,
+        inheritedChoice: () => ({ engine: 'codex', model: 'gpt-6' }),
+        gateway: createEngineGateway(),
+        sessions: () => undefined,
+        persistence: () => undefined,
+      });
+    const host = open();
+    try {
+      expect(host.engineFor('ada', role)).toBe('codex');
+      const bridge = ownerEngineSelection(host, (slug) => slug === 'ada');
+      expect(
+        await bridge.engineSelection({ action: 'use', bot: 'ada', role, engine: null }),
+      ).toMatchObject({ ok: true });
+      expect(host.engineFor('ada', role)).toBeUndefined();
+      expect(host.choiceFor('ada', role)).toBeUndefined();
+      const restored = open();
+      try {
+        expect(restored.engineFor('ada', role)).toBeUndefined();
+        expect(restored.engineFor('eve', role)).toBe('codex');
+        restored.use('ada', role, undefined);
+        expect(restored.engineFor('ada', role)).toBe('codex');
+      } finally {
+        await restored.close();
+      }
+    } finally {
+      await host.close();
+    }
+  },
+);
 
 it('updates runner notifications and emits only one title through fake engine turns and resume', async () => {
   const root = createTempRoot('runner-turn-');

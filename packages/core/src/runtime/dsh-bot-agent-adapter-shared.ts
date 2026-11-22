@@ -5,6 +5,7 @@ import type { Agent, AgentHandle, ModelSelection } from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm';
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
 import { type SessionLogOffset } from '@deepseek-ai/dsh-session';
+import type { DshDefaultModelHost } from './dsh-bot-agent-adapter.js';
 import type { ModelRoute, PersonaBotModelPlan } from '../models/presets.js';
 import {
   type AssignmentAgentRun,
@@ -61,11 +62,12 @@ export function linkForgottenSessions(active: Extract<ActiveRun, { role: 'orches
 
 export function agentOptions(
   run: Pick<OrchestratorAgentRun, 'bot' | 'inboundChannelId'> | AssignmentAgentRun,
-  defaultSelection: ModelSelection,
+  defaultModel: DshDefaultModelHost,
   plan: PersonaBotModelPlan | undefined,
   fallback?: ModelRoute,
 ): ModelSelection {
-  const route = 'inboundChannelId' in run ? (fallback ?? plan?.orchestrator) : run.modelRoute;
+  const orchestrator = 'inboundChannelId' in run;
+  const route = orchestrator ? (fallback ?? plan?.orchestrator) : run.modelRoute;
   if (route !== undefined) {
     return {
       provider: route.provider,
@@ -78,7 +80,7 @@ export function agentOptions(
   if (run.bot.model !== undefined) {
     throw new Error('Legacy Bot model requires provider selection in PersonaBot Profile');
   }
-  return defaultSelection;
+  return defaultModel.currentSelection(orchestrator ? 'orchestrator' : 'assignment');
 }
 
 export function createMeta(

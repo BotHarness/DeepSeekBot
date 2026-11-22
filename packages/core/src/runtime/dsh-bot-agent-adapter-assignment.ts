@@ -388,7 +388,7 @@ async function assignmentHandle(
   if (existing !== undefined) return existing;
   const resolvedAgentOptions = agentOptions(
     run,
-    adapter.defaultModel.currentSelection(),
+    adapter.defaultModel,
     adapter.resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan,
   );
   const selection = {
@@ -504,7 +504,7 @@ function selectAssignmentModel(
   if (selection === undefined) return;
   selection.current = agentOptions(
     run,
-    adapter.defaultModel.currentSelection(),
+    adapter.defaultModel,
     adapter.resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan,
   );
   selectNativeModel(adapter.handles.get(run.sessionId)?.agent, selection.current);

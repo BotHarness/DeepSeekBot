@@ -358,6 +358,7 @@ export const CLI_EFFECTS = {
   'model-provider-edit': { effects: externalSecretManagement, brokerRead: false },
   'model-provider-remove': { effects: destructiveSecretManagement, brokerRead: false },
   'model-catalog': { effects: read, brokerRead: true },
+  'model-default': { effects: read, brokerRead: false },
   'model-favorite-add': { effects: write, brokerRead: false },
   'model-favorite-remove': { effects: write, brokerRead: false },
   'model-plan': { effects: read, brokerRead: true },

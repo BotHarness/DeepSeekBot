@@ -131,7 +131,7 @@ PersonaBot 模型方案。某个 PersonaBot 持有的模型预设快照或 Human
 _避免使用_：Soul、DSH Agent preset、model usage
 
 **Default Model Choice**：
-默认模型。Profile 范围内的一个 Model Choice（一条路由或一个 Routing Group）：没有自己 Orchestrator 选择的 PersonaBot 和所有继承的 Assignment 都用它。它不是 Model Preset。界面上 Orchestrator 的模型叫「主模型」，Assignment 的模型叫「副模型」。
+默认模型。Profile 中置顶的「默认」模型预设提供实际的 Model Choice。未保存独立方案的 PersonaBot 继承该预设；未单独设置副模型时，副模型跟随主模型。界面上 Orchestrator 的模型叫「主模型」，Assignment 的模型叫「副模型」。
 _避免使用_：全局预设、默认预设、裸用全局模型
 
 **Model Choice**：
