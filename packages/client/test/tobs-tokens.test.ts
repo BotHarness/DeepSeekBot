@@ -216,7 +216,9 @@ describe('design token guard', () => {
 
   it('refuses new DSH uses and asks for the baseline to shrink', () => {
     const baseline = { 'a.tsx': { dshToken: 2 } };
-    expect(compare({ 'a.tsx': { dshToken: 3 } }, baseline)[0]).toMatch(/1 new dshToken/);
+    expect(compare({ 'a.tsx': { dshToken: 3 } }, baseline)[0]).toMatch(
+      /dshToken total grew from 2 to 3/,
+    );
     expect(compare({ 'a.tsx': { dshToken: 1 } }, baseline)[0]).toMatch(/shrink the baseline/);
     expect(compare({ 'b.tsx': { rawControl: 1 } }, {})[0]).toMatch(/compose a ds\/ control/);
   });
