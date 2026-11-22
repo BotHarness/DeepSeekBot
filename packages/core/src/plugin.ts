@@ -1591,6 +1591,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             group.members.some((member) => member.kind === 'engine' && uses(member)),
           )
           .map((group) => `Routing Group ${group.name} (${group.id})`),
+        ...(core.runtime.assignmentEngineAccountUses?.(id) ?? []).map(
+          (sessionId) => `Assignment Session ${sessionId}`,
+        ),
       ];
     },
     routingGroupEffort: (slug) => effectivePlan(slug)?.orchestratorGroupEffort,

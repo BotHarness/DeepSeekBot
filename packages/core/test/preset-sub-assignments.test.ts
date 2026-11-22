@@ -42,6 +42,7 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
     gateway,
     sessions: () => undefined,
     persistence: () => undefined,
+    accountUses: (id): string[] => core.runtime.assignmentEngineAccountUses?.(id) ?? [],
     requireAccountGrant: (slug, id): void =>
       requireBotEngineAccount(core.team, core.registry.get(slug), id),
   });
@@ -59,10 +60,16 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
       },
       async runAssignment(run) {
         runs.push(run);
+        if (run.acceptNativeInput !== undefined) {
+          run.setExecutionReady?.(true);
+          run.acceptNativeInput();
+          run.setExecutionReady?.(false);
+        }
         if (run.routingTarget?.kind === 'engine') await holdEngineRun;
       },
-      requestAssignment() {
-        throw new Error('Unexpected Assignment request');
+      requestAssignment(run) {
+        runs.push(run);
+        return { delivery: 'followup', accepted: Promise.resolve(), done: Promise.resolve() };
       },
       async close() {},
     },
@@ -228,7 +235,8 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
     }
     const named = await dispatch('Explicit engine', { ...explicit, reasoning_effort: 'high' });
     expect(named).toMatchObject({ outcome: 'created' });
-    expect(await dispatch('Explicit API model', careful)).toMatchObject({
+    const api = await dispatch('Explicit API model', careful);
+    expect(api).toMatchObject({
       outcome: 'created',
       modelRoute: { ...careful, reasoningEffort: 'high' },
     });
@@ -247,6 +255,32 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
       session_id: implicitSessionId,
       model_route_json: JSON.stringify(target),
     });
+    const nativeWake = (sessionId: string) => {
+      const sender = `${sessionId}-native-child`;
+      core.ownership.claim({
+        sessionId: sender,
+        botSlug: 'ada',
+        provenance: 'subagent',
+        rootRole: 'assignment',
+        parentSessionId: sessionId,
+        at: new Date().toISOString(),
+      });
+      return core.runtime.prepareNativeOrchestratorStep!(
+        sessionId,
+        [sender],
+        new AbortController().signal,
+      );
+    };
+    const runsBeforeNativeWake = runs.length;
+    expect(await nativeWake(implicitSessionId)).toBe(false);
+    expect(runs).toHaveLength(runsBeforeNativeWake);
+    expect(core.runtime.getAssignment('ada', implicitSessionId)?.activity).toBe('idle');
+    expect(await nativeWake(api.sessionId)).toBe(true);
+    expect(runs.at(-1)?.routingTarget).toEqual({
+      kind: 'route',
+      route: { ...careful, reasoningEffort: 'high' },
+    });
+    await core.runtime.whenIdle();
     const count = readAssignments().length;
     const reset = new Date(Date.now() + 60_000).toISOString();
     engineHost.store.rememberQuota(
@@ -302,6 +336,28 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
       session_id: legacyDefault.sessionId,
       model_route_json: JSON.stringify(defaultTarget),
     });
+    expect(core.runtime.getAssignment('ada', legacyDefault.sessionId)?.activity).toBe('idle');
+    core.registry.applyModelPreset('ada', preset);
+    expect(() => engineHost.removeAccount(account.id, 1)).toThrow(
+      expect.objectContaining({
+        code: 'engine-account-in-use',
+        message: expect.stringContaining(legacyDefault.sessionId),
+      }),
+    );
+    const unused = engineHost.addAccount('codex', 'Unused', 1);
+    expect(engineHost.removeAccount(unused.id, 2)).toEqual({ id: unused.id });
+    for (const sessionId of [implicitSessionId, named.sessionId, legacyDefault.sessionId]) {
+      expect(
+        run.assignments.request({
+          sessionId,
+          mode: 'next-turn',
+          text: 'Use the allowed API model for this follow-up.',
+          model: careful,
+        }),
+      ).toMatchObject({ delivery: 'followup' });
+    }
+    await core.runtime.whenIdle();
+    expect(engineHost.removeAccount(account.id, 3)).toEqual({ id: account.id });
 
     const { sub: _sub, ...legacyPlan } = resolveModelPlan()!;
     const deniedRoutingGroup = createAssignmentTool({

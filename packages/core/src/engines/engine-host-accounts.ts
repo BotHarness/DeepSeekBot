@@ -162,15 +162,11 @@ export class EngineHostAccounts {
     return this.#store.resolveAccount(engine, accountId);
   }
 
-  describeAssignment(
-    engine: EngineId,
-    accountId: string | undefined,
-    requireGrant: (id: string) => void,
-  ) {
+  describeAssignment(botSlug: string, engine: EngineId, accountId?: string) {
     if (!this.#options.local) return undefined;
     try {
       const account = this.resolveAccount(engine, accountId);
-      requireGrant(account.id);
+      this.#options.requireAccountGrant?.(botSlug, account.id);
       const until = engineQuotaLimit(this.#store.quota(engine, account.id), this.#now());
       return { accountName: account.name, ...(until === undefined ? {} : { restingUntil: until }) };
     } catch (error) {

@@ -322,9 +322,7 @@ export class EngineHost {
   }
 
   describeAssignmentAccount(botSlug: string, engine: EngineId, accountId?: string) {
-    return this.#accounts.describeAssignment(engine, accountId, (id) =>
-      this.#options.requireAccountGrant?.(botSlug, id),
-    );
+    return this.#accounts.describeAssignment(botSlug, engine, accountId);
   }
 
   describe(sessionId: string): EngineSessionDescription | undefined {

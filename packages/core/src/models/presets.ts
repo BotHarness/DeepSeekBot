@@ -20,6 +20,7 @@ import {
   isAssignmentModelOption,
   isPresetSub,
   matchesPresetSubChoice,
+  mergeLegacyPresetSub,
   presetSubProjection,
   presetSubWithEngine,
   presetSubFromLegacy,
@@ -963,18 +964,7 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
       ) {
         updated.sub = currentSub;
       } else if (!followsMain) {
-        const priorDefault = currentSub?.default;
-        const choices = groupOnly
-          ? nextSub.choices.filter((choice) => choice.kind !== 'model')
-          : nextSub.choices;
-        const engineAlternatives =
-          currentSub?.choices.filter(
-            (choice) =>
-              choice.kind === 'engine' &&
-              (priorDefault == null || !matchesPresetSubChoice(choice, priorDefault)) &&
-              !choices.some((next) => matchesPresetSubChoice(next, choice)),
-          ) ?? [];
-        updated.sub = { ...nextSub, choices: [...choices, ...engineAlternatives] };
+        updated.sub = mergeLegacyPresetSub(currentSub, nextSub, groupOnly);
       }
       write(updated);
       return updated;

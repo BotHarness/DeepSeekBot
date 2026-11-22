@@ -292,6 +292,32 @@ it('keeps an alternate Subscription Engine when a legacy edit replaces the API c
   });
 });
 
+it('keeps the stored order of mixed choices after a legacy metadata edit', () => {
+  const store = fixture().open();
+  const preset = store.create({ name: 'Mixed', orchestrator: main, assignmentDefault: main });
+  const model = { kind: 'model' as const, provider: main.provider, model: main.model };
+  const group = { kind: 'group' as const, group: 'backup' };
+  const engine = { kind: 'engine' as const, engine: 'codex' as const, note: 'Subscription' };
+  const option = { allowedEfforts: [''], defaultEffort: '' };
+  const configured = store.setSub(preset.id, preset.revision, {
+    choices: [group, engine, { ...model, ...option }],
+    default: model,
+  });
+  const editedOption = { ...option, provider: main.provider, model: main.model, note: 'New note' };
+  const edited = store.update(preset.id, {
+    name: preset.name,
+    expectedRevision: configured.revision,
+    orchestrator: main,
+    assignmentDefault: configured.assignmentDefault,
+    assignmentModels: [editedOption],
+  });
+  expect(edited?.sub).toEqual({
+    choices: [group, engine, { kind: 'model', ...editedOption }],
+    default: model,
+  });
+  expect(store.get(preset.id)).toEqual(edited);
+});
+
 it('adds a legacy Assignment Engine default alongside a Routing Group-only sub', () => {
   const store = fixture().open();
   const preset = store.create({

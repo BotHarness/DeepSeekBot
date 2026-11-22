@@ -4,6 +4,7 @@ export type { GroupContext } from './group-digest.js';
 import { createChannelAdmission } from '../channels/runtime-admission.js';
 import { createCausalSending } from '../channels/causal-sending.js';
 import type { SessionModelChoice } from '@botharness/host-protocol/session-model';
+import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { routingTargetRestKey } from '../models/group-fallback.js';
 import { directSessionTarget, sessionModelChoices } from './session-model-choices.js';
 import { createOrchestratorScheduling } from './orchestrator-scheduling.js';
@@ -171,7 +172,7 @@ import {
   unavailableRoutingEngine,
 } from '../models/group-fallback.js';
 import type { RoutingTarget } from '../models/routing-groups.js';
-import { EngineLimitError, EngineRefusal } from '../engines/engine-session.js';
+import { EngineLimitError, EngineRefusal, isEngineId } from '../engines/engine-session.js';
 import type { AssignmentAccessStore } from '../workspaces/assignment-access.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type {
@@ -983,6 +984,7 @@ export interface BotRuntime {
   admitGroupJoinDecision?(requesterDmChannelId: string, requestId: string): void;
   listAssignments(botSlug: string): AssignmentSummary[];
   latestAssignmentActivity?(): ReadonlyMap<string, number>;
+  assignmentEngineAccountUses?(accountId: string): string[];
   currentOrchestratorSessionId?(botSlug: string): string | undefined;
   currentTurnTarget?(botSlug: string): TurnTarget | undefined;
   activeSessionModel?(sessionId: string): SessionModelChoice | null | undefined;
@@ -4085,6 +4087,30 @@ class BotRuntimeImplementation implements BotRuntime {
     });
   }
 
+  assignmentEngineAccountUses(accountId: string): string[] {
+    return this.#database.read((database) => {
+      const rows = database
+        .prepare(
+          `SELECT session_id, json_extract(model_route_json, '$.engine') AS engine,
+                  json_extract(model_route_json, '$.accountId') AS account_id
+             FROM assignments
+            WHERE model_group_id IS NULL
+              AND json_extract(model_route_json, '$.kind') = 'engine'
+              AND (account_id = ? OR account_id IS NULL)
+            ORDER BY session_id`,
+        )
+        .all(accountId);
+      return rows.flatMap(({ session_id, engine, account_id }) =>
+        typeof session_id === 'string' &&
+        isEngineId(engine) &&
+        engineAccountKey(engine, typeof account_id === 'string' ? account_id : undefined) ===
+          accountId
+          ? [session_id]
+          : [],
+      );
+    });
+  }
+
   async refreshBotContacts(): Promise<void> {
     await this.#botNetwork?.refresh?.();
   }
@@ -4411,12 +4437,12 @@ class BotRuntimeImplementation implements BotRuntime {
       (this.#assignmentAvailable(sessionId, 'idle') ||
         this.#assignmentExecutionAvailable(sessionId)) &&
       trusted();
-    const refuse = () => {
+    const refuse = (reason = 'execution-unavailable') => {
       this.#warn?.(
         JSON.stringify({
           event: 'native-assignment-input',
           phase: 'refused',
-          reason: 'execution-unavailable',
+          reason,
           session: sessionId,
           durationMs: Date.now() - startedAt,
         }),
@@ -4462,6 +4488,10 @@ class BotRuntimeImplementation implements BotRuntime {
       const row = this.#assignmentRow(undefined, sessionId)!;
       const bot = this.#registry.get(row.bot_slug)!;
       const permission = permissionFromRow(row)!;
+      const retained = row.model_group_id === null ? storedAssignmentTarget(row) : undefined;
+      const directTarget = retained !== undefined && 'kind' in retained ? retained : undefined;
+      if (directTarget?.kind === 'engine' && this.#sessionModels.get(sessionId) === null)
+        return refuse('native-input-requires-dsh-agent');
       return new Promise<boolean>((resolve) => {
         let settled = false;
         const finish = (accepted: boolean) => {
@@ -4492,6 +4522,7 @@ class BotRuntimeImplementation implements BotRuntime {
               failEngineRecovery: (summary) =>
                 this.#assignmentReporting.recordEngineRecoveryFailure(bot.slug, sessionId, summary),
               ...(modelRoute === undefined ? {} : { modelRoute }),
+              ...(directTarget?.kind === 'route' ? { routingTarget: directTarget } : {}),
               ...(agentPreset === undefined ? {} : { agentPreset }),
               requireContent: () => {
                 this.#requireTurnAccess(bot.slug, row.source_event_id ? [row.source_event_id] : []);

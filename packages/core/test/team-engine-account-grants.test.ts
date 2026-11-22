@@ -92,6 +92,30 @@ it('round-trips the legacy Assignment Engine through sub and verifies grants on 
   ).resolves.toMatchObject(refusal(f.work.id));
 });
 
+it('lets a configure member replace an unavailable engine they have permission to edit', async () => {
+  const f = fixture(false);
+  const preset = f.modelPresets.create({
+    name: 'Previously local subscription',
+    orchestrator: permitted,
+    assignmentDefault: permitted,
+    engines: { assignmentEngine: { engine: 'codex', accountId: f.work.id } },
+  });
+  const model = { kind: 'model' as const, ...permitted };
+  const sub = { choices: [{ ...model, allowedEfforts: [''], defaultEffort: '' }], default: model };
+  const payload = { id: preset.id, expectedRevision: preset.revision, sub };
+  await expect(f.methods.modelPresetSubSet(payload)).resolves.toMatchObject(refusal(f.work.id));
+  f.grant(f.work.id);
+  expect(f.methods.modelPresetSub({ id: preset.id })).toMatchObject({
+    ok: false,
+    error: { code: 'engine-unavailable' },
+  });
+  await expect(f.methods.modelPresetSubSet(payload)).resolves.toMatchObject({
+    ok: true,
+    value: { revision: preset.revision + 1, sub },
+  });
+  expect(f.modelPresets.get(preset.id)?.assignmentEngine).toBeUndefined();
+});
+
 function fixture(local = true) {
   const f = teamModelFixture();
   f.catalog.list.mockResolvedValue([

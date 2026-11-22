@@ -38,22 +38,27 @@ export function createPresetSubMethods(
   isHostOwner: () => boolean,
   {
     groupRoutes,
-    requireGroupEngines,
+    groupEngineChoices,
     requireEngineChoices,
+    requireEngineChoiceGrants,
     checkPresetEngines,
     assertEngineAccounts,
     validateGroupOptions,
     validateAssignmentCatalog,
   }: ReturnType<typeof createModelRoutingHelpers>,
 ): PresetSubBridgeMethods {
-  const requirePresetSub = (preset: ModelPreset, sub: PresetSub): void => {
+  const requirePresetSub = (
+    preset: ModelPreset,
+    sub: PresetSub,
+    requireEngines = requireEngineChoices,
+  ): void => {
     const choices =
       sub.default === null ? effectivePresetSub({ ...preset, sub }).choices : sub.choices;
     for (const choice of choices) {
       if (choice.kind === 'model') deps.team?.roles.requireModel(human, choice);
-      else if (choice.kind === 'engine') requireEngineChoices([choice]);
+      else if (choice.kind === 'engine') requireEngines([choice]);
       else {
-        requireGroupEngines(choice.group);
+        requireEngines(groupEngineChoices(choice.group));
         for (const route of groupRoutes(choice.group)) deps.team?.roles.requireModel(human, route);
       }
     }
@@ -113,7 +118,8 @@ export function createPresetSubMethods(
             'stale-setting',
             'Model Preset changed; read it again before saving',
           );
-        if (!isHostOwner()) requirePresetSub(preset, subView(preset).sub);
+        if (!isHostOwner())
+          requirePresetSub(preset, storedPresetSub(preset), requireEngineChoiceGrants);
         requirePresetSub(preset, sub);
         const engineChoices = sub.choices.filter((choice) => choice.kind === 'engine');
         await checkPresetEngines({ sub });
@@ -125,7 +131,8 @@ export function createPresetSubMethods(
             projection.assignmentModels,
           );
         if (!isHostOwner()) deps.team?.roles.require(human, 'models.configure');
-        if (!isHostOwner()) requirePresetSub(preset, subView(preset).sub);
+        if (!isHostOwner())
+          requirePresetSub(preset, storedPresetSub(preset), requireEngineChoiceGrants);
         requirePresetSub(preset, sub);
         assertEngineAccounts(engineChoices);
         return { ok: true, value: subView(store.setSub(id, expectedRevision, sub)) };

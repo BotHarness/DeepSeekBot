@@ -286,6 +286,33 @@ export function storedPresetSub(preset: ModelPreset): PresetSub {
   return preset.sub ?? presetSubWithEngine(presetSubFromLegacy(preset), preset.assignmentEngine);
 }
 
+export function mergeLegacyPresetSub(
+  previous: PresetSub | undefined,
+  next: PresetSub,
+  groupOnly: boolean,
+): PresetSub {
+  const remaining = next.choices.filter((choice) => !groupOnly || choice.kind !== 'model');
+  const retained: PresetSubChoice[] = [];
+  for (const saved of previous?.choices ?? []) {
+    const index = remaining.findIndex((choice) => matchesPresetSubChoice(choice, saved));
+    const replacement = remaining[index];
+    if (replacement !== undefined) {
+      remaining.splice(index, 1);
+      retained.push(
+        saved.kind === 'engine' && replacement.kind === 'engine' && saved.note !== undefined
+          ? { ...replacement, note: saved.note }
+          : replacement,
+      );
+    } else if (
+      saved.kind === 'engine' &&
+      (previous?.default == null || !matchesPresetSubChoice(saved, previous.default))
+    ) {
+      retained.push(saved);
+    }
+  }
+  return { ...next, choices: [...retained, ...remaining] };
+}
+
 export function effectivePresetSub(preset: ModelPreset): PresetSub {
   const sub = storedPresetSub(preset);
   if (sub.default !== null) return sub;
