@@ -5,7 +5,6 @@ import {
   type ModelCatalogEntry,
   type ModelCatalogGroup,
 } from '@botharness/host-client/model-catalog';
-import type { ModelPlanGroups } from '@botharness/host-client/model-plans';
 import type { ModelSettingsState } from '@botharness/host-client/model-settings';
 import { t } from '../strings';
 import { modelEntryLabel } from './composer-labels';
@@ -59,14 +58,6 @@ export function groupEffortLabel(
   effort: string,
 ): string {
   return groupEffortChoices(value, group).find((item) => item.value === effort)?.label ?? effort;
-}
-
-export function groupEffortOf(groups: ModelPlanGroups, assignment: boolean): string {
-  return assignment
-    ? (groups.assignmentGroupOptions?.find(
-        (option) => option.group === groups.assignmentDefaultGroupId,
-      )?.defaultEffort ?? '')
-    : (groups.orchestratorGroupEffort ?? '');
 }
 
 export function keptGroupEffort(

@@ -5,7 +5,6 @@ import {
   effortChoices,
   groupEffortChoices,
   groupEffortLabel,
-  groupEffortOf,
   keptEffort,
   keptGroupEffort,
   routeEffortLabel,
@@ -101,17 +100,5 @@ describe('phone model rows', () => {
     expect(keptGroupEffort(value, daily, 'max')).toBe('max');
     expect(keptGroupEffort(value, daily, 'low')).toBe('');
     expect(groupEffortChoices(value, { ...daily, routes: [glm] })).toEqual([]);
-    expect(
-      groupEffortOf({ orchestratorGroupId: 'daily', orchestratorGroupEffort: 'max' }, false),
-    ).toBe('max');
-    expect(
-      groupEffortOf(
-        {
-          assignmentDefaultGroupId: 'daily',
-          assignmentGroupOptions: [{ group: 'daily', defaultEffort: 'high' }],
-        },
-        true,
-      ),
-    ).toBe('high');
   });
 });

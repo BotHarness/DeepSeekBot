@@ -4,14 +4,11 @@ import { currentModel, loadBotModel, loadGlobalModel } from '@botharness/host-cl
 import { createHostClient } from '@botharness/host-client/client';
 import { modelChoiceKey } from '@botharness/host-client/model-catalog';
 import {
-  assignmentEffortRange,
   inheritModel,
   modelRoutes,
   modelSettingsResource,
   saveModelPreset,
   searchModels,
-  setAssignmentEfforts,
-  setAssignmentGroupNote,
   setModelGroup,
   setModelRoute,
   toggleAssignmentGroup,
@@ -347,16 +344,6 @@ describe('native Model Plans and Presets', () => {
     await expect(toggleAssignmentGroup(client, scope, current(), 'side')).rejects.toThrow(
       'ASSIGNMENT_DEFAULT_REQUIRED',
     );
-    await setAssignmentGroupNote(client, scope, current(), 'daily', '  Quick checks  ');
-    expect(fake.calls.at(-1)?.args).toMatchObject({
-      assignmentGroups: ['side', 'daily'],
-      assignmentGroupOptions: [{ group: 'daily', note: 'Quick checks' }],
-    });
-    await setAssignmentGroupNote(client, scope, current(), 'daily', '');
-    expect(fake.calls.at(-1)?.args).toMatchObject({ assignmentGroupOptions: [] });
-    await expect(
-      setAssignmentGroupNote(client, scope, { ...current(), groups: [] }, 'other', 'x'),
-    ).rejects.toThrow('MODEL_UNAVAILABLE');
     await setModelRoute(client, scope, current(), 'assignment', flash);
     expect(fake.calls.at(-1)?.args).toMatchObject({
       orchestratorGroupId: 'daily',
@@ -366,60 +353,6 @@ describe('native Model Plans and Presets', () => {
     });
     await setModelRoute(client, scope, current(), 'orchestrator', pro);
     expect(fake.calls.at(-1)?.args).toMatchObject({ orchestrator: pro, orchestratorGroupId: null });
-  });
-
-  it('narrows the reasoning levels of an allowed model or Routing Group (#4497)', async () => {
-    const { fake, client } = setup();
-    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [pro] };
-    const scope = { kind: 'bot' as const, slug: 'qa' };
-    fake.methods.set('modelPlanSet', () => ({ plan }));
-    const proOption = { ...pro, allowedEfforts: ['', 'high'], defaultEffort: '' };
-    const current: ModelSettingsState = {
-      ...state,
-      groups: [daily],
-      plan: {
-        ...plan,
-        assignmentModels: [...allowed, proOption],
-        assignmentGroups: ['daily'],
-        assignmentGroupOptions: [{ group: 'daily', note: 'Hard work' }],
-      },
-    };
-    const proTarget = { kind: 'model' as const, ...pro };
-    expect(assignmentEffortRange(current, proTarget)).toEqual({
-      allowed: ['', 'high'],
-      defaultEffort: '',
-    });
-    await setAssignmentEfforts(client, scope, current, proTarget, ['high'], '');
-    expect(fake.calls.at(-1)?.args).toMatchObject({
-      assignmentModels: [allowed[0], { ...pro, allowedEfforts: ['high'], defaultEffort: 'high' }],
-    });
-    await expect(setAssignmentEfforts(client, scope, current, proTarget, [], '')).rejects.toThrow(
-      'EFFORT_REQUIRED',
-    );
-    const flashTarget = { kind: 'model' as const, ...flash };
-    expect(assignmentEffortRange(current, flashTarget)?.locked).toBe('');
-    await expect(
-      setAssignmentEfforts(client, scope, current, flashTarget, ['high'], 'high'),
-    ).rejects.toThrow('ASSIGNMENT_DEFAULT_REQUIRED');
-    await setAssignmentEfforts(client, scope, current, flashTarget, ['', 'high'], 'high');
-    expect(fake.calls.at(-1)?.args).toMatchObject({
-      assignmentModels: [{ ...allowed[0], defaultEffort: '' }, proOption],
-    });
-    const dailyTarget = { kind: 'group' as const, id: 'daily' };
-    expect(assignmentEffortRange(current, dailyTarget)).toEqual({ allowed: [], defaultEffort: '' });
-    await setAssignmentEfforts(client, scope, current, dailyTarget, ['high'], '');
-    expect(fake.calls.at(-1)?.args).toMatchObject({
-      assignmentGroupOptions: [
-        { group: 'daily', note: 'Hard work', allowedEfforts: ['high'], defaultEffort: 'high' },
-      ],
-    });
-    await setAssignmentEfforts(client, scope, current, dailyTarget, [], '');
-    expect(fake.calls.at(-1)?.args).toMatchObject({
-      assignmentGroupOptions: [{ group: 'daily', note: 'Hard work' }],
-    });
-    await expect(
-      setAssignmentEfforts(client, scope, current, { kind: 'group', id: 'other' }, [], ''),
-    ).rejects.toThrow('MODEL_UNAVAILABLE');
   });
 
   it('keeps open Assignments, starts a group on a ready model, and copies the default group into a new Preset (#4501)', async () => {
