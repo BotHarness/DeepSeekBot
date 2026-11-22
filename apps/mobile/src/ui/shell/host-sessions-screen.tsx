@@ -108,7 +108,7 @@ function HostSessionsList({ client, hostId }: { client: HostClient; hostId: stri
       ListHeaderComponent={
         failed && rows !== undefined ? (
           <ReadFailure title={t.loadFailed} onRetry={refresh} busy={busy} disabled={!online} />
-        ) : null
+        ) : undefined
       }
       ListEmptyComponent={
         !online ? (
