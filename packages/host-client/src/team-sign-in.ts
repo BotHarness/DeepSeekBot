@@ -1,20 +1,17 @@
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
-import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
 import {
   parseTeamInvitation,
-  teamHostIdentity,
   teamHttpsRoute,
-  teamRecord,
   type TeamInvitation,
   type TeamHostIdentity,
   type TeamResult,
   type TeamErrorCode,
 } from '@botharness/host-protocol/team-invitation';
-import { keyBytes } from './encrypted-carrier';
 import type { SavedHost } from './hosts';
 import { prepareMemberIdentity, type HostMemberIdentity } from './member-identity';
 import { changeTeamDevicePassword, signInTeamDevice } from './team-client';
 import { revokePairing } from './pairing';
+import { discoverSignInHost, matchesSavedSignInHost } from './sign-in-discovery';
 
 export type TeamSignInTarget =
   | { kind: 'invitation'; link: string }
@@ -66,30 +63,13 @@ export async function addressInvitation(options: {
       AbortSignal.timeout(8_000),
       ...(options.signal ? [options.signal] : []),
     ]);
-    const response = await options.carrier.request(`${route}/botharness-device/channel`, {
-      method: 'GET',
-      signal,
-    });
-    if (response.status !== 200) return { ok: false, code: 'unreachable' };
-    const value = teamRecord(JSON.parse(await response.text()));
-    const encryption = teamRecord(value['encryption']);
-    const host = teamHostIdentity({
-      ...teamRecord(value['host']),
-      fingerprint: encryption['fingerprint'],
-    });
-    if (
-      !host ||
-      typeof encryption['publicKey'] !== 'string' ||
-      !/^[a-f0-9]{64}$/u.test(encryption['publicKey'])
-    )
-      return { ok: false, code: 'response-invalid' };
-    if (noiseFingerprint(keyBytes(encryption['publicKey'])) !== host.fingerprint)
-      return { ok: false, code: 'fingerprint-mismatch' };
+    const discovered = await discoverSignInHost({ carrier: options.carrier, route, signal });
+    if (!discovered.ok) return discovered;
     return {
       ok: true,
       value: {
         v: 1,
-        host,
+        host: discovered.value.host,
         routes: [route],
         username,
         expiresAt: new Date(now() + 30 * 60_000).toISOString(),
@@ -130,10 +110,7 @@ export async function prepareTeamSignIn(options: {
     invitation = found.value;
   }
   const previous = options.previous(invitation.host.id);
-  const pinned =
-    previous?.member?.fingerprint ??
-    (previous?.encryption ? noiseFingerprint(keyBytes(previous.encryption.hostKey)) : undefined);
-  if (pinned !== undefined && pinned !== invitation.host.fingerprint)
+  if (!matchesSavedSignInHost(previous, invitation.host))
     return { ok: false, code: 'fingerprint-mismatch' };
   if (options.signal?.aborted) return { ok: false, code: 'request-cancelled' };
   const abort = new AbortController();

@@ -11,7 +11,13 @@ import {
   LOCAL_VIDEO_PATH,
   type LocalVideoResult,
 } from '../../../computer/src/local-video-contract.js';
-import { DEVICE_ROUTE_HEADER, forwardDeviceRoute, isConnectRequest } from './route-context.js';
+import {
+  DEVICE_NOISE_PEER_HEADER,
+  DEVICE_ROUTE_HEADER,
+  forwardDeviceRoute,
+  isConnectRequest,
+  noisePeerKey,
+} from './route-context.js';
 import {
   VOICE_CALL_CONNECT_REFUSAL,
   VOICE_CALL_LIMITS,
@@ -63,6 +69,7 @@ const NEVER_FORWARDED = new Set([
   'sec-fetch-dest',
   'sec-fetch-user',
   DEVICE_ROUTE_HEADER,
+  DEVICE_NOISE_PEER_HEADER,
 ]);
 const WEBSOCKET_HEADERS = [
   'upgrade',
@@ -188,6 +195,8 @@ async function readSmall(request: IncomingMessage, limit: number): Promise<strin
 
 export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGateway {
   const { pairing } = options;
+  const admit = (request: IncomingMessage): Admission =>
+    pairing.admit(header(request, 'authorization'), noisePeerKey(request));
   const now = options.now ?? Date.now;
   const log = options.log ?? (() => {});
   const loopback = (): string => `127.0.0.1:${String(options.port())}`;
@@ -223,7 +232,7 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
 
   const streamTicket = (request: IncomingMessage, response: ServerResponse): void => {
     if (request.method !== 'POST') return refuse(response, 404, 'not-found');
-    const admission = pairing.admit(header(request, 'authorization'));
+    const admission = admit(request);
     if (!admission.ok) return refuse(response, 401, admission.code);
     for (const [key, ticket] of streamTickets)
       if (ticket.expiresAt <= now()) streamTickets.delete(key);
@@ -299,7 +308,7 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
 
   const unpair = (request: IncomingMessage, response: ServerResponse): void => {
     if (request.method !== 'POST') return refuse(response, 404, 'not-found');
-    const admission = pairing.admit(header(request, 'authorization'));
+    const admission = admit(request);
     if (!admission.ok) return refuse(response, 401, admission.code);
     pairing.revoke(admission.device.id);
     response.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
@@ -308,7 +317,7 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
 
   const remove = async (request: IncomingMessage, response: ServerResponse): Promise<void> => {
     if (request.method !== 'POST') return refuse(response, 404, 'not-found');
-    const admission = pairing.admit(header(request, 'authorization'));
+    const admission = admit(request);
     if (!admission.ok) return refuse(response, 401, admission.code);
     let input: { deviceId?: unknown } = {};
     try {
@@ -351,7 +360,7 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
     path: string,
     handler = options.push!,
   ): Promise<void> => {
-    const admission = pairing.admit(header(request, 'authorization'));
+    const admission = admit(request);
     if (!admission.ok) return refuse(response, 401, admission.code);
     let body: Record<string, unknown> = {};
     if (request.method === 'POST') {
@@ -690,7 +699,7 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       }
       if (path === DEVICE_FEED_READ_PATH) {
         if (request.method !== 'POST') return refuse(response, 404, 'not-found');
-        const admission = pairing.admit(header(request, 'authorization'));
+        const admission = admit(request);
         if (!admission.ok) return refuse(response, 401, admission.code);
         const receipt = pairing.acknowledgeFeed(admission.device.id);
         if (!receipt.ok) return refuse(response, 401, receipt.code);
@@ -719,16 +728,11 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
         return devicePush(request, response, path);
 
       if (decodedPath === `${DEVICE_GATEWAY_PREFIX}${LOCAL_VIDEO_PATH}`)
-        return video(request, response, pairing.admit(header(request, 'authorization')));
+        return video(request, response, admit(request));
       if (decodedPath === `${DEVICE_GATEWAY_PREFIX}${VOICE_CALL_PATH}`)
-        return call(request, response, pairing.admit(header(request, 'authorization')));
+        return call(request, response, admit(request));
       if (path.startsWith(`${DEVICE_GATEWAY_PREFIX}/api/`))
-        return forward(
-          request,
-          response,
-          pairing.admit(header(request, 'authorization')),
-          DEVICE_GATEWAY_PREFIX,
-        );
+        return forward(request, response, admit(request), DEVICE_GATEWAY_PREFIX);
       return refuse(response, 404, 'not-found');
     },
 
@@ -746,7 +750,7 @@ export function createDeviceGateway(options: DeviceGatewayOptions): DeviceGatewa
       const ticketed = pathname === DEVICE_MUX_PATH ? ticketAdmission(request) : undefined;
       if (crossOrigin(request) && (ticketed === undefined || hostOrigin(request) === undefined))
         return refuseUpgrade(socket, 403, 'origin-refused');
-      const admission = ticketed ?? pairing.admit(header(request, 'authorization'));
+      const admission = ticketed ?? admit(request);
       if (!admission.ok) return refuseUpgrade(socket, 401, admission.code);
       const target =
         pathname === DEVICE_MUX_PATH

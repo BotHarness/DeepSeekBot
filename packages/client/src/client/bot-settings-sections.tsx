@@ -260,11 +260,12 @@ export function CompanionsSection({
 }
 
 export function DevicesSection({
+  call,
   t,
   pairPhone,
   joinComputer,
-}: PropsLocale<'botharness'> & BotSettingsSectionOwnerProps): ReactElement {
-  return <ConnectionsPage t={t} pairPhone={pairPhone} joinComputer={joinComputer} />;
+}: SectionProps<BotSettingsSectionOwnerProps & { call: BridgeCall }>): ReactElement {
+  return <ConnectionsPage call={call} t={t} pairPhone={pairPhone} joinComputer={joinComputer} />;
 }
 
 export function DataPrivacySection({ call, t }: SectionProps<{ call: BridgeCall }>): ReactElement {

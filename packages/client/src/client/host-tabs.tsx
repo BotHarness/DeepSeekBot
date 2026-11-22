@@ -26,6 +26,7 @@ import { useMountedResource } from './mounted-resource.js';
 import { createConnectionControl, type ConnectionAttempt } from './connection-control.js';
 import { ConnectionProgress } from './connection-progress.js';
 import { TeamSignInDialog, teamSignInErrorText } from './team-sign-in-dialog.js';
+import { OwnerSignInDialog } from './owner-sign-in-dialog.js';
 import { parseTeamInvitation } from '@botharness/host-protocol/team-invitation';
 import type { TeamSignInTarget } from '@botharness/host-client/team-sign-in';
 export { useThisHost } from './this-host.js';
@@ -365,6 +366,7 @@ export function AddRemoteHostDialog({
   const control = useRef<ReturnType<typeof createConnectionControl>>();
   const attemptId = useRef<string>();
   const [team, setTeam] = useState<TeamSignInTarget>();
+  const [ownerSignIn, setOwnerSignIn] = useState(false);
   const [manual, setManual] = useState<{ route: string; username: string }>();
   const mount = useMountedResource<HTMLDivElement>(() => {
     const sources = remoteHosts();
@@ -437,6 +439,16 @@ export function AddRemoteHostDialog({
     }
   };
   const failed = attempt?.state === 'failed' || attempt?.state === 'cancelled';
+  if (ownerSignIn)
+    return (
+      <OwnerSignInDialog
+        inline={inline}
+        footerContainer={footerContainer}
+        onBack={() => setOwnerSignIn(false)}
+        onClose={onClose}
+        t={t}
+      />
+    );
   if (team !== undefined)
     return (
       <div ref={mount}>
@@ -586,6 +598,13 @@ export function AddRemoteHostDialog({
               onClick={() => imageInput.current?.click()}
             >
               {t(readingImage ? 'remoteHosts.add.readingImage' : 'remoteHosts.add.image')}
+            </Button>
+            <Button
+              variant="ghost"
+              icon={<ChannelSidebarIcon name="user" size={16} />}
+              onClick={() => setOwnerSignIn(true)}
+            >
+              {t('ownerSignIn.title')}
             </Button>
             <Button
               variant="ghost"

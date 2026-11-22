@@ -1,7 +1,7 @@
 import type { HostSocket } from '@botharness/host-protocol/carrier';
 import {
-  checkRoute,
   isConnectRoute,
+  isDeviceRoute,
   isEncryptedRoute,
   isLanRoute,
   socketOrigin,
@@ -959,7 +959,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
     },
     resource: resources.resource,
     secretInputAllowed: () =>
-      checkRoute(route, options.encryption?.privateRelay).ok &&
+      isDeviceRoute(route, options.encryption) &&
       (!isEncryptedRoute(route, options.encryption) || options.encryption !== undefined),
     onLive(listener) {
       liveListeners.add(listener);

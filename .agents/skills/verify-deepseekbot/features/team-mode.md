@@ -5,7 +5,9 @@
 - `packages/core/src/features/team/plugin.ts`
 - `packages/core/src/team/**`
 - `packages/client/src/client/team-*`
+- `packages/client/src/client/owner-password-dialog.tsx`
 - `packages/host-client/src/team-*.ts`
+- `packages/host-client/src/sign-in-discovery.ts`
 - `packages/host-client/src/shared/team-sign-in-page.ts`
 - `apps/mobile/src/team/**`
 - `packages/core/src/features/team/{methods,rpc}.ts`

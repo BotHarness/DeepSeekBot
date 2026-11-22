@@ -257,6 +257,7 @@ export function createRemoteCustody(options: {
                   encryption: {
                     ...incoming,
                     deviceKey: stored.deviceKey,
+                    ...(stored.required ? { required: stored.required } : {}),
                     ...(relay && relayToken
                       ? { privateRelay: { ...relay, token: relayToken } }
                       : {}),
@@ -292,19 +293,7 @@ export function createRemoteCustody(options: {
             )
               drop(current.handle);
           }
-          return {
-            ...host,
-            ...(incoming
-              ? {
-                  encryption: {
-                    ...incoming,
-                    ...(relay && relayToken
-                      ? { privateRelay: { ...relay, token: digest(relayToken) } }
-                      : {}),
-                  },
-                }
-              : {}),
-          };
+          return sealSavedHost({ ...host, ...secret }, current.handle);
         });
       const count = options.database.read(
         (db) =>

@@ -1,5 +1,5 @@
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
-import { checkRoute, isEncryptedRoute } from '@botharness/host-protocol/route';
+import { isDeviceRoute, isEncryptedRoute } from '@botharness/host-protocol/route';
 import type { HostClientOptions, RemoteSource } from './client-contract';
 import { encodeBase64 } from './encrypted-carrier';
 import { DEVICE_PREFIX } from './pairing';
@@ -21,7 +21,7 @@ export function createHostResources(
   const scope = options.hostId ? { scope: options.hostId } : {};
   const resource = (path: string): RemoteSource => {
     if (
-      checkRoute(connection.route, options.encryption?.privateRelay).ok &&
+      isDeviceRoute(connection.route, options.encryption) &&
       !isEncryptedRoute(connection.route, options.encryption)
     )
       return { uri: absolute(path), headers: authorization, ...scope };
@@ -46,7 +46,7 @@ export function createHostResources(
     };
   };
   const avatar = (path: string): { avatarUrl?: string; avatarHeaders?: Record<string, string> } => {
-    if (!checkRoute(connection.route, options.encryption?.privateRelay).ok) return {};
+    if (!isDeviceRoute(connection.route, options.encryption)) return {};
     if (!isEncryptedRoute(connection.route, options.encryption))
       return { avatarUrl: absolute(path), avatarHeaders: authorization };
     const key = connection.route + path;
