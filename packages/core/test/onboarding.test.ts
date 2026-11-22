@@ -221,7 +221,7 @@ describe('Bot onboarding through the public Host bridge', () => {
       }),
     );
   });
-  it('updates Default, clears its explicit sub, and checks Bot revisions when returning to inheritance', async () => {
+  it('updates Default, preserves its explicit Assignment model, and checks Bot revisions when returning to inheritance', async () => {
     await withCore(async (core) => {
       const first = await core.onboarding.enter();
       const slug = first.defaultBotSlug!;
@@ -245,11 +245,9 @@ describe('Bot onboarding through the public Host bridge', () => {
       expect(
         await bridge.onboardingModel({ slug, expectedRevision: 1, route, globalDefault: true }),
       ).toMatchObject({ ok: true });
-      expect(core.modelPresets.get(pinned.id)).toMatchObject({
-        orchestrator: route,
-        assignmentDefault: route,
-        assignmentFollowsMain: true,
-      });
+      const updated = core.modelPresets.get(pinned.id);
+      expect(updated).toMatchObject({ orchestrator: route, assignmentDefault: old });
+      expect(updated?.assignmentFollowsMain).toBeUndefined();
       expect(core.registry.get(slug)?.modelPlan).toBeUndefined();
       expect(core.registry.get(slug)?.modelPlanRevision).toBe(2);
       expect(
