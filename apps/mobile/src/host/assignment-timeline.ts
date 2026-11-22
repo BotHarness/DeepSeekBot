@@ -8,7 +8,7 @@ import type {
   WireAssignmentTimelineLane,
   WireAssignmentTimelineRound,
 } from '@botharness/host-protocol/wire';
-import type { HostClient } from '@botharness/host-client/client';
+import type { HostCall } from '@botharness/host-client/host-answer';
 import type { ProfileAssignment } from './bot-profile';
 
 export type AssignmentTimelineStatus = WireAssignmentTimelineEntry['status'];
@@ -43,7 +43,7 @@ export function parseAssignmentTimeline(value: unknown): AssignmentTimeline {
 }
 
 export async function loadAssignmentTimeline(
-  client: HostClient,
+  client: HostCall,
   slug: string,
   sessionId: string,
 ): Promise<AssignmentTimeline> {

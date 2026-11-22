@@ -16,6 +16,7 @@ import { loadAssignmentTimeline, type AssignmentTimeline } from '../../host/assi
 import { useDesignTheme } from '../design/theme';
 import { rowGlyph, space } from '../design/tokens';
 import { KeyboardChatFrame } from '../primitives/keyboard-frame';
+import { ReadFailure } from '../primitives/read-failure';
 import { Text } from '../primitives/text';
 import { ChevronDownIcon, ChevronUpIcon } from '../shell/icons';
 import { useStrings } from '../strings';
@@ -141,21 +142,33 @@ export function SessionDetailBody({
   const pinned = useRef(true);
   const scrolled = useRef(false);
   const [detailsOpen, setDetailsOpen] = useState(false);
-  const [assignment, setAssignment] = useState<AssignmentTimeline>();
+  const [assignmentRead, setAssignmentRead] = useState<{
+    timeline?: AssignmentTimeline;
+    error?: string;
+    loading: boolean;
+  }>({ loading: false });
+  const [assignmentAttempt, setAssignmentAttempt] = useState(0);
+  const assignment = assignmentRead.timeline;
   useFocusEffect(
     useCallback(() => {
       if (!online || role !== 'assignment') return;
-      let active = true;
-      void loadAssignmentTimeline(client, slug, id).then(
-        (value) => {
-          if (active) setAssignment(value);
+      const abort = new AbortController();
+      setAssignmentRead((current) => ({ ...current, loading: true }));
+      void loadAssignmentTimeline(sessionReadHost(client, abort.signal), slug, id).then(
+        (timeline) => {
+          if (!abort.signal.aborted) setAssignmentRead({ timeline, loading: false });
         },
-        () => {},
+        (error: unknown) => {
+          if (!abort.signal.aborted)
+            setAssignmentRead((current) => ({
+              ...current,
+              error: errorText(error),
+              loading: false,
+            }));
+        },
       );
-      return () => {
-        active = false;
-      };
-    }, [client, id, online, role, slug, view.running]),
+      return () => abort.abort();
+    }, [client, id, online, role, slug, view.running, assignmentAttempt]),
   );
   const sessionTitle =
     assignment?.assignment.title ||
@@ -236,6 +249,12 @@ export function SessionDetailBody({
               }}
               ListHeaderComponent={
                 <>
+                  {role === 'assignment' &&
+                  online &&
+                  assignment === undefined &&
+                  assignmentRead.error === undefined ? (
+                    <SheetLoading />
+                  ) : null}
                   {role === 'assignment' && assignment !== undefined ? (
                     <>
                       <Pressable
@@ -279,6 +298,19 @@ export function SessionDetailBody({
                 </>
               }
               ListEmptyComponent={<SheetNote>{t.sessionDetail.empty}</SheetNote>}
+              ListFooterComponent={
+                role === 'assignment' && assignmentRead.error !== undefined ? (
+                  <View style={{ paddingHorizontal: space.x5 }}>
+                    <ReadFailure
+                      title={t.sessionDetail.assignmentFailed}
+                      detail={assignmentRead.error}
+                      onRetry={() => setAssignmentAttempt((attempt) => attempt + 1)}
+                      busy={online && assignmentRead.loading}
+                      disabled={!online}
+                    />
+                  </View>
+                ) : undefined
+              }
               renderItem={({ item, index }) => (
                 <SessionTranscriptRow item={item} id={`${id}:${index}`} catalog={model.catalog} />
               )}

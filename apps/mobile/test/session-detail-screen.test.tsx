@@ -2,11 +2,17 @@
 import { act, useLayoutEffect, type ReactNode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-import { MethodRefused, type HostClient } from '@botharness/host-client/client';
+import { createHostClient, MethodRefused } from '@botharness/host-client/client';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import type { SessionTranscriptItem } from '@botharness/host-client/session-detail';
 import type { Composer } from '../src/ui/chat/composer';
 
-vi.mock('react-native', () => import('./react-native-shim'));
+vi.mock('react-native', async () => ({
+  ...(await import('./react-native-shim')),
+  Text: ({ children, numberOfLines }: { children: ReactNode; numberOfLines?: number }) => (
+    <span data-number-of-lines={numberOfLines}>{children}</span>
+  ),
+}));
 vi.mock('expo-router', () => ({
   Stack: { Screen: ({ options }: { options: { title: string } }) => <h1>{options.title}</h1> },
   useFocusEffect: (work: () => void | (() => void)) => useLayoutEffect(work, [work]),
@@ -90,6 +96,13 @@ const items: SessionTranscriptItem[] = [
   },
   { kind: 'reply', text: 'Saved reply', at },
   { kind: 'model-switch', from, to, at },
+  {
+    kind: 'turn-end',
+    state: 'failed',
+    at,
+    message:
+      'The provider refused the request.\nCheck the model settings.\nThen retry the message.',
+  },
 ];
 
 let root: ReturnType<typeof createRoot> | undefined;
@@ -99,14 +112,23 @@ async function open({
   role = 'orchestrator',
   running = false,
   refused = false,
+  failAssignment = false,
 }: {
   role?: 'orchestrator' | 'assignment';
   running?: boolean;
   refused?: boolean;
+  failAssignment?: boolean;
 } = {}) {
   const view = document.createElement('div');
   root = createRoot(view);
-  const call = vi.fn(async (method: string, args?: Record<string, unknown>) => {
+  const fake = new FakeHost();
+  const client = createHostClient({
+    routes: ['https://qa.test'],
+    credential: fake.credential,
+    carrier: fake.carrier,
+  });
+  let assignmentReads = 0;
+  const call = vi.spyOn(client, 'call').mockImplementation(async (method, args) => {
     if (method === 'sessionTranscript') {
       if (refused) throw new MethodRefused('forbidden', 'Restricted Session');
       return {
@@ -123,17 +145,28 @@ async function open({
       return { seq: 4, revision: 1, items: [{ kind: 'reply', at, text: 'Live reply' }, items[2]] };
     }
     if (method === 'sessionModel') return { override: null, default: null };
+    if (method === 'assignmentTimeline') {
+      if (++assignmentReads === 1 && failAssignment) throw new Error('Assignment read unavailable');
+      return {
+        assignment: {
+          botSlug: 'ada',
+          sessionId: 'chosen',
+          title: 'Canonical Assignment',
+          description: 'Verify the release.',
+          createdAt: at,
+          activity: 'idle',
+          updatedAt: at,
+          sourceEventId: 'test-source',
+        },
+        lanes: [],
+        omittedSubagents: 0,
+      };
+    }
     return {};
   });
   await act(async () =>
     root!.render(
-      <SessionDetailBody
-        client={{ call } as unknown as HostClient}
-        slug="ada"
-        id="chosen"
-        title="Release review"
-        online
-      />,
+      <SessionDetailBody client={client} slug="ada" id="chosen" title="Release review" online />,
     ),
   );
   return { view, call };
@@ -153,8 +186,17 @@ it('renders user input, saved and live replies, compact activity and the model s
   expect(view.textContent).toContain('Direct message');
   expect(view.textContent).toContain('Inbox');
   expect(view.textContent).not.toContain('Source Event');
-  await press(view, 'Inbox');
+  const inbox = view.querySelector<HTMLButtonElement>(
+    '[data-testid="session-transcript-inbox-disclosure"]',
+  );
+  expect(inbox?.getAttribute('aria-label')).toBe('Inbox');
+  await act(async () => inbox!.click());
   expect(view.textContent).toContain('Source Event');
+  const failure = [...view.querySelectorAll('span')].find((row) =>
+    row.textContent?.includes('Then retry the message.'),
+  );
+  expect(failure).toBeDefined();
+  expect(failure?.hasAttribute('data-number-of-lines')).toBe(false);
   expect(view.querySelectorAll('[data-author="human"]')).toHaveLength(1);
   expect(view.querySelector('[data-author="human"]')?.textContent).toBe('Initial request');
   expect([...view.querySelectorAll('[data-author="bot"]')].map((row) => row.textContent)).toEqual([
@@ -199,4 +241,25 @@ it('withholds the transcript, composer and model controls on a Host refusal', as
   expect(view.querySelector('[data-testid="session-transcript"]')).toBeNull();
   expect(view.querySelector('[data-testid="composer-session-model"]')).toBeNull();
   expect(call.mock.calls.some(([method]) => method === 'sessionModel')).toBe(false);
+});
+
+it('retries only the failed Assignment detail read and keeps the transcript mounted', async () => {
+  const { view, call } = await open({ role: 'assignment', failAssignment: true });
+  const transcript = view.querySelector('[data-testid="session-transcript"]');
+  expect(transcript?.textContent).toContain('Saved reply');
+  expect(view.textContent).toContain('Couldn’t load assignment details.');
+  const beforeRetry = call.mock.calls.length;
+
+  await press(view, 'Try again');
+  expect(call.mock.calls.slice(beforeRetry)).toEqual([
+    [
+      'assignmentTimeline',
+      { slug: 'ada', sessionId: 'chosen' },
+      { signal: expect.any(AbortSignal), timeoutMs: 20_000 },
+    ],
+  ]);
+  expect(view.querySelector('[data-testid="session-transcript"]')).toBe(transcript);
+  expect(view.textContent).not.toContain('Couldn’t load assignment details.');
+  expect(view.querySelector('[data-testid="session-assignment-details"]')).not.toBeNull();
+  expect(view.querySelector('h1')?.textContent).toBe('Canonical Assignment');
 });

@@ -13,7 +13,7 @@ export const en = {
     accessible: (parts: string[]) => parts.join(', '),
     effort: modelsEn.routingGroup.engineRow.effort,
     loadFailed: 'Couldn’t load model choices.',
-    saveFailed: 'Couldn’t change the model for this session.',
+    saveFailed: 'Couldn’t change this session’s model choice.',
     saving: 'Saving…',
   },
   sessionRecovery: {
@@ -92,6 +92,8 @@ export const en = {
   sessionDetail: {
     title: 'Session',
     list: 'Sessions',
+    listFailed: 'Couldn’t load sessions.',
+    assignmentFailed: 'Couldn’t load assignment details.',
     open: (title: string) => `Open session: ${title}`,
     empty: 'No messages in this session yet.',
     unavailable: 'This session is unavailable.',
@@ -146,7 +148,7 @@ export const zh: typeof en = {
     accessible: (parts: string[]) => parts.join('，'),
     effort: modelsZh.routingGroup.engineRow.effort,
     loadFailed: '无法加载模型选项。',
-    saveFailed: '无法更改此会话的模型。',
+    saveFailed: '无法更改此会话的模型选择。',
     saving: '正在保存…',
   },
   sessionRecovery: {
@@ -213,6 +215,8 @@ export const zh: typeof en = {
   sessionDetail: {
     title: '会话',
     list: '会话',
+    listFailed: '无法加载会话列表。',
+    assignmentFailed: '无法加载事项详情。',
     open: (title: string) => `打开会话：${title}`,
     empty: '此会话还没有消息。',
     unavailable: '此会话不可用。',

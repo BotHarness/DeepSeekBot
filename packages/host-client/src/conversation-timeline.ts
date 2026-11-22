@@ -93,7 +93,12 @@ export function present(
   picked: readonly (OutgoingFile | undefined)[],
   selfHumanId: string | undefined,
 ): ConversationMessage {
-  const message = entry.message;
+  let source = entry;
+  if (entry.message.contentPurge !== undefined && entry.message.sessionLinks !== undefined) {
+    const { sessionLinks: _sessionLinks, ...message } = entry.message;
+    source = { ...entry, message };
+  }
+  const message = source.message;
   const kind = message.author.kind;
   const person =
     message.author.kind === 'human' &&
@@ -108,11 +113,14 @@ export function present(
   const genuiDocument =
     message.contentPurge === undefined ? genuiDocumentOf(message.genui) : undefined;
   const failure = kind === 'bot' ? sessionFailure(message.sessionFailure) : undefined;
-  const sessionLinks = kind === 'bot' ? parseSessionLinks(message.sessionLinks) : [];
+  const sessionLinks =
+    kind === 'bot' && message.contentPurge === undefined
+      ? parseSessionLinks(message.sessionLinks)
+      : [];
   const { attachments, voice } = voiceOf(message, attachmentsOf(entry, resolve, picked));
   return {
     id: message.id,
-    source: entry,
+    source,
     revision: entry.revision,
     at: message.at,
     author:

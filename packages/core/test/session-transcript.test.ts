@@ -1,7 +1,16 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  SESSION_FORMAT_VERSION,
+  SessionId,
+  SessionLogOffset,
+  SessionSeq,
+  type SessionHeader,
+} from '@deepseek-ai/dsh-session';
+import type { SessionQueryEngine } from '@deepseek-ai/dsh-session-query';
 
 import {
   TRANSCRIPT_ITEMS,
+  readSessionTitles,
   sessionDisplayTitle,
   summarizeSessionTranscript,
 } from '../src/runtime/session-transcript.js';
@@ -465,5 +474,69 @@ describe('Session transcript', () => {
         event(3, 'session/title', { title: 'Release sign-off', source: { kind: 'user' } }),
       ]),
     ).toBe('Release sign-off');
+  });
+});
+
+it('bounds fallback Session log reads and keeps snapshot titles and successful fallback titles', async () => {
+  const header = (id: SessionId): SessionHeader => ({
+    version: SESSION_FORMAT_VERSION,
+    id,
+    createdAt: at(0),
+    isSeeded: false,
+  });
+  const title = (text: string) => ({
+    title: text,
+    messageSeqs: [],
+    source: { kind: 'fallback' as const },
+    eventSeq: SessionSeq(1),
+    updatedAt: at(1),
+  });
+  const readTitleSnapshots: SessionQueryEngine['readTitleSnapshots'] = async (ids) =>
+    ids.map((id) =>
+      id === 'missing-snapshot'
+        ? { status: 'rejected', sessionId: id, reason: new Error('missing') }
+        : {
+            status: 'fulfilled',
+            sessionId: id,
+            value: {
+              session: header(id),
+              ...(id === 'cached'
+                ? { title: title('Cached title') }
+                : id === 'first'
+                  ? { title: title('[Bot Inbox] Internal envelope') }
+                  : {}),
+            },
+          },
+    );
+  let inFlight = 0;
+  let peak = 0;
+  const readSession = vi.fn<SessionQueryEngine['readSession']>(async (id) => {
+    peak = Math.max(peak, ++inFlight);
+    await Promise.resolve();
+    inFlight--;
+    if (id === 'failed') throw new Error('log unavailable');
+    return {
+      session: header(id),
+      inheritedEventCount: SessionLogOffset(0),
+      events: [
+        {
+          type: 'session/title',
+          time: at(1),
+          seq: SessionSeq(1),
+          data: title(`Title ${id}`),
+        },
+      ],
+    };
+  });
+  const ids = ['cached', 'first', 'failed', 'third', 'fourth', 'last', 'missing-snapshot'];
+  const result = await readSessionTitles({ readTitleSnapshots, readSession }, ids);
+  expect(peak).toBe(4);
+  expect(readSession.mock.calls.flat()).toEqual(ids.slice(1, -1));
+  expect(Object.fromEntries(result)).toEqual({
+    cached: 'Cached title',
+    first: 'Title first',
+    third: 'Title third',
+    fourth: 'Title fourth',
+    last: 'Title last',
   });
 });

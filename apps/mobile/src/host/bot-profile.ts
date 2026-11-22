@@ -124,7 +124,9 @@ export function botProfileResource(client: HostClient, bot: ProfileBotRef): BotP
             const next = await loadBotProfile(client, bot);
             const value = queries.getQueryData<BotProfile>(queryKey);
             return {
-              ...(next.orchestrators === undefined ? {} : { orchestrators: next.orchestrators }),
+              ...(next.orchestrators === undefined
+                ? {}
+                : { orchestrators: keepSuccessful(next.orchestrators, value?.orchestrators) }),
               work: keepSuccessful(next.work, value?.work),
               memory: keepSuccessful(next.memory, value?.memory),
               routines: keepSuccessful(next.routines, value?.routines),

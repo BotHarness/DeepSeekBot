@@ -96,6 +96,43 @@ describe('Bot profile', () => {
     expect((await resource.refresh()).memory).toEqual(first.memory);
   });
 
+  it('keeps cached Sessions on a failed refresh and replaces them with an empty successful list', async () => {
+    const fake = host();
+    const resource = botProfileResource(client(fake), { slug, dmChannelId: dm });
+    fake.methods.set('sessions', () => ({
+      sessions: [
+        {
+          sessionId: 'session-1',
+          createdAt: '2026-11-22T00:00:00Z',
+          role: 'orchestrator',
+          displayTitle: 'Review the release',
+          currentOrchestrator: true,
+        },
+      ],
+    }));
+    const first = await resource.refresh();
+    expect(first.orchestrators).toEqual({
+      status: 'ready',
+      value: [
+        {
+          id: 'session-1',
+          createdAt: '2026-11-22T00:00:00Z',
+          title: 'Review the release',
+          current: true,
+        },
+      ],
+    });
+    fake.methods.set('sessions', () => {
+      throw new Error('Session read unavailable');
+    });
+    expect((await resource.refresh()).orchestrators).toEqual({
+      ...first.orchestrators,
+      staleError: 'Session read unavailable',
+    });
+    fake.methods.set('sessions', () => ({ sessions: [] }));
+    expect((await resource.refresh()).orchestrators).toEqual({ status: 'ready', value: [] });
+  });
+
   it('reads the pinned Soul and Core Memory, Memory files, routines and shared folders through the DM', async () => {
     const fake = host();
     const profile = await loadBotProfile(client(fake), {

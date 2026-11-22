@@ -849,9 +849,11 @@ it('splits the profile Files tab into Media and Files segments with their own em
   );
 });
 
-it('opens the selected Orchestrator from the Bot Profile Session list', async () => {
+it('retries the Bot Profile Session list and opens the selected Orchestrator', async () => {
+  let reads = 0;
   vi.spyOn(fixture.client, 'call').mockImplementation(async (method?: string) => {
-    if (method === 'sessions')
+    if (method === 'sessions') {
+      if (++reads === 1) throw new Error('Session read unavailable');
       return {
         sessions: [
           {
@@ -869,6 +871,7 @@ it('opens the selected Orchestrator from the Bot Profile Session list', async ()
           },
         ],
       };
+    }
     return {};
   });
   state = {
@@ -887,6 +890,17 @@ it('opens the selected Orchestrator from the Bot Profile Session list', async ()
   document.body.append(node);
   root = createRoot(node);
   await act(async () => root!.render(<BotProfileScreen />));
+  const alert = [...node.querySelectorAll('[role="alert"]')].find(
+    (element) => element.textContent === t.sessionDetail.listFailed,
+  );
+  expect(alert).toBeDefined();
+  const retry = [...alert!.parentElement!.querySelectorAll('button')].find(
+    (button) => button.textContent === t.tryAgain,
+  );
+  expect(retry).toBeDefined();
+  await act(async () => retry!.click());
+  expect(reads).toBe(2);
+  expect(node.textContent).not.toContain(t.sessionDetail.listFailed);
   const rows = [...node.querySelectorAll<HTMLButtonElement>('[data-testid^="profile-session-"]')];
   expect(rows.map((row) => row.dataset['testid'])).toEqual([
     'profile-session-current-root',

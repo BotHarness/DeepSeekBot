@@ -11,7 +11,7 @@ import * as workspacesFeature from './features/workspaces/plugin.js';
 import * as teamFeature from './features/team/plugin.js';
 import { engineAccountKey, type EngineId } from '@botharness/host-protocol/subscription-engine';
 import { requireModelSources } from './models/provider-bridge.js';
-import { cleanRecordedSessionTitle, sessionDisplayTitle } from './runtime/session-transcript.js';
+import { readSessionTitles } from './runtime/session-transcript.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
 import { mountCardContextLive } from './channels/card-context-live.js';
 import { contextSources } from './runtime/context-sources.js';
@@ -2422,35 +2422,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         ...(call.publicDetail === undefined ? {} : { detail: call.publicDetail }),
       };
     },
-    readSessionTitles: async (ids) => {
-      const query = ctx.get('sessionQuery') as unknown as
-        | {
-            readTitleSnapshots?: (
-              sessionIds: readonly string[],
-            ) => Promise<
-              readonly (
-                | { status: 'fulfilled'; sessionId: string; value: { title?: unknown } }
-                | { status: 'rejected' }
-              )[]
-            >;
-            readSession(id: string): Promise<{ events: readonly DshSessionEvent[] }>;
-          }
-        | undefined;
-      const titles = new Map<string, string>();
-      if (query?.readTitleSnapshots === undefined) return titles;
-      const results = await query.readTitleSnapshots(ids).catch(() => []);
-      for (const result of results) {
-        if (result.status !== 'fulfilled') continue;
-        const title =
-          cleanRecordedSessionTitle(result.value.title) ??
-          (await query
-            .readSession(result.sessionId)
-            .then(({ events }) => sessionDisplayTitle(events))
-            .catch(() => undefined));
-        if (title !== undefined) titles.set(result.sessionId, title);
-      }
-      return titles;
-    },
+    readSessionTitles: (ids) => readSessionTitles(ctx.get('sessionQuery'), ids),
     readUsageSessionLog: async (sessionId) => {
       const query = ctx.get('sessionQuery') as unknown as
         | {

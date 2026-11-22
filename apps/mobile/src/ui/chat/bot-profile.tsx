@@ -1,3 +1,4 @@
+import { SheetLoading } from './sheet';
 import { ReadFailure } from '../primitives/read-failure';
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { FlatList, Pressable, View, type ViewInstance } from 'react-native';
@@ -682,15 +683,23 @@ export function BotProfilePage({
   const columns = useMemoryColumns();
   const tabs = profileTabs('bot');
   const [tab, setTab] = useRememberedProfileTab(tabMemory, tabs);
+  const [readAttempt, setReadAttempt] = useState(0);
+  const [retrying, setRetrying] = useState(false);
+  const retrySessions = () => {
+    setRetrying(true);
+    setReadAttempt((attempt) => attempt + 1);
+  };
   const read = useCallback(() => {
     let live = true;
     void load().then((value) => {
-      if (live) setProfile(value);
+      if (!live) return;
+      setProfile(value);
+      setRetrying(false);
     });
     return () => {
       live = false;
     };
-  }, [load]);
+  }, [load, readAttempt]);
   useProfileFocusEffect(read);
   const rows = profileRows(content.ready ? profile : undefined, channels, columns);
   const [memoryView, setMemoryView] = useState<MemoryView>('files');
@@ -729,6 +738,8 @@ export function BotProfilePage({
       </View>
     ));
   const working = workingRows([bot], false);
+  const sessions = profile?.orchestrators;
+  const sessionsError = sessions?.status === 'failed' ? sessions.error : sessions?.staleError;
   const bodies: Record<Exclude<ProfileTab, 'files' | 'members'>, ProfileTabBody> = {
     work: {
       rows: [
@@ -739,8 +750,25 @@ export function BotProfilePage({
           ? []
           : [
               settingsHeading('work:sessions', t.sessionDetail.list),
-              ...(profile?.orchestrators?.status === 'ready'
-                ? profile.orchestrators.value.map((session) =>
+              ...(profile === undefined
+                ? [node('work:sessions:loading', () => <SheetLoading />)]
+                : []),
+              ...(sessionsError === undefined
+                ? []
+                : [
+                    node('work:sessions:failed', () => (
+                      <View style={{ paddingHorizontal: space.x5 }}>
+                        <ReadFailure
+                          title={t.sessionDetail.listFailed}
+                          detail={sessionsError}
+                          onRetry={retrySessions}
+                          busy={retrying}
+                        />
+                      </View>
+                    )),
+                  ]),
+              ...(sessions?.status === 'ready'
+                ? sessions.value.map((session) =>
                     node(`profile-session:${session.id}`, () => (
                       <SettingsRow
                         on="raised"

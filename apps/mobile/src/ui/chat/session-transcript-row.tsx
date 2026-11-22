@@ -72,6 +72,7 @@ export const SessionTranscriptRow = memo(function SessionTranscriptRow({
         <TranscriptNote
           label={t.assignmentDetail.stepState[item.state]}
           text={item.message ?? ''}
+          full
         />
       );
   }
@@ -122,6 +123,7 @@ function TranscriptInput({
   return (
     <View style={{ paddingHorizontal: space.x5 }}>
       <Pressable
+        testID={`session-transcript-${input.kind}-disclosure`}
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityState={{ expanded: open }}
@@ -149,12 +151,20 @@ function TranscriptInput({
   );
 }
 
-function TranscriptNote({ label, text }: { label: string; text: string }) {
+function TranscriptNote({
+  label,
+  text,
+  full = false,
+}: {
+  label: string;
+  text: string;
+  full?: boolean;
+}) {
   return (
     <Text
       variant="meta"
       tone="muted"
-      numberOfLines={2}
+      numberOfLines={full ? undefined : 2}
       selectable
       style={{ paddingHorizontal: space.x5 }}
     >

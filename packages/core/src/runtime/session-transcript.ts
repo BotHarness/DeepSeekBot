@@ -1,6 +1,8 @@
 import { isEngineId } from '@botharness/host-protocol/subscription-engine';
 import type { TurnModelSwitch, TurnTarget } from '@botharness/host-protocol/turn-target';
 import { turnSwitchBetween, type TurnTargetSegment } from './turn-targets.js';
+import { SessionId } from '@deepseek-ai/dsh-session';
+import type { SessionQueryEngine } from '@deepseek-ai/dsh-session-query';
 import type { ToolCallKind } from '@deepseek-ai/dsh-tools';
 
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
@@ -319,6 +321,42 @@ export function sessionDisplayTitle(events: readonly DshSessionEvent[]): string 
     }
   }
   return undefined;
+}
+
+const TITLE_FALLBACK_CONCURRENCY = 4;
+
+type SessionTitleQuery = Pick<SessionQueryEngine, 'readTitleSnapshots' | 'readSession'>;
+
+export async function readSessionTitles(
+  query: SessionTitleQuery | undefined,
+  ids: readonly string[],
+): Promise<ReadonlyMap<string, string>> {
+  const titles = new Map<string, string>();
+  if (typeof query?.readTitleSnapshots !== 'function') return titles;
+
+  const results = await query.readTitleSnapshots(ids.map(SessionId)).catch(() => []);
+  const fallback: SessionId[] = [];
+  for (const result of results) {
+    if (result.status !== 'fulfilled') continue;
+    const title = cleanRecordedSessionTitle(result.value.title);
+    if (title === undefined) fallback.push(result.sessionId);
+    else titles.set(result.sessionId, title);
+  }
+
+  for (let start = 0; start < fallback.length; start += TITLE_FALLBACK_CONCURRENCY) {
+    await Promise.all(
+      fallback.slice(start, start + TITLE_FALLBACK_CONCURRENCY).map(async (id) => {
+        try {
+          const { events } = await query.readSession(id);
+          const title = sessionDisplayTitle(events);
+          if (title !== undefined) titles.set(id, title);
+        } catch {
+          return;
+        }
+      }),
+    );
+  }
+  return titles;
 }
 
 export function summarizeSessionTranscript(input: {

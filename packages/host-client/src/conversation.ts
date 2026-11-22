@@ -347,7 +347,12 @@ export function createConversation(options: ConversationOptions): Conversation {
   };
 
   const blank = (entry: JournalEntry): JournalEntry => {
-    const { attachments: _attachments, bridgeMedia: _bridgeMedia, ...message } = entry.message;
+    const {
+      attachments: _attachments,
+      bridgeMedia: _bridgeMedia,
+      sessionLinks: _sessionLinks,
+      ...message
+    } = entry.message;
     return { ...entry, message: { ...message, body: '', contentPurge: { actor: 'local-human' } } };
   };
 
@@ -531,10 +536,11 @@ export function createConversation(options: ConversationOptions): Conversation {
         );
     } else if (notification.kind === 'session-links') {
       if (notification.channelId !== channelId) return false;
-      const sessionLinks = parseSessionLinks(notification.sessionLinks);
       const index = window.findIndex((entry) => entry.message.id === notification.messageId);
       const entry = window[index];
-      if (entry?.message.author.kind !== 'bot') return false;
+      if (entry?.message.author.kind !== 'bot' || entry.message.contentPurge !== undefined)
+        return false;
+      const sessionLinks = parseSessionLinks(notification.sessionLinks);
       window = window.map((current, i) =>
         i === index
           ? {
@@ -794,11 +800,7 @@ export function createConversation(options: ConversationOptions): Conversation {
         )
           return entry;
         changed = true;
-        const { attachments: _attachments, bridgeMedia: _bridgeMedia, ...message } = entry.message;
-        return {
-          ...entry,
-          message: { ...message, body: '', contentPurge: { actor: 'local-human' } },
-        };
+        return blank(entry);
       });
       if (!changed) return;
       publish();

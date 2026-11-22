@@ -139,7 +139,7 @@ it('selects a granted Subscription Engine and keeps the saved choice on Host ref
     choice: null,
   });
   expect(container.querySelector('[role="alert"]')?.textContent).toBe(
-    'Couldn’t change the model for this session.',
+    'Couldn’t change this session’s model choice.',
   );
   expect(button('session-model-option-engine-0').getAttribute('aria-pressed')).toBe('true');
   expect(button('composer-session-model').textContent).toBe('Next turn: Opus 5.5High');
