@@ -45,7 +45,7 @@ import { space } from '../design/tokens';
 import { Chip } from '../primitives/chip';
 import { FavoriteButton } from '../primitives/favorite-button';
 import { modelFamilyKey, restingNotice } from './composer-labels';
-import { AllowedEffortLinks, AllowedEffortPage } from './allowed-efforts';
+import { AllowedEffortPage } from './allowed-efforts';
 import { GroupNotes } from './group-notes';
 import { CurrentEngineModel, PickerLink, RouteIcon } from './model-route-label';
 import { EffortBar, GroupEffortBar, GroupEffortLink, GroupEfforts } from './model-effort';
@@ -197,22 +197,16 @@ export function ModelsView({
   const [name, setName] = useState<string>();
   const [saved, setSaved] = useState(false);
   const value = models.value;
-  const openPicker = (field: ModelField, target?: AssignmentEffortTarget) => {
-    const extra =
-      target === undefined || target.kind === 'engine'
-        ? {}
-        : target.kind === 'group'
-          ? { group: target.id }
-          : { provider: target.provider, model: target.model };
+  const openPicker = (field: 'orchestrator' | 'orchestrator-effort' | 'sub-add') => {
     if (scope.kind === 'bot')
       router.push({
         pathname: '/bot/[slug]/model-picker',
-        params: { slug: scope.slug, field, ...extra },
+        params: { slug: scope.slug, field },
       });
     else
       router.push({
         pathname: '/settings/model-picker',
-        params: { field, ...extra, ...(scope.kind === 'preset' ? { id: scope.id } : {}) },
+        params: { field, ...(scope.kind === 'preset' ? { id: scope.id } : {}) },
       });
   };
   const openChoice = (choice: SubChoice) => {
@@ -774,15 +768,6 @@ export function ModelsView({
     scope.kind === 'preset'
       ? groupName(routes.groups.orchestratorGroupId)
       : currentModel(value).group;
-  const assignmentGroup = groupName(routes.groups.assignmentDefaultGroupId);
-  const assignmentCatalogGroup = value.groups?.find(
-    (group) => group.id === routes.groups.assignmentDefaultGroupId,
-  );
-  const assignmentShown =
-    assignmentCatalogGroup === undefined ||
-    assignmentCatalogGroup.routes.some((route) => sameModel(route, routes.assignmentDefault))
-      ? routes.assignmentDefault
-      : modelCatalogGroupFront(assignmentCatalogGroup, value.models);
   const form = (
     <View style={{ gap: space.x4 }}>
       <SheetNote>
