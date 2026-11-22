@@ -85,6 +85,7 @@ export function HostSessionOptionsSheet({ open, groups, onClose }: HostSessionOp
               accessibilityRole="radio"
               accessibilityLabel={item.choice.label}
               accessibilityState={{ checked: item.selected }}
+              testID={`host-sessions-${item.key.replaceAll(':', '-')}`}
               onPress={item.choice.select}
               style={({ pressed }) => ({
                 minHeight: theme.touch,

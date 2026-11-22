@@ -20,6 +20,20 @@ describe('phone interface preferences', () => {
     expect(restarted.getSnapshot().sessionsTab).toBe(true);
   });
 
+  it('restores the saved Session sort when appearance changes during the read', async () => {
+    const preferences = createInterfacePreferences();
+    const write = vi.fn();
+    const restore = preferences.restore({
+      read: async () => ({ appearance: 'light', sessionSort: 'last-activity', sessionsTab: true }),
+      write,
+    });
+    preferences.setAppearance('dark');
+    await restore;
+    const expected = { appearance: 'dark', sessionSort: 'last-activity', sessionsTab: true };
+    expect(preferences.getSnapshot()).toMatchObject(expected);
+    expect(write).toHaveBeenCalledWith(expect.objectContaining(expected));
+  });
+
   it('defaults to system and chooses the first supported preferred language', () => {
     const preferences = createInterfacePreferences();
     expect(preferences.getSnapshot()).toMatchObject({ language: 'system', appearance: 'system' });
