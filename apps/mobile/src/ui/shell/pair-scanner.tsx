@@ -219,12 +219,14 @@ export function PairScanner({
           onSubmitEditing={() => void pair(link, 'paste')}
         />
       </View>
-      <ConnectionNameField
-        value={pairing.connectionName}
-        onChange={pairing.setConnectionName}
-        maxLength={HOST_NAME_MAX}
-        disabled={pairing.busy || readingImage}
-      />
+      {link.trim() !== '' && connectInput(link).kind === 'pairing' ? (
+        <ConnectionNameField
+          value={pairing.connectionName}
+          onChange={pairing.setConnectionName}
+          maxLength={HOST_NAME_MAX}
+          disabled={pairing.busy || readingImage}
+        />
+      ) : null}
       <Button
         testID="pair-link-submit"
         label={t.pairContinue}

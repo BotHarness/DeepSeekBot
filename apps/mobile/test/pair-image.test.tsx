@@ -204,3 +204,23 @@ it('opens Host sign-in when a Host address is pasted', async () => {
   });
   expect(pairing.pair).not.toHaveBeenCalled();
 });
+
+it('asks for a name on this phone only after a pairing link is pasted', async () => {
+  await act(async () => root!.render(<PairScreen />));
+  await act(async () => {
+    navigation.blur = navigation.focus!();
+  });
+  const named = () => host.querySelector(`[aria-label="${t.connectionName}"]`) !== null;
+  const input = host.querySelector<HTMLTextAreaElement>('[data-testid="pair-link-input"]')!;
+  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+  const type = (value: string) =>
+    act(async () => {
+      setter.call(input, value);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+  expect(named()).toBe(false);
+  await type('studio.example');
+  expect(named()).toBe(false);
+  await type('deepseekbot://pair?p=example');
+  expect(named()).toBe(true);
+});
