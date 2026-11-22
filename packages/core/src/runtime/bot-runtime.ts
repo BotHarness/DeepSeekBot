@@ -31,23 +31,16 @@ export { DirectBotToolError } from '../features/sessions/direct-tools.js';
 export type { DirectBotToolCall, DirectBotToolSpec } from '../features/sessions/direct-tools.js';
 export type { TobCliAuthority, TobCliRequestLease } from '../features/tob/cli-runtime.js';
 export { markSkillTokens, skillInvocationPrompt } from './channel-prompts.js';
-import { createGroupDigest, type DigestRow, type GroupContext } from './group-digest.js';
+import { createGroupDigest, type GroupContext } from './group-digest.js';
 export type { GroupContext } from './group-digest.js';
 import { createChannelAdmission } from '../channels/runtime-admission.js';
 import { createCausalSending } from '../channels/causal-sending.js';
 import type { SessionModelChoice } from '@botharness/host-protocol/session-model';
-import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
-import { routingTargetRestKey } from '../models/group-fallback.js';
 import { directSessionTarget, sessionModelChoices } from './session-model-choices.js';
 import { createOrchestratorScheduling } from './orchestrator-scheduling.js';
-import {
-  createOrchestratorCancellation,
-  interruptedToolsNote,
-} from './orchestrator-cancellation.js';
+import { createOrchestratorCancellation } from './orchestrator-cancellation.js';
 import {
   createOrchestratorContinuation,
-  MAX_MIXED_GROUP_ATTEMPTS,
-  routingTargetKey,
   type PendingAutoContinue,
   type DmContinuation,
   continuationNote,
@@ -55,7 +48,6 @@ import {
   RoutingGroupUnavailableError,
 } from './orchestrator-continuation.js';
 import type { AssignmentRow } from '../features/assignments/events-types.js';
-import { requireNonBlank } from './require-non-blank.js';
 import { createMessagingEvents } from '../features/messaging/events.js';
 import { createActivityEvents } from '../features/activity/events.js';
 import { createAssignmentDelivery } from '../features/assignments/delivery.js';
@@ -76,11 +68,10 @@ import type {
   ChannelAssignmentSummary,
 } from '@botharness/host-protocol/wire';
 
-import { assertQuoteTargets, quotePromptBlock } from '../channels/quotes.js';
+import { quotePromptBlock } from '../channels/quotes.js';
 
 import type { TobCliRequest, TobCliStatus, TobCliTurn } from '../tob/cli-request.js';
 import type { TeamService } from '../team/service.js';
-import { TeamError } from '../team/error.js';
 import { botOwner } from '../team/bot-access.js';
 import { humanContext } from '../humans/context.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
@@ -92,7 +83,6 @@ import type {
 } from './assignment-report-reader.js';
 import { GroupSendReview } from '../channels/send-review.js';
 import { TobError, type TobService } from '../tob/service.js';
-import { AssignmentInboxAcceptanceUncertainError } from './assignment-delivery.js';
 import { OrchestratorWorkingDirectoryError } from './orchestrator-working-directory.js';
 import {
   AssignmentApprovalCapacity,
@@ -101,7 +91,7 @@ import {
 } from './assignment-approval-capacity.js';
 import type { AssignmentWaitOutcome } from './assignment-wait.js';
 import { externalMemberWake } from '../messaging/defaults.js';
-import { sourceSenderAllowed, type SenderPermissions } from '../messaging/sender-access.js';
+import type { SenderPermissions } from '../messaging/sender-access.js';
 import type { MessagingDirectoryQuery, MessagingDirectoryPage } from '../messaging/directory.js';
 import type {
   ThreadReceptionInput,
@@ -109,18 +99,13 @@ import type {
   ThreadReceptionView,
 } from '../messaging/thread-policy.js';
 import type { GroupReceptionInput, GroupReceptionPolicy } from '../messaging/group-policy.js';
-import {
-  requireAssignmentSource,
-  requireSourceContent,
-  requireSourceEffects,
-} from '../purge/fence.js';
+import { requireSourceContent, requireSourceEffects } from '../purge/fence.js';
 import { saveAttachmentFile } from '../attachments/file-operations.js';
 import { OriginalAttachmentAccess } from '../attachments/original-access.js';
 import { createMemoryEvents } from '../features/memory/events.js';
 import {
   bindScheduleCommands,
   linkScheduleFiringsToSession,
-  scheduleInboxFacts,
 } from '../features/schedules/events.js';
 import {
   callTimelineNote,
@@ -158,31 +143,12 @@ import {
   type PersonaBotRecord,
 } from '../bots/persona-bot.js';
 import { readFileSync, statSync } from 'node:fs';
-import {
-  isAssignmentModelChoice,
-  isModelRoute,
-  assignmentGroupOptionOf,
-  resolveBotModelPlan,
-  selectAssignmentGroup,
-  type PersonaBotModelPlan,
-  selectAssignmentRoute,
-  AssignmentChoiceError,
-  type ModelRoute,
-} from '../models/presets.js';
-import {
-  isPresetSubEngineSelection,
-  matchesPresetSubChoice,
-  presetSubEngineTarget,
-  type PresetSubEngineSelection,
-} from '../models/preset-sub.js';
+import type { PersonaBotModelPlan, ModelRoute } from '../models/presets.js';
+import type { PresetSubEngineSelection } from '../models/preset-sub.js';
 import type { RouteRests } from '../models/route-rest.js';
-import {
-  type GroupFallback,
-  type ModelSwitch,
-  unavailableRoutingEngine,
-} from '../models/group-fallback.js';
+import type { GroupFallback, ModelSwitch } from '../models/group-fallback.js';
 import type { RoutingTarget } from '../models/routing-groups.js';
-import { EngineLimitError, EngineRefusal, isEngineId } from '../engines/engine-session.js';
+import { EngineLimitError } from '../engines/engine-session.js';
 import type { AssignmentAccessStore } from '../workspaces/assignment-access.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type {
@@ -224,10 +190,6 @@ import {
   type BotSourcePolicy,
   type BotSourcePolicyStore,
 } from './source-policy.js';
-import {
-  ASSIGNMENT_DESCRIPTION_MAX_LENGTH,
-  ASSIGNMENT_TITLE_MAX_LENGTH,
-} from './assignment-title.js';
 import type { AssignmentReportPage } from './assignment-tail.js';
 import type {
   BotSchedule,
@@ -250,6 +212,12 @@ export type {
   AssignmentReportState,
   ChannelAssignmentSummary,
 } from '@botharness/host-protocol/wire';
+import { coalesceInbox, createInboxHarvest } from '../features/activity/inbox-harvest.js';
+import { createAssignmentExecution } from '../features/assignments/runtime-execution.js';
+import { createAssignmentIntake } from '../features/assignments/runtime-intake.js';
+import { queryAssignmentDirectory } from '../features/assignments/runtime-records.js';
+import { createAssignmentRouting } from '../features/assignments/runtime-routing.js';
+export { queryAssignmentDirectory } from '../features/assignments/runtime-records.js';
 
 export type AssignmentRequestMode = 'next-step' | 'next-turn';
 
@@ -966,8 +934,6 @@ export interface GroupPromptBudget {
   includedByChannel: Map<string, number>;
 }
 
-const GROUP_PROMPT_CHANNEL_LIMIT = 100;
-
 export type SourceEventAttemptState =
   | 'pending'
   | 'running'
@@ -989,276 +955,7 @@ export interface SourceEventClaim {
   reconciliationRequired?: true;
 }
 
-function permissionFromRow(row: AssignmentRow): AssignmentPermissionSnapshot | undefined {
-  if (
-    row.grant_id === null ||
-    row.workspace_id === null ||
-    row.primary_cwd === null ||
-    (row.permission_mode !== 'workspace-write' && row.permission_mode !== 'danger-full-access') ||
-    row.approval_policy !== 'ask' ||
-    row.preset_revision === null
-  )
-    return undefined;
-  return {
-    grantId: row.grant_id,
-    workspaceId: row.workspace_id,
-    primaryCwd: row.primary_cwd,
-    mode: row.permission_mode,
-    approval: row.approval_policy,
-    presetRevision: row.preset_revision,
-  };
-}
-
-function storedAssignmentTarget(row: AssignmentRow): RoutingTarget | ModelRoute | undefined {
-  if (row.model_route_json === null) return undefined;
-  const target: unknown = JSON.parse(row.model_route_json);
-  if (isModelRoute(target)) return target;
-  if (
-    typeof target === 'object' &&
-    target !== null &&
-    'kind' in target &&
-    target.kind === 'route' &&
-    'route' in target &&
-    isModelRoute(target.route)
-  )
-    return { kind: 'route', route: target.route };
-  if (isPresetSubEngineSelection(target)) {
-    const effort = 'reasoningEffort' in target ? target.reasoningEffort : undefined;
-    if (effort === undefined) return presetSubEngineTarget(target);
-    if (typeof effort === 'string' && effort.trim() !== '')
-      return presetSubEngineTarget({ ...target, effort });
-  }
-  throw new Error(`Invalid Assignment model route: ${row.session_id}`);
-}
-
-function assignmentTargetFromRow(row: AssignmentRow): RoutingTarget | undefined {
-  const target = storedAssignmentTarget(row);
-  return target === undefined || 'kind' in target ? target : { kind: 'route', route: target };
-}
-
-function modelRouteFromRow(row: AssignmentRow): ModelRoute | undefined {
-  const target = assignmentTargetFromRow(row);
-  return target?.kind === 'route' ? target.route : undefined;
-}
-
-function saveAssignmentTarget(target: RoutingTarget): string {
-  return JSON.stringify(target.kind === 'route' ? target.route : target);
-}
-
-function assignmentFromRow(row: AssignmentRow): AssignmentDetail {
-  const latestReport =
-    row.latest_report_state === null ||
-    row.latest_report_summary === null ||
-    row.latest_report_at === null
-      ? undefined
-      : {
-          state: row.latest_report_state,
-          summary: row.latest_report_summary,
-          at: row.latest_report_at,
-        };
-  const openAsk =
-    row.open_ask_source_event_id === null || row.open_ask_at === null
-      ? undefined
-      : {
-          sourceEventId: row.open_ask_source_event_id,
-          summary: row.open_ask_summary ?? row.latest_report_summary ?? '',
-          at: row.open_ask_at,
-        };
-  return {
-    sessionId: row.session_id,
-    sourceEventId: row.source_event_id,
-    botSlug: row.bot_slug,
-    title: row.title,
-    description: row.description,
-    activity:
-      row.stop_state === 'requested'
-        ? 'stopping'
-        : row.stop_state === 'stopped'
-          ? 'stopped'
-          : row.activity,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-    ...(latestReport === undefined ? {} : { latestReport }),
-    ...(row.continuity_key === null ? {} : { continuityKey: row.continuity_key }),
-    ...(openAsk === undefined ? {} : { openAsk }),
-    ...(permissionFromRow(row) === undefined ? {} : { permission: permissionFromRow(row)! }),
-    ...(modelRouteFromRow(row) === undefined ? {} : { modelRoute: modelRouteFromRow(row)! }),
-    ...(typeof row.model_group_id === 'string' ? { modelGroupId: row.model_group_id } : {}),
-    ...(typeof row.model_effort === 'string' ? { modelGroupEffort: row.model_effort } : {}),
-    ...(typeof row.agent_preset === 'string' ? { agentPreset: row.agent_preset } : {}),
-    ...(isArchivedRow(row) ? { archivedAt: row.archived_at } : {}),
-  };
-}
-
-function isArchivedRow(row: AssignmentRow): row is AssignmentRow & { archived_at: string } {
-  return typeof row.archived_at === 'string';
-}
-
 export const DEFAULT_ASSIGNMENT_CONCURRENCY_LIMIT = 8;
-const ASSIGNMENT_DIRECTORY_DEFAULT_LIMIT = 20;
-const ASSIGNMENT_DIRECTORY_MAX_LIMIT = 50;
-const ASSIGNMENT_ACTIVITIES: readonly AssignmentActivity[] = [
-  'working',
-  'idle',
-  'error',
-  'stopping',
-  'stopped',
-];
-
-function encodeDirectoryCursor(assignment: AssignmentSummary): string {
-  return Buffer.from(
-    JSON.stringify({ u: assignment.updatedAt, s: assignment.sessionId }),
-    'utf8',
-  ).toString('base64url');
-}
-
-function decodeDirectoryCursor(cursor: string): {
-  updatedAt: string;
-  sessionId: string;
-} {
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8'));
-  } catch {
-    parsed = undefined;
-  }
-  const fields = parsed as { u?: unknown; s?: unknown } | null | undefined;
-  if (typeof fields?.u !== 'string' || typeof fields.s !== 'string')
-    throw new Error('Invalid Assignment Directory cursor; restart from the first page');
-  return { updatedAt: fields.u, sessionId: fields.s };
-}
-
-export function queryAssignmentDirectory(
-  assignments: readonly AssignmentSummary[],
-  input: AssignmentDirectoryQuery,
-): AssignmentDirectoryPage {
-  const limit = input.limit ?? ASSIGNMENT_DIRECTORY_DEFAULT_LIMIT;
-  if (!Number.isInteger(limit) || limit < 1 || limit > ASSIGNMENT_DIRECTORY_MAX_LIMIT)
-    throw new Error(
-      `Assignment Directory limit must be an integer from 1 to ${ASSIGNMENT_DIRECTORY_MAX_LIMIT}`,
-    );
-  const activity = input.activity === undefined ? undefined : new Set(input.activity);
-  for (const value of activity ?? [])
-    if (!ASSIGNMENT_ACTIVITIES.includes(value))
-      throw new Error(`Unknown Assignment activity filter: ${String(value)}`);
-  const text = input.query?.trim().toLocaleLowerCase();
-  const after = input.cursor === undefined ? undefined : decodeDirectoryCursor(input.cursor);
-  const matches = assignments.filter((assignment) => {
-    if (input.includeArchived !== true && assignment.archivedAt !== undefined) return false;
-    if (activity !== undefined && !activity.has(assignment.activity)) return false;
-    if (text !== undefined && text !== '') {
-      const haystack = [
-        assignment.title,
-        assignment.description,
-        assignment.continuityKey ?? '',
-        assignment.latestReport?.summary ?? '',
-      ]
-        .join('\n')
-        .toLocaleLowerCase();
-      if (!haystack.includes(text)) return false;
-    }
-    if (after !== undefined)
-      return (
-        assignment.updatedAt < after.updatedAt ||
-        (assignment.updatedAt === after.updatedAt && assignment.sessionId > after.sessionId)
-      );
-    return true;
-  });
-  const ordered = [...matches].sort((left, right) =>
-    left.updatedAt === right.updatedAt
-      ? left.sessionId < right.sessionId
-        ? -1
-        : left.sessionId > right.sessionId
-          ? 1
-          : 0
-      : left.updatedAt < right.updatedAt
-        ? 1
-        : -1,
-  );
-  const page = ordered.slice(0, limit);
-  const last = page.at(-1);
-  return {
-    assignments: page,
-    ...(ordered.length > limit && last !== undefined
-      ? { nextCursor: encodeDirectoryCursor(last) }
-      : {}),
-  };
-}
-
-function onlyPairedLifecycle(unit: InboxUnit): boolean {
-  return (
-    unit.sourceKind === 'assignment-lifecycle' &&
-    (unit.lifecycleNotices ?? []).length > 0 &&
-    (unit.lifecycleNotices ?? []).every((notice) => notice.reportSourceEventId !== undefined)
-  );
-}
-
-function keptLifecycleNotice(
-  row: InboxReportRow,
-): NonNullable<InboxUnit['lifecycleNotices']>[number] | undefined {
-  if (row.source_kind !== 'assignment-lifecycle') return undefined;
-  if (row.paired_report_id != null)
-    return {
-      sourceEventId: row.source_event_id,
-      reportSourceEventId: row.paired_report_id,
-      summary: row.body,
-    };
-  if (row.lifecycle_cause?.startsWith('direct-') === true)
-    return { sourceEventId: row.source_event_id, summary: row.body };
-  return undefined;
-}
-
-function coalesceInbox(rows: InboxReportRow[]): InboxUnit[] {
-  const units = new Map<string, InboxUnit>();
-  for (const row of rows) {
-    const key = row.assignment_session_id ?? row.source_event_id;
-    const existing = units.get(key);
-    const kept = keptLifecycleNotice(row);
-    if (kept !== undefined && existing !== undefined) {
-      (existing.lifecycleNotices ??= []).push(kept);
-      existing.repeats += 1;
-      continue;
-    }
-    if (existing === undefined) {
-      units.set(key, {
-        sourceEventId: row.source_event_id,
-        sourceKind: row.source_kind,
-        ...(row.external === undefined ? {} : { external: row.external }),
-        ...scheduleInboxFacts(row.schedule_json),
-        assignmentSessionId: row.assignment_session_id,
-        summary: row.body,
-        createdAt: row.created_at,
-        openAskId: row.open_ask_id ?? null,
-        openAskSummary: row.open_ask_summary ?? null,
-        continuityKey: row.continuity_key,
-        activity: row.activity,
-        repeats: 1,
-        ...(kept === undefined ? {} : { lifecycleNotices: [kept] }),
-      });
-      continue;
-    }
-    existing.sourceEventId = row.source_event_id;
-    existing.sourceKind = row.source_kind;
-    existing.summary = row.body;
-    existing.createdAt = row.created_at;
-    existing.openAskId = row.open_ask_id ?? null;
-    existing.openAskSummary = row.open_ask_summary ?? null;
-    existing.activity = row.activity;
-    existing.repeats += 1;
-  }
-  return [...units.values()];
-}
-
-function requireBoundedText(value: unknown, field: string, maxLength: number): string {
-  const normalized = typeof value === 'string' ? value.trim() : '';
-  if (normalized === '')
-    throw new TypeError(`create_assignment: ${field} is required and must not be blank`);
-  if ([...normalized].length > maxLength)
-    throw new TypeError(
-      `create_assignment: ${field} must be at most ${maxLength} characters; keep it short`,
-    );
-  return normalized;
-}
 
 function sessionFailureDetails(error: unknown): {
   code?: string;
@@ -1334,20 +1031,6 @@ const STOP_SETTLE_TIMEOUT_MS = 30_000;
 
 const SESSION_STOPPED_REFUSAL =
   'The Human stopped this Session. This action was not performed; wait for the Human before doing more.';
-
-const ASSIGNMENT_FALLBACK_NOTE =
-  'The previous model stopped before finishing this Turn (out of quota or unavailable). The Host moved this Session to the next model in its Routing Group. Continue the work from where it stopped.';
-
-const ASSIGNMENT_MODEL_CHANGE_NOTE =
-  'Continue the work from where it stopped, using the selected model.';
-
-const sameModelRoute = (left: ModelRoute, right: ModelRoute) =>
-  left.provider === right.provider &&
-  left.model === right.model &&
-  (left.reasoningEffort ?? '') === (right.reasoningEffort ?? '');
-
-const ASSIGNMENT_RECOVERY_NOTE =
-  '[Host: your previous Turn in this Session did not finish cleanly (it ended with an error, was cancelled, or was interrupted by a Host restart). Your context is intact. Check the current state of your workspace and any side effects before redoing work, and do not repeat a side effect blindly; an earlier request may already have reached you.]\n\n';
 
 const HUMAN_SESSION_STOP_NOTICE =
   'The Human stopped this Assignment; it is now a Stopped Session with its history kept. Do not resend its old work just because it stopped. When a later request fits it, send_assignment_request to this Session id wakes it and delivers the request.';
@@ -1495,6 +1178,11 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #cancellation: ReturnType<typeof createOrchestratorCancellation>;
   readonly #continuation: ReturnType<typeof createOrchestratorContinuation>;
 
+  readonly #assignmentIntake: ReturnType<typeof createAssignmentIntake>;
+  readonly #assignmentExecution: ReturnType<typeof createAssignmentExecution>;
+  readonly #assignmentRouting: ReturnType<typeof createAssignmentRouting>;
+  readonly #inboxHarvest: ReturnType<typeof createInboxHarvest>;
+
   constructor(options: BotRuntimeOptions) {
     this.#waitOptions = options;
     this.#tob = options.tob;
@@ -1585,8 +1273,9 @@ class BotRuntimeImplementation implements BotRuntime {
     });
     this.#triageContinuation = options.triageContinuation === true;
     this.#approvalCapacity = new AssignmentApprovalCapacity({
-      valid: (sessionId) => this.#assignmentExecutionAvailable(sessionId),
-      available: () => this.#assignmentCapacityRefusal('awakened') === undefined,
+      valid: (sessionId) => this.#assignmentExecution.assignmentExecutionAvailable(sessionId),
+      available: () =>
+        this.#assignmentExecution.assignmentCapacityRefusal('awakened') === undefined,
       releaseAllowed: (sessionId) => this.#ownership.descendantsOf(sessionId).length === 0,
       changed: (sessionId, state, durationMs) => {
         this.#database.transaction(
@@ -1624,25 +1313,28 @@ class BotRuntimeImplementation implements BotRuntime {
       ownership: this.#ownership,
       closed: () => this.#closed,
       registry: this.#registry,
-      assignmentRow: (...args) => this.#assignmentRow(...args),
+      assignmentRow: (...args) => this.#assignmentExecution.assignmentRow(...args),
       getAssignment: (...args) => this.getAssignment(...args),
       saveReportSpill: this.#saveReportSpill,
       readAssignmentReportPage: options.readAssignmentReportPage,
       scheduleReportHarvest: (...args) => this.#assignmentEvents.scheduleReportHarvest(...args),
     });
     this.#assignmentDelivery = createAssignmentDelivery({
-      assignmentCapacityRefusal: (...args) => this.#assignmentCapacityRefusal(...args),
-      requireAssignmentSummary: (...args) => this.#requireAssignmentSummary(...args),
+      assignmentCapacityRefusal: (...args) =>
+        this.#assignmentExecution.assignmentCapacityRefusal(...args),
+      requireAssignmentSummary: (...args) =>
+        this.#assignmentExecution.requireAssignmentSummary(...args),
       setStopState: (...args) => this.#setStopState(...args),
-      setActivity: (...args) => this.#setActivity(...args),
+      setActivity: (...args) => this.#assignmentExecution.setActivity(...args),
       groupContinuations: this.#groupContinuations,
       agents: this.#agents,
       interruptedTools: this.#interruptedTools,
-      publishAssignmentRefusal: (...args) => this.#publishAssignmentRefusal(...args),
+      publishAssignmentRefusal: (...args) =>
+        this.#assignmentExecution.publishAssignmentRefusal(...args),
       now: (...args) => this.#now(...args),
       database: this.#database,
       assignmentAcceptances: this.#assignmentAcceptances,
-      trackAssignmentRun: (...args) => this.#trackAssignmentRun(...args),
+      trackAssignmentRun: (...args) => this.#assignmentExecution.trackAssignmentRun(...args),
     });
     this.#activityEvents = createActivityEvents({
       snoozeTimers: this.#snoozeTimers,
@@ -1677,7 +1369,7 @@ class BotRuntimeImplementation implements BotRuntime {
       pendingHarvests: this.#pendingHarvests,
       recoverPendingDigests: (...args) => this.#groupDigest.recoverPendingDigests(...args),
       registry: this.#registry,
-      runHarvestTurn: (...args) => this.#runHarvestTurn(...args),
+      runHarvestTurn: (...args) => this.#inboxHarvest.runHarvestTurn(...args),
       tails: this.#tails,
       warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
     });
@@ -1734,7 +1426,7 @@ class BotRuntimeImplementation implements BotRuntime {
               this.#channelAdmission.steerWithMemory(botSlug, prompt, requireAccess),
       promptText: (...args) => this.#promptText(...args),
       promptLimits: (...args) => this.#promptLimits(...args),
-      claimGroupContext: (...args) => this.#claimGroupContext(...args),
+      claimGroupContext: (...args) => this.#inboxHarvest.claimGroupContext(...args),
       setObserved: (...args) => this.#setObserved(...args),
       now: (...args) => this.#now(...args),
       markAdmissionsSideEffect: (botSlug, sourceIds) =>
@@ -1744,12 +1436,12 @@ class BotRuntimeImplementation implements BotRuntime {
       routingGroupReplyState: (...args) => this.#continuation.routingGroupReplyState(...args),
       noteSteeredChannel: (...args) => this.#noteSteeredChannel(...args),
       groupContextSection: (...args) => this.#groupDigest.groupContextSection(...args),
-      settleHarvestFailure: (...args) => this.#settleHarvestFailure(...args),
+      settleHarvestFailure: (...args) => this.#inboxHarvest.settleHarvestFailure(...args),
       acceptTurnSources: (...args) => this.#acceptTurnSources(...args),
       typingTurns: this.#typingTurns,
       observeAdmission: (...args) => this.#observeAdmission(...args),
       markReportsHandled: (...args) => this.#markReportsHandled(...args),
-      settleHarvestHandled: (...args) => this.#settleHarvestHandled(...args),
+      settleHarvestHandled: (...args) => this.#inboxHarvest.settleHarvestHandled(...args),
       trackSteer: (settlement) => this.#channelAdmission.trackSteer(settlement),
       held: this.#held,
       armDigest: (...args) => this.#groupDigest.armDigest(...args),
@@ -1758,7 +1450,7 @@ class BotRuntimeImplementation implements BotRuntime {
       activeTurns: this.#activeTurns,
       agents: this.#agents,
       assignmentAcceptances: this.#assignmentAcceptances,
-      assignmentRow: (...args) => this.#assignmentRow(...args),
+      assignmentRow: (...args) => this.#assignmentExecution.assignmentRow(...args),
       assignmentRuns: this.#assignmentRuns,
       cancelAutoContinue: (...args) => this.#continuation.cancelAutoContinue(...args),
       closed: () => this.#closed,
@@ -1966,6 +1658,160 @@ class BotRuntimeImplementation implements BotRuntime {
       tobCliRequests: this.#tobCliRequests,
       turnSources: this.#turnSources,
     });
+    this.#assignmentIntake = createAssignmentIntake({
+      agents: this.#agents,
+      assignmentAcceptances: this.#assignmentAcceptances,
+      assignmentAccessPresetStore: this.#assignmentAccessPresetStore,
+      assignmentArchives: this.#assignmentArchives,
+      assignmentByKey: (...args) => this.#assignmentExecution.assignmentByKey(...args),
+      assignmentCapacityRefusal: (...args) =>
+        this.#assignmentExecution.assignmentCapacityRefusal(...args),
+      assignmentDelivery: this.#assignmentDelivery,
+      assignmentFailed: (...args) => this.#assignmentRouting.assignmentFailed(...args),
+      assignmentGroupExecution: (...args) =>
+        this.#assignmentRouting.assignmentGroupExecution(...args),
+      assignmentModelSelection: (...args) =>
+        this.#assignmentRouting.assignmentModelSelection(...args),
+      assignmentReporting: this.#assignmentReporting,
+      assignmentRow: (...args) => this.#assignmentExecution.assignmentRow(...args),
+      recordInterruptedTools: (...args) => this.#cancellation.recordInterruptedTools(...args),
+      createSessionId: (...args) => this.#createSessionId(...args),
+      database: this.#database,
+      getAssignment: (...args) => this.getAssignment(...args),
+      grants: this.#grants,
+      groupFallback: this.#groupFallback,
+      inheritedModelPlan:
+        this.#inheritedModelPlan === undefined
+          ? undefined
+          : (...args) => this.#inheritedModelPlan?.(...args),
+      interruptedTools: this.#interruptedTools,
+      now: (...args) => this.#now(...args),
+      ownership: this.#ownership,
+      registry: this.#registry,
+      requireAssignmentEngine:
+        this.#requireAssignmentEngine === undefined
+          ? undefined
+          : (...args) => this.#requireAssignmentEngine?.(...args),
+      requireAssignmentSummary: (...args) =>
+        this.#assignmentExecution.requireAssignmentSummary(...args),
+      requireModelRoute:
+        this.#requireModelRoute === undefined
+          ? undefined
+          : (...args) => this.#requireModelRoute?.(...args),
+      requireTurnAccess: (...args) => this.#requireTurnAccess(...args),
+      routeRests: this.#routeRests,
+      sessionModels: this.#sessionModels,
+      setAssignmentExecutionReady: (...args) =>
+        this.#assignmentExecution.setAssignmentExecutionReady(...args),
+      trackAssignmentRun: (...args) => this.#assignmentExecution.trackAssignmentRun(...args),
+      turnSources: this.#turnSources,
+    });
+    this.#assignmentExecution = createAssignmentExecution({
+      agents: this.#agents,
+      approvalCapacity: this.#approvalCapacity,
+      assignmentAcceptances: this.#assignmentAcceptances,
+      assignmentArchives: this.#assignmentArchives,
+      assignmentConcurrencyLimit: (...args) => this.#assignmentConcurrencyLimit(...args),
+      assignmentFailed: (...args) => this.#assignmentRouting.assignmentFailed(...args),
+      assignmentModelSelection: (...args) =>
+        this.#assignmentRouting.assignmentModelSelection(...args),
+      assignmentNotices: this.#assignmentNotices,
+      assignmentReporting: this.#assignmentReporting,
+      assignmentRuns: this.#assignmentRuns,
+      channels: this.#channels,
+      closed: () => this.#closed,
+      database: this.#database,
+      externalMessaging: this.#externalMessaging,
+      getAssignment: (...args) => this.getAssignment(...args),
+      grants: this.#grants,
+      groupContinuations: this.#groupContinuations,
+      nativeAssignmentSteps: this.#nativeAssignmentSteps,
+      now: (...args) => this.#now(...args),
+      ownership: this.#ownership,
+      preparedAssignments: this.#preparedAssignments,
+      publishSessionFailure: (...args) => this.#publishSessionFailure(...args),
+      refreshAssignmentRoute: (...args) => this.refreshAssignmentRoute(...args),
+      registry: this.#registry,
+      requireTurnAccess: (...args) => this.#requireTurnAccess(...args),
+      sessionArchive:
+        this.#sessionArchive === undefined
+          ? undefined
+          : (...args) => this.#sessionArchive?.(...args),
+      sessionArchived: (...args) => this.#sessionArchived?.(...args),
+      sessionModels: this.#sessionModels,
+      typingAssignments: this.#typingAssignments,
+      waitLifetime: this.#waitLifetime,
+      waitOptions: this.#waitOptions,
+      warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
+    });
+    this.#assignmentRouting = createAssignmentRouting({
+      activeSessionModels: this.#activeSessionModels,
+      appendModelSwitch: (...args) => this.#appendModelSwitch(...args),
+      assignmentDmChannel: (...args) => this.#assignmentExecution.assignmentDmChannel(...args),
+      assignmentReporting: this.#assignmentReporting,
+      assignmentRow: (...args) => this.#assignmentExecution.assignmentRow(...args),
+      assignmentRuns: this.#assignmentRuns,
+      closed: () => this.#closed,
+      routingTargetFailure: (...args) => this.#continuation.routingTargetFailure(...args),
+      database: this.#database,
+      groupContinuations: this.#groupContinuations,
+      groupFallback: this.#groupFallback,
+      inheritedModelPlan:
+        this.#inheritedModelPlan === undefined
+          ? undefined
+          : (...args) => this.#inheritedModelPlan?.(...args),
+      now: (...args) => this.#now(...args),
+      pickSessionGroup: (...args) => this.#pickSessionGroup(...args),
+      publishSessionFailure: (...args) => this.#publishSessionFailure(...args),
+      refreshAssignmentRoute: (...args) => this.refreshAssignmentRoute(...args),
+      registry: this.#registry,
+      requestAssignment: (...args) => this.#assignmentIntake.requestAssignment(...args),
+      requireExecution:
+        this.#requireExecution === undefined
+          ? undefined
+          : (...args) => this.#requireExecution?.(...args),
+      requireModelRoute:
+        this.#requireModelRoute === undefined
+          ? undefined
+          : (...args) => this.#requireModelRoute?.(...args),
+      routeRests: this.#routeRests,
+      sessionModels: this.#sessionModels,
+      setActivity: (...args) => this.#assignmentExecution.setActivity(...args),
+      warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
+    });
+    this.#inboxHarvest = createInboxHarvest({
+      assignmentEvents: this.#assignmentEvents,
+      channelAdmission: this.#channelAdmission,
+      channels: this.#channels,
+      closed: () => this.#closed,
+      database: this.#database,
+      digestFailureCount: this.#digestFailureCount,
+      digestRetryAt: this.#digestRetryAt,
+      dmChannel: (...args) => this.#dmChannel(...args),
+      ensureOrchestrator: (...args) => this.#ensureOrchestrator(...args),
+      failureStreaks: this.#failureStreaks,
+      groupDigest: this.#groupDigest,
+      held: this.#held,
+      inboxFactoryRetries: this.#inboxFactoryRetries,
+      markAdmissionsSideEffect: (...args) => this.#markAdmissionsSideEffect(...args),
+      markReportsHandled: (...args) => this.#markReportsHandled(...args),
+      messagingEvents: this.#messagingEvents,
+      noteAutomaticFailure: (...args) => this.#noteAutomaticFailure(...args),
+      now: (...args) => this.#now(...args),
+      observeAdmission: (...args) => this.#observeAdmission(...args),
+      promptLimits: (...args) => this.#promptLimits(...args),
+      promptText: (...args) => this.#promptText(...args),
+      publishSessionFailure: (...args) => this.#publishSessionFailure(...args),
+      registry: this.#registry,
+      retireWithdrawnNetworkAdmissions: (...args) =>
+        this.#retireWithdrawnNetworkAdmissions(...args),
+      rowQuotes: (...args) => this.#rowQuotes(...args),
+      runOnLiveOrchestrator: (...args) => this.#runOnLiveOrchestrator(...args),
+      runOrchestratorTurn: (...args) => this.#runOrchestratorTurn(...args),
+      scheduling: this.#scheduling,
+      setObserved: (...args) => this.#setObserved(...args),
+      warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
+    });
 
     if (options.database.mode === 'ready') {
       const interruptedDms = this.#recoverInterruptedAttempts();
@@ -2118,85 +1964,16 @@ class BotRuntimeImplementation implements BotRuntime {
       `,
           )
           .run(sourceEventId, botSlug);
-        return this.#claimDmContext(database, botSlug, channelId, reason, sourceEventId);
+        return this.#inboxHarvest.claimDmContext(
+          database,
+          botSlug,
+          channelId,
+          reason,
+          sourceEventId,
+        );
       },
       ['bot-inbox'],
     );
-  }
-
-  #claimDmContext(
-    database: DatabaseSync,
-    botSlug: string,
-    channelId: string,
-    reason: 'human-dm' | 'bot-dm',
-    excludeSourceEventId: string,
-  ): GroupContext | undefined {
-    const base = `
-      FROM inbox_admissions a JOIN source_events e ON e.source_event_id = a.source_event_id
-     WHERE a.bot_slug = ? AND a.reason = ? AND a.attempt_state IN ('pending', 'retryable')
-       AND e.channel_id = ? AND a.source_event_id != ?`;
-    const total = database
-      .prepare(`SELECT COUNT(*) AS count ${base}`)
-      .get(botSlug, reason, channelId, excludeSourceEventId) as {
-      count: number;
-    };
-    if (total.count === 0) return undefined;
-    const columns = `SELECT a.source_event_id, a.bot_slug, e.message_id,
-      CASE WHEN json_type(e.payload_json, '$.genuiReplyContext') = 'text'
-        THEN e.body || char(10) || char(10) || json_extract(e.payload_json, '$.genuiReplyContext')
-        ELSE e.body END AS body, e.created_at,
-      json_extract(e.payload_json, '$.author.kind') AS author_kind,
-      json_extract(e.payload_json, '$.author.slug') AS author_slug,
-                 json_extract(e.payload_json, '$.external.event.actor.name') AS external_sender,
-                 json_extract(e.payload_json, '$.external.event.actor.id') AS external_sender_id,
-                 json_extract(e.payload_json, '$.external.platform') AS external_platform,
-                 json_extract(e.payload_json, '$.external.event.messageId') AS external_message_id,
-                 json_extract(e.payload_json, '$.external.event.mentions') AS external_mentions,
-      json_extract(e.payload_json, '$.assignmentReply.sessionId') AS reply_session_id,
-      json_extract(e.payload_json, '$.assignmentReply.sourceEventId') AS reply_source_event_id`;
-    const candidates = database
-      .prepare(`${columns} ${base} ORDER BY e.created_at, e.rowid LIMIT ?`)
-      .all(
-        botSlug,
-        reason,
-        channelId,
-        excludeSourceEventId,
-        GROUP_PROMPT_CHANNEL_LIMIT,
-      ) as unknown as DigestRow[];
-    const limits = this.#promptLimits(botSlug);
-    const bodyLimit = limits['context-message-chars'];
-    const rows: DigestRow[] = [];
-    let characters = 0;
-    for (const row of candidates) {
-      const cost =
-        Math.min(row.body.length, bodyLimit) +
-        80 +
-        this.#rowQuotes(channelId, row.message_id).length;
-      if (
-        rows.length >= GROUP_PROMPT_CHANNEL_LIMIT ||
-        characters + cost > limits['dm-context-chars']
-      )
-        break;
-      rows.push(row);
-      characters += cost;
-    }
-    if (rows.length === 0) return undefined;
-    const context = {
-      channelId,
-      rows,
-      omittedCount: total.count - rows.length,
-      bodyLimit,
-    };
-    for (const row of rows)
-      database
-        .prepare(
-          `
-          UPDATE inbox_admissions SET attempt_state = 'running', last_error = NULL
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state IN ('pending', 'retryable')
-        `,
-        )
-        .run(row.source_event_id, botSlug);
-    return context;
   }
 
   #claimSteeredGroupMention(
@@ -2218,7 +1995,7 @@ class BotRuntimeImplementation implements BotRuntime {
             )
             .run(sourceEventId, botSlug).changes > 0;
         return mention
-          ? this.#claimGroupContext(database, botSlug, channelId, {
+          ? this.#inboxHarvest.claimGroupContext(database, botSlug, channelId, {
               remainingCharacters: Math.max(
                 0,
                 this.#promptLimits(botSlug)['group-context-chars'] - mentionPrompt.length,
@@ -2310,502 +2087,6 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#groupDigest.recoverPendingDigests(botSlug);
   }
 
-  async #runHarvestTurn(botSlug: string): Promise<void> {
-    if (this.#closed || this.#held.has(botSlug)) return;
-    await this.#retireWithdrawnNetworkAdmissions(botSlug);
-    if (this.#closed) return;
-    const bot = this.#registry.get(botSlug);
-    if (bot === undefined || bot.paused === true) return;
-    const collected = this.#collectInbox(botSlug);
-    const externalContextChannels = [
-      ...new Set(
-        collected.units.flatMap((unit) =>
-          unit.external?.receptionPaths
-            ? unit.external.receptionPaths.flatMap((path) =>
-                path.channelId ? [path.channelId] : [],
-              )
-            : unit.external?.localChannelId
-              ? [unit.external.localChannelId]
-              : [],
-        ),
-      ),
-    ];
-    const claimed = this.#claimHarvest(
-      botSlug,
-      externalContextChannels,
-      renderInbox(collected.units, this.#promptText(botSlug)).length,
-    );
-    if (
-      claimed.items.length === 0 &&
-      claimed.digests.length === 0 &&
-      (collected.eventIds.length === 0 ||
-        (claimed.contexts.length === 0 && collected.units.every(onlyPairedLifecycle)))
-    ) {
-      this.#assignmentEvents.settleSeenPairedNotices(botSlug, collected.eventIds);
-      return;
-    }
-    const externalChannelId = collected.units.find((unit) => unit.external?.localChannelId)
-      ?.external?.localChannelId;
-    const primaryChannelId =
-      claimed.items[0]?.channelId ??
-      claimed.digests[0]?.channelId ??
-      externalChannelId ??
-      this.#dmChannel(botSlug)?.id;
-    const externalOnly =
-      claimed.items.length === 0 &&
-      claimed.digests.length === 0 &&
-      collected.units.every((unit) => unit.sourceKind === 'bridge-message');
-    const hasExternalSource = collected.units.some((unit) => unit.sourceKind === 'bridge-message');
-    if (primaryChannelId === undefined && !hasExternalSource) return;
-    const digestIds = claimed.digests.flatMap((digest) =>
-      digest.rows.map((row) => row.source_event_id),
-    );
-    const contextIds = claimed.contexts.flatMap((context) =>
-      context.rows.map((row) => row.source_event_id),
-    );
-    const includedIds = [
-      ...claimed.items.map((item) => item.sourceEventId),
-      ...digestIds,
-      ...contextIds,
-    ];
-    const sourceEventId = claimed.items[0]?.sourceEventId ?? digestIds[0] ?? collected.eventIds[0];
-    if (sourceEventId === undefined) return;
-    const timestamp = this.#now().toISOString();
-    for (const item of claimed.items)
-      this.#observeAdmission(item.sourceEventId, botSlug, item.channelId, item.messageId);
-    if (digestIds.length + contextIds.length > 0)
-      this.#database.transaction(
-        (database) => {
-          for (const id of [...digestIds, ...contextIds])
-            database
-              .prepare(
-                `
-        UPDATE inbox_admissions SET observed_at = ?
-         WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
-      `,
-              )
-              .run(timestamp, id, botSlug);
-        },
-        ['bot-inbox'],
-      );
-    this.#setObserved(collected.eventIds, timestamp, botSlug);
-    let orchestrator: { sessionId: string; resume: boolean } | undefined;
-    try {
-      const started = this.#ensureOrchestrator(bot, timestamp);
-      orchestrator = started;
-      const sections = [
-        ...claimed.items.map((item) =>
-          this.#channelAdmission.inboundChannelMessage(
-            botSlug,
-            item.channelId,
-            item.messageId,
-            item.body,
-            item.sourceEventId,
-          ),
-        ),
-        ...claimed.digests.map((digest) =>
-          this.#groupDigest.digestSection(
-            botSlug,
-            digest.channelId,
-            digest.rows,
-            digest.omittedCount,
-          ),
-        ),
-        ...claimed.contexts.map((context) => this.#groupDigest.groupContextSection(context)),
-      ];
-      const attentionCount = sections.length + (collected.eventIds.length > 0 ? 1 : 0);
-      const preamble =
-        attentionCount > 1
-          ? `[Bot Inbox harvest] ${attentionCount} attention items are ready. Handle them together where useful and in parallel where independent; long-running work belongs in Assignment Sessions.`
-          : undefined;
-      const ran = await this.#runOnLiveOrchestrator(bot, started, (session) => {
-        orchestrator = session;
-        return this.#runOrchestratorTurn(
-          bot,
-          session,
-          sourceEventId,
-          externalOnly && externalChannelId === undefined ? undefined : primaryChannelId,
-          [preamble, ...sections].filter((part): part is string => part !== undefined).join('\n\n'),
-          collected.units,
-          collected.eventIds.length > 0,
-          () => this.#markAdmissionsSideEffect(botSlug, includedIds),
-          collected.eventIds,
-          [...new Set([...includedIds, ...collected.eventIds])],
-        );
-      });
-      this.#markReportsHandled(collected.eventIds, botSlug, ran.sessionId);
-      this.#settleHarvestHandled(botSlug, includedIds);
-      this.#failureStreaks.delete(botSlug);
-      for (const digest of claimed.digests) {
-        this.#digestRetryAt.delete(`${botSlug}:${digest.channelId}`);
-        this.#digestFailureCount.delete(`${botSlug}:${digest.channelId}`);
-      }
-      const retry = this.#inboxFactoryRetries.get(botSlug);
-      if (retry !== undefined) {
-        if (retry.timer !== undefined) clearTimeout(retry.timer);
-        this.#inboxFactoryRetries.delete(botSlug);
-        this.#warn?.(
-          JSON.stringify({
-            component: 'bot-runtime',
-            event: 'inbox-factory-recovered',
-            botSlug,
-            attempts: retry.attempts,
-          }),
-        );
-      }
-    } catch (error) {
-      this.#setObserved(collected.eventIds, null, botSlug);
-      this.#database.transaction(
-        (db) => {
-          for (const id of collected.eventIds)
-            db.prepare(
-              'UPDATE inbox_admissions SET last_error = ? WHERE source_event_id = ? AND bot_slug = ?',
-            ).run(String(error).slice(0, 500), id, botSlug);
-        },
-        ['bot-inbox'],
-      );
-      this.#settleHarvestFailure(botSlug, includedIds, String(error));
-      for (const digest of claimed.digests) {
-        const key = `${botSlug}:${digest.channelId}`;
-        const failures = Math.min(6, (this.#digestFailureCount.get(key) ?? 0) + 1);
-        this.#digestFailureCount.set(key, failures);
-        this.#digestRetryAt.set(
-          key,
-          this.#now().getTime() + Math.min(300_000, 10_000 * 2 ** (failures - 1)),
-        );
-      }
-      if (
-        collected.eventIds.length > 0 &&
-        this.#scheduling.retryInboxAfterAgentFactoryStarts(botSlug, collected.eventIds, error)
-      )
-        return;
-      const retry = this.#inboxFactoryRetries.get(botSlug);
-      if (retry !== undefined) {
-        if (retry.timer !== undefined) clearTimeout(retry.timer);
-        this.#inboxFactoryRetries.delete(botSlug);
-      }
-      if (orchestrator !== undefined && primaryChannelId !== undefined) {
-        try {
-          await this.#publishSessionFailure({
-            channelId: primaryChannelId,
-            botSlug,
-            sessionId: orchestrator.sessionId,
-            role: 'orchestrator',
-            error,
-          });
-        } catch (reportError) {
-          this.#warn?.(
-            JSON.stringify({
-              component: 'bot-runtime',
-              event: 'session-failure-report-failed',
-              botSlug,
-              error: String(reportError),
-            }),
-          );
-        }
-      }
-      await this.#noteAutomaticFailure(botSlug, primaryChannelId, error);
-      throw error;
-    } finally {
-      for (const item of claimed.items)
-        this.#channels.admissionChanged?.(item.channelId, item.messageId);
-      for (const digest of claimed.digests)
-        for (const row of digest.rows)
-          this.#channels.admissionChanged?.(digest.channelId, row.message_id);
-      for (const context of claimed.contexts)
-        for (const row of context.rows)
-          this.#channels.admissionChanged?.(context.channelId, row.message_id);
-    }
-  }
-
-  #claimHarvest(
-    botSlug: string,
-    externalContextChannels: string[] = [],
-    externalCharacters = 0,
-  ): {
-    items: Array<{
-      sourceEventId: string;
-      channelId: string;
-      messageId: string;
-      body: string;
-    }>;
-    digests: Array<{
-      channelId: string;
-      rows: DigestRow[];
-      omittedCount: number;
-    }>;
-    contexts: GroupContext[];
-  } {
-    return this.#database.transaction(
-      (database) => {
-        const itemRows = database
-          .prepare(
-            `
-        SELECT a.source_event_id, e.channel_id, e.message_id, e.body
-          FROM inbox_admissions a
-          JOIN source_events e ON e.source_event_id = a.source_event_id
-         WHERE a.bot_slug = ? AND a.attempt_state IN ('pending', 'retryable')
-           AND a.reason IN ('group-mention', 'bot-dm', 'group-invite', 'group-join-request', 'group-join-decision')
-           AND e.channel_id IS NOT NULL AND e.message_id IS NOT NULL AND e.source_kind != 'bridge-message'
-         ORDER BY CASE a.reason
-                    WHEN 'group-mention' THEN 0
-                    WHEN 'bot-dm' THEN 1
-                    WHEN 'group-invite' THEN 2
-                    WHEN 'group-join-request' THEN 3
-                    ELSE 4
-                  END,
-                  e.created_at, e.rowid
-         LIMIT 20
-      `,
-          )
-          .all(botSlug) as unknown as Array<{
-          source_event_id: string;
-          channel_id: string;
-          message_id: string;
-          body: string;
-        }>;
-        for (const row of itemRows)
-          database
-            .prepare(
-              `
-          UPDATE inbox_admissions SET attempt_state = 'running', observed_at = NULL, last_error = NULL
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state IN ('pending', 'retryable')
-        `,
-            )
-            .run(row.source_event_id, botSlug);
-        const budget: GroupPromptBudget = {
-          remainingCharacters: Math.max(
-            0,
-            this.#promptLimits(botSlug)['group-context-chars'] -
-              externalCharacters -
-              itemRows.reduce(
-                (size, row) =>
-                  size +
-                  this.#channelAdmission.inboundChannelMessage(
-                    botSlug,
-                    row.channel_id,
-                    row.message_id,
-                    row.body,
-                    row.source_event_id,
-                  ).length,
-                200,
-              ),
-          ),
-          includedByChannel: new Map(),
-        };
-        const groups = database
-          .prepare(
-            `
-        SELECT e.channel_id AS channel_id, a.wake_policy_revision AS revision,
-               a.source_policy_revision AS source_revision, a.external_default_revision AS default_revision, a.external_thread_policy_revision AS thread_revision,
-               CASE WHEN a.external_thread_policy_revision IS NOT NULL THEN json_extract(e.payload_json, '$.external.event.reply.threadId') ELSE '' END AS thread_scope,
-               MIN(e.created_at) AS first_at, a.wake_interval_ms AS interval_ms,
-               a.wake_count AS wake_count, COUNT(*) AS count
-          FROM inbox_admissions a
-          JOIN source_events e ON e.source_event_id = a.source_event_id
-         WHERE a.bot_slug = ? AND a.reason = 'group-ordinary' AND e.channel_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id)
-           AND a.wake_count IS NOT NULL AND a.observed_at IS NULL
-           AND a.attempt_state IN ('pending', 'retryable')
-         GROUP BY e.channel_id, a.wake_policy_revision, a.source_policy_revision, default_revision, thread_revision, thread_scope
-         ORDER BY first_at, channel_id
-      `,
-          )
-          .all(botSlug) as unknown as Array<{
-          channel_id: string;
-          revision: number;
-          source_revision: number | null;
-          default_revision: number | null;
-          thread_revision: number | null;
-          thread_scope: string;
-          first_at: string;
-          interval_ms: number;
-          wake_count: number;
-          count: number;
-        }>;
-        const now = this.#now().getTime();
-        const digests: Array<{
-          channelId: string;
-          rows: DigestRow[];
-          omittedCount: number;
-        }> = [];
-        for (const group of groups) {
-          if (
-            group.count < group.wake_count &&
-            Date.parse(group.first_at) + group.interval_ms > now
-          )
-            continue;
-          const candidates = database
-            .prepare(
-              `
-          SELECT a.source_event_id, a.bot_slug, e.message_id, e.body, e.created_at,
-                 json_extract(e.payload_json, '$.skillInvocations') AS skill_invocations,
-                 json_extract(e.payload_json, '$.mentions') AS human_mentions,
-                 json_extract(e.payload_json, '$.author.kind') AS author_kind,
-                 json_extract(e.payload_json, '$.author.slug') AS author_slug,
-                 json_extract(e.payload_json, '$.external.event.actor.name') AS external_sender,
-                 json_extract(e.payload_json, '$.external.event.actor.id') AS external_sender_id,
-                 json_extract(e.payload_json, '$.external.platform') AS external_platform,
-                 json_extract(e.payload_json, '$.external.event.messageId') AS external_message_id,
-                 json_extract(e.payload_json, '$.external.event.mentions') AS external_mentions
-            FROM inbox_admissions a
-            JOIN source_events e ON e.source_event_id = a.source_event_id
-           WHERE a.bot_slug = ? AND a.reason = 'group-ordinary' AND e.channel_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id)
-             AND a.wake_count IS NOT NULL AND a.observed_at IS NULL
-             AND a.attempt_state IN ('pending', 'retryable')
-             AND e.channel_id = ? AND a.wake_policy_revision = ?
-             AND a.source_policy_revision IS ? AND a.external_default_revision IS ? AND a.external_thread_policy_revision IS ?
-             AND CASE WHEN a.external_thread_policy_revision IS NOT NULL THEN json_extract(e.payload_json, '$.external.event.reply.threadId') ELSE '' END = ?
-           ORDER BY e.created_at, e.rowid LIMIT 100
-        `,
-            )
-            .all(
-              botSlug,
-              group.channel_id,
-              group.revision,
-              group.source_revision,
-              group.default_revision,
-              group.thread_revision,
-              group.thread_scope,
-            ) as unknown as DigestRow[];
-          const rows: DigestRow[] = [];
-          const alreadyIncluded = budget.includedByChannel.get(group.channel_id) ?? 0;
-
-          const contextReserve = itemRows.some((row) => row.channel_id === group.channel_id)
-            ? 4_000
-            : 0;
-          for (const row of candidates) {
-            if (alreadyIncluded + rows.length >= GROUP_PROMPT_CHANNEL_LIMIT) break;
-            const nextLength = this.#groupDigest.digestSection(
-              botSlug,
-              group.channel_id,
-              [...rows, row],
-              group.count - rows.length - 1,
-            ).length;
-            if (
-              (budget.includedByChannel.size > 0 || rows.length > 0) &&
-              nextLength > budget.remainingCharacters - contextReserve
-            )
-              break;
-            rows.push(row);
-          }
-          if (rows.length > 0) {
-            budget.remainingCharacters -= this.#groupDigest.digestSection(
-              botSlug,
-              group.channel_id,
-              rows,
-              group.count - rows.length,
-            ).length;
-            budget.includedByChannel.set(group.channel_id, alreadyIncluded + rows.length);
-          }
-          for (const row of rows)
-            database
-              .prepare(
-                `
-          UPDATE inbox_admissions SET attempt_state = 'running', last_error = NULL
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state IN ('pending', 'retryable')
-        `,
-              )
-              .run(row.source_event_id, botSlug);
-          if (rows.length > 0)
-            digests.push({
-              channelId: group.channel_id,
-              rows,
-              omittedCount: group.count - rows.length,
-            });
-        }
-        const contextChannels = new Set([
-          ...externalContextChannels,
-          ...itemRows.map((row) => row.channel_id),
-          ...digests.map((digest) => digest.channelId),
-        ]);
-        const contexts = [...contextChannels]
-          .map((channelId) => this.#claimGroupContext(database, botSlug, channelId, budget))
-          .filter((context): context is GroupContext => context !== undefined);
-        return {
-          items: itemRows.map((row) => ({
-            sourceEventId: row.source_event_id,
-            channelId: row.channel_id,
-            messageId: row.message_id,
-            body: row.body,
-          })),
-          digests,
-          contexts,
-        };
-      },
-      ['bot-inbox'],
-    );
-  }
-
-  #claimGroupContext(
-    database: DatabaseSync,
-    botSlug: string,
-    channelId: string,
-    budget: GroupPromptBudget,
-  ): GroupContext | undefined {
-    const alreadyIncluded = budget.includedByChannel.get(channelId) ?? 0;
-    if (alreadyIncluded >= GROUP_PROMPT_CHANNEL_LIMIT) return undefined;
-    const base = `
-      FROM inbox_admissions a JOIN source_events e ON e.source_event_id = a.source_event_id
-     WHERE a.bot_slug = ? AND a.reason = 'group-ordinary' AND e.channel_id IS NOT NULL
-           AND NOT EXISTS (SELECT 1 FROM messaging_bridge_sources rp WHERE rp.source_event_id = e.source_event_id)
-       AND (a.wake_mode IN ('all', 'digest', 'mentions') OR (a.wake_mode = 'silent' AND a.source_policy_wake_mode = 'context'))
-       AND a.attempt_state IN ('pending', 'retryable') AND e.channel_id = ?`;
-    const total = database.prepare(`SELECT COUNT(*) AS count ${base}`).get(botSlug, channelId) as {
-      count: number;
-    };
-    if (total.count === 0) return undefined;
-    const columns = `SELECT a.source_event_id, a.bot_slug, e.message_id, e.body, e.created_at,
-      json_extract(e.payload_json, '$.skillInvocations') AS skill_invocations,
-      json_extract(e.payload_json, '$.mentions') AS human_mentions,
-      json_extract(e.payload_json, '$.author.kind') AS author_kind,
-      json_extract(e.payload_json, '$.author.slug') AS author_slug,
-                 json_extract(e.payload_json, '$.external.event.actor.name') AS external_sender,
-                 json_extract(e.payload_json, '$.external.event.actor.id') AS external_sender_id,
-                 json_extract(e.payload_json, '$.external.platform') AS external_platform,
-                 json_extract(e.payload_json, '$.external.event.messageId') AS external_message_id,
-                 json_extract(e.payload_json, '$.external.event.mentions') AS external_mentions`;
-    const candidates = database
-      .prepare(`${columns} ${base} ORDER BY e.created_at, e.rowid LIMIT ?`)
-      .all(botSlug, channelId, GROUP_PROMPT_CHANNEL_LIMIT) as unknown as DigestRow[];
-    const bodyLimit = this.#promptLimits(botSlug)['context-message-chars'];
-    const rows: DigestRow[] = [];
-    for (const row of candidates) {
-      if (!sourceSenderAllowed(database, botSlug, row.source_event_id, true)) continue;
-      if (alreadyIncluded + rows.length >= GROUP_PROMPT_CHANNEL_LIMIT) break;
-      const candidateContext = {
-        channelId,
-        rows: [...rows, row],
-        omittedCount: total.count - rows.length - 1,
-        bodyLimit,
-      };
-      if (
-        (budget.includedByChannel.size > 0 || rows.length > 0) &&
-        this.#groupDigest.groupContextSection(candidateContext).length > budget.remainingCharacters
-      )
-        break;
-      rows.push(row);
-    }
-    if (rows.length === 0) return undefined;
-    const context = {
-      channelId,
-      rows,
-      omittedCount: total.count - rows.length,
-      bodyLimit,
-    };
-    budget.remainingCharacters -= this.#groupDigest.groupContextSection(context).length;
-    budget.includedByChannel.set(channelId, alreadyIncluded + rows.length);
-    for (const row of rows)
-      database
-        .prepare(
-          `UPDATE inbox_admissions SET attempt_state = 'running', last_error = NULL
-        WHERE source_event_id = ? AND bot_slug = ? AND attempt_state IN ('pending', 'retryable')`,
-        )
-        .run(row.source_event_id, botSlug);
-    return context;
-  }
-
   #noteSteeredChannel(botSlug: string, channelId: string): void {
     const turn = this.#turnSources.get(botSlug);
     if (turn !== undefined && turn.inboundChannelId !== channelId)
@@ -2841,48 +2122,6 @@ class BotRuntimeImplementation implements BotRuntime {
             )
             .run(this.#now().toISOString(), id, botSlug);
         }
-      },
-      ['bot-inbox'],
-    );
-  }
-
-  #settleHarvestHandled(botSlug: string, sourceEventIds: string[]): void {
-    if (sourceEventIds.length === 0) return;
-    this.#database.transaction(
-      (database) => {
-        for (const id of sourceEventIds)
-          database
-            .prepare(
-              `
-          UPDATE inbox_admissions
-             SET attempt_state = 'handled', handled_at = ?, opened_at = COALESCE(opened_at, ?)
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
-        `,
-            )
-            .run(this.#now().toISOString(), this.#now().toISOString(), id, botSlug);
-      },
-      ['bot-inbox'],
-    );
-  }
-
-  #settleHarvestFailure(botSlug: string, sourceEventIds: string[], error: string): void {
-    if (sourceEventIds.length === 0) return;
-    this.#database.transaction(
-      (database) => {
-        for (const id of sourceEventIds)
-          database
-            .prepare(
-              `
-          UPDATE inbox_admissions
-             SET attempt_state = CASE WHEN side_effect_started_at IS NULL THEN 'retryable' ELSE 'needs-repair' END,
-                 observed_at = CASE
-                   WHEN reason = 'group-ordinary' AND side_effect_started_at IS NULL THEN NULL
-                   ELSE observed_at END,
-                 last_error = ?
-           WHERE source_event_id = ? AND bot_slug = ? AND attempt_state = 'running'
-        `,
-            )
-            .run(error.slice(0, 500), id, botSlug);
       },
       ['bot-inbox'],
     );
@@ -3081,7 +2320,11 @@ class BotRuntimeImplementation implements BotRuntime {
   ): Promise<boolean> {
     const owner = this.#ownership.resolve(sessionId);
     if (owner?.rootRole === 'assignment' && owner.parentSessionId === undefined)
-      return this.#prepareNativeAssignmentStep(sessionId, senderSessionIds, signal);
+      return this.#assignmentExecution.prepareNativeAssignmentStep(
+        sessionId,
+        senderSessionIds,
+        signal,
+      );
     if (owner?.rootRole !== 'orchestrator' || owner.parentSessionId !== undefined) return true;
     const unavailable = (): NativeOrchestratorRefusal | undefined => {
       if (this.#closed) return 'runtime-closed';
@@ -3273,47 +2516,11 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   latestAssignmentActivity(): ReadonlyMap<string, number> {
-    return this.#database.read((database) => {
-      const rows = database
-        .prepare(
-          `SELECT bot_slug, MAX(unixepoch(latest_report_at, 'subsec') * 1000) AS at
-         FROM assignments WHERE latest_report_at IS NOT NULL GROUP BY bot_slug`,
-        )
-        .all();
-      return new Map(
-        rows.flatMap((row) =>
-          typeof row['bot_slug'] === 'string' &&
-          typeof row['at'] === 'number' &&
-          Number.isFinite(row['at'])
-            ? [[row['bot_slug'], row['at']]]
-            : [],
-        ),
-      );
-    });
+    return this.#assignmentExecution.latestAssignmentActivity();
   }
 
   assignmentEngineAccountUses(accountId: string): string[] {
-    return this.#database.read((database) => {
-      const rows = database
-        .prepare(
-          `SELECT session_id, json_extract(model_route_json, '$.engine') AS engine,
-                  json_extract(model_route_json, '$.accountId') AS account_id
-             FROM assignments
-            WHERE model_group_id IS NULL
-              AND json_extract(model_route_json, '$.kind') = 'engine'
-              AND (account_id = ? OR account_id IS NULL)
-            ORDER BY session_id`,
-        )
-        .all(accountId);
-      return rows.flatMap(({ session_id, engine, account_id }) =>
-        typeof session_id === 'string' &&
-        isEngineId(engine) &&
-        engineAccountKey(engine, typeof account_id === 'string' ? account_id : undefined) ===
-          accountId
-          ? [session_id]
-          : [],
-      );
-    });
+    return this.#assignmentRouting.assignmentEngineAccountUses(accountId);
   }
 
   async refreshBotContacts(): Promise<void> {
@@ -3353,80 +2560,19 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   listAssignments(botSlug: string): AssignmentSummary[] {
-    const rows = this.#database.read((database) =>
-      database
-        .prepare(
-          `SELECT session_id, source_event_id, bot_slug, title, description, activity, stop_state,
-                  latest_report_state, latest_report_summary, latest_report_at,
-                  continuity_key, open_ask_source_event_id, open_ask_at,
-                  grant_id, workspace_id, primary_cwd, permission_mode,
-                  approval_policy, preset_revision, created_at, updated_at
-                  , model_route_json, model_group_id, model_effort, agent_preset, archived_at, (SELECT body FROM source_events WHERE source_event_id = assignments.open_ask_source_event_id) AS open_ask_summary
-             FROM assignments
-            WHERE bot_slug = ?
-            ORDER BY updated_at DESC, session_id ASC`,
-        )
-        .all(botSlug),
-    ) as unknown as AssignmentRow[];
-    return rows.map((row) => {
-      const {
-        botSlug: _botSlug,
-        sourceEventId: _sourceEventId,
-        ...summary
-      } = assignmentFromRow(row);
-      const executionWait = this.#approvalCapacity.state(row.session_id);
-      return {
-        ...summary,
-        ...(executionWait === undefined ? {} : { executionWait }),
-      };
-    });
+    return this.#assignmentExecution.listAssignments(botSlug);
   }
 
   listChannelAssignments(channelId: string): ChannelAssignmentSummary[] {
-    const rows = this.#database.read((database) =>
-      database
-        .prepare(
-          `SELECT a.session_id, a.source_event_id, a.bot_slug, a.title, a.description, a.activity, a.stop_state,
-                  a.latest_report_state, a.latest_report_summary, a.latest_report_at,
-                  a.continuity_key, a.open_ask_source_event_id, a.open_ask_at,
-                  a.grant_id, a.workspace_id, a.primary_cwd, a.permission_mode,
-                  a.approval_policy, a.preset_revision, a.created_at, a.updated_at,
-                  a.model_route_json, a.model_group_id, a.model_effort, a.archived_at
-             FROM assignments a
-             JOIN source_events s ON s.source_event_id = a.source_event_id
-            WHERE s.channel_id = ?
-            ORDER BY a.updated_at DESC, a.session_id ASC
-            LIMIT 200`,
-        )
-        .all(channelId),
-    ) as unknown as AssignmentRow[];
-    return rows.map((row) => {
-      const assignment = assignmentFromRow(row);
-      return {
-        sessionId: assignment.sessionId,
-        botSlug: assignment.botSlug,
-        title: assignment.title,
-        description: assignment.description,
-        activity: assignment.activity,
-        ...(assignment.latestReport === undefined ? {} : { latestReport: assignment.latestReport }),
-        ...(assignment.modelRoute === undefined ? {} : { modelRoute: assignment.modelRoute }),
-        ...(assignment.archivedAt === undefined ? {} : { archivedAt: assignment.archivedAt }),
-        createdAt: assignment.createdAt,
-        updatedAt: assignment.updatedAt,
-      };
-    });
+    return this.#assignmentExecution.listChannelAssignments(channelId);
   }
 
-  async setAssignmentArchived(
+  setAssignmentArchived(
     botSlug: string,
     sessionId: string,
     archived: boolean,
   ): Promise<AssignmentArchiveOutcome | { outcome: 'unarchived'; assignment: AssignmentSummary }> {
-    const bot = this.#registry.get(botSlug);
-    if (bot === undefined) throw new Error(`Unknown PersonaBot: ${botSlug}`);
-    return archived
-      ? this.#archiveAssignment(bot, sessionId, () => {})
-      : this.#unarchiveAssignment(bot, sessionId, () => {});
+    return this.#assignmentExecution.setAssignmentArchived(botSlug, sessionId, archived);
   }
 
   async replaceOrchestrator<T>(
@@ -3523,26 +2669,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   getAssignment(botSlug: string, sessionId: string): AssignmentDetail | undefined {
-    const row = this.#database.read((database) =>
-      database
-        .prepare(
-          `SELECT session_id, source_event_id, bot_slug, title, description, activity, stop_state,
-                  latest_report_state, latest_report_summary, latest_report_at,
-                  continuity_key, open_ask_source_event_id, open_ask_at,
-                  grant_id, workspace_id, primary_cwd, permission_mode,
-                  approval_policy, preset_revision, created_at, updated_at
-                  , model_route_json, model_group_id, model_effort, agent_preset, archived_at, (SELECT body FROM source_events WHERE source_event_id = assignments.open_ask_source_event_id) AS open_ask_summary
-             FROM assignments
-            WHERE bot_slug = ? AND session_id = ?`,
-        )
-        .get(botSlug, sessionId),
-    ) as AssignmentRow | undefined;
-    if (row === undefined) return undefined;
-    const executionWait = this.#approvalCapacity.state(sessionId);
-    return {
-      ...assignmentFromRow(row),
-      ...(executionWait === undefined ? {} : { executionWait }),
-    };
+    return this.#assignmentExecution.getAssignment(botSlug, sessionId);
   }
 
   beginAssignmentApprovalWait(
@@ -3550,17 +2677,15 @@ class BotRuntimeImplementation implements BotRuntime {
     callId: string,
     signal: AbortSignal,
   ): AssignmentApprovalWaitLease | undefined {
-    if (this.#assignmentRow(undefined, sessionId) === undefined) return undefined;
-    return this.#approvalCapacity.begin(sessionId, callId, signal);
+    return this.#assignmentExecution.beginAssignmentApprovalWait(sessionId, callId, signal);
   }
 
-  async ensureAssignmentCapacity(sessionId: string, signal: AbortSignal): Promise<void> {
-    if (this.#ownership.resolve(sessionId)?.rootRole === 'assignment')
-      await this.#approvalCapacity.ensure(sessionId, signal);
+  ensureAssignmentCapacity(sessionId: string, signal: AbortSignal): Promise<void> {
+    return this.#assignmentExecution.ensureAssignmentCapacity(sessionId, signal);
   }
 
   assignmentApprovalWait(sessionId: string, callId: string): AssignmentExecutionWait | undefined {
-    return this.#approvalCapacity.stateForCall(sessionId, callId);
+    return this.#assignmentExecution.assignmentApprovalWait(sessionId, callId);
   }
 
   runAssignmentTool<T>(
@@ -3570,214 +2695,11 @@ class BotRuntimeImplementation implements BotRuntime {
     signal: AbortSignal,
     body: () => Promise<T>,
   ): Promise<T> {
-    return this.#assignmentRow(undefined, sessionId) !== undefined
-      ? this.#approvalCapacity.execute(sessionId, callId, token, signal, body)
-      : body();
+    return this.#assignmentExecution.runAssignmentTool(sessionId, callId, token, signal, body);
   }
 
   settleAssignmentTool(sessionId: string, callId: string): void {
-    this.#approvalCapacity.settledTool(sessionId, callId);
-  }
-
-  #assignmentExecutionAvailable(sessionId: string): boolean {
-    return this.#assignmentAvailable(sessionId, 'working');
-  }
-
-  #assignmentAvailable(sessionId: string, activity: 'working' | 'idle'): boolean {
-    if (this.#closed) return false;
-    const row = this.#assignmentRow(undefined, sessionId);
-    const owner = this.#ownership.resolve(sessionId);
-    const bot = row === undefined ? undefined : this.#registry.get(row.bot_slug);
-    if (
-      row?.stop_state !== 'running' ||
-      row.activity !== activity ||
-      owner?.rootRole !== 'assignment' ||
-      owner.botSlug !== row.bot_slug ||
-      bot === undefined ||
-      bot.paused === true ||
-      isArchivedRow(row) ||
-      this.#sessionArchived?.(sessionId) === true ||
-      this.#assignmentArchives.has(sessionId) ||
-      !this.#ownership.contentAvailable(sessionId)
-    )
-      return false;
-    const permission = permissionFromRow(row);
-    if (permission === undefined || this.#grants === undefined) return false;
-    try {
-      const grant = this.#grants.requireActive(row.bot_slug, permission.grantId);
-      if (
-        grant.workspaceId !== permission.workspaceId ||
-        grant.workspacePath !== permission.primaryCwd
-      )
-        return false;
-      this.#database.read((db) => requireSourceEffects(db, row.source_event_id, row.bot_slug));
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
-  async #prepareNativeAssignmentStep(
-    sessionId: string,
-    senderSessionIds: readonly string[],
-    signal: AbortSignal,
-  ): Promise<boolean> {
-    const startedAt = Date.now();
-    if (this.#preparedAssignments.has(sessionId))
-      return !signal.aborted && this.#assignmentExecutionAvailable(sessionId);
-    const trusted = () =>
-      senderSessionIds.length > 0 &&
-      senderSessionIds.every((id) => {
-        const sender = this.#ownership.resolve(id);
-        return (
-          sender?.parentSessionId === sessionId &&
-          sender.botSlug === this.#assignmentRow(undefined, sessionId)?.bot_slug &&
-          sender.provenance === 'subagent' &&
-          this.#ownership.contentAvailable(id)
-        );
-      });
-    const cancellation = AbortSignal.any([signal, this.#waitLifetime.signal]);
-    const valid = () =>
-      !cancellation.aborted &&
-      (this.#assignmentAvailable(sessionId, 'idle') ||
-        this.#assignmentExecutionAvailable(sessionId)) &&
-      trusted();
-    const refuse = (reason = 'execution-unavailable') => {
-      this.#warn?.(
-        JSON.stringify({
-          event: 'native-assignment-input',
-          phase: 'refused',
-          reason,
-          session: sessionId,
-          durationMs: Date.now() - startedAt,
-        }),
-      );
-      return false;
-    };
-    if (!valid()) return refuse();
-    const pending = this.#nativeAssignmentSteps.get(sessionId);
-    if (pending !== undefined) {
-      const accepted = await new Promise<boolean>((resolve) => {
-        const finish = (result: boolean) => {
-          cancellation.removeEventListener('abort', abort);
-          resolve(result);
-        };
-        const abort = () => finish(false);
-        cancellation.addEventListener('abort', abort, { once: true });
-        void pending.step.then(finish, () => finish(false));
-        if (cancellation.aborted) abort();
-      });
-      if (!valid()) return refuse();
-      if (!accepted && pending.signal.aborted)
-        return this.#prepareNativeAssignmentStep(sessionId, senderSessionIds, signal);
-      return accepted;
-    }
-    const prepare = async () => {
-      while (this.#assignmentRuns.has(sessionId)) {
-        if (this.#preparedAssignments.has(sessionId)) return valid();
-        await this.#assignmentRuns.get(sessionId);
-      }
-      while (valid() && this.#assignmentCapacityRefusal('awakened') !== undefined) {
-        await new Promise<void>((resolve) => {
-          const finish = () => {
-            unsubscribe();
-            cancellation.removeEventListener('abort', finish);
-            resolve();
-          };
-          const unsubscribe = this.#waitOptions.database.subscribe(finish);
-          cancellation.addEventListener('abort', finish, { once: true });
-          if (!valid() || this.#assignmentCapacityRefusal('awakened') === undefined) finish();
-        });
-      }
-      if (!valid()) return refuse();
-      const row = this.#assignmentRow(undefined, sessionId)!;
-      const bot = this.#registry.get(row.bot_slug)!;
-      const permission = permissionFromRow(row)!;
-      const retained = row.model_group_id === null ? storedAssignmentTarget(row) : undefined;
-      const directTarget = retained !== undefined && 'kind' in retained ? retained : undefined;
-      if (directTarget?.kind === 'engine' && this.#sessionModels.get(sessionId) === null)
-        return refuse('native-input-requires-dsh-agent');
-      return new Promise<boolean>((resolve) => {
-        let settled = false;
-        const finish = (accepted: boolean) => {
-          if (settled) return;
-          settled = true;
-          cancellation.removeEventListener('abort', abort);
-          resolve(accepted);
-        };
-        const abort = () => finish(false);
-        cancellation.addEventListener('abort', abort, { once: true });
-        const agentPreset = row.agent_preset ?? undefined;
-        this.#trackAssignmentRun(sessionId, async () => {
-          const modelRoute =
-            this.#sessionModels.get(sessionId) === null
-              ? await this.refreshAssignmentRoute(row.bot_slug, sessionId).catch(() =>
-                  modelRouteFromRow(row),
-                )
-              : modelRouteFromRow(row);
-          try {
-            await this.#agents.runAssignment({
-              ...this.#assignmentModelSelection(bot.slug, sessionId),
-              sessionId,
-              bot,
-              text: '',
-              resume: true,
-              permission,
-              recoveryEntry: () => this.getAssignment(bot.slug, sessionId),
-              failEngineRecovery: (summary) =>
-                this.#assignmentReporting.recordEngineRecoveryFailure(bot.slug, sessionId, summary),
-              ...(modelRoute === undefined ? {} : { modelRoute }),
-              ...(directTarget?.kind === 'route' ? { routingTarget: directTarget } : {}),
-              ...(agentPreset === undefined ? {} : { agentPreset }),
-              requireContent: () => {
-                this.#requireTurnAccess(bot.slug, row.source_event_id ? [row.source_event_id] : []);
-                this.#database.read((db) =>
-                  requireAssignmentSource(db, row.source_event_id, bot.slug),
-                );
-              },
-              setExecutionReady: (ready) => this.#setAssignmentExecutionReady(sessionId, ready),
-              acceptNativeInput: () => {
-                const accepted = valid();
-                if (accepted) this.#groupContinuations.delete(sessionId);
-                this.#warn?.(
-                  JSON.stringify({
-                    event: 'native-assignment-input',
-                    phase: accepted ? 'ready' : 'refused',
-                    session: sessionId,
-                    durationMs: Date.now() - startedAt,
-                  }),
-                );
-                finish(accepted);
-                return accepted;
-              },
-              report: (report, execution) =>
-                this.#assignmentReporting.recordReport(bot.slug, sessionId, report, execution),
-              completedTurn: (execution) =>
-                this.#assignmentReporting.recordCompletedAssignment(bot.slug, sessionId, execution),
-              cancelledTurn: (execution) =>
-                this.#assignmentReporting.recordUnsuccessfulAssignment(
-                  bot.slug,
-                  sessionId,
-                  execution,
-                  'cancelled',
-                ),
-              failedTurn: (execution) => this.#assignmentFailed(bot.slug, sessionId, execution),
-            });
-          } finally {
-            this.#preparedAssignments.delete(sessionId);
-            finish(false);
-          }
-        });
-      });
-    };
-    const step = prepare();
-    this.#nativeAssignmentSteps.set(sessionId, { step, signal: cancellation });
-    try {
-      return await step;
-    } finally {
-      if (this.#nativeAssignmentSteps.get(sessionId)?.step === step)
-        this.#nativeAssignmentSteps.delete(sessionId);
-    }
+    this.#assignmentExecution.settleAssignmentTool(sessionId, callId);
   }
 
   stopBot(botSlug: string): Promise<void> {
@@ -4132,7 +3054,9 @@ class BotRuntimeImplementation implements BotRuntime {
     let orchestrator = this.#ensureOrchestrator(bot, timestamp);
 
     const collected =
-      tobCliTurn === undefined ? this.#collectInbox(bot.slug) : { units: [], eventIds: [] };
+      tobCliTurn === undefined
+        ? this.#inboxHarvest.collectInbox(bot.slug)
+        : { units: [], eventIds: [] };
     this.#setObserved(collected.eventIds, timestamp, bot.slug);
     try {
       tobCliTurn?.signal.throwIfAborted();
@@ -4332,7 +3256,10 @@ class BotRuntimeImplementation implements BotRuntime {
     const typingSources = [...turnSources, ...inboxUnits.map((unit) => unit.sourceEventId)];
     for (const unit of inboxUnits) {
       if (!unit.assignmentSessionId) continue;
-      const origin = this.#assignmentRow(bot.slug, unit.assignmentSessionId)?.source_event_id;
+      const origin = this.#assignmentExecution.assignmentRow(
+        bot.slug,
+        unit.assignmentSessionId,
+      )?.source_event_id;
       if (origin) typingSources.push(origin);
     }
     let processing: MessagingProcessing | undefined;
@@ -4610,14 +3537,14 @@ class BotRuntimeImplementation implements BotRuntime {
         await this.#recordTurnCommits(bot.slug, sourceEventId!);
       }
       this.#markReportsHandled(memoryEventIds);
-      this.#settleHarvestHandled(bot.slug, [...readAdmissions]);
+      this.#inboxHarvest.settleHarvestHandled(bot.slug, [...readAdmissions]);
       this.#notifyReadAdmissions(readAdmissions);
       if (!this.#triageRunning.has(bot.slug)) this.#triageBaseline.delete(bot.slug);
       if (tobCliTurn === undefined && !this.#stoppedTurns.has(bot.slug))
         this.#activityEvents.queueTriage(bot.slug);
     } catch (error) {
       this.#setObserved(memoryEventIds, null);
-      this.#settleHarvestFailure(bot.slug, [...readAdmissions], String(error));
+      this.#inboxHarvest.settleHarvestFailure(bot.slug, [...readAdmissions], String(error));
       this.#notifyReadAdmissions(readAdmissions);
       if (observeMemory) {
         await this.#memoryEvents.settleSteerMemoryScan(bot.slug);
@@ -5101,7 +4028,12 @@ class BotRuntimeImplementation implements BotRuntime {
           throw new Error('Assignment creation requires a Source Event');
         refuseStopped();
         this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));
-        const outcome = this.#createOrReuseAssignment(bot, sourceEventId, input, trackDelivery);
+        const outcome = this.#assignmentIntake.createOrReuseAssignment(
+          bot,
+          sourceEventId,
+          input,
+          trackDelivery,
+        );
         if (outcome.outcome === 'created' || outcome.outcome === 'reused') {
           markSideEffect();
           this.#assignmentEvents.linkRequestAssignment(sourceEventId, outcome.assignment.sessionId);
@@ -5112,8 +4044,10 @@ class BotRuntimeImplementation implements BotRuntime {
       grants: () => this.#grants?.list(bot.slug) ?? [],
       list: () => this.listAssignments(bot.slug),
       query: (input) => queryAssignmentDirectory(this.listAssignments(bot.slug), input),
-      archive: (sessionId) => this.#archiveAssignment(bot, sessionId, markSideEffect),
-      unarchive: (sessionId) => this.#unarchiveAssignment(bot, sessionId, markSideEffect),
+      archive: (sessionId) =>
+        this.#assignmentExecution.archiveAssignment(bot, sessionId, markSideEffect),
+      unarchive: (sessionId) =>
+        this.#assignmentExecution.unarchiveAssignment(bot, sessionId, markSideEffect),
       inspect: (sessionId) => this.getAssignment(bot.slug, sessionId),
       tail: async (sessionId) => {
         if (this.getAssignment(bot.slug, sessionId) === undefined)
@@ -5127,7 +4061,12 @@ class BotRuntimeImplementation implements BotRuntime {
         refuseStopped();
         if (sourceEventId !== undefined)
           this.#database.read((db) => requireSourceEffects(db, sourceEventId, bot.slug));
-        const outcome = this.#requestAssignment(bot, input, trackDelivery, sourceEventId);
+        const outcome = this.#assignmentIntake.requestAssignment(
+          bot,
+          input,
+          trackDelivery,
+          sourceEventId,
+        );
         if (outcome.delivery !== 'capacity' && outcome.delivery !== 'refused') {
           markSideEffect();
           if (sourceEventId !== undefined)
@@ -6016,486 +4955,16 @@ class BotRuntimeImplementation implements BotRuntime {
     return this.#workspaceRoot === undefined ? undefined : join(this.#workspaceRoot, bot.slug);
   }
 
-  #createOrReuseAssignment(
-    bot: PersonaBotRecord,
-    sourceEventId: string,
-    input: {
-      title: string;
-      description: string;
-      instructions?: string;
-      key?: string;
-      grantId: string;
-      model?: ModelRoute;
-      engine?: PresetSubEngineSelection;
-      engineEffort?: string;
-      modelGroupId?: string;
-      routingTarget?: RoutingTarget;
-      modelGroupEffort?: string;
-      mode?: string;
-    },
-    trackDelivery?: (sessionId: string, pending: boolean) => void,
-  ): AssignmentCreateOutcome {
-    const title = requireBoundedText(input.title, 'title', ASSIGNMENT_TITLE_MAX_LENGTH);
-    const description = requireBoundedText(
-      input.description,
-      'description',
-      ASSIGNMENT_DESCRIPTION_MAX_LENGTH,
-    );
-    const instructions =
-      input.instructions === undefined || input.instructions.trim() === ''
-        ? undefined
-        : input.instructions.trim();
-    const text = instructions ?? description;
-    const grantId = requireNonBlank(input.grantId, 'Workspace Grant id');
-    if (this.#registry.get(bot.slug) === undefined) throw new Error('PersonaBot is deleted');
-    const current = this.#registry.get(bot.slug) ?? bot;
-    const plan = resolveBotModelPlan(current, () => this.#inheritedModelPlan?.());
-    if (input.model !== undefined && !isAssignmentModelChoice(input.model))
-      throw new Error('Assignment model choice is invalid');
-    const modelGroupId =
-      input.modelGroupId === undefined
-        ? undefined
-        : plan?.assignmentDefault === undefined
-          ? input.modelGroupId === this.#groupFallback?.inherited()
-            ? input.modelGroupId
-            : undefined
-          : selectAssignmentGroup(plan, { group: input.modelGroupId });
-    if (input.model !== undefined && plan === undefined && modelGroupId === undefined)
-      throw new Error('Apply a Model Preset before choosing an Assignment model');
-    if (
-      input.modelGroupId !== undefined &&
-      (modelGroupId === undefined ||
-        (input.model === undefined && input.routingTarget === undefined))
-    )
-      throw new Error('An Assignment Routing Group needs its chosen member route');
-    if (this.#grants === undefined) throw new Error('Workspace Grants are unavailable');
-    const grant = this.#grants.requireActive(bot.slug, grantId);
-    const access = this.#assignmentAccessPresetStore?.get(bot.slug) ?? {
-      mode: 'workspace-write' as const,
-      revision: 0,
-    };
-    if (
-      access.mode === 'danger-full-access' &&
-      bot.ownerHumanId !== undefined &&
-      bot.ownerHumanId !==
-        (this.#database.read((db) => db.prepare('SELECT owner_human_id FROM team_settings').get())
-          ?.owner_human_id ?? OWNER_HUMAN_CONTEXT.humanId)
-    )
-      throw new TeamError('permission-required');
-    const permission: AssignmentPermissionSnapshot = {
-      grantId: grant.id,
-      workspaceId: grant.workspaceId,
-      primaryCwd: grant.workspacePath,
-      mode: access.mode,
-      approval: 'ask',
-      presetRevision: access.revision,
-    };
-    const key = input.key === undefined ? undefined : requireNonBlank(input.key, 'Continuity Key');
-    if (key !== undefined) {
-      const holder = this.#assignmentByKey(bot.slug, key);
-      if (holder !== undefined && holder.grant_id !== grant.id) {
-        throw new Error('Continuity Key belongs to an Assignment with a different Workspace Grant');
-      }
-      if (
-        holder !== undefined &&
-        (holder.activity === 'idle' || holder.activity === 'error') &&
-        holder.stop_state === 'running'
-      ) {
-        if (
-          input.model !== undefined ||
-          input.routingTarget !== undefined ||
-          input.engine !== undefined
-        )
-          throw new Error(
-            'An existing keyed Assignment keeps its model; use a new key for a new model choice',
-          );
-        if (input.mode !== undefined)
-          throw new Error(
-            'An existing keyed Assignment keeps its mode; use a new key for a new mode choice',
-          );
-        const request = this.#requestAssignment(
-          bot,
-          { sessionId: holder.session_id, mode: 'next-turn', text },
-          trackDelivery,
-          sourceEventId,
-        );
-        if (request.delivery === 'capacity') {
-          const { assignment: _assignment, delivery: _delivery, ...refusal } = request;
-          return refusal;
-        }
-        if (request.delivery === 'refused') throw new Error(request.message);
-        return {
-          outcome: 'reused',
-          assignment: this.#requireAssignmentSummary(bot.slug, holder.session_id),
-        };
-      }
-      if (holder !== undefined) {
-        return {
-          outcome: 'key-busy',
-          message: `Continuity Key ${key} is held by running Assignment ${holder.session_id}; send it a request, wait, or create a new Assignment without the key.`,
-        };
-      }
-    }
-    const engineSelection =
-      input.engine ??
-      (modelGroupId === undefined &&
-      input.model === undefined &&
-      plan?.sub?.default?.kind === 'engine'
-        ? plan.sub.default
-        : undefined);
-    let engineTarget: Extract<RoutingTarget, { kind: 'engine' }> | undefined;
-    if (engineSelection !== undefined) {
-      const choice = plan?.sub?.choices.find((entry) =>
-        matchesPresetSubChoice(entry, engineSelection),
-      );
-      if (
-        choice?.kind !== 'engine' ||
-        (input.engineEffort !== undefined && input.engineEffort !== (choice.effort ?? ''))
-      )
-        throw new AssignmentChoiceError(
-          'assignment-choice-not-allowed',
-          'Choose a listed Assignment Subscription Engine account, model and effort',
-        );
-      engineTarget = presetSubEngineTarget(choice);
-      try {
-        this.#requireAssignmentEngine?.(bot.slug, engineTarget);
-      } catch (error) {
-        if (error instanceof EngineLimitError)
-          throw new AssignmentChoiceError('assignment-choice-resting', error.message);
-        if (error instanceof EngineRefusal)
-          throw new AssignmentChoiceError('assignment-choice-unavailable', error.message);
-        throw error;
-      }
-    }
-    const modelRoute =
-      modelGroupId !== undefined
-        ? input.routingTarget?.kind === 'route'
-          ? input.routingTarget.route
-          : input.model
-        : plan === undefined || engineTarget !== undefined
-          ? undefined
-          : selectAssignmentRoute(plan, input.model);
-    if (modelRoute) this.#requireModelRoute?.(bot.slug, modelRoute);
-    if (plan?.sub !== undefined && modelGroupId === undefined && modelRoute !== undefined) {
-      const rest = this.#routeRests?.restingUntil(modelRoute);
-      if (rest !== undefined)
-        throw new AssignmentChoiceError(
-          'assignment-choice-resting',
-          `Assignment model ${rest.provider}/${rest.model} is resting until ${rest.until}`,
-        );
-    }
-    const target =
-      engineTarget ??
-      input.routingTarget ??
-      (modelRoute === undefined ? undefined : { kind: 'route' as const, route: modelRoute });
-    const directTarget =
-      modelGroupId === undefined &&
-      (engineTarget !== undefined || plan?.sub?.choices.some((choice) => choice.kind === 'engine'))
-        ? target
-        : undefined;
-    const refusal = this.#assignmentCapacityRefusal('created');
-    if (refusal !== undefined) return refusal;
-    const sessionId = this.#createSessionId();
-    const createdAt = this.#now().toISOString();
-    this.#database.transaction(
-      (database) => {
-        const cwdReference = permission.primaryCwd;
-        this.#ownership.claimWithin(database, {
-          sessionId,
-          botSlug: bot.slug,
-          rootRole: 'assignment',
-          ...(cwdReference === undefined ? {} : { cwdReference }),
-          at: createdAt,
-        });
-        const sourceHuman = database
-          .prepare('SELECT human_id FROM source_events WHERE source_event_id = ?')
-          .get(sourceEventId);
-        const rootSessionId = this.#turnSources.get(bot.slug)?.sessionId;
-        const rootHuman = rootSessionId
-          ? database
-              .prepare(
-                'SELECT human_id FROM usage_turn_humans WHERE session_id = ? ORDER BY turn DESC LIMIT 1',
-              )
-              .get(rootSessionId)
-          : undefined;
-        const creatorHumanId =
-          typeof sourceHuman?.['human_id'] === 'string'
-            ? sourceHuman['human_id']
-            : rootHuman?.['human_id'];
-        if (typeof creatorHumanId === 'string')
-          database
-            .prepare('INSERT OR IGNORE INTO usage_turn_humans VALUES (?, 0, ?, ?)')
-            .run(sessionId, creatorHumanId, Date.parse(createdAt));
-        database
-          .prepare(
-            `INSERT INTO assignments (
-               session_id, source_event_id, bot_slug, title, description, activity,
-               continuity_key, grant_id, workspace_id, primary_cwd, permission_mode,
-               approval_policy, preset_revision, model_route_json, model_group_id, model_effort,
-               agent_preset, created_at, updated_at
-             ) VALUES (?, ?, ?, ?, ?, 'working', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-          )
-          .run(
-            sessionId,
-            sourceEventId,
-            bot.slug,
-            title,
-            description,
-            key ?? null,
-            permission.grantId,
-            permission.workspaceId,
-            permission.primaryCwd,
-            permission.mode,
-            permission.approval,
-            permission.presetRevision,
-            directTarget !== undefined
-              ? JSON.stringify(directTarget)
-              : target === undefined
-                ? null
-                : saveAssignmentTarget(target),
-            modelGroupId ?? null,
-            modelGroupId === undefined ? null : (input.modelGroupEffort ?? null),
-            input.mode ?? null,
-            createdAt,
-            createdAt,
-          );
-      },
-      ['session-ownership', 'assignments'],
-    );
-    trackDelivery?.(sessionId, true);
-    this.#trackAssignmentRun(sessionId, () =>
-      this.#agents.runAssignment({
-        ...this.#assignmentModelSelection(bot.slug, sessionId),
-        setExecutionReady: (ready) => this.#setAssignmentExecutionReady(sessionId, ready),
-        requireContent: () => {
-          this.#requireTurnAccess(bot.slug, sourceEventId ? [sourceEventId] : []);
-          this.#database.read((db) => requireAssignmentSource(db, sourceEventId, bot.slug));
-        },
-        accepted: () => trackDelivery?.(sessionId, false),
-        toolsInterrupted: (calls) =>
-          this.#cancellation.recordInterruptedTools(bot.slug, sessionId, calls),
-        sessionId,
-        bot,
-        text,
-        permission,
-        recoveryEntry: () => this.getAssignment(bot.slug, sessionId),
-        failEngineRecovery: (summary) =>
-          this.#assignmentReporting.recordEngineRecoveryFailure(bot.slug, sessionId, summary),
-        ...(modelRoute === undefined ? {} : { modelRoute }),
-        ...(directTarget !== undefined || (modelGroupId !== undefined && target !== undefined)
-          ? { routingTarget: directTarget ?? target! }
-          : {}),
-        ...this.#assignmentGroupExecution(
-          bot.slug,
-          sessionId,
-          modelGroupId,
-          input.modelGroupEffort,
-        ),
-        ...(input.mode === undefined ? {} : { agentPreset: input.mode }),
-        report: async (report, execution) =>
-          this.#assignmentReporting.recordReport(bot.slug, sessionId, report, execution),
-        completedTurn: (execution) =>
-          this.#assignmentReporting.recordCompletedAssignment(bot.slug, sessionId, execution),
-        cancelledTurn: (execution) =>
-          this.#assignmentReporting.recordUnsuccessfulAssignment(
-            bot.slug,
-            sessionId,
-            execution,
-            'cancelled',
-          ),
-        failedTurn: (execution) => this.#assignmentFailed(bot.slug, sessionId, execution),
-      }),
-    );
-    return {
-      outcome: 'created',
-      assignment: this.#requireAssignmentSummary(bot.slug, sessionId),
-    };
-  }
-
-  #requestAssignment(
-    bot: PersonaBotRecord,
-    input: {
-      sessionId: string;
-      mode: AssignmentRequestMode;
-      text: string;
-      answerTo?: string;
-      model?: ModelRoute;
-    },
-    trackDelivery?: (sessionId: string, pending: boolean) => void,
-    sourceEventId?: string,
-    switchReason?: TurnTargetSwitchReason,
-  ): AssignmentRequestOutcome {
-    let row = this.#assignmentRow(bot.slug, input.sessionId);
-    if (row === undefined) throw new Error(`Unknown Assignment Session: ${input.sessionId}`);
-    if (isArchivedRow(row) || this.#assignmentArchives.has(input.sessionId)) {
-      return {
-        outcome: 'refused',
-        code: 'assignment-ended',
-        assignment: this.#requireAssignmentSummary(bot.slug, input.sessionId),
-        delivery: 'refused',
-        message: `Assignment Session ${input.sessionId} is archived (resolved); nothing was delivered. Create a new Assignment for new work, or call unarchive_assignment first to continue this one.`,
-      };
-    }
-    const stopped = row.stop_state === 'stopped' ? row : undefined;
-    if (stopped !== undefined) row = { ...row, stop_state: 'running', activity: 'idle' };
-    if (row.stop_state !== 'running') {
-      throw new Error(`Assignment Session ${input.sessionId} is stopped or stopping`);
-    }
-    const permission = permissionFromRow(row);
-    if (permission === undefined || this.#grants === undefined) {
-      throw new Error('Assignment has no valid Workspace Grant snapshot');
-    }
-    const grant = this.#grants.requireActive(bot.slug, permission.grantId);
-    if (
-      grant.workspaceId !== permission.workspaceId ||
-      grant.workspacePath !== permission.primaryCwd
-    ) {
-      throw new Error('Assignment Workspace Grant no longer matches its permission snapshot');
-    }
-    if (this.#assignmentAcceptances.has(input.sessionId)) {
-      throw new Error(
-        `Assignment Session ${input.sessionId} is awaiting Inbox acceptance; inspect it before retrying`,
-      );
-    }
-    const text = requireNonBlank(input.text, 'Assignment Request text');
-    const recovering = row.activity === 'error';
-    const settledActivity: 'idle' | 'error' = recovering ? 'error' : 'idle';
-    if (recovering && input.answerTo !== undefined) {
-      throw new Error(
-        `Assignment Session ${input.sessionId} failed or was interrupted, so an earlier answer may already have reached it; inspect it, then continue it with a request without answer_to`,
-      );
-    }
-    if (input.answerTo !== undefined && input.answerTo !== row.open_ask_source_event_id) {
-      throw new Error(
-        `Assignment Session ${input.sessionId} has no open ask ${input.answerTo}; inspect it before answering`,
-      );
-    }
-    const retained = storedAssignmentTarget(row);
-    const directTarget =
-      row.model_group_id === null && retained !== undefined && 'kind' in retained
-        ? retained
-        : undefined;
-    if (input.model !== undefined && directTarget !== undefined && row.activity === 'working')
-      throw new Error('Wait for the current Assignment turn to finish before changing its model');
-    let modelRoute =
-      retained === undefined || !('kind' in retained)
-        ? retained
-        : retained.kind === 'route'
-          ? retained.route
-          : undefined;
-    if (input.model !== undefined) {
-      if (!isAssignmentModelChoice(input.model))
-        throw new Error('Assignment model choice is invalid');
-      if (this.#registry.get(bot.slug) === undefined) throw new Error('PersonaBot is deleted');
-      const current = this.#registry.get(bot.slug) ?? bot;
-      const plan = resolveBotModelPlan(current, () => this.#inheritedModelPlan?.());
-      if (plan === undefined)
-        throw new Error('Apply a Model Preset before choosing an Assignment model');
-      modelRoute = selectAssignmentRoute(plan, input.model);
-    }
-    if (modelRoute && this.#sessionModels.get(input.sessionId) === null)
-      this.#requireModelRoute?.(bot.slug, modelRoute);
-    const interrupted = this.#interruptedTools.get(input.sessionId);
-    const initiatingHuman = this.#database.read((db) => {
-      const source = db
-        .prepare('SELECT human_id FROM source_events WHERE source_event_id = ?')
-        .get(sourceEventId ?? null);
-      if (typeof source?.['human_id'] === 'string') return source['human_id'];
-      const parentSessionId = this.#turnSources.get(bot.slug)?.sessionId;
-      const parent = db
-        .prepare(
-          'SELECT human_id FROM usage_turn_humans WHERE session_id = ? AND turn >= 0 ORDER BY turn DESC LIMIT 1',
-        )
-        .get(parentSessionId ?? null);
-      return typeof parent?.['human_id'] === 'string' ? parent['human_id'] : undefined;
-    });
-    const run: AssignmentAgentRun = {
-      ...this.#assignmentModelSelection(bot.slug, input.sessionId),
-      ...(switchReason === undefined ? {} : { switchReason }),
-      beginTurn: () => {
-        if (typeof initiatingHuman !== 'string') return;
-        this.#database.transaction(
-          (db) => {
-            db.prepare('INSERT OR REPLACE INTO usage_turn_humans VALUES (?, -1, ?, ?)').run(
-              input.sessionId,
-              initiatingHuman,
-              this.#now().getTime(),
-            );
-          },
-          ['usage'],
-        );
-      },
-      setExecutionReady: (ready) => this.#setAssignmentExecutionReady(input.sessionId, ready),
-      requireContent: () => {
-        this.#requireTurnAccess(bot.slug, row.source_event_id ? [row.source_event_id] : []);
-        this.#database.read((db) => requireAssignmentSource(db, row.source_event_id, bot.slug));
-      },
-      accepted: () => trackDelivery?.(input.sessionId, false),
-      toolsInterrupted: (calls) =>
-        this.#cancellation.recordInterruptedTools(bot.slug, input.sessionId, calls),
-      sessionId: input.sessionId,
-      bot,
-      text:
-        (recovering ? ASSIGNMENT_RECOVERY_NOTE : '') +
-        (interrupted === undefined ? '' : interruptedToolsNote(interrupted)) +
-        text,
-      resume: true,
-      permission,
-      recoveryEntry: () => this.getAssignment(bot.slug, input.sessionId),
-      failEngineRecovery: (summary) =>
-        this.#assignmentReporting.recordEngineRecoveryFailure(bot.slug, input.sessionId, summary),
-      ...(modelRoute === undefined ? {} : { modelRoute }),
-      ...(directTarget === undefined
-        ? {}
-        : {
-            routingTarget:
-              input.model === undefined ? directTarget : { kind: 'route', route: modelRoute! },
-          }),
-      ...(input.model === undefined
-        ? this.#assignmentGroupExecution(
-            bot.slug,
-            input.sessionId,
-            row.model_group_id,
-            row.model_effort,
-          )
-        : {}),
-      ...(typeof row.agent_preset === 'string' ? { agentPreset: row.agent_preset } : {}),
-      report: async (report, execution) =>
-        this.#assignmentReporting.recordReport(bot.slug, input.sessionId, report, execution),
-      completedTurn: (execution) =>
-        this.#assignmentReporting.recordCompletedAssignment(bot.slug, input.sessionId, execution),
-      cancelledTurn: (execution) =>
-        this.#assignmentReporting.recordUnsuccessfulAssignment(
-          bot.slug,
-          input.sessionId,
-          execution,
-          'cancelled',
-        ),
-      failedTurn: (execution) => this.#assignmentFailed(bot.slug, input.sessionId, execution),
-    };
-    return this.#assignmentDelivery.deliverAssignmentRequest({
-      bot,
-      input,
-      row,
-      stopped,
-      recovering,
-      settledActivity,
-      run,
-      interrupted,
-      modelRoute,
-      trackDelivery,
-    });
-  }
-
   async #stopAssignment(
     bot: PersonaBotRecord,
     sessionId: string,
     markSideEffect: () => void,
     cause: 'orchestrator-stop' | 'human-stop' | 'human-session-stop' = 'orchestrator-stop',
   ): Promise<AssignmentSummary> {
-    const row = this.#assignmentRow(bot.slug, sessionId);
+    const row = this.#assignmentExecution.assignmentRow(bot.slug, sessionId);
     if (row === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
-    if (row.stop_state === 'stopped') return this.#requireAssignmentSummary(bot.slug, sessionId);
+    if (row.stop_state === 'stopped')
+      return this.#assignmentExecution.requireAssignmentSummary(bot.slug, sessionId);
     if (this.#agents.stopAssignment === undefined)
       throw new Error('Assignment stop is unavailable');
     markSideEffect();
@@ -6584,301 +5053,7 @@ class BotRuntimeImplementation implements BotRuntime {
       ['assignments', 'source-event', 'bot-inbox'],
     );
     if (stopped) this.#scheduling.scheduleHarvest(bot.slug);
-    return this.#requireAssignmentSummary(bot.slug, sessionId);
-  }
-
-  async #archiveAssignment(
-    bot: PersonaBotRecord,
-    sessionId: string,
-    markSideEffect: () => void,
-  ): Promise<AssignmentArchiveOutcome> {
-    const row = this.#assignmentRow(bot.slug, sessionId);
-    if (row === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
-    if (isArchivedRow(row))
-      return {
-        outcome: 'archived',
-        assignment: this.#requireAssignmentSummary(bot.slug, sessionId),
-      };
-    const active = (message: string): AssignmentArchiveOutcome => ({
-      outcome: 'refused',
-      code: 'assignment-active',
-      assignment: this.#requireAssignmentSummary(bot.slug, sessionId),
-      message,
-    });
-    if (
-      row.activity === 'working' ||
-      row.stop_state === 'requested' ||
-      this.#assignmentAcceptances.has(sessionId)
-    )
-      return active(
-        `Assignment Session ${sessionId} is still active; nothing was archived. Wait for it to settle or call stop_assignment first.`,
-      );
-    const archive = this.#sessionArchive?.();
-    if (archive === undefined) throw new Error('DSH Session archive is unavailable');
-    if (this.#assignmentArchives.has(sessionId))
-      return active(
-        `Assignment Session ${sessionId} is already being archived; inspect it shortly.`,
-      );
-    this.#assignmentArchives.add(sessionId);
-    try {
-      markSideEffect();
-      try {
-        await archive.archiveSession(sessionId);
-      } catch (error) {
-        if (error instanceof Error && error.name === 'WorkspaceActiveSessionError')
-          return active(
-            `DSH reports Session ${sessionId} still has running work; nothing was archived. Stop it first, then retry.`,
-          );
-        throw error;
-      }
-      this.#database.transaction(
-        (database) => {
-          database
-            .prepare(
-              `UPDATE assignments SET archived_at = ?, continuity_key = NULL
-                WHERE bot_slug = ? AND session_id = ? AND archived_at IS NULL`,
-            )
-            .run(this.#now().toISOString(), bot.slug, sessionId);
-        },
-        ['assignments'],
-      );
-    } finally {
-      this.#assignmentArchives.delete(sessionId);
-    }
-    return {
-      outcome: 'archived',
-      assignment: this.#requireAssignmentSummary(bot.slug, sessionId),
-    };
-  }
-
-  async #unarchiveAssignment(
-    bot: PersonaBotRecord,
-    sessionId: string,
-    markSideEffect: () => void,
-  ): Promise<{ outcome: 'unarchived'; assignment: AssignmentSummary }> {
-    const row = this.#assignmentRow(bot.slug, sessionId);
-    if (row === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
-    if (isArchivedRow(row)) {
-      const archive = this.#sessionArchive?.();
-      if (archive === undefined) throw new Error('DSH Session archive is unavailable');
-      markSideEffect();
-      await archive.unarchiveSession(sessionId);
-      this.#database.transaction(
-        (database) => {
-          database
-            .prepare(
-              `UPDATE assignments SET archived_at = NULL
-                WHERE bot_slug = ? AND session_id = ? AND archived_at IS NOT NULL`,
-            )
-            .run(bot.slug, sessionId);
-        },
-        ['assignments'],
-      );
-    }
-    if (row.stop_state === 'stopped') {
-      markSideEffect();
-      this.#database.transaction(
-        (database) => {
-          database
-            .prepare(
-              `UPDATE assignments SET stop_state = 'running', activity = 'idle', updated_at = ?
-                WHERE bot_slug = ? AND session_id = ? AND stop_state = 'stopped'`,
-            )
-            .run(this.#now().toISOString(), bot.slug, sessionId);
-        },
-        ['assignments'],
-      );
-    }
-    return {
-      outcome: 'unarchived',
-      assignment: this.#requireAssignmentSummary(bot.slug, sessionId),
-    };
-  }
-
-  #assignmentDmChannel(row: AssignmentRow): ChannelRecord | undefined {
-    const bot = this.#registry.get(row.bot_slug);
-    if (!bot) return undefined;
-    const requester = this.#database.read((db) =>
-      db
-        .prepare(`
-      SELECT coalesce(
-        (SELECT human_id FROM source_events WHERE source_event_id = ?),
-        (SELECT human_id FROM usage_turn_humans WHERE session_id = ? AND turn >= 0 ORDER BY turn LIMIT 1)
-      ) AS human_id
-    `)
-        .get(row.source_event_id, row.session_id),
-    );
-    const principal = botOwner(bot);
-    const humanId = typeof requester?.['human_id'] === 'string' ? requester['human_id'] : principal;
-    return this.#channels
-      .list()
-      .find(
-        (channel) =>
-          channel.type === 'dm' &&
-          channel.botSlug === row.bot_slug &&
-          !channel.deletedAt &&
-          (channel.dmHumanId ?? principal) === humanId,
-      );
-  }
-
-  #publishAssignmentRefusal(row: AssignmentRow, error: unknown): void {
-    const channel = this.#assignmentDmChannel(row);
-    if (channel === undefined) return;
-    const notice = this.#publishSessionFailure({
-      channelId: channel.id,
-      botSlug: row.bot_slug,
-      sessionId: row.session_id,
-      role: 'assignment',
-      error,
-      context: row.title,
-      ...(error instanceof AssignmentInboxAcceptanceUncertainError ||
-      row.open_ask_source_event_id === null
-        ? {}
-        : { assignmentAnswerTo: row.open_ask_source_event_id }),
-    });
-    this.#assignmentNotices.add(notice);
-    void notice.then(
-      () => this.#assignmentNotices.delete(notice),
-      () => this.#assignmentNotices.delete(notice),
-    );
-  }
-
-  #setAssignmentExecutionReady(sessionId: string, ready: boolean): void {
-    if (ready) this.#preparedAssignments.add(sessionId);
-    else this.#preparedAssignments.delete(sessionId);
-  }
-
-  #trackAssignmentRun(
-    sessionId: string,
-    task: (beginProcessing: () => void) => Promise<void>,
-    failure: () => { activity: 'idle' | 'error'; answerTo?: string } = () => ({
-      activity: 'error',
-    }),
-    awaitAcceptance = false,
-  ): void {
-    let tracked: Promise<void> | undefined;
-    const run = (async () => {
-      const assignment = this.#assignmentRow(undefined, sessionId);
-      if (assignment === undefined) return;
-      let processing: MessagingProcessing | undefined;
-      const beginProcessing = () => {
-        if (
-          processing ||
-          this.#closed ||
-          this.#assignmentRow(undefined, sessionId)?.stop_state !== 'running'
-        )
-          return;
-        processing = this.#externalMessaging?.beginProcessing(assignment.bot_slug, [
-          assignment.source_event_id,
-        ]);
-        if (processing) this.#typingAssignments.set(sessionId, processing);
-      };
-      this.#setActivity(sessionId, 'working');
-      try {
-        if (!awaitAcceptance) beginProcessing();
-        await task(beginProcessing);
-        if (this.#assignmentRuns.get(sessionId) !== tracked) return;
-        if (this.#assignmentRow(undefined, sessionId)?.activity === 'error') return;
-        this.#setActivity(sessionId, 'idle');
-      } catch (error) {
-        if (this.#assignmentRuns.get(sessionId) !== tracked) return;
-        const continuation = this.#groupContinuations.get(sessionId);
-        if (continuation !== undefined && !continuation.refreshing) {
-          continuation.error = error;
-          this.#setActivity(sessionId, 'idle');
-          return;
-        }
-        const refused = failure();
-        this.#setActivity(sessionId, refused.activity);
-        const row = this.#assignmentRow(undefined, sessionId);
-        if (row?.stop_state !== 'running') return;
-        if (row !== undefined) {
-          const channel = this.#assignmentDmChannel(row);
-          if (channel !== undefined) {
-            await this.#publishSessionFailure({
-              channelId: channel.id,
-              botSlug: row.bot_slug,
-              sessionId,
-              role: 'assignment',
-              error,
-              context: row.title,
-              ...(refused.answerTo === undefined ? {} : { assignmentAnswerTo: refused.answerTo }),
-            });
-          }
-        }
-      } finally {
-        await processing?.stop();
-        if (this.#typingAssignments.get(sessionId) === processing)
-          this.#typingAssignments.delete(sessionId);
-        this.#approvalCapacity.forget(sessionId);
-      }
-    })();
-    tracked = run.then(
-      () => {
-        if (this.#assignmentRuns.get(sessionId) === tracked) this.#assignmentRuns.delete(sessionId);
-      },
-      () => {
-        if (this.#assignmentRuns.get(sessionId) === tracked) this.#assignmentRuns.delete(sessionId);
-      },
-    );
-    this.#assignmentRuns.set(sessionId, tracked);
-  }
-
-  #assignmentRow(botSlug: string | undefined, sessionId: string): AssignmentRow | undefined {
-    return this.#database.read(
-      (database) =>
-        (botSlug === undefined
-          ? database.prepare(`SELECT * FROM assignments WHERE session_id = ?`).get(sessionId)
-          : database
-              .prepare(`SELECT * FROM assignments WHERE bot_slug = ? AND session_id = ?`)
-              .get(botSlug, sessionId)) as AssignmentRow | undefined,
-    );
-  }
-
-  #assignmentByKey(botSlug: string, continuityKey: string): AssignmentRow | undefined {
-    return this.#database.read(
-      (database) =>
-        database
-          .prepare(`SELECT * FROM assignments WHERE bot_slug = ? AND continuity_key = ?`)
-          .get(botSlug, continuityKey) as AssignmentRow | undefined,
-    );
-  }
-
-  #activeAssignmentCount(): number {
-    return this.#database.read((database) => {
-      const rows = database
-        .prepare(
-          "SELECT session_id, stop_state FROM assignments WHERE activity = 'working' OR stop_state = 'requested'",
-        )
-        .all() as Array<{ session_id: string; stop_state: string }>;
-      return rows.filter(
-        (row) => row.stop_state === 'requested' || !this.#approvalCapacity.released(row.session_id),
-      ).length;
-    });
-  }
-
-  #assignmentCapacityRefusal(
-    action: 'created' | 'awakened',
-  ): AssignmentCapacityRefusal | undefined {
-    const activeCount = this.#activeAssignmentCount();
-    const limit = this.#assignmentConcurrencyLimit();
-    if (!Number.isInteger(limit) || limit < 1 || limit > 32)
-      throw new Error('Invalid Assignment Concurrency Limit; expected an integer from 1 to 32');
-    if (activeCount < limit) return undefined;
-    return {
-      outcome: 'capacity',
-      code: 'assignment-capacity',
-      activeCount,
-      limit,
-      retryable: true,
-      message: `Assignment Concurrency Limit ${limit} reached; retryable: true. Nothing was ${action}. Wait for active work to settle before retrying; keep the item that asked for this open, or snooze it with inbox_snooze until then, and do not resolve it.`,
-    };
-  }
-
-  #requireAssignmentSummary(botSlug: string, sessionId: string): AssignmentSummary {
-    const assignment = this.getAssignment(botSlug, sessionId);
-    if (assignment === undefined) throw new Error(`Unknown Assignment Session: ${sessionId}`);
-    return assignment;
+    return this.#assignmentExecution.requireAssignmentSummary(bot.slug, sessionId);
   }
 
   async #pickSessionGroup(
@@ -6900,405 +5075,12 @@ class BotRuntimeImplementation implements BotRuntime {
     };
   }
 
-  #assignmentModelSelection(
-    botSlug: string,
-    sessionId: string,
-  ): Pick<AssignmentAgentRun, 'sessionModel' | 'observeTurnTarget'> {
-    const request = randomUUID();
-    return {
-      observeTurnTarget: (turn, step, target, reason) =>
-        recordTurnTarget(this.#database, sessionId, {
-          turn,
-          step,
-          target,
-          request,
-          ...(reason === undefined ? {} : { switchReason: reason }),
-        }),
-      sessionModel: () => {
-        const choice = this.#sessionModels.get(sessionId);
-        this.#activeSessionModels.set(sessionId, choice);
-        return {
-          choice,
-          finish: () => this.#activeSessionModels.delete(sessionId),
-          apply: (run) => {
-            if (choice === null) return run;
-            const {
-              modelRoute: _route,
-              routingTarget: _target,
-              selectGroupTarget: _select,
-              groupEffort: _effort,
-              groupSwitchReason: _groupReason,
-              switchReason: _reason,
-              failedTurn: _failure,
-              ...rest
-            } = run;
-            const base: AssignmentAgentRun = {
-              ...rest,
-              failedTurn: (execution) =>
-                this.#assignmentReporting.recordUnsuccessfulAssignment(
-                  botSlug,
-                  sessionId,
-                  execution,
-                  'failed',
-                ),
-            };
-            if (choice.kind !== 'group') {
-              const target = directSessionTarget(choice);
-              if (target.kind === 'route') this.#requireModelRoute?.(botSlug, target.route);
-              return {
-                ...base,
-                routingTarget: target,
-                ...(target.kind === 'route' ? { modelRoute: target.route } : {}),
-              };
-            }
-            let current: RoutingTarget | undefined;
-            let reason: TurnTargetSwitchReason | undefined;
-            return {
-              ...base,
-              ...(choice.effort === undefined ? {} : { groupEffort: choice.effort }),
-              groupSwitchReason: () => reason,
-              selectGroupTarget: async (attempted, error) => {
-                const rest =
-                  current === undefined || error === undefined
-                    ? undefined
-                    : this.#continuation.routingTargetFailure(current, error);
-                if (error !== undefined && rest === undefined && !unavailableRoutingEngine(error))
-                  throw error instanceof Error
-                    ? error
-                    : new Error('Assignment failed', { cause: error });
-                const next = await this.#pickSessionGroup(botSlug, choice, attempted);
-                if (next.kind === 'exhausted')
-                  throw new RouteRestingError(next.rests, next.subscription);
-                if (
-                  next.kind !== 'target' ||
-                  attempted.size >= MAX_MIXED_GROUP_ATTEMPTS ||
-                  attempted.has(routingTargetRestKey(next.target))
-                )
-                  throw new RoutingGroupUnavailableError(error);
-                current = next.target;
-                reason =
-                  next.switchReason ??
-                  rest?.reason ??
-                  (error === undefined ? undefined : 'credential');
-                return current;
-              },
-            };
-          },
-        };
-      },
-    };
-  }
-
-  #assignmentGroupExecution(
-    botSlug: string,
-    sessionId: string,
-    groupId: string | null | undefined,
-    effort: string | null | undefined,
-  ): Pick<AssignmentAgentRun, 'selectGroupTarget' | 'groupEffort' | 'groupSwitchReason'> {
-    const groups = this.#groupFallback;
-    if (groupId == null || !groups?.pickMixedAssignment) return {};
-    const row = this.#assignmentRow(botSlug, sessionId);
-    if (
-      groups.isMixed?.(groupId) !== true &&
-      (row === undefined || assignmentTargetFromRow(row)?.kind !== 'engine')
-    )
-      return {};
-    let reason: TurnTargetSwitchReason | undefined;
-    return {
-      groupSwitchReason: () => reason,
-      ...(effort == null ? {} : { groupEffort: effort }),
-      selectGroupTarget: async (attempted, error) => {
-        const row = this.#assignmentRow(botSlug, sessionId);
-        if (
-          row?.stop_state !== 'running' ||
-          row.model_group_id !== groupId ||
-          isArchivedRow(row) ||
-          this.#closed
-        )
-          return undefined;
-        const current = assignmentTargetFromRow(row);
-        const rest =
-          error === undefined || current === undefined
-            ? undefined
-            : this.#continuation.routingTargetFailure(current, error);
-        if (
-          error !== undefined &&
-          rest === undefined &&
-          !(current?.kind === 'engine' && unavailableRoutingEngine(error))
-        )
-          throw error instanceof Error ? error : new Error('Assignment failed', { cause: error });
-        this.#requireExecution?.(botSlug);
-        const mixed = await groups.pickMixedAssignment?.(
-          botSlug,
-          groupId,
-          effort ?? undefined,
-          attempted,
-        );
-        const native =
-          mixed === undefined
-            ? await groups.pick(botSlug, groupId, effort ?? undefined)
-            : undefined;
-        const next =
-          native?.kind === 'route'
-            ? {
-                kind: 'target' as const,
-                target: { kind: 'route' as const, route: native.route },
-                switchReason: native.switchReason,
-              }
-            : mixed;
-        if (next?.kind === 'exhausted') throw new RouteRestingError(next.rests, next.subscription);
-        if (next?.kind !== 'target' || attempted.size >= MAX_MIXED_GROUP_ATTEMPTS)
-          throw new RoutingGroupUnavailableError(error);
-        const target = next.target;
-        reason =
-          next.switchReason ?? rest?.reason ?? (error === undefined ? undefined : 'credential');
-        const serialized = saveAssignmentTarget(target);
-        if (serialized === row.model_route_json) return target;
-        const written = this.#database.transaction(
-          (db) =>
-            db
-              .prepare(
-                `UPDATE assignments SET model_route_json = ?, updated_at = ?
-              WHERE session_id = ? AND bot_slug = ? AND stop_state = 'running' AND archived_at IS NULL
-              AND model_group_id = ? AND model_route_json IS ?`,
-              )
-              .run(
-                serialized,
-                this.#now().toISOString(),
-                sessionId,
-                botSlug,
-                groupId,
-                row.model_route_json,
-              ),
-          ['assignments'],
-        );
-        if (written.changes === 0) return undefined;
-        if (current !== undefined && error !== undefined)
-          await this.#appendModelSwitch(botSlug, sessionId, undefined, {
-            kind: 'switch',
-            from: routingTargetKey(current),
-            to: routingTargetKey(target),
-            reason: rest?.reason ?? 'credential',
-            ...(rest === undefined ? {} : { until: rest.until }),
-          });
-        return target;
-      },
-    };
-  }
-
-  #assignmentFailed(
-    botSlug: string,
-    sessionId: string,
-    execution: { turn: number; endSeq: number },
-  ): void {
-    const row = this.#assignmentRow(botSlug, sessionId);
-    const current = row === undefined ? undefined : modelRouteFromRow(row);
-    if (
-      row?.model_group_id == null ||
-      this.#groupFallback?.isMixed?.(row.model_group_id) === true ||
-      current === undefined ||
-      this.#groupFallback === undefined ||
-      this.#routeRests?.restingUntil(current) === undefined
-    ) {
-      this.#assignmentReporting.recordUnsuccessfulAssignment(
-        botSlug,
-        sessionId,
-        execution,
-        'failed',
-      );
-      return;
-    }
-    const continuation = { refreshing: false };
-    this.#groupContinuations.set(sessionId, continuation);
-    void this.#continueOnGroup(botSlug, sessionId, current, execution, continuation).finally(() => {
-      if (this.#groupContinuations.get(sessionId) === continuation)
-        this.#groupContinuations.delete(sessionId);
-    });
-  }
-
-  async #continueOnGroup(
-    botSlug: string,
-    sessionId: string,
-    failed: ModelRoute,
-    execution: { turn: number; endSeq: number },
-    continuation: { error?: unknown; refreshing: boolean },
-  ): Promise<void> {
-    const ownsContinuation = () => this.#groupContinuations.get(sessionId) === continuation;
-    const runningAssignment = () => {
-      if (!ownsContinuation() || this.#assignmentRuns.has(sessionId)) return undefined;
-      const row = this.#assignmentRow(botSlug, sessionId);
-      return row?.stop_state === 'running' && !isArchivedRow(row) ? row : undefined;
-    };
-    const fail = (error: unknown) => {
-      const row = runningAssignment();
-      if (row === undefined) return;
-      this.#assignmentReporting.recordUnsuccessfulAssignment(
-        botSlug,
-        sessionId,
-        execution,
-        'failed',
-      );
-      this.#setActivity(sessionId, 'error');
-      const channel = this.#assignmentDmChannel(row);
-      if (channel === undefined) return;
-      void this.#publishSessionFailure({
-        channelId: channel.id,
-        botSlug,
-        sessionId,
-        role: 'assignment',
-        error,
-        context: row.title,
-      });
-    };
-    try {
-      await Promise.resolve();
-      const running = this.#assignmentRuns.get(sessionId);
-      if (running !== undefined) await running.catch(() => undefined);
-      if (!ownsContinuation()) return;
-      continuation.refreshing = true;
-      const cause = continuation.error ?? new Error('The Assignment model stopped');
-      const restReason = this.#routeRests?.restingUntil(failed)?.reason;
-      const next = await this.refreshAssignmentRoute(botSlug, sessionId);
-      const bot = this.#registry.get(botSlug);
-      const row = runningAssignment();
-      if (row === undefined) return;
-      if (next === undefined || sameModelRoute(next, failed) || bot === undefined) {
-        fail(cause);
-        return;
-      }
-      const request = this.#requestAssignment(
-        bot,
-        {
-          sessionId,
-          mode: 'next-turn',
-          text:
-            row.model_group_id == null ? ASSIGNMENT_MODEL_CHANGE_NOTE : ASSIGNMENT_FALLBACK_NOTE,
-        },
-        undefined,
-        undefined,
-        restReason ?? this.#routeRests?.restingUntil(failed)?.reason,
-      );
-      if (request.delivery === 'refused' || request.delivery === 'capacity') fail(cause);
-    } catch (error) {
-      fail(continuation.error ?? error);
-    }
-  }
-
-  async refreshAssignmentRoute(
+  refreshAssignmentRoute(
     botSlug: string,
     sessionId: string,
     allowStopped = false,
   ): Promise<ModelRoute | undefined> {
-    const row = this.#assignmentRow(botSlug, sessionId);
-    const groupId = row?.model_group_id;
-    const current = row === undefined ? undefined : modelRouteFromRow(row);
-    if (
-      row === undefined ||
-      groupId == null ||
-      this.#groupFallback?.isMixed?.(groupId) === true ||
-      current === undefined ||
-      this.#groupFallback === undefined ||
-      isArchivedRow(row) ||
-      (row.stop_state !== 'running' && !(allowStopped && row.stop_state === 'stopped'))
-    )
-      return current;
-    const rest = this.#routeRests?.restingUntil(current);
-    if (rest === undefined) return current;
-    const keepLegacyEffort =
-      row.model_effort == null &&
-      (assignmentGroupOptionOf(
-        resolveBotModelPlan(this.#registry.get(botSlug) ?? {}, () => this.#inheritedModelPlan?.()),
-        groupId,
-      )?.allowedEfforts?.includes(current.reasoningEffort ?? '') ??
-        (groupId === this.#groupFallback.inherited() &&
-          current.reasoningEffort !== undefined &&
-          current.reasoningEffort === this.#groupFallback.inheritedEffort()));
-    const effort = row.model_effort ?? (keepLegacyEffort ? current.reasoningEffort : undefined);
-    const pick = await this.#groupFallback.pick(botSlug, groupId, effort);
-    const readCurrentRoute = () => {
-      const latest = this.#assignmentRow(botSlug, sessionId);
-      return latest === undefined ? undefined : modelRouteFromRow(latest);
-    };
-    if (pick.kind !== 'route' || sameModelRoute(pick.route, current)) return readCurrentRoute();
-    const { reasoningEffort: memberEffort, ...member } = pick.route;
-    const reasoningEffort =
-      keepLegacyEffort && memberEffort !== undefined ? current.reasoningEffort : memberEffort;
-    const route = reasoningEffort === undefined ? member : { ...member, reasoningEffort };
-    const at = this.#now().toISOString();
-    const written = this.#database.transaction(
-      (database) =>
-        database
-          .prepare(
-            `UPDATE assignments SET model_route_json = ?, updated_at = ?
-              WHERE session_id = ? AND bot_slug = ? AND stop_state = ? AND archived_at IS NULL
-                AND model_group_id = ? AND model_route_json = ?`,
-          )
-          .run(
-            JSON.stringify(route),
-            at,
-            sessionId,
-            botSlug,
-            row.stop_state,
-            groupId,
-            row.model_route_json,
-          ),
-      ['assignments'],
-    );
-    if (written.changes === 0) return readCurrentRoute();
-    const choice: ModelSwitch = {
-      kind: 'switch',
-      from: { provider: current.provider, model: current.model },
-      to: route,
-      reason: rest.reason ?? 'quota',
-      until: rest.until,
-    };
-    this.#warn?.(
-      JSON.stringify({
-        component: 'bot-runtime',
-        event: 'model-fallback',
-        botSlug,
-        session: sessionId,
-        from: `${choice.from.provider}/${choice.from.model}`,
-        to: `${choice.to.provider}/${choice.to.model}`,
-      }),
-    );
-    await this.#appendModelSwitch(botSlug, sessionId, undefined, choice);
-    return route;
-  }
-
-  #collectInbox(botSlug: string): { units: InboxUnit[]; eventIds: string[] } {
-    const rows = this.#database.read(
-      (database) =>
-        database
-          .prepare(
-            `SELECT e.source_event_id, e.source_kind, e.assignment_session_id,
-                    e.body, e.created_at, e.expects_reply, a.continuity_key,
-                    CASE WHEN e.source_kind = 'schedule' THEN e.payload_json END AS schedule_json,
-                    json_extract(e.payload_json, '$.assignmentLifecycle.reportSourceEventId') AS paired_report_id,
-                    json_extract(e.payload_json, '$.assignmentLifecycle.cause') AS lifecycle_cause,
-                    CASE WHEN a.stop_state = 'running' THEN a.open_ask_source_event_id END AS open_ask_id,
-                    (SELECT body FROM source_events WHERE source_event_id = a.open_ask_source_event_id) AS open_ask_summary,
-                    CASE WHEN a.stop_state = 'stopped' THEN 'stopped'
-                         WHEN a.stop_state = 'requested' THEN 'stopping'
-                         ELSE a.activity END AS activity
-               FROM source_events e
-               LEFT JOIN assignments a ON a.session_id = e.assignment_session_id
-              WHERE e.bot_slug = ?
-                AND e.source_kind IN ('assignment-report', 'assignment-lifecycle', 'schedule')
-                AND e.observed_at IS NULL
-              ORDER BY e.rowid DESC
-              LIMIT 20`,
-          )
-          .all(botSlug) as unknown as InboxReportRow[],
-    );
-
-    rows.reverse();
-    this.#messagingEvents.collectExternalRows(botSlug, rows);
-    const units = coalesceInbox(rows);
-    return {
-      units,
-      eventIds: rows.map((row) => row.source_event_id),
-    };
+    return this.#assignmentRouting.refreshAssignmentRoute(botSlug, sessionId, allowStopped);
   }
 
   reconcileMemoryChangesOnStartup(): void {
@@ -7508,21 +5290,6 @@ class BotRuntimeImplementation implements BotRuntime {
               WHERE bot_slug = ? AND session_id = ? AND stop_state = ?`,
           )
           .run(to, activity, this.#now().toISOString(), botSlug, sessionId, from);
-      },
-      ['assignments'],
-    );
-    this.#approvalCapacity.changed();
-  }
-
-  #setActivity(sessionId: string, activity: AssignmentActivity): void {
-    const at = this.#now().toISOString();
-    this.#database.transaction(
-      (database) => {
-        database
-          .prepare(
-            "UPDATE assignments SET activity = ?, updated_at = ? WHERE session_id = ? AND stop_state = 'running'",
-          )
-          .run(activity, at, sessionId);
       },
       ['assignments'],
     );

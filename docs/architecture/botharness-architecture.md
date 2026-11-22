@@ -694,6 +694,8 @@ DM 与 Group 的准入、因果消息发送和 Group 摘要由共享的 Channel 
 
 Channel 工具、Human 输入绑定、Bot 工具直接执行和 Tob CLI 请求使用 Bot Runtime Service 提供的端口。Bot Runtime 管理轮次状态，以及忽略 Inbox Admission 和记录直接工具调用 Source Event 的事务。
 
+[Assignment 的创建与请求、执行和路由](feature-map.md#assignments-and-subagents)及 [Inbox harvest](feature-map.md#activity-and-attention)沿用该 Service 入口，共用现有的 Session Ownership、实时状态和数据库端口。
+
 DSH Agent adapter 管理原生 Agent 生命周期，并注册 `packages/core/src/features/` 中 Schedule、GenUI、Memory、Channel files、Channel、IM Messaging、Activity、Assignment 和 Models 的工具与提示词。原生回合和直调共用同一套工具定义。
 
 Orchestrator、Assignment 和替代引擎的生命周期位于 `runtime/dsh-bot-agent-adapter-*` 模块。Adapter state 持有唯一的原生 Agent handle 表。替代引擎 Session 继续由 Engine Host 管理，Assignment 工具通过类型化输入使用现有运行时接口。
