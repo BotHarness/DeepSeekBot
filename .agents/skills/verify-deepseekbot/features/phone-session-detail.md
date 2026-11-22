@@ -17,7 +17,7 @@
 
 ## Sub-features
 
-Bot profile Session rows, Session chips inside Bot messages, and the Group Assignment entry all open one Session detail page. The transcript shows messages, activity, live updates, and model switches. The Session header menu offers Stop while a Session is running and Archive or Unarchive for eligible Assignments. The header and composer open the same next-turn Model Choice picker.
+Bot profile Session rows, Session chips inside Bot messages, and the Group Assignment entry all open one Session detail page. The transcript shows messages, activity, live updates, and model switches. The Session navigation bar menu (the iOS navigation bar or the Android top app bar) offers Stop while a Session is running and Archive or Unarchive for eligible Assignments. The navigation bar and composer open the same next-turn Model Choice picker.
 
 ## How to get to it (user POV)
 
