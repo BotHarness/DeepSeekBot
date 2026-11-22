@@ -5020,7 +5020,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const choice =
       tobCliTurn === undefined ? this.#sessionModels.get(orchestrator.sessionId) : null;
     const explicitEngine =
-      tobCliTurn === undefined && this.#agents.runsOnEngine?.(bot.slug) === true;
+      tobCliTurn === undefined && choice === null && this.#agents.runsOnEngine?.(bot.slug) === true;
     const selectGroup = async (attempted?: ReadonlySet<string>) =>
       choice?.kind === 'group'
         ? this.#pickSessionGroup(bot.slug, choice, attempted)

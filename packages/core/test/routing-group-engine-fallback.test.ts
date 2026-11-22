@@ -808,3 +808,24 @@ it.each(['api-first', 'engine-first'] as const)(
     } else expect(bot.codex).toHaveLength(1);
   },
 );
+
+it('runs a saved Session API model when the Bot default engine account is no longer granted', async () => {
+  let granted = true;
+  const bot = setup({
+    members: [],
+    codexRecording: CODEX_REPLY,
+    nativeRuntime: await nativeRuntime(new NativeReplay(false, 'Native Session choice')),
+    requireAccountGrant: (_slug, id) => {
+      if (!granted && id.startsWith('codex')) throw new Error('model-not-allowed');
+    },
+  });
+  bot.host.use('ada', 'orchestrator', 'codex');
+  await bot.message('first', 'Start on the Bot default engine.');
+  expect(bot.sendStatus('first')).toMatchObject({ replies: [{ body: 'Hello from Codex' }] });
+  bot.sessionModels.set(bot.sessionId(), { kind: 'model', ...API });
+  granted = false;
+  await bot.message('second', 'Continue on the saved API model.');
+  expect(bot.sendStatus('second')).toMatchObject({
+    replies: [{ body: 'Native Session choice' }],
+  });
+});

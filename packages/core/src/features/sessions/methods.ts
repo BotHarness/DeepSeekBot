@@ -625,10 +625,21 @@ export function createSessionsBridgeMethods(
       }
       const role = owner.rootRole;
       const plan = bot.modelPlan;
-      const engine = deps.engineSelection?.store
-        .selections()
-        .find((entry) => entry.botSlug === slug && entry.role === role);
       const defaultPreset = deps.modelPresets?.get(DEFAULT_MODEL_PRESET_ID);
+      const assignmentOwnDefault =
+        role === 'assignment' && defaultPreset?.assignmentFollowsMain !== true;
+      const inheritsPreset =
+        !(plan === undefined && bot.model !== undefined) &&
+        (role === 'orchestrator' ? plan === undefined : plan?.assignmentDefault === undefined);
+      const engine =
+        deps.engineSelection?.store
+          .selections()
+          .find((entry) => entry.botSlug === slug && entry.role === role) ??
+        (inheritsPreset
+          ? assignmentOwnDefault
+            ? defaultPreset?.assignmentEngine
+            : defaultPreset?.orchestratorEngine
+          : undefined);
       const inherited =
         defaultPreset === undefined
           ? undefined
@@ -654,7 +665,7 @@ export function createSessionsBridgeMethods(
         (role === 'assignment'
           ? (assignment?.modelRoute ?? plan?.assignmentDefault)
           : plan?.orchestrator) ??
-        defaultPreset?.orchestrator ??
+        (assignmentOwnDefault ? defaultPreset?.assignmentDefault : defaultPreset?.orchestrator) ??
         deps.defaultModel?.currentSelection() ??
         deps.modelCatalog?.defaultRoute?.();
       const defaultChoice: SessionModelChoice | null =
