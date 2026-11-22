@@ -73,7 +73,9 @@ function NavigationLayout() {
           space.x5,
       );
   const bottom = android ? 0 : Math.max(insets.bottom, space.x4);
-  const reserved = size + bottom + space.x5;
+  const separateCreation = Platform.OS === 'ios' && sessionsTab && theme.largeText;
+  const reserved =
+    size + bottom + space.x5 + (separateCreation ? navigationBar.height + space.x3 : 0);
   const quickActions = useQuickActionRouting();
   const profileSetup = useProfileSetupPrompt();
   return (
@@ -91,6 +93,7 @@ function NavigationLayout() {
                 bottom={bottom}
                 onNativeHeight={setNativeHeight}
                 sessionsTab={sessionsTab}
+                separateCreation={separateCreation}
               />
             )}
             screenOptions={{
@@ -114,6 +117,7 @@ function NavigationLayout() {
 
 type NavigationBarLayout = TabBarProps & {
   sessionsTab: boolean;
+  separateCreation: boolean;
   size: number;
   bottom: number;
   onNativeHeight(height: number): void;
@@ -132,6 +136,7 @@ function ScopedNavigationBar({
   bottom,
   onNativeHeight,
   sessionsTab,
+  separateCreation,
   scope,
 }: NavigationBarLayout & { scope: string }) {
   const t = useStrings();
@@ -296,15 +301,18 @@ function ScopedNavigationBar({
             left: insets.left + space.x5,
             right: insets.right + space.x5,
             bottom,
-            flexDirection: 'row',
-            alignItems: 'flex-end',
+            flexDirection: separateCreation ? 'column' : 'row',
+            alignItems: separateCreation ? 'stretch' : 'flex-end',
             gap: space.x3,
           },
         ]}
       >
+        {separateCreation && creatable ? (
+          <View style={{ alignSelf: 'flex-end' }}>{create(navigationBar.height)}</View>
+        ) : null}
         <View
           style={{
-            flex: 1,
+            flex: separateCreation ? undefined : 1,
             height: size,
             flexDirection: 'row',
             padding: space.x2,
@@ -314,7 +322,7 @@ function ScopedNavigationBar({
           <NavigationMaterial />
           <NavigationDestinations items={items} />
         </View>
-        {create(navigationBar.height)}
+        {separateCreation ? null : create(navigationBar.height)}
       </View>
     </>
   );

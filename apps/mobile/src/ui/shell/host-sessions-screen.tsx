@@ -1,6 +1,6 @@
 import { Redirect, Stack, useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState, useSyncExternalStore } from 'react';
-import { FlatList, Platform, Pressable, View } from 'react-native';
+import { FlatList, Pressable, View } from 'react-native';
 import type { HostClient } from '@botharness/host-client/client';
 import { listHostSessions } from '@botharness/host-client/host-sessions';
 import type { HostSessionRow } from '@botharness/host-protocol/host-sessions';
@@ -24,7 +24,7 @@ export function HostSessionsScreen() {
   if (!enabled) return <Redirect href="/" />;
   return (
     <>
-      <Stack.Screen options={{ title: t.title, headerLargeTitleEnabled: Platform.OS === 'ios' }} />
+      <Stack.Screen options={{ title: t.title, headerLargeTitleEnabled: false }} />
       {client && saved ? (
         <HostSessionsList
           key={`${saved.hostId}:${saved.deviceId}`}
