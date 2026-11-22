@@ -90,6 +90,13 @@ export const en = {
     } as Record<string, readonly [string, string?]>,
   },
   sessionDetail: {
+    linkCount: (kind: 'created' | 'sent', count: number) =>
+      `${kind === 'created' ? 'New' : 'Sent to'} · ${count}`,
+    linkNeeds: {
+      'needs-you': 'Needs you',
+      'waiting-human': 'Waiting on you',
+      blocked: 'Blocked',
+    },
     title: 'Session',
     options: 'Session options',
     archive: 'Archive',
@@ -217,6 +224,13 @@ export const zh: typeof en = {
     },
   },
   sessionDetail: {
+    linkCount: (kind: 'created' | 'sent', count: number) =>
+      `${kind === 'created' ? '新建' : '转给'} · ${count}`,
+    linkNeeds: {
+      'needs-you': '需要你处理',
+      'waiting-human': '等你回复',
+      blocked: '受阻',
+    },
     title: '会话',
     options: '会话选项',
     archive: '归档',

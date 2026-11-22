@@ -42,7 +42,7 @@ import {
   type ConversationReaction,
   type MessageAttachment,
 } from '@botharness/host-client/conversation';
-import { SessionLinkChips } from './session-link-chips';
+import { SessionLinkChips, type SessionLinkNeed } from './session-link-chips';
 import type { WireSessionLink } from '@botharness/host-protocol/wire';
 import type { RosterBot } from '@botharness/host-client/client';
 import type { ConversationPlayback } from '../../host/conversation-playback';
@@ -140,8 +140,10 @@ export function BubbleBody({
   onLayout,
   quote,
   onOpenSession,
+  sessionLinkNeeds,
 }: {
   onOpenSession?: OpenSessionLink | undefined;
+  sessionLinkNeeds?: ReadonlyMap<string, SessionLinkNeed> | undefined;
   quote?: ReactNode;
   onLayout?: ((event: LayoutChangeEvent) => void) | undefined;
   onImageReady?: ((key: string, ready: boolean) => void) | undefined;
@@ -163,27 +165,24 @@ export function BubbleBody({
   const files = message.attachments.filter((attachment) => attachment.kind !== 'image');
   const album = images.length > 0;
   const hasBody = message.body.trim() !== '';
-  const chips =
+  const links =
     onOpenSession !== undefined &&
     message.source?.message.contentPurge === undefined &&
-    message.sessionLinks?.length ? (
-      <SessionLinkChips
-        links={message.sessionLinks}
-        onOpen={(link) => onOpenSession(link, message.bot)}
-      />
-    ) : null;
+    message.sessionLinks?.length
+      ? message.sessionLinks
+      : undefined;
   const captioned =
     hasBody ||
     streaming ||
     files.length > 0 ||
     message.card !== undefined ||
     message.voice !== undefined ||
-    chips !== null;
+    links !== undefined;
   const width = album ? albumWidth(screen) : undefined;
   const details = (
     <>
       {message.voice === undefined ? null : <VoiceBar voice={message.voice} human={human} />}
-      {!hasBody && !streaming && message.attachments.length > 0 ? null : (
+      {!hasBody && !streaming && (message.attachments.length > 0 || links !== undefined) ? null : (
         <MessageBody message={message} streaming={streaming} />
       )}
       {message.genuiDocument === undefined ? null : (
@@ -199,9 +198,35 @@ export function BubbleBody({
           {t.card}
         </Text>
       ) : null}
-      {chips}
     </>
   );
+  const content =
+    links === undefined || onOpenSession === undefined ? (
+      details
+    ) : (
+      <View style={{ gap: space.x1 }}>
+        <SessionLinkChips
+          kind="sent"
+          links={links}
+          needs={sessionLinkNeeds}
+          onOpen={(link) => onOpenSession(link, message.bot)}
+        />
+        {hasBody ||
+        streaming ||
+        message.voice ||
+        message.genuiDocument ||
+        files.length > 0 ||
+        message.card ? (
+          <View style={{ gap: space.x2 }}>{details}</View>
+        ) : null}
+        <SessionLinkChips
+          kind="created"
+          links={links}
+          needs={sessionLinkNeeds}
+          onOpen={(link) => onOpenSession(link, message.bot)}
+        />
+      </View>
+    );
   return (
     <StreamSurface
       active={streaming}
@@ -272,11 +297,11 @@ export function BubbleBody({
               gap: space.x2,
             }}
           >
-            {details}
+            {content}
           </View>
         ) : null
       ) : (
-        details
+        content
       )}
     </StreamSurface>
   );
@@ -487,6 +512,7 @@ export const MessageBubble = memo(function MessageBubble({
   onOpenDelivery,
   onInteractionStart,
   onOpenSession,
+  sessionLinkNeeds,
   readers = NO_READERS,
   bots = NO_BOTS,
   botName = (id) => id,
@@ -511,6 +537,7 @@ export const MessageBubble = memo(function MessageBubble({
   onOpenDelivery?: ((message: ConversationMessage) => void) | undefined;
   onInteractionStart?: () => void;
   onOpenSession?: OpenSessionLink | undefined;
+  sessionLinkNeeds?: ReadonlyMap<string, SessionLinkNeed> | undefined;
   readers?: readonly string[] | undefined;
   bots?: readonly RosterBot[] | undefined;
   botName?: (id: string) => string;
@@ -569,6 +596,7 @@ export const MessageBubble = memo(function MessageBubble({
       message={message}
       group={group}
       onOpenSession={onOpenSession}
+      sessionLinkNeeds={sessionLinkNeeds}
       onLayout={(event) =>
         setCompact(singleLine(event.nativeEvent.layout.height, theme.type.body.line, fontScale))
       }

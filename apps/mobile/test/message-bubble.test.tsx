@@ -252,7 +252,7 @@ describe('linked Sessions', () => {
       { sessionId: 'follow-up', kind: 'sent', title: 'Follow up' },
     ],
   });
-  it('renders Session chips below the text inside the bubble and passes through the selected Session', () => {
+  it('places sent and created Session chips around the text inside the bubble and opens the selected Session', () => {
     const onOpenSession = vi.fn();
     const holder = document.createElement('div');
     holder.innerHTML = renderToStaticMarkup(
@@ -265,15 +265,56 @@ describe('linked Sessions', () => {
     expect(holder.children).toHaveLength(1);
     const bubble = holder.firstElementChild!;
     const text = bubble.querySelector('[data-markdown]')!;
-    const chips = bubble.querySelectorAll('[data-testid^="message-session-"]');
+    const sent = bubble.querySelector('[data-testid="message-session-follow-up"]')!;
+    const created = bubble.querySelector('[data-testid="message-session-review"]')!;
     expect(text?.getAttribute('data-markdown')).toBe(message.body);
-    expect(Array.from(chips, (chip) => chip.textContent)).toEqual(['Release review', 'Follow up']);
-    expect(text.compareDocumentPosition(chips[0]!) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(sent.textContent).toBe('Follow up');
+    expect(created.textContent).toBe('Release review');
+    expect(sent.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(text.compareDocumentPosition(created) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     native.presses.get(t.sessionDetail.open('Release review'))?.();
     expect(onOpenSession).toHaveBeenCalledWith(
       { sessionId: 'review', kind: 'created', title: 'Release review' },
       'ada',
     );
+  });
+
+  it('folds multiple links by kind and shows the warning next to the matching Session', async () => {
+    const holder = document.createElement('div');
+    const root = createRoot(holder);
+    const onOpenSession = vi.fn();
+    const second = { sessionId: 'proof', kind: 'created', title: 'Check evidence' } as const;
+    const needs = new Map([['proof', 'waiting-human']] as const);
+    const title = t.sessionDetail.linkCount('created', 2);
+    const toggle = () => holder.querySelector('[data-testid="message-session-toggle-created"]');
+    try {
+      await act(() =>
+        root.render(
+          <BubbleBody
+            message={{ ...message, sessionLinks: [...message.sessionLinks!, second] }}
+            group={{ first: true, last: true }}
+            onOpenSession={onOpenSession}
+            sessionLinkNeeds={needs}
+          />,
+        ),
+      );
+      expect(toggle()?.getAttribute('data-accessibilitystate')).toBe('{"expanded":false}');
+      expect(holder.textContent).toContain('Follow up');
+      expect(holder.textContent).not.toContain(second.title);
+      await act(() => native.presses.get(title)?.());
+      expect(toggle()?.getAttribute('data-accessibilitystate')).toBe('{"expanded":true}');
+      expect(holder.textContent).toContain(
+        second.title + t.sessionDetail.linkNeeds['waiting-human'],
+      );
+      const chip = holder.querySelector('[data-testid="message-session-proof"]');
+      await act(() => native.presses.get(chip?.getAttribute('data-accessibilitylabel') ?? '')?.());
+      expect(onOpenSession).toHaveBeenCalledWith(second, 'ada');
+      await act(() => native.presses.get(title)?.());
+      expect(holder.textContent).not.toContain(second.title);
+      expect(holder.textContent).toContain('Follow up');
+    } finally {
+      await act(() => root.unmount());
+    }
   });
 
   it('omits Session chips from a purged message even when cached links are present', () => {

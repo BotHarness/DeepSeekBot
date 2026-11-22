@@ -5,6 +5,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import { Platform, View } from 'react-native';
 import type { RosterBot } from '@botharness/host-client/client';
 import type { WireSessionLink } from '@botharness/host-protocol/wire';
+import { useInbox } from '../../host/host-session';
 import { readingBots } from '../../host/delivery-receipt';
 import { type ConversationMessage } from '@botharness/host-client/conversation';
 import { ActivityRow } from './activity-row';
@@ -36,6 +37,7 @@ import type { useConversationComposer } from './conversation-composition';
 import type { Row } from './conversation-focus';
 import { TurnModelSwitchMarker } from './turn-model-switch';
 import { REQUEST_CARDS, RequestCard } from './conversation-request-card';
+import type { SessionLinkNeed } from './session-link-chips';
 import { sessionRoute } from './session-navigation';
 
 export function useIdentityBots(bots: readonly RosterBot[] | undefined): RosterBot[] | undefined {
@@ -165,17 +167,19 @@ export function useConversationRowRendering({
     [people, personFallback, groupOf, t],
   );
 
-  const switchMessages = useMemo(() => {
+  const { switchMessages, hasSessionLinks } = useMemo(() => {
     const seen = new Set<string>();
-    const result = new Set<string>();
-    for (const { id, turnModelSwitch } of snapshot.messages) {
+    const switchMessages = new Set<string>();
+    let hasSessionLinks = false;
+    for (const { id, turnModelSwitch, sessionLinks } of snapshot.messages) {
+      hasSessionLinks ||= (sessionLinks?.length ?? 0) > 0;
       if (turnModelSwitch === undefined) continue;
       const turn = JSON.stringify([turnModelSwitch.sessionId, turnModelSwitch.turn]);
       if (seen.has(turn)) continue;
       seen.add(turn);
-      result.add(id);
+      switchMessages.add(id);
     }
-    return result;
+    return { switchMessages, hasSessionLinks };
   }, [snapshot.messages]);
   const nativeRows = nativeChatRecycler;
   const nativeRow = useCallback(
@@ -299,6 +303,28 @@ export function useConversationRowRendering({
     (message: ConversationMessage) => setDeliveryFor(message.id),
     [],
   );
+  const attention = useInbox(inbox, focused && hasSessionLinks);
+  const actionItems = attention.status === 'ready' ? attention.sections.action : undefined;
+  const sessionLinkNeeds = useMemo(() => {
+    if (!hasSessionLinks) return undefined;
+    const needs = new Map<string, SessionLinkNeed>();
+    for (const bot of liveRoster?.bots ?? []) {
+      for (const session of bot.sessions ?? []) {
+        if (session.role === 'assignment' && session.state === 'waiting') {
+          needs.set(session.id, 'needs-you');
+        }
+      }
+    }
+    for (const item of actionItems ?? []) {
+      if (item.assignmentSessionId === undefined) continue;
+      if (item.kind === 'assignment-waiting-human') {
+        needs.set(item.assignmentSessionId, 'waiting-human');
+      } else if (item.kind === 'assignment-blocked') {
+        needs.set(item.assignmentSessionId, 'blocked');
+      }
+    }
+    return needs.size === 0 ? undefined : needs;
+  }, [actionItems, hasSessionLinks, liveRoster?.bots]);
   const openSession = useMemo(() => {
     const hostId = saved?.hostId;
     if (hostId === undefined) return undefined;
@@ -495,6 +521,7 @@ export function useConversationRowRendering({
           {...(selected === undefined ? { onOpenReply: openReply } : {})}
           {...(receipts ? { onOpenDelivery: openDelivery } : {})}
           onOpenSession={selected === undefined ? openSession : undefined}
+          sessionLinkNeeds={item.message.sessionLinks === undefined ? undefined : sessionLinkNeeds}
           readers={reading.get(item.message.id)}
           bots={roster?.bots}
           botName={botName}
@@ -548,6 +575,7 @@ export function useConversationRowRendering({
       startReply,
       openReply,
       openSession,
+      sessionLinkNeeds,
     ],
   );
   return {
