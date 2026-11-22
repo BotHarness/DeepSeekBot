@@ -1,6 +1,6 @@
-import { useRouter } from 'expo-router';
-import { useState } from 'react';
-import { View } from 'react-native';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useRef, useState } from 'react';
+import { ScrollView, View } from 'react-native';
 
 import { errorText } from '@botharness/host-client/bot-settings';
 import type { HostClient } from '@botharness/host-client/client';
@@ -29,6 +29,15 @@ function ModelPresetNewView({ client }: { client: HostClient }) {
   const [name, setName] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const focused = useRef(true);
+  useFocusEffect(
+    useCallback(() => {
+      focused.current = true;
+      return () => {
+        focused.current = false;
+      };
+    }, []),
+  );
   const value = models.value;
   const source = value?.presets.find((preset) => preset.id === DEFAULT_MODEL_PRESET_ID);
   const create = () => {
@@ -50,7 +59,11 @@ function ModelPresetNewView({ client }: { client: HostClient }) {
         : { orchestratorEngine: source.orchestratorEngine }),
       sub: source.sub ?? presetSubWithEngine(presetSubFromLegacy(source), source.assignmentEngine),
     }).then(
-      (preset) => router.replace({ pathname: '/settings/model-preset', params: { id: preset.id } }),
+      (preset) => {
+        setBusy(false);
+        if (focused.current)
+          router.replace({ pathname: '/settings/model-preset', params: { id: preset.id } });
+      },
       (cause: unknown) => {
         setError(errorText(cause));
         setBusy(false);
@@ -66,10 +79,15 @@ function ModelPresetNewView({ client }: { client: HostClient }) {
           <SheetFailed message={t.modelFailed} onRetry={models.refresh} />
         )
       ) : (
-        <View style={{ gap: space.x4, paddingVertical: space.x3 }}>
+        <ScrollView
+          style={{ flex: 1 }}
+          keyboardShouldPersistTaps="handled"
+          contentContainerStyle={{ gap: space.x4, paddingVertical: space.x3 }}
+        >
           <SheetNote>{t.modelConfig.newPresetHint}</SheetNote>
           <View style={{ paddingHorizontal: space.x5, gap: space.x3 }}>
             <TextField
+              testID="model-preset-new-name"
               value={name}
               onChangeText={setName}
               autoFocus
@@ -78,6 +96,7 @@ function ModelPresetNewView({ client }: { client: HostClient }) {
               onSubmitEditing={create}
             />
             <Button
+              testID="model-preset-new-create"
               label={t.modelConfig.create}
               busy={busy}
               disabled={name.trim() === '' || source === undefined}
@@ -85,7 +104,7 @@ function ModelPresetNewView({ client }: { client: HostClient }) {
             />
           </View>
           {error === undefined ? null : <SheetNote>{error}</SheetNote>}
-        </View>
+        </ScrollView>
       )}
     </SheetPage>
   );

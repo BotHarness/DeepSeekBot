@@ -1,16 +1,19 @@
 import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { ScrollView, View } from 'react-native';
 
 import type { HostClient } from '@botharness/host-client/client';
+import { errorText } from '@botharness/host-client/bot-settings';
 import {
   modelScopeKey,
+  modelSettingsResource,
   modelSub,
   setModelSub,
   subEffortOptions,
   type AssignmentEffortTarget,
   type ModelScope,
 } from '@botharness/host-client/model-settings';
+import type { SubSelection } from '@botharness/host-client/preset-sub';
 import {
   removeSubChoice,
   setSubDefault,
@@ -89,6 +92,32 @@ function SubChoiceDetail({
   const sub = value === undefined ? undefined : modelSub(value);
   const choice = sub?.choices.find((entry) => subChoiceKey(entry) === choiceKey);
   const [note, setNote] = useState<string>();
+  const [noteError, setNoteError] = useState<string>();
+  const scopeKey = modelScopeKey(scope);
+  const resource = useMemo(() => modelSettingsResource(client, scope), [client, scopeKey]);
+  const noteWrites = useRef<Promise<void>>(Promise.resolve());
+  const queuedNote = useRef<string | undefined>(undefined);
+  const writeNote = (text: string) => {
+    if (queuedNote.current === text) return;
+    queuedNote.current = text;
+    const selected = JSON.parse(choiceKey) as SubSelection;
+    noteWrites.current = noteWrites.current
+      .then(async () => {
+        await resource.write(async () => {
+          const fresh = await resource.refresh();
+          const list = modelSub(fresh);
+          if (!list.choices.some((entry) => subChoiceKey(entry) === choiceKey)) return;
+          await setModelSub(client, scope, fresh, setSubNote(list, selected, text));
+        });
+        setNoteError(undefined);
+        setNote((current) => (current === text ? undefined : current));
+        models.refresh();
+      })
+      .catch((cause: unknown) => {
+        queuedNote.current = undefined;
+        setNoteError(errorText(cause));
+      });
+  };
   const leave = useRef<() => void>(() => undefined);
   useFocusEffect(useCallback(() => () => leave.current(), []));
   const view =
@@ -131,7 +160,7 @@ function SubChoiceDetail({
   const shownNote = note ?? choice.note ?? '';
   const commitNote = () => {
     if (note === undefined || note === (choice.note ?? '')) return;
-    save(setSubNote(sub, selection, note), () => setNote(undefined));
+    writeNote(note);
   };
   leave.current = commitNote;
   return page(
@@ -141,6 +170,7 @@ function SubChoiceDetail({
       contentContainerStyle={{ paddingVertical: space.x3, gap: space.x4 }}
     >
       {models.error === undefined ? null : <SheetNote>{models.error}</SheetNote>}
+      {noteError === undefined ? null : <SheetNote>{noteError}</SheetNote>}
       {models.busy ? <LoadingIndicator /> : null}
       <View style={{ paddingHorizontal: space.x5, gap: space.x4 }}>
         {hasEffort || stale ? (
@@ -174,6 +204,7 @@ function SubChoiceDetail({
           </SettingsSection>
         ) : null}
         <TextField
+          testID="sub-choice-note"
           value={shownNote}
           onChangeText={setNote}
           accessibilityLabel={t.subChoices.noteLabel(view.title)}

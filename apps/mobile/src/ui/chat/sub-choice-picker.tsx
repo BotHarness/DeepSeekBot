@@ -119,6 +119,7 @@ export function SubChoicePicker({
   return (
     <SheetPage title={title}>
       <SearchField
+        testID="sub-choice-search"
         value={query}
         inset={space.x5}
         placeholder={t.subChoices.search}

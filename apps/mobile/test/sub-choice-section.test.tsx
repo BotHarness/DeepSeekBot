@@ -34,7 +34,10 @@ const flash = {
 const pro = { provider: 'deepseek', providerName: 'DeepSeek', model: 'pro', modelName: 'Pro' };
 const group = { id: 'fast', name: 'Fast group', revision: 1, routes: [flash] };
 
-function state(sub: SubChoices | undefined, presets: ModelSettingsState['presets'] = []) {
+function state(
+  sub: SubChoices | undefined,
+  presets: ModelSettingsState['presets'] = [],
+): ModelSettingsState {
   return {
     revision: 1,
     models: [flash, pro],
@@ -51,7 +54,7 @@ function state(sub: SubChoices | undefined, presets: ModelSettingsState['presets
             sub,
           },
         }),
-  } as unknown as ModelSettingsState;
+  };
 }
 
 async function render(value: ModelSettingsState) {
