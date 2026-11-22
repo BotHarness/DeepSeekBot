@@ -30,7 +30,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { engineMenuItems, groupMenuId } from './model-menu.js';
 import { ModelPlanEditor } from './model-plan-editor.js';
 import { draftOf, mainParts, modelKey, routeLabel, type ModelDraft } from './model-preset-draft.js';
-import { matchesPresetSubChoice, presetSubWithEngine } from '@botharness/host-protocol/preset-sub';
+import { matchesPresetSubChoice } from '@botharness/host-protocol/preset-sub';
 import { cleanSubChoices, subOf, type SubChoices } from './sub-choices.js';
 import {
   invalidateModelPlan,
@@ -53,6 +53,26 @@ const styles = stylex.create({
     borderBottomColor: color.divider,
   },
 });
+
+function withLiveTask(sub: SubChoices, live: SubscriptionModel | null): SubChoices {
+  if (live === null) return sub;
+  const selection = {
+    kind: 'engine' as const,
+    engine: live.engine,
+    ...(live.accountId === undefined ? {} : { accountId: live.accountId }),
+    ...(live.model === undefined ? {} : { model: live.model }),
+  };
+  const listed = sub.choices.some((choice) => matchesPresetSubChoice(choice, selection));
+  return {
+    choices: listed
+      ? sub.choices
+      : [
+          ...sub.choices,
+          { ...selection, ...(live.effort === undefined ? {} : { effort: live.effort }) },
+        ],
+    default: selection,
+  };
+}
 
 function inheritedSub(preset: ModelPresetView | undefined): SubChoices {
   const list = subOf(preset, preset?.assignmentEngine);
@@ -308,10 +328,11 @@ export function ModelPresetProfile({
   const liveTask = liveEngine('assignment');
   const listStored = plan?.sub !== undefined;
   const migratesTask = !listStored && liveTask !== null;
-  const shownSub = subDraft ?? (listStored ? sub : presetSubWithEngine(sub, liveTask ?? undefined));
+  const shownSub = subDraft ?? (listStored ? sub : withLiveTask(sub, liveTask));
   const taskClearPending = listStored && liveTask !== null;
   const engineReadPending = subscriptionsEnabled && engines.view === undefined;
-  const enginesOnly = !planEdited && (pendingEngines.length > 0 || taskClearPending);
+  const enginesOnly =
+    !planEdited && !migratesTask && (pendingEngines.length > 0 || taskClearPending);
   const canApply =
     !busy &&
     !(engineReadPending && !listStored && chosenPreset === undefined) &&

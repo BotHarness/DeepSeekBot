@@ -296,6 +296,59 @@ describe('Subscription models in the model dialog', () => {
     expect(set).toHaveBeenCalledOnce();
   });
 
+  it('keeps a live task engine that differs from an engine already in the inherited list', async () => {
+    const live = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const { actions, use, set } = fixture([{ ...live, role: 'assignment' }]);
+    const mainOnly: ModelPlanView = {
+      revision: 7,
+      orchestrator: route,
+      sourcePresetId: '',
+      sourcePresetName: '',
+    };
+    const inherited = {
+      id: 'default',
+      name: 'Default',
+      revision: 1,
+      orchestrator: route,
+      assignmentDefault: route,
+      sub: {
+        choices: [{ kind: 'engine' as const, engine: 'codex' as const, model: 'gpt-5' }],
+        default: { kind: 'engine' as const, engine: 'codex' as const, model: 'gpt-5' },
+      },
+    } as ModelPresetView;
+    await render(
+      markOriginActions({
+        ...actions,
+        modelPlanState: async () => ({ plan: mainOnly }),
+        modelPresets: async () => [inherited],
+      } as unknown as BridgeActions),
+      vi.fn(),
+    );
+    await choose('Main model', 'pro', 'Pro');
+    await act(async () => button('Save').click());
+    expect(set).toHaveBeenCalledExactlyOnceWith('ada', 7, expect.anything(), {
+      choices: [
+        { kind: 'engine', engine: 'codex', model: 'gpt-5' },
+        { kind: 'engine', engine: 'codex', model: 'gpt-6', effort: 'high' },
+      ],
+      default: { kind: 'engine', engine: 'codex', model: 'gpt-6' },
+    });
+    expect(use.mock.calls).toContainEqual(['ada', 'assignment', null, {}]);
+  });
+
+  it('migrates a live task engine even when only the main engine changes', async () => {
+    const live = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const { actions, use, set } = fixture([{ ...live, role: 'assignment' }]);
+    await render(markOriginActions(actions), vi.fn());
+    await choose('Main model', 'gpt-6', 'GPT-6 Subscription');
+    await act(async () => button('Save').click());
+    expect(set).toHaveBeenCalledOnce();
+    expect(use.mock.calls).toEqual([
+      ['ada', 'orchestrator', 'codex', { model: 'gpt-6', effort: 'medium' }],
+      ['ada', 'assignment', null, {}],
+    ]);
+  });
+
   it('retries a failed task-role clear without writing the plan again', async () => {
     const choice = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
     const { actions, use, set } = fixture([{ ...choice, role: 'assignment' }]);
