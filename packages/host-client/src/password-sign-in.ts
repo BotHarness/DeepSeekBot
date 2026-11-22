@@ -20,7 +20,9 @@ import { signedMemberHost } from './team-client';
 export type PasswordSignInError =
   | OwnerSignInError
   | 'password-sign-in-unavailable'
-  | 'host-update-required';
+  | 'host-update-required'
+  | 'team-mode-off'
+  | 'member-suspended';
 
 export interface HostAddressDiscovery {
   route: string;
@@ -91,11 +93,7 @@ export async function signInWithPassword(
         input: { username, password, deviceName, fingerprint: host.fingerprint },
         codes: refusals,
       });
-      if (!result.ok) {
-        if (result.code === 'team-mode-off' || result.code === 'member-suspended')
-          return { ok: false, code: 'remote-access/denied' };
-        return { ...result, code: result.code };
-      }
+      if (!result.ok) return result;
       const role = teamRecord(result.value)['role'];
       if (role !== 'owner' && role !== 'member') return { ok: false, code: 'response-invalid' };
       const saved =

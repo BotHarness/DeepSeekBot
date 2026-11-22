@@ -386,9 +386,12 @@ describe('HTTPS address discovery and unified sign-in', () => {
     expect(test.messages).toHaveLength(0);
   });
 
-  it('preserves coded refusals and their retry time', async () => {
-    const refusal = { ok: false, code: 'rate-limited', retryAfterSeconds: 10 };
-    const test = host({ passwordAvailable: true, passwordReply: refusal });
-    expect(await signInWithPassword(test.input)).toEqual(refusal);
-  });
+  it.each(['rate-limited', 'team-mode-off', 'member-suspended'] as const)(
+    'preserves the %s refusal for the phone to explain',
+    async (code) => {
+      const refusal = { ok: false, code, retryAfterSeconds: 10 };
+      const test = host({ passwordAvailable: true, passwordReply: refusal });
+      expect(await signInWithPassword(test.input)).toEqual(refusal);
+    },
+  );
 });
