@@ -261,13 +261,11 @@ function Models({
   const saveSubDraft = async () => {
     const pendingDraft = draft.current.subDraft;
     if (pendingDraft === undefined) return true;
-    return run(
-      () => setModelSub(client, scope, pendingDraft.base, pendingDraft.sub),
-      () => {
-        if (draft.current.subDraft === pendingDraft) draft.current.subDraft = undefined;
-        setSubDraft((current) => (current === pendingDraft ? undefined : current));
-      },
-    );
+    return run(async () => {
+      await setModelSub(client, scope, pendingDraft.base, pendingDraft.sub);
+      if (draft.current.subDraft === pendingDraft) draft.current.subDraft = undefined;
+      setSubDraft((current) => (current === pendingDraft ? undefined : current));
+    });
   };
   const draft = useRef({ name, value, scope, available, savePresetDraft, subDraft, saveSubDraft });
   draft.current = { name, value, scope, available, savePresetDraft, subDraft, saveSubDraft };
