@@ -21,6 +21,8 @@ function stylexSources(): { name: string; source: string }[] {
     ...readdirSync(clientDir)
       .filter((name) => /\.tsx?$/.test(name))
       .map((name) => `${clientDir}${name}`),
+    `${clientDir}features/channels/conversation-empty-state.tsx`,
+    `${clientDir}features/channels/conversation-shell.tsx`,
     ...bundleDirs.flatMap((dir) =>
       readdirSync(dir)
         .filter((name) => /\.tsx?$/.test(name))
