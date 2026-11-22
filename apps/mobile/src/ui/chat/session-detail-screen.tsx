@@ -1,6 +1,6 @@
 import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { FlatList, View } from 'react-native';
+import { FlatList, Pressable, View } from 'react-native';
 import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { stopSession } from '@botharness/host-client/bot-control';
@@ -16,8 +16,9 @@ import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { sessionReadHost } from '../../host/session-detail';
 import { loadAssignmentTimeline, type AssignmentTimeline } from '../../host/assignment-timeline';
 import { useDesignTheme } from '../design/theme';
-import { space } from '../design/tokens';
+import { rowGlyph, space } from '../design/tokens';
 import { Text } from '../primitives/text';
+import { ChevronDownIcon, ChevronUpIcon } from '../shell/icons';
 import { useStrings } from '../strings';
 import { AssignmentDetail } from './assignment-screen';
 import { Composer } from './composer';
@@ -139,6 +140,8 @@ export function SessionDetailBody({
   });
   const list = useRef<FlatList<SessionTranscriptItem>>(null);
   const pinned = useRef(true);
+  const scrolled = useRef(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [assignment, setAssignment] = useState<AssignmentTimeline>();
   useFocusEffect(
     useCallback(() => {
@@ -199,18 +202,58 @@ export function SessionDetailBody({
             keyboardShouldPersistTaps="handled"
             contentContainerStyle={{ rowGap: space.x3, paddingVertical: space.x4 }}
             scrollEventThrottle={16}
+            onScrollBeginDrag={() => {
+              scrolled.current = true;
+            }}
             onScroll={({ nativeEvent: { contentSize, layoutMeasurement, contentOffset } }) => {
+              if (!scrolled.current) return;
               pinned.current =
                 contentSize.height - layoutMeasurement.height - contentOffset.y <=
                 layoutMeasurement.height / 8;
             }}
             onContentSizeChange={() => {
-              if (pinned.current) list.current?.scrollToEnd({ animated: false });
+              if (pinned.current && !detailsOpen)
+                requestAnimationFrame(() => {
+                  if (pinned.current) list.current?.scrollToEnd({ animated: false });
+                });
             }}
             ListHeaderComponent={
               <>
                 {role === 'assignment' && assignment !== undefined ? (
-                  <AssignmentDetail timeline={assignment} showTitle={false} showAskInChat={false} />
+                  <>
+                    <Pressable
+                      testID="session-assignment-details"
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: detailsOpen }}
+                      onPress={() => {
+                        pinned.current = false;
+                        setDetailsOpen((open) => !open);
+                      }}
+                      style={{
+                        minHeight: theme.touch,
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        paddingHorizontal: space.x5,
+                        gap: space.x2,
+                      }}
+                    >
+                      <Text variant="meta" tone="muted">
+                        {t.sessionDetail.assignmentDetails}
+                      </Text>
+                      {detailsOpen ? (
+                        <ChevronUpIcon size={rowGlyph.size} color={theme.color.muted} />
+                      ) : (
+                        <ChevronDownIcon size={rowGlyph.size} color={theme.color.muted} />
+                      )}
+                    </Pressable>
+                    {detailsOpen ? (
+                      <AssignmentDetail
+                        timeline={assignment}
+                        showTitle={false}
+                        showAskInChat={false}
+                      />
+                    ) : null}
+                  </>
                 ) : null}
                 {transcript.omitted === 0 ? null : (
                   <SheetNote>{t.sessionDetail.omitted(transcript.omitted)}</SheetNote>

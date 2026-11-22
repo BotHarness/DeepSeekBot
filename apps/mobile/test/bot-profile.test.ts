@@ -182,6 +182,7 @@ describe('Bot profile', () => {
     fake.methods.set('scheduleList', () => ({ schedules: [] }));
     fake.methods.set('grants', () => ({ grants: [] }));
     fake.methods.set('assignments', () => ({ assignments: [] }));
+    fake.methods.set('sessions', () => ({ sessions: [] }));
 
     const profile = await loadBotProfile(client(fake), {
       slug: 'quiet',
@@ -203,6 +204,7 @@ describe('Bot profile', () => {
       routines: { status: 'ready', value: [] },
       files: { status: 'ready', value: [] },
       work: { status: 'ready', value: [] },
+      orchestrators: { status: 'ready', value: [] },
       activity: {
         status: 'ready',
         value: parseProfileActivity(recordedActivity),
