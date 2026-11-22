@@ -1,6 +1,5 @@
-import { showAppDialog } from '../primitives/app-dialog';
+import { showActionMenu } from '../primitives/app-dialog';
 import type { MenuAction } from '../primitives/action-menu-button';
-import { useStrings } from '../strings';
 import { HeaderActionGroup, HeaderBackButton } from './header-chrome';
 
 export type ChatHeaderAction = {
@@ -13,17 +12,19 @@ export type ChatHeaderAction = {
 export type ChatHeaderMenu = {
   label: string;
   testID: string;
-  items: readonly MenuAction[];
+  items: readonly (MenuAction & { testID: string; disabled?: boolean })[];
 };
 
+export type ChatHeaderControls =
+  | { kind: 'actions'; actions: readonly ChatHeaderAction[]; menu?: never }
+  | { kind: 'menu'; menu: ChatHeaderMenu; actions?: never };
+
 export type ChatHeaderActionsProps =
-  | { actions: readonly ChatHeaderAction[] }
-  | { menu: ChatHeaderMenu }
-  | { back: Omit<ChatHeaderAction, 'icon'> };
+  | ChatHeaderControls
+  | { kind: 'back'; back: Omit<ChatHeaderAction, 'icon'> };
 
 export function ChatHeaderActions(props: ChatHeaderActionsProps) {
-  const t = useStrings();
-  if ('menu' in props) {
+  if (props.kind === 'menu') {
     const { items, ...trigger } = props.menu;
     return (
       <HeaderActionGroup
@@ -32,20 +33,23 @@ export function ChatHeaderActions(props: ChatHeaderActionsProps) {
             ...trigger,
             icon: 'more',
             onPress: () =>
-              showAppDialog(trigger.label, undefined, [
-                ...items.map((item) => ({
-                  text: item.label,
-                  onPress: item.run,
-                  ...(item.destructive ? { style: 'destructive' as const } : {}),
-                })),
-                { text: t.cancel, style: 'cancel' },
-              ]),
+              showActionMenu(
+                trigger.label,
+                items
+                  .filter((item) => !item.disabled)
+                  .map((item) => ({
+                    text: item.label,
+                    icon: item.icon,
+                    onPress: item.run,
+                    ...(item.destructive ? { style: 'destructive' as const } : {}),
+                  })),
+              ),
           },
         ]}
       />
     );
   }
-  return 'back' in props ? (
+  return props.kind === 'back' ? (
     <HeaderBackButton onPress={props.back.onPress} />
   ) : (
     <HeaderActionGroup actions={props.actions} />

@@ -77,12 +77,12 @@ function SessionHeader({
               title={
                 <ChatTitleCapsule
                   title={title}
-                  staticLabel
+                  kind="heading"
                   accessibilityLabel={title}
                   testID="session-header-title"
                 />
               }
-              menu={menu}
+              controls={menu === undefined ? undefined : { kind: 'menu', menu }}
             />
           ),
         }}
@@ -258,10 +258,12 @@ export function SessionDetailBody({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [assignmentRead, setAssignmentRead] = useState<{
     timeline?: AssignmentTimeline;
+    archiveRevision?: number;
     error?: string;
     loading: boolean;
   }>({ loading: false });
   const [assignmentAttempt, setAssignmentAttempt] = useState(0);
+  const [archiveRevision, setArchiveRevision] = useState(0);
   const assignment = assignmentRead.timeline;
   const [busy, setBusy] = useState<SessionCommand['kind']>();
   const [error, setError] = useState<string>();
@@ -273,7 +275,8 @@ export function SessionDetailBody({
       setAssignmentRead((current) => ({ ...current, loading: true }));
       void loadAssignmentTimeline(sessionReadHost(client, abort.signal), slug, id).then(
         (timeline) => {
-          if (!abort.signal.aborted) setAssignmentRead({ timeline, loading: false });
+          if (!abort.signal.aborted)
+            setAssignmentRead({ timeline, archiveRevision, loading: false });
         },
         (error: unknown) => {
           if (!abort.signal.aborted)
@@ -285,7 +288,7 @@ export function SessionDetailBody({
         },
       );
       return () => abort.abort();
-    }, [client, id, online, role, slug, view.running, assignmentAttempt]),
+    }, [client, id, online, role, slug, view.running, assignmentAttempt, archiveRevision]),
   );
   const sessionTitle =
     assignment?.assignment.title ||
@@ -306,7 +309,7 @@ export function SessionDetailBody({
           break;
         case 'archive':
           await setSessionArchived(client, slug, id, command.archived);
-          setAssignmentAttempt((attempt) => attempt + 1);
+          setArchiveRevision((revision) => revision + 1);
           break;
         case 'send':
           if (role === 'assignment')
@@ -335,7 +338,9 @@ export function SessionDetailBody({
 
   const stop = () => void run({ kind: 'stop' });
   const canArchive =
+    busy === undefined &&
     !view.running &&
+    assignmentRead.archiveRevision === archiveRevision &&
     assignment !== undefined &&
     assignment.assignment.activity !== 'working' &&
     assignment.assignment.activity !== 'stopping';
@@ -346,17 +351,28 @@ export function SessionDetailBody({
           label: t.sessionDetail.options,
           testID: 'session-options',
           items: [
-            ...(view.running ? [{ label: t.sessionStop, icon: 'stop' as const, run: stop }] : []),
+            ...(view.running
+              ? [{ label: t.sessionStop, testID: 'session-stop', icon: 'stop' as const, run: stop }]
+              : []),
             ...(canArchive
               ? [
                   {
                     label: isArchived ? t.sessionDetail.unarchive : t.sessionDetail.archive,
+                    testID: isArchived ? 'session-unarchive' : 'session-archive',
                     icon: isArchived ? ('unarchive' as const) : ('archive' as const),
                     run: () => void run({ kind: 'archive', archived: !isArchived }),
                   },
                 ]
               : []),
-            { label: t.sessionModel.choice, icon: 'model', run: model.show },
+            {
+              label: t.sessionModel.choice,
+              testID: 'session-model-choice',
+              icon: 'model',
+              disabled: busy !== undefined,
+              run: () => {
+                if (!pending.current) model.show();
+              },
+            },
           ],
         }
       : undefined;

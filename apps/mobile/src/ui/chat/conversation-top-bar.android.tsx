@@ -279,8 +279,10 @@ export function ConversationTopBar({
                   <Column modifiers={[width(materialMenu.width)]}>
                     <MaterialMenuGroup
                       items={menu.items.map((item) => ({
-                        key: item.label,
+                        key: item.testID,
+                        testID: item.testID,
                         label: item.label,
+                        disabled: item.disabled === true,
                         destructive: item.destructive === true,
                         icon: (
                           <MenuIcon

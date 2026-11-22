@@ -1,10 +1,10 @@
-import type { ComponentProps, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { View } from 'react-native';
 import { useDesignTheme } from '../design/theme';
 import { radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { titleChipFill } from './header-chrome';
-import { HeaderTitleButton } from './header-title-button';
+import { HeaderTitleButton, type HeaderTitleControl } from './header-title-button';
 import { barLabelProps, barLabelStyle, glassHeader, headerControlHeight } from './native-header';
 
 export function ChatTitleCapsule({
@@ -14,7 +14,7 @@ export function ChatTitleCapsule({
   trailing,
   leadingSize,
   ...control
-}: Omit<ComponentProps<typeof HeaderTitleButton>, 'style' | 'children'> & {
+}: HeaderTitleControl & {
   title: string;
   subtitle?: ReactNode;
   leading?: ReactNode;
@@ -46,7 +46,7 @@ export function ChatTitleCapsule({
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x2 }}>
           <Text
-            {...barLabelProps}
+            {...(control.kind === 'button' ? barLabelProps : {})}
             strong
             numberOfLines={1}
             ellipsizeMode="tail"

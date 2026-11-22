@@ -5,6 +5,7 @@ import {
   accessibilityLabel,
   buttonStyle,
   contentShape,
+  disabled,
   foregroundStyle,
   frame,
   glassEffect,
@@ -21,15 +22,15 @@ const symbols = { back: 'chevron.left', call: 'phone', more: 'ellipsis' } as con
 
 export function ChatHeaderActions(props: ChatHeaderActionsProps) {
   const actions =
-    'back' in props
+    props.kind === 'back'
       ? [{ ...props.back, icon: 'back' as const }]
-      : 'actions' in props
+      : props.kind === 'actions'
         ? props.actions
         : [];
   const theme = useDesignTheme();
   const height = headerControlHeight(theme);
   const symbolSize = theme.type.body.line * headerContentScale(theme);
-  const count = 'menu' in props ? 1 : actions.length;
+  const count = props.kind === 'menu' ? 1 : actions.length;
   const glyph = (icon: keyof typeof symbols) => (
     <Image
       systemName={symbols[icon]}
@@ -51,7 +52,7 @@ export function ChatHeaderActions(props: ChatHeaderActionsProps) {
           }),
         ]}
       >
-        {'menu' in props ? (
+        {props.kind === 'menu' ? (
           <Menu
             label={glyph('more')}
             modifiers={[
@@ -63,10 +64,12 @@ export function ChatHeaderActions(props: ChatHeaderActionsProps) {
           >
             {props.menu.items.map((item) => (
               <Button
-                key={item.label}
+                key={item.testID}
+                testID={item.testID}
                 label={controlCase(item.label)}
                 systemImage={MENU_SYMBOL[item.icon]}
                 {...(item.destructive ? { role: 'destructive' as const } : {})}
+                modifiers={[disabled(item.disabled === true)]}
                 onPress={item.run}
               />
             ))}

@@ -42,10 +42,10 @@ export function ChatTitle({
   );
   return (
     <ChatTitleCapsule
+      kind="button"
       title={name}
       subtitle={status}
       testID="bot-details-chip"
-      accessibilityRole="button"
       accessibilityLabel={[name, headerStatus.label, connectionLabel].filter(Boolean).join(', ')}
       accessibilityState={{ busy: connectionLabel !== undefined }}
       accessibilityHint={t.openProfile}

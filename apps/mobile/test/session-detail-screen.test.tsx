@@ -82,15 +82,18 @@ vi.mock('../src/ui/chat/chat-header-actions', async () => {
   return {
     ChatHeaderActions: (props: ChatHeaderActionsProps) => {
       const [expanded, setExpanded] = useState(false);
-      if ('back' in props) return <button onClick={props.back.onPress}>{props.back.label}</button>;
-      return 'menu' in props ? (
+      if (props.kind === 'back')
+        return <button onClick={props.back.onPress}>{props.back.label}</button>;
+      return props.kind === 'menu' ? (
         <>
           <button onClick={() => setExpanded(!expanded)}>{props.menu.label}</button>
           {expanded ? (
             <div role="menu">
               {props.menu.items.map((item) => (
                 <button
-                  key={item.label}
+                  key={item.testID}
+                  data-testid={item.testID}
+                  disabled={item.disabled}
                   onClick={() => {
                     setExpanded(false);
                     item.run();
@@ -191,12 +194,18 @@ async function open({
   live = false,
   refused = false,
   failAssignment = false,
+  sendGate,
+  beforeAssignmentRead,
+  beforeArchive,
 }: {
   role?: 'orchestrator' | 'assignment';
   running?: boolean;
   live?: boolean;
   refused?: boolean;
   failAssignment?: boolean;
+  sendGate?: Promise<void>;
+  beforeAssignmentRead?: (readNumber: number) => Promise<void>;
+  beforeArchive?: () => Promise<void>;
 } = {}) {
   const view = document.createElement('div');
   root = createRoot(view);
@@ -230,16 +239,22 @@ async function open({
       };
     }
     if (method === 'sessionModel') return { override: null, default: null };
+    if (method === 'sessionMessageSend') {
+      await sendGate;
+      return {};
+    }
     if (method === 'sessionStop') {
       sessionRunning = false;
       return { stopped: [], alreadyIdle: [] };
     }
     if (method === 'sessionArchiveSet') {
+      await beforeArchive?.();
       archived = args?.['archived'] === true;
       return { archived };
     }
     if (method === 'assignmentTimeline') {
       if (++assignmentReads === 1 && failAssignment) throw new Error('Assignment read unavailable');
+      await beforeAssignmentRead?.(assignmentReads);
       return {
         assignment: {
           botSlug: 'ada',
@@ -321,6 +336,9 @@ it('sends a draft to the selected Orchestrator', async () => {
 it('shows the Session title, Back, and Model Choice in the header', async () => {
   const { view } = await open();
   expect(view.textContent).toContain('Review the release');
+  expect(view.querySelector('[data-testid="session-header-title"]')?.getAttribute('role')).toBe(
+    'header',
+  );
   const header = view.querySelector('header');
   expect(header?.dataset).toMatchObject({
     transparent: 'true',
@@ -338,6 +356,7 @@ it('shows the Session title, Back, and Model Choice in the header', async () => 
   await press(view, 'Session options');
   const menu = view.querySelector<HTMLElement>('[role="menu"]')!;
   expect(menu.textContent).toBe('Model choice');
+  expect(menu.querySelector('[data-testid="session-model-choice"]')).not.toBeNull();
   await press(menu, 'Model choice');
   const picker = view.querySelector('section[aria-label]');
   expect(picker).not.toBeNull();
@@ -352,11 +371,65 @@ it('shows the Session title, Back, and Model Choice in the header', async () => 
   );
 });
 
+it('keeps Model Choice disabled in the header while the Composer send is pending', async () => {
+  const send = Promise.withResolvers<void>();
+  const { view } = await open({ sendGate: send.promise });
+  await press(view, 'Draft');
+  await press(view, 'Send');
+  await press(view, 'Session options');
+  const choice = view.querySelector<HTMLButtonElement>('[data-testid="session-model-choice"]')!;
+  expect(choice.disabled).toBe(true);
+  await act(async () => choice.click());
+  expect(view.querySelector('section[aria-label]')).toBeNull();
+  await act(async () => send.resolve());
+  expect(choice.disabled).toBe(false);
+  await act(async () => choice.click());
+  expect(view.querySelector('section[aria-label]')).not.toBeNull();
+});
+
+it('waits for a fresh Assignment read after archiving, even if the first refresh fails', async () => {
+  const reload = Promise.withResolvers<void>();
+  const { view } = await open({
+    role: 'assignment',
+    beforeAssignmentRead: async (read) => {
+      if (read === 2) await reload.promise;
+    },
+  });
+  const archive = () => view.querySelector('[data-testid="session-archive"]');
+  const unarchive = () => view.querySelector('[data-testid="session-unarchive"]');
+  await press(view, 'Session options');
+  expect(archive()).not.toBeNull();
+  await press(view, 'Archive');
+  await press(view, 'Session options');
+  expect(archive()).toBeNull();
+  expect(unarchive()).toBeNull();
+  await act(async () => reload.reject(new Error('Assignment refresh unavailable')));
+  expect(archive()).toBeNull();
+  expect(unarchive()).toBeNull();
+  await press(view, 'Try again');
+  expect(unarchive()?.textContent).toBe('Unarchive');
+});
+
+it('preserves the confirmed Archive action when the write is refused', async () => {
+  const { view } = await open({
+    role: 'assignment',
+    beforeArchive: async () => {
+      throw new MethodRefused('forbidden', 'Restricted Session');
+    },
+  });
+  await press(view, 'Session options');
+  await press(view, 'Archive');
+  await press(view, 'Session options');
+  expect(view.querySelector('[data-testid="session-archive"]')?.textContent).toBe('Archive');
+  expect(view.querySelector('[data-testid="session-unarchive"]')).toBeNull();
+});
+
 it('uses the selected Assignment for Stop, Archive, and Unarchive', async () => {
   const { view, call } = await open({ role: 'assignment', running: true });
   await press(view, 'Session options');
   const menu = view.querySelector<HTMLElement>('[role="menu"]')!;
   expect(menu.textContent).toBe('StopModel choice');
+  expect(menu.querySelector('[data-testid="session-stop"]')).not.toBeNull();
   await press(menu, 'Stop');
   expect(call).toHaveBeenCalledWith('sessionStop', { botSlug: 'ada', sessionId: 'chosen' });
   await press(view, 'Session options');

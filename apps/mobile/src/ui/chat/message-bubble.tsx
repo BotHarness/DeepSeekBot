@@ -24,6 +24,7 @@ import {
   type DimensionValue,
   type LayoutChangeEvent,
   type ViewInstance,
+  type ViewProps,
 } from 'react-native';
 import Animated, {
   Easing,
@@ -128,6 +129,19 @@ function usePendingFeedback(message: ConversationMessage): boolean {
 
 type OpenSessionLink = (link: WireSessionLink, slug: string | undefined) => void;
 
+type MessageAccessibility = Pick<
+  ViewProps,
+  'accessibilityActions' | 'onAccessibilityAction' | 'accessibilityHint'
+>;
+
+function visibleSessionLinks(message: ConversationMessage, onOpenSession?: OpenSessionLink) {
+  return onOpenSession !== undefined &&
+    message.source?.message.contentPurge === undefined &&
+    message.sessionLinks?.length
+    ? message.sessionLinks
+    : undefined;
+}
+
 export function BubbleBody({
   message,
   group,
@@ -141,9 +155,11 @@ export function BubbleBody({
   quote,
   onOpenSession,
   sessionLinkNeeds,
+  messageAccessibility,
 }: {
   onOpenSession?: OpenSessionLink | undefined;
   sessionLinkNeeds?: ReadonlyMap<string, SessionLinkNeed> | undefined;
+  messageAccessibility?: MessageAccessibility | undefined;
   quote?: ReactNode;
   onLayout?: ((event: LayoutChangeEvent) => void) | undefined;
   onImageReady?: ((key: string, ready: boolean) => void) | undefined;
@@ -165,12 +181,7 @@ export function BubbleBody({
   const files = message.attachments.filter((attachment) => attachment.kind !== 'image');
   const album = images.length > 0;
   const hasBody = message.body.trim() !== '';
-  const links =
-    onOpenSession !== undefined &&
-    message.source?.message.contentPurge === undefined &&
-    message.sessionLinks?.length
-      ? message.sessionLinks
-      : undefined;
+  const links = visibleSessionLinks(message, onOpenSession);
   const captioned =
     hasBody ||
     streaming ||
@@ -179,11 +190,19 @@ export function BubbleBody({
     message.voice !== undefined ||
     links !== undefined;
   const width = album ? albumWidth(screen) : undefined;
+  const body =
+    !hasBody && !streaming && (message.attachments.length > 0 || links !== undefined) ? null : (
+      <MessageBody message={message} streaming={streaming} />
+    );
   const details = (
     <>
       {message.voice === undefined ? null : <VoiceBar voice={message.voice} human={human} />}
-      {!hasBody && !streaming && (message.attachments.length > 0 || links !== undefined) ? null : (
-        <MessageBody message={message} streaming={streaming} />
+      {messageAccessibility !== undefined && hasBody ? (
+        <View {...messageAccessibility} accessible accessibilityLabel={message.body}>
+          {body}
+        </View>
+      ) : (
+        body
       )}
       {message.genuiDocument === undefined ? null : (
         <GenuiDocumentCard
@@ -200,6 +219,13 @@ export function BubbleBody({
       ) : null}
     </>
   );
+  const hasDetails =
+    hasBody ||
+    streaming ||
+    message.voice !== undefined ||
+    message.genuiDocument !== undefined ||
+    files.length > 0 ||
+    message.card !== undefined;
   const content =
     links === undefined || onOpenSession === undefined ? (
       details
@@ -211,14 +237,16 @@ export function BubbleBody({
           needs={sessionLinkNeeds}
           onOpen={(link) => onOpenSession(link, message.bot)}
         />
-        {hasBody ||
-        streaming ||
-        message.voice ||
-        message.genuiDocument ||
-        files.length > 0 ||
-        message.card ? (
-          <View style={{ gap: space.x2 }}>{details}</View>
+        {messageAccessibility !== undefined && !hasBody ? (
+          <View
+            {...messageAccessibility}
+            accessible
+            accessibilityLabel={t.messageActions}
+            pointerEvents="none"
+            style={{ position: 'absolute', inset: 0 }}
+          />
         ) : null}
+        {hasDetails ? <View style={{ gap: space.x2 }}>{details}</View> : null}
         <SessionLinkChips
           kind="created"
           links={links}
@@ -317,6 +345,7 @@ function PressableBubble({
   accessibilityActionLabel,
   pending = false,
   ungrouped = false,
+  splitAccessibility = false,
   onPress,
   onLongPress,
   onDoubleTap,
@@ -339,10 +368,11 @@ function PressableBubble({
   accessibilityActionLabel?: string;
   pending?: boolean;
   ungrouped?: boolean;
+  splitAccessibility?: boolean;
   onPress?: () => void;
   onLongPress?: (anchor: Rect) => void;
   onDoubleTap?: () => void;
-  children: ReactNode;
+  children(accessibility?: MessageAccessibility): ReactNode;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -393,6 +423,29 @@ function PressableBubble({
         .onStart(() => currentHold.current?.()),
     [nativeHolding],
   );
+  const messageAccessibility: MessageAccessibility = {
+    ...(accessibilityHint === undefined ? {} : { accessibilityHint }),
+    ...(onLongPress === undefined && onOpenReply === undefined
+      ? {}
+      : {
+          accessibilityActions: [
+            ...(onLongPress === undefined
+              ? []
+              : [{ name: 'longpress', label: accessibilityActionLabel ?? t.messageActions }]),
+            ...(onOpenReply === undefined
+              ? []
+              : [{ name: 'reply-original', label: t.reply.jumpHint }]),
+          ],
+          onAccessibilityAction: (event: AccessibilityActionEvent) => {
+            if (event.nativeEvent.actionName === 'reply-original') {
+              onOpenReply?.();
+              return;
+            }
+            anchor.current = undefined;
+            open();
+          },
+        }),
+  };
   const bubble = (
     <Animated.View
       ref={ref}
@@ -410,33 +463,14 @@ function PressableBubble({
     >
       <Pressable
         {...(onInteractionStart === undefined ? {} : { onTouchStart: onInteractionStart })}
-        {...(ungrouped ? { accessible: false } : {})}
+        {...(ungrouped || splitAccessibility ? { accessible: false } : {})}
+        {...(splitAccessibility ? { focusable: false } : {})}
         {...(pending
           ? { accessibilityState: { busy: true }, accessibilityValue: { text: t.sending } }
           : {})}
         {...(accessibilityRole === undefined ? {} : { accessibilityRole })}
         {...(accessibilityLabel === undefined ? {} : { accessibilityLabel })}
-        {...(accessibilityHint === undefined ? {} : { accessibilityHint })}
-        {...(onLongPress === undefined && onOpenReply === undefined
-          ? {}
-          : {
-              accessibilityActions: [
-                ...(onLongPress === undefined
-                  ? []
-                  : [{ name: 'longpress', label: accessibilityActionLabel ?? t.messageActions }]),
-                ...(onOpenReply === undefined
-                  ? []
-                  : [{ name: 'reply-original', label: t.reply.jumpHint }]),
-              ],
-              onAccessibilityAction: (event: AccessibilityActionEvent) => {
-                if (event.nativeEvent.actionName === 'reply-original') {
-                  onOpenReply?.();
-                  return;
-                }
-                anchor.current = undefined;
-                open();
-              },
-            })}
+        {...(splitAccessibility ? {} : messageAccessibility)}
         {...(hold === undefined || nativeHolding ? {} : { onLongPress: hold })}
         {...(onPress !== undefined
           ? { onPress }
@@ -473,7 +507,11 @@ function PressableBubble({
         }}
       >
         <MediaLongPress.Provider value={nativeHolding ? undefined : hold}>
-          {children}
+          {children(
+            splitAccessibility && messageAccessibility.accessibilityActions !== undefined
+              ? messageAccessibility
+              : undefined,
+          )}
         </MediaLongPress.Provider>
       </Pressable>
     </Animated.View>
@@ -585,18 +623,23 @@ export const MessageBubble = memo(function MessageBubble({
       </View>
     );
   const copyable = message.body.trim() !== '';
+  const hasSessionLinks = visibleSessionLinks(message, onOpenSession) !== undefined;
   const actionable =
     !streaming &&
-    (copyable || message.attachments.length > 0 || (onReact !== undefined && reactable(message)));
+    (copyable ||
+      hasSessionLinks ||
+      message.attachments.length > 0 ||
+      (onReact !== undefined && reactable(message)));
   const group = { first, last, avatar: speaker?.last === true, compact };
   const tapMenu = Platform.OS === 'android' && onSelect !== undefined;
   const replyTo = message.replyTo;
-  const bubble = (
+  const renderBubble = (messageAccessibility?: MessageAccessibility) => (
     <BubbleBody
       message={message}
       group={group}
       onOpenSession={onOpenSession}
       sessionLinkNeeds={sessionLinkNeeds}
+      messageAccessibility={messageAccessibility}
       onLayout={(event) =>
         setCompact(singleLine(event.nativeEvent.layout.height, theme.type.body.line, fontScale))
       }
@@ -636,10 +679,8 @@ export const MessageBubble = memo(function MessageBubble({
           ? { onInteractionStart }
           : {})}
         pending={human && message.delivery === 'pending'}
-        ungrouped={
-          (human && message.delivery === 'pending' && message.attachments.length > 0) ||
-          (onOpenSession !== undefined && (message.sessionLinks?.length ?? 0) > 0)
-        }
+        ungrouped={human && message.delivery === 'pending' && message.attachments.length > 0}
+        splitAccessibility={hasSessionLinks}
         {...(failed ? { accessibilityRole: 'button' as const, accessibilityLabel: label } : {})}
         {...(actionable
           ? {
@@ -666,10 +707,10 @@ export const MessageBubble = memo(function MessageBubble({
             }
           : {})}
       >
-        {bubble}
+        {renderBubble}
       </PressableBubble>
     ) : (
-      bubble
+      renderBubble()
     );
   const badged = chipsMounted || shownReading.length > 0;
   const frame = {

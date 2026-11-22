@@ -252,6 +252,72 @@ describe('linked Sessions', () => {
       { sessionId: 'follow-up', kind: 'sent', title: 'Follow up' },
     ],
   });
+
+  it.each(['ios', 'android'])(
+    'keeps message actions and Session chips separately accessible on %s',
+    async (os) => {
+      native.os = os;
+      const measurement = await import('../src/ui/primitives/measure-message-view');
+      const measure = vi
+        .spyOn(measurement, 'measureMessageView')
+        .mockImplementation((_view, then) => {
+          then(16, 400, 200, 60);
+        });
+      try {
+        const onLongPress = vi.fn();
+        const onOpenSession = vi.fn();
+        const onOpenReply = vi.fn();
+        const holder = document.createElement('div');
+        holder.innerHTML = renderToStaticMarkup(
+          <MessageBubble
+            message={{
+              ...message,
+              replyTo: 'original',
+              replyPreview: {
+                author: { kind: 'human', humanId: 'human' },
+                body: 'How is the review?',
+              },
+            }}
+            onLongPress={onLongPress}
+            onOpenSession={onOpenSession}
+            onOpenReply={onOpenReply}
+          />,
+        );
+        const actionTarget = holder.querySelector(
+          '[data-accessible="true"][data-accessibilityactions]',
+        );
+        const chip = holder.querySelector('[data-testid="message-session-review"]');
+        expect(actionTarget?.getAttribute('data-accessibilitylabel')).toBe(message.body);
+        expect(actionTarget?.getAttribute('data-accessibilityactions')).toContain('longpress');
+        expect(actionTarget?.getAttribute('data-accessibilityactions')).toContain('reply-original');
+        expect(chip?.getAttribute('data-accessibilityrole')).toBe('button');
+        expect(actionTarget?.contains(chip)).toBe(false);
+        native.presses.get(t.sessionDetail.open('Release review'))?.();
+        expect(onOpenSession).toHaveBeenCalledOnce();
+        expect(onLongPress).not.toHaveBeenCalled();
+        native.actions.get(message.body)?.({ nativeEvent: { actionName: 'longpress' } });
+        expect(onLongPress).toHaveBeenCalledOnce();
+        native.actions.get(message.body)?.({ nativeEvent: { actionName: 'reply-original' } });
+        expect(onOpenReply).toHaveBeenCalledExactlyOnceWith('original');
+        native.longPresses.find((gesture) => gesture.enabled)?.start();
+        expect(onLongPress).toHaveBeenCalledTimes(2);
+      } finally {
+        measure.mockRestore();
+      }
+    },
+  );
+
+  it('keeps actions available for a reply containing only a Session chip', () => {
+    const holder = document.createElement('div');
+    holder.innerHTML = renderToStaticMarkup(
+      <MessageBubble message={{ ...message, body: '' }} onOpenSession={() => {}} />,
+    );
+    const actionTarget = holder.querySelector(
+      '[data-accessible="true"][data-accessibilityactions]',
+    );
+    expect(actionTarget?.getAttribute('data-accessibilitylabel')).toBe(t.messageActions);
+    expect(actionTarget?.getAttribute('data-accessibilityactions')).toContain('longpress');
+  });
   it('places sent and created Session chips around the text inside the bubble and opens the selected Session', () => {
     const onOpenSession = vi.fn();
     const holder = document.createElement('div');

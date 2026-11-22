@@ -33,6 +33,8 @@ Back returns to the origin of each entry. The Sessions list and the detail title
 
 On an isolated Host, simulate a failed Sessions read and a failed Assignment details read. Verify that **Try again** restores each read. Keep a cached Sessions list visible through a failed refresh, and keep the Assignment transcript and composer available while retrying its details.
 
+Long-press the text of a Bot message that contains a Session chip. Check that the message actions include Copy and show the recorded model and time. Dismiss the actions, then tap the chip and check that Session detail opens. With a screen reader, check that the message actions and each chip are reachable separately, and that a reply can jump to its original message.
+
 ## Gotchas
 
 - A historical Orchestrator can be read. The Host only accepts direct sends to the Bot's current Orchestrator.

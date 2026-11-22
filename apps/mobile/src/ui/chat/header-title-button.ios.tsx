@@ -22,7 +22,7 @@ export function HeaderTitleButton(props: HeaderTitleButtonProps) {
   const t = useStrings();
   const style = typeof props.style === 'function' ? props.style({ pressed: false }) : props.style;
   const height = StyleSheet.flatten(style)?.minHeight;
-  if (props.staticLabel)
+  if (props.kind === 'heading')
     return (
       <Host style={{ width: '100%', height }} colorScheme={theme.scheme}>
         <HStack
@@ -30,7 +30,7 @@ export function HeaderTitleButton(props: HeaderTitleButtonProps) {
             ...(glassHeader ? [glassEffect({ shape: 'capsule' })] : []),
             accessibilityElement(),
             accessibilityAddTraits(['isHeader']),
-            ...(props.accessibilityLabel ? [accessibilityLabel(props.accessibilityLabel)] : []),
+            accessibilityLabel(props.accessibilityLabel),
             ...(props.testID ? [accessibilityIdentifier(props.testID)] : []),
           ]}
         >
