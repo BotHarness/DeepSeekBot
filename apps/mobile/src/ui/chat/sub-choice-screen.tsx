@@ -36,6 +36,7 @@ import { useModels } from './model-settings-screen';
 import { SHEET_GROUP, SheetFailed, SheetLoading, SheetNote } from './sheet';
 import { useEngineOptions } from './sub-choice-engines';
 import {
+  commitNoteDraft,
   failedNote,
   forgetFailedNote,
   pendingNote,
@@ -174,8 +175,10 @@ function SubChoiceDetail({
   };
   const shownNote = note ?? choice.note ?? '';
   const commitNote = () => {
-    if (note !== undefined && notes.current?.commit(note, choice.note ?? '') === true)
-      forgetFailedNote(draftKey);
+    const queue = notes.current;
+    if (note === undefined || queue === undefined) return;
+    if (commitNoteDraft(queue, draftKey, note, choice.note ?? '') === 'restored')
+      setNoteError(undefined);
   };
   leave.current = commitNote;
   return page(

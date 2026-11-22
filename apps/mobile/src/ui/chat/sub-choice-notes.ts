@@ -83,3 +83,20 @@ export function sharedNoteQueue(key: string, handlers: NoteHandlers): NoteQueue 
   sharedQueues.set(key, { queue, handlers: current });
   return queue;
 }
+
+export function commitNoteDraft(
+  queue: NoteQueue,
+  key: string,
+  note: string,
+  saved: string,
+): 'queued' | 'restored' | 'unchanged' {
+  if (queue.commit(note, saved)) {
+    forgetFailedNote(key);
+    return 'queued';
+  }
+  if (note === saved && queue.pending() === undefined) {
+    forgetFailedNote(key);
+    return 'restored';
+  }
+  return 'unchanged';
+}

@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest';
 
 import {
+  commitNoteDraft,
   failedNote,
   forgetFailedNote,
   noteQueue,
@@ -196,4 +197,20 @@ it('restores the newer pending note, not an older failed draft, when the page re
   finishB();
   await firstVisit.settled();
   expect(pendingNote(key)).toBeUndefined();
+});
+
+it('drops a failed draft when the note is changed back to the saved text', async () => {
+  const key = 'host-a:preset:p:restore';
+  const queue = sharedNoteQueue(key, {
+    write: async (text) => {
+      if (text === 'A') throw new Error('stale');
+    },
+    onSaved: () => forgetFailedNote(key),
+    onError: (cause, text) => rememberFailedNote(key, { text, error: (cause as Error).message }),
+  });
+  expect(commitNoteDraft(queue, key, 'A', 'B')).toBe('queued');
+  await queue.settled();
+  expect(failedNote(key)?.text).toBe('A');
+  expect(commitNoteDraft(queue, key, 'B', 'B')).toBe('restored');
+  expect(failedNote(key)).toBeUndefined();
 });
