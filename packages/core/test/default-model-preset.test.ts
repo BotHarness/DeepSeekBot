@@ -340,6 +340,50 @@ it('adds a legacy Assignment Engine default alongside a Routing Group-only sub',
   expect(store.get(preset.id)).toEqual(edited);
 });
 
+it('keeps a group default and engine alternate model-free during a legacy metadata edit', () => {
+  const store = fixture().open();
+  const preset = store.create({ name: 'Mixed', orchestrator: main, assignmentDefault: main });
+  const group = { kind: 'group' as const, group: 'backup' };
+  const engine = {
+    kind: 'engine' as const,
+    engine: 'codex' as const,
+    note: 'Use the subscription',
+  };
+  const configured = store.setSub(preset.id, preset.revision, {
+    choices: [{ ...group, note: 'Original note' }, engine],
+    default: group,
+  });
+  const groupOption = { group: group.group, note: 'Updated note' };
+  const edited = store.update(preset.id, {
+    name: preset.name,
+    expectedRevision: configured.revision,
+    orchestrator: main,
+    assignmentDefault: configured.assignmentDefault,
+    groups: {
+      assignmentGroups: [group.group],
+      assignmentDefaultGroupId: group.group,
+      assignmentGroupOptions: [groupOption],
+    },
+  });
+  const choices = [{ kind: 'group', ...groupOption }, engine];
+  expect(store.get(preset.id)?.sub).toEqual({ choices, default: group });
+
+  const route = { provider: 'go', model: 'new-model' };
+  const option = { ...route, allowedEfforts: [''], defaultEffort: '' };
+  if (edited === undefined) throw new Error('Model Preset edit did not save');
+  store.update(preset.id, {
+    name: preset.name,
+    expectedRevision: edited.revision,
+    orchestrator: main,
+    assignmentDefault: route,
+    assignmentModels: [option],
+  });
+  expect(store.get(preset.id)?.sub).toEqual({
+    choices: [...choices, { kind: 'model', ...option }],
+    default: group,
+  });
+});
+
 afterEach(() => {
   for (const home of homes) home.close();
   for (const home of homes.splice(0)) rmSync(home.root, { recursive: true, force: true });

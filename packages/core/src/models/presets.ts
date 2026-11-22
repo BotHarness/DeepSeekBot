@@ -913,10 +913,10 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
       );
       if (!isModelPresetGroups(groups as Record<string, unknown>))
         throw new Error('Model Preset Routing Groups are invalid');
-      const groupOnly =
+      const keepModelFreeSub =
         !followsMain &&
         currentSub?.default?.kind === 'group' &&
-        currentSub.choices.every((choice) => choice.kind === 'group') &&
+        currentSub.choices.every((choice) => choice.kind !== 'model') &&
         groups.assignmentDefaultGroupId !== undefined &&
         (input.assignmentModels === undefined ||
           isDeepStrictEqual(input.assignmentModels, assignmentModelsOf({ assignmentDefault }))) &&
@@ -928,7 +928,7 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
         orchestrator: { ...input.orchestrator },
         assignmentDefault: { ...assignmentDefault },
         ...(followsMain ? { assignmentFollowsMain: true } : {}),
-        ...(assignmentModels === undefined || groupOnly
+        ...(assignmentModels === undefined || keepModelFreeSub
           ? {}
           : {
               assignmentModels: assignmentModels.map((option) => ({
@@ -964,7 +964,7 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
       ) {
         updated.sub = currentSub;
       } else if (!followsMain) {
-        updated.sub = mergeLegacyPresetSub(currentSub, nextSub, groupOnly);
+        updated.sub = mergeLegacyPresetSub(currentSub, nextSub, keepModelFreeSub);
       }
       write(updated);
       return updated;

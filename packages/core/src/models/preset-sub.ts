@@ -289,9 +289,9 @@ export function storedPresetSub(preset: ModelPreset): PresetSub {
 export function mergeLegacyPresetSub(
   previous: PresetSub | undefined,
   next: PresetSub,
-  groupOnly: boolean,
+  keepModelFreeSub: boolean,
 ): PresetSub {
-  const remaining = next.choices.filter((choice) => !groupOnly || choice.kind !== 'model');
+  const remaining = next.choices.filter((choice) => !keepModelFreeSub || choice.kind !== 'model');
   const retained: PresetSubChoice[] = [];
   for (const saved of previous?.choices ?? []) {
     const index = remaining.findIndex((choice) => matchesPresetSubChoice(choice, saved));
