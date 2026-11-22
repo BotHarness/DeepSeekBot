@@ -571,6 +571,7 @@ export function createCore(
     stopSettleTimeoutMs?: number;
     closeSessionApprovals?: (sessionIds: readonly string[]) => void;
     routeRests?: import('./runtime/bot-runtime.js').BotRuntimeOptions['routeRests'];
+    requireAssignmentEngine?: import('./runtime/bot-runtime.js').BotRuntimeOptions['requireAssignmentEngine'];
     groupFallback?: import('./runtime/bot-runtime.js').BotRuntimeOptions['groupFallback'];
     sessionRoute?: import('./runtime/bot-runtime.js').BotRuntimeOptions['sessionRoute'];
     engineFallback?: import('./runtime/bot-runtime.js').BotRuntimeOptions['engineFallback'];
@@ -1263,6 +1264,14 @@ function initializeCore(
     inboxHistory,
     messagePerf,
     requireModelRoute: (slug, route) => requireBotModel(team, registry.get(slug), route),
+    requireAssignmentEngine: (slug, target) => {
+      requireBotEngineAccount(
+        team,
+        registry.get(slug),
+        engineAccountKey(target.engine, target.accountId),
+      );
+      options.requireAssignmentEngine?.(slug, target);
+    },
     requireExecution: (slug) => profileRecovery.requireExecution(slug),
     schedules,
     assignmentConcurrencyLimit: () =>
@@ -1559,8 +1568,19 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return [
         ...core.modelPresets
           .list()
-          .filter((preset) => uses(preset.orchestratorEngine) || uses(preset.assignmentEngine))
+          .filter(
+            (preset) =>
+              uses(preset.orchestratorEngine) ||
+              uses(preset.assignmentEngine) ||
+              preset.sub?.choices.some((choice) => choice.kind === 'engine' && uses(choice)),
+          )
           .map((preset) => `Model Preset ${preset.name} (${preset.id})`),
+        ...core.registry
+          .list()
+          .filter((bot) =>
+            bot.modelPlan?.sub?.choices.some((choice) => choice.kind === 'engine' && uses(choice)),
+          )
+          .map((bot) => `Bot ${bot.displayName} (${bot.slug})`),
         ...core.routingGroups
           .list()
           .filter((group) =>
@@ -1691,6 +1711,8 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           return { name: group.name, routes: core.routingGroups.routes(groupId), targets };
       },
       engineRestingUntil: (engine, accountId) => engineHost.limit(engine, accountId)?.until,
+      describeEngine: (slug, engine, accountId) =>
+        engineHost.describeAssignmentAccount(slug, engine, accountId),
       restingUntil: (route) => routeRests.restingUntil(route),
       inherited: () => defaultPreset()?.orchestratorGroupId,
       inheritedEffort: () => defaultPreset()?.orchestratorGroupEffort,
@@ -2041,6 +2063,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return main === undefined ? {} : { main };
     },
     routeRests,
+    requireAssignmentEngine: (slug, target) => engineHost.assertAssignmentAccount(slug, target),
     groupFallback,
     sessionRoute: (botSlug, sessionId) =>
       groupFallback.route(sessionId) ??

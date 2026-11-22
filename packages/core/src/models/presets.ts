@@ -19,8 +19,10 @@ import {
   isAssignmentGroupOption,
   isAssignmentModelOption,
   isPresetSub,
-  presetSubFromLegacy,
   presetSubProjection,
+  presetSubWithEngine,
+  presetSubFromLegacy,
+  storedPresetSub,
   type AssignmentGroupChoice,
   type AssignmentGroupOption,
   type AssignmentModelOption,
@@ -76,8 +78,12 @@ export function isModelPresetEngine(value: unknown): value is ModelPresetEngine 
   );
 }
 
-export function hasPresetEngines(preset: ModelPresetEngines): boolean {
-  return preset.orchestratorEngine !== undefined || preset.assignmentEngine !== undefined;
+export function hasPresetEngines(preset: ModelPresetEngines & Pick<ModelPreset, 'sub'>): boolean {
+  return (
+    preset.orchestratorEngine !== undefined ||
+    preset.assignmentEngine !== undefined ||
+    preset.sub?.choices.some((choice) => choice.kind === 'engine') === true
+  );
 }
 
 function presetEngines(
@@ -224,7 +230,10 @@ export interface PersonaBotModelPlan {
 
 export class AssignmentChoiceError extends HarnessError {
   constructor(
-    code: 'assignment-choice-not-allowed' | 'assignment-choice-resting',
+    code:
+      | 'assignment-choice-not-allowed'
+      | 'assignment-choice-resting'
+      | 'assignment-choice-unavailable',
     message: string,
   ) {
     super(message, code);
@@ -346,34 +355,41 @@ export function planDefaultPreset(source: LegacyDefaultModel, createdAt: string)
 }
 
 export function defaultPresetPlan(preset: ModelPreset): PersonaBotModelPlan {
+  const sub =
+    preset.sub === undefined && preset.assignmentEngine === undefined
+      ? undefined
+      : effectivePresetSub(preset);
+  const followsMain =
+    preset.assignmentFollowsMain === true && storedPresetSub(preset).default === null;
+  const { assignmentDefaultGroupId: _legacyGroup, ...withoutGroupDefault } = preset;
   const groups =
-    preset.assignmentFollowsMain && preset.orchestratorGroupId
-      ? {
-          ...preset,
-          assignmentGroups: [preset.orchestratorGroupId],
-          assignmentDefaultGroupId: preset.orchestratorGroupId,
-          ...(preset.orchestratorGroupEffort === undefined
-            ? {}
-            : {
-                assignmentGroupOptions: [
-                  {
-                    group: preset.orchestratorGroupId,
-                    allowedEfforts: [preset.orchestratorGroupEffort],
-                    defaultEffort: preset.orchestratorGroupEffort,
-                  },
-                ],
-              }),
-        }
-      : preset;
+    sub?.default?.kind === 'engine'
+      ? withoutGroupDefault
+      : followsMain && preset.orchestratorGroupId
+        ? {
+            ...preset,
+            assignmentGroups: [preset.orchestratorGroupId],
+            assignmentDefaultGroupId: preset.orchestratorGroupId,
+            ...(preset.orchestratorGroupEffort === undefined
+              ? {}
+              : {
+                  assignmentGroupOptions: [
+                    {
+                      group: preset.orchestratorGroupId,
+                      allowedEfforts: [preset.orchestratorGroupEffort],
+                      defaultEffort: preset.orchestratorGroupEffort,
+                    },
+                  ],
+                }),
+          }
+        : preset;
   return {
     revision: preset.revision,
     sourcePresetId: preset.id,
     sourcePresetName: preset.name,
     orchestrator: preset.orchestrator,
-    assignmentDefault: preset.assignmentFollowsMain
-      ? preset.orchestrator
-      : preset.assignmentDefault,
-    ...(preset.sub === undefined ? {} : { sub: effectivePresetSub(preset) }),
+    assignmentDefault: followsMain ? preset.orchestrator : preset.assignmentDefault,
+    ...(sub === undefined ? {} : { sub }),
     ...(preset.assignmentModels === undefined ? {} : { assignmentModels: preset.assignmentModels }),
     ...(preset.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
     ...presetGroups(groups),
@@ -605,7 +621,7 @@ function presetRecord(preset: ModelPreset): ModelPreset {
     revision: preset.revision,
     createdAt: preset.createdAt,
     orchestrator: route(preset.orchestrator),
-    sub: cleanPresetSub(preset.sub ?? presetSubFromLegacy(preset)),
+    sub: cleanPresetSub(storedPresetSub(preset)),
     assignmentDefault: route(preset.assignmentDefault),
     ...(preset.assignmentFollowsMain === true ? { assignmentFollowsMain: true } : {}),
     ...(preset.assignmentModels === undefined
@@ -755,7 +771,7 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
         orchestratorEngine: _engine,
         ...existing
       } = current;
-      const followsMain = input.preserveSub !== true || current.assignmentFollowsMain === true;
+      const followsMain = input.preserveSub !== true || storedPresetSub(current).default === null;
       const preset = presetRecord({
         ...(followsMain
           ? {
@@ -847,7 +863,7 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
         if (id === DEFAULT_MODEL_PRESET_ID) throw new ModelPresetError('stale-setting', message);
         throw new Error(message);
       }
-      const followsMain = (input.assignmentFollowsMain ?? current.assignmentFollowsMain) === true;
+      const followsMain = input.assignmentFollowsMain ?? storedPresetSub(current).default === null;
       const assignmentDefault = followsMain ? input.orchestrator : input.assignmentDefault;
       const assignmentModels = followsMain
         ? undefined
@@ -943,7 +959,10 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
         updated.sub!.choices = updated.sub!.choices.filter((choice) => choice.kind === 'group');
       if (
         currentSub !== undefined &&
-        isDeepStrictEqual(presetSubFromLegacy(current), presetSubFromLegacy(updated))
+        isDeepStrictEqual(
+          presetSubWithEngine(presetSubFromLegacy(current), current.assignmentEngine),
+          storedPresetSub(updated),
+        )
       )
         updated.sub = currentSub;
       write(updated);

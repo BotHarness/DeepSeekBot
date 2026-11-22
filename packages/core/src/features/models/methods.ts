@@ -38,6 +38,7 @@ import {
   type PersonaBotModelPlan,
 } from '../../models/presets.js';
 import { type ModelFavorite } from '../../models/favorites.js';
+import { storedPresetSub } from '../../models/preset-sub.js';
 import { RoutingGroupError, type RoutingGroup } from '../../models/routing-groups.js';
 import type { ModelCatalogEntry } from '../../models/catalog.js';
 import type { ModelPlanState } from '../../models/readiness.js';
@@ -433,7 +434,7 @@ export function createModelsBridgeMethods(
         const saved = deps.modelPresets.get(presetId);
         if (saved === undefined) return invalidInput('Model Preset was not found');
         const preset =
-          saved.assignmentFollowsMain === true
+          saved.assignmentFollowsMain === true && storedPresetSub(saved).default === null
             ? {
                 ...saved,
                 ...defaultPresetPlan(saved),

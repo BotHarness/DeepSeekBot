@@ -1,6 +1,9 @@
 import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
+import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { attachOperationalModule } from '../src/database/owner.js';
+import { createEngineGateway } from '../src/engines/engine-gateway.js';
+import { EngineHost } from '../src/engines/engine-host.js';
 import { createAssignmentTool } from '../src/features/assignments/tools.js';
 import { createListAssignmentModelsTool } from '../src/features/models/tools.js';
 import { humanContext, OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
@@ -11,8 +14,8 @@ import {
 } from '../src/models/presets.js';
 import { createRouteRests } from '../src/models/route-rest.js';
 import { createCore } from '../src/plugin.js';
-import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
-import { botModelFilter } from '../src/team/models.js';
+import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
+import { botModelFilter, requireBotEngineAccount } from '../src/team/models.js';
 import { createTempRoot } from './helpers.js';
 
 it('discovers and enforces the preset choices through the Orchestrator tools and Host runtime', async () => {
@@ -30,15 +33,31 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
   };
   const member = humanContext('sub-test-member');
   const rests = createRouteRests();
+  const root = createTempRoot('bh-preset-sub-assignments-');
+  const gateway = createEngineGateway();
+  const engineHost = new EngineHost({
+    root: join(root, 'engines'),
+    local: true,
+    gateway,
+    sessions: () => undefined,
+    persistence: () => undefined,
+    requireAccountGrant: (slug, id): void =>
+      requireBotEngineAccount(core.team, core.registry.get(slug), id),
+  });
+  const account = engineHost.addAccount('codex', 'Work', 0);
+  const runs: AssignmentAgentRun[] = [];
   let orchestrator: OrchestratorAgentRun | undefined;
   const core = createCore({
-    dshHome: createTempRoot('bh-preset-sub-assignments-'),
+    dshHome: root,
     routeRests: rests,
+    requireAssignmentEngine: (slug, target) => engineHost.assertAssignmentAccount(slug, target),
     agents: {
       async runOrchestrator(run) {
         orchestrator = run;
       },
-      async runAssignment() {},
+      async runAssignment(run) {
+        runs.push(run);
+      },
       requestAssignment() {
         throw new Error('Unexpected Assignment request');
       },
@@ -58,9 +77,9 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
     core.spaces.ensureAccount(member.humanId);
     const role = core.team.roles.create(OWNER_HUMAN_CONTEXT, 'Sub use', ['models.use']).role;
     core.team.roles.set(OWNER_HUMAN_CONTEXT, member.humanId, [role.roleId]);
-    const grantRoutes = (routes: string[]) =>
+    const grantRoutes = (routes: string[], engineAccounts: string[] = []) =>
       core.team.roles.update(OWNER_HUMAN_CONTEXT, role.roleId, {
-        models: { kind: 'only', routes },
+        models: { kind: 'only', routes, engineAccounts },
       });
     grantRoutes(['go/fast', 'go/careful']);
     core.registry.create({ slug: 'ada', displayName: 'Ada', ownerHumanId: member.humanId });
@@ -89,7 +108,12 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
       resolveModelPlan,
       loadAssignmentModes: () => undefined,
       openAssignmentRoutes: undefined,
-      groups: undefined,
+      groups: {
+        describe: () => undefined,
+        restingUntil: (route) => rests.restingUntil(route),
+        describeEngine: (slug, engine, accountId) =>
+          engineHost.describeAssignmentAccount(slug, engine, accountId),
+      },
       modelFilter: () => botModelFilter(core.team, core.registry.get('ada')),
     });
     const create = createAssignmentTool({
@@ -143,11 +167,101 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
       outcome: 'refused',
       code: 'assignment-choice-resting',
     });
+    const selection = {
+      kind: 'engine' as const,
+      engine: 'codex' as const,
+      accountId: account.id,
+      model: 'gpt-test',
+    };
+    const enginePreset = core.modelPresets.setSub(preset.id, preset.revision, {
+      choices: [
+        { ...selection, effort: 'high', note: 'Use the Work subscription' },
+        choice(careful, 'high'),
+      ],
+      default: selection,
+    });
+    core.registry.applyModelPreset('ada', enginePreset);
+    const explicit = { engine: selection.engine, account_id: account.id, model: selection.model };
+    grantRoutes(['go/fast', 'go/careful'], [account.id]);
+    expect(await execute(list, {})).toMatchObject({
+      sub: {
+        default: { ...selection, defaultEffort: 'high' },
+        choices: [{ ...selection, accountName: 'Work', effort: 'high' }, choice(careful, 'high')],
+      },
+    });
+    expect(
+      await dispatch('Unlisted account', { ...explicit, account_id: 'codex-default' }),
+    ).toMatchObject({
+      outcome: 'refused',
+      code: 'assignment-choice-not-allowed',
+    });
+    expect(
+      await dispatch('Wrong engine effort', { ...explicit, reasoning_effort: 'low' }),
+    ).toMatchObject({
+      outcome: 'refused',
+      code: 'assignment-choice-not-allowed',
+    });
+    const implicit = await dispatch('Engine default');
+    const named = await dispatch('Explicit engine', { ...explicit, reasoning_effort: 'high' });
+    expect(implicit).toMatchObject({ outcome: 'created' });
+    expect(named).toMatchObject({ outcome: 'created' });
+    expect(await dispatch('Explicit API model', careful)).toMatchObject({
+      outcome: 'created',
+      modelRoute: { ...careful, reasoningEffort: 'high' },
+    });
+    await core.runtime.whenIdle();
+    const target = { ...selection, reasoningEffort: 'high' };
+    expect(runs.slice(-3).map((run) => run.routingTarget)).toEqual([
+      target,
+      target,
+      { kind: 'route', route: { ...careful, reasoningEffort: 'high' } },
+    ]);
+    const readAssignments = () =>
+      attachOperationalModule(core.operationalDatabase, 'assignments').read((db) =>
+        db.prepare('SELECT session_id, model_route_json FROM assignments').all(),
+      );
+    expect(readAssignments()).toContainEqual({
+      session_id: implicit.sessionId,
+      model_route_json: JSON.stringify(target),
+    });
+    const count = readAssignments().length;
+    const reset = new Date(Date.now() + 60_000).toISOString();
+    engineHost.store.rememberQuota(
+      'codex',
+      {
+        limitedUntil: reset,
+        windows: {},
+        observedAt: new Date().toISOString(),
+        source: 'live',
+      },
+      account.id,
+    );
+    expect(await execute(list, {})).toMatchObject({
+      sub: { choices: [{ ...selection, restingUntil: reset }, choice(careful, 'high')] },
+    });
+    expect(await dispatch('Engine quota')).toMatchObject({
+      outcome: 'refused',
+      code: 'assignment-choice-resting',
+      message: expect.stringContaining(reset),
+    });
+    grantRoutes(['go/fast', 'go/careful']);
+    expect(await execute(list, {})).toMatchObject({
+      sub: { choices: [choice(careful, 'high')], default: null },
+    });
+    for (const args of [{}, explicit]) {
+      expect(await dispatch('Revoked account', args)).toMatchObject({
+        outcome: 'refused',
+        code: 'model-not-allowed',
+      });
+    }
+    expect(readAssignments()).toHaveLength(count);
   } finally {
     await core.runtime.close();
     core.schedules.close();
     core.externalMessaging.close();
     await core.roster.detach();
+    await engineHost.close();
+    await gateway.close();
     core.operationalDatabase.close();
   }
 });

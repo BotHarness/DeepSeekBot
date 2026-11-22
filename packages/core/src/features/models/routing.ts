@@ -248,15 +248,21 @@ export function createModelRoutingHelpers(
       throw new RoutingGroupError('not-found', `Routing Group ${id} does not exist`);
     return deps.routingGroups.routes(id);
   };
-  const presetEngineChoices = (choices: ModelPresetEngineInput): EngineChoice[] =>
-    [choices.orchestratorEngine, choices.assignmentEngine].filter((choice) => choice != null);
+  const presetEngineChoices = (
+    choices: ModelPresetEngineInput & Pick<import('../../models/presets.js').ModelPreset, 'sub'>,
+  ) => [
+    ...(choices.orchestratorEngine == null ? [] : [choices.orchestratorEngine]),
+    ...(choices.sub === undefined
+      ? choices.assignmentEngine == null
+        ? []
+        : [choices.assignmentEngine]
+      : choices.sub.choices.filter((choice) => choice.kind === 'engine')),
+  ];
   const checkPresetEngines = async (
-    choices: ModelPresetEngineInput,
+    choices: Parameters<typeof presetEngineChoices>[0],
     slug?: string,
   ): Promise<void> => {
-    const selected = [choices.orchestratorEngine, choices.assignmentEngine].filter(
-      (choice) => choice != null,
-    );
+    const selected = presetEngineChoices(choices);
     if (selected.length === 0) return;
     requireEngineChoices(selected, slug);
     const engines = deps.subscriptionEngines;

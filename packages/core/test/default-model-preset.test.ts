@@ -16,6 +16,7 @@ import {
   defaultPresetPlan,
   defaultPresetRoute,
   resolveBotModelPlan,
+  type ModelPreset,
 } from '../src/models/presets.js';
 import { createRoutingGroupStore } from '../src/models/routing-groups.js';
 import { agentOptions } from '../src/runtime/dsh-bot-agent-adapter-shared.js';
@@ -24,133 +25,216 @@ const homes: Array<{ root: string; close(): void }> = [];
 const main = { provider: 'opencode-go', model: 'deepseek-v4-pro', reasoningEffort: 'high' };
 const sub = { provider: 'opencode-go', model: 'deepseek-v4-flash', reasoningEffort: 'low' };
 
-it('backfills each legacy sub field combination by id without changing revisions', () => {
-  const root = mkdtempSync(join(tmpdir(), 'bh-preset-sub-upgrade-'));
-  const prior = mountOperationalDatabase({
-    dshHome: root,
-    schemaPlan: defineSchemaPlan(BOT_HARNESS_SCHEMA_PLAN.migrations.slice(0, -1)),
-  });
-  const flash = {
-    provider: sub.provider,
-    model: sub.model,
-    allowedEfforts: ['low', 'high'],
-    defaultEffort: 'low',
-    note: 'Quick tasks',
-  };
-  const pro = {
-    provider: main.provider,
-    model: main.model,
-    allowedEfforts: ['high'],
-    defaultEffort: 'high',
-  };
-  const modelDefault = { kind: 'model', provider: sub.provider, model: sub.model };
-  const groupDefault = { kind: 'group', group: 'backup' };
-  const fallback = {
-    group: 'backup',
-    allowedEfforts: ['low'],
-    defaultEffort: 'low',
-    note: 'Fallback',
-  };
-  const fixtures = [
-    {
-      id: 'default',
-      fields: {
-        assignmentFollowsMain: true,
-        orchestratorGroupId: 'backup',
-        orchestratorGroupEffort: 'high',
-      },
-      expected: { choices: [], default: null },
-    },
-    {
-      id: 'route',
-      fields: {},
-      expected: {
-        choices: [{ ...modelDefault, allowedEfforts: ['low'], defaultEffort: 'low' }],
-        default: modelDefault,
-      },
-    },
-    {
-      id: 'listed',
-      fields: { assignmentModels: [flash, pro] },
-      expected: {
-        choices: [
-          { kind: 'model', ...flash },
-          { kind: 'model', ...pro },
-        ],
-        default: modelDefault,
-      },
-    },
-    {
-      id: 'groups',
-      fields: { assignmentGroups: ['backup'] },
-      expected: {
-        choices: [{ ...modelDefault, allowedEfforts: ['low'], defaultEffort: 'low' }, groupDefault],
-        default: modelDefault,
-      },
-    },
-    {
-      id: 'mixed',
-      fields: {
-        assignmentModels: [flash, pro],
-        assignmentGroups: ['backup'],
-        assignmentDefaultGroupId: 'backup',
-        assignmentGroupOptions: [fallback],
-        openAssignmentModels: true,
-      },
-      expected: {
-        choices: [
-          { kind: 'model', ...flash },
-          { kind: 'model', ...pro },
-          { kind: 'group', ...fallback },
-        ],
-        default: groupDefault,
-      },
-    },
-    {
-      id: 'already-shaped',
-      fields: { sub: { choices: [], default: null } },
-      expected: { choices: [], default: null },
-    },
-  ];
-  homes.push({ root, close: () => prior.close() });
-  attachOperationalModule(prior, 'test').transaction(
-    (db) => {
-      const insert = db.prepare('INSERT INTO model_presets (id, body) VALUES (?, ?)');
-      for (const { id, fields } of fixtures)
-        insert.run(
-          id,
-          JSON.stringify({
-            id,
-            name: id,
-            revision: 7,
-            createdAt: '2026-11-21',
-            orchestrator: main,
-            assignmentDefault: sub,
-            ...fields,
-          }),
-        );
-      db.prepare("INSERT INTO model_presets_import VALUES (1, '2026-11-21')").run();
-    },
-    ['model-presets'],
-  );
-  prior.close();
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    const database = mountOperationalDatabase({
+it.each(['model-preset-sub-choices', 'model-preset-sub-engine-choices'])(
+  'backfills each legacy sub field combination from before %s without changing revisions',
+  (migration) => {
+    const root = mkdtempSync(join(tmpdir(), 'bh-preset-sub-upgrade-'));
+    const prior = mountOperationalDatabase({
       dshHome: root,
-      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+      schemaPlan: defineSchemaPlan(
+        BOT_HARNESS_SCHEMA_PLAN.migrations.slice(
+          0,
+          BOT_HARNESS_SCHEMA_PLAN.migrations.findIndex(({ id }) => id === migration),
+        ),
+      ),
     });
-    homes.push({ root, close: () => database.close() });
-    const store = createModelPresetStore({ rootDir: root, database });
-    expect(store.list()).toHaveLength(fixtures.length);
-    for (const { id, fields, expected } of fixtures)
-      expect(store.get(id)).toMatchObject({ id, revision: 7, ...fields, sub: expected });
-    expect(defaultPresetPlan(store.get('default')!).sub).toEqual({
-      choices: [{ ...groupDefault, allowedEfforts: ['high'], defaultEffort: 'high' }],
-      default: groupDefault,
-    });
-    database.close();
-  }
-});
+    const flash = {
+      provider: sub.provider,
+      model: sub.model,
+      allowedEfforts: ['low', 'high'],
+      defaultEffort: 'low',
+      note: 'Quick tasks',
+    };
+    const pro = {
+      provider: main.provider,
+      model: main.model,
+      allowedEfforts: ['high'],
+      defaultEffort: 'high',
+    };
+    const modelDefault = { kind: 'model', provider: sub.provider, model: sub.model };
+    const groupDefault = { kind: 'group', group: 'backup' };
+    const fallback = {
+      group: 'backup',
+      allowedEfforts: ['low'],
+      defaultEffort: 'low',
+      note: 'Fallback',
+    };
+    const engineDefault = {
+      kind: 'engine',
+      engine: 'codex' as const,
+      accountId: 'codex-work',
+      model: 'gpt-test',
+    };
+    const { kind: _kind, ...engine } = { ...engineDefault, effort: 'high' };
+    const engineChoice = { ...engineDefault, effort: 'high' };
+    const routeChoice = { ...modelDefault, allowedEfforts: ['low'], defaultEffort: 'low' };
+    const fixtures: Array<{ id: string; fields: Partial<ModelPreset>; expected: unknown }> = [
+      {
+        id: 'default',
+        fields: {
+          assignmentFollowsMain: true,
+          assignmentEngine: engine,
+          orchestratorGroupId: 'backup',
+        },
+        expected: { choices: [engineChoice], default: engineDefault },
+      },
+      {
+        id: 'follows-main',
+        fields: {
+          assignmentFollowsMain: true,
+          orchestratorGroupId: 'backup',
+          orchestratorGroupEffort: 'high',
+        },
+        expected: { choices: [], default: null },
+      },
+      {
+        id: 'route',
+        fields: {},
+        expected: {
+          choices: [{ ...modelDefault, allowedEfforts: ['low'], defaultEffort: 'low' }],
+          default: modelDefault,
+        },
+      },
+      {
+        id: 'listed',
+        fields: { assignmentModels: [flash, pro] },
+        expected: {
+          choices: [
+            { kind: 'model', ...flash },
+            { kind: 'model', ...pro },
+          ],
+          default: modelDefault,
+        },
+      },
+      {
+        id: 'groups',
+        fields: { assignmentGroups: ['backup'] },
+        expected: {
+          choices: [
+            { ...modelDefault, allowedEfforts: ['low'], defaultEffort: 'low' },
+            groupDefault,
+          ],
+          default: modelDefault,
+        },
+      },
+      {
+        id: 'mixed',
+        fields: {
+          assignmentModels: [flash, pro],
+          assignmentGroups: ['backup'],
+          assignmentDefaultGroupId: 'backup',
+          assignmentGroupOptions: [fallback],
+          openAssignmentModels: true,
+        },
+        expected: {
+          choices: [
+            { kind: 'model', ...flash },
+            { kind: 'model', ...pro },
+            { kind: 'group', ...fallback },
+          ],
+          default: groupDefault,
+        },
+      },
+      {
+        id: 'already-shaped',
+        fields: { sub: { choices: [], default: null } },
+        expected: { choices: [], default: null },
+      },
+      {
+        id: 'engine-with-implicit-route',
+        fields: { assignmentEngine: engine },
+        expected: { choices: [routeChoice, engineChoice], default: engineDefault },
+      },
+      {
+        id: 'engine-with-models',
+        fields: { assignmentEngine: engine, assignmentModels: [flash, pro] },
+        expected: {
+          choices: [{ kind: 'model', ...flash }, { kind: 'model', ...pro }, engineChoice],
+          default: engineDefault,
+        },
+      },
+      {
+        id: 'engine-with-routing-group',
+        fields: {
+          assignmentEngine: engine,
+          assignmentGroups: ['backup'],
+          assignmentDefaultGroupId: 'backup',
+        },
+        expected: { choices: [routeChoice, groupDefault, engineChoice], default: engineDefault },
+      },
+      {
+        id: 'engine-with-models-and-routing-group',
+        fields: {
+          assignmentEngine: engine,
+          assignmentModels: [flash],
+          assignmentGroups: ['backup'],
+          assignmentDefaultGroupId: 'backup',
+          assignmentGroupOptions: [fallback],
+        },
+        expected: {
+          choices: [{ kind: 'model', ...flash }, { kind: 'group', ...fallback }, engineChoice],
+          default: engineDefault,
+        },
+      },
+      {
+        id: 'engine-with-default-account-and-model',
+        fields: { assignmentEngine: { engine: 'claude' } },
+        expected: {
+          choices: [routeChoice, { kind: 'engine', engine: 'claude' }],
+          default: { kind: 'engine', engine: 'claude' },
+        },
+      },
+    ];
+    homes.push({ root, close: () => prior.close() });
+    attachOperationalModule(prior, 'test').transaction(
+      (db) => {
+        const insert = db.prepare('INSERT INTO model_presets (id, body) VALUES (?, ?)');
+        for (const { id, fields } of fixtures)
+          insert.run(
+            id,
+            JSON.stringify({
+              id,
+              name: id,
+              revision: 7,
+              createdAt: '2026-11-21',
+              orchestrator: main,
+              assignmentDefault: sub,
+              ...fields,
+              ...(migration === 'model-preset-sub-engine-choices' && !('sub' in fields)
+                ? { sub: presetSubFromLegacy({ assignmentDefault: sub, ...fields }) }
+                : {}),
+            }),
+          );
+        db.prepare("INSERT INTO model_presets_import VALUES (1, '2026-11-21')").run();
+      },
+      ['model-presets'],
+    );
+    prior.close();
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const database = mountOperationalDatabase({
+        dshHome: root,
+        schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+      });
+      homes.push({ root, close: () => database.close() });
+      const store = createModelPresetStore({ rootDir: root, database });
+      expect(store.list()).toHaveLength(fixtures.length);
+      for (const { id, fields, expected } of fixtures)
+        expect(store.get(id)).toMatchObject({ id, revision: 7, ...fields, sub: expected });
+      expect(defaultPresetPlan(store.get('default')!).sub).toEqual({
+        choices: [engineChoice],
+        default: engineDefault,
+      });
+      expect(
+        defaultPresetPlan(store.get('engine-with-routing-group')!).assignmentDefaultGroupId,
+      ).toBeUndefined();
+      expect(defaultPresetPlan(store.get('follows-main')!).sub).toEqual({
+        choices: [{ ...groupDefault, allowedEfforts: ['high'], defaultEffort: 'high' }],
+        default: groupDefault,
+      });
+      database.close();
+    }
+  },
+);
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'bh-default-preset-'));

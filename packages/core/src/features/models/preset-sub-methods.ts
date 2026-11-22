@@ -9,8 +9,8 @@ import type { HumanContext } from '../../humans/context.js';
 import {
   effectivePresetSub,
   isPresetSub,
-  presetSubFromLegacy,
   presetSubProjection,
+  storedPresetSub,
   type PresetSub,
 } from '../../models/preset-sub.js';
 import { ModelPresetError, type ModelPreset } from '../../models/presets.js';
@@ -40,6 +40,8 @@ export function createPresetSubMethods(
     groupRoutes,
     requireGroupEngines,
     requireEngineChoices,
+    checkPresetEngines,
+    assertEngineAccounts,
     validateGroupOptions,
     validateAssignmentCatalog,
   }: ReturnType<typeof createModelRoutingHelpers>,
@@ -49,17 +51,17 @@ export function createPresetSubMethods(
       sub.default === null ? effectivePresetSub({ ...preset, sub }).choices : sub.choices;
     for (const choice of choices) {
       if (choice.kind === 'model') deps.team?.roles.requireModel(human, choice);
+      else if (choice.kind === 'engine') requireEngineChoices([choice]);
       else {
         requireGroupEngines(choice.group);
         for (const route of groupRoutes(choice.group)) deps.team?.roles.requireModel(human, route);
       }
     }
-    if (preset.assignmentEngine !== undefined) requireEngineChoices([preset.assignmentEngine]);
   };
   const subView = (preset: ModelPreset): ModelPresetSubView => ({
     id: preset.id,
     revision: preset.revision,
-    sub: preset.sub ?? presetSubFromLegacy(preset),
+    sub: storedPresetSub(preset),
     ...(preset.openAssignmentModels === true ? { legacyOpen: true } : {}),
   });
   return {
@@ -113,6 +115,8 @@ export function createPresetSubMethods(
           );
         if (!isHostOwner()) requirePresetSub(preset, subView(preset).sub);
         requirePresetSub(preset, sub);
+        const engineChoices = sub.choices.filter((choice) => choice.kind === 'engine');
+        await checkPresetEngines({ sub });
         const projection = presetSubProjection(sub, preset.orchestrator);
         await validateGroupOptions(projection.assignmentGroupOptions);
         if (projection.assignmentModels !== undefined)
@@ -123,6 +127,7 @@ export function createPresetSubMethods(
         if (!isHostOwner()) deps.team?.roles.require(human, 'models.configure');
         if (!isHostOwner()) requirePresetSub(preset, subView(preset).sub);
         requirePresetSub(preset, sub);
+        assertEngineAccounts(engineChoices);
         return { ok: true, value: subView(store.setSub(id, expectedRevision, sub)) };
       } catch (error) {
         if (error instanceof RoutingGroupError) return routingGroupFailure(error);

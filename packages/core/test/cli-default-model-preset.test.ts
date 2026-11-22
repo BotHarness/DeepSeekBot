@@ -100,8 +100,12 @@ it('lists and replaces sub choices through the Host without a local fallback', a
       defaultEffort: 'low',
     },
     { kind: 'group', group: 'fallback' },
+    { kind: 'engine', engine: 'codex', accountId: 'codex-work', model: 'gpt-test', effort: 'high' },
   ];
-  const sub = { choices, default: { kind: 'group', group: 'fallback' } };
+  const sub = {
+    choices,
+    default: { kind: 'engine', engine: 'codex', accountId: 'codex-work', model: 'gpt-test' },
+  };
   const live = await host((method) =>
     method === 'modelPresetSubSet'
       ? { ok: false, error: { code: 'stale-setting', message: 'read again' } }

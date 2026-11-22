@@ -4,6 +4,7 @@ import type { ChannelSessionLink } from '../../channels/channel.js';
 import type { EngineTool } from '../../engines/engine-host.js';
 import type { GroupFallback, GroupPick, MixedGroupPick } from '../../models/group-fallback.js';
 import type { OpenAssignmentRoutes } from '../../models/open-assignments.js';
+import { isPresetSubEngineSelection } from '../../models/preset-sub.js';
 import {
   AssignmentChoiceError,
   assignmentGroupOptionOf,
@@ -188,7 +189,7 @@ export function createAssignmentTool({
   return defineTool({
     name: 'create_assignment',
     description:
-      'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models for the current allowed sub choices, default and modes. Omit provider, model and group to use the default, or pick one listed model or Routing Group. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
+      'Start one independent Assignment Session and return its Session id immediately. First search list_assignments with query: work serving the same goal or deliverable belongs in the Assignment already doing it. Call list_assignment_models for the current allowed sub choices, default and modes. Omit the model selection to use the default, or pick one listed API model, Subscription Engine account model, or Routing Group. Pass a continuity key to continue the same direction of work in the keyed Assignment instead of creating another one; omit the key for a different direction.',
     parameters: {
       title: {
         type: 'string',
@@ -225,7 +226,15 @@ export function createAssignmentTool({
       model: {
         type: 'string',
         description:
-          'Optional exact model id from the current Assignment model set; specify with provider.',
+          'Exact model id from the listed choice, paired with provider for an API model or engine for a Subscription Engine model.',
+      },
+      engine: {
+        type: 'string',
+        description: 'Subscription Engine id from a kind: engine choice in list_assignment_models.',
+      },
+      account_id: {
+        type: 'string',
+        description: 'Exact accountId of the selected Subscription Engine choice, when present.',
       },
       reasoning_effort: {
         type: 'string',
@@ -248,12 +257,19 @@ export function createAssignmentTool({
       if (active === undefined) {
         throw new Error('create_assignment: Orchestrator run is unavailable');
       }
-      if (args.group !== undefined && args.provider !== undefined)
-        throw new Error('create_assignment: pass either group or provider/model');
+      if (
+        (args.group !== undefined &&
+          (args.provider !== undefined || args.model !== undefined || args.engine !== undefined)) ||
+        (args.engine !== undefined && args.provider !== undefined) ||
+        (args.account_id !== undefined && args.engine === undefined)
+      )
+        throw new Error(
+          'create_assignment: choose one API model, Subscription Engine choice, or Routing Group',
+        );
       const plan = resolveModelPlan();
       const refusal = (error: unknown): string => {
         if (
-          plan?.sub !== undefined &&
+          (plan?.sub !== undefined || args.engine !== undefined) &&
           (error instanceof AssignmentChoiceError ||
             (error instanceof TeamError && error.code === 'model-not-allowed'))
         )
@@ -267,10 +283,31 @@ export function createAssignmentTool({
       };
       const inherited =
         plan?.assignmentDefault === undefined ? assignmentGroups?.inherited?.() : undefined;
+      const engineSelection =
+        args.engine === undefined
+          ? undefined
+          : {
+              kind: 'engine',
+              engine: args.engine,
+              ...(args.account_id === undefined ? {} : { accountId: args.account_id }),
+              ...(args.model === undefined ? {} : { model: args.model }),
+            };
+      if (engineSelection !== undefined && !isPresetSubEngineSelection(engineSelection))
+        return refusal(
+          new AssignmentChoiceError(
+            'assignment-choice-not-allowed',
+            'create_assignment: choose a listed Subscription Engine account and model',
+          ),
+        );
       const groupId =
         args.group ??
-        (args.provider === undefined ? (plan?.assignmentDefaultGroupId ?? inherited) : undefined);
-      if ((args.provider === undefined) !== (args.model === undefined))
+        (args.provider === undefined && engineSelection === undefined
+          ? (plan?.assignmentDefaultGroupId ?? inherited)
+          : undefined);
+      if (
+        engineSelection === undefined &&
+        (args.provider === undefined) !== (args.model === undefined)
+      )
         throw new Error('create_assignment: provider and model must be specified together');
       if (
         groupId !== undefined &&
@@ -283,7 +320,11 @@ export function createAssignmentTool({
             `create_assignment: Routing Group ${groupId} is not allowed`,
           ),
         );
-      if (args.reasoning_effort !== undefined && args.provider === undefined) {
+      if (
+        args.reasoning_effort !== undefined &&
+        args.provider === undefined &&
+        engineSelection === undefined
+      ) {
         if (groupId === undefined)
           throw new Error('create_assignment: reasoning_effort requires provider and model');
         const allowed = assignmentGroupOptionOf(plan, groupId)?.allowedEfforts ?? [];
@@ -366,17 +407,24 @@ export function createAssignmentTool({
                 modelGroupId: groupId,
                 ...(groupEffort === undefined ? {} : { modelGroupEffort: groupEffort }),
               }
-            : args.provider === undefined
-              ? {}
-              : {
-                  model: {
-                    provider: args.provider,
-                    model: args.model!,
-                    ...(args.reasoning_effort === undefined
-                      ? {}
-                      : { reasoningEffort: args.reasoning_effort }),
-                  },
-                }),
+            : engineSelection !== undefined
+              ? {
+                  engine: engineSelection,
+                  ...(args.reasoning_effort === undefined
+                    ? {}
+                    : { engineEffort: args.reasoning_effort }),
+                }
+              : args.provider === undefined
+                ? {}
+                : {
+                    model: {
+                      provider: args.provider,
+                      model: args.model!,
+                      ...(args.reasoning_effort === undefined
+                        ? {}
+                        : { reasoningEffort: args.reasoning_effort }),
+                    },
+                  }),
         });
       } catch (error) {
         return refusal(error);

@@ -6,6 +6,7 @@ import {
 } from '@botharness/host-protocol/subscription-engine';
 import { lstatSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { TeamError } from '../team/error.js';
 
 import {
   CLAUDE_MIN_VERSION,
@@ -145,6 +146,27 @@ export class EngineHostAccounts {
   resolveAccount(engine: EngineId, accountId?: string): NamedEngineAccount {
     this.#requireLocal();
     return this.#store.resolveAccount(engine, accountId);
+  }
+
+  describeAssignment(
+    engine: EngineId,
+    accountId: string | undefined,
+    requireGrant: (id: string) => void,
+  ) {
+    if (!this.#options.local) return undefined;
+    try {
+      const account = this.resolveAccount(engine, accountId);
+      requireGrant(account.id);
+      const until = engineQuotaLimit(this.#store.quota(engine, account.id), this.#now());
+      return { accountName: account.name, ...(until === undefined ? {} : { restingUntil: until }) };
+    } catch (error) {
+      if (
+        error instanceof EngineRefusal ||
+        (error instanceof TeamError && error.code === 'model-not-allowed')
+      )
+        return undefined;
+      throw error;
+    }
   }
 
   target(id: string): StoredEngineAccount {

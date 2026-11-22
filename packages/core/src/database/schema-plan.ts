@@ -9,7 +9,7 @@ import { OperationalDatabaseError } from './owner.js';
 import { defineSchemaPlan, type SchemaMigration } from './schema.js';
 import { INBOX_HISTORY_INDEX_SQL, MESSAGE_SEARCH_INDEX_SQL } from './inbox-history-index.js';
 import { deriveAssignmentTitle } from '../runtime/assignment-title.js';
-import { presetSubFromLegacy } from '../models/preset-sub.js';
+import { presetSubFromLegacy, presetSubWithEngine } from '../models/preset-sub.js';
 import type { ModelPreset } from '../models/presets.js';
 
 const SESSION_OWNERSHIP_MIGRATION: SchemaMigration = {
@@ -4127,6 +4127,29 @@ const MODEL_PRESET_SUB_MIGRATION: SchemaMigration = {
   },
 };
 
+const MODEL_PRESET_SUB_ENGINE_MIGRATION: SchemaMigration = {
+  id: 'model-preset-sub-engine-choices',
+  module: 'model-presets',
+  description: 'Backfill legacy Assignment Subscription Engines into Model Preset sub choices',
+  migrate(database) {
+    const rows = database
+      .prepare(`
+        SELECT id, body FROM model_presets
+        WHERE json_type(body, '$.assignmentEngine') = 'object'
+      `)
+      .all();
+    const update = database.prepare(`
+      UPDATE model_presets SET body = json_set(body, '$.sub', json(?)) WHERE id = ?
+    `);
+    for (const row of rows) {
+      const preset: ModelPreset = JSON.parse(String(row['body']));
+      const sub = preset.sub ?? presetSubFromLegacy(preset);
+      const migrated = presetSubWithEngine(sub, preset.assignmentEngine);
+      if (migrated !== sub) update.run(JSON.stringify(migrated), String(row['id']));
+    }
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -4307,4 +4330,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   DEFAULT_MODEL_PRESET_MIGRATION,
   SESSION_MODEL_CHOICES_MIGRATION,
   MODEL_PRESET_SUB_MIGRATION,
+  MODEL_PRESET_SUB_ENGINE_MIGRATION,
 ]);

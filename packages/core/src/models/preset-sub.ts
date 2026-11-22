@@ -1,4 +1,6 @@
-import type { ModelPreset, ModelRoute, PersonaBotModelPlan } from './presets.js';
+import { isEngineId } from '../engines/engine-session.js';
+import type { RoutingTarget } from './routing-groups.js';
+import type { ModelPreset, ModelPresetEngine, ModelRoute, PersonaBotModelPlan } from './presets.js';
 
 export interface AssignmentModelOption {
   provider: string;
@@ -19,23 +21,81 @@ export interface AssignmentGroupOption {
 
 export type PresetSubChoice =
   | ({ kind: 'model' } & AssignmentModelOption)
-  | ({ kind: 'group' } & AssignmentGroupOption);
+  | ({ kind: 'group' } & AssignmentGroupOption)
+  | PresetSubEngineChoice;
+
+export type PresetSubEngineSelection = { kind: 'engine' } & Omit<ModelPresetEngine, 'effort'>;
+export type PresetSubEngineChoice = { kind: 'engine'; note?: string } & ModelPresetEngine;
 
 export type PresetSubSelection =
   | { kind: 'model'; provider: string; model: string }
-  | { kind: 'group'; group: string };
+  | { kind: 'group'; group: string }
+  | PresetSubEngineSelection;
 
 export interface PresetSub {
   choices: PresetSubChoice[];
   default: PresetSubSelection | null;
 }
 
-export function matchesPresetSubChoice(choice: PresetSubChoice, selection: PresetSubSelection) {
-  return selection.kind === 'group'
-    ? choice.kind === 'group' && choice.group === selection.group
-    : choice.kind === 'model' &&
+export function isPresetSubEngineSelection(value: unknown): value is PresetSubEngineSelection {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'kind' in value &&
+    value.kind === 'engine' &&
+    'engine' in value &&
+    isEngineId(value.engine) &&
+    (!('accountId' in value) || value.accountId === undefined || nonBlank(value.accountId)) &&
+    (!('model' in value) || value.model === undefined || nonBlank(value.model))
+  );
+}
+
+function nonBlank(value: unknown): value is string {
+  return typeof value === 'string' && value.trim() !== '';
+}
+
+function subChoiceKey(selection: PresetSubSelection): string {
+  switch (selection.kind) {
+    case 'group':
+      return JSON.stringify(['group', selection.group]);
+    case 'model':
+      return JSON.stringify(['model', selection.provider, selection.model]);
+    case 'engine':
+      return JSON.stringify(['engine', selection.engine, selection.accountId, selection.model]);
+  }
+}
+
+export function matchesPresetSubChoice(choice: PresetSubSelection, selection: PresetSubSelection) {
+  switch (selection.kind) {
+    case 'group':
+      return choice.kind === 'group' && choice.group === selection.group;
+    case 'model':
+      return (
+        choice.kind === 'model' &&
         choice.provider === selection.provider &&
-        choice.model === selection.model;
+        choice.model === selection.model
+      );
+    case 'engine':
+      return (
+        choice.kind === 'engine' &&
+        choice.engine === selection.engine &&
+        choice.accountId === selection.accountId &&
+        choice.model === selection.model
+      );
+  }
+}
+
+export function presetSubEngineTarget(
+  choice: PresetSubEngineChoice,
+): Extract<RoutingTarget, { kind: 'engine' }> {
+  const { engine, accountId, model, effort } = choice;
+  return {
+    kind: 'engine',
+    engine,
+    ...(accountId === undefined ? {} : { accountId }),
+    ...(model === undefined ? {} : { model }),
+    ...(effort === undefined ? {} : { reasoningEffort: effort }),
+  };
 }
 
 export function isPresetSub(value: unknown): value is PresetSub {
@@ -68,6 +128,17 @@ export function isPresetSub(value: unknown): value is PresetSub {
       if (keys.has(key)) return false;
       keys.add(key);
       found ||= selected['kind'] === 'group' && selected['group'] === entry.group;
+    } else if (
+      isPresetSubEngineSelection(entry) &&
+      (!('effort' in entry) || entry.effort === undefined || nonBlank(entry.effort)) &&
+      (!('note' in entry) ||
+        entry.note === undefined ||
+        (nonBlank(entry.note) && entry.note.length <= ASSIGNMENT_MODEL_NOTE_MAX))
+    ) {
+      const key = subChoiceKey(entry);
+      if (keys.has(key)) return false;
+      keys.add(key);
+      found ||= isPresetSubEngineSelection(selection) && key === subChoiceKey(selection);
     } else {
       return false;
     }
@@ -199,9 +270,27 @@ export function presetSubFromLegacy(
   };
 }
 
+export function presetSubWithEngine(
+  sub: PresetSub,
+  engine: ModelPresetEngine | undefined,
+): PresetSub {
+  if (engine === undefined || sub.choices.some((choice) => choice.kind === 'engine')) return sub;
+  const { effort: _effort, ...selection } = engine;
+  return {
+    choices: [...sub.choices, { kind: 'engine', ...engine }],
+    default: { kind: 'engine', ...selection },
+  };
+}
+
+export function storedPresetSub(preset: ModelPreset): PresetSub {
+  return preset.sub ?? presetSubWithEngine(presetSubFromLegacy(preset), preset.assignmentEngine);
+}
+
 export function effectivePresetSub(preset: ModelPreset): PresetSub {
-  const sub = preset.sub ?? presetSubFromLegacy(preset);
+  const sub = storedPresetSub(preset);
   if (sub.default !== null) return sub;
+  if (preset.orchestratorEngine !== undefined)
+    return presetSubWithEngine(sub, preset.orchestratorEngine);
   const group = preset.orchestratorGroupId;
   if (group === undefined) return presetSubFromLegacy({ assignmentDefault: preset.orchestrator });
   const effort = preset.orchestratorGroupEffort;
@@ -230,6 +319,12 @@ export function presetSubProjection(sub: PresetSub, main: ModelRoute) {
     return [option];
   });
   const selected = sub.default;
+  const engine =
+    selected?.kind === 'engine'
+      ? sub.choices.find(
+          (choice) => choice.kind === 'engine' && matchesPresetSubChoice(choice, selected),
+        )
+      : undefined;
   const model =
     selected?.kind === 'model'
       ? models.find(
@@ -257,7 +352,26 @@ export function presetSubProjection(sub: PresetSub, main: ModelRoute) {
           ),
         }),
     ...(selected?.kind === 'group' ? { assignmentDefaultGroupId: selected.group } : {}),
+    ...(engine?.kind === 'engine' ? { assignmentEngine: cleanPresetSubEngine(engine) } : {}),
   };
+}
+
+function cleanPresetSubEngineSelection({
+  engine,
+  accountId,
+  model,
+}: PresetSubEngineSelection): PresetSubEngineSelection {
+  return {
+    kind: 'engine',
+    engine,
+    ...(accountId === undefined ? {} : { accountId }),
+    ...(model === undefined ? {} : { model }),
+  };
+}
+
+function cleanPresetSubEngine(choice: PresetSubEngineChoice): ModelPresetEngine {
+  const { kind: _kind, ...selection } = cleanPresetSubEngineSelection(choice);
+  return { ...selection, ...(choice.effort === undefined ? {} : { effort: choice.effort }) };
 }
 
 export function cleanPresetSub(sub: PresetSub): PresetSub {
@@ -265,20 +379,28 @@ export function cleanPresetSub(sub: PresetSub): PresetSub {
     choices: sub.choices.map((choice) =>
       choice.kind === 'group'
         ? { kind: 'group', ...assignmentGroupOption(choice) }
-        : {
-            kind: 'model',
-            provider: choice.provider,
-            model: choice.model,
-            allowedEfforts: [...choice.allowedEfforts],
-            defaultEffort: choice.defaultEffort,
-            ...(choice.note === undefined ? {} : { note: choice.note }),
-          },
+        : choice.kind === 'engine'
+          ? {
+              kind: 'engine',
+              ...cleanPresetSubEngine(choice),
+              ...(choice.note === undefined ? {} : { note: choice.note }),
+            }
+          : {
+              kind: 'model',
+              provider: choice.provider,
+              model: choice.model,
+              allowedEfforts: [...choice.allowedEfforts],
+              defaultEffort: choice.defaultEffort,
+              ...(choice.note === undefined ? {} : { note: choice.note }),
+            },
     ),
     default:
       sub.default === null
         ? null
         : sub.default.kind === 'group'
           ? { kind: 'group', group: sub.default.group }
-          : { kind: 'model', provider: sub.default.provider, model: sub.default.model },
+          : sub.default.kind === 'engine'
+            ? cleanPresetSubEngineSelection(sub.default)
+            : { kind: 'model', provider: sub.default.provider, model: sub.default.model },
   };
 }
