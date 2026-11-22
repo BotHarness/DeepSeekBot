@@ -6,6 +6,7 @@ import { referencedIds } from './quotes.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { isValidChannelId, type ChannelMessage } from './channel.js';
 import { prepareChannelMessageQuery, type ChannelStore } from './store.js';
+import { encodeChannelMessageCursor } from './store-query.js';
 import {
   type PlacementRow,
   noticeOrigin,
@@ -292,11 +293,7 @@ export function createChannelSearch({
         ),
         ...(rows.length <= query.limit || last === undefined
           ? {}
-          : {
-              nextCursor: Buffer.from(
-                JSON.stringify({ beforeId: last.id, filter: query.filter }),
-              ).toString('base64url'),
-            }),
+          : { nextCursor: encodeChannelMessageCursor(query.filter, last.id) }),
       };
     },
     searchHumanMessages(human: HumanContext, id, request) {

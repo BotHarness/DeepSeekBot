@@ -3,6 +3,7 @@ import type { OriginalAttachmentAccess } from '../attachments/original-access.js
 import type { AttachmentStore } from '../attachments/store.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
+import type { DatabaseSync } from 'node:sqlite';
 import { createChannelFileAccess } from '../features/channel-files/events.js';
 import { createVoiceAccess } from '../features/voice/events.js';
 import { humanContext, OWNER_HUMAN_CONTEXT } from '../humans/context.js';
@@ -126,7 +127,7 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
     defaultChannelId: string | undefined,
     sourceEventId: string | undefined,
     sessionId: string,
-    beforeSend: () => void,
+    beforeSend: (database?: DatabaseSync) => void,
     readAdmissions: Set<string>,
     onImport?: (ref: ChannelAttachmentRef) => void,
     observeReads = true,
@@ -191,12 +192,12 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
         throw new GroupReplySourceRevoked(reviewSourceChannelId);
     };
     const authorize = beforeSend;
-    beforeSend = () => {
+    beforeSend = (database) => {
       ports.requireTurnAccess(botSlug, sourceEventId ? [sourceEventId] : []);
       requireReplySource();
       if (sourceEventId !== undefined)
         ports.database.read((db) => requireSourceEffects(db, sourceEventId, botSlug));
-      authorize();
+      authorize(database);
     };
     const requireOrdinaryGroupActor = () => {
       if (ports.tob?.isTob(botSlug)) throw new TobError('tob-cli-required');
@@ -285,7 +286,7 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
         const channel = ports.channels.get(input.channelId);
         const target = ports.registry.get(input.targetBotSlug);
         if (ports.team)
-          ports.team.bots.recordAdder(actorHuman, input.targetBotSlug, input.channelId);
+          ports.team.bots.requireAdd(actorHuman, input.targetBotSlug, input.channelId);
         else if (
           (!target && botOwner(ports.registry.get(botSlug)!) !== 'local-human') ||
           (target && botOwner(target) !== botOwner(ports.registry.get(botSlug)!))
@@ -309,6 +310,7 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
         );
         if (dm === undefined) throw new Error('Invitee DM is unavailable');
         beforeSend();
+        ports.team?.bots.recordAdder(actorHuman, target.slug, channel.id);
         const invitation = ports.channels.inviteGroupBot({
           channelId: channel.id,
           inviterBotSlug: botSlug,
@@ -727,7 +729,7 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
           )
             throw new Error('Reply destination does not match the trusted source');
         }
-        requireReplySource();
+        if (input.deliveryKey === undefined) requireReplySource();
         const steered = ports.turnSources.get(botSlug);
         const turnChannelIds =
           steered?.sessionId === sessionId && steered.steeredChannelIds.size > 0
@@ -764,6 +766,7 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
               )}. Call bot_send_message with the trusted source_event_id you are answering, or an explicit channel_id for a proactive message.`,
           );
         const channel = resolve(input.channelId);
+        if (input.deliveryKey !== undefined && channel.type !== 'group') requireReplySource();
         ports.team?.bots.requireChannel(botSlug, channel, true);
         if (ports.team && channel.botSlug === botSlug) {
           const source = ports.database.read((db) =>
@@ -873,8 +876,7 @@ export function createChannelAccess(ports: ChannelAccessPorts) {
                 : { replySourceEventId: input.replySourceEventId }),
               readSourceEventIds: readAdmissions,
               sessionId,
-              beforeSend: input.deliveryKey === undefined ? beforeSend : () => undefined,
-              ...(input.deliveryKey === undefined ? {} : { afterSend: beforeSend }),
+              beforeSend,
               body: input.body,
               ...attribution,
               replyTo: input.replyTo,
