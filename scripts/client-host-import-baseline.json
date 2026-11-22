@@ -67,11 +67,6 @@
     "../../../core/src/workspaces/approval-template-deletion-contract.js": 1,
     "../../../core/src/workspaces/approval-template-guidance.js": 1
   },
-  "packages/client/src/client/avatar-appearance-editor.tsx": {
-    "../../../core/src/bots/avatar-appearance.js": 1,
-    "../../../core/src/bots/avatar-line.js": 1,
-    "../../../core/src/bots/part-library.js": 1
-  },
   "packages/client/src/client/avatar-speech.tsx": {
     "../../../core/src/bots/avatar-appearance.js": 1
   },
@@ -260,6 +255,13 @@
   },
   "packages/client/src/client/failure-alert-settings.tsx": {
     "../../../core/src/messaging/failure-alerts.js": 1
+  },
+  "packages/client/src/client/features/avatars/avatar-appearance-editor.tsx": {
+    "../../../../../core/src/bots/part-library.js": 1
+  },
+  "packages/client/src/client/features/avatars/avatar-editor-options.tsx": {
+    "../../../../../core/src/bots/avatar-appearance.js": 1,
+    "../../../../../core/src/bots/avatar-line.js": 1
   },
   "packages/client/src/client/features/channels/bot-inbox-entry.tsx": {
     "../../../../../core/src/messaging/inbound.js": 1
