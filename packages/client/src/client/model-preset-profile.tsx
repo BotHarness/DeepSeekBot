@@ -2,6 +2,7 @@ import {
   DEFAULT_MODEL_PRESET_ID,
   type SubscriptionModel,
 } from '@botharness/host-client/model-plans';
+import { cleanSub, type SubChoices } from '@botharness/host-client/preset-sub';
 import { Tag } from './ds/tag.js';
 import { CodexDeviceSignIn } from './codex-device-sign-in.js';
 import { Button } from './ds/button.js';
@@ -31,7 +32,7 @@ import { engineMenuItems, groupMenuId } from './model-menu.js';
 import { ModelPlanEditor } from './model-plan-editor.js';
 import { draftOf, mainParts, modelKey, routeLabel, type ModelDraft } from './model-preset-draft.js';
 import { matchesPresetSubChoice } from '@botharness/host-protocol/preset-sub';
-import { cleanSubChoices, subOf, type SubChoices } from './sub-choices.js';
+import { subOf } from './sub-choices.js';
 import {
   invalidateModelPlan,
   modelPlanOf,
@@ -360,6 +361,7 @@ export function ModelPresetProfile({
     try {
       const main = mainParts(draft);
       const mainOnly = subDraft === undefined && !migratesTask;
+      const subToSave = cleanSub(shownSub);
       const expected = plan?.revision ?? revision;
       const applied =
         chosenPreset !== undefined
@@ -375,7 +377,7 @@ export function ModelPresetProfile({
                     expected,
                     main.orchestratorGroupEffort ?? '',
                   )
-              : await actions.setModelPlanSub(slug, expected, main, cleanSubChoices(shownSub));
+              : await actions.setModelPlanSub(slug, expected, main, subToSave);
       if (applied === undefined && (planEdited || pendingEngines.length === 0)) {
         setError(t('modelPreset.routeUnavailable'));
         return;
@@ -384,7 +386,7 @@ export function ModelPresetProfile({
         acceptPlan(applied);
         setRevision(applied.revision);
         setInitialDraft(draft);
-        setSub(shownSub);
+        setSub(subToSave);
         setSubDraft(undefined);
       }
       if (chosenPreset === undefined) {

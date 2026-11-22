@@ -4,6 +4,17 @@ import {
   modelCatalogGroupEfforts,
   modelEffortChoices,
 } from '@botharness/host-client/model-catalog';
+import {
+  addSubChoice,
+  removeSubChoice,
+  setSubDefault,
+  setSubEffort,
+  setSubNote,
+  staleGroupEfforts,
+  subSelectionOf,
+  type SubChoice,
+  type SubChoices,
+} from '@botharness/host-client/preset-sub';
 
 import type { ModelCatalogEntryView, ModelCatalogGroupView } from './bridge.js';
 import { Button } from './ds/button.js';
@@ -34,7 +45,6 @@ import {
 import { ModelTrigger } from './model-trigger.js';
 import { matchesPresetSubChoice } from '@botharness/host-protocol/preset-sub';
 import type { ComboboxOption } from './combobox.js';
-import { subSelectionOf, type SubChoice, type SubChoices } from './sub-choices.js';
 
 const styles = stylex.create({
   section: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
@@ -132,51 +142,6 @@ export function SubChoiceList({
   };
   const effortOf = (choice: SubChoice): string =>
     (choice.kind === 'engine' ? choice.effort : choice.defaultEffort) ?? '';
-  const withEffort = (choice: SubChoice, effort: string): SubChoice => {
-    switch (choice.kind) {
-      case 'model':
-        return {
-          ...choice,
-          defaultEffort: effort,
-          allowedEfforts: choice.allowedEfforts.includes(effort)
-            ? choice.allowedEfforts
-            : [...choice.allowedEfforts, effort],
-        };
-      case 'group': {
-        const { defaultEffort: _effort, allowedEfforts: _allowed, ...rest } = choice;
-        if (effort === '') return rest;
-        const shared = effortsOf(choice).map((entry) => entry.id);
-        const allowed = choice.allowedEfforts ?? shared;
-        return {
-          ...rest,
-          allowedEfforts: allowed.includes(effort) ? allowed : [...allowed, effort],
-          defaultEffort: effort,
-        };
-      }
-      case 'engine': {
-        const { effort: _effort, ...rest } = choice;
-        return effort === '' ? rest : { ...rest, effort };
-      }
-    }
-  };
-  const replace = (index: number, next: SubChoice): void =>
-    onChange({
-      choices: sub.choices.map((choice, at) => (at === index ? next : choice)),
-      default: sub.default,
-    });
-  const remove = (index: number): void => {
-    const removed = sub.choices[index]!;
-    const choices = sub.choices.filter((_, at) => at !== index);
-    const keepDefault = sub.default !== null && !matchesPresetSubChoice(removed, sub.default);
-    onChange({
-      choices,
-      default: keepDefault
-        ? sub.default
-        : choices[0] === undefined
-          ? null
-          : subSelectionOf(choices[0]),
-    });
-  };
   const add = (key: string): void => {
     const engineItem = engines?.items.find((item) => item.value === key);
     if (engineItem?.engine !== undefined && engines !== undefined) {
@@ -205,9 +170,8 @@ export function SubChoiceList({
       });
   };
   const push = (choice: SubChoice): void => {
-    if (sub.choices.some((item) => matchesPresetSubChoice(item, subSelectionOf(choice)))) return;
-    const choices = [...sub.choices, choice];
-    onChange({ choices, default: sub.default ?? subSelectionOf(choice) });
+    const next = addSubChoice(sub, choice);
+    if (next !== sub) onChange(next);
   };
   const taken = new Set(sub.choices.map(keyOf));
   const addItems = [
@@ -219,7 +183,8 @@ export function SubChoiceList({
   ];
 
   const tile = (choice: SubChoice, index: number): ReactElement => {
-    const key = JSON.stringify(subSelectionOf(choice));
+    const selection = subSelectionOf(choice);
+    const key = JSON.stringify(selection);
     const item = itemOf(choice);
     const name =
       item?.name ?? (choice.kind === 'group' ? choice.group : (choice.model ?? choice.kind));
@@ -228,10 +193,10 @@ export function SubChoiceList({
     const effort = effortOf(choice);
     const effortName = efforts.find((entry) => entry.id === effort)?.name;
     const expanded = open === key;
-    const stale =
-      choice.kind === 'group' &&
-      choice.allowedEfforts !== undefined &&
-      choice.allowedEfforts.some((id) => !efforts.some((entry) => entry.id === id));
+    const groupEfforts = choice.kind === 'group' ? efforts.map((entry) => entry.id) : [];
+    const stale = staleGroupEfforts(choice, groupEfforts);
+    const changeEffort = (next: string) =>
+      onChange(setSubEffort(sub, selection, next, groupEfforts));
     const detailId = `${id}-${index}`;
     return (
       <ListCardItem
@@ -261,7 +226,7 @@ export function SubChoiceList({
                 variant="text"
                 xstyle={aboveListToggle}
                 disabled={busy}
-                onClick={() => onChange({ choices: sub.choices, default: subSelectionOf(choice) })}
+                onClick={() => onChange(setSubDefault(sub, selection))}
               >
                 {t('modelPreset.makeDefault')}
               </Button>
@@ -270,7 +235,7 @@ export function SubChoiceList({
               aria-label={t('modelPreset.removeAllowed', { model: name })}
               xstyle={aboveListToggle}
               disabled={busy}
-              onClick={() => remove(index)}
+              onClick={() => onChange(removeSubChoice(sub, selection))}
             >
               <Icon name="x" size={16} />
             </IconButton>
@@ -287,7 +252,7 @@ export function SubChoiceList({
                     type="button"
                     variant="text"
                     disabled={busy}
-                    onClick={() => replace(index, withEffort(choice, ''))}
+                    onClick={() => changeEffort('')}
                   >
                     {t('modelPreset.groupEffortsClear')}
                   </Button>
@@ -303,7 +268,7 @@ export function SubChoiceList({
                       { value: '', label: t('modelPreset.providerDefault') },
                       ...efforts.map((entry) => ({ value: entry.id, label: entry.name })),
                     ]}
-                    onChange={(next) => replace(index, withEffort(choice, next))}
+                    onChange={changeEffort}
                     label={`${name} · ${t('modelPreset.effort')}`}
                     disabled={busy}
                   />
@@ -316,11 +281,7 @@ export function SubChoiceList({
                   value={choice.note ?? ''}
                   maxLength={500}
                   disabled={busy}
-                  onChange={(event) => {
-                    const note = event.target.value;
-                    const { note: _note, ...rest } = choice;
-                    replace(index, (note === '' ? rest : { ...rest, note }) as SubChoice);
-                  }}
+                  onChange={(event) => onChange(setSubNote(sub, selection, event.target.value))}
                 />
               ) : null}
             </div>

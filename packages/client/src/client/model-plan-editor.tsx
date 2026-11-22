@@ -1,5 +1,6 @@
 import type { ComponentProps, ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
+import type { SubChoices } from '@botharness/host-client/preset-sub';
 import { space } from './ds/tokens.stylex.js';
 import type { ModelCatalogEntryView, ModelCatalogGroupView } from './bridge.js';
 import type { ComboboxOption } from './combobox.js';
@@ -7,7 +8,6 @@ import type { BotHarnessTranslate } from './locale.js';
 import { ModelPicker } from './model-picker.js';
 import { modelKey, type ModelDraft } from './model-preset-draft.js';
 import { SubChoiceList } from './sub-choice-list.js';
-import type { SubChoices } from './sub-choices.js';
 
 const styles = stylex.create({
   section: { display: 'flex', flexDirection: 'column', gap: space.x5, minWidth: 0 },

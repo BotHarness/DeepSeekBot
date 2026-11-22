@@ -5,7 +5,7 @@ import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
 import { SubChoiceList } from '../src/client/sub-choice-list.js';
-import type { SubChoices } from '../src/client/sub-choices.js';
+import type { SubChoices } from '@botharness/host-client/preset-sub';
 
 let root: Root | undefined;
 afterEach(async () => {
