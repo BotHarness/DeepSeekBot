@@ -14,6 +14,7 @@ const MESSAGING_TABLE_WRITERS = [
   'channels/sqlite-store.ts',
   'database/schema-plan.ts',
   'features/activity/events.ts',
+  'features/activity/inbox-harvest.ts',
   'features/assignments/events.ts',
   'features/assignments/reporting.ts',
   'features/messaging/events.ts',

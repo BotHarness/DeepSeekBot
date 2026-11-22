@@ -194,7 +194,7 @@ export function ModelsView({
   const value = models.value;
   const openPicker = (field: ModelField, target?: AssignmentEffortTarget) => {
     const extra =
-      target === undefined
+      target === undefined || target.kind === 'engine'
         ? {}
         : target.kind === 'group'
           ? { group: target.id }

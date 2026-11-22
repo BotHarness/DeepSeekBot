@@ -1,4 +1,8 @@
-import type { SubscriptionModel } from '@botharness/host-client/model-plans';
+import {
+  DEFAULT_MODEL_PRESET_ID,
+  type SubscriptionModel,
+} from '@botharness/host-client/model-plans';
+import { cleanSub, type SubChoices } from '@botharness/host-client/preset-sub';
 import { Tag } from './ds/tag.js';
 import { CodexDeviceSignIn } from './codex-device-sign-in.js';
 import { Button } from './ds/button.js';
@@ -17,12 +21,7 @@ import type {
   ModelRouteView,
 } from './bridge.js';
 import { errorMessage } from './bridge.js';
-import {
-  engineModelKey,
-  engineRoles,
-  useSubscriptionEngines,
-  type EngineRole,
-} from './engine-choice.js';
+import { engineModelKey, useSubscriptionEngines, type EngineRole } from './engine-choice.js';
 import { engineName } from './session-engine.js';
 import { isOriginActions } from './origin-actions.js';
 import { Note } from './ds/note.js';
@@ -31,15 +30,9 @@ import { border, color, space } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { engineMenuItems, groupMenuId } from './model-menu.js';
 import { ModelPlanEditor } from './model-plan-editor.js';
-import {
-  draftOf,
-  modelKey,
-  planParts,
-  routeLabel,
-  routeOfKey,
-  trailing,
-  type ModelDraft,
-} from './model-preset-draft.js';
+import { draftOf, mainParts, modelKey, routeLabel, type ModelDraft } from './model-preset-draft.js';
+import { matchesPresetSubChoice } from '@botharness/host-protocol/preset-sub';
+import { subOf } from './sub-choices.js';
 import {
   invalidateModelPlan,
   modelPlanOf,
@@ -61,6 +54,62 @@ const styles = stylex.create({
     borderBottomColor: color.divider,
   },
 });
+
+function withLiveTask(sub: SubChoices, live: SubscriptionModel | null): SubChoices {
+  if (live === null) return sub;
+  const selection = {
+    kind: 'engine' as const,
+    engine: live.engine,
+    ...(live.accountId === undefined ? {} : { accountId: live.accountId }),
+    ...(live.model === undefined ? {} : { model: live.model }),
+  };
+  const listed = sub.choices.some((choice) => matchesPresetSubChoice(choice, selection));
+  return {
+    choices: listed
+      ? sub.choices
+      : [
+          ...sub.choices,
+          { ...selection, ...(live.effort === undefined ? {} : { effort: live.effort }) },
+        ],
+    default: selection,
+  };
+}
+
+function inheritedSub(preset: ModelPresetView | undefined): SubChoices {
+  const list = subOf(preset, preset?.assignmentEngine);
+  if (preset === undefined || list.choices.length > 0) return list;
+  const group = preset.orchestratorGroupId;
+  if (group !== undefined) {
+    const effort = preset.orchestratorGroupEffort;
+    return {
+      choices: [
+        {
+          kind: 'group',
+          group,
+          ...(effort === undefined ? {} : { allowedEfforts: [effort], defaultEffort: effort }),
+        },
+      ],
+      default: { kind: 'group', group },
+    };
+  }
+  const { provider, model, reasoningEffort = '' } = preset.orchestrator;
+  return {
+    choices: [
+      {
+        kind: 'model',
+        provider,
+        model,
+        allowedEfforts: [reasoningEffort],
+        defaultEffort: reasoningEffort,
+      },
+    ],
+    default: { kind: 'model', provider, model },
+  };
+}
+
+function tasksInherit(plan: ModelPlanView | undefined): boolean {
+  return plan === undefined || (plan.sub === undefined && plan.assignmentDefault === undefined);
+}
 
 function sameEngine(left: SubscriptionModel | null, right: SubscriptionModel | null): boolean {
   return (
@@ -95,6 +144,8 @@ export function ModelPresetProfile({
   const planRequest = useRef(0);
   const [draft, setDraft] = useState<ModelDraft>();
   const [initialDraft, setInitialDraft] = useState<ModelDraft>();
+  const [sub, setSub] = useState<SubChoices>({ choices: [], default: null });
+  const [subDraft, setSubDraft] = useState<SubChoices>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const [editorOpen, setEditorOpen] = useState(onClose !== undefined);
@@ -125,7 +176,7 @@ export function ModelPresetProfile({
       : null;
   const desiredEngine = (role: EngineRole) =>
     engineDraft[role] !== undefined ? engineDraft[role] : liveEngine(role);
-  const pendingEngines = engineRoles.filter(
+  const pendingEngines = (['orchestrator'] as const).filter(
     (role) => !sameEngine(liveEngine(role), desiredEngine(role)),
   );
   const chosenPreset = presets.find((preset) => preset.id === draft?.presetId);
@@ -198,7 +249,11 @@ export function ModelPresetProfile({
         const route = { provider: first.provider, model: first.model };
         return draftOf({ orchestrator: route }, '');
       })();
+      const initialChoices = tasksInherit(current)
+        ? inheritedSub(saved.find((preset) => preset.id === DEFAULT_MODEL_PRESET_ID))
+        : subOf(current);
       setInitialDraft(initial);
+      setSub(initialChoices);
       setDraft((previous) => previous ?? initial);
       setPlanLoadError(false);
     } catch (failure) {
@@ -209,7 +264,12 @@ export function ModelPresetProfile({
   const hasPlanError = planLoadError && plan === undefined;
   const presetLabel =
     plan === undefined || plan.sourcePresetId === '' ? undefined : plan.sourcePresetName;
-  const extraAllowed = plan === undefined ? 0 : (plan.assignmentModels?.length ?? 1) - 1;
+  const extraAllowed =
+    plan === undefined
+      ? 0
+      : plan.sub === undefined
+        ? (plan.assignmentModels?.length ?? 1) - 1
+        : plan.sub.choices.length - 1;
 
   const summary =
     repair !== undefined
@@ -222,6 +282,7 @@ export function ModelPresetProfile({
 
   const openEditor = (): void => {
     setDraft(undefined);
+    setSubDraft(undefined);
     setEngineDraft({});
     setError(undefined);
     setSelectionMode('models');
@@ -253,10 +314,8 @@ export function ModelPresetProfile({
 
   const stagePreset = (preset: ModelPresetView) => {
     setDraft(draftOf(preset, preset.id));
-    setEngineDraft({
-      orchestrator: preset.orchestratorEngine ?? null,
-      assignment: preset.assignmentEngine ?? null,
-    });
+    setSubDraft(subOf(preset, preset.assignmentEngine));
+    setEngineDraft({ orchestrator: preset.orchestratorEngine ?? null });
   };
   const inCatalog = (key: string): boolean => {
     const group = groupMenuId(key);
@@ -264,15 +323,20 @@ export function ModelPresetProfile({
       ? catalog?.some((entry) => modelKey(entry) === key) === true
       : catalogGroups.some((entry) => entry.id === group);
   };
-  const canSave =
-    draft !== undefined &&
-    inCatalog(draft.orchestrator.key) &&
-    (draft.assignment.key === '' || inCatalog(draft.assignment.key)) &&
-    !busy;
-  const planEdited = JSON.stringify(draft) !== JSON.stringify(initialDraft);
-  const enginesOnly = !planEdited && pendingEngines.length > 0;
+  const canSave = draft !== undefined && inCatalog(draft.orchestrator.key) && !busy;
+  const planEdited =
+    JSON.stringify(draft) !== JSON.stringify(initialDraft) || subDraft !== undefined;
+  const liveTask = liveEngine('assignment');
+  const listStored = plan?.sub !== undefined;
+  const migratesTask = !listStored && liveTask !== null;
+  const shownSub = subDraft ?? (listStored ? sub : withLiveTask(sub, liveTask));
+  const taskClearPending = listStored && liveTask !== null;
+  const engineReadPending = subscriptionsEnabled && engines.view === undefined;
+  const enginesOnly =
+    !planEdited && !migratesTask && (pendingEngines.length > 0 || taskClearPending);
   const canApply =
     !busy &&
+    !(engineReadPending && !listStored && chosenPreset === undefined) &&
     (enginesOnly || (canSave && (plan !== undefined || planEdited || chosenPreset !== undefined)));
   const closeEditor = (): void => {
     if (busy) return;
@@ -295,39 +359,25 @@ export function ModelPresetProfile({
     setBusy(true);
     setError(undefined);
     try {
-      const orchestratorGroup = groupMenuId(draft.orchestrator.key);
-      const parts =
-        draft.assignment.key === '' || enginesOnly
-          ? undefined
-          : planParts(draft, catalogGroups, catalog);
+      const main = mainParts(draft);
+      const mainOnly = subDraft === undefined && !migratesTask;
+      const subToSave = cleanSub(shownSub);
+      const expected = plan?.revision ?? revision;
       const applied =
         chosenPreset !== undefined
           ? await actions.applyModelPreset(slug, chosenPreset.id)
-          : enginesOnly
+          : enginesOnly || main === undefined
             ? plan
-            : draft.assignment.key === ''
-              ? orchestratorGroup === undefined
-                ? await actions.customizeModelPlan(
-                    slug,
-                    routeOfKey(draft.orchestrator.key, draft.orchestrator.effort),
-                    plan?.revision ?? revision,
-                  )
+            : mainOnly
+              ? main.orchestratorGroupId === null
+                ? await actions.customizeModelPlan(slug, main.orchestrator!, expected)
                 : await actions.chooseModelPlanGroup(
                     slug,
-                    orchestratorGroup,
-                    plan?.revision ?? revision,
-                    draft.orchestrator.effort,
+                    main.orchestratorGroupId,
+                    expected,
+                    main.orchestratorGroupEffort ?? '',
                   )
-              : parts === undefined
-                ? undefined
-                : await actions.setModelPlan(
-                    slug,
-                    plan?.revision ?? revision,
-                    parts.orchestrator,
-                    parts.assignmentDefault,
-                    parts.assignmentModels,
-                    ...trailing(draft, parts),
-                  );
+              : await actions.setModelPlanSub(slug, expected, main, subToSave);
       if (applied === undefined && (planEdited || pendingEngines.length === 0)) {
         setError(t('modelPreset.routeUnavailable'));
         return;
@@ -336,11 +386,16 @@ export function ModelPresetProfile({
         acceptPlan(applied);
         setRevision(applied.revision);
         setInitialDraft(draft);
+        setSub(subToSave);
+        setSubDraft(undefined);
       }
       if (chosenPreset === undefined) {
         for (const role of pendingEngines)
           await engines.saveSelection(slug, role, desiredEngine(role), liveEngine(role)?.fallback);
-        if (pendingEngines.length > 0 && (await engines.refresh()) === undefined) return;
+        const clearsTask = liveTask !== null && (applied ?? plan)?.sub !== undefined;
+        if (clearsTask) await engines.saveSelection(slug, 'assignment', null, liveTask.fallback);
+        if ((pendingEngines.length > 0 || clearsTask) && (await engines.refresh()) === undefined)
+          return;
       }
       if (applied === undefined) {
         setEditorOpen(false);
@@ -355,6 +410,37 @@ export function ModelPresetProfile({
 
   const groupName = (id: string | undefined): string | undefined =>
     id === undefined ? undefined : (catalogGroups.find((group) => group.id === id)?.name ?? id);
+  const taskLabel = (current: ModelPlanView): string => {
+    const fallback = t('modelPreset.providerDefault');
+    const selected = current.sub?.default;
+    if (current.sub === undefined)
+      return current.assignmentDefault === undefined
+        ? t('onboarding.inherit')
+        : routeLabel(current.assignmentDefault, fallback);
+    if (selected == null) return t('modelPreset.subFollowsMain');
+    const choice = current.sub.choices.find((entry) => matchesPresetSubChoice(entry, selected));
+    switch (selected.kind) {
+      case 'model':
+        return routeLabel(
+          {
+            provider: selected.provider,
+            model: selected.model,
+            ...(choice?.kind === 'model' && choice.defaultEffort !== ''
+              ? { reasoningEffort: choice.defaultEffort }
+              : {}),
+          },
+          fallback,
+        );
+      case 'group':
+        return `${groupName(selected.group) ?? selected.group} · ${
+          (choice?.kind === 'group' ? choice.defaultEffort : undefined) ?? fallback
+        }`;
+      case 'engine':
+        return `${selected.model ?? engineName(selected.engine)} · ${
+          (choice?.kind === 'engine' ? choice.effort : undefined) ?? fallback
+        }`;
+    }
+  };
   const presetRouteLabel = (route: ModelRouteView): string =>
     routeLabel(
       {
@@ -463,10 +549,7 @@ export function ModelPresetProfile({
                       {t('modelPreset.orchestrator')} · {summary}
                     </span>
                     <span className="bh-card-meta-line">
-                      {t('modelPreset.assignment')} ·{' '}
-                      {plan.assignmentDefault === undefined
-                        ? t('onboarding.inherit')
-                        : routeLabel(plan.assignmentDefault, t('modelPreset.providerDefault'))}
+                      {t('modelPreset.assignment')} · {taskLabel(plan)}
                     </span>
                   </>
                 )
@@ -576,13 +659,22 @@ export function ModelPresetProfile({
                     catalog={catalog}
                     catalogGroups={catalogGroups}
                     busy={busy}
-                    allowInheritedAssignment={plan?.assignmentDefault === undefined}
-                    showAssignmentPicker={engineItems.length > 0}
                     updateDraft={updateDraft}
-                    subscription={subscription}
-                    clearEngine={(role) => editEngine(role, null)}
+                    subscription={subscription('orchestrator')}
+                    clearEngine={() => editEngine('orchestrator', null)}
+                    sub={shownSub}
+                    subLocked={engineReadPending && !listStored}
+                    onSubChange={(next) => {
+                      setSubDraft(next);
+                      edit({});
+                    }}
                     t={t}
                   />
+                  {plan?.openAssignmentModels === true &&
+                  !listStored &&
+                  (subDraft !== undefined || migratesTask) ? (
+                    <Note tone="warning">{t('modelPreset.openDropped')}</Note>
+                  ) : null}
                 </>
               )}
             </>

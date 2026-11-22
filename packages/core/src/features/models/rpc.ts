@@ -1,3 +1,4 @@
+import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync, type AdminResult } from '../../bridge/rpc-result.js';
 import type {
   ModelProvidersView,
@@ -453,3 +454,304 @@ export function modelPlanSet(
     }),
   );
 }
+
+export const modelsRpcMethods = {
+  modelPlanInherit(slug: string, expectedRevision: number): AdminResult<{ revision: number }> {
+    return modelPlanInherit(this.methods, slug, expectedRevision);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const modelConfigurationRpc = {
+  modelProviders(): Promise<ModelProvidersView> {
+    return modelProviders(this.methods);
+  },
+
+  modelProviderAdd(
+    template: string,
+    name: string,
+    key: string,
+    expectedRevision: number,
+    endpoint?: string,
+    model?: string,
+  ): Promise<ModelProviderSave> {
+    return modelProviderAdd(this.methods, template, name, key, expectedRevision, endpoint, model);
+  },
+
+  modelProviderEdit(
+    id: string,
+    expectedRevision: number,
+    name?: string,
+    key?: string,
+  ): Promise<ModelProviderSave> {
+    return modelProviderEdit(this.methods, id, expectedRevision, name, key);
+  },
+
+  modelProviderRemove(id: string, expectedRevision: number): Promise<ModelProviderRemoval> {
+    return modelProviderRemove(this.methods, id, expectedRevision);
+  },
+
+  engineAccounts(grantable?: boolean) {
+    return engineAccounts(this.methods, grantable);
+  },
+
+  engineAccountQuotaRefresh(id: string) {
+    return engineAccountQuotaRefresh(this.methods, id);
+  },
+
+  engineSelection(
+    request: import('../../engines/engine-selection-bridge.js').EngineSelectionRequest,
+  ) {
+    return engineSelection(this.methods, request);
+  },
+
+  engineAccountAdd(engine: string, name: string, expectedRevision: number) {
+    return engineAccountAdd(this.methods, engine, name, expectedRevision);
+  },
+
+  engineAccountRename(id: string, name: string, expectedRevision: number) {
+    return engineAccountRename(this.methods, id, name, expectedRevision);
+  },
+
+  engineAccountRemove(id: string, expectedRevision: number, confirm: boolean) {
+    return engineAccountRemove(this.methods, id, expectedRevision, confirm);
+  },
+
+  engineAccountLogin(id: string, engine?: string, mode?: 'device-auth') {
+    return engineAccountLogin(this.methods, id, engine, mode);
+  },
+
+  engineAccountLoginStatus(id: string, attemptId: string) {
+    return engineAccountLoginStatus(this.methods, id, attemptId);
+  },
+
+  engineAccountLoginCancel(id: string, attemptId?: string) {
+    return engineAccountLoginCancel(this.methods, id, attemptId);
+  },
+
+  engineAccountSubmitCode(id: string, code: string) {
+    return engineAccountSubmitCode(this.methods, id, code);
+  },
+
+  modelCatalog(includeRoutingGroupEngines?: boolean): Promise<{
+    models: ModelCatalogEntry[];
+    default?: ModelRoute;
+    defaultRevision?: number;
+    favorites?: ModelFavorite[];
+    routingGroupEngines?: RoutingGroupEngineOptions[];
+  }> {
+    return modelCatalog(this.methods, includeRoutingGroupEngines);
+  },
+
+  modelFavoriteSet(choice: ModelFavorite, favorite: boolean): { favorites: ModelFavorite[] } {
+    return modelFavoriteSet(this.methods, choice, favorite);
+  },
+
+  modelPresets(includeUsage?: boolean): {
+    presets: ModelPreset[];
+    defaultPresetId?: string;
+    usage?: ModelPresetUsage[];
+  } {
+    return modelPresets(this.methods, includeUsage);
+  },
+
+  modelPresetDelete(id: string, expectedRevision: number, confirmed: boolean): { id: string } {
+    return modelPresetDelete(this.methods, id, expectedRevision, confirmed);
+  },
+
+  modelPlanSub(slug: string) {
+    return modelPlanSub(this.methods, slug);
+  },
+
+  modelPlanSubSet(slug: string, expectedRevision: number, sub: PresetSub) {
+    return modelPlanSubSet(this.methods, slug, expectedRevision, sub);
+  },
+
+  modelPresetSub(id: string) {
+    return modelPresetSub(this.methods, id);
+  },
+
+  modelPresetSubSet(id: string, expectedRevision: number, sub: PresetSub) {
+    return modelPresetSubSet(this.methods, id, expectedRevision, sub);
+  },
+
+  modelPresetCreate(
+    name: string,
+    orchestrator: ModelRoute | undefined,
+    assignmentDefault: ModelRoute | undefined,
+    assignmentModels?: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
+    orchestratorGroupId?: string | null,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string | null,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
+    orchestratorGroupEffort?: string | null,
+    orchestratorEngine?: ModelPresetEngine | null,
+    assignmentEngine?: ModelPresetEngine | null,
+    sub?: PresetSub,
+  ): Promise<{ preset: ModelPreset }> {
+    return modelPresetCreate(
+      this.methods,
+      name,
+      orchestrator,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+      orchestratorGroupId,
+      assignmentGroups,
+      assignmentDefaultGroupId,
+      assignmentGroupOptions,
+      orchestratorGroupEffort,
+      orchestratorEngine,
+      assignmentEngine,
+      sub,
+    );
+  },
+
+  modelPresetUpdate(
+    id: string,
+    expectedRevision: number,
+    name: string,
+    orchestrator: ModelRoute | undefined,
+    assignmentDefault: ModelRoute | undefined,
+    assignmentModels?: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
+    orchestratorGroupId?: string | null,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string | null,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
+    orchestratorGroupEffort?: string | null,
+    orchestratorEngine?: ModelPresetEngine | null,
+    assignmentEngine?: ModelPresetEngine | null,
+    assignmentFollowsMain?: boolean,
+    sub?: PresetSub,
+  ): Promise<{ preset: ModelPreset }> {
+    return modelPresetUpdate(
+      this.methods,
+      id,
+      expectedRevision,
+      name,
+      orchestrator,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+      orchestratorGroupId,
+      assignmentGroups,
+      assignmentDefaultGroupId,
+      assignmentGroupOptions,
+      orchestratorGroupEffort,
+      orchestratorEngine,
+      assignmentEngine,
+      assignmentFollowsMain,
+      sub,
+    );
+  },
+
+  modelPresetApply(
+    slug: string,
+    presetId: string,
+    expectedRevision?: number,
+    expectedPresetRevision?: number,
+  ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
+    return modelPresetApply(this.methods, slug, presetId, expectedRevision, expectedPresetRevision);
+  },
+
+  modelGroups(): { groups: RoutingGroup[] } {
+    return modelGroups(this.methods);
+  },
+
+  modelGroup(id: string): { group: RoutingGroup; routes: ModelRoute[] } {
+    return modelGroup(this.methods, id);
+  },
+
+  modelGroupCreate(name: string, members: RoutingGroupMember[]): Promise<{ group: RoutingGroup }> {
+    return modelGroupCreate(this.methods, name, members);
+  },
+
+  modelGroupUpdate(
+    id: string,
+    expectedRevision: number,
+    name: string,
+    members: RoutingGroupMember[],
+  ): Promise<{ group: RoutingGroup }> {
+    return modelGroupUpdate(this.methods, id, expectedRevision, name, members);
+  },
+
+  modelGroupDelete(id: string, expectedRevision: number): { group: RoutingGroup } {
+    return modelGroupDelete(this.methods, id, expectedRevision);
+  },
+
+  modelPlan(slug: string): Promise<AdminResult<ModelPlanState>> {
+    return modelPlan(this.methods, slug);
+  },
+
+  modelPlanCustomize(
+    slug: string,
+    orchestrator?: ModelRoute,
+    expectedRevision?: number,
+    orchestratorGroupId?: string,
+    orchestratorGroupEffort?: string,
+  ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
+    return modelPlanCustomize(
+      this.methods,
+      slug,
+      orchestrator,
+      expectedRevision,
+      orchestratorGroupId,
+      orchestratorGroupEffort,
+    );
+  },
+
+  modelPlanAssignmentsSet(
+    slug: string,
+    expectedRevision: number,
+    assignmentDefault: ModelRoute,
+    assignmentModels: AssignmentModelOption[],
+    openAssignmentModels?: boolean,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
+  ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
+    return modelPlanAssignmentsSet(
+      this.methods,
+      slug,
+      expectedRevision,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+      assignmentGroups,
+      assignmentDefaultGroupId,
+      assignmentGroupOptions,
+    );
+  },
+
+  modelPlanSet(
+    slug: string,
+    expectedRevision: number,
+    orchestrator: ModelRoute | undefined,
+    assignmentDefault: ModelRoute | undefined,
+    assignmentModels: AssignmentModelOption[] | undefined,
+    openAssignmentModels?: boolean,
+    orchestratorGroupId?: string | null,
+    assignmentGroups?: string[],
+    assignmentDefaultGroupId?: string | null,
+    assignmentGroupOptions?: AssignmentGroupOption[] | null,
+    orchestratorGroupEffort?: string | null,
+    sub?: PresetSub,
+  ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
+    return modelPlanSet(
+      this.methods,
+      slug,
+      expectedRevision,
+      orchestrator,
+      assignmentDefault,
+      assignmentModels,
+      openAssignmentModels,
+      orchestratorGroupId,
+      assignmentGroups,
+      assignmentDefaultGroupId,
+      assignmentGroupOptions,
+      orchestratorGroupEffort,
+      sub,
+    );
+  },
+} satisfies ThisType<BridgeRpcReceiver>;

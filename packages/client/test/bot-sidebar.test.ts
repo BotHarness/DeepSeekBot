@@ -351,6 +351,7 @@ function stubActions(): BridgeActions {
     setModelPlanAssignments: vi.fn(async () => {
       throw new Error('unexpected Assignment model plan change');
     }),
+    setModelPlanSub: vi.fn(),
     setModelPlan: vi.fn(async () => {
       throw new Error('unexpected Model Plan change');
     }),

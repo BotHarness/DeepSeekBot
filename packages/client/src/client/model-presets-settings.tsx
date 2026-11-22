@@ -11,6 +11,7 @@ import {
   type ModelPresetUsage,
   type SubscriptionModel,
 } from '@botharness/host-client/model-plans';
+import { cleanSub } from '@botharness/host-client/preset-sub';
 import type { BridgeActions } from './actions.js';
 import { bridgeHost, errorMessage, type BridgeCall } from './bridge.js';
 import { CodexDeviceSignIn } from './codex-device-sign-in.js';
@@ -25,7 +26,8 @@ import { bridgeEngineApi, useSubscriptionEngines, type EngineRole } from './engi
 import type { BotHarnessTranslate } from './locale.js';
 import { engineMenuItems } from './model-menu.js';
 import { ModelPlanEditor } from './model-plan-editor.js';
-import { draftOf, modelKey, planParts, type ModelDraft } from './model-preset-draft.js';
+import { draftOf, mainParts, modelKey, type ModelDraft } from './model-preset-draft.js';
+import { subOf } from './sub-choices.js';
 import { useMountedResource } from './mounted-resource.js';
 import { engineName } from './session-engine.js';
 import { ListCard, ListCardItem } from './ds/list-card.js';
@@ -120,15 +122,14 @@ function PresetEditor({
     const model =
       (fallback === undefined ? undefined : library.routes.get(modelKey(fallback))) ??
       models.find((entry) => entry.credential === undefined);
-    return draftOf(
-      model === undefined ? {} : { orchestrator: model, assignmentDefault: model },
-      '',
-    );
+    return draftOf(model === undefined ? {} : { orchestrator: model }, '');
   });
-  const [engineDraft, setEngineDraft] = useState<Record<EngineRole, SubscriptionModel | null>>({
-    orchestrator: preset?.orchestratorEngine ?? null,
-    assignment: preset?.assignmentEngine ?? null,
-  });
+  const [orchestratorEngine, setOrchestratorEngine] = useState<SubscriptionModel | null>(
+    preset?.orchestratorEngine ?? null,
+  );
+  const [sub, setSub] = useState(() =>
+    subOf(preset ?? { assignmentFollowsMain: true }, preset?.assignmentEngine),
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const api = useMemo(() => bridgeEngineApi(call), [call]);
@@ -141,28 +142,16 @@ function PresetEditor({
     owner,
     engines.supportsDeviceSignIn,
   );
-  const changeEngine = (role: EngineRole, choice: SubscriptionModel | null) =>
-    setEngineDraft((current) => ({ ...current, [role]: choice }));
   const updateDraft = (change: (current: ModelDraft) => Partial<ModelDraft>) =>
     setDraft((current) => ({ ...current, ...change(current) }));
-  const parts =
-    draft.orchestrator.key && draft.assignment.key ? planParts(draft, groups, models) : undefined;
+  const main = mainParts(draft);
   const save = async (): Promise<void> => {
-    if (busy || parts === undefined) return;
-    const { groups: policy, orchestrator, assignmentDefault, assignmentModels } = parts;
+    if (busy || main === undefined) return;
     const input = {
       name: name.trim(),
-      ...(policy?.orchestratorGroupId === undefined ? { orchestrator } : {}),
-      assignmentDefault,
-      assignmentModels,
-      openAssignmentModels: draft.open,
-      orchestratorGroupId: policy?.orchestratorGroupId ?? null,
-      orchestratorGroupEffort: policy?.orchestratorGroupEffort ?? null,
-      assignmentDefaultGroupId: policy?.assignmentDefaultGroupId ?? null,
-      assignmentGroups: policy?.assignmentGroups ?? [],
-      assignmentGroupOptions: policy?.assignmentGroupOptions ?? [],
-      orchestratorEngine: engineDraft.orchestrator,
-      assignmentEngine: engineDraft.assignment,
+      ...main,
+      orchestratorEngine,
+      sub: cleanSub(sub),
     };
     setBusy(true);
     setError(undefined);
@@ -202,7 +191,7 @@ function PresetEditor({
       scroll
       labels={{ close: t('common.close'), cancel: t('common.cancel') }}
       submitLabel={t('modelPreset.save')}
-      submitDisabled={name.trim() === '' || parts === undefined}
+      submitDisabled={name.trim() === '' || main === undefined}
       busy={busy}
       error={error}
       onCancel={() => {
@@ -222,17 +211,17 @@ function PresetEditor({
         catalog={models}
         catalogGroups={groups}
         busy={busy}
-        allowInheritedAssignment={false}
-        showAssignmentPicker={items.length > 0 || engineDraft.assignment !== null}
         updateDraft={updateDraft}
-        subscription={(role) => ({
-          choice: engineDraft[role],
+        subscription={{
+          choice: orchestratorEngine,
           items,
           models: engines.models,
-          onChange: (choice) => changeEngine(role, choice),
+          onChange: setOrchestratorEngine,
           signIn: engines.signIn,
-        })}
-        clearEngine={(role) => changeEngine(role, null)}
+        }}
+        clearEngine={() => setOrchestratorEngine(null)}
+        sub={sub}
+        onSubChange={setSub}
         t={t}
       />
       <div ref={engines.mount}>
