@@ -6,33 +6,62 @@ import { createHostClient, MethodRefused } from '@botharness/host-client/client'
 import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import type { SessionTranscriptItem } from '@botharness/host-client/session-detail';
 import type { Composer } from '../src/ui/chat/composer';
+import { edgeFade, space } from '../src/ui/design/tokens';
 import type { ChatHeaderActionsProps } from '../src/ui/chat/chat-header-actions';
 
+const platform = vi.hoisted(() => ({ OS: 'ios' }));
 const navigation = vi.hoisted(() => ({ back: vi.fn(), canGoBack: () => true }));
 
 vi.mock('react-native', async () => ({
   ...(await import('./react-native-shim')),
+  Platform: {
+    get OS() {
+      return platform.OS;
+    },
+    Version: '27.2',
+  },
   Text: ({ children, numberOfLines }: { children: ReactNode; numberOfLines?: number }) => (
     <span data-number-of-lines={numberOfLines}>{children}</span>
   ),
 }));
+vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('expo-router', () => ({
   Stack: {
     Screen: ({
       options,
     }: {
-      options: { title: string; headerTitle?(): ReactNode; header?(): ReactNode };
-    }) => options.header?.() ?? options.headerTitle?.() ?? <h1>{options.title}</h1>,
+      options: {
+        title: string;
+        headerTitle?(): ReactNode;
+        headerTransparent?: boolean;
+        scrollEdgeEffects?: { top?: string; bottom?: string };
+      };
+    }) => (
+      <header
+        data-transparent={options.headerTransparent}
+        data-top-edge={options.scrollEdgeEffects?.top}
+        data-bottom-edge={options.scrollEdgeEffects?.bottom}
+      >
+        {options.headerTitle?.() ?? <h1>{options.title}</h1>}
+      </header>
+    ),
   },
   useFocusEffect: (work: () => void | (() => void)) => useLayoutEffect(work, [work]),
   useRouter: () => navigation,
 }));
 vi.mock('expo-router/react-navigation', () => ({ useHeaderHeight: () => 0 }));
-vi.mock('react-native-svg', () => ({ default: () => null }));
+vi.mock('react-native-svg', () => ({
+  default: () => null,
+  Defs: () => null,
+  LinearGradient: () => null,
+  Rect: () => null,
+  Stop: () => null,
+}));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock('react-native-keyboard-controller', () => ({
+  useKeyboardState: () => false,
   KeyboardAvoidingView: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 vi.mock('../src/host/host-session', () => ({}));
@@ -105,6 +134,7 @@ vi.mock('../src/ui/chat/composer', () => ({
     </div>
   ),
 }));
+const { chatTimelineListLayout } = await import('../src/ui/chat/chat-timeline-chrome');
 const { SessionDetailBody } = await import('../src/ui/chat/session-detail-screen');
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -288,6 +318,18 @@ it('sends a draft to the selected Orchestrator', async () => {
 it('shows the Session title, Back, and Model Choice in the header', async () => {
   const { view } = await open();
   expect(view.textContent).toContain('Review the release');
+  const header = view.querySelector('header');
+  expect(header?.dataset).toMatchObject({
+    transparent: 'true',
+    topEdge: 'automatic',
+    bottomEdge: 'hidden',
+  });
+  expect(
+    view.querySelector<HTMLElement>('[data-testid="session-transcript"]')?.dataset,
+  ).toMatchObject({
+    dismiss: 'interactive',
+    persistTaps: 'never',
+  });
   await press(view, 'Back');
   expect(navigation.back).toHaveBeenCalledOnce();
   await press(view, 'Session options');
@@ -372,4 +414,50 @@ it('retries only the failed Assignment detail read and keeps the transcript moun
   expect(view.querySelector('[data-testid="session-header-title"]')?.textContent).toBe(
     'Canonical Assignment',
   );
+});
+
+it('leaves room for the overlay composer and top app bar in Android list order', () => {
+  platform.OS = 'android';
+  try {
+    const layout = chatTimelineListLayout({
+      headerOverlap: 0,
+      headerPadding: 90,
+      listSafeArea: 0,
+      nativeSpacer: false,
+      viewportHeight: 874,
+      composerHeight: 76,
+      ready: true,
+    });
+    expect(layout).toMatchObject({
+      inverted: true,
+      keyboardDismissMode: 'on-drag',
+      contentContainerStyle: {
+        paddingTop: 76 + edgeFade.bottom,
+        paddingBottom: 90 + space.x3,
+      },
+    });
+  } finally {
+    platform.OS = 'ios';
+  }
+});
+
+it('accounts for the iOS safe areas while the native composer spacer reserves the bottom', () => {
+  const layout = chatTimelineListLayout({
+    headerOverlap: 108,
+    headerPadding: 0,
+    listSafeArea: 34,
+    nativeSpacer: true,
+    viewportHeight: 874,
+    composerHeight: 76,
+    ready: true,
+  });
+  expect(layout).toMatchObject({
+    inverted: false,
+    contentInset: { bottom: -34 },
+    contentContainerStyle: {
+      minHeight: 874 - 108,
+      paddingTop: space.x3,
+      paddingBottom: 0,
+    },
+  });
 });

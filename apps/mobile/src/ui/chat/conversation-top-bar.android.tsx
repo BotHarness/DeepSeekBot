@@ -94,7 +94,10 @@ export function ConversationTopBar({
         onHeight?.(next);
       }}
       style={{
-        ...(variant === 'session' ? {} : { position: 'absolute', top: 0, left: 0, right: 0 }),
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
         paddingTop: insets.top,
         paddingLeft: insets.left,
         paddingRight: insets.right,
