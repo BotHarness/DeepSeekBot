@@ -1,6 +1,6 @@
 ---
 name: verify-harvest
-description: Model-check the Bot Inbox harvest (no replay after a side effect, handled only after seen, every pending Admission eventually claimed) with TLA+. Use when a change touches scheduleHarvest in orchestrator-scheduling.ts, #checkHarvestReadiness, #claimHarvest, #markAdmissionsSideEffect, #settleHarvestHandled, #settleHarvestFailure or the startup recovery of inbox_admissions in packages/core/src/runtime/bot-runtime.ts, or verification/harvest/.
+description: Model-check the Bot Inbox harvest (no replay after a side effect, handled only after seen, every pending Admission eventually claimed) with TLA+. Use when a change touches Channel admission in runtime-admission.ts, checkHarvestReadiness in group-digest.ts, scheduleHarvest in orchestrator-scheduling.ts, harvest transactions or interrupted admission recovery in bot-runtime.ts, or verification/harvest/.
 ---
 
 # Verify the Bot Inbox harvest
@@ -46,18 +46,18 @@ When a change to the harvest is intended:
 
 ## Coverage
 
-The scheduling step is in [orchestrator-scheduling.ts](../../../packages/core/src/runtime/orchestrator-scheduling.ts). Other steps use [bot-runtime.ts](../../../packages/core/src/runtime/bot-runtime.ts).
+Channel admission uses [runtime-admission.ts](../../../packages/core/src/channels/runtime-admission.ts), harvest readiness uses [group-digest.ts](../../../packages/core/src/runtime/group-digest.ts), and scheduling uses [orchestrator-scheduling.ts](../../../packages/core/src/runtime/orchestrator-scheduling.ts). The harvest and recovery transactions remain in [bot-runtime.ts](../../../packages/core/src/runtime/bot-runtime.ts).
 
 | Model step | Code |
 | --- | --- |
-| Admit | `#admitChannelMessage` → `#checkHarvestReadiness` |
+| Admit | `admitChannelMessage` and `checkHarvestReadiness` |
 | Schedule (inside Admit and AfterTurn) | `scheduleHarvest` checks `pendingHarvests` |
 | Claim, Empty | `#runHarvestTurn` → `#claimHarvest` |
 | Cross | `#markAdmissionsSideEffect` |
 | Succeed | `#settleHarvestHandled` |
 | Fail | `#settleHarvestFailure` |
 | AfterTurn | The `finally` of `scheduleHarvest` |
-| Restart | `#recoverInterruptedAttempts` and `#recoverPendingChannelAdmissions` |
+| Restart | `#recoverInterruptedAttempts` and `recoverPendingChannelAdmissions` |
 
 Review the current code against the model when any of these steps change.
 
