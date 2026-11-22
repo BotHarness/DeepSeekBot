@@ -18,7 +18,8 @@ export function noteQueue(
         write(text).then(
           () => onSaved(text),
           (cause: unknown) => {
-            if (queued === text) queued = undefined;
+            if (queued !== text) return;
+            queued = undefined;
             onError(cause, text);
           },
         ),

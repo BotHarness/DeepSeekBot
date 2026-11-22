@@ -123,3 +123,23 @@ it('keeps commit order across visits so a later failure is not cleared by an old
   expect(written).toEqual(['A', 'B', 'C']);
   expect(failedNote(key)).toEqual({ text: 'C', error: 'stale' });
 });
+
+it('does not keep a failed draft that a newer pending note supersedes', async () => {
+  const key = 'host-a:preset:p:z';
+  let finishB: () => void = () => undefined;
+  const queue = sharedNoteQueue(key, {
+    write: async (text) => {
+      if (text === 'A') throw new Error('stale');
+      await new Promise<void>((resolve) => (finishB = resolve));
+    },
+    onSaved: () => forgetFailedNote(key),
+    onError: (cause, text) => rememberFailedNote(key, { text, error: (cause as Error).message }),
+  });
+  queue.commit('A', '');
+  queue.commit('B', '');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(failedNote(key)).toBeUndefined();
+  finishB();
+  await queue.settled();
+  expect(failedNote(key)).toBeUndefined();
+});
