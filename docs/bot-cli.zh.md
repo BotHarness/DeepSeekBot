@@ -615,6 +615,18 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 
 `session-stop <bot-id> <session-id>` 停止 Bot 的一个运行中的 Session，与 Sessions 面板中该行的停止按钮相同。它的 Subagent 随之停止，Bot 的其他 Session 继续运行。返回 `stopped` 和 `alreadyIdle`，均为 `{ botSlug, sessionId, role }` 列表：空闲、已停止或重复停止的 Session 出现在 `alreadyIdle` 中，命令仍然成功。Bot 不拥有的 Session 以 `unknown-session` 拒绝。带 `--channel` 时，发起停止的 Channel 会收到一行通知（`turnStop.target`，结果中另有 `messageId`），但只在该 Session 属于这个 Channel 时才发：Orchestrator 对应 Bot 所在的 Channel，Assignment 只对应发起它的 Channel。
 
+#### Host 会话
+
+```bash
+deepseekbot session-list
+deepseekbot session-transcript --session <native-session-id>
+deepseekbot session-live --session <native-session-id> [--after <revision>]
+deepseekbot session-send <native-session-id> [--] <text>
+deepseekbot session-model --session <native-session-id> [--set <Model-Choice-JSON> | --clear]
+```
+
+这些命令通过已认证的在线 Host 执行。`session-list` 按 Human 最后发送消息的时间列出根会话，包含来源、已有标题、文件夹名称、运行状态、`lastPromptAt` 和 `updatedAt`。Host Owner 可以查看原生会话。团队成员可以查看自己的 Bot 会话，仍受现有会话隐私规则约束。读取原生会话、查看实时输出、发送消息和选择模型均需要 Host Owner 权限。DSH 接收原生会话消息后，命令返回 `requestId`。操作 Bot 会话时仍需传入 Bot ID。原生会话可选择 API 模型，`--clear` 恢复会话的原始模型。
+
 `session-send <bot-id> <orchestrator-session-id> <text>` 把 Human 的文字直接发进 Bot 当前的 Orchestrator Session，与该 Session 详情里的输入框相同。这是少用的主动 steer。任何 Channel 都不显示这段文字：Session 收到原文，前面只有一行说明这是 Human 在 Session 详情里写的；Bot Inbox 把它记为 Human 在其 DM 上的 Source Event，重启或 compaction 后仍在。无论 `human-dm` 投递设置如何，运行中的 turn 都在下一步收到它；Bot 正在准备或整理 Memory 时，它改为等到下一个 turn；空闲的 Orchestrator 会被唤醒。Bot 不必回复；带这个 `source_event_id` 的 `bot_send_message` 发到 Human 的 DM，不带引用。文字以 `-` 开头时，在它前面加 `--`；看起来像密钥参数的文字（如 `--token`、`--api-key=…`）仍以 `secret-in-argv` 拒绝，因为密钥从不经由参数传递。返回 `{ sourceEventId }`。Bot 能接收消息时，其他 Session 以 `invalid-input` 拒绝；Bot 此刻不能接收消息时（例如已暂停），以 `unavailable` 拒绝。
 
 `session-stop <bot-id> --activity <activity-id>` 停止 Bot 实时活动快照中某一行（`sessions[].id`）对应的 Session，与消息面板顶部弹出框中该行的停止按钮相同。该行已消失表示 Session 已结束，命令返回空的 `stopped` 和 `alreadyIdle` 列表，仍然成功。Session id 和 `--activity` 只能传其中一个。

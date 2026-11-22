@@ -198,7 +198,7 @@ async function open({
   beforeAssignmentRead,
   beforeArchive,
 }: {
-  role?: 'orchestrator' | 'assignment';
+  role?: 'orchestrator' | 'assignment' | 'native';
   running?: boolean;
   live?: boolean;
   refused?: boolean;
@@ -275,7 +275,13 @@ async function open({
   });
   await act(async () =>
     root!.render(
-      <SessionDetailBody client={client} slug="ada" id="chosen" title="Release review" online />,
+      <SessionDetailBody
+        client={client}
+        slug={role === 'native' ? null : 'ada'}
+        id="chosen"
+        title="Release review"
+        online
+      />,
     ),
   );
   return { view, call };
@@ -288,6 +294,27 @@ async function press(view: HTMLElement, label: string) {
   expect(button).toBeDefined();
   await act(async () => button!.click());
 }
+
+it('continues a native Session in the shared detail without offering Bot management actions', async () => {
+  const { view, call } = await open({ role: 'native', running: true, live: true });
+  expect(view.textContent).toContain('Live reply');
+  expect(call).toHaveBeenCalledWith(
+    'sessionTranscript',
+    { slug: null, sessionId: 'chosen' },
+    expect.anything(),
+  );
+  await press(view, 'Draft');
+  await press(view, 'Send');
+  expect(call).toHaveBeenCalledWith('sessionMessageSend', {
+    botSlug: null,
+    sessionId: 'chosen',
+    text: 'Follow up',
+  });
+  expect(call.mock.calls.some(([method]) => method === 'assignmentTimeline')).toBe(false);
+  expect([...view.querySelectorAll('button')].some((button) => button.textContent === 'Stop')).toBe(
+    false,
+  );
+});
 
 it('renders user input, saved and live replies, compact activity and the model switch', async () => {
   const { view } = await open({ live: true });

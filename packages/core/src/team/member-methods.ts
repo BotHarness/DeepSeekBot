@@ -143,6 +143,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'promptParts',
   'promptPresets',
   'approvalTemplates',
+  'sessionList',
   'sessionOwner',
   'humanAttention',
   'humanAttentionStatus',

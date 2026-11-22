@@ -40,7 +40,13 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
       >
         {items.map((item) => {
           const showCount = item.activity && item.count > 0;
-          const normal = item.settings ? t.settings : item.activity ? t.activity : t.chats;
+          const normal = item.settings
+            ? t.settings
+            : item.activity
+              ? t.activity
+              : item.sessions
+                ? t.hostSessions.title
+                : t.chats;
           const pending = t.activityPendingLabel(badgeCount(item.count));
           const icon = (
             <Icon
@@ -49,7 +55,9 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                   ? require('../../../assets/toolbar/settings.xml')
                   : item.activity
                     ? require('../../../assets/toolbar/activity.xml')
-                    : require('../../../assets/toolbar/chats.xml')
+                    : item.sessions
+                      ? require('../../../assets/toolbar/sessions.xml')
+                      : require('../../../assets/toolbar/chats.xml')
               }
               size={materialNavigationBar.iconSize}
             />
@@ -68,7 +76,9 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                     ? 'settings-button'
                     : item.activity
                       ? 'navigation-activity'
-                      : 'navigation-chats',
+                      : item.sessions
+                        ? 'sessions-tab'
+                        : 'navigation-chats',
                 ),
                 semantics({
                   contentDescription:

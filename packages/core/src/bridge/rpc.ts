@@ -503,6 +503,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'assignmentTimeline',
   'sessionSubagents',
   'sessionProgress',
+  'sessionList',
   'sessionTranscript',
   'sessionModel',
   'sessionLive',

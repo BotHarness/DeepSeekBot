@@ -93,6 +93,7 @@ it('updates mounted settings and theme immediately and preserves unrelated state
     expect(saved).toEqual({
       language: 'zh',
       appearance: 'dark',
+      sessionsTab: false,
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
     });

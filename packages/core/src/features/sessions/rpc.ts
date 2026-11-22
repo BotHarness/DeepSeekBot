@@ -4,12 +4,9 @@ import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import type { SessionModelState } from '@botharness/host-protocol/session-model';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type { TurnTrace } from '../../bots/tool-trace.js';
-import type { SessionTranscript } from '../../runtime/session-transcript.js';
 import type { SessionToolDetail } from '../../runtime/session-tool-detail.js';
-import type { SessionRootRole } from '../../sessions/ownership.js';
 import type { ManualCompactionResult } from '../../runtime/idle-compaction.js';
 import type { IdleCompactionView, OwnedSessionBot, SessionsBridgeMethods } from './methods.js';
-import type { SessionsAdapterMethods } from './methods.js';
 
 export function botNewSession(
   methods: SessionsBridgeMethods,
@@ -124,21 +121,13 @@ export function compactionThresholdSet(
 
 export function sessionModel(
   methods: SessionsBridgeMethods,
-  slug: string,
+  slug: string | null,
   sessionId: string,
   choice?: unknown,
 ): Promise<SessionModelState> {
   return unwrapAsync(
     methods.sessionModel({ slug, sessionId, ...(choice === undefined ? {} : { choice }) }),
   );
-}
-
-export function sessionTranscript(
-  methods: SessionsBridgeMethods,
-  slug: string,
-  sessionId: string,
-): Promise<{ sessionId: string; role: SessionRootRole } & SessionTranscript> {
-  return unwrapAsync(methods.sessionTranscript({ slug, sessionId }));
 }
 
 export function sessionToolDetail(
@@ -193,15 +182,6 @@ export function botSessionIds(methods: SessionsBridgeMethods): {
   return unwrap(methods.botSessionIds({}));
 }
 
-export function sessionMessageSend(
-  methods: SessionsAdapterMethods,
-  botSlug: string,
-  sessionId: string,
-  text: string,
-): Promise<{ sourceEventId: string }> {
-  return unwrapAsync(methods.sessionMessageSend({ botSlug, sessionId, text }));
-}
-
 class SessionListRpc {
   declare readonly methods: BridgeMethods;
 
@@ -250,12 +230,8 @@ export const sessionControlRpc = {
     return channelBotStop(this.methods, channelId, botSlug, autoContinueFor);
   },
 
-  sessionMessageSend(
-    botSlug: string,
-    sessionId: string,
-    text: string,
-  ): Promise<{ sourceEventId: string }> {
-    return sessionMessageSend(this.methods, botSlug, sessionId, text);
+  sessionMessageSend(botSlug: string | null, sessionId: string, text: string) {
+    return unwrapAsync(this.methods.sessionMessageSend({ botSlug, sessionId, text }));
   },
 
   sessionStop(
@@ -310,19 +286,20 @@ export const compactionSettingsRpc = {
 } satisfies ThisType<BridgeRpcReceiver>;
 
 export const sessionDetailsRpc = {
-  sessionModel(slug: string, sessionId: string, choice?: unknown): Promise<SessionModelState> {
+  sessionModel(
+    slug: string | null,
+    sessionId: string,
+    choice?: unknown,
+  ): Promise<SessionModelState> {
     return sessionModel(this.methods, slug, sessionId, choice);
   },
 
-  sessionTranscript(
-    slug: string,
-    sessionId: string,
-  ): Promise<{ sessionId: string; role: SessionRootRole } & SessionTranscript> {
-    return sessionTranscript(this.methods, slug, sessionId);
+  sessionTranscript(slug: string | null, sessionId: string) {
+    return unwrapAsync(this.methods.sessionTranscript({ slug, sessionId }));
   },
 
   sessionLive(
-    slug: string,
+    slug: string | null,
     sessionId: string,
     after?: number,
   ): Promise<{ sessionId: string } & SessionLiveSnapshot> {
@@ -342,6 +319,10 @@ export const sessionDetailsRpc = {
 
 export const sessionListRpc = {
   sessions: SessionListRpc.prototype.sessions,
+
+  sessionList() {
+    return unwrapAsync(this.methods.sessionList({}));
+  },
 
   botToolTrace(
     slug: string,

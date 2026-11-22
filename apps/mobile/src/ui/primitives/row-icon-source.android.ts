@@ -30,6 +30,7 @@ export const ROW_ICON_SOURCES: Record<
   background: require('../../../assets/row-icons/background.xml'),
   haptics: require('../../../assets/row-icons/haptics.xml'),
   delivery: require('../../../assets/row-icons/delivery.xml'),
+  sessions: require('../../../assets/toolbar/sessions.xml'),
   sendJump: require('../../../assets/row-icons/sendJump.xml'),
   messageDisplay: require('../../../assets/row-icons/messageDisplay.xml'),
   streaming: require('../../../assets/row-icons/streaming.xml'),

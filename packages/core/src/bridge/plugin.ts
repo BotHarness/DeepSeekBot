@@ -6,6 +6,7 @@ import type * as approvalsFeature from '../features/approvals/plugin.js';
 import type * as workspacesFeature from '../features/workspaces/plugin.js';
 import { readSessionTitles } from '../runtime/session-transcript.js';
 import type { SessionLiveStreams } from '../runtime/session-live.js';
+import type { NativeSessions } from '../features/sessions/host-sessions.js';
 import { contextSources } from '../runtime/context-sources.js';
 import { contextCapacity } from '../runtime/context-window.js';
 import { messageText, systemPromptFromLog } from '../runtime/prompt-inspection.js';
@@ -73,6 +74,7 @@ export function createHostBridgeDependencies(
     modelCatalog: ReturnType<typeof models.createCatalog>['modelCatalog'];
     modelReadiness: ReturnType<typeof models.createCatalog>['modelReadiness'];
     sessionLive: SessionLiveStreams;
+    nativeSessions: NativeSessions;
     takeovers: ReturnType<typeof createCoreTakeoverHandoffs>;
     folders: ReturnType<typeof workspacesFeature.mountFolders>;
     mountedToolApproval: ReturnType<typeof approvalsFeature.mount>['toolApproval'];
@@ -316,6 +318,7 @@ export function createHostBridgeDependencies(
     memory: core.memory,
     ...(core.usage === undefined ? {} : { usage: core.usage }),
     sessionLive,
+    nativeSessions: deps.nativeSessions,
     sessionModels: sessionModelChoices(
       attachOperationalModule(core.operationalDatabase, 'bot-runtime'),
     ),

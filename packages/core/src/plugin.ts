@@ -56,6 +56,7 @@ import { createHostCoreOptions } from './host-core-options.js';
 import { createHostBridgeDependencies } from './bridge/plugin.js';
 import { describeToolCall } from './features/sessions/plugin.js';
 import * as sessionsFeature from './features/sessions/plugin.js';
+import { dshHostSessions } from './features/sessions/dsh-host-sessions.js';
 import * as channelsFeature from './features/channels/plugin.js';
 import * as channelFilesFeature from './features/channel-files/plugin.js';
 import * as appearanceFeature from './features/appearance/plugin.js';
@@ -572,6 +573,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     modelCatalog,
     modelReadiness,
     sessionLive,
+    nativeSessions: dshHostSessions(ctx, dshSessions),
     takeovers,
     folders,
     mountedToolApproval,
