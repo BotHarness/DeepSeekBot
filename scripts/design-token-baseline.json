@@ -112,10 +112,6 @@
   "packages/client/src/client/channel-add-people.tsx": {
     "rawControl": 1
   },
-  "packages/client/src/client/channel-composer.tsx": {
-    "dshImport": 1,
-    "rawControl": 10
-  },
   "packages/client/src/client/channel-delivery-receipt.tsx": {
     "rawControl": 2,
     "inlineStyle": 1
@@ -230,6 +226,16 @@
   },
   "packages/client/src/client/features/channel-files/styles.ts": {
     "legacyCss": 63
+  },
+  "packages/client/src/client/features/channels/channel-composer.tsx": {
+    "rawControl": 1
+  },
+  "packages/client/src/client/features/channels/composer-attachments.tsx": {
+    "dshImport": 1,
+    "rawControl": 6
+  },
+  "packages/client/src/client/features/channels/composer-mention-options.tsx": {
+    "rawControl": 3
   },
   "packages/client/src/client/features/channels/styles.ts": {
     "legacyCss": 152,
