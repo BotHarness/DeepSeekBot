@@ -11,7 +11,6 @@
     "packages/browser/test/browser-tools.test.ts",
     "packages/browser/test/runtime.test.ts",
     "packages/client/src/client/activity-list-view.tsx",
-    "packages/client/src/client/avatar-appearance-editor.tsx",
     "packages/client/src/client/bot-main.tsx",
     "packages/client/src/client/channel-dock.tsx",
     "packages/client/src/client/channel-message-body.tsx",
