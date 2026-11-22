@@ -14,9 +14,6 @@
   "packages/client/src/client/activity-list-detail-controls.tsx": {
     "rawControl": 2
   },
-  "packages/client/src/client/activity-list-view.tsx": {
-    "rawControl": 4
-  },
   "packages/client/src/client/anchored-panel.ts": {
     "dshImport": 1
   },
@@ -28,9 +25,6 @@
   },
   "packages/client/src/client/assignment-work.tsx": {
     "lineBorder": 3
-  },
-  "packages/client/src/client/avatar-appearance-editor.tsx": {
-    "rawControl": 11
   },
   "packages/client/src/client/behavior-permission-settings.tsx": {
     "rawControl": 1
@@ -131,10 +125,6 @@
     "dshImport": 1,
     "rawControl": 2
   },
-  "packages/client/src/client/channel-sidebar-builtins.tsx": {
-    "rawControl": 2,
-    "lineBorder": 1
-  },
   "packages/client/src/client/channel-sidebar-settings.tsx": {
     "rawControl": 2
   },
@@ -206,6 +196,9 @@
   "packages/client/src/client/environment-panel.tsx": {
     "rawControl": 2
   },
+  "packages/client/src/client/features/activity/activity-list-view.tsx": {
+    "rawControl": 4
+  },
   "packages/client/src/client/features/activity/styles.ts": {
     "legacyCss": 131,
     "lineBorder": 9
@@ -220,6 +213,12 @@
   "packages/client/src/client/features/assignments/styles.ts": {
     "legacyCss": 1
   },
+  "packages/client/src/client/features/avatars/avatar-appearance-editor.tsx": {
+    "rawControl": 10
+  },
+  "packages/client/src/client/features/avatars/avatar-editor-options.tsx": {
+    "rawControl": 1
+  },
   "packages/client/src/client/features/avatars/styles.ts": {
     "legacyCss": 46,
     "lineBorder": 3
@@ -227,7 +226,14 @@
   "packages/client/src/client/features/channel-files/styles.ts": {
     "legacyCss": 63
   },
+  "packages/client/src/client/features/channels/bot-inbox-entry.tsx": {
+    "rawControl": 1,
+    "lineBorder": 1
+  },
   "packages/client/src/client/features/channels/channel-composer.tsx": {
+    "rawControl": 1
+  },
+  "packages/client/src/client/features/channels/channel-sidebar-builtins.tsx": {
     "rawControl": 1
   },
   "packages/client/src/client/features/channels/composer-attachments.tsx": {

@@ -114,6 +114,7 @@ const tail = (hostId: string, channelId: string, ids: string[]) => {
         at: '2026-11-05T00:00:00Z',
         author: { kind: 'bot', slug: 'ada' },
         body: `secret ${id}`,
+        sessionLinks: [{ sessionId: `session-${id}`, kind: 'created', title: `Private ${id}` }],
         attachments: [{ fileId: `file:${id}`, name: 'p.png', mime: 'image/png', size: 1 }],
       },
     })),
@@ -155,6 +156,8 @@ describe('purges reach the phone’s caches', () => {
     const entries = await read('mac-a', 'c1');
     expect(entries[0]!.message).toMatchObject({ id: 'm1', body: '', contentPurge: {} });
     expect(entries[0]!.message.attachments).toBeUndefined();
+    expect(entries[0]!.message.sessionLinks).toBeUndefined();
+    expect(entries[1]!.message.sessionLinks?.[0]?.title).toBe('Private m2');
     expect(entries[1]!.message).toMatchObject({ id: 'm2', body: 'secret m2' });
   });
 

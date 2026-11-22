@@ -1,5 +1,8 @@
 import { providerBrand } from '@botharness/host-client/shared/model-brand';
-import type { ModelProvidersView } from '@botharness/host-client/model-providers';
+import {
+  loadModelProviders,
+  type ModelProvidersView,
+} from '@botharness/host-client/model-providers';
 import type { SubscriptionModel } from '@botharness/host-client/model-plans';
 import { Button } from './ds/button.js';
 import { ChoiceButton } from './ds/choice-button.js';
@@ -608,18 +611,16 @@ function InlineModelProvider({
   };
   const mount = useMountedResource<HTMLDivElement>(() => {
     const request = new AbortController();
-    void bridgeHost(call, request.signal)
-      .call<ModelProvidersView>('modelProviders')
-      .then(
-        (result) => {
-          if (request.signal.aborted) return;
-          setView(result);
-          setRefreshing(false);
-        },
-        () => {
-          if (!request.signal.aborted) setFailed(true);
-        },
-      );
+    void loadModelProviders(bridgeHost(call, request.signal)).then(
+      (result) => {
+        if (request.signal.aborted) return;
+        setView(result);
+        setRefreshing(false);
+      },
+      () => {
+        if (!request.signal.aborted) setFailed(true);
+      },
+    );
     return () => request.abort();
   }, [call, retry]);
   return (

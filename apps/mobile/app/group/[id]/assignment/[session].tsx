@@ -1,1 +1,1 @@
-export { AssignmentScreen as default } from '../../../../src/ui/chat/assignment-screen';
+export { SessionDetailScreen as default } from '../../../../src/ui/chat/session-detail-screen';
