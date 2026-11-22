@@ -4,6 +4,7 @@ A paired iPhone or Android phone, or the Mac or Windows desktop Client (`desktop
 
 ## Sources
 
+- `packages/core/src/features/voice/plugin.ts`
 - `packages/core/src/voice/call*.ts`
 - `packages/core/src/voice/{harvest,keyframes,vad}.ts`
 - `packages/core/src/bots/cli-call.ts`
