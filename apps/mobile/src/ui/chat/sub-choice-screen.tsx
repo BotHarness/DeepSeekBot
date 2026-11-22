@@ -38,6 +38,7 @@ import { useEngineOptions } from './sub-choice-engines';
 import {
   failedNote,
   forgetFailedNote,
+  pendingNote,
   rememberFailedNote,
   sharedNoteQueue,
   type NoteQueue,
@@ -104,7 +105,9 @@ function SubChoiceDetail({
   const choice = sub?.choices.find((entry) => subChoiceKey(entry) === choiceKey);
   const scopeKey = modelScopeKey(scope);
   const draftKey = `${hostId}:${scopeKey}:${choiceKey}`;
-  const [note, setNote] = useState<string | undefined>(() => failedNote(draftKey)?.text);
+  const [note, setNote] = useState<string | undefined>(
+    () => pendingNote(draftKey) ?? failedNote(draftKey)?.text,
+  );
   const [noteError, setNoteError] = useState<string | undefined>(() => failedNote(draftKey)?.error);
   const resource = useMemo(() => modelSettingsResource(client, scope), [client, scopeKey]);
   const notes = useRef<NoteQueue | undefined>(undefined);
@@ -171,7 +174,8 @@ function SubChoiceDetail({
   };
   const shownNote = note ?? choice.note ?? '';
   const commitNote = () => {
-    if (note !== undefined) notes.current?.commit(note, choice.note ?? '');
+    if (note !== undefined && notes.current?.commit(note, choice.note ?? '') === true)
+      forgetFailedNote(draftKey);
   };
   leave.current = commitNote;
   return page(

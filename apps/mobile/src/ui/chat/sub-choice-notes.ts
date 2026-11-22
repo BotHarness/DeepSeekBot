@@ -1,5 +1,6 @@
 export interface NoteQueue {
   commit(text: string, saved: string): boolean;
+  pending(): string | undefined;
   settled(): Promise<void>;
 }
 
@@ -31,6 +32,7 @@ export function noteQueue(
       );
       return true;
     },
+    pending: () => pending?.text,
     settled: () => chain,
   };
 }
@@ -61,6 +63,10 @@ export interface NoteHandlers {
 }
 
 const sharedQueues = new Map<string, { queue: NoteQueue; handlers: NoteHandlers }>();
+
+export function pendingNote(key: string): string | undefined {
+  return sharedQueues.get(key)?.queue.pending();
+}
 
 export function sharedNoteQueue(key: string, handlers: NoteHandlers): NoteQueue {
   const entry = sharedQueues.get(key);

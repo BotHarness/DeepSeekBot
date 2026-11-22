@@ -4,6 +4,7 @@ import {
   failedNote,
   forgetFailedNote,
   noteQueue,
+  pendingNote,
   rememberFailedNote,
   sharedNoteQueue,
 } from '../src/ui/chat/sub-choice-notes';
@@ -170,4 +171,29 @@ it('accepts a note again after it saved and another client changed it', async ()
   expect(queue.commit('A', '')).toBe(true);
   await queue.settled();
   expect(queue.commit('A', 'B')).toBe(true);
+});
+
+it('restores the newer pending note, not an older failed draft, when the page reopens', async () => {
+  const key = 'host-a:preset:p:reopen';
+  let finishB: () => void = () => undefined;
+  const handlers = {
+    write: async (text: string) => {
+      if (text === 'A') throw new Error('stale');
+      await new Promise<void>((resolve) => (finishB = resolve));
+    },
+    onSaved: () => forgetFailedNote(key),
+    onError: (cause: unknown, text: string) =>
+      rememberFailedNote(key, { text, error: (cause as Error).message }),
+  };
+  const firstVisit = sharedNoteQueue(key, handlers);
+  firstVisit.commit('A', '');
+  await firstVisit.settled();
+  expect(failedNote(key)?.text).toBe('A');
+  if (firstVisit.commit('B', '')) forgetFailedNote(key);
+  expect(failedNote(key)).toBeUndefined();
+  expect(pendingNote(key) ?? failedNote(key)?.text).toBe('B');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  finishB();
+  await firstVisit.settled();
+  expect(pendingNote(key)).toBeUndefined();
 });
