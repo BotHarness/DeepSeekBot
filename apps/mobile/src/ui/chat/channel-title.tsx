@@ -48,8 +48,8 @@ export function ChannelTitle({
   const members = channel === undefined || person ? undefined : t.members(channel.memberCount);
   const chip = (press: () => void) => (
     <HeaderTitleButton
+      kind="button"
       testID="channel-details-chip"
-      accessibilityRole="button"
       accessibilityLabel={[
         name,
         members,

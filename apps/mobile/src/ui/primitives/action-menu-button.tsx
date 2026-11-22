@@ -19,6 +19,9 @@ export type MenuAction = {
     | 'folder'
     | 'chat'
     | 'share'
+    | 'archive'
+    | 'unarchive'
+    | 'model'
     | 'stop';
   run(): void;
   destructive?: boolean;

@@ -101,7 +101,7 @@ vi.mock('react-native', async () => {
           onClick={props['onPress'] as (() => void) | undefined}
           onTouchStart={typeof touch === 'function' ? () => touch() : undefined}
         >
-          {children as never}
+          {(typeof children === 'function' ? children({ pressed: false }) : children) as never}
         </div>
       );
     };
@@ -209,7 +209,7 @@ vi.mock('react-native-svg', () => ({
   Rect: () => null,
 }));
 
-const { MessageBubble, DraftBubble, deliveryLabel, secondTap, replyable } =
+const { BubbleBody, MessageBubble, DraftBubble, deliveryLabel, secondTap, replyable } =
   await import('../src/ui/chat/message-bubble');
 const { createSpeakerRegistry } = await import('../src/ui/chat/speaker-row');
 const { t } = await import('../src/ui/strings');
@@ -240,6 +240,174 @@ const human = (overrides: Partial<ConversationMessage>): ConversationMessage => 
   attachments: [],
   delivery: 'committed',
   ...overrides,
+});
+
+describe('linked Sessions', () => {
+  const message = human({
+    author: 'bot',
+    bot: 'ada',
+    body: 'I queued the review and sent a follow-up.',
+    sessionLinks: [
+      { sessionId: 'review', kind: 'created', title: 'Release review' },
+      { sessionId: 'follow-up', kind: 'sent', title: 'Follow up' },
+    ],
+  });
+
+  it.each(['ios', 'android'])(
+    'keeps message actions and Session chips separately accessible on %s',
+    async (os) => {
+      native.os = os;
+      const measurement = await import('../src/ui/primitives/measure-message-view');
+      const measure = vi
+        .spyOn(measurement, 'measureMessageView')
+        .mockImplementation((_view, then) => {
+          then(16, 400, 200, 60);
+        });
+      try {
+        const onLongPress = vi.fn();
+        const onOpenSession = vi.fn();
+        const onOpenReply = vi.fn();
+        const holder = document.createElement('div');
+        holder.innerHTML = renderToStaticMarkup(
+          <MessageBubble
+            message={{
+              ...message,
+              replyTo: 'original',
+              replyPreview: {
+                author: { kind: 'human', humanId: 'human' },
+                body: 'How is the review?',
+              },
+            }}
+            onLongPress={onLongPress}
+            onOpenSession={onOpenSession}
+            onOpenReply={onOpenReply}
+          />,
+        );
+        const actionTarget = holder.querySelector(
+          '[data-accessible="true"][data-accessibilityactions]',
+        );
+        const chip = holder.querySelector('[data-testid="message-session-review"]');
+        expect(actionTarget?.getAttribute('data-accessibilitylabel')).toBe(message.body);
+        expect(actionTarget?.getAttribute('data-accessibilityactions')).toContain('longpress');
+        expect(actionTarget?.getAttribute('data-accessibilityactions')).toContain('reply-original');
+        expect(chip?.getAttribute('data-accessibilityrole')).toBe('button');
+        expect(actionTarget?.contains(chip)).toBe(false);
+        native.presses.get(t.sessionDetail.open('Release review'))?.();
+        expect(onOpenSession).toHaveBeenCalledOnce();
+        expect(onLongPress).not.toHaveBeenCalled();
+        native.actions.get(message.body)?.({ nativeEvent: { actionName: 'longpress' } });
+        expect(onLongPress).toHaveBeenCalledOnce();
+        native.actions.get(message.body)?.({ nativeEvent: { actionName: 'reply-original' } });
+        expect(onOpenReply).toHaveBeenCalledExactlyOnceWith('original');
+        native.longPresses.find((gesture) => gesture.enabled)?.start();
+        expect(onLongPress).toHaveBeenCalledTimes(2);
+      } finally {
+        measure.mockRestore();
+      }
+    },
+  );
+
+  it('keeps actions available for a reply containing only a Session chip', () => {
+    const holder = document.createElement('div');
+    holder.innerHTML = renderToStaticMarkup(
+      <MessageBubble message={{ ...message, body: '' }} onOpenSession={() => {}} />,
+    );
+    const actionTarget = holder.querySelector(
+      '[data-accessible="true"][data-accessibilityactions]',
+    );
+    expect(actionTarget?.getAttribute('data-accessibilitylabel')).toBe(t.messageActions);
+    expect(actionTarget?.getAttribute('data-accessibilityactions')).toContain('longpress');
+  });
+  it('places sent and created Session chips around the text inside the bubble and opens the selected Session', () => {
+    const onOpenSession = vi.fn();
+    const holder = document.createElement('div');
+    holder.innerHTML = renderToStaticMarkup(
+      <BubbleBody
+        message={message}
+        group={{ first: true, last: true }}
+        onOpenSession={onOpenSession}
+      />,
+    );
+    expect(holder.children).toHaveLength(1);
+    const bubble = holder.firstElementChild!;
+    const text = bubble.querySelector('[data-markdown]')!;
+    const sent = bubble.querySelector('[data-testid="message-session-follow-up"]')!;
+    const created = bubble.querySelector('[data-testid="message-session-review"]')!;
+    expect(text?.getAttribute('data-markdown')).toBe(message.body);
+    expect(sent.textContent).toBe('Follow up');
+    expect(created.textContent).toBe('Release review');
+    expect(sent.compareDocumentPosition(text) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(text.compareDocumentPosition(created) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    native.presses.get(t.sessionDetail.open('Release review'))?.();
+    expect(onOpenSession).toHaveBeenCalledWith(
+      { sessionId: 'review', kind: 'created', title: 'Release review' },
+      'ada',
+    );
+  });
+
+  it('folds multiple links by kind and shows the warning next to the matching Session', async () => {
+    const holder = document.createElement('div');
+    const root = createRoot(holder);
+    const onOpenSession = vi.fn();
+    const second = { sessionId: 'proof', kind: 'created', title: 'Check evidence' } as const;
+    const needs = new Map([['proof', 'waiting-human']] as const);
+    const title = t.sessionDetail.linkCount('created', 2);
+    const toggle = () => holder.querySelector('[data-testid="message-session-toggle-created"]');
+    try {
+      await act(() =>
+        root.render(
+          <BubbleBody
+            message={{ ...message, sessionLinks: [...message.sessionLinks!, second] }}
+            group={{ first: true, last: true }}
+            onOpenSession={onOpenSession}
+            sessionLinkNeeds={needs}
+          />,
+        ),
+      );
+      expect(toggle()?.getAttribute('data-accessibilitystate')).toBe('{"expanded":false}');
+      expect(holder.textContent).toContain('Follow up');
+      expect(holder.textContent).not.toContain(second.title);
+      await act(() => native.presses.get(title)?.());
+      expect(toggle()?.getAttribute('data-accessibilitystate')).toBe('{"expanded":true}');
+      expect(holder.textContent).toContain(
+        second.title + t.sessionDetail.linkNeeds['waiting-human'],
+      );
+      const chip = holder.querySelector('[data-testid="message-session-proof"]');
+      await act(() => native.presses.get(chip?.getAttribute('data-accessibilitylabel') ?? '')?.());
+      expect(onOpenSession).toHaveBeenCalledWith(second, 'ada');
+      await act(() => native.presses.get(title)?.());
+      expect(holder.textContent).not.toContain(second.title);
+      expect(holder.textContent).toContain('Follow up');
+    } finally {
+      await act(() => root.unmount());
+    }
+  });
+
+  it('omits Session chips from a purged message even when cached links are present', () => {
+    const markup = renderToStaticMarkup(
+      <BubbleBody
+        message={{
+          ...message,
+          body: '',
+          source: {
+            channelId: 'dm-ada',
+            revision: 1,
+            message: {
+              id: message.id,
+              at: message.at,
+              body: '',
+              author: { kind: 'bot', slug: 'ada' },
+              contentPurge: {},
+            },
+          },
+        }}
+        group={{ first: true, last: true }}
+        onOpenSession={vi.fn()}
+      />,
+    );
+    expect(markup).not.toContain('message-session-');
+    expect(markup).not.toContain('Release review');
+  });
 });
 
 describe('GenUI keyboard interaction', () => {

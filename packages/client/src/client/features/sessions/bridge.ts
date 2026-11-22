@@ -15,6 +15,7 @@ import {
   sessionOwner,
   sendOrchestratorMessage as messageOrchestrator,
   sendSessionRequest as requestSession,
+  setSessionArchived as archiveSession,
   sessionTranscript,
 } from '@botharness/host-client/session-detail';
 import type {
@@ -459,8 +460,7 @@ export async function setSessionArchived(
   sessionId: string,
   archived: boolean,
 ): Promise<boolean> {
-  const value = asRecord(await unwrap(call, 'sessionArchiveSet', { slug, sessionId, archived }));
-  return value?.['archived'] === true;
+  return archiveSession(bridgeHost(call), slug, sessionId, archived);
 }
 
 export type StoppedSessionRef = WireStoppedSessionRef;

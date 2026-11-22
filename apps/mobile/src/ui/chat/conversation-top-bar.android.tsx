@@ -1,6 +1,7 @@
 import {
   CircularProgressIndicator,
   Column,
+  DropdownMenu,
   Host,
   Icon,
   IconButton,
@@ -18,6 +19,7 @@ import {
   size,
   testID,
   weight,
+  width,
 } from '@expo/ui/jetpack-compose/modifiers';
 import { View } from 'react-native';
 import { useState } from 'react';
@@ -26,13 +28,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BotAvatar } from '../bot-avatar';
 import { useDesignTheme } from '../design/theme';
 import { composeIsland } from '../design/island-compose.android';
-import { materialIconButton, radius, space } from '../design/tokens';
+import { materialIconButton, materialMenu, radius, space } from '../design/tokens';
+import { MaterialMenuGroup } from '../primitives/material-menu.android';
+import { MenuIcon } from '../primitives/menu-icon';
 import { useStrings } from '../strings';
 import type { ConversationTopBarProps } from './conversation-top-bar';
 import { ChatHeaderSurface } from './chat-header-surface.android';
 import { GroupMark } from './group-mark';
 import { HeaderBotStack } from './header-bot-stack';
 export function ConversationTopBar({
+  variant,
   title,
   subtitle,
   bot,
@@ -43,6 +48,7 @@ export function ConversationTopBar({
   onBack,
   onProfile,
   onCall,
+  menu,
   onHeight,
   selection,
 }: ConversationTopBarProps) {
@@ -50,6 +56,7 @@ export function ConversationTopBar({
   const insets = useSafeAreaInsets();
   const t = useStrings();
   const [height, setHeight] = useState(0);
+  const [menuOpen, setMenuOpen] = useState(false);
   const mark = materialIconButton.container;
   const islandHeight = Math.max(
     theme.touch,
@@ -84,7 +91,7 @@ export function ConversationTopBar({
       onLayout={(event) => {
         const next = event.nativeEvent.layout.height;
         setHeight(next);
-        onHeight(next);
+        onHeight?.(next);
       }}
       style={{
         position: 'absolute',
@@ -181,23 +188,30 @@ export function ConversationTopBar({
                 horizontalArrangement={{ spacedBy: space.x3 }}
                 modifiers={[
                   nativeHeight(islandHeight),
-                  padding(space.x2, space.x2, space.x4, space.x2),
+                  padding(
+                    variant === 'session' ? space.x4 : space.x2,
+                    space.x2,
+                    space.x4,
+                    space.x2,
+                  ),
                 ]}
               >
-                <RNHostView modifiers={[size(mark, mark)]}>
-                  <View accessible={false} importantForAccessibility="no-hide-descendants">
-                    {bot === undefined ? (
-                      <GroupMark
-                        avatar={avatar}
-                        {...(initial === undefined ? {} : { initial })}
-                        size={mark}
-                        corner={radius.round}
-                      />
-                    ) : (
-                      <BotAvatar bot={bot} size={mark} ring={false} />
-                    )}
-                  </View>
-                </RNHostView>
+                {variant === 'session' ? null : (
+                  <RNHostView modifiers={[size(mark, mark)]}>
+                    <View accessible={false} importantForAccessibility="no-hide-descendants">
+                      {bot === undefined ? (
+                        <GroupMark
+                          avatar={avatar}
+                          {...(initial === undefined ? {} : { initial })}
+                          size={mark}
+                          corner={radius.round}
+                        />
+                      ) : (
+                        <BotAvatar bot={bot} size={mark} ring={false} />
+                      )}
+                    </View>
+                  </RNHostView>
+                )}
                 <Column modifiers={[weight(1)]}>
                   <Text
                     style={{ typography: 'titleMedium', fontWeight: 'bold' }}
@@ -244,7 +258,49 @@ export function ConversationTopBar({
                 )}
               </Row>
             </Surface>
-            {onCall === undefined && onProfile === undefined ? null : (
+            {menu !== undefined ? (
+              <DropdownMenu
+                expanded={menuOpen}
+                onDismissRequest={() => setMenuOpen(false)}
+                color="transparent"
+                shadowElevation={0}
+              >
+                <DropdownMenu.Trigger>
+                  <Surface {...island} modifiers={islandLook}>
+                    {action(
+                      menu.testID,
+                      menu.label,
+                      require('../../../assets/header/more-vert.xml'),
+                      () => setMenuOpen(true),
+                    )}
+                  </Surface>
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Items>
+                  <Column modifiers={[width(materialMenu.width)]}>
+                    <MaterialMenuGroup
+                      items={menu.items.map((item) => ({
+                        key: item.testID,
+                        testID: item.testID,
+                        label: item.label,
+                        disabled: item.disabled === true,
+                        destructive: item.destructive === true,
+                        icon: (
+                          <MenuIcon
+                            icon={item.icon}
+                            color={item.destructive ? theme.color.danger : theme.color.fg}
+                            size={materialMenu.iconSize}
+                          />
+                        ),
+                        onPress: () => {
+                          setMenuOpen(false);
+                          item.run();
+                        },
+                      }))}
+                    />
+                  </Column>
+                </DropdownMenu.Items>
+              </DropdownMenu>
+            ) : onCall === undefined && onProfile === undefined ? null : (
               <Surface {...island} modifiers={[...islandLook, testID('chat-action-island')]}>
                 <Row verticalAlignment="center">
                   {onCall === undefined

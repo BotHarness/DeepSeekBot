@@ -8,6 +8,8 @@ import type {
 
 import type { ConversationMessage } from '@botharness/host-client/conversation';
 
+export type FollowedRow = { id: string; author?: ConversationMessage['author'] };
+
 export const LATEST_SLOP = 40;
 export const SETTLE_FRAMES = 45;
 export const STABLE_FRAMES = 6;
@@ -46,16 +48,13 @@ export function latestOffset(
   return Math.max(0 - start, metrics.content + (metrics.inset ?? 0) - metrics.layout);
 }
 
-export function unseenSince(
-  messages: readonly ConversationMessage[],
-  anchor: string | undefined,
-): number {
+export function unseenSince(messages: readonly FollowedRow[], anchor: string | undefined): number {
   const start =
     anchor === undefined ? 0 : messages.findLastIndex((message) => message.id === anchor) + 1;
   if (anchor !== undefined && start === 0) return 0;
   let count = 0;
   for (let index = start; index < messages.length; index += 1)
-    if (messages[index]!.author !== 'human') count += 1;
+    if (messages[index]!.author !== undefined && messages[index]!.author !== 'human') count += 1;
   return count;
 }
 
@@ -63,7 +62,7 @@ type ScrollEvent = NativeSyntheticEvent<NativeScrollEvent>;
 
 export function useFollowLatest<Row>(
   list: RefObject<Pick<FlatList<Row>, 'scrollToOffset'> | null>,
-  messages: readonly ConversationMessage[],
+  messages: readonly FollowedRow[],
   onFollowingChange?: (following: boolean) => void,
   start = 0,
   empty = false,

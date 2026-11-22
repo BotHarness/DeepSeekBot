@@ -68,10 +68,13 @@ export function NativePageHeader({ title, onBack, backID, action, call }: Native
           <ChatHeaderRow
             title={title}
             back={{ label: t.back, testID: backID, onPress: onBack }}
-            actions={[
-              ...(call === undefined ? [] : [{ icon: 'call' as const, ...call }]),
-              ...(action === undefined ? [] : [{ icon: 'more' as const, ...action }]),
-            ]}
+            controls={{
+              kind: 'actions',
+              actions: [
+                ...(call === undefined ? [] : [{ icon: 'call' as const, ...call }]),
+                ...(action === undefined ? [] : [{ icon: 'more' as const, ...action }]),
+              ],
+            }}
           />
         </ScreenStackHeaderCenterView>
       </ScreenStackHeaderConfig>

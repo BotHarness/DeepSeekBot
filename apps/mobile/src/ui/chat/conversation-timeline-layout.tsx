@@ -1,27 +1,28 @@
 import type { useProfilePaging } from './profile-paging';
 import { Platform, type NativeScrollEvent, type NativeSyntheticEvent, View } from 'react-native';
 import Animated from 'react-native-reanimated';
-import { ComposerFollower, ComposerSpacer } from './composer-pill';
-import { EdgeFade } from './header-chrome';
-import { glassHeader } from './native-header';
+import {
+  ChatTimelineLoading,
+  ChatTimelineOverlays,
+  chatLatestSpacer,
+  chatTimelineListLayout,
+  type useChatInitialScroll,
+} from './chat-timeline-chrome';
 import { ChatList } from '../primitives/chat-list';
 import type { usePullToCompose } from './pull-to-compose';
 import { SwipeOpen } from '../shell/swipe-open';
 import { PullToComposeHint } from './pull-to-compose-hint';
-import { JumpToLatest } from './jump-to-latest';
 import { HumanAvatarClientContext } from '../../host/human-profile';
-import { LatestAnchor } from './latest-anchor';
 import { SpeakerAnchor } from './speaker-anchor';
 import { SPEAKER_VIEWPORT } from './speaker-span';
 import { SpeakerStageContext } from './speaker-row';
 import { SendFlightsContext } from './send-fly';
-import { edge, edgeFade, space } from '../design/tokens';
+import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { MarkdownViewportContext } from '../markdown-viewport';
 import type { useStrings } from '../strings';
-import { ListSkeleton } from '../primitives/list-skeleton';
 import { Button } from '../primitives/button';
-import type { ContextType, ReactElement } from 'react';
+import type { ContextType } from 'react';
 import type { useConversationSource } from './conversation-source';
 import type { useConversationScrollState, useConversationFocusJump } from './conversation-focus';
 import type { useConversationTimeline, useConversationTimelineRows } from './conversation-timeline';
@@ -46,13 +47,8 @@ export function renderConversationTimeline({
   stackRoot,
   pull,
   markdownViewport,
-  ios,
-  openAtLatest,
-  openedAtLatest,
-  listTop,
-  topFade,
+  initialScroll,
   fadeColor,
-  bottomFade,
   source,
   scrollState,
   timeline,
@@ -74,13 +70,8 @@ export function renderConversationTimeline({
   stackRoot: boolean;
   pull: ReturnType<typeof usePullToCompose>;
   markdownViewport: ContextType<typeof MarkdownViewportContext>;
-  ios: boolean;
-  openAtLatest: boolean;
-  openedAtLatest: boolean;
-  listTop: number;
-  topFade: number;
+  initialScroll: ReturnType<typeof useChatInitialScroll>;
   fadeColor: string;
-  bottomFade: ReactElement;
   source: Pick<
     ReturnType<typeof useConversationSource>,
     'client' | 'dm' | 'person' | 'conversation' | 'snapshot'
@@ -113,6 +104,7 @@ export function renderConversationTimeline({
   const { viewport, attachList, latest } = timeline;
   const { composerHeight, viewportHeight, viewportLayout, stage, flights, composable } = composer;
   const { rows } = timelineRows;
+  const { key, ...initialScrollProps } = initialScroll;
   const { jump } = focusJump;
   const {
     nativeRows,
@@ -138,52 +130,20 @@ export function renderConversationTimeline({
             <HumanAvatarClientContext.Provider value={client}>
               <SendFlightsContext.Provider value={flights}>
                 <ChatList
-                  key={openedAtLatest || (openAtLatest && rows.length > 0) ? 'rows' : 'list'}
-                  inverted={android}
-                  {...(android
-                    ? {
-                        initialNumToRender: 6,
-                        maxToRenderPerBatch: 6,
-                        windowSize: 5,
-                      }
-                    : openAtLatest
-                      ? {
-                          initialScrollIndex: Math.max(0, rows.length - 1),
-                          initialNumToRender: 4,
-                        }
-                      : {})}
+                  key={key}
+                  {...initialScrollProps}
                   ref={attachList}
                   renderScrollComponent={latest.renderScrollComponent}
-                  removeClippedSubviews={false}
                   CellRendererComponentStyle={cellLayer}
-                  style={{
-                    flex: 1,
-                    opacity: latest.ready || rows.length === 0 ? 1 : 0,
-                  }}
-                  pointerEvents={!latest.ready && rows.length > 0 ? 'none' : 'auto'}
-                  accessibilityElementsHidden={!latest.ready && rows.length > 0}
-                  importantForAccessibility={
-                    !latest.ready && rows.length > 0 ? 'no-hide-descendants' : 'auto'
-                  }
-                  contentInsetAdjustmentBehavior="automatic"
-                  contentInset={{ bottom: -listSafeArea }}
-                  automaticallyAdjustsScrollIndicatorInsets
-                  scrollToOverflowEnabled
-                  contentContainerStyle={{
-                    minHeight: Math.max(
-                      0,
-                      viewportHeight -
-                        headerOverlap +
-                        (Platform.OS === 'android' ? edge.hairline : 0),
-                    ),
-                    justifyContent: android ? 'flex-start' : 'flex-end',
-                    paddingTop: android ? composerHeight + edgeFade.bottom : space.x3 + listTop,
-                    paddingBottom: android
-                      ? space.x3 + headerPadding
-                      : nativeSpacer
-                        ? 0
-                        : composerHeight + edgeFade.bottom,
-                  }}
+                  {...chatTimelineListLayout({
+                    headerOverlap,
+                    headerPadding,
+                    listSafeArea,
+                    nativeSpacer,
+                    viewportHeight,
+                    composerHeight,
+                    ready: latest.ready || rows.length === 0,
+                  })}
                   data={rows}
                   keyExtractor={(row) => row.key}
                   {...((nativeRows
@@ -263,25 +223,11 @@ export function renderConversationTimeline({
                       : 32
                   }
                   {...{
-                    [android ? 'ListHeaderComponent' : 'ListFooterComponent']:
-                      LatestAnchor === undefined ? undefined : nativeSpacer ? (
-                        <ComposerSpacer pill={latest.pill} extra={edgeFade.bottom}>
-                          <LatestAnchor
-                            following={latest.ready && !latest.away}
-                            animated={!latest.reducedMotion}
-                            style={{ height: 0 }}
-                          />
-                        </ComposerSpacer>
-                      ) : (
-                        <LatestAnchor
-                          following={latest.ready && !latest.away}
-                          animated={!latest.reducedMotion}
-                          style={{ height: 0 }}
-                        />
-                      ),
+                    [android ? 'ListHeaderComponent' : 'ListFooterComponent']: chatLatestSpacer(
+                      latest,
+                      nativeSpacer,
+                    ),
                   }}
-                  keyboardDismissMode={ios ? 'interactive' : 'on-drag'}
-                  keyboardShouldPersistTaps="never"
                   {...{
                     [android ? 'ListFooterComponent' : 'ListHeaderComponent']:
                       snapshot.loadingOlder || snapshot.olderError ? (
@@ -328,65 +274,29 @@ export function renderConversationTimeline({
           {!missing &&
           ((!latest.ready && rows.length > 0) ||
             (snapshot.status === 'opening' && rows.length === 0)) ? (
-            <View
-              pointerEvents={latest.canRetry ? 'auto' : 'none'}
-              style={{
-                position: 'absolute',
-                top: listTop,
-                bottom: composerHeight + edgeFade.bottom,
-                left: 0,
-                right: 0,
-                justifyContent: 'flex-end',
-              }}
-            >
-              <ListSkeleton layout="messages" />
-              {latest.canRetry ? (
-                <Button
-                  label={t.retry}
-                  variant="text"
-                  testID="history-loading-retry"
-                  onPress={latest.retry}
-                />
-              ) : null}
-            </View>
-          ) : null}
-          {topFade > 0 ? (
-            <EdgeFade
-              edge="top"
-              height={topFade + (glassHeader ? space.x6 : edgeFade.reach)}
-              cover={glassHeader ? 0 : topFade}
-              color={fadeColor}
+            <ChatTimelineLoading
+              latest={latest}
+              headerPadding={headerPadding}
+              composerHeight={composerHeight}
             />
           ) : null}
-          {nativeSpacer ? (
-            <ComposerFollower pill={latest.pill} measured={composerHeight}>
-              {bottomFade}
-            </ComposerFollower>
-          ) : (
-            bottomFade
-          )}
-          {(composable || stackRoot) && Platform.OS === 'ios' ? (
-            <PullToComposeHint
-              progress={pull.progress}
-              ready={pull.ready}
-              bottom={composerHeight + space.x3}
-              leaves={stackRoot}
-            />
-          ) : null}
-          {latest.away ? (
-            <View
-              pointerEvents="box-none"
-              style={{
-                position: 'absolute',
-                bottom: composerHeight + space.x2,
-                left: 0,
-                right: space.x4,
-                alignItems: 'flex-end',
-              }}
-            >
-              <JumpToLatest unseen={latest.unseen} onPress={latest.jumpToLatest} />
-            </View>
-          ) : null}
+          <ChatTimelineOverlays
+            color={fadeColor}
+            headerOverlap={headerOverlap}
+            headerPadding={headerPadding}
+            nativeSpacer={nativeSpacer}
+            latest={latest}
+            composerHeight={composerHeight}
+          >
+            {(composable || stackRoot) && Platform.OS === 'ios' ? (
+              <PullToComposeHint
+                progress={pull.progress}
+                ready={pull.ready}
+                bottom={composerHeight + space.x3}
+                leaves={stackRoot}
+              />
+            ) : null}
+          </ChatTimelineOverlays>
         </Animated.View>
       </Animated.View>
     </SwipeOpen>

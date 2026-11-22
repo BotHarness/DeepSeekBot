@@ -143,8 +143,8 @@ export function useConversationProfile({
   };
   const pairChip = (press: (() => void) | undefined) => (
     <HeaderTitleButton
+      kind="button"
       testID="channel-details-chip"
-      accessibilityRole="button"
       accessibilityLabel={[botDmName, connectionLabel].filter(Boolean).join(', ')}
       android_ripple={{ color: pressTint(theme.color.fg), borderless: false }}
       accessibilityState={{ busy: connectionLabel !== undefined }}
@@ -326,28 +326,31 @@ export function conversationHeader({
       <ChatHeaderRow
         title={title}
         back={{ label: t.back, testID: 'chat-back-button', onPress: leave }}
-        actions={[
-          ...(placeCall === undefined
-            ? []
-            : [
-                {
-                  icon: 'call' as const,
-                  label: t.call.button,
-                  testID: 'chat-call-button',
-                  onPress: placeCall,
-                },
-              ]),
-          ...(canOpenProfile
-            ? [
-                {
-                  icon: 'more' as const,
-                  label: t.openProfile,
-                  testID: 'chat-profile-button',
-                  onPress: openProfile,
-                },
-              ]
-            : []),
-        ]}
+        controls={{
+          kind: 'actions',
+          actions: [
+            ...(placeCall === undefined
+              ? []
+              : [
+                  {
+                    icon: 'call' as const,
+                    label: t.call.button,
+                    testID: 'chat-call-button',
+                    onPress: placeCall,
+                  },
+                ]),
+            ...(canOpenProfile
+              ? [
+                  {
+                    icon: 'more' as const,
+                    label: t.openProfile,
+                    testID: 'chat-profile-button',
+                    onPress: openProfile,
+                  },
+                ]
+              : []),
+          ],
+        }}
       />
     ) : null;
   const back = <HeaderBackButton plain={!headerIslands} onPress={leave} />;
