@@ -66,7 +66,7 @@ export function engineLoginUrl(line: string): string | undefined {
   return LOGIN_URL.exec(stripVTControlCharacters(line))?.[0];
 }
 
-export function stopLoginProcessTree(child: ChildProcess): void | Promise<void> {
+function stopLoginProcessTree(child: ChildProcess): void | Promise<void> {
   const { pid } = child;
   if (pid === undefined) return;
   if (process.platform === 'win32') {
@@ -84,7 +84,7 @@ export function stopLoginProcessTree(child: ChildProcess): void | Promise<void> 
   }
 }
 
-export function spawnEngineLogin(target: EngineCommand, args: string[], acceptsInput: boolean) {
+function spawnEngineLogin(target: EngineCommand, args: string[], acceptsInput: boolean) {
   const spec = launch(target, args);
   return spawn(spec.file, spec.args, {
     env: spec.env,
@@ -96,18 +96,39 @@ export function spawnEngineLogin(target: EngineCommand, args: string[], acceptsI
   });
 }
 
+interface EngineLoginTarget extends EngineCommand, EngineLoginProcess {
+  name: string;
+  label: string;
+  onCodeInput?(submit: EngineLoginCodeInput): void;
+}
+
+interface DeviceLoginOutput {
+  onLine(line: string, url: string | undefined): number | undefined;
+}
+
+type LoginFailure = 'failed' | 'cancelled' | 'timed-out';
+type DeviceLoginExit = 'completed' | LoginFailure;
+type BrowserLoginStart = { url?: string };
+
 export function startEngineLogin(
-  target: EngineCommand &
-    EngineLoginProcess & {
-      name: string;
-      label: string;
-      onCodeInput?(submit: EngineLoginCodeInput): void;
-    },
+  target: EngineLoginTarget,
   args: string[],
-  timeoutMs = 10_000,
-): Promise<{ url?: string }> {
+  timeoutMs?: number,
+): Promise<BrowserLoginStart>;
+export function startEngineLogin(
+  target: EngineLoginTarget,
+  args: string[],
+  output: DeviceLoginOutput,
+): Promise<DeviceLoginExit>;
+export function startEngineLogin(
+  target: EngineLoginTarget,
+  args: string[],
+  output: number | DeviceLoginOutput = 10_000,
+): Promise<BrowserLoginStart | DeviceLoginExit> {
   const command = `${target.name} ${args.join(' ')}`;
   const manual = target.onCodeInput !== undefined;
+  const device = typeof output === 'number' ? undefined : output;
+  const maxLineLength = device === undefined ? 8192 : 4096;
   return new Promise((resolve, reject) => {
     const child = spawnEngineLogin(target, args, manual);
     let acceptsCode = false;
@@ -143,36 +164,55 @@ export function startEngineLogin(
     }
     let tail = '';
     let settled = false;
-    let failure: EngineRefusal | undefined;
+    let failure: { kind: LoginFailure; error: EngineRefusal } | undefined;
     let termination: void | Promise<void>;
-    const finish = (outcome: { url?: string } | Error) => {
+    let timer: ReturnType<typeof setTimeout>;
+    const finish = (outcome: BrowserLoginStart | DeviceLoginExit | Error) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
       if (outcome instanceof Error) reject(outcome);
       else resolve(outcome);
     };
-    const stop = (error: EngineRefusal) => {
+    const stop = (kind: LoginFailure, error: EngineRefusal) => {
       if (failure !== undefined) return;
-      failure = error;
+      failure = { kind, error };
+      clearTimeout(timer);
       termination = stopLoginProcessTree(child);
     };
-    const abort = () => stop(new EngineRefusal('engine-failed', `${command} was cancelled`));
-    const timer = setTimeout(
-      () =>
-        stop(
-          new EngineRefusal(
-            'engine-failed',
-            `${command} did not print a sign-in URL${tail.trim() ? `: ${tail.trim()}` : ''}`,
+    const abort = () =>
+      stop('cancelled', new EngineRefusal('engine-failed', `${command} was cancelled`));
+    const resetTimer = (timeoutMs: number) => {
+      clearTimeout(timer);
+      timer = setTimeout(
+        () =>
+          stop(
+            'timed-out',
+            new EngineRefusal(
+              'engine-failed',
+              `${command} did not print a sign-in URL${tail.trim() ? `: ${tail.trim()}` : ''}`,
+            ),
           ),
-        ),
-      timeoutMs,
-    );
-    const reader = () => {
+        timeoutMs,
+      );
+    };
+    resetTimer(typeof output === 'number' ? output : 10_000);
+    const readLine = (line: string) => {
+      if (settled || failure !== undefined) return;
+      if (device !== undefined) {
+        const text = line.slice(-maxLineLength);
+        const expiresIn = device.onLine(stripVTControlCharacters(text), engineLoginUrl(text));
+        if (expiresIn !== undefined) resetTimer(expiresIn);
+      } else {
+        if (!manual) tail = `${tail}${line}\n`.slice(-2000);
+        const url = engineLoginUrl(line);
+        if (url !== undefined) finish({ url });
+      }
+    };
+    const read = (stream: ChildProcess['stdout']) => {
       let partial = '';
       let promptTail = '';
-      return (chunk: Buffer) => {
-        const output = chunk.toString('utf8');
+      stream?.setEncoding('utf8').on('data', (output: string) => {
         if (manual) {
           const prompt = promptTail + output;
           if (CODE_PROMPT.test(prompt)) {
@@ -181,20 +221,17 @@ export function startEngineLogin(
           } else promptTail = prompt.slice(-160);
         }
         if (settled || failure !== undefined) return;
-        const text = partial + output;
-        const lines = text.split(/\r?\n/u);
-        partial = (lines.pop() ?? '').slice(-8192);
-        for (const line of lines) {
-          if (!manual) tail = `${tail}${line}\n`.slice(-2000);
-          const url = engineLoginUrl(line);
-          if (url !== undefined) finish({ url });
-        }
-      };
+        const lines = (partial + output).split(/\r?\n/u);
+        partial = (lines.pop() ?? '').slice(-maxLineLength);
+        for (const line of lines) readLine(line);
+      });
+      if (device !== undefined) stream?.on('end', () => readLine(partial));
     };
-    child.stdout?.on('data', reader());
-    child.stderr?.on('data', reader());
+    read(child.stdout);
+    read(child.stderr);
     child.on('error', (error: NodeJS.ErrnoException) => {
-      failure ??=
+      if (failure !== undefined) return;
+      const refusal =
         error.code === 'ENOENT'
           ? new EngineRefusal(
               'engine-not-installed',
@@ -202,15 +239,17 @@ export function startEngineLogin(
             )
           : new EngineRefusal(
               'engine-failed',
-              `${command} did not start${manual ? '' : `: ${error.message}`}`,
+              `${command} did not start${manual || device !== undefined ? '' : `: ${error.message}`}`,
             );
+      stop('failed', refusal);
     });
     child.on('close', (code) => {
       exited = true;
       target.signal?.removeEventListener('abort', abort);
       void Promise.resolve(termination).then(() => {
         target.onExit?.();
-        if (failure !== undefined) finish(failure);
+        if (device !== undefined) finish(failure?.kind ?? (code === 0 ? 'completed' : 'failed'));
+        else if (failure !== undefined) finish(failure.error);
         else if (code === 0) finish({});
         else
           finish(

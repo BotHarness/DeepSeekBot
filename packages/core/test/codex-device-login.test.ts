@@ -177,6 +177,10 @@ setInterval(() => {}, 1000);
 it.skipIf(process.platform === 'win32').each([
   ['expired', 'setInterval(() => {}, 1000);'],
   [
+    'expired',
+    "setTimeout(() => { process.stderr.write('Error logging in with device code: device authorization expired'); process.exitCode = 42; }, 350);",
+  ],
+  [
     'failed',
     "setTimeout(() => { process.stderr.write('private-provider-output'); process.exitCode = 42; }, 350);",
   ],
