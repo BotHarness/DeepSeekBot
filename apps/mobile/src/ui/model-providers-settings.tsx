@@ -357,23 +357,24 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
   const ticker = useMounted<ViewInstance>(() => {
     const timer = setInterval(() => {
       setTick((tick) => tick + 1);
-      if (signingSince.current === undefined) return;
-      if (Date.now() - signingSince.current > SIGN_IN_LIMIT_MS) {
+      const since = signingSince.current;
+      if (since === undefined) return;
+      const expired = Date.now() - since > SIGN_IN_LIMIT_MS;
+      const finish = (timedOut: boolean) => {
+        if (signingSince.current !== since) return;
         signingSince.current = undefined;
         setSignInUrl(undefined);
         setCopied(false);
-        setSignInError('timeout');
-        return;
-      }
+        if (timedOut) setSignInError('timeout');
+      };
       read().then(
         (next) => {
-          if (next?.available) {
-            signingSince.current = undefined;
-            setSignInUrl(undefined);
-            setCopied(false);
-          }
+          if (next?.available) finish(false);
+          else if (expired) finish(true);
         },
-        () => undefined,
+        () => {
+          if (expired) finish(true);
+        },
       );
     }, 5_000);
     return () => clearInterval(timer);

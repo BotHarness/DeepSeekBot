@@ -288,3 +288,32 @@ it('keeps refresh busy until the account read finishes and times out an unfinish
     vi.useRealTimers();
   }
 });
+
+it('treats a sign-in that finished while the timer was late as signed in, not timed out', async () => {
+  vi.useFakeTimers();
+  try {
+    let accounts = accountsFixture(Date.now());
+    const port: ProviderAccountPort = {
+      accounts: vi.fn(async () => accounts),
+      refresh: vi.fn(async () => 'ok' as const),
+      signIn: vi.fn(async () => ({ url: 'https://example.org/sign-in' })),
+      cancelSignIn: vi.fn(async () => undefined),
+    };
+    const view = await render(<ProviderAccountSettings port={port} id="codex-b" />);
+    await act(async () => button(view, t.modelProviders.signIn)!.click());
+    expect(view.textContent).toContain(t.modelProviders.signInOnComputer);
+    accounts = {
+      ...accounts,
+      accounts: accounts.accounts.map((account) =>
+        account.id === 'codex-b' ? { ...account, available: true } : account,
+      ),
+    };
+    vi.setSystemTime(Date.now() + 300_000);
+    await act(async () => vi.advanceTimersByTime(5_000));
+    await act(async () => undefined);
+    expect(view.textContent).not.toContain(t.modelProviders.signInTimedOut);
+    expect(view.textContent).toContain(t.modelProviders.signedIn);
+  } finally {
+    vi.useRealTimers();
+  }
+});
