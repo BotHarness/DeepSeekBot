@@ -333,6 +333,7 @@ export {
   chooseModelPlanGroup,
   setModelPlanAssignments,
   setModelPlan,
+  setModelPlanSub,
 } from './features/models/bridge.js';
 export type {
   ModelRouteView,

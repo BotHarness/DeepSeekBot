@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 import {
+  addTask,
   button,
   catalog,
   choose,
+  labelled,
   openPicker,
   picked,
+  taskTiles,
   translate,
 } from './model-preset-profile-fixtures.js';
 import { type Root } from 'react-dom/client';
@@ -88,7 +91,7 @@ describe('Subscription models in the model dialog', () => {
       modelPlanState: async () => ({ plan }),
       modelCatalog: async () => ({ models: catalog }),
       modelPresets: async () => presets,
-      setModelPlan: set,
+      setModelPlanSub: set,
       applyModelPreset: apply,
     } as unknown as BridgeActions;
     return { actions, read, use, apply, set };
@@ -107,16 +110,19 @@ describe('Subscription models in the model dialog', () => {
         )!
         .click(),
     );
-    await choose('Task model', 'gpt-6', 'GPT-6 Subscription');
+    await act(async () => labelled('Remove Flash').click());
+    await addTask('gpt-6', 'GPT-6 Subscription');
     expect(picked('Main model')).toBe('GPT-6 Subscription');
-    expect(picked('Task model')).toBe('GPT-6 Subscription');
+    expect(taskTiles()).toEqual([expect.stringMatching(/^GPT-6 Subscription.*Default/)]);
     expect(use).not.toHaveBeenCalled();
     await act(async () => button('Save').click());
+    expect(set).toHaveBeenCalledExactlyOnceWith('ada', 7, expect.anything(), {
+      choices: [{ kind: 'engine', engine: 'codex', model: 'gpt-6', effort: 'medium' }],
+      default: { kind: 'engine', engine: 'codex', model: 'gpt-6' },
+    });
     expect(use.mock.calls).toEqual([
       ['ada', 'orchestrator', 'codex', { model: 'gpt-6', effort: 'high' }],
-      ['ada', 'assignment', 'codex', { model: 'gpt-6', effort: 'medium' }],
     ]);
-    expect(set).not.toHaveBeenCalled();
   });
 
   it('persists an explicit model for an engine configured before model selection was available', async () => {
@@ -131,7 +137,7 @@ describe('Subscription models in the model dialog', () => {
     });
   });
 
-  it('shows the current engine model and clears only the role changed to a DSH route', async () => {
+  it('moves a live task engine into the saved list and clears the old role selection', async () => {
     const choice = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
     const { actions, use, set } = fixture([
       { ...choice, role: 'orchestrator' },
@@ -139,10 +145,23 @@ describe('Subscription models in the model dialog', () => {
     ]);
     await render(markOriginActions(actions), vi.fn());
     expect(picked('Main model')).toBe('GPT-6 Subscription');
+    expect(taskTiles()).toEqual([
+      expect.stringContaining('Flash'),
+      expect.stringMatching(/^GPT-6 Subscription.*Default/),
+    ]);
     await choose('Main model', 'pro', 'Pro');
     await act(async () => button('Save').click());
-    expect(set).toHaveBeenCalledOnce();
-    expect(use).toHaveBeenCalledExactlyOnceWith('ada', 'orchestrator', null, {});
+    expect(set).toHaveBeenCalledExactlyOnceWith('ada', 7, expect.anything(), {
+      choices: [
+        expect.objectContaining({ kind: 'model', model: 'flash' }),
+        { kind: 'engine', engine: 'codex', model: 'gpt-6', effort: 'high' },
+      ],
+      default: { kind: 'engine', engine: 'codex', model: 'gpt-6' },
+    });
+    expect(use.mock.calls).toEqual([
+      ['ada', 'orchestrator', null, {}],
+      ['ada', 'assignment', null, {}],
+    ]);
     expect(set.mock.invocationCallOrder[0]).toBeLessThan(use.mock.invocationCallOrder[0]!);
   });
 
@@ -164,7 +183,7 @@ describe('Subscription models in the model dialog', () => {
     );
     await render(markOriginActions(actions), vi.fn());
     expect(picked('Main model')).toBe('GPT-6 Subscription');
-    expect(picked('Task model')).toBe('GPT-6 Subscription');
+    expect(taskTiles()).toContainEqual(expect.stringContaining('GPT-6 Subscription'));
 
     await act(async () => button('Choose preset').click());
     const row = [
@@ -173,7 +192,7 @@ describe('Subscription models in the model dialog', () => {
     await act(async () => row.click());
     await act(async () => button('Specific models').click());
     expect(picked('Main model')).toBe('Flash');
-    expect(picked('Task model')).toBe('Pro');
+    expect(taskTiles()).toEqual([expect.stringContaining('Pro')]);
     expect(button('Save').disabled).toBe(false);
     expect(apply).not.toHaveBeenCalled();
 

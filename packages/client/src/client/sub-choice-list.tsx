@@ -10,6 +10,7 @@ import { Button } from './ds/button.js';
 import { Icon } from './ds/icon.js';
 import { IconButton } from './ds/icon-button.js';
 import { Input } from './ds/input.js';
+import { Note } from './ds/note.js';
 import { ListCard, ListCardItem, aboveListToggle } from './ds/list-card.js';
 import { SegmentedControl } from './ds/segmented.js';
 import { Tag } from './ds/tag.js';
@@ -146,18 +147,14 @@ export function SubChoiceList({
             : [...choice.allowedEfforts, effort],
         };
       case 'group': {
-        const { defaultEffort: _effort, allowedEfforts, ...rest } = choice;
-        if (effort === '') return allowedEfforts === undefined ? rest : { ...rest, allowedEfforts };
+        const { defaultEffort: _effort, allowedEfforts: _allowed, ...rest } = choice;
+        if (effort === '') return rest;
+        const shared = effortsOf(choice).map((entry) => entry.id);
+        const allowed = choice.allowedEfforts ?? shared;
         return {
           ...rest,
+          allowedEfforts: allowed.includes(effort) ? allowed : [...allowed, effort],
           defaultEffort: effort,
-          ...(allowedEfforts === undefined
-            ? {}
-            : {
-                allowedEfforts: allowedEfforts.includes(effort)
-                  ? allowedEfforts
-                  : [...allowedEfforts, effort],
-              }),
         };
       }
       case 'engine': {
@@ -235,6 +232,10 @@ export function SubChoiceList({
     const effort = effortOf(choice);
     const effortName = efforts.find((entry) => entry.id === effort)?.name;
     const expanded = open === key;
+    const stale =
+      choice.kind === 'group' &&
+      choice.allowedEfforts !== undefined &&
+      choice.allowedEfforts.some((id) => !efforts.some((entry) => entry.id === id));
     const detailId = `${id}-${index}`;
     return (
       <ListCardItem
@@ -281,9 +282,22 @@ export function SubChoiceList({
         }
         detailId={detailId}
         detail={
-          expanded ? (
+          expanded || stale ? (
             <div {...stylex.props(styles.detail)}>
-              {efforts.length > 0 ? (
+              {stale ? (
+                <Note tone="warning">
+                  {t('modelPreset.groupEffortsStale')}{' '}
+                  <Button
+                    type="button"
+                    variant="text"
+                    disabled={busy}
+                    onClick={() => replace(index, withEffort(choice, ''))}
+                  >
+                    {t('modelPreset.groupEffortsClear')}
+                  </Button>
+                </Note>
+              ) : null}
+              {expanded && efforts.length > 0 ? (
                 <div {...stylex.props(styles.field)}>
                   <span>{t('modelPreset.effort')}</span>
                   <SegmentedControl
@@ -299,18 +313,20 @@ export function SubChoiceList({
                   />
                 </div>
               ) : null}
-              <Input
-                aria-label={t('modelPreset.noteLabel', { model: name })}
-                placeholder={t('modelPreset.notePlaceholder')}
-                value={choice.note ?? ''}
-                maxLength={500}
-                disabled={busy}
-                onChange={(event) => {
-                  const note = event.target.value;
-                  const { note: _note, ...rest } = choice;
-                  replace(index, (note === '' ? rest : { ...rest, note }) as SubChoice);
-                }}
-              />
+              {expanded ? (
+                <Input
+                  aria-label={t('modelPreset.noteLabel', { model: name })}
+                  placeholder={t('modelPreset.notePlaceholder')}
+                  value={choice.note ?? ''}
+                  maxLength={500}
+                  disabled={busy}
+                  onChange={(event) => {
+                    const note = event.target.value;
+                    const { note: _note, ...rest } = choice;
+                    replace(index, (note === '' ? rest : { ...rest, note }) as SubChoice);
+                  }}
+                />
+              ) : null}
             </div>
           ) : undefined
         }
