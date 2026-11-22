@@ -84,7 +84,7 @@ type PickerRow =
   | { kind: 'group'; group: ModelCatalogGroup; front: ModelCatalogEntry | undefined }
   | { kind: 'preset'; preset: ModelPreset };
 
-function useModels(client: HostClient, scope: ModelScope) {
+export function useModels(client: HostClient, scope: ModelScope) {
   const key = modelScopeKey(scope);
   const resource = useMemo(() => modelSettingsResource(client, scope), [client, key]);
   const [value, setValue] = useState(resource.peek);
