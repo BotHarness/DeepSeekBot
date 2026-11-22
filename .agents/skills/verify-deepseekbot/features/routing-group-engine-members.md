@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/models/plugin.ts`
 - `packages/core/src/models/{routing-groups,group-fallback}.ts`
 - `packages/core/src/models/routing-group-engine-options.ts`
 - `packages/core/src/runtime/{bot-runtime,dsh-bot-agent-adapter,dsh-bot-agent-adapter-*}.ts`

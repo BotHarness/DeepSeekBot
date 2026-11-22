@@ -222,13 +222,36 @@ export async function refreshAccountQuota(host: HostCall, id: string): Promise<Q
     : 'unavailable';
 }
 
-export async function signInAccount(host: HostCall, id: string): Promise<{ url?: string }> {
-  const url = record(await host.call('engineAccountLogin', { id }))?.['url'];
-  return text(url) ? { url } : {};
+export async function signInAccount(
+  host: HostCall,
+  id: string,
+  mode?: 'device-auth',
+): Promise<{ url?: string; attemptId?: string }> {
+  const answer = record(
+    await host.call('engineAccountLogin', { id, ...(mode === undefined ? {} : { mode }) }),
+  );
+  const url = answer?.['url'];
+  const attemptId = answer?.['attemptId'];
+  return {
+    ...(text(url) ? { url } : {}),
+    ...(text(attemptId) ? { attemptId } : {}),
+  };
 }
 
-export async function cancelAccountSignIn(host: HostCall, id: string): Promise<void> {
-  await host.call('engineAccountLoginCancel', { id });
+export async function cancelAccountSignIn(
+  host: HostCall,
+  id: string,
+  attemptId?: string,
+): Promise<{ cancelled: boolean } | void> {
+  const answer = record(
+    await host.call('engineAccountLoginCancel', {
+      id,
+      ...(attemptId === undefined ? {} : { attemptId }),
+    }),
+  );
+  return typeof answer?.['cancelled'] === 'boolean'
+    ? { cancelled: answer['cancelled'] }
+    : undefined;
 }
 
 export async function addAccount(

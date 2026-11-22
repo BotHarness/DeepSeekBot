@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/messaging/plugin.ts`
 - `packages/client/src/client/{reception-status,thread-reception-settings,external-identity-list}.tsx`
 - `packages/core/src/messaging/{external-reception,reception-history,reception-paths}.ts`
 

@@ -1,3 +1,8 @@
+import {
+  BOT_ZIP_EXPORT_PATH,
+  BOT_ZIP_FILES_PATH,
+  BOT_ZIP_IMPORT_PATH,
+} from '../../bots/bot-zip-http.js';
 import { randomUUID } from 'node:crypto';
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
@@ -154,14 +159,46 @@ export function createZipTransfer(ctx: Context, deps: Pick<BotZipHttpDeps, 'regi
   });
 }
 
-type RegisterZipRoute = (fetch: ReturnType<typeof createBotZipHttp>) => () => Promise<void>;
-
 export function mountZipRoutes(
   ctx: Context,
+  routes: () => {
+    register(route: {
+      path: string;
+      methods: readonly ('GET' | 'POST')[];
+      requestBody: 'buffered' | 'streaming';
+      fetch(request: Request): Promise<Response>;
+    }): () => Promise<void>;
+  },
   fetch: ReturnType<typeof createBotZipHttp>,
-  routes: { export: RegisterZipRoute; files: RegisterZipRoute; import: RegisterZipRoute },
 ): void {
-  ctx.effect(() => routes.export(fetch), 'botharness: Bot Zip export');
-  ctx.effect(() => routes.files(fetch), 'botharness: Bot Zip file list');
-  ctx.effect(() => routes.import(fetch), 'botharness: Bot Zip import');
+  ctx.effect(
+    () =>
+      routes().register({
+        path: BOT_ZIP_EXPORT_PATH,
+        methods: ['GET', 'POST'],
+        requestBody: 'buffered',
+        fetch,
+      }),
+    'botharness: Bot Zip export',
+  );
+  ctx.effect(
+    () =>
+      routes().register({
+        path: BOT_ZIP_FILES_PATH,
+        methods: ['GET'],
+        requestBody: 'buffered',
+        fetch,
+      }),
+    'botharness: Bot Zip file list',
+  );
+  ctx.effect(
+    () =>
+      routes().register({
+        path: BOT_ZIP_IMPORT_PATH,
+        methods: ['POST'],
+        requestBody: 'streaming',
+        fetch,
+      }),
+    'botharness: Bot Zip import',
+  );
 }

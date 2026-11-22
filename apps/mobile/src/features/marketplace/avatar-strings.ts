@@ -2,6 +2,7 @@ export const avatarEn = {
   bots: 'Bots',
   title: 'Avatars',
   browse: 'Marketplace',
+  choose: 'Browse Marketplace',
   pair: 'Pair a Host to browse and apply Marketplace Avatars.',
   search: 'Search Avatars',
   tags: 'Tags',
@@ -34,6 +35,7 @@ export const avatarEn = {
   tooSmall: 'The crop must be at least 256 pixels wide and tall.',
   imageError: 'Could not prepare this image for the Marketplace.',
   apply: 'Apply',
+  applyTo: (name: string) => 'Apply to ' + name,
   candidates: 'Choose a Bot',
   noCandidates: 'No Bots whose Avatars you can change.',
 
@@ -56,6 +58,7 @@ export const avatarZh: typeof avatarEn = {
   bots: 'Bot',
   title: '头像',
   browse: '市场',
+  choose: '浏览头像市场',
   pair: '配对一个主机后，即可浏览并应用市场头像。',
   search: '搜索头像',
   tags: '标签',
@@ -87,6 +90,7 @@ export const avatarZh: typeof avatarEn = {
   tooSmall: '裁剪区域的宽和高都必须至少为 256 像素。',
   imageError: '无法处理这张图片以发布到市场。',
   apply: '应用',
+  applyTo: (name) => '应用到 ' + name,
   candidates: '选择 Bot',
   noCandidates: '没有可更换头像的 Bot。',
 

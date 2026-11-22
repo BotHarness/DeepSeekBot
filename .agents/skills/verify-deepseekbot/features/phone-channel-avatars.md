@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/avatars/plugin.ts`
 - `packages/core/src/features/channels/{management-methods,rpc}.ts`
 - `packages/client/src/client/features/appearance/bridge.ts`
 - `apps/mobile/src/host/{bot-avatar,group-channel}.ts`
@@ -20,7 +21,7 @@ Editable group/Bot portraits, explicit Change avatar and Remove avatar rows, sha
 ## How to get to it (user POV)
 
 - Group: Chats → group → title → tap the large avatar or Change avatar. Chat background is a separate row.
-- DM: Chats → Bot → title/profile → tap the large Bot portrait or Change avatar. Open Tilties in the Bot avatar settings to browse all 36 built-in portraits in one gallery, and choose a portrait near the end. Chat background remains a separate setting, including for a Bot whose DM id is not yet cached.
+- DM: Chats → Bot → title/profile → tap the large Bot portrait or Change avatar in Settings. Both paths open the same chooser with Photos and the complete Pixel, Line, and Tilties preset galleries. Open Tilties and choose a portrait near the end of its 36-item gallery. Chat background remains a separate setting, including for a Bot whose DM id is not yet cached.
 
 ## Driving it with verify-app
 
@@ -30,8 +31,10 @@ Follow the shared-device queues in docs/agents/device-qa.md and the task resourc
 2. Set an avatar through both the large portrait and the explicit row. Accept a task-owned photo/crop. Group saves affect only that group; Bot saves update the Bot in its DM, Chats and group member rows. Read the saved group through deepseekbot channel and the Bot through deepseekbot show, then reload.
 3. Open each Chat background setting. It edits the existing phone-local Host/Channel scope, not the group/Bot avatar. Set a color/photo, confirm and reopen. Changing/removing an avatar must preserve both chats' backgrounds; changing a background must preserve both avatars. A Bot with no cached DM id must resolve its DM before opening the background editor.
 4. On the Bot profile, open Name, type a new name and Save. The profile heading, DM/Chats and group member row must show it while the Bot id, avatar and chat backgrounds remain unchanged. Cancel leaves the old name; blank/unchanged names cannot save; a refusal retains the draft for retry. The existing get/update contract carries the observed profile fingerprint.
-5. Cancel, dismiss and use native Back from the picker; the saved image remains. Repeated portrait/row taps and Remove avatar cannot overlap a pending pick/save. Picker/save refusals show an actionable error and allow retry. Removing a custom avatar restores the default portrait.
-6. Repeat iOS and Android independently, light/dark × default/intermediate/maximum system text. Save accessible snapshots, screenshots and Host readback. Expo Web proves only the rendered Expo view, web file picker and Host save; native photo crop, permissions, storage and gestures need their own evidence.
+5. From the Profile header, rename the Bot and a Group using their name chips. Read back each name on the same Host. With Marketplace Avatars enabled, browse from Change avatar, open a listing, and confirm the current Bot is the only target. Check the editable Appearance warning and apply, then read back the new Avatar. In the standalone Marketplace, confirm that Apply still opens the eligible Bot chooser.
+6. Tap the Bot Profile Banner and choose a photo. Inspect the 3:1 preview, save, read back the Banner on the Host, and compare with desktop after reload. Restore the default from Settings. Cancel a new crop and verify the saved Banner stays in place.
+7. Cancel, dismiss and use native Back from the picker; the saved image remains. Repeated portrait/row taps and Remove avatar cannot overlap a pending pick/save. Picker/save refusals show an actionable error and allow retry. Removing a custom avatar restores the default portrait.
+8. Repeat iOS and Android independently, light/dark × default/intermediate/maximum system text. Save accessible snapshots, screenshots and Host readback. Expo Web proves only the rendered Expo view, web file picker and Host save; native photo crop, permissions, storage and gestures need their own evidence.
 
 Focused tests: apps/mobile/test/group-info.test.tsx, bot-profile-sheet.test.tsx, bot-avatar.test.ts, bot-background-entry.test.tsx, chat-background-screen.test.tsx and chat-background.test.ts.
 

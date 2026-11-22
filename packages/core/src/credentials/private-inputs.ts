@@ -696,6 +696,7 @@ export class PrivateInputs {
       return refuse('not-pending', pending.botSlug, messageId);
     const fields = pending.request.fields;
     if (
+      !Object.values(values).some((value) => value.length > 0) ||
       Object.keys(values).some((key) => !fields.some((field) => field.id === key)) ||
       fields.some((field) => field.required && (values[field.id]?.length ?? 0) === 0)
     )

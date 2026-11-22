@@ -8,6 +8,7 @@ The Host activity readers remain available independently of the retired Overview
 
 ## Sources
 
+- `packages/core/src/features/activity/plugin.ts`
 - `packages/core/src/live-activity/*.ts`
 - `packages/core/src/bots/cli-live-activity.ts`
 - `packages/core/src/state/{dsh-activity,tool-activity}.ts`

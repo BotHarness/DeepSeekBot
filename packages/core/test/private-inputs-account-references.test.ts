@@ -3,7 +3,66 @@ import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import type { Agent } from '@deepseek-ai/dsh-agent';
 import { describe, expect, it, vi } from 'vitest';
 
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((complete) => {
+    resolve = complete;
+  });
+  return { promise, resolve };
+}
+
 describe('private input native authority and reference contract', () => {
+  it('aborts active private-input uses and ready replies before deleting the revoked grant', async () => {
+    const source = origin();
+    const replySignal = deferred<AbortSignal>();
+    const f = await fixture(true, undefined, {
+      origin: () => source.lease,
+      notify: async () => {},
+      replyAuthority: (_bot, _id, authority) => {
+        replySignal.resolve(authority.signal);
+        return () => {};
+      },
+    });
+    const waiting = f.owner.ask(f.agent, declaration, new AbortController().signal);
+    await vi.waitFor(() => expect(f.channels.readMessages('dm-ada')).toHaveLength(1));
+    const messageId = f.channels.readMessages('dm-ada')[0]!.id;
+    await f.owner.submit(true, { channelId: 'dm-ada', messageId, values });
+    const { references } = await waiting;
+    const reply = await replySignal.promise;
+    const started = deferred<AbortSignal>();
+    const use = f.owner.consume(
+      f.agent,
+      declaration.account,
+      references,
+      async (_values, signal) => {
+        started.resolve(signal);
+        await new Promise<void>((resolve) =>
+          signal.addEventListener('abort', () => resolve(), { once: true }),
+        );
+      },
+    );
+    const active = await started.promise;
+    const deletionStarted = deferred<void>();
+    const allowDeletion = deferred<void>();
+    const deleteRecord = f.credentials.deleteRecord.bind(f.credentials);
+    const deletion = vi.spyOn(f.credentials, 'deleteRecord').mockImplementation(async (key) => {
+      deletionStarted.resolve();
+      await allowDeletion.promise;
+      return deleteRecord(key);
+    });
+    const revocation = f.owner.revoke(true, 'dm-ada', messageId);
+    try {
+      await deletionStarted.promise;
+      expect(active.aborted).toBe(true);
+      expect(reply.aborted).toBe(true);
+    } finally {
+      allowDeletion.resolve();
+      await Promise.all([revocation, use]);
+      deletion.mockRestore();
+      await f.close();
+    }
+  });
+
   it('refuses missing private configuration without creating an unattended input card', async () => {
     const f = await fixture();
     f.unattended();

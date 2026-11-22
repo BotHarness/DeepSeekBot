@@ -85,3 +85,7 @@ The Host resolves file access before each engine turn. An Assignment uses its fr
 | Danger-full-access | Full-access sandbox                              | Bypass native engine approvals                                                                                              |
 
 If the effective mode changes, the Host closes the existing engine process and opens its recorded native session with the new settings before delivering the next turn. The Host still validates Assignment Grant identity and applies its own controls to Bot tools called through MCP.
+
+## Amendment: Codex device sign-in ([#4559](https://github.com/BotHarness/DeepSeekBot/issues/4559))
+
+A Human can use the official Codex CLI’s device-code flow from another device. The Host starts `codex login --device-auth` using the selected account’s isolated Codex home. The existing model-source management permission governs starting, observing and cancelling the attempt. The verification URL, one-time code and expiry live in memory while Codex waits. Codex handles approval and credential storage. After a successful process exit, the Host checks that the selected account has a ChatGPT sign-in before reporting completion.

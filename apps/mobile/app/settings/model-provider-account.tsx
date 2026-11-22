@@ -27,7 +27,9 @@ export default function ModelProviderAccountScreen() {
             accounts: () => loadSubscriptionAccounts(client),
             refresh: (account) => refreshAccountQuota(client, account),
             signIn: (account) => signInAccount(client, account),
-            cancelSignIn: (account) => cancelAccountSignIn(client, account),
+            cancelSignIn: async (account) => {
+              await cancelAccountSignIn(client, account);
+            },
           },
     [client],
   );

@@ -16,6 +16,7 @@ import {
   type ModelProvidersView,
 } from '@botharness/host-client/model-providers';
 import { bridgeHost, BridgeCallError, type BridgeCall } from './bridge.js';
+import { CodexDeviceSignIn } from './codex-device-sign-in.js';
 import { Button } from './ds/button.js';
 import { ConfirmDialog, FormDialog, DangerTextButton } from './ds/form-dialog.js';
 import { Input } from './ds/input.js';
@@ -141,21 +142,39 @@ export function ModelProviderSubscriptions({
               title={name}
               summary={engineStatus(status, brand, t)}
               trailing={
-                status?.installed === true &&
-                !status.available &&
-                status.reason !== 'host-not-local' ? (
-                  <Button
-                    variant="outline"
-                    disabled={engines.signingIn !== undefined}
-                    aria-label={
-                      engines.signingIn === key
-                        ? undefined
-                        : t('engine.signInLabel', { engine: name })
-                    }
-                    onClick={() => engines.signIn(id, accountId)}
-                  >
-                    {engines.signingIn === key ? t('engine.signingIn') : t('modelProviders.signIn')}
-                  </Button>
+                status.installed && !status.available && status.reason !== 'host-not-local' ? (
+                  <>
+                    <Button
+                      variant="outline"
+                      disabled={engines.signingIn !== undefined}
+                      aria-label={
+                        engines.signingIn === key
+                          ? undefined
+                          : t('engine.signInLabel', { engine: name })
+                      }
+                      onClick={() => engines.signIn(id, accountId)}
+                    >
+                      {engines.signingIn === key && engines.deviceSignIn === undefined
+                        ? t('engine.signingIn')
+                        : t('modelProviders.signIn')}
+                    </Button>
+                    {id === 'codex' && engines.supportsDeviceSignIn ? (
+                      <Button
+                        variant="outline"
+                        disabled={engines.signingIn !== undefined}
+                        aria-label={t('modelProviders.deviceSignInLabel', { engine: name })}
+                        onClick={() => engines.signIn(id, accountId, 'device-auth')}
+                      >
+                        {t('modelProviders.deviceSignIn')}
+                      </Button>
+                    ) : null}
+                  </>
+                ) : undefined
+              }
+              detail={
+                engines.deviceSignIn?.key === key &&
+                engines.deviceSignIn.progress.status !== 'completed' ? (
+                  <CodexDeviceSignIn engines={engines} t={t} />
                 ) : undefined
               }
             />

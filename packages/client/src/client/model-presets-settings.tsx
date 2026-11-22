@@ -13,6 +13,7 @@ import {
 } from '@botharness/host-client/model-plans';
 import type { BridgeActions } from './actions.js';
 import { bridgeHost, errorMessage, type BridgeCall } from './bridge.js';
+import { CodexDeviceSignIn } from './codex-device-sign-in.js';
 import { Button } from './ds/button.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
@@ -138,6 +139,7 @@ function PresetEditor({
     engines.signingIn,
     t,
     owner,
+    engines.supportsDeviceSignIn,
   );
   const changeEngine = (role: EngineRole, choice: SubscriptionModel | null) =>
     setEngineDraft((current) => ({ ...current, [role]: choice }));
@@ -234,6 +236,7 @@ function PresetEditor({
         t={t}
       />
       <div ref={engines.mount}>
+        <CodexDeviceSignIn engines={engines} t={t} />
         {engines.signInUrl === undefined ? null : (
           <Note>
             <a href={engines.signInUrl} target="_blank" rel="noopener noreferrer">
