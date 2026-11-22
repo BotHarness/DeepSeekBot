@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 
-const SOURCE = join(import.meta.dirname, '..', 'src');
+const SOURCE = join(import.meta.dirname, '../src');
 
 const sourceFiles = (dir: string): string[] =>
   readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

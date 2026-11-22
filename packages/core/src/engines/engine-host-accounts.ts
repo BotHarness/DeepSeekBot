@@ -1,9 +1,11 @@
+import type { EngineDeviceLoginProgress } from '@botharness/host-protocol/engine-device-login';
 import {
   engineAccountKey,
   type EngineAccountListEntry,
   type EngineQuotaRefreshResult,
   type NamedEngineAccount,
 } from '@botharness/host-protocol/subscription-engine';
+import { randomUUID } from 'node:crypto';
 import { lstatSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { TeamError } from '../team/error.js';
@@ -19,7 +21,12 @@ import {
 import { resolveEngineCommand } from './engine-launch.js';
 import { detectClaude, startClaudeLogin, type ClaudeStatus } from './claude-status.js';
 import { CodexEngineSession, spawnCodexTransport } from './codex-engine.js';
-import { detectCodex, startCodexLogin, type CodexStatus } from './codex-status.js';
+import {
+  detectCodex,
+  startCodexDeviceLogin,
+  startCodexLogin,
+  type CodexStatus,
+} from './codex-status.js';
 import { readEngineAccount, requireSubscription, statusReport } from './engine-account.js';
 import type { EngineLoginCodeInput } from './engine-command.js';
 import type { EngineHostOptions } from './engine-host.js';
@@ -47,10 +54,16 @@ const MODELS_TTL_MS = 5 * 60_000;
 const QUOTA_TTL_MS = 30_000;
 const QUOTA_TIMEOUT_MS = 15_000;
 
+interface DeviceLogin {
+  attemptId: string;
+  progress: EngineDeviceLoginProgress;
+}
+
 interface AccountLogin {
   controller: AbortController;
   closed: Promise<void>;
   submitCode?: EngineLoginCodeInput;
+  device?: DeviceLogin;
 }
 
 export class EngineHostAccounts {
@@ -60,6 +73,7 @@ export class EngineHostAccounts {
   readonly #models = new Map<string, { at: number; models: Promise<EngineModel[]> }>();
   readonly #statusProbes = new Map<string, Promise<CodexStatus | ClaudeStatus>>();
   readonly #readingModels = new Map<string, Promise<EngineModel[]>>();
+  readonly #deviceLogins = new Map<string, DeviceLogin>();
   readonly #logins = new Map<string, AccountLogin>();
   readonly #quotaRefreshes = new Map<
     string,
@@ -225,6 +239,7 @@ export class EngineHostAccounts {
         );
     });
     this.#models.delete(id);
+    this.#deviceLogins.delete(id);
     this.#quotaRefreshes.delete(id);
     this.#options.accountsChanged?.();
     try {
@@ -457,8 +472,11 @@ export class EngineHostAccounts {
   async login(
     engine: EngineId,
     accountId?: string,
-  ): Promise<{ engine: EngineId; started: true; url?: string }> {
+    mode?: 'device-auth',
+  ): Promise<{ engine: EngineId; started: true; url?: string; attemptId?: string }> {
     this.#requireLocal();
+    if (mode === 'device-auth' && engine !== 'codex')
+      throw new EngineRefusal('invalid-input', 'Device sign-in is available for Codex accounts.');
     const account = this.#store.resolveAccount(engine, accountId);
     if (this.#logins.has(account.id))
       throw new EngineRefusal(
@@ -487,6 +505,12 @@ export class EngineHostAccounts {
       resolveClosed();
     };
     try {
+      if (mode === 'device-auth')
+        return {
+          engine,
+          started: true,
+          attemptId: this.#deviceLogin(account, login, onExit),
+        };
       const process = {
         signal: AbortSignal.any([login.controller.signal, AbortSignal.timeout(3 * 60_000)]),
         onExit,
@@ -512,13 +536,57 @@ export class EngineHostAccounts {
     }
   }
 
-  async cancelLogin(id: string): Promise<{ cancelled: boolean }> {
+  #deviceLogin(account: StoredEngineAccount, login: AccountLogin, onExit: () => void): string {
+    const target = this.codex(account);
+    const device: DeviceLogin = { attemptId: randomUUID(), progress: { status: 'starting' } };
+    const startedAt = Date.now();
+    const update = (progress: EngineDeviceLoginProgress) => {
+      device.progress = progress;
+      this.#options.observeDeviceLogin?.({
+        attemptId: device.attemptId,
+        phase: progress.status,
+        durationMs: Date.now() - startedAt,
+      });
+    };
+    const outcome = startCodexDeviceLogin(target, login.controller.signal, (challenge) =>
+      update({ status: 'pending', ...challenge }),
+    );
+    this.#deviceLogins.set(account.id, device);
+    login.device = device;
+    update({ status: 'starting' });
+    void outcome.then(async (end) => {
+      if (end.status === 'completed') {
+        await this.#statusProbes.get(account.id);
+        const status = await this.#probeStatus(account);
+        update(status.login === 'chatgpt' ? end : { status: 'failed' });
+      } else update(end);
+      onExit();
+      if (device.progress.status === 'completed') this.#options.accountsChanged?.();
+    });
+    return device.attemptId;
+  }
+
+  deviceLoginStatus(id: string, attemptId: string): EngineDeviceLoginProgress {
+    const account = this.target(id);
+    const device = this.#deviceLogins.get(account.id);
+    if (device?.attemptId !== attemptId)
+      throw new EngineRefusal(
+        'engine-login-not-pending',
+        'This Codex sign-in is no longer available.',
+      );
+    return device.progress;
+  }
+
+  async cancelLogin(id: string, attemptId?: string): Promise<{ cancelled: boolean }> {
     const account = this.target(id);
     const login = this.#logins.get(account.id);
-    if (login === undefined) return { cancelled: false };
+    if (login === undefined || (attemptId !== undefined && login.device?.attemptId !== attemptId))
+      return { cancelled: false };
     login.controller.abort();
     await login.closed;
-    return { cancelled: true };
+    return {
+      cancelled: login.device === undefined || login.device.progress.status === 'cancelled',
+    };
   }
 
   async submitClaudeCode(id: string, code: string): Promise<{ submitted: true }> {

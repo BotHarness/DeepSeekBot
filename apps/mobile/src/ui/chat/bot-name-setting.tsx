@@ -13,7 +13,7 @@ import { TextField } from '../primitives/text-field';
 import { useStrings } from '../strings';
 import { Sheet, SheetActions } from './sheet';
 
-function RenameBotSheet({
+export function RenameBotSheet({
   name,
   onSave,
   onClose,
@@ -92,11 +92,13 @@ function RenameBotSheet({
 export function BotNameSetting({
   name,
   onSave,
+  onOpen,
   on = 'sheet',
   icon,
 }: {
   name: string;
   onSave(name: string): Promise<void>;
+  onOpen?: (() => void) | undefined;
   on?: LayerName;
   icon?: RowIconName;
 }) {
@@ -112,7 +114,7 @@ export function BotNameSetting({
         icon={icon}
         accessibilityLabel={`${t.botRename}, ${name}`}
         control={{ kind: 'chevron' }}
-        onPress={() => setEditing(true)}
+        onPress={onOpen ?? (() => setEditing(true))}
       />
       {editing ? (
         <RenameBotSheet name={name} onSave={onSave} onClose={() => setEditing(false)} />

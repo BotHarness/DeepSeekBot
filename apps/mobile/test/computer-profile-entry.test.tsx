@@ -69,7 +69,10 @@ vi.mock('../src/ui/chat/bot-settings-panel', () => ({
 vi.mock('../src/ui/chat/bot-permissions', () => ({
   BotPermissions: () => null,
 }));
-vi.mock('../src/host/pick-avatar-image', () => ({ pickAvatarImage: vi.fn() }));
+vi.mock('../src/host/pick-avatar-image', () => ({
+  pickAvatarImage: vi.fn(),
+  pickBannerImage: vi.fn(),
+}));
 vi.mock('../src/ui/design/theme', () => ({
   useDesignTheme: () => ({ color: { surface: 'black' } }),
 }));
