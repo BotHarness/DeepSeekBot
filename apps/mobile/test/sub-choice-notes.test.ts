@@ -5,6 +5,7 @@ import {
   forgetFailedNote,
   noteQueue,
   rememberFailedNote,
+  sharedNoteQueue,
 } from '../src/ui/chat/sub-choice-notes';
 
 function deferred() {
@@ -95,4 +96,30 @@ it('clears an older failed draft when a newer note saves', async () => {
   await queue.settled();
   expect(failedNote(key)).toBeUndefined();
   expect(failedNote('host-b:preset:default:x')).toBeUndefined();
+});
+
+it('keeps commit order across visits so a later failure is not cleared by an older success', async () => {
+  const key = 'host-a:bot:ada:y';
+  let finishA: () => void = () => undefined;
+  const written: string[] = [];
+  const handlers = () => ({
+    write: async (text: string) => {
+      written.push(text);
+      if (text === 'A') await new Promise<void>((resolve) => (finishA = resolve));
+      if (text === 'C') throw new Error('stale');
+    },
+    onSaved: () => forgetFailedNote(key),
+    onError: (cause: unknown, text: string) =>
+      rememberFailedNote(key, { text, error: (cause as Error).message }),
+  });
+  const firstVisit = sharedNoteQueue(key, handlers());
+  firstVisit.commit('A', '');
+  firstVisit.commit('B', '');
+  const secondVisit = sharedNoteQueue(key, handlers());
+  secondVisit.commit('C', '');
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  finishA();
+  await secondVisit.settled();
+  expect(written).toEqual(['A', 'B', 'C']);
+  expect(failedNote(key)).toEqual({ text: 'C', error: 'stale' });
 });

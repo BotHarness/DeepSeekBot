@@ -47,3 +47,27 @@ export function rememberFailedNote(key: string, note: FailedNote): void {
 export function forgetFailedNote(key: string): void {
   failedNotes.delete(key);
 }
+
+export interface NoteHandlers {
+  write(text: string): Promise<void>;
+  onSaved(text: string): void;
+  onError(cause: unknown, text: string): void;
+}
+
+const sharedQueues = new Map<string, { queue: NoteQueue; handlers: NoteHandlers }>();
+
+export function sharedNoteQueue(key: string, handlers: NoteHandlers): NoteQueue {
+  const entry = sharedQueues.get(key);
+  if (entry !== undefined) {
+    Object.assign(entry.handlers, handlers);
+    return entry.queue;
+  }
+  const current = { ...handlers };
+  const queue = noteQueue(
+    (text) => current.write(text),
+    (text) => current.onSaved(text),
+    (cause, text) => current.onError(cause, text),
+  );
+  sharedQueues.set(key, { queue, handlers: current });
+  return queue;
+}

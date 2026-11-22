@@ -38,8 +38,8 @@ import { useEngineOptions } from './sub-choice-engines';
 import {
   failedNote,
   forgetFailedNote,
-  noteQueue,
   rememberFailedNote,
+  sharedNoteQueue,
   type NoteQueue,
 } from './sub-choice-notes';
 import { subChoiceKey, subChoiceTarget, subChoiceView } from './sub-choice-text';
@@ -108,8 +108,8 @@ function SubChoiceDetail({
   const [noteError, setNoteError] = useState<string | undefined>(() => failedNote(draftKey)?.error);
   const resource = useMemo(() => modelSettingsResource(client, scope), [client, scopeKey]);
   const notes = useRef<NoteQueue | undefined>(undefined);
-  notes.current ??= noteQueue(
-    async (text) => {
+  notes.current ??= sharedNoteQueue(draftKey, {
+    write: async (text) => {
       const selected = JSON.parse(choiceKey) as SubSelection;
       await resource.write(async () => {
         const fresh = await resource.refresh();
@@ -118,18 +118,18 @@ function SubChoiceDetail({
         await setModelSub(client, scope, fresh, setSubNote(list, selected, text));
       });
     },
-    (text) => {
+    onSaved: (text) => {
       forgetFailedNote(draftKey);
       setNoteError(undefined);
       setNote((current) => (current === text ? undefined : current));
       models.refresh();
     },
-    (cause, text) => {
+    onError: (cause, text) => {
       const error = errorText(cause);
       rememberFailedNote(draftKey, { text, error });
       setNoteError(error);
     },
-  );
+  });
   const leave = useRef<() => void>(() => undefined);
   useFocusEffect(useCallback(() => () => leave.current(), []));
   const view =
