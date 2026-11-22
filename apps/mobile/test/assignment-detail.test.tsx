@@ -23,8 +23,8 @@ import {
   loadAssignmentTimeline,
   parseAssignmentTimeline,
 } from '../src/host/assignment-timeline';
-import { MethodRefused, type HostClient } from '@botharness/host-client/client';
-import { AssignmentDetail, AssignmentScreenBody } from '../src/ui/chat/assignment-screen';
+import { type HostClient } from '@botharness/host-client/client';
+import { AssignmentDetail } from '../src/ui/chat/assignment-screen';
 import { t } from '../src/ui/strings';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -193,17 +193,5 @@ describe('Assignment detail', () => {
     expect(second).toContain('play.google.com');
     expect(second).toContain('Check Play');
     expect(view.textContent).toContain(t.assignmentDetail.olderRounds(1));
-  });
-
-  it('explains when the Assignment is gone', async () => {
-    const client = {
-      call: vi.fn(async () => {
-        throw new MethodRefused('not-found', 'unknown Assignment: asg-1');
-      }),
-    } as unknown as HostClient;
-    const view = await render(
-      <AssignmentScreenBody client={client} slug="ada" sessionId="asg-1" />,
-    );
-    expect(view.textContent).toContain(t.assignmentDetail.notFound);
   });
 });

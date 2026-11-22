@@ -1,4 +1,11 @@
 import {
+  addAccount,
+  loadEngineAccounts,
+  refreshAccountQuota,
+  removeAccount,
+  renameAccount,
+} from '@botharness/host-client/subscription-accounts';
+import {
   ENGINE_IDS,
   isEngineId,
   type EngineId,
@@ -15,7 +22,6 @@ import {
   type QuotaRefreshState,
 } from './account-quota.js';
 import { bridgeHost, BridgeCallError, type BridgeCall } from './bridge.js';
-import { refreshEngineAccountQuota } from './features/models/bridge.js';
 import { CodexDeviceSignIn } from './codex-device-sign-in.js';
 import { Button } from './ds/button.js';
 import { IconButton } from './ds/icon-button.js';
@@ -33,7 +39,6 @@ import {
   engineApi,
   engineLoginActions,
   engineModelKey,
-  parseEngines,
   useSubscriptionEngines,
   type EngineStatusView,
 } from './engine-choice.js';
@@ -291,16 +296,14 @@ export function SubscriptionAccounts({
   roles?: readonly TeamRole[];
   t: BotHarnessTranslate;
 }): ReactElement {
-  const api = useMemo(
-    () => ({
+  const api = useMemo(() => {
+    const host = bridgeHost(call);
+    return {
       ...engineApi,
-      async read() {
-        return parseEngines(await bridgeHost(call).call('engineAccounts', {}));
-      },
+      read: () => loadEngineAccounts(host),
       ...engineLoginActions(call),
-    }),
-    [call],
-  );
+    };
+  }, [call]);
   const engines = useSubscriptionEngines(true, api, false, true);
   const [dialog, setDialog] = useState<AccountDialog>();
   const [selectedEngine, setSelectedEngine] = useState<EngineId>('codex');
@@ -317,9 +320,8 @@ export function SubscriptionAccounts({
     setQuotaRefresh((current) => ({ ...current, [accountId]: { state: 'refreshing' } }));
     let next: QuotaRefreshState;
     try {
-      const result = await refreshEngineAccountQuota(call, accountId);
-      next =
-        result.status === 'ok' ? { state: 'idle' } : { state: 'failed', reason: result.status };
+      const status = await refreshAccountQuota(bridgeHost(call), accountId);
+      next = status === 'ok' ? { state: 'idle' } : { state: 'failed', reason: status };
     } catch {
       next = { state: 'failed', reason: 'unavailable' };
     }
@@ -360,22 +362,21 @@ export function SubscriptionAccounts({
     try {
       const host = bridgeHost(call);
       if (current.kind === 'add')
-        await host.call('engineAccountAdd', {
+        await addAccount(host, {
           engine: selectedEngine,
           name: name.trim(),
           expectedRevision,
         });
       else if (current.kind === 'rename')
-        await host.call('engineAccountRename', {
+        await renameAccount(host, {
           id: current.id,
           name: name.trim(),
           expectedRevision,
         });
       else {
-        const removed = await host.call<{ homeCleanupPending?: true }>('engineAccountRemove', {
+        const removed = await removeAccount(host, {
           id: current.id,
           expectedRevision,
-          confirm: true,
         });
         if (removed.homeCleanupPending) setNotice(t('modelProviders.accountCleanupPending'));
       }

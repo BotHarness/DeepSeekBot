@@ -222,6 +222,30 @@ describe('M2 × M9 member lifecycle integration', { timeout: 60_000 }, () => {
     expect(existsSync(join(f.dshHome, 'spaces', bob.humanId))).toBe(false);
   });
 
+  it('refuses to purge a Member reactivated while Bot preparation is pending', async () => {
+    const f = fixture();
+    const file = join(f.dshHome, 'spaces', bob.humanId, 'files', 'report.txt');
+    writeFileSync(file, 'retained account file');
+    await f.core.team.deactivate(owner, bob.humanId);
+    const preview = f.core.team.purgePreview(owner, bob.humanId);
+    let releasePreparation = (): void => {};
+    const preparation = new Promise<void>((resolve) => {
+      releasePreparation = resolve;
+    });
+    const settled = vi.spyOn(f.core.registry, 'settled').mockReturnValueOnce(preparation);
+    const purging = f.core.team.purgeConfirm(owner, bob.humanId, preview.token, 'bob');
+    try {
+      expect(settled).toHaveBeenCalledWith(bob.humanId);
+      await f.core.team.reactivate(owner, bob.humanId);
+    } finally {
+      releasePreparation();
+      settled.mockRestore();
+    }
+    await expect(purging).rejects.toMatchObject({ code: 'member-active' });
+    expect(f.core.team.member(bob.humanId)?.status).toBe('active');
+    expect(readFileSync(file, 'utf8')).toBe('retained account file');
+  });
+
   it('does not publish a Tob when Host ownership changes during Memory preparation', async () => {
     const f = fixture();
     const preparing = f.core.tob.ensure(owner);
