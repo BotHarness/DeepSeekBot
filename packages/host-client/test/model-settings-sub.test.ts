@@ -231,6 +231,15 @@ it('creates a Bot plan with the current main Routing Group and effort', async ()
   ]);
 });
 
+it('keeps the displayed direct main model when the Default preset has an unlisted Routing Group', async () => {
+  const host = { call: vi.fn().mockResolvedValue({ plan: { ...plan, sub: saved } }) };
+  const inherited = { ...state, presets: [{ ...preset, orchestratorGroupId: 'unlisted' }] };
+  await setModelSub(host, bot, inherited, saved);
+  expect(host.call.mock.calls).toEqual([
+    ['modelPlanSet', { slug: 'ada', expectedRevision: 3, orchestrator: main, sub: saved }],
+  ]);
+});
+
 it('refuses global writes, mismatched preset state and a missing main route without sending them', async () => {
   const host = { call: vi.fn() };
   await expect(setModelSub(host, { kind: 'global' }, state, saved)).rejects.toThrow(

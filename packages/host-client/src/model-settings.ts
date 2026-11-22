@@ -218,18 +218,15 @@ export async function setModelSub(
   } else if (state.plan !== undefined) {
     await savePlanSub(client, { slug: scope.slug, expectedRevision: state.plan.revision, sub });
   } else {
-    const preset = defaultPreset(state);
-    const orchestratorGroupId = state.defaultGroupId ?? preset?.orchestratorGroupId;
-    const orchestratorGroupEffort =
-      state.defaultGroupId === undefined
-        ? preset?.orchestratorGroupEffort
-        : state.defaultGroupEffort;
+    const { defaultGroupId, defaultGroupEffort } = state;
     await setModelPlan(client, scope.slug, state.revision, {
-      ...(orchestratorGroupId === undefined
-        ? { orchestrator: requireRoute(currentModel(state).route ?? preset?.orchestrator) }
+      ...(defaultGroupId === undefined
+        ? { orchestrator: requireRoute(currentModel(state).route) }
         : {
-            orchestratorGroupId,
-            ...(orchestratorGroupEffort === undefined ? {} : { orchestratorGroupEffort }),
+            orchestratorGroupId: defaultGroupId,
+            ...(defaultGroupEffort === undefined
+              ? {}
+              : { orchestratorGroupEffort: defaultGroupEffort }),
           }),
       sub,
     });
