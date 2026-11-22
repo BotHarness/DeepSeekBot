@@ -929,7 +929,7 @@ function initializeCore(
         changed,
       ),
     (human, resource) =>
-      resource === 'model-providers'
+      resource === 'model-providers' || resource === 'engine-device-login'
         ? human.caller !== 'bot' &&
           (team.isOwner(human) || team.roles.permissions(human).includes('modelSources.manage'))
         : team.isOwner(human),

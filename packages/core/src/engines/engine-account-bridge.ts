@@ -22,6 +22,7 @@ type Accounts = Pick<
   | 'removeAccount'
   | 'target'
   | 'login'
+  | 'deviceLoginStatus'
   | 'cancelLogin'
   | 'submitClaudeCode'
   | 'resolveAccount'
@@ -47,6 +48,9 @@ export interface EngineAccountBridgeMethods {
   engineAccountLogin(
     payload: unknown,
   ): Promise<BridgeResult<Awaited<ReturnType<Accounts['login']>>>>;
+  engineAccountLoginStatus(
+    payload: unknown,
+  ): Promise<BridgeResult<ReturnType<Accounts['deviceLoginStatus']>>>;
   engineAccountLoginCancel(
     payload: unknown,
   ): Promise<BridgeResult<Awaited<ReturnType<Accounts['cancelLogin']>>>>;
@@ -63,8 +67,15 @@ const engine = z.enum(ENGINE_IDS);
 const add = z.object({ engine, name, expectedRevision });
 const rename = z.object({ id, name, expectedRevision });
 const remove = z.object({ id, expectedRevision, confirm: z.literal(true) });
-const login = z.object({ id, engine: engine.optional() });
+const login = z.object({
+  id,
+  engine: engine.optional(),
+  mode: z.literal('device-auth').optional(),
+});
+const attemptId = z.uuid();
 const accountId = z.object({ id });
+const loginStatus = z.object({ id, attemptId });
+const loginCancel = z.object({ id, attemptId: attemptId.optional() });
 const submitCode = z.object({
   id,
   code: z
@@ -143,11 +154,18 @@ export function createEngineAccountBridge(
           input.engine === undefined
             ? host.target(input.id)
             : host.resolveAccount(input.engine, input.id);
-        return host.login(account.engine, account.id);
+        return host.login(account.engine, account.id, input.mode);
       });
     },
+    engineAccountLoginStatus(payload) {
+      return run(loginStatus, payload, (host, input) =>
+        host.deviceLoginStatus(input.id, input.attemptId),
+      );
+    },
     engineAccountLoginCancel(payload) {
-      return run(accountId, payload, (host, input) => host.cancelLogin(input.id));
+      return run(loginCancel, payload, (host, input) =>
+        host.cancelLogin(input.id, input.attemptId),
+      );
     },
     engineAccountSubmitCode(payload) {
       return run(submitCode, payload, (host, input) => host.submitClaudeCode(input.id, input.code));

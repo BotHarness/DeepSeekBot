@@ -164,6 +164,10 @@ export function mountEngines(
       requireBotEngineAccount(core().team, core().registry.get(slug), id),
     gateway: engineGateway,
     accountsChanged: () => core().live.publishResourceChanged('model-providers'),
+    observeDeviceLogin: (event) => {
+      ctx.logger.info('codex-device-login %j', event);
+      if (event.phase !== 'starting') core().live.publishResourceChanged('engine-device-login');
+    },
     accountUses: (id) => {
       const uses = (choice: { engine: EngineId; accountId?: string } | undefined) =>
         choice !== undefined && engineAccountKey(choice.engine, choice.accountId) === id;
