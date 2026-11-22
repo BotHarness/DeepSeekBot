@@ -9,6 +9,7 @@ import {
   picked,
   taskTiles,
   translate,
+  trigger,
 } from './model-preset-profile-fixtures.js';
 import { type Root } from 'react-dom/client';
 import type { ModelPlanView } from '../src/client/bridge.js';
@@ -255,6 +256,44 @@ describe('Subscription models in the model dialog', () => {
     expect(button('Save').disabled).toBe(true);
     await act(async () => finishRead());
     expect(button('Save').disabled).toBe(false);
+  });
+
+  it('locks the Task list until the engine read returns an existing task engine', async () => {
+    const choice = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const { actions, read } = fixture([]);
+    let finishRead: () => void = () => undefined;
+    read.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishRead = () =>
+            resolve({
+              engines: [{ engine: 'codex', available: true, installed: true }],
+              selections: [{ ...choice, role: 'assignment' }],
+            });
+        }),
+    );
+    await render(markOriginActions(actions), vi.fn());
+    expect(trigger('Add a task model')?.disabled).toBe(true);
+    expect(labelled('Remove Flash').disabled).toBe(true);
+    await act(async () => finishRead());
+    expect(trigger('Add a task model')?.disabled).toBe(false);
+    expect(taskTiles()).toContainEqual(expect.stringMatching(/^GPT-6 Subscription.*Default/));
+  });
+
+  it('warns before a task engine migration ends an open Assignment policy', async () => {
+    const choice = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const { actions, set } = fixture([{ ...choice, role: 'assignment' }]);
+    await render(
+      markOriginActions({
+        ...actions,
+        modelPlanState: async () => ({ plan: { ...plan, openAssignmentModels: true } }),
+      } as unknown as BridgeActions),
+      vi.fn(),
+    );
+    expect(document.body.textContent).toContain(translate('modelPreset.openDropped'));
+    await choose('Main model', 'pro', 'Pro');
+    await act(async () => button('Save').click());
+    expect(set).toHaveBeenCalledOnce();
   });
 
   it('retries a failed task-role clear without writing the plan again', async () => {

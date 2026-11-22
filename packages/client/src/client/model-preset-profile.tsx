@@ -640,12 +640,18 @@ export function ModelPresetProfile({
                     subscription={subscription('orchestrator')}
                     clearEngine={() => editEngine('orchestrator', null)}
                     sub={shownSub}
+                    subLocked={engineReadPending && !listStored}
                     onSubChange={(next) => {
                       setSubDraft(next);
                       edit({});
                     }}
                     t={t}
                   />
+                  {plan?.openAssignmentModels === true &&
+                  !listStored &&
+                  (subDraft !== undefined || migratesTask) ? (
+                    <Note tone="warning">{t('modelPreset.openDropped')}</Note>
+                  ) : null}
                 </>
               )}
             </>

@@ -45,6 +45,7 @@ export function ModelPlanEditor({
   clearEngine,
   sub,
   onSubChange,
+  subLocked = false,
   t,
 }: {
   draft: ModelDraft;
@@ -56,6 +57,7 @@ export function ModelPlanEditor({
   clearEngine(): void;
   sub: SubChoices;
   onSubChange(sub: SubChoices): void;
+  subLocked?: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
   const modelOptions = modelOptionsOf(catalog, t);
@@ -91,7 +93,7 @@ export function ModelPlanEditor({
                 signIn: subscription.signIn,
               }
         }
-        busy={busy}
+        busy={busy || subLocked}
         onChange={onSubChange}
         t={t}
       />

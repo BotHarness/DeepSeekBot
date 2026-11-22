@@ -118,6 +118,7 @@ export const zh = {
   'modelPreset.subEdit': '设置 {model}',
   'modelPreset.subFollowsMain': '跟随主模型',
   'modelPreset.subFollowsMainHint': '还没有添加副模型，分派的任务也用主模型。',
+  'modelPreset.openDropped': '保存后不再允许任意模型：分派的任务只能使用列表里的副模型。',
   'modelPreset.save': '保存',
   'modelPreset.saveAs': '另存为预设',
   'modelPreset.name': '预设名称',
@@ -256,6 +257,8 @@ export const en = {
   'modelPreset.subEdit': 'Edit {model}',
   'modelPreset.subFollowsMain': 'Same as main model',
   'modelPreset.subFollowsMainHint': 'No task models yet, so delegated tasks use the main model.',
+  'modelPreset.openDropped':
+    'Saving ends “any model” for tasks. Delegated tasks can then use only the models in this list.',
   'modelPreset.save': 'Save',
   'modelPreset.saveAs': 'Save as preset',
   'modelPreset.name': 'Preset name',
