@@ -1149,6 +1149,10 @@ _避免使用_：Computer、其它电脑、machine、server、peer
 持有某台 Host 发放的独立、可撤销凭据的客户端：一个手机 App，或一个 origin 上的一个浏览器 profile。它以唯一一个 Human ID 的身份读取并操作那台 Host，但从不承载 PersonaBot，也不中转其它 Host。
 _避免使用_：phone（指所有设备时）、session、Host
 
+**Host sign-in link**：
+界面中文为“Host 登录链接”。由 Host 生成的链接或二维码，提供账密登录所需的 Host 线路和身份指纹。Human 使用自己的 Member Credential 登录。
+_避免使用_：配对邀请、设备授权
+
 **Host Relationship**：
 两个 Host 之间持久且明确授权的双向关系，支持的 Client 据此取得各自独立的设备授权。它不同于账号注册、连接线路、单个设备授权或 Bot Collaboration Network 成员资格。
 _避免使用_：共享远程凭据、Host Feed 镜像、Bot 协作准入

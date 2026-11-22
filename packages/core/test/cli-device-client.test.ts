@@ -3,11 +3,47 @@ import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { createTempRoot } from './helpers.js';
 const paired = vi.hoisted(() => vi.fn());
-vi.mock('@botharness/host-client/pairing', () => ({ pairHost: paired }));
+const ownerSignIn = vi.hoisted(() => vi.fn());
+vi.mock('@botharness/host-client/pairing', () => ({ pairHost: paired, revokePairing: vi.fn() }));
+vi.mock('@botharness/host-client/owner-sign-in', () => ({ signInOwnerDevice: ownerSignIn }));
 vi.mock('../src/devices/connect-identity-fetch.js', () => ({
   requestConnectIdentity: (url: string, init?: RequestInit) => fetch(url, init),
 }));
 import { runDeviceClientCommand } from '../src/bots/cli-device-client.js';
+
+it('writes Owner sign-in credentials to a private file and emits only connection metadata', async () => {
+  const out = join(createTempRoot('owner-sign-in-cli-'), 'device.json');
+  const args = ['https://studio.example.test', 'alice'];
+  const values = { 'password-stdin': true, out };
+  const password = 'private-owner-password';
+  const readStdin = vi.fn(async () => password + '\n');
+  await expect(
+    runDeviceClientCommand('device-owner-sign-in', args, values, undefined, readStdin),
+  ).rejects.toMatchObject({ code: 'confirm-required' });
+  expect(readStdin).not.toHaveBeenCalled();
+
+  ownerSignIn.mockResolvedValueOnce({
+    ok: true,
+    value: { hostId: 'studio', deviceId: 'device', credential: 'private-grant', routes: [args[0]] },
+  });
+  const result = await runDeviceClientCommand(
+    'device-owner-sign-in',
+    args,
+    { ...values, confirm: true },
+    undefined,
+    readStdin,
+  );
+  expect(ownerSignIn).toHaveBeenCalledWith(
+    expect.objectContaining({ route: args[0], username: 'alice', password }),
+  );
+  expect(result).toEqual({
+    hostId: 'studio',
+    deviceId: 'device',
+    encrypted: true,
+    pairing: { path: out },
+  });
+  expect(JSON.parse(readFileSync(out, 'utf8'))).toMatchObject({ credential: 'private-grant' });
+});
 
 it('requires trusted-file confirmation and never returns saved device secrets on stdout', async () => {
   const root = createTempRoot('lan-cli-');

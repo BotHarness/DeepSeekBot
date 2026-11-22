@@ -13,6 +13,7 @@ import {
   hasPrivateOrigin,
   isConnectRoute,
   isEncryptedRoute,
+  isHttpsOrigin,
   isLanRoute,
   socketOrigin,
 } from '@botharness/host-protocol/route';
@@ -31,7 +32,7 @@ export class ConnectRefused extends Error {
 
 function requestUrl(
   input: string,
-  privateOrigin?: Parameters<typeof checkRoute>[1],
+  encryption?: HostEncryption,
   trustedHttpsOrigins: readonly string[] = [],
 ): URL {
   let url: URL;
@@ -41,8 +42,9 @@ function requestUrl(
     throw new ConnectRefused('route-invalid');
   }
   if (
-    (!checkRoute(url.origin, privateOrigin).ok &&
-      !(url.protocol === 'https:' && trustedHttpsOrigins.includes(url.origin))) ||
+    (!checkRoute(url.origin, encryption?.privateRelay).ok &&
+      !(url.protocol === 'https:' && trustedHttpsOrigins.includes(url.origin)) &&
+      !(encryption?.required && isHttpsOrigin(url.origin))) ||
     url.username ||
     url.password ||
     url.hash
@@ -125,6 +127,7 @@ export function openNoiseSocket(options: {
 }) {
   if (
     !checkRoute(options.origin, options.encryption.privateRelay).ok &&
+    !(options.encryption.required && isHttpsOrigin(options.origin)) &&
     !(
       options.trustedHttpsOrigins?.includes(options.origin) &&
       new URL(options.origin).protocol === 'https:' &&
@@ -302,13 +305,14 @@ export function encryptedCarrier(options: {
   if (options.raw.custody && isCustodyHandle(options.credential))
     return options.raw.custody({ hostId: options.hostId, credential: options.credential });
   const needsEncryption = (origin: string) =>
-    isEncryptedRoute(origin, options.encryption) &&
-    !(
-      options.trustedHttpsOrigins?.includes(origin) &&
-      !isConnectRoute(origin) &&
-      !isLanRoute(origin) &&
-      !options.encryption?.privateRelay
-    );
+    options.encryption?.required === true ||
+    (isEncryptedRoute(origin, options.encryption) &&
+      !(
+        options.trustedHttpsOrigins?.includes(origin) &&
+        !isConnectRoute(origin) &&
+        !isLanRoute(origin) &&
+        !options.encryption?.privateRelay
+      ));
   const sessions = new Map<string, Session>();
   const directs = new Map<string, Session>();
   const retries = new Map<string, DirectRetry>();
@@ -511,7 +515,7 @@ export function encryptedCarrier(options: {
     url: string,
     init: HostRequest,
   ): Promise<HostResponse> => {
-    const parsed = requestUrl(url, options.encryption?.privateRelay, options.trustedHttpsOrigins);
+    const parsed = requestUrl(url, options.encryption, options.trustedHttpsOrigins);
     await waitForAdmission(current.ready, init.signal);
     if (init.signal.aborted) throw new Error('request-cancelled');
     if (
@@ -586,7 +590,7 @@ export function encryptedCarrier(options: {
       directs.clear();
     },
     async request(url, init) {
-      const parsed = requestUrl(url, options.encryption?.privateRelay, options.trustedHttpsOrigins);
+      const parsed = requestUrl(url, options.encryption, options.trustedHttpsOrigins);
       if (!options.requireEncryption && !needsEncryption(parsed.origin))
         return options.raw.request(url, init);
       if (init.signal.aborted) throw new Error('request-cancelled');
@@ -595,7 +599,7 @@ export function encryptedCarrier(options: {
     openSocket(url, events, headers): HostSocket {
       const parsed = requestUrl(
         url.replace(/^ws/u, 'http'),
-        options.encryption?.privateRelay,
+        options.encryption,
         options.trustedHttpsOrigins,
       );
       if (!options.requireEncryption && !needsEncryption(parsed.origin))

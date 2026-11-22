@@ -15,12 +15,12 @@ import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { TeamUsageSection } from './team-usage-section.js';
 import { USAGE_VIEW } from './team-usage.js';
 import { useMountedResource } from './mounted-resource.js';
+import { OwnerPasswordDialog } from './owner-password-dialog.js';
 import { AuditLogSection, PrivateContentSection } from './team-audit.js';
 import { AUDIT_VIEW, PRIVATE_VIEW } from './team-audit-bridge.js';
 import { SpacesSection } from './team-spaces.js';
 import {
   TEAM_ENTRY_PATH,
-  TEAM_PASSWORD_MIN_LENGTH,
   createMember,
   loadMembers,
   loadTeamMode,
@@ -534,7 +534,7 @@ export function TeamSection({ call, t }: TeamSectionProps): ReactElement {
       {auditView}
 
       {dialog?.kind === 'owner-password' ? (
-        <OwnerPasswordDialog
+        <TeamOwnerPasswordDialog
           t={t}
           hasPassword={view.ownerPasswordSet}
           thenEnable={dialog.thenEnable}
@@ -613,7 +613,7 @@ function memberMeta(
   return parts.join(' · ');
 }
 
-function OwnerPasswordDialog({
+function TeamOwnerPasswordDialog({
   t,
   hasPassword,
   thenEnable,
@@ -626,68 +626,25 @@ function OwnerPasswordDialog({
   onCancel(): void;
   onSubmit(password: string, current: string | undefined): Promise<void>;
 }): ReactElement {
-  const [current, setCurrent] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirm, setConfirm] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
-  const short = password.length > 0 && password.length < TEAM_PASSWORD_MIN_LENGTH;
-  const mismatch = confirm.length > 0 && confirm !== password;
-  const ready =
-    password.length >= TEAM_PASSWORD_MIN_LENGTH &&
-    confirm === password &&
-    (!hasPassword || current.length > 0);
   return (
-    <FormDialog
-      title={t(hasPassword ? 'team.ownerPassword.changeTitle' : 'team.ownerPassword.setupTitle')}
-      description={t(thenEnable ? 'team.ownerPassword.enableHint' : 'team.ownerPassword.hint')}
-      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
-      submitLabel={t(thenEnable ? 'team.ownerPassword.saveAndEnable' : 'team.save')}
-      submitDisabled={!ready}
+    <OwnerPasswordDialog
+      kind="team"
+      t={t}
+      hasPassword={hasPassword}
+      thenEnable={thenEnable}
       busy={busy}
-      error={error === undefined ? undefined : <Note tone="danger">{error}</Note>}
+      error={error}
       onCancel={onCancel}
-      onSubmit={() => {
+      onSubmit={(password, current) => {
         setBusy(true);
         setError(undefined);
-        onSubmit(password, hasPassword ? current : undefined)
+        onSubmit(password, current)
           .catch((failure: unknown) => setError(teamErrorText(t, failure)))
           .finally(() => setBusy(false));
       }}
-    >
-      <FieldStack>
-        {hasPassword ? (
-          <TextField
-            label={t('team.password.current')}
-            type="password"
-            autoComplete="current-password"
-            value={current}
-            onChange={setCurrent}
-            initialFocus
-          />
-        ) : null}
-        <TextField
-          label={t('team.password.new')}
-          type="password"
-          autoComplete="new-password"
-          value={password}
-          onChange={setPassword}
-          initialFocus={!hasPassword}
-          hint={t('team.password.rule', {
-            min: String(TEAM_PASSWORD_MIN_LENGTH),
-          })}
-          error={short ? t('team.error.passwordWeak') : undefined}
-        />
-        <TextField
-          label={t('team.password.confirm')}
-          type="password"
-          autoComplete="new-password"
-          value={confirm}
-          onChange={setConfirm}
-          error={mismatch ? t('team.password.mismatch') : undefined}
-        />
-      </FieldStack>
-    </FormDialog>
+    />
   );
 }
 

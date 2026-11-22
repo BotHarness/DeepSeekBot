@@ -1,15 +1,9 @@
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import type { HostEncryption, SavedHost } from './hosts';
-import {
-  ConnectRefused,
-  encryptedCarrier,
-  keyBytes,
-  keyHex,
-  openNoiseSocket,
-  secureRandom,
-} from './encrypted-carrier';
+import { encryptedCarrier, keyHex, secureRandom } from './encrypted-carrier';
+import { encryptedSignIn, signInRefusal, signInTransportFailure } from './encrypted-sign-in';
 import { isConnectRoute } from '@botharness/host-protocol/route';
-import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
+import { discoverSignInHost } from './sign-in-discovery';
 import {
   parseTeamInvitation,
   teamHostIdentity,
@@ -29,7 +23,7 @@ export type {
 } from '@botharness/host-protocol/team-invitation';
 export { memberPasswordGate, prepareMemberIdentity } from './member-identity';
 
-const codes: ReadonlySet<string> = new Set<TeamErrorCode>([
+const codes: readonly TeamErrorCode[] = [
   'credentials-invalid',
   'rate-limited',
   'insecure-transport',
@@ -41,31 +35,7 @@ const codes: ReadonlySet<string> = new Set<TeamErrorCode>([
   'password-reused',
   'invalid-input',
   'remote-access/denied',
-]);
-function refusal(value: unknown): TeamResult<never> {
-  const input = teamRecord(value);
-  const code = input['code'];
-  const known =
-    typeof code === 'string' && codes.has(code) ? (code as TeamErrorCode) : 'response-invalid';
-  return {
-    ok: false,
-    code: known,
-    ...(typeof input['retryAfterSeconds'] === 'number' &&
-    Number.isFinite(input['retryAfterSeconds']) &&
-    input['retryAfterSeconds'] > 0
-      ? { retryAfterSeconds: input['retryAfterSeconds'] }
-      : {}),
-  };
-}
-function requestFailure(error: unknown, signal: AbortSignal): TeamResult<never> {
-  if (signal.aborted) return { ok: false, code: 'request-cancelled' };
-  if (
-    error instanceof ConnectRefused &&
-    ['channel-authentication-failed', 'channel-handshake-rejected'].includes(error.code)
-  )
-    return { ok: false, code: 'fingerprint-mismatch' };
-  return { ok: false, code: 'unreachable' };
-}
+];
 function signedHost(
   input: unknown,
   invitation: TeamInvitation,
@@ -105,57 +75,6 @@ function signedHost(
     },
   };
 }
-async function encryptedSignIn(options: {
-  carrier: HostCarrier;
-  route: string;
-  host: TeamHostIdentity;
-  encryption: HostEncryption;
-  input: unknown;
-  signal: AbortSignal;
-}): Promise<TeamResult<unknown>> {
-  return new Promise((resolve) => {
-    let done = false;
-    let socket: ReturnType<typeof openNoiseSocket> | undefined;
-    const finish = (result: TeamResult<unknown>) => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      options.signal.removeEventListener('abort', abort);
-      resolve(result);
-      socket?.close();
-    };
-    const abort = () => finish({ ok: false, code: 'request-cancelled' });
-    const timer = setTimeout(() => finish({ ok: false, code: 'unreachable' }), 30_000);
-    options.signal.addEventListener('abort', abort, { once: true });
-    if (options.signal.aborted) {
-      abort();
-      return;
-    }
-    try {
-      socket = openNoiseSocket({
-        origin: options.route,
-        hostId: options.host.id,
-        encryption: options.encryption,
-        raw: options.carrier,
-        closed: (reason) => finish(requestFailure(new ConnectRefused(reason), options.signal)),
-        message: (frame) => {
-          if (frame['type'] !== 'team-signed-in') return;
-          const result = teamRecord(frame['result']);
-          finish(result['ok'] === true ? { ok: true, value: result['value'] } : refusal(result));
-        },
-      });
-      void socket.ready.then(
-        () => {
-          if (!done) socket?.send({ type: 'team-sign-in', input: options.input });
-        },
-        (error) => finish(requestFailure(error, options.signal)),
-      );
-    } catch (error) {
-      finish(requestFailure(error, options.signal));
-    }
-  });
-}
-
 export function signInAgainInvitation(
   host: SavedHost,
   now = Date.now(),
@@ -214,26 +133,16 @@ async function signInTeamRoute(
 ): Promise<TeamResult<SavedHost>> {
   const { invitation, route, signal } = options;
   try {
-    const response = await options.carrier.request(`${route}/botharness-device/channel`, {
-      method: 'GET',
+    const discovered = await discoverSignInHost({
+      carrier: options.carrier,
+      route,
       signal,
+      invitedHost: invitation.host,
     });
-    if (response.status !== 200) return { ok: false, code: 'unreachable' };
-    const discovery = teamRecord(JSON.parse(await response.text()));
-    const host = teamRecord(discovery['host']);
-    const remote = teamRecord(discovery['encryption']);
-    const publicKey = remote['publicKey'];
-    if (
-      host['id'] !== invitation.host.id ||
-      typeof publicKey !== 'string' ||
-      !/^[a-f0-9]{64}$/u.test(publicKey) ||
-      noiseFingerprint(keyBytes(publicKey)) !== invitation.host.fingerprint ||
-      remote['fingerprint'] !== invitation.host.fingerprint
-    )
-      return { ok: false, code: 'fingerprint-mismatch' };
+    if (!discovered.ok) return discovered;
     const encryption: HostEncryption = {
       protocol: 'connect-noise-xk-v1',
-      hostKey: publicKey,
+      hostKey: discovered.value.publicKey,
       deviceKey: keyHex(secureRandom(options.carrier)),
     };
     const input = {
@@ -245,6 +154,8 @@ async function signInTeamRoute(
     if (isConnectRoute(route)) {
       const result = await encryptedSignIn({
         ...options,
+        type: 'team-sign-in',
+        codes,
         route,
         host: invitation.host,
         encryption,
@@ -262,9 +173,9 @@ async function signInTeamRoute(
     const value: unknown = JSON.parse(await result.text());
     return result.status === 200
       ? signedHost(value, invitation, route, encryption)
-      : refusal(value);
+      : signInRefusal(value, codes);
   } catch (error) {
-    return requestFailure(error, signal);
+    return signInTransportFailure(error, signal);
   }
 }
 function encodeInvitation(value: TeamInvitation): string {
@@ -304,13 +215,13 @@ export async function changeTeamDevicePassword(options: {
       body: JSON.stringify({ current: options.current, next: options.next }),
       signal,
     });
-    if (response.status !== 200) return refusal(JSON.parse(await response.text()));
+    if (response.status !== 200) return signInRefusal(JSON.parse(await response.text()), codes);
     return {
       ok: true,
       value: { ...options.host, member: { ...options.host.member, mustChangePassword: false } },
     };
   } catch (error) {
-    return requestFailure(error, signal);
+    return signInTransportFailure(error, signal);
   } finally {
     carrier.close?.();
   }
@@ -345,6 +256,6 @@ export async function memberPairingOffer(client: {
       },
     };
   } catch (error) {
-    return refusal(error);
+    return signInRefusal(error, codes);
   }
 }

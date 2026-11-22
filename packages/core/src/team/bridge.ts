@@ -9,7 +9,7 @@ import {
 import { ContentPurgeError } from '../purge/contracts.js';
 import { z } from 'zod';
 import type { HumanContext } from '../humans/context.js';
-import type { BridgeResult } from '../bridge/methods.js';
+import type { BridgeResult } from '../bridge/method-utils.js';
 import { TeamError, type TeamService } from './service.js';
 
 export function createTeamBridge(human: HumanContext, team: TeamService | undefined) {
@@ -147,6 +147,22 @@ export function createTeamBridge(human: HumanContext, team: TeamService | undefi
     teamModeSet: (payload: unknown) =>
       call((service) =>
         service.setMode(human, z.object({ enabled: z.boolean() }).parse(payload).enabled),
+      ),
+    ownerPasswordSignIn: (_payload: unknown) =>
+      call((service) => service.ownerPasswordSignIn(human)),
+    ownerPasswordSignInSet: (payload: unknown) =>
+      call((service) =>
+        service.ownerPasswordSignInSet(
+          human,
+          z
+            .object({
+              enabled: z.boolean(),
+              username: z.string().max(32).optional(),
+              password: z.string().max(1024).optional(),
+            })
+            .strict()
+            .parse(payload),
+        ),
       ),
     teamOwnerPasswordSet: (payload: unknown) =>
       call((service) => {

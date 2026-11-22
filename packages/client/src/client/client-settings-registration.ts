@@ -278,7 +278,7 @@ export function registerClientSettings(
           order: 45,
           label: () => t('botSettings.section.devices'),
           locale: LOCALE_NS,
-          inject: () => ({}),
+          inject: () => ({ call }),
         },
         DevicesSection,
       ),

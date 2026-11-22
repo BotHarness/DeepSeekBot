@@ -720,6 +720,10 @@
     "sha256": "aac8663f4ba8c6cc23502beab72f8c1dbfbe5946440a9ca56e2eae058ed2c74c"
   },
   {
+    "id": "owner-password-sign-in",
+    "sha256": "cd24239ed9e9be52958c4f7a8436c1877dd00c40a4d7809d36df0b9d52e352d1"
+  },
+  {
     "id": "channel-human-add-receipts",
     "sha256": "a6fea0bb5e3dd63a854422c0a34d00e7cf0627709419c16ad47906e4c148dd3b"
   }

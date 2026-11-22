@@ -223,6 +223,7 @@ export const CLI_EFFECTS = {
   'device-offer': { effects: management, brokerRead: false },
   'device-offer-status': { effects: read, brokerRead: true },
   'device-pair': { effects: externalSecretManagement, brokerRead: false },
+  'device-owner-sign-in': { effects: externalSecretManagement, brokerRead: false },
   'device-probe': { effects: write, brokerRead: false },
   'device-requests': { effects: read, brokerRead: true },
   'device-revoke': { effects: management, brokerRead: false },
@@ -650,6 +651,10 @@ function familyEffects(
           ? destructiveManagement
           : management;
     case 'team-mode':
+      if (action === 'owner-sign-in') {
+        if (rest[1] === 'status') return read;
+        return values['password-stdin'] ? secretManagement : management;
+      }
       return action === 'status'
         ? read
         : action === 'owner-password' || action === 'transfer-owner'
