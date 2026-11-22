@@ -219,7 +219,7 @@ export function SubChoiceList({
   ];
 
   const tile = (choice: SubChoice, index: number): ReactElement => {
-    const key = keyOf(choice);
+    const key = JSON.stringify(subSelectionOf(choice));
     const item = itemOf(choice);
     const name =
       item?.name ?? (choice.kind === 'group' ? choice.group : (choice.model ?? choice.kind));

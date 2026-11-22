@@ -393,7 +393,8 @@ describe('Model entry', () => {
       );
       return plan;
     });
-    const setModelPlanSub = vi.fn(async () => {
+    const setModelPlanSub = vi.fn();
+    const customizeModelPlan = vi.fn(async () => {
       plan = { ...plan, revision: plan.revision + 1, sourcePresetId: '', sourcePresetName: '' };
       return plan;
     });
@@ -403,6 +404,7 @@ describe('Model entry', () => {
       modelCatalog: vi.fn(async () => ({ models: catalog })),
       applyModelPreset,
       setModelPlanSub,
+      customizeModelPlan,
     } as unknown as BridgeActions);
     expect(cards(host)).toContain('Daily');
 
@@ -442,16 +444,12 @@ describe('Model entry', () => {
     expect(button('Save').disabled).toBe(true);
     await act(async () => button('Specific models').click());
     await act(async () => button('Save').click());
-    expect(setModelPlanSub).toHaveBeenCalledWith(
+    expect(customizeModelPlan).toHaveBeenCalledWith(
       'ada',
+      { provider: 'deepseek', model: 'flash' },
       2,
-      {
-        orchestrator: { provider: 'deepseek', model: 'flash' },
-        orchestratorGroupId: null,
-        orchestratorGroupEffort: null,
-      },
-      modelSub(pro),
     );
+    expect(setModelPlanSub).not.toHaveBeenCalled();
     expect(cards(host)).not.toContain('Deep');
   });
 
@@ -633,7 +631,7 @@ describe('Model entry', () => {
       modelPlanState: vi.fn(async () => (++reads === 3 ? stale : { plan })),
       modelPresets: vi.fn(async () => []),
       modelCatalog: vi.fn(async () => ({ models: catalog })),
-      setModelPlanSub: vi.fn(async () => {
+      customizeModelPlan: vi.fn(async () => {
         plan = { ...plan, revision: 2, orchestrator: { provider: 'kimi', model: 'k2' } };
         return plan;
       }),
@@ -647,6 +645,88 @@ describe('Model entry', () => {
     await act(async () => finishStale({ plan: original }));
     expect(cards(host)).toContain('k2 · Default');
   });
+});
+
+it('keeps an open Assignment policy on a main-only save', async () => {
+  const plan: ModelPlanView = {
+    revision: 3,
+    sourcePresetId: '',
+    sourcePresetName: '',
+    orchestrator: catalog[0]!,
+    assignmentDefault: catalog[0]!,
+    openAssignmentModels: true,
+    appliedAt: '',
+  };
+  const customizeModelPlan = vi.fn(async () => ({ ...plan, revision: 4 }));
+  const setModelPlanSub = vi.fn();
+  await render(
+    {
+      modelPlanState: async () => ({ plan }),
+      modelCatalog: async () => ({ models: catalog }),
+      modelPresets: async () => [],
+      customizeModelPlan,
+      setModelPlanSub,
+    } as unknown as BridgeActions,
+    vi.fn(),
+  );
+  await choose('Main model', 'pro', 'Pro');
+  await act(async () => button('Save').click());
+  expect(customizeModelPlan).toHaveBeenCalledExactlyOnceWith(
+    'ada',
+    { provider: 'deepseek', model: 'pro' },
+    3,
+  );
+  expect(setModelPlanSub).not.toHaveBeenCalled();
+});
+
+it('shows the Default preset main route for an inherited empty Task list', async () => {
+  await render(
+    {
+      modelPlanState: async () => ({ revision: 2 }),
+      modelCatalog: async () => ({ models: catalog }),
+      modelPresets: async () => [
+        {
+          id: 'default',
+          name: 'Default',
+          revision: 1,
+          orchestrator: { provider: 'kimi', model: 'k2' },
+          assignmentDefault: { provider: 'kimi', model: 'k2' },
+          sub: { choices: [], default: null },
+          createdAt: '',
+        },
+      ],
+    } as unknown as BridgeActions,
+    vi.fn(),
+  );
+  expect(taskTiles()).toEqual([expect.stringMatching(/^Kimi K2.*Default/)]);
+});
+
+it('shows the saved default Task choice on the Bot card', async () => {
+  const plan: ModelPlanView = {
+    revision: 3,
+    sourcePresetId: '',
+    sourcePresetName: '',
+    orchestrator: catalog[0]!,
+    assignmentDefault: catalog[1]!,
+    sub: {
+      choices: [
+        { kind: 'model', ...catalog[1]!, allowedEfforts: [''], defaultEffort: '' },
+        { kind: 'group', group: 'side' },
+      ],
+      default: { kind: 'group', group: 'side' },
+    },
+    appliedAt: '',
+  };
+  const host = await render({
+    modelPlanState: async () => ({ plan }),
+    modelCatalog: async () => ({
+      models: catalog,
+      groups: [{ id: 'side', name: 'Side', revision: 1, routes: [catalog[0]!] }],
+    }),
+    modelPresets: async () => [],
+  } as unknown as BridgeActions);
+  expect(cards(host)).toContain('Task model · side');
+  expect(cards(host)).not.toContain('pro · Default');
 });
 
 it('keeps inherited Assignment settings when editing an Orchestrator-only plan', async () => {

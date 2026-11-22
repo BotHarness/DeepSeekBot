@@ -86,7 +86,14 @@ describe('Subscription models in the model dialog', () => {
         if (engine !== null) selections.push({ botSlug, role, engine, ...options });
       });
     const apply = vi.fn(async () => plan);
-    const set = vi.fn(async () => ({ ...plan, revision: 8 }));
+    const set = vi.fn(
+      async (
+        _slug: string,
+        _revision: number,
+        _main: unknown,
+        sub: NonNullable<ModelPlanView['sub']>,
+      ): Promise<ModelPlanView> => ({ ...plan, revision: 8, sub }),
+    );
     const actions = {
       modelPlanState: async () => ({ plan }),
       modelCatalog: async () => ({ models: catalog }),
@@ -199,6 +206,86 @@ describe('Subscription models in the model dialog', () => {
     await act(async () => button('Save').click());
     expect(apply).toHaveBeenCalledExactlyOnceWith('ada', preset.id);
     expect(use).not.toHaveBeenCalled();
+  });
+
+  it('shows a live task engine on an inheriting plan and moves it into the list on save', async () => {
+    const choice = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const { actions, use, set } = fixture([{ ...choice, role: 'assignment' }]);
+    const mainOnly: ModelPlanView = {
+      revision: 7,
+      orchestrator: route,
+      sourcePresetId: '',
+      sourcePresetName: '',
+    };
+    const customize = vi.fn();
+    await render(
+      markOriginActions({
+        ...actions,
+        modelPlanState: async () => ({ plan: mainOnly }),
+        customizeModelPlan: customize,
+      } as unknown as BridgeActions),
+      vi.fn(),
+    );
+    expect(taskTiles()).toContainEqual(expect.stringMatching(/^GPT-6 Subscription.*Default/));
+    await choose('Main model', 'pro', 'Pro');
+    await act(async () => button('Save').click());
+    expect(customize).not.toHaveBeenCalled();
+    expect(set).toHaveBeenCalledExactlyOnceWith('ada', 7, expect.anything(), {
+      choices: [{ kind: 'engine', engine: 'codex', model: 'gpt-6', effort: 'high' }],
+      default: { kind: 'engine', engine: 'codex', model: 'gpt-6' },
+    });
+    expect(use.mock.calls).toEqual([['ada', 'assignment', null, {}]]);
+  });
+
+  it('waits for the engine read before saving a plan without a stored list', async () => {
+    const { actions, read } = fixture([]);
+    let finishRead: () => void = () => undefined;
+    read.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          finishRead = () =>
+            resolve({
+              engines: [{ engine: 'codex', available: true, installed: true }],
+              selections: [],
+            });
+        }),
+    );
+    await render(markOriginActions(actions), vi.fn());
+    await choose('Main model', 'pro', 'Pro');
+    expect(button('Save').disabled).toBe(true);
+    await act(async () => finishRead());
+    expect(button('Save').disabled).toBe(false);
+  });
+
+  it('retries a failed task-role clear without writing the plan again', async () => {
+    const choice = { botSlug: 'ada', engine: 'codex' as const, model: 'gpt-6', effort: 'high' };
+    const { actions, use, set } = fixture([{ ...choice, role: 'assignment' }]);
+    let failClear = true;
+    use.mockImplementation(async (_slug, role, engine) => {
+      if (role === 'assignment' && engine === null && failClear) {
+        failClear = false;
+        throw new Error('clear failed');
+      }
+    });
+    let current: ModelPlanView = plan;
+    set.mockImplementation(async (_slug, _revision, _main, sub) => {
+      current = { ...plan, revision: 8, sub };
+      return current;
+    });
+    await render(
+      markOriginActions({
+        ...actions,
+        modelPlanState: async () => ({ plan: current }),
+      } as unknown as BridgeActions),
+      vi.fn(),
+    );
+    await choose('Main model', 'pro', 'Pro');
+    await act(async () => button('Save').click());
+    expect(document.querySelector('[role="alert"]')?.textContent).toContain('clear failed');
+    expect(set).toHaveBeenCalledOnce();
+    await act(async () => button('Save').click());
+    expect(set).toHaveBeenCalledOnce();
+    expect(use.mock.calls.filter(([, role]) => role === 'assignment')).toHaveLength(2);
   });
 
   it('keeps the remote picker on the remote DSH catalog', async () => {

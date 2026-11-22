@@ -168,7 +168,7 @@ describe('Model entry', () => {
     );
   });
 
-  it('opens a grouped plan and saves it back with its groups (#4501)', async () => {
+  it('opens a grouped plan as its list and keeps it on a main-only save (#4501)', async () => {
     const plan: ModelPlanView = {
       revision: 5,
       sourcePresetId: '',
@@ -186,12 +186,14 @@ describe('Model entry', () => {
       { id: 'main', name: 'Main', revision: 1, routes: [{ provider: 'kimi', model: 'k2' }] },
       { id: 'side', name: 'Side', revision: 1, routes: [{ provider: 'deepseek', model: 'flash' }] },
     ];
-    const setModelPlanSub = vi.fn(async () => ({ ...plan, revision: 6 }));
+    const setModelPlanSub = vi.fn();
+    const customizeModelPlan = vi.fn(async () => ({ ...plan, revision: 6 }));
     const host = await render({
       modelPlanState: vi.fn(async () => ({ revision: 5, plan })),
       modelPresets: vi.fn(async () => []),
       modelCatalog: vi.fn(async () => ({ models: catalog, groups })),
       setModelPlanSub,
+      customizeModelPlan,
     } as unknown as BridgeActions);
     await openEditor(host);
     expect(picked(translate('modelPreset.orchestrator'))).toContain('Main');
@@ -202,23 +204,12 @@ describe('Model entry', () => {
     ]);
     await choose(translate('modelPreset.orchestrator'), 'Flash', 'Flash');
     await act(async () => button(translate('modelPreset.save')).click());
-    expect(setModelPlanSub).toHaveBeenCalledExactlyOnceWith(
+    expect(customizeModelPlan).toHaveBeenCalledExactlyOnceWith(
       'ada',
+      { provider: 'deepseek', model: 'flash' },
       5,
-      {
-        orchestrator: { provider: 'deepseek', model: 'flash' },
-        orchestratorGroupId: null,
-        orchestratorGroupEffort: null,
-      },
-      {
-        choices: [
-          proChoice,
-          { kind: 'group', group: 'side' },
-          { kind: 'group', group: 'main', note: 'Long work' },
-        ],
-        default: { kind: 'group', group: 'side' },
-      },
     );
+    expect(setModelPlanSub).not.toHaveBeenCalled();
   });
 
   it('clears a group effort limit its members no longer share (#4501)', async () => {

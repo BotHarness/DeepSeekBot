@@ -145,3 +145,20 @@ it('expands a tile inside a form without submitting the form', async () => {
   expect(submit).not.toHaveBeenCalled();
   expect(document.querySelector('input[aria-label="When to use Flash"]')).not.toBeNull();
 });
+
+it('keeps a model-free engine choice and its resolved model as separate tiles', async () => {
+  await render({
+    choices: [
+      { kind: 'engine', engine: 'codex' },
+      { kind: 'engine', engine: 'codex', model: 'gpt-6' },
+    ],
+    default: { kind: 'engine', engine: 'codex' },
+  });
+  expect(tiles()).toHaveLength(2);
+  const toggles = [
+    ...document.querySelectorAll<HTMLButtonElement>('[data-list-card] > li button[aria-expanded]'),
+  ];
+  await act(async () => toggles[0]!.click());
+  expect(toggles[0]!.getAttribute('aria-expanded')).toBe('true');
+  expect(toggles[1]!.getAttribute('aria-expanded')).toBe('false');
+});
