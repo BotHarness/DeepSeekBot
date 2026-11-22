@@ -1,14 +1,12 @@
 import { View } from 'react-native';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
-import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
-import { turnTargetLabel } from '@botharness/host-client/turn-target';
+import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
 
 import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
-import { EngineBrandIcon } from './engine-brand-icon';
-import { ModelBrandIcon } from './model-brand-icon';
+import { ModelTargetIcon } from './model-target-icon';
 
 export function MessageMenuHeader({
   time,
@@ -17,7 +15,7 @@ export function MessageMenuHeader({
 }: {
   time: string;
   targets: readonly TurnTarget[];
-  catalog: readonly ModelCatalogEntry[] | undefined;
+  catalog: TurnTargetCatalog | undefined;
 }) {
   const theme = useDesignTheme();
   const t = useStrings();
@@ -74,11 +72,7 @@ export function MessageMenuHeader({
                 →
               </Text>
             )}
-            {label.external ? (
-              <EngineBrandIcon brand={label.brand} size={iconSize} color={theme.color.muted} />
-            ) : (
-              <ModelBrandIcon brand={label.brand} size={iconSize} color={theme.color.muted} />
-            )}
+            <ModelTargetIcon target={label} size={iconSize} color={theme.color.muted} />
             <Text variant="meta" tone="muted" style={{ flexShrink: 1, textAlign: 'right' }}>
               {[label.short, label.effort].filter(Boolean).join(' · ')}
             </Text>

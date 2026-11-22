@@ -25,3 +25,20 @@ export function sessionKey(
 ): string {
   return JSON.stringify([choice, cwd, mode]);
 }
+
+export const RELEASE_GRACE_MS = 10_000;
+
+export async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boolean> {
+  let timer: NodeJS.Timeout | undefined;
+  const settled = await Promise.race([
+    promise.then(
+      () => true,
+      () => true,
+    ),
+    new Promise<false>((resolve) => {
+      timer = setTimeout(() => resolve(false), ms);
+    }),
+  ]);
+  clearTimeout(timer);
+  return settled;
+}

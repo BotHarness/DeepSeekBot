@@ -286,14 +286,23 @@ describe('iOS message sheet', () => {
     };
     mount(ios.MessageActions, {
       target: { message, anchor, group },
-      catalog: [
-        {
-          provider: 'opencode-go',
-          providerName: 'OpenCode Go',
-          model: 'deepseek-v4.1-flash',
-          modelName: 'DeepSeek V4.1 Flash',
-        },
-      ],
+      catalog: {
+        engines: [
+          {
+            engine: 'codex',
+            available: true,
+            models: [{ id: 'gpt-6.2-sol', name: 'GPT-6.2-Sol', efforts: [] }],
+          },
+        ],
+        models: [
+          {
+            provider: 'opencode-go',
+            providerName: 'OpenCode Go',
+            model: 'deepseek-v4.1-flash',
+            modelName: 'DeepSeek V4.1 Flash',
+          },
+        ],
+      },
     });
     const attribution = host?.querySelector('[data-testid="message-menu-turn-targets"]');
     const time = host?.querySelector('[data-testid="message-menu-time"]');

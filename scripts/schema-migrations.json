@@ -706,5 +706,9 @@
   {
     "id": "default-model-preset",
     "sha256": "18127e2b8786c4b772fd645322d4def2eaef5ad94f301f7f1ef82c60d3bbf875"
+  },
+  {
+    "id": "session-model-choices",
+    "sha256": "2c4320195b84e9045a4129a7866a2abac5ffa7cd2f3d94efad5abdf41a32aad2"
   }
 ]

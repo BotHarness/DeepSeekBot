@@ -106,6 +106,31 @@ describe('Session transcript', () => {
     ]);
   });
 
+  it('places one marker per changed Turn and carries the Routing Group quota reason', () => {
+    const codex = { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol' } as const;
+    const opus = { kind: 'engine', engine: 'claude', model: 'claude-opus-5-5' } as const;
+    const flash = { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' } as const;
+    const events = [1, 2, 3, 4].flatMap((turn) => [
+      event(turn * 3, 'turn/start', { turn }),
+      say(turn * 3 + 1, [{ type: 'text', text: 'Reply' }]),
+      event(turn * 3 + 2, 'turn/end', { reason: 'completed' }),
+    ]);
+    const result = summarizeSessionTranscript({
+      sessionId: 'switches',
+      events,
+      segments: [
+        { turn: 1, step: 0, request: 'one', target: codex },
+        { turn: 2, step: 0, request: 'two', target: codex },
+        { turn: 3, step: 0, request: 'three', target: opus },
+        { turn: 4, step: 0, request: 'four', target: flash, switchReason: 'quota' },
+      ],
+    });
+    expect(result.items.filter(({ kind }) => kind === 'model-switch')).toEqual([
+      { kind: 'model-switch', at: iso(9), from: codex, to: opus },
+      { kind: 'model-switch', at: iso(12), from: opus, to: flash, reason: 'quota' },
+    ]);
+  });
+
   it('reports a running turn and keeps its open tool running', () => {
     const transcript = summarizeSessionTranscript({
       sessionId: 'asg-1',

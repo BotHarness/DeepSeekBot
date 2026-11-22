@@ -1,3 +1,7 @@
+import type {
+  SessionModelChoice,
+  SessionModelState,
+} from '@botharness/host-protocol/session-model';
 import * as botControl from '@botharness/host-client/bot-control';
 import {
   type BotCompactResult,
@@ -7,6 +11,7 @@ import {
   loadAssignmentWork,
   loadSessionProgress,
   loadSessionTranscript,
+  sessionModel,
   loadSessionLive,
   loadSessionToolDetail,
   sendSessionRequest,
@@ -51,6 +56,11 @@ export interface SessionActions {
     slug: string,
     sessionIds: readonly string[],
   ): Promise<Record<string, SessionProgress>>;
+  sessionModel?(
+    slug: string,
+    sessionId: string,
+    choice?: SessionModelChoice | null,
+  ): Promise<SessionModelState>;
   sessionTranscript?(slug: string, sessionId: string): Promise<SessionTranscript>;
   sessionLive?(
     slug: string,
@@ -164,6 +174,9 @@ export function createSessionActions(
     },
     sessionProgress(slug, sessionIds) {
       return loadSessionProgress(call, slug, sessionIds);
+    },
+    sessionModel(slug, sessionId, choice) {
+      return sessionModel(call, slug, sessionId, choice);
     },
     sessionTranscript(slug, sessionId) {
       return loadSessionTranscript(call, slug, sessionId);

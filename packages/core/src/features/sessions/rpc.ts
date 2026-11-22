@@ -1,3 +1,4 @@
+import type { SessionModelState } from '@botharness/host-protocol/session-model';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type { TurnTrace } from '../../bots/tool-trace.js';
 import type { SessionTranscript } from '../../runtime/session-transcript.js';
@@ -120,6 +121,17 @@ export function compactionThresholdSet(
       ...(thresholdRatio === undefined ? {} : { thresholdRatio }),
       ...(headroomTokens === undefined ? {} : { headroomTokens }),
     }),
+  );
+}
+
+export function sessionModel(
+  methods: SessionsBridgeMethods,
+  slug: string,
+  sessionId: string,
+  choice?: unknown,
+): Promise<SessionModelState> {
+  return unwrapAsync(
+    methods.sessionModel({ slug, sessionId, ...(choice === undefined ? {} : { choice }) }),
   );
 }
 
