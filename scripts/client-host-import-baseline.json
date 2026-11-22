@@ -171,9 +171,6 @@
     "../../../core/src/attachments/ref.js": 1,
     "../../../core/src/channels/channel-notice.js": 1
   },
-  "packages/client/src/client/channel-message-body.tsx": {
-    "../../../core/src/skills/entries.js": 1
-  },
   "packages/client/src/client/channel-row-status.tsx": {
     "../../../core/src/state/bot-state.js": 1
   },
@@ -269,6 +266,9 @@
   "packages/client/src/client/features/channels/channel-composer.tsx": {
     "../../../../../core/src/channels/all-bot-mention.js": 1,
     "../../../../../core/src/channels/message-preview.js": 1,
+    "../../../../../core/src/skills/entries.js": 1
+  },
+  "packages/client/src/client/features/channels/channel-message-body.tsx": {
     "../../../../../core/src/skills/entries.js": 1
   },
   "packages/client/src/client/generated-files-panel.tsx": {
