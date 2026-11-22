@@ -1,3 +1,4 @@
+import { parseSessionLinks } from './session-links';
 import { openBotDm } from './channel-management';
 import { forgetGenuiDocumentViews } from './genui/view';
 import { forgetMedia } from './media-cache';
@@ -528,6 +529,21 @@ export function createConversation(options: ConversationOptions): Conversation {
           notification.attachments,
           notification.clearedAttachments,
         );
+    } else if (notification.kind === 'session-links') {
+      if (notification.channelId !== channelId) return false;
+      const sessionLinks = parseSessionLinks(notification.sessionLinks);
+      const index = window.findIndex((entry) => entry.message.id === notification.messageId);
+      const entry = window[index];
+      if (entry?.message.author.kind !== 'bot') return false;
+      window = window.map((current, i) =>
+        i === index
+          ? {
+              ...entry,
+              message: { ...entry.message, sessionLinks },
+            }
+          : current,
+      );
+      return true;
     } else if (notification.kind === 'draft-baseline') {
       clearDrafts();
       for (const draft of notification.drafts) upsertDraft(draft);

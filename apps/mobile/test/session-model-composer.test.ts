@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { SessionModelState } from '@botharness/host-protocol/session-model';
-import { currentOrchestratorSession, sessionModel } from '@botharness/host-client/session-model';
+import { sessionModel } from '@botharness/host-client/session-model';
 import { en, zh } from '../src/features/sessions/strings';
 import { sessionModelLabel } from '../src/ui/chat/session-model-label';
 
@@ -35,32 +35,7 @@ const catalog = {
 };
 const state: SessionModelState = { override: engine, default: api };
 
-describe('DM Session Model Choice', () => {
-  it('resolves the Host’s current Orchestrator, even with newer historical and Assignment Sessions', async () => {
-    const target = { kind: 'dsh', provider: api.provider, model: api.model };
-    const call = vi.fn().mockResolvedValue({
-      sessions: [
-        { role: 'assignment', sessionId: 'assignment' },
-        {
-          role: 'orchestrator',
-          sessionId: 'current',
-          currentOrchestrator: true,
-          currentTarget: target,
-        },
-        { role: 'orchestrator', sessionId: 'newer', currentOrchestrator: false },
-      ],
-    });
-    await expect(currentOrchestratorSession({ call }, 'ada')).resolves.toEqual({
-      id: 'current',
-      target,
-    });
-    expect(call).toHaveBeenCalledExactlyOnceWith('sessions', { slug: 'ada' });
-    call.mockResolvedValue({
-      sessions: [{ role: 'orchestrator', sessionId: 'past', currentOrchestrator: false }],
-    });
-    await expect(currentOrchestratorSession({ call }, 'ada')).resolves.toBeUndefined();
-  });
-
+describe('Session composer Model Choice', () => {
   it('saves and clears the choice on the exact Session and preserves Host refusals', async () => {
     const call = vi.fn().mockResolvedValueOnce(state).mockResolvedValueOnce({
       override: null,

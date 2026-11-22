@@ -1,5 +1,6 @@
 import { readWorkspaceGrants } from '@botharness/host-client/access-readers';
 import { openBotDm } from '@botharness/host-client/channel-management';
+import { orchestratorSessions, type ProfileOrchestrator } from './session-detail';
 import { loadProfileActivity } from './bot-activity';
 import { loadSchedules } from '@botharness/host-client/schedules';
 import {
@@ -63,6 +64,7 @@ export interface ProfileAssignment {
 }
 
 export interface BotProfile {
+  orchestrators?: ProfilePart<ProfileOrchestrator[]>;
   work: ProfilePart<ProfileAssignment[]>;
   memory: ProfilePart<ProfileMemory>;
   routines: ProfilePart<BotScheduleSummary[]>;
@@ -122,6 +124,7 @@ export function botProfileResource(client: HostClient, bot: ProfileBotRef): BotP
             const next = await loadBotProfile(client, bot);
             const value = queries.getQueryData<BotProfile>(queryKey);
             return {
+              ...(next.orchestrators === undefined ? {} : { orchestrators: next.orchestrators }),
               work: keepSuccessful(next.work, value?.work),
               memory: keepSuccessful(next.memory, value?.memory),
               routines: keepSuccessful(next.routines, value?.routines),
@@ -258,7 +261,7 @@ export function unpinnedEntries(files: readonly string[], pinned: readonly Pinne
 export async function loadBotProfile(client: HostClient, bot: ProfileBotRef): Promise<BotProfile> {
   const channel = dmChannel(client, bot);
   const snapshot = channel.then((channelId) => snapshotOf(client, channelId));
-  const [work, memory, routines, files, activity] = await Promise.all([
+  const [work, memory, routines, files, activity, orchestrators] = await Promise.all([
     settle(
       client
         .call<{
@@ -282,8 +285,9 @@ export async function loadBotProfile(client: HostClient, bot: ProfileBotRef): Pr
       ),
     ),
     settle(channel.then((channelId) => loadProfileActivity(client, channelId, { weeks: 1 }))),
+    settle(orchestratorSessions(client, bot.slug)),
   ]);
-  return { work, memory, routines, files, activity };
+  return { work, memory, routines, files, activity, orchestrators };
 }
 
 export function workRows(assignments: readonly ProfileAssignment[]): ProfileAssignment[] {

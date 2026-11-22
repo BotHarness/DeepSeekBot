@@ -2,13 +2,15 @@ import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Keyboard, Pressable, SectionList } from 'react-native';
 import type { HostCall } from '@botharness/host-client/host-answer';
 import { loadSessionModelCatalog } from '@botharness/host-client/model-catalog';
-import { currentOrchestratorSession, sessionModel } from '@botharness/host-client/session-model';
+import { sessionModel } from '@botharness/host-client/session-model';
 import { turnTargetLabel } from '@botharness/host-client/turn-target';
 import type { ModelBrand } from '@botharness/host-client/shared/model-brand';
 import type {
   SessionModelChoice,
   SessionModelState,
 } from '@botharness/host-protocol/session-model';
+
+import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 
 import { radius, space } from '../design/tokens';
 import { pressTint, useDesignTheme } from '../design/theme';
@@ -19,60 +21,54 @@ import { ModelBrandIcon } from './model-brand-icon';
 import { sessionModelKey, sessionModelLabel } from './session-model-label';
 import { SHEET_GROUP, Sheet, SheetCallout, SheetFailed, SheetHeading, SheetLoading } from './sheet';
 
-type Session = NonNullable<Awaited<ReturnType<typeof currentOrchestratorSession>>>;
 type Catalog = Awaited<ReturnType<typeof loadSessionModelCatalog>>;
-type ModelState = { session: Session; value: SessionModelState } | null;
 type Result<T> =
   | { host: HostCall; attempt: number; value: T }
   | { host: HostCall; attempt: number; failed: true };
 
 export interface ComposerSessionModel {
   slug: string;
-  host: HostCall | undefined;
+  sessionId: string;
+  host: HostCall;
   enabled: boolean;
-  activity: string | undefined;
+  running: boolean;
+  target?: TurnTarget | undefined;
 }
 
-export function useSessionModelControl(source: ComposerSessionModel | undefined) {
-  const { host, slug, enabled, activity } = source ?? {};
+export function useSessionModelControl({
+  host,
+  slug,
+  sessionId,
+  enabled,
+  running,
+  target,
+}: ComposerSessionModel) {
   const [attempt, setAttempt] = useState(0);
   const [open, setOpen] = useState(false);
-  const [saved, setSaved] = useState<Result<ModelState>>();
+  const [saved, setSaved] = useState<Result<SessionModelState>>();
   const [catalogResult, setCatalog] = useState<Result<Catalog>>();
   const [saving, setSaving] = useState<string>();
   const [refused, setRefused] = useState(false);
   const writing = useRef(false);
-  const state =
-    saved?.host === host && saved !== undefined && 'value' in saved ? saved.value : undefined;
+  const state = saved?.host === host && 'value' in saved ? saved.value : undefined;
   const catalog =
-    catalogResult?.host === host && catalogResult !== undefined && 'value' in catalogResult
-      ? catalogResult.value
-      : undefined;
-  const visible = enabled === true && open;
-  const sessionId = state?.session.id;
-  const needsCatalog = sessionId !== undefined || visible;
+    catalogResult?.host === host && 'value' in catalogResult ? catalogResult.value : undefined;
+  const visible = enabled && open;
   const failed =
-    (saved?.host === host && saved?.attempt === attempt && 'failed' in saved) ||
+    (saved?.host === host && saved.attempt === attempt && 'failed' in saved) ||
     (catalogResult?.host === host &&
-      catalogResult?.attempt === attempt &&
+      catalogResult.attempt === attempt &&
       'failed' in catalogResult);
   const ready =
     state !== undefined &&
-    state !== null &&
     catalog !== undefined &&
     saved?.attempt === attempt &&
     catalogResult?.attempt === attempt;
 
   useLayoutEffect(() => {
-    if (host === undefined || slug === undefined || enabled !== true || saving !== undefined)
-      return;
+    if (!enabled || saving !== undefined) return;
     let active = true;
-    void (async () => {
-      const session = await currentOrchestratorSession(host, slug);
-      return session === undefined
-        ? null
-        : { session, value: await sessionModel(host, slug, session.id) };
-    })().then(
+    void sessionModel(host, slug, sessionId).then(
       (value) => {
         if (active) setSaved({ host, attempt, value });
       },
@@ -83,10 +79,10 @@ export function useSessionModelControl(source: ComposerSessionModel | undefined)
     return () => {
       active = false;
     };
-  }, [host, slug, enabled, activity, attempt, saving]);
+  }, [host, slug, sessionId, enabled, running, attempt, saving]);
 
   useLayoutEffect(() => {
-    if (host === undefined || enabled !== true || !needsCatalog) return;
+    if (!enabled) return;
     let active = true;
     void loadSessionModelCatalog(host).then(
       (value) => {
@@ -99,10 +95,10 @@ export function useSessionModelControl(source: ComposerSessionModel | undefined)
     return () => {
       active = false;
     };
-  }, [host, enabled, needsCatalog, attempt]);
+  }, [host, enabled, attempt]);
 
   useLayoutEffect(() => {
-    if (enabled !== true) setOpen(false);
+    if (!enabled) setOpen(false);
   }, [enabled]);
 
   function retry() {
@@ -121,19 +117,13 @@ export function useSessionModelControl(source: ComposerSessionModel | undefined)
   }
 
   async function choose(choice: SessionModelChoice | null) {
-    if (!ready || host === undefined || slug === undefined || writing.current) return;
+    if (!ready || writing.current) return;
     writing.current = true;
     setSaving(sessionModelKey(choice));
     setRefused(false);
     try {
-      const session = await currentOrchestratorSession(host, slug);
-      if (session === undefined || session.id !== sessionId) {
-        setSaved({ host, attempt, failed: true });
-        setRefused(true);
-        return;
-      }
-      const value = await sessionModel(host, slug, session.id, choice);
-      setSaved({ host, attempt, value: { session, value } });
+      const value = await sessionModel(host, slug, sessionId, choice);
+      setSaved({ host, attempt, value });
       setOpen(false);
     } catch {
       setRefused(true);
@@ -143,7 +133,20 @@ export function useSessionModelControl(source: ComposerSessionModel | undefined)
     }
   }
 
-  return { state, catalog, failed, ready, refused, retry, show, close, choose, saving, visible };
+  return {
+    state,
+    target,
+    catalog,
+    failed,
+    ready,
+    refused,
+    retry,
+    show,
+    close,
+    choose,
+    saving,
+    visible,
+  };
 }
 
 type Control = ReturnType<typeof useSessionModelControl>;
@@ -160,14 +163,13 @@ export function SessionModelChip({
   const t = useStrings().sessionModel;
   const theme = useDesignTheme();
   const { brand, name, effort, accessible } = sessionModelLabel({
-    state: control.state?.value,
-    target: control.state?.session.target,
+    state: control.state,
+    target: control.target,
     catalog: control.catalog,
     width: width / Math.max(1, theme.fontScale),
     strings: t,
-    noSession: control.state === null,
   });
-  const unavailable = disabled || (control.state == null && !control.failed);
+  const unavailable = disabled;
   return (
     <Pressable
       testID="composer-session-model"
@@ -191,7 +193,11 @@ export function SessionModelChip({
         backgroundColor: pressed ? theme.layer.raised.inset : undefined,
       })}
     >
-      <ModelBrandIcon brand={brand} color={theme.color.muted} size={theme.type.meta.size} />
+      <ModelBrandIcon
+        brand={brand}
+        color={theme.color.muted}
+        size={theme.type.title.line + (name === undefined ? 0 : space.x1)}
+      />
       {name === undefined ? null : (
         <Text variant="meta" numberOfLines={1} style={{ flexShrink: 1 }}>
           {name}
@@ -278,10 +284,10 @@ export function SessionModelPicker({ control }: { control: Control }) {
       },
     ];
   }, [catalog, copy, t.routingGroup.engines, visible]);
-  const current = sessionModelKey(state?.value.override ?? null);
+  const current = sessionModelKey(state?.override ?? null);
   return (
     <Sheet visible={visible} label={copy.choice} title={copy.choice} onClose={close}>
-      {failed || state === null ? (
+      {failed ? (
         <SheetFailed message={copy.loadFailed} on={SHEET_GROUP} onRetry={retry} />
       ) : !ready ? (
         <SheetLoading />

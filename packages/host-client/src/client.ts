@@ -745,7 +745,7 @@ export function createHostClient(options: HostClientOptions): HostClient {
   const rosterState = createHostRoster({
     options,
     host,
-    call,
+    call: (method, args) => call(method, args),
     carrier,
     jsonAuthorization,
     withDeadline,
@@ -917,10 +917,14 @@ export function createHostClient(options: HostClientOptions): HostClient {
       if (snapshot.connection.status === 'connected') await refreshConnected();
       else this.retryNow();
     },
-    async call<T>(method: string, args: Record<string, unknown> = {}) {
+    async call<T>(
+      method: string,
+      args: Record<string, unknown> = {},
+      requestOptions?: { signal?: AbortSignal; timeoutMs?: number },
+    ) {
       activeRequests += 1;
       try {
-        return await call<T>(method, args);
+        return await call<T>(method, args, undefined, requestOptions);
       } catch (error) {
         refusedBy(error);
         throw error;

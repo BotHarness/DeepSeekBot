@@ -1037,6 +1037,14 @@
       "guide": ".agents/skills/verify-deepseekbot/features/phone-composer.md"
     },
     {
+      "id": "phone.session-detail",
+      "label": "Open a Bot Session from its profile or linked message, read the transcript and continue with a model choice",
+      "source": "apps/mobile/src/ui/chat/session-detail-screen.tsx",
+      "task": 4559,
+      "guide": ".agents/skills/verify-deepseekbot/features/phone-session-detail.md",
+      "gap": "Android and physical device interactions require the native QA lanes."
+    },
+    {
       "id": "phone.channel-files",
       "label": "Browse Channel history files, preview/share and return to the original message",
       "source": "apps/mobile/src/ui/chat/channel-files-screen.tsx",

@@ -87,6 +87,7 @@ export interface BotProfileActions {
   onOpenMemoryChange?(change: MemoryChange): void;
   onOpenRoutine?(routine: BotScheduleSummary): void;
   onOpenAssignment?(assignment: ProfileAssignment): void;
+  onOpenSession?(id: string, title: string): void;
   onNewRoutine?(): void;
   routines?: RoutineChanges;
   stops?: SessionStops | undefined;
@@ -293,11 +294,13 @@ export function WorkListRow({
   row,
   onRetry,
   onOpen,
+  onOpenSession,
   stops,
 }: {
   row: Row;
   onRetry(): void;
   onOpen?: ((assignment: ProfileAssignment) => void) | undefined;
+  onOpenSession?: BotProfileActions['onOpenSession'];
   stops?: SessionStops | undefined;
 }) {
   const t = useStrings();
@@ -357,6 +360,7 @@ export function WorkListRow({
     const title = sessionTitle(session);
     const stopping = stops?.stopping(row.botSlug, session.id) === true;
     const state = stopping ? t.sessionStopping : stepLabel(session.activity, session.state);
+    const Body = onOpenSession === undefined ? View : Pressable;
     return (
       <View
         testID={`working-session-${session.id}`}
@@ -372,9 +376,16 @@ export function WorkListRow({
           },
         ]}
       >
-        <View
+        <Body
           accessible
           accessibilityLabel={[title, state].join(', ')}
+          {...(onOpenSession === undefined
+            ? {}
+            : {
+                accessibilityRole: 'button' as const,
+                testID: `working-open-${session.id}`,
+                onPress: () => onOpenSession(session.id, title),
+              })}
           style={{ flex: 1, flexDirection: 'row', gap: space.x3 }}
         >
           <View
@@ -391,7 +402,7 @@ export function WorkListRow({
               {state}
             </Text>
           </View>
-        </View>
+        </Body>
         {stops === undefined ? null : (
           <StopMenu
             title={title}
@@ -529,6 +540,7 @@ function ProfileRow({
         row={row}
         onRetry={onRetry}
         onOpen={actions.onOpenAssignment}
+        onOpenSession={actions.onOpenSession}
         stops={actions.stops}
       />
     );
@@ -723,6 +735,34 @@ export function BotProfilePage({
         ...(workActions === undefined ? [] : [node('work:actions', () => workActions)]),
         ...working.map(rowOf),
         ...(working.length === 0 ? [] : [workingGap(node, stops?.error)]),
+        ...(actions.onOpenSession === undefined
+          ? []
+          : [
+              settingsHeading('work:sessions', t.sessionDetail.list),
+              ...(profile?.orchestrators?.status === 'ready'
+                ? profile.orchestrators.value.map((session) =>
+                    node(`profile-session:${session.id}`, () => (
+                      <SettingsRow
+                        on="raised"
+                        testID={`profile-session-${session.id}`}
+                        title={t.sessionOrchestrator}
+                        detail={[
+                          session.current ? t.sessionDetail.current : undefined,
+                          new Date(session.createdAt).toLocaleDateString(),
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                        accessibilityLabel={t.sessionDetail.open(
+                          session.current
+                            ? `${t.sessionOrchestrator}, ${t.sessionDetail.current}`
+                            : t.sessionOrchestrator,
+                        )}
+                        onPress={() => actions.onOpenSession?.(session.id, t.sessionOrchestrator)}
+                      />
+                    )),
+                  )
+                : []),
+            ]),
         ...rows.work.map(rowOf),
       ],
     },

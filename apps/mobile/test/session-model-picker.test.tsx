@@ -81,7 +81,14 @@ beforeEach(() => {
 afterEach(() => act(() => root.unmount()));
 
 function ComposerModel({ host, width = 390 }: { host: HostCall; width?: number }) {
-  const control = useSessionModelControl({ host, slug: 'ada', enabled: true, activity: 'current' });
+  const control = useSessionModelControl({
+    host,
+    slug: 'ada',
+    enabled: true,
+    sessionId: 'current',
+    running: true,
+    target: { ...target, kind: 'dsh' },
+  });
   return (
     <>
       <SessionModelChip control={control} width={width} disabled={false} />
@@ -100,17 +107,6 @@ it('selects a granted Subscription Engine and keeps the saved choice on Host ref
   let saved: SessionModelState = defaultState;
   let allow = true;
   const call = vi.fn(async (method: string, args?: Record<string, unknown>) => {
-    if (method === 'sessions')
-      return {
-        sessions: [
-          {
-            role: 'orchestrator',
-            currentOrchestrator: true,
-            sessionId: 'current',
-            currentTarget: target,
-          },
-        ],
-      };
     if (method === 'modelCatalog') return catalog;
     if (method === 'sessionModel' && args !== undefined && 'choice' in args) {
       if (!allow) throw new Error('model-not-allowed');
@@ -149,29 +145,24 @@ it('selects a granted Subscription Engine and keeps the saved choice on Host ref
   expect(button('composer-session-model').textContent).toBe('Next turn: Opus 5.5High');
 });
 
-it('shows a disabled Bot default when the Host has no current Session', async () => {
-  const call = vi.fn().mockResolvedValue({
-    sessions: [{ role: 'orchestrator', sessionId: 'past', currentOrchestrator: false }],
-  });
+it('shows the brand at Send icon size while the catalog loads', async () => {
+  const call = vi.fn(async (method: string) =>
+    method === 'modelCatalog' ? new Promise(() => {}) : defaultState,
+  );
   await act(async () => root.render(<ComposerModel host={{ call }} />));
-  expect(button('composer-session-model').disabled).toBe(true);
-  expect(button('composer-session-model').textContent).toBe('Bot default');
-  expect(call).toHaveBeenCalledExactlyOnceWith('sessions', { slug: 'ada' });
+  expect(button('composer-session-model').textContent).toBe('');
+  expect(button('composer-session-model').querySelector('[data-brand="deepseek"]')).not.toBeNull();
 });
 
 it('does not reload the Session or catalog for layout-only composer updates', async () => {
   const call = vi.fn(async (method: string) => {
-    if (method === 'sessions')
-      return {
-        sessions: [{ role: 'orchestrator', currentOrchestrator: true, sessionId: 'current' }],
-      };
     if (method === 'modelCatalog') return catalog;
     return defaultState;
   });
   const host = { call };
   await act(async () => root.render(<ComposerModel host={host} width={390} />));
-  expect(call.mock.calls).toHaveLength(3);
+  expect(call.mock.calls).toHaveLength(2);
   await act(async () => root.render(<ComposerModel host={host} width={205} />));
   expect(button('composer-session-model').textContent).toBe('');
-  expect(call.mock.calls).toHaveLength(3);
+  expect(call.mock.calls).toHaveLength(2);
 });

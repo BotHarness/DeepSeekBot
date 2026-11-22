@@ -39,14 +39,12 @@ export function sessionModelLabel({
   catalog,
   width,
   strings,
-  noSession,
 }: {
   state?: SessionModelState | undefined;
   target?: TurnTarget | undefined;
   catalog?: SessionModelCatalog | undefined;
   width: number;
   strings: typeof en.sessionModel;
-  noSession?: boolean;
 }): { brand: ModelBrand | undefined; name?: string; effort?: string; accessible: string } {
   const choice = state?.override ?? state?.default ?? null;
   const active = state?.active;
@@ -58,7 +56,11 @@ export function sessionModelLabel({
       state.override?.effort !== active?.effort);
   const preferred = choiceTarget(choice);
   const recorded = target?.model === undefined ? undefined : target;
-  const visible = pending ? preferred : running ? (recorded ?? preferred) : preferred;
+  const visible = pending
+    ? preferred
+    : running
+      ? (recorded ?? preferred)
+      : (preferred ?? (state === undefined ? recorded : undefined));
   const label = visible === undefined ? undefined : turnTargetLabel(visible, catalog);
   const model =
     visible?.kind === 'dsh'
@@ -76,7 +78,7 @@ export function sessionModelLabel({
         ? undefined
         : label?.short
       : (group?.name ??
-        ((state !== undefined && choice === null) || noSession ? strings.defaultLabel : undefined));
+        (state !== undefined && choice === null ? strings.defaultLabel : undefined));
   const effortId =
     (visible === recorded && recorded?.kind === 'engine' ? recorded.reasoningEffort : undefined) ??
     choice?.effort ??
@@ -89,11 +91,16 @@ export function sessionModelLabel({
           strings.effort,
           model?.efforts?.find((item) => item.id === effortId)?.name,
         );
-  const shown = name === undefined || !pending ? name : strings.next(name);
+  const shown =
+    catalog === undefined ? undefined : name === undefined || !pending ? name : strings.next(name);
   return {
     brand: label?.brand,
-    ...(shown !== undefined && width > sessionModelChip.hideNameAt ? { name: shown } : {}),
-    ...(effort !== undefined && width > sessionModelChip.hideEffortAt ? { effort } : {}),
+    ...(shown !== undefined && state !== undefined && width > sessionModelChip.hideNameAt
+      ? { name: shown }
+      : {}),
+    ...(shown !== undefined && effort !== undefined && width > sessionModelChip.hideEffortAt
+      ? { effort }
+      : {}),
     accessible: strings.accessible(
       [strings.choice, shown, effort].filter((part) => part !== undefined),
     ),

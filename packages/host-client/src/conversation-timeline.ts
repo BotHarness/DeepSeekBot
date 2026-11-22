@@ -1,6 +1,7 @@
 import { isSessionTurnModelSwitch, isTurnTargetPath } from '@botharness/host-protocol/turn-target';
 import type { RemoteSource } from './client';
 import { genuiDocumentOf } from './genui/document';
+import { parseSessionLinks } from './session-links';
 import { sessionFailure } from './session-failure';
 import { activityOf } from './channel-activity';
 import type { JournalEntry, WireReplyPreview } from '@botharness/host-protocol/wire';
@@ -30,6 +31,7 @@ export function shownInChat(message: ConversationMessage): boolean {
     message.source?.message.sessionFailure !== undefined ||
     message.activity !== undefined ||
     message.body.trim() !== '' ||
+    (message.sessionLinks?.length ?? 0) > 0 ||
     message.attachments.length > 0 ||
     message.card !== undefined ||
     message.resolves !== undefined
@@ -106,6 +108,7 @@ export function present(
   const genuiDocument =
     message.contentPurge === undefined ? genuiDocumentOf(message.genui) : undefined;
   const failure = kind === 'bot' ? sessionFailure(message.sessionFailure) : undefined;
+  const sessionLinks = kind === 'bot' ? parseSessionLinks(message.sessionLinks) : [];
   const { attachments, voice } = voiceOf(message, attachmentsOf(entry, resolve, picked));
   return {
     id: message.id,
@@ -123,6 +126,7 @@ export function present(
     ...(message.author.kind === 'bot' ? { bot: message.author.slug } : {}),
     ...(person === undefined ? {} : { person }),
     body: message.body,
+    ...(sessionLinks.length === 0 ? {} : { sessionLinks }),
     ...(message.mentions === undefined ? {} : { mentions: message.mentions }),
     ...(kind !== 'human' || message.skillInvocations === undefined
       ? {}

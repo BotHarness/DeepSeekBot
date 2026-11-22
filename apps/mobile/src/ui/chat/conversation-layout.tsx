@@ -16,13 +16,6 @@ import { MAX_PICKED, fromClipboardImage } from '../../host/pick-files';
 import { ConversationTopBar } from './conversation-top-bar';
 import { ChatBackdrop } from './chat-backdrop';
 import { Composer } from './composer';
-import {
-  SessionModelChip,
-  SessionModelPicker,
-  useSessionModelControl,
-  type ComposerSessionModel,
-} from './session-model-composer';
-import { dictating } from './dictation';
 import { ComposerPillContext } from './composer-pill';
 import { GroupUnavailable } from './group-unavailable';
 import { DraftSaveNotice } from './draft-save-notice';
@@ -50,7 +43,7 @@ import { Text } from '../primitives/text';
 import type { MarkdownViewportContext } from '../markdown-viewport';
 import { KeyboardChatFrame } from '../primitives/keyboard-frame';
 import type { useStrings } from '../strings';
-import type { ComponentProps, ContextType, Dispatch, SetStateAction } from 'react';
+import type { ContextType, Dispatch, SetStateAction } from 'react';
 import { renderConversationTimeline } from './conversation-timeline-layout';
 import type { useConversationSource } from './conversation-source';
 import type {
@@ -72,34 +65,6 @@ import type {
 } from './conversation-header';
 import type { ConversationPresentation } from './conversation-screen';
 import { RequestCard } from './conversation-request-card';
-
-function ConversationComposer({
-  sessionModel: source,
-  ...props
-}: Omit<ComponentProps<typeof Composer>, 'modelControl'> & {
-  sessionModel: ComposerSessionModel | undefined;
-}) {
-  const control = useSessionModelControl(source);
-  if (source === undefined) return <Composer {...props} />;
-  return (
-    <>
-      <Composer
-        {...props}
-        modelControl={{
-          blocksSend: control.visible || control.saving !== undefined,
-          render: (width) => (
-            <SessionModelChip
-              control={control}
-              width={width}
-              disabled={props.disabled || dictating(props.dictation) || !source.enabled}
-            />
-          ),
-        }}
-      />
-      <SessionModelPicker control={control} />
-    </>
-  );
-}
 
 export function renderConversation({
   focused,
@@ -533,23 +498,8 @@ export function renderConversation({
                           </Text>
                         </View>
                       ) : (
-                        <ConversationComposer
+                        <Composer
                           value={draft}
-                          sessionModel={
-                            dm && slug !== undefined
-                              ? {
-                                  slug,
-                                  host: client,
-                                  enabled:
-                                    focused &&
-                                    !profileOpen &&
-                                    host.connection.status === 'connected',
-                                  activity: bot?.sessions?.find(
-                                    (session) => session.role === 'orchestrator',
-                                  )?.id,
-                                }
-                              : undefined
-                          }
                           disabled={
                             conversation === undefined ||
                             host.connection.status !== 'connected' ||
