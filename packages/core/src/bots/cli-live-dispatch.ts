@@ -212,6 +212,7 @@ export async function runLiveCli(
       values,
       () => connectLiveHost(values, io, AbortSignal.timeout(timeoutMs(values.timeout))),
       () => io.readStdin?.() ?? Promise.resolve(''),
+      io.stderr,
     );
   if (PRESENCE_COMMANDS.some((entry) => entry.command === command))
     return runPresenceCommand(command, rest, values, () =>

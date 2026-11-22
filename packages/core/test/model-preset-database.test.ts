@@ -33,6 +33,13 @@ const legacy: ModelPreset = {
     },
   ],
 };
+const imported: ModelPreset = {
+  ...legacy,
+  sub: {
+    choices: [{ kind: 'model', ...legacy.assignmentModels![0]! }],
+    default: { kind: 'model', provider: route.provider, model: route.model },
+  },
+};
 function home(): string {
   const value = mkdtempSync(join(tmpdir(), 'bh-preset-database-'));
   homes.push(value);
@@ -67,7 +74,7 @@ describe('Model Preset owning database persistence', () => {
     );
     const owner = mount(root);
     const store = createModelPresetStore({ rootDir: root, database: owner });
-    expect(store.list()).toEqual([legacy]);
+    expect(store.list()).toEqual([imported]);
     expect(readFileSync(file, 'utf8')).toContain('do-not-copy');
     const updated = store.update(legacy.id, {
       name: 'Updated',
@@ -129,10 +136,10 @@ describe('Model Preset owning database persistence', () => {
         throw new Error('observer failed');
       },
     });
-    expect(store.list()).toEqual([legacy]);
+    expect(store.list()).toEqual([imported]);
     owner.close();
     expect(createModelPresetStore({ rootDir: root, database: mount(root) }).list()).toEqual([
-      legacy,
+      imported,
     ]);
   });
 
@@ -169,7 +176,7 @@ describe('Model Preset owning database persistence', () => {
       ).toEqual([]);
       expect(readFileSync(file, 'utf8')).toBe(invalid);
       writeFileSync(file, JSON.stringify([legacy]));
-      expect(createModelPresetStore({ rootDir: root, database: owner }).list()).toEqual([legacy]);
+      expect(createModelPresetStore({ rootDir: root, database: owner }).list()).toEqual([imported]);
     },
   );
 
@@ -187,7 +194,7 @@ describe('Model Preset owning database persistence', () => {
     expect(
       port.read((db) => db.prepare('SELECT singleton FROM model_presets_import').all()),
     ).toEqual([]);
-    expect(createModelPresetStore({ rootDir: root, database: next }).list()).toEqual([legacy]);
+    expect(createModelPresetStore({ rootDir: root, database: next }).list()).toEqual([imported]);
   });
 
   it('keeps legacy data out of competing-writer and closed-owner operation paths', () => {

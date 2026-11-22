@@ -80,6 +80,15 @@ export const MODELS_USAGE_COMMANDS = [
     description: 'rename or change the routes of a Model Preset',
   },
   {
+    command: 'model-preset-sub',
+    description: 'read a Model Preset’s sub choices, default and revision',
+  },
+  {
+    command: 'model-preset-sub-set',
+    description:
+      'replace a Model Preset’s sub choices and default from --plan-stdin at its revision',
+  },
+  {
     command: 'model-preset-delete',
     description: 'delete a Model Preset at its revision and keep applied Bot plans (--confirm)',
   },
@@ -683,6 +692,13 @@ export async function runModelsUsage(
       expected ?? (await rpc<ModelPlanState>('modelPlan', { slug: target })).revision ?? 0;
     return rpc('modelPlanInherit', { slug: target, expectedRevision });
   }
+  if (command === 'model-preset-sub') return (await connect())('modelPresetSub', { id: target });
+  if (command === 'model-preset-sub-set') {
+    if (expected === undefined || expected < 1)
+      usage('Provide --expected-revision from model-preset-sub.');
+    const sub = await planInput(io, values, ['choices', 'default'], ['choices', 'default']);
+    return (await connect())('modelPresetSubSet', { id: target, expectedRevision: expected, sub });
+  }
   if (command === 'model-preset-delete') {
     if (values.confirm !== true) usage('Add --confirm to delete the Model Preset.');
     if (expected === undefined || expected < 1)
@@ -719,15 +735,12 @@ export async function runModelsUsage(
       values['assignment-default-group'],
       plan.assignmentModels,
     ].some((value) => value !== undefined);
-    if (
-      values['assignment-follows-main'] &&
-      (current.id !== DEFAULT_MODEL_PRESET_ID || explicitAssignment)
-    )
-      usage(
-        '--assignment-follows-main is for Default and cannot be combined with an Assignment choice.',
-      );
+    if (values['assignment-follows-main'] && explicitAssignment)
+      usage('--assignment-follows-main cannot be combined with an Assignment choice.');
     const followsMain =
-      current.id === DEFAULT_MODEL_PRESET_ID
+      current.id === DEFAULT_MODEL_PRESET_ID ||
+      current.assignmentFollowsMain === true ||
+      values['assignment-follows-main'] === true
         ? values['assignment-follows-main'] === true ||
           (!explicitAssignment && current.assignmentFollowsMain === true)
         : undefined;

@@ -126,7 +126,14 @@ export function createAssignmentDelivery({
               SET model_route_json = ?, model_group_id = NULL, model_effort = NULL, updated_at = ?
               WHERE session_id = ? AND bot_slug = ? AND stop_state = 'running'`,
               )
-              .run(JSON.stringify(modelRoute), at, input.sessionId, bot.slug);
+              .run(
+                JSON.stringify(
+                  run.routingTarget?.kind === 'route' ? run.routingTarget : modelRoute,
+                ),
+                at,
+                input.sessionId,
+                bot.slug,
+              );
           }
         },
         ['assignments'],

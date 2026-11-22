@@ -123,7 +123,7 @@ _避免使用_：desktop pet、Channel pin、另一个 bot
 _避免使用_：Channel pin、Channel membership、Agent Scope
 
 **Model Preset**：
-模型预设。Human 创建的可复用、仅对当前部署有效的 PersonaBot 模型方案：一个 Orchestrator Model Choice，以及 Assignment 可选的 Model Choice（列出的集合或 Open Assignment Models）和默认值。应用时将方案复制给 PersonaBot；之后修改预设不会更新已应用的副本。它按身份引用 Routing Group，不复制其内容。
+模型预设。Human 创建的可复用、仅对当前部署有效的 PersonaBot 模型方案：一个主模型（Orchestrator），以及一组有序的副模型选项（Assignment），其中一项为默认。每项可以有自己的默认推理强度。副模型列表为空时跟随主模型，主模型可以是单个模型或 Routing Group。旧预设仍可使用 Open Assignment Models。应用时将方案复制给 PersonaBot；之后编辑预设不会更新已应用的副本。预设按身份引用 Routing Group。
 _避免使用_：DSH Agent preset、SoulSnapshot
 
 **PersonaBot Model Plan**：

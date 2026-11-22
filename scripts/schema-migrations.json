@@ -712,6 +712,14 @@
     "sha256": "2c4320195b84e9045a4129a7866a2abac5ffa7cd2f3d94efad5abdf41a32aad2"
   },
   {
+    "id": "model-preset-sub-choices",
+    "sha256": "4d17c05218da1cac6b4e9e6ea0bdb0080832706af0751b9f89057f5e8c03acd0"
+  },
+  {
+    "id": "model-preset-sub-engine-choices",
+    "sha256": "aac8663f4ba8c6cc23502beab72f8c1dbfbe5946440a9ca56e2eae058ed2c74c"
+  },
+  {
     "id": "owner-password-sign-in",
     "sha256": "cd24239ed9e9be52958c4f7a8436c1877dd00c40a4d7809d36df0b9d52e352d1"
   }
