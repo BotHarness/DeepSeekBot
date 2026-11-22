@@ -1254,7 +1254,9 @@ DSH Subagent 从已授权组内的第一个可用 DSH 成员启动。`list_bot_s
 
 在线模式下，`home-model-set` 以及路由组和模型预设的写入均由 Host 校验 `models.configure`。内置 Admin 默认拥有此权限。`model-presets --include-usage` 返回使用数量以及调用者可见的 Bot 名称。删除时请提供列表中的预设版本和 `--confirm`。Bot 会保留已应用的模型方案。应用预设仍遵循既有 Bot 管理和模型使用权限。
 
-在线 Human CLI 的 `home-model-set` 支持 `--orchestrator-effort` 和 `--expected-revision`；后者对应 `model-catalog.defaultRevision`，省略时先读取当前默认模型 revision，同时带上 `model-catalog.defaultGroupRevision`：若其他客户端在此期间改了默认路由组，会返回 `routing-group-stale-revision`，不会被覆盖。`model-preset-apply` 可通过 `--expected-revision` 约束 Bot 计划、`--preset-revision` 约束预设；省略这些参数时保留原有 Human 行为。受限 Tob 调用必须明确传入对应 revision，不能借省略参数跳过已审核快照。
+用 `deepseekbot model-default` 查看置顶的「默认」预设。升级前对旧 Host 运行 `deepseekbot model-default --migration-dry-run`，可预览迁移且不会写入。升级后返回 `already-migrated`。迁移仅执行一次，回退需恢复升级前的 Profile 备份。
+
+用 `home-model-set --provider <id> --model <id>` 或 `home-model-set --group <id>` 修改主模型，已单独设置的副模型继续保留。可用 `--orchestrator-effort` 指定推理级别，`--expected-revision` 使用读到的预设版本。用 `model-preset-update default --assignment-provider <id> --assignment-model <id>` 设置副模型，或用 `model-preset-update default --assignment-follows-main` 恢复继承。删除默认预设返回 `default-preset-pinned`。
 
 `overview-usage`（`--period today|week|month|quarter`，`month` 为近 28 天，`quarter` 为近 84 天，默认 `today`）和 `overview-memory` 返回总览页上每个 Bot 的数据行；把返回的 `nextCursor` 作为 `--after` 传回可以继续读取。`activity-overview` 显示每个 Bot 正在做什么，`channel-activity-today` 显示每个 Channel 今天的消息。`bot-*` 读取命令按 Bot ID 定位，通过它的私聊读取 Profile 面板：`bot-usage` 需要不晚于今天、跨度小于 182 天的 `--start`/`--end`，`bot-session-usage` 按会话和 Assignment 汇总用量，`bot-activity-history` 返回活动日历（`--weeks` 为 1–104）。`group-activity` 接受群组 Channel ID。
 
@@ -1694,7 +1696,7 @@ deepseekbot model-preset-apply <bot-id> --preset <preset-id> --expected-revision
 | `showApprovalReviewSessions` | 布尔值      |
 | `developerMode`              | 布尔值      |
 
-`settings-set botharness-client --patch-stdin` 必须配合成对的审核参数；previous-value JSON 必须与 patch 使用完全一致的字段。`settings agent-default-model` 读取默认模型路由，通过 `home-model-set` 修改。未知字段、其他命名空间和直接 patch 默认模型均拒绝，不绕过 owner 编辑配置文件。本片范围不包含动效、主题、语言、快捷键、布局等其他偏好。
+`settings-set botharness-client --patch-stdin` 必须配合成对的审核参数；previous-value JSON 必须与 patch 使用完全一致的字段。用 `model-presets` 读取默认预设，并通过 `home-model-set` 修改主模型。未知字段、其他命名空间和直接 patch 默认模型均拒绝，不绕过 owner 编辑配置文件。本片范围不包含动效、主题、语言、快捷键、布局等其他偏好。
 
 ### Tob 隐私、Git 与更新
 

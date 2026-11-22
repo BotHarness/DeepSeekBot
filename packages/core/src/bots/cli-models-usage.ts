@@ -4,11 +4,13 @@ export { MODELS_USAGE_OPTIONS } from './cli-option-spec.js';
 import { resolveBotDm } from './cli-bot-dm.js';
 import type { ModelFavorite } from '../models/favorites.js';
 import { isEngineId } from '../engines/engine-session.js';
-import type {
-  ModelPreset,
-  ModelPresetEngine,
-  ModelPresetEngineInput,
-  ModelRoute,
+import {
+  DEFAULT_MODEL_PRESET_ID,
+  planDefaultPreset,
+  type ModelPreset,
+  type ModelPresetEngine,
+  type ModelPresetEngineInput,
+  type ModelRoute,
 } from '../models/presets.js';
 import type { ModelPlanState } from '../models/readiness.js';
 import type { RoutingGroup } from '../models/routing-groups.js';
@@ -37,6 +39,11 @@ export const MODELS_USAGE_COMMANDS = [
     command: 'home-model-set',
     description:
       'set the Host default model (--provider and --model, or --group <routing-group-id>; --orchestrator-effort; --expected-revision)',
+  },
+  {
+    command: 'model-default',
+    description:
+      'show the pinned Default Model Preset or preview its migration (--migration-dry-run)',
   },
   {
     command: 'model-catalog',
@@ -156,6 +163,8 @@ export interface ModelsUsageValues {
   'plan-stdin'?: boolean;
   'assignment-models'?: string;
   'members-stdin'?: boolean;
+  'migration-dry-run'?: boolean;
+  'assignment-follows-main'?: boolean;
   'orchestrator-group'?: string;
   group?: string;
   'assignment-groups'?: string;
@@ -176,6 +185,7 @@ const NO_TARGET = new Set([
   'model-provider-add',
   'home-model-set',
   'model-catalog',
+  'model-default',
   'model-groups',
   'model-group-create',
   'overview-usage',
@@ -455,7 +465,7 @@ export async function runModelsUsage(
     if (!Number.isSafeInteger(expectedDefaultRevision) || Number(expectedDefaultRevision) < 0)
       throw new CliLiveError(
         'settings-unavailable',
-        'The Host does not expose its native default model revision.',
+        'The Host does not expose its Default preset revision.',
       );
     return rpc('onboardingModel', {
       expectedRevision: 0,
@@ -481,6 +491,40 @@ export async function runModelsUsage(
           }),
       globalDefault: true,
     });
+  }
+  if (command === 'model-default') {
+    const rpc = await connect();
+    const { presets, defaultPresetId } = await rpc<{
+      presets: ModelPreset[];
+      defaultPresetId?: string;
+    }>('modelPresets', {});
+    const preset = presets.find(({ id }) => id === DEFAULT_MODEL_PRESET_ID);
+    if (!preset && defaultPresetId)
+      throw new CliLiveError(
+        'model-not-allowed',
+        'The Default preset is unavailable to this account.',
+      );
+    if (!values['migration-dry-run']) {
+      if (!preset) throw new CliLiveError('unknown-preset', 'This Host has no Default preset.');
+      return { preset };
+    }
+    if (preset) return { status: 'already-migrated', preset };
+    const catalog = await rpc<{
+      default?: ModelRoute;
+      defaultGroupId?: string;
+      defaultGroupEffort?: string;
+    }>('modelCatalog', {});
+    const { createdAt: _createdAt, ...planned } = planDefaultPreset(
+      {
+        ...(catalog.default === undefined ? {} : { main: catalog.default }),
+        ...(catalog.defaultGroupId === undefined ? {} : { groupId: catalog.defaultGroupId }),
+        ...(catalog.defaultGroupEffort === undefined
+          ? {}
+          : { groupEffort: catalog.defaultGroupEffort }),
+      },
+      new Date().toISOString(),
+    );
+    return { status: 'would-migrate', preset: planned };
   }
   if (command === 'model-catalog') return (await connect())('modelCatalog', {});
   if (command === 'model-favorite-add' || command === 'model-favorite-remove')
@@ -666,6 +710,27 @@ export async function runModelsUsage(
         'The specified Model Preset does not exist on this Host.',
       );
     const flags = presetGroupFlags(values);
+    const explicitAssignment = [
+      values['assignment-provider'],
+      values['assignment-model'],
+      values['assignment-effort'],
+      values['assignment-engine'],
+      values['assignment-groups'],
+      values['assignment-default-group'],
+      plan.assignmentModels,
+    ].some((value) => value !== undefined);
+    if (
+      values['assignment-follows-main'] &&
+      (current.id !== DEFAULT_MODEL_PRESET_ID || explicitAssignment)
+    )
+      usage(
+        '--assignment-follows-main is for Default and cannot be combined with an Assignment choice.',
+      );
+    const followsMain =
+      current.id === DEFAULT_MODEL_PRESET_ID
+        ? values['assignment-follows-main'] === true ||
+          (!explicitAssignment && current.assignmentFollowsMain === true)
+        : undefined;
     const routeGiven = ['provider', 'model'].some(
       (part) => values[`orchestrator-${part}` as 'orchestrator-provider'] !== undefined,
     );
@@ -700,6 +765,7 @@ export async function runModelsUsage(
         ? {}
         : { orchestrator: routeOverride(values, 'orchestrator', current.orchestrator) }),
       assignmentDefault: routeOverride(values, 'assignment', current.assignmentDefault),
+      ...(followsMain === undefined ? {} : { assignmentFollowsMain: followsMain }),
       orchestratorGroupId,
       orchestratorGroupEffort,
       assignmentGroups,

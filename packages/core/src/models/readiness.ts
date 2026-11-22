@@ -13,6 +13,7 @@ export interface ModelPlanState {
   currentTarget?: TurnTarget;
   revision?: number;
   plan?: PersonaBotModelPlan;
+  inheritedPresetId?: string;
   repair?: ModelRouteRepair;
 }
 
@@ -34,6 +35,7 @@ export function createModelRouteReadiness(
   registry: Pick<PersonaBotRegistry, 'get' | 'migrateLegacyModel'>,
   catalog: ModelCatalog,
   requireRoute?: (slug: string, route: ModelRoute) => void,
+  defaultAssignmentRoute?: () => ModelRoute | undefined,
 ): ModelRouteReadiness {
   const migrate = async (slug: string): Promise<ModelPlanState> => {
     const bot = registry.get(slug);
@@ -85,7 +87,9 @@ export function createModelRouteReadiness(
       if (state.repair !== undefined) throw new Error(state.repair.message);
       const selected =
         retainedRoute ??
-        (role === 'assignment' ? state.plan?.assignmentDefault : state.plan?.orchestrator);
+        (role === 'assignment'
+          ? (state.plan?.assignmentDefault ?? defaultAssignmentRoute?.())
+          : state.plan?.orchestrator);
       const route = selected ?? catalog.defaultRoute?.();
       if (route === undefined) return;
       requireRoute?.(slug, route);

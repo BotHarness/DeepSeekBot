@@ -1275,7 +1275,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return modelsRpc.modelFavoriteSet(this.methods, choice, favorite);
   }
 
-  modelPresets(includeUsage?: boolean): { presets: ModelPreset[]; usage?: ModelPresetUsage[] } {
+  modelPresets(includeUsage?: boolean): {
+    presets: ModelPreset[];
+    defaultPresetId?: string;
+    usage?: ModelPresetUsage[];
+  } {
     return modelsRpc.modelPresets(this.methods, includeUsage);
   }
 
@@ -1329,6 +1333,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestratorGroupEffort?: string | null,
     orchestratorEngine?: ModelPresetEngine | null,
     assignmentEngine?: ModelPresetEngine | null,
+    assignmentFollowsMain?: boolean,
   ): Promise<{ preset: ModelPreset }> {
     return modelsRpc.modelPresetUpdate(
       this.methods,
@@ -1346,6 +1351,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
       orchestratorGroupEffort,
       orchestratorEngine,
       assignmentEngine,
+      assignmentFollowsMain,
     );
   }
 

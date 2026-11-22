@@ -147,7 +147,9 @@ import {
   isAssignmentModelChoice,
   isModelRoute,
   assignmentGroupOptionOf,
+  resolveBotModelPlan,
   selectAssignmentGroup,
+  type PersonaBotModelPlan,
   selectAssignmentRoute,
   type ModelRoute,
 } from '../models/presets.js';
@@ -1014,6 +1016,7 @@ export interface BotRuntimeOptions {
   requireModelRoute?: (botSlug: string, route: ModelRoute) => void;
   requireExecution?: (botSlug: string) => void;
   routeRests?: Pick<RouteRests, 'restingUntil'>;
+  inheritedModelPlan?: () => PersonaBotModelPlan | undefined;
   groupFallback?: Pick<
     GroupFallback,
     'choose' | 'start' | 'pick' | 'inherited' | 'inheritedEffort'
@@ -1498,6 +1501,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #requireModelRoute: BotRuntimeOptions['requireModelRoute'];
   readonly #requireExecution: BotRuntimeOptions['requireExecution'];
   readonly #routeRests: BotRuntimeOptions['routeRests'];
+  readonly #inheritedModelPlan: BotRuntimeOptions['inheritedModelPlan'];
   readonly #groupFallback: BotRuntimeOptions['groupFallback'];
   readonly #sessionRoute: BotRuntimeOptions['sessionRoute'];
   readonly #engineFallback: BotRuntimeOptions['engineFallback'];
@@ -1644,6 +1648,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#botNetwork = options.botNetwork;
     this.#requireExecution = options.requireExecution;
     this.#routeRests = options.routeRests;
+    this.#inheritedModelPlan = options.inheritedModelPlan;
     this.#groupFallback = options.groupFallback;
     this.#sessionRoute = options.sessionRoute;
     this.#engineFallback = options.engineFallback;
@@ -7900,7 +7905,8 @@ class BotRuntimeImplementation implements BotRuntime {
     const text = instructions ?? description;
     const grantId = requireNonBlank(input.grantId, 'Workspace Grant id');
     if (this.#registry.get(bot.slug) === undefined) throw new Error('PersonaBot is deleted');
-    const plan = this.#registry.get(bot.slug)?.modelPlan ?? bot.modelPlan;
+    const current = this.#registry.get(bot.slug) ?? bot;
+    const plan = resolveBotModelPlan(current, () => this.#inheritedModelPlan?.());
     if (input.model !== undefined && !isAssignmentModelChoice(input.model))
       throw new Error('Assignment model choice is invalid');
     const modelGroupId =
@@ -8168,7 +8174,8 @@ class BotRuntimeImplementation implements BotRuntime {
       if (!isAssignmentModelChoice(input.model))
         throw new Error('Assignment model choice is invalid');
       if (this.#registry.get(bot.slug) === undefined) throw new Error('PersonaBot is deleted');
-      const plan = this.#registry.get(bot.slug)?.modelPlan ?? bot.modelPlan;
+      const current = this.#registry.get(bot.slug) ?? bot;
+      const plan = resolveBotModelPlan(current, () => this.#inheritedModelPlan?.());
       if (plan === undefined)
         throw new Error('Apply a Model Preset before choosing an Assignment model');
       modelRoute = selectAssignmentRoute(plan, input.model);
@@ -8854,7 +8861,7 @@ class BotRuntimeImplementation implements BotRuntime {
     const keepLegacyEffort =
       row.model_effort == null &&
       (assignmentGroupOptionOf(
-        this.#registry.get(botSlug)?.modelPlan,
+        resolveBotModelPlan(this.#registry.get(botSlug) ?? {}, () => this.#inheritedModelPlan?.()),
         groupId,
       )?.allowedEfforts?.includes(current.reasoningEffort ?? '') ??
         (groupId === this.#groupFallback.inherited() &&
