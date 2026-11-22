@@ -259,6 +259,12 @@
     "packages/client/src/client/ds/toast.tsx": ["transform: 8px"],
     "packages/client/src/client/environment-panel.tsx": ["outlineOffset: -2px"],
     "packages/client/src/client/external-identity-list.tsx": ["textUnderlineOffset: 3px"],
+    "packages/client/src/client/features/appearance/window-companion-view.tsx": [
+      "boxShadow: 16px",
+      "boxShadow: 6px",
+      "height: 20px",
+      "minWidth: 20px"
+    ],
     "packages/client/src/client/features/channels/channel-sidebar-builtins.tsx": [
       "maxWidth: 160px",
       "outlineOffset: -2px"
@@ -997,12 +1003,6 @@
       "width: 2px",
       "width: 34px"
     ],
-    "packages/client/src/client/window-companion-view.tsx": [
-      "boxShadow: 16px",
-      "boxShadow: 6px",
-      "height: 20px",
-      "minWidth: 20px"
-    ],
     "packages/client/src/client/workspace-grants-entry.tsx": [
       "maxHeight: 360px",
       "minHeight: 180px",
@@ -1257,6 +1257,7 @@
     "packages/client/src/client/ds/work-row.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/environment-panel.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/exit-icon.tsx": ["<svg>"],
+    "packages/client/src/client/features/appearance/window-companion-view.tsx": ["<svg>"],
     "packages/client/src/client/features/channels/channel-composer.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/features/channels/channel-message-body.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/features/schedules/schedules-entry.tsx": ["ChannelSidebarIcon"],
@@ -1304,7 +1305,6 @@
     "packages/client/src/client/sidebar-view-menu.tsx": ["ChannelSidebarIcon"],
     "packages/client/src/client/team-invitation.tsx": ["<svg>"],
     "packages/client/src/client/voice-call-record.tsx": ["ChannelSidebarIcon"],
-    "packages/client/src/client/window-companion-view.tsx": ["<svg>"],
     "packages/client/src/client/workspace.tsx": ["ChannelSidebarIcon"]
   },
   "accessibleName": {},

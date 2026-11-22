@@ -203,6 +203,11 @@
     "legacyCss": 26,
     "lineBorder": 1
   },
+  "packages/client/src/client/features/appearance/window-companion-view.tsx": {
+    "rawControl": 5,
+    "inlineStyle": 1,
+    "lineBorder": 2
+  },
   "packages/client/src/client/features/approvals/styles.ts": {
     "legacyCss": 3
   },
@@ -526,11 +531,6 @@
   "packages/client/src/client/window-companion-styles.ts": {
     "legacyCss": 27,
     "lineBorder": 1
-  },
-  "packages/client/src/client/window-companion-view.tsx": {
-    "rawControl": 5,
-    "inlineStyle": 1,
-    "lineBorder": 2
   },
   "packages/client/src/client/window-companions-view.tsx": {
     "rawControl": 1
