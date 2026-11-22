@@ -27,6 +27,7 @@ import { Button } from '../../src/ui/primitives/button';
 import { CopyableFingerprint } from '../../src/ui/primitives/copyable-fingerprint';
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
+import { labelInField } from '../../src/ui/primitives/field-label';
 import { TextField } from '../../src/ui/primitives/text-field';
 import { closeWorkspacePageWhenShown } from '../../src/ui/shell/workspace-paging';
 import { useStrings } from '../../src/ui/strings';
@@ -42,6 +43,19 @@ type Step =
   | { kind: 'connecting' }
   | { kind: 'host'; found: HostAddressDiscovery }
   | { kind: 'needs-code'; found: HostAddressDiscovery };
+
+function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <View style={{ gap: space.x2 }}>
+      {labelInField ? null : (
+        <Text variant="meta" tone="muted">
+          {label}
+        </Text>
+      )}
+      {children}
+    </View>
+  );
+}
 
 function phoneName(): string {
   return Constants.deviceName ?? (Platform.OS === 'ios' ? 'iPhone' : 'Android phone');
@@ -346,22 +360,24 @@ export default function TeamSignInScreen() {
         </>
       ) : step.kind === 'address' ? (
         <>
-          <TextField
-            testID="team-address"
-            accessibilityLabel={t.teamSignIn.address}
-            placeholder="https://…"
-            value={address}
-            onChangeText={(value) => {
-              setAddress(value);
-              setError(undefined);
-            }}
-            autoCapitalize="none"
-            autoCorrect={false}
-            keyboardType="url"
-            returnKeyType="go"
-            editable={!busy}
-            onSubmitEditing={() => void discover(address)}
-          />
+          <Labeled label={t.teamSignIn.address}>
+            <TextField
+              testID="team-address"
+              accessibilityLabel={t.teamSignIn.address}
+              placeholder="https://…"
+              value={address}
+              onChangeText={(value) => {
+                setAddress(value);
+                setError(undefined);
+              }}
+              autoCapitalize="none"
+              autoCorrect={false}
+              keyboardType="url"
+              returnKeyType="go"
+              editable={!busy}
+              onSubmitEditing={() => void discover(address)}
+            />
+          </Labeled>
           {errorText}
           <Button
             testID="team-address-continue"
@@ -403,42 +419,44 @@ export default function TeamSignInScreen() {
             testID="team-fingerprint"
             fingerprint={step.found.host.fingerprint}
           />
-          <TextField
-            testID="team-username"
-            accessibilityLabel={t.teamSignIn.username}
-            placeholder={t.teamSignIn.username}
-            value={username}
-            onChangeText={(value) => {
-              setUsername(value);
-              setError(undefined);
-            }}
-            textContentType="username"
-            autoComplete="username"
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={32}
-            returnKeyType="next"
-            editable={!busy}
-          />
-          <TextField
-            testID="team-password"
-            accessibilityLabel={t.teamSignIn.password}
-            placeholder={t.teamSignIn.password}
-            value={password}
-            onChangeText={(value) => {
-              setPassword(value);
-              setError(undefined);
-            }}
-            secureTextEntry
-            textContentType="password"
-            autoComplete="current-password"
-            autoCapitalize="none"
-            autoCorrect={false}
-            maxLength={1024}
-            returnKeyType="go"
-            editable={!busy}
-            onSubmitEditing={() => void passwordSignIn(step.found)}
-          />
+          <Labeled label={t.teamSignIn.username}>
+            <TextField
+              testID="team-username"
+              accessibilityLabel={t.teamSignIn.username}
+              value={username}
+              onChangeText={(value) => {
+                setUsername(value);
+                setError(undefined);
+              }}
+              textContentType="username"
+              autoComplete="username"
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={32}
+              returnKeyType="next"
+              editable={!busy}
+            />
+          </Labeled>
+          <Labeled label={t.teamSignIn.password}>
+            <TextField
+              testID="team-password"
+              accessibilityLabel={t.teamSignIn.password}
+              value={password}
+              onChangeText={(value) => {
+                setPassword(value);
+                setError(undefined);
+              }}
+              secureTextEntry
+              textContentType="password"
+              autoComplete="current-password"
+              autoCapitalize="none"
+              autoCorrect={false}
+              maxLength={1024}
+              returnKeyType="go"
+              editable={!busy}
+              onSubmitEditing={() => void passwordSignIn(step.found)}
+            />
+          </Labeled>
           {errorText}
           <Button
             testID="team-sign-in"
