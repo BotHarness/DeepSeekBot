@@ -1,3 +1,4 @@
+import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type {
   VoiceProvidersView,
@@ -125,3 +126,101 @@ export function voiceDictation(
 ): Promise<{ readiness: VoiceDictationReadiness } | { dictation: VoiceDictationView }> {
   return unwrapAsync(methods.voiceDictation({ kind, id, pcm, slug, providerId, language }));
 }
+
+export const voiceProviderRpc = {
+  voiceProviders(slug?: string): VoiceProvidersView {
+    return voiceProviders(this.methods, slug);
+  },
+
+  voiceProviderAdd(
+    preset: string,
+    name?: string,
+    baseUrl?: string,
+    model?: string,
+    defaultVoice?: string,
+    key?: string,
+    kind?: string,
+    language?: string,
+  ): Promise<{ provider: VoiceProviderView }> {
+    return voiceProviderAdd(
+      this.methods,
+      preset,
+      name,
+      baseUrl,
+      model,
+      defaultVoice,
+      key,
+      kind,
+      language,
+    );
+  },
+
+  voiceProviderRemove(id: string): Promise<{ provider: VoiceProviderView; clearedBots: string[] }> {
+    return voiceProviderRemove(this.methods, id);
+  },
+
+  voiceProviderTest(id: string, voiceId?: string): Promise<ProviderHealth> {
+    return voiceProviderTest(this.methods, id, voiceId);
+  },
+
+  voiceSynthesize(
+    text: string,
+    slug?: string,
+    providerId?: string,
+    voiceId?: string,
+    markdown?: boolean,
+  ): Promise<VoiceSynthesisView> {
+    return voiceSynthesize(this.methods, text, slug, providerId, voiceId, markdown);
+  },
+
+  botVoiceSet(
+    slug: string,
+    providerId: string | null,
+    voiceId?: string,
+  ): { slug: string; voice: PersonaBotVoice | null } {
+    return botVoiceSet(this.methods, slug, providerId, voiceId);
+  },
+
+  voiceTranscribe(
+    audio: string,
+    slug?: string,
+    providerId?: string,
+    language?: string,
+  ): Promise<VoiceTranscriptionView> {
+    return voiceTranscribe(this.methods, audio, slug, providerId, language);
+  },
+
+  botAsrSet(
+    slug: string,
+    providerId: string | null,
+    language?: string,
+  ): { slug: string; asr: PersonaBotAsr | null } {
+    return botAsrSet(this.methods, slug, providerId, language);
+  },
+
+  voiceDefaultSet(
+    kind: string,
+    providerId: string | null,
+    voiceId?: string,
+    language?: string,
+  ): { defaults: VoiceDefaults } {
+    return voiceDefaultSet(this.methods, kind, providerId, voiceId, language);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const voiceSettingsRpc = {
+  voiceSpeechThresholdSet(dbfs: number | null): { speechThreshold: VoiceSpeechThreshold } {
+    return voiceSpeechThresholdSet(this.methods, dbfs);
+  },
+
+  voiceDictation(
+    kind: string,
+    id?: string,
+    pcm?: string,
+    slug?: string,
+    providerId?: string,
+    language?: string,
+  ): Promise<{ readiness: VoiceDictationReadiness } | { dictation: VoiceDictationView }> {
+    return voiceDictation(this.methods, kind, id, pcm, slug, providerId, language);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
