@@ -539,7 +539,8 @@ function prepare(
         usage('session-model --set needs Model Choice JSON.');
       }
       const choice = sessionModelChoice(parsed);
-      if (choice === undefined) usage('session-model --set needs a model, engine or group choice.');
+      if (choice === undefined)
+        usage('session-model --set needs a model, engine or Routing Group choice.');
       return { method: 'sessionModel', args: { slug, sessionId, choice } };
     }
     case 'session-transcript': {
