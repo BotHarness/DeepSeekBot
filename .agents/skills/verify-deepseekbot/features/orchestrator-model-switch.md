@@ -4,7 +4,7 @@
 
 - `packages/core/src/features/models/plugin.ts`
 - `packages/client/src/client/{model-plan-store,model-preset-profile}.{ts,tsx}`
-- `packages/client/src/client/{assignment-model-policy,engine-choice,model-menu,model-picker}.tsx`
+- `packages/client/src/client/{sub-choice-list,engine-choice,model-menu,model-picker}.tsx`
 - `packages/client/src/client/{bot-sidebar-channel-actions,dm-composer-context,onboarding-view}.tsx`
 - `packages/core/src/messaging/im-commands.ts`
 - `packages/host-client/src/bot-settings.ts`
@@ -21,7 +21,7 @@
 - DM `/model <filter>` and `/effort <filter>` select only this Bot's Orchestrator.
 - The Messages header chip opens the shared picker for the main model. Model settings in the picker, the DM row's Model action and the bare commands open the model dialog with main and task controls.
 - “Choose preset” shows each preset's name, main model and task model in the same dialog. Selecting a preset stages the complete pair; Save applies it, while Cancel discards it.
-- Direct edits can change either model independently; changing the main model preserves the task route and allowed efforts. Inherited Assignment settings remain absent unless explicitly changed.
+- Direct edits can change either Model Choice independently; changing the main model preserves the Task model list. The Task model list is the same control as the preset editor's: models, Routing Groups and subscription accounts, one marked Default. A Bot without its own Task models starts from the Default preset's list, and a main-only edit keeps the inheritance.
 - Header quick selection and the mobile Host client use the same `modelPlanCustomize` method for API routes and Routing Groups.
 
 - On a local origin Host, Main model and Task model have subscription filters. Selecting a subscription model stages that role and its effort. A preset can save and restore either engine choice.
