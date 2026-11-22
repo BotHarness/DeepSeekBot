@@ -5,7 +5,6 @@ import {
   PMREMGenerator,
   ACESFilmicToneMapping,
   SRGBColorSpace,
-  Box3,
   Clock,
   DirectionalLight,
   PerspectiveCamera,
@@ -18,57 +17,29 @@ import {
   Group,
   Object3D,
   Color,
-  Mesh,
-  MeshStandardMaterial,
-  TorusGeometry,
-  SphereGeometry,
 } from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
 import { VRMLoaderPlugin, VRMUtils, type VRM, type VRMHumanBoneName } from '@pixiv/three-vrm';
 import type { BotPresentationSnapshot } from '@botharness/ui/panels';
-import { RoomMotion, type MotionCommand } from './motion.js';
+import { RoomMotion } from './motion.js';
 import { FACE_EXPRESSIONS, FaceBlend, dominantFace, faceTarget, type FaceWeights } from './face.js';
 import { IdleScheduler, type IdleAction } from './idle.js';
-import { createRoom, type Mood, type Weather } from './room.js';
+import { createRoom } from './room.js';
 import { enableLilToon } from '@mochiya/three-liltoon';
 import { createCharacterShading, type CharacterShading } from './shading.js';
 import { createPost } from './post.js';
-import type { Loading, Problem } from './copy.js';
 import { RATIOS, createPacing, frameRate, nextPacing } from './pacing.js';
+import {
+  attachHeadphones,
+  mountCharacter,
+  releaseCharacter as release,
+} from './stage-character.js';
+import type { CameraView, SceneChoices, Stage, StageCallbacks } from './stage-types.js';
 
-export type CameraView = 'desk' | 'room' | 'portrait';
-export interface SceneState {
-  phase: string;
-  wandering: boolean;
-  ready: boolean;
-}
-export interface SceneChoices {
-  camera: CameraView;
-  mood: Mood;
-  weather: Weather;
-  shading: CharacterShading;
-  effects: boolean;
-  tour?: boolean;
-}
-export interface StageCallbacks {
-  loading(value: Loading): void;
-  error(value: Problem): void;
-  changed(state: SceneState): void;
-  poster(url: string): void;
-}
-export interface Stage {
-  update(snapshot: BotPresentationSnapshot): void;
-  command(command: MotionCommand): void;
-  camera(view: CameraView): void;
-  mood(value: Mood): void;
-  weather(value: Weather): void;
-  effects(value: boolean): void;
-  tour(value: boolean): void;
-  shading(value: CharacterShading): void;
-  dispose(): void;
-}
+export type { CameraView, SceneState, SceneChoices, StageCallbacks, Stage } from './stage-types.js';
+
 const GRIP = new Quaternion().setFromAxisAngle(new Vector3(1, 0, 0), -Math.PI / 2);
 const SIDEWAYS = new Quaternion().setFromAxisAngle(new Vector3(0, 1, 0), Math.PI / 2);
 const FINGERS = ['Index', 'Middle', 'Ring', 'Little'] as const;
@@ -274,22 +245,6 @@ export function mountStage(
     host.dataset.vrmMotion = motion.phase;
     host.dataset.vrmSeated = motion.seated.toFixed(3);
     host.dataset.vrmPosition = `${motion.x.toFixed(3)},${motion.z.toFixed(3)}`;
-  };
-  const release = (value: VRM) => {
-    value.scene.traverse((object) => {
-      const mesh = object as import('three').Mesh;
-      const materials = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
-      for (const material of materials)
-        if (material)
-          for (const entry of Object.values(material)) {
-            const image = (entry as { isTexture?: boolean; source?: { data?: unknown } } | null)
-              ?.isTexture
-              ? (entry as import('three').Texture).source.data
-              : undefined;
-            if (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap) image.close();
-          }
-    });
-    VRMUtils.deepDispose(value.scene);
   };
   const canDraw = () =>
     !disposed &&
@@ -911,13 +866,7 @@ export function mountStage(
       }
       legacy = loaded.meta.metaVersion === '0';
       host.dataset.vrmSpec = legacy ? '0' : '1';
-      VRMUtils.rotateVRM0(loaded);
-      actor.add(loaded.scene);
-      loaded.scene.traverse((object) => {
-        if (object instanceof Mesh) object.castShadow = object.receiveShadow = true;
-      });
-      const box = new Box3().setFromObject(loaded.scene);
-      const size = box.getSize(new Vector3());
+      const { box, size } = mountCharacter(loaded, actor);
       modelScale = 1.65 / Math.max(size.y, 0.1);
       actor.scale.setScalar(modelScale);
       floorOffset = -box.min.y * modelScale;
@@ -946,28 +895,7 @@ export function mountStage(
       const reveal: Object3D[] = [actor, room.root];
       const rawHead = loaded.humanoid.getRawBoneNode('head');
       if (rawHead && wearing) {
-        const headphones = new Group();
-        const shell = new MeshStandardMaterial({ color: 0x8d3e4c, roughness: 0.7 });
-        const cushion = new MeshStandardMaterial({ color: 0x27333e, roughness: 1 });
-        const band = new Mesh(new TorusGeometry(0.122, 0.018, 8, 32, Math.PI), shell);
-        band.position.y = 0.075;
-        headphones.add(band);
-        for (const side of [-1, 1]) {
-          const cup = new Mesh(new SphereGeometry(0.052, 16, 12), shell);
-          cup.scale.set(0.55, 1, 0.85);
-          cup.position.set(side * 0.122, 0.065, 0);
-          headphones.add(cup);
-          const pad = new Mesh(new SphereGeometry(0.05, 16, 12), cushion);
-          pad.scale.set(0.4, 1, 0.8);
-          pad.position.set(side * 0.105, 0.065, 0);
-          headphones.add(pad);
-        }
-        actor.updateMatrixWorld(true);
-        headphones.position.copy(rawHead.getWorldPosition(new Vector3()));
-        headphones.quaternion.copy(actor.getWorldQuaternion(new Quaternion()));
-        headphones.scale.setScalar(modelScale);
-        scene.add(headphones);
-        rawHead.attach(headphones);
+        const headphones = attachHeadphones(rawHead, actor, scene, modelScale);
         reveal.push(headphones);
       }
       if (loaded.lookAt) loaded.lookAt.target = gaze;
