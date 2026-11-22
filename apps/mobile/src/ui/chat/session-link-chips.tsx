@@ -145,10 +145,10 @@ export function SessionLinkChips({
                 />
                 {warning === undefined ? null : (
                   <Text
-                    accessible={false}
+                    aria-hidden
                     variant="meta"
                     tone="warning"
-                    style={{ maxWidth: '50%', flexShrink: 1 }}
+                    style={{ maxWidth: '50%', flexShrink: 0 }}
                   >
                     {warning}
                   </Text>
