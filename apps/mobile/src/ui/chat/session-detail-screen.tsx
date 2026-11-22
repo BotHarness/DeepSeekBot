@@ -224,6 +224,7 @@ export function SessionDetailBody({
                     <Pressable
                       testID="session-assignment-details"
                       accessibilityRole="button"
+                      accessibilityLabel={t.sessionDetail.assignmentDetails}
                       accessibilityState={{ expanded: detailsOpen }}
                       onPress={() => {
                         pinned.current = false;
