@@ -13,6 +13,7 @@ import {
 } from '@botharness/host-client/session-detail';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { sessionReadHost } from '../../host/session-detail';
+import { sendJumpPreferences } from '../../host/native-send-jump';
 import { loadAssignmentTimeline, type AssignmentTimeline } from '../../host/assignment-timeline';
 import { useDesignTheme } from '../design/theme';
 import { rowGlyph, space } from '../design/tokens';
@@ -311,7 +312,7 @@ export function SessionDetailBody({
           if (role === 'assignment')
             await sendSessionRequest(client, slug, id, command.text, view.running);
           else await sendOrchestratorMessage(client, slug, id, command.text);
-          latest.jumpToLatest();
+          latest.send(sendJumpPreferences.getSnapshot().enabled);
           break;
       }
       view.refresh();

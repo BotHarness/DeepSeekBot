@@ -65,6 +65,9 @@ vi.mock('react-native-keyboard-controller', () => ({
   KeyboardAvoidingView: ({ children }: { children: ReactNode }) => <div>{children}</div>,
 }));
 vi.mock('../src/host/host-session', () => ({}));
+vi.mock('../src/host/native-send-jump', () => ({
+  sendJumpPreferences: { getSnapshot: () => ({ enabled: false }) },
+}));
 vi.mock('../src/ui/chat/assignment-screen', () => ({ AssignmentDetail: () => null }));
 vi.mock('../src/ui/shell/icons', () => import('./shell-icons-shim'));
 vi.mock('../src/ui/chat/model-brand-icon', () => ({ ModelBrandIcon: () => null }));
