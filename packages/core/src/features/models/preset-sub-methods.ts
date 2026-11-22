@@ -14,10 +14,13 @@ import {
   storedPlanSub,
   isPresetSub,
   presetSubProjection,
+  resolveBotModelPlan,
   storedPresetSub,
   type PresetSub,
 } from '../../models/preset-sub.js';
 import {
+  DEFAULT_MODEL_PRESET_ID,
+  defaultPresetPlan,
   isModelRoute,
   ModelPresetError,
   type ModelPreset,
@@ -38,6 +41,18 @@ export interface ModelPresetSubView {
   revision: number;
   sub: PresetSub;
   legacyOpen?: true;
+}
+
+export function readPlanSub(
+  plan: PersonaBotModelPlan,
+  presets: ModelsBridgeDeps['modelPresets'],
+): PresetSub {
+  if (plan.sub !== undefined || plan.assignmentDefault !== undefined) return storedPlanSub(plan);
+  const preset = presets?.get(DEFAULT_MODEL_PRESET_ID);
+  if (preset === undefined) return storedPlanSub(plan);
+  return storedPlanSub(
+    resolveBotModelPlan({ modelPlan: plan }, () => defaultPresetPlan(preset)) ?? plan,
+  );
 }
 
 export interface ModelPlanSubView {
@@ -136,7 +151,7 @@ export function createPresetSubMethods(
   const planView = (slug: string, plan: PersonaBotModelPlan): ModelPlanSubView => ({
     slug,
     revision: plan.revision,
-    sub: storedPlanSub(plan),
+    sub: readPlanSub(plan, deps.modelPresets),
     ...(plan.openAssignmentModels === true ? { legacyOpen: true } : {}),
   });
   const failure = (error: unknown) =>
@@ -239,7 +254,10 @@ export function createPresetSubMethods(
         const check = () => {
           requireConfigure();
           if (!isHostOwner())
-            requireSubRoutes(plan, storedPlanSub(plan), { slug, grantsOnly: true });
+            requireSubRoutes(plan, readPlanSub(plan, deps.modelPresets), {
+              slug,
+              grantsOnly: true,
+            });
           requireSubRoutes(plan, sub, { slug });
         };
         check();
@@ -385,7 +403,7 @@ export function createSubWriters(
         else if (isModelRoute(orchestrator)) routes.push(orchestrator);
         requireRoutes(slug, routes);
         if (!isHostOwner() && bot.modelPlan !== undefined)
-          requireSubRoutes(bot.modelPlan, storedPlanSub(bot.modelPlan), {
+          requireSubRoutes(bot.modelPlan, readPlanSub(bot.modelPlan, deps.modelPresets), {
             slug,
             grantsOnly: true,
           });

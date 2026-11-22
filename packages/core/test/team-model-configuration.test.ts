@@ -348,6 +348,28 @@ describe('Bot Model Plan sub choices', () => {
     expect(f.registry.get('bob')?.modelPlan).toEqual(saved);
   });
 
+  it('reads the inherited Default choices for a main-only plan and keeps an explicit follow-main', async () => {
+    const f = fixture();
+    const methods = createBridgeMethods(owner, f.deps);
+    expect(
+      await methods.modelPresetSubSet({
+        id: f.pinned.id,
+        expectedRevision: f.pinned.revision,
+        sub: customSub,
+      }),
+    ).toMatchObject({ ok: true });
+    expect(f.registry.customizeModelPlan('bob', permitted, 0).ok).toBe(true);
+    expect(f.registry.get('bob')?.modelPlan?.assignmentDefault).toBeUndefined();
+    expect(methods.modelPlanSub({ slug: 'bob' })).toMatchObject({
+      ok: true,
+      value: { revision: 1, sub: customSub },
+    });
+    expect(
+      await methods.modelPlanSubSet({ slug: 'bob', expectedRevision: 1, sub: followMain }),
+    ).toMatchObject({ ok: true, value: { revision: 2, sub: followMain } });
+    expect(methods.modelPlanSub({ slug: 'bob' })).toMatchObject({ value: { sub: followMain } });
+  });
+
   it('projects a selected group, then follows the current main route or group', async () => {
     const f = fixture();
     const methods = createBridgeMethods(owner, f.deps);

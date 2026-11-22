@@ -446,10 +446,16 @@ export type ModelPresetInput = MainRouteInput &
         Partial<LegacyAssignmentInput> &
         Pick<ModelPresetEngineInput, 'assignmentEngine'> & {
           sub?: undefined;
-          assignmentFollowsMain?: boolean;
+          assignmentFollowsMain?: never;
         })
     | SubAssignmentInput
   );
+
+export type ModelPresetUpdateInput =
+  | ModelPresetInput
+  | (Omit<Extract<ModelPresetInput, { sub?: undefined }>, 'assignmentFollowsMain'> & {
+      assignmentFollowsMain?: boolean;
+    });
 
 export async function createModelPreset(
   host: HostCall,
@@ -472,7 +478,7 @@ export async function updateModelPreset(
   host: HostCall,
   id: string,
   expectedRevision: number,
-  input: ModelPresetInput,
+  input: ModelPresetUpdateInput,
 ): Promise<ModelPreset> {
   return presetAnswer(
     await host.call('modelPresetUpdate', {
