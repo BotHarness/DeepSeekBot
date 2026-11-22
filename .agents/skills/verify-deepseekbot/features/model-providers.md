@@ -26,7 +26,7 @@
 
 ## Sub-features
 
-- Bot Settings puts Model providers above Models & execution for the Host Owner and Humans with `modelSources.manage`.
+- Bot Settings puts Model providers above Bot runtime and Model configuration for the Host Owner and Humans with `modelSources.manage`.
 - Adding or replacing an API key reports key storage, model count and a bounded reply on the exact provider route. Two keys for the same service each have their own route and credential reference.
 - List and edit show a masked key and the provider logo. Removal checks the Settings revision and references from the default model, Routing Groups, Model Presets and Bots.
 - Add, rename and remove Codex and Claude Code accounts. Each row shows the account’s sign-in and observed quota. The model picker and Routing Groups show the named account, and Model Presets can retain the account for either role.

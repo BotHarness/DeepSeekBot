@@ -176,8 +176,18 @@ export function routingGroupEngineMemberRow(
 export async function loadRoutingGroupEngines(
   host: HostCall,
 ): Promise<RoutingGroupEngineOptions[]> {
-  const answer = record(await host.call('modelCatalog', { includeRoutingGroupEngines: true }));
-  const rows = answer?.['routingGroupEngines'];
+  return parseRoutingGroupEngines(
+    await host.call('modelCatalog', { includeRoutingGroupEngines: true }),
+  );
+}
+
+export async function loadSessionModelCatalog(host: HostCall) {
+  const answer = await host.call('modelCatalog', { includeRoutingGroupEngines: true });
+  return { ...parseModelCatalog(answer), engines: parseRoutingGroupEngines(answer) };
+}
+
+function parseRoutingGroupEngines(value: unknown): RoutingGroupEngineOptions[] {
+  const rows = record(value)?.['routingGroupEngines'];
   if (!Array.isArray(rows)) return [];
   const statuses = rows.flatMap((value): RoutingGroupEngineOptions[] => {
     const row = record(value);

@@ -316,6 +316,25 @@ describe('M6 durable filesystem transactions', () => {
     }
   });
 
+  it('finishes a committed cross-filesystem Member transfer when Bot shutdown fails', async () => {
+    const failure = new Error('Bot shutdown failed');
+    const stopBots = vi.fn().mockRejectedValue(failure);
+    const f = fixture(undefined, stopBots);
+    const memory = await formerOwnerMemory(f);
+
+    await expect(f.team.transfer(memory.operator, owner.humanId, 'bob')).rejects.toBe(failure);
+
+    expect(stopBots).toHaveBeenCalledWith(['former-owner']);
+    expect(f.registry.get('former-owner')?.ownerHumanId).toBe('bob');
+    expect(fs.readFileSync(join(memory.target, 'uncommitted.txt'), 'utf8')).toBe(
+      'retained uncommitted Memory',
+    );
+    expect(fs.existsSync(memory.source)).toBe(false);
+    expect(f.db.read((db) => db.prepare('SELECT * FROM workspace_file_transfers').all())).toEqual(
+      [],
+    );
+  });
+
   it('resumes committed member transfer after partial cross-filesystem source retirement', async () => {
     const f = fixture();
     const memory = await formerOwnerMemory(f);

@@ -68,25 +68,7 @@ export function parseSkillCatalogChange(value: unknown): SkillCatalogChange | un
   }
 }
 
-export function parseSessionLinks(value: unknown): NonNullable<ChannelMessage['sessionLinks']> {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((entry) => {
-    const link = asRecord(entry);
-    return link !== undefined &&
-      typeof link['sessionId'] === 'string' &&
-      link['sessionId'] !== '' &&
-      typeof link['title'] === 'string' &&
-      (link['kind'] === 'created' || link['kind'] === 'sent')
-      ? [
-          {
-            sessionId: link['sessionId'],
-            kind: link['kind'] as 'created' | 'sent',
-            title: link['title'],
-          },
-        ]
-      : [];
-  });
-}
+export { parseSessionLinks } from '@botharness/host-client/session-links';
 
 export function parseMessageVoice(value: unknown): ChannelMessageVoice | undefined {
   return isChannelMessageVoice(value) ? value : undefined;
