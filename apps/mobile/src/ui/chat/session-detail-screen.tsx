@@ -118,11 +118,12 @@ function SessionNotice({ title, children }: { title: string; children: ReactNode
 }
 
 export function SessionDetailScreen() {
-  const { hostId, slug, id, session, title } = useLocalSearchParams<{
+  const { hostId, slug, id, session, source, title } = useLocalSearchParams<{
     hostId?: string;
     slug?: string;
     id?: string;
     session?: string;
+    source?: string;
     title?: string;
   }>();
   const t = useStrings().sessionDetail;
@@ -137,9 +138,9 @@ export function SessionDetailScreen() {
     </SessionNotice>
   ) : (
     <SessionTarget
-      key={`${saved?.hostId}:${saved?.deviceId}:${slug}:${sessionId}`}
+      key={`${saved?.hostId}:${saved?.deviceId}:${source}:${slug}:${sessionId}`}
       client={client}
-      slug={slug}
+      slug={source === 'native' ? null : slug}
       id={sessionId}
       title={title}
     />
@@ -153,7 +154,7 @@ function SessionTarget({
   title,
 }: {
   client: HostClient;
-  slug: string | undefined;
+  slug: string | null | undefined;
   id: string;
   title: string | undefined;
 }) {
@@ -177,8 +178,8 @@ function SessionTarget({
     }, [client, id, slug, online, attempt]),
   );
 
-  const resolved = slug ?? owner;
-  if (resolved == null)
+  const resolved = slug === undefined ? owner : slug;
+  if (slug === undefined && resolved == null)
     return (
       <SessionNotice title={title ?? t.title}>
         {resolved === null ? (
@@ -190,6 +191,7 @@ function SessionTarget({
         )}
       </SessionNotice>
     );
+  if (resolved === undefined) return null;
   return (
     <SessionDetailBody client={client} slug={resolved} id={id} title={title} online={online} />
   );
@@ -208,7 +210,7 @@ export function SessionDetailBody({
   online,
 }: {
   client: HostClient;
-  slug: string;
+  slug: string | null;
   id: string;
   title?: string | undefined;
   online: boolean;
@@ -270,7 +272,7 @@ export function SessionDetailBody({
   const pending = useRef(false);
   useFocusEffect(
     useCallback(() => {
-      if (!online || role !== 'assignment') return;
+      if (!online || role !== 'assignment' || slug === null) return;
       const abort = new AbortController();
       setAssignmentRead((current) => ({ ...current, loading: true }));
       void loadAssignmentTimeline(sessionReadHost(client, abort.signal), slug, id).then(
@@ -305,14 +307,16 @@ export function SessionDetailBody({
     try {
       switch (command.kind) {
         case 'stop':
+          if (slug === null) return false;
           await stopSession(client, { botSlug: slug, sessionId: id });
           break;
         case 'archive':
+          if (slug === null) return false;
           await setSessionArchived(client, slug, id, command.archived);
           setArchiveRevision((revision) => revision + 1);
           break;
         case 'send':
-          if (role === 'assignment')
+          if (role === 'assignment' && slug !== null)
             await sendSessionRequest(client, slug, id, command.text, view.running);
           else await sendOrchestratorMessage(client, slug, id, command.text);
           latest.send(sendJumpPreferences.getSnapshot().enabled);
@@ -351,7 +355,7 @@ export function SessionDetailBody({
           label: t.sessionDetail.options,
           testID: 'session-options',
           items: [
-            ...(view.running
+            ...(slug !== null && view.running
               ? [{ label: t.sessionStop, testID: 'session-stop', icon: 'stop' as const, run: stop }]
               : []),
             ...(canArchive
@@ -472,7 +476,7 @@ export function SessionDetailBody({
             online={online}
             busy={busy}
             error={error}
-            onStop={view.running ? stop : undefined}
+            onStop={slug !== null && view.running ? stop : undefined}
             onSend={(text) => run({ kind: 'send', text })}
             model={model}
           />

@@ -104,6 +104,27 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect(result.text).toContain('host-query-unsupported');
   });
 
+  it('lists Host Sessions and uses the existing commands for a native Session', async () => {
+    const live = await host(echo);
+    for (const argv of [
+      ['session-list'],
+      ['session-transcript', '--session', 'native-1'],
+      ['session-live', '--session', 'native-1', '--after', '3'],
+      ['session-send', 'native-1', '  Continue from here.  '],
+    ]) {
+      expect((await invoke(argv, live.url)).code).toBe(0);
+    }
+    expect(live.calls).toEqual([
+      { method: 'sessionList', args: {} },
+      { method: 'sessionTranscript', args: { slug: null, sessionId: 'native-1' } },
+      { method: 'sessionLive', args: { slug: null, sessionId: 'native-1', after: 3 } },
+      {
+        method: 'sessionMessageSend',
+        args: { botSlug: null, sessionId: 'native-1', text: '  Continue from here.  ' },
+      },
+    ]);
+  });
+
   it('sends raw text straight into the Orchestrator Session with session-send', async () => {
     const live = await host(() => ({ ok: true, value: { sourceEventId: 'evt-1' } }));
     const result = await invoke(

@@ -21,7 +21,7 @@ type View = {
 
 export function useSessionTranscript(
   client: HostClient,
-  slug: string,
+  slug: string | null,
   id: string,
   online: boolean,
 ) {

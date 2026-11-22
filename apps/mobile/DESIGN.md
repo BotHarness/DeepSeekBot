@@ -273,7 +273,9 @@ Deliver runnable vertical slices: native blank creation with target selection an
 
 ## Structure
 
-Chats, Activity and Settings are the three top-level destinations on iOS and Android. Settings is a tab page ([ADR-0272](../../docs/decisions/mobile-ui.md#adr-0272)). It uses a native-stack large title on iOS and a fixed top app bar on Android. Its child pages push on the app stack, leaving the tab controls on the three top-level pages.
+Chats, Activity and Settings are the three top-level destinations on iOS and Android. Settings is a tab page ([ADR-0272](../../docs/decisions/mobile-ui.md#adr-0272)). It uses a native-stack large title on iOS and a fixed top app bar on Android. Its child pages push on the app stack, leaving the tab controls on the top-level pages.
+
+Settings → Interface has an off-by-default Sessions switch (iOS Toggle ↔ Android Switch). When enabled, the iOS tab bar and Android NavigationBar include Sessions. The tab opens the current Host’s root Session list, ordered by last Human prompt. The list refreshes on entry or pull-to-refresh and keeps its previous rows during a refresh for the same Host. Bot rows use their Bot portrait. Native rows use the Session symbol. Both open the shared Session detail stack.
 
 - **One workspace drawer, two connection types.** Computers are paired Hosts; cloud workspaces belong to an explicitly trusted TOB instance. The existing left drawer is shared across both, with Computers and Cloud tabs. Cloud headers expose the same workspace switcher. A guest sees the organization initial/name and “invited channels only”; selecting it shows only current channel grants. Instance domains disambiguate identically named workspaces. The contextual join/pair action stays below the tabs; the directory scrolls between that header and a fixed footer.
 - **Computer workspaces.** Each paired computer is a Host.

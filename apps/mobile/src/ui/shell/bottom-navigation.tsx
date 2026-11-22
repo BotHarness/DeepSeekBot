@@ -32,6 +32,7 @@ import { creationMenuItems } from './creation-menu-items';
 import { CreationMenuButton } from './creation-menu-button';
 import { showAppDialog } from '../primitives/app-dialog';
 import { FloatingTabInset } from './floating-tab-inset';
+import { useSessionsTab } from '../interface-settings';
 import { useStrings } from '../strings';
 import { useSelectionFeedback } from '../selection-feedback';
 import type { NavigationDestination } from './navigation-destination';
@@ -50,6 +51,7 @@ export function BottomNavigation() {
 
 function NavigationLayout() {
   const t = useStrings();
+  const sessionsTab = useSessionsTab();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   const { fontScale } = useWindowDimensions();
@@ -88,6 +90,7 @@ function NavigationLayout() {
                 size={size}
                 bottom={bottom}
                 onNativeHeight={setNativeHeight}
+                sessionsTab={sessionsTab}
               />
             )}
             screenOptions={{
@@ -97,6 +100,10 @@ function NavigationLayout() {
           >
             <Tabs.Screen name="(home)" options={{ title: t.chats }} />
             <Tabs.Screen name="(activity)" options={{ title: t.activity }} />
+            <Tabs.Screen
+              name="(sessions)"
+              options={sessionsTab ? { title: t.hostSessions.title } : { href: null }}
+            />
             <Tabs.Screen name="(settings)" options={{ title: t.settings }} />
           </Tabs>
         </View>
@@ -106,6 +113,7 @@ function NavigationLayout() {
 }
 
 type NavigationBarLayout = TabBarProps & {
+  sessionsTab: boolean;
   size: number;
   bottom: number;
   onNativeHeight(height: number): void;
@@ -123,6 +131,7 @@ function ScopedNavigationBar({
   size,
   bottom,
   onNativeHeight,
+  sessionsTab,
   scope,
 }: NavigationBarLayout & { scope: string }) {
   const t = useStrings();
@@ -209,22 +218,25 @@ function ScopedNavigationBar({
       setBusy(false);
     }
   };
-  const items: NavigationDestination[] = state.routes.map((route) => ({
-    key: route.key,
-    focused: route.key === currentKey,
-    activity: route.name === '(activity)',
-    settings: route.name === '(settings)',
-    count: route.name === '(activity)' ? pending : 0,
-    onPress: () => {
-      const event = emitter.emit({
-        type: 'tabPress',
-        target: route.key,
-        canPreventDefault: true,
-      });
-      if (!event.defaultPrevented) selectTab(route.key);
-    },
-    onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
-  }));
+  const items: NavigationDestination[] = state.routes
+    .filter((route) => sessionsTab || route.name !== '(sessions)')
+    .map((route) => ({
+      key: route.key,
+      focused: route.key === currentKey,
+      activity: route.name === '(activity)',
+      settings: route.name === '(settings)',
+      sessions: route.name === '(sessions)',
+      count: route.name === '(activity)' ? pending : 0,
+      onPress: () => {
+        const event = emitter.emit({
+          type: 'tabPress',
+          target: route.key,
+          canPreventDefault: true,
+        });
+        if (!event.defaultPrevented) selectTab(route.key);
+      },
+      onLongPress: () => emitter.emit({ type: 'tabLongPress', target: route.key }),
+    }));
   const fabBottom = size + bottom + fab.margin;
   const creatable =
     creationMenuItems({ scope, targets, nativeChannelForm: Platform.OS === 'android' }).length > 0;

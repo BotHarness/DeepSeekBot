@@ -1,12 +1,10 @@
 import type { SessionModelState } from '@botharness/host-protocol/session-model';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type { TurnTrace } from '../../bots/tool-trace.js';
-import type { SessionTranscript } from '../../runtime/session-transcript.js';
 import type { SessionToolDetail } from '../../runtime/session-tool-detail.js';
 import type { SessionRootRole } from '../../sessions/ownership.js';
 import type { ManualCompactionResult } from '../../runtime/idle-compaction.js';
 import type { IdleCompactionView, OwnedSessionBot, SessionsBridgeMethods } from './methods.js';
-import type { SessionsAdapterMethods } from './methods.js';
 
 export function botNewSession(
   methods: SessionsBridgeMethods,
@@ -121,21 +119,13 @@ export function compactionThresholdSet(
 
 export function sessionModel(
   methods: SessionsBridgeMethods,
-  slug: string,
+  slug: string | null,
   sessionId: string,
   choice?: unknown,
 ): Promise<SessionModelState> {
   return unwrapAsync(
     methods.sessionModel({ slug, sessionId, ...(choice === undefined ? {} : { choice }) }),
   );
-}
-
-export function sessionTranscript(
-  methods: SessionsBridgeMethods,
-  slug: string,
-  sessionId: string,
-): Promise<{ sessionId: string; role: SessionRootRole } & SessionTranscript> {
-  return unwrapAsync(methods.sessionTranscript({ slug, sessionId }));
 }
 
 export function sessionToolDetail(
@@ -188,13 +178,4 @@ export function botSessionIds(methods: SessionsBridgeMethods): {
   groups: { botSlug: string; displayName: string; sessionIds: string[] }[];
 } {
   return unwrap(methods.botSessionIds({}));
-}
-
-export function sessionMessageSend(
-  methods: SessionsAdapterMethods,
-  botSlug: string,
-  sessionId: string,
-  text: string,
-): Promise<{ sourceEventId: string }> {
-  return unwrapAsync(methods.sessionMessageSend({ botSlug, sessionId, text }));
 }

@@ -75,7 +75,6 @@ import type { BotZipUploadStatus } from '../bots/zip-upload.js';
 import type { BotZipPreview } from '../bots/zip-import.js';
 import type { TurnTrace } from '../bots/tool-trace.js';
 import type { AssignmentTimelineLane } from '../runtime/assignment-timeline.js';
-import type { SessionTranscript } from '../runtime/session-transcript.js';
 import type { SessionLiveSnapshot } from '../runtime/session-live.js';
 import type { SessionToolDetail } from '../runtime/session-tool-detail.js';
 import type { SessionRootRole } from '../sessions/ownership.js';
@@ -1168,12 +1167,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }> {
     return sessionsRpc.channelBotStop(this.methods, channelId, botSlug, autoContinueFor);
   }
-  sessionMessageSend(
-    botSlug: string,
-    sessionId: string,
-    text: string,
-  ): Promise<{ sourceEventId: string }> {
-    return sessionsRpc.sessionMessageSend(this.methods, botSlug, sessionId, text);
+  sessionMessageSend(botSlug: string | null, sessionId: string, text: string) {
+    return unwrapAsync(this.methods.sessionMessageSend({ botSlug, sessionId, text }));
   }
   sessionStop(
     botSlug: string,
@@ -2649,19 +2644,24 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return assignmentsRpc.sessionProgress(this.methods, slug, sessionIds);
   }
 
-  sessionModel(slug: string, sessionId: string, choice?: unknown): Promise<SessionModelState> {
+  sessionModel(
+    slug: string | null,
+    sessionId: string,
+    choice?: unknown,
+  ): Promise<SessionModelState> {
     return sessionsRpc.sessionModel(this.methods, slug, sessionId, choice);
   }
 
-  sessionTranscript(
-    slug: string,
-    sessionId: string,
-  ): Promise<{ sessionId: string; role: SessionRootRole } & SessionTranscript> {
-    return sessionsRpc.sessionTranscript(this.methods, slug, sessionId);
+  sessionList() {
+    return unwrapAsync(this.methods.sessionList({}));
+  }
+
+  sessionTranscript(slug: string | null, sessionId: string) {
+    return unwrapAsync(this.methods.sessionTranscript({ slug, sessionId }));
   }
 
   sessionLive(
-    slug: string,
+    slug: string | null,
     sessionId: string,
     after?: number,
   ): Promise<{ sessionId: string } & SessionLiveSnapshot> {
@@ -3681,6 +3681,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'assignmentTimeline',
   'sessionSubagents',
   'sessionProgress',
+  'sessionList',
   'sessionTranscript',
   'sessionModel',
   'sessionLive',

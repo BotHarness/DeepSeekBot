@@ -1,3 +1,4 @@
+import { dshHostSessions } from './features/sessions/dsh-host-sessions.js';
 import { sessionModelChoices } from './runtime/session-model-choices.js';
 import type { ReleaseInstaller } from './release/service.js';
 import * as diagnosticsFeature from './features/diagnostics/plugin.js';
@@ -2399,6 +2400,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     memory: core.memory,
     ...(core.usage === undefined ? {} : { usage: core.usage }),
     sessionLive,
+    nativeSessions: dshHostSessions(ctx, dshSessions),
     sessionModels: sessionModelChoices(
       attachOperationalModule(core.operationalDatabase, 'bot-runtime'),
     ),

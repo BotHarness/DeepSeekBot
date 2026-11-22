@@ -59,6 +59,12 @@ import type { AssignmentActivity, AssignmentReportState } from '../../runtime/bo
 import type { AssignmentExecutionWait } from '../../runtime/assignment-approval-capacity.js';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
 
+type SessionTranscriptRead = SessionTranscript & {
+  sessionId: string;
+  role: SessionRootRole | 'native';
+  currentTarget?: TurnTarget;
+};
+
 export interface SessionsBridgeMethods {
   botNewSession(payload: unknown): Promise<BridgeResult<{ started: true }>>;
   botCompact(payload: unknown): Promise<BridgeResult<ManualCompactionResult>>;
@@ -87,13 +93,7 @@ export interface SessionsBridgeMethods {
   idleCompactionCacheLifetimeSet(payload: unknown): BridgeResult<IdleCompactionView>;
   compactionThresholdSet(payload: unknown): BridgeResult<IdleCompactionView>;
   sessionModel(payload: unknown): Promise<BridgeResult<SessionModelState>>;
-  sessionTranscript(
-    payload: unknown,
-  ): Promise<
-    BridgeResult<
-      { sessionId: string; role: SessionRootRole; currentTarget?: TurnTarget } & SessionTranscript
-    >
-  >;
+  sessionTranscript(payload: unknown): Promise<BridgeResult<SessionTranscriptRead>>;
   sessionToolDetail(
     payload: unknown,
   ): Promise<BridgeResult<{ sessionId: string; callId: string; detail: SessionToolDetail }>>;

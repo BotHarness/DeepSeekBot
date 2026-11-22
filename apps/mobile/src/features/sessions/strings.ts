@@ -1,10 +1,23 @@
 import { en as modelsEn, zh as modelsZh } from '../models/strings';
 
 export const en = {
+  hostSessions: {
+    title: 'Sessions',
+    toggle: 'Show Sessions tab',
+    native: 'Native session',
+    untitled: 'Untitled session',
+    empty: 'No sessions on this Host.',
+    offline: 'Connect to a Host to see its sessions.',
+    loadFailed: 'Couldn’t load sessions.',
+    running: 'Running',
+    idle: 'Idle',
+  },
   sessionModel: {
     choice: 'Model choice',
     defaultLabel: 'Bot default',
     default: 'Use Bot default',
+    nativeDefaultLabel: 'Original model',
+    nativeDefault: 'Use the Session’s original model',
     groups: 'Routing Groups',
     apiModels: 'API models',
     api: 'API',
@@ -147,10 +160,23 @@ export const en = {
 };
 
 export const zh: typeof en = {
+  hostSessions: {
+    title: '会话',
+    toggle: '显示会话标签页',
+    native: '原生会话',
+    untitled: '未命名会话',
+    empty: '此 Host 还没有会话。',
+    offline: '连接 Host 后可查看会话。',
+    loadFailed: '加载会话失败。',
+    running: '运行中',
+    idle: '空闲',
+  },
   sessionModel: {
     choice: '模型选择',
     defaultLabel: 'Bot 默认模型',
     default: '使用 Bot 默认模型',
+    nativeDefaultLabel: '原始模型',
+    nativeDefault: '使用会话的原始模型',
     groups: '路由组',
     apiModels: 'API 模型',
     api: 'API',
