@@ -21,6 +21,7 @@ import {
   summarizeSessionTranscript,
   type SessionTranscript,
 } from '../../runtime/session-transcript.js';
+import type { SessionLiveSnapshot } from '../../runtime/session-live.js';
 import type { DshSessionEvent } from '../../sessions/source.js';
 
 export interface DshSessionListRow {
@@ -206,7 +207,9 @@ export function createHostSessionsMethods(
         },
       );
     },
-    async sessionLive(payload) {
+    async sessionLive(
+      payload: unknown,
+    ): Promise<BridgeResult<{ sessionId: string } & SessionLiveSnapshot>> {
       const source = asObject(payload);
       const slug = asNonBlank(source, 'slug');
       const sessionId = asNonBlank(source, 'sessionId');
