@@ -150,7 +150,11 @@ export class ChannelToolApproval {
     rememberable = false,
     device?: 'computer' | 'browser',
     botCreatePreview?: BotCreatePreview,
-    options?: { requireExplicitApproval?: boolean; authorizationScope?: () => string },
+    options?: {
+      requireExplicitApproval?: boolean;
+      authorizationScope?: () => string;
+      origin?: ToolApprovalOrigin;
+    },
   ): (() => void) | undefined {
     const agent = execution.agent;
     if (agent === undefined) return undefined;
@@ -168,7 +172,9 @@ export class ChannelToolApproval {
     if (scopeKey === undefined) return undefined;
     const key = callKey(agent.session.id, execution.callId);
     const effects = toolEffects(execution.name, execution.arguments);
+    const origin = options?.origin;
     const tracked: TrackedCall = {
+      ...(origin === undefined ? {} : { origin }),
       agent,
       botSlug: owner.botSlug,
       sessionId: agent.session.id,
@@ -292,7 +298,9 @@ export class ChannelToolApproval {
       return 'allowed-once';
     }
     const origin =
-      directOrigin ?? (tracked.role === 'orchestrator' ? this.#origin?.(query) : undefined);
+      directOrigin ??
+      tracked.origin ??
+      (tracked.role === 'orchestrator' ? this.#origin?.(query) : undefined);
     if (tracked.role === 'orchestrator' && this.#origin !== undefined && origin === undefined)
       return 'unavailable';
     const originChannel = origin === undefined ? undefined : this.#channels.get(origin.channelId);

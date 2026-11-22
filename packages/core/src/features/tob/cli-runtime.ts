@@ -34,7 +34,11 @@ export interface TobCliRequestLease {
 export interface TobCliAuthority {
   (): void;
 
-  markSideEffect(): void;
+  beginWrite(): {
+    approvalChannelId: string;
+    authorize(): void;
+    markSideEffect(): void;
+  };
 }
 
 interface TobCliPorts {
@@ -197,7 +201,7 @@ export function createTobCliRuntime(ports: TobCliPorts) {
       throw new TobError('human-dm-required');
     const accepted = new Set(turn.acceptedEventIds);
     const dm = dmChannelId(owner.botSlug);
-    const authorize = () => {
+    const requireOrigin = () => {
       const currentOwner = ports.ownership.resolve(sessionId);
       if (
         ports.closed() ||
@@ -211,7 +215,6 @@ export function createTobCliRuntime(ports: TobCliPorts) {
 
       if (
         ports.turnSources.get(owner.botSlug) !== turn ||
-        turn.acceptedEventIds.size !== accepted.size ||
         [...accepted].some((id) => !turn.acceptedEventIds.has(id))
       )
         throw new TobError('human-dm-required');
@@ -232,11 +235,22 @@ export function createTobCliRuntime(ports: TobCliPorts) {
         }
       });
     };
+    const authorize = () => {
+      requireOrigin();
+      if (turn.acceptedEventIds.size !== accepted.size) throw new TobError('human-dm-required');
+    };
     authorize();
     return Object.assign(authorize, {
-      markSideEffect: () => {
+      beginWrite: () => {
         authorize();
-        ports.markAdmissionsSideEffect(owner.botSlug, [...accepted]);
+        return {
+          approvalChannelId: dm,
+          authorize: requireOrigin,
+          markSideEffect: () => {
+            requireOrigin();
+            ports.markAdmissionsSideEffect(owner.botSlug, [...accepted]);
+          },
+        };
       },
     });
   }
