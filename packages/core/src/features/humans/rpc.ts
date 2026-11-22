@@ -1,3 +1,4 @@
+import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap } from '../../bridge/rpc-result.js';
 import type { HumansBridgeMethods } from './methods.js';
 import type { HumansAdapterMethods } from './methods.js';
@@ -45,3 +46,45 @@ export function acknowledge(
 ): { key: string; value: string } {
   return unwrap(methods.acknowledge(value === undefined ? { key } : { key, value }));
 }
+
+export const acknowledgementRpc = {
+  acknowledgements(): { items: Record<string, string> } {
+    return acknowledgements(this.methods);
+  },
+
+  acknowledge(key: string, value?: string): { key: string; value: string } {
+    return acknowledge(this.methods, key, value);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const humanIdentityRpc = {
+  humanIdentity() {
+    return humanIdentity(this.methods);
+  },
+
+  composerIdentity() {
+    return composerIdentity(this.methods);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const humanDisplayNameRpc = {
+  channelHumanNameSet(channelId: string, nickname: string | null) {
+    return channelHumanNameSet(this.methods, channelId, nickname);
+  },
+
+  humanNameSet(displayName: string | null) {
+    return humanNameSet(this.methods, displayName);
+  },
+
+  humanAvatarSet(avatar: string | null) {
+    return humanAvatarSet(this.methods, avatar);
+  },
+
+  humanAvatars(humanIds: string[]) {
+    return humanAvatars(this.methods, humanIds);
+  },
+
+  humanProfileSetupFinish() {
+    return humanProfileSetupFinish(this.methods);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
