@@ -1,15 +1,14 @@
 import { useRef, useState, type ReactElement } from 'react';
 import { BridgeCallError, unwrap, type BridgeCall } from './bridge-transport.js';
 import { Button } from './ds/button.js';
-import { TextField } from './ds/field.js';
-import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { Switch } from './ds/switch.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { memberPage } from './member-page.js';
 import { useMountedResource } from './mounted-resource.js';
-import { record, TEAM_PASSWORD_MIN_LENGTH, teamRefusal } from './team-bridge.js';
+import { OwnerPasswordDialog } from './owner-password-dialog.js';
+import { record, teamRefusal } from './team-bridge.js';
 import { refreshTeamMode } from './team-state.js';
 
 type SignInView = { enabled: false } | { enabled: boolean; username: string };
@@ -165,89 +164,19 @@ export function OwnerPasswordSignInSettings({
         {!setup && error !== undefined ? <Note tone="danger">{error}</Note> : null}
       </SettingsRow>
       {setup ? (
-        <SetupDialog
+        <OwnerPasswordDialog
+          kind="standalone"
           t={t}
           busy={busy}
           error={error}
-          cancel={() => {
+          onCancel={() => {
             if (busy) return;
             setError(undefined);
             setSetup(false);
           }}
-          submit={(username, password) => void save({ enabled: true, username, password })}
+          onSubmit={(username, password) => void save({ enabled: true, username, password })}
         />
       ) : null}
     </>
-  );
-}
-
-function SetupDialog({
-  t,
-  busy,
-  error,
-  cancel,
-  submit,
-}: {
-  t: BotHarnessTranslate;
-  busy: boolean;
-  error: string | undefined;
-  cancel(): void;
-  submit(username: string, password: string): void;
-}): ReactElement {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmation, setConfirmation] = useState('');
-  const validUsername = /^[a-z0-9][a-z0-9._-]{1,31}$/u.test(username.trim());
-  const passwordTooLong = new TextEncoder().encode(password).length > 1024;
-  const validPassword = password.length >= TEAM_PASSWORD_MIN_LENGTH && !passwordTooLong;
-  return (
-    <FormDialog
-      title={t('connections.ownerSignIn.setupTitle')}
-      labels={{ close: t('common.close'), cancel: t('common.cancel') }}
-      submitLabel={t('team.ownerPassword.saveAndEnable')}
-      busy={busy}
-      error={error}
-      submitDisabled={!validUsername || !validPassword || password !== confirmation}
-      onCancel={cancel}
-      onSubmit={() => submit(username.trim(), password)}
-    >
-      <TextField
-        label={t('team.members.username')}
-        autoComplete="username"
-        autoCapitalize="none"
-        spellCheck={false}
-        maxLength={32}
-        disabled={busy}
-        initialFocus
-        value={username}
-        hint={t('connections.ownerSignIn.usernameRule')}
-        onChange={setUsername}
-      />
-      <TextField
-        label={t('team.password.new')}
-        type="password"
-        autoComplete="new-password"
-        maxLength={1024}
-        disabled={busy}
-        value={password}
-        hint={t('team.password.rule', { min: String(TEAM_PASSWORD_MIN_LENGTH) })}
-        error={passwordTooLong ? t('connections.ownerSignIn.passwordTooLong') : undefined}
-        onChange={setPassword}
-      />
-      <TextField
-        label={t('team.password.confirm')}
-        type="password"
-        autoComplete="new-password"
-        maxLength={1024}
-        disabled={busy}
-        value={confirmation}
-        error={
-          confirmation.length > 0 && confirmation !== password
-            ? t('team.password.mismatch')
-            : undefined
-        }
-        onChange={setConfirmation}
-      />
-    </FormDialog>
   );
 }
