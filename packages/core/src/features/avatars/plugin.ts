@@ -6,8 +6,8 @@ import {
   wornAvatarPart,
   type PartSlot,
 } from '../../bots/avatar-appearance.js';
-import { createBotAvatarHttp } from '../../bots/avatar-http.js';
-import { createBotBannerHttp } from '../../bots/banner-http.js';
+import { BOT_AVATAR_PATH, createBotAvatarHttp } from '../../bots/avatar-http.js';
+import { BOT_BANNER_PATH, createBotBannerHttp } from '../../bots/banner-http.js';
 import { createPartLibrary } from '../../bots/part-library.js';
 import type { PersonaBotRegistry, PersonaBotRegistryOptions } from '../../bots/registry.js';
 import { attachOperationalModule, type OperationalDatabaseOwner } from '../../database/owner.js';
@@ -37,18 +37,36 @@ export function apply(operationalDatabase: OperationalDatabaseOwner) {
 
 export function mountRoutes(
   ctx: Context,
-  {
-    registry,
-    registerBanner,
-    registerAvatar,
-  }: {
-    registry: PersonaBotRegistry;
-    registerBanner: (fetch: ReturnType<typeof createBotBannerHttp>) => () => Promise<void>;
-    registerAvatar: (fetch: ReturnType<typeof createBotAvatarHttp>) => () => Promise<void>;
+  routes: () => {
+    register(route: {
+      path: string;
+      methods: readonly ('GET' | 'POST')[];
+      requestBody: 'buffered' | 'streaming';
+      fetch(request: Request): Promise<Response>;
+    }): () => Promise<void>;
   },
+  registry: PersonaBotRegistry,
 ): void {
   const botBannerHttp = createBotBannerHttp(registry);
-  ctx.effect(() => registerBanner(botBannerHttp), 'botharness: Bot banner');
+  ctx.effect(
+    () =>
+      routes().register({
+        path: BOT_BANNER_PATH,
+        methods: ['GET'],
+        requestBody: 'buffered',
+        fetch: botBannerHttp,
+      }),
+    'botharness: Bot banner',
+  );
   const botAvatarHttp = createBotAvatarHttp(registry);
-  ctx.effect(() => registerAvatar(botAvatarHttp), 'botharness: PersonaBot avatar');
+  ctx.effect(
+    () =>
+      routes().register({
+        path: BOT_AVATAR_PATH,
+        methods: ['GET'],
+        requestBody: 'buffered',
+        fetch: botAvatarHttp,
+      }),
+    'botharness: PersonaBot avatar',
+  );
 }

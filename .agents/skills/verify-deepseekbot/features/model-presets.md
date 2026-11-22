@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/models/plugin.ts`
 - `packages/client/src/client/model-presets-settings.tsx`
 - `packages/client/src/client/model-preset-profile.tsx`
 - `packages/core/src/models/presets.ts`

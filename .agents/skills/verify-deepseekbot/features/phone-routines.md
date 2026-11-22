@@ -4,6 +4,7 @@ A paired phone runs, pauses, resumes, deletes, creates and edits a PersonaBot's 
 
 ## Sources
 
+- `packages/core/src/features/schedules/plugin.ts`
 - `packages/core/src/schedules/**`
 - `packages/core/src/bots/cli-schedules.ts`
 - `packages/client/src/client/schedules-entry.tsx`
