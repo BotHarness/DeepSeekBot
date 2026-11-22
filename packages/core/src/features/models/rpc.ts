@@ -133,15 +133,25 @@ export function engineAccountLogin(
   methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
   id: string,
   engine?: string,
+  mode?: 'device-auth',
 ) {
-  return unwrapAsync(methods.engineAccountLogin({ id, engine }));
+  return unwrapAsync(methods.engineAccountLogin({ id, engine, mode }));
+}
+
+export function engineAccountLoginStatus(
+  methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
+  id: string,
+  attemptId: string,
+) {
+  return unwrapAsync(methods.engineAccountLoginStatus({ id, attemptId }));
 }
 
 export function engineAccountLoginCancel(
   methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
   id: string,
+  attemptId?: string,
 ) {
-  return unwrapAsync(methods.engineAccountLoginCancel({ id }));
+  return unwrapAsync(methods.engineAccountLoginCancel({ id, attemptId }));
 }
 
 export function engineAccountSubmitCode(

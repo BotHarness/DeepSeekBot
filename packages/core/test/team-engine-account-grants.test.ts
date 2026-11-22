@@ -322,6 +322,38 @@ describe('Team subscription grants', () => {
     expect(refresh).toHaveBeenCalledExactlyOnceWith(f.work.id);
   });
 
+  it('requires model source management to read a pending device sign-in code', async () => {
+    const f = fixture();
+    f.grant(f.work.id);
+    const attemptId = '7d38c154-2981-431d-83a1-82c400cf6a11';
+    const progress = {
+      status: 'pending',
+      url: 'https://auth.openai.com/codex/device',
+      code: '7ABC-92DE',
+      expiresAt: '2026-11-22T00:00:00.000Z',
+    } as const;
+    const readStatus = vi.spyOn(f.host, 'deviceLoginStatus').mockReturnValue(progress);
+    const granted = { id: f.work.id, attemptId };
+    const ungranted = { id: f.personal.id, attemptId };
+    const denied = {
+      ok: false,
+      error: { code: 'permission-required', details: { permission: 'modelSources.manage' } },
+    };
+    await expect(f.methods.engineAccountLoginStatus(granted)).resolves.toMatchObject(denied);
+    await expect(f.methods.engineAccountLoginStatus(ungranted)).resolves.toMatchObject(denied);
+    expect(readStatus).not.toHaveBeenCalled();
+
+    const manager = f.team.roles.create(owner, 'Model source manager', [
+      'modelSources.manage',
+    ]).role;
+    f.team.roles.set(owner, f.member.humanId, [f.role.roleId, manager.roleId]);
+    await expect(f.methods.engineAccountLoginStatus(granted)).resolves.toEqual({
+      ok: true,
+      value: progress,
+    });
+    expect(readStatus).toHaveBeenCalledExactlyOnceWith(f.work.id, attemptId);
+  });
+
   it('unions explicit accounts across API policies and applies the delegation ceiling', () => {
     const f = fixture();
     f.grant(f.work.id, f.work.id);
