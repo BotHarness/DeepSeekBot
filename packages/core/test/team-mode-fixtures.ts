@@ -43,7 +43,12 @@ import { createTempRoot, createTestOwnership } from './helpers.js';
 export const closes: Array<() => Promise<void>> = [];
 
 export function teamFixture(
-  options: { urls?: () => string[]; routes?: () => Promise<string[]>; now?: () => number } = {},
+  options: {
+    urls?: () => string[];
+    routes?: () => Promise<string[]>;
+    now?: () => number;
+    warn?: (message: string) => void;
+  } = {},
 ) {
   const root = createTempRoot('team-mode-');
   const registry = createTestRegistry({ rootDir: root });
@@ -136,6 +141,7 @@ export function teamFixture(
   const unbindDevices = team.bindDevices(devices);
   closes.push(async () => unbindDevices());
   const methods = createBridgeMethodsForHumans({
+    ...(options.warn ? { warn: options.warn } : {}),
     registry,
     channels,
     attachments,

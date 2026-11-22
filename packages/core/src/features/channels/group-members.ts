@@ -62,11 +62,32 @@ export function createGroupMemberMethods(
   };
 
   const failure = (
+    channelId: string,
     identity: Pick<GroupMemberOutcome, 'kind' | 'id'>,
     error: unknown,
   ): GroupMemberOutcome => {
     if (error instanceof TeamError) return { ...identity, status: 'failed', code: error.code };
-    warn?.(`botharness.group_members_add.unconfirmed kind=${identity.kind}`);
+    const name = error instanceof Error ? error.name : typeof error;
+    const code = error instanceof Error && 'code' in error ? error.code : undefined;
+    warn?.(
+      `botharness.group_members_add.unconfirmed ${JSON.stringify({
+        channelId,
+        targetKind: identity.kind,
+        targetId: identity.id,
+        errorType: /^(?:Error|TypeError|RangeError|SyntaxError|AggregateError)$/u.test(name)
+          ? name
+          : error instanceof Error
+            ? 'Error'
+            : 'non-error',
+        errorCode:
+          typeof code === 'string' &&
+          /^(?:ERR_SQLITE_ERROR|SQLITE_[A-Z_]{1,40}|EACCES|EPERM|ENOENT|ENOSPC|EBUSY|EIO)$/u.test(
+            code,
+          )
+            ? code
+            : undefined,
+      })}`,
+    );
     return { ...identity, status: 'failed', code: GROUP_MEMBER_UNCONFIRMED };
   };
 
@@ -146,7 +167,7 @@ export function createGroupMemberMethods(
           });
           results.push({ ...identity, status: 'joined' });
         } catch (error) {
-          results.push(failure(identity, error));
+          results.push(failure(channelId, identity, error));
         }
       }
       for (const target of targets) {
@@ -172,7 +193,7 @@ export function createGroupMemberMethods(
             results.push({ ...identity, status: 'pending' });
           else results.push({ ...identity, status: 'failed', code: 'group-invite-unavailable' });
         } catch (error) {
-          results.push(failure(identity, error));
+          results.push(failure(channelId, identity, error));
         }
       }
       return { ok: true, value: { results } };

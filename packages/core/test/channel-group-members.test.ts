@@ -178,7 +178,8 @@ describe('Desktop Group member batches', () => {
   });
 
   it('reports unconfirmed targets and continues after unexpected errors on both target kinds', async () => {
-    const { team, registry, channels, human, methods } = await enabledFixture();
+    const warn = vi.fn<(message: string) => void>();
+    const { team, registry, channels, human, methods } = await enabledFixture({ warn });
     const alice = await team.createMember(owner, 'alice', 'Alice');
     registry.create({ slug: 'first-bot', displayName: 'First Bot' });
     registry.create({ slug: 'second-bot', displayName: 'Second Bot' });
@@ -186,10 +187,12 @@ describe('Desktop Group member batches', () => {
     const addMember = team.channelAccess.addMember.bind(team.channelAccess);
     vi.spyOn(team.channelAccess, 'addMember').mockImplementationOnce((...args) => {
       addMember(...args);
-      throw new Error('Human result interrupted after commit');
+      throw Object.assign(new Error('Human result interrupted after commit'), {
+        code: 'SQLITE_BUSY',
+      });
     });
     vi.spyOn(team.bots, 'recordAdder').mockImplementationOnce(() => {
-      throw new Error('Bot result interrupted after commit');
+      throw new TypeError('Bot result interrupted after commit');
     });
 
     const targets = [
@@ -211,6 +214,21 @@ describe('Desktop Group member batches', () => {
         ],
       },
     });
+    expect(warn.mock.calls.flat()).toEqual([
+      `botharness.group_members_add.unconfirmed ${JSON.stringify({
+        channelId: group.id,
+        targetKind: 'human',
+        targetId: human.humanId,
+        errorType: 'Error',
+        errorCode: 'SQLITE_BUSY',
+      })}`,
+      `botharness.group_members_add.unconfirmed ${JSON.stringify({
+        channelId: group.id,
+        targetKind: 'bot',
+        targetId: 'first-bot',
+        errorType: 'TypeError',
+      })}`,
+    ]);
     expect(team.channelAccess.canRead(human, group.id, true)).toBe(true);
     expect(channels.get(group.id)?.invitations).toHaveLength(2);
     expect(manager.channelGroupMembersAdd(request)).toMatchObject({
