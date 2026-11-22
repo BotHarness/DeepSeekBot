@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/channel-files/{methods,rpc}.ts`
 - `apps/mobile/app/channel-files.tsx`
 - `apps/mobile/src/host/channel-files.ts`
 - `apps/mobile/src/ui/chat/channel-files-*`

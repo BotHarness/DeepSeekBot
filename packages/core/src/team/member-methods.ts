@@ -57,6 +57,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'modelProviderEdit',
   'modelProviderRemove',
   'engineAccounts',
+  'engineAccountQuotaRefresh',
   'engineSelection',
   'engineAccountAdd',
   'engineAccountRename',
@@ -211,6 +212,24 @@ export const MEMBER_MEMORY_METHODS = [
   'memoryMove',
 ] as const;
 
+const memberBotSessionIdMethods = [
+  'sessionStop',
+  'sessionMessageSend',
+  'assignment',
+  'assignmentTimeline',
+  'sessionSubagents',
+  'sessionTranscript',
+  'sessionModel',
+  'sessionSkillCatalog',
+  'sessionLive',
+  'sessionToolDetail',
+  'sessionArchiveSet',
+] as const;
+
+export const MEMBER_BOT_SESSION_ID_METHODS: ReadonlySet<string> = new Set(
+  memberBotSessionIdMethods,
+);
+
 export const MEMBER_BOT_METHODS = [
   'messagingIdentity',
   'botToolRun',
@@ -261,19 +280,10 @@ export const MEMBER_BOT_METHODS = [
   'botCompact',
   'botContext',
   'botSystemPrompt',
-  'sessionStop',
-  'sessionMessageSend',
+  ...memberBotSessionIdMethods,
   'sessions',
   'assignments',
-  'assignment',
-  'assignmentTimeline',
-  'sessionSubagents',
   'sessionProgress',
-  'sessionTranscript',
-  'sessionSkillCatalog',
-  'sessionLive',
-  'sessionToolDetail',
-  'sessionArchiveSet',
   'botToolTrace',
   'botTurnInput',
   'profileUsage',

@@ -1,7 +1,13 @@
 import fc from 'fast-check';
 import { describe, expect, it } from 'vitest';
 
-import { parseInboundEnvelope, inboundSessionTitle } from '../src/runtime/inbound-envelope.js';
+import {
+  GROUP_MENTION_REMINDER,
+  inboundEnvelopeBody,
+  parseInboundEnvelope,
+  inboundSessionTitle,
+} from '../src/runtime/inbound-envelope.js';
+import { defaultPromptText } from '../src/prompts/prompt-parts.js';
 
 const metadata = 'Source Event ID: source-1\nChannel: dm-ada\nMessage ID: message-1\n';
 
@@ -125,6 +131,35 @@ describe('inbound envelopes', () => {
 });
 
 describe('inbound Session titles', () => {
+  it('projects a DM with the inline engine reply reminder removed', () => {
+    const text =
+      '[Human DM]\n' +
+      metadata +
+      'First line\nSecond line\n\n[Host reply transport reminder] Use bot_send_message.';
+    const envelope = parseInboundEnvelope(text);
+    expect(envelope && inboundEnvelopeBody(envelope)).toBe('First line\nSecond line');
+  });
+  it('uses the Human text after retry notices and speaker policy context', () => {
+    const text =
+      '[Host: the Human stopped the previous turn.]\n\nCurrent Channel Human: {"displayName":"Ada"}\n[Human DM]\n' +
+      metadata +
+      'Please continue';
+    expect(inboundSessionTitle(text)).toBe('Please continue');
+  });
+
+  it.each([
+    defaultPromptText('group-mention-hint'),
+    GROUP_MENTION_REMINDER + '\nCustomized reminder',
+  ])('projects a Group mention with its injected context removed', (reminder) => {
+    const text =
+      'Source Event ID: s1 [Human]\n[Bot Inbox: direct Group mention from Human]\nChannel: c\nMessage ID: m\nMessage: Hello Ada\nSecond line\n' +
+      reminder +
+      '\n\n[Bot Inbox: pending Group context]\nChannel: other\n- An older input';
+    const envelope = parseInboundEnvelope(text);
+    expect(envelope).toBeDefined();
+    expect(envelope && inboundEnvelopeBody(envelope)).toBe('Hello Ada\nSecond line');
+    expect(inboundSessionTitle(text)).toBe('Hello Ada');
+  });
   it('takes the first non-empty body line and collapses whitespace', () => {
     expect(inboundSessionTitle(`[Human DM]\n${metadata}\n  Fix\t the   build  \nSecond line`)).toBe(
       'Fix the build',

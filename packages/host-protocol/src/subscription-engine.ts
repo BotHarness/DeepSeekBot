@@ -57,6 +57,32 @@ export interface NamedEngineAccount {
   name: string;
 }
 
+export const ENGINE_QUOTA_WINDOWS = ['session', 'weekly'] as const;
+export type EngineQuotaWindowId = (typeof ENGINE_QUOTA_WINDOWS)[number];
+
+export interface EngineQuotaWindow {
+  remainingPercent?: number;
+  resetsAt?: string;
+  windowMinutes?: number;
+}
+
+export interface EngineQuotaSnapshot {
+  windows: Partial<Record<EngineQuotaWindowId, EngineQuotaWindow>>;
+  limitedUntil?: string;
+  observedAt: string;
+  source: 'live' | 'turn';
+}
+
+export interface EngineAccountListEntry extends NamedEngineAccount {
+  quota?: EngineQuotaSnapshot;
+  email?: string;
+}
+
+export type EngineQuotaRefreshError = 'unavailable' | 'signed-out' | 'timeout';
+export type EngineQuotaRefreshResult =
+  | { status: 'ok'; quota: EngineQuotaSnapshot }
+  | { status: EngineQuotaRefreshError; quota?: EngineQuotaSnapshot };
+
 export interface RoutingGroupEngineMember {
   kind: 'engine';
   engine: EngineId;
@@ -99,6 +125,7 @@ export type RoutingGroupEngineUnavailable =
 export interface EngineModelView {
   id: string;
   name: string;
+  resolvedModel?: string;
   efforts: { id: string; name: string }[];
   defaultEffort?: string;
   isDefault?: boolean;

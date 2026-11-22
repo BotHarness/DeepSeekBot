@@ -3,7 +3,7 @@ import { CliLiveError } from './cli-live-error.js';
 import { parseAgentManagement } from './cli-agent-management.js';
 import { parseReviewedSettings } from './cli-live.js';
 
-const TYPED_SETTINGS = new Set(['botharness-client', 'agent-default-model']);
+const TYPED_SETTINGS = new Set(['botharness-client']);
 
 function hostArgv(command: string, argv: readonly string[]): string[] {
   const index = argv.indexOf(command);
@@ -54,6 +54,8 @@ export async function runAgentCli(
   let operation = command;
   if (values['help'] === true || command === undefined || command === 'help')
     operation = 'capabilities';
+  if (operation === 'settings-set' && rest[0] === 'agent-default-model')
+    refuse('unsupported-setting', 'Use home-model-set to update the Default Model Preset.');
   const typedSettings =
     operation === 'capabilities' ||
     ((operation === 'settings' || operation === 'settings-set') &&
@@ -103,15 +105,12 @@ export async function runAgentCli(
       }
       if (typeof patch !== 'object' || patch === null || Array.isArray(patch))
         return refuse('usage', '--patch-stdin must be a JSON object of settings fields.');
-      const allowedFields =
-        args['ns'] === 'botharness-client'
-          ? [
-              'assignmentConcurrencyLimit',
-              'developerMode',
-              'showBotSessions',
-              'showApprovalReviewSessions',
-            ]
-          : ['provider', 'model', 'reasoningEffort'];
+      const allowedFields = [
+        'assignmentConcurrencyLimit',
+        'developerMode',
+        'showBotSessions',
+        'showApprovalReviewSessions',
+      ];
       if (
         !Object.keys(patch).length ||
         Object.keys(patch).some((key) => !allowedFields.includes(key))

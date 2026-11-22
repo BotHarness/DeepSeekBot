@@ -6,6 +6,7 @@ A Human sends a message in a Bot's DM, the Bot runs a session on its configured 
 
 - `packages/core/src/devices/{bot-lan-*,bot-network-*,bot-tailnet*,bot-connect-bridge,connect-bot-network}.ts`
 - `packages/core/src/runtime/{bot-network,bot-message-tool}.ts`
+- `packages/core/src/channels/{runtime-admission,causal-sending}.ts`
 - `apps/mobile/src/host/native-lan-socket.ts`
 
 ## Terms

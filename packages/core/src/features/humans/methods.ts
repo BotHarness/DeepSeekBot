@@ -10,6 +10,7 @@ import {
 } from '../../channels/channel.js';
 import type { ComposerRecoveryIdentity } from '../../bridge/composer-recovery.js';
 import type { BridgeMethodsDeps, ChannelListItem } from '../../bridge/methods.js';
+import { asObject, unavailable } from '../../bridge/method-utils.js';
 
 export interface HumansBridgeMethods {
   humanIdentity(payload: unknown): BridgeResult<LocalHumanIdentity>;
@@ -110,6 +111,30 @@ export function createHumansBridgeMethods(
       } catch (error) {
         return invalidInput(error instanceof Error ? error.message : String(error));
       }
+    },
+  };
+}
+
+export interface HumansAdapterMethods {
+  acknowledgements(payload: unknown): BridgeResult<{ items: Record<string, string> }>;
+  acknowledge(payload: unknown): BridgeResult<{ key: string; value: string }>;
+}
+
+export function createHumansAdapterMethods(deps: BridgeMethodsDeps): HumansAdapterMethods {
+  return {
+    acknowledgements() {
+      if (deps.acknowledgements === undefined) return unavailable();
+      return { ok: true, value: { items: deps.acknowledgements.list() } };
+    },
+    acknowledge(payload) {
+      if (deps.acknowledgements === undefined) return unavailable();
+      const source = asObject(payload);
+      const recorded = deps.acknowledgements.record(
+        String(source['key'] ?? ''),
+        source['value'] as string,
+      );
+      if (recorded === undefined) return invalidInput('Invalid acknowledgement');
+      return { ok: true, value: recorded };
     },
   };
 }

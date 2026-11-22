@@ -115,7 +115,13 @@ export async function runEngineTurn(
     run.inputAccepted?.();
     await engines.runTurn({
       botSlug: run.bot.slug,
-      ...(run.observeTurnTarget === undefined ? {} : { observeTurnTarget: run.observeTurnTarget }),
+      ...(run.observeTurnTarget === undefined
+        ? {}
+        : {
+            observeTurnTarget: (turn, step, target) =>
+              run.observeTurnTarget?.(turn, step, target, run.switchReason),
+          }),
+      ...(run.groupEffort === undefined ? {} : { groupEffort: run.groupEffort }),
       ...(run.routingTarget?.kind === 'engine' ? { target: run.routingTarget } : {}),
       ...(run.continuingFromNativeRoute ? { continuingFromNativeRoute: true } : {}),
       ...(sessionCwd === undefined ? {} : { sessionCwd }),
@@ -310,6 +316,12 @@ export async function runEngineAssignment(
       (await engines.runTurn({
         botSlug: run.bot.slug,
         role: 'assignment',
+        ...(run.observeTurnTarget === undefined
+          ? {}
+          : {
+              observeTurnTarget: (turn, step, target) =>
+                run.observeTurnTarget?.(turn, step, target, run.switchReason),
+            }),
         ...(target === undefined ? {} : { target }),
         ...(run.groupEffort === undefined ? {} : { groupEffort: run.groupEffort }),
         ...(run.continuingFromNativeRoute ? { continuingFromNativeRoute: true } : {}),

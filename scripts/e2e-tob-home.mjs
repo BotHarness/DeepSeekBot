@@ -15,8 +15,13 @@ async function showTobDm(on) {
   const { channelId } = await rpc('tobHome');
   const row = `.bh-workspace-channels [data-channel-id=${JSON.stringify(channelId)}]`;
   await page.waitForSelector(row, { visible: true });
+  const tourSkip = '.bh-internal-tour-skip';
+  if (await page.$(tourSkip)) {
+    await page.locator(tourSkip).click();
+    await page.waitForSelector(tourSkip, { hidden: true });
+  }
   await page.click(row);
-  await page.waitForSelector(`${row}.bh-selected`);
+  await page.waitForSelector(`${row}[aria-current="page"]`, { visible: true });
   await page.waitForSelector(TOB_INPUT, { visible: true });
 }
 
@@ -102,9 +107,10 @@ const click = async (name) => {
   const names = {
     'Bot settings': ['Bot 设置', 'Bot settings'],
     Models: ['模型与运行', 'Models & execution'],
+    'Save global default model': ['保存全局默认模型', 'Save global default model'],
     Close: ['关闭', 'Close'],
     'Bot mode': ['Bot 模式', 'Bot mode'],
-    'Approve once': ['仅批准这一次', 'Allow once'],
+    'Approve once': ['允许这次', 'Allow once'],
     Deny: ['拒绝', 'Deny'],
     'Review CLI change': ['使用 deepseekbot settings-set', 'Use deepseekbot settings-set'],
   }[name] ?? [name];
@@ -287,14 +293,14 @@ async function waitForApproval(channelId, previousApprovalIds, previousCalls, re
 
 async function showApproval(message) {
   await showTobDm(true);
-  const latest = '.bh-timeline-new';
-  if (await page.$(latest)) await page.locator(latest).click();
+  const latest = await page.$('.bh-timeline-new');
+  if (await latest?.isVisible()) await latest.click();
   const selector = `[data-message-id=${JSON.stringify(message.id)}] .bh-tool-approval-card`;
   await page.waitForSelector(selector);
   await page.waitForFunction(
     (s) =>
       [...document.querySelectorAll(s + ' button')].some(
-        (n) => ['仅批准这一次', 'Allow once'].includes(n.textContent?.trim()) && !n.disabled,
+        (n) => ['允许这次', 'Allow once'].includes(n.textContent?.trim()) && !n.disabled,
       ),
     {},
     selector,
@@ -303,8 +309,8 @@ async function showApproval(message) {
   for (let attempt = 0; attempt < 3; attempt++) {
     const expanded = await page.$eval(summarySelector, (n) => n.getAttribute('aria-expanded'));
     if (expanded === 'true') break;
-    if (await page.$(latest)) await page.locator(latest).click();
-    await page.locator(summarySelector).click();
+    const summary = await page.waitForSelector(summarySelector, { visible: true });
+    await summary.click();
     try {
       await page.waitForFunction(
         (s) => document.querySelector(s)?.getAttribute('aria-expanded') === 'true',
@@ -323,32 +329,38 @@ async function showApproval(message) {
   );
   const foldSelector = selector + ' .bh-tool-approval-fold[aria-expanded="false"]';
   if (await page.$(foldSelector)) await page.locator(foldSelector).click();
-  const payload = await page.waitForSelector(selector + ' .bh-tool-approval-input');
+  const inputSelector = '.bh-tool-approval-details-body pre:not([data-folded])';
+  const payload = await page.waitForSelector(`${selector} ${inputSelector}`);
   await payload.evaluate((n) => n.scrollIntoView({ block: 'start', inline: 'nearest' }));
   assert.deepEqual(
     JSON.parse(await payload.evaluate((n) => n.textContent)),
     JSON.parse(message.toolApprovalRequest.input),
   );
   await pause(300);
-  const crop = await page.$eval(selector, (card) => {
-    const input = card.querySelector('.bh-tool-approval-input').getBoundingClientRect();
-    const actions = card.querySelector('.bh-tool-approval-actions').getBoundingClientRect();
-    if (input.top < 0 || actions.bottom > window.innerHeight)
-      throw Error('approval payload and decision controls must both be visible');
-    return {
-      x: Math.max(0, Math.min(input.left, actions.left)),
-      y: Math.max(0, input.top),
-      width: Math.max(input.right, actions.right) - Math.max(0, Math.min(input.left, actions.left)),
-      height: Math.min(window.innerHeight, actions.bottom) - Math.max(0, input.top),
-    };
-  });
+  const crop = await page.$eval(
+    selector,
+    (card, inputSelector) => {
+      const input = card.querySelector(inputSelector).getBoundingClientRect();
+      const actions = card.querySelector('.bh-tool-approval-actions').getBoundingClientRect();
+      if (input.top < 0 || actions.bottom > window.innerHeight)
+        throw Error('approval payload and decision controls must both be visible');
+      return {
+        x: Math.max(0, Math.min(input.left, actions.left)),
+        y: Math.max(0, input.top),
+        width:
+          Math.max(input.right, actions.right) - Math.max(0, Math.min(input.left, actions.left)),
+        height: Math.min(window.innerHeight, actions.bottom) - Math.max(0, input.top),
+      };
+    },
+    inputSelector,
+  );
   assert.ok(crop.width > 0 && crop.height > 0, 'approval operation is outside viewport');
   await page.screenshot({ path: resolve(out, 'approval-operation.png'), clip: crop });
   return selector;
 }
 
 async function decideApproval(selector, deny) {
-  const labels = deny ? ['拒绝', 'Deny'] : ['仅批准这一次', 'Allow once'];
+  const labels = deny ? ['拒绝', 'Deny'] : ['允许这次', 'Allow once'];
   const buttons = await page.$$(selector + ' button');
   for (const button of buttons) {
     if (labels.includes(await button.evaluate((n) => n.textContent?.trim()))) {
@@ -410,17 +422,25 @@ try {
   );
   steps.push('concurrent Tob identity converges');
   if (phase === 'configure') {
-    const desc = await rpc('describe', {}, 'settings');
-    const d = desc.namespaces.find((x) => x.ns === 'agent-default-model');
-    await rpc(
-      'update',
-      {
-        ns: d.ns,
-        patch: { provider: 'tob-qa-unconfigured', model: 'unconfigured' },
-        expectedRevision: d.revision,
-      },
-      'settings',
-    );
+    const initialRoute = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
+    const saveTarget = { provider: 'deepseek-official', model: 'deepseek-flash' };
+    const { presets: existing } = await rpc('modelPresets');
+    const preset = existing.find((entry) => entry.id === 'default');
+    assert.ok(preset, 'Default Model Preset fixture is missing');
+    const { preset: seeded } = await rpc('modelPresetUpdate', {
+      id: preset.id,
+      expectedRevision: preset.revision,
+      name: preset.name,
+      orchestrator: initialRoute,
+      orchestratorGroupId: null,
+      orchestratorEngine: null,
+      assignmentDefault: initialRoute,
+      assignmentGroups: [],
+      assignmentGroupOptions: null,
+      assignmentEngine: null,
+      assignmentFollowsMain: true,
+    });
+    assert.deepEqual(seeded.orchestrator, initialRoute);
     await page.reload({ waitUntil: 'networkidle2' });
     await showTobDm(true);
     const draft = 'QA draft kept while the default model is configured';
@@ -430,25 +450,31 @@ try {
       .length;
     await click('Bot settings');
     await click('Models');
-    await click('tob-qa-unconfigured / unconfigured');
+    const defaultControl =
+      'button[aria-label^="Global default model"], button[aria-label^="全局默认模型"]';
+    await page.locator(defaultControl).click();
     await shot('model-required');
     await click('Close');
-    await click('tob-qa-unconfigured / unconfigured');
+    await page.locator(defaultControl).click();
     await shot('model-dialog');
     const picker = await page.$('[role="dialog"] [role="combobox"]');
     if (picker) await picker.click();
     else await page.click('[role="dialog"] .bh-model-picker button');
     await shot('model-options');
-    await click('DeepSeek-V41-Flash DeepSeek');
-    await click('保存全局默认模型');
-    const current = (await rpc('describe', {}, 'settings')).namespaces.find(
-      (x) => x.ns === 'agent-default-model',
+    await click('DeepSeek-V4.1-Flash · DeepSeek');
+    await click('Save global default model');
+    await page.waitForSelector('[role="dialog"] .bh-model-picker', { hidden: true });
+    const { presets } = await rpc('modelPresets');
+    const current = presets.find((preset) => preset.id === 'default');
+    assert.equal(current.orchestrator.provider, saveTarget.provider);
+    assert.equal(current.orchestrator.model, saveTarget.model);
+    assert.ok(
+      current.revision > seeded.revision,
+      'Saving must advance the Default preset revision',
     );
-    assert.equal(current.value.provider, 'deepseek-official');
-    assert.equal(current.value.model, 'deepseek-flash');
     await page.keyboard.press('Escape');
     await page.waitForSelector(TOB_INPUT, { visible: true });
-    assert.equal(await page.$eval(TOB_INPUT, (n) => n.value), draft);
+    assert.equal(await page.$eval(TOB_INPUT, (n) => n.textContent), draft);
     assert.equal(
       (await rpc('channelMessages', { channelId: home.channelId })).messages.length,
       sentBefore,
@@ -617,7 +643,8 @@ try {
     const request = message.toolApprovalRequest;
     const approvalSelector = await showApproval(message);
     const reviewed = JSON.parse(request.input);
-    assert.equal(reviewed.ns, 'botharness-client');
+    assert.equal(reviewed.command, 'settings-set');
+    assert.equal(reviewed.target, 'botharness-client');
     assert.equal(reviewed.scope, 'global');
     if (phase !== 'accept') assert.equal(reviewed.patch.assignmentConcurrencyLimit, requestedLimit);
     const before = (await rpc('describe', {}, 'settings')).namespaces.find(
@@ -654,8 +681,11 @@ try {
     );
     await page.waitForFunction(
       (s) =>
-        ![...document.querySelectorAll(s + ' button')].some((n) =>
-          ['仅批准这一次', 'Allow once'].includes(n.textContent?.trim()),
+        ![...document.querySelectorAll(s + ' button')].some(
+          (n) =>
+            ['允许这次', 'Allow once'].includes(n.textContent?.trim()) &&
+            !n.disabled &&
+            n.getAttribute('aria-pressed') !== 'true',
         ),
       { timeout: 30000 },
       approvalSelector,

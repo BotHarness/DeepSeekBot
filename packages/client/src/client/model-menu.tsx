@@ -1,4 +1,4 @@
-import { turnTargetLabel } from '@botharness/host-client/turn-target';
+import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { SubscriptionModel } from '@botharness/host-client/model-plans';
 import { useState, type ReactElement, type RefObject } from 'react';
@@ -35,8 +35,8 @@ import {
   type EngineModelView,
   type EngineStatusView,
 } from './engine-choice.js';
-import { engineAccountTitle, engineName } from './session-engine.js';
-import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
+import { engineAccountTitle, engineName, routingGroupEngineCopy } from './session-engine.js';
+import { EngineBrandIcon, ModelBrandIcon, TargetBrandIcon } from './model-brand.js';
 import { setModelFavorite, useModelFavorites } from './model-favorites.js';
 
 export interface ModelMenuItem extends ComboboxOption {
@@ -52,6 +52,7 @@ export interface ModelMenuItem extends ComboboxOption {
   readonly checked?: boolean | undefined;
   readonly tag?: string;
   readonly hintBrand?: ModelBrand | undefined;
+  readonly hintExternal?: true;
   readonly hintLabel?: string | undefined;
 }
 
@@ -92,14 +93,6 @@ export function presetMenuId(key: string): string | undefined {
 function groupFrontName(name: string, brand: Parameters<typeof modelShortName>[1]): string {
   const short = modelShortName(name, brand);
   return /\p{L}/u.test(short) ? short : name;
-}
-
-export function routingGroupEngineCopy(t: BotHarnessTranslate): RoutingGroupEngineCopy {
-  return {
-    defaultModel: (engine) => t('routingGroups.engineDefault', { engine }),
-    subscription: (source) => t('engine.subscription', { engine: source }),
-    effort: (level) => t(`engine.effort.${level}`),
-  };
 }
 
 export function restingHint(until: string, t: BotHarnessTranslate): string {
@@ -164,7 +157,7 @@ export function catalogMenuItems(
   catalog: readonly ModelCatalogEntryView[],
   t: BotHarnessTranslate,
   groups: readonly ModelCatalogGroupView[] = [],
-  executed?: { groupId: string; target: TurnTarget },
+  executed?: { groupId: string; target: TurnTarget; engines?: TurnTargetCatalog['engines'] },
 ): ModelMenuItem[] {
   const unusable = (entry: ModelCatalogEntryView) =>
     entry.credential !== undefined || entry.restingUntil !== undefined;
@@ -196,7 +189,7 @@ export function groupMenuItems(
   catalog: readonly ModelCatalogEntryView[],
   t: BotHarnessTranslate,
   groups: readonly ModelCatalogGroupView[],
-  executed?: { groupId: string; target: TurnTarget },
+  executed?: { groupId: string; target: TurnTarget; engines?: TurnTargetCatalog['engines'] },
 ): ModelMenuItem[] {
   return groups.map((group) => {
     const front = modelCatalogGroupFront(group, [...catalog]);
@@ -222,9 +215,12 @@ export function groupMenuItems(
       catalog,
       groups,
       routingGroupEngineCopy(t),
+      executed?.engines,
     );
     const target =
-      executed?.groupId === group.id ? turnTargetLabel(executed.target, catalog) : undefined;
+      executed?.groupId === group.id
+        ? turnTargetLabel(executed.target, { models: catalog, engines: executed.engines })
+        : undefined;
     const restful = group.restingUntil;
     const currentName =
       entry === undefined ? (front?.model ?? '') : `${entry.modelName} · ${entry.providerName}`;
@@ -246,7 +242,7 @@ export function groupMenuItems(
       brand: undefined,
       group: group.id,
       hintBrand: target?.brand ?? (restful === undefined ? brand : undefined),
-      ...(target?.external ? { tag: t('engine.externalLabel') } : {}),
+      ...(target?.external ? { hintExternal: true as const } : {}),
       hintLabel: [
         target !== undefined
           ? t('modelMenu.groupCurrent', { model: target.name })
@@ -339,7 +335,7 @@ export function selectedEngineMenuItem(
   model: EngineModelView | undefined,
   t: BotHarnessTranslate,
 ): ModelMenuItem {
-  const id = choice.model ?? model?.id ?? '';
+  const id = model?.id ?? choice.model ?? '';
   const name = model?.name ?? (id || engineName(choice.engine));
   return {
     value: engineMenuKey(choice.engine, id, choice.accountId),
@@ -359,7 +355,8 @@ export function engineModelOf(choice: SubscriptionModel, models: EngineModels) {
   const available = models[engineModelKey(choice.engine, choice.accountId)] ?? [];
   return choice.model === undefined
     ? (available.find((model) => model.isDefault) ?? available[0])
-    : available.find((model) => model.id === choice.model);
+    : (available.find((model) => model.id === choice.model) ??
+        available.find((model) => model.resolvedModel === choice.model && model.id !== 'default'));
 }
 
 export function engineSelectionOf(
@@ -489,12 +486,20 @@ export function ModelMenu({
           label: item.name,
           hint: item.hint,
           hintLabel:
-            item.engine === undefined || item.hint === undefined
+            (item.engine === undefined && !item.hintExternal) || item.hint === undefined
               ? item.hintLabel
               : `${item.hintLabel ?? item.hint} · ${t('engine.externalLabel')}`,
           ...(item.hintBrand === undefined
             ? {}
-            : { hintIcon: <ModelBrandIcon brand={item.hintBrand} size={12} /> }),
+            : {
+                hintIcon: (
+                  <TargetBrandIcon
+                    brand={item.hintBrand}
+                    external={item.hintExternal === true}
+                    size={12}
+                  />
+                ),
+              }),
           disabled: item.disabled,
           search: [item.value, item.tag ?? ''],
           searchByTerms: item.engine !== undefined,

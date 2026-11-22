@@ -358,6 +358,7 @@ export const CLI_EFFECTS = {
   'model-provider-edit': { effects: externalSecretManagement, brokerRead: false },
   'model-provider-remove': { effects: destructiveSecretManagement, brokerRead: false },
   'model-catalog': { effects: read, brokerRead: true },
+  'model-default': { effects: read, brokerRead: false },
   'model-favorite-add': { effects: write, brokerRead: false },
   'model-favorite-remove': { effects: write, brokerRead: false },
   'model-plan': { effects: read, brokerRead: true },
@@ -400,6 +401,7 @@ export const CLI_EFFECTS = {
   'engine-approvals': { effects: read, brokerRead: true },
   'engine-list': { effects: read, brokerRead: true },
   'engine-accounts': { effects: read, brokerRead: false },
+  'engine-quota': { effects: undefined, brokerRead: false },
   'engine-account-add': { effects: management, brokerRead: false },
   'engine-account-rename': { effects: management, brokerRead: false },
   'engine-account-remove': { effects: destructiveManagement, brokerRead: false },
@@ -469,6 +471,7 @@ export const CLI_EFFECTS = {
   'session-archive-set': { effects: write, brokerRead: false },
   'session-ids': { effects: read, brokerRead: true },
   'session-progress': { effects: read, brokerRead: true },
+  'session-model': { effects: write, brokerRead: false },
   'session-transcript': { effects: read, brokerRead: true },
   'session-live': { effects: read, brokerRead: true },
   'session-tool': { effects: read, brokerRead: true },
@@ -603,11 +606,14 @@ function familyEffects(
       }
     }
     case 'engine':
+      if (action === 'quota') return values.refresh ? externalManagement : read;
       if (['list', 'status', 'approvals', 'tools', 'models', 'accounts'].includes(action ?? ''))
         return read;
       if (action === 'tool') return opaque;
       if (action === 'account-remove') return destructiveManagement;
       return action === 'login' ? externalManagement : management;
+    case 'engine-quota':
+      return values.refresh ? externalManagement : read;
     case 'bot-access':
       return botAccessEffects(action, values);
     case 'channels':

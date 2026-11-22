@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
 import { parseChannelMessage, parseSessionEngineQuota } from '../src/client/bridge.js';
 import { en, zhTranslate } from '../src/client/locale.js';
-import { engineChipLabel, sessionEngineText } from '../src/client/session-engine.js';
+import { engineChipLabel, sessionEngineText, shortTime } from '../src/client/session-engine.js';
 import { turnStopText } from '../src/client/turn-stop.js';
 import { TurnStopLine } from '../src/client/turn-stop-line.js';
 
@@ -112,14 +112,17 @@ it('shows a subscription limit card with a one-tap switch to the API model (#449
       sessionId: 's-1',
       held: true,
       cause: 'quota',
-      rests: [{ provider: 'codex', model: 'ChatGPT pro', until }],
-      engine: { engine: 'codex', account: 'ChatGPT pro', until },
+      rests: [{ provider: 'codex', model: 'Work subscription', until }],
+      engine: { engine: 'codex', account: 'Work subscription', until },
     },
   });
   const stop = parsed!.turnStop!;
-  expect(stop.engine).toEqual({ engine: 'codex', account: 'ChatGPT pro', until });
-  expect(turnStopText(stop, zhTranslate)).toContain(
-    'Ada 已暂停：Codex 订阅（ChatGPT pro）额度用完',
+  expect(stop.engine).toEqual({ engine: 'codex', account: 'Work subscription', until });
+  expect(turnStopText(stop, zhTranslate)).toBe(
+    `Ada 已暂停：Codex 订阅（Work subscription）额度用完，${shortTime(until)} 重置`,
+  );
+  expect(turnStopText(stop, enTranslate)).toBe(
+    `Ada paused: the Codex subscription (Work subscription) is used up until ${shortTime(until)}`,
   );
   const html = renderToStaticMarkup(
     createElement(TurnStopLine, { messageId: 'turn-stopped-5', stop, t: enTranslate }),
@@ -188,15 +191,13 @@ it('names the quota left, or the limit, where the engine is shown (#4493)', () =
   expect(sessionEngineText({ ...engine, quota: quota! }, enTranslate)).toMatch(
     /^Runs on Codex \(ChatGPT pro\) · 79% used, resets /,
   );
-  expect(engineChipLabel({ engine: 'codex', quota: quota! }, enTranslate)).toBe('Codex · 79%');
+  expect(engineChipLabel('6 Astra', quota!, enTranslate)).toBe('6 Astra · 79%');
   const limited = parseSessionEngineQuota({
     usedPercent: 100,
     limitedUntil: '2026-11-18T18:40:00.000Z',
     observedAt: '2026-11-18T14:00:00.000Z',
   })!;
   expect(sessionEngineText({ ...engine, quota: limited }, zhTranslate)).toContain('订阅额度已用完');
-  expect(engineChipLabel({ engine: 'codex', quota: limited }, enTranslate)).toBe(
-    'Codex · limit reached',
-  );
+  expect(engineChipLabel('6 Astra', limited, enTranslate)).toBe('6 Astra · limit reached');
   expect(parseSessionEngineQuota({ usedPercent: 3 })).toBeUndefined();
 });

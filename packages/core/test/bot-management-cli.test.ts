@@ -712,6 +712,12 @@ describe('online CLI management', () => {
   });
 
   it('queries Channel discovery and bounded attention and Session summaries through their owners', async () => {
+    const currentTarget = {
+      kind: 'engine',
+      engine: 'claude',
+      model: 'claude-opus-5-5',
+      account: 'Claude Max',
+    };
     const live = await host((method) => ({
       ok: true,
       value:
@@ -719,7 +725,7 @@ describe('online CLI management', () => {
           ? {
               sessions: [
                 { createdAt: '2026-01-01', sessionId: 'old' },
-                { createdAt: '2026-02-01', sessionId: 'new' },
+                { createdAt: '2026-02-01', sessionId: 'new', currentTarget },
               ],
             }
           : { channels: [], items: [] },
@@ -735,7 +741,7 @@ describe('online CLI management', () => {
     ).toBe(0);
     const sessions = await invoke(['bot-sessions', 'ada', '--limit', '1'], live.url);
     expect(sessions.value).toEqual({
-      sessions: [{ createdAt: '2026-02-01', sessionId: 'new' }],
+      sessions: [{ createdAt: '2026-02-01', sessionId: 'new', currentTarget }],
       total: 2,
     });
     expect(live.calls[1]).toEqual({

@@ -91,6 +91,10 @@ export function engineAccounts(
   return unwrapAsync(methods.engineAccounts({ grantable }));
 }
 
+export function engineAccountQuotaRefresh(methods: EngineAccountBridgeMethods, id: string) {
+  return unwrapAsync(methods.engineAccountQuotaRefresh({ id }));
+}
+
 export function engineSelection(
   methods: import('../../engines/engine-selection-bridge.js').EngineSelectionBridgeMethods,
   request: import('../../engines/engine-selection-bridge.js').EngineSelectionRequest,
@@ -174,7 +178,7 @@ export function modelFavoriteSet(
 export function modelPresets(
   methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
   includeUsage?: boolean,
-): { presets: ModelPreset[]; usage?: ModelPresetUsage[] } {
+): { presets: ModelPreset[]; defaultPresetId?: string; usage?: ModelPresetUsage[] } {
   return unwrap(methods.modelPresets({ includeUsage }));
 }
 
@@ -238,6 +242,7 @@ export function modelPresetUpdate(
   orchestratorGroupEffort?: string | null,
   orchestratorEngine?: ModelPresetEngine | null,
   assignmentEngine?: ModelPresetEngine | null,
+  assignmentFollowsMain?: boolean,
 ): Promise<{ preset: ModelPreset }> {
   return unwrapAsync(
     methods.modelPresetUpdate({
@@ -246,6 +251,7 @@ export function modelPresetUpdate(
       name,
       ...(orchestrator === undefined ? {} : { orchestrator }),
       assignmentDefault,
+      ...(assignmentFollowsMain === undefined ? {} : { assignmentFollowsMain }),
       ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
       ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
       ...(assignmentModels === undefined ? {} : { assignmentModels }),

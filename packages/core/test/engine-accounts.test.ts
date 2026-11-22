@@ -142,6 +142,7 @@ describe('named Codex subscription accounts', () => {
         bridge.engineAccountLogin,
         bridge.engineAccountLoginCancel,
         bridge.engineAccountSubmitCode,
+        bridge.engineAccountQuotaRefresh,
       ]) {
         await expect(method({})).resolves.toMatchObject({
           ok: false,
@@ -353,7 +354,11 @@ describe('named Claude Code subscription accounts', () => {
     host.use('ada', 'assignment', 'claude', { accountId: account.id });
     host.store.rememberQuota(
       'claude',
-      { limited: false, usedPercent: 25, observedAt: '2026-11-20T00:00:00Z' },
+      {
+        windows: { weekly: { remainingPercent: 75 } },
+        source: 'live',
+        observedAt: '2026-11-20T00:00:00Z',
+      },
       account.id,
     );
     const reopened = createEngineStore(path);
@@ -361,7 +366,7 @@ describe('named Claude Code subscription accounts', () => {
       revision: 4,
       accounts: [{ id: DEFAULT_CODEX_ACCOUNT }, { id: 'claude' }, { id: account.id }],
     });
-    expect(reopened.quota('claude', account.id)?.usedPercent).toBe(25);
+    expect(reopened.quota('claude', account.id)?.windows.weekly?.remainingPercent).toBe(75);
     expect(reopened.choice('ada', 'orchestrator').accountId).toBe(account.id);
     expect(reopened.choice('ada', 'assignment').accountId).toBe(account.id);
     expect(host.removeAccount('claude', 4)).toEqual({ id: 'claude' });

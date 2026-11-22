@@ -312,6 +312,8 @@ Model Preset 的当前模板存储由 Profile SQLite 的 owning module 管理，
 
 Model Preset 是部署本地可复用模板；Human 在 Profile 应用时，PersonaBot 保存独立 Model Plan 快照，后续模板编辑不传播到已应用的 Bot。Plan 固定 Orchestrator 的 provider／model／reasoning effort，并定义 Assignment 可用的精确模型、各模型允许及默认的 effort 和默认模型。Host 在每个执行入口按当前 Plan 验证选择，而 DSH SessionEvent 记录实际调用：Orchestrator 的变更在当前 Turn 结束后生效，已有 Assignment 保留当前路由，之后的显式切换按最新 Plan 校验；新建 DSH Subagent 默认继承仍获允许的父路由，否则选当前 Assignment 默认并告知父 Agent。可选的开放模式允许 Assignment 和 Subagent 的显式选择使用 Bot 所有者角色允许、且提供方凭据有效的任何目录模型（#4416）。不可用或有歧义的路由停止请求，交由 Human 修复，不静默回退。Model Preset 与 Model Plan 可进入保持身份的 Profile Backup，不进入 SoulSnapshot 或 PersonaBot Export（ADR-0027、ADR-0093，#488）。
 
+Host 启动时将 DSH 旧默认模型及 Routing Group 引用迁入置顶的 Default Model Preset（`id=default`），写入预设和清除旧 Routing Group 引用在同一 SQLite 事务完成。该 ID 用于固定排序和拒绝删除，用户自建的同名预设保留。没有独立方案的 Bot 在执行时解析当前 Default；没有设过副模型时继承主模型及其 Routing Group 或订阅账号。DSH 原生 Agent 的设置仍由 DSH 管理，BotHarness 只在迁移时读取。迁移前可对旧 Host 运行 `deepseekbot model-default --migration-dry-run`。
+
 快捷模型／effort 切换只修改此 PersonaBot 的 Orchestrator，并在下一 Turn 生效；DM 不猜测某个 Assignment 作为目标。Model Plan 可以同时省略 `assignmentDefault` 与 `assignmentModels`，表示任务继续继承 Profile 全局模型；既有固定任务配置不变。Registry 的 `modelPlanCustomize` 用 revision 校验创建或修改这种独立配置，Web、移动端和 CLI 共用该 Host 操作。已有 Assignment 仅使用自己保留的路由；没有保留路由时继续继承全局，不补用后来出现的 Bot 任务默认值。完整模型设置显示继承状态，选择完整模板或任务模型才建立固定任务策略（[ADR-0218](../decisions/sessions.md#adr-0218)，#2000）。
 
 当前命名模板保存在 `botharness.db` 的 `model_presets` 表（#883，取代 #498 初始 JSON 存储），应用后的独立快照及修订号保存在 owning Registry 的 SQLite 记录中（#884），后续模板修改不会自动替换。Profile 经现有 Host Bridge 读取 DSH 当前注册的 provider、model 与 effort 能力，并在创建及应用时校验确切路由；Orchestrator 的 Agent-scoped Model Selection 在每个新 Turn 前读取最新快照，不修改 DSH 部署默认值。DSH 请求头仍是实际调用路由的事实来源（#498）。
@@ -413,6 +415,8 @@ sequenceDiagram
 ```
 
 Source Event 是内容唯一权威；Channel 和 Inbox 都只保存关系。Reply 使用可信 Reply Route 自动选择来源 provider；主动发布属于 Service Action，需要 Provider Capability，以及该 Bot 对应用可触达会话的会话条目，或作为后备的 Human 保存目标 Service Grant。SQLite 事务只覆盖本地事实；外部副作用使用 Outbox Intent、幂等标识和有界 reconciliation，不宣称 exactly-once。不可证明的结果进入 `unknown-outcome`，由 Human 处理。
+
+QQ 群回复能力按原会话和 Source Event 查询。Messaging 复用实际回复的授权选择，检查当前 Grant、Identity 和 Provider 回复路径。查询不写入 Outbox。发送时由原路径再次检查授权和回复窗口，查询结果只代表当时状态。
 
 Wake Policy 决定何时让 Orchestrator 看见新 attention：当前 step 完成后的安全边界、当前 turn 结束后，或 idle 时启动新 turn。普通外部消息不打断正在执行的 model/tool step；只有 DSH 明确支持且策略授权的控制路径才能 steer。就绪的 attention 按回合收割：忙碌期间新到的事件只把就绪集合置脏，当前回合结束（即空闲）时由一次 harvest turn 消费全部就绪项；主动 steer 只用于直接 @ 与 DM（ADR-0077）。
 
@@ -677,6 +681,8 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 ## 5 · Orchestrator 与 Assignment control plane
 
 应用定义的 Bot Runtime 持有每个 PersonaBot 的轮次队列，Orchestrator 调度、取消与继续模块共用该队列，并沿用 Session Ownership 与 DSH Agent adapter。参见[共享内核](feature-map.md#shared-kernel)。
+
+DM 与 Group 的准入、因果消息发送和 Group 摘要由共享的 Channel 与 Runtime 内核模块处理，入口仍是同一个 Bot Runtime Service。这些模块使用 Runtime 的实时轮次状态，并沿用现有的 Channel Store 和准入事务。
 
 DSH Agent adapter 管理原生 Agent 生命周期，并注册 `packages/core/src/features/` 中 Schedule、GenUI、Memory、Channel files、Channel、IM Messaging、Activity、Assignment 和 Models 的工具与提示词。原生回合和直调共用同一套工具定义。
 
@@ -1746,7 +1752,9 @@ The [M3 Host/CLI runtime](team-mode-m3-runtime.md) adds persistent Host Roles, u
 
 The Model providers section and CLI share application-defined Typert operations guarded by the Host Owner or an explicit `modelSources.manage` grant. The built-in Admin role excludes that permission, and only the Owner can grant it through a custom role ([team-mode ADR](../decisions/team-mode.md)). Native DSH Settings owns provider routes and their revisions. Native Credentials owns the key under a route-specific reference. The Client observes a permission-scoped Cordis Event projection and re-reads the provider snapshot. The existing model catalog and unified picker resolve the same DSH route IDs.
 
-The Host Default Model Choice, Routing Group writes and Model Preset writes require `models.configure`. These shared choices affect every Bot and can incur provider charges. The built-in Admin includes this permission by default. The Bot Settings sections, Typert calls and online CLI share the Host permission check. Members can read shared choices, and applying a preset still follows the Bot's management and model-use rules. Deleting a preset removes the Host entry and leaves each Bot's applied Model Plan in place.
+The Host Default Model Choice, Routing Group writes and Model Preset writes require `models.configure`. These shared choices affect every Bot and can incur provider charges. The built-in Admin includes this permission by default. The Bot Settings sections, Typert calls and online CLI share the Host permission check. Members can read shared choices, and applying a preset still follows the Bot's management and model-use rules. Deleting a user preset removes the Host entry and leaves each Bot's applied Model Plan in place. The Host refuses to delete the pinned Default preset.
+
+根 Session 的模型选择覆盖项存储在 Host 运行数据库。会话输入框和在线 CLI 使用相同的 Host 方法，检查 API 模型、订阅引擎账号及路由组成员的授权。执行时在每轮开始读取覆盖项，本轮继续使用已读取的选择。清除覆盖项后恢复配置的路由。会话记录根据实际执行的 TurnTarget 记录标记模型切换。
 
 The [M9 lifecycle runtime](team-mode-m9-runtime.md) adds permission-scoped password resets, other-device sign-out, reversible mode suspension, deactivation/reactivation, group ownership transfer and permanent member deletion through Content Purge. Shared messages keep anonymous deleted-Human authorship; M2 private Bots and Tob participate in transfer, stop and Content Purge Memory erasure; shared roots and member mobile carriers retain their own qualification gates.
 
@@ -1853,4 +1861,5 @@ PersonaBot 的 Orchestrator Session 与 Assignment Session 可以各自运行在
 - **运行器切换**：Host 从 DSH Session 的模型可见消息中构造有大小限制的文本上下文，优先保留已提交的压缩摘要。从 DSH 模型切换到新引擎线程时，Host 只在首轮输入附上这段上下文。已有同步的引擎线程继续按原 ID 恢复。额度切换如果需要新线程，会沿用这条 Session 上下文路径，无需写入重建通知。切换时释放上一引擎进程并清除其空闲计时。切回 DSH 模型时，由原 Session 的持久化事件恢复 Agent，包含引擎执行的轮次。
 - **混合路由组**：本地 Host 的 BotRuntime 在 Orchestrator 轮次开始时按组内顺序选择就绪的 DSH 路由或订阅引擎。引擎额度休息时间沿用 EngineHost 的持久化额度记录。目标报告额度用尽后，BotRuntime 保持当前准入，在同一个 DSH Session 按顺序切换到尚未尝试的就绪目标。继续时使用已持久化的工具调用与结果，并根据已提交的回复记录拦截重复发送。全组都在休息时，Channel 才显示组的额度卡片。显式引擎选择优先。Assignment 支持混合路由组的 API 与引擎执行；Subagent 使用已授权 Routing Group 的 API 路由投影。新 Orchestrator Session 记录 Bot 的 Memory 目录供 DSH Agent 恢复，引擎进程仍在隔离工作目录运行。
 - **凭据**：不读取、不保存、不转发引擎 OAuth token；引擎进程环境中移除 `ANTHROPIC_API_KEY` 等 API key 变量；额度只用引擎自报数据；额度用尽不自动切换计费。
+- **订阅额度**：EngineHost 按账号在 `engines.json` 记录会话与每周额度窗口。主动刷新在该账号的目录中通过 Codex App Server 的 `account/rateLimits/read` 或 Claude Agent SDK 的结构化 `/usage` 查询。邮箱来自同一引擎的账号信息。只有具有 `modelSources.manage` 权限的 Human 可以刷新或读取邮箱，成员只能读取已授权账号的缓存额度。
 - **待定挂接**：方案 A（DSH Session 不跑内部 Agent，由 Host 写入事件）或方案 B（插件自有引擎 Session，投影到现有视图），由第 0 步验证决定。

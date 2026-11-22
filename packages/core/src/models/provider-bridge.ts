@@ -8,6 +8,7 @@ import type {
 import type { BridgeMethodsDeps, BridgeResult } from '../bridge/methods.js';
 import { EngineRefusal } from '../engines/engine-session.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
+import { ModelPresetError } from './presets.js';
 import { TeamError } from '../team/error.js';
 import {
   addModelProviderInput,
@@ -25,6 +26,8 @@ export interface ModelProviderBridgeMethods {
 }
 
 export function modelFailure(error: unknown): BridgeResult<never> {
+  if (error instanceof ModelPresetError)
+    return { ok: false, error: { code: error.code, message: error.message } };
   if (error instanceof EngineRefusal)
     return {
       ok: false,
@@ -48,11 +51,20 @@ export function modelFailure(error: unknown): BridgeResult<never> {
   return invalidInput(error instanceof Error ? error.message : String(error));
 }
 
+export function canManageModelSources(
+  human: HumanContext,
+  team: BridgeMethodsDeps['team'],
+): boolean {
+  return (
+    human.caller !== 'bot' &&
+    (team === undefined
+      ? human.humanId === OWNER_HUMAN_CONTEXT.humanId
+      : team.isOwner(human) || team.roles.permissions(human).includes('modelSources.manage'))
+  );
+}
+
 export function requireModelSources(human: HumanContext, team: BridgeMethodsDeps['team']): void {
-  if (human.caller !== 'bot') {
-    if (team?.isOwner(human) ?? human.humanId === OWNER_HUMAN_CONTEXT.humanId) return;
-    if (team) return team.roles.require(human, 'modelSources.manage');
-  }
+  if (canManageModelSources(human, team)) return;
   throw new TeamError('permission-required', undefined, { permission: 'modelSources.manage' });
 }
 

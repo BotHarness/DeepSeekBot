@@ -5,6 +5,8 @@ A PersonaBot in a Group mentions a colleague, the colleague shows as a mention b
 ## Sources
 
 - `packages/core/src/channels/{bot-mention-text,all-bot-mention}.ts`
+- `packages/core/src/channels/{runtime-admission,causal-sending}.ts`
+- `packages/core/src/runtime/group-digest.ts`
 - `packages/core/src/messaging/mention-text.ts`
 - `packages/core/src/runtime/{bot-message-tool,session-mentions}.ts`
 - `packages/client/src/client/{group-wake-policy-list,wake-policy-entry}.tsx`

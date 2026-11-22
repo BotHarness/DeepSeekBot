@@ -28,15 +28,6 @@ export interface ModelsBridgeDeps {
   modelProviders?: ModelProviders;
   modelReadiness?: ModelRouteReadiness;
   defaultModel?: {
-    currentSelection(): ModelRoute;
-    saveSelection(route: ModelRoute): Promise<void>;
+    currentSelection(role?: 'assignment' | 'orchestrator'): ModelRoute;
   };
-  defaultModelSettings?: () =>
-    | {
-        describe(options: {
-          redactSecrets: boolean;
-        }): { ns: string; value: unknown; revision: number }[];
-        replace(ns: string, value: object, expectedRevision: number): Promise<void>;
-      }
-    | undefined;
 }

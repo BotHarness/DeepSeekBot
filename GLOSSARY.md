@@ -132,8 +132,8 @@ The PersonaBot-local snapshot of a Model Preset or Human custom choices that gov
 _Avoid_: Soul, DSH Agent preset, model usage
 
 **Default Model Choice**:
-The Profile-wide Model Choice, an exact route or a Routing Group, used by a PersonaBot without its own Orchestrator choice and by every Assignment that inherits. It is not a Model Preset.
-_Avoid_: global preset, default preset, global model (bare)
+The effective Model Choice from the Profile’s pinned **Default Model Preset**. PersonaBots without an independent plan follow that preset. Its Assignment choice follows its Orchestrator choice until a Human sets an Assignment choice.
+_Avoid_: global model (bare)
 
 **Model Choice**:
 What a Human or an Orchestrator picks wherever a model is chosen: either one provider, model and reasoning effort route, or one Routing Group.

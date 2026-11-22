@@ -14,6 +14,7 @@ const activity = vi.hoisted(() => ({
   start: vi.fn(async (_target: ActivityTarget) => {}),
   confirm: undefined as (() => Promise<void> | void) | undefined,
 }));
+vi.mock('../src/ui/chat/turn-model-switch', () => ({ TurnModelSwitchMarker: () => null }));
 vi.mock('../src/host/native-host-look', () => ({
   useHostLook: () => ({ icon: { kind: 'symbol', id: 'desktop' } }),
 }));
@@ -145,9 +146,6 @@ vi.mock('../src/host/share-attachment', () => ({ shareAttachment: vi.fn() }));
 vi.mock('../src/host/native-dm-activity', () => ({ useHiddenDmActivity: () => [] }));
 vi.mock('../src/host/native-message-display', () => ({
   useMessageDisplay: () => state.display,
-}));
-vi.mock('../src/host/native-header-model', () => ({
-  useHeaderModelPreferences: () => ({ enabled: true, loaded: true, storageError: false }),
 }));
 vi.mock('../src/host/native-send-jump', () => ({
   sendJumpPreferences: {

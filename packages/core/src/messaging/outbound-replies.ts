@@ -1,9 +1,11 @@
 import { createHash } from 'node:crypto';
+import { addAbortListener } from 'node:events';
 import type { InboundMessaging, ExternalSource } from './inbound.js';
 import { createMessagingFeedback } from './feedback.js';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { MessagingError, type MessagingAccount, type MessagingTarget } from './provider.js';
 import { PRIVATE_REFERENCE_IN_TEXT } from '../credentials/references.js';
+import { sourceReplyCapability, type SourceReplyCapability } from './source-reply-capability.js';
 import type {
   MessagingGrant,
   AccountReader,
@@ -15,9 +17,11 @@ import type {
 export function createOutboundReplies(context: {
   inbound: InboundMessaging;
   database: OperationalDatabaseModulePort;
+  grant: (botSlug: string, id: string) => MessagingGrant;
   check: (
     value: MessagingGrant,
     readAccount?: AccountReader,
+    recordChanges?: boolean,
   ) => Promise<
     ProviderRegistration & {
       inspected: { account: MessagingAccount; target: MessagingTarget };
@@ -57,31 +61,32 @@ export function createOutboundReplies(context: {
     return source;
   };
 
-  const qualifyReply = async (
+  const qualifyProviderReply = async (
     botSlug: string,
-    sourceEventId: string,
+    source: ExternalSource,
     value: MessagingGrant,
     entry: Awaited<ReturnType<typeof check>>,
     signal: AbortSignal,
+    ensureConsumer: boolean,
   ) => {
-    const source = sourceForReply(botSlug, sourceEventId, value);
-    if (source.grantId === value.id) return source.event.reply;
     if (
-      entry.inspected.target.receiveScope?.conversationId !== source.event.conversation.id ||
+      (source.grantId !== value.id &&
+        entry.inspected.target.receiveScope?.conversationId !== source.event.conversation.id) ||
       !entry.provider.qualifyReply ||
       !entry.provider.reply
     )
       throw new MessagingError('capability-unavailable');
-    await inbound.ensureReplyConsumer(botSlug, value.id, signal);
-    const route = await entry.provider.qualifyReply({
+    if (ensureConsumer) await inbound.ensureReplyConsumer(botSlug, value.id, signal);
+    const qualification = entry.provider.qualifyReply({
       accountRef: value.accountRef,
       fingerprint: value.fingerprint,
       route: source.event.reply,
       signal,
     });
+    const route = await (ensureConsumer ? qualification : bounded(qualification));
     signal.throwIfAborted();
     current(value.providerId, entry.token);
-    sourceForReply(botSlug, sourceEventId, value);
+    sourceForReply(botSlug, source.id, value);
     if (
       !route.actorId ||
       route.actorId.length > 512 ||
@@ -94,6 +99,80 @@ export function createOutboundReplies(context: {
       throw new MessagingError('stale-route');
     return route;
   };
+
+  const qualifyReply = async (
+    botSlug: string,
+    sourceEventId: string,
+    value: MessagingGrant,
+    entry: Awaited<ReturnType<typeof check>>,
+    signal: AbortSignal,
+  ) => {
+    const source = sourceForReply(botSlug, sourceEventId, value);
+    if (source.grantId === value.id) return source.event.reply;
+    return qualifyProviderReply(botSlug, source, value, entry, signal, true);
+  };
+
+  async function replyGrantId({
+    botSlug,
+    source,
+    recordChanges,
+    signal,
+  }: {
+    botSlug: string;
+    source: ExternalSource;
+    recordChanges: boolean;
+    signal?: AbortSignal;
+  }) {
+    const ingress = database.read((db) =>
+      db
+        .prepare(
+          "SELECT bot_slug, json_extract(body, '$.providerId') AS provider_id FROM messaging_grants WHERE id = ?",
+        )
+        .get(source.grantId),
+    ) as { bot_slug: string; provider_id: string | null } | undefined;
+    if (ingress?.bot_slug === botSlug) return source.grantId;
+    const rows = database.read((db) =>
+      db.prepare('SELECT body FROM messaging_grants WHERE bot_slug = ?').all(botSlug),
+    ) as { body: string }[];
+    const matches: MessagingGrant[] = [];
+    for (const row of rows) {
+      signal?.throwIfAborted();
+      const value = JSON.parse(row.body) as MessagingGrant;
+      if (
+        value.platform !== source.platform ||
+        (ingress?.provider_id != null && value.providerId !== ingress.provider_id) ||
+        value.revokedAt ||
+        value.suspendedReason ||
+        (value.receiveScope !== undefined &&
+          value.receiveScope.conversationId !== source.event.conversation.id)
+      )
+        continue;
+      sourceForReply(botSlug, source.id, value);
+      if (value.origin !== 'implicit') {
+        const registered = provider(value.providerId);
+        const targets = await bounded(registered.provider.targets(value.accountRef));
+        signal?.throwIfAborted();
+        current(value.providerId, registered.token);
+        if (
+          !targets.some(
+            (target) =>
+              target.ref === value.targetRef &&
+              target.receiveScope?.conversationId === source.event.conversation.id,
+          )
+        )
+          continue;
+      }
+      const entry = await check(value, undefined, recordChanges);
+      signal?.throwIfAborted();
+      if (entry.inspected.target.receiveScope?.conversationId === source.event.conversation.id)
+        matches.push(value);
+    }
+    if (matches.length !== 1)
+      throw new MessagingError(
+        matches.length ? 'reply-target-ambiguous' : 'own-reply-grant-unavailable',
+      );
+    return matches[0]!.id;
+  }
 
   async function routedReply(
     botSlug: string,
@@ -112,10 +191,8 @@ export function createOutboundReplies(context: {
         throw new MessagingError('source-unavailable');
       throw error;
     }
-    const ingress = database.read((db) =>
-      db.prepare('SELECT bot_slug FROM messaging_grants WHERE id = ?').get(source.grantId),
-    ) as { bot_slug: string } | undefined;
-    if (ingress?.bot_slug === botSlug) {
+    const grantId = await replyGrantId({ botSlug, source, recordChanges: true });
+    if (grantId === source.grantId) {
       const result = await context.service.send(
         botSlug,
         source.grantId,
@@ -127,42 +204,6 @@ export function createOutboundReplies(context: {
         context.feedback.notify(botSlug, sourceEventId, 'answered', result.id);
       return result;
     }
-    const rows = database.read((db) =>
-      db.prepare('SELECT body FROM messaging_grants WHERE bot_slug = ?').all(botSlug),
-    ) as { body: string }[];
-    const matches: MessagingGrant[] = [];
-    for (const row of rows) {
-      const value = JSON.parse(row.body) as MessagingGrant;
-      if (
-        value.platform !== source.platform ||
-        value.revokedAt ||
-        value.suspendedReason ||
-        (value.receiveScope !== undefined &&
-          value.receiveScope.conversationId !== source.event.conversation.id)
-      )
-        continue;
-      sourceForReply(botSlug, sourceEventId, value);
-      if (value.origin !== 'implicit') {
-        const registered = provider(value.providerId);
-        const targets = await bounded(registered.provider.targets(value.accountRef));
-        current(value.providerId, registered.token);
-        if (
-          !targets.some(
-            (target) =>
-              target.ref === value.targetRef &&
-              target.receiveScope?.conversationId === source.event.conversation.id,
-          )
-        )
-          continue;
-      }
-      const entry = await check(value);
-      if (entry.inspected.target.receiveScope?.conversationId === source.event.conversation.id)
-        matches.push(value);
-    }
-    if (matches.length !== 1)
-      throw new MessagingError(
-        matches.length ? 'reply-target-ambiguous' : 'own-reply-grant-unavailable',
-      );
     const requestId =
       noticeId ??
       (messageKey === undefined ? undefined : 'message-' + messageKey) ??
@@ -170,10 +211,54 @@ export function createOutboundReplies(context: {
         createHash('sha256')
           .update(JSON.stringify([botSlug, sourceEventId]))
           .digest('hex');
-    return context.service.send(botSlug, matches[0]!.id, requestId, text, sourceEventId);
+    return context.service.send(botSlug, grantId, requestId, text, sourceEventId);
   }
 
-  const methods: Pick<OutboundMessaging, 'replyFile' | 'reply' | 'privateInputNotice'> = {
+  const methods: Pick<
+    OutboundMessaging,
+    'replyFile' | 'reply' | 'replyCapability' | 'privateInputNotice'
+  > = {
+    async replyCapability(botSlug, source, signal) {
+      const capability = sourceReplyCapability(source);
+      if (capability?.state !== 'requires-provider-check') return capability;
+      const timeout = AbortSignal.timeout(10000);
+      const probe = signal === undefined ? timeout : AbortSignal.any([signal, timeout]);
+      const inspect = async (): Promise<SourceReplyCapability> => {
+        probe.throwIfAborted();
+        const grantId = await replyGrantId({
+          botSlug,
+          source,
+          recordChanges: false,
+          signal: probe,
+        });
+        probe.throwIfAborted();
+        const value = context.grant(botSlug, grantId);
+        const entry = await check(value, undefined, false);
+        probe.throwIfAborted();
+        const admitted = sourceForReply(botSlug, source.id, value);
+        if (!entry.provider.reply)
+          return { state: 'unavailable', reason: 'capability-unavailable' };
+        if (!entry.provider.qualifyReply) return capability;
+        await qualifyProviderReply(botSlug, admitted, value, entry, probe, false);
+        const latest = context.grant(botSlug, value.id);
+        if (latest.revokedAt || latest.revision !== value.revision)
+          return { state: 'unavailable', reason: 'grant-revoked' };
+        return { state: 'provider-checked' };
+      };
+      try {
+        return await new Promise<SourceReplyCapability>((resolve, reject) => {
+          const listener = addAbortListener(probe, () => reject(new MessagingError('cancelled')));
+          void inspect()
+            .then(resolve, reject)
+            .finally(() => listener[Symbol.dispose]());
+        });
+      } catch (error) {
+        signal?.throwIfAborted();
+        if (timeout.aborted) return { state: 'unavailable', reason: 'provider-timeout' };
+        if (error instanceof MessagingError) return { state: 'unavailable', reason: error.code };
+        throw error;
+      }
+    },
     async replyFile(botSlug, sourceEventId, file, messageKey) {
       if (!inbound.available(botSlug, sourceEventId))
         throw new MessagingError('source-unavailable');

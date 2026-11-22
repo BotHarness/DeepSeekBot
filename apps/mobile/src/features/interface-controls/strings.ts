@@ -18,11 +18,6 @@ export const en = {
     title: 'Haptic feedback',
     storageError: 'Could not save this choice. Toggle again to retry.',
   },
-  headerModel: {
-    title: 'Show model in chat header',
-    detail: 'Off keeps the header to the Bot name and status.',
-    storageError: 'Could not save this choice. Toggle again to retry.',
-  },
   sendJump: {
     title: 'Jump to latest when sending',
     detail: 'Off keeps your place while you read earlier messages.',
@@ -59,11 +54,6 @@ export const zh: typeof en = {
   interface: '界面',
   hapticFeedback: {
     title: '触感反馈',
-    storageError: '未能保存此选择，再切换一次。',
-  },
-  headerModel: {
-    title: '在聊天顶部显示模型',
-    detail: '关闭后，顶部只显示 Bot 名称和状态。',
     storageError: '未能保存此选择，再切换一次。',
   },
   sendJump: {

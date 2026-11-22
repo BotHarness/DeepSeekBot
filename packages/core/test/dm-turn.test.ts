@@ -87,6 +87,12 @@ function startHarness(): Harness {
   ctx.provide('agentDefaultModel', {
     currentSelection: () => ({ provider: 'test', model: 'test' }),
   });
+  ctx.provide('llm', {
+    listProviders: () => [{ id: 'test' }],
+    listConfigurableProviders: () => [],
+    listModels: async () => [{ id: 'test' }],
+    resolveCallConfig: async (route: unknown) => route,
+  } as never);
 
   apply(ctx, { enabled: true });
   const core = ctx.get('botharness') as BotHarnessCore | undefined;

@@ -19,6 +19,7 @@ import {
   presetMenuItems,
 } from '../src/client/model-menu.js';
 import { rememberModelFavorites } from '../src/client/model-favorites.js';
+import { ModelPicker } from '../src/client/model-picker.js';
 
 const catalog: ModelCatalogEntryView[] = [
   {
@@ -468,7 +469,7 @@ it('distinguishes the next available model from the executing target', async () 
       members: [
         { kind: 'engine', engine: 'codex', model: 'gpt-5.4' },
         { kind: 'model', provider: front.provider, model: front.model },
-        { kind: 'engine', engine: 'claude' },
+        { kind: 'engine', engine: 'claude', model: 'claude-opus-5-5' },
       ],
     },
   ];
@@ -477,18 +478,28 @@ it('distinguishes the next available model from the executing target', async () 
   expect(option?.textContent).toContain('下一个可用：V4.1 Flash');
   expect(option?.textContent).not.toMatch(/Codex|Claude/);
   expect(option?.getAttribute('aria-label')).toBe(
-    'Mixed · 下一个可用：DeepSeek V4.1 Flash · OpenCode Go · GPT-5.4 · Codex · ChatGPT 订阅 · DeepSeek V4.1 Flash · OpenCode Go · Claude Code 默认模型 · Claude Code · Claude 订阅',
+    'Mixed · 下一个可用：DeepSeek V4.1 Flash · OpenCode Go · GPT-5.4 · Codex · ChatGPT 订阅 · DeepSeek V4.1 Flash · OpenCode Go · claude-opus-5-5 · Claude Code · Claude 订阅',
   );
   expect(option?.querySelector('[data-model-brand="deepseek"]')).not.toBeNull();
 
   const items = catalogMenuItems(catalog, zhTranslate, groups, {
     groupId: 'mixed',
     target: { kind: 'engine', engine: 'claude', model: 'claude-opus-5-5', reasoningEffort: 'high' },
+    engines: [
+      {
+        engine: 'claude',
+        available: true,
+        models: [{ id: 'claude-opus-5-5', name: 'Opus 5.5', efforts: [] }],
+      },
+    ],
   });
   const running = items.find((item) => item.group === 'mixed');
-  expect(running).toMatchObject({ hintBrand: 'claude', tag: '外部引擎' });
-  expect(running?.hint).toMatch(/^当前：/u);
-  expect(running?.hintLabel).toContain('Claude Code · high');
+  expect(running).toMatchObject({ hintBrand: 'claude', hintExternal: true });
+  expect(running?.tag).toBeUndefined();
+  expect(running?.hint).toBe('当前：Opus 5.5');
+  expect(running?.hintLabel).toContain('Opus 5.5 · Claude Code · high');
+  expect(running?.hintLabel).toContain('Opus 5.5 · Claude Code · Claude 订阅');
+  expect(running?.hintLabel).not.toContain('claude-opus-5-5');
 });
 
 it('gives the same Codex model a separate row and hint for each named account', () => {
@@ -518,6 +529,53 @@ it('gives the same Codex model a separate row and hint for each named account', 
     { accountId: 'codex-default', value: 'engine:codex:gpt-5.4', hint: 'Codex · 个人' },
     { accountId: 'codex-work', value: 'engine:codex-work:gpt-5.4', hint: 'Codex · 工作' },
   ]);
+});
+
+it('shows the catalog name in the trigger for a saved resolved engine model id', async () => {
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  cleanup = () => {
+    act(() => root.unmount());
+    host.remove();
+  };
+  const models = {
+    claude: [
+      { id: 'default', resolvedModel: 'claude-opus-5-5', name: 'Default', efforts: [] },
+      { id: 'opus', resolvedModel: 'claude-opus-5-5', name: 'Opus 5.5', efforts: [] },
+    ],
+  };
+  await act(async () =>
+    root.render(
+      createElement(ModelPicker, {
+        title: 'Orchestrator model',
+        hint: '',
+        choice: { key: '', effort: '' },
+        catalog: [],
+        options: [],
+        disabled: false,
+        onChange: vi.fn(),
+        subscription: {
+          choice: { engine: 'claude', model: 'claude-opus-5-5' },
+          items: engineMenuItems(
+            [{ engine: 'claude', available: true, installed: true }],
+            models,
+            undefined,
+            zhTranslate,
+          ),
+          models,
+          onChange: vi.fn(),
+          signIn: vi.fn(),
+        },
+        t: zhTranslate,
+      }),
+    ),
+  );
+  const trigger = host.querySelector('button[aria-haspopup]');
+  expect(trigger?.textContent).toContain('Opus 5.5');
+  expect(trigger?.getAttribute('aria-label')).toContain('Opus 5.5');
+  expect(trigger?.getAttribute('title')).toBe('Opus 5.5');
 });
 
 it('includes the Claude account in model identity and the named row label', () => {

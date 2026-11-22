@@ -99,17 +99,20 @@ export function SessionMetaChip({
   kind,
   icon,
   label,
+  badge,
   title,
 }: {
   kind: string;
   icon: ReactNode;
   label: string;
+  badge?: ReactNode;
   title?: string | undefined;
 }): ReactElement {
   return (
     <span data-session-meta-chip={kind} title={title ?? label} {...stylex.props(styles.chip)}>
       <span {...stylex.props(styles.glyph)}>{icon}</span>
       <span {...stylex.props(styles.goalText)}>{label}</span>
+      {badge}
     </span>
   );
 }
