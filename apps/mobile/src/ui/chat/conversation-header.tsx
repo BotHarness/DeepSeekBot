@@ -12,7 +12,6 @@ import { ChannelTitle } from './channel-title';
 import { ChatHeaderRow } from './chat-header-row';
 import { WorkingStatus } from './working-status';
 import { ChatTitle } from './chat-title';
-import { useHeaderModel } from './use-header-model';
 import { runningSessionCount } from '../../host/session-stop';
 import { HeaderActionGroup, HeaderBackButton, titleChipFill } from './header-chrome';
 import {
@@ -23,7 +22,6 @@ import {
   headerControlHeight,
 } from './native-header';
 import { swipeEntry } from '../shell/swipe-entry';
-import { useHeaderModelPreferences } from '../../host/native-header-model';
 import { pressTint, type useDesignTheme } from '../design/theme';
 import { glassPress, radius, space } from '../design/tokens';
 import { Text } from '../primitives/text';
@@ -212,21 +210,10 @@ export function useConversationProfile({
       ? () => router.push({ ...pairHref, params: { ...pairHref.params, entry: swipeEntry } })
       : () => router.push({ ...groupHref, params: { ...groupHref.params, entry: swipeEntry } });
   const headerStatus = useHeaderStatus(dm ? bot : undefined, channel, members);
-  const showHeaderModel = useHeaderModelPreferences().enabled;
-  const headerModel = useHeaderModel(
-    dm && showHeaderModel && saved !== undefined && !hostRefused && !missing ? client : undefined,
-    slug,
-    focused,
-    bot === undefined
-      ? undefined
-      : `${bot.state}:${bot.latestMessageId ?? ''}:${profileOpen ? 'profile' : 'chat'}`,
-  );
   const title = dm ? (
     <ChatTitle
       bot={bot}
       connectionLabel={connectionLabel}
-      model={headerModel.model}
-      modelMount={headerModel.mount}
       fallback={slug ?? ''}
       onPress={openProfile}
     />
@@ -274,7 +261,6 @@ export function useConversationProfile({
     openProfile,
     swipeProfile,
     headerStatus,
-    headerModel,
     title,
     canOpenProfile,
     placeCall,

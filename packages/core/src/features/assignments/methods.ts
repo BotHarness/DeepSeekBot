@@ -206,7 +206,7 @@ export function createAssignmentsBridgeMethods(
               deps.usage?.latestRoute(assignment.sessionId) ??
               assignment.modelRoute ??
               deps.registry.get(assignment.botSlug)?.modelPlan?.assignmentDefault ??
-              deps.defaultModel?.currentSelection();
+              deps.defaultModel?.currentSelection('assignment');
             return {
               ...assignment,
               ...(modelRoute === undefined ? {} : { modelRoute }),

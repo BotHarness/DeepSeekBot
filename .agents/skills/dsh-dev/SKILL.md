@@ -5,6 +5,10 @@ description: Use when developing, running, or debugging BotHarness against a loc
 
 # DSH development & debugging
 
+### BotHarness Session RPC resource resolution (#4781)
+
+DSH `0.2.2-rc.1` resolves a `sessionId` argument as a native Session resource before invoking a Typert Remote Service for a non-Owner Peer. The Team CLI already dispatches as a member through Gateway. For BotHarness Bot-scoped Session methods, declare a `session` resource reader returning `undefined` so the Team method policy and the BotHarness ownership and grant checks can authorize the call. Test with the Gateway's Session resource resolver registered and keep participant DM protection in the application guard.
+
 ### Engine-first Session replay after native continuation (#4574)
 
 The DSH 0.2.2-rc.1 Session reader requires a protected `system/message` at the

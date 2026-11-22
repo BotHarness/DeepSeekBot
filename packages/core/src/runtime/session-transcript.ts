@@ -1,11 +1,15 @@
 import { isEngineId } from '@botharness/host-protocol/subscription-engine';
-import type { TurnTarget } from '@botharness/host-protocol/turn-target';
-import type { TurnTargetSegment } from './turn-targets.js';
+import type { TurnModelSwitch, TurnTarget } from '@botharness/host-protocol/turn-target';
+import { turnSwitchBetween, type TurnTargetSegment } from './turn-targets.js';
 import type { ToolCallKind } from '@deepseek-ai/dsh-tools';
 
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import type { DshSessionEvent } from '../sessions/source.js';
-import { type InboundEnvelope, parseInboundEnvelope } from './inbound-envelope.js';
+import {
+  inboundEnvelopeBody,
+  type InboundEnvelope,
+  parseInboundEnvelope,
+} from './inbound-envelope.js';
 import { isPublicToolDetail } from '../state/tool-activity.js';
 import { sessionDirectBody } from './session-direct-message.js';
 import type { AssignmentTimelineStatus, PublicToolCall } from './assignment-timeline.js';
@@ -45,6 +49,7 @@ export type SessionTranscriptItem =
       origin?: 'session-detail';
       envelope?: SessionTranscriptEnvelope;
     }
+  | ({ kind: 'model-switch'; at: string } & TurnModelSwitch)
   | { kind: 'reply'; text: string; at: string; turnTargets?: TurnTarget[] }
   | { kind: 'reasoning'; text: string; at: string; durationMs?: number }
   | {
@@ -256,6 +261,14 @@ export function summarizeSessionTranscript(input: {
   let request: string | undefined;
   let targets: TurnTarget[] = [];
   const segments = input.segments ?? [];
+  const switches = new Map<number, TurnModelSwitch>();
+  let previous: TurnTargetSegment | undefined;
+  for (const [index, segment] of segments.entries()) {
+    if (segments[index + 1]?.turn === segment.turn || segment.target.model === undefined) continue;
+    const change = turnSwitchBetween(previous?.target, segment.target, segment.switchReason);
+    if (change !== undefined) switches.set(segment.turn, change);
+    previous = segment;
+  }
   const advanceTargets = (step: number) => {
     while (segmentIndex < segments.length) {
       const segment = segments[segmentIndex]!;
@@ -280,6 +293,8 @@ export function summarizeSessionTranscript(input: {
     if (event.type === 'turn/start') {
       turn += 1;
       recordedTurn = typeof data['turn'] === 'number' ? data['turn'] : turn;
+      const modelSwitch = switches.get(recordedTurn);
+      if (modelSwitch !== undefined) items.push({ kind: 'model-switch', at, ...modelSwitch });
       const previousTargets = targets;
       targets = [];
       const next = segments[segmentIndex];
@@ -293,11 +308,14 @@ export function summarizeSessionTranscript(input: {
       if (typeof kind === 'string' && CONTEXT_SOURCES.has(kind)) continue;
       const raw = rawJoined(blocks(data), 'text');
       const direct = sessionDirectBody(raw);
-      const text = direct === undefined ? clip(raw).replace(HOST_BLOCK, '').trim() : clip(direct);
       const human = direct !== undefined || kind === undefined || kind === 'user';
-      const parsed = direct === undefined && human ? parseInboundEnvelope(text) : undefined;
+      const parsed = direct === undefined && human ? parseInboundEnvelope(raw.trim()) : undefined;
+      const text = clip(
+        direct ??
+          (parsed === undefined ? raw.replace(HOST_BLOCK, '') : inboundEnvelopeBody(parsed)),
+      );
       const envelope =
-        parsed === undefined || parsed.body.trim() === ''
+        parsed === undefined
           ? undefined
           : {
               kind: parsed.kind,
@@ -307,7 +325,7 @@ export function summarizeSessionTranscript(input: {
       if (text !== '')
         items.push({
           kind: 'input',
-          text: envelope === undefined ? text : parsed!.body.trim(),
+          text,
           at,
           turn: Math.max(turn, 1),
           source: human ? 'user' : 'system',

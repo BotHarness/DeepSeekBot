@@ -33,7 +33,8 @@ function fixture() {
   );
   registry.create({ slug: 'ada', displayName: 'Ada', ownerHumanId: member.humanId });
   registry.create({ slug: 'bob', displayName: 'Bob' });
-  let route = permitted;
+  const modelPresets = createModelPresetStore({ database: db, rootDir });
+  const pinned = modelPresets.migrateDefault({ main: permitted }).preset;
   const deps = {
     registry,
     channels,
@@ -41,7 +42,7 @@ function fixture() {
     states: createBotStateTracker(),
     ownership: createTestOwnership(),
     roster: createTestRosterStore({ database: db }),
-    modelPresets: createModelPresetStore({ database: db, rootDir }),
+    modelPresets,
     routingGroups: createRoutingGroupStore({ database: db }),
     modelCatalog: {
       list: async () => [
@@ -49,14 +50,8 @@ function fixture() {
       ],
       validate: async () => {},
     },
-    defaultModel: {
-      currentSelection: () => route,
-      saveSelection: vi.fn(async (selection: typeof permitted) => {
-        route = selection;
-      }),
-    },
   };
-  return { registry, team, member, deps, methods: createBridgeMethods(member, deps) };
+  return { registry, team, member, deps, pinned, methods: createBridgeMethods(member, deps) };
 }
 
 describe('Shared model configuration', () => {
@@ -94,7 +89,13 @@ describe('Shared model configuration', () => {
     expect(
       f.methods.modelPresetDelete({ id: preset.id, expectedRevision: 1, confirmed: true }),
     ).toMatchObject(refuse);
-    expect(f.deps.defaultModel.saveSelection).not.toHaveBeenCalled();
+    expect(
+      await f.methods.modelPresetUpdate({ ...plan, id: f.pinned.id, expectedRevision: 1 }),
+    ).toMatchObject(refuse);
+    expect(
+      f.methods.modelPresetDelete({ id: f.pinned.id, expectedRevision: 1, confirmed: true }),
+    ).toMatchObject(refuse);
+    expect(f.deps.modelPresets.get(f.pinned.id)).toEqual(f.pinned);
 
     expect(await f.methods.modelCatalog({})).toMatchObject({
       ok: true,
@@ -105,11 +106,20 @@ describe('Shared model configuration', () => {
       value: { groups: [routingGroup] },
     });
     const listBots = vi.spyOn(f.registry, 'list');
-    expect(f.methods.modelPresets({})).toMatchObject({ ok: true, value: { presets: [preset] } });
+    expect(f.methods.modelPresets({})).toMatchObject({
+      ok: true,
+      value: { presets: [f.pinned, preset] },
+    });
     expect(listBots).not.toHaveBeenCalled();
     expect(f.methods.modelPresets({ includeUsage: true })).toMatchObject({
       ok: true,
-      value: { presets: [preset], usage: [{ presetId: preset.id, count: 1, botNames: [] }] },
+      value: {
+        presets: [f.pinned, preset],
+        usage: [
+          { presetId: f.pinned.id, count: 1, botNames: ['Ada'] },
+          { presetId: preset.id, count: 1, botNames: [] },
+        ],
+      },
     });
     expect(listBots).toHaveBeenCalledTimes(1);
     expect(await f.methods.modelPresetApply({ slug: 'ada', presetId: preset.id })).toMatchObject({
@@ -124,9 +134,31 @@ describe('Shared model configuration', () => {
     const f = fixture();
     f.team.roles.set(owner, f.member.humanId, ['admin']);
     expect(await f.methods.onboardingModel(defaultChoice)).toMatchObject({ ok: true });
-    expect(f.deps.defaultModel.saveSelection).toHaveBeenCalledExactlyOnceWith(permitted);
+    expect(f.deps.modelPresets.get(f.pinned.id)).toMatchObject({
+      revision: 2,
+      orchestrator: permitted,
+      assignmentFollowsMain: true,
+    });
     const delegate = f.team.roles.create(f.member, 'Model configurator', ['models.configure']).role;
     f.team.roles.set(owner, f.member.humanId, [delegate.roleId]);
+
+    expect(
+      await f.methods.modelPresetUpdate({
+        ...plan,
+        id: f.pinned.id,
+        name: 'Renamed',
+        expectedRevision: 2,
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: { preset: { id: f.pinned.id, name: 'Renamed', revision: 3 } },
+    });
+    expect(
+      f.methods.modelPresetDelete({ id: f.pinned.id, expectedRevision: 3, confirmed: true }),
+    ).toMatchObject({
+      ok: false,
+      error: { code: 'default-preset-pinned' },
+    });
 
     const createdGroup = await f.methods.modelGroupCreate(group);
     if (!createdGroup.ok) throw new Error(createdGroup.error.message);
@@ -154,7 +186,12 @@ describe('Shared model configuration', () => {
     ).toMatchObject({ ok: true, value: { preset: { revision: 2 } } });
     f.registry.applyModelPreset('ada', preset);
     expect(f.methods.modelPresets({ includeUsage: true })).toMatchObject({
-      value: { usage: [{ presetId: preset.id, count: 1, botNames: ['Ada'] }] },
+      value: {
+        usage: [
+          { presetId: f.pinned.id, count: 1, botNames: [] },
+          { presetId: preset.id, count: 1, botNames: ['Ada'] },
+        ],
+      },
     });
     expect(f.methods.modelPresetDelete({ id: preset.id, expectedRevision: 2 })).toMatchObject({
       ok: false,

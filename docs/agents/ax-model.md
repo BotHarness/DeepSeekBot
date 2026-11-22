@@ -35,12 +35,15 @@ node scripts/dev-instance.mjs --home <isolated-DSH_HOME> --port <n> --build
 ```
 
 Each launch reads the shared selection, injects only `OPENCODE_GO_API_KEY` into its child Host,
-and adds a final launch Patch for native `llm-pi-ai` and `agent-default-model`. The Patch contains
+and adds a final launch Patch for native `llm-pi-ai` and `agent-default-model`. On a fresh BotHarness Profile, the migration copies that native selection into the pinned Default preset. For a reused BotHarness Profile, use `deepseekbot model-default` to read the current preset and `home-model-set` to change it. The Patch contains
 the credential reference, preserves other Provider configuration, and selects the requested
 model without copying any Profile credential store. It retains DSH's native request attribution
 and real Session handling. Existing Profiles and independently launched Hosts are untouched.
 
-A per-run `BOTHARNESS_AX_MODEL=<installed-model-id>` selects a different model for that launch only; the launcher still verifies the selected id against its pinned native catalog. This does not edit the shared selection or another Host. Use it when an older saved model id is no longer in the pinned catalog.
+A per-run `BOTHARNESS_AX_MODEL=<installed-model-id>` sets the native DSH model for that launch.
+The launcher verifies the ID against its pinned native catalog. On a reused BotHarness Profile,
+Bots that inherit the pinned Default preset still use its saved model. Run `deepseekbot home-model-set`
+to change the preset, including when its saved model is missing from the pinned catalog.
 
 A per-run `OPENCODE_GO_API_KEY` environment override takes precedence after setup. The previous
 DeepSeek setup remains the fallback when no AX selection exists. To rotate the shared selection,

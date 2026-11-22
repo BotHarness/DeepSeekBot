@@ -164,7 +164,9 @@ export function ModelPicker({
                 const { effort: _removed, ...selected } = engine;
                 subscription.onChange({
                   ...selected,
-                  ...(selectedModel === undefined ? {} : { model: selectedModel.id }),
+                  ...(engine.model !== undefined || selectedModel === undefined
+                    ? {}
+                    : { model: selectedModel.id }),
                   ...(effort === '' ? {} : { effort }),
                 });
               }

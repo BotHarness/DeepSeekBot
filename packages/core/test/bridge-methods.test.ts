@@ -28,7 +28,7 @@ import {
   type UsageProjection,
   type DshUsageSessionLogReader,
 } from '../src/usage/usage.js';
-import { createModelPresetStore } from '../src/models/presets.js';
+import { createModelPresetStore, type ModelRoute } from '../src/models/presets.js';
 import type { ModelCatalog } from '../src/models/catalog.js';
 import { routingGroupEngineOptions } from '../src/models/routing-group-engine-options.js';
 import { createModelRouteReadiness } from '../src/models/readiness.js';
@@ -1098,6 +1098,58 @@ describe('bridge methods', () => {
       expect(h.methods.browserProfileSet({ slug: 'ada', profile }).ok).toBe(true);
       expect(h.registry.get('ada')?.browserProfile).toBe(expected);
     }
+  });
+
+  it('returns the inheritance marker from the same Bot snapshot as the revision', async () => {
+    const route = { provider: 'selected-provider', model: 'working' };
+    const { registry, methods, modelPresets } = setup(
+      [],
+      ['ada'],
+      undefined,
+      createTestOwnership(),
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { list: async () => [], validate: async () => undefined },
+    );
+    modelPresets.migrateDefault({ main: route });
+    const preset = modelPresets.create({
+      name: 'Local preset',
+      orchestrator: route,
+      assignmentDefault: route,
+    });
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    const pending = methods.modelPlan({ slug: 'ada' });
+    const saved = registry.applyModelPreset('ada', preset);
+    expect(saved.ok).toBe(true);
+
+    const result = await pending;
+    expect(result).toMatchObject({ ok: true, value: { revision: 1 } });
+    if (result.ok) expect(result.value.inheritedPresetId).toBeUndefined();
+  });
+
+  it('validates an inherited Default Assignment route while keeping the Orchestrator available', async () => {
+    const main = { provider: 'selected-provider', model: 'working' };
+    const sub = { provider: 'selected-provider', model: 'missing' };
+    const { registry, modelPresets } = setup();
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    modelPresets.migrateDefault({ main, sub });
+    const validate = vi.fn(async (route: ModelRoute) => {
+      if (route.model === 'missing') throw new Error('Assignment model is unavailable');
+    });
+    const readiness = createModelRouteReadiness(
+      registry,
+      { list: async () => [], validate, defaultRoute: () => main },
+      undefined,
+      () => modelPresets.get('default')?.assignmentDefault,
+    );
+    await expect(readiness.prepare('ada', 'orchestrator')).resolves.toBeUndefined();
+    expect(validate).not.toHaveBeenCalled();
+    await expect(readiness.prepare('ada', 'assignment')).rejects.toThrow(
+      /selected-provider\/missing.*Assignment model is unavailable.*select an available Model Preset/,
+    );
+    expect(validate).toHaveBeenCalledExactlyOnceWith(sub);
   });
 
   it('shows Assignment-default failure in Profile while the Orchestrator route still works', async () => {

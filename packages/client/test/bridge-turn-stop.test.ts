@@ -191,15 +191,13 @@ it('names the quota left, or the limit, where the engine is shown (#4493)', () =
   expect(sessionEngineText({ ...engine, quota: quota! }, enTranslate)).toMatch(
     /^Runs on Codex \(ChatGPT pro\) · 79% used, resets /,
   );
-  expect(engineChipLabel({ engine: 'codex', quota: quota! }, enTranslate)).toBe('Codex · 79%');
+  expect(engineChipLabel('6 Astra', quota!, enTranslate)).toBe('6 Astra · 79%');
   const limited = parseSessionEngineQuota({
     usedPercent: 100,
     limitedUntil: '2026-11-18T18:40:00.000Z',
     observedAt: '2026-11-18T14:00:00.000Z',
   })!;
   expect(sessionEngineText({ ...engine, quota: limited }, zhTranslate)).toContain('订阅额度已用完');
-  expect(engineChipLabel({ engine: 'codex', quota: limited }, enTranslate)).toBe(
-    'Codex · limit reached',
-  );
+  expect(engineChipLabel('6 Astra', limited, enTranslate)).toBe('6 Astra · limit reached');
   expect(parseSessionEngineQuota({ usedPercent: 3 })).toBeUndefined();
 });

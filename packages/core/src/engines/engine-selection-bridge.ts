@@ -146,7 +146,7 @@ export function createEngineSelectionBridge(
             authorize();
           }
         }
-        host.use(bot, role, engine ?? undefined, { fallback: fallback === true, ...choice });
+        host.use(bot, role, engine, { fallback: fallback === true, ...choice });
         if (role === 'orchestrator') releaseEngineQuotaHold?.(bot);
         return {
           ok: true,

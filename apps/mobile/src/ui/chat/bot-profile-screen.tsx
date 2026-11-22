@@ -6,8 +6,10 @@ import { botChannels, botProfileResource, memoryRouteParams } from '../../host/b
 import { loadMemoryChanges } from '../../host/memory-changes';
 import { sessionStopper } from '../../host/session-stop';
 import { botRoutines } from '../../host/routines';
+import { renameBot } from '../../host/bot-name';
+import { setBotBanner } from '../../host/bot-banner';
 import { setBotAvatar } from '../../host/bot-avatar';
-import { pickAvatarImage } from '../../host/pick-avatar-image';
+import { pickAvatarImage, pickBannerImage } from '../../host/pick-avatar-image';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { RequestActivityControl } from './request-activity-control';
 import { BotProfilePage } from './bot-profile';
@@ -95,6 +97,7 @@ export function BotProfileScreen({
         pick: pickAvatarImage,
         save: (avatar) => setBotAvatar(client, bot, avatar),
       }}
+      banner={{ pick: pickBannerImage, save: (image) => setBotBanner(client, bot, image) }}
       workActions={
         saved ? (
           <RequestActivityControl
@@ -123,7 +126,17 @@ export function BotProfileScreen({
           : undefined
       }
       memoryChanges={(offset) => loadMemoryChanges(client, bot, offset)}
-      settings={<BotSettingsPanel client={client} bot={bot} />}
+      rename={(name) => renameBot(client, bot.slug, name)}
+      onChangeAvatar={
+        saved
+          ? () =>
+              router.push({
+                pathname: '/bot/[slug]/avatar',
+                params: { hostId: saved.hostId, slug: bot.slug },
+              })
+          : undefined
+      }
+      settings={(onRename) => <BotSettingsPanel client={client} bot={bot} onRename={onRename} />}
       permissions={
         <BotPermissions
           client={client}

@@ -45,6 +45,7 @@ vi.mock('../src/ui/chat/header-chrome', () => ({
     onPress(): void;
   }) => <button type="button" data-testid={testID} aria-label={label} onClick={onPress} />,
 }));
+vi.mock('react-native-keyboard-controller', () => import('./keyboard-controller-shim'));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
@@ -238,6 +239,23 @@ function BotProfileSheet(
   });
   return <BotProfilePage {...rest} tabMemory={memory} />;
 }
+it('opens the Bot name editor from the Profile heading', async () => {
+  const rename = vi.fn(async () => {});
+  const view = await render(
+    <BotProfileSheet
+      bot={bot}
+      channels={[]}
+      load={async () => new Promise<BotProfile>(() => {})}
+      actions={actions()}
+      avatar={{ pick: async () => undefined, save: async () => {} }}
+      rename={rename}
+    />,
+  );
+  await act(async () =>
+    view.querySelector<HTMLButtonElement>('[data-testid="profile-name-edit"]')!.click(),
+  );
+  expect(view.querySelector('[data-testid="bot-name-input"]')).not.toBeNull();
+});
 const openTab = (view: HTMLElement, tab: ProfileTab) =>
   act(async () =>
     view.querySelector<HTMLButtonElement>(`[data-testid="profile-tab-${tab}"]`)!.click(),
@@ -272,7 +290,7 @@ describe('Bot profile page', () => {
         load={load}
         actions={actions()}
         avatar={avatarNone}
-        settings={<EditableSettings />}
+        settings={() => <EditableSettings />}
       />,
     );
     await openTab(view, 'settings');
@@ -317,11 +335,12 @@ describe('Bot profile page', () => {
     expect(avatar.save).toHaveBeenCalledTimes(2);
   });
 
-  it('saves a Tilties portrait from Bot settings without launching the photo picker', async () => {
-    const avatar = {
-      pick: vi.fn(async () => undefined),
-      save: vi.fn(async () => undefined),
-    };
+  it('previews a Profile Banner, retries the same crop, and restores the default from Settings', async () => {
+    const image = 'data:image/png;base64,preview';
+    const save = vi
+      .fn<(_image: string | null) => Promise<void>>()
+      .mockRejectedValueOnce(new Error('save refused'))
+      .mockResolvedValue(undefined);
     const view = await render(
       <BotProfileSheet
         tab="settings"
@@ -329,24 +348,25 @@ describe('Bot profile page', () => {
         channels={[]}
         load={async () => empty}
         actions={actions()}
-        avatar={avatar}
+        avatar={{ pick: async () => undefined, save: async () => {} }}
+        banner={{ pick: async () => image, save }}
       />,
     );
-    await act(async () =>
-      view.querySelector<HTMLButtonElement>('[data-testid="bot-avatar-settings-tilties"]')!.click(),
+    const click = (id: string) =>
+      act(async () => view.querySelector<HTMLButtonElement>('[data-testid="' + id + '"]')!.click());
+    await click('profile-banner-edit');
+    expect(view.querySelector<HTMLButtonElement>('[data-testid="bot-banner-save"]')?.disabled).toBe(
+      true,
     );
-    expect(view.querySelectorAll('[data-testid^="tilties-avatar-"]')).toHaveLength(36);
-    expect(view.querySelector('[data-testid="tilties-avatar-deepseek"]')).not.toBeNull();
-    expect(view.querySelector('[data-testid^="tilties-collection-"]')).toBeNull();
-    expect(view.querySelector('[data-testid="tilties-avatar-star-rail-robin"]')).toBeNull();
-    await act(async () =>
-      view
-        .querySelector<HTMLButtonElement>('[data-testid="tilties-avatar-frost-archivist"]')!
-        .click(),
-    );
-    expect(avatar.save).toHaveBeenCalledOnce();
-    expect(avatar.save).toHaveBeenCalledWith(expect.stringMatching(/^data:image\/webp;base64,/u));
-    expect(avatar.pick).not.toHaveBeenCalled();
+    await click('bot-banner-pick');
+    expect(save).not.toHaveBeenCalled();
+    await click('bot-banner-save');
+    expect(view.querySelector('[role="alert"]')?.textContent).toContain(t.dialogFailed);
+    await click('bot-banner-save');
+    expect(save.mock.calls).toEqual([[image], [image]]);
+    await click('bot-banner-settings');
+    await click('bot-banner-restore');
+    expect(save).toHaveBeenLastCalledWith(null);
   });
 
   it('can remove a custom Bot avatar and recover from a failed save', async () => {
@@ -584,7 +604,7 @@ describe('Bot profile page', () => {
         channels={[]}
         initialProfile={full}
         load={() => request.promise}
-        settings={<span>Full settings</span>}
+        settings={() => <span>Full settings</span>}
         actions={actions()}
       />,
       false,

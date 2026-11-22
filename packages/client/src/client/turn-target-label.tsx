@@ -1,16 +1,19 @@
 import * as stylex from '@stylexjs/stylex';
-import { useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
-import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
-import { turnTargetLabel } from '@botharness/host-client/turn-target';
+import { turnTargetLabel, type TurnTargetCatalog } from '@botharness/host-client/turn-target';
 import { ink, space, type } from './ds/tobs.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import type { BridgeActions } from './actions.js';
-import type { SessionTranscriptItem } from './bridge.js';
+import type {
+  ModelCatalogEntryView,
+  ModelCatalogGroupView,
+  SessionTranscriptItem,
+} from './bridge.js';
 import { useMountedResource } from './mounted-resource.js';
-import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
-import { routingGroupEngineCopy } from './model-menu.js';
+import { TargetBrandIcon } from './model-brand.js';
+import { routingGroupEngineCopy } from './session-engine.js';
 
 const styles = stylex.create({
   path: {
@@ -31,7 +34,7 @@ export function TurnTargetLabel({
   t,
 }: {
   targets: readonly TurnTarget[] | undefined;
-  catalog: readonly ModelCatalogEntry[] | undefined;
+  catalog: TurnTargetCatalog;
   t: BotHarnessTranslate;
 }) {
   if (targets === undefined) return null;
@@ -43,11 +46,7 @@ export function TurnTargetLabel({
         return (
           <span key={index} title={label.name} {...stylex.props(styles.target)}>
             {index === 0 ? null : <span>→</span>}
-            {label.external ? (
-              <EngineBrandIcon brand={label.brand} size={14} label={t('engine.externalLabel')} />
-            ) : (
-              <ModelBrandIcon brand={label.brand} size={14} />
-            )}
+            <TargetBrandIcon {...label} size={14} externalLabel={t('engine.externalLabel')} />
             <span>{[label.short, label.effort].filter(Boolean).join(' · ')}</span>
           </span>
         );
@@ -56,30 +55,106 @@ export function TurnTargetLabel({
   );
 }
 
-export function useTurnTargetCatalog(
-  actions: BridgeActions,
-  items: readonly SessionTranscriptItem[] | undefined,
-) {
-  const [catalog, setCatalog] = useState<{ host: BridgeActions; models: ModelCatalogEntry[] }>();
-  const needsCatalog =
-    catalog?.host !== actions &&
-    items?.some(
-      (item) =>
-        (item.kind === 'reply' || item.kind === 'turn-end') &&
-        item.turnTargets?.some((target) => target.kind === 'dsh'),
-    );
-  const catalogMount = useMountedResource<HTMLDivElement>(() => {
-    if (!needsCatalog) return;
+const ENGINE_RETRIES = 3;
+const ENGINE_RETRY_MS = 5_000;
+
+export function useTurnTargetEngines<T extends Element>(actions: BridgeActions, needed: boolean) {
+  const [catalog, setCatalog] = useState<{
+    host: BridgeActions;
+    engines: Awaited<ReturnType<BridgeActions['routingGroupEngines']>>;
+  }>();
+  const engines = catalog?.host === actions ? catalog.engines : undefined;
+  const [attempt, setAttempt] = useState(0);
+  const mount = useMountedResource<T>(() => {
+    if (!needed || engines !== undefined || actions.routingGroupEngines === undefined) return;
     let active = true;
-    void actions.modelCatalog().then(
-      ({ models }) => {
-        if (active) setCatalog({ host: actions, models });
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    void actions.routingGroupEngines().then(
+      (engines) => {
+        if (active) setCatalog({ host: actions, engines });
       },
-      () => undefined,
+      () => {
+        if (active && attempt < ENGINE_RETRIES)
+          retry = setTimeout(
+            () => setAttempt((value) => value + 1),
+            ENGINE_RETRY_MS * 2 ** attempt,
+          );
+      },
     );
     return () => {
       active = false;
+      if (retry !== undefined) clearTimeout(retry);
     };
-  }, [actions, needsCatalog]);
-  return { catalog: catalog?.host === actions ? catalog.models : undefined, mount: catalogMount };
+  }, [actions, needed, engines, attempt]);
+  return { engines, mount };
+}
+
+export function useTurnTargetCatalog(
+  actions: BridgeActions,
+  current: TurnTarget | undefined,
+  items: readonly SessionTranscriptItem[] | undefined,
+  picker = false,
+) {
+  const [catalog, setCatalog] = useState<{
+    host: BridgeActions;
+    models: ModelCatalogEntryView[];
+    groups: ModelCatalogGroupView[];
+  }>();
+  const needsEngines = useMemo(() => {
+    const hasEngineModel = (target: TurnTarget) =>
+      target.kind === 'engine' && target.model !== undefined;
+    return (
+      picker ||
+      (current !== undefined && hasEngineModel(current)) ||
+      items?.some(
+        (item) =>
+          item.kind === 'model-switch' && (hasEngineModel(item.from) || hasEngineModel(item.to)),
+      ) === true
+    );
+  }, [current, items, picker]);
+  const engine = useTurnTargetEngines<HTMLDivElement>(actions, needsEngines);
+  const needsCatalog =
+    catalog?.host !== actions &&
+    (picker ||
+      current?.kind === 'dsh' ||
+      items?.some(
+        (item) =>
+          item.kind === 'model-switch' && (item.from.kind === 'dsh' || item.to.kind === 'dsh'),
+      ));
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
+  const catalogMount = useMountedResource<HTMLDivElement>(() => {
+    if (!needsCatalog) return;
+    let active = true;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    void actions.modelCatalog().then(
+      ({ models, groups }) => {
+        if (active) setCatalog({ host: actions, models, groups: groups ?? [] });
+      },
+      () => {
+        if (active && catalogAttempt < ENGINE_RETRIES)
+          retry = setTimeout(
+            () => setCatalogAttempt((value) => value + 1),
+            ENGINE_RETRY_MS * 2 ** catalogAttempt,
+          );
+      },
+    );
+    return () => {
+      active = false;
+      if (retry !== undefined) clearTimeout(retry);
+    };
+  }, [actions, needsCatalog, catalogAttempt]);
+  return {
+    groups: catalog?.host === actions ? catalog.groups : undefined,
+    catalog: {
+      models: catalog?.host === actions ? catalog.models : undefined,
+      engines: engine.engines,
+    },
+    mount: useCallback(
+      (node: HTMLDivElement | null) => {
+        catalogMount(node);
+        engine.mount(node);
+      },
+      [catalogMount, engine.mount],
+    ),
+  };
 }
