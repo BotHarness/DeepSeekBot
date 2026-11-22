@@ -190,16 +190,18 @@ export function SessionDetailBody({
             backgroundColor={theme.color.surface}
             onComposerLayout={(event) => setComposerHeight(event.nativeEvent.layout.height)}
             composer={
-              <SessionComposer
-                client={client}
-                slug={slug}
-                id={id}
-                role={transcript.role}
-                running={view.running}
-                online={online}
-                refresh={view.refresh}
-                model={model}
-              />
+              <View style={{ backgroundColor: theme.color.surface }}>
+                <SessionComposer
+                  client={client}
+                  slug={slug}
+                  id={id}
+                  role={transcript.role}
+                  running={view.running}
+                  online={online}
+                  refresh={view.refresh}
+                  model={model}
+                />
+              </View>
             }
           >
             <FlatList
@@ -210,6 +212,7 @@ export function SessionDetailBody({
                 item.kind === 'tool' ? `tool:${item.id}` : `${item.kind}:${index}`
               }
               contentInsetAdjustmentBehavior="automatic"
+              automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
               keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
               keyboardShouldPersistTaps="never"
               contentContainerStyle={{
