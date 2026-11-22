@@ -571,7 +571,7 @@
     {
       "id": "desktop.inbox.requests",
       "label": "Act on tool approval, question, grant or Assignment reply; preserve independent requests",
-      "source": "packages/client/src/client/activity-list-view.tsx",
+      "source": "packages/client/src/client/features/activity/activity-list-view.tsx",
       "guide": null,
       "task": 1974,
       "gap": "No maintained feature-map recipe binds this behavior to setup, user actions, authoritative read, cleanup and failure observation. Historical scripts below are candidates, not qualified paths."
