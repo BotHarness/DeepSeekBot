@@ -42,6 +42,8 @@ const ROW_ICONS = {
   qr: { ios: 'qrcode.viewfinder', android: 'qr_code_scanner' },
   lan: { ios: 'wifi', android: 'wifi' },
   encrypted: { ios: 'lock', android: 'vpn_lock' },
+  members: { ios: 'person.2', android: 'group' },
+  key: { ios: 'key', android: 'key' },
   add: { ios: 'plus', android: 'add' },
 } as const;
 

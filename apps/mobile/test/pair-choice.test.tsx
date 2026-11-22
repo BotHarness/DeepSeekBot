@@ -9,7 +9,10 @@ vi.mock('react-native-safe-area-context', () => ({
 }));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-svg', () => ({ default: () => null, Circle: () => null, Path: () => null }));
-vi.mock('../src/ui/primitives/row-icon', () => ({ RowIcon: () => null }));
+vi.mock('../src/ui/primitives/row-icon', async () => {
+  const { createElement } = await import('react');
+  return { RowIcon: ({ name }: { name: string }) => createElement('i', { 'data-icon': name }) };
+});
 vi.mock('../src/ui/chat/sheet', () => ({ SHEET_GROUP: 'sheet' }));
 vi.mock('../src/host/host-session', () => ({ useHostSession: () => ({ hosts: [] }) }));
 const router = vi.hoisted(() => ({ push: vi.fn(), back: vi.fn(), dismissTo: vi.fn() }));
@@ -89,6 +92,28 @@ it('forwards a pairing link to Tailscale and an account computer to sign-in', as
     pathname: '/pair/account',
     params: { account: 'hstudio' },
   });
+});
+
+it('puts the common methods first and keeps each method icon distinct', async () => {
+  const view = await render();
+  const rows = [...view.querySelectorAll<HTMLElement>('[data-testid^="pair-choice-"]')];
+  expect(rows.map((row) => row.dataset.testid)).toEqual([
+    'pair-choice-private',
+    'pair-choice-account',
+    'pair-choice-team',
+    'pair-choice-lan',
+    'pair-choice-tailscale',
+    'pair-choice-owner',
+  ]);
+  const icons = rows.map((row) => row.querySelector('[data-icon]')?.getAttribute('data-icon'));
+  expect(new Set(icons).size).toBe(rows.length);
+  const text = view.textContent ?? '';
+  const others = text.indexOf(t.pairChoice.others);
+  const advanced = text.indexOf(t.pairChoice.advanced);
+  expect(text.indexOf(t.pairChoice.account)).toBeLessThan(others);
+  expect(others).toBeLessThan(text.indexOf(t.pairChoice.team));
+  expect(text.indexOf(t.pairChoice.team)).toBeLessThan(advanced);
+  expect(advanced).toBeLessThan(text.indexOf(t.pairChoice.lan));
 });
 
 it('states what the computer needs and opens the setup guide', async () => {

@@ -51,10 +51,32 @@ export default function PairChoiceScreen() {
           on={SHEET_GROUP}
           title={t.pairChoice.private}
           detail={t.pairChoice.privateDetail}
-          icon="lan"
+          icon="access"
           disclosure
           onPress={() => router.push({ pathname: '/pair/tailscale', params: { mode: 'private' } })}
         />
+        <SettingsRow
+          testID="pair-choice-account"
+          on={SHEET_GROUP}
+          title={t.pairChoice.account}
+          detail={t.pairChoice.accountDetail}
+          icon="account"
+          disclosure
+          onPress={() => router.push('/pair/account')}
+        />
+      </SettingsSection>
+      <SettingsSection on={SHEET_GROUP} title={t.pairChoice.others}>
+        <SettingsRow
+          testID="pair-choice-team"
+          on={SHEET_GROUP}
+          title={t.pairChoice.team}
+          detail={t.pairChoice.teamDetail}
+          icon="members"
+          disclosure
+          onPress={() => router.push('/pair/team')}
+        />
+      </SettingsSection>
+      <SettingsSection on={SHEET_GROUP} title={t.pairChoice.advanced}>
         <SettingsRow
           testID="pair-choice-lan"
           on={SHEET_GROUP}
@@ -70,33 +92,6 @@ export default function PairChoiceScreen() {
           }
         />
         <SettingsRow
-          testID="pair-choice-owner"
-          on={SHEET_GROUP}
-          title={t.pairChoice.owner}
-          detail={t.pairChoice.ownerDetail}
-          icon="encrypted"
-          disclosure
-          onPress={() => router.push('/pair/owner')}
-        />
-        <SettingsRow
-          testID="pair-choice-team"
-          on={SHEET_GROUP}
-          title={t.pairChoice.team}
-          detail={t.pairChoice.teamDetail}
-          icon="account"
-          disclosure
-          onPress={() => router.push('/pair/team')}
-        />
-        <SettingsRow
-          testID="pair-choice-account"
-          on={SHEET_GROUP}
-          title={t.pairChoice.account}
-          detail={t.pairChoice.accountDetail}
-          icon="account"
-          disclosure
-          onPress={() => router.push('/pair/account')}
-        />
-        <SettingsRow
           testID="pair-choice-tailscale"
           on={SHEET_GROUP}
           title={t.pairChoice.tailscale}
@@ -104,6 +99,15 @@ export default function PairChoiceScreen() {
           icon="encrypted"
           disclosure
           onPress={() => router.push('/pair/tailscale')}
+        />
+        <SettingsRow
+          testID="pair-choice-owner"
+          on={SHEET_GROUP}
+          title={t.pairChoice.owner}
+          detail={t.pairChoice.ownerDetail}
+          icon="key"
+          disclosure
+          onPress={() => router.push('/pair/owner')}
         />
       </SettingsSection>
       <Button

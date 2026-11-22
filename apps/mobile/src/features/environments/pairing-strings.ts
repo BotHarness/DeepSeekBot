@@ -103,6 +103,8 @@ export const en = {
     tailscale: 'Use Tailscale',
     tailscaleDetail: 'Connect across networks.',
     tailscaleHint: 'Sign in to the same Tailscale account on both devices.',
+    others: "Someone else's Host",
+    advanced: 'Advanced methods',
     onComputer: 'On your computer',
     lanPath: [
       'Settings',
@@ -293,6 +295,8 @@ export const zh: typeof en = {
     tailscale: '使用 Tailscale',
     tailscaleDetail: '跨网络连接。',
     tailscaleHint: '两台设备登录同一个 Tailscale 账号。',
+    others: '他人的 Host',
+    advanced: '进阶方式',
     onComputer: '在电脑上',
     lanPath: ['设置', '连接', '添加连接', '让设备连接本机', '局域网'],
     tailscalePath: ['设置', '连接', '添加连接', '让设备连接本机', 'Tailscale'],
