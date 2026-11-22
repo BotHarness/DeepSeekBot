@@ -4,7 +4,7 @@ section: Changed
 
 ## en
 
-- On the phone, linked Sessions appear inside the Bot message. The Session transcript scrolls behind the header and composer like Bot chat. The Session menu offers Stop, Model choice, and Archive or Unarchive for eligible Assignments ([#4931](https://github.com/BotHarness/DeepSeekBot/issues/4931)).
+- On the phone, linked Sessions appear inside the Bot message. The Session transcript scrolls behind the header and composer like the Bot Conversation screen. The Session menu offers Stop, Model choice, and Archive or Unarchive for eligible Assignments ([#4931](https://github.com/BotHarness/DeepSeekBot/issues/4931)).
 
 ## zh
 
