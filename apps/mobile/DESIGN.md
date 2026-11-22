@@ -149,7 +149,7 @@ References: [Apple toolbars](https://developer.apple.com/design/human-interface-
 
 ## Phone Sessions query controls
 
-The Sessions tab adds Search and Filter and sort to its navigation bar. Search uses the existing iOS header search and Android Compose Material 3 `DockedSearchBar`, with the virtualized list below it. End editing to return to the toolbar and keep the query. Close search to clear the query. The iOS SwiftUI pull-down `Menu` shows inline checkmark groups for Sort by and Source. The Android `ModalBottomSheet` shows the same choices with radio buttons. Select an option to apply it immediately. Sessions sort by last Human turn by default, with creation time and last activity also available. The device remembers the sort. Source is All, Native (Host Owner) or a Bot with visible Sessions. Search and source can apply together.
+The Sessions tab adds Search and Filter and sort to its navigation bar. Search uses the existing iOS header search and Android Compose Material 3 `DockedSearchBar`, with the virtualized list below it. End editing to return to the toolbar and keep the query. Close search to clear the query. The iOS navigation bar’s pull-down `UIMenu` shows inline checkmark groups for Sort by and Source. The Android `ModalBottomSheet` shows the same choices with radio buttons. Select an option to apply it immediately. Sessions sort by last Human turn by default, with creation time and last activity also available. The device remembers the sort. Source is All, Native (Host Owner) or a Bot with visible Sessions. Search and source can apply together.
 
 ## Android chat top bar and composer
 

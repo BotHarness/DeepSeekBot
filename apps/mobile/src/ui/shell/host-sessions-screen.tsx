@@ -170,6 +170,8 @@ function HostSessionsList({ client, hostId }: { client: HostClient; hostId: stri
       ],
     },
   ];
+  const canQuery = online && sources !== undefined;
+  const optionsActive = sort !== 'last-human-turn' || source !== 'all';
 
   const open = (row: HostSessionRow) => {
     router.push({
@@ -189,23 +191,61 @@ function HostSessionsList({ client, hostId }: { client: HostClient; hostId: stri
           title: t.title,
           headerLargeTitleEnabled: false,
           headerShown: !searchOpen,
-          headerRight: () =>
-            online && sources !== undefined ? (
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
-                <HostSessionOptionsButton
-                  active={sort !== 'last-human-turn' || source !== 'all'}
-                  groups={groups}
-                  onOpen={() => setOptionsOpen(true)}
-                />
-                <HeaderAction
-                  icon="search"
-                  label={t.search}
-                  testID="host-sessions-search"
-                  active={search !== ''}
-                  onPress={() => setSearchOpen(true)}
-                />
-              </View>
-            ) : null,
+          ...(Platform.OS === 'ios'
+            ? {
+                unstable_headerRightItems: () =>
+                  canQuery
+                    ? [
+                        {
+                          type: 'button',
+                          label: t.search,
+                          identifier: 'host-sessions-search',
+                          icon: { type: 'sfSymbol', name: 'magnifyingglass' },
+                          ...(search === '' ? {} : { tintColor: theme.color.accent }),
+                          onPress: () => setSearchOpen(true),
+                        },
+                        {
+                          type: 'menu',
+                          label: t.options,
+                          identifier: 'host-sessions-options',
+                          icon: { type: 'sfSymbol', name: 'line.3.horizontal.decrease' },
+                          ...(optionsActive ? { tintColor: theme.color.accent } : {}),
+                          menu: {
+                            multiselectable: true,
+                            items: groups.map((group) => ({
+                              type: 'submenu',
+                              label: group.label,
+                              inline: true,
+                              items: group.choices.map((choice) => ({
+                                type: 'action',
+                                label: choice.label,
+                                state: group.selected === choice.id ? 'on' : 'off',
+                                onPress: choice.select,
+                              })),
+                            })),
+                          },
+                        },
+                      ]
+                    : [],
+              }
+            : {
+                headerRight: () =>
+                  canQuery ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x2 }}>
+                      <HostSessionOptionsButton
+                        active={optionsActive}
+                        onOpen={() => setOptionsOpen(true)}
+                      />
+                      <HeaderAction
+                        icon="search"
+                        label={t.search}
+                        testID="host-sessions-search"
+                        active={search !== ''}
+                        onPress={() => setSearchOpen(true)}
+                      />
+                    </View>
+                  ) : null,
+              }),
         }}
       />
       {searchOpen ? (

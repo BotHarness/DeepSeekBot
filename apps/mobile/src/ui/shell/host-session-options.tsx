@@ -16,13 +16,7 @@ export type SessionOptionGroup = {
   choices: Choice[];
 };
 
-export type HostSessionOptionsButtonProps = {
-  active: boolean;
-  groups: readonly SessionOptionGroup[];
-  onOpen(): void;
-};
-
-export function HostSessionOptionsButton({ active, onOpen }: HostSessionOptionsButtonProps) {
+export function HostSessionOptionsButton({ active, onOpen }: { active: boolean; onOpen(): void }) {
   const t = useStrings().hostSessions;
   return (
     <HeaderAction
@@ -35,7 +29,7 @@ export function HostSessionOptionsButton({ active, onOpen }: HostSessionOptionsB
   );
 }
 
-export type HostSessionOptionsSheetProps = {
+type HostSessionOptionsSheetProps = {
   open: boolean;
   groups: readonly SessionOptionGroup[];
   onClose(): void;
