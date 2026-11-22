@@ -4,54 +4,33 @@ import {
 } from '@botharness/host-protocol/engine-device-login';
 import type { SubscriptionModel } from '@botharness/host-client/model-plans';
 import {
+  cancelAccountSignIn,
+  loadEngineAccounts,
+  parseEngineAccounts,
+  signInAccount,
+  type EngineAccountsView,
+  type EngineRole,
+} from '@botharness/host-client/subscription-accounts';
+import {
   enginePickerAccountKey as engineModelKey,
-  isEngineId,
-  type EngineAccountIdentity,
   type EngineId,
   type EngineModelView,
   type NamedEngineAccount,
 } from '@botharness/host-protocol/subscription-engine';
 import { useRef, useState } from 'react';
 
-import {
-  bridgeHost,
-  parseSessionEngineQuota,
-  type BridgeCall,
-  type SessionEngineQuota,
-} from './bridge.js';
+import { bridgeHost, type BridgeCall } from './bridge.js';
 import { observeResource } from './messaging-defaults-live.js';
 import { useMountedResource } from './mounted-resource.js';
 
 export type { EngineId } from '@botharness/host-protocol/subscription-engine';
-export type EngineRole = 'orchestrator' | 'assignment';
+export type {
+  EngineRole,
+  EngineSelectionView,
+  EngineStatusView,
+} from '@botharness/host-client/subscription-accounts';
 
-export type EngineUnavailableReason =
-  | 'host-not-local'
-  | 'not-installed'
-  | 'signed-out'
-  | 'not-subscription'
-  | 'login-unknown';
-
-export type EngineStatusView = {
-  engine: EngineId;
-  installed: boolean;
-  version?: string;
-  quota?: SessionEngineQuota;
-  email?: string;
-} & EngineAccountIdentity &
-  ({ available: true } | { available: false; reason: EngineUnavailableReason });
-
-export interface EngineSelectionView extends SubscriptionModel {
-  botSlug: string;
-  role: EngineRole;
-  fallback?: boolean;
-}
-
-export interface EnginesView {
-  revision?: number;
-  engines: EngineStatusView[];
-  selections: EngineSelectionView[];
-}
+export type EnginesView = Omit<EngineAccountsView, 'accounts'>;
 
 export type { EngineModelView } from '@botharness/host-protocol/subscription-engine';
 
@@ -81,109 +60,10 @@ export interface EngineApi {
 }
 
 const ENGINES = './api/botharness/engines';
-const REASONS: readonly string[] = [
-  'host-not-local',
-  'not-installed',
-  'signed-out',
-  'not-subscription',
-  'login-unknown',
-];
-
 const record = (value: unknown): Record<string, unknown> | undefined =>
   typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : undefined;
-
-interface AccountDetail {
-  email?: string;
-  quota?: SessionEngineQuota;
-}
-
-function accountDetails(value: unknown): Map<string, AccountDetail> {
-  const details = new Map<string, AccountDetail>();
-  if (!Array.isArray(value)) return details;
-  for (const raw of value) {
-    const account = record(raw);
-    if (typeof account?.['id'] !== 'string') continue;
-    const quota = parseSessionEngineQuota(account['quota']);
-    details.set(account['id'], {
-      ...(typeof account['email'] === 'string' ? { email: account['email'] } : {}),
-      ...(quota === undefined ? {} : { quota }),
-    });
-  }
-  return details;
-}
-
-function parseStatus(
-  value: unknown,
-  details: ReadonlyMap<string, AccountDetail>,
-): EngineStatusView | undefined {
-  const entry = record(value);
-  const engine = entry?.['engine'];
-  if (entry === undefined || !isEngineId(engine)) return undefined;
-  const detail =
-    typeof entry['accountId'] === 'string' ? details.get(entry['accountId']) : undefined;
-  const snapshot = detail?.quota;
-  const quota =
-    snapshot !== undefined &&
-    (Object.keys(snapshot.windows ?? {}).length > 0 || snapshot.usedPercent !== undefined)
-      ? snapshot
-      : (parseSessionEngineQuota(entry['quota']) ?? snapshot);
-  const email = detail?.email;
-  const base = {
-    engine,
-    installed: entry['installed'] === true,
-    ...(quota === undefined ? {} : { quota }),
-    ...(email === undefined ? {} : { email }),
-    ...(typeof entry['accountId'] === 'string' ? { accountId: entry['accountId'] } : {}),
-    ...(typeof entry['accountName'] === 'string' ? { accountName: entry['accountName'] } : {}),
-    ...(typeof entry['version'] === 'string' ? { version: entry['version'] } : {}),
-  };
-  if (entry['available'] === true) return { ...base, available: true };
-  const reason = entry['reason'];
-  return {
-    ...base,
-    available: false,
-    reason:
-      typeof reason === 'string' && REASONS.includes(reason)
-        ? (reason as EngineUnavailableReason)
-        : 'login-unknown',
-  };
-}
-
-export function parseEngines(value: unknown): EnginesView {
-  const body = record(value);
-  const engines = body?.['engines'];
-  const selections = body?.['selections'];
-  if (!Array.isArray(engines) || !Array.isArray(selections))
-    throw new Error('Invalid Subscription Engine status');
-  const details = accountDetails(body?.['accounts']);
-  return {
-    ...(typeof body?.['revision'] === 'number' ? { revision: body['revision'] } : {}),
-    engines: engines.flatMap((entry) => parseStatus(entry, details) ?? []),
-    selections: selections.flatMap((value): EngineSelectionView[] => {
-      const entry = record(value);
-      const engine = entry?.['engine'];
-      const role = entry?.['role'];
-      return entry !== undefined &&
-        typeof entry['botSlug'] === 'string' &&
-        isEngineId(engine) &&
-        (role === 'orchestrator' || role === 'assignment')
-        ? [
-            {
-              botSlug: entry['botSlug'],
-              role,
-              engine,
-              ...(typeof entry['accountId'] === 'string' ? { accountId: entry['accountId'] } : {}),
-              ...(typeof entry['model'] === 'string' ? { model: entry['model'] } : {}),
-              ...(typeof entry['effort'] === 'string' ? { effort: entry['effort'] } : {}),
-              ...(typeof entry['fallback'] === 'boolean' ? { fallback: entry['fallback'] } : {}),
-            },
-          ]
-        : [];
-    }),
-  };
-}
 
 async function post(body: Record<string, unknown>): Promise<Record<string, unknown>> {
   const response = await fetch(ENGINES, {
@@ -233,18 +113,8 @@ export async function loadGrantableEngineAccounts(
   call: BridgeCall,
   signal: AbortSignal,
 ): Promise<NamedEngineAccount[]> {
-  const value = await bridgeHost(call, signal).call('engineAccounts', { grantable: true });
-  const accounts = record(value)?.['accounts'];
-  if (!Array.isArray(accounts)) throw new Error('Invalid subscription accounts');
-  return accounts.flatMap((raw): NamedEngineAccount[] => {
-    const account = record(raw);
-    const engine = account?.['engine'];
-    const id = account?.['id'];
-    const name = account?.['name'];
-    return isEngineId(engine) && typeof id === 'string' && typeof name === 'string'
-      ? [{ engine, id, name }]
-      : [];
-  });
+  const { accounts } = await loadEngineAccounts(bridgeHost(call, signal), true);
+  return accounts;
 }
 
 export function engineLoginActions(
@@ -252,11 +122,7 @@ export function engineLoginActions(
 ): Pick<EngineApi, 'login' | 'deviceLoginStatus' | 'cancelLogin'> {
   const host = bridgeHost(call);
   return {
-    login: (engine, accountId, mode) =>
-      host.call('engineAccountLogin', {
-        id: accountId ?? engine,
-        ...(mode === undefined ? {} : { mode }),
-      }),
+    login: (engine, accountId, mode) => signInAccount(host, accountId ?? engine, mode),
     async deviceLoginStatus(id, attemptId) {
       const progress = parseEngineDeviceLoginProgress(
         await host.call('engineAccountLoginStatus', { id, attemptId }),
@@ -265,10 +131,7 @@ export function engineLoginActions(
       return progress;
     },
     cancelLogin: (engine, accountId, attemptId) =>
-      host.call('engineAccountLoginCancel', {
-        id: accountId ?? engine,
-        ...(attemptId === undefined ? {} : { attemptId }),
-      }),
+      cancelAccountSignIn(host, accountId ?? engine, attemptId),
   };
 }
 
@@ -278,7 +141,7 @@ export function bridgeEngineApi(call: BridgeCall): EngineApi {
     host.call('engineSelection', { request: input });
   return {
     async read() {
-      return parseEngines(await request({ action: 'status' }));
+      return parseEngineAccounts(await request({ action: 'status' }));
     },
     async models(engine, accountId) {
       return parseEngineModels(await request({ action: 'models', engine: accountId ?? engine }));
@@ -297,7 +160,7 @@ export const engineApi: EngineApi = {
       signal: AbortSignal.timeout(30_000),
     });
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return parseEngines(await response.json());
+    return parseEngineAccounts(await response.json());
   },
   async models(engine, accountId) {
     return parseEngineModels(await post({ action: 'models', engine: accountId ?? engine }));

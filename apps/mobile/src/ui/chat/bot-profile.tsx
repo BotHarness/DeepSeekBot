@@ -1,3 +1,4 @@
+import { SheetLoading } from './sheet';
 import { ReadFailure } from '../primitives/read-failure';
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { FlatList, Pressable, View, type ViewInstance } from 'react-native';
@@ -87,6 +88,7 @@ export interface BotProfileActions {
   onOpenMemoryChange?(change: MemoryChange): void;
   onOpenRoutine?(routine: BotScheduleSummary): void;
   onOpenAssignment?(assignment: ProfileAssignment): void;
+  onOpenSession?(id: string, title: string): void;
   onNewRoutine?(): void;
   routines?: RoutineChanges;
   stops?: SessionStops | undefined;
@@ -293,11 +295,13 @@ export function WorkListRow({
   row,
   onRetry,
   onOpen,
+  onOpenSession,
   stops,
 }: {
   row: Row;
   onRetry(): void;
   onOpen?: ((assignment: ProfileAssignment) => void) | undefined;
+  onOpenSession?: BotProfileActions['onOpenSession'];
   stops?: SessionStops | undefined;
 }) {
   const t = useStrings();
@@ -357,6 +361,7 @@ export function WorkListRow({
     const title = sessionTitle(session);
     const stopping = stops?.stopping(row.botSlug, session.id) === true;
     const state = stopping ? t.sessionStopping : stepLabel(session.activity, session.state);
+    const Body = onOpenSession === undefined ? View : Pressable;
     return (
       <View
         testID={`working-session-${session.id}`}
@@ -372,9 +377,16 @@ export function WorkListRow({
           },
         ]}
       >
-        <View
+        <Body
           accessible
           accessibilityLabel={[title, state].join(', ')}
+          {...(onOpenSession === undefined
+            ? {}
+            : {
+                accessibilityRole: 'button' as const,
+                testID: `working-open-${session.id}`,
+                onPress: () => onOpenSession(session.id, title),
+              })}
           style={{ flex: 1, flexDirection: 'row', gap: space.x3 }}
         >
           <View
@@ -391,7 +403,7 @@ export function WorkListRow({
               {state}
             </Text>
           </View>
-        </View>
+        </Body>
         {stops === undefined ? null : (
           <StopMenu
             title={title}
@@ -529,6 +541,7 @@ function ProfileRow({
         row={row}
         onRetry={onRetry}
         onOpen={actions.onOpenAssignment}
+        onOpenSession={actions.onOpenSession}
         stops={actions.stops}
       />
     );
@@ -670,15 +683,23 @@ export function BotProfilePage({
   const columns = useMemoryColumns();
   const tabs = profileTabs('bot');
   const [tab, setTab] = useRememberedProfileTab(tabMemory, tabs);
+  const [readAttempt, setReadAttempt] = useState(0);
+  const [retrying, setRetrying] = useState(false);
+  const retrySessions = () => {
+    setRetrying(true);
+    setReadAttempt((attempt) => attempt + 1);
+  };
   const read = useCallback(() => {
     let live = true;
     void load().then((value) => {
-      if (live) setProfile(value);
+      if (!live) return;
+      setProfile(value);
+      setRetrying(false);
     });
     return () => {
       live = false;
     };
-  }, [load]);
+  }, [load, readAttempt]);
   useProfileFocusEffect(read);
   const rows = profileRows(content.ready ? profile : undefined, channels, columns);
   const [memoryView, setMemoryView] = useState<MemoryView>('files');
@@ -717,12 +738,59 @@ export function BotProfilePage({
       </View>
     ));
   const working = workingRows([bot], false);
+  const sessions = profile?.orchestrators;
+  const sessionsError = sessions?.status === 'failed' ? sessions.error : sessions?.staleError;
   const bodies: Record<Exclude<ProfileTab, 'files' | 'members'>, ProfileTabBody> = {
     work: {
       rows: [
         ...(workActions === undefined ? [] : [node('work:actions', () => workActions)]),
         ...working.map(rowOf),
         ...(working.length === 0 ? [] : [workingGap(node, stops?.error)]),
+        ...(actions.onOpenSession === undefined
+          ? []
+          : [
+              settingsHeading('work:sessions', t.sessionDetail.list),
+              ...(profile === undefined
+                ? [node('work:sessions:loading', () => <SheetLoading />)]
+                : []),
+              ...(sessionsError === undefined
+                ? []
+                : [
+                    node('work:sessions:failed', () => (
+                      <View style={{ paddingHorizontal: space.x5 }}>
+                        <ReadFailure
+                          title={t.sessionDetail.listFailed}
+                          detail={sessionsError}
+                          onRetry={retrySessions}
+                          busy={retrying}
+                        />
+                      </View>
+                    )),
+                  ]),
+              ...(sessions?.status === 'ready'
+                ? sessions.value.map((session) =>
+                    node(`profile-session:${session.id}`, () => (
+                      <SettingsRow
+                        on="raised"
+                        testID={`profile-session-${session.id}`}
+                        title={session.title}
+                        detail={[
+                          session.current ? t.sessionDetail.current : undefined,
+                          new Date(session.createdAt).toLocaleDateString(),
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                        accessibilityLabel={t.sessionDetail.open(
+                          session.current
+                            ? `${session.title}, ${t.sessionDetail.current}`
+                            : session.title,
+                        )}
+                        onPress={() => actions.onOpenSession?.(session.id, session.title)}
+                      />
+                    )),
+                  )
+                : []),
+            ]),
         ...rows.work.map(rowOf),
       ],
     },

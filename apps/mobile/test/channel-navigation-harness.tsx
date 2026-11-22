@@ -14,6 +14,7 @@ export function channelNavigationHarness(wrapped = false) {
       'group/[id]',
       'bot/[slug]',
       'inbox/[id]',
+      'session/[id]',
       'dm/[slug]',
       'channel/[id]',
       'cloud-channels',

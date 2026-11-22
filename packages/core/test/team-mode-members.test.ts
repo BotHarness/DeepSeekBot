@@ -18,6 +18,24 @@ describe('Host members', { timeout: 60_000 }, () => {
     expect(() => f.team.assertCall(undefined, 'create')).not.toThrow();
   });
 
+  it('disposes the Member peer and preserves the original error when grant creation fails', async () => {
+    const f = await enabledFixture();
+    const failure = new Error('grant invalidation failed');
+    f.invalidate
+      .mockImplementationOnce(() => {
+        throw failure;
+      })
+      .mockImplementationOnce(() => {
+        throw new Error('revocation invalidation failed');
+      });
+
+    const [result] = await Promise.allSettled([f.team.signIn('bob', f.initialPassword, 'ip')]);
+
+    await vi.waitFor(() => expect(f.peers.map((peer) => peer.signal.aborted)).toEqual([true]));
+    expect(result).toEqual({ status: 'rejected', reason: failure });
+    expect(f.team.member(f.human.humanId)?.deviceCount).toBe(0);
+  });
+
   it('exposes only audience names through the Gateway to manageShared without member or role management', async () => {
     const f = await enabledFixture();
     const role = f.team.roles.create(owner, 'Space manager', ['workspaces.manageShared']).role;
