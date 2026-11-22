@@ -143,3 +143,29 @@ it('does not keep a failed draft that a newer pending note supersedes', async ()
   await queue.settled();
   expect(failedNote(key)).toBeUndefined();
 });
+
+it('keeps the failure of the latest commit when the same text was committed twice', async () => {
+  const key = 'host-a:preset:p:aba';
+  const written: string[] = [];
+  const queue = noteQueue(
+    async (text) => {
+      written.push(text);
+      if (text === 'A') throw new Error('stale');
+    },
+    () => forgetFailedNote(key),
+    (cause, text) => rememberFailedNote(key, { text, error: (cause as Error).message }),
+  );
+  expect(queue.commit('A', '')).toBe(true);
+  expect(queue.commit('B', '')).toBe(true);
+  expect(queue.commit('A', '')).toBe(true);
+  await queue.settled();
+  expect(written).toEqual(['A', 'B', 'A']);
+  expect(failedNote(key)).toEqual({ text: 'A', error: 'stale' });
+});
+
+it('accepts a note again after it saved and another client changed it', async () => {
+  const queue = noteQueue(async () => undefined, vi.fn(), vi.fn());
+  expect(queue.commit('A', '')).toBe(true);
+  await queue.settled();
+  expect(queue.commit('A', 'B')).toBe(true);
+});

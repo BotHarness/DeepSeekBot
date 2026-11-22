@@ -9,17 +9,22 @@ export function noteQueue(
   onError: (cause: unknown, text: string) => void,
 ): NoteQueue {
   let chain = Promise.resolve();
-  let queued: string | undefined;
+  let latest = 0;
+  let pending: { id: number; text: string } | undefined;
   return {
     commit(text, saved) {
-      if (text === (queued ?? saved)) return false;
-      queued = text;
+      if (text === (pending?.text ?? saved)) return false;
+      const id = ++latest;
+      pending = { id, text };
       chain = chain.then(() =>
         write(text).then(
-          () => onSaved(text),
+          () => {
+            if (pending?.id === id) pending = undefined;
+            onSaved(text);
+          },
           (cause: unknown) => {
-            if (queued !== text) return;
-            queued = undefined;
+            if (pending?.id !== id) return;
+            pending = undefined;
             onError(cause, text);
           },
         ),
