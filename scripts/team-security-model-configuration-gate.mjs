@@ -44,6 +44,42 @@ export function runModelConfigurationGate(s, { member, tag }, check) {
     'Admin created the preset and the Routing Group',
     preset?.revision === 1 && group?.revision === 1,
   );
+  const sub = JSON.stringify({
+    choices: [{ kind: 'group', group: group.id }],
+    default: { kind: 'group', group: group.id },
+  });
+  const setSub = (id, revision) => [
+    'model-preset-sub-set',
+    id,
+    '--expected-revision',
+    String(revision),
+    '--plan-stdin',
+  ];
+  const memberSub = s.cli(['model-preset-sub', pinned.id], { as: member });
+  check(
+    'Member reads the pinned sub choices',
+    memberSub.id === pinned.id && memberSub.revision === pinned.revision,
+  );
+  const deniedSub = s.cli(setSub(pinned.id, pinned.revision), {
+    as: member,
+    input: sub,
+    allowFail: true,
+  });
+  check(
+    'Member cannot replace the pinned sub choices',
+    deniedSub.error?.code === 'permission-required',
+  );
+  const changedSub = s.cli(setSub(preset.id, preset.revision), { as: operator, input: sub });
+  check(
+    'Admin can save a Routing Group as the only sub choice',
+    changedSub.sub?.choices.length === 1 && changedSub.sub.default?.group === group.id,
+  );
+  const staleSub = s.cli(setSub(preset.id, preset.revision), {
+    as: operator,
+    input: sub,
+    allowFail: true,
+  });
+  check('A stale sub write is refused', staleSub.error?.code === 'stale-setting');
 
   const update = ['model-preset-update', preset.id, '--name', `M15 edited ${tag}`];
   const updateGroup = ['model-group-update', group.id, '--name', `M15 routes edited ${tag}`];
@@ -111,9 +147,11 @@ export function runModelConfigurationGate(s, { member, tag }, check) {
   const reordered = s.cli(updateGroup, { as: operator });
   check(
     'Admin can edit both entries',
-    changed.preset.revision === 2 && reordered.group.revision === 2,
+    changed.preset.revision === 3 &&
+      reordered.group.revision === 2 &&
+      changed.preset.sub?.choices.length === 1,
   );
-  const deleted = s.cli(deletePreset(2), { as: operator });
+  const deleted = s.cli(deletePreset(3), { as: operator });
   const removed = s.cli(deleteGroup, { as: operator });
   check('Admin can delete both entries', deleted.id === preset.id && removed.group.id === group.id);
 }

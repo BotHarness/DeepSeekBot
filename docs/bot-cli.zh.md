@@ -1220,6 +1220,8 @@ printf '%s' "$ASSIGNMENTS_JSON" | deepseekbot model-plan-assignments-set <bot-id
 deepseekbot model-plan-inherit <bot-id>
 deepseekbot model-preset-update <preset-id> --name Nightly --orchestrator-effort high
 deepseekbot model-presets --include-usage
+deepseekbot model-preset-sub <preset-id>
+deepseekbot model-preset-sub-set <preset-id> --expected-revision <revision> --plan-stdin < sub.json
 deepseekbot model-preset-delete <preset-id> --expected-revision <revision> --confirm
 deepseekbot model-groups
 deepseekbot model-group <group-id>
@@ -1238,6 +1240,12 @@ deepseekbot bot-session-usage <bot-id>
 deepseekbot bot-activity-history <bot-id> [--before 2026-10-14] [--weeks 26]
 deepseekbot group-activity <group-channel>
 ```
+
+`model-preset-sub` 读取指定预设的副模型配置与版本，包括 `default`。`model-preset-sub-set` 从 stdin 读取一个 `{"choices":[...],"default":...}` 对象，同时替换列表和默认项。API 模型项格式为 `{"kind":"model","provider":"<提供商>","model":"<模型>","allowedEfforts":[""],"defaultEffort":""}`。路由组项格式为 `{"kind":"group","group":"<路由组 ID>"}`。订阅引擎项格式为 `{"kind":"engine","engine":"codex","accountId":"<账号 ID>","model":"<模型>","effort":"high"}`，可附带 `note`。账号、模型或强度留空时，使用订阅引擎的对应默认值。
+
+`default` 通过 `kind` 和模型、路由组或订阅引擎账号模型的标识指向列表中的一项，并采用该项的默认推理强度。`""` 表示 API 提供商默认强度。路由组可省略强度，也可指定组内推理模型共有的强度。传 `{"choices":[],"default":null}` 则跟随主模型。写入要求 `models.configure` 和相应模型或订阅账号授权。迁移后，已有的 Assignment 订阅引擎是默认选项。把该选项保留在新列表中即可继续使用，省略该项则从预设中移除。写入也会关闭旧的开放模式。已应用的 Bot 方案和已有 Assignment 保留其原有选项。
+
+`list_assignment_models` 展示 Bot 获准使用的选项及默认项，订阅引擎选项还会显示账号名称，配额用尽时显示 `restingUntil`。在 `create_assignment` 中省略模型选择会使用默认项。显式选择订阅引擎时，随常规参数传入选项中已有的 `engine`、`account_id` 和 `model`。Host 使用选项保存的推理强度，并拒绝未列出或未授权的选项。单个 API 模型或订阅账号配额用尽时返回 `assignment-choice-resting`，路由组继续按组内顺序切换。
 
 连接在线 Host 时，`model-preset-create` 也支持 `--plan-stdin`，stdin 仅包含 `{"assignmentModels":[...]}`，创建预设时保留可选模型、推理强度和备注。创建与更新都通过移动端编辑器使用的同一 Host bridge 转发完整策略，不会悄悄缩减为默认模型。
 

@@ -18,6 +18,7 @@ import {
   requireBotEngineAccount,
   requireBotModel,
 } from '../../team/models.js';
+import { TeamError } from '../../team/error.js';
 import { allowsEngineAccount, allowsModel } from '../../team/permissions.js';
 import { createEngineGateway } from '../../engines/engine-gateway.js';
 import { EngineHost } from '../../engines/engine-host.js';
@@ -171,17 +172,32 @@ export function mountEngines(
     accountUses: (id) => {
       const uses = (choice: { engine: EngineId; accountId?: string } | undefined) =>
         choice !== undefined && engineAccountKey(choice.engine, choice.accountId) === id;
+      const { modelPresets, registry, routingGroups, runtime } = core();
       return [
-        ...core()
-          .modelPresets.list()
-          .filter((preset) => uses(preset.orchestratorEngine) || uses(preset.assignmentEngine))
+        ...modelPresets
+          .list()
+          .filter(
+            (preset) =>
+              uses(preset.orchestratorEngine) ||
+              uses(preset.assignmentEngine) ||
+              preset.sub?.choices.some((choice) => choice.kind === 'engine' && uses(choice)),
+          )
           .map((preset) => `Model Preset ${preset.name} (${preset.id})`),
-        ...core()
-          .routingGroups.list()
+        ...registry
+          .list()
+          .filter((bot) =>
+            bot.modelPlan?.sub?.choices.some((choice) => choice.kind === 'engine' && uses(choice)),
+          )
+          .map((bot) => `Bot ${bot.displayName} (${bot.slug})`),
+        ...routingGroups
+          .list()
           .filter((group) =>
             group.members.some((member) => member.kind === 'engine' && uses(member)),
           )
           .map((group) => `Routing Group ${group.name} (${group.id})`),
+        ...(runtime.assignmentEngineAccountUses?.(id) ?? []).map(
+          (sessionId) => `Assignment Session ${sessionId}`,
+        ),
       ];
     },
     routingGroupEffort: (slug) => effectivePlan(slug)?.orchestratorGroupEffort,
@@ -352,12 +368,17 @@ export function agentRouting(
     resolveModelPlan: effectivePlan,
     modelFilter: (slug) => botModelFilter(core().team, core().registry.get(slug)),
     assignmentGroups: {
-      pick: (botSlug, groupId, effort) =>
-        groupFallback().isMixed(groupId)
-          ? groupFallback()
-              .pickMixedAssignment(botSlug, groupId, effort)
-              .then((pick) => pick ?? { kind: 'missing' })
-          : groupFallback().pick(botSlug, groupId, effort),
+      pick: async (botSlug, groupId, effort) => {
+        if (
+          core().routingGroups.get(groupId) !== undefined &&
+          allowedGroupTargets(botSlug, groupId) === undefined
+        )
+          throw new TeamError('model-not-allowed');
+        const fallback = groupFallback();
+        return fallback.isMixed(groupId)
+          ? ((await fallback.pickMixedAssignment(botSlug, groupId, effort)) ?? { kind: 'missing' })
+          : fallback.pick(botSlug, groupId, effort);
+      },
       describe: (groupId, slug) => {
         const group = core().routingGroups.get(groupId);
         const targets = allowedGroupTargets(slug, groupId);
@@ -365,6 +386,8 @@ export function agentRouting(
           return { name: group.name, routes: core().routingGroups.routes(groupId), targets };
       },
       engineRestingUntil: (engine, accountId) => engineHost.limit(engine, accountId)?.until,
+      describeEngine: (slug, engine, accountId) =>
+        engineHost.describeAssignmentAccount(slug, engine, accountId),
       restingUntil: (route) => routeRests().restingUntil(route),
       inherited: () => defaultPreset()?.orchestratorGroupId,
       inheritedEffort: () => defaultPreset()?.orchestratorGroupEffort,

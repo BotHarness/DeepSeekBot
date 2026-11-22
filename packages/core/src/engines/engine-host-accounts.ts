@@ -8,6 +8,7 @@ import {
 import { randomUUID } from 'node:crypto';
 import { lstatSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
+import { TeamError } from '../team/error.js';
 
 import {
   CLAUDE_MIN_VERSION,
@@ -159,6 +160,23 @@ export class EngineHostAccounts {
   resolveAccount(engine: EngineId, accountId?: string): NamedEngineAccount {
     this.#requireLocal();
     return this.#store.resolveAccount(engine, accountId);
+  }
+
+  describeAssignment(botSlug: string, engine: EngineId, accountId?: string) {
+    if (!this.#options.local) return undefined;
+    try {
+      const account = this.resolveAccount(engine, accountId);
+      this.#options.requireAccountGrant?.(botSlug, account.id);
+      const until = engineQuotaLimit(this.#store.quota(engine, account.id), this.#now());
+      return { accountName: account.name, ...(until === undefined ? {} : { restingUntil: until }) };
+    } catch (error) {
+      if (
+        error instanceof EngineRefusal ||
+        (error instanceof TeamError && error.code === 'model-not-allowed')
+      )
+        return undefined;
+      throw error;
+    }
   }
 
   target(id: string): StoredEngineAccount {

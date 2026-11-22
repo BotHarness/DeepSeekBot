@@ -263,7 +263,7 @@ describe('Tob scoped model and runtime operations', () => {
   it('creates and updates presets and refuses apply when either target changed', async () => {
     const f = fixture();
     await f.run('model-preset-create', { name: 'Fast', ...fullPlan });
-    const preset = f.presets.list()[0]!;
+    const preset = f.presets.list().find(({ name }) => name === 'Fast')!;
     const args = {
       slug: 'one',
       presetId: preset.id,
@@ -288,6 +288,46 @@ describe('Tob scoped model and runtime operations', () => {
       f.prepare('model-preset-apply', { ...args, expectedPresetRevision: 2 }),
     ).rejects.toMatchObject({ code: 'stale-setting' });
   });
+
+  it('applies Default following main and a preset with only a Routing Group for sub', async () => {
+    const f = fixture();
+    await f.run('model-preset-apply', {
+      slug: 'one',
+      presetId: f.pinned.id,
+      expectedRevision: 0,
+      expectedPresetRevision: f.pinned.revision,
+    });
+    expect(f.registry.get('one')!.modelPlan).toMatchObject({
+      sub: { default: { kind: 'model', ...route } },
+      assignmentDefault: route,
+    });
+
+    const group = f.routingGroups.create({
+      name: 'Daily',
+      members: [{ kind: 'model', ...route }],
+    });
+    const initial = f.presets.create({
+      name: 'Group only',
+      orchestrator: route,
+      assignmentDefault: route,
+    });
+    const choice = { kind: 'group', group: group.id } as const;
+    const preset = f.presets.setSub(initial.id, initial.revision, {
+      choices: [choice],
+      default: choice,
+    });
+    await f.run('model-preset-apply', {
+      slug: 'two',
+      presetId: preset.id,
+      expectedRevision: 0,
+      expectedPresetRevision: preset.revision,
+    });
+    expect(f.registry.get('two')!.modelPlan).toMatchObject({
+      sub: { choices: [choice], default: choice },
+      assignmentDefaultGroupId: group.id,
+    });
+  });
+
   it('validates Assignment effort choices and supports changing only Assignment models', async () => {
     const f = fixture();
     await f.run('model-plan-set', { slug: 'one', expectedRevision: 0, ...fullPlan });

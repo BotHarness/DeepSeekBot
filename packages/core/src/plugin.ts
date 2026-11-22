@@ -9,7 +9,7 @@ import * as approvalsFeature from './features/approvals/plugin.js';
 import * as memoryFeature from './features/memory/plugin.js';
 import * as workspacesFeature from './features/workspaces/plugin.js';
 import * as teamFeature from './features/team/plugin.js';
-import type { EngineId } from '@botharness/host-protocol/subscription-engine';
+import { engineAccountKey, type EngineId } from '@botharness/host-protocol/subscription-engine';
 import { requireModelSources } from './models/provider-bridge.js';
 import { SessionLiveStreams } from './runtime/session-live.js';
 import { mountCardContextLive } from './channels/card-context-live.js';
@@ -20,7 +20,7 @@ import { relocateTobWorkspaces, recoverSpaceTransfers } from './workspaces/space
 import { WorkspaceSpaces } from './workspaces/spaces.js';
 import { defaultSpaceMemoryPath, relocateSpaceMemories } from './workspaces/space-memory.js';
 import { TeamError } from './team/error.js';
-import { requireBotModel } from './team/models.js';
+import { requireBotEngineAccount, requireBotModel } from './team/models.js';
 import { createMemberTobOperations } from './tob/member-operations.js';
 import { botOwner, ownsBot, privateBotRegistry } from './team/bot-access.js';
 import { privateBotCreations } from './bots/creation.js';
@@ -530,6 +530,7 @@ export function createCore(
     stopSettleTimeoutMs?: number;
     closeSessionApprovals?: (sessionIds: readonly string[]) => void;
     routeRests?: import('./runtime/bot-runtime.js').BotRuntimeOptions['routeRests'];
+    requireAssignmentEngine?: import('./runtime/bot-runtime.js').BotRuntimeOptions['requireAssignmentEngine'];
     groupFallback?: import('./runtime/bot-runtime.js').BotRuntimeOptions['groupFallback'];
     sessionRoute?: import('./runtime/bot-runtime.js').BotRuntimeOptions['sessionRoute'];
     engineFallback?: import('./runtime/bot-runtime.js').BotRuntimeOptions['engineFallback'];
@@ -1135,6 +1136,14 @@ function initializeCore(
     inboxHistory,
     messagePerf,
     requireModelRoute: (slug, route) => requireBotModel(team, registry.get(slug), route),
+    requireAssignmentEngine: (slug, target) => {
+      requireBotEngineAccount(
+        team,
+        registry.get(slug),
+        engineAccountKey(target.engine, target.accountId),
+      );
+      options.requireAssignmentEngine?.(slug, target);
+    },
     requireExecution: (slug) => profileRecovery.requireExecution(slug),
     schedules,
     assignmentConcurrencyLimit: () =>
@@ -1700,6 +1709,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       return main === undefined ? {} : { main };
     },
     routeRests,
+    requireAssignmentEngine: (slug, target) => engineHost.assertAssignmentAccount(slug, target),
     groupFallback,
     sessionRoute: (botSlug, sessionId) =>
       groupFallback.route(sessionId) ??
