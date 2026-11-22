@@ -43,7 +43,7 @@ async function broker(f: ReturnType<typeof fixture>, approve = vi.fn(async () =>
     signal: new AbortController().signal,
     authorize() {},
     approve,
-    beforeWrite,
+    beginWrite: () => ({ authorize: () => {}, markSideEffect: beforeWrite }),
     readSetting: () => ({ scope: 'global', value: 8, revision: 0 }),
     writeSetting: async () => {
       throw new Error('unexpected settings write');
