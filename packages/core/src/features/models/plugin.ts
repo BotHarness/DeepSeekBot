@@ -1,3 +1,12 @@
+import { requireModelSources } from '../../models/provider-bridge.js';
+import { createEngineToolGate, type EngineDeviceTools } from '../../engines/engine-tool-gate.js';
+import { ENGINES_PATH, engineRouteFetch } from '../../engines/engine-route.js';
+import { createEngineSelectionBridge } from '../../engines/engine-selection-bridge.js';
+import type { BridgeMethodsDeps } from '../../bridge/methods.js';
+import {
+  requiresHumanToolApproval,
+  sessionHasFullAccess,
+} from '../../workspaces/grant-execution.js';
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
 import { join } from 'node:path';
 import type { Context } from '@deepseek-ai/cordis';
@@ -50,6 +59,7 @@ import {
   installBotSubagentModelTools,
   installOrchestratorSubagentGuard,
 } from '../../runtime/subagent-model-tools.js';
+import type { HostFetchConnection } from '../../plugin-types.js';
 
 export function createStores(
   startup: ReturnType<typeof createCoreStartup>,
@@ -490,4 +500,87 @@ export function installSubagentRouting(
     );
   }
   return undefined;
+}
+
+export function createHostEngineToolGate(
+  ctx: Context,
+  deps: {
+    readonly core: BotHarnessCore;
+    templateInUse: Parameters<typeof requiresHumanToolApproval>[2];
+  },
+) {
+  return createEngineToolGate({
+    owner: (sessionId) => deps.core.ownership.resolve(sessionId)?.botSlug,
+    botExists: (slug) => deps.core.registry.get(slug) !== undefined,
+    fullAccess: (sessionId) => sessionHasFullAccess(deps.core, sessionId),
+    devices: () => [
+      {
+        kind: 'computer',
+        tools: ctx.get('botharnessComputerTools') as EngineDeviceTools | undefined,
+        reason: "This PersonaBot wants to act on the profile's shared Computer.",
+      },
+      {
+        kind: 'browser',
+        tools: ctx.get('botharnessBrowserTools') as EngineDeviceTools | undefined,
+        reason: 'This PersonaBot wants to use the Browser authorized by the Human.',
+      },
+    ],
+    approvalRequired: (name, args) => requiresHumanToolApproval(name, args, deps.templateInUse),
+  });
+}
+
+export function mountSubscriptionEngineRoute(
+  connectionCtx: Context,
+  connection: HostFetchConnection,
+  deps: {
+    core: BotHarnessCore;
+    team: BotHarnessCore['team'];
+    bridgeDeps: BridgeMethodsDeps;
+    engineHost: ReturnType<typeof mountEngines>['engineHost'];
+    agentAdapter: ReturnType<typeof createDshBotAgentAdapter>;
+    readonly toolApproval: ChannelToolApproval | undefined;
+  },
+) {
+  const { core, team, bridgeDeps, engineHost, agentAdapter } = deps;
+  connectionCtx.effect(
+    () =>
+      connection.fetch.register({
+        path: ENGINES_PATH,
+        methods: ['GET', 'POST'],
+        requestBody: 'buffered',
+        fetch: (request) =>
+          engineRouteFetch(request, {
+            ...createEngineSelectionBridge(team.ownerContext(), bridgeDeps),
+            host: engineHost,
+            authorizeLogin: () => requireModelSources(team.ownerContext(), team),
+            botExists: (slug) => core.registry.get(slug) !== undefined,
+            tools: (bot) => agentAdapter.engineToolCatalog(bot),
+            runTool: async (bot, tool, args) => {
+              const found = (await core.engineTools({ botSlug: bot, sessionId: '' })).find(
+                (entry) => entry.name === tool,
+              );
+              if (found === undefined)
+                throw new Error(
+                  `${tool} is not an engine-only tool; run Bot tools with deepseekbot bot tool`,
+                );
+              return found.run(args, AbortSignal.timeout(120_000));
+            },
+            approvals: () =>
+              core.registry
+                .list()
+                .flatMap((bot) => deps.toolApproval?.requests(bot.slug) ?? [])
+                .filter((notice) => engineHost.describe(notice.sessionId) !== undefined)
+                .map((notice) => ({
+                  botSlug: notice.botSlug,
+                  sessionId: notice.sessionId,
+                  channelId: notice.channelId,
+                  messageId: notice.messageId,
+                  toolName: notice.toolName,
+                  input: notice.input,
+                  expiresAt: notice.expiresAt,
+                })),
+          }),
+      }),
+    'botharness: Subscription Engine route',
+  );
 }
