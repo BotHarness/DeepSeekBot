@@ -4436,9 +4436,12 @@ class BotRuntimeImplementation implements BotRuntime {
         cancellation.addEventListener('abort', abort, { once: true });
         const agentPreset = row.agent_preset ?? undefined;
         this.#trackAssignmentRun(sessionId, async () => {
-          const modelRoute = await this.refreshAssignmentRoute(row.bot_slug, sessionId).catch(() =>
-            modelRouteFromRow(row),
-          );
+          const modelRoute =
+            this.#sessionModels.get(sessionId) === null
+              ? await this.refreshAssignmentRoute(row.bot_slug, sessionId).catch(() =>
+                  modelRouteFromRow(row),
+                )
+              : modelRouteFromRow(row);
           try {
             await this.#agents.runAssignment({
               ...this.#assignmentModelSelection(bot.slug, sessionId),
@@ -6307,6 +6310,16 @@ class BotRuntimeImplementation implements BotRuntime {
     const reviewOwner = sessionId.startsWith('direct-')
       ? `direct:${botSlug}`
       : `${botSlug}:${sessionId}`;
+    const turnAttribution = () => {
+      const segments = replyTargets?.().slice(-MAX_MIXED_GROUP_ATTEMPTS);
+      const last = segments?.at(-1);
+      const turnModelSwitch =
+        last === undefined ? undefined : readTurnModelSwitch(this.#database, sessionId, last);
+      return {
+        ...(segments?.length ? { turnTargets: segments.map((segment) => segment.target) } : {}),
+        ...(turnModelSwitch === undefined ? {} : { turnModelSwitch }),
+      };
+    };
     const observations = new Map<string, string>();
     const exhaustedDrops = new Map<string, string>();
     const recordObservation = (views: ChannelMessageView[]): void => {
@@ -7017,6 +7030,7 @@ class BotRuntimeImplementation implements BotRuntime {
           body: input.body,
           replyTo: input.replyTo,
           deliveryKey: input.deliveryKey,
+          ...turnAttribution(),
         });
         return sent;
       },
@@ -7311,14 +7325,7 @@ class BotRuntimeImplementation implements BotRuntime {
         return result;
       },
       send: async (input) => {
-        const segments = replyTargets?.().slice(-MAX_MIXED_GROUP_ATTEMPTS);
-        const last = segments?.at(-1);
-        const turnModelSwitch =
-          last === undefined ? undefined : readTurnModelSwitch(this.#database, sessionId, last);
-        const attribution = {
-          ...(segments?.length ? { turnTargets: segments.map((segment) => segment.target) } : {}),
-          ...(turnModelSwitch === undefined ? {} : { turnModelSwitch }),
-        };
+        const attribution = turnAttribution();
         if (input.replySourceEventId !== undefined) {
           const reply = replySource(input.replySourceEventId);
           if (
