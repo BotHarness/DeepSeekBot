@@ -123,6 +123,7 @@ function TranscriptInput({
     <View style={{ paddingHorizontal: space.x5 }}>
       <Pressable
         accessibilityRole="button"
+        accessibilityLabel={label}
         accessibilityState={{ expanded: open }}
         onPress={() => setOpen((value) => !value)}
         style={{
