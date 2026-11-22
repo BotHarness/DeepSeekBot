@@ -268,9 +268,9 @@ export function ModelPresetsSettings({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
   const edits = useRef(0);
-  const editLibrary = (next: Library) => {
+  const editLibrary = (update: (current: Library) => Library) => {
     edits.current += 1;
-    setLibrary(next);
+    setLibrary((current) => (current === undefined ? current : update(current)));
   };
   const mount = useMountedResource<HTMLElement>(() => {
     let active = true;
@@ -278,8 +278,10 @@ export function ModelPresetsSettings({
     void loadLibrary(call, actions).then(
       (next) => {
         if (!active) return;
-        if (edits.current === started) setLibrary(next);
-        else setLoadAttempt((attempt) => attempt + 1);
+        if (edits.current === started) {
+          setFailed(false);
+          setLibrary(next);
+        } else setLoadAttempt((attempt) => attempt + 1);
       },
       () => {
         if (active) setFailed(true);
@@ -428,10 +430,10 @@ export function ModelPresetsSettings({
                   void deleteModelPreset(bridgeHost(call), dialog.preset.id, dialog.preset.revision)
                     .then(
                       () => {
-                        editLibrary({
-                          ...library,
-                          presets: library.presets.filter(({ id }) => id !== dialog.preset.id),
-                        });
+                        editLibrary((current) => ({
+                          ...current,
+                          presets: current.presets.filter(({ id }) => id !== dialog.preset.id),
+                        }));
                         close();
                       },
                       (cause: unknown) => setError(errorMessage(cause)),
@@ -470,22 +472,22 @@ export function ModelPresetsSettings({
                 t={t}
                 onClose={close}
                 onSaved={(preset) => {
-                  editLibrary({
-                    ...library,
+                  editLibrary((current) => ({
+                    ...current,
                     presets:
                       dialog.kind === 'create'
-                        ? [...library.presets, preset]
-                        : library.presets.map((entry) => (entry.id === preset.id ? preset : entry)),
-                  });
+                        ? [...current.presets, preset]
+                        : current.presets.map((entry) => (entry.id === preset.id ? preset : entry)),
+                  }));
                   close();
                 }}
                 onRefreshed={(preset) =>
-                  editLibrary({
-                    ...library,
-                    presets: library.presets.map((entry) =>
+                  editLibrary((current) => ({
+                    ...current,
+                    presets: current.presets.map((entry) =>
                       entry.id === preset.id ? preset : entry,
                     ),
-                  })
+                  }))
                 }
               />
             )
