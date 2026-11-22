@@ -327,7 +327,14 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
     const ticket = ++reads.current;
     return port.accounts().then((view) => {
       const next = view.accounts.find((entry) => entry.id === id) ?? null;
-      if (ticket === reads.current) setAccount(next);
+      if (ticket === reads.current) {
+        setAccount(next);
+        if (next?.available && signingSince.current !== undefined) {
+          signingSince.current = undefined;
+          setSignInUrl(undefined);
+          setCopied(false);
+        }
+      }
       return next;
     });
   }, [port, id]);
@@ -371,15 +378,17 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
         return true;
       };
       polling.current = true;
+      const ticket = reads.current + 1;
       read()
         .then(
           (next) => {
+            if (reads.current !== ticket) return;
             if (next?.available) {
-              if (finish(false) && quotaStale(next.quota, Date.now())) runRefresh();
+              if (quotaStale(next.quota, Date.now())) runRefresh();
             } else if (expired) finish(true);
           },
           () => {
-            if (expired) finish(true);
+            if (expired && reads.current === ticket) finish(true);
           },
         )
         .finally(() => {
@@ -401,7 +410,12 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
             signingSince.current = Date.now();
             setSignInUrl(url);
           }
-          void read().catch(() => undefined);
+          read().then(
+            (next) => {
+              if (next?.available && quotaStale(next.quota, Date.now())) runRefresh();
+            },
+            () => undefined,
+          );
         },
         () => setSignInError('failed'),
       )

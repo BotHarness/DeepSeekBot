@@ -373,3 +373,37 @@ it('does not start a second account poll while the first is still running', asyn
     vi.useRealTimers();
   }
 });
+
+it('clears sign-in when the read right after sign-in already finds the account signed in', async () => {
+  vi.useFakeTimers();
+  try {
+    let accounts = accountsFixture(Date.now());
+    const signedIn = (): SubscriptionAccountsView => ({
+      ...accounts,
+      accounts: accounts.accounts.map((account) =>
+        account.id === 'codex-b' ? { ...account, available: true } : account,
+      ),
+    });
+    const port: ProviderAccountPort = {
+      accounts: vi.fn(async () => accounts),
+      refresh: vi.fn(async () => 'ok' as const),
+      signIn: vi.fn(async () => {
+        accounts = signedIn();
+        return { url: 'https://example.org/sign-in' };
+      }),
+      cancelSignIn: vi.fn(async () => undefined),
+    };
+    const view = await render(<ProviderAccountSettings port={port} id="codex-b" />);
+    await act(async () => button(view, t.modelProviders.signIn)!.click());
+    await act(async () => undefined);
+    expect(view.textContent).not.toContain(t.modelProviders.signInOnComputer);
+    expect(view.textContent).toContain(t.modelProviders.signedIn);
+    expect(port.refresh).toHaveBeenCalledWith('codex-b');
+    vi.setSystemTime(Date.now() + 300_000);
+    await act(async () => vi.advanceTimersByTime(15_000));
+    await act(async () => undefined);
+    expect(view.textContent).not.toContain(t.modelProviders.signInTimedOut);
+  } finally {
+    vi.useRealTimers();
+  }
+});
