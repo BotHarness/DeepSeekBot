@@ -79,6 +79,7 @@ const styles = stylex.create({
   name: { display: 'inline-flex', alignItems: 'center', gap: space.x1, maxWidth: '100%' },
   detail: { display: 'block', color: ink.secondary, fontWeight: 400 },
   kind: { display: 'inline-flex', flexShrink: 0, color: ink.secondary },
+  botKindGlyph: { width: style.textUiSize, height: style.textUiSize },
   mark: {
     display: 'inline-flex',
     justifyContent: 'center',
@@ -271,7 +272,11 @@ export function GroupMemberPicker({
           <span {...stylex.props(styles.name)}>
             <span>{row.displayName}</span>
             <span title={kindLabel} aria-hidden="true" {...stylex.props(styles.kind)}>
-              <Icon name={row.kind === 'human' ? 'user' : 'bot'} />
+              {row.kind === 'human' ? (
+                <Icon name="user" />
+              ) : (
+                <Icon name="bot" className={stylex.props(styles.botKindGlyph).className ?? ''} />
+              )}
             </span>
           </span>
           {handle ? <span {...stylex.props(styles.detail)}>@{handle}</span> : null}

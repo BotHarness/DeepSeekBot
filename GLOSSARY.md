@@ -124,7 +124,7 @@ The Human-selected Channel scope for a Window Companion's PersonaBot-authored me
 _Avoid_: Channel pin, Channel membership, Agent Scope
 
 **Model Preset**:
-A reusable, deployment-local Human-authored model plan for PersonaBots: one Orchestrator Model Choice, plus the Assignment Model Choices (a listed set or Open Assignment Models) with a default. Applying it copies the plan to a PersonaBot; later preset edits do not update that copy. It references Routing Groups by identity rather than copying them.
+A reusable, deployment-local Human-authored model plan for PersonaBots: one main (Orchestrator) Model Choice and an ordered list of sub (Assignment) Model Choices with one default. Each listed choice carries its own default reasoning effort when applicable. An empty sub list follows main, whether main is a model or a Routing Group. A legacy preset can still opt into Open Assignment Models. Applying a preset copies the plan to a PersonaBot; later edits do not update that copy. Routing Groups are referenced by identity.
 _Avoid_: DSH Agent preset, SoulSnapshot
 
 **PersonaBot Model Plan**:

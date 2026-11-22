@@ -1,5 +1,9 @@
-import { describe, expect, it } from 'vitest';
-import { packageBoundaryErrors } from '../check-package-boundaries.mjs';
+import { execFileSync } from 'node:child_process';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
+import { describe, expect, it, vi } from 'vitest';
+import { checkPackageBoundaries, packageBoundaryErrors } from '../check-package-boundaries.mjs';
 
 const workspaces = new Map([
   ['@botharness/mobile', 'apps/mobile'],
@@ -40,20 +44,6 @@ describe('workspace dependency boundaries', () => {
     expect(packageBoundaryErrors('packages/client/test/example.ts', source, workspaces)).toEqual(
       [],
     );
-  });
-
-  it('counts legacy imports and requires removing a stale allowance', () => {
-    const file = 'packages/client/src/example.ts';
-    const source = "import { one } from '@botharness/core';";
-    const baseline = { '@botharness/core': 1 };
-
-    expect(packageBoundaryErrors(file, source, workspaces, baseline)).toEqual([]);
-    expect(
-      packageBoundaryErrors(file, source + source.replace('one', 'two'), workspaces, baseline),
-    ).toEqual([expect.stringContaining('client source must use Host RPC or shared contracts')]);
-    expect(packageBoundaryErrors(file, '', workspaces, baseline)).toEqual([
-      expect.stringContaining('shrink scripts/client-host-import-baseline.json'),
-    ]);
   });
 
   it('permits both apps and packages to consume shared logic', () => {
@@ -110,4 +100,64 @@ describe('workspace dependency boundaries', () => {
       ),
     ).toEqual([]);
   });
+});
+
+it('moves Client Host imports by target, rejects growth, and lowers the baseline after fixes', () => {
+  const root = mkdtempSync(join(tmpdir(), 'client-host-baseline-'));
+  const oldFile = 'packages/client/src/a.ts';
+  const newFile = 'packages/client/src/feature/b.ts';
+  const baseline = 'scripts/client-host-import-baseline.json';
+  const target = '../../core/src/example.js';
+  const movedTarget = '../' + target;
+  const write = (file, source) => {
+    mkdirSync(dirname(join(root, file)), { recursive: true });
+    writeFileSync(join(root, file), source);
+  };
+  const git = (...args) =>
+    execFileSync('git', args, { cwd: root, shell: false, windowsHide: true });
+
+  try {
+    git('init', '--initial-branch=main');
+    write(oldFile, `import { one } from '${target}';`);
+    write(baseline, JSON.stringify({ [oldFile]: { [target]: 1 } }));
+    git('add', oldFile, baseline);
+    const tree = git('write-tree').toString().trim();
+    vi.stubEnv('BASELINE_BASE', tree);
+
+    rmSync(join(root, oldFile));
+    write(newFile, `import { one } from '${movedTarget}';`);
+    expect(checkPackageBoundaries(root)).toEqual([]);
+    expect(checkPackageBoundaries(root, { update: true })).toEqual([]);
+    expect(JSON.parse(readFileSync(join(root, baseline), 'utf8'))).toEqual({
+      [newFile]: { [movedTarget]: 1 },
+    });
+    expect(checkPackageBoundaries(root)).toEqual([]);
+
+    write(newFile, `import { one } from '${movedTarget}'; import { two } from '${movedTarget}';`);
+    const growth = `packages/core/src/example.js total grew from 1 to 2; counts rose in ${newFile} (1 → 2)`;
+    expect(checkPackageBoundaries(root)).toEqual([expect.stringContaining(growth)]);
+    expect(checkPackageBoundaries(root, { update: true })).toEqual([
+      expect.stringContaining(growth),
+    ]);
+    write(baseline, JSON.stringify({ [newFile]: { [movedTarget]: 2 } }));
+    expect(checkPackageBoundaries(root)).toEqual([
+      expect.stringContaining(
+        `packages/core/src/example.js total grew from 1 to 2; counts rose in ${newFile} (0 → 2)`,
+      ),
+    ]);
+
+    write(baseline, JSON.stringify({ [newFile]: { [movedTarget]: 1 } }));
+    write(newFile, '');
+    expect(checkPackageBoundaries(root)).toEqual([
+      expect.stringContaining(
+        'total dropped from 1 to 0; shrink scripts/client-host-import-baseline.json',
+      ),
+    ]);
+    expect(checkPackageBoundaries(root, { update: true })).toEqual([]);
+    expect(JSON.parse(readFileSync(join(root, baseline), 'utf8'))).toEqual({});
+    expect(checkPackageBoundaries(root)).toEqual([]);
+  } finally {
+    vi.unstubAllEnvs();
+    rmSync(root, { recursive: true, force: true });
+  }
 });

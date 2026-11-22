@@ -141,6 +141,7 @@ describe('named Codex subscription accounts', () => {
         bridge.engineAccountRemove,
         bridge.engineAccountLogin,
         bridge.engineAccountLoginCancel,
+        bridge.engineAccountLoginStatus,
         bridge.engineAccountSubmitCode,
         bridge.engineAccountQuotaRefresh,
       ]) {

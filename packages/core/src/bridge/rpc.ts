@@ -202,6 +202,7 @@ import type {
   ModelPreset,
   ModelPresetUsage,
   ModelPresetEngine,
+  PresetSub,
   ModelRoute,
   PersonaBotModelPlan,
 } from '../models/presets.js';
@@ -1251,12 +1252,16 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return modelsRpc.engineAccountRemove(this.methods, id, expectedRevision, confirm);
   }
 
-  engineAccountLogin(id: string, engine?: string) {
-    return modelsRpc.engineAccountLogin(this.methods, id, engine);
+  engineAccountLogin(id: string, engine?: string, mode?: 'device-auth') {
+    return modelsRpc.engineAccountLogin(this.methods, id, engine, mode);
   }
 
-  engineAccountLoginCancel(id: string) {
-    return modelsRpc.engineAccountLoginCancel(this.methods, id);
+  engineAccountLoginStatus(id: string, attemptId: string) {
+    return modelsRpc.engineAccountLoginStatus(this.methods, id, attemptId);
+  }
+
+  engineAccountLoginCancel(id: string, attemptId?: string) {
+    return modelsRpc.engineAccountLoginCancel(this.methods, id, attemptId);
   }
 
   engineAccountSubmitCode(id: string, code: string) {
@@ -1289,10 +1294,18 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return modelsRpc.modelPresetDelete(this.methods, id, expectedRevision, confirmed);
   }
 
+  modelPresetSub(id: string) {
+    return modelsRpc.modelPresetSub(this.methods, id);
+  }
+
+  modelPresetSubSet(id: string, expectedRevision: number, sub: PresetSub) {
+    return modelsRpc.modelPresetSubSet(this.methods, id, expectedRevision, sub);
+  }
+
   modelPresetCreate(
     name: string,
     orchestrator: ModelRoute | undefined,
-    assignmentDefault: ModelRoute,
+    assignmentDefault: ModelRoute | undefined,
     assignmentModels?: AssignmentModelOption[],
     openAssignmentModels?: boolean,
     orchestratorGroupId?: string | null,
@@ -3524,11 +3537,14 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'engineAccountRemove',
   'engineAccountLogin',
   'engineAccountLoginCancel',
+  'engineAccountLoginStatus',
   'engineAccountSubmitCode',
   'modelFavoriteSet',
   'modelPresets',
   'modelPresetCreate',
   'modelPresetUpdate',
+  'modelPresetSub',
+  'modelPresetSubSet',
   'modelPresetDelete',
   'modelPresetApply',
   'modelGroups',

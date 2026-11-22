@@ -12,9 +12,11 @@ import { defineSchemaPlan } from '../src/database/schema.js';
 import {
   createModelPresetStore,
   DEFAULT_MODEL_PRESET_ID,
+  presetSubFromLegacy,
   defaultPresetPlan,
   defaultPresetRoute,
   resolveBotModelPlan,
+  type ModelPreset,
 } from '../src/models/presets.js';
 import { createRoutingGroupStore } from '../src/models/routing-groups.js';
 import { agentOptions } from '../src/runtime/dsh-bot-agent-adapter-shared.js';
@@ -22,6 +24,229 @@ import { agentOptions } from '../src/runtime/dsh-bot-agent-adapter-shared.js';
 const homes: Array<{ root: string; close(): void }> = [];
 const main = { provider: 'opencode-go', model: 'deepseek-v4-pro', reasoningEffort: 'high' };
 const sub = { provider: 'opencode-go', model: 'deepseek-v4-flash', reasoningEffort: 'low' };
+
+it.each(['model-preset-sub-choices', 'model-preset-sub-engine-choices'])(
+  'backfills each legacy sub field combination from before %s without changing revisions',
+  (migration) => {
+    const root = mkdtempSync(join(tmpdir(), 'bh-preset-sub-upgrade-'));
+    const prior = mountOperationalDatabase({
+      dshHome: root,
+      schemaPlan: defineSchemaPlan(
+        BOT_HARNESS_SCHEMA_PLAN.migrations.slice(
+          0,
+          BOT_HARNESS_SCHEMA_PLAN.migrations.findIndex(({ id }) => id === migration),
+        ),
+      ),
+    });
+    const flash = {
+      provider: sub.provider,
+      model: sub.model,
+      allowedEfforts: ['low', 'high'],
+      defaultEffort: 'low',
+      note: 'Quick tasks',
+    };
+    const pro = {
+      provider: main.provider,
+      model: main.model,
+      allowedEfforts: ['high'],
+      defaultEffort: 'high',
+    };
+    const modelDefault = { kind: 'model', provider: sub.provider, model: sub.model };
+    const groupDefault = { kind: 'group', group: 'backup' };
+    const fallback = {
+      group: 'backup',
+      allowedEfforts: ['low'],
+      defaultEffort: 'low',
+      note: 'Fallback',
+    };
+    const engineDefault = {
+      kind: 'engine',
+      engine: 'codex' as const,
+      accountId: 'codex-work',
+      model: 'gpt-test',
+    };
+    const { kind: _kind, ...engine } = { ...engineDefault, effort: 'high' };
+    const engineChoice = { ...engineDefault, effort: 'high' };
+    const routeChoice = { ...modelDefault, allowedEfforts: ['low'], defaultEffort: 'low' };
+    const fixtures: Array<{ id: string; fields: Partial<ModelPreset>; expected: unknown }> = [
+      {
+        id: 'default',
+        fields: {
+          assignmentFollowsMain: true,
+          assignmentEngine: engine,
+          orchestratorGroupId: 'backup',
+        },
+        expected: { choices: [engineChoice], default: engineDefault },
+      },
+      {
+        id: 'follows-main',
+        fields: {
+          assignmentFollowsMain: true,
+          orchestratorGroupId: 'backup',
+          orchestratorGroupEffort: 'high',
+        },
+        expected: { choices: [], default: null },
+      },
+      {
+        id: 'route',
+        fields: {},
+        expected: {
+          choices: [{ ...modelDefault, allowedEfforts: ['low'], defaultEffort: 'low' }],
+          default: modelDefault,
+        },
+      },
+      {
+        id: 'listed',
+        fields: { assignmentModels: [flash, pro] },
+        expected: {
+          choices: [
+            { kind: 'model', ...flash },
+            { kind: 'model', ...pro },
+          ],
+          default: modelDefault,
+        },
+      },
+      {
+        id: 'groups',
+        fields: { assignmentGroups: ['backup'] },
+        expected: {
+          choices: [
+            { ...modelDefault, allowedEfforts: ['low'], defaultEffort: 'low' },
+            groupDefault,
+          ],
+          default: modelDefault,
+        },
+      },
+      {
+        id: 'mixed',
+        fields: {
+          assignmentModels: [flash, pro],
+          assignmentGroups: ['backup'],
+          assignmentDefaultGroupId: 'backup',
+          assignmentGroupOptions: [fallback],
+          openAssignmentModels: true,
+        },
+        expected: {
+          choices: [
+            { kind: 'model', ...flash },
+            { kind: 'model', ...pro },
+            { kind: 'group', ...fallback },
+          ],
+          default: groupDefault,
+        },
+      },
+      {
+        id: 'already-shaped',
+        fields: { sub: { choices: [], default: null }, orchestratorGroupId: 'backup' },
+        expected: { choices: [], default: null },
+      },
+      {
+        id: 'engine-with-implicit-route',
+        fields: { assignmentEngine: engine },
+        expected: { choices: [routeChoice, engineChoice], default: engineDefault },
+      },
+      {
+        id: 'engine-with-models',
+        fields: { assignmentEngine: engine, assignmentModels: [flash, pro] },
+        expected: {
+          choices: [{ kind: 'model', ...flash }, { kind: 'model', ...pro }, engineChoice],
+          default: engineDefault,
+        },
+      },
+      {
+        id: 'engine-with-routing-group',
+        fields: {
+          assignmentEngine: engine,
+          assignmentGroups: ['backup'],
+          assignmentDefaultGroupId: 'backup',
+        },
+        expected: { choices: [routeChoice, groupDefault, engineChoice], default: engineDefault },
+      },
+      {
+        id: 'engine-with-models-and-routing-group',
+        fields: {
+          assignmentEngine: engine,
+          assignmentModels: [flash],
+          assignmentGroups: ['backup'],
+          assignmentDefaultGroupId: 'backup',
+          assignmentGroupOptions: [fallback],
+        },
+        expected: {
+          choices: [{ kind: 'model', ...flash }, { kind: 'group', ...fallback }, engineChoice],
+          default: engineDefault,
+        },
+      },
+      {
+        id: 'engine-with-default-account-and-model',
+        fields: { assignmentEngine: { engine: 'claude' } },
+        expected: {
+          choices: [routeChoice, { kind: 'engine', engine: 'claude' }],
+          default: { kind: 'engine', engine: 'claude' },
+        },
+      },
+      {
+        id: 'engine-with-effort-on-the-default-model',
+        fields: { assignmentEngine: { engine: 'codex', effort: 'high' } },
+        expected: {
+          choices: [routeChoice, { kind: 'engine', engine: 'codex', effort: 'high' }],
+          default: { kind: 'engine', engine: 'codex' },
+        },
+      },
+    ];
+    homes.push({ root, close: () => prior.close() });
+    attachOperationalModule(prior, 'test').transaction(
+      (db) => {
+        const insert = db.prepare('INSERT INTO model_presets (id, body) VALUES (?, ?)');
+        for (const { id, fields } of fixtures)
+          insert.run(
+            id,
+            JSON.stringify({
+              id,
+              name: id,
+              revision: 7,
+              createdAt: '2026-11-21',
+              orchestrator: main,
+              assignmentDefault: sub,
+              ...fields,
+              ...(migration === 'model-preset-sub-engine-choices' && !('sub' in fields)
+                ? { sub: presetSubFromLegacy({ assignmentDefault: sub, ...fields }) }
+                : {}),
+            }),
+          );
+        db.prepare("INSERT INTO model_presets_import VALUES (1, '2026-11-21')").run();
+      },
+      ['model-presets'],
+    );
+    prior.close();
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      const database = mountOperationalDatabase({
+        dshHome: root,
+        schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+      });
+      homes.push({ root, close: () => database.close() });
+      const store = createModelPresetStore({ rootDir: root, database });
+      expect(store.list()).toHaveLength(fixtures.length);
+      for (const { id, fields, expected } of fixtures)
+        expect(store.get(id)).toMatchObject({ id, revision: 7, ...fields, sub: expected });
+      expect(defaultPresetPlan(store.get('default')!).sub).toEqual({
+        choices: [engineChoice],
+        default: engineDefault,
+      });
+      expect(
+        defaultPresetPlan(store.get('engine-with-routing-group')!).assignmentDefaultGroupId,
+      ).toBeUndefined();
+      expect(defaultPresetPlan(store.get('follows-main')!).sub).toEqual({
+        choices: [{ ...groupDefault, allowedEfforts: ['high'], defaultEffort: 'high' }],
+        default: groupDefault,
+      });
+      expect(defaultPresetPlan(store.get('already-shaped')!)).toMatchObject({
+        assignmentDefaultGroupId: 'backup',
+        sub: { choices: [groupDefault], default: groupDefault },
+      });
+      database.close();
+    }
+  },
+);
 
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), 'bh-default-preset-'));
@@ -38,6 +263,126 @@ function fixture() {
       }),
   };
 }
+
+it('keeps an alternate Subscription Engine when a legacy edit replaces the API choice efforts', () => {
+  const store = fixture().open();
+  const preset = store.create({ name: 'Mixed', orchestrator: main, assignmentDefault: main });
+  const identity = { kind: 'model' as const, provider: main.provider, model: main.model };
+  const engine = { kind: 'engine' as const, engine: 'codex' as const, accountId: 'codex-work' };
+  const configured = store.setSub(preset.id, preset.revision, {
+    choices: [{ ...identity, allowedEfforts: ['high'], defaultEffort: 'high' }, engine],
+    default: identity,
+  });
+  const option = {
+    provider: main.provider,
+    model: main.model,
+    allowedEfforts: ['low'],
+    defaultEffort: 'low',
+  };
+  const edited = store.update(preset.id, {
+    name: preset.name,
+    expectedRevision: configured.revision,
+    orchestrator: main,
+    assignmentDefault: { ...main, reasoningEffort: 'low' },
+    assignmentModels: [option],
+  });
+  expect(edited?.sub).toEqual({
+    choices: [{ kind: 'model', ...option }, engine],
+    default: identity,
+  });
+});
+
+it('keeps the stored order of mixed choices after a legacy metadata edit', () => {
+  const store = fixture().open();
+  const preset = store.create({ name: 'Mixed', orchestrator: main, assignmentDefault: main });
+  const model = { kind: 'model' as const, provider: main.provider, model: main.model };
+  const group = { kind: 'group' as const, group: 'backup' };
+  const engine = { kind: 'engine' as const, engine: 'codex' as const, note: 'Subscription' };
+  const option = { allowedEfforts: [''], defaultEffort: '' };
+  const configured = store.setSub(preset.id, preset.revision, {
+    choices: [group, engine, { ...model, ...option }],
+    default: model,
+  });
+  const editedOption = { ...option, provider: main.provider, model: main.model, note: 'New note' };
+  const edited = store.update(preset.id, {
+    name: preset.name,
+    expectedRevision: configured.revision,
+    orchestrator: main,
+    assignmentDefault: configured.assignmentDefault,
+    assignmentModels: [editedOption],
+  });
+  expect(edited?.sub).toEqual({
+    choices: [group, engine, { kind: 'model', ...editedOption }],
+    default: model,
+  });
+  expect(store.get(preset.id)).toEqual(edited);
+});
+
+it('adds a legacy Assignment Engine default alongside a Routing Group-only sub', () => {
+  const store = fixture().open();
+  const preset = store.create({
+    name: 'Routing Group',
+    orchestrator: main,
+    assignmentDefault: main,
+  });
+  const group = { kind: 'group' as const, group: 'backup' };
+  const configured = store.setSub(preset.id, preset.revision, { choices: [group], default: group });
+  const assignmentEngine = { engine: 'claude' as const, accountId: 'claude-work' };
+  const edited = store.update(preset.id, {
+    name: preset.name,
+    expectedRevision: configured.revision,
+    orchestrator: main,
+    assignmentDefault: configured.assignmentDefault,
+    engines: { assignmentEngine },
+  });
+  const engine = { kind: 'engine', ...assignmentEngine };
+  expect(edited?.sub).toEqual({ choices: [group, engine], default: engine });
+  expect(store.get(preset.id)).toEqual(edited);
+});
+
+it('keeps a group default and engine alternate model-free during a legacy metadata edit', () => {
+  const store = fixture().open();
+  const preset = store.create({ name: 'Mixed', orchestrator: main, assignmentDefault: main });
+  const group = { kind: 'group' as const, group: 'backup' };
+  const engine = {
+    kind: 'engine' as const,
+    engine: 'codex' as const,
+    note: 'Use the subscription',
+  };
+  const configured = store.setSub(preset.id, preset.revision, {
+    choices: [{ ...group, note: 'Original note' }, engine],
+    default: group,
+  });
+  const groupOption = { group: group.group, note: 'Updated note' };
+  const edited = store.update(preset.id, {
+    name: preset.name,
+    expectedRevision: configured.revision,
+    orchestrator: main,
+    assignmentDefault: configured.assignmentDefault,
+    groups: {
+      assignmentGroups: [group.group],
+      assignmentDefaultGroupId: group.group,
+      assignmentGroupOptions: [groupOption],
+    },
+  });
+  const choices = [{ kind: 'group', ...groupOption }, engine];
+  expect(store.get(preset.id)?.sub).toEqual({ choices, default: group });
+
+  const route = { provider: 'go', model: 'new-model' };
+  const option = { ...route, allowedEfforts: [''], defaultEffort: '' };
+  if (edited === undefined) throw new Error('Model Preset edit did not save');
+  store.update(preset.id, {
+    name: preset.name,
+    expectedRevision: edited.revision,
+    orchestrator: main,
+    assignmentDefault: route,
+    assignmentModels: [option],
+  });
+  expect(store.get(preset.id)?.sub).toEqual({
+    choices: [...choices, { kind: 'model', ...option }],
+    default: group,
+  });
+});
 
 afterEach(() => {
   for (const home of homes) home.close();
@@ -151,6 +496,7 @@ describe('Default Model Preset cutover', () => {
     expect(resolveBotModelPlan({ modelPlan: orphan }, () => defaults)).toEqual({
       ...orphan,
       assignmentDefault: sub,
+      sub: defaults.sub,
     });
     expect(resolveBotModelPlan({ model: 'legacy-route' }, () => defaults)).toBeUndefined();
   });
@@ -186,7 +532,7 @@ describe('Default Model Preset cutover', () => {
     writeFileSync(join(root, 'model-presets.json'), JSON.stringify([custom]));
     const store = open();
     const migrated = store.migrateDefault({ main }).preset;
-    expect(store.list()).toEqual([migrated, custom]);
+    expect(store.list()).toEqual([migrated, { ...custom, sub: presetSubFromLegacy(custom) }]);
     const edited = store.update(DEFAULT_MODEL_PRESET_ID, {
       ...migrated,
       expectedRevision: migrated.revision,

@@ -34,6 +34,88 @@ const refusal = (id: string) => ({
   error: { code: 'model-not-allowed', details: { route: id } },
 });
 
+it('round-trips the legacy Assignment Engine through sub and verifies grants on alternates', async () => {
+  const f = fixture();
+  const selection = { engine: 'codex' as const, accountId: f.work.id, model: 'gpt-test' };
+  const preset = f.modelPresets.create({
+    name: 'Work subscription',
+    orchestrator: permitted,
+    assignmentDefault: permitted,
+    engines: { assignmentEngine: { ...selection, effort: 'high' } },
+  });
+  const view = f.ownerMethods.modelPresetSub({ id: preset.id });
+  expect(view).toMatchObject({
+    ok: true,
+    value: {
+      sub: {
+        choices: expect.arrayContaining([{ kind: 'engine', ...selection, effort: 'high' }]),
+        default: { kind: 'engine', ...selection },
+      },
+    },
+  });
+  if (!view.ok) throw new Error('Expected preset sub choices');
+  expect(f.methods.modelPresetSub({ id: preset.id })).toMatchObject(refusal(f.work.id));
+  const payload = { id: preset.id, expectedRevision: view.value.revision, sub: view.value.sub };
+  f.grant(f.work.id);
+  await expect(
+    f.methods.modelPresetSubSet({
+      ...payload,
+      sub: {
+        ...payload.sub,
+        choices: [
+          ...payload.sub.choices,
+          { kind: 'engine', ...selection, accountId: f.personal.id },
+        ],
+      },
+    }),
+  ).resolves.toMatchObject(refusal(f.personal.id));
+  await expect(f.methods.modelPresetSubSet(payload)).resolves.toMatchObject({
+    ok: true,
+    value: { revision: preset.revision + 1, sub: payload.sub },
+  });
+  expect(f.modelPresets.get(preset.id)?.assignmentEngine).toEqual({ ...selection, effort: 'high' });
+  await expect(
+    f.methods.modelPresetApply({ slug: 'ada', presetId: preset.id }),
+  ).resolves.toMatchObject({
+    ok: true,
+    value: { plan: { sub: payload.sub } },
+  });
+  f.grant();
+  await expect(
+    f.methods.modelPresetUpdate({
+      id: preset.id,
+      name: preset.name,
+      expectedRevision: preset.revision + 1,
+      orchestrator: permitted,
+      assignmentDefault: permitted,
+    }),
+  ).resolves.toMatchObject(refusal(f.work.id));
+});
+
+it('lets a configure member replace an unavailable engine they have permission to edit', async () => {
+  const f = fixture(false);
+  const preset = f.modelPresets.create({
+    name: 'Previously local subscription',
+    orchestrator: permitted,
+    assignmentDefault: permitted,
+    engines: { assignmentEngine: { engine: 'codex', accountId: f.work.id } },
+  });
+  const model = { kind: 'model' as const, ...permitted };
+  const sub = { choices: [{ ...model, allowedEfforts: [''], defaultEffort: '' }], default: model };
+  const payload = { id: preset.id, expectedRevision: preset.revision, sub };
+  await expect(f.methods.modelPresetSubSet(payload)).resolves.toMatchObject(refusal(f.work.id));
+  f.grant(f.work.id);
+  expect(f.methods.modelPresetSub({ id: preset.id })).toMatchObject({
+    ok: false,
+    error: { code: 'engine-unavailable' },
+  });
+  await expect(f.methods.modelPresetSubSet(payload)).resolves.toMatchObject({
+    ok: true,
+    value: { revision: preset.revision + 1, sub },
+  });
+  expect(f.modelPresets.get(preset.id)?.assignmentEngine).toBeUndefined();
+});
+
 function fixture(local = true) {
   const f = teamModelFixture();
   f.catalog.list.mockResolvedValue([
@@ -322,6 +404,38 @@ describe('Team subscription grants', () => {
     expect(refresh).toHaveBeenCalledExactlyOnceWith(f.work.id);
   });
 
+  it('requires model source management to read a pending device sign-in code', async () => {
+    const f = fixture();
+    f.grant(f.work.id);
+    const attemptId = '7d38c154-2981-431d-83a1-82c400cf6a11';
+    const progress = {
+      status: 'pending',
+      url: 'https://auth.openai.com/codex/device',
+      code: '7ABC-92DE',
+      expiresAt: '2026-11-22T00:00:00.000Z',
+    } as const;
+    const readStatus = vi.spyOn(f.host, 'deviceLoginStatus').mockReturnValue(progress);
+    const granted = { id: f.work.id, attemptId };
+    const ungranted = { id: f.personal.id, attemptId };
+    const denied = {
+      ok: false,
+      error: { code: 'permission-required', details: { permission: 'modelSources.manage' } },
+    };
+    await expect(f.methods.engineAccountLoginStatus(granted)).resolves.toMatchObject(denied);
+    await expect(f.methods.engineAccountLoginStatus(ungranted)).resolves.toMatchObject(denied);
+    expect(readStatus).not.toHaveBeenCalled();
+
+    const manager = f.team.roles.create(owner, 'Model source manager', [
+      'modelSources.manage',
+    ]).role;
+    f.team.roles.set(owner, f.member.humanId, [f.role.roleId, manager.roleId]);
+    await expect(f.methods.engineAccountLoginStatus(granted)).resolves.toEqual({
+      ok: true,
+      value: progress,
+    });
+    expect(readStatus).toHaveBeenCalledExactlyOnceWith(f.work.id, attemptId);
+  });
+
   it('unions explicit accounts across API policies and applies the delegation ceiling', () => {
     const f = fixture();
     f.grant(f.work.id, f.work.id);
@@ -498,6 +612,12 @@ describe('Team subscription grants', () => {
     const savedPreset = await f.ownerMethods.modelPresetCreate(preset);
     if (!savedPreset.ok) throw new Error(savedPreset.error.code);
     const presetId = savedPreset.value.preset.id;
+    const groupSub = { kind: 'group', group: nested.id };
+    const subUpdate = {
+      id: presetId,
+      expectedRevision: 1,
+      sub: { choices: [groupSub], default: groupSub },
+    };
     const groupPlan = {
       slug: 'ada',
       expectedRevision: 1,
@@ -517,11 +637,13 @@ describe('Team subscription grants', () => {
       f.methods.modelPlanSet(groupPlan),
       f.methods.modelPresetCreate(preset),
       f.methods.modelPresetUpdate({ ...preset, id: presetId, expectedRevision: 1 }),
+      f.methods.modelPresetSubSet(subUpdate),
       f.methods.modelPresetApply({ slug: 'ada', presetId }),
     ])
       expect(await result).toMatchObject(refusal(f.work.id));
     expect(f.methods.modelPresets({})).toMatchObject({ ok: true, value: { presets: [] } });
     f.grant(f.work.id);
+    expect(f.methods.modelPresetSub({ id: presetId })).toMatchObject({ ok: true });
     expect(await f.methods.modelCatalog({ includeRoutingGroupEngines: true })).toMatchObject({
       ok: true,
       value: {

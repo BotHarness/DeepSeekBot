@@ -371,6 +371,8 @@ export const CLI_EFFECTS = {
   'model-preset-apply': { effects: write, brokerRead: false },
   'model-preset-create': { effects: write, brokerRead: false },
   'model-preset-delete': { effects: destructive, brokerRead: false },
+  'model-preset-sub': { effects: read, brokerRead: true },
+  'model-preset-sub-set': { effects: write, brokerRead: false },
   'model-preset-update': { effects: write, brokerRead: false },
   'model-presets': { effects: read, brokerRead: true },
   'model-groups': { effects: read, brokerRead: true },

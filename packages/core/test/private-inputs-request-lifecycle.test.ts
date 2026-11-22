@@ -5,6 +5,36 @@ import { registerBridge } from '../src/bridge/rpc.js';
 import type { BridgeMethods } from '../src/bridge/methods.js';
 
 describe('private input native authority and reference contract', () => {
+  it('refuses an empty all-optional private-input submission and lets the Owner retry', async () => {
+    const f = await fixture();
+    const optional = {
+      ...declaration,
+      fields: declaration.fields.map((field) => ({ ...field, required: false })),
+    };
+    const waiting = f.owner.ask(f.agent, optional, new AbortController().signal);
+    try {
+      await vi.waitFor(() => expect(f.channels.readMessages('dm-ada')).toHaveLength(1));
+      const messageId = f.channels.readMessages('dm-ada')[0]!.id;
+      const card = { channelId: 'dm-ada', messageId };
+      for (const empty of [{}, { api_key: '' }]) {
+        expect(await f.owner.submission(true, { ...card, values: empty })).toEqual({
+          accepted: false,
+          reason: 'invalid-fields',
+        });
+        expect(f.owner.status(card.channelId, card.messageId)).toBe('pending');
+        expect(await f.credentials.listRecords()).toEqual([]);
+      }
+      expect(await f.owner.submit(true, { ...card, values: { api_key: values.api_key } })).toBe(
+        true,
+      );
+      expect(await waiting).toMatchObject({ status: 'configured' });
+      expect((await f.owner.revoke(true, card.channelId, card.messageId)).accepted).toBe(true);
+    } finally {
+      await f.close();
+      await waiting;
+    }
+  });
+
   it('refuses unsupported consumption before collecting values and rejects a stopped request', async () => {
     const unsupported = await fixture(false);
     await expect(

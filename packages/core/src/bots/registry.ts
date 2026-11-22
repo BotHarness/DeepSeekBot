@@ -36,6 +36,7 @@ import { DEFAULT_STANDING_LIMITS, isStandingLimits, type StandingLimits } from '
 import type { TelemetryEventName } from '../telemetry/events.js';
 import type { TelemetryCapture } from '../telemetry/service.js';
 import {
+  defaultPresetPlan,
   isPersonaBotModelPlan,
   presetGroups,
   type AssignmentGroupOption,
@@ -308,6 +309,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
                 ...(option.note === undefined ? {} : { note: option.note }),
               })),
             }),
+        ...(plan.sub === undefined ? {} : { sub: structuredClone(plan.sub) }),
         ...(plan.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
       };
     return result;
@@ -801,21 +803,8 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       const record = active(slug);
       if (record === undefined) return { ok: false, reason: 'not-found' };
       const plan: PersonaBotModelPlan = {
+        ...defaultPresetPlan(preset),
         revision: (record.modelPlan?.revision ?? record.modelPlanRevision ?? 0) + 1,
-        sourcePresetId: preset.id,
-        sourcePresetName: preset.name,
-        orchestrator: { ...preset.orchestrator },
-        assignmentDefault: { ...preset.assignmentDefault },
-        ...(preset.assignmentModels === undefined
-          ? {}
-          : {
-              assignmentModels: preset.assignmentModels.map((option) => ({
-                ...option,
-                allowedEfforts: [...option.allowedEfforts],
-              })),
-            }),
-        ...(preset.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
-        ...presetGroups(preset),
         appliedAt: now().toISOString(),
       };
       record.modelPlan = plan;
@@ -891,6 +880,7 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
         assignmentGroups: currentGroups,
         assignmentDefaultGroupId: currentDefaultGroup,
         assignmentGroupOptions: currentOptions,
+        sub: _sub,
         ...plan
       } = record.modelPlan;
       const open = openAssignmentModels ?? currentOpen === true;
