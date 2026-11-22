@@ -277,7 +277,9 @@ export function ModelPresetsSettings({
     const started = edits.current;
     void loadLibrary(call, actions).then(
       (next) => {
-        if (active && edits.current === started) setLibrary(next);
+        if (!active) return;
+        if (edits.current === started) setLibrary(next);
+        else setLoadAttempt((attempt) => attempt + 1);
       },
       () => {
         if (active) setFailed(true);
