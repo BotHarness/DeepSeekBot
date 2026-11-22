@@ -416,8 +416,8 @@ export function RoutingGroupSettings({
     void operation()
       .then(async () => {
         close();
-        setLibrary(await loadLibrary(actions));
         onChanged?.();
+        setLibrary(await loadLibrary(actions));
       })
       .catch((cause: unknown) => setError(errorMessage(cause)))
       .finally(() => setBusy(false));

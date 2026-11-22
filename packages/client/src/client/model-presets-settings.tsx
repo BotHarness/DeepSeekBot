@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useMemo, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
   DEFAULT_MODEL_PRESET_ID,
@@ -267,11 +267,17 @@ export function ModelPresetsSettings({
   const [dialog, setDialog] = useState<Dialog>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const edits = useRef(0);
+  const editLibrary = (next: Library) => {
+    edits.current += 1;
+    setLibrary(next);
+  };
   const mount = useMountedResource<HTMLElement>(() => {
     let active = true;
+    const started = edits.current;
     void loadLibrary(call, actions).then(
       (next) => {
-        if (active) setLibrary(next);
+        if (active && edits.current === started) setLibrary(next);
       },
       () => {
         if (active) setFailed(true);
@@ -420,7 +426,7 @@ export function ModelPresetsSettings({
                   void deleteModelPreset(bridgeHost(call), dialog.preset.id, dialog.preset.revision)
                     .then(
                       () => {
-                        setLibrary({
+                        editLibrary({
                           ...library,
                           presets: library.presets.filter(({ id }) => id !== dialog.preset.id),
                         });
@@ -462,7 +468,7 @@ export function ModelPresetsSettings({
                 t={t}
                 onClose={close}
                 onSaved={(preset) => {
-                  setLibrary({
+                  editLibrary({
                     ...library,
                     presets:
                       dialog.kind === 'create'
@@ -472,7 +478,7 @@ export function ModelPresetsSettings({
                   close();
                 }}
                 onRefreshed={(preset) =>
-                  setLibrary({
+                  editLibrary({
                     ...library,
                     presets: library.presets.map((entry) =>
                       entry.id === preset.id ? preset : entry,
