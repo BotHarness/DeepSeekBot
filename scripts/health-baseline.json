@@ -14,7 +14,6 @@
     "packages/client/src/client/avatar-appearance-editor.tsx",
     "packages/client/src/client/bot-main.tsx",
     "packages/client/src/client/channel-dock.tsx",
-    "packages/client/src/client/channel-message-body.tsx",
     "packages/client/src/client/channel-sidebar-builtins.tsx",
     "packages/client/src/client/channel-sidebar-icon.tsx",
     "packages/client/src/client/schedules-entry.tsx",
