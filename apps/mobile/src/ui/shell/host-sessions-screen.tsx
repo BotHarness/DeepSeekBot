@@ -153,7 +153,8 @@ function HostSessionsList({ client, hostId }: { client: HostClient; hostId: stri
       choices: [
         { id: 'all', label: t.all, select: () => setSource('all') },
         ...(sources ?? [])
-          .toSorted((a, b) => {
+          .slice()
+          .sort((a, b) => {
             if (a.kind === 'native') return b.kind === 'native' ? 0 : -1;
             if (b.kind === 'native') return 1;
             return a.displayName.localeCompare(b.displayName) || a.botSlug.localeCompare(b.botSlug);
