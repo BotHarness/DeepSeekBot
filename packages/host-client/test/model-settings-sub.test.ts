@@ -372,3 +372,34 @@ it('returns the stored effort and matching catalog choices for each selected sou
   });
   expect(subEffortOptions(active, { ...engine, accountId: 'personal' })).toBeUndefined();
 });
+
+it('runs writes for the same scope one after another, even after a failure', async () => {
+  const host = { call: vi.fn(async () => ({})) };
+  const resource = modelSettingsResource(host, { kind: 'bot', slug: 'serial' });
+  const order: string[] = [];
+  let finishFirst: () => void = () => undefined;
+  const first = resource.write(
+    () =>
+      new Promise<void>((resolve) => {
+        order.push('first start');
+        finishFirst = () => {
+          order.push('first end');
+          resolve();
+        };
+      }),
+  );
+  const failing = resource.write(async () => {
+    order.push('second');
+    throw new Error('stale');
+  });
+  const third = modelSettingsResource(host, { kind: 'bot', slug: 'serial' }).write(async () => {
+    order.push('third');
+  });
+  await new Promise((resolve) => setTimeout(resolve, 10));
+  expect(order).toEqual(['first start']);
+  finishFirst();
+  await first;
+  await expect(failing).rejects.toThrow('stale');
+  await third;
+  expect(order).toEqual(['first start', 'first end', 'second', 'third']);
+});

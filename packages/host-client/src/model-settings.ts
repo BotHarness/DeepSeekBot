@@ -83,6 +83,7 @@ export function modelScopeKey(scope: ModelScope): string {
 
 const owners = new WeakMap<ModelSettingsClient, QueryClient>();
 const modelSettingsKey = ['mobile-model-settings'];
+const writeChains = new WeakMap<QueryClient, Map<string, Promise<void>>>();
 const favoriteWriters = new WeakMap<
   ModelSettingsClient,
   (choice: ModelChoice, favorite: boolean) => Promise<ModelChoice[]>
@@ -109,14 +110,27 @@ export function modelSettingsResource(client: ModelSettingsClient, scope: ModelS
   const queryKey = [...modelSettingsKey, modelScopeKey(scope)];
   return {
     peek: () => owner.getQueryData<ModelSettingsState>(queryKey),
-    write: async (work: () => Promise<void>) => {
-      await owner.cancelQueries({ queryKey, exact: true });
-      await work();
-      await owner.cancelQueries({ queryKey, exact: true });
-      await owner.invalidateQueries({
-        queryKey: modelSettingsKey,
-        refetchType: 'none',
+    write: (work: () => Promise<void>) => {
+      const scopeKey = modelScopeKey(scope);
+      let chains = writeChains.get(owner);
+      if (chains === undefined) {
+        chains = new Map();
+        writeChains.set(owner, chains);
+      }
+      const current = (chains.get(scopeKey) ?? Promise.resolve()).then(async () => {
+        await owner.cancelQueries({ queryKey, exact: true });
+        await work();
+        await owner.cancelQueries({ queryKey, exact: true });
+        await owner.invalidateQueries({
+          queryKey: modelSettingsKey,
+          refetchType: 'none',
+        });
       });
+      chains.set(
+        scopeKey,
+        current.catch(() => undefined),
+      );
+      return current;
     },
     favorite: async (choice: ModelChoice, favorite: boolean) => {
       const favorites = await writeFavorite(client)(choice, favorite);

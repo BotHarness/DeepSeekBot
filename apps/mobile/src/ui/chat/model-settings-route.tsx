@@ -9,6 +9,7 @@ import {
 import { useHostSession } from '../../host/host-session';
 import { useStrings } from '../strings';
 import { ModelsView } from './model-settings-screen';
+import { SubChoicePicker } from './sub-choice-picker';
 import { SheetNote } from './sheet';
 
 export function ModelSettingsScreen({
@@ -26,6 +27,8 @@ export function ModelSettingsScreen({
     provider = '',
     model = '',
     group = '',
+    engine = '',
+    account = '',
   } = useLocalSearchParams<{
     slug: string;
     id: string;
@@ -33,6 +36,8 @@ export function ModelSettingsScreen({
     provider: string;
     model: string;
     group: string;
+    engine: string;
+    account: string;
   }>();
   const { client, saved } = useHostSession();
   const scope: ModelScope =
@@ -59,6 +64,25 @@ export function ModelSettingsScreen({
         ? { kind: 'model', provider, model }
         : undefined;
   if (client === undefined) return <SheetNote>{t.unreachable}</SheetNote>;
+  if (pick && (field === 'sub-add' || field === 'sub-effort'))
+    return (
+      <SubChoicePicker
+        key={`${saved?.hostId}:${modelScopeKey(scope)}:${field}:${group}:${provider}/${model}:${engine}/${account}`}
+        client={client}
+        scope={scope}
+        field={field}
+        target={
+          engine === 'codex' || engine === 'claude'
+            ? {
+                kind: 'engine',
+                engine,
+                ...(account === '' ? {} : { accountId: account }),
+                ...(model === '' ? {} : { model }),
+              }
+            : effortTarget
+        }
+      />
+    );
   return (
     <ModelsView
       key={`${saved?.hostId}:${modelScopeKey(scope)}:${picker ?? ''}:${group}:${provider}/${model}`}
