@@ -307,6 +307,7 @@
       "description": "API key provider settings with template, display name, write-only key and custom endpoint and model.",
       "scope": "Host",
       "surfaces": [
+        "setting:packages/client/src/client/model-providers-settings.tsx:{provider.name}",
         "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.apiKey')}",
         "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.endpoint')}",
         "setting:packages/client/src/client/model-providers-settings.tsx:{t('modelProviders.model')}",
@@ -1105,6 +1106,7 @@
       "scope": "Host / PersonaBot",
       "surfaces": [
         "route:packages/core/src/plugin.ts:ENGINES_PATH",
+        "setting:packages/client/src/client/subscription-accounts.tsx:{ <span {...stylex.props(styles.titleLine)}> <span {...stylex.props(styles.titleText)}>{title}</span> <StatusLabel tone={state.tone} label={state.label} /> </span> }",
         "setting:packages/client/src/client/subscription-accounts.tsx:{t('modelProviders.accountEngine')}",
         "setting:packages/client/src/client/subscription-accounts.tsx:{t('modelProviders.name')}"
       ],

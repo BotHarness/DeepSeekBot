@@ -7,6 +7,7 @@ The browser reads each Remote Host Feed through its own Paired Device and the sh
 - `packages/client/src/client/remote-host*.{ts,tsx}`
 - `packages/client/src/client/features/environments/remote-host-*.ts`
 - `packages/client/src/client/owner-password-{dialog,sign-in-settings}.tsx`
+- `packages/client/src/client/connection-hosts.tsx`
 - `packages/host-client/src/{owner-sign-in,sign-in-discovery}.ts`
 - `packages/client/src/client/relationship{s,-settings}.{ts,tsx}`
 - `packages/core/src/devices/relationship*.ts`
@@ -31,6 +32,8 @@ Use `team-mode owner-sign-in status` to inspect the setting. Sign in a separate 
 On a fresh Host with Team mode off, enroll two Owner devices by password and one by QR code. On the first device, open the target **Host settings → Connections → Your password → Change**. On the Host itself, use **Settings → Team → Your password → Change**. Confirm the sign-out checkbox defaults to selected. Save the new password. The other password-enrolled device loses its live connection and its next authenticated read is refused. The device that changed the password and the QR-paired device still read the target Host Feed. Verify the old password is refused for new sign-ins and the new password works. Repeat with the checkbox cleared and verify all existing devices keep their access.
 
 For CLI parity, pass the private JSON containing `current` and `password` on stdin to `team-mode owner-password --password-stdin --sign-out-others=true --confirm`. Compare `devices` and `device-probe` results for password and QR grants, and repeat with `--sign-out-others=false`. Redact credentials from visual and console evidence.
+
+In remote Connections, check that route selection, route status and route actions share a list card, and that each paired device has its own row and revoke action in the device card. Use a narrow settings window with a long route address to check that the address and action remain readable. Compare the device list with the target Host's `devices` output.
 
 ## Reciprocal relationship (E1)
 
