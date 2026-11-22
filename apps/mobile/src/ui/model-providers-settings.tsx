@@ -376,7 +376,7 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
           if (expired) finish(true);
         },
       );
-    }, 5_000);
+    }, 15_000);
     return () => clearInterval(timer);
   }, [read]);
 

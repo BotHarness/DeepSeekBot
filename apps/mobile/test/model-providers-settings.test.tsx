@@ -232,7 +232,7 @@ it('reports a failed read after refresh and clears sign-in once the Host finishe
         account.id === 'codex-b' ? { ...account, available: true } : account,
       ),
     };
-    await act(async () => vi.advanceTimersByTime(5_000));
+    await act(async () => vi.advanceTimersByTime(15_000));
     await act(async () => undefined);
     expect(signedOut.textContent).not.toContain(t.modelProviders.signInOnComputer);
     expect(signedOut.textContent).toContain(t.modelProviders.signedIn);
@@ -309,7 +309,7 @@ it('treats a sign-in that finished while the timer was late as signed in, not ti
       ),
     };
     vi.setSystemTime(Date.now() + 300_000);
-    await act(async () => vi.advanceTimersByTime(5_000));
+    await act(async () => vi.advanceTimersByTime(15_000));
     await act(async () => undefined);
     expect(view.textContent).not.toContain(t.modelProviders.signInTimedOut);
     expect(view.textContent).toContain(t.modelProviders.signedIn);
