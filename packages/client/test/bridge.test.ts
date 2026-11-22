@@ -205,6 +205,33 @@ describe('bridge transport', () => {
     expect(calls).toEqual([['/api', 'botharness/list', { args: { limit: 5 } }, undefined]]);
   });
 
+  it('refuses a bound Group dispatch after the connection RPC is replaced', async () => {
+    const requests: string[] = [];
+    const oldRpc = {
+      call: async (_channel: string, endpoint: string) => {
+        requests.push(endpoint);
+        return { ok: true, value: {} };
+      },
+    };
+    const replacement = {
+      call: async () => {
+        throw new Error('The replacement received a Group request');
+      },
+    };
+    const ctx = { connection: { rpc: oldRpc } };
+    const call = createBridgeCall(ctx as never);
+    const bound = call.bindConnection?.();
+    if (!bound) throw new Error('Expected a live connection');
+    await bound('channelCreate', { name: 'QA', members: [] });
+    ctx.connection.rpc = replacement;
+    await expect(
+      bound('channelGroupMembersAdd', { channelId: 'group-qa', targets: [] }),
+    ).rejects.toMatchObject({
+      code: 'connection-host-changed',
+    });
+    expect(requests).toEqual(['botharness/channelCreate']);
+  });
+
   it('reports unavailable when the connection rpc is absent', async () => {
     const call = createBridgeCall({} as never);
 
@@ -2137,7 +2164,7 @@ describe('bridge actions', () => {
     const { clientStore, actions } = setup();
     await actions.load();
 
-    const channel = await actions.createGroup('Team');
+    const channel = await actions.createGroup({ name: 'Team' });
 
     expect(channel?.id).toBe('group-team');
     const state = clientStore.getSnapshot();
@@ -2156,7 +2183,7 @@ describe('bridge actions', () => {
       }),
       clientStore,
     );
-    await expect(failing.createGroup('Nope')).rejects.toThrow('bridge down');
+    await expect(failing.createGroup({ name: 'Nope' })).rejects.toThrow('bridge down');
   });
 
   it('creates a group channel as the first row of a target section', async () => {
@@ -2169,10 +2196,57 @@ describe('bridge actions', () => {
     });
     await actions.load();
 
-    await actions.createGroup('Team', 'section-work');
+    await actions.createGroup({ name: 'Team', sectionId: 'section-work' });
 
     expect(assignments).toEqual([{ channelId: 'group-team', sectionId: 'section-work', index: 0 }]);
   });
+
+  it.each([undefined, 'section-work'])(
+    'discards a scoped roster refresh after the connection changes (section %s)',
+    async (sectionId) => {
+      let startRead: (() => void) | undefined;
+      let finishRead: (() => void) | undefined;
+      const reading = new Promise<void>((resolve) => {
+        startRead = resolve;
+      });
+      const release = new Promise<void>((resolve) => {
+        finishRead = resolve;
+      });
+      const reads = {
+        rosterGet: async () => {
+          startRead?.();
+          await release;
+          return { pins: [GROUP.id], sections: [] };
+        },
+        channels: () => ({ channels: [DM] }),
+        list: () => ({ bots: [BOT] }),
+        composerIdentity: () => ({ hostId: 'old-host', profileId: 'profile', humanId: 'human' }),
+      };
+      const defaultCall = vi.fn(bridgeCall(reads));
+      const scopedCall = bridgeCall({
+        ...reads,
+        channelCreate: () => ({ channel: GROUP }),
+        topReorder: () => ({}),
+        channelAssign: () => ({}),
+      });
+      let current = true;
+      scopedCall.assertCurrent = () => {
+        if (!current) throw new BridgeCallError('connection-host-changed', 'Connection changed');
+      };
+      const clientStore = createStore();
+      const actions = createActions(defaultCall, clientStore);
+      const rejected = expect(
+        actions.createGroup({ name: 'Team', sectionId, scopedCall }),
+      ).rejects.toMatchObject({ code: 'connection-host-changed' });
+      await reading;
+      const snapshot = clientStore.getSnapshot();
+      current = false;
+      finishRead?.();
+      await rejected;
+      expect(clientStore.getSnapshot()).toBe(snapshot);
+      expect(defaultCall).not.toHaveBeenCalled();
+    },
+  );
 
   it('can send the first DM immediately after creating a PersonaBot', async () => {
     const creates: Array<Record<string, unknown>> = [];

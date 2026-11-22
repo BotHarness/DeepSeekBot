@@ -87,6 +87,7 @@ export const INBOX_COMMANDS = [
   },
   { command: 'channel-assignments', description: "list a group Channel's assignment work" },
   { command: 'channel-assign', description: 'move a Channel into a sidebar section or out of it' },
+  { command: 'session-list', description: 'list accessible root Sessions on the Host' },
   { command: 'session-ids', description: 'list the root Session IDs owned by Bots' },
   { command: 'session-owner', description: 'read which Bot owns a Session, and in which role' },
   {
@@ -96,8 +97,7 @@ export const INBOX_COMMANDS = [
   },
   {
     command: 'session-send',
-    description:
-      "send a message straight into a Bot's current Orchestrator Session, without posting it in a Channel",
+    description: "continue a native Session or a Bot's current Orchestrator Session directly",
   },
   {
     command: 'bot-stop',
@@ -525,7 +525,12 @@ function prepare(
       return { method: 'sessionProgress', args: { slug, sessionIds } };
     }
     case 'session-model': {
-      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      const [slug = null] = positionals(
+        command,
+        rest,
+        Math.min(rest.length, 1),
+        'at most one bot id',
+      );
       const sessionId = required(values.session, 'session', command);
       if (values.set !== undefined && values.clear === true)
         usage('session-model accepts one of --set and --clear.');
@@ -543,15 +548,28 @@ function prepare(
         usage('session-model --set needs a model, engine or Routing Group choice.');
       return { method: 'sessionModel', args: { slug, sessionId, choice } };
     }
+    case 'session-list':
+      positionals(command, rest, 0, '');
+      return { method: 'sessionList', args: {} };
     case 'session-transcript': {
-      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      const [slug = null] = positionals(
+        command,
+        rest,
+        Math.min(rest.length, 1),
+        'at most one bot id',
+      );
       return {
         method: 'sessionTranscript',
         args: { slug, sessionId: required(values.session, 'session', command) },
       };
     }
     case 'session-live': {
-      const [slug] = positionals(command, rest, 1, 'exactly one bot id');
+      const [slug = null] = positionals(
+        command,
+        rest,
+        Math.min(rest.length, 1),
+        'at most one bot id',
+      );
       const after = values.after === undefined ? undefined : Number(values.after);
       if (after !== undefined && !Number.isSafeInteger(after))
         usage('session-live --after needs an integer revision.');
@@ -626,6 +644,15 @@ function prepare(
       };
     }
     case 'session-send': {
+      if (rest.length === 2) {
+        const [sessionId] = positionals(
+          command,
+          rest,
+          2,
+          'a native Session id and the message text',
+        );
+        return { method: 'sessionMessageSend', args: { botSlug: null, sessionId, text: rest[1] } };
+      }
       const [botSlug, sessionId] = positionals(
         command,
         rest,

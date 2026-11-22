@@ -100,9 +100,6 @@
   "packages/client/src/client/channel-activity-view.tsx": {
     "rawControl": 2
   },
-  "packages/client/src/client/channel-add-people.tsx": {
-    "rawControl": 1
-  },
   "packages/client/src/client/channel-delivery-receipt.tsx": {
     "rawControl": 2,
     "inlineStyle": 1

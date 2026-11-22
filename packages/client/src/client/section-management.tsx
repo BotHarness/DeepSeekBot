@@ -6,7 +6,16 @@ import { useRef, useState, type ReactElement, type ReactNode } from 'react';
 import { type MenuEntry, type MenuItem } from './ds/menu.js';
 
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
-import { BridgeCallError, errorMessage } from './bridge.js';
+import { BridgeCallError, errorMessage, type BridgeCall } from './bridge.js';
+import {
+  GroupMemberPicker,
+  GroupMemberResults,
+  groupSelectionNeedsOwner,
+  useGroupMemberBatch,
+  type PickedGroupMember,
+  type GroupBotPortrait,
+} from './group-member-picker.js';
+import type { ChannelSummary } from './store.js';
 import { ungroupedLabel } from './labels.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { ConfirmDialog, FormDialog, type DialogLabels } from './ds/form-dialog.js';
@@ -287,8 +296,16 @@ export interface CreateChannelModalProps {
   targetUnavailable?: boolean;
   sectionName?: string | undefined;
   t: BotHarnessTranslate;
+  members?:
+    | { scope: string; call: BridgeCall; botPortrait?: GroupBotPortrait | undefined }
+    | undefined;
   onCancel: () => void;
-  onCreate: (name: string) => Promise<void>;
+  onCreate: (
+    name: string,
+    operationKey: string,
+    onDispatch: () => void,
+  ) => Promise<ChannelSummary | void>;
+  onMembersChanged?: ((channel: ChannelSummary) => void) | undefined;
 }
 
 export function CreateChannelModal({
@@ -297,21 +314,70 @@ export function CreateChannelModal({
   target,
   targetUnavailable = false,
   sectionName,
+  members,
   t,
   onCancel,
   onCreate,
+  onMembersChanged,
 }: CreateChannelModalProps): ReactElement {
   const [draft, setDraft] = useState('');
   const [creating, setCreating] = useState(false);
   const pending = useRef(false);
   const [error, setError] = useState<string | undefined>(undefined);
+  const [selection, setSelection] = useState<{
+    scope: string | undefined;
+    call: BridgeCall | undefined;
+    members: PickedGroupMember[];
+  }>({
+    scope: members?.scope,
+    call: members?.call,
+    members: [],
+  });
+  const [submittedHere, setSubmittedHere] = useState(false);
+  const scope = members?.scope;
+  const pickerCall = members?.call;
+  const sameHost = selection.scope === scope && selection.call === pickerCall;
+  if (!sameHost && !submittedHere) setSelection({ scope, call: pickerCall, members: [] });
+  const bindingChanged = submittedHere && !sameHost;
+  const selected = bindingChanged ? [] : selection.members;
+  const createKey = useRef<string>();
+  const created = useRef<ChannelSummary>();
+  const batch = useGroupMemberBatch();
   const trimmed = draft.trim();
+  const missingOwner = !batch.items && groupSelectionNeedsOwner(selected);
   const submit = (): void => {
-    if (pending.current || !hasVisibleText(trimmed) || targetUnavailable) return;
+    if (batch.complete) {
+      onCancel();
+      return;
+    }
+    if (
+      pending.current ||
+      !hasVisibleText(trimmed) ||
+      targetUnavailable ||
+      bindingChanged ||
+      missingOwner
+    )
+      return;
     pending.current = true;
     setCreating(true);
     setError(undefined);
-    void onCreate(trimmed).then(
+    const run = async () => {
+      if (!created.current) {
+        const operationKey = createKey.current ?? crypto.randomUUID();
+        created.current =
+          (await onCreate(trimmed, operationKey, () => {
+            createKey.current = operationKey;
+            setSubmittedHere(true);
+          })) ?? undefined;
+      }
+      if (!members || selected.length === 0 || !created.current) {
+        if (created.current) onCancel();
+        return;
+      }
+      await batch.apply(members.call, created.current.id, selected);
+      onMembersChanged?.(created.current);
+    };
+    void run().then(
       () => {
         pending.current = false;
         setCreating(false);
@@ -334,25 +400,36 @@ export function CreateChannelModal({
           ? t('channel.create.title')
           : t('channel.create.inSection', { name: sectionName })
       }
-      labels={dialogLabels(t)}
+      labels={batch.items ? { ...dialogLabels(t), cancel: t('common.close') } : dialogLabels(t)}
       submitLabel={t(
-        committed
-          ? 'environment.create.finish'
-          : submitted
-            ? 'environment.create.retry'
-            : 'common.create',
+        batch.complete
+          ? 'common.close'
+          : batch.items
+            ? 'groupMembers.retry'
+            : committed
+              ? 'environment.create.finish'
+              : submitted || submittedHere
+                ? 'environment.create.retry'
+                : 'common.create',
       )}
-      submitDisabled={!hasVisibleText(trimmed) || targetUnavailable}
+      submitDisabled={
+        !batch.complete &&
+        (!hasVisibleText(trimmed) || targetUnavailable || bindingChanged || missingOwner)
+      }
       busy={creating}
+      showCancel={!batch.complete}
+      scroll
       error={
         error === undefined
           ? undefined
           : t(
-              committed
-                ? 'environment.create.finishFailed'
-                : submitted
-                  ? 'environment.create.unknown'
-                  : 'create.failed',
+              batch.items
+                ? 'groupMembers.unconfirmed'
+                : committed
+                  ? 'environment.create.finishFailed'
+                  : submitted || submittedHere
+                    ? 'environment.create.unknown'
+                    : 'create.failed',
               { error },
             )
       }
@@ -364,13 +441,26 @@ export function CreateChannelModal({
       {target}
       <TextField
         label={t('channel.name.label')}
-        disabled={creating || committed || submitted}
+        disabled={creating || committed || submitted || submittedHere}
         placeholder={t('channel.name.placeholder')}
         value={draft}
         onChange={setDraft}
         maxLength={CHANNEL_NAME_MAX}
         initialFocus
       />
+      {batch.items ? (
+        <GroupMemberResults items={batch.items} busy={creating} t={t} />
+      ) : members && !targetUnavailable && !bindingChanged ? (
+        <GroupMemberPicker
+          key={scope}
+          call={members.call}
+          botPortrait={members.botPortrait}
+          t={t}
+          selected={selected}
+          disabled={creating || submitted || submittedHere}
+          onChange={(members) => setSelection({ scope, call: pickerCall, members })}
+        />
+      ) : null}
     </FormDialog>
   );
 }

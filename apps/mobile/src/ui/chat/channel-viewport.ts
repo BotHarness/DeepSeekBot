@@ -2,16 +2,15 @@ import { useCallback, useMemo, useRef, useState, type RefObject } from 'react';
 import type { FlatList, LayoutChangeEvent } from 'react-native';
 import { useSharedValue, useReducedMotion } from 'react-native-reanimated';
 
-import type { ConversationMessage } from '@botharness/host-client/conversation';
 import { nativeChatRecycler } from '../primitives/chat-recycler';
 import { useChatScrollAdapter, useChatOverlayStyle } from '../primitives/chat-scroll';
-import { useFollowLatest } from './follow-latest';
+import { useFollowLatest, type FollowedRow } from './follow-latest';
 import type { ComposerPill } from './composer-pill';
 import { LatestAnchor } from './latest-anchor';
 
 export function useChannelViewport<Row>(
   list: RefObject<Pick<FlatList<Row>, 'scrollToOffset'> | null>,
-  messages: readonly ConversationMessage[],
+  messages: readonly FollowedRow[],
   onFollowingChange: ((following: boolean) => void) | undefined,
   start: number,
   empty: boolean,

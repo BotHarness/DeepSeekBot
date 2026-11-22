@@ -34,6 +34,9 @@ const symbols = {
   unpin: { ios: 'pin.slash', android: 'keep_off' },
   mute: { ios: 'bell.slash', android: 'notifications_off' },
   unmute: { ios: 'bell', android: 'notifications_active' },
+  archive: { ios: 'archivebox', android: 'archive' },
+  unarchive: { ios: 'arrow.uturn.backward', android: 'unarchive' },
+  model: { ios: 'cpu', android: 'memory' },
   stop: { ios: 'stop.circle', android: 'stop_circle' },
 } as const;
 

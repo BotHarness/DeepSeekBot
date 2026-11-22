@@ -6,7 +6,7 @@ import { createTempRoot, createTestOwnership } from './helpers.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { TeamService } from '../src/team/service.js';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
-import { createBridgeMethodsForHumans } from '../src/bridge/methods.js';
+import { createBridgeMethodsForHumans, type BridgeMethodsDeps } from '../src/bridge/methods.js';
 import { createCore } from '../src/plugin.js';
 import { createTestRosterStore } from './roster-fixture.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
@@ -20,7 +20,9 @@ afterEach(async () => {
 export const alice = humanContext('alice'),
   bob = humanContext('bob'),
   carol = humanContext('carol');
-export function fixture() {
+export function fixture(
+  sessions: Pick<BridgeMethodsDeps, 'nativeSessions' | 'readSessionTitles' | 'sessionLive'> = {},
+) {
   const root = createTempRoot('m7-visibility-');
   const registry = createTestRegistry({ rootDir: root });
   const database = registryDatabase(root);
@@ -48,15 +50,17 @@ export function fixture() {
   }
   closes.push(() => database.close());
   const states = createBotStateTracker();
+  const ownership = createTestOwnership();
   const bridge = createBridgeMethodsForHumans({
     registry,
     channels,
     team,
     states,
-    ownership: createTestOwnership(),
+    ownership,
+    ...sessions,
     roster: createTestRosterStore({ database }),
   });
-  return { root, registry, database, db, channels, team, bridge, states };
+  return { root, registry, database, db, channels, team, bridge, states, ownership };
 }
 export function proactiveFixture(teamEnabled: boolean) {
   const root = createTempRoot('m7-proactive-');

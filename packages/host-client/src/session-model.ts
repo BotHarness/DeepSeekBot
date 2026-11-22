@@ -48,7 +48,7 @@ export async function ownedSessions(host: HostCall, slug: string, includeTitles?
 
 export async function sessionModel(
   host: HostCall,
-  slug: string,
+  slug: string | null,
   sessionId: string,
   choice?: SessionModelChoice | null,
 ): Promise<SessionModelState> {

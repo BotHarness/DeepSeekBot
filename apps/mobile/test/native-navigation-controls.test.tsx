@@ -153,3 +153,34 @@ it('shows the native Settings gear and opens it without selecting a new tab', as
     host.remove();
   }
 });
+
+it('opens the optional Sessions tab from its own native icon and label', async () => {
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const open = vi.fn();
+  try {
+    await act(async () =>
+      root.render(
+        <NavigationDestinations
+          items={[
+            {
+              key: 'sessions',
+              focused: false,
+              activity: false,
+              sessions: true,
+              count: 0,
+              onPress: open,
+              onLongPress: () => {},
+            },
+          ]}
+        />,
+      ),
+    );
+    const tab = host.querySelector<HTMLButtonElement>('button[aria-label="Sessions"]');
+    expect(tab?.querySelector('i')?.title).toBe('text.quote');
+    await act(async () => tab?.click());
+    expect(open).toHaveBeenCalledOnce();
+  } finally {
+    act(() => root.unmount());
+  }
+});

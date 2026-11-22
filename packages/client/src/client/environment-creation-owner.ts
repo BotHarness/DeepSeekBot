@@ -6,6 +6,7 @@ import {
   createPersonaBot,
   type CreatePersonaBotInput,
   type CreatedBot,
+  type BridgeCall,
   openDmChannel,
   BridgeCallError,
 } from './bridge.js';
@@ -52,15 +53,21 @@ export function localCreationOwner(
       }
       return botReceipt;
     },
-    async createGroup(name: string, sectionId?: string) {
-      channelInput ??= { name, operationKey: key() };
+    async createGroup(
+      name: string,
+      sectionId?: string,
+      binding?: { operationKey: string; call: BridgeCall },
+    ) {
+      binding?.call.assertCurrent?.();
+      channelInput ??= { name, operationKey: binding?.operationKey ?? key() };
       if (!channelReceipt) {
         lifecycle.submitted();
-        channelReceipt = await actions.createGroup(
-          channelInput.name,
+        channelReceipt = await actions.createGroup({
+          name: channelInput.name,
           sectionId,
-          channelInput.operationKey,
-        );
+          operationKey: channelInput.operationKey,
+          scopedCall: binding?.call,
+        });
         if (channelReceipt) lifecycle.committed();
       }
       return channelReceipt;
@@ -138,9 +145,10 @@ export function remoteCreationOwner({
       if (botReceipt.httpsFallback === undefined) await openBot(botReceipt, sectionId);
       return botReceipt;
     },
-    async channel(name: string, sectionId?: string) {
+    async channel(name: string, sectionId?: string, operationKey?: string) {
+      check();
       if (!channelReceipt) {
-        channelInput ??= { name, operationKey: key() };
+        channelInput ??= { name, operationKey: operationKey ?? key() };
         submitted();
         channelReceipt = await createGroupChannel(
           call,

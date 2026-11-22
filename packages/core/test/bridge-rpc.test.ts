@@ -83,6 +83,26 @@ function parameterNames(method: (...args: never[]) => unknown): string[] {
 }
 
 describe('bridge typert service', () => {
+  it.each([true, false])(
+    'forwards the Owner password sign-out choice %s',
+    async (signOutOthers) => {
+      const { service, methods } = setup();
+      const set = vi.spyOn(methods, 'teamOwnerPasswordSet');
+      await expect(
+        service.teamOwnerPasswordSet(
+          'next-owner-password',
+          'current-owner-password',
+          signOutOthers,
+        ),
+      ).rejects.toMatchObject({ code: 'unavailable' });
+      expect(set).toHaveBeenCalledWith({
+        password: 'next-owner-password',
+        current: 'current-owner-password',
+        signOutOthers,
+      });
+    },
+  );
+
   it('reuses one method table per Human across RPC calls', () => {
     const { service, methods, methodsForHuman } = setup();
     const identity = vi.spyOn(methods, 'humanIdentity');
@@ -566,6 +586,7 @@ describe('bridge typert service', () => {
       'orchestratorGroupEffort',
       'orchestratorEngine',
       'assignmentEngine',
+      'sub',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -583,6 +604,7 @@ describe('bridge typert service', () => {
       'orchestratorEngine',
       'assignmentEngine',
       'assignmentFollowsMain',
+      'sub',
     ]);
     expect(parameterNames(service.modelPlanSet)).toEqual([
       'slug',
@@ -596,7 +618,10 @@ describe('bridge typert service', () => {
       'assignmentDefaultGroupId',
       'assignmentGroupOptions',
       'orchestratorGroupEffort',
+      'sub',
     ]);
+    expect(parameterNames(service.modelPlanSub)).toEqual(['slug']);
+    expect(parameterNames(service.modelPlanSubSet)).toEqual(['slug', 'expectedRevision', 'sub']);
     const planSet = vi
       .spyOn(methods, 'modelPlanSet')
       .mockResolvedValue({ ok: true, value: { plan: {} as never } });
@@ -781,6 +806,7 @@ describe('bridge typert service', () => {
       'orchestratorGroupEffort',
       'orchestratorEngine',
       'assignmentEngine',
+      'sub',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -798,6 +824,7 @@ describe('bridge typert service', () => {
       'orchestratorEngine',
       'assignmentEngine',
       'assignmentFollowsMain',
+      'sub',
     ]);
     const route = { provider: 'official', model: 'fast', reasoningEffort: 'high' };
     const assignmentModels = [

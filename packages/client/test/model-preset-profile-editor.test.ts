@@ -1,12 +1,16 @@
 // @vitest-environment jsdom
 import {
+  addTask,
   button,
+  labelled,
   cards,
   catalog,
   choose,
+  modelSub,
   openEditor,
   openPicker,
   picked,
+  taskTiles,
   translate,
 } from './model-preset-profile-fixtures.js';
 import { type Root } from 'react-dom/client';
@@ -64,14 +68,14 @@ function presetPlan(preset: ModelPresetView, revision: number): ModelPlanView {
 describe('Model entry', () => {
   it('opens the composer editor directly and cancels without writing either model', async () => {
     const onClose = vi.fn();
-    const setModelPlan = vi.fn();
+    const setModelPlanSub = vi.fn();
     const applyModelPreset = vi.fn();
     await render(
       {
         modelPlanState: vi.fn(async () => ({})),
         modelCatalog: vi.fn(async () => ({ models: catalog })),
         modelPresets: vi.fn(async () => []),
-        setModelPlan,
+        setModelPlanSub,
         applyModelPreset,
       } as unknown as BridgeActions,
       onClose,
@@ -79,15 +83,14 @@ describe('Model entry', () => {
     expect(document.querySelectorAll('[role="dialog"]')).toHaveLength(1);
     expect(document.querySelector('.bh-model-entry > .bh-card-list')).toBeNull();
     expect(picked('Main model')).toBe('Flash');
-    expect(picked('Task model')).toBe('Inherit global');
-    await choose('Task model', 'pro', 'Pro');
+    expect(taskTiles()).toEqual([expect.stringContaining('Same as main model')]);
+    await addTask('pro', 'Pro');
     await act(async () => button('Cancel').click());
     expect(onClose).toHaveBeenCalledOnce();
-    expect(setModelPlan).not.toHaveBeenCalled();
+    expect(setModelPlanSub).not.toHaveBeenCalled();
     expect(applyModelPreset).not.toHaveBeenCalled();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
-
   it('explains an empty preset list and preserves the model draft when switching back', async () => {
     await render(
       {
@@ -97,20 +100,19 @@ describe('Model entry', () => {
       } as unknown as BridgeActions,
       vi.fn(),
     );
-    await choose('Task model', 'pro', 'Pro');
+    await addTask('pro', 'Pro');
     await act(async () => button('Choose preset').click());
     expect(document.body.textContent).toContain('No Model Presets yet');
     expect(document.querySelector('input[aria-label="Main model"]')).toBeNull();
     expect(button('Save').disabled).toBe(true);
     await act(async () => button('Specific models').click());
     expect(picked('Main model')).toBe('Flash');
-    expect(picked('Task model')).toBe('Pro');
+    expect(taskTiles()).toEqual([expect.stringContaining('Pro')]);
     expect(button('Save').disabled).toBe(false);
   });
-
   it('does not materialize an inherited plan when the composer saves without edits', async () => {
     const customizeModelPlan = vi.fn();
-    const setModelPlan = vi.fn();
+    const setModelPlanSub = vi.fn();
     const applyModelPreset = vi.fn();
     await render(
       {
@@ -118,20 +120,19 @@ describe('Model entry', () => {
         modelCatalog: vi.fn(async () => ({ models: catalog })),
         modelPresets: vi.fn(async () => []),
         customizeModelPlan,
-        setModelPlan,
+        setModelPlanSub,
         applyModelPreset,
       } as unknown as BridgeActions,
       vi.fn(),
     );
     expect(picked('Main model')).toBe('Flash');
-    expect(picked('Task model')).toBe('Inherit global');
+    expect(taskTiles()).toEqual([expect.stringContaining('Same as main model')]);
     expect(button('Save').disabled).toBe(true);
     await act(async () => button('Save').click());
     expect(customizeModelPlan).not.toHaveBeenCalled();
-    expect(setModelPlan).not.toHaveBeenCalled();
+    expect(setModelPlanSub).not.toHaveBeenCalled();
     expect(applyModelPreset).not.toHaveBeenCalled();
   });
-
   it('keeps tasks inherited after a composer main-only edit without a plan', async () => {
     const orchestrator = { provider: 'deepseek', model: 'pro' };
     const customizeModelPlan = vi.fn(async () => ({
@@ -141,25 +142,33 @@ describe('Model entry', () => {
       appliedAt: '',
       orchestrator,
     }));
-    const setModelPlan = vi.fn();
+    const setModelPlanSub = vi.fn();
     await render(
       {
         modelPlanState: vi.fn(async () => ({ revision: 3 })),
         modelCatalog: vi.fn(async () => ({ models: catalog })),
-        modelPresets: vi.fn(async () => []),
+        modelPresets: vi.fn(async () => [
+          {
+            id: 'default',
+            name: 'Default',
+            revision: 1,
+            orchestrator: catalog[0]!,
+            assignmentDefault: { provider: 'kimi', model: 'k2' },
+            createdAt: '',
+          },
+        ]),
         customizeModelPlan,
-        setModelPlan,
+        setModelPlanSub,
       } as unknown as BridgeActions,
       vi.fn(),
     );
+    expect(taskTiles()).toEqual([expect.stringContaining('Kimi K2')]);
     await choose('Main model', 'pro', 'Pro');
-    expect(picked('Task model')).toBe('Inherit global');
     await act(async () => button('Save').click());
     expect(customizeModelPlan).toHaveBeenCalledExactlyOnceWith('ada', orchestrator, 3);
-    expect(setModelPlan).not.toHaveBeenCalled();
+    expect(setModelPlanSub).not.toHaveBeenCalled();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
-
   it('saves a task-only edit from the composer without changing the main model', async () => {
     const plan: ModelPlanView = {
       revision: 4,
@@ -170,30 +179,30 @@ describe('Model entry', () => {
       assignmentDefault: { provider: 'deepseek', model: 'flash' },
     };
     const onClose = vi.fn();
-    const setModelPlan = vi.fn(async () => ({ ...plan, revision: 5 }));
+    const setModelPlanSub = vi.fn(async () => ({ ...plan, revision: 5 }));
     await render(
       {
         modelPlanState: vi.fn(async () => ({ plan })),
         modelCatalog: vi.fn(async () => ({ models: catalog })),
         modelPresets: vi.fn(async () => []),
-        setModelPlan,
+        setModelPlanSub,
       } as unknown as BridgeActions,
       onClose,
     );
-    await choose('Task model', 'pro', 'Pro');
+    expect(taskTiles()).toEqual([expect.stringContaining('Flash')]);
+    await addTask('pro', 'Pro');
+    await act(async () => labelled('Remove Flash').click());
     await act(async () => button('Save').click());
-    expect(setModelPlan).toHaveBeenCalledExactlyOnceWith(
+    expect(setModelPlanSub).toHaveBeenCalledExactlyOnceWith(
       'ada',
       4,
-      plan.orchestrator,
-      { provider: 'deepseek', model: 'pro' },
-      [{ provider: 'deepseek', model: 'pro', allowedEfforts: [''], defaultEffort: '' }],
+      { orchestrator: plan.orchestrator, orchestratorGroupId: null, orchestratorGroupEffort: null },
+      modelSub({ provider: 'deepseek', model: 'pro' }),
     );
     expect(onClose).toHaveBeenCalledOnce();
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
-
-  it('opens Assignments to any model with the switch and shows it on the card', async () => {
+  it('drops the retired any-model switch from the Task model editor', async () => {
     const plan: ModelPlanView = {
       revision: 4,
       sourcePresetId: '',
@@ -201,40 +210,21 @@ describe('Model entry', () => {
       appliedAt: '',
       orchestrator: { provider: 'deepseek', model: 'flash', reasoningEffort: 'high' },
       assignmentDefault: { provider: 'deepseek', model: 'flash' },
+      openAssignmentModels: true,
     };
-    const onClose = vi.fn();
-    const setModelPlan = vi.fn(async () => ({
-      ...plan,
-      revision: 5,
-      openAssignmentModels: true as const,
-    }));
     await render(
       {
         modelPlanState: vi.fn(async () => ({ plan })),
         modelCatalog: vi.fn(async () => ({ models: catalog })),
         modelPresets: vi.fn(async () => []),
-        setModelPlan,
       } as unknown as BridgeActions,
-      onClose,
+      vi.fn(),
     );
-    const toggle = document.querySelector<HTMLButtonElement>(
-      'button[role="switch"][aria-label="Allow any model"]',
-    )!;
-    expect(toggle.getAttribute('aria-checked')).toBe('false');
-    await act(async () => toggle.click());
-    expect(toggle.getAttribute('aria-checked')).toBe('true');
-    await act(async () => button('Save').click());
-    expect(setModelPlan).toHaveBeenCalledExactlyOnceWith(
-      'ada',
-      4,
-      plan.orchestrator,
-      { provider: 'deepseek', model: 'flash' },
-      [{ provider: 'deepseek', model: 'flash', allowedEfforts: [''], defaultEffort: '' }],
-      true,
-    );
-    expect(onClose).toHaveBeenCalledOnce();
+    expect(
+      document.querySelector('button[role="switch"][aria-label="Allow any model"]'),
+    ).toBeNull();
+    expect(document.querySelector('[aria-label="Task model mode"]')).toBeNull();
   });
-
   it('keeps the editor and draft open after a rejected save', async () => {
     const onClose = vi.fn();
     await render(
@@ -242,19 +232,18 @@ describe('Model entry', () => {
         modelPlanState: vi.fn(async () => ({})),
         modelCatalog: vi.fn(async () => ({ models: catalog })),
         modelPresets: vi.fn(async () => []),
-        setModelPlan: vi.fn(async () => {
+        setModelPlanSub: vi.fn(async () => {
           throw new Error('Revision conflict');
         }),
       } as unknown as BridgeActions,
       onClose,
     );
-    await choose('Task model', 'pro', 'Pro');
+    await addTask('pro', 'Pro');
     await act(async () => button('Save').click());
     expect(document.querySelector('[role="alert"]')?.textContent).toContain('Revision conflict');
-    expect(picked('Task model')).toBe('Pro');
+    expect(taskTiles()).toEqual([expect.stringContaining('Pro')]);
     expect(onClose).not.toHaveBeenCalled();
   });
-
   it('explains an ambiguous legacy model before the editor opens', async () => {
     const host = await render({
       modelPlanState: vi.fn(async () => ({
@@ -274,21 +263,18 @@ describe('Model entry', () => {
 
   it('sets the main and task models directly without any preset', async () => {
     let plan: ModelPlanView | undefined;
-    const setModelPlan = vi.fn(
+    const setModelPlanSub = vi.fn(
       async (
         _slug: string,
         _revision: number,
-        orchestrator: ModelPlanView['orchestrator'],
-        assignmentDefault: NonNullable<ModelPlanView['assignmentDefault']>,
-        assignmentModels: NonNullable<ModelPlanView['assignmentModels']>,
+        main: { orchestrator?: ModelPlanView['orchestrator'] },
       ) => {
         plan = {
           revision: 1,
           sourcePresetId: '',
           sourcePresetName: '',
-          orchestrator,
-          assignmentDefault,
-          assignmentModels,
+          orchestrator: main.orchestrator!,
+          assignmentDefault: { provider: 'kimi', model: 'k2' },
           appliedAt: '',
         };
         return plan;
@@ -298,7 +284,7 @@ describe('Model entry', () => {
       modelPlanState: vi.fn(async () => (plan === undefined ? {} : { plan })),
       modelPresets: vi.fn(async () => []),
       modelCatalog: vi.fn(async () => ({ models: catalog })),
-      setModelPlan,
+      setModelPlanSub,
     } as unknown as BridgeActions);
     expect(cards(host)).toContain('Inherit global');
     await openEditor(host);
@@ -312,15 +298,18 @@ describe('Model entry', () => {
         )!
         .click(),
     );
-    await choose('Task model', 'moon', 'Kimi K2');
+    await addTask('moon', 'Kimi K2');
     await act(async () => button('Save').click());
 
-    expect(setModelPlan).toHaveBeenCalledExactlyOnceWith(
+    expect(setModelPlanSub).toHaveBeenCalledExactlyOnceWith(
       'ada',
       0,
-      { provider: 'deepseek', model: 'flash', reasoningEffort: 'high' },
-      { provider: 'kimi', model: 'k2' },
-      [{ provider: 'kimi', model: 'k2', allowedEfforts: [''], defaultEffort: '' }],
+      {
+        orchestrator: { provider: 'deepseek', model: 'flash', reasoningEffort: 'high' },
+        orchestratorGroupId: null,
+        orchestratorGroupEffort: null,
+      },
+      modelSub({ provider: 'kimi', model: 'k2' }),
     );
     expect(document.querySelector('[role="dialog"]')).toBeNull();
     expect(cards(host)).toContain('Main model');
@@ -329,10 +318,9 @@ describe('Model entry', () => {
     expect(cards(host)).toContain('k2 · Default');
     expect(document.body.querySelectorAll('.bh-model-entry button.bh-card-main')).toHaveLength(1);
   });
-
   it('preselects the DSH default model and offers keyless providers as unpickable', async () => {
     const k2 = { provider: 'kimi', model: 'k2' };
-    const setModelPlan = vi.fn(async (): Promise<ModelPlanView> => ({
+    const setModelPlanSub = vi.fn(async (): Promise<ModelPlanView> => ({
       revision: 1,
       sourcePresetId: '',
       sourcePresetName: '',
@@ -351,12 +339,12 @@ describe('Model entry', () => {
         ],
         default: { provider: 'kimi', model: 'k2' },
       })),
-      setModelPlan,
+      setModelPlanSub,
     } as unknown as BridgeActions);
     await openEditor(document.body);
 
     expect(picked('Main model')).toBe('Kimi K2');
-    expect(picked('Task model')).toBe('Inherit global');
+    expect(taskTiles()).toEqual([expect.stringContaining('Same as main model')]);
     await openPicker('Main model');
     const options = [...document.querySelectorAll<HTMLButtonElement>('[role="option"]')];
     expect(options.map((option) => [option.getAttribute('aria-label'), option.disabled])).toEqual([
@@ -367,24 +355,15 @@ describe('Model entry', () => {
     await openPicker('Main model');
 
     expect(button('Save').disabled).toBe(true);
-    await choose('Task model', 'k2', 'Kimi K2');
+    await addTask('k2', 'Kimi K2');
     await act(async () => button('Save').click());
-    expect(setModelPlan).toHaveBeenCalledWith(
+    expect(setModelPlanSub).toHaveBeenCalledWith(
       'ada',
       0,
-      { provider: 'kimi', model: 'k2' },
-      { provider: 'kimi', model: 'k2' },
-      [
-        {
-          provider: 'kimi',
-          model: 'k2',
-          allowedEfforts: [''],
-          defaultEffort: '',
-        },
-      ],
+      { orchestrator: k2, orchestratorGroupId: null, orchestratorGroupEffort: null },
+      modelSub(k2),
     );
   });
-
   it('fills from a preset, applies it untouched, and unlinks it after an edit', async () => {
     const flash = { provider: 'deepseek', model: 'flash', reasoningEffort: 'low' };
     const pro = { provider: 'deepseek', model: 'pro' };
@@ -414,7 +393,8 @@ describe('Model entry', () => {
       );
       return plan;
     });
-    const setModelPlan = vi.fn(async () => {
+    const setModelPlanSub = vi.fn();
+    const customizeModelPlan = vi.fn(async () => {
       plan = { ...plan, revision: plan.revision + 1, sourcePresetId: '', sourcePresetName: '' };
       return plan;
     });
@@ -423,13 +403,14 @@ describe('Model entry', () => {
       modelPresets: vi.fn(async () => presets),
       modelCatalog: vi.fn(async () => ({ models: catalog })),
       applyModelPreset,
-      setModelPlan,
+      setModelPlanSub,
+      customizeModelPlan,
     } as unknown as BridgeActions);
     expect(cards(host)).toContain('Daily');
 
     await openEditor(host);
     expect(picked('Main model')).toBe('Flash');
-    expect(picked('Task model')).toBe('Pro');
+    expect(taskTiles()).toEqual([expect.stringContaining('Pro')]);
     expect(document.querySelector('[data-model-preset-source]')).toBeNull();
     await act(async () => button('Choose preset').click());
     expect(document.querySelector('[data-model-preset-source]')?.textContent).toContain(
@@ -446,7 +427,7 @@ describe('Model entry', () => {
     );
     await act(async () => button('Save').click());
     expect(applyModelPreset).toHaveBeenCalledExactlyOnceWith('ada', 'deep');
-    expect(setModelPlan).not.toHaveBeenCalled();
+    expect(setModelPlanSub).not.toHaveBeenCalled();
     expect(cards(host)).toContain('Deep');
     expect(cards(host)).toContain('flash · high');
 
@@ -463,13 +444,12 @@ describe('Model entry', () => {
     expect(button('Save').disabled).toBe(true);
     await act(async () => button('Specific models').click());
     await act(async () => button('Save').click());
-    expect(setModelPlan).toHaveBeenCalledWith(
+    expect(customizeModelPlan).toHaveBeenCalledWith(
       'ada',
-      2,
       { provider: 'deepseek', model: 'flash' },
-      pro,
-      [{ provider: 'deepseek', model: 'pro', allowedEfforts: [''], defaultEffort: '' }],
+      2,
     );
+    expect(setModelPlanSub).not.toHaveBeenCalled();
     expect(cards(host)).not.toContain('Deep');
   });
 
@@ -488,7 +468,7 @@ describe('Model entry', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull();
   });
 
-  it('switches the task model to advanced cards with notes, efforts and a chosen default', async () => {
+  it('lists task models with notes, an effort and a chosen default', async () => {
     const route = { provider: 'deepseek', model: 'pro' };
     const plan: ModelPlanView = {
       revision: 2,
@@ -498,38 +478,28 @@ describe('Model entry', () => {
       assignmentDefault: route,
       appliedAt: '',
     };
-    const setModelPlan = vi.fn(async () => plan);
+    const setModelPlanSub = vi.fn(async () => plan);
     const host = await render({
       modelPlanState: vi.fn(async () => ({ plan })),
       modelPresets: vi.fn(async () => []),
       modelCatalog: vi.fn(async () => ({ models: catalog })),
-      setModelPlan,
+      setModelPlanSub,
     } as unknown as BridgeActions);
     await openEditor(host);
-    const mode = (name: string) =>
-      document.querySelector<HTMLButtonElement>(
-        `[aria-label="Task model mode"] [role="tab"]:${name === 'Simple' ? 'first' : 'last'}-child`,
-      )!;
-    expect(mode('Simple').getAttribute('aria-selected')).toBe('true');
-    expect(picked('Task model')).toBe('Pro');
-    await act(async () => mode('Advanced').click());
-    expect(mode('Advanced').getAttribute('aria-selected')).toBe('true');
-    expect(document.querySelector('input[role="combobox"][aria-label="Task model"]')).toBeNull();
-    await openPicker('Add an allowed model');
+    expect(taskTiles()).toEqual([expect.stringContaining('Pro')]);
+    await openPicker('Add a task model');
     expect(document.querySelector('[data-picker-filter="all"]')).not.toBeNull();
     expect(document.querySelector('[data-picker-filter="deepseek"]')).not.toBeNull();
-    await openPicker('Add an allowed model');
+    await openPicker('Add a task model');
 
-    await choose('Add an allowed model', 'kimi', 'Kimi K2');
-    await choose('Add an allowed model', 'flash', 'Flash');
-    const card = (name: string) =>
-      [...document.querySelectorAll<HTMLElement>('li.bh-model-card')].find(
-        (item) => item.querySelector('strong')?.textContent === name,
-      )!;
-    expect(
-      [...document.querySelectorAll('li.bh-model-card strong')].map((item) => item.textContent),
-    ).toEqual(['Flash', 'Kimi K2', 'Pro']);
-    expect(card('Pro').textContent).toContain('Default');
+    await addTask('kimi', 'Kimi K2');
+    await addTask('flash', 'Flash');
+    expect(taskTiles().map((tile) => tile.split('DeepSeek')[0]!.split('Moonshot')[0])).toEqual([
+      expect.stringContaining('Pro'),
+      expect.stringContaining('Kimi K2'),
+      expect.stringContaining('Flash'),
+    ]);
+    expect(taskTiles()[0]).toContain('Default');
 
     const type = async (label: string, value: string) => {
       const input = document.querySelector<HTMLInputElement>(`input[aria-label="${label}"]`)!;
@@ -541,40 +511,43 @@ describe('Model entry', () => {
         input.dispatchEvent(new Event('input', { bubbles: true }));
       });
     };
-    await type('When to use Pro', '  Hard debugging  ');
+    await act(async () => labelled('Edit Pro').click());
+    await type('When to use Pro', 'Hard debugging');
+    await act(async () => labelled('Edit Kimi K2').click());
     await type('When to use Kimi K2', 'Quick lookups');
+    await act(async () => labelled('Edit Flash').click());
     await type('When to use Flash', '   ');
-    const effortBoxes = [...card('Flash').querySelectorAll<HTMLInputElement>('label input')];
-    expect(effortBoxes.map((input) => input.checked)).toEqual([true, true, true]);
-    const low = [...card('Flash').querySelectorAll('label')].find(
-      (label) => label.textContent === 'Low',
-    )!;
-    await act(async () => low.querySelector('input')!.click());
     await act(async () =>
-      card('Flash')
+      document
         .querySelector<HTMLButtonElement>(
-          '[aria-label="Flash · Default effort"] button:last-child',
+          '[aria-label="Flash · Reasoning effort"] button:last-child',
         )!
         .click(),
     );
-    await act(async () => card('Flash').querySelector<HTMLButtonElement>('button')!.click());
-    expect(card('Flash').textContent).toContain('Default');
-    expect(card('Pro').querySelector('[aria-label="Remove Pro"]')).not.toBeNull();
+    const flashTile = () => taskTiles().find((tile) => tile.startsWith('Flash'))!;
+    expect(flashTile()).toContain('High');
+    await act(async () =>
+      [...document.querySelectorAll<HTMLButtonElement>('section[aria-label="Task model"] li')]
+        .find((tile) => tile.textContent?.startsWith('Flash'))!
+        .querySelector<HTMLButtonElement>('button:not([aria-label])')!
+        .click(),
+    );
+    expect(flashTile()).toContain('Default');
+    expect(labelled('Remove Pro')).toBeTruthy();
 
     await act(async () => button('Save').click());
-    expect(setModelPlan).toHaveBeenCalledExactlyOnceWith(
-      'ada',
-      2,
-      route,
-      { provider: 'deepseek', model: 'flash', reasoningEffort: 'high' },
-      [
+    expect(setModelPlanSub).toHaveBeenCalledExactlyOnceWith('ada', 2, expect.anything(), {
+      choices: [
         {
+          kind: 'model',
           provider: 'deepseek',
-          model: 'flash',
-          allowedEfforts: ['', 'high'],
-          defaultEffort: 'high',
+          model: 'pro',
+          allowedEfforts: [''],
+          defaultEffort: '',
+          note: 'Hard debugging',
         },
         {
+          kind: 'model',
           provider: 'kimi',
           model: 'k2',
           allowedEfforts: [''],
@@ -582,17 +555,17 @@ describe('Model entry', () => {
           note: 'Quick lookups',
         },
         {
+          kind: 'model',
           provider: 'deepseek',
-          model: 'pro',
-          allowedEfforts: [''],
-          defaultEffort: '',
-          note: 'Hard debugging',
+          model: 'flash',
+          allowedEfforts: ['', 'low', 'high'],
+          defaultEffort: 'high',
         },
       ],
-    );
+      default: { kind: 'model', provider: 'deepseek', model: 'flash' },
+    });
   });
-
-  it('opens a saved model set in advanced mode and saves one model after switching back to simple', async () => {
+  it('opens a saved model set as its list and keeps each stored effort range', async () => {
     const pro = { provider: 'deepseek', model: 'pro' };
     const plan: ModelPlanView = {
       revision: 3,
@@ -611,29 +584,33 @@ describe('Model entry', () => {
       ],
       appliedAt: '',
     };
-    const setModelPlan = vi.fn(async () => plan);
+    const setModelPlanSub = vi.fn(async () => plan);
     const host = await render({
       modelPlanState: vi.fn(async () => ({ plan })),
       modelPresets: vi.fn(async () => []),
       modelCatalog: vi.fn(async () => ({ models: catalog })),
-      setModelPlan,
+      setModelPlanSub,
     } as unknown as BridgeActions);
     await openEditor(host);
-    expect(button('Advanced').getAttribute('aria-selected')).toBe('true');
-    expect(document.querySelectorAll('li.bh-model-card')).toHaveLength(2);
-    await act(async () => button('Simple').click());
-    expect(document.querySelector('li.bh-model-card')).toBeNull();
-    expect(picked('Task model')).toBe('Flash');
+    expect(taskTiles()).toEqual([
+      expect.stringMatching(/^Flash.*Low.*Default/),
+      expect.stringContaining('Pro'),
+    ]);
+    await act(async () => labelled('Remove Pro').click());
     await act(async () => button('Save').click());
-    expect(setModelPlan).toHaveBeenCalledExactlyOnceWith(
-      'ada',
-      3,
-      pro,
-      { provider: 'deepseek', model: 'flash', reasoningEffort: 'low' },
-      [{ provider: 'deepseek', model: 'flash', allowedEfforts: ['low'], defaultEffort: 'low' }],
-    );
+    expect(setModelPlanSub).toHaveBeenCalledExactlyOnceWith('ada', 3, expect.anything(), {
+      choices: [
+        {
+          kind: 'model',
+          provider: 'deepseek',
+          model: 'flash',
+          allowedEfforts: ['low', 'high'],
+          defaultEffort: 'low',
+        },
+      ],
+      default: { kind: 'model', provider: 'deepseek', model: 'flash' },
+    });
   });
-
   it('keeps a saved plan when an older editor load finishes later', async () => {
     const route = { provider: 'deepseek', model: 'pro' };
     let plan: ModelPlanView = {
@@ -654,7 +631,7 @@ describe('Model entry', () => {
       modelPlanState: vi.fn(async () => (++reads === 3 ? stale : { plan })),
       modelPresets: vi.fn(async () => []),
       modelCatalog: vi.fn(async () => ({ models: catalog })),
-      setModelPlan: vi.fn(async () => {
+      customizeModelPlan: vi.fn(async () => {
         plan = { ...plan, revision: 2, orchestrator: { provider: 'kimi', model: 'k2' } };
         return plan;
       }),
@@ -670,6 +647,88 @@ describe('Model entry', () => {
   });
 });
 
+it('keeps an open Assignment policy on a main-only save', async () => {
+  const plan: ModelPlanView = {
+    revision: 3,
+    sourcePresetId: '',
+    sourcePresetName: '',
+    orchestrator: catalog[0]!,
+    assignmentDefault: catalog[0]!,
+    openAssignmentModels: true,
+    appliedAt: '',
+  };
+  const customizeModelPlan = vi.fn(async () => ({ ...plan, revision: 4 }));
+  const setModelPlanSub = vi.fn();
+  await render(
+    {
+      modelPlanState: async () => ({ plan }),
+      modelCatalog: async () => ({ models: catalog }),
+      modelPresets: async () => [],
+      customizeModelPlan,
+      setModelPlanSub,
+    } as unknown as BridgeActions,
+    vi.fn(),
+  );
+  await choose('Main model', 'pro', 'Pro');
+  await act(async () => button('Save').click());
+  expect(customizeModelPlan).toHaveBeenCalledExactlyOnceWith(
+    'ada',
+    { provider: 'deepseek', model: 'pro' },
+    3,
+  );
+  expect(setModelPlanSub).not.toHaveBeenCalled();
+});
+
+it('shows the Default preset main route for an inherited empty Task list', async () => {
+  await render(
+    {
+      modelPlanState: async () => ({ revision: 2 }),
+      modelCatalog: async () => ({ models: catalog }),
+      modelPresets: async () => [
+        {
+          id: 'default',
+          name: 'Default',
+          revision: 1,
+          orchestrator: { provider: 'kimi', model: 'k2' },
+          assignmentDefault: { provider: 'kimi', model: 'k2' },
+          sub: { choices: [], default: null },
+          createdAt: '',
+        },
+      ],
+    } as unknown as BridgeActions,
+    vi.fn(),
+  );
+  expect(taskTiles()).toEqual([expect.stringMatching(/^Kimi K2.*Default/)]);
+});
+
+it('shows the saved default Task choice on the Bot card', async () => {
+  const plan: ModelPlanView = {
+    revision: 3,
+    sourcePresetId: '',
+    sourcePresetName: '',
+    orchestrator: catalog[0]!,
+    assignmentDefault: catalog[1]!,
+    sub: {
+      choices: [
+        { kind: 'model', ...catalog[1]!, allowedEfforts: [''], defaultEffort: '' },
+        { kind: 'group', group: 'side' },
+      ],
+      default: { kind: 'group', group: 'side' },
+    },
+    appliedAt: '',
+  };
+  const host = await render({
+    modelPlanState: async () => ({ plan }),
+    modelCatalog: async () => ({
+      models: catalog,
+      groups: [{ id: 'side', name: 'Side', revision: 1, routes: [catalog[0]!] }],
+    }),
+    modelPresets: async () => [],
+  } as unknown as BridgeActions);
+  expect(cards(host)).toContain('Task model · side');
+  expect(cards(host)).not.toContain('pro · Default');
+});
+
 it('keeps inherited Assignment settings when editing an Orchestrator-only plan', async () => {
   const plan: ModelPlanView = {
     revision: 7,
@@ -679,22 +738,22 @@ it('keeps inherited Assignment settings when editing an Orchestrator-only plan',
     appliedAt: '',
   };
   const customizeModelPlan = vi.fn(async () => ({ ...plan, revision: 8 }));
-  const setModelPlan = vi.fn();
+  const setModelPlanSub = vi.fn();
   const host = await render({
     modelPlanState: async () => ({ revision: 7, plan }),
     modelCatalog: async () => ({ models: catalog }),
     modelPresets: async () => [],
     customizeModelPlan,
-    setModelPlan,
+    setModelPlanSub,
   } as unknown as BridgeActions);
   expect(cards(host)).toContain(translate('onboarding.inherit'));
   await openEditor(host);
-  expect(picked(translate('modelPreset.assignment'))).toBe(translate('onboarding.inherit'));
+  expect(taskTiles()).toEqual([expect.stringContaining(translate('modelPreset.subFollowsMain'))]);
   await act(async () => button(translate('modelPreset.save')).click());
   expect(customizeModelPlan).toHaveBeenCalledExactlyOnceWith(
     'ada',
     expect.objectContaining({ provider: catalog[0]!.provider, model: catalog[0]!.model }),
     7,
   );
-  expect(setModelPlan).not.toHaveBeenCalled();
+  expect(setModelPlanSub).not.toHaveBeenCalled();
 });

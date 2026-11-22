@@ -1,13 +1,20 @@
+import { reconcilePublicBotMemories } from '../../workspaces/bot-memory-placement.js';
+import { relocateTobWorkspaces, recoverSpaceTransfers } from '../../workspaces/space-lifecycle.js';
+import { relocateSpaceMemories } from '../../workspaces/space-memory.js';
+import { realpathSync } from 'node:fs';
+import type { createCoreStartup } from '../../diagnostics/core-startup.js';
+import type { OperationalDatabaseOwner } from '../../database/owner.js';
 import { randomUUID } from 'node:crypto';
 import { grantExecutionDenial, orchestratorPermission } from '../../workspaces/grant-execution.js';
 import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
 import { WorkspaceSpaces } from '../../workspaces/spaces.js';
-import { TeamService } from '../../team/service.js';
+import type { TeamService } from '../../team/service.js';
 import { createFolderBrowser } from '../../workspaces/folder-browse.js';
 import type { Context } from '@deepseek-ai/cordis';
 import { attachOperationalModule } from '../../database/owner.js';
 import { createWorkspaceGrantStore } from '../../workspaces/grants.js';
 import type { BotHarnessCore, createCore } from '../../plugin.js';
+
 type CoreOptions = NonNullable<Parameters<typeof createCore>[0]>;
 
 export function apply(
@@ -93,4 +100,29 @@ export function mountPermissionTracking(
         .catch(() => undefined);
   };
   return { permissionDenial, recordOrchestratorPermission, appliedPermission };
+}
+
+export function relocateMemoryOnStartup(
+  startup: ReturnType<typeof createCoreStartup>,
+  operationalDatabase: OperationalDatabaseOwner,
+  dshHome: string,
+) {
+  startup.enter('workspace-spaces', 'relocate-memory');
+  if (operationalDatabase.mode === 'ready')
+    recoverSpaceTransfers(attachOperationalModule(operationalDatabase, 'workspace-spaces'));
+  if (operationalDatabase.mode === 'ready')
+    relocateSpaceMemories(
+      attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+      realpathSync(dshHome),
+    );
+  if (operationalDatabase.mode === 'ready')
+    relocateTobWorkspaces(
+      attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+      realpathSync(dshHome),
+    );
+  if (operationalDatabase.mode === 'ready')
+    reconcilePublicBotMemories(
+      attachOperationalModule(operationalDatabase, 'workspace-spaces'),
+      realpathSync(dshHome),
+    );
 }

@@ -68,26 +68,32 @@ export function createRosterActions(
   refreshActivityListStatus: ActivityActions['refreshActivityListStatus'],
 ) {
   let rosterRefreshGeneration = 0;
-  const refreshRoster = async (signal?: AbortSignal): Promise<void> => {
+  const refreshRoster = async (signal?: AbortSignal, scopedCall = call): Promise<void> => {
+    scopedCall.assertCurrent?.();
     const generation = ++rosterRefreshGeneration;
     const [rosterResult, channelResult, botResult, identityResult] = await Promise.allSettled([
-      loadRoster(call, signal),
-      loadChannels(call, signal),
-      loadBots(call, signal),
-      loadComposerIdentity(call, signal),
+      loadRoster(scopedCall, signal),
+      loadChannels(scopedCall, signal),
+      loadBots(scopedCall, signal),
+      loadComposerIdentity(scopedCall, signal),
     ]);
     if (signal?.aborted === true) return;
+    scopedCall.assertCurrent?.();
     clientStore.setComposerIdentity(
       identityResult.status === 'fulfilled' ? identityResult.value : undefined,
     );
-    if (botResult.status === 'fulfilled')
+    if (botResult.status === 'fulfilled') {
+      scopedCall.assertCurrent?.();
       clientStore.setRoster(botResult.value, clientStore.getSnapshot().channels);
+    }
     if (channelResult.status === 'fulfilled' && generation === rosterRefreshGeneration) {
       const channels = channelResult.value;
       const before = clientStore.getSnapshot();
       const current = before.conversation.channel;
+      scopedCall.assertCurrent?.();
       clientStore.setRoster(before.bots, channels);
       if (current !== undefined) {
+        scopedCall.assertCurrent?.();
         const updated = channels.find((item) => item.id === current.id);
         if (updated !== undefined) clientStore.setConversation({ channel: updated });
         else if (before.channels.some((item) => item.id === current.id))
@@ -99,6 +105,7 @@ export function createRosterActions(
     if (rosterResult.status === 'fulfilled') {
       const snapshot = rosterResult.value;
       const previousMuted = clientStore.getSnapshot().roster.muted;
+      scopedCall.assertCurrent?.();
       clientStore.setRosterState({
         pins: snapshot.pins,
         hidden: snapshot.hidden,
@@ -107,12 +114,15 @@ export function createRosterActions(
         topOrder: snapshot.topOrder,
         readOnly: false,
       });
-      if (!sameIds([...previousMuted].sort(), [...snapshot.muted].sort()))
+      if (!sameIds([...previousMuted].sort(), [...snapshot.muted].sort())) {
+        scopedCall.assertCurrent?.();
         void refreshActivityListStatus();
+      }
     } else if (
       rosterResult.reason instanceof BridgeCallError &&
       rosterResult.reason.code === 'storage-unavailable'
     ) {
+      scopedCall.assertCurrent?.();
       clientStore.setRosterState({ readOnly: true });
     } else {
       reportFailure('roster-refresh-failed', 'roster refresh failed', rosterResult.reason);
@@ -124,12 +134,16 @@ export function createRosterActions(
     }
     reportFailure('roster-write-failed', 'roster write failed', error);
   };
-  const rosterMutate = async (operation: () => Promise<void>): Promise<boolean> => {
+  const rosterMutate = async (
+    operation: () => Promise<void>,
+    scopedCall = call,
+  ): Promise<boolean> => {
     try {
       await operation();
-      await refreshRoster();
+      await refreshRoster(undefined, scopedCall);
       return true;
     } catch (error) {
+      scopedCall.assertCurrent?.();
       reportRosterFailure(error);
       return false;
     }
@@ -137,11 +151,12 @@ export function createRosterActions(
   const placeCreatedChannelFirst = async (
     channelId: string,
     sectionId: string | undefined,
+    scopedCall = call,
   ): Promise<boolean> => {
     if (sectionId !== undefined) {
       return rosterMutate(async () => {
-        await assignRosterChannel(call, channelId, sectionId, 0);
-      });
+        await assignRosterChannel(scopedCall, channelId, sectionId, 0);
+      }, scopedCall);
     }
     const snapshot = clientStore.getSnapshot();
     const sectioned = new Set(snapshot.roster.sections.flatMap((section) => section.channelIds));
@@ -157,8 +172,8 @@ export function createRosterActions(
       ...flat.filter((entry) => entry.kind !== 'channel' || entry.id !== channelId),
     ];
     return rosterMutate(async () => {
-      await reorderTopOrder(call, order);
-    });
+      await reorderTopOrder(scopedCall, order);
+    }, scopedCall);
   };
 
   const actions = {

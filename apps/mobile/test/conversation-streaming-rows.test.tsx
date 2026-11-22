@@ -287,6 +287,7 @@ vi.mock('../src/host/host-session', async () => {
       saved: { hostId: state.hostId },
     }),
     useHostSnapshot: () => state.host,
+    useInbox: () => ({ status: 'idle' }),
     useConversation: () => stream.conversation,
     useChannelConversation: () => undefined,
     useConversationTimelineSnapshot: () =>

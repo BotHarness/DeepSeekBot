@@ -1,3 +1,4 @@
+import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type { PrivateKind } from '../../team/private-contract.js';
 import type { SpaceAudience } from '../../workspaces/spaces.js';
@@ -354,3 +355,260 @@ export function channelPublicSet(
 ) {
   return unwrapAsync(methods.channelPublicSet({ channelId, public: publicValue }));
 }
+
+export const teamServiceRpc = {
+  spaceAudienceDirectory() {
+    return spaceAudienceDirectory(this.methods);
+  },
+
+  spaces() {
+    return spaces(this.methods);
+  },
+
+  botVisibility(slug: string) {
+    return botVisibility(this.methods, slug);
+  },
+
+  botVisibilitySet(
+    slug: string,
+    visibility: import('../../team/bot-contract.js').BotVisibility,
+    confirm?: boolean,
+  ) {
+    return botVisibilitySet(this.methods, slug, visibility, confirm);
+  },
+
+  botSwitches(
+    slug: string,
+    proactiveDms?: boolean,
+    joinPrincipalChannels?: boolean,
+    speakerContext?: boolean,
+  ) {
+    return botSwitches(this.methods, slug, proactiveDms, joinPrincipalChannels, speakerContext);
+  },
+
+  reachableBots() {
+    return reachableBots(this.methods);
+  },
+
+  botProactiveOptOut(slug: string, optOut: boolean) {
+    return botProactiveOptOut(this.methods, slug, optOut);
+  },
+
+  roleConflicts(humanId?: string, username?: string) {
+    return roleConflicts(this.methods, humanId, username);
+  },
+
+  speakerPolicy(humanId?: string, topic?: string) {
+    return speakerPolicy(this.methods, humanId, topic);
+  },
+
+  spaceCreate(name: string, audience: SpaceAudience) {
+    return spaceCreate(this.methods, name, audience);
+  },
+
+  spaceUpdate(spaceId: string, name?: string, audience?: SpaceAudience) {
+    return spaceUpdate(this.methods, spaceId, name, audience);
+  },
+
+  spaceDelete(spaceId: string, confirm: boolean) {
+    return spaceDelete(this.methods, spaceId, confirm);
+  },
+
+  modelsAllowed() {
+    return modelsAllowed(this.methods);
+  },
+
+  usageByMember(period: UsageOverviewPeriod) {
+    return usageByMember(this.methods, period);
+  },
+
+  privateObjects(humanId?: string, kind?: PrivateKind, username?: string) {
+    return privateObjects(this.methods, humanId, kind, username);
+  },
+
+  privateContentOpen(kind: PrivateKind, objectId: string, reason?: string) {
+    return privateContentOpen(this.methods, kind, objectId, reason);
+  },
+
+  privateContentPage(viewId: string, before: string) {
+    return privateContentPage(this.methods, viewId, before);
+  },
+
+  auditLog(after?: string, limit?: number) {
+    return auditLog(this.methods, after, limit);
+  },
+
+  auditVerify() {
+    return auditVerify(this.methods);
+  },
+
+  teamMode() {
+    return teamMode(this.methods);
+  },
+
+  teamModeSet(enabled: boolean) {
+    return teamModeSet(this.methods, enabled);
+  },
+
+  ownerPasswordSignIn() {
+    return ownerPasswordSignIn(this.methods);
+  },
+
+  ownerPasswordSignInSet(enabled: boolean, username?: string, password?: string) {
+    return ownerPasswordSignInSet(this.methods, enabled, username, password);
+  },
+
+  teamOwnerPasswordSet(password: string, current?: string, signOutOthers?: boolean) {
+    return teamOwnerPasswordSet(this.methods, password, current, signOutOthers);
+  },
+
+  teamInsecureHttpSet(allowed: boolean) {
+    return teamInsecureHttpSet(this.methods, allowed);
+  },
+
+  members() {
+    return members(this.methods);
+  },
+
+  memberCreate(username: string, displayName: string, roleIds?: string[]) {
+    return memberCreate(this.methods, username, displayName, roleIds);
+  },
+
+  permissionCatalog() {
+    return permissionCatalog(this.methods);
+  },
+
+  roles() {
+    return roles(this.methods);
+  },
+
+  roleCreate(
+    name: string,
+    permissions: string[],
+    models?: import('../../team/permissions.js').RoleModels,
+    policy?: import('../../team/bot-contract.js').RolePolicy,
+  ) {
+    return roleCreate(this.methods, name, permissions, models, policy);
+  },
+
+  roleUpdate(
+    roleId: string,
+    name?: string,
+    permissions?: string[],
+    models?: import('../../team/permissions.js').RoleModels,
+    policy?: import('../../team/bot-contract.js').RolePolicy,
+  ) {
+    return roleUpdate(this.methods, roleId, name, permissions, models, policy);
+  },
+
+  roleDelete(roleId: string) {
+    return roleDelete(this.methods, roleId);
+  },
+
+  memberRolesSet(humanId: string, roleIds: string[]) {
+    return memberRolesSet(this.methods, humanId, roleIds);
+  },
+
+  memberDevices(humanId: string) {
+    return memberDevices(() => this.methods, this.ctx, humanId);
+  },
+
+  memberDeviceRevoke(humanId: string, grantId: string) {
+    return memberDeviceRevoke(this.methods, humanId, grantId);
+  },
+
+  ownerTransfer(humanId: string, password: string) {
+    return ownerTransfer(this.methods, humanId, password);
+  },
+
+  memberPasswordChange(current: string, next: string, signOutOthers?: boolean) {
+    return memberPasswordChange(
+      () => this.methods,
+      this.ctx,
+      this.team,
+      current,
+      next,
+      signOutOthers,
+    );
+  },
+
+  memberInvitation(humanId: string) {
+    return memberInvitation(this.methods, humanId);
+  },
+
+  memberPairingOffer() {
+    return memberPairingOffer(this.methods);
+  },
+
+  memberPasswordReset(humanId: string) {
+    return memberPasswordReset(this.methods, humanId);
+  },
+
+  channelRoleDirectory(channelId: string) {
+    return channelRoleDirectory(this.methods, channelId);
+  },
+
+  channelVisibilitySet(channelId: string, visibility: ChannelVisibility) {
+    return channelVisibilitySet(this.methods, channelId, visibility);
+  },
+
+  channelAdminsSet(channelId: string, humanIds: string[]) {
+    return channelAdminsSet(this.methods, channelId, humanIds);
+  },
+
+  channelPolicySet(channelId: string, policy: ChannelPolicy, expectedRevision?: string) {
+    return channelPolicySet(this.methods, channelId, policy, expectedRevision);
+  },
+
+  channelMemberCandidates(channelId: string, query?: string) {
+    return channelMemberCandidates(this.methods, channelId, query);
+  },
+
+  channelHumanAdd(channelId: string, humanId: string) {
+    return channelHumanAdd(this.methods, channelId, humanId);
+  },
+
+  channelDescriptionSet(channelId: string, description: string) {
+    return channelDescriptionSet(this.methods, channelId, description);
+  },
+
+  teamDirectory() {
+    return teamDirectory(this.methods);
+  },
+
+  humanDm(humanId: string) {
+    return humanDm(this.methods, humanId);
+  },
+
+  humanDmByUsername(username: string) {
+    return humanDmByUsername(this.methods, username);
+  },
+
+  memberDeactivate(humanId: string) {
+    return memberDeactivate(this.methods, humanId);
+  },
+
+  memberReactivate(humanId: string) {
+    return memberReactivate(this.methods, humanId);
+  },
+
+  memberTransferPreview(humanId: string) {
+    return memberTransferPreview(this.methods, humanId);
+  },
+
+  memberTransfer(humanId: string, toHumanId: string) {
+    return memberTransfer(this.methods, humanId, toHumanId);
+  },
+
+  memberPurgePreview(humanId: string) {
+    return memberPurgePreview(this.methods, humanId);
+  },
+
+  memberPurgeConfirm(humanId: string, token: string, username: string) {
+    return memberPurgeConfirm(this.methods, humanId, token, username);
+  },
+
+  channelPublicSet(channelId: string, publicValue: boolean) {
+    return channelPublicSet(this.methods, channelId, publicValue);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;

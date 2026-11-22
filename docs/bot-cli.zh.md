@@ -327,6 +327,8 @@ deepseekbot channel-media-download <channel> --source-event <source-event-id> --
 deepseekbot channel-media-download <channel> --source-event <source-event-id> --attachment <video-id> --representation playback --out ./playback.mp4
 deepseekbot group-avatar-set <channel> --avatar-file ./avatar.png [--expected-channel <channelFingerprint>]
 deepseekbot group-avatar-set <channel> --clear [--expected-channel <channelFingerprint>]
+deepseekbot group-member-picker [channel] [--query <text>]
+deepseekbot group-members-add <channel> --body-stdin
 deepseekbot group-invite <channel> --bot <bot-id> [--operation-key <stable-key>] [--expected-channel <channelFingerprint>]
 deepseekbot group-invite-cancel <channel> --invitation <invitation-id> [--expected-channel <channelFingerprint>]
 deepseekbot group-join-decide <channel> --request <request-id> --accept [--expected-channel <channelFingerprint>]
@@ -612,6 +614,18 @@ deepseekbot private-mcp-remove <bot-id> --server <name> --confirm
 审批卡创建的规则也显示在 Bot 权限的「始终允许 · 此 Bot」列表。这与 `tool-approval-rules` 读取的是同一规范规则，使用 `tool-approval-rule-revoke` 撤销。规则保留 Bot、角色和授权范围，不随共享模板及其副本传播。CLI 撤销后重新读取权限列表，下次匹配调用恢复现有审核流程。
 
 `session-stop <bot-id> <session-id>` 停止 Bot 的一个运行中的 Session，与 Sessions 面板中该行的停止按钮相同。它的 Subagent 随之停止，Bot 的其他 Session 继续运行。返回 `stopped` 和 `alreadyIdle`，均为 `{ botSlug, sessionId, role }` 列表：空闲、已停止或重复停止的 Session 出现在 `alreadyIdle` 中，命令仍然成功。Bot 不拥有的 Session 以 `unknown-session` 拒绝。带 `--channel` 时，发起停止的 Channel 会收到一行通知（`turnStop.target`，结果中另有 `messageId`），但只在该 Session 属于这个 Channel 时才发：Orchestrator 对应 Bot 所在的 Channel，Assignment 只对应发起它的 Channel。
+
+#### Host 会话
+
+```bash
+deepseekbot session-list
+deepseekbot session-transcript --session <native-session-id>
+deepseekbot session-live --session <native-session-id> [--after <revision>]
+deepseekbot session-send <native-session-id> [--] <text>
+deepseekbot session-model --session <native-session-id> [--set <Model-Choice-JSON> | --clear]
+```
+
+这些命令通过已认证的在线 Host 执行。`session-list` 按 Human 最后发送消息的时间列出根会话，包含来源、已有标题、文件夹名称、运行状态、`lastPromptAt` 和 `updatedAt`。Host Owner 可以查看原生会话。团队成员可以查看自己的 Bot 会话，仍受现有会话隐私规则约束。读取原生会话、查看实时输出、发送消息和选择模型均需要 Host Owner 权限。DSH 接收原生会话消息后，命令返回 `requestId`。操作 Bot 会话时仍需传入 Bot ID。原生会话可选择 API 模型，`--clear` 恢复会话的原始模型。
 
 `session-send <bot-id> <orchestrator-session-id> <text>` 把 Human 的文字直接发进 Bot 当前的 Orchestrator Session，与该 Session 详情里的输入框相同。这是少用的主动 steer。任何 Channel 都不显示这段文字：Session 收到原文，前面只有一行说明这是 Human 在 Session 详情里写的；Bot Inbox 把它记为 Human 在其 DM 上的 Source Event，重启或 compaction 后仍在。无论 `human-dm` 投递设置如何，运行中的 turn 都在下一步收到它；Bot 正在准备或整理 Memory 时，它改为等到下一个 turn；空闲的 Orchestrator 会被唤醒。Bot 不必回复；带这个 `source_event_id` 的 `bot_send_message` 发到 Human 的 DM，不带引用。文字以 `-` 开头时，在它前面加 `--`；看起来像密钥参数的文字（如 `--token`、`--api-key=…`）仍以 `secret-in-argv` 拒绝，因为密钥从不经由参数传递。返回 `{ sourceEventId }`。Bot 能接收消息时，其他 Session 以 `invalid-input` 拒绝；Bot 此刻不能接收消息时（例如已暂停），以 `unavailable` 拒绝。
 
@@ -1222,6 +1236,8 @@ deepseekbot model-preset-update <preset-id> --name Nightly --orchestrator-effort
 deepseekbot model-presets --include-usage
 deepseekbot model-preset-sub <preset-id>
 deepseekbot model-preset-sub-set <preset-id> --expected-revision <revision> --plan-stdin < sub.json
+deepseekbot model-plan-sub <bot-id>
+deepseekbot model-plan-sub-set <bot-id> --expected-revision <revision> --plan-stdin < sub.json
 deepseekbot model-preset-delete <preset-id> --expected-revision <revision> --confirm
 deepseekbot model-groups
 deepseekbot model-group <group-id>
@@ -1247,7 +1263,11 @@ deepseekbot group-activity <group-channel>
 
 `list_assignment_models` 展示 Bot 获准使用的选项及默认项，订阅引擎选项还会显示账号名称，配额用尽时显示 `restingUntil`。在 `create_assignment` 中省略模型选择会使用默认项。显式选择订阅引擎时，随常规参数传入选项中已有的 `engine`、`account_id` 和 `model`。Host 使用选项保存的推理强度，并拒绝未列出或未授权的选项。单个 API 模型或订阅账号配额用尽时返回 `assignment-choice-resting`，路由组继续按组内顺序切换。
 
-连接在线 Host 时，`model-preset-create` 也支持 `--plan-stdin`，stdin 仅包含 `{"assignmentModels":[...]}`，创建预设时保留可选模型、推理强度和备注。创建与更新都通过移动端编辑器使用的同一 Host bridge 转发完整策略，不会悄悄缩减为默认模型。
+连接在线 Host 时，`model-preset-create` 也支持 `--plan-stdin`。stdin 可以是 `{"assignmentModels":[...]}`，创建预设时保留可选模型、推理强度和备注；也可以是下文的 `{"sub":{...}}` 副模型选项。创建与更新都通过移动端编辑器使用的同一 Host bridge 转发完整策略，不会悄悄缩减为默认模型。
+
+`model-plan-sub` 读取 Bot 自己的模型方案中的副模型选项及版本。 `model-plan-sub-set` 用与 `model-preset-sub-set` 相同的 stdin 格式替换选项及默认项。传入空的 `choices` 和 `default: null` 时，Assignment 跟随 Bot 的 Orchestrator。如果 Bot 继承 Profile 默认方案，需先应用预设或保存 Bot 自己的模型方案。
+
+要同时保存主模型路由与副模型选项，请向 `model-plan-set --plan-stdin` 传入 `{"orchestrator":{...},"sub":{...}}`。也可用 `orchestratorGroupId` 代替 `orchestrator`。对于 `model-preset-create`，用命令行参数指定名称及主模型路由，并通过 `--plan-stdin` 传入 `{"sub":{...}}`。`model-preset-update` 只改副模型选项时，请省略主模型路由参数，这样原有的路由组会保留；只有要设置或替换主模型路由时才加这些参数。传入 `sub` 时请省略旧版 Assignment 字段和参数。
 
 `model-catalog` 列出 Host 能运行的模型和 Profile 默认模型，与模型选择器看到的一致。`model-plan-set` 用 stdin 中的 `{"orchestrator":{...},"assignmentDefault":{...},"assignmentModels":[...]}` 替换 Bot 的整个模型方案；`model-plan-assignments-set` 接受去掉 `orchestrator` 的同一对象，且要求 Bot 已有自己的方案：跟随 Profile 默认模型的 Bot 会返回 `Apply a Model Preset first`，此时先用 `model-plan-set` 或应用一个预设。两者都可以带 `assignmentGroups`、`assignmentDefaultGroupId` 和 `assignmentGroupOptions` 指定路由组，`model-plan-set` 还可以用 `orchestratorGroupId` 代替 `orchestrator`。路由写作 `{"provider","model","reasoningEffort"?}`，Assignment 模型写作 `{"provider","model","allowedEfforts":[...],"defaultEffort","note"?}`。`model-plan-customize` 只修改 Bot 的 Orchestrator；原本继承全局时建立独立覆盖，Assignment 的固定配置或全局继承保持不变。`model-plan-inherit` 去掉 Bot 自己的模型，改为跟随 Profile 默认模型。`model-preset-update` 修改预设的名称或路由；没有给出的参数保持当前值，但只要给出 `--orchestrator-provider`、`--orchestrator-model` 或 `--orchestrator-effort` 中任意一个，Orchestrator 的路由组就会换成这条单独的路由（只改名称时保留路由组），可选的 `--plan-stdin` `{"assignmentModels":[...]}` 替换它的 Assignment 模型。每条路由都由 Host 按模型目录校验。方案和预设的写入会核对版本：`--expected-revision` 显式指定版本；不指定时命令先读取当前版本，与 `memory-save` 的 `--expected-head` 相同。方案在此期间被改过时，返回 Host 的 `invalid-input`。
 
@@ -1631,13 +1651,15 @@ deepseekbot group-invite <channel-id> --bot <bot-c> --operation-key invite-resea
 
 受限 `channels` 返回有界频道元数据，不返回消息正文；`--limit` 为 1–100，默认 50，将返回的 `nextCursor` 传入 `--cursor` 继续读取。`channel <group-channel-id>` 返回 `{channel, channelFingerprint, invitationPolicy:{autoAccept}, wakePolicies}`，拒绝非群频道。受限投影最多保留 100 个成员、最近 100 条邀请和最近 100 条入群申请，并报告被省略的数量。这些读取不会让 Tob 加入群聊，也不把群消息变成管理指令来源。
 
-`group-create` 支持空群，或用重复的 `--member` 指定现有可用 Bot。明确指定的初始成员直接加入，与现有 Human／UI 创建行为一致。之后的 `group-invite` 复用现有邀请 owner。默认 `autoAcceptGroupInvites=true` 时，同一事务记录已接受邀请（`respondedBy: "profile-policy"`）和成员关系，不唤醒受邀 Bot 单独决定。本片不新增设置或 UI 开关。仅当 Human 已主动关闭自动接受时，才沿用待处理邀请的原有决定流程；Tob 保留这一选择并报告实际状态。
+`group-create` 支持空群，或用重复的 `--member` 指定现有可用 Bot。明确指定的初始成员直接加入。桌面端创建频道时选中的 Bot 走群邀请流程。之后的 `group-invite` 复用现有邀请 owner。默认 `autoAcceptGroupInvites=true` 时，同一事务记录已接受邀请（`respondedBy: "profile-policy"`）和成员关系，不唤醒受邀 Bot 单独决定。本片不新增设置或 UI 开关。仅当 Human 已主动关闭自动接受时，才沿用待处理邀请的原有决定流程；Tob 保留这一选择并报告实际状态。
 
 受限建群／邀请写入必须提供稳定的 `--operation-key`：长度 8–128，以字母或数字开头，只含字母、数字、点、下划线、冒号或连字符；邀请还必须传入前一次读取的 `--expected-channel` 指纹。审核快照绑定当前频道元数据、成员、邀请策略及目标 Bot 身份；消息到达和未读计数不会使其过期。审批和执行重新检查已准入 Human DM 与当前目标状态。审核期间相关设置发生变化时，应重新读取并提案，不能悄悄刷新已批准的快照。
 
 带 key 的结果包含 `receipt`，字段为 `operationKey`、`kind`、`channelId`、可选 `invitationId` 及完成 `status`，同时返回规范频道状态及适用的邀请。持久操作回执预留频道或邀请身份。响应不确定时，使用**相同命令、key 和 payload**重试以核对原操作，不要换新 key。已完成的受限重放读回原结果，不再次请求变更审批。输入变化、目标不可用或 Bot 身份代次变化均拒绝；重放不会重建已删除群或重复邀请。Shell／Host 重启后仍须具备当前权限；回执不保留已过期的 Shell capability。
 
 `stale-channel` 或 `stale-profile` 要求重新读取并审核；`operation-key-conflict` 表示该 key 已绑定不同输入。`channel-operation-unavailable`、`unknown-channel`、`unknown-bot` 和 `archived-bot` 拒绝不可用身份；`protected-bot` 拒绝以 Tob 为目标。不可用邀请返回 `group-invite-unavailable`。这些失败不允许回退到其他命令或另造身份。
+
+用 `group-member-picker` 查询可选成员。传入频道 ID 查询现有群，省略 ID 查询建群候选。结果仅包含当前认证 Host 上可选的团队成员和 Bot。用 `group-members-add` 从 stdin 读取包含 1–100 个目标的 JSON 数组。团队成员用 `kind: "human"` 和稳定 Human `id`，Bot 用 `kind: "bot"` 和 Bot `id`。每个目标都带上本次尝试的唯一 `operationKey`。使用 8–128 个 ASCII 字符，以字母或数字开头，其余字符只允许字母、数字、`.`、`_`、`:` 或 `-`。Host 先添加团队成员，再检查 Bot 邀请，并为每项返回 `joined`、`pending` 或带错误码的 `failed`。整个批次的响应未确认时，使用原频道 ID 和包含原 key 的完整目标数据重试。单项目标返回 `group-member-unconfirmed` 时，在原频道用原 key 重试该项。重试已确认失败的目标时使用新 key。重放已确认的团队成员添加时，保留随后发生的访问撤销。
 
 已认证 Human 的在线 `group-create` 和 `group-invite` 也支持稳定 operation key；邀请支持 `--expected-channel` 绑定已读取状态。这些审核／重试参数对 Human 命令可选，对受限 Tob 必需。原有不带 key 的 Human 操作保持既有 owner 行为。
 

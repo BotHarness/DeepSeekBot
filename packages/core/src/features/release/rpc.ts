@@ -1,3 +1,4 @@
+import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type {
   ReleaseInfo,
@@ -71,3 +72,41 @@ export async function updateCancel(
 ): Promise<UpdateCancel> {
   return unwrapAsync(methods.updateCancel({ id }));
 }
+
+export const releaseRpc = {
+  async releaseInfo(since?: string): Promise<ReleaseInfo> {
+    return releaseInfo(this.methods, since);
+  },
+
+  async releaseUpdate(force?: boolean): Promise<ReleaseUpdate> {
+    return releaseUpdate(this.methods, force);
+  },
+
+  async releaseInstall(version: string, requestId?: string): Promise<ReleaseInstall> {
+    return releaseInstall(this.methods, version, requestId);
+  },
+
+  async releaseRestart(): Promise<ReleaseRestart> {
+    return releaseRestart(this.methods);
+  },
+
+  async pluginUpdates(force?: boolean): Promise<PluginUpdates> {
+    return pluginUpdates(this.methods, force);
+  },
+
+  async pluginInstall(name: string, version: string, requestId?: string): Promise<PluginInstall> {
+    return pluginInstall(this.methods, name, version, requestId);
+  },
+
+  async pluginRestart(): Promise<PluginRestart> {
+    return pluginRestart(this.methods);
+  },
+
+  updateRun(id?: string): UpdateRun | null {
+    return updateRun(this.methods, id);
+  },
+
+  async updateCancel(id: string): Promise<UpdateCancel> {
+    return updateCancel(this.methods, id);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;

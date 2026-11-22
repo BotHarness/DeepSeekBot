@@ -57,7 +57,7 @@ export function allowedEffortItem(
   return allowedEffortItems(value).find((item) =>
     item.target.kind === 'group'
       ? target.kind === 'group' && item.target.id === target.id
-      : target.kind === 'model' && sameModel(item.target, target),
+      : item.target.kind === 'model' && target.kind === 'model' && sameModel(item.target, target),
   );
 }
 

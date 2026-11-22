@@ -424,6 +424,52 @@ describe('A Human stop mid-Assignment-creation', () => {
       await f.close();
     }
   });
+
+  it('keeps an Assignment running when it accepts delivery during an Orchestrator-only stop', async () => {
+    const f = await assignmentFixture();
+    const created = deferred();
+    const firstStopping = deferred();
+    const releaseFirstStop = deferred();
+    try {
+      const stopAssignment = f.live.adapter.stopAssignment?.bind(f.live.adapter);
+      vi.spyOn(f.live.adapter, 'stopAssignment').mockImplementationOnce(async (id) => {
+        firstStopping.resolve();
+        await releaseFirstStop.promise;
+        await stopAssignment?.(id);
+      });
+      f.live.orchestrate(async (run) => {
+        for (const title of ['Crawl the site', 'Index the pages']) {
+          expect(
+            run.assignments.create({ grantId: TEST_GRANT_ID, title, description: title }),
+          ).toMatchObject({ outcome: 'created' });
+        }
+        created.resolve();
+        await run.stopped;
+      });
+      const turn = f.human('Start both Assignments');
+      await created.promise;
+      const [first, second] = f.live.assignmentRuns;
+      if (first === undefined || second === undefined) throw new Error('Expected two Assignments');
+      const sessionId = f.core.runtime.currentOrchestratorSessionId?.('ada');
+      const stop = f.bridge.sessionStop({ botSlug: 'ada', sessionId });
+
+      await firstStopping.promise;
+      second.accepted?.();
+      releaseFirstStop.resolve();
+
+      expect(await stop).toMatchObject({ ok: true, value: { stopped: [{ sessionId }] } });
+      await turn;
+      expect(f.core.runtime.getAssignment('ada', first.sessionId)).toMatchObject({
+        activity: 'stopped',
+      });
+      expect(f.core.runtime.getAssignment('ada', second.sessionId)).toMatchObject({
+        activity: 'working',
+      });
+    } finally {
+      releaseFirstStop.resolve();
+      await f.close();
+    }
+  });
 });
 
 describe('Session Stop on an Assignment', () => {
@@ -487,4 +533,52 @@ describe('Session Stop on an Assignment', () => {
       await f.close();
     }
   });
+
+  it.each(['missing', 'rejected'])(
+    'leaves an unconfirmed Assignment stop retryable when abandonment is %s',
+    async (abandonment) => {
+      const f = await assignmentFixture({ stopSettleTimeoutMs: 25 });
+      let sessionId: string | undefined;
+      try {
+        f.live.orchestrate(async (run) => {
+          const outcome = run.assignments.create!({
+            grantId: TEST_GRANT_ID,
+            title: 'Crawl the site',
+            description: 'Crawl the site',
+            key: 'site-crawl',
+          });
+          if (outcome.outcome === 'created') sessionId = outcome.assignment.sessionId;
+        });
+        await f.human('Start the crawl');
+        f.live.assignmentRuns[0]!.accepted?.();
+        vi.spyOn(f.live.adapter, 'stopAssignment').mockImplementationOnce(never);
+        if (abandonment === 'missing') delete f.live.adapter.abandonSession;
+        else
+          vi.spyOn(f.live.adapter, 'abandonSession').mockRejectedValueOnce(new Error('Still live'));
+
+        const stop = () => f.bridge.sessionStop({ botSlug: 'ada', sessionId, channelId: f.dm.id });
+        const outcome = await stop().catch((error: unknown) => error);
+
+        expect(f.core.runtime.getAssignment('ada', sessionId!)).toMatchObject({
+          activity: 'stopping',
+          continuityKey: 'site-crawl',
+        });
+        expect(outcome).toBeInstanceOf(Error);
+        expect(f.core.channels.readMessages(f.dm.id).some((message) => message.turnStop)).toBe(
+          false,
+        );
+
+        expect(await stop()).toMatchObject({
+          ok: true,
+          value: { stopped: [{ sessionId }], messageId: expect.any(String) },
+        });
+        expect(f.core.runtime.getAssignment('ada', sessionId!)).toMatchObject({
+          activity: 'stopped',
+        });
+        expect(f.core.runtime.getAssignment('ada', sessionId!)?.continuityKey).toBeUndefined();
+      } finally {
+        await f.close();
+      }
+    },
+  );
 });

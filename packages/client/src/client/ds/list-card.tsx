@@ -131,6 +131,7 @@ export function ListCardItem({
       <div {...stylex.props(styles.line)}>
         {toggle === undefined ? null : (
           <Button
+            type="button"
             variant="overlay"
             aria-label={toggle.label}
             aria-expanded={toggle.expanded}

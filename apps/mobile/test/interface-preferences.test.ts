@@ -39,6 +39,30 @@ describe('phone interface preferences', () => {
     });
   });
 
+  it('keeps Sessions opt-in on existing installs and restores the switch', async () => {
+    let saved: unknown = { language: 'zh', appearance: 'dark' };
+    const storage = {
+      read: async () => saved,
+      write: (value: unknown) => {
+        saved = value;
+      },
+    };
+    const preferences = createInterfacePreferences();
+    expect(preferences.getSnapshot().sessionsTab).toBe(false);
+    await preferences.restore(storage);
+    expect(preferences.getSnapshot().sessionsTab).toBe(false);
+    preferences.setSessionsTab(true);
+    const restarted = createInterfacePreferences();
+    await restarted.restore(storage);
+    expect(restarted.getSnapshot()).toMatchObject({
+      sessionsTab: true,
+      language: 'zh',
+      appearance: 'dark',
+    });
+    restarted.setSessionsTab(false);
+    expect(restarted.getSnapshot().sessionsTab).toBe(false);
+  });
+
   it('respects explicit language until follow system is selected again', async () => {
     const preferences = createInterfacePreferences();
     const write = vi.fn();
@@ -57,6 +81,7 @@ describe('phone interface preferences', () => {
       appearance: 'system',
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
+      sessionsTab: false,
     });
   });
 
@@ -120,6 +145,7 @@ describe('phone interface preferences', () => {
       appearance: 'dark',
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
+      sessionsTab: false,
     });
   });
 

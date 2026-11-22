@@ -1,3 +1,4 @@
+import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap } from '../../bridge/rpc-result.js';
 import type { GenuiDocumentState } from '../../channels/genui-document.js';
 import type { GenuiPrivateView, GenuiViewState } from '../../channels/genui.js';
@@ -29,3 +30,26 @@ export function channelGenuiViewSave(
     }),
   );
 }
+
+export const genuiServiceRpc = {
+  channelGenuiView(channelId: string, messageId: string): GenuiPrivateView {
+    return channelGenuiView(this.methods, channelId, messageId);
+  },
+
+  channelGenuiViewSave(
+    channelId: string,
+    messageId: string,
+    snapshotId: string,
+    expectedVersion: number,
+    state: GenuiViewState | GenuiDocumentState,
+  ): GenuiPrivateView {
+    return channelGenuiViewSave(
+      this.methods,
+      channelId,
+      messageId,
+      snapshotId,
+      expectedVersion,
+      state,
+    );
+  },
+} satisfies ThisType<BridgeRpcReceiver>;

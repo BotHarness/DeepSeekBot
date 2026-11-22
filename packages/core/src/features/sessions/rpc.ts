@@ -1,12 +1,12 @@
+import type { SessionLiveSnapshot } from '../../runtime/session-live.js';
+import type { BridgeMethods, OwnedSessionSummary } from '../../bridge/methods.js';
+import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import type { SessionModelState } from '@botharness/host-protocol/session-model';
 import { unwrap, unwrapAsync } from '../../bridge/rpc-result.js';
 import type { TurnTrace } from '../../bots/tool-trace.js';
-import type { SessionTranscript } from '../../runtime/session-transcript.js';
 import type { SessionToolDetail } from '../../runtime/session-tool-detail.js';
-import type { SessionRootRole } from '../../sessions/ownership.js';
 import type { ManualCompactionResult } from '../../runtime/idle-compaction.js';
 import type { IdleCompactionView, OwnedSessionBot, SessionsBridgeMethods } from './methods.js';
-import type { SessionsAdapterMethods } from './methods.js';
 
 export function botNewSession(
   methods: SessionsBridgeMethods,
@@ -121,21 +121,13 @@ export function compactionThresholdSet(
 
 export function sessionModel(
   methods: SessionsBridgeMethods,
-  slug: string,
+  slug: string | null,
   sessionId: string,
   choice?: unknown,
 ): Promise<SessionModelState> {
   return unwrapAsync(
     methods.sessionModel({ slug, sessionId, ...(choice === undefined ? {} : { choice }) }),
   );
-}
-
-export function sessionTranscript(
-  methods: SessionsBridgeMethods,
-  slug: string,
-  sessionId: string,
-): Promise<{ sessionId: string; role: SessionRootRole } & SessionTranscript> {
-  return unwrapAsync(methods.sessionTranscript({ slug, sessionId }));
 }
 
 export function sessionToolDetail(
@@ -190,11 +182,166 @@ export function botSessionIds(methods: SessionsBridgeMethods): {
   return unwrap(methods.botSessionIds({}));
 }
 
-export function sessionMessageSend(
-  methods: SessionsAdapterMethods,
-  botSlug: string,
-  sessionId: string,
-  text: string,
-): Promise<{ sourceEventId: string }> {
-  return unwrapAsync(methods.sessionMessageSend({ botSlug, sessionId, text }));
+class SessionListRpc {
+  declare readonly methods: BridgeMethods;
+
+  sessions(slug: string): { sessions: OwnedSessionSummary[] };
+  sessions(
+    slug: string,
+    includeTitles: boolean,
+  ): { sessions: OwnedSessionSummary[] } | Promise<{ sessions: OwnedSessionSummary[] }>;
+  sessions(slug: string, includeTitles?: boolean) {
+    return sessions(this.methods, slug, includeTitles);
+  }
 }
+
+export const sessionsRpcMethods = {
+  sessionArchiveSet(
+    slug: string,
+    sessionId: string,
+    archived: boolean,
+  ): Promise<{ archived: boolean }> {
+    return sessionArchiveSet(this.methods, slug, sessionId, archived);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const botSessionRpc = {
+  botNewSession(slug: string): Promise<{ started: true }> {
+    return botNewSession(this.methods, slug);
+  },
+
+  botCompact(slug: string): Promise<ManualCompactionResult> {
+    return botCompact(this.methods, slug);
+  },
+
+  botContext(slug: string): Promise<import('../../runtime/context-window.js').BotContextWindow> {
+    return botContext(this.methods, slug);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const sessionControlRpc = {
+  channelBotStop(
+    channelId: string,
+    botSlug: string,
+    autoContinueFor?: string,
+  ): Promise<{
+    stopped: { botSlug: string; sessionId: string; messageId: string };
+  }> {
+    return channelBotStop(this.methods, channelId, botSlug, autoContinueFor);
+  },
+
+  sessionMessageSend(botSlug: string | null, sessionId: string, text: string) {
+    return unwrapAsync(this.methods.sessionMessageSend({ botSlug, sessionId, text }));
+  },
+
+  sessionStop(
+    botSlug: string,
+    sessionId?: string,
+    channelId?: string,
+    activityId?: string,
+  ): Promise<{
+    stopped: import('../../runtime/bot-runtime.js').StoppedSessionRef[];
+    alreadyIdle: import('../../runtime/bot-runtime.js').StoppedSessionRef[];
+    messageId?: string;
+  }> {
+    return sessionStop(this.methods, botSlug, sessionId, channelId, activityId);
+  },
+
+  botStop(
+    botSlug: string,
+    channelId?: string,
+    autoContinueFor?: string,
+  ): Promise<{
+    stopped: import('../../runtime/bot-runtime.js').StoppedSessionRef[];
+    alreadyIdle: import('../../runtime/bot-runtime.js').StoppedSessionRef[];
+    messageId?: string;
+  }> {
+    return botStop(this.methods, botSlug, channelId, autoContinueFor);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const compactionSettingsRpc = {
+  idleCompaction(): IdleCompactionView {
+    return idleCompaction(this.methods);
+  },
+
+  idleCompactionSet(enabled: boolean): IdleCompactionView {
+    return idleCompactionSet(this.methods, enabled);
+  },
+
+  compactionThresholdSet(
+    thresholdRatio?: number | null,
+    headroomTokens?: number | null,
+  ): IdleCompactionView {
+    return compactionThresholdSet(this.methods, thresholdRatio, headroomTokens);
+  },
+
+  idleCompactionCacheLifetimeSet(
+    provider: string,
+    model: string,
+    seconds: number | null,
+  ): IdleCompactionView {
+    return idleCompactionCacheLifetimeSet(this.methods, provider, model, seconds);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const sessionDetailsRpc = {
+  sessionModel(
+    slug: string | null,
+    sessionId: string,
+    choice?: unknown,
+  ): Promise<SessionModelState> {
+    return sessionModel(this.methods, slug, sessionId, choice);
+  },
+
+  sessionTranscript(slug: string | null, sessionId: string) {
+    return unwrapAsync(this.methods.sessionTranscript({ slug, sessionId }));
+  },
+
+  sessionLive(
+    slug: string | null,
+    sessionId: string,
+    after?: number,
+  ): Promise<{ sessionId: string } & SessionLiveSnapshot> {
+    return unwrapAsync(
+      this.methods.sessionLive({ slug, sessionId, ...(after === undefined ? {} : { after }) }),
+    );
+  },
+
+  sessionToolDetail(
+    slug: string,
+    sessionId: string,
+    callId: string,
+  ): Promise<{ sessionId: string; callId: string; detail: SessionToolDetail }> {
+    return sessionToolDetail(this.methods, slug, sessionId, callId);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const sessionListRpc = {
+  sessions: SessionListRpc.prototype.sessions,
+
+  sessionList() {
+    return unwrapAsync(this.methods.sessionList({}));
+  },
+
+  botToolTrace(
+    slug: string,
+    sessionId?: string,
+    turns?: number,
+  ): Promise<{ slug: string; sessionId: string; turns: TurnTrace[] }> {
+    return botToolTrace(this.methods, slug, sessionId, turns);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;
+
+export const sessionOwnerRpc = {
+  sessionOwner(sessionId: string): { owner: OwnedSessionBot | null } {
+    return sessionOwner(this.methods, sessionId);
+  },
+
+  botSessionIds(): {
+    sessionIds: string[];
+    groups: { botSlug: string; displayName: string; sessionIds: string[] }[];
+  } {
+    return botSessionIds(this.methods);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;

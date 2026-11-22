@@ -125,7 +125,10 @@ const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
   { command: 'list', description: 'list PersonaBots' },
   { command: 'show', description: 'inspect one PersonaBot' },
   { command: 'model-presets', description: 'list model presets' },
-  { command: 'model-preset-create', description: 'create a model preset from provider routes' },
+  {
+    command: 'model-preset-create',
+    description: 'create a model preset from routes or sub choices in --plan-stdin',
+  },
   { command: 'model-preset-apply', description: 'apply a model preset to a bot' },
   { command: 'model-plan', description: 'show a bot model plan' },
   { command: 'memory-snapshot', description: 'read a bot memory snapshot' },

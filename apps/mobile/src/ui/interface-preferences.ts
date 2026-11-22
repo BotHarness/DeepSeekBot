@@ -1,9 +1,12 @@
+import { useSyncExternalStore } from 'react';
+
 export type LanguagePreference = 'system' | 'en' | 'zh';
 export type AppearancePreference = 'system' | 'light' | 'dark';
 export type InAppAlertStyle = 'inline' | 'overlay';
 export type InterfacePreferences = {
   language: LanguagePreference;
   appearance: AppearancePreference;
+  sessionsTab: boolean;
   inAppAlerts: boolean;
   inAppAlertStyle: InAppAlertStyle;
 };
@@ -25,6 +28,7 @@ export function createInterfacePreferences() {
   let value: InterfacePreferences = {
     language: 'system',
     appearance: 'system',
+    sessionsTab: false,
     inAppAlerts: true,
     inAppAlertStyle: 'overlay',
   };
@@ -61,6 +65,8 @@ export function createInterfacePreferences() {
       try {
         const saved = await adapter.read();
         if (!touched && typeof saved === 'object' && saved !== null) {
+          if ('sessionsTab' in saved && typeof saved.sessionsTab === 'boolean')
+            value.sessionsTab = saved.sessionsTab;
           if ('inAppAlerts' in saved && typeof saved.inAppAlerts === 'boolean')
             value.inAppAlerts = saved.inAppAlerts;
           if (
@@ -100,6 +106,12 @@ export function createInterfacePreferences() {
       if (snapshot.loaded) persist();
       publish();
     },
+    setSessionsTab(sessionsTab: boolean) {
+      touched = true;
+      value = { ...value, sessionsTab };
+      if (snapshot.loaded) persist();
+      publish();
+    },
     setInAppAlerts(inAppAlerts: boolean) {
       touched = true;
       value = { ...value, inAppAlerts };
@@ -126,3 +138,13 @@ export function createInterfacePreferences() {
 }
 
 export const interfacePreferences = createInterfacePreferences();
+
+const sessionsTabSnapshot = () => interfacePreferences.getSnapshot().sessionsTab;
+
+export function useSessionsTab() {
+  return useSyncExternalStore(
+    interfacePreferences.subscribe,
+    sessionsTabSnapshot,
+    sessionsTabSnapshot,
+  );
+}

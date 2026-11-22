@@ -27,7 +27,7 @@ type Result<T> =
   | { host: HostCall; attempt: number; failed: true };
 
 export interface ComposerSessionModel {
-  slug: string;
+  slug: string | null;
   sessionId: string;
   host: HostCall;
   enabled: boolean;
@@ -135,6 +135,7 @@ export function useSessionModelControl({
 
   return {
     state,
+    native: slug === null,
     target,
     catalog,
     failed,
@@ -167,7 +168,7 @@ export function SessionModelChip({
     target: control.target,
     catalog: control.catalog,
     width: width / Math.max(1, theme.fontScale),
-    strings: t,
+    strings: control.native ? { ...t, defaultLabel: t.nativeDefaultLabel } : t,
   });
   const unavailable = disabled;
   return (
@@ -225,14 +226,15 @@ export function SessionModelPicker({ control }: { control: Control }) {
   const t = useStrings();
   const copy = t.sessionModel;
   const theme = useDesignTheme();
-  const { catalog, state, visible, ready, failed, refused, saving, close, retry, choose } = control;
+  const { catalog, state, native, visible, ready, failed, refused, saving, close, retry, choose } =
+    control;
   const sections = useMemo(() => {
     if (!visible || catalog === undefined) return [];
     return [
-      { title: '', data: [{ choice: null, name: copy.default }] },
+      { title: '', data: [{ choice: null, name: native ? copy.nativeDefault : copy.default }] },
       {
         title: copy.groups,
-        data: (catalog.groups ?? []).map((group): Option => ({
+        data: (native ? [] : (catalog.groups ?? [])).map((group): Option => ({
           choice: { kind: 'group', id: group.id },
           name: group.name,
           disabled: group.restingUntil !== undefined,
@@ -257,7 +259,7 @@ export function SessionModelPicker({ control }: { control: Control }) {
       },
       {
         title: t.routingGroup.engines,
-        data: catalog.engines.flatMap((engine): Option[] =>
+        data: (native ? [] : catalog.engines).flatMap((engine): Option[] =>
           engine.available
             ? engine.models.map((model) => {
                 const account = engine.accountId === undefined ? {} : { account: engine.accountId };
@@ -283,7 +285,7 @@ export function SessionModelPicker({ control }: { control: Control }) {
         ),
       },
     ];
-  }, [catalog, copy, t.routingGroup.engines, visible]);
+  }, [catalog, copy, native, t.routingGroup.engines, visible]);
   const current = sessionModelKey(state?.override ?? null);
   return (
     <Sheet visible={visible} label={copy.choice} title={copy.choice} onClose={close}>

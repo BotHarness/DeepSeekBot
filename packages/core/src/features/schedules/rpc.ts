@@ -1,3 +1,4 @@
+import type { BridgeRpcReceiver } from '../../bridge/rpc-types.js';
 import { unwrap } from '../../bridge/rpc-result.js';
 import type {
   BotSchedule,
@@ -62,3 +63,33 @@ export function schedulePreview(
 ): { occurrences: string[] } {
   return unwrap(methods.schedulePreview({ trigger }));
 }
+
+export const schedulesServiceRpc = {
+  scheduleList(slug: string): { schedules: BotSchedule[] } {
+    return scheduleList(this.methods, slug);
+  },
+
+  scheduleCreate(slug: string, input: BotScheduleInput): { schedule: BotSchedule } {
+    return scheduleCreate(this.methods, slug, input);
+  },
+
+  scheduleUpdate(slug: string, id: string, change: BotScheduleChange): { schedule: BotSchedule } {
+    return scheduleUpdate(this.methods, slug, id, change);
+  },
+
+  scheduleDelete(slug: string, id: string): { removed: boolean } {
+    return scheduleDelete(this.methods, slug, id);
+  },
+
+  scheduleHistory(slug: string, id: string): { firings: BotScheduleFiring[] } {
+    return scheduleHistory(this.methods, slug, id);
+  },
+
+  scheduleRunNow(slug: string, id: string): { firing: BotScheduleFiring } {
+    return scheduleRunNow(this.methods, slug, id);
+  },
+
+  schedulePreview(trigger: BotScheduleTrigger): { occurrences: string[] } {
+    return schedulePreview(this.methods, trigger);
+  },
+} satisfies ThisType<BridgeRpcReceiver>;

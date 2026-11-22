@@ -1,4 +1,8 @@
 import {
+  createHostSessionsMethods,
+  type NativeSessions,
+} from '../features/sessions/host-sessions.js';
+import {
   createPersonaBotsBridgeMethods,
   type PersonaBotsBridgeMethods,
   detail,
@@ -87,14 +91,7 @@ import {
   type SchedulesBridgeMethods,
   type SchedulesBridgeDeps,
 } from '../features/schedules/methods.js';
-import {
-  asNonBlank,
-  asObject,
-  invalidInput,
-  unavailable,
-  unknownBot,
-  type BridgeResult,
-} from './method-utils.js';
+import { asObject, invalidInput, type BridgeResult } from './method-utils.js';
 import {
   createPromptBridgeMethods,
   type PromptBridgeMethods,
@@ -136,7 +133,7 @@ import type { PluginUpdateService } from '../release/plugins.js';
 import { type UpdateRuns } from '../release/update-runs.js';
 import type { ActiveDay } from '../telemetry/active-day.js';
 import type { TelemetryCapture, TelemetryStatus } from '../telemetry/service.js';
-import type { SessionLiveSnapshot, SessionLiveStreams } from '../runtime/session-live.js';
+import type { SessionLiveStreams } from '../runtime/session-live.js';
 import { type PresentToolResult } from '../runtime/session-tool-detail.js';
 import { type PublicToolCall } from '../runtime/assignment-timeline.js';
 import type { AttachmentStore } from '../attachments/store.js';
@@ -221,6 +218,10 @@ import {
   createChannelsSendAdapterMethods,
   type ChannelsSendAdapterMethods,
 } from '../features/channels/send-methods.js';
+import {
+  createGroupMemberMethods,
+  type GroupMemberMethods,
+} from '../features/channels/group-members.js';
 import {
   createChannelsManagementAdapterMethods,
   type ChannelsManagementAdapterMethods,
@@ -388,19 +389,27 @@ export interface BridgeMethods
     HumansBridgeMethods,
     ChannelsAdapterMethods,
     ChannelsManagementAdapterMethods,
+    GroupMemberMethods,
     ChannelsSendAdapterMethods,
     ChannelFilesAdapterMethods,
     ProfileStorageAdapterMethods,
     DiagnosticsAdapterMethods,
     ReleaseAdapterMethods,
     HumansAdapterMethods,
-    SessionsAdapterMethods,
+    Omit<SessionsAdapterMethods, 'sessionMessageSend'>,
+    Pick<ReturnType<typeof createHostSessionsMethods>, 'sessionList' | 'sessionLive'>,
     WorkspacesAdapterMethods,
     PromptsAdapterMethods,
     TakeoverAdapterMethods,
     UsageAdapterMethods,
     TobAdapterMethods {
-  sessionLive(payload: unknown): Promise<BridgeResult<{ sessionId: string } & SessionLiveSnapshot>>;
+  sessionMessageSend(
+    payload: unknown,
+  ): Promise<
+    BridgeResult<
+      { sourceEventId: string; requestId?: never } | { requestId: string; sourceEventId?: never }
+    >
+  >;
 
   botModes: BotModeBridgeMethods['botModes'];
   botModeDefaultSet: BotModeBridgeMethods['botModeDefaultSet'];
@@ -469,6 +478,7 @@ export interface BridgeMethodsDeps
     | undefined;
   presentToolResult?: PresentToolResult;
   sessionLive?: SessionLiveStreams;
+  nativeSessions?: NativeSessions;
   roster: RosterStore;
   runtime?: BotRuntime;
   attention?: BotAttentionQuery;
@@ -675,6 +685,7 @@ function buildBridgeMethods(
   const promptsAdapterMethods = createPromptsAdapterMethods(deps);
   const workspacesAdapterMethods = createWorkspacesAdapterMethods(human, deps, isHostOwner);
   const sessionsAdapterMethods = createSessionsAdapterMethods(human, deps);
+  const hostSessions = createHostSessionsMethods(human, deps, globalRegistry, isHostOwner);
   const humansAdapterMethods = createHumansAdapterMethods(deps);
   const releaseAdapterMethods = createReleaseAdapterMethods(deps);
   const diagnosticsAdapterMethods = createDiagnosticsAdapterMethods(deps);
@@ -765,7 +776,10 @@ function buildBridgeMethods(
     botSystemPrompt,
     channelBotStop: sessionsMethods.channelBotStop,
     botStop: sessionsMethods.botStop,
-    sessionMessageSend: sessionsAdapterMethods.sessionMessageSend,
+    sessionMessageSend: (payload) =>
+      asObject(payload)['botSlug'] === null
+        ? hostSessions.sessionSend(payload)
+        : sessionsAdapterMethods.sessionMessageSend(payload),
     sessionStop: sessionsMethods.sessionStop,
     ...modelSettings,
     dataResetPreview: profileStorageAdapterMethods.dataResetPreview,
@@ -839,6 +853,11 @@ function buildBridgeMethods(
     channelRename: channelsManagementAdapterMethods.channelRename,
     channelGroupAvatarSet: channelsManagementAdapterMethods.channelGroupAvatarSet,
     channelGroupInvite: channelsManagementAdapterMethods.channelGroupInvite,
+    ...createGroupMemberMethods({
+      human,
+      deps: { ...deps, registry: globalRegistry },
+      invite: channelsManagementAdapterMethods.channelGroupInvite,
+    }),
     channelGroupInviteCancel: channelsManagementAdapterMethods.channelGroupInviteCancel,
     channelGroupJoinDecide: channelsManagementAdapterMethods.channelGroupJoinDecide,
     channelGroupMemberRemove: channelsManagementAdapterMethods.channelGroupMemberRemove,
@@ -892,29 +911,16 @@ function buildBridgeMethods(
     assignment: assignmentsMethods.assignment,
     assignmentTimeline: assignmentsMethods.assignmentTimeline,
     sessionProgress: assignmentsMethods.sessionProgress,
-    sessionTranscript: sessionsMethods.sessionTranscript,
-    sessionModel: sessionsMethods.sessionModel,
-    async sessionLive(payload) {
-      const source = asObject(payload);
-      const slug = asNonBlank(source, 'slug');
-      const sessionId = asNonBlank(source, 'sessionId');
-      const after = source?.['after'];
-      if (slug === undefined) return invalidInput('slug is required');
-      if (sessionId === undefined) return invalidInput('sessionId is required');
-      if (after !== undefined && (typeof after !== 'number' || !Number.isSafeInteger(after)))
-        return invalidInput('after must be an integer');
-      if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
-      const owner = deps.ownership.resolve(sessionId);
-      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
-        return {
-          ok: false,
-          error: { code: 'not-found', message: `unknown root Session: ${sessionId}` },
-        };
-      const live = deps.sessionLive;
-      if (live === undefined) return unavailable();
-      if (after !== undefined) await live.wait(sessionId, after);
-      return { ok: true, value: { sessionId, ...live.snapshot(sessionId) } };
-    },
+    sessionList: hostSessions.sessionList,
+    sessionTranscript: (payload) =>
+      asObject(payload)['slug'] === null
+        ? hostSessions.sessionTranscript(payload)
+        : sessionsMethods.sessionTranscript(payload),
+    sessionModel: (payload) =>
+      asObject(payload)['slug'] === null
+        ? hostSessions.sessionModel(payload)
+        : sessionsMethods.sessionModel(payload),
+    sessionLive: hostSessions.sessionLive,
     sessionToolDetail: sessionsMethods.sessionToolDetail,
     sessionSubagents: assignmentsMethods.sessionSubagents,
     workspaceOptions: workspacesAdapterMethods.workspaceOptions,

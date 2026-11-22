@@ -1,5 +1,5 @@
 import { Stack } from 'expo-router';
-import type { ReactNode } from 'react';
+import type { ReactElement, ReactNode } from 'react';
 import { View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
@@ -11,15 +11,23 @@ export function SheetPage({
   title,
   subtitle,
   children,
+  safeAreaFooter,
 }: {
   title?: string;
   subtitle?: string;
   children: ReactNode;
+  safeAreaFooter?: ReactElement | undefined;
 }) {
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
   return (
-    <View style={{ flex: 1, backgroundColor: theme.overlay.fill, paddingBottom: insets.bottom }}>
+    <View
+      style={{
+        flex: 1,
+        backgroundColor: theme.overlay.fill,
+        paddingBottom: safeAreaFooter === undefined ? insets.bottom : 0,
+      }}
+    >
       {title === undefined ? null : <Stack.Screen options={{ title }} />}
       {subtitle === undefined ? null : (
         <Text
@@ -31,6 +39,7 @@ export function SheetPage({
         </Text>
       )}
       {children}
+      {safeAreaFooter}
     </View>
   );
 }
