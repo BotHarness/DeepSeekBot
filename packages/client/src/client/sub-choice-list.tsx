@@ -32,13 +32,9 @@ import {
   type ModelMenuItem,
 } from './model-menu.js';
 import { ModelTrigger } from './model-trigger.js';
+import { matchesPresetSubChoice } from '@botharness/host-protocol/preset-sub';
 import type { ComboboxOption } from './combobox.js';
-import {
-  sameSubSelection,
-  subSelectionOf,
-  type SubChoice,
-  type SubChoices,
-} from './sub-choices.js';
+import { subSelectionOf, type SubChoice, type SubChoices } from './sub-choices.js';
 
 const styles = stylex.create({
   section: { display: 'flex', flexDirection: 'column', gap: space.x3, minWidth: 0 },
@@ -171,7 +167,7 @@ export function SubChoiceList({
   const remove = (index: number): void => {
     const removed = sub.choices[index]!;
     const choices = sub.choices.filter((_, at) => at !== index);
-    const keepDefault = sub.default !== null && !sameSubSelection(removed, sub.default);
+    const keepDefault = sub.default !== null && !matchesPresetSubChoice(removed, sub.default);
     onChange({
       choices,
       default: keepDefault
@@ -209,7 +205,7 @@ export function SubChoiceList({
       });
   };
   const push = (choice: SubChoice): void => {
-    if (sub.choices.some((item) => sameSubSelection(item, subSelectionOf(choice)))) return;
+    if (sub.choices.some((item) => matchesPresetSubChoice(item, subSelectionOf(choice)))) return;
     const choices = [...sub.choices, choice];
     onChange({ choices, default: sub.default ?? subSelectionOf(choice) });
   };
@@ -227,7 +223,7 @@ export function SubChoiceList({
     const item = itemOf(choice);
     const name =
       item?.name ?? (choice.kind === 'group' ? choice.group : (choice.model ?? choice.kind));
-    const isDefault = sub.default !== null && sameSubSelection(choice, sub.default);
+    const isDefault = sub.default !== null && matchesPresetSubChoice(choice, sub.default);
     const efforts = effortsOf(choice);
     const effort = effortOf(choice);
     const effortName = efforts.find((entry) => entry.id === effort)?.name;

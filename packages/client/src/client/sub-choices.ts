@@ -30,29 +30,6 @@ export function subSelectionOf(choice: SubChoice): SubSelection {
   }
 }
 
-export function sameSubSelection(
-  choice: SubChoice | SubSelection,
-  selection: SubSelection,
-): boolean {
-  switch (selection.kind) {
-    case 'model':
-      return (
-        choice.kind === 'model' &&
-        choice.provider === selection.provider &&
-        choice.model === selection.model
-      );
-    case 'group':
-      return choice.kind === 'group' && choice.group === selection.group;
-    case 'engine':
-      return (
-        choice.kind === 'engine' &&
-        choice.engine === selection.engine &&
-        choice.accountId === selection.accountId &&
-        choice.model === selection.model
-      );
-  }
-}
-
 export interface LegacySubSource {
   sub?: SubChoices | undefined;
   assignmentDefault?: { provider: string; model: string; reasoningEffort?: string } | undefined;
