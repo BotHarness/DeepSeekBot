@@ -2,7 +2,11 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
+import {
+  attachOperationalModule,
+  mountOperationalDatabase,
+  OperationalDatabaseError,
+} from '../src/database/owner.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { defineSchemaPlan } from '../src/database/schema.js';
 import {
@@ -204,10 +208,56 @@ it('reads the Default preset route per role and falls back to the DSH default wi
     assignmentDefault: sub,
   };
   const dsh = { provider: 'deepseek-official', model: 'deepseek-flash' };
-  expect(defaultPresetRoute(preset, 'orchestrator', () => dsh)).toEqual(main);
-  expect(defaultPresetRoute(preset, 'assignment', () => dsh)).toEqual(sub);
-  expect(defaultPresetRoute(undefined, 'orchestrator', () => dsh)).toEqual(dsh);
-  expect(() => defaultPresetRoute(undefined, 'orchestrator', () => undefined)).toThrow(
+  expect(
+    defaultPresetRoute(
+      () => preset,
+      'orchestrator',
+      () => dsh,
+    ),
+  ).toEqual(main);
+  expect(
+    defaultPresetRoute(
+      () => preset,
+      'assignment',
+      () => dsh,
+    ),
+  ).toEqual(sub);
+  expect(
+    defaultPresetRoute(
+      () => undefined,
+      'orchestrator',
+      () => dsh,
+    ),
+  ).toEqual(dsh);
+  expect(() =>
+    defaultPresetRoute(
+      () => undefined,
+      'orchestrator',
+      () => undefined,
+    ),
+  ).toThrow('Default Model Preset is unavailable');
+});
+
+it('uses the DSH default when the Default Model Preset database is in recovery', () => {
+  const { root } = fixture();
+  const recovery = mountOperationalDatabase({ dshHome: root, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+  homes.push({ root, close: () => recovery.close() });
+  expect(recovery.mode).toBe('recovery');
+  const store = createModelPresetStore({ rootDir: root, database: recovery });
+  const readPreset = () => store.get(DEFAULT_MODEL_PRESET_ID);
+  expect(() => readPreset()).toThrow(expect.objectContaining({ code: 'recovery-mode' }));
+  expect(defaultPresetRoute(readPreset, 'orchestrator', () => main)).toEqual(main);
+  expect(() => defaultPresetRoute(readPreset, 'assignment', () => undefined)).toThrow(
     'Default Model Preset is unavailable',
   );
 });
+
+it.each([new Error('invalid preset'), new OperationalDatabaseError('read-failed', 'query failed')])(
+  'propagates unrelated preset read errors: %s',
+  (error) => {
+    const readPreset = () => {
+      throw error;
+    };
+    expect(() => defaultPresetRoute(readPreset, 'orchestrator', () => main)).toThrow(error);
+  },
+);

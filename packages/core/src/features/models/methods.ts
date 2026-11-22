@@ -626,9 +626,10 @@ export function createModelsBridgeMethods(
         }
         const currentTarget = deps.runtime?.currentTurnTarget?.(slug);
         const executed = currentTarget === undefined ? {} : { currentTarget };
-        const inherited =
-          bot.modelPlan === undefined &&
-          bot.model === undefined &&
+        const inheritance = (record: typeof bot | undefined) =>
+          record !== undefined &&
+          record.modelPlan === undefined &&
+          record.model === undefined &&
           deps.modelPresets?.get(DEFAULT_MODEL_PRESET_ID) !== undefined
             ? { inheritedPresetId: DEFAULT_MODEL_PRESET_ID }
             : {};
@@ -641,7 +642,7 @@ export function createModelsBridgeMethods(
               value: {
                 ...state,
                 ...executed,
-                ...inherited,
+                ...inheritance(current),
                 revision: current?.modelPlan?.revision ?? current?.modelPlanRevision ?? 0,
               },
             };
@@ -653,7 +654,7 @@ export function createModelsBridgeMethods(
           ok: true,
           value: {
             ...executed,
-            ...inherited,
+            ...inheritance(bot),
             revision: bot.modelPlan?.revision ?? bot.modelPlanRevision ?? 0,
             ...(bot.modelPlan === undefined ? {} : { plan: bot.modelPlan }),
           },

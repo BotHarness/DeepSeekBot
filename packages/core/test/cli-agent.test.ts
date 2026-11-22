@@ -66,6 +66,17 @@ async function invoke(
   return { code, json: JSON.parse(stdout[0]!) };
 }
 describe('scoped Tob CLI', () => {
+  it('refuses scoped writes to the retired default model namespace before dispatch', async () => {
+    const live = await broker();
+    const result = await invoke(
+      ['settings-set', 'agent-default-model', '--patch-stdin'],
+      live.endpoint,
+      '{"model":"example"}',
+    );
+    expect(result.json).toMatchObject({ error: { code: 'unsupported-setting' } });
+    expect(live.calls).toEqual([]);
+  });
+
   it('discovers server capabilities without Human Host login and routes help there too', async () => {
     const live = await broker({
       ok: true,

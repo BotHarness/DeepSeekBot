@@ -1505,7 +1505,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   };
   const defaultModel: DshDefaultModelHost = {
     currentSelection(role = 'orchestrator') {
-      const route = defaultPresetRoute(defaultPreset(), role, () =>
+      const route = defaultPresetRoute(defaultPreset, role, () =>
         ctx.get('agentDefaultModel')?.currentSelection(),
       );
       return {

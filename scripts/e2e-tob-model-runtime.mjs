@@ -264,26 +264,25 @@ async function developerUi(expected) {
 }
 async function modelUi(route) {
   mark('model-ui-open');
-  const { models } = await rpc('modelCatalog');
-  const entry = models.find(
-    (model) => model.provider === route.provider && model.model === route.model,
-  );
-  assert.ok(entry, 'approved route is absent from the model catalog');
   await page.locator('[data-composer-chip="model"]').click();
   await click('Model settings');
-  const picker = '[role="dialog"] .bh-model-picker';
-  await page.waitForSelector(picker, { visible: true });
+  const mainPicker =
+    '[role="dialog"] .bh-model-picker [aria-label^="Main model · "], ' +
+    '[role="dialog"] .bh-model-picker [aria-label^="主模型 · "]';
+  await page.locator(mainPicker).click();
+  const selected = '[role="dialog"] [role="option"][aria-selected="true"]';
   await page.waitForFunction(
-    (selector, label) =>
-      [...(document.querySelector(selector)?.querySelectorAll('button') ?? [])].some((button) =>
-        button.getAttribute('aria-label')?.endsWith(` · ${label}`),
+    (selector, key) =>
+      [...document.querySelectorAll(selector)].some(
+        (option) => option.dataset.pickerOption === key,
       ),
     {},
-    picker,
-    entry.modelName ?? route.model,
+    selected,
+    JSON.stringify([route.provider, route.model]),
   );
-  await page.$eval(picker, (node) => node.scrollIntoView({ block: 'center' }));
   await shot('model-plan-setting');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector(selected, { hidden: true });
   await click('Cancel', '[role="dialog"]');
   steps.push('real Bot model settings UI shows the approved model route');
   mark('model-ui-verified');
@@ -899,7 +898,7 @@ try {
           JSON.stringify({ target, reviewed, current }, null, 2),
         );
         steps.push('Bot model plan canonical readback; provider/model credential unchanged');
-        await modelUi(route);
+        await modelUi(current.plan.orchestrator);
       } else {
         const current = await settings();
         const expected = phase === 'runtime-approve' ? desiredDeveloper : previousDeveloper;

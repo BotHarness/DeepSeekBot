@@ -178,9 +178,10 @@ export class EngineHost {
 
   engineFor(botSlug: string, role: EngineRole = 'orchestrator'): EngineId | undefined {
     if (!this.#options.local) return undefined;
-    return (
-      this.store.selection(botSlug, role) ?? this.#options.inheritedChoice?.(botSlug, role)?.engine
-    );
+    const selection = this.store.selection(botSlug, role);
+    return selection === undefined
+      ? this.#options.inheritedChoice?.(botSlug, role)?.engine
+      : (selection ?? undefined);
   }
 
   #choice(botSlug: string, role: EngineRole): EngineChoice {
@@ -218,15 +219,15 @@ export class EngineHost {
   use(
     botSlug: string,
     role: EngineRole,
-    engine: EngineId | undefined,
+    engine: EngineId | null | undefined,
     options: { fallback?: boolean } & EngineChoice = {},
   ): void {
-    if (engine !== undefined && !this.#options.local)
+    if (engine != null && !this.#options.local)
       throw new EngineRefusal(
         'engine-unavailable',
         'Subscription Engines run only on a local Host',
       );
-    if (engine !== undefined) this.#requireAccountGrant(botSlug, engine, options.accountId);
+    if (engine != null) this.#requireAccountGrant(botSlug, engine, options.accountId);
     const previous = this.choiceFor(botSlug, role);
     this.store.select(botSlug, role, engine, options);
     if (previous !== this.choiceFor(botSlug, role))
@@ -280,7 +281,7 @@ export class EngineHost {
   fallsBack(botSlug: string, role: EngineRole = 'orchestrator'): boolean {
     return (
       this.#options.local &&
-      this.store.selection(botSlug, role) !== undefined &&
+      this.store.selection(botSlug, role) != null &&
       this.store.fallback(botSlug, role)
     );
   }

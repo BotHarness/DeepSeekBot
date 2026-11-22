@@ -422,8 +422,25 @@ try {
   );
   steps.push('concurrent Tob identity converges');
   if (phase === 'configure') {
-    const { default: before } = await rpc('modelCatalog');
-    assert.ok(before?.provider && before?.model, 'Default preset fixture has no route');
+    const initialRoute = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
+    const saveTarget = { provider: 'deepseek-official', model: 'deepseek-flash' };
+    const { presets: existing } = await rpc('modelPresets');
+    const preset = existing.find((entry) => entry.id === 'default');
+    assert.ok(preset, 'Default Model Preset fixture is missing');
+    const { preset: seeded } = await rpc('modelPresetUpdate', {
+      id: preset.id,
+      expectedRevision: preset.revision,
+      name: preset.name,
+      orchestrator: initialRoute,
+      orchestratorGroupId: null,
+      orchestratorEngine: null,
+      assignmentDefault: initialRoute,
+      assignmentGroups: [],
+      assignmentGroupOptions: null,
+      assignmentEngine: null,
+      assignmentFollowsMain: true,
+    });
+    assert.deepEqual(seeded.orchestrator, initialRoute);
     await page.reload({ waitUntil: 'networkidle2' });
     await showTobDm(true);
     const draft = 'QA draft kept while the default model is configured';
@@ -449,8 +466,12 @@ try {
     await page.waitForSelector('[role="dialog"] .bh-model-picker', { hidden: true });
     const { presets } = await rpc('modelPresets');
     const current = presets.find((preset) => preset.id === 'default');
-    assert.equal(current.orchestrator.provider, 'deepseek-official');
-    assert.equal(current.orchestrator.model, 'deepseek-flash');
+    assert.equal(current.orchestrator.provider, saveTarget.provider);
+    assert.equal(current.orchestrator.model, saveTarget.model);
+    assert.ok(
+      current.revision > seeded.revision,
+      'Saving must advance the Default preset revision',
+    );
     await page.keyboard.press('Escape');
     await page.waitForSelector(TOB_INPUT, { visible: true });
     assert.equal(await page.$eval(TOB_INPUT, (n) => n.textContent), draft);

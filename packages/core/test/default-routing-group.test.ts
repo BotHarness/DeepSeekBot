@@ -81,6 +81,28 @@ function setup(onValidate: (route: ModelRoute) => void = () => undefined) {
 }
 
 describe('The default model can be a Routing Group (#4500)', () => {
+  it('preserves a separate Assignment route in a revisionless global main save', async () => {
+    const { methods, pinned } = setup();
+    const current = pinned();
+    const sub = { ...DEEPSEEK, reasoningEffort: 'high' };
+    expect(
+      await methods.modelPresetUpdate({
+        id: current.id,
+        name: current.name,
+        expectedRevision: current.revision,
+        orchestrator: DEEPSEEK,
+        assignmentDefault: sub,
+        assignmentFollowsMain: false,
+      }),
+    ).toMatchObject({ ok: true });
+    const main = { ...DEEPSEEK, reasoningEffort: 'max' };
+    expect(
+      await methods.onboardingModel({ expectedRevision: 0, globalDefault: true, route: main }),
+    ).toMatchObject({ ok: true });
+    expect(pinned()).toMatchObject({ orchestrator: main, assignmentDefault: sub });
+    expect(pinned().assignmentFollowsMain).toBeUndefined();
+  });
+
   it('sets the default to the group with its first usable member, and a model clears it', async () => {
     const { methods, selection } = setup();
     const created = await methods.modelGroupCreate({

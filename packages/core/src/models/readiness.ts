@@ -87,11 +87,10 @@ export function createModelRouteReadiness(
       if (state.repair !== undefined) throw new Error(state.repair.message);
       const selected =
         retainedRoute ??
-        (role === 'assignment' ? state.plan?.assignmentDefault : state.plan?.orchestrator);
-      const route =
-        selected ??
-        (role === 'assignment' ? defaultAssignmentRoute?.() : undefined) ??
-        catalog.defaultRoute?.();
+        (role === 'assignment'
+          ? (state.plan?.assignmentDefault ?? defaultAssignmentRoute?.())
+          : state.plan?.orchestrator);
+      const route = selected ?? catalog.defaultRoute?.();
       if (route === undefined) return;
       requireRoute?.(slug, route);
       if (selected === undefined) return;

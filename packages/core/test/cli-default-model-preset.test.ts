@@ -28,6 +28,19 @@ it('previews the Default preset against the legacy Host using read-only calls', 
   ]);
 });
 
+it.each([
+  ['model-preset-update', 'default', '--assignment-model', 'pro'],
+  ['model-preset-delete', 'default', '--expected-revision', '3', '--confirm'],
+  ['settings', 'botharness-client'],
+  ['list'],
+])('rejects migration dry run on %s before connecting', async (...argv) => {
+  const live = await host(() => ({ ok: true, value: {} }));
+  const result = await invoke([...argv, '--migration-dry-run'], live.url);
+  expect(result.code).toBe(2);
+  expect(result.json.error.message).toContain('--migration-dry-run requires model-default');
+  expect(live.calls).toEqual([]);
+});
+
 it('reads, updates sub, and surfaces pinned deletion from the Default preset', async () => {
   const main = { provider: 'go', model: 'flash' };
   const preset = {

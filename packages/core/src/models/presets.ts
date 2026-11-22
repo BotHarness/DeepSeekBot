@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { attachOperationalModule, type OperationalDatabaseOwner } from '../database/owner.js';
+import {
+  attachOperationalModule,
+  OperationalDatabaseError,
+  type OperationalDatabaseOwner,
+} from '../database/owner.js';
 import { isEngineId, type EngineChoice, type EngineId } from '../engines/engine-session.js';
 
 export interface ModelRoute {
@@ -385,12 +389,21 @@ export function defaultPresetPlan(preset: ModelPreset): PersonaBotModelPlan {
 }
 
 export function defaultPresetRoute(
-  preset: ModelPreset | undefined,
+  readPreset: () => ModelPreset | undefined,
   role: 'orchestrator' | 'assignment',
   fallback: () => ModelRoute | undefined,
 ): ModelRoute {
-  if (preset !== undefined)
-    return role === 'assignment' ? preset.assignmentDefault : preset.orchestrator;
+  try {
+    const preset = readPreset();
+    if (preset !== undefined)
+      return role === 'assignment' ? preset.assignmentDefault : preset.orchestrator;
+  } catch (error) {
+    if (
+      !(error instanceof OperationalDatabaseError) ||
+      (error.code !== 'recovery-mode' && error.code !== 'closed')
+    )
+      throw error;
+  }
   const route = fallback();
   if (route === undefined) throw new Error('Default Model Preset is unavailable');
   return route;

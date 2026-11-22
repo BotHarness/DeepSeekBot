@@ -189,7 +189,7 @@ export function createOnboardingBridgeMethods(
           const saved = store.setDefaultMain({
             expectedRevision: Number(expectedRevision),
             route,
-            preserveSub: defaultRevision !== undefined || defaultGroupRevision !== undefined,
+            preserveSub: true,
             ...(typeof groupId === 'string' ? { groupId } : {}),
             ...(effort === undefined ? {} : { effort }),
           });
