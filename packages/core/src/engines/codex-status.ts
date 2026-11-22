@@ -1,4 +1,7 @@
+import type { EngineDeviceLoginChallenge } from '@botharness/host-protocol/engine-device-login';
 import { mkdirSync } from 'node:fs';
+
+import { runCodexDeviceLogin } from './codex-device-login.js';
 
 import {
   type EngineCommand,
@@ -73,4 +76,13 @@ export function startCodexLogin(
     ['login'],
     timeoutMs,
   );
+}
+
+export function startCodexDeviceLogin(
+  options: CodexCommandOptions,
+  signal: AbortSignal,
+  onChallenge: (challenge: EngineDeviceLoginChallenge) => void,
+) {
+  mkdirSync(options.home, { recursive: true });
+  return runCodexDeviceLogin(target(options), signal, onChallenge);
 }

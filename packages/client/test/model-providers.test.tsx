@@ -9,6 +9,7 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () =>
 import { ModelProvidersSettings } from '../src/client/model-providers-settings.js';
 import type { BridgeCall } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
+import { resourceEvents } from './resource-events-fixture.js';
 import { menuItem, typeInto } from './primitive-mocks.js';
 import { fakeTeamMode } from '../../host-client/test/reader-fixtures.js';
 
@@ -674,5 +675,109 @@ it('masks the bound email until clicked and shows remaining quota per window wit
     expect(page.host.querySelector('[data-account-quota]')).toBeNull();
   } finally {
     await page.close();
+  }
+});
+
+it.each([
+  ['completed', '已登录'],
+  ['expired', '登录码已过期。重新登录。'],
+  ['failed', '无法完成 Codex 设备登录。检查 ChatGPT 的设备码授权设置后重试。'],
+  ['cancelled', '已取消登录。'],
+] as const)('displays Codex device sign-in until it is %s', async (outcome, message) => {
+  vi.useFakeTimers();
+  const events = resourceEvents();
+  const attemptId = '7d38c154-2981-431d-83a1-82c400cf6a11';
+  const url = 'https://auth.openai.com/codex/device';
+  let status: string = 'pending';
+  const call = vi.fn<BridgeCall>(async (method) => {
+    switch (method) {
+      case 'teamMode':
+        return { ok: true, value: teamMode('owner') };
+      case 'modelProviders':
+        return { ok: true, value: { revision: 1, providers: [] } };
+      case 'engineAccounts':
+        return {
+          ok: true,
+          value: {
+            revision: 1,
+            engines: [
+              {
+                engine: 'codex',
+                accountId: 'codex-work',
+                installed: true,
+                ...(status === 'completed'
+                  ? { available: true }
+                  : { available: false, reason: 'signed-out' }),
+              },
+            ],
+            selections: [],
+          },
+        };
+      case 'engineAccountLogin':
+        return { ok: true, value: { started: true, engine: 'codex', attemptId } };
+      case 'engineAccountLoginStatus':
+        return {
+          ok: true,
+          value:
+            status === 'pending'
+              ? { status, url, code: '7ABC-92DE', expiresAt: '2026-11-22T01:30:00.000Z' }
+              : { status },
+        };
+      case 'engineAccountLoginCancel':
+        status = 'cancelled';
+        return { ok: true, value: { cancelled: true } };
+      default:
+        throw new Error('Unexpected call ' + method);
+    }
+  });
+  const page = subscriptionTestPage(call);
+  const writeText = vi.fn(async () => {});
+  const clipboard = Object.getOwnPropertyDescriptor(navigator, 'clipboard');
+  Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
+  try {
+    await page.render();
+    await page.click('在其他设备上登录 Codex');
+    expect(call).toHaveBeenCalledWith(
+      'engineAccountLogin',
+      { id: 'codex-work', mode: 'device-auth' },
+      undefined,
+    );
+    expect(page.host.textContent).toContain('等待登录…');
+    expect(page.host.textContent).toContain(url);
+    expect(page.host.textContent).toContain('7ABC-92DE');
+    expect(page.host.textContent).toContain('有效期至');
+    const link = page.host.querySelector(`a[href="${url}"]`);
+    expect(link?.textContent).toBe(url);
+    await page.click('复制登录链接');
+    await page.click('复制登录码');
+    expect(writeText.mock.calls).toEqual([[url], ['7ABC-92DE']]);
+    if (outcome === 'cancelled') {
+      await page.click('取消');
+      expect(call).toHaveBeenCalledWith(
+        'engineAccountLoginCancel',
+        { id: 'codex-work', attemptId },
+        undefined,
+      );
+    } else {
+      status = outcome;
+      const reads = () =>
+        call.mock.calls.filter(([method]) => method === 'engineAccountLoginStatus').length;
+      const snapshots = reads();
+      await act(async () => vi.advanceTimersByTimeAsync(9_000));
+      expect(reads()).toBe(snapshots);
+      await act(async () => {
+        events.emit('engine-device-login');
+        await vi.advanceTimersByTimeAsync(25);
+      });
+      expect(reads()).toBe(snapshots + 1);
+    }
+    expect(page.host.textContent).toContain(message);
+    expect(page.host.textContent).not.toContain('7ABC-92DE');
+  } finally {
+    await page.close();
+    events.dispose();
+    if (clipboard === undefined) Reflect.deleteProperty(navigator, 'clipboard');
+    else Object.defineProperty(navigator, 'clipboard', clipboard);
+    vi.useRealTimers();
   }
 });

@@ -1,3 +1,4 @@
+import { parseEngineDeviceLoginProgress } from '@botharness/host-protocol/engine-device-login';
 import { isEngineId } from '@botharness/host-protocol/subscription-engine';
 import { CliLiveError } from './cli-live-error.js';
 
@@ -42,7 +43,8 @@ export const ENGINE_COMMANDS = [
   { command: 'engine-account-remove', description: 'remove an unused account and its home' },
   {
     command: 'engine-login',
-    description: 'start sign-in on the Host or submit a Claude Code authorization code from stdin',
+    description:
+      'start browser or Codex device sign-in, or submit a Claude Code authorization code from stdin',
   },
   {
     command: 'engine-login-cancel',
@@ -103,6 +105,49 @@ async function call(
   return value;
 }
 
+async function waitForCodexSignIn(
+  rpc: (method: string, args: Record<string, unknown>) => Promise<unknown>,
+  id: string,
+  attemptId: string,
+  reportProgress: (text: string) => void,
+) {
+  let reported = false;
+  for (;;) {
+    const progress = parseEngineDeviceLoginProgress(
+      await rpc('engineAccountLoginStatus', { id, attemptId }),
+    );
+    if (progress === undefined) throw protocolError();
+    switch (progress.status) {
+      case 'pending':
+        if (!reported) {
+          reported = true;
+          reportProgress(
+            `Open ${progress.url}
+Enter code ${progress.code} (expires ${progress.expiresAt}). Waiting for sign-in…`,
+          );
+        }
+        break;
+      case 'starting':
+        break;
+      case 'completed':
+        return { engine: 'codex', status: 'completed' };
+      case 'expired':
+        throw new CliLiveError(
+          'engine-login-expired',
+          'The Codex sign-in code expired. Start sign-in again.',
+        );
+      case 'cancelled':
+        throw new CliLiveError('engine-login-cancelled', 'Codex sign-in was cancelled.');
+      case 'failed':
+        throw new CliLiveError(
+          'engine-failed',
+          'Codex device sign-in failed. Check that Codex supports device auth and that device code authorization is enabled in ChatGPT.',
+        );
+    }
+    await new Promise<void>((resolve) => setTimeout(resolve, 3_000));
+  }
+}
+
 export async function runEngineCommand(
   command: string,
   rest: string[],
@@ -119,12 +164,16 @@ export async function runEngineCommand(
     effort?: string;
     'args-stdin'?: boolean;
     'code-stdin'?: boolean;
+    'device-auth'?: boolean;
     grantable?: boolean;
     refresh?: boolean;
   },
   connect: Connect,
   readStdin: () => Promise<string> = async () => '',
+  reportProgress: (text: string) => void = () => {},
 ): Promise<unknown> {
+  if (values['device-auth'] && (command !== 'engine-login' || rest[0] !== 'codex'))
+    throw new CliLiveError('usage', '--device-auth requires engine login codex.');
   if (values['code-stdin'] && (command !== 'engine-login' || rest[0] !== 'claude'))
     throw new CliLiveError('usage', '--code-stdin requires engine login claude.');
   if (values.grantable && command !== 'engine-accounts')
@@ -248,12 +297,18 @@ export async function runEngineCommand(
         if (!isObject(result) || result['submitted'] !== true) throw protocolError();
         return { submitted: true };
       }
-      const result = await rpc(
-        'engineAccountLogin',
-        values.account === undefined ? { id } : { id: accountId, engine: id },
-      );
+      const result = await rpc('engineAccountLogin', {
+        id: accountId,
+        ...(values.account === undefined ? {} : { engine: id }),
+        ...(values['device-auth'] ? { mode: 'device-auth' } : {}),
+      });
       if (!isObject(result) || result['started'] !== true || typeof result['engine'] !== 'string')
         throw protocolError();
+      if (values['device-auth']) {
+        const attemptId = result['attemptId'];
+        if (result['engine'] !== 'codex' || typeof attemptId !== 'string') throw protocolError();
+        return waitForCodexSignIn(rpc, accountId, attemptId, reportProgress);
+      }
       return result;
     }
     const rawRevision = values['expected-revision'];

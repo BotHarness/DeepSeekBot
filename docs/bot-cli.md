@@ -1132,6 +1132,7 @@ deepseekbot engine account-add codex|claude --name <name> --expected-revision <r
 deepseekbot engine account-rename <account-id> --name <name> --expected-revision <r>
 deepseekbot engine account-remove <account-id> --expected-revision <r> --confirm
 deepseekbot engine login codex
+deepseekbot engine login codex --device-auth [--account <account-id>]
 deepseekbot engine login <account-id>
 deepseekbot engine login claude [--account <account-id>]
 deepseekbot engine login claude [--account <account-id>] --code-stdin < <code-file>
@@ -1160,6 +1161,8 @@ Use `engine accounts --grantable` to list the accounts granted to the signed-in 
 Quota includes the reported five-hour `session` and `weekly` windows, each with `remainingPercent`, `resetsAt` and `windowMinutes` where available. An absent value is unknown. `observedAt` identifies the last observation, `source` is `live` for a refresh or `turn` for a Turn event, and `limitedUntil` is present while a known account hold applies.
 
 Use `engine login-cancel <account-id>` after closing the browser sign-in tab. It requires `modelSources.manage` and returns `{"cancelled":true}` once the Host has stopped the pending process and you can retry. It returns `{"cancelled":false}` if the account has no pending sign-in. Use `codex` or `claude` for the default account.
+
+To sign in to Codex from a different device, run `engine login codex --device-auth` with the same `--account` you want to sign in to. Enable device code authorization in ChatGPT security settings. Open the verification URL and enter the one-time code printed on stderr before it expires. The command waits for the Host to verify the sign-in and writes one JSON result to stdout, including with `--json`. Success returns `{"engine":"codex","status":"completed"}`. Expiry, cancellation and other failures return `engine-login-expired`, `engine-login-cancelled` and `engine-failed`, respectively. To stop the pending Host process, run `engine login-cancel <account-id>` from another terminal. In Model providers, choose **Sign in on another device** on the Codex account.
 
 If the Claude browser callback cannot reach the Host and the browser shows an authorization code, use **Paste authorization code** in Model providers or run `engine login claude --code-stdin` with that code on stdin. Use the same `--account` as the sign-in command. A running Claude Code login must request a code on stdin. The Host returns `engine-code-not-requested` if the CLI has not offered the prompt and `engine-login-not-pending` if sign-in has ended or has not started. Success returns `{"submitted":true}` once stdin accepts the code. Check `engine status` for the sign-in result.
 

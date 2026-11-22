@@ -12,6 +12,7 @@ const unscopedResources = z.enum([
   'onboarding',
   'account',
   'model-providers',
+  'engine-device-login',
 ]);
 
 const cardResources = z.enum(['tool-approval', 'user-question']);
@@ -39,6 +40,7 @@ export const RESTRICTED_RESOURCES: ReadonlySet<LiveResource> = new Set([
   'onboarding',
   'account',
   'model-providers',
+  'engine-device-login',
 ]);
 export type ResourceChange = z.infer<typeof resourceChangeSchema>;
 export type UnscopedResource = z.infer<typeof unscopedResources>;

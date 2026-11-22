@@ -37,6 +37,40 @@ export async function pickAvatarImage(): Promise<string | undefined> {
   return saved.base64 === undefined ? undefined : `data:image/jpeg;base64,${saved.base64}`;
 }
 
+export async function pickBannerImage(): Promise<string | undefined> {
+  const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'] });
+  const asset = result.canceled ? undefined : result.assets[0];
+  if (!asset) return undefined;
+
+  const height = Math.min(Math.floor(asset.width / 3), asset.height);
+  if (!Number.isSafeInteger(height) || height < 1) throw new Error('invalid-banner-size');
+  const width = height * 3;
+  for (const outputWidth of new Set([Math.min(width, 1200), Math.min(width, 900)])) {
+    const context = ImageManipulator.manipulate(asset.uri);
+    try {
+      context.crop({
+        originX: Math.floor((asset.width - width) / 2),
+        originY: Math.floor((asset.height - height) / 2),
+        width,
+        height,
+      });
+      if (outputWidth < width) context.resize({ width: outputWidth, height: outputWidth / 3 });
+      const image = await context.renderAsync();
+      try {
+        const saved = await image.saveAsync({ format: SaveFormat.PNG, base64: true });
+        new File(saved.uri).delete();
+        if (saved.base64 && saved.base64.length <= Math.floor(2_000_000 / 3) * 4)
+          return 'data:image/png;base64,' + saved.base64;
+      } finally {
+        image.release();
+      }
+    } finally {
+      context.release();
+    }
+  }
+  throw new Error('banner-image-too-large');
+}
+
 export class MarketplaceAvatarTooSmall extends Error {}
 
 export async function pickMarketplaceAvatarImage(): Promise<string | undefined> {
