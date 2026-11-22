@@ -52,7 +52,7 @@ import { type ChannelRecord } from '../../channels/channel.js';
 import { botAvatarUrl } from '../../bots/avatar-http.js';
 import type { AvatarAppearance, RetainedAvatarAppearance } from '../../bots/avatar-appearance.js';
 import type { SessionRootRole } from '../../sessions/ownership.js';
-import { type ModelRoute } from '../../models/presets.js';
+import { DEFAULT_MODEL_PRESET_ID, type ModelRoute } from '../../models/presets.js';
 import type { AssignmentAccessMode } from '../../workspaces/assignment-access.js';
 import type { AssignmentActivity, AssignmentReportState } from '../../runtime/bot-runtime.js';
 import type { AssignmentExecutionWait } from '../../runtime/assignment-approval-capacity.js';
@@ -207,6 +207,7 @@ export function createSessionsBridgeMethods(
     | 'subscriptionEngines'
     | 'channels'
     | 'defaultModel'
+    | 'modelPresets'
     | 'describeEngineSession'
     | 'describeToolCall'
     | 'idleCompaction'
@@ -627,7 +628,14 @@ export function createSessionsBridgeMethods(
       const engine = deps.engineSelection?.store
         .selections()
         .find((entry) => entry.botSlug === slug && entry.role === role);
-      const inherited = deps.routingGroups?.defaultGroup();
+      const defaultPreset = deps.modelPresets?.get(DEFAULT_MODEL_PRESET_ID);
+      const inherited =
+        defaultPreset === undefined
+          ? undefined
+          : {
+              groupId: defaultPreset.orchestratorGroupId,
+              effort: defaultPreset.orchestratorGroupEffort,
+            };
       const assignment =
         role === 'assignment' ? deps.runtime?.getAssignment(slug, sessionId) : undefined;
       const group =
@@ -646,6 +654,7 @@ export function createSessionsBridgeMethods(
         (role === 'assignment'
           ? (assignment?.modelRoute ?? plan?.assignmentDefault)
           : plan?.orchestrator) ??
+        defaultPreset?.orchestrator ??
         deps.defaultModel?.currentSelection() ??
         deps.modelCatalog?.defaultRoute?.();
       const defaultChoice: SessionModelChoice | null =
@@ -791,7 +800,6 @@ export function createSessionsBridgeMethods(
       const roots = deps.ownership.rootsFor(slug);
       const subagentCounts = deps.ownership.subagentCounts(roots.map((root) => root.sessionId));
       const plan = deps.registry.get(slug)?.modelPlan;
-      const fallbackRoute = deps.defaultModel?.currentSelection();
       const sessions = roots.map((root) => {
         const assignment = assignments.get(root.sessionId);
         const subagentCount = subagentCounts.get(root.sessionId);
@@ -808,7 +816,7 @@ export function createSessionsBridgeMethods(
               (root.rootRole === 'assignment'
                 ? (assignment?.modelRoute ?? plan?.assignmentDefault)
                 : plan?.orchestrator) ??
-              fallbackRoute);
+              deps.defaultModel?.currentSelection(root.rootRole));
         return {
           sessionId: root.sessionId,
           role: root.rootRole,

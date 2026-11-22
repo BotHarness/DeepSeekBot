@@ -221,11 +221,12 @@ describe('Bot onboarding through the public Host bridge', () => {
       }),
     );
   });
-  it('saves native Profile defaults with readback, keeps fixed Bots fixed, and checks revisions when returning to inheritance', async () => {
+  it('updates Default, preserves its explicit Assignment model, and checks Bot revisions when returning to inheritance', async () => {
     await withCore(async (core) => {
       const first = await core.onboarding.enter();
       const slug = first.defaultBotSlug!;
-      let current = { provider: 'deepseek', model: 'old' };
+      const old = { provider: 'deepseek', model: 'old' };
+      const pinned = core.modelPresets.migrateDefault({ main: old, sub: old }).preset;
       const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
         ...core,
         modelCatalog: {
@@ -234,45 +235,23 @@ describe('Bot onboarding through the public Host bridge', () => {
           },
           async validate() {},
         },
-        defaultModel: {
-          currentSelection: () => current,
-          async saveSelection(route) {
-            current = { ...route };
-          },
-        },
       });
       const route = { provider: 'deepseek', model: 'new' };
       expect(
         await bridge.onboardingModel({ slug, expectedRevision: 0, route, globalDefault: false }),
       ).toMatchObject({ ok: true });
-      expect(current.model).toBe('old');
+      expect(core.modelPresets.get(pinned.id)).toEqual(pinned);
       expect(core.registry.get(slug)?.modelPlan?.orchestrator).toEqual(route);
       expect(
         await bridge.onboardingModel({ slug, expectedRevision: 1, route, globalDefault: true }),
       ).toMatchObject({ ok: true });
-      expect(current.model).toBe('new');
+      const updated = core.modelPresets.get(pinned.id);
+      expect(updated).toMatchObject({ orchestrator: route, assignmentDefault: old });
+      expect(updated?.assignmentFollowsMain).toBeUndefined();
       expect(core.registry.get(slug)?.modelPlan).toBeUndefined();
       expect(core.registry.get(slug)?.modelPlanRevision).toBe(2);
       expect(
         await bridge.onboardingModel({ slug, expectedRevision: 0, route, globalDefault: false }),
-      ).toMatchObject({ ok: false });
-      const noWriter = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
-        ...core,
-        modelCatalog: {
-          async list() {
-            return [];
-          },
-          async validate() {},
-        },
-        defaultModel: { currentSelection: () => current, async saveSelection() {} },
-      });
-      expect(
-        await noWriter.onboardingModel({
-          slug,
-          expectedRevision: 2,
-          route: { provider: 'other', model: 'unsaved' },
-          globalDefault: true,
-        }),
       ).toMatchObject({ ok: false });
     });
   });
@@ -355,60 +334,34 @@ it('projects current search readiness through onboarding without persisting it a
   });
 });
 
-it('guards the native default owner revision without modifying independent Bot plans', async () => {
+it('checks the Default preset revision again after validating the model', async () => {
   await withCore(async (core) => {
-    core.registry.create({ slug: 'fixed', displayName: 'Fixed' });
-    const fixed = { provider: 'official', model: 'fixed' };
-    core.registry.customizeModelPlan('fixed', fixed, 0);
-    let current = { provider: 'official', model: 'old' };
-    let revision = 5;
-    let duringValidate = () => {};
+    const old = { provider: 'official', model: 'old' };
+    const route = { provider: 'official', model: 'new', reasoningEffort: 'high' };
+    const competing = { provider: 'official', model: 'competing' };
+    const preset = core.modelPresets.migrateDefault({ main: old }).preset;
     const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
       ...core,
-      modelCatalog: { list: async () => [], validate: async () => duringValidate() },
-      defaultModel: {
-        currentSelection: () => current,
-        saveSelection: async () => {
-          throw new Error('unguarded owner must not run');
+      modelCatalog: {
+        list: async () => [],
+        validate: async () => {
+          core.modelPresets.setDefaultMain({ expectedRevision: preset.revision, route: competing });
         },
       },
-      defaultModelSettings: () => ({
-        describe: () => [{ ns: 'agent-default-model', value: current, revision }],
-        replace: async (_ns, value, expected) => {
-          if (revision !== expected)
-            throw Object.assign(new Error('conflict'), { code: 'SETTINGS_CONFLICT' });
-          current = value as typeof current;
-          revision++;
-        },
-      }),
     });
     expect(await bridge.modelCatalog({})).toMatchObject({
       ok: true,
-      value: { defaultRevision: 5, default: current },
+      value: { defaultRevision: preset.revision, default: old },
     });
-    const route = { provider: 'official', model: 'new', reasoningEffort: 'high' };
     expect(
       await bridge.onboardingModel({
         route,
         globalDefault: true,
         expectedRevision: 0,
-        expectedDefaultRevision: 5,
-      }),
-    ).toEqual({ ok: true, value: { revision: 6 } });
-    expect(current).toEqual(route);
-    expect(core.registry.get('fixed')!.modelPlan!.orchestrator).toEqual(fixed);
-    duringValidate = () => {
-      revision++;
-    };
-    expect(
-      await bridge.onboardingModel({
-        route: fixed,
-        globalDefault: true,
-        expectedRevision: 0,
-        expectedDefaultRevision: 6,
+        expectedDefaultRevision: preset.revision,
       }),
     ).toMatchObject({ ok: false, error: { code: 'stale-setting' } });
-    expect(current).toEqual(route);
+    expect(core.modelPresets.get(preset.id)).toMatchObject({ orchestrator: competing });
   });
 });
 
@@ -418,8 +371,8 @@ it.each(['stale', 'missing'] as const)(
     await withCore(async (core) => {
       const old = { provider: 'official', model: 'old' };
       const other = { provider: 'official', model: 'other' };
-      let current = old;
-      let revision = 5;
+      if (condition === 'stale') core.modelPresets.migrateDefault({ main: old });
+      const pinned = () => core.modelPresets.get('default');
       const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
         ...core,
         modelCatalog: {
@@ -432,25 +385,6 @@ it.each(['stale', 'missing'] as const)(
             })),
           validate: async () => {},
         },
-        defaultModel: {
-          currentSelection: () => current,
-          saveSelection: async (route) => {
-            current = route;
-            revision++;
-          },
-        },
-        ...(condition === 'missing'
-          ? {}
-          : {
-              defaultModelSettings: () => ({
-                describe: () => [{ ns: 'agent-default-model', value: current, revision }],
-                replace: async (_ns: string, value: unknown, expected?: number) => {
-                  if (expected !== revision) throw new Error('SETTINGS_CONFLICT');
-                  current = value as typeof current;
-                  revision++;
-                },
-              }),
-            }),
       });
       const client = createHostClient({
         routes: ['https://source.example.ts.net'],
@@ -484,7 +418,7 @@ it.each(['stale', 'missing'] as const)(
             route: other,
             globalDefault: true,
             expectedRevision: 0,
-            expectedDefaultRevision: 5,
+            expectedDefaultRevision: 1,
           }),
         ).toMatchObject({ ok: true });
       }
@@ -501,13 +435,15 @@ it.each(['stale', 'missing'] as const)(
           ? { code: 'stale-setting' }
           : { message: 'MODEL_DEFAULT_REVISION_REQUIRED' },
       );
-      expect(current).toEqual(condition === 'stale' ? other : old);
-      expect(revision).toBe(condition === 'stale' ? 6 : 5);
+      if (condition === 'stale') {
+        expect(pinned()).toMatchObject({ orchestrator: other, revision: 2 });
+      } else {
+        expect(pinned()).toBeUndefined();
+      }
       if (condition === 'stale') {
         const refreshed = await resource.refresh();
         await setModelRoute(client, { kind: 'global' }, refreshed, 'orchestrator', old);
-        expect(current).toEqual(old);
-        expect(revision).toBe(7);
+        expect(pinned()).toMatchObject({ orchestrator: old, revision: 3 });
       }
     });
   },

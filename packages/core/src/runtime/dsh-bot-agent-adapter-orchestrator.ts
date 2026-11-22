@@ -575,7 +575,7 @@ export function captureNativeOrchestratorModel(
   if (selection === undefined) return;
   selection.current = agentOptions(
     { bot, inboundChannelId: '' },
-    adapter.defaultModel.currentSelection(),
+    adapter.defaultModel,
     adapter.resolveModelPlan?.(bot.slug) ?? bot.modelPlan,
     adapter.orchestratorRoute?.(sessionId),
   );
@@ -606,7 +606,7 @@ function orchestratorSelection(
 ): ModelSelection {
   return agentOptions(
     run,
-    adapter.defaultModel.currentSelection(),
+    adapter.defaultModel,
     adapter.resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan,
     run.routingTarget?.kind === 'route'
       ? run.routingTarget.route

@@ -168,6 +168,8 @@ export const MESSAGING_OPTIONS = {
 
 export const MODELS_USAGE_OPTIONS = {
   'include-usage': { type: 'boolean' },
+  'migration-dry-run': { type: 'boolean' },
+  'assignment-follows-main': { type: 'boolean' },
   template: { type: 'string' },
   endpoint: { type: 'string' },
   'key-stdin': { type: 'boolean' },
