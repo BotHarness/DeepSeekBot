@@ -2,7 +2,9 @@
 
 ## Sources
 
-- `apps/mobile/app/pair/{_layout,index,owner}.tsx`
+- `apps/mobile/app/pair/{_layout,index,team,tailscale}.tsx`
+- `apps/mobile/src/ui/shell/pair-scanner.tsx`
+- `apps/mobile/src/host/connect-input.ts`
 - `apps/mobile/src/host/{host-session,native-carrier}.ts`
 - `apps/mobile/app/member-pairing.tsx`
 - `apps/mobile/src/host/{account-pairing,pairing-image}.ts`
@@ -20,7 +22,7 @@
 
 ## Owner sign-in over HTTPS (#4900)
 
-In the shared device QA lanes, use two isolated Hosts with separate Feed markers and trusted HTTPS addresses. On each platform, start without a saved Host, then open **Pair with your computer** and choose **Sign in with username and password** under **Advanced methods**. The menu lists Private connection and the Tobs account first, member joining under **Someone else's Host**, then Wi-Fi, Tailscale and Owner sign-in; each method has its own icon. The Host records an Owner password-enrolled device and the phone opens its Feed. Open the workspace drawer, choose **Add computer**, and sign in to the second Host through the same entry. Open each Feed and verify the markers stay scoped to their Host. Confirm a duplicate attempt leaves the original saved grant intact.
+In the shared device QA lanes, use two isolated Hosts with separate Feed markers and trusted HTTPS addresses. On each platform, start without a saved Host, then open **Pair with your computer**, type the Host's HTTPS address into the scan-or-enter field and choose **Connect**. Compare the fingerprint, then sign in with the Owner username and password on the same screen. Repeat with a member username and confirm the member path continues to the password change. A Host without password sign-in must show the scan-a-code guidance before any password field. Paste an invitation link into the same field and confirm it opens member sign-in. The Host records an Owner password-enrolled device and the phone opens its Feed. Open the workspace drawer, choose **Add computer**, and sign in to the second Host through the same entry. Open each Feed and verify the markers stay scoped to their Host. Confirm a duplicate attempt leaves the original saved grant intact.
 
 Exercise an untrusted certificate, a redirect and a changed key for a saved Host. In each case, verify the Host receives no password. Correct a wrong credential and retry with the address and username still populated. Verify QR pairing, fingerprint comparison and approval from the same menu. Repeat the form with the software keyboard and default, intermediate and maximum text sizes in both themes. Save redacted visuals for the menu and form on each platform.
 

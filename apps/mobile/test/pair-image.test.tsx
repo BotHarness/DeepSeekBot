@@ -28,7 +28,9 @@ vi.mock('expo-application', () => ({
 vi.mock('expo-device', () => ({ osVersion: '18.2' }));
 vi.mock('expo-clipboard', () => ({ setStringAsync: vi.fn(async () => true) }));
 vi.mock('expo-image-picker', () => ({ launchImageLibraryAsync: native.pick }));
+const router = vi.hoisted(() => ({ push: vi.fn() }));
 vi.mock('expo-router', () => ({
+  useRouter: () => router,
   Stack: { Screen: () => null },
   useLocalSearchParams: () => ({}),
   useFocusEffect: (focus: () => () => void) => {
@@ -173,4 +175,32 @@ it('shows the computer menu path for Tailscale instead of a paragraph', async ()
   const path = host.querySelector('[data-testid="desktop-path"]')!;
   for (const step of t.pairChoice.tailscalePath) expect(path.textContent).toContain(step);
   expect(host.textContent).toContain(t.pairChoice.tailscaleHint);
+});
+
+it('opens member sign-in when the chosen image holds an invitation', async () => {
+  native.scan.mockResolvedValue([{ data: 'deepseekbot://team?i=invite_1' }]);
+  await choose();
+  expect(router.push).toHaveBeenCalledExactlyOnceWith('/pair/team?i=invite_1');
+  expect(pairing.pair).not.toHaveBeenCalled();
+});
+
+it('opens Host sign-in when a Host address is pasted', async () => {
+  await act(async () => root!.render(<PairScreen />));
+  await act(async () => {
+    navigation.blur = navigation.focus!();
+  });
+  const input = host.querySelector<HTMLTextAreaElement>('[data-testid="pair-link-input"]')!;
+  const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!;
+  await act(async () => {
+    setter.call(input, 'studio.example');
+    input.dispatchEvent(new Event('input', { bubbles: true }));
+  });
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('[data-testid="pair-link-submit"]')!.click(),
+  );
+  expect(router.push).toHaveBeenCalledExactlyOnceWith({
+    pathname: '/pair/team',
+    params: { address: 'studio.example' },
+  });
+  expect(pairing.pair).not.toHaveBeenCalled();
 });

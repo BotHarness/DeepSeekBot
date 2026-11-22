@@ -30,6 +30,13 @@ export const en = {
     fingerprintHint:
       "Ask the Host owner to read out this Host's fingerprint, or compare it with the one in their Team settings. Continue only if every group matches.",
     fingerprintMatches: 'Fingerprint matches',
+    hostTitle: 'Sign in to a Host',
+    connecting: 'Connecting…',
+    compareHint:
+      'Compare this fingerprint with the Host owner, then sign in with your username and password.',
+    needsCode:
+      'This Host does not accept password sign-in. Show a pairing code on its computer and scan it.',
+    scanCode: 'Scan a pairing code',
     switchAccount: 'Switch account',
     switchHint: 'Sign in to this Host with another member account.',
     signOut: 'Sign out',
@@ -69,6 +76,7 @@ export const en = {
       mismatch: 'Passwords do not match.',
       unreachable: 'Could not reach the Host. Check the network and try again.',
       'storage-failed': 'Could not save the sign-in on this phone. Try again.',
+      'host-update-required': 'Update this Host before signing in with a password.',
     } as Record<string, string>,
   },
 };
@@ -103,6 +111,11 @@ export const zh: typeof en = {
     fingerprintHint:
       '请 Host 所有者读出这台 Host 的指纹，或与其 Team 设置中显示的指纹对照。每一组都一致时再继续。',
     fingerprintMatches: '指纹一致',
+    hostTitle: '登录 Host',
+    connecting: '正在连接…',
+    compareHint: '与 Host 所有者核对指纹，一致后用用户名和密码登录。',
+    needsCode: '这台 Host 未开启账密登录。在它的电脑上打开配对码，然后扫码连接。',
+    scanCode: '扫描配对码',
     switchAccount: '切换账号',
     switchHint: '用另一个成员账号登录这个 Host。',
     signOut: '退出登录',
@@ -138,6 +151,7 @@ export const zh: typeof en = {
       mismatch: '两次输入的密码不一致。',
       unreachable: '无法连接 Host，检查网络后再试。',
       'storage-failed': '无法在本机保存登录，再试一次。',
+      'host-update-required': '先更新这台 Host，再用账密登录。',
     } as Record<string, string>,
   },
 };

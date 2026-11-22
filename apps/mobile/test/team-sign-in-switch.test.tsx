@@ -15,12 +15,18 @@ vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null, Circ
 vi.mock('react-native-gesture-handler', () => import('./gesture-handler-shim'));
 vi.mock('expo-symbols', () => ({ SymbolView: () => null }));
 vi.mock('expo-constants', () => ({ default: { deviceName: 'Test phone' } }));
-const router = vi.hoisted(() => ({ dismissTo: vi.fn() }));
+const router = vi.hoisted(() => ({ dismissTo: vi.fn(), back: vi.fn() }));
 const params = vi.hoisted(() => ({ value: { i: 'invite' } as Record<string, string> }));
-vi.mock('expo-router', () => ({
-  useRouter: () => router,
-  useLocalSearchParams: () => params.value,
-}));
+vi.mock('expo-router', async () => {
+  const { useState } = await import('react');
+  return {
+    useRouter: () => router,
+    useLocalSearchParams: () => params.value,
+    useFocusEffect: (focus: () => void) => {
+      useState(() => queueMicrotask(focus));
+    },
+  };
+});
 const bob = vi.hoisted(() => ({
   hostId: 'h',
   hostName: 'Studio',
@@ -37,6 +43,7 @@ const bob = vi.hoisted(() => ({
 }));
 const session = vi.hoisted(() => ({
   getState: () => ({ hosts: [bob] }),
+  signInPassword: vi.fn(),
   pairMember: vi.fn(async (_host: unknown, options?: { confirmedIdentitySwitch?: boolean }) =>
     options?.confirmedIdentitySwitch
       ? { ok: true as const, value: bob }
@@ -64,19 +71,16 @@ vi.mock('@botharness/host-client/team-client', () => ({
   signInTeamDevice: signInTeamDevice,
   changeTeamDevicePassword: vi.fn(),
 }));
-const addressInvitation = vi.hoisted(() =>
-  vi.fn(async (_input: unknown) => ({
-    ok: true as const,
-    value: {
-      v: 1,
-      host: { id: 'other-host', name: 'Studio', fingerprint: 'b'.repeat(64) },
-      routes: ['https://studio.example'],
-      username: 'dana',
-      expiresAt: '2099-01-01T00:00:00Z',
-    },
-  })),
+const discovery = vi.hoisted(() => ({
+  route: 'https://studio.example',
+  host: { id: 'other-host', name: 'Studio', fingerprint: 'b'.repeat(64) },
+  publicKey: 'c'.repeat(64),
+  signIn: { password: true } as { password: boolean } | undefined,
+}));
+const discoverHostAddress = vi.hoisted(() =>
+  vi.fn(async (_input: unknown) => ({ ok: true as const, value: discovery })),
 );
-vi.mock('@botharness/host-client/team-sign-in', () => ({ addressInvitation }));
+vi.mock('@botharness/host-client/password-sign-in', () => ({ discoverHostAddress }));
 const landing = vi.hoisted(() => ({ filter: vi.fn(), closePage: vi.fn(() => true) }));
 vi.mock('../src/host/native-conversation-filter', () => ({
   conversationFilter: { set: landing.filter },
@@ -197,9 +201,8 @@ it('switches to another member account on a saved Host by username, behind the s
   }
 });
 
-it('signs in with a Host address and username after the fingerprint is confirmed', async () => {
-  signInTeamDevice.mockClear();
-  params.value = {};
+async function renderAddress(address: string) {
+  params.value = { address };
   const element = document.createElement('div');
   document.body.append(element);
   const root = createRoot(element);
@@ -213,41 +216,100 @@ it('signs in with a Host address and username after the fingerprint is confirmed
   };
   const press = (id: string) =>
     act(async () => element.querySelector<HTMLButtonElement>(`[data-testid="${id}"]`)!.click());
+  await act(async () => root.render(<TeamSignInScreen />));
+  const close = () => {
+    act(() => root.unmount());
+    element.remove();
+    params.value = { i: 'invite' };
+  };
+  return { element, type, press, close };
+}
+
+it('shows the Host fingerprint beside one username and password form for an address', async () => {
+  router.dismissTo.mockClear();
+  session.signInPassword.mockResolvedValueOnce({
+    ok: true,
+    value: { ...bob, hostId: 'other-host', member: undefined, role: 'owner' },
+  });
+  const { element, type, press, close } = await renderAddress('studio.example');
   try {
-    await act(async () => root.render(<TeamSignInScreen />));
-    await press('team-use-username');
-    await type('team-address', 'studio.example');
-    await type('team-username', 'Dana');
-    await press('team-address-continue');
-    expect(addressInvitation).toHaveBeenCalledWith(
-      expect.objectContaining({ route: 'https://studio.example', username: 'dana' }),
+    expect(discoverHostAddress).toHaveBeenLastCalledWith(
+      expect.objectContaining({ input: 'studio.example' }),
     );
     const rows = element.querySelector('[data-testid="team-fingerprint-rows"]')!;
     expect(Array.from(rows.children, (row) => row.textContent)).toEqual(
       Array(4).fill('bbbb bbbb bbbb bbbb'),
     );
-    expect(element.querySelector('[data-testid="team-fingerprint-copy-state"]')?.textContent).toBe(
-      t.fingerprintTapToCopy,
-    );
     await press('team-fingerprint');
     expect(clipboard.setStringAsync).toHaveBeenCalledWith(Array(16).fill('bbbb').join(' '));
-    expect(element.querySelector('[data-testid="team-fingerprint-copy-state"]')?.textContent).toBe(
-      t.fingerprintCopied,
-    );
-    expect(element.querySelector('[data-testid="team-password"]')).toBeNull();
-    await press('team-fingerprint-matches');
-    await signIn(element);
-    expect(signInTeamDevice).toHaveBeenCalledWith(
+    await type('team-username', 'Dana');
+    await type('team-password', 'owner-password');
+    await press('team-sign-in');
+    expect(session.signInPassword).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        invitation: expect.objectContaining({
-          username: 'dana',
-          routes: ['https://studio.example'],
-        }),
+        route: 'https://studio.example',
+        username: 'Dana',
+        password: 'owner-password',
       }),
     );
+    expect(session.pairMember).not.toHaveBeenCalledWith(
+      expect.objectContaining({ hostId: 'other-host' }),
+      undefined,
+    );
+    expect(router.dismissTo).toHaveBeenCalledWith('/');
   } finally {
-    act(() => root.unmount());
-    element.remove();
-    params.value = { i: 'invite' };
+    close();
+  }
+});
+
+it('continues a member to the password change after address sign-in', async () => {
+  session.signInPassword.mockResolvedValueOnce({
+    ok: true,
+    value: {
+      ...bob,
+      hostId: 'other-host',
+      member: { ...bob.member, mustChangePassword: true },
+      role: 'member',
+    },
+  });
+  const { element, type, press, close } = await renderAddress('https://studio.example');
+  try {
+    await type('team-username', 'bob');
+    await type('team-password', 'one-time-password');
+    await press('team-sign-in');
+    expect(element.querySelector('[data-testid="team-new-password"]')).not.toBeNull();
+  } finally {
+    close();
+  }
+});
+
+it('sends a Host without password sign-in back to the scanner before asking for a password', async () => {
+  router.back.mockClear();
+  discovery.signIn = { password: false };
+  const { element, press, close } = await renderAddress('studio.example');
+  try {
+    expect(element.querySelector('[data-testid="team-password"]')).toBeNull();
+    expect(element.textContent).toContain(t.teamSignIn.needsCode);
+    await press('team-scan-code');
+    expect(router.back).toHaveBeenCalledOnce();
+  } finally {
+    discovery.signIn = { password: true };
+    close();
+  }
+});
+
+it('explains a refused address and keeps it for correction', async () => {
+  discoverHostAddress.mockResolvedValueOnce({
+    ok: false,
+    code: 'insecure-transport',
+  } as never);
+  const { element, close } = await renderAddress('http://studio.example');
+  try {
+    expect(element.textContent).toContain(t.teamSignIn.errors['insecure-transport']);
+    expect(element.querySelector<HTMLTextAreaElement>('[data-testid="team-address"]')?.value).toBe(
+      'http://studio.example',
+    );
+  } finally {
+    close();
   }
 });

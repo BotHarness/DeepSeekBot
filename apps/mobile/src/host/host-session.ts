@@ -42,11 +42,11 @@ import { nativeNotifications } from './native-notifications';
 import { notificationAvatars } from './native-notification-avatars';
 import { avatarInputs } from './notification-avatars';
 import { revokePairing } from '@botharness/host-client/pairing';
+import type { OwnerSignInOptions } from '@botharness/host-client/owner-sign-in';
 import {
-  signInOwnerDevice,
-  type OwnerSignInError,
-  type OwnerSignInOptions,
-} from '@botharness/host-client/owner-sign-in';
+  signInWithPassword,
+  type PasswordSignInError,
+} from '@botharness/host-client/password-sign-in';
 import { createHostPush, type PushDelivery } from '@botharness/host-client/push';
 import { createPushSession, type PushStatus } from './push-session';
 import { notificationPreferences } from './native-notification-preferences';
@@ -646,11 +646,13 @@ export const hostSession = {
     feeds.find((host) => host.saved.hostId === hostId),
   getSelectionRevision: (): number => selectionIntent,
   getSourceChangeRevision: (): number => sourceChangeRevision,
-  async signInOwner(
+  async signInPassword(
     input: Pick<OwnerSignInOptions, 'route' | 'username' | 'password' | 'deviceName'> & {
       signal: AbortSignal;
     },
-  ): Promise<TeamResult<SavedHost, OwnerSignInError | 'storage-failed'>> {
+  ): Promise<
+    TeamResult<SavedHost & { role: 'owner' | 'member' }, PasswordSignInError | 'storage-failed'>
+  > {
     let previous: SavedHost[];
     try {
       previous = await serialize(async () => stored.hosts);
@@ -658,17 +660,17 @@ export const hostSession = {
       return { ok: false, code: 'storage-failed' };
     }
     const carrier = nativeCarrier();
-    const signed = await signInOwnerDevice({
+    const signed = await signInWithPassword({
       ...input,
       carrier,
       previous: (id, route) =>
         previous.find((host) => host.routes.includes(route)) ??
         previous.find((host) => host.hostId === id),
-      allowExisting: () => false,
+      allowExisting: (saved) => saved.member !== undefined,
     });
-    if (!signed.ok) return signed;
+    if (!signed.ok || signed.value.role === 'member') return signed;
 
-    const host = signed.value;
+    const { role: _role, ...host } = signed.value;
     let saved = false;
     try {
       return await serialize(async () => {

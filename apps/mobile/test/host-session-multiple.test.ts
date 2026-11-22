@@ -8,10 +8,10 @@ import {
   preferenceRetry,
 } from './host-session-fixture';
 import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
-import type { signInOwnerDevice } from '@botharness/host-client/owner-sign-in';
+import type { signInWithPassword } from '@botharness/host-client/password-sign-in';
 
-const ownerSignIn = vi.hoisted(() => vi.fn<typeof signInOwnerDevice>());
-vi.mock('@botharness/host-client/owner-sign-in', () => ({ signInOwnerDevice: ownerSignIn }));
+const passwordSignIn = vi.hoisted(() => vi.fn<typeof signInWithPassword>());
+vi.mock('@botharness/host-client/password-sign-in', () => ({ signInWithPassword: passwordSignIn }));
 vi.mock('expo-router', () => ({ useFocusEffect: () => undefined }));
 vi.mock('react-native', () => ({
   AppState: {
@@ -152,10 +152,10 @@ it('keeps existing Hosts and commits only one grant from concurrent Owner sign-i
   session = (await import('../src/host/host-session')).hostSession;
   await session.pair(firstHost);
   const existingClient = session.getHost(firstHost.hostId)?.client;
-  const first = Promise.withResolvers<Awaited<ReturnType<typeof signInOwnerDevice>>>();
-  ownerSignIn.mockReturnValueOnce(first.promise);
-  const second = Promise.withResolvers<Awaited<ReturnType<typeof signInOwnerDevice>>>();
-  ownerSignIn.mockReturnValueOnce(second.promise);
+  const first = Promise.withResolvers<Awaited<ReturnType<typeof signInWithPassword>>>();
+  passwordSignIn.mockReturnValueOnce(first.promise);
+  const second = Promise.withResolvers<Awaited<ReturnType<typeof signInWithPassword>>>();
+  passwordSignIn.mockReturnValueOnce(second.promise);
   const input = {
     route: 'https://target.tailnet.ts.net',
     username: 'owner',
@@ -163,17 +163,51 @@ it('keeps existing Hosts and commits only one grant from concurrent Owner sign-i
     deviceName: 'Test phone',
     signal: new AbortController().signal,
   };
-  const original = session.signInOwner(input);
-  const competing = session.signInOwner(input);
-  await vi.waitFor(() => expect(ownerSignIn).toHaveBeenCalledTimes(2));
-  first.resolve({ ok: true, value: targetHost });
-  expect(await original).toEqual({ ok: true, value: targetHost });
+  const original = session.signInPassword(input);
+  const competing = session.signInPassword(input);
+  await vi.waitFor(() => expect(passwordSignIn).toHaveBeenCalledTimes(2));
+  first.resolve({ ok: true, value: { ...targetHost, role: 'owner' } });
+  expect(await original).toEqual({ ok: true, value: { ...targetHost, role: 'owner' } });
   second.resolve({
     ok: true,
-    value: { ...targetHost, deviceId: 'second-owner-device', credential: 'new-grant' },
+    value: {
+      ...targetHost,
+      deviceId: 'second-owner-device',
+      credential: 'new-grant',
+      role: 'owner',
+    },
   });
   expect(await competing).toEqual({ ok: false, code: 'already-paired' });
   expect(session.getState().hosts).toEqual([firstHost, targetHost]);
   expect(session.getHost(firstHost.hostId)?.client).toBe(existingClient);
   expect(session.getState().saved).toEqual(targetHost);
+});
+
+it('returns a member grant from password sign-in without saving it', async () => {
+  session = (await import('../src/host/host-session')).hostSession;
+  const member = {
+    hostId: 'team',
+    hostName: 'Team Host',
+    routes: ['https://team.tailnet.ts.net'],
+    deviceId: 'member-device',
+    credential: 'member-device.secret',
+    member: {
+      humanId: 'h1',
+      username: 'ada',
+      displayName: 'Ada',
+      fingerprint: 'abcd',
+      mustChangePassword: true,
+    },
+    role: 'member' as const,
+  };
+  passwordSignIn.mockResolvedValueOnce({ ok: true, value: member });
+  const result = await session.signInPassword({
+    route: 'https://team.tailnet.ts.net',
+    username: 'ada',
+    password: 'one-time-password',
+    deviceName: 'Test phone',
+    signal: new AbortController().signal,
+  });
+  expect(result).toEqual({ ok: true, value: member });
+  expect(session.getState().hosts.some((host) => host.hostId === 'team')).toBe(false);
 });

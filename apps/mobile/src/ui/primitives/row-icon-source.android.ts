@@ -44,8 +44,6 @@ export const ROW_ICON_SOURCES: Record<
   qr: require('../../../assets/row-icons/qr.xml'),
   lan: require('../../../assets/row-icons/lan.xml'),
   encrypted: require('../../../assets/row-icons/encrypted.xml'),
-  members: require('../../../assets/row-icons/members.xml'),
-  key: require('../../../assets/row-icons/key.xml'),
   check: require('../../../assets/row-icons/check.xml'),
   chevron: require('../../../assets/row-icons/chevron.xml'),
   add: require('../../../assets/row-icons/add.xml'),

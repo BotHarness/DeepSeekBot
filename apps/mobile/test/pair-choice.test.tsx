@@ -15,6 +15,13 @@ vi.mock('../src/ui/primitives/row-icon', async () => {
 });
 vi.mock('../src/ui/chat/sheet', () => ({ SHEET_GROUP: 'sheet' }));
 vi.mock('../src/host/host-session', () => ({ useHostSession: () => ({ hosts: [] }) }));
+vi.mock('../src/ui/shell/pair-scanner', async () => {
+  const { createElement } = await import('react');
+  return {
+    PairScanner: ({ steps, children }: { steps: string[]; children: React.ReactNode }) =>
+      createElement('section', { 'data-testid': 'pair-scanner' }, steps.join(' › '), children),
+  };
+});
 const router = vi.hoisted(() => ({ push: vi.fn(), back: vi.fn(), dismissTo: vi.fn() }));
 const params = vi.hoisted(() => ({ current: {} as Record<string, string> }));
 vi.mock('expo-router', () => ({
@@ -48,35 +55,21 @@ async function render(): Promise<HTMLElement> {
   return host;
 }
 
-it('offers LAN, account sign-in and Tailscale through the existing pairing flow', async () => {
+it('leaves only the scanner and Tobs account sign-in as ways to connect', async () => {
   const view = await render();
-  expect(view.textContent).toContain(t.pairChoice.account);
-  expect(view.textContent).toContain(t.pairChoice.tailscale);
+  expect(view.querySelector('[data-testid="pair-scanner"]')?.textContent).toContain(
+    t.pairChoice.connectPath.join(' › '),
+  );
+  const rows = [...view.querySelectorAll<HTMLElement>('[data-testid^="pair-"]')]
+    .map((row) => row.dataset.testid)
+    .filter((id) => id !== 'pair-scanner');
+  expect(rows).toEqual(['pair-choice-account', 'pair-guide-open']);
+  expect(view.textContent).not.toContain(t.pairChoice.lan);
   expect(view.textContent).not.toContain(t.cloud.title);
-  expect(view.querySelector('input')).toBeNull();
-  expect(view.textContent).toContain(t.pairChoice.lan);
-  expect(view.textContent).toContain(t.pairChoice.owner);
-  await act(async () =>
-    view.querySelector<HTMLElement>('[data-testid="pair-choice-lan"]')!.click(),
-  );
-  expect(router.push).toHaveBeenLastCalledWith({
-    pathname: '/pair/tailscale',
-    params: { mode: 'lan' },
-  });
-
-  await act(async () =>
-    view.querySelector<HTMLElement>('[data-testid="pair-choice-owner"]')!.click(),
-  );
-  expect(router.push).toHaveBeenLastCalledWith('/pair/owner');
-
   await act(async () =>
     view.querySelector<HTMLElement>('[data-testid="pair-choice-account"]')!.click(),
   );
   expect(router.push).toHaveBeenLastCalledWith('/pair/account');
-  await act(async () =>
-    view.querySelector<HTMLElement>('[data-testid="pair-choice-tailscale"]')!.click(),
-  );
-  expect(router.push).toHaveBeenLastCalledWith('/pair/tailscale');
 });
 
 it('forwards a pairing link to Tailscale and an account computer to sign-in', async () => {
@@ -94,33 +87,13 @@ it('forwards a pairing link to Tailscale and an account computer to sign-in', as
   });
 });
 
-it('puts the common methods first and keeps each method icon distinct', async () => {
-  const view = await render();
-  const rows = [...view.querySelectorAll<HTMLElement>('[data-testid^="pair-choice-"]')];
-  expect(rows.map((row) => row.dataset.testid)).toEqual([
-    'pair-choice-private',
-    'pair-choice-account',
-    'pair-choice-team',
-    'pair-choice-lan',
-    'pair-choice-tailscale',
-    'pair-choice-owner',
-  ]);
-  const icons = rows.map((row) => row.querySelector('[data-icon]')?.getAttribute('data-icon'));
-  expect(new Set(icons).size).toBe(rows.length);
-  const text = view.textContent ?? '';
-  const others = text.indexOf(t.pairChoice.others);
-  const advanced = text.indexOf(t.pairChoice.advanced);
-  expect(text.indexOf(t.pairChoice.account)).toBeLessThan(others);
-  expect(others).toBeLessThan(text.indexOf(t.pairChoice.team));
-  expect(text.indexOf(t.pairChoice.team)).toBeLessThan(advanced);
-  expect(advanced).toBeLessThan(text.indexOf(t.pairChoice.lan));
-});
-
-it('states what the computer needs and opens the setup guide', async () => {
+it('puts what the computer needs on the setup guide row and opens the guide', async () => {
   const { Linking } = await import('react-native');
   const openURL = vi.spyOn(Linking, 'openURL').mockResolvedValue(undefined);
   const view = await render();
-  expect(view.textContent).toContain(t.pairChoice.needs);
+  expect(view.querySelector('[data-testid="pair-guide-open"]')?.textContent).toContain(
+    t.pairChoice.needs,
+  );
   await act(async () =>
     view.querySelector<HTMLElement>('[data-testid="pair-guide-open"]')!.click(),
   );

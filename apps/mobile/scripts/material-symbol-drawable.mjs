@@ -41,8 +41,6 @@ const ICONS = {
   qr: 'qr_code_scanner',
   lan: 'wifi',
   encrypted: 'vpn_lock',
-  members: 'group',
-  key: 'key',
   add: 'add',
   check: 'check',
   chevron: 'chevron_right',
