@@ -61,7 +61,6 @@ const featureStylesheets = readdirSync(new URL('../src/client/features/', import
 
 const STYLESHEETS: readonly { file: string; sheet?: string }[] = [
   { file: 'client/src/client/workspace-styles.ts', sheet: 'WORKSPACE_CSS' },
-  { file: 'client/src/client/styles.ts', sheet: 'CSS' },
   { file: 'client/src/client/shell-and-roster-styles.ts' },
   { file: 'client/src/client/shared-styles.ts' },
   ...featureStylesheets,

@@ -11,7 +11,6 @@
     "packages/browser/test/browser-tools.test.ts",
     "packages/browser/test/runtime.test.ts",
     "packages/client/src/client/channel-dock.tsx",
-    "packages/client/src/client/styles.ts",
     "packages/client/test/activity-list-keyboard-batch.test.ts",
     "packages/client/test/approval-template-library.test.ts",
     "packages/client/test/avatar-appearance-editor.test.ts",

@@ -192,6 +192,10 @@
   "packages/client/src/client/features/activity/activity-list-view.tsx": {
     "rawControl": 4
   },
+  "packages/client/src/client/features/activity/activity-panel-styles.ts": {
+    "legacyCss": 36,
+    "lineBorder": 5
+  },
   "packages/client/src/client/features/activity/styles.ts": {
     "legacyCss": 131,
     "lineBorder": 9
@@ -217,12 +221,19 @@
   "packages/client/src/client/features/avatars/avatar-editor-options.tsx": {
     "rawControl": 1
   },
+  "packages/client/src/client/features/avatars/editor-styles.ts": {
+    "legacyCss": 25,
+    "lineBorder": 9
+  },
   "packages/client/src/client/features/avatars/styles.ts": {
     "legacyCss": 46,
     "lineBorder": 3
   },
   "packages/client/src/client/features/channel-files/styles.ts": {
     "legacyCss": 63
+  },
+  "packages/client/src/client/features/channels/action-card-styles.ts": {
+    "legacyCss": 4
   },
   "packages/client/src/client/features/channels/bot-inbox-entry.tsx": {
     "rawControl": 1,
@@ -245,6 +256,14 @@
   "packages/client/src/client/features/channels/composer-mention-options.tsx": {
     "rawControl": 3
   },
+  "packages/client/src/client/features/channels/conversation-composer-styles.ts": {
+    "legacyCss": 27,
+    "lineBorder": 4
+  },
+  "packages/client/src/client/features/channels/conversation-header-styles.ts": {
+    "legacyCss": 8,
+    "lineBorder": 1
+  },
   "packages/client/src/client/features/channels/conversation-pane.tsx": {
     "rawControl": 1
   },
@@ -254,6 +273,18 @@
   "packages/client/src/client/features/channels/conversation-timeline.tsx": {
     "rawControl": 4
   },
+  "packages/client/src/client/features/channels/message-timeline-styles.ts": {
+    "legacyCss": 58,
+    "lineBorder": 2
+  },
+  "packages/client/src/client/features/channels/roster-styles.ts": {
+    "legacyCss": 19,
+    "lineBorder": 1
+  },
+  "packages/client/src/client/features/channels/sidebar-settings-styles.ts": {
+    "legacyCss": 46,
+    "lineBorder": 2
+  },
   "packages/client/src/client/features/channels/styles.ts": {
     "legacyCss": 152,
     "lineBorder": 2
@@ -261,13 +292,30 @@
   "packages/client/src/client/features/channels/timeline-styles.ts": {
     "legacyCss": 65
   },
+  "packages/client/src/client/features/interface-controls/card-list-styles.ts": {
+    "legacyCss": 7
+  },
+  "packages/client/src/client/features/interface-controls/loading-styles.ts": {
+    "legacyCss": 4
+  },
+  "packages/client/src/client/features/marketplace/catalog-styles.ts": {
+    "legacyCss": 25,
+    "lineBorder": 3
+  },
   "packages/client/src/client/features/marketplace/styles.ts": {
     "legacyCss": 122,
     "lineBorder": 3
   },
+  "packages/client/src/client/features/memory/conversation-memory-styles.ts": {
+    "legacyCss": 42,
+    "lineBorder": 5
+  },
   "packages/client/src/client/features/memory/styles.ts": {
     "legacyCss": 155,
     "lineBorder": 5
+  },
+  "packages/client/src/client/features/messaging/administration-styles.ts": {
+    "legacyCss": 37
   },
   "packages/client/src/client/features/messaging/styles.ts": {
     "legacyCss": 93,
@@ -282,6 +330,10 @@
   },
   "packages/client/src/client/features/private-input/styles.ts": {
     "legacyCss": 6
+  },
+  "packages/client/src/client/features/release/release-notice-styles.ts": {
+    "legacyCss": 7,
+    "lineBorder": 2
   },
   "packages/client/src/client/features/release/styles.ts": {
     "legacyCss": 16,
@@ -300,6 +352,10 @@
   },
   "packages/client/src/client/features/skills/styles.ts": {
     "legacyCss": 13
+  },
+  "packages/client/src/client/features/usage/profile-usage-styles.ts": {
+    "legacyCss": 10,
+    "lineBorder": 2
   },
   "packages/client/src/client/features/usage/styles.ts": {
     "legacyCss": 91,
@@ -508,10 +564,6 @@
   },
   "packages/client/src/client/sidebar-card.tsx": {
     "rawControl": 2
-  },
-  "packages/client/src/client/styles.ts": {
-    "legacyCss": 355,
-    "lineBorder": 36
   },
   "packages/client/src/client/telemetry-notice-view.tsx": {
     "dshImport": 1
