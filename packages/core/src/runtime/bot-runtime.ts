@@ -1,3 +1,35 @@
+import type {
+  ChannelMessageView,
+  OrchestratorChannelAccess,
+} from '../channels/runtime-access-types.js';
+export type {
+  BotReactionInput,
+  BotReactionResult,
+  ChannelListEntry,
+  ChannelListInput,
+  ChannelListPage,
+  ChannelMessageView,
+  ChannelQueryInput,
+  ChannelQueryPage,
+  OrchestratorChannelAccess,
+} from '../channels/runtime-access-types.js';
+import { createChannelAccess } from '../channels/runtime-access.js';
+import { createRuntimeInputs } from '../features/approvals/runtime-inputs.js';
+import {
+  createDirectTools,
+  DirectBotToolError,
+  type ActiveDirectTool,
+  type DirectBotToolCall,
+  type DirectBotToolSpec,
+} from '../features/sessions/direct-tools.js';
+import {
+  createTobCliRuntime,
+  type TobCliAuthority,
+  type TobCliRequestLease,
+} from '../features/tob/cli-runtime.js';
+export { DirectBotToolError } from '../features/sessions/direct-tools.js';
+export type { DirectBotToolCall, DirectBotToolSpec } from '../features/sessions/direct-tools.js';
+export type { TobCliAuthority, TobCliRequestLease } from '../features/tob/cli-runtime.js';
 export { markSkillTokens, skillInvocationPrompt } from './channel-prompts.js';
 import { createGroupDigest, type DigestRow, type GroupContext } from './group-digest.js';
 export type { GroupContext } from './group-digest.js';
@@ -33,7 +65,6 @@ import type { TurnTarget, TurnTargetSwitchReason } from '@botharness/host-protoc
 import {
   lastTurnTarget,
   readTurnTargets,
-  readTurnModelSwitch,
   recordTurnTarget,
   type TurnTargetSegment,
 } from './turn-targets.js';
@@ -45,14 +76,7 @@ import type {
   ChannelAssignmentSummary,
 } from '@botharness/host-protocol/wire';
 
-import { HarnessError } from '@deepseek-ai/dsh-llm';
-import {
-  assertQuoteTargets,
-  ChannelQuoteError,
-  quotePromptBlock,
-  type ChannelQuote,
-} from '../channels/quotes.js';
-import { hasIrreversibleExternalEffect, toolEffects } from '../workspaces/tool-effects.js';
+import { assertQuoteTargets, quotePromptBlock } from '../channels/quotes.js';
 
 import type { TobCliRequest, TobCliStatus, TobCliTurn } from '../tob/cli-request.js';
 import type { TeamService } from '../team/service.js';
@@ -60,18 +84,13 @@ import { TeamError } from '../team/error.js';
 import { botOwner } from '../team/bot-access.js';
 import { humanContext } from '../humans/context.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
-import { BotNetworkDeliveryError } from './bot-network.js';
 import type { SessionRecoveryAction } from './session-recovery.js';
 import type { AssignmentReportContent } from './assignment-report.js';
 import type {
   AssignmentReportRead,
   AcceptedAssignmentReportPage,
 } from './assignment-report-reader.js';
-import {
-  GroupReplySourceRevoked,
-  GroupSendReview,
-  SendReviewRequired,
-} from '../channels/send-review.js';
+import { GroupSendReview } from '../channels/send-review.js';
 import { TobError, type TobService } from '../tob/service.js';
 import { AssignmentInboxAcceptanceUncertainError } from './assignment-delivery.js';
 import { OrchestratorWorkingDirectoryError } from './orchestrator-working-directory.js';
@@ -97,10 +116,6 @@ import {
 } from '../purge/fence.js';
 import { saveAttachmentFile } from '../attachments/file-operations.js';
 import { OriginalAttachmentAccess } from '../attachments/original-access.js';
-import {
-  createChannelFileAccess,
-  type ChannelFileAccess,
-} from '../features/channel-files/events.js';
 import { createMemoryEvents } from '../features/memory/events.js';
 import {
   bindScheduleCommands,
@@ -110,30 +125,25 @@ import {
 import {
   callTimelineNote,
   callVisualNote,
-  createVoiceAccess,
-  queryCallWindow,
   type CallFrameAccess,
-  type VoiceChannelAccess,
 } from '../features/voice/events.js';
 import { authorizedPathRoot } from '../workspaces/grant-native-tools.js';
 import { renderInbox, type InboxUnit } from './inbox-render.js';
 import type { OutboxIntent, OutboundMessaging } from '../messaging/outbound.js';
-import { PrivateInputRefusal, type PrivateInputOrigin } from '../credentials/im-origin.js';
-import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
+import { type PrivateInputOrigin } from '../credentials/im-origin.js';
 import type { MessagingProcessing } from '../messaging/typing.js';
 import type {
   ExternalSource,
   ExternalContextQuery,
   ExternalContextResult,
 } from '../messaging/inbound.js';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import {
   createInboxHistoryQuery,
   type InboxHistoryInput,
   type InboxHistoryPage,
   type InboxHistoryQuery,
 } from './inbox-history.js';
-import { channelSql } from './attention.js';
 import {
   createInboxTriage,
   type InboxTriage,
@@ -180,31 +190,20 @@ import type {
   ToolApprovalOrigin,
   ToolApprovalOriginQuery,
 } from '../workspaces/tool-approval.js';
-import { MemoryAcceptError, type MemoryChangeDelta } from '../memory/accepted.js';
+import { type MemoryChangeDelta } from '../memory/accepted.js';
 import type { MemoryService } from '../memory/service.js';
 import {
   isBotDmChannel,
   DEFAULT_BOT_HOP_LIMIT,
   dmChannelId,
-  type GroupInvitation,
-  type GroupJoinRequest,
-  type GroupWakePolicyView,
   type ChannelMessage,
-  type ChannelReaction,
   type ChannelRecord,
   type ChannelTurnStop,
   type SessionFailureProgress,
 } from '../channels/channel.js';
-import { hasChannelCallWindow, type ChannelCallWindow } from '../channels/call-window.js';
-import { ChannelReplyTargetError, MAX_MESSAGE_PAGE } from '../channels/store.js';
 import type { MessagePerfTracker } from '../usage/message-perf.js';
 import { attachmentIdentity, type ChannelAttachmentRef } from '../attachments/ref.js';
-import type { ChannelMessageQueryOptions, ChannelStore } from '../channels/store.js';
-import {
-  boundModelPage,
-  readModelContent,
-  CHANNEL_READ_OUTPUT_LIMIT,
-} from './channel-model-read.js';
+import type { ChannelStore } from '../channels/store.js';
 import {
   discoverBotContacts,
   networkBotId,
@@ -219,8 +218,7 @@ import {
   type OperationalDatabaseOwner,
 } from '../database/owner.js';
 import { createSessionOwnership, type SessionOwnership } from '../sessions/ownership.js';
-import { sessionMentionText } from './session-mentions.js';
-import { SESSION_DIRECT_MESSAGE_PREFIX, sessionDirectSpeaker } from './session-direct-message.js';
+import { sessionDirectSpeaker } from './session-direct-message.js';
 import {
   createBotSourcePolicyStore,
   type BotSourcePolicy,
@@ -244,7 +242,6 @@ import type {
 } from '../workspaces/grants.js';
 import { DEFAULT_PROMPT_TEXT, type PromptText } from '../prompts/prompt-parts.js';
 import { DEFAULT_PROMPT_LIMITS, type PromptLimits } from '../prompts/prompt-limits.js';
-import { isBotSubagentModelTool } from './subagent-model-tools.js';
 
 export type {
   AssignmentActivity,
@@ -606,56 +603,6 @@ export type AssignmentRequestDelivery =
   | { delivery: 'steer' }
   | { delivery: 'followup'; accepted: Promise<void>; done: Promise<void> };
 
-export interface ChannelMessageView {
-  actorNames?: { humans: Record<string, string>; bots: Record<string, string> };
-  channelId: string;
-  channelName: string;
-  message: ChannelMessage;
-}
-
-export interface ChannelListInput {
-  channelId?: string;
-  name?: string;
-  type?: 'group' | 'dm';
-  memberBotIds?: string[];
-  cursor?: string;
-  limit?: number;
-}
-
-export interface ChannelListEntry {
-  id: string;
-  name: string;
-  type: 'group' | 'dm';
-  kind: 'group' | 'human-dm' | 'bot-dm';
-  members: Array<{ botId: string; displayName: string; active: boolean }>;
-  humanMembers: Array<{ humanId: string; displayName: string }>;
-  ownerBotId?: string;
-  pendingJoinRequests?: Array<{
-    requestId: string;
-    requesterBotId: string;
-    createdAt: string;
-  }>;
-}
-
-export interface ChannelListPage {
-  channels: ChannelListEntry[];
-  nextCursor?: string;
-}
-
-export type ChannelQueryInput = ChannelMessageQueryOptions & {
-  channelId?: string;
-  scope?: 'channel' | 'joined';
-  call?: string;
-  fromMs?: number;
-  toMs?: number;
-};
-
-export interface ChannelQueryPage {
-  messages: ChannelMessageView[];
-  nextCursor?: string;
-  call?: ChannelCallWindow;
-}
-
 export interface BotCreateInput {
   displayName: string;
   description?: string;
@@ -680,105 +627,6 @@ export const MAX_CREATED_BOT_TAGS = 8;
 export const MAX_CREATED_BOT_TAG_LENGTH = 32;
 export const MAX_CREATED_BOT_BIO_LENGTH = 160;
 
-export interface OrchestratorChannelAccess extends ChannelFileAccess, VoiceChannelAccess {
-  startHumanDm?(humanId: string): ChannelRecord;
-  replySource?(sourceEventId: string): { channelId: string; messageId: string };
-  list(input?: ChannelListInput): ChannelListPage;
-  read(input?: {
-    channelId?: string;
-    before?: string;
-    limit?: number;
-    observe?: false;
-  }): ChannelMessageView[];
-
-  ignore(input: { channelId?: string; messageId: string }): {
-    sourceEventId: string;
-    ignoredAt: string;
-    alreadyIgnored: boolean;
-  };
-  query(input?: ChannelQueryInput): ChannelQueryPage;
-  readModel(input?: ChannelQueryInput & { messageId?: string; contentCursor?: string }): string;
-  requestGrant(reason: string, channelId?: string): Promise<ChannelMessage>;
-  contacts(input?: BotContactQuery): Promise<BotContactPage>;
-  createGroup(name: string): ChannelRecord;
-  inviteGroup(input: { channelId: string; targetBotSlug: string }): GroupInvitation;
-  requestGroupJoin?(input: { channelId: string }): GroupJoinRequest;
-  decideGroupJoin?(input: { channelId: string; requestId: string; accept: boolean }): {
-    channel: ChannelRecord;
-    request: GroupJoinRequest;
-  };
-  respondToGroupInvite(input: { invitationId: string; accept: boolean }): {
-    channel: ChannelRecord;
-    invitation: GroupInvitation;
-  };
-  renameGroup(input: { channelId: string; name: string }): ChannelRecord;
-  removeGroupMember(input: { channelId: string; botSlug: string }): ChannelRecord;
-  readGroupWakePolicy(channelId: string): GroupWakePolicyView;
-  setGroupWakePolicy(input: {
-    channelId: string;
-    mode: 'all' | 'digest' | 'mentions' | 'silent';
-    count: number;
-    intervalSeconds: number;
-  }): GroupWakePolicyView;
-  leaveGroup(input: { channelId: string }): {
-    channelId: string;
-    left: boolean;
-  };
-  react?(input: BotReactionInput & { channelId?: string }): BotReactionResult;
-  sendToBot(input: {
-    botSlug: string;
-    body: string;
-    replyTo?: string;
-    deliveryKey?: string;
-  }): Promise<{ channelId: string; message: ChannelMessage }>;
-  createBot?(input: BotCreateInput): BotCreateOutcome;
-  inspectDrafts?(input: {
-    channelId: string;
-    draftId?: string;
-  }):
-    | import('../channels/send-review.js').DraftInspection
-    | import('../channels/send-review.js').SendReviewOutcome;
-  dropDraft?(input: {
-    channelId: string;
-    draftId: string;
-    observationId?: string;
-    yieldToMessageIds?: string[];
-  }): import('../channels/send-review.js').SendReviewOutcome;
-  send(input: {
-    genui?: import('../channels/genui.js').GenuiContent;
-    sessionLinks?: import('../channels/channel.js').ChannelSessionLink[];
-    replySourceEventId?: string;
-    observationId?: string;
-    draftId?: string;
-    freshnessOverride?: import('../channels/send-review.js').FreshnessOverride;
-    recover?: boolean;
-    body: string;
-    channelId?: string;
-    replyTo?: string;
-    quotes?: ChannelQuote[];
-    attachments?: ChannelAttachmentRef[];
-    mentionBotIds?: string[];
-    mentionHumanIds?: string[];
-    deliveryKey?: string;
-  }): Promise<ChannelMessage>;
-  linkSessions?(input: {
-    messageId: string;
-    links: Array<import('../channels/channel.js').ChannelSessionLink & { createdAt?: string }>;
-  }): ChannelMessage;
-}
-
-export interface BotReactionInput {
-  messageId: string;
-  emoji: string;
-  active: boolean;
-}
-
-export interface BotReactionResult {
-  channelId: string;
-  messageId: string;
-  reactions: ChannelReaction[];
-}
-
 export interface OrchestratorServiceTurn {
   replyTargets?: () => readonly TurnTargetSegment[];
   modelContent?: string;
@@ -791,31 +639,6 @@ export interface OrchestratorServiceTurn {
   turnSources: ReadonlySet<string>;
   observeMemory: boolean;
   observeReads: boolean;
-}
-
-export interface DirectBotToolSpec {
-  name: string;
-  description: string;
-  inputSchema: unknown;
-}
-
-export interface DirectBotToolCall {
-  callId: string;
-  tool: string;
-  args: Record<string, unknown>;
-  at: string;
-  durationMs: number;
-  outcome: 'ok' | 'error';
-  result: string;
-}
-
-const DIRECT_TOOL_CALL_LIMIT = 50;
-
-export class DirectBotToolError extends HarnessError {
-  constructor(code: string, message: string) {
-    super(message, code);
-    this.name = 'DirectBotToolError';
-  }
 }
 
 export interface BotAgentAdapter {
@@ -872,20 +695,6 @@ export type OrchestratorMessageOutcome =
 export type DmMessageAdmission =
   | { admitted: true; settled: Promise<void> }
   | { admitted: false; reason: DmAdmissionFailure };
-
-export interface TobCliRequestLease {
-  humanId: string;
-  botSlug: string;
-  controller: AbortController;
-  status: TobCliStatus;
-  finishedAt: number | undefined;
-}
-
-export interface TobCliAuthority {
-  (): void;
-
-  markSideEffect(): void;
-}
 
 type NativeOrchestratorRefusal =
   | 'runtime-closed'
@@ -1540,12 +1349,6 @@ const sameModelRoute = (left: ModelRoute, right: ModelRoute) =>
 const ASSIGNMENT_RECOVERY_NOTE =
   '[Host: your previous Turn in this Session did not finish cleanly (it ended with an error, was cancelled, or was interrupted by a Host restart). Your context is intact. Check the current state of your workspace and any side effects before redoing work, and do not repeat a side effect blindly; an earlier request may already have reached you.]\n\n';
 
-const DIRECT_ASSIGNMENT_TOOLS: ReadonlySet<string> = new Set([
-  'create_assignment',
-  'send_assignment_request',
-  'unarchive_assignment',
-]);
-
 const HUMAN_SESSION_STOP_NOTICE =
   'The Human stopped this Assignment; it is now a Stopped Session with its history kept. Do not resend its old work just because it stopped. When a later request fits it, send_assignment_request to this Session id wakes it and delivers the request.';
 
@@ -1668,10 +1471,7 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #assignmentNotices = new Set<Promise<void>>();
   readonly #waitLifetime = new AbortController();
   readonly #waitOptions: Pick<BotRuntimeOptions, 'database' | 'beginAssignmentWait'>;
-  readonly #activeDirectTools = new Map<
-    string,
-    { botSlug: string; agentSessionId: string; approvalHuman?: HumanContext }
-  >();
+  readonly #activeDirectTools = new Map<string, ActiveDirectTool>();
   readonly #tobCliRequests = new Map<string, TobCliRequestLease>();
   #closed = false;
   readonly #tob: TobService | undefined;
@@ -1684,6 +1484,10 @@ class BotRuntimeImplementation implements BotRuntime {
   readonly #activityEvents: ReturnType<typeof createActivityEvents>;
   readonly #messagingEvents: ReturnType<typeof createMessagingEvents>;
 
+  readonly #channelAccess: ReturnType<typeof createChannelAccess>;
+  readonly #runtimeInputs: ReturnType<typeof createRuntimeInputs>;
+  readonly #directTools: ReturnType<typeof createDirectTools>;
+  readonly #tobCliRuntime: ReturnType<typeof createTobCliRuntime>;
   readonly #causalSending: ReturnType<typeof createCausalSending>;
   readonly #channelAdmission: ReturnType<typeof createChannelAdmission>;
   readonly #groupDigest: ReturnType<typeof createGroupDigest>;
@@ -2069,6 +1873,99 @@ class BotRuntimeImplementation implements BotRuntime {
       turnSources: this.#turnSources,
       warn: this.#warn === undefined ? undefined : (message) => this.#warn?.(message),
     });
+    this.#channelAccess = createChannelAccess({
+      admitGroupInvitation: (...args) => this.admitGroupInvitation(...args),
+      admitGroupJoinDecision: (...args) => this.admitGroupJoinDecision(...args),
+      admitGroupJoinRequest: (...args) => this.admitGroupJoinRequest(...args),
+      attachments: this.#attachments,
+      botContacts: (...args) => this.botContacts(...args),
+      callFrames: this.#callFrames,
+      causalSending: this.#causalSending,
+      channels: this.#channels,
+      closed: () => this.#closed,
+      createBot: (...args) => this.#createBot(...args),
+      createMessageId: () => this.#createMessageId(),
+      database: this.#database,
+      grants: this.#grants,
+      groupSendReview: this.groupSendReview,
+      ignoreAdmission: (...args) => this.#ignoreAdmission(...args),
+      isMember: (...args) => this.#isMember(...args),
+      now: () => this.#now(),
+      observeReadMessages: (...args) => this.#observeReadMessages(...args),
+      originalAttachments: this.#originalAttachments,
+      ownership: this.#ownership,
+      refreshBotContacts: () => this.refreshBotContacts(),
+      registry: this.#registry,
+      requireMembership: (...args) => this.#requireMembership(...args),
+      requireTurnAccess: (...args) => this.#requireTurnAccess(...args),
+      team: this.#team,
+      tob: this.#tob,
+      turnSources: this.#turnSources,
+      voiceMessages: this.#voiceMessages,
+    });
+    this.#runtimeInputs = createRuntimeInputs({
+      activeDirectTools: this.#activeDirectTools,
+      bindPrivateInputOrigin: (...args) => this.bindPrivateInputOrigin(...args),
+      channels: this.#channels,
+      closed: () => this.#closed,
+      database: this.#database,
+      enqueue: (...args) => this.#scheduling.enqueue(...args),
+      externalMessaging: this.#externalMessaging,
+      markSideEffectStarted: (...args) => this.#markSideEffectStarted(...args),
+      nativeQuestionAvailable: (...args) => this.nativeQuestionAvailable(...args),
+      ownership: this.#ownership,
+      recoverNativeQuestionInput: (...args) => this.recoverNativeQuestionInput(...args),
+      registry: this.#registry,
+      runOrchestratorTurn: (...args) => this.#runOrchestratorTurn(...args),
+      sessionArchived: (...args) => this.#sessionArchived?.(...args),
+      turnSources: this.#turnSources,
+      warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
+    });
+    this.#directTools = createDirectTools({
+      activeDirectTools: this.#activeDirectTools,
+      agents: this.#agents,
+      channels: this.#channels,
+      closed: () => this.#closed,
+      currentOrchestratorSessionId: (...args) => this.currentOrchestratorSessionId(...args),
+      database: this.#database,
+      directBotTools: () => this.directBotTools(),
+      directToolCalls: this.#directToolCalls,
+      noticeDirectAssignmentCall: (...args) =>
+        this.#assignmentReporting.noticeDirectAssignmentCall(...args),
+      now: () => this.#now(),
+      orchestratorServices: (...args) => this.#orchestratorServices(...args),
+      ownership: this.#ownership,
+      recordDirectToolSource: (...args) => this.#recordDirectToolSource(...args),
+      registry: this.#registry,
+      requireExecution:
+        this.#requireExecution === undefined
+          ? undefined
+          : (...args) => this.#requireExecution?.(...args),
+      requireMembership: (...args) => this.#requireMembership(...args),
+      team: this.#team,
+      tobCliRequests: this.#tobCliRequests,
+      warn: this.#warn === undefined ? undefined : (...args) => this.#warn?.(...args),
+    });
+    this.#tobCliRuntime = createTobCliRuntime({
+      activeDirectTools: this.#activeDirectTools,
+      admitDmMessage: (...args) => this.#admitDmMessage(...args),
+      channels: this.#channels,
+      closed: () => this.#closed,
+      database: this.#database,
+      markAdmissionsSideEffect: (...args) => this.#markAdmissionsSideEffect(...args),
+      memberBotEnabled: (...args) => this.#memberBotEnabled(...args),
+      now: () => this.#now(),
+      ownership: this.#ownership,
+      registry: this.#registry,
+      requireExecution:
+        this.#requireExecution === undefined
+          ? undefined
+          : (...args) => this.#requireExecution?.(...args),
+      tails: this.#tails,
+      tob: this.#tob,
+      tobCliRequests: this.#tobCliRequests,
+      turnSources: this.#turnSources,
+    });
 
     if (options.database.mode === 'ready') {
       const interruptedDms = this.#recoverInterruptedAttempts();
@@ -2094,26 +1991,6 @@ class BotRuntimeImplementation implements BotRuntime {
       this.#assignmentEvents.recoverPendingAssignmentReports();
       for (const bot of this.#registry.list()) this.#activityEvents.armSnooze(bot.slug);
     }
-  }
-
-  #react(botSlug: string, channel: ChannelRecord, input: BotReactionInput): BotReactionResult {
-    const bot = this.#registry.get(botSlug);
-    if (this.#closed || bot === undefined || bot.paused === true)
-      throw new Error('channel_action: Bot is unavailable');
-    if (this.#channels.setBotReaction === undefined)
-      throw new Error('channel_action: reactions are unavailable');
-    const reactions = this.#channels.setBotReaction(
-      channel.id,
-      botSlug,
-      input.messageId,
-      input.emoji,
-      input.active,
-    );
-    if (reactions === undefined)
-      throw new Error(
-        `channel_action: message ${input.messageId} cannot take this reaction in Channel ${channel.id}`,
-      );
-    return { channelId: channel.id, messageId: input.messageId, reactions };
   }
 
   retryDmMessage(
@@ -2163,126 +2040,8 @@ class BotRuntimeImplementation implements BotRuntime {
     return this.#continuation.compactOrchestrator(botSlug, compact);
   }
 
-  async tobCli(human: HumanContext, input: TobCliRequest): Promise<TobCliStatus> {
-    if (this.#closed) throw new TobError('runtime-closed');
-    for (const [id, request] of this.#tobCliRequests) {
-      if (request.finishedAt !== undefined && Date.now() - request.finishedAt > 10 * 60 * 1000)
-        this.#tobCliRequests.delete(id);
-    }
-    if (input.action !== 'start') {
-      const request = this.#tobCliRequests.get(input.id);
-      if (!request || request.humanId !== human.humanId)
-        throw new TobError('cli-request-unavailable');
-      if (input.action === 'cancel' && request.status.state === 'running') {
-        request.status = { ...request.status, cancelRequested: true };
-        request.controller.abort();
-      }
-      return structuredClone(request.status);
-    }
-    if (!this.#tob) throw new TobError('tob-authority-required');
-    await this.#tob.ensure(human);
-    if (this.#closed) throw new TobError('runtime-closed');
-    const bot = this.#registry
-      .list()
-      .find(
-        (candidate) => this.#tob?.isTob(candidate.slug) && botOwner(candidate) === human.humanId,
-      );
-    if (!bot || bot.paused || !this.#memberBotEnabled(bot))
-      throw new TobError('tob-authority-required');
-    if (
-      this.#tails.has(bot.slug) ||
-      [...this.#activeDirectTools.values()].some((call) => call.botSlug === bot.slug) ||
-      [...this.#tobCliRequests.values()].some((request) => request.status.state === 'running')
-    )
-      throw new TobError('bot-busy');
-    if (this.#tobCliRequests.size >= 16) {
-      const completed = [...this.#tobCliRequests].find(
-        ([, request]) => request.finishedAt !== undefined,
-      );
-      if (completed) this.#tobCliRequests.delete(completed[0]);
-      else throw new TobError('bot-busy');
-    }
-    const channel = this.#channels.getOrCreateDm(human, bot.slug, bot.displayName);
-    if (!channel) throw new TobError('human-dm-required');
-    const channelId = channel.id;
-    const id = randomUUID();
-    const messageId = 'human-' + randomUUID();
-    const controller = new AbortController();
-    const request: TobCliRequestLease = {
-      humanId: human.humanId,
-      botSlug: bot.slug,
-      controller,
-      status: {
-        id,
-        channelId,
-        messageId,
-        state: 'running',
-        cancelRequested: false,
-      },
-      finishedAt: undefined,
-    };
-    this.#tobCliRequests.set(id, request);
-    const timer = setTimeout(() => controller.abort(), 10 * 60 * 1000);
-    timer.unref?.();
-    let result: import('../tob/cli-request.js').TobCliOutput | undefined;
-    const finish = (error?: unknown) => {
-      clearTimeout(timer);
-      request.finishedAt = Date.now();
-      request.status = controller.signal.aborted
-        ? {
-            id,
-            channelId,
-            messageId,
-            state: 'cancelled',
-            cancelRequested: true,
-            code: 'operation-cancelled',
-          }
-        : error !== undefined || result === undefined
-          ? {
-              id,
-              channelId,
-              messageId,
-              state: 'failed',
-              cancelRequested: false,
-              code:
-                error instanceof TobError ||
-                error instanceof DirectBotToolError ||
-                error instanceof TeamError
-                  ? error.code
-                  : 'operation-failed',
-            }
-          : { id, channelId, messageId, state: 'completed', cancelRequested: false, result };
-    };
-    try {
-      this.#requireExecution?.(bot.slug);
-      const body = 'Run a typed CLI command without a model: ' + input.command.argv[0];
-      const appended = await this.#channels.appendMessageOnce(human, channelId, {
-        id: messageId,
-        at: this.#now().toISOString(),
-        author: { kind: 'human', humanId: human.humanId },
-        tobCliRequestId: id,
-        body,
-      });
-      if (appended.status !== 'appended') throw new TobError('human-dm-required');
-      controller.signal.throwIfAborted();
-      const admission = this.#admitDmMessage(
-        human,
-        { channelId, messageId, body },
-        {
-          command: { argv: [...input.command.argv], stdin: input.command.stdin },
-          signal: controller.signal,
-          complete: (output) => {
-            result = output;
-          },
-        },
-      );
-      if (!admission.admitted) throw new TobError(admission.reason);
-      void admission.settled.then(() => finish(), finish);
-      return structuredClone(request.status);
-    } catch (error) {
-      finish(error);
-      throw error;
-    }
+  tobCli(human: HumanContext, input: TobCliRequest): Promise<TobCliStatus> {
+    return this.#tobCliRuntime.tobCli(human, input);
   }
 
   admitDmMessage(human: HumanContext, input: HandleDmMessageInput): DmMessageAdmission {
@@ -3234,7 +2993,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   askChannel(sessionId: string): string | undefined {
-    return this.#askOrigin({ sessionId })?.channelId;
+    return this.#runtimeInputs.askOrigin({ sessionId })?.channelId;
   }
 
   hasDirectToolInvocation({ sessionId, callId }: ToolApprovalOriginQuery): boolean {
@@ -3242,47 +3001,7 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   toolApprovalOrigin(query: ToolApprovalOriginQuery): ToolApprovalOrigin | undefined {
-    return this.#askOrigin(query);
-  }
-
-  #askOrigin({
-    sessionId,
-    callId,
-  }: {
-    sessionId: string;
-    callId?: string;
-  }): ToolApprovalOrigin | undefined {
-    const owner = this.#ownership.resolve(sessionId);
-    if (this.#closed || owner?.rootRole !== 'orchestrator') return undefined;
-    const direct = this.#activeDirectTools.get(callId ?? sessionId);
-    if (direct !== undefined) {
-      if (direct.botSlug !== owner.botSlug || direct.agentSessionId !== sessionId) return undefined;
-      const channel =
-        direct.approvalHuman === undefined
-          ? undefined
-          : this.#channels.getOrCreateDm(
-              direct.approvalHuman,
-              owner.botSlug,
-              this.#registry.get(owner.botSlug)?.displayName,
-            );
-      return channel?.type === 'dm' && channel.botSlug === owner.botSlug
-        ? { kind: 'direct', channelId: channel.id }
-        : undefined;
-    }
-    const turn = this.#turnSources.get(owner.botSlug);
-    if (
-      turn?.sessionId !== sessionId ||
-      turn.inboundChannelId === undefined ||
-      turn.steeredChannelIds.size > 0
-    )
-      return undefined;
-    const channel = this.#channels.get(turn.inboundChannelId);
-    if (channel === undefined) return undefined;
-    if (channel.type === 'group')
-      return channel.members.includes(owner.botSlug)
-        ? { kind: 'turn', channelId: channel.id }
-        : undefined;
-    return channel.botSlug === owner.botSlug ? { kind: 'turn', channelId: channel.id } : undefined;
+    return this.#runtimeInputs.askOrigin(query);
   }
 
   botCreatePreview(botSlug: string, args: unknown): BotCreatePreview | undefined {
@@ -3310,161 +3029,15 @@ class BotRuntimeImplementation implements BotRuntime {
   }
 
   captureTobCliAuthority(sessionId: string): TobCliAuthority {
-    const owner = this.#ownership.resolve(sessionId);
-    if (
-      this.#closed ||
-      !this.#ownership.contentAvailable(sessionId) ||
-      owner?.rootRole !== 'orchestrator' ||
-      owner.parentSessionId !== undefined ||
-      !this.#tob?.isTob(owner.botSlug)
-    )
-      throw new TobError('tob-authority-required');
-    const turn = this.#turnSources.get(owner.botSlug);
-    if (turn?.sessionId !== sessionId || turn.acceptedEventIds.size === 0)
-      throw new TobError('human-dm-required');
-    const accepted = new Set(turn.acceptedEventIds);
-    const dm = dmChannelId(owner.botSlug);
-    const authorize = () => {
-      const currentOwner = this.#ownership.resolve(sessionId);
-      if (
-        this.#closed ||
-        !this.#ownership.contentAvailable(sessionId) ||
-        currentOwner?.botSlug !== owner.botSlug ||
-        currentOwner.rootRole !== 'orchestrator' ||
-        currentOwner.parentSessionId !== undefined ||
-        !this.#tob?.isTob(owner.botSlug)
-      )
-        throw new TobError('tob-authority-required');
-
-      if (
-        this.#turnSources.get(owner.botSlug) !== turn ||
-        turn.acceptedEventIds.size !== accepted.size ||
-        [...accepted].some((id) => !turn.acceptedEventIds.has(id))
-      )
-        throw new TobError('human-dm-required');
-      this.#database.read((db) => {
-        for (const id of accepted) {
-          const event = db
-            .prepare(
-              'SELECT source_kind, channel_id, human_id FROM source_events WHERE source_event_id = ?',
-            )
-            .get(id);
-          if (
-            event?.source_kind !== 'human-message' ||
-            event.channel_id !== dm ||
-            (event.human_id ?? 'local-human') !== botOwner(this.#registry.get(owner.botSlug)!)
-          )
-            throw new TobError('human-dm-required');
-          requireSourceEffects(db, id, owner.botSlug);
-        }
-      });
-    };
-    authorize();
-    return Object.assign(authorize, {
-      markSideEffect: () => {
-        authorize();
-        this.#markAdmissionsSideEffect(owner.botSlug, [...accepted]);
-      },
-    });
+    return this.#tobCliRuntime.captureTobCliAuthority(sessionId);
   }
 
   canRequestPrivateInput(sessionId: string, selected?: string): boolean {
-    const owner = this.#ownership.resolve(sessionId);
-    if (
-      this.#closed ||
-      owner?.rootRole !== 'orchestrator' ||
-      !this.#ownership.contentAvailable(sessionId)
-    )
-      return false;
-    const turn = this.#turnSources.get(owner.botSlug);
-    if (turn?.sessionId !== sessionId) return false;
-    try {
-      if (this.bindPrivateInputOrigin(sessionId, selected) !== undefined) return true;
-    } catch {
-      return false;
-    }
-    return this.#hasLocalPrivateInputSource(owner.botSlug, turn.acceptedEventIds);
-  }
-
-  #hasLocalPrivateInputSource(botSlug: string, sourceEventIds: Iterable<string>): boolean {
-    return this.#database.read((db) => {
-      const human = db.prepare(
-        `SELECT e.channel_id FROM source_events e
-         JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
-         WHERE e.source_event_id = ? AND a.bot_slug = ? AND e.source_kind = 'human-message'
-           AND a.reason IN ('human-dm', 'group-mention', 'group-ordinary')`,
-      );
-      return [...sourceEventIds].some((id) => {
-        const source = human.get(id, botSlug);
-        if (
-          typeof source?.channel_id !== 'string' ||
-          this.#channels.get(source.channel_id) === undefined
-        )
-          return false;
-        try {
-          requireSourceEffects(db, id, botSlug);
-          return true;
-        } catch {
-          return false;
-        }
-      });
-    });
+    return this.#runtimeInputs.canRequestPrivateInput(sessionId, selected);
   }
 
   bindPrivateInputOrigin(sessionId: string, selected?: string): PrivateInputOrigin | undefined {
-    const owner = this.#ownership.resolve(sessionId);
-    const turn = owner === undefined ? undefined : this.#turnSources.get(owner.botSlug);
-    if (owner?.rootRole !== 'orchestrator' || turn?.sessionId !== sessionId) {
-      if (selected !== undefined) throw new PrivateInputRefusal('private-source-invalid');
-      return undefined;
-    }
-    if (
-      selected === undefined &&
-      this.#hasLocalPrivateInputSource(owner.botSlug, turn.acceptedEventIds)
-    )
-      return undefined;
-    const ids = this.#database.read((db) => {
-      const query = db.prepare('SELECT source_kind FROM source_events WHERE source_event_id = ?');
-      return [...turn.acceptedEventIds].filter(
-        (id) => query.get(id)?.source_kind === 'bridge-message',
-      );
-    });
-    if (ids.length === 0 && selected === undefined) return undefined;
-    const id = selected ?? (ids.length === 1 ? ids[0] : undefined);
-    if (id === undefined) throw new PrivateInputRefusal('private-source-required');
-    if (!ids.includes(id)) throw new PrivateInputRefusal('private-source-invalid');
-    if (this.#externalMessaging === undefined)
-      throw new PrivateInputRefusal('private-source-unavailable');
-    const messaging = this.#externalMessaging;
-    const bot = this.#registry.get(owner.botSlug);
-    if (bot === undefined) throw new PrivateInputRefusal('private-source-revoked');
-    const signal = messaging.inbound.sourceSignal(owner.botSlug, id);
-    const applies = () => this.#turnSources.get(owner.botSlug) === turn;
-    const current = () => {
-      const currentOwner = this.#ownership.resolve(sessionId);
-      const currentBot = this.#registry.get(owner.botSlug);
-      if (
-        this.#closed ||
-        signal.aborted ||
-        currentBot?.createdAt !== bot.createdAt ||
-        currentBot.paused === true ||
-        currentOwner?.rootRole !== 'orchestrator' ||
-        currentOwner.botSlug !== owner.botSlug ||
-        !this.#ownership.contentAvailable(sessionId) ||
-        !applies() ||
-        !turn.acceptedEventIds.has(id) ||
-        !messaging.inbound.available(owner.botSlug, id)
-      )
-        return false;
-      try {
-        this.#database.read((db) => requireSourceEffects(db, id, owner.botSlug));
-        return true;
-      } catch {
-        return false;
-      }
-    };
-    if (!current()) throw new PrivateInputRefusal('private-source-revoked');
-    return { sourceEventId: id, signal, applies, current };
+    return this.#runtimeInputs.bindPrivateInputOrigin(sessionId, selected);
   }
 
   bindNativeQuestionInput(
@@ -3472,35 +3045,7 @@ class BotRuntimeImplementation implements BotRuntime {
     channelId: string,
     question?: { messageId: string; callId: string },
   ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
-    const owner = this.#ownership.resolve(sessionId);
-    const turn = owner === undefined ? undefined : this.#turnSources.get(owner.botSlug);
-    const sources = turn?.sessionId === sessionId ? turn.acceptedEventIds : undefined;
-    const sourceEventId = sources?.values().next().value;
-    if (owner?.rootRole !== 'orchestrator' || sourceEventId === undefined) return undefined;
-    if (turn?.memoryObservation === 'recovered-question') {
-      if (question === undefined) return undefined;
-      return (deliver) => {
-        const request = this.#channels.message(channelId, question.messageId)?.userQuestionRequest;
-        if (request?.callId !== question.callId) {
-          this.#warn?.(
-            'native-question-input-refused phase=binding reason=question-card-unavailable',
-          );
-          return Promise.resolve(false);
-        }
-        return (
-          this.recoverNativeQuestionInput(sessionId, channelId, question.messageId)?.(deliver) ??
-          Promise.resolve(false)
-        );
-      };
-    }
-    return this.#nativeQuestionInput(
-      owner.botSlug,
-      sessionId,
-      channelId,
-      sourceEventId,
-      [...(sources ?? [])],
-      () => this.#markSideEffectStarted(sourceEventId),
-    );
+    return this.#runtimeInputs.bindNativeQuestionInput(sessionId, channelId, question);
   }
 
   recoverNativeQuestionInput(
@@ -3508,61 +3053,11 @@ class BotRuntimeImplementation implements BotRuntime {
     channelId: string,
     requestMessageId: string,
   ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
-    const owner = this.#ownership.resolve(sessionId);
-    if (owner?.rootRole !== 'orchestrator') return undefined;
-    const request = this.#channels.message(channelId, requestMessageId)?.userQuestionRequest;
-    const callId = request?.callId;
-    const holdsCard = (): boolean => {
-      const card = this.#channels.message(channelId, requestMessageId);
-      return (
-        callId !== undefined &&
-        card?.author.kind === 'bot' &&
-        card.author.slug === owner.botSlug &&
-        card.userQuestionRequest?.sessionId === sessionId &&
-        card.userQuestionRequest.callId === callId
-      );
-    };
-    if (!holdsCard()) {
-      this.#warn?.('native-question-input-refused phase=recovery reason=question-card-unavailable');
-      return undefined;
-    }
-    const row = this.#database.read((db) =>
-      db
-        .prepare(
-          `
-          SELECT e.source_event_id FROM source_events e
-           WHERE e.message_id = ? AND e.bot_slug = ? AND e.source_kind = 'bot-message'
-             AND ${channelSql('e')} = ?
-        `,
-        )
-        .get(requestMessageId, owner.botSlug, channelId),
-    ) as { source_event_id: string } | undefined;
-    if (row === undefined || !this.nativeQuestionAvailable(sessionId, channelId)) return undefined;
-    return this.#nativeQuestionInput(
-      owner.botSlug,
-      sessionId,
-      channelId,
-      row.source_event_id,
-      [row.source_event_id],
-      () => undefined,
-      { kind: 'recovered-question', holdsCard },
-    );
+    return this.#runtimeInputs.recoverNativeQuestionInput(sessionId, channelId, requestMessageId);
   }
 
   nativeQuestionAvailable(sessionId: string, channelId: string): boolean {
-    const owner = this.#ownership.resolve(sessionId);
-    const bot = owner === undefined ? undefined : this.#registry.get(owner.botSlug);
-    const channel = this.#channels.get(channelId);
-    return (
-      !this.#closed &&
-      bot !== undefined &&
-      owner?.rootRole === 'orchestrator' &&
-      this.#ownership.contentAvailable(sessionId) &&
-      this.#sessionArchived?.(sessionId) !== true &&
-      (channel?.type === 'group'
-        ? channel.members.includes(owner.botSlug)
-        : channel?.botSlug === owner.botSlug)
-    );
+    return this.#runtimeInputs.nativeQuestionAvailable(sessionId, channelId);
   }
 
   captureNativeOrchestratorModel(sessionId: string): void {
@@ -3697,148 +3192,15 @@ class BotRuntimeImplementation implements BotRuntime {
     });
   }
 
-  #nativeQuestionInput(
-    botSlug: string,
-    sessionId: string,
-    channelId: string,
-    sourceEventId: string,
-    sourceIds: readonly string[],
-    markAttemptSideEffect: () => void,
-    input: { kind: 'source-event' } | { kind: 'recovered-question'; holdsCard(): boolean } = {
-      kind: 'source-event',
-    },
-  ): ((deliver: () => boolean) => Promise<boolean>) | undefined {
-    const owner = { botSlug };
-    const held = (): boolean => {
-      const channel = this.#channels.get(channelId);
-      return channel?.type === 'group'
-        ? channel.members.includes(owner.botSlug)
-        : channel?.botSlug === owner.botSlug;
-    };
-    if (!held()) return undefined;
-    return (deliver) => {
-      let phase:
-        | 'queue'
-        | 'authority'
-        | 'resume'
-        | 'native-delivery'
-        | 'continuation'
-        | 'completed' = 'queue';
-      const correlation = `bot=${botSlug.slice(0, 120)} session=${sessionId.slice(0, 120)} source=${sourceEventId.slice(0, 120)}`;
-      const refused = (
-        reason: 'owner-unavailable' | 'native-refused' | 'run-failed',
-        kind?: string,
-      ): void =>
-        this.#warn?.(
-          `native-question-input-refused phase=${phase} reason=${reason}${kind === undefined ? '' : ` kind=${kind}`} ${correlation}`,
-        );
-      let accept!: (value: boolean) => void;
-      const accepted = new Promise<boolean>((resolve) => {
-        accept = resolve;
-      });
-      const done = this.#scheduling.enqueue(owner.botSlug, async () => {
-        try {
-          phase = 'authority';
-          const bot = this.#registry.get(owner.botSlug);
-          const current = this.#ownership.resolve(sessionId);
-          if (
-            this.#closed ||
-            bot === undefined ||
-            bot.paused === true ||
-            current?.rootRole !== 'orchestrator' ||
-            current.botSlug !== owner.botSlug ||
-            !this.#ownership.contentAvailable(sessionId) ||
-            this.#sessionArchived?.(sessionId) === true ||
-            !held() ||
-            (input.kind === 'recovered-question' && !input.holdsCard())
-          ) {
-            refused('owner-unavailable');
-            return;
-          }
-          this.#database.read((db) => {
-            for (const id of sourceIds) requireSourceEffects(db, id, owner.botSlug);
-          });
-          phase = 'resume';
-          await this.#runOrchestratorTurn(
-            bot,
-            { sessionId, resume: true },
-            sourceEventId,
-            channelId,
-            '',
-            [],
-            false,
-            markAttemptSideEffect,
-            [],
-            [],
-            () => {
-              phase = 'native-delivery';
-              const currentBot = this.#registry.get(owner.botSlug);
-              const currentOwner = this.#ownership.resolve(sessionId);
-              if (
-                this.#closed ||
-                currentBot === undefined ||
-                currentBot.paused === true ||
-                currentOwner?.rootRole !== 'orchestrator' ||
-                currentOwner.botSlug !== owner.botSlug ||
-                !this.#ownership.contentAvailable(sessionId) ||
-                this.#sessionArchived?.(sessionId) === true ||
-                !held() ||
-                (input.kind === 'recovered-question' && !input.holdsCard())
-              ) {
-                refused('owner-unavailable');
-                accept(false);
-                return false;
-              }
-              this.#database.read((db) => {
-                for (const id of sourceIds) requireSourceEffects(db, id, owner.botSlug);
-              });
-              const result = deliver();
-              if (!result) refused('native-refused');
-              else phase = 'continuation';
-              accept(result);
-              return result;
-            },
-            sourceIds,
-            input.kind,
-          );
-          phase = 'completed';
-        } finally {
-          accept(false);
-        }
-      });
-      void done.catch((error: unknown) => {
-        accept(false);
-        const kind =
-          error instanceof MemoryAcceptError
-            ? 'memory'
-            : error instanceof TypeError
-              ? 'type'
-              : error instanceof RangeError
-                ? 'range'
-                : error instanceof SyntaxError
-                  ? 'syntax'
-                  : error instanceof Error
-                    ? 'error'
-                    : 'non-error';
-        refused('run-failed', kind);
-      });
-      void done.then(
-        () => accept(false),
-        () => accept(false),
-      );
-      return accepted;
-    };
-  }
-
   directBotTools(): DirectBotToolSpec[] {
-    return this.#agents.directTools?.() ?? [];
+    return this.#directTools.directBotTools();
   }
 
   directBotToolCalls(botSlug: string): readonly DirectBotToolCall[] {
-    return this.#directToolCalls.get(botSlug) ?? [];
+    return this.#directTools.directBotToolCalls(botSlug);
   }
 
-  async runDirectBotTool(
+  runDirectBotTool(
     botSlug: string,
     tool: string,
     args: Record<string, unknown>,
@@ -3847,172 +3209,15 @@ class BotRuntimeImplementation implements BotRuntime {
     sourceEventId?: string,
     human?: HumanContext,
   ): Promise<{ tool: string; sessionId: 'direct'; result: unknown }> {
-    if (this.#closed) throw new DirectBotToolError('runtime-closed', 'BotRuntime is closed');
-    this.#team?.bots.requireActive(botSlug);
-    const bot = this.#registry.get(botSlug);
-    if (bot === undefined) throw new DirectBotToolError('unknown-bot', `Unknown bot: ${botSlug}`);
-    if (
-      [...this.#tobCliRequests.values()].some(
-        (request) => request.botSlug === botSlug && request.status.state === 'running',
-      )
-    )
-      throw new DirectBotToolError(
-        'bot-busy',
-        'Wait for the active Tob CLI request or cancel it first',
-      );
-    if (bot.paused === true)
-      throw new DirectBotToolError('bot-paused', `PersonaBot ${botSlug} is paused`);
-    const runDirect = this.#agents.runDirectTool?.bind(this.#agents);
-    if (runDirect === undefined)
-      throw new DirectBotToolError('unavailable', 'Direct Bot tools are unavailable on this Host');
-    if (!this.directBotTools().some((spec) => spec.name === tool))
-      throw new DirectBotToolError(
-        'tool-not-direct',
-        `${tool} is not a Bot tool the direct runner can call; list them with bot-tools`,
-      );
-    const delegation = isBotSubagentModelTool(tool);
-    if (!delegation && parentSessionId !== undefined)
-      throw new DirectBotToolError(
-        'invalid-args',
-        `${tool} runs as the Bot's Orchestrator; --session applies only to Subagent tools`,
-      );
-    if (delegation) {
-      const owner =
-        parentSessionId === undefined ? undefined : this.#ownership.resolve(parentSessionId);
-      if (owner?.botSlug !== bot.slug || owner.rootRole !== 'assignment')
-        throw new DirectBotToolError(
-          'parent-unavailable',
-          `${tool} runs inside an Assignment; pass --session with one of ${bot.slug}'s Assignment Sessions`,
-        );
-    }
-    this.#requireExecution?.(bot.slug);
-    const sessionId = `direct-${randomUUID()}`;
-    const directChannel =
-      typeof args.channel_id === 'string'
-        ? (() => {
-            const channel = this.#channels.get(args.channel_id);
-            if (this.#team && channel) {
-              this.#team.bots.requireChannel(botSlug, channel);
-              return channel;
-            }
-            return this.#requireMembership(botSlug, args.channel_id);
-          })()
-        : undefined;
-    if (sourceEventId !== undefined) {
-      this.#database.read((db) => {
-        const source = db
-          .prepare(
-            `SELECT e.channel_id FROM source_events e
-          JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
-          WHERE e.source_event_id = ? AND a.bot_slug = ?`,
-          )
-          .get(sourceEventId, botSlug);
-        if (source === undefined)
-          throw new DirectBotToolError(
-            'source-unavailable',
-            'Source Event is not admitted to this Bot',
-          );
-        requireSourceEffects(db, sourceEventId, botSlug);
-        if (typeof source.channel_id === 'string')
-          this.#requireMembership(botSlug, source.channel_id);
-      });
-    }
-    const directOrigin =
-      sourceEventId === undefined && DIRECT_ASSIGNMENT_TOOLS.has(tool)
-        ? this.#recordDirectToolSource(bot.slug, tool)
-        : sourceEventId;
-    const directSource =
-      directOrigin !== undefined
-        ? { source_event_id: directOrigin }
-        : directChannel === undefined
-          ? undefined
-          : this.#database.read((db) =>
-              db
-                .prepare(
-                  'SELECT source_event_id FROM channel_placements WHERE channel_id = ? ORDER BY revision DESC LIMIT 1',
-                )
-                .get(directChannel.id),
-            );
-    const run: OrchestratorAgentRun = {
-      sessionId,
-      resume: false,
-      bot,
-      message: '',
-      inbox: '',
-      inboundChannelId: undefined,
-      ...this.#orchestratorServices(bot, {
-        sessionId,
-        channelId: undefined,
-        sourceEventId: directSource
-          ? String(directSource.source_event_id)
-          : `direct-${randomUUID()}`,
-        markSideEffect: () => undefined,
-        readAdmissions: new Set(),
-        importedFiles: new Map(),
-        turnSources: new Set(),
-        observeMemory: false,
-        observeReads: false,
-      }),
-    };
-    let approvalHuman: HumanContext | undefined;
-    if (
-      PRIVATE_INPUT_TOOLS.has(tool) ||
-      hasIrreversibleExternalEffect(toolEffects(tool, args)) ||
-      toolEffects(tool, args)?.authority === 'management'
-    ) {
-      approvalHuman = human;
-      if (!PRIVATE_INPUT_TOOLS.has(tool))
-        this.#ownership.claim({
-          sessionId,
-          botSlug,
-          rootRole: 'orchestrator',
-          provenance: 'created',
-          at: this.#now().toISOString(),
-        });
-    }
-    const started = this.#now();
-    const record = (outcome: 'ok' | 'error', result: string) => {
-      const calls = this.#directToolCalls.get(bot.slug) ?? [];
-      calls.push({
-        callId: sessionId,
-        tool,
-        args: PRIVATE_INPUT_TOOLS.has(tool) ? {} : args,
-        at: started.toISOString(),
-        durationMs: this.#now().getTime() - started.getTime(),
-        outcome,
-        result: PRIVATE_INPUT_TOOLS.has(tool) ? '[private tool result omitted]' : result,
-      });
-      this.#directToolCalls.set(bot.slug, calls.slice(-DIRECT_TOOL_CALL_LIMIT));
-    };
-    const executionParentSessionId = delegation
-      ? parentSessionId
-      : this.currentOrchestratorSessionId(botSlug);
-    this.#activeDirectTools.set(sessionId, {
-      botSlug: bot.slug,
-      agentSessionId: PRIVATE_INPUT_TOOLS.has(tool)
-        ? (executionParentSessionId ?? sessionId)
-        : sessionId,
-      ...(approvalHuman === undefined ? {} : { approvalHuman }),
-    });
-    try {
-      const result = await runDirect(run, tool, args, signal, executionParentSessionId);
-      record('ok', typeof result === 'string' ? result : JSON.stringify(result));
-      if (DIRECT_ASSIGNMENT_TOOLS.has(tool)) {
-        try {
-          this.#assignmentReporting.noticeDirectAssignmentCall(bot.slug, tool, args, result);
-        } catch (error) {
-          this.#warn?.(
-            `Direct ${tool} succeeded but its Orchestrator notice was not recorded: ${error instanceof Error ? error.message : String(error)}`,
-          );
-        }
-      }
-      return { tool, sessionId: 'direct', result };
-    } catch (error) {
-      record('error', error instanceof Error ? error.message : String(error));
-      throw error;
-    } finally {
-      this.#activeDirectTools.delete(sessionId);
-    }
+    return this.#directTools.runDirectBotTool(
+      botSlug,
+      tool,
+      args,
+      signal,
+      parentSessionId,
+      sourceEventId,
+      human,
+    );
   }
 
   #recordDirectToolSource(botSlug: string, tool: string): string {
@@ -6363,795 +5568,57 @@ class BotRuntimeImplementation implements BotRuntime {
     return this.#originalAttachments.root(sessionId, path, kind, shell);
   }
 
-  #channelAccess(
+  #ignoreAdmission(
     botSlug: string,
-    defaultChannelId: string | undefined,
-    sourceEventId: string | undefined,
     sessionId: string,
-    beforeSend: () => void,
-    readAdmissions: Set<string>,
-    onImport?: (ref: ChannelAttachmentRef) => void,
-    observeReads = true,
-    modelContent?: string,
-    replyTargets?: () => readonly TurnTargetSegment[],
-  ): OrchestratorChannelAccess {
-    const actorHuman = humanContext(botOwner(this.#registry.get(botSlug)!));
-    const reviewOwner = sessionId.startsWith('direct-')
-      ? `direct:${botSlug}`
-      : `${botSlug}:${sessionId}`;
-    const turnAttribution = () => {
-      const segments = replyTargets?.().slice(-MAX_MIXED_GROUP_ATTEMPTS);
-      const last = segments?.at(-1);
-      const turnModelSwitch =
-        last === undefined ? undefined : readTurnModelSwitch(this.#database, sessionId, last);
-      return {
-        ...(segments?.length ? { turnTargets: segments.map((segment) => segment.target) } : {}),
-        ...(turnModelSwitch === undefined ? {} : { turnModelSwitch }),
-      };
-    };
-    const observations = new Map<string, string>();
-    const exhaustedDrops = new Map<string, string>();
-    const recordObservation = (views: ChannelMessageView[]): void => {
-      for (const id of new Set(views.map((view) => view.channelId))) {
-        if (!this.groupSendReview.enabled(id)) continue;
-        observations.set(
-          id,
-          this.groupSendReview.observe(
-            reviewOwner,
-            id,
-            views.filter((view) => view.channelId === id).map((view) => view.message),
-            observations.get(id),
-          ),
-        );
-      }
-    };
-    const initial = this.#database.read((db) =>
-      db
-        .prepare('SELECT channel_id, message_id FROM source_events WHERE source_event_id = ?')
-        .get(sourceEventId ?? null),
-    );
-    if (initial?.channel_id && initial.message_id && !sessionId.startsWith('direct-')) {
-      const id = String(initial.channel_id);
-      const message = this.#channels.message(id, String(initial.message_id));
-      if (
-        message &&
-        message.body.length > 0 &&
-        modelContent?.includes(sessionMentionText(message.body, message.mentions ?? [])) &&
-        this.groupSendReview.enabled(id)
-      )
-        observations.set(id, this.groupSendReview.observe(reviewOwner, id, [message]));
-    }
-    const initialObservations = new Map(observations);
-    const reviewSourceChannelId =
-      initial?.channel_id && this.groupSendReview.enabled(String(initial.channel_id))
-        ? String(initial.channel_id)
-        : undefined;
-    const requireReplySource = () => {
-      if (reviewSourceChannelId === undefined) return;
-      const source = this.#channels.get(reviewSourceChannelId);
-      if (!source || !this.#isMember(botSlug, source))
-        throw new GroupReplySourceRevoked(reviewSourceChannelId);
-    };
-    const authorize = beforeSend;
-    beforeSend = () => {
-      this.#requireTurnAccess(botSlug, sourceEventId ? [sourceEventId] : []);
-      requireReplySource();
-      if (sourceEventId !== undefined)
-        this.#database.read((db) => requireSourceEffects(db, sourceEventId, botSlug));
-      authorize();
-    };
-    const requireOrdinaryGroupActor = () => {
-      if (this.#tob?.isTob(botSlug)) throw new TobError('tob-cli-required');
-    };
-    const resolve = (requested?: string): ChannelRecord => {
-      const id = requested ?? defaultChannelId;
-      if (id === undefined)
-        throw new Error(
-          'No inbound local Channel; select an explicit joined Channel or use bot_send_message with source_event_id for an external source',
-        );
-      const channel = this.#channels.get(id);
-      if (this.#team && channel) {
-        this.#team.bots.requireChannel(botSlug, channel);
-        return channel;
-      }
-      return this.#requireMembership(botSlug, id);
-    };
-    const humanNames = (channel: ChannelRecord): Record<string, string> =>
-      Object.fromEntries(
-        this.#channels
-          .listHumanMembers(actorHuman, channel.id)
-          .map((member) => [member.humanId, member.displayName]),
-      );
-    const viewOf = (
-      channel: ChannelRecord,
-      message: ChannelMessage,
-      humans = humanNames(channel),
-    ): ChannelMessageView => ({
-      channelId: channel.id,
-      channelName: channel.name,
-      message,
-      actorNames: {
-        humans,
-        bots: Object.fromEntries(
-          [
-            ...new Set([
-              ...(message.author.kind === 'bot' ? [message.author.slug] : []),
-              ...(message.mentions ?? []).map((mention) => mention.botSlug),
-            ]),
-          ].flatMap((slug) => {
-            const bot = this.#registry.get(slug);
-            return bot === undefined ? [] : [[slug, bot.displayName]];
-          }),
-        ),
-      },
-    });
-    const contentProgress = new Map<string, number>();
-    const queryPage = (input: ChannelQueryInput = {}): ChannelQueryPage => {
-      if (input.scope !== undefined && input.scope !== 'channel' && input.scope !== 'joined') {
-        throw new Error('channel_read: invalid scope');
-      }
-      if (hasChannelCallWindow(input)) {
-        const { channel, window, page } = queryCallWindow({
-          channels: this.#channels,
-          resolve,
-          input,
-        });
-        const humans = humanNames(channel);
-        return {
-          messages: page.messages.map((message) => viewOf(channel, message, humans)),
-          ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
-          call: window,
-        };
-      }
-      if (input.scope !== 'joined') {
-        const channel = resolve(input.channelId);
-        const page = this.#channels.queryMessages(channel.id, input);
-        const humans = humanNames(channel);
-        const messages = page.messages.map((message) => viewOf(channel, message, humans));
-        return {
-          messages,
-          ...(page.nextCursor === undefined ? {} : { nextCursor: page.nextCursor }),
-        };
-      }
-      if (input.channelId !== undefined) {
-        throw new Error('channel_read: channel_id cannot be combined with joined scope');
-      }
-      const text = requireNonBlank(input.text ?? '', 'Cross-Channel text query');
-      const channels = this.#channels
-        .list()
-        .filter((channel) => this.#isMember(botSlug, channel))
-        .sort((left, right) => left.id.localeCompare(right.id));
-      const filter = createHash('sha256')
-        .update(
-          JSON.stringify({
-            channelIds: channels.map((channel) => channel.id),
-            text: text.toLowerCase(),
-            authorBotId: input.authorBotId,
-            authorKind: input.authorKind,
-            from: input.from,
-            to: input.to,
-          }),
-        )
-        .digest('hex')
-        .slice(0, 16);
-      type SortKey = { at: string; channelId: string; messageId: string };
-      const descending = (left: string, right: string): number =>
-        right < left ? -1 : right > left ? 1 : 0;
-      const compare = (left: SortKey, right: SortKey): number =>
-        Date.parse(right.at) - Date.parse(left.at) ||
-        descending(left.channelId, right.channelId) ||
-        descending(left.messageId, right.messageId);
-      let after: SortKey | undefined;
-      if (input.cursor !== undefined) {
-        try {
-          const decoded: unknown = JSON.parse(
-            Buffer.from(input.cursor, 'base64url').toString('utf8'),
-          );
-          if (
-            typeof decoded !== 'object' ||
-            decoded === null ||
-            !('filter' in decoded) ||
-            decoded.filter !== filter ||
-            !('at' in decoded) ||
-            typeof decoded.at !== 'string' ||
-            !('channelId' in decoded) ||
-            typeof decoded.channelId !== 'string' ||
-            !('messageId' in decoded) ||
-            typeof decoded.messageId !== 'string'
-          )
-            throw new Error('invalid');
-          after = {
-            at: decoded.at,
-            channelId: decoded.channelId,
-            messageId: decoded.messageId,
-          };
-        } catch {
-          throw new Error('channel_read: invalid cursor');
-        }
-      }
-      const {
-        cursor: _cursor,
-        scope: _scope,
-        channelId: _channelId,
-        limit: _limit,
-        ...filters
-      } = input;
-      const limit = Math.max(1, Math.min(Math.floor(input.limit ?? 20), MAX_MESSAGE_PAGE));
-      const afterTo =
-        after !== undefined && Number.isFinite(Date.parse(after.at)) ? after.at : undefined;
-      if (
-        afterTo !== undefined &&
-        filters.from !== undefined &&
-        Date.parse(filters.from) > Date.parse(afterTo)
-      )
-        return { messages: [] };
-      const found: ChannelMessageView[] = [];
-      for (const channel of channels) {
-        const humans = humanNames(channel);
-        let cursor: string | undefined;
-        do {
-          const page = this.#channels.queryMessages(channel.id, {
-            ...filters,
-            text,
-            ...(afterTo !== undefined && filters.to === undefined ? { to: afterTo } : {}),
-            orderBy: 'time',
-            ...(cursor === undefined ? {} : { cursor }),
-            limit: MAX_MESSAGE_PAGE,
-          });
-          for (const message of page.messages) {
-            const key = {
-              at: message.at,
-              channelId: channel.id,
-              messageId: message.id,
-            };
-            if (after !== undefined && compare(key, after) <= 0) continue;
-            found.push(viewOf(channel, message, humans));
-          }
-          found.sort((left, right) =>
-            compare(
-              {
-                at: left.message.at,
-                channelId: left.channelId,
-                messageId: left.message.id,
-              },
-              {
-                at: right.message.at,
-                channelId: right.channelId,
-                messageId: right.message.id,
-              },
-            ),
-          );
-          found.length = Math.min(found.length, limit + 1);
-          cursor = page.nextCursor;
-          const tail = page.messages.at(-1);
-          const worst = found[limit];
-          if (
-            cursor !== undefined &&
-            tail !== undefined &&
-            worst !== undefined &&
-            compare(
-              { at: tail.at, channelId: channel.id, messageId: tail.id },
-              {
-                at: worst.message.at,
-                channelId: worst.channelId,
-                messageId: worst.message.id,
-              },
-            ) >= 0
-          )
-            break;
-        } while (cursor !== undefined);
-      }
-      const page = found;
-      const messages = page.slice(0, limit);
-      const last = messages.at(-1);
-      return {
-        messages,
-        ...(page.length <= limit || last === undefined
-          ? {}
-          : {
-              nextCursor: Buffer.from(
-                JSON.stringify({
-                  at: last.message.at,
-                  channelId: last.channelId,
-                  messageId: last.message.id,
-                  filter,
-                }),
-              ).toString('base64url'),
-            }),
-      };
-    };
-    const replySource = (id: string) => {
-      const source = this.#database.read((db) => {
-        requireSourceEffects(db, id, botSlug);
-        return db
+    channelId: string,
+    messageId: string,
+  ): ReturnType<OrchestratorChannelAccess['ignore']> {
+    const decision = this.#database.transaction(
+      (database) => {
+        const row = database
           .prepare(
-            `SELECT e.channel_id, e.message_id FROM source_events e
-            JOIN inbox_admissions a ON a.source_event_id = e.source_event_id
-            WHERE e.source_event_id = ? AND a.bot_slug = ?
-              AND (
-                e.source_kind IN ('human-message', 'bot-message')
-                OR (
-                  e.source_kind = 'system-message'
-                  AND json_extract(e.payload_json, '$.takeoverResolution') IS NOT NULL
-                )
-              )`,
-          )
-          .get(id, botSlug);
-      });
-      if (typeof source?.channel_id !== 'string' || typeof source.message_id !== 'string')
-        throw new Error('Trusted local reply source is unavailable');
-      const channel = resolve(source.channel_id);
-      if (
-        (channel.type === 'dm' && !isBotDmChannel(channel) && channel.botSlug !== botSlug) ||
-        (!this.#channels.hasMessage(channel.id, source.message_id) &&
-          !source.message_id.startsWith(SESSION_DIRECT_MESSAGE_PREFIX))
-      )
-        throw new Error('Trusted local reply source is unavailable');
-      return { channelId: channel.id, messageId: source.message_id };
-    };
-    return {
-      replySource,
-      list: (input = {}) => {
-        if (input.type !== undefined && input.type !== 'group' && input.type !== 'dm') {
-          throw new Error('channel_list: type must be group or dm');
-        }
-        const name = input.name?.trim().toLowerCase();
-        const memberBotIds = [...new Set(input.memberBotIds ?? [])].sort();
-        const filter = createHash('sha256')
-          .update(
-            JSON.stringify({
-              channelId: input.channelId,
-              name,
-              type: input.type,
-              memberBotIds,
-            }),
-          )
-          .digest('hex')
-          .slice(0, 16);
-        let afterId: string | undefined;
-        if (input.cursor !== undefined) {
-          try {
-            const decoded: unknown = JSON.parse(
-              Buffer.from(input.cursor, 'base64url').toString('utf8'),
-            );
-            if (
-              typeof decoded !== 'object' ||
-              decoded === null ||
-              !('afterId' in decoded) ||
-              typeof decoded.afterId !== 'string' ||
-              !('filter' in decoded) ||
-              decoded.filter !== filter
-            )
-              throw new Error('invalid');
-            afterId = decoded.afterId;
-          } catch {
-            throw new Error('channel_list: invalid cursor');
-          }
-        }
-        const limit = Math.max(1, Math.min(Math.floor(input.limit ?? 20), 100));
-        const matching = this.#channels
-          .list()
-          .filter((channel) => this.#isMember(botSlug, channel))
-          .filter((channel) => input.channelId === undefined || channel.id === input.channelId)
-          .filter((channel) => input.type === undefined || channel.type === input.type)
-          .filter((channel) => name === undefined || channel.name.toLowerCase().includes(name))
-          .filter((channel) => memberBotIds.every((id) => channel.members.includes(id)))
-          .filter((channel) => afterId === undefined || channel.id > afterId)
-          .sort((left, right) => left.id.localeCompare(right.id));
-        const page = matching.slice(0, limit + 1);
-        const channels = page.slice(0, limit).map((channel): ChannelListEntry => ({
-          id: channel.id,
-          name: channel.name,
-          type: channel.type,
-          kind:
-            channel.type === 'group' ? 'group' : isBotDmChannel(channel) ? 'bot-dm' : 'human-dm',
-          members: channel.members.map((id) => {
-            const member = this.#registry.get(id);
-            return {
-              botId: id,
-              displayName: member?.displayName ?? id,
-              active: member !== undefined && member.paused !== true,
-            };
-          }),
-          humanMembers: this.#channels.listHumanMembers(actorHuman, channel.id),
-          ...(channel.ownerBotSlug === undefined ? {} : { ownerBotId: channel.ownerBotSlug }),
-          ...(channel.type === 'group' && channel.ownerBotSlug === botSlug
-            ? {
-                pendingJoinRequests: (channel.joinRequests ?? [])
-                  .filter((item) => item.status === 'pending')
-                  .map((item) => ({
-                    requestId: item.id,
-                    requesterBotId: item.requesterBotSlug,
-                    createdAt: item.createdAt,
-                  })),
-              }
-            : {}),
-        }));
-        const last = channels.at(-1);
-        return {
-          channels,
-          ...(page.length <= limit || last === undefined
-            ? {}
-            : {
-                nextCursor: Buffer.from(JSON.stringify({ afterId: last.id, filter })).toString(
-                  'base64url',
-                ),
-              }),
-        };
-      },
-      startHumanDm: (humanId) => {
-        if (!this.#team) throw new TeamError('unavailable');
-        this.#team.bots.requireProactive(botSlug, humanId);
-        return this.#team.bots.dm(humanContext(humanId), botSlug)!;
-      },
-      contacts: async (input) => {
-        const actor = this.#registry.get(botSlug);
-        if (actor && botOwner(actor) === 'local-human') await this.refreshBotContacts();
-        return this.botContacts(botSlug, input);
-      },
-      createGroup: (name) => {
-        requireOrdinaryGroupActor();
-        const sender = this.#registry.get(botSlug);
-        if (sender === undefined || sender.paused === true)
-          throw new Error('Bot Group creator is no longer active');
-        this.#team?.roles.require(actorHuman, 'channels.create');
-        const clean = requireNonBlank(name, 'Group name').slice(0, 120);
-        beforeSend();
-        return this.#channels.createGroup(humanContext(botOwner(sender)), {
-          name: clean,
-          members: [botSlug],
-          ownerBotSlug: botSlug,
-        });
-      },
-      inviteGroup: (input) => {
-        requireOrdinaryGroupActor();
-        const channel = this.#channels.get(input.channelId);
-        const target = this.#registry.get(input.targetBotSlug);
-        if (this.#team)
-          this.#team.bots.recordAdder(actorHuman, input.targetBotSlug, input.channelId);
-        else if (
-          (!target && botOwner(this.#registry.get(botSlug)!) !== 'local-human') ||
-          (target && botOwner(target) !== botOwner(this.#registry.get(botSlug)!))
-        )
-          throw new TobError('bot-not-found');
-        if (this.#tob?.isTob(input.targetBotSlug)) throw new TobError('protected-bot');
-        if (
-          channel?.type !== 'group' ||
-          channel.ownerBotSlug !== botSlug ||
-          !this.#isMember(botSlug, channel)
-        )
-          throw new Error('Only the Bot Group owner may invite');
-        if (target === undefined || target.paused === true || target.slug === botSlug)
-          throw new Error('Invitee must be another active nonmember PersonaBot');
-        const botCausation = this.#causalSending.botCausation(sourceEventId);
-        this.#causalSending.requireBotHop(botCausation);
-        const dm = this.#channels.getOrCreateDm(
-          humanContext(botOwner(this.#registry.get(target.slug)!)),
-          target.slug,
-          target.displayName,
-        );
-        if (dm === undefined) throw new Error('Invitee DM is unavailable');
-        beforeSend();
-        const invitation = this.#channels.inviteGroupBot({
-          channelId: channel.id,
-          inviterBotSlug: botSlug,
-          targetBotSlug: target.slug,
-          targetBotCreatedAt: target.createdAt,
-          targetDmChannelId: dm.id,
-          botCausation,
-        });
-        this.admitGroupInvitation(dm.id, invitation.id);
-        return invitation;
-      },
-      requestGroupJoin: (input) => {
-        requireOrdinaryGroupActor();
-        const target = this.#channels.get(input.channelId);
-        const requester = this.#registry.get(botSlug);
-        const source = this.#database.read((database) =>
-          database
-            .prepare(
-              'SELECT channel_id, message_id, source_kind FROM source_events WHERE source_event_id = ?',
-            )
-            .get(sourceEventId ?? null),
-        ) as
-          | {
-              channel_id: string | null;
-              message_id: string | null;
-              source_kind: string;
-            }
-          | undefined;
-        const sourceChannel =
-          source?.channel_id == null ? undefined : this.#channels.get(source.channel_id);
-        const selected =
-          source?.source_kind === 'human-message' &&
-          source.channel_id !== null &&
-          sourceChannel?.type === 'dm' &&
-          sourceChannel.botSlug === botSlug &&
-          source.message_id !== null
-            ? this.#channels.message(source.channel_id, source.message_id)?.channelRefs
-            : undefined;
-        if (
-          requester === undefined ||
-          requester.paused === true ||
-          target?.type !== 'group' ||
-          target.members.includes(botSlug) ||
-          !selected?.some((ref) => ref.channelId === input.channelId)
-        )
-          throw new Error('group_join_request requires a selected #Group in this Human DM turn');
-        if (
-          botOwner(requester) !== 'local-human' &&
-          !this.#channels
-            .listHumanMembers(actorHuman, target.id)
-            .some((member) => member.humanId === actorHuman.humanId)
-        )
-          throw new TobError('channel-not-found');
-        const owner =
-          target.ownerBotSlug === undefined ? undefined : this.#registry.get(target.ownerBotSlug);
-        const botCausation = this.#causalSending.botCausation(sourceEventId);
-        this.#causalSending.requireBotHop(botCausation);
-        beforeSend();
-        const ownerDm =
-          owner === undefined || botOwner(owner) !== botOwner(requester)
-            ? undefined
-            : this.#channels.getOrCreateDm(
-                humanContext(botOwner(this.#registry.get(owner.slug)!)),
-                owner.slug,
-                owner.displayName,
-              );
-        const request = this.#channels.requestGroupJoin({
-          channelId: target.id,
-          requesterBotSlug: botSlug,
-          requesterBotCreatedAt: requester.createdAt,
-          ...(ownerDm === undefined ? {} : { ownerDmChannelId: ownerDm.id }),
-          botCausation,
-        });
-        if (ownerDm !== undefined) this.admitGroupJoinRequest(ownerDm.id, request.id);
-        return request;
-      },
-      decideGroupJoin: (input) => {
-        requireOrdinaryGroupActor();
-        const target = this.#channels.get(input.channelId);
-        const request = target?.joinRequests?.find((item) => item.id === input.requestId);
-        const requester =
-          request === undefined ? undefined : this.#registry.get(request.requesterBotSlug);
-        if (requester && botOwner(requester) !== botOwner(this.#registry.get(botSlug)!))
-          throw new TobError('bot-not-found');
-        if (request !== undefined && this.#tob?.isTob(request.requesterBotSlug))
-          throw new TobError('protected-bot');
-        if (
-          target?.type !== 'group' ||
-          target.ownerBotSlug !== botSlug ||
-          !target.members.includes(botSlug) ||
-          request === undefined ||
-          requester === undefined ||
-          requester.paused === true ||
-          requester.createdAt !== request.requesterBotCreatedAt
-        )
-          throw new Error('Only the current Bot Group owner can decide this join request');
-        const botCausation = this.#causalSending.botCausation(sourceEventId);
-        this.#causalSending.requireBotHop(botCausation);
-        beforeSend();
-        const dm = this.#channels.getOrCreateDm(
-          humanContext(botOwner(this.#registry.get(requester.slug)!)),
-          requester.slug,
-          requester.displayName,
-        );
-        if (dm === undefined) throw new Error('Requester DM is unavailable');
-        const decided = this.#channels.decideGroupJoin({
-          channelId: target.id,
-          requestId: request.id,
-          accept: input.accept,
-          decidedBy: botSlug,
-          requesterBotCreatedAt: requester.createdAt,
-          requesterDmChannelId: dm.id,
-          botCausation,
-        });
-        if (decided.notified) this.admitGroupJoinDecision(dm.id, request.id);
-        return { channel: decided.channel, request: decided.request };
-      },
-      respondToGroupInvite: (input) => {
-        requireOrdinaryGroupActor();
-        const target = this.#registry.get(botSlug);
-        if (target === undefined || target.paused === true)
-          throw new Error('Archived PersonaBot cannot answer a Group invitation');
-        beforeSend();
-        return this.#channels.respondToGroupInvite({
-          invitationId: input.invitationId,
-          targetBotSlug: botSlug,
-          targetBotCreatedAt: target.createdAt,
-          accept: input.accept,
-        });
-      },
-      renameGroup: (input) => {
-        requireOrdinaryGroupActor();
-        const channel = this.#channels.get(input.channelId);
-        if (
-          channel?.type !== 'group' ||
-          channel.ownerBotSlug !== botSlug ||
-          !channel.members.includes(botSlug)
-        )
-          throw new Error('Only the Bot Group owner may rename');
-        const name = requireNonBlank(input.name, 'Group name').slice(0, 120);
-        beforeSend();
-        const renamed = this.#channels.rename(OWNER_HUMAN_CONTEXT, channel.id, name);
-        if (renamed === undefined) throw new Error('Group rename did not return a Channel');
-        return renamed;
-      },
-      removeGroupMember: (input) => {
-        requireOrdinaryGroupActor();
-        const channel = this.#channels.get(input.channelId);
-        if (
-          channel?.type !== 'group' ||
-          channel.ownerBotSlug !== botSlug ||
-          !channel.members.includes(botSlug) ||
-          input.botSlug === botSlug
-        )
-          throw new Error('Only the Bot Group owner may remove another member');
-        beforeSend();
-        return this.#channels.removeGroupMember(channel.id, input.botSlug);
-      },
-      readGroupWakePolicy: (channelId) => {
-        const channel = resolve(channelId);
-        if (channel.type !== 'group') throw new Error('Group Channel is required');
-        return this.#channels.getGroupWakePolicy(channel.id, botSlug);
-      },
-      setGroupWakePolicy: (input) => {
-        const bot = this.#registry.get(botSlug);
-        if (bot === undefined || bot.paused === true)
-          throw new Error('PersonaBot is no longer active');
-        const channel = resolve(input.channelId);
-        if (channel.type !== 'group') throw new Error('Group Channel is required');
-        this.#channels.setGroupWakePolicy(
-          channel.id,
-          botSlug,
-          {
-            mode: input.mode,
-            count: input.count,
-            intervalSeconds: input.intervalSeconds,
-          },
-          { kind: 'bot', botSlug },
-        );
-        return this.#channels.getGroupWakePolicy(channel.id, botSlug);
-      },
-      react: (input) => {
-        const channel = resolve(input.channelId);
-        this.#team?.bots.requireChannel(botSlug, channel, true);
-        return this.#react(botSlug, channel, input);
-      },
-      ...createVoiceAccess({
-        botSlug,
-        channels: this.#channels,
-        resolve,
-        voiceMessages: this.#voiceMessages,
-        callFrames: this.#callFrames,
-      }),
-      leaveGroup: (input) => {
-        requireOrdinaryGroupActor();
-        const channel = this.#channels.get(input.channelId);
-        if (channel === undefined) throw new Error('group_leave: channel-unavailable');
-        if (channel.type !== 'group') throw new Error('group_leave: group-required');
-        if (!channel.members.includes(botSlug)) return { channelId: input.channelId, left: false };
-        beforeSend();
-        this.#channels.removeGroupMember(channel.id, botSlug, 'left');
-        return { channelId: channel.id, left: true };
-      },
-      createBot: (input) => this.#createBot(botSlug, sourceEventId, beforeSend, input),
-      sendToBot: async (input) => {
-        if (input.botSlug.startsWith('remote:')) {
-          if (input.replyTo !== undefined)
-            throw new Error('Remote Bot DMs currently support text without quoted replies');
-          let contact = this.botContacts(botSlug, { botId: input.botSlug }).contacts[0];
-          if (contact === undefined) {
-            await this.refreshBotContacts();
-            contact = this.botContacts(botSlug, { botId: input.botSlug }).contacts[0];
-          }
-          if (contact?.hostId === undefined || contact.botSlug === undefined)
-            throw new BotNetworkDeliveryError('unable-to-deliver');
-          const channel = this.#channels.getOrCreateRemoteBotDm(botSlug, {
-            hostId: contact.hostId,
-            botSlug: contact.botSlug,
-            displayName: contact.displayName,
-          });
-          return this.#causalSending.sendNetworkBotDm({
-            botSlug,
-            channel,
-            sessionId,
-            sourceEventId,
-            body: input.body,
-            beforeSend,
-            ...(input.deliveryKey === undefined ? {} : { deliveryKey: input.deliveryKey }),
-          });
-        }
-        const sender = this.#registry.get(botSlug);
-        const target = this.#registry.get(input.botSlug);
-        if (this.#team) this.#team.bots.requireBotTarget(botSlug, input.botSlug);
-        else if (
-          sender &&
-          ((!target && botOwner(sender) !== 'local-human') ||
-            (target && botOwner(sender) !== botOwner(target)))
-        )
-          throw new TobError('bot-not-found');
-        if (
-          sender === undefined ||
-          sender.paused === true ||
-          target === undefined ||
-          target.paused === true ||
-          target.slug === botSlug
-        )
-          throw new Error('Bot DM recipient must be another active PersonaBot');
-        if (!input.body.trim()) throw new Error('Bot DM message requires a body');
-        const dm = this.#channels.getOrCreateBotDm(
-          OWNER_HUMAN_CONTEXT,
-          botSlug,
-          target.slug,
-          `${sender.displayName} · ${target.displayName}`,
-        );
-        if (dm === undefined) throw new Error('Bot DM is unavailable');
-        const sent = await this.#causalSending.sendBotDm({
-          botSlug,
-          recipientBotSlug: target.slug,
-          channel: dm,
-          sourceEventId,
-          readSourceEventIds: readAdmissions,
-          sessionId,
-          beforeSend: input.deliveryKey === undefined ? beforeSend : () => undefined,
-          ...(input.deliveryKey === undefined ? {} : { afterSend: beforeSend }),
-          body: input.body,
-          replyTo: input.replyTo,
-          deliveryKey: input.deliveryKey,
-          ...turnAttribution(),
-        });
-        return sent;
-      },
-      ignore: ({ channelId, messageId }) => {
-        const channel = resolve(channelId);
-        if (this.#channels.message(channel.id, messageId) === undefined)
-          throw new Error('inbox_ignore: message is unavailable in this Channel');
-        const decision = this.#database.transaction(
-          (database) => {
-            const row = database
-              .prepare(
-                `
+            `
                 SELECT a.source_event_id, a.attempt_state, a.observed_at, a.ignored_at
                   FROM inbox_admissions a
                   JOIN source_events e ON e.source_event_id = a.source_event_id
                  WHERE a.bot_slug = ? AND e.channel_id = ? AND e.message_id = ?
               `,
-              )
-              .get(botSlug, channel.id, messageId) as
-              | {
-                  source_event_id: string;
-                  attempt_state: string;
-                  observed_at: string | null;
-                  ignored_at: string | null;
-                }
-              | undefined;
-            if (row === undefined)
-              return {
-                error: 'inbox_ignore: no Inbox Admission for this Bot',
-              } as const;
-            if (row.attempt_state === 'needs-repair')
-              return {
-                error: 'inbox_ignore: this admission needs repair',
-              } as const;
-            if (row.ignored_at !== null)
-              return {
-                sourceEventId: row.source_event_id,
-                ignoredAt: row.ignored_at,
-                alreadyIgnored: true,
-              };
-            if (
-              row.attempt_state !== 'running' &&
-              row.attempt_state !== 'handled' &&
-              row.observed_at === null
-            )
-              return {
-                error: 'inbox_ignore: observe this message before ignoring it',
-              } as const;
-            const ignoredAt = this.#now().toISOString();
-            database
-              .prepare(
-                `
+          )
+          .get(botSlug, channelId, messageId) as
+          | {
+              source_event_id: string;
+              attempt_state: string;
+              observed_at: string | null;
+              ignored_at: string | null;
+            }
+          | undefined;
+        if (row === undefined)
+          return {
+            error: 'inbox_ignore: no Inbox Admission for this Bot',
+          } as const;
+        if (row.attempt_state === 'needs-repair')
+          return {
+            error: 'inbox_ignore: this admission needs repair',
+          } as const;
+        if (row.ignored_at !== null)
+          return {
+            sourceEventId: row.source_event_id,
+            ignoredAt: row.ignored_at,
+            alreadyIgnored: true,
+          };
+        if (
+          row.attempt_state !== 'running' &&
+          row.attempt_state !== 'handled' &&
+          row.observed_at === null
+        )
+          return {
+            error: 'inbox_ignore: observe this message before ignoring it',
+          } as const;
+        const ignoredAt = this.#now().toISOString();
+        database
+          .prepare(
+            `
                 UPDATE inbox_admissions
                    SET ignored_at = ?, ignored_by_session_id = ?,
                        resolved_at = COALESCE(resolved_at, ?),
@@ -7166,508 +5633,28 @@ class BotRuntimeImplementation implements BotRuntime {
                          ELSE handled_at END
                  WHERE source_event_id = ? AND bot_slug = ? AND ignored_at IS NULL
               `,
-              )
-              .run(
-                ignoredAt,
-                sessionId,
-                ignoredAt,
-                sessionId,
-                ignoredAt,
-                ignoredAt,
-                row.source_event_id,
-                botSlug,
-              );
-            return {
-              sourceEventId: row.source_event_id,
-              ignoredAt,
-              alreadyIgnored: false,
-            };
-          },
-          ['bot-inbox'],
-        );
-        if ('error' in decision) throw new Error(decision.error);
-        this.#channels.admissionChanged?.(channel.id, messageId);
-        return decision;
-      },
-      read: (input = {}) => {
-        const channel = resolve(input.channelId);
-        const humans = humanNames(channel);
-        const messages = this.#channels
-          .readMessages(channel.id, {
-            ...(input.before === undefined ? {} : { before: input.before }),
-            ...(input.limit === undefined ? {} : { limit: input.limit }),
-          })
-          .map((message) => viewOf(channel, message, humans));
-        if (observeReads && input.observe !== false)
-          this.#observeReadMessages(botSlug, messages, readAdmissions);
-        return messages;
-      },
-      query: (input = {}) => {
-        const page = queryPage(input);
-        if (observeReads) this.#observeReadMessages(botSlug, page.messages, readAdmissions);
-        return page;
-      },
-      readModel: (input = {}) => {
-        if (input.messageId !== undefined) {
-          const { channelId, messageId, contentCursor, ...filters } = input;
-          if (Object.values(filters).some((value) => value !== undefined))
-            throw new Error('channel_read: message_id cannot be combined with query filters');
-          const channel = resolve(channelId);
-          const message = this.#channels.message(channel.id, messageId);
-          if (message === undefined) throw new Error('channel_read: message not found');
-          const view = viewOf(channel, message);
-          const chunk = readModelContent(
-            view,
-            contentCursor,
-            this.groupSendReview.enabled(view.channelId) ? 100 : 0,
-          );
-          const previous = contentProgress.get(chunk.hash) ?? 0;
-          const progress = chunk.start <= previous ? Math.max(previous, chunk.end) : previous;
-          contentProgress.set(chunk.hash, progress);
-          if (observeReads && progress === chunk.total)
-            this.#observeReadMessages(botSlug, [view], readAdmissions);
-          if (progress === chunk.total) recordObservation([view]);
-          const observationId = observations.get(view.channelId);
-          return observationId === undefined
-            ? chunk.output
-            : JSON.stringify({ ...JSON.parse(chunk.output), observationId });
-        }
-        if (input.contentCursor !== undefined)
-          throw new Error('channel_read: content_cursor requires message_id');
-        const page = queryPage(input);
-        const callMeta =
-          page.call === undefined ? 0 : JSON.stringify({ call: page.call }).length + 1;
-        const bounded = boundModelPage(
-          page,
-          (count) => queryPage({ ...input, limit: count }).nextCursor,
-          (included) => {
-            const ids = [...new Set(included.map((view) => view.channelId))].filter((id) =>
-              this.groupSendReview.enabled(id),
-            );
-            return (
-              callMeta +
-              (ids.length === 0
-                ? 0
-                : JSON.stringify(Object.fromEntries(ids.map((id) => [id, 'x'.repeat(36)]))).length +
-                  24)
-            );
-          },
-        );
-        if (observeReads) this.#observeReadMessages(botSlug, bounded.included, readAdmissions);
-        recordObservation(bounded.included);
-        const observationIds = Object.fromEntries(
-          [...new Set(bounded.included.map((view) => view.channelId))].flatMap((id) =>
-            observations.has(id) ? [[id, observations.get(id)]] : [],
-          ),
-        );
-        return Object.keys(observationIds).length === 0 && page.call === undefined
-          ? bounded.output
-          : JSON.stringify({
-              ...JSON.parse(bounded.output),
-              ...(page.call === undefined ? {} : { call: page.call }),
-              ...(Object.keys(observationIds).length === 0 ? {} : { observationIds }),
-            });
-      },
-      ...createChannelFileAccess({
-        botSlug,
-        sessionId,
-        defaultChannelId,
-        channels: this.#channels,
-        attachments: this.#attachments,
-        grants: this.#grants,
-        ownership: this.#ownership,
-        registry: this.#registry,
-        originalAttachments: this.#originalAttachments,
-        isClosed: () => this.#closed,
-        authorizedPathRoot,
-        resolve,
-        beforeSend,
-        onImport,
-      }),
-      requestGrant: async (reason, channelId) => {
-        const channel = resolve(channelId);
-        if (
-          channel.type === 'group'
-            ? !channel.members.includes(botSlug)
-            : channel.botSlug !== botSlug
-        ) {
-          throw new Error(
-            'Workspace Grant requests must be sent in a Group this PersonaBot belongs to or in its Human DM',
-          );
-        }
-        const body = requireNonBlank(reason, 'Workspace Grant request reason');
-        beforeSend();
-        const message: ChannelMessage = {
-          id: this.#createMessageId(),
-          at: this.#now().toISOString(),
-          author: { kind: 'bot', slug: botSlug },
-          body,
-          grantRequest: true,
-          grantRequestOwner: this.#registry.get(botSlug)!.createdAt,
-        };
-        const appended = await this.#channels.appendMessage(
-          OWNER_HUMAN_CONTEXT,
-          channel.id,
-          message,
-          {
-            sessionId,
-            ...(sourceEventId === undefined ? {} : { sourceEventId }),
-          },
-        );
-        if (appended === undefined) throw new Error(`Channel disappeared: ${channel.id}`);
-        return appended;
-      },
-      linkSessions: (input) => {
-        if (this.#channels.addMessageSessionLinks === undefined)
-          throw new Error('Session links are unavailable');
-        const channel = this.#channels
-          .list()
-          .find(
-            (candidate) =>
-              candidate.type === 'dm' &&
-              candidate.botSlug === botSlug &&
-              !isBotDmChannel(candidate) &&
-              this.#channels.message(candidate.id, input.messageId)?.author.kind === 'bot',
-          );
-        const message =
-          channel === undefined ? undefined : this.#channels.message(channel.id, input.messageId);
-        if (
-          channel === undefined ||
-          message === undefined ||
-          message.author.kind !== 'bot' ||
-          message.author.slug !== botSlug
-        )
-          throw new Error(`Message ${input.messageId} is not one of your messages in a Human DM`);
-        const linked = this.#channels.addMessageSessionLinks(
-          channel.id,
-          message.id,
-          input.links.map(({ sessionId, kind, title, createdAt }) => ({
-            sessionId,
-            title,
-            kind:
-              kind === 'sent' &&
-              createdAt !== undefined &&
-              Date.parse(createdAt) >= Date.parse(message.at)
-                ? 'created'
-                : kind,
-          })),
-        );
-        if (linked === undefined) throw new Error(`Message ${input.messageId} disappeared`);
-        return linked;
-      },
-      inspectDrafts: (input) => {
-        const channel = this.#channels.get(input.channelId);
-        const bot = this.#registry.get(botSlug);
-        if (
-          !channel ||
-          channel.type !== 'group' ||
-          !this.#isMember(botSlug, channel) ||
-          !bot ||
-          bot.paused ||
-          this.#closed
-        )
-          return {
-            status: 'refused',
-            channelId: input.channelId,
-            draftId: input.draftId ?? '',
-            reason: 'draft-access-unavailable',
-          };
-        requireReplySource();
-        this.#causalSending.requireSendReviewOwner(botSlug, sessionId);
-        return this.groupSendReview.inspectRecords(reviewOwner, channel.id, input.draftId);
-      },
-      dropDraft: (input) => {
-        resolve(input.channelId);
-        const result = this.groupSendReview.drop(
-          reviewOwner,
-          input.channelId,
-          input.draftId,
-          input.yieldToMessageIds === undefined
-            ? undefined
-            : {
-                observationId: input.observationId ?? '',
-                messageIds: input.yieldToMessageIds,
-              },
-        );
-        if (result.status === 'dropped' && result.budget?.exhausted)
-          exhaustedDrops.set(input.channelId, input.draftId);
-        return result;
-      },
-      send: async (input) => {
-        const attribution = turnAttribution();
-        if (input.replySourceEventId !== undefined) {
-          const reply = replySource(input.replySourceEventId);
-          if (
-            input.channelId !== reply.channelId ||
-            input.replyTo !==
-              (reply.messageId.startsWith(SESSION_DIRECT_MESSAGE_PREFIX)
-                ? undefined
-                : reply.messageId)
           )
-            throw new Error('Reply destination does not match the trusted source');
-        }
-        requireReplySource();
-        const steered = this.#turnSources.get(botSlug);
-        const turnChannelIds =
-          steered?.sessionId === sessionId && steered.steeredChannelIds.size > 0
-            ? [
-                ...(steered.inboundChannelId === undefined ? [] : [steered.inboundChannelId]),
-                ...steered.steeredChannelIds,
-              ]
-            : [];
-        const repliedChannelIds =
-          input.channelId === undefined && input.replyTo !== undefined
-            ? turnChannelIds.filter(
-                (id) => this.#channels.message(id, input.replyTo!) !== undefined,
-              )
-            : [];
-        if (input.channelId === undefined && repliedChannelIds.length === 1)
-          input = { ...input, channelId: repliedChannelIds[0]! };
-        if (input.channelId === undefined && turnChannelIds.length > 0)
-          throw new Error(
-            `This turn carries messages from several Channels: ${turnChannelIds
-              .map((id) => {
-                const candidate = this.#channels.get(id);
-                const kind =
-                  candidate === undefined
-                    ? 'Channel'
-                    : candidate.type === 'group'
-                      ? `Group ${JSON.stringify(candidate.name)}`
-                      : isBotDmChannel(candidate)
-                        ? 'Bot DM'
-                        : 'Human DM';
-                return `${kind} (channel_id ${JSON.stringify(id)})`;
-              })
-              .join(
-                '; ',
-              )}. Call bot_send_message with the trusted source_event_id you are answering, or an explicit channel_id for a proactive message.`,
-          );
-        const channel = resolve(input.channelId);
-        this.#team?.bots.requireChannel(botSlug, channel, true);
-        if (this.#team && channel.botSlug === botSlug) {
-          const source = this.#database.read((db) =>
-            db
-              .prepare('SELECT channel_id FROM source_events WHERE source_event_id = ?')
-              .get(
-                input.replySourceEventId ??
-                  (steered?.sessionId === sessionId
-                    ? this.#causalSending.turnSourceIn(botSlug, channel.id, readAdmissions)
-                    : undefined) ??
-                  (sessionId.startsWith('direct-') ? undefined : sourceEventId) ??
-                  null,
-              ),
-          );
-          if (source?.['channel_id'] !== channel.id)
-            this.#team.bots.requireProactive(
-              botSlug,
-              channel.dmHumanId ?? botOwner(this.#registry.get(botSlug)!),
-            );
-        }
-        const exhaustedDraftId = exhaustedDrops.get(channel.id);
-        if (input.genui !== undefined && (channel.type !== 'dm' || channel.botSlug !== botSlug))
-          throw new Error('GenUI reports require the Bot Human DM');
-        if (
-          input.sessionLinks !== undefined &&
-          (channel.type !== 'dm' || channel.botSlug !== botSlug)
-        )
-          throw new Error('Session links require the Bot Human DM');
-        if (exhaustedDraftId)
-          throw new SendReviewRequired({
-            status: 'requires-review',
-            channelId: channel.id,
-            draftId: exhaustedDraftId,
-            reason: 'dropped-exhausted-draft-defer-turn',
-            choices: ['snooze-inbox'],
-          });
-        if (input.freshnessOverride && channel.type !== 'group')
-          throw new Error('Freshness override requires the original Group draft');
-        if (input.mentionBotIds?.length && channel.type !== 'group')
-          throw new Error('Bot mentions require a Group Channel');
-        if (input.mentionHumanIds?.length && channel.type !== 'group')
-          throw new Error('Human mentions require a Group Channel');
-        if (isBotDmChannel(channel)) {
-          if (channel.remoteBot !== undefined) {
-            if (input.quotes?.length)
-              throw new ChannelQuoteError(
-                'unsupported-quotes',
-                'Quotes are not supported in remote Bot DMs',
-              );
-            if (
-              input.attachments?.length ||
-              (input.replyTo !== undefined && input.replySourceEventId === undefined)
-            )
-              throw new Error('Remote Bot DMs currently support text without quoted replies');
-            return (
-              await this.#causalSending.sendNetworkBotDm({
-                botSlug,
-                channel,
-                sessionId,
-                sourceEventId:
-                  input.replySourceEventId ??
-                  this.#causalSending.turnSourceIn(botSlug, channel.id, readAdmissions) ??
-                  sourceEventId,
-                body: input.body,
-                beforeSend,
-                ...attribution,
-                ...(input.deliveryKey === undefined ? {} : { deliveryKey: input.deliveryKey }),
-              })
-            ).message;
-          }
-          const recipientBotSlug = channel.members.find((slug) => slug !== botSlug);
-          if (recipientBotSlug === undefined) throw new Error('Bot DM has no recipient');
-          const sent = await this.#causalSending.sendBotDm({
-            botSlug,
-            recipientBotSlug,
-            channel,
-            sourceEventId: input.replySourceEventId ?? sourceEventId,
-            ...(input.replySourceEventId === undefined
-              ? {}
-              : { replySourceEventId: input.replySourceEventId }),
-            readSourceEventIds: readAdmissions,
+          .run(
+            ignoredAt,
             sessionId,
-            beforeSend: input.deliveryKey === undefined ? beforeSend : () => undefined,
-            ...(input.deliveryKey === undefined ? {} : { afterSend: beforeSend }),
-            body: input.body,
-            ...attribution,
-            replyTo: input.replyTo,
-            quotes: input.quotes,
-            attachments: input.attachments,
-            deliveryKey: input.deliveryKey,
-          });
-          return sent.message;
-        }
-        if (channel.type === 'group') {
-          const sent = await this.#causalSending
-            .sendBotGroup({
-              reviewOwner,
-              observationId: input.observationId ?? initialObservations.get(channel.id),
-              draftId: input.draftId,
-              freshnessOverride: input.freshnessOverride,
-              recover: input.recover,
-              botSlug,
-              channel,
-              sourceEventId: input.replySourceEventId ?? sourceEventId,
-              ...(input.replySourceEventId === undefined
-                ? {}
-                : { replySourceEventId: input.replySourceEventId }),
-              readSourceEventIds: readAdmissions,
-              sessionId,
-              beforeSend: input.deliveryKey === undefined ? beforeSend : () => undefined,
-              ...(input.deliveryKey === undefined ? {} : { afterSend: beforeSend }),
-              body: input.body,
-              ...attribution,
-              replyTo: input.replyTo,
-              quotes: input.quotes,
-              attachments: input.attachments,
-              mentionBotIds: input.mentionBotIds,
-              mentionHumanIds: input.mentionHumanIds,
-              deliveryKey: input.deliveryKey,
-            })
-            .catch((error: unknown) => {
-              if (
-                !(error instanceof SendReviewRequired) ||
-                (error.outcome.status !== 'held' && error.outcome.status !== 'requires-review')
-              )
-                throw error;
-              const changed = error.outcome.changedMessageIds;
-              if (!changed?.length) throw error;
-              const current = resolve(channel.id);
-              const views = changed.flatMap((id) => {
-                const message = this.#channels.message(current.id, id);
-                return message === undefined ? [] : [viewOf(current, message)];
-              });
-              const bounded = boundModelPage(
-                { messages: views },
-                () => undefined,
-                () => 2_000,
-              );
-              if (!bounded.included.length) throw error;
-              const review = {
-                observationId: 'x'.repeat(36),
-                content: bounded.output,
-                complete: bounded.included.length === error.outcome.changedMessageCount,
-                observedMessageIds: bounded.included.map((view) => view.message.id),
-                peerMessageIds: bounded.included
-                  .filter(
-                    ({ message }) =>
-                      message.author.kind === 'bot' &&
-                      message.author.slug !== botSlug &&
-                      !message.sessionFailure &&
-                      !!message.body.trim(),
-                  )
-                  .map(({ message }) => message.id),
-                responsibility:
-                  'These messages join this turn. Internally compare committed peer replies with your remaining responsibility; do not include this protocol or task-ownership explanation in the Channel reply. If they fully answer it, drop silently with yield_to_message_ids and observation_id; no agreement message is needed. Otherwise send the missing fact, independent evidence or requested second opinion. A new Human question is separate work even with the same words. Peer IDs identify observed messages, not proof of semantic completion. Explicitly resolve_inbox_ids only for work you judge complete after send/drop. Held/refused never resolve work. Unrelated FYI needs no reply. Cancelled work should be dropped silently. Keep unfinished work open.',
-              };
-              if (JSON.stringify({ ...error.outcome, review }).length > CHANNEL_READ_OUTPUT_LIMIT)
-                throw error;
-              const observationId = this.groupSendReview.observe(
-                reviewOwner,
-                current.id,
-                bounded.included.map((view) => view.message),
-                input.observationId ?? initialObservations.get(current.id),
-              );
-              observations.set(current.id, observationId);
-              if (observeReads)
-                this.#observeReadMessages(botSlug, bounded.included, readAdmissions);
-              throw new SendReviewRequired({
-                ...error.outcome,
-                review: { ...review, observationId },
-              });
-            });
-          return sent;
-        }
-        const body = input.body;
-        if (!body.trim() && !input.attachments?.length)
-          throw new Error('Channel message requires a body or attachment');
-        this.#channels.assertAttachmentRefs(input.attachments ?? []);
-        if (input.replyTo !== undefined && !this.#channels.hasMessage(channel.id, input.replyTo)) {
-          throw new ChannelReplyTargetError();
-        }
-        const messageId = this.#causalSending.deliveryMessageId(sessionId, input.deliveryKey);
-        this.#causalSending.assertQuoteTargets(channel.id, messageId, input.quotes);
-        beforeSend();
-        const message: ChannelMessage = {
-          id: messageId,
-          at: this.#now().toISOString(),
-          author: { kind: 'bot', slug: botSlug },
-          body,
-          ...(input.attachments === undefined ? {} : { attachments: input.attachments }),
-          ...(input.replyTo === undefined ? {} : { replyTo: input.replyTo }),
-          ...(input.quotes?.length ? { quotes: input.quotes } : {}),
-          ...this.#causalSending.perf(sessionId, body),
-          ...attribution,
-          ...(input.genui === undefined ? {} : { genui: input.genui }),
-          ...(input.sessionLinks === undefined ? {} : { sessionLinks: input.sessionLinks }),
-        };
-        const originId = input.replySourceEventId ?? sourceEventId;
-        const origin = {
-          sessionId,
-          ...(originId === undefined ? {} : { sourceEventId: originId }),
-        };
-        if (input.deliveryKey === undefined) {
-          const appended = await this.#channels.appendMessage(
-            OWNER_HUMAN_CONTEXT,
-            channel.id,
-            message,
-            origin,
+            ignoredAt,
+            sessionId,
+            ignoredAt,
+            ignoredAt,
+            row.source_event_id,
+            botSlug,
           );
-          if (appended === undefined) throw new Error(`Channel disappeared: ${channel.id}`);
-          return appended;
-        }
-        const result = await this.#channels.appendMessageOnce(
-          OWNER_HUMAN_CONTEXT,
-          channel.id,
-          message,
-          undefined,
-          origin,
-        );
-        if (result.status === 'missing') throw new Error(`Channel disappeared: ${channel.id}`);
-        if (result.status === 'conflict')
-          throw new Error('Human DM delivery key has different content');
-        return result.message;
+        return {
+          sourceEventId: row.source_event_id,
+          ignoredAt,
+          alreadyIgnored: false,
+        };
       },
-    };
+      ['bot-inbox'],
+    );
+    if ('error' in decision) throw new Error(decision.error);
+    this.#channels.admissionChanged?.(channelId, messageId);
+    return decision;
   }
 
   async #recordTurnCommits(botSlug: string, causeSourceEventId: string): Promise<void> {

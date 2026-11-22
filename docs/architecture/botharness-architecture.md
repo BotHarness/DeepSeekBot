@@ -686,6 +686,8 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 
 DM 与 Group 的准入、因果消息发送和 Group 摘要由共享的 Channel 与 Runtime 内核模块处理，入口仍是同一个 Bot Runtime Service。这些模块使用 Runtime 的实时轮次状态，并沿用现有的 Channel Store 和准入事务。
 
+Channel 工具、Human 输入绑定、Bot 工具直接执行和 Tob CLI 请求使用 Bot Runtime Service 提供的端口。Bot Runtime 管理轮次状态，以及忽略 Inbox Admission 和记录直接工具调用 Source Event 的事务。
+
 DSH Agent adapter 管理原生 Agent 生命周期，并注册 `packages/core/src/features/` 中 Schedule、GenUI、Memory、Channel files、Channel、IM Messaging、Activity、Assignment 和 Models 的工具与提示词。原生回合和直调共用同一套工具定义。
 
 Orchestrator、Assignment 和替代引擎的生命周期位于 `runtime/dsh-bot-agent-adapter-*` 模块。Adapter state 持有唯一的原生 Agent handle 表。替代引擎 Session 继续由 Engine Host 管理，Assignment 工具通过类型化输入使用现有运行时接口。
