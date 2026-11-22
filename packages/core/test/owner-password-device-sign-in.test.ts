@@ -32,6 +32,13 @@ async function signIn(
     repeat = false,
     type = 'owner-sign-in',
     repeatType = type,
+  }: {
+    username?: string;
+    attempt?: string;
+    fingerprint?: string;
+    repeat?: boolean;
+    type?: 'owner-sign-in' | 'password-sign-in';
+    repeatType?: 'owner-sign-in' | 'password-sign-in';
   } = {},
 ) {
   return new Promise<unknown>((resolve, reject) => {
@@ -170,15 +177,18 @@ it.each([
   ['password-sign-in', 'password-sign-in'],
   ['password-sign-in', 'owner-sign-in'],
   ['owner-sign-in', 'password-sign-in'],
-])('allows only one password attempt when %s is followed by %s', async (type, repeatType) => {
-  const f = teamFixture();
-  await f.team.ownerPasswordSignInSet(owner, { enabled: true, username: 'my-owner', password });
-  const host = await memberDeviceHost(f);
-  await expect(
-    signIn(f, host, deviceEncryption(f), { type, repeatType, repeat: true }),
-  ).resolves.toMatchObject({ ok: true });
-  expect(f.pairing.list()).toHaveLength(1);
-});
+] as const)(
+  'allows only one password attempt when %s is followed by %s',
+  async (type, repeatType) => {
+    const f = teamFixture();
+    await f.team.ownerPasswordSignInSet(owner, { enabled: true, username: 'my-owner', password });
+    const host = await memberDeviceHost(f);
+    await expect(
+      signIn(f, host, deviceEncryption(f), { type, repeatType, repeat: true }),
+    ).resolves.toMatchObject({ ok: true });
+    expect(f.pairing.list()).toHaveLength(1);
+  },
+);
 
 it('shares one username limit between unified and standalone Owner sign-in', async () => {
   const f = teamFixture();
