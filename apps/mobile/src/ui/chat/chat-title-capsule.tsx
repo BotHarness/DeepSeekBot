@@ -46,7 +46,7 @@ export function ChatTitleCapsule({
       <View style={{ flex: 1, minWidth: 0 }}>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: space.x2 }}>
           <Text
-            {...barLabelProps}
+            {...(control.kind === 'button' ? barLabelProps : {})}
             strong
             numberOfLines={1}
             ellipsizeMode="tail"
