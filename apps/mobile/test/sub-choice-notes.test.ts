@@ -92,6 +92,8 @@ it('clears an older failed draft when a newer note saves', async () => {
     (cause, text) => rememberFailedNote(key, { text, error: (cause as Error).message }),
   );
   queue.commit('A', '');
+  await queue.settled();
+  expect(failedNote(key)).toEqual({ text: 'A', error: 'stale' });
   queue.commit('B', '');
   await queue.settled();
   expect(failedNote(key)).toBeUndefined();
