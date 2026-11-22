@@ -42,9 +42,6 @@
     "rawControl": 5,
     "lineBorder": 2
   },
-  "packages/client/src/client/bot-main.tsx": {
-    "rawControl": 8
-  },
   "packages/client/src/client/bot-mode-setting-rows.tsx": {
     "dshImport": 1
   },
@@ -247,6 +244,15 @@
   },
   "packages/client/src/client/features/channels/composer-mention-options.tsx": {
     "rawControl": 3
+  },
+  "packages/client/src/client/features/channels/conversation-pane.tsx": {
+    "rawControl": 1
+  },
+  "packages/client/src/client/features/channels/conversation-shell.tsx": {
+    "rawControl": 3
+  },
+  "packages/client/src/client/features/channels/conversation-timeline.tsx": {
+    "rawControl": 4
   },
   "packages/client/src/client/features/channels/styles.ts": {
     "legacyCss": 152,
