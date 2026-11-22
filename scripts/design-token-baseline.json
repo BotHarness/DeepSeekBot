@@ -270,6 +270,11 @@
     "legacyCss": 16,
     "lineBorder": 1
   },
+  "packages/client/src/client/features/schedules/schedules-entry.tsx": {
+    "rawControl": 2,
+    "literalColor": 1,
+    "lineBorder": 2
+  },
   "packages/client/src/client/features/schedules/styles.ts": {
     "legacyCss": 5
   },
@@ -472,11 +477,6 @@
   "packages/client/src/client/remote-viewer/index.tsx": {
     "dshImport": 1,
     "inlineStyle": 15
-  },
-  "packages/client/src/client/schedules-entry.tsx": {
-    "rawControl": 2,
-    "literalColor": 1,
-    "lineBorder": 2
   },
   "packages/client/src/client/session-return-action.tsx": {
     "dshImport": 1

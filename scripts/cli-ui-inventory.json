@@ -513,7 +513,7 @@
       "description": "Schedule lock owner and updates.",
       "scope": "Host",
       "surfaces": [
-        "setting:packages/client/src/client/schedules-entry.tsx:{t('schedule.form.lock')}"
+        "setting:packages/client/src/client/features/schedules/schedules-entry.tsx:{t('schedule.form.lock')}"
       ],
       "commands": ["schedules", "schedule-update"]
     },
