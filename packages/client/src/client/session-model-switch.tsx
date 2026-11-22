@@ -56,8 +56,8 @@ export function SessionModelSwitch({
       data-session-model-switch=""
       role="note"
       aria-label={t(`sessions.model.${reason ?? 'switched'}` as const, {
-        from: from.short,
-        to: to.short,
+        from: `${from.short} ${t(from.external ? 'sessions.model.sub' : 'sessions.model.api')}`,
+        to: `${to.short} ${t(to.external ? 'sessions.model.sub' : 'sessions.model.api')}`,
       })}
       {...stylex.props(styles.row)}
     >

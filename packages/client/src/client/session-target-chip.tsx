@@ -33,7 +33,12 @@ export function SessionTargetChip({
   const label = turnTargetLabel(selected, catalog);
   const short =
     label.short === selected.model ? modelShortName(selected.model, label.brand) : label.short;
-  const effortId = selected.kind === 'engine' ? selected.reasoningEffort : route?.reasoningEffort;
+  const effortId =
+    selected.kind === 'engine'
+      ? selected.reasoningEffort
+      : route?.provider === selected.provider && route.model === selected.model
+        ? route.reasoningEffort
+        : undefined;
   const entry =
     selected.kind === 'dsh'
       ? catalog?.models?.find(

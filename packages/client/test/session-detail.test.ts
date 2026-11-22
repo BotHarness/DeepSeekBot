@@ -101,7 +101,7 @@ it('shows one localized model switch and keeps model names out of replies and th
   });
   expect(host.querySelectorAll('[data-session-model-switch]')).toHaveLength(1);
   expect(host.querySelector('[data-session-model-switch]')?.getAttribute('aria-label')).toBe(
-    '额度用完，从 GPT-6.2-Sol 切换到 Opus 5.5',
+    '额度用完，从 GPT-6.2-Sol 订阅 切换到 Opus 5.5 订阅',
   );
   expect(host.querySelector('[data-transcript="reply"] [data-turn-targets]')).toBeNull();
   expect(host.querySelector('[data-session-meta-chip="engine"]')).toBeNull();

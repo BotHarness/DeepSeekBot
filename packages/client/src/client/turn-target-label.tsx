@@ -121,19 +121,28 @@ export function useTurnTargetCatalog(
         (item) =>
           item.kind === 'model-switch' && (item.from.kind === 'dsh' || item.to.kind === 'dsh'),
       ));
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
   const catalogMount = useMountedResource<HTMLDivElement>(() => {
     if (!needsCatalog) return;
     let active = true;
+    let retry: ReturnType<typeof setTimeout> | undefined;
     void actions.modelCatalog().then(
       ({ models, groups }) => {
         if (active) setCatalog({ host: actions, models, groups: groups ?? [] });
       },
-      () => undefined,
+      () => {
+        if (active && catalogAttempt < ENGINE_RETRIES)
+          retry = setTimeout(
+            () => setCatalogAttempt((value) => value + 1),
+            ENGINE_RETRY_MS * 2 ** catalogAttempt,
+          );
+      },
     );
     return () => {
       active = false;
+      if (retry !== undefined) clearTimeout(retry);
     };
-  }, [actions, needsCatalog]);
+  }, [actions, needsCatalog, catalogAttempt]);
   return {
     groups: catalog?.host === actions ? catalog.groups : undefined,
     catalog: {
