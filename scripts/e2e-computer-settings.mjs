@@ -38,11 +38,13 @@ assert.equal(status.status.state, 'running');
 assert.ok((await route('exports')).files.includes(archive));
 const archived = execFileSync('tar', ['-xOf', join(dir, archive), './bh166-proof.txt'], {
   encoding: 'utf8',
+  shell: false,
+  windowsHide: true,
 });
 const restored = execFileSync(
   'docker',
   ['exec', volume.slice(0, -'-config'.length), 'cat', '/config/bh166-proof.txt'],
-  { encoding: 'utf8' },
+  { encoding: 'utf8', shell: false, windowsHide: true },
 );
 assert.equal(archived.trim(), 'original-166-proof');
 assert.equal(restored, archived);

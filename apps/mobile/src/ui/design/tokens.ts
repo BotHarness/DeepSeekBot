@@ -352,7 +352,6 @@ export const mediaBubble = {
   maxWidth: 280,
   widthRatio: 0.72,
   gap: 0,
-  scrim: '#00000073',
   more: '#0000008c',
   ink: '#ffffff',
 } as const;

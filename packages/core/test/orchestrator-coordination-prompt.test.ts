@@ -71,8 +71,10 @@ describe('Orchestrator Host context', () => {
       ...(archivedAt === undefined ? {} : { archivedAt }),
     }) as unknown as ReturnType<Parameters<typeof hostWorkContext>[0]['list']>[number];
 
-  it('dispatches in one step and closes the turn with the final answer', () => {
-    expect(coordination).toContain('Make the create_assignment calls and a short receipt');
+  it('sends the receipt, dispatches, links the receipt and closes the turn with the final answer', () => {
+    expect(coordination).toContain(
+      'first send a short receipt saying what you are starting, then make the create_assignment calls, then in your Human DM link that receipt to the new Sessions with one link_message_sessions call',
+    );
     expect(coordination).not.toContain('how deep to go');
     expect(coordination).toContain('resolve its Inbox items in that same send');
   });

@@ -1,35 +1,24 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type PropsWithChildren } from 'react';
+import { type SessionLiveSnapshot } from '../src/client/bridge.js';
+import { type SessionTranscript } from '../src/client/bridge.js';
+import { type SessionDetailPrefs } from '../src/client/session-detail.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Tooltip: ({ children }: PropsWithChildren) => children,
-  Button: ({
-    children,
-    icon: _icon,
-    ...props
-  }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement> & { icon?: unknown }>) =>
-    createElement('button', props, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   FileTypeIcon: () => null,
   fileSizeText: (size: number) => `${size} B`,
-  IconCloseOutlineRegular: () => null,
-  IconMicrophoneOutlineRegular: () => null,
-  IconPaperclipOutlineRegular: () => null,
-  IconSendOutlineRegular: () => null,
-  IconSkillOutlineRegular: () => null,
-  IconStopFillRegular: () => null,
+
   MarkdownText: ({ text }: { text: string }) => createElement('div', null, text),
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
-import type { SessionLiveSnapshot, SessionTranscript } from '../src/client/bridge.js';
+
 import { zhTranslate } from '../src/client/locale.js';
-import {
-  SessionDetail,
-  SessionDetailPrefsContext,
-  type SessionDetailPrefs,
-} from '../src/client/session-detail.js';
+import { SessionDetail, SessionDetailPrefsContext } from '../src/client/session-detail.js';
 import { SessionHeaderSlot } from '../src/client/session-header-slot.js';
 import {
   cachedSessionDetail,
@@ -80,6 +69,27 @@ const transcript = (role: SessionTranscript['role'], running = false): SessionTr
     },
     { kind: 'turn-end', state: 'done', at: '2026-11-17T00:00:05.000Z' },
   ],
+});
+
+it('shows the localized engine effort next to the model in an attributed reply', async () => {
+  const current = transcript('orchestrator');
+  const host = await render({
+    sessionTranscript: async () => ({
+      ...current,
+      items: current.items.map((item) =>
+        item.kind === 'reply'
+          ? {
+              ...item,
+              turnTargets: [
+                { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol', reasoningEffort: 'high' },
+              ],
+            }
+          : item,
+      ),
+    }),
+  });
+  const path = host.querySelector('[data-transcript="reply"] [data-turn-targets]');
+  expect(path?.textContent).toBe('GPT-6.2-Sol · 高');
 });
 
 function label(node: HTMLElement): string {

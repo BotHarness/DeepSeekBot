@@ -80,6 +80,10 @@ export function degradedCapabilities(entries) {
   ];
 }
 
+export function canaryPassed(outcome, degraded) {
+  return outcome.state === 'pass' && degraded.length === 0;
+}
+
 function diagnosticEntries(home) {
   const result = spawnSync(
     process.execPath,
@@ -94,7 +98,14 @@ function diagnosticEntries(home) {
       '--limit',
       '1000',
     ],
-    { cwd: root, encoding: 'utf8', timeout: 60_000, maxBuffer: 8 * 1024 * 1024, windowsHide: true },
+    {
+      cwd: root,
+      encoding: 'utf8',
+      timeout: 60_000,
+      maxBuffer: 8 * 1024 * 1024,
+      windowsHide: true,
+      shell: false,
+    },
   );
   if (result.error !== undefined || result.status !== 0)
     throw new Error(`diagnostic-logs failed (exit ${result.status})`);
@@ -133,6 +144,7 @@ function launch(home, port, version) {
       timeout: 900_000,
       maxBuffer: 4 * 1024 * 1024,
       windowsHide: true,
+      shell: false,
     },
   );
   if (result.error !== undefined || result.status !== 0) {
@@ -231,7 +243,7 @@ async function run(options) {
     await stopAndWait(instance.pid);
     instance = undefined;
     report.degraded = degradedCapabilities(diagnosticEntries(home));
-    report.ok = outcome.state === 'pass' && report.degraded.length === 0;
+    report.ok = canaryPassed(outcome, report.degraded);
   } catch (error) {
     report.ok = false;
     report.error = error instanceof Error ? error.message : String(error);

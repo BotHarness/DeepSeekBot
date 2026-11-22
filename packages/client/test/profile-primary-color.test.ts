@@ -1,21 +1,17 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type BotSummary } from '../src/client/store.js';
+import { type ChannelSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  const stub = () => null;
+
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    Tooltip: ({ children }: PropsWithChildren) => children,
-    IconCloseOutlineRegular: stub,
-    IconEditOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
-    IconShareOutlineRegular: stub,
-    Menu: stub,
-    Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
   };
 });
 
@@ -29,7 +25,7 @@ import {
 import { zhTranslate } from '../src/client/locale.js';
 import { PrimaryColorModal } from '../src/client/primary-color-editor.js';
 import { ProfileHeader } from '../src/client/profile-header.js';
-import type { BotSummary, ChannelSummary } from '../src/client/store.js';
+
 import { seededAvatarFor } from '../../core/src/bots/avatar-appearance.js';
 import { fallbackPrimaryColor } from '../../core/src/bots/primary-color.js';
 import { buttonNamed, dialog, fieldNamed, typeInto } from './primitive-mocks.js';
@@ -90,7 +86,7 @@ async function open(summary: BotSummary, setBotPrimaryColor = vi.fn(async () => 
 }
 
 const one = <T extends Element>(selector: string): T => {
-  const found = host.querySelector<T>(selector);
+  const found = document.body.querySelector<T>(selector);
   expect(found, selector).not.toBeNull();
   return found!;
 };
@@ -114,7 +110,7 @@ it('starts on Automatic, explains the hair source and previews both themes', asy
   await open(bot());
   expect(mode()).toBe('automatic');
   expect(one('[data-primary-color-source]').getAttribute('data-primary-color-source')).toBe('hair');
-  expect(host.querySelector('[data-primary-color-preset]')).toBeNull();
+  expect(document.body.querySelector('[data-primary-color-preset]')).toBeNull();
   for (const theme of ['light', 'dark'] as const) {
     expectReadable(theme, HAIR);
     expect(pane(theme).querySelector('[data-preview="author"]')?.textContent).toBe('Ada');
@@ -219,7 +215,7 @@ it('offers the setting in the Avatar area for pixel and uploaded-image Bots alik
         }),
       ),
     );
-    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     await act(async () => buttonNamed(zhTranslate('profile.avatar.change')).click());
     const row = one('[role="dialog"] div[data-primary-color-source]');
     expect(row.getAttribute('data-primary-color-source')).toBe(source);

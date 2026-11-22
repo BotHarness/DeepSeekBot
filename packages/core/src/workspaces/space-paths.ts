@@ -32,7 +32,7 @@ export function canonicalPath(path: string, links = 0): string {
           return canonicalPath(next + sep + segments.slice(index + 1).join(sep), links + 1);
         }
         if (index < segments.length - 1 && !entry.isDirectory())
-          throw new Error('grant-protected-path');
+          throw new Error('grant-protected-path', { cause: error });
       } catch (entryError) {
         if (
           !(entryError instanceof Error) ||

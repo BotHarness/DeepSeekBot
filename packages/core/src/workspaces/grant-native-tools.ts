@@ -126,6 +126,49 @@ export function sessionRoots(
   }
 }
 
+const OUTSIDE_WORKSPACE = "Path is outside this Session's authorized workspace";
+const READ_ONLY_WORKSPACE =
+  'This Workspace Grant is read-only: the Human has not allowed this Bot to write in this folder. Do not write it another way.';
+const READ_ONLY_NEXT_STEP = {
+  orchestrator:
+    ' Call request_workspace_grant with a short reason so the Human can allow writing in this folder, then end your turn.',
+  assignment:
+    ' Stop and report that this work needs write access to this folder, so your Orchestrator can ask the Human for it.',
+};
+
+function rootRole(core: GrantCore, sessionId: string): string | undefined {
+  let owner = core.ownership.resolve(sessionId);
+  const seen = new Set<string>();
+  while (owner?.parentSessionId !== undefined) {
+    if (seen.has(owner.sessionId)) return undefined;
+    seen.add(owner.sessionId);
+    owner = core.ownership.resolve(owner.parentSessionId);
+  }
+  return owner?.rootRole;
+}
+
+function insideAnyRoot(roots: readonly string[], target: string): boolean {
+  return roots.some((root) => {
+    const canonical = canonicalRoot(root);
+    return canonical !== undefined && within(canonical, target);
+  });
+}
+
+function outsideDenial(
+  core: GrantCore,
+  session: Session,
+  kind: AccessKind,
+  target: string,
+): string {
+  if (kind !== 'write' || !insideAnyRoot(currentRoots(core, session, 'read'), target))
+    return OUTSIDE_WORKSPACE;
+  const role = rootRole(core, session.id);
+  return (
+    READ_ONLY_WORKSPACE +
+    (role === 'orchestrator' || role === 'assignment' ? READ_ONLY_NEXT_STEP[role] : '')
+  );
+}
+
 function nativePath(name: string, args: unknown): { path: string; kind: AccessKind } | undefined {
   if (typeof args !== 'object' || args === null) return undefined;
   const input = args as Record<string, unknown>;
@@ -257,14 +300,8 @@ function nativeFileToolDenialImpl(
     if (originalAttachmentRoot(core, session, target, request.kind) !== undefined) continue;
     const spaceDenial = validateSpacePath(core, session, path);
     if (spaceDenial) return spaceDenial;
-    const roots = currentRoots(core, session, request.kind);
-    if (
-      !roots.some((root) => {
-        const canonical = canonicalRoot(root);
-        return canonical !== undefined && within(canonical, target);
-      })
-    )
-      return "Path is outside this Session's authorized workspace";
+    if (!insideAnyRoot(currentRoots(core, session, request.kind), target))
+      return outsideDenial(core, session, request.kind, target);
   }
   return undefined;
 }
@@ -371,8 +408,9 @@ export function nativeExecutionRoot(
       )
         return root;
     }
+    throw new Error(outsideDenial(core, session, request.kind, target));
   }
-  throw new Error("Path is outside this Session's authorized workspace");
+  throw new Error(OUTSIDE_WORKSPACE);
 }
 
 export function authorizedPathRoot(roots: readonly string[], path: string): string | undefined {

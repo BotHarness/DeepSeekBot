@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  return dialogPrimitives();
+  return { ...(await import('./primitive-mocks.js')).shellPrimitives(), ...dialogPrimitives() };
 });
 
 import { MemberWakePolicyModal } from '../src/client/group-member-controls.js';

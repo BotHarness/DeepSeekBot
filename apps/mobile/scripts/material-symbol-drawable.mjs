@@ -11,6 +11,7 @@ const ICONS = {
   light: 'light_mode',
   dark: 'dark_mode',
   model: 'memory',
+  preset: 'inventory_2',
   prompts: 'notes',
   computer: 'computer',
   notifications: 'notifications',

@@ -2,7 +2,7 @@
 
 状态：Human 于 2026-11-15 确认的设计。本文记录设计与实现边界；GitHub issue 记录交付状态，文档不改变运行设置。[English](bot-approval-policy.md)。
 
-[ADR-0342](../adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md) 记录长期决策与权衡，本文整合目标行为；GitHub issue 记录交付状态。设计确认不授权实施功能、更改运行权限或推进 SQLite 迁移。
+[ADR-0342](../decisions/approvals.md#adr-0342) 记录长期决策与权衡，本文整合目标行为；GitHub issue 记录交付状态。设计确认不授权实施功能、更改运行权限或推进 SQLite 迁移。
 
 实现沿用既有模板文件 owner 保存模板与全局选择、Bot Registry 保存 Bot 选择、Tool Approval Rule owner 保存卡片授权、Channel Tool Approval 决定审批。#4205、#4211、#4244、#4245、#4246、#4210、#4212 分别覆盖效果声明、选择、三部分编辑、规则管理、确认删除及 CLI/native 共用准入。交付证据保留源码与平台范围；iOS 和未完成的匹配性能检查仍在 [QA #2742](https://github.com/BotHarness/DeepSeekBot/issues/2742#issuecomment-6909957258) 跟踪。
 
@@ -78,16 +78,16 @@ Human 确认以 [#4337](https://github.com/BotHarness/BotHarness/pull/4337) 恢�
 
 静态核查基线为 fc29d448467392b1e9ed2f3d048d3d1df0b14381，不是 live Host 验证：
 
-| 事项       | 原有事实或规格                                                 | 本次确认目标                                  |
-| ---------- | -------------------------------------------------------------- | --------------------------------------------- |
-| 模板选择   | Bot 单个可选字段，plugin.ts:2491 无全局默认层                  | 继承全局／特定模板／关闭                      |
-| 模板结构   | ADR-0207 为整段 Markdown；#4203、E3 为三部分加 Bot 额外行      | 一份选定模板的三部分，不叠加 Bot 层           |
-| 模型输出   | approval-reviewer.ts:189 为 allow/reject/ask-human             | 仅 allow/ask-human                            |
-| 确定性顺序 | tool-approval.ts:306–349 先 Full Access、保存规则，再 Reviewer | 保留确定性授权优先；效果准入以后续 #4337 为准 |
-| 卡片规则   | #4203、E3 AC-3 要求保留确定性执行及来源标签                    | 延续，并保持 Bot 归属                         |
-| 引用中删除 | 本次访谈前尚未确定                                             | 二次确认后统一回退继承，删除默认时清空全局    |
+| 事项       | 原有事实或规格                                                  | 本次确认目标                                  |
+| ---------- | --------------------------------------------------------------- | --------------------------------------------- |
+| 模板选择   | Bot 单个可选字段，plugin.ts:2491 无全局默认层                   | 继承全局／特定模板／关闭                      |
+| 模板结构   | ADR-0207 为整段 Markdown；#4203、E3 为三部分加 Bot 额外行       | 一份选定模板的三部分，不叠加 Bot 层           |
+| 模型输出   | approval-reviewer.ts:189 为 allow/reject/ask-human              | 仅 allow/ask-human                            |
+| 确定性顺序 | `ChannelToolApproval.ask` 先 Full Access、保存规则，再 Reviewer | 保留确定性授权优先；效果准入以后续 #4337 为准 |
+| 卡片规则   | #4203、E3 AC-3 要求保留确定性执行及来源标签                     | 延续，并保持 Bot 归属                         |
+| 引用中删除 | 本次访谈前尚未确定                                              | 二次确认后统一回退继承，删除默认时清空全局    |
 
-代码来源：[Bot 记录](../../packages/core/src/bots/persona-bot.ts)、[模板查找](../../packages/core/src/plugin.ts)、[Reviewer](../../packages/core/src/workspaces/approval-reviewer.ts)、[审批 owner](../../packages/core/src/workspaces/tool-approval.ts)、[规则](../../packages/core/src/workspaces/tool-approval-rules.ts)。ADR-0205／0207／0239／0249 记录演进，不能单独把 ADR-0207 当作当前完整管线。
+代码来源：[Bot 记录](../../packages/core/src/bots/persona-bot.ts)、[模板查找](../../packages/core/src/features/approvals/plugin.ts)、[Reviewer](../../packages/core/src/workspaces/approval-reviewer.ts)、[审批 owner](../../packages/core/src/workspaces/tool-approval.ts)、[自动审查](../../packages/core/src/features/approvals/tool-approval-review.ts)、[规则](../../packages/core/src/workspaces/tool-approval-rules.ts)。ADR-0205／0207／0239／0249 记录演进，不能单独把 ADR-0207 当作当前完整管线。
 
 2026-11-15 核查时，[#4203](https://github.com/BotHarness/DeepSeekBot/issues/4203)、E1、E2、[E3 #4211](https://github.com/BotHarness/DeepSeekBot/issues/4211)、E4 均 open、无 assignee、全部评论为 0。所查证据未发现认领记录或新范围的可核实实施 PR，但不能据此断言绝无实施。本机 gh 未认证，未确认 timeline 事件的完整性。旧模板 Reviewer 与卡片规则已有合并前身，例如 PR #1835、#2739。访谈未创建、认领或编辑任何 issue／评论。
 

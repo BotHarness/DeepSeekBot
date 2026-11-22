@@ -2,6 +2,8 @@
 
 ## Sources
 
+- `packages/core/src/features/channels/{management-methods,rpc}.ts`
+- `packages/client/src/client/features/appearance/bridge.ts`
 - `apps/mobile/src/host/{bot-avatar,group-channel}.ts`
 - `apps/mobile/src/ui/chat/{group-info,bot-profile,profile-presentation}.tsx`
 
@@ -18,7 +20,7 @@ Editable group/Bot portraits, explicit Change avatar and Remove avatar rows, sha
 ## How to get to it (user POV)
 
 - Group: Chats → group → title → tap the large avatar or Change avatar. Chat background is a separate row.
-- DM: Chats → Bot → title/profile → tap the large Bot portrait or Change avatar. Chat background remains a separate setting, including for a Bot whose DM id is not yet cached.
+- DM: Chats → Bot → title/profile → tap the large Bot portrait or Change avatar. Open Tilties in the Bot avatar settings to browse all 36 built-in portraits in one gallery, and choose a portrait near the end. Chat background remains a separate setting, including for a Bot whose DM id is not yet cached.
 
 ## Driving it with verify-app
 

@@ -98,7 +98,7 @@ function behaviorFixture() {
     try {
       f.db.transaction((db) => changeSenderAccess(db, botSlug, input));
     } catch (error) {
-      if (error instanceof Error && error.cause) throw error.cause;
+      if (error instanceof Error && error.cause instanceof Error) throw error.cause;
       throw error;
     }
   };
@@ -458,7 +458,7 @@ it('behavior item edits fence stale selections, scope references and in-use dele
     try {
       f.db.transaction((db) => changeSenderAccess(db, 'ada', input));
     } catch (error) {
-      if (error instanceof Error && error.cause) throw error.cause;
+      if (error instanceof Error && error.cause instanceof Error) throw error.cause;
       throw error;
     }
   };
@@ -565,7 +565,7 @@ it('continuous groups combine sources, deny wins, and membership removal preserv
     try {
       f.db.transaction((db) => changeSenderAccess(db, 'ada', input));
     } catch (error) {
-      if (error instanceof Error && error.cause) throw error.cause;
+      if (error instanceof Error && error.cause instanceof Error) throw error.cause;
       throw error;
     }
   };
@@ -668,7 +668,7 @@ it('groups cannot grant chat, cross scopes or transfer old membership/person exc
     try {
       f.db.transaction((db) => changeSenderAccess(db, 'ada', input));
     } catch (error) {
-      if (error instanceof Error && error.cause) throw error.cause;
+      if (error instanceof Error && error.cause instanceof Error) throw error.cause;
       throw error;
     }
   };

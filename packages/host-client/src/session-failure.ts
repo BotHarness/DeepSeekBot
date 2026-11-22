@@ -1,3 +1,5 @@
+import { compactBot, newBotSession, stopBot } from './bot-control';
+import { retryChannelMessage } from './channel-messages';
 import { sessionMaintenanceFor } from './shared/session-maintenance';
 import {
   parseFailureAutoContinue,
@@ -76,14 +78,13 @@ export function createFailureContinuation(
     },
     {
       continueTurn: (channel, messageId, failureId) =>
-        client.call('channelRetry', {
+        retryChannelMessage(client, {
           channelId: channel,
           messageId,
-          recovery: 'continue',
-          failureMessageId: failureId,
+          recovery: { action: 'continue', failureMessageId: failureId },
         }),
       cancelAuto: (channel, botSlug, messageId) =>
-        client.call('botStop', {
+        stopBot(client, {
           channelId: channel,
           botSlug,
           autoContinueFor: messageId,
@@ -102,8 +103,8 @@ export function createFailureMaintenance(
   const slug =
     failure.role === 'orchestrator' && channelId.startsWith('dm-') ? channelId.slice(3) : undefined;
   return sessionMaintenanceFor(client, channelId, slug, {
-    compact: (slug) => client.call('botCompact', { slug }),
-    newSession: (slug) => client.call('botNewSession', { slug }),
+    compact: (slug) => compactBot(client, slug),
+    newSession: (slug) => newBotSession(client, slug),
   });
 }
 

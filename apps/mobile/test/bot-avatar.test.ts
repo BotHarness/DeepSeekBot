@@ -2,17 +2,19 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 import { setBotAvatar } from '../src/host/bot-avatar';
 import { createHostClient, type HostClient } from '@botharness/host-client/client';
-import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import { fakeBotDetail, FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 let client: HostClient | undefined;
 afterEach(() => client?.stop());
 
 async function setup() {
   const host = new FakeHost();
-  host.methods.set('list', () => ({ bots: [] }));
-  host.methods.set('channels', () => ({ channels: [] }));
+  const bot = fakeBotDetail('ada', 'Ada');
+  const channels = [{ id: 'dm-ada', type: 'dm', name: 'Ada', members: ['ada'], botSlug: 'ada' }];
+  host.methods.set('list', () => ({ bots: [bot] }));
+  host.methods.set('channels', () => ({ channels }));
   host.methods.set('rosterGet', () => ({ sections: [], pins: [], hidden: [], sectionOrder: [] }));
-  host.methods.set('botAvatarSet', () => ({}));
+  host.methods.set('botAvatarSet', () => ({ bot }));
   client = createHostClient({
     routes: ['https://studio.tailnet-example.ts.net'],
     credential: host.credential,
@@ -48,7 +50,8 @@ describe('mobile Bot avatars', () => {
 
   it('resolves a DM if the roster has no DM id yet', async () => {
     const { host, client } = await setup();
-    host.methods.set('channelDm', () => ({ channel: { id: 'dm-created' } }));
+    const channel = { id: 'dm-ada', type: 'dm', name: 'Ada', members: ['ada'], botSlug: 'ada' };
+    host.methods.set('channelDm', () => ({ channel }));
     await setBotAvatar(client, { slug: 'ada', displayName: 'Ada' }, null);
     expect(host.calls[0]).toEqual({
       method: 'channelDm',
@@ -56,7 +59,7 @@ describe('mobile Bot avatars', () => {
     });
     expect(host.calls[1]).toEqual({
       method: 'botAvatarSet',
-      args: { channelId: 'dm-created', avatar: null },
+      args: { channelId: 'dm-ada', avatar: null },
     });
   });
 

@@ -491,3 +491,13 @@ INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
 LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE
 OR OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
+
+## Claude Agent SDK 0.3.326
+
+The Claude Code Subscription Engine (`src/engines/claude-engine.ts`) bundles the JavaScript of
+`@anthropic-ai/claude-agent-sdk` into a separate chunk that loads only when a Bot runs on Claude
+Code. Its platform binaries are not bundled: the SDK drives the Human's own installed `claude`.
+The following notice is preserved from the distributed package's LICENSE.md.
+
+© Anthropic PBC. All rights reserved. Use is subject to the Legal Agreements outlined here:
+https://code.claude.com/docs/en/legal-and-compliance.

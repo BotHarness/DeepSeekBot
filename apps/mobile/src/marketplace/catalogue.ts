@@ -30,7 +30,7 @@ export interface CatalogueList extends CatalogueResource<MarketplacePage> {
   more(): Promise<void>;
 }
 
-function resource<T>(load: () => Promise<MarketplaceResult<T>>) {
+export function resource<T>(load: () => Promise<MarketplaceResult<T>>) {
   let snapshot: CatalogueSnapshot<T> = { status: 'idle', busy: false };
   const listeners = new Set<() => void>();
   let pending: Promise<void> | undefined;
@@ -88,7 +88,7 @@ function resource<T>(load: () => Promise<MarketplaceResult<T>>) {
   };
 }
 
-function cached<T>(cache: Map<string, T>, key: string, create: () => T): T {
+export function cached<T>(cache: Map<string, T>, key: string, create: () => T): T {
   const existing = cache.get(key);
   const value = existing ?? create();
   cache.delete(key);

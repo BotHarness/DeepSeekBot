@@ -2,6 +2,8 @@
 
 ## Sources
 
+- `packages/core/src/features/tob/plugin.ts`
+- `packages/core/src/features/tob/{methods,rpc}.ts`
 - `packages/core/src/tob/**`
 - `packages/core/src/bots/cli-tob.ts`
 - `packages/client/src/client/{tob-presentation,tob-requests}.ts`
@@ -140,7 +142,7 @@ Use only native macOS accessibility and screenshots in an isolated Profile for t
 
 ## First-entry intro (#2361)
 
-A fresh Profile whose journey tutorial is `not-started` opens a five-step dialog (`[data-intro-step]`: welcome, theme, model, community, start) the first time it enters Bot mode; the tutorial starts only when the dialog closes. Drive it in a new browser against a fresh isolated Profile (`verify-app launch`; `shot` does not dismiss it), step with Next, and capture each step in light and dark. Proof per step: the theme step changes `botharness:appearance:v1` and the visible theme at once, and an uploaded wallpaper shows behind the dialog; the model step's Next writes the Host default (`deepseekbot model-catalog`); the community step shows the live GitHub star count, or the cached count or a plain Star offline; picking a starter on the last step closes the dialog, sends that text once through the Tob DM composer and Tob replies, after which `deepseekbot onboarding` reports the tutorial active. Re-entry in the same browser must not reopen it (`botharness/onboarding/intro-v1/<profileId>`); restarting the tutorial from Settings must. Profiles that already started, finished or skipped the tutorial never see it.
+A fresh Profile whose journey tutorial is `not-started` opens a six-step dialog (`[data-intro-step]`: welcome, theme, model, phone, community, start) the first time it enters Bot mode. The tutorial starts when the dialog closes. Drive it in a new browser against a fresh isolated Profile (`verify-app launch`), step with Next, and capture each step in light and dark. Proof per step: the theme step changes `botharness:appearance:v1` and the visible theme at once, and an uploaded wallpaper shows behind the dialog. For the model step, follow the [Model providers journey](model-providers.md). The community step shows the live GitHub star count, the cached count or a plain Star offline. Picking a starter on the last step closes the dialog, sends that text once through the Tob DM composer and Tob replies, after which `deepseekbot onboarding` reports the tutorial active. Re-entry in the same browser must not reopen it (`botharness/onboarding/intro-v1/<profileId>`). Restarting the tutorial from Settings opens it again. Profiles that already started, finished or skipped the tutorial never see it.
 
 ## Mobile pull-to-Tob (#3090)
 

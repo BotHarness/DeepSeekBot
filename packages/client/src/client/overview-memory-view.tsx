@@ -1,9 +1,9 @@
+import { hooked } from './ds/hooked.js';
+import { profileStyles } from './ds/profile-panel.js';
+import { Icon } from './ds/icon.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import { useMemo, useRef, useState, type ReactElement } from 'react';
-import {
-  IconRefreshOutlineRegular,
-  IconRightUpOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { barY, defineChart } from '@tanstack/charts';
 import { scaleLinear } from '@tanstack/charts/scales/linear';
 import { scalePoint } from '@tanstack/charts/scales/point';
@@ -14,6 +14,7 @@ import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useProfileChartTokens } from './profile-chart-theme.js';
 import { useMountedResource } from './mounted-resource.js';
+import { visibleInterval } from './visible-interval.js';
 
 function MemoryTrend({
   days,
@@ -132,10 +133,10 @@ export function OverviewMemoryView({
     };
     refresh.current = (more) => void load(more);
     void load();
-    const timer = setInterval(() => void load(), 30000);
+    const stopRefresh = visibleInterval(() => void load(), 30_000);
     return () => {
       active = false;
-      clearInterval(timer);
+      stopRefresh();
       if (midnight !== undefined) clearTimeout(midnight);
       refresh.current = () => {};
     };
@@ -143,11 +144,11 @@ export function OverviewMemoryView({
   return (
     <section
       ref={mount}
-      className="bh-profile-card bh-overview-memory"
+      {...hooked('bh-profile-card bh-overview-memory', profileStyles.card)}
       aria-label={t('overviewMemory.title')}
     >
-      <header className="bh-profile-card-head">
-        <h3 className="bh-profile-card-label">
+      <header {...hooked('bh-profile-card-head', profileStyles.cardHead)}>
+        <h3 {...hooked('bh-profile-card-label', profileStyles.cardLabel)}>
           {t('overviewMemory.title')} · {t('overviewUsage.week')}
         </h3>
         <button
@@ -159,7 +160,7 @@ export function OverviewMemoryView({
           aria-busy={busy}
           onClick={() => refresh.current()}
         >
-          <IconRefreshOutlineRegular size={16} />
+          <Icon name="refresh-cw" size={16} />
         </button>
       </header>
       {busy && !value ? (
@@ -219,7 +220,7 @@ export function OverviewMemoryView({
                     title={`${t('profile.open')}: ${bot.displayName}`}
                     onClick={() => void actions.openBot?.(bot.slug, 'profile')}
                   >
-                    <IconRightUpOutlineRegular size={16} />
+                    <Icon name="arrow-up-right" size={16} />
                   </button>
                 )}
               </li>

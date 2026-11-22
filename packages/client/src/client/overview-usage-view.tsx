@@ -1,10 +1,10 @@
+import { hooked } from './ds/hooked.js';
+import { profileStyles } from './ds/profile-panel.js';
+import { Icon } from './ds/icon.js';
 import { paintBotName } from './bot-primary-color.js';
 import type {} from '@deepseek-ai/dsh-api-session-controller/client';
 import { useRef, useState, type ReactElement } from 'react';
-import {
-  IconRefreshOutlineRegular,
-  IconRightUpOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { OverviewUsage } from '@botharness/host-client/usage';
 import {
   usageOverviewPeriods,
@@ -19,6 +19,7 @@ import {
   type UsageSummary,
 } from './model-usage-charts.js';
 import { useMountedResource } from './mounted-resource.js';
+import { visibleInterval } from './visible-interval.js';
 export function OverviewUsageView({
   actions,
   t,
@@ -107,10 +108,10 @@ export function OverviewUsageView({
     };
     refresh.current = (after) => void load(after);
     void load();
-    const timer = setInterval(() => void load(), 30000);
+    const stopRefresh = visibleInterval(() => void load(), 30_000);
     return () => {
       active = false;
-      clearInterval(timer);
+      stopRefresh();
       if (midnight !== undefined) clearTimeout(midnight);
       refresh.current = () => {};
     };
@@ -129,11 +130,13 @@ export function OverviewUsageView({
   return (
     <section
       ref={mount}
-      className="bh-profile-card bh-overview-usage"
+      {...hooked('bh-profile-card bh-overview-usage', profileStyles.card)}
       aria-label={t('overviewUsage.title')}
     >
-      <header className="bh-profile-card-head">
-        <h3 className="bh-profile-card-label">{t('overviewUsage.title')}</h3>
+      <header {...hooked('bh-profile-card-head', profileStyles.cardHead)}>
+        <h3 {...hooked('bh-profile-card-label', profileStyles.cardLabel)}>
+          {t('overviewUsage.title')}
+        </h3>
         <div className="bh-overview-usage-controls">
           <div className="bh-usage-grouping" role="group" aria-label={t('overviewUsage.range')}>
             {usageOverviewPeriods.map((range) => (
@@ -157,7 +160,7 @@ export function OverviewUsageView({
             disabled={busy}
             onClick={() => refresh.current()}
           >
-            <IconRefreshOutlineRegular size={16} />
+            <Icon name="refresh-cw" size={16} />
           </button>
         </div>
       </header>
@@ -240,7 +243,7 @@ export function OverviewUsageView({
                             title={`${t('profile.open')}: ${bot.displayName}`}
                             onClick={() => void actions.openBot?.(bot.slug, 'profile')}
                           >
-                            <IconRightUpOutlineRegular size={16} />
+                            <Icon name="arrow-up-right" size={16} />
                           </button>
                         ) : null}
                       </div>

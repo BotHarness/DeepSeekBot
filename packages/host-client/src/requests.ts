@@ -1,3 +1,9 @@
+import {
+  answerUserQuestion,
+  decideToolApproval,
+  readToolApprovalStatus,
+  readUserQuestionStatus,
+} from './approval-readers';
 import { parseToolEffects } from '../../core/src/workspaces/tool-effects-contract';
 import { approvalShellCommand } from './shared/approval-diff';
 import {
@@ -8,6 +14,7 @@ import {
   type WorkspaceGrant,
 } from './bot-settings';
 import { MethodRefused, type HostClient } from './client';
+import { readChannelTimeline, wireTimelineMessage } from './channel-messages';
 import { recordFeature } from './telemetry/features';
 import type { FeatureEntry } from './telemetry/schema';
 import type {
@@ -15,11 +22,10 @@ import type {
   QuestionAnswer,
   QuestionItem,
   TimelineMessage,
-  TimelinePage,
   ToolApprovalOutcome,
   ToolApprovalRequestCard,
-  ToolApprovalStatus,
   UserQuestionStatus,
+  WireToolApprovalExecution,
 } from '@botharness/host-protocol/wire';
 
 export type RequestStatus = 'pending' | 'decided' | 'expired';
@@ -69,12 +75,7 @@ export function approvalContent(value: unknown): ApprovalContent | undefined {
   };
 }
 
-export type ApprovalExecution =
-  | 'waiting-human'
-  | 'waiting-capacity'
-  | 'running'
-  | 'settled'
-  | 'needs-repair';
+export type ApprovalExecution = WireToolApprovalExecution;
 
 export interface QuestionRequest extends RequestRef {
   questions: QuestionItem[];
@@ -100,13 +101,12 @@ async function readRequest(
   client: HostClient,
   ref: RequestRef,
 ): Promise<{ request: TimelineMessage; later: TimelineMessage[] }> {
-  const { page } = await client.call<{ page: TimelinePage }>('channelTimeline', {
-    channelId: ref.channelId,
-    direction: 'around',
-    around: ref.messageId,
-    olderLimit: 0,
-    newerLimit: CONTEXT_AFTER,
-  });
+  const { page } = await readChannelTimeline(
+    client,
+    ref.channelId,
+    { direction: 'around', around: ref.messageId, olderLimit: 0, newerLimit: CONTEXT_AFTER },
+    wireTimelineMessage,
+  );
   const index = page.entries.findIndex((entry) => entry.id === ref.messageId);
   if (index < 0) throw new Error('The request is no longer in this conversation.');
   return {
@@ -118,14 +118,7 @@ async function readRequest(
 export async function loadApproval(client: HostClient, ref: RequestRef): Promise<ApprovalRequest> {
   const [{ request, later }, { status, expiresAt, execution }] = await Promise.all([
     readRequest(client, ref),
-    client.call<{
-      status: ToolApprovalStatus;
-      expiresAt?: string;
-      execution?: ApprovalExecution;
-    }>('toolApprovalStatus', {
-      channelId: ref.channelId,
-      messageId: ref.messageId,
-    }),
+    readToolApprovalStatus(client, ref.channelId, ref.messageId),
   ]);
   const card =
     request.contentPurge === undefined ? approvalContent(request.toolApprovalRequest) : undefined;
@@ -184,11 +177,7 @@ export async function decideApproval(
   entry: FeatureEntry = 'app',
 ): Promise<DecisionResult> {
   try {
-    await client.call('toolApprovalDecide', {
-      channelId: ref.channelId,
-      messageId: ref.messageId,
-      outcome,
-    });
+    await decideToolApproval(client, ref.channelId, ref.messageId, outcome);
     markHandled(ref);
     recordFeature('activity:approval_submit', { decision: APPROVAL_DECISIONS[outcome], entry });
     return 'accepted';
@@ -265,10 +254,7 @@ function questionStatus(status: UserQuestionStatus, resolved: boolean): RequestS
 export async function loadQuestion(client: HostClient, ref: RequestRef): Promise<QuestionRequest> {
   const [{ request, later }, { status }] = await Promise.all([
     readRequest(client, ref),
-    client.call<{ status: UserQuestionStatus }>('userQuestionStatus', {
-      channelId: ref.channelId,
-      messageId: ref.messageId,
-    }),
+    readUserQuestionStatus(client, ref.channelId, ref.messageId),
   ]);
   const card = request.userQuestionRequest;
   if (card === undefined) throw new Error('This message is not a Human question.');
@@ -292,11 +278,7 @@ export async function answerQuestion(
   entry: 'app' | 'chat' = 'app',
 ): Promise<DecisionResult> {
   try {
-    await client.call('userQuestionAnswer', {
-      channelId: ref.channelId,
-      messageId: ref.messageId,
-      answer,
-    });
+    await answerUserQuestion(client, ref.channelId, ref.messageId, answer);
     markHandled(ref);
     recordFeature('activity:question_submit', { entry });
     return 'accepted';

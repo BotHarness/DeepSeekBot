@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { fakeBotDetail } from '../../host-client/test/fake-host.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { ApprovalTemplateLibrarySettings } from '../src/client/approval-template-library.js';
 import {
@@ -12,31 +14,9 @@ import { zhTranslate as t } from '../src/client/locale.js';
 import { createStore } from '../src/client/store.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   ...(await import('./primitive-mocks.js')).dialogPrimitives(),
-  Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
-  Menu: ({
-    items,
-    onSelect,
-  }: {
-    items: { id: string; label: ReactNode }[];
-    onSelect(id: string): void;
-  }) =>
-    createElement(
-      'div',
-      { role: 'menu' },
-      items.map((item) =>
-        createElement(
-          'button',
-          {
-            key: item.id,
-            role: 'menuitem',
-            onClick: () => onSelect(item.id),
-          },
-          item.label,
-        ),
-      ),
-    ),
 }));
 vi.mock('../src/client/avatar.js', () => ({ PersonaBotAvatar: () => null }));
 vi.mock('../src/client/channel-sidebar-icon.js', () => ({ ChannelSidebarIcon: () => null }));
@@ -60,6 +40,7 @@ const templates = ['cautious', 'get-work-done'].map((name) => ({
   description: '',
   builtIn: true,
   usedBy: [],
+  text: '# ' + name,
 }));
 function trigger(): HTMLButtonElement {
   const found = host.querySelector<HTMLButtonElement>(
@@ -155,7 +136,7 @@ async function openDeletion(call: BridgeCall): Promise<void> {
   );
   if (!edit) throw new Error('Missing custom template');
   await act(async () => edit.click());
-  const remove = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+  const remove = [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].find(
     (button) => button.textContent === t('autoApproval.library.delete'),
   );
   if (!remove) throw new Error('Missing delete action');
@@ -297,7 +278,7 @@ it('uses read-only recovery after an unconfirmed deletion result', async () => {
   expect(writes).toBe(1);
   expect(confirmDeletion().disabled).toBe(true);
   expect(document.body.textContent).toContain(t('autoApproval.library.deleteUnconfirmed'));
-  const reload = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+  const reload = [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].find(
     (button) => button.textContent === t('autoApproval.reload'),
   );
   if (!reload) throw new Error('Missing read-only recovery');
@@ -438,14 +419,15 @@ it('reads canonical deletion after the confirmation dialog closes during the wri
 });
 
 async function clickText(label: string): Promise<void> {
-  const button = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+  const button = [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].find(
     (item) => item.textContent === label,
   );
   if (!button) throw new Error('Missing button: ' + label);
   await act(async () => button.click());
 }
 
-it('requires an explicit source before showing the blank three-part editor and does not apply on opening', async () => {
+it.each([400, 1280])('opens template creation without applying at %i px', async (width) => {
+  vi.stubGlobal('innerWidth', width);
   const calls: string[] = [];
   const call: BridgeCall = async (endpoint) => {
     calls.push(endpoint);
@@ -721,7 +703,7 @@ it('resaves the visible original text after save succeeds but applying fails', a
     if (endpoint === 'botApprovalTemplateSet') {
       if (++attempts === 1) throw new Error('apply failed');
       applied.push(template.text);
-      return { ok: true, value: { bot: { slug: 'qa' } } };
+      return { ok: true, value: { bot: fakeBotDetail('qa', 'QA') } };
     }
     throw new Error('Unexpected endpoint ' + endpoint);
   };
@@ -763,7 +745,14 @@ it('keeps a custom template named off separate from the Off option', async () =>
         value: {
           templates: [
             ...templates,
-            { name: 'off', title: 'Off template', description: '', builtIn: false, usedBy: [] },
+            {
+              name: 'off',
+              title: 'Off template',
+              description: '',
+              builtIn: false,
+              usedBy: [],
+              text: '# Off template',
+            },
           ],
           globalDefault: selected,
         },
@@ -889,7 +878,7 @@ it.each([
         if (selections === 1) throw new Error('Apply unavailable');
         if (saved === undefined) throw new Error('Missing persisted template');
         applied.push(saved.text);
-        return { ok: true, value: { bot: { slug: 'qa' } } };
+        return { ok: true, value: { bot: fakeBotDetail('qa', 'QA') } };
       }
       throw new Error('Unexpected endpoint ' + endpoint);
     };
@@ -995,7 +984,7 @@ it('retains an unreadable template deletion failure when the readable list omits
   expect(document.body.textContent).toContain(t('autoApproval.library.deleteUnconfirmed'));
   expect(confirmDeletion().disabled).toBe(true);
   expect(previews).toBe(2);
-  const reload = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
+  const reload = [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].find(
     (button) => button.textContent === t('autoApproval.reload'),
   );
   if (!reload) throw new Error('Missing recovery');

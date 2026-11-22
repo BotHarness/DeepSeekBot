@@ -93,7 +93,7 @@ it('identifies a real separate process without treating metadata as proof of liv
   `,
       root,
     ],
-    { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] },
+    { windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], shell: false },
   );
   const exited = once(child, 'exit');
   try {
@@ -269,7 +269,7 @@ it('bounds long cyclic cause chains without losing the refusal code', () => {
           module: 'fixture',
           description: 'cyclic causes',
           migrate() {
-            throw errors[0];
+            throw errors[0]!;
           },
         },
       ]),

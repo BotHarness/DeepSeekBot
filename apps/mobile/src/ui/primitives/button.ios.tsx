@@ -31,6 +31,8 @@ import { useStrings } from '../strings';
 import { useLiquidGlass } from './drawer-material';
 import type { Button as SharedButton, ButtonSymbol } from './button';
 
+import { Button as PressableButton } from './pressable-button';
+
 export type { ButtonTone } from '../design/controls';
 
 export const ACTION_SF_SYMBOL = {
@@ -54,12 +56,20 @@ function nativeStyle(
   props: Pick<ComponentProps<typeof SharedButton>, 'tone' | 'variant'>,
   glass: boolean,
 ) {
-  if (props.variant === 'text') return 'borderless';
+  if (props.variant !== 'filled') return 'borderless';
   if (props.tone === 'primary') return glass ? 'glassProminent' : 'borderedProminent';
   return glass ? 'glass' : 'bordered';
 }
 
-export function Button({
+export function Button(props: ComponentProps<typeof SharedButton>) {
+  return props.variant === 'card-solid' ? (
+    <PressableButton {...props} />
+  ) : (
+    <SwiftUIButton {...props} />
+  );
+}
+
+function SwiftUIButton({
   label,
   onPress,
   tone = 'secondary',

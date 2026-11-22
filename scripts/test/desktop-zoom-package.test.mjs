@@ -1,3 +1,4 @@
+import { Script } from 'node:vm';
 import { createHash } from 'node:crypto';
 import {
   cpSync,
@@ -78,7 +79,8 @@ describe('product-owned desktop theme payload', () => {
       );
       const target = join(temporary(), 'theme');
       const provenance = preparePackagedDesktopZoomTheme({ source, target });
-      expect(() => new Function(readFileSync(join(target, 'lib/client.js'), 'utf8'))).not.toThrow();
+      const client = readFileSync(join(target, 'lib/client.js'), 'utf8');
+      expect(() => new Script(`(function () {\n${client}\n})`)).not.toThrow();
       expect(provenance.sourceVersion).toBe(version);
       expect(provenance.clientBefore).toBe(ZOOM_THEME_BUILDS[version].client);
       expect(provenance.hostBefore).toBe(ZOOM_THEME_BUILDS[version].host);

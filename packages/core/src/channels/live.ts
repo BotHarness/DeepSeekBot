@@ -5,9 +5,50 @@ import type { PurgedPlacement } from '../purge/contracts.js';
 import { channelPreviewMessage, isChannelNotice } from './channel-notice.js';
 import type { ChannelDraft, ChannelDraftEvent } from './draft.js';
 import { referencedIds } from './quotes.js';
+import {
+  RESTRICTED_RESOURCES,
+  RESOURCE_CHANGED_EVENT,
+  sameResource,
+  type LiveResource,
+  type ScopedResource,
+  type UnscopedResource,
+  type ResourceChange,
+} from './resource-events.js';
 import type { ChannelMessage, ChannelReaction } from './channel.js';
 import type { ChannelMessageCommit, ChannelStore } from './store.js';
 import { MAX_MESSAGE_PAGE, type ChannelChangeCursor, type ChannelJournalPage } from './timeline.js';
+
+import { createLiveActivity, type ActivitySource } from './live-activity.js';
+import {
+  combineLiveResponses,
+  CONTENT_PURGED_EVENT,
+  encodeChannelFrame,
+  HUMAN_ATTENTION_CHANGED_EVENT,
+  parseRevision,
+  ROSTER_CHANGED_EVENT,
+  ROSTER_LATEST_EVENT,
+} from './live-sse.js';
+
+export { LiveUnavailable } from './live-activity.js';
+export {
+  CHANNEL_STREAM_PATH,
+  CHANNEL_COMMIT_EVENT,
+  CHANNEL_ADMISSION_EVENT,
+  CHANNEL_HUMAN_READ_EVENT,
+  CHANNEL_REACTION_EVENT,
+  CHANNEL_VOICE_EVENT,
+  CHANNEL_ATTACHMENTS_EVENT,
+  CHANNEL_SESSION_LINKS_EVENT,
+  CHANNEL_DRAFT_EVENT,
+  CHANNEL_DRAFT_APPEND_EVENT,
+  CHANNEL_DRAFT_BASELINE_EVENT,
+  CHANNEL_DRAFT_SETTLED_EVENT,
+  CHANNEL_DRAFT_ABANDONED_EVENT,
+  ROSTER_CHANGED_EVENT,
+  ROSTER_LATEST_EVENT,
+  HUMAN_ATTENTION_CHANGED_EVENT,
+  CONTENT_PURGED_EVENT,
+} from './live-sse.js';
 
 function withoutPreviews(message: ChannelMessage): ChannelMessage {
   return {
@@ -18,23 +59,6 @@ function withoutPreviews(message: ChannelMessage): ChannelMessage {
       : { quotes: message.quotes.map(({ messageId }) => ({ messageId, preview: null })) }),
   };
 }
-
-export const CHANNEL_STREAM_PATH = '/api/botharness/stream';
-export const CHANNEL_COMMIT_EVENT = 'channel/message';
-export const CHANNEL_ADMISSION_EVENT = 'channel/admission';
-export const CHANNEL_HUMAN_READ_EVENT = 'channel/human-read';
-export const CHANNEL_REACTION_EVENT = 'channel/reaction';
-export const CHANNEL_VOICE_EVENT = 'channel/voice';
-export const CHANNEL_ATTACHMENTS_EVENT = 'channel/attachments';
-export const CHANNEL_DRAFT_EVENT = 'channel/draft';
-export const CHANNEL_DRAFT_APPEND_EVENT = 'channel/draft-append';
-export const CHANNEL_DRAFT_BASELINE_EVENT = 'channel/draft-baseline';
-export const CHANNEL_DRAFT_SETTLED_EVENT = 'channel/draft-settled';
-export const CHANNEL_DRAFT_ABANDONED_EVENT = 'channel/draft-abandoned';
-export const ROSTER_CHANGED_EVENT = 'roster/changed';
-export const ROSTER_LATEST_EVENT = 'roster/latest';
-export const HUMAN_ATTENTION_CHANGED_EVENT = 'human-attention/changed';
-export const CONTENT_PURGED_EVENT = 'content/purged';
 
 export interface PublishedDraft extends ChannelDraft {
   revision: number;
@@ -69,6 +93,7 @@ interface Subscriber {
   pushReaction(messageId: string, reactions: ChannelReaction[]): void;
   pushVoice(messageId: string, message: ChannelMessage): void;
   pushAttachments(messageId: string, message: ChannelMessage): void;
+  pushSessionLinks(messageId: string, message: ChannelMessage): void;
   close(): void;
 }
 
@@ -77,6 +102,7 @@ export type RosterLiveFrame =
   | { type: 'skills'; change: SkillCatalogChange }
   | { type: 'changed' }
   | { type: 'attention' }
+  | { type: 'resource'; change: ResourceChange }
   | { type: 'latest'; channelId: string; message: ChannelMessage }
   | { type: 'purged'; placements: PurgedPlacement[] };
 
@@ -108,6 +134,12 @@ export type ChannelLiveNotification =
       attachments: NonNullable<ChannelMessage['attachments']>;
       clearedAttachments: NonNullable<ChannelMessage['clearedAttachments']>;
     }
+  | {
+      kind: 'session-links';
+      channelId: string;
+      messageId: string;
+      sessionLinks: NonNullable<ChannelMessage['sessionLinks']>;
+    }
   | { kind: 'draft-baseline'; channelId: string; revision: number; drafts: PublishedDraft[] }
   | { kind: 'draft'; draft: PublishedDraft }
   | { kind: 'draft-append'; append: PublishedDraftAppend }
@@ -138,53 +170,6 @@ export class ChannelLiveRefused extends Error {
 
 const CHANNEL_LIVE_QUEUE_LIMIT = 4096;
 
-function encodeChannelFrame(frame: ChannelLiveFrame): string {
-  if (frame.type === 'opened') return 'retry: 1500\n\n';
-  if (frame.type === 'entry')
-    return `id: ${frame.entry.revision}\nevent: ${CHANNEL_COMMIT_EVENT}\ndata: ${JSON.stringify(frame.entry)}\n\n`;
-  const notification = frame.notification;
-  if (notification.kind === 'admission') {
-    const { kind: _kind, ...data } = notification;
-    return `event: ${CHANNEL_ADMISSION_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
-  }
-  if (notification.kind === 'human-read') {
-    const { kind: _kind, ...data } = notification;
-    return `event: ${CHANNEL_HUMAN_READ_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
-  }
-  if (notification.kind === 'reaction') {
-    const { kind: _kind, ...data } = notification;
-    return `event: ${CHANNEL_REACTION_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
-  }
-  if (notification.kind === 'voice') {
-    const { kind: _kind, ...data } = notification;
-    return `event: ${CHANNEL_VOICE_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
-  }
-  if (notification.kind === 'attachments') {
-    const { kind: _kind, ...data } = notification;
-    return `event: ${CHANNEL_ATTACHMENTS_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
-  }
-  if (notification.kind === 'draft-baseline') {
-    const { kind: _kind, ...data } = notification;
-    return `event: ${CHANNEL_DRAFT_BASELINE_EVENT}\ndata: ${JSON.stringify(data)}\n\n`;
-  }
-  if (notification.kind === 'draft')
-    return `event: ${CHANNEL_DRAFT_EVENT}\ndata: ${JSON.stringify(notification.draft)}\n\n`;
-  if (notification.kind === 'draft-append')
-    return `event: ${CHANNEL_DRAFT_APPEND_EVENT}\ndata: ${JSON.stringify(notification.append)}\n\n`;
-  const name =
-    notification.kind === 'draft-settled'
-      ? CHANNEL_DRAFT_SETTLED_EVENT
-      : CHANNEL_DRAFT_ABANDONED_EVENT;
-  return `event: ${name}\ndata: ${JSON.stringify(notification.event)}\n\n`;
-}
-
-export class LiveUnavailable extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = 'LiveUnavailable';
-  }
-}
-
 const ROSTER_LIVE_QUEUE_LIMIT = 1024;
 
 export interface ChannelLiveHub {
@@ -204,76 +189,19 @@ export interface ChannelLiveHub {
   publishReaction(channelId: string, messageId: string, reactions: ChannelReaction[]): void;
   publishVoice(channelId: string, messageId: string, message: ChannelMessage): void;
   publishAttachments(channelId: string, messageId: string, message: ChannelMessage): void;
+  publishSessionLinks(channelId: string, messageId: string, message: ChannelMessage): void;
   publishDraft(event: ChannelDraftEvent): void;
   publishRosterCommitted(): void;
   publishSkillCatalogChanged(change: SkillCatalogChange): void;
+  publishResourceChanged(resource: UnscopedResource): void;
+  publishScopedResourceChanged(
+    change: ScopedResource,
+    visible: (human: HumanContext) => boolean,
+  ): void;
   refreshAccess(): void;
   publishContentPurged(): void;
   publishHumanIdentityChanged(): void;
   close(): void;
-}
-
-function parseRevision(value: string | null): number | undefined {
-  if (value === null || !/^(0|[1-9][0-9]*)$/.test(value)) return undefined;
-  const revision = Number(value);
-  return Number.isSafeInteger(revision) ? revision : undefined;
-}
-
-interface ActivitySource {
-  snapshot(human: HumanContext): PersonaBotActivitySnapshot;
-  onChange(listener: (change?: unknown) => void): () => void;
-}
-
-function combineLiveResponses(channel: Response, roster: Response): Response {
-  const readers = [channel.body!, roster.body!].map((body) => body.getReader());
-  let ended = false;
-  let completed = 0;
-  const waiters = new Set<() => void>();
-  const resume = (): void => {
-    for (const resolve of waiters) resolve();
-    waiters.clear();
-  };
-  const stop = async (): Promise<void> => {
-    ended = true;
-    resume();
-    await Promise.allSettled(readers.map((reader) => reader.cancel()));
-  };
-  const body = new ReadableStream<Uint8Array>({
-    start(controller) {
-      const pump = async (reader: ReadableStreamDefaultReader<Uint8Array>): Promise<void> => {
-        try {
-          while (!ended) {
-            if ((controller.desiredSize ?? 0) <= 0)
-              await new Promise<void>((resolve) => waiters.add(resolve));
-            if (ended) return;
-            const chunk = await reader.read();
-            if (ended) return;
-            if (chunk.done) {
-              completed++;
-              if (reader === readers[0] || completed === readers.length) {
-                controller.close();
-                await stop();
-              }
-              return;
-            }
-            controller.enqueue(chunk.value);
-          }
-        } catch (error) {
-          if (ended) return;
-          controller.error(error);
-          await stop();
-        }
-      };
-      for (const reader of readers) void pump(reader);
-    },
-    pull() {
-      resume();
-    },
-    cancel() {
-      return stop();
-    },
-  });
-  return new Response(body, { headers: channel.headers });
 }
 
 export function createChannelLiveHub(
@@ -281,7 +209,7 @@ export function createChannelLiveHub(
   activity?: ActivitySource,
   redactions?: () => PurgedPlacement[],
   watchAttention?: (changed: () => void) => () => void,
-  isOwner: (human: HumanContext) => boolean = (human) =>
+  isOwner: (human: HumanContext, resource?: LiveResource) => boolean = (human) =>
     human.humanId === OWNER_HUMAN_CONTEXT.humanId,
   ownsBot?: (human: HumanContext, slug: string) => boolean,
   canRead?: (human: HumanContext, channelId: string) => boolean,
@@ -318,102 +246,24 @@ export function createChannelLiveHub(
   const subscribers = new Map<string, Set<Subscriber>>();
   const drafts = new Map<string, Map<string, PublishedDraft>>();
   const draftRevisions = new Map<string, number>();
-  const activitySubscribers = new Set<{ close(): void }>();
-  let activityFrame:
-    | { humanId: string; change: unknown; snapshot: PersonaBotActivitySnapshot; data: string }
-    | undefined;
-  const currentActivity = (human: HumanContext, source: ActivitySource, change?: unknown) => {
-    if (
-      change === undefined ||
-      activityFrame?.change !== change ||
-      activityFrame?.humanId !== human.humanId
-    ) {
-      const snapshot = source.snapshot(human);
-      activityFrame = { humanId: human.humanId, change, snapshot, data: JSON.stringify(snapshot) };
-    }
-    return activityFrame;
-  };
-  const openActivity = (human: HumanContext): Response => {
-    if (activity === undefined) return new Response('Activity unavailable', { status: 503 });
-    const encoder = new TextEncoder();
-    let cancel: (() => void) | undefined;
-    let flush: (() => void) | undefined;
-    const body = new ReadableStream<Uint8Array>({
-      start(controller) {
-        let ended = false;
-        let pending = false;
-        let sent: string | undefined;
-        let unsubscribe: (() => void) | undefined;
-        let heartbeat: ReturnType<typeof setInterval> | undefined;
-        const subscriber = {
-          close() {
-            if (ended) return;
-            ended = true;
-            unsubscribe?.();
-            if (heartbeat !== undefined) clearInterval(heartbeat);
-            activitySubscribers.delete(subscriber);
-            try {
-              controller.close();
-            } catch {}
-          },
-        };
-        const send = (change?: unknown): void => {
-          if (ended) return;
-          if ((controller.desiredSize ?? 0) <= 0) {
-            pending = true;
-            return;
-          }
-          pending = false;
-          const { data } = currentActivity(human, activity, change);
-          if (data === sent) return;
-          sent = data;
-          try {
-            controller.enqueue(encoder.encode(`event: activity/snapshot\ndata: ${data}\n\n`));
-          } catch {
-            subscriber.close();
-          }
-        };
-        flush = () => {
-          if (pending) send();
-        };
-        activitySubscribers.add(subscriber);
-        cancel = () => subscriber.close();
-        unsubscribe = activity.onChange(send);
-        send();
-        heartbeat = setInterval(() => {
-          if (ended || (controller.desiredSize ?? 0) <= 0) return;
-          try {
-            controller.enqueue(encoder.encode(': heartbeat\n\n'));
-          } catch {
-            subscriber.close();
-          }
-        }, 15_000);
-      },
-      pull() {
-        flush?.();
-      },
-      cancel() {
-        cancel?.();
-      },
-    });
-    return new Response(body, {
-      headers: {
-        'Content-Type': 'text/event-stream; charset=utf-8',
-        'Cache-Control': 'no-cache, no-transform',
-        'X-Accel-Buffering': 'no',
-      },
-    });
-  };
+  const { activitySubscribers, currentActivity, openActivity, followActivity } = createLiveActivity(
+    activity,
+    project,
+  );
   interface RosterSubscriber {
     human: HumanContext;
     skills(change: SkillCatalogChange): void;
     attention(): void;
+    resource(change: ResourceChange): void;
     push(): void;
     latest(channelId: string, message: ChannelMessage): void;
     purge(placements: PurgedPlacement[]): void;
     close(): void;
   }
   const rosterSubscribers = new Set<RosterSubscriber>();
+  let resourceRevision = 0;
+  const resourceVisibility = new WeakMap<ResourceChange, (human: HumanContext) => boolean>();
+  const scopedRevisions = new WeakMap<RosterSubscriber, number>();
   const offAttention = watchAttention?.(() => {
     for (const subscriber of rosterSubscribers) subscriber.attention();
   });
@@ -484,6 +334,19 @@ export function createChannelLiveHub(
             try {
               controller.enqueue(
                 encoder.encode(`event: ${HUMAN_ATTENTION_CHANGED_EVENT}\ndata: {}\n\n`),
+              );
+            } catch {
+              this.close();
+            }
+          },
+          resource(change) {
+            if (ended) return;
+            if ((controller.desiredSize ?? 0) <= -64) return this.close();
+            try {
+              controller.enqueue(
+                encoder.encode(
+                  `event: ${RESOURCE_CHANGED_EVENT}\ndata: ${JSON.stringify(change)}\n\n`,
+                ),
               );
             } catch {
               this.close();
@@ -571,6 +434,16 @@ export function createChannelLiveHub(
         if (!queue.some((frame) => frame.type === 'attention')) queue.push({ type: 'attention' });
         wake?.();
       },
+      resource(change) {
+        if (ended) return;
+        const stale = queue.findIndex(
+          (frame) => frame.type === 'resource' && sameResource(frame.change, change),
+        );
+        if (stale !== -1) queue.splice(stale, 1);
+        queue.push({ type: 'resource', change });
+        if (queue.length > ROSTER_LIVE_QUEUE_LIMIT) this.close();
+        wake?.();
+      },
       purge(placements) {
         if (ended) return;
         queue.push({ type: 'purged', placements });
@@ -628,6 +501,8 @@ export function createChannelLiveHub(
                   botSlugs: frame.change.botSlugs.filter((slug) => members.has(slug)),
                 },
               };
+          } else if (frame.type === 'resource') {
+            if (resourceVisibility.get(frame.change)?.(human) !== false) yield frame;
           } else if (frame.type === 'latest') {
             if (visibleChannel(human, frame.channelId)) yield project(human, frame);
           } else if (frame.type === 'purged') {
@@ -643,58 +518,6 @@ export function createChannelLiveHub(
       }
     } finally {
       signal.removeEventListener('abort', abort);
-      subscriber.close();
-    }
-  }
-  async function* followActivity(
-    human: HumanContext,
-    signal: AbortSignal,
-  ): AsyncGenerator<ActivityLiveFrame> {
-    if (activity === undefined) throw new LiveUnavailable('Activity unavailable');
-    let ended = signal.aborted;
-    let pending = false;
-    let lastChange: unknown;
-    let wake: (() => void) | undefined;
-    const subscriber = {
-      close(): void {
-        if (ended) return;
-        ended = true;
-        activitySubscribers.delete(subscriber);
-        wake?.();
-      },
-    };
-    const abort = (): void => subscriber.close();
-    signal.addEventListener('abort', abort, { once: true });
-    const unsubscribe = ended
-      ? undefined
-      : activity.onChange((change) => {
-          lastChange = change;
-          pending = true;
-          wake?.();
-        });
-    if (!ended) activitySubscribers.add(subscriber);
-    try {
-      if (ended) return;
-      let sent = currentActivity(human, activity);
-      yield project(human, { type: 'baseline', snapshot: sent.snapshot });
-      for (;;) {
-        if (ended) return;
-        if (pending) {
-          pending = false;
-          const next = currentActivity(human, activity, lastChange);
-          if (next.data === sent.data) continue;
-          sent = next;
-          yield project(human, { type: 'changed', snapshot: next.snapshot });
-          continue;
-        }
-        await new Promise<void>((resolve) => {
-          wake = resolve;
-        });
-        wake = undefined;
-      }
-    } finally {
-      signal.removeEventListener('abort', abort);
-      unsubscribe?.();
       subscriber.close();
     }
   }
@@ -786,6 +609,17 @@ export function createChannelLiveHub(
             messageId,
             attachments: message.attachments ?? [],
             clearedAttachments: message.clearedAttachments ?? [],
+          },
+        });
+      },
+      pushSessionLinks(messageId, message) {
+        emit({
+          type: 'notification',
+          notification: {
+            kind: 'session-links',
+            channelId,
+            messageId,
+            sessionLinks: message.sessionLinks ?? [],
           },
         });
       },
@@ -1050,6 +884,10 @@ export function createChannelLiveHub(
       for (const subscriber of subscribers.get(channelId) ?? [])
         subscriber.pushAttachments(messageId, message);
     },
+    publishSessionLinks(channelId, messageId, message) {
+      for (const subscriber of subscribers.get(channelId) ?? [])
+        subscriber.pushSessionLinks(messageId, message);
+    },
     publishDraft(event) {
       const channelId = event.type === 'update' ? event.draft.channelId : event.channelId;
       if (channels.get(channelId) === undefined) return;
@@ -1112,6 +950,22 @@ export function createChannelLiveHub(
     },
     publishRosterCommitted() {
       for (const subscriber of rosterSubscribers) subscriber.push();
+    },
+    publishResourceChanged(resource) {
+      const change = { resource, revision: ++resourceRevision };
+      for (const subscriber of rosterSubscribers)
+        if (!RESTRICTED_RESOURCES.has(resource) || isOwner(subscriber.human, resource))
+          subscriber.resource(change);
+    },
+    publishScopedResourceChanged(change, visible) {
+      for (const subscriber of rosterSubscribers) {
+        if (!visible(subscriber.human)) continue;
+        const revision = (scopedRevisions.get(subscriber) ?? 0) + 1;
+        scopedRevisions.set(subscriber, revision);
+        const frame = { ...change, revision };
+        resourceVisibility.set(frame, visible);
+        subscriber.resource(frame);
+      }
     },
     publishHumanIdentityChanged() {
       for (const group of subscribers.values())

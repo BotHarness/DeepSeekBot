@@ -1,23 +1,24 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type DockviewApi } from 'dockview-react';
+import { type ChannelFilesView } from '../src/client/channel-dock.js';
+import { type DockPanelChannel } from '../src/client/dock-panels.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
-  IconChevronDownOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  Menu: ({ anchor }: { anchor: ReactNode }) => createElement('div', null, anchor),
 }));
 
-import type { DockviewApi } from 'dockview-react';
 import type { ShortcutCommand } from '@deepseek-ai/dsh-client-shortcuts/client';
 import { effectiveShortcuts } from '@deepseek-ai/dsh-client-shortcuts/protocol';
 import { ChannelDock } from '../src/client/channel-dock.js';
-import type { ChannelFilesView } from '../src/client/channel-dock.js';
+
 import { CHANNEL_BODY_PANEL, CHANNEL_DOCK_STORAGE_KEY } from '../src/client/channel-dock-layout.js';
 import type { ChannelSidebarEntryProps } from '../src/client/channel-sidebar.js';
-import { createDockPanelRegistry, type DockPanelChannel } from '../src/client/dock-panels.js';
+import { createDockPanelRegistry } from '../src/client/dock-panels.js';
 import { LAYOUT_MODE_STORAGE_KEY, readLayoutMode } from '../src/client/layout-mode.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { PinnedPanelCards } from '../src/client/pinned-panel-cards.js';

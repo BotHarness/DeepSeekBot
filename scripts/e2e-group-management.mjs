@@ -400,13 +400,13 @@ try {
   await (
     await page.$('[data-sidebar-entry="group-management"] input[type="file"]')
   ).uploadFile(avatarPath);
-  await page.waitForSelector('.bh-group-avatar-crop-viewport img');
+  await page.waitForSelector('[data-group-avatar-crop-viewport] img');
   await page.$eval('#bh-group-avatar-zoom', (input) => {
     const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set;
     setter?.call(input, '1.5');
     input.dispatchEvent(new Event('input', { bubbles: true }));
   });
-  const crop = await page.$('.bh-group-avatar-crop-viewport');
+  const crop = await page.$('[data-group-avatar-crop-viewport]');
   const cropRect = await crop.boundingBox();
   await page.mouse.move(cropRect.x + 140, cropRect.y + 140);
   await page.mouse.down();

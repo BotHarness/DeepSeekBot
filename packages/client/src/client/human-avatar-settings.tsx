@@ -4,14 +4,15 @@ import type { BotHarnessTranslate } from './locale.js';
 import type { BridgeActions } from './actions.js';
 import type { LocalHumanIdentity } from './bridge.js';
 import { Button } from './ds/button.js';
+import { HiddenFileInput } from './ds/input.js';
 import { Note } from './ds/note.js';
 import { SettingsRow } from './ds/settings-row.js';
-import { color, radius, size, space, text } from './ds/tokens.stylex.js';
+import { ink, radius, size, space, state, style } from './ds/tobs.stylex.js';
 import { GroupAvatarCropModal } from './group-avatar-crop.js';
 import { useMountedResource } from './mounted-resource.js';
 
 const styles = stylex.create({
-  controls: { display: 'flex', alignItems: 'center', gap: space.x3 },
+  controls: { display: 'flex', alignItems: 'center', gap: space.x3, flexWrap: 'wrap' },
   avatar: {
     display: 'grid',
     placeItems: 'center',
@@ -19,11 +20,11 @@ const styles = stylex.create({
     width: size.row,
     height: size.row,
     overflow: 'hidden',
-    borderRadius: radius.round,
-    backgroundColor: color.hover,
-    color: color.muted,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
+    borderRadius: radius.full,
+    backgroundColor: state.hover,
+    color: ink.secondary,
+    fontSize: style.textUiSize,
+    lineHeight: style.textUiLine,
   },
   image: { width: '100%', height: '100%', objectFit: 'cover' },
 });
@@ -115,13 +116,10 @@ export function HumanAvatarSettings({ actions, t }: HumanAvatarSettingsProps): R
           >
             {t('humanAvatar.choose')}
           </Button>
-          <input
+          <HiddenFileInput
             ref={fileInput}
-            type="file"
             accept="image/png,image/jpeg,image/webp"
-            tabIndex={-1}
             aria-hidden="true"
-            hidden
             onChange={(event) => {
               const file = event.currentTarget.files?.[0];
               if (file) setCropFile(file);

@@ -10,7 +10,11 @@ export async function boundedBridgeMediaRequest<T>(
       const abort = () => {
         const index = waiting.indexOf(ready);
         if (index >= 0) waiting.splice(index, 1);
-        reject(signal.reason);
+        reject(
+          signal.reason instanceof Error
+            ? signal.reason
+            : new Error('Bridge media request cancelled', { cause: signal.reason }),
+        );
       };
       const ready = () => {
         signal.removeEventListener('abort', abort);

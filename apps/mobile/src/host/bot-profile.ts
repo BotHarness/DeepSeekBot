@@ -1,4 +1,11 @@
+import { readWorkspaceGrants } from '@botharness/host-client/access-readers';
+import { openBotDm } from '@botharness/host-client/channel-management';
 import { loadProfileActivity } from './bot-activity';
+import { loadSchedules } from '@botharness/host-client/schedules';
+import {
+  loadMemoryFile as loadHostMemoryFile,
+  loadMemorySnapshot,
+} from '@botharness/host-client/memory';
 import {
   MethodRefused,
   type HostClient,
@@ -153,7 +160,11 @@ export function pinnedMemory(snapshot: Pick<MemorySnapshot, 'files' | 'standing'
 }
 
 export function profileMemory(snapshot: MemorySnapshot): ProfileMemory {
-  return { status: 'attached', files: snapshot.files, pinned: pinnedMemory(snapshot) };
+  return {
+    status: 'attached',
+    files: snapshot.files,
+    pinned: pinnedMemory(snapshot),
+  };
 }
 
 export function memoryUnavailable(error: unknown): boolean {
@@ -172,20 +183,14 @@ function settle<T>(work: Promise<T>): Promise<ProfilePart<T>> {
 
 export function dmChannel(client: HostClient, bot: ProfileBotRef): Promise<string> {
   if (bot.dmChannelId !== undefined) return Promise.resolve(bot.dmChannelId);
-  return client
-    .call<{ channel: { id: string } }>('channelDm', {
-      slug: bot.slug,
-      ...(bot.displayName === undefined ? {} : { displayName: bot.displayName }),
-    })
-    .then((result) => result.channel.id);
+  return openBotDm(client, {
+    slug: bot.slug,
+    ...(bot.displayName === undefined ? {} : { displayName: bot.displayName }),
+  }).then((channel) => channel.id);
 }
 
-async function snapshotOf(client: HostClient, channelId: string): Promise<MemorySnapshot> {
-  return (
-    await client.call<{ snapshot: MemorySnapshot }>('memorySnapshot', {
-      channelId,
-    })
-  ).snapshot;
+function snapshotOf(client: HostClient, channelId: string): Promise<MemorySnapshot> {
+  return loadMemorySnapshot(client, channelId);
 }
 
 export async function loadMemoryFiles(client: HostClient, bot: ProfileBotRef): Promise<string[]> {
@@ -197,8 +202,7 @@ export async function loadMemoryFile(
   bot: ProfileBotRef,
   path: string,
 ): Promise<MemoryFile | undefined> {
-  const channelId = await dmChannel(client, bot);
-  return (await client.call<{ file?: MemoryFile }>('memoryFile', { channelId, path })).file;
+  return loadHostMemoryFile(client, await dmChannel(client, bot), path);
 }
 
 export async function loadBotActivity(
@@ -271,19 +275,11 @@ export async function loadBotProfile(client: HostClient, bot: ProfileBotRef): Pr
         },
       ),
     ),
+    settle<BotScheduleSummary[]>(loadSchedules(client, bot.slug)),
     settle(
-      client
-        .call<{
-          schedules: BotScheduleSummary[];
-        }>('scheduleList', { slug: bot.slug })
-        .then((result) => result.schedules),
-    ),
-    settle(
-      client
-        .call<{
-          grants: WorkspaceGrantSummary[];
-        }>('grants', { slug: bot.slug })
-        .then((result) => result.grants.filter((grant) => grant.revokedAt === undefined)),
+      readWorkspaceGrants(client, { slug: bot.slug }).then((result) =>
+        result.grants.filter((grant) => grant.revokedAt === undefined),
+      ),
     ),
     settle(channel.then((channelId) => loadProfileActivity(client, channelId, { weeks: 1 }))),
   ]);

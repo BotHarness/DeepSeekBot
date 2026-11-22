@@ -1,35 +1,15 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  const { createElement: element } = await import('react');
+
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    Checkbox: (props: {
-      checked: boolean;
-      disabled?: boolean;
-      label: string;
-      onChange(next: boolean): void;
-    }) =>
-      element(
-        'label',
-        null,
-        element('input', {
-          type: 'checkbox',
-          checked: props.checked,
-          disabled: props.disabled,
-          onChange: (event: { target: HTMLInputElement }) => props.onChange(event.target.checked),
-        }),
-        props.label,
-      ),
-    IconCloseOutlineRegular: () => element('span'),
-    IconChevronDownOutlineRegular: () => element('span'),
-    IconChevronRightOutlineRegular: () => element('span'),
-    SegmentedControl: () => element('span'),
-    Tag: (props: { children?: ReactNode }) => element('span', null, props.children),
   };
 });
 
@@ -43,7 +23,7 @@ import {
   formatBotZipSize,
   ImportBotZipModal,
 } from '../src/client/bot-zip.js';
-import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
+import { en, zhTranslate } from '../src/client/locale.js';
 import type { BotSummary } from '../src/client/store.js';
 import { buttonNamed } from './primitive-mocks.js';
 
@@ -59,6 +39,7 @@ const mounted: Array<() => Promise<void>> = [];
 
 afterEach(async () => {
   for (const unmount of mounted.splice(0)) await unmount();
+  vi.unstubAllGlobals();
 });
 
 async function mount(element: ReturnType<typeof createElement>): Promise<HTMLDivElement> {
@@ -75,20 +56,31 @@ async function mount(element: ReturnType<typeof createElement>): Promise<HTMLDiv
 }
 
 function button(host: HTMLElement, text: string): HTMLButtonElement {
-  return buttonNamed(text, host);
+  return buttonNamed(text, document.body);
 }
 
 async function chooseFile(host: HTMLElement, file: File): Promise<void> {
-  const input = host.querySelector<HTMLInputElement>('input[type="file"]')!;
+  const input = document.body.querySelector<HTMLInputElement>('input[type="file"]')!;
   expect(input.accept).toBe('.zip,application/zip');
   Object.defineProperty(input, 'files', { configurable: true, value: [file] });
   await act(async () => input.dispatchEvent(new Event('change', { bubbles: true })));
+}
+
+function zipPreview(standing: { path: string; role: string; chars: number; limit: number }[] = []) {
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async () => Response.json({ standing })),
+  );
 }
 
 const BOT = { slug: 'ada', displayName: 'Ada' } as BotSummary;
 
 describe('Import from zip', () => {
   it('shows the third-party notice and imports the chosen zip into the section', async () => {
+    zipPreview([
+      { path: 'SOUL.md', role: 'soul', chars: 5_003, limit: 5_000 },
+      { path: 'MEMORY.md', role: 'coreMemory', chars: 3_001, limit: 4_000 },
+    ]);
     const importBotZip = vi.fn(async () => BOT);
     const onImported = vi.fn();
     const host = await mount(
@@ -102,14 +94,16 @@ describe('Import from zip', () => {
       }),
     );
 
-    expect(host.textContent).toContain('在「工作流」中从 zip 导入 Bot');
-    expect(host.textContent).toContain('这是第三方内容');
-    expect(host.textContent).toContain('还没有选择文件');
+    expect(document.body.textContent).toContain('在「工作流」中从 zip 导入 Bot');
+    expect(document.body.textContent).toContain('这是第三方内容');
+    expect(document.body.textContent).toContain('还没有选择文件');
     expect(button(host, '导入').disabled).toBe(true);
 
     const file = new File([new Uint8Array([0x50, 0x4b])], 'Ada.zip', { type: 'application/zip' });
     await chooseFile(host, file);
-    expect(host.textContent).toContain('Ada.zip');
+    expect(document.body.textContent).toContain('Ada.zip');
+    expect(document.body.textContent).toContain('3 字符不会进入提示词');
+    expect(document.body.textContent).toContain('可再用 999 字符');
     await act(async () => button(host, '导入').click());
 
     expect(importBotZip).toHaveBeenCalledWith(file, 'section-work');
@@ -117,6 +111,7 @@ describe('Import from zip', () => {
   });
 
   it('keeps the dialog open with a clear reason when the Host refuses the zip', async () => {
+    zipPreview();
     const importBotZip = vi.fn(async () => {
       throw new BridgeCallError('unsafe-path', 'Unsafe entry path: ../evil.md');
     });
@@ -131,8 +126,8 @@ describe('Import from zip', () => {
     await chooseFile(host, new File(['x'], 'evil.zip'));
     await act(async () => button(host, 'Import').click());
 
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain('unsafe paths');
-    expect(host.textContent).not.toContain('../evil.md');
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('unsafe paths');
+    expect(document.body.textContent).not.toContain('../evil.md');
   });
 
   it('maps every Bot Zip refusal to copy that names the problem', () => {
@@ -155,7 +150,7 @@ const LISTING = {
 };
 
 function checkbox(host: HTMLElement, name: string): HTMLInputElement {
-  const tree = host.querySelector('[role="tree"]');
+  const tree = document.body.querySelector('[role="tree"]');
   const label = [...(tree?.querySelectorAll('label') ?? [])].find(
     (item) => item.textContent === name,
   );
@@ -165,7 +160,7 @@ function checkbox(host: HTMLElement, name: string): HTMLInputElement {
 }
 
 async function toggle(host: HTMLElement, label: string): Promise<void> {
-  const found = host.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  const found = document.body.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
   if (found === null) throw new Error(`No toggle ${label}`);
   await act(async () => found.click());
 }
@@ -205,16 +200,16 @@ describe('Export zip', () => {
     const { host, botZipFiles, exportBotZip } = await openExport();
 
     expect(botZipFiles).toHaveBeenCalledWith('ada');
-    expect(host.querySelector('[role="dialog"]')?.textContent).toContain('导出 Ada');
-    expect(host.textContent).toContain('分享前请先检查');
-    expect(host.textContent).toContain('API Key');
-    expect(host.textContent).toContain('已选 6 / 6 个文件');
-    expect(host.textContent).not.toContain('diary.md');
+    expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain('导出 Ada');
+    expect(document.body.textContent).toContain('分享前请先检查');
+    expect(document.body.textContent).toContain('API Key');
+    expect(document.body.textContent).toContain('已选 6 / 6 个文件');
+    expect(document.body.textContent).not.toContain('diary.md');
     expect(exportBotZip).not.toHaveBeenCalled();
 
     await act(async () => button(host, '导出').click());
     expect(exportBotZip).toHaveBeenCalledWith('ada', 'Ada', {});
-    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   });
 
   it('keeps bot.json and the avatar ticked and locked', async () => {
@@ -225,7 +220,7 @@ describe('Export zip', () => {
     expect(checkbox(host, 'bot.json').disabled).toBe(true);
     expect(checkbox(host, 'avatar.png').disabled).toBe(true);
     expect(checkbox(host, '.botharness/').disabled).toBe(true);
-    expect(host.textContent).toContain('始终包含');
+    expect(document.body.textContent).toContain('始终包含');
   });
 
   it('exports only the ticked files, and a selection survives collapsing', async () => {
@@ -242,7 +237,7 @@ describe('Export zip', () => {
     expect(checkbox(host, 'recipes.md').checked).toBe(true);
 
     await act(async () => checkbox(host, 'SOUL.md').click());
-    expect(host.textContent).toContain('已选 4 / 6 个文件');
+    expect(document.body.textContent).toContain('已选 4 / 6 个文件');
 
     await act(async () => button(host, '导出').click());
     expect(exportBotZip).toHaveBeenCalledWith('ada', 'Ada', {
@@ -254,7 +249,7 @@ describe('Export zip', () => {
     const { host, exportBotZip } = await openExport();
 
     await act(async () => button(host, '全不选').click());
-    expect(host.textContent).toContain('已选 2 / 6 个文件');
+    expect(document.body.textContent).toContain('已选 2 / 6 个文件');
     expect(button(host, '导出').disabled).toBe(true);
 
     await act(async () => checkbox(host, 'notes/').click());
@@ -262,7 +257,7 @@ describe('Export zip', () => {
     expect(button(host, '导出').disabled).toBe(false);
 
     await act(async () => button(host, '全选').click());
-    expect(host.textContent).toContain('已选 6 / 6 个文件');
+    expect(document.body.textContent).toContain('已选 6 / 6 个文件');
     await act(async () => button(host, '导出').click());
     expect(exportBotZip).toHaveBeenCalledWith('ada', 'Ada', {});
   });
@@ -270,11 +265,11 @@ describe('Export zip', () => {
   it('offers Git history only when every file is ticked', async () => {
     const { host, exportBotZip } = await openExport();
     const history = (): HTMLInputElement =>
-      [...host.querySelectorAll('label')]
+      [...document.body.querySelectorAll('label')]
         .find((label) => label.textContent === '包含 Git 历史')!
         .querySelector('input')!;
 
-    expect(host.textContent).toContain('包含 Git 历史');
+    expect(document.body.textContent).toContain('包含 Git 历史');
     expect(history().checked).toBe(false);
     expect(history().disabled).toBe(false);
 
@@ -284,7 +279,7 @@ describe('Export zip', () => {
     await act(async () => checkbox(host, 'SOUL.md').click());
     expect(history().disabled).toBe(true);
     expect(history().checked).toBe(false);
-    expect(host.textContent).toContain('取消勾选了文件时不能包含 Git 历史');
+    expect(document.body.textContent).toContain('取消勾选了文件时不能包含 Git 历史');
 
     await act(async () => checkbox(host, 'SOUL.md').click());
     expect(history().disabled).toBe(false);
@@ -294,10 +289,10 @@ describe('Export zip', () => {
 
   it('shows the English tree copy', async () => {
     const { host } = await openExport(enTranslate);
-    expect(host.textContent).toContain('Files to export');
-    expect(host.textContent).toContain('6 of 6 files selected');
+    expect(document.body.textContent).toContain('Files to export');
+    expect(document.body.textContent).toContain('6 of 6 files selected');
     await toggle(host, 'Expand .botharness');
-    expect(host.textContent).toContain('Always included');
+    expect(document.body.textContent).toContain('Always included');
   });
 
   it('says when the file list cannot be read', async () => {
@@ -312,7 +307,9 @@ describe('Export zip', () => {
       }),
     );
     await act(async () => button(host, '分享').click());
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain('读取文件列表失败');
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain(
+      '读取文件列表失败',
+    );
     expect(button(host, '导出').disabled).toBe(true);
   });
 });
@@ -330,15 +327,16 @@ describe('Share from the App Sidebar', () => {
       }),
     );
     expect(botZipFiles).toHaveBeenCalledWith('ada');
-    expect(host.querySelector('[role="dialog"]')?.textContent).toContain('导出 Ada');
+    expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain('导出 Ada');
     await act(async () => button(host, '取消').click());
     expect(onClose).toHaveBeenCalledTimes(1);
-    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   });
 });
 
 describe('Bot Zip dialogs', () => {
   it('imports the chosen zip on Enter and cancels without importing', async () => {
+    zipPreview();
     const importBotZip = vi.fn(async () => BOT);
     const onCancel = vi.fn();
     const host = await mount(
@@ -349,7 +347,7 @@ describe('Bot Zip dialogs', () => {
         onImported: vi.fn(),
       }),
     );
-    const form = host.querySelector('form')!;
+    const form = document.body.querySelector('form')!;
     await act(async () => form.requestSubmit());
     expect(importBotZip).not.toHaveBeenCalled();
     await chooseFile(host, new File(['x'], 'Ada.zip'));
@@ -374,8 +372,8 @@ describe('Bot Zip dialogs', () => {
     );
     await act(async () => button(host, '分享').click());
     await act(async () => button(host, '导出').click());
-    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain('导出失败');
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain('100 MB');
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('导出失败');
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('100 MB');
   });
 });

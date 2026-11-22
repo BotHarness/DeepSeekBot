@@ -1,20 +1,17 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type OnboardingSnapshot } from '../../core/src/onboarding/types.js';
+import { type TutorialAction } from '../../core/src/onboarding/types.js';
+import { type ModelCatalogEntryView } from '../src/client/bridge.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 const tour = vi.hoisted(() =>
   vi.fn((..._args: unknown[]) => () => {}),
 );
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({
-    variant: _variant,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) =>
-    createElement('button', props),
-  Checkbox: () => null,
-  Tag: ({ children, ...props }: Record<string, unknown> & { children?: unknown }) =>
-    createElement('span', props, children as never),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 vi.mock('../src/client/model-picker.js', () => ({ ModelPicker: () => null }));
 vi.mock('../src/client/onboarding-memory.js', () => ({ OnboardingMemory: () => null }));
@@ -23,13 +20,13 @@ vi.mock('../src/client/modal.js', () => ({ Modal: () => null }));
 vi.mock('../src/client/bot-settings-open.js', () => ({ openModelsSettings: vi.fn() }));
 vi.mock('../src/client/internal-tour.js', () => ({ startInternalTour: tour }));
 
-import type { OnboardingSnapshot, TutorialAction } from '../../core/src/onboarding/types.js';
 import type { BridgeActions } from '../src/client/actions.js';
-import type { ModelCatalogEntryView } from '../src/client/bridge.js';
+
 import { zhTranslate } from '../src/client/locale.js';
 import { onboardingFor } from '../src/client/onboarding.js';
 import { OnboardingOverlay } from '../src/client/onboarding-view.js';
 import { store } from '../src/client/store.js';
+import { resourceEvents } from './resource-events-fixture.js';
 import { channelSidebarPrefs } from '../src/client/channel-sidebar-prefs.js';
 
 let container: HTMLDivElement;
@@ -378,3 +375,34 @@ it.each([
     expect(tour).toHaveBeenCalledTimes(tours);
   },
 );
+
+it('refreshes the onboarding receipt on a Host event and reconnect', async () => {
+  vi.useFakeTimers();
+  const events = resourceEvents();
+  const { actions, render, controller } = harness('paused');
+  try {
+    await render();
+    await act(async () => vi.advanceTimersByTimeAsync(30));
+    const initial = actions.onboarding.mock.calls.length;
+    actions.onboarding.mockResolvedValue({
+      ...controller.getSnapshot().receipt!,
+      completed: true,
+    });
+    await act(async () => vi.advanceTimersByTimeAsync(5_100));
+    expect(actions.onboarding).toHaveBeenCalledTimes(initial);
+    expect(controller.getSnapshot().receipt?.completed).toBe(false);
+    await act(async () => {
+      events.emit('onboarding');
+      await vi.advanceTimersByTimeAsync(30);
+    });
+    expect(controller.getSnapshot().receipt?.completed).toBe(true);
+    await act(async () => {
+      events.reconnect();
+      await vi.advanceTimersByTimeAsync(30);
+    });
+    expect(actions.onboarding).toHaveBeenCalledTimes(initial + 2);
+  } finally {
+    events.dispose();
+    vi.useRealTimers();
+  }
+});

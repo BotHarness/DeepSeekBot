@@ -5,6 +5,7 @@
 - `packages/core/src/credentials/{im-origin,private-inputs}.ts`
 - `packages/core/src/runtime/bot-runtime.ts`
 - `packages/core/src/workspaces/tool-approval.ts`
+- `packages/core/src/features/approvals/tool-approval-{review,types}.ts`
 - `packages/client/src/client/private-input-*`
 - `apps/mobile/src/host/private-input.ts`
 - `apps/mobile/src/ui/chat/private-input-card.tsx`
@@ -61,7 +62,7 @@ The `baseline` argument expects the original refusal on a separately built base 
 Run the cross-module regression matrix for local DM, local Group, batch collection, steering, approval continuation, IM-only ambiguity, explicit source, revoked source, unaccepted history and later scheduled reuse:
 
 ```bash
-pnpm exec vitest run packages/core/test/private-input-origin.test.ts packages/core/test/private-inputs.test.ts packages/core/test/native-question-runtime.test.ts --maxWorkers=1 --testTimeout=60000
+pnpm exec vitest run packages/core/test/private-input-origin.test.ts packages/core/test/private-inputs-account-references.test.ts packages/core/test/private-inputs-channel-and-im-delivery.test.ts packages/core/test/private-inputs-request-lifecycle.test.ts packages/core/test/native-question-runtime.test.ts --maxWorkers=1 --testTimeout=60000
 ```
 
 For #2847, use a fresh instance with the same synthetic Provider and run `node scripts/e2e-private-input-origin.mjs <name> recovery`. After the local proof, it sends a synthetic IM request, adds two context sources while approval is pending, verifies the coded refusal, and lets the real model follow the recovery instructions. It checks selection of the original request, one corrected successful command and no duplicate input card, then invokes `bot-tool` from the CLI and accepts its native approval. The allowlisted `recovery-proof.json` records outcomes without references or values. Registered-tool regression tests also drive controlled HTTP and MCP processes and assert zero requests before selection and exactly one after recovery.
@@ -80,3 +81,4 @@ Repeat the approval routing check with `secret_http`, a synthetic missing accoun
 - Read actual native Tool results as well as the visible reply; a model-authored success marker alone is insufficient.
 - The journey is not a real Lark/Discord delivery check, and `gh --version` does not qualify GitHub API access. Source revocation and scheduled branches are separate automated regressions.
 - Preserve failed drives before retrying. Newer native preview dialogs must be dismissed before waiting for Settings. On Windows, verify that the Client bundle contains no Node built-in imports; see the dsh-dev pitfall log.
+- On 2026-11-18 (PR #4461, head 69e0387f3) `scripts/e2e-private-input-origin.mjs` stopped at its first navigation step: it waits for a rail button named `Messages · …`, which the current Client no longer renders (the rail shows `Channels`). Update that selector before relying on the journey; the regression matrix above passed on the same head.

@@ -1,37 +1,18 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type GenuiView } from '../../core/src/channels/genui.js';
+import { type GenuiActions } from '../src/client/genui-report.js';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import {
-  GenuiError,
-  initialGenuiView,
-  parseGenuiReport,
-  type GenuiView,
-} from '../../core/src/channels/genui.js';
+import { GenuiError, initialGenuiView, parseGenuiReport } from '../../core/src/channels/genui.js';
 import { comparisonReport } from '../../core/test/fixtures/genui-report.js';
-import {
-  GenuiReportCard,
-  genuiVisibleRows,
-  genuiChartBars,
-  type GenuiActions,
-} from '../src/client/genui-report.js';
-import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
+import { GenuiReportCard, genuiVisibleRows, genuiChartBars } from '../src/client/genui-report.js';
+import { en, zhTranslate } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({
-    children,
-    size: _size,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; children: ReactNode }) =>
-    createElement('button', props, children),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-  IconRefreshOutlineRegular: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 const report = parseGenuiReport(comparisonReport);

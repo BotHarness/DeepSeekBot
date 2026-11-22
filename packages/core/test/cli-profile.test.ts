@@ -1,3 +1,4 @@
+import { fakeBotDetail } from '../../host-client/test/fake-host.js';
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -41,7 +42,17 @@ async function host(handler: (method: string, args: Record<string, unknown>) => 
           rpcId: body.rpcId,
           result:
             method === 'channelDm'
-              ? { ok: true, value: { channel: { id: 'dm-' + String(body.payload.args.slug) } } }
+              ? {
+                  ok: true,
+                  value: {
+                    channel: {
+                      id: 'dm-' + String(body.payload.args.slug),
+                      type: 'dm',
+                      name: String(body.payload.args.slug),
+                      members: [String(body.payload.args.slug)],
+                    },
+                  },
+                }
               : handler(method, body.payload.args),
         }),
       );
@@ -77,7 +88,9 @@ function file(name: string, bytes: Buffer): string {
 
 describe('Bot profile and appearance commands', () => {
   it('sets avatar, banner, appearance and primary color on the Bot DM', async () => {
-    const live = await host(ok);
+    const live = await host((method) =>
+      method === 'botAvatarSet' ? { ok: true, value: { bot: fakeBotDetail('ada', 'Ada') } } : ok(),
+    );
     const image = file('avatar.png', PNG);
     await invoke(['bot-avatar-set', 'ada', '--file', image], live.url);
     await invoke(['bot-avatar-set', 'ada', '--clear'], live.url);

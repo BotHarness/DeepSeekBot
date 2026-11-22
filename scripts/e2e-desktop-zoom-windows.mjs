@@ -134,6 +134,7 @@ if (action === 'start') {
         detached: true,
         windowsHide: false,
         stdio: ['ignore', log, log],
+        shell: false,
       },
     );
     await new Promise((done, reject) => {
@@ -241,6 +242,8 @@ if (action === 'start') {
       env: { ...process.env, DSH_HOME: home },
       stdio: ['ignore', 'pipe', 'pipe'],
       timeout: 180000,
+      shell: false,
+      windowsHide: true,
     });
     verifyPackagedProfile(profile, artifacts.directory);
     prepareDesktopZoomQa(root);

@@ -12,6 +12,12 @@ export const STYLEX_OUTPUT = fileURLToPath(
   new URL('packages/client/src/client/ds/tobs.stylex.ts', root),
 );
 
+export const MOBILE_OUTPUT = fileURLToPath(
+  new URL('packages/host-client/src/ui/design/palette.generated.ts', root),
+);
+
+export const SITE_OUTPUT = fileURLToPath(new URL('design/tokens/tobs-core.generated.css', root));
+
 const isToken = (node) => node !== null && typeof node === 'object' && '$value' in node;
 
 function merge(target, source) {
@@ -375,7 +381,150 @@ export function webTokens(source = readResolver()) {
   };
 }
 
-const camel = (parts) =>
+function mobileScheme(mode, resolve) {
+  const light = mode === 'light';
+  const neutral = (lightTone, darkTone) =>
+    resolve(`palette.neutral.${light ? lightTone : darkTone}`);
+  const base = neutral(100, 11);
+  const surface = neutral(97, 15);
+  const field = neutral(100, 9);
+  const sheet = neutral(100, 13);
+  const elevated = neutral(100, 20);
+  const surfaces = [base, surface, field, sheet, elevated];
+  const backdrop = neutral(0, 100);
+  const alpha = (color, opacity) => `${color}${hex2(opacity * 255)}`;
+  const dangerous = resolve('palette.status.red');
+  const amber = resolve('palette.status.amber');
+  const dangerTint = mix(dangerous, surface, light ? 0.18 : 0.26);
+  const warningSoft = mix(amber, base, light ? 0.12 : 0.14);
+  const statusInk = (seed, extra = []) => reach(seed, [...surfaces, ...extra], 4.5, light);
+  const onSolid = neutral(100, 7);
+  const danger = reach(statusInk(dangerous, [dangerTint]), [onSolid], 4.5, light);
+  const warning = reach(
+    reach(amber, [...surfaces, warningSoft], 4.6, light),
+    [onSolid],
+    4.5,
+    light,
+  );
+  const edge = reach(base, surfaces, 3, light);
+
+  return {
+    fg: neutral(7, 96),
+    muted: neutral(38, 68),
+    subtle: neutral(42, 61),
+    divider: alpha(backdrop, light ? 0.07 : 0.06),
+    border: alpha(backdrop, light ? 0.11 : 0.12),
+    borderStrong: edge,
+    borderField: edge,
+    hover: alpha(backdrop, light ? 0.06 : 0.08),
+    selected: alpha(backdrop, light ? 0.11 : 0.14),
+    danger,
+    onDanger: onSolid,
+    dangerEdge: reach(dangerous, surfaces, 3, light),
+    dangerSoft: alpha(dangerous, light ? 0.09 : 0.14),
+    warning,
+    onWarning: onSolid,
+    warningEdge: reach(amber, surfaces, 3, light),
+    warningSoft,
+    success: statusInk(resolve('palette.status.green')),
+    surface,
+    field,
+    sheet,
+    modal: sheet,
+    elevated,
+    base,
+    well: base,
+    scrim: alpha(neutral(7, 0), light ? 0.4 : 0.6),
+  };
+}
+
+export function mobileTokens(source = readResolver()) {
+  const accents = contexts(source, 'accent');
+  const modes = contexts(source, 'mode').map((mode) => {
+    const resolve = resolver(leavesOf(resolveTree({ mode }, source)));
+    const scheme = mobileScheme(mode, resolve);
+    const light = mode === 'light';
+    const surfaces = [scheme.base, scheme.surface, scheme.field, scheme.sheet, scheme.elevated];
+    const onAccent = resolve(`palette.neutral.${light ? 100 : 7}`);
+    const accentRoles = (seed) => {
+      const accent = reach(reach(seed, [onAccent], 4.5, light), surfaces, 4.5, light);
+      const accentTint = mix(accent, scheme.base, light ? 0.13 : 0.3);
+      return {
+        accent,
+        accentText: reach(seed, [...surfaces, accentTint], 4.5, light),
+        accentTint,
+        onAccent,
+      };
+    };
+    return {
+      mode,
+      palette: { ...scheme, ...accentRoles(resolve('palette.brand')) },
+      accents: Object.fromEntries(
+        accents.map((accent) => [accent, accentRoles(resolve(`palette.accent.${accent}`))]),
+      ),
+    };
+  });
+  return {
+    palette: Object.fromEntries(modes.map(({ mode, palette }) => [mode, palette])),
+    accents: Object.fromEntries(modes.map(({ mode, accents }) => [mode, accents])),
+  };
+}
+
+export function siteColors(source = readResolver()) {
+  const statusSeeds = {
+    success: 'status.green',
+    warning: 'status.amber',
+    danger: 'status.red',
+    info: 'accent.classic-blue',
+  };
+  return Object.fromEntries(
+    contexts(source, 'mode').map((mode) => {
+      const resolve = resolver(leavesOf(resolveTree({ mode }, source)));
+      const light = mode === 'light';
+      const canvas = resolve(`palette.neutral.${light ? 100 : 0}`);
+      const surface = resolve(`palette.neutral.${light ? 97 : 20}`);
+      const onSolid = resolve(`palette.neutral.${light ? 100 : 7}`);
+      const brand = reach(resolve('palette.brand'), [surface, onSolid], 4.6, light);
+      const hover = mix(brand, resolve(`palette.neutral.${light ? 0 : 100}`), 0.9);
+      const accents = contexts(source, 'accent').map((name) => [
+        `accent-${name}`,
+        resolve(`palette.accent.${name}`),
+      ]);
+      const statuses = Object.entries(statusSeeds).flatMap(([name, path]) => {
+        const seed = resolve(`palette.${path}`);
+        const tint = mix(seed, canvas, light ? 0.08 : 0.16);
+        const ink = reach(seed, [surface, onSolid, tint], 4.6, light);
+        return [
+          [name, ink],
+          [`${name}-tint`, tint],
+        ];
+      });
+      return [
+        mode,
+        Object.fromEntries([
+          ['brand', brand],
+          ['brand-hover', hover],
+          ['on-solid', onSolid],
+          ...accents,
+          ...statuses,
+        ]),
+      ];
+    }),
+  );
+}
+
+export function renderSite(colors = siteColors()) {
+  const rules = (selector, values) =>
+    `${selector} {\n${Object.entries(values)
+      .map(([name, value]) => `  --tobs-core-${name}: ${value};`)
+      .join('\n')}\n}`;
+  return `${rules(':root', colors.light)}\n\n${rules(
+    ":root[data-mode='dark'],\n:root[data-theme='dark']",
+    colors.dark,
+  )}\n`;
+}
+
+export const camel = (parts) =>
   parts
     .join('-')
     .replace(/-([a-z0-9])/g, (_, c) => c.toUpperCase())
@@ -439,6 +588,19 @@ ${breakpoints}
 `;
 }
 
+export function renderMobile(tokens = mobileTokens()) {
+  return `export const palette = {
+${nested(tokens.palette, 1, (values, depth) => record(values, '  '.repeat(depth)))}
+} as const;
+
+export const mobileAccents = {
+${nested(tokens.accents, 1, (accents, depth) =>
+  nested(accents, depth, (values, inner) => record(values, '  '.repeat(inner))),
+)}
+} as const;
+`;
+}
+
 export function renderStylex(tokens = webTokens()) {
   const groups = new Map();
   for (const leaf of tokens.leaves) {
@@ -450,6 +612,18 @@ export function renderStylex(tokens = webTokens()) {
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key).push(`  ${name}: ${literal(value)},`);
   }
+  groups.set(
+    'breakpoint',
+    Object.entries(tokens.breakpoints).map(([name, value]) => `  ${name}: ${literal(value)},`),
+  );
+  groups.set(
+    'media',
+    Object.entries(tokens.breakpoints).flatMap(([name, value]) =>
+      ['min', 'max'].map(
+        (bound) => `  ${camel([bound, name])}: ${literal(`@media (${bound}-width: ${value})`)},`,
+      ),
+    ),
+  );
   const blocks = [...groups]
     .map(
       ([group, lines]) => `export const ${camel([group])} = stylex.defineConsts({
@@ -480,17 +654,18 @@ export function contrast(foreground, background, backdrop = '#ffffff') {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const OUTPUTS = [
-  [CSS_OUTPUT, renderCss],
-  [STYLEX_OUTPUT, renderStylex],
-];
-
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const tokens = webTokens();
+  const source = readResolver();
+  const web = webTokens(source);
+  const outputs = [
+    [CSS_OUTPUT, renderCss(web)],
+    [STYLEX_OUTPUT, renderStylex(web)],
+    [MOBILE_OUTPUT, renderMobile(mobileTokens(source))],
+    [SITE_OUTPUT, renderSite(siteColors(source))],
+  ];
   const check = process.argv.includes('--check');
   let stale = false;
-  for (const [path, render] of OUTPUTS) {
-    const next = render(tokens);
+  for (const [path, next] of outputs) {
     if (!check) {
       writeFileSync(path, next);
       continue;

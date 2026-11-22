@@ -37,7 +37,7 @@ function mount() {
   return { root, database };
 }
 
-function setup() {
+function setup(onSave: (route: ModelRoute) => void = () => undefined) {
   const { root, database } = mount();
   const registry = createTestRegistry({ rootDir: root, database });
   const routingGroups = createRoutingGroupStore({ database, references: () => [] });
@@ -50,6 +50,8 @@ function setup() {
     defaultModel: {
       currentSelection: () => selection,
       saveSelection: async (route: ModelRoute) => {
+        await Promise.resolve();
+        onSave(route);
         selection = { ...route };
       },
     },
@@ -59,7 +61,13 @@ function setup() {
           ...route,
           providerName: route.provider,
           modelName: route.model,
-          efforts: [],
+          efforts:
+            route === DEEPSEEK
+              ? [
+                  { id: 'high', name: 'High' },
+                  { id: 'max', name: 'Max' },
+                ]
+              : [],
         })),
       validate: async (route) => {
         if (route.provider === 'opencode-go') throw new Error('opencode-go is not configured');
@@ -71,7 +79,7 @@ function setup() {
     ownership: createTestOwnership(),
     roster: createTestRosterStore(),
   });
-  return { root, database, routingGroups, methods, selection: () => selection };
+  return { root, database, registry, routingGroups, methods, selection: () => selection };
 }
 
 describe('The default model can be a Routing Group (#4500)', () => {
@@ -127,6 +135,165 @@ describe('The default model can be a Routing Group (#4500)', () => {
     const catalog = await methods.modelCatalog({});
     expect(catalog.ok ? catalog.value.defaultGroupId : 'unread').toBeUndefined();
   });
+  it('refuses a stale default group revision and keeps the group while the default is saved', async () => {
+    let during: unknown;
+    let fail = false;
+    const { methods, routingGroups, selection } = setup(() => {
+      const group = routingGroups.list()[0]!;
+      if (fail) throw new Error('native settings refused');
+      try {
+        routingGroups.delete(group.id, group.revision);
+      } catch (error) {
+        during = error;
+      }
+    });
+    const created = await methods.modelGroupCreate({
+      name: 'Main',
+      members: [{ kind: 'model', ...DEEPSEEK }],
+    });
+    if (!created.ok) throw new Error(created.error.message);
+    const id = created.value.group.id;
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        expectedDefaultGroupRevision: 3,
+        globalDefault: true,
+        groupId: id,
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'routing-group-stale-revision' } });
+    expect(routingGroups.defaultGroup()).toEqual({ revision: 0 });
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        expectedDefaultGroupRevision: 0,
+        globalDefault: true,
+        groupId: id,
+      }),
+    ).toEqual({ ok: true, value: { revision: 0, groupRevision: 1 } });
+    expect(String(during)).toContain('the default model');
+    expect(routingGroups.get(id)).toBeDefined();
+    expect(await methods.modelCatalog({})).toMatchObject({
+      ok: true,
+      value: { defaultGroupId: id, defaultGroupRevision: 1 },
+    });
+    fail = true;
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        expectedDefaultGroupRevision: 1,
+        globalDefault: true,
+        route: { ...DEEPSEEK, reasoningEffort: 'high' },
+      }),
+    ).toMatchObject({ ok: false });
+    expect(routingGroups.defaultGroup().groupId).toBe(id);
+    const other = await methods.modelGroupCreate({
+      name: 'Other',
+      members: [{ kind: 'model', ...DEEPSEEK }],
+    });
+    if (!other.ok) throw new Error(other.error.message);
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        globalDefault: true,
+        groupId: other.value.group.id,
+      }),
+    ).toMatchObject({ ok: false });
+    expect(routingGroups.defaultGroup().groupId).toBe(id);
+    expect(selection()).toEqual(DEEPSEEK);
+  });
+
+  it('keeps one effort with the default group and runs a member at it only when the member reasons', async () => {
+    const { methods, routingGroups, selection } = setup();
+    const created = await methods.modelGroupCreate({
+      name: 'Main',
+      members: [
+        { kind: 'model', ...GO },
+        { kind: 'model', ...DEEPSEEK },
+      ],
+    });
+    if (!created.ok) throw new Error(created.error.message);
+    const id = created.value.group.id;
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        globalDefault: true,
+        groupId: id,
+        groupEffort: 'low',
+      }),
+    ).toMatchObject({ ok: false, error: { message: expect.stringContaining('shared levels') } });
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        globalDefault: true,
+        route: DEEPSEEK,
+        groupEffort: 'high',
+      }),
+    ).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        globalDefault: true,
+        groupId: id,
+        groupEffort: 'high',
+      }),
+    ).toEqual({ ok: true, value: { revision: 0, groupRevision: 1 } });
+    expect(selection()).toEqual({ ...DEEPSEEK, reasoningEffort: 'high' });
+    expect(await methods.modelCatalog({})).toMatchObject({
+      ok: true,
+      value: { defaultGroupId: id, defaultGroupEffort: 'high', defaultGroupRevision: 1 },
+    });
+    expect(
+      await methods.onboardingModel({
+        expectedRevision: 0,
+        globalDefault: true,
+        groupId: id,
+        groupEffort: 'max',
+      }),
+    ).toEqual({ ok: true, value: { revision: 0, groupRevision: 2 } });
+    expect(routingGroups.defaultGroup()).toEqual({ groupId: id, effort: 'max', revision: 2 });
+    expect(
+      await methods.onboardingModel({ expectedRevision: 0, globalDefault: true, groupId: id }),
+    ).toEqual({ ok: true, value: { revision: 0, groupRevision: 3 } });
+    expect(routingGroups.defaultGroup()).toEqual({ groupId: id, revision: 3 });
+    expect(selection()).toEqual(DEEPSEEK);
+  });
+
+  it('sets the default group from a Bot that then follows it', async () => {
+    const { methods, registry } = setup();
+    registry.create({ slug: 'ada', displayName: 'Ada' });
+    const own = registry.setModelPlan(
+      'ada',
+      {
+        orchestrator: DEEPSEEK,
+        assignmentDefault: DEEPSEEK,
+        assignmentModels: [{ ...DEEPSEEK, allowedEfforts: [''], defaultEffort: '' }],
+      },
+      0,
+    );
+    if (!own.ok) throw new Error('plan');
+    const created = await methods.modelGroupCreate({
+      name: 'Main',
+      members: [
+        { kind: 'model', ...GO },
+        { kind: 'model', ...DEEPSEEK },
+      ],
+    });
+    if (!created.ok) throw new Error(created.error.message);
+    const id = created.value.group.id;
+    expect(
+      await methods.onboardingModel({
+        slug: 'ada',
+        expectedRevision: own.record.modelPlan!.revision,
+        globalDefault: true,
+        groupId: id,
+      }),
+    ).toMatchObject({ ok: true });
+    expect(registry.get('ada')?.modelPlan).toBeUndefined();
+    expect(await methods.modelCatalog({})).toMatchObject({
+      ok: true,
+      value: { defaultGroupId: id },
+    });
+  });
 });
 
 describe('Bots that inherit the default use its Routing Group', () => {
@@ -155,5 +322,27 @@ describe('Bots that inherit the default use its Routing Group', () => {
     });
     expect(fallback.route('s1')).toEqual(DEEPSEEK);
     expect(await fallback.choose('own', 's2', rests.restingUntil(GO)!)).toBeUndefined();
+  });
+
+  it('runs an inheriting Bot at the default group effort', async () => {
+    const rests = createRouteRests({ now: () => 1_000 });
+    const fallback = createGroupFallback({
+      plan: (slug) => (slug === 'own' ? plan : undefined),
+      inheritedGroup: () => 'default',
+      inheritedEffort: () => 'high',
+      routes: () => [GO, DEEPSEEK],
+      rests,
+      requireAllowed: () => undefined,
+      validate: async () => undefined,
+      withEffort: async (route, effort) =>
+        route === DEEPSEEK ? { ...route, reasoningEffort: effort! } : route,
+    });
+    rests.rest(GO, 10_000, 'quota');
+    expect(await fallback.choose('inherits', 's1', rests.restingUntil(GO)!)).toMatchObject({
+      kind: 'switch',
+      to: { ...DEEPSEEK, reasoningEffort: 'high' },
+    });
+    expect(fallback.route('s1')).toEqual({ ...DEEPSEEK, reasoningEffort: 'high' });
+    expect(fallback.inheritedEffort()).toBe('high');
   });
 });

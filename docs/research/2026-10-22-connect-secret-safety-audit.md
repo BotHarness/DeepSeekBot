@@ -4,7 +4,7 @@ Date: 2026-10-22. Issues: [#2541](https://github.com/BotHarness/DeepSeekBot/issu
 
 ## Scope and result
 
-Track A prevents supported clients from submitting known secret-bearing methods over Connect and refuses those methods at the Host gateway. It is an interim restriction, not end-to-end encryption or a guarantee that arbitrary chat, files, viewer input, existing device credentials or returned data contain no secrets. A modified client can still transmit plaintext to Cloudflare before the Host refuses it. Track B remains proposed in [ADR-0244](../adr/0244-connect-encrypts-device-traffic-against-pinned-host-keys.md).
+Track A prevents supported clients from submitting known secret-bearing methods over Connect and refuses those methods at the Host gateway. It is an interim restriction, not end-to-end encryption or a guarantee that arbitrary chat, files, viewer input, existing device credentials or returned data contain no secrets. A modified client can still transmit plaintext to Cloudflare before the Host refuses it. Track B remains proposed in [ADR-0244](../decisions/connections.md#adr-0244).
 
 Vain requires removal of the phone's full Host WebView on all routes. The app no longer exposes its screen, navigation actions or authenticated source builder. The gateway no longer serves its HTML, cookie sessions or socket paths. Browser/Computer viewer registrations for that removed prefix are also removed. Native viewer features remain separate.
 

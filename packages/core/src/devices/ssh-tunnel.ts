@@ -172,6 +172,7 @@ export async function openSshTunnel(options: {
     env: options.env,
     stdio: ['ignore', 'ignore', 'pipe'],
     windowsHide: true,
+    shell: false,
   });
   let reason = 'ssh-connection-failed',
     stopped = false,

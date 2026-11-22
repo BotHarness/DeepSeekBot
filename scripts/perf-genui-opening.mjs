@@ -55,7 +55,8 @@ assert.ok(
 );
 mkdirSync(out, { recursive: true });
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
-const git = (...args) => execFileSync('git', args, { cwd: root, maxBuffer: 20e6 });
+const git = (...args) =>
+  execFileSync('git', args, { cwd: root, maxBuffer: 20e6, shell: false, windowsHide: true });
 const budgetPath = resolve(values.budget);
 const budget = readBudget(budgetPath);
 const runId = randomUUID();
@@ -252,7 +253,7 @@ async function measure(target, parking) {
     }
     save();
   } catch (error) {
-    primaryFailure = error;
+    primaryFailure = error instanceof Error ? error : new Error(String(error), { cause: error });
     if (browserRecord) browserRecord.failure = redact(error.stack ?? error);
     if (page && !page.isClosed()) {
       try {
@@ -274,7 +275,8 @@ async function measure(target, parking) {
         browserRecord.closed = true;
       } catch (error) {
         manifest.cleanupFailures.push(redact(error));
-        primaryFailure ??= error;
+        primaryFailure ??=
+          error instanceof Error ? error : new Error(String(error), { cause: error });
       } finally {
         save();
       }

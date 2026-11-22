@@ -1,13 +1,10 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import { type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconCheckOutlineRegular,
-  IconCopyOutlineRegular,
-  IconFullscreenOutlineRegular,
-  MenuSurface,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
+import { MenuSurface } from './ds/menu.js';
 
 import type { BugReportFile } from './bug-report.js';
 import { CAPTURE_DOCK_ATTRIBUTE, canCopyImage, type CaptureSource } from './bug-report-capture.js';
@@ -190,7 +187,7 @@ export function CaptureDock({
                   onClick={() => onCopy(entry)}
                   {...stylex.props(styles.copyButton)}
                 >
-                  <IconCopyOutlineRegular size={12} />
+                  <Icon name="copy" size={12} />
                 </button>
               ) : null}
             </li>
@@ -231,7 +228,7 @@ export function CaptureDock({
         <Button
           ref={focus}
           variant="primary"
-          icon={<IconFullscreenOutlineRegular size={16} />}
+          icon={<Icon name="maximize" size={16} />}
           disabled={busy}
           data-bug-report-dock-capture=""
           onClick={onCapture}
@@ -240,7 +237,7 @@ export function CaptureDock({
         </Button>
         <Button
           variant="outline"
-          icon={<IconCheckOutlineRegular size={16} />}
+          icon={<Icon name="check" size={16} />}
           disabled={busy}
           data-bug-report-dock-done=""
           onClick={onDone}

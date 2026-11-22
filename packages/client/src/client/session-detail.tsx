@@ -1,5 +1,5 @@
+import { TurnTargetLabel, useTurnTargetCatalog } from './turn-target-label.js';
 import { createContext, useContext, useRef, useState, type ReactElement } from 'react';
-
 import { createPortal } from 'react-dom';
 import * as stylex from '@stylexjs/stylex';
 
@@ -11,6 +11,7 @@ import {
   type SessionDetailLevel,
   type SessionFoldedReplies,
 } from '@botharness/host-client/shared/bot-mode-settings';
+import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
 
 import type { BridgeActions } from './actions.js';
 import type {
@@ -18,8 +19,8 @@ import type {
   SessionToolDetail,
   SessionTranscript,
   SessionTranscriptItem,
-  SessionTranscriptTrigger,
 } from './bridge.js';
+import { SessionEnvelopeLabel, TRIGGER_ICONS } from './session-input-meta.js';
 import { ChannelComposer } from './channel-composer.js';
 import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { MessageMarkdown } from './channel-message-body.js';
@@ -28,6 +29,7 @@ import { ChipButton } from './ds/chip-button.js';
 import { WorkRow } from './ds/work-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
+import { sessionEngineText } from './session-engine.js';
 import { useMountedResource } from './mounted-resource.js';
 import { cachedSessionDetail, rememberSessionDetail } from './session-detail-cache.js';
 import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
@@ -87,19 +89,6 @@ const GROUP_ICONS: Record<ToolGroup, string> = {
   other: 'puzzle',
 };
 
-const TRIGGER_ICONS: Record<SessionTranscriptTrigger, string> = {
-  request: 'inbox',
-  goal: 'target',
-  agent: 'messages-square',
-  team: 'users',
-  subagent: 'bot',
-  github: 'git-branch',
-  webhook: 'globe',
-  schedule: 'alarm-clock',
-  job: 'list-checks',
-  plugin: 'plug',
-};
-
 const styles = stylex.create({
   root: {
     position: 'relative',
@@ -151,6 +140,7 @@ const styles = stylex.create({
     lineHeight: text.metaLine,
   },
   center: { textAlign: 'center' },
+  afterEnvelope: { marginTop: space.x1 },
   input: {
     alignSelf: 'flex-end',
     maxWidth: '88%',
@@ -243,6 +233,7 @@ function LiveClock({ from, t }: { from: string; t: BotHarnessTranslate }): React
 
 interface DetailContext {
   actions: BridgeActions;
+  catalog: readonly ModelCatalogEntry[] | undefined;
   botSlug: string;
   sessionId: string;
   t: BotHarnessTranslate;
@@ -488,6 +479,9 @@ function TurnBlock({
           {...(foldable ? { expanded: open, onToggle: () => setOpen(!open) } : {})}
         />
       ) : null}
+      {visible.some((segment) => segment.kind === 'reply') ? null : (
+        <TurnTargetLabel targets={end?.turnTargets} catalog={context.catalog} t={t} />
+      )}
       {end?.message === undefined ? null : (
         <div {...stylex.props(styles.quiet, styles.bad)}>{end.message}</div>
       )}
@@ -500,6 +494,7 @@ function TurnBlock({
             {...stylex.props(styles.reply)}
           >
             <MessageMarkdown text={segment.item.text} t={t} />
+            <TurnTargetLabel targets={segment.item.turnTargets} catalog={context.catalog} t={t} />
           </div>
         ) : (
           <ProcessGroup
@@ -538,13 +533,18 @@ function InputBlock({
   const item = block.item;
   if (item.source === 'user')
     return (
-      <div
-        data-transcript="input"
-        data-quote-source={quoteSourceId(sessionId, block.key)}
-        {...stylex.props(styles.input)}
-      >
-        <MessageMarkdown text={item.text} t={t} />
-      </div>
+      <>
+        {item.envelope === undefined ? null : (
+          <SessionEnvelopeLabel kind={item.envelope.kind} t={t} />
+        )}
+        <div
+          data-transcript="input"
+          data-quote-source={quoteSourceId(sessionId, block.key)}
+          {...stylex.props(styles.input, item.envelope === undefined ? null : styles.afterEnvelope)}
+        >
+          <MessageMarkdown text={item.text} t={t} />
+        </div>
+      </>
     );
   const trigger = item.trigger ?? 'request';
   const skill = /^<skill_content name="([^"]+)">/u.exec(item.text)?.[1];
@@ -603,6 +603,7 @@ export function SessionDetail({
   const chipSlot = useContext(SessionHeaderSlot);
   const [skillOptions, setSkillOptions] = useState<readonly SkillCatalogEntry[]>([]);
   const [skills, setSkills] = useState<SelectedSkill[]>([]);
+  const { catalog, mount: catalogMount } = useTurnTargetCatalog(actions, transcript?.items);
   const running = transcript?.running === true || live.length > 0;
   const mount = useMountedResource<HTMLDivElement>(
     (node) => {
@@ -813,6 +814,7 @@ export function SessionDetail({
   const todos = progress?.todos;
   const context: DetailContext = {
     actions,
+    catalog,
     botSlug,
     sessionId,
     t,
@@ -827,7 +829,7 @@ export function SessionDetail({
       <SessionProgressChips goal={goal} todos={todos} open={open} toggle={toggle} t={t} />
     );
   return (
-    <div data-session-detail={sessionId} {...stylex.props(styles.root)}>
+    <div ref={catalogMount} data-session-detail={sessionId} {...stylex.props(styles.root)}>
       {chips === null ? null : chipSlot === null ? (
         <div {...stylex.props(styles.chips)}>{chips}</div>
       ) : (
@@ -892,6 +894,14 @@ export function SessionDetail({
         }}
         {...stylex.props(styles.transcript)}
       >
+        {transcript?.engine === undefined ? null : (
+          <div
+            data-session-engine={transcript.engine.state}
+            {...stylex.props(styles.quiet, styles.center)}
+          >
+            {sessionEngineText(transcript.engine, t)}
+          </div>
+        )}
         {transcript !== undefined && failed ? (
           <div role="status" {...stylex.props(styles.quiet, styles.center)}>
             {t('sessions.detail.refreshFailed')}

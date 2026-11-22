@@ -1,60 +1,20 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type PropsWithChildren } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type PrivateAccountList } from '../src/client/private-accounts.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-vi.mock('../src/client/ds/button.js', async () => ({
-  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
-}));
-vi.mock('../src/client/ds/input.js', async () => ({
-  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
-}));
-vi.mock('../src/client/ds/switch.js', async () => ({
-  Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
-}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  Button: ({
-    variant: _variant,
-    size: _size,
-    icon: _icon,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & {
-    variant?: string;
-    size?: string;
-    icon?: unknown;
-  }) => createElement('button', props),
-  Tag: ({ children }: PropsWithChildren) => createElement('span', { className: 'tag' }, children),
-  Switch: ({
-    checked,
-    onChange,
-    label,
-  }: {
-    checked: boolean;
-    onChange(value: boolean): void;
-    label: string;
-  }) =>
-    createElement('input', {
-      type: 'checkbox',
-      'aria-label': label,
-      checked,
-      onChange: () => onChange(!checked),
-    }),
-  Tooltip: ({ children }: PropsWithChildren) => children,
-  Modal: () => null,
-  Menu: () => null,
-  IconCheckOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
-  IconRefreshOutlineRegular: () => null,
-  IconInfoOutlineRegular: () => null,
-  Input: (props: Record<string, unknown>) => createElement('input', props),
-  IconEllipsisOutlineRegular: () => null,
+
   relativeTime: () => ({ unit: 'now', n: 0 }),
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { zhTranslate } from '../src/client/locale.js';
-import type { PrivateAccountList } from '../src/client/private-accounts.js';
+
 import { PrivateAccountsSection } from '../src/client/private-accounts-section.js';
 
 const CARD = '11111111-1111-4111-8111-111111111111';
@@ -177,7 +137,7 @@ it('lists remembered MCP servers and removes one after confirmation', async () =
   expect(card.textContent).toContain('npx -y @modelcontextprotocol/server-github');
   expect(card.textContent).toContain('GitHub token');
   expect(card.textContent).toContain(zhTranslate('privateAccounts.mcpShared'));
-  expect(card.querySelector('input[type=checkbox]')).toBeNull();
+  expect(card.querySelector('[role="switch"]')).toBeNull();
   const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
   await act(async () => button(zhTranslate('privateAccounts.mcpRemove')).click());
   expect(remove).not.toHaveBeenCalled();
@@ -206,8 +166,8 @@ it('lets another Bot enable a server that a different Bot set up', async () => {
   await render();
   const card = host.querySelector('.bh-card-row')!;
   expect(card.textContent).toContain(zhTranslate('privateAccounts.mcpSharedBy', { bot: 'Bob' }));
-  const toggle = card.querySelector('input[type=checkbox]') as HTMLInputElement;
-  expect(toggle.checked).toBe(false);
+  const toggle = card.querySelector('[role="switch"]') as HTMLButtonElement;
+  expect(toggle.getAttribute('aria-checked')).toBe('false');
   list = {
     status: 'ready',
     accounts: [],
@@ -216,7 +176,9 @@ it('lets another Bot enable a server that a different Bot set up', async () => {
   };
   await act(async () => toggle.click());
   expect(enable).toHaveBeenCalledWith('ada', 'github', true);
-  expect((host.querySelector('input[type=checkbox]') as HTMLInputElement).checked).toBe(true);
+  expect(
+    (host.querySelector('[role="switch"]') as HTMLButtonElement).getAttribute('aria-checked'),
+  ).toBe('true');
 });
 
 it('disables Replace when execution is off and keeps Remove', async () => {

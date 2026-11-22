@@ -9,7 +9,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { BROWSER_ADMISSION_PROTOCOL } from '../../../../deploy/private-relay/admission.mjs';
 import { ConnectChannel, CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
 import { noisePublicKey } from '@botharness/host-protocol/noise/xk';
-import type { DevicePairing } from './pairing.js';
+import type { DevicePairing, Redemption } from './pairing.js';
 import {
   LOCAL_VIDEO_LIMITS,
   LOCAL_VIDEO_PATH,
@@ -707,26 +707,8 @@ export function createEncryptedGateway(options: {
           if (!offer || offer.length > 128) throw new Error('channel-pair-invalid');
           const name = field(input, 'name'),
             verifier = field(input, 'verifier');
-          const proposed = options.pairing.requestKey({
-            offer,
-            publicKey,
-            ...(name === undefined ? {} : { name }),
-            ...(verifier === undefined ? {} : { verifier }),
-          });
-          if (!proposed.ok) return refuse(proposed.code);
-          if (accountAutoApprove && options.pairing.approveKey(proposed.receipt, publicKey))
-            options.log?.('account-device-approved');
-          const redeem = () => {
-            stopWatchingKey();
-            const paired = options.pairing.redeem({
-              offer,
-              publicKey,
-              ...(verifier === undefined ? {} : { verifier }),
-            });
-            if (!paired.ok) {
-              if (paired.code !== 'device-approval-required') refuse(paired.code);
-              return paired;
-            }
+          const pairRequest = { offer, publicKey, ...(verifier === undefined ? {} : { verifier }) };
+          const sendPaired = (paired: Extract<Redemption, { ok: true }>) => {
             send({
               type: 'paired',
               host: paired.host,
@@ -740,6 +722,28 @@ export function createEncryptedGateway(options: {
                     mustChangePassword: paired.mustChangePassword,
                   }),
             });
+          };
+          const resumed = options.pairing.resumeKeyRedemption(pairRequest);
+          if (resumed) {
+            stopWatchingKey();
+            sendPaired(resumed);
+            return;
+          }
+          const proposed = options.pairing.requestKey({
+            ...pairRequest,
+            ...(name === undefined ? {} : { name }),
+          });
+          if (!proposed.ok) return refuse(proposed.code);
+          if (accountAutoApprove && options.pairing.approveKey(proposed.receipt, publicKey))
+            options.log?.('account-device-approved');
+          const redeem = (allowReconnect = false) => {
+            stopWatchingKey();
+            const paired = options.pairing.redeem({ ...pairRequest, allowReconnect });
+            if (!paired.ok) {
+              if (paired.code !== 'device-approval-required') refuse(paired.code);
+              return paired;
+            }
+            sendPaired(paired);
             return paired;
           };
           const paired = redeem();
@@ -748,7 +752,7 @@ export function createEncryptedGateway(options: {
             unwatchKey = options.pairing.watchKey(proposed.receipt, publicKey, (event) => {
               if (closed || admitted) return;
               try {
-                if (event.state === 'approved') redeem();
+                if (event.state === 'approved') redeem(true);
                 else refuse(event.state === 'expired' ? 'offer-expired' : 'offer-invalid');
               } catch {
                 close('invalid-frame');

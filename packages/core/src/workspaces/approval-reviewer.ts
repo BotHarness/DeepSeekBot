@@ -5,6 +5,7 @@ import type { Agent, AgentHandle, CreateAgentOptions } from '@deepseek-ai/dsh-ag
 import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import type { ApprovalReviewerModelSetting } from './approval-reviewer-settings.js';
+import { PRIVATE_FIELD_ID, secretPlaceholders } from '../credentials/references.js';
 
 export type ApprovalReviewOutcome = 'allow' | 'ask-human';
 
@@ -63,15 +64,10 @@ function clip(text: string, limit: number): string {
 }
 
 const SECRET_TOOLS = new Set(['secret_cli', 'secret_mcp_connect', 'secret_http', 'ask_secret']);
-const PLACEHOLDER = /\{\{([a-z][a-z0-9_]{0,47})\}\}/gu;
-
-function placeholders(text: string): string[] {
-  return [...new Set([...text.matchAll(PLACEHOLDER)].map((match) => match[1]!))];
-}
 
 function withoutSecretValues(value: unknown, key?: string): unknown {
   if (typeof value === 'string') {
-    const names = placeholders(value);
+    const names = secretPlaceholders(value);
     return names.length === 0 ? value : names.map((name) => '{{' + name + '}}').join(' ');
   }
   if (typeof value !== 'object' || value === null) return value;
@@ -91,11 +87,11 @@ function withoutSecretValues(value: unknown, key?: string): unknown {
           name: typeof name === 'string' ? name : '',
           placeholders:
             typeof text === 'string'
-              ? placeholders(text)
+              ? secretPlaceholders(text)
               : Array.isArray(kept)
                 ? kept.filter(
                     (item): item is string =>
-                      typeof item === 'string' && /^[a-z][a-z0-9_]{0,47}$/u.test(item),
+                      typeof item === 'string' && PRIVATE_FIELD_ID.test(item),
                   )
                 : [],
         };

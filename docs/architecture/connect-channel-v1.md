@@ -1,6 +1,6 @@
 # Connect Channel v1
 
-Implementation contract for [ADR-0244](../adr/0244-connect-encrypts-device-traffic-against-pinned-host-keys.md). This is an application-defined adapter into the existing Device Gateway and DSH API Gateway, not another native API dispatcher. Qualification remains in progress in #2542.
+Implementation contract for [ADR-0244](../decisions/connections.md#adr-0244). This is an application-defined adapter into the existing Device Gateway and DSH API Gateway, not another native API dispatcher. Qualification remains in progress in #2542.
 
 ## Identity and handshake
 

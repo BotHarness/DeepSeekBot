@@ -35,7 +35,7 @@ BROWSER_AGENT_E2E=1 pnpm exec vitest run packages/browser/test/agent-browser.e2e
 
 Set `BROWSER_E2E_PATH` to an optional dedicated Chrome executable. With `BROWSER_E2E_EVIDENCE` set to a private directory, successful fixture interactions also save actual runtime screenshots. Tests cover both drivers, exact tab/ref ownership, refreshed refs, upload read-back, screenshots, closed-target refusal, candidate queue control checks and owned cancellation cleanup. These tests exercise runtime behavior; they do not replace real PersonaBot/model comparisons or native approval QA.
 
-Focused Provider/Host/process tests cover owning Session refusal, Pause/Resume observation fencing, target/driver disposal failure and retry, pinned binary validation and disabling independent native interaction. Run the repository's complete lint/format/type/test/build checks before review. The [ADR](../adr/0124-local-browser-drivers-share-host-authority.md) records authority and candidate limitations.
+Focused Provider/Host/process tests cover owning Session refusal, Pause/Resume observation fencing, target/driver disposal failure and retry, pinned binary validation and disabling independent native interaction. Run the repository's complete lint/format/type/test/build checks before review. The [ADR](../decisions/browser.md#adr-0124) records authority and candidate limitations.
 
 ## Current execution record
 

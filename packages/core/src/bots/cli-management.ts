@@ -1,3 +1,9 @@
+import {
+  confirmBotDeletion,
+  previewBotDeletion,
+  retryBotDeletion,
+} from '@botharness/host-client/deletion-readers';
+import { compactBot, newBotSession, readBotAttention } from '@botharness/host-client/bot-control';
 import { expandGitHubRef } from './bot-create-cli.js';
 import { parseMemoryGitUrl } from '../memory/clone.js';
 import { parseAgentBots } from './cli-agent-bots.js';
@@ -5,9 +11,12 @@ import { validBotCreationKey, type BotCreationReceipt } from './creation.js';
 import { resolveBotDm } from './cli-bot-dm.js';
 import type { PersonaBotDetail } from '../bridge/methods.js';
 import {
+  isAssignmentGroupOption,
   isAssignmentModelOption,
+  type AssignmentGroupOption,
   type AssignmentModelOption,
   type ModelPreset,
+  type ModelPresetEngineInput,
   type ModelRoute,
 } from '../models/presets.js';
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
@@ -19,9 +28,8 @@ import type {
   ValidatedCreate,
 } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
-import { assignmentModelsMode, presetGroupFlags } from './cli-models-usage.js';
+import { assignmentModelsMode, presetEngineFlags, presetGroupFlags } from './cli-models-usage.js';
 import { connectLiveHost } from './cli-live.js';
-import type { PersonaBotDeletionPreview } from './deletion.js';
 
 export const ONLINE_MANAGEMENT_COMMANDS = [
   'create',
@@ -150,16 +158,18 @@ export async function runOnlineManagement(
   const limit = values.limit === undefined ? 50 : Number(values.limit);
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) usage('--limit must be 1–100.');
   let presetInput:
-    | {
+    | ({
         name: string;
         orchestrator?: ModelRoute;
         assignmentDefault: ModelRoute;
         assignmentModels?: AssignmentModelOption[];
         openAssignmentModels?: boolean;
         orchestratorGroupId?: string | null;
+        orchestratorGroupEffort?: string;
         assignmentGroups?: string[];
         assignmentDefaultGroupId?: string | null;
-      }
+        assignmentGroupOptions?: AssignmentGroupOption[];
+      } & ModelPresetEngineInput)
     | undefined;
   if (command === 'model-preset-create') {
     const name = values.name?.trim();
@@ -172,30 +182,52 @@ export async function runOnlineManagement(
       !(groups.assignmentGroups ?? []).includes(groups.assignmentDefaultGroupId)
     )
       usage('--assignment-default-group must be one of --assignment-groups.');
+    const groupEffort = values['orchestrator-effort']?.trim();
     presetInput = {
       name,
       ...(groups.orchestratorGroupId ? {} : { orchestrator: route(values, 'orchestrator') }),
+      ...(groups.orchestratorGroupId && groupEffort
+        ? { orchestratorGroupEffort: groupEffort }
+        : {}),
       assignmentDefault: route(values, 'assignment'),
       ...assignmentModelsMode(values['assignment-models']),
       ...groups,
+      ...presetEngineFlags(values),
     };
     if (values['plan-stdin']) {
       let input: unknown;
       try {
         input = JSON.parse(await (io.readStdin?.() ?? Promise.resolve('')));
       } catch {
-        usage('Plan stdin must contain assignmentModels.');
+        usage('Plan stdin must contain assignmentModels or assignmentGroupOptions.');
       }
+      const plan = input as Record<string, unknown> | null;
+      const models = plan?.['assignmentModels'];
+      const options = plan?.['assignmentGroupOptions'];
       if (
-        typeof input !== 'object' ||
-        input === null ||
-        !('assignmentModels' in input) ||
-        !Array.isArray(input.assignmentModels) ||
-        !input.assignmentModels.every(isAssignmentModelOption) ||
-        Object.keys(input).some((key) => key !== 'assignmentModels')
+        typeof plan !== 'object' ||
+        plan === null ||
+        Array.isArray(plan) ||
+        (models === undefined && options === undefined) ||
+        (models !== undefined &&
+          (!Array.isArray(models) || !models.every(isAssignmentModelOption))) ||
+        (options !== undefined &&
+          (!Array.isArray(options) ||
+            !options.every(
+              (option) =>
+                isAssignmentGroupOption(option) &&
+                (groups.assignmentGroups ?? []).includes(option.group),
+            ))) ||
+        Object.keys(plan).some(
+          (key) => key !== 'assignmentModels' && key !== 'assignmentGroupOptions',
+        )
       )
-        usage('Plan stdin must contain only valid assignmentModels.');
-      presetInput.assignmentModels = input.assignmentModels;
+        usage(
+          'Plan stdin must contain only valid assignmentModels and assignmentGroupOptions for --assignment-groups.',
+        );
+      if (models !== undefined) presetInput.assignmentModels = models as AssignmentModelOption[];
+      if (options !== undefined)
+        presetInput.assignmentGroupOptions = options as AssignmentGroupOption[];
     }
   }
   if (command === 'model-preset-apply' && !values.preset?.trim()) usage('--preset is required.');
@@ -267,8 +299,9 @@ export async function runOnlineManagement(
   if (command === 'show') return rpc('get', { slug });
   if (update) return rpc('update', update.args);
   if (command === 'channels') return rpc('channels', {});
-  if (command === 'model-presets') return rpc('modelPresets', {});
-  if (command === 'model-preset-create') return rpc('modelPresetCreate', presetInput!);
+  if (command === 'model-presets')
+    return rpc('modelPresets', values['include-usage'] ? { includeUsage: true } : {});
+  if (command === 'model-preset-create') return rpc('modelPresetCreate', { ...presetInput! });
   if (command === 'model-preset-apply') {
     const revisions: Record<string, number> = {};
     for (const [flag, field] of [
@@ -284,26 +317,31 @@ export async function runOnlineManagement(
     return rpc('modelPresetApply', { slug, presetId: values.preset!.trim(), ...revisions });
   }
   if (command === 'model-plan') return rpc('modelPlan', { slug });
-  if (command === 'bot-new-session') return rpc('botNewSession', { slug });
-  if (command === 'bot-compact') return rpc('botCompact', { slug });
+  const reader = { call: (method: string, args = {}) => rpc(method, args) };
+  if (command === 'bot-new-session') return newBotSession(reader, slug!);
+  if (command === 'bot-compact') return compactBot(reader, slug!);
   if (command === 'bot-context') return rpc('botContext', { slug });
   if (command === 'bot-system-prompt') return rpc('botSystemPrompt', { slug });
-  if (command === 'bot-delete-preview') return rpc('deletionPreview', { slug });
+  if (command === 'bot-delete-preview') return previewBotDeletion(reader, slug!, true);
   if (command === 'bot-delete-memory-folder') return rpc('deletionMemoryFolder', { slug });
   if (command === 'bot-delete-confirm')
-    return rpc('deletionConfirm', {
-      slug,
-      token: confirmation,
-      eraseMemory: values['erase-memory'] === true,
-    });
+    return confirmBotDeletion(
+      reader,
+      {
+        slug: slug!,
+        token: confirmation!,
+        eraseMemory: values['erase-memory'] === true,
+      },
+      true,
+    );
   if (command === 'bot-delete-retry') {
-    const result = await rpc<{ preview: PersonaBotDeletionPreview }>('deletionPreview', { slug });
-    if (typeof result.preview.deletion?.eraseMemory !== 'boolean')
+    const { preview } = await previewBotDeletion(reader, slug!, true);
+    if (preview.deletion === undefined)
       usage('Retry requires an existing accepted deletion and preserves its Memory choice.');
-    return rpc('deletionRetry', { slug });
+    return retryBotDeletion(reader, slug!, true);
   }
   if (command === 'bot-attention')
-    return rpc('botAttention', {
+    return readBotAttention(reader, {
       slug,
       limit,
       ...(values.cursor === undefined ? {} : { cursor: values.cursor }),

@@ -1,21 +1,26 @@
 import type { BotHarnessTranslate } from './locale.js';
 import type { ChannelMessage } from './store.js';
+import { engineName, shortTime } from './session-engine.js';
 
 export function turnStopText(
   stop: NonNullable<ChannelMessage['turnStop']>,
   t: BotHarnessTranslate,
 ): string {
   const rest = stop.cause === 'quota' ? stop.rests?.[0] : undefined;
+  if (stop.routingGroup === true && rest !== undefined)
+    return t('turn.stoppedRoutingGroup', { name: stop.botName, until: shortTime(rest.until) });
+  if (stop.cause === 'quota' && stop.engine !== undefined)
+    return t('turn.stoppedEngineLimit', {
+      name: stop.botName,
+      engine: engineName(stop.engine.engine),
+      account: stop.engine.account,
+      until: shortTime(stop.engine.until),
+    });
   if (rest !== undefined)
     return t('turn.stoppedQuota', {
       name: stop.botName,
       route: `${rest.provider}/${rest.model}`,
-      until: new Date(rest.until).toLocaleString(undefined, {
-        month: 'short',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      }),
+      until: shortTime(rest.until),
     });
   if (stop.cause === 'failures')
     return t('turn.stoppedFailures', { name: stop.botName, count: stop.failures ?? 0 });

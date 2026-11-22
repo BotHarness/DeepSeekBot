@@ -1,4 +1,10 @@
-import { ActionButton } from './ds/action-button.js';
+import * as stylex from '@stylexjs/stylex';
+import { observeHostResource } from './messaging-defaults-live.js';
+import { useMessageHost } from './message-host.js';
+import { ActionButton, ActionGroup } from './ds/action-button.js';
+import { Button } from './ds/button.js';
+import { hooked } from './ds/hooked.js';
+import { RequestHeading, RequestOutcome, requestCardStyles as styles } from './ds/request-card.js';
 import {
   useId,
   useRef,
@@ -20,6 +26,18 @@ import { ApprovalInput } from './approval-input.js';
 import { approvalSummary } from '@botharness/host-client/shared/approval-diff';
 import { BotCreateApprovalPreview, botCreateArgs } from './bot-create-approval.js';
 
+function isReadTimeout(error: unknown): boolean {
+  const cause: unknown = error instanceof Error ? error.cause : undefined;
+  const failure = cause ?? error;
+  if (typeof failure !== 'object' || failure === null) return false;
+  return (
+    ('name' in failure && (failure.name === 'TimeoutError' || failure.name === 'AbortError')) ||
+    ('message' in failure &&
+      typeof failure.message === 'string' &&
+      /\b(?:timed out|did not answer in time)\b/iu.test(failure.message))
+  );
+}
+
 export function ToolApprovalCard({
   message,
   actions,
@@ -34,7 +52,11 @@ export function ToolApprovalCard({
   message: ChannelMessage;
   actions: Pick<
     BridgeActions,
-    'toolApprovalStatus' | 'toolApprovalState' | 'toolApprovalExecutionState' | 'decideToolApproval'
+    | 'requestHost'
+    | 'toolApprovalStatus'
+    | 'toolApprovalState'
+    | 'toolApprovalExecutionState'
+    | 'decideToolApproval'
   >;
   hostScoped?: boolean;
   channelId?: string | undefined;
@@ -49,6 +71,7 @@ export function ToolApprovalCard({
   companionTarget?: (CompanionRequestTarget & { callId: string }) | undefined;
 }): ReactElement {
   const store = useConversationStore();
+  const host = useMessageHost()?.client;
   const request = message.toolApprovalRequest!;
   const secretCli = request.toolName === 'secret_cli';
   const canAlwaysAllow = request.allowAlways ?? false;
@@ -86,72 +109,80 @@ export function ToolApprovalCard({
   const approvalMount = useMountedResource<HTMLDivElement>(() => {
     mounted.current = true;
     if (effectiveDecision !== undefined) setStatus('decided');
-    if (botSlug === undefined) return;
     let active = true;
-    let poll: ReturnType<typeof setTimeout> | undefined;
+    let loaded = false;
+    const assignment = request.role === 'assignment';
     if (effectiveDecision === undefined) {
       setStatus('loading');
       setError(undefined);
     }
-    const refreshExecution = (): void => {
-      if (request.role !== 'assignment' || actions.toolApprovalExecutionState === undefined) return;
-      void actions.toolApprovalExecutionState(cardChannelId, message.id).then(
-        (value) => {
-          if (!active) return;
-          setExecutionState(value);
-          if (
-            value === 'waiting-human' ||
-            value === 'waiting-capacity' ||
-            (value === 'running' && effectiveDecision === undefined)
-          )
-            poll = setTimeout(refreshExecution, 1000);
-        },
-        () => {
-          if (!active) return;
-          setExecutionState(undefined);
-          poll = setTimeout(refreshExecution, 2000);
-        },
-      );
-    };
-    const refreshStatus = (): void => {
-      void (
-        actions.toolApprovalState?.(cardChannelId, message.id) ??
-        actions.toolApprovalStatus(cardChannelId, message.id).then((value) => ({ status: value }))
-      ).then(
-        ({
-          status: value,
-          expiresAt: expiry,
-        }: {
-          status: 'pending' | 'expired' | 'stopped';
-          expiresAt?: string;
-        }) => {
-          if (active) {
-            setStatus((current) =>
-              current === 'expired' || current === 'stopped' || current === 'decided'
-                ? current
-                : value,
-            );
-            setExpiresAt(expiry);
+    const refresh = async () => {
+      try {
+        if (
+          actions.toolApprovalState === undefined &&
+          assignment &&
+          actions.toolApprovalExecutionState !== undefined
+        ) {
+          try {
+            const value = await actions.toolApprovalExecutionState(cardChannelId, message.id);
+            if (active) setExecutionState(value);
+          } catch (error) {
+            if (active && !isReadTimeout(error)) setExecutionState(undefined);
           }
-        },
-        () => {
-          if (active) setStatus('unavailable');
-        },
-      );
+        }
+        if (!active || (effectiveDecision !== undefined && actions.toolApprovalState === undefined))
+          return;
+        const snapshot = await (actions.toolApprovalState?.(cardChannelId, message.id) ??
+          actions.toolApprovalStatus(cardChannelId, message.id).then((status) => ({
+            status,
+            expiresAt: undefined,
+            execution: undefined,
+          })));
+        if (!active) return;
+        loaded = true;
+        if (assignment && actions.toolApprovalState !== undefined)
+          setExecutionState(snapshot.execution);
+        if (effectiveDecision === undefined) {
+          setStatus((current) =>
+            current === 'expired' || current === 'stopped' || current === 'decided'
+              ? current
+              : snapshot.status,
+          );
+          setExpiresAt(snapshot.expiresAt);
+        }
+        if (
+          snapshot.status !== 'pending' &&
+          (!assignment || snapshot.execution === 'settled' || snapshot.execution === 'needs-repair')
+        )
+          stop();
+      } catch {
+        if (active && !loaded && effectiveDecision === undefined)
+          setStatus((current) => (current === 'loading' ? 'unavailable' : current));
+      }
     };
-    if (effectiveDecision === undefined) refreshStatus();
-    refreshExecution();
-    const stopGrants = subscribeWorkspaceGrantChanges(botSlug, refreshStatus, actions);
+    const watching = botSlug !== undefined && (assignment || effectiveDecision === undefined);
+    const stop = watching
+      ? observeHostResource(
+          (change) =>
+            change.resource === 'tool-approval' &&
+            change.channelId === cardChannelId &&
+            change.messageId === message.id,
+          refresh,
+          host ?? actions.requestHost?.(),
+          (invalidate) => subscribeWorkspaceGrantChanges(botSlug, invalidate, actions),
+        )
+      : () => {};
     return () => {
       active = false;
       mounted.current = false;
-      clearTimeout(poll);
-      stopGrants();
+      stop();
     };
   }, [
     actions,
     botSlug,
+    cardChannelId,
     effectiveDecision,
+    host,
     message.id,
     request.role,
     companionTarget?.live,
@@ -283,7 +314,7 @@ export function ToolApprovalCard({
   const category = t(
     botCreate !== undefined
       ? 'approval.category.bot'
-      : request.toolName === 'bash'
+      : request.toolName === 'bash' || request.toolName === 'shell'
         ? 'approval.category.terminal'
         : summary.file !== undefined
           ? 'approval.category.file'
@@ -303,14 +334,16 @@ export function ToolApprovalCard({
         : t('approval.summaryTool', { tool: request.toolName }));
   const preview =
     summary.command !== undefined ? (
-      <code className="bh-tool-approval-line">{summary.command}</code>
+      <code {...hooked('bh-tool-approval-line', styles.well, styles.preview)}>
+        {summary.command}
+      </code>
     ) : summary.file !== undefined ? (
-      <span className="bh-tool-approval-line">
+      <span {...hooked('bh-tool-approval-line', styles.well, styles.preview)}>
         <code>{summary.file.path}</code>{' '}
-        <span className="bh-tool-approval-diff-stat" data-kind="add">
+        <span {...stylex.props(styles.added)} data-kind="add">
           +{summary.file.added}
         </span>{' '}
-        <span className="bh-tool-approval-diff-stat" data-kind="remove">
+        <span {...stylex.props(styles.removed)} data-kind="remove">
           −{summary.file.removed}
         </span>
       </span>
@@ -327,27 +360,23 @@ export function ToolApprovalCard({
         ? status
         : undefined;
   const details = open ? (
-    <div
-      id={detailsId}
-      className={
-        compact
-          ? 'bh-tool-approval-details-body bh-companion-details'
-          : 'bh-tool-approval-details-body'
-      }
-    >
-      <div className="bh-note">
+    <div id={detailsId} {...hooked('bh-tool-approval-details-body', styles.group)}>
+      <div {...stylex.props(styles.caption)}>
         {request.role === 'assignment' ? t('approval.assignment') : t('approval.orchestrator')}
         {' · '}
         {request.toolName}
       </div>
-      <div className="bh-note">{t('approval.cwd', { path: request.cwd })}</div>
+      <div {...hooked('bh-tool-approval-cwd', styles.caption)}>
+        {t('approval.cwd', { path: request.cwd })}
+      </div>
       <ApprovalInput
         toolName={request.toolName}
         input={request.input}
         t={t}
         caption={summary.description === undefined}
+        compact={compact}
       />
-      <div className="bh-note">
+      <div {...stylex.props(styles.caption)}>
         {t(
           request.toolName === 'channel_attachment_open'
             ? 'approval.originalRisk'
@@ -376,7 +405,14 @@ export function ToolApprovalCard({
   return (
     <div
       ref={approvalMount}
-      className="bh-tool-approval-card"
+      {...hooked(
+        'bh-tool-approval-card',
+        styles.card,
+        styles.focus,
+        compact && styles.compact,
+        !compact && surface === 'chat' && styles.approval,
+        surface === 'activity' && styles.inset,
+      )}
       data-compact={compact || undefined}
       tabIndex={actionable ? 0 : undefined}
       aria-label={actionable ? t('approval.requestTitle') : undefined}
@@ -391,41 +427,38 @@ export function ToolApprovalCard({
       onKeyDown={onKeyDown}
       onClick={onCardClick}
     >
-      <div className="bh-request-head">
-        <span className="bh-request-category">{category}</span>
-        {actionable ? (
-          <span
-            ref={countdownMount}
-            className="bh-request-pill"
-            data-state="pending"
-            data-urgent={countdown?.urgent || undefined}
-          >
-            {countdown !== undefined && soon ? (
-              <time dateTime={expiresAt} title={new Date(expiresAt!).toLocaleString()}>
-                {t(countdown.key, { count: String(countdown.count) })}
-              </time>
-            ) : (
-              <span
-                title={expiresAt === undefined ? undefined : new Date(expiresAt).toLocaleString()}
-              >
-                {t('approval.outcome.pending')}
-              </span>
-            )}
-          </span>
-        ) : null}
-      </div>
+      <RequestHeading
+        urgent={countdown?.urgent === true}
+        pendingRef={countdownMount}
+        pending={
+          !actionable ? undefined : countdown !== undefined && soon ? (
+            <time dateTime={expiresAt} title={new Date(expiresAt!).toLocaleString()}>
+              {t(countdown.key, { count: String(countdown.count) })}
+            </time>
+          ) : (
+            <span
+              title={expiresAt === undefined ? undefined : new Date(expiresAt).toLocaleString()}
+            >
+              {t('approval.outcome.pending')}
+            </span>
+          )
+        }
+      >
+        {category}
+      </RequestHeading>
       <>
-        <button
+        <Button
           type="button"
           className="bh-request-summary"
+          xstyle={styles.summary}
           aria-expanded={open}
           aria-controls={open ? detailsId : undefined}
           title={t(open ? 'approval.hideDetails' : 'approval.showDetails')}
           onClick={() => setOpen((current) => !current)}
         >
-          <span className="bh-tool-approval-sentence">{sentence}</span>
+          <span {...hooked('bh-tool-approval-sentence', styles.prompt)}>{sentence}</span>
           {preview}
-        </button>
+        </Button>
         {botCreate === undefined ? null : (
           <BotCreateApprovalPreview
             args={botCreate}
@@ -435,13 +468,13 @@ export function ToolApprovalCard({
           />
         )}
         {request.effects === undefined ? null : (
-          <div className="bh-note">
+          <div {...stylex.props(styles.caption)}>
             {t(`approval.effect.changes.${request.effects.changes}`)} ·{' '}
             {t(`approval.effect.reach.${request.effects.reach}`)}
           </div>
         )}
         {request.approvalReview === undefined ? null : (
-          <div className="bh-note">
+          <div {...stylex.props(styles.caption)}>
             {request.approvalReview.kind === 'template-unavailable'
               ? t('autoApproval.unavailable')
               : request.approvalReview.fallback === undefined
@@ -454,7 +487,7 @@ export function ToolApprovalCard({
       {executionState === 'waiting-human' ||
       executionState === 'waiting-capacity' ||
       executionState === 'needs-repair' ? (
-        <div role="status" className="bh-note">
+        <div role="status" {...stylex.props(styles.caption)}>
           {t(
             executionState === 'waiting-human'
               ? 'approval.waitingHumanCapacity'
@@ -465,7 +498,7 @@ export function ToolApprovalCard({
         </div>
       ) : null}
       {effectiveDecision !== undefined || actionable ? (
-        <div className="bh-note">
+        <div {...stylex.props(styles.caption)}>
           {canAlwaysAllow
             ? t(
                 secretCli
@@ -479,10 +512,8 @@ export function ToolApprovalCard({
         </div>
       ) : null}
       {settled !== undefined ? (
-        <div
-          role="status"
-          className="bh-request-done"
-          data-state={settled}
+        <RequestOutcome
+          outcome={settled}
           title={t(
             settled === 'denied'
               ? 'approval.rejected'
@@ -498,16 +529,13 @@ export function ToolApprovalCard({
           )}
         >
           {category + ' · ' + t(`approval.outcome.${settled}`)}
-        </div>
+        </RequestOutcome>
       ) : null}
       {effectiveDecision !== undefined || actionable ? (
-        <div
-          ref={focusMount}
-          className="bh-tool-approval-actions bh-message-card-actions"
-          data-stack
-        >
+        <ActionGroup groupRef={focusMount} className="bh-tool-approval-actions" stack>
           <ActionButton
             icon="check"
+            pill
             tone="primary"
             size={size}
             disabled={disabled}
@@ -519,6 +547,7 @@ export function ToolApprovalCard({
           </ActionButton>
           <ActionButton
             icon="shield-check"
+            pill
 
             size={size}
             disabled={disabled || !canAlwaysAllow}
@@ -530,6 +559,7 @@ export function ToolApprovalCard({
           </ActionButton>
           <ActionButton
             icon="x"
+            pill
 
             size={size}
             tone="danger"
@@ -540,26 +570,27 @@ export function ToolApprovalCard({
           >
             {t('approval.reject')}
           </ActionButton>
-        </div>
+        </ActionGroup>
       ) : status === 'loading' || status === 'unavailable' ? (
-        <div role="status" className="bh-note">
+        <div role="status" {...stylex.props(styles.caption)}>
           {t(status === 'loading' ? 'approval.loading' : 'companion.requestUnavailable')}
         </div>
       ) : null}
       {status === 'unavailable' ? (
-        <div className="bh-message-card-actions">
+        <ActionGroup>
           <ActionButton
             icon="refresh"
+            pill
 
             disabled={companionTarget !== undefined && !qualified()}
             onClick={() => setRetry((value) => value + 1)}
           >
             {t('companion.retryRequest')}
           </ActionButton>
-        </div>
+        </ActionGroup>
       ) : null}
       {error === undefined ? null : (
-        <div className="bh-error" role="alert">
+        <div {...stylex.props(styles.caption, styles.error)} role="alert">
           {error}
         </div>
       )}

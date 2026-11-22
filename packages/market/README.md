@@ -1,6 +1,6 @@
 # @botharness/market
 
-The Bot Marketplace Worker ([ADR-0131](../../docs/adr/0131-bot-marketplace-starts-as-a-github-indexed-catalog.md)). It indexes public GitHub repositories that carry the `botharness-bot` topic into its own D1 database and serves the catalog to the BotHarness Host.
+The Bot Marketplace Worker ([ADR-0131](../../docs/decisions/marketplace.md#adr-0131)). It indexes public GitHub repositories that carry the `botharness-bot` topic into its own D1 database and serves the catalog to the BotHarness Host.
 
 ## API
 
@@ -19,6 +19,16 @@ The Bot Marketplace Worker ([ADR-0131](../../docs/adr/0131-bot-marketplace-start
 | `POST /v1/admin/blocklist` `Authorization: Bearer <ADMIN_TOKEN>` `{ "id" \| "url", "action": "block" \| "restore" }` | `200 { bot: { id, fullName, visibility } }`. `block` keeps the repository out through paste and discovery (a URL not yet indexed is looked up and blocked); `restore` clears its reports and re-checks it on GitHub. `401 unauthorized`, `400 invalid-admin-request`, `404 bot-not-found`                                                                                                                                                                                                                                                                         |
 
 Most-starred browsing orders by `stars DESC, pushed_at DESC, created_at DESC, node_id DESC`. Migration `0011_star_tiebreaks.sql` replaces only the supporting index. Stars cursors include all four keys; pre-migration three-field cursors return `invalid-cursor` and clients restart at page one. Updated and created cursors are unchanged.
+
+## Marketplace Avatars
+
+- `GET /v1/avatars?cursor=<nextCursor>` returns `{ avatars, nextCursor }` in pages of 24. `GET /v1/avatars/{id}` returns `{ avatar }` with the preview URL, author display name and Author ID, and Apply Count. `GET /v1/avatars/{id}/image` serves the stored image bytes.
+- `POST /v1/avatars` takes a Connect bearer token and a JSON body with `name`, `description`, `tags`, `image` (an image data URL), `confirm: true` and `requestKey`. An optional `expectedAuthorId` binds the request to the identity the user confirmed. The same account and request key return the existing Avatar. Each account can publish up to 20.
+- Clients process the image before upload. The Worker checks signatures, dimensions, animation markers, metadata chunks, and the 128 KiB limit. See [ADR-0359](../../docs/adr/0359-marketplace-avatar-images-are-processed-on-the-client.md).
+
+Avatar reports use `POST /v1/avatars/{id}/reports` with the shared challenge and optional reason. The report threshold hides public reads and Apply. To block or restore, platform admins send `{ "kind": "avatar", "id": "...", "action": "block" | "restore" }` to `POST /v1/admin/blocklist`. The response includes `{ avatar: { id, name, visibility } }`. Restoring clears reports and preserves Apply Count.
+
+Apply D1 migration `0023_entry_reports.sql` before deploying the Worker. It adds cleanup triggers for Avatar report keys and preserves the existing reports table and Bot report keys.
 
 ## Public read API (v1)
 

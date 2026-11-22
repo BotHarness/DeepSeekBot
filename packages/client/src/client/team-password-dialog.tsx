@@ -1,25 +1,28 @@
+import { Checkbox } from './ds/checkbox.js';
 import { useState, type ReactElement } from 'react';
-
-import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeCall } from './bridge.js';
 import { FieldStack, TextField } from './ds/field.js';
 import { FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
-import type { BotHarnessTranslate } from './locale.js';
-import { TEAM_PASSWORD_MIN_LENGTH, changeOwnPassword, teamRefusal } from './team-bridge.js';
+import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
+import {
+  TEAM_PASSWORD_MIN_LENGTH,
+  changeOwnPassword,
+  teamRefusal,
+  type TeamRefusal,
+} from './team-bridge.js';
+
+const PASSWORD_ERROR_TEXT: Partial<Record<TeamRefusal, BotHarnessKey>> = {
+  'credentials-invalid': 'team.error.currentPasswordWrong',
+  'password-weak': 'team.error.passwordWeak',
+  'password-reused': 'team.error.passwordReused',
+};
 
 function errorText(t: BotHarnessTranslate, error: unknown): string {
-  switch (teamRefusal(error)) {
-    case 'credentials-invalid':
-      return t('team.error.currentPasswordWrong');
-    case 'password-weak':
-      return t('team.error.passwordWeak');
-    case 'password-reused':
-      return t('team.error.passwordReused');
-    default:
-      return t('team.error.generic');
-  }
+  const refusal = teamRefusal(error);
+  const key = refusal === undefined ? undefined : PASSWORD_ERROR_TEXT[refusal];
+  return t(key ?? 'team.error.generic');
 }
 
 export function MemberPasswordDialog({

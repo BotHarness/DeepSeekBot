@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
+import { type HostFileTarget } from '../src/client/host-file-actions.js';
 import { MessageAttachment } from '../src/client/message-attachment.js';
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     FileTypeIcon: stub,
     writeClipboard: vi.fn(async () => true),
     fileSizeText: (bytes: number) =>
@@ -15,62 +18,13 @@ vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
         : bytes >= 1024
           ? `${(bytes / 1024).toFixed(1)}KB`
           : `${bytes}B`,
-    IconEllipsisOutlineRegular: stub,
-    IconDownloadOutlineRegular: stub,
-    IconPlayOutlineRegular: stub,
-    IconPauseOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconChevronLeftOutlineRegular: stub,
-    IconChevronRightOutlineRegular: stub,
-    IconCloseOutlineRegular: stub,
-    IconCopyOutlineRegular: stub,
-    IconRefreshOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
-    IconFolderCloseRegular: stub,
-    IconFolderOpenRegular: stub,
-    Tooltip: ({ children }: { children: ReactNode }) => children,
-    Menu: ({
-      anchor,
-      items,
-      onSelect,
-    }: {
-      anchor: ReactNode;
-      items: {
-        type?: string;
-        id: string;
-        label?: ReactNode;
-        text?: ReactNode;
-        disabled?: boolean;
-      }[];
-      onSelect: (id: string) => void;
-    }) =>
-      createElement(
-        'div',
-        { role: 'menu' },
-        anchor,
-        items.map((item) =>
-          item.type
-            ? createElement('span', { key: item.id }, item.text)
-            : createElement(
-                'button',
-                {
-                  key: item.id,
-                  role: 'menuitem',
-                  disabled: item.disabled,
-                  onClick: () => onSelect(item.id),
-                },
-                item.label,
-              ),
-        ),
-      ),
   };
 });
 import { writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives';
 import { MemoryFileTree } from '../src/client/memory-file-tree.js';
 import { WorkspaceFileActionButton } from '../src/client/workspace-file-actions.js';
 import { MemoryFileActionButton } from '../src/client/memory-file-actions.js';
-import type { HostFileTarget } from '../src/client/host-file-actions.js';
+
 import { zhTranslate } from '../src/client/locale.js';
 
 let container: HTMLDivElement;
@@ -101,7 +55,7 @@ function actions(available = true) {
   };
 }
 const button = (text: string) =>
-  [...document.querySelectorAll<HTMLButtonElement>('button')].find((b) =>
+  [...document.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].find((b) =>
     b.textContent?.includes(text),
   )!;
 async function click(element: Element) {

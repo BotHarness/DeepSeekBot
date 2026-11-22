@@ -1,5 +1,6 @@
+import { Icon } from './ds/icon.js';
 import type { ReactElement } from 'react';
-import { IconInfoOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from './ds/tooltip.js';
 import type { BotHarnessTranslate } from './locale.js';
 
@@ -26,7 +27,7 @@ export function MessagingHelp({
           if (event.key === 'Enter' || event.key === ' ') event.stopPropagation();
         }}
       >
-        <IconInfoOutlineRegular size={16} />
+        <Icon name="info" size={16} />
       </button>
     </Tooltip>
   );

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BridgeActions } from '../src/client/actions.js';
 import { approvalCountdown } from '../src/client/approval-countdown.js';
@@ -13,11 +14,8 @@ import { zhTranslate } from '../src/client/locale.js';
 import { store, type ChannelMessage } from '../src/client/store.js';
 import { ToolApprovalCard } from '../src/client/tool-approval-card.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
-    createElement('button', props, children),
-  IconRefreshOutlineRegular: () => null,
-  Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 const message = (toolName = 'bash', input = '{"command":"echo QA"}'): ChannelMessage =>
@@ -165,6 +163,33 @@ describe('Tool approval card layout', () => {
     ).toEqual(['允许这次', '始终允许', '拒绝']);
     expect(card.querySelector('kbd')).toBeNull();
   });
+  it('shows an engine shell request like a Terminal card, command and reason inline', async () => {
+    const card = await render(
+      message(
+        'shell',
+        JSON.stringify({
+          command: 'curl -sI https://example.com | head -1',
+          cwd: '/work',
+          reason: 'May I run the command with network access?',
+        }),
+      ),
+    );
+    expect(card.querySelector('.bh-request-category')?.textContent).toBe('终端');
+    expect(card.querySelector('.bh-tool-approval-sentence')?.textContent).toBe(
+      'May I run the command with network access?',
+    );
+    expect(card.querySelector('.bh-tool-approval-line')?.textContent).toBe(
+      'curl -sI https://example.com | head -1',
+    );
+    expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
+  });
+  it('shows every line of a multi-line command on the closed card', async () => {
+    const card = await render(
+      message('shell', JSON.stringify({ command: 'pwd\nrm -rf ./data', reason: 'Clean up' })),
+    );
+    expect(card.querySelector('.bh-tool-approval-line')?.textContent).toBe('pwd\nrm -rf ./data');
+    expect(card.querySelector('.bh-tool-approval-details-body')).toBeNull();
+  });
   it('closes as Session stopped when the Human stopped the asking Session', async () => {
     const card = await render(message(), {
       toolApprovalStatus: async () => 'stopped',
@@ -199,6 +224,12 @@ describe('Tool approval card layout', () => {
     expect(preview.querySelector('.bh-bot-create-bio')?.textContent).toBe('翻译发布说明');
     expect(preview.textContent).toContain('translator');
     expect(preview.textContent).toContain('zh-en');
+    expect(Array.from(preview.querySelectorAll('dl dt'), (item) => item.textContent)).toEqual([
+      'SOUL.md',
+      'MEMORY.md',
+      zhTranslate('approval.botCreate.memoryFolder'),
+    ]);
+    expect(preview.querySelectorAll('dl dt + dd')).toHaveLength(3);
     const excerpts = [...preview.querySelectorAll('.bh-bot-create-excerpt')];
     expect(excerpts.map((item) => item.textContent)).toEqual(['# Tim\n冷静\n准确\n…']);
     expect(preview.textContent).toContain('使用默认的核心记忆模板');
@@ -213,7 +244,7 @@ describe('Tool approval card layout', () => {
     expect(card.querySelector('.bh-tool-approval-details-body')?.textContent).toContain('/qa');
     expect(card.querySelector('.bh-request-summary')?.getAttribute('aria-expanded')).toBe('true');
     await act(async () =>
-      card.querySelector<HTMLElement>('.bh-tool-approval-details-body .bh-note')!.click(),
+      card.querySelector<HTMLElement>('.bh-tool-approval-details-body > div')!.click(),
     );
     expect(card.querySelector('.bh-tool-approval-details-body')).not.toBeNull();
     await act(async () => card.querySelector<HTMLButtonElement>('.bh-request-summary')!.click());
@@ -529,6 +560,12 @@ describe('Tool approval file diff', () => {
       command: 'ls -la',
       description: 'List',
     });
+    expect(
+      approvalShellCommand(
+        'shell',
+        JSON.stringify({ command: 'curl -sI https://example.com', reason: 'Needs network' }),
+      ),
+    ).toEqual({ command: 'curl -sI https://example.com', description: 'Needs network' });
     expect(approvalShellCommand('edit', '{"command":"ls"}')).toBeUndefined();
     expect(approvalFileChange('edit', 'not json')).toBeUndefined();
   });

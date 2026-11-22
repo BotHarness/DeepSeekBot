@@ -1,105 +1,43 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type BotSummary } from '../src/client/store.js';
+import { type ChannelSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
-    Toast: stub,
-    IconCodeOutlineRegular: () => null,
-    HoverCard: ({ anchor }: { anchor: unknown }) => anchor,
-    Button: ({
-      children,
-      variant: _variant,
-      size: _size,
-      ...props
-    }: ButtonHTMLAttributes<HTMLButtonElement> & {
-      variant?: string;
-      size?: string;
-    }) => createElement('button', props, children),
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
     IconAgentPresetOutline16: stub,
-    IconAgentPresetOutlineRegular: stub,
-    IconCheckOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconBranchOutlineRegular: stub,
-    IconChevronLeftOutlineRegular: stub,
-    IconChevronRightOutlineRegular: stub,
+
     IconChevronDownOutline14: stub,
-    IconChevronDownOutlineRegular: stub,
+
     IconCloseFill14: stub,
     IconCopyOutline16: stub,
-    IconCopyOutlineRegular: stub,
+
     IconCloseOutline16: stub,
     IconEllipsisOutline16: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
-    IconUserOutlineRegular: stub,
-    IconFolderCloseRegular: stub,
-    IconFolderOpenRegular: stub,
+
     IconFolderOpenOutline16: stub,
     IconNewChatOutline16: stub,
     IconPanelLeftOutline16: stub,
-    IconPanelLeftOutlineRegular: stub,
-    IconPaperclipOutlineRegular: stub,
+
     IconPlusOutline16: stub,
-    IconRefreshOutlineRegular: stub,
+
     IconSearchOutline16: stub,
     IconSendOutline16: stub,
-    IconSendOutlineRegular: stub,
-    IconStopFillRegular: stub,
+
     IconTrashOutline16: stub,
     FileTypeIcon: stub,
     ImageLightbox: stub,
-    Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-    Menu: ({
-      anchor,
-      open,
-      items = [],
-      onSelect,
-      children,
-    }: {
-      anchor: ReactNode;
-      open: boolean;
-      items?: { id: string; label: string }[];
-      onSelect?: (id: string) => void;
-      children?: ReactNode;
-    }) =>
-      createElement(
-        'span',
-        null,
-        anchor,
-        open
-          ? createElement(
-              'div',
-              { role: 'menu' },
-              ...items.map((item) =>
-                createElement(
-                  'button',
-                  { key: item.id, role: 'menuitem', onClick: () => onSelect?.(item.id) },
-                  item.label,
-                ),
-              ),
-              children,
-            )
-          : null,
-      ),
-    MenuSurface: ({ children }: { children: ReactNode }) =>
-      createElement('div', { role: 'menu' }, children),
-    MenuItemButton: ({ children, onSelect }: { children: ReactNode; onSelect: () => void }) =>
-      createElement('button', { role: 'menuitem', onClick: onSelect }, children),
+
     MarkdownText: stub,
-    Modal: stub,
+
     StateDot: stub,
-    Tag: stub,
-    Tooltip: ({ children }: { children: ReactNode }) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
@@ -109,7 +47,7 @@ import { BotMain } from '../src/client/bot-main.js';
 import { BotModePrefs } from '../src/client/bot-mode-prefs.js';
 import { WindowCompanions } from '../src/client/window-companions.js';
 import { createChannelSidebarRegistry } from '../src/client/channel-sidebar.js';
-import { store, type BotSummary, type ChannelSummary } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 import { inertSubmissionActions } from './inert-submissions.js';
 
 const AT = '2026-10-09T00:00:00Z';

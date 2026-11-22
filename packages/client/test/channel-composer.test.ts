@@ -1,34 +1,12 @@
-import {
-  createElement,
-  type ButtonHTMLAttributes,
-  type ReactNode,
-  type PropsWithChildren,
-} from 'react';
+import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import type { PersonaBotFacepileItem } from '../src/client/avatar.js';
 
-vi.mock('../src/client/ds/button.js', async () => ({
-  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
-}));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({
-    children,
-    icon: _icon,
-    ...props
-  }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement> & { icon?: unknown }>) =>
-    createElement('button', props, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   FileTypeIcon: ({ path }: { path: string }) =>
     createElement('span', { 'data-file-type-icon': path }),
-  IconCloseOutlineRegular: () => null,
-  IconChevronDownOutlineRegular: () => null,
-  IconAgentPresetOutlineRegular: () => null,
-  IconCodeOutlineRegular: () => null,
-  IconBranchOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  IconPaperclipOutlineRegular: () => null,
-  IconSendOutlineRegular: () => null,
-  IconSkillOutlineRegular: () => null,
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   ImageLightbox: () => null,
   fileSizeText: (size: number) => `${size} B`,
 }));
@@ -69,7 +47,7 @@ describe('Channel composer', () => {
     );
 
     expect(markup).not.toContain('bh-composer-activity-status');
-    expect(markup).toContain('class="bh-composer bh-composer-compact"');
+    expect(markup).toContain('data-layout="compact"');
     expect(markup).toContain('disabled=""');
   });
 
@@ -129,10 +107,14 @@ describe('Channel composer', () => {
     expect(failed).toContain('report.pdf');
     expect(failed).toContain('title="network unavailable"');
     expect(failed).toContain('重试');
-    expect(failed.match(/<button class="bh-send-btn"[^>]*>/u)?.[0]).toContain('disabled=""');
+    expect(failed.match(/<button[^>]*class="[^"]*bh-send-btn[^"]*"[^>]*>/u)?.[0]).toContain(
+      'disabled=""',
+    );
 
     const ready = render('ready');
-    expect(ready.match(/<button class="bh-send-btn"[^>]*>/u)?.[0]).not.toContain('disabled');
+    expect(ready.match(/<button[^>]*class="[^"]*bh-send-btn[^"]*"[^>]*>/u)?.[0]).not.toContain(
+      'disabled',
+    );
   });
 
   it('renders image previews and document files as distinct attachment shapes', () => {

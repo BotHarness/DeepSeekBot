@@ -1,30 +1,15 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  useState,
-  type ButtonHTMLAttributes,
-  type PropsWithChildren,
-} from 'react';
+import { mountAppearanceFixture } from './appearance-fixture.js';
+import { act, createElement, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconAgentPresetOutlineRegular: () => null,
-  IconCodeOutlineRegular: () => null,
-  IconBranchOutlineRegular: () => null,
-  Button: ({
-    children,
-    icon: _icon,
-    ...props
-  }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement> & { icon?: unknown }>) =>
-    createElement('button', props, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   FileTypeIcon: () => null,
   fileSizeText: (size: number) => `${size} B`,
-  IconCloseOutlineRegular: () => null,
-  IconPaperclipOutlineRegular: () => null,
-  IconSendOutlineRegular: () => null,
-  IconSkillOutlineRegular: () => null,
+
   ImageLightbox: () => null,
 }));
 
@@ -339,6 +324,7 @@ describe('rich mention editor', () => {
       container.querySelector<HTMLElement>(
         `.bh-composer-inline-mention[data-bot-id="${slug}"] > span:last-child`,
       )!;
+    const appearance = mountAppearanceFixture();
     try {
       await show('@Ada @Ada hi #Team', candidate('ada', '#ffffff'));
       expect(token('ada').dataset['botNameColor']).toBe(botNameColor('#ffffff', '#ffffff'));
@@ -346,11 +332,11 @@ describe('rich mention editor', () => {
       expect(token('bea').dataset['botNameColor']).toBe('#000000');
       expect(token('bea').style.color).not.toBe('');
 
-      document.body.setAttribute('data-ds-dark-theme', '');
+      appearance.owner.update({ preference: 'dark' });
       await act(async () => new Promise((done) => setTimeout(done, 0)));
       expect(token('ada').dataset['botNameColor']).toBe('#ffffff');
       expect(token('bea').dataset['botNameColor']).not.toBe('#000000');
-      document.body.removeAttribute('data-ds-dark-theme');
+      appearance.owner.update({ preference: 'light' });
       await act(async () => new Promise((done) => setTimeout(done, 0)));
 
       await show('@Ada @Ada hi #Team', candidate('ada', '#d9475a'));
@@ -378,7 +364,7 @@ describe('rich mention editor', () => {
         '#000000',
       ]);
     } finally {
-      document.body.removeAttribute('data-ds-dark-theme');
+      appearance.dispose();
       await act(async () => root.unmount());
       container.remove();
     }

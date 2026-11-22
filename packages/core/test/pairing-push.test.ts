@@ -144,15 +144,53 @@ it('a resend racing the push does not mint a second device', async () => {
     expect(await f.next()).toMatchObject({ type: 'pair-pending' });
     f.pairing.approveKey(f.offer.receipt, f.publicKey);
     f.send(message);
-    expect(await f.next()).toMatchObject({ type: 'paired' });
-    expect(await f.next()).toEqual({ type: 'refused', code: 'offer-invalid' });
-    await f.closed;
+    const paired = await f.next();
+    expect(paired).toMatchObject({ type: 'paired' });
+    expect(await f.next()).toEqual(paired);
     expect(f.pairing.list()).toHaveLength(1);
     expect(f.redeem).toHaveBeenCalledTimes(2);
   } finally {
     await f.close();
   }
 });
+
+it.each(['admitted', 'cleared', 'expired', 'revoked'] as const)(
+  'allows only the original device to recover a pushed credential until %s',
+  async (ending) => {
+    const f = await fixture();
+    try {
+      const offer = f.offer.offer;
+      const message = { type: 'pair', offer };
+      const original = { offer, publicKey: f.publicKey };
+      f.send(message);
+      expect(await f.next()).toMatchObject({ type: 'pair-pending' });
+      f.pairing.approveKey(f.offer.receipt, f.publicKey);
+      const paired = await f.next();
+      expect(paired).toMatchObject({ type: 'paired' });
+      expect(f.pairing.resumeKeyRedemption(original)).toMatchObject({
+        credential: paired.credential,
+      });
+      expect(
+        f.pairing.resumeKeyRedemption({ ...original, publicKey: '0'.repeat(64) }),
+      ).toBeUndefined();
+      expect(f.pairing.redeem(original)).toEqual({ ok: false, code: 'offer-invalid' });
+      if (ending === 'admitted') {
+        f.send({ type: 'admit', credential: paired.credential });
+        expect(await f.next()).toEqual({ type: 'admitted' });
+      } else if (ending === 'cleared') f.pairing.clearOffers();
+      else if (ending === 'expired') f.advance(PAIRING_OFFER_TTL_MS);
+      else expect(f.pairing.revoke(String(paired.deviceId)).revoked).toBe(true);
+      expect(f.pairing.resumeKeyRedemption(original)).toBeUndefined();
+      if (ending !== 'admitted') {
+        f.send(message);
+        expect(await f.next()).toEqual({ type: 'refused', code: 'offer-invalid' });
+      }
+      expect(f.pairing.list()).toHaveLength(1);
+    } finally {
+      await f.close();
+    }
+  },
+);
 
 it.each(['superseded', 'refused', 'expired', 'redeemed'] as const)(
   'pushes refusal when a waiting offer is %s',

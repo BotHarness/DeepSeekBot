@@ -1,13 +1,8 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronLeftOutlineRegular: () => null,
-  IconChevronRightOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
-  IconSearchOutlineRegular: () => null,
-  MenuSurface: () => null,
-  Tooltip: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 import { foldableMessage, messageFolds } from '../src/client/message-fold.js';

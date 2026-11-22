@@ -1,7 +1,10 @@
 import { Button } from './ds/button.js';
-import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
+import { useMemo, useSyncExternalStore, type ReactElement } from 'react';
 
-import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
+import * as stylex from '@stylexjs/stylex';
+import { Note } from './ds/note.js';
+import { CopyChip } from './ds/status-block.js';
+import { layer, space, style } from './ds/tobs.stylex.js';
 
 import type { PluginUpdate } from '../../../core/src/release/plugins.js';
 import type { BridgeCall } from './bridge.js';
@@ -18,6 +21,17 @@ import {
   RELEASE_UPDATE_PROFILE,
   runsInDesktop,
 } from './release-notes-view.js';
+
+const styles = stylex.create({
+  diagnostic: {
+    margin: 0,
+    padding: space.x3,
+    backgroundColor: layer.well,
+    borderRadius: style.radiusContainer,
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
+  },
+});
 
 const PLUGIN_NAMES: Readonly<Record<string, BotHarnessKey>> = {
   '@botharness/vrm-companion': 'plugins.name.vrmCompanion',
@@ -61,7 +75,6 @@ function ManualCommand({
   version: string;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const [copied, setCopied] = useState(false);
   const command = pluginUpdateCommand(
     name,
     version,
@@ -69,21 +82,14 @@ function ManualCommand({
   );
   return (
     <>
-      <div className="bh-settings-row-desc">{t('plugins.manual')}</div>
-      <div className="bh-release-command">
-        <code>{command}</code>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => {
-            void navigator.clipboard?.writeText(command).then(() => {
-              setCopied(true);
-            });
-          }}
-        >
-          {t(copied ? 'release.update.copied' : 'release.update.copy')}
-        </Button>
-      </div>
+      <Note>{t('plugins.manual')}</Note>
+      <CopyChip
+        value={command}
+        copyLabel={t('release.update.copy')}
+        copiedLabel={t('release.update.copied')}
+        marker="data-plugin-command"
+        well
+      />
     </>
   );
 }
@@ -149,21 +155,19 @@ function PluginRow({
         t={t}
       />
       {row.status === 'failed' && !shown ? (
-        <div className="bh-release-install-error" role="alert" data-plugin-install-error>
-          <div>
+        <div data-plugin-install-error>
+          <Note tone="danger">
             {t(
               row.reason === 'unknown-plugin'
                 ? 'plugins.install.unknown'
                 : INSTALL_FAILURE_KEYS[row.reason],
             )}
-          </div>
+          </Note>
           {row.diagnostic === undefined ? null : (
-            <pre className="bh-release-install-diagnostic">{row.diagnostic}</pre>
+            <pre {...stylex.props(styles.diagnostic)}>{row.diagnostic}</pre>
           )}
           {row.logPath === undefined ? null : (
-            <div className="bh-settings-row-desc">
-              {t('release.install.log', { path: row.logPath })}
-            </div>
+            <Note>{t('release.install.log', { path: row.logPath })}</Note>
           )}
         </div>
       ) : null}
@@ -174,8 +178,11 @@ function PluginRow({
   );
 }
 
-export type PluginsSectionProps = PropsLocale<'botharness'> &
-  InjectFace<{ call: BridgeCall; updateRuns?: UpdateRunsController }>;
+export interface PluginsSectionProps {
+  call: BridgeCall;
+  t: BotHarnessTranslate;
+  updateRuns?: UpdateRunsController;
+}
 
 export function PluginsSection(props: PluginsSectionProps): ReactElement {
   return (

@@ -1,67 +1,20 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
+import { type BotScheduleView } from '../src/client/bridge.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  const { createElement: element } = await import('react');
-  const stub = () => null;
-  const Tag = ({ children }: PropsWithChildren) => element('span', null, children);
+
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    Tag,
-    Tooltip: ({ children }: PropsWithChildren) => children,
-    Switch: ({
-      checked,
-      label,
-      onChange,
-    }: {
-      checked: boolean;
-      label: string;
-      onChange?(next: boolean): void;
-    }) =>
-      element('input', {
-        type: 'checkbox',
-        checked,
-        'aria-label': label,
-        onChange: (event: { target: HTMLInputElement }) => onChange?.(event.target.checked),
-      }),
-    SegmentedControl: ({
-      label,
-      value,
-      options,
-      onChange,
-    }: {
-      label: string;
-      value: string;
-      options: { value: string; label: string }[];
-      onChange(next: string): void;
-    }) =>
-      element(
-        'div',
-        { role: 'tablist', 'aria-label': label },
-        ...options.map((option) =>
-          element(
-            'button',
-            {
-              key: option.value,
-              type: 'button',
-              role: 'tab',
-              'aria-selected': option.value === value,
-              onClick: () => onChange(option.value),
-            },
-            option.label,
-          ),
-        ),
-      ),
-    IconPlusOutlineRegular: stub,
-    IconCloseOutlineRegular: stub,
   };
 });
 
 import type { BridgeActions } from '../src/client/actions.js';
-import type { BotScheduleView } from '../src/client/bridge.js';
+
 import { zhTranslate } from '../src/client/locale.js';
 import {
   BotSchedulesEntry,
@@ -239,21 +192,21 @@ describe('Bot Schedules sidebar entry', () => {
       );
     });
     expect(actions.botSchedules).toHaveBeenCalledWith('ada');
-    const text = host.textContent ?? '';
+    const text = document.body.textContent ?? '';
     expect(text).toContain('每日早报');
     expect(text).toContain('每 2 小时');
     expect(text).toContain('已处理');
-    expect(host.querySelector('[aria-label="由你创建"]')).not.toBeNull();
-    expect(host.querySelector('[aria-label="启用「每日早报」"]')).not.toBeNull();
-    const lock = host.querySelector<HTMLButtonElement>('button[data-schedule-lock]');
+    expect(document.body.querySelector('[aria-label="由你创建"]')).not.toBeNull();
+    expect(document.body.querySelector('[aria-label="启用「每日早报」"]')).not.toBeNull();
+    const lock = document.body.querySelector<HTMLButtonElement>('button[data-schedule-lock]');
     expect(lock?.getAttribute('aria-pressed')).toBe('false');
     await act(async () => lock?.click());
     expect(actions.updateBotSchedule).toHaveBeenCalledWith('ada', 'sch-1', { locked: true });
-    const runNow = host.querySelector<HTMLButtonElement>('button[data-schedule-run-now]');
+    const runNow = document.body.querySelector<HTMLButtonElement>('button[data-schedule-run-now]');
     expect(runNow?.getAttribute('aria-label')).toBe('立即运行「每日早报」');
     await act(async () => runNow?.click());
     expect(actions.runBotScheduleNow).toHaveBeenCalledWith('ada', 'sch-1');
-    expect(host.textContent).toContain('已触发，Bot 马上处理');
+    expect(document.body.textContent).toContain('已触发，Bot 马上处理');
     await act(async () => root.unmount());
     host.remove();
   });
@@ -284,7 +237,7 @@ describe('Bot Schedules sidebar entry', () => {
 
     await render('ada');
     expect(openDialogs()).toBe(0);
-    await act(async () => buttonNamed('新建定时任务', host).click());
+    await act(async () => buttonNamed('新建定时任务', document.body).click());
     expect(openDialogs()).toBe(1);
 
     await render('bob');
@@ -292,7 +245,7 @@ describe('Bot Schedules sidebar entry', () => {
     await render('ada');
     expect(openDialogs()).toBe(0);
 
-    await act(async () => buttonNamed('新建定时任务', host).click());
+    await act(async () => buttonNamed('新建定时任务', document.body).click());
     expect(openDialogs()).toBe(1);
     await act(async () => root.unmount());
     host.remove();
@@ -338,17 +291,19 @@ describe('Bot Schedule dialog opened from the Bot Inbox', () => {
 
   it('loads the schedule with its firing history and previews the next runs', async () => {
     const { host, done } = await render([schedule]);
-    expect(host.textContent).toContain('最近触发');
-    expect(host.textContent).toContain('已处理');
-    expect(host.querySelector('[data-schedule-preview]')?.textContent).toContain('正在计算');
+    expect(document.body.textContent).toContain('最近触发');
+    expect(document.body.textContent).toContain('已处理');
+    expect(document.body.querySelector('[data-schedule-preview]')?.textContent).toContain(
+      '正在计算',
+    );
     await act(async () => new Promise((resolve) => setTimeout(resolve, 300)));
-    expect(host.querySelectorAll('[data-schedule-preview] li')).toHaveLength(3);
+    expect(document.body.querySelectorAll('[data-schedule-preview] li')).toHaveLength(3);
     await done();
   });
 
   it('says when the schedule was deleted', async () => {
     const { host, done } = await render([]);
-    expect(host.textContent).toContain('这个定时任务已被删除。');
+    expect(document.body.textContent).toContain('这个定时任务已被删除。');
     await done();
   });
 });

@@ -15,9 +15,9 @@ export async function connectZoomCdp(endpoint) {
     );
     socket.addEventListener(
       'error',
-      (error) => {
+      (event) => {
         clearTimeout(timer);
-        reject(error);
+        reject(Error('zoom-cdp-connect-failed', { cause: event }));
       },
       { once: true },
     );

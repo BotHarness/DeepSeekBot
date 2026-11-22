@@ -4,8 +4,33 @@ import { conversationHref, openConversation } from '../src/ui/shell/open-convers
 import { channelNavigationHarness } from './channel-navigation-harness';
 import { navigateChannel } from '../src/ui/shell/channel-navigation';
 
-const bot = { kind: 'bot', bot: { slug: 'ada' } } as Conversation;
-const channel = { kind: 'channel', channel: { id: 'c1' } } as Conversation;
+const bot: Conversation = {
+  kind: 'bot',
+  key: 'bot:ada',
+  bot: {
+    slug: 'ada',
+    displayName: 'Ada',
+    roles: [],
+    computerAccess: false,
+    browserAccess: false,
+    state: 'idle',
+    paused: false,
+  },
+  needsYou: 0,
+  unread: 0,
+  muted: false,
+};
+const channel: Conversation = {
+  kind: 'channel',
+  key: 'channel:c1',
+  channel: { id: 'c1', name: 'Group', memberCount: 0, members: [] },
+  needsYou: 0,
+  unread: 0,
+  muted: false,
+};
+
+const focusRequestOf = (params: object | undefined) =>
+  params && 'focusRequest' in params ? params.focusRequest : undefined;
 
 describe('conversation navigation', () => {
   it('uses the same scoped destination for tap and native preview', () => {
@@ -95,7 +120,7 @@ describe('conversation navigation', () => {
     const destination = conversationHref(bot, 'h1', 'original');
     navigateChannel(history.navigation, destination);
     const first = history.state.routes.at(-1)!;
-    const request = first.params?.['focusRequest'];
+    const request = focusRequestOf(first.params);
     expect(request).toEqual(expect.any(String));
     history.push('channel-files', { channelId: 'c1', hostId: 'h1' });
     history.back();
@@ -103,14 +128,14 @@ describe('conversation navigation', () => {
     history.push('channel-files', { channelId: 'c1', hostId: 'h1' });
     navigateChannel(history.navigation, destination);
     expect(history.state.routes.at(-1)?.key).toBe(first.key);
-    expect(history.state.routes.at(-1)?.params?.['focusRequest']).not.toBe(request);
+    expect(focusRequestOf(history.state.routes.at(-1)?.params)).not.toBe(request);
     expect(history.state.routes).toHaveLength(2);
   });
 
   it('preserves a supplied focus request and ordinary destinations carry none', () => {
     const history = channelNavigationHarness();
     navigateChannel(history.navigation, conversationHref(bot, 'h1', 'original', 'supplied'));
-    expect(history.state.routes.at(-1)?.params?.['focusRequest']).toBe('supplied');
+    expect(history.state.routes.at(-1)?.params).toHaveProperty('focusRequest', 'supplied');
     openConversation(history.navigation, channel, 'h1');
     expect(history.state.routes.at(-1)?.params).not.toHaveProperty('focusRequest');
   });

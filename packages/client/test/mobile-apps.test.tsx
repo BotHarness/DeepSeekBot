@@ -1,24 +1,15 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes, type ReactNode } from 'react';
+import { createElement } from 'react';
+import { type ReactNode } from 'react';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { MobileAppsEntry, TESTFLIGHT_URL } from '../src/client/mobile-apps.js';
 import { COMMUNITY } from '../src/client/community-links.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({
-    children,
-    icon,
-    variant: _variant,
-    size: _size,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & {
-    icon?: ReactNode;
-    variant?: string;
-    size?: string;
-  }) => createElement('button', props, icon, children),
-  IconCloseOutlineRegular: () => createElement('svg'),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 vi.mock('../src/client/ds/tooltip.js', () => ({
   Tooltip: ({ children }: { children: ReactNode }) => children,
@@ -53,7 +44,11 @@ it('hints at the mobile apps until the entry is opened once, then stays quiet', 
   expect(hint()).toBeNull();
   expect(first.entry.getAttribute('aria-expanded')).toBe('true');
   const links = [...panel()!.querySelectorAll('a')].map((a) => a.href);
-  expect(links).toEqual([TESTFLIGHT_URL, `${COMMUNITY.discord}`]);
+  expect(links).toEqual([
+    TESTFLIGHT_URL,
+    'https://play.google.com/store/apps/details?id=app.deepseekbot.mobile',
+    COMMUNITY.discord,
+  ]);
   expect(panel()!.textContent).toContain(COMMUNITY.qqGroup);
 
   await act(async () =>
@@ -87,7 +82,9 @@ it('the hint action opens the ways to get each app', async () => {
   )!;
   await act(async () => action.click());
   expect(panel()?.querySelector('[data-platform="ios"]')?.textContent).toContain('TestFlight');
-  expect(panel()?.querySelector('[data-platform="android"]')?.textContent).toContain('Discord');
+  const android = panel()?.querySelector('[data-platform="android"]');
+  expect(android?.textContent).toContain('Google Play 安装');
+  expect(android?.textContent).toContain('Discord');
   await act(async () => root.unmount());
 });
 

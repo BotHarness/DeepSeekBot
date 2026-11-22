@@ -265,7 +265,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   const args = process.argv.slice(2);
   const at = args.indexOf('--commit');
   const directory = args[0]?.startsWith('--') ? undefined : args[0];
-  const git = (...values) => execFileSync('git', values, { encoding: 'utf8' }).trim();
+  const git = (...values) =>
+    execFileSync('git', values, { encoding: 'utf8', shell: false, windowsHide: true }).trim();
   const commit = at < 0 ? git('rev-parse', 'HEAD') : args[at + 1];
   const reviewAt = args.indexOf('--visual-review');
   if (reviewAt >= 0) {

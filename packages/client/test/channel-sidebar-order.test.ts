@@ -1,35 +1,21 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type ChannelSidebarPrefs } from '../src/client/channel-sidebar-prefs.js';
+import { type ChannelSidebarEntry } from '../src/client/channel-sidebar.js';
+import { type ChannelSidebarScope } from '../src/client/channel-sidebar.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronDownOutlineRegular: () => null,
-  IconChevronRightOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  Menu: ({ open, anchor, children }: { open: boolean; anchor: ReactNode; children: ReactNode }) =>
-    createElement('div', null, anchor, open ? children : null),
-  MenuItemButton: ({
-    onSelect,
-    children,
-    disabled,
-  }: {
-    onSelect(): void;
-    children: ReactNode;
-    disabled?: boolean;
-  }) => createElement('button', { onClick: onSelect, disabled }, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 import { ChannelSidebarContents } from '../src/client/channel-sidebar-view.js';
 import { edgeScrollStep } from '../src/client/channel-sidebar-order.js';
 import {
   channelSidebarScopeKey,
   createChannelSidebarPrefs,
-  type ChannelSidebarPrefs,
 } from '../src/client/channel-sidebar-prefs.js';
-import type {
-  ChannelSidebarEntry,
-  ChannelSidebarEntryProps,
-  ChannelSidebarScope,
-} from '../src/client/channel-sidebar.js';
+import type { ChannelSidebarEntryProps } from '../src/client/channel-sidebar.js';
 import { zhTranslate } from '../src/client/locale.js';
 let root: Root;
 let host: HTMLDivElement;
@@ -72,7 +58,11 @@ function render(scope: ChannelSidebarScope = 'personabot', slug = 'ada') {
 const order = () =>
   [...host.querySelectorAll<HTMLElement>('[data-entry-id]')].map((n) => n.dataset['entryId']);
 function click(label: string) {
-  act(() => [...host.querySelectorAll('button')].find((b) => b.textContent === label)?.click());
+  act(() =>
+    [...document.body.querySelectorAll<HTMLElement>('button, [role="menuitem"]')]
+      .find((b) => b.textContent === label)
+      ?.click(),
+  );
 }
 function edit() {
   act(() => host.querySelector<HTMLButtonElement>('.bh-sidebar-settings')!.click());

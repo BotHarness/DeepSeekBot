@@ -138,6 +138,7 @@ export class ChannelUserQuestions {
   readonly #changed: (slug: string, count: number) => void;
   readonly #pending = new Map<string, Pending>();
   readonly #listeners = new Set<() => void>();
+  readonly #statusListeners = new Set<(card: { channelId: string; messageId: string }) => void>();
   readonly #observers = new Set<
     (notice: ChannelQuestionNotice, status: 'pending' | 'answered' | 'cancelled') => void
   >();
@@ -261,15 +262,20 @@ export class ChannelUserQuestions {
         pending.committed = true;
         if (this.status(pending.botSlug, message.id) === 'pending')
           this.#publishAttention(pending.botSlug);
-        if (this.#pending.get(message.id) === pending)
+        if (this.#pending.get(message.id) === pending) {
+          this.#statusChanged(message.id, pending);
           this.#observe(message.id, pending, 'pending');
+        }
       }
       return await answer;
     } finally {
       request.signal?.removeEventListener('abort', pending.abort);
       if (this.#pending.get(message.id) === pending && (!pending.deferred || !pending.committed)) {
         this.#pending.delete(message.id);
-        if (pending.committed) this.#publishAttention(pending.botSlug);
+        if (pending.committed) {
+          this.#publishAttention(pending.botSlug);
+          this.#statusChanged(message.id, pending);
+        }
       }
     }
   }
@@ -314,6 +320,23 @@ export class ChannelUserQuestions {
     return () => {
       this.#listeners.delete(listener);
     };
+  }
+
+  subscribeStatus(listener: (card: { channelId: string; messageId: string }) => void): () => void {
+    this.#statusListeners.add(listener);
+    return () => {
+      this.#statusListeners.delete(listener);
+    };
+  }
+
+  #statusChanged(messageId: string, pending: Pending): void {
+    for (const listener of this.#statusListeners) {
+      try {
+        listener({ channelId: pending.channelId, messageId });
+      } catch {
+        this.#warn('user-question-status-publication-failed');
+      }
+    }
   }
 
   observe(
@@ -450,6 +473,7 @@ export class ChannelUserQuestions {
                 ? submit()
                 : false
               : await deliver(submit);
+          if (pending.submitted) this.#statusChanged(messageId, pending);
           return pending.submitted;
         } catch (error) {
           if (error instanceof TeamError) throw error;
@@ -465,6 +489,7 @@ export class ChannelUserQuestions {
         pending.answeringHuman = human;
         pending.deferred = true;
         pending.submitted = true;
+        this.#statusChanged(messageId, pending);
         pending.resolve(answer);
         return true;
       }
@@ -496,6 +521,7 @@ export class ChannelUserQuestions {
       this.#publishAttention(pending.botSlug);
       pending.signal?.removeEventListener('abort', pending.abort);
       pending.resolve(answer);
+      this.#statusChanged(messageId, pending);
       this.#observe(messageId, pending, 'answered');
       return true;
     } catch (error) {
@@ -535,6 +561,7 @@ export class ChannelUserQuestions {
     this.#publishAttention(botSlug);
     pending.signal?.removeEventListener('abort', pending.abort);
     pending.resolve({ answers: resolution.answers });
+    this.#statusChanged(messageId, pending);
     this.#observe(messageId, pending, 'answered');
     return true;
   }
@@ -633,6 +660,7 @@ export class ChannelUserQuestions {
           if (saved !== undefined && this.#pending.get(id) === pending) {
             this.#pending.delete(id);
             this.#publishAttention(pending.botSlug);
+            this.#statusChanged(id, pending);
           }
         } finally {
           pending.deciding = false;
@@ -642,11 +670,13 @@ export class ChannelUserQuestions {
   }
 
   discardReply(sessionId: string, callId: string): void {
-    for (const pending of this.#pending.values())
+    for (const [id, pending] of this.#pending)
       if (pending.sessionId === sessionId && pending.callId === callId) {
         this.#timed?.discardAnswer?.(sessionId, callId);
+        const submitted = pending.submitted;
         pending.submitted = false;
         pending.answeringHuman = undefined;
+        if (submitted) this.#statusChanged(id, pending);
       }
   }
 
@@ -768,7 +798,10 @@ export class ChannelUserQuestions {
     const pending = this.#pending.get(messageId);
     if (pending === undefined) return;
     this.#pending.delete(messageId);
-    if (pending.committed) this.#publishAttention(pending.botSlug);
+    if (pending.committed) {
+      this.#publishAttention(pending.botSlug);
+      this.#statusChanged(messageId, pending);
+    }
     pending.signal?.removeEventListener('abort', pending.abort);
     if (!record) {
       pending.reject(new Error('DSH user question was cancelled because the group was disbanded'));

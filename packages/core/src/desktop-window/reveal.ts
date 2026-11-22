@@ -46,7 +46,7 @@ function windowsCommandLine(pid: number): Promise<string | undefined> {
         '-Command',
         `(Get-CimInstance Win32_Process -Filter "ProcessId=${pid}").CommandLine`,
       ],
-      { windowsHide: true, timeout: 10_000 },
+      { windowsHide: true, timeout: 10_000, shell: false },
       (error, stdout) => resolve(error ? undefined : stdout.trim() || undefined),
     );
   });

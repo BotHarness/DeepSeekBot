@@ -11,7 +11,12 @@ const dep = (packageName: string, actualVersion: string, expectedVersionOrRange:
   expectedVersionOrRange,
 });
 const run = (input: string) =>
-  spawnSync(process.execPath, [script], { input, encoding: 'utf8', windowsHide: true });
+  spawnSync(process.execPath, [script], {
+    input,
+    encoding: 'utf8',
+    windowsHide: true,
+    shell: false,
+  });
 
 describe('Expo dependency version check', () => {
   it('only warns about drift inside the SDK line', () => {

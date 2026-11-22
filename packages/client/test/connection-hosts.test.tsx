@@ -1,40 +1,19 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { type HostStorage } from '../src/client/remote-hosts.js';
+import { type RemoteHosts } from '../src/client/remote-hosts.js';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { HostClient } from '@botharness/host-client/client';
 import { FakeHost } from '../../host-client/test/fake-host.js';
 import { ConnectionHosts, HostDetails } from '../src/client/connection-hosts.js';
-import {
-  createRemoteHosts,
-  REMOTE_HOSTS_STORAGE_KEY,
-  type HostStorage,
-  type RemoteHosts,
-} from '../src/client/remote-hosts.js';
+import { createRemoteHosts, REMOTE_HOSTS_STORAGE_KEY } from '../src/client/remote-hosts.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Modal: ({
-    title,
-    description,
-    children,
-    footer,
-  }: {
-    title: string;
-    description?: ReactNode;
-    children: ReactNode;
-    footer?: ReactNode;
-  }) => (
-    <div role="dialog" aria-label={title}>
-      {description}
-      {children}
-      {footer}
-    </div>
-  ),
-  Button: 'button',
-  IconChevronDownOutlineRegular: () => null,
-  Input: 'input',
-  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   relativeTime: () => ({ unit: 'minute', n: 1 }),
 }));
 vi.mock('../src/client/remote-hosts.js', async (importOriginal) => ({
@@ -114,14 +93,16 @@ afterEach(async () => {
 });
 const click = async (label: string) =>
   act(async () => {
-    const nodes = [...host.querySelectorAll('button')].filter((node) => node.textContent === label);
+    const nodes = [...document.body.querySelectorAll('button')].filter(
+      (node) => node.textContent === label,
+    );
     expect(nodes.length).toBeGreaterThan(0);
     nodes.at(-1)!.click();
   });
 const open = async () => {
   await act(async () => root.render(<ConnectionHosts t={t} accountLinked={false} />));
   await act(async () =>
-    host.querySelector<HTMLButtonElement>('[data-connection-host="target"]')!.click(),
+    document.body.querySelector<HTMLButtonElement>('[data-connection-host="target"]')!.click(),
   );
 };
 const notifyStoredHosts = () => {
@@ -169,7 +150,7 @@ it.each([false, true])(
     );
     await open();
     await click(t('connections.hosts.stop'));
-    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
     if (replaced) revision = 'configuration-b';
     await click(t('connections.hosts.stop'));
     const writes = api.mock.calls.filter(([, input]) => input?.body);
@@ -200,19 +181,19 @@ it('refuses a stale private row before planning instead of replacing its display
     },
   }));
   await open();
-  expect(host.textContent).toContain('https://before.example.com');
+  expect(document.body.textContent).toContain('https://before.example.com');
   revision = 'configuration-b';
   await click(t('connections.hosts.stop'));
-  expect(host.querySelector('[role="dialog"]')).toBeNull();
+  expect(document.body.querySelector('[role="dialog"]')).toBeNull();
   expect(api.mock.calls.filter(([, input]) => input?.body)).toEqual([]);
   expect(sources.getSnapshot().hosts[0]?.host.pendingConnection).toBeUndefined();
 });
 
 it('keeps local removal separate from target device revocation and confirms the target', async () => {
   await open();
-  expect(host.textContent).toContain('Test phone');
+  expect(document.body.textContent).toContain('Test phone');
   await click(t('connections.hosts.remove'));
-  expect(host.querySelector('[role="dialog"]')?.textContent).toContain(
+  expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain(
     t('connections.hosts.removeHint'),
   );
   await click(t('common.cancel'));
@@ -234,7 +215,7 @@ it('allows confirmed local removal while retaining an uncertain Host operation f
   const journal = [...values].filter(([key]) => key.startsWith('botharness.remoteHosts.operation'));
   await open();
   await click(t('connections.hosts.remove'));
-  expect(host.textContent).toContain(t('connections.hosts.removeHint'));
+  expect(document.body.textContent).toContain(t('connections.hosts.removeHint'));
   await click(t('common.cancel'));
   expect(sources.getSnapshot().hosts).toHaveLength(1);
   await click(t('connections.hosts.remove'));
@@ -257,8 +238,8 @@ it('explains that revoking this browser requires new authorization instead of an
   });
   await open();
   await click(t('connections.hosts.revoke'));
-  expect(host.textContent).toContain('重新添加 Studio 并为此浏览器授权');
-  expect(host.textContent).not.toContain(
+  expect(document.body.textContent).toContain('重新添加 Studio 并为此浏览器授权');
+  expect(document.body.textContent).not.toContain(
     t('connections.remote.disconnectHint', { name: 'Studio' }),
   );
   expect(api.mock.calls.every(([path]) => path === '/api/botharness/devices')).toBe(true);
@@ -266,11 +247,11 @@ it('explains that revoking this browser requires new authorization instead of an
 
 it('warns about the selected Host and connection loss before stopping only its selected route', async () => {
   await open();
-  const row = [...host.querySelectorAll('button')].find(
+  const row = [...document.body.querySelectorAll('button')].find(
     (button) => button.textContent === t('connections.hosts.stop'),
   )!;
   await act(async () => row.click());
-  expect(host.querySelector('[role="dialog"]')?.textContent).toContain(
+  expect(document.body.querySelector('[role="dialog"]')?.textContent).toContain(
     t('connections.hosts.targetHint', { name: 'Studio' }),
   );
   expect(api.mock.calls).toHaveLength(2);
@@ -287,12 +268,12 @@ it('gives an actionable secure-page or owning-CLI path when safe cross-tab execu
   vi.spyOn(sources, 'withConnectionOperation').mockRejectedValue(
     Error('connection-operation-lock-unavailable'),
   );
-  const stop = [...host.querySelectorAll('button')].find(
+  const stop = [...document.body.querySelectorAll('button')].find(
     (button) => button.textContent === t('connections.hosts.stop'),
   )!;
   await act(async () => stop.click());
   await click(t('connections.hosts.stop'));
-  expect(host.textContent).toContain(t('connections.remote.lockUnavailable'));
+  expect(document.body.textContent).toContain(t('connections.remote.lockUnavailable'));
   expect(api.mock.calls.every(([path]) => path === '/api/botharness/devices')).toBe(true);
 });
 
@@ -306,13 +287,13 @@ it('keeps new-grant management disabled until the previous result is checked', a
       />,
     ),
   );
-  const stop = [...host.querySelectorAll('button')].find(
+  const stop = [...document.body.querySelectorAll('button')].find(
     (button) => button.textContent === t('connections.hosts.stop'),
   )!;
-  const revoke = [...host.querySelectorAll('button')].find(
+  const revoke = [...document.body.querySelectorAll('button')].find(
     (button) => button.textContent === t('connections.hosts.revoke'),
   )!;
-  const readback = [...host.querySelectorAll('button')].find(
+  const readback = [...document.body.querySelectorAll('button')].find(
     (button) => button.textContent === t('connections.remote.readPrevious'),
   )!;
   expect(stop.disabled).toBe(true);
@@ -342,14 +323,14 @@ it.each(['prepared', 'preparing'])(
       });
     }
     await click(t('connections.hosts.stop'));
-    if (phase === 'prepared') expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+    if (phase === 'prepared') expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
     const previousApi = api;
     const previousSources = sources;
     const previousClient = sources.client('target');
     if (phase === 'prepared') {
       await act(async () => notifyStoredHosts());
       expect(sources.client('target')).toBe(previousClient);
-      expect(host.querySelector('[role="dialog"]')).not.toBeNull();
+      expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
     }
     const previousHost = sources.getSnapshot().hosts[0]!.host;
     const fake = new FakeHost();
@@ -379,7 +360,7 @@ it.each(['prepared', 'preparing'])(
       sources.setPendingConnection('target', client, undefined);
     });
     await act(async () => finishPlan?.());
-    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     expect(previousApi.mock.calls.every(([path]) => path === '/api/botharness/devices')).toBe(true);
     expect(replacementApi.mock.calls.every(([path]) => path === '/api/botharness/devices')).toBe(
       true,

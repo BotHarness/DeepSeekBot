@@ -1,11 +1,8 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import { SegmentedControl } from './ds/segmented.js';
 import { useCallback, useId, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconCopyOutlineRegular,
-  IconDownloadOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { clientLog, DIAGNOSTIC_LOGS_ENDPOINT, logClient } from './diagnostic-log.js';
 import { EmptyState } from './ds/empty-state.js';
@@ -265,7 +262,7 @@ export function DiagnosticLogsDialog({
             onClick={() => void copy()}
             disabled={rows === undefined || rows.length === 0}
           >
-            <IconCopyOutlineRegular size={16} />
+            <Icon name="copy" size={16} />
             {t('diagnosticLogs.copy')}
           </Button>
           <Button
@@ -273,7 +270,7 @@ export function DiagnosticLogsDialog({
             onClick={() => void download()}
             disabled={busy}
           >
-            <IconDownloadOutlineRegular size={16} />
+            <Icon name="download" size={16} />
             {t('diagnosticLogs.export')}
           </Button>
           {onBack === undefined ? null : (
@@ -287,6 +284,7 @@ export function DiagnosticLogsDialog({
       <div ref={mount} {...stylex.props(styles.toolbar)}>
         <SegmentedControl
           id={id}
+          controlsPanel
           label={t('diagnosticLogs.filter')}
           value={filter}
           options={(Object.keys(FILTERS) as DiagnosticLogFilter[]).map((value) => ({

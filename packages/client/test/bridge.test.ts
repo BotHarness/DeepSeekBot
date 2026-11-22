@@ -15,7 +15,7 @@ import {
   parseChannelMessages,
   parseChannelMessage,
   parseChannelRecord,
-  parseChannelRecords,
+  loadChannels,
   parseOwnedSessionSummaries,
   parseSessionBotOwner,
   type BridgeCall,
@@ -29,7 +29,10 @@ function bridgeCall(handlers: Record<string, Handler>): BridgeCall {
   return async (endpoint, payload) => {
     const handler = handlers[endpoint];
     if (handler === undefined) throw new Error(`unexpected endpoint: ${endpoint}`);
-    return { ok: true, value: await handler(payload) };
+    const value = await handler(payload);
+    if (endpoint === 'rosterGet')
+      return { ok: true, value: { hidden: [], sectionOrder: [], ...Object(value) } };
+    return { ok: true, value };
   };
 }
 
@@ -98,9 +101,12 @@ describe('bridge transport', () => {
     }
   });
   it('proves Bot existence from a complete identity list and rejects malformed results', async () => {
-    expect(await botExists(bridgeCall({ list: () => ({ bots: [{ slug: 'ada' }] }) }), 'ada')).toBe(
-      true,
-    );
+    expect(
+      await botExists(
+        bridgeCall({ list: () => ({ bots: [{ slug: 'ada', displayName: 'Ada' }] }) }),
+        'ada',
+      ),
+    ).toBe(true);
     expect(await botExists(bridgeCall({ list: () => ({ bots: [] }) }), 'ada')).toBe(false);
     for (const value of [{}, { bots: [{}] }, { bots: [{ slug: 'grace' }, null] }])
       await expect(botExists(bridgeCall({ list: () => value }), 'ada')).rejects.toThrow();
@@ -274,16 +280,16 @@ describe('bridge parsers', () => {
     );
   });
 
-  it('drops malformed channels and keeps botSlug only when present', () => {
+  it('loads Channels and keeps botSlug only when present', async () => {
     const latestMessage = {
       id: 'm-latest',
       at: '2026-09-19T00:03:00.000Z',
       author: { kind: 'bot', slug: 'ada' },
       body: '最新进展',
     };
-    const channels = parseChannelRecords({
-      channels: [GROUP, { ...DM, latestMessage }, { id: 'bad', type: 'nope', name: 'x' }, null],
-    });
+    const channels = await loadChannels(
+      bridgeCall({ channels: () => ({ channels: [GROUP, { ...DM, latestMessage }] }) }),
+    );
 
     expect(channels).toHaveLength(2);
     expect(channels[0]).toMatchObject({ id: 'group-team', type: 'group' });
@@ -1949,7 +1955,7 @@ describe('bridge actions', () => {
   it('hands a confirmed onboarding draft to its original message when the accepted response is lost', async () => {
     const accepted: Array<{ id: string; at: string; author: { kind: 'human' }; body: string }> = [];
     const { clientStore, actions } = setup({
-      onboardingModel: () => ({}),
+      onboardingModel: () => ({ revision: 1 }),
       channelSend: (payload) => {
         accepted.push({
           id: String(payload['messageId']),
@@ -2448,6 +2454,7 @@ describe('bridge actions', () => {
         const index = Number(payload['index']);
         const without = channelIds.filter((id) => id !== channelId);
         channelIds = [...without.slice(0, index), channelId, ...without.slice(index)];
+        return {};
       },
     });
     await actions.load();
@@ -2477,6 +2484,7 @@ describe('bridge actions', () => {
         const index = Number(payload['index']);
         const without = channelIds.filter((id) => id !== channelId);
         channelIds = [...without.slice(0, index), channelId, ...without.slice(index)];
+        return {};
       },
     });
     await actions.load();
@@ -2506,6 +2514,7 @@ describe('bridge actions', () => {
         const index = Number(payload['index']);
         const without = channelIds.filter((id) => id !== channelId);
         channelIds = [...without.slice(0, index), channelId, ...without.slice(index)];
+        return {};
       },
     });
     await actions.load();
@@ -2623,7 +2632,7 @@ describe('bridge actions', () => {
     expect(writes).toBe(1);
   });
 
-  it('projects the flat order and drops malformed entries while parsing', async () => {
+  it('projects a valid flat order and deduplicates repeated entries', async () => {
     const { clientStore, actions } = setup({
       rosterGet: () => ({
         pins: [],
@@ -2631,9 +2640,6 @@ describe('bridge actions', () => {
         topOrder: [
           { kind: 'section', id: 's1' },
           { kind: 'channel', id: 'c1' },
-          { kind: 'channel', id: '' },
-          { kind: 'nope', id: 'x' },
-          null,
           { kind: 'channel', id: 'c1' },
         ],
       }),
@@ -2660,7 +2666,7 @@ describe('bridge actions', () => {
     const clientStore = createStore();
     const call: BridgeCall = async (endpoint) => {
       if (endpoint === 'rosterGet') {
-        return { ok: true, value: { pins: [], sections: [] } };
+        return { ok: true, value: { pins: [], sections: [], hidden: [], sectionOrder: [] } };
       }
       if (endpoint === 'sectionCreate') {
         return {
@@ -2699,7 +2705,7 @@ describe('bridge actions', () => {
                 details: {},
               },
             }
-          : { ok: true, value: { pins: ['ada'], sections: [] } };
+          : { ok: true, value: { pins: ['ada'], sections: [], hidden: [], sectionOrder: [] } };
       }
       throw new Error(`unexpected endpoint: ${endpoint}`);
     };
@@ -2798,7 +2804,7 @@ describe('Workspace native action bridge', () => {
       },
     }));
     await expect(createActions(call, createStore()).listHostFolders()).rejects.toThrow(
-      'Invalid Host folder entry',
+      'folderBrowse returned an unreadable folder.',
     );
   });
   it('resolves the owner before discovery/open and makes no Grant or Session mutations', async () => {
@@ -3074,4 +3080,28 @@ it('preserves trusted approval effects for Chat and Activity while dropping malf
       },
     })?.toolApprovalRequest?.effects,
   ).toBeUndefined();
+});
+
+it('parses Host-owned Orchestrator runners without restricting future engine ids', () => {
+  const bot = { slug: 'ada', displayName: 'Ada' };
+  for (const runner of [
+    { engine: 'codex', displayName: 'Codex', account: 'ChatGPT Plus' },
+    { engine: 'claude', displayName: 'Claude Code', account: 'Claude Pro' },
+    { engine: 'future-acp', displayName: 'Custom ACP' },
+  ])
+    expect(parseBotSummary({ ...bot, orchestratorRunner: runner })?.orchestratorRunner).toEqual(
+      runner,
+    );
+  expect(parseBotSummary(bot)).not.toHaveProperty('orchestratorRunner');
+  for (const runner of [
+    null,
+    {},
+    { engine: 'codex' },
+    { engine: '', displayName: 'Codex' },
+    { engine: 'codex', displayName: 7 },
+    { engine: 'codex', displayName: 'Codex', account: 3 },
+  ])
+    expect(parseBotSummary({ ...bot, orchestratorRunner: runner })).not.toHaveProperty(
+      'orchestratorRunner',
+    );
 });

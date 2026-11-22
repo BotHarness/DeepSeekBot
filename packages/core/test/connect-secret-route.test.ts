@@ -176,6 +176,8 @@ describe('Unencrypted Connect route guard behind the origin', () => {
       'botharness/privateInputSubmit',
       'botharness/privateInputReplace',
       'botharness/cloudConnections',
+      'botharness/modelProviderAdd',
+      'botharness/modelProviderEdit',
       'credentials/set',
       'settings/update',
       'settings/replace',

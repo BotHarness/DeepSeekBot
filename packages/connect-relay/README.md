@@ -1,6 +1,6 @@
 # @botharness/connect-relay
 
-The DeepSeekBot Connect relay Worker ([ADR-0241](../../docs/adr/0241-hosted-connect-reaches-the-host-through-a-managed-tunnel.md)). It links signed-in WorkOS accounts to Hosts and provisions one Cloudflare Tunnel per Host whose remote ingress admits only the device gateway (`^/botharness-device(/.*)?$`); everything else answers `404` at the Cloudflare edge. Application traffic never passes through this Worker.
+The DeepSeekBot Connect relay Worker ([ADR-0241](../../docs/decisions/connections.md#adr-0241)). It links signed-in WorkOS accounts to Hosts and provisions one Cloudflare Tunnel per Host whose remote ingress admits only the device gateway (`^/botharness-device(/.*)?$`); everything else answers `404` at the Cloudflare edge. Application traffic never passes through this Worker.
 
 ## API
 
@@ -66,7 +66,7 @@ Refusals include `invalid-bot-identity` / `invalid-bot-peer` (400), `bot-host-pr
 
 ## Reclamation, reconciliation and eviction
 
-[ADR-0313](../../docs/adr/0313-connect-tunnels-share-a-multi-zone-pool-with-eviction.md) defines the lifecycle. A tunnel's CNAME lives exactly as long as the tunnel: reclamation, eviction, unlink and a vanished tunnel all delete both, and the next `POST /v1/hosts/{id}/tunnel` recreates the same `<id>.<zone>` name. If creating the record fails, the request deletes the tunnel it just created, so no tunnel is left without a hostname. A full zone (Cloudflare error 81045) answers `503 relay-full`. A record of the same name that already exists is adopted.
+[ADR-0313](../../docs/decisions/connections.md#adr-0313) defines the lifecycle. A tunnel's CNAME lives exactly as long as the tunnel: reclamation, eviction, unlink and a vanished tunnel all delete both, and the next `POST /v1/hosts/{id}/tunnel` recreates the same `<id>.<zone>` name. If creating the record fails, the request deletes the tunnel it just created, so no tunnel is left without a hostname. A full zone (Cloudflare error 81045) answers `503 relay-full`. A record of the same name that already exists is adopted.
 
 A cron trigger reconciles the D1 rows with Cloudflare every minute. It lists the account's tunnels once (`per_page=1000`) and each Connect zone's tunnel CNAMEs once, then, within `RECLAIM_BUDGET` Cloudflare calls (default 30, under the Workers Free limit of 50 subrequests):
 

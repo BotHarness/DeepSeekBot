@@ -4,7 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { TOBS_STYLES } from '../src/client/ds/tobs-tokens.generated.js';
-import { TOBS_DSH_BRIDGE } from '../src/client/tobs-bridge.js';
+import { appearanceCss } from '../src/client/appearance-scope.js';
+import { parseAppearance } from '../src/client/appearance.js';
 
 const dsDir = fileURLToPath(new URL('../src/client/ds/', import.meta.url));
 const clientDir = fileURLToPath(new URL('../src/client/', import.meta.url));
@@ -49,9 +50,19 @@ function styleBlocks(source: string): { text: string; start: number }[] {
   return blocks;
 }
 
-const STYLESHEETS: readonly { file: string; sheet: string }[] = [
+const featureStylesheets = readdirSync(new URL('../src/client/features/', import.meta.url), {
+  encoding: 'utf8',
+  recursive: true,
+})
+  .filter((file) => /(?:^|[\\/])(?:[\w-]+-)?styles\.ts$/.test(file))
+  .map((file) => ({ file: `client/src/client/features/${file}` }));
+
+const STYLESHEETS: readonly { file: string; sheet?: string }[] = [
   { file: 'client/src/client/workspace-styles.ts', sheet: 'WORKSPACE_CSS' },
   { file: 'client/src/client/styles.ts', sheet: 'CSS' },
+  { file: 'client/src/client/shell-and-roster-styles.ts' },
+  { file: 'client/src/client/shared-styles.ts' },
+  ...featureStylesheets,
   { file: 'client/src/client/composer-context-styles.ts', sheet: 'COMPOSER_CONTEXT_CSS' },
   { file: 'client/src/client/internal-tour-styles.ts', sheet: 'INTERNAL_TOUR_CSS' },
   { file: 'client/src/client/combobox.tsx', sheet: 'COMBOBOX_CSS' },
@@ -121,11 +132,9 @@ const ALLOWANCES: readonly Allowance[] = [
       '48px',
     ],
     selectors: [
-      '.bh-section-head',
       '.bh-channel-row',
       '.bh-name-input',
       '.bh-search-open',
-      '.bh-rail-divider',
       '.bh-rail-preview-icon',
       '.bh-composer',
       '.bh-composer-with-footer',
@@ -195,9 +204,14 @@ const ALLOWANCES: readonly Allowance[] = [
   },
 ];
 
-function maskSheet(source: string, sheet: string): string {
-  const at = source.search(new RegExp(`const ${sheet}\\b[^=]*=`));
-  if (at < 0) throw new Error(`missing stylesheet ${sheet}`);
+function maskSheet(source: string, sheet?: string): string {
+  if (!sheet && (source.match(/^export const \w+\s*=/gm) ?? []).length !== 1)
+    throw new Error(
+      'a discovered stylesheet fragment must export exactly one CSS string, or later exports go unscanned',
+    );
+  const declaration = sheet ? new RegExp(`const ${sheet}\\b[^=]*=`) : /^export const \w+\s*=/m;
+  const at = source.search(declaration);
+  if (at < 0) throw new Error(`missing stylesheet matching ${declaration}`);
   const mask: string[] = Array.from(source, (char) => (char === '\n' ? '\n' : ' '));
   let inTemplate = false;
   for (let index = source.indexOf('=', at) + 1; index < source.length; index++) {
@@ -294,22 +308,12 @@ function sheetOffenders(): string[] {
           ]
         : [];
     });
-    const edges = parsed.flatMap((declaration) =>
-      /--dsw-alias-border-l(?![123]\b)/.test(declaration.value)
-        ? [`${file}:${declaration.line} ${declaration.selector} edge ${declaration.value}`]
-        : [],
+    const legacyColours = parsed.flatMap(({ line, value }) =>
+      /--dsw-/.test(value) ? [`${file}:${line} DSH colour ${value}`] : [],
     );
-    return [
-      ...colours,
-      ...lengths,
-      ...edges.filter(
-        (edge) => !NATIVE_EDGES.some((selector) => edge.includes(` ${selector} edge `)),
-      ),
-    ];
+    return [...colours, ...lengths, ...legacyColours];
   });
 }
-
-const NATIVE_EDGES = ['.bh-search-open', '.bh-name-input'];
 
 const EDGE_WIDTH = /\b(border\w*Width|outline(Width)?)\s*:.*\d+(\.\d+)?px/;
 
@@ -426,16 +430,16 @@ describe('design-system tokens', () => {
   });
 });
 
-it('keeps ds colours usable in portaled settings without Bot-mode variables', () => {
+it('provides the resolved Tobs palette to portaled settings in both themes', () => {
   const tokens = readFileSync(`${dsDir}tokens.stylex.ts`, 'utf8');
   const colours = tokens.slice(tokens.indexOf('export const actionColor'));
-  expect(colours).not.toContain('--bh-');
-  expect(colours).not.toContain('--dsw-');
-  for (const [name] of colours.matchAll(/--tobs-[a-z0-9-]+/g)) {
-    if (name.startsWith('--tobs-style-')) {
-      expect(TOBS_DSH_BRIDGE[name], name).toBe((TOBS_STYLES.a as Record<string, string>)[name]);
-      continue;
+  expect(colours).not.toMatch(/--bh-|--dsw-/);
+  for (const mode of ['light', 'dark'] as const) {
+    const css = appearanceCss({ config: parseAppearance(null), mode });
+    expect(css).toMatch(/^body,/);
+    const palette = css.slice(0, css.indexOf('}'));
+    for (const [name] of colours.matchAll(/--tobs-[a-z0-9-]+/g)) {
+      expect(palette).toContain(`${name}:`);
     }
-    expect(TOBS_DSH_BRIDGE[name], name).toMatch(/^var\(--dsw-[a-z0-9-]+\)$/);
   }
 });

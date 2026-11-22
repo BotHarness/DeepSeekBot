@@ -120,6 +120,7 @@ function run(exe, args, env = process.env) {
     stdio: 'inherit',
     encoding: 'utf8',
     windowsHide: true,
+    shell: false,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${exe} exited ${result.status}`);
@@ -131,6 +132,7 @@ function capture(exe, args, env = process.env) {
     stdio: ['ignore', 'pipe', 'pipe'],
     encoding: 'utf8',
     windowsHide: true,
+    shell: false,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`${exe} exited ${result.status}`);
@@ -304,7 +306,8 @@ function actionClaim(queueRoot, options) {
   try {
     fd = openSync(leasePath, 'wx');
   } catch (error) {
-    if (error?.code === 'EEXIST') throw new Error('The active lease is already claimed.');
+    if (error?.code === 'EEXIST')
+      throw new Error('The active lease is already claimed.', { cause: error });
     throw error;
   }
   try {
@@ -359,7 +362,7 @@ function actionEmulator(queueRoot, options, config, env, adb) {
   const child = spawn(
     join(config.sdk, 'emulator', binary),
     ['-avd', config.avd, '-port', String(config.emulatorPort), '-no-snapshot-save'],
-    { env, cwd: config.sdk, detached: true, stdio: 'ignore', windowsHide: true },
+    { env, cwd: config.sdk, detached: true, stdio: 'ignore', windowsHide: true, shell: false },
   );
   child.unref();
   if (child.exitCode !== null && child.exitCode !== 0)
@@ -534,6 +537,7 @@ async function actionScreenshot(queueRoot, options, env, adb, serial, prefix) {
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    shell: false,
   });
   await pipeline(child.stdout, createWriteStream(`${prefix}.png`));
   if ((await waitExit(child)) !== 0) throw new Error('Screenshot failed');

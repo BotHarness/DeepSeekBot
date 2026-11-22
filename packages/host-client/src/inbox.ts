@@ -1,3 +1,5 @@
+import { readHumanAttention } from './people';
+import { loadUnreadCounts, type ChannelUnread } from './channel-messages';
 import type { HostClient } from './client';
 import type { HumanAttentionItem, HumanAttentionPage } from '@botharness/host-protocol/wire';
 
@@ -8,10 +10,6 @@ const SET_ASIDE_SECTIONS: Record<InboxSetAside, readonly InboxSection[]> = {
   cleared: ['action', 'replies', 'unread'],
   snoozed: ['action', 'replies'],
 };
-
-interface UnreadCounts {
-  channels: Array<{ channelId: string; unreadCount: number }>;
-}
 
 const LIVE_REFRESH_DELAY_MS = 250;
 const LIMITS: Record<InboxSection, number> = { action: 100, replies: 30, unread: 30, handled: 30 };
@@ -68,7 +66,7 @@ export function createInbox(
   const setAside =
     options.section === 'cleared' || options.section === 'snoozed' ? options.section : undefined;
   const readPage = async (category: InboxSection, cursor?: string): Promise<HumanAttentionPage> => {
-    const page = await client.call<HumanAttentionPage & { dismissed?: boolean }>('humanAttention', {
+    const page = await readHumanAttention(client, {
       category,
       limit: LIMITS[category],
       ...(options.botSlug ? { botSlug: options.botSlug } : {}),
@@ -135,7 +133,7 @@ export function createInbox(
       let cursor: string | undefined;
       do {
         if (stopped || client.getSnapshot().connection.status !== 'connected') return undefined;
-        const page = await client.call<HumanAttentionPage>('humanAttention', {
+        const page = await readHumanAttention(client, {
           notifications: true,
           limit: 100,
           ...(cursor === undefined ? {} : { cursor }),
@@ -163,12 +161,10 @@ export function createInbox(
             : readWindow(category),
         ),
       ),
-      client.call<UnreadCounts>('channelUnreadCounts').catch(() => ({ channels: [] })),
+      loadUnreadCounts(client).catch((): ChannelUnread[] => []),
       readNotifications().catch(() => undefined),
     ]);
-    const unread = Object.fromEntries(
-      counts.channels.map((entry) => [entry.channelId, entry.unreadCount]),
-    );
+    const unread = Object.fromEntries(counts.map((entry) => [entry.channelId, entry.unreadCount]));
     if (stopped || readAgain || connectionAtStart !== connectionRevision) return;
     const [action, replies, otherUnread, handled] = pages.map((page) => page.items) as [
       HumanAttentionItem[],

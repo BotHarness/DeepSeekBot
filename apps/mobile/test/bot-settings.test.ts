@@ -21,7 +21,7 @@ import {
 import { createHostClient } from '@botharness/host-client/client';
 import { modelLabel, restingNotice, workspaceLabel } from '../src/ui/chat/composer-labels';
 import { t } from '../src/ui/strings';
-import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import { fakeBotDetail, FakeHost } from '../../../packages/host-client/test/fake-host.js';
 
 const ROUTE = 'https://studio.tailnet-example.ts.net';
 const slug = 'ada';
@@ -112,7 +112,7 @@ describe('Bot model from the composer', () => {
     expect(restingNotice('GPT-5', { restingUntil: until, credential: 'missing' })).toBeUndefined();
   });
 
-  it('names the Routing Group the Bot runs on beside the model in front (#4421)', () => {
+  it('shows the Routing Group and uses the target that actually ran', () => {
     const model: BotModel = {
       revision: 3,
       plan: {
@@ -130,7 +130,13 @@ describe('Bot model from the composer', () => {
       presets: [],
     };
     expect(currentModel(model)).toMatchObject({ name: 'DeepSeek V4 Pro', group: 'Daily' });
-    expect(modelLabel({ status: 'ready', value: model })).toBe('Daily · DeepSeek V4 Pro');
+    expect(modelLabel({ status: 'ready', value: model })).toBe('Daily');
+    expect(
+      modelLabel({
+        status: 'ready',
+        value: { ...model, currentTarget: { kind: 'dsh', ...flash } },
+      }),
+    ).toBe('DeepSeek V4 Flash · DeepSeek');
   });
 
   it('falls back to the global default model when the Bot has no plan, and survives missing presets', async () => {
@@ -326,12 +332,13 @@ describe('Bot workspace from the composer', () => {
       if (args['path'] === 'D:\\missing') throw new Error('gone');
       return {
         path: args['path'] ?? 'C:\\Users\\ada',
-        crumbs: [{ name: 'C:\\', path: 'C:\\' }],
-        entries: [{ name: 'code', path: 'C:\\Users\\ada\\code' }],
+        home: 'C:\\Users\\ada',
+        crumbs: [{ name: 'C:\\', path: 'C:\\', hidden: false }],
+        entries: [{ name: 'code', path: 'C:\\Users\\ada\\code', hidden: false }],
         truncated: false,
         roots: [
-          { name: 'ada', path: 'C:\\Users\\ada' },
-          { name: 'D:\\', path: 'D:\\' },
+          { name: 'ada', path: 'C:\\Users\\ada', hidden: false },
+          { name: 'D:\\', path: 'D:\\', hidden: false },
         ],
       };
     });
@@ -466,7 +473,7 @@ describe('Bot workspace from the composer', () => {
         selected: '@global',
         globalDefault,
       }));
-      fake.methods.set('botApprovalTemplateSet', () => ({ bot: { slug } }));
+      fake.methods.set('botApprovalTemplateSet', () => ({ bot: fakeBotDetail(slug, 'Ada') }));
       const host = client(fake);
       expect(await loadApprovalTemplates(host, slug)).toMatchObject({
         selected: '@global',
@@ -494,13 +501,26 @@ describe('Bot workspace from the composer', () => {
     const fake = new FakeHost();
     fake.methods.set('approvalTemplates', () => ({
       templates: [
-        { name: 'cautious', title: 'Cautious', description: 'Reads and plans.' },
-        { name: 'get-work-done', title: 'Get the work done', description: 'Keeps going.' },
-        { name: 'broken' },
+        {
+          name: 'cautious',
+          title: 'Cautious',
+          description: 'Reads and plans.',
+          builtIn: true,
+          usedBy: [],
+          text: '# Cautious',
+        },
+        {
+          name: 'get-work-done',
+          title: 'Get the work done',
+          description: 'Keeps going.',
+          builtIn: true,
+          usedBy: [],
+          text: '# Get the work done',
+        },
       ],
       selected: 'cautious',
     }));
-    fake.methods.set('botApprovalTemplateSet', () => ({ bot: { slug } }));
+    fake.methods.set('botApprovalTemplateSet', () => ({ bot: fakeBotDetail(slug, 'Ada') }));
     const host = client(fake);
 
     const templates = await loadApprovalTemplates(host, slug);
@@ -518,7 +538,7 @@ describe('Bot workspace from the composer', () => {
       ['botApprovalTemplateSet', { slug, template: null }],
     ]);
 
-    fake.methods.set('botApprovalTemplateSet', () => ({ bot: { slug: 'grace' } }));
+    fake.methods.set('botApprovalTemplateSet', () => ({ bot: fakeBotDetail('grace', 'Grace') }));
     await expect(setApprovalTemplate(host, slug, null)).rejects.toThrow(
       'botApprovalTemplateSet did not return the Bot.',
     );

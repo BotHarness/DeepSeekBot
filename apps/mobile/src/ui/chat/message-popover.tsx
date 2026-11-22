@@ -1,3 +1,4 @@
+import { MessageMenuHeader } from './message-turn-targets';
 import { RowIcon } from '../primitives/row-icon';
 import { Fragment, useRef, useState, type ReactNode } from 'react';
 import { Modal, Platform, Pressable, ScrollView, View, useWindowDimensions } from 'react-native';
@@ -162,6 +163,7 @@ function ActionIcon({
 
 export function MessageActions({
   target,
+  catalog,
   readOnly = false,
   onClose,
   onReact,
@@ -186,6 +188,7 @@ export function MessageActions({
           <MessageMenu
             key={target.message.id}
             target={target}
+            catalog={catalog}
             readOnly={readOnly}
             onClose={onClose}
             onReact={onReact}
@@ -215,6 +218,7 @@ export function MessageActions({
 
 function MessageMenu({
   target,
+  catalog,
   readOnly,
   onClose,
   onReact,
@@ -226,6 +230,7 @@ function MessageMenu({
   onChooseAttachments,
 }: {
   target: MessageMenuTarget;
+  catalog: MessageActionsProps['catalog'];
   readOnly: boolean;
   onClose(): void;
   onReact(message: ConversationMessage, emoji: string, active: boolean): void;
@@ -243,6 +248,7 @@ function MessageMenu({
   const { width: screen, height } = useWindowDimensions();
   const { message, anchor, group } = target;
   const [previewHeight, setPreviewHeight] = useState(anchor.height);
+  const [menuHeight, setMenuHeight] = useState<number>();
   const activity = target.activity !== undefined;
   const previewAnchor = activity
     ? { ...anchor, x: space.x4, width: screen - space.x4 * 2, height: previewHeight }
@@ -256,17 +262,27 @@ function MessageMenu({
     Platform.OS === 'android',
   );
   const reactions = menuReactions(target, readOnly);
+  const time = menuTime(message.at, new Date());
+  const hasMenu = time !== '' || actions.length > 0 || message.turnTargets !== undefined;
   const sizes = menuSizes(theme, actions.length, reactions);
+  const top = insets.top + space.x3;
+  const bottom = height - insets.bottom - space.x3;
+  const maxMenuHeight = Math.max(theme.touch, bottom - top - sizes.bar - space.x3 * 2);
   const place = placeMenu({
     anchor: previewAnchor,
-    top: insets.top + space.x3,
-    bottom: height - insets.bottom - space.x3,
+    top,
+    bottom,
     bar: sizes.bar,
-    menu: sizes.menu,
+    menu: hasMenu ? Math.min(menuHeight ?? sizes.menu, maxMenuHeight) : 0,
     gap: space.x3,
   });
   const islandWidth = Math.min(sizes.islandWidth, screen - space.x4 * 2);
-  const menuWidth = Math.min(sizes.menuWidth, screen - space.x4 * 2);
+  const menuWidth = Math.min(
+    message.turnTargets === undefined
+      ? sizes.menuWidth
+      : Math.max(sizes.menuWidth, sizes.islandWidth),
+    screen - space.x4 * 2,
+  );
   const islands = Platform.OS === 'android';
   const card = {
     position: 'absolute' as const,
@@ -347,7 +363,7 @@ function MessageMenu({
             />
           )}
         </View>
-        {actions.length === 0 ? null : (
+        {hasMenu ? (
           <Pop
             from="top"
             style={{
@@ -358,59 +374,84 @@ function MessageMenu({
               borderRadius: radius.lg,
             }}
           >
-            <Text
-              variant="meta"
-              tone="muted"
-              numberOfLines={1}
-              style={{ paddingHorizontal: space.x5, paddingTop: space.x4, paddingBottom: space.x2 }}
+            <ScrollView
+              style={{ maxHeight: maxMenuHeight }}
+              onContentSizeChange={(_width, contentHeight) => setMenuHeight(contentHeight)}
             >
-              {menuTime(message.at, new Date())}
-            </Text>
-            {actions.map((action, index) => (
-              <Fragment key={actionId(action)}>
-                {index === 0 ? null : (
-                  <View
-                    style={{
-                      height: edge.hairline,
-                      marginLeft: space.x5,
-                      backgroundColor: rowFill.divider,
-                    }}
-                  />
-                )}
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel={action.label}
-                  onPress={() => {
-                    runAction(action, message, {
-                      onCopy,
-                      onSelectCopy,
-                      onShareText,
-                      onShareAttachment,
-                      onChooseAttachments,
-                      onOpen,
-                      onFeedback: target.actions?.feedback,
-                      onSelect: target.actions?.select,
-                    });
-                    onClose();
-                  }}
-                  style={({ pressed }) => ({
-                    height: theme.touch,
-                    flexDirection: islands ? 'row-reverse' : 'row',
-                    alignItems: 'center',
-                    gap: space.x4,
+              {message.turnTargets !== undefined ? (
+                <View
+                  style={{
                     paddingHorizontal: space.x5,
-                    backgroundColor: pressed ? rowFill.pressed : rowFill.fill,
-                  })}
+                    paddingTop: space.x4,
+                    paddingBottom: space.x2,
+                  }}
                 >
-                  <Text numberOfLines={1} style={{ flex: 1 }}>
-                    {action.label}
-                  </Text>
-                  <ActionIcon action={action} color={theme.color.fg} size={theme.type.title.line} />
-                </Pressable>
-              </Fragment>
-            ))}
+                  <MessageMenuHeader time={time} targets={message.turnTargets} catalog={catalog} />
+                </View>
+              ) : time === '' ? null : (
+                <Text
+                  testID="message-menu-time"
+                  variant="meta"
+                  tone="muted"
+                  style={{
+                    paddingHorizontal: space.x5,
+                    paddingTop: space.x4,
+                    paddingBottom: space.x2,
+                  }}
+                >
+                  {time}
+                </Text>
+              )}
+              {actions.map((action, index) => (
+                <Fragment key={actionId(action)}>
+                  {index === 0 ? null : (
+                    <View
+                      style={{
+                        height: edge.hairline,
+                        marginLeft: space.x5,
+                        backgroundColor: rowFill.divider,
+                      }}
+                    />
+                  )}
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={action.label}
+                    onPress={() => {
+                      runAction(action, message, {
+                        onCopy,
+                        onSelectCopy,
+                        onShareText,
+                        onShareAttachment,
+                        onChooseAttachments,
+                        onOpen,
+                        onFeedback: target.actions?.feedback,
+                        onSelect: target.actions?.select,
+                      });
+                      onClose();
+                    }}
+                    style={({ pressed }) => ({
+                      height: theme.touch,
+                      flexDirection: islands ? 'row-reverse' : 'row',
+                      alignItems: 'center',
+                      gap: space.x4,
+                      paddingHorizontal: space.x5,
+                      backgroundColor: pressed ? rowFill.pressed : rowFill.fill,
+                    })}
+                  >
+                    <Text numberOfLines={1} style={{ flex: 1 }}>
+                      {action.label}
+                    </Text>
+                    <ActionIcon
+                      action={action}
+                      color={theme.color.fg}
+                      size={theme.type.title.line}
+                    />
+                  </Pressable>
+                </Fragment>
+              ))}
+            </ScrollView>
           </Pop>
-        )}
+        ) : null}
       </View>
     </View>
   );

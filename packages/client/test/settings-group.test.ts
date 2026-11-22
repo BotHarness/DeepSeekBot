@@ -5,8 +5,8 @@ import { act, createElement, type ReactNode } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 vi.mock('../src/client/channel-sidebar-icon.js', () => ({
   ChannelSidebarIcon: () => createElement('svg'),

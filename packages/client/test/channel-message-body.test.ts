@@ -1,5 +1,11 @@
 // @vitest-environment jsdom
-import { act, createElement, type InputHTMLAttributes, type ReactNode } from 'react';
+import { resourceEvents } from './resource-events-fixture.js';
+import { mountAppearanceFixture } from './appearance-fixture.js';
+import { type ReactNode } from 'react';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
+import { type GenuiDocumentMountOptions } from '../../core/src/channels/genui-document-runtime.js';
+import { type GenuiDocumentRuntime } from '../../core/src/channels/genui-document-runtime.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -17,7 +23,7 @@ import {
   REFERENCE_SURFACES,
 } from '../src/client/bot-primary-color.js';
 import { seededAvatarFor } from '../../core/src/bots/avatar-appearance.js';
-import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
+import { en, zhTranslate } from '../src/client/locale.js';
 import { toolApprovalText } from '../src/client/approval-text.js';
 import { publishWorkspaceGrantChange } from '../src/client/workspace-grant-events.js';
 import { store, type ChannelMessage } from '../src/client/store.js';
@@ -27,10 +33,6 @@ import {
   initialGenuiDocumentState,
   parseGenuiDocument,
 } from '../../core/src/channels/genui-document.js';
-import type {
-  GenuiDocumentMountOptions,
-  GenuiDocumentRuntime,
-} from '../../core/src/channels/genui-document-runtime.js';
 
 const runtime = vi.hoisted(() => ({ load: vi.fn<() => Promise<GenuiDocumentRuntime>>() }));
 vi.mock('../src/client/genui-document-runtime.js', () => ({
@@ -50,31 +52,22 @@ const mountDocument = vi.fn((container: HTMLElement, options: GenuiDocumentMount
   };
 });
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   FileTypeIcon: ({ path }: { path: string }) =>
     createElement('span', { 'data-file-type-icon': path }),
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   fileSizeText: (bytes: number) =>
     bytes >= 1048576
       ? `${(bytes / 1048576).toFixed(1)}MB`
       : bytes >= 1024
         ? `${(bytes / 1024).toFixed(1)}KB`
         : `${bytes}B`,
-  IconDownloadOutlineRegular: () => null,
-  IconPlayOutlineRegular: () => null,
-  IconPauseOutlineRegular: () => null,
-  IconRefreshOutlineRegular: () => null,
-  IconEllipsisOutlineRegular: () => null,
-  IconFolderOpenOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+
   MarkdownText: vi.fn(() => null),
   MarkdownDelegateProvider: ({ children }: { children: ReactNode }) => children,
   useMarkdownDelegate: () => ({}),
-  Modal: ({ children, footer }: { children: ReactNode; footer?: ReactNode }) =>
-    createElement('div', { role: 'dialog' }, children, footer),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
+
   StateDot: () => createElement('span', { 'data-state-dot': 'error' }),
-  Button: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('button', props, children),
 }));
 
 describe('GenUI ordinary message integration', () => {
@@ -220,9 +213,12 @@ it('maintains the DM session without retrying a failed message', async () => {
   const container = document.createElement('div');
   document.body.append(container);
   const root = createRoot(container);
-  const call = vi.fn(async (_method: string, _args?: unknown) => ({
+  const call = vi.fn(async (method: string, _args?: unknown) => ({
     ok: true as const,
-    value: { outcome: 'nothing', tokensBefore: null, tokensAfter: null },
+    value:
+      method === 'botNewSession'
+        ? { started: true }
+        : { outcome: 'nothing', tokensBefore: null, tokensAfter: null },
   }));
   const actions = createActions(call, store);
   const message: ChannelMessage = {
@@ -256,13 +252,13 @@ it('maintains the DM session without retrying a failed message', async () => {
     expect(container.textContent).toContain('开启新会话');
     expect(container.textContent).not.toContain('重试');
     await act(async () => button?.click());
-    expect(call).toHaveBeenCalledWith('botCompact', { slug: 'ada' });
+    expect(call).toHaveBeenCalledWith('botCompact', { slug: 'ada' }, undefined);
     expect(container.textContent).toContain('当前没有可压缩的内容');
     const newButton = [...container.querySelectorAll('button')].find(
       (node) => node.textContent === '开启新会话',
     );
     await act(async () => newButton?.click());
-    expect(call).toHaveBeenCalledWith('botNewSession', { slug: 'ada' });
+    expect(call).toHaveBeenCalledWith('botNewSession', { slug: 'ada' }, undefined);
     expect(call.mock.calls.map((args) => args[0])).not.toContain('channelRetry');
     await act(async () =>
       root.render(
@@ -617,6 +613,7 @@ describe('Channel message body', () => {
       ]!;
     const contrast = (color: string, theme: 'light' | 'dark') =>
       contrastRatio(parseColor(color)!.rgb, parseColor(REFERENCE_SURFACES[theme].background)!.rgb);
+    const appearance = mountAppearanceFixture();
     try {
       await show(bot('ada', { mode: 'custom', color: '#ffffff' }));
       expect(name('ada')).not.toBe('#ffffff');
@@ -633,12 +630,12 @@ describe('Channel message body', () => {
       for (const chip of container.querySelectorAll<HTMLElement>('[data-bot-id]'))
         expect(chip.style.color).toBe('');
 
-      document.body.setAttribute('data-ds-dark-theme', '');
+      appearance.owner.update({ preference: 'dark' });
       await act(async () => new Promise((done) => setTimeout(done, 0)));
       expect(name('ada')).toBe('#ffffff');
       expect(name('bea')).not.toBe('#000000');
       expect(contrast(name('bea'), 'dark')).toBeGreaterThanOrEqual(4.5);
-      document.body.removeAttribute('data-ds-dark-theme');
+      appearance.owner.update({ preference: 'light' });
       await act(async () => new Promise((done) => setTimeout(done, 0)));
 
       await show(bot('ada'));
@@ -652,7 +649,7 @@ describe('Channel message body', () => {
       );
       expect(openBot).toHaveBeenCalledExactlyOnceWith('bea');
     } finally {
-      document.body.removeAttribute('data-ds-dark-theme');
+      appearance.dispose();
       await act(async () => root.unmount());
       container.remove();
     }
@@ -958,11 +955,13 @@ describe('Tool approval card', () => {
     const container = document.createElement('div');
     document.body.append(container);
     const root = createRoot(container);
-    const toolApprovalExecutionState = vi
+    const live = resourceEvents();
+    const toolApprovalState = vi
       .fn()
-      .mockResolvedValueOnce('waiting-capacity')
-      .mockResolvedValueOnce('running');
-    const actions = { toolApprovalExecutionState } as unknown as BridgeActions;
+      .mockResolvedValueOnce({ status: 'expired', execution: 'waiting-capacity' })
+      .mockRejectedValueOnce(new Error('read timed out'))
+      .mockResolvedValue({ status: 'expired', execution: 'running' });
+    const actions = { toolApprovalState } as unknown as BridgeActions;
     const message: ChannelMessage = {
       id: 'approval-capacity',
       at: '2026-10-09T00:00:00Z',
@@ -995,16 +994,27 @@ describe('Tool approval card', () => {
       )!;
       expect(selected.disabled).toBe(true);
       expect(selected.getAttribute('aria-pressed')).toBe('true');
+      const change = {
+        resource: 'tool-approval',
+        channelId: 'dm-ada',
+        messageId: message.id,
+      } as const;
+      await act(async () => vi.advanceTimersByTimeAsync(9000));
+      expect(toolApprovalState).toHaveBeenCalledTimes(1);
       await act(async () => {
-        await vi.advanceTimersByTimeAsync(1000);
+        live.emit(change);
+        await vi.advanceTimersByTimeAsync(25);
+      });
+      expect(container.textContent).toContain('等待运行名额');
+      await act(async () => {
+        live.emit(change);
+        await vi.advanceTimersByTimeAsync(25);
       });
       expect(container.textContent).not.toContain('等待运行名额');
       expect(container.textContent).toContain('终端 · 已允许');
-      await act(async () => {
-        await vi.advanceTimersByTimeAsync(5000);
-      });
-      expect(toolApprovalExecutionState).toHaveBeenCalledTimes(2);
+      expect(toolApprovalState).toHaveBeenCalledTimes(3);
     } finally {
+      live.dispose();
       await act(async () => root.unmount());
       container.remove();
       vi.useRealTimers();
@@ -1048,6 +1058,7 @@ describe('Tool approval card', () => {
       expect(container.textContent).toContain('允许这次');
       await act(async () => {
         publishWorkspaceGrantChange('ada', actions);
+        await new Promise((resolve) => setTimeout(resolve, 30));
       });
       expect(toolApprovalStatus).toHaveBeenCalledTimes(2);
       expect(container.textContent).not.toContain('允许这次');

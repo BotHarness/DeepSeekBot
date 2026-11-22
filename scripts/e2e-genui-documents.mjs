@@ -43,7 +43,7 @@ const runId = new Date().toISOString().replace(/[:.]/g, '-');
 const out = resolve(root, values.out ?? `.humanlayer/tasks/genui-3685/html-e2e/${runId}`);
 mkdirSync(out, { recursive: true });
 const hash = (bytes) => createHash('sha256').update(bytes).digest('hex');
-const git = (...args) => execFileSync('git', args, { cwd: root });
+const git = (...args) => execFileSync('git', args, { cwd: root, shell: false, windowsHide: true });
 const manifest = {
   runId,
   scope:
@@ -537,6 +537,8 @@ try {
             input: JSON.stringify({ source: fixture.source, width: 728 }),
             encoding: 'utf8',
             timeout: 15_000,
+            shell: false,
+            windowsHide: true,
           },
         );
         timings.push(Math.round(performance.now() - start));

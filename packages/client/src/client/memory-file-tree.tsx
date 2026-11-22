@@ -1,19 +1,16 @@
+import { FileTypeIcon } from './ds/file-type-icon.js';
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { useState, type KeyboardEvent, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  FileTypeIcon,
-  IconEllipsisOutlineRegular,
-  Tag,
-  IconChevronDownOutlineRegular,
-  IconFolderCloseRegular,
-  IconFolderOpenRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from './ds/tooltip.js';
 import { useMemoryFileMenu, type MemoryFileCommands } from './memory-file-actions.js';
 import type { MemoryStandingUsage } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { memoryFileTree, type MemoryFileNode } from './memory-file-tree-model.js';
 import { IconButton } from './ds/icon-button.js';
+import { Note } from './ds/note.js';
 import { border, color, radius, size, space, text } from './ds/tokens.stylex.js';
 
 const styles = stylex.create({
@@ -227,7 +224,7 @@ export function MemoryFileTree({
           aria-expanded={menu.openPath === path}
           onClick={(event) => menu.open(path, event)}
         >
-          <IconEllipsisOutlineRegular size={16} />
+          <Icon name="ellipsis" size={16} />
         </IconButton>
       </Tooltip>
     );
@@ -287,9 +284,9 @@ export function MemoryFileTree({
                 data-panel-chevron=""
                 {...stylex.props(styles.chevron, !open && styles.collapsed)}
               >
-                <IconChevronDownOutlineRegular size={14} />
+                <Icon name="chevron-down" size={14} />
               </span>
-              {open ? <IconFolderOpenRegular size={16} /> : <IconFolderCloseRegular size={16} />}
+              {open ? <Icon name="folder-open" size={16} /> : <Icon name="folder" size={16} />}
               <span {...stylex.props(styles.name)}>{node.name}</span>
             </button>
             {more(node.path)}
@@ -304,20 +301,32 @@ export function MemoryFileTree({
     });
 
   return (
-    <div
-      {...stylex.props(styles.tree)}
-      role="tree"
-      aria-label={t('entry.memoryFiles')}
-      onKeyDown={onTreeKeyDown}
-    >
-      {render(
-        memoryFileTree(
-          paths,
-          standing.map((usage) => usage.path),
-        ),
-      )}
-      {menu.menu}
-      {menu.feedback}
-    </div>
+    <>
+      {standing
+        .filter(({ chars, limit }) => chars > limit)
+        .map(({ path, chars, limit }) => (
+          <Note key={path} inset>
+            {t('standing.details.over', {
+              path,
+              difference: (chars - limit).toLocaleString('en-US'),
+            })}
+          </Note>
+        ))}
+      <div
+        {...stylex.props(styles.tree)}
+        role="tree"
+        aria-label={t('entry.memoryFiles')}
+        onKeyDown={onTreeKeyDown}
+      >
+        {render(
+          memoryFileTree(
+            paths,
+            standing.map((usage) => usage.path),
+          ),
+        )}
+        {menu.menu}
+        {menu.feedback}
+      </div>
+    </>
   );
 }

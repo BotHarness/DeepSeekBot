@@ -1,9 +1,15 @@
 import { useRef, useState, type ReactElement } from 'react';
 
+import { Icon } from './ds/icon.js';
 import { PickerTrigger } from './ds/picker-trigger.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { ModelBrandIcon } from './model-brand.js';
-import { ModelMenu, type ModelMenuEffort, type ModelMenuItem } from './model-menu.js';
+import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
+import {
+  ModelMenu,
+  type ModelMenuEffort,
+  type ModelMenuFavorites,
+  type ModelMenuItem,
+} from './model-menu.js';
 
 export function ModelTrigger({
   label,
@@ -16,6 +22,7 @@ export function ModelTrigger({
   efforts,
   effort,
   onEffort,
+  favoriteSource,
   t,
 }: {
   label: string;
@@ -28,6 +35,7 @@ export function ModelTrigger({
   efforts?: readonly ModelMenuEffort[] | undefined;
   effort?: string | undefined;
   onEffort?: ((value: string) => void) | undefined;
+  favoriteSource?: ModelMenuFavorites | null | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
   const trigger = useRef<HTMLButtonElement>(null);
@@ -40,11 +48,20 @@ export function ModelTrigger({
         label={current?.label ?? placeholder}
         placeholder={current === undefined}
         icon={
-          current?.model === undefined ? undefined : (
+          current?.group !== undefined ? (
+            <Icon name="git-branch" />
+          ) : current?.model === undefined ? undefined : current.engine !== undefined ? (
+            <EngineBrandIcon brand={current.brand} size={16} />
+          ) : (
             <ModelBrandIcon brand={current.brand} size={16} />
           )
         }
         hint={current?.hint}
+        hintIcon={
+          current?.hintBrand === undefined ? undefined : (
+            <ModelBrandIcon brand={current.hintBrand} size={12} />
+          )
+        }
         invalid={invalid}
         disabled={disabled}
         expanded={open}
@@ -61,6 +78,7 @@ export function ModelTrigger({
           efforts={efforts}
           effort={effort}
           onEffort={onEffort}
+          favoriteSource={favoriteSource}
           anchorRef={trigger}
           onClose={() => setOpen(false)}
           t={t}

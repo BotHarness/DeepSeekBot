@@ -1,3 +1,7 @@
+import { NavGroupHeading, NavItem } from './ds/nav-item.js';
+import { CHANNEL_LIST_AVATAR_SIZE } from './ds/roster-styles.js';
+import { hooked } from './ds/hooked.js';
+import { avatarFrameStyles } from './ds/avatar-frame.js';
 import { Button } from './ds/button.js';
 import { remoteChannelRows } from './environment-channels.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
@@ -98,13 +102,6 @@ const styles = stylex.create({
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
   },
-  corner: {
-    position: 'absolute',
-    bottom: 0,
-    insetInlineEnd: 0,
-    display: 'inline-flex',
-    backgroundColor: color.base,
-  },
 });
 
 export function useRemoteHosts() {
@@ -112,21 +109,11 @@ export function useRemoteHosts() {
   return useSyncExternalStore(sources.subscribe, sources.getSnapshot, sources.getSnapshot);
 }
 
-export function HostMark({
-  hostId,
-  corner = false,
-}: {
-  hostId?: string | undefined;
-  corner?: boolean;
-}): ReactElement {
+export function HostMark({ hostId }: { hostId?: string | undefined }): ReactElement {
   const thisHost = useThisHost();
   const look = useHostLook(hostId ?? thisHost.id);
   return (
-    <span
-      className="bh-muted-mark"
-      {...stylex.props(corner && styles.corner)}
-      data-remote-host-mark={hostId ?? 'local'}
-    >
+    <span className="bh-muted-mark" data-remote-host-mark={hostId ?? 'local'}>
       <HostGlyph look={look} size={12} />
     </span>
   );
@@ -655,15 +642,17 @@ export function RemoteHostRows({
   const list = (
     <div className="bh-list-area" data-remote-host={remote.host.hostId}>
       {visible.map((row) => (
-        <button
+        <NavItem
           key={row.key}
-          type="button"
-          className={`bh-channel-row${row.unread > 0 ? ' bh-has-unread' : ''}${sameTarget(open, row) ? ' bh-selected' : ''}`}
-          data-remote-row={row.key}
+          multiline
+          largeIcon
+          current={sameTarget(open, row)}
+          className={`bh-channel-row${row.unread > 0 ? ' bh-has-unread' : ''}`}
+          data={{ 'data-remote-row': row.key }}
           aria-label={
             showSource ? t('remoteHosts.rowLabel', { name: row.title, host: name }) : row.title
           }
-          onClick={() => {
+          onSelect={() => {
             onOpen?.();
             sources.open({
               hostId: row.hostId,
@@ -672,32 +661,36 @@ export function RemoteHostRows({
               ...(row.channelId === undefined ? {} : { channelId: row.channelId }),
             });
           }}
-        >
-          <span className="bh-row-avatar">
-            <RemoteAvatar
-              roster={remote.snapshot.roster}
-              avatars={avatars}
-              target={row}
-              size={34}
-              activity={row.botSlug === undefined ? undefined : remote.activity?.get(row.botSlug)}
-              t={t}
-            />
-            <UnreadCount count={row.unread} corner t={t} />
-            {showSource ? <HostMark hostId={remote.host.hostId} corner /> : null}
-          </span>
-          <span className="bh-body">
-            <span className="bh-top">
-              <span className="bh-name">{row.title}</span>
-              {showSource ? <span className="bh-muted-mark">{name}</span> : null}
+          icon={
+            <span {...hooked('bh-row-avatar', avatarFrameStyles.channel)}>
+              <RemoteAvatar
+                roster={remote.snapshot.roster}
+                avatars={avatars}
+                target={row}
+                size={CHANNEL_LIST_AVATAR_SIZE}
+                squareBackdrop
+                activity={row.botSlug === undefined ? undefined : remote.activity?.get(row.botSlug)}
+                t={t}
+              />
             </span>
-            <span className="bh-bottom">
-              <span className="bh-msg">{row.preview ?? t('rail.noMessages')}</span>
-              {remote.snapshot.connection.status !== 'connected' ? (
-                <span>{t('environment.offline')}</span>
-              ) : null}
+          }
+          label={
+            <span className="bh-body">
+              <span className="bh-top">
+                <span className="bh-name">{row.title}</span>
+                {showSource ? <HostMark hostId={remote.host.hostId} /> : null}
+                {showSource ? <span className="bh-muted-mark">{name}</span> : null}
+              </span>
+              <span className="bh-bottom">
+                <span className="bh-msg">{row.preview ?? t('rail.noMessages')}</span>
+                <UnreadCount count={row.unread} t={t} />
+                {remote.snapshot.connection.status !== 'connected' ? (
+                  <span>{t('environment.offline')}</span>
+                ) : null}
+              </span>
             </span>
-          </span>
-        </button>
+          }
+        />
       ))}
     </div>
   );
@@ -714,9 +707,7 @@ export function RemoteHostRows({
       <>
         {pins.size > 0 ? (
           <div className="bh-section">
-            <div className="bh-section-head">
-              <span className="bh-section-name">{t('pin.title')}</span>
-            </div>
+            <NavGroupHeading label={t('pin.title')} first />
             <RemoteHostRows
               remote={remote}
               query={query}
@@ -743,9 +734,7 @@ export function RemoteHostRows({
             key={section.id}
             data-environment-section={JSON.stringify([remote.host.hostId, section.id])}
           >
-            <div className="bh-section-head">
-              <span className="bh-section-name">{section.name}</span>
-            </div>
+            <NavGroupHeading label={section.name} first />
             <RemoteHostRows
               remote={remote}
               query={query}
@@ -763,10 +752,7 @@ export function RemoteHostRows({
   }
   return (
     <div className="bh-section" data-remote-section={remote.host.hostId}>
-      <div className="bh-section-head">
-        <span className="bh-section-name">{name}</span>
-        <span className="bh-section-count">{visible.length}</span>
-      </div>
+      <NavGroupHeading label={name} trailing={visible.length} first />
       {list}
     </div>
   );

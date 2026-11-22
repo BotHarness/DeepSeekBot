@@ -1,47 +1,17 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from 'react';
+import { type BotSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
-  const passthrough = ({ children }: { children?: ReactNode }) => children ?? null;
+
   return {
-    Button: ({
-      children,
-      variant: _variant,
-      size: _size,
-      ...props
-    }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string; size?: string }) =>
-      createElement('button', props, children),
-    Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-    Tag: ({ children }: { children?: ReactNode }) =>
-      createElement('span', { className: 'tag' }, children),
-    Modal: ({
-      open,
-      title,
-      children,
-      footer,
-    }: {
-      open: boolean;
-      title: string;
-      children?: ReactNode;
-      footer?: ReactNode;
-    }) =>
-      open ? createElement('div', { role: 'dialog', 'aria-label': title }, children, footer) : null,
-    Tooltip: passthrough,
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
     FileTypeIcon: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconFolderCloseRegular: stub,
-    IconFolderOpenRegular: stub,
   };
 });
 
@@ -51,7 +21,6 @@ import { zhTranslate } from '../src/client/locale.js';
 import { MemoryFileTree } from '../src/client/memory-file-tree.js';
 import { memoryFileTree } from '../src/client/memory-file-tree-model.js';
 import { StandingLimitsRow } from '../src/client/standing-limits.js';
-import type { BotSummary } from '../src/client/store.js';
 
 const bot: BotSummary = {
   slug: 'ada',
@@ -104,6 +73,9 @@ describe('Standing memory', () => {
     );
     expect(rows[1]?.querySelector('[data-standing="over"]')?.textContent).toContain('3,600/3,000');
     expect(rows[2]?.querySelector('[data-standing]')).toBeNull();
+    expect(container.querySelector('[role="status"]')?.textContent).toBe(
+      'MEMORY.md 有 600 字符不会进入提示词。',
+    );
   });
 
   it('parses standing limits and usage from the bridge', async () => {
@@ -154,25 +126,25 @@ describe('Standing memory', () => {
         ),
       ),
     );
-    expect(host.textContent).toContain('SOUL.md 5,000 · MEMORY.md 3,000');
-    await act(async () => host.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
+    expect(document.body.textContent).toContain('SOUL.md 5,000 · MEMORY.md 3,000');
+    await act(async () => document.body.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
     const limit = (file: string): HTMLInputElement => {
-      const label = [...host.querySelectorAll('label')].find((candidate) =>
+      const label = [...document.body.querySelectorAll('label')].find((candidate) =>
         candidate.textContent?.includes(file),
       )!;
       return document.getElementById(label.htmlFor) as HTMLInputElement;
     };
     const button = (name: string): HTMLButtonElement =>
-      [...host.querySelectorAll<HTMLButtonElement>('button')].find(
+      [...document.body.querySelectorAll<HTMLButtonElement>('button')].find(
         (candidate) => candidate.textContent === name,
       )!;
     const save = (): HTMLButtonElement => button(zhTranslate('standingLimits.save'));
-    expect(host.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
+    expect(document.body.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
       zhTranslate('standingLimits.title'),
     );
     expect(limit('SOUL.md').value).toBe('5000');
     expect(limit('MEMORY.md').value).toBe('3000');
-    expect(host.textContent).toContain('约 5,000 个汉字，或约 830 个英文单词');
+    expect(document.body.textContent).toContain('约 5,000 个汉字，或约 830 个英文单词');
     expect(save().disabled).toBe(true);
     expect(button(zhTranslate('standingLimits.reset')).disabled).toBe(true);
 
@@ -184,10 +156,10 @@ describe('Standing memory', () => {
       });
     };
     await type(limit('MEMORY.md'), '100');
-    expect(host.textContent).toContain('请输入 500 到 50,000 之间的整数');
+    expect(document.body.textContent).toContain('请输入 500 到 50,000 之间的整数');
     expect(limit('MEMORY.md').getAttribute('aria-invalid')).toBe('true');
     expect(save().disabled).toBe(true);
-    await act(async () => host.querySelector('form')!.requestSubmit());
+    await act(async () => document.body.querySelector('form')!.requestSubmit());
     expect(setStandingLimits).not.toHaveBeenCalled();
 
     await type(limit('SOUL.md'), '6000');
@@ -198,11 +170,11 @@ describe('Standing memory', () => {
     await type(limit('MEMORY.md'), '1200');
     expect(limit('MEMORY.md').hasAttribute('aria-invalid')).toBe(false);
     expect(save().disabled).toBe(false);
-    await act(async () => host.querySelector('form')!.requestSubmit());
+    await act(async () => document.body.querySelector('form')!.requestSubmit());
     expect(setStandingLimits).toHaveBeenCalledWith('ada', { soul: 5000, coreMemory: 1200 });
-    expect(host.querySelector('[role="dialog"]')).toBeNull();
-    expect(host.textContent).toContain('SOUL.md 5,000 · MEMORY.md 1,200');
-    expect(host.textContent).toContain(zhTranslate('standingLimits.customized'));
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.textContent).toContain('SOUL.md 5,000 · MEMORY.md 1,200');
+    expect(document.body.textContent).toContain(zhTranslate('standingLimits.customized'));
     act(() => root.unmount());
     host.remove();
   });
@@ -224,8 +196,8 @@ describe('Standing memory', () => {
         ),
       ),
     );
-    await act(async () => host.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
-    const label = [...host.querySelectorAll('label')].find((candidate) =>
+    await act(async () => document.body.querySelector<HTMLButtonElement>('.bh-card-main')!.click());
+    const label = [...document.body.querySelectorAll('label')].find((candidate) =>
       candidate.textContent?.includes('SOUL.md'),
     )!;
     const soul = document.getElementById(label.htmlFor) as HTMLInputElement;
@@ -233,16 +205,16 @@ describe('Standing memory', () => {
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(soul, '900');
       soul.dispatchEvent(new Event('input', { bubbles: true }));
     });
-    await act(async () => host.querySelector('form')!.requestSubmit());
+    await act(async () => document.body.querySelector('form')!.requestSubmit());
     expect(setStandingLimits).toHaveBeenCalledWith('ada', { soul: 900, coreMemory: 3000 });
-    expect(host.querySelector('[role="dialog"]')).not.toBeNull();
-    expect(host.querySelector('[role="alert"]')?.textContent).toContain('limits refused');
+    expect(document.body.querySelector('[role="dialog"]')).not.toBeNull();
+    expect(document.body.querySelector('[role="alert"]')?.textContent).toContain('limits refused');
     await act(async () =>
-      [...host.querySelectorAll<HTMLButtonElement>('button')]
+      [...document.body.querySelectorAll<HTMLButtonElement>('button')]
         .find((button) => button.textContent === zhTranslate('common.cancel'))!
         .click(),
     );
-    expect(host.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"]')).toBeNull();
     act(() => root.unmount());
     host.remove();
   });
@@ -263,9 +235,9 @@ describe('Standing memory', () => {
         ),
       );
     await render(bot);
-    expect(host.textContent).toContain('SOUL.md 5,000 · MEMORY.md 3,000');
+    expect(document.body.textContent).toContain('SOUL.md 5,000 · MEMORY.md 3,000');
     await render({ ...bot, standingLimits: { soul: 8000, coreMemory: 3000 } });
-    expect(host.textContent).toContain('SOUL.md 8,000 · MEMORY.md 3,000');
+    expect(document.body.textContent).toContain('SOUL.md 8,000 · MEMORY.md 3,000');
     act(() => root.unmount());
     host.remove();
   });

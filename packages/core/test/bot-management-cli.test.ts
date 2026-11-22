@@ -59,7 +59,17 @@ async function host(handler: (method: string, args: Record<string, unknown>) => 
       calls.push({ method, args: input.payload.args });
       const result =
         method === 'channelDm'
-          ? { ok: true, value: { channel: { id: 'dm-' + String(input.payload.args.slug) } } }
+          ? {
+              ok: true,
+              value: {
+                channel: {
+                  id: 'dm-' + String(input.payload.args.slug),
+                  type: 'dm',
+                  name: String(input.payload.args.slug),
+                  members: [String(input.payload.args.slug)],
+                },
+              },
+            }
           : handler(method, input.payload.args);
       if (result === 'lost-response') {
         res.destroy();
@@ -88,6 +98,24 @@ async function invoke(argv: string[], url: string, stdin = '') {
   expect(stdout.join('') + stderr.join('')).not.toContain('private-test-token');
   return { code, value: JSON.parse(stdout[0]!) };
 }
+
+const deletionPreview = (token: string) => ({
+  slug: 'owned',
+  displayName: 'Owned',
+  memoryDir: '/memory/owned',
+  eraseAvailable: true,
+  token,
+  dependencies: { sessions: [], workspaces: [], grants: [], identities: [], channels: [] },
+});
+const deletionReceipt = (eraseMemory: boolean, phase: 'incomplete' | 'complete') => ({
+  slug: 'owned',
+  displayName: 'Owned',
+  memoryDir: '/memory/owned',
+  acceptedAt: '2026-11-20T00:00:00Z',
+  eraseMemory,
+  phase,
+  memory: eraseMemory ? 'erased' : 'retained',
+});
 
 describe('online CLI management', () => {
   it.each(['started', 'busy'] as const)(
@@ -191,7 +219,7 @@ describe('online CLI management', () => {
             ok: false,
             error: { code: 'botharness/invalid-input', message: 'Preview scope changed' },
           }
-        : { ok: true, value: { preview: { token: 'reviewed-scope' } } },
+        : { ok: true, value: { preview: deletionPreview('reviewed-scope') } },
     );
     expect((await invoke(['bot-delete-preview', 'owned'], live.url)).code).toBe(0);
     expect((await invoke(['bot-delete-confirm', 'owned'], live.url)).value.error.code).toBe(
@@ -591,8 +619,13 @@ describe('online CLI management', () => {
         ok: true,
         value:
           method === 'deletionPreview'
-            ? { preview: { deletion: { eraseMemory, phase: 'incomplete' } } }
-            : { deletion: { eraseMemory, phase: 'complete' } },
+            ? {
+                preview: {
+                  ...deletionPreview('accepted-scope'),
+                  deletion: deletionReceipt(eraseMemory, 'incomplete'),
+                },
+              }
+            : { deletion: deletionReceipt(eraseMemory, 'complete') },
       }));
       expect((await invoke(['bot-delete-retry', 'owned'], live.url)).value.error.code).toBe(
         'usage',
@@ -602,7 +635,7 @@ describe('online CLI management', () => {
           .error.code,
       ).toBe('usage');
       const result = await invoke(['bot-delete-retry', 'owned', '--confirm'], live.url);
-      expect(result.value.deletion).toEqual({ eraseMemory, phase: 'complete' });
+      expect(result.value.deletion).toEqual(deletionReceipt(eraseMemory, 'complete'));
       expect(live.calls).toEqual([
         { method: 'deletionPreview', args: { slug: 'owned' } },
         { method: 'deletionRetry', args: { slug: 'owned' } },
@@ -611,14 +644,20 @@ describe('online CLI management', () => {
   );
 
   it('refuses retry without an accepted deletion and never submits a new scope', async () => {
-    const live = await host(() => ({ ok: true, value: { preview: { token: 'unaccepted' } } }));
+    const live = await host(() => ({
+      ok: true,
+      value: { preview: deletionPreview('unaccepted') },
+    }));
     const result = await invoke(['bot-delete-retry', 'owned', '--confirm'], live.url);
     expect(result.value.error.code).toBe('usage');
     expect(live.calls).toEqual([{ method: 'deletionPreview', args: { slug: 'owned' } }]);
   });
 
   it('requires explicit confirmation and an explicit flag to erase reviewed Memory', async () => {
-    const live = await host(() => ({ ok: true, value: { deletion: { memory: 'erased' } } }));
+    const live = await host(() => ({
+      ok: true,
+      value: { deletion: deletionReceipt(true, 'complete') },
+    }));
     const token = JSON.stringify({ token: 'reviewed-scope' });
     expect(
       (

@@ -119,6 +119,7 @@ export function createContainerBrowserExecution(
         timeout: 180_000,
         maxBuffer: 1024 * 1024,
         windowsHide: true,
+        shell: false,
       });
       return result.stdout.trim();
     });
@@ -267,6 +268,7 @@ export function createContainerBrowserExecution(
         const relay = spawn('docker', ['exec', '-i', name, 'python3', '-u', '-c', RELAY], {
           stdio: ['pipe', 'pipe', 'ignore'],
           windowsHide: true,
+          shell: false,
         });
         relays.add(relay);
         relay.stdin!.on('error', () => socket.destroy());
@@ -313,6 +315,7 @@ export function createContainerBrowserExecution(
       );
       throw new Error(
         `Container Bot Browser startup failed: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
       );
     }
   };

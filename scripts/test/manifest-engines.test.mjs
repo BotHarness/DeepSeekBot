@@ -6,14 +6,14 @@ import { describe, expect, it } from 'vitest';
 import { productDshRange, productDshVersions } from '../product-artifacts.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
-const packages = ['core', 'client', 'deepseekbot', 'browser', 'computer', 'todo'];
+const packages = ['core', 'client', 'deepseekbot', 'browser', 'computer', 'todo', 'vrm-companion'];
 
 function manifest(packageName) {
   return JSON.parse(readFileSync(join(root, 'packages', packageName, 'package.json'), 'utf8'));
 }
 
 describe('DSH engine declaration', () => {
-  it('declares one shared SemVer range across the installable product packages', () => {
+  it('declares one shared SemVer range across first-party DSH packages', () => {
     const ranges = packages.map((packageName) => manifest(packageName).engines?.dsh);
     expect(ranges.every((range) => typeof range === 'string')).toBe(true);
     expect(new Set(ranges).size).toBe(1);

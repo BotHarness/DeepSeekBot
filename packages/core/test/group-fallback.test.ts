@@ -1,9 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
+import { mountOperationalDatabase } from '../src/database/owner.js';
+import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
+import {
+  createFallbackOverrideStore,
+  type FallbackOverrideStore,
+} from '../src/models/fallback-overrides.js';
 import { createGroupFallback } from '../src/models/group-fallback.js';
 import type { ModelRoute, PersonaBotModelPlan } from '../src/models/presets.js';
 import { createRouteRests } from '../src/models/route-rest.js';
+import { createRoutingGroupStore } from '../src/models/routing-groups.js';
 import { createCore } from '../src/plugin.js';
 import {
   createBotRequestRetry,
@@ -16,6 +23,47 @@ const SPENT = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
 const FORBIDDEN = { provider: 'openrouter', model: 'deepseek-v4.1-flash' };
 const DEEPSEEK = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
 const key = (route: ModelRoute) => `${route.provider}/${route.model}`;
+
+it('picks the first eligible DSH model from a mixed Routing Group', async () => {
+  const root = createTempRoot('bh-mixed-group-fallback-');
+  const database = mountOperationalDatabase({ dshHome: root, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+  try {
+    const groups = createRoutingGroupStore({ database });
+    const nested = groups.create({
+      name: 'Nested',
+      members: [
+        { kind: 'engine', engine: 'claude' },
+        { kind: 'model', ...DEEPSEEK },
+      ],
+    });
+    const mixed = groups.create({
+      name: 'Mixed',
+      members: [
+        { kind: 'engine', engine: 'codex', model: 'gpt-5.4' },
+        { kind: 'group', id: nested.id },
+      ],
+    });
+    const checked: ModelRoute[] = [];
+    expect(groups.targets(mixed.id)).toEqual([
+      { kind: 'engine', engine: 'codex', model: 'gpt-5.4' },
+      { kind: 'engine', engine: 'claude' },
+      { kind: 'route', route: DEEPSEEK },
+    ]);
+    const fallback = createGroupFallback({
+      plan: () => undefined,
+      routes: (id) => groups.routes(id),
+      rests: createRouteRests({ now: () => 0 }),
+      requireAllowed: (_slug, route) => {
+        checked.push(route);
+      },
+      validate: async () => undefined,
+    });
+    expect(await fallback.pick('ada', mixed.id)).toEqual({ kind: 'route', route: DEEPSEEK });
+    expect(checked).toEqual([DEEPSEEK]);
+  } finally {
+    database.close();
+  }
+});
 
 function plan(groupId: string | undefined): PersonaBotModelPlan {
   return {
@@ -32,6 +80,7 @@ function fallbackFor(options: {
   now: () => number;
   groups?: Record<string, string>;
   members?: ModelRoute[];
+  overrides?: FallbackOverrideStore;
 }) {
   const rests = createRouteRests({ now: options.now });
   const groups = options.groups ?? { ada: 'g', cy: 'g' };
@@ -43,6 +92,7 @@ function fallbackFor(options: {
       if (key(route) === key(FORBIDDEN)) throw new Error('model-not-allowed');
     },
     validate: async () => undefined,
+    ...(options.overrides === undefined ? {} : { overrides: options.overrides }),
   });
   return { rests, fallback, groups };
 }
@@ -62,8 +112,6 @@ describe('Routing Group fallback picks the next usable member (#4417)', () => {
     });
     expect(fallback.route('s1')).toEqual(DEEPSEEK);
     expect(fallback.route('s2')).toBeUndefined();
-    fallback.forget('s1');
-    expect(fallback.route('s1')).toBeUndefined();
   });
 
   it('lists every resting member when none is usable', async () => {
@@ -262,42 +310,61 @@ describe('A Bot on a Routing Group keeps working when its route runs out (#4417)
   });
 });
 
-describe('A Session returns to its preferred member once the rest ends (#4418)', () => {
-  it('stays on the fallback while the preferred route rests', async () => {
+describe('A Session stays on its fallback member until that member fails', () => {
+  it('keeps the fallback after the preferred rest ends and starts a new Session on the first member', async () => {
     let clock = 0;
     const { rests, fallback } = fallbackFor({ now: () => clock });
+    await fallback.start('ada', 's1');
+    expect(fallback.route('s1')).toEqual(SPENT);
     rests.rest(SPENT, 10_000, 'quota');
     await fallback.choose('ada', 's1', rests.restingUntil(SPENT)!);
-    expect(await fallback.restore('ada', 's1')).toBeUndefined();
-    expect(fallback.route('s1')).toEqual(DEEPSEEK);
+    await fallback.start('ada', 's2');
+    expect(fallback.route('s2')).toBeUndefined();
     clock = 10_000;
-    expect(await fallback.restore('ada', 's1')).toEqual({
-      kind: 'switch',
-      from: DEEPSEEK,
-      to: SPENT,
-      reason: 'returned',
-    });
-    expect(fallback.route('s1')).toEqual(SPENT);
-    expect(await fallback.restore('ada', 's1')).toBeUndefined();
+    expect(fallback.route('s1')).toEqual(DEEPSEEK);
+    await fallback.start('ada', 's3');
+    expect(fallback.route('s3')).toEqual(SPENT);
   });
 
-  async function scenario(failOnReturn: boolean) {
+  it('keeps the fallback across a Host restart and drops it when the member leaves the group', async () => {
+    const root = createTempRoot('bh-group-sticky-');
+    const database = mountOperationalDatabase({
+      dshHome: root,
+      schemaPlan: BOT_HARNESS_SCHEMA_PLAN,
+    });
+    try {
+      const overrides = createFallbackOverrideStore({ database });
+      const before = fallbackFor({ now: () => 0, overrides });
+      before.rests.rest(SPENT, 10_000, 'quota');
+      await before.fallback.choose('ada', 's1', before.rests.restingUntil(SPENT)!);
+      const after = fallbackFor({
+        now: () => 20_000,
+        overrides: createFallbackOverrideStore({ database }),
+      });
+      expect(after.fallback.route('s1')).toEqual(DEEPSEEK);
+      const shrunk = fallbackFor({ now: () => 20_000, overrides, members: [SPENT] });
+      expect(shrunk.fallback.route('s1')).toBeUndefined();
+      expect(overrides.get('s1')).toBeUndefined();
+    } finally {
+      database.close();
+    }
+  });
+
+  async function scenario(fallbackFails: boolean) {
     let clock = Date.parse('2026-11-18T00:00:00.000Z');
     const until = clock + 60_000;
     const { rests, fallback } = fallbackFor({ now: () => clock });
-    let spentFails = true;
+    const failing = new Set([key(SPENT)]);
     const runs: string[] = [];
     const core = createCore({
-      dshHome: createTempRoot('bh-group-return-'),
+      dshHome: createTempRoot('bh-group-sticky-'),
       agents: {
         async runOrchestrator(run) {
           const route = fallback.route(run.sessionId) ?? SPENT;
           runs.push(key(route));
-          if (key(route) !== key(SPENT) || !spentFails) return;
-          rests.rest(SPENT, clock + 60_000, 'quota');
-          throw Object.assign(new Error('QUOTA: OpenCode Go usage limit reached'), {
-            code: 'QUOTA',
-          });
+          if (!failing.has(key(route))) return;
+          rests.rest(route, clock + 60_000, 'quota');
+          throw Object.assign(new Error('QUOTA: usage limit reached'), { code: 'QUOTA' });
         },
         async runAssignment() {},
         requestAssignment() {
@@ -333,7 +400,8 @@ describe('A Session returns to its preferred member once the rest ends (#4418)',
       await dm('ada-1');
       expect(runs).toEqual([key(SPENT), key(DEEPSEEK)]);
       clock = until;
-      spentFails = failOnReturn;
+      failing.clear();
+      if (fallbackFails) failing.add(key(DEEPSEEK));
       await dm('ada-2');
       return {
         runs,
@@ -349,20 +417,83 @@ describe('A Session returns to its preferred member once the rest ends (#4418)',
     }
   }
 
-  it('starts the next turn on the preferred member with one return notice', async () => {
+  it('runs the next turn on the fallback after the preferred rest ends, with no return notice', async () => {
     const result = await scenario(false);
-    expect(result.runs).toEqual([key(SPENT), key(DEEPSEEK), key(SPENT)]);
-    expect([...result.switches].sort()).toEqual(
-      [`quota:${key(SPENT)}>${key(DEEPSEEK)}`, `returned:${key(DEEPSEEK)}>${key(SPENT)}`].sort(),
-    );
+    expect(result.runs).toEqual([key(SPENT), key(DEEPSEEK), key(DEEPSEEK)]);
+    expect(result.switches).toEqual([`quota:${key(SPENT)}>${key(DEEPSEEK)}`]);
     expect(result.held).toBeUndefined();
   });
 
-  it('falls back again with a fresh rest when the preferred route fails on return', async () => {
+  it('moves back to the first member only when the fallback fails', async () => {
     const result = await scenario(true);
-    expect(result.runs).toEqual([key(SPENT), key(DEEPSEEK), key(SPENT), key(DEEPSEEK)]);
-    expect(result.switches.filter((entry) => entry.startsWith('quota:'))).toHaveLength(2);
-    expect(result.switches.filter((entry) => entry.startsWith('returned:'))).toHaveLength(1);
+    expect(result.runs).toEqual([key(SPENT), key(DEEPSEEK), key(DEEPSEEK), key(SPENT)]);
+    expect([...result.switches].sort()).toEqual(
+      [`quota:${key(SPENT)}>${key(DEEPSEEK)}`, `quota:${key(DEEPSEEK)}>${key(SPENT)}`].sort(),
+    );
     expect(result.held).toBeUndefined();
+  });
+});
+
+describe('Routing Group effort reaches the member that runs (#4497)', () => {
+  it('gives the group effort to members that support it and keeps a member override', async () => {
+    const plain = { provider: 'plain', model: 'chat' };
+    const fallback = createGroupFallback({
+      plan: () => ({ ...plan('g'), orchestratorGroupEffort: 'max' }),
+      routes: () => [plain, DEEPSEEK],
+      rests: createRouteRests({ now: () => 0 }),
+      requireAllowed: () => undefined,
+      validate: async () => undefined,
+      withEffort: async (route, effort) =>
+        route.reasoningEffort !== undefined || key(route) === key(plain)
+          ? route
+          : { ...route, reasoningEffort: effort! },
+    });
+    await fallback.start('ada', 's1');
+    expect(fallback.route('s1')).toEqual(plain);
+    const switched = await fallback.choose('ada', 's1', { ...plain, until: '', reason: 'quota' });
+    expect(switched).toMatchObject({ kind: 'switch', to: { ...DEEPSEEK, reasoningEffort: 'max' } });
+    expect(fallback.route('s1')).toEqual({ ...DEEPSEEK, reasoningEffort: 'max' });
+    expect(await fallback.pick('ada', 'g', 'high')).toEqual({ kind: 'route', route: plain });
+  });
+
+  it('drops a Session fallback whose effort the group no longer uses', async () => {
+    let effort: string | undefined = 'max';
+    const fallback = createGroupFallback({
+      plan: () => ({
+        ...plan('g'),
+        ...(effort === undefined ? {} : { orchestratorGroupEffort: effort }),
+      }),
+      routes: () => [DEEPSEEK],
+      rests: createRouteRests({ now: () => 0 }),
+      requireAllowed: () => undefined,
+      validate: async () => undefined,
+      withEffort: async (route, value) => ({ ...route, reasoningEffort: value! }),
+    });
+    await fallback.start('ada', 's1');
+    expect(fallback.route('s1')).toEqual({ ...DEEPSEEK, reasoningEffort: 'max' });
+    effort = 'low';
+    expect(fallback.route('s1')).toBeUndefined();
+    effort = undefined;
+    await fallback.start('ada', 's2');
+    expect(fallback.route('s2')).toEqual(DEEPSEEK);
+  });
+
+  it('drops a Session fallback once its member carries a different own effort', async () => {
+    let member: typeof DEEPSEEK & { reasoningEffort?: string } = DEEPSEEK;
+    const fallback = createGroupFallback({
+      plan: () => ({ ...plan('g'), orchestratorGroupEffort: 'max' }),
+      routes: () => [member],
+      rests: createRouteRests({ now: () => 0 }),
+      requireAllowed: () => undefined,
+      validate: async () => undefined,
+      withEffort: async (route, value) =>
+        route.reasoningEffort === undefined ? { ...route, reasoningEffort: value! } : route,
+    });
+    await fallback.start('ada', 's1');
+    expect(fallback.route('s1')).toEqual({ ...DEEPSEEK, reasoningEffort: 'max' });
+    member = { ...DEEPSEEK, reasoningEffort: 'high' };
+    expect(fallback.route('s1')).toBeUndefined();
+    await fallback.start('ada', 's2');
+    expect(fallback.route('s2')).toEqual(member);
   });
 });

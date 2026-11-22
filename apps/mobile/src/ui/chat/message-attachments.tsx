@@ -138,14 +138,12 @@ export function MessageAlbum({
   width,
   onOpenImage,
   onImageReady,
-  children,
 }: {
   images: readonly MessageAttachment[];
   human: boolean;
   width: number;
   onOpenImage(attachment: MessageAttachment): void;
   onImageReady?: ((key: string, ready: boolean) => void) | undefined;
-  children?: ReactNode;
 }) {
   const t = useStrings();
   const layout = albumLayout(images.length);
@@ -198,7 +196,6 @@ export function MessageAlbum({
           </View>
         );
       })}
-      {children}
     </View>
   );
 }

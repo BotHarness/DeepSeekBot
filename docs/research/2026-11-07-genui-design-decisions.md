@@ -2,9 +2,9 @@
 
 Date: 2026-11-07 (Asia/Tokyo)
 
-Later amendment, 2026-11-08: the Human explicitly preferred T3 Code-style rich content. [ADR-0301](../adr/0301-genui-rich-documents-use-isolated-html.md) supersedes the declarative-only/per-platform-native rendering choice below, while retaining ordinary-message and authority boundaries. This interview remains the historical Q1–Q15 record, not the latest renderer decision.
+Later amendment, 2026-11-08: the Human explicitly preferred T3 Code-style rich content. [ADR-0301](../decisions/genui.md#adr-0301) supersedes the declarative-only/per-platform-native rendering choice below, while retaining ordinary-message and authority boundaries. This interview remains the historical Q1–Q15 record, not the latest renderer decision.
 
-Status: Q1–Q15 and the final shared understanding are Human-confirmed, including the corrected ordinary-message semantics in Q11 and trusted per-platform rendering in Q13. The architecture is recorded in [ADR-0300](../adr/0300-genui-is-ordinary-message-content.md) and the living architecture; this file retains the interview evidence. The Human authorized specification and tracer-bullet issue planning; the published specification is [#3684](https://github.com/BotHarness/DeepSeekBot/issues/3684). No dependency, concrete wire schema or product implementation is approved.
+Status: Q1–Q15 and the final shared understanding are Human-confirmed, including the corrected ordinary-message semantics in Q11 and trusted per-platform rendering in Q13. The architecture is recorded in [ADR-0300](../decisions/genui.md#adr-0300) and the living architecture; this file retains the interview evidence. The Human authorized specification and tracer-bullet issue planning; the published specification is [#3684](https://github.com/BotHarness/DeepSeekBot/issues/3684). No dependency, concrete wire schema or product implementation is approved.
 
 ## Purpose and authority
 
@@ -179,7 +179,7 @@ Status: Confirmed.
 
 A read-only audit on 2026-11-07 checked the same source baseline. The inspected renderer/card/timeline/mobile paths had no tracked working-tree diff; the shared checkout was dirty and this was not an atomic snapshot. Findings are implementation inputs, not authorization to select or launch a renderer:
 
-- Existing typed Channel content already has separate Web and native presentation consumers (`packages/core/src/channels/channel.ts:290`, `packages/client/src/client/channel-message-body.tsx:462`, `apps/mobile/src/ui/chat/conversation-screen.tsx:296`). Shared semantics do not require sharing a DOM component tree.
+- Existing typed Channel content already has separate Web and native presentation consumers (`packages/core/src/channels/channel-message-types.ts`, `packages/client/src/client/channel-message-body.tsx:462`, `apps/mobile/src/ui/chat/conversation-screen.tsx:296`). Shared semantics do not require sharing a DOM component tree.
 - Mobile declares `react-native-webview`, but no current application WebView component/import was found. The removed full-Host WebView is not a reusable GenUI renderer (`apps/mobile/README.md:72`). A bounded bundled document would require new packaging, navigation/network restrictions, bridge, sizing and accessibility work.
 - The current Client bundle depends on the DSH module loader; it is not a standalone HTML renderer (`tsdown.config.ts:15`). Existing authenticated attachment routes and device gateway forwarding do not establish executable-document hosting.
 - Web React 18 and mobile React 19 do not establish a shared renderer runtime. Candidate package declarations are recorded in the assessment; no dependency/runtime compatibility was tested.

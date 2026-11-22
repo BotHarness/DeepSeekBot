@@ -1,22 +1,18 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type BotSummary } from '../src/client/store.js';
+import { type ChannelSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { seededBannerRecipe } from '@botharness/pixel-banner';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  const stub = () => null;
+
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    IconCloseOutlineRegular: stub,
-    IconEditOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
-    IconShareOutlineRegular: stub,
-    Menu: stub,
-    Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-    Tooltip: ({ children }: PropsWithChildren) => children,
   };
 });
 
@@ -24,8 +20,10 @@ import type { BridgeActions } from '../src/client/actions.js';
 import { parseBotSummary } from '../src/client/bridge.js';
 import { zhTranslate } from '../src/client/locale.js';
 import { ProfileHeader } from '../src/client/profile-header.js';
-import type { BotSummary, ChannelSummary } from '../src/client/store.js';
-import { buttonNamed, dialog } from './primitive-mocks.js';
+import { seededAvatarFor } from '../../core/src/bots/avatar-appearance.js';
+import { isolateTeamIdentity, setTeamModeSnapshot } from '../src/client/team-state.js';
+
+import { buttonNamed, dialog, queryMenuItem } from './primitive-mocks.js';
 
 const AT = '2026-10-08T00:00:00Z';
 const CHANNEL: ChannelSummary = {
@@ -80,7 +78,7 @@ function bot(banner?: BotSummary['banner']): BotSummary {
   };
 }
 
-const button = (label: string): HTMLButtonElement => buttonNamed(label, host);
+const button = (label: string): HTMLButtonElement => buttonNamed(label, document.body);
 
 function scenes(): HTMLButtonElement[] {
   const group = dialog().querySelector(
@@ -103,11 +101,66 @@ async function render(summary: BotSummary, actions: Partial<BridgeActions>) {
   );
 }
 
+it.each([
+  ['owner', 'image', true],
+  ['owner', 'appearance', true],
+  ['owner', 'blobatar', false],
+  ['member', 'image', false],
+  ['member', 'appearance', false],
+] as const)(
+  'shows the Bot profile Avatar publish action for %s with %s: %s',
+  async (kind, source, visible) => {
+    const summary = bot();
+    if (source === 'image') summary.avatar = '/api/botharness/bot-avatar?slug=ada&v=1';
+    if (source === 'appearance')
+      summary.appearance = { recipe: seededAvatarFor('Ada', 2), revision: 'preview' };
+    const teamCall = vi.fn();
+    isolateTeamIdentity(teamCall);
+    setTeamModeSnapshot(teamCall, {
+      enabled: true,
+      ownerPasswordSet: false,
+      insecureHttpAllowed: false,
+      memberUrls: [],
+      isolation: 'trial',
+      viewer: {
+        kind,
+        humanId: kind,
+        displayName: kind,
+        mustChangePassword: false,
+        owner: kind === 'owner',
+        permissions: ['bots.manageAll'],
+        roleIds: [],
+      },
+    });
+    const onPublishAvatar = vi.fn();
+    const actions: Partial<BridgeActions> = { teamCall };
+    await act(async () =>
+      root.render(
+        createElement(ProfileHeader, {
+          bot: summary,
+          channel: CHANNEL,
+          actions: actions as BridgeActions,
+          t: zhTranslate,
+          onDelete: vi.fn(),
+          onPublishAvatar,
+        }),
+      ),
+    );
+    await act(async () => button(zhTranslate('profile.more')).click());
+    const item = queryMenuItem(zhTranslate('market.avatar.publish'));
+    expect(item !== null).toBe(visible);
+    if (item !== null) {
+      await act(async () => item.click());
+      expect(onPublishAvatar).toHaveBeenCalledExactlyOnceWith('ada');
+    }
+  },
+);
+
 it('shows the name-seeded banner and saves a picked scene, a reroll or a reset', async () => {
   const setBotBanner = vi.fn(async () => true);
   await render(bot(), { setBotBanner });
   const seeded = seededBannerRecipe('Ada');
-  expect(host.querySelector('.bh-profile-banner canvas')?.getAttribute('data-scene')).toBe(
+  expect(document.body.querySelector('.bh-profile-banner canvas')?.getAttribute('data-scene')).toBe(
     seeded.scene,
   );
   expect(painted).toHaveBeenCalled();
@@ -134,7 +187,7 @@ it('shows the name-seeded banner and saves a picked scene, a reroll or a reset',
   expect(setBotBanner).toHaveBeenLastCalledWith('dm-ada', {
     recipe: { scene: 'space', seed: seeded.seed },
   });
-  expect(host.querySelector('[role="dialog"]')).toBeNull();
+  expect(document.body.querySelector('[role="dialog"]')).toBeNull();
 
   await act(async () => button('更换横幅').click());
   await act(async () => button('换一张').click());
@@ -147,11 +200,11 @@ it('shows the name-seeded banner and saves a picked scene, a reroll or a reset',
 it('shows an uploaded banner as an image and resets it to the generated one', async () => {
   const setBotBanner = vi.fn(async () => true);
   await render(bot({ image: '/api/botharness/bot-banner?slug=ada&v=1' }), { setBotBanner });
-  expect(host.querySelector('.bh-profile-banner img')?.getAttribute('src')).toBe(
+  expect(document.body.querySelector('.bh-profile-banner img')?.getAttribute('src')).toBe(
     '/api/botharness/bot-banner?slug=ada&v=1',
   );
   await act(async () => button('更换横幅').click());
-  expect(host.textContent).toContain('当前使用上传的图片。');
+  expect(document.body.textContent).toContain('当前使用上传的图片。');
   expect(button('换一张').disabled).toBe(true);
   await act(async () => button('保存').click());
   expect(setBotBanner).not.toHaveBeenCalled();

@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from 'react';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Simulate } from 'react-dom/test-utils';
 import { afterEach, expect, it, vi } from 'vitest';
@@ -18,15 +18,8 @@ const source = vi.hoisted(() => {
   };
 });
 vi.mock('../src/client/remote-hosts.js', () => ({ remoteHosts: () => source }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: 'button',
-  Input: 'input',
-  Modal: ({ children, footer }: { children?: ReactNode; footer?: ReactNode }) => (
-    <div role="dialog">
-      {children}
-      {footer}
-    </div>
-  ),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -78,7 +71,9 @@ it('retains private admission accepted before the link expires during recovery',
   document.body.append(host);
   const root = createRoot(host);
   const click = (label: string) => {
-    const button = [...host.querySelectorAll('button')].find((node) => node.textContent === label);
+    const button = [...document.body.querySelectorAll('button')].find(
+      (node) => node.textContent === label,
+    );
     if (!button) throw new Error(`Missing button: ${label}`);
     button.click();
   };
@@ -87,7 +82,7 @@ it('retains private admission accepted before the link expires during recovery',
       root.render(<RelationshipSettings t={zhTranslate} onPrepareRoute={vi.fn()} />),
     );
     await act(async () => click(zhTranslate('relationships.recoverRoute')));
-    const input = host.querySelector('input');
+    const input = document.body.querySelector('input');
     if (!input) throw new Error('Missing peer link input');
     await act(async () => {
       input.value = link;
@@ -133,7 +128,7 @@ it('opens the already-enrolled Host and shows a failed confirmation inside its d
     expect(source.select).toHaveBeenCalledWith('peer');
     expect(source.enrollRelationship).not.toHaveBeenCalled();
     await act(async () => button(zhTranslate('relationships.disconnect')).click());
-    const dialog = host.querySelector('[role="dialog"]');
+    const dialog = document.body.querySelector('[role="dialog"]');
     if (!dialog) throw new Error('Missing confirmation');
     await act(async () => button(zhTranslate('relationships.disconnect'), dialog).click());
     expect(dialog.querySelector('[role="alert"]')?.textContent).toBe(
@@ -141,7 +136,7 @@ it('opens the already-enrolled Host and shows a failed confirmation inside its d
     );
     await act(async () => button(zhTranslate('common.cancel'), dialog).click());
     await act(async () => button(zhTranslate('relationships.disconnect')).click());
-    expect(host.querySelector('[role="dialog"] [role="alert"]')).toBeNull();
+    expect(document.body.querySelector('[role="dialog"] [role="alert"]')).toBeNull();
   } finally {
     await act(async () => root.unmount());
     host.remove();

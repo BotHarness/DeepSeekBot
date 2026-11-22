@@ -40,6 +40,58 @@ const TOB_GROUP_TOOL_CASES = [
 ] as const;
 const TOB_CLI_TOOL_NAMES = ['bot_create', ...TOB_GROUP_TOOL_CASES.map(([name]) => name)];
 
+const ORCHESTRATOR_TOOL_ORDER = [
+  'genui_diagram',
+  'genui_preview',
+  'channel_action',
+  'bot_send_message',
+  'memory_switch_branch',
+  'memory_continue_from_commit',
+  'list_assignment_models',
+  'create_assignment',
+  'request_workspace_grant',
+  'list_workspace_grants',
+  'list_assignments',
+  'archive_assignment',
+  'unarchive_assignment',
+  'inspect_assignment',
+  'send_assignment_request',
+  'link_message_sessions',
+  'wait_for_assignment',
+  'stop_assignment',
+  'channel_list',
+  'channel_read',
+  'inbox_history',
+  'inbox_list',
+  'inbox_resolve',
+  'inbox_snooze',
+  'inbox_ignore',
+  'channel_attachment_open',
+  'channel_attachment_save',
+  'channel_attachment_import',
+  'channel_read_image',
+  'call_frame',
+  'list_bot_contacts',
+  'group_create',
+  'bot_create',
+  'group_invite_bot',
+  'group_invite_respond',
+  'group_join_request',
+  'group_join_decide',
+  'group_rename',
+  'group_remove_member',
+  'group_attention_get',
+  'group_attention_set',
+  'source_attention_get',
+  'source_attention_set',
+  'source_attention_reset',
+  'bot_schedule_list',
+  'bot_schedule_create',
+  'bot_schedule_update',
+  'bot_schedule_delete',
+  'group_leave',
+];
+
 const ASSIGNMENT = {
   sessionId: 'assignment-1',
   title: '核对发布状态',
@@ -2090,11 +2142,12 @@ describe('DSH Bot Agent adapter', () => {
   it('mounts the resolved agent preset inside every agent factory setup', async () => {
     const host = new FakeAgentHost();
     const mounted: Array<{ id: string | undefined; hasTools: boolean }> = [];
+    let globalMode = 'deepseekbot';
     const adapter = createDshBotAgentAdapter({
       agents: host,
       defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
       orchestratorCwd: () => '/memory/ada',
-      defaultAgentPreset: 'standard',
+      defaultAgentPreset: () => globalMode,
       resolveAgentPresets: () => ({
         mount: async (agentCtx, id) => {
           mounted.push({ id, hasTools: agentCtx.tools !== undefined });
@@ -2103,6 +2156,7 @@ describe('DSH Bot Agent adapter', () => {
       }),
       ensureWorkspace: () => undefined,
     });
+    globalMode = 'standard';
 
     await adapter.runOrchestrator({
       sessionId: 'orchestrator-ada',
@@ -2402,86 +2456,76 @@ describe('DSH Bot Agent adapter', () => {
     }
   });
 
-  it('lists bridge Tools and the external IM prompt only on turns where the Bot has IM', async () => {
-    const listed: string[][] = [];
-    const host = new FakeAgentHost(
-      { kind: 'completed' },
-      {
-        onTurn: async (_session, tools) => {
-          listed.push(tools.map((tool) => tool.name).filter((name) => name.startsWith('bridge_')));
-        },
-      },
-    );
-    const adapter = createDshBotAgentAdapter({
-      agents: host,
-      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
-      orchestratorCwd: () => '/memory/ada',
-      ensureWorkspace: () => undefined,
-    });
-    let connected = false;
-    const run: OrchestratorAgentRun = {
-      sessionId: 'orchestrator-ada',
-      resume: false,
-      bot: BOT,
-      message: 'Turn',
-      inbox: '',
-      inboundChannelId: 'dm-test',
-      externalMessaging: {
-        connected: () => connected,
-      } as unknown as NonNullable<OrchestratorAgentRun['externalMessaging']>,
-      channels: {
-        ...groupTools,
-        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
-        sendToBot: async () => {
-          throw new Error('unexpected Bot DM');
-        },
-        ignore: () => ({
-          sourceEventId: 'source-1',
-          ignoredAt: BOT.createdAt,
-          alreadyIgnored: false,
-        }),
-        read: () => [],
-        requestGrant: async () => undefined as never,
-        send: async () => {
-          throw new Error('unexpected send');
-        },
-      },
-      assignments: {
-        create: () => ({ outcome: 'created', assignment: ASSIGNMENT }),
-        grants: () => [],
-        list: () => [],
-        inspect: () => undefined,
-        stop: async () => ASSIGNMENT,
-        request: () => ({ assignment: ASSIGNMENT, delivery: 'followup' }),
-      },
-    };
-    const imPrompt = () =>
-      host.scopes
-        .get(run.sessionId)
-        ?.sections.some((section) => section.name === 'botharness:external-im');
-    try {
-      await adapter.runOrchestrator(run);
-      expect(listed.at(-1)).toEqual([]);
-      expect(imPrompt()).toBe(false);
+  it.each([false, true])(
+    'keeps tool and prompt registration order as IM connectivity changes (Tob CLI %s)',
+    async (tobCli) => {
+      const host = new FakeAgentHost({ kind: 'completed' }, { onTurn: async () => undefined });
+      const adapter = createDshBotAgentAdapter({
+        agents: host,
+        defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+      });
+      let connected = false;
+      const run: OrchestratorAgentRun = {
+        ...reportRun,
+        tobCli,
+        externalMessaging: {
+          connected: () => connected,
+        } as NonNullable<OrchestratorAgentRun['externalMessaging']>,
+      };
+      const baseTools = ORCHESTRATOR_TOOL_ORDER.filter(
+        (name) => !tobCli || !TOB_CLI_TOOL_NAMES.includes(name),
+      );
+      const baseSections = [
+        ['botharness:orchestrator-role', 10_350],
+        ...(tobCli ? [['botharness:tob-cli', 10_351]] : []),
+        ['botharness:reply-delivery', 10_450],
+        ['botharness:genui-authoring', 10_451],
+      ];
+      const bridgeToolNames = [
+        'bridge_sender_permissions',
+        'bridge_directory',
+        'bridge_targets',
+        'bridge_reachable_groups',
+        'bridge_outbox',
+        'bridge_read',
+        'bridge_share',
+        'bridge_group_policy_list',
+        'bridge_group_policy_set',
+        'bridge_thread_policy_list',
+        'bridge_thread_policy_set',
+        'bridge_context',
+        'bridge_attachment_save',
+      ];
+      const expectRegistration = () => {
+        const scope = host.scopes.get(run.sessionId)!;
+        expect(scope.tools.map((tool) => tool.name)).toEqual(
+          connected ? [...baseTools, ...bridgeToolNames] : baseTools,
+        );
+        expect(scope.sections.map(({ name, order }) => [name, order])).toEqual(
+          connected ? [...baseSections, ['botharness:external-im', 10_351]] : baseSections,
+        );
+      };
+      try {
+        await adapter.runOrchestrator(run);
+        expectRegistration();
 
-      connected = true;
-      await adapter.runOrchestrator({ ...run, resume: true });
-      expect(listed.at(-1)).toHaveLength(13);
-      expect(listed.at(-1)).not.toContain('bridge_reply');
-      expect(listed.at(-1)).toContain('bridge_reachable_groups');
-      expect(imPrompt()).toBe(true);
+        connected = true;
+        await adapter.runOrchestrator({ ...run, resume: true });
+        expectRegistration();
 
-      await adapter.runOrchestrator({ ...run, resume: true });
-      expect(listed.at(-1)).toHaveLength(13);
+        await adapter.runOrchestrator({ ...run, resume: true });
+        expectRegistration();
 
-      connected = false;
-      await adapter.runOrchestrator({ ...run, resume: true });
-      expect(listed.at(-1)).toEqual([]);
-      expect(imPrompt()).toBe(false);
-    } finally {
-      await adapter.close();
-    }
-  });
+        connected = false;
+        await adapter.runOrchestrator({ ...run, resume: true });
+        expectRegistration();
+      } finally {
+        await adapter.close();
+      }
+    },
+  );
 
   it('rejects when the durable turn outcome is an error even though the Agent becomes idle', async () => {
     const host = new FakeAgentHost({
@@ -2913,56 +2957,9 @@ describe('DSH Bot Agent adapter', () => {
       'standard',
     ]);
     expect(preparedWorkspaces).toEqual(['/memory/ada']);
-    expect(host.scopes.get('orchestrator-ada')?.tools.map((tool) => tool.name)).toEqual([
-      'genui_diagram',
-      'genui_preview',
-      'channel_action',
-      'bot_send_message',
-      'memory_switch_branch',
-      'memory_continue_from_commit',
-      'list_assignment_models',
-      'create_assignment',
-      'request_workspace_grant',
-      'list_workspace_grants',
-      'list_assignments',
-      'archive_assignment',
-      'unarchive_assignment',
-      'inspect_assignment',
-      'send_assignment_request',
-      'wait_for_assignment',
-      'stop_assignment',
-      'channel_list',
-      'channel_read',
-      'inbox_history',
-      'inbox_list',
-      'inbox_resolve',
-      'inbox_snooze',
-      'inbox_ignore',
-      'channel_attachment_open',
-      'channel_attachment_save',
-      'channel_attachment_import',
-      'channel_read_image',
-      'call_frame',
-      'list_bot_contacts',
-      'group_create',
-      'bot_create',
-      'group_invite_bot',
-      'group_invite_respond',
-      'group_join_request',
-      'group_join_decide',
-      'group_rename',
-      'group_remove_member',
-      'group_attention_get',
-      'group_attention_set',
-      'source_attention_get',
-      'source_attention_set',
-      'source_attention_reset',
-      'bot_schedule_list',
-      'bot_schedule_create',
-      'bot_schedule_update',
-      'bot_schedule_delete',
-      'group_leave',
-    ]);
+    expect(host.scopes.get('orchestrator-ada')?.tools.map((tool) => tool.name)).toEqual(
+      ORCHESTRATOR_TOOL_ORDER,
+    );
     expect(
       host.scopes
         .get('orchestrator-ada')
@@ -3105,6 +3102,9 @@ describe('DSH Bot Agent adapter', () => {
     expect(orchestratorPrompt).toContain('Memory Repository');
     expect(orchestratorPrompt).toContain('frozen for this Session');
     expect(orchestratorPrompt).toContain('SOUL.md');
+    expect(
+      host.scopes.get('assignment-1')?.sections.map(({ name, order }) => [name, order]),
+    ).toEqual([['botharness:assignment-role', 10_350]]);
     const assignmentPrompt = host.scopes.get('assignment-1')?.sections[0]?.text ?? '';
     expect(assignmentPrompt).toContain('Assignment');
     expect(assignmentPrompt).toContain('Never access another workspace or the PersonaBot');
@@ -3740,8 +3740,9 @@ it('routes external Tools through the active owning Orchestrator without a local
         expect(typeof result).toBe('string');
         if (typeof result !== 'string') throw new Error('Expected serialized tool result');
         expect(JSON.parse(result)).toMatchObject({
-          status: 'provider-accepted',
+          status: 'committed',
           intentId: 'intent',
+          messageId: 'reply-1',
         });
       },
     },
@@ -3754,7 +3755,34 @@ it('routes external Tools through the active owning Orchestrator without a local
   });
   await adapter.runOrchestrator({
     sessionId: 'external-ada',
-    replyDestination: () => ({ kind: 'external' }),
+    replyDestination: (id) => ({
+      kind: 'external',
+      source: {
+        id,
+        body: 'Topic request',
+        at: BOT.createdAt,
+        platform: 'feishu',
+        accountName: 'Owned app',
+        conversationName: 'Team',
+        grantId: 'grant',
+        grantRevision: 1,
+        event: {
+          version: 1,
+          channel: 'feishu',
+          botId: BOT.slug,
+          fingerprint: 'fingerprint',
+          eventId: 'event-1',
+          messageId: 'request-1',
+          actor: { kind: 'user', id: 'sender-1' },
+          conversation: { kind: 'group', id: 'team-1' },
+          mentions: [],
+          mentionedAccount: true,
+          at: BOT.createdAt,
+          reply: { messageId: 'request-1', conversationId: 'team-1', actorId: 'sender-1' },
+          replay: { kind: 'provider-redelivery', resumeCursor: false, gapPossible: true },
+        },
+      },
+    }),
     resume: false,
     bot: BOT,
     inboundChannelId: undefined,
@@ -3822,6 +3850,7 @@ it('routes external Tools through the active owning Orchestrator without a local
           sourceEventId: id,
           text,
           state: 'provider-accepted',
+          receipt: { version: 1, messageId: 'reply-1', conversationId: 'team-1' },
           createdAt: BOT.createdAt,
         };
       },
@@ -4065,7 +4094,7 @@ describe('Bot Schedule Tools', () => {
 });
 
 describe('Assignment Routing Groups (#4420)', () => {
-  it('lists groups with resting members and creates an Assignment on the first usable member', async () => {
+  it.each([true, false])('filters Assignment choices (%s)', async (allowBoth) => {
     const spent = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
     const pro = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
     const until = '2026-11-18T00:00:00.000Z';
@@ -4075,6 +4104,10 @@ describe('Assignment Routing Groups (#4420)', () => {
       sourcePresetName: '',
       orchestrator: pro,
       assignmentDefault: pro,
+      assignmentModels: [
+        { ...pro, allowedEfforts: [''], defaultEffort: '' },
+        { ...spent, allowedEfforts: [''], defaultEffort: '' },
+      ],
       assignmentGroups: ['g'],
       assignmentDefaultGroupId: 'g',
       appliedAt: BOT.createdAt,
@@ -4128,6 +4161,7 @@ describe('Assignment Routing Groups (#4420)', () => {
       agents: host,
       defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
       resolveModelPlan: () => plan,
+      modelFilter: () => (route) => allowBoth || route.provider === pro.provider,
       orchestratorCwd: () => '/memory/ada',
       ensureWorkspace: () => undefined,
       assignmentGroups: {
@@ -4189,18 +4223,23 @@ describe('Assignment Routing Groups (#4420)', () => {
     });
     try {
       const parsed = (await Promise.all(calls)).map((value) => JSON.parse(String(value)));
-      expect(parsed[0]).toMatchObject({
-        assignmentDefault: pro,
-        assignmentGroups: [
+      expect(parsed[0]).toMatchObject({ assignmentDefault: pro });
+      expect(
+        parsed[0].assignmentModels.map(({ provider }: { provider: string }) => provider),
+      ).toEqual(allowBoth ? [pro.provider, spent.provider] : [pro.provider]);
+      if (allowBoth) {
+        expect(parsed[0].assignmentGroups).toMatchObject([
           {
             group: 'g',
             name: 'Fallback',
             default: true,
             members: [{ ...spent, restingUntil: until }, pro],
           },
-        ],
-      });
-      expect(parsed[0].assignmentGroups[0].restingUntil).toBeUndefined();
+        ]);
+        expect(parsed[0].assignmentGroups[0].restingUntil).toBeUndefined();
+      } else {
+        expect(parsed[0]).not.toHaveProperty('assignmentGroups');
+      }
       expect(parsed[3].error).toContain('Routing Group other is not allowed');
       expect(parsed[4]).toMatchObject({ outcome: 'refused' });
       expect(parsed[4].message).toContain(`opencode-go/deepseek-v4.1-flash until ${until}`);
@@ -4209,6 +4248,177 @@ describe('Assignment Routing Groups (#4420)', () => {
         { title: 'Direct', model: pro },
       ]);
       expect(created[1]).not.toHaveProperty('modelGroupId');
+    } finally {
+      await adapter.close();
+    }
+  });
+});
+
+describe('Effort range for Assignment Routing Groups (#4502)', () => {
+  it('lists the group effort range and starts the Assignment at the chosen or default effort', async () => {
+    const spent = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
+    const pro = { provider: 'deepseek-official', model: 'deepseek-v4-pro' };
+    const until = '2026-11-18T00:00:00.000Z';
+    const plan = {
+      revision: 2,
+      sourcePresetId: '',
+      sourcePresetName: '',
+      orchestrator: pro,
+      assignmentDefault: pro,
+      assignmentGroups: ['g'],
+      assignmentDefaultGroupId: 'g',
+      assignmentGroupOptions: [
+        { group: 'g', allowedEfforts: ['low', 'high'], defaultEffort: 'high', note: 'Cheap first' },
+      ],
+      appliedAt: BOT.createdAt,
+    };
+    const calls: Array<Promise<unknown>> = [];
+    const created: unknown[] = [];
+    const picks: Array<string | undefined> = [];
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onTurn: async () => undefined,
+        onAgentCreated: () => {
+          const scope = host.scopes.get('orchestrator-ada');
+          const run = async (name: string, args: Record<string, unknown>) =>
+            scope!.tools.find((tool) => tool.name === name)!.execute(args, {} as ToolRunContext);
+          const assignment = (title: string, extra: Record<string, unknown>) =>
+            run('create_assignment', {
+              title,
+              description: 'Runs on the group.',
+              grant_id: 'grant-1',
+              ...extra,
+            }).catch((error: Error) => JSON.stringify({ error: error.message }));
+          calls.push(
+            run('list_assignment_models', {}),
+            assignment('Default effort', {}),
+            assignment('Chosen effort', { group: 'g', reasoning_effort: 'low' }),
+            assignment('Outside the range', { group: 'g', reasoning_effort: 'max' }),
+          );
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+      resolveModelPlan: () => plan,
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      assignmentGroups: {
+        pick: async (_slug, _group, effort) => {
+          picks.push(effort);
+          return {
+            kind: 'route',
+            route: effort === 'high' ? { ...pro, reasoningEffort: 'high' } : pro,
+          };
+        },
+        describe: (id) => (id === 'g' ? { name: 'Fallback', routes: [spent, pro] } : undefined),
+        restingUntil: (route) =>
+          route.provider === spent.provider ? { ...spent, until, reason: 'quota' } : undefined,
+      },
+    });
+    await adapter.runOrchestrator({
+      ...reportRun,
+      bot: { ...BOT, modelPlan: plan },
+      assignments: {
+        ...reportRun.assignments,
+        create: (input) => {
+          created.push(input);
+          return { outcome: 'created', assignment: ASSIGNMENT };
+        },
+      },
+    });
+    try {
+      const parsed = (await Promise.all(calls)).map((value) => JSON.parse(String(value)));
+      expect(parsed[0].assignmentGroups).toMatchObject([
+        {
+          group: 'g',
+          note: 'Cheap first',
+          front: pro,
+          efforts: ['low', 'high'],
+          defaultEffort: 'high',
+        },
+      ]);
+      expect(parsed[3].error).toContain('Routing Group g allows efforts low, high');
+      expect(created).toMatchObject([
+        {
+          title: 'Default effort',
+          model: { ...pro, reasoningEffort: 'high' },
+          modelGroupId: 'g',
+          modelGroupEffort: 'high',
+        },
+        { title: 'Chosen effort', model: pro, modelGroupId: 'g', modelGroupEffort: 'low' },
+      ]);
+      expect(created).toHaveLength(2);
+      expect(picks).toEqual(['high', 'low']);
+    } finally {
+      await adapter.close();
+    }
+  });
+});
+
+describe('An Assignment on the inherited default Routing Group', () => {
+  it('runs at the default group effort', async () => {
+    const pro = { provider: 'deepseek', model: 'pro' };
+    const created: unknown[] = [];
+    const picks: Array<string | undefined> = [];
+    const calls: Array<Promise<unknown>> = [];
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onTurn: async () => undefined,
+        onAgentCreated: () => {
+          const scope = host.scopes.get('orchestrator-ada');
+          calls.push(
+            scope!.tools
+              .find((tool) => tool.name === 'create_assignment')!
+              .execute(
+                { title: 'Inherited', description: 'Runs on the default.', grant_id: 'grant-1' },
+                {} as ToolRunContext,
+              ),
+          );
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: { currentSelection: () => pro },
+      resolveModelPlan: () => undefined,
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      assignmentGroups: {
+        pick: async (_slug, _group, effort) => {
+          picks.push(effort);
+          return { kind: 'route', route: { ...pro, reasoningEffort: effort! } };
+        },
+        describe: (id) => (id === 'daily' ? { name: 'Daily', routes: [pro] } : undefined),
+        restingUntil: () => undefined,
+        inherited: () => 'daily',
+        inheritedEffort: () => 'high',
+      },
+    });
+    await adapter.runOrchestrator({
+      ...reportRun,
+      bot: BOT,
+      assignments: {
+        ...reportRun.assignments,
+        create: (input) => {
+          created.push(input);
+          return { outcome: 'created', assignment: ASSIGNMENT };
+        },
+      },
+    });
+    try {
+      await Promise.all(calls);
+      expect(picks).toEqual(['high']);
+      expect(created).toMatchObject([
+        {
+          model: { ...pro, reasoningEffort: 'high' },
+          modelGroupId: 'daily',
+          modelGroupEffort: 'high',
+        },
+      ]);
     } finally {
       await adapter.close();
     }
@@ -4369,6 +4579,301 @@ describe('Assignment Directory Tools', () => {
       await expect(refusals[0]).rejects.toThrow(/missing required property "title"/);
     } finally {
       await adapter.close();
+    }
+  });
+
+  it('lets the Orchestrator pick an allowed mode for a new Assignment', async () => {
+    let modesFail = false;
+    let narrowed = false;
+    let modeParameter: unknown;
+    const calls: Array<Promise<unknown>> = [];
+    const created: Array<{ title: string; mode?: string }> = [];
+    const host = new FakeAgentHost(
+      { kind: 'completed' },
+      {
+        onAgentCreated: () => {
+          const scope = host.scopes.get('orchestrator-ada');
+          const tool = (name: string) => {
+            const found = scope?.tools.find((candidate) => candidate.name === name);
+            if (found === undefined) throw new Error(`${name} not registered`);
+            return found;
+          };
+          const create = (mode: string) =>
+            tool('create_assignment').execute(
+              {
+                title: 'Port the parser',
+                description: 'Port the parser to the new API.',
+                grant_id: 'grant-1',
+                mode,
+              },
+              {} as ToolRunContext,
+            );
+          modeParameter = Reflect.get(
+            Reflect.get(tool('create_assignment').parameters, 'properties') as object,
+            'mode',
+          );
+          calls.push(tool('list_assignment_models').execute({}, {} as ToolRunContext));
+          calls.push(create('ptc'));
+          calls.push(create('acp').then(String, (error: Error) => error.message));
+          const settled = Promise.allSettled([...calls]);
+          calls.push(
+            settled.then(() => {
+              narrowed = true;
+              return create('ptc').then(String, (error: Error) => error.message);
+            }),
+          );
+          calls.push(
+            Promise.allSettled([...calls]).then(() => {
+              modesFail = true;
+              return tool('list_assignment_models').execute({}, {} as ToolRunContext);
+            }),
+          );
+        },
+      },
+    );
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: {
+        currentSelection: () => ({ provider: 'test', model: 'test' }),
+      },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      assignmentModes: async () => {
+        if (modesFail) throw new Error('roster unavailable');
+        return {
+          default: 'deepseekbot',
+          restricted: true,
+          allowed: narrowed
+            ? [{ id: 'deepseekbot' }]
+            : [{ id: 'deepseekbot' }, { id: 'ptc', name: 'PTC' }],
+        };
+      },
+    });
+    await adapter.runOrchestrator({
+      sessionId: 'orchestrator-ada',
+      resume: false,
+      bot: BOT,
+      message: 'Port the parser',
+      inboundChannelId: 'dm-test',
+      inbox: '',
+      channels: {
+        ...groupTools,
+        contacts: async () => ({ outputLimit: 12_000, contacts: [] }),
+        sendToBot: async () => {
+          throw new Error('unexpected Bot DM');
+        },
+        ignore: () => {
+          throw new Error('unexpected ignore');
+        },
+        read: () => [],
+        requestGrant: async () => {
+          throw new Error('unexpected Grant request');
+        },
+        send: async (input) => ({
+          id: 'bot-1',
+          at: BOT.createdAt,
+          author: { kind: 'bot', slug: BOT.slug },
+          body: input.body,
+        }),
+      },
+      assignments: {
+        create: (input) => {
+          created.push(input);
+          return {
+            outcome: 'created',
+            assignment: {
+              ...ASSIGNMENT,
+              ...(input.mode === undefined ? {} : { agentPreset: input.mode }),
+            },
+          };
+        },
+        grants: () => [],
+        list: () => [],
+        inspect: () => undefined,
+        stop: async () => ASSIGNMENT,
+        request: () => {
+          throw new Error('unexpected Assignment request');
+        },
+      },
+    });
+    try {
+      const [models, accepted, refused, narrowedRefusal, withoutModes] = await Promise.all(calls);
+      expect(modeParameter).toMatchObject({ type: 'string', enum: ['deepseekbot', 'ptc'] });
+      expect(Reflect.get(modeParameter as object, 'description')).toContain(
+        'omitted uses this Bot’s mode (deepseekbot)',
+      );
+      expect(Reflect.get(modeParameter as object, 'description')).toContain('- ptc: PTC');
+      expect(JSON.parse(String(models))).toMatchObject({
+        assignmentModes: {
+          default: 'deepseekbot',
+          allowed: [{ id: 'deepseekbot' }, { id: 'ptc', name: 'PTC' }],
+        },
+      });
+      expect(JSON.parse(String(accepted))).toMatchObject({
+        outcome: 'created',
+        mode: 'ptc',
+      });
+      expect(refused).toContain('"mode" must be one of ["deepseekbot","ptc"]');
+      expect(narrowedRefusal).toContain('mode ptc is not allowed; choose one of deepseekbot');
+      const fallback = JSON.parse(String(withoutModes)) as Record<string, unknown>;
+      expect(fallback['assignmentModes']).toBeUndefined();
+      expect(String(fallback['assignmentModesError'])).toContain('roster unavailable');
+      expect(created).toContainEqual({
+        title: 'Port the parser',
+        description: 'Port the parser to the new API.',
+        grantId: 'grant-1',
+        mode: 'ptc',
+      });
+      expect(created.filter((input) => input.title === 'Port the parser')).toEqual([
+        expect.objectContaining({ mode: 'ptc' }),
+      ]);
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('waits for the installed modes before it picks a new Session mode', async () => {
+    const host = new FakeAgentHost();
+    let current = 'stale-default';
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: {
+        currentSelection: () => ({ provider: 'test', model: 'test' }),
+      },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      botModeOf: () => current,
+      ensureBotModes: async () => {
+        await new Promise((resolve) => setTimeout(resolve, 5));
+        current = 'deepseekbot';
+      },
+    });
+    try {
+      await adapter.runAssignment({
+        sessionId: 'assignment-fresh',
+        bot: BOT,
+        text: 'Port the parser',
+        permission: {
+          grantId: 'grant-1',
+          workspaceId: 'workspace-1',
+          primaryCwd: '/project',
+          mode: 'workspace-write',
+          approval: 'ask',
+          presetRevision: 0,
+        },
+        report: vi.fn(),
+      });
+      expect(host.createOptions.at(-1)?.meta).toMatchObject({ agentPreset: 'deepseekbot' });
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('frees the Session for the next turn when the mode roster read never answers', async () => {
+    const host = new FakeAgentHost();
+    let hang = true;
+    const adapter = createDshBotAgentAdapter({
+      agents: host,
+      defaultModel: {
+        currentSelection: () => ({ provider: 'test', model: 'test' }),
+      },
+      orchestratorCwd: () => '/memory/ada',
+      ensureWorkspace: () => undefined,
+      preparationTimeoutMs: 20,
+      ensureBotModes: () => (hang ? new Promise<void>(() => undefined) : Promise.resolve()),
+    });
+    const run = {
+      sessionId: 'assignment-hung-roster',
+      bot: BOT,
+      text: 'Port the parser',
+      permission: {
+        grantId: 'grant-1',
+        workspaceId: 'workspace-1',
+        primaryCwd: '/project',
+        mode: 'workspace-write' as const,
+        approval: 'ask' as const,
+        presetRevision: 0,
+      },
+      report: vi.fn(),
+    };
+    try {
+      await expect(adapter.runAssignment(run)).rejects.toThrow('took longer than');
+      hang = false;
+      await adapter.runAssignment(run);
+      expect(host.createOptions.at(-1)?.sessionId).toBe('assignment-hung-roster');
+    } finally {
+      await adapter.close();
+    }
+  });
+
+  it('starts an Assignment in its chosen mode and resumes it in the mode its log records', async () => {
+    const host = new FakeAgentHost();
+    const mounted: Array<string | undefined> = [];
+    let recorded: string | null = null;
+    let current = 'deepseekbot';
+    const sessionModes: Array<[string, string]> = [];
+    const adapterFor = () =>
+      createDshBotAgentAdapter({
+        agents: host,
+        defaultModel: {
+          currentSelection: () => ({ provider: 'test', model: 'test' }),
+        },
+        orchestratorCwd: () => '/memory/ada',
+        ensureWorkspace: () => undefined,
+        botModeOf: () => current,
+        recordSessionMode: (sessionId, mode) => sessionModes.push([sessionId, mode]),
+        resolveAgentPresets: () => ({
+          mount: async (_agentCtx, id) => {
+            mounted.push(id);
+            return undefined;
+          },
+          presetForSession: () => recorded,
+        }),
+      });
+    const permission = {
+      grantId: 'grant-1',
+      workspaceId: 'workspace-1',
+      primaryCwd: '/project',
+      mode: 'workspace-write' as const,
+      approval: 'ask' as const,
+      presetRevision: 0,
+    };
+    const first = adapterFor();
+    try {
+      await first.runAssignment({
+        sessionId: 'assignment-ptc',
+        bot: BOT,
+        text: 'Port the parser',
+        agentPreset: 'ptc',
+        permission,
+        report: vi.fn(),
+      });
+      expect(host.createOptions.at(-1)?.meta).toMatchObject({ agentPreset: 'ptc' });
+    } finally {
+      await first.close();
+    }
+    recorded = 'ptc';
+    current = 'standard';
+    const second = adapterFor();
+    try {
+      await second.runAssignment({
+        sessionId: 'assignment-ptc',
+        bot: BOT,
+        text: 'Continue',
+        resume: true,
+        permission,
+        report: vi.fn(),
+      });
+      expect(host.resumeOptions.map((options) => String(options.resumeSessionId))).toEqual([
+        'assignment-ptc',
+      ]);
+      expect(sessionModes).toEqual([
+        ['assignment-ptc', 'ptc'],
+        ['assignment-ptc', 'ptc'],
+      ]);
+      expect(mounted).toEqual(['ptc', 'ptc']);
+    } finally {
+      await second.close();
     }
   });
 
@@ -4737,8 +5242,9 @@ it.each(['create', 'resume'] as const)(
   },
 );
 
-it('links the Assignments a turn created or sent to on its Human DM message', async () => {
+it('links a sent receipt to the Assignments the turn created or sent to', async () => {
   const sent: Record<string, unknown>[] = [];
+  const linked: Record<string, unknown>[] = [];
   const outcomes: Promise<unknown>[] = [];
   const summary = (sessionId: string, title: string) => ({ sessionId, title }) as never;
   const host = new FakeAgentHost(
@@ -4755,6 +5261,7 @@ it('links the Assignments a turn created or sent to on its Human DM message', as
             } as ToolRunContext);
         outcomes.push(
           (async () => {
+            await run('bot_send_message', { channel_id: 'dm-test', body: 'Starting both.' }, 'r');
             await run('send_assignment_request', { session_id: 'asg-old', text: 'Go on' }, 'a');
             await run(
               'create_assignment',
@@ -4763,12 +5270,8 @@ it('links the Assignments a turn created or sent to on its Human DM message', as
             );
             await run('send_assignment_request', { session_id: 'asg-new', text: 'Also' }, 'c');
             return run(
-              'bot_send_message',
-              {
-                channel_id: 'dm-test',
-                body: 'Both underway.',
-                session_ids: ['asg-new', 'asg-old'],
-              },
+              'link_message_sessions',
+              { message_id: 'm1', session_ids: ['asg-new', 'asg-old', 'asg-new'] },
               'd',
             );
           })(),
@@ -4795,6 +5298,18 @@ it('links the Assignments a turn created or sent to on its Human DM message', as
         sent.push(input);
         return { id: 'm1', at: '', author: { kind: 'bot', slug: 'ada' }, body: input['body'] };
       },
+      linkSessions: (input: Record<string, unknown>) => {
+        linked.push(input);
+        return {
+          id: 'm1',
+          at: '',
+          author: { kind: 'bot', slug: 'ada' },
+          body: 'Starting both.',
+          sessionLinks: (input['links'] as { sessionId: string; kind: string }[]).map(
+            ({ sessionId, kind }) => ({ sessionId, kind, title: sessionId }),
+          ),
+        };
+      },
     } as never,
     assignments: {
       create: () => ({ outcome: 'created', assignment: summary('asg-new', 'New') }),
@@ -4802,12 +5317,127 @@ it('links the Assignments a turn created or sent to on its Human DM message', as
         assignment: summary(input.sessionId, input.sessionId === 'asg-new' ? 'New' : 'Old'),
         delivery: 'followup',
       }),
-      inspect: (sessionId: string) => summary(sessionId, sessionId === 'asg-new' ? 'New' : 'Old'),
+      inspect: (sessionId: string) =>
+        ({
+          sessionId,
+          title: sessionId === 'asg-new' ? 'New' : 'Old',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        }) as never,
+    } as never,
+  } as never);
+  const [result] = (await Promise.all(outcomes)) as string[];
+  expect(sent[0]?.['sessionLinks']).toBeUndefined();
+  expect(linked).toEqual([
+    {
+      messageId: 'm1',
+      links: [
+        {
+          sessionId: 'asg-new',
+          kind: 'created',
+          title: 'New',
+          createdAt: '2026-01-01T00:00:00.000Z',
+        },
+        { sessionId: 'asg-old', kind: 'sent', title: 'Old', createdAt: '2026-01-01T00:00:00.000Z' },
+      ],
+    },
+  ]);
+  expect(JSON.parse(result!)).toEqual({
+    outcome: 'linked',
+    messageId: 'm1',
+    sessions: [
+      { sessionId: 'asg-new', kind: 'created' },
+      { sessionId: 'asg-old', kind: 'sent' },
+    ],
+  });
+});
+
+it.each([
+  { label: 'links forgotten Sessions to the turn’s only Human DM message', sends: 1 },
+  { label: 'leaves Sessions unlinked when the turn sent two Human DM messages', sends: 2 },
+])('$label', async ({ sends }) => {
+  const linked: Record<string, unknown>[] = [];
+  const outcomes: Promise<unknown>[] = [];
+  let next = 0;
+  const host = new FakeAgentHost(
+    { kind: 'completed' },
+    {
+      onAgentCreated: () => {
+        const tools = host.scopes.get('orchestrator-ada')?.tools ?? [];
+        const run = (name: string, args: Record<string, unknown>, id: string) =>
+          tools
+            .find((tool) => tool.name === name)!
+            .execute(args, {
+              callId: ToolCallId(id),
+              signal: new AbortController().signal,
+            } as ToolRunContext);
+        outcomes.push(
+          (async () => {
+            await run(
+              'create_assignment',
+              { title: 'New', description: 'New work', grant_id: 'g' },
+              'a',
+            );
+            for (let index = 0; index < sends; index += 1)
+              await run('bot_send_message', { channel_id: 'dm-test', body: 'On it.' }, `s${index}`);
+          })(),
+        );
+      },
+    },
+  );
+  const adapter = createDshBotAgentAdapter({
+    agents: host,
+    defaultModel: { currentSelection: () => ({ provider: 'test', model: 'test' }) },
+    orchestratorCwd: () => '/memory/ada',
+    ensureWorkspace: () => undefined,
+  });
+  await adapter.runOrchestrator({
+    sessionId: 'orchestrator-ada',
+    resume: false,
+    bot: BOT,
+    message: 'Start it',
+    inboundChannelId: 'dm-test',
+    inbox: '',
+    channels: {
+      list: () => ({ channels: [{ id: 'dm-test', kind: 'human-dm' }] }),
+      send: async (input: Record<string, unknown>) => {
+        next += 1;
+        return {
+          id: `m${next}`,
+          at: '',
+          author: { kind: 'bot', slug: 'ada' },
+          body: input['body'],
+        };
+      },
+      linkSessions: (input: Record<string, unknown>) => {
+        linked.push(input);
+        return { id: 'm1', at: '', author: { kind: 'bot', slug: 'ada' }, body: 'On it.' };
+      },
+    } as never,
+    assignments: {
+      create: () => ({
+        outcome: 'created',
+        assignment: { sessionId: 'asg-new', title: 'New' },
+      }),
+      inspect: (sessionId: string) =>
+        ({ sessionId, title: 'New', createdAt: '2026-01-01T00:00:00.000Z' }) as never,
     } as never,
   } as never);
   await Promise.all(outcomes);
-  expect(sent[0]?.['sessionLinks']).toEqual([
-    { sessionId: 'asg-new', kind: 'created', title: 'New' },
-    { sessionId: 'asg-old', kind: 'sent', title: 'Old' },
-  ]);
+  expect(linked).toEqual(
+    sends === 1
+      ? [
+          {
+            messageId: 'm1',
+            links: [
+              {
+                sessionId: 'asg-new',
+                kind: 'created',
+                title: 'New',
+                createdAt: '2026-01-01T00:00:00.000Z',
+              },
+            ],
+          },
+        ]
+      : [],
+  );
 });

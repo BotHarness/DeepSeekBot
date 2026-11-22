@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type RemoteHostsSnapshot } from '../src/client/remote-hosts.js';
+import { type BotModeSidebarProps } from '../src/client/bot-mode-sidebar.js';
+import { type TypedLive } from '../src/client/messaging-defaults-live.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { RemoteHostsSnapshot } from '../src/client/remote-hosts.js';
 const scopedAttentionProbe = vi.hoisted((): { snapshot: RemoteHostsSnapshot } => ({
   snapshot: { hosts: [], avatars: new Map(), tab: 'local' },
 }));
@@ -14,12 +16,10 @@ vi.mock('../src/client/host-tabs.js', async (original) => ({
 
 const rosterProbe = vi.hoisted(() => ({ renders: 0 }));
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
-  const stub = () => null;
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   return {
-    IconPanelLeftOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
-    Tooltip: ({ children }: { children: ReactNode }) => children,
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
     isDarwinDesktop: () => false,
   };
 });
@@ -47,10 +47,10 @@ vi.mock('../src/client/onboarding-checklist-view.js', () => ({
 }));
 
 import type { BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
-import { BotModeSidebar, type BotModeSidebarProps } from '../src/client/bot-mode-sidebar.js';
+import { BotModeSidebar } from '../src/client/bot-mode-sidebar.js';
 import { createDockPanelRegistry } from '../src/client/dock-panels.js';
 import { en, type BotHarnessTranslate } from '../src/client/locale.js';
-import { installTypedLive, type TypedLive } from '../src/client/messaging-defaults-live.js';
+import { installTypedLive } from '../src/client/messaging-defaults-live.js';
 import { store } from '../src/client/store.js';
 
 const t = ((key: keyof typeof en, params?: Record<string, string>) =>
@@ -319,7 +319,7 @@ it.each([false, true])('hides excluded local action dots with pinned cards=%s', 
     const entry = node.querySelector('[data-bh-tour="inbox"]');
     expect(entry?.getAttribute('aria-label')).toBe('Activity');
     if (pinned) expect(entry?.querySelector('[data-pinned-panel-dot]')).toBeNull();
-    else expect(entry?.firstElementChild?.querySelector('span')).toBeNull();
+    else expect(entry?.querySelector('[data-sidebar-attention]')).toBeNull();
   } finally {
     act(() => store.setActivityList(before));
   }

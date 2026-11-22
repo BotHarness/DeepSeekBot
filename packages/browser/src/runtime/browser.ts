@@ -1,5 +1,12 @@
 import { spawn, type ChildProcess } from 'node:child_process';
 
+import type {
+  BotBrowserRuntime,
+  BotBrowserRuntimeOptions,
+  BrowserElement,
+  BrowserObservation,
+  BrowserTab,
+} from './browser-contract.js';
 import { jpegDimensions } from '../jpeg.js';
 import { browserKey, modifierMask, type BrowserModifier } from './keyboard.js';
 import {
@@ -14,446 +21,37 @@ import {
   missingLibsOfBinary,
   spawnFailure,
   startupTimeoutFailure,
-  type PreflightDeps,
 } from './provision.js';
 import { existsSync, mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import {
+  PINNED_CHROMIUM_VERSION,
+  buildLaunchArgs,
+  discoverBrowserBinary,
+  installPinnedBrowser,
+  parseDevToolsUrl,
+} from './browser-launch.js';
+import {
+  SNAPSHOT_SCRIPT,
+  clickScript,
+  selectorExpression,
+  typeScript,
+} from './browser-page-scripts.js';
+import { waitForBrowserReady } from './browser-ready.js';
+import { connectCdp, type CdpClient } from './cdp.js';
 
-export interface BrowserElement {
-  readonly ref: string;
-  readonly role: string;
-  readonly name: string;
-  readonly value?: string;
-  readonly valueTruncated?: true;
-  readonly checked?: boolean | 'mixed';
-  readonly disabled?: true;
-  readonly readOnly?: true;
-  readonly expanded?: boolean;
-  readonly selected?: boolean;
-}
+export {
+  browserCandidates,
+  buildLaunchArgs,
+  discoverBrowserBinary,
+  installPinnedBrowser,
+  parseDevToolsUrl,
+  PINNED_CHROMIUM_VERSION,
+} from './browser-launch.js';
+export { SNAPSHOT_SCRIPT } from './browser-page-scripts.js';
+export { waitForBrowserReady } from './browser-ready.js';
+export { connectCdp, type CdpClient } from './cdp.js';
 
-export interface BrowserObservation {
-  readonly url: string;
-  readonly title: string;
-  readonly elements: readonly BrowserElement[];
-  readonly text: string;
-}
-
-export interface BrowserTab {
-  readonly tabId: string;
-  readonly url: string;
-  readonly title: string;
-}
-
-export interface CdpClient {
-  isConnected?(): boolean;
-  send(
-    method: string,
-    params?: Record<string, unknown>,
-    sessionId?: string,
-  ): Promise<Record<string, unknown>>;
-  subscribe(
-    method: string,
-    sessionId: string,
-    listener: (params: Record<string, unknown>) => void,
-  ): () => void;
-  close(): void;
-}
-
-interface WebSocketLike {
-  send(data: string): void;
-  close(): void;
-  addEventListener(type: string, listener: (event: { data?: unknown }) => void): void;
-}
-
-type WebSocketCtor = new (url: string) => WebSocketLike;
-
-export interface BotBrowserRuntimeOptions {
-  readonly execution?: BrowserExecution;
-  readonly browserPath?: string;
-  readonly userDataDir: string;
-  readonly installDir?: string;
-  readonly installFallback?: (
-    installDir: string,
-    hooks?: { onProgress?: (downloadedBytes: number, totalBytes: number) => void },
-  ) => Promise<string>;
-  readonly headless?: boolean | (() => boolean);
-  readonly foregroundTabs?: () => boolean;
-  readonly launchTimeoutMs?: number;
-  readonly onEvent?: (detail: string) => void;
-  readonly onInstallProgress?: (downloadedBytes: number, totalBytes: number) => void;
-  readonly onInstallSettled?: () => void;
-  readonly preflight?: PreflightDeps;
-  readonly connect?: (url: string) => Promise<CdpClient>;
-  readonly platform?: NodeJS.Platform;
-  readonly env?: NodeJS.ProcessEnv;
-  readonly fileExists?: (path: string) => boolean;
-}
-
-export interface BrowserExecution {
-  start(): Promise<{ endpoint: string; binary: string }>;
-  isRunning(): boolean;
-  stop(): Promise<void>;
-  viewerUrl?(): string | undefined;
-  prepareUpload?(path: string): Promise<{ path: string; dispose(): Promise<void> }>;
-}
-
-export interface BotBrowserRuntime {
-  runWithSignal?<T>(
-    signal: AbortSignal,
-    action: () => Promise<T>,
-    assertCurrent?: () => void,
-  ): Promise<T>;
-  ensure(): Promise<void>;
-  isRunning(): boolean;
-  open(url: string, reuseTabId?: string): Promise<BrowserTab>;
-  observe(tabId: string): Promise<BrowserObservation>;
-  click(tabId: string, ref: string): Promise<BrowserTab>;
-  clickAt(tabId: string, x: number, y: number, button?: 'left' | 'right'): Promise<BrowserTab>;
-  type(tabId: string, ref: string, text: string): Promise<BrowserTab>;
-  insertText(tabId: string, text: string): Promise<BrowserTab>;
-  pressKey(tabId: string, key: string, modifiers?: readonly BrowserModifier[]): Promise<BrowserTab>;
-  scroll(tabId: string, direction: 'up' | 'down', amount: number): Promise<BrowserTab>;
-  uploadFile(tabId: string, options: { ref?: string; path: string }): Promise<void>;
-  createTab(url: string): Promise<BrowserTab>;
-  listTabs(): Promise<readonly { targetId: string; url: string; title: string }[]>;
-  tabInfo(targetId: string): Promise<{ url: string; title: string }>;
-  closeTab(targetId: string): Promise<void>;
-  captureScreenshot(tabId: string): Promise<
-    | {
-        data: string;
-        mimeType: string;
-        viewport?: { width: number; height: number };
-        image?: { width: number; height: number };
-      }
-    | undefined
-  >;
-  streamFrames?(
-    tabId: string,
-    onFrame: (frame: {
-      data: string;
-      mimeType: string;
-      viewport?: { width: number; height: number };
-    }) => void,
-  ): Promise<() => Promise<void>>;
-  openWindow(targetId?: string): Promise<BrowserTab>;
-  currentUrl(): string | undefined;
-  binaryPath(): string | undefined;
-  viewerUrl?(): string | undefined;
-  stop(): Promise<void>;
-}
-
-export function browserCandidates(
-  platform: NodeJS.Platform = process.platform,
-  env: NodeJS.ProcessEnv = process.env,
-): readonly string[] {
-  if (platform === 'darwin') {
-    return [
-      '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome',
-      '/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge',
-      '/Applications/Chromium.app/Contents/MacOS/Chromium',
-    ];
-  }
-  if (platform === 'win32') {
-    const programFiles = env['ProgramFiles'] ?? 'C:\\Program Files';
-    const programFilesX86 = env['ProgramFiles(x86)'] ?? 'C:\\Program Files (x86)';
-    const localAppData = env['LOCALAPPDATA'];
-    return [
-      join(programFiles, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-      join(programFilesX86, 'Google', 'Chrome', 'Application', 'chrome.exe'),
-      ...(localAppData === undefined || localAppData === ''
-        ? []
-        : [join(localAppData, 'Google', 'Chrome', 'Application', 'chrome.exe')]),
-      join(programFiles, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-      join(programFilesX86, 'Microsoft', 'Edge', 'Application', 'msedge.exe'),
-    ];
-  }
-  return [
-    '/usr/bin/google-chrome',
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/microsoft-edge',
-    '/usr/bin/microsoft-edge-stable',
-    '/usr/bin/chromium',
-    '/usr/bin/chromium-browser',
-    '/snap/bin/chromium',
-  ];
-}
-
-export function discoverBrowserBinary(
-  browserPath?: string,
-  platform: NodeJS.Platform = process.platform,
-  env: NodeJS.ProcessEnv = process.env,
-  fileExists: (path: string) => boolean = existsSync,
-): string | undefined {
-  const explicit = browserPath?.trim() ?? '';
-  if (explicit !== '') return fileExists(explicit) ? explicit : undefined;
-  return browserCandidates(platform, env).find((candidate) => fileExists(candidate));
-}
-
-export const PINNED_CHROMIUM_VERSION = '154.0.8037.57';
-
-export async function installPinnedBrowser(
-  cacheDir: string,
-  hooks?: { onProgress?: (downloadedBytes: number, totalBytes: number) => void },
-): Promise<string> {
-  const { Browser, install } = await import('@puppeteer/browsers');
-  const installed = await install({
-    browser: Browser.CHROME,
-    buildId: PINNED_CHROMIUM_VERSION,
-    cacheDir,
-    ...(hooks?.onProgress === undefined ? {} : { downloadProgressCallback: hooks.onProgress }),
-  });
-  return installed.executablePath;
-}
-
-export function buildLaunchArgs(options: {
-  userDataDir: string;
-  headless?: boolean;
-}): readonly string[] {
-  return [
-    `--user-data-dir=${options.userDataDir}`,
-    '--remote-debugging-port=0',
-    '--disable-blink-features=AutomationControlled',
-    '--no-first-run',
-    '--no-default-browser-check',
-    ...(options.headless === true ? ['--headless=new'] : []),
-    '--new-window',
-    'about:blank',
-  ];
-}
-
-export function parseDevToolsUrl(output: string): string | undefined {
-  const match = /ws:\/\/[^\s]+\/devtools\/browser\/[^\s]+/u.exec(output);
-  return match?.[0];
-}
-
-export async function connectCdp(url: string, ctor?: WebSocketCtor): Promise<CdpClient> {
-  const Impl = ctor ?? (globalThis as { WebSocket?: WebSocketCtor }).WebSocket;
-  if (Impl === undefined) {
-    throw new Error('This Node.js runtime has no WebSocket support; Node 22 or newer is required');
-  }
-  const socket = new Impl(url);
-  const pending = new Map<
-    number,
-    { resolve: (value: Record<string, unknown>) => void; reject: (error: Error) => void }
-  >();
-  const subscriptions = new Set<{
-    method: string;
-    sessionId: string;
-    listener: (params: Record<string, unknown>) => void;
-  }>();
-  let nextId = 1;
-  let connected = false;
-  await new Promise<void>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      socket.close();
-      reject(new Error('The DevTools websocket did not open within 10s'));
-    }, 10_000);
-    const fail = (): void => {
-      clearTimeout(timer);
-      reject(new Error('The DevTools websocket failed to open'));
-    };
-    socket.addEventListener('open', () => {
-      clearTimeout(timer);
-      connected = true;
-      resolve();
-    });
-    socket.addEventListener('error', () => fail());
-    socket.addEventListener('close', fail);
-  });
-  socket.addEventListener('message', (event) => {
-    if (typeof event.data !== 'string') return;
-    let message: {
-      id?: number;
-      method?: string;
-      sessionId?: string;
-      params?: Record<string, unknown>;
-      result?: Record<string, unknown>;
-      error?: { message?: string };
-    };
-    try {
-      message = JSON.parse(event.data) as typeof message;
-    } catch {
-      return;
-    }
-    if (typeof message.id !== 'number') {
-      for (const sub of subscriptions) {
-        if (sub.method === message.method && sub.sessionId === message.sessionId)
-          sub.listener(message.params ?? {});
-      }
-      return;
-    }
-    const entry = pending.get(message.id);
-    if (entry === undefined) return;
-    pending.delete(message.id);
-    if (message.error !== undefined) entry.reject(new Error(message.error.message ?? 'CDP error'));
-    else entry.resolve(message.result ?? {});
-  });
-  socket.addEventListener('close', () => {
-    connected = false;
-    for (const entry of pending.values()) entry.reject(new Error('The DevTools websocket closed'));
-    pending.clear();
-    subscriptions.clear();
-  });
-  return {
-    isConnected: () => connected,
-    send(method, params = {}, sessionId) {
-      if (!connected) return Promise.reject(new Error('The DevTools websocket closed'));
-      const id = nextId;
-      nextId += 1;
-      return new Promise<Record<string, unknown>>((resolve, reject) => {
-        const timer = setTimeout(() => {
-          pending.delete(id);
-          reject(
-            new Error(
-              `DevTools ${method} did not return within 30s; inspect the page before retrying the action`,
-            ),
-          );
-        }, 30_000);
-        pending.set(id, {
-          resolve: (value) => {
-            clearTimeout(timer);
-            resolve(value);
-          },
-          reject: (error) => {
-            clearTimeout(timer);
-            reject(error);
-          },
-        });
-        const payload: Record<string, unknown> = { id, method, params };
-        if (sessionId !== undefined) payload['sessionId'] = sessionId;
-        try {
-          socket.send(JSON.stringify(payload));
-        } catch (error) {
-          pending.delete(id);
-          clearTimeout(timer);
-          reject(error instanceof Error ? error : new Error(String(error)));
-        }
-      });
-    },
-    subscribe(method, sessionId, listener) {
-      const sub = { method, sessionId, listener };
-      subscriptions.add(sub);
-      return () => {
-        subscriptions.delete(sub);
-      };
-    },
-    close() {
-      connected = false;
-      for (const entry of pending.values())
-        entry.reject(new Error('The DevTools websocket closed'));
-      pending.clear();
-      subscriptions.clear();
-      try {
-        socket.close();
-      } catch {}
-    },
-  };
-}
-
-export const SNAPSHOT_SCRIPT = `(() => {
-  for (const el of document.querySelectorAll('[data-botharness-ref]')) {
-    el.removeAttribute('data-botharness-ref');
-  }
-  const observationId = Array.from(crypto.getRandomValues(new Uint32Array(4)), (part) => part.toString(36).padStart(7, '0')).join('');
-  const elements = [];
-  const cap = 250;
-  const nameOf = (el) => {
-    const safeValue = el instanceof HTMLInputElement && ['password', 'file', 'hidden'].includes(el.type) ? '' : el.value;
-    const raw = el.getAttribute('aria-label') || el.getAttribute('title') || el.getAttribute('placeholder') || el.getAttribute('name') || (el.innerText || el.textContent || safeValue || '');
-    return String(raw).trim().replace(/\\s+/g, ' ').slice(0, 80);
-  };
-  const add = (el, role, fallbackName) => {
-    if (elements.length >= cap) return false;
-    const ref = 'e' + observationId + '_' + (elements.length + 1);
-    el.setAttribute('data-botharness-ref', ref);
-    const state = {};
-    const input = el instanceof HTMLInputElement;
-    const textValue = (input && !['password', 'file', 'hidden', 'checkbox', 'radio', 'button', 'submit', 'reset', 'image'].includes(el.type)) || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement || el.isContentEditable;
-    if (textValue) {
-      const value = String(el.isContentEditable ? el.innerText : el.value);
-      state.value = value.slice(0, 256);
-      if (value.length > 256) state.valueTruncated = true;
-    }
-    const checked = el.getAttribute('aria-checked');
-    if (checked === 'mixed') state.checked = 'mixed';
-    else if (checked === 'true' || checked === 'false') state.checked = checked === 'true';
-    else if (input && ['checkbox', 'radio'].includes(el.type)) state.checked = el.indeterminate ? 'mixed' : el.checked;
-    if (el.matches(':disabled') || el.getAttribute('aria-disabled') === 'true') state.disabled = true;
-    if (el.readOnly || el.getAttribute('aria-readonly') === 'true') state.readOnly = true;
-    const expanded = el.getAttribute('aria-expanded');
-    if (expanded === 'true' || expanded === 'false') state.expanded = expanded === 'true';
-    const selected = el.getAttribute('aria-selected');
-    if (selected === 'true' || selected === 'false') state.selected = selected === 'true';
-    elements.push({ ref: ref, role: role, name: nameOf(el) || fallbackName || '', ...state });
-    return true;
-  };
-  const wanted = 'a[href],button,input,textarea,select,summary,[role],[contenteditable="true"],[tabindex]';
-  for (const el of document.querySelectorAll(wanted)) {
-    const rect = el.getBoundingClientRect();
-    if (rect.width < 1 || rect.height < 1) continue;
-    if (!add(el, el.getAttribute('role') || el.tagName.toLowerCase())) break;
-  }
-  const clickables = [];
-  for (const el of document.querySelectorAll('div,span,li,i,svg,img,label,section')) {
-    if (clickables.length >= 400 || elements.length >= cap) break;
-    if (el.hasAttribute('data-botharness-ref')) continue;
-    const rect = el.getBoundingClientRect();
-    if (rect.width < 8 || rect.height < 8) continue;
-    if (getComputedStyle(el).cursor !== 'pointer') continue;
-    if (el.closest('a[href],button,input,textarea,select,summary,[role]')) continue;
-    clickables.push(el);
-  }
-  for (const el of clickables) {
-    if (elements.length >= cap) break;
-    if (clickables.some((other) => other !== el && el.contains(other))) continue;
-    const rect = el.getBoundingClientRect();
-    const center = '@' + Math.round(rect.left + rect.width / 2) + ',' + Math.round(rect.top + rect.height / 2);
-    add(el, 'clickable', el.tagName.toLowerCase() + ' ' + center);
-  }
-  const text = String((document.body && (document.body.innerText || document.body.textContent)) || '').replace(/\\s+/g, ' ').trim().slice(0, 6000);
-  return { url: location.href, title: document.title, elements: elements, text: text };
-})()`;
-
-export async function waitForBrowserReady(
-  readState: () => Promise<unknown>,
-  assertCurrent: () => void = () => undefined,
-): Promise<void> {
-  const deadline = Date.now() + READY_TIMEOUT_MS;
-  let complete = false;
-  for (;;) {
-    assertCurrent();
-    let value: unknown;
-    try {
-      value = await readState();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      if (
-        !/execution context was destroyed|cannot find context|Browser document context changed/iu.test(
-          message,
-        )
-      )
-        throw error;
-    }
-    assertCurrent();
-    if (String(value) === 'complete') {
-      if (complete) return;
-      complete = true;
-    } else complete = false;
-    if (Date.now() >= deadline)
-      throw new Error(
-        `Bot Browser page did not settle within ${READY_TIMEOUT_MS}ms after the action; it may have already run. Call browser_observe to inspect the current page before retrying`,
-      );
-    await delay(READY_POLL_MS);
-  }
-}
-
-const READY_TIMEOUT_MS = 15_000;
-const READY_POLL_MS = 200;
-
-function delay(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
+export type * from './browser-contract.js';
 
 export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotBrowserRuntime {
   const onEvent = options.onEvent ?? ((): void => undefined);
@@ -476,6 +74,19 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       ? options.execution.isRunning()
       : child !== undefined && child.exitCode === null && !child.killed);
 
+  const watchTargets = (live: CdpClient): void => {
+    const changed = options.onObservationChanged;
+    if (changed === undefined) return;
+    for (const method of [
+      'Target.targetCreated',
+      'Target.targetDestroyed',
+      'Target.targetInfoChanged',
+    ])
+      live.subscribe(method, undefined, changed);
+    void live.send('Target.setDiscoverTargets', { discover: true }).catch(() => undefined);
+    changed();
+  };
+
   const launch = async (): Promise<void> => {
     if (options.execution !== undefined) {
       const started = await options.execution.start();
@@ -486,6 +97,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
         await options.execution.stop();
         throw error;
       }
+      watchTargets(client);
       onEvent('ready target=container');
       return;
     }
@@ -559,7 +171,10 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       { stdio: ['ignore', 'ignore', 'pipe'], shell: false, windowsHide: true },
     );
     child = proc;
-    proc.once('close', () => closedChildren.add(proc));
+    proc.once('close', () => {
+      closedChildren.add(proc);
+      options.onObservationChanged?.();
+    });
     const endpoint = await new Promise<string>((resolve, reject) => {
       let stderr = '';
       let stderrTruncated = false;
@@ -629,6 +244,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       proc.kill('SIGTERM');
       throw error;
     }
+    watchTargets(client);
     onEvent('ready');
   };
 
@@ -691,12 +307,6 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
     };
   };
 
-  const selectorExpression = (ref: string): string =>
-    `document.querySelector(${JSON.stringify(`[data-botharness-ref=${JSON.stringify(ref)}]`)})`;
-
-  const clickScript = (ref: string): string =>
-    `(() => { const el = ${selectorExpression(ref)}; if (!el) return { ok: false, reason: 'stale-ref' }; el.scrollIntoView({ block: 'center', inline: 'center' }); const rect = el.getBoundingClientRect(); if (rect.width < 1 || rect.height < 1) return { ok: false, reason: 'not-clickable' }; return { ok: true, x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 }; })()`;
-
   const prepareInput = async (sessionId: string): Promise<void> => {
     const live = client;
     if (live === undefined) throw new Error('The Bot Browser is not running');
@@ -742,9 +352,6 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
     const y = typeof value['y'] === 'number' ? value['y'] : 0;
     await dispatchMouseClick(sessionId, x, y);
   };
-
-  const typeScript = (ref: string, text: string): string =>
-    `(() => { const el = ${selectorExpression(ref)}; if (!el) return { ok: false, reason: 'stale-ref' }; if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) { if (el.matches(':disabled')) return { ok: false, reason: 'disabled' }; if (el.readOnly) return { ok: false, reason: 'readonly' }; } el.focus(); if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) { const proto = el instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype; const descriptor = Object.getOwnPropertyDescriptor(proto, 'value'); const setter = descriptor && descriptor.set; if (setter) { setter.call(el, ${JSON.stringify(text)}); } else { el.value = ${JSON.stringify(text)}; } el.dispatchEvent(new Event('input', { bubbles: true })); el.dispatchEvent(new Event('change', { bubbles: true })); return { ok: true }; } if (el.isContentEditable) { el.textContent = ${JSON.stringify(text)}; el.dispatchEvent(new InputEvent('input', { bubbles: true, data: ${JSON.stringify(text)} })); return { ok: true }; } return { ok: false, reason: 'not-editable' }; })()`;
 
   const runInteraction = async (tabId: string, expression: string): Promise<BrowserTab> => {
     const sessionId = await attach(tabId);
@@ -970,7 +577,8 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       try {
         await Promise.race([
           live.send('Target.closeTarget', { targetId }).then((closed) => {
-            if (closed['success'] === false) throw new Error('Navigation cleanup was refused');
+            if (closed['success'] === false)
+              throw new Error('Navigation cleanup was refused', { cause: error });
             sessions.delete(targetId);
           }),
           new Promise<never>((_resolve, reject) => {
@@ -1296,6 +904,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       }
       live?.close();
       await options.execution.stop();
+      options.onObservationChanged?.();
       onEvent('stopped target=container');
       return;
     }
@@ -1339,6 +948,7 @@ export function createBotBrowserRuntime(options: BotBrowserRuntimeOptions): BotB
       });
     }
     if (child === proc) child = undefined;
+    options.onObservationChanged?.();
     onEvent('stopped');
   };
 

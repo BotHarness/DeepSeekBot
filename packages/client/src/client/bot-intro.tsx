@@ -1,33 +1,15 @@
 import { Button } from './ds/button.js';
-import {
-  useLayoutEffect,
-  useState,
-  useSyncExternalStore,
-  type ReactElement,
-  type ReactNode,
-} from 'react';
+import type { BridgeCall } from './bridge.js';
+import { BOT_SETTINGS_SECTIONS, type BotSettings } from './bot-settings.js';
+import { useLayoutEffect, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import type { BridgeActions } from './actions.js';
-import { errorMessage, type ModelCatalogEntryView, type ModelRouteView } from './bridge.js';
-import { BotIcon } from './bot-icon.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { IconButton } from './ds/icon-button.js';
-import { Note } from './ds/note.js';
 import { border, color, dialog, radius, size, space, text } from './ds/tokens.stylex.js';
 import { ConnectionsDialog } from './connections-dialog.js';
 import { Modal } from './modal.js';
-import { ModelPicker } from './model-picker.js';
-import { openModelsSettingsAndReturn } from './bot-settings-open.js';
-import type { Appearance, AppearancePatch } from './appearance.js';
-import { AppearanceMaterialSettings } from './appearance-material-settings.js';
-import {
-  ColorSchemePicker,
-  LayoutModePicker,
-  ThemePresetPicker,
-  applyPreset,
-} from './appearance-pickers.js';
-import type { LayoutMode } from './layout-mode.js';
-import { WallpaperLibrary } from './wallpaper-library.js';
+import type { Appearance } from './appearance.js';
 import type { Wallpaper } from './wallpaper.js';
 import { CommunityIcon } from './community-icons.js';
 import { COMMUNITY, cachedGithubStars, fetchGithubStars, formatStars } from './community-links.js';
@@ -51,16 +33,20 @@ import {
   type PersonaDetail,
   type PersonaPrompt,
 } from './onboarding-personas.js';
-import { invalidateInheritedModelPlans } from './model-plan-store.js';
+import { observeResource } from './messaging-defaults-live.js';
+
+import {
+  ModelStep,
+  EMPTY_MODEL_DRAFT,
+  type ModelStepBinding,
+  type ModelStepDraft,
+} from './bot-intro-model-step.js';
+import { noSubscribe, ThemeStep } from './bot-intro-theme-step.js';
+import { Voices, WelcomeStep } from './bot-intro-welcome-step.js';
+import { styles as stepStyles } from './bot-intro-step-styles.js';
 
 export { INTRO_STEPS };
 export type IntroStep = (typeof INTRO_STEPS)[number];
-
-const REVIEWS: readonly BotHarnessKey[] = [
-  'intro.reviews.clean',
-  'intro.reviews.era',
-  'intro.reviews.details',
-];
 
 const FEATURE_ICONS: Readonly<Record<OnboardingFeature, string>> = {
   bot: 'bot',
@@ -179,99 +165,18 @@ const styles = stylex.create({
     fontSize: text.metaSize,
     lineHeight: text.metaLine,
   },
-  hero: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    gap: space.x4,
-    textAlign: 'center',
-  },
   heroCopy: {
     display: 'flex',
     flexDirection: 'column',
     gap: space.x3,
     maxWidth: '560px',
   },
-  title: {
-    margin: 0,
-    color: color.fg,
-    fontSize: text.titleSize,
-    lineHeight: text.titleLine,
-    fontWeight: text.strong,
-  },
-  copy: {
-    margin: 0,
-    color: color.muted,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
-  },
-  letter: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x3,
-    padding: space.x5,
-    borderRadius: radius.lg,
-    backgroundColor: color.surface,
-  },
   reviews: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
     gap: space.x3,
   },
-  review: {
-    margin: 0,
-    padding: space.x4,
-    borderRadius: radius.lg,
-    backgroundColor: color.surface,
-    color: color.fg,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
-  },
-  advanced: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x3,
-    padding: space.x4,
-    borderRadius: radius.lg,
-    backgroundColor: color.surface,
-  },
-  advancedSummary: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x1,
-    cursor: 'pointer',
-    color: color.fg,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
-    fontWeight: text.strong,
-  },
   starterItem: { display: 'flex', flexDirection: 'column' },
-  note: { display: 'flex', flexDirection: 'column', gap: space.x2 },
-  signature: {
-    margin: 0,
-    alignSelf: 'flex-end',
-    color: color.muted,
-    fontSize: text.bodySize,
-  },
-  section: {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x4,
-    minWidth: 0,
-  },
-  layoutHint: {
-    margin: 0,
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-  },
-  sectionTitle: {
-    margin: 0,
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    fontWeight: text.strong,
-  },
   link: {
     display: 'flex',
     alignItems: 'center',
@@ -372,7 +277,6 @@ const styles = stylex.create({
     backgroundColor: { default: color.surface, ':hover': color.hover },
     color: color.fg,
   },
-  full: { width: '100%' },
   onCard: { backgroundColor: { default: color.modal, ':hover': color.hover } },
   strong: { color: color.fg, fontWeight: text.strong },
   meta: {
@@ -391,30 +295,44 @@ const styles = stylex.create({
 
 export function BotIntro({
   actions,
+  call,
+  botSettings,
   appearance,
   wallpaper,
   t,
 }: {
   actions: BridgeActions;
+  call?: BridgeCall | undefined;
+  botSettings?: Pick<BotSettings, 'open' | 'subscribe' | 'getSnapshot'> | undefined;
   appearance?: Appearance | undefined;
   wallpaper?: Wallpaper | undefined;
   t: BotHarnessTranslate;
 }): ReactElement | null {
   const controller = onboardingFor(actions);
   const member = useTeamMember();
+  const providersOpen = useSyncExternalStore(
+    botSettings?.subscribe ?? noSubscribe,
+    () => botSettings?.getSnapshot().open === true,
+    () => false,
+  );
   const state = useSyncExternalStore(controller.subscribe, controller.getSnapshot);
   const media = useSyncExternalStore(wallpaper?.subscribe ?? noSubscribe, () =>
     wallpaper?.getSnapshot(),
   );
   const intro = state.intro;
-  const [model, setModel] = useState<{ save(): Promise<boolean> }>();
+  const [model, setModel] = useState<ModelStepBinding>();
   const [busy, setBusy] = useState(false);
+  const [providerSaving, setProviderSaving] = useState(false);
+  const modelDraft = useState<ModelStepDraft>(EMPTY_MODEL_DRAFT);
+  const navigationBusy = busy || providerSaving;
   const [phoneOpen, setPhoneOpen] = useState(false);
   const [phoneDevice, setPhoneDevice] = useState<string>();
   const [phoneRead, setPhoneRead] = useState(false);
   const startPicks = useState<StartPicks>(NO_PICKS);
   const close = (outcome?: IntroOutcome): Promise<void> => {
+    if (navigationBusy) return Promise.resolve();
     startPicks[1](NO_PICKS);
+    modelDraft[1](EMPTY_MODEL_DRAFT);
     setPhoneOpen(false);
     setPhoneDevice(undefined);
     setPhoneRead(false);
@@ -435,8 +353,12 @@ export function BotIntro({
     if (!phoneDevice) return;
     const abort = new AbortController();
     let pending = false;
-    const refresh = async () => {
-      if (pending) return;
+    let again = false;
+    const refresh = async (): Promise<void> => {
+      if (pending) {
+        again = true;
+        return;
+      }
       pending = true;
       try {
         const response = await fetch('./api/botharness/devices', {
@@ -457,22 +379,32 @@ export function BotIntro({
       } finally {
         pending = false;
       }
+      if (again && !abort.signal.aborted) {
+        again = false;
+        await refresh();
+      }
     };
     void refresh();
-    const timer = setInterval(() => void refresh(), 3000);
+    const stopObserving = observeResource('devices', () => void refresh(), 3000);
     return () => {
       abort.abort();
-      clearInterval(timer);
+      stopObserving();
     };
   }, [phoneDevice]);
   if (!intro) return null;
   const step = INTRO_STEPS[intro.step] ?? 'welcome';
   const last = intro.step === INTRO_STEPS.length - 1;
+  const modelAdvanceBlocked = step === 'model' && model?.canAdvance !== true;
   const go = async (next: number) => {
-    if (next > intro.step && step === 'model' && model) {
-      setBusy(true);
-      const saved = await model.save().finally(() => setBusy(false));
-      if (!saved) return;
+    if (navigationBusy) return;
+    if (step === 'model') {
+      if (next > intro.step) {
+        if (model?.canAdvance !== true) return;
+        setBusy(true);
+        const saved = await model.save().finally(() => setBusy(false));
+        if (!saved) return;
+      }
+      if (next !== intro.step) modelDraft[1](EMPTY_MODEL_DRAFT);
     }
     controller.setIntroStep(next);
   };
@@ -496,7 +428,7 @@ export function BotIntro({
     );
   return (
     <Modal
-      open={!intro.hidden}
+      open={!intro.hidden && !(step === 'model' && providersOpen)}
       headless
       title={t('intro.title')}
       onClose={() => void close({ via: 'close' })}
@@ -513,9 +445,9 @@ export function BotIntro({
                 type="button"
                 aria-label={`${index + 1} ${t(`intro.step.${id}`)}`}
                 aria-current={index === intro.step ? 'step' : undefined}
-                disabled={busy}
-                onClick={() => void go(index)}
                 {...stylex.props(styles.stepButton, index === intro.step && styles.stepCurrent)}
+                disabled={navigationBusy || (index > intro.step && modelAdvanceBlocked)}
+                onClick={() => void go(index)}
               >
                 <span
                   {...stylex.props(styles.stepDot, index <= intro.step && styles.stepDotActive)}
@@ -537,6 +469,7 @@ export function BotIntro({
         <IconButton
           aria-label={t('common.close')}
           size="icon"
+          disabled={navigationBusy}
           onClick={() => void close({ via: 'close' })}
         >
           <ChannelSidebarIcon name="x" size={16} />
@@ -549,7 +482,9 @@ export function BotIntro({
         )}
         data-intro-step={step}
       >
-        {step === 'welcome' ? <WelcomeStep t={t} /> : null}
+        {step === 'welcome' ? (
+          <WelcomeStep t={t} heroCopyProps={stylex.props(styles.heroCopy)} />
+        ) : null}
         {step === 'theme' && appearance ? (
           <ThemeStep
             appearance={appearance}
@@ -563,17 +498,26 @@ export function BotIntro({
         {step === 'model' ? (
           <ModelStep
             actions={actions}
+            call={call}
+            member={member}
             t={t}
+            draft={modelDraft}
             bind={setModel}
-            hide={(hidden) => controller.hideIntro(hidden)}
+            saving={busy}
+            onProviderSavingChange={setProviderSaving}
+            openProviders={
+              botSettings === undefined
+                ? undefined
+                : () => botSettings.open(BOT_SETTINGS_SECTIONS.modelProviders)
+            }
           />
         ) : null}
         {step === 'phone' ? (
-          <div ref={phoneStatusMount} {...stylex.props(styles.hero)}>
+          <div ref={phoneStatusMount} {...stylex.props(stepStyles.hero)}>
             <ChannelSidebarIcon name="smartphone" size={48} />
             <div {...stylex.props(styles.heroCopy)}>
-              <h2 {...stylex.props(styles.title)}>{t('intro.phone.title')}</h2>
-              <p {...stylex.props(styles.copy)} role="status">
+              <h2 {...stylex.props(stepStyles.title)}>{t('intro.phone.title')}</h2>
+              <p {...stylex.props(stepStyles.copy)} role="status">
                 {t(phoneRead ? 'intro.phone.connected' : 'intro.phone.body')}
               </p>
               <Button
@@ -622,14 +566,18 @@ export function BotIntro({
           })}
         </span>
         {last || step === 'phone' ? null : (
-          <Button variant="ghost" disabled={busy} onClick={() => void close({ via: 'skip' })}>
+          <Button
+            variant="ghost"
+            disabled={navigationBusy}
+            onClick={() => void close({ via: 'skip' })}
+          >
             {t('intro.skip')}
           </Button>
         )}
         {intro.step > 0 ? (
           <Button
             variant="outline"
-            disabled={busy}
+            disabled={navigationBusy}
             onClick={() => void go(intro.step - 1)}
             {...stylex.props(styles.soft)}
           >
@@ -638,9 +586,13 @@ export function BotIntro({
         ) : null}
         {last ? null : (
           <Button
-            variant={step === 'phone' && !phoneRead ? 'outline' : 'primary'}
+            variant={
+              (step === 'phone' && !phoneRead) || (step === 'model' && model?.keyForm)
+                ? 'outline'
+                : 'primary'
+            }
             data-modal-autofocus={step !== 'phone'}
-            disabled={busy}
+            disabled={navigationBusy || modelAdvanceBlocked}
             onClick={() => void go(intro.step + 1)}
           >
             {t(step === 'phone' && !phoneRead ? 'intro.phone.skip' : 'intro.next')}
@@ -649,333 +601,6 @@ export function BotIntro({
       </div>
     </Modal>
   );
-}
-
-const noSubscribe = () => () => {};
-
-function WelcomeStep({ t }: { t: BotHarnessTranslate }): ReactElement {
-  return (
-    <>
-      <div {...stylex.props(styles.hero)}>
-        <BotIcon icon="mascot" size={96} />
-        <div {...stylex.props(styles.heroCopy)}>
-          <h2 {...stylex.props(styles.title)}>{t('intro.welcome.greeting')}</h2>
-          <p {...stylex.props(styles.copy)}>{t('intro.welcome.body')}</p>
-          <p {...stylex.props(styles.copy)}>{t('intro.welcome.next')}</p>
-        </div>
-      </div>
-    </>
-  );
-}
-
-function Voices({ t }: { t: BotHarnessTranslate }): ReactElement {
-  return (
-    <>
-      <section {...stylex.props(styles.section)} aria-label={t('intro.reviews.title')}>
-        <h3 {...stylex.props(styles.sectionTitle)}>{t('intro.reviews.title')}</h3>
-        <div {...stylex.props(styles.reviews)} data-user-reviews>
-          {REVIEWS.map((key) => (
-            <blockquote key={key} {...stylex.props(styles.review)}>
-              {t(key)}
-            </blockquote>
-          ))}
-        </div>
-      </section>
-      <section {...stylex.props(styles.letter)} aria-label={t('intro.founder.title')}>
-        <h3 {...stylex.props(styles.sectionTitle)}>{t('intro.founder.title')}</h3>
-        <div {...stylex.props(styles.note)} data-founder-note>
-          {t('intro.founder.body')
-            .split('\n')
-            .map((line) => (
-              <p key={line} {...stylex.props(styles.copy)}>
-                {line}
-              </p>
-            ))}
-        </div>
-        <p {...stylex.props(styles.signature)}>{t('intro.founder.signature')}</p>
-      </section>
-    </>
-  );
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }): ReactElement {
-  return (
-    <section {...stylex.props(styles.section)} aria-label={title}>
-      <h3 {...stylex.props(styles.sectionTitle)}>{title}</h3>
-      {children}
-    </section>
-  );
-}
-
-function ThemeStep({
-  appearance,
-  wallpaper,
-  layoutMode,
-  onLayoutMode,
-  t,
-  track,
-}: {
-  appearance: Appearance;
-  wallpaper?: Wallpaper | undefined;
-  layoutMode?: LayoutMode | undefined;
-  onLayoutMode(mode: LayoutMode): void;
-  t: BotHarnessTranslate;
-  track(setting: 'scheme' | 'preset' | 'layout' | 'wallpaper'): void;
-}): ReactElement {
-  const theme = useSyncExternalStore(appearance.subscribe, appearance.getSnapshot);
-  const media = useSyncExternalStore(wallpaper?.subscribe ?? noSubscribe, () =>
-    wallpaper?.getSnapshot(),
-  );
-  const change = (patch: AppearancePatch) => {
-    try {
-      appearance.update(patch);
-    } catch {}
-  };
-  return (
-    <>
-      <h2 {...stylex.props(styles.title)}>{t('intro.theme.title')}</h2>
-      {theme.error ? <Note tone="danger">{t('appearance.saveFailed')}</Note> : null}
-      <Section title={t('intro.theme.scheme')}>
-        <ColorSchemePicker
-          value={theme.config.preference}
-          config={theme.config}
-          onChange={(preference) => {
-            change({ preference });
-            track('scheme');
-          }}
-          t={t}
-        />
-      </Section>
-      <Section title={t('intro.theme.color')}>
-        <ThemePresetPicker
-          config={theme.config}
-          onSelect={(preset) => {
-            applyPreset(appearance, preset, wallpaper);
-            track('preset');
-          }}
-          t={t}
-        />
-      </Section>
-      {layoutMode ? (
-        <Section title={t('workspace.layoutMode')}>
-          <LayoutModePicker
-            value={layoutMode}
-            onChange={(mode) => {
-              onLayoutMode(mode);
-              track('layout');
-            }}
-            t={t}
-          />
-          <p {...stylex.props(styles.layoutHint)}>
-            {t(
-              layoutMode === 'simple'
-                ? 'onboarding.short.layoutSimpleHint'
-                : 'onboarding.short.layoutAdvancedHint',
-            )}
-          </p>
-        </Section>
-      ) : null}
-      {wallpaper ? (
-        <Section title={t('intro.theme.wallpaper')}>
-          <WallpaperLibrary
-            owner={wallpaper}
-            t={t}
-            appearance={appearance}
-            size="large"
-            onChange={() => track('wallpaper')}
-          />
-        </Section>
-      ) : null}
-      {media?.current ? (
-        <Section title={t('intro.theme.panels')}>
-          <Note>{t('intro.theme.panelsHint')}</Note>
-          <AppearanceMaterialSettings appearance={appearance} snapshot={theme} t={t} />
-        </Section>
-      ) : null}
-    </>
-  );
-}
-
-function ModelStep({
-  actions,
-  t,
-  bind,
-  hide,
-}: {
-  actions: BridgeActions;
-  t: BotHarnessTranslate;
-  bind(model: { save(): Promise<boolean> } | undefined): void;
-  hide(hidden: boolean): void;
-}): ReactElement {
-  const [models, setModels] = useState<ModelCatalogEntryView[]>([]);
-  const [route, setRoute] = useState<ModelRouteView>();
-  const [assignment, setAssignment] = useState<ModelRouteView>();
-  const [advanced, setAdvanced] = useState(false);
-  const [planned, setPlanned] = useState<string>();
-  const [initial, setInitial] = useState<string>();
-  const [loaded, setLoaded] = useState(false);
-  const [error, setError] = useState<string>();
-  const load = async (): Promise<void> => {
-    setError(undefined);
-    try {
-      const catalog = await actions.modelCatalog();
-      setModels(catalog.models);
-      const usable = catalog.models.find((model) => model.credential === undefined);
-      const selected =
-        catalog.default ??
-        (usable ? { provider: usable.provider, model: usable.model } : undefined);
-      setRoute((previous) => previous ?? selected);
-      setInitial(catalog.default ? routeKey(catalog.default) : undefined);
-      setLoaded(true);
-    } catch (cause) {
-      setError(errorMessage(cause));
-    }
-  };
-  const mount = useMountedResource<HTMLDivElement>(() => {
-    void load();
-  }, [actions]);
-  const selected = models.find(
-    (model) => model.provider === route?.provider && model.model === route.model,
-  );
-  const tob = onboardingFor(actions).getSnapshot().receipt?.defaultBotSlug;
-  const split =
-    advanced && assignment !== undefined && route !== undefined
-      ? routeKey(assignment) !== routeKey(route) ||
-        (assignment.reasoningEffort ?? '') !== (route.reasoningEffort ?? '')
-      : false;
-  const save = async (): Promise<boolean> => {
-    if (!route || !selected || selected.credential !== undefined) return true;
-    const plan = split && assignment ? JSON.stringify([route, assignment]) : undefined;
-    const changed =
-      initial !== routeKey(route) ||
-      route.reasoningEffort !== undefined ||
-      (tob !== undefined && plan !== planned);
-    try {
-      if (initial !== routeKey(route) || route.reasoningEffort !== undefined) {
-        await actions.onboardingModel(undefined, 0, route, true);
-        invalidateInheritedModelPlans(actions);
-        setInitial(routeKey(route));
-        setPlanned(undefined);
-      }
-      if (tob !== undefined && plan !== planned) {
-        const revision = (await actions.modelPlanState(tob)).revision ?? 0;
-        if (split && assignment) {
-          const effort = assignment.reasoningEffort ?? '';
-          await actions.setModelPlan(tob, revision, route, assignment, [
-            {
-              provider: assignment.provider,
-              model: assignment.model,
-              allowedEfforts: [effort],
-              defaultEffort: effort,
-            },
-          ]);
-        } else await actions.inheritModel(tob, revision);
-        setPlanned(plan);
-      }
-      if (changed)
-        onboardingFor(actions).introEvent('onboarding:model_save', {
-          is_advanced: split,
-        });
-      return true;
-    } catch (cause) {
-      setError(errorMessage(cause));
-      return false;
-    }
-  };
-  const bound = useMountedResource<HTMLSpanElement>(() => {
-    bind({ save });
-    return () => bind(undefined);
-  }, [route, selected, initial, assignment, advanced, planned]);
-  const options = models.map((model) => ({
-    value: routeKey(model),
-    label: model.modelName,
-    hint: model.providerName + (model.credential ? ' · ' + t('onboarding.needsKey') : ''),
-  }));
-  const parse = ({ key, effort }: { key: string; effort: string }): ModelRouteView => {
-    const [provider, model] = JSON.parse(key) as [string, string];
-    return { provider, model, ...(effort ? { reasoningEffort: effort } : {}) };
-  };
-  return (
-    <div ref={mount} className="bh-onboarding-model-form">
-      <span ref={bound} hidden />
-      <h2 {...stylex.props(styles.title)}>{t('intro.model.title')}</h2>
-      <ModelPicker
-        title={t('onboarding.model')}
-        hint={t('intro.model.hint')}
-        choice={{
-          key: route ? routeKey(route) : '',
-          effort: route?.reasoningEffort ?? '',
-        }}
-        catalog={models}
-        options={options}
-        onChange={(choice) => setRoute(parse(choice))}
-        disabled={false}
-        t={t}
-      />
-      {tob !== undefined ? (
-        <details
-          {...stylex.props(styles.advanced)}
-          open={advanced}
-          onToggle={(event) => setAdvanced(event.currentTarget.open)}
-          data-intro-model-advanced
-        >
-          <summary {...stylex.props(styles.advancedSummary)}>
-            <span>{t('intro.model.advanced')}</span>
-            <span {...stylex.props(styles.copy)}>
-              {t(split ? 'intro.model.advancedSplit' : 'intro.model.advancedSame')}
-            </span>
-          </summary>
-          <ModelPicker
-            title={t('modelPreset.assignment')}
-            hint={t('intro.model.assignmentHint')}
-            choice={{
-              key: routeKey(assignment ?? route ?? { provider: '', model: '' }),
-              effort: (assignment ?? route)?.reasoningEffort ?? '',
-            }}
-            catalog={models}
-            options={options}
-            onChange={(choice) => setAssignment(parse(choice))}
-            disabled={false}
-            t={t}
-          />
-        </details>
-      ) : null}
-      {!loaded ? <p role="status">{t('modelPreset.loading')}</p> : null}
-      <button
-        type="button"
-        onClick={() => {
-          hide(true);
-          openModelsSettingsAndReturn(() => {
-            hide(false);
-            void load();
-          });
-        }}
-        {...stylex.props(styles.link, styles.starter, styles.full)}
-      >
-        <span {...stylex.props(styles.linkIcon)}>
-          <ChannelSidebarIcon name="settings" size={18} />
-        </span>
-        <span {...stylex.props(styles.linkText)}>
-          <span {...stylex.props(styles.strong)}>{t('failure.openModels')}</span>
-          <span {...stylex.props(styles.meta)}>
-            {selected?.credential || (loaded && models.length === 0)
-              ? t('onboarding.keyHint')
-              : t('onboarding.providerSettingsHint')}
-          </span>
-        </span>
-        <ChannelSidebarIcon name="chevron-right" size={16} />
-      </button>
-      {error ? (
-        <p role="alert" className="bh-error">
-          {error}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-function routeKey(route: { provider: string; model: string }): string {
-  return JSON.stringify([route.provider, route.model]);
 }
 
 function CommunityStep({
@@ -996,10 +621,10 @@ function CommunityStep({
   }, []);
   const locale = typeof navigator === 'undefined' ? 'en' : navigator.language;
   return (
-    <div ref={mount} {...stylex.props(styles.section)}>
+    <div ref={mount} {...stylex.props(stepStyles.section)}>
       <div {...stylex.props(styles.heroCopy)}>
-        <h2 {...stylex.props(styles.title)}>{t('intro.community.title')}</h2>
-        <p {...stylex.props(styles.copy)}>{t('intro.community.hint')}</p>
+        <h2 {...stylex.props(stepStyles.title)}>{t('intro.community.title')}</h2>
+        <p {...stylex.props(stepStyles.copy)}>{t('intro.community.hint')}</p>
       </div>
       <a
         href={COMMUNITY.github}
@@ -1014,7 +639,7 @@ function CommunityStep({
         </span>
         <span {...stylex.props(styles.linkText)}>
           <span {...stylex.props(styles.linkTitle)}>{t('intro.community.github')}</span>
-          <span {...stylex.props(styles.copy)}>{t('intro.community.githubHint')}</span>
+          <span {...stylex.props(stepStyles.copy)}>{t('intro.community.githubHint')}</span>
         </span>
         <span {...stylex.props(styles.stars)} data-github-stars={stars ?? ''}>
           <ChannelSidebarIcon name="star" size={14} />
@@ -1036,7 +661,7 @@ function CommunityStep({
         </span>
         <span {...stylex.props(styles.linkText)}>
           <span {...stylex.props(styles.linkTitle)}>{t('intro.community.discord')}</span>
-          <span {...stylex.props(styles.copy)}>{t('intro.community.discordHint')}</span>
+          <span {...stylex.props(stepStyles.copy)}>{t('intro.community.discordHint')}</span>
         </span>
         <ChannelSidebarIcon name="external-link" size={16} />
       </a>
@@ -1046,7 +671,7 @@ function CommunityStep({
         </span>
         <span {...stylex.props(styles.linkText)}>
           <span {...stylex.props(styles.linkTitle)}>{t('intro.community.qq')}</span>
-          <span {...stylex.props(styles.copy)}>
+          <span {...stylex.props(stepStyles.copy)}>
             {t('intro.community.qqHint', { number: COMMUNITY.qqGroup })}
           </span>
         </span>
@@ -1065,7 +690,7 @@ function CommunityStep({
           {t(copied ? 'intro.community.copied' : 'intro.community.copy')}
         </Button>
       </div>
-      <Voices t={t} />
+      <Voices t={t} reviewsProps={stylex.props(styles.reviews)} />
     </div>
   );
 }
@@ -1133,16 +758,16 @@ function StartStep({
       );
     };
     return (
-      <div {...stylex.props(styles.section)} data-intro-persona={personas.join(' ')}>
+      <div {...stylex.props(stepStyles.section)} data-intro-persona={personas.join(' ')}>
         <div {...stylex.props(styles.heroCopy)}>
-          <h2 {...stylex.props(styles.title)}>
+          <h2 {...stylex.props(stepStyles.title)}>
             {personas.length === 1
               ? t('intro.persona.promptsTitle', {
                   persona: t(`intro.persona.${personas[0]!}.name`),
                 })
               : t('intro.persona.tasksTitle')}
           </h2>
-          <p {...stylex.props(styles.copy)}>{t('intro.persona.promptsHint')}</p>
+          <p {...stylex.props(stepStyles.copy)}>{t('intro.persona.promptsHint')}</p>
         </div>
         <div
           {...stylex.props(styles.starters, styles.wide)}
@@ -1201,10 +826,10 @@ function StartStep({
     );
   }
   return (
-    <div {...stylex.props(styles.section)}>
+    <div {...stylex.props(stepStyles.section)}>
       <div {...stylex.props(styles.heroCopy)}>
-        <h2 {...stylex.props(styles.title)}>{t('intro.start.title')}</h2>
-        <p {...stylex.props(styles.copy)}>{t('intro.start.hint')}</p>
+        <h2 {...stylex.props(stepStyles.title)}>{t('intro.start.title')}</h2>
+        <p {...stylex.props(stepStyles.copy)}>{t('intro.start.hint')}</p>
       </div>
       <div {...stylex.props(styles.personas)} role="group" aria-label={t('intro.persona.label')}>
         {ONBOARDING_PERSONAS.map((id) => {

@@ -1,10 +1,20 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({}));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+}));
 
 import { COMBOBOX_CSS } from '../src/client/combobox.js';
 import { COMPOSER_CONTEXT_CSS } from '../src/client/composer-context-styles.js';
 import { INTERNAL_TOUR_CSS } from '../src/client/internal-tour-styles.js';
+import { STYLEX_CSS } from '../src/client/ds/stylex-css.js';
+import { channelsCss } from '../src/client/features/channels/styles.js';
+import { timelineCss } from '../src/client/features/channels/timeline-styles.js';
+import { personabotsCss } from '../src/client/features/personabots/styles.js';
+import { releaseCss } from '../src/client/features/release/styles.js';
+import { sharedCss } from '../src/client/shared-styles.js';
+import { SHELL_AND_ROSTER_CSS } from '../src/client/shell-and-roster-styles.js';
 import { CSS } from '../src/client/styles.js';
 import { WINDOW_COMPANION_CSS } from '../src/client/window-companion-styles.js';
 
@@ -27,6 +37,28 @@ function aliasBounds(): { start: number; end: number } {
 }
 
 describe('client styles', () => {
+  it('keeps shared, feature and retained rules interleaved in cascade order', () => {
+    const fragments = [
+      SHELL_AND_ROSTER_CSS,
+      '.bh-root .bh-multi-selected {',
+      personabotsCss.contact,
+      sharedCss.note,
+      channelsCss.main,
+      timelineCss.chatLayout,
+      channelsCss.composerReply,
+      releaseCss.releaseNote,
+      sharedCss.cardList,
+      STYLEX_CSS,
+    ];
+    const offsets = fragments.map((fragment) => CSS.indexOf(fragment));
+    expect(offsets.every((offset) => offset >= 0)).toBe(true);
+    expect(offsets).toEqual(offsets.toSorted((left, right) => left - right));
+    expect(CSS.endsWith(STYLEX_CSS)).toBe(true);
+  });
+
+  it('uses Tobs colours in Bot-mode styles', () => {
+    expect(CSS).not.toMatch(/--dsw-|--dsh-content-font-size/);
+  });
   it('keeps the working indicators static while Bots stream', () => {
     expect(source).toContain(
       ".bh-row-glyph[data-status='working'] { color: var(--tobs-status-success-base); }",
@@ -71,15 +103,9 @@ describe('client styles', () => {
     expect(entries.length).toBeLessThanOrEqual(3);
   });
 
-  it('wires the measured native row geometry and spacing', () => {
-    expect(source).toMatch(/\.bh-section-head \{[^}]*height: 24px/);
-    expect(source).toMatch(/\.bh-section-head \{[^}]*gap: 6px/);
-    expect(source).toMatch(/\.bh-section-head \{[^}]*padding: 0 8px/);
-    expect(source).toMatch(/\.bh-channel-row \{[^}]*min-height: 48px/);
-    expect(source).toMatch(/\.bh-channel-row \{[^}]*padding: 7px 8px/);
+  it('keeps spacing between roster rows and blocks', () => {
     expect(source).toMatch(/\.bh-list-area > \* \+ \* \{\s*margin-top: 2px/);
     expect(source).toMatch(/\.bh-section \+ \.bh-section \{\s*margin-top: 12px/);
-    expect(source).toMatch(/\.bh-section-head:hover \.bh-row-actions,[^}]*display: inline-flex/);
   });
   it('fades only timeline alpha while keeping the channel island and composer outside the mask', () => {
     expect(source).toMatch(/\.bh-topbar \{[^}]*position: absolute/);
@@ -100,23 +126,11 @@ describe('client styles', () => {
     expect(source).not.toMatch(/\.bh-channel-sidebar-head \{[^}]*border-bottom:/);
   });
 
-  it('keeps the glyph-free section header muted with a 12px block break', () => {
+  it('keeps the section block spacing in the roster and retires the section control overrides', () => {
     expect(source).not.toContain('bh-arrow');
     expect(source).not.toContain('bh-row-slot');
-    expect(source).toMatch(/\.bh-section-name \{[^}]*color: var\(--tobs-ink-tertiary\)/);
+    expect(source).not.toContain('.bh-section-head {');
     expect(source).toMatch(/\.bh-section \+ \.bh-section \{\s*margin-top: 12px/);
-  });
-
-  it('brightens the Discord header on hover instead of filling it', () => {
-    expect(source).not.toMatch(/\.bh-section-head:hover[^}]*background/);
-    expect(source).toMatch(/\.bh-section-head:hover \.bh-section-name/);
-    expect(source).toMatch(/\.bh-section-chevron \{\s*[^}]*color: var\(--tobs-ink-tertiary\)/);
-    expect(source).toMatch(
-      /\.bh-section-chevron\.bh-chevron-collapsed \{\s*transform: rotate\(-90deg\)/,
-    );
-    expect(source).toMatch(
-      /\.bh-section-chevron \{\s*[^}]*transition: transform 150ms var\(--ds-ease-in-out\)/,
-    );
   });
 
   it('carries the native channel drag insert-line recipe', () => {
@@ -162,12 +176,11 @@ describe('client styles', () => {
     );
     expect(source).toMatch(/\.bh-unpin-zone-active \{[^}]*background: var\(--bh-hover\)/);
     expect(source).not.toContain('.bh-roster-list-unpin-target');
-    expect(source).toMatch(/\.bh-pinned\.bh-drag-source \{\s*opacity: 0\.4/);
+    expect(source).not.toContain('.bh-pinned.bh-drag-source {');
   });
 
   it('keeps context-menu positioning out of feature CSS', () => {
     expect(source).not.toContain('.bh-menu-anchor');
-    expect(source).toMatch(/\.bh-move-checked \{\s*display: flex/);
   });
 
   it('moves bubble copy/reply actions into the long-press menu on narrow screens', () => {
@@ -187,26 +200,15 @@ describe('client styles', () => {
     expect(source).toMatch(/\.bh-bubble-toolbar:has\(\[aria-expanded='true'\]\) \{\s*opacity: 1;/);
   });
 
-  it('fits ordered Channels into the native 36px collapsed rail and separates pins', () => {
-    expect(source).toMatch(/\.bh-rail-group \{[^}]*width: 36px/);
-    expect(source).toMatch(/\.bh-rail-channel \{[^}]*width: 36px;[^}]*height: 36px/);
-    expect(source).toMatch(
-      /\.bh-rail-divider \{[^}]*border-top: 0\.5px solid var\(--tobs-line-strong\)/,
-    );
-    expect(source).toMatch(/\.bh-rail-preview \{[^}]*display: flex/);
-    expect(source).toMatch(
-      /\.bh-rail-preview-meta,[^{]*\.bh-rail-preview-description \{[^}]*color: var\(--tobs-ink-tertiary\)/,
-    );
-    expect(source).toMatch(/\.bh-rail-preview-summary \{[^}]*color: var\(--tobs-ink-secondary\)/);
+  it('keeps the retired rail divider and row rules out of legacy CSS', () => {
+    expect(source).not.toContain('.bh-rail-channel {');
+    expect(source).not.toContain('.bh-rail-divider');
   });
 
-  it('keeps hidden-channel rows inside the shared dialog body', () => {
+  it('leaves hidden Channel layout to the shared dialog and its token styles', () => {
     expect(source).not.toContain('.bh-hidden-manager');
-    expect(source).toMatch(/\.bh-hidden-search \{[^}]*box-sizing: border-box;[^}]*width: 100%/);
-    expect(source).toMatch(
-      /\.bh-hidden-row \{[^}]*box-sizing: border-box;[^}]*gap: 8px;[^}]*min-height: 40px;[^}]*padding: 2px 4px/,
-    );
-    expect(source).not.toContain('min-width: min(420px, calc(100vw - 48px))');
+    expect(source).not.toContain('.bh-hidden-search');
+    expect(source).not.toContain('.bh-hidden-row');
   });
 
   it('copies the native rename input box model without portaled overrides', () => {
@@ -223,29 +225,27 @@ describe('client styles', () => {
     expect(source).not.toMatch(/@keyframes bh-avatar-(breathe|work|search|code|execute)\b/);
     expect(source).not.toContain('.bh-avatar-botui');
     expect(source).not.toContain('--botui-anim');
-    expect(source).toContain("html[data-botharness-motion='full'] .bh-motion-preview-sample i");
+    expect(source).not.toContain('.bh-motion-preview');
   });
 
   it('keeps the composer island token-driven and clear of the message scroll area', () => {
+    const chrome = readFileSync(
+      new URL('../src/client/ds/chat-chrome.tsx', import.meta.url),
+      'utf8',
+    );
     expect(source).toMatch(/\.bh-composer \{[^}]*min-height: 50px/);
     expect(source).toContain(
       '.bh-composer-rich-input:not(:has(> br[data-rich-placeholder]:last-child))::after',
     );
-    expect(source).toMatch(
-      /\.bh-composer \{[^}]*border-radius: calc\(var\(--tobs-style-radius-sheet\) \+ 8px\)/,
-    );
+    expect(chrome).toContain('borderRadius: style.radiusComposer');
     expect(source).toMatch(/\.bh-composer \{[^}]*--bh-composer-footer-padding: 10px 12px 48px/);
     expect(source).toMatch(/\.bh-composer \{[^}]*padding: var\(--bh-composer-padding,/);
     expect(source).toMatch(/\.bh-composer \{[^}]*transition:\s*padding 180ms var\(--bh-ease-out\)/);
-    expect(source).toMatch(
-      /\.bh-composer \.bh-send-btn[^{]*\{[^}]*width: 32px;[^}]*height: 32px;[^}]*border-radius: 50%/,
+    expect(chrome).toMatch(
+      /control: \{[^}]*width: size.controlLarge,[^}]*height: size.controlLarge,[^}]*borderRadius: radius.full/,
     );
-    expect(source).toMatch(
-      /\.bh-composer-add-file \{[^}]*width: 32px; height: 32px;[^}]*border-radius: 50%/,
-    );
-    expect(source).toMatch(
-      /\.bh-composer \{[^}]*background: light-dark\(var\(--tobs-layer-raised\), var\(--tobs-layer-elevated\)\);[^}]*box-shadow: var\(--tobs-elevation-1\)/,
-    );
+    expect(chrome).toContain('light-dark(${layer.raised}, ${layer.elevated})');
+    expect(chrome).toContain('boxShadow: elevation.x1');
     expect(source).toMatch(/\.bh-composer-shell \{[^}]*safe-area-inset-bottom/);
     expect(source).not.toContain('.bh-composer-activity');
     expect(source).toMatch(/\.bh-composer-input \{[^}]*max-height: 144px/);
@@ -257,7 +257,7 @@ describe('client styles', () => {
     expect(source).toMatch(
       /\.bh-composer-first-expand \.bh-composer-body \{[^}]*transition: height 180ms/,
     );
-    expect(source).toMatch(/\.bh-composer-add-file \{[^}]*bottom: 9px/);
+    expect(chrome).toMatch(/attachment: \{[^}]*position: 'absolute',[^}]*bottom: '9px'/);
     expect(source).toMatch(/\.bh-composer-footer \{[^}]*bottom: 9px/);
     expect(source).not.toMatch(/\n\.bh-composer-add-file \{[^}]*transition:/);
     expect(source).not.toMatch(/\n\.bh-composer-footer \{[^}]*transition:/);

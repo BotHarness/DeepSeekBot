@@ -157,6 +157,7 @@ function RemoteActivityDetail({
           actions={actions}
           channelId={item.channelId}
           hostScoped
+          inset
           t={t}
         />
       ) : (

@@ -40,6 +40,7 @@ let beta;
 let originalHidden;
 let browser;
 let runError;
+const cleanupErrors = [];
 try {
   const nonce = Date.now();
   const alphaName = `AX 453 Alpha ${nonce}`;
@@ -131,9 +132,8 @@ try {
   assert((await names()).includes(betaName), 'reopened modal starts unfiltered');
   assert.deepEqual(errors, []);
 } catch (error) {
-  runError = error;
+  runError = error instanceof Error ? error : new Error(String(error), { cause: error });
 } finally {
-  const cleanupErrors = [];
   try {
     await browser?.close();
   } catch (error) {
@@ -154,12 +154,12 @@ try {
       cleanupErrors.push(error);
     }
   }
-  if (cleanupErrors.length > 0) {
-    throw new AggregateError(
-      runError === undefined ? cleanupErrors : [runError, ...cleanupErrors],
-      'Hidden-Channel regression cleanup failed',
-    );
-  }
+}
+if (cleanupErrors.length > 0) {
+  throw new AggregateError(
+    runError === undefined ? cleanupErrors : [runError, ...cleanupErrors],
+    'Hidden-Channel regression cleanup failed',
+  );
 }
 if (runError !== undefined) throw runError;
 const channelIds = new Set((await rpc('channels')).channels.map((channel) => channel.id));

@@ -1,9 +1,12 @@
+import { readChannel, setChannelHumanName } from '@botharness/host-client/channel-management';
 import type { HostClient } from '@botharness/host-client/client';
 import {
   createHumanAvatarCache,
-  parseChannelNickname,
-  parseHumanAvatars,
-  parseHumanIdentity,
+  readHumanAvatars,
+  readHumanIdentity,
+  setHumanName,
+  setHumanAvatar,
+  finishHumanProfile,
   type HumanAvatarCache,
   type HumanIdentity,
 } from '@botharness/host-client/human-profile';
@@ -19,15 +22,13 @@ const caches = new WeakMap<HostClient, HumanAvatarCache>();
 export function humanAvatarCache(client: HostClient): HumanAvatarCache {
   let cache = caches.get(client);
   if (cache === undefined) {
-    cache = createHumanAvatarCache(async (humanIds) => ({
-      avatars: parseHumanAvatars(await client.call<unknown>('humanAvatars', { humanIds })),
-    }));
+    cache = createHumanAvatarCache((humanIds) => readHumanAvatars(client, humanIds));
     caches.set(client, cache);
   }
   return cache;
 }
 
-const idle: HumanAvatarCache = createHumanAvatarCache(async () => ({ avatars: [] }));
+const idle: HumanAvatarCache = createHumanAvatarCache(async () => []);
 
 export function useHumanAvatar(
   client: HostClient | undefined,
@@ -76,7 +77,7 @@ function remember(client: HostClient, identity: HumanIdentity, write = false): H
 
 export async function loadHumanIdentity(client: HostClient): Promise<HumanIdentity> {
   const commit = sequence.begin(client);
-  const identity = parseHumanIdentity(await client.call<unknown>('humanIdentity'));
+  const identity = await readHumanIdentity(client);
   const newer = identities.get(client);
   return !commit() && newer !== undefined ? newer : remember(client, identity);
 }
@@ -89,18 +90,14 @@ export async function saveHumanName(
   client: HostClient,
   name: string | null,
 ): Promise<HumanIdentity> {
-  return remember(
-    client,
-    parseHumanIdentity(await client.call<unknown>('humanNameSet', { displayName: name })),
-    true,
-  );
+  return remember(client, await setHumanName(client, name), true);
 }
 
 export async function saveHumanAvatar(
   client: HostClient,
   avatar: string | null,
 ): Promise<HumanIdentity> {
-  const identity = parseHumanIdentity(await client.call<unknown>('humanAvatarSet', { avatar }));
+  const identity = await setHumanAvatar(client, avatar);
   if (avatar !== null && identity.avatarVersion !== undefined)
     humanAvatarCache(client).put({
       humanId: identity.humanId,
@@ -111,11 +108,7 @@ export async function saveHumanAvatar(
 }
 
 export async function finishHumanProfileSetup(client: HostClient): Promise<HumanIdentity> {
-  return remember(
-    client,
-    parseHumanIdentity(await client.call<unknown>('humanProfileSetupFinish', {})),
-    true,
-  );
+  return remember(client, await finishHumanProfile(client), true);
 }
 
 export function useHumanIdentity(client: HostClient | undefined) {
@@ -133,7 +126,7 @@ export async function loadChannelNickname(
   client: HostClient,
   channelId: string,
 ): Promise<string | null> {
-  return parseChannelNickname(await client.call<unknown>('channelGet', { channelId }));
+  return (await readChannel(client, channelId)).nickname;
 }
 
 export async function saveChannelNickname(
@@ -141,9 +134,7 @@ export async function saveChannelNickname(
   channelId: string,
   nickname: string | null,
 ): Promise<string | null> {
-  const value = parseChannelNickname(
-    await client.call<unknown>('channelHumanNameSet', { channelId, nickname }),
-  );
+  const result = await setChannelHumanName(client, channelId, nickname);
   await client.refresh().catch(() => undefined);
-  return value;
+  return result.nickname;
 }

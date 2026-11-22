@@ -1,3 +1,12 @@
+import {
+  finishHumanProfile,
+  readHumanAvatars,
+  readHumanIdentity,
+  setHumanAvatar,
+  setHumanName,
+} from '@botharness/host-client/human-profile';
+import { readRoster, applyRosterBatch } from '@botharness/host-client/roster-readers';
+import { setBotAvatar } from '@botharness/host-client/bot-control';
 export { PROFILE_OPTIONS } from './cli-option-spec.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolveBotDm } from './cli-bot-dm.js';
@@ -440,9 +449,21 @@ export async function runProfileCommand(
 ): Promise<unknown> {
   const [method, args, dmSlug] = await profileCall(command, rest, values, io);
   const rpc = await connect();
+  const reader = { call: (name: string, payload = {}) => rpc(name, payload) };
+  if (method === 'humanIdentity') return readHumanIdentity(reader);
+  if (method === 'humanNameSet') return setHumanName(reader, args['displayName'] as string | null);
+  if (method === 'humanAvatarSet') return setHumanAvatar(reader, args['avatar'] as string | null);
+  if (method === 'humanAvatars')
+    return { avatars: await readHumanAvatars(reader, args['humanIds'] as string[]) };
+  if (method === 'humanProfileSetupFinish') return finishHumanProfile(reader);
+  if (method === 'rosterGet') return readRoster(reader);
+  if (method === 'rosterBatch') return applyRosterBatch(reader, args);
+  const channelId = dmSlug === undefined ? undefined : await resolveBotDm(rpc, dmSlug);
+  if (method === 'botAvatarSet' && channelId !== undefined)
+    return setBotAvatar(reader, { channelId, avatar: args['avatar'] }, true);
   const result = await rpc<unknown>(
     method,
-    dmSlug === undefined ? args : { ...args, channelId: await resolveBotDm(rpc, dmSlug) },
+    channelId === undefined ? args : { ...args, channelId },
   );
   if (command !== 'part-library-export') return result;
   const exported = result as { fileName?: unknown; data?: unknown };

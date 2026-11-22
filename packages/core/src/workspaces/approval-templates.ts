@@ -332,7 +332,10 @@ const POLICY_CHANGE_PATTERNS: readonly RegExp[] = [
   /botharness\.db|persona_bots|tool_approval_rules/iu,
 ];
 
-const PUBLISH_PATTERNS: readonly RegExp[] = [/marketplace-upload\b/iu, /\bmarketplaceUpload\b/u];
+const PUBLISH_PATTERNS: readonly RegExp[] = [
+  /marketplace-(?:upload|avatar-publish)\b/iu,
+  /\bmarketplace(?:Upload|AvatarPublish)\b/u,
+];
 
 export function publishesBotMemory(input: string): boolean {
   return PUBLISH_PATTERNS.some((pattern) => pattern.test(input));

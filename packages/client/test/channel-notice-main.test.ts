@@ -1,131 +1,49 @@
 // @vitest-environment jsdom
-import {
-  act,
-  Fragment,
-  createElement,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { type BotSummary } from '../src/client/store.js';
+import { type ChannelSummary } from '../src/client/store.js';
+import { menuItem, openSubmenu } from './primitive-mocks.js';
+import { act, Fragment, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 type TestMenuItem = { id: string; label?: ReactNode; disabled?: boolean; submenu?: TestMenuItem[] };
 
-vi.mock('../src/client/ds/button.js', async () => ({
-  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
-}));
-vi.mock('../src/client/ds/input.js', async () => ({
-  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
-}));
-vi.mock('../src/client/ds/switch.js', async () => ({
-  Switch: (await import('@deepseek-ai/dsh-client-ui-primitives')).Switch,
-}));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   const flatten = (items: TestMenuItem[]): TestMenuItem[] =>
     items.flatMap((item) => [item, ...flatten(item.submenu ?? [])]);
   return {
-    Toast: stub,
-    IconCodeOutlineRegular: () => null,
-    HoverCard: ({ anchor }: { anchor: unknown }) => anchor,
-    Button: ({
-      children,
-      variant: _variant,
-      size: _size,
-      ...props
-    }: ButtonHTMLAttributes<HTMLButtonElement> & {
-      variant?: string;
-      size?: string;
-    }) => createElement('button', props, children),
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
     IconAgentPresetOutline16: stub,
-    IconAgentPresetOutlineRegular: stub,
-    IconCheckOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconBranchOutlineRegular: stub,
-    IconChevronLeftOutlineRegular: stub,
-    IconChevronRightOutlineRegular: stub,
+
     IconChevronDownOutline14: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconDownloadOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
+
     IconCloseFill14: stub,
     IconCopyOutline16: stub,
-    IconCopyOutlineRegular: stub,
+
     IconCloseOutline16: stub,
     IconEllipsisOutline16: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
-    IconUserOutlineRegular: stub,
-    IconFolderCloseRegular: stub,
-    IconFolderOpenRegular: stub,
+
     IconFolderOpenOutline16: stub,
     IconNewChatOutline16: stub,
     IconPanelLeftOutline16: stub,
-    IconPanelLeftOutlineRegular: stub,
-    IconPaperclipOutlineRegular: stub,
+
     IconPlusOutline16: stub,
-    IconRefreshOutlineRegular: stub,
-    IconWrapLinesOutlineRegular: stub,
+
     IconSearchOutline16: stub,
     IconSendOutline16: stub,
-    IconSendOutlineRegular: stub,
+
     IconTrashOutline16: stub,
     FileTypeIcon: stub,
     ImageLightbox: stub,
-    Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-    Menu: ({
-      anchor,
-      open,
-      items = [],
-      onSelect,
-      children,
-      selectedId,
-    }: {
-      anchor: ReactNode;
-      open: boolean;
-      items?: TestMenuItem[];
-      selectedId?: string;
-      onSelect?: (id: string) => void;
-      children?: ReactNode;
-    }) =>
-      createElement(
-        'span',
-        null,
-        anchor,
-        open
-          ? createElement(
-              'div',
-              { role: 'menu' },
-              ...flatten(items).map((item) =>
-                createElement(
-                  'button',
-                  {
-                    key: item.id,
-                    role: 'menuitem',
-                    disabled: 'disabled' in item && item.disabled === true,
-                    'aria-current': selectedId === item.id ? 'true' : undefined,
-                    onClick: () => onSelect?.(item.id),
-                  },
-                  item.label,
-                ),
-              ),
-              children,
-            )
-          : null,
-      ),
-    MenuSurface: ({ children }: { children: ReactNode }) =>
-      createElement('div', { role: 'menu' }, children),
-    MenuItemButton: ({ children, onSelect }: { children: ReactNode; onSelect: () => void }) =>
-      createElement('button', { role: 'menuitem', onClick: onSelect }, children),
+
     MarkdownText: stub,
-    Modal: stub,
-    Switch: ({ label, checked, onChange }: { label: string; checked: boolean; onChange(): void }) =>
-      createElement('input', { type: 'checkbox', 'aria-label': label, checked, onChange }),
+
     StateDot: stub,
-    Tag: stub,
-    Tooltip: ({ children }: { children: ReactNode }) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
@@ -137,7 +55,7 @@ import { zhTranslate } from '../src/client/locale.js';
 import { BotMain } from '../src/client/bot-main.js';
 import { createChannelSidebarRegistry } from '../src/client/channel-sidebar.js';
 import { toggleHiddenDmAction } from '../src/client/dm-actions.js';
-import { store, type BotSummary, type ChannelSummary } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 import { inertSubmissionActions } from './inert-submissions.js';
 
 const AT = '2026-10-09T00:00:00Z';
@@ -469,9 +387,9 @@ describe('Channel Notices in a Group', () => {
     });
     await render();
     const click = async (text: string) => {
-      const button = [...document.querySelectorAll<HTMLButtonElement>('button')].find(
-        (item) => item.textContent === text || item.getAttribute('aria-label') === text,
-      );
+      const button = [
+        ...document.querySelectorAll<HTMLButtonElement>('button, [role="menuitem"]'),
+      ].find((item) => item.textContent === text || item.getAttribute('aria-label') === text);
       expect(button, `button ${text}`).toBeDefined();
       await act(async () => button!.click());
     };
@@ -480,14 +398,15 @@ describe('Channel Notices in a Group', () => {
       '详细',
     );
     await click('History options');
+    await openSubmenu(menuItem(zhTranslate('dmTrace.menu')));
     await click('记忆显示：简约');
     expect(container.textContent).toContain('在 #Launch crew 更新了记忆');
     expect(container.textContent).not.toContain('Remember the launch date');
     expect(container.textContent).not.toContain('launch.md');
     expect(container.textContent).not.toContain('aaaaaaa');
-    const compact = [...container.querySelectorAll<HTMLButtonElement>('button')].find(
-      (item) => item.textContent === 'Mira在 #Launch crew 更新了记忆',
-    );
+    const compact = [
+      ...container.querySelectorAll<HTMLButtonElement>('button, [role="menuitem"]'),
+    ].find((item) => item.textContent === 'Mira在 #Launch crew 更新了记忆');
     expect(compact?.title).not.toContain(commit.sha);
     await act(async () => compact!.click());
     expect(memoryGitCommitDiff).toHaveBeenCalledWith(channel.id, commit.sha);
@@ -504,7 +423,7 @@ describe('Channel Notices in a Group', () => {
       }),
     );
     expect(
-      [...container.querySelectorAll('button')].filter(
+      [...container.querySelectorAll<HTMLElement>('button, [role="menuitem"]')].filter(
         (item) => item.textContent === 'Mira在 #Launch crew 更新了记忆',
       ),
     ).toHaveLength(2);
@@ -518,7 +437,9 @@ describe('Channel Notices in a Group', () => {
       '简约',
     );
     expect(container.textContent).not.toContain('Remember the launch date');
-    const memorySwitch = container.querySelector<HTMLInputElement>('input[aria-label="记忆更新"]')!;
+    const memorySwitch = container.querySelector<HTMLButtonElement>(
+      '[role="switch"][aria-label="记忆更新"]',
+    )!;
     await act(async () => memorySwitch.click());
     expect(container.querySelector<HTMLButtonElement>('[aria-label="记忆显示"]')?.disabled).toBe(
       true,

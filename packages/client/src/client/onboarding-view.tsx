@@ -1,4 +1,13 @@
+import * as stylex from '@stylexjs/stylex';
+import { Note } from './ds/note.js';
+import { layer, space, style } from './ds/tobs.stylex.js';
+import { observeResource } from './messaging-defaults-live.js';
+import { visibleInterval } from './visible-interval.js';
+import { Checkbox } from './ds/checkbox.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
+import { ChoiceButton } from './ds/choice-button.js';
+import { Icon } from './ds/icon.js';
 import {
   selectConversationChannel,
   selectConversationSending,
@@ -6,17 +15,18 @@ import {
   useClientStore,
 } from './use-client-store.js';
 import { useState, useSyncExternalStore, type ReactElement } from 'react';
-import { Checkbox, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { TutorialAction } from '../../../core/src/onboarding/types.js';
 import type { BridgeActions } from './actions.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { BotBannerArt, bannerOf } from './bot-banner.js';
 import { botModeSidebarViewport } from './bot-mode-sidebar-viewport.js';
-import type { ModelCatalogEntryView, ModelRouteView } from './bridge.js';
+import type { ModelCatalogEntryView, ModelCatalogGroupView, ModelRouteView } from './bridge.js';
 import { errorMessage } from './bridge.js';
 import { ModelPicker } from './model-picker.js';
 import { ModelBrandIcon } from './model-brand.js';
-import { catalogMenuItems } from './model-menu.js';
+import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { catalogMenuItems, groupMenuId, groupMenuKey } from './model-menu.js';
 import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
 import { SettingsRow } from './ds/settings-row.js';
 import { Modal } from './modal.js';
@@ -38,6 +48,20 @@ import { startBotSessionsTour, takeSessionsTourReturn } from './onboarding-sessi
 
 const ONBOARDING_VIEW_FIELDS = ['bots', 'channels'] as const;
 
+const modelStyles = stylex.create({
+  form: { display: 'grid', gap: space.x5, minWidth: 0, lineHeight: style.textUiLine },
+  request: {
+    display: 'grid',
+    gap: space.x2,
+    padding: space.x4,
+    borderRadius: style.radiusContainer,
+    backgroundColor: layer.well,
+  },
+  prompt: { margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' },
+  action: { justifySelf: 'start' },
+  scope: { display: 'grid', gap: space.x2 },
+});
+
 export function OnboardingModelDialog({
   actions,
   slug,
@@ -53,14 +77,21 @@ export function OnboardingModelDialog({
   slug?: string;
   title: string;
   onClose(): void;
-  onConfirm(route: ModelRouteView, globalDefault: boolean, revision: number): Promise<void>;
+  onConfirm(
+    choice: ModelRouteView | { groupId: string; effort?: string },
+    globalDefault: boolean,
+    revision: number,
+  ): Promise<void>;
   t: BotHarnessTranslate;
   globalOnly?: boolean;
   onProviderSettings?: () => void;
   request?: string | undefined;
 }): ReactElement {
   const [models, setModels] = useState<ModelCatalogEntryView[]>([]);
+  const [groups, setGroups] = useState<ModelCatalogGroupView[]>([]);
   const [route, setRoute] = useState<ModelRouteView>();
+  const [groupId, setGroupId] = useState<string | null>();
+  const [groupEffort, setGroupEffort] = useState<string>();
   const [revision, setRevision] = useState(0);
   const [globalDefault, setGlobalDefault] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -74,7 +105,23 @@ export function OnboardingModelDialog({
         slug ? actions.modelPlanState(slug) : Promise.resolve(undefined),
       ]);
       setModels(catalog.models);
+      setGroups(catalog.groups ?? []);
       setRevision(state?.revision ?? state?.plan?.revision ?? 0);
+      setGroupId((previous) =>
+        previous !== undefined
+          ? previous
+          : state?.plan === undefined
+            ? (catalog.defaultGroupId ?? null)
+            : (state.plan.orchestratorGroupId ?? null),
+      );
+      setGroupEffort(
+        (previous) =>
+          previous ??
+          (state?.plan === undefined
+            ? catalog.defaultGroupEffort
+            : state.plan.orchestratorGroupEffort) ??
+          '',
+      );
       const selected = state?.plan?.orchestrator ?? catalog.default;
       setRoute(
         (previous) =>
@@ -98,12 +145,29 @@ export function OnboardingModelDialog({
   const selected = models.find(
     (model) => model.provider === route?.provider && model.model === route.model,
   );
+  const group =
+    typeof groupId === 'string'
+      ? catalogMenuItems(models, t, groups).find((item) => item.group === groupId)
+      : undefined;
+  const ready =
+    group !== undefined
+      ? group.disabled !== true
+      : typeof groupId !== 'string' &&
+        route !== undefined &&
+        selected !== undefined &&
+        selected.credential === undefined;
   const confirm = async (): Promise<void> => {
-    if (!route || busy || !selected || selected.credential !== undefined) return;
+    if (!ready || busy) return;
     setBusy(true);
     setError(undefined);
     try {
-      await onConfirm(route, globalDefault, revision);
+      await onConfirm(
+        group !== undefined
+          ? { groupId: group.group!, ...(groupEffort ? { effort: groupEffort } : {}) }
+          : route!,
+        globalDefault,
+        revision,
+      );
     } catch (cause) {
       setError(errorMessage(cause));
     } finally {
@@ -117,36 +181,46 @@ export function OnboardingModelDialog({
       closeLabel={t('common.close')}
       onClose={onClose}
       footer={
-        <Button
-          variant="primary"
-          disabled={busy || !selected || selected.credential !== undefined}
-          onClick={() => void confirm()}
-        >
+        <Button variant="primary" disabled={busy || !ready} onClick={() => void confirm()}>
           {t(globalOnly ? 'onboarding.saveDefault' : 'onboarding.saveModel')}
         </Button>
       }
     >
-      <div ref={mount} className="bh-root bh-onboarding-model-form">
+      <div ref={mount} {...stylex.props(modelStyles.form)}>
         {request ? (
-          <div className="bh-onboarding-request">
-            <span className="bh-note">{t('onboarding.requestLabel')}</span>
-            <p>{request}</p>
+          <div data-onboarding-request="" {...stylex.props(modelStyles.request)}>
+            <Note>{t('onboarding.requestLabel')}</Note>
+            <p {...stylex.props(modelStyles.prompt)}>{request}</p>
           </div>
         ) : null}
         <ModelPicker
           title={t('onboarding.model')}
           hint={t(globalOnly ? 'onboarding.defaultDescription' : 'onboarding.modelHint')}
           choice={{
-            key: route ? JSON.stringify([route.provider, route.model]) : '',
-            effort: route?.reasoningEffort ?? '',
+            key:
+              group !== undefined
+                ? group.value
+                : route
+                  ? JSON.stringify([route.provider, route.model])
+                  : '',
+            effort: group !== undefined ? (groupEffort ?? '') : (route?.reasoningEffort ?? ''),
           }}
           catalog={models}
+          groups={groups}
+          groupEffort
           options={models.map((model) => ({
             value: JSON.stringify([model.provider, model.model]),
             label: model.modelName,
             hint: model.providerName + (model.credential ? ' · ' + t('onboarding.needsKey') : ''),
           }))}
           onChange={({ key, effort }) => {
+            const picked = groupMenuId(key);
+            if (picked !== undefined) {
+              setGroupId(picked);
+              setGroupEffort(effort);
+              return;
+            }
+            setGroupId(null);
             const [provider, model] = JSON.parse(key) as [string, string];
             setRoute({
               provider,
@@ -158,29 +232,32 @@ export function OnboardingModelDialog({
           t={t}
         />
         {!loaded ? <p role="status">{t('modelPreset.loading')}</p> : null}
-        <SidebarCardList label={t('failure.openModels')}>
-          <SidebarCardRow
-            icon="settings"
-            title={t('failure.openModels')}
-            meta={
-              selected?.credential || (loaded && models.length === 0)
-                ? t('onboarding.keyHint')
-                : t('onboarding.providerSettingsHint')
+        <ChoiceButton
+          leading={<Icon name="settings" />}
+          title={t('failure.openModels')}
+          description={
+            selected?.credential || (loaded && models.length === 0)
+              ? t('onboarding.keyHint')
+              : t('onboarding.providerSettingsHint')
+          }
+          disabled={busy}
+          onClick={() => {
+            if (onProviderSettings) onProviderSettings();
+            else {
+              onClose();
+              openModelsSettings();
             }
-            disabled={busy}
-            onClick={() => {
-              if (onProviderSettings) onProviderSettings();
-              else {
-                onClose();
-                openModelsSettings();
-              }
-            }}
-          />
-        </SidebarCardList>
-        <Button variant="ghost" disabled={busy} onClick={() => void load()}>
+          }}
+        />
+        <Button
+          variant="ghost"
+          className={stylex.props(modelStyles.action).className}
+          disabled={busy}
+          onClick={() => void load()}
+        >
           {t('onboarding.refreshModels')}
         </Button>
-        <div className="bh-onboarding-model-scope">
+        <div {...stylex.props(modelStyles.scope)}>
           {!globalOnly ? (
             <Checkbox
               checked={globalDefault}
@@ -189,13 +266,9 @@ export function OnboardingModelDialog({
               disabled={busy}
             />
           ) : null}
-          <p className="bh-note">{t('onboarding.globalHint')}</p>
+          <Note>{t('onboarding.globalHint')}</Note>
         </div>
-        {error ? (
-          <p role="alert" className="bh-error">
-            {error}
-          </p>
-        ) : null}
+        {error ? <Note tone="danger">{error}</Note> : null}
       </div>
     </Modal>
   );
@@ -558,11 +631,11 @@ export function OnboardingOverlay({
       else if (snapshot.git?.available && controller.getSnapshot().error === 'git-not-found')
         void controller.enter(companion);
     });
-    const timer = setInterval(() => {
-      if (active && store.getSnapshot().mode === 'bot' && !controller.getSnapshot().busy)
-        void controller.refresh(store.getSnapshot().conversation.channel?.botSlug);
-    }, 5000);
-    const evidenceTimer = setInterval(() => {
+    const stopObserving = observeResource('onboarding', () => {
+      if (active && store.getSnapshot().mode === 'bot')
+        return controller.refresh(store.getSnapshot().conversation.channel?.botSlug);
+    });
+    const stopEvidence = visibleInterval(() => {
       const snapshot = controller.getSnapshot();
       if (
         active &&
@@ -579,8 +652,8 @@ export function OnboardingOverlay({
       controller.closeChecklist();
       unsubscribe();
       unsubscribeCompanion?.();
-      clearInterval(timer);
-      clearInterval(evidenceTimer);
+      stopObserving();
+      stopEvidence();
     };
   }, [actions, companion]);
   const tourMount = useMountedResource<HTMLSpanElement>(() => {
@@ -676,10 +749,10 @@ export function OnboardingOverlay({
             </Button>
           }
         >
-          <div className="bh-root bh-onboarding-model-form">
+          <div {...stylex.props(modelStyles.form)}>
             <p className="bh-note">{t('onboarding.sendHint')}</p>
-            <div className="bh-onboarding-request">
-              <span className="bh-note">{t('onboarding.requestLabel')}</span>
+            <div data-onboarding-request="" {...stylex.props(modelStyles.request)}>
+              <Note>{t('onboarding.requestLabel')}</Note>
               <p>{state.pending.body}</p>
             </div>
             <Button
@@ -749,63 +822,82 @@ export function OnboardingSetting({
 
 export function DefaultModelSettings({
   actions,
+  canConfigure,
   t,
 }: {
   actions: BridgeActions;
+  canConfigure: boolean;
   t: BotHarnessTranslate;
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const [models, setModels] = useState<readonly ModelCatalogEntryView[]>([]);
+  const [groups, setGroups] = useState<readonly ModelCatalogGroupView[]>([]);
   const [current, setCurrent] = useState<string>();
-  const mount = useMountedResource<HTMLDivElement>(() => {
+  const load = (): void => {
     void actions.modelCatalog().then((catalog) => {
       setModels(catalog.models);
+      setGroups(catalog.groups ?? []);
       setCurrent(
-        catalog.default === undefined
-          ? ''
-          : JSON.stringify([catalog.default.provider, catalog.default.model]),
+        catalog.defaultGroupId !== undefined
+          ? groupMenuKey(catalog.defaultGroupId)
+          : catalog.default === undefined
+            ? ''
+            : JSON.stringify([catalog.default.provider, catalog.default.model]),
       );
     });
-  }, [actions]);
-  const item = catalogMenuItems(models, t).find((entry) => entry.value === current);
+  };
+  const mount = useMountedResource<HTMLDivElement>(load, [actions]);
+  const item = catalogMenuItems(models, t, groups).find((entry) => entry.value === current);
+  const label = (
+    <>
+      {item?.model === undefined ? null : <ModelBrandIcon brand={item.brand} size={16} />}
+      {item?.group === undefined ? null : <ChannelSidebarIcon name="git-branch" size={16} />}
+      {item?.label ??
+        (current === ''
+          ? t('modelPreset.noDefault')
+          : current === undefined
+            ? t('onboarding.model')
+            : groupMenuId(current) !== undefined
+              ? t('modelPreset.routeUnavailable')
+              : (JSON.parse(current) as string[]).join(' / '))}
+    </>
+  );
   return (
     <SettingsRow
       rootRef={mount}
       title={t('onboarding.defaultTitle')}
       description={t('onboarding.defaultDescription')}
       control={
-        <Button
-          variant="outline"
-          size="sm"
-          title={item?.name}
-          aria-label={
-            item === undefined
-              ? t('onboarding.defaultTitle')
-              : `${t('onboarding.defaultTitle')} · ${item.name}`
-          }
-          onClick={() => setOpen(true)}
-        >
-          {item?.model === undefined ? null : <ModelBrandIcon brand={item.brand} size={16} />}
-          {item?.label ??
-            (current === ''
-              ? t('modelPreset.noPlan')
-              : current === undefined
-                ? t('onboarding.model')
-                : (JSON.parse(current) as string[]).join(' / '))}
-        </Button>
+        canConfigure ? (
+          <Button
+            variant="outline"
+            size="sm"
+            title={item?.name}
+            aria-label={
+              item === undefined
+                ? t('onboarding.defaultTitle')
+                : `${t('onboarding.defaultTitle')} · ${item.name}`
+            }
+            onClick={() => setOpen(true)}
+          >
+            {label}
+          </Button>
+        ) : (
+          <Tag tone="neutral">{label}</Tag>
+        )
       }
     >
-      {open ? (
+      {canConfigure && open ? (
         <OnboardingModelDialog
           actions={actions}
           title={t('onboarding.defaultTitle')}
           t={t}
           globalOnly
           onClose={() => setOpen(false)}
-          onConfirm={async (route) => {
-            await actions.onboardingModel(undefined, 0, route, true);
-            setCurrent(JSON.stringify([route.provider, route.model]));
+          onConfirm={async (choice) => {
+            await actions.onboardingModel(undefined, 0, choice, true);
             setOpen(false);
+            load();
           }}
         />
       ) : null}

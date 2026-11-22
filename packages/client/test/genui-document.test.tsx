@@ -1,35 +1,32 @@
 // @vitest-environment jsdom
-import { act, createElement, StrictMode, type ButtonHTMLAttributes, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { mountAppearanceFixture } from './appearance-fixture.js';
+import { createElement } from 'react';
+import { type Root } from 'react-dom/client';
+import { type GenuiDocumentHandle } from '../../core/src/channels/genui-document-runtime.js';
+import { type GenuiDocumentMountOptions } from '../../core/src/channels/genui-document-runtime.js';
+import { type GenuiDocumentRuntime } from '../../core/src/channels/genui-document-runtime.js';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
+import { type GenuiDocumentActions } from '../src/client/genui-document-view.js';
+import { act, StrictMode } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { GenuiError } from '../../core/src/channels/genui.js';
 import {
   initialGenuiDocumentState,
   parseGenuiDocument,
 } from '../../core/src/channels/genui-document.js';
-import type {
-  GenuiDocumentHandle,
-  GenuiDocumentMountOptions,
-  GenuiDocumentRuntime,
-} from '../../core/src/channels/genui-document-runtime.js';
+
 import { GENUI_EXECUTION_LIMITS } from '../../core/src/channels/genui-execution-limits.js';
 import { GENUI_MIRROR_SHELL } from '../../core/src/channels/genui-mirror-shell.js';
 import { GenuiDocumentCard } from '../src/client/genui-document.js';
-import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
-import type { GenuiDocumentActions } from '../src/client/genui-document-view.js';
+import { en, zhTranslate } from '../src/client/locale.js';
 
 const runtime = vi.hoisted(() => ({ load: vi.fn<() => Promise<GenuiDocumentRuntime>>() }));
 vi.mock('../src/client/genui-document-runtime.js', () => ({
   loadGenuiDocumentRuntime: runtime.load,
 }));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({
-    children,
-    size: _size,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; children: ReactNode }) =>
-    createElement('button', props, children),
-  IconRefreshOutlineRegular: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 const fixture = parseGenuiDocument({
@@ -79,7 +76,9 @@ const mount = vi.fn(
   },
 );
 
+let appearance: ReturnType<typeof mountAppearanceFixture>;
 beforeEach(() => {
+  appearance = mountAppearanceFixture();
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
   vi.useFakeTimers();
   runtime.load.mockReset();
@@ -105,10 +104,9 @@ afterEach(async () => {
   await act(async () => root.unmount());
   container.remove();
   surfaces.length = 0;
-  document.body.removeAttribute('data-ds-dark-theme');
-  document.body.style.removeProperty('--dsh-content-font-size');
   vi.restoreAllMocks();
   vi.useRealTimers();
+  appearance.dispose();
 });
 
 async function render(
@@ -182,29 +180,37 @@ describe('GenUI card integration with the shared renderer owner', () => {
       await act(async () =>
         surface.options.onState({ version: 1, values: { query: `chosen-${index}` } }),
       );
-    await act(async () => document.body.setAttribute('data-ds-dark-theme', ''));
+    await act(async () => {
+      appearance.owner.update({ preference: 'dark' });
+    });
     expect(surface.handle.theme).toHaveBeenLastCalledWith('dark');
     expect(mount).toHaveBeenCalledTimes(count);
     expect(actions.sendGenuiDocumentReply).not.toHaveBeenCalled();
   });
 
-  it('inherits the current content font preference and updates without remounting or saving state', async () => {
-    document.body.style.setProperty('--dsh-content-font-size', '22px');
+  it('inherits the Tobs style message size and updates without remounting or saving state', async () => {
+    appearance.owner.update({ style: 'c' });
     await render();
     const surface = latest();
     await ready(surface);
-    expect(surface.options).toMatchObject({ textScale: 22 / 14 });
+    expect(surface.options).toMatchObject({ textScale: 1 });
     const count = mount.mock.calls.length;
-    await act(async () => document.body.style.setProperty('--dsh-content-font-size', '10px'));
-    expect(updateTextScale).toHaveBeenLastCalledWith(10 / 14);
+    await act(async () => {
+      appearance.owner.update({ style: 'a' });
+    });
+    expect(updateTextScale).toHaveBeenLastCalledWith(13 / 14);
     expect(surface.handle.theme).not.toHaveBeenCalled();
     expect(mount).toHaveBeenCalledTimes(count);
     expect(actions.saveGenuiDocumentView).not.toHaveBeenCalled();
-    await act(async () => document.body.style.removeProperty('--dsh-content-font-size'));
+    await act(async () => {
+      appearance.owner.update({ style: 'c' });
+    });
     expect(updateTextScale).toHaveBeenLastCalledWith(1);
     await act(async () => root.unmount());
     updateTextScale.mockClear();
-    await act(async () => document.body.style.setProperty('--dsh-content-font-size', '22px'));
+    await act(async () => {
+      appearance.owner.update({ style: 'a' });
+    });
     expect(updateTextScale).not.toHaveBeenCalled();
   });
 
@@ -307,11 +313,15 @@ describe('GenUI card integration with the shared renderer owner', () => {
       saved,
     );
     await ready(surface);
-    await act(async () => document.body.setAttribute('data-ds-dark-theme', ''));
+    await act(async () => {
+      appearance.owner.update({ preference: 'dark' });
+    });
     expect(surface.handle.theme).toHaveBeenLastCalledWith('dark');
     await act(async () => root.render(null));
     vi.mocked(surface.handle.theme).mockClear();
-    await act(async () => document.body.removeAttribute('data-ds-dark-theme'));
+    await act(async () => {
+      appearance.owner.update({ preference: 'light' });
+    });
     expect(surface.handle.theme).not.toHaveBeenCalled();
     expect(surface.handle.dispose).toHaveBeenCalledTimes(1);
     expect(vi.getTimerCount()).toBe(0);

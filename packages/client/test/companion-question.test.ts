@@ -1,26 +1,22 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode, type InputHTMLAttributes } from 'react';
+import { type ChannelMessage } from '../src/client/store.js';
+import { type BridgeCall } from '../src/client/bridge.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 import { WindowCompanions } from '../src/client/window-companions.js';
 import { WindowCompanionsView } from '../src/client/window-companions-view.js';
 import { createActions, type BridgeActions } from '../src/client/actions.js';
-import { store, type ChannelMessage } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 import { zhTranslate } from '../src/client/locale.js';
-import type { BridgeCall } from '../src/client/bridge.js';
+
 import { UserQuestionCard } from '../src/client/user-question-card.js';
 import { companionRequests } from '../src/client/companion-requests.js';
 import { BotModePrefs } from '../src/client/bot-mode-prefs.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconRefreshOutlineRegular: () => null,
-  Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
-    createElement('button', props, children),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-  Menu: () => null,
-  IconEllipsisOutlineRegular: () => null,
-  IconCloseFillRegular: () => null,
-  IconNewChatOutlineRegular: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   MarkdownText: () => null,
   StateDot: () => null,
 }));
@@ -71,8 +67,8 @@ function button(node: Element, text: string): HTMLButtonElement {
   )!;
 }
 function choice(node: Element, text: string): HTMLLabelElement {
-  return [...node.querySelectorAll<HTMLLabelElement>('label.bh-card-main')].find((entry) =>
-    entry.textContent?.includes(text),
+  return [...node.querySelectorAll<HTMLLabelElement>('label:has(input[type=checkbox])')].find(
+    (entry) => entry.textContent?.includes(text),
   )!;
 }
 

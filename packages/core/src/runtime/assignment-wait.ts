@@ -36,7 +36,7 @@ export function waitForAssignment(options: {
       if (finished) return;
       finished = true;
       cleanup();
-      reject(error);
+      reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
     };
     const check = (timeout = false) => {
       if (finished) return;

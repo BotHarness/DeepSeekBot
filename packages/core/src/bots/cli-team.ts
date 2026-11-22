@@ -1,3 +1,5 @@
+import { readTeamMode } from '@botharness/host-client/people';
+import { readChannel } from '@botharness/host-client/channel-management';
 export { TEAM_OPTIONS } from './cli-option-spec.js';
 import { botVisibilitySchema, rolePolicySchema } from '../team/bot-contract.js';
 
@@ -38,7 +40,7 @@ export const TEAM_COMMANDS = [
   {
     command: 'roles',
     description:
-      'list | catalog | create --name --permissions | update <roleId> | delete <roleId> --confirm',
+      'list | catalog | create --name --permissions [--models] [--model-providers] [--engine-accounts] | update <roleId> [--models] [--model-providers] [--engine-accounts] | delete <roleId> --confirm',
   },
   {
     command: 'team-mode',
@@ -68,6 +70,8 @@ type TeamValues = {
   before?: string;
   audience?: string;
   models?: string;
+  'model-providers'?: string;
+  'engine-accounts'?: string;
   period?: string;
   'human-id'?: string;
   post?: string;
@@ -112,9 +116,7 @@ function secretJson<T>(schema: z.ZodType<T>, text: string): T {
 
 const memberRow = z.object({ humanId: z.string(), username: z.string() });
 async function memberId(username: string, rpc: Rpc, as?: string): Promise<string> {
-  const mode = z
-    .object({ viewer: z.object({ humanId: z.string() }) })
-    .parse(await rpc('teamMode', {}));
+  const mode = await readTeamMode({ call: (method, args = {}) => rpc(method, args) });
   if (as === username) return mode.viewer.humanId;
   const rows = z.array(memberRow).safeParse(await rpc('members', {}));
   if (!rows.success) throw new CliLiveError('host-protocol-error', 'member-response-invalid');
@@ -294,6 +296,21 @@ export async function runTeamCommand(
     return usage();
   }
   if (command === 'roles') {
+    const providers = values['model-providers'];
+    if (values.models === 'all' && providers !== undefined) return usage();
+    const accounts = values['engine-accounts'];
+    const accountGrants = accounts === undefined ? {} : { engineAccounts: ids(accounts) };
+    const models =
+      values.models === 'all'
+        ? { kind: 'all', ...accountGrants }
+        : values.models === undefined && providers === undefined && accounts === undefined
+          ? undefined
+          : {
+              kind: 'only',
+              routes: ids(values.models ?? ''),
+              ...(providers === undefined ? {} : { providers: ids(providers) }),
+              ...accountGrants,
+            };
     if (action === 'conflicts' && argument && rest.length === 2)
       return rpc('roleConflicts', { username: argument });
     if (action === 'list' && rest.length === 1) return rpc('roles', {});
@@ -305,14 +322,7 @@ export async function runTeamCommand(
         ...(values['policy-stdin']
           ? { policy: secretJson(rolePolicySchema, await secret(io)) }
           : {}),
-        ...(values.models === undefined
-          ? {}
-          : {
-              models:
-                values.models === 'all'
-                  ? { kind: 'all' }
-                  : { kind: 'only', routes: ids(values.models) },
-            }),
+        ...(models === undefined ? {} : { models }),
       });
     if (
       action === 'update' &&
@@ -320,7 +330,7 @@ export async function runTeamCommand(
       rest.length === 2 &&
       (values.name !== undefined ||
         values.permissions !== undefined ||
-        values.models !== undefined ||
+        models !== undefined ||
         values['policy-stdin'])
     )
       return rpc('roleUpdate', {
@@ -328,14 +338,7 @@ export async function runTeamCommand(
         ...(values['policy-stdin']
           ? { policy: secretJson(rolePolicySchema, await secret(io)) }
           : {}),
-        ...(values.models === undefined
-          ? {}
-          : {
-              models:
-                values.models === 'all'
-                  ? { kind: 'all' }
-                  : { kind: 'only', routes: ids(values.models) },
-            }),
+        ...(models === undefined ? {} : { models }),
         ...(values.name === undefined ? {} : { name: values.name }),
         ...(values.permissions === undefined ? {} : { permissions: ids(values.permissions) }),
       });
@@ -365,7 +368,8 @@ export async function runTeamCommand(
       return rpc('ownerTransfer', { humanId, password: await secret(io) });
     }
 
-    if (action === 'status' && rest.length === 1) return rpc('teamMode', {});
+    if (action === 'status' && rest.length === 1)
+      return readTeamMode({ call: (method, args = {}) => rpc(method, args) });
     if ((action === 'on' || action === 'off') && rest.length === 1)
       return rpc('teamModeSet', { enabled: action === 'on' });
     if (action === 'owner-password' && values['password-stdin'] && rest.length === 1) {
@@ -521,7 +525,7 @@ export async function runTeamCommand(
     if (action === 'policy' && argument && rest.length === 2) {
       const snapshot = z
         .object({ policy: channelPolicySchema, policyRevision: channelPolicyRevisionSchema })
-        .parse(await rpc('channelGet', { channelId: argument }));
+        .parse(await readChannel({ call: (method, args = {}) => rpc(method, args) }, argument));
       const policy = channelPolicySchema.safeParse({
         ...snapshot.policy,
         ...(values.post === undefined ? {} : { post: values.post }),

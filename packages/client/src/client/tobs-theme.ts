@@ -14,14 +14,15 @@ import {
 } from './ds/tobs-tokens.generated.js';
 
 export type TobsStyle = keyof typeof TOBS_STYLES;
+type ResolvedTokens = Record<string, string> & Record<keyof (typeof TOBS_TOKENS)['light'], string>;
 
 export function tobsTokens(
   mode: AppearanceMode,
   preset: AppearancePreset,
   primary?: string,
   style: TobsStyle = 'a',
-): Record<string, string> {
-  const tokens: Record<string, string> = {
+): ResolvedTokens {
+  const tokens: ResolvedTokens = {
     ...TOBS_TOKENS[mode],
     ...TOBS_STYLES[style],
   };
@@ -86,11 +87,7 @@ const TONAL: Partial<Record<TobsStyle, Record<AppearanceMode, Record<string, num
   },
 };
 
-function tone(
-  tokens: Record<string, string>,
-  mode: AppearanceMode,
-  style: TobsStyle,
-): Record<string, string> {
+function tone(tokens: ResolvedTokens, mode: AppearanceMode, style: TobsStyle): ResolvedTokens {
   const amounts = TONAL[style]?.[mode];
   const seed = parseColor(tokens['--tobs-accent-solid'] ?? '')?.rgb;
   if (amounts === undefined || seed === undefined) return tokens;

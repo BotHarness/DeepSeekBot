@@ -1,0 +1,188 @@
+---
+Publish: true
+---
+
+# Inbox and attention decisions
+
+Inbox decisions cover what reaches a PersonaBot, what reaches the Human, and when either is interrupted. See the [living architecture](../architecture/botharness-architecture.md) for the integrated design.
+
+## Bot Inbox projects canonical Admissions
+
+<a id="adr-0025"></a>
+<a id="adr-0070"></a>
+
+The Bot Inbox derives from canonical Source Events, PersonaBot-scoped Admissions and Attention Decisions. A Source Event has one body. An Admission records why it qualified, with the applicable policy revision, and cannot grant source access. Admission, wake, observation and handling are separate facts. Archived Bots receive no new Admissions.
+
+The Bot-scoped query projects pending, processing, handled, ignored and needs-repair states with navigable source references when available. A cursor is scoped to its Bot. Content entering the Orchestrator turn or being explicitly read by the Bot establishes observation. A queued turn, metadata listing or Human visit does not. A successful turn settles the exact content it saw, even if it sends no reply. Explicit ignore is a separate Bot-scoped decision for an eligible observed message. Observed work interrupted after side effects begin requires repair.
+
+Why: Canonical bodies and durable attention facts keep Inbox views coherent across restart and edits. Anchoring observation to what reached the Bot lets the Host distinguish unresolved work from delivery attempts and Human reads.
+
+Enforced by: [Bot attention query](../../packages/core/test/bot-attention-query.test.ts), [explicit ignore](../../packages/core/test/bot-inbox-ignore.test.ts), [turn settlement](../../packages/core/test/harvest.test.ts).
+
+## Sources define wake behavior
+
+<a id="adr-0075"></a>
+
+Providers normalize incoming work at the Bridge boundary. The Inbox and Orchestrator use the resulting Source class and Admission reason to decide wake and rendering. Human and Bot DMs, Group mentions, ordinary chatter, membership events and Assignment Reports carry different intent. The Bridge supplies trusted provenance and the Host checks admission and delivery authority.
+
+Why: A common source contract keeps wake, idempotency and hop limits consistent when providers change. Source class preserves the difference between a directed request and ambient context.
+
+Enforced by: [source policy](../../packages/core/test/bot-source-policy.test.ts), [harvest](../../packages/core/test/harvest.test.ts).
+
+## PersonaBots manage their attention within Host gates
+
+<a id="adr-0074"></a>
+<a id="adr-0076"></a>
+
+A PersonaBot can tune its supported source policies and per-Channel preferences through scoped tools. The Human can inspect and override those choices. The Host owns membership and delivery authority, archive restrictions, provider verification, hop limits and idempotency. Policy edits apply to future Admissions and preserve earlier snapshots. They do not replay history.
+
+Channel presets are `all`, `digest`, `mentions` and `silent`. Digest is the default for new memberships and uses configurable count and interval. Mentions-mode ordinary messages can accompany a direct mention in the same Channel. Silent ordinary messages require a Bot read. Direct addresses retain their own wake policy.
+
+Why: Bots can manage noisy Channels themselves, while the Human retains control and the Host continues to apply authorization. Saved policy snapshots make past attention explainable.
+
+Enforced by: [Channel policy tools](../../packages/core/test/group-wake-policy-tools.test.ts), [source policy](../../packages/core/test/bot-source-policy.test.ts), [bounded context](../../packages/core/test/harvest.test.ts).
+
+## One harvest consumes the ready set
+
+<a id="adr-0077"></a>
+
+Each PersonaBot has at most one pending harvest wake. While a turn runs, eligible arrivals mark the set dirty. An idle Bot or the end of the running turn can schedule one bounded harvest. Eligible direct addresses with steer delivery can enter a running turn at the next safe DSH step. A due digest follows a turn boundary. Below-threshold digests and mentions-mode ordinary messages can accompany eligible work in their Channel. Silent items require an explicit read. Passive notices can ride an eligible turn.
+
+Group selection reserves the trigger, nearby chronological context and an oldest-pending slice, within a per-Channel cap of 100 and a shared turn text budget. Omitted items remain pending. An explicit `channel_read` joins only its returned Admissions to the consumption set. Selected work that may have crossed into DSH requires repair after a failure. Work that failed before that boundary can become retryable and waits for another wake or restart.
+
+A completed Assignment Report owns the causal wake. A native completion notice linked to its exact owned Assignment Session and Turn joins that harvest or rides a later turn. The two facts keep separate identity and observation; the notice never wakes work independently.
+
+Why: Coalescing bounds queued work and repeated prompt cost. Oldest-pending selection prevents busy Channels from permanently hiding earlier messages. Per-turn settlement preserves the side-effect boundary and keeps unseen context eligible.
+
+Enforced by: [runtime coalescing, context and settlement](../../packages/core/test/harvest.test.ts), [completion pairing](../../packages/core/test/assignment-collaboration.test.ts), [TLA+ ready-set model and broken variants](../../verification/harvest/), [verification runner](../../scripts/verify-tla.mjs). The model checks that exposure is never replayed, that handling follows observation, and that pending work is eventually claimed under weak fairness.
+
+```mermaid
+---
+title: "Bot Inbox harvest: one Admission"
+config:
+  markdownAutoWrap: false
+  state:
+    useMaxWidth: false
+---
+stateDiagram-v2
+  classDef works fill:#f4f6f7,stroke:#566573,color:#1b2631
+  classDef wrong fill:#fdedec,stroke:#c0392b,color:#7b241c
+  classDef fixed fill:#e9f7ef,stroke:#1e8449,color:#145a32
+  classDef mixed fill:#fdebd0,stroke:#d35400,color:#7e5109
+  classDef after fill:#ffffff,stroke:#808b96,color:#566573
+  classDef worse fill:#f4ecf7,stroke:#7d3c98,color:#4a235a
+  classDef worksPath fill:#f4f6f7,stroke:#1f3a93,stroke-width:4px,color:#1b2631
+  classDef wrongPath fill:#fdedec,stroke:#1f3a93,stroke-width:4px,color:#7b241c
+  classDef fixedPath fill:#e9f7ef,stroke:#1f3a93,stroke-width:4px,color:#145a32
+  classDef mixedPath fill:#fdebd0,stroke:#1f3a93,stroke-width:4px,color:#7e5109
+  classDef afterPath fill:#ffffff,stroke:#1f3a93,stroke-width:4px,color:#566573
+  classDef worsePath fill:#f4ecf7,stroke:#1f3a93,stroke-width:4px,color:#4a235a
+  state "Legend" as legend {
+    state "Works" as legendWorks
+  }
+  class legendWorks works
+  state "Handled" as s0
+  state "In a turn, Bot is working" as s1
+  state "In a turn, turn starting" as s2
+  state "Needs repair" as s3
+  state "No message" as s4
+  state "Turn failed before the Bot<br/>saw it" as s5
+  state "Turn failed before the Bot<br/>saw it, harvest queued" as s6
+  state "Waiting, harvest queued" as s7
+  [*] --> s4
+  s4 --> s7 : message arrives
+  s7 --> s2 : harvest claims it
+  s2 --> s1 : turn reaches the Bot
+  s2 --> s5 : turn fails
+  s2 --> s6 : Host restarts
+  s1 --> s0 : turn succeeds
+  s1 --> s3 : turn fails or Host restarts
+  s5 --> s6 : Host restarts
+  s6 --> s2 : harvest claims it
+  class s0 works
+  class s1 works
+  class s2 works
+  class s3 works
+  class s4 works
+  class s5 works
+  class s6 works
+  class s7 works
+```
+
+## Human Inbox reads canonical attention and decisions
+
+<a id="adr-0071"></a>
+
+The Human Inbox projects typed unresolved Group, DSH question and approval, Workspace Grant, Assignment and repair actions from their owning facts. Decisions go through the corresponding source owner's command. A Grant resolution requires a committed typed reply linked to the request and validated Grant. A committed Human response to an Assignment ask clears the Human action; the Orchestrator owns forwarding the answer to the Assignment. A repair action retains its Admission and source reference, with a fallback to the Bot Inbox if the Channel disappears.
+
+Handled history follows committed responses back to canonical requests. Unread message attention uses the Human's Channel read positions. Pagination and filters operate on the same attention projection, with cursor scope tied to the query. Dismissal is durable and item-scoped; it suppresses the captured attention while leaving the source action, read position and later arrivals independently eligible.
+
+Why: Reading and acting from the Inbox must agree with the source Channel after a refresh or restart. Projecting canonical responses keeps history truthful and avoids another action lifecycle.
+
+Enforced by: [Human attention query](../../packages/core/test/human-attention-query.test.ts), [attention status](../../packages/core/test/human-attention-status.test.ts), [Grant request approval](../../packages/core/test/grant-request-approval.test.ts).
+
+## Activity Center is a view of personal attention
+
+<a id="adr-0098"></a>
+
+The Activity Center page and Dock open Human Inbox. The view presents Needs you, For you and Other unread, supports source navigation and inline actions, and runs search and filtering before pagination. Previewing a summary alone does not advance a read position. Mute filters message attention while explicit requests and handled history retain their own rules. Unread counts are distinct eligible Source Events; a mention that is also a reply counts once. The Web rail can display a local subset of that status, or turn its indicator off, independently of the underlying attention facts.
+
+Why: A personal attention view needs to distinguish actionable requests from unread messages and take the Human directly to the owning source. A local indicator preference gives the Human control over visual noise without changing read or delivery authority.
+
+Enforced by: [attention counts](../../packages/core/test/human-attention-status.test.ts), [live attention](../../packages/core/test/human-attention-live.test.ts), [Activity Inbox interactions](../../packages/client/test/activity-inbox-clear.test.tsx).
+
+## External Group collection and wake are independent
+
+<a id="adr-0109"></a>
+
+Messaging keeps immutable Group reception policies for an authorized PersonaBot, account fingerprint and Chat grant. The built-in collection policy admits verified mentions. Collecting ordinary events requires qualified ordinary delivery by the current exclusive Consumer where the provider policy calls for it. A qualifying excluded probe records bounded delivery evidence without retaining message content. Qualification is process-local and must be renewed after a lease change or restart.
+
+Collected ordinary events can wake immediately, by digest, as same-Group mention context, or only on explicit read. Ordinary arrivals never steer. Committed Admissions retain the policy revision and thresholds. Edits neither reclassify saved Admissions nor backfill excluded history. Replies remain separately authorized against the current identity and source route.
+
+Why: A Human or Bot may want a record of a conversation with few interruptions. Persisting the effective policy at admission keeps delivery predictable across edits without changing collection scope or reply authority.
+
+Enforced by: [platform defaults and delivery qualification](../../packages/core/test/messaging-platform-defaults.test.ts), [source policy](../../packages/core/test/bot-source-policy.test.ts).
+
+## External Thread following requires exact source authority
+
+<a id="adr-0110"></a>
+
+A Thread follow anchors to an admitted Source Event and current Service Grant, Consumer, account, Chat, Thread and root. Enabling it requires evidence of an unmentioned reply in that exact Thread. The Human's explicit follow or exclusion takes precedence until inheritance is restored. Ordinary Thread replies resolve the Thread collection override before the Group policy and retain the effective wake and revisions at admission. Direct mentions keep addressed handling. Lark and Slack Threads retain their native identities; a Slack root can anchor a follow but cannot prove child-reply delivery.
+
+Why: An explicit Thread follow gives a Bot continuity in one discussion without broadening collection to the entire Group. Exact route and root checks prevent a probe or follow from lending authority to unrelated traffic.
+
+Enforced by: [Slack Thread admission and policy](../../packages/core/test/messaging-slack-thread.test.ts). See also the [IM provider decisions](im-providers.md#adr-0106).
+
+## Platform defaults are explicitly inherited
+
+<a id="adr-0119"></a>
+
+Messaging owns immutable platform defaults for qualified capabilities. A new eligible identity or scope can inherit, older explicit choices stay custom, and restoring inheritance resolves the current platform revision. Comparing revisions protects scoped and global edits. Thread and scoped reception overrides precede platform collection defaults; Channel member and PersonaBot overrides govern wake for their own Admissions. Saved thresholds remain partitioned by revision.
+
+The defaults owner covers qualified Lark, Slack, QQ and WeChat settings. WeChat owner-DM bindings inherit enablement and typing independently. Identity pauses reconcile the Consumer lease and gate effects that have yet to start. Resume records a receive-after boundary where supported, preventing delayed pre-resume traffic from being admitted. Defaults do not create Grants, destinations or delivery evidence.
+
+Why: Explicit inheritance allows global changes without erasing deliberate local choices or silently changing queued work. Qualification and current authorization remain the evidence that a configured preference can actually take effect.
+
+Enforced by: [platform default precedence, migration and qualification](../../packages/core/test/messaging-platform-defaults.test.ts).
+
+## Bot Schedules wake through the Bot Inbox
+
+<a id="adr-0133"></a>
+
+The Host stores schedules by PersonaBot. A firing commits a canonical schedule Source Event and Admission; the Orchestrator considers it at the next eligible turn boundary. Occurrence calculation follows DSH Schedule semantics. At most one unobserved firing per schedule remains pending, restart catches up only the latest missed occurrence, and archive pauses future runs. Run now records a manual firing without moving the planned target. Humans can lock schedules, and Bots can manage unlocked schedules with their scoped tools. The Host caps each Bot at 20 enabled schedules and enforces a one-minute minimum for interval schedules.
+
+Why: A Session-bound schedule would lose its owner when the Orchestrator Session is replaced and would bypass normal admission and harvest. Coalescing keeps downtime and long turns from creating a queue of obsolete firings.
+
+Enforced by: [schedule authority and firing](../../packages/core/test/bot-schedules.test.ts), [CLI parity](../../packages/core/test/cli-schedules.test.ts).
+
+## Notifications follow where the Human is attending
+
+<a id="adr-0312"></a>
+
+Mobile uses one focus owner for foreground conversation and active call coverage scoped to the Host and Channel. Replies and mentions in an attended conversation are suppressed; actionable requests stay eligible. Foreground attention goes to in-app banners. Android approval actions can answer from the notification without opening the app, with a request-opening fallback on failure. iOS approval actions open the app. The operating system can still show pushes delivered while the phone app is backgrounded.
+
+An active desktop or Web presence lease holds phone reply pushes while action requests remain eligible. Unread held replies can send after lease expiry, while a reply read before release is dropped. Devices that support resolution messages can withdraw previously shown notifications when canonical attention disappears, including on a read from another device. The device's delivery choice (push or in-app) is distinct from kind and Channel preferences.
+
+Why: Reaching the Human depends on where they are already reading or talking. Keeping request delivery eligible avoids delaying work that needs a Human decision, while withdrawal clears alerts whose source no longer needs attention.
+
+Enforced by: [mobile attention focus](../../apps/mobile/test/attention-focus.test.ts), [Android approval handling](../../apps/mobile/test/push-answer.test.ts), [desktop presence reporting](../../packages/client/test/presence-reporter.test.ts), [Host hold and reply withdrawal](../../packages/core/test/push-delivery-notifications.test.ts), [device preferences](../../apps/mobile/test/device-notification-preferences.test.ts).

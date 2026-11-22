@@ -1,3 +1,4 @@
+import { fakeTeamMode } from '../../host-client/test/reader-fixtures.js';
 import { createServer } from 'node:http';
 import { join } from 'node:path';
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
@@ -52,6 +53,12 @@ async function host(
       const value =
         input.method === 'botharness/channelGet'
           ? {
+              channel: {
+                id: input.payload.args.channelId,
+                type: 'group',
+                name: 'Team',
+                members: [],
+              },
               policyRevision: 'a'.repeat(64),
               policy: {
                 addMembers: 'everyone',
@@ -62,7 +69,7 @@ async function host(
               },
             }
           : input.method === 'botharness/teamMode'
-            ? { isolation: 'trial', viewer: { humanId: 'owner-id' } }
+            ? fakeTeamMode({ humanId: 'owner-id' })
             : input.method === 'botharness/members'
               ? [
                   { username: 'bob', humanId: 'bob-id' },
@@ -301,6 +308,39 @@ describe('Team CLI', () => {
       args: ['roles', 'update', 'member', '--models', 'all'],
       method: 'roleUpdate',
       payload: { roleId: 'member', models: { kind: 'all' } },
+    },
+    {
+      args: [
+        'roles',
+        'create',
+        '--name',
+        'Workers',
+        '--permissions',
+        'models.use',
+        '--models',
+        'all',
+        '--engine-accounts',
+        'codex-work,claude-work',
+      ],
+      method: 'roleCreate',
+      payload: {
+        name: 'Workers',
+        permissions: ['models.use'],
+        models: { kind: 'all', engineAccounts: ['codex-work', 'claude-work'] },
+      },
+    },
+    {
+      args: ['roles', 'update', 'member', '--engine-accounts', ''],
+      method: 'roleUpdate',
+      payload: { roleId: 'member', models: { kind: 'only', routes: [], engineAccounts: [] } },
+    },
+    {
+      args: ['roles', 'update', 'member', '--model-providers', 'go', '--models', 'exact/model'],
+      method: 'roleUpdate',
+      payload: {
+        roleId: 'member',
+        models: { kind: 'only', providers: ['go'], routes: ['exact/model'] },
+      },
     },
   ])('dispatches M10 $method normally and through --as', async ({ args, method, payload }) => {
     const f = await host();
@@ -667,7 +707,7 @@ describe('Team CLI', () => {
       expect(url.origin).toBe('https://192.168.1.20');
       return Response.json({
         type: 'server-response',
-        result: { ok: true, value: { enabled: false } },
+        result: { ok: true, value: fakeTeamMode() },
       });
     });
     const result = await run('https://192.168.1.20', ['team-mode', 'status']);
@@ -939,7 +979,10 @@ describe('M2 CLI member Bot and Activity dispatch', () => {
   });
 
   it.each([
-    { argv: ['team-mode', 'status'], value: { isolation: 'trial', viewer: { humanId: 'bob' } } },
+    {
+      argv: ['team-mode', 'status'],
+      value: fakeTeamMode({ humanId: 'bob', kind: 'member', displayName: 'Bob' }),
+    },
     {
       argv: [
         'tool-approval-decide',

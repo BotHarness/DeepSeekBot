@@ -358,7 +358,6 @@ export class ProtectedExecution {
         return;
       }
       const child = spawn(program, args, {
-        windowsHide: true,
         cwd: tmpdir(),
         stdio: ['pipe', 'pipe', 'pipe'],
         ...(credentialBearing
@@ -366,6 +365,8 @@ export class ProtectedExecution {
               env: process.platform === 'win32' ? { SystemRoot: process.env.SystemRoot } : {},
             }
           : {}),
+        shell: false,
+        windowsHide: true,
       });
       this.#children.add(child);
       let output = '';

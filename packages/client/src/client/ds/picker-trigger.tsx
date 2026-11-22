@@ -40,7 +40,15 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   placeholder: { color: ink.tertiary },
-  hint: { flexShrink: 0, color: ink.secondary, fontSize: text.metaSize },
+  hint: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: space.x1,
+    flexShrink: 0,
+    color: ink.secondary,
+    fontSize: text.metaSize,
+  },
+  hintIcon: { display: 'inline-flex', flexShrink: 0 },
   chevron: {
     display: 'inline-flex',
     flexShrink: 0,
@@ -53,6 +61,7 @@ export interface PickerTriggerProps {
   readonly label: string;
   readonly icon?: ReactNode;
   readonly hint?: string | undefined;
+  readonly hintIcon?: ReactNode;
   readonly placeholder?: boolean;
   readonly invalid?: boolean;
   readonly disabled?: boolean;
@@ -68,6 +77,7 @@ export const PickerTrigger = forwardRef<HTMLButtonElement, PickerTriggerProps>(
       label,
       icon,
       hint,
+      hintIcon,
       placeholder = false,
       invalid = false,
       disabled = false,
@@ -94,7 +104,14 @@ export const PickerTrigger = forwardRef<HTMLButtonElement, PickerTriggerProps>(
       >
         {icon === undefined ? null : <span {...stylex.props(styles.icon)}>{icon}</span>}
         <span {...stylex.props(styles.label, placeholder && styles.placeholder)}>{label}</span>
-        {hint === undefined ? null : <span {...stylex.props(styles.hint)}>{hint}</span>}
+        {hint === undefined ? null : (
+          <span {...stylex.props(styles.hint)}>
+            {hintIcon === undefined ? null : (
+              <span {...stylex.props(styles.hintIcon)}>{hintIcon}</span>
+            )}
+            {hint}
+          </span>
+        )}
         <span {...stylex.props(styles.chevron)}>
           <ChannelSidebarIcon name="chevron-right" size={16} />
         </span>

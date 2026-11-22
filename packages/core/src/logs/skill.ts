@@ -59,8 +59,8 @@ export class DeveloperModeSkillGate {
 
 export const LOGS_SKILL_CONTENT = `# Reading operational logs as an agent
 
-Product meaning: [ADR-0063](../adr/0063-operational-log-database.md) (topology),
-[ADR-0064](../adr/0064-agent-log-access-without-a-tool.md) (why there is no
+Product meaning: [ADR-0063](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/decisions/persistence.md#adr-0063) (topology),
+[ADR-0064](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/decisions/release.md#adr-0064) (why there is no
 tool). Code facts: \`packages/core/src/logs/log-db.ts\` (schema, \`LogQuery\`).
 
 There is no log-reading tool and there will not be one: you already have

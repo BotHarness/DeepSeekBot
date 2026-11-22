@@ -1,39 +1,15 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
-import { renderToStaticMarkup } from 'react-dom/server';
+import { renderOverlayMarkup } from './primitive-mocks.js';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('../src/client/ds/segmented.js', async () => ({
-  SegmentedControl: (await import('@deepseek-ai/dsh-client-ui-primitives')).SegmentedControl,
-}));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  const { createElement: element } = await import('react');
+
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    IconCloseOutlineRegular: () => element('span'),
-    SegmentedControl: (props: {
-      label: string;
-      value: string;
-      disabled?: boolean;
-      onChange: (value: string) => void;
-      options: { label: string; value: string }[];
-    }) =>
-      element(
-        'select',
-        {
-          'aria-label': props.label,
-          value: props.value,
-          disabled: props.disabled,
-          onChange: (event: { currentTarget: HTMLSelectElement }) =>
-            props.onChange(event.currentTarget.value),
-        },
-        ...props.options.map((option) =>
-          element('option', { key: option.value, value: option.value }, option.label),
-        ),
-      ),
-    Tag: (props: { children?: ReactNode }) => element('span', null, props.children),
   };
 });
 
@@ -48,7 +24,7 @@ import { buttonNamed, dialog, fieldNamed, typeInto } from './primitive-mocks.js'
 
 describe('PersonaBot creation form', () => {
   it('asks for the Human-facing name, optional tags, and an optional bio', () => {
-    const markup = renderToStaticMarkup(
+    const markup = renderOverlayMarkup(
       createElement(CreatePersonaBotModal, {
         actions: { createBot: vi.fn() } as unknown as BridgeActions,
         onCancel: vi.fn(),
@@ -74,7 +50,7 @@ describe('PersonaBot creation form', () => {
   });
 
   it('identifies the target section when creating a PersonaBot inside it', () => {
-    const markup = renderToStaticMarkup(
+    const markup = renderOverlayMarkup(
       createElement(CreatePersonaBotModal, {
         actions: { createBot: vi.fn() } as unknown as BridgeActions,
         sectionId: 'section-work',
@@ -88,7 +64,7 @@ describe('PersonaBot creation form', () => {
   });
 
   it('asks only for the repository when opened from Import from GitHub', () => {
-    const markup = renderToStaticMarkup(
+    const markup = renderOverlayMarkup(
       createElement(CreatePersonaBotModal, {
         actions: { createBot: vi.fn() } as unknown as BridgeActions,
         source: 'git',
@@ -175,7 +151,7 @@ async function withForm(
 }
 
 async function typeText(host: HTMLElement, selector: string, value: string) {
-  const input = host.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector)!;
+  const input = document.body.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector)!;
   const prototype =
     input instanceof HTMLTextAreaElement
       ? HTMLTextAreaElement.prototype
@@ -187,33 +163,70 @@ async function typeText(host: HTMLElement, selector: string, value: string) {
 }
 
 async function choose(host: HTMLElement, label: string, value: string) {
-  const input = host.querySelector<HTMLSelectElement>('select[aria-label="' + label + '"]')!;
-  await act(async () => {
-    input.value = value;
-    input.dispatchEvent(new Event('change', { bubbles: true }));
-  });
+  const tab = document.body.querySelector<HTMLButtonElement>(
+    `[role="tablist"][aria-label="${label}"] [role="tab"][id$="-${value}"]`,
+  );
+  if (tab === null) throw new Error(`Missing ${value} tab in ${label}`);
+  await act(async () => tab.click());
 }
 
 async function submit(host: HTMLElement) {
-  await act(async () => buttonNamed('创建', host).click());
+  await act(async () => buttonNamed('创建', document.body).click());
 }
+
+describe('built-in avatar selection', () => {
+  it('creates the Bot with the displayed Tilties portrait after shuffling', async () => {
+    await withForm(async (host, create) => {
+      await typeText(host, 'input[placeholder="例如：小研"]', 'Ada');
+      const preview = () =>
+        document.querySelector('[data-create-avatar-preview] img')?.getAttribute('src');
+      await choose(host, '头像风格', 'tilties');
+      const first = preview();
+      expect(first).toMatch(/^data:image\/webp;base64,/u);
+      await act(async () => buttonNamed('随机', document.body).click());
+      expect(create).not.toHaveBeenCalled();
+      const shuffled = preview();
+      expect(shuffled).toMatch(/^data:image\/webp;base64,/u);
+      expect(shuffled).not.toBe(first);
+      await submit(host);
+      expect(create).toHaveBeenCalledOnce();
+      expect(create).toHaveBeenCalledWith(
+        { displayName: 'Ada', roles: [], persona: '', avatar: shuffled },
+        undefined,
+      );
+    });
+  });
+
+  it('restores the generated pixel avatar when Pixel is selected again', async () => {
+    await withForm(async (host, create) => {
+      await typeText(host, 'input[placeholder="例如：小研"]', 'Ada');
+      await choose(host, '头像风格', 'tilties');
+      await choose(host, '头像风格', 'pixel');
+      await submit(host);
+      expect(create).toHaveBeenCalledWith(
+        { displayName: 'Ada', roles: [], persona: '' },
+        undefined,
+      );
+    });
+  });
+});
 
 describe('editable creation starting points', () => {
   it('retains independent drafts while switching and submits exact edited persona without preset metadata', async () => {
     await withForm(async (host, create) => {
-      expect(host.querySelector('textarea')!.value).toBe('');
+      expect(document.body.querySelector('textarea')!.value).toBe('');
       await typeText(host, 'input[placeholder="例如：小研"]', 'Ada');
       await choose(host, '人格起点', 'colleague');
-      expect(host.querySelector('textarea')!.value).toContain('# 协作方式');
+      expect(document.body.querySelector('textarea')!.value).toContain('# 协作方式');
       const edited = '# Ada\n\n  Human-written identity.\n';
       await typeText(host, 'textarea', edited);
       await choose(host, '人格起点', 'roleplay');
-      expect(host.querySelector('textarea')!.value).toContain('# 角色与世界');
+      expect(document.body.querySelector('textarea')!.value).toContain('# 角色与世界');
       await typeText(host, 'textarea', '# A lunar librarian\n');
       await choose(host, '人格起点', 'blank');
-      expect(host.querySelector('textarea')!.value).toBe('');
+      expect(document.body.querySelector('textarea')!.value).toBe('');
       await choose(host, '人格起点', 'colleague');
-      expect(host.querySelector('textarea')!.value).toBe(edited);
+      expect(document.body.querySelector('textarea')!.value).toBe(edited);
       await submit(host);
       expect(create).toHaveBeenCalledWith(
         { displayName: 'Ada', roles: [], persona: edited },
@@ -224,7 +237,7 @@ describe('editable creation starting points', () => {
 
   it('does not seed imported memory when importing from GitHub', async () => {
     await withForm(async (host, create) => {
-      expect(host.querySelector('textarea')).toBeNull();
+      expect(document.body.querySelector('textarea')).toBeNull();
       await typeText(host, 'input[placeholder="例如：小研"]', 'Imported');
       await typeText(
         host,
@@ -249,7 +262,7 @@ describe('editable creation starting points', () => {
       );
       await submit(host);
       expect(onCreated).toHaveBeenCalledOnce();
-      expect(host.querySelector('[data-https-fallback]')).toBeNull();
+      expect(document.body.querySelector('[data-https-fallback]')).toBeNull();
     }, 'git');
   });
 
@@ -265,8 +278,8 @@ describe('editable creation starting points', () => {
         await submit(host);
         expect(onCreated).not.toHaveBeenCalled();
         expect(open).not.toHaveBeenCalled();
-        const notice = host.querySelector('[data-https-fallback]')!;
-        expect(host.textContent).toContain('已改用 HTTPS 导入');
+        const notice = document.body.querySelector('[data-https-fallback]')!;
+        expect(document.body.textContent).toContain('已改用 HTTPS 导入');
         expect(notice.textContent).toContain('git@github.com:owner/repo.git');
         expect(notice.textContent).toContain('https://github.com/owner/repo.git');
         expect(notice.querySelectorAll('pre')).toHaveLength(2);
@@ -275,9 +288,9 @@ describe('editable creation starting points', () => {
         expect(caption.textContent).toContain(
           'Git 输出：git@github.com: Permission denied (publickey).',
         );
-        expect(() => buttonNamed('取消', host)).toThrow();
-        expect(host.querySelector('[data-https-fallback-done]')?.textContent).toBe('完成');
-        await act(async () => buttonNamed('完成', host).click());
+        expect(() => buttonNamed('取消', document.body)).toThrow();
+        expect(document.body.querySelector('[data-https-fallback-done]')?.textContent).toBe('完成');
+        await act(async () => buttonNamed('完成', document.body).click());
         expect(open).toHaveBeenCalledWith(expect.objectContaining({ slug: 'bot' }), undefined);
         expect(onCreated).toHaveBeenCalledOnce();
       },
@@ -319,9 +332,9 @@ describe('memory location under Advanced settings', () => {
         );
         await submit(host);
         open.mockRejectedValueOnce(new Error('connection-host-changed'));
-        await act(async () => buttonNamed('完成', host).click());
+        await act(async () => buttonNamed('完成', document.body).click());
         expect(onCreated).not.toHaveBeenCalled();
-        await act(async () => buttonNamed('关闭', host).click());
+        await act(async () => buttonNamed('关闭', document.body).click());
         expect(onCancel).toHaveBeenCalledOnce();
         expect(open).toHaveBeenCalledOnce();
       },
@@ -354,13 +367,15 @@ describe('memory location under Advanced settings', () => {
     const props = { actions, onCancel: vi.fn(), onCreated: vi.fn() };
     try {
       await act(async () => root.render(createElement(CreatePersonaBotModal, props)));
-      await act(async () => buttonNamed('选择文件夹…', host).click());
+      await act(async () => buttonNamed('选择文件夹…', document.body).click());
       await act(async () =>
         root.render(createElement(CreatePersonaBotModal, { ...props, remote: true })),
       );
       await act(async () => finish('D:\\LocalOnly'));
-      expect(host.querySelector<HTMLInputElement>('input[placeholder="默认位置"]')!.value).toBe('');
-      expect(buttonNamed('选择文件夹…', host).disabled).toBe(true);
+      expect(
+        document.body.querySelector<HTMLInputElement>('input[placeholder="默认位置"]')!.value,
+      ).toBe('');
+      expect(buttonNamed('选择文件夹…', document.body).disabled).toBe(true);
     } finally {
       await act(async () => root.unmount());
       host.remove();
@@ -368,7 +383,7 @@ describe('memory location under Advanced settings', () => {
   });
   it('keeps the default location unless the Human chooses a folder', async () => {
     await withForm(async (host, create) => {
-      const advanced = host.querySelector<HTMLDetailsElement>('[data-create-advanced]')!;
+      const advanced = document.body.querySelector<HTMLDetailsElement>('[data-create-advanced]')!;
       expect(advanced.open).toBe(false);
       expect(advanced.querySelector('summary')!.textContent).toBe('进阶设置');
       await typeText(host, 'input[placeholder="例如：小研"]', 'Ada');
@@ -383,10 +398,10 @@ describe('memory location under Advanced settings', () => {
   it('submits a folder picked through the DSH folder picker', async () => {
     await withForm(async (host, create) => {
       await typeText(host, 'input[placeholder="例如：小研"]', 'Ada');
-      await act(async () => buttonNamed('选择文件夹…', host).click());
-      expect(host.querySelector<HTMLInputElement>('input[placeholder="默认位置"]')!.value).toBe(
-        'D:\\BotMemory',
-      );
+      await act(async () => buttonNamed('选择文件夹…', document.body).click());
+      expect(
+        document.body.querySelector<HTMLInputElement>('input[placeholder="默认位置"]')!.value,
+      ).toBe('D:\\BotMemory');
       await submit(host);
       expect(create).toHaveBeenCalledWith(
         { displayName: 'Ada', roles: [], persona: '', memoryLocation: 'D:\\BotMemory' },
@@ -399,8 +414,8 @@ describe('memory location under Advanced settings', () => {
     await withForm(async (host, create) => {
       await typeText(host, 'input[placeholder="例如：小研"]', 'Ada');
       await typeText(host, 'input[placeholder="默认位置"]', 'bots/memory');
-      expect(host.textContent).toContain('请输入完整路径');
-      await act(async () => host.querySelector('form')!.requestSubmit());
+      expect(document.body.textContent).toContain('请输入完整路径');
+      await act(async () => document.body.querySelector('form')!.requestSubmit());
       expect(create).not.toHaveBeenCalled();
       await typeText(host, 'input[placeholder="默认位置"]', ' /data/bots ');
       await submit(host);
@@ -413,7 +428,7 @@ describe('memory location under Advanced settings', () => {
 
   it('is not offered for a GitHub import', async () => {
     await withForm(async (host) => {
-      expect(host.querySelector('[data-create-advanced]')).toBeNull();
+      expect(document.body.querySelector('[data-create-advanced]')).toBeNull();
     }, 'git');
   });
 });
@@ -491,7 +506,7 @@ describe('PersonaBot creation dialog', () => {
       expect(buttonNamed('创建中').disabled).toBe(true);
       expect(buttonNamed('取消').disabled).toBe(true);
       await act(async () => reject(new BridgeCallError('invalid-input', 'bad')));
-      expect(host.querySelector('[role="alert"]')?.textContent).toContain(
+      expect(document.body.querySelector('[role="alert"]')?.textContent).toContain(
         '请检查 Bot 名称、标签或简介。',
       );
       expect(buttonNamed('创建').disabled).toBe(false);

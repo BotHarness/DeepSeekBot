@@ -1,5 +1,8 @@
+import { Button } from '../../../client/src/client/ds/button.js';
+import { Input } from '../../../client/src/client/ds/input.js';
+import { Tag } from '../../../client/src/client/ds/tag.js';
 import { useCallback, useRef, useState, type ReactElement } from 'react';
-import { Button, Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { SidebarCardList, SidebarCardRow } from '../../../client/src/client/sidebar-card.js';
 import type { BrowserTranslate } from './locale.js';
 

@@ -25,7 +25,7 @@ Control Rail、Bot 设置和可跳过的新手手机步骤都打开同一个连�
 
 新版手机在同一 Host 身份下保存两个明确授权的私有地址，旧版手机使用邀请里的主地址。Quick Tunnel 重启后地址可能变化，重新扫码可替换保存的地址，不会新增一个 Host。某条连接停止或失败时，另一条已验证的连接仍可配对。私有连接不会自动学习官方服务的回退地址。
 
-Docker 中继仍是独立且互斥的私有部署方式，迁移时必须保留所有者凭据和数据卷，不提供通用重置操作。升级已有 Host 前，请备份受保护的完整 Profile 和凭据；旧软件包无法读取双连接凭据格式，降级必须恢复匹配的备份。见[迁移与回滚](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/adr/0333-bounded-private-route-coexistence.md)和 [CLI 连接命令](bot-cli.zh.md#独立管理私有连接)。
+Docker 中继仍是独立且互斥的私有部署方式，迁移时必须保留所有者凭据和数据卷，不提供通用重置操作。升级已有 Host 前，请备份受保护的完整 Profile 和凭据；旧软件包无法读取双连接凭据格式，降级必须恢复匹配的备份。见[迁移与回滚](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/decisions/connections.md#adr-0333)和 [CLI 连接命令](bot-cli.zh.md#独立管理私有连接)。
 
 Tailscale 要求手机和电脑位于可互访的同一 tailnet。iOS 和 Android 通常只能同时运行一个 VPN，开启 Tailscale 可能中断其他 VPN，详见 [Tailscale 官方说明](https://tailscale.com/docs/reference/faq/other-vpns)。局域网要求网络可达；HTTPS 入口要求 DNS、双方信任的证书、WebSocket 转发及 Host 检查通过后才显示配对码。失败时提供 DNS、证书或转发的下一步操作，不关闭证书验证，也不自动切换官方服务。
 

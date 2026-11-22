@@ -5,6 +5,8 @@
 - `packages/core/src/roster/**`
 - `packages/client/src/client/{roster,roster-config,roster-migration,roster-order,section-management}.{ts,tsx}`
 - `packages/host-client/src/roster-sorting.ts`
+- `packages/core/src/features/personabots/roster-methods.ts`
+- `packages/client/src/client/features/personabots/bridge.ts`
 
 ## Terms
 
@@ -37,6 +39,9 @@ Launch a task-owned Host and pass doctor. Use `sectionCreate`, `channelAssign` a
 5. Create a group from a channel move menu, then fail only the movement. The new group stays, the creation dialog closes and a failure banner appears. Retry movement to the existing group, not creation.
 
 The focused suites are `section-management.test.ts`, `bot-sidebar.test.ts`, `roster-store.test.ts`, `roster-bridge.test.ts` and `roster-database.test.ts`. Test evidence does not replace the browser path.
+
+
+The Roster uses a separate toggle, sort menu button and create menu button for each section. Tab between all three and use Enter or Space on each button. Enter on a menu button must open its own menu while the section stays expanded. With the toggle focused, Shift+F10 opens the section menu, and Escape restores focus. Compare expanded, collapsed and selected states in light and dark. A compact window uses the sidebar sheet layout, while a collapsed rail is exercised where the shell offers it.
 
 ## Gotchas
 

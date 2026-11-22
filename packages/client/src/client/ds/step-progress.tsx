@@ -26,7 +26,7 @@ const styles = stylex.create({
     textAlign: 'start',
   },
   active: { color: color.fg, fontWeight: text.strong },
-  title: { whiteSpace: 'nowrap' },
+  title: { minWidth: 0, overflowWrap: 'anywhere' },
   dot: {
     display: 'inline-flex',
     alignItems: 'center',

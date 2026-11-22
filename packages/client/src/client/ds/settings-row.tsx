@@ -8,10 +8,9 @@ import {
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import { style } from './tobs.stylex.js';
+import { edge, ink, space, style, type as text } from './tobs.stylex.js';
 import { InfoTip } from './info-tip.js';
 import { surfaceStyles } from './surface.js';
-import { border, color, space, text } from './tokens.stylex.js';
 
 const NARROW = '@media (max-width: 648px)';
 const COMPACT = '@container bh-settings (max-width: 480px)';
@@ -44,23 +43,26 @@ const styles = stylex.create({
     minWidth: 0,
     paddingInline: {
       default: style.listGroupPaddingInline,
-      ':not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section)))': `calc(${style.listGroupPaddingInline} + ${style.listItemPadding})`,
-      ':has(> section)': 0,
+      ':not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section, [data-list-card]), > * > [data-list-card]))': `calc(${style.listGroupPaddingInline} + ${style.listItemPadding})`,
+      ':has(> :is(section, [data-list-card]), > * > [data-list-card])': 0,
     },
     paddingBlock: {
       default: style.listGroupPaddingBlock,
-      ':not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section)))': `calc(${style.listGroupPaddingBlock} + ${style.listItemPaddingBlock})`,
-      ':has(> section)': 0,
+      ':not(:empty):not(:has(> :is([data-settings-row], [data-settings-part], section, [data-list-card]), > * > [data-list-card]))': `calc(${style.listGroupPaddingBlock} + ${style.listItemPaddingBlock})`,
+      ':has(> :is(section, [data-list-card]), > * > [data-list-card])': 0,
     },
-    borderRadius: { default: style.listGroupRadius, ':has(> section)': 0 },
+    borderRadius: {
+      default: style.listGroupRadius,
+      ':has(> :is(section, [data-list-card]), > * > [data-list-card])': 0,
+    },
     overflow: 'clip',
     backgroundColor: {
       default: style.listGroupFill,
-      ':has(> section)': 'transparent',
+      ':has(> :is(section, [data-list-card]), > * > [data-list-card])': 'transparent',
     },
     boxShadow: {
       default: `0 0 0 0.5px ${style.listGroupEdge}`,
-      ':has(> section)': 'none',
+      ':has(> :is(section, [data-list-card]), > * > [data-list-card])': 'none',
     },
   },
   sectionHead: {
@@ -80,9 +82,9 @@ const styles = stylex.create({
   sectionTitle: {
     margin: 0,
     color: style.textSectionTitle,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
-    fontWeight: text.strong,
+    fontSize: text.captionSize,
+    lineHeight: text.captionLine,
+    fontWeight: text.labelWeight,
   },
   row: {
     display: 'flex',
@@ -100,7 +102,7 @@ const styles = stylex.create({
     paddingInline: style.listItemPadding,
     borderRadius: style.listItemRadius,
     backgroundColor: style.listItemFill,
-    borderBottomWidth: border.hairline,
+    borderBottomWidth: edge.hairline,
     borderBottomStyle: 'solid',
     borderBottomColor: {
       default: 'transparent',
@@ -110,6 +112,21 @@ const styles = stylex.create({
     },
   },
   lone: { borderRadius: style.listGroupRadius },
+  label: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    flexGrow: 1,
+    minWidth: 0,
+    gap: space.x3,
+  },
+  icon: {
+    display: 'grid',
+    placeItems: 'center',
+    flexShrink: 0,
+    width: style.iconSlot,
+    height: style.iconSlot,
+    color: ink.secondary,
+  },
   text: {
     display: 'flex',
     flexDirection: 'column',
@@ -120,16 +137,16 @@ const styles = stylex.create({
     minWidth: 0,
   },
   title: {
-    color: color.fg,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
-    fontWeight: text.regular,
+    color: ink.primary,
+    fontSize: style.textUiSize,
+    lineHeight: style.textUiLine,
+    fontWeight: text.bodyWeight,
     overflowWrap: 'anywhere',
   },
   description: {
-    color: color.subtle,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
+    color: ink.tertiary,
+    fontSize: text.captionSize,
+    lineHeight: text.captionLine,
     overflowWrap: 'anywhere',
   },
   control: {
@@ -148,9 +165,9 @@ const styles = stylex.create({
   },
   part: { display: 'contents' },
   value: {
-    color: color.muted,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
+    color: ink.secondary,
+    fontSize: style.textUiSize,
+    lineHeight: style.textUiLine,
     textAlign: 'end',
     overflowWrap: 'anywhere',
   },
@@ -223,6 +240,7 @@ export function SettingsSection({
 
 export interface SettingsRowProps {
   readonly title: ReactNode;
+  readonly icon?: ReactNode;
   readonly description?: ReactNode;
   readonly info?: { readonly label: string; readonly text: string } | undefined;
   readonly control?: ReactNode;
@@ -233,6 +251,7 @@ export interface SettingsRowProps {
 
 export function SettingsRow({
   title,
+  icon,
   description,
   info,
   control,
@@ -254,19 +273,26 @@ export function SettingsRow({
       {...data}
       {...stylex.props(styles.row, !grouped && styles.lone)}
     >
-      <div {...stylex.props(styles.text)}>
-        <div {...stylex.props(styles.titleLine)}>
-          <div id={titleId} {...stylex.props(styles.title)}>
-            {title}
-          </div>
-          {info === undefined ? null : <InfoTip label={info.label} text={info.text} />}
-        </div>
-        {description === undefined ? null : (
-          <div id={descriptionId} {...stylex.props(styles.description)}>
-            {description}
-          </div>
+      <div {...stylex.props(styles.label)}>
+        {icon === undefined ? null : (
+          <span aria-hidden="true" {...stylex.props(styles.icon)}>
+            {icon}
+          </span>
         )}
-        {children}
+        <div {...stylex.props(styles.text)}>
+          <div {...stylex.props(styles.titleLine)}>
+            <div id={titleId} {...stylex.props(styles.title)}>
+              {title}
+            </div>
+            {info === undefined ? null : <InfoTip label={info.label} text={info.text} />}
+          </div>
+          {description === undefined ? null : (
+            <div id={descriptionId} {...stylex.props(styles.description)}>
+              {description}
+            </div>
+          )}
+          {children}
+        </div>
       </div>
       {control === undefined ? null : <div {...stylex.props(styles.control)}>{control}</div>}
     </div>
@@ -314,15 +340,15 @@ export const settingsRowStyles = stylex.create({
     gap: space.x3,
   },
   title: {
-    color: color.fg,
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
-    fontWeight: text.regular,
+    color: ink.primary,
+    fontSize: style.textUiSize,
+    lineHeight: style.textUiLine,
+    fontWeight: text.bodyWeight,
   },
   description: {
-    color: color.subtle,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
+    color: ink.tertiary,
+    fontSize: text.captionSize,
+    lineHeight: text.captionLine,
   },
 });
 

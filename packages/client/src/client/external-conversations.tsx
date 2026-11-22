@@ -1,7 +1,8 @@
+import { Checkbox } from './ds/checkbox.js';
 import { Button } from './ds/button.js';
 import { ReceptionStatus } from './reception-status.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
-import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from './ds/tooltip.js';
 import type { MessagingConversationInput } from '../../../core/src/messaging/conversations.js';
 import type { GroupReceptionInput } from '../../../core/src/messaging/group-policy.js';

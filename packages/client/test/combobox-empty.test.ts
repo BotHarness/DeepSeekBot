@@ -1,21 +1,11 @@
 // @vitest-environment jsdom
-import { act, createElement, forwardRef, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronDownOutlineRegular: () => null,
-  IconPlusOutlineRegular: () => null,
-  Input: (props: Record<string, unknown>) => createElement('input', props),
-  MenuSurface: forwardRef<HTMLDivElement, { children?: ReactNode; className?: string }>(
-    function MockMenuSurface(props, ref) {
-      return createElement(
-        'div',
-        { ref, role: 'listbox', className: 'bh-combobox-list mock-surface' },
-        props.children,
-      );
-    },
-  ),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   useDismissOnOutsidePointer: () => {},
 }));
 

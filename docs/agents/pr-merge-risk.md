@@ -20,3 +20,7 @@ Example PR bullet:
 ```markdown
 - Merge risk: **two-way door** — revert this documentation commit; **small blast radius** — only future PR descriptions change, with no runtime impact. Review focus: fit with the current visual-pr template.
 ```
+
+## Issue closing and stacked PRs
+
+When a PR delivers an issue's feature or fixes its bug, write `Closes #N` as plain text in the PR body (not inside a Markdown link, which GitHub does not act on) so the issue closes on merge. Do not keep the issue open for a release or for pending device/Human QA; track remaining QA in its own issue. Use `Refs #N` only when part of the issue's scope is still unbuilt. GitHub acts on `Closes #N` only when the PR merges into `main`: once a stacked PR's parent has merged into `main`, retarget the stacked PR to `main` before merging it, or close the issue by hand once its work reaches `main`.

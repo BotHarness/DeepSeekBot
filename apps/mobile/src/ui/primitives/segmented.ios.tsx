@@ -27,7 +27,7 @@ export function Segmented<T extends string>({
       <Picker<T>
         selection={value}
         onSelectionChange={(next) => {
-          if (!disabled && next !== value) onChange(next);
+          if (!disabled && next !== value) Promise.resolve(onChange(next)).catch(() => undefined);
         }}
         modifiers={[
           disabledModifier(disabled),

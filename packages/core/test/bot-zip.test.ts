@@ -23,6 +23,8 @@ import {
 import { createBotZipHttp } from '../src/bots/bot-zip-http.js';
 import { readZip, writeZip, ZipArchiveError } from '../src/bots/zip-archive.js';
 import { ensureMemoryRepository } from '../src/memory/repository.js';
+import { renderStandingPrompt } from '../src/memory/soul.js';
+import { listBotSkills } from '../src/skills/bot-skills.js';
 import { createTestRegistry, registryDatabase } from './registry-fixture.js';
 import { createTempRoot, trackTestOwner } from './helpers.js';
 
@@ -38,7 +40,11 @@ function tempRoot(): string {
 }
 
 function git(cwd: string, ...args: string[]): string {
-  return execFileSync('git', ['-C', cwd, ...args], { encoding: 'utf8' });
+  return execFileSync('git', ['-C', cwd, ...args], {
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  });
 }
 
 function zipCodeOf(run: () => unknown): string | undefined {
@@ -81,6 +87,65 @@ function importRequest(body: Uint8Array, name = 'Shared.zip', type = 'applicatio
     body: new Uint8Array(body),
   });
 }
+
+it('carries customized standing limits through Bot Zip export and import', async () => {
+  const registry = registryAt(tempRoot());
+  const soul = '人'.repeat(5_000) + '魂';
+  const coreMemory = '记'.repeat(3_000) + '忆';
+  const limits = { soul: 5_001, coreMemory: 3_001 };
+  expect(
+    registry.create({ slug: 'author', displayName: 'Author', persona: soul, coreMemory }).ok,
+  ).toBe(true);
+  expect(registry.setStandingLimits('author', limits).ok).toBe(true);
+
+  const http = httpFor(registry);
+  const exported = await http(new Request('http://host/api/botharness/bot-zip?slug=author'));
+  expect(exported.status).toBe(200);
+  const archive = new Uint8Array(await exported.arrayBuffer());
+  const preview = await http(
+    importRequest(archive, 'Shared.zip', 'application/vnd.botharness.bot-zip-preview'),
+  );
+  expect(await preview.json()).toEqual({
+    standing: [
+      { path: 'SOUL.md', role: 'soul', chars: 5_001, limit: 5_001 },
+      { path: 'MEMORY.md', role: 'coreMemory', chars: 3_001, limit: 3_001 },
+    ],
+  });
+  expect(registry.list()).toHaveLength(1);
+  const imported = await http(importRequest(archive));
+  expect(imported.status).toBe(200);
+  const record = registry.get('zip-bot-1');
+  expect(record?.standingLimits).toEqual(limits);
+  const memoryDir = registry.memoryDirFor('zip-bot-1');
+  if (memoryDir === undefined) throw new Error('Imported memory is missing');
+  const prompt = renderStandingPrompt(memoryDir, record?.standingLimits);
+  expect(prompt).toContain(soul);
+  expect(prompt).toContain(coreMemory);
+  expect(prompt).not.toContain('[Truncated:');
+});
+
+it('previews effective defaults on a legacy archive with unusable limit metadata', async () => {
+  const registry = registryAt(tempRoot());
+  const archive = writeZip([
+    { path: 'PERSONA.md', data: Buffer.from('📝'.repeat(5_003) + '\n') },
+    {
+      path: '.botharness/bot.json',
+      data: Buffer.from(
+        JSON.stringify({ name: 'Legacy', standingLimits: { soul: 5001, coreMemory: -1 } }),
+      ),
+    },
+  ]);
+  const http = httpFor(registry);
+  const preview = await http(
+    importRequest(archive, 'Legacy.zip', 'application/vnd.botharness.bot-zip-preview'),
+  );
+  expect(await preview.json()).toEqual({
+    standing: [{ path: 'PERSONA.md', role: 'soul', chars: 5_003, limit: 5_000 }],
+  });
+  expect(registry.list()).toHaveLength(0);
+  expect((await http(importRequest(archive))).status).toBe(200);
+  expect(registry.get('zip-bot-1')?.standingLimits).toBeUndefined();
+});
 
 describe('zip archive', () => {
   it('round-trips UTF-8 paths and binary content', () => {
@@ -381,6 +446,11 @@ describe('Bot Zip import', () => {
     writeFileSync(join(memoryDir, 'MEMORY.md'), '- people/alex.md\n');
     mkdirSync(join(memoryDir, 'people'));
     writeFileSync(join(memoryDir, 'people', 'alex.md'), 'Alex likes tea\n');
+    const skillPath = '.agents/skills/find-sources/SKILL.md';
+    const skill =
+      '---\nname: find-sources\ndescription: Find primary sources\n---\nRead the sources.\n';
+    mkdirSync(join(memoryDir, '.agents', 'skills', 'find-sources'), { recursive: true });
+    writeFileSync(join(memoryDir, skillPath), skill);
     const http = httpFor(registry);
 
     const exported = await http(new Request('http://host/api/botharness/bot-zip?slug=ada'));
@@ -391,6 +461,7 @@ describe('Bot Zip import', () => {
     const paths = readZip(Buffer.from(archive), LIMITS).map((entry) => entry.path);
     expect(paths).toContain('.botharness/bot.json');
     expect(paths).toContain('.botharness/avatar.png');
+    expect(paths).toContain(skillPath);
     expect(paths.some((path) => path === '.git' || path.startsWith('.git/'))).toBe(false);
     expect(paths.some((path) => /session|binding|credential/iu.test(path))).toBe(false);
 
@@ -411,6 +482,10 @@ describe('Bot Zip import', () => {
         readFileSync(join(memoryDir, path), 'utf8'),
       );
     }
+    expect(readFileSync(join(copyDir, skillPath), 'utf8')).toBe(skill);
+    expect(await listBotSkills(copyDir)).toContainEqual(
+      expect.objectContaining({ name: 'find-sources', path: skillPath }),
+    );
     expect(git(copyDir, 'rev-list', '--count', 'HEAD').trim()).toBe('1');
     expect(git(copyDir, 'status', '--porcelain').trim()).toBe('');
     expect(registry.get('ada')).toBeDefined();

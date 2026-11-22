@@ -27,7 +27,7 @@ async function exercise(
   count: number,
   onRun: (run: OrchestratorAgentRun, core: ReturnType<typeof createCore>) => Promise<void>,
 ) {
-  let failure: unknown;
+  let failure: Error | undefined;
   const core = createCore({
     dshHome: createTempRoot('botharness-contact-discovery-'),
     agents: adapter(async (run) => {
@@ -35,8 +35,8 @@ async function exercise(
         try {
           await onRun(run, core);
         } catch (error) {
-          failure = error;
-          throw error;
+          failure = error instanceof Error ? error : new Error(String(error), { cause: error });
+          throw failure;
         }
       }
     }),

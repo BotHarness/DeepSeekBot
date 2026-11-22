@@ -1,10 +1,12 @@
+@import './tokens/tobs-core.generated.css';
+
 :root {
   --bh-ink: #0f172a;
   --bh-ink-soft: #475569;
   --bh-paper: #f8fafc;
-  --bh-brand: #16a34a;
-  --bh-brand-strong: #15803d;
-  --bh-accent: #2563eb;
+  --bh-brand: var(--tobs-core-brand);
+  --bh-brand-strong: var(--tobs-core-brand-hover);
+  --bh-accent: var(--tobs-core-accent-classic-blue);
   --bh-border: rgba(0, 0, 0, 0.12);
   --bh-border-hover: rgba(0, 0, 0, 0.17);
   --bh-radius: 12px;

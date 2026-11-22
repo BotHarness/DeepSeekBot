@@ -1,42 +1,20 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  forwardRef,
-  type ButtonHTMLAttributes,
-  type HTMLAttributes,
-  type PropsWithChildren,
-  type ReactNode,
-} from 'react';
+import { type BridgeCall } from '../src/client/bridge.js';
+import { type HeaderSessionStopController } from '../src/client/header-session-stop.js';
+import { type SessionStopGroup } from '../src/client/header-session-stop.js';
+import { type PersonaBotSessionActivity } from '../../core/src/state/tool-activity.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({
-    children,
-    icon: _icon,
-    ...props
-  }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement> & { icon?: unknown }>) =>
-    createElement('button', props, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   FileTypeIcon: () => null,
-  IconCloseOutlineRegular: () => null,
-  IconChevronDownOutlineRegular: () => null,
-  IconAgentPresetOutlineRegular: () => null,
-  IconCodeOutlineRegular: () => null,
-  IconBranchOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  IconPaperclipOutlineRegular: () => null,
-  IconSendOutlineRegular: () => null,
-  IconSkillOutlineRegular: () => null,
-  IconStopFillRegular: () => null,
+
   ImageLightbox: () => null,
-  Tag: ({ children }: { children: ReactNode }) => createElement('span', null, children),
-  MenuSurface: forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
-    function MenuSurface(props, ref) {
-      return createElement('div', { ...props, ref });
-    },
-  ),
+
   fileSizeText: (size: number) => `${size} B`,
 }));
 
@@ -48,14 +26,12 @@ const openPanel = vi.fn();
 vi.mock('../src/client/channel-dock.js', () => ({ useDockPanelOpener: () => openPanel }));
 
 import { createActions } from '../src/client/actions.js';
-import type { BridgeCall } from '../src/client/bridge.js';
+
 import { ChannelComposer } from '../src/client/channel-composer.js';
 import {
   ConversationSessionStop,
   HeaderSessionChip,
   HeaderSessionStop,
-  type HeaderSessionStopController,
-  type SessionStopGroup,
 } from '../src/client/header-session-stop.js';
 import { en, type BotHarnessTranslate } from '../src/client/locale.js';
 import { SESSION_TARGET_KEY } from '../src/client/session-target.js';
@@ -65,7 +41,6 @@ import {
   runningSessions,
 } from '../src/client/session-stop-model.js';
 import { createStore, type BotSummary, type ChannelSummary } from '../src/client/store.js';
-import type { PersonaBotSessionActivity } from '../../core/src/state/tool-activity.js';
 
 const enTranslate = ((key: string, params?: Record<string, unknown>) => {
   let text: string = (en as Record<string, string>)[key] ?? key;

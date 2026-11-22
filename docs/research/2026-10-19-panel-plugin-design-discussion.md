@@ -2,7 +2,7 @@
 
 Date: 2026-10-19. Baseline: BotHarness main `508e3b3c0`.
 
-This records the ongoing `grill-with-docs` discussion. Accepted design direction is now recorded in [ADR-0234](../adr/0234-panels-are-native-plugins-with-independent-binding.md); this discussion is supporting evidence, not implementation authorization. Existing implementation facts are in [the event audit](2026-10-19-panel-events-audit.md) and [the pinned DSH mechanism investigation](2026-10-19-panel-authoring-dsh-mechanisms.md).
+This records the ongoing `grill-with-docs` discussion. Accepted design direction was recorded in [ADR-0234](https://github.com/BotHarness/DeepSeekBot/blob/c29037589fa5ebdd7c9eb2790421f142ff8da233/docs/adr/0234-panels-are-native-plugins-with-independent-binding.md) (current decision: [Desktop UI](../decisions/desktop-ui.md#adr-0234)); this discussion is supporting evidence, not implementation authorization. Existing implementation facts are in [the event audit](2026-10-19-panel-events-audit.md) and [the pinned DSH mechanism investigation](2026-10-19-panel-authoring-dsh-mechanisms.md).
 
 ## Human-confirmed direction
 
@@ -70,7 +70,7 @@ This proposal narrows the already chosen slice. Exact public method names, paylo
 
 At the existing audit baseline, the current companion is registered in the native shell.overlay Slot (packages/client/src/client/index.ts:311). Its existing character renderer is PersonaBotAvatar (packages/client/src/client/avatar.tsx:344). This is a baseline implementation fact, not the selected renderer for T1: the later VRM decision supersedes the initial reuse-only proposal. Any reused presentation capability needs a public contract rather than imports from another feature Plugin's internals.
 
-Current Activity reads and streams already exist (packages/core/src/bridge/methods.ts:2613, packages/core/src/bridge/rpc.ts:257). The followActivity implementation subscribes before yielding its baseline and then coalesces changes into current snapshots (packages/core/src/channels/live.ts:472). The Client currently disables its separate Activity subscription while the companion feed updates the shared store (packages/client/src/client/index.ts:694). The extracted capability must preserve one coherent data owner and work with or without the old overlay; moving a UI import alone does not establish independent lifetime.
+Current Activity reads and streams already exist (packages/core/src/features/activity/methods.ts, packages/core/src/bridge/rpc.ts). The followActivity implementation subscribes before yielding its baseline and then coalesces changes into current snapshots ([live-activity.ts](../../packages/core/src/channels/live-activity.ts)). The Client currently disables its separate Activity subscription while the companion feed updates the shared store (packages/client/src/client/index.ts:694). The extracted capability must preserve one coherent data owner and work with or without the old overlay; moving a UI import alone does not establish independent lifetime.
 
 The existing DockPanel contract exposes only global | channel, current-Channel props and a registration id (packages/client/src/client/dock-panels.ts:15). Independent implementation and instance identities, explicit binding and generic applicability need a real public contract. These are source constraints for the proposed slice, not runtime verification.
 

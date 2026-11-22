@@ -105,6 +105,7 @@ function legacyMemory(f: ReturnType<typeof fixture>) {
   const history = execFileSync('git', ['-C', source, 'rev-list', 'HEAD'], {
     encoding: 'utf8',
     windowsHide: true,
+    shell: false,
   }).trim();
   f.db.transaction((connection) =>
     connection
@@ -132,6 +133,7 @@ async function formerOwnerMemory(f: ReturnType<typeof fixture>) {
   const history = execFileSync('git', ['-C', source, 'rev-list', 'HEAD'], {
     encoding: 'utf8',
     windowsHide: true,
+    shell: false,
   }).trim();
   await f.team.setOwnerPassword(owner, 'old-owner-password');
   const member = await f.team.createMember(owner, 'nextowner', 'Next Owner');
@@ -224,6 +226,7 @@ describe('M6 durable filesystem transactions', () => {
         execFileSync('git', ['-C', memory.source, 'rev-list', 'HEAD'], {
           encoding: 'utf8',
           windowsHide: true,
+          shell: false,
         }).trim(),
       ).toBe(memory.history);
       expect(fs.readFileSync(join(f.home, 'spaces', owner.humanId, 'files/report'), 'utf8')).toBe(
@@ -282,6 +285,7 @@ describe('M6 durable filesystem transactions', () => {
           execFileSync('git', ['-C', current, 'rev-list', 'HEAD'], {
             encoding: 'utf8',
             windowsHide: true,
+            shell: false,
           }).trim(),
         ).toBe(memory.history);
       } else expect(fs.existsSync(memory.target)).toBe(false);
@@ -342,6 +346,7 @@ describe('M6 durable filesystem transactions', () => {
       execFileSync('git', ['-C', memory.target, 'rev-list', 'HEAD'], {
         encoding: 'utf8',
         windowsHide: true,
+        shell: false,
       }).trim(),
     ).toBe(memory.history);
     expect(
@@ -428,6 +433,7 @@ describe('M6 durable filesystem transactions', () => {
         execFileSync('git', ['-C', memory.target, 'rev-list', 'HEAD'], {
           encoding: 'utf8',
           windowsHide: true,
+          shell: false,
         }).trim(),
       ).toBe(memory.history);
       expect(
@@ -755,6 +761,7 @@ describe('M6 durable filesystem transactions', () => {
         execFileSync('git', ['-C', memory.target, 'rev-list', 'HEAD'], {
           encoding: 'utf8',
           windowsHide: true,
+          shell: false,
         }).trim(),
       ).toBe(memory.history);
       expect(

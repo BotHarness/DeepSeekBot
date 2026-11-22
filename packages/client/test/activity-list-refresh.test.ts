@@ -340,7 +340,7 @@ it('refreshes the entry status when a committed roster mute changes without open
   let muted: string[] = [];
   const call: BridgeCall = async (endpoint, payload) => {
     if (endpoint === 'rosterGet')
-      return { ok: true, value: { pins: [], hidden: [], muted, sections: [] } };
+      return { ok: true, value: { pins: [], hidden: [], muted, sections: [], sectionOrder: [] } };
     if (endpoint === 'channels') return { ok: true, value: { channels: [] } };
     if (endpoint === 'list') return { ok: true, value: { bots: [] } };
     if (endpoint === 'composerIdentity') return { ok: true, value: { displayName: 'Human' } };

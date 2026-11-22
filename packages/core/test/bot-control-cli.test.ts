@@ -105,9 +105,17 @@ describe('Agent control commands', () => {
   });
 
   it('reads and sets the access preset and refuses danger without explicit acknowledgement', async () => {
+    let mode = 'workspace-write';
     const live = await host((method, args) => ({
       ok: true,
-      value: { preset: { botSlug: args['slug'], mode: args['mode'] ?? 'workspace-write' } },
+      value: {
+        preset: {
+          botSlug: args['slug'],
+          revision: 1,
+          scope: args['scope'] ?? 'chat',
+          mode: typeof args['mode'] === 'string' ? (mode = args['mode']) : mode,
+        },
+      },
     }));
     expect((await invoke(['access', 'ada'], live.url)).json.preset.botSlug).toBe('ada');
     const refused = await invoke(['access-set', 'ada', '--mode', 'danger-full-access'], live.url);
@@ -122,7 +130,7 @@ describe('Agent control commands', () => {
         )
       ).json.error.code,
     ).toBe('usage');
-    await invoke(
+    const fullAccess = await invoke(
       [
         'access-set',
         'ada',
@@ -134,6 +142,8 @@ describe('Agent control commands', () => {
       ],
       live.url,
     );
+    expect(fullAccess.json.warning).toMatch(/change or delete files anywhere/u);
+    expect((await invoke(['access', 'ada'], live.url)).json.warning).toBe(fullAccess.json.warning);
     await invoke(['access-set', 'ada', '--mode', 'workspace-write'], live.url);
     expect(live.calls).toEqual([
       { method: 'assignmentAccessGet', args: { slug: 'ada' } },
@@ -146,6 +156,7 @@ describe('Agent control commands', () => {
           acknowledgeRisk: true,
         },
       },
+      { method: 'assignmentAccessGet', args: { slug: 'ada' } },
       { method: 'assignmentAccessSet', args: { slug: 'ada', mode: 'workspace-write' } },
     ]);
   });

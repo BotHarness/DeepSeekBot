@@ -94,3 +94,35 @@ export function createModelCatalog(
     },
   };
 }
+
+export function groupEfforts(
+  routes: readonly Pick<ModelRoute, 'provider' | 'model'>[],
+  entries: readonly ModelCatalogEntry[],
+): string[] {
+  const lists = routes
+    .map((route) =>
+      (
+        entries.find((entry) => entry.provider === route.provider && entry.model === route.model)
+          ?.efforts ?? []
+      )
+        .map((effort) => effort.id)
+        .filter((id) => id !== ''),
+    )
+    .filter((list) => list.length > 0);
+  const [first, ...rest] = lists;
+  return (first ?? []).filter((id) => rest.every((list) => list.includes(id)));
+}
+
+export function groupMemberRoute(
+  route: ModelRoute,
+  effort: string | undefined,
+  entries: readonly ModelCatalogEntry[],
+): ModelRoute {
+  if (route.reasoningEffort !== undefined || effort === undefined || effort === '') return route;
+  const entry = entries.find(
+    (item) => item.provider === route.provider && item.model === route.model,
+  );
+  return entry?.efforts.some((item) => item.id === effort)
+    ? { ...route, reasoningEffort: effort }
+    : route;
+}

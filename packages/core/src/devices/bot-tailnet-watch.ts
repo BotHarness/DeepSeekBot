@@ -79,6 +79,7 @@ export function spawnOwnedProcess(file: string, args: readonly string[]): ChildP
     stdio: ['ignore', 'pipe', 'ignore'],
     windowsHide: true,
     detached: process.platform !== 'win32',
+    shell: false,
   });
 }
 

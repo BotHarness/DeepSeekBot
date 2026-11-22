@@ -1,14 +1,20 @@
 import { describe, expect, it } from 'vitest';
 
-import { loadBotModel } from '@botharness/host-client/bot-settings';
+import { currentModel, loadBotModel, loadGlobalModel } from '@botharness/host-client/bot-settings';
 import { createHostClient } from '@botharness/host-client/client';
+import { modelChoiceKey } from '@botharness/host-client/model-catalog';
 import {
+  assignmentEffortRange,
   inheritModel,
+  modelRoutes,
   modelSettingsResource,
   saveModelPreset,
   searchModels,
+  setAssignmentEfforts,
+  setAssignmentGroupNote,
   setModelGroup,
   setModelRoute,
+  toggleAssignmentGroup,
   toggleAssignmentModel,
   type ModelSettingsState,
 } from '@botharness/host-client/model-settings';
@@ -140,6 +146,10 @@ describe('native Model Plans and Presets', () => {
       slug: 'qa',
       expectedRevision: 4,
       orchestrator: plan.orchestrator,
+      orchestratorGroupId: null,
+      assignmentGroups: [],
+      assignmentDefaultGroupId: null,
+      assignmentGroupOptions: [],
       assignmentDefault: { ...pro, reasoningEffort: 'high' },
       assignmentModels: [...allowed, { ...pro, allowedEfforts: ['high'], defaultEffort: 'high' }],
     });
@@ -170,6 +180,10 @@ describe('native Model Plans and Presets', () => {
       expectedRevision: 2,
       name: 'Fast',
       orchestrator: flash,
+      orchestratorGroupId: null,
+      assignmentGroups: [],
+      assignmentDefaultGroupId: null,
+      assignmentGroupOptions: [],
       assignmentDefault: flash,
       assignmentModels: allowed,
     });
@@ -188,7 +202,7 @@ describe('native Model Plans and Presets', () => {
     await toggleAssignmentModel(client, { kind: 'bot', slug: 'qa' }, state, models[1]!);
     expect(fake.calls[0]?.args['assignmentModels']).toEqual([
       ...allowed,
-      { ...pro, allowedEfforts: ['high'], defaultEffort: 'high' },
+      { ...pro, allowedEfforts: ['', 'high'], defaultEffort: 'high' },
     ]);
     await expect(
       toggleAssignmentModel(client, { kind: 'bot', slug: 'qa' }, state, models[0]!),
@@ -211,6 +225,10 @@ describe('native Model Plans and Presets', () => {
     expect(fake.calls[0]?.args).toEqual({
       name: 'New',
       orchestrator: flash,
+      orchestratorGroupId: null,
+      assignmentGroups: [],
+      assignmentDefaultGroupId: null,
+      assignmentGroupOptions: [],
       assignmentDefault: flash,
       assignmentModels: [{ ...flash, allowedEfforts: [''], defaultEffort: '' }],
     });
@@ -261,6 +279,21 @@ describe('native Model Plans and Presets', () => {
     await expect(global.favorite({ kind: 'model', ...pro }, true)).rejects.toThrow();
   });
 
+  it('stars a Model Preset and reads it back as a favorite (#4503)', async () => {
+    const { fake, client } = setup();
+    const starred = [{ kind: 'preset', id: 'fast' }];
+    fake.methods.set('modelCatalog', () => ({ models, default: flash, favorites: starred }));
+    fake.methods.set('modelFavoriteSet', () => ({ favorites: starred }));
+    const bot = modelSettingsResource(client, { kind: 'bot', slug: 'qa' });
+    expect((await bot.refresh()).favorites).toEqual(starred);
+    await bot.favorite({ kind: 'preset', id: 'fast' }, true);
+    expect(fake.calls.at(-1)).toMatchObject({
+      method: 'modelFavoriteSet',
+      args: { choice: { kind: 'preset', id: 'fast' }, favorite: true },
+    });
+    expect(modelChoiceKey({ kind: 'preset', id: 'fast' })).toBe('preset:fast');
+  });
+
   it('reads Routing Groups and runs the Bot Orchestrator on one (#4421)', async () => {
     const { fake, client } = setup();
     const until = '2026-11-22T23:23:00.000Z';
@@ -287,6 +320,276 @@ describe('native Model Plans and Presets', () => {
     await expect(
       setModelGroup(client, { kind: 'bot', slug: 'qa' }, loaded, 'tired'),
     ).rejects.toThrow();
-    await expect(setModelGroup(client, { kind: 'global' }, loaded, 'daily')).rejects.toThrow();
+  });
+
+  it('puts Routing Groups in every Preset slot and keeps them on later edits (#4501)', async () => {
+    const { fake, client } = setup();
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };
+    const side = { id: 'side', name: 'Side', revision: 1, routes: [pro] };
+    const scope = { kind: 'preset' as const, id: 'fast' };
+    let saved: Record<string, unknown> = { ...preset };
+    fake.methods.set('modelPresetUpdate', (args) => {
+      saved = { ...saved, ...args, revision: Number(args['expectedRevision']) + 1 };
+      return { preset: saved };
+    });
+    const current = () => ({ ...state, groups: [daily, side], preset: saved as typeof preset });
+    await setModelGroup(client, scope, current(), 'daily');
+    expect(fake.calls.at(-1)?.args).toMatchObject({ orchestratorGroupId: 'daily' });
+    expect(fake.calls.at(-1)?.args).not.toHaveProperty('orchestrator');
+    await setModelGroup(client, scope, current(), 'side', 'assignment');
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      orchestratorGroupId: 'daily',
+      assignmentGroups: ['side'],
+      assignmentDefaultGroupId: 'side',
+    });
+    await toggleAssignmentGroup(client, scope, current(), 'daily');
+    expect(fake.calls.at(-1)?.args).toMatchObject({ assignmentGroups: ['side', 'daily'] });
+    await expect(toggleAssignmentGroup(client, scope, current(), 'side')).rejects.toThrow(
+      'ASSIGNMENT_DEFAULT_REQUIRED',
+    );
+    await setAssignmentGroupNote(client, scope, current(), 'daily', '  Quick checks  ');
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      assignmentGroups: ['side', 'daily'],
+      assignmentGroupOptions: [{ group: 'daily', note: 'Quick checks' }],
+    });
+    await setAssignmentGroupNote(client, scope, current(), 'daily', '');
+    expect(fake.calls.at(-1)?.args).toMatchObject({ assignmentGroupOptions: [] });
+    await expect(
+      setAssignmentGroupNote(client, scope, { ...current(), groups: [] }, 'other', 'x'),
+    ).rejects.toThrow('MODEL_UNAVAILABLE');
+    await setModelRoute(client, scope, current(), 'assignment', flash);
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      orchestratorGroupId: 'daily',
+      assignmentGroups: ['side', 'daily'],
+      assignmentDefaultGroupId: null,
+      assignmentDefault: flash,
+    });
+    await setModelRoute(client, scope, current(), 'orchestrator', pro);
+    expect(fake.calls.at(-1)?.args).toMatchObject({ orchestrator: pro, orchestratorGroupId: null });
+  });
+
+  it('narrows the reasoning levels of an allowed model or Routing Group (#4497)', async () => {
+    const { fake, client } = setup();
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [pro] };
+    const scope = { kind: 'bot' as const, slug: 'qa' };
+    fake.methods.set('modelPlanSet', () => ({ plan }));
+    const proOption = { ...pro, allowedEfforts: ['', 'high'], defaultEffort: '' };
+    const current: ModelSettingsState = {
+      ...state,
+      groups: [daily],
+      plan: {
+        ...plan,
+        assignmentModels: [...allowed, proOption],
+        assignmentGroups: ['daily'],
+        assignmentGroupOptions: [{ group: 'daily', note: 'Hard work' }],
+      },
+    };
+    const proTarget = { kind: 'model' as const, ...pro };
+    expect(assignmentEffortRange(current, proTarget)).toEqual({
+      allowed: ['', 'high'],
+      defaultEffort: '',
+    });
+    await setAssignmentEfforts(client, scope, current, proTarget, ['high'], '');
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      assignmentModels: [allowed[0], { ...pro, allowedEfforts: ['high'], defaultEffort: 'high' }],
+    });
+    await expect(setAssignmentEfforts(client, scope, current, proTarget, [], '')).rejects.toThrow(
+      'EFFORT_REQUIRED',
+    );
+    const flashTarget = { kind: 'model' as const, ...flash };
+    expect(assignmentEffortRange(current, flashTarget)?.locked).toBe('');
+    await expect(
+      setAssignmentEfforts(client, scope, current, flashTarget, ['high'], 'high'),
+    ).rejects.toThrow('ASSIGNMENT_DEFAULT_REQUIRED');
+    await setAssignmentEfforts(client, scope, current, flashTarget, ['', 'high'], 'high');
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      assignmentModels: [{ ...allowed[0], defaultEffort: '' }, proOption],
+    });
+    const dailyTarget = { kind: 'group' as const, id: 'daily' };
+    expect(assignmentEffortRange(current, dailyTarget)).toEqual({ allowed: [], defaultEffort: '' });
+    await setAssignmentEfforts(client, scope, current, dailyTarget, ['high'], '');
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      assignmentGroupOptions: [
+        { group: 'daily', note: 'Hard work', allowedEfforts: ['high'], defaultEffort: 'high' },
+      ],
+    });
+    await setAssignmentEfforts(client, scope, current, dailyTarget, [], '');
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      assignmentGroupOptions: [{ group: 'daily', note: 'Hard work' }],
+    });
+    await expect(
+      setAssignmentEfforts(client, scope, current, { kind: 'group', id: 'other' }, [], ''),
+    ).rejects.toThrow('MODEL_UNAVAILABLE');
+  });
+
+  it('keeps open Assignments, starts a group on a ready model, and copies the default group into a new Preset (#4501)', async () => {
+    const { fake, client } = setup();
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };
+    const keyless = [{ ...models[0]!, credential: 'missing' as const }, models[1]!];
+    const scope = { kind: 'bot' as const, slug: 'qa' };
+    fake.methods.set('modelPlanSet', () => ({ plan }));
+    const open = { ...plan, openAssignmentModels: true as const };
+    await toggleAssignmentGroup(client, scope, { ...state, plan: open, groups: [daily] }, 'daily');
+    expect(fake.calls.at(-1)?.args).toMatchObject({ openAssignmentModels: true });
+    const { assignmentDefault: _default, assignmentModels: _models, ...bare } = plan;
+    await setModelGroup(
+      client,
+      scope,
+      { ...state, models: keyless, plan: bare, groups: [daily] },
+      'daily',
+      'assignment',
+    );
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      assignmentDefault: pro,
+      assignmentDefaultGroupId: 'daily',
+    });
+    fake.methods.set('modelPresetCreate', () => ({ preset }));
+    await saveModelPreset(
+      client,
+      {
+        revision: 0,
+        models,
+        presets: [],
+        fallback: flash,
+        groups: [daily],
+        defaultGroupId: 'daily',
+      },
+      'Grouped',
+    );
+    expect(fake.calls.at(-1)?.args).toMatchObject({ orchestratorGroupId: 'daily' });
+    expect(fake.calls.at(-1)?.args).not.toHaveProperty('orchestrator');
+    const side = { id: 'side', name: 'Side', revision: 1, routes: [pro] };
+    const { plan: _plan, ...following } = state;
+    await setModelGroup(
+      client,
+      scope,
+      { ...following, groups: [daily, side], defaultGroupId: 'daily' },
+      'side',
+      'assignment',
+    );
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      orchestratorGroupId: 'daily',
+      assignmentDefaultGroupId: 'side',
+    });
+  });
+
+  it('sets the global default to a Routing Group and shows it for Bots that follow it (#4500)', async () => {
+    const { fake, client } = setup();
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };
+    fake.methods.set('modelCatalog', () => ({
+      models,
+      default: flash,
+      defaultRevision: 3,
+      defaultGroupId: 'daily',
+      defaultGroupRevision: 2,
+      groups: [daily],
+    }));
+    fake.methods.set('modelPresets', () => ({ presets: [] }));
+    const global = await loadGlobalModel(client);
+    expect(global.defaultGroupId).toBe('daily');
+    expect(currentModel(global).group).toBe('Daily');
+    const { fallback: _fallback, ...withoutFallback } = global;
+    expect(currentModel(withoutFallback)).toEqual({ group: 'Daily' });
+    fake.methods.set('onboardingModel', () => ({ revision: 3, groupRevision: 2 }));
+    await setModelGroup(client, { kind: 'global' }, global, 'daily');
+    expect(fake.calls.at(-1)).toEqual({
+      method: 'onboardingModel',
+      args: {
+        expectedRevision: 0,
+        expectedDefaultRevision: 3,
+        expectedDefaultGroupRevision: 2,
+        groupId: 'daily',
+        globalDefault: true,
+      },
+    });
+    fake.methods.set('modelPlan', () => ({ revision: 0 }));
+    expect(currentModel(await loadBotModel(client, 'qa')).group).toBe('Daily');
+  });
+
+  it('keeps one effort with the global default Routing Group (#4497)', async () => {
+    const { fake, client } = setup();
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };
+    fake.methods.set('modelCatalog', () => ({
+      models,
+      default: flash,
+      defaultRevision: 3,
+      defaultGroupId: 'daily',
+      defaultGroupEffort: 'high',
+      defaultGroupRevision: 2,
+      groups: [daily],
+    }));
+    fake.methods.set('modelPresets', () => ({ presets: [] }));
+    const global = await loadGlobalModel(client);
+    expect(global.defaultGroupEffort).toBe('high');
+    expect(modelRoutes(global).groups).toMatchObject({
+      orchestratorGroupId: 'daily',
+      orchestratorGroupEffort: 'high',
+    });
+    fake.methods.set('onboardingModel', () => ({ revision: 3, groupRevision: 3 }));
+    await setModelGroup(client, { kind: 'global' }, global, 'daily', 'orchestrator', 'high');
+    expect(fake.calls.at(-1)?.args).toMatchObject({ groupId: 'daily', groupEffort: 'high' });
+    await expect(
+      setModelGroup(client, { kind: 'global' }, global, 'daily', 'orchestrator', 'max'),
+    ).rejects.toThrow('MODEL_UNAVAILABLE');
+    fake.methods.set('modelPlan', () => ({ revision: 0 }));
+    expect(modelRoutes(await loadBotModel(client, 'qa')).groups).toMatchObject({
+      orchestratorGroupEffort: 'high',
+    });
+  });
+
+  it('saves one shared effort with a Routing Group in every slot (#4497)', async () => {
+    const { fake, client } = setup();
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };
+    const groups = { ...state, groups: [daily] };
+    fake.methods.set('modelPlanCustomize', () => ({ plan }));
+    await setModelGroup(
+      client,
+      { kind: 'bot', slug: 'qa' },
+      groups,
+      'daily',
+      'orchestrator',
+      'high',
+    );
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      orchestratorGroupId: 'daily',
+      orchestratorGroupEffort: 'high',
+    });
+    await expect(
+      setModelGroup(client, { kind: 'bot', slug: 'qa' }, groups, 'daily', 'orchestrator', 'max'),
+    ).rejects.toThrow('MODEL_UNAVAILABLE');
+    const scope = { kind: 'preset' as const, id: 'fast' };
+    let saved: Record<string, unknown> = { ...preset };
+    fake.methods.set('modelPresetUpdate', (args) => {
+      saved = { ...saved, ...args, revision: Number(args['expectedRevision']) + 1 };
+      return { preset: saved };
+    });
+    const current = () => ({ ...groups, preset: saved as typeof preset });
+    await setModelGroup(client, scope, current(), 'daily', 'orchestrator', 'high');
+    expect(fake.calls.at(-1)?.args).toMatchObject({ orchestratorGroupEffort: 'high' });
+    await setModelGroup(client, scope, current(), 'daily', 'orchestrator');
+    expect(fake.calls.at(-1)?.args).toMatchObject({ orchestratorGroupEffort: null });
+    await setModelGroup(client, scope, current(), 'daily', 'assignment', 'high');
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      assignmentDefaultGroupId: 'daily',
+      assignmentGroupOptions: [{ group: 'daily', allowedEfforts: ['high'], defaultEffort: 'high' }],
+    });
+    await setModelGroup(client, scope, current(), 'daily', 'assignment');
+    expect(fake.calls.at(-1)?.args).toMatchObject({ assignmentGroupOptions: [] });
+    await setModelRoute(client, scope, current(), 'orchestrator', pro);
+    expect(fake.calls.at(-1)?.args).toMatchObject({ orchestratorGroupId: null });
+    expect(fake.calls.at(-1)?.args).not.toHaveProperty('orchestratorGroupEffort');
+  });
+
+  it('keeps a stored group effort when a Preset is renamed (#4497)', async () => {
+    const { fake, client } = setup();
+    const daily = { id: 'daily', name: 'Daily', revision: 1, routes: [flash, pro] };
+    const grouped = { ...preset, orchestratorGroupId: 'daily', orchestratorGroupEffort: 'high' };
+    fake.methods.set('modelPresetUpdate', (args) => ({ preset: { ...grouped, ...args } }));
+    await saveModelPreset(client, { ...state, groups: [daily], preset: grouped }, 'Renamed', true);
+    expect(fake.calls.at(-1)?.args).toMatchObject({
+      name: 'Renamed',
+      orchestratorGroupId: 'daily',
+      orchestratorGroupEffort: 'high',
+    });
   });
 });

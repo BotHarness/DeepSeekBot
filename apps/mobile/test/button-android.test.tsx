@@ -32,6 +32,7 @@ await vi.hoisted(async () => {
   }
 });
 
+vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('react-native', async () => await import('./react-native-shim'));
 vi.mock('@expo/ui/jetpack-compose', () => {
   const button =

@@ -38,6 +38,8 @@ const check = (counts: unknown, tests: unknown, phase = 'positive') => {
     writeFileSync(testsPath, JSON.stringify(tests));
     return spawnSync(process.execPath, [script, phase, countsPath, testsPath], {
       encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
     });
   } finally {
     rmSync(directory, { recursive: true, force: true });

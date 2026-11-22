@@ -1,3 +1,4 @@
+import { Icon } from './ds/icon.js';
 import { Menu } from './appearance-primitives.js';
 import {
   useCallback,
@@ -9,12 +10,8 @@ import {
   type ReactElement,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconEllipsisOutlineRegular,
-  IconCloseFillRegular,
-  IconNewChatOutlineRegular,
-  type MenuEntry,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
+import { type MenuEntry } from './ds/menu.js';
 import { PersonaBotAvatar } from './avatar.js';
 import { attentionCount } from './activity-attention.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -795,19 +792,21 @@ export function WindowCompanionView({
                   {...stylex.props(styles.headerButton, styles.sourceButton)}
                   disabled={head.canOpen === false}
                   title={head.canOpen === false ? t('companion.sourceUnavailable') : undefined}
-                  onClick={async () => {
+                  onClick={() => {
                     if (head.canOpen === false) return;
-                    try {
-                      await openChannel(head.channelId, head.messageId);
-                      setUnavailable(
-                        (prior) => new Set([...prior].filter((id) => id !== headIdentity)),
+                    Promise.resolve()
+                      .then(() => openChannel(head.channelId, head.messageId))
+                      .then(
+                        () =>
+                          setUnavailable(
+                            (prior) => new Set([...prior].filter((id) => id !== headIdentity)),
+                          ),
+                        () =>
+                          setUnavailable(
+                            (prior) =>
+                              new Set([...prior, headIdentity].slice(-view.capacity.retention)),
+                          ),
                       );
-                    } catch {
-                      setUnavailable(
-                        (prior) =>
-                          new Set([...prior, headIdentity].slice(-view.capacity.retention)),
-                      );
-                    }
                   }}
                 >
                   {t(
@@ -845,7 +844,7 @@ export function WindowCompanionView({
                   companion.dismiss(head.messageId, head.channelId);
                 }}
               >
-                <IconCloseFillRegular size={14} />
+                <Icon name="circle-x" size={14} />
               </button>
             </header>
             <CompanionMessageText
@@ -867,7 +866,7 @@ export function WindowCompanionView({
             title={t('companion.openDm')}
             onClick={() => openDm(bot.slug)}
           >
-            <IconNewChatOutlineRegular size={16} />
+            <Icon name="message-square-plus" size={16} />
           </button>
           <button
             type="button"
@@ -897,7 +896,7 @@ export function WindowCompanionView({
                 aria-expanded={menu}
                 onClick={() => setMenu(!menu)}
               >
-                <IconEllipsisOutlineRegular size={16} />
+                <Icon name="ellipsis" size={16} />
               </button>
             }
             onSelect={(id) => {

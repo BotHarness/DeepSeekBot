@@ -1,3 +1,4 @@
+import { fakeBotDetail } from '../../../packages/host-client/test/fake-host.js';
 import { DEFAULT_LINE_RECIPE } from '../../../packages/core/src/bots/avatar-line';
 import { describe, expect, it, vi } from 'vitest';
 import { botCreationTransport } from '@botharness/host-client/bot-creation-transport';
@@ -76,7 +77,7 @@ describe('target-bound creation transport', () => {
   });
   it('applies a chosen avatar to the created Bot through the existing appearance operations', async () => {
     const network = carrier();
-    network.request.mockResolvedValue(answer({ bot: {} }));
+    network.request.mockResolvedValue(answer({ bot: fakeBotDetail('new-bot', 'New Bot') }));
     const transport = botCreationTransport(() => [a, b], network);
     const receipt = {
       operationKey: operation.operationKey,

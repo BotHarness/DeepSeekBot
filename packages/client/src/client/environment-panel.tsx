@@ -1,10 +1,8 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconEllipsisOutlineRegular,
-  IconRefreshOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import {
   ALL_HOSTS,
   THIS_HOST,
@@ -186,7 +184,7 @@ function EnvironmentRow({
           {
             id: 'reconnect',
             label: t('environment.reconnect'),
-            icon: <IconRefreshOutlineRegular size={16} />,
+            icon: <Icon name="refresh-cw" size={16} />,
           },
         ]
       : []),
@@ -274,7 +272,7 @@ function EnvironmentRow({
             aria-expanded={menu !== undefined}
             onClick={() => setMenu(menu === undefined ? { kind: 'anchor' } : undefined)}
           >
-            <IconEllipsisOutlineRegular size={16} />
+            <Icon name="ellipsis" size={16} />
           </IconButton>
         }
         items={items}

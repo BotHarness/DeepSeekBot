@@ -92,4 +92,4 @@ For a real reply, launch a task-owned isolated Host through `verify-app`, comple
 
 Add `--send` only for an authorized PostHog wire check. It uses a separate anonymous QA installation and version `0.0.0-qa.4255`, excluded from release analytics. It invokes the production reporter immediately rather than waiting for the Host's normal hourly timer. Verify ingestion separately in PostHog, matching the returned timestamp and token fields; HTTP acceptance alone is not ingestion proof. Local paths and credentials stay in ignored verification state.
 
-See [ADR-0344](adr/0344-token-telemetry-is-a-bounded-snapshot-of-the-usage-projection.md).
+See [ADR-0344](decisions/persistence.md#adr-0344).

@@ -89,6 +89,12 @@ export const CLI_EFFECTS = {
   'bot-delete-retry': { effects: destructive, brokerRead: false },
   'bot-import-preview': { effects: read, brokerRead: false },
   'bot-lan': { effects: management, brokerRead: false },
+  'bot-mode-default-set': { effects: management, brokerRead: false },
+  'bot-mode-set': { effects: management, brokerRead: false },
+  'bot-mode-template-delete': { effects: management, brokerRead: false },
+  'bot-mode-template-save': { effects: management, brokerRead: false },
+  'bot-mode-template-set': { effects: management, brokerRead: false },
+  'bot-modes': { effects: read, brokerRead: true },
   'bot-new-session': { effects: write, brokerRead: false },
   'bot-primary-color-set': { effects: write, brokerRead: false },
   'bot-prompt': { effects: read, brokerRead: true },
@@ -221,6 +227,7 @@ export const CLI_EFFECTS = {
   'device-requests': { effects: read, brokerRead: true },
   'device-revoke': { effects: management, brokerRead: false },
   devices: { effects: read, brokerRead: true },
+  'devices-watch': { effects: read, brokerRead: true },
   'diagnostic-log-record': { effects: write, brokerRead: false },
   'diagnostic-logs': { effects: read, brokerRead: false },
   'diagnostic-logs-export': { effects: write, brokerRead: false },
@@ -282,6 +289,17 @@ export const CLI_EFFECTS = {
   list: { effects: read, brokerRead: true },
   'marketplace-account': { effects: externalRead, brokerRead: true },
   'marketplace-author': { effects: external, brokerRead: false },
+  'marketplace-avatar-list': { effects: externalRead, brokerRead: true },
+  'marketplace-avatar-tags': { effects: externalRead, brokerRead: true },
+  'marketplace-avatar-detail': { effects: externalRead, brokerRead: true },
+  'marketplace-avatar-report': { effects: external, brokerRead: false },
+  'marketplace-blocklist': { effects: externalSecretManagement, brokerRead: false },
+  'marketplace-avatar-apply': { effects: external, brokerRead: false },
+  'marketplace-avatar-apply-candidates': { effects: read, brokerRead: false },
+  'marketplace-avatar-publish': { effects: external, brokerRead: false },
+  'marketplace-avatar-mine': { effects: externalRead, brokerRead: false },
+  'marketplace-avatar-edit': { effects: externalWrite, brokerRead: false },
+  'marketplace-avatar-delete': { effects: external, brokerRead: false },
   'marketplace-author-avatar': { effects: external, brokerRead: false },
   'marketplace-delete': { effects: external, brokerRead: false },
   'marketplace-detail': { effects: externalRead, brokerRead: true },
@@ -335,6 +353,10 @@ export const CLI_EFFECTS = {
   'messaging-source': { effects: externalRead, brokerRead: true },
   'messaging-targets': { effects: externalRead, brokerRead: true },
   'messaging-thread-policy': { effects: management, brokerRead: false },
+  'model-providers': { effects: read, brokerRead: false },
+  'model-provider-add': { effects: externalSecretManagement, brokerRead: false },
+  'model-provider-edit': { effects: externalSecretManagement, brokerRead: false },
+  'model-provider-remove': { effects: destructiveSecretManagement, brokerRead: false },
   'model-catalog': { effects: read, brokerRead: true },
   'model-favorite-add': { effects: write, brokerRead: false },
   'model-favorite-remove': { effects: write, brokerRead: false },
@@ -345,6 +367,7 @@ export const CLI_EFFECTS = {
   'model-plan-set': { effects: write, brokerRead: false },
   'model-preset-apply': { effects: write, brokerRead: false },
   'model-preset-create': { effects: write, brokerRead: false },
+  'model-preset-delete': { effects: destructive, brokerRead: false },
   'model-preset-update': { effects: write, brokerRead: false },
   'model-presets': { effects: read, brokerRead: true },
   'model-groups': { effects: read, brokerRead: true },
@@ -373,6 +396,21 @@ export const CLI_EFFECTS = {
   'plugin-check': { effects: externalRead, brokerRead: true },
   'plugin-install': { effects: external, brokerRead: false },
   'plugin-restart': { effects: destructive, brokerRead: false },
+  engine: { effects: management, brokerRead: false },
+  'engine-approvals': { effects: read, brokerRead: true },
+  'engine-list': { effects: read, brokerRead: true },
+  'engine-accounts': { effects: read, brokerRead: false },
+  'engine-quota': { effects: undefined, brokerRead: false },
+  'engine-account-add': { effects: management, brokerRead: false },
+  'engine-account-rename': { effects: management, brokerRead: false },
+  'engine-account-remove': { effects: destructiveManagement, brokerRead: false },
+  'engine-login': { effects: externalManagement, brokerRead: false },
+  'engine-login-cancel': { effects: externalManagement, brokerRead: false },
+  'engine-models': { effects: read, brokerRead: true },
+  'engine-status': { effects: read, brokerRead: true },
+  'engine-tool': { effects: opaque, brokerRead: false },
+  'engine-tools': { effects: read, brokerRead: true },
+  'engine-use': { effects: management, brokerRead: false },
   'presence-report': { effects: write, brokerRead: false },
   'presence-status': { effects: read, brokerRead: false },
   private: { effects: write, brokerRead: false },
@@ -559,10 +597,21 @@ function familyEffects(
           return values['from-git'] ? externalWrite : write;
         case 'delete':
           return destructive;
+        case undefined:
+          return undefined;
         default:
           return botAccessEffects(action, values);
       }
     }
+    case 'engine':
+      if (action === 'quota') return values.refresh ? externalManagement : read;
+      if (['list', 'status', 'approvals', 'tools', 'models', 'accounts'].includes(action ?? ''))
+        return read;
+      if (action === 'tool') return opaque;
+      if (action === 'account-remove') return destructiveManagement;
+      return action === 'login' ? externalManagement : management;
+    case 'engine-quota':
+      return values.refresh ? externalManagement : read;
     case 'bot-access':
       return botAccessEffects(action, values);
     case 'channels':

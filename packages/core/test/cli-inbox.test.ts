@@ -136,7 +136,7 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
   });
 
   it('searches and orders personal Activity through the same Host query', async () => {
-    const live = await host(echo);
+    const live = await host(() => ({ ok: true, value: { items: [], queryVersion: 1 } }));
     const result = await invoke(
       [
         'inbox',
@@ -165,7 +165,9 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     ]);
   });
   it('lists, counts, dismisses and ignores Human Inbox items through the live Host', async () => {
-    const live = await host(echo);
+    const live = await host((method, args) =>
+      method === 'humanAttention' ? { ok: true, value: { items: [] } } : echo(method, args),
+    );
     const listed = await invoke(
       [
         'inbox',
@@ -266,9 +268,16 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
   });
 
   it('lists auto-rejected calls and allows one once anyway', async () => {
-    const live = await host(echo);
+    const receipt = { accepted: true, channelId: 'dm-ada', messageId: 'request-1' };
+    const live = await host((method) =>
+      method === 'toolAutoRejectionOverride'
+        ? { ok: true, value: receipt }
+        : { ok: true, value: { items: [] } },
+    );
     await invoke(['inbox', '--category', 'action', '--kind', 'auto-rejection'], live.url);
-    await invoke(['inbox-allow-once', 'autoreject:src-1'], live.url);
+    expect((await invoke(['inbox-allow-once', 'autoreject:src-1'], live.url)).json).toEqual(
+      receipt,
+    );
     for (const argv of [
       ['inbox', '--kind', 'tool-approval'],
       ['inbox-allow-once'],
@@ -284,11 +293,11 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
   it('dismisses every Inbox item, or every item of one kind, only with --confirm', async () => {
     const live = await host(() => ({
       ok: true,
-      value: { accepted: true, dismissed: 3, more: false },
+      value: { accepted: true, dismissed: 3, read: 0, more: false },
     }));
     const all = await invoke(['inbox-dismiss-all', '--confirm'], live.url);
     expect(all.code).toBe(0);
-    expect(all.json).toEqual({ accepted: true, dismissed: 3, more: false });
+    expect(all.json).toEqual({ accepted: true, dismissed: 3, read: 0, more: false });
     await invoke(
       [
         'inbox-dismiss-all',
@@ -374,6 +383,20 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
       { method: 'channelAssign', args: { channelId: 'group-1', sectionId: 'sec-1', index: 2 } },
       { method: 'channelAssign', args: { channelId: 'group-1', sectionId: null } },
     ]);
+  });
+
+  it('prints the Host’s ordered reply targets in the Session transcript', async () => {
+    const turnTargets = [
+      { kind: 'engine', engine: 'codex', model: 'gpt-6-astra', reasoningEffort: 'high' },
+      { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+    ];
+    const live = await host(() => ({
+      ok: true,
+      value: { items: [{ kind: 'reply', text: 'Done', turnTargets }], omitted: 0, running: false },
+    }));
+    const result = await invoke(['session-transcript', 'ada', '--session', 'orch-1'], live.url);
+    expect(result.code).toBe(0);
+    expect(result.json.items).toEqual([{ kind: 'reply', text: 'Done', turnTargets }]);
   });
 
   it("lists, searches and inspects a Bot's Assignments by Title and Description", async () => {
@@ -554,8 +577,26 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
   });
 
   it('lists and revokes always-allow rules, and revokes grants online, only with --confirm', async () => {
-    const live = await host(echo);
-    await invoke(['tool-approval-rules', 'ada'], live.url);
+    const rule = {
+      id: 'r1',
+      botSlug: 'ada',
+      role: 'orchestrator',
+      scopeKey: 'host',
+      kind: 'exact',
+      toolName: 'bash',
+      input: 'pwd',
+      createdAt: '2026-11-20T00:00:00Z',
+      autoApprovedCount: 0,
+    };
+    const live = await host((method, args) => {
+      if (method === 'toolApprovalRules') return { ok: true, value: { rules: [rule] } };
+      if (method === 'toolApprovalRuleRevoke')
+        return { ok: true, value: { rule: { ...rule, revokedAt: '2026-11-20T01:00:00Z' } } };
+      return echo(method, args);
+    });
+    expect((await invoke(['tool-approval-rules', 'ada'], live.url)).json).toEqual({
+      rules: [rule],
+    });
     for (const argv of [
       ['tool-approval-rule-revoke', 'ada', '--rule', 'r1'],
       ['grant-revoke', 'ada', '--grant', 'g1'],

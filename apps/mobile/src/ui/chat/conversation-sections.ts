@@ -1,3 +1,7 @@
+import {
+  assignRosterChannel,
+  createRosterSection,
+} from '@botharness/host-client/channel-management';
 import type { HostClient } from '@botharness/host-client/client';
 
 type Section = { id: string | null; name: string };
@@ -35,12 +39,7 @@ export function createSectionFlow(
       current();
       let selected = section ?? state.selected;
       if (name !== undefined) {
-        const result = await client.call<{ section: Section }>('sectionCreate', {
-          name: name.trim(),
-        });
-        if (!result.section?.id || typeof result.section.name !== 'string')
-          throw Error('invalid section');
-        selected = result.section;
+        selected = await createRosterSection(client, name.trim());
         publish({ busy: true, complete: false, selected });
       }
       current();
@@ -48,7 +47,7 @@ export function createSectionFlow(
       publish({ ...state, selected });
       if (!state.complete || section !== undefined) {
         phase = 'assign';
-        await client.call('channelAssign', { channelId, sectionId: selected.id });
+        await assignRosterChannel(client, { channelId, sectionId: selected.id });
         publish({ ...state, complete: true });
       }
       current();

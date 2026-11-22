@@ -17,6 +17,9 @@ allowBuilds:
   agent-browser: false
   react-native-enriched-markdown: false
 
+ignoredOptionalDependencies:
+  - '@anthropic-ai/claude-agent-sdk-*'
+
 overrides:
   dockview: 8.4.1
   dockview-core: 8.4.1
@@ -463,6 +466,8 @@ minimumReleaseAgeExclude:
   - expo-task-manager@58.0.14
 
 patchedDependencies:
+  '@deepseek-ai/dsh-agent-loop@0.2.2-rc.1': patches/@deepseek-ai__dsh-agent-loop@0.2.2-rc.1.patch
+  '@deepseek-ai/dsh-file-reference-local@0.2.2-rc.1': patches/@deepseek-ai__dsh-file-reference-local@0.2.2-rc.1.patch
   expo@58.0.26: patches/expo@58.0.26.patch
   react-native-collapsible-tab-view@8.0.1: patches/react-native-collapsible-tab-view@8.0.1.patch
   '@deepseek-ai/dsh-tool-fs@0.2.2-rc.1': patches/@deepseek-ai__dsh-tool-fs@0.2.2-rc.1.patch

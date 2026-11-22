@@ -1,22 +1,16 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type ActivityListSource } from '../src/client/activity-list-view.js';
+import { type HumanAttentionItem } from '../src/client/store.js';
+import { type InboxSnapshot } from '@botharness/host-client/inbox';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./activity-list-test-controls.js')),
-  Button: ({
-    children,
-    variant: _variant,
-    size: _size,
-    ...props
-  }: {
-    children?: ReactNode;
-    variant?: string;
-    size?: string;
-  }) => createElement('button', props, children),
+
   MarkdownText: () => null,
   StateDot: () => null,
-  Input: () => null,
 }));
 vi.mock('../src/client/bot-sidebar.js', async () => {
   const { useSyncExternalStore } = await import('react');
@@ -24,9 +18,9 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
   return { useClientState: () => useSyncExternalStore(store.subscribe, store.getSnapshot) };
 });
 import { createActions, type BridgeActions } from '../src/client/actions.js';
-import { ActivityListView, type ActivityListSource } from '../src/client/activity-list-view.js';
+import { ActivityListView } from '../src/client/activity-list-view.js';
 import { activityListSnoozeUntil } from '../src/client/activity-list-snooze.js';
-import { store, type HumanAttentionItem } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 
 const approval = (slug: string): HumanAttentionItem => ({
   id: 'approval:' + slug,
@@ -206,7 +200,7 @@ it.each(['dismiss', 'snooze'])(
       else {
         await act(async () => view.button(0, '稍后提醒').click());
         await act(async () =>
-          view.element.querySelector<HTMLButtonElement>('[role="menu"] button')!.click(),
+          document.body.querySelector<HTMLElement>('[role="menu"] [role="menuitem"]')!.click(),
         );
       }
       await act(async () =>
@@ -323,7 +317,7 @@ describe('Human Inbox snooze', () => {
       (b) => b.textContent === '稍后提醒',
     )!;
     await act(async () => button.click());
-    const choice = view.host.querySelector<HTMLButtonElement>('[role="menu"] button')!;
+    const choice = document.body.querySelector<HTMLElement>('[role="menu"] [role="menuitem"]')!;
     expect(choice.textContent).toBe('1 小时后');
     await act(async () => choice.click());
     const [item, until] = view.actions.snoozeActivityList.mock.calls[0]!;
@@ -362,7 +356,7 @@ import { ActivityCenterView } from '../src/client/activity-center-view.js';
 import { FakeHost } from '../../host-client/test/fake-host.js';
 import { createDockPanelRegistry } from '../src/client/dock-panels.js';
 import { en, zhTranslate } from '../src/client/locale.js';
-import type { InboxSnapshot } from '@botharness/host-client/inbox';
+
 import { bindTobPresentation } from '../src/client/tob-presentation.js';
 
 async function remoteFixture(host: FakeHost) {
@@ -426,10 +420,10 @@ async function remoteFixture(host: FakeHost) {
   };
 }
 
-it('isolates invalid remote items from the shared Inbox and retries the affected section', async () => {
+it('retains a verified Inbox page after malformed Host data and retries the same section', async () => {
   const host = new FakeHost();
   const valid = approval('tob');
-  let invalid = true;
+  let invalid = false;
   host.methods.set('humanAttention', (args) => ({
     queryVersion: 1,
     items:
@@ -472,16 +466,21 @@ it('isolates invalid remote items from the shared Inbox and retries the affected
   host.methods.set('toolApprovalDecide', () => ({ accepted: true }));
   const fixture = await remoteFixture(host);
   try {
+    await fixture.render();
+    invalid = true;
+    await act(async () => {
+      await fixture.sources.activity(host.hostId)!.getInbox()!.refresh();
+    });
     expect(fixture.sources.getSnapshot().hosts[0]?.inbox).toMatchObject({
       status: 'ready',
-      sections: { action: expect.arrayContaining([{ id: 'broken' }]) },
+      sections: { action: [valid] },
     });
-    await fixture.render();
     expect(fixture.element.querySelectorAll('.bh-activity-list-row')).toHaveLength(1);
-    expect(fixture.element.querySelectorAll('[role="alert"]')).toHaveLength(1);
-    expect(fixture.element.querySelector('[role="alert"]')?.textContent).toContain(
-      zhTranslate('activityList.failed'),
-    );
+    expect(
+      [...fixture.element.querySelectorAll('[role="alert"]')].some((alert) =>
+        alert.textContent?.includes(zhTranslate('activityList.failed')),
+      ),
+    ).toBe(true);
     await act(async () =>
       fixture.element.querySelector<HTMLButtonElement>('.bh-activity-list-row-open')!.click(),
     );

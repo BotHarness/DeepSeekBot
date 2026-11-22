@@ -1,18 +1,18 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
+import { type MemoryImage } from '../src/client/bridge.js';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
 import { act } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronLeftOutlineRegular: () => null,
-  IconChevronRightOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 import { MemoryImageView, MemoryImageDiff } from '../src/client/memory-image-view.js';
 import { MessageHostContext } from '../src/client/message-host.js';
 import { createHostClient } from '@botharness/host-client/client';
 import { FakeHost } from '../../host-client/test/fake-host.js';
-import type { MemoryImage } from '../src/client/bridge.js';
-import type { BotHarnessTranslate } from '../src/client/locale.js';
+
 const t: BotHarnessTranslate = (key) => key;
 const image: MemoryImage = {
   source: 'index',

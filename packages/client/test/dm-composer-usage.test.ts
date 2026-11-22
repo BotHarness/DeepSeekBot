@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
+import { mountAppearanceFixture } from './appearance-fixture.js';
+import { type Root } from 'react-dom/client';
+import { type BotSummary } from '../src/client/store.js';
 import { act, createElement, createRef } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronRightOutlineRegular: () => null,
-  IconCloseOutlineRegular: () => null,
-  IconRefreshOutlineRegular: () => null,
-  Button: ({ children, ...props }: import('react').ButtonHTMLAttributes<HTMLButtonElement>) =>
-    createElement('button', props, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
@@ -20,23 +19,24 @@ import {
 import type { ProfileSessionUsage } from '../src/client/bridge.js';
 import { DmComposerUsagePopover } from '../src/client/dm-composer-usage.js';
 import { zhTranslate } from '../src/client/locale.js';
-import type { BotSummary } from '../src/client/store.js';
 
 const LIGHT = REFERENCE_SURFACES.light.background;
 const DARK = REFERENCE_SURFACES.dark.background;
 let root: Root;
 let host: HTMLDivElement;
+let appearance: ReturnType<typeof mountAppearanceFixture>;
 beforeEach(() => {
+  appearance = mountAppearanceFixture();
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
 });
 afterEach(async () => {
-  document.body.removeAttribute('data-ds-dark-theme');
   await act(async () => root.unmount());
   document.body.replaceChildren();
   vi.unstubAllGlobals();
+  appearance.dispose();
 });
 
 const usage = {
@@ -103,15 +103,20 @@ it('shows the Bot name and session share meters in the saved Bot Primary Color',
   expect(meters()).toHaveLength(2);
   expect(meters().map((meter) => meter.getAttribute('aria-valuenow'))).toEqual(['75', '25']);
   expect(meters().map((meter) => meter.querySelector('span')!.style.width)).toEqual(['75%', '25%']);
+  expect(
+    [...document.querySelectorAll('.bh-composer-usage-session strong')].map(
+      (row) => row.textContent,
+    ),
+  ).toEqual(['300 · 75%', '100 · 25%', '不可用']);
   for (const meter of meters())
     expect(meter.style.getPropertyValue('--bh-bot-color')).toBe(botChartColor('#e2b04a', LIGHT));
 
-  document.body.setAttribute('data-ds-dark-theme', '');
+  appearance.owner.update({ preference: 'dark' });
   await act(async () => new Promise((done) => setTimeout(done, 0)));
   expect(name().dataset['botNameColor']).toBe(botNameColor('#e2b04a', DARK));
   for (const meter of meters())
     expect(meter.style.getPropertyValue('--bh-bot-color')).toBe(botChartColor('#e2b04a', DARK));
-  document.body.removeAttribute('data-ds-dark-theme');
+  appearance.owner.update({ preference: 'light' });
   await act(async () => new Promise((done) => setTimeout(done, 0)));
 
   await show(bot({ mode: 'custom', color: '#1d1b22' }));

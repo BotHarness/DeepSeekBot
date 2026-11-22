@@ -1,81 +1,22 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren, type ReactNode } from 'react';
+import { type NativeSessionCatalog } from '../src/client/sessions-entry.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Modal: ({ title, footer, children }: PropsWithChildren<{ title: string; footer: ReactNode }>) =>
-    createElement('div', { role: 'dialog' }, title, children, footer),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   relativeTime: () => ({ unit: 'now', n: 0 }),
-  Button: ({
-    children,
-    type,
-    form,
-    onClick,
-  }: PropsWithChildren<{ type?: 'button' | 'submit'; form?: string; onClick?: () => void }>) =>
-    createElement('button', { type, form, onClick }, children),
-  Checkbox: ({
-    checked,
-    onChange,
-    label,
-  }: {
-    checked: boolean;
-    onChange: (value: boolean) => void;
-    label: string;
-  }) =>
-    createElement(
-      'label',
-      null,
-      createElement('input', {
-        type: 'checkbox',
-        checked,
-        onChange: (event: { target: { checked: boolean } }) => onChange(event.target.checked),
-      }),
-      label,
-    ),
-  Input: () => null,
+
   StateDot: () => null,
-  Tag: ({ children }: PropsWithChildren) => createElement('span', { className: 'tag' }, children),
-  IconChevronDownOutlineRegular: () => null,
-  IconStopFillRegular: () => null,
-  IconFolderOpenOutlineRegular: () => null,
-  Menu: ({
-    anchor,
-    open,
-    items,
-    onSelect,
-  }: {
-    anchor: ReactNode;
-    open: boolean;
-    items: { id: string; label?: ReactNode; disabled?: boolean }[];
-    onSelect: (id: string) => void;
-  }) =>
-    createElement(
-      'span',
-      null,
-      anchor,
-      open
-        ? items.map((item) =>
-            createElement(
-              'button',
-              {
-                key: item.id,
-                'data-menu-item': item.id,
-                disabled: item.disabled,
-                onClick: () => onSelect(item.id),
-              },
-              item.label,
-            ),
-          )
-        : null,
-    ),
-  Tooltip: ({ children }: PropsWithChildren) => children,
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
 import type { ChannelSidebarEntryProps } from '../src/client/channel-sidebar.js';
+import { queryMenuItem } from './primitive-mocks.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { SessionsEntry, type NativeSessionCatalog } from '../src/client/sessions-entry.js';
+import { SessionsEntry } from '../src/client/sessions-entry.js';
 import {
   sessionViewPreferenceSnapshot,
   updateSessionViewPreference,
@@ -85,11 +26,20 @@ import { store } from '../src/client/store.js';
 
 afterEach(() => localStorage.clear());
 
-async function menuItem(row: Element, id: string): Promise<HTMLButtonElement | null> {
+async function menuItem(row: Element, id: string): Promise<HTMLElement | null> {
+  for (const trigger of document.querySelectorAll<HTMLButtonElement>(
+    '[data-session-more="open"] button',
+  )) {
+    if (!row.contains(trigger)) await act(async () => trigger.click());
+  }
   const more = row.querySelector<HTMLButtonElement>('[data-session-more] button');
   if (more === null) return null;
   if (more.getAttribute('aria-expanded') !== 'true') await act(async () => more.click());
-  return row.querySelector<HTMLButtonElement>(`[data-menu-item="${id}"]`);
+  if (id === 'stop') return queryMenuItem(/^(停止|正在停止…)/);
+  if (id === 'archive') return queryMenuItem(/^(归档|取消归档)$/);
+  return queryMenuItem(
+    id === 'work' ? zhTranslate('assignmentWork.tooltip') : zhTranslate('sessions.openInHarness'),
+  );
 }
 
 function catalog(
@@ -319,11 +269,11 @@ it('stops a running Orchestrator or Assignment from its row and shows Stopping�
       '「Main」的更多操作',
     );
     const orchestrator = (await menuItem(row('orc'), 'stop'))!;
-    expect(orchestrator.disabled).toBe(false);
+    expect(orchestrator.getAttribute('aria-disabled') === 'true').toBe(false);
     expect(orchestrator.textContent).toBe('停止');
     expect(await menuItem(row('a-idle'), 'stop')).toBeNull();
     const halting = (await menuItem(row('a-halting'), 'stop'))!;
-    expect(halting.disabled).toBe(true);
+    expect(halting.getAttribute('aria-disabled') === 'true').toBe(true);
     expect(row('a-halting').querySelector('.bh-card-badge')?.textContent).toBe('正在停止…');
 
     const button = (await menuItem(row('a-run'), 'stop'))!;
@@ -331,7 +281,9 @@ it('stops a running Orchestrator or Assignment from its row and shows Stopping�
     expect(stopSession).toHaveBeenCalledTimes(1);
     expect(stopSession).toHaveBeenCalledWith('stop-qa', 'a-run', 'dm-ada');
     expect(row('a-run').querySelector('.bh-card-badge')?.textContent).toBe('正在停止…');
-    expect((await menuItem(row('a-run'), 'stop'))!.disabled).toBe(true);
+    expect((await menuItem(row('a-run'), 'stop'))!.getAttribute('aria-disabled') === 'true').toBe(
+      true,
+    );
     expect(row('a-other').querySelector('.bh-card-badge')).toBeNull();
 
     await act(async () => settle());

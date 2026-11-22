@@ -1,7 +1,7 @@
+import { Checkbox } from './ds/checkbox.js';
 import { Button } from './ds/button.js';
 import { useRef, useState, useSyncExternalStore, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { ShareDraftView } from '../../../core/src/marketplace/share-draft.js';
 import type { MarketplaceEntry } from '../../../core/src/marketplace/client.js';
@@ -26,10 +26,11 @@ import { watchShareDraft } from './share-flow.js';
 import { MarketplaceSubmitField, marketplaceError, useMarketplaceSubmit } from './marketplace.js';
 import { startConnectSignIn } from './connect-sign-in.js';
 import { ConnectSignInBlock } from './connect-sign-in-block.js';
+import { observeResource } from './messaging-defaults-live.js';
 import { useMountedResource } from './mounted-resource.js';
 import { store, type BotSummary } from './store.js';
 
-const ACCOUNT_POLL_MS = 3000;
+const SIGN_IN_FALLBACK_MS = 15_000;
 const MAX_AUTHOR_NAME_LENGTH = 40;
 const MAX_TAGS = 8;
 
@@ -314,15 +315,21 @@ export function MarketUploadDialog({
     };
   }, []);
 
-  const poll = useMountedResource<HTMLSpanElement>(() => {
-    const timer = setInterval(() => {
-      void loadAccount().then((loaded) => {
-        if ((loaded?.signedIn === true || loaded?.issue !== undefined) && mounted.current)
-          setSignIn(undefined);
-      });
-    }, ACCOUNT_POLL_MS);
-    return () => clearInterval(timer);
-  }, [signIn]);
+  const signInResource = useMountedResource<HTMLSpanElement>(
+    () =>
+      observeResource(
+        'account',
+        async () => {
+          const loaded = await loadAccount();
+          if ((loaded?.signedIn === true || loaded?.issue !== undefined) && mounted.current)
+            setSignIn(undefined);
+        },
+        SIGN_IN_FALLBACK_MS,
+        SIGN_IN_FALLBACK_MS,
+        true,
+      ),
+    [actions, signIn],
+  );
 
   const ready = account.status === 'ready' ? account.account : undefined;
   const author = ready?.author ?? null;
@@ -582,7 +589,7 @@ export function MarketUploadDialog({
                 })}
           >
             {signIn === undefined && account.account.issue === undefined ? null : (
-              <span ref={poll} hidden />
+              <span ref={signInResource} hidden />
             )}
           </ConnectSignInBlock>
         );

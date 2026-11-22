@@ -1,14 +1,12 @@
 import { useState } from 'react';
-import { View } from 'react-native';
 import { useRouter } from 'expo-router';
 
 import type { HostClient } from '@botharness/host-client/client';
 import { useHostSession } from '../../host/host-session';
 import type { RequestRef } from '@botharness/host-client/requests';
-import { space } from '../design/tokens';
 import { Button } from '../primitives/button';
 import { useStrings } from '../strings';
-import { ActionCard, CardNote, CardPreview } from './action-card';
+import { ActionCard, CardButtons, CardNote, CardPreview } from './action-card';
 import type { BubbleGroup } from './bubble-shape';
 import { CardLine } from './card-line';
 
@@ -92,6 +90,7 @@ export function TakeoverCard({
     >
       <CardNote>{t.takeoverNote}</CardNote>
       <Button
+        variant="card-solid"
         testID="takeover-open"
         label={t.takeoverOpen}
         tone="primary"
@@ -102,19 +101,26 @@ export function TakeoverCard({
           })
         }
       />
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}>
-        <Button testID="takeover-done" label={t.takeoverDone} onPress={() => settle('done')} />
+      <CardButtons>
         <Button
+          variant="card-solid"
+          testID="takeover-done"
+          label={t.takeoverDone}
+          onPress={() => settle('done')}
+        />
+        <Button
+          variant="card-solid"
           testID="takeover-failed"
           label={t.takeoverFailed}
           onPress={() => settle('failed')}
         />
         <Button
+          variant="card-solid"
           testID="takeover-cancel"
           label={t.takeoverCancel}
           onPress={() => settle('cancelled')}
         />
-      </View>
+      </CardButtons>
     </ActionCard>
   );
 }

@@ -1,14 +1,11 @@
+import { Icon } from './ds/icon.js';
 import { Input } from './ds/input.js';
 import { useAnchoredPanel } from './anchored-panel.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import { useId, useRef, useState, type KeyboardEvent, type ReactElement } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  IconChevronDownOutlineRegular,
-  IconPlusOutlineRegular,
-  MenuSurface,
-  useDismissOnOutsidePointer,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { useDismissOnOutsidePointer } from '@deepseek-ai/dsh-client-ui-primitives';
+import { MenuSurface } from './ds/menu.js';
 
 export interface ComboboxOption {
   readonly value: string;
@@ -242,7 +239,7 @@ export function Combobox({
           }
         }}
       >
-        <IconChevronDownOutlineRegular size={16} />
+        <Icon name="chevron-down" size={16} />
       </button>
       {open && !disabled && hasPopup
         ? createPortal(
@@ -281,7 +278,7 @@ export function Combobox({
                     }}
                     onClick={() => select(option.value)}
                   >
-                    {option.value === actionValue ? <IconPlusOutlineRegular size={16} /> : null}
+                    {option.value === actionValue ? <Icon name="plus" size={16} /> : null}
                     {option.label}
                     {option.hint === undefined ? null : (
                       <span className="bh-combobox-hint">{option.hint}</span>

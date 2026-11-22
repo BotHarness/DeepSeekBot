@@ -1,40 +1,18 @@
 // @vitest-environment jsdom
-import { act, createElement, useContext, useState, type ContextType, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ContextType } from 'react';
+import { type ReactNode } from 'react';
+import { type Root } from 'react-dom/client';
+import { type DockPanel } from '../src/client/dock-panels.js';
+import { type DockPanelChannel } from '../src/client/dock-panels.js';
+import { type DockPanelHost } from '../src/client/dock-panels.js';
+import { act, createElement, useContext, useState } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { LAYOUT_MODE_STORAGE_KEY } from '../src/client/layout-mode.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
-  IconChevronDownOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  Menu: ({
-    open,
-    anchor,
-    items,
-    onSelect,
-  }: {
-    open: boolean;
-    anchor: ReactNode;
-    items: { id: string; label?: ReactNode; type?: string }[];
-    onSelect(id: string): void;
-  }) =>
-    createElement(
-      'div',
-      null,
-      anchor,
-      open
-        ? items
-            .filter((item) => item.type === undefined)
-            .map((item) =>
-              createElement(
-                'button',
-                { key: item.id, 'data-menu-item': item.id, onClick: () => onSelect(item.id) },
-                item.label,
-              ),
-            )
-        : null,
-    ),
 }));
 
 import { ChannelDock } from '../src/client/channel-dock.js';
@@ -48,13 +26,11 @@ import type {
   ChannelSidebarEntry,
   ChannelSidebarEntryProps,
 } from '../src/client/channel-sidebar.js';
+import { menuItem, queryMenuItem } from './primitive-mocks.js';
 import { zhTranslate } from '../src/client/locale.js';
 import {
   createDockPanelRegistry,
   dockPanelsFromEntries,
-  type DockPanel,
-  type DockPanelChannel,
-  type DockPanelHost,
   type DockPanelRegistration,
 } from '../src/client/dock-panels.js';
 
@@ -252,7 +228,8 @@ describe('desktop Bot mode dock', () => {
       direction: 'right',
     });
     await click('[data-dock-menu] button');
-    await click('[data-menu-item="sessions"]');
+    await act(async () => menuItem('sessions').click());
+    await settle();
     expect(
       JSON.stringify(readChannelDock(storage)!.layout.grid, (key, value) =>
         key === 'size' ? undefined : value,
@@ -265,7 +242,8 @@ describe('desktop Bot mode dock', () => {
     await render(builtins);
     await render([...builtins, computer]);
     await click('[data-dock-menu] button');
-    await click('[data-menu-item="computer"]');
+    await act(async () => menuItem('computer').click());
+    await settle();
     expect(Object.keys(panels())).toContain('computer');
     await render(builtins);
     expect(Object.keys(panels())).not.toContain('computer');
@@ -283,7 +261,8 @@ describe('desktop Bot mode dock', () => {
     await render(builtins);
     await click('[data-dock-close="sessions"]');
     await click('[data-dock-menu] button');
-    await click('[data-menu-item="bh:dock-reset"]');
+    await act(async () => menuItem('重置布局').click());
+    await settle();
     expect(Object.keys(panels())).toEqual([CHANNEL_BODY_PANEL, 'sessions']);
     expect(values.has(CHANNEL_DOCK_STORAGE_KEY)).toBe(true);
   });
@@ -299,19 +278,21 @@ describe('desktop Bot mode dock', () => {
         observe(node: Element) {
           if (node.matches('[data-dock-menu]')) notifyHidden = this.notify;
         }
-        disconnect = disconnect;
+        disconnect() {
+          if (this.notify === notifyHidden) disconnect();
+        }
       },
     );
     await click('[data-dock-menu] button');
-    expect(host.querySelector('[data-menu-item="sessions"]')).not.toBeNull();
+    expect(queryMenuItem('sessions')).not.toBeNull();
     expect(notifyHidden).toBeDefined();
     act(() => notifyHidden!());
     await settle();
-    expect(host.querySelector('[data-menu-item="sessions"]')).toBeNull();
+    expect(queryMenuItem('sessions')).toBeNull();
     expect(disconnect).toHaveBeenCalledOnce();
     expect(Object.keys(panels())).toEqual([CHANNEL_BODY_PANEL, 'sessions']);
     await click('[data-dock-menu] button');
-    expect(host.querySelector('[data-menu-item="sessions"]')).not.toBeNull();
+    expect(queryMenuItem('sessions')).not.toBeNull();
   });
 });
 
@@ -390,8 +371,9 @@ describe('dockPanels Service in the dock', () => {
     const registry = setup();
     await render(registry.panels(), 'personabot', { channel: dm, registry });
     await click('[data-dock-menu] button');
-    expect(host.querySelector('[data-menu-item="example:todo"]')?.textContent).toBe('To-do');
-    await click('[data-menu-item="example:todo"]');
+    expect(queryMenuItem('To-do')?.textContent).toBe('To-do');
+    await act(async () => menuItem('To-do').click());
+    await settle();
     expect(host.querySelector('[data-todo]')?.getAttribute('data-todo')).toBe('global');
     expect(
       host
@@ -692,7 +674,7 @@ it('persists hidden rail controls, closes only the hidden Panel and supports hea
       new MouseEvent('contextmenu', { bubbles: true, clientX: 30, clientY: 40 }),
     );
   });
-  act(() => document.querySelector<HTMLButtonElement>('[data-menu-item="close"]')!.click());
+  act(() => queryMenuItem('关闭 Channels')!.click());
   await settle();
   expect(registry.isOpen(WORKSPACE_CHANNELS)).toBe(false);
   expect(readChannelDock(storage)?.hiddenControls).toEqual([]);
@@ -1222,7 +1204,7 @@ it('routes Sessions through its parent, remembers each Channel and preserves con
     );
   });
   await settle();
-  const item = document.querySelector<HTMLButtonElement>('[data-menu-item="control:sessions"]')!;
+  const item = queryMenuItem('会话')!;
   expect(item).not.toBeNull();
   act(() => item.click());
   await settle();
@@ -1240,9 +1222,7 @@ it('routes Sessions through its parent, remembers each Channel and preserves con
     );
   });
   await settle();
-  act(() =>
-    document.querySelector<HTMLButtonElement>('[data-menu-item="control:sessions"]')!.click(),
-  );
+  act(() => queryMenuItem('会话')!.click());
   await settle();
   expect(readChannelDock(storage)?.channelWorkspaces?.ada?.hiddenControl).toBe(false);
   expect(context().querySelector('button[aria-label="会话"]')).not.toBeNull();
@@ -1775,7 +1755,7 @@ it('shows Channel subpanels as one Simple column with global collapse state', as
       new MouseEvent('contextmenu', { bubbles: true, clientX: 30, clientY: 40 }),
     );
   });
-  act(() => document.querySelector<HTMLButtonElement>('[data-menu-item="hide"]')!.click());
+  act(() => queryMenuItem('隐藏 schedules')!.click());
   await settle();
   expect(entries()).not.toContain('schedules');
 

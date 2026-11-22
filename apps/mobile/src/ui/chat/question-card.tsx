@@ -35,8 +35,10 @@ type Phase =
       kind: 'pending';
       request: QuestionRequest;
       busy?: boolean;
+      choice?: string;
       error?: string;
     }
+  | { kind: 'answered-choice'; request: QuestionRequest; choice: string }
   | { kind: 'settled'; status: 'decided' | 'expired'; mine: boolean };
 
 type Line = { text: string; tone: CardLineTone };
@@ -54,6 +56,7 @@ function settledLine(
   if (phase.kind === 'settled' && phase.mine) return line(t.cardAnswered, 'success');
   if (resolution !== undefined) {
     if (resolution.state === 'cancelled') return line(t.cardCancelled, 'subtle');
+    if (phase.kind === 'answered-choice') return undefined;
     if (answeredHere || (phase.kind === 'pending' && phase.busy === true))
       return line(t.cardAnswered, 'success');
     return line(phase.kind === 'known' ? t.cardAnswered : t.elsewhere(t.cardAnswered), 'success');
@@ -129,7 +132,9 @@ export function QuestionCard({
   }, [load, submission]);
 
   const first =
-    phase.kind === 'pending' ? (phase.request.questions[0]?.question ?? '') : (subject ?? '');
+    phase.kind === 'pending' || phase.kind === 'answered-choice'
+      ? (phase.request.questions[0]?.question ?? '')
+      : (subject ?? '');
   const line = settledLine(first, phase, resolution, answeredHere);
   if (line !== undefined)
     return (
@@ -144,7 +149,7 @@ export function QuestionCard({
     );
 
   const category = t.kind['user-question']!;
-  if (phase.kind !== 'pending')
+  if (phase.kind !== 'pending' && phase.kind !== 'answered-choice')
     return (
       <View ref={mount}>
         <ActionCard
@@ -163,12 +168,15 @@ export function QuestionCard({
     );
 
   const { request } = phase;
+  const answered = phase.kind === 'answered-choice';
+  const busy = phase.kind === 'pending' && phase.busy === true;
+  const error = phase.kind === 'pending' ? phase.error : undefined;
   const single = request.questions.length === 1 ? request.questions[0] : undefined;
   const answer = buildAnswer(request.questions, drafts);
-  const instant = single !== undefined && single.multiSelect !== true;
-  const typed = Object.values(drafts).some((draft) => draft.custom.trim() !== '');
+  const singleAnswer = single !== undefined && single.multiSelect !== true;
+  const instant = singleAnswer && !!single.options?.length;
   const editingQuestion = request.questions.find((question) => question.id === editing);
-  const submit = async (answer: QuestionAnswer | undefined) => {
+  const submit = async (answer: QuestionAnswer | undefined, choice?: string) => {
     if (
       answer === undefined ||
       submission.pending ||
@@ -178,16 +186,20 @@ export function QuestionCard({
     )
       return;
     submission.pending = true;
-    setPhase({ kind: 'pending', request, busy: true });
+    setPhase({ kind: 'pending', request, busy: true, ...(choice === undefined ? {} : { choice }) });
     try {
       const result = await port.answer(answer);
       if (!submission.active || current.current !== submission) return;
       if (result === 'accepted') haptic('submit');
-      setPhase({
-        kind: 'settled',
-        status: result === 'expired' ? 'expired' : 'decided',
-        mine: result === 'accepted',
-      });
+      setPhase(
+        result === 'accepted' && choice !== undefined
+          ? { kind: 'answered-choice', request, choice }
+          : {
+              kind: 'settled',
+              status: result === 'expired' ? 'expired' : 'decided',
+              mine: result === 'accepted',
+            },
+      );
       onSettled?.(result);
     } catch (error) {
       if (!submission.active || current.current !== submission) return;
@@ -203,12 +215,12 @@ export function QuestionCard({
     <View ref={mount}>
       <ActionCard
         category={single?.header ?? category}
-        status={t.needsYou}
+        status={answered ? t.cardAnswered : t.needsYou}
         title={single?.question ?? t.asks(botName)}
-        busy={instant && phase.busy === true}
+        busy={singleAnswer && busy}
         focused={focused}
         wide={wide}
-        {...(phase.error === undefined ? {} : { error: phase.error })}
+        {...(error === undefined ? {} : { error })}
         preview={
           <CardGroup>
             {single?.detail === undefined ? null : (
@@ -218,17 +230,20 @@ export function QuestionCard({
               <QuestionFields
                 key={question.id}
                 question={question}
-                draft={drafts[question.id] ?? emptyDraft()}
+                draft={
+                  phase.choice === undefined
+                    ? (drafts[question.id] ?? emptyDraft())
+                    : { selected: [phase.choice], custom: '' }
+                }
                 heading={single === undefined}
-                disabled={phase.busy === true}
+                disabled={answered || busy}
+                answered={answered}
                 inChat={replyInChat && single !== undefined}
-                {...(expandInput ? { onExpand: () => setEditing(question.id) } : {})}
+                {...(expandInput || instant ? { onExpand: () => setEditing(question.id) } : {})}
                 {...(instant
                   ? {
                       onPick: (label: string) =>
-                        void submit({
-                          answers: [{ id: question.id, selected: [label] }],
-                        }),
+                        void submit({ answers: [{ id: question.id, selected: [label] }] }, label),
                     }
                   : {})}
                 onChange={(next) => setDrafts((current) => ({ ...current, [question.id]: next }))}
@@ -237,14 +252,16 @@ export function QuestionCard({
           </CardGroup>
         }
       >
-        {instant && !typed ? null : (
+        {answered || (singleAnswer && (instant || answer === undefined)) ? null : (
           <CardButtons>
             <Button
               symbol="check"
               label={t.submitChoice}
+              testID="question-submit"
+              variant="card-solid"
               tone="primary"
               disabled={answer === undefined}
-              busy={phase.busy === true}
+              busy={busy}
               onPress={() => void submit(answer)}
             />
           </CardButtons>
@@ -254,7 +271,8 @@ export function QuestionCard({
         <DraftEditor
           value={drafts[editingQuestion.id]?.custom ?? ''}
           placeholder={editingQuestion.options?.length ? t.otherAnswer : t.typeAnswer}
-          canSend={false}
+          showSend={instant}
+          canSend={instant && answer !== undefined && !busy}
           onChange={(text) =>
             setDrafts((current) => ({
               ...current,
@@ -265,7 +283,10 @@ export function QuestionCard({
               ),
             }))
           }
-          onSend={() => setEditing(undefined)}
+          onSend={() => {
+            setEditing(undefined);
+            void submit(answer);
+          }}
           onClose={() => setEditing(undefined)}
         />
       )}

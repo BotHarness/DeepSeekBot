@@ -666,5 +666,41 @@
   {
     "id": "routing-group-default",
     "sha256": "1776f6e5e84570bd5c4b40d7da1488a14147c48609ee06a2769b66f5704179f2"
+  },
+  {
+    "id": "group-fallback-overrides",
+    "sha256": "6281c96f13ba0de4ff33fc083bf7f49c56f9b29df28130ba11d991a832b0bb41"
+  },
+  {
+    "id": "assignment-agent-preset",
+    "sha256": "144837582ece0ca36c27feae9b720c07d660e8aa97e57f01bae83a2a8792eacd"
+  },
+  {
+    "id": "session-agent-preset",
+    "sha256": "8b15fd67839a58fc2c25f36cc286e7fab968b37435a0fd05be41fa6acb3cc5a0"
+  },
+  {
+    "id": "routing-group-default-effort",
+    "sha256": "76d4104730b069c01cb8ea7dc6fcd08d1ec80f69027fdf48aa73b920c1b500dc"
+  },
+  {
+    "id": "assignment-model-effort",
+    "sha256": "2eb1bb384be7c934d15ffcc336ee1378897fcd89e6c6c11e82ed62cd6cc6a40a"
+  },
+  {
+    "id": "models-configure-permission",
+    "sha256": "91bc800372d75b2547a7ebee953d4e08c2c9fc947533b8d639836dad9cd37099"
+  },
+  {
+    "id": "role-model-providers",
+    "sha256": "4af73c43d96612f114546df5168a9cc8205aa9461b32fca686bfcb75953372ed"
+  },
+  {
+    "id": "session-turn-targets",
+    "sha256": "74622d7ae29e7d9994e23f1bdf8f6e5676ddd8ececc62c80ee1c123ebe80563d"
+  },
+  {
+    "id": "role-engine-accounts",
+    "sha256": "d818f03571a8220333a79b53b7b7db4243bf7ba60a8678a9647019773742987e"
   }
 ]

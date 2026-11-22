@@ -1,12 +1,14 @@
 // @vitest-environment jsdom
+import { mountAppearanceFixture } from './appearance-fixture.js';
+import { type Root } from 'react-dom/client';
+import { type HeatmapPage } from '../src/client/profile-cards-builtins.js';
+import { type BotSummary } from '../src/client/store.js';
 import { act, createElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconRefreshOutlineRegular: () => null,
-  IconEllipsisOutlineRegular: () => null,
-  Menu: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 import { zhTranslate } from '../src/client/locale.js';
@@ -15,12 +17,7 @@ import {
   botChartTones,
   REFERENCE_SURFACES,
 } from '../src/client/bot-primary-color.js';
-import {
-  createProfileCardBuiltins,
-  ProfileHeatmap,
-  type HeatmapPage,
-} from '../src/client/profile-cards-builtins.js';
-import type { BotSummary } from '../src/client/store.js';
+import { createProfileCardBuiltins, ProfileHeatmap } from '../src/client/profile-cards-builtins.js';
 
 const TODAY = '2026-10-08';
 let width = 600;
@@ -33,7 +30,9 @@ function dayOffset(day: string, amount: number): string {
   return `${value.getFullYear()}-${`${value.getMonth() + 1}`.padStart(2, '0')}-${`${value.getDate()}`.padStart(2, '0')}`;
 }
 
+let appearance: ReturnType<typeof mountAppearanceFixture>;
 beforeEach(() => {
+  appearance = mountAppearanceFixture();
   vi.stubGlobal('IS_REACT_ACT_ENVIRONMENT', true);
   Object.defineProperty(HTMLElement.prototype, 'clientWidth', {
     configurable: true,
@@ -61,6 +60,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
   delete (HTMLElement.prototype as { clientWidth?: number }).clientWidth;
   delete (HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
+  appearance.dispose();
 });
 
 function weeks(): number {
@@ -191,13 +191,13 @@ it('uses the Bot color for intensity without changing any level, and keeps zero 
   expect(zero.getAttribute('data-level')).toBe('0');
   expect(zero.getAttribute('style')).toBeNull();
 
-  document.body.setAttribute('data-ds-dark-theme', '');
+  appearance.owner.update({ preference: 'dark' });
   await act(async () => new Promise((done) => setTimeout(done, 0)));
   expect(heatColor()).toBe(botChartColor('#2f9e8f', DARK));
   await show('#1d1b22');
   expect(heatColor()).toBe(botChartColor('#1d1b22', DARK));
   expect(heatColor()).not.toBe('#1d1b22');
-  document.body.removeAttribute('data-ds-dark-theme');
+  appearance.owner.update({ preference: 'light' });
   await act(async () => new Promise((done) => setTimeout(done, 0)));
   expect(heatColor()).toBe('#1d1b22');
 
@@ -278,9 +278,9 @@ it('draws the popover token chart in the Bot tones and leaves the breakdown by m
   expect(tones()).toEqual(botChartTones('#e2b04a', LIGHT));
   await show(bot('#1d1b22'));
   expect(tones()).toEqual(botChartTones('#1d1b22', LIGHT));
-  document.body.setAttribute('data-ds-dark-theme', '');
+  appearance.owner.update({ preference: 'dark' });
   await show(bot('#e2b04a'));
   await show(bot('#1d1b22'));
   expect(tones()).toEqual(botChartTones('#1d1b22', DARK));
-  document.body.removeAttribute('data-ds-dark-theme');
+  appearance.owner.update({ preference: 'light' });
 });

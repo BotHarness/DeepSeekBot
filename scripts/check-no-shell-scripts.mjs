@@ -19,6 +19,8 @@ export function listRepositoryFiles(root) {
     cwd: root,
     encoding: 'utf8',
     maxBuffer: 64 * 1024 * 1024,
+    shell: false,
+    windowsHide: true,
   })
     .split('\0')
     .filter(Boolean);

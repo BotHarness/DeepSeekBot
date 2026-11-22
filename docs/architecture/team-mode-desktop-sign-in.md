@@ -1,13 +1,13 @@
 # Desktop Team sign-in contract
 
-Issue [#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201), stacked on M8 [#4165](https://github.com/BotHarness/DeepSeekBot/pull/4165). This contract supplies logic for the desktop sign-in stepper; Claude owns its visual components. It implements the identity and transport boundaries of [ADR-0336](../adr/0336-hosts-have-members.md).
+Issue [#4201](https://github.com/BotHarness/DeepSeekBot/issues/4201), stacked on M8 [#4165](https://github.com/BotHarness/DeepSeekBot/pull/4165). This contract supplies logic for the desktop sign-in stepper; Claude owns its visual components. It implements the identity and transport boundaries of [Team mode decisions](../decisions/team-mode.md#adr-0336).
 
 ## Packages and ownership
 
 - `@botharness/host-protocol/*` owns the pure wire contracts, Host carrier interface, Noise XK/channel implementation, route rules, pairing link codec and Team invitation codec. It contains no React, React Native or Expo implementation.
 - `@botharness/host-client/*` owns saved Host identities, Team requests and the sign-in flow, pairing redemption, encrypted carrier, Host session, conversations, inbox, model/settings and notification clients. Shared appearance values and non-visual presentation helpers live here because desktop and mobile both consume them. The model cache uses `@tanstack/query-core`, without a React adapter.
 - `apps/mobile` owns SecureStore, native transport, app version, Android key agreement, localization and platform UI. `HostCarrier.keyAgreement` injects Android's existing key agreement implementation; `HostCarrier.appVersion` supplies the installed version. No native module is imported by either shared package. Inbox localization is supplied with the `InboxQuery.activityUpdateHost()` callback so an active inbox reads the current language.
-- `packages/client/src/client/remote-hosts.ts` adapts the shared flow to the desktop Owner's existing remote-host storage lock and connection lifecycle. This change does not deliver the stepper. H3 Host-side credential custody is described in [Remote Host credential custody](remote-host-credential-custody.md).
+- `packages/client/src/client/features/environments/remote-host-pairing.ts` adapts the shared flow to the desktop Owner's existing credential storage and connection lifecycle through `remote-hosts.ts`. This change does not deliver the stepper. H3 Host-side credential custody is described in [Remote Host credential custody](remote-host-credential-custody.md).
 
 The computer-side bundles inline both private workspaces. Published plugin manifests keep them as build-time dependencies; installed plugins do not need unpublished workspace packages. Metro consumes the mobile workspace dependencies directly.
 

@@ -324,8 +324,11 @@ async function main() {
     candidate: execFileSync('git', ['rev-parse', 'HEAD'], {
       encoding: 'utf8',
       windowsHide: true,
+      shell: false,
     }).trim(),
-    worktreeDiffHash: sha(execFileSync('git', ['diff', 'HEAD'], { maxBuffer: 20e6 })),
+    worktreeDiffHash: sha(
+      execFileSync('git', ['diff', 'HEAD'], { maxBuffer: 20e6, shell: false, windowsHide: true }),
+    ),
     pairs: [],
     humanAcceptance: 'pending',
   };

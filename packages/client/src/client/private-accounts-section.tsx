@@ -1,8 +1,7 @@
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { Switch } from './ds/switch.js';
 import { useRef, useState, type ReactElement } from 'react';
-
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { PrivateAccountSummary } from '../../../core/src/credentials/contracts.js';
 import { useClientStore } from './use-client-store.js';

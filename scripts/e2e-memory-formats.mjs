@@ -29,13 +29,17 @@ const cli = (...args) => {
       ...args,
       '--compact',
     ],
-    { env, encoding: 'utf8' },
+    { env, encoding: 'utf8', shell: false, windowsHide: true },
   );
   if (result.status !== 0)
     throw new Error(`CLI ${args[0]} refused: ${result.stdout.slice(0, 1000)}`);
   return JSON.parse(result.stdout);
 };
-const head = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim();
+const head = execFileSync('git', ['rev-parse', 'HEAD'], {
+  encoding: 'utf8',
+  shell: false,
+  windowsHide: true,
+}).trim();
 const expected = before ? arg('--expected-source') : head;
 const identity = cli('release-info').identity.source;
 if (!expected || identity.revision !== expected || identity.dirty)
@@ -44,7 +48,7 @@ const rpc = (method, args) => {
   const result = spawnSync(
     process.execPath,
     ['scripts/verify-app.mjs', 'rpc', `botharness/${method}`, JSON.stringify(args), '--name', name],
-    { encoding: 'utf8' },
+    { encoding: 'utf8', shell: false, windowsHide: true },
   );
   if (result.status !== 0) throw new Error(`Fixture ${method} refused`);
   return JSON.parse(result.stdout);
@@ -71,7 +75,11 @@ else {
   const slug = created.bot.id;
   const memory = rpc('get', { slug }).bot.memoryDir;
   const git = (...args) =>
-    execFileSync('git', ['-C', memory, ...args], { encoding: 'utf8' }).trim();
+    execFileSync('git', ['-C', memory, ...args], {
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    }).trim();
   mkdirSync(resolve(memory, 'notes'), { recursive: true });
   const body = (color) =>
     `# Image formats — ${color}\n\nOriginal version-bound image bytes.\n\n` +
@@ -353,10 +361,20 @@ try {
   );
   await capture('unsafe-svg');
   stage = 'narrow';
-  await page.setViewport({ width: 700, height: 1000 });
-  await page.waitForSelector('.bh-mobile-shell[data-page="list"]', { visible: true });
-  await page.locator(`.bh-mobile-list button[data-channel-id="${seed.channelId}"]`).click();
-  await page.waitForSelector('.bh-mobile-shell[data-page="conversation"]', { visible: true });
+  await page.setViewport({ width: 550, height: 1000 });
+  await page.waitForSelector('.bh-mobile-shell', { visible: true });
+  if (await page.$('[data-bot-window-class="compact"]')) {
+    await page
+      .locator('[data-bot-window-class="compact"] button[aria-label="Open sidebar"]')
+      .click();
+    await page.locator(`[role="dialog"] button[data-channel-id="${seed.channelId}"]`).click();
+    await page.waitForSelector('[data-tobs-dialog-viewport][data-presentation="drawer"]', {
+      hidden: true,
+    });
+  } else {
+    await page.locator(`.bh-mobile-list button[data-channel-id="${seed.channelId}"]`).click();
+    await page.waitForSelector('.bh-mobile-shell[data-page="conversation"]', { visible: true });
+  }
   await click('Conversation settings');
   await click('Memory');
   await working('preview.webp');
@@ -423,7 +441,10 @@ try {
         const expected =
           image.source === 'worktree'
             ? readFileSync(resolve(seed.memory, path))
-            : execFileSync('git', ['-C', seed.memory, 'show', `${image.source}:${path}`]);
+            : execFileSync('git', ['-C', seed.memory, 'show', `${image.source}:${path}`], {
+                shell: false,
+                windowsHide: true,
+              });
         if (!readFileSync(output).equals(expected) || receipt.mime !== mime)
           throw new Error('Wrong version/MIME from CLI');
         exported++;
@@ -456,7 +477,8 @@ try {
   if (!before)
     for (const [ext, mime] of formats) {
       const path = `preview.${ext}`;
-      const git = (...args) => execFileSync('git', ['-C', seed.memory, ...args]);
+      const git = (...args) =>
+        execFileSync('git', ['-C', seed.memory, ...args], { shell: false, windowsHide: true });
       try {
         git('add', '--', path);
         writeFileSync(resolve(seed.memory, path), fixture('blue', ext));

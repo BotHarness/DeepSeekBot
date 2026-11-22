@@ -2,7 +2,7 @@
 
 The repository is still a source preview. The commands below build and test real
 npm tarballs locally; they do not publish packages or claim that a public product
-release exists. See [ADR-0127](adr/0127-product-artifacts-compose-an-independently-versioned-im-provider.md)
+release exists. See [ADR-0127](decisions/im-providers.md#adr-0127)
 for the distribution decision and [#823](https://github.com/BotHarness/BotHarness/issues/823)
 for the initial Lark qualification and Human QA evidence. [#868](https://github.com/BotHarness/BotHarness/issues/868) extends the independently pinned product Provider to the accepted Slack artifact `4.32.0-botharness.3`; this does not publish a registry release. [#878](https://github.com/BotHarness/BotHarness/issues/878) selects locally qualified `4.32.0-botharness.4` with real paired-owner WeChat receive/model/reply verified after installation; Human QA approved this first slice; registry publication remains separate.
 

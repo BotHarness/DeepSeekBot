@@ -1,21 +1,16 @@
-import { createElement, type ReactNode } from 'react';
+import { type PersonaBotFacepileItem } from '../src/client/avatar.js';
+import { type ChannelSummary } from '../src/client/store.js';
+import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Pill: ({ children, className }: { children: ReactNode; className?: string }) =>
-    createElement('span', { className }, children),
-  Modal: ({ children }: { children: ReactNode }) => children,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  IconChevronLeftOutlineRegular: () => null,
-  IconChevronRightOutlineRegular: () => null,
-  IconPinFillRegular: () => null,
-  IconPinOutlineRegular: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 import { GroupChannelHeader } from '../src/client/group-channel-header.js';
 import { GroupProfileView } from '../src/client/group-profile.js';
 import { EMPTY_PROFILE_CARDS } from '../src/client/profile-cards.js';
-import { PersonaBotFacepile, type PersonaBotFacepileItem } from '../src/client/avatar.js';
-import type { ChannelSummary } from '../src/client/store.js';
+import { PersonaBotFacepile } from '../src/client/avatar.js';
+
 import { zhTranslate } from '../src/client/locale.js';
 
 const members: PersonaBotFacepileItem[] = [

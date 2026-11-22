@@ -8,6 +8,7 @@ import {
   parseBotDescriptor,
   type BotDescriptor,
 } from '../marketplace/descriptor.js';
+import { standingUsageFromFiles } from '../memory/soul.js';
 import { BOT_BANNER_FILE } from './bot-banner.js';
 import { AVATAR_RECIPE_FILE } from './shared-presentation.js';
 import {
@@ -38,7 +39,13 @@ export function listBotFiles(memoryDir: string): string[] {
   const output = execFileSync(
     'git',
     ['-c', 'core.quotePath=false', 'ls-files', '-z', '--cached', '--others', '--exclude-standard'],
-    { cwd: memoryDir, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, windowsHide: true },
+    {
+      cwd: memoryDir,
+      encoding: 'utf8',
+      maxBuffer: 64 * 1024 * 1024,
+      windowsHide: true,
+      shell: false,
+    },
   );
   const files = new Set<string>();
   for (const path of output.split('\0')) {
@@ -89,6 +96,7 @@ function git(cwd: string, args: string[]): string {
     maxBuffer: 64 * 1024 * 1024,
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    shell: false,
   });
 }
 
@@ -152,6 +160,10 @@ export interface BotZipContents {
   files: ZipEntry[];
   descriptor?: BotDescriptor;
   history?: Buffer;
+}
+
+export function botZipStandingUsage(contents: BotZipContents) {
+  return standingUsageFromFiles(contents.files, contents.descriptor?.standingLimits);
 }
 
 function stripSharedRoot(files: ZipEntry[]): ZipEntry[] {

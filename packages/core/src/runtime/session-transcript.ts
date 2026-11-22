@@ -1,7 +1,11 @@
+import { isEngineId } from '@botharness/host-protocol/subscription-engine';
+import type { TurnTarget } from '@botharness/host-protocol/turn-target';
+import type { TurnTargetSegment } from './turn-targets.js';
 import type { ToolCallKind } from '@deepseek-ai/dsh-tools';
 
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import type { DshSessionEvent } from '../sessions/source.js';
+import { type InboundEnvelope, parseInboundEnvelope } from './inbound-envelope.js';
 import { isPublicToolDetail } from '../state/tool-activity.js';
 import { sessionDirectBody } from './session-direct-message.js';
 import type { AssignmentTimelineStatus, PublicToolCall } from './assignment-timeline.js';
@@ -24,6 +28,12 @@ export interface SessionTurnUsage {
   outputMs: number;
 }
 
+export interface SessionTranscriptEnvelope {
+  kind: InboundEnvelope['kind'];
+  channelId?: string;
+  messageId?: string;
+}
+
 export type SessionTranscriptItem =
   | {
       kind: 'input';
@@ -33,8 +43,9 @@ export type SessionTranscriptItem =
       source: 'user' | 'system';
       trigger?: SessionTranscriptTrigger;
       origin?: 'session-detail';
+      envelope?: SessionTranscriptEnvelope;
     }
-  | { kind: 'reply'; text: string; at: string }
+  | { kind: 'reply'; text: string; at: string; turnTargets?: TurnTarget[] }
   | { kind: 'reasoning'; text: string; at: string; durationMs?: number }
   | {
       kind: 'tool';
@@ -57,6 +68,7 @@ export type SessionTranscriptItem =
       at: string;
       message?: string;
       usage?: SessionTurnUsage;
+      turnTargets?: TurnTarget[];
     };
 
 export interface SessionTranscript {
@@ -123,6 +135,7 @@ const SOURCE_TRIGGERS: Record<string, SessionTranscriptTrigger> = {
   schedule: 'schedule',
   'tool-jobs': 'job',
   'cordis-host-runner': 'plugin',
+  'botharness-engine-rebuild': 'plugin',
 };
 
 export function transcriptTrigger(source: Record<string, unknown>): SessionTranscriptTrigger {
@@ -229,6 +242,7 @@ function parsedArgs(raw: unknown): unknown {
 export function summarizeSessionTranscript(input: {
   sessionId: string;
   events: readonly DshSessionEvent[];
+  segments?: readonly TurnTargetSegment[];
   describe?: (sessionId: string, name: string, args: unknown) => PublicToolCall | undefined;
 }): SessionTranscript {
   const describe = input.describe ?? (() => undefined);
@@ -237,6 +251,25 @@ export function summarizeSessionTranscript(input: {
   const approvals = new Map<string, string>();
   const decided = new Map<string, string>();
   let turn = 0;
+  let recordedTurn = 0;
+  let segmentIndex = 0;
+  let request: string | undefined;
+  let targets: TurnTarget[] = [];
+  const segments = input.segments ?? [];
+  const advanceTargets = (step: number) => {
+    while (segmentIndex < segments.length) {
+      const segment = segments[segmentIndex]!;
+      if (segment.turn > recordedTurn || (segment.turn === recordedTurn && segment.step > step))
+        break;
+      segmentIndex += 1;
+      if (segment.request !== request) {
+        request = segment.request;
+        targets = [];
+      }
+      targets = [...targets.slice(-31), segment.target];
+    }
+  };
+  const attribution = () => (targets.length === 0 ? {} : { turnTargets: targets });
   let running = false;
   let seq = 0;
   let usage: SessionTurnUsage | undefined;
@@ -246,6 +279,12 @@ export function summarizeSessionTranscript(input: {
     if (typeof event.seq === 'number') seq = Math.max(seq, event.seq);
     if (event.type === 'turn/start') {
       turn += 1;
+      recordedTurn = typeof data['turn'] === 'number' ? data['turn'] : turn;
+      const previousTargets = targets;
+      targets = [];
+      const next = segments[segmentIndex];
+      if (next?.turn === recordedTurn && request === next.request) targets = previousTargets;
+      advanceTargets(0);
       running = true;
       usage = undefined;
     } else if (event.type === 'user/message') {
@@ -256,17 +295,44 @@ export function summarizeSessionTranscript(input: {
       const direct = sessionDirectBody(raw);
       const text = direct === undefined ? clip(raw).replace(HOST_BLOCK, '').trim() : clip(direct);
       const human = direct !== undefined || kind === undefined || kind === 'user';
+      const parsed = direct === undefined && human ? parseInboundEnvelope(text) : undefined;
+      const envelope =
+        parsed === undefined || parsed.body.trim() === ''
+          ? undefined
+          : {
+              kind: parsed.kind,
+              ...(parsed.channelId === undefined ? {} : { channelId: parsed.channelId }),
+              ...(parsed.messageId === undefined ? {} : { messageId: parsed.messageId }),
+            };
       if (text !== '')
         items.push({
           kind: 'input',
-          text,
+          text: envelope === undefined ? text : parsed!.body.trim(),
           at,
           turn: Math.max(turn, 1),
           source: human ? 'user' : 'system',
           ...(human ? {} : { trigger: transcriptTrigger(source) }),
           ...(direct === undefined ? {} : { origin: 'session-detail' as const }),
+          ...(envelope === undefined ? {} : { envelope }),
         });
+    } else if (event.type === 'step/start') {
+      if (typeof data['step'] === 'number') advanceTargets(data['step']);
     } else if (event.type === 'assistant/message') {
+      if (typeof data['step'] === 'number') advanceTargets(data['step']);
+      const source = object(object(data['message'])['source']);
+      const provider = source['provider'];
+      const model = source['model'];
+      const last = targets.at(-1);
+      if (last?.kind !== 'engine' && typeof provider === 'string' && provider.trim() !== '') {
+        if (last === undefined && isEngineId(provider))
+          targets = [{ kind: 'engine', engine: provider }];
+        else if (
+          typeof model === 'string' &&
+          model.trim() !== '' &&
+          (last?.provider !== provider || last.model !== model)
+        )
+          targets = [...targets.slice(-31), { kind: 'dsh', provider, model }];
+      }
       const parts = blocks(data);
       const reasoning = joined(parts, 'reasoning');
       const text = joined(parts, 'text');
@@ -293,7 +359,7 @@ export function summarizeSessionTranscript(input: {
           at,
           ...(span !== undefined && span.reasoning > 0 ? { durationMs: span.reasoning } : {}),
         });
-      if (text !== '') items.push({ kind: 'reply', text, at });
+      if (text !== '') items.push({ kind: 'reply', text, at, ...attribution() });
     } else if (event.type === 'tool/call') {
       const id = typeof data['callId'] === 'string' ? data['callId'] : '';
       const name = typeof data['name'] === 'string' ? data['name'] : '';
@@ -343,6 +409,7 @@ export function summarizeSessionTranscript(input: {
             ? 'cancelled'
             : 'failed';
     } else if (event.type === 'turn/end') {
+      advanceTargets(Infinity);
       for (const item of open.values()) item.status = 'cancelled';
       open.clear();
       running = false;
@@ -357,6 +424,7 @@ export function summarizeSessionTranscript(input: {
           ? { message: failure.trim().slice(0, 280) }
           : {}),
         ...(usage === undefined ? {} : { usage }),
+        ...attribution(),
       });
       usage = undefined;
     }

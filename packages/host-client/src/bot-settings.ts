@@ -1,59 +1,63 @@
+import {
+  approveGrantRequest,
+  createGrant,
+  readAssignmentAccess,
+  readWorkspaceGrants,
+  revokeGrant,
+  writeAssignmentAccess,
+} from './access-readers';
+import type {
+  WireAssignmentAccessPreset,
+  WireWorkspaceGrant,
+} from '@botharness/host-protocol/wire';
+import { readApprovalTemplates, setBotApprovalTemplate } from './approval-readers';
+export { INHERIT_APPROVAL_TEMPLATE } from './approval-readers';
 import { MethodRefused, type HostClient } from './client';
+import { HostAnswerInvalid, record, some, text, type HostCall } from './host-answer';
 import {
   modelChoice as favoriteChoice,
-  parseModelCatalog,
   type ModelCatalogEntry,
   type ModelCatalogGroup,
   type ModelChoice,
 } from './model-catalog';
+import {
+  applyModelPreset,
+  customizeModelPlan,
+  loadModelCatalog,
+  loadModelPlanState,
+  loadModelPresets,
+  type ModelPlan,
+  type ModelPreset,
+  type ModelRoute,
+} from './model-plans';
 
 export type { ModelCatalogEntry, ModelCatalogGroup, ModelChoice };
+export type {
+  AssignmentGroupOption,
+  AssignmentModelOption,
+  ModelPlan,
+  ModelPlanGroups,
+  ModelPreset,
+  ModelRoute,
+} from './model-plans';
+export { applyModelPreset, HostAnswerInvalid };
 
 export type Loadable<T> =
   | { status: 'loading' }
   | { status: 'ready'; value: T }
   | { status: 'failed'; error: string };
 
-export interface ModelRoute {
-  provider: string;
-  model: string;
-  reasoningEffort?: string;
-}
-
-export interface AssignmentModelOption {
-  provider: string;
-  model: string;
-  allowedEfforts: string[];
-  defaultEffort: string;
-  note?: string;
-}
-
-export interface ModelPlan {
-  revision: number;
-  sourcePresetId: string;
-  sourcePresetName: string;
-  orchestrator: ModelRoute;
-  orchestratorGroupId?: string;
-  assignmentDefault?: ModelRoute;
-  assignmentModels?: AssignmentModelOption[];
-}
-
-export interface ModelPreset {
-  id: string;
-  name: string;
-  revision?: number;
-  orchestrator: ModelRoute;
-  assignmentDefault?: ModelRoute;
-  assignmentModels?: AssignmentModelOption[];
-}
-
 export interface BotModel {
+  currentTarget?: import('@botharness/host-protocol/turn-target').TurnTarget;
   revision: number;
   defaultRevision?: number;
   plan?: ModelPlan;
   repair?: string;
   models: ModelCatalogEntry[];
   groups?: ModelCatalogGroup[];
+  defaultGroupId?: string;
+  defaultGroupEffort?: string;
+  defaultGroupRevision?: number;
   favorites?: ModelChoice[];
   fallback?: ModelRoute;
   presets: ModelPreset[];
@@ -103,99 +107,10 @@ export interface ApprovalTemplate {
   description: string;
 }
 
-export const INHERIT_APPROVAL_TEMPLATE = '@global';
-
 export interface ApprovalTemplates {
   templates: ApprovalTemplate[];
   selected: string | null;
   globalDefault?: string | null;
-}
-
-export class HostAnswerInvalid extends Error {}
-
-function record(value: unknown): Record<string, unknown> | undefined {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : undefined;
-}
-
-function text(value: unknown): value is string {
-  return typeof value === 'string';
-}
-
-function route(value: unknown): ModelRoute | undefined {
-  const row = record(value);
-  if (!text(row?.['provider']) || !text(row['model'])) return undefined;
-  return {
-    provider: row['provider'],
-    model: row['model'],
-    ...(text(row['reasoningEffort']) ? { reasoningEffort: row['reasoningEffort'] } : {}),
-  };
-}
-
-function plan(value: unknown): ModelPlan | undefined {
-  const row = record(value);
-  const orchestrator = route(row?.['orchestrator']);
-  const assignmentDefault = route(row?.['assignmentDefault']);
-  if (
-    row === undefined ||
-    orchestrator === undefined ||
-    (row['assignmentDefault'] !== undefined && assignmentDefault === undefined)
-  )
-    return undefined;
-  if (typeof row['revision'] !== 'number') return undefined;
-  const assignmentModels = Array.isArray(row['assignmentModels'])
-    ? (row['assignmentModels'] as AssignmentModelOption[])
-    : undefined;
-  return {
-    revision: row['revision'],
-    sourcePresetId: text(row['sourcePresetId']) ? row['sourcePresetId'] : '',
-    sourcePresetName: text(row['sourcePresetName']) ? row['sourcePresetName'] : '',
-    orchestrator,
-    ...(text(row['orchestratorGroupId'])
-      ? { orchestratorGroupId: row['orchestratorGroupId'] }
-      : {}),
-    ...(assignmentDefault === undefined ? {} : { assignmentDefault }),
-    ...(assignmentModels === undefined ? {} : { assignmentModels }),
-  };
-}
-
-function planResult(value: unknown, method: string): ModelPlan {
-  const parsed = plan(record(value)?.['plan']);
-  if (parsed === undefined) throw new HostAnswerInvalid(`${method} returned no Model Plan.`);
-  return parsed;
-}
-
-function preset(value: unknown): ModelPreset | undefined {
-  const row = record(value);
-  const orchestrator = route(row?.['orchestrator']);
-  if (!text(row?.['id']) || !text(row['name']) || orchestrator === undefined) return undefined;
-  const assignmentDefault = route(row['assignmentDefault']);
-  return {
-    id: row['id'],
-    name: row['name'],
-    orchestrator,
-    ...(typeof row['revision'] === 'number' ? { revision: row['revision'] } : {}),
-    ...(assignmentDefault === undefined ? {} : { assignmentDefault }),
-    ...(Array.isArray(row['assignmentModels'])
-      ? { assignmentModels: row['assignmentModels'] as AssignmentModelOption[] }
-      : {}),
-  };
-}
-
-function catalogAnswer(value: unknown) {
-  if (!Array.isArray(record(value)?.['models']))
-    throw new HostAnswerInvalid('modelCatalog returned no models.');
-  return parseModelCatalog(value);
-}
-
-function some<T>(rows: unknown, parse: (value: unknown) => T | undefined): T[] {
-  return Array.isArray(rows)
-    ? rows.flatMap((row) => {
-        const parsed = parse(row);
-        return parsed === undefined ? [] : [parsed];
-      })
-    : [];
 }
 
 export async function loadBotModel(
@@ -204,47 +119,63 @@ export async function loadBotModel(
   requirePresets = false,
 ): Promise<BotModel> {
   const [state, catalog, presets] = await Promise.all([
-    client.call('modelPlan', { slug }),
-    client.call('modelCatalog', {}),
-    client.call('modelPresets', {}).catch((cause: unknown) => {
+    loadModelPlanState(client, slug),
+    loadModelCatalog(client),
+    loadModelPresets(client).catch((cause: unknown) => {
       if (requirePresets) throw cause;
-      return { presets: [] };
+      return [];
     }),
   ]);
-  const { models, default: fallback, favorites, groups } = catalogAnswer(catalog);
-  const current = record(state);
-  const saved = plan(current?.['plan']);
-  const repair = record(current?.['repair']);
+  const {
+    models,
+    default: fallback,
+    favorites,
+    groups,
+    defaultGroupId,
+    defaultGroupEffort,
+  } = catalog;
   return {
-    revision:
-      typeof current?.['revision'] === 'number' ? current['revision'] : (saved?.revision ?? 0),
-    ...(saved === undefined ? {} : { plan: saved }),
-    ...(text(repair?.['code']) ? { repair: repair['code'] } : {}),
+    revision: state.revision ?? state.plan?.revision ?? 0,
+    ...(state.plan === undefined ? {} : { plan: state.plan }),
+    ...(state.currentTarget === undefined ? {} : { currentTarget: state.currentTarget }),
+    ...(state.repair === undefined ? {} : { repair: state.repair.code }),
     models,
     ...(groups === undefined ? {} : { groups }),
+    ...(defaultGroupId === undefined ? {} : { defaultGroupId }),
+    ...(defaultGroupEffort === undefined ? {} : { defaultGroupEffort }),
     ...(favorites === undefined ? {} : { favorites }),
     ...(fallback === undefined ? {} : { fallback }),
-    presets: some(record(presets)?.['presets'], preset),
+    presets,
   };
 }
 
-export interface ModelSettingsClient {
-  call(method: string, args?: Record<string, unknown>): Promise<unknown>;
-}
+export type ModelSettingsClient = HostCall;
 
 export async function loadGlobalModel(client: ModelSettingsClient): Promise<BotModel> {
   const [catalog, presets] = await Promise.all([
-    client.call('modelCatalog', {}),
-    client.call('modelPresets', {}),
+    loadModelCatalog(client),
+    loadModelPresets(client),
   ]);
-  const { models, default: fallback, defaultRevision, favorites, groups } = catalogAnswer(catalog);
+  const {
+    models,
+    default: fallback,
+    defaultRevision,
+    favorites,
+    groups,
+    defaultGroupId,
+    defaultGroupEffort,
+    defaultGroupRevision,
+  } = catalog;
   return {
     revision: 0,
     ...(defaultRevision === undefined ? {} : { defaultRevision }),
+    ...(defaultGroupRevision === undefined ? {} : { defaultGroupRevision }),
     models,
     ...(groups === undefined ? {} : { groups }),
+    ...(defaultGroupId === undefined ? {} : { defaultGroupId }),
+    ...(defaultGroupEffort === undefined ? {} : { defaultGroupEffort }),
     ...(favorites === undefined ? {} : { favorites }),
-    presets: some(record(presets)?.['presets'], preset),
+    presets,
     ...(fallback === undefined ? {} : { fallback }),
   };
 }
@@ -278,16 +209,17 @@ export function currentModel(model: BotModel): {
       ? model.fallback
       : undefined;
   const current = model.plan?.orchestrator ?? usableFallback;
-  if (current === undefined) return {};
-  const groupId = model.plan?.orchestratorGroupId;
+  const groupId = model.plan === undefined ? model.defaultGroupId : model.plan.orchestratorGroupId;
   const group =
     groupId === undefined
       ? undefined
       : (model.groups?.find((entry) => entry.id === groupId)?.name ?? groupId);
+  const named = group === undefined ? {} : { group };
+  if (current === undefined) return named;
   return {
     route: current,
     name: model.models.find((entry) => sameModel(entry, current))?.modelName ?? current.model,
-    ...(group === undefined ? {} : { group }),
+    ...named,
   };
 }
 
@@ -312,60 +244,32 @@ export function modelChoice(
 }
 
 export async function chooseModel(
-  client: HostClient,
+  client: HostCall,
   slug: string,
   model: BotModel,
   entry: Pick<ModelCatalogEntry, 'provider' | 'model'>,
 ): Promise<ModelPlan> {
-  return planResult(
-    await client.call<unknown>('modelPlanCustomize', { slug, ...modelChoice(model, entry) }),
-    'modelPlanCustomize',
-  );
+  const { orchestrator, expectedRevision } = modelChoice(model, entry);
+  return customizeModelPlan(client, slug, { orchestrator }, expectedRevision);
 }
 
-export async function applyModelPreset(
-  client: HostClient,
-  slug: string,
-  presetId: string,
-): Promise<ModelPlan> {
-  return planResult(
-    await client.call<unknown>('modelPresetApply', { slug, presetId }),
-    'modelPresetApply',
-  );
-}
-
-function grant(value: unknown): WorkspaceGrant | undefined {
-  const row = record(value);
-  if (
-    !text(row?.['id']) ||
-    !text(row['workspaceId']) ||
-    !text(row['workspacePath']) ||
-    !text(row['workspaceTitle'])
-  )
-    return undefined;
+function grantView(row: WireWorkspaceGrant): WorkspaceGrant {
   return {
-    id: row['id'],
-    workspaceId: row['workspaceId'],
-    workspacePath: row['workspacePath'],
-    workspaceTitle: row['workspaceTitle'],
-    orchestratorWrite: row['orchestratorWrite'] === true,
-    ...(text(row['revokedAt']) ? { revokedAt: row['revokedAt'] } : {}),
+    id: row.id,
+    workspaceId: row.workspaceId,
+    workspacePath: row.workspacePath,
+    workspaceTitle: row.workspaceTitle,
+    orchestratorWrite: row.orchestratorWrite === true,
+    ...(row.revokedAt === undefined ? {} : { revokedAt: row.revokedAt }),
   };
-}
-
-function grantResult(value: unknown, method: string): WorkspaceGrant {
-  const parsed = grant(record(value)?.['grant']);
-  if (parsed === undefined) throw new HostAnswerInvalid(`${method} returned no grant.`);
-  return parsed;
 }
 
 export async function loadWorkspaceGrants(
   client: HostClient,
   slug: string,
 ): Promise<WorkspaceGrant[]> {
-  const rows = record(await client.call<unknown>('grants', { slug }))?.['grants'];
-  if (!Array.isArray(rows)) throw new HostAnswerInvalid('grants returned no list.');
-  return some(rows, grant).filter((row) => row.revokedAt === undefined);
+  const { grants } = await readWorkspaceGrants(client, { slug });
+  return grants.filter((row) => row.revokedAt === undefined).map(grantView);
 }
 
 export async function revokeWorkspaceGrant(
@@ -373,13 +277,17 @@ export async function revokeWorkspaceGrant(
   slug: string,
   grantId: string,
 ): Promise<WorkspaceGrant> {
-  return grantResult(await client.call<unknown>('grantRevoke', { slug, grantId }), 'grantRevoke');
+  return grantView((await revokeGrant(client, { slug, grantId })).grant);
 }
 
 function folder(value: unknown): HostFolder | undefined {
   const row = record(value);
   if (!text(row?.['name']) || !text(row['path'])) return undefined;
-  return { name: row['name'], path: row['path'], hidden: row['hidden'] === true };
+  return {
+    name: row['name'],
+    path: row['path'],
+    hidden: row['hidden'] === true,
+  };
 }
 
 function listing(value: unknown): HostFolderListing {
@@ -391,6 +299,47 @@ function listing(value: unknown): HostFolderListing {
     entries: some(row['entries'], folder),
     truncated: row['truncated'] === true,
     roots: some(row['roots'], folder),
+  };
+}
+
+export interface HostFolderBrowse extends HostFolderListing {
+  home: string;
+  nextOffset?: number;
+  nativePicker?: true;
+}
+
+function browsedFolders(items: unknown): HostFolder[] {
+  if (!Array.isArray(items)) throw new HostAnswerInvalid('folderBrowse returned no folder list.');
+  return items.map((item) => {
+    const row = record(item);
+    if (!text(row?.['name']) || !text(row['path']) || typeof row['hidden'] !== 'boolean')
+      throw new HostAnswerInvalid('folderBrowse returned an unreadable folder.');
+    return { name: row['name'], path: row['path'], hidden: row['hidden'] };
+  });
+}
+
+export async function browseHostFolders(
+  client: HostCall,
+  path?: string,
+  offset?: number,
+): Promise<HostFolderBrowse> {
+  const value = record(
+    await client.call('folderBrowse', {
+      ...(path === undefined ? {} : { path }),
+      ...(offset === undefined || offset === 0 ? {} : { offset }),
+    }),
+  );
+  if (!text(value?.['path']) || !text(value['home']) || typeof value['truncated'] !== 'boolean')
+    throw new HostAnswerInvalid('folderBrowse returned no folder listing.');
+  return {
+    path: value['path'],
+    home: value['home'],
+    truncated: value['truncated'],
+    crumbs: browsedFolders(value['crumbs']),
+    entries: browsedFolders(value['entries']),
+    ...(typeof value['nextOffset'] === 'number' ? { nextOffset: value['nextOffset'] } : {}),
+    roots: browsedFolders(value['roots']),
+    ...(value['nativePicker'] === true ? { nativePicker: true as const } : {}),
   };
 }
 
@@ -407,7 +356,7 @@ export async function listHostFolders(
     } catch (error) {
       if (!folderBrowsingUnavailable(error)) throw error;
       try {
-        const value = listing(await client.call<unknown>('folderBrowse', args));
+        const value = await browseHostFolders(client, path);
         systemPickerHosts.add(client);
         return value;
       } catch (fallback) {
@@ -417,7 +366,7 @@ export async function listHostFolders(
       }
     }
   }
-  return listing(await client.call<unknown>('folderBrowse', args));
+  return browseHostFolders(client, path);
 }
 
 function option(value: unknown): WorkspaceOption | undefined {
@@ -426,8 +375,8 @@ function option(value: unknown): WorkspaceOption | undefined {
   return { id: row['id'], path: row['path'], title: row['title'] };
 }
 
-export async function loadWorkspaceOptions(client: HostClient): Promise<WorkspaceOption[]> {
-  const rows = record(await client.call<unknown>('workspaceOptions', {}))?.['workspaces'];
+export async function loadWorkspaceOptions(client: HostCall): Promise<WorkspaceOption[]> {
+  const rows = record(await client.call('workspaceOptions', {}))?.['workspaces'];
   if (!Array.isArray(rows)) throw new HostAnswerInvalid('workspaceOptions returned no list.');
   return some(rows, option);
 }
@@ -456,10 +405,7 @@ export async function createWorkspaceGrant(
   slug: string,
   workspaceId: string,
 ): Promise<WorkspaceGrant> {
-  return grantResult(
-    await client.call<unknown>('grantCreate', { slug, workspaceId }),
-    'grantCreate',
-  );
+  return grantView((await createGrant(client, { slug, workspaceId })).grant);
 }
 
 export async function authorizeWorkspacePath(
@@ -477,46 +423,24 @@ export async function approveWorkspaceRequest(
   requestMessageId: string,
   workspaceId: string,
 ): Promise<WorkspaceGrant> {
-  const granted = grantResult(
-    await client.call<unknown>('grantRequestApprove', {
-      slug,
-      channelId,
-      requestMessageId,
-      workspaceId,
-      acknowledgeReadWrite: true,
-    }),
-    'grantRequestApprove',
+  return grantView(
+    (await approveGrantRequest(client, { slug, channelId, requestMessageId, workspaceId })).grant,
   );
-  if (!granted.orchestratorWrite)
-    throw new HostAnswerInvalid('The computer did not confirm read/write access.');
-  return granted;
 }
 
-function access(value: unknown, slug: string, method: string): AssignmentAccess {
-  const preset = record(record(value)?.['preset']);
-  const mode = preset?.['mode'];
-  if (
-    preset?.['botSlug'] !== slug ||
-    (mode !== 'workspace-write' && mode !== 'danger-full-access') ||
-    typeof preset['revision'] !== 'number'
-  )
-    throw new HostAnswerInvalid(`${method} returned no access setting.`);
-  return {
-    mode,
-    scope: preset['scope'] === 'assignments' ? 'assignments' : 'chat',
-    revision: preset['revision'],
-  };
+function accessView({
+  mode,
+  scope = 'chat',
+  revision,
+}: WireAssignmentAccessPreset): AssignmentAccess {
+  return { mode, scope, revision };
 }
 
 export async function loadAssignmentAccess(
   client: HostClient,
   slug: string,
 ): Promise<AssignmentAccess> {
-  return access(
-    await client.call<unknown>('assignmentAccessGet', { slug }),
-    slug,
-    'assignmentAccessGet',
-  );
+  return accessView((await readAssignmentAccess(client, slug)).preset);
 }
 
 export async function setAssignmentAccess(
@@ -526,15 +450,15 @@ export async function setAssignmentAccess(
   acknowledgeRisk: boolean,
   scope?: AccessScope,
 ): Promise<AssignmentAccess> {
-  return access(
-    await client.call<unknown>('assignmentAccessSet', {
-      slug,
-      mode,
-      acknowledgeRisk,
-      ...(scope === undefined ? {} : { scope }),
-    }),
-    slug,
-    'assignmentAccessSet',
+  return accessView(
+    (
+      await writeAssignmentAccess(client, {
+        slug,
+        mode,
+        acknowledgeRisk,
+        ...(scope === undefined ? {} : { scope }),
+      })
+    ).preset,
   );
 }
 
@@ -542,24 +466,10 @@ export async function loadApprovalTemplates(
   client: HostClient,
   slug: string,
 ): Promise<ApprovalTemplates> {
-  const value = record(await client.call<unknown>('approvalTemplates', { slug }));
-  const selected = value?.['selected'];
-  const globalDefault = value?.['globalDefault'];
-  if (
-    (globalDefault !== undefined && globalDefault !== null && !text(globalDefault)) ||
-    (selected === INHERIT_APPROVAL_TEMPLATE && globalDefault === undefined)
-  )
-    throw new HostAnswerInvalid('approvalTemplates returned no readable global selection.');
-  if (!Array.isArray(value?.['templates']) || (selected !== null && !text(selected)))
-    throw new HostAnswerInvalid('approvalTemplates returned no templates.');
+  const { templates, selected, globalDefault } = await readApprovalTemplates(client, slug);
   return {
-    templates: some(value['templates'], (item) => {
-      const row = record(item);
-      return text(row?.['name']) && text(row['title']) && text(row['description'])
-        ? { name: row['name'], title: row['title'], description: row['description'] }
-        : undefined;
-    }),
-    selected,
+    templates: templates.map(({ name, title, description }) => ({ name, title, description })),
+    selected: selected ?? null,
     ...(globalDefault === undefined ? {} : { globalDefault }),
   };
 }
@@ -569,9 +479,7 @@ export async function setApprovalTemplate(
   slug: string,
   template: string | null,
 ): Promise<void> {
-  const value = record(await client.call<unknown>('botApprovalTemplateSet', { slug, template }));
-  if (record(value?.['bot'])?.['slug'] !== slug)
-    throw new HostAnswerInvalid('botApprovalTemplateSet did not return the Bot.');
+  await setBotApprovalTemplate(client, slug, template);
 }
 
 export interface BotSettings {

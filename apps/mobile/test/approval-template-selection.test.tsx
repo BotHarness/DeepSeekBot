@@ -5,7 +5,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { botSettings, type ApprovalTemplates } from '@botharness/host-client/bot-settings';
 import { createHostClient } from '@botharness/host-client/client';
 import { WorkspaceSheet } from '../src/ui/chat/workspace-sheet';
-import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
+import { fakeBotDetail, FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { t } from '../src/ui/strings';
 
 vi.mock('react-native', async () => await import('./react-native-shim'));
@@ -80,7 +80,15 @@ async function mount(
   const fake = new FakeHost();
   let selected = initial;
   fake.methods.set('approvalTemplates', () => ({
-    templates: [{ name: 'cautious', title: 'Cautious', description: 'Read carefully.' }, ...extra],
+    templates: [
+      { name: 'cautious', title: 'Cautious', description: 'Read carefully.' },
+      ...extra,
+    ].map((template) => ({
+      ...template,
+      builtIn: template.name === 'cautious',
+      usedBy: [],
+      text: '# ' + template.title,
+    })),
     selected,
     ...(globalDefault === undefined ? {} : { globalDefault }),
   }));
@@ -88,7 +96,7 @@ async function mount(
     const value = args['template'];
     if (value !== null && typeof value !== 'string') throw new Error('Invalid template');
     selected = value;
-    return { bot: { slug: 'ada' } };
+    return { bot: fakeBotDetail('ada', 'Ada') };
   });
   const settings = botSettings(
     createHostClient({
@@ -156,7 +164,16 @@ it('does not offer unsupported inheritance on legacy Hosts that omit global sele
 it('refreshes the actual global default after selecting inheritance', async () => {
   const fake = await mount(null, 'cautious');
   fake.methods.set('approvalTemplates', () => ({
-    templates: [{ name: 'get-work-done', title: 'Get the work done', description: '' }],
+    templates: [
+      {
+        name: 'get-work-done',
+        title: 'Get the work done',
+        description: '',
+        builtIn: true,
+        usedBy: [],
+        text: '# Get the work done',
+      },
+    ],
     selected: '@global',
     globalDefault: 'get-work-done',
   }));

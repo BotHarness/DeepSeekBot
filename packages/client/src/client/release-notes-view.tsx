@@ -1,18 +1,15 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
+import { type TagTone } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import type { ReleaseCompatibility } from '../../../core/src/release/compatibility.js';
 import { useMemo, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { SettingsGroupPart } from './ds/settings-row.js';
 
-import {
-  IconCloseOutlineRegular,
-  IconDownloadOutlineRegular,
-  MarkdownText,
-  Tag,
-  type MarkdownLabels,
-  type TagTone,
-} from '@deepseek-ai/dsh-client-ui-primitives';
-import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
+import { MarkdownText, type MarkdownLabels } from '@deepseek-ai/dsh-client-ui-primitives';
+import { Note } from './ds/note.js';
+import { layer, style } from './ds/tobs.stylex.js';
 
 import type { ReleaseNote } from '../../../core/src/release/notes.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
@@ -90,6 +87,15 @@ const styles = stylex.create({
     gap: space.x3,
     minWidth: 0,
   },
+  diagnostic: {
+    margin: 0,
+    padding: space.x3,
+    backgroundColor: layer.well,
+    borderRadius: style.radiusContainer,
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
+  },
+  restartRow: { display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: space.x3 },
   failureText: { margin: 0, color: color.danger, overflowWrap: 'anywhere' },
   footer: {
     display: 'flex',
@@ -373,7 +379,7 @@ function UpdateNotice({
               xstyle={styles.install}
               onClick={start}
             >
-              <IconDownloadOutlineRegular size={16} />
+              <Icon name="download" size={16} />
             </IconButton>
           </Tooltip>
         ) : null}
@@ -384,7 +390,7 @@ function UpdateNotice({
           xstyle={styles.close}
           onClick={close}
         >
-          <IconCloseOutlineRegular size={14} />
+          <Icon name="x" size={14} />
         </IconButton>
       </div>
       <div {...stylex.props(styles.body)}>
@@ -496,7 +502,8 @@ function statusText(snapshot: ReleaseNotesSnapshot, t: BotHarnessTranslate): str
       });
     case 'unavailable':
       return t('release.status.unavailable', { version });
-    default:
+    case 'idle':
+    case 'checking':
       return t('release.status.checking', { version });
   }
 }
@@ -560,7 +567,8 @@ function releaseView(snapshot: ReleaseNotesSnapshot): {
         tone: 'warning',
         title: 'release.panel.problem',
       };
-    default:
+    case 'idle':
+    case 'checking':
       return {
         state: 'checking',
         icon: 'package',
@@ -609,7 +617,7 @@ function ManualUpdate({
   );
   return (
     <>
-      <div className="bh-settings-row-desc">
+      <Note>
         {t(
           compact
             ? desktop
@@ -617,7 +625,7 @@ function ManualUpdate({
               : 'release.update.cliShort'
             : 'release.update.cli',
         )}
-      </div>
+      </Note>
       <CopyChip
         value={command}
         copyLabel={t('release.update.copy')}
@@ -625,7 +633,7 @@ function ManualUpdate({
         marker="data-release-command"
         well
       />
-      {compact ? null : <div className="bh-settings-row-desc">{t('release.update.desktop')}</div>}
+      {compact ? null : <Note>{t('release.update.desktop')}</Note>}
     </>
   );
 }
@@ -646,27 +654,25 @@ function RestartGuide({
   t: BotHarnessTranslate;
 }): ReactElement {
   if (runsInDesktop()) {
-    return <div className="bh-settings-row-desc">{t('release.restart.desktop')}</div>;
+    return <Note>{t('release.restart.desktop')}</Note>;
   }
   if (!restartable || state.status === 'failed') {
     return (
       <>
         {state.status === 'failed' ? (
-          <div className="bh-release-install-error" role="alert" data-release-restart-error>
-            {t('release.restart.failed')}
+          <div data-release-restart-error>
+            <Note tone="danger">{t('release.restart.failed')}</Note>
           </div>
         ) : null}
-        <div className="bh-settings-row-desc">{t('release.restart.web')}</div>
-        <div className="bh-settings-row-desc">{t('release.restart.desktop')}</div>
+        <Note>{t('release.restart.web')}</Note>
+        <Note>{t('release.restart.desktop')}</Note>
       </>
     );
   }
   const restarting = state.status === 'restarting';
   return (
-    <div className="bh-release-update-head">
-      <span className="bh-settings-row-desc bh-release-restart-hint">
-        {t(restarting ? 'release.restart.progress' : 'release.restart.hint')}
-      </span>
+    <div {...stylex.props(styles.restartRow)}>
+      <Note>{t(restarting ? 'release.restart.progress' : 'release.restart.hint')}</Note>
       <Button
         size="sm"
         variant="primary"
@@ -680,8 +686,10 @@ function RestartGuide({
   );
 }
 
-export type ReleaseSettingsProps = PropsLocale<'botharness'> &
-  InjectFace<{ releaseNotes: ReleaseNotesController }>;
+export interface ReleaseSettingsProps {
+  releaseNotes: ReleaseNotesController;
+  t: BotHarnessTranslate;
+}
 
 export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): ReactElement {
   const snapshot = useReleaseNotes(releaseNotes);
@@ -776,20 +784,16 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
               </p>
             ) : null}
             {update.installable && install.status !== 'failed' && !shown ? (
-              <div className="bh-settings-row-desc">
-                {t(installing ? 'release.install.progress' : 'release.install.hint')}
-              </div>
+              <Note>{t(installing ? 'release.install.progress' : 'release.install.hint')}</Note>
             ) : null}
             {install.status === 'failed' && !shown ? (
-              <div className="bh-release-install-error" role="alert" data-release-install-error>
-                <div>{t(INSTALL_FAILURE_KEYS[install.reason])}</div>
+              <div data-release-install-error {...stylex.props(styles.failure)}>
+                <Note tone="danger">{t(INSTALL_FAILURE_KEYS[install.reason])}</Note>
                 {install.diagnostic === undefined ? null : (
-                  <pre className="bh-release-install-diagnostic">{install.diagnostic}</pre>
+                  <pre {...stylex.props(styles.diagnostic)}>{install.diagnostic}</pre>
                 )}
                 {install.logPath === undefined ? null : (
-                  <div className="bh-settings-row-desc">
-                    {t('release.install.log', { path: install.logPath })}
-                  </div>
+                  <Note>{t('release.install.log', { path: install.logPath })}</Note>
                 )}
               </div>
             ) : null}
@@ -800,9 +804,7 @@ export function ReleaseSettings({ releaseNotes, t }: ReleaseSettingsProps): Reac
         ) : null}
         {update.status === 'restart-required' ? (
           <div data-release-restart={update.installed} {...stylex.props(styles.panelDetails)}>
-            <span className="bh-settings-row-desc">
-              {t('release.restart.title', { installed: update.installed })}
-            </span>
+            <Note>{t('release.restart.title', { installed: update.installed })}</Note>
             <RestartGuide
               restartable={update.restartable}
               state={snapshot.restart}

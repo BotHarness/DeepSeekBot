@@ -79,7 +79,7 @@ export async function verifyEvidence(receipt, fetcher = fetch) {
     throw new Error('Public R2 SHA-256 or size does not match');
 }
 
-export function uploadEvidence(receipt, bytes) {
+export async function uploadEvidence(receipt, bytes) {
   const wrangler = join(ROOT, 'packages/connect-relay/node_modules/wrangler/bin/wrangler.js');
   try {
     execFileSync(
@@ -114,6 +114,8 @@ export function uploadEvidence(receipt, bytes) {
           NODE_OPTIONS:
             `${process.env.NODE_OPTIONS ?? ''} --no-network-family-autoselection --dns-result-order=ipv4first`.trim(),
         },
+        shell: false,
+        windowsHide: true,
       },
     );
   } catch {

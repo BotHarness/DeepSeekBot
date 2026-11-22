@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { requestListener } from './request-listener.mjs';
 
 const mode = process.argv[2];
 assert.equal(process.argv.length, 3);
@@ -15,41 +16,43 @@ const digest = (bytes) => createHash('sha256').update(bytes).digest('hex');
 if (mode === '--serve') {
   let count = 0;
   let receipt;
-  createServer(async (request, response) => {
-    const url = new URL(request.url, fixture);
-    response.setHeader('content-type', 'application/json');
-    if (url.pathname === '/state') response.end(JSON.stringify({ count, receipt }));
-    else if (url.pathname === '/submit' && request.method === 'POST') {
-      const chunks = [];
-      for await (const chunk of request) chunks.push(chunk);
-      const form = await new Response(Buffer.concat(chunks), {
-        headers: { 'content-type': request.headers['content-type'] },
-      }).formData();
-      const file = form.get('capture');
-      if (!(file instanceof File) || !/^screenshot-\d+\.jpg$/.test(file.name) || count > 0) {
-        response.statusCode = 400;
-        response.end(JSON.stringify({ error: 'A fresh screenshot submission is required' }));
-        return;
+  createServer(
+    requestListener(async (request, response) => {
+      const url = new URL(request.url, fixture);
+      response.setHeader('content-type', 'application/json');
+      if (url.pathname === '/state') response.end(JSON.stringify({ count, receipt }));
+      else if (url.pathname === '/submit' && request.method === 'POST') {
+        const chunks = [];
+        for await (const chunk of request) chunks.push(chunk);
+        const form = await new Response(Buffer.concat(chunks), {
+          headers: { 'content-type': request.headers['content-type'] },
+        }).formData();
+        const file = form.get('capture');
+        if (!(file instanceof File) || !/^screenshot-\d+\.jpg$/.test(file.name) || count > 0) {
+          response.statusCode = 400;
+          response.end(JSON.stringify({ error: 'A fresh screenshot submission is required' }));
+          return;
+        }
+        const bytes = Buffer.from(await file.arrayBuffer());
+        if (bytes.length < 1000 || bytes[0] !== 255 || bytes[1] !== 216) {
+          response.statusCode = 400;
+          response.end(JSON.stringify({ error: 'JPEG payload required' }));
+          return;
+        }
+        count += 1;
+        receipt = { filename: file.name, bytes: bytes.length, sha256: digest(bytes) };
+        response.end(JSON.stringify({ count, receipt }));
+      } else if (url.pathname === '/page') {
+        response.setHeader('content-type', 'text/html; charset=utf-8');
+        response.end(
+          `<!doctype html><title>Screenshot publishing QA</title><body style="font:20px sans-serif;padding:20px;background:#fff;color:#111"><h1>Screenshot publishing QA</h1><p>Capture this page, attach the saved JPEG, then publish once.</p><section style="padding:20px;border:2px solid #555;margin:20px 0"><h2>Local draft</h2><p>This disposable page contains no account or personal data.</p><form><button type="button" id="attach" style="font:20px sans-serif;padding:10px">Attach screenshot</button><p id="file">Attachment: none</p><button id="publish" disabled style="font:20px sans-serif;padding:10px">Publish screenshot</button></form></section><p id="state">Published: 0</p><script>const form=document.querySelector('form'),button=document.querySelector('#publish');let input;document.querySelector('#attach').onclick=()=>{if(!input){input=document.createElement('input');input.type='file';input.name='capture';input.accept='image/jpeg';input.hidden=true;form.append(input);input.onchange=()=>{document.querySelector('#file').textContent='Attachment: '+(input.files[0]?.name||'none');button.disabled=!input.files.length}}input.click()};form.onsubmit=async e=>{e.preventDefault();button.disabled=true;const response=await fetch('/submit',{method:'POST',body:new FormData(form)});if(!response.ok)throw Error('Submission failed');const result=await response.json();document.querySelector('#state').textContent='Published: '+result.count+'; JPEG received: '+result.receipt.bytes+' bytes';document.querySelector('#attach').disabled=true};</script></body>`,
+        );
+      } else {
+        response.statusCode = 404;
+        response.end(JSON.stringify({ error: 'Unknown fixture route' }));
       }
-      const bytes = Buffer.from(await file.arrayBuffer());
-      if (bytes.length < 1000 || bytes[0] !== 255 || bytes[1] !== 216) {
-        response.statusCode = 400;
-        response.end(JSON.stringify({ error: 'JPEG payload required' }));
-        return;
-      }
-      count += 1;
-      receipt = { filename: file.name, bytes: bytes.length, sha256: digest(bytes) };
-      response.end(JSON.stringify({ count, receipt }));
-    } else if (url.pathname === '/page') {
-      response.setHeader('content-type', 'text/html; charset=utf-8');
-      response.end(
-        `<!doctype html><title>Screenshot publishing QA</title><body style="font:20px sans-serif;padding:20px;background:#fff;color:#111"><h1>Screenshot publishing QA</h1><p>Capture this page, attach the saved JPEG, then publish once.</p><section style="padding:20px;border:2px solid #555;margin:20px 0"><h2>Local draft</h2><p>This disposable page contains no account or personal data.</p><form><button type="button" id="attach" style="font:20px sans-serif;padding:10px">Attach screenshot</button><p id="file">Attachment: none</p><button id="publish" disabled style="font:20px sans-serif;padding:10px">Publish screenshot</button></form></section><p id="state">Published: 0</p><script>const form=document.querySelector('form'),button=document.querySelector('#publish');let input;document.querySelector('#attach').onclick=()=>{if(!input){input=document.createElement('input');input.type='file';input.name='capture';input.accept='image/jpeg';input.hidden=true;form.append(input);input.onchange=()=>{document.querySelector('#file').textContent='Attachment: '+(input.files[0]?.name||'none');button.disabled=!input.files.length}}input.click()};form.onsubmit=async e=>{e.preventDefault();button.disabled=true;const response=await fetch('/submit',{method:'POST',body:new FormData(form)});if(!response.ok)throw Error('Submission failed');const result=await response.json();document.querySelector('#state').textContent='Published: '+result.count+'; JPEG received: '+result.receipt.bytes+' bytes';document.querySelector('#attach').disabled=true};</script></body>`,
-      );
-    } else {
-      response.statusCode = 404;
-      response.end(JSON.stringify({ error: 'Unknown fixture route' }));
-    }
-  }).listen(fixturePort, '127.0.0.1');
+    }),
+  ).listen(fixturePort, '127.0.0.1');
 } else {
   const origin = process.env.BH_E2E_ORIGIN;
   const home = process.env.BH_E2E_HOME;

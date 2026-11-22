@@ -1,41 +1,22 @@
-import {
-  assertQuoteTargets,
-  durableQuotes,
-  projectQuotes,
-  sameQuoteIntent,
-  type ChannelQuote,
-} from './quotes.js';
-import type { ChannelPolicy } from '../team/channel-contract.js';
-import type { AskUserQuestionAnswer } from '@deepseek-ai/dsh-user-questions/types';
-import {
-  acceptedQuestionAnswer,
-  type AcceptedQuestionReference,
-} from './accepted-question-answer.js';
+import { assertQuoteTargets, durableQuotes, projectQuotes, sameQuoteIntent } from './quotes.js';
+import { acceptedQuestionAnswer } from './accepted-question-answer.js';
 import { OWNER_HUMAN_CONTEXT, type HumanContext } from '../humans/context.js';
 import { isChannelNotice } from './channel-notice.js';
-import { channelCallPictureRange, type ChannelCallWindowFilter } from './call-window.js';
 import { assertGenuiMessage } from './genui-message.js';
 import {
   compareToolApprovalHistory,
   toolApprovalHistoryEntry,
   type ToolApprovalHistoryEntry,
-  type ToolApprovalHistoryPosition,
 } from './approval-history.js';
-import type { DatabaseSync } from 'node:sqlite';
-import { allBotPreview, assertAllBotPreview, type AllBotPreview } from './all-bot-mention.js';
-import type { AttachmentMigrationResult } from '../attachments/legacy-migration.js';
-import type { DiagnosticEvents } from '../diagnostics/diagnostic-log.js';
+import { allBotPreview, assertAllBotPreview } from './all-bot-mention.js';
 import { projectAttachmentFiles } from '../attachments/message-files.js';
 import { replyPreviewOf } from './reply-preview.js';
 import { assertGrantRequestReply, isGrantRequestResolved } from './grant-request.js';
-import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync } from 'node:fs';
 import type { Dirent } from 'node:fs';
 import { join } from 'node:path';
-
 import { isValidSlug } from '../bots/slug.js';
 import { ChannelAttachmentError, type AttachmentStore } from '../attachments/store.js';
-import type { MediaVersions } from '../attachments/media-versions.js';
 import {
   attachmentIdentity,
   attachmentIntent,
@@ -45,7 +26,6 @@ import {
 import { atomicWriteFile } from '../fs/atomic-write.js';
 import {
   botDmChannelId,
-  type RemoteBotParticipant,
   dmChannelId,
   groupChannelIdBase,
   isBotDmChannel,
@@ -53,19 +33,8 @@ import {
   isChannelRecord,
   isGroupAvatar,
   isValidChannelId,
-  type LocalHumanIdentity,
-  type HumanAvatar,
-  type BotCreateAction,
-  type ChannelMemoryCommit,
   type ChannelMessage,
-  type ChannelMessageVoice,
-  type ChannelReaction,
   type ChannelRecord,
-  type GroupInvitation,
-  type GroupJoinRequest,
-  type GroupWakePolicyActor,
-  type GroupWakePolicyView,
-  type BotMessageCausation,
 } from './channel.js';
 import {
   CHANNEL_FILES_LIMIT,
@@ -74,608 +43,38 @@ import {
   MAX_MESSAGE_PAGE,
   pageChannelJournal,
   pageChannelTimeline,
-  type ChannelFilesPage,
-  type ChannelFilesRequest,
-  type ChangedChannels,
-  type ChannelChangeCursor,
-  type ChannelChanges,
-  type ChannelChangesRequest,
-  type ChannelJournalPage,
-  type ChannelJournalRequest,
-  type ChannelTimelinePage,
-  type ChannelTimelineRequest,
 } from './timeline.js';
+import { queryChannelMessages } from './store-query.js';
+import type { ChannelStoreOptions, ChannelReadPosition, ChannelStore } from './store-types.js';
 
 export { DEFAULT_MESSAGE_PAGE, MAX_MESSAGE_PAGE } from './timeline.js';
-
-export interface ChannelStoreOptions {
-  rootDir: string;
-  attachments?: AttachmentStore;
-  mediaVersions?: Pick<MediaVersions, 'describe'>;
-  now?: () => Date;
-  onCommitted?: (commit: ChannelMessageCommit) => void;
-  onRecordChanged?: () => void;
-  onAdmissionChanged?: (channelId: string, messageId: string, message: ChannelMessage) => void;
-  onHumanReadChanged?: (channelId: string, humanId: string, revision: number) => void;
-  onReactionChanged?: (channelId: string, messageId: string, reactions: ChannelReaction[]) => void;
-  onVoiceChanged?: (channelId: string, messageId: string, message: ChannelMessage) => void;
-  onAttachmentsChanged?: (channelId: string, messageId: string, message: ChannelMessage) => void;
-  warn?: (message: string) => void;
-  isBotActive?: (botSlug: string) => boolean;
-  botDisplayName?: (botSlug: string) => string | undefined;
-}
-
-export interface ChannelMessageOrigin {
-  sessionId: string;
-  sourceEventId?: string;
-}
-
-export interface ChannelRequestProgress {
-  state: 'working' | 'completed' | 'failed' | 'unknown';
-  terminal: boolean;
-  updatedAt: string;
-}
-
-export interface ChannelSendStatus {
-  sourceEventId: string;
-  state: string;
-  progress: ChannelRequestProgress;
-  replies: ChannelMessage[];
-  assignmentId?: string;
-}
-
-export interface ChannelMessageCommit {
-  channelId: string;
-  message: ChannelMessage;
-  revision: number;
-  origin?: ChannelMessageOrigin;
-}
-export type ChannelAppendOnceResult =
-  | { status: 'appended'; message: ChannelMessage }
-  | { status: 'existing'; message: ChannelMessage }
-  | { status: 'conflict' }
-  | { status: 'missing' };
-
-export interface ChannelReadPosition {
-  messageId: string;
-  revision: number;
-  readAt: string;
-}
-
-export interface ChannelReadOptions {
-  before?: string;
-  limit?: number;
-}
-
-export interface ChannelMessageQueryOptions {
-  searchHuman?: HumanContext;
-  text?: string;
-  authorBotId?: string;
-  authorKind?: 'human' | 'bot' | 'bridged' | 'system';
-  from?: string;
-  to?: string;
-  cursor?: string;
-  limit?: number;
-  visibleFrom?: number;
-
-  orderBy?: 'time';
-  ascending?: boolean;
-  callWindow?: ChannelCallWindowFilter;
-}
-
-export interface ChannelMessageQueryPage {
-  messages: ChannelMessage[];
-  nextCursor?: string;
-}
-
-export interface HumanMessageSearchRequest {
-  text: string;
-  limit: number;
-  cursor?: string;
-  excludeChannelIds?: readonly string[];
-}
-
-export interface HumanMessageSearchHit {
-  channelId: string;
-  message: ChannelMessage;
-  snippet: string;
-}
-
-export interface HumanMessageSearchPage {
-  hits: HumanMessageSearchHit[];
-  nextCursor?: string;
-}
-
-export interface PreparedChannelMessageQuery {
-  text?: string;
-  authorBotId?: string;
-  authorKind?: 'human' | 'bot' | 'bridged' | 'system';
-  from?: number;
-  to?: number;
-  beforeId?: string;
-  visibleFrom?: number;
-  orderBy?: 'time';
-  ascending?: true;
-  callWindow?: PreparedChannelCallWindow;
-  filter: string;
-  limit: number;
-}
-
-export interface PreparedChannelCallWindow {
-  callId: string;
-  fromMs: number;
-  toMs?: number;
-  from: number;
-  to?: number;
-}
-
-function prepareCallWindow(
-  window: ChannelCallWindowFilter | undefined,
-): PreparedChannelCallWindow | undefined {
-  if (window === undefined) return undefined;
-  const from = Date.parse(window.from);
-  const to = window.to === undefined ? undefined : Date.parse(window.to);
-  const offset = (value: number | undefined) =>
-    value === undefined || (Number.isSafeInteger(value) && value >= 0);
-  if (
-    !Number.isFinite(from) ||
-    (to !== undefined && (!Number.isFinite(to) || from > to)) ||
-    !offset(window.fromMs) ||
-    !offset(window.toMs) ||
-    (window.toMs !== undefined && window.fromMs > window.toMs)
-  )
-    throw new Error('channel_read: invalid call window');
-  return {
-    callId: window.callId,
-    fromMs: window.fromMs,
-    ...(window.toMs === undefined ? {} : { toMs: window.toMs }),
-    from,
-    ...(to === undefined ? {} : { to }),
-  };
-}
-
-export function inChannelCallWindow(
-  message: ChannelMessage,
-  window: PreparedChannelCallWindow,
-): boolean {
-  const picture = channelCallPictureRange(message, window.callId);
-  if (picture !== undefined)
-    return (
-      picture.toMs >= window.fromMs && (window.toMs === undefined || picture.fromMs <= window.toMs)
-    );
-  const at = Date.parse(message.at);
-  return Number.isFinite(at) && at >= window.from && (window.to === undefined || at <= window.to);
-}
-
-export function prepareChannelMessageQuery(
-  channelId: string,
-  options: ChannelMessageQueryOptions = {},
-): PreparedChannelMessageQuery {
-  if (
-    options.authorBotId !== undefined &&
-    options.authorKind !== undefined &&
-    options.authorKind !== 'bot'
-  ) {
-    throw new Error('channel_read: author_bot_id requires author_kind bot');
-  }
-  if (
-    options.authorKind !== undefined &&
-    !['human', 'bot', 'bridged', 'system'].includes(options.authorKind)
-  ) {
-    throw new Error('channel_read: invalid author_kind');
-  }
-  const from = options.from === undefined ? undefined : Date.parse(options.from);
-  const to =
-    options.to === undefined
-      ? undefined
-      : Date.parse(options.to) + (/^\d{4}-\d{2}-\d{2}$/u.test(options.to) ? 86_400_000 - 1 : 0);
-  if (
-    (from !== undefined && !Number.isFinite(from)) ||
-    (to !== undefined && !Number.isFinite(to)) ||
-    (from !== undefined && to !== undefined && from > to)
-  )
-    throw new Error('channel_read: invalid date range');
-  if (
-    options.visibleFrom !== undefined &&
-    (!Number.isSafeInteger(options.visibleFrom) || options.visibleFrom < 0)
-  )
-    throw new Error('channel_read: invalid visible revision');
-  if (options.ascending === true && options.orderBy !== 'time')
-    throw new Error('channel_read: ascending order needs time order');
-  const ascending = options.ascending === true ? true : undefined;
-  const callWindow = prepareCallWindow(options.callWindow);
-  const text = options.text?.trim().toLowerCase();
-  const filter = createHash('sha256')
-    .update(
-      JSON.stringify({
-        channelId,
-        text,
-        authorBotId: options.authorBotId,
-        authorKind: options.authorKind,
-        from,
-        to,
-        orderBy: options.orderBy,
-        ascending,
-        visibleFrom: options.visibleFrom,
-        callWindow,
-      }),
-    )
-    .digest('hex')
-    .slice(0, 16);
-  let beforeId: string | undefined;
-  if (options.cursor !== undefined) {
-    try {
-      const decoded: unknown = JSON.parse(
-        Buffer.from(options.cursor, 'base64url').toString('utf8'),
-      );
-      if (
-        typeof decoded !== 'object' ||
-        decoded === null ||
-        !('beforeId' in decoded) ||
-        typeof decoded.beforeId !== 'string' ||
-        !('filter' in decoded) ||
-        decoded.filter !== filter
-      )
-        throw new Error('invalid');
-      beforeId = decoded.beforeId;
-    } catch {
-      throw new Error('channel_read: invalid cursor');
-    }
-  }
-  return {
-    ...(text === undefined ? {} : { text }),
-    ...(options.authorBotId === undefined ? {} : { authorBotId: options.authorBotId }),
-    ...(options.authorKind === undefined ? {} : { authorKind: options.authorKind }),
-    ...(from === undefined ? {} : { from }),
-    ...(to === undefined ? {} : { to }),
-    ...(beforeId === undefined ? {} : { beforeId }),
-    ...(options.visibleFrom === undefined ? {} : { visibleFrom: options.visibleFrom }),
-    ...(options.orderBy === undefined ? {} : { orderBy: options.orderBy }),
-    ...(ascending === undefined ? {} : { ascending }),
-    ...(callWindow === undefined ? {} : { callWindow }),
-    filter,
-    limit: Math.max(
-      1,
-      Math.min(Math.floor(options.limit ?? DEFAULT_MESSAGE_PAGE), MAX_MESSAGE_PAGE),
-    ),
-  };
-}
-
-export function queryChannelMessages(
-  channelId: string,
-  messages: readonly ChannelMessage[],
-  options: ChannelMessageQueryOptions = {},
-): ChannelMessageQueryPage {
-  const query = prepareChannelMessageQuery(channelId, options);
-  const ordered =
-    query.orderBy === 'time'
-      ? messages
-          .filter((message) => Number.isFinite(Date.parse(message.at)))
-          .sort(
-            (left, right) =>
-              (Date.parse(right.at) - Date.parse(left.at) ||
-                (right.id < left.id ? -1 : right.id > left.id ? 1 : 0)) *
-              (query.ascending === true ? -1 : 1),
-          )
-      : [...messages].reverse();
-  const beforeIndex =
-    query.beforeId === undefined
-      ? -1
-      : ordered.findIndex((message) => message.id === query.beforeId);
-  if (query.beforeId !== undefined && beforeIndex < 0)
-    throw new Error('channel_read: invalid cursor');
-  const matching = ordered.slice(beforeIndex + 1).filter((message) => {
-    if (query.text !== undefined && !message.body.toLowerCase().includes(query.text)) return false;
-    if (
-      query.authorBotId !== undefined &&
-      (message.author.kind !== 'bot' || message.author.slug !== query.authorBotId)
-    )
-      return false;
-    if (query.authorKind !== undefined && message.author.kind !== query.authorKind) return false;
-    if (query.visibleFrom !== undefined && (message.channelRevision ?? 0) < query.visibleFrom)
-      return false;
-    const at = Date.parse(message.at);
-    if ((query.from !== undefined || query.to !== undefined) && !Number.isFinite(at)) return false;
-    if (query.from !== undefined && at < query.from) return false;
-    if (query.to !== undefined && at > query.to) return false;
-    if (query.callWindow !== undefined && !inChannelCallWindow(message, query.callWindow))
-      return false;
-    return true;
-  });
-  const page = matching.slice(0, query.limit + 1);
-  const selected = page.slice(0, query.limit);
-  const last = selected.at(-1);
-  return {
-    messages: selected,
-    ...(page.length <= query.limit || last === undefined
-      ? {}
-      : {
-          nextCursor: Buffer.from(
-            JSON.stringify({ beforeId: last.id, filter: query.filter }),
-          ).toString('base64url'),
-        }),
-  };
-}
-
-export interface CreateChannelGroupInput {
-  id?: string;
-  name: string;
-  members: string[];
-  ownerBotSlug?: string;
-}
-
-export interface ChannelStore {
-  requireHumanPolicy?(human: HumanContext, id: string, key: keyof ChannelPolicy): void;
-  bindHumanAccess?(access: {
-    requireBotJoin?(slug: string, channelId: string): void;
-    requireBotPost?(slug: string, channel: ChannelRecord): void;
-    requireDm?(human: HumanContext, slug: string): void;
-    searchText?(human: HumanContext, channelId: string, messageId: string, text: string): string;
-    canRead(human: HumanContext, id: string): boolean;
-    requirePost(human: HumanContext, id: string, all: boolean, message?: ChannelMessage): void;
-    requirePolicy(human: HumanContext, id: string, key: keyof ChannelPolicy): void;
-  }): void;
-  getOrCreateHumanDm?(human: HumanContext, id: string, participants: string[]): ChannelRecord;
-
-  genuiView?(
-    human: HumanContext,
-    channelId: string,
-    messageId: string,
-  ): import('./genui.js').GenuiPrivateView;
-  saveGenuiView?(
-    human: HumanContext,
-    channelId: string,
-    messageId: string,
-    snapshotId: string,
-    expectedVersion: number,
-    state: unknown,
-  ): import('./genui.js').GenuiPrivateView;
-  rootDir: string;
-  humanIdentity(human: HumanContext): LocalHumanIdentity;
-  setHumanDefaultName(human: HumanContext, displayName: string | null): LocalHumanIdentity;
-  humanNickname(human: HumanContext, id: string): string | null | undefined;
-  setHumanNickname(human: HumanContext, id: string, nickname: string | null): void;
-  setHumanAvatar(human: HumanContext, avatar: string | null): LocalHumanIdentity;
-  finishHumanProfileSetup(human: HumanContext): LocalHumanIdentity;
-  humanAvatars(human: HumanContext, humanIds: readonly string[]): HumanAvatar[];
-  list(): ChannelRecord[];
-  get(id: string): ChannelRecord | undefined;
-  hasHumanMembership?(human: HumanContext, id: string): boolean;
-  listHumanMembers(
-    human: HumanContext,
-    id: string,
-  ): Array<{ humanId: string; displayName: string; avatarVersion?: string }>;
-
-  latestHumanMessageId?(human: HumanContext, id: string): string | undefined;
-  latestMessage(id: string): ChannelMessage | undefined;
-
-  hasMessage(id: string, messageId: string): boolean;
-  message(id: string, messageId: string): ChannelMessage | undefined;
-  storedQuotes(id: string, messageId: string): ChannelQuote[] | undefined;
-  humanSendStatus?(id: string, messageId: string): ChannelSendStatus | undefined;
-  observeOutput(
-    human: HumanContext,
-    id: string,
-    messageId: string,
-  ): ChannelOutputObservation | undefined;
-  outputCheckpoint(): number | undefined;
-  assertAttachmentRefs(refs: readonly ChannelAttachmentRef[]): void;
-
-  referencedAttachmentHashes(): ReadonlySet<string>;
-  migrateAttachments?(
-    signal?: AbortSignal,
-    events?: DiagnosticEvents,
-  ): Promise<AttachmentMigrationResult>;
-  projectMessageAttachments?(sourceEventId: string, message: ChannelMessage): ChannelMessage;
-  attachmentReference?(
-    channelId: string,
-    messageId: string,
-    identity: string,
-  ): ChannelAttachmentRef | undefined;
-  getOrCreateDm(human: HumanContext, botSlug: string, botName?: string): ChannelRecord | undefined;
-  getOrCreateBotDm(
-    human: HumanContext,
-    firstBotSlug: string,
-    secondBotSlug: string,
-    name: string,
-  ): ChannelRecord | undefined;
-  remoteHostKey?(hostId: string): string | undefined;
-  trustRemoteHostKey?(
-    hostId: string,
-    key: string,
-    membership?: RemoteBotParticipant['membership'],
-  ): void;
-  getOrCreateRemoteBotDm(localBotSlug: string, remote: RemoteBotParticipant): ChannelRecord;
-  createGroup(human: HumanContext, input: CreateChannelGroupInput): ChannelRecord;
-
-  inviteGroupBot(input: {
-    invitationId?: string;
-    channelId: string;
-    inviterBotSlug?: string;
-    inviterHuman?: true;
-    targetBotSlug: string;
-    targetBotCreatedAt: string;
-    targetDmChannelId: string;
-    botCausation?: BotMessageCausation;
-  }): GroupInvitation;
-  setGroupAvatar(human: HumanContext, channelId: string, avatar: string | null): ChannelRecord;
-
-  respondToGroupInvite(input: {
-    invitationId: string;
-    targetBotSlug: string;
-    targetBotCreatedAt: string;
-    accept: boolean;
-  }): {
-    channel: ChannelRecord;
-    invitation: GroupInvitation;
-  };
-
-  requestGroupJoin(input: {
-    channelId: string;
-    requesterBotSlug: string;
-    requesterBotCreatedAt: string;
-    ownerDmChannelId?: string;
-    botCausation?: BotMessageCausation;
-  }): GroupJoinRequest;
-
-  decideGroupJoin(input: {
-    channelId: string;
-    requestId: string;
-    accept: boolean;
-    decidedBy: 'human' | string;
-    requesterBotCreatedAt: string;
-    requesterDmChannelId: string;
-    botCausation?: BotMessageCausation;
-  }): { channel: ChannelRecord; request: GroupJoinRequest; notified: boolean };
-
-  cancelGroupInvite(channelId: string, invitationId: string): ChannelRecord;
-  cancelInvitationsForBot(botSlug: string): void;
-  removeBotFromGroups(botSlug: string, commit?: (database: DatabaseSync) => void): void;
-  getGroupWakePolicy(channelId: string, botSlug: string): GroupWakePolicyView;
-  setGroupWakePolicy(
-    channelId: string,
-    botSlug: string,
-    policy: {
-      mode: 'all' | 'mentions' | 'digest' | 'silent';
-      count: number;
-      intervalSeconds: number;
-      inherit?: boolean;
-    },
-    actor?: GroupWakePolicyActor,
-  ): ChannelRecord;
-  removeGroupMember(
-    channelId: string,
-    botSlug: string,
-    departureType?: 'left' | 'removed',
-  ): ChannelRecord;
-
-  deleteGroup(channelId: string): void;
-  appendMemoryCommits(input: {
-    botSlug: string;
-    causeSourceEventId: string;
-    commits: ReadonlyArray<Omit<ChannelMemoryCommit, 'botSlug'>>;
-  }): ChannelMessage[];
-  appendBotCreateAction?(input: {
-    botSlug: string;
-    causeSourceEventId: string;
-    created: BotCreateAction;
-  }): ChannelMessage | undefined;
-  rename(human: HumanContext, id: string, name: string): ChannelRecord | undefined;
-  previewAllBotMention(id: string): AllBotPreview;
-  grantRequestResolution?(channelId: string, requestMessageId: string): ChannelMessage | undefined;
-  appendMessageOnce(
-    human: HumanContext,
-    id: string,
-    message: ChannelMessage,
-    preview?: AllBotPreview,
-    origin?: ChannelMessageOrigin,
-    canCommit?: (database?: DatabaseSync) => boolean,
-  ): Promise<ChannelAppendOnceResult>;
-  readPosition(human: HumanContext, id: string): ChannelReadPosition | undefined;
-  markRead(
-    human: HumanContext,
-    id: string,
-    messageId: string,
-  ): Promise<ChannelReadPosition | undefined>;
-  setHumanReaction?(
-    human: HumanContext,
-    id: string,
-    messageId: string,
-    emoji: string,
-    active: boolean,
-  ): ChannelReaction[] | undefined;
-  setBotReaction?(
-    id: string,
-    botSlug: string,
-    messageId: string,
-    emoji: string,
-    active: boolean,
-  ): ChannelReaction[] | undefined;
-  appendMessage(
-    human: HumanContext,
-    id: string,
-    message: ChannelMessage,
-    origin?: ChannelMessageOrigin,
-    beforeCommit?: () => boolean,
-  ): Promise<ChannelMessage | undefined>;
-  reconcileQuestionAnswer(
-    human: HumanContext | undefined,
-    channelId: string,
-    request: AcceptedQuestionReference,
-    answer: AskUserQuestionAnswer,
-  ): Promise<ChannelMessage | undefined>;
-  readMessages(id: string, options?: ChannelReadOptions): ChannelMessage[];
-  queryMessages(id: string, options?: ChannelMessageQueryOptions): ChannelMessageQueryPage;
-  searchHumanMessages?(
-    human: HumanContext,
-    id: string,
-    options: Pick<ChannelMessageQueryOptions, 'text' | 'cursor' | 'limit'>,
-  ): ChannelMessageQueryPage | undefined;
-  searchAllHumanMessages?(
-    human: HumanContext,
-    request: HumanMessageSearchRequest,
-  ): HumanMessageSearchPage;
-  readTimeline(id: string, request?: ChannelTimelineRequest): ChannelTimelinePage | undefined;
-  readHumanTimeline(
-    human: HumanContext,
-    id: string,
-    request?: ChannelTimelineRequest,
-  ): ChannelTimelinePage | undefined;
-  readHumanJournalPage(
-    human: HumanContext,
-    id: string,
-    request: ChannelJournalRequest,
-  ): ChannelJournalPage | undefined;
-  readHumanFilesPage(
-    human: HumanContext,
-    id: string,
-    request: ChannelFilesRequest,
-  ): ChannelFilesPage | undefined;
-  readHumanChanges?(
-    human: HumanContext,
-    id: string,
-    request: ChannelChangesRequest,
-  ): ChannelChanges | undefined;
-  changeCursor?(): ChannelChangeCursor;
-  channelChangeHead?(id: string): ChannelChangeCursor | undefined;
-  readChangedChannels?(request: Omit<ChannelChangesRequest, 'limit'>): ChangedChannels;
-  recordAttachmentChange?(fileId: string): number;
-  rotateChangeEpoch?(): ChannelChangeCursor;
-  revision(id: string): number;
-  messagesAfter(id: string, revision: number): ChannelMessageCommit[] | undefined;
-  admissionChanged?(channelId: string, messageId: string): void;
-  setMessageVoice?(
-    channelId: string,
-    messageId: string,
-    voice: ChannelMessageVoice,
-    attachment?: ChannelAttachmentRef,
-  ): ChannelMessage | undefined;
-
-  latestBotActivity?(human: HumanContext): ReadonlyMap<string, number>;
-  privateInputRequests?(): Array<{ channelId: string; messageId: string }>;
-  humanMessageCounts?(
-    human: HumanContext,
-    from: string,
-    to: string,
-  ): Array<{
-    channelId: string;
-    author: ChannelMessage['author'];
-    count: number;
-  }>;
-  admissionActivity?(botSlug: string, sinceIso: string): Array<{ at: string; reason: string }>;
-  toolApprovalHistory?(
-    botSlug: string,
-    page: { after?: ToolApprovalHistoryPosition; limit: number },
-  ): ToolApprovalHistoryEntry[];
-}
-
-export interface ChannelOutputObservation {
-  position?: number;
-  channel: Pick<ChannelRecord, 'id' | 'type' | 'name' | 'botSlug' | 'members' | 'deletedAt'>;
-  message: Pick<ChannelMessage, 'id' | 'author' | 'body'>;
-  humanParticipant: boolean;
-  canRead: boolean;
-}
+export {
+  inChannelCallWindow,
+  prepareChannelMessageQuery,
+  queryChannelMessages,
+} from './store-query.js';
+export type {
+  ChannelMessageQueryOptions,
+  ChannelMessageQueryPage,
+  PreparedChannelMessageQuery,
+  PreparedChannelCallWindow,
+} from './store-query.js';
+export type {
+  ChannelStoreOptions,
+  ChannelMessageOrigin,
+  ChannelRequestProgress,
+  ChannelSendStatus,
+  ChannelMessageCommit,
+  ChannelAppendOnceResult,
+  ChannelReadPosition,
+  ChannelReadOptions,
+  HumanMessageSearchRequest,
+  HumanMessageSearchHit,
+  HumanMessageSearchPage,
+  CreateChannelGroupInput,
+  ChannelStore,
+  ChannelOutputObservation,
+} from './store-types.js';
 
 function isMissing(error: unknown): boolean {
   return (error as NodeJS.ErrnoException).code === 'ENOENT';

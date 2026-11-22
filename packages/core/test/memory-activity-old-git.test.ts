@@ -18,10 +18,12 @@ it('filters Memory activity by date itself when Git predates --since-as-filter',
   expect(ensureMemoryRepository({ memoryDir }).ok).toBe(true);
   const commit = (name: string, at: string): void => {
     writeFileSync(join(memoryDir, name), name);
-    execFileSync('git', ['add', name], { cwd: memoryDir });
+    execFileSync('git', ['add', name], { cwd: memoryDir, shell: false, windowsHide: true });
     execFileSync('git', ['commit', '--no-gpg-sign', '-m', name], {
       cwd: memoryDir,
       env: { ...process.env, GIT_COMMITTER_DATE: at, GIT_AUTHOR_DATE: at },
+      shell: false,
+      windowsHide: true,
     });
   };
   commit('old.md', '2026-09-25T12:00:00+09:00');
@@ -33,6 +35,8 @@ it('filters Memory activity by date itself when Git predates --since-as-filter',
   const seed = execFileSync('git', ['log', '--reverse', '--format=%cI'], {
     cwd: memoryDir,
     encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
   }).split('\n')[0];
   const expected = [
     '2026-09-26T03:00:00.000Z',

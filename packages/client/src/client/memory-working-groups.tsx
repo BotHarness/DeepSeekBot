@@ -1,5 +1,6 @@
+import { Icon } from './ds/icon.js';
 import { useId, useState, useSyncExternalStore, type ReactElement } from 'react';
-import { IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { MemoryWorkingChange } from './bridge.js';
 import { channelSidebarPrefs } from './channel-sidebar-prefs.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -72,7 +73,7 @@ export function MemoryWorkingGroups({
                 }
               >
                 <span className={open ? '' : 'bh-chevron-collapsed'} aria-hidden="true">
-                  <IconChevronDownOutlineRegular size={14} />
+                  <Icon name="chevron-down" size={14} />
                 </span>
                 <span>{groupLabel(group.id, t)}</span>
                 <span className="bh-memory-change-count">{group.changes.length}</span>

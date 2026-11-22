@@ -1,5 +1,10 @@
+import { Icon } from './ds/icon.js';
 import { Note } from './ds/note.js';
 import { Button } from './ds/button.js';
+import { ComposerControl, ComposerTextarea, composer } from './ds/chat-chrome.js';
+import { IconButton } from './ds/icon-button.js';
+import { HiddenFileInput } from './ds/input.js';
+import { hooked } from './ds/hooked.js';
 import { QuoteChip, QuoteChipList } from './ds/quote-chip.js';
 import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
 import { hasVisibleText } from '../../../core/src/channels/message-preview.js';
@@ -21,18 +26,8 @@ import {
   type ReactElement,
 } from 'react';
 
-import {
-  FileTypeIcon,
-  IconCheckOutlineRegular,
-  IconCloseOutlineRegular,
-  IconFolderOpenOutlineRegular,
-  IconPaperclipOutlineRegular,
-  IconSendOutlineRegular,
-  IconSkillOutlineRegular,
-  IconStopFillRegular,
-  ImageLightbox,
-  fileSizeText,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { ImageLightbox, fileSizeText } from '@deepseek-ai/dsh-client-ui-primitives';
+import { FileTypeIcon } from './ds/file-type-icon.js';
 import { createPortal } from 'react-dom';
 
 import { PersonaBotAvatar, type PersonaBotFacepileItem } from './avatar.js';
@@ -317,7 +312,7 @@ function ComposerImageAttachment({
           aria-label={t('composer.removeAttachment', { name: item.file.name })}
           onClick={onRemove}
         >
-          <IconCloseOutlineRegular size={14} />
+          <Icon name="x" size={14} />
         </button>
       </div>
       {previewOpen && source !== undefined ? (
@@ -376,7 +371,7 @@ function ComposerFileAttachment({
         aria-label={t('composer.removeAttachment', { name: item.file.name })}
         onClick={onRemove}
       >
-        <IconCloseOutlineRegular size={14} />
+        <Icon name="x" size={14} />
       </button>
     </div>
   );
@@ -1271,7 +1266,7 @@ export function ChannelComposer({
               {shortcut.key === undefined ? (
                 <small>/{shortcut.id}</small>
               ) : shortcut.selected ? (
-                <IconCheckOutlineRegular size={16} />
+                <Icon name="check" size={16} />
               ) : null}
             </button>
           ))}
@@ -1317,9 +1312,9 @@ export function ChannelComposer({
                       t={t}
                     />
                   ) : option.owner.kind === 'workspace' ? (
-                    <IconFolderOpenOutlineRegular size={20} />
+                    <Icon name="folder-open" size={20} />
                   ) : (
-                    <IconSkillOutlineRegular size={20} />
+                    <Icon name="sparkles" size={20} />
                   )}
                 </span>
                 <span className="bh-composer-skill-copy">
@@ -1440,7 +1435,10 @@ export function ChannelComposer({
         </div>
       ) : null}
       <div
-        className={`bh-composer ${fit.expanded ? 'bh-composer-expanded' : 'bh-composer-compact'}${fit.animateFirstExpand ? ' bh-composer-first-expand' : ''}${reply === undefined ? '' : ' bh-composer-replying'}${hasFooter ? ' bh-composer-with-footer' : ''}${voice.ready ? ' bh-composer-has-mic' : ''}`}
+        {...hooked(
+          `bh-composer ${fit.expanded ? 'bh-composer-expanded' : 'bh-composer-compact'}${fit.animateFirstExpand ? ' bh-composer-first-expand' : ''}${reply === undefined ? '' : ' bh-composer-replying'}${hasFooter ? ' bh-composer-with-footer' : ''}${voice.ready ? ' bh-composer-has-mic' : ''}`,
+          composer.surface,
+        )}
         data-layout={fit.expanded ? 'expanded' : 'compact'}
         data-dictation={voice.snapshot.status}
         style={
@@ -1452,20 +1450,20 @@ export function ChannelComposer({
       >
         {reply === undefined ? null : (
           <div className="bh-composer-reply">
-            <div className="bh-composer-reply-copy">
+            <div {...hooked('bh-composer-reply-copy', composer.quote)}>
               <span className="bh-composer-reply-author">
                 {t('message.replyingTo', { author: reply.author })}
               </span>
               <span className="bh-composer-reply-body">{reply.body}</span>
             </div>
-            <button
-              type="button"
+            <IconButton
               className="bh-composer-reply-cancel"
+              size="inline"
               aria-label={t('message.replyCancel')}
               onClick={onCancelReply}
             >
-              &times;
-            </button>
+              <Icon name="x" size={16} />
+            </IconButton>
           </div>
         )}
         {quotes.length === 0 ? null : (
@@ -1605,9 +1603,8 @@ export function ChannelComposer({
               onKeyDown={handleKeyDown}
             />
           ) : (
-            <textarea
+            <ComposerTextarea
               ref={textareaMount}
-              className="bh-composer-input"
               rows={1}
               placeholder={placeholder}
               aria-label={label ?? basePlaceholder}
@@ -1651,7 +1648,7 @@ export function ChannelComposer({
         {avatarMounts.map((mount, index) =>
           createPortal(
             mount.kind === 'workspace' ? (
-              <IconFolderOpenOutlineRegular size={16} />
+              <Icon name="folder-open" size={16} />
             ) : (
               <PersonaBotAvatar
                 personaBotId={mount.botSlug}
@@ -1675,10 +1672,10 @@ export function ChannelComposer({
             `attachment-${index}`,
           ),
         )}
-        <input
+        <HiddenFileInput
           ref={fileInputRef}
           className="bh-composer-file-input"
-          type="file"
+          aria-hidden
           multiple
           aria-label={t('composer.addAttachment')}
           onChange={(event) => {
@@ -1689,9 +1686,9 @@ export function ChannelComposer({
             savedFileSelection.current = undefined;
           }}
         />
-        <button
-          type="button"
+        <ComposerControl
           className="bh-composer-add-file"
+          xstyle={composer.attachment}
           aria-label={t('composer.addAttachment')}
           disabled={locked || voice.active || attachments.length >= 10}
           onMouseDown={() => {
@@ -1702,8 +1699,8 @@ export function ChannelComposer({
             fileInputRef.current?.click();
           }}
         >
-          <IconPaperclipOutlineRegular size={16} />
-        </button>
+          <Icon name="paperclip" size={16} />
+        </ComposerControl>
         {voice.mounts.map((mount, index) => (
           <span key={index} ref={mount} hidden />
         ))}
@@ -1711,22 +1708,20 @@ export function ChannelComposer({
         <div className="bh-composer-footer">
           {voice.ready ? <ComposerMicButton voice={voice} disabled={locked} t={t} /> : null}
           {stops ? (
-            <Button
+            <ComposerControl
               className="bh-send-btn"
-              variant="primary"
-              size="sm"
+              primary
               data-composer-stop=""
-              icon={<IconStopFillRegular size={12} />}
               aria-label={t('sessions.stop')}
               disabled={disabled}
               onClick={onStop}
-            />
+            >
+              <Icon name="square" filled size={12} />
+            </ComposerControl>
           ) : (
-            <Button
+            <ComposerControl
               className="bh-send-btn"
-              variant="primary"
-              size="sm"
-              icon={<IconSendOutlineRegular size={16} />}
+              primary
               aria-label={sending ? t('message.sending') : t('composer.send')}
               disabled={
                 (!hasVisibleText(value) && attachments.length === 0) ||
@@ -1744,7 +1739,9 @@ export function ChannelComposer({
                   if (shortcut !== undefined) chooseShortcut(shortcut);
                 } else if (!hasShortcutArgument) void onSubmit();
               }}
-            />
+            >
+              <Icon name="arrow-up" size={16} />
+            </ComposerControl>
           )}
         </div>
       </div>

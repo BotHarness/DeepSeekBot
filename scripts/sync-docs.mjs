@@ -1158,6 +1158,35 @@ function syncReference() {
 }
 
 function syncAdr() {
+  const topics = readdirSync(join(ROOT, 'docs', 'decisions'))
+    .filter((file) => /^[a-z0-9-]+\.md$/.test(file))
+    .sort()
+    .flatMap((file) => {
+      const { frontmatter: metadata, body } = stripFrontmatter(readText(`docs/decisions/${file}`));
+      if (!/^Publish: true$/m.test(metadata)) return [];
+      const slug = file.replace(/\.md$/, '');
+      const title = titleFrom(body, slug);
+      const content = prepare(body).replace(
+        /\]\(((?:\.\.?\/)*[a-zA-Z0-9_./-]+)(#[\w-]+)?\)/g,
+        (link, target, anchor = '') => {
+          if (target.startsWith('/')) return link;
+          const path = relative(ROOT, resolve(ROOT, 'docs', 'decisions', target))
+            .split(sep)
+            .join('/');
+          return `](${GITHUB_BLOB}${path}${target.endsWith('/') ? '/' : ''}${anchor})`;
+        },
+      );
+      const page = `dev/adr/${slug}.mdx`;
+      writeText(`docs/${page}`, frontmatter({ title, order: 0 }) + content);
+      writeText(
+        `docs-zh/${page}`,
+        frontmatter({ title, order: 0, untranslated: true }) +
+          content.replaceAll('](/dev/', '](/zh/dev/'),
+      );
+      return [{ slug, title }];
+    });
+  const topicList = (prefix) =>
+    topics.map(({ slug, title }) => `- [${title}](${prefix}/dev/adr/${slug})`).join('\n');
   const directory = join(ROOT, 'docs', 'adr');
   const files = readdirSync(directory)
     .filter((name) => /^\d{4}-[a-z0-9-]+\.md$/.test(name))
@@ -1183,21 +1212,21 @@ function syncAdr() {
     'docs/dev/adr/index.mdx',
     frontmatter({
       title: 'Architecture decisions',
-      description: 'Decision history, status, and rationale for BotHarness architecture',
+      description: 'Current topic decisions and numbered records for BotHarness architecture',
       order: DEV_SECTION_ORDER.adr,
     }) +
-      'ADRs explain why an architectural choice was made. Read the status before treating a decision as current; the [living architecture](/dev/design/architecture) is the integrated current view.\n\n' +
-      `<details>\n<summary>All decisions (${entries.length})</summary>\n\n${indexList}\n\n</details>\n`,
+      'Topic documents describe the current decisions. Check the status of a numbered record before relying on it. See the [living architecture](/dev/design/architecture) for how the system fits together.\n\n' +
+      `${topicList('')}\n\n<details>\n<summary>Numbered decisions (${entries.length})</summary>\n\n${indexList}\n\n</details>\n`,
   );
   writeText(
     'docs-zh/dev/adr/index.mdx',
     frontmatter({
       title: 'Architecture decisions',
-      description: 'BotHarness 架构决策的历史、状态与理由',
+      description: 'BotHarness 当前架构决策与编号记录',
       order: DEV_SECTION_ORDER.adr,
     }) +
-      'ADR 解释一项架构取舍为什么成立。把决策当作当前约束前，应先查看状态；[living architecture](/zh/dev/design/architecture) 是整合后的当前视图。\n\n' +
-      `<details>\n<summary>全部决策（${entries.length}）</summary>\n\n${indexListZh}\n\n</details>\n`,
+      '主题文档说明当前决策。引用编号记录前，请查看其状态。[现行架构](/zh/dev/design/architecture) 说明系统如何协作。\n\n' +
+      `${topicList('/zh')}\n\n<details>\n<summary>编号决策（${entries.length}）</summary>\n\n${indexListZh}\n\n</details>\n`,
   );
   process.stdout.write(`adr: index -> ${entries.length} decision(s)\n`);
   for (const entry of entries) {

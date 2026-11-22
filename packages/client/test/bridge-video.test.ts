@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 import { parseChannelMessage } from '../src/client/bridge.js';
@@ -7,27 +7,15 @@ import { ChannelMessageBody } from '../src/client/channel-message-body.js';
 import { createBridgeVideoResource } from '../src/client/bridge-video-resource.js';
 import { zhTranslate } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
-    Tag: ({ children }: { children: ReactNode }) => createElement('span', {}, children),
-    Button: ({
-      children,
-      variant: _variant,
-      ...props
-    }: {
-      children: ReactNode;
-      variant?: string;
-    }) => createElement('button', props, children),
-    Modal: stub,
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
     FileTypeIcon: stub,
     MarkdownText: stub,
     StateDot: stub,
-    IconDownloadOutlineRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconPlayOutlineRegular: stub,
-    IconPauseOutlineRegular: stub,
-    Tooltip: ({ children }: { children: ReactNode }) => children,
+
     fileSizeText: (size: number) => `${size} B`,
   };
 });

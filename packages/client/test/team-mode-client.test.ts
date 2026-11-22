@@ -1,3 +1,4 @@
+import { fakeTeamMode } from '../../host-client/test/reader-fixtures.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { BridgeCallError } from '../src/client/bridge.js';
@@ -15,7 +16,7 @@ import { renderTeamSignInPage } from '@botharness/host-client/shared/team-sign-i
 
 const viewer = {
   humanId: 'local-human',
-  kind: 'owner',
+  kind: 'owner' as const,
   displayName: 'Ada',
   mustChangePassword: false,
 };
@@ -69,7 +70,7 @@ describe('Team mode bridge', () => {
   it('reads the Team mode view through the teamMode method', async () => {
     const call = vi.fn(async () => ({
       ok: true as const,
-      value: { enabled: false, ownerPasswordSet: false, viewer },
+      value: fakeTeamMode(viewer),
     }));
     await loadTeamMode(call);
     expect(call).toHaveBeenCalledWith('teamMode', {}, undefined);
@@ -152,18 +153,19 @@ describe('Team change-password page', () => {
 });
 
 describe('member view of Bot settings', () => {
-  it('keeps Host configuration sections with the Owner', () => {
-    for (const id of ['account', 'general', 'appearance', 'notifications', 'shortcuts', 'team'])
-      expect(MEMBER_SETTINGS_SECTIONS.has(id)).toBe(true);
+  it('shows shared model settings and keeps other Host configuration with the Owner', () => {
     for (const id of [
+      'account',
+      'general',
+      'appearance',
+      'notifications',
+      'shortcuts',
+      'team',
       'models',
-      'im-apps',
-      'devices',
-      'data-privacy',
-      'advanced',
-      'plugins',
-      'auto-approval',
+      'model-presets',
     ])
+      expect(MEMBER_SETTINGS_SECTIONS.has(id)).toBe(true);
+    for (const id of ['im-apps', 'devices', 'data-privacy', 'advanced', 'plugins', 'auto-approval'])
       expect(MEMBER_SETTINGS_SECTIONS.has(id)).toBe(false);
   });
 

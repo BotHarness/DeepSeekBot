@@ -23,11 +23,14 @@ it('reveals native Settings without leaving Bot mode and restores the sidebar af
 
   const dialog = document.createElement('div');
   dialog.setAttribute('role', 'dialog');
+  dialog.dataset.shortcutModal = 'settings';
+  const navigation = document.createElement('nav');
+  dialog.append(navigation);
   const models = document.createElement('button');
   models.textContent = 'Models';
   const selected = vi.fn();
   models.onclick = selected;
-  dialog.append(models);
+  navigation.append(models);
   document.body.append(dialog);
   await vi.advanceTimersByTimeAsync(1);
   expect(selected).toHaveBeenCalledOnce();
@@ -59,6 +62,42 @@ it('restores the sidebar on timeout or cancellation without opening another dial
   expect(returned).toHaveBeenCalledOnce();
 });
 
+it('opens native Models when the Chinese welcome dialog still contains its 模型 picker', async () => {
+  vi.useFakeTimers();
+  document.body.innerHTML = `
+    <div role="dialog" aria-label="欢迎来到 Tobs">
+      <button aria-label="模型">请选择模型</button>
+    </div>
+    <button aria-label="设置"></button>
+  `;
+  const welcome = document.querySelector('[aria-label="欢迎来到 Tobs"]')!;
+  const picker = vi.fn();
+  welcome.querySelector('button')!.onclick = picker;
+  const nativeSettings = document.createElement('div');
+  nativeSettings.innerHTML = `
+    <div role="dialog" data-shortcut-modal="settings">
+      <nav><button>模型</button></nav>
+    </div>
+  `;
+  const selected = vi.fn();
+  nativeSettings.querySelector('button')!.onclick = selected;
+  document.querySelector<HTMLButtonElement>('button[aria-label="设置"]')!.onclick = () =>
+    document.body.append(nativeSettings);
+  const returned = vi.fn();
+
+  openModelsSettingsAndReturn(returned);
+  welcome.remove();
+  await vi.advanceTimersByTimeAsync(1);
+
+  expect(selected).toHaveBeenCalledOnce();
+  expect(picker).not.toHaveBeenCalled();
+  expect(returned).not.toHaveBeenCalled();
+  nativeSettings.remove();
+  await vi.advanceTimersByTimeAsync(1);
+  expect(returned).toHaveBeenCalledOnce();
+  expect(nativeSettingsNavigation.getSnapshot()).toBe(false);
+});
+
 it('selects Models in an already open Settings dialog without clicking either launcher', () => {
   vi.useFakeTimers();
   const app = document.createElement('button');
@@ -72,11 +111,14 @@ it('selects Models in an already open Settings dialog without clicking either la
   settings.onclick = settingsOpened;
   const dialog = document.createElement('div');
   dialog.setAttribute('role', 'dialog');
+  dialog.dataset.shortcutModal = 'settings';
+  const navigation = document.createElement('nav');
+  dialog.append(navigation);
   const models = document.createElement('button');
   models.textContent = 'Models';
   const selected = vi.fn();
   models.onclick = selected;
-  dialog.append(models);
+  navigation.append(models);
   document.body.append(app, settings, dialog);
 
   openModelsSettings(document);
@@ -107,11 +149,14 @@ it.each([
       queueMicrotask(() => {
         const dialog = document.createElement('div');
         dialog.setAttribute('role', 'dialog');
+        dialog.dataset.shortcutModal = 'settings';
+        const navigation = document.createElement('nav');
+        dialog.append(navigation);
         const models = document.createElement('button');
         models.append(document.createElement('svg'), document.createElement('span'));
         models.lastElementChild!.textContent = label;
         models.onclick = selected;
-        dialog.append(models);
+        navigation.append(models);
         document.body.append(dialog);
       });
     };
@@ -155,11 +200,14 @@ it.each([
       settingsItem.onclick = () => {
         const dialog = document.createElement('div');
         dialog.setAttribute('role', 'dialog');
+        dialog.dataset.shortcutModal = 'settings';
+        const navigation = document.createElement('nav');
+        dialog.append(navigation);
         const nav = document.createElement('button');
         nav.append(document.createElement('svg'), document.createElement('span'));
         nav.lastElementChild!.textContent = models;
         nav.onclick = selected;
-        dialog.append(nav);
+        navigation.append(nav);
         document.body.append(dialog);
       };
       document.body.append(settingsItem);

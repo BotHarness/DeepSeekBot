@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type BridgeCall } from '../src/client/bridge.js';
+import { type HumanAttentionItem } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 vi.mock('../src/client/bot-sidebar.js', async () => {
@@ -8,18 +10,17 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
   return { useClientState: () => useSyncExternalStore(store.subscribe, store.getSnapshot) };
 });
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./activity-list-test-controls.js')),
-  Button: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('button', props, children),
+
   MarkdownText: () => null,
   StateDot: () => null,
-  Input: () => null,
 }));
 import { createActions } from '../src/client/actions.js';
-import type { BridgeCall } from '../src/client/bridge.js';
+
 import { ActivityCenterView } from '../src/client/activity-center-view.js';
 import { activityFeedFor } from '../src/client/activity-feed.js';
-import { store, type HumanAttentionItem } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 
 const item: HumanAttentionItem = {
   id: 'approval:ada',
@@ -111,7 +112,7 @@ async function scenario(placement: 'page' | 'panel', mode: 'success' | 'retry' |
   document.body.append(container);
   const root = createRoot(container);
   const button = (text: string) =>
-    [...container.querySelectorAll<HTMLButtonElement>('button')].find(
+    [...document.body.querySelectorAll<HTMLButtonElement>('button, [role="menuitem"]')].find(
       (node) => node.textContent?.trim() === text,
     );
   store.select(placement === 'panel' ? { kind: 'bot', slug: 'other' } : { kind: 'inbox' });

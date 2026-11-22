@@ -27,7 +27,10 @@ it('preserves failure identity for recovery without interpreting max-tokens as o
 });
 
 it('runs DM maintenance without submitting the failed message again', async () => {
-  const call = vi.fn(async () => ({ outcome: 'nothing' }));
+  const call = vi
+    .fn()
+    .mockResolvedValueOnce({ outcome: 'nothing', tokensBefore: null, tokensAfter: null })
+    .mockResolvedValueOnce({ started: true });
   const failure = {
     role: 'orchestrator' as const,
     sessionId: 's',
@@ -67,7 +70,10 @@ it('parses where the turn stopped and continues it through channelRetry', async 
     maxAttempts: 2,
     at: '2026-11-02T00:01:00.000Z',
   });
-  const call = vi.fn(async () => ({ accepted: true }));
+  const call = vi
+    .fn()
+    .mockResolvedValueOnce({ accepted: true })
+    .mockResolvedValueOnce({ stopped: [], alreadyIdle: [] });
   const card = createFailureContinuation({ call }, 'dm-ada', 'failure-1', failure);
   await card.continueTurn();
   expect(call).toHaveBeenLastCalledWith('channelRetry', {

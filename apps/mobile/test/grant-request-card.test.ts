@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { fakeGrantApprovalMessage } from '../../../packages/host-client/test/reader-fixtures.js';
 import { act, createElement, type ReactElement } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -44,6 +45,8 @@ function request(extra: Record<string, unknown> = {}) {
 function grant(orchestratorWrite = true) {
   return {
     id: 'grant-9',
+    botSlug: 'ada',
+    createdAt: '2026-11-20T00:00:00Z',
     workspaceId: PROJECT.id,
     workspacePath: PROJECT.path,
     workspaceTitle: PROJECT.title,
@@ -64,7 +67,10 @@ afterEach(() => {
 
 function host(entries: unknown[] = [request()]): FakeHost {
   const fake = new FakeHost();
-  fake.methods.set('channelTimeline', () => ({ page: { entries } }));
+  fake.methods.set('channelTimeline', () => ({
+    revision: 1,
+    page: { olderCursor: null, newerCursor: null, hasOlder: false, hasNewer: false, entries },
+  }));
   fake.methods.set('directoryPicker/list', (args) => {
     const path = typeof args['path'] === 'string' ? args['path'] : '/Users/qa';
     return {
@@ -81,7 +87,10 @@ function host(entries: unknown[] = [request()]): FakeHost {
   });
   fake.methods.set('workspaceOptions', () => ({ workspaces: [PROJECT] }));
   fake.methods.set('workspace/create', () => ({ workspace: { workspaceId: PROJECT.id } }));
-  fake.methods.set('grantRequestApprove', () => ({ grant: grant(), message: {} }));
+  fake.methods.set('grantRequestApprove', (args) => ({
+    grant: grant(),
+    message: fakeGrantApprovalMessage(String(args.requestMessageId), 'grant-9'),
+  }));
   return fake;
 }
 
@@ -201,13 +210,22 @@ describe('Folder request card', () => {
       ok: false,
       error: { code: 'directory-picker/unavailable', message: 'native chooser' },
     }));
-    fake.methods.set('folderBrowse', (args) => ({
-      ...(listed(args) as object),
-      roots: [
-        { name: 'qa', path: '/Users/qa' },
-        { name: 'D:\\', path: 'D:\\' },
-      ],
-    }));
+    const shown = (folders: unknown) =>
+      (folders as { name: string; path: string }[]).map((entry) => ({ ...entry, hidden: false }));
+    fake.methods.set('folderBrowse', (args) => {
+      const listing = listed(args) as { path: string; crumbs: unknown; entries: unknown };
+      return {
+        path: listing.path,
+        home: '/Users/qa',
+        crumbs: shown(listing.crumbs),
+        entries: shown(listing.entries),
+        truncated: false,
+        roots: shown([
+          { name: 'qa', path: '/Users/qa' },
+          { name: 'D:\\', path: 'D:\\' },
+        ]),
+      };
+    });
     const view = await render(card(connect(fake)));
     await press(button(view, t.grantChoose));
     expect(view.textContent).not.toContain(t.browseUnavailableTypePath);
@@ -276,7 +294,14 @@ describe('Folder request card', () => {
       throw new Error('Workspace request is no longer available for this Bot');
     });
     fake.methods.set('channelTimeline', () => ({
-      page: { entries: [request({ grantRequestResolved: true })] },
+      revision: 1,
+      page: {
+        olderCursor: null,
+        newerCursor: null,
+        hasOlder: false,
+        hasNewer: false,
+        entries: [request({ grantRequestResolved: true })],
+      },
     }));
     await press(button(view, t.grantChoose));
     await press(button(view, t.authorizeHere));

@@ -1,9 +1,7 @@
+import { Icon } from './ds/icon.js';
 import type { ReactElement, ReactNode } from 'react';
-import {
-  HoverCard,
-  IconNewChatOutlineRegular,
-  IconUserOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
+import { HoverCard } from './ds/hover-card.js';
 
 import {
   normalizePersonaBotActivity,
@@ -28,7 +26,8 @@ export function networkContactAvailabilityLabel(
       return t('networkContact.withdrawn');
     case 'bot-unavailable':
       return t('networkContact.botUnavailable');
-    default:
+    case 'unavailable':
+    case undefined:
       return t('networkContact.unreachable');
   }
 }
@@ -161,7 +160,7 @@ export function MessageAuthorCardContent({
         <div className="bh-author-card-actions">
           {showMessage ? (
             <ChipButton
-              icon={<IconNewChatOutlineRegular size={14} />}
+              icon={<Icon name="message-square-plus" size={14} />}
               label={t('message.authorCard.message')}
               aria-label={t('message.mention.openDm', { bot: model.name })}
               onClick={onMessage}
@@ -169,7 +168,7 @@ export function MessageAuthorCardContent({
           ) : null}
           {showProfile ? (
             <ChipButton
-              icon={<IconUserOutlineRegular size={14} />}
+              icon={<Icon name="user" size={14} />}
               label={t('message.authorCard.profile')}
               aria-label={t('message.authorCard.profileFor', { bot: model.name })}
               onClick={onProfile}

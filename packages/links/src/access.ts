@@ -2,6 +2,7 @@ import { createMiddleware } from 'hono/factory';
 import { Jwt } from 'hono/utils/jwt';
 import type { HonoJsonWebKey } from 'hono/utils/jwt/types';
 import type { AppEnv } from './env.js';
+import { logWorker } from './worker-log.js';
 
 export const ACCESS_HEADER = 'cf-access-jwt-assertion';
 const KEYS_TTL_MS = 3_600_000;
@@ -83,7 +84,7 @@ export const accessAuth = createMiddleware<AppEnv>(async (c, next) => {
   try {
     email = await verifyAccessJwt(token, team, audience);
   } catch (err) {
-    console.error(JSON.stringify({ module: 'links-worker', phase: 'access', error: String(err) }));
+    logWorker('error', { module: 'links-worker', phase: 'access', error: String(err) });
     return c.text('Cloudflare Access keys are unavailable.', 503);
   }
   if (!email) return c.text('This Cloudflare Access session is not valid for this app.', 403);

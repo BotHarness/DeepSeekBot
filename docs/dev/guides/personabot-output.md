@@ -1,6 +1,6 @@
 # PersonaBot Output Committed
 
-An application-defined, Host-only Cordis Event for observing a PersonaBot's committed public text. It is distinct from DSH Session events, transient model deltas, Activity notifications, Channel SSE and external provider delivery. Product boundaries are defined by [ADR-0049](../../adr/0049-personabot-activity-is-a-projection-with-live-events.md) and the [living architecture](../../architecture/botharness-architecture.md).
+An application-defined, Host-only Cordis Event for observing a PersonaBot's committed public text. It is distinct from DSH Session events, transient model deltas, Activity notifications, Channel SSE and external provider delivery. Product boundaries are defined by [ADR-0049](../../decisions/release.md#adr-0049) and the [living architecture](../../architecture/botharness-architecture.md).
 
 ## Subscribe
 

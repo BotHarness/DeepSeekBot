@@ -29,11 +29,13 @@ function existingHost(home) {
           '-Command',
           'Get-CimInstance Win32_Process | Select-Object ProcessId,CommandLine | ConvertTo-Json -Compress',
         ],
-        { encoding: 'utf8' },
+        { encoding: 'utf8', shell: false, windowsHide: true },
       )
     : spawnSync('ps', ['axeww', '-o', 'pid=,command='], {
         encoding: 'utf8',
         maxBuffer: 32 * 1024 * 1024,
+        shell: false,
+        windowsHide: true,
       });
   if (result.error || result.status !== 0)
     throw new Error('Cannot verify development Home process ownership');
@@ -112,6 +114,7 @@ export function acquireHome(home) {
       )
         throw new Error(
           'Development Home launch is already in progress; preserve its lock until its owner has exited',
+          { cause: error },
         );
       rmSync(gate, { recursive: true });
       mkdirSync(gate);
@@ -173,6 +176,8 @@ export function acquireHome(home) {
           env: { ...(options.env ?? process.env), BOTHARNESS_PROCESS_OWNER: ownershipToken },
           detached: true,
           stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
+          shell: false,
+          windowsHide: true,
         },
       );
       child.ownedProcessGroup = process.platform !== 'win32';
@@ -189,7 +194,7 @@ export function acquireHome(home) {
             )
               reject(new Error('Preparation left running descendants'));
           } catch (error) {
-            reject(error);
+            reject(error instanceof Error ? error : new Error(String(error), { cause: error }));
           }
         });
         child.once('close', (status) =>
@@ -250,14 +255,14 @@ function descendants(pid, ownedProcessGroup, ownershipToken) {
           '-Command',
           'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId | ConvertTo-Json -Compress',
         ],
-        { encoding: 'utf8' },
+        { encoding: 'utf8', shell: false, windowsHide: true },
       )
     : spawnSync(
         'ps',
         ownershipToken
           ? ['eww', process.platform === 'darwin' ? '-axo' : '-eo', 'pid=,ppid=,pgid=,command=']
           : ['-eo', 'pid=,ppid=,pgid='],
-        { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 },
+        { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024, shell: false, windowsHide: true },
       );
   if (result.error || result.status !== 0)
     throw new Error('Cannot verify Host child processes; preserve its Home and log');
@@ -339,6 +344,7 @@ export async function verifyStartedHost(child, verify, timeoutMs = 15_000) {
     if (!released)
       throw new Error(
         `${error.message}; Host ${child.pid} cleanup incomplete; preserve its Home and log`,
+        { cause: error },
       );
     child.cleanupIncomplete = false;
     throw error;

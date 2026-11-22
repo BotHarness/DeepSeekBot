@@ -1,8 +1,10 @@
 // @vitest-environment jsdom
-import { act, createElement, forwardRef, type PropsWithChildren } from 'react';
+import { type RemoteConversationTarget } from '../src/client/remote-hosts.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
+import type { ChannelListItem } from '@botharness/host-protocol/wire';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { RemoteHosts, RemoteConversationTarget } from '../src/client/remote-hosts.js';
+import type { RemoteHosts } from '../src/client/remote-hosts.js';
 const fixture = vi.hoisted(() => ({ sources: undefined as RemoteHosts | undefined }));
 vi.mock('../src/client/remote-hosts.js', async (original) => ({
   ...(await original<typeof import('../src/client/remote-hosts.js')>()),
@@ -10,67 +12,21 @@ vi.mock('../src/client/remote-hosts.js', async (original) => ({
 }));
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
-  const { Menu } = await import('./activity-list-test-controls.js');
-  const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
+
   return {
-    IconWarningTriangleOutlineRegular: () => null,
-    IconCodeOutlineRegular: () => null,
-    IconStopFillRegular: () => null,
-    IconPlayOutlineRegular: () => null,
-    IconPauseOutlineRegular: () => null,
-    IconBranchOutlineRegular: () => null,
-    Button: ({
-      children,
-      variant: _variant,
-      size: _size,
-      ...props
-    }: PropsWithChildren<{ variant?: string; size?: string }>) =>
-      createElement('button', props, children),
-    Toast: stub,
-    IconAgentPresetOutlineRegular: stub,
-    IconCheckOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconChevronLeftOutlineRegular: stub,
-    IconChevronRightOutlineRegular: stub,
-    IconDownloadOutlineRegular: stub,
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
     IconCloseFill14: stub,
-    IconCopyOutlineRegular: stub,
-    IconGoalOutlineRegular: stub,
-    IconChecklistOutlineRegular: stub,
-    IconCloseOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
-    IconUserOutlineRegular: stub,
-    IconFolderCloseRegular: stub,
-    IconFolderOpenRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconNewChatOutlineRegular: stub,
-    IconPanelLeftOutlineRegular: stub,
-    IconPaperclipOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconRefreshOutlineRegular: stub,
-    IconSearchOutlineRegular: stub,
-    IconSendOutlineRegular: stub,
-    IconPinFillRegular: stub,
-    IconPinOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
+
     FileTypeIcon: stub,
-    HoverCard: ({ anchor }: PropsWithChildren<{ anchor: unknown }>) =>
-      createElement('span', { 'data-hover-card': 'author' }, anchor as never),
+
     fileSizeText: (size: number) => `${size} B`,
     ImageLightbox: stub,
-    Input: stub,
-    Menu,
-    MenuItemButton: stub,
-    MenuSurface: forwardRef<HTMLDivElement, PropsWithChildren>((props, ref) =>
-      createElement('div', { ...props, ref }),
-    ),
+
     MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
-    Modal: stub,
-    SegmentedControl: stub,
+
     StateDot: stub,
-    Tag,
-    Tooltip: ({ children }: PropsWithChildren) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
@@ -133,7 +89,8 @@ async function mount(
   store.select(undefined);
   const hosts = { b: new FakeHost(), c: new FakeHost() };
   for (const [id, host] of Object.entries(hosts)) {
-    const channels = ['shared', 'other'].map((channelId) => ({
+    const botName = 'Ada ' + id;
+    const channels: ChannelListItem[] = ['shared', 'other'].map((channelId) => ({
       id: channelId,
       type: 'group',
       name: 'Shared ' + id.toUpperCase(),
@@ -145,6 +102,16 @@ async function mount(
       createdAt: at,
       updatedAt: at,
     }));
+    if (bots)
+      channels.push({
+        id: 'dm-ada',
+        type: 'dm',
+        name: botName,
+        members: ['ada'],
+        botSlug: 'ada',
+        createdAt: at,
+        updatedAt: at,
+      });
     host.methods.set('humanAttention', () => ({ items: [], queryVersion: 1 }));
     host.methods.set('channelUnreadCounts', () => ({ channels: [] }));
     host.methods.set('channelMarkRead', () => ({ accepted: true }));
@@ -170,7 +137,7 @@ async function mount(
         ? [
             {
               slug: 'ada',
-              displayName: 'Ada ' + id,
+              displayName: botName,
               roles: [],
               aggregateState: 'idle',
               workspaces: [],
@@ -192,8 +159,7 @@ async function mount(
     host.methods.set('channelFilesPage', () => ({ entries: [] }));
     host.methods.set('channelAveragePerf', () => ({}));
     host.methods.set('channelAllBotPreview', () => ({ recipients: [], excluded: [] }));
-    host.channel('shared');
-    host.channel('other');
+    for (const channel of channels) host.channel(channel.id);
     configure?.(host, id);
   }
   const routed = (url: string) => (new URL(url).hostname === 'b.test.ts.net' ? hosts.b : hosts.c);
@@ -626,10 +592,11 @@ it('rejects offline file drops before inserting an uploading item and keeps the 
 });
 
 it('keeps navigation inside the target Host when the connection returns', async () => {
-  const view = await mount((host) => {
+  const view = await mount((host, id) => {
     host
       .channel('shared')
       .append({ id: 'bot', body: 'Open my native DM', author: { kind: 'bot', slug: 'ada' } });
+    host.channel('dm-ada').append({ id: 'dm-message', body: 'Native DM on ' + id });
   });
   try {
     await act(async () =>
@@ -652,7 +619,10 @@ it('keeps navigation inside the target Host when the connection returns', async 
       await vi.waitFor(() => expect(client.getSnapshot().connection.status).toBe('connected'));
     });
     await act(async () =>
-      vi.waitFor(() => expect(view.input().getAttribute('aria-label')).toContain('Ada b')),
+      vi.waitFor(() => {
+        expect(view.input()?.getAttribute('aria-label')).toContain('Ada b');
+        expect(view.element.textContent).toContain('Native DM on b');
+      }),
     );
     expect(view.element.querySelector('[data-message-id="bot"]')).toBeNull();
   } finally {
@@ -821,7 +791,7 @@ it.each(['switch', 'revoke', 'close'] as const)(
           .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, button: 2 })),
       );
       const button = () =>
-        Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitemradio"]')).find(
+        Array.from(document.querySelectorAll<HTMLButtonElement>('[role="menuitem"]')).find(
           (node) => node.textContent === zhTranslate('fileAction.download'),
         );
       await act(async () => {

@@ -103,7 +103,21 @@ describe('Activity query observation', () => {
       return {
         ok: true,
         value: {
-          items: [{ id: second ? 'second' : 'first', summary: updated ? 'updated' : 'original' }],
+          items: [
+            {
+              id: second ? 'second' : 'first',
+              summary: updated ? 'updated' : 'original',
+              kind: 'channel-reply',
+              category: 'replies',
+              createdAt: '2026-11-20T00:00:00Z',
+              messageId: 'message',
+              sourceEventId: 'source',
+              isUnread: true,
+              botSlug: 'ada',
+              channelId: 'dm-ada',
+              channelName: 'Ada',
+            },
+          ],
           ...(second ? {} : { nextCursor: 'page-two' }),
           queryVersion: 1,
         },

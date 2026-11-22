@@ -217,6 +217,7 @@ export function createLocalVideoMedia(
             },
             windowsHide: true,
             stdio: ['pipe', 'pipe', 'pipe'],
+            shell: false,
           },
         );
 

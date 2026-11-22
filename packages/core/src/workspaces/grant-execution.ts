@@ -6,7 +6,9 @@ import { setSandboxMode, type SandboxPolicyService } from '@deepseek-ai/dsh-sand
 import { setApprovalPolicy, type ApprovalService } from '@deepseek-ai/dsh-user-approval';
 
 import { sameDirectory } from '../fs/same-directory.js';
+import type { EngineWorkspaceMode } from '../engines/engine-session.js';
 import type { BotHarnessCore } from '../plugin.js';
+import type { AssignmentPermissionSnapshot, WorkspaceGrant } from './grants.js';
 import {
   NATIVE_FILE_TOOL_NAMES,
   nativeFileToolDenial,
@@ -111,8 +113,9 @@ export function alignAssignmentPermission(
     return undefined;
   const permission = core.runtime.getAssignment(owner.botSlug, owner.sessionId)?.permission;
   if (permission === undefined || session.header.cwd !== permission.primaryCwd) return undefined;
+  let grant: WorkspaceGrant;
   try {
-    const grant = core.grants.requireActive(owner.botSlug, permission.grantId);
+    grant = core.grants.requireActive(owner.botSlug, permission.grantId);
     if (
       grant.workspaceId !== permission.workspaceId ||
       grant.workspacePath !== permission.primaryCwd
@@ -121,14 +124,24 @@ export function alignAssignmentPermission(
   } catch {
     return undefined;
   }
+  const mode = assignmentSandboxMode(permission, grant);
   if (
-    policy.resolve({ session }).mode === permission.mode &&
+    policy.resolve({ session }).mode === mode &&
     approval.overrideOf(session) === permission.approval
   )
     return false;
-  setSandboxMode(session, permission.mode);
+  setSandboxMode(session, mode);
   setApprovalPolicy(session, permission.approval);
   return true;
+}
+
+export function assignmentSandboxMode(
+  permission: Pick<AssignmentPermissionSnapshot, 'mode'>,
+  grant: Pick<WorkspaceGrant, 'orchestratorWrite'>,
+): AssignmentPermissionSnapshot['mode'] | 'read-only' {
+  return permission.mode === 'workspace-write' && grant.orchestratorWrite !== true
+    ? 'read-only'
+    : permission.mode;
 }
 
 export function orchestratorPermission(
@@ -140,6 +153,28 @@ export function orchestratorPermission(
   return preset?.mode === 'danger-full-access' && preset.scope === 'chat'
     ? { mode: 'danger-full-access', approval: 'ask' }
     : { mode: 'workspace-write', approval: 'ask' };
+}
+
+export function engineWorkspaceMode(
+  core: { grants: Pick<BotHarnessCore['grants'], 'list' | 'requireActive'> } & AccessCore,
+  botSlug: string,
+  permission?: AssignmentPermissionSnapshot,
+): EngineWorkspaceMode {
+  if (permission === undefined) {
+    const { mode } = orchestratorPermission(core, botSlug);
+    return mode === 'workspace-write' &&
+      core.grants
+        .list(botSlug)
+        .some((grant) => !grant.revokedAt && grant.orchestratorWrite !== true)
+      ? 'read-only'
+      : mode;
+  }
+  const grant = core.grants.requireActive(botSlug, permission.grantId);
+  if (grant.workspaceId !== permission.workspaceId || grant.workspacePath !== permission.primaryCwd)
+    throw new Error('Assignment Workspace Grant no longer matches its permission snapshot');
+  if (permission.mode === 'danger-full-access' && isMemberBot(core, botSlug))
+    throw new Error('permission-required: Full access requires a Host-owned Bot');
+  return assignmentSandboxMode(permission, grant);
 }
 
 export function sessionHasFullAccess(
@@ -234,22 +269,23 @@ export function grantExecutionDenial(
   if (permission === undefined || session.header.cwd !== permission.primaryCwd) {
     return 'Assignment Session permission snapshot is missing or mismatched';
   }
+  let grant: WorkspaceGrant;
+  try {
+    grant = core.grants.requireActive(owner.botSlug, permission.grantId);
+  } catch {
+    return 'Assignment Workspace Grant is missing, revoked, or unavailable';
+  }
   if (
-    mode !== permission.mode ||
+    grant.workspaceId !== permission.workspaceId ||
+    grant.workspacePath !== permission.primaryCwd
+  ) {
+    return 'Assignment Workspace Grant no longer matches its permission snapshot';
+  }
+  if (
+    mode !== assignmentSandboxMode(permission, grant) ||
     approvalPolicy !== (delegatedSubagent && !memberBot ? 'never' : permission.approval)
   ) {
     return 'Assignment Session permission mode differs from its snapshot';
-  }
-  try {
-    const grant = core.grants.requireActive(owner.botSlug, permission.grantId);
-    if (
-      grant.workspaceId !== permission.workspaceId ||
-      grant.workspacePath !== permission.primaryCwd
-    ) {
-      return 'Assignment Workspace Grant no longer matches its permission snapshot';
-    }
-  } catch {
-    return 'Assignment Workspace Grant is missing, revoked, or unavailable';
   }
   return undefined;
 }
@@ -345,6 +381,7 @@ const BOT_TOOL_NAMES = new Set([
   'inspect_assignment',
   'wait_for_assignment',
   'send_assignment_request',
+  'link_message_sessions',
   'stop_assignment',
   'channel_list',
   'channel_read',

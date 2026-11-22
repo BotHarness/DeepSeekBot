@@ -1,7 +1,9 @@
+import { hooked } from './ds/hooked.js';
+import { profileStyles } from './ds/profile-panel.js';
+import { Checkbox } from './ds/checkbox.js';
 import { Button } from './ds/button.js';
 import { useState, type ReactElement, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { PersonaBotDeletionPreview } from '../../../core/src/bots/deletion.js';
 import type { BridgeActions } from './actions.js';
@@ -291,7 +293,7 @@ export function PersonaBotDeletionView({
   );
   if (history)
     return (
-      <section className="bh-profile-section">
+      <section {...hooked('bh-profile-section', profileStyles.activity)}>
         <h2>{t('deletion.deleted')}</h2>
         {content}
       </section>

@@ -31,13 +31,13 @@ export function protectImTestApps(path = imTestAppsPath()) {
     execFileSync(
       'icacls.exe',
       [directory, '/inheritance:r', '/grant:r', `${user}:(OI)(CI)(F)`, '*S-1-5-18:(OI)(CI)(F)'],
-      { stdio: 'pipe' },
+      { stdio: 'pipe', shell: false, windowsHide: true },
     );
     if (existsSync(path))
       execFileSync(
         'icacls.exe',
         [path, '/inheritance:r', '/grant:r', `${user}:(F)`, '*S-1-5-18:(F)'],
-        { stdio: 'pipe' },
+        { stdio: 'pipe', shell: false, windowsHide: true },
       );
   } else {
     chmodSync(directory, 0o700);
@@ -291,6 +291,8 @@ function setup(platform, { manual = false, slot } = {}) {
         BOTHARNESS_IM_TEST_APPS_ENV: imTestAppsPath().replaceAll('\\', '/'),
         ...(process.platform === 'win32' ? { TERM: 'dumb' } : {}),
       },
+      shell: false,
+      windowsHide: true,
     },
   );
   if (result.error) throw result.error;

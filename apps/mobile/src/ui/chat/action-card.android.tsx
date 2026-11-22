@@ -244,6 +244,7 @@ export function ActionCard({
       >
         <ComposeTreeContext.Provider value={{ fill: true }}>
           <Card
+            colors={{ containerColor: theme.layer.raised.fill, contentColor: theme.color.fg }}
             {...(focused ? { border: { width: edge.focus, color: theme.color.accent } } : {})}
             modifiers={[fillMaxWidth(), composeTestID('action-card')]}
           >

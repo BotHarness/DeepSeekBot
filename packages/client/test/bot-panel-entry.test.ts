@@ -1,40 +1,27 @@
 // @vitest-environment jsdom
+import { type BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
 import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { store } from '../src/client/store.js';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
-    Button: stub,
-    IconAgentPresetOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
-    IconChevronRightOutlineRegular: stub,
+
     IconCloseFill14: stub,
-    IconEditOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconNewChatOutlineRegular: stub,
+
     IconTriangleRightFill14: stub,
-    IconTrashOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconSearchOutlineRegular: stub,
-    IconSettingsOutlineRegular: stub,
-    IconSendOutlineRegular: stub,
-    Input: stub,
-    Menu: stub,
-    Modal: stub,
+
     StateDot: stub,
-    Tag: stub,
-    Tooltip: stub,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
 
-import type { BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
 import { createBotPanelEntry } from '../src/client/bot-sidebar.js';
 import { zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
 

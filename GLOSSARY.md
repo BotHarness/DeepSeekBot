@@ -27,11 +27,11 @@ _Avoid_: installed release, latest version, 0.0.0 release
 ### PersonaBots
 
 **Steward Bot**:
-A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. It is the Human's single point of contact: it creates and manages other Bots, delegates a request to the best-suited colleague through a Bot-to-Bot DM, inspects their progress, surfaces attention items and reports results back in its Human DM. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right. In Team mode each Host Member has their own private Tob, limited to what that member may read and do.
+A persistent local PersonaBot with its own Memory and read access to the Human's Bot and Channel content, helping the Human manage those identities and application settings under existing approval rules. It is the Human's single point of contact: it creates and manages other Bots, delegates a request to the best-suited colleague through a Bot-to-Bot DM, inspects their progress, surfaces attention items and reports results back in its Human DM. Its management role does not itself grant authority to approve other Bots' actions. Conversational handling of a pending approval is a future scoped workflow through the existing approval owner, carrying the Human's explicit decision rather than a blanket self-approval right. In Team mode the current Host Owner has the only Tob.
 _Avoid_: global Orchestrator, Home panel, dashboard
 
 **Tob**:
-The built-in local Steward Bot, with a persistent identity distinct from any ordinary DeepSeek Bot; its name reverses “Bot” and also stands for “Thousands of Bot.” Tob cannot be deleted or archived, while its Soul and Memory remain editable and portable without transferring its local management authority. Management uses the DeepSeekBot CLI through native Shell; the Host grants only explicitly supported operations for the current accepted Human DM execution and retains ownership, approval and revision checks. This role is not unrestricted CLI or administrator access.
+The built-in local Steward Bot, with a persistent identity distinct from any ordinary DeepSeek Bot; its name reverses “Bot” and also stands for “Thousands of Bot.” Tob cannot be deleted or archived, while its Soul and Memory remain editable and portable without transferring its local management authority. Management uses the Human's CLI through native Shell, only for the current accepted Human DM execution, while the Host keeps ownership, approval and revision checks ([Tob decisions](docs/decisions/tob.md#adr-0314)). This role is not administrator access.
 _Avoid_: Home panel, global Orchestrator
 
 **Tob Mode**:
@@ -140,7 +140,7 @@ What a Human or an Orchestrator picks wherever a model is chosen: either one pro
 _Avoid_: model (bare, when a Routing Group is possible), template
 
 **Routing Group**:
-A named, Host-wide, ordered set of model routes and other Routing Groups that is chosen as one Model Choice. A Session on it uses the first member that is not a Resting Route and moves along the order only through Model Fallback.
+A named, Host-wide, ordered set of model routes and other Routing Groups that is chosen as one Model Choice. A new Session on it starts on the first member that is not a Resting Route, and moves to another member only through Model Fallback; it stays there until that member fails too.
 _Avoid_: model pool, fallback chain, template, Model Preset, group (bare)
 
 **Model Fallback**:
@@ -258,7 +258,7 @@ A revocable instruction, explicitly saved by the Web Human or a currently author
 _Avoid_: Workspace Grant, provider Service Grant, sandbox preset, inferred command similarity
 
 **Approval Template**:
-A shared, Human-written natural-language policy containing Always ask guidance, Always allow guidance and free text for an Approval Reviewer. A PersonaBot uses at most one effective template, through global inheritance or a specific selection, or disables the Reviewer ([ADR-0342](docs/adr/0342-bot-approval-selects-one-template-and-keeps-deterministic-authorization-separate.md)).
+A shared, Human-written natural-language policy containing Always ask guidance, Always allow guidance and free text for an Approval Reviewer. A PersonaBot uses at most one effective template, through global inheritance or a specific selection, or disables the Reviewer ([ADR-0342](docs/decisions/approvals.md#adr-0342)).
 _Avoid_: approval mode, auto mode, Tool Approval Rule
 
 **Approval Reviewer**:
@@ -475,9 +475,21 @@ _Avoid_: Channel authority, database backup, live inbox
 An inactive imported reference describing a provider account or authority the Human may reconnect and reauthorize locally; until then it cannot admit events, wake a PersonaBot, or execute a Service Action.
 _Avoid_: credential, Service Grant, automatic reconnect
 
-**Bot Marketplace**:
-The hosted catalog the harness opens to browse, search and install shareable Bots. It lists two kinds of entry side by side: Indexed Repositories and Uploaded Bots (ADR-0131, ADR-0267).
+**Marketplace**:
+The hosted catalog the harness opens to browse, search and take shareable things: Bots to install, Marketplace Avatars to apply and, later, Skills. Each kind keeps its own search results and action, while navigation, author identity and reporting are shared.
 _Avoid_: store, hub, Soul registry
+
+**Bot Marketplace**:
+The Bots section of the Marketplace, where shareable Bots are browsed, searched and installed. It lists two kinds of entry side by side: Indexed Repositories and Uploaded Bots (ADR-0131, ADR-0267).
+_Avoid_: store, hub, Soul registry
+
+**Marketplace Avatar**:
+A still image a signed-in author publishes to the Marketplace with a name, tags and a description, so that Humans can apply it to Bots they may edit. The image comes from a file or from the stored Avatar image of a PersonaBot the author may edit; a generated Blobatar is never published. Its text can be edited but its image never changes; a new image is a new Marketplace Avatar. Deleting it, deleting the author's account, or a platform takedown stops it being found or applied, and never reaches copies already applied.
+_Avoid_: Avatar (for the Marketplace entry), Listing, sticker, skin, Avatar Appearance
+
+**Apply (a Marketplace Avatar)**:
+Setting a copy of a Marketplace Avatar's image as one PersonaBot's Avatar, replacing any Avatar Appearance it had. The applied copy belongs to that PersonaBot and stays when the Marketplace Avatar is later removed.
+_Avoid_: install, download, subscribe
 
 **Indexed Repository**:
 A public GitHub repository carrying the `botharness-bot` topic that the Bot Marketplace lists by reference and refreshes on a schedule. Installing it creates a fresh PersonaBot from its Git URL; it is not a SoulSnapshot, Listing or Version.
@@ -495,6 +507,10 @@ _Avoid_: export, snapshot, redacted Memory
 The one count a Host reports to the Bot Marketplace after an install completes, keyed by a random marketplace-only Host identifier so each Host counts once per entry.
 _Avoid_: download, clone count, Telemetry event
 
+**Apply Count**:
+The number of distinct PersonaBots a Marketplace Avatar has ever been applied to. Applying it again to the same PersonaBot, or switching away and back, never adds to it, and deleting that PersonaBot or changing its Avatar never takes from it.
+_Avoid_: download count, install count, uses
+
 **Marketplace Digest**:
 The Bot Marketplace's dated daily article about recent Bots, with embedded Bot cards that install in one tap; past digests stay readable.
 _Avoid_: newsletter, push notification, blog post
@@ -508,7 +524,7 @@ The picture that stands for one Marketplace Digest, assembled from its listed Di
 _Avoid_: thumbnail, hero image, generated image
 
 **Marketplace Ranking**:
-One of the Bot Marketplace's three daily lists of listed Bots: Hot (most installs in the last seven days), New (first seen in the last seven days) and Rising (the largest growth in installs over the week before). All three are recomputed once a day and read from that day's snapshot.
+One of the three daily lists each Marketplace section keeps of its listed entries: Hot (most installs or applies in the last seven days), New (first seen in the last seven days) and Rising (the largest growth in installs or applies over the week before). Bots rank by installs and Marketplace Avatars by applies. All are recomputed once a day and read from that day's snapshot.
 _Avoid_: section, shelf, chart, leaderboard
 
 **Bot Zip**:
@@ -562,7 +578,7 @@ A Human or PersonaBot that can participate in Channels and author messages; a Br
 _Avoid_: client, connector, bridge identity, caller-supplied sender
 
 **Human ID**:
-The stable identity of one Human within one Host (DSH Profile), retained across Channels, renaming, and Human Channel nicknames. The Host Owner keeps the original `local-human` ID; each Host Member has their own (ADR-0336).
+The stable identity of one Human within one Host (DSH Profile), retained across Channels, renaming, and Human Channel nicknames. The initial Host Owner has the original `local-human` ID. Each Host Member keeps their own ID across Owner transfer. See [Team mode decisions](docs/decisions/team-mode.md#adr-0336).
 _Avoid_: display name, nickname, browser tab
 
 **Human display name**:
@@ -570,7 +586,7 @@ The editable default name of one Human within one Host (DSH Profile). A Human Ch
 _Avoid_: Human ID, login name
 
 **Host Owner**:
-The one Human who owns a Host: the original local Human, holding every Host Permission without a Host Role. Ownership is transferable but never deleted; local Desktop, loopback and CLI access act as the Host Owner by default (ADR-0336).
+The one Human who owns a Host and holds every Host Permission without a Host Role. Ownership starts with the original local Human and is transferable. Local Desktop, loopback and CLI access act as the current Host Owner by default. See [Team mode decisions](docs/decisions/team-mode.md#adr-0336).
 _Avoid_: admin, root, super user
 
 **Host Member**:
@@ -598,7 +614,7 @@ The Behavior permission items attached to a Host Role and given to a Bot answeri
 _Avoid_: permission, ACL, enforced rule
 
 **Audience containment**:
-The Team mode rule that content may flow only to a Bot, Channel or Workspace Grant whose audience is no larger than the content's own audience.
+The Team mode rule that content may flow only to a Bot, Channel or Workspace Grant whose audience is a subset of the content's own audience.
 _Avoid_: best-effort filtering, prompt rule
 
 **Workspace root**:
@@ -619,7 +635,7 @@ _Avoid_: inbox message, mailbox copy, notification payload, stimulus
 
 **GenUI content**:
 Interactive visual information within an ordinary Channel message, shared under that message's read authority. Each Human's exploration is private until they explicitly publish relevant context in an ordinary message.
-The rich-content target is an isolated HTML document, not a fixed report-component catalog; generated presentation never acquires Host or business authority ([ADR-0301](docs/adr/0301-genui-rich-documents-use-isolated-html.md)).
+The rich-content target is an isolated HTML document, not a fixed report-component catalog; generated presentation never acquires Host or business authority ([ADR-0301](docs/decisions/genui.md#adr-0301)).
 _Avoid_: separate GenUI conversation, publisher-bound callback channel
 
 **Provider Echo**:
@@ -1181,7 +1197,7 @@ Under ADR-0256, a Human-initiated evaluation anchored to one Channel message. On
 _Avoid_: Telemetry, multi-message export, automatic error reporting
 
 **Mobile Telemetry**:
-Application-defined, default-on optional statistics from the Expo app, separate from Host telemetry. It observes coarse pairing, live connection and first-chat results; it owns no product authority and never carries conversation content or domain identifiers (ADR-0214).
+Application-defined, default-on optional statistics from the Expo app, separate from Host telemetry. It observes coarse pairing, live connection and first-chat results; it owns no product authority and never carries conversation content or domain identifiers ([ADR-0214](docs/decisions/mobile.md#adr-0214)).
 
 **Mobile Install ID**:
 A random statistics-only UUID saved on the phone while statistics are enabled. It is independent of Host Install ID, paired-device identity, Human accounts and site visitors. Opt-out clears it and the unsent queue; re-enabling creates a new one. OS app-data restoration may restore the saved preference and identifier.
@@ -1268,7 +1284,7 @@ _Avoid_: login, setup wizard
 
 The iOS workspace switcher uses application-defined retained navigation pages backed by UIKit `UIPageViewController` through an opt-in `PagerView` backend; Workspaces is left of the complete Chats tab shell, followed by the last chat and its profile. Android retains its navigation drawer. See `apps/mobile/DESIGN.md` → iOS workspace panel.
 
-Interface talk names the platform's own component, not a description of how it looks. Android names come from the [Material 3 glossary](https://m3.material.io/foundations/glossary) and the [Material 3 components](https://m3.material.io/components) index; their code names come from [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary). Apple publishes no glossary page; its counterpart is the [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) index (Content, Layout and organization, Menus and actions, Navigation and search, Presentation, Selection and input, Status, System experiences), with code names from [SwiftUI](https://developer.apple.com/documentation/swiftui) and [UIKit](https://developer.apple.com/documentation/uikit) and prose spelling from the [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web). Which component a screen uses, and the token layers it reads, are decided in `apps/mobile/DESIGN.md`, [#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) and ADR-0266.
+Interface talk names the platform's own component, not a description of how it looks. Android names come from the [Material 3 glossary](https://m3.material.io/foundations/glossary) and the [Material 3 components](https://m3.material.io/components) index; their code names come from [Compose Material 3](https://developer.android.com/reference/kotlin/androidx/compose/material3/package-summary). Apple publishes no glossary page; its counterpart is the [HIG Components](https://developer.apple.com/design/human-interface-guidelines/components) index (Content, Layout and organization, Menus and actions, Navigation and search, Presentation, Selection and input, Status, System experiences), with code names from [SwiftUI](https://developer.apple.com/documentation/swiftui) and [UIKit](https://developer.apple.com/documentation/uikit) and prose spelling from the [Apple Style Guide](https://support.apple.com/guide/applestyleguide/welcome/web). Which component a screen uses, and the token layers it reads, are decided in `apps/mobile/DESIGN.md`, [#3002](https://github.com/BotHarness/DeepSeekBot/issues/3002) and [ADR-0266](docs/decisions/mobile-ui.md#adr-0266).
 
 **Component term**:
 The exact name a platform's design system gives a component: the Material 3 name on Android, the HIG name on iOS, written in English in both languages of this glossary. Code uses the API name (`ModalBottomSheet`, `.sheet`), prose uses the design name (modal bottom sheet, sheet).
@@ -1287,7 +1303,7 @@ A React Native view drawn to imitate a native component. It is migration debt, n
 _Avoid_: native component, custom component
 
 **Custom surface**:
-App-owned UI for a job no native component does, kept only with its reason written in `DESIGN.md`: message bubbles, streaming text reveal, the Computer video canvas and its remote keyboard, and the iOS tab island (ADR-0235).
+App-owned UI for a job no native component does, kept only with its reason written in `DESIGN.md`: message bubbles, streaming text reveal, the Computer video canvas and its remote keyboard, and the iOS tab island ([ADR-0235](docs/decisions/mobile-ui.md#adr-0235)).
 _Avoid_: look-alike (for a recorded custom surface)
 
 **Navigation bar**:
@@ -1299,7 +1315,7 @@ The `@expo/ui` view that hosts Compose or SwiftUI content inside React Native an
 _Avoid_: Host (alone, for the Expo UI view)
 
 **Platform design language**:
-Material 3 with its Expressive update on Android; Liquid Glass on iOS 26 and later. Their token vocabularies are the platform layers of ADR-0266: Material colour roles (`useMaterialRoles()`) and type styles (`materialType`) on Android; semantic system colours (`systemColors`), Dynamic Type text styles (`systemType`) and the tint on iOS. Icons are Material Symbols on Android and SF Symbols on iOS.
+Material 3 with its Expressive update on Android; Liquid Glass on iOS 26 and later. Their token vocabularies are the platform layers of [ADR-0266](docs/decisions/mobile-ui.md#adr-0266): Material colour roles (`useMaterialRoles()`) and type styles (`materialType`) on Android; semantic system colours (`systemColors`), Dynamic Type text styles (`systemType`) and the tint on iOS. Icons are Material Symbols on Android and SF Symbols on iOS.
 _Avoid_: Material You (for anything but dynamic colour), glassmorphism, frosted glass, iOS style on Android, Material style on iOS
 
 Counterparts by job. The Android column uses Material 3 names, the iOS column HIG names; code names follow in each API column. "—" means the platform has no component for that job.
@@ -1356,6 +1372,6 @@ How this app pairs them today (`apps/mobile/DESIGN.md`, #3002):
 - Sheets: Android `ModalBottomSheet` ↔ iOS form sheet with detents (`presentation: 'formSheet'` through Expo Router, or SwiftUI `BottomSheet` in `@expo/ui`).
 - A Bot call outside the app: Android ongoing call notification (`Notification.CallStyle`) plus the custom call bubble over other apps ↔ iOS Live Activity (ADR-0305).
 - The Chats "-1 screen": Android `DismissibleNavigationDrawer` ↔ iOS retained navigation pages, Workspaces beside the complete Chats tab shell (`UIPageViewController` through `PagerView`).
-- Top-level navigation: Android navigation bar with a creation FAB ↔ the iOS tab island with its **+** (a custom surface, ADR-0235).
+- Top-level navigation: Android navigation bar with a creation FAB ↔ the iOS tab island with its **+** (a custom surface, [ADR-0235](docs/decisions/mobile-ui.md#adr-0235)).
 - Activity and workspace tabs: Android primary tabs (`PrimaryTabRow`).
 - Settings screens: Android segmented list of list items ↔ iOS inset grouped list (SwiftUI `Form` with `Section`, `Label`, `Toggle`, menu `Picker`, `LabeledContent`), through `SettingsForm`.

@@ -1,3 +1,4 @@
+import { Icon } from './icon.js';
 import {
   useRef,
   useState,
@@ -9,7 +10,6 @@ import {
   type ReactNode,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconChevronDownOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { InstantTooltipScope, Tooltip } from './tooltip.js';
 import { border, color, radius, size, space, text } from './tokens.stylex.js';
@@ -319,7 +319,7 @@ export function PanelHeader({
               data-panel-chevron=""
               {...stylex.props(styles.chevron, !disclosure.expanded && styles.collapsed)}
             >
-              <IconChevronDownOutlineRegular size={14} />
+              <Icon name="chevron-down" size={14} />
             </span>
           ) : null}
           {content}

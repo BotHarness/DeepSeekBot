@@ -1,18 +1,14 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ChangeEvent,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from 'react';
+import { type ChangeEvent } from 'react';
+import { type ReactNode } from 'react';
+import { type ModelSettingsClient } from '@botharness/host-client/bot-settings';
+import { type HostDraftChoice } from '../src/client/host-settings-drafts.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-import type { ModelSettingsClient } from '@botharness/host-client/bot-settings';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-  Checkbox: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 vi.mock('../src/client/model-picker.js', () => ({
   ModelPicker: ({ onChange }: { onChange(value: { key: string; effort: string }): void }) =>
@@ -46,7 +42,7 @@ vi.mock('../src/client/ds/select.js', () => ({
 }));
 
 import { RemoteHostModels } from '../src/client/remote-host-models.js';
-import { hostSettingsDrafts, type HostDraftChoice } from '../src/client/host-settings-drafts.js';
+import { hostSettingsDrafts } from '../src/client/host-settings-drafts.js';
 import { en } from '../src/client/locale.js';
 
 it('explains a launch-locked default model refusal without replaying the write', async () => {
@@ -158,13 +154,29 @@ it('keeps offline and refused preset drafts, never saves on blur, and saves or d
         savedName = args.name;
         revision += 1;
         if (loseReply) throw Error('response lost after commit');
-        return { preset: { id: 'preset' } };
+        return {
+          preset: {
+            id: 'preset',
+            name: savedName,
+            revision,
+            orchestrator: route,
+            assignmentDefault: route,
+          },
+        };
       }
       if (method === 'modelPresetCreate') {
         writes += 1;
         if (typeof args.name !== 'string') throw Error('name missing');
         createdName = args.name;
-        return { preset: { id: 'created' } };
+        return {
+          preset: {
+            id: 'created',
+            name: createdName,
+            revision: 1,
+            orchestrator: route,
+            assignmentDefault: route,
+          },
+        };
       }
       throw Error(`Unexpected method ${method}`);
     },
@@ -189,7 +201,7 @@ it('keeps offline and refused preset drafts, never saves on blur, and saves or d
   };
   const edit = async (name: string) => {
     await act(() => {
-      const input = container.querySelector('input');
+      const input = container.querySelector<HTMLInputElement>('input:not([type=checkbox])');
       if (!input) throw Error('preset name input missing');
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, name);
       input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -211,34 +223,44 @@ it('keeps offline and refused preset drafts, never saves on blur, and saves or d
     await edit('Draft');
     expect(writes).toBe(0);
     expect(await hostSettingsDrafts.prepare('b')).toBe(false);
-    expect(container.querySelector('input')?.value).toBe('Draft');
+    expect(container.querySelector<HTMLInputElement>('input:not([type=checkbox])')?.value).toBe(
+      'Draft',
+    );
     available = false;
     await act(render);
     choice = 'save';
     expect(await hostSettingsDrafts.prepare('b')).toBe(false);
     expect(writes).toBe(0);
-    expect(container.querySelector('input')?.value).toBe('Draft');
+    expect(container.querySelector<HTMLInputElement>('input:not([type=checkbox])')?.value).toBe(
+      'Draft',
+    );
     available = true;
     await act(render);
     fail = true;
     await act(async () => {
       expect(await hostSettingsDrafts.prepare('b')).toBe(false);
     });
-    expect(container.querySelector('input')?.value).toBe('Draft');
+    expect(container.querySelector<HTMLInputElement>('input:not([type=checkbox])')?.value).toBe(
+      'Draft',
+    );
     expect(savedName).toBe('Original');
     fail = false;
     await act(async () => {
       expect(await hostSettingsDrafts.prepare('b')).toBe(true);
     });
     expect(savedName).toBe('Draft');
-    expect(container.querySelector('input')?.value).toBe('Draft');
+    expect(container.querySelector<HTMLInputElement>('input:not([type=checkbox])')?.value).toBe(
+      'Draft',
+    );
     await edit('Discarded');
     choice = 'discard';
     await act(async () => {
       expect(await hostSettingsDrafts.prepare('b')).toBe(true);
     });
     expect(savedName).toBe('Draft');
-    expect(container.querySelector('input')?.value).toBe('Draft');
+    expect(container.querySelector<HTMLInputElement>('input:not([type=checkbox])')?.value).toBe(
+      'Draft',
+    );
     expect(writes).toBe(2);
     await edit('Owner committed');
     choice = 'save';
@@ -247,7 +269,9 @@ it('keeps offline and refused preset drafts, never saves on blur, and saves or d
       expect(await hostSettingsDrafts.prepare('b')).toBe(false);
     });
     expect(savedName).toBe('Owner committed');
-    expect(container.querySelector('input')?.value).toBe('Owner committed');
+    expect(container.querySelector<HTMLInputElement>('input:not([type=checkbox])')?.value).toBe(
+      'Owner committed',
+    );
     expect(await hostSettingsDrafts.prepare('b')).toBe(true);
     expect(writes).toBe(3);
     loseReply = false;
@@ -267,7 +291,7 @@ it('keeps offline and refused preset drafts, never saves on blur, and saves or d
       expect(await hostSettingsDrafts.prepare('b')).toBe(true);
     });
     expect(createdName).toBe('New preset');
-    expect(container.querySelector('input')?.value).toBe('');
+    expect(container.querySelector<HTMLInputElement>('input:not([type=checkbox])')?.value).toBe('');
     expect(writes).toBe(4);
   } finally {
     release();
@@ -365,7 +389,7 @@ it('starts a fresh model session for replacement access to the same Host while a
   };
   const editAndSave = async (name: string) => {
     await act(() => {
-      const input = container.querySelector('input');
+      const input = container.querySelector<HTMLInputElement>('input:not([type=checkbox])');
       if (!input) throw Error('name missing');
       Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(input, name);
       input.dispatchEvent(new Event('input', { bubbles: true }));
@@ -386,23 +410,33 @@ it('starts a fresh model session for replacement access to the same Host while a
     });
     await preset();
     await editAndSave('Old pending draft');
-    expect(container.querySelector('input')?.disabled).toBe(true);
+    expect(container.querySelector<HTMLInputElement>('input:not([type=checkbox])')?.disabled).toBe(
+      true,
+    );
     current = replacement;
     await act(async () => {
       render();
       await flush();
     });
     expect(container.querySelector('select')?.value).toBe('');
-    expect(container.querySelector('input')?.value).toBe('');
-    expect(container.querySelector('input')?.disabled).toBe(false);
+    expect(container.querySelector<HTMLInputElement>('input:not([type=checkbox])')?.value).toBe('');
+    expect(container.querySelector<HTMLInputElement>('input:not([type=checkbox])')?.disabled).toBe(
+      false,
+    );
     await preset();
-    expect(container.querySelector('input')?.value).toBe('New access preset');
+    expect(container.querySelector<HTMLInputElement>('input:not([type=checkbox])')?.value).toBe(
+      'New access preset',
+    );
     await act(async () => {
       finishOld();
       await flush();
     });
-    expect(container.querySelector('input')?.value).toBe('New access preset');
-    expect(container.querySelector('input')?.disabled).toBe(false);
+    expect(container.querySelector<HTMLInputElement>('input:not([type=checkbox])')?.value).toBe(
+      'New access preset',
+    );
+    expect(container.querySelector<HTMLInputElement>('input:not([type=checkbox])')?.disabled).toBe(
+      false,
+    );
     expect(newWrites).toBe(0);
     await editAndSave('New accepted draft');
     expect(newName).toBe('New accepted draft');
@@ -450,7 +484,7 @@ it.each(['lost-reply', 'readback-failed'])(
           created = true;
           if (mode === 'lost-reply') throw Error('reply lost after commit');
           readFailure = true;
-          return { preset: { id: 'created-receipt-id' } };
+          return { preset: entry('created-receipt-id') };
         }
         throw Error(`Unexpected method ${method}`);
       },
@@ -481,7 +515,7 @@ it.each(['lost-reply', 'readback-failed'])(
         await flush();
       });
       await act(() => {
-        const input = container.querySelector('input');
+        const input = container.querySelector<HTMLInputElement>('input:not([type=checkbox])');
         if (!input) throw Error('name missing');
         Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set?.call(
           input,
@@ -494,7 +528,9 @@ it.each(['lost-reply', 'readback-failed'])(
       });
       expect(creates).toBe(1);
       expect(created).toBe(true);
-      expect(container.querySelector('input')?.value).toBe('New preset');
+      expect(container.querySelector<HTMLInputElement>('input:not([type=checkbox])')?.value).toBe(
+        'New preset',
+      );
       if (mode === 'lost-reply') {
         expect(container.textContent).toContain('Creation is unconfirmed');
         expect(button(en['modelPreset.saveAs']).disabled).toBe(true);
@@ -516,7 +552,9 @@ it.each(['lost-reply', 'readback-failed'])(
           button('Check saved preset').click();
           await flush();
         });
-        expect(container.querySelector('input')?.value).toBe('');
+        expect(container.querySelector<HTMLInputElement>('input:not([type=checkbox])')?.value).toBe(
+          '',
+        );
         expect(await hostSettingsDrafts.prepare('create-target')).toBe(true);
         expect(creates).toBe(1);
       }

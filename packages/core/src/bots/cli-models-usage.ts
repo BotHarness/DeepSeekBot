@@ -1,7 +1,15 @@
+import { readProfileActivity } from '@botharness/host-client/profile-activity';
+import { readFile } from 'node:fs/promises';
 export { MODELS_USAGE_OPTIONS } from './cli-option-spec.js';
 import { resolveBotDm } from './cli-bot-dm.js';
 import type { ModelFavorite } from '../models/favorites.js';
-import type { ModelPreset, ModelRoute } from '../models/presets.js';
+import { isEngineId } from '../engines/engine-session.js';
+import type {
+  ModelPreset,
+  ModelPresetEngine,
+  ModelPresetEngineInput,
+  ModelRoute,
+} from '../models/presets.js';
 import type { ModelPlanState } from '../models/readiness.js';
 import type { RoutingGroup } from '../models/routing-groups.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
@@ -11,10 +19,24 @@ import { isUsageOverviewPeriod, usageOverviewPeriods } from '../usage/overview.j
 type Rpc = <T>(method: string, args: Record<string, unknown>) => Promise<T>;
 
 export const MODELS_USAGE_COMMANDS = [
+  { command: 'model-providers', description: 'list API key providers and their revisions' },
+  {
+    command: 'model-provider-add',
+    description:
+      'add an API key provider (--template, --name, --key-stdin or --key-file, --expected-revision)',
+  },
+  {
+    command: 'model-provider-edit',
+    description: 'rename or replace the key of an API key provider at its revision',
+  },
+  {
+    command: 'model-provider-remove',
+    description: 'remove an unused API key provider at its revision (--confirm)',
+  },
   {
     command: 'home-model-set',
     description:
-      'set the Host default model (--provider, --model, --orchestrator-effort, or --group <routing-group-id>; --expected-revision)',
+      'set the Host default model (--provider and --model, or --group <routing-group-id>; --orchestrator-effort; --expected-revision)',
   },
   {
     command: 'model-catalog',
@@ -23,11 +45,12 @@ export const MODELS_USAGE_COMMANDS = [
   {
     command: 'model-favorite-add',
     description:
-      'star a model (<provider>/<model>) or a Model Route Group (group:<id>) for you on every device',
+      'star a model (<provider>/<model>), a Model Route Group (group:<id>) or a Model Preset (preset:<id>) for you on every device',
   },
   {
     command: 'model-favorite-remove',
-    description: 'unstar a model (<provider>/<model>) or a Model Route Group (group:<id>)',
+    description:
+      'unstar a model (<provider>/<model>), a Model Route Group (group:<id>) or a Model Preset (preset:<id>)',
   },
   {
     command: 'model-plan-set',
@@ -50,12 +73,17 @@ export const MODELS_USAGE_COMMANDS = [
     description: 'rename or change the routes of a Model Preset',
   },
   {
+    command: 'model-preset-delete',
+    description: 'delete a Model Preset at its revision and keep applied Bot plans (--confirm)',
+  },
+  {
     command: 'model-groups',
-    description: 'list Routing Groups: named, ordered model routes a Bot can run on',
+    description:
+      'list Routing Groups and their ordered model, Routing Group and Subscription Engine members',
   },
   {
     command: 'model-group',
-    description: 'read one Routing Group and the routes it expands to, in order',
+    description: 'read one Routing Group and the DSH model routes it expands to, in order',
   },
   {
     command: 'model-group-create',
@@ -104,7 +132,20 @@ export const MODELS_USAGE_COMMANDS = [
 ] as const;
 
 export interface ModelsUsageValues {
+  'orchestrator-engine'?: string;
+  'orchestrator-engine-account'?: string;
+  'orchestrator-engine-model'?: string;
+  'orchestrator-engine-effort'?: string;
+  'assignment-engine'?: string;
+  'assignment-engine-account'?: string;
+  'assignment-engine-model'?: string;
+  'assignment-engine-effort'?: string;
   name?: string;
+  template?: string;
+  endpoint?: string;
+  'key-stdin'?: boolean;
+  'key-file'?: string;
+  confirm?: boolean;
   'orchestrator-provider'?: string;
   'orchestrator-model'?: string;
   'orchestrator-effort'?: string;
@@ -131,6 +172,8 @@ export interface ModelsUsageValues {
 }
 
 const NO_TARGET = new Set([
+  'model-providers',
+  'model-provider-add',
   'home-model-set',
   'model-catalog',
   'model-groups',
@@ -152,10 +195,16 @@ function favoriteChoice(target: string): ModelFavorite {
     if (!id) usage('group:<id> needs a nonempty Model Route Group id.');
     return { kind: 'group', id };
   }
+  if (target.startsWith('preset:')) {
+    const id = target.slice('preset:'.length).trim();
+    if (!id) usage('preset:<id> needs a nonempty Model Preset id.');
+    return { kind: 'preset', id };
+  }
   const slash = target.indexOf('/');
   const provider = slash < 0 ? '' : target.slice(0, slash).trim();
   const model = slash < 0 ? '' : target.slice(slash + 1).trim();
-  if (!provider || !model) usage('Name a model as <provider>/<model>, or a group as group:<id>.');
+  if (!provider || !model)
+    usage('Name a model as <provider>/<model>, a group as group:<id>, or a preset as preset:<id>.');
   return { kind: 'model', provider, model };
 }
 
@@ -194,7 +243,7 @@ async function membersInput(io: BotCreateCliIo, values: ModelsUsageValues): Prom
       : undefined;
   if (!Array.isArray(members) || Object.keys(input as object).length !== 1)
     usage(
-      'Members stdin must be {"members":[{"kind":"model","provider","model","reasoningEffort"?} or {"kind":"group","id"}]}.',
+      'Members stdin must be {"members":[...]} with model, Routing Group or engine member objects.',
     );
   return members;
 }
@@ -220,6 +269,49 @@ async function planInput(
   const missing = required.filter((key) => plan[key] === undefined);
   if (missing.length > 0) usage(`Plan stdin requires ${missing.join(', ')}.`);
   return plan;
+}
+
+export function presetEngineFlags(
+  values: ModelsUsageValues,
+  update = false,
+): ModelPresetEngineInput {
+  const read = (role: 'orchestrator' | 'assignment'): ModelPresetEngine | null | undefined => {
+    const engine = values[`${role}-engine`]?.trim();
+    const model = values[`${role}-engine-model`]?.trim();
+    const effort = values[`${role}-engine-effort`]?.trim();
+    const accountId = values[`${role}-engine-account`]?.trim();
+    if (
+      engine === undefined &&
+      model === undefined &&
+      effort === undefined &&
+      accountId === undefined
+    )
+      return undefined;
+    if (
+      update &&
+      engine === 'none' &&
+      model === undefined &&
+      effort === undefined &&
+      accountId === undefined
+    )
+      return null;
+    if (!isEngineId(engine) || model === '' || effort === '' || accountId === '')
+      usage(
+        `--${role}-engine must be codex or claude${update ? ' (or none to clear)' : ''}; model and effort must be nonempty.`,
+      );
+    return {
+      engine,
+      ...(model === undefined ? {} : { model }),
+      ...(effort === undefined ? {} : { effort }),
+      ...(accountId === undefined ? {} : { accountId }),
+    };
+  };
+  const orchestratorEngine = read('orchestrator');
+  const assignmentEngine = read('assignment');
+  return {
+    ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
+    ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
+  };
 }
 
 export function presetGroupFlags(values: {
@@ -299,16 +391,67 @@ export async function runModelsUsage(
   if (!noTarget && !target) usage(`${command} requires a nonempty target id.`);
   const expected = revision(values['expected-revision']);
 
+  if (command === 'model-providers') return (await connect())('modelProviders', {});
+  if (
+    command === 'model-provider-add' ||
+    command === 'model-provider-edit' ||
+    command === 'model-provider-remove'
+  ) {
+    if (expected === undefined) usage('Provide --expected-revision from model-providers.');
+    if (command === 'model-provider-remove') {
+      if (values.confirm !== true) usage('Add --confirm to remove the provider.');
+      return (await connect())('modelProviderRemove', { id: target, expectedRevision: expected });
+    }
+    const name = values.name?.trim();
+    if (values.name !== undefined && !name) usage('--name must not be empty.');
+    if (values['key-stdin'] && values['key-file'] !== undefined)
+      usage('Choose one key input: --key-stdin or --key-file.');
+    let key: string | undefined;
+    try {
+      if (values['key-stdin']) key = ((await io.readStdin?.()) ?? '').trim();
+      if (values['key-file'] !== undefined)
+        key = (await readFile(values['key-file'], 'utf8')).trim();
+    } catch {
+      usage('Could not read the API key.');
+    }
+    if (key === '') usage('The API key input is empty.');
+    if (command === 'model-provider-edit') {
+      if (name === undefined && key === undefined) usage('Provide a name or an API key input.');
+      return (await connect())('modelProviderEdit', {
+        id: target,
+        expectedRevision: expected,
+        ...(name === undefined ? {} : { name }),
+        ...(key === undefined ? {} : { key }),
+      });
+    }
+    const template = values.template;
+    if (template !== 'opencode-go' && template !== 'deepseek' && template !== 'custom')
+      usage('Choose --template opencode-go, deepseek or custom.');
+    if (name === undefined || key === undefined) usage('Provide a name and an API key input.');
+    if (template === 'custom' && (!values.endpoint || !values.model))
+      usage('The custom template requires --endpoint and --model.');
+    return (await connect())('modelProviderAdd', {
+      template,
+      name,
+      key,
+      expectedRevision: expected,
+      ...(template === 'custom' ? { endpoint: values.endpoint, model: values.model } : {}),
+    });
+  }
+
   if (command === 'home-model-set') {
     const group = values.group?.trim();
     if (values.group !== undefined && !group) usage('--group must not be empty.');
-    if (group && (values.provider || values.model || values['orchestrator-effort']))
+    if (group && (values.provider !== undefined || values.model !== undefined))
       usage('Use either --group or --provider/--model.');
     if (!group && (!values.provider || !values.model))
       usage('home-model-set requires --provider and --model, or --group.');
     const rpc = await connect();
-    const expectedDefaultRevision =
-      expected ?? (await rpc<{ defaultRevision?: number }>('modelCatalog', {})).defaultRevision;
+    const catalog =
+      expected === undefined
+        ? await rpc<{ defaultRevision?: number; defaultGroupRevision?: number }>('modelCatalog', {})
+        : {};
+    const expectedDefaultRevision = expected ?? catalog.defaultRevision;
     if (!Number.isSafeInteger(expectedDefaultRevision) || Number(expectedDefaultRevision) < 0)
       throw new CliLiveError(
         'settings-unavailable',
@@ -317,8 +460,16 @@ export async function runModelsUsage(
     return rpc('onboardingModel', {
       expectedRevision: 0,
       expectedDefaultRevision,
+      ...(catalog.defaultGroupRevision === undefined
+        ? {}
+        : { expectedDefaultGroupRevision: catalog.defaultGroupRevision }),
       ...(group
-        ? { groupId: group }
+        ? {
+            groupId: group,
+            ...(values['orchestrator-effort']
+              ? { groupEffort: values['orchestrator-effort'] }
+              : {}),
+          }
         : {
             route: {
               provider: values.provider,
@@ -365,11 +516,14 @@ export async function runModelsUsage(
     if (weeks !== undefined && (!Number.isInteger(weeks) || weeks < 1 || weeks > 104))
       usage('--weeks must be an integer from 1 to 104.');
     const rpc = await connect();
-    return rpc('profileActivity', {
-      channelId: await resolveBotDm(rpc, target),
-      ...(before === undefined ? {} : { before }),
-      ...(weeks === undefined ? {} : { weeks }),
-    });
+    return readProfileActivity(
+      { call: (method, args = {}) => rpc(method, args) },
+      {
+        channelId: await resolveBotDm(rpc, target),
+        ...(before === undefined ? {} : { before }),
+        ...(weeks === undefined ? {} : { weeks }),
+      },
+    );
   }
   if (command === 'bot-usage') {
     const start = day(values.start, 'start');
@@ -425,7 +579,7 @@ export async function runModelsUsage(
     const effort = values['orchestrator-effort']?.trim();
     if (values['orchestrator-group'] !== undefined && !group)
       usage('--orchestrator-group must not be empty.');
-    if (group && (provider || model || effort))
+    if (group && (provider || model))
       usage('Use either --orchestrator-group or --orchestrator-provider/--orchestrator-model.');
     if (!group && (!provider || !model))
       usage(
@@ -438,7 +592,7 @@ export async function runModelsUsage(
       slug: target,
       expectedRevision,
       ...(group
-        ? { orchestratorGroupId: group }
+        ? { orchestratorGroupId: group, ...(effort ? { orchestratorGroupEffort: effort } : {}) }
         : {
             orchestrator: {
               provider,
@@ -450,23 +604,32 @@ export async function runModelsUsage(
   }
   if (command === 'model-plan-set' || command === 'model-plan-assignments-set') {
     const full = command === 'model-plan-set';
-    const required = full
-      ? ['orchestrator', 'assignmentDefault', 'assignmentModels']
-      : ['assignmentDefault', 'assignmentModels'];
+    const required = ['assignmentDefault', 'assignmentModels'];
     const plan = await planInput(
       io,
       values,
-      full ? required : [...required, 'assignmentGroups', 'assignmentDefaultGroupId'],
+      [
+        ...required,
+        ...(full ? ['orchestrator', 'orchestratorGroupId', 'orchestratorGroupEffort'] : []),
+        'assignmentGroups',
+        'assignmentDefaultGroupId',
+        'assignmentGroupOptions',
+      ],
       required,
     );
+    if (full && (plan['orchestrator'] == null) === (plan['orchestratorGroupId'] == null))
+      usage('Plan stdin needs either orchestrator or orchestratorGroupId.');
     const mode = assignmentModelsMode(values['assignment-models']);
     const rpc = await connect();
     const expectedRevision =
       expected ?? (await rpc<ModelPlanState>('modelPlan', { slug: target })).revision ?? 0;
+    const { orchestrator, orchestratorGroupId, ...rest } = plan;
     return rpc(full ? 'modelPlanSet' : 'modelPlanAssignmentsSet', {
       slug: target,
       expectedRevision,
-      ...plan,
+      ...rest,
+      ...(orchestrator == null ? {} : { orchestrator }),
+      ...(orchestratorGroupId == null ? {} : { orchestratorGroupId }),
       ...mode,
     });
   }
@@ -476,11 +639,22 @@ export async function runModelsUsage(
       expected ?? (await rpc<ModelPlanState>('modelPlan', { slug: target })).revision ?? 0;
     return rpc('modelPlanInherit', { slug: target, expectedRevision });
   }
+  if (command === 'model-preset-delete') {
+    if (values.confirm !== true) usage('Add --confirm to delete the Model Preset.');
+    if (expected === undefined || expected < 1)
+      usage('Provide --expected-revision from model-presets.');
+    return (await connect())('modelPresetDelete', {
+      id: target,
+      expectedRevision: expected,
+      confirmed: true,
+    });
+  }
   if (command === 'model-preset-update') {
+    const engines = presetEngineFlags(values, true);
     const name = values.name?.trim();
     if (values.name !== undefined && !name) usage('--name must not be empty.');
     const plan = values['plan-stdin']
-      ? await planInput(io, values, ['assignmentModels'], ['assignmentModels'])
+      ? await planInput(io, values, ['assignmentModels', 'assignmentGroupOptions'], [])
       : {};
     const mode = assignmentModelsMode(values['assignment-models']);
     const rpc = await connect();
@@ -492,17 +666,25 @@ export async function runModelsUsage(
         'The specified Model Preset does not exist on this Host.',
       );
     const flags = presetGroupFlags(values);
-    const routeGiven = ['provider', 'model', 'effort'].some(
+    const routeGiven = ['provider', 'model'].some(
       (part) => values[`orchestrator-${part}` as 'orchestrator-provider'] !== undefined,
     );
+    const effortGiven = values['orchestrator-effort'] !== undefined;
     if (routeGiven && flags.orchestratorGroupId)
       usage('Use either --orchestrator-group or --orchestrator-provider/--orchestrator-model.');
     const orchestratorGroupId =
       'orchestratorGroupId' in flags
         ? flags.orchestratorGroupId
-        : routeGiven
+        : routeGiven || (effortGiven && current.orchestratorGroupId === undefined)
           ? null
           : (current.orchestratorGroupId ?? null);
+    const orchestratorGroupEffort = !orchestratorGroupId
+      ? null
+      : effortGiven
+        ? values['orchestrator-effort']!.trim() || null
+        : orchestratorGroupId === current.orchestratorGroupId
+          ? (current.orchestratorGroupEffort ?? null)
+          : null;
     const assignmentGroups = flags.assignmentGroups ?? current.assignmentGroups ?? [];
     const assignmentDefaultGroupId =
       'assignmentDefaultGroupId' in flags
@@ -519,8 +701,10 @@ export async function runModelsUsage(
         : { orchestrator: routeOverride(values, 'orchestrator', current.orchestrator) }),
       assignmentDefault: routeOverride(values, 'assignment', current.assignmentDefault),
       orchestratorGroupId,
+      orchestratorGroupEffort,
       assignmentGroups,
       assignmentDefaultGroupId,
+      ...engines,
       ...plan,
       ...mode,
     });

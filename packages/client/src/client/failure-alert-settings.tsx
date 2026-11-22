@@ -1,6 +1,8 @@
+import { Checkbox } from './ds/checkbox.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import type { ReactElement } from 'react';
-import { Checkbox, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type {
   FailureAlertDelivery,
   FailureAlertSnapshot,

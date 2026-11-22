@@ -56,7 +56,17 @@ async function host(
           rpcId: body.rpcId,
           result:
             method === 'channelDm'
-              ? { ok: true, value: { channel: { id: 'dm-' + String(body.payload.args.slug) } } }
+              ? {
+                  ok: true,
+                  value: {
+                    channel: {
+                      id: 'dm-' + String(body.payload.args.slug),
+                      type: 'dm',
+                      name: String(body.payload.args.slug),
+                      members: [String(body.payload.args.slug)],
+                    },
+                  },
+                }
               : handler(method, body.payload.args),
         }),
       );
@@ -97,11 +107,44 @@ const option = {
 
 const noGroups = {
   orchestratorGroupId: null,
+  orchestratorGroupEffort: null,
   assignmentGroups: [],
   assignmentDefaultGroupId: null,
 };
 
 describe('Model commands', () => {
+  it('lists preset usage and requires a confirmed revision for deletion', async () => {
+    const live = await host((method) => ({
+      ok: true,
+      value: method === 'modelPresets' ? { presets: [], usage: [] } : { id: 'preset-1' },
+    }));
+    expect((await invoke(['model-presets', '--include-usage'], live.url)).json).toMatchObject({
+      usage: [],
+    });
+    expect(
+      (await invoke(['model-preset-delete', 'preset-1', '--expected-revision', '2'], live.url))
+        .json,
+    ).toMatchObject({ error: { code: 'usage' } });
+    expect(
+      (await invoke(['model-preset-delete', 'preset-1', '--confirm'], live.url)).json,
+    ).toMatchObject({ error: { code: 'usage' } });
+    expect(
+      (
+        await invoke(
+          ['model-preset-delete', 'preset-1', '--confirm', '--expected-revision', '2'],
+          live.url,
+        )
+      ).json,
+    ).toMatchObject({ id: 'preset-1' });
+    expect(live.calls).toEqual([
+      { method: 'modelPresets', args: { includeUsage: true } },
+      {
+        method: 'modelPresetDelete',
+        args: { id: 'preset-1', expectedRevision: 2, confirmed: true },
+      },
+    ]);
+  });
+
   it('reads the model catalog from the live Host', async () => {
     const live = await host(() => ({
       ok: true,
@@ -115,13 +158,17 @@ describe('Model commands', () => {
     expect(live.calls).toEqual([{ method: 'modelCatalog', args: {} }]);
   });
 
-  it('stars and unstars a model or a Model Route Group for the signed-in Human', async () => {
+  it('stars and unstars a model, a Model Route Group or a Model Preset for the signed-in Human', async () => {
     const live = await host(() => ({ ok: true, value: { favorites: [] } }));
     expect((await invoke(['model-favorite-add', 'deepseek/v4-pro'], live.url)).json).toEqual({
       favorites: [],
     });
     await invoke(['model-favorite-remove', 'group:daily'], live.url);
+    await invoke(['model-favorite-add', 'preset:p1'], live.url);
     expect((await invoke(['model-favorite-add', 'v4-pro'], live.url)).json.error.code).toBe(
+      'usage',
+    );
+    expect((await invoke(['model-favorite-add', 'preset: '], live.url)).json.error.code).toBe(
       'usage',
     );
     expect(live.calls).toEqual([
@@ -132,6 +179,10 @@ describe('Model commands', () => {
       {
         method: 'modelFavoriteSet',
         args: { choice: { kind: 'group', id: 'daily' }, favorite: false },
+      },
+      {
+        method: 'modelFavoriteSet',
+        args: { choice: { kind: 'preset', id: 'p1' }, favorite: true },
       },
     ]);
   });
@@ -181,6 +232,54 @@ describe('Model commands', () => {
     ] as const)
       expect((await invoke([...argv], live.url, stdin)).json.error.code).toBe('usage');
     expect(live.calls).toHaveLength(3);
+    const { orchestrator: _route, ...rest } = plan;
+    const grouped = { ...rest, orchestratorGroupId: 'main', assignmentGroups: ['side'] };
+    await invoke(
+      ['model-plan-set', 'ada', '--plan-stdin', '--expected-revision', '5'],
+      live.url,
+      JSON.stringify(grouped),
+    );
+    expect(live.calls.at(-1)).toEqual({
+      method: 'modelPlanSet',
+      args: { slug: 'ada', expectedRevision: 5, ...grouped },
+    });
+    expect(
+      (
+        await invoke(
+          ['model-plan-set', 'ada', '--plan-stdin'],
+          live.url,
+          JSON.stringify({ ...plan, orchestratorGroupId: 'main' }),
+        )
+      ).json.error.code,
+    ).toBe('usage');
+    const plain = { ...plan, orchestratorGroupId: null };
+    await invoke(
+      ['model-plan-set', 'ada', '--plan-stdin', '--expected-revision', '5'],
+      live.url,
+      JSON.stringify(plain),
+    );
+    expect(live.calls.at(-1)).toEqual({
+      method: 'modelPlanSet',
+      args: { slug: 'ada', expectedRevision: 5, ...plan },
+    });
+    await invoke(
+      ['model-plan-set', 'ada', '--plan-stdin', '--expected-revision', '5'],
+      live.url,
+      JSON.stringify({ ...grouped, orchestrator: null }),
+    );
+    expect(live.calls.at(-1)).toEqual({
+      method: 'modelPlanSet',
+      args: { slug: 'ada', expectedRevision: 5, ...grouped },
+    });
+    await invoke(
+      ['model-plan-set', 'ada', '--plan-stdin', '--expected-revision', '5'],
+      live.url,
+      JSON.stringify({ ...grouped, orchestratorGroupEffort: 'max' }),
+    );
+    expect(live.calls.at(-1)).toEqual({
+      method: 'modelPlanSet',
+      args: { slug: 'ada', expectedRevision: 5, ...grouped, orchestratorGroupEffort: 'max' },
+    });
   });
 
   it('opens or keeps listed Assignment models with --assignment-models', async () => {
@@ -427,6 +526,7 @@ describe('Model commands', () => {
     await invoke(['model-preset-update', 'p1', '--name', 'Renamed'], live.url);
     await invoke(['model-preset-update', 'p1', '--assignment-groups', 'side,extra'], live.url);
     await invoke(['model-preset-update', 'p1', '--orchestrator-model', 'chat'], live.url);
+    await invoke(['model-preset-update', 'p1', '--orchestrator-effort', 'max'], live.url);
     const calls = live.calls
       .filter((call) => call.method === 'modelPresetUpdate')
       .map((call) => call.args);
@@ -444,15 +544,20 @@ describe('Model commands', () => {
     });
     expect(calls[2]).toMatchObject({
       orchestratorGroupId: null,
+      orchestratorGroupEffort: null,
       orchestrator: route('chat'),
     });
+    expect(calls[3]).toMatchObject({ orchestratorGroupId: 'main', orchestratorGroupEffort: 'max' });
+    expect(calls[3]).not.toHaveProperty('orchestrator');
   });
 });
 
 describe('Routing Group commands', () => {
   const go = { kind: 'model', provider: 'opencode-go', model: 'flash' };
   const deepseek = { kind: 'model', provider: 'deepseek', model: 'flash' };
-  const group = { id: 'g1', name: 'Flash', revision: 2, mode: 'order', members: [go] };
+  const codex = { kind: 'engine', engine: 'codex', model: 'gpt-5.4', reasoningEffort: 'high' };
+  const claude = { kind: 'engine', engine: 'claude' };
+  const group = { id: 'g1', name: 'Flash', revision: 2, mode: 'order', members: [codex, go] };
 
   it('lists, reads, creates, updates and deletes groups at the read revision', async () => {
     const live = await host((method) =>
@@ -461,8 +566,8 @@ describe('Routing Group commands', () => {
         : { ok: true, value: { group } },
     );
     expect((await invoke(['model-groups'], live.url)).json).toEqual({ groups: [group] });
-    await invoke(['model-group', 'g1'], live.url);
-    const members = JSON.stringify({ members: [go, deepseek] });
+    expect((await invoke(['model-group', 'g1'], live.url)).json).toEqual({ group });
+    const members = JSON.stringify({ members: [codex, go, claude, deepseek] });
     await invoke(['model-group-create', '--name', 'Flash', '--members-stdin'], live.url, members);
     await invoke(['model-group-update', 'g1', '--members-stdin'], live.url, members);
     await invoke(
@@ -473,16 +578,24 @@ describe('Routing Group commands', () => {
     expect(live.calls).toEqual([
       { method: 'modelGroups', args: {} },
       { method: 'modelGroup', args: { id: 'g1' } },
-      { method: 'modelGroupCreate', args: { name: 'Flash', members: [go, deepseek] } },
-      { method: 'modelGroup', args: { id: 'g1' } },
       {
-        method: 'modelGroupUpdate',
-        args: { id: 'g1', expectedRevision: 2, name: 'Flash', members: [go, deepseek] },
+        method: 'modelGroupCreate',
+        args: { name: 'Flash', members: [codex, go, claude, deepseek] },
       },
       { method: 'modelGroup', args: { id: 'g1' } },
       {
         method: 'modelGroupUpdate',
-        args: { id: 'g1', expectedRevision: 9, name: 'Fast', members: [go] },
+        args: {
+          id: 'g1',
+          expectedRevision: 2,
+          name: 'Flash',
+          members: [codex, go, claude, deepseek],
+        },
+      },
+      { method: 'modelGroup', args: { id: 'g1' } },
+      {
+        method: 'modelGroupUpdate',
+        args: { id: 'g1', expectedRevision: 9, name: 'Fast', members: [codex, go] },
       },
       { method: 'modelGroup', args: { id: 'g1' } },
       { method: 'modelGroupDelete', args: { id: 'g1', expectedRevision: 2 } },
@@ -531,6 +644,19 @@ describe('Routing Group commands', () => {
         args: { slug: 'ada', expectedRevision: 3, orchestratorGroupId: 'g1' },
       },
     ]);
+    await invoke(
+      ['model-plan-customize', 'ada', '--orchestrator-group', 'g1', '--orchestrator-effort', 'max'],
+      live.url,
+    );
+    expect(live.calls.at(-1)).toEqual({
+      method: 'modelPlanCustomize',
+      args: {
+        slug: 'ada',
+        expectedRevision: 3,
+        orchestratorGroupId: 'g1',
+        orchestratorGroupEffort: 'max',
+      },
+    });
   });
 });
 
@@ -624,7 +750,8 @@ describe('Usage and activity commands', () => {
 it('configures the Home native default with its actual revision and reasoning effort', async () => {
   const live = await host((method) => ({
     ok: true,
-    value: method === 'modelCatalog' ? { defaultRevision: 7 } : { revision: 8 },
+    value:
+      method === 'modelCatalog' ? { defaultRevision: 7, defaultGroupRevision: 2 } : { revision: 8 },
   }));
   const result = await invoke(
     [
@@ -646,12 +773,42 @@ it('configures the Home native default with its actual revision and reasoning ef
       args: {
         expectedRevision: 0,
         expectedDefaultRevision: 7,
+        expectedDefaultGroupRevision: 2,
         route: { provider: 'deepseek', model: 'test-model', reasoningEffort: 'high' },
         globalDefault: true,
       },
     },
   ]);
   expect((await invoke(['home-model-set'], live.url)).json.error.code).toBe('usage');
+  expect(
+    (await invoke(['home-model-set', '--group', 'daily', '--provider', ''], live.url)).json.error
+      .code,
+  ).toBe('usage');
+});
+it('sets the Home default Routing Group with its one effort', async () => {
+  const live = await host((method) => ({
+    ok: true,
+    value: method === 'modelCatalog' ? { defaultRevision: 7, defaultGroupRevision: 2 } : {},
+  }));
+  expect(
+    (
+      await invoke(
+        ['home-model-set', '--group', 'daily', '--orchestrator-effort', 'high'],
+        live.url,
+      )
+    ).code,
+  ).toBe(0);
+  expect(live.calls[1]).toEqual({
+    method: 'onboardingModel',
+    args: {
+      expectedRevision: 0,
+      expectedDefaultRevision: 7,
+      expectedDefaultGroupRevision: 2,
+      groupId: 'daily',
+      groupEffort: 'high',
+      globalDefault: true,
+    },
+  });
 });
 it('forwards explicit native default and preset target revisions', async () => {
   const live = await host(() => ({ ok: true, value: { revision: 9 } }));
@@ -696,4 +853,103 @@ it('forwards explicit native default and preset target revisions', async () => {
       )
     ).json.error.code,
   ).toBe('usage');
+});
+
+it('passes subscription flags and explicit removal to the online preset owner', async () => {
+  const route = { provider: 'deepseek', model: 'flash' };
+  const preset = {
+    id: 'p1',
+    name: 'Daily',
+    revision: 1,
+    orchestrator: route,
+    assignmentDefault: route,
+  };
+  const live = await host((method) => ({
+    ok: true,
+    value: method === 'modelPresets' ? { presets: [preset] } : { preset },
+  }));
+  const create = [
+    'model-preset-create',
+    '--name',
+    'Daily',
+    '--orchestrator-provider',
+    'deepseek',
+    '--orchestrator-model',
+    'flash',
+    '--assignment-provider',
+    'deepseek',
+    '--assignment-model',
+    'flash',
+  ];
+  expect(
+    (await invoke([...create, '--orchestrator-engine-model', 'gpt-6'], live.url)).json.error.code,
+  ).toBe('usage');
+  expect(
+    (
+      await invoke(
+        [
+          ...create,
+          '--orchestrator-engine',
+          'codex',
+          '--orchestrator-engine-model',
+          'gpt-6',
+          '--orchestrator-engine-effort',
+          'high',
+          '--assignment-engine',
+          'claude',
+        ],
+        live.url,
+      )
+    ).code,
+  ).toBe(0);
+  expect(
+    (await invoke(['model-preset-update', 'p1', '--assignment-engine', 'none'], live.url)).code,
+  ).toBe(0);
+  expect(live.calls).toMatchObject([
+    {
+      method: 'modelPresetCreate',
+      args: {
+        orchestratorEngine: { engine: 'codex', model: 'gpt-6', effort: 'high' },
+        assignmentEngine: { engine: 'claude' },
+      },
+    },
+    { method: 'modelPresets' },
+    { method: 'modelPresetUpdate', args: { assignmentEngine: null, expectedRevision: 1 } },
+  ]);
+});
+
+it('passes a provider key only from explicit secret input and prints the Host receipt', async () => {
+  const input = 'stdin-provider-key';
+  const { url, calls } = await host(() => ({
+    ok: true,
+    value: { id: 'opencode-go-2', keyStored: true, modelCount: 2, testReply: 'ok' },
+  }));
+  const args = [
+    'model-provider-add',
+    '--template',
+    'opencode-go',
+    '--name',
+    'Backup',
+    '--expected-revision',
+    '4',
+  ];
+  const missing = await invoke(args, url);
+  expect(missing.code).not.toBe(0);
+  expect(calls).toEqual([]);
+  const saved = await invoke([...args, '--key-stdin'], url, input);
+  expect(saved.code).toBe(0);
+  expect(saved.text).not.toContain(input);
+  expect(saved.json).toMatchObject({ id: 'opencode-go-2', testReply: 'ok' });
+  expect(calls).toEqual([
+    {
+      method: 'modelProviderAdd',
+      args: { template: 'opencode-go', name: 'Backup', key: input, expectedRevision: 4 },
+    },
+  ]);
+  const removal = await invoke(
+    ['model-provider-remove', 'opencode-go-2', '--expected-revision', '5'],
+    url,
+  );
+  expect(removal.code).not.toBe(0);
+  expect(calls).toHaveLength(1);
 });

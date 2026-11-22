@@ -1,6 +1,6 @@
 # Environment panel and reciprocal Host connections
 
-Accepted target design, confirmed by the Human on 2026-11-13 after Q1–Q28; not a description of shipped behavior or completed acceptance. Extends [#4069](https://github.com/BotHarness/DeepSeekBot/issues/4069); its original reciprocal-grant exclusion remains historical scope for the existing nine slices. See [ADR-0334](../adr/0334-host-relationships-authorize-independent-client-enrollment.md). [中文](environment-panel.zh.md).
+Accepted target design, confirmed by the Human on 2026-11-13 after Q1–Q28; not a description of shipped behavior or completed acceptance. Extends [#4069](https://github.com/BotHarness/DeepSeekBot/issues/4069); its original reciprocal-grant exclusion remains historical scope for the existing nine slices. See [ADR-0334](../decisions/connections.md#adr-0334). [中文](environment-panel.zh.md).
 
 ## Panel and shared scope
 

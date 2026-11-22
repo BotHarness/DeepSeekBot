@@ -1,26 +1,12 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type InputHTMLAttributes,
-  type ReactNode,
-} from 'react';
+import { type TeamSignInState } from '@botharness/host-client/team-sign-in';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
-import type { TeamSignInState } from '@botharness/host-client/team-sign-in';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
-  Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-  Button: ({
-    size: _size,
-    variant: _variant,
-    ...props
-  }: ButtonHTMLAttributes<HTMLButtonElement> & { size?: string; variant?: string }) =>
-    createElement('button', props),
-  Modal: ({ children, footer }: { children: ReactNode; footer?: ReactNode }) =>
-    createElement('div', { role: 'dialog' }, children, footer),
 }));
 
 const fake = vi.hoisted(() => ({ teamSignIn: vi.fn() }));
@@ -125,41 +111,45 @@ describe('Team sign-in dialog', () => {
       );
       await settle();
       expect(fake.teamSignIn).toHaveBeenCalledWith(target, 'local', expect.any(AbortSignal));
-      expect(container.querySelector('[data-team-fingerprint]')?.textContent).toBe(
+      expect(document.body.querySelector('[data-team-fingerprint]')?.textContent).toBe(
         host.fingerprint,
       );
       expect(flow.signIn).not.toHaveBeenCalled();
 
       await act(async () => submit().click());
       expect(
-        container.querySelector('[data-team-sign-in]')?.getAttribute('data-team-sign-in'),
+        document.body.querySelector('[data-team-sign-in]')?.getAttribute('data-team-sign-in'),
       ).toBe('sign-in');
       expect(submit().disabled).toBe(true);
-      await act(async () => type(container.querySelector('input[name="password"]'), 'wrong'));
+      await act(async () => type(document.body.querySelector('input[name="password"]'), 'wrong'));
       await act(async () => submit().click());
       await settle();
       expect(document.body.textContent).toContain(
         zhTranslate('teamSignIn.error.credentials-invalid'),
       );
 
-      await act(async () => type(container.querySelector('input[name="password"]'), 'one-time-pw'));
+      await act(async () =>
+        type(document.body.querySelector('input[name="password"]'), 'one-time-pw'),
+      );
       await act(async () => submit().click());
       await settle();
       expect(flow.signIn).toHaveBeenLastCalledWith({
         password: 'one-time-pw',
         deviceName: zhTranslate('remoteHosts.deviceName', { name: 'Studio' }),
       });
-      expect(container.querySelector('input[name="current"]')).toBeNull();
+      expect(document.body.querySelector('input[name="current"]')).toBeNull();
 
-      await act(async () => type(container.querySelector('input[name="next"]'), 'a-new-password'));
       await act(async () =>
-        type(container.querySelector('input[name="confirm"]'), 'different-one'),
+        type(document.body.querySelector('input[name="next"]'), 'a-new-password'),
+      );
+      await act(async () =>
+        type(document.body.querySelector('input[name="confirm"]'), 'different-one'),
       );
       await act(async () => submit().click());
       expect(document.body.textContent).toContain(zhTranslate('teamSignIn.error.mismatch'));
       expect(flow.changePassword).not.toHaveBeenCalled();
       await act(async () =>
-        type(container.querySelector('input[name="confirm"]'), 'a-new-password'),
+        type(document.body.querySelector('input[name="confirm"]'), 'a-new-password'),
       );
       await act(async () => submit().click());
       await settle();

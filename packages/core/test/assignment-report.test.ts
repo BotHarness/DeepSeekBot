@@ -31,8 +31,8 @@ describe('Assignment Report content contract', () => {
     const prepared = await prepareAssignmentReport('owned', `\n${body}\n`, saveSpill);
     const query = queryFor(`\n${body}\n`, `${body} changed`);
     let result = '';
-    let offset = 0;
-    do {
+    let offset: number | undefined = 0;
+    while (offset !== undefined) {
       const page = await readAssignmentReportPage(
         query,
         'owned',
@@ -43,9 +43,8 @@ describe('Assignment Report content contract', () => {
       expect(page.returnedCharacters).toBeLessThanOrEqual(2_000);
       expect(page.readCount).toBe(2);
       result += page.text;
-      if (page.nextOffset === undefined) break;
       offset = page.nextOffset;
-    } while (true);
+    }
     expect(result).toBe(body);
   });
 

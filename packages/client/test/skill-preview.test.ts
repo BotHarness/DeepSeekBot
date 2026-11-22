@@ -1,54 +1,20 @@
 // @vitest-environment jsdom
-import {
-  act,
-  createElement,
-  type ButtonHTMLAttributes,
-  type PropsWithChildren,
-  type ReactNode,
-} from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type ComposerSkillOption } from '../src/client/channel-composer.js';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconAgentPresetOutlineRegular: () => null,
-  IconCodeOutlineRegular: () => null,
-  IconBranchOutlineRegular: () => null,
-  IconCheckOutlineRegular: () => null,
-  IconFolderOpenOutlineRegular: () => null,
-  IconDownloadOutlineRegular: () => null,
-  IconPlayOutlineRegular: () => null,
-  IconPauseOutlineRegular: () => null,
-  IconRefreshOutlineRegular: () => null,
-  IconEllipsisOutlineRegular: () => null,
-  Button: ({
-    children,
-    icon: _icon,
-    ...props
-  }: PropsWithChildren<ButtonHTMLAttributes<HTMLButtonElement> & { icon?: unknown }>) =>
-    createElement('button', props, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   FileTypeIcon: () => null,
   fileSizeText: (size: number) => `${size} B`,
-  IconCloseOutlineRegular: () => null,
-  IconPaperclipOutlineRegular: () => null,
-  IconSendOutlineRegular: () => null,
-  IconSkillOutlineRegular: () => null,
+
   ImageLightbox: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
+
   MarkdownText: () => null,
-  Modal: ({
-    open,
-    title,
-    description,
-    children,
-  }: {
-    open: boolean;
-    title: string;
-    description?: string;
-    children?: ReactNode;
-  }) =>
-    open
-      ? createElement('div', { role: 'dialog', 'aria-label': title }, description, children)
-      : null,
 }));
 
 vi.mock('../src/client/memory-markdown-view.js', () => ({
@@ -57,9 +23,9 @@ vi.mock('../src/client/memory-markdown-view.js', () => ({
   MarkdownImageLabel: () => null,
 }));
 
-import { ChannelComposer, type ComposerSkillOption } from '../src/client/channel-composer.js';
+import { ChannelComposer } from '../src/client/channel-composer.js';
 import { ChannelMessageBody } from '../src/client/channel-message-body.js';
-import { en, type BotHarnessTranslate } from '../src/client/locale.js';
+import { en } from '../src/client/locale.js';
 import type { ChannelMessage } from '../src/client/store.js';
 import { chipSkill, skillPeekPosition, skillSummary } from '../src/client/skill-preview.js';
 
@@ -231,7 +197,7 @@ describe('Skill chip preview', () => {
     await act(async () => chip.click());
     const dialog = document.querySelector<HTMLElement>('[role="dialog"]')!;
     expect(dialog.textContent).toContain('notes-project · as sent');
-    expect(dialog.querySelectorAll('p')).toHaveLength(0);
+    expect(dialog.querySelectorAll('[data-skill-preview] p')).toHaveLength(0);
     expect(dialog.querySelector('[data-markdown]')?.textContent).toBe(
       'Keep notes short.\n\nSecond paragraph.',
     );

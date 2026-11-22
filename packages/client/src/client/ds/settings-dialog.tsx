@@ -1,7 +1,10 @@
+import { Icon } from './icon.js';
+import { IconButton } from './icon-button.js';
 import { PointerMenu, type MenuPoint } from './pointer-menu.js';
 import {
   Fragment,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
   useSyncExternalStore,
@@ -9,79 +12,98 @@ import {
   type ReactNode,
 } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  IconChevronDownOutlineRegular,
-  IconCloseOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 
 import { Dialog } from './dialog.js';
 import { NavGroupHeading, NavItem } from './nav-item.js';
-import { layer, ink, style, type as tobsType } from './tobs.stylex.js';
-import { border, color, radius, size, space, text } from './tokens.stylex.js';
+import {
+  edge,
+  ink,
+  layer,
+  line,
+  size,
+  space,
+  status,
+  style,
+  type as text,
+  radius,
+} from './tobs.stylex.js';
+import {
+  layoutViewportWidth,
+  subscribeLayoutViewport,
+  useWindowClass,
+  viewportMedia,
+} from './window-class.js';
 
-const NARROW_QUERY = '(max-width: 648px)';
+const LEGACY_PICKER_WIDTH = 648;
+const LEGACY_PICKER_QUERY = `(max-width: ${LEGACY_PICKER_WIDTH}px)`;
 
-function narrowQuery(): MediaQueryList | undefined {
-  return typeof matchMedia === 'function' ? matchMedia(NARROW_QUERY) : undefined;
+function legacyPicker(): boolean {
+  const width = layoutViewportWidth();
+  return width > 0
+    ? width <= LEGACY_PICKER_WIDTH
+    : (viewportMedia(LEGACY_PICKER_QUERY)?.matches ?? false);
 }
 
-function subscribeNarrow(listener: () => void): () => void {
-  const query = narrowQuery();
-  query?.addEventListener('change', listener);
-  const resize = typeof ResizeObserver === 'function' ? new ResizeObserver(listener) : undefined;
-  if (typeof document !== 'undefined' && document.body) resize?.observe(document.body);
-  return () => {
-    query?.removeEventListener('change', listener);
-    resize?.disconnect();
-  };
-}
+const subscribeLegacyPicker = (onChange: () => void): (() => void) =>
+  subscribeLayoutViewport([LEGACY_PICKER_QUERY], onChange);
 
-function isNarrow(): boolean {
-  if (typeof document !== 'undefined' && document.body.clientWidth > 0)
-    return document.body.clientWidth <= 648;
-  return narrowQuery()?.matches ?? false;
-}
-
-export function useNarrowSettings(): boolean {
-  return useSyncExternalStore(subscribeNarrow, isNarrow, () => false);
-}
-
-const VIEWPORT_CSS = `[data-tobs-dialog-viewport]:has(> .bh-settings-dialog) {
-  padding: max(calc(${space.x6} / var(--bh-window-zoom, 1)), calc(var(--dsh-frame-overlay-top, ${space.x6}) / var(--bh-window-zoom, 1))) calc(${space.x6} / var(--bh-window-zoom, 1));
-}
-.bh-settings-dialog input[type="file"] { min-width: 0; max-width: 100%; }`;
+const serverLegacyPicker = (): boolean => false;
 
 const styles = stylex.create({
   dialog: {
     flexDirection: 'row',
-    gap: 0,
-    width: 'min(760px, 100%)',
+    gap: space.x1,
+    backgroundColor: layer.canvas,
+    width: 'min(804px, 100%)',
     height: 'min(640px, 100%)',
     padding: 0,
-    '--dsh-scrollbar-thumb': 'var(--tobs-line-strong)',
-    '--dsh-scrollbar-thumb-hover': 'var(--tobs-ink-tertiary)',
+    '--dsh-scrollbar-thumb': line.strong,
+    '--dsh-scrollbar-thumb-hover': ink.tertiary,
   },
+  viewport: {
+    paddingBlock: `max(calc(${space.x6} / var(--bh-window-zoom, 1)), calc(var(--dsh-frame-overlay-top, ${space.x6}) / var(--bh-window-zoom, 1)))`,
+    paddingInline: `calc(${space.x6} / var(--bh-window-zoom, 1))`,
+  },
+  viewportCompact: {
+    top: 'calc(var(--dsh-frame-overlay-top, 0px) / var(--bh-window-zoom, 1))',
+    paddingBlock: 0,
+    paddingInline: 0,
+  },
+  dialogCompact: { width: '100%', height: '100%', borderRadius: 0, boxShadow: 'none' },
   nav: {
     flexShrink: 0,
     display: 'flex',
     flexDirection: 'column',
     gap: space.x4,
-    width: '180px',
+    width: 'min(208px, 32%)',
     paddingTop: space.x5,
     paddingInline: space.x3,
     boxSizing: 'border-box',
-    borderRightWidth: border.hairline,
-    borderRightStyle: 'solid',
-    borderRightColor: style.surfaceNavEdge,
     backgroundColor: style.surfaceNav,
     fontFamily: 'inherit',
+  },
+  navCompact: {
+    width: '100%',
+    minHeight: 0,
+    flexShrink: 1,
+    flexGrow: 1,
+    paddingTop: space.x2,
+    paddingInline: space.x5,
+    backgroundColor: style.surfaceListBackdrop,
+  },
+  compactAction: { width: size.rowLarge, height: size.rowLarge },
+  compactRow: { minHeight: `max(${size.rowLarge}, ${style.rowNav})` },
+  compactGroup: {
+    padding: style.listGroupPaddingBlock,
+    borderRadius: style.listGroupRadius,
+    backgroundColor: style.listGroupFill,
   },
   navTitle: {
     paddingInline: space.x3,
     color: ink.primary,
-    fontSize: tobsType.titleSize,
-    lineHeight: tobsType.titleLine,
-    fontWeight: tobsType.titleWeight,
+    fontSize: text.titleSize,
+    lineHeight: text.titleLine,
+    fontWeight: text.titleWeight,
   },
   navList: {
     display: 'flex',
@@ -101,8 +123,8 @@ const styles = stylex.create({
     display: 'inline-block',
     width: '6px',
     height: '6px',
-    borderRadius: radius.round,
-    backgroundColor: color.danger,
+    borderRadius: radius.full,
+    backgroundColor: status.dangerBase,
   },
   dotLabel: {
     display: 'inline-flex',
@@ -127,7 +149,7 @@ const styles = stylex.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: space.x3,
-    minHeight: size.row,
+    minHeight: style.rowNav,
     paddingTop: space.x5,
     paddingBottom: space.x2,
     paddingInline: `${space.x6} ${space.x4}`,
@@ -135,14 +157,17 @@ const styles = stylex.create({
   headerNarrow: {
     paddingTop: space.x5,
     paddingInline: `${space.x5} ${space.x4}`,
+    flexWrap: 'wrap',
+    justifyContent: 'flex-end',
   },
   title: {
     margin: 0,
     minWidth: 0,
-    color: color.fg,
+    color: ink.primary,
     fontSize: text.titleSize,
     lineHeight: text.titleLine,
-    fontWeight: text.strong,
+    fontWeight: text.titleWeight,
+    overflowWrap: 'anywhere',
   },
   heading: {
     display: 'flex',
@@ -150,55 +175,42 @@ const styles = stylex.create({
     gap: space.x3,
     minWidth: 0,
   },
+  compactHeading: { flexGrow: 1, flexWrap: 'wrap', columnGap: space.x3, rowGap: 0 },
   scope: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: space.x1,
     minWidth: 0,
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
+    color: ink.secondary,
+    fontSize: text.captionSize,
+    lineHeight: text.captionLine,
     overflow: 'hidden',
     textOverflow: 'ellipsis',
     whiteSpace: 'nowrap',
   },
   actions: {
-    flexShrink: 0,
     display: 'inline-flex',
     alignItems: 'center',
     gap: space.x2,
-  },
-  close: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: size.icon,
-    height: size.icon,
-    padding: 0,
-    borderWidth: 0,
-    borderRadius: radius.control,
-    backgroundColor: { default: 'transparent', ':hover': color.hover },
-    color: color.fg,
-    cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    maxWidth: '100%',
   },
   picker: {
     display: 'inline-flex',
     alignItems: 'center',
     gap: space.x2,
     minWidth: 0,
-    height: size.row,
+    height: style.rowNav,
     paddingInline: `${space.x4} ${space.x3}`,
     borderWidth: 0,
-    borderRadius: radius.control,
-    backgroundColor: { default: color.surface, ':hover': color.hover },
-    color: color.fg,
+    borderRadius: style.radiusControl,
+    backgroundColor: { default: layer.raised, ':hover': style.navSelectedFill },
+    color: ink.primary,
     fontFamily: 'inherit',
     fontSize: text.titleSize,
     lineHeight: text.titleLine,
-    fontWeight: text.strong,
+    fontWeight: text.titleWeight,
     cursor: 'pointer',
-    outline: { default: 'none', ':focus-visible': `${border.focus} solid ${color.accent}` },
+    outline: { default: 'none', ':focus-visible': `${edge.focus} solid ${line.focus}` },
   },
   body: {
     containerType: 'inline-size',
@@ -243,7 +255,7 @@ export interface SettingsDialogGroup {
 export interface SettingsDialogLabels {
   readonly nav: string;
   readonly close: string;
-  readonly picker: (section: string) => string;
+  readonly picker?: (section: string) => string;
   readonly attention?: string;
 }
 
@@ -260,6 +272,14 @@ export interface SettingsDialogProps {
   readonly onSelect: (id: string) => void;
   readonly onClose: () => void;
   readonly headerAction?: ReactNode | undefined;
+  readonly environmentAction?: ReactNode | undefined;
+  readonly overlay?: ReactNode | undefined;
+  readonly compactNavigation?: {
+    readonly showList: boolean;
+    readonly onBack: () => void;
+    readonly onExpand: () => void;
+    readonly backLabel: string;
+  };
   readonly labels: SettingsDialogLabels;
   readonly className?: string;
   readonly children: ReactNode;
@@ -297,7 +317,7 @@ function SectionPicker({
       <button
         ref={pickerTrigger}
         type="button"
-        aria-label={labels.picker(active?.label ?? '')}
+        aria-label={labels.picker?.(active?.label ?? '') ?? active?.label}
         aria-haspopup="menu"
         aria-expanded={pickerPoint !== undefined}
         data-modal-autofocus=""
@@ -311,7 +331,7 @@ function SectionPicker({
         {...stylex.props(styles.picker)}
       >
         {active?.label}
-        <IconChevronDownOutlineRegular size={12} />
+        <Icon name="chevron-down" size={12} />
       </button>
       {pickerPoint ? (
         <PointerMenu
@@ -344,7 +364,24 @@ function SectionPicker({
   );
 }
 
-export function SettingsDialog({
+export function SettingsDialog(props: SettingsDialogProps): ReactElement {
+  return props.compactNavigation === undefined ? (
+    <PickerSettingsDialog {...props} />
+  ) : (
+    <PageSettingsDialog {...props} />
+  );
+}
+
+function PickerSettingsDialog(props: SettingsDialogProps): ReactElement {
+  const compact = useSyncExternalStore(subscribeLegacyPicker, legacyPicker, serverLegacyPicker);
+  return <SettingsFrame {...props} compact={compact} />;
+}
+
+function PageSettingsDialog(props: SettingsDialogProps): ReactElement {
+  return <SettingsFrame {...props} compact={useWindowClass() === 'compact'} />;
+}
+
+function SettingsFrame({
   title,
   navTitle,
   caption,
@@ -357,86 +394,126 @@ export function SettingsDialog({
   onSelect,
   onClose,
   headerAction,
+  environmentAction,
+  overlay,
+  compactNavigation,
   labels,
   className,
   children,
-}: SettingsDialogProps): ReactElement {
-  const narrow = useNarrowSettings();
+  compact,
+}: SettingsDialogProps & { readonly compact: boolean }): ReactElement {
+  const fullScreen = compact && compactNavigation !== undefined;
+  const list = fullScreen && compactNavigation.showList;
+  const page = fullScreen ? (list ? 'list' : 'detail') : 'split';
+  const previousPage = useRef(page);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const navigation = useRef<HTMLElement>(null);
   const groupId = useId();
   const active = sections.find((section) => section.id === activeId);
-  const close = (): void => {
-    onClose();
-  };
+  useLayoutEffect(() => {
+    if (!compact && compactNavigation?.showList) compactNavigation.onExpand();
+  }, [compact, compactNavigation]);
+  useLayoutEffect(() => {
+    const previous = previousPage.current;
+    previousPage.current = page;
+    if (page === previous || page === 'split') return;
+    if (page === 'list') {
+      const row = navigation.current?.querySelector<HTMLButtonElement>(
+        '[data-settings-return-focus]',
+      );
+      (row ?? heading.current)?.focus();
+    } else if (!document.activeElement?.hasAttribute('data-settings-highlight')) {
+      const focused = document.activeElement;
+      if (focused === document.body || navigation.current?.contains(focused))
+        heading.current?.focus();
+    }
+  }, [page]);
   const navCell = (section: SettingsDialogSection): ReactElement => (
     <NavItem
       key={section.id}
       data={{
         'data-settings-section': section.id,
-        'data-modal-autofocus': section.id === active?.id ? '' : undefined,
+        'data-modal-autofocus': !fullScreen && section.id === active?.id ? '' : undefined,
+        'data-settings-return-focus': list && section.id === active?.id ? '' : undefined,
       }}
-      current={section.id === active?.id}
+      current={!list && section.id === active?.id}
       icon={section.icon}
       label={section.label}
       attention={section.attention === true ? (labels.attention ?? '') : undefined}
-      onSelect={() => {
-        onSelect(section.id);
-      }}
+      trailing={list ? <Icon name="chevron-right" /> : undefined}
+      xstyle={list ? styles.compactRow : undefined}
+      onSelect={() => onSelect(section.id)}
     />
   );
-  const dialogClass = ['bh-settings-dialog', className].filter(Boolean).join(' ');
+  const groupStyle = stylex.props(styles.navGroupList, list && styles.compactGroup);
+  const nav = (
+    <nav
+      ref={navigation}
+      aria-label={labels.nav}
+      {...stylex.props(styles.nav, list && styles.navCompact)}
+    >
+      {!list && navTitle !== undefined ? (
+        <div {...stylex.props(styles.navTitle)}>{navTitle}</div>
+      ) : null}
+      {caption}
+      {navigationSearch}
+      <div {...stylex.props(styles.navList)}>
+        {navigationResults ??
+          (groups === undefined ? (
+            <div {...groupStyle}>{sections.map(navCell)}</div>
+          ) : (
+            groups.map((group) => {
+              const members = sections.filter((section) => section.group === group.id);
+              if (members.length === 0) return null;
+              if (group.label === undefined)
+                return (
+                  <div key={group.id} {...groupStyle}>
+                    {members.map(navCell)}
+                  </div>
+                );
+              const headingId = `${groupId}-${group.id}`;
+              return (
+                <Fragment key={group.id}>
+                  <NavGroupHeading id={headingId} label={group.label} />
+                  <div role="group" aria-labelledby={headingId} {...groupStyle}>
+                    {members.map(navCell)}
+                  </div>
+                </Fragment>
+              );
+            })
+          ))}
+      </div>
+    </nav>
+  );
   return (
-    <Dialog open onClose={close} title={title} className={dialogClass} xstyle={styles.dialog}>
-      <style data-plugin="@botharness/ui" data-plugin-css="@botharness/ui/settings-viewport">
-        {VIEWPORT_CSS}
-      </style>
-      {narrow ? null : (
-        <nav aria-label={labels.nav} {...stylex.props(styles.nav)}>
-          {navTitle === undefined ? null : <div {...stylex.props(styles.navTitle)}>{navTitle}</div>}
-          {caption}
-          {navigationSearch}
-          <div {...stylex.props(styles.navList)}>
-            {navigationResults ??
-              (groups === undefined
-                ? sections.map(navCell)
-                : groups.map((group) => {
-                    const members = sections.filter((section) => section.group === group.id);
-                    if (members.length === 0) return null;
-                    if (group.label === undefined)
-                      return (
-                        <div key={group.id} {...stylex.props(styles.navGroupList)}>
-                          {members.map(navCell)}
-                        </div>
-                      );
-                    const headingId = `${groupId}-${group.id}`;
-                    return (
-                      <Fragment key={group.id}>
-                        <NavGroupHeading id={headingId} label={group.label} />
-                        <div
-                          role="group"
-                          aria-labelledby={headingId}
-                          {...stylex.props(styles.navGroupList)}
-                        >
-                          {members.map(navCell)}
-                        </div>
-                      </Fragment>
-                    );
-                  }))}
-          </div>
-        </nav>
-      )}
-      <div {...stylex.props(styles.content)}>
-        {narrow && navigationSearch !== undefined ? (
-          <div {...stylex.props(styles.captionNarrow)}>
-            {navigationSearch}
-            {navigationResults}
-          </div>
-        ) : null}
-        {narrow && caption !== undefined ? (
+    <Dialog
+      open
+      presentation="center"
+      onClose={onClose}
+      title={title}
+      className={className}
+      xstyle={[styles.dialog, fullScreen && styles.dialogCompact]}
+      viewportXstyle={[styles.viewport, fullScreen && styles.viewportCompact]}
+    >
+      {overlay}
+      {compact ? null : nav}
+      <div data-settings-page={page} {...stylex.props(styles.content)}>
+        {compact && !fullScreen && caption !== undefined ? (
           <div {...stylex.props(styles.captionNarrow)}>{caption}</div>
         ) : null}
-        <div {...stylex.props(styles.header, narrow && styles.headerNarrow)}>
-          <span {...stylex.props(styles.heading)}>
-            {narrow ? (
+        <div {...stylex.props(styles.header, compact && styles.headerNarrow)}>
+          {fullScreen && !list ? (
+            <IconButton
+              aria-label={compactNavigation.backLabel}
+              size="row"
+              xstyle={styles.compactAction}
+              onClick={compactNavigation.onBack}
+            >
+              <Icon name="arrow-left" />
+            </IconButton>
+          ) : null}
+          <div {...stylex.props(styles.heading, fullScreen && styles.compactHeading)}>
+            {compact && !fullScreen ? (
               <SectionPicker
                 sections={sections}
                 activeId={activeId}
@@ -444,29 +521,41 @@ export function SettingsDialog({
                 onSelect={onSelect}
               />
             ) : (
-              <h2 {...stylex.props(styles.title)}>{active?.label}</h2>
+              <h2
+                ref={heading}
+                tabIndex={-1}
+                data-modal-autofocus={fullScreen ? '' : undefined}
+                {...stylex.props(styles.title)}
+              >
+                {list ? (navTitle ?? title) : active?.label}
+              </h2>
             )}
-            {scope === undefined ? null : (
+            {list || scope === undefined ? null : (
               <span data-settings-scope="" {...stylex.props(styles.scope)}>
                 {scope}
               </span>
             )}
-          </span>
-          <span {...stylex.props(styles.actions)}>
-            {headerAction}
-            <button
-              type="button"
+          </div>
+          <div {...stylex.props(styles.actions)}>
+            {!list && headerAction}
+            {environmentAction}
+            <IconButton
               aria-label={labels.close}
-              onClick={close}
-              {...stylex.props(styles.close)}
+              size={fullScreen ? 'row' : 'icon'}
+              xstyle={fullScreen ? styles.compactAction : undefined}
+              onClick={onClose}
             >
-              <IconCloseOutlineRegular size={14} />
-            </button>
-          </span>
+              <Icon name="x" />
+            </IconButton>
+          </div>
         </div>
-        <div key={active?.id} {...stylex.props(styles.body, narrow && styles.bodyNarrow)}>
-          {children}
-        </div>
+        {list ? (
+          nav
+        ) : (
+          <div key={activeId} {...stylex.props(styles.body, compact && styles.bodyNarrow)}>
+            {children}
+          </div>
+        )}
       </div>
     </Dialog>
   );

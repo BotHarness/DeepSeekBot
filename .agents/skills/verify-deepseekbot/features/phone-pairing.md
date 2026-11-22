@@ -20,6 +20,16 @@
 
 In a task-owned signed-in Host, open Connections → Tobs Connect and verify automatic check progress after sign-in/connector recovery. Compare the card and `deepseekbot connect-check` with `connect-status` through the same authenticated Host. A running connector alone must remain neutral. Require relay online plus a fresh Host-pinned public encrypted handshake before success; observe checked time and copy only bounded diagnostics. Inject task-owned DNS/TLS/HTTP/handshake failures, retry after recovery, expire the observation and fail the snapshot/retry request: none may retain green success. Opening the dialog must not start extra probes. Transient public failures retry at most four attempts with 1/3/6-second waits within the same 20-second deadline; certificate/identity failures refuse immediately, including incomplete certificate chains. Handshake payloads are limited to1KiB without compression before Noise decoding. A stale checking snapshot must allow retry when no local request is active; manual requests time out after25seconds and abort on card close. Each completed check refreshes the account computer list once without closing an existing management confirmation. A health refresh that interrupts a post-revoke list read must start a replacement read and leave controls usable. Do not change production DNS, other Host bindings or device grants. Record official-service versus isolated transport-fixture proof separately; desktop self-check does not qualify every phone network or reproduce a customer fault.
 
+## Mobile app installation guidance (#4737)
+
+Open Mobile app in the Control Rail, then choose Start pairing to open the
+installation guide in Connections. In both views, verify the first Android
+link opens the Tobs listing on Google Play and iOS opens TestFlight. Check that
+Discord and the QQ group number remain visible under the Android beta guidance.
+Copy the QQ group number and confirm it matches the displayed number. Repeat
+the visual check in light and dark mode and in English and Chinese. The guide
+stays on its installation step when opening an external link.
+
 ## Advanced connection guidance (#4078)
 
 From each phone entry, confirm App installation, then expand Advanced methods. Choose Named Tunnel or own HTTPS ingress directly, return without mutating prepared routes, and check the existing private-mode replacement notice before choosing Docker. Invalid origins, untrusted certificates and failed DNS/proxy checks must provide an actionable next step and deployment guide, never a QR before verification. Tailscale setup shows its mobile VPN limitation even when its route is ready. Use a task-owned HTTPS ingress through the existing owner, compare both fingerprints, approve exactly one Simulator device and observe real Host Feed; separately qualify LAN/Tailscale presentation. Record external edge versus Named/Docker provider coverage, preserve other routes and release owned resources.
@@ -69,7 +79,7 @@ Reserve the native QA lane before starting a Host, build or device. New native b
 4. Restart both peers; trust and the logical Host remain. Revoke the phone; streams close and reconnect refuses. Disable LAN and verify port release while independent remote access remains.
 5. Wrong Host pins, legacy pairings without keys, reused and expired offers refuse. Denied local-network permission shows recovery guidance. This slice does not add mutation replay or proactive handover.
 
-A Human pairs the phone app with their Host by a one-time QR code, and the phone keeps working across Host restarts until the Human revokes it. The phone holds a per-device credential and talks only to the device gateway (`/botharness-device/*`, [ADR-0199](../../../../docs/adr/0199-paired-devices-reach-the-host-through-a-same-listener-device-gateway.md)).
+A Human pairs the phone app with their Host by a one-time QR code, and the phone keeps working across Host restarts until the Human revokes it. The phone holds a per-device credential and talks only to the device gateway (`/botharness-device/*`, [ADR-0199](../../../../docs/decisions/connections.md#adr-0199)).
 
 ## Sub-features
 

@@ -1,3 +1,4 @@
+import { observeHostResource } from './messaging-defaults-live.js';
 import { memberPage } from './member-page.js';
 import { useState, type ReactNode } from 'react';
 import { useMountedResource } from './mounted-resource.js';
@@ -8,11 +9,10 @@ import type { BotHarnessTranslate } from './locale.js';
 
 const pendingListeners = new Set<(pending: boolean) => void>();
 let pendingRequests = false;
-let stopPolling: (() => void) | undefined;
+let stopObserving: (() => void) | undefined;
 
-function startPolling(): () => void {
+function observePendingRequests(): () => void {
   const abort = new AbortController();
-  let timer: ReturnType<typeof setTimeout>;
   const read = async () => {
     try {
       const response = await fetch('./api/botharness/devices/requests', {
@@ -23,27 +23,24 @@ function startPolling(): () => void {
       if (abort.signal.aborted) return;
       pendingRequests = value.pendingKeys.some((key) => !key.approved);
       for (const listener of pendingListeners) listener(pendingRequests);
-    } catch {
-    } finally {
-      if (!abort.signal.aborted) timer = setTimeout(read, 3000);
-    }
+    } catch {}
   };
-  void read();
+  const stop = observeHostResource('devices', read);
   return () => {
     abort.abort();
-    clearTimeout(timer);
+    stop();
   };
 }
 
 function watchPendingRequests(listener: (pending: boolean) => void): () => void {
   pendingListeners.add(listener);
   listener(pendingRequests);
-  stopPolling ??= startPolling();
+  stopObserving ??= observePendingRequests();
   return () => {
     pendingListeners.delete(listener);
     if (pendingListeners.size > 0) return;
-    stopPolling?.();
-    stopPolling = undefined;
+    stopObserving?.();
+    stopObserving = undefined;
   };
 }
 

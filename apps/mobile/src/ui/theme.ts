@@ -38,7 +38,7 @@ export function stateColor(theme: Theme, state: AggregatedState): string {
       return theme.warning;
     case 'blocked':
       return theme.danger;
-    default:
+    case 'idle':
       return theme.inkSoft;
   }
 }

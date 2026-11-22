@@ -84,8 +84,15 @@ describe.skipIf(!live || !fixtureFile)(
           expect(exports.at(-1)).toBe(hash(current));
         }
         for (const source of [seed.first, seed.commit]) {
-          const body = execFileSync('git', ['-C', seed.memory, 'show', `${source}:notes/guide.md`]);
-          const image = execFileSync('git', ['-C', seed.memory, 'show', `${source}:preview.png`]);
+          const body = execFileSync(
+            'git',
+            ['-C', seed.memory, 'show', `${source}:notes/guide.md`],
+            { shell: false, windowsHide: true },
+          );
+          const image = execFileSync('git', ['-C', seed.memory, 'show', `${source}:preview.png`], {
+            shell: false,
+            windowsHide: true,
+          });
           const version: MemoryMarkdown = {
             source,
             status: 'ready',

@@ -1,33 +1,14 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type ChannelSettingsAttentionProps } from '../src/client/channel-sidebar.js';
+import { type ChannelSidebarEntry } from '../src/client/channel-sidebar.js';
+import { type ChannelSidebarPrefs } from '../src/client/channel-sidebar-prefs.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   useModalLayer: () => undefined,
-  Modal: ({
-    open,
-    title,
-    className,
-    children,
-  }: {
-    open: boolean;
-    title: string;
-    className?: string;
-    children?: ReactNode;
-  }) =>
-    open
-      ? createElement('div', { role: 'dialog', 'aria-label': title, className }, children)
-      : null,
-  IconCloseOutlineRegular: () => null,
-  IconChevronDownOutlineRegular: () => null,
-  IconChevronRightOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  Menu: ({ open, anchor, children }: { open: boolean; anchor: ReactNode; children: ReactNode }) =>
-    createElement('div', null, anchor, open ? children : null),
-  MenuItemButton: ({ onSelect, children }: { onSelect(): void; children: ReactNode }) =>
-    createElement('button', { role: 'menuitem', onClick: onSelect }, children),
-  MenuSurface: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('div', props, children),
 }));
 import { ChannelSettingsAttention, ChannelSettingsDialog } from '../src/client/channel-settings.js';
 import { ChannelBridgeAttention } from '../src/client/channel-bridge-list.js';
@@ -41,14 +22,11 @@ import { ChannelSidebarTabs } from '../src/client/channel-sidebar-tabs.js';
 import {
   createChannelSidebarRegistry,
   resolveChannelSidebarTabs,
-  type ChannelSettingsAttentionProps,
-  type ChannelSidebarEntry,
   type ChannelSidebarEntryProps,
 } from '../src/client/channel-sidebar.js';
 import {
   channelSidebarScopeKey,
   createChannelSidebarPrefs,
-  type ChannelSidebarPrefs,
 } from '../src/client/channel-sidebar-prefs.js';
 import { zhTranslate } from '../src/client/locale.js';
 import type { BridgeActions } from '../src/client/actions.js';

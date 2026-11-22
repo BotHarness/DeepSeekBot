@@ -5,6 +5,7 @@ import {
   validMaterial,
   type AppearanceMaterialOverrides,
   type AppearanceMaterials,
+  type MaterialLayers,
 } from './appearance-materials.js';
 export interface AppearanceTarget {
   id: string;
@@ -58,8 +59,9 @@ export function panelMaterials(
   config: AppearanceModeConfig,
   mode: AppearanceMode,
   id: string,
+  layers?: MaterialLayers,
 ): AppearanceMaterials {
-  const global = appearanceMaterials(config, mode);
+  const global = appearanceMaterials(config, mode, layers);
   const own = config.panels?.[id];
   return { header: { ...global.header, ...own?.header }, body: { ...global.body, ...own?.body } };
 }

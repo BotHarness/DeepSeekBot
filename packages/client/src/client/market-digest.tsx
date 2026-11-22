@@ -1,6 +1,6 @@
+import { Icon } from './ds/icon.js';
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconChevronRightOutlineRegular } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type {
   MarketplaceDigest,
@@ -197,7 +197,7 @@ function SeePastPicks({
   return (
     <button type="button" {...stylex.props(styles.link)} data-market-past-picks onClick={onArchive}>
       {t('market.digest.seePast')}
-      <IconChevronRightOutlineRegular size={14} />
+      <Icon name="chevron-right" size={14} />
     </button>
   );
 }
@@ -306,7 +306,7 @@ export function MarketDailyPicks({
               onClick={onArchive}
             >
               {t('market.digest.seePast')}
-              <IconChevronRightOutlineRegular size={16} />
+              <Icon name="chevron-right" size={16} />
             </button>
           </div>
         </div>

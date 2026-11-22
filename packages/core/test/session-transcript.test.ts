@@ -89,6 +89,23 @@ describe('Session transcript', () => {
     });
   });
 
+  it('uses the recorded assistant source when an older turn changed models', () => {
+    const first = { provider: 'opencode-go', model: 'deepseek-v4.1-flash' };
+    const second = { provider: 'openrouter', model: 'deepseek-v4.1-flash' };
+    const reply = (seq: number, source: typeof first, text: string) =>
+      event(seq, 'assistant/message', { message: { source, content: [{ type: 'text', text }] } });
+    const transcript = summarizeSessionTranscript({
+      sessionId: 'existing-session',
+      events: [event(1, 'turn/start'), reply(2, first, 'Started'), reply(3, second, 'Finished')],
+    });
+    const firstTarget = { kind: 'dsh', ...first };
+    const secondTarget = { kind: 'dsh', ...second };
+    expect(transcript.items).toMatchObject([
+      { kind: 'reply', text: 'Started', turnTargets: [firstTarget] },
+      { kind: 'reply', text: 'Finished', turnTargets: [firstTarget, secondTarget] },
+    ]);
+  });
+
   it('reports a running turn and keeps its open tool running', () => {
     const transcript = summarizeSessionTranscript({
       sessionId: 'asg-1',
@@ -358,5 +375,29 @@ describe('Session transcript', () => {
       ],
     });
     expect(transcript.items[0]).not.toHaveProperty('command');
+  });
+
+  it('shows an inbound Human DM as its body with the envelope kept as metadata', () => {
+    const transcript = summarizeSessionTranscript({
+      sessionId: 'orc-1',
+      events: [
+        event(1, 'turn/start'),
+        event(2, 'user/message', {
+          source: { kind: 'user' },
+          content: [
+            {
+              type: 'text',
+              text: '[Human DM]\nSource Event ID: evt-1\nChannel: dm-bot-1\nMessage ID: human-1\nWhat is 17 times 23?',
+            },
+          ],
+        }),
+      ],
+    });
+    expect(transcript.items[0]).toMatchObject({
+      kind: 'input',
+      source: 'user',
+      text: 'What is 17 times 23?',
+      envelope: { kind: 'human-dm', channelId: 'dm-bot-1', messageId: 'human-1' },
+    });
   });
 });

@@ -27,6 +27,11 @@ const labelOf = (modifiers?: Modifier[]) =>
   modifiers?.find((modifier) => modifier.label !== undefined)?.label ??
   modifiers?.find((modifier) => modifier.description !== undefined)?.description;
 
+vi.mock('react-native-svg', () => ({
+  default: ({ children }: { children: ReactNode }) => createElement('svg', null, children),
+  Path: () => createElement('path'),
+  SvgXml: () => createElement('svg'),
+}));
 vi.mock('react-native', async () => {
   const shim = await import('./react-native-shim');
   return {
@@ -128,8 +133,20 @@ vi.mock('@expo/ui/swift-ui', () => {
     RNHostView: ({ children }: { children: ReactNode }) => children,
     ScrollView: box('div'),
     Spacer: () => null,
-    Text: ({ children, modifiers }: { children: ReactNode; modifiers?: Modifier[] }) =>
-      createElement('span', { 'data-width': fixedWidth(modifiers) }, children),
+    Text: ({
+      children,
+      modifiers,
+      testID,
+    }: {
+      children: ReactNode;
+      modifiers?: Modifier[];
+      testID?: string;
+    }) =>
+      createElement(
+        'span',
+        { 'data-width': fixedWidth(modifiers), 'data-testid': testID },
+        children,
+      ),
     VStack: box('div'),
   };
 });
@@ -259,12 +276,46 @@ describe('message sheet groups', () => {
 });
 
 describe('iOS message sheet', () => {
+  it('presents the message time and the ordered execution path in one accessible header', () => {
+    const message: ConversationMessage = {
+      ...bot,
+      turnTargets: [
+        { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol', reasoningEffort: 'high' },
+        { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+      ],
+    };
+    mount(ios.MessageActions, {
+      target: { message, anchor, group },
+      catalog: [
+        {
+          provider: 'opencode-go',
+          providerName: 'OpenCode Go',
+          model: 'deepseek-v4.1-flash',
+          modelName: 'DeepSeek V4.1 Flash',
+        },
+      ],
+    });
+    const attribution = host?.querySelector('[data-testid="message-menu-turn-targets"]');
+    const time = host?.querySelector('[data-testid="message-menu-time"]');
+    expect(time?.nextElementSibling).toBe(attribution);
+    expect(attribution?.querySelector('[data-testid="external-engine-badge"]')).not.toBeNull();
+    expect(attribution?.getAttribute('aria-label')).toBe(
+      'Ran on GPT-6.2-Sol · Codex · High, External engine, then DeepSeek V4.1 Flash · OpenCode Go',
+    );
+    expect([...attribution!.children].map((segment) => segment.textContent)).toEqual([
+      'GPT-6.2-Sol · High',
+      '→V4.1 Flash',
+    ]);
+  });
+
   it('presents a fitted native sheet with a grabber, a reaction row and icon-led actions', () => {
     mount(ios.MessageActions, { target: { message: bot, anchor, group } });
     const sheet = host?.querySelector('[role="dialog"]');
     expect(sheet?.getAttribute('data-open')).toBe('true');
     expect(sheet?.getAttribute('data-fit')).toBe('true');
     expect(byLabel(t.messageActions)).not.toBeNull();
+    expect(host?.querySelector('[data-testid="message-menu-time"]')).not.toBeNull();
+    expect(host?.querySelector('[data-testid="message-menu-turn-targets"]')).toBeNull();
     expect(MENU_REACTIONS.slice(0, QUICK_REACTIONS.length)).toEqual([...QUICK_REACTIONS]);
     const reactions = byLabel(t.reactions);
     for (const emoji of MENU_REACTIONS) {

@@ -1,22 +1,24 @@
+import { type ActivityListSource } from '../src/client/activity-list-view.js';
+import { type BotHarnessTranslate } from '../src/client/locale.js';
+import { type HumanAttentionItem } from '../src/client/store.js';
 import { createRequire } from 'node:module';
 import { appendFileSync } from 'node:fs';
-import { createElement, type ComponentProps } from 'react';
+import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./activity-list-test-controls.js')),
-  Button: ({ children, ...props }: ComponentProps<'button'>) =>
-    createElement('button', props, children),
+
   MarkdownText: () => null,
   StateDot: () => null,
-  Input: () => null,
 }));
 
 import { createActions } from '../src/client/actions.js';
-import { ActivityListView, type ActivityListSource } from '../src/client/activity-list-view.js';
-import { en, zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
-import { store, type HumanAttentionItem } from '../src/client/store.js';
+import { ActivityListView } from '../src/client/activity-list-view.js';
+import { en, zhTranslate } from '../src/client/locale.js';
+import { store } from '../src/client/store.js';
 import { CSS } from '../src/client/styles.js';
 import { space, text } from '../src/client/ds/tokens.stylex.js';
 import { ToolApprovalCard } from '../src/client/tool-approval-card.js';

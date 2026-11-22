@@ -2,7 +2,9 @@ import type { Appearance, AppearanceSnapshot, AppearancePatch } from './appearan
 import { appearanceMaterials } from './appearance-materials.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
+import { ColorInput } from './ds/input.js';
 import { Slider } from './ds/slider.js';
+import { tobsTokens } from './tobs-theme.js';
 export function AppearanceMaterialSettings({
   appearance,
   snapshot,
@@ -12,8 +14,13 @@ export function AppearanceMaterialSettings({
   snapshot: AppearanceSnapshot;
   t: BotHarnessTranslate;
 }) {
-  const mode = snapshot.mode;
-  const materials = appearanceMaterials(snapshot.config.modes[mode], mode);
+  const { config, mode } = snapshot;
+  const selected = config.modes[mode];
+  const materials = appearanceMaterials(
+    selected,
+    mode,
+    tobsTokens(mode, selected.preset, selected.primary, config.style),
+  );
   const change = (patch: AppearancePatch) => {
     try {
       appearance.update(patch);
@@ -31,15 +38,10 @@ export function AppearanceMaterialSettings({
           <SettingsRow
             title={t('appearance.materialColor')}
             control={
-              <input
-                type="color"
-                aria-label={t(
-                  part === 'header' ? 'appearance.headerColor' : 'appearance.bodyColor',
-                )}
+              <ColorInput
+                label={t(part === 'header' ? 'appearance.headerColor' : 'appearance.bodyColor')}
                 value={materials[part].color}
-                onChange={(event) =>
-                  change({ mode, materials: { [part]: { color: event.currentTarget.value } } })
-                }
+                onChange={(color) => change({ mode, materials: { [part]: { color } } })}
               />
             }
           />

@@ -1,66 +1,24 @@
 // @vitest-environment jsdom
-import { act, createElement, useSyncExternalStore, type ReactNode } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type ChannelSidebarPrefs } from '../src/client/channel-sidebar-prefs.js';
+import { type ChannelSidebarEntry } from '../src/client/channel-sidebar.js';
+import { act, createElement, useSyncExternalStore } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  IconChevronDownOutlineRegular: () => null,
-  IconChevronRightOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  Menu: ({
-    open,
-    anchor,
-    children,
-    onClose,
-  }: {
-    open: boolean;
-    anchor: ReactNode;
-    children: ReactNode;
-    onClose(): void;
-  }) =>
-    createElement(
-      'div',
-      null,
-      anchor,
-      open
-        ? createElement(
-            'div',
-            {
-              role: 'menu',
-              onKeyDown: (event: KeyboardEvent) => {
-                if (event.key === 'Escape') onClose();
-              },
-            },
-            children,
-          )
-        : null,
-    ),
-  MenuSurface: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('div', props, children),
-  MenuItemButton: ({
-    onSelect,
-    children,
-    icon,
-  }: {
-    onSelect(): void;
-    children: ReactNode;
-    icon?: ReactNode;
-  }) => createElement('button', { role: 'menuitem', onClick: onSelect }, icon, children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 import { ChannelSidebarContents } from '../src/client/channel-sidebar-view.js';
 import { TerminologySettings } from './support/terminology-settings.js';
 import {
   channelSidebarPrefs,
   createChannelSidebarPrefs,
-  type ChannelSidebarPrefs,
 } from '../src/client/channel-sidebar-prefs.js';
 import {
   sessionViewPreferenceSnapshot,
   subscribeSessionViewPreference,
 } from '../src/client/session-view-prefs.js';
-import type {
-  ChannelSidebarEntry,
-  ChannelSidebarEntryProps,
-} from '../src/client/channel-sidebar.js';
+import type { ChannelSidebarEntryProps } from '../src/client/channel-sidebar.js';
 let root: Root;
 let host: HTMLDivElement;
 let prefs: ChannelSidebarPrefs;
@@ -105,9 +63,9 @@ function render(slug = 'ada') {
   );
 }
 function button(label: string) {
-  const found = [...host.querySelectorAll<HTMLButtonElement>('button')].find(
-    (node) => node.textContent === label || node.getAttribute('aria-label') === label,
-  );
+  const found = [
+    ...document.body.querySelectorAll<HTMLButtonElement>('button, [role="menuitem"]'),
+  ].find((node) => node.textContent === label || node.getAttribute('aria-label') === label);
   expect(found).toBeDefined();
   return found!;
 }
@@ -179,21 +137,24 @@ describe('temporary sidebar settings preview', () => {
     expect(host.textContent).not.toContain('memory.terms.git');
     hover('entry.memoryEvolution · memory.terminology');
     expect(expanded()).toEqual(['memory-evolution']);
-    expect(host.querySelectorAll('[role=menu]')).toHaveLength(2);
+    expect(document.body.querySelectorAll('[role=menu]')).toHaveLength(2);
     click('memory.terms.git');
     expect(host.textContent).toContain('memory-git');
     click('memory.terms.memory');
     expect(host.textContent).toContain('memory-memory');
-    expect(host.querySelectorAll('[role=menu]')).toHaveLength(2);
+    expect(document.body.querySelectorAll('[role=menu]')).toHaveLength(2);
     expect(prefs.getSnapshot()).toBe(saved);
     click('sidebar.settings');
     expect(expanded()).toEqual(['files', 'sessions']);
-    expect(host.querySelector('[role=menu]')).toBeNull();
+    expect(document.body.querySelector('[role=menu]')).toBeNull();
   });
   it('supports keyboard entry and keeps focus within the menus until Escape restores the prior state', () => {
     vi.useFakeTimers();
     render();
     click('sidebar.settings');
+    act(() => {
+      vi.advanceTimersByTime(16);
+    });
     const trigger = button('entry.memoryEvolution · memory.terminology');
     act(() => {
       trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
@@ -208,7 +169,7 @@ describe('temporary sidebar settings preview', () => {
       );
     });
     expect(expanded()).toEqual(['files', 'sessions']);
-    expect(host.querySelector('[role=menu]')).toBeNull();
+    expect(document.body.querySelector('[role=menu]')).toBeNull();
   });
   it('does not restore a permission revoked while a different entry is being previewed', () => {
     prefs.setEntryExpanded('personabot:ada', 'computer', true);
@@ -226,7 +187,7 @@ describe('temporary sidebar settings preview', () => {
     hover('entry.memoryEvolution · memory.terminology');
     render('bea');
     expect(expanded()).toEqual([]);
-    expect(host.querySelector('[role=menu]')).toBeNull();
+    expect(document.body.querySelector('[role=menu]')).toBeNull();
     render();
     expect(expanded()).toEqual(['files', 'sessions']);
   });
@@ -244,7 +205,7 @@ describe('temporary sidebar settings preview', () => {
     hover('entry.memoryEvolution · memory.terminology');
     click('sidebar.order.edit');
     expect(expanded()).toEqual([]);
-    expect(host.querySelector('[role=menu]')).toBeNull();
+    expect(document.body.querySelector('[role=menu]')).toBeNull();
     click('sidebar.order.cancel');
     expect(expanded()).toEqual(['files', 'sessions']);
   });

@@ -24,7 +24,12 @@ function put(root: string, relativePath: string, name: string, extra = '', body 
 }
 
 function git(root: string, ...args: string[]): string {
-  return execFileSync('git', args, { cwd: root, encoding: 'utf8' }).trim();
+  return execFileSync('git', args, {
+    cwd: root,
+    encoding: 'utf8',
+    shell: false,
+    windowsHide: true,
+  }).trim();
 }
 
 function memory() {

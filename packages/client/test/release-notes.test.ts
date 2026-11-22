@@ -1,38 +1,16 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type ReleaseNote } from '../../core/src/release/notes.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: (props: { children?: ReactNode; disabled?: boolean; onClick?: () => void }) =>
-    createElement('button', { disabled: props.disabled, onClick: props.onClick }, props.children),
-  Tooltip: (props: { children?: ReactNode }) => props.children,
-  IconCloseOutlineRegular: () => null,
-  IconDownloadOutlineRegular: () => null,
-  Tag: (props: { tone?: string; children?: ReactNode }) =>
-    createElement('span', { 'data-tone': props.tone }, props.children),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   MarkdownText: (props: { text: string }) =>
     createElement('div', { 'data-markdown': '' }, props.text),
-  Modal: (props: {
-    open: boolean;
-    title: string;
-    description?: string;
-    children?: ReactNode;
-    footer?: ReactNode;
-  }) =>
-    props.open
-      ? createElement(
-          'section',
-          { role: 'dialog' },
-          createElement('h1', null, props.title),
-          createElement('p', null, props.description),
-          props.children,
-          props.footer,
-        )
-      : null,
 }));
 
-import type { ReleaseNote } from '../../core/src/release/notes.js';
 import type { BridgeCall } from '../src/client/bridge.js';
 import { zhTranslate, type BotHarnessTranslate } from '../src/client/locale.js';
 import {
@@ -143,7 +121,7 @@ describe('ReleaseNotesController', () => {
       createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
     );
     try {
-      const button = [...view.host.querySelectorAll('button')].find(
+      const button = [...document.body.querySelectorAll('button')].find(
         (element) => element.textContent === t('release.check'),
       )!;
       expect(button.disabled).toBe(false);
@@ -155,7 +133,7 @@ describe('ReleaseNotesController', () => {
         kind: 'release',
         version: '2.0.0',
       });
-      expect(view.host.textContent).toContain('2.0.0');
+      expect(document.body.textContent).toContain('2.0.0');
     } finally {
       view.unmount();
     }
@@ -180,8 +158,8 @@ describe('ReleaseNotesController', () => {
       createElement(ReleaseSettings, { releaseNotes: controller, t } as never),
     );
     try {
-      expect(view.host.textContent).toContain(expected);
-      expect(view.host.textContent).not.toContain('0.0.0');
+      expect(document.body.textContent).toContain(expected);
+      expect(document.body.textContent).not.toContain('0.0.0');
     } finally {
       view.unmount();
     }
@@ -406,8 +384,8 @@ describe('release notes views', () => {
     );
     const view = await render(createElement(ReleaseNotesAnnouncement, { controller, t }));
     try {
-      const dialog = view.host.querySelector('[role="dialog"]');
-      expect(dialog?.querySelector('h1')?.textContent).toBe('Tobs 1.0.1 更新内容');
+      const dialog = document.body.querySelector('[role="dialog"]');
+      expect(dialog?.querySelector('h2')?.textContent).toBe('Tobs 1.0.1 更新内容');
       expect(dialog?.textContent).toContain('摘要 1.0.1');
       expect(dialog?.querySelector('summary')?.textContent).toBe('v1.0.12026-10-06当前版本12 项');
       expect(dialog?.querySelector('p')?.textContent).toBe(
@@ -434,7 +412,7 @@ describe('release notes views', () => {
       await act(async () => {
         done?.click();
       });
-      expect(view.host.querySelector('[role="dialog"]')).toBeNull();
+      expect(document.body.querySelector('[role="dialog"]')).toBeNull();
       expect(storage.values.get(RELEASE_NOTES_SEEN_KEY)).toBe('1.0.1');
     } finally {
       view.unmount();
@@ -458,20 +436,20 @@ describe('release notes views', () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(view.host.textContent).toContain('当前版本 1.0.1，新版本 1.1.0 可用');
-      expect(view.host.querySelector('[data-release-command]')?.textContent).toBe(
+      expect(document.body.textContent).toContain('当前版本 1.0.1，新版本 1.1.0 可用');
+      expect(document.body.querySelector('[data-release-command]')?.textContent).toBe(
         releaseUpdateCommand('1.1.0'),
       );
       expect(releaseUpdateCommand('1.1.0')).toBe('dsh plugin --profile web add deepseekbot@1.1.0');
-      expect(view.host.querySelector('[role="dialog"]')).toBeNull();
-      const notes = [...view.host.querySelectorAll('button')].find(
+      expect(document.body.querySelector('[role="dialog"]')).toBeNull();
+      const notes = [...document.body.querySelectorAll('button')].find(
         (button) => button.textContent === '查看新版本内容',
       );
       await act(async () => {
         notes?.click();
       });
-      const dialog = view.host.querySelector('[role="dialog"]');
-      expect(dialog?.querySelector('h1')?.textContent).toBe('Tobs 1.1.0 更新内容');
+      const dialog = document.body.querySelector('[role="dialog"]');
+      expect(dialog?.querySelector('h2')?.textContent).toBe('Tobs 1.1.0 更新内容');
       expect(dialog?.textContent).toContain('新增 1.1.0 #0');
       expect(dialog?.querySelector('summary')?.textContent).toContain('最新');
       const versions = dialog?.querySelectorAll('details');
@@ -482,7 +460,9 @@ describe('release notes views', () => {
     }
   });
   function buttonNamed(host: HTMLElement, name: string): HTMLButtonElement | undefined {
-    return [...host.querySelectorAll('button')].find((button) => button.textContent === name);
+    return [...document.body.querySelectorAll('button')].find(
+      (button) => button.textContent === name,
+    );
   }
 
   it('updates from Settings in one click and then asks for a DSH restart', async () => {
@@ -503,8 +483,8 @@ describe('release notes views', () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(view.host.querySelector('[data-release-command]')).toBeNull();
-      expect(view.host.textContent).toContain('直接在这里安装新版本');
+      expect(document.body.querySelector('[data-release-command]')).toBeNull();
+      expect(document.body.textContent).toContain('直接在这里安装新版本');
       await act(async () => {
         buttonNamed(view.host, '立即更新')?.click();
       });
@@ -512,20 +492,20 @@ describe('release notes views', () => {
         await Promise.resolve();
       });
       expect(buttonNamed(view.host, '立即更新')).toBeUndefined();
-      expect(view.host.textContent).toContain('已更新到 1.1.0，重启 DSH 后生效');
-      expect(view.host.textContent).toContain('当前运行 1.0.1，已安装 1.1.0，重启 DSH 后生效');
+      expect(document.body.textContent).toContain('已更新到 1.1.0，重启 DSH 后生效');
+      expect(document.body.textContent).toContain('当前运行 1.0.1，已安装 1.1.0，重启 DSH 后生效');
       expect(buttonNamed(view.host, '检查更新')?.disabled).toBe(true);
-      expect(view.host.textContent).toContain('重启会中断正在运行的任务');
+      expect(document.body.textContent).toContain('重启会中断正在运行的任务');
       await act(async () => {
         buttonNamed(view.host, '立即重启')?.click();
       });
       await act(async () => {
         await Promise.resolve();
       });
-      expect(view.host.querySelector('[data-release-restart-error]')?.textContent).toBe(
+      expect(document.body.querySelector('[data-release-restart-error]')?.textContent).toBe(
         '没能自动重启，请按下面的方式手动重启。',
       );
-      expect(view.host.textContent).toContain('在运行 dsh web 的终端按 Ctrl+C');
+      expect(document.body.textContent).toContain('在运行 dsh web 的终端按 Ctrl+C');
     } finally {
       view.unmount();
     }
@@ -549,9 +529,9 @@ describe('release notes views', () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(view.host.textContent).toContain('桌面版：完全退出 DSH 后重新打开。');
+      expect(document.body.textContent).toContain('桌面版：完全退出 DSH 后重新打开。');
       expect(buttonNamed(view.host, '立即重启')).toBeUndefined();
-      expect(view.host.textContent).not.toContain('dsh web');
+      expect(document.body.textContent).not.toContain('dsh web');
     } finally {
       view.unmount();
       delete (globalThis as { dshDesktop?: unknown }).dshDesktop;
@@ -581,10 +561,10 @@ describe('release notes views', () => {
       await act(async () => {
         await Promise.resolve();
       });
-      expect(view.host.querySelector('[role="alert"]')?.textContent).toBe(
+      expect(document.body.querySelector('[role="alert"]')?.textContent).toBe(
         '更新失败：新版本与当前 DSH 不兼容，请先升级 DSH',
       );
-      expect(view.host.querySelector('[data-release-command]')?.textContent).toBe(
+      expect(document.body.querySelector('[data-release-command]')?.textContent).toBe(
         releaseUpdateCommand('1.1.0'),
       );
       expect(buttonNamed(view.host, '立即更新')?.disabled).toBe(false);
@@ -667,11 +647,11 @@ it('serializes installed notes before the pending restart modal', async () => {
   await controller.enter();
   const view = await render(createElement(ReleaseNotesAnnouncement, { controller, t }));
   try {
-    expect(view.host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
-    expect(view.host.textContent).toContain('1.3.1');
+    expect(document.body.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+    expect(document.body.textContent).toContain('1.3.1');
     await act(async () => controller.dismiss());
-    expect(view.host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
-    expect(view.host.textContent).toContain('1.4.0');
+    expect(document.body.querySelectorAll('[role="dialog"]')).toHaveLength(1);
+    expect(document.body.textContent).toContain('1.4.0');
   } finally {
     view.unmount();
   }

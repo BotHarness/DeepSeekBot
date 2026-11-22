@@ -1,7 +1,7 @@
+import { Checkbox } from './ds/checkbox.js';
 import { Button } from './ds/button.js';
 import { useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { Checkbox } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { BridgeCall } from './bridge.js';
 import { FieldStack, TextField } from './ds/field.js';
@@ -274,7 +274,7 @@ function RoleDialog({
                 roleId: role.roleId,
                 ...(builtin === null ? { name: name.trim() } : {}),
                 permissions: [...chosen],
-                ...(builtin === 'admin' ? {} : { models }),
+                models,
                 policy: trimmedPolicy(policy),
               }),
         )
@@ -301,7 +301,8 @@ function RoleDialog({
               <div {...stylex.props(styles.checks)}>
                 {entries.map((entry) => {
                   const locked =
-                    (builtin === 'admin' && entry.id === 'privateContent.view') ||
+                    (builtin === 'admin' &&
+                      (entry.id === 'privateContent.view' || entry.id === 'modelSources.manage')) ||
                     !canGrant(viewer, entry.id);
                   const hint = permissionHint(t, entry.id);
                   return (
@@ -320,9 +321,15 @@ function RoleDialog({
             </fieldset>
           );
         })}
-        {builtin === 'admin' ? null : (
-          <RoleModelsField call={call} t={t} value={models} disabled={busy} onChange={setModels} />
-        )}
+        <RoleModelsField
+          call={call}
+          t={t}
+          viewer={viewer}
+          value={models}
+          disabled={busy}
+          apiLocked={builtin === 'admin'}
+          onChange={setModels}
+        />
         <RolePolicyField t={t} value={policy} disabled={busy} onChange={setPolicy} />
       </FieldStack>
     </FormDialog>

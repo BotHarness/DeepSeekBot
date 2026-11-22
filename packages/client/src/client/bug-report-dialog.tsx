@@ -1,17 +1,8 @@
+import { Icon } from './ds/icon.js';
+import { Checkbox } from './ds/checkbox.js';
 import { Button } from './ds/button.js';
 import { useId, useRef, useState, type DragEvent, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import {
-  Checkbox,
-  IconCheckCircleOutlineRegular,
-  IconCloseOutlineRegular,
-  IconDownloadOutlineRegular,
-  IconEditOutlineRegular,
-  IconFullscreenOutlineRegular,
-  IconLinkOutlineRegular,
-  IconPaperclipOutlineRegular,
-  IconShieldOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
 
 import {
   BUG_REPORT_HOURS,
@@ -578,7 +569,7 @@ export function BugReportDialog({
       >
         <div {...stylex.props(styles.done)}>
           <span {...stylex.props(styles.doneIcon)}>
-            <IconCheckCircleOutlineRegular size={20} />
+            <Icon name="circle-check" size={20} />
           </span>
           <span>
             <span {...stylex.props(styles.label)}>{t('bugReport.saved')}</span>
@@ -601,7 +592,7 @@ export function BugReportDialog({
             data-bug-report-issue=""
             {...stylex.props(styles.link)}
           >
-            <IconLinkOutlineRegular size={16} />
+            <Icon name="link" size={16} />
             {t('bugReport.openIssue')}
           </a>
         )}
@@ -676,7 +667,7 @@ export function BugReportDialog({
           onDrop={onDrop}
           {...stylex.props(styles.drop, over && styles.dropOver)}
         >
-          <IconPaperclipOutlineRegular size={20} />
+          <Icon name="paperclip" size={20} />
           <span {...stylex.props(styles.dropTitle)}>{t('bugReport.drop')}</span>
           <span id={`${id}-files-hint`} {...stylex.props(styles.meta)}>
             {t('bugReport.dropHint')}
@@ -697,7 +688,7 @@ export function BugReportDialog({
         />
         <div {...stylex.props(styles.captureRow)}>
           <ChipButton
-            icon={<IconFullscreenOutlineRegular size={14} />}
+            icon={<Icon name="maximize" size={14} />}
             label={t('bugReport.screenshot')}
             disabled={opening}
             data-bug-report-screenshot=""
@@ -751,7 +742,7 @@ export function BugReportDialog({
                     onClick={() => editEntry(entry)}
                     {...stylex.props(styles.remove)}
                   >
-                    <IconEditOutlineRegular size={14} />
+                    <Icon name="pencil" size={14} />
                   </button>
                 )}
                 <button
@@ -760,7 +751,7 @@ export function BugReportDialog({
                   onClick={() => remove(entry)}
                   {...stylex.props(styles.remove)}
                 >
-                  <IconCloseOutlineRegular size={14} />
+                  <Icon name="x" size={14} />
                 </button>
               </li>
             ))}
@@ -784,7 +775,7 @@ export function BugReportDialog({
                 onClick={downloadImages}
                 {...stylex.props(styles.inlineAction)}
               >
-                <IconDownloadOutlineRegular size={14} />
+                <Icon name="download" size={14} />
                 {t('bugReport.downloadShots', { count: String(images.length) })}
               </button>
             )}
@@ -830,7 +821,7 @@ export function BugReportDialog({
         <span {...stylex.props(styles.meta)}>{t('bugReport.environment')}</span>
         <span {...stylex.props(styles.privacy)}>
           <span {...stylex.props(styles.privacyIcon)}>
-            <IconShieldOutlineRegular size={14} />
+            <Icon name="shield" size={14} />
           </span>
           {t('bugReport.privacy')}
         </span>

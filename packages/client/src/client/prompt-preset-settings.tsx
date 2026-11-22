@@ -1,10 +1,8 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
-import { useState, type ReactElement } from 'react';
-import {
-  IconCheckOutlineRegular,
-  IconInfoOutlineRegular,
-  Tag,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { useRef, useState, type ReactElement } from 'react';
+
 import * as stylex from '@stylexjs/stylex';
 
 import type { BridgeActions } from './actions.js';
@@ -13,11 +11,12 @@ import type { ChannelSidebarEntryProps } from './channel-sidebar.js';
 import { Callout } from './ds/callout.js';
 import { FieldStack, TextAreaField, TextField } from './ds/field.js';
 import { ConfirmDialog, DangerTextButton, FormDialog } from './ds/form-dialog.js';
+import { IconButton } from './ds/icon-button.js';
 import { GroupHeading } from './ds/group-heading.js';
 import { Note } from './ds/note.js';
 import { Select } from './ds/select.js';
 import { SettingsRow, SettingsSection } from './ds/settings-row.js';
-import { border, color, radius, space, text } from './ds/tokens.stylex.js';
+import { ink, layer, space, style, type as text } from './ds/tobs.stylex.js';
 import { Tooltip } from './ds/tooltip.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { LoadingSkeleton } from './loading-skeleton.js';
@@ -57,7 +56,7 @@ const styles = stylex.create({
     gap: space.x4,
     minWidth: 0,
   },
-  check: { display: 'inline-flex', color: color.fg },
+  check: { display: 'inline-flex', color: ink.primary },
   meta: {
     display: 'flex',
     flexWrap: 'wrap',
@@ -70,31 +69,20 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: space.x2,
   },
-  info: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    padding: 0,
-    border: 'none',
-    background: 'none',
-    color: color.muted,
-    cursor: 'pointer',
-  },
   explain: {
     flexBasis: '100%',
     margin: 0,
     padding: space.x3,
-    borderRadius: radius.sm,
-    backgroundColor: color.surface,
-    color: color.muted,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
+    borderRadius: style.radiusContainer,
+    backgroundColor: layer.raised,
+    color: ink.secondary,
+    fontSize: text.captionSize,
+    lineHeight: text.captionLine,
     whiteSpace: 'pre-wrap',
   },
   part: {
-    borderWidth: border.hairline,
-    borderStyle: 'solid',
-    borderColor: color.divider,
-    borderRadius: radius.sm,
+    backgroundColor: layer.well,
+    borderRadius: style.radiusContainer,
     padding: space.x3,
   },
   summary: {
@@ -103,8 +91,8 @@ const styles = stylex.create({
     alignItems: 'center',
     gap: space.x2,
     cursor: 'pointer',
-    fontSize: text.bodySize,
-    lineHeight: text.bodyLine,
+    fontSize: style.textUiSize,
+    lineHeight: style.textUiLine,
   },
   body: {
     display: 'flex',
@@ -116,10 +104,10 @@ const styles = stylex.create({
   block: {
     margin: 0,
     padding: space.x3,
-    borderRadius: radius.sm,
-    backgroundColor: color.surface,
-    fontSize: text.metaSize,
-    lineHeight: text.metaLine,
+    borderRadius: style.radiusContainer,
+    backgroundColor: layer.raised,
+    fontSize: text.captionSize,
+    lineHeight: text.captionLine,
     whiteSpace: 'pre-wrap',
     overflowWrap: 'anywhere',
   },
@@ -130,15 +118,14 @@ export function PromptInfo({ info, t }: { info: string; t: BotHarnessTranslate }
   return (
     <>
       <Tooltip label={info} side="bottom">
-        <button
-          type="button"
-          {...stylex.props(styles.info)}
+        <IconButton
+          size="inline"
           aria-label={t('promptInspect.howItWorks')}
           aria-expanded={open}
           onClick={() => setOpen((value) => !value)}
         >
-          <IconInfoOutlineRegular size={14} />
-        </button>
+          <Icon name="info" />
+        </IconButton>
       </Tooltip>
       {open ? <p {...stylex.props(styles.explain)}>{info}</p> : null}
     </>
@@ -407,13 +394,14 @@ async function loadLibrary(actions: PromptActions): Promise<Library> {
 }
 
 type Editor =
-  | { mode: 'create'; name: string; draft: Draft; limits: LimitDraft }
+  | { mode: 'create'; name: string; draft: Draft; limits: LimitDraft; base: Library }
   | {
       mode: 'edit';
       preset: PresetView;
       name: string;
       draft: Draft;
       limits: LimitDraft;
+      base: Library;
     };
 
 export function PromptPresetSettings({
@@ -429,26 +417,32 @@ export function PromptPresetSettings({
   const [deleting, setDeleting] = useState<PresetView>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const reads = useRef({ latest: 0, live: false });
+  const read = (): Promise<void> => {
+    const seq = ++reads.current.latest;
+    const current = () => reads.current.live && seq === reads.current.latest;
+    return loadLibrary(actions).then(
+      (next) => {
+        if (!current()) return;
+        setLibrary(next);
+        setLoadError(undefined);
+      },
+      (cause: unknown) => {
+        if (current()) setLoadError(errorMessage(cause));
+      },
+    );
+  };
   const mount = useMountedResource<HTMLElement>(() => {
-    let live = true;
     if (actions.promptParts === undefined) return undefined;
+    reads.current.live = true;
     const refresh = (): void => {
-      if (document.visibilityState !== 'visible') return;
-      loadLibrary(actions)
-        .then((next) => {
-          if (!live) return;
-          setLibrary(next);
-          setLoadError(undefined);
-        })
-        .catch((cause: unknown) => {
-          if (live) setLoadError(errorMessage(cause));
-        });
+      if (document.visibilityState === 'visible') void read();
     };
     refresh();
     document.addEventListener('visibilitychange', refresh);
     window.addEventListener('focus', refresh);
     return () => {
-      live = false;
+      reads.current.live = false;
       document.removeEventListener('visibilitychange', refresh);
       window.removeEventListener('focus', refresh);
     };
@@ -467,18 +461,19 @@ export function PromptPresetSettings({
     void operation()
       .then(async () => {
         if (!keepOpen) close();
-        setLibrary(await loadLibrary(actions));
+        await read();
       })
       .catch((cause: unknown) => setError(errorMessage(cause)))
       .finally(() => setBusy(false));
   };
   const labels = { close: t('common.close'), cancel: t('common.cancel') };
+  const catalog = editor?.base ?? library;
   const builtInLimit = (id: string) => ({
-    value: library?.limits.find((limit) => limit.id === id)?.defaultValue ?? 0,
+    value: catalog?.limits.find((limit) => limit.id === id)?.defaultValue ?? 0,
     source: 'built-in' as Source,
   });
   const builtIn = (id: string) => ({
-    text: library?.parts.find((part) => part.id === id)?.defaultText ?? '',
+    text: catalog?.parts.find((part) => part.id === id)?.defaultText ?? '',
     source: 'built-in' as Source,
   });
 
@@ -503,7 +498,7 @@ export function PromptPresetSettings({
     const changes = edits(layer, editor.draft, (id) => builtIn(id).text);
     const limitLayer: LimitLayer = editor.mode === 'edit' ? editor.preset.limits : {};
     const limitChanges = limitEdits(
-      library.limits,
+      editor.base.limits,
       limitLayer,
       editor.limits,
       (id) => builtInLimit(id).value,
@@ -568,7 +563,7 @@ export function PromptPresetSettings({
           />
           <Note>{t('prompts.editorHint')}</Note>
           <PartsEditor
-            parts={library.parts}
+            parts={editor.base.parts}
             layer={layer}
             draft={editor.draft}
             inherited={builtIn}
@@ -576,7 +571,7 @@ export function PromptPresetSettings({
             t={t}
           />
           <LimitsEditor
-            catalog={library.limits}
+            catalog={editor.base.limits}
             layer={limitLayer}
             draft={editor.limits}
             inherited={builtInLimit}
@@ -646,6 +641,7 @@ export function PromptPresetSettings({
                       name: '',
                       draft: {},
                       limits: {},
+                      base: library,
                     });
                   }}
                 >
@@ -689,6 +685,7 @@ export function PromptPresetSettings({
                           name: preset.name,
                           draft: {},
                           limits: {},
+                          base: library,
                         });
                       }}
                     >
@@ -700,6 +697,19 @@ export function PromptPresetSettings({
             })}
             {error === undefined || editor !== undefined || deleting !== undefined ? null : (
               <Note tone="danger">{error}</Note>
+            )}
+            {loadError === undefined ? null : (
+              <SettingsRow
+                title={
+                  <Note tone="danger">{t('prompts.refreshFailed', { error: loadError })}</Note>
+                }
+                data={{ 'data-prompt-refresh-error': '' }}
+                control={
+                  <Button variant="outline" size="sm" onClick={() => void read()}>
+                    {t('prompts.retry')}
+                  </Button>
+                }
+              />
             )}
           </>
         )}
@@ -875,7 +885,7 @@ export function BotPromptSettingsEntry({
                 trailing={
                   active ? (
                     <span {...stylex.props(styles.check)}>
-                      <IconCheckOutlineRegular size={16} />
+                      <Icon name="check" size={16} />
                     </span>
                   ) : undefined
                 }

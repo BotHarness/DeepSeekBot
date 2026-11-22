@@ -1,42 +1,15 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
 import { act, createElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
-  const { comboboxPrimitives, dialogPrimitives } = await import('./primitive-mocks.js');
-  const { createElement: element } = await import('react');
-  const icon = () => null;
+  const { dialogPrimitives } = await import('./primitive-mocks.js');
+
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    MenuSurface: comboboxPrimitives().MenuSurface,
-    IconCheckOutlineRegular: icon,
-    IconCopyOutlineRegular: icon,
-    IconDownloadOutlineRegular: icon,
-    SegmentedControl: ({ label }: { label: string }) =>
-      element('span', { 'data-segmented': label }),
-    Checkbox: ({
-      checked,
-      onChange,
-      label,
-    }: {
-      checked: boolean;
-      onChange(next: boolean): void;
-      label: string;
-    }) =>
-      element(
-        'label',
-        null,
-        element('input', { type: 'checkbox', checked, onChange: () => onChange(!checked) }),
-        label,
-      ),
-    IconCheckCircleOutlineRegular: icon,
-    IconCloseOutlineRegular: icon,
-    IconEditOutlineRegular: icon,
-    IconFullscreenOutlineRegular: icon,
-    IconLinkOutlineRegular: icon,
-    IconPaperclipOutlineRegular: icon,
-    IconShieldOutlineRegular: icon,
   };
 });
 vi.mock('../src/client/ds/select.js', async () => {

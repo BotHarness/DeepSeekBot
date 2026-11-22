@@ -97,6 +97,10 @@ export const GENUI_OPTIONS = {
 } as const;
 
 export const HOST_ADMIN_OPTIONS = {
+  bot: { type: 'string' },
+  'avatar-tag': { type: 'string', multiple: true },
+  'from-bot': { type: 'string' },
+  tag: { type: 'string' },
   force: { type: 'boolean' },
   action: { type: 'string' },
   query: { type: 'string' },
@@ -162,6 +166,20 @@ export const MESSAGING_OPTIONS = {
 } as const;
 
 export const MODELS_USAGE_OPTIONS = {
+  'include-usage': { type: 'boolean' },
+  template: { type: 'string' },
+  endpoint: { type: 'string' },
+  'key-stdin': { type: 'boolean' },
+  'key-file': { type: 'string' },
+  confirm: { type: 'boolean' },
+  'orchestrator-engine': { type: 'string' },
+  'orchestrator-engine-account': { type: 'string' },
+  'orchestrator-engine-model': { type: 'string' },
+  'orchestrator-engine-effort': { type: 'string' },
+  'assignment-engine': { type: 'string' },
+  'assignment-engine-account': { type: 'string' },
+  'assignment-engine-model': { type: 'string' },
+  'assignment-engine-effort': { type: 'string' },
   'expected-revision': { type: 'string' },
   'plan-stdin': { type: 'boolean' },
   'assignment-models': { type: 'string' },
@@ -253,6 +271,8 @@ export const TEAM_OPTIONS = {
   reason: { type: 'string' },
   audience: { type: 'string' },
   models: { type: 'string' },
+  'model-providers': { type: 'string' },
+  'engine-accounts': { type: 'string' },
   'human-id': { type: 'string' },
   post: { type: 'string' },
   'add-members': { type: 'string' },
@@ -361,6 +381,7 @@ export const LIVE_OPTIONS = {
   quote: { type: 'string', multiple: true },
   'quote-note': { type: 'string', multiple: true },
   'failure-message-id': { type: 'string' },
+  fallback: { type: 'string' },
   'auto-continue-for': { type: 'string' },
   recovery: { type: 'string' },
   outcome: { type: 'string' },
@@ -384,6 +405,8 @@ export const LIVE_OPTIONS = {
   out: { type: 'string' },
   'route-id': { type: 'string' },
   'args-stdin': { type: 'boolean' },
+  'code-stdin': { type: 'boolean' },
+  grantable: { type: 'boolean' },
   'cause-event': { type: 'string' },
   session: { type: 'string' },
   turns: { type: 'string' },
@@ -400,7 +423,9 @@ export const LIVE_OPTIONS = {
 
 export const BOT_CLI_OPTIONS = {
   administration: { type: 'boolean' },
+  id: { type: 'string' },
   name: { type: 'string' },
+  account: { type: 'string' },
   persona: { type: 'string' },
   'persona-stdin': { type: 'boolean' },
   'core-memory-stdin': { type: 'boolean' },
@@ -456,5 +481,6 @@ export const BOT_CLI_OPTIONS = {
   ...LIVE_OPTIONS,
   ...SSH_OPTIONS,
   compact: { type: 'boolean' },
+  json: { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
 } as const;

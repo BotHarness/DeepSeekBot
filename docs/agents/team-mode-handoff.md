@@ -1,6 +1,6 @@
 # Team mode implementation handoff
 
-The Human approved implementing [spec #4137](https://github.com/BotHarness/DeepSeekBot/issues/4137) through [hub #4138](https://github.com/BotHarness/DeepSeekBot/issues/4138), slices M0–M11 (#4139–#4150). Design: [ADR-0336](../adr/0336-hosts-have-members.md), [Team mode design](../architecture/team-mode.md), and the bilingual glossary. This handoff is a starting point. Before relying on any dependency, read the latest issues, claims, PRs, repository guidance and source; do not assume a dependency has merged.
+The Human approved implementing [spec #4137](https://github.com/BotHarness/DeepSeekBot/issues/4137) through [hub #4138](https://github.com/BotHarness/DeepSeekBot/issues/4138), slices M0–M11 (#4139–#4150). Design: [Team mode decisions](../decisions/team-mode.md#adr-0336), [Team mode design](../architecture/team-mode.md), and the bilingual glossary. This handoff is a starting point. Before relying on any dependency, read the latest issues, claims, PRs, repository guidance and source; do not assume a dependency has merged.
 
 ## Goal
 
@@ -86,8 +86,8 @@ M0 #4139 ─► M1 #4140 ─► [feedback gate] ─┬─► M2 #4141 ───�
 
 ## Facts gathered while designing
 
-- Today the only Human ID is `LOCAL_HUMAN_ID = 'local-human'` (`packages/core/src/channels/channel.ts`).
+- Today the only Human ID is `LOCAL_HUMAN_ID = 'local-human'` (`packages/core/src/channels/channel-record.ts`).
 - These tables are already keyed by `human_id`: `channel_human_members`, read receipts, `human_inbox_snoozes`, `human_inbox_dismissals` (`database/schema-plan.ts`, `LOCAL_HUMAN_RECEIPTS_MIGRATION`).
-- These files interpolate the literal into SQL: `runtime/human-attention.ts` (24 uses) and `channels/sqlite-store.ts` (25 uses). Smaller users: `mark-all-read.ts`, `management.ts`, `activity-today.ts`, `memory/accepted.ts`, `memory/recovery.ts`.
+- These files interpolate the literal into SQL: `features/activity/human-attention-{query,sql}.ts` (6 uses across both files) and `channels/sqlite-store.ts` (25 uses). Smaller users: `mark-all-read.ts`, `management.ts`, `activity-today.ts`, `memory/accepted.ts`, `memory/recovery.ts`.
 - External IM people already have Roles, Authorization Groups and Behavior permission items. Role Policy (M7) reuses that evaluator; it does not build a new one.
 - ADR-0067's guard is a capability boundary, not a sandbox. ADR-0205 says Shell follows the DSH mode and its asks. M5 and M6 depend on both.

@@ -1453,6 +1453,24 @@ const MODEL_PRESET_STORAGE_MIGRATION: SchemaMigration = {
   },
 };
 
+const ASSIGNMENT_AGENT_PRESET_MIGRATION: SchemaMigration = {
+  id: 'assignment-agent-preset',
+  module: 'assignments',
+  description: 'Snapshot the DSH mode an Orchestrator chose for a new Assignment Session',
+  migrate(database) {
+    database.exec(`ALTER TABLE assignments ADD COLUMN agent_preset TEXT;`);
+  },
+};
+
+const SESSION_AGENT_PRESET_MIGRATION: SchemaMigration = {
+  id: 'session-agent-preset',
+  module: 'session-ownership',
+  description: 'Record the DSH mode each owned root Session was composed from',
+  migrate(database) {
+    database.exec(`ALTER TABLE session_ownership ADD COLUMN agent_preset TEXT;`);
+  },
+};
+
 const ROUTING_GROUP_STORAGE_MIGRATION: SchemaMigration = {
   id: 'routing-group-storage',
   module: 'routing-groups',
@@ -1474,6 +1492,32 @@ const ROUTING_GROUP_DEFAULT_MIGRATION: SchemaMigration = {
         singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
         group_id TEXT,
         revision INTEGER NOT NULL CHECK (revision >= 0)
+      );
+    `);
+  },
+};
+
+const ROUTING_GROUP_DEFAULT_EFFORT_MIGRATION: SchemaMigration = {
+  id: 'routing-group-default-effort',
+  module: 'routing-groups',
+  description: 'Keep the reasoning effort chosen with the Profile default Routing Group',
+  migrate(database) {
+    database.exec('ALTER TABLE routing_group_default ADD COLUMN effort TEXT');
+  },
+};
+
+const GROUP_FALLBACK_OVERRIDES_MIGRATION: SchemaMigration = {
+  id: 'group-fallback-overrides',
+  module: 'routing-groups',
+  description: 'Keep the Routing Group member an Orchestrator Session fell back to across restarts',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE group_fallback_overrides (
+        session_id TEXT PRIMARY KEY,
+        bot_slug TEXT NOT NULL,
+        group_id TEXT NOT NULL,
+        route_json TEXT NOT NULL CHECK (json_valid(route_json)),
+        updated_at TEXT NOT NULL
       );
     `);
   },
@@ -3945,6 +3989,92 @@ const HUMAN_PROFILE_SETUP_MIGRATION: SchemaMigration = {
   },
 };
 
+const ASSIGNMENT_MODEL_EFFORT_MIGRATION: SchemaMigration = {
+  id: 'assignment-model-effort',
+  module: 'assignments',
+  description: 'Remember the reasoning effort chosen for an Assignment Routing Group',
+  migrate(database) {
+    database.exec('ALTER TABLE assignments ADD COLUMN model_effort TEXT');
+  },
+};
+
+const MODELS_CONFIGURE_PERMISSION_MIGRATION: SchemaMigration = {
+  id: 'models-configure-permission',
+  module: 'team',
+  description: 'Grant shared model configuration to the built-in Admin with its default grants',
+  migrate(database) {
+    const previousAdmin = [
+      'members.manage',
+      'roles.manage',
+      'team.settings',
+      'channels.create',
+      'channels.manageAll',
+      'dm.humans',
+      'bots.createPrivate',
+      'bots.createPublic',
+      'bots.manageAll',
+      'models.use',
+      'im.bind',
+      'workspaces.manageShared',
+      'approvals.opaqueTools',
+      'usage.view',
+      'audit.view',
+    ];
+    database
+      .prepare(`UPDATE host_roles SET permissions_json = json_insert(permissions_json, '$[#]', ?)
+      WHERE builtin = 'admin' AND json_array_length(permissions_json) = ?
+      AND NOT EXISTS (
+        SELECT value FROM json_each(?) EXCEPT SELECT value FROM json_each(permissions_json)
+      )`)
+      .run('models.configure', previousAdmin.length, JSON.stringify(previousAdmin));
+  },
+};
+
+const ROLE_MODEL_PROVIDERS_MIGRATION: SchemaMigration = {
+  id: 'role-model-providers',
+  module: 'team',
+  description: 'Add an empty provider allowlist to existing restricted Host Roles',
+  migrate(database) {
+    database.exec(`
+      UPDATE host_roles
+      SET models_json = json_set(models_json, '$.providers', json('[]'))
+      WHERE json_extract(models_json, '$.kind') = 'only'
+        AND json_type(models_json, '$.providers') IS NULL
+    `);
+  },
+};
+
+const SESSION_TURN_TARGET_MIGRATION: SchemaMigration = {
+  id: 'session-turn-targets',
+  module: 'bot-runtime',
+  description: 'Record executed model and engine segments by Session turn',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE session_turn_targets (
+        session_id TEXT NOT NULL REFERENCES session_ownership(session_id) ON DELETE CASCADE,
+        turn INTEGER NOT NULL,
+        step INTEGER NOT NULL,
+        request_id TEXT NOT NULL,
+        target_json TEXT NOT NULL CHECK (json_valid(target_json)),
+        PRIMARY KEY (session_id, turn, step)
+      ) WITHOUT ROWID;
+    `);
+  },
+};
+
+const ROLE_ENGINE_ACCOUNTS_MIGRATION: SchemaMigration = {
+  id: 'role-engine-accounts',
+  module: 'team',
+  description: 'Start existing Host Roles with no subscription account grants',
+  migrate(database) {
+    database.exec(`
+      UPDATE host_roles
+      SET models_json = json_set(models_json, '$.engineAccounts', json('[]'))
+      WHERE json_type(models_json, '$.engineAccounts') IS NULL
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -4113,4 +4243,13 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   HUMAN_PROFILE_SETUP_MIGRATION,
   HUMAN_MODEL_FAVORITES_MIGRATION,
   ROUTING_GROUP_DEFAULT_MIGRATION,
+  GROUP_FALLBACK_OVERRIDES_MIGRATION,
+  ASSIGNMENT_AGENT_PRESET_MIGRATION,
+  SESSION_AGENT_PRESET_MIGRATION,
+  ROUTING_GROUP_DEFAULT_EFFORT_MIGRATION,
+  ASSIGNMENT_MODEL_EFFORT_MIGRATION,
+  MODELS_CONFIGURE_PERMISSION_MIGRATION,
+  ROLE_MODEL_PROVIDERS_MIGRATION,
+  SESSION_TURN_TARGET_MIGRATION,
+  ROLE_ENGINE_ACCOUNTS_MIGRATION,
 ]);

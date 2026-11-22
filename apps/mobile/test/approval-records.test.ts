@@ -106,7 +106,14 @@ describe('approval history and always-allow rules on the phone', () => {
           input: '{"command":"pnpm test"}',
           autoApprovedCount: 3,
         },
-        { ...base, id: 'old', kind: 'tool', toolName: 'bash', input: '', revokedAt: 'x' },
+        {
+          ...base,
+          id: 'old',
+          kind: 'tool',
+          toolName: 'bash',
+          input: '',
+          revokedAt: '2026-10-26T00:00:00.000Z',
+        },
         {
           ...base,
           id: 'legacy',
@@ -118,7 +125,15 @@ describe('approval history and always-allow rules on the phone', () => {
       ],
     }));
     fake.methods.set('toolApprovalRuleRevoke', (args) => ({
-      rule: { ...base, id: args['id'], revokedAt: '2026-10-27T00:00:00.000Z' },
+      rule: {
+        ...base,
+        id: args['id'],
+        kind: 'exact',
+        toolName: 'bash',
+        input: '{"command":"pnpm test"}',
+        autoApprovedCount: 3,
+        revokedAt: '2026-10-27T00:00:00.000Z',
+      },
     }));
     const host = client(fake);
     const rules = await loadApprovalRules(host, slug);

@@ -40,7 +40,7 @@ function fakeDistribution(): { bytes: Buffer; sha256: string } {
   );
   chmodSync(join(dist, 'bin', 'git'), 0o755);
   const archive = join(root, ASSET);
-  execFileSync('tar', ['-czf', archive, '-C', dist, '.']);
+  execFileSync('tar', ['-czf', archive, '-C', dist, '.'], { shell: false, windowsHide: true });
   const bytes = readFileSync(archive);
   return { bytes, sha256: createHash('sha256').update(bytes).digest('hex') };
 }
@@ -53,7 +53,13 @@ function probeWith(env: NodeJS.ProcessEnv): () => GitAvailability {
       exists: existsSync,
       realpath: realpathSync,
       run: (command, args) =>
-        execFileSync(command, [...args], { env, encoding: 'utf8', stdio: 'pipe' }),
+        execFileSync(command, [...args], {
+          env,
+          encoding: 'utf8',
+          stdio: 'pipe',
+          shell: false,
+          windowsHide: true,
+        }),
     });
 }
 
@@ -142,7 +148,12 @@ describe.skipIf(process.platform === 'win32')('Managed Git install', () => {
     const bin = join(managedGitRoot(dshHome), MANAGED_GIT_RELEASE, 'shim');
     expect(env['PATH']?.split(delimiter)[0]).toBe(bin);
     expect(readdirSync(managedGitRoot(dshHome))).toEqual([MANAGED_GIT_RELEASE]);
-    const { stderr } = spawnSync('git', ['status'], { env, encoding: 'utf8' });
+    const { stderr } = spawnSync('git', ['status'], {
+      env,
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    });
     expect(stderr).toContain(join(managedGitRoot(dshHome), MANAGED_GIT_RELEASE, 'dist', 'libexec'));
     expect(logs).toEqual(
       expect.arrayContaining([
@@ -194,7 +205,13 @@ describe.skipIf(process.platform === 'win32')('Managed Git install', () => {
         init?.signal?.addEventListener('abort', () => aborted.push(url));
         if (url.startsWith('https://mirror.test/')) {
           return new Promise<Response>((_resolve, reject) =>
-            init?.signal?.addEventListener('abort', () => reject(init.signal?.reason)),
+            init?.signal?.addEventListener('abort', () =>
+              reject(
+                init.signal?.reason instanceof Error
+                  ? init.signal.reason
+                  : new Error('aborted', { cause: init.signal?.reason }),
+              ),
+            ),
           );
         }
         return new Response(new Uint8Array(dist.bytes));

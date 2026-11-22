@@ -1,52 +1,30 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type ChannelMessage } from '../src/client/store.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
-  const Tag = ({ children }: PropsWithChildren) => createElement('span', null, children);
+
   return {
-    IconCodeOutlineRegular: () => null,
-    IconBranchOutlineRegular: () => null,
-    Button: stub,
-    IconAgentPresetOutlineRegular: stub,
-    IconCheckOutlineRegular: stub,
-    IconChevronDownOutlineRegular: stub,
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
     IconCloseFill14: stub,
-    IconCopyOutlineRegular: stub,
-    IconCloseOutlineRegular: stub,
-    IconEllipsisOutlineRegular: stub,
-    IconFolderCloseRegular: stub,
-    IconFolderOpenRegular: stub,
-    IconFolderOpenOutlineRegular: stub,
-    IconNewChatOutlineRegular: stub,
-    IconPanelLeftOutlineRegular: stub,
-    IconPaperclipOutlineRegular: stub,
-    IconPlusOutlineRegular: stub,
-    IconRefreshOutlineRegular: stub,
-    IconSearchOutlineRegular: stub,
-    IconSendOutlineRegular: stub,
-    IconPinFillRegular: stub,
-    IconPinOutlineRegular: stub,
-    IconTrashOutlineRegular: stub,
+
     FileTypeIcon: stub,
     ImageLightbox: stub,
-    Input: stub,
-    Menu: stub,
-    MenuItemButton: stub,
+
     MarkdownText: stub,
-    Modal: stub,
-    SegmentedControl: stub,
+
     StateDot: stub,
-    Tag,
-    Tooltip: ({ children }: PropsWithChildren) => children,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
 
 import { MessageBubbleWrap } from '../src/client/bot-main.js';
-import type { ChannelMessage } from '../src/client/store.js';
 
 let host: HTMLDivElement;
 let root: Root;

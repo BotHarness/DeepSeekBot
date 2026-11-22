@@ -1,18 +1,42 @@
+import { turnTargetLabel } from '@botharness/host-client/turn-target';
+import type { TurnTarget } from '@botharness/host-protocol/turn-target';
+import type { SubscriptionModel } from '@botharness/host-client/model-plans';
 import { useState, type ReactElement, type RefObject } from 'react';
 
 import {
   modelBrand,
   modelFamilies,
   modelShortName,
+  providerBrand,
   type ModelBrand,
 } from '@botharness/host-client/shared/model-brand';
-import { modelCatalogGroupFront } from '@botharness/host-client/model-catalog';
-import type { ModelCatalogEntryView, ModelCatalogGroupView } from './bridge.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import {
+  modelCatalogGroupFront,
+  modelCatalogGroupMemberLabels,
+  modelChoiceKey,
+  type ModelChoice,
+  type RoutingGroupEngineCopy,
+} from '@botharness/host-client/model-catalog';
+import type {
+  ModelCatalogEntryView,
+  ModelCatalogGroupView,
+  ModelPresetView,
+  ModelRouteView,
+} from './bridge.js';
 import type { ComboboxOption } from './combobox.js';
-import { FilterPicker } from './ds/filter-picker.js';
+import { FilterPicker, type FilterPickerFilter } from './ds/filter-picker.js';
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { ModelBrandIcon } from './model-brand.js';
+import {
+  engineModelKey,
+  type EngineId,
+  type EngineModels,
+  type EngineModelView,
+  type EngineStatusView,
+} from './engine-choice.js';
+import { engineAccountTitle, engineName } from './session-engine.js';
+import { EngineBrandIcon, ModelBrandIcon } from './model-brand.js';
 import { setModelFavorite, useModelFavorites } from './model-favorites.js';
 
 export interface ModelMenuItem extends ComboboxOption {
@@ -20,7 +44,15 @@ export interface ModelMenuItem extends ComboboxOption {
   readonly name: string;
   readonly provider?: string | undefined;
   readonly model?: string | undefined;
+  readonly engine?: EngineId;
+  readonly accountId?: string;
   readonly group?: string | undefined;
+  readonly preset?: string | undefined;
+  readonly hidden?: boolean;
+  readonly checked?: boolean | undefined;
+  readonly tag?: string;
+  readonly hintBrand?: ModelBrand | undefined;
+  readonly hintLabel?: string | undefined;
 }
 
 export interface ModelMenuEffort {
@@ -28,11 +60,18 @@ export interface ModelMenuEffort {
   readonly label: string;
 }
 
+export interface ModelMenuFavorites {
+  choices: readonly ModelChoice[];
+  write(choice: ModelChoice, favorite: boolean): Promise<unknown>;
+}
+
 const ALL = 'all';
 const FAVORITES = 'favorites';
 const OTHER = 'other';
 const GROUPS = 'groups';
+const PRESETS = 'presets';
 const GROUP_PREFIX = 'group:';
+const PRESET_PREFIX = 'preset:';
 
 export function groupMenuKey(id: string): string {
   return `${GROUP_PREFIX}${id}`;
@@ -40,6 +79,27 @@ export function groupMenuKey(id: string): string {
 
 export function groupMenuId(key: string): string | undefined {
   return key.startsWith(GROUP_PREFIX) ? key.slice(GROUP_PREFIX.length) : undefined;
+}
+
+export function presetMenuKey(id: string): string {
+  return `${PRESET_PREFIX}${id}`;
+}
+
+export function presetMenuId(key: string): string | undefined {
+  return key.startsWith(PRESET_PREFIX) ? key.slice(PRESET_PREFIX.length) : undefined;
+}
+
+function groupFrontName(name: string, brand: Parameters<typeof modelShortName>[1]): string {
+  const short = modelShortName(name, brand);
+  return /\p{L}/u.test(short) ? short : name;
+}
+
+export function routingGroupEngineCopy(t: BotHarnessTranslate): RoutingGroupEngineCopy {
+  return {
+    defaultModel: (engine) => t('routingGroups.engineDefault', { engine }),
+    subscription: (source) => t('engine.subscription', { engine: source }),
+    effort: (level) => t(`engine.effort.${level}`),
+  };
 }
 
 export function restingHint(until: string, t: BotHarnessTranslate): string {
@@ -50,6 +110,26 @@ export function restingHint(until: string, t: BotHarnessTranslate): string {
       hour: '2-digit',
       minute: '2-digit',
     }),
+  });
+}
+
+export function groupFrontHint(
+  group: ModelCatalogGroupView | undefined,
+  catalog: readonly ModelCatalogEntryView[],
+  t: BotHarnessTranslate,
+): string | undefined {
+  if (group === undefined || group.routes.length === 0) return undefined;
+  const entryOf = (route: { provider: string; model: string }) =>
+    catalog.find((item) => item.provider === route.provider && item.model === route.model);
+  const usable = group.routes.some((route) => {
+    const entry = entryOf(route);
+    return entry?.credential === undefined && entry?.restingUntil === undefined;
+  });
+  if (!usable) return t('modelPreset.routeUnavailable');
+  const front = modelCatalogGroupFront(group, [...catalog]);
+  const entry = entryOf(front);
+  return t('modelMenu.groupFront', {
+    model: entry === undefined ? front.model : `${entry.modelName} · ${entry.providerName}`,
   });
 }
 
@@ -74,6 +154,8 @@ export function modelMenuItems(
       brand,
       provider: entry.provider,
       model: entry.model,
+      hintBrand:
+        option.hint === undefined ? undefined : providerBrand(entry.provider, entry.providerName),
     };
   });
 }
@@ -82,6 +164,7 @@ export function catalogMenuItems(
   catalog: readonly ModelCatalogEntryView[],
   t: BotHarnessTranslate,
   groups: readonly ModelCatalogGroupView[] = [],
+  executed?: { groupId: string; target: TurnTarget },
 ): ModelMenuItem[] {
   const unusable = (entry: ModelCatalogEntryView) =>
     entry.credential !== undefined || entry.restingUntil !== undefined;
@@ -106,37 +189,231 @@ export function catalogMenuItems(
       })),
     catalog,
   );
-  return [
-    ...groups.map((group): ModelMenuItem => {
-      const front = modelCatalogGroupFront(group, [...catalog]);
-      const entry = catalog.find(
-        (item) => item.provider === front?.provider && item.model === front.model,
+  return [...groupMenuItems(catalog, t, groups, executed), ...models];
+}
+
+export function groupMenuItems(
+  catalog: readonly ModelCatalogEntryView[],
+  t: BotHarnessTranslate,
+  groups: readonly ModelCatalogGroupView[],
+  executed?: { groupId: string; target: TurnTarget },
+): ModelMenuItem[] {
+  return groups.map((group) => {
+    const front = modelCatalogGroupFront(group, [...catalog]);
+    const entry = catalog.find(
+      (item) => item.provider === front?.provider && item.model === front.model,
+    );
+    const disabled =
+      group.restingUntil !== undefined ||
+      group.routes.every((route) =>
+        catalog.some(
+          (item) =>
+            item.provider === route.provider &&
+            item.model === route.model &&
+            item.credential !== undefined,
+        ),
       );
-      const disabled =
-        group.restingUntil !== undefined ||
-        group.routes.every((route) =>
-          catalog.some(
-            (item) =>
-              item.provider === route.provider &&
-              item.model === route.model &&
-              item.credential !== undefined,
-          ),
-        );
-      return {
-        value: groupMenuKey(group.id),
-        label: group.name,
-        name: group.name,
-        brand: undefined,
-        group: group.id,
-        hint:
-          group.restingUntil !== undefined
-            ? restingHint(group.restingUntil, t)
-            : t('modelMenu.groupFront', { model: entry?.modelName ?? front?.model ?? '' }),
-        disabled,
-      };
+    const brand =
+      entry === undefined
+        ? undefined
+        : modelBrand({ provider: entry.provider, model: entry.model, name: entry.modelName });
+    const members = modelCatalogGroupMemberLabels(
+      group,
+      catalog,
+      groups,
+      routingGroupEngineCopy(t),
+    );
+    const target =
+      executed?.groupId === group.id ? turnTargetLabel(executed.target, catalog) : undefined;
+    const restful = group.restingUntil;
+    const currentName =
+      entry === undefined ? (front?.model ?? '') : `${entry.modelName} · ${entry.providerName}`;
+    const hint =
+      target !== undefined
+        ? t('modelMenu.groupCurrent', { model: target.short })
+        : restful !== undefined
+          ? restingHint(restful, t)
+          : t('modelMenu.groupFront', {
+              model:
+                entry === undefined
+                  ? (front?.model ?? '')
+                  : `${groupFrontName(entry.modelName, brand)} · ${entry.providerName}`,
+            });
+    return {
+      value: groupMenuKey(group.id),
+      label: group.name,
+      name: group.name,
+      brand: undefined,
+      group: group.id,
+      hintBrand: target?.brand ?? (restful === undefined ? brand : undefined),
+      ...(target?.external ? { tag: t('engine.externalLabel') } : {}),
+      hintLabel: [
+        target !== undefined
+          ? t('modelMenu.groupCurrent', { model: target.name })
+          : restful === undefined
+            ? t('modelMenu.groupFront', { model: currentName })
+            : hint,
+        ...members,
+      ].join(' · '),
+      hint,
+      disabled,
+    };
+  });
+}
+
+const ENGINE_BRAND = { codex: 'openai', claude: 'claude' } as const;
+
+export const engineMenuKey = (engine: EngineId, model: string, accountId?: string): string =>
+  `engine:${engineModelKey(engine, accountId)}:${model}`;
+
+export const engineSignInKey = (engine: EngineId, accountId?: string): string =>
+  `engine-signin:${engineModelKey(engine, accountId)}`;
+
+export function engineMenuItems(
+  engines: readonly EngineStatusView[],
+  models: EngineModels,
+  signingIn: string | undefined,
+  t: BotHarnessTranslate,
+  canSignIn = true,
+): ModelMenuItem[] {
+  return engines.flatMap((status): ModelMenuItem[] => {
+    const { engine, accountId, accountName } = status;
+    const key = engineModelKey(engine, accountId);
+    const base = {
+      engine,
+      brand: ENGINE_BRAND[engine],
+      ...(accountId === undefined ? {} : { accountId }),
+    };
+    const name = engineName(engine);
+    const title = engineAccountTitle(engine, accountName);
+    const hint =
+      accountName !== undefined && accountName !== name
+        ? t('modelProviders.accountHint', { engine: name, name: accountName })
+        : t('engine.subscription', { engine: name });
+    if (status.available) {
+      const entries = models[key];
+      if (entries !== undefined && entries.length > 0)
+        return entries.map((model) => ({
+          ...base,
+          value: engineMenuKey(engine, model.id, accountId),
+          name: model.name,
+          label: model.name,
+          hint,
+          model: model.id,
+        }));
+      const label = t(entries === undefined ? 'modelPreset.loading' : 'engine.noModels');
+      return [{ ...base, value: `engine-status:${key}`, name: label, label, disabled: true }];
+    }
+    if (!status.installed || status.reason === 'host-not-local')
+      return [
+        {
+          ...base,
+          value: `engine-status:${key}`,
+          name: title,
+          label: title,
+          hint: t(status.reason === 'host-not-local' ? 'engine.localOnly' : 'engine.notInstalled', {
+            engine: name,
+          }),
+          disabled: true,
+        },
+      ];
+    const label = t(signingIn === key ? 'engine.signingIn' : 'engine.signInLabel', {
+      engine: title,
+    });
+    return [
+      {
+        ...base,
+        value: canSignIn ? engineSignInKey(engine, accountId) : `engine-status:${key}`,
+        name: label,
+        label,
+        ...(status.reason === 'not-subscription' ? { hint: t('engine.notSubscription') } : {}),
+        ...(status.reason === 'login-unknown' ? { hint: t('engine.loginUnknown') } : {}),
+        disabled: !canSignIn || signingIn !== undefined,
+      },
+    ];
+  });
+}
+
+export function selectedEngineMenuItem(
+  choice: { engine: EngineId; model?: string; accountId?: string },
+  model: EngineModelView | undefined,
+  t: BotHarnessTranslate,
+): ModelMenuItem {
+  const id = choice.model ?? model?.id ?? '';
+  const name = model?.name ?? (id || engineName(choice.engine));
+  return {
+    value: engineMenuKey(choice.engine, id, choice.accountId),
+    name,
+    label: name,
+    hint: t('engine.subscription', { engine: engineName(choice.engine) }),
+    model: id,
+    engine: choice.engine,
+    ...(choice.accountId === undefined ? {} : { accountId: choice.accountId }),
+    brand: ENGINE_BRAND[choice.engine],
+    disabled: true,
+    hidden: true,
+  };
+}
+
+export function engineModelOf(choice: SubscriptionModel, models: EngineModels) {
+  const available = models[engineModelKey(choice.engine, choice.accountId)] ?? [];
+  return choice.model === undefined
+    ? (available.find((model) => model.isDefault) ?? available[0])
+    : available.find((model) => model.id === choice.model);
+}
+
+export function engineSelectionOf(
+  item: ModelMenuItem,
+  models: EngineModels,
+): SubscriptionModel | undefined {
+  const { engine, model, accountId } = item;
+  if (
+    engine === undefined ||
+    model === undefined ||
+    item.value !== engineMenuKey(engine, model, accountId)
+  )
+    return undefined;
+  const choice = { engine, model, ...(accountId === undefined ? {} : { accountId }) };
+  const entry = engineModelOf(choice, models);
+  if (entry === undefined) return undefined;
+  const effort = entry.efforts.find((option) => option.id === entry.defaultEffort)?.id;
+  return effort === undefined ? choice : { ...choice, effort };
+}
+
+export function presetMenuItems(
+  presets: readonly ModelPresetView[],
+  catalog: readonly ModelCatalogEntryView[],
+  groups: readonly ModelCatalogGroupView[],
+  sourcePresetId: string | undefined,
+  t: BotHarnessTranslate,
+): ModelMenuItem[] {
+  const part = (groupId: string | undefined, route: ModelRouteView | undefined): string => {
+    const group = groups.find((entry) => entry.id === groupId);
+    if (group !== undefined) return group.name;
+    if (route === undefined) return t('modelMenu.presetInherited');
+    const entry = catalog.find(
+      (item) => item.provider === route.provider && item.model === route.model,
+    );
+    return entry?.modelName ?? route.model;
+  };
+  return presets.map((preset) => ({
+    value: presetMenuKey(preset.id),
+    label: preset.name,
+    name: preset.name,
+    brand: undefined,
+    preset: preset.id,
+    checked: preset.id === sourcePresetId,
+    hint: t('modelMenu.presetRoutes', {
+      main:
+        preset.orchestratorEngine === undefined
+          ? part(preset.orchestratorGroupId, preset.orchestrator)
+          : (preset.orchestratorEngine.model ?? engineName(preset.orchestratorEngine.engine)),
+      side:
+        preset.assignmentEngine === undefined
+          ? part(preset.assignmentDefaultGroupId, preset.assignmentDefault)
+          : (preset.assignmentEngine.model ?? engineName(preset.assignmentEngine.engine)),
     }),
-    ...models,
-  ];
+  }));
 }
 
 function familyKey(brand: ModelBrand | undefined): string {
@@ -154,6 +431,10 @@ export function ModelMenu({
   onSettings,
   busy = false,
   anchorRef,
+  engineFilters,
+  favoriteSource,
+  onBrowse,
+  closeOnSelect = efforts === undefined || efforts.length <= 1,
   onClose,
   t,
 }: {
@@ -167,46 +448,112 @@ export function ModelMenu({
   onSettings?: (() => void) | undefined;
   busy?: boolean;
   anchorRef: RefObject<HTMLElement | null>;
+  engineFilters?: Partial<Record<EngineId, Pick<FilterPickerFilter, 'status' | 'onActivate'>>>;
+  favoriteSource?: ModelMenuFavorites | null | undefined;
+  onBrowse?: (() => void) | undefined;
+  closeOnSelect?: boolean;
   onClose(): void;
   t: BotHarnessTranslate;
 }): ReactElement {
-  const models = items.filter((item) => item.model !== undefined);
+  const models = items.filter((item) => item.model !== undefined && item.engine === undefined);
+  const engines = new Set(
+    items.flatMap((item) => (item.engine === undefined ? [] : [item.engine])),
+  );
+  for (const engine of ['codex', 'claude'] as const)
+    if (engineFilters?.[engine] !== undefined) engines.add(engine);
   const groups = items.filter((item) => item.group !== undefined);
-  const favorites = useModelFavorites();
+  const presets = items.filter((item) => item.preset !== undefined);
+  const defaults = useModelFavorites();
+  const favoriteKeys =
+    favoriteSource === undefined
+      ? defaults.keys
+      : new Set(favoriteSource?.choices.map(modelChoiceKey));
+  const writeFavorite =
+    favoriteSource === undefined
+      ? defaults.writable
+        ? setModelFavorite
+        : undefined
+      : favoriteSource?.write;
   const [favoriteError, setFavoriteError] = useState<string>();
   return (
     <FilterPicker
       label={label}
       value={value}
       onSelect={onSelect}
-      closeOnSelect={efforts === undefined || efforts.length <= 1}
-      options={items.map((item) => ({
-        value: item.value,
-        label: item.name,
-        hint: item.hint,
-        disabled: item.disabled,
-        search: [item.value],
-        favorite:
-          (item.model !== undefined || item.group !== undefined) && favorites.keys.has(item.value),
-        ...(item.group !== undefined
-          ? { icon: <ChannelSidebarIcon name="git-branch" size={16} />, filter: GROUPS }
-          : item.model === undefined
+      closeOnSelect={closeOnSelect}
+      onBrowse={onBrowse}
+      options={items
+        .filter((item) => !item.hidden)
+        .map((item) => ({
+          value: item.value,
+          label: item.name,
+          hint: item.hint,
+          hintLabel:
+            item.engine === undefined || item.hint === undefined
+              ? item.hintLabel
+              : `${item.hintLabel ?? item.hint} · ${t('engine.externalLabel')}`,
+          ...(item.hintBrand === undefined
             ? {}
-            : {
-                icon: <ModelBrandIcon brand={item.brand} size={16} />,
-                filter: familyKey(item.brand),
-              }),
-      }))}
+            : { hintIcon: <ModelBrandIcon brand={item.hintBrand} size={12} /> }),
+          disabled: item.disabled,
+          search: [item.value, item.tag ?? ''],
+          searchByTerms: item.engine !== undefined,
+          marker: item.tag === undefined ? undefined : <Tag tone="quiet">{item.tag}</Tag>,
+          ...(item.engine === undefined
+            ? {
+                favorite:
+                  (item.model !== undefined ||
+                    item.group !== undefined ||
+                    item.preset !== undefined) &&
+                  favoriteKeys.has(item.value),
+              }
+            : {}),
+          ...(item.preset !== undefined
+            ? {
+                icon: <Icon name="package" />,
+                filter: PRESETS,
+                exclusive: true,
+                selected: item.checked === true,
+              }
+            : item.group !== undefined
+              ? { icon: <Icon name="git-branch" />, filter: GROUPS }
+              : item.engine !== undefined
+                ? {
+                    icon: <EngineBrandIcon brand={item.brand} size={16} />,
+                    filter: `engine:${item.engine}`,
+                  }
+                : item.model === undefined
+                  ? {}
+                  : {
+                      icon: <ModelBrandIcon brand={item.brand} size={16} />,
+                      filter: familyKey(item.brand),
+                    }),
+        }))}
       filters={[
+        ...(presets.length === 0
+          ? []
+          : [
+              {
+                key: PRESETS,
+                label: t('modelMenu.presets'),
+                icon: <Icon name="package" />,
+              },
+            ]),
         ...(groups.length === 0
           ? []
           : [
               {
                 key: GROUPS,
                 label: t('routingGroups.title'),
-                icon: <ChannelSidebarIcon name="git-branch" size={16} />,
+                icon: <Icon name="git-branch" />,
               },
             ]),
+        ...[...engines].map((engine) => ({
+          key: `engine:${engine}`,
+          label: t('engine.subscription', { engine: engineName(engine) }),
+          icon: <EngineBrandIcon brand={ENGINE_BRAND[engine]} size={16} />,
+          ...engineFilters?.[engine],
+        })),
         ...modelFamilies(models).map((family) => ({
           key: familyKey(family.brand),
           label: family.title ?? t('modelMenu.other'),
@@ -217,7 +564,7 @@ export function ModelMenu({
       allFilter={{
         key: ALL,
         label: t('modelMenu.all'),
-        icon: <ChannelSidebarIcon name="layers-2" size={16} />,
+        icon: <Icon name="layers-2" />,
       }}
       searchLabel={t('modelMenu.search')}
       emptyLabel={t('modelPreset.noMatch')}
@@ -236,33 +583,36 @@ export function ModelMenu({
           ? undefined
           : {
               label: t('modelMenu.settings'),
-              icon: <ChannelSidebarIcon name="sliders-horizontal" size={14} />,
+              icon: <Icon name="sliders-horizontal" />,
               onSelect: onSettings,
             }
       }
       busy={busy}
       favorites={
-        favorites.writable
+        writeFavorite !== undefined
           ? {
               filter: {
                 key: FAVORITES,
                 label: t('modelMenu.favorites'),
-                icon: <ChannelSidebarIcon name="star" size={16} filled />,
+                icon: <Icon name="star" filled />,
               },
               addLabel: t('modelMenu.favoriteAdd'),
               removeLabel: t('modelMenu.favoriteRemove'),
               onToggle: (key, favorite) => {
                 const group = groups.find((entry) => entry.value === key)?.group;
+                const preset = presets.find((entry) => entry.value === key)?.preset;
                 const item = models.find((entry) => entry.value === key);
                 const choice =
-                  group !== undefined
-                    ? ({ kind: 'group', id: group } as const)
-                    : item?.provider !== undefined && item.model !== undefined
-                      ? ({ kind: 'model', provider: item.provider, model: item.model } as const)
-                      : undefined;
+                  preset !== undefined
+                    ? ({ kind: 'preset', id: preset } as const)
+                    : group !== undefined
+                      ? ({ kind: 'group', id: group } as const)
+                      : item?.provider !== undefined && item.model !== undefined
+                        ? ({ kind: 'model', provider: item.provider, model: item.model } as const)
+                        : undefined;
                 if (choice === undefined) return;
                 setFavoriteError(undefined);
-                void setModelFavorite(choice, favorite).catch((error: unknown) =>
+                void writeFavorite(choice, favorite).catch((error: unknown) =>
                   setFavoriteError(
                     t('modelMenu.favoriteFailed', {
                       error: error instanceof Error ? error.message : String(error),
@@ -275,6 +625,7 @@ export function ModelMenu({
       }
       notice={favoriteError}
       anchorRef={anchorRef}
+      portalContainer={anchorRef.current?.closest('[aria-modal="true"]') ?? null}
       onClose={onClose}
     />
   );

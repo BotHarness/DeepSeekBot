@@ -22,11 +22,17 @@ export interface FilterPickerOption {
   readonly label: string;
   readonly name?: string | undefined;
   readonly hint?: string | undefined;
+  readonly hintIcon?: ReactNode;
+  readonly hintLabel?: string | undefined;
   readonly icon?: ReactNode;
+  readonly marker?: ReactNode;
   readonly disabled?: boolean | undefined;
   readonly filter?: string | undefined;
   readonly search?: readonly string[] | undefined;
+  readonly searchByTerms?: boolean | undefined;
   readonly favorite?: boolean | undefined;
+  readonly selected?: boolean | undefined;
+  readonly exclusive?: boolean | undefined;
 }
 
 export interface FilterPickerFavorites {
@@ -40,6 +46,13 @@ export interface FilterPickerFilter {
   readonly key: string;
   readonly label: string;
   readonly icon: ReactNode;
+  readonly onActivate?: () => void;
+  readonly status?:
+    | {
+        readonly message: string;
+        readonly retry?: { readonly label: string; onPress(): void };
+      }
+    | undefined;
 }
 
 export interface FilterPickerSide {
@@ -137,15 +150,22 @@ const styles = stylex.create({
     whiteSpace: 'nowrap',
   },
   rowHint: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: space.x1,
     flexShrink: 1,
     minWidth: 0,
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    whiteSpace: 'nowrap',
     color: color.muted,
     fontSize: text.metaSize,
     fontWeight: text.regular,
   },
+  rowHintText: {
+    minWidth: 0,
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  },
+  hintIcon: { display: 'inline-flex', flexShrink: 0 },
   rowCheck: { display: 'inline-flex', color: color.accentText },
   rowLine: { display: 'flex', alignItems: 'center', gap: space.x1 },
   rowMain: { flexGrow: 1, minWidth: 0 },
@@ -199,6 +219,12 @@ const styles = stylex.create({
     color: color.danger,
     fontSize: text.metaSize,
   },
+  filterStatus: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    gap: space.x2,
+  },
   footer: {
     display: 'flex',
     justifyContent: 'flex-end',
@@ -227,6 +253,7 @@ export function FilterPicker({
   value,
   onSelect,
   closeOnSelect,
+  onBrowse,
   filters,
   filtersLabel,
   allFilter,
@@ -238,6 +265,7 @@ export function FilterPicker({
   favorites,
   notice,
   anchorRef,
+  portalContainer,
   onClose,
 }: {
   label: string;
@@ -245,6 +273,7 @@ export function FilterPicker({
   value: string;
   onSelect(value: string): void;
   closeOnSelect: boolean;
+  onBrowse?: (() => void) | undefined;
   filters: readonly FilterPickerFilter[];
   filtersLabel: string;
   allFilter: FilterPickerFilter;
@@ -256,10 +285,12 @@ export function FilterPicker({
   favorites?: FilterPickerFavorites | undefined;
   notice?: string | undefined;
   anchorRef: RefObject<HTMLElement | null>;
+  portalContainer?: Element | null;
   onClose(): void;
 }): ReactElement {
   const listId = useId();
   const panel = useRef<HTMLDivElement | null>(null);
+  const searchInput = useRef<HTMLInputElement | null>(null);
   const [filter, setFilter] = useState(() =>
     favorites !== undefined &&
     options.some((option) => option.favorite === true && option.disabled !== true)
@@ -295,6 +326,7 @@ export function FilterPicker({
     [anchorRef],
   );
   const focusSearch = useMountedResource<HTMLInputElement>((node) => {
+    searchInput.current = node;
     let frame = 0;
     const attempt = (left: number) => {
       node.focus({ preventScroll: true });
@@ -302,17 +334,28 @@ export function FilterPicker({
         frame = requestAnimationFrame(() => attempt(left - 1));
     };
     frame = requestAnimationFrame(() => attempt(5));
-    return () => cancelAnimationFrame(frame);
+    return () => {
+      searchInput.current = null;
+      cancelAnimationFrame(frame);
+    };
   }, []);
   const needle = query.trim().toLowerCase();
+  const terms = needle.split(/\s+/u);
+  const filterStatus = filters.find((entry) => entry.key === filter)?.status;
+  const matches = (option: FilterPickerOption) => {
+    if (needle === '') return true;
+    const fields = [option.label, option.name ?? '', option.hint ?? '', ...(option.search ?? [])];
+    if (option.searchByTerms === true) {
+      const text = fields.join(' ').toLowerCase();
+      return terms.every((term) => text.includes(term));
+    }
+    return fields.some((part) => part.toLowerCase().includes(needle));
+  };
   const matched = options.filter(
     (option) =>
-      (filter === allFilter.key ||
+      ((filter === allFilter.key && (option.exclusive !== true || needle !== '')) ||
         (filter === favoriteKey ? needle !== '' || listed(option) : option.filter === filter)) &&
-      (needle === '' ||
-        [option.label, option.name ?? '', option.hint ?? '', ...(option.search ?? [])].some(
-          (part) => part.toLowerCase().includes(needle),
-        )),
+      matches(option),
   );
   const shown =
     favorites === undefined || filter === favoriteKey
@@ -390,30 +433,32 @@ export function FilterPicker({
       style={position}
     >
       <div {...stylex.props(styles.body)}>
-        {filters.length > 1 || favorites !== undefined ? (
+        {filters.length > 0 || favorites !== undefined ? (
           <div role="group" aria-label={filtersLabel} {...stylex.props(styles.rail)}>
-            {[
-              ...(favorites === undefined ? [] : [favorites.filter]),
-              allFilter,
-              ...(filters.length > 1 ? filters : []),
-            ].map((entry) => (
-              <button
-                key={entry.key}
-                type="button"
-                data-picker-filter={entry.key}
-                aria-pressed={filter === entry.key}
-                aria-label={entry.label}
-                title={entry.label}
-                onClick={() => {
-                  setFilter(entry.key);
-                  setActive(undefined);
-                  setHeld(undefined);
-                }}
-                {...stylex.props(styles.railButton, filter === entry.key && styles.railSelected)}
-              >
-                {entry.icon}
-              </button>
-            ))}
+            {[...(favorites === undefined ? [] : [favorites.filter]), allFilter, ...filters].map(
+              (entry) => (
+                <button
+                  key={entry.key}
+                  type="button"
+                  data-picker-filter={entry.key}
+                  aria-pressed={filter === entry.key}
+                  aria-label={entry.label}
+                  title={entry.label}
+                  onClick={() => {
+                    if (filter !== entry.key) {
+                      entry.onActivate?.();
+                      onBrowse?.();
+                    }
+                    setFilter(entry.key);
+                    setActive(undefined);
+                    setHeld(undefined);
+                  }}
+                  {...stylex.props(styles.railButton, filter === entry.key && styles.railSelected)}
+                >
+                  {entry.icon}
+                </button>
+              ),
+            )}
           </div>
         ) : null}
         <div {...stylex.props(styles.main)}>
@@ -435,19 +480,20 @@ export function FilterPicker({
               autoComplete="off"
               onChange={(event) => {
                 setQuery(event.target.value);
+                onBrowse?.();
                 setActive(undefined);
               }}
               onKeyDown={onKeyDown}
             />
           </div>
           <div id={listId} role="listbox" aria-label={label} {...stylex.props(styles.list)}>
-            {shown.length === 0 ? (
+            {shown.length === 0 && filterStatus === undefined ? (
               <div role="presentation" {...stylex.props(styles.empty)}>
                 {emptyLabel}
               </div>
             ) : (
               shown.map((option, index) => {
-                const selected = option.value === value;
+                const selected = option.selected ?? option.value === value;
                 const name = option.name ?? option.label;
                 const jump = enabled.indexOf(option);
                 return (
@@ -458,7 +504,11 @@ export function FilterPicker({
                       role="option"
                       tabIndex={-1}
                       aria-selected={selected}
-                      aria-label={option.hint === undefined ? name : `${name} · ${option.hint}`}
+                      aria-label={
+                        option.hint === undefined
+                          ? name
+                          : `${name} · ${option.hintLabel ?? option.hint}`
+                      }
                       title={name}
                       disabled={busy || option.disabled === true}
                       data-picker-option={option.value}
@@ -479,9 +529,15 @@ export function FilterPicker({
                       <span {...stylex.props(styles.rowText)}>
                         <span {...stylex.props(styles.rowName)}>{option.label}</span>
                         {option.hint === undefined ? null : (
-                          <span {...stylex.props(styles.rowHint)}>{option.hint}</span>
+                          <span {...stylex.props(styles.rowHint)}>
+                            {option.hintIcon === undefined ? null : (
+                              <span {...stylex.props(styles.hintIcon)}>{option.hintIcon}</span>
+                            )}
+                            <span {...stylex.props(styles.rowHintText)}>{option.hint}</span>
+                          </span>
                         )}
                       </span>
+                      {option.marker}
                       {selected ? check : null}
                       {jump >= 0 && jump < 9 ? (
                         <span aria-hidden {...stylex.props(styles.shortcut)}>
@@ -489,7 +545,9 @@ export function FilterPicker({
                         </span>
                       ) : null}
                     </button>
-                    {favorites === undefined || option.filter === undefined ? null : (
+                    {favorites === undefined ||
+                    option.filter === undefined ||
+                    option.favorite === undefined ? null : (
                       <button
                         type="button"
                         aria-pressed={option.favorite === true}
@@ -531,6 +589,25 @@ export function FilterPicker({
               })
             )}
           </div>
+          {filterStatus === undefined ? null : (
+            <div {...stylex.props(styles.empty, styles.filterStatus)}>
+              <span role={filterStatus.retry === undefined ? 'status' : 'alert'}>
+                {filterStatus.message}
+              </span>
+              {filterStatus.retry === undefined ? null : (
+                <button
+                  type="button"
+                  onClick={() => {
+                    searchInput.current?.focus();
+                    filterStatus.retry?.onPress();
+                  }}
+                  {...stylex.props(styles.footerButton)}
+                >
+                  {filterStatus.retry.label}
+                </button>
+              )}
+            </div>
+          )}
         </div>
         {side === undefined || side.options.length <= 1 ? null : (
           <div role="radiogroup" aria-label={side.label} {...stylex.props(styles.efforts)}>
@@ -576,6 +653,6 @@ export function FilterPicker({
         </div>
       )}
     </div>,
-    document.body,
+    portalContainer ?? document.body,
   );
 }

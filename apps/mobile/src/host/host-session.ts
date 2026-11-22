@@ -7,24 +7,16 @@ import { removeAccountConnections } from './account-connections';
 import type { ConnectHost } from '@botharness/host-client/connect-account';
 import { followConnectHosts } from './connect-follow';
 import { sourceDrafts } from './native-source-drafts';
-import { use, useCallback, useMemo, useSyncExternalStore } from 'react';
+import { use, useMemo, useSyncExternalStore } from 'react';
 import { refreshMemberPermissions } from './member-permissions';
 import { HostScope } from './host-scope';
-import { useFocusEffect } from 'expo-router';
 import { AppState, Platform } from 'react-native';
-
 import {
   createHostClient,
   type HostClient,
   type HostSnapshot,
 } from '@botharness/host-client/client';
 import { createInbox, type Inbox, type InboxSnapshot } from '@botharness/host-client/inbox';
-import {
-  createConversation,
-  type Conversation,
-  type ConversationSnapshot,
-} from '@botharness/host-client/conversation';
-import { createConversationPlayback, type ConversationPlayback } from './conversation-playback';
 import { useVisibleSnapshot } from './use-visible-snapshot';
 import { hostAvailabilitySource } from './host-availability';
 import {
@@ -36,8 +28,6 @@ import {
 } from '@botharness/host-client/hosts';
 import {
   catchUpHostConversations,
-  conversationCache,
-  conversationCacheWaitMs,
   forgetHostConversations,
   clearHostConversations,
   pruneHostConversations,
@@ -68,6 +58,24 @@ import { createConnectionTelemetry } from '@botharness/host-client/telemetry/con
 import type { ConnectionTrigger } from '@botharness/host-client/telemetry/schema';
 import { forgetRecentChats } from '../ui/shell/recent-chats';
 import { locale, t } from '../ui/strings';
+import {
+  conversations,
+  clientHosts,
+  clientSelves,
+  liveKeys,
+  detachedSource,
+  type DmTarget,
+  prepareHostConversation,
+  dmChannelOf,
+} from './host-conversations';
+export {
+  type DmTarget,
+  useConversation,
+  useChannelConversation,
+  useConversationSnapshot,
+  useStreamPlayback,
+  useConversationTimelineSnapshot,
+} from './host-conversations';
 
 export interface HostSessionState {
   saved: SavedHost | null | undefined;
@@ -104,7 +112,7 @@ export function retainHostConnection(client: HostClient): () => void {
   };
 }
 const feedListeners = new Set<() => void>();
-const visibleConversations = new Map<Conversation, () => void>();
+
 let feeds: readonly ConnectedHost[] = [];
 function publishFeeds(): void {
   feeds = [...sessions.values()].map(({ host }) => ({
@@ -187,8 +195,6 @@ connectionMode.subscribe(() => {
   scheduleAlerts();
 });
 
-const clientHosts = new WeakMap<HostClient, string>();
-const clientSelves = new WeakMap<HostClient, string>();
 const listeners = new Set<() => void>();
 const removalListeners = new Set<(host: SavedHost) => Promise<void>>();
 export function onHostRemoval(listener: (host: SavedHost) => Promise<void>): () => void {
@@ -843,9 +849,6 @@ export function useQuietChannels(hostId: string | undefined): readonly string[] 
   return useSyncExternalStore(quietChannels.subscribe, () => quietChannels.get(hostId));
 }
 
-const detached: HostSnapshot = { connection: { status: 'stopped', route: '' } };
-const detachedSource = { getSnapshot: () => detached, subscribe: () => () => {} };
-
 export function useHostSnapshot(client: HostClient | undefined, visible = true): HostSnapshot {
   return useVisibleSnapshot(client ?? detachedSource, visible);
 }
@@ -857,33 +860,9 @@ export function useInbox(inbox: Inbox | undefined, visible = true): InboxSnapsho
   return useVisibleSnapshot(inbox ?? idleSource, visible);
 }
 
-export interface DmTarget {
-  slug: string;
-  displayName?: string;
-  dmChannelId?: string;
-}
-
-const conversations = new WeakMap<HostClient, Map<string, Conversation>>();
-
-function liveKeys(client: HostClient, hostId: string): string[] {
-  return [...(conversations.get(client)?.keys() ?? [])].map((key) =>
-    JSON.stringify(['computer', hostId, key]),
-  );
-}
-
 export function liveConversationKeys(hostId: string): string[] {
   const client = sessions.get(hostId)?.host.client;
   return client === undefined ? [] : liveKeys(client, hostId);
-}
-const preparedConversations = new WeakMap<
-  HostClient,
-  { conversation: Conversation; release(): void }
->();
-
-function releasePreparedConversation(client: HostClient, conversation?: Conversation): void {
-  const prepared = preparedConversations.get(client);
-  if (prepared && (conversation === undefined || prepared.conversation === conversation))
-    prepared.release();
 }
 
 export function prepareConversation(
@@ -892,40 +871,7 @@ export function prepareConversation(
   target: { channelId: string; bot?: DmTarget },
 ): void {
   if (sessions.get(hostId)?.host.client !== client) return;
-  const roster = client.getSnapshot().roster;
-  const { channelId, bot } = target;
-  const available = bot
-    ? roster?.bots.some((entry) => entry.slug === bot.slug && entry.dmChannelId === channelId)
-    : roster?.channels.some((entry) => entry.id === channelId) ||
-      roster?.activityChannels?.some((entry) => entry.id === channelId);
-  if (!available) return;
-  releasePreparedConversation(client);
-  const conversation = conversationFor(
-    client,
-    bot?.slug ?? `channel:${channelId}`,
-    bot
-      ? {
-          botSlug: bot.slug,
-          ...(bot.displayName === undefined ? {} : { displayName: bot.displayName }),
-          channelId,
-        }
-      : { channelId, cacheKey: `channel:${channelId}` },
-  );
-  const off = conversation.subscribe(() => {});
-  const release = () => {
-    if (preparedConversations.get(client)?.release !== release) return;
-    preparedConversations.delete(client);
-    clearTimeout(timeout);
-    off();
-  };
-  const timeout = setTimeout(release, 2_000);
-  preparedConversations.set(client, { conversation, release });
-}
-
-function dmChannelOf(client: HostClient, slug: string | undefined): string | undefined {
-  if (slug === undefined) return undefined;
-  const bot = client.getSnapshot().roster?.bots.find((entry) => entry.slug === slug);
-  return bot?.dmChannelId ?? dmChannel(slug);
+  prepareHostConversation(client, target);
 }
 
 export function focusCall(hostId: string, slug: string): () => void {
@@ -934,205 +880,4 @@ export function focusCall(hostId: string, slug: string): () => void {
     hostId,
     channelId: (client && dmChannelOf(client, slug)) ?? dmChannel(slug),
   });
-}
-
-function conversationFor(
-  client: HostClient,
-  key: string,
-  options: Omit<Parameters<typeof createConversation>[0], 'host' | 'cache'>,
-): Conversation {
-  let byKey = conversations.get(client);
-  if (byKey === undefined) {
-    byKey = new Map();
-    conversations.set(client, byKey);
-  }
-  const existing = byKey.get(key);
-  if (existing !== undefined) return existing;
-  const cacheWaitMs = conversationCacheWaitMs();
-  const cacheWait = cacheWaitMs === undefined ? {} : { cacheWaitMs };
-  const self = clientSelves.get(client);
-  const inner = createConversation({
-    host: client,
-    ...options,
-    ...(self === undefined ? {} : { selfHumanId: self }),
-    cache: conversationCache(),
-    ...cacheWait,
-    cacheKey: JSON.stringify(['computer', clientHosts.get(client), key]),
-    telemetry: { send: () => mobileTelemetry.send(options.botSlug === undefined ? 'group' : 'dm') },
-  });
-  let watchers = 0;
-  let idle: ReturnType<typeof setTimeout> | undefined;
-  let offRetained: (() => void) | undefined;
-  const reconcileIdle = () => {
-    if (watchers > 0) return;
-    const outgoing = inner
-      .getSnapshot()
-      .messages.filter((message) => message.author === 'human' && message.revision === undefined);
-    if (outgoing.length > 0) {
-      if (outgoing.every((message) => message.delivery === 'failed')) inner.stop();
-      return;
-    }
-    offRetained?.();
-    offRetained = undefined;
-    inner.stop();
-    if (byKey.get(key) === conversation) byKey.delete(key);
-  };
-  const conversation: Conversation = {
-    ...inner,
-    setForeground(active) {
-      inner.setForeground?.(active);
-      const hostId = clientHosts.get(client);
-      const channelId = options.channelId ?? dmChannelOf(client, options.botSlug);
-      visibleConversations.get(conversation)?.();
-      visibleConversations.delete(conversation);
-      if (active && hostId && channelId)
-        visibleConversations.set(conversation, attentionFocus.hold({ hostId, channelId }));
-    },
-    stop() {
-      visibleConversations.get(conversation)?.();
-      visibleConversations.delete(conversation);
-      releasePreparedConversation(client, conversation);
-      clearTimeout(idle);
-      offRetained?.();
-      offRetained = undefined;
-      inner.stop();
-      if (byKey.get(key) === conversation) byKey.delete(key);
-    },
-    subscribe(listener) {
-      watchers += 1;
-      clearTimeout(idle);
-      offRetained?.();
-      offRetained = undefined;
-      inner.start();
-      const off = inner.subscribe(listener);
-      releasePreparedConversation(client, conversation);
-      return () => {
-        off();
-        watchers -= 1;
-        if (watchers > 0) return;
-        idle = setTimeout(() => {
-          if (watchers > 0) return;
-          offRetained = inner.subscribe(reconcileIdle);
-          reconcileIdle();
-        }, 0);
-      };
-    },
-  };
-  byKey.set(key, conversation);
-  return conversation;
-}
-
-export function useConversation(
-  client: HostClient | undefined,
-  bot: DmTarget | undefined,
-): Conversation | undefined {
-  const slug = bot?.slug;
-  return useMemo(
-    () =>
-      client === undefined || bot === undefined
-        ? undefined
-        : conversationFor(client, bot.slug, {
-            botSlug: bot.slug,
-            ...(bot.displayName === undefined ? {} : { displayName: bot.displayName }),
-            ...(bot.dmChannelId === undefined ? {} : { channelId: bot.dmChannelId }),
-          }),
-    [client, slug],
-  );
-}
-
-export function useChannelConversation(
-  client: HostClient | undefined,
-  channelId: string | undefined,
-): Conversation | undefined {
-  const source = channelId === undefined ? detachedSource : (client ?? detachedSource);
-  const available = useSyncExternalStore(
-    source.subscribe,
-    useCallback(() => {
-      const roster = source.getSnapshot().roster;
-      return (
-        roster === undefined ||
-        roster.channels.some((channel) => channel.id === channelId) ||
-        roster.activityChannels?.some((channel) => channel.id === channelId) === true
-      );
-    }, [source, channelId]),
-  );
-  return useMemo(
-    () =>
-      client === undefined || channelId === undefined || !available
-        ? undefined
-        : conversationFor(client, `channel:${channelId}`, {
-            channelId,
-            cacheKey: `channel:${channelId}`,
-          }),
-    [client, channelId, available],
-  );
-}
-
-const closed: ConversationSnapshot = {
-  status: 'opening',
-  messages: [],
-  drafts: [],
-  hasOlder: false,
-  loadingOlder: false,
-  fromCache: false,
-};
-
-function useConversationForeground(
-  conversation: Conversation | undefined,
-  playback?: ConversationPlayback,
-  visible = true,
-) {
-  useFocusEffect(
-    useCallback(() => {
-      if (!visible) return;
-      const foreground = (active: boolean) => {
-        conversation?.setForeground?.(active);
-        playback?.setActive(active);
-      };
-      foreground(AppState.currentState === 'active');
-      const subscription = AppState.addEventListener('change', (next) =>
-        foreground(next === 'active'),
-      );
-      return () => {
-        subscription.remove();
-        foreground(false);
-      };
-    }, [conversation, playback, visible]),
-  );
-}
-
-export function useConversationSnapshot(conversation: Conversation | undefined) {
-  useConversationForeground(conversation);
-  return useSyncExternalStore(
-    useCallback(
-      (listener: () => void) => conversation?.subscribe(listener) ?? (() => {}),
-      [conversation],
-    ),
-    () => conversation?.getSnapshot() ?? closed,
-  );
-}
-
-export function useStreamPlayback(conversation: Conversation | undefined, enabled: boolean) {
-  return useMemo(
-    () =>
-      conversation === undefined || !enabled ? undefined : createConversationPlayback(conversation),
-    [conversation, enabled],
-  );
-}
-
-export function useConversationTimelineSnapshot(
-  conversation: Conversation | undefined,
-  playback?: ConversationPlayback,
-  visible = true,
-) {
-  useConversationForeground(conversation, playback, visible);
-  const source = useMemo(
-    () => ({
-      subscribe: (listener: () => void) =>
-        (playback ?? conversation)?.subscribe(listener) ?? (() => {}),
-      getSnapshot: () => conversation?.getTimelineSnapshot() ?? closed,
-    }),
-    [conversation, playback],
-  );
-  return useVisibleSnapshot(source, visible, true);
 }

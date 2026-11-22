@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
+import { type BridgeCall } from '../src/client/bridge.js';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
 
-import type { BridgeCall } from '../src/client/bridge.js';
 import { createStore } from '../src/client/store.js';
 
 const writes: Record<string, unknown>[] = [];
@@ -31,31 +31,8 @@ const call: BridgeCall = async (endpoint, payload) => {
   return { ok: false, error: { code: 'unsupported', message: endpoint, details: {} } };
 };
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: (props: Record<string, unknown>) => <button {...props} />,
-  Input: (props: Record<string, unknown>) => <input {...props} />,
-  IconChevronDownOutlineRegular: () => null,
-  IconChevronUpOutlineRegular: () => null,
-  Switch: ({
-    checked,
-    onChange,
-    disabled,
-    label,
-  }: {
-    checked: boolean;
-    onChange(next: boolean): void;
-    disabled?: boolean;
-    label?: string;
-  }) => (
-    <button
-      type="button"
-      role="switch"
-      aria-label={label}
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-    />
-  ),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 vi.mock('../src/client/remote-host-actions.js', () => ({

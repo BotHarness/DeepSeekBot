@@ -34,6 +34,7 @@ export interface FakeSession {
 }
 
 export interface FakeAgentHostHooks {
+  restoreSession?(sessionId: string): readonly FakeEvent[];
   sendMessage?: boolean;
   messageChannel?: string;
   assignmentTurnEnd?: TurnEndReason;
@@ -50,7 +51,7 @@ interface FakeScope {
   tools: ToolDefinition[];
   restrictions: Array<{ allow?: readonly string[]; deny?: readonly string[] }>;
   guards: Array<(execution: { name: string }) => string | undefined>;
-  sections: Array<{ name: string; text: string }>;
+  sections: Array<{ name: string; order: number; text: string }>;
   skillProviders: Array<{ name: string; list(options: { cwd?: string }): Promise<unknown> }>;
   listeners: Map<string, (...args: unknown[]) => unknown>;
 }
@@ -118,13 +119,19 @@ export class FakeAgentHost implements DshAgentHost {
   async resume(options: ResumeAgentOptions): Promise<AgentHandle> {
     this.resumeOptions.push(options);
     const sessionId = String(options.resumeSessionId);
-    return this.#start(sessionId, this.#cwdBySession.get(sessionId), options.setup);
+    return this.#start(
+      sessionId,
+      this.#cwdBySession.get(sessionId),
+      options.setup,
+      this.hooks.restoreSession?.(sessionId),
+    );
   }
 
   async #start(
     sessionId: string,
     cwd: string | undefined,
     setup: CreateAgentOptions['setup'] | ResumeAgentOptions['setup'],
+    history: readonly FakeEvent[] = [],
   ): Promise<AgentHandle> {
     const scope: FakeScope = {
       tools: [],
@@ -135,7 +142,7 @@ export class FakeAgentHost implements DshAgentHost {
       listeners: new Map(),
     };
     const messages: Message[] = [];
-    const events: FakeEvent[] = [];
+    const events = [...history];
     const effects = new Set<() => void>();
     const session: FakeSession = {
       id: sessionId,
@@ -158,7 +165,7 @@ export class FakeAgentHost implements DshAgentHost {
     };
     let pending = Promise.resolve();
     let selected: ModelSelection | undefined;
-    let turn = 0;
+    let turn = events.filter((event) => event.type === 'turn/start').length;
     const fakeAgent = {
       id: sessionId,
       session,
@@ -258,9 +265,14 @@ export class FakeAgentHost implements DshAgentHost {
         },
       },
       systemPrompt: {
-        section: (section: { name: string; text: string | ((context: object) => string) }) => {
+        section: (section: {
+          name: string;
+          order: number;
+          text: string | ((context: object) => string);
+        }) => {
           const entry = {
             name: section.name,
+            order: section.order,
             get text() {
               return typeof section.text === 'function' ? section.text({}) : section.text;
             },

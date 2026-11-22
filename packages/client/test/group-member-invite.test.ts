@@ -1,24 +1,22 @@
 // @vitest-environment jsdom
-import { act, createElement, type PropsWithChildren } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type Root } from 'react-dom/client';
+import { type ChannelSummary } from '../src/client/store.js';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    IconPlusOutlineRegular: () => null,
-    IconEllipsisOutlineRegular: () => null,
-    Menu: () => null,
-    Tag: ({ children }: PropsWithChildren) => createElement('span', null, children),
-    Tooltip: ({ children }: PropsWithChildren) => children,
   };
 });
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { MembersHeaderAction } from '../src/client/group-member-controls.js';
 import { zhTranslate as t } from '../src/client/locale.js';
-import { store, type BotSummary, type ChannelSummary } from '../src/client/store.js';
+import { store, type BotSummary } from '../src/client/store.js';
 import { buttonNamed, dialog, fieldNamed, typeInto } from './primitive-mocks.js';
 
 const AT = '2026-10-08T00:00:00Z';
@@ -98,7 +96,7 @@ async function openInvite(): Promise<void> {
       }),
     ),
   );
-  await act(async () => buttonNamed(t('group.invite'), host).click());
+  await act(async () => buttonNamed(t('group.invite'), document.body).click());
 }
 
 function options(): string[] {

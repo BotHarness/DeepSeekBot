@@ -65,6 +65,7 @@ export function createMemberTobOperations(deps: {
           return deps.bridge.activitySnapshot({});
         case 'session-ids':
           return deps.bridge.botSessionIds({});
+        case undefined:
         default:
           throw new TobError('permission-required');
       }

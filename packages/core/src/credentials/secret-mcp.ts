@@ -11,6 +11,9 @@ import {
   secretCommandBaseEnv,
   secretCommandEnvName,
 } from './secret-command.js';
+import { SECRET_PLACEHOLDER } from './references.js';
+
+import { ACTIVE_FIBER_STATE } from '../runtime/cordis-fiber-state.js';
 
 export const SECRET_MCP_START_TIMEOUT_MS = 120_000;
 export const rememberedStarts = new Set<symbol>();
@@ -21,7 +24,7 @@ export const SECRET_MCP_LAUNCHER = [
   'const env = {};',
   'for (const name of keep) if (name && process.env[name] !== undefined) env[name] = process.env[name];',
   'const argv = process.argv.slice(1);',
-  "const child = spawn(argv[0], argv.slice(1), { env, stdio: 'inherit' });",
+  "const child = spawn(argv[0], argv.slice(1), { env, stdio: 'inherit', shell: false, windowsHide: true });",
   "for (const signal of ['SIGTERM', 'SIGINT', 'SIGHUP']) process.on(signal, () => child.kill(signal));",
   "child.on('error', () => process.exit(127));",
   "child.on('exit', (code, signal) => process.exit(code === null ? (signal ? 1 : 0) : code));",
@@ -48,7 +51,6 @@ const SHELLS = new Set([
   'nohup',
   'osascript',
 ]);
-const PLACEHOLDER = /\{\{[a-z][a-z0-9_]{0,47}\}\}/;
 
 export interface SecretMcpInput {
   server_name: string;
@@ -74,12 +76,12 @@ export function secretMcpPlan(input: SecretMcpInput): {
     input.env.length === 0 ||
     input.env.length > 16 ||
     new Set(names).size !== names.length ||
-    !input.env.some((entry) => PLACEHOLDER.test(entry.value))
+    !input.env.some((entry) => SECRET_PLACEHOLDER.test(entry.value))
   )
     throw new SecretCommandRefusal(
       'env must hold 1–16 distinct variables and at least one {{field_id}} placeholder',
     );
-  if (command.some((part) => PLACEHOLDER.test(part)))
+  if (command.some((part) => SECRET_PLACEHOLDER.test(part)))
     throw new SecretCommandRefusal(
       'a secret placeholder is allowed only in env values, never in arguments',
     );
@@ -200,7 +202,7 @@ export class SecretMcpServers {
     let timer: ReturnType<typeof setTimeout> | undefined;
     const started = await Promise.race([
       fiber.await().then(
-        () => (fiber.state === 2 ? 'started' : 'stopped'),
+        () => (fiber.state === ACTIVE_FIBER_STATE ? 'started' : 'stopped'),
         () => 'failed' as const,
       ),
       new Promise<'timeout'>((resolve) => {

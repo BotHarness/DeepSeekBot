@@ -19,6 +19,7 @@ import {
 } from '../channels/channel.js';
 import type { BotNetworkPort, NetworkBotMessage } from '../runtime/bot-network.js';
 import { BotNetworkDeliveryError as DeliveryError } from '../runtime/bot-network.js';
+import { requestListener } from '../http/request-listener.js';
 
 const ROOT = '/botharness-bots/v1';
 const PORTS = [43191, 43192, 43193, 43194, 43195, 43196, 43197, 43198];
@@ -349,7 +350,7 @@ export function createTailnetBotBridge(options: {
     for (const candidate of ports) {
       const listener = createServer(
         { maxHeaderSize: 4096, requestTimeout: 5000, headersTimeout: 5000 },
-        async (incoming, response) => {
+        requestListener(async (incoming, response) => {
           const started = Date.now();
           let admissionStarted = false;
           let stage = 'peer';
@@ -518,7 +519,7 @@ export function createTailnetBotBridge(options: {
             activeHandshake?.close();
             transport?.close();
           }
-        },
+        }),
       );
       listener.maxConnections = 32;
       listener.on('connection', (socket) => socket.setTimeout(10_000, () => socket.destroy()));

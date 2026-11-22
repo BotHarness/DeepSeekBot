@@ -1,3 +1,8 @@
+import { EngineHost } from '../src/engines/engine-host.js';
+import { engineRouteFetch } from '../src/engines/engine-route.js';
+import { createEngineSelectionBridge } from '../src/engines/engine-selection-bridge.js';
+import { createEngineGateway } from '../src/engines/engine-gateway.js';
+import { createEngineStore, engineStorePath } from '../src/engines/engine-store.js';
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
 import { BotNetworkDeliveryError } from '../src/runtime/bot-network.js';
 import { seededBannerRecipe } from '@botharness/pixel-banner';
@@ -7,12 +12,14 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
+import type { BotModesDeps } from '../src/bridge/bot-modes.js';
+import { createBotModeSettings } from '../src/runtime/bot-mode-settings.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createAttachmentStore } from '../src/attachments/store.js';
 import { seededAvatarFor } from '../src/bots/avatar-appearance.js';
 import { fallbackPrimaryColor, resolveBotPrimaryColor } from '../src/bots/primary-color.js';
-import { createBridgeMethods } from '../src/bridge/methods.js';
+import { createBridgeMethods, type BridgeMethodsDeps } from '../src/bridge/methods.js';
 
 import { createChannelStore, type ChannelStore } from '../src/channels/store.js';
 import type { MemoryService } from '../src/memory/service.js';
@@ -23,6 +30,7 @@ import {
 } from '../src/usage/usage.js';
 import { createModelPresetStore } from '../src/models/presets.js';
 import type { ModelCatalog } from '../src/models/catalog.js';
+import { routingGroupEngineOptions } from '../src/models/routing-group-engine-options.js';
 import { createModelRouteReadiness } from '../src/models/readiness.js';
 import { DirectBotToolError, type BotRuntime } from '../src/runtime/bot-runtime.js';
 import { GenuiDiagramError } from '../src/runtime/genui-diagram.js';
@@ -50,6 +58,61 @@ it('reports unavailable Group review without blaming roster storage', () => {
       message: 'Group send review is unavailable on this Host',
     },
   });
+});
+
+it('reads engine status and models only for the opted-in Routing Group catalog', async () => {
+  const { registry, states, channels } = setup();
+  const status = vi.fn(async () =>
+    (
+      [
+        {
+          engine: 'codex',
+          displayName: 'Codex',
+          installed: true,
+          available: true,
+          login: 'chatgpt',
+        },
+        {
+          engine: 'claude',
+          displayName: 'Claude Code',
+          installed: true,
+          available: false,
+          reason: 'signed-out',
+          login: 'signed-out',
+        },
+      ] as const
+    ).map((engine) => ({ ...engine })),
+  );
+  const models = vi.fn(async (_engine: 'codex' | 'claude') => [
+    { id: 'gpt-5.4', name: 'GPT-5.4', efforts: [] },
+  ]);
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+    registry,
+    states,
+    channels,
+    roster: createTestRosterStore(),
+    ownership: createTestOwnership(),
+    modelCatalog: { list: async () => [], validate: async () => undefined },
+    routingGroupEngineOptions: () => routingGroupEngineOptions({ status, models }),
+  });
+  await expect(methods.modelCatalog({})).resolves.toEqual({ ok: true, value: { models: [] } });
+  expect(status).not.toHaveBeenCalled();
+  await expect(methods.modelCatalog({ includeRoutingGroupEngines: true })).resolves.toEqual({
+    ok: true,
+    value: {
+      models: [],
+      routingGroupEngines: [
+        {
+          engine: 'codex',
+          available: true,
+          models: [{ id: 'gpt-5.4', name: 'GPT-5.4', efforts: [] }],
+        },
+        { engine: 'claude', available: false, reason: 'signed-out' },
+      ],
+    },
+  });
+  expect(status).toHaveBeenCalledOnce();
+  expect(models.mock.calls.map(([engine]) => engine)).toEqual(['codex']);
 });
 
 describe('composer recovery reference validation', () => {
@@ -148,6 +211,8 @@ function setup(
   usage?: UsageProjection,
   modelCatalog?: ModelCatalog,
   readUsageSessionLog?: DshUsageSessionLogReader,
+  describeEngineSession?: BridgeMethodsDeps['describeEngineSession'],
+  botModes?: BotModesDeps,
 ) {
   const root = mkdtempSync(join(tmpdir(), 'botharness-bridge-'));
   roots.push(root);
@@ -199,8 +264,10 @@ function setup(
       ...(memory === undefined ? {} : { memory }),
       ...(usage === undefined ? {} : { usage }),
       ...(readUsageSessionLog === undefined ? {} : { readUsageSessionLog }),
+      ...(describeEngineSession === undefined ? {} : { describeEngineSession }),
       ...(runtimeFactory === undefined ? {} : { runtime: runtimeFactory(channels) }),
       ...(developerMode === undefined ? {} : { developerMode }),
+      ...(botModes === undefined ? {} : { botModes }),
       createBotId: () => botIds[botIdIndex++] ?? 'bot-test-' + botIdIndex,
     }),
   };
@@ -2626,6 +2693,34 @@ describe('bridge methods', () => {
     ).toMatchObject({ ok: false, error: { code: 'not-found' } });
   });
 
+  it('keeps a profile update inside the Bot mode template', () => {
+    const modeHome = mkdtempSync(join(tmpdir(), 'botharness-modes-'));
+    roots.push(modeHome);
+    const settings = createBotModeSettings(modeHome);
+    const { methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      { settings, productDefault: 'deepseekbot', roster: async () => [] },
+    );
+    methods.create({ slug: 'ada', displayName: 'Ada' });
+    settings.setTemplateOf('ada', settings.saveTemplate({ name: 'Coding', modes: ['ptc'] }).id);
+    expect(methods.update({ slug: 'ada', patch: { preset: 'acp' } })).toMatchObject({
+      ok: false,
+      error: { code: 'mode-not-allowed' },
+    });
+    expect(methods.update({ slug: 'ada', patch: { preset: 'ptc' } })).toMatchObject({ ok: true });
+    expect(methods.update({ slug: 'ada', patch: { preset: '' } })).toMatchObject({ ok: true });
+  });
+
   it('rejects unknown or malformed updates', () => {
     const { methods } = setup();
     methods.create({ slug: 'ada', displayName: 'Ada' });
@@ -3297,13 +3392,19 @@ describe('bridge methods', () => {
       workspaces: ['/srv/ada/'],
     });
 
+    ownership.recordAgentPreset('session-2', 'minimal');
     const result = methods.sessions({ slug: 'ada' });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.sessions).toEqual([
       expect.objectContaining({ sessionId: 'session-1', role: 'orchestrator' }),
-      expect.objectContaining({ sessionId: 'session-2', role: 'assignment' }),
+      expect.objectContaining({
+        sessionId: 'session-2',
+        role: 'assignment',
+        agentPreset: 'minimal',
+      }),
     ]);
+    expect(result.value.sessions[0]).not.toHaveProperty('agentPreset');
     expect(result.value.sessions.map((session) => session.sessionId)).not.toContain('session-3');
   });
 
@@ -3351,6 +3452,46 @@ describe('bridge methods', () => {
     ).toEqual({
       orc: orchestrator,
       work: { provider: 'opencode-go', model: 'deepseek-v4.1-flash' },
+    });
+  });
+
+  it('names the engine instead of a model for a Session that runs on a subscription engine', () => {
+    const ownership = createTestOwnership({
+      engine: { botSlug: 'ada', rootRole: 'orchestrator' },
+      native: { botSlug: 'ada', rootRole: 'assignment' },
+    });
+    const usage = {
+      latestRoute: () => ({ provider: 'deepseek', model: 'deepseek-v4.1-flash' }),
+    } as unknown as UsageProjection;
+    const { methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      ownership,
+      undefined,
+      undefined,
+      undefined,
+      usage,
+      undefined,
+      undefined,
+      (sessionId) =>
+        sessionId === 'engine'
+          ? { engine: 'codex', account: 'ChatGPT pro', state: 'idle' }
+          : undefined,
+    );
+    methods.create({ slug: 'ada', displayName: 'Ada' });
+
+    const result = methods.sessions({ slug: 'ada' });
+    if (!result.ok) throw new Error('Expected Sessions');
+    const byId = Object.fromEntries(
+      result.value.sessions.map((session) => [session.sessionId, session]),
+    );
+    expect(byId['engine']?.engine).toEqual({ engine: 'codex', account: 'ChatGPT pro' });
+    expect(byId['engine']?.modelRoute).toBeUndefined();
+    expect(byId['native']?.engine).toBeUndefined();
+    expect(byId['native']?.modelRoute).toEqual({
+      provider: 'deepseek',
+      model: 'deepseek-v4.1-flash',
     });
   });
 
@@ -4136,4 +4277,83 @@ it('projects current network contact facts without persisting them in the Channe
   const result = await methods.channels({});
   expect(result.ok && result.value.channels[0]).not.toHaveProperty('remoteContact');
   expect(result.ok && result.value.channels[0]?.remoteAvailability).toBe('withdrawn');
+});
+
+it('returns the live Orchestrator runner through list and detail after engine use and none', async () => {
+  const f = setup();
+  f.registry.create({ slug: 'ada', displayName: 'Ada' });
+  f.registry.create({ slug: 'eve', displayName: 'Eve' });
+  const notifications: unknown[] = [];
+  const host = new EngineHost({
+    root: join(f.root, 'engines'),
+    local: true,
+    gateway: createEngineGateway(),
+    sessions: () => undefined,
+    persistence: () => undefined,
+    changed: () => notifications.push(methods.list({})),
+  });
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
+    registry: f.registry,
+    states: f.states,
+    channels: f.channels,
+    ownership: createTestOwnership(),
+    roster: createTestRosterStore(),
+    orchestratorRunner: (slug) => host.orchestratorRunner(slug),
+  });
+  const use = (engine: string | null) =>
+    engineRouteFetch(
+      new Request('http://host/api/botharness/engines', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ action: 'use', bot: 'ada', role: 'orchestrator', engine }),
+      }),
+      {
+        host,
+        botExists: (slug) => f.registry.get(slug) !== undefined,
+        ...createEngineSelectionBridge(OWNER_HUMAN_CONTEXT, {
+          engineSelection: host,
+          registry: f.registry,
+        }),
+      },
+    );
+  const bots = () => {
+    const result = methods.list({});
+    if (!result.ok) throw new Error(result.error.message);
+    return result.value.bots;
+  };
+  try {
+    expect(bots().every((bot) => !('orchestratorRunner' in bot))).toBe(true);
+    expect((await use('codex')).status).toBe(200);
+    const runner = { engine: 'codex', displayName: 'Codex' };
+    expect(bots().find((bot) => bot.slug === 'ada')).toHaveProperty('orchestratorRunner', runner);
+    expect(bots().find((bot) => bot.slug === 'eve')).not.toHaveProperty('orchestratorRunner');
+    expect(methods.get({ slug: 'ada' })).toMatchObject({
+      ok: true,
+      value: { bot: { orchestratorRunner: runner } },
+    });
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toMatchObject({
+      value: { bots: [expect.objectContaining({ orchestratorRunner: runner }), expect.anything()] },
+    });
+    host.store.rememberAccount('ada', 'codex', 'ChatGPT Plus');
+    host.store.rememberAccount('eve', 'codex', 'ChatGPT Pro');
+    expect(bots().find((bot) => bot.slug === 'ada')).toHaveProperty('orchestratorRunner', {
+      ...runner,
+      account: 'ChatGPT Plus',
+    });
+    expect(
+      createEngineStore(engineStorePath(join(f.root, 'engines'))).account('ada', 'codex'),
+    ).toBe('ChatGPT Plus');
+    expect((await use(null)).status).toBe(200);
+    expect(bots().find((bot) => bot.slug === 'ada')).not.toHaveProperty('orchestratorRunner');
+    expect(methods.get({ slug: 'ada' })).not.toHaveProperty('value.bot.orchestratorRunner');
+    expect(notifications).toHaveLength(2);
+    expect(await use('codex')).toHaveProperty('status', 200);
+    expect(bots().find((bot) => bot.slug === 'ada')).toHaveProperty('orchestratorRunner', {
+      ...runner,
+      account: 'ChatGPT Plus',
+    });
+  } finally {
+    await host.close();
+  }
 });

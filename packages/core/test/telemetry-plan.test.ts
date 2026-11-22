@@ -49,7 +49,7 @@ function renderPlan(): string {
 
 # Telemetry tracking plan
 
-Every analytics event the Host, the Web Client and the mobile app send, under the naming rules of [ADR-0270](adr/0270-telemetry-events-follow-one-tracking-plan.md). The product site keeps its own list in the deepseekbot-site repository under the same rules.
+Every analytics event the Host, the Web Client and the mobile app send, under the naming rules of [ADR-0270](decisions/release.md#adr-0270). The product site keeps its own list in the deepseekbot-site repository under the same rules.
 
 ## Naming
 
@@ -103,7 +103,10 @@ describe('telemetry tracking plan', () => {
     const plan = renderPlan();
     if (process.env['BOTHARNESS_WRITE_TELEMETRY_PLAN'] === '1') {
       writeFileSync(PLAN, plan);
-      execFileSync('pnpm', ['exec', 'oxfmt', '--write', fileURLToPath(PLAN)]);
+      execFileSync('pnpm', ['exec', 'oxfmt', '--write', fileURLToPath(PLAN)], {
+        shell: false,
+        windowsHide: true,
+      });
     }
     expect(unpadded(readFileSync(PLAN, 'utf8')), 'run pnpm telemetry:plan').toBe(unpadded(plan));
   });

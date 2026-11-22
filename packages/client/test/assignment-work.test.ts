@@ -1,26 +1,27 @@
 // @vitest-environment jsdom
+import { type Root } from 'react-dom/client';
+import { type ChannelAssignmentSummary } from '../../core/src/runtime/bot-runtime.js';
+import { type AssignmentWork } from '../src/client/bridge.js';
+import { type BridgeCall } from '../src/client/bridge.js';
+import { type ChannelSummary } from '../src/client/store.js';
 import { act, createElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import type { ChannelAssignmentSummary } from '../../core/src/runtime/bot-runtime.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./primitive-mocks.js')).comboboxPrimitives(),
   ...(await import('./primitive-mocks.js')).dialogPrimitives(),
-  Tag: ({ children }: { children: unknown }) => createElement('span', null, children as never),
-  Menu: () => null,
-  IconEllipsisOutlineRegular: () => null,
-  IconRefreshOutlineRegular: () => null,
-  Tooltip: ({ children }: { children: unknown }) => children,
+
   relativeTime: () => ({ unit: 'now', n: 0 }),
 }));
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { groupAssignmentWork } from '../src/client/assignment-work.js';
-import { loadAssignmentWork, type AssignmentWork, type BridgeCall } from '../src/client/bridge.js';
+import { loadAssignmentWork } from '../src/client/bridge.js';
 import { GroupWorkEntry } from '../src/client/group-work-entry.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { store, type ChannelSummary } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 import { buttonNamed, dialog } from './primitive-mocks.js';
 
 const AT = '2026-10-08T00:00:00Z';
@@ -56,6 +57,7 @@ const step = (tool: string, round: number, status = 'done', detail?: string) => 
 const TIMELINE = {
   assignment: {
     ...ASSIGNMENT,
+    sourceEventId: 'source-1',
     latestReport: { state: 'progress', summary: 'Half way', at: AT },
   },
   rounds: [
@@ -92,7 +94,6 @@ const TIMELINE = {
       entries: [],
       omitted: 0,
     },
-    { role: 'other', index: 3, sessionId: 'bad', entries: [] },
   ],
   omittedSubagents: 0,
   omittedRounds: 0,
@@ -129,7 +130,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-it('reads the rounds, lanes and steps of an Assignment and drops unreadable ones', async () => {
+it('reads the rounds, lanes and steps of an Assignment and refuses unreadable answers', async () => {
   const read = call(TIMELINE);
   const work = await loadAssignmentWork(read, 'ada', 's-run');
   expect(read).toHaveBeenCalledWith(
@@ -142,7 +143,7 @@ it('reads the rounds, lanes and steps of an Assignment and drops unreadable ones
   expect(work.rounds.map((round) => round.kind)).toEqual(['created', 'continued']);
   expect(work.lanes.map((lane) => lane.sessionId)).toEqual(['s-run', 'sub-1', 'sub-2']);
   await expect(loadAssignmentWork(call({ lanes: [] }), 'ada', 's-run')).rejects.toThrow(
-    'invalid assignmentTimeline response',
+    'assignmentTimeline returned an invalid answer.',
   );
 });
 

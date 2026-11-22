@@ -52,6 +52,8 @@ execFileSync(
     cwd: ROOT,
     stdio: 'inherit',
     env: { ...process.env, OPEN_SLIDE_BASE: '/slides/' },
+    shell: false,
+    windowsHide: true,
   },
 );
 

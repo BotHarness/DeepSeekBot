@@ -1,9 +1,6 @@
+import { Icon } from './ds/icon.js';
 import { Button } from './ds/button.js';
-import {
-  IconCloseOutlineRegular,
-  IconChevronDownOutlineRegular,
-  IconRightUpOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+
 import { Tooltip } from './ds/tooltip.js';
 import { useRef, useState, type ReactElement } from 'react';
 import type { BridgeActions } from './actions.js';
@@ -50,7 +47,7 @@ export function ActivityListDismiss({
         disabled={disabled || busy}
         onClick={() => void dismiss()}
       >
-        <IconCloseOutlineRegular size={14} />
+        <Icon name="x" size={14} />
         {t('activityList.dismiss')}
       </Button>
       {failed ? <span role="alert">{t('activityList.failed')}</span> : null}
@@ -84,7 +81,7 @@ export function ActivityListContextEdge({
         disabled={disabled || busy}
         onClick={onClick}
       >
-        <IconChevronDownOutlineRegular />
+        <Icon name="chevron-down" />
       </button>
     </Tooltip>
   );
@@ -105,7 +102,7 @@ export function ActivityListMessageSource({
         aria-label={label}
         onClick={onClick}
       >
-        <IconRightUpOutlineRegular />
+        <Icon name="arrow-up-right" />
       </button>
     </Tooltip>
   );

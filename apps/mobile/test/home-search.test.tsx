@@ -1438,6 +1438,7 @@ describe('Chats row actions share the Host path', () => {
       t.deletion.deleteBot,
     ]);
     expect(call).toHaveBeenLastCalledWith('rosterBatch', { action: 'pin', channelIds: ['dm-ada'] });
+    call.mockResolvedValueOnce({ muted: ['dm-ada'] });
     await rowMenuAction(view, 'mute');
     expect(call).toHaveBeenLastCalledWith('channelMuteSet', { channelId: 'dm-ada', muted: true });
     await rowMenuAction(view, 'section');
@@ -1461,6 +1462,7 @@ describe('Chats row actions share the Host path', () => {
     });
     await rowMenuAction(view, 'pin');
     expect(call).toHaveBeenLastCalledWith('rosterBatch', { action: 'pin', channelIds: ['dm-ada'] });
+    call.mockResolvedValueOnce({ muted: ['dm-ada'] });
     await rowMenuAction(view, 'mute');
     expect(call).toHaveBeenLastCalledWith('channelMuteSet', { channelId: 'dm-ada', muted: true });
     await rowMenuAction(view, 'section');
@@ -1486,6 +1488,7 @@ describe('Chats row actions share the Host path', () => {
       action: 'unpin',
       channelIds: ['dm-ada'],
     });
+    call.mockResolvedValueOnce({ muted: [] });
     await rowMenuAction(view, 'unmute');
     expect(call).toHaveBeenLastCalledWith('channelMuteSet', { channelId: 'dm-ada', muted: false });
   });
@@ -1644,6 +1647,7 @@ describe('Activity Channel navigation', () => {
         botSlug: 'ada',
         channelId: 'dm-ada',
         messageId: 'card',
+        channelName: 'Ada',
         summary: 'Check deployment',
       },
     ];

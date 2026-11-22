@@ -1,3 +1,5 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { Button } from './ds/button.js';
 import { ASSIGNMENT_SESSION_ICON } from './channel-sidebar-icon.js';
 import { useTeamMode } from './team-state.js';
@@ -9,11 +11,7 @@ import type { ExternalSource } from '../../../core/src/messaging/inbound.js';
 import { useCallback, useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
-import {
-  IconEllipsisOutlineRegular,
-  Tag,
-  type MenuEntry,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 
 import type { BotModePrefs } from './bot-mode-prefs.js';
@@ -21,6 +19,7 @@ import { WorkspaceGrantsEntry } from './workspace-grants-entry.js';
 import { AutoApprovalBadge, AutoApprovalSettingsEntry } from './approval-template-entry.js';
 import { ModelPresetProfile } from './model-preset-profile.js';
 import { BotPromptSettingsEntry } from './prompt-preset-settings.js';
+import { BotModeSettingsEntry } from './bot-mode-settings.js';
 import { BotVoiceSettingsEntry } from './voice-settings.js';
 import { modelPlanOf, rememberModelPlan, subscribeModelPlans } from './model-plan-store.js';
 import type { ModelPlanStateView, ModelPlanView } from './bridge.js';
@@ -207,7 +206,7 @@ function GroupManagementHeaderForChannel({
               aria-expanded={menuOpen}
               onClick={() => setMenuOpen((value) => !value)}
             >
-              <IconEllipsisOutlineRegular size={16} />
+              <Icon name="ellipsis" size={16} />
             </IconButton>
           </Tooltip>
         }
@@ -1459,6 +1458,15 @@ export function createChannelSidebarBuiltins(
       scope: 'personabot',
       component: ModelEntry,
       badge: ModelBadge,
+    },
+    {
+      id: 'mode',
+      surface: 'settings',
+      icon: 'sliders-horizontal',
+      label: t('entry.mode'),
+      order: 25.5,
+      scope: 'personabot',
+      component: BotModeSettingsEntry,
     },
     {
       id: 'wake-policy',

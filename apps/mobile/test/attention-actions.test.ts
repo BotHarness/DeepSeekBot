@@ -59,6 +59,8 @@ const AUTO: HumanAttentionItem = {
   kind: 'auto-rejection',
   createdAt: '2026-10-20T00:00:00.000Z',
   channelId: 'dm-ada',
+  channelName: 'Ada',
+  messageId: 'request-1',
   botSlug: 'ada',
   summary: 'Rejected by the cautious template.',
   sourceEventId: 'e1',
@@ -106,7 +108,16 @@ function host(): FakeHost {
   fake.methods.set('channelGroupJoinDecide', (args) => ({
     channel: {
       id: 'group-launch',
-      joinRequests: [{ id: 'r1', status: args['accept'] === true ? 'accepted' : 'declined' }],
+      type: 'group',
+      name: 'Launch',
+      members: [],
+      joinRequests: [
+        {
+          id: 'r1',
+          requesterBotSlug: 'ada',
+          status: args['accept'] === true ? 'accepted' : 'declined',
+        },
+      ],
     },
   }));
   fake.methods.set('humanAssignmentContext', () => ({
@@ -114,6 +125,8 @@ function host(): FakeHost {
       botSlug: 'ada',
       sessionId: 's9',
       purpose: 'Deploy the launch site',
+      description: 'Deploy the launch site',
+      title: 'Launch site',
       sourceEventId: 'report-3',
       reports: [
         {
@@ -283,7 +296,13 @@ describe('Phone actions for Inbox items', () => {
   it('keeps a join request open when the computer does not confirm it', async () => {
     const fake = host();
     fake.methods.set('channelGroupJoinDecide', () => ({
-      channel: { id: 'group-launch', joinRequests: [{ id: 'r1', status: 'pending' }] },
+      channel: {
+        id: 'group-launch',
+        type: 'group',
+        name: 'Launch',
+        members: [],
+        joinRequests: [{ id: 'r1', requesterBotSlug: 'ada', status: 'pending' }],
+      },
     }));
     const target = connect(fake);
     await expect(decideJoinRequest(target, 'group-launch', 'r1', false)).rejects.toThrow(

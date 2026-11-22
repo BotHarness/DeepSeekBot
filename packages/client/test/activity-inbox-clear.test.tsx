@@ -1,5 +1,9 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactElement, type ReactNode } from 'react';
+import { type ReactElement } from 'react';
+import { type ReactNode } from 'react';
+import { type BridgeCall } from '../src/client/bridge.js';
+import { type HumanAttentionItem } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
 const menuProbe = vi.hoisted((): { select: ((id: string) => void) | undefined } => ({
@@ -7,9 +11,8 @@ const menuProbe = vi.hoisted((): { select: ((id: string) => void) | undefined } 
 }));
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./activity-list-test-controls.js')),
-  Button: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('button', props, children),
 }));
 type Entry = { id: string; label?: ReactNode; submenu?: Entry[]; type?: string };
 vi.mock('../src/client/appearance-primitives.js', async (importOriginal) => ({
@@ -51,11 +54,11 @@ vi.mock('../src/client/appearance-primitives.js', async (importOriginal) => ({
 }));
 
 import { createActions } from '../src/client/actions.js';
-import type { BridgeCall } from '../src/client/bridge.js';
+
 import { activityFeedFor } from '../src/client/activity-feed.js';
 import { ActivityInboxMenu } from '../src/client/activity-inbox-menu.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { store, type HumanAttentionItem } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 import * as remoteHostModule from '../src/client/remote-hosts.js';
 import { FakeHost } from '../../host-client/test/fake-host.js';
 
@@ -110,7 +113,12 @@ it('clears every Activity item of one kind from the menu after confirmation', as
       if (payload.category === 'action') cleared = true;
       return {
         ok: true,
-        value: { accepted: true, dismissed: payload.category === 'action' ? 1 : 0, more: false },
+        value: {
+          accepted: true,
+          dismissed: payload.category === 'action' ? 1 : 0,
+          read: 0,
+          more: false,
+        },
       };
     }
     return { ok: true, value: {} };

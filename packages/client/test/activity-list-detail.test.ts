@@ -1,20 +1,22 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { type BridgeCall } from '../src/client/bridge.js';
+import { type ChannelMessage } from '../src/client/store.js';
+import { type HumanAttentionItem } from '../src/client/store.js';
+import { act, createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./activity-list-test-controls.js')),
-  Button: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('button', props, children),
+
   MarkdownText: () => null,
   StateDot: () => null,
-  Input: () => null,
 }));
 import { createActions } from '../src/client/actions.js';
-import type { BridgeCall } from '../src/client/bridge.js';
+
 import { ActivityListReply } from '../src/client/activity-list-reply.js';
 import { ActivityListDismiss } from '../src/client/activity-list-detail-controls.js';
-import { createStore, type ChannelMessage, type HumanAttentionItem } from '../src/client/store.js';
+import { createStore } from '../src/client/store.js';
 import { zhTranslate } from '../src/client/locale.js';
 afterEach(() => vi.unstubAllGlobals());
 const source: HumanAttentionItem = {

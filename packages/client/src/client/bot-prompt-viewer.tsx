@@ -1,6 +1,8 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
-import { IconInfoOutlineRegular, Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { BridgeActions } from './actions.js';
 import { errorMessage } from './bridge.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -80,7 +82,7 @@ function Explained({
             aria-expanded={open}
             onClick={() => setOpen((value) => !value)}
           >
-            <IconInfoOutlineRegular size={14} />
+            <Icon name="info" size={14} />
           </button>
         </Tooltip>
       </div>

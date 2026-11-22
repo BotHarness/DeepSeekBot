@@ -53,6 +53,7 @@ function setup() {
         ...process.env,
         ...(at ? { GIT_COMMITTER_DATE: at, GIT_AUTHOR_DATE: authorAt ?? at } : {}),
       },
+      shell: false,
     });
   git(['commit', '--amend', '--no-edit', '--no-gpg-sign'], '2026-09-20T12:00:00+09:00');
   const commit = (name: string, at: string, authorAt?: string) => {

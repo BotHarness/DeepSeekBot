@@ -2,7 +2,7 @@ import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { joinClass } from './class-name.js';
 import { on } from './surface.stylex.js';
-import { accent, ink, layer, state, style } from './tobs.stylex.js';
+import { accent, edge, ink, layer, state, style, type as typeScale } from './tobs.stylex.js';
 import { border, space } from './tokens.stylex.js';
 
 const styles = stylex.create({
@@ -54,11 +54,55 @@ const styles = stylex.create({
       ':active:enabled': state.pressed,
     },
   },
+  text: {
+    height: 'auto',
+    paddingInline: 0,
+    justifyContent: 'start',
+    color: 'inherit',
+    fontSize: typeScale.captionSize,
+    lineHeight: typeScale.captionLine,
+    fontWeight: typeScale.captionWeight,
+    whiteSpace: 'normal',
+    overflowWrap: 'anywhere',
+    textAlign: 'start',
+    textDecorationLine: { default: 'none', ':hover:enabled': 'underline' },
+    textDecorationStyle: 'dotted',
+  },
+  overlay: {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 0,
+    height: 'auto',
+    padding: 0,
+    borderRadius: 0,
+    outlineOffset: `calc(-1 * ${border.focus})`,
+    backgroundColor: 'transparent',
+  },
   toolbar: {
     backgroundColor: layer.well,
     backgroundImage: {
       default: 'none',
       ':hover:enabled': `linear-gradient(${state.hover}, ${state.hover})`,
+    },
+  },
+  preview: {
+    position: 'relative',
+    flexDirection: 'column',
+    width: '100%',
+    height: 'auto',
+    aspectRatio: '16 / 10',
+    padding: 0,
+    overflow: 'hidden',
+    borderRadius: style.radiusCard,
+    outlineOffset: `calc(-1 * ${edge.focusOffset})`,
+    backgroundColor: {
+      default: layer.well,
+      ':hover:enabled': state.hover,
+      ':is([aria-pressed=true], [data-drag-over])': style.choiceSelectedFill,
+    },
+    color: {
+      default: ink.secondary,
+      ':is([aria-pressed=true], [data-drag-over])': style.choiceSelectedInk,
     },
   },
   icon: {
@@ -70,28 +114,35 @@ const styles = stylex.create({
   },
 });
 
-export type ButtonVariant = 'primary' | 'ghost' | 'outline' | 'toolbar';
+export type ButtonVariant =
+  | 'primary'
+  | 'ghost'
+  | 'outline'
+  | 'text'
+  | 'overlay'
+  | 'toolbar'
+  | 'preview';
 
 export type ButtonProps = {
   readonly variant?: ButtonVariant;
   readonly size?: 'md' | 'sm';
   readonly icon?: ReactNode;
+  readonly xstyle?: stylex.StyleXStyles;
   readonly className?: string | undefined;
   readonly children?: ReactNode;
 } & Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'className' | 'children'>;
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button(
-  { variant = 'ghost', size = 'md', icon, className, children, ...rest },
+  { variant = 'ghost', size = 'md', icon, className, xstyle, children, style, ...rest },
   ref,
 ) {
+  const styled = stylex.props(styles.base, styles[size], styles[variant], xstyle);
   return (
     <button
       ref={ref}
       {...rest}
-      className={joinClass(
-        stylex.props(styles.base, styles[size], styles[variant]).className,
-        className,
-      )}
+      className={joinClass(styled.className, className)}
+      style={styled.style === undefined ? style : { ...styled.style, ...style }}
     >
       {icon == null ? null : <span {...stylex.props(styles.icon)}>{icon}</span>}
       {children}

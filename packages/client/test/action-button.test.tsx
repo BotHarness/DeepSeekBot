@@ -1,11 +1,10 @@
 // @vitest-environment jsdom
-import { act, createElement, type ButtonHTMLAttributes } from 'react';
+import { createElement } from 'react';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({ children, ...props }: ButtonHTMLAttributes<HTMLButtonElement>) =>
-    createElement('button', props, children),
-  IconRefreshOutlineRegular: () => createElement('svg'),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 import { ActionButton } from '../src/client/ds/action-button.js';
 import { ReadFailure } from '../src/client/ds/read-failure.js';

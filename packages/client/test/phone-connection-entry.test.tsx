@@ -1,17 +1,16 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { type ClientRelationship } from '../../core/src/devices/relationship-contract.js';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { ConnectionsDialog } from '../src/client/connections-dialog.js';
 import { PairedDevicesSettings } from '../src/client/paired-devices.js';
 import { zhTranslate as t } from '../src/client/locale.js';
-import type { ClientRelationship } from '../../core/src/devices/relationship-contract.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: 'button',
-  Input: 'input',
-  Switch: 'input',
-  Tooltip: ({ children }: { children: ReactNode }) => <>{children}</>,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   relativeTime: () => ({ unit: 'minute', n: 1 }),
 }));
 vi.mock('../src/client/ds/panel-dialog.js', () => ({
@@ -419,7 +418,9 @@ it.each(['phone-entry', 'settings', 'existing-route'] as const)(
     expect(host.querySelector('[data-platform="ios"] a')?.getAttribute('href')).toBe(
       'https://testflight.apple.com/join/sA9EznXr',
     );
-    expect(host.querySelector('[data-platform="android"] a')).not.toBeNull();
+    expect(host.querySelector('[data-platform="android"] a')?.getAttribute('href')).toBe(
+      'https://play.google.com/store/apps/details?id=app.deepseekbot.mobile',
+    );
     expect(host.querySelector('[data-pair-qr]')).toBeNull();
     expect(posts).toEqual([]);
     await click(t('connections.phoneApp.ready'));

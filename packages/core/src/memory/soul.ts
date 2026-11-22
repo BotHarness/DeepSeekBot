@@ -3,35 +3,22 @@ import { existsSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { readMemoryDocument } from './files.js';
+import { parseMemoryFile } from './front-matter.js';
+import { DEFAULT_STANDING_LIMITS, type StandingLimits } from './standing-limits.js';
+
+export {
+  DEFAULT_STANDING_LIMITS,
+  isStandingLimit,
+  isStandingLimits,
+  MAX_STANDING_LIMIT,
+  MIN_STANDING_LIMIT,
+  type StandingLimits,
+} from './standing-limits.js';
 
 export const SOUL_FILE = 'SOUL.md';
 export const LEGACY_SOUL_FILE = 'PERSONA.md';
 export const CORE_MEMORY_FILE = 'MEMORY.md';
 export const STANDING_FILES: readonly string[] = [SOUL_FILE, LEGACY_SOUL_FILE, CORE_MEMORY_FILE];
-
-export interface StandingLimits {
-  soul: number;
-  coreMemory: number;
-}
-
-export const DEFAULT_STANDING_LIMITS: StandingLimits = { soul: 5000, coreMemory: 3000 };
-export const MIN_STANDING_LIMIT = 500;
-export const MAX_STANDING_LIMIT = 50_000;
-
-export function isStandingLimit(value: unknown): value is number {
-  return (
-    typeof value === 'number' &&
-    Number.isInteger(value) &&
-    value >= MIN_STANDING_LIMIT &&
-    value <= MAX_STANDING_LIMIT
-  );
-}
-
-export function isStandingLimits(value: unknown): value is StandingLimits {
-  if (typeof value !== 'object' || value === null) return false;
-  const limits = value as Record<string, unknown>;
-  return isStandingLimit(limits['soul']) && isStandingLimit(limits['coreMemory']);
-}
 
 export const CORE_MEMORY_TEMPLATE = `# Core Memory
 
@@ -64,24 +51,23 @@ export interface StandingUsage {
 }
 
 function characterCount(body: string): number {
-  return [...body.trimEnd()].length;
+  let count = 0;
+  for (const _character of body.trimEnd()) count += 1;
+  return count;
 }
 
-export function standingUsage(
-  root: string,
-  limits: StandingLimits = DEFAULT_STANDING_LIMITS,
+function usageFromBodies(
+  read: (path: string) => string | undefined,
+  limits: StandingLimits,
 ): StandingUsage[] {
   const usage: StandingUsage[] = [];
-  const soul = readSoulBody(root);
-  if (soul !== undefined) {
-    usage.push({
-      path: soul.file,
-      role: 'soul',
-      chars: characterCount(soul.body),
-      limit: limits.soul,
-    });
+  for (const path of [SOUL_FILE, LEGACY_SOUL_FILE]) {
+    const soul = read(path);
+    if (soul === undefined) continue;
+    usage.push({ path, role: 'soul', chars: characterCount(soul), limit: limits.soul });
+    break;
   }
-  const coreMemory = readBody(root, CORE_MEMORY_FILE);
+  const coreMemory = read(CORE_MEMORY_FILE);
   if (coreMemory !== undefined) {
     usage.push({
       path: CORE_MEMORY_FILE,
@@ -91,6 +77,25 @@ export function standingUsage(
     });
   }
   return usage;
+}
+
+export function standingUsage(
+  root: string,
+  limits: StandingLimits = DEFAULT_STANDING_LIMITS,
+): StandingUsage[] {
+  return usageFromBodies((path) => readBody(root, path), limits);
+}
+
+export function standingUsageFromFiles(
+  files: readonly { path: string; data: Buffer }[],
+  limits: StandingLimits = DEFAULT_STANDING_LIMITS,
+): StandingUsage[] {
+  return usageFromBodies((path) => {
+    const file = files.find((entry) => entry.path === path);
+    return file === undefined
+      ? undefined
+      : parseMemoryFile(file.data.toString('utf8'), { mtime: new Date(0) }).body;
+  }, limits);
 }
 
 function renderSection(title: string, file: string, body: string, limit: number): string {
@@ -124,6 +129,7 @@ function git(root: string, args: string[]): string {
     encoding: 'utf8',
     stdio: ['ignore', 'pipe', 'pipe'],
     windowsHide: true,
+    shell: false,
   });
 }
 

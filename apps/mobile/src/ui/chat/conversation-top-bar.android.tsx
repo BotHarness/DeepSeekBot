@@ -33,6 +33,7 @@ import { ChatHeaderSurface } from './chat-header-surface.android';
 import { GroupMark } from './group-mark';
 import { HeaderBotStack } from './header-bot-stack';
 import { ModelBrandIcon } from './model-brand-icon';
+import { EngineBrandIcon } from './engine-brand-icon';
 
 const MODEL_LABEL_CHARS = 12;
 
@@ -185,7 +186,14 @@ export function ConversationTopBar({
                 ...islandLook,
                 testID('chat-identity'),
                 semantics({
-                  contentDescription: [title, shownModel?.name, status].filter(Boolean).join(', '),
+                  contentDescription: [
+                    title,
+                    shownModel?.name,
+                    shownModel?.external ? t.routingGroup.externalEngine : undefined,
+                    status,
+                  ]
+                    .filter(Boolean)
+                    .join(', '),
                 }),
               ]}
             >
@@ -245,11 +253,19 @@ export function ConversationTopBar({
                               accessible={false}
                               importantForAccessibility="no-hide-descendants"
                             >
-                              <ModelBrandIcon
-                                brand={shownModel.brand}
-                                size={modelIcon}
-                                color={theme.color.muted}
-                              />
+                              {shownModel.external ? (
+                                <EngineBrandIcon
+                                  brand={shownModel.brand}
+                                  size={modelIcon}
+                                  color={theme.color.muted}
+                                />
+                              ) : (
+                                <ModelBrandIcon
+                                  brand={shownModel.brand}
+                                  size={modelIcon}
+                                  color={theme.color.muted}
+                                />
+                              )}
                             </View>
                           </RNHostView>
                           <Text

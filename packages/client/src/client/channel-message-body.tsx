@@ -1,3 +1,5 @@
+import { Icon } from './ds/icon.js';
+import { Tag } from './ds/tag.js';
 import { ApprovalDecider, MaskedApprovalCard, OpaqueToolWarning } from './approval-mask.js';
 import { ActionButton, ActionGroup } from './ds/action-button.js';
 import { InlineTokenButton } from './ds/inline-token-button.js';
@@ -14,7 +16,7 @@ import { useMessageHost } from './message-host.js';
 import { BridgeAudio } from './bridge-audio.js';
 import { BridgeFile } from './bridge-file.js';
 import { BridgeVideo } from './bridge-video.js';
-import { UserQuestionCard } from './user-question-card.js';
+import { UserQuestionCard } from './features/approvals/user-question-card.js';
 import { PrivateInputCard } from './private-input-card.js';
 import { TakeoverCard } from './takeover-card.js';
 import { ToolApprovalCard } from './tool-approval-card.js';
@@ -26,16 +28,14 @@ import { MessageAlbum, messageFileAttachments } from './message-album.js';
 import { useMemo, useRef, useState, type ReactElement, type ReactNode } from 'react';
 
 import {
-  FileTypeIcon,
   fileSizeText,
-  IconFolderOpenOutlineRegular,
   MarkdownDelegateProvider,
   MarkdownText,
   StateDot,
   useMarkdownDelegate,
-  Tag,
   type MarkdownLabels,
 } from '@deepseek-ai/dsh-client-ui-primitives';
+import { FileTypeIcon } from './ds/file-type-icon.js';
 
 import { errorMessage } from './bridge.js';
 import { PersonaBotAvatar } from './avatar.js';
@@ -48,11 +48,7 @@ import { skillOwnerKey } from '../../../core/src/skills/entries.js';
 import { preserveHumanLineBreaks, rendersHumanMarkdown } from './human-markdown.js';
 import { attachmentReferenceRuns, messageAttachmentReferences } from './attachment-refs.js';
 import type { BridgeActions } from './actions.js';
-import {
-  FolderBrowser,
-  folderBrowseError,
-  type FolderBrowserActions,
-} from './workspace-grants-entry.js';
+import { GrantRequestCard } from './features/workspaces/grant-request-card.js';
 import type { BotHarnessKey, BotHarnessTranslate } from './locale.js';
 import { toolApprovalText } from './approval-text.js';
 import { useFooterPreferences } from './composer-footer-preferences.js';
@@ -70,8 +66,7 @@ import { ASSIGNMENT_SESSION_ICON, ChannelSidebarIcon } from './channel-sidebar-i
 import { useConversationStore } from './use-client-store.js';
 import { useMountedResource } from './mounted-resource.js';
 import { skillOwnerLabel, skillSummary, useSkillPeek } from './skill-preview.js';
-import { GenuiReportCard } from './genui-report.js';
-import { GenuiDocumentCard } from './genui-document.js';
+import { renderGenuiCard } from './features/genui/message-card.js';
 
 const ChannelMarkdownText = MarkdownText as unknown as (
   props: Parameters<typeof MarkdownText>[0],
@@ -199,6 +194,7 @@ function failureSummary(
       return t('failure.contextWindow');
     case 'OUTPUT_TOKEN_LIMIT':
       return t('failure.outputLimit');
+    case undefined:
     default:
       return t('failure.generic');
   }
@@ -345,7 +341,7 @@ function SessionFailureNotice({
               icon="archive"
               disabled={busy}
               busy={maintenance.pending === 'compact'}
-              onClick={() => recover('compact')}
+              onClick={() => void recover('compact')}
             >
               {t('composerContext.compactNow')}
             </ActionButton>
@@ -353,7 +349,7 @@ function SessionFailureNotice({
               icon="plus"
               busy={maintenance.pending === 'new-session'}
               disabled={busy}
-              onClick={() => recover('new-session')}
+              onClick={() => void recover('new-session')}
             >
               {t('composerCommand.newSession')}
             </ActionButton>
@@ -391,146 +387,7 @@ function SessionFailureNotice({
 
 export { MessageDeveloperMode } from './message-developer-mode.js';
 
-export function GrantRequestCard({
-  message,
-  actions,
-  resolved,
-  workspacePickerRequest,
-  compact = false,
-  beforeOpen,
-  channelId,
-  t,
-}: {
-  message: ChannelMessage;
-  actions: Pick<BridgeActions, 'pickWorkspaceFolder' | 'resolveWorkspaceGrantRequest'> &
-    FolderBrowserActions;
-  channelId?: string | undefined;
-  workspacePickerRequest?: number | undefined;
-  resolved: boolean;
-  compact?: boolean;
-  beforeOpen?: () => Promise<boolean>;
-  t: BotHarnessTranslate;
-}): ReactElement {
-  const [listing, setListing] =
-    useState<Awaited<ReturnType<FolderBrowserActions['listHostFolders']>>>();
-  const [busy, setBusy] = useState(false);
-  const [opening, setOpening] = useState(false);
-  const [completed, setCompleted] = useState(false);
-  const [error, setError] = useState<string | undefined>();
-  const botSlug = message.author.kind === 'bot' ? message.author.slug : undefined;
-  const open = (alreadyChecked = false): void => {
-    if (botSlug === undefined || busy || opening || resolved || completed) return;
-    setOpening(true);
-    setError(undefined);
-    void (async () => {
-      if (!alreadyChecked && beforeOpen !== undefined && !(await beforeOpen())) return;
-      const pickNatively = async (): Promise<void> => {
-        const path = await actions.pickWorkspaceFolder();
-        if (path !== null) approve(path);
-      };
-      return actions.listHostFolders().then(
-        (value) => (value.nativePicker === true ? pickNatively() : setListing(value)),
-        async (cause: unknown) => {
-          if (
-            cause instanceof Error &&
-            'rpcError' in cause &&
-            typeof cause.rpcError === 'object' &&
-            cause.rpcError !== null &&
-            'code' in cause.rpcError &&
-            cause.rpcError.code === 'directory-picker/unavailable'
-          )
-            return pickNatively();
-          setError(folderBrowseError(cause, t));
-        },
-      );
-    })()
-      .catch((cause: unknown) => setError(errorMessage(cause)))
-      .finally(() => setOpening(false));
-  };
-  const approve = (path: string): void => {
-    if (botSlug === undefined || busy) return;
-    setBusy(true);
-    setError(undefined);
-    void (async () => {
-      try {
-        await actions.resolveWorkspaceGrantRequest(
-          botSlug,
-          message.id,
-          path,
-          (name) => t('grant.requestApprovedMessage', { name }),
-          channelId,
-        );
-        setCompleted(true);
-        setListing(undefined);
-      } catch (cause) {
-        setError(errorMessage(cause));
-      } finally {
-        setBusy(false);
-      }
-    })();
-  };
-  const openedRequest = useRef<number>();
-  const pickerTrigger = useMountedResource<HTMLDivElement>(() => {
-    if (
-      workspacePickerRequest !== undefined &&
-      workspacePickerRequest !== openedRequest.current &&
-      !resolved &&
-      !completed
-    ) {
-      openedRequest.current = workspacePickerRequest;
-      open(true);
-    }
-  }, [workspacePickerRequest]);
-  const chooseButton = (
-    <ActionButton
-      icon="folder-key"
-      tone="primary"
-      size={compact ? 'sm' : 'md'}
-      busy={opening}
-      disabled={busy || opening}
-      onClick={() => open()}
-    >
-      {t(compact ? 'activityList.grant.handle' : 'grant.requestChoose')}
-    </ActionButton>
-  );
-  return (
-    <div
-      className={compact ? 'bh-activity-list-grant-action' : 'bh-grant-request-card'}
-      ref={pickerTrigger}
-    >
-      {compact ? null : (
-        <>
-          <div className="bh-grant-request-title">{t('grant.requestTitle')}</div>
-          <div className="bh-grant-request-reason">{message.body}</div>
-        </>
-      )}
-      {resolved || completed ? (
-        <div className="bh-note" role="status">
-          {t('grant.requestResolved')}
-        </div>
-      ) : compact ? (
-        chooseButton
-      ) : (
-        <div className="bh-message-card-actions">{chooseButton}</div>
-      )}
-      {error === undefined ? null : (
-        <div className="bh-error" role="alert">
-          {error}
-        </div>
-      )}
-      {listing === undefined ? null : (
-        <FolderBrowser
-          initial={listing}
-          actions={actions}
-          onCancel={() => setListing(undefined)}
-          onChoose={approve}
-          busy={busy}
-          t={t}
-        />
-      )}
-    </div>
-  );
-}
+export { GrantRequestCard } from './features/workspaces/grant-request-card.js';
 
 function leadingBotMentions(message: ChannelMessage):
   | {
@@ -926,7 +783,7 @@ export function ChannelMessageBody({
           </span>
         ) : skill.owner.kind === 'workspace' && host === undefined ? (
           <span className="bh-inline-mention-avatar" aria-hidden="true">
-            <IconFolderOpenOutlineRegular size={16} />
+            <Icon name="folder-open" size={16} />
           </span>
         ) : null}
         <span>/{skill.name}</span>
@@ -1117,27 +974,15 @@ export function ChannelMessageBody({
         </div>
       )}
       {message.genuiUnavailable && <p role="status">{t('genui.documentUnsupported')}</p>}
-      {message.genui !== undefined && (
-        <div className="bh-bubble-body">
-          {message.genui.version === 2 ? (
-            <GenuiDocumentCard
-              document={message.genui}
-              channelId={channelId ?? ''}
-              messageId={message.id}
-              {...(interactiveReport && actions ? { actions } : {})}
-              t={t}
-            />
-          ) : (
-            <GenuiReportCard
-              report={message.genui}
-              channelId={channelId ?? ''}
-              messageId={message.id}
-              {...(interactiveReport && actions ? { actions } : {})}
-              t={t}
-            />
-          )}
-        </div>
-      )}
+      {message.genui !== undefined &&
+        renderGenuiCard({
+          genui: message.genui,
+          channelId,
+          messageId: message.id,
+          interactiveReport,
+          actions,
+          t,
+        })}
       {fileAttachments.length ? (
         <div className="bh-message-attachments">
           {fileAttachments.map((ref, index) => (

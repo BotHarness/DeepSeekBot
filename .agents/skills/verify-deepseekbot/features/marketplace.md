@@ -4,7 +4,13 @@
 
 - `packages/market/**`
 - `packages/core/src/marketplace/**`
-- `packages/client/src/client/{marketplace,market-panel}.tsx`
+- `packages/core/src/features/marketplace/**`
+- `packages/host-client/src/marketplace-avatars.ts`
+- `packages/client/src/client/marketplace-report.tsx`
+- `packages/client/src/client/{marketplace,marketplace-browse-controls,market-panel,market-avatars,market-avatar-apply,market-avatar-mine,market-mine,personabot-avatar-crop}.tsx`
+- `packages/client/src/client/{profile-header,bot-sidebar-channel-actions}.tsx`
+- `packages/client/src/client/marketplace-install-review.tsx`
+- `packages/client/src/client/standing-import-usage.tsx`
 - `apps/mobile/src/marketplace/**`
 - `apps/mobile/src/ui/shell/marketplace-*`
 - `apps/mobile/src/ui/primitives/marketplace-topic-sheet*`
@@ -47,7 +53,26 @@ Launch a task-owned instance with `node scripts/verify-app.mjs launch --name <n>
 
 For Worker tie/paging proof run `pnpm exec vitest run packages/market/test/market-search.test.ts`; it walks 1/2/3/50-item pages through the production Worker and D1 adapter with independent ties at every level. A live Host can point at a task-local Worker using the existing `marketplaceUrl` Plugin configuration, then exercise `deepseekbot marketplace-list --sort stars`.
 
+## Marketplace Avatars on Web
+
+1. Point a task-owned Host at an isolated Marketplace Worker with its D1 migrations and R2 binding. Sign the owner in to Connect and accept upload terms.
+2. Open **Avatars → Publish Avatar**, choose a rectangular image with both sides at least 256 px, move the crop, and save. Fill in the name, description and tags. Verify the confirmation identifies the author by display name and Author ID and explains that applied copies stay with other Bots.
+3. Publish and compare the detail image with the form preview. Verify the description, tags, author and Apply Count of 0. Read the canonical result with `deepseekbot marketplace-avatar-detail <id>`. Confirm a file with a 255 px side is refused.
+4. Seed more than 24 listings from at least two accounts, use **Load more**, and compare the visible IDs with `deepseekbot marketplace-avatar-list [--cursor <cursor>]`. Browse as a Team member, verify the publish entry is absent, and verify a member publish call receives `permission-required`.
+5. Return to **Bots** and verify the current search, sort and cards are preserved. Initial Bots browsing makes no Avatar list request.
+6. With listed Avatars tagged `Blue` and `blue`, open **Avatars** and verify that the `blue` chip shows their combined count. Select the chip, enter a keyword from a listing's name, description or tags, and press Enter. Compare the cards and each subsequent page with `deepseekbot marketplace-avatar-list --query <keyword> --tag BLUE`, and compare counts with `deepseekbot marketplace-avatar-tags`. Search for an absent keyword and verify the filtered empty state. Clear the keyword and select **All** to restore the full grid. Hide or remove a listing in the isolated Worker and verify it disappears from search and counts.
+7. Seed Avatar applies from both seven-day windows and run the daily Worker job. Open **Avatars** and select **Hot**, **New** and **Rising** beside the search field. Compare the ordered cards with `deepseekbot marketplace-avatar-list --sort <hot|new|rising>`. Select a tag and search within a ranking, then return to **All Avatars** and confirm the filters remain applied. After a later run with no qualifying entries, confirm the ranking shows its empty state.
+
+### Publish a Bot's current Avatar
+
+1. As the Host owner, set a 256 × 256 PNG on a Bot. Open its profile, then **More** → **Publish Avatar**. Repeat from the Bot's DM context menu.
+2. Zoom in one step. Confirm the 256 px crop message and disabled Save action. Return the slider to minimum, save, and publish using the existing author form. Compare the detail image with the crop and read it with `deepseekbot marketplace-avatar-detail <id>`.
+3. Repeat with a Bot that has an Avatar Appearance. Verify the published still matches the Bot's appearance. Verify both menu entries are absent for a Blobatar-only Bot and for a Team member with `bots.manageAll`.
+4. Run `deepseekbot marketplace-avatar-publish --from-bot <bot> --name <name> --confirm` as owner. Use a compliant stored image for success. Verify `no-stored-avatar` for a Blobatar, `unprocessed-image` with a Web instruction for a noncompliant image, and `permission-required` as a member.
+
 ## Tob install review
+
+The import confirmation shows the standing memory usage and effective limits from the staged files. Check an older Bot Marketplace entry that exceeds a default limit and an entry carrying a valid custom pair. Before confirming, compare the usage to the CLI's `marketplace-install <listing-id>` review result. After confirming, read the new Bot's standing memory limits.
 
 Install opens a review step: Tob reads the staged files and the step shows **Tob found nothing risky**, the findings (prompt injection, sends data out, script) with **Install anyway**, or **Tob couldn't review this Bot** with **Install without review**. Back creates nothing. The real-model journey is `node scripts/e2e-install-review.mjs`: it serves a local Marketplace with a planted-injection Bot and a clean Bot, launches an isolated Host pointed at it, and asserts the planted file is flagged, the clean Bot is not, a review creates no Bot, and `marketplace-install <id> --review <review-id> --confirm` installs. Use the AX model selection on the newest DeepSeek model.
 
@@ -58,3 +83,37 @@ Install opens a review step: Tob reads the staged files and the step shows **Tob
 - The default `verify-app shot` locale is English; Chinese accessible names require `--locale zh`. The fresh Profile welcome dialog must be dismissed before market interaction.
 - Production tie ordering changes only after the Worker and migration `0011_star_tiebreaks.sql` deploy. Old three-field stars cursors receive `invalid-cursor`; reopening/retrying starts from page one. Other cursors remain compatible.
 - Browser sorting preferences are device-local; target-Client CLI preference control remains tracked by #2096. The existing `marketplace-list --sort` exercises each catalog order directly.
+
+### Apply a Marketplace Avatar
+
+1. Open a published Avatar in the Marketplace on the connected Host. Click **Apply** and select a Bot with a plain avatar. Confirm that the picker shows the Bot and omits the replacement warning.
+2. Choose a Bot with an editable Appearance. Confirm the warning appears before the write, apply the Avatar, and open the Bot’s profile to check the new image. Check the same Bot with the CLI.
+3. After the receipt reaches the Worker, run `deepseekbot marketplace-avatar-detail <id>` to confirm the increment. Apply again to the same Bot and check that the count stays the same.
+
+
+### Report a Marketplace Avatar
+
+1. Publish an Avatar on the isolated Worker and apply it to a test Bot. Open the loaded Avatar detail as a browsing Human. Click **Report**, add a reason, submit, and wait for **Report received**.
+2. Run `deepseekbot marketplace-avatar-report <id> --reason <text>` from the same Host. Confirm the combined reports from that source count once.
+3. On the isolated Worker, complete the report challenge from enough distinct sources to reach the configured threshold. Confirm the Avatar disappears from the list, its detail and image return 404, and another attempt to apply it is refused. Reopen the original Bot profile and compare its local Avatar.
+4. With the isolated Worker's admin token and URL in the CLI environment, use `deepseekbot marketplace-blocklist restore avatar <id>` and confirm the original Apply Count. Use `block` and `restore` again and check that the same visibility rule applies.
+
+The Worker HTTP coverage is in `packages/market/test/market-avatars.test.ts`. The Host copy check is in `packages/core/test/marketplace-avatar-apply.test.ts`.
+
+### Manage Marketplace Avatars
+
+1. Sign the Host owner into a test Connect account on an isolated Marketplace and publish two Avatars. Apply one to a Bot. From **Avatars**, open the cube action **My uploads**. Compare the published rows and Apply Counts with `deepseekbot marketplace-avatar-mine`.
+2. Edit the name, description and tags. Compare the public detail and image with the original, and confirm that the image bytes are identical. Check that search finds the new name and tag, and that filtering by the old tag excludes the edited Avatar. Verify a Team member cannot open the dialog.
+3. Keep the Avatar detail open in a second browser. Delete the Avatar from My Avatars. Check that the listing disappears and the second browser displays **This Avatar is no longer available** when applying to a Bot. Confirm the Bot that already applied it still has the same bytes. Delete the test Connect account and check that the remaining listing and its R2 image are removed.
+
+## Marketplace Avatars on Tobs mobile
+
+Set `EXPO_PUBLIC_MARKETPLACE_AVATARS=on` before exporting the bundle or starting Metro. The EAS development profiles and mobile verification job set it. Restart Metro after changing the flag. Store bundles leave it unset until Human QA passes on both platforms. With the flag unset, the Marketplace shows Bots, Bot settings hides Publish Avatar, and direct Avatar links return to the Marketplace.
+
+Use the native iOS and Android lanes. Repeat at default, intermediate and maximum system text in light and dark. Capture matched English light and Chinese dark before and after frames with loaded data. Use a paired Host pointed at an isolated Marketplace seeded with several pages and shared tags.
+
+1. Open **Marketplace → Avatars**. Use the header search and filter to search by name and combine the search with a tag, check the tag count and load another page. Open a result and compare its image, name, description, tags, author ID and Apply Count with the existing CLI.
+2. Apply to a plain Bot and then to one with an editable Appearance. Confirm Apply starts disabled and the picker shows portraits for the eligible Bots. Select each Bot and check its selection mark, then confirm the replacement warning appears for the editable Appearance. Apply and check that the Bot profile updates. Repeat with a member on the paired Host.
+3. As the Host owner, open Publish Avatar from the header menu and choose a rectangular photo, crop it with the system picker, publish and compare the detail image. Try a 255 px crop and verify the refusal. Open Settings on a Bot with a stored Avatar and publish its still image. Verify the owner controls are hidden for a member and the Bot action is hidden for a Blobatar-only Bot.
+4. Open **My Avatars** from the header menu, edit the details and confirm search returns the new name and tags. Keep the detail open in a second Client, delete the listing and verify a new apply is refused. Restart the Host and the app and check the applied Bot still shows its local Avatar.
+5. Report a seeded Avatar and verify the acknowledgement. Try the soft keyboard in search, name, description, tags and report reason. At each scale, move between fields and scroll to submission, then retry a refused request with the same draft.

@@ -1,6 +1,6 @@
 # 停止 Assignment 并检查恢复
 
-本指南说明已在 DSH 0.2.0-rc.1 核验的 BotHarness 流程。Assignment 是运行于显式归属 DSH Session 的 application-defined 工作；其权威边界见 [ADR-0045](../../adr/0045-orchestrator-manages-assignments-through-a-durable-directory.md) 与[架构](../../architecture/botharness-architecture.md)。
+本指南说明已在 DSH 0.2.0-rc.1 核验的 BotHarness 流程。Assignment 是运行于显式归属 DSH Session 的 application-defined 工作；其权威边界见 [ADR-0045](../../decisions/sessions.md#adr-0045) 与[架构](../../architecture/botharness-architecture.md)。
 
 ## Human 操作
 

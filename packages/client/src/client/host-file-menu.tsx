@@ -1,17 +1,8 @@
+import { Icon } from './ds/icon.js';
 import { PointerMenu } from './ds/pointer-menu.js';
 import { useRef, useState, type MouseEvent, type KeyboardEvent, type ReactElement } from 'react';
-import {
-  IconChevronDownOutlineRegular,
-  IconChevronLeftOutlineRegular,
-  IconCopyOutlineRegular,
-  IconDownloadOutlineRegular,
-  IconEllipsisOutlineRegular,
-  IconFolderOpenOutlineRegular,
-  IconRefreshOutlineRegular,
-  IconSettingsOutlineRegular,
-  writeClipboard,
-  type MenuEntry,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { writeClipboard } from '@deepseek-ai/dsh-client-ui-primitives';
+import { type MenuEntry } from './ds/menu.js';
 import { Tooltip } from './ds/tooltip.js';
 import {
   fileOpenScope,
@@ -192,7 +183,7 @@ function HostFileMenu({
             id: 'reveal',
             label: t('fileAction.reveal'),
             disabled: busy,
-            icon: <IconFolderOpenOutlineRegular size={16} />,
+            icon: <Icon name="folder-open" size={16} />,
           },
         ]
       : []),
@@ -215,7 +206,7 @@ function HostFileMenu({
                 id: 'set-default',
                 label: t('fileAction.setDefault', { scope: scopeText(scope, t) }),
                 disabled: busy,
-                icon: <IconSettingsOutlineRegular size={16} />,
+                icon: <Icon name="settings" size={16} />,
               },
               ...(preference === undefined
                 ? []
@@ -224,7 +215,7 @@ function HostFileMenu({
                       id: 'restore',
                       label: t('fileAction.restoreDefault'),
                       disabled: busy,
-                      icon: <IconRefreshOutlineRegular size={16} />,
+                      icon: <Icon name="refresh-cw" size={16} />,
                     },
                   ]),
             ]),
@@ -235,7 +226,7 @@ function HostFileMenu({
             id: 'download',
             label: t('fileAction.download'),
             disabled: busy,
-            icon: <IconDownloadOutlineRegular size={16} />,
+            icon: <Icon name="download" size={16} />,
           },
         ]
       : []),
@@ -246,7 +237,7 @@ function HostFileMenu({
             id: 'copy',
             label: t('fileAction.copy'),
             disabled: busy,
-            icon: <IconCopyOutlineRegular size={16} />,
+            icon: <Icon name="copy" size={16} />,
           },
         ]),
     ...(error === undefined || target === undefined
@@ -275,7 +266,7 @@ function HostFileMenu({
             id: 'back',
             label: t('fileAction.back'),
             disabled: busy,
-            icon: <IconChevronLeftOutlineRegular size={16} />,
+            icon: <Icon name="chevron-left" size={16} />,
           },
           ...errorItems,
         ];
@@ -303,7 +294,9 @@ function HostFileMenu({
           if (app === undefined) preferences.clear(scope);
           else preferences.set(scope, { application: app.id, name: app.name });
         } catch (failure) {
-          throw new Error(t('fileAction.defaultSaveFailed', { reason: reason(failure) }));
+          throw new Error(t('fileAction.defaultSaveFailed', { reason: reason(failure) }), {
+            cause: failure,
+          });
         }
         onClose(
           app === undefined
@@ -494,7 +487,7 @@ export function HostFileActionButton({
       onContextMenu={(event) => menu.open(path, event)}
       onKeyDown={(event) => menu.onKey(path, event)}
     >
-      {text ?? <IconEllipsisOutlineRegular size={16} />}
+      {text ?? <Icon name="ellipsis" size={16} />}
     </button>
   );
   return (
@@ -644,7 +637,7 @@ export function HostFileOpenButton({
             }}
           >
             {app === undefined || app.icon === null ? (
-              <IconFolderOpenOutlineRegular size={16} />
+              <Icon name="folder-open" size={16} />
             ) : (
               <ApplicationIcon app={app} />
             )}
@@ -661,7 +654,7 @@ export function HostFileOpenButton({
             disabled={busy}
             onClick={(event) => menu.open(path, event)}
           >
-            <IconChevronDownOutlineRegular size={14} />
+            <Icon name="chevron-down" size={14} />
           </button>
         </Tooltip>
       </span>

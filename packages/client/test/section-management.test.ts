@@ -1,23 +1,22 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactElement } from 'react';
-import { createRoot, type Root } from 'react-dom/client';
+import { type ReactElement } from 'react';
+import { type Root } from 'react-dom/client';
+import { type MenuItem } from '@deepseek-ai/dsh-client-ui-primitives';
+import { act, createElement } from 'react';
+import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const { dialogPrimitives } = await import('./primitive-mocks.js');
-  const { createElement: element } = await import('react');
+
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     ...dialogPrimitives(),
-    IconCheckOutlineRegular: () => element('span', { 'data-icon': 'IconCheckOutlineRegular' }),
-    IconEditOutlineRegular: () => null,
-    IconTrashOutlineRegular: () => null,
   };
 });
 
-import type { MenuItem } from '@deepseek-ai/dsh-client-ui-primitives';
-
-import { zh, zhTranslate, type BotHarnessKey } from '../src/client/locale.js';
+import { zhTranslate } from '../src/client/locale.js';
 import {
   channelMoveMenuItems,
   CreateChannelModal,
@@ -137,13 +136,13 @@ describe('channel move menu', () => {
     const label = (item: NonNullable<MenuItem['submenu']>[number]): string =>
       renderToStaticMarkup(('label' in item ? item.label : '') as never);
     const inSection = (moveItem('s2').submenu ?? []).map(label);
-    expect(inSection[2]).toContain('data-icon="IconCheckOutlineRegular"');
-    expect(inSection[1]).not.toContain('data-icon="IconCheckOutlineRegular"');
-    expect(inSection[3]).not.toContain('data-icon="IconCheckOutlineRegular"');
+    expect(inSection[2]).toContain('data-icon="check"');
+    expect(inSection[1]).not.toContain('data-icon="check"');
+    expect(inSection[3]).not.toContain('data-icon="check"');
 
     const ungrouped = (moveItem(undefined).submenu ?? []).map(label);
-    expect(ungrouped[3]).toContain('data-icon="IconCheckOutlineRegular"');
-    expect(ungrouped[0]).not.toContain('data-icon="IconCheckOutlineRegular"');
+    expect(ungrouped[3]).toContain('data-icon="check"');
+    expect(ungrouped[0]).not.toContain('data-icon="check"');
   });
 });
 

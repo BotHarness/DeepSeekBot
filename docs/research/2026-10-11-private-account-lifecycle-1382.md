@@ -1,6 +1,6 @@
 # Private account lifecycle qualification (#1382)
 
-This report covers the opt-in local Windows Host with pinned DSH 0.2.0-rc.1 and qualified Linux containers. It does not qualify Linux-server deployment, secret-consuming MCP, Schedule or IM. [ADR-0167](../adr/0167-private-account-versions-fence-consumption-and-revocation.md) records the account boundary and one-way rollback limitation; the [runnable guide](../dev/guides/private-input-cli.md) supplies synthetic-only reproduction.
+This report covers the opt-in local Windows Host with pinned DSH 0.2.0-rc.1 and qualified Linux containers. It does not qualify Linux-server deployment, secret-consuming MCP, Schedule or IM. [ADR-0167](../decisions/secrets.md#adr-0167) records the account boundary and one-way rollback limitation; the [runnable guide](../dev/guides/private-input-cli.md) supplies synthetic-only reproduction.
 
 ## Actual PersonaBot results
 

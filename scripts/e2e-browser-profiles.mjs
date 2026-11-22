@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { execFileSync } from 'node:child_process';
+import { requestListener } from './request-listener.mjs';
 
 const mode = process.argv[2];
 const port = Number(process.env.BH_E2E_FIXTURE_PORT ?? 32022);
@@ -30,69 +31,71 @@ if (mode === '--serve') {
     waiting = [];
   const accountOf = (req) =>
     /(?:^|;\s*)bh497_account=([a-z]+)/u.exec(req.headers.cookie ?? '')?.[1] ?? 'none';
-  createServer(async (req, res) => {
-    const url = new URL(req.url, fixture);
-    const account = accountOf(req);
-    res.setHeader('content-type', 'application/json');
-    if (url.pathname === '/state') return res.end(JSON.stringify({ logins, arrivals, receipts }));
-    if (url.pathname === '/login' && req.method === 'POST') {
-      let body = '';
-      for await (const chunk of req) body += chunk;
-      const input = JSON.parse(body);
-      assert.ok(['shared', 'work'].includes(input.account));
-      logins.push({ account: input.account });
-      res.setHeader(
-        'set-cookie',
-        'bh497_account=' + input.account + '; Path=/; Max-Age=86400; HttpOnly; SameSite=Lax',
-      );
-      return res.end(JSON.stringify({ account: input.account }));
-    }
-    if (url.pathname === '/finish' && req.method === 'POST') {
-      let body = '';
-      for await (const chunk of req) body += chunk;
-      const input = JSON.parse(body);
-      assert.ok(['a', 'b'].includes(input.bot));
-      assert.equal(account, input.bot === 'a' ? 'work' : 'shared');
-      assert.equal(input.token, input.bot.toUpperCase() + '-PARALLEL');
-      assert.ok(!arrivals.some((r) => r.bot === input.bot));
-      arrivals.push({ bot: input.bot, account, token: input.token });
-      waiting.push({ res, receipt: { bot: input.bot, account, token: input.token } });
-      if (waiting.length === 2) {
-        for (const entry of waiting) {
-          receipts.push(entry.receipt);
-          entry.res.end(JSON.stringify({ completed: true, account: entry.receipt.account }));
-        }
-        waiting.length = 0;
+  createServer(
+    requestListener(async (req, res) => {
+      const url = new URL(req.url, fixture);
+      const account = accountOf(req);
+      res.setHeader('content-type', 'application/json');
+      if (url.pathname === '/state') return res.end(JSON.stringify({ logins, arrivals, receipts }));
+      if (url.pathname === '/login' && req.method === 'POST') {
+        let body = '';
+        for await (const chunk of req) body += chunk;
+        const input = JSON.parse(body);
+        assert.ok(['shared', 'work'].includes(input.account));
+        logins.push({ account: input.account });
+        res.setHeader(
+          'set-cookie',
+          'bh497_account=' + input.account + '; Path=/; Max-Age=86400; HttpOnly; SameSite=Lax',
+        );
+        return res.end(JSON.stringify({ account: input.account }));
       }
-      return;
-    }
-    if (!['/account', '/task/a', '/task/b'].includes(url.pathname)) {
-      res.statusCode = 404;
-      return res.end();
-    }
-    const bot = url.pathname.split('/').at(-1);
-    res.setHeader('content-type', 'text/html; charset=utf-8');
-    const login =
-      '<label>Account <input aria-label="Account"></label><p><button id="login">Sign in</button></p><script>document.querySelector("#login").onclick=async()=>{await fetch("/login",{method:"POST",body:JSON.stringify({account:document.querySelector("input").value})});location.reload()};</script>';
-    const task =
-      '<label>Task token <input aria-label="Task token"></label><p><button id="finish">Complete parallel task</button></p><p id="result">Completed: 0</p><script>document.querySelector("#finish").onclick=async()=>{document.querySelector("#result").textContent="Waiting for other profile";const r=await(await fetch("/finish",{method:"POST",body:JSON.stringify({bot:' +
-      JSON.stringify(bot) +
-      ',token:document.querySelector("input").value})})).json();document.querySelector("#result").textContent="Completed: 1; account: "+r.account};</script>';
-    res.end(
-      '<!doctype html><title>Profile ' +
-        (url.pathname === '/account' ? 'account' : 'task ' + bot.toUpperCase()) +
-        '</title><style>body{font:24px sans-serif;padding:32px;color:#111;background:white}input,button{font:24px sans-serif}</style><h1>Profile ' +
-        (url.pathname === '/account' ? 'account' : 'task ' + bot.toUpperCase()) +
-        '</h1><p>Signed in as: ' +
-        account +
-        '</p>' +
-        (account === 'none'
-          ? login
-          : url.pathname === '/account'
-            ? '<p>Login persists in this browser profile.</p>'
-            : task),
-    );
-  }).listen(port, '127.0.0.1');
+      if (url.pathname === '/finish' && req.method === 'POST') {
+        let body = '';
+        for await (const chunk of req) body += chunk;
+        const input = JSON.parse(body);
+        assert.ok(['a', 'b'].includes(input.bot));
+        assert.equal(account, input.bot === 'a' ? 'work' : 'shared');
+        assert.equal(input.token, input.bot.toUpperCase() + '-PARALLEL');
+        assert.ok(!arrivals.some((r) => r.bot === input.bot));
+        arrivals.push({ bot: input.bot, account, token: input.token });
+        waiting.push({ res, receipt: { bot: input.bot, account, token: input.token } });
+        if (waiting.length === 2) {
+          for (const entry of waiting) {
+            receipts.push(entry.receipt);
+            entry.res.end(JSON.stringify({ completed: true, account: entry.receipt.account }));
+          }
+          waiting.length = 0;
+        }
+        return;
+      }
+      if (!['/account', '/task/a', '/task/b'].includes(url.pathname)) {
+        res.statusCode = 404;
+        return res.end();
+      }
+      const bot = url.pathname.split('/').at(-1);
+      res.setHeader('content-type', 'text/html; charset=utf-8');
+      const login =
+        '<label>Account <input aria-label="Account"></label><p><button id="login">Sign in</button></p><script>document.querySelector("#login").onclick=async()=>{await fetch("/login",{method:"POST",body:JSON.stringify({account:document.querySelector("input").value})});location.reload()};</script>';
+      const task =
+        '<label>Task token <input aria-label="Task token"></label><p><button id="finish">Complete parallel task</button></p><p id="result">Completed: 0</p><script>document.querySelector("#finish").onclick=async()=>{document.querySelector("#result").textContent="Waiting for other profile";const r=await(await fetch("/finish",{method:"POST",body:JSON.stringify({bot:' +
+        JSON.stringify(bot) +
+        ',token:document.querySelector("input").value})})).json();document.querySelector("#result").textContent="Completed: 1; account: "+r.account};</script>';
+      res.end(
+        '<!doctype html><title>Profile ' +
+          (url.pathname === '/account' ? 'account' : 'task ' + bot.toUpperCase()) +
+          '</title><style>body{font:24px sans-serif;padding:32px;color:#111;background:white}input,button{font:24px sans-serif}</style><h1>Profile ' +
+          (url.pathname === '/account' ? 'account' : 'task ' + bot.toUpperCase()) +
+          '</h1><p>Signed in as: ' +
+          account +
+          '</p>' +
+          (account === 'none'
+            ? login
+            : url.pathname === '/account'
+              ? '<p>Login persists in this browser profile.</p>'
+              : task),
+      );
+    }),
+  ).listen(port, '127.0.0.1');
 } else {
   const home = process.env.BH_E2E_HOME,
     origin = process.env.BH_E2E_ORIGIN,
@@ -166,7 +169,11 @@ if (mode === '--serve') {
     );
   }
   function processes() {
-    return execFileSync('ps', ['-axo', 'pid=,command='], { encoding: 'utf8' })
+    return execFileSync('ps', ['-axo', 'pid=,command='], {
+      encoding: 'utf8',
+      shell: false,
+      windowsHide: true,
+    })
       .split('\n')
       .filter(
         (line) =>

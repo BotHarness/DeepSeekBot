@@ -1,11 +1,14 @@
+import type { BotHarnessTranslate } from './locale.js';
 import { useState, type ReactElement } from 'react';
-import type { InjectFace, PropsLocale } from '@deepseek-ai/dsh-client-ui-slots';
 
 import { loadGitAvailability, type BridgeCall, type GitAvailability } from './bridge.js';
 import { useMountedResource } from './mounted-resource.js';
 import { SettingsRow, SettingsValue } from './ds/settings-row.js';
 
-export type GitSettingsProps = PropsLocale<'botharness'> & InjectFace<{ call: BridgeCall }>;
+export interface GitSettingsProps {
+  call: BridgeCall;
+  t: BotHarnessTranslate;
+}
 
 export function GitSettings({ call, t }: GitSettingsProps): ReactElement {
   const [git, setGit] = useState<GitAvailability>();

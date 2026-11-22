@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
-import { act, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
+import { type ConnectedHost } from '../../core/src/devices/connect-account.js';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { ConnectAccountHosts } from '../src/client/connect-account-hosts.js';
 import { zhTranslate as t } from '../src/client/locale.js';
-import type { ConnectedHost } from '../../core/src/devices/connect-account.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({ Button: 'button' }));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+}));
 vi.mock('../src/client/ds/panel-dialog.js', () => ({
   PanelDialog: ({
     title,

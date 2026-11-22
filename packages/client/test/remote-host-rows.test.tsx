@@ -3,14 +3,10 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RemoteHost } from '../src/client/remote-hosts.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: () => null,
-  Modal: () => null,
-  Input: () => null,
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+
   Textarea: () => null,
-  Tooltip: ({ children }: { children?: import('react').ReactNode }) => children,
-  IconEllipsisOutlineRegular: () => null,
-  Menu: ({ anchor }: { anchor: import('react').ReactNode }) => anchor,
 }));
 
 const fixture = vi.hoisted(() => ({
@@ -124,7 +120,7 @@ describe('remote Host rows', () => {
     expect(html).toContain('data-effect="coding"');
     expect(html).toContain('2 条未读');
     expect(html).toContain('3 条未读');
-    expect(html.match(/bh-unread-corner/g)).toHaveLength(2);
+    expect(html.match(/class="bh-unread-count"/g)).toHaveLength(2);
     expect(html).toContain('bh-group-avatar-stack');
     expect(html.match(/src="blob:studio-tob"/g)).toHaveLength(2);
     expect(html).toContain('Studio preview');

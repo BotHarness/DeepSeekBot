@@ -1,7 +1,9 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({}));
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
+}));
 
 import { BotSettings } from '../src/client/bot-settings.js';
 import { mountSettingsShortcut } from '../src/client/settings-shortcut.js';
@@ -64,9 +66,10 @@ describe('Bot settings shortcut', () => {
     botSettings.open('shortcuts');
     botSettings.close();
     press(document.body);
-    expect(botSettings.getSnapshot()).toEqual({
+    expect(botSettings.getSnapshot()).toMatchObject({
       open: true,
       sectionId: 'shortcuts',
+      compactList: true,
       pairPhone: false,
       joinComputer: false,
     });

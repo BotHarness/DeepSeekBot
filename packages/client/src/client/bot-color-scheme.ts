@@ -1,4 +1,4 @@
-import type { Appearance } from './appearance.js';
+import type { Appearance, AppearanceStyle } from './appearance.js';
 import { useSyncExternalStore } from 'react';
 
 export type BotColorScheme = 'light' | 'dark';
@@ -18,25 +18,23 @@ export function bindBotAppearance(owner: Appearance): () => void {
     publish();
   };
 }
-const DARK_ATTRIBUTE = 'data-ds-dark-theme';
+const SYSTEM_DARK = '(prefers-color-scheme: dark)';
 
 export function readBotColorScheme(): BotColorScheme {
   if (appearance) return appearance.getSnapshot().mode;
-  if (typeof document === 'undefined') return 'light';
-  return document.body.hasAttribute(DARK_ATTRIBUTE) ? 'dark' : 'light';
+  return globalThis.matchMedia?.(SYSTEM_DARK).matches ? 'dark' : 'light';
+}
+
+export function readBotStyle(): AppearanceStyle {
+  return appearance?.getSnapshot().config.style ?? 'a';
 }
 
 export function subscribeBotColorScheme(listener: () => void): () => void {
   listeners.add(listener);
-  if (typeof document === 'undefined' || typeof MutationObserver === 'undefined') {
-    return () => {
-      listeners.delete(listener);
-    };
-  }
-  const observer = new MutationObserver(listener);
-  observer.observe(document.body, { attributes: true, attributeFilter: [DARK_ATTRIBUTE] });
+  const media = globalThis.matchMedia?.(SYSTEM_DARK);
+  media?.addEventListener('change', listener);
   return () => {
-    observer.disconnect();
+    media?.removeEventListener('change', listener);
     listeners.delete(listener);
   };
 }

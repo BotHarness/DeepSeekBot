@@ -1,3 +1,5 @@
+import { observeHostResource } from './messaging-defaults-live.js';
+import { Tag } from './ds/tag.js';
 import { Input } from './ds/input.js';
 import { ActionButton } from './ds/action-button.js';
 import { MethodRefused } from '@botharness/host-client/client';
@@ -6,7 +8,7 @@ import { BridgeCallError } from './bridge.js';
 import { useMessageHost } from './message-host.js';
 import { useId, useRef, useState, type ReactElement } from 'react';
 import { useMountedResource } from './mounted-resource.js';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
+
 import type { BridgeActions } from './actions.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { store, type ChannelMessage } from './store.js';
@@ -91,31 +93,38 @@ export function PrivateInputCard({
         setError(false);
         setRefusal(undefined);
       }
-      let timer: ReturnType<typeof setTimeout> | undefined;
-      const poll = () => {
-        void actions.privateInputStatus?.(channelId, message.id).then(
-          (current) => {
-            if (!lease.active || lease.terminal !== undefined) return;
+      let failedStatusRead = false;
+      const stop = observeHostResource(
+        'private-inputs',
+        async () => {
+          if (lease.terminal !== undefined) return;
+          try {
+            const current = await actions.privateInputStatus?.(channelId, message.id);
+            if (!lease.active || lease.terminal !== undefined || current === undefined) return;
             setStatus(current);
+            if (failedStatusRead || current !== 'pending') setError(false);
+            failedStatusRead = false;
             if (current !== 'pending') {
               lease.terminal = current;
-              setError(false);
+              stop();
               node.reset();
-            } else timer = setTimeout(poll, 2500);
-          },
-          () => {
-            if (lease.active && lease.terminal === undefined) setError(true);
-          },
-        );
-      };
-      poll();
+            }
+          } catch {
+            if (lease.active && lease.terminal === undefined) {
+              failedStatusRead = true;
+              setError(true);
+            }
+          }
+        },
+        host?.client,
+      );
       return () => {
         lease.active = false;
-        clearTimeout(timer);
+        stop();
         node.reset();
       };
     },
-    [actions, channelId, message.id, retry],
+    [actions, channelId, host?.client, message.id, retry],
   );
   const disabled = status !== 'pending' || busy || actions.privateInputSubmit === undefined;
   const refusalShown = refusal !== undefined && status !== 'configured';

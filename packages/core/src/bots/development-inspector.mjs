@@ -90,9 +90,13 @@ export async function connect(port, targetId, simulatorName) {
     }
     pending.clear();
   });
+  const abortReason = (signal) => {
+    const reason = signal.reason;
+    return reason instanceof Error ? reason : Error('INSPECTOR_ABORTED', { cause: reason });
+  };
   const send = (method, params, signal) =>
     new Promise((resolve, reject) => {
-      if (signal?.aborted) return reject(signal.reason);
+      if (signal?.aborted) return reject(abortReason(signal));
       if (ws.readyState !== WebSocket.OPEN) return reject(Error('INSPECTOR_CLOSED'));
       const n = ++id;
       const cleanup = () => {
@@ -100,16 +104,20 @@ export async function connect(port, targetId, simulatorName) {
         signal?.removeEventListener('abort', abort);
         pending.delete(n);
       };
-      const fail = (error) => {
+      const abort = () => {
         cleanup();
-        reject(error);
+        reject(abortReason(signal));
       };
-      const abort = () => fail(signal.reason);
-      const timer = setTimeout(() => fail(Error('INSPECTOR_TIMEOUT')), 20000);
+      const timer = setTimeout(() => {
+        cleanup();
+        reject(Error('INSPECTOR_TIMEOUT'));
+      }, 20000);
       pending.set(n, { resolve, reject, cleanup });
       signal?.addEventListener('abort', abort, { once: true });
       ws.send(JSON.stringify({ id: n, method, params }), (error) => {
-        if (error) fail(Error('INSPECTOR_CONNECTION_FAILED'));
+        if (!error) return;
+        cleanup();
+        reject(Error('INSPECTOR_CONNECTION_FAILED'));
       });
     });
   return {
@@ -177,10 +185,10 @@ export async function connect(port, targetId, simulatorName) {
           if (!envelope(result, 'pending')) throw Error('INSPECTOR_RESULT_REQUIRED');
           await new Promise((resolve, reject) => {
             const signal = operation.signal;
-            if (signal.aborted) return reject(signal.reason);
+            if (signal.aborted) return reject(abortReason(signal));
             const abort = () => {
               clearTimeout(pause);
-              reject(signal.reason);
+              reject(abortReason(signal));
             };
             const pause = setTimeout(() => {
               signal.removeEventListener('abort', abort);

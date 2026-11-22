@@ -11,7 +11,13 @@ const mainCheckout = () => {
     const commonDir = execFileSync(
       'git',
       ['rev-parse', '--path-format=absolute', '--git-common-dir'],
-      { cwd: __dirname, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+      {
+        cwd: __dirname,
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        shell: false,
+        windowsHide: true,
+      },
     ).trim();
     return path.dirname(commonDir);
   } catch {

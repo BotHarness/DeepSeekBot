@@ -6,7 +6,9 @@ describe('manual compaction result', () => {
     expect(
       parseBotCompactResult({ outcome: 'compacted', tokensBefore: 471_070, tokensAfter: 27_782 }),
     ).toEqual({ outcome: 'compacted', tokensBefore: 471_070, tokensAfter: 27_782 });
-    expect(parseBotCompactResult({ outcome: 'not-loaded', tokensBefore: null })).toEqual({
+    expect(
+      parseBotCompactResult({ outcome: 'not-loaded', tokensBefore: null, tokensAfter: null }),
+    ).toEqual({
       outcome: 'not-loaded',
       tokensBefore: null,
       tokensAfter: null,
@@ -14,6 +16,8 @@ describe('manual compaction result', () => {
   });
 
   it('rejects an unknown outcome', () => {
-    expect(() => parseBotCompactResult({ outcome: 'done' })).toThrow('invalid compaction result');
+    expect(() =>
+      parseBotCompactResult({ outcome: 'done', tokensBefore: 12, tokensAfter: 6 }),
+    ).toThrow('botCompact returned an invalid answer');
   });
 });

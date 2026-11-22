@@ -1,11 +1,19 @@
 // @vitest-environment jsdom
+import { type RemoteHostsSnapshot } from '../src/client/remote-hosts.js';
+import { type BridgeActions } from '../src/client/actions.js';
+import { type BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
+import { type RosterConfig } from '../src/client/roster-config.js';
+import { type RosterSection } from '../src/client/roster.js';
+import { type RosterSnapshot } from '../src/client/roster.js';
+import { type BotSummary } from '../src/client/store.js';
+import { type ChannelSummary } from '../src/client/store.js';
 import { createHumanAvatarCache } from '@botharness/host-client/human-profile';
-import { act, createElement, Profiler, type ReactNode, type InputHTMLAttributes } from 'react';
+import { act, createElement, Profiler } from 'react';
 import { createRoot } from 'react-dom/client';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { menuItem, hoverTooltip } from './primitive-mocks.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import type { RemoteHostsSnapshot } from '../src/client/remote-hosts.js';
 const environmentProbe = vi.hoisted(
   (): { snapshot: RemoteHostsSnapshot; dock?: boolean | undefined } => ({
     snapshot: { hosts: [], avatars: new Map(), tab: 'local' },
@@ -80,76 +88,39 @@ vi.mock('../src/client/ds/pointer-menu.js', () => ({
   },
 }));
 
-vi.mock('../src/client/ds/button.js', async () => ({
-  Button: (await import('@deepseek-ai/dsh-client-ui-primitives')).Button,
-}));
-vi.mock('../src/client/ds/input.js', async () => ({
-  Input: (await import('@deepseek-ai/dsh-client-ui-primitives')).Input,
-}));
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => {
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => {
   const stub = () => null;
   const icon = (name: string) => (props: { className?: string }) =>
     createElement('span', { 'data-icon': name, className: props.className });
   return {
+    ...(await import('./primitive-mocks.js')).shellPrimitives(),
     MarkdownText: ({ text }: { text: string }) => createElement('span', null, text),
-    Button: (props: { children?: ReactNode; disabled?: boolean }) =>
-      createElement('button', { disabled: props.disabled }, props.children),
-    IconAgentPresetOutlineRegular: icon('IconAgentPresetOutlineRegular'),
-    IconCheckOutlineRegular: icon('IconCheckOutlineRegular'),
-    IconChevronDownOutlineRegular: icon('IconChevronDownOutlineRegular'),
+
     IconCloseFill14: icon('IconCloseFill14'),
-    IconEditOutlineRegular: icon('IconEditOutlineRegular'),
-    IconEllipsisOutlineRegular: icon('IconEllipsisOutlineRegular'),
-    IconFolderOpenOutlineRegular: icon('IconFolderOpenOutlineRegular'),
-    IconGlobeOutlineRegular: icon('IconGlobeOutlineRegular'),
-    IconNewChatOutlineRegular: icon('IconNewChatOutlineRegular'),
-    IconPinFillRegular: icon('IconPinFillRegular'),
-    IconPinOutlineRegular: icon('IconPinOutlineRegular'),
-    IconPlusOutlineRegular: icon('IconPlusOutlineRegular'),
-    IconSearchOutlineRegular: icon('IconSearchOutlineRegular'),
-    IconSettingsOutlineRegular: icon('IconSettingsOutlineRegular'),
-    IconUserOutlineRegular: icon('IconUserOutlineRegular'),
-    IconShareOutlineRegular: icon('IconShareOutlineRegular'),
-    IconTrashOutlineRegular: icon('IconTrashOutlineRegular'),
+
     IconTriangleRightFill14: icon('IconTriangleRightFill14'),
-    HoverCard: (props: { anchor: ReactNode; content: ReactNode }) =>
-      createElement('span', { 'data-hover-card': 'true' }, props.anchor, props.content),
-    Input: (props: InputHTMLAttributes<HTMLInputElement>) => createElement('input', props),
-    Menu: (props: {
-      open: boolean;
-      items: readonly Record<string, unknown>[];
-      selectedId?: string | undefined;
-      anchor: unknown;
-    }) => {
-      captured.menus.push(props);
-      return props.anchor as never;
-    },
-    Modal: (props: { open: boolean; title: string; children?: ReactNode }) =>
-      props.open
-        ? createElement('div', { role: 'dialog', 'aria-label': props.title }, props.children)
-        : null,
+
     ShortcutKeys: (props: { keys: readonly string[] }) =>
       createElement('kbd', null, props.keys.join(' ')),
     StateDot: stub,
-    Tag: (props: { children?: ReactNode }) => createElement('span', null, props.children),
-    Tooltip: (props: { children?: unknown }) => (props.children ?? null) as never,
+
     relativeTime: () => ({ unit: 'now', n: 0 }),
   };
 });
 
-import type { BridgeActions } from '../src/client/actions.js';
 import { BotSidebar, BulkChannelMenu, ChannelMoveMenu } from '../src/client/bot-sidebar.js';
 import { createQuickSwitcherLauncher } from '../src/client/quick-switcher-launcher.js';
+import { seededAvatarFor } from '../../core/src/bots/avatar-appearance.js';
+import { isolateTeamIdentity, setTeamModeSnapshot } from '../src/client/team-state.js';
 import { typeInto } from './primitive-mocks.js';
 import { UNGROUPED_MOVE_TARGET } from '../src/client/section-management.js';
-import type { BotModePrefsSnapshot } from '../src/client/bot-mode-prefs.js';
+
 import { PINNED_SORT_SCOPE_ID } from '@botharness/host-client/shared/bot-mode-settings';
 import { zh, zhTranslate } from '../src/client/locale.js';
 import { formatChannelListTime } from '../src/client/channel-row-status.js';
-import type { RosterConfig } from '../src/client/roster-config.js';
-import type { RosterSection, RosterSnapshot } from '../src/client/roster.js';
+
 import { store } from '../src/client/store.js';
-import type { BotSummary, ChannelSummary } from '../src/client/store.js';
+
 import { WindowCompanions } from '../src/client/window-companions.js';
 import * as hostTabs from '../src/client/host-tabs.js';
 import * as hostLooks from '../src/client/host-looks.js';
@@ -206,7 +177,7 @@ function stubActions(): BridgeActions {
     sendGenuiReply: vi.fn(),
     humanIdentity: vi.fn(),
     humanAvatarSet: vi.fn(),
-    humanAvatars: createHumanAvatarCache(async () => ({ avatars: [] })),
+    humanAvatars: createHumanAvatarCache(async () => []),
     tobHome: vi.fn(),
     sendHome: vi.fn(),
     channelHistory: vi.fn(),
@@ -242,6 +213,17 @@ function stubActions(): BridgeActions {
       throw new Error('unexpected Overview usage');
     }),
     marketplaceList: vi.fn(async () => ({ bots: [] })),
+    marketplaceAvatarList: vi.fn(),
+    marketplaceAvatarTags: vi.fn(),
+    marketplaceAvatarDetail: vi.fn(),
+    marketplaceAvatarReport: vi.fn(),
+    marketplaceAvatarApplyCandidates: vi.fn(),
+    marketplaceAvatarApply: vi.fn(),
+    marketplaceAvatarPublish: vi.fn(),
+    marketplaceAvatarSource: vi.fn(),
+    marketplaceAvatarMine: vi.fn(),
+    marketplaceAvatarEdit: vi.fn(),
+    marketplaceAvatarDelete: vi.fn(),
     marketplaceAccount: vi.fn(async () => ({ signedIn: false, author: null })),
     marketplaceAuthorSave: vi.fn(async () => {
       throw new Error('unused');
@@ -346,6 +328,7 @@ function stubActions(): BridgeActions {
       throw new Error('unexpected IM send');
     }),
     modelCatalog: vi.fn(async () => ({ models: [] })),
+    routingGroupEngines: vi.fn(async () => []),
     modelPresets: vi.fn(async () => []),
     routingGroups: vi.fn(async () => ({ groups: [], rests: [] })),
     createRoutingGroup: vi.fn(),
@@ -353,12 +336,6 @@ function stubActions(): BridgeActions {
     deleteRoutingGroup: vi.fn(),
     modelPlan: vi.fn(async () => undefined),
     modelPlanState: vi.fn(async () => ({})),
-    createModelPreset: vi.fn(async () => {
-      throw new Error('unexpected Model Preset creation');
-    }),
-    updateModelPreset: vi.fn(async () => {
-      throw new Error('unexpected Model Preset update');
-    }),
     applyModelPreset: vi.fn(async () => {
       throw new Error('unexpected Model Preset application');
     }),
@@ -708,7 +685,16 @@ let prefs: BotModePrefsSnapshot = {
 let setSortMode = vi.fn();
 let setSectionSortMode = vi.fn();
 
+let menuView: { root: ReturnType<typeof createRoot>; host: HTMLDivElement } | undefined;
+function disposeMenuView() {
+  if (menuView === undefined) return;
+  act(() => menuView!.root.unmount());
+  menuView.host.remove();
+  menuView = undefined;
+}
+
 function renderSidebar(wide = true): string {
+  disposeMenuView();
   return renderToStaticMarkup(
     createElement(BotSidebar, {
       wide,
@@ -722,17 +708,78 @@ function renderSidebar(wide = true): string {
   );
 }
 
-function menuWithLabel(label: string): {
-  open: boolean;
-  items: readonly Record<string, unknown>[];
-  selectedId?: string | undefined;
-  onSelect?: (id: string) => void;
-} {
-  const found = captured.menus.find((menu) =>
-    menu.items.some((item) => item['type'] === 'label' && item['text'] === label),
-  );
-  if (found === undefined) throw new Error(`menu with label ${label} not rendered`);
-  return found;
+function openSidebarMenu(label: string): HTMLElement {
+  if (document.querySelector(`button[aria-label="${label}"]`) === null) {
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    menuView = { root, host };
+    Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+    act(() =>
+      root.render(
+        createElement(BotSidebar, {
+          wide: true,
+          actions: stubActions(),
+          useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+            selector(prefs)) as never,
+          setSortMode,
+          setSectionSortMode,
+          t: zhTranslate,
+        }),
+      ),
+    );
+  }
+  const trigger = document.querySelector<HTMLButtonElement>(`button[aria-label="${label}"]`);
+  if (trigger === null) throw new Error(`No sidebar menu ${label}`);
+  if (trigger.getAttribute('aria-expanded') !== 'true') act(() => trigger.click());
+  const menu = document.querySelector<HTMLElement>('[role="menu"]');
+  if (menu === null) throw new Error(`No menu opened by ${label}`);
+  return menu;
+}
+
+async function renderRailPreviews(): Promise<string> {
+  disposeMenuView();
+  const host = document.createElement('div');
+  document.body.append(host);
+  const root = createRoot(host);
+  menuView = { root, host };
+  Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+  vi.useFakeTimers();
+  try {
+    await act(async () =>
+      root.render(
+        createElement(BotSidebar, {
+          wide: false,
+          actions: stubActions(),
+          useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+            selector(prefs)) as never,
+          setSortMode,
+          setSectionSortMode,
+          t: zhTranslate,
+        }),
+      ),
+    );
+    let markup = host.innerHTML;
+    for (const button of host.querySelectorAll<HTMLElement>('.bh-rail-channel')) {
+      const trigger = button.parentElement!;
+      await hoverTooltip(trigger, vi.advanceTimersByTimeAsync, 350);
+      const preview = document.querySelector('.bh-rail-preview');
+      if (preview === null) throw new Error('No rail preview after hover');
+      markup += preview.outerHTML;
+      await act(async () => {
+        trigger.dispatchEvent(new MouseEvent('mouseleave', { relatedTarget: document.body }));
+        await vi.advanceTimersByTimeAsync(1000);
+      });
+    }
+    return markup;
+  } finally {
+    disposeMenuView();
+    vi.useRealTimers();
+  }
+}
+
+function rowNames(menu: HTMLElement): (string | null)[] {
+  return [...menu.querySelectorAll('[role="menuitem"]')].map((row) => row.textContent);
 }
 
 function menuWithItem(id: string): {
@@ -792,6 +839,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  disposeMenuView();
   vi.unstubAllGlobals();
   captured.menus.length = 0;
   store.setActivityList({ unreadCount: 0, hasAction: false, channelUnread: {} });
@@ -862,7 +910,8 @@ describe('bot sidebar rows', () => {
         );
         await act(async () => menuWithItem('pin').onSelect?.('pin'));
         expect(actions.setChannelPinned).toHaveBeenCalledWith('c-section', true);
-        await act(async () => menuWithItem('section').onSelect?.('section'));
+        openSidebarMenu(zhTranslate('roster.new.label'));
+        await act(async () => menuItem('创建频道分组').click());
         expect(document.querySelector('[role="dialog"]')?.getAttribute('aria-label')).toBe(
           '创建频道分组',
         );
@@ -1119,6 +1168,76 @@ describe('bot sidebar rows', () => {
     }
   });
 
+  it.each([
+    ['owner', 'image', true],
+    ['owner', 'appearance', true],
+    ['owner', 'blobatar', false],
+    ['member', 'image', false],
+    ['member', 'appearance', false],
+  ] as const)(
+    'shows the Bot Avatar publish menu for %s with %s: %s',
+    async (kind, source, visible) => {
+      Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+      const bot: BotSummary = { ...BOT };
+      if (source === 'image') bot.avatar = '/api/botharness/bot-avatar?slug=atlas&v=1';
+      if (source === 'appearance')
+        bot.appearance = { recipe: seededAvatarFor('Atlas', 2), revision: 'preview' };
+      store.setRoster([bot], [DM_CHANNEL]);
+      const open = vi.fn();
+      const teamCall = vi.fn();
+      isolateTeamIdentity(teamCall);
+      setTeamModeSnapshot(teamCall, {
+        enabled: true,
+        ownerPasswordSet: false,
+        insecureHttpAllowed: false,
+        memberUrls: [],
+        isolation: 'trial',
+        viewer: {
+          kind,
+          humanId: kind,
+          displayName: kind,
+          mustChangePassword: false,
+          owner: kind === 'owner',
+          permissions: ['bots.manageAll'],
+          roleIds: [],
+        },
+      });
+      const node = document.createElement('div');
+      document.body.append(node);
+      const root = createRoot(node);
+      try {
+        await act(async () =>
+          root.render(
+            createElement(BotSidebar, {
+              wide: true,
+              actions: { ...stubActions(), teamCall },
+              useBotModePrefs: ((selector: (snapshot: BotModePrefsSnapshot) => unknown) =>
+                selector(prefs)) as never,
+              setSortMode,
+              setSectionSortMode,
+              dockPanels: { open } as never,
+              t: zhTranslate,
+            }),
+          ),
+        );
+        await act(async () =>
+          node
+            .querySelector('[data-channel-id="dm-atlas"]')
+            ?.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+        );
+        const menu = menuWithItem('share-market');
+        expect(menu.items.some((item) => item['id'] === 'publish-avatar')).toBe(visible);
+        if (visible) {
+          await act(async () => menu.onSelect?.('publish-avatar'));
+          expect(open).toHaveBeenCalledWith('bot-market');
+        }
+      } finally {
+        await act(async () => root.unmount());
+        node.remove();
+      }
+    },
+  );
+
   it('changes a Bot avatar from its DM context menu through the Profile avatar editor', async () => {
     Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
     store.setRoster([BOT], [DM_CHANNEL]);
@@ -1181,28 +1300,34 @@ describe('bot sidebar rows', () => {
     store.setRoster([BOT], [SECTION_CHANNEL, FLAT_CHANNEL]);
     const markup = renderSidebar();
 
-    expect(markup).toContain('bh-section-head');
-    expect(markup).toContain('role="button"');
-    expect(markup).toContain('aria-expanded="true"');
+    const renderedSection = new DOMParser()
+      .parseFromString(markup, 'text/html')
+      .querySelector('[data-section-id="s1"]');
+    const toggle = renderedSection?.querySelector<HTMLButtonElement>('button[data-group-heading]');
+    expect(toggle?.classList.contains('bh-section-head')).toBe(true);
+    expect(toggle?.getAttribute('aria-expanded')).toBe('true');
+    expect(toggle?.querySelector('button')).toBeNull();
     expect(markup).not.toContain('IconTriangleRightFill14');
     expect(markup).not.toContain('bh-arrow');
     expect(markup).not.toContain('bh-row-slot');
     expect(markup).toContain('bh-section-name');
-    expect(markup).toContain('data-icon="IconChevronDownOutlineRegular"');
-    expect(markup).toContain('bh-section-chevron');
+    expect(markup).toContain('data-icon="chevron-down"');
+    expect(markup).toContain('data-panel-chevron');
     expect(markup).not.toContain('bh-chevron-collapsed');
     expect(markup).toContain('bh-row-actions');
     expect(markup).toContain('aria-label="「工作流」排序方式"');
     expect(markup).toContain('aria-label="在「工作流」中新建"');
-    expect(markup.match(/class="bh-row-action"/g)).toHaveLength(2);
-    expect(markup).not.toMatch(/class="bh-row-action"[^>]*disabled/);
+    const menuButtons =
+      renderedSection?.querySelectorAll<HTMLButtonElement>('button.bh-row-action');
+    expect(menuButtons).toHaveLength(2);
+    expect(Array.from(menuButtons ?? []).every((button) => !button.disabled)).toBe(true);
     const createMenu = captured.menus.find(
       (menu) =>
         menu.items.some((item) => item['id'] === 'bot') &&
         menu.items.some((item) => item['id'] === 'channel') &&
         !menu.items.some((item) => item['id'] === 'section'),
     );
-    expect(createMenu?.items.map((item) => item['label'])).toEqual(['创建 Bot', '创建频道']);
+    expect(rowNames(openSidebarMenu('在「工作流」中新建'))).toEqual(['创建 Bot', '创建频道']);
   });
 
   it('renders Group conversations with the same two-line anatomy as DMs', () => {
@@ -1237,7 +1362,7 @@ describe('bot sidebar rows', () => {
     expect(markup).toContain('暂无消息');
   });
 
-  it('localizes system departure previews in the roster and collapsed rail', () => {
+  it('localizes system departure previews in the roster and collapsed rail', async () => {
     store.setRoster(
       [BOT],
       [
@@ -1275,7 +1400,7 @@ describe('bot sidebar rows', () => {
     );
 
     for (const wide of [true, false]) {
-      const markup = renderSidebar(wide);
+      const markup = wide ? renderSidebar() : await renderRailPreviews();
       expect(markup).toContain('Atlas 退出了频道');
       expect(markup).toContain('Bea 被移出了频道');
       expect(markup).not.toContain('undefined：');
@@ -1325,7 +1450,7 @@ describe('bot sidebar rows', () => {
     const wide = renderSidebar();
     expect(wide).toContain('bh-has-unread');
     expect(wide).toMatch(
-      /<span class="bh-row-avatar">.*?<span class="bh-unread-count bh-unread-corner" aria-label="3 条未读">3<\/span><\/span>/u,
+      /<span class="bh-bottom">.*?<span class="bh-unread-count" aria-label="3 条未读">3<\/span>/u,
     );
     expect(wide).toContain('data-status="done-unread"');
     store.setActivityList({ channelUnread: { [DM_CHANNEL.id]: 120 } });
@@ -1339,7 +1464,7 @@ describe('bot sidebar rows', () => {
     const markup = renderSidebar();
     expect(markup).toContain('bh-muted');
     expect(markup).toContain('aria-label="已免打扰"');
-    expect(markup).toContain('bh-unread-count bh-unread-corner bh-unread-count-muted');
+    expect(markup).toContain('bh-unread-count bh-unread-count-muted');
   });
 
   it('shows recent activity for a bodyless latest DM message', () => {
@@ -1383,7 +1508,10 @@ describe('bot sidebar rows', () => {
 
     expect(markup).toContain('bh-pin-zone bh-pin-zone-filled');
     expect(markup).toContain('bh-pinned-grid');
-    expect(markup).toMatch(/class="bh-pinned[^"]*"[^>]*draggable="true"/);
+    const pin = new DOMParser()
+      .parseFromString(markup, 'text/html')
+      .querySelector<HTMLButtonElement>('button.bh-pinned');
+    expect(pin?.draggable).toBe(true);
     expect(markup).not.toContain('拖到此处置顶');
     expect(markup).toContain('bh-unpin-zone bh-unpin-zone-hidden');
   });
@@ -1399,7 +1527,7 @@ describe('bot sidebar rows', () => {
     expect(markup.match(/bh-channel-row/g) ?? []).toHaveLength(0);
   });
 
-  it('keeps a Group avatar in the roster, pinned grid, and both rail positions', () => {
+  it('keeps a Group avatar in the roster, pinned grid, and both rail positions', async () => {
     const group = { ...FLAT_CHANNEL, avatar: 'data:image/webp;base64,avatar' };
     store.setRoster([], [group]);
 
@@ -1407,7 +1535,7 @@ describe('bot sidebar rows', () => {
     expect(roster).toContain('bh-channel-slot bh-group-channel-slot');
     expect(roster).toContain('<img class="bh-group-avatar-image"');
 
-    const ordinaryRail = renderSidebar(false);
+    const ordinaryRail = await renderRailPreviews();
     expect(ordinaryRail).toContain('bh-rail-channel-icon bh-group-channel-icon');
     expect(ordinaryRail.match(/<img class="bh-group-avatar-image"/g)).toHaveLength(2);
 
@@ -1416,12 +1544,12 @@ describe('bot sidebar rows', () => {
     expect(pinned).toContain('bh-pinned-channel-icon bh-group-pinned-channel-icon');
     expect(pinned).toContain('<img class="bh-group-avatar-image"');
 
-    const pinnedRail = renderSidebar(false);
+    const pinnedRail = await renderRailPreviews();
     expect(pinnedRail).toContain('bh-rail-channel-icon bh-group-channel-icon');
     expect(pinnedRail.match(/<img class="bh-group-avatar-image"/g)).toHaveLength(2);
   });
 
-  it('stacks member faces for a Group without an avatar in the roster, pinned grid, and rail', () => {
+  it('stacks member faces for a Group without an avatar in the roster, pinned grid, and rail', async () => {
     const group = { ...FLAT_CHANNEL, members: ['atlas'] };
     store.setRoster([BOT], [group]);
 
@@ -1429,7 +1557,7 @@ describe('bot sidebar rows', () => {
     expect(roster).toContain('bh-channel-slot bh-group-channel-slot');
     expect(roster.match(/class="bh-group-avatar-stack" data-count="1"/g)).toHaveLength(1);
 
-    const ordinaryRail = renderSidebar(false);
+    const ordinaryRail = await renderRailPreviews();
     expect(ordinaryRail).toContain('bh-rail-channel-icon bh-group-channel-icon');
     expect(ordinaryRail.match(/class="bh-group-avatar-stack"/g)).toHaveLength(2);
 
@@ -1440,11 +1568,11 @@ describe('bot sidebar rows', () => {
     const stack = pinned.slice(pinned.indexOf('class="bh-group-avatar-stack"'));
     expect(stack).toMatch(/^[^]*?class="bh-persona-avatar"[^>]*data-state="idle"/);
 
-    const pinnedRail = renderSidebar(false);
+    const pinnedRail = await renderRailPreviews();
     expect(pinnedRail.match(/class="bh-group-avatar-stack"/g)).toHaveLength(2);
   });
 
-  it('projects every ordered Channel into the collapsed rail with a pin divider and previews', () => {
+  it('projects every ordered Channel into the collapsed rail with separate pinned and unpinned groups and previews', async () => {
     setRoster({
       pins: [DM_CHANNEL.id],
       sections: [section('s1', '工作流', [SECTION_CHANNEL.id])],
@@ -1478,12 +1606,13 @@ describe('bot sidebar rows', () => {
       ],
     );
 
-    const markup = renderSidebar(false);
+    const markup = await renderRailPreviews();
 
     expect(markup).toContain('bh-region-rail');
-    expect(markup.match(/class="bh-rail-channel(?: bh-selected)?"/g) ?? []).toHaveLength(3);
-    expect(markup).toContain('bh-rail-divider');
-    expect(markup.indexOf('Atlas')).toBeLessThan(markup.indexOf('bh-rail-divider'));
+    const rail = new DOMParser().parseFromString(markup, 'text/html');
+    expect(rail.querySelectorAll('button.bh-rail-channel')).toHaveLength(3);
+    expect(markup).toContain('data-rail-unpinned');
+    expect(markup.indexOf('Atlas')).toBeLessThan(markup.indexOf('data-rail-unpinned'));
     expect(markup.indexOf('一级渠道')).toBeLessThan(markup.indexOf('散装渠道'));
     expect(markup).toContain('Atlas：已完成调研');
     expect(markup).toContain('你：继续处理');
@@ -1566,16 +1695,16 @@ describe('bot sidebar rows', () => {
     const markup = renderSidebar();
 
     expect(markup).toContain('aria-expanded="false"');
-    expect(markup).toContain('bh-chevron-collapsed');
+    expect(markup).toMatch(/<button(?=[^>]*data-group-heading="")(?=[^>]*aria-expanded="false")/);
     expect(markup).not.toContain('一级渠道');
     expect(markup).toContain('bh-row-actions');
   });
 
   it('orders the header icons search, ellipsis, plus', () => {
     const markup = renderSidebar();
-    const search = markup.indexOf('data-icon="IconSearchOutlineRegular"');
-    const ellipsis = markup.indexOf('data-icon="IconEllipsisOutlineRegular"');
-    const plus = markup.indexOf('data-icon="IconPlusOutlineRegular"');
+    const search = markup.indexOf('data-icon="search"');
+    const ellipsis = markup.indexOf('data-icon="ellipsis"');
+    const plus = markup.indexOf('data-icon="plus"');
 
     expect(search).toBeGreaterThan(-1);
     expect(ellipsis).toBeGreaterThan(search);
@@ -1650,16 +1779,11 @@ describe('bot sidebar rows', () => {
   it('offers PersonaBot creation when channels already exist and from the create menu', () => {
     store.setRoster([], [FLAT_CHANNEL]);
     const markup = renderSidebar();
-    const menu = menuWithItem('bot');
+    const menu = openSidebarMenu(zhTranslate('roster.new.label'));
 
-    expect(menu.items.map((item) => item['label'])).toEqual([
-      '创建 Bot',
-      '创建频道',
-      '创建频道分组',
-      'Bot 市场',
-    ]);
-    expect(menu.items[0]?.['disabled']).toBe(false);
-    expect(menu.items[0]?.['submenu']).toBeUndefined();
+    expect(rowNames(menu)).toEqual(['创建 Bot', '创建频道', '创建频道分组', '市场']);
+    expect(menu.querySelector('[role=menuitem]')?.getAttribute('aria-disabled')).not.toBe('true');
+    expect(menu.querySelector('[role=menuitem]')?.hasAttribute('aria-haspopup')).toBe(false);
     expect(markup).toContain('还没有 Bot');
     expect(markup).toContain('创建第一个 Bot');
     expect(markup).toContain('散装渠道');
@@ -1670,9 +1794,9 @@ describe('bot sidebar rows', () => {
     captured.dock = true;
     environmentProbe.snapshot = { hosts: [], avatars: new Map(), tab: 'all' };
     renderSidebar();
-    const ids = menuWithItem('bot').items.map((item) => item['id']);
-    expect(ids).not.toContain('remote');
-    expect(ids).toContain('channel');
+    const menu = openSidebarMenu(zhTranslate('roster.new.label'));
+    expect(rowNames(menu)).not.toContain(zhTranslate('remoteHosts.add'));
+    expect(rowNames(menu)).toContain('创建频道');
   });
 
   it('blocks Bot creation and explains why while Host Git is unusable', () => {
@@ -1683,14 +1807,15 @@ describe('bot sidebar rows', () => {
       ...NO_INSTALL,
     });
     const markup = renderSidebar();
-    const createBot = menuWithItem('bot').items[0];
+    openSidebarMenu(zhTranslate('roster.new.label'));
+    const createBot = menuItem('创建 Bot');
 
     expect(markup).toContain('data-git-unavailable="too-old"');
     expect(markup).toContain('需要 Git 才能创建 Bot');
     expect(markup).toContain('Git 2.20.1 版本太旧，需要 2.28 或更新版本。');
     expect(markup).toContain('href="https://botharness.ai/zh/docs/installation/#git"');
-    expect(markup).toMatch(/<button disabled="">创建第一个 Bot<\/button>/);
-    expect(createBot?.['disabled']).toBe(true);
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>创建第一个 Bot<\/button>/);
+    expect(createBot.getAttribute('aria-disabled')).toBe('true');
   });
 
   it('names a missing Git and a Git that cannot run differently', () => {
@@ -1726,7 +1851,7 @@ describe('bot sidebar rows', () => {
     markup = renderSidebar();
     expect(markup).toContain('正在下载 Git… 12.0 / 62.0 MB');
     expect(markup).toMatch(/<progress[^>]*max="65011712"/);
-    expect(markup).toMatch(/<button disabled="">正在安装…<\/button>/);
+    expect(markup).toMatch(/<button[^>]*disabled=""[^>]*>正在安装…<\/button>/);
     expect(markup).not.toContain('重新检测');
 
     store.setGit({
@@ -1749,10 +1874,11 @@ describe('bot sidebar rows', () => {
 
   it('shows no Git notice once Host Git is usable', () => {
     const markup = renderSidebar();
-    const createBot = menuWithItem('bot').items[0];
+    openSidebarMenu(zhTranslate('roster.new.label'));
+    const createBot = menuItem('创建 Bot');
 
     expect(markup).not.toContain('data-git-unavailable');
-    expect(createBot?.['disabled']).toBe(false);
+    expect(createBot.getAttribute('aria-disabled')).not.toBe('true');
   });
 
   it('sorts the pinned grid independently and offers a pinned sort menu', () => {
@@ -1774,22 +1900,18 @@ describe('bot sidebar rows', () => {
     const auto = renderSidebar();
     expect(auto.indexOf('新置顶')).toBeLessThan(auto.indexOf('旧置顶'));
     expect(auto).toContain('aria-label="置顶排序"');
-    const menu = menuWithLabel('置顶排序');
-    expect(menu.items.map((item) => item['id'])).toEqual([
-      'pinned-sort-label',
-      'updated',
-      'manual',
-      'inherit',
-    ]);
-    expect(menu.selectedId).toBe('inherit');
-    menu.onSelect?.('manual');
+    let menu = openSidebarMenu('置顶排序');
+    expect(rowNames(menu)).toEqual(['最近更新', '手动排序', '恢复自动']);
+    expect(menu.querySelector('[data-selected]')?.textContent).toBe('恢复自动');
+    act(() => menuItem('手动排序').click());
     expect(setSectionSortMode).toHaveBeenCalledWith(PINNED_SORT_SCOPE_ID, 'manual');
     prefs = { ...prefs, sortModes: { [PINNED_SORT_SCOPE_ID]: 'manual' } };
     captured.menus.length = 0;
     const manual = renderSidebar();
     expect(manual.indexOf('旧置顶')).toBeLessThan(manual.indexOf('新置顶'));
-    expect(menuWithLabel('置顶排序').selectedId).toBe('manual');
-    menu.onSelect?.('inherit');
+    menu = openSidebarMenu('置顶排序');
+    expect(menu.querySelector('[data-selected]')?.textContent).toBe('手动排序');
+    act(() => menuItem('恢复自动').click());
     expect(setSectionSortMode).toHaveBeenCalledWith(PINNED_SORT_SCOPE_ID, undefined);
   });
 
@@ -1820,39 +1942,33 @@ describe('bot sidebar rows', () => {
     };
     renderSidebar();
 
-    const menu = menuWithLabel('排序方式');
-    expect(menu.items.map((item) => item['id'])).toEqual([
-      'sort-label',
-      'updated',
-      'manual',
-      'roster-separator',
-      'mark-all-read',
-      'hidden',
-      'channel-history',
-    ]);
-    expect(menu.items[0]?.['type']).toBe('label');
-    expect(menu.items.slice(1).every((item) => item['danger'] === undefined)).toBe(true);
-    expect(
-      menu.items.filter((item) => item['label'] !== undefined).map((item) => item['label']),
-    ).toEqual([
+    const menu = openSidebarMenu(zhTranslate('roster.menu.label'));
+    expect(menu.querySelector('[role=presentation]')?.textContent).toBe('排序方式');
+    expect(menu.querySelectorAll('[role=separator]')).toHaveLength(1);
+    expect(menu.querySelector('[role=separator]')?.previousElementSibling?.textContent).toBe(
+      '手动排序',
+    );
+    expect(rowNames(menu)).toEqual([
       '最近更新',
       '手动排序',
       '全部标为已读',
       '隐藏的频道与 Bot 私聊',
       '已结束会话的历史',
     ]);
-    expect(menu.selectedId).toBe('manual');
+    expect(menu.querySelector('[data-danger]')).toBeNull();
+    expect(menu.querySelector('[data-selected]')?.textContent).toBe('手动排序');
   });
 
   it('writes the shared policy store when the global sort menu picks a mode', () => {
     renderSidebar();
 
-    const onSelect = menuWithLabel('排序方式')['onSelect'] as (id: string) => void;
-    onSelect('manual');
+    openSidebarMenu(zhTranslate('roster.menu.label'));
+    act(() => menuItem('手动排序').click());
     expect(setSortMode).toHaveBeenCalledWith('manual');
 
     setSortMode.mockClear();
-    onSelect('unrelated');
+    openSidebarMenu(zhTranslate('roster.menu.label'));
+    act(() => menuItem('全部标为已读').click());
     expect(setSortMode).not.toHaveBeenCalled();
   });
 
@@ -1885,58 +2001,54 @@ describe('bot sidebar rows', () => {
     store.setRoster([], [SECTION_CHANNEL]);
     renderSidebar();
 
-    const menu = menuWithItem('rename');
-    expect(menu.items.map((item) => item['id'])).toEqual([
-      'sort-label',
-      'updated',
-      'manual',
-      'inherit',
-      'section-separator',
-      'move-up',
-      'move-down',
-      'section-action-separator',
-      'rename',
-      'delete',
-    ]);
-    expect(menu.items.slice(1, 4).map((item) => item['label'])).toEqual([
+    const menu = openSidebarMenu('「工作流」排序方式');
+    expect(rowNames(menu)).toEqual([
       '最近更新',
       '手动排序',
       '恢复自动',
+      '上移分组',
+      '下移分组',
+      '重命名',
+      '删除',
     ]);
-    expect(menu.items[4]?.['type']).toBe('separator');
-    expect(menu.items[5]).toMatchObject({ id: 'move-up', disabled: true });
-    expect(menu.items[6]).toMatchObject({ id: 'move-down', disabled: true });
-    expect(menu.items[8]).toMatchObject({ id: 'rename', label: '重命名' });
-    expect(menu.items[9]).toMatchObject({
-      id: 'delete',
-      label: '删除',
-      danger: true,
-    });
-    expect(menu.items.at(-1)?.['danger']).toBe(true);
-    expect(menu.selectedId).toBe('manual');
+    expect(menu.querySelectorAll('[role=separator]')).toHaveLength(2);
+    expect(
+      [...menu.querySelectorAll('[role=separator]')].map(
+        (separator) => separator.previousElementSibling?.textContent,
+      ),
+    ).toEqual(['恢复自动', '下移分组']);
+    expect(menuItem('上移分组').getAttribute('aria-disabled')).toBe('true');
+    expect(menuItem('下移分组').getAttribute('aria-disabled')).toBe('true');
+    expect(menuItem('删除').hasAttribute('data-danger')).toBe(true);
+    expect([...menu.querySelectorAll('[role=menuitem]')].at(-1)?.textContent).toBe('删除');
+    expect(menu.querySelector('[data-selected]')?.textContent).toBe('手动排序');
   });
 
   it('checks inherit when a section has no stored mode', () => {
     setRoster({ sections: [section('s1', '工作流', [])] });
     renderSidebar();
 
-    expect(menuWithItem('rename').selectedId).toBe('inherit');
+    expect(
+      openSidebarMenu('「工作流」排序方式').querySelector('[data-selected]')?.textContent,
+    ).toBe('恢复自动');
   });
 
   it('writes section modes through the shared policy and clears with inherit', () => {
     setRoster({ sections: [section('s1', '工作流', [])] });
     renderSidebar();
 
-    const onSelect = menuWithItem('rename')['onSelect'] as (id: string) => void;
-    onSelect('manual');
+    openSidebarMenu('「工作流」排序方式');
+    act(() => menuItem('手动排序').click());
     expect(setSectionSortMode).toHaveBeenCalledWith('s1', 'manual');
 
     setSectionSortMode.mockClear();
-    onSelect('inherit');
+    openSidebarMenu('「工作流」排序方式');
+    act(() => menuItem('恢复自动').click());
     expect(setSectionSortMode).toHaveBeenCalledWith('s1', undefined);
 
     setSectionSortMode.mockClear();
-    onSelect('unrelated');
+    openSidebarMenu('「工作流」排序方式');
+    act(() => menuItem('上移分组').click());
     expect(setSectionSortMode).not.toHaveBeenCalled();
   });
 
@@ -2142,6 +2254,52 @@ describe('bot sidebar rows', () => {
     expect(menu.items[0]).toMatchObject({ id: 'profile', label: '查看资料' });
     menu.onSelect?.('profile');
     expect(profileAction).toHaveBeenCalledOnce();
+  });
+
+  it('opens the shared model picker from a Bot DM row', async () => {
+    const actions = stubActions();
+    const route = { provider: 'deepseek', model: 'flash' };
+    actions.modelCatalog = vi.fn(async () => ({
+      default: route,
+      models: [{ ...route, providerName: 'DeepSeek', modelName: 'Flash', efforts: [] }],
+    }));
+    store.setRoster([BOT], [DM_CHANNEL]);
+    const host = document.createElement('div');
+    document.body.append(host);
+    const root = createRoot(host);
+    try {
+      await act(async () =>
+        root.render(
+          createElement(BotSidebar, {
+            wide: true,
+            actions,
+            useBotModePrefs: (selector) => selector(prefs),
+            setSortMode,
+            setSectionSortMode,
+            t: zhTranslate,
+          }),
+        ),
+      );
+      await act(async () =>
+        host
+          .querySelector(`[data-channel-id="${DM_CHANNEL.id}"]`)!
+          .dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })),
+      );
+      await act(async () => menuWithItem('bot-model').onSelect?.('bot-model'));
+      const modelTrigger = document.body.querySelector<HTMLButtonElement>(
+        'button[data-picker-trigger]',
+      )!;
+      await act(async () => modelTrigger.click());
+      expect(
+        document.body.querySelector('[role="dialog"] [data-picker-filter="deepseek"]'),
+      ).not.toBeNull();
+      expect(
+        document.body.querySelector('[data-filter-picker] input[role="combobox"]'),
+      ).not.toBeNull();
+    } finally {
+      await act(async () => root.unmount());
+      host.remove();
+    }
   });
 
   it('renders the 移动到 menu from every section plus 未分组 and maps picks to scopes', () => {
@@ -2551,13 +2709,18 @@ it('shows one status glyph at the end of the preview line instead of avatar badg
     const avatar = row.slice(0, row.indexOf('class="bh-body"'));
     const top = row.slice(row.indexOf('class="bh-top"'), row.indexOf('class="bh-bottom"'));
     const bottom = row.slice(row.indexOf('class="bh-bottom"'), row.indexOf('</button>'));
+    const container = document.createElement('div');
+    container.innerHTML = markup;
+    const portrait = container.querySelector(`[data-channel-id="${DM_CHANNEL.id}"] [role="img"]`);
+    expect(portrait?.getAttribute('aria-label')).toContain(BOT.displayName);
+    expect(portrait?.closest('[aria-hidden="true"]')).toBeNull();
     expect(avatar).not.toContain('bh-avatar-attention');
     expect(avatar).not.toContain('bh-avatar-botui');
     expect(top).not.toContain('bh-avatar-botui');
     expect(top).not.toContain('bh-row-glyph');
     expect(bottom).toContain('class="bh-row-glyph" data-status="needs-you"');
     expect(bottom).toContain('aria-label="正在等待你"');
-    expect(markup).toContain('<span class="bh-section-needs">1 个需要你</span>');
+    expect(container.querySelector('.bh-section-needs')?.textContent).toBe('1 个需要你');
   } finally {
     store.applyActivity({
       generation: 'row-status-host',
@@ -2599,7 +2762,8 @@ describe('section mutation completion', () => {
             }),
           ),
         );
-        await act(async () => menuWithItem('rename').onSelect?.(kind));
+        openSidebarMenu('「工作流」排序方式');
+        await act(async () => menuItem(kind === 'rename' ? '重命名' : '删除').click());
         const submit = async () => {
           const form = document.querySelector<HTMLFormElement>('[role="dialog"] form');
           if (!form) throw new Error('Missing section dialog');

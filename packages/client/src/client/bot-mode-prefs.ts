@@ -63,6 +63,7 @@ import {
   type ConfigStorage,
   type LegacySortPreference,
 } from './roster-config.js';
+import { reportFailure } from './diagnostic-log.js';
 
 export type BotModePathOp =
   | { op: 'set'; path: string[]; value: string }
@@ -434,7 +435,11 @@ export class BotModePrefs {
       })
       .catch((error: unknown) => {
         this.sync();
-        console.warn('botharness: failed to persist Group invitation policy', error);
+        reportFailure(
+          'failed-to-persist-group-invitation-policy',
+          'failed to persist Group invitation policy',
+          error,
+        );
       });
   }
 
@@ -529,7 +534,11 @@ export class BotModePrefs {
       this.source.update((draft) => {
         draft.sortModes = snapshot.sortModes;
       });
-      console.warn('botharness: failed to remap the BOT-mode sort modes', error);
+      reportFailure(
+        'failed-to-remap-the-bot-mode-sort-modes',
+        'failed to remap the BOT-mode sort modes',
+        error,
+      );
       return false;
     }
   }
@@ -625,7 +634,11 @@ export class BotModePrefs {
         if (saved === false) this.sync();
       },
       (error: unknown) => {
-        console.warn('botharness: failed to persist the BOT-mode preference', error);
+        reportFailure(
+          'failed-to-persist-the-bot-mode-preference',
+          'failed to persist the BOT-mode preference',
+          error,
+        );
         this.sync();
       },
     );

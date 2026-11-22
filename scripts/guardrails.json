@@ -53,7 +53,7 @@
       "layer": "L2 lint",
       "rule": "eslint/no-console",
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
-      "fix": "in packages/*/src, report through the package's logger or a Developer diagnostics log instead of console.*.",
+      "fix": "in packages/*/src, report through the package's logger instead of console.*: reportFailure in the client (Developer diagnostics log), logWorker from src/worker-log.ts in a Cloudflare Worker, process.stdout/stderr for CLI output.",
       "check": "scripts/lint-ratchet.mjs",
       "baseline": "scripts/lint-baseline.json"
     },
@@ -63,6 +63,13 @@
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296#issuecomment-6915452893",
       "fix": "write `Harness: <name>` and `Model: <id>` lines in the PR or issue description (several allowed, comma-separated), or add the harness:<name> and model:<id> labels.",
       "check": "scripts/check-pr-provenance.mjs"
+    },
+    {
+      "id": "pr-needs-human",
+      "layer": "L3 CI",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296#issuecomment-6915324149",
+      "fix": "leave any PR labeled `needs-human` for a human maintainer to merge.",
+      "check": "scripts/check-needs-human.mjs"
     },
     {
       "id": "source-policy",
@@ -78,6 +85,70 @@
       "fix": "read a Tobs token from ds/tobs.stylex.ts and compose a ds/ component instead of a DSH --dsw-* variable, a DSH UI import or a styled raw control; when a use goes away, shrink the baseline with node scripts/check-design-tokens.mjs --write.",
       "check": "scripts/check-design-tokens.mjs",
       "baseline": "scripts/design-token-baseline.json"
+    },
+    {
+      "id": "tobs-style-literals",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "replace literal colour and pixel dimensions with contextual roles from ds/tobs.stylex.ts; pnpm lint:fix snaps unambiguous dimensions within 2px.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-breakpoint-tokens",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "use the generated medium or expanded breakpoint in viewport queries; pnpm lint:fix migrates raw px thresholds.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-motion-tokens",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "use duration and easing roles from ds/tobs.stylex.ts and override the same motion for prefers-reduced-motion; pnpm lint:fix migrates recognized values.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-icon-source",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "render product icons from ds/Icon; pnpm lint:fix rewrites mapped DSH JSX icons.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-control-names",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "give icon-only actions and meaningful status indicators a localized accessible name.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-focus-disabled",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "apply distinct focus-visible and disabled styles at the interactive ds/ control.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-component-catalogue",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "compose an existing ds/ primitive; for a new export, record what it replaces in ds/catalogue.json and regenerate with pnpm lint:fix.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
+    },
+    {
+      "id": "tobs-settings-composition",
+      "layer": "L2 lint",
+      "source": "https://github.com/BotHarness/DeepSeekBot/issues/4294",
+      "fix": "use one title, optional short description and control per SettingsRow, and one primary action per dialog.",
+      "check": "scripts/check-ui-rules.mjs",
+      "baseline": "scripts/ui-rules-baseline.json"
     },
     {
       "id": "tobs-token-outputs",
@@ -120,8 +191,9 @@
       "id": "agent-prose",
       "layer": "L1 health",
       "source": "https://github.com/BotHarness/DeepSeekBot/issues/4296",
-      "fix": "keep always-loaded agent prose (AGENTS.md, CLAUDE.md, apps/mobile/AGENTS.md) short: move a runbook into an on-demand doc or skill behind a one-line pointer, or turn the rule into a check. CI warns when a change makes them longer.",
-      "check": "scripts/health.mjs"
+      "fix": "keep the combined size of AGENTS.md, CLAUDE.md and apps/mobile/AGENTS.md within the byte cap. Move runbooks behind a one-line pointer or encode the rule in a check. Run node scripts/health.mjs --update to lower the cap and refresh the rule table.",
+      "check": "scripts/health.mjs",
+      "baseline": "scripts/health-baseline.json"
     },
     {
       "id": "feature-sources",

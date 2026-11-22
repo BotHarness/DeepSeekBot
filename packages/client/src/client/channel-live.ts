@@ -16,11 +16,13 @@ import {
   parseStoredChannelMessage,
   parseMessageVoice,
   parseReactions,
+  parseSessionLinks,
   type JournalEntry,
   type JournalPage,
 } from './bridge.js';
 import type { BridgeActions } from './actions.js';
 import type { ChannelDraft, ChannelMessage, ClientStore } from './store.js';
+import { reportFailure } from './diagnostic-log.js';
 
 const EVENT_NAME = 'channel/message';
 const ADMISSION_EVENT = 'channel/admission';
@@ -28,6 +30,7 @@ const HUMAN_READ_EVENT = 'channel/human-read';
 const REACTION_EVENT = 'channel/reaction';
 const VOICE_EVENT = 'channel/voice';
 const ATTACHMENTS_EVENT = 'channel/attachments';
+const SESSION_LINKS_EVENT = 'channel/session-links';
 const DRAFT_EVENT = 'channel/draft';
 const DRAFT_APPEND_EVENT = 'channel/draft-append';
 const DRAFT_BASELINE_EVENT = 'channel/draft-baseline';
@@ -284,7 +287,7 @@ export function mountChannelLive(
     try {
       await actions.refreshChannelMessages(channelId);
     } catch (error) {
-      console.warn('botharness: Channel live refresh failed', error);
+      reportFailure('channel-live-refresh-failed', 'Channel live refresh failed', error);
     } finally {
       recovering = false;
       sync();
@@ -480,6 +483,27 @@ export function mountChannelLive(
         }),
       });
     };
+    const onSessionLinks = (data: unknown): void => {
+      const payload = decode(data);
+      if (typeof payload !== 'object' || payload === null) return;
+      const item = payload as Record<string, unknown>;
+      if (
+        item['channelId'] !== activeChannelId ||
+        typeof item['messageId'] !== 'string' ||
+        !Array.isArray(item['sessionLinks'])
+      )
+        return;
+      const sessionLinks = parseSessionLinks(item['sessionLinks']);
+      const latest = store.getSnapshot();
+      if (latest.conversation.channel?.id !== activeChannelId) return;
+      store.setConversation({
+        messages: latest.conversation.messages.map((message) => {
+          if (message.id !== item['messageId'] || message.author.kind !== 'bot') return message;
+          const { sessionLinks: _previous, ...rest } = message;
+          return sessionLinks.length === 0 ? rest : { ...rest, sessionLinks };
+        }),
+      });
+    };
     const onHumanRead = (data: unknown): void => {
       const payload = decode(data);
       if (typeof payload !== 'object' || payload === null) return;
@@ -644,6 +668,7 @@ export function mountChannelLive(
           else if (item.kind === 'reaction') onReaction(notification);
           else if (item.kind === 'voice') onVoice(notification);
           else if (item.kind === 'attachments') onAttachments(notification);
+          else if (item.kind === 'session-links') onSessionLinks(notification);
           else if (item.kind === 'draft-baseline') onDraftBaseline(notification);
           else if (item.kind === 'draft') onDraft(item.draft);
           else if (item.kind === 'draft-append') onDraftAppend(item.append);
@@ -683,7 +708,10 @@ export function mountChannelLive(
       next = makeSource('./api/botharness/stream?' + query.toString());
     } catch {
       close();
-      console.warn('botharness: Channel live stream construction refused');
+      reportFailure(
+        'channel-live-stream-construction-refused',
+        'Channel live stream construction refused',
+      );
       return;
     }
     source = next;
@@ -696,6 +724,7 @@ export function mountChannelLive(
     next.addEventListener(REACTION_EVENT, data(onReaction));
     next.addEventListener(VOICE_EVENT, data(onVoice));
     next.addEventListener(ATTACHMENTS_EVENT, data(onAttachments));
+    next.addEventListener(SESSION_LINKS_EVENT, data(onSessionLinks));
     next.addEventListener(DRAFT_BASELINE_EVENT, data(onDraftBaseline));
     next.addEventListener(DRAFT_EVENT, data(onDraft));
     next.addEventListener(DRAFT_APPEND_EVENT, data(onDraftAppend));

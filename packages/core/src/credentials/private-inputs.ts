@@ -16,6 +16,7 @@ import {
   type PrivateReplyAuthority,
 } from './im-origin.js';
 import { PrivateAccountBindings, type PrivateAccountScope } from './account-bindings.js';
+import { PRIVATE_REFERENCE, privateReference } from './references.js';
 import {
   privateRequestSchema,
   privateSubmissionSchema,
@@ -50,7 +51,6 @@ const storedGrant = z.discriminatedUnion('version', [
     requestMessageId: z.string().uuid(),
   }),
 ]);
-const referencePattern = /^private:([0-9a-f-]{36}):([a-z][a-z0-9_]{0,47})$/;
 type Terminal = 'cancelled' | 'expired';
 type Pending = {
   agent: Agent | undefined;
@@ -270,7 +270,7 @@ export class PrivateInputs {
       configured.every(
         ([field]) =>
           request.fields.some((declared) => declared.id === field) &&
-          resolution.references[field] === `private:${id}:${field}`,
+          resolution.references[field] === privateReference(id, field),
       ) &&
       request.fields.every((field) => !field.required || (grant.values[field.id]?.length ?? 0) > 0)
     );
@@ -427,10 +427,11 @@ export class PrivateInputs {
         )
       )
         return { binding };
+      const grantId = binding.grantId;
       const references = Object.fromEntries(
         request.data.fields
           .filter((field) => (grant.data.values[field.id]?.length ?? 0) > 0)
-          .map((field) => [field.id, `private:${binding.grantId}:${field.id}`]),
+          .map((field) => [field.id, privateReference(grantId, field.id)]),
       );
       if (origin !== undefined) this.#guardReply(agent, scope, origin, () => true);
       return { binding, references };
@@ -749,7 +750,7 @@ export class PrivateInputs {
     const references = Object.fromEntries(
       pending.request.fields
         .filter((field) => (values[field.id]?.length ?? 0) > 0)
-        .map((field) => [field.id, `private:${grantId}:${field.id}`]),
+        .map((field) => [field.id, privateReference(grantId, field.id)]),
     );
     let configured = false;
     let activated = false;
@@ -924,7 +925,7 @@ export class PrivateInputs {
     if (entries.length === 0 || entries.length > 8) throw invalidReferences();
     const matches = entries.map(([field, ref]) => ({
       field,
-      match: referencePattern.exec(ref),
+      match: PRIVATE_REFERENCE.exec(ref),
     }));
     const id = matches[0]?.match?.[1];
     if (
@@ -1104,7 +1105,7 @@ export class PrivateInputs {
     const grantId =
       references === undefined
         ? undefined
-        : referencePattern.exec(Object.values(references)[0] ?? '')?.[1];
+        : PRIVATE_REFERENCE.exec(Object.values(references)[0] ?? '')?.[1];
     if (
       this.#closed ||
       bot === undefined ||
@@ -1375,6 +1376,7 @@ export class PrivateInputs {
           this.#configuredCard(channelId, messageId)?.scope.botCreatedAt ===
           card.scope.botCreatedAt,
       );
+      this.#publish(card.scope.botSlug);
       this.deps.log('account-revoked', {
         botSlug: card.scope.botSlug,
         requestId: card.grantId,

@@ -40,7 +40,7 @@ function readKey(environment) {
     const value = execFileSync(
       'security',
       ['find-generic-password', '-s', keychainService(environment), '-w'],
-      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] },
+      { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'], shell: false, windowsHide: true },
     ).trim();
     return value.length === 0 ? undefined : value;
   } catch {
@@ -86,7 +86,7 @@ async function set(environment) {
       keychainService(environment),
       '-w',
     ],
-    { stdio: 'inherit' },
+    { stdio: 'inherit', shell: false, windowsHide: true },
   );
   if (stored.status !== 0) process.exit(stored.status ?? 1);
   const key = readKey(environment);

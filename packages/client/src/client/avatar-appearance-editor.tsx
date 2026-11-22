@@ -1,9 +1,12 @@
-import { Button } from './ds/button.js';
+import * as stylex from '@stylexjs/stylex';
 import { useMemo, useState, type ReactElement } from 'react';
-import {
-  IconSaveOutlineRegular,
-  IconCloseOutlineRegular,
-} from '@deepseek-ai/dsh-client-ui-primitives';
+import { space } from './ds/tobs.stylex.js';
+import { avatarFrameStyles } from './ds/avatar-frame.js';
+import { Icon } from './ds/icon.js';
+import { Button } from './ds/button.js';
+import { joinClass } from './ds/class-name.js';
+import { AvatarPresetPicker, type AvatarPresetChoice } from './avatar-preset-picker.js';
+
 import {
   AVATAR_COLORS,
   AVATAR_FAMILIES,
@@ -53,12 +56,10 @@ import {
   LINE_SWATCHES,
   seededLineRecipe,
 } from '../../../core/src/bots/avatar-line.js';
-import { Tag } from '@deepseek-ai/dsh-client-ui-primitives';
 
 import type { PartLibraryEntry } from '../../../core/src/bots/part-library.js';
 import { CustomPartEditor } from './custom-part-editor.js';
 import { PersonaBotAvatar, PersonaBotStatusBadges, normalizePersonaBotActivity } from './avatar.js';
-import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
 import { ActionButton } from './ds/action-button.js';
 import type { BotSummary } from './store.js';
 import type { BotHarnessTranslate } from './locale.js';
@@ -396,11 +397,35 @@ function OptionTile({
   );
 }
 
+const editorStyles = stylex.create({
+  previewColumn: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: space.x3,
+    width: 'fit-content',
+    maxWidth: '100%',
+    justifySelf: 'center',
+  },
+  fullAction: { width: '100%' },
+  remove: { alignSelf: 'center' },
+  actions: { marginTop: space.x3 },
+});
+
+let pixelPresets: readonly { recipe: AvatarRecipe; image: string }[] | undefined;
+
+function getPixelPresets() {
+  return (pixelPresets ??= AVATAR_PRESETS.map((recipe) => {
+    const svg = avatarSvg(recipe, { squareBackdrop: true });
+    return { recipe, image: `data:image/svg+xml,${encodeURIComponent(svg)}` };
+  }));
+}
+
 export function AvatarAppearanceEditor({
   bot,
   channelId,
   onSave,
   onUpload,
+  onChooseImage,
   onRemoveImage,
   imageBusy = false,
   library,
@@ -410,11 +435,13 @@ export function AvatarAppearanceEditor({
   channelId: string;
   onSave(channelId: string, recipe: AvatarRecipe): Promise<boolean>;
   onUpload?: (() => void) | undefined;
+  onChooseImage?: ((image: string) => Promise<boolean>) | undefined;
   onRemoveImage?: (() => void) | undefined;
   imageBusy?: boolean | undefined;
   library?: PartLibraryActions | undefined;
   t: BotHarnessTranslate;
 }): ReactElement {
+  const [preset, setPreset] = useState<AvatarPresetChoice<AvatarRecipe>>();
   const [parts, setParts] = useState<PartLibraryEntry[]>();
   const [originFilter, setOriginFilter] = useState<OriginFilter>('all');
   const [libraryNote, setLibraryNote] = useState<string>();
@@ -437,7 +464,9 @@ export function AvatarAppearanceEditor({
   const spec = FAMILIES[family];
   const seed = bot.displayName || bot.slug;
   const start = () => {
-    const saved = bot.appearance?.recipe ?? seededAvatarFor(seed, bot.avatarSeed);
+    const saved =
+      (preset?.kind === 'pixel' ? preset.recipe : bot.appearance?.recipe) ??
+      seededAvatarFor(seed, bot.avatarSeed);
     setDrawing(undefined);
     setDrafts({ [saved.family]: { ...saved } });
     setFamily(saved.family);
@@ -458,24 +487,38 @@ export function AvatarAppearanceEditor({
           : FAMILIES[next].seeded(seed, bot.avatarSeed)),
     }));
   };
+  const pixel = draft ?? (preset?.kind === 'pixel' ? preset.recipe : undefined);
+  const image = preset?.kind === 'tilties' ? preset.image : undefined;
+  const editing = draft !== undefined || preset !== undefined;
+  const saving = busy || imageBusy;
   const save = async () => {
-    if (!draft || busy) return;
+    if (saving) return;
     setBusy(true);
-    const saved = await onSave(channelId, draft);
-    setBusy(false);
-    setFailed(!saved);
-    if (saved) setDrafts(undefined);
+    setFailed(false);
+    try {
+      const saved = pixel
+        ? await onSave(channelId, pixel)
+        : image !== undefined && (await onChooseImage?.(image));
+      if (saved) {
+        setDrafts(undefined);
+        setPreset(undefined);
+      } else {
+        setFailed(true);
+      }
+    } catch {
+      setFailed(true);
+    } finally {
+      setBusy(false);
+    }
   };
   const state = normalizePersonaBotActivity(bot.aggregateState);
-  const recipe = draft ?? bot.appearance?.recipe;
+  const recipe = editing ? pixel : bot.appearance?.recipe;
   const fields = (draft?.family === 'illustrated'
     ? detailedAvatarRecipe(draft)
     : draft) as unknown as Fields | undefined;
   const set = (key: string, value: string | number) => {
     if (draft) update(withPart(draft, key, value));
   };
-  const current = bot.avatar !== undefined && bot.appearance === undefined ? 'image' : 'design';
-  const inUse = <Tag tone="success">{t('profile.avatar.current')}</Tag>;
   const pieceSlot = draft?.family === 'illustrated' ? PART_CATEGORY[category] : undefined;
   const pieceWorn =
     pieceSlot !== undefined &&
@@ -843,28 +886,64 @@ export function AvatarAppearanceEditor({
   return (
     <section aria-label={t('profile.avatar.section')}>
       <div className="bh-avatar-editor">
-        <div className="bh-avatar-editor-preview" data-avatar-preview>
-          <PersonaBotAvatar
-            preview={draft !== undefined}
-            personaBotId={bot.slug}
-            name={bot.displayName}
-            src={bot.avatar}
-            appearance={
-              recipe
-                ? {
-                    recipe,
-                    revision: bot.appearance?.revision ?? '0'.repeat(64),
-                  }
-                : undefined
-            }
-            avatarSeed={bot.avatarSeed}
-            size={160}
-            state={state}
-            activity={bot.activity}
-            attention={bot.attention}
-            indicator={false}
-            t={t}
-          />
+        <div data-avatar-preview-column {...stylex.props(editorStyles.previewColumn)}>
+          <div
+            className={joinClass(
+              'bh-avatar-editor-preview',
+              stylex.props(avatarFrameStyles.preview).className,
+            )}
+            data-avatar-preview
+          >
+            <PersonaBotAvatar
+              preview={editing}
+              personaBotId={bot.slug}
+              name={bot.displayName}
+              src={editing ? image : bot.avatar}
+              appearance={
+                recipe
+                  ? {
+                      recipe,
+                      revision: bot.appearance?.revision ?? '0'.repeat(64),
+                    }
+                  : undefined
+              }
+              avatarSeed={bot.avatarSeed}
+              size={160}
+              squareBackdrop
+              state={state}
+              activity={bot.activity}
+              attention={bot.attention}
+              indicator={false}
+              t={t}
+            />
+          </div>
+          {draft === undefined && onUpload ? (
+            <Button
+              data-avatar-upload
+              type="button"
+              size="sm"
+              variant="outline"
+              icon={<Icon name="image-up" />}
+              xstyle={editorStyles.fullAction}
+              disabled={saving}
+              onClick={onUpload}
+            >
+              {t('profile.avatar.uploadTitle')}
+            </Button>
+          ) : null}
+          {draft === undefined && bot.avatar !== undefined && onRemoveImage ? (
+            <div {...stylex.props(editorStyles.remove)}>
+              <ActionButton
+                data-avatar-remove
+                tone="danger"
+                icon="x"
+                disabled={saving}
+                onClick={onRemoveImage}
+              >
+                {t('profile.avatar.remove')}
+              </ActionButton>
+            </div>
+          ) : null}
         </div>
         <div className="bh-avatar-editor-controls">
           {draft ? (
@@ -876,80 +955,19 @@ export function AvatarAppearanceEditor({
               <p>{t('profile.avatar.designDescription')}</p>
             </>
           ) : (
-            <>
-              {bot.appearanceUnsupported ? (
-                <p className="bh-avatar-unsupported" data-avatar-unsupported role="note">
-                  {t('profile.avatar.unsupported')}
-                </p>
-              ) : null}
-              <section className="bh-avatar-methods" aria-label={t('profile.avatar.section')}>
-                <button
-                  data-avatar-edit
-                  type="button"
-                  className="bh-avatar-method"
-                  data-state={current === 'design' ? 'current' : undefined}
-                  disabled={bot.appearanceUnsupported === true}
-                  onClick={start}
-                >
-                  <span aria-hidden="true" className="bh-avatar-method-icon">
-                    <ChannelSidebarIcon name="palette" size={16} />
-                  </span>
-                  <span className="bh-avatar-method-body">
-                    <span className="bh-avatar-method-title">
-                      <span>{t('profile.avatar.designTitle')}</span>
-                      {current === 'design' ? inUse : null}
-                    </span>
-                    <span className="bh-avatar-method-meta">
-                      {t('profile.avatar.designDescription')}
-                    </span>
-                  </span>
-                  <span aria-hidden="true" className="bh-avatar-method-chevron">
-                    <ChannelSidebarIcon name="chevron-right" size={16} />
-                  </span>
-                </button>
-                {onUpload === undefined ? null : (
-                  <button
-                    data-avatar-upload
-                    type="button"
-                    className="bh-avatar-method"
-                    data-state={current === 'image' ? 'current' : undefined}
-                    disabled={imageBusy}
-                    onClick={onUpload}
-                  >
-                    <span aria-hidden="true" className="bh-avatar-method-icon">
-                      <ChannelSidebarIcon name="image-up" size={16} />
-                    </span>
-                    <span className="bh-avatar-method-body">
-                      <span className="bh-avatar-method-title">
-                        <span>{t('profile.avatar.uploadTitle')}</span>
-                        {current === 'image' ? inUse : null}
-                      </span>
-                      <span className="bh-avatar-method-meta">
-                        {t('profile.avatar.uploadDescription')}
-                      </span>
-                    </span>
-                    <span aria-hidden="true" className="bh-avatar-method-chevron">
-                      <ChannelSidebarIcon name="chevron-right" size={16} />
-                    </span>
-                  </button>
-                )}
-              </section>
-              {onUpload === undefined ||
-              bot.avatar === undefined ||
-              onRemoveImage === undefined ? null : (
-                <div className="bh-avatar-remove">
-                  <ActionButton
-                    data-avatar-remove
-                    tone="danger"
-                    icon="x"
-                    disabled={imageBusy}
-                    onClick={onRemoveImage}
-                  >
-                    {t('profile.avatar.remove')}
-                  </ActionButton>
-                </div>
-              )}
-            </>
+            <AvatarPresetPicker
+              selected={preset}
+              pixelPresets={bot.appearanceUnsupported ? [] : getPixelPresets()}
+              hasTilties={onChooseImage !== undefined}
+              pixelDisabled={bot.appearanceUnsupported === true}
+              disabled={saving}
+              onChoose={(choice) => {
+                setPreset(choice);
+                setFailed(false);
+              }}
+              onCustomize={start}
+              t={t}
+            />
           )}
           {draft && fields ? (
             <fieldset disabled={busy} className="bh-avatar-editor-fields">
@@ -1185,15 +1203,20 @@ export function AvatarAppearanceEditor({
               )}
             </fieldset>
           ) : null}
-          {draft ? (
-            <div className="bh-profile-avatar-actions">
+          {editing ? (
+            <div
+              className={joinClass(
+                'bh-profile-avatar-actions',
+                stylex.props(editorStyles.actions).className,
+              )}
+            >
               <Button
                 size="sm"
                 variant="primary"
-                icon={<IconSaveOutlineRegular />}
+                icon={<Icon name="save" />}
                 data-avatar-save
                 type="button"
-                disabled={busy || drawing !== undefined}
+                disabled={saving || drawing !== undefined}
                 onClick={() => void save()}
               >
                 {t('profile.save')}
@@ -1201,13 +1224,17 @@ export function AvatarAppearanceEditor({
               <Button
                 size="sm"
                 variant="ghost"
-                icon={<IconCloseOutlineRegular />}
+                icon={<Icon name="x" />}
                 data-avatar-cancel
                 type="button"
-                disabled={busy}
+                disabled={saving}
                 onClick={() => {
-                  setDrafts(undefined);
-                  setDrawing(undefined);
+                  if (draft) {
+                    setDrafts(undefined);
+                    setDrawing(undefined);
+                  } else {
+                    setPreset(undefined);
+                  }
                   setFailed(false);
                 }}
               >

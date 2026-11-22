@@ -1,4 +1,5 @@
-import { useRef, useState, type ReactElement } from 'react';
+import { useRef, useState, useSyncExternalStore, type ReactElement } from 'react';
+import * as stylex from '@stylexjs/stylex';
 
 import type {
   MarketplaceEntry,
@@ -8,6 +9,11 @@ import type {
 import type { BridgeActions } from './actions.js';
 import { CHANNEL_BODY_PANEL } from './channel-dock-layout.js';
 import { ChannelSidebarIcon } from './channel-sidebar-icon.js';
+import { SegmentedControl } from './ds/segmented.js';
+import { space } from './ds/tokens.stylex.js';
+import { MarketAvatars } from './market-avatars.js';
+import { joinClass } from './ds/class-name.js';
+import { useTeamMode } from './team-state.js';
 import { IconButton } from './ds/icon-button.js';
 import { Tooltip } from './ds/tooltip.js';
 import type { DockPanel, DockPanelRegistry } from './dock-panels.js';
@@ -18,6 +24,7 @@ import { useKeptScroll } from './market-page.js';
 import { MarketRankingPage, MarketplaceSections, MarketplaceTile } from './market-rankings.js';
 import { MarketUploadDialog } from './market-upload.js';
 import { useMountedResource } from './mounted-resource.js';
+import type { BotSummary } from './store.js';
 import {
   MarketplaceBotFlow,
   MarketplaceBrowseControls,
@@ -28,41 +35,119 @@ import {
   type MarketplaceFlowStart,
 } from './marketplace.js';
 
+const styles = stylex.create({
+  stack: { display: 'flex', flexDirection: 'column' },
+  tabs: { flexShrink: 0, marginBlockStart: space.x4, marginInline: space.x4 },
+  panel: { flexGrow: 1, flexBasis: 0, minHeight: 0 },
+});
+
 export const MARKET_PANEL = 'bot-market';
 
-type MarketRequest = 'upload' | 'mine';
+const navigationByDock = new WeakMap<DockPanelRegistry, MarketNavigation>();
 
-const marketRequests = new Set<(request: MarketRequest) => void>();
-
-function requestMarket(request: MarketRequest): void {
-  for (const listener of marketRequests) listener(request);
+export function hasMarketplaceAvatarSource(bot: BotSummary): boolean {
+  return (
+    bot.deleted !== true &&
+    (bot.appearance !== undefined ||
+      /^data:image\/(?:png|jpeg|webp);base64,|^\/api\/botharness\/bot-avatar\?/u.test(
+        bot.avatar ?? '',
+      ))
+  );
 }
 
-export function MarketHeaderAction({ t }: { t: BotHarnessTranslate }): ReactElement {
+export function openMarketplaceAvatarPublish(
+  registry: DockPanelRegistry,
+  slug: string,
+  actions: BridgeActions,
+): void {
+  navigationByDock.get(registry)?.publishFromBot(slug, actions);
+  registry.open(MARKET_PANEL);
+}
+
+type MarketSection = 'bots' | 'avatars';
+type MarketNavigationState = {
+  section: MarketSection;
+  dialog: 'upload' | 'mine' | undefined;
+  visitedAvatars: boolean;
+  avatarSource?: { slug: string; actions: BridgeActions };
+};
+
+function createMarketNavigation() {
+  let state: MarketNavigationState = { section: 'bots', dialog: undefined, visitedAvatars: false };
+  const listeners = new Set<() => void>();
+  const set = (value: MarketNavigationState) => {
+    state = value;
+    for (const listener of listeners) listener();
+  };
+  return {
+    read: () => state,
+    subscribe(listener: () => void) {
+      listeners.add(listener);
+      return () => {
+        listeners.delete(listener);
+      };
+    },
+    select: (section: MarketSection) =>
+      set({
+        section,
+        dialog: undefined,
+        visitedAvatars: state.visitedAvatars || section === 'avatars',
+      }),
+    open: (dialog: MarketNavigationState['dialog']) =>
+      set({ section: state.section, visitedAvatars: state.visitedAvatars, dialog }),
+    publishFromBot: (slug: string, actions: BridgeActions) =>
+      set({
+        section: 'avatars',
+        dialog: 'upload',
+        visitedAvatars: true,
+        avatarSource: { slug, actions },
+      }),
+  };
+}
+
+type MarketNavigation = ReturnType<typeof createMarketNavigation>;
+
+function MarketHeaderAction({
+  actions,
+  navigation,
+  t,
+}: {
+  actions: BridgeActions;
+  navigation: MarketNavigation;
+  t: BotHarnessTranslate;
+}): ReactElement {
+  const { section } = useSyncExternalStore(navigation.subscribe, navigation.read, navigation.read);
+  const owner =
+    useTeamMode(section === 'avatars' ? actions.teamCall : undefined)?.viewer.kind === 'owner';
+  const uploadLabel = t(section === 'bots' ? 'market.panel.upload' : 'market.avatar.publish');
   return (
     <>
-      <Tooltip label={t('market.mine.open')} side="bottom" delayMs={500}>
-        <IconButton
-          size="row"
-          tone="subtle"
-          aria-label={t('market.mine.open')}
-          aria-haspopup="dialog"
-          onClick={() => requestMarket('mine')}
-        >
-          <ChannelSidebarIcon name="package" />
-        </IconButton>
-      </Tooltip>
-      <Tooltip label={t('market.panel.upload')} side="bottom" delayMs={500}>
-        <IconButton
-          size="row"
-          tone="subtle"
-          aria-label={t('market.panel.upload')}
-          aria-haspopup="dialog"
-          onClick={() => requestMarket('upload')}
-        >
-          <ChannelSidebarIcon name="upload" />
-        </IconButton>
-      </Tooltip>
+      {(section === 'bots' || owner) && (
+        <Tooltip label={t('market.mine.open')} side="bottom" delayMs={500}>
+          <IconButton
+            size="row"
+            tone="subtle"
+            aria-label={t('market.mine.open')}
+            aria-haspopup="dialog"
+            onClick={() => navigation.open('mine')}
+          >
+            <ChannelSidebarIcon name="package" />
+          </IconButton>
+        </Tooltip>
+      )}
+      {(section === 'bots' || owner) && (
+        <Tooltip label={uploadLabel} side="bottom" delayMs={500}>
+          <IconButton
+            size="row"
+            tone="subtle"
+            aria-label={uploadLabel}
+            aria-haspopup="dialog"
+            onClick={() => navigation.open('upload')}
+          >
+            <ChannelSidebarIcon name="upload" />
+          </IconButton>
+        </Tooltip>
+      )}
     </>
   );
 }
@@ -79,13 +164,15 @@ type MarketPageTarget =
 
 type MarketPageEntry = MarketPageTarget & { readonly key: number };
 
-export function MarketPanelView({
+function MarketPanelView({
   actions,
   registry,
+  navigation,
   t,
 }: {
   actions: BridgeActions;
   registry: DockPanelRegistry;
+  navigation: MarketNavigation;
   t: BotHarnessTranslate;
 }): ReactElement {
   const browse = useMarketplaceBrowse(actions, marketplaceLanguage(t), {
@@ -93,25 +180,24 @@ export function MarketPanelView({
   });
   const lang = marketplaceLanguage(t);
   const keepHome = useKeptScroll<HTMLDivElement>();
+  const { section, dialog, visitedAvatars, avatarSource } = useSyncExternalStore(
+    navigation.subscribe,
+    navigation.read,
+    navigation.read,
+  );
+  const publishActions = avatarSource?.actions ?? actions;
+  const owner =
+    useTeamMode(section === 'avatars' ? publishActions.teamCall : undefined)?.viewer.kind ===
+    'owner';
   const [pages, setPages] = useState<readonly MarketPageEntry[]>([]);
   const [flow, setFlow] = useState<MarketplaceFlowStart | undefined>(undefined);
-  const [uploading, setUploading] = useState(false);
-  const [mine, setMine] = useState(false);
+
   const pageKey = useRef(0);
   const listen = useMountedResource<HTMLDivElement>(() => {
-    const listener = (request: MarketRequest): void => {
-      if (request === 'upload') setUploading(true);
-      else setMine(true);
-    };
-    marketRequests.add(listener);
-    const stopUploads = onMarketUploadChange((change) => {
+    return onMarketUploadChange((change) => {
       if (change.kind === 'deleted') browse.remove(change.id);
       else browse.prepend(change.bot);
     });
-    return () => {
-      marketRequests.delete(listener);
-      stopUploads();
-    };
   }, []);
   const { list, filters } = browse;
   const push = (target: MarketPageTarget): void => {
@@ -145,8 +231,49 @@ export function MarketPanelView({
     registry.open(CHANNEL_BODY_PANEL);
   };
   return (
-    <div className="bh-market-stack" data-market-panel ref={listen}>
-      <div className="bh-market-page" ref={keepHome} hidden={pages.length > 0}>
+    <div
+      className={joinClass('bh-market-stack', stylex.props(styles.stack).className)}
+      data-market-panel
+      ref={listen}
+    >
+      <SegmentedControl
+        id="bh-market-section"
+        value={section}
+        options={[
+          { value: 'bots', label: t('market.avatar.bots') },
+          { value: 'avatars', label: t('market.avatar.title') },
+        ]}
+        label={t('market.panel.title')}
+        controlsPanel
+        className={stylex.props(styles.tabs).className}
+        onChange={navigation.select}
+      />
+      <div
+        {...stylex.props(styles.panel)}
+        id="bh-market-section-avatars-panel"
+        aria-labelledby="bh-market-section-avatars"
+        role="tabpanel"
+        hidden={section !== 'avatars'}
+      >
+        {visitedAvatars && (
+          <MarketAvatars
+            actions={actions}
+            t={t}
+            publishing={section === 'avatars' && owner && dialog === 'upload'}
+            avatarSource={avatarSource}
+            managing={section === 'avatars' && owner && dialog === 'mine'}
+            onClosePublish={() => navigation.open(undefined)}
+          />
+        )}
+      </div>
+      <div
+        className={joinClass('bh-market-page', stylex.props(styles.panel).className)}
+        id="bh-market-section-bots-panel"
+        aria-labelledby="bh-market-section-bots"
+        role="tabpanel"
+        ref={keepHome}
+        hidden={section !== 'bots' || pages.length > 0}
+      >
         <div className="bh-market-panel" ref={browse.mount}>
           <MarketplaceBrowseControls browse={browse} t={t} />
           {filters.query.length === 0 && filters.topic === undefined ? (
@@ -187,7 +314,7 @@ export function MarketPanelView({
         </div>
       </div>
       {pages.map((page, index) => {
-        const hidden = index !== pages.length - 1;
+        const hidden = section !== 'bots' || index !== pages.length - 1;
         switch (page.kind) {
           case 'bot':
             return (
@@ -260,23 +387,23 @@ export function MarketPanelView({
           onInstalled={installed}
         />
       )}
-      {mine ? (
+      {section === 'bots' && dialog === 'mine' ? (
         <MyUploadsDialog
           actions={actions}
           registry={registry}
           t={t}
           onUpdated={browse.prepend}
           onDeleted={browse.remove}
-          onClose={() => setMine(false)}
+          onClose={() => navigation.open(undefined)}
         />
       ) : null}
-      {uploading ? (
+      {section === 'bots' && dialog === 'upload' ? (
         <MarketUploadDialog
           actions={actions}
           registry={registry}
           t={t}
           onListed={browse.prepend}
-          onClose={() => setUploading(false)}
+          onClose={() => navigation.open(undefined)}
         />
       ) : null}
     </div>
@@ -288,14 +415,18 @@ export function createMarketPanel(
   registry: DockPanelRegistry,
   t: BotHarnessTranslate,
 ): DockPanel {
+  const navigation = createMarketNavigation();
+  navigationByDock.set(registry, navigation);
   return {
     id: MARKET_PANEL,
-    title: t('market.title'),
+    title: t('market.panel.title'),
     icon: 'store',
     scope: 'global',
     order: 500,
     defaultPosition: { zone: 'right' },
-    component: () => <MarketPanelView actions={actions} registry={registry} t={t} />,
-    headerAction: () => <MarketHeaderAction t={t} />,
+    component: () => (
+      <MarketPanelView actions={actions} registry={registry} navigation={navigation} t={t} />
+    ),
+    headerAction: () => <MarketHeaderAction actions={actions} navigation={navigation} t={t} />,
   };
 }

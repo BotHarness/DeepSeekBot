@@ -58,7 +58,13 @@ const DISK_PATTERNS = /ENOSPC|no space left|disk full|not enough space|insuffici
 const PERMISSION_PATTERNS =
   /EACCES|EPERM|EROFS|permission denied|operation not permitted|read.only|access is denied/i;
 
-export function classifyInstallError(error: unknown): BrowserFailureKind {
+export function classifyInstallError(
+  error: unknown,
+):
+  | 'provision-failed'
+  | 'provision-no-network'
+  | 'provision-no-disk-space'
+  | 'provision-no-permission' {
   const code =
     typeof error === 'object' &&
     error !== null &&
@@ -97,9 +103,9 @@ export function installFailure(error: unknown, cacheDir: string): BrowserProvisi
         `The Bot Browser download failed because the download folder is not writable (${cacheDir}); ask the machine owner to fix its permissions, then open the browser again.`,
         raw,
       );
-    default:
+    case 'provision-failed':
       return new BrowserProvisionError(
-        'provision-failed',
+        kind,
         'The Bot Browser download failed; open the browser again to retry, and if it keeps failing show Details to the machine owner.',
         raw,
       );
@@ -237,6 +243,7 @@ function defaultRun(command: string, args: readonly string[]): string {
     windowsHide: true,
     encoding: 'utf8',
     timeout: 10_000,
+    shell: false,
   }) as string;
 }
 

@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
@@ -16,6 +17,7 @@ import {
   memberExecutionPlan,
   type ConfinementCore,
 } from '../src/execution/member-confinement.js';
+import { within } from '../src/workspaces/space-paths.js';
 
 interface Owner {
   sessionId: string;
@@ -138,7 +140,7 @@ describe('confinement probe', () => {
           return spawnSync(
             '/bin/sh',
             ['-c', script.replace(/command -v \w+$/u, 'command -v addgroup')],
-            { encoding: 'utf8', env: { PATH: '/usr/bin:/bin' } },
+            { encoding: 'utf8', env: { PATH: '/usr/bin:/bin' }, shell: false, windowsHide: true },
           );
         return { status: 0, stdout: 'routed', error: undefined };
       }) as unknown as typeof spawnSync;
@@ -155,7 +157,7 @@ describe('confinement probe', () => {
 describe('member Bot execution plan', () => {
   let root: string;
   beforeAll(() => {
-    root = mkdtempSync('/var/tmp/bh-plan-');
+    root = realpathSync(mkdtempSync(join(tmpdir(), 'bh-plan-')));
   });
   afterAll(() => rmSync(root, { recursive: true, force: true }));
 
@@ -195,8 +197,12 @@ describe('member Bot execution plan', () => {
     if (result.kind !== 'plan') throw new Error(result.kind);
     expect(result.plan.readable).toEqual([f.memory.ada, f.work.alpha, f.work.beta]);
     expect(result.plan.writable).toEqual([f.memory.ada, f.work.alpha]);
-    expect(result.plan.hidden).toEqual(expect.arrayContaining([f.dsh, f.work.gamma]));
-    expect(result.plan.hidden).not.toContain(f.memory.ben);
+    for (const path of [f.dsh, f.memory.ben, f.work.gamma]) {
+      expect(
+        result.plan.hidden.some((root) => within(root, path)),
+        path,
+      ).toBe(true);
+    }
     expect(result.plan.home).toBe(join(f.dsh, 'spaces', 'alice', 'bots', 'ada', 'home'));
   });
 
@@ -205,7 +211,13 @@ describe('member Bot execution plan', () => {
     const result = memberExecutionPlan(f.core, f.dsh, 'ada-task');
     if (result.kind !== 'plan') throw new Error(result.kind);
     expect(result.plan.readable).toEqual([f.work.alpha]);
-    expect(result.plan.hidden).toEqual(expect.arrayContaining([f.work.beta, f.work.gamma]));
+    expect(result.plan.writable).toEqual([f.work.alpha]);
+    for (const path of [f.memory.ada, f.work.beta, f.work.gamma]) {
+      expect(
+        result.plan.hidden.some((root) => within(root, path)),
+        path,
+      ).toBe(true);
+    }
   });
 
   it('refuses a working folder outside the Session roots', () => {
@@ -283,7 +295,7 @@ describe.skipIf(!status.filesystem)('member Bot Shell under bwrap', () => {
   let server: Server;
   let port = 0;
   beforeAll(async () => {
-    root = mkdtempSync('/var/tmp/bh-confine-');
+    root = realpathSync(mkdtempSync(join(tmpdir(), 'bh-confine-')));
     server = createServer((socket) => socket.end('host api\n'));
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     port = (server.address() as { port: number }).port;
@@ -307,6 +319,8 @@ describe.skipIf(!status.filesystem)('member Bot Shell under bwrap', () => {
       encoding: 'utf8',
       timeout: 30_000,
       env: { ...process.env, OPENCODE_GO_API_KEY: 'sk-test', DSH_HOME: f.dsh },
+      shell: false,
+      windowsHide: true,
     });
     return { ...result, f, enforcement: confined.enforcement };
   };

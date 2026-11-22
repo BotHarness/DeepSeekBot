@@ -1,17 +1,13 @@
 // @vitest-environment jsdom
+import { type PrivateTunnelView } from '../src/client/private-tunnel-settings.js';
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import {
-  PrivateTunnelSettings,
-  type PrivateTunnelView,
-} from '../src/client/private-tunnel-settings.js';
+import { PrivateTunnelSettings } from '../src/client/private-tunnel-settings.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: 'button',
-  Switch: 'input',
-  Input: 'input',
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 
 let host: HTMLDivElement;

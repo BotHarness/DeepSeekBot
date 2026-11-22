@@ -25,6 +25,7 @@ import {
 } from './schemas.js';
 import { createStore } from './store.js';
 import { hashToken, MIN_BOOTSTRAP_LENGTH, sameSecret, TOKEN_PATTERN } from './tokens.js';
+import { logWorker } from './worker-log.js';
 
 export type { LinksEnv, Principal } from './env.js';
 
@@ -77,7 +78,7 @@ app.openAPIRegistry.registerComponent('securitySchemes', 'bearerAuth', {
 
 app.onError((err, c) => {
   if (err instanceof HTTPException) return err.getResponse();
-  console.error(JSON.stringify({ module: 'links-worker', phase: 'error', error: String(err) }));
+  logWorker('error', { module: 'links-worker', phase: 'error', error: String(err) });
   return c.json(error('internal-error'), 500);
 });
 
@@ -465,7 +466,7 @@ app.doc('/openapi.json', {
     title: 'BotHarness Campaign Links',
     version: '1.0.0',
     description:
-      'Campaign short links on go.tobs.app (ADR-0132). GET /{slug} redirects to tobs.app with UTM parameters.',
+      'Campaign short links on go.tobs.app. See [Campaign Links](https://github.com/BotHarness/DeepSeekBot/blob/main/docs/decisions/release.md#adr-0132). GET /{slug} redirects to tobs.app with UTM parameters.',
   },
   servers: [{ url: 'https://go.tobs.app' }],
 });
@@ -512,9 +513,7 @@ app.openapi(
       c.executionCtx.waitUntil(
         Promise.all([
           c.var.store.recordClick(found.id, at).catch((err: unknown) => {
-            console.error(
-              JSON.stringify({ module: 'links-worker', phase: 'count', error: String(err) }),
-            );
+            logWorker('error', { module: 'links-worker', phase: 'count', error: String(err) });
           }),
           sendLinkClicked({ host: c.env.POSTHOG_HOST, key: c.env.POSTHOG_KEY }, found, at),
         ]),

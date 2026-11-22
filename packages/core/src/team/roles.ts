@@ -7,16 +7,25 @@ import { TeamError } from './error.js';
 import { channelRoleMembershipEntrySql, channelRoleMembershipExitSql } from './channel-contract.js';
 import {
   ALL_PERMISSIONS,
+  allowsEngineAccount,
+  allowsModel,
+  ownerGrantedPermission,
   roleSchema,
   type HostPermission,
   type HostRole,
   type RoleModels,
+  type RoleModelsInput,
   type ModelsAllowed,
   roleModelsSchema,
 } from './permissions.js';
 
 const roleFields = `r.role_id AS roleId, r.name, r.builtin, r.permissions_json AS permissions, r.models_json AS models, r.policy_json AS policy, r.policy_revision AS policyRevision,
   (SELECT COUNT(*) FROM human_roles m WHERE m.role_id = r.role_id) AS memberCount`;
+
+export function requireEngineAccountGrant(allowed: ModelsAllowed, accountId: string): void {
+  if (!allowsEngineAccount(allowed, accountId))
+    throw new TeamError('model-not-allowed', undefined, { route: accountId });
+}
 
 type RoleAuthority = { kind: 'owner' } | { kind: 'member'; permissions: ReadonlySet<string> };
 
@@ -77,23 +86,37 @@ export class TeamRoles {
         ),
       );
     if (rows.some((row) => row.owner)) return { all: true };
-    const models = rows.flatMap((row) =>
-      row.models === null ? [] : [roleModelsSchema.parse(JSON.parse(row.models))],
-    );
-    if (models.some((model) => model.kind === 'all')) return { all: true };
+    let all = false;
+    const accounts = new Set<string>();
+    const providers = new Set<string>();
+    const routes = new Set<string>();
+    for (const row of rows) {
+      if (row.models === null) continue;
+      const model = roleModelsSchema.parse(JSON.parse(row.models));
+      for (const id of model.engineAccounts) accounts.add(id);
+      if (model.kind === 'all') {
+        all = true;
+        continue;
+      }
+      for (const provider of model.providers) providers.add(provider);
+      for (const route of model.routes) routes.add(route);
+    }
+    const engineAccounts = [...accounts].sort();
+    if (all) return { all: true, engineAccounts };
     return {
       all: false,
-      routes: [
-        ...new Set(models.flatMap((model) => (model.kind === 'only' ? model.routes : []))),
-      ].sort(),
+      engineAccounts,
+      providers: [...providers].sort(),
+      routes: [...routes].sort(),
     };
   }
 
   requireModel(human: HumanContext, route: { provider: string; model: string }): void {
     const allowed = this.modelsAllowed(human);
-    const key = `${route.provider}/${route.model}`;
-    if (!allowed.all && !allowed.routes.includes(key))
-      throw new TeamError('model-not-allowed', undefined, { route: key });
+    if (!allowsModel(allowed, route))
+      throw new TeamError('model-not-allowed', undefined, {
+        route: `${route.provider}/${route.model}`,
+      });
   }
 
   require(human: HumanContext, ...permissions: [HostPermission, ...HostPermission[]]): void {
@@ -168,10 +191,22 @@ export class TeamRoles {
   }
 
   private checkModelGrant(actor: ModelsAllowed, models: RoleModels): void {
+    for (const id of models.engineAccounts) requireEngineAccountGrant(actor, id);
     if (actor.all) return;
     if (models.kind === 'all')
       throw new TeamError('model-not-allowed', undefined, { route: 'all' });
-    const outside = models.routes.find((route) => !actor.routes.includes(route));
+    const outsideProvider = models.providers.find(
+      (provider) => !actor.providers.includes(provider),
+    );
+    if (outsideProvider !== undefined)
+      throw new TeamError('model-not-allowed', undefined, { route: `${outsideProvider}/*` });
+    const outside = models.routes.find((route) => {
+      const separator = route.indexOf('/');
+      return !allowsModel(actor, {
+        provider: route.slice(0, separator),
+        model: route.slice(separator + 1),
+      });
+    });
     if (outside !== undefined)
       throw new TeamError('model-not-allowed', undefined, { route: outside });
   }
@@ -184,7 +219,7 @@ export class TeamRoles {
     if (authority.kind === 'owner') return;
     const permission = permissions.find(
       (id) =>
-        !authority.permissions.has(id) || (operation === 'grant' && id === 'privateContent.view'),
+        !authority.permissions.has(id) || (operation === 'grant' && ownerGrantedPermission(id)),
     );
     if (permission !== undefined)
       throw new TeamError('permission-not-grantable', undefined, { permission });
@@ -194,7 +229,7 @@ export class TeamRoles {
     human: HumanContext,
     name: string,
     permissions: string[],
-    models: RoleModels = { kind: 'all' },
+    models: RoleModelsInput = { kind: 'all' },
     policy: RolePolicy = [],
   ): { role: HostRole } {
     this.require(human, 'roles.manage');
@@ -231,7 +266,7 @@ export class TeamRoles {
   update(
     human: HumanContext,
     roleId: string,
-    patch: { name?: string; permissions?: string[]; models?: RoleModels; policy?: RolePolicy },
+    patch: { name?: string; permissions?: string[]; models?: RoleModelsInput; policy?: RolePolicy },
   ): { role: HostRole } {
     this.require(human, 'roles.manage');
     const role = this.role(roleId);
@@ -250,10 +285,9 @@ export class TeamRoles {
       patch.permissions === undefined
         ? role.permissions
         : this.validatePermissions(patch.permissions);
-    if (role.builtin === 'admin' && grants.includes('privateContent.view'))
-      throw new TeamError('permission-not-grantable', undefined, {
-        permission: 'privateContent.view',
-      });
+    const ownerGrant = role.builtin === 'admin' ? grants.find(ownerGrantedPermission) : undefined;
+    if (ownerGrant !== undefined)
+      throw new TeamError('permission-not-grantable', undefined, { permission: ownerGrant });
     this.checkPermissions(authority, grants, 'grant');
     this.db.transaction(
       (db) =>

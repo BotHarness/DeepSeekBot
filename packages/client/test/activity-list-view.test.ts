@@ -1,14 +1,14 @@
-import { createElement, type ReactNode } from 'react';
+import { type HumanAttentionItem } from '../src/client/store.js';
+import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
   ...(await import('./activity-list-test-controls.js')),
-  Button: ({ children, ...props }: { children: ReactNode }) =>
-    createElement('button', props, children),
+
   MarkdownText: () => null,
   StateDot: () => null,
-  Input: () => null,
 }));
 
 vi.mock('../src/client/bot-sidebar.js', async () => {
@@ -18,7 +18,7 @@ vi.mock('../src/client/bot-sidebar.js', async () => {
 
 import type { BridgeActions } from '../src/client/actions.js';
 import { ActivityListView } from '../src/client/activity-list-view.js';
-import { store, type HumanAttentionItem } from '../src/client/store.js';
+import { store } from '../src/client/store.js';
 
 const join: HumanAttentionItem = {
   id: 'join:request-1',

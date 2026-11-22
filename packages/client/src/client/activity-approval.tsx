@@ -128,18 +128,19 @@ export function ActivityApproval({
             </div>
           )}
           <div className="bh-activity-approval-footer">
-            <button
+            <Button
               type="button"
-              className="bh-request-link bh-activity-context-toggle"
+              size="sm"
+              className="bh-activity-context-toggle"
               aria-expanded={context}
               onFocus={onFocus}
               onClick={() => setContext(!context)}
             >
               {t(context ? 'activityInbox.hideContext' : 'activityInbox.context')}
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="bh-request-link"
+              size="sm"
               onClick={() => {
                 void actions
                   .openChannelAtMessage(source.channelId!, source.messageId!)
@@ -147,7 +148,7 @@ export function ActivityApproval({
               }}
             >
               {t('activityList.open')}
-            </button>
+            </Button>
           </div>
           {failed && message ? <p role="alert">{t('activityList.failed')}</p> : null}
           {context ? (

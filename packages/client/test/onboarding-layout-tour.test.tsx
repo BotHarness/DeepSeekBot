@@ -1,38 +1,10 @@
 // @vitest-environment jsdom
-import { act, createElement, type ReactNode } from 'react';
+import { createElement } from 'react';
+import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, expect, it, vi } from 'vitest';
-vi.mock('@deepseek-ai/dsh-client-ui-primitives', () => ({
-  Button: ({ children, variant: _variant, ...props }: { children: ReactNode; variant?: string }) =>
-    createElement('button', props, children),
-  Tooltip: ({ children }: { children: ReactNode }) => children,
-  SegmentedControl: ({
-    label,
-    value,
-    options,
-    onChange,
-  }: {
-    label: string;
-    value: string;
-    options: { value: string; label: string }[];
-    onChange(value: string): void;
-  }) =>
-    createElement(
-      'div',
-      { role: 'radiogroup', 'aria-label': label },
-      options.map((option) =>
-        createElement(
-          'button',
-          {
-            key: option.value,
-            role: 'radio',
-            'aria-checked': option.value === value,
-            onClick: () => onChange(option.value),
-          },
-          option.label,
-        ),
-      ),
-    ),
+vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
+  ...(await import('./primitive-mocks.js')).shellPrimitives(),
 }));
 import { CHANNEL_BODY_PANEL } from '../src/client/channel-dock-layout.js';
 import { createDockPanelRegistry } from '../src/client/dock-panels.js';

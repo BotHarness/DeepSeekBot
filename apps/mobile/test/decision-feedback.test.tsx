@@ -265,6 +265,8 @@ for (const surface of questionSurfaces) {
         const response = deferred();
         const port = { load: vi.fn(async () => question), answer: vi.fn(() => response.promise) };
         await render(surface.element(port));
+        if (surface.name === 'question card')
+          await act(async () => button(`${t.otherAnswer}: Choose a folder`).click());
         const field = container.querySelector<HTMLTextAreaElement>('textarea')!;
         await act(async () => {
           Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!.call(
@@ -273,7 +275,7 @@ for (const surface of questionSurfaces) {
           );
           field.dispatchEvent(new Event('input', { bubbles: true }));
         });
-        const target = button(surface.name === 'question card' ? t.submitChoice : t.submit);
+        const target = button(surface.name === 'question card' ? t.send : t.submit);
         await act(async () => {
           target.click();
           target.click();
@@ -300,6 +302,13 @@ for (const surface of questionSurfaces) {
         });
         expect(port.answer).toHaveBeenCalledTimes(1);
         expect(target.disabled).toBe(true);
+        if (surface.name === 'question card') {
+          expect(target.getAttribute('aria-checked')).toBe('true');
+          expect(target.querySelector('[data-testid="question-option-letter"]')?.textContent).toBe(
+            'A',
+          );
+          expect(container.querySelector('[data-testid="question-submit"]')).toBeNull();
+        }
         expect(played).toEqual([]);
         expect(container.querySelector('[role="progressbar"]')).not.toBeNull();
         await act(async () => response.resolve(result));

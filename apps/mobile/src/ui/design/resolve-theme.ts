@@ -1,6 +1,6 @@
 import { humanBubbleColors, readable } from '@botharness/host-client/shared/bot-name-color';
-import { layers, tint, type Layer, type LayerName } from './layers';
-import { palette } from '@botharness/host-client/ui/design/palette.generated';
+import { layers, type Layer, type LayerName } from './layers';
+import { mobileAccents, palette } from '@botharness/host-client/ui/design/palette.generated';
 import { mono, touch, typeScale, weight, type PlatformOS } from './tokens';
 
 import {
@@ -34,7 +34,6 @@ export type DesignTheme = {
 const HEX = /^#([0-9a-f]{6})$/i;
 
 const INK_LIGHT = '#ffffff';
-const SCRIM: Record<ColorScheme, string> = { light: '#0f111566', dark: '#00000099' };
 const BODY_CONTRAST = 4.5;
 
 export function withAccent(
@@ -90,15 +89,17 @@ export function resolveTheme(
 ): DesignTheme {
   const scheme =
     appearance.scheme === undefined || appearance.scheme === 'system' ? system : appearance.scheme;
-  const color = withAccent({ ...palette[scheme] }, appearance.accent ?? palette[scheme].accent);
+  const base = { ...palette[scheme] };
+  const preset = Object.entries(mobileAccents[scheme]).find(([name]) => name === appearance.accent);
+  const color = preset ? { ...base, ...preset[1] } : withAccent(base, appearance.accent);
   return {
     scheme,
     fontScale: 1,
     largeText: false,
     color,
     layer: layers(scheme, color),
-    overlay: { fill: color.sheet, handle: tint(color.sheet, color.fg, 0.38) },
-    scrim: SCRIM[scheme],
+    overlay: { fill: color.sheet, handle: color.borderStrong },
+    scrim: color.scrim,
     type: typeScale[os],
     weight: weight[os],
     touch: touch[os],
