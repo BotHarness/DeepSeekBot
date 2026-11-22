@@ -137,14 +137,37 @@ it('uses explicit Bot choices including follows-main, then converts legacy assig
   expect(subInherited(legacy)).toBe(false);
 });
 
-it('reads the Default preset for a Bot without its own list and preserves follows-main', () => {
+it('reads the Default preset for a Bot without its own list, and its main route when that list is empty', () => {
   const other = { ...preset, id: 'other', name: 'Other', sub: empty };
   const inherited = { ...state, presets: [other, preset] };
   expect(modelSub(inherited)).toEqual(saved);
   expect(modelSub({ ...inherited, plan })).toEqual(saved);
   expect(subInherited(inherited)).toBe(true);
   expect(subInherited({ ...inherited, plan })).toBe(true);
-  expect(modelSub({ ...state, plan, presets: [{ ...preset, sub: empty }] })).toEqual(empty);
+  expect(modelSub({ ...state, plan, presets: [{ ...preset, sub: empty }] })).toEqual({
+    choices: [
+      {
+        kind: 'model',
+        provider: main.provider,
+        model: main.model,
+        allowedEfforts: ['high'],
+        defaultEffort: 'high',
+      },
+    ],
+    default: { kind: 'model', provider: main.provider, model: main.model },
+  });
+  expect(
+    modelSub({
+      ...state,
+      presets: [
+        { ...preset, orchestratorGroupId: 'fallbacks', orchestratorGroupEffort: 'low', sub: empty },
+      ],
+    }),
+  ).toEqual({
+    choices: [{ kind: 'group', group: 'fallbacks', allowedEfforts: ['low'], defaultEffort: 'low' }],
+    default: group,
+  });
+  expect(modelSub({ ...state, preset: { ...preset, sub: empty } })).toEqual(empty);
   expect(modelSub({ ...state, presets: [other] })).toEqual(empty);
 });
 

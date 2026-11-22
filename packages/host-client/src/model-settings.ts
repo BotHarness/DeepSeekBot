@@ -47,6 +47,7 @@ import {
   updateModelPreset,
 } from './model-plans';
 import {
+  canAddSubChoice,
   cleanSub,
   savePlanSub,
   savePresetSub,
@@ -198,9 +199,41 @@ function defaultPreset(state: ModelSettingsState): ModelPreset | undefined {
 export function modelSub(state: ModelSettingsState): SubChoices {
   const preset = state.preset ?? (subInherited(state) ? defaultPreset(state) : undefined);
   if (preset !== undefined) {
-    return preset.sub ?? presetSubWithEngine(presetSubFromLegacy(preset), preset.assignmentEngine);
+    const sub =
+      preset.sub ?? presetSubWithEngine(presetSubFromLegacy(preset), preset.assignmentEngine);
+    return state.preset === undefined && sub.choices.length === 0 ? presetMainSub(preset) : sub;
   }
   return state.plan?.sub ?? presetSubFromLegacy(state.plan ?? {});
+}
+
+function presetMainSub(preset: ModelPreset): SubChoices {
+  const group = preset.orchestratorGroupId;
+  if (group !== undefined) {
+    const effort = preset.orchestratorGroupEffort;
+    return {
+      choices: [
+        {
+          kind: 'group',
+          group,
+          ...(effort === undefined ? {} : { allowedEfforts: [effort], defaultEffort: effort }),
+        },
+      ],
+      default: { kind: 'group', group },
+    };
+  }
+  const { provider, model, reasoningEffort = '' } = preset.orchestrator;
+  return {
+    choices: [
+      {
+        kind: 'model',
+        provider,
+        model,
+        allowedEfforts: [reasoningEffort],
+        defaultEffort: reasoningEffort,
+      },
+    ],
+    default: { kind: 'model', provider, model },
+  };
 }
 
 export async function setModelSub(
@@ -313,10 +346,8 @@ export function searchSubChoices(
       )
       .map((entry): SubAddOption => ({ kind: 'engine', entry, choice: entry.member })),
   ];
-  const { choices } = modelSub(state);
-  return options.filter(
-    ({ choice }) => !choices.some((entry) => matchesPresetSubChoice(entry, choice)),
-  );
+  const current = modelSub(state);
+  return options.filter(({ choice }) => canAddSubChoice(current, choice));
 }
 
 function requireRoute(route: ModelRoute | undefined): ModelRoute {

@@ -31,9 +31,21 @@ export function subSelectionOf(choice: SubChoice): SubSelection {
   }
 }
 
+export const SUB_MODEL_LIMIT = 20;
+export const SUB_EFFORT_LIMIT = 16;
+
+export function canAddSubChoice(sub: SubChoices, choice: SubChoice): boolean {
+  const selection = subSelectionOf(choice);
+  if (sub.choices.some((entry) => matchesPresetSubChoice(entry, selection))) return false;
+  return (
+    choice.kind !== 'model' ||
+    sub.choices.filter((entry) => entry.kind === 'model').length < SUB_MODEL_LIMIT
+  );
+}
+
 export function addSubChoice(sub: SubChoices, choice: SubChoice): SubChoices {
   const selection = subSelectionOf(choice);
-  if (sub.choices.some((entry) => matchesPresetSubChoice(entry, selection))) return sub;
+  if (!canAddSubChoice(sub, choice)) return sub;
   return { choices: [...sub.choices, choice], default: sub.default ?? selection };
 }
 
@@ -53,8 +65,13 @@ export function setSubDefault(sub: SubChoices, selection: SubSelection): SubChoi
   return choice === undefined ? sub : { ...sub, default: subSelectionOf(choice) };
 }
 
-function withAllowedEffort(allowed: string[], effort: string): string[] {
-  return allowed.includes(effort) ? allowed : [...allowed, effort];
+function withAllowedEffort(allowed: string[], effort: string, previous?: string): string[] {
+  if (allowed.includes(effort)) return allowed;
+  if (allowed.length < SUB_EFFORT_LIMIT) return [...allowed, effort];
+  const slot = previous === undefined ? -1 : allowed.indexOf(previous);
+  return allowed.map((entry, index) =>
+    index === (slot < 0 ? allowed.length - 1 : slot) ? effort : entry,
+  );
 }
 
 export function setSubEffort(
@@ -71,15 +88,19 @@ export function setSubEffort(
         case 'model':
           return {
             ...choice,
-            allowedEfforts: withAllowedEffort(choice.allowedEfforts, effort),
+            allowedEfforts: withAllowedEffort(choice.allowedEfforts, effort, choice.defaultEffort),
             defaultEffort: effort,
           };
         case 'group': {
-          const { allowedEfforts, defaultEffort: _defaultEffort, ...rest } = choice;
+          const { allowedEfforts, defaultEffort, ...rest } = choice;
           if (effort === '') return rest;
           return {
             ...rest,
-            allowedEfforts: withAllowedEffort(allowedEfforts ?? groupEfforts, effort),
+            allowedEfforts: withAllowedEffort(
+              allowedEfforts ?? groupEfforts.slice(0, SUB_EFFORT_LIMIT),
+              effort,
+              defaultEffort,
+            ),
             defaultEffort: effort,
           };
         }

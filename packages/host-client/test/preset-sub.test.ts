@@ -2,7 +2,10 @@ import { expect, it, vi } from 'vitest';
 import { HostAnswerInvalid } from '../src/host-answer';
 import { createModelPreset, setModelPlan, updateModelPreset } from '../src/model-plans';
 import {
+  SUB_EFFORT_LIMIT,
+  SUB_MODEL_LIMIT,
   addSubChoice,
+  canAddSubChoice,
   cleanSub,
   loadPlanSub,
   loadPresetSub,
@@ -236,4 +239,51 @@ it('sends and parses full saves with the main route and sub choices in one call 
     ['modelPresetUpdate', { id: 'preset', expectedRevision: 1, name: 'Edited', ...fields }],
     ['modelPlanSet', { slug: 'ada', expectedRevision: 0, ...fields }],
   ]);
+});
+
+it('keeps model additions within the protocol limit but still adds groups and engines', () => {
+  const models: SubChoice[] = Array.from({ length: SUB_MODEL_LIMIT }, (_, index) => ({
+    kind: 'model',
+    provider: 'p',
+    model: `m${index}`,
+    allowedEfforts: [''],
+    defaultEffort: '',
+  }));
+  const full: SubChoices = {
+    choices: models,
+    default: { kind: 'model', provider: 'p', model: 'm0' },
+  };
+  const extra: SubChoice = {
+    kind: 'model',
+    provider: 'p',
+    model: 'extra',
+    allowedEfforts: [''],
+    defaultEffort: '',
+  };
+  expect(canAddSubChoice(full, extra)).toBe(false);
+  expect(addSubChoice(full, extra)).toBe(full);
+  const extraGroup: SubChoice = { kind: 'group', group: 'g' };
+  expect(canAddSubChoice(full, extraGroup)).toBe(true);
+  expect(addSubChoice(full, extraGroup).choices).toHaveLength(SUB_MODEL_LIMIT + 1);
+});
+
+it('replaces the previous default effort when the allowed list is already full', () => {
+  const allowed = Array.from({ length: SUB_EFFORT_LIMIT }, (_, index) => `e${index}`);
+  const choice: SubChoice = {
+    kind: 'model',
+    provider: 'p',
+    model: 'm',
+    allowedEfforts: allowed,
+    defaultEffort: 'e3',
+  };
+  const selection: SubSelection = { kind: 'model', provider: 'p', model: 'm' };
+  const sub: SubChoices = { choices: [choice], default: selection };
+  const next = setSubEffort(sub, selection, 'new', []).choices[0];
+  expect(next).toMatchObject({ defaultEffort: 'new' });
+  expect(next?.kind === 'model' && next.allowedEfforts).toHaveLength(SUB_EFFORT_LIMIT);
+  expect(next?.kind === 'model' && next.allowedEfforts).not.toContain('e3');
+  expect(setSubEffort(sub, selection, 'e5', []).choices[0]).toMatchObject({
+    allowedEfforts: allowed,
+    defaultEffort: 'e5',
+  });
 });
