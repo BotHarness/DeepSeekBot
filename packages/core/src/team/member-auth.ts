@@ -322,12 +322,20 @@ export function createGrant(
     this.invalidate();
     return { token, peer };
   } catch (error) {
-    this.db.transaction(
-      (db) =>
-        db.prepare('UPDATE member_grants SET revoked_at = ? WHERE grant_id = ?').run(at, grantId),
-      ['team'],
-    );
-    this.invalidate();
+    const peer = this.peers.get(grantId);
+    this.peers.delete(grantId);
+    if (peer)
+      void Promise.resolve()
+        .then(() => peer.dispose())
+        .catch(() => {});
+    try {
+      this.db.transaction(
+        (db) =>
+          db.prepare('UPDATE member_grants SET revoked_at = ? WHERE grant_id = ?').run(at, grantId),
+        ['team'],
+      );
+      this.invalidate();
+    } catch {}
     throw error;
   }
 }

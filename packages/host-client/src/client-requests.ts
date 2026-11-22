@@ -33,9 +33,13 @@ export function createHostRequests(
   const withDeadline = async <T>(
     work: (signal: AbortSignal) => Promise<T>,
     ms: number = timeoutMs,
+    signal?: AbortSignal,
   ): Promise<T> => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), ms);
+    const abort = () => controller.abort();
+    if (signal?.aborted) abort();
+    else signal?.addEventListener('abort', abort, { once: true });
+    const timer = setTimeout(abort, ms);
     try {
       return await work(controller.signal);
     } catch (error) {
@@ -59,6 +63,7 @@ export function createHostRequests(
       );
     } finally {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', abort);
     }
   };
 
@@ -66,54 +71,59 @@ export function createHostRequests(
     method: string,
     args: Record<string, unknown> = {},
     via: string = connection.route,
+    requestOptions?: { signal?: AbortSignal; timeoutMs?: number },
   ): Promise<T> =>
-    withDeadline(async (signal) => {
-      const name = method.includes('/') ? method : `botharness/${method}`;
-      const refusal =
-        isEncryptedRoute(via, options.encryption) && options.encryption === undefined
-          ? secretRouteRefusal(name)
-          : undefined;
-      if (refusal !== undefined) throw new MethodRefused(refusal.code, refusal.message);
-      const request: ClientRequest = {
-        type: 'client-request',
-        rpcId: id(),
-        method: name,
-        payload: { args },
-      };
-      const response = await carrier.request(`${via}${DEVICE_PREFIX}/api/${name}`, {
-        method: 'POST',
-        body: JSON.stringify(request),
-        headers: jsonAuthorization,
-        signal,
-      });
-      if (response.status === 401 || response.status === 403) {
-        const code = refusalOf(await response.text());
-        if (code !== undefined) throw new CredentialRefused(code);
-      }
-      if (response.status === 404)
-        throw new Unreachable(
-          `This computer's Tobs does not support ${name} yet. Update Tobs on the computer.`,
-          404,
-        );
-      if (response.status >= 400)
-        throw new Unreachable(`The Host answered ${response.status}.`, response.status);
-      let envelope: Record<string, unknown>;
-      try {
-        envelope = record(JSON.parse(await response.text()));
-      } catch {
-        throw new Unreachable('The Host did not return a JSON response.');
-      }
-      const result = record(envelope['result']);
-      if (envelope['type'] !== 'server-response' || result['ok'] !== true) {
-        const error = record(result['error']);
-        throw new MethodRefused(
-          typeof error['code'] === 'string' ? error['code'] : 'refused',
-          typeof error['message'] === 'string' ? error['message'] : `${name} was refused.`,
-          error['details'],
-        );
-      }
-      return result['value'] as T;
-    });
+    withDeadline(
+      async (signal) => {
+        const name = method.includes('/') ? method : `botharness/${method}`;
+        const refusal =
+          isEncryptedRoute(via, options.encryption) && options.encryption === undefined
+            ? secretRouteRefusal(name)
+            : undefined;
+        if (refusal !== undefined) throw new MethodRefused(refusal.code, refusal.message);
+        const request: ClientRequest = {
+          type: 'client-request',
+          rpcId: id(),
+          method: name,
+          payload: { args },
+        };
+        const response = await carrier.request(`${via}${DEVICE_PREFIX}/api/${name}`, {
+          method: 'POST',
+          body: JSON.stringify(request),
+          headers: jsonAuthorization,
+          signal,
+        });
+        if (response.status === 401 || response.status === 403) {
+          const code = refusalOf(await response.text());
+          if (code !== undefined) throw new CredentialRefused(code);
+        }
+        if (response.status === 404)
+          throw new Unreachable(
+            `This computer's Tobs does not support ${name} yet. Update Tobs on the computer.`,
+            404,
+          );
+        if (response.status >= 400)
+          throw new Unreachable(`The Host answered ${response.status}.`, response.status);
+        let envelope: Record<string, unknown>;
+        try {
+          envelope = record(JSON.parse(await response.text()));
+        } catch {
+          throw new Unreachable('The Host did not return a JSON response.');
+        }
+        const result = record(envelope['result']);
+        if (envelope['type'] !== 'server-response' || result['ok'] !== true) {
+          const error = record(result['error']);
+          throw new MethodRefused(
+            typeof error['code'] === 'string' ? error['code'] : 'refused',
+            typeof error['message'] === 'string' ? error['message'] : `${name} was refused.`,
+            error['details'],
+          );
+        }
+        return result['value'] as T;
+      },
+      requestOptions?.timeoutMs,
+      requestOptions?.signal,
+    );
 
   const hostVia = (via?: string): HostCall => ({
     call: (method, args) => call(method, args, via),

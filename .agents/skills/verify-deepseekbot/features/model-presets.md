@@ -30,11 +30,11 @@
 
 ## How to get to it (user POV)
 
-In Bot Settings, Model Presets follows Models & execution. The section shows both choices and the number of Bots using each preset. Use Create preset or Edit to set the name, the two choices and the Assignment policy. In a Bot’s model dialog, use Choose preset and Save.
+In Bot Settings → Model configuration (renamed from Model Presets in #4860 S3), the page shows the pinned Default preset in its own Default section, the other presets under Presets, and Routing Groups below. Each preset shows both choices and the number of Bots using each preset. Use Create preset or Edit to set the name, the two choices and the Assignment policy. In a Bot’s model dialog, use Choose preset and Save.
 
 ## Driving it with verify-app
 
-Open the section on an isolated Profile. Create two presets and edit one. Apply it to a Bot and reopen Model Presets to check the count. Select Delete and verify that the confirmation names the Bot and says it keeps its applied settings. Confirm and read the Bot’s plan back with `deepseekbot model-plan`.
+Open the section on an isolated Profile. Create two presets and edit one. Apply it to a Bot and reopen Model configuration to check the count. Select Delete and verify that the confirmation names the Bot and says it keeps its applied settings. Confirm and read the Bot’s plan back with `deepseekbot model-plan`.
 
 Check the same list with `deepseekbot model-presets --include-usage`. The online CLI also supports create, update and deletion at a listed revision with `--confirm`. Open Bot Settings as a Member and verify that Model Presets, the Host default and Routing Groups are readable without write controls. Run M15 C4 for the permission gates.
 

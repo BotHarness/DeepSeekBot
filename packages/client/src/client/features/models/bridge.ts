@@ -1,8 +1,4 @@
 import { asRecord, bridgeHost, unwrap, type BridgeCall } from '../../bridge-transport.js';
-import type {
-  EngineAccountListEntry,
-  EngineQuotaRefreshResult,
-} from '@botharness/host-protocol/subscription-engine';
 import { setModelFavorite as setHostModelFavorite } from '@botharness/host-client/bot-settings';
 import type {
   ModelCatalogGroup,
@@ -26,20 +22,6 @@ import {
 } from '@botharness/host-client/model-plans';
 
 export type ModelRouteView = ModelRoute;
-
-export async function loadEngineAccounts(
-  call: BridgeCall,
-  grantable?: boolean,
-): Promise<{ revision?: number; accounts: EngineAccountListEntry[] }> {
-  return bridgeHost(call).call('engineAccounts', { grantable });
-}
-
-export async function refreshEngineAccountQuota(
-  call: BridgeCall,
-  id: string,
-): Promise<EngineQuotaRefreshResult> {
-  return bridgeHost(call).call('engineAccountQuotaRefresh', { id });
-}
 
 export type AssignmentModelOptionView = AssignmentModelOption;
 

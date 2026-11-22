@@ -73,7 +73,14 @@ export interface WireSkillInvocation {
   end: number;
 }
 
+export interface WireSessionLink {
+  sessionId: string;
+  kind: 'created' | 'sent';
+  title: string;
+}
+
 export interface ChannelWireMessage extends WireMessage {
+  sessionLinks?: readonly WireSessionLink[];
   turnTargets?: TurnTarget[];
   turnModelSwitch?: SessionTurnModelSwitch;
   contentPurge?: unknown;
@@ -217,7 +224,7 @@ export type ChannelNotification =
       kind: 'session-links';
       channelId: string;
       messageId: string;
-      sessionLinks: readonly { sessionId: string; kind: 'created' | 'sent'; title: string }[];
+      sessionLinks: readonly WireSessionLink[];
     }
   | {
       kind: 'draft-baseline';

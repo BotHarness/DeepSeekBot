@@ -523,7 +523,7 @@
       "description": "Schedule lock owner and updates.",
       "scope": "Host",
       "surfaces": [
-        "setting:packages/client/src/client/schedules-entry.tsx:{t('schedule.form.lock')}"
+        "setting:packages/client/src/client/features/schedules/schedules-entry.tsx:{t('schedule.form.lock')}"
       ],
       "commands": ["schedules", "schedule-update"]
     },
@@ -1226,7 +1226,7 @@
         "setting:packages/client/src/client/connection-hosts.tsx:{host.name}",
         "setting:packages/client/src/client/connection-hosts.tsx:{route.address}",
         "setting:packages/client/src/client/connection-hosts.tsx:{label}",
-        "setting:packages/client/src/client/connection-hosts.tsx:\"Tobs Connect\"",
+        "setting:packages/client/src/client/connection-hosts.tsx:{t('devices.connect.title')}",
         "storage:packages/client/src/client/features/environments/remote-host-operations.ts:removeItem(item.key)",
         "storage:packages/client/src/client/features/environments/remote-host-operations.ts:removeItem(executionKey)",
         "storage:packages/client/src/client/features/environments/remote-host-operations.ts:setItem(CONNECTION_OPERATIONS_INDEX)"

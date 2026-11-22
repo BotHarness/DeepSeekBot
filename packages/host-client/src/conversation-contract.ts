@@ -15,6 +15,7 @@ import type {
   WireDelivery,
   WireReaction,
   WireReplyPreview,
+  WireSessionLink,
   WireSkillInvocation,
 } from '@botharness/host-protocol/wire';
 
@@ -71,6 +72,7 @@ export interface ReplyThumbnail {
 }
 
 export interface ConversationMessage {
+  sessionLinks?: readonly WireSessionLink[];
   turnTargets?: TurnTarget[];
   turnModelSwitch?: SessionTurnModelSwitch;
   source?: JournalEntry;

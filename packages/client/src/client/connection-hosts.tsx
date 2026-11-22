@@ -379,10 +379,10 @@ function HostDetailsSession({
       </SettingsSection>
       {managed?.accountState === 'signed-in' ? (
         <SettingsSection>
-          <ListCard label="Tobs Connect">
+          <ListCard label={t('devices.connect.title')}>
             <ListCardItem
               leading={<Icon name="plug" />}
-              title="Tobs Connect"
+              title={t('devices.connect.title')}
               summary={t('connections.remote.signOutScope')}
               trailing={
                 <Button

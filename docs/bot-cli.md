@@ -697,7 +697,7 @@ The `activity*` commands were named `inbox*` before #3321; the old names still w
 
 In Team mode, use `--as <username>` to read the transcript, live updates, tools, Subagents and progress or set the Model Choice for a Bot the member owns. The Host refuses Session access when the Bot has a private DM with another Human. Saving a Model Choice that uses an ungranted Subscription Engine account returns `model-not-allowed`.
 
-`bot-sessions` and `session-transcript` report the running or last-used `currentTarget` when known. For Subscription Engine targets it includes `engine`, the public subscription label in `account`, and the executing `model` when known. For a native target it includes `provider` and `model`, including when a mixed Routing Group falls back to a DSH model.
+`bot-sessions` and `session-transcript` include the Orchestrator Session’s `displayTitle` when available. Both commands report the running or last-used `currentTarget` when known. For Subscription Engine targets it includes `engine`, the public subscription label in `account`, and the executing `model` when known. For a native target it includes `provider` and `model`, including when a mixed Routing Group falls back to a DSH model.
 
 ### Schedules on a live Host
 
@@ -1551,7 +1551,7 @@ The model verbs manage the same records afterwards: `model-presets` lists the pr
 
 ## Channels, grants, schedules, pairings
 
-`channels` lists channels and `channel-messages` reads one page newest-first (`--limit`, `--before`). `grants` lists a Bot's workspace grants while `grant-revoke` and `grant-write-set` manage them; creating a grant needs the Host workspace registry and stays a Host-side action. `schedules` lists a Bot's schedules; `schedule-create` takes `--title`, `--prompt`, and exactly one trigger (`--every` seconds, `--daily`/`--weekly` time plus `--weekdays`, `--once-date` plus `--once-time`, or `--cron`), with `--timezone` required for calendar triggers; `schedule-update`/`schedule-delete`/`schedule-history` address a schedule by `--sid`; `schedule-run-now` records a manual firing that the Host executes on start; `schedule-preview` renders upcoming occurrences for a trigger without a bot. `pairings` lists a Bot's IM pairing requests. Missing schedules fail `unknown-schedule`; deleting one reports `removed`.
+`channels` lists channels and `channel-messages` reads one page newest-first (`--limit`, `--before`). `grants` lists a Bot's workspace grants while `grant-revoke` and `grant-write-set` manage them; creating a grant needs the Host workspace registry and stays a Host-side action. With `--home`, `grant-write-set` can update an active grant backed by a BotHarness Space. For a native DSH Workspace grant, target the running Host. `schedules` lists a Bot's schedules; `schedule-create` takes `--title`, `--prompt`, and exactly one trigger (`--every` seconds, `--daily`/`--weekly` time plus `--weekdays`, `--once-date` plus `--once-time`, or `--cron`), with `--timezone` required for calendar triggers; `schedule-update`/`schedule-delete`/`schedule-history` address a schedule by `--sid`; `schedule-run-now` records a manual firing that the Host executes on start; `schedule-preview` renders upcoming occurrences for a trigger without a bot. `pairings` lists a Bot's IM pairing requests. Missing schedules fail `unknown-schedule`; deleting one reports `removed`.
 
 ### Approve one Workspace request online
 

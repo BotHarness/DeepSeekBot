@@ -281,8 +281,15 @@ export async function transfer(
     }
     throw error;
   }
-  this.accessChanged(true);
-  await this.stopBots?.(preview.bots.map((bot) => bot.slug));
+  try {
+    this.accessChanged(true);
+    await this.stopBots?.(preview.bots.map((bot) => bot.slug));
+  } catch (error) {
+    try {
+      spaceTransfer?.finish();
+    } catch {}
+    throw error;
+  }
   spaceTransfer?.finish();
   return null;
 }
@@ -311,14 +318,19 @@ export async function purgeConfirm(
 ): Promise<null> {
   if (human.caller === 'bot')
     throw new TeamError('permission-required', undefined, { permission: 'members.manage' });
-  this.roles.requireManagementTarget(human, humanId);
-  if (
-    !this.member(humanId) &&
-    this.db.read((db) => db.prepare('SELECT 1 FROM deleted_humans WHERE human_id = ?').get(humanId))
-  )
-    throw new TeamError('purge-token-invalid');
-  const member = this.purgeTarget(human, humanId);
-  if (username !== member.username) throw new TeamError('purge-token-invalid');
+  const checkTarget = () => {
+    this.roles.requireManagementTarget(human, humanId);
+    if (
+      !this.member(humanId) &&
+      this.db.read((db) =>
+        db.prepare('SELECT 1 FROM deleted_humans WHERE human_id = ?').get(humanId),
+      )
+    )
+      throw new TeamError('purge-token-invalid');
+    const member = this.purgeTarget(human, humanId);
+    if (username !== member.username) throw new TeamError('purge-token-invalid');
+  };
+  checkTarget();
   for (const bot of this.ownedBots(humanId))
     this.privateAccess.recordBotAction(
       human,
@@ -326,6 +338,7 @@ export async function purgeConfirm(
       'memberPurgeConfirm',
     );
   await this.settleBotPreparations?.(humanId);
+  checkTarget();
   this.purge!.memberConfirm(human, humanId, token);
   await this.purge!.memberSettled(humanId);
   this.invalidate();

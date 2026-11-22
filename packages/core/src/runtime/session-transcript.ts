@@ -1,16 +1,20 @@
 import { isEngineId } from '@botharness/host-protocol/subscription-engine';
 import type { TurnModelSwitch, TurnTarget } from '@botharness/host-protocol/turn-target';
 import { turnSwitchBetween, type TurnTargetSegment } from './turn-targets.js';
+import { SessionId } from '@deepseek-ai/dsh-session';
+import type { SessionQueryEngine } from '@deepseek-ai/dsh-session-query';
 import type { ToolCallKind } from '@deepseek-ai/dsh-tools';
 
 import { PRIVATE_INPUT_TOOLS } from '../credentials/tool-contract.js';
 import type { DshSessionEvent } from '../sessions/source.js';
 import {
   inboundEnvelopeBody,
+  inboxWakeBody,
+  sessionTitleFromBody,
   type InboundEnvelope,
   parseInboundEnvelope,
 } from './inbound-envelope.js';
-import { isPublicToolDetail } from '../state/tool-activity.js';
+import { isPublicToolDetail, isSessionActivityName } from '../state/tool-activity.js';
 import { sessionDirectBody } from './session-direct-message.js';
 import type { AssignmentTimelineStatus, PublicToolCall } from './assignment-timeline.js';
 
@@ -77,6 +81,7 @@ export type SessionTranscriptItem =
     };
 
 export interface SessionTranscript {
+  displayTitle?: string;
   items: SessionTranscriptItem[];
   omitted: number;
   running: boolean;
@@ -244,6 +249,116 @@ function parsedArgs(raw: unknown): unknown {
   }
 }
 
+function transcriptInput(
+  event: DshSessionEvent,
+): Extract<SessionTranscriptItem, { kind: 'input' }> | undefined {
+  const data = object(event.data);
+  const source = object(data['source'] ?? object(data['message'])['source']);
+  const kind = source['kind'];
+  if (typeof kind === 'string' && CONTEXT_SOURCES.has(kind)) return undefined;
+  const raw = rawJoined(blocks(data), 'text').trim();
+  const direct = sessionDirectBody(raw);
+  const fromHuman = direct !== undefined || kind === undefined || kind === 'user';
+  const inbox = direct === undefined && fromHuman ? inboxWakeBody(raw) : undefined;
+  const human = fromHuman && inbox === undefined;
+  const parsed = direct === undefined && human ? parseInboundEnvelope(raw) : undefined;
+  const text = clip(
+    direct ??
+      (parsed === undefined ? (inbox ?? raw).replace(HOST_BLOCK, '') : inboundEnvelopeBody(parsed)),
+  );
+  if (text === '') return undefined;
+  return {
+    kind: 'input',
+    text,
+    at: isoTime(event.time),
+    turn: 1,
+    source: human ? 'user' : 'system',
+    ...(human ? {} : { trigger: transcriptTrigger(source) }),
+    ...(direct === undefined ? {} : { origin: 'session-detail' }),
+    ...(inbox !== undefined
+      ? { envelope: { kind: 'inbox' } }
+      : parsed === undefined
+        ? {}
+        : {
+            envelope: {
+              kind: parsed.kind,
+              ...(parsed.channelId === undefined ? {} : { channelId: parsed.channelId }),
+              ...(parsed.messageId === undefined ? {} : { messageId: parsed.messageId }),
+            },
+          }),
+  };
+}
+
+export function cleanRecordedSessionTitle(value: unknown): string | undefined {
+  const data = object(value);
+  const title = data['title'];
+  if (!isSessionActivityName(title)) return undefined;
+  if (
+    object(data['source'])['kind'] === 'fallback' &&
+    /^(?:\[(?:Human DM|Human wrote|Group|Bot DM|Bot Inbox|Open Inbox|Host[: ])|Source Event ID:|Current Channel Human:)/u.test(
+      title,
+    )
+  )
+    return undefined;
+  return title;
+}
+
+export function sessionDisplayTitle(events: readonly DshSessionEvent[]): string | undefined {
+  const recorded = cleanRecordedSessionTitle(
+    events.findLast((event) => event.type === 'session/title')?.data,
+  );
+  if (recorded !== undefined) return recorded;
+  for (const event of events) {
+    if (event.type !== 'user/message') continue;
+    const input = transcriptInput(event);
+    if (
+      input?.source === 'user' &&
+      input.envelope?.kind !== 'bot-dm' &&
+      (input.envelope?.kind !== 'inbox' || input.envelope.messageId !== undefined)
+    ) {
+      const title = sessionTitleFromBody(input.text);
+      if (title !== undefined) return title;
+    }
+  }
+  return undefined;
+}
+
+const TITLE_FALLBACK_CONCURRENCY = 4;
+
+type SessionTitleQuery = Pick<SessionQueryEngine, 'readTitleSnapshots' | 'readSession'>;
+
+export async function readSessionTitles(
+  query: SessionTitleQuery | undefined,
+  ids: readonly string[],
+): Promise<ReadonlyMap<string, string>> {
+  const titles = new Map<string, string>();
+  if (typeof query?.readTitleSnapshots !== 'function') return titles;
+
+  const results = await query.readTitleSnapshots(ids.map(SessionId)).catch(() => []);
+  const fallback: SessionId[] = [];
+  for (const result of results) {
+    if (result.status !== 'fulfilled') continue;
+    const title = cleanRecordedSessionTitle(result.value.title);
+    if (title === undefined) fallback.push(result.sessionId);
+    else titles.set(result.sessionId, title);
+  }
+
+  for (let start = 0; start < fallback.length; start += TITLE_FALLBACK_CONCURRENCY) {
+    await Promise.all(
+      fallback.slice(start, start + TITLE_FALLBACK_CONCURRENCY).map(async (id) => {
+        try {
+          const { events } = await query.readSession(id);
+          const title = sessionDisplayTitle(events);
+          if (title !== undefined) titles.set(id, title);
+        } catch {
+          return;
+        }
+      }),
+    );
+  }
+  return titles;
+}
+
 export function summarizeSessionTranscript(input: {
   sessionId: string;
   events: readonly DshSessionEvent[];
@@ -303,36 +418,8 @@ export function summarizeSessionTranscript(input: {
       running = true;
       usage = undefined;
     } else if (event.type === 'user/message') {
-      const source = object(data['source']);
-      const kind = source['kind'];
-      if (typeof kind === 'string' && CONTEXT_SOURCES.has(kind)) continue;
-      const raw = rawJoined(blocks(data), 'text');
-      const direct = sessionDirectBody(raw);
-      const human = direct !== undefined || kind === undefined || kind === 'user';
-      const parsed = direct === undefined && human ? parseInboundEnvelope(raw.trim()) : undefined;
-      const text = clip(
-        direct ??
-          (parsed === undefined ? raw.replace(HOST_BLOCK, '') : inboundEnvelopeBody(parsed)),
-      );
-      const envelope =
-        parsed === undefined
-          ? undefined
-          : {
-              kind: parsed.kind,
-              ...(parsed.channelId === undefined ? {} : { channelId: parsed.channelId }),
-              ...(parsed.messageId === undefined ? {} : { messageId: parsed.messageId }),
-            };
-      if (text !== '')
-        items.push({
-          kind: 'input',
-          text,
-          at,
-          turn: Math.max(turn, 1),
-          source: human ? 'user' : 'system',
-          ...(human ? {} : { trigger: transcriptTrigger(source) }),
-          ...(direct === undefined ? {} : { origin: 'session-detail' as const }),
-          ...(envelope === undefined ? {} : { envelope }),
-        });
+      const input = transcriptInput(event);
+      if (input !== undefined) items.push({ ...input, turn: Math.max(turn, 1) });
     } else if (event.type === 'step/start') {
       if (typeof data['step'] === 'number') advanceTargets(data['step']);
     } else if (event.type === 'assistant/message') {

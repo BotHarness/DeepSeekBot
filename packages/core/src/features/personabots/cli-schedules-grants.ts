@@ -6,11 +6,10 @@ import {
   type BotScheduleFiring,
   type BotScheduleTrigger,
 } from '../../schedules/bot-schedules.js';
-import {
-  createWorkspaceGrantStore,
-  WorkspaceGrantError,
-  type WorkspaceGrant,
-} from '../../workspaces/grants.js';
+import { WorkspaceGrantError, type WorkspaceGrant } from '../../workspaces/grants.js';
+import { WorkspaceSpaces } from '../../workspaces/spaces.js';
+import { TeamRoles } from '../../team/roles.js';
+import { createGrants } from '../workspaces/plugin.js';
 import { attachOperationalModule, type OperationalDatabaseOwner } from '../../database/owner.js';
 import type { PersonaBotRegistry } from '../../bots/registry.js';
 import { scheduleToggleFromFlags, scheduleTriggerFromFlags } from '../../bots/cli-schedules.js';
@@ -30,11 +29,16 @@ function openSchedules(owner: OperationalDatabaseOwner, registry: PersonaBotRegi
   });
 }
 
-function openGrants(owner: OperationalDatabaseOwner) {
-  return createWorkspaceGrantStore({
-    database: attachOperationalModule(owner, 'workspace-grants'),
-    workspaces: () => undefined,
-  });
+function openGrants(owner: OperationalDatabaseOwner, dshHome: string) {
+  const roles = new TeamRoles(attachOperationalModule(owner, 'team'), () => {});
+  const spaces = new WorkspaceSpaces(
+    attachOperationalModule(owner, 'workspace-spaces'),
+    dshHome,
+    roles,
+    undefined,
+    false,
+  );
+  return createGrants(owner, spaces, {});
 }
 
 function scheduleFailure(error: unknown): never {
@@ -67,7 +71,7 @@ export function runGrants(
     const record = requireBotRecord(registry, slug);
     return {
       bot: memoryBot(record),
-      grants: openGrants(owner).list(record.slug),
+      grants: openGrants(owner, dshHome).list(record.slug),
     };
   } finally {
     owner.close();
@@ -88,7 +92,7 @@ export function runGrantRevoke(
   try {
     const record = requireBotRecord(registry, slug);
     try {
-      const grant = openGrants(owner).revoke(record.slug, grantId);
+      const grant = openGrants(owner, dshHome).revoke(record.slug, grantId);
       io.stderr(`tobs: revoked grant ${grantId} for ${record.slug}`);
       return { bot: memoryBot(record), grant };
     } catch (error) {
@@ -118,7 +122,7 @@ export function runGrantWriteSet(
   try {
     const record = requireBotRecord(registry, slug);
     try {
-      const grant = openGrants(owner).setOrchestratorWrite(record.slug, grantId, enabled);
+      const grant = openGrants(owner, dshHome).setOrchestratorWrite(record.slug, grantId, enabled);
       io.stderr(`tobs: set orchestrator write ${enabled ? 'on' : 'off'} for grant ${grantId}`);
       return { bot: memoryBot(record), grant };
     } catch (error) {
