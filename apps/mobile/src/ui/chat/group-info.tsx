@@ -262,6 +262,10 @@ export function GroupProfilePage({
   const [error, setError] = useState<string | undefined>();
   const [sheet, setSheet] = useState<'invite' | 'rename' | 'nickname' | undefined>();
   const [renameOpened, setRenameOpened] = useState(0);
+  const openRename = () => {
+    setRenameOpened((count) => count + 1);
+    setSheet('rename');
+  };
   const [work, setWork] = useState<ProfilePart<ProfileAssignment[]> | undefined>();
   const avatar = useAvatarEditor({ pick: pickAvatar, save: actions.setAvatar });
   const tabs = profileTabs('group');
@@ -415,10 +419,7 @@ export function GroupProfilePage({
           detail={channel.name}
           accessibilityLabel={`${t.groupRename}, ${channel.name}`}
           control={{ kind: 'chevron' }}
-          onPress={() => {
-            setRenameOpened((count) => count + 1);
-            setSheet('rename');
-          }}
+          onPress={openRename}
         />
         {nickname === undefined ? null : (
           <SettingsRow
@@ -521,6 +522,7 @@ export function GroupProfilePage({
         <GroupIdentity
           channel={channel}
           avatar={avatar}
+          onRename={openRename}
           error={tab === 'settings' ? undefined : avatar.error}
         />
       }
@@ -586,9 +588,11 @@ export function GroupProfilePage({
 function GroupIdentity({
   channel,
   avatar,
+  onRename,
   error,
 }: {
   channel: GroupInfo['channel'];
+  onRename(): void;
   avatar: ReturnType<typeof useAvatarEditor>;
   error: string | undefined;
 }) {
@@ -596,6 +600,7 @@ function GroupIdentity({
   return (
     <ProfileHero
       name={channel.name}
+      editName={{ label: t.groupRename + ' · ' + channel.name, onPress: onRename }}
       avatar={
         <EditableAvatar editor={avatar} corner={radius.round} testID="group-avatar-change">
           <GroupMark
@@ -621,6 +626,14 @@ function GroupIdentity({
           {error}
         </Text>
       )}
+      {error !== undefined && avatar.retry ? (
+        <Button
+          label={t.retry}
+          testID="group-avatar-retry"
+          disabled={avatar.busy}
+          onPress={() => void avatar.retry?.()}
+        />
+      ) : null}
     </ProfileHero>
   );
 }

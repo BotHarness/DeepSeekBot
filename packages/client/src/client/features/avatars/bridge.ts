@@ -34,10 +34,10 @@ export function createAvatarsBridge<PartLibraryEntry extends { part: unknown }>(
     channelId: string,
     banner: { recipe: PixelBannerRecipe } | { image: string } | null,
   ): Promise<BotSummary> {
-    const value = asRecord(await unwrap(call, 'botBannerSet', { channelId, banner }));
-    const bot = parseBotSummary(value?.['bot']);
-    if (bot === undefined) throw new Error('invalid botBannerSet response');
-    return bot;
+    const { bot } = await botControl.setBotBanner(bridgeHost(call), { channelId, banner });
+    const summary = parseBotSummary(bot);
+    if (summary === undefined) throw new Error('invalid botBannerSet response');
+    return summary;
   }
 
   async function setBotAppearance(
@@ -45,10 +45,10 @@ export function createAvatarsBridge<PartLibraryEntry extends { part: unknown }>(
     channelId: string,
     recipe: AvatarRecipe,
   ): Promise<BotSummary> {
-    const value = asRecord(await unwrap(call, 'botAppearanceSet', { channelId, recipe }));
-    const bot = parseBotSummary(value?.['bot']);
-    if (bot === undefined) throw new Error('invalid botAppearanceSet response');
-    return bot;
+    const { bot } = await botControl.setBotAppearance(bridgeHost(call), { channelId, recipe });
+    const summary = parseBotSummary(bot);
+    if (summary === undefined) throw new Error('invalid botAppearanceSet response');
+    return summary;
   }
 
   async function setBotPrimaryColor(

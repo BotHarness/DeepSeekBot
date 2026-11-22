@@ -2,7 +2,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import { createConnectAccount } from '@botharness/host-client/connect-account';
-import { pairHost } from '@botharness/host-client/pairing';
+import { pairHost, revokePairing } from '@botharness/host-client/pairing';
+import { signInOwnerDevice } from '@botharness/host-client/owner-sign-in';
 import { parseSavedHost, serializeSavedHost } from '@botharness/host-client/hosts';
 import { createHostClient } from '@botharness/host-client/client';
 import { isLanRoute, isEncryptedRoute } from '@botharness/host-protocol/route';
@@ -22,6 +23,11 @@ export const DEVICE_CLIENT_COMMANDS = [
       'pair from a trusted --link-file --confirm; write keys only to a new private --out file',
   },
   {
+    command: 'device-owner-sign-in',
+    description:
+      'sign in to a trusted <https-origin> as <username> with --password-stdin --confirm; save keys to a new private --out file',
+  },
+  {
     command: 'device-probe',
     description:
       'read the real Host Feed as a paired device using --device-file; prints only connection metadata',
@@ -38,11 +44,67 @@ export async function runDeviceClientCommand(
     'host-id'?: string;
     out?: string;
     confirm?: boolean;
+    'password-stdin'?: boolean;
   },
   writeStatus: (line: string) => void = (line) => {
     process.stderr.write(line);
   },
+  readStdin?: () => Promise<string>,
 ): Promise<unknown> {
+  if (command === 'device-owner-sign-in') {
+    const [route, username] = rest;
+    if (
+      rest.length !== 2 ||
+      !route ||
+      !username ||
+      !values['password-stdin'] ||
+      !readStdin ||
+      !values.out ||
+      !isAbsolute(values.out)
+    )
+      throw new CliLiveError(
+        'usage',
+        'Provide a trusted HTTPS origin, username, --password-stdin and a new absolute --out file.',
+      );
+    if (!values.confirm)
+      throw new CliLiveError(
+        'confirm-required',
+        'Confirm the HTTPS address came from the trusted Host Owner with --confirm.',
+      );
+    if (existsSync(values.out)) throw new CliLiveError('output-exists', 'Choose a new --out file.');
+    const password = (await readStdin()).replace(/\r?\n$/u, '');
+    if (!password) throw new CliLiveError('invalid-input', 'Provide the password on stdin.');
+    const carrier = nodeDeviceCarrier();
+    const result = await signInOwnerDevice({
+      carrier,
+      route,
+      username,
+      password,
+      deviceName: 'CLI device',
+    });
+    if (!result.ok) throw new CliLiveError(result.code, 'Owner device sign-in refused.');
+    const host = result.value;
+    try {
+      writeFileSync(values.out, `${JSON.stringify(serializeSavedHost(host))}\n`, {
+        flag: 'wx',
+        mode: 0o600,
+      });
+    } catch {
+      const retired = await revokePairing({ host, carrier });
+      throw new CliLiveError(
+        retired === 'revoked' ? 'storage-failed' : 'device-revocation-unconfirmed',
+        retired === 'revoked'
+          ? 'Cannot save the device file. The new device was revoked.'
+          : 'Cannot save the device file. Check the new CLI device in the Host device list.',
+      );
+    }
+    return {
+      hostId: host.hostId,
+      deviceId: host.deviceId,
+      encrypted: true,
+      pairing: { path: values.out },
+    };
+  }
   if (rest.length) throw new CliLiveError('usage', `${command} takes no positional arguments.`);
   if (command === 'device-pair' || command === 'device-account-pair') {
     const accountPair = command === 'device-account-pair';

@@ -14,6 +14,7 @@ import { externalMemberWake, messagingDefaultsPlatform } from '../../messaging/d
 import { z } from 'zod';
 import { isGroupAvatar, type ChannelRecord } from '../../channels/channel.js';
 import { isValidSlug } from '../../bots/slug.js';
+import { TeamError } from '../../team/error.js';
 import type { BridgeMethodsDeps, PersonaBotDetail, ChannelListItem } from '../../bridge/methods.js';
 import type { HumanContext } from '../../humans/context.js';
 import type { PersonaBotRecord } from '../../bots/persona-bot.js';
@@ -66,6 +67,13 @@ export function createChannelsManagementAdapterMethods(
             { name, members: [...members] },
             operationKey,
           );
+          if (
+            operationKey !== undefined &&
+            deps.team &&
+            (result.channel.ownerHumanId !== human.humanId ||
+              !deps.team.channelAccess.canRead(human, result.channel.id, true))
+          )
+            throw new TeamError('operation-key-conflict');
           return {
             ok: true,
             value: { ...result, channel: channelView(result.channel) },
@@ -225,6 +233,8 @@ export function createChannelsManagementAdapterMethods(
         (typeof expectedChannel !== 'string' || !expectedChannel.trim())
       )
         return invalidInput('expectedChannel must be a nonempty string');
+      const group = deps.channels.get(channelId);
+      if (group?.type === 'group') deps.team?.bots.requireAdd(human, botSlug, channelId);
       if (deps.channelManagement) {
         try {
           const result = deps.channelManagement.invite(
@@ -236,6 +246,7 @@ export function createChannelsManagementAdapterMethods(
             },
             operationKey,
           );
+          deps.team?.bots.recordAdder(human, botSlug, channelId);
           return {
             ok: true,
             value: { ...result, channel: channelView(result.channel) },
@@ -279,6 +290,7 @@ export function createChannelsManagementAdapterMethods(
           targetBotCreatedAt: bot.createdAt,
           targetDmChannelId: dm.id,
         });
+        deps.team?.bots.recordAdder(human, botSlug, channelId);
         deps.runtime?.admitGroupInvitation(dm.id, invitation.id);
         return {
           ok: true,

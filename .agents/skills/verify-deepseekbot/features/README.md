@@ -29,7 +29,7 @@
 | Global panel materials | no | `scripts/e2e-global-materials.mjs` | [global-materials.md](global-materials.md) |
 | Protected Tob DM and mobile pull-to-Tob (management, models, runtime, privacy and updates), plus typed CLI admission | yes for model reply; no for typed CLI approval | `scripts/e2e-tob-home.mjs`, `scripts/e2e-tob-model-runtime.mjs`, `scripts/e2e-tob-bot-management.mjs`, `scripts/e2e-tob-channel-management.mjs`, `scripts/e2e-tob-group-settings.mjs`, `scripts/e2e-tob-group-decisions.mjs`, `scripts/e2e-tob-delegation.mjs` | [tob-home.md](tob-home.md) |
 | DSH Session list Bot folders | for fresh execution | `scripts/e2e-bot-session-folders.mjs` | [bot-session-folders.md](bot-session-folders.md) |
-| Subscription Engine Session context, idle resume and lost-session recovery | yes | `verify-app` isolated Host and `deepseekbot engine use` | [engine-session-context.md](engine-session-context.md) |
+| Subscription Engine Session context, Model Choice, idle resume and lost-session recovery | yes | `verify-app` isolated Host, `deepseekbot session-model` and `deepseekbot engine use` | [engine-session-context.md](engine-session-context.md) |
 
 One file per user-facing feature. Each file has four sections: `Sub-features`, `How to get to it (user POV)`, `Driving it with verify-app`, and `Gotchas`.
 
@@ -47,7 +47,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Bot DM reply, cross-Host route continuity and LAN admission                                                                       | yes                        | `scripts/e2e-llm-scenarios.mjs --scenario dm-reply`                                                  | [bot-dm-reply.md](bot-dm-reply.md)                   |
 | Bot-to-Bot Group mentions and wake                                                                 | yes                        | `scripts/e2e-llm-scenarios.mjs` (nightly)                                                            | [bot-group-mention.md](bot-group-mention.md)         |
 | Group send review | yes for A/B; no for direct tools | `scripts/e2e-group-send-review.mjs`, `scripts/e2e-group-peer-review.mjs`, `scripts/e2e-group-busy-review.mjs`, `scripts/e2e-group-responsibility.mjs` | [group-send-review.md](group-send-review.md) |
-| Group invitation candidates | no | `verify-app` Group Members path | [group-invitations.md](group-invitations.md) |
+| Group member selection and invitations | no | `verify-app` Create channel and Group Members paths | [group-invitations.md](group-invitations.md) |
 | Conversation timeline: static ordinary avatars, memory display, new-messages divider, return to latest, bidirectional pages, kept place, folding, image preview, reactions, search, member mention, iOS/Android raw-source selection, GenUI documents and reports | for replies; GenUI model optional | `scripts/e2e-context-overflow.mjs`, `scripts/e2e-timeline-navigation.mjs`, `scripts/e2e-genui-reports.mjs`, `scripts/e2e-genui-documents.mjs` | [conversation-timeline.md](conversation-timeline.md) |
 | PersonaBot creation and restart persistence                                                        | for Bot-created Bots       | `scripts/e2e-personabot-create.mjs` (CI)                                                             | [personabot-create.md](personabot-create.md)         |
 | Stop a working Bot (Web Client)                                                                    | yes                        | `scripts/e2e-web-stop.mjs`                                                                           | [bot-stop.md](bot-stop.md)                           |
@@ -57,6 +57,7 @@ One file per user-facing feature. Each file has four sections: `Sub-features`, `
 | Phone Remote Host sections and Pinned list | no | shared-device queue; `scripts/e2e-mobile-sim.mjs` | [phone-pinned-list.md](phone-pinned-list.md) |
 | Native mobile quiet send, connection/loading feedback, history entry/retry and Cloud row opening | no (except live-reply regression) | none (shared-device native path) | [phone-qol.md](phone-qol.md) |
 | Native mobile message composer | no (except Bot reply) | `scripts/e2e-mobile-chat-resume.mjs` (assigned physical iOS session; other checks use the shared-device native path) | [phone-composer.md](phone-composer.md) |
+| Native Bot Session detail and Model Choice | yes for live turns | Assigned iOS/Android device and isolated Host | [phone-session-detail.md](phone-session-detail.md) |
 | Native mobile Profile paging/cache, Channel files, preview/share and original message | no | none (shared-device native path) | [phone-channel-files.md](phone-channel-files.md) |
 | Mobile press feedback, semantic haptics and local setting | no (except seeding a real decision) | none (shared-device native and physical-device path) | [phone-haptic-feedback.md](phone-haptic-feedback.md) |
 | Native Bot creation entries, Marketplace cards/profiles, Git/Zip import and recovery | no | `scripts/e2e-personabot-create.mjs` + imported `scripts/e2e-zip-import-proof.mjs` (Host/CLI only; native uses shared-device path) | [phone-bot-create.md](phone-bot-create.md) |

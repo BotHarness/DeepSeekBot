@@ -554,12 +554,13 @@ export function acceptAssistantStream(
   if (frame.type === 'start') {
     const active = adapter.runs.get(sessionId);
     const config = agent?.session.requestHeader()?.config;
-    if (active?.role === 'orchestrator' && config !== undefined)
-      active.run.observeTurnTarget?.(frame.turn, frame.step, {
-        kind: 'dsh',
-        provider: config.provider,
-        model: config.model,
-      });
+    if (active !== undefined && config !== undefined)
+      active.run.observeTurnTarget?.(
+        frame.turn,
+        frame.step,
+        { kind: 'dsh', provider: config.provider, model: config.model },
+        active.run.switchReason,
+      );
   }
   adapter.drafts.accept(sessionId, frame);
 }
@@ -574,7 +575,7 @@ export function captureNativeOrchestratorModel(
   if (selection === undefined) return;
   selection.current = agentOptions(
     { bot, inboundChannelId: '' },
-    adapter.defaultModel.currentSelection(),
+    adapter.defaultModel,
     adapter.resolveModelPlan?.(bot.slug) ?? bot.modelPlan,
     adapter.orchestratorRoute?.(sessionId),
   );
@@ -605,7 +606,7 @@ function orchestratorSelection(
 ): ModelSelection {
   return agentOptions(
     run,
-    adapter.defaultModel.currentSelection(),
+    adapter.defaultModel,
     adapter.resolveModelPlan?.(run.bot.slug) ?? run.bot.modelPlan,
     run.routingTarget?.kind === 'route'
       ? run.routingTarget.route

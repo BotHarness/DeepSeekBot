@@ -23,11 +23,20 @@ import {
 } from './marketplace-avatar-parts';
 
 export function MarketplaceAvatarDetailScreen() {
-  const { id, hostId } = useLocalSearchParams<{ id?: string; hostId?: string }>();
+  const { id, hostId, targetBot } = useLocalSearchParams<{
+    id?: string;
+    hostId?: string;
+    targetBot?: string;
+  }>();
   const { client, saved } = useHostSession(hostId);
   const copy = useStrings().marketplaceAvatars;
-  return client && saved && hostId && id ? (
-    <AvatarDetail key={`${hostId}:${id}`} id={id} actions={marketplaceAvatars(client)} />
+  return client && hostId && saved?.hostId === hostId && id ? (
+    <AvatarDetail
+      key={`${hostId}:${id}:${targetBot ?? ''}`}
+      id={id}
+      targetBot={targetBot}
+      actions={marketplaceAvatars(client)}
+    />
   ) : (
     <>
       <Stack.Screen options={{ title: copy.title }} />
@@ -38,7 +47,15 @@ export function MarketplaceAvatarDetailScreen() {
   );
 }
 
-function AvatarDetail({ actions, id }: { actions: MarketplaceAvatars; id: string }) {
+function AvatarDetail({
+  actions,
+  id,
+  targetBot,
+}: {
+  actions: MarketplaceAvatars;
+  id: string;
+  targetBot?: string | undefined;
+}) {
   const t = useStrings();
   const copy = t.marketplaceAvatars;
   const resource = actions.detail(id);
@@ -50,12 +67,20 @@ function AvatarDetail({ actions, id }: { actions: MarketplaceAvatars; id: string
   return (
     <>
       <Stack.Screen
-        options={{ title: mode === 'pick' ? copy.candidates : (avatar?.name ?? copy.title) }}
+        options={{
+          title:
+            mode === 'pick'
+              ? targetBot === undefined
+                ? copy.candidates
+                : copy.apply
+              : (avatar?.name ?? copy.title),
+        }}
       />
       {mode === 'pick' ? (
         <ApplyCandidates
           actions={actions}
           id={id}
+          targetBot={targetBot}
           onClose={() => setMode('detail')}
           onApplied={(name) => {
             setStatus(copy.applied(name));
@@ -128,11 +153,13 @@ function AvatarDetail({ actions, id }: { actions: MarketplaceAvatars; id: string
 function ApplyCandidates({
   actions,
   id,
+  targetBot,
   onApplied,
   onClose,
 }: {
   actions: MarketplaceAvatars;
   id: string;
+  targetBot?: string | undefined;
   onApplied(name: string): void;
   onClose(): void;
 }) {
@@ -144,7 +171,9 @@ function ApplyCandidates({
   const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState<string>();
   const bot =
-    list.error || list.busy ? undefined : list.value?.find((item) => item.slug === selected);
+    list.error || list.busy
+      ? undefined
+      : list.value?.find((item) => item.slug === (targetBot ?? selected));
   const apply = (target: MarketplaceAvatarApplyCandidate) =>
     void action.run(
       async () => {
@@ -157,13 +186,17 @@ function ApplyCandidates({
     <View style={{ flex: 1 }}>
       <FlatList
         style={{ flex: 1 }}
-        data={list.error || list.busy ? [] : (list.value ?? [])}
+        data={targetBot !== undefined || list.error || list.busy ? [] : (list.value ?? [])}
         keyExtractor={(item) => item.slug}
         contentContainerStyle={{ padding: space.x5, gap: space.x3 }}
         ListHeaderComponent={
           <View style={{ gap: space.x3 }}>
             <Text variant="title" strong accessibilityRole="header">
-              {copy.candidates}
+              {targetBot === undefined
+                ? copy.candidates
+                : bot
+                  ? copy.applyTo(bot.displayName)
+                  : copy.apply}
             </Text>
             <AvatarLoadState
               error={list.error}
@@ -173,8 +206,11 @@ function ApplyCandidates({
           </View>
         }
         ListEmptyComponent={
-          list.status === 'ready' && !list.error && !list.busy ? (
-            <Text>{copy.noCandidates}</Text>
+          list.status === 'ready' &&
+          !list.error &&
+          !list.busy &&
+          (targetBot === undefined || !bot) ? (
+            <Text>{targetBot === undefined ? copy.noCandidates : copy.botUnavailable}</Text>
           ) : (
             <></>
           )

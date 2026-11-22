@@ -18,6 +18,7 @@ export const MODEL_CONFIGURATION_METHODS: ReadonlySet<string> = new Set([
   'modelGroupDelete',
   'modelPresetCreate',
   'modelPresetUpdate',
+  'modelPresetSubSet',
   'modelPresetDelete',
 ]);
 
@@ -64,6 +65,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'engineAccountRemove',
   'engineAccountLogin',
   'engineAccountLoginCancel',
+  'engineAccountLoginStatus',
   'engineAccountSubmitCode',
   'modelFavoriteSet',
   'usageByMember',
@@ -92,6 +94,8 @@ export const MEMBER_GLOBAL_METHODS = [
   'channelPolicySet',
   'channelHumanAdd',
   'channelMemberCandidates',
+  'channelGroupMemberPicker',
+  'channelGroupMembersAdd',
   'teamDirectory',
   'humanDm',
   'humanDmByUsername',
@@ -132,6 +136,7 @@ export const MEMBER_GLOBAL_METHODS = [
   'createLookup',
   ...MEMBER_BOT_IMPORT_METHODS,
   'modelPresets',
+  'modelPresetSub',
   'modelGroups',
   'modelGroup',
   'voiceProviders',
@@ -212,6 +217,24 @@ export const MEMBER_MEMORY_METHODS = [
   'memoryMove',
 ] as const;
 
+const memberBotSessionIdMethods = [
+  'sessionStop',
+  'sessionMessageSend',
+  'assignment',
+  'assignmentTimeline',
+  'sessionSubagents',
+  'sessionTranscript',
+  'sessionModel',
+  'sessionSkillCatalog',
+  'sessionLive',
+  'sessionToolDetail',
+  'sessionArchiveSet',
+] as const;
+
+export const MEMBER_BOT_SESSION_ID_METHODS: ReadonlySet<string> = new Set(
+  memberBotSessionIdMethods,
+);
+
 export const MEMBER_BOT_METHODS = [
   'messagingIdentity',
   'botToolRun',
@@ -236,6 +259,8 @@ export const MEMBER_BOT_METHODS = [
   'botAppearanceSet',
   'botPrimaryColorSet',
   'modelPlan',
+  'modelPlanSub',
+  'modelPlanSubSet',
   'modelPlanSet',
   'modelPresetApply',
   'modelPlanCustomize',
@@ -262,19 +287,10 @@ export const MEMBER_BOT_METHODS = [
   'botCompact',
   'botContext',
   'botSystemPrompt',
-  'sessionStop',
-  'sessionMessageSend',
+  ...memberBotSessionIdMethods,
   'sessions',
   'assignments',
-  'assignment',
-  'assignmentTimeline',
-  'sessionSubagents',
   'sessionProgress',
-  'sessionTranscript',
-  'sessionSkillCatalog',
-  'sessionLive',
-  'sessionToolDetail',
-  'sessionArchiveSet',
   'botToolTrace',
   'botTurnInput',
   'profileUsage',

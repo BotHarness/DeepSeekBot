@@ -223,6 +223,7 @@ export const CLI_EFFECTS = {
   'device-offer': { effects: management, brokerRead: false },
   'device-offer-status': { effects: read, brokerRead: true },
   'device-pair': { effects: externalSecretManagement, brokerRead: false },
+  'device-owner-sign-in': { effects: externalSecretManagement, brokerRead: false },
   'device-probe': { effects: write, brokerRead: false },
   'device-requests': { effects: read, brokerRead: true },
   'device-revoke': { effects: management, brokerRead: false },
@@ -258,7 +259,9 @@ export const CLI_EFFECTS = {
   'group-invite': { effects: external, brokerRead: false },
   'group-invite-cancel': { effects: write, brokerRead: false },
   'group-join-decide': { effects: write, brokerRead: false },
+  'group-member-picker': { effects: read, brokerRead: false },
   'group-member-remove': { effects: write, brokerRead: false },
+  'group-members-add': { effects: external, brokerRead: false },
   'group-send-review': { effects: external, brokerRead: false },
   'group-wake-policies': { effects: read, brokerRead: true },
   'group-wake-set': { effects: write, brokerRead: false },
@@ -358,9 +361,12 @@ export const CLI_EFFECTS = {
   'model-provider-edit': { effects: externalSecretManagement, brokerRead: false },
   'model-provider-remove': { effects: destructiveSecretManagement, brokerRead: false },
   'model-catalog': { effects: read, brokerRead: true },
+  'model-default': { effects: read, brokerRead: false },
   'model-favorite-add': { effects: write, brokerRead: false },
   'model-favorite-remove': { effects: write, brokerRead: false },
   'model-plan': { effects: read, brokerRead: true },
+  'model-plan-sub': { effects: read, brokerRead: true },
+  'model-plan-sub-set': { effects: write, brokerRead: false },
   'model-plan-assignments-set': { effects: write, brokerRead: false },
   'model-plan-customize': { effects: write, brokerRead: false },
   'model-plan-inherit': { effects: write, brokerRead: false },
@@ -368,6 +374,8 @@ export const CLI_EFFECTS = {
   'model-preset-apply': { effects: write, brokerRead: false },
   'model-preset-create': { effects: write, brokerRead: false },
   'model-preset-delete': { effects: destructive, brokerRead: false },
+  'model-preset-sub': { effects: read, brokerRead: true },
+  'model-preset-sub-set': { effects: write, brokerRead: false },
   'model-preset-update': { effects: write, brokerRead: false },
   'model-presets': { effects: read, brokerRead: true },
   'model-groups': { effects: read, brokerRead: true },
@@ -470,6 +478,7 @@ export const CLI_EFFECTS = {
   'session-archive-set': { effects: write, brokerRead: false },
   'session-ids': { effects: read, brokerRead: true },
   'session-progress': { effects: read, brokerRead: true },
+  'session-model': { effects: write, brokerRead: false },
   'session-transcript': { effects: read, brokerRead: true },
   'session-live': { effects: read, brokerRead: true },
   'session-tool': { effects: read, brokerRead: true },
@@ -644,6 +653,10 @@ function familyEffects(
           ? destructiveManagement
           : management;
     case 'team-mode':
+      if (action === 'owner-sign-in') {
+        if (rest[1] === 'status') return read;
+        return values['password-stdin'] ? secretManagement : management;
+      }
       return action === 'status'
         ? read
         : action === 'owner-password' || action === 'transfer-owner'

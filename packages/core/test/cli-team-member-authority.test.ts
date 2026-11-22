@@ -283,6 +283,7 @@ describe('Team CLI', () => {
     'device-notifications',
     'phone-notifications',
     'device-pair',
+    'device-owner-sign-in',
     'device-probe',
   ])('refuses --as before %s device dispatch', async (command) => {
     const f = await host();
@@ -303,6 +304,13 @@ describe('Team CLI', () => {
     [['team-mode', 'status'], 'teamMode', {}],
     [['team-mode', 'on'], 'teamModeSet', { enabled: true }],
     [['team-mode', 'off'], 'teamModeSet', { enabled: false }],
+    [['team-mode', 'owner-sign-in', 'status'], 'ownerPasswordSignIn', {}],
+    [
+      ['team-mode', 'owner-sign-in', 'on', '--confirm'],
+      'ownerPasswordSignInSet',
+      { enabled: true },
+    ],
+    [['team-mode', 'owner-sign-in', 'off'], 'ownerPasswordSignInSet', { enabled: false }],
     [['team-mode', 'insecure-http', 'on', '--confirm'], 'teamInsecureHttpSet', { allowed: true }],
     [['members', 'list'], 'members', {}],
     [['roles', 'list'], 'roles', {}],
@@ -334,6 +342,25 @@ describe('Team CLI', () => {
     expect(result.status).toBe(0);
     expect(f.calls).toMatchObject([
       { path: `/api/botharness/${method}`, input: { payload: { args: named } } },
+    ]);
+  });
+
+  it('creates standalone Owner credentials from stdin without echoing the password', async () => {
+    const f = await host();
+    const args = ['team-mode', 'owner-sign-in', 'on', '--username', 'alice', '--password-stdin'];
+    const password = 'private-owner-sign-in-password';
+    const unconfirmed = await run(f.url, args, password);
+    expect(unconfirmed.status).not.toBe(0);
+    expect(f.calls).toHaveLength(0);
+
+    const result = await run(f.url, [...args, '--confirm'], password + '\n');
+    expect(result.status).toBe(0);
+    expect(result.text + result.errorText).not.toContain(password);
+    expect(f.calls).toMatchObject([
+      {
+        path: '/api/botharness/ownerPasswordSignInSet',
+        input: { payload: { args: { enabled: true, username: 'alice', password } } },
+      },
     ]);
   });
 

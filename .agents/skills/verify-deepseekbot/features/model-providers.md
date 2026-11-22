@@ -2,12 +2,15 @@
 
 ## Sources
 
+- `packages/core/src/features/models/plugin.ts`
 - `packages/client/src/client/model-providers-settings.tsx`
 - `packages/client/src/client/bot-intro.tsx`
 - `packages/core/src/models/providers.ts`
 - `packages/client/src/client/subscription-accounts.tsx`
+- `packages/client/src/client/codex-device-sign-in.tsx`
 - `packages/core/src/engines/engine-account-bridge.ts`
 - `packages/core/src/engines/engine-host-accounts.ts`
+- `packages/core/src/engines/codex-device-login.ts`
 - `packages/host-client/src/shared/model-brand.ts`
 - `scripts/e2e-team-security.mjs`
 - `scripts/team-security-model-provider-gate.mjs`
@@ -16,13 +19,14 @@
 
 - Settings
 - Host Permission
+- Subscription Engine
 - Model Choice
 - Routing Group
 - Model Preset
 
 ## Sub-features
 
-- Bot Settings puts Model providers above Models & execution for the Host Owner and Humans with `modelSources.manage`.
+- Bot Settings puts Model providers above Bot runtime and Model configuration for the Host Owner and Humans with `modelSources.manage`.
 - Adding or replacing an API key reports key storage, model count and a bounded reply on the exact provider route. Two keys for the same service each have their own route and credential reference.
 - List and edit show a masked key and the provider logo. Removal checks the Settings revision and references from the default model, Routing Groups, Model Presets and Bots.
 - Add, rename and remove Codex and Claude Code accounts. Each row shows the account’s sign-in and observed quota. The model picker and Routing Groups show the named account, and Model Presets can retain the account for either role.
@@ -43,6 +47,8 @@ Launch a fresh isolated Profile with `--no-ax-model --no-deepseek-secret` and ru
 Try renaming the second provider and removing it at a stale revision. Put the route in a Routing Group and confirm removal is refused. Run M15 scenario C3 and open Bot Settings as a member without `modelSources.manage` to verify that the entry is absent.
 
 For named subscriptions, run `deepseekbot engine accounts`, add a second account using the observed revision, rename it, and verify a stale rename is refused. Select it with `deepseekbot engine use <bot> claude --role orchestrator --account <id>` and verify removal reports that Bot. Open Model providers and the Add account dialog. With a model-list fixture, open the Bot's model settings and verify the picker shows both account choices. For manual sign-in, start a fake `claude` process that prints an HTTPS URL and prompts for a code on stdin. Click Sign in on the named Claude Code account, verify its code field appears, then submit a synthetic code and verify the waiting process receives it. Repeat through `deepseekbot engine login claude --account <id> --code-stdin`. Capture the subscription rows, Add account dialog and sign-in state in Chinese light and dark at 1280 × 860. Real OAuth, subscription model turns and quota reports require Human verification on an isolated Profile.
+
+For Codex device sign-in, open Model providers and choose **Sign in on another device** for a signed-out Codex account. Verify that the OpenAI verification link and one-time code are visible and copyable, with the expiry time and Cancel button. Cancel and confirm the code is cleared and the account can start again. Repeat with `deepseekbot engine login codex --device-auth [--account <id>]` and cancel with `deepseekbot engine login-cancel <id>` from another terminal. Capture the waiting state in English and Chinese, in light and dark. Cancel each real attempt before publishing evidence. Repeat the entry through the Model Choice and Model Preset pickers and the onboarding Model step when those surfaces offer Codex sign-in. An isolated fake Codex process can verify success, process failure and expiry without a real sign-in.
 
 For sign-in cancellation, put fake `codex` and `claude` executables on the isolated Host's PATH. Have them bind a loopback callback port before printing a fixture sign-in URL and reuse that port on retry. Run `deepseekbot engine login <account-id>` and confirm a second login returns `engine-account-busy`. Cancel with `deepseekbot engine login-cancel <account-id>` and expect `{"cancelled":true}`. Immediately retry login and confirm the same port binds again. Cancel the retry and run cancel once more to verify `{"cancelled":false}`. Start a fresh login, then call `engine login-cancel` as a member without `modelSources.manage`: it must return `permission-required`, and a second owner login must still return `engine-account-busy` because the fresh login stays pending. Cancel it as the owner to finish.
 

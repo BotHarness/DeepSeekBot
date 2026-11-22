@@ -4,7 +4,7 @@
 
 - `packages/client/src/client/bot-settings-open.ts`
 - `packages/client/src/client/onboarding-view.tsx`
-- `packages/client/src/client/channel-message-body.tsx`
+- `packages/client/src/client/features/channels/channel-message-body.tsx`
 - `packages/host-client/src/model-settings.ts`
 
 ## Terms

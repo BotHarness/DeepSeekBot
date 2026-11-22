@@ -1,6 +1,19 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import {
+  SESSION_FORMAT_VERSION,
+  SessionId,
+  SessionLogOffset,
+  SessionSeq,
+  type SessionHeader,
+} from '@deepseek-ai/dsh-session';
+import type { SessionQueryEngine } from '@deepseek-ai/dsh-session-query';
 
-import { TRANSCRIPT_ITEMS, summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
+import {
+  TRANSCRIPT_ITEMS,
+  readSessionTitles,
+  sessionDisplayTitle,
+  summarizeSessionTranscript,
+} from '../src/runtime/session-transcript.js';
 import {
   sessionDirectPrompt,
   sessionDirectSpeaker,
@@ -103,6 +116,31 @@ describe('Session transcript', () => {
     expect(transcript.items).toMatchObject([
       { kind: 'reply', text: 'Started', turnTargets: [firstTarget] },
       { kind: 'reply', text: 'Finished', turnTargets: [firstTarget, secondTarget] },
+    ]);
+  });
+
+  it('places one marker per changed Turn and carries the Routing Group quota reason', () => {
+    const codex = { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol' } as const;
+    const opus = { kind: 'engine', engine: 'claude', model: 'claude-opus-5-5' } as const;
+    const flash = { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' } as const;
+    const events = [1, 2, 3, 4].flatMap((turn) => [
+      event(turn * 3, 'turn/start', { turn }),
+      say(turn * 3 + 1, [{ type: 'text', text: 'Reply' }]),
+      event(turn * 3 + 2, 'turn/end', { reason: 'completed' }),
+    ]);
+    const result = summarizeSessionTranscript({
+      sessionId: 'switches',
+      events,
+      segments: [
+        { turn: 1, step: 0, request: 'one', target: codex },
+        { turn: 2, step: 0, request: 'two', target: codex },
+        { turn: 3, step: 0, request: 'three', target: opus },
+        { turn: 4, step: 0, request: 'four', target: flash, switchReason: 'quota' },
+      ],
+    });
+    expect(result.items.filter(({ kind }) => kind === 'model-switch')).toEqual([
+      { kind: 'model-switch', at: iso(9), from: codex, to: opus },
+      { kind: 'model-switch', at: iso(12), from: opus, to: flash, reason: 'quota' },
     ]);
   });
 
@@ -399,5 +437,106 @@ describe('Session transcript', () => {
       text: 'What is 17 times 23?',
       envelope: { kind: 'human-dm', channelId: 'dm-bot-1', messageId: 'human-1' },
     });
+  });
+
+  it('projects the Human DM separately from the Inbox context and shows an Inbox-only wake as system input', () => {
+    const inbox =
+      '[Open Inbox] 1 item you have seen but not resolved.\n- [Source Event event-1] Channel "Release QA": Prior request. Status: Assignment "Review" done.';
+    const input = (seq: number, text: string) =>
+      event(seq, 'user/message', { source: { kind: 'user' }, content: [{ type: 'text', text }] });
+    const events = [
+      input(1, `[Host: the Human stopped this Session.]\n\n${inbox}`),
+      input(
+        2,
+        `[Human DM]\nSource Event ID: event-2\nChannel: dm-ada\nMessage ID: message-2\nReview the release checklist.\n\n${inbox}`,
+      ),
+    ];
+    const transcript = summarizeSessionTranscript({ sessionId: 'orc-1', events });
+    expect(transcript.items).toMatchObject([
+      { kind: 'input', source: 'system', envelope: { kind: 'inbox' }, text: inbox },
+      {
+        kind: 'input',
+        source: 'user',
+        envelope: { kind: 'human-dm' },
+        text: 'Review the release checklist.',
+      },
+    ]);
+    expect(sessionDisplayTitle(events.slice(0, 1))).toBeUndefined();
+    expect(
+      sessionDisplayTitle([
+        ...events,
+        event(3, 'session/title', { title: '[Open Inbox] 1 item', source: { kind: 'fallback' } }),
+      ]),
+    ).toBe('Review the release checklist.');
+    expect(
+      sessionDisplayTitle([
+        ...events,
+        event(3, 'session/title', { title: 'Release sign-off', source: { kind: 'user' } }),
+      ]),
+    ).toBe('Release sign-off');
+  });
+});
+
+it('bounds fallback Session log reads and keeps snapshot titles and successful fallback titles', async () => {
+  const header = (id: SessionId): SessionHeader => ({
+    version: SESSION_FORMAT_VERSION,
+    id,
+    createdAt: at(0),
+    isSeeded: false,
+  });
+  const title = (text: string) => ({
+    title: text,
+    messageSeqs: [],
+    source: { kind: 'fallback' as const },
+    eventSeq: SessionSeq(1),
+    updatedAt: at(1),
+  });
+  const readTitleSnapshots: SessionQueryEngine['readTitleSnapshots'] = async (ids) =>
+    ids.map((id) =>
+      id === 'missing-snapshot'
+        ? { status: 'rejected', sessionId: id, reason: new Error('missing') }
+        : {
+            status: 'fulfilled',
+            sessionId: id,
+            value: {
+              session: header(id),
+              ...(id === 'cached'
+                ? { title: title('Cached title') }
+                : id === 'first'
+                  ? { title: title('[Bot Inbox] Internal envelope') }
+                  : {}),
+            },
+          },
+    );
+  let inFlight = 0;
+  let peak = 0;
+  const readSession = vi.fn<SessionQueryEngine['readSession']>(async (id) => {
+    peak = Math.max(peak, ++inFlight);
+    await Promise.resolve();
+    inFlight--;
+    if (id === 'failed') throw new Error('log unavailable');
+    return {
+      session: header(id),
+      inheritedEventCount: SessionLogOffset(0),
+      events: [
+        {
+          type: 'session/title',
+          time: at(1),
+          seq: SessionSeq(1),
+          data: title(`Title ${id}`),
+        },
+      ],
+    };
+  });
+  const ids = ['cached', 'first', 'failed', 'third', 'fourth', 'last', 'missing-snapshot'];
+  const result = await readSessionTitles({ readTitleSnapshots, readSession }, ids);
+  expect(peak).toBe(4);
+  expect(readSession.mock.calls.flat()).toEqual(ids.slice(1, -1));
+  expect(Object.fromEntries(result)).toEqual({
+    cached: 'Cached title',
+    first: 'Title first',
+    third: 'Title third',
+    fourth: 'Title fourth',
+    last: 'Title last',
   });
 });

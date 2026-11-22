@@ -87,9 +87,13 @@ function harness(initial: RoutingGroupView[]) {
   return actions;
 }
 
-async function render(actions: ReturnType<typeof harness>, canConfigure = true): Promise<void> {
+async function render(
+  actions: ReturnType<typeof harness>,
+  canConfigure = true,
+  onChanged?: () => void,
+): Promise<void> {
   await act(async () =>
-    root.render(createElement(RoutingGroupSettings, { actions, canConfigure, t })),
+    root.render(createElement(RoutingGroupSettings, { actions, canConfigure, t, onChanged })),
   );
   await act(async () => undefined);
 }
@@ -126,7 +130,8 @@ it('shows the Routing Group chain without controls in read-only settings', async
 
 it('creates a group from models picked in order', async () => {
   const actions = harness([]);
-  await render(actions);
+  const onChanged = vi.fn();
+  await render(actions, true, onChanged);
   await act(async () => buttonNamed(t('routingGroups.create')).click());
   await typeInto(fieldNamed(t('routingGroups.name'), dialog()), 'Fast first');
   await addMember(JSON.stringify([PRO.provider, PRO.model]));
@@ -138,6 +143,8 @@ it('creates a group from models picked in order', async () => {
     { kind: 'model', ...PRO },
     { kind: 'model', ...FLASH },
   ]);
+  await act(async () => undefined);
+  expect(onChanged).toHaveBeenCalledTimes(1);
 });
 
 it('reorders members with the keyboard-reachable move buttons and saves the revision', async () => {
@@ -382,4 +389,20 @@ it('shows disabled Subscription Engines and the Host refusal for an engine-only 
   expect(dialog().querySelector('[role="alert"]')?.textContent).toBe(
     'This Routing Group would have no model to run on',
   );
+});
+
+it('tells the page about a saved group even when the reload after it fails', async () => {
+  const actions = harness([]);
+  const onChanged = vi.fn();
+  await render(actions, true, onChanged);
+  actions.routingGroups.mockRejectedValue(new Error('offline'));
+  await act(async () => buttonNamed(t('routingGroups.create')).click());
+  await typeInto(fieldNamed(t('routingGroups.name'), dialog()), 'Fast first');
+  await addMember(JSON.stringify([PRO.provider, PRO.model]));
+  await act(async () =>
+    dialog().querySelector<HTMLButtonElement>('[data-routing-group-submit="create"]')!.click(),
+  );
+  await act(async () => undefined);
+  expect(actions.createRoutingGroup).toHaveBeenCalledTimes(1);
+  expect(onChanged).toHaveBeenCalledTimes(1);
 });

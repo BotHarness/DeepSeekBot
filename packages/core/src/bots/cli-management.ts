@@ -18,6 +18,7 @@ import {
   type ModelPreset,
   type ModelPresetEngineInput,
   type ModelRoute,
+  type PresetSub,
 } from '../models/presets.js';
 import type { PersonaBotActivitySnapshot } from '../state/bot-state.js';
 import type {
@@ -28,7 +29,12 @@ import type {
   ValidatedCreate,
 } from './bot-create-cli.js';
 import { CliLiveError } from './cli-live-error.js';
-import { assignmentModelsMode, presetEngineFlags, presetGroupFlags } from './cli-models-usage.js';
+import {
+  assignmentModelsMode,
+  presetEngineFlags,
+  presetGroupFlags,
+  presetSubStdin,
+} from './cli-models-usage.js';
 import { connectLiveHost } from './cli-live.js';
 
 export const ONLINE_MANAGEMENT_COMMANDS = [
@@ -161,7 +167,8 @@ export async function runOnlineManagement(
     | ({
         name: string;
         orchestrator?: ModelRoute;
-        assignmentDefault: ModelRoute;
+        assignmentDefault?: ModelRoute;
+        sub?: PresetSub;
         assignmentModels?: AssignmentModelOption[];
         openAssignmentModels?: boolean;
         orchestratorGroupId?: string | null;
@@ -183,51 +190,62 @@ export async function runOnlineManagement(
     )
       usage('--assignment-default-group must be one of --assignment-groups.');
     const groupEffort = values['orchestrator-effort']?.trim();
-    presetInput = {
+    const main = {
       name,
       ...(groups.orchestratorGroupId ? {} : { orchestrator: route(values, 'orchestrator') }),
       ...(groups.orchestratorGroupId && groupEffort
         ? { orchestratorGroupEffort: groupEffort }
         : {}),
-      assignmentDefault: route(values, 'assignment'),
-      ...assignmentModelsMode(values['assignment-models']),
       ...groups,
       ...presetEngineFlags(values),
     };
+    let plan: Record<string, unknown> = {};
     if (values['plan-stdin']) {
       let input: unknown;
       try {
         input = JSON.parse(await (io.readStdin?.() ?? Promise.resolve('')));
       } catch {
-        usage('Plan stdin must contain assignmentModels or assignmentGroupOptions.');
+        usage('Plan stdin must contain sub, assignmentModels or assignmentGroupOptions.');
       }
-      const plan = input as Record<string, unknown> | null;
-      const models = plan?.['assignmentModels'];
-      const options = plan?.['assignmentGroupOptions'];
-      if (
-        typeof plan !== 'object' ||
-        plan === null ||
-        Array.isArray(plan) ||
-        (models === undefined && options === undefined) ||
-        (models !== undefined &&
-          (!Array.isArray(models) || !models.every(isAssignmentModelOption))) ||
-        (options !== undefined &&
-          (!Array.isArray(options) ||
-            !options.every(
-              (option) =>
-                isAssignmentGroupOption(option) &&
-                (groups.assignmentGroups ?? []).includes(option.group),
-            ))) ||
-        Object.keys(plan).some(
-          (key) => key !== 'assignmentModels' && key !== 'assignmentGroupOptions',
+      if (typeof input !== 'object' || input === null || Array.isArray(input))
+        usage('Plan stdin must contain one JSON object.');
+      plan = Object.fromEntries(Object.entries(input));
+    }
+    const sub = presetSubStdin(plan, values);
+    if (sub !== undefined) {
+      if (Object.keys(plan).length !== 1) usage('Plan stdin with sub accepts only sub.');
+      presetInput = { ...main, sub };
+    } else {
+      presetInput = {
+        ...main,
+        assignmentDefault: route(values, 'assignment'),
+        ...assignmentModelsMode(values['assignment-models']),
+      };
+      if (values['plan-stdin']) {
+        const models = plan['assignmentModels'];
+        const options = plan['assignmentGroupOptions'];
+        if (
+          (models === undefined && options === undefined) ||
+          (models !== undefined &&
+            (!Array.isArray(models) || !models.every(isAssignmentModelOption))) ||
+          (options !== undefined &&
+            (!Array.isArray(options) ||
+              !options.every(
+                (option) =>
+                  isAssignmentGroupOption(option) &&
+                  (groups.assignmentGroups ?? []).includes(option.group),
+              ))) ||
+          Object.keys(plan).some(
+            (key) => key !== 'assignmentModels' && key !== 'assignmentGroupOptions',
+          )
         )
-      )
-        usage(
-          'Plan stdin must contain only valid assignmentModels and assignmentGroupOptions for --assignment-groups.',
-        );
-      if (models !== undefined) presetInput.assignmentModels = models as AssignmentModelOption[];
-      if (options !== undefined)
-        presetInput.assignmentGroupOptions = options as AssignmentGroupOption[];
+          usage(
+            'Plan stdin must contain only valid assignmentModels and assignmentGroupOptions for --assignment-groups.',
+          );
+        if (models !== undefined) presetInput.assignmentModels = models as AssignmentModelOption[];
+        if (options !== undefined)
+          presetInput.assignmentGroupOptions = options as AssignmentGroupOption[];
+      }
     }
   }
   if (command === 'model-preset-apply' && !values.preset?.trim()) usage('--preset is required.');
@@ -348,7 +366,10 @@ export async function runOnlineManagement(
       ...(values.state === undefined ? {} : { state: values.state }),
     });
   if (command === 'bot-sessions') {
-    const result = await rpc<{ sessions: Array<{ createdAt: string }> }>('sessions', { slug });
+    const result = await rpc<{ sessions: Array<{ createdAt: string }> }>('sessions', {
+      slug,
+      includeTitles: true,
+    });
     const sorted = [...result.sessions].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return { sessions: sorted.slice(0, limit), total: sorted.length };
   }

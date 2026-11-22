@@ -1,3 +1,4 @@
+import type { EngineDeviceLoginProgress } from '@botharness/host-protocol/engine-device-login';
 import type { TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { RoutingGroupEngineMember } from '@botharness/host-protocol/subscription-engine';
 
@@ -13,6 +14,7 @@ import type { CodexStatus } from './codex-status.js';
 import type { EngineContextRecord } from './engine-context.js';
 import type { EngineQuotaView } from './engine-quota.js';
 import type { EngineId, EngineWorkspaceMode } from './engine-session.js';
+import type { ModelPresetEngine } from '../models/presets.js';
 import type { EngineRole } from './engine-store.js';
 
 export const ENGINE_GATEWAY_TOOLS: ReadonlySet<string> = new Set([
@@ -39,12 +41,18 @@ export interface EngineHostOptions {
   gateway: EngineGateway;
   requireAccountGrant?(botSlug: string, accountId: string): void;
   routingGroupEffort?(botSlug: string): string | undefined;
+  inheritedChoice?(botSlug: string, role: EngineRole): ModelPresetEngine | undefined;
   sessions(): EngineSessionStore | undefined;
   persistence(): EngineSessionPersistence | undefined;
   sessionIdsForBot?(botSlug: string): readonly string[];
   observeTurnTarget?(sessionId: string, turn: number, target: TurnTarget): void;
   changed?(): void;
   accountsChanged?(): void;
+  observeDeviceLogin?(event: {
+    attemptId: string;
+    phase: EngineDeviceLoginProgress['status'];
+    durationMs: number;
+  }): void;
   accountUses?(id: string): readonly string[];
   observe?(botSlug: string, sessionId: string, state: EngineSessionState, role: EngineRole): void;
   approve?(request: EngineApprovalRequest): Promise<ApprovalOutcome>;
@@ -68,7 +76,7 @@ export interface EngineTurnRequest {
   botSlug: string;
   role?: EngineRole;
   target?: RoutingGroupEngineMember;
-  groupEffort?: string;
+  groupEffort?: string | null;
   observeTurnTarget?(turn: number, step: number, target: TurnTarget): void;
   continuingFromNativeRoute?: true;
   cwd?: string;

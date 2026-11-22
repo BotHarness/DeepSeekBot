@@ -1,6 +1,5 @@
-import { TurnTargetLabel, useTurnTargetCatalog } from './turn-target-label.js';
-import { createContext, useContext, useRef, useState, type ReactElement } from 'react';
-import { createPortal } from 'react-dom';
+import { useTurnTargetCatalog } from './turn-target-label.js';
+import { createContext, useContext, useMemo, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 
 import {
@@ -11,7 +10,6 @@ import {
   type SessionDetailLevel,
   type SessionFoldedReplies,
 } from '@botharness/host-client/shared/bot-mode-settings';
-import type { ModelCatalogEntry } from '@botharness/host-client/model-catalog';
 
 import type { BridgeActions } from './actions.js';
 import type {
@@ -20,6 +18,7 @@ import type {
   SessionTranscript,
   SessionTranscriptItem,
 } from './bridge.js';
+import { sessionInputPresentation } from '@botharness/host-client/session-detail';
 import { SessionEnvelopeLabel, TRIGGER_ICONS } from './session-input-meta.js';
 import { ChannelComposer } from './channel-composer.js';
 import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
@@ -29,18 +28,19 @@ import { ChipButton } from './ds/chip-button.js';
 import { WorkRow } from './ds/work-row.js';
 import { color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
-import { sessionEngineText } from './session-engine.js';
 import { useMountedResource } from './mounted-resource.js';
 import { cachedSessionDetail, rememberSessionDetail } from './session-detail-cache.js';
 import type { SkillCatalogEntry } from '../../../core/src/skills/entries.js';
-import { SessionHeaderSlot } from './session-header-slot.js';
+import { SessionDetailHeaderChips } from './session-detail-header.js';
+import { sessionComposerFrame } from './session-composer-frame.js';
+import { SessionModelComposer } from './session-model-composer.js';
+import { SessionModelSwitch } from './session-model-switch.js';
 import { SessionJump } from './session-jump.js';
 import { quotedRequest, quoteSourceId, SessionQuoteToolbar } from './session-quotes.js';
 import { ChangedFiles } from './session-changed-files.js';
 import type { SelectedSkill } from './skill-refs.js';
 import { DiffStat, ToolDetailView } from './session-tool-detail-view.js';
 import { TurnNav } from './session-turn-nav.js';
-import { SessionProgressChips } from './session-progress-view.js';
 import {
   clockText,
   detailDefaults,
@@ -97,14 +97,6 @@ const styles = stylex.create({
     height: '100%',
     minHeight: 0,
   },
-  chips: {
-    display: 'flex',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    gap: space.x2,
-    paddingInline: space.x4,
-    paddingBottom: space.x3,
-  },
   panel: {
     marginInline: space.x4,
     marginBottom: space.x3,
@@ -121,19 +113,6 @@ const styles = stylex.create({
   todo: { display: 'flex', gap: space.x3, alignItems: 'flex-start' },
   todoDone: { color: color.subtle, textDecoration: 'line-through' },
   todoActive: { fontWeight: text.strong },
-  transcript: {
-    flex: 1,
-    minHeight: 0,
-    overflowY: 'auto',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: space.x1,
-    paddingInline: space.x5,
-    paddingTop: space.x4,
-    paddingBottom: `calc(${space.x4} + var(--session-composer-overlay, 0px))`,
-    maskImage: `linear-gradient(to bottom, transparent, black ${space.x4}, black calc(100% - var(--session-composer-overlay, 0px)), transparent 100%)`,
-    overscrollBehavior: 'contain',
-  },
   quiet: {
     color: color.subtle,
     fontSize: text.metaSize,
@@ -200,12 +179,7 @@ const styles = stylex.create({
   bad: { color: color.danger },
   ok: { color: color.success, display: 'inline-flex' },
   run: { color: color.accent, display: 'inline-flex' },
-  composer: { position: 'absolute', insetInline: 0, bottom: 0, zIndex: 1 },
-  error: {
-    color: color.danger,
-    paddingInline: space.x5,
-    paddingBottom: space.x2,
-  },
+  error: { color: color.danger, paddingInline: space.x5, paddingBottom: space.x2 },
 });
 
 function stepIcon(step: TranscriptStep): string {
@@ -233,7 +207,6 @@ function LiveClock({ from, t }: { from: string; t: BotHarnessTranslate }): React
 
 interface DetailContext {
   actions: BridgeActions;
-  catalog: readonly ModelCatalogEntry[] | undefined;
   botSlug: string;
   sessionId: string;
   t: BotHarnessTranslate;
@@ -479,9 +452,6 @@ function TurnBlock({
           {...(foldable ? { expanded: open, onToggle: () => setOpen(!open) } : {})}
         />
       ) : null}
-      {visible.some((segment) => segment.kind === 'reply') ? null : (
-        <TurnTargetLabel targets={end?.turnTargets} catalog={context.catalog} t={t} />
-      )}
       {end?.message === undefined ? null : (
         <div {...stylex.props(styles.quiet, styles.bad)}>{end.message}</div>
       )}
@@ -494,7 +464,6 @@ function TurnBlock({
             {...stylex.props(styles.reply)}
           >
             <MessageMarkdown text={segment.item.text} t={t} />
-            <TurnTargetLabel targets={segment.item.turnTargets} catalog={context.catalog} t={t} />
           </div>
         ) : (
           <ProcessGroup
@@ -531,38 +500,47 @@ function InputBlock({
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const item = block.item;
-  if (item.source === 'user')
+  const input = sessionInputPresentation(item);
+  if (input.kind === 'message')
     return (
       <>
-        {item.envelope === undefined ? null : (
-          <SessionEnvelopeLabel kind={item.envelope.kind} t={t} />
-        )}
+        {input.envelope === undefined ? null : <SessionEnvelopeLabel kind={input.envelope} t={t} />}
         <div
           data-transcript="input"
           data-quote-source={quoteSourceId(sessionId, block.key)}
-          {...stylex.props(styles.input, item.envelope === undefined ? null : styles.afterEnvelope)}
+          {...stylex.props(
+            styles.input,
+            input.envelope === undefined ? null : styles.afterEnvelope,
+          )}
         >
-          <MessageMarkdown text={item.text} t={t} />
+          <MessageMarkdown text={input.text} t={t} />
         </div>
       </>
     );
-  const trigger = item.trigger ?? 'request';
-  const skill = /^<skill_content name="([^"]+)">/u.exec(item.text)?.[1];
+  const trigger = input.kind === 'trigger' ? input.trigger : input.kind;
   return (
-    <div data-transcript="system" data-trigger={skill === undefined ? trigger : 'skill'}>
+    <div data-transcript="system" data-trigger={trigger}>
       <WorkRow
-        icon={skill === undefined ? TRIGGER_ICONS[trigger] : 'slash'}
-        label={
-          skill === undefined
-            ? t(`sessions.detail.trigger.${trigger}`)
-            : t('sessions.detail.trigger.skill', { name: skill })
+        icon={
+          input.kind === 'trigger'
+            ? TRIGGER_ICONS[input.trigger]
+            : input.kind === 'skill'
+              ? 'slash'
+              : 'inbox'
         }
-        detail={open || skill !== undefined ? undefined : item.text.split('\n', 1)[0]}
+        label={
+          input.kind === 'trigger'
+            ? t(`sessions.detail.trigger.${input.trigger}`)
+            : input.kind === 'skill'
+              ? t('sessions.detail.trigger.skill', { name: input.name })
+              : t('sessions.detail.envelope.inbox')
+        }
+        detail={!open && input.kind === 'trigger' ? input.preview : undefined}
         trailing={<span {...stylex.props(styles.meta)}>{clockText(item.at)}</span>}
         expanded={open}
         onToggle={() => setOpen((value) => !value)}
       />
-      {open ? <div {...stylex.props(styles.thought)}>{item.text}</div> : null}
+      {open ? <div {...stylex.props(styles.thought)}>{input.text}</div> : null}
     </div>
   );
 }
@@ -597,14 +575,27 @@ export function SessionDetail({
   const [draft, setDraft] = useState('');
   const [quotes, setQuotes] = useState<ComposerQuote[]>([]);
   const [sending, setSending] = useState(false);
+  const [savingModel, setSavingModel] = useState(false);
+  const canCompose =
+    (transcript?.role === 'assignment' && actions.sendSessionRequest !== undefined) ||
+    (transcript?.role === 'orchestrator' && actions.sendOrchestratorMessage !== undefined);
   const [sendError, setSendError] = useState<string | undefined>();
   const [revision, setRevision] = useState(0);
   const [away, setAway] = useState(false);
-  const chipSlot = useContext(SessionHeaderSlot);
   const [skillOptions, setSkillOptions] = useState<readonly SkillCatalogEntry[]>([]);
   const [skills, setSkills] = useState<SelectedSkill[]>([]);
-  const { catalog, mount: catalogMount } = useTurnTargetCatalog(actions, transcript?.items);
-  const running = transcript?.running === true || live.length > 0;
+  const {
+    catalog,
+    groups,
+    mount: catalogMount,
+  } = useTurnTargetCatalog(
+    actions,
+    transcript?.currentTarget,
+    transcript?.items,
+    canCompose && actions.sessionModel !== undefined,
+  );
+  const running =
+    transcript?.running === true || transcript?.engine?.state === 'running' || live.length > 0;
   const mount = useMountedResource<HTMLDivElement>(
     (node) => {
       const read = actions.sessionTranscript;
@@ -779,7 +770,7 @@ export function SessionDetail({
           ? (slug: string, session: string) =>
               actions.sendOrchestratorMessage!(slug, session, quotedRequest(quotes, draft))
           : undefined;
-    if (message === '' || deliver === undefined) return;
+    if (message === '' || deliver === undefined || savingModel) return;
     setSending(true);
     setSendError(undefined);
     try {
@@ -814,27 +805,21 @@ export function SessionDetail({
   const todos = progress?.todos;
   const context: DetailContext = {
     actions,
-    catalog,
     botSlug,
     sessionId,
     t,
     defaults: detailDefaults(prefs.level),
   };
-  const blocks =
-    transcript === undefined ? [] : transcriptBlocks(mergeLive(transcript.items, live), running);
+  const items = transcript?.items;
+  const blocks = useMemo(
+    () => (items === undefined ? [] : transcriptBlocks(mergeLive(items, live), running)),
+    [items, live, running],
+  );
   const toggle = (key: 'goal' | 'todos') =>
     setOpen((current) => (current === key ? undefined : key));
-  const chips =
-    goal === undefined && todos === undefined ? null : (
-      <SessionProgressChips goal={goal} todos={todos} open={open} toggle={toggle} t={t} />
-    );
   return (
     <div ref={catalogMount} data-session-detail={sessionId} {...stylex.props(styles.root)}>
-      {chips === null ? null : chipSlot === null ? (
-        <div {...stylex.props(styles.chips)}>{chips}</div>
-      ) : (
-        createPortal(chips, chipSlot)
-      )}
+      <SessionDetailHeaderChips goal={goal} todos={todos} open={open} toggle={toggle} t={t} />
       {open === 'goal' && goal !== undefined ? (
         <div data-session-panel="goal" {...stylex.props(styles.panel)}>
           <div>{goal.objective}</div>
@@ -892,16 +877,8 @@ export function SessionDetail({
           const node = event.currentTarget;
           setAway(node.scrollHeight - node.scrollTop - node.clientHeight > 80);
         }}
-        {...stylex.props(styles.transcript)}
+        {...stylex.props(sessionComposerFrame.transcript)}
       >
-        {transcript?.engine === undefined ? null : (
-          <div
-            data-session-engine={transcript.engine.state}
-            {...stylex.props(styles.quiet, styles.center)}
-          >
-            {sessionEngineText(transcript.engine, t)}
-          </div>
-        )}
         {transcript !== undefined && failed ? (
           <div role="status" {...stylex.props(styles.quiet, styles.center)}>
             {t('sessions.detail.refreshFailed')}
@@ -923,6 +900,8 @@ export function SessionDetail({
             {blocks.map((block) =>
               block.kind === 'input' ? (
                 <InputBlock key={block.key} block={block} sessionId={sessionId} t={t} />
+              ) : block.kind === 'model-switch' ? (
+                <SessionModelSwitch key={block.key} item={block.item} catalog={catalog} t={t} />
               ) : (
                 <TurnBlock key={block.key} block={block} context={context} />
               ),
@@ -931,9 +910,12 @@ export function SessionDetail({
         )}
       </div>
       <TurnNav blocks={blocks} t={t} />
-      {(transcript?.role === 'assignment' && actions.sendSessionRequest !== undefined) ||
-      (transcript?.role === 'orchestrator' && actions.sendOrchestratorMessage !== undefined) ? (
-        <div ref={composerMount} data-session-composer="" {...stylex.props(styles.composer)}>
+      {canCompose ? (
+        <div
+          ref={composerMount}
+          data-session-composer=""
+          {...stylex.props(sessionComposerFrame.frame)}
+        >
           {away ? <SessionJump floating={false} t={t} /> : null}
           {sendError === undefined ? null : (
             <div role="alert" {...stylex.props(styles.quiet, styles.error)}>
@@ -949,6 +931,23 @@ export function SessionDetail({
                 : 'sessions.detail.composer',
             )}
             sending={sending}
+            disabled={savingModel}
+            modelControl={
+              actions.sessionModel === undefined ? undefined : (
+                <SessionModelComposer
+                  action={actions.sessionModel}
+                  botSlug={botSlug}
+                  sessionId={sessionId}
+                  catalog={catalog}
+                  groups={groups ?? []}
+                  target={transcript?.currentTarget}
+                  running={running}
+                  onSaving={setSavingModel}
+                  onError={setSendError}
+                  t={t}
+                />
+              )
+            }
             t={t}
             quotes={quotes}
             onRemoveQuote={(quote) =>

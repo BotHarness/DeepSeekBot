@@ -5,7 +5,9 @@ observed basis. The Human sees only committed replies in canonical history.
 
 ## Sources
 
-- `packages/core/src/channels/send-review.ts`
+- `packages/core/src/channels/runtime-access.ts`
+- `packages/core/src/channels/runtime-reads.ts`
+- `packages/core/src/channels/{send-review,causal-sending}.ts`
 - `scripts/group-send-review-report.mjs`
 
 ## Terms

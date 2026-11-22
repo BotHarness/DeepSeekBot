@@ -221,9 +221,6 @@ vi.mock('../src/host/native-dm-activity', () => ({ useHiddenDmActivity: () => []
 vi.mock('../src/host/native-message-display', () => ({
   useMessageDisplay: () => state.display,
 }));
-vi.mock('../src/host/native-header-model', () => ({
-  useHeaderModelPreferences: () => ({ enabled: true, loaded: true, storageError: false }),
-}));
 vi.mock('../src/host/native-send-jump', () => ({
   sendJumpPreferences: {
     getSnapshot: () => ({ enabled: false, loaded: true, storageError: false }),
@@ -394,7 +391,14 @@ vi.mock('../src/ui/chat/channel-title', () => ({
 }));
 vi.mock('../src/ui/bot-avatar', () => ({ BotAvatar: () => null, BotPortrait: () => null }));
 vi.mock('../src/ui/chat/composer', () => ({
-  Composer: () => <div data-testid="composer-input" />,
+  Composer: ({
+    sessionControls,
+  }: import('react').ComponentProps<typeof import('../src/ui/chat/composer').Composer>) => (
+    <div
+      data-testid="composer-input"
+      data-session-controls={sessionControls === undefined ? undefined : 'present'}
+    />
+  ),
 }));
 vi.mock('../src/ui/chat/image-viewer', () => ({ ImageViewer: () => null }));
 vi.mock('../src/ui/chat/jump-to-latest', () => ({ JumpToLatest: () => null }));
@@ -1666,4 +1670,32 @@ describe('disbanded group presentation', () => {
     const view = await render({ kind: 'channel', channelId: 'group-a' });
     expect(view.querySelector('[data-testid="message-skeleton"]')).not.toBeNull();
   });
+});
+
+it('opens the related Session from a Bot message and leaves the DM composer without Model Choice', async () => {
+  const place = focusConversation();
+  profileHistory.push('dm/[slug]', { slug: 'ada', hostId: 'computer_a' });
+  const [first, ...rest] = state.conversation.messages;
+  state.conversation.messages = [
+    {
+      ...first!,
+      sessionLinks: [{ sessionId: 'release-task', kind: 'created', title: 'Release review' }],
+    },
+    ...rest,
+  ];
+  const view = await render(place);
+  const chip = view.querySelector<HTMLButtonElement>(
+    '[data-testid="message-session-release-task"]',
+  );
+  expect(chip?.getAttribute('aria-label')).toBe('Open session: Release review');
+  expect(
+    view.querySelector('[data-testid="composer-input"]')?.getAttribute('data-session-controls'),
+  ).toBeNull();
+  await act(async () => chip!.click());
+  expect(profileHistory.state.routes.at(-1)).toMatchObject({
+    name: 'session/[id]',
+    params: { id: 'release-task', slug: 'ada', hostId: 'computer_a', title: 'Release review' },
+  });
+  profileHistory.back();
+  expect(profileHistory.state.routes.at(-1)?.name).toBe('dm/[slug]');
 });

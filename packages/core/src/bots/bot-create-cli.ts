@@ -125,7 +125,10 @@ const SEARCH_INDEX: ReadonlyArray<{ command: string; description: string }> = [
   { command: 'list', description: 'list PersonaBots' },
   { command: 'show', description: 'inspect one PersonaBot' },
   { command: 'model-presets', description: 'list model presets' },
-  { command: 'model-preset-create', description: 'create a model preset from provider routes' },
+  {
+    command: 'model-preset-create',
+    description: 'create a model preset from routes or sub choices in --plan-stdin',
+  },
   { command: 'model-preset-apply', description: 'apply a model preset to a bot' },
   { command: 'model-plan', description: 'show a bot model plan' },
   { command: 'memory-snapshot', description: 'read a bot memory snapshot' },
@@ -215,6 +218,8 @@ export async function runBotCreateCli(
     rejectSecretArgv(argv);
     const { values, positionals } = parseBotCliArgs(argv);
     let [command, ...rest] = positionals;
+    if (values['migration-dry-run'] && command !== 'model-default')
+      throw usageError('--migration-dry-run requires model-default.');
     if (command === 'bots') {
       const [action, ...targets] = rest;
       const aliases: Record<string, string> = {
@@ -264,8 +269,12 @@ export async function runBotCreateCli(
         );
     } else if (command === 'activity' && rest[0] === 'list') rest = rest.slice(1);
     if (values.administration && command !== 'list') throw usageError('invalid-input');
-    if (values.json && command !== 'engine-quota')
-      throw usageError('--json requires engine quota.');
+    if (
+      values.json &&
+      command !== 'engine-quota' &&
+      (command !== 'engine-login' || !values['device-auth'])
+    )
+      throw usageError('--json requires engine quota or engine login codex --device-auth.');
     compactOutput = values.compact === true || values.json === true;
     if (command === 'voice-local-kit') {
       out.stdout(
@@ -542,7 +551,7 @@ export async function runBotCreateCli(
     }
     if (command === 'secret-unset') {
       if (rest.length !== 1) throw usageError('secret-unset needs exactly one secret name.');
-      out.stdout(JSON.stringify(runSecretUnset(rest[0]!, values, io), null, 2));
+      out.stdout(JSON.stringify(await runSecretUnset(rest[0]!, values, io), null, 2));
       return 0;
     }
     if (command === 'search') {

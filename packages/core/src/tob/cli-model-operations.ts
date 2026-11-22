@@ -6,6 +6,8 @@ import type { PersonaBotRegistry } from '../bots/registry.js';
 import type { ModelCatalog } from '../models/catalog.js';
 import {
   assignmentModelsOf,
+  DEFAULT_MODEL_PRESET_ID,
+  defaultPresetPlan,
   isAssignmentModelOption,
   isModelRoute,
   validateAssignmentModels,
@@ -14,7 +16,6 @@ import {
   type ModelRoute,
 } from '../models/presets.js';
 import type { PreparedTobOperation } from './cli-operations.js';
-import type { RoutingGroupStore } from '../models/routing-groups.js';
 import { TobError } from './service.js';
 
 export const TOB_MODEL_CAPABILITIES = [
@@ -49,8 +50,6 @@ export interface TobModelOperationDependencies {
   presets: ModelPresetStore;
   catalog: ModelCatalog;
   settings: () => TobNativeSettings | undefined;
-  defaultModel?: { currentSelection(): ModelRoute };
-  routingGroups?: Pick<RoutingGroupStore, 'defaultGroup' | 'setDefaultGroup'>;
   runtimeChanged?: (patch: Record<string, unknown>) => void;
 }
 const runtimeFields = [
@@ -112,24 +111,18 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
     return owner;
   };
   const settings = (ns: string) => {
-    if (!['botharness-client', 'agent-default-model'].includes(ns))
-      throw new TobError('unsupported-setting');
+    if (ns !== 'botharness-client') throw new TobError('unsupported-setting');
     const row = native()
       .describe({ redactSecrets: true })
       .find((entry) => entry.ns === ns);
     if (!row) throw new TobError('settings-unavailable');
     const source = object(row.value);
-    const fields = ns === 'botharness-client' ? runtimeFields : routeFields;
+    const fields = runtimeFields;
     const value = Object.fromEntries(
       fields.filter((key) => source[key] !== undefined).map((key) => [key, source[key]]),
     );
-    if (ns === 'botharness-client') {
-      value.assignmentConcurrencyLimit ??= 8;
-      for (const key of runtimeFields.slice(1)) value[key] ??= key === 'showBotSessions';
-    } else {
-      if (isModelRoute(value) && deps.defaultModel)
-        same(value, deps.defaultModel.currentSelection());
-    }
+    value.assignmentConcurrencyLimit ??= 8;
+    for (const key of runtimeFields.slice(1)) value[key] ??= key === 'showBotSessions';
     return { scope: 'global' as const, ns, revision: row.revision, value };
   };
   const bot = (slug: string) => {
@@ -213,11 +206,12 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
           guard();
           const models = await deps.catalog.list();
           guard();
-          const current = settings('agent-default-model');
+          const current = deps.presets.get(DEFAULT_MODEL_PRESET_ID);
           return {
             models,
-            ...(isModelRoute(current.value) ? { default: current.value } : {}),
-            defaultRevision: current.revision,
+            ...(current === undefined
+              ? {}
+              : { default: current.orchestrator, defaultRevision: current.revision }),
           };
         },
       };
@@ -247,83 +241,90 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
       return {
         run: (guard) => {
           guard();
-          return ns
-            ? settings(ns)
-            : { namespaces: [settings('botharness-client'), settings('agent-default-model')] };
+          return ns ? settings(ns) : { namespaces: [settings('botharness-client')] };
         },
       };
     }
-    if (command === 'settings-set' || command === 'home-model-set') {
-      const isDefault = command === 'home-model-set';
-      keys(
-        args,
-        isDefault
-          ? ['route', 'expectedRevision']
-          : ['ns', 'patch', 'expectedRevision', 'previousValue'],
-      );
-      const ns = isDefault ? 'agent-default-model' : text(args.ns);
-      if (!isDefault && ns !== 'botharness-client') throw new TobError('unsupported-setting');
+    if (command === 'home-model-set') {
+      keys(args, ['route', 'expectedRevision']);
       const expected = revision(args.expectedRevision);
-      const current = settings(ns);
+      const current = deps.presets.get(DEFAULT_MODEL_PRESET_ID);
+      if (!current) throw new TobError('settings-unavailable');
       same(current.revision, expected);
-      const patch = isDefault ? object(route(args.route)) : object(args.patch);
-      if (!isDefault) {
-        keys(patch, runtimeFields);
-        if (!Object.keys(patch).length) throw new TobError('invalid-input');
-        for (const [key, value] of Object.entries(patch)) {
-          if (
-            key === 'assignmentConcurrencyLimit'
-              ? !Number.isInteger(value) || Number(value) < 1 || Number(value) > 32
-              : typeof value !== 'boolean'
-          )
-            throw new TobError('invalid-setting');
-        }
-        const previous = object(args.previousValue);
-        same(Object.keys(previous).sort(), Object.keys(patch).sort());
-        same(
-          previous,
-          Object.fromEntries(Object.keys(patch).map((key) => [key, current.value[key]])),
-        );
-      } else await validate([route(patch)]);
+      const next = route(args.route);
+      await validate([next]);
       return prepared(
         command,
-        ns,
-        isDefault ? current.value : args.previousValue,
-        patch,
+        current.id,
+        current,
+        { orchestrator: next },
         expected,
         async (guard, beforeEffect) => {
-          if (isDefault) await validate([route(patch)]);
+          await validate([next]);
           guard();
-          same(settings(ns), current);
-          try {
-            beforeEffect?.();
-            if (isDefault) await native().replace(ns, patch, expected);
-            else await native().update(ns, patch, expected);
-          } catch (error) {
-            if ((error as { code?: string }).code === 'SETTINGS_CONFLICT')
-              throw new TobError('stale-setting');
-            throw new TobError('setting-outcome-uncertain');
-          }
+          same(deps.presets.get(DEFAULT_MODEL_PRESET_ID), current);
+          beforeEffect?.();
+          const saved = deps.presets.setDefaultMain({
+            expectedRevision: expected,
+            route: next,
+            preserveSub: true,
+          });
           try {
             guard();
           } catch {
             throw new TobError('setting-outcome-uncertain');
           }
-          const saved = settings(ns);
-          if (
-            Object.entries(patch).some(
-              ([key, value]) => !isDeepStrictEqual(saved.value[key], value),
-            ) ||
-            (isDefault && !isDeepStrictEqual(saved.value, patch))
-          )
-            throw new TobError('setting-readback-mismatch');
-          if (!isDefault) deps.runtimeChanged?.(patch);
-          const group = isDefault ? deps.routingGroups?.defaultGroup() : undefined;
-          if (group?.groupId !== undefined)
-            deps.routingGroups!.setDefaultGroup(undefined, group.revision);
-          return isDefault ? { route: saved.value, revision: saved.revision } : saved;
+          return { route: saved.orchestrator, revision: saved.revision };
         },
       );
+    }
+    if (command === 'settings-set') {
+      keys(args, ['ns', 'patch', 'expectedRevision', 'previousValue']);
+      const ns = text(args.ns);
+      const expected = revision(args.expectedRevision);
+      const current = settings(ns);
+      same(current.revision, expected);
+      const patch = object(args.patch);
+      keys(patch, runtimeFields);
+      if (!Object.keys(patch).length) throw new TobError('invalid-input');
+      for (const [key, value] of Object.entries(patch)) {
+        if (
+          key === 'assignmentConcurrencyLimit'
+            ? !Number.isInteger(value) || Number(value) < 1 || Number(value) > 32
+            : typeof value !== 'boolean'
+        )
+          throw new TobError('invalid-setting');
+      }
+      const previous = object(args.previousValue);
+      same(Object.keys(previous).sort(), Object.keys(patch).sort());
+      same(
+        previous,
+        Object.fromEntries(Object.keys(patch).map((key) => [key, current.value[key]])),
+      );
+      return prepared(command, ns, previous, patch, expected, async (guard, beforeEffect) => {
+        guard();
+        same(settings(ns), current);
+        try {
+          beforeEffect?.();
+          await native().update(ns, patch, expected);
+        } catch (error) {
+          if ((error as { code?: string }).code === 'SETTINGS_CONFLICT')
+            throw new TobError('stale-setting');
+          throw new TobError('setting-outcome-uncertain');
+        }
+        try {
+          guard();
+        } catch {
+          throw new TobError('setting-outcome-uncertain');
+        }
+        const saved = settings(ns);
+        if (
+          Object.entries(patch).some(([key, value]) => !isDeepStrictEqual(saved.value[key], value))
+        )
+          throw new TobError('setting-readback-mismatch');
+        deps.runtimeChanged?.(patch);
+        return saved;
+      });
     }
     if (command.startsWith('model-preset-') && command !== 'model-preset-apply') {
       const update = command === 'model-preset-update';
@@ -333,7 +334,7 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
         'assignmentDefault',
         'assignmentModels',
         'openAssignmentModels',
-        ...(update ? ['id', 'expectedRevision'] : []),
+        ...(update ? ['id', 'expectedRevision', 'assignmentFollowsMain'] : []),
       ]);
       const open = openFlag(args.openAssignmentModels);
       const id = update ? text(args.id) : undefined;
@@ -345,6 +346,14 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
       if (name.length > 100) throw new TobError('invalid-input');
       const orchestrator = route(args.orchestrator),
         assignmentDefault = route(args.assignmentDefault);
+      const follow = openFlag(args.assignmentFollowsMain);
+      if (follow !== undefined && id !== DEFAULT_MODEL_PRESET_ID)
+        throw new TobError('invalid-input');
+      const followsMain =
+        follow ??
+        (current?.assignmentFollowsMain === true &&
+          args.assignmentModels === undefined &&
+          isDeepStrictEqual(assignmentDefault, current.assignmentDefault));
       const assignmentModels =
         args.assignmentModels === undefined
           ? current?.assignmentModels
@@ -353,15 +362,18 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
         name,
         orchestrator,
         assignmentDefault,
+        ...(id === DEFAULT_MODEL_PRESET_ID ? { assignmentFollowsMain: followsMain } : {}),
         ...(assignmentModels ? { assignmentModels } : {}),
         ...(open === undefined ? {} : { openAssignmentModels: open }),
       };
       const routes = [
         orchestrator,
-        ...assignmentRoutes(
-          assignmentDefault,
-          assignmentModels ?? assignmentModelsOf({ assignmentDefault }),
-        ),
+        ...(followsMain
+          ? []
+          : assignmentRoutes(
+              assignmentDefault,
+              assignmentModels ?? assignmentModelsOf({ assignmentDefault }),
+            )),
       ];
       await validate(routes);
       return prepared(
@@ -377,7 +389,12 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
           if (
             deps.presets
               .list()
-              .some((item) => item.id !== id && item.name.toLowerCase() === name.toLowerCase())
+              .some(
+                (item) =>
+                  current?.name.toLowerCase() !== name.toLowerCase() &&
+                  item.id !== id &&
+                  item.name.toLowerCase() === name.toLowerCase(),
+              )
           )
             throw new TobError('preset-name-conflict');
           beforeEffect?.();
@@ -404,13 +421,17 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
       if (!preset) throw new TobError('unknown-preset');
       if (hasPresetEngines(preset)) throw new TobError('engine-unavailable');
       same(preset.revision, revision(args.expectedPresetRevision));
+      const effectivePreset = preset.assignmentFollowsMain
+        ? { ...preset, ...defaultPresetPlan(preset) }
+        : preset;
+      const models = assignmentModelsOf(effectivePreset);
       patch = { presetId: id, presetRevision: preset.revision, plan: preset };
       routes = [
         preset.orchestrator,
-        ...assignmentRoutes(preset.assignmentDefault, assignmentModelsOf(preset)),
+        ...(models.length === 0 ? [] : assignmentRoutes(effectivePreset.assignmentDefault, models)),
       ];
       checkExtra = () => same(deps.presets.get(id), preset);
-      apply = () => deps.registry.applyModelPreset(slug, preset);
+      apply = () => deps.registry.applyModelPreset(slug, effectivePreset);
     } else if (command === 'model-plan-inherit') {
       keys(args, ['slug', 'expectedRevision']);
       patch = { inherit: true };

@@ -2,7 +2,6 @@ import type { Context as ClientContext } from '@deepseek-ai/cordis';
 import { BOT_SETTINGS_SECTIONS } from './bot-settings.js';
 import { LOCALE_NS } from './locale.js';
 import { ModelPresetsSettings } from './model-presets-settings.js';
-import { canConfigureModels } from './team-bridge.js';
 import { useTeamMode } from './team-state.js';
 import { ModelProvidersSettings } from './model-providers-settings.js';
 import { WindowZoomSettings } from './window-zoom-settings.js';
@@ -46,14 +45,14 @@ import { DataResetSettings } from './data-reset-settings.js';
 import { StorageSettings } from './storage-settings.js';
 import { botModePrefsFace, type BotModePrefs, type BotModePrefsFace } from './bot-mode-prefs.js';
 import type { BridgeCall } from './bridge.js';
+import { Note } from './ds/note.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import { GitSettings } from './git-settings.js';
 import { HumanNameSettings } from './human-name-settings.js';
 import { HumanAvatarSettings } from './human-avatar-settings.js';
 import { CompactionThresholdSetting } from './compaction-threshold-setting.js';
 import { IdleCompactionSetting } from './idle-compaction-setting.js';
-import { DefaultModelSettings, OnboardingSetting } from './onboarding-view.js';
-import { RoutingGroupSettings } from './routing-group-settings.js';
+import { OnboardingSetting } from './onboarding-view.js';
 import { ConnectionsPage } from './connections-dialog.js';
 import type { BotSettingsSectionOwnerProps } from './bot-settings-slot.js';
 import { ProfileBackupSettings } from './profile-backup.js';
@@ -169,13 +168,8 @@ export function ModelsSection(
   props: SectionProps<BotModePrefsFace & { actions: BridgeActions; call: BridgeCall }>,
 ): ReactElement {
   const viewer = useTeamMode(props.call)?.viewer;
-  const canConfigure = canConfigureModels(viewer);
   return (
     <Rows>
-      <SettingsSection title={props.t('models.section.default')}>
-        <DefaultModelSettings actions={props.actions} canConfigure={canConfigure} t={props.t} />
-      </SettingsSection>
-      <RoutingGroupSettings actions={props.actions} canConfigure={canConfigure} t={props.t} />
       {viewer?.owner === true ? (
         <>
           <SettingsSection title={props.t('models.section.mode')}>
@@ -190,7 +184,11 @@ export function ModelsSection(
             <AssignmentConcurrencyRow {...props} />
           </SettingsSection>
         </>
-      ) : null}
+      ) : viewer === undefined ? null : (
+        <SettingsSection>
+          <Note>{props.t('models.runtimeOwnerOnly')}</Note>
+        </SettingsSection>
+      )}
     </Rows>
   );
 }
@@ -262,11 +260,12 @@ export function CompanionsSection({
 }
 
 export function DevicesSection({
+  call,
   t,
   pairPhone,
   joinComputer,
-}: PropsLocale<'botharness'> & BotSettingsSectionOwnerProps): ReactElement {
-  return <ConnectionsPage t={t} pairPhone={pairPhone} joinComputer={joinComputer} />;
+}: SectionProps<BotSettingsSectionOwnerProps & { call: BridgeCall }>): ReactElement {
+  return <ConnectionsPage call={call} t={t} pairPhone={pairPhone} joinComputer={joinComputer} />;
 }
 
 export function DataPrivacySection({ call, t }: SectionProps<{ call: BridgeCall }>): ReactElement {

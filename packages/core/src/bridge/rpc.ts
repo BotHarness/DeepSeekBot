@@ -1,3 +1,4 @@
+import type { SessionModelState } from '@botharness/host-protocol/session-model';
 import * as personabotsRpc from '../features/personabots/rpc.js';
 import * as humansRpc from '../features/humans/rpc.js';
 import * as teamRpc from '../features/team/rpc.js';
@@ -19,7 +20,8 @@ import * as avatarsRpc from '../features/avatars/rpc.js';
 import * as skillsRpc from '../features/skills/rpc.js';
 import * as schedulesRpc from '../features/schedules/rpc.js';
 import * as promptsRpc from '../features/prompts/rpc.js';
-import { toRemoteError, unwrapAsync, type AdminResult } from './rpc-result.js';
+import { toRemoteError, unwrap, unwrapAsync, type AdminResult } from './rpc-result.js';
+import type { GroupMemberTarget } from '@botharness/host-protocol/group-members';
 import type {
   MarketplaceAvatar,
   MarketplaceAvatarEdit,
@@ -200,6 +202,7 @@ import type {
   ModelPreset,
   ModelPresetUsage,
   ModelPresetEngine,
+  PresetSub,
   ModelRoute,
   PersonaBotModelPlan,
 } from '../models/presets.js';
@@ -497,6 +500,12 @@ export class BotharnessBridgeService extends TypertRemoteService {
   }
   teamModeSet(enabled: boolean) {
     return teamRpc.teamModeSet(this.methods, enabled);
+  }
+  ownerPasswordSignIn() {
+    return teamRpc.ownerPasswordSignIn(this.methods);
+  }
+  ownerPasswordSignInSet(enabled: boolean, username?: string, password?: string) {
+    return teamRpc.ownerPasswordSignInSet(this.methods, enabled, username, password);
   }
   teamOwnerPasswordSet(password: string, current?: string) {
     return teamRpc.teamOwnerPasswordSet(this.methods, password, current);
@@ -1249,12 +1258,16 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return modelsRpc.engineAccountRemove(this.methods, id, expectedRevision, confirm);
   }
 
-  engineAccountLogin(id: string, engine?: string) {
-    return modelsRpc.engineAccountLogin(this.methods, id, engine);
+  engineAccountLogin(id: string, engine?: string, mode?: 'device-auth') {
+    return modelsRpc.engineAccountLogin(this.methods, id, engine, mode);
   }
 
-  engineAccountLoginCancel(id: string) {
-    return modelsRpc.engineAccountLoginCancel(this.methods, id);
+  engineAccountLoginStatus(id: string, attemptId: string) {
+    return modelsRpc.engineAccountLoginStatus(this.methods, id, attemptId);
+  }
+
+  engineAccountLoginCancel(id: string, attemptId?: string) {
+    return modelsRpc.engineAccountLoginCancel(this.methods, id, attemptId);
   }
 
   engineAccountSubmitCode(id: string, code: string) {
@@ -1275,7 +1288,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return modelsRpc.modelFavoriteSet(this.methods, choice, favorite);
   }
 
-  modelPresets(includeUsage?: boolean): { presets: ModelPreset[]; usage?: ModelPresetUsage[] } {
+  modelPresets(includeUsage?: boolean): {
+    presets: ModelPreset[];
+    defaultPresetId?: string;
+    usage?: ModelPresetUsage[];
+  } {
     return modelsRpc.modelPresets(this.methods, includeUsage);
   }
 
@@ -1283,10 +1300,26 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return modelsRpc.modelPresetDelete(this.methods, id, expectedRevision, confirmed);
   }
 
+  modelPlanSub(slug: string) {
+    return modelsRpc.modelPlanSub(this.methods, slug);
+  }
+
+  modelPlanSubSet(slug: string, expectedRevision: number, sub: PresetSub) {
+    return modelsRpc.modelPlanSubSet(this.methods, slug, expectedRevision, sub);
+  }
+
+  modelPresetSub(id: string) {
+    return modelsRpc.modelPresetSub(this.methods, id);
+  }
+
+  modelPresetSubSet(id: string, expectedRevision: number, sub: PresetSub) {
+    return modelsRpc.modelPresetSubSet(this.methods, id, expectedRevision, sub);
+  }
+
   modelPresetCreate(
     name: string,
     orchestrator: ModelRoute | undefined,
-    assignmentDefault: ModelRoute,
+    assignmentDefault: ModelRoute | undefined,
     assignmentModels?: AssignmentModelOption[],
     openAssignmentModels?: boolean,
     orchestratorGroupId?: string | null,
@@ -1296,6 +1329,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestratorGroupEffort?: string | null,
     orchestratorEngine?: ModelPresetEngine | null,
     assignmentEngine?: ModelPresetEngine | null,
+    sub?: PresetSub,
   ): Promise<{ preset: ModelPreset }> {
     return modelsRpc.modelPresetCreate(
       this.methods,
@@ -1311,6 +1345,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
       orchestratorGroupEffort,
       orchestratorEngine,
       assignmentEngine,
+      sub,
     );
   }
 
@@ -1319,7 +1354,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedRevision: number,
     name: string,
     orchestrator: ModelRoute | undefined,
-    assignmentDefault: ModelRoute,
+    assignmentDefault: ModelRoute | undefined,
     assignmentModels?: AssignmentModelOption[],
     openAssignmentModels?: boolean,
     orchestratorGroupId?: string | null,
@@ -1329,6 +1364,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestratorGroupEffort?: string | null,
     orchestratorEngine?: ModelPresetEngine | null,
     assignmentEngine?: ModelPresetEngine | null,
+    assignmentFollowsMain?: boolean,
+    sub?: PresetSub,
   ): Promise<{ preset: ModelPreset }> {
     return modelsRpc.modelPresetUpdate(
       this.methods,
@@ -1346,6 +1383,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
       orchestratorGroupEffort,
       orchestratorEngine,
       assignmentEngine,
+      assignmentFollowsMain,
+      sub,
     );
   }
 
@@ -1437,14 +1476,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     slug: string,
     expectedRevision: number,
     orchestrator: ModelRoute | undefined,
-    assignmentDefault: ModelRoute,
-    assignmentModels: AssignmentModelOption[],
+    assignmentDefault: ModelRoute | undefined,
+    assignmentModels: AssignmentModelOption[] | undefined,
     openAssignmentModels?: boolean,
     orchestratorGroupId?: string | null,
     assignmentGroups?: string[],
     assignmentDefaultGroupId?: string | null,
     assignmentGroupOptions?: AssignmentGroupOption[] | null,
     orchestratorGroupEffort?: string | null,
+    sub?: PresetSub,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return modelsRpc.modelPlanSet(
       this.methods,
@@ -1459,6 +1499,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
       assignmentDefaultGroupId,
       assignmentGroupOptions,
       orchestratorGroupEffort,
+      sub,
     );
   }
 
@@ -2065,6 +2106,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     );
   }
 
+  channelGroupMemberPicker(channelId?: string, query?: string) {
+    return unwrap(this.methods.channelGroupMemberPicker({ channelId, query }));
+  }
+
+  channelGroupMembersAdd(channelId: string, targets: GroupMemberTarget[]) {
+    return unwrap(this.methods.channelGroupMembersAdd({ channelId, targets }));
+  }
+
   channelGroupInvite(
     channelId: string,
     botSlug: string,
@@ -2600,6 +2649,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return assignmentsRpc.sessionProgress(this.methods, slug, sessionIds);
   }
 
+  sessionModel(slug: string, sessionId: string, choice?: unknown): Promise<SessionModelState> {
+    return sessionsRpc.sessionModel(this.methods, slug, sessionId, choice);
+  }
+
   sessionTranscript(
     slug: string,
     sessionId: string,
@@ -2774,8 +2827,13 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return approvalsRpc.userQuestionAnswer(this.methods, channelId, messageId, answer);
   }
 
-  sessions(slug: string): { sessions: OwnedSessionSummary[] } {
-    return sessionsRpc.sessions(this.methods, slug);
+  sessions(slug: string): { sessions: OwnedSessionSummary[] };
+  sessions(
+    slug: string,
+    includeTitles: boolean,
+  ): { sessions: OwnedSessionSummary[] } | Promise<{ sessions: OwnedSessionSummary[] }>;
+  sessions(slug: string, includeTitles?: boolean) {
+    return sessionsRpc.sessions(this.methods, slug, includeTitles);
   }
 
   botToolTrace(
@@ -3397,6 +3455,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'modelsAllowed',
   'usageByMember',
   'teamModeSet',
+  'ownerPasswordSignIn',
+  'ownerPasswordSignInSet',
   'teamOwnerPasswordSet',
   'teamInsecureHttpSet',
   'members',
@@ -3504,11 +3564,14 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'engineAccountRemove',
   'engineAccountLogin',
   'engineAccountLoginCancel',
+  'engineAccountLoginStatus',
   'engineAccountSubmitCode',
   'modelFavoriteSet',
   'modelPresets',
   'modelPresetCreate',
   'modelPresetUpdate',
+  'modelPresetSub',
+  'modelPresetSubSet',
   'modelPresetDelete',
   'modelPresetApply',
   'modelGroups',
@@ -3517,6 +3580,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'modelGroupUpdate',
   'modelGroupDelete',
   'modelPlan',
+  'modelPlanSub',
+  'modelPlanSubSet',
   'modelPlanCustomize',
   'modelPlanAssignmentsSet',
   'modelPlanSet',
@@ -3558,6 +3623,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'channelRename',
   'channelGroupAvatarSet',
   'channelGroupInvite',
+  'channelGroupMemberPicker',
+  'channelGroupMembersAdd',
   'channelGroupInviteCancel',
   'channelGroupMemberRemove',
   'channelGroupJoinDecide',
@@ -3615,6 +3682,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'sessionSubagents',
   'sessionProgress',
   'sessionTranscript',
+  'sessionModel',
   'sessionLive',
   'sessionToolDetail',
   'workspaceOptions',

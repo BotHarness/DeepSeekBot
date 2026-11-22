@@ -16,6 +16,7 @@ import type {
   ModelPresetEngine,
   ModelRoute,
   PersonaBotModelPlan,
+  PresetSub,
 } from '../../models/presets.js';
 import type { RoutingGroup, RoutingGroupMember } from '../../models/routing-groups.js';
 import type {
@@ -23,6 +24,7 @@ import type {
   ModelProviderBridgeMethods,
   EngineAccountBridgeMethods,
 } from './methods.js';
+import type { ModelPlanSubView, ModelPresetSubView } from './preset-sub-methods.js';
 function presetGroupArgs(
   orchestratorGroupId: string | null | undefined,
   assignmentGroups: string[] | undefined,
@@ -133,15 +135,25 @@ export function engineAccountLogin(
   methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
   id: string,
   engine?: string,
+  mode?: 'device-auth',
 ) {
-  return unwrapAsync(methods.engineAccountLogin({ id, engine }));
+  return unwrapAsync(methods.engineAccountLogin({ id, engine, mode }));
+}
+
+export function engineAccountLoginStatus(
+  methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
+  id: string,
+  attemptId: string,
+) {
+  return unwrapAsync(methods.engineAccountLoginStatus({ id, attemptId }));
 }
 
 export function engineAccountLoginCancel(
   methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
   id: string,
+  attemptId?: string,
 ) {
-  return unwrapAsync(methods.engineAccountLoginCancel({ id }));
+  return unwrapAsync(methods.engineAccountLoginCancel({ id, attemptId }));
 }
 
 export function engineAccountSubmitCode(
@@ -178,7 +190,7 @@ export function modelFavoriteSet(
 export function modelPresets(
   methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
   includeUsage?: boolean,
-): { presets: ModelPreset[]; usage?: ModelPresetUsage[] } {
+): { presets: ModelPreset[]; defaultPresetId?: string; usage?: ModelPresetUsage[] } {
   return unwrap(methods.modelPresets({ includeUsage }));
 }
 
@@ -191,11 +203,40 @@ export function modelPresetDelete(
   return unwrap(methods.modelPresetDelete({ id, expectedRevision, confirmed }));
 }
 
+export function modelPlanSub(
+  methods: ModelsBridgeMethods,
+  slug: string,
+): AdminResult<ModelPlanSubView> {
+  return unwrap(methods.modelPlanSub({ slug }));
+}
+
+export function modelPlanSubSet(
+  methods: ModelsBridgeMethods,
+  slug: string,
+  expectedRevision: number,
+  sub: PresetSub,
+): Promise<AdminResult<ModelPlanSubView>> {
+  return unwrapAsync(methods.modelPlanSubSet({ slug, expectedRevision, sub }));
+}
+
+export function modelPresetSub(methods: ModelsBridgeMethods, id: string): ModelPresetSubView {
+  return unwrap(methods.modelPresetSub({ id }));
+}
+
+export function modelPresetSubSet(
+  methods: ModelsBridgeMethods,
+  id: string,
+  expectedRevision: number,
+  sub: PresetSub,
+): Promise<ModelPresetSubView> {
+  return unwrapAsync(methods.modelPresetSubSet({ id, expectedRevision, sub }));
+}
+
 export function modelPresetCreate(
   methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
   name: string,
   orchestrator: ModelRoute | undefined,
-  assignmentDefault: ModelRoute,
+  assignmentDefault: ModelRoute | undefined,
   assignmentModels?: AssignmentModelOption[],
   openAssignmentModels?: boolean,
   orchestratorGroupId?: string | null,
@@ -205,16 +246,18 @@ export function modelPresetCreate(
   orchestratorGroupEffort?: string | null,
   orchestratorEngine?: ModelPresetEngine | null,
   assignmentEngine?: ModelPresetEngine | null,
+  sub?: PresetSub,
 ): Promise<{ preset: ModelPreset }> {
   return unwrapAsync(
     methods.modelPresetCreate({
       name,
       ...(orchestrator === undefined ? {} : { orchestrator }),
-      assignmentDefault,
+      ...(assignmentDefault === undefined ? {} : { assignmentDefault }),
       ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
       ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
       ...(assignmentModels === undefined ? {} : { assignmentModels }),
       ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+      ...(sub === undefined ? {} : { sub }),
       ...presetGroupArgs(
         orchestratorGroupId,
         assignmentGroups,
@@ -232,7 +275,7 @@ export function modelPresetUpdate(
   expectedRevision: number,
   name: string,
   orchestrator: ModelRoute | undefined,
-  assignmentDefault: ModelRoute,
+  assignmentDefault: ModelRoute | undefined,
   assignmentModels?: AssignmentModelOption[],
   openAssignmentModels?: boolean,
   orchestratorGroupId?: string | null,
@@ -242,6 +285,8 @@ export function modelPresetUpdate(
   orchestratorGroupEffort?: string | null,
   orchestratorEngine?: ModelPresetEngine | null,
   assignmentEngine?: ModelPresetEngine | null,
+  assignmentFollowsMain?: boolean,
+  sub?: PresetSub,
 ): Promise<{ preset: ModelPreset }> {
   return unwrapAsync(
     methods.modelPresetUpdate({
@@ -249,11 +294,13 @@ export function modelPresetUpdate(
       expectedRevision,
       name,
       ...(orchestrator === undefined ? {} : { orchestrator }),
-      assignmentDefault,
+      ...(assignmentDefault === undefined ? {} : { assignmentDefault }),
+      ...(assignmentFollowsMain === undefined ? {} : { assignmentFollowsMain }),
       ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
       ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
       ...(assignmentModels === undefined ? {} : { assignmentModels }),
       ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+      ...(sub === undefined ? {} : { sub }),
       ...presetGroupArgs(
         orchestratorGroupId,
         assignmentGroups,
@@ -377,23 +424,25 @@ export function modelPlanSet(
   slug: string,
   expectedRevision: number,
   orchestrator: ModelRoute | undefined,
-  assignmentDefault: ModelRoute,
-  assignmentModels: AssignmentModelOption[],
+  assignmentDefault: ModelRoute | undefined,
+  assignmentModels: AssignmentModelOption[] | undefined,
   openAssignmentModels?: boolean,
   orchestratorGroupId?: string | null,
   assignmentGroups?: string[],
   assignmentDefaultGroupId?: string | null,
   assignmentGroupOptions?: AssignmentGroupOption[] | null,
   orchestratorGroupEffort?: string | null,
+  sub?: PresetSub,
 ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
   return unwrapAsync(
     methods.modelPlanSet({
       slug,
       expectedRevision,
       ...(orchestrator === undefined ? {} : { orchestrator }),
-      assignmentDefault,
-      assignmentModels,
+      ...(assignmentDefault === undefined ? {} : { assignmentDefault }),
+      ...(assignmentModels === undefined ? {} : { assignmentModels }),
       ...(openAssignmentModels === undefined ? {} : { openAssignmentModels }),
+      ...(sub === undefined ? {} : { sub }),
       ...presetGroupArgs(
         orchestratorGroupId,
         assignmentGroups,

@@ -9,6 +9,8 @@ import { OperationalDatabaseError } from './owner.js';
 import { defineSchemaPlan, type SchemaMigration } from './schema.js';
 import { INBOX_HISTORY_INDEX_SQL, MESSAGE_SEARCH_INDEX_SQL } from './inbox-history-index.js';
 import { deriveAssignmentTitle } from '../runtime/assignment-title.js';
+import { presetSubFromLegacy, presetSubWithEngine } from '../models/preset-sub.js';
+import type { ModelPreset } from '../models/presets.js';
 
 const SESSION_OWNERSHIP_MIGRATION: SchemaMigration = {
   id: 'session-ownership',
@@ -4075,6 +4077,112 @@ const ROLE_ENGINE_ACCOUNTS_MIGRATION: SchemaMigration = {
   },
 };
 
+const DEFAULT_MODEL_PRESET_MIGRATION: SchemaMigration = {
+  id: 'default-model-preset',
+  module: 'model-presets',
+  description: 'Reserve the pinned Model Preset and stage the legacy Routing Group selection',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE routing_group_default RENAME TO legacy_routing_group_default;
+      CREATE TRIGGER model_presets_keep_default
+        BEFORE DELETE ON model_presets WHEN OLD.id = 'default'
+        BEGIN SELECT RAISE(ABORT, 'default-preset-pinned'); END;
+    `);
+  },
+};
+
+const SESSION_MODEL_CHOICES_MIGRATION: SchemaMigration = {
+  id: 'session-model-choices',
+  module: 'bot-runtime',
+  description: 'Persist Session Model Choice overrides and Routing Group switch reasons',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE session_model_choices (
+        session_id TEXT PRIMARY KEY REFERENCES session_ownership(session_id) ON DELETE CASCADE,
+        choice_json TEXT NOT NULL CHECK (json_valid(choice_json))
+      ) WITHOUT ROWID;
+      ALTER TABLE session_turn_targets ADD COLUMN switch_reason TEXT
+        CHECK (switch_reason IN ('quota', 'rate-limit', 'credential'));
+    `);
+  },
+};
+
+const MODEL_PRESET_SUB_MIGRATION: SchemaMigration = {
+  id: 'model-preset-sub-choices',
+  module: 'model-presets',
+  description: 'Backfill the explicit Assignment choices and default for each Model Preset',
+  migrate(database) {
+    const rows = database
+      .prepare(`
+      SELECT id, body FROM model_presets WHERE json_type(body, '$.sub') IS NULL
+    `)
+      .all();
+    const update = database.prepare(`
+      UPDATE model_presets SET body = json_set(body, '$.sub', json(?)) WHERE id = ?
+    `);
+    for (const row of rows) {
+      const preset: ModelPreset = JSON.parse(String(row['body']));
+      update.run(JSON.stringify(presetSubFromLegacy(preset)), String(row['id']));
+    }
+  },
+};
+
+const MODEL_PRESET_SUB_ENGINE_MIGRATION: SchemaMigration = {
+  id: 'model-preset-sub-engine-choices',
+  module: 'model-presets',
+  description: 'Backfill legacy Assignment Subscription Engines into Model Preset sub choices',
+  migrate(database) {
+    const rows = database
+      .prepare(`
+        SELECT id, body FROM model_presets
+        WHERE json_type(body, '$.assignmentEngine') = 'object'
+      `)
+      .all();
+    const update = database.prepare(`
+      UPDATE model_presets SET body = json_set(body, '$.sub', json(?)) WHERE id = ?
+    `);
+    for (const row of rows) {
+      const preset: ModelPreset = JSON.parse(String(row['body']));
+      const sub = preset.sub ?? presetSubFromLegacy(preset);
+      const migrated = presetSubWithEngine(sub, preset.assignmentEngine);
+      if (migrated !== sub) update.run(JSON.stringify(migrated), String(row['id']));
+    }
+  },
+};
+
+const OWNER_PASSWORD_SIGN_IN_MIGRATION: SchemaMigration = {
+  id: 'owner-password-sign-in',
+  module: 'team',
+  description: 'Standalone Owner password sign-in policy and paired-device enrollment provenance',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE team_settings ADD COLUMN owner_password_sign_in INTEGER NOT NULL DEFAULT 0
+        CHECK (owner_password_sign_in IN (0, 1));
+      ALTER TABLE paired_devices ADD COLUMN enrollment TEXT
+        CHECK (enrollment = 'owner-password');
+    `);
+  },
+};
+
+const CHANNEL_HUMAN_ADD_RECEIPTS_MIGRATION: SchemaMigration = {
+  id: 'channel-human-add-receipts',
+  module: 'team',
+  description: 'Replay bulk Human additions without restoring ended access',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE channel_human_add_receipts (
+        actor_human_id TEXT NOT NULL REFERENCES humans(human_id) ON DELETE CASCADE,
+        operation_key TEXT NOT NULL,
+        channel_id TEXT NOT NULL REFERENCES channel_records(channel_id) ON DELETE CASCADE,
+        target_human_id TEXT NOT NULL REFERENCES humans(human_id) ON DELETE CASCADE,
+        PRIMARY KEY (actor_human_id, operation_key)
+      ) STRICT;
+      CREATE INDEX channel_human_add_receipts_channel ON channel_human_add_receipts(channel_id);
+      CREATE INDEX channel_human_add_receipts_target ON channel_human_add_receipts(target_human_id);
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -4252,4 +4360,10 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   ROLE_MODEL_PROVIDERS_MIGRATION,
   SESSION_TURN_TARGET_MIGRATION,
   ROLE_ENGINE_ACCOUNTS_MIGRATION,
+  DEFAULT_MODEL_PRESET_MIGRATION,
+  SESSION_MODEL_CHOICES_MIGRATION,
+  MODEL_PRESET_SUB_MIGRATION,
+  MODEL_PRESET_SUB_ENGINE_MIGRATION,
+  OWNER_PASSWORD_SIGN_IN_MIGRATION,
+  CHANNEL_HUMAN_ADD_RECEIPTS_MIGRATION,
 ]);

@@ -40,6 +40,7 @@ Usage:
   tobs engine account-remove <account-id> --expected-revision <r> --confirm --host <url>
   tobs engine login <account-id>|codex|claude [--account <id>] --host <url>
   tobs engine login claude [--account <id>] --code-stdin --host <url> < <code-file>
+  tobs engine login codex [--account <id>] --device-auth --host <url>
   tobs engine login-cancel <account-id>|codex|claude --host <url>
   tobs engine models <account-id>|codex|claude --host <url>
   tobs engine use <id> codex|claude|none --role orchestrator|assignment [--account <id>] [--model <id>] [--effort <level>] [--fallback on|off] --host <url>
@@ -153,6 +154,8 @@ Usage:
   tobs workspace-create <absolute-path>
   tobs channel <channel-id>
   tobs group-create <name> [--member <bot-id> ...] [--operation-key <key>]
+  tobs group-member-picker [channel-id] [--query <text>]
+  tobs group-members-add <channel-id> --body-stdin
   tobs group-invite <channel-id> --bot <bot-id> [--operation-key <key>] [--expected-channel <fingerprint>]
   tobs group-invite-cancel <channel-id> --invitation <invitation-id> [--expected-channel <fingerprint>]
   tobs group-join-decide <channel-id> --request <join-request-id> (--accept | --decline) [--expected-channel <fingerprint>]

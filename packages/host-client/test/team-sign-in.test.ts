@@ -106,14 +106,60 @@ describe('shared desktop Team sign-in flow', () => {
       target: { kind: 'address', route: invitation.routes[0]!, username: 'bob' },
     });
     expect(result.ok).toBe(true);
-    expect(test.request.mock.calls).toHaveLength(1);
-    expect(test.request.mock.calls[0]?.[1].method).toBe('GET');
+    expect(test.request.mock.calls).toEqual([
+      [
+        invitation.routes[0] + '/botharness-device/channel',
+        { method: 'GET', signal: expect.any(AbortSignal) },
+      ],
+    ]);
     if (!result.ok) return;
     expect(result.value.getSnapshot()).toEqual({
       kind: 'fingerprint',
       host: invitation.host,
       username: 'bob',
     });
+  });
+  it.each([
+    { remoteId: 'other-host', remoteFingerprint: fingerprint },
+    { remoteId: invitation.host.id, remoteFingerprint: '01'.repeat(32) },
+  ])(
+    'rejects a mismatched invitation Host before sending a password',
+    async ({ remoteId, remoteFingerprint }) => {
+      const test = setup();
+      test.request.mockResolvedValueOnce({
+        status: 200,
+        text: async () =>
+          JSON.stringify({
+            host: { id: remoteId },
+            encryption: {
+              publicKey: Buffer.from(publicKey).toString('hex'),
+              fingerprint: remoteFingerprint,
+            },
+          }),
+      });
+      const flow = await test.prepare();
+      expect(flow.confirmFingerprint(fingerprint).ok).toBe(true);
+      expect(await flow.signIn({ password: 'initial', deviceName: 'Desktop' })).toEqual({
+        ok: false,
+        code: 'fingerprint-mismatch',
+      });
+      expect(test.request).toHaveBeenCalledOnce();
+      expect(test.request.mock.calls[0]?.[1].method).toBe('GET');
+    },
+  );
+  it('uses the invitation name when the channel response omits the Host name', async () => {
+    const test = setup(false);
+    test.request.mockResolvedValueOnce({
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          host: { id: invitation.host.id },
+          encryption: { publicKey: Buffer.from(publicKey).toString('hex'), fingerprint },
+        }),
+    });
+    const flow = await test.prepare();
+    expect(flow.confirmFingerprint(fingerprint).ok).toBe(true);
+    expect((await flow.signIn({ password: 'initial', deviceName: 'Desktop' })).ok).toBe(true);
   });
   it('refuses a changed pinned Host before any request', async () => {
     const test = setup();

@@ -328,7 +328,7 @@ export function createLocalConversationCache(options: {
 }
 
 const REDACT = `update messages set purged = 1, entry = json_set(
-  json_remove(entry, '$.message.attachments', '$.message.bridgeMedia'),
+  json_remove(entry, '$.message.attachments', '$.message.bridgeMedia', '$.message.sessionLinks'),
   '$.message.body', '', '$.message.contentPurge', json('{"actor":"local-human"}'))
   where channel_id = ? and id = ?`;
 

@@ -23,7 +23,8 @@ const generatedPrefixes = [
 const licenseHeaderHashes = new Map([
   ['packages/browser/src/client/access-power-icon.tsx', '47c84c1a9f26559a'],
   ['packages/computer/src/client/access-power-icon.tsx', '47c84c1a9f26559a'],
-  ['packages/client/src/client/channel-sidebar-icon.tsx', '473ded718879faec'],
+  ['packages/client/src/client/features/channels/channel-sidebar-icon.tsx', '473ded718879faec'],
+  ['packages/client/src/client/features/channels/sidebar-action-glyphs.ts', '473ded718879faec'],
   ['packages/client/src/client/hash-icon.tsx', '8d64b9069cfcfaab'],
   ['packages/client/src/client/git-commit-icon.tsx', 'f12f09c727a3d8d5'],
   ['packages/client/src/client/inbox-icon.tsx', '8412a9519ce369b7'],

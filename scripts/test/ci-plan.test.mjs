@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   androidNativeTests,
@@ -15,6 +17,7 @@ import {
   parseGitChanges,
   plan,
   REQUIRED_CHECK,
+  ROOT,
   rulesTable,
   syncGuide,
   localCommands,
@@ -263,6 +266,25 @@ describe('CI test plan', () => {
     const result = plan(pr('packages/client/src/client/chip.tsx', 'changes/1640-chip.md'));
     expect(result).toMatchObject({ tests: 'affected', docsSite: false });
     expect(result.related).toEqual(['packages/client/src/client/chip.tsx']);
+  });
+
+  it('selects the Core source-scanning helper for an added or edited Core source file', () => {
+    const helper = 'packages/core/test/source-files.ts';
+    const files = {
+      'packages/core/src/features/activity/events.ts': '',
+      [helper]: readFileSync(join(ROOT, helper), 'utf8'),
+      'packages/core/test/messaging-store-boundary.test.ts':
+        "import { sourceFilesMatching } from './source-files.js';",
+    };
+    const sourceIndex = createIndex(Object.keys(files), (file) => files[file]);
+    for (const status of ['added', 'modified'])
+      expect(
+        plan({
+          event: 'pull_request',
+          index: sourceIndex,
+          changes: [{ status, path: 'packages/core/src/features/activity/events.ts' }],
+        }).related,
+      ).toContain(helper);
   });
 
   it('selects nothing for screenshots and change fragments', () => {

@@ -24,6 +24,7 @@ import {
 } from '../voice/call-contract.js';
 import { DIRECT_PATH, type DirectResult } from './direct.js';
 import { APP_VERSION_HEADER } from './client-compat.js';
+import { noisePeerHeaders } from './route-context.js';
 
 const BODY_LIMIT = 4 * 1024 * 1024;
 const QUEUE_LIMIT = 20 * 1024 * 1024;
@@ -154,6 +155,8 @@ export function createEncryptedGateway(options: {
       deviceId: string | undefined,
       closed = false,
       admitted = false;
+    let channelHeaders: Record<string, string> = {};
+    let ownerSignInAttempted = false;
     let enrollmentOffer: { body: string; offer: string } | undefined;
     let detach: (() => void) | undefined;
     let unwatchKey: (() => void) | undefined;
@@ -602,6 +605,7 @@ export function createEncryptedGateway(options: {
           method,
           headers: {
             authorization: `Device ${credential!}`,
+            ...channelHeaders,
             ...appVersionHeader(input),
             'content-type':
               input['contentType'] === 'application/octet-stream'
@@ -649,18 +653,21 @@ export function createEncryptedGateway(options: {
       const type = input['type'];
       if (!admitted) {
         const publicKey = Buffer.from(channel.peerKey()).toString('hex');
-        if (type === 'team-sign-in' && options.memberDevices) {
+        if ((type === 'team-sign-in' || type === 'owner-sign-in') && options.memberDevices) {
+          const ownerSignIn = type === 'owner-sign-in';
+          const reply = ownerSignIn ? 'owner-signed-in' : 'team-signed-in';
+          if (ownerSignIn && ownerSignInAttempted) return refuse('invalid-input');
+          if (ownerSignIn) ownerSignInAttempted = true;
           try {
-            const result = await options.memberDevices.signIn(
-              input['input'],
-              remoteAddress,
-              publicKey,
-            );
-            if (!closed) send({ type: 'team-signed-in', result: { ok: true, value: result } });
+            const result = ownerSignIn
+              ? await options.memberDevices.signInOwner(input['input'], remoteAddress, publicKey)
+              : await options.memberDevices.signIn(input['input'], remoteAddress, publicKey);
+            const sent = send({ type: reply, result: { ok: true, value: result } });
+            if (!sent && ownerSignIn) options.pairing.revoke(result.deviceId);
           } catch (error) {
             if (!closed)
               send({
-                type: 'team-signed-in',
+                type: reply,
                 result: {
                   ok: false,
                   code: error instanceof TeamError ? error.code : 'invalid-input',
@@ -769,6 +776,8 @@ export function createEncryptedGateway(options: {
         );
         if (!admission.ok) return refuse(admission.code);
         stopWatchingKey();
+        if (admission.device.enrollment === 'owner-password')
+          channelHeaders = noisePeerHeaders(publicKey);
         admitted = true;
         negotiating--;
         encrypted++;
@@ -798,7 +807,7 @@ export function createEncryptedGateway(options: {
         const stream = new WebSocket(
           `ws://127.0.0.1:${options.port()}/botharness-device/api/remote.mux`,
           {
-            headers: { authorization: `Device ${credential!}` },
+            headers: { authorization: `Device ${credential!}`, ...channelHeaders },
             maxPayload: BODY_LIMIT,
             perMessageDeflate: false,
             handshakeTimeout: DEADLINE,

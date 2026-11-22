@@ -126,6 +126,21 @@ export function classifyTobHostCli(argv: readonly string[]): { command: string; 
   if (command === undefined || command.startsWith('-')) throw new TobError('invalid-request');
   if (REFUSED_COMMANDS.has(command) || REFUSED_OPTIONS.some((name) => hasOption(argv, name)))
     throw new TobError('cli-command-refused');
+  if (command === 'settings-set' || hasOption(argv, '--migration-dry-run')) {
+    let parsed: ReturnType<typeof parseBotCliArgs>;
+    try {
+      parsed = parseBotCliArgs(argv);
+    } catch {
+      throw new TobError('invalid-request');
+    }
+    if (parsed.values['migration-dry-run'] && command !== 'model-default')
+      throw new TobCliCommandError('usage', '--migration-dry-run requires model-default.');
+    if (command === 'settings-set' && parsed.positionals[1] === 'agent-default-model')
+      throw new TobCliCommandError(
+        'unsupported-setting',
+        'Use home-model-set to update the Default Model Preset.',
+      );
+  }
   return {
     command,
     write:

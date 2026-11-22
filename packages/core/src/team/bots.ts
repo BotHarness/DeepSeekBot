@@ -500,6 +500,20 @@ export class TeamBots {
       }
     });
   }
+  groupInvitationCandidate(human: HumanContext, slug: string, channelId?: string) {
+    const bot = this.bot(slug);
+    if (
+      !this.audience(human.humanId, bot) ||
+      bot.body.paused ||
+      !bot.switches.joinPrincipalChannels
+    )
+      return undefined;
+    const ownerHasAccess =
+      channelId === undefined
+        ? bot.owner === human.humanId
+        : this.channelAccess.canRead(humanContext(bot.owner), channelId, true);
+    return ownerHasAccess ? {} : { requiredHumanId: bot.owner };
+  }
   requireAdd(human: HumanContext, slug: string, channelId: string): void {
     const bot = this.bot(slug);
     this.channelAccess.requirePolicy(human, channelId, 'addBots');

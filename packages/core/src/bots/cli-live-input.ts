@@ -93,6 +93,7 @@ export interface LiveValues
   out?: string;
   'args-stdin'?: boolean;
   'code-stdin'?: boolean;
+  'device-auth'?: boolean;
   grantable?: boolean;
   'cause-event'?: string;
   session?: string;

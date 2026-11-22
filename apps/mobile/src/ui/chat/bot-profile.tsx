@@ -1,3 +1,4 @@
+import { SheetLoading } from './sheet';
 import { ReadFailure } from '../primitives/read-failure';
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { FlatList, Pressable, View, type ViewInstance } from 'react-native';
@@ -55,6 +56,8 @@ import {
   type ProfileTabMemory,
   type RememberedProfileKind,
 } from './profile-tabs';
+import { RenameBotSheet } from './bot-name-setting';
+import { BannerEditor, type BannerActions } from './banner-editor';
 import { ProfileHero } from './profile-hero';
 import {
   type Row,
@@ -85,6 +88,7 @@ export interface BotProfileActions {
   onOpenMemoryChange?(change: MemoryChange): void;
   onOpenRoutine?(routine: BotScheduleSummary): void;
   onOpenAssignment?(assignment: ProfileAssignment): void;
+  onOpenSession?(id: string, title: string): void;
   onNewRoutine?(): void;
   routines?: RoutineChanges;
   stops?: SessionStops | undefined;
@@ -147,18 +151,31 @@ function BotIdentity({
   bot,
   actions,
   avatar,
+  onRename,
+  onChangeBanner,
+  onChangeAvatar,
 }: {
   bot: RosterBot;
   actions: BotProfileActions;
   avatar: ReturnType<typeof useAvatarEditor>;
+  onRename?: (() => void) | undefined;
+  onChangeBanner?: (() => void) | undefined;
+  onChangeAvatar?: (() => void) | undefined;
 }) {
   const t = useStrings();
   return (
     <ProfileHero
       banner={{ source: botBanner(bot), headers: bot.bannerHeaders }}
+      editBanner={onChangeBanner && { label: t.profileBanner.change, onPress: onChangeBanner }}
       name={bot.displayName}
+      editName={onRename && { label: t.botRename + ' · ' + bot.displayName, onPress: onRename }}
       avatar={
-        <EditableAvatar editor={avatar} corner={radius.round} testID="bot-avatar-change">
+        <EditableAvatar
+          editor={avatar}
+          corner={radius.round}
+          testID="bot-avatar-change"
+          onChange={onChangeAvatar}
+        >
           <BotAvatar bot={bot} size={profileShell.avatar} />
         </EditableAvatar>
       }
@@ -278,11 +295,13 @@ export function WorkListRow({
   row,
   onRetry,
   onOpen,
+  onOpenSession,
   stops,
 }: {
   row: Row;
   onRetry(): void;
   onOpen?: ((assignment: ProfileAssignment) => void) | undefined;
+  onOpenSession?: BotProfileActions['onOpenSession'];
   stops?: SessionStops | undefined;
 }) {
   const t = useStrings();
@@ -342,6 +361,7 @@ export function WorkListRow({
     const title = sessionTitle(session);
     const stopping = stops?.stopping(row.botSlug, session.id) === true;
     const state = stopping ? t.sessionStopping : stepLabel(session.activity, session.state);
+    const Body = onOpenSession === undefined ? View : Pressable;
     return (
       <View
         testID={`working-session-${session.id}`}
@@ -357,9 +377,16 @@ export function WorkListRow({
           },
         ]}
       >
-        <View
+        <Body
           accessible
           accessibilityLabel={[title, state].join(', ')}
+          {...(onOpenSession === undefined
+            ? {}
+            : {
+                accessibilityRole: 'button' as const,
+                testID: `working-open-${session.id}`,
+                onPress: () => onOpenSession(session.id, title),
+              })}
           style={{ flex: 1, flexDirection: 'row', gap: space.x3 }}
         >
           <View
@@ -376,7 +403,7 @@ export function WorkListRow({
               {state}
             </Text>
           </View>
-        </View>
+        </Body>
         {stops === undefined ? null : (
           <StopMenu
             title={title}
@@ -514,6 +541,7 @@ function ProfileRow({
         row={row}
         onRetry={onRetry}
         onOpen={actions.onOpenAssignment}
+        onOpenSession={actions.onOpenSession}
         stops={actions.stops}
       />
     );
@@ -619,6 +647,9 @@ export function BotProfilePage({
   memoryChanges,
   initialProfile,
   avatar,
+  rename,
+  onChangeAvatar,
+  banner,
   tabMemory,
   stopper,
 }: {
@@ -627,33 +658,48 @@ export function BotProfilePage({
   load: () => Promise<BotProfile>;
   actions: BotProfileActions;
   stopper?: SessionStopper | undefined;
-  settings?: ReactNode;
+  settings?: (onRename: (() => void) | undefined) => ReactNode;
   permissions?: ReactNode;
   workActions?: ReactNode;
   files?: ((active: boolean, render: (body: ProfileTabBody) => ReactNode) => ReactNode) | undefined;
   memoryChanges?: ((offset: number) => Promise<MemoryChangesPage>) | undefined;
   initialProfile?: BotProfile | undefined;
   avatar: AvatarActions;
+  banner?: BannerActions | undefined;
+  onChangeAvatar?: (() => void) | undefined;
+  rename?: ((name: string) => Promise<void>) | undefined;
   tabMemory: ProfileTabMemory;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
   const avatarEditor = useAvatarEditor(avatar);
+  const [editingName, setEditingName] = useState(false);
+  const onRename = rename && (() => setEditingName(true));
+  const [editingBanner, setEditingBanner] = useState(false);
+  const onChangeBanner = banner && (() => setEditingBanner(true));
   const stops = useSessionStops(stopper, [bot]);
   const [profile, setProfile] = useState(initialProfile);
   const content = useSheetContent();
   const columns = useMemoryColumns();
   const tabs = profileTabs('bot');
   const [tab, setTab] = useRememberedProfileTab(tabMemory, tabs);
+  const [readAttempt, setReadAttempt] = useState(0);
+  const [retrying, setRetrying] = useState(false);
+  const retrySessions = () => {
+    setRetrying(true);
+    setReadAttempt((attempt) => attempt + 1);
+  };
   const read = useCallback(() => {
     let live = true;
     void load().then((value) => {
-      if (live) setProfile(value);
+      if (!live) return;
+      setProfile(value);
+      setRetrying(false);
     });
     return () => {
       live = false;
     };
-  }, [load]);
+  }, [load, readAttempt]);
   useProfileFocusEffect(read);
   const rows = profileRows(content.ready ? profile : undefined, channels, columns);
   const [memoryView, setMemoryView] = useState<MemoryView>('files');
@@ -692,12 +738,59 @@ export function BotProfilePage({
       </View>
     ));
   const working = workingRows([bot], false);
+  const sessions = profile?.orchestrators;
+  const sessionsError = sessions?.status === 'failed' ? sessions.error : sessions?.staleError;
   const bodies: Record<Exclude<ProfileTab, 'files' | 'members'>, ProfileTabBody> = {
     work: {
       rows: [
         ...(workActions === undefined ? [] : [node('work:actions', () => workActions)]),
         ...working.map(rowOf),
         ...(working.length === 0 ? [] : [workingGap(node, stops?.error)]),
+        ...(actions.onOpenSession === undefined
+          ? []
+          : [
+              settingsHeading('work:sessions', t.sessionDetail.list),
+              ...(profile === undefined
+                ? [node('work:sessions:loading', () => <SheetLoading />)]
+                : []),
+              ...(sessionsError === undefined
+                ? []
+                : [
+                    node('work:sessions:failed', () => (
+                      <View style={{ paddingHorizontal: space.x5 }}>
+                        <ReadFailure
+                          title={t.sessionDetail.listFailed}
+                          detail={sessionsError}
+                          onRetry={retrySessions}
+                          busy={retrying}
+                        />
+                      </View>
+                    )),
+                  ]),
+              ...(sessions?.status === 'ready'
+                ? sessions.value.map((session) =>
+                    node(`profile-session:${session.id}`, () => (
+                      <SettingsRow
+                        on="raised"
+                        testID={`profile-session-${session.id}`}
+                        title={session.title}
+                        detail={[
+                          session.current ? t.sessionDetail.current : undefined,
+                          new Date(session.createdAt).toLocaleDateString(),
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
+                        accessibilityLabel={t.sessionDetail.open(
+                          session.current
+                            ? `${session.title}, ${t.sessionDetail.current}`
+                            : session.title,
+                        )}
+                        onPress={() => actions.onOpenSession?.(session.id, session.title)}
+                      />
+                    )),
+                  )
+                : []),
+            ]),
         ...rows.work.map(rowOf),
       ],
     },
@@ -744,7 +837,7 @@ export function BotProfilePage({
               node('settings:permissions:rows', () => permissions),
             ]),
         ...(content.ready && settings !== undefined
-          ? [section('settings:panel', settings)]
+          ? [section('settings:panel', settings(onRename))]
           : [
               node('settings:bot', () => (
                 <View style={{ paddingTop: space.x5 }}>
@@ -778,9 +871,25 @@ export function BotProfilePage({
             hasAvatar={bot.avatarUrl !== undefined}
             portrait={<BotAvatar bot={bot} size={32} ring={false} corner={radius.sm} />}
             testID="bot-avatar-settings"
-            showTilties
+            onChange={onChangeAvatar}
           />,
         ),
+        ...(onChangeBanner === undefined
+          ? []
+          : [
+              section(
+                'settings:banner',
+                <SettingsSection on="raised">
+                  <SettingsRow
+                    on="raised"
+                    title={t.profileBanner.change}
+                    testID="bot-banner-settings"
+                    control={{ kind: 'chevron' }}
+                    onPress={onChangeBanner}
+                  />
+                </SettingsSection>,
+              ),
+            ]),
         settingsHeading('channels', t.profileSection.channels),
         ...rows.channels.map(rowOf),
         settingsHeading('files', t.profileSection.files),
@@ -790,7 +899,16 @@ export function BotProfilePage({
   };
   const shell = (filesBody: ProfileTabBody) => (
     <ProfileShell
-      identity={<BotIdentity bot={bot} actions={actions} avatar={avatarEditor} />}
+      identity={
+        <BotIdentity
+          bot={bot}
+          actions={actions}
+          avatar={avatarEditor}
+          onRename={onRename}
+          onChangeBanner={onChangeBanner}
+          onChangeAvatar={onChangeAvatar}
+        />
+      }
       tabs={tabs}
       options={profileTabOptions(tabs)}
       tab={tab}
@@ -812,6 +930,16 @@ export function BotProfilePage({
             ],
           })
         : files(tab === 'files', shell)}
+      {editingName && rename ? (
+        <RenameBotSheet
+          name={bot.displayName}
+          onSave={rename}
+          onClose={() => setEditingName(false)}
+        />
+      ) : null}
+      {editingBanner && banner ? (
+        <BannerEditor actions={banner} onClose={() => setEditingBanner(false)} />
+      ) : null}
     </View>
   );
 }

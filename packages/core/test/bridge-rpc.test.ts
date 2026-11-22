@@ -566,6 +566,7 @@ describe('bridge typert service', () => {
       'orchestratorGroupEffort',
       'orchestratorEngine',
       'assignmentEngine',
+      'sub',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -582,6 +583,8 @@ describe('bridge typert service', () => {
       'orchestratorGroupEffort',
       'orchestratorEngine',
       'assignmentEngine',
+      'assignmentFollowsMain',
+      'sub',
     ]);
     expect(parameterNames(service.modelPlanSet)).toEqual([
       'slug',
@@ -595,7 +598,10 @@ describe('bridge typert service', () => {
       'assignmentDefaultGroupId',
       'assignmentGroupOptions',
       'orchestratorGroupEffort',
+      'sub',
     ]);
+    expect(parameterNames(service.modelPlanSub)).toEqual(['slug']);
+    expect(parameterNames(service.modelPlanSubSet)).toEqual(['slug', 'expectedRevision', 'sub']);
     const planSet = vi
       .spyOn(methods, 'modelPlanSet')
       .mockResolvedValue({ ok: true, value: { plan: {} as never } });
@@ -653,7 +659,7 @@ describe('bridge typert service', () => {
       assignmentEngine,
     });
     await service.modelPresetUpdate(
-      'p',
+      'default',
       1,
       'Daily',
       route,
@@ -667,9 +673,10 @@ describe('bridge typert service', () => {
       undefined,
       orchestratorEngine,
       null,
+      false,
     );
     expect(update).toHaveBeenCalledWith({
-      id: 'p',
+      id: 'default',
       expectedRevision: 1,
       name: 'Daily',
       orchestrator: route,
@@ -677,6 +684,7 @@ describe('bridge typert service', () => {
       assignmentModels,
       orchestratorEngine,
       assignmentEngine: null,
+      assignmentFollowsMain: false,
     });
   });
   it('exposes Activity and notification query arguments and refuses an unavailable owner', () => {
@@ -778,6 +786,7 @@ describe('bridge typert service', () => {
       'orchestratorGroupEffort',
       'orchestratorEngine',
       'assignmentEngine',
+      'sub',
     ]);
     expect(parameterNames(service.modelPresetUpdate)).toEqual([
       'id',
@@ -794,6 +803,8 @@ describe('bridge typert service', () => {
       'orchestratorGroupEffort',
       'orchestratorEngine',
       'assignmentEngine',
+      'assignmentFollowsMain',
+      'sub',
     ]);
     const route = { provider: 'official', model: 'fast', reasoningEffort: 'high' };
     const assignmentModels = [
@@ -1067,7 +1078,7 @@ describe('bridge typert service', () => {
       'cursor',
     ]);
     expect(parameterNames(service.assignment)).toEqual(['slug', 'sessionId']);
-    expect(parameterNames(service.sessions)).toEqual(['slug']);
+    expect(parameterNames(service.sessions)).toEqual(['slug', 'includeTitles']);
     expect(parameterNames(service.sessionOwner)).toEqual(['sessionId']);
     expect(parameterNames(service.rosterGet)).toEqual([]);
     expect(parameterNames(service.sectionCreate)).toEqual(['name']);

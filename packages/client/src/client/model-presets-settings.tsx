@@ -1,6 +1,8 @@
-import { useMemo, useState, type ReactElement } from 'react';
+import { useMemo, useRef, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
+  DEFAULT_MODEL_PRESET_ID,
+  modelPresetName,
   createModelPreset,
   deleteModelPreset,
   loadModelPresetLibrary,
@@ -11,6 +13,7 @@ import {
 } from '@botharness/host-client/model-plans';
 import type { BridgeActions } from './actions.js';
 import { bridgeHost, errorMessage, type BridgeCall } from './bridge.js';
+import { CodexDeviceSignIn } from './codex-device-sign-in.js';
 import { Button } from './ds/button.js';
 import { ConfirmDialog, FormDialog } from './ds/form-dialog.js';
 import { Note } from './ds/note.js';
@@ -25,14 +28,14 @@ import { ModelPlanEditor } from './model-plan-editor.js';
 import { draftOf, modelKey, planParts, type ModelDraft } from './model-preset-draft.js';
 import { useMountedResource } from './mounted-resource.js';
 import { engineName } from './session-engine.js';
-import { SidebarCardList, SidebarCardRow } from './sidebar-card.js';
+import { ListCard, ListCardItem } from './ds/list-card.js';
+import { RoutingGroupSettings, type RoutingGroupActions } from './routing-group-settings.js';
 import { canConfigureModels } from './team-bridge.js';
 import { useTeamMode } from './team-state.js';
 
 const styles = stylex.create({
   stack: { display: 'flex', flexDirection: 'column', gap: space.x1, minWidth: 0 },
   actions: { display: 'flex', flexWrap: 'wrap', gap: space.x2 },
-  create: { alignSelf: 'flex-end' },
 });
 
 type Library = Awaited<ReturnType<typeof loadLibrary>>;
@@ -67,7 +70,7 @@ function choiceLabel(
   library: Library,
   t: BotHarnessTranslate,
 ): string {
-  const main = role === 'orchestrator';
+  const main = role === 'orchestrator' || preset.assignmentFollowsMain === true;
   const engine = main ? preset.orchestratorEngine : preset.assignmentEngine;
   if (engine !== undefined)
     return [
@@ -136,6 +139,7 @@ function PresetEditor({
     engines.signingIn,
     t,
     owner,
+    engines.supportsDeviceSignIn,
   );
   const changeEngine = (role: EngineRole, choice: SubscriptionModel | null) =>
     setEngineDraft((current) => ({ ...current, [role]: choice }));
@@ -190,7 +194,9 @@ function PresetEditor({
       title={
         preset === undefined
           ? t('modelPreset.create')
-          : t('modelPreset.editTitle', { name: preset.name })
+          : t('modelPreset.editTitle', {
+              name: modelPresetName(preset, t('modelPreset.defaultModel')),
+            })
       }
       size="medium"
       scroll
@@ -230,6 +236,7 @@ function PresetEditor({
         t={t}
       />
       <div ref={engines.mount}>
+        <CodexDeviceSignIn engines={engines} t={t} />
         {engines.signInUrl === undefined ? null : (
           <Note>
             <a href={engines.signInUrl} target="_blank" rel="noopener noreferrer">
@@ -249,7 +256,7 @@ export function ModelPresetsSettings({
   t,
 }: {
   call: BridgeCall;
-  actions: Pick<BridgeActions, 'modelCatalog' | 'routingGroups'>;
+  actions: RoutingGroupActions;
   t: BotHarnessTranslate;
 }): ReactElement {
   const viewer = useTeamMode(call)?.viewer;
@@ -260,11 +267,21 @@ export function ModelPresetsSettings({
   const [dialog, setDialog] = useState<Dialog>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string>();
+  const edits = useRef(0);
+  const editLibrary = (update: (current: Library) => Library) => {
+    edits.current += 1;
+    setLibrary((current) => (current === undefined ? current : update(current)));
+  };
   const mount = useMountedResource<HTMLElement>(() => {
     let active = true;
+    const started = edits.current;
     void loadLibrary(call, actions).then(
       (next) => {
-        if (active) setLibrary(next);
+        if (!active) return;
+        if (edits.current === started) {
+          setFailed(false);
+          setLibrary(next);
+        } else setLoadAttempt((attempt) => attempt + 1);
       },
       () => {
         if (active) setFailed(true);
@@ -298,20 +315,63 @@ export function ModelPresetsSettings({
       setBusy(false);
     }
   };
+  const presetTile = (current: Library) => (preset: ModelPreset) => {
+    const name = modelPresetName(preset, t('modelPreset.defaultModel'));
+    const pinned = preset.id === DEFAULT_MODEL_PRESET_ID;
+    return (
+      <ListCardItem
+        key={preset.id}
+        title={name}
+        summary={
+          <span {...stylex.props(styles.stack)}>
+            {pinned ? <span>{t('modelConfig.defaultHint')}</span> : null}
+            <span>
+              {t('modelPreset.orchestrator')} · {choiceLabel(preset, 'orchestrator', current, t)}
+            </span>
+            <span>
+              {t('modelPreset.assignment')} · {choiceLabel(preset, 'assignment', current, t)}
+            </span>
+            <span>{usageLabel(current.usageById.get(preset.id)?.count ?? 0, t)}</span>
+          </span>
+        }
+        trailing={
+          editable ? (
+            <div {...stylex.props(styles.actions)}>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={busy}
+                aria-label={t('modelPreset.editTitle', { name })}
+                onClick={() => setDialog({ kind: 'edit', preset })}
+              >
+                {t('modelPreset.edit')}
+              </Button>
+              {pinned ? null : (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  disabled={busy}
+                  aria-label={t('modelPreset.deleteTitle', { name })}
+                  onClick={() => void reviewDelete(preset)}
+                >
+                  {t('modelPreset.delete')}
+                </Button>
+              )}
+            </div>
+          ) : undefined
+        }
+      />
+    );
+  };
+  const pinned = library?.presets.filter((preset) => preset.id === DEFAULT_MODEL_PRESET_ID) ?? [];
+  const others = library?.presets.filter((preset) => preset.id !== DEFAULT_MODEL_PRESET_ID) ?? [];
   return (
     <SettingsRows>
-      {editable && library !== undefined ? (
-        <Button
-          xstyle={styles.create}
-          size="sm"
-          variant="primary"
-          disabled={busy}
-          onClick={() => setDialog({ kind: 'create' })}
-        >
-          {t('modelPreset.create')}
-        </Button>
-      ) : null}
-      <SettingsSection rootRef={mount} data={{ 'data-model-presets-settings': '' }}>
+      <SettingsSection
+        rootRef={mount}
+        title={t('modelConfig.section.default')}
+        data={{ 'data-model-presets-settings': '' }}
+      >
         {failed ? (
           <ReadFailure
             retryLabel={t('engine.reload')}
@@ -324,135 +384,122 @@ export function ModelPresetsSettings({
           </ReadFailure>
         ) : library === undefined ? (
           <Note>{t('modelPreset.loading')}</Note>
-        ) : library.presets.length === 0 ? (
-          <Note>{t('modelPreset.emptyPresets')}</Note>
+        ) : pinned.length === 0 ? (
+          <Note>{t('modelConfig.defaultMissing')}</Note>
         ) : (
-          <SidebarCardList label={title}>
-            {library.presets.map((preset) => (
-              <SidebarCardRow
-                key={preset.id}
-                title={preset.name}
-                meta={
-                  <span {...stylex.props(styles.stack)}>
-                    <span>
-                      {t('modelPreset.orchestrator')} ·{' '}
-                      {choiceLabel(preset, 'orchestrator', library, t)}
-                    </span>
-                    <span>
-                      {t('modelPreset.assignment')} ·{' '}
-                      {choiceLabel(preset, 'assignment', library, t)}
-                    </span>
-                    <span>{usageLabel(library.usageById.get(preset.id)?.count ?? 0, t)}</span>
-                  </span>
-                }
-                trailing={
-                  editable ? (
-                    <div {...stylex.props(styles.actions)}>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        disabled={busy}
-                        aria-label={t('modelPreset.editTitle', { name: preset.name })}
-                        onClick={() => setDialog({ kind: 'edit', preset })}
-                      >
-                        {t('modelPreset.edit')}
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={busy}
-                        aria-label={t('modelPreset.deleteTitle', { name: preset.name })}
-                        onClick={() => void reviewDelete(preset)}
-                      >
-                        {t('modelPreset.delete')}
-                      </Button>
-                    </div>
-                  ) : undefined
+          <ListCard label={t('modelConfig.section.default')}>
+            {pinned.map(presetTile(library))}
+          </ListCard>
+        )}
+      </SettingsSection>
+      {library === undefined ? null : (
+        <SettingsSection
+          title={t('modelConfig.section.presets')}
+          action={
+            editable ? (
+              <Button
+                size="sm"
+                variant="primary"
+                disabled={busy}
+                onClick={() => setDialog({ kind: 'create' })}
+              >
+                {t('modelPreset.create')}
+              </Button>
+            ) : undefined
+          }
+        >
+          {others.length === 0 ? (
+            <Note>{t('modelConfig.emptyPresets')}</Note>
+          ) : (
+            <ListCard label={title}>{others.map(presetTile(library))}</ListCard>
+          )}
+          {error !== undefined && dialog === undefined ? <Note tone="danger">{error}</Note> : null}
+          {editable && library !== undefined && dialog !== undefined ? (
+            dialog.kind === 'delete' ? (
+              <ConfirmDialog
+                title={t('modelPreset.deleteTitle', { name: dialog.preset.name })}
+                labels={{ close: t('common.close'), cancel: t('common.cancel') }}
+                confirmLabel={t('modelPreset.delete')}
+                busy={busy}
+                error={error}
+                onCancel={close}
+                onConfirm={() => {
+                  if (busy) return;
+                  setBusy(true);
+                  setError(undefined);
+                  void deleteModelPreset(bridgeHost(call), dialog.preset.id, dialog.preset.revision)
+                    .then(
+                      () => {
+                        editLibrary((current) => ({
+                          ...current,
+                          presets: current.presets.filter(({ id }) => id !== dialog.preset.id),
+                        }));
+                        close();
+                      },
+                      (cause: unknown) => setError(errorMessage(cause)),
+                    )
+                    .finally(() => setBusy(false));
+                }}
+              >
+                {dialog.usage.count > 0 ? (
+                  <>
+                    <Note>{t('modelPreset.keepCopies')}</Note>
+                    {dialog.usage.botNames.length === 0 ? null : (
+                      <ul>
+                        {dialog.usage.botNames.map((name, index) => (
+                          <li key={index}>{name}</li>
+                        ))}
+                      </ul>
+                    )}
+                    {dialog.usage.count > dialog.usage.botNames.length ? (
+                      <Note>
+                        {t('modelPreset.privateUsage', {
+                          count: dialog.usage.count - dialog.usage.botNames.length,
+                        })}
+                      </Note>
+                    ) : null}
+                  </>
+                ) : (
+                  <Note>{t('modelPreset.deleteUnused')}</Note>
+                )}
+              </ConfirmDialog>
+            ) : (
+              <PresetEditor
+                editor={dialog}
+                library={library}
+                call={call}
+                owner={viewer?.owner === true}
+                t={t}
+                onClose={close}
+                onSaved={(preset) => {
+                  editLibrary((current) => ({
+                    ...current,
+                    presets:
+                      dialog.kind === 'create'
+                        ? [...current.presets, preset]
+                        : current.presets.map((entry) => (entry.id === preset.id ? preset : entry)),
+                  }));
+                  close();
+                }}
+                onRefreshed={(preset) =>
+                  editLibrary((current) => ({
+                    ...current,
+                    presets: current.presets.map((entry) =>
+                      entry.id === preset.id ? preset : entry,
+                    ),
+                  }))
                 }
               />
-            ))}
-          </SidebarCardList>
-        )}
-        {error !== undefined && dialog === undefined ? <Note tone="danger">{error}</Note> : null}
-        {editable && library !== undefined && dialog !== undefined ? (
-          dialog.kind === 'delete' ? (
-            <ConfirmDialog
-              title={t('modelPreset.deleteTitle', { name: dialog.preset.name })}
-              labels={{ close: t('common.close'), cancel: t('common.cancel') }}
-              confirmLabel={t('modelPreset.delete')}
-              busy={busy}
-              error={error}
-              onCancel={close}
-              onConfirm={() => {
-                if (busy) return;
-                setBusy(true);
-                setError(undefined);
-                void deleteModelPreset(bridgeHost(call), dialog.preset.id, dialog.preset.revision)
-                  .then(
-                    () => {
-                      setLibrary({
-                        ...library,
-                        presets: library.presets.filter(({ id }) => id !== dialog.preset.id),
-                      });
-                      close();
-                    },
-                    (cause: unknown) => setError(errorMessage(cause)),
-                  )
-                  .finally(() => setBusy(false));
-              }}
-            >
-              {dialog.usage.count > 0 ? (
-                <>
-                  <Note>{t('modelPreset.keepCopies')}</Note>
-                  {dialog.usage.botNames.length === 0 ? null : (
-                    <ul>
-                      {dialog.usage.botNames.map((name, index) => (
-                        <li key={index}>{name}</li>
-                      ))}
-                    </ul>
-                  )}
-                  {dialog.usage.count > dialog.usage.botNames.length ? (
-                    <Note>
-                      {t('modelPreset.privateUsage', {
-                        count: dialog.usage.count - dialog.usage.botNames.length,
-                      })}
-                    </Note>
-                  ) : null}
-                </>
-              ) : (
-                <Note>{t('modelPreset.deleteUnused')}</Note>
-              )}
-            </ConfirmDialog>
-          ) : (
-            <PresetEditor
-              editor={dialog}
-              library={library}
-              call={call}
-              owner={viewer?.owner === true}
-              t={t}
-              onClose={close}
-              onSaved={(preset) => {
-                setLibrary({
-                  ...library,
-                  presets:
-                    dialog.kind === 'create'
-                      ? [...library.presets, preset]
-                      : library.presets.map((entry) => (entry.id === preset.id ? preset : entry)),
-                });
-                close();
-              }}
-              onRefreshed={(preset) =>
-                setLibrary({
-                  ...library,
-                  presets: library.presets.map((entry) =>
-                    entry.id === preset.id ? preset : entry,
-                  ),
-                })
-              }
-            />
-          )
-        ) : null}
-      </SettingsSection>
+            )
+          ) : null}
+        </SettingsSection>
+      )}
+      <RoutingGroupSettings
+        actions={actions}
+        canConfigure={editable}
+        t={t}
+        onChanged={() => setLoadAttempt((attempt) => attempt + 1)}
+      />
     </SettingsRows>
   );
 }

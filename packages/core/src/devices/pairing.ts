@@ -17,6 +17,7 @@ export interface HostIdentity {
 export interface PairedDevice {
   id: string;
   name: string;
+  enrollment?: 'owner-password';
   humanId?: string;
   publicKey?: string;
   pairedAt: string;
@@ -78,6 +79,7 @@ export type Admission = { ok: true; device: PairedDevice } | { ok: false; code: 
 export type DevicePairingEvent =
   | { phase: 'offer-created' | 'offer-expired' | 'offer-refused' }
   | { phase: 'offer-redeemed' | 'device-admitted'; deviceId: string }
+  | { phase: 'owner-password-enrolled'; deviceId: string }
   | { phase: 'device-refused'; code: DeviceRefusal; deviceId?: string }
   | { phase: 'device-revoked'; deviceId: string; closedStreams: number };
 
@@ -114,6 +116,11 @@ export interface DevicePairing {
     publicKey: string;
     verifier?: string;
   }): SuccessfulRedemption | undefined;
+  issueOwnerPasswordDevice(input: {
+    humanId: string;
+    name: string;
+    publicKey: string;
+  }): { deviceId: string; credential: string } | undefined;
   requestKey(input: {
     offer: string;
     publicKey: string;
@@ -129,7 +136,7 @@ export interface DevicePairing {
   ): () => void;
   cancelRelationshipOffers(relationshipId: string, publicKey: string): number;
   admitKey(authorization: string | undefined, publicKey: string): Admission;
-  admit(authorization: string | undefined): Admission;
+  admit(authorization: string | undefined, noisePublicKey?: string): Admission;
   check(deviceId: string): Admission;
   acknowledgeFeed(deviceId: string): Admission;
   list(): PairedDevice[];
@@ -172,6 +179,7 @@ interface Row {
   name: string;
   secret_hash: string;
   public_key: string | null;
+  enrollment?: 'owner-password' | null;
   paired_at: string;
   last_seen_at: string | null;
   feed_read_at: string | null;
@@ -188,6 +196,7 @@ function device(row: Row): PairedDevice {
     id: row.device_id,
     name: row.name,
     pairedAt: row.paired_at,
+    ...(row.enrollment === 'owner-password' ? { enrollment: row.enrollment } : {}),
     ...(row.public_key === null ? {} : { publicKey: row.public_key }),
     ...(row.last_seen_at === null ? {} : { lastSeenAt: row.last_seen_at }),
     ...(row.feed_read_at == null ? {} : { feedReadAt: row.feed_read_at }),
@@ -557,16 +566,8 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
     },
 
     admitKey(authorization, publicKey) {
-      if (authorization?.startsWith('Device member.')) {
-        const member = options.members?.admit(authorization, publicKey);
-        return member
-          ? { ok: true, device: member }
-          : { ok: false, code: options.members?.refusal(authorization) ?? 'device-unknown' };
-      }
-      const admitted = this.admit(authorization);
-      if (!admitted.ok) return admitted;
-      if (admitted.device.publicKey !== publicKey) return { ok: false, code: 'device-unknown' };
-      forgetRedemption(admitted.device.id);
+      const admitted = this.admit(authorization, publicKey);
+      if (admitted.ok) forgetRedemption(admitted.device.id);
       return admitted;
     },
 
@@ -726,9 +727,39 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       return result;
     },
 
-    admit(authorization) {
+    issueOwnerPasswordDevice(input) {
+      if (input.humanId !== ownerHumanId() || !/^[a-f0-9]{64}$/u.test(input.publicKey))
+        return undefined;
+      const id = token(16);
+      const secret = token(32);
+      const pairedAt = iso(now());
+      const name = deviceName(input.name);
+      database.transaction(
+        (connection) =>
+          connection
+            .prepare(
+              `INSERT INTO paired_devices
+                (device_id, name, secret_hash, paired_at, public_key, human_id, enrollment)
+               VALUES (?, ?, ?, ?, ?, ?, 'owner-password')`,
+            )
+            .run(
+              id,
+              name,
+              digest(secret).toString('hex'),
+              pairedAt,
+              input.publicKey,
+              input.humanId,
+            ),
+        ['paired-devices'],
+      );
+      record({ phase: 'owner-password-enrolled', deviceId: id });
+      options.onPaired?.({ id, name, pairedAt, enrollment: 'owner-password' });
+      return { deviceId: id, credential: `${id}.${secret}` };
+    },
+
+    admit(authorization, noisePublicKey) {
       if (authorization?.startsWith('Device member.')) {
-        const member = options.members?.admit(authorization);
+        const member = options.members?.admit(authorization, noisePublicKey);
         return member
           ? { ok: true, device: member }
           : { ok: false, code: options.members?.refusal(authorization) ?? 'device-unknown' };
@@ -743,7 +774,9 @@ export function createDevicePairing(options: DevicePairingOptions): DevicePairin
       const presented = digest(match[2]!);
       if (
         current === undefined ||
-        !timingSafeEqual(presented, Buffer.from(current.secret_hash, 'hex'))
+        !timingSafeEqual(presented, Buffer.from(current.secret_hash, 'hex')) ||
+        ((noisePublicKey !== undefined || current.enrollment === 'owner-password') &&
+          (noisePublicKey === undefined || current.public_key !== noisePublicKey))
       ) {
         record({ phase: 'device-refused', code: 'device-unknown' });
         return { ok: false, code: 'device-unknown' };

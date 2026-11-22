@@ -1,3 +1,4 @@
+import type { SessionModelRoute } from './bridge.js';
 import type { OwnedSessionSummary } from './store.js';
 
 export interface NativeSessionSummary {
@@ -21,6 +22,7 @@ export interface PersonaBotSessionRow {
   archived?: true;
   triageOpenCount?: number;
   modelRoute?: { provider: string; model: string; reasoningEffort?: string };
+  currentTarget?: OwnedSessionSummary['currentTarget'];
   engine?: {
     engine: string;
     account?: string;
@@ -33,6 +35,12 @@ export interface PersonaBotSessionRow {
 export type AssignmentNeed = 'approval' | 'error' | 'waiting-human' | 'blocked' | 'failed';
 
 export type AssignmentSection = 'needs-input' | 'working' | 'stuck' | 'idle' | 'resolved';
+
+export function modelRouteText(route: SessionModelRoute): string {
+  return `${route.provider}/${route.model}${
+    route.reasoningEffort === undefined ? '' : ` · ${route.reasoningEffort}`
+  }`;
+}
 
 export const ASSIGNMENT_SECTIONS: readonly AssignmentSection[] = [
   'needs-input',
@@ -114,6 +122,7 @@ export function personaBotSessionRows(
         ...((item.modelRoute ?? item.assignmentModelRoute) === undefined
           ? {}
           : { modelRoute: (item.modelRoute ?? item.assignmentModelRoute)! }),
+        ...(item.currentTarget === undefined ? {} : { currentTarget: item.currentTarget }),
         ...(item.engine === undefined
           ? {}
           : {

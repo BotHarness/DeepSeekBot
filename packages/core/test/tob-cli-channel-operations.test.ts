@@ -68,7 +68,7 @@ async function broker(f: ReturnType<typeof fixture>, approve: () => Promise<void
     signal: new AbortController().signal,
     authorize() {},
     approve,
-    beforeWrite: effect,
+    beginWrite: () => ({ authorize: () => {}, markSideEffect: effect }),
     prepareOperation: f.prepare,
     readSetting: () => ({ scope: 'global', value: 8, revision: 0 }),
     writeSetting: async () => {

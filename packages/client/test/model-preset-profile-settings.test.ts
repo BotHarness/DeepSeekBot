@@ -59,7 +59,7 @@ function remoteOwner() {
   const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     ...core,
     modelCatalog: { list: async () => catalog, validate: () => validate() },
-    defaultModel: { currentSelection: () => route, saveSelection: async () => {} },
+    defaultModel: { currentSelection: () => route },
   });
   const methods = new Map<string, (payload: unknown) => unknown>([
     ['modelCatalog', bridge.modelCatalog],
@@ -142,6 +142,10 @@ describe('Model Presets Settings', () => {
           actions: {
             modelCatalog: async () => ({ models: catalog }),
             routingGroups: async () => ({ groups: [], rests: [] }),
+            routingGroupEngines: async () => [],
+            createRoutingGroup: vi.fn(),
+            updateRoutingGroup: vi.fn(),
+            deleteRoutingGroup: vi.fn(),
           },
           t: translate,
         }),

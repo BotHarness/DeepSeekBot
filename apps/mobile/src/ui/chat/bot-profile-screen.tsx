@@ -6,8 +6,10 @@ import { botChannels, botProfileResource, memoryRouteParams } from '../../host/b
 import { loadMemoryChanges } from '../../host/memory-changes';
 import { sessionStopper } from '../../host/session-stop';
 import { botRoutines } from '../../host/routines';
+import { renameBot } from '../../host/bot-name';
+import { setBotBanner } from '../../host/bot-banner';
 import { setBotAvatar } from '../../host/bot-avatar';
-import { pickAvatarImage } from '../../host/pick-avatar-image';
+import { pickAvatarImage, pickBannerImage } from '../../host/pick-avatar-image';
 import { useHostSession, useHostSnapshot } from '../../host/host-session';
 import { RequestActivityControl } from './request-activity-control';
 import { BotProfilePage } from './bot-profile';
@@ -19,6 +21,7 @@ import { useDesignTheme } from '../design/theme';
 import { space } from '../design/tokens';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
+import { sessionRoute } from './session-navigation';
 import { useProfileFocused } from './profile-visibility';
 
 export type BotProfileParams = {
@@ -95,6 +98,7 @@ export function BotProfileScreen({
         pick: pickAvatarImage,
         save: (avatar) => setBotAvatar(client, bot, avatar),
       }}
+      banner={{ pick: pickBannerImage, save: (image) => setBotBanner(client, bot, image) }}
       workActions={
         saved ? (
           <RequestActivityControl
@@ -123,7 +127,17 @@ export function BotProfileScreen({
           : undefined
       }
       memoryChanges={(offset) => loadMemoryChanges(client, bot, offset)}
-      settings={<BotSettingsPanel client={client} bot={bot} />}
+      rename={(name) => renameBot(client, bot.slug, name)}
+      onChangeAvatar={
+        saved
+          ? () =>
+              router.push({
+                pathname: '/bot/[slug]/avatar',
+                params: { hostId: saved.hostId, slug: bot.slug },
+              })
+          : undefined
+      }
+      settings={(onRename) => <BotSettingsPanel client={client} bot={bot} onRename={onRename} />}
       permissions={
         <BotPermissions
           client={client}
@@ -160,10 +174,23 @@ export function BotProfileScreen({
             params: { slug: bot.slug, hostId: saved?.hostId, id: routine.id },
           }),
         onOpenAssignment: (assignment) =>
-          router.push({
-            pathname: '/bot/[slug]/assignment/[id]',
-            params: { slug: bot.slug, hostId: saved?.hostId, id: assignment.sessionId },
-          }),
+          router.push(
+            sessionRoute({
+              id: assignment.sessionId,
+              hostId: saved?.hostId,
+              slug: bot.slug,
+              title: assignment.title,
+            }),
+          ),
+        onOpenSession: (id, title) =>
+          router.push(
+            sessionRoute({
+              id,
+              hostId: saved?.hostId,
+              slug: bot.slug,
+              title,
+            }),
+          ),
         onNewRoutine: () =>
           router.push({
             pathname: '/bot/[slug]/routine-new',

@@ -1,4 +1,11 @@
 import {
+  addAccount,
+  loadEngineAccounts,
+  refreshAccountQuota,
+  removeAccount,
+  renameAccount,
+} from '@botharness/host-client/subscription-accounts';
+import {
   ENGINE_IDS,
   isEngineId,
   type EngineId,
@@ -15,7 +22,7 @@ import {
   type QuotaRefreshState,
 } from './account-quota.js';
 import { bridgeHost, BridgeCallError, type BridgeCall } from './bridge.js';
-import { refreshEngineAccountQuota } from './features/models/bridge.js';
+import { CodexDeviceSignIn } from './codex-device-sign-in.js';
 import { Button } from './ds/button.js';
 import { IconButton } from './ds/icon-button.js';
 import { Menu } from './ds/menu.js';
@@ -30,8 +37,8 @@ import { Icon } from './ds/icon.js';
 import { ink, radius, status as statusColor, type as typeScale } from './ds/tobs.stylex.js';
 import {
   engineApi,
+  engineLoginActions,
   engineModelKey,
-  parseEngines,
   useSubscriptionEngines,
   type EngineStatusView,
 } from './engine-choice.js';
@@ -289,20 +296,14 @@ export function SubscriptionAccounts({
   roles?: readonly TeamRole[];
   t: BotHarnessTranslate;
 }): ReactElement {
-  const api = useMemo(
-    () => ({
+  const api = useMemo(() => {
+    const host = bridgeHost(call);
+    return {
       ...engineApi,
-      async read() {
-        return parseEngines(await bridgeHost(call).call('engineAccounts', {}));
-      },
-      login: (engine: EngineStatusView['engine'], accountId?: string) =>
-        bridgeHost(call).call<{ url?: string }>('engineAccountLogin', { id: accountId ?? engine }),
-      async cancelLogin(engine: EngineStatusView['engine'], accountId?: string) {
-        await bridgeHost(call).call('engineAccountLoginCancel', { id: accountId ?? engine });
-      },
-    }),
-    [call],
-  );
+      read: () => loadEngineAccounts(host),
+      ...engineLoginActions(call),
+    };
+  }, [call]);
   const engines = useSubscriptionEngines(true, api, false, true);
   const [dialog, setDialog] = useState<AccountDialog>();
   const [selectedEngine, setSelectedEngine] = useState<EngineId>('codex');
@@ -319,9 +320,8 @@ export function SubscriptionAccounts({
     setQuotaRefresh((current) => ({ ...current, [accountId]: { state: 'refreshing' } }));
     let next: QuotaRefreshState;
     try {
-      const result = await refreshEngineAccountQuota(call, accountId);
-      next =
-        result.status === 'ok' ? { state: 'idle' } : { state: 'failed', reason: result.status };
+      const status = await refreshAccountQuota(bridgeHost(call), accountId);
+      next = status === 'ok' ? { state: 'idle' } : { state: 'failed', reason: status };
     } catch {
       next = { state: 'failed', reason: 'unavailable' };
     }
@@ -362,22 +362,21 @@ export function SubscriptionAccounts({
     try {
       const host = bridgeHost(call);
       if (current.kind === 'add')
-        await host.call('engineAccountAdd', {
+        await addAccount(host, {
           engine: selectedEngine,
           name: name.trim(),
           expectedRevision,
         });
       else if (current.kind === 'rename')
-        await host.call('engineAccountRename', {
+        await renameAccount(host, {
           id: current.id,
           name: name.trim(),
           expectedRevision,
         });
       else {
-        const removed = await host.call<{ homeCleanupPending?: true }>('engineAccountRemove', {
+        const removed = await removeAccount(host, {
           id: current.id,
           expectedRevision,
-          confirm: true,
         });
         if (removed.homeCleanupPending) setNotice(t('modelProviders.accountCleanupPending'));
       }
@@ -423,6 +422,7 @@ export function SubscriptionAccounts({
               const canManage = accountId !== undefined && revision !== undefined;
               const canSignIn = status.installed && !status.available;
               const signingIn = engines.signingIn === key;
+              const device = engines.deviceSignIn?.key === key ? engines.deviceSignIn : undefined;
               const roleNames = roles
                 .filter(
                   (role) => accountId !== undefined && roleAllowsEngineAccount(role, accountId),
@@ -441,9 +441,10 @@ export function SubscriptionAccounts({
                   : t('modelProviders.rolesAllowed', {
                       roles: roleNames.join(t('modelProviders.roleSeparator')),
                     });
-              const state = signingIn
-                ? { tone: 'warning' as const, label: t('engine.signingIn') }
-                : signInStatus(status, brand, t);
+              const state =
+                signingIn && device === undefined
+                  ? { tone: 'warning' as const, label: t('engine.signingIn') }
+                  : signInStatus(status, brand, t);
               const edit = (kind: 'rename' | 'remove') =>
                 canManage
                   ? open({
@@ -491,7 +492,9 @@ export function SubscriptionAccounts({
                   }
                   detailId={quotaOpen ? quotaId : undefined}
                   detail={
-                    signingIn ? (
+                    device !== undefined && device.progress.status !== 'completed' ? (
+                      <CodexDeviceSignIn engines={engines} t={t} />
+                    ) : signingIn ? (
                       <div {...stylex.props(styles.signInDetail)}>
                         {engines.loginUrl === undefined ? null : (
                           <div {...stylex.props(styles.signInLinks)}>
@@ -537,7 +540,7 @@ export function SubscriptionAccounts({
                             t={t}
                           />
                         ) : null}
-                        {signingIn ? (
+                        {signingIn && device !== undefined ? null : signingIn ? (
                           <Button
                             variant="outline"
                             disabled={engines.cancelling}
@@ -557,6 +560,16 @@ export function SubscriptionAccounts({
                             {t('modelProviders.signIn')}
                           </Button>
                         ) : null}
+                        {!signingIn && canSignIn && engine === 'codex' ? (
+                          <Button
+                            variant="outline"
+                            disabled={engines.signingIn !== undefined}
+                            aria-label={t('modelProviders.deviceSignInLabel', { engine: title })}
+                            onClick={() => engines.signIn(engine, accountId, 'device-auth')}
+                          >
+                            {t('modelProviders.deviceSignIn')}
+                          </Button>
+                        ) : null}
                         {canManage ? (
                           <AccountMenu
                             label={t('modelProviders.accountActions', { name: title })}
@@ -574,7 +587,7 @@ export function SubscriptionAccounts({
             })}
           </ListCard>
         )}
-        {engines.cancelFailed ? (
+        {engines.cancelFailed && engines.deviceSignIn === undefined ? (
           <Note tone="danger">{t('modelProviders.cancelSignInFailed')}</Note>
         ) : null}
         {engines.error === undefined ? null : (

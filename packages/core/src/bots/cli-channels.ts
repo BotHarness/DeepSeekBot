@@ -28,6 +28,14 @@ export const CHANNEL_COMMANDS = [
   },
   { command: 'group-invite', description: 'invite a Bot into a group Channel' },
   {
+    command: 'group-member-picker',
+    description: 'list eligible Humans and Bots for a new or existing Group',
+  },
+  {
+    command: 'group-members-add',
+    description: 'add Humans and invite Bots from a JSON target array on stdin',
+  },
+  {
     command: 'group-invite-cancel',
     description: 'cancel a pending group invitation',
   },
@@ -169,6 +177,7 @@ interface ChannelValues {
   emoji?: string;
   remove?: boolean;
   query?: string;
+  'body-stdin'?: boolean;
   off?: boolean;
   attachment?: string;
   representation?: string;
@@ -255,18 +264,20 @@ export async function runChannelCommand(
   connect: typeof connectLiveHost,
 ): Promise<unknown> {
   const values = input as ChannelValues;
+  const optionalTarget = command === 'group-member-picker';
   const noTarget =
     command === 'channel-history' ||
     command === 'channel-mark-all-read' ||
     command === 'channel-unread' ||
     command === 'channel-list-changes' ||
     command === 'message-search';
-  if (rest.length !== (noTarget ? 0 : 1))
+  if (optionalTarget ? rest.length > 1 : rest.length !== (noTarget ? 0 : 1))
     usage(
       `${command} ${noTarget ? 'takes no positional arguments' : 'needs exactly one Channel ID'}.`,
     );
   const channelId = rest[0]?.trim() ?? '';
-  if (!noTarget && !channelId) usage(`${command} requires a nonempty Channel ID.`);
+  if (!noTarget && (!optionalTarget || rest.length > 0) && !channelId)
+    usage(`${command} requires a nonempty Channel ID.`);
   const seconds = values.timeout === undefined ? 120 : Number(values.timeout);
   if (!Number.isFinite(seconds) || seconds <= 0 || seconds > 600)
     usage('--timeout must be between 0 and 600 seconds.');
@@ -274,6 +285,23 @@ export async function runChannelCommand(
   let args: Record<string, unknown> = { channelId };
   let method: string;
   switch (command) {
+    case 'group-member-picker':
+      method = 'channelGroupMemberPicker';
+      args = {
+        ...(channelId ? { channelId } : {}),
+        ...(values.query === undefined ? {} : { query: values.query }),
+      };
+      break;
+    case 'group-members-add':
+      method = 'channelGroupMembersAdd';
+      if (!values['body-stdin'])
+        usage('group-members-add needs a JSON target array on --body-stdin.');
+      try {
+        args.targets = JSON.parse(await (io.readStdin?.() ?? Promise.resolve('')));
+      } catch {
+        usage('group-members-add needs a JSON target array on --body-stdin.');
+      }
+      break;
     case 'channel':
       method = 'channelGet';
       break;

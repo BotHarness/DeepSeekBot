@@ -69,6 +69,11 @@ export interface AssignmentGroupRoutes {
     botSlug: string,
   ): { name: string; routes: ModelRoute[]; targets?: RoutingTarget[] } | undefined;
   engineRestingUntil?(engine: EngineId, accountId?: string): string | undefined;
+  describeEngine?(
+    botSlug: string,
+    engine: EngineId,
+    accountId?: string,
+  ): { accountName: string; restingUntil?: string } | undefined;
   restingUntil(route: ModelRoute): RestingRoute | undefined;
   inherited?(): string | undefined;
   inheritedEffort?(): string | undefined;
@@ -170,7 +175,7 @@ export interface BotAgentSetupInfo {
 }
 
 export interface DshDefaultModelHost {
-  currentSelection(): ModelSelection;
+  currentSelection(role?: 'orchestrator' | 'assignment'): ModelSelection;
 }
 
 class DshBotAgentAdapter implements BotAgentAdapter {

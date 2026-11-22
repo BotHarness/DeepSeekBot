@@ -6,6 +6,7 @@ import { ModelTrigger } from './model-trigger.js';
 import type { SubscriptionModel } from '@botharness/host-client/model-plans';
 import type { EngineId, EngineModels } from './engine-choice.js';
 import {
+  engineDeviceSignInKey,
   engineModelOf,
   engineSelectionOf,
   engineSignInKey,
@@ -55,7 +56,7 @@ export function ModelPicker({
         items: readonly ModelMenuItem[];
         models: EngineModels;
         onChange(choice: SubscriptionModel): void;
-        signIn(engine: EngineId, accountId?: string): void;
+        signIn(engine: EngineId, accountId?: string, mode?: 'device-auth'): void;
       }
     | undefined;
   t: BotHarnessTranslate;
@@ -132,6 +133,8 @@ export function ModelPicker({
           if (item?.engine !== undefined && subscription !== undefined) {
             if (key === engineSignInKey(item.engine, item.accountId))
               subscription.signIn(item.engine, item.accountId);
+            else if (key === engineDeviceSignInKey(item.engine, item.accountId))
+              subscription.signIn(item.engine, item.accountId, 'device-auth');
             else {
               const selected = engineSelectionOf(item, subscription.models);
               if (
@@ -164,7 +167,9 @@ export function ModelPicker({
                 const { effort: _removed, ...selected } = engine;
                 subscription.onChange({
                   ...selected,
-                  ...(selectedModel === undefined ? {} : { model: selectedModel.id }),
+                  ...(engine.model !== undefined || selectedModel === undefined
+                    ? {}
+                    : { model: selectedModel.id }),
                   ...(effort === '' ? {} : { effort }),
                 });
               }

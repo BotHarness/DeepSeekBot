@@ -222,6 +222,10 @@ import {
   type ChannelsSendAdapterMethods,
 } from '../features/channels/send-methods.js';
 import {
+  createGroupMemberMethods,
+  type GroupMemberMethods,
+} from '../features/channels/group-members.js';
+import {
   createChannelsManagementAdapterMethods,
   type ChannelsManagementAdapterMethods,
 } from '../features/channels/management-methods.js';
@@ -388,6 +392,7 @@ export interface BridgeMethods
     HumansBridgeMethods,
     ChannelsAdapterMethods,
     ChannelsManagementAdapterMethods,
+    GroupMemberMethods,
     ChannelsSendAdapterMethods,
     ChannelFilesAdapterMethods,
     ProfileStorageAdapterMethods,
@@ -451,8 +456,12 @@ export interface BridgeMethodsDeps
   runningSessionIds?: () => ReadonlySet<string>;
   channels: ChannelStore;
   ownership: SessionOwnership;
+  sessionModels?: ReturnType<
+    typeof import('../runtime/session-model-choices.js').sessionModelChoices
+  >;
   usage?: UsageProjection;
   readUsageSessionLog?: DshUsageSessionLogReader;
+  readSessionTitles?: (ids: readonly string[]) => Promise<ReadonlyMap<string, string>>;
   describeToolCall?(sessionId: string, name: string, args: unknown): PublicToolCall | undefined;
   orchestratorRunner?(botSlug: string): OrchestratorRunner | undefined;
   describeEngineSession?(sessionId: string):
@@ -645,7 +654,7 @@ function buildBridgeMethods(
     messagingCall,
   );
   const workspacesMethods = createWorkspacesBridgeMethods(human, deps);
-  const sessionsMethods = createSessionsBridgeMethods(human, deps, botInChannel);
+  const sessionsMethods = createSessionsBridgeMethods(human, deps, botInChannel, modelRouting);
   const assignmentsMethods = createAssignmentsBridgeMethods(human, deps);
   const memoryMethods = createMemoryBridgeMethods(human, deps, dmMemory);
   const cloudMethods = createCloudBridgeMethods(deps);
@@ -835,6 +844,11 @@ function buildBridgeMethods(
     channelRename: channelsManagementAdapterMethods.channelRename,
     channelGroupAvatarSet: channelsManagementAdapterMethods.channelGroupAvatarSet,
     channelGroupInvite: channelsManagementAdapterMethods.channelGroupInvite,
+    ...createGroupMemberMethods({
+      human,
+      deps: { ...deps, registry: globalRegistry },
+      invite: channelsManagementAdapterMethods.channelGroupInvite,
+    }),
     channelGroupInviteCancel: channelsManagementAdapterMethods.channelGroupInviteCancel,
     channelGroupJoinDecide: channelsManagementAdapterMethods.channelGroupJoinDecide,
     channelGroupMemberRemove: channelsManagementAdapterMethods.channelGroupMemberRemove,
@@ -889,6 +903,7 @@ function buildBridgeMethods(
     assignmentTimeline: assignmentsMethods.assignmentTimeline,
     sessionProgress: assignmentsMethods.sessionProgress,
     sessionTranscript: sessionsMethods.sessionTranscript,
+    sessionModel: sessionsMethods.sessionModel,
     async sessionLive(payload) {
       const source = asObject(payload);
       const slug = asNonBlank(source, 'slug');

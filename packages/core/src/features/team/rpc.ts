@@ -124,6 +124,19 @@ export function teamModeSet(methods: TeamBridgeMethods, enabled: boolean) {
   return unwrapAsync(methods.teamModeSet({ enabled }));
 }
 
+export function ownerPasswordSignIn(methods: TeamBridgeMethods) {
+  return unwrapAsync(methods.ownerPasswordSignIn({}));
+}
+
+export function ownerPasswordSignInSet(
+  methods: TeamBridgeMethods,
+  enabled: boolean,
+  username?: string,
+  password?: string,
+) {
+  return unwrapAsync(methods.ownerPasswordSignInSet({ enabled, username, password }));
+}
+
 export function teamOwnerPasswordSet(
   methods: TeamBridgeMethods,
   password: string,
