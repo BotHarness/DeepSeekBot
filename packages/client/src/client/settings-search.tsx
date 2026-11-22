@@ -73,13 +73,15 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'modelProviders.accountEngine',
   ],
   'model-presets': [
+    'modelConfig.section.default',
+    'modelConfig.section.presets',
     'modelPreset.name',
     'modelPreset.orchestrator',
     'modelPreset.assignment',
     'routingGroups.title',
+    'routingGroups.new',
   ],
   models: [
-    'models.section.default',
     'models.section.context',
     'models.section.run',
     'models.section.mode',
@@ -92,8 +94,6 @@ export const SETTINGS_INDEX: Readonly<Record<string, readonly BotHarnessKey[]>> 
     'compactionThreshold.headroom',
     'compactionThreshold.reset.title',
     'assignmentLimit.title',
-    'routingGroups.title',
-    'routingGroups.new',
   ],
   messaging: [
     'messaging.section.input',
@@ -361,9 +361,10 @@ const SECTION_ALIASES: Readonly<Record<string, string>> = {
   general: '常规 基本 general',
   appearance: '外观 皮肤 主题 theme skin look',
   shortcuts: '快捷键 键位 热键 hotkey keybinding',
-  models: '模型 model',
+  models:
+    '运行 模式 上下文 压缩 并发 模型与运行 runtime mode context compaction concurrency execution',
   'model-presets':
-    '模型预设 主模型 副模型 编排 任务 model preset model choice orchestrator assignment routing group',
+    '模型 模型配置 模型预设 默认模型 默认预设 主模型 副模型 路由组 编排 任务 model configuration preset default model choice orchestrator assignment routing group',
   prompts: '提示词 预设 prompt preset',
   voice: '语音 麦克风 voice microphone speech',
   notifications: '提醒 alert',
