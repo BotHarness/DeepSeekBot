@@ -399,7 +399,7 @@ export function ModelPresetsSettings({
           }
         >
           {others.length === 0 ? (
-            <Note>{t('modelPreset.emptyPresets')}</Note>
+            <Note>{t('modelConfig.emptyPresets')}</Note>
           ) : (
             <ListCard label={title}>{others.map(presetTile(library))}</ListCard>
           )}
