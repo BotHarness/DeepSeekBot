@@ -52,6 +52,7 @@ const session = vi.hoisted(() => ({
 }));
 vi.mock('../src/host/host-session', () => ({ hostSession: session }));
 vi.mock('../src/host/native-carrier', () => ({ nativeCarrier: () => ({}) }));
+vi.mock('../src/ui/chat/sheet', () => ({ SHEET_GROUP: 'sheet' }));
 const revokePairing = vi.hoisted(() => vi.fn(async () => 'revoked' as const));
 vi.mock('@botharness/host-client/pairing', () => ({ revokePairing }));
 const dialog = vi.hoisted(() => vi.fn());
@@ -225,7 +226,7 @@ async function renderAddress(address: string) {
   return { element, type, press, close };
 }
 
-it('shows the Host fingerprint beside one username and password form for an address', async () => {
+it('asks how to connect, then signs in with one username and password form for an address', async () => {
   router.dismissTo.mockClear();
   session.signInPassword.mockResolvedValueOnce({
     ok: true,
@@ -236,6 +237,11 @@ it('shows the Host fingerprint beside one username and password form for an addr
     expect(discoverHostAddress).toHaveBeenLastCalledWith(
       expect.objectContaining({ input: 'studio.example' }),
     );
+    expect(element.querySelector('[data-testid="team-password"]')).toBeNull();
+    expect(element.querySelector('[data-testid="team-choose-approve"]')).not.toBeNull();
+    await press('team-choose-password');
+    expect(element.querySelector('[data-testid="team-fingerprint-rows"]')).toBeNull();
+    await press('team-fingerprint-toggle');
     const rows = element.querySelector('[data-testid="team-fingerprint-rows"]')!;
     expect(Array.from(rows.children, (row) => row.textContent)).toEqual(
       Array(4).fill('bbbb bbbb bbbb bbbb'),
@@ -274,10 +280,26 @@ it('continues a member to the password change after address sign-in', async () =
   });
   const { element, type, press, close } = await renderAddress('https://studio.example');
   try {
+    await press('team-choose-password');
     await type('team-username', 'bob');
     await type('team-password', 'one-time-password');
     await press('team-sign-in');
     expect(element.querySelector('[data-testid="team-new-password"]')).not.toBeNull();
+  } finally {
+    close();
+  }
+});
+
+it('guides a person who chooses computer approval to open and scan a pairing code', async () => {
+  router.back.mockClear();
+  const { element, press, close } = await renderAddress('studio.example');
+  try {
+    await press('team-choose-approve');
+    expect(element.textContent).toContain(t.teamSignIn.approveHint);
+    expect(element.querySelector('[data-testid="desktop-path"]')).not.toBeNull();
+    expect(element.querySelector('[data-testid="team-password"]')).toBeNull();
+    await press('team-scan-code');
+    expect(router.back).toHaveBeenCalledOnce();
   } finally {
     close();
   }

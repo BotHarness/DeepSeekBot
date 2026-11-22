@@ -25,6 +25,9 @@ import { pinnedFingerprint } from '../../src/host/team-address';
 import { space } from '../../src/ui/design/tokens';
 import { Button } from '../../src/ui/primitives/button';
 import { CopyableFingerprint } from '../../src/ui/primitives/copyable-fingerprint';
+import { SettingsRow, SettingsSection } from '../../src/ui/primitives/settings-row';
+import { SHEET_GROUP } from '../../src/ui/chat/sheet';
+import { DesktopPath } from '../../src/ui/shell/desktop-path';
 import { KeyboardFormScroll } from '../../src/ui/primitives/keyboard-form';
 import { Text } from '../../src/ui/primitives/text';
 import { labelInField } from '../../src/ui/primitives/field-label';
@@ -41,8 +44,9 @@ type Step =
   | { kind: 'switch'; host: SavedHost }
   | { kind: 'address' }
   | { kind: 'connecting' }
+  | { kind: 'choose'; found: HostAddressDiscovery }
   | { kind: 'host'; found: HostAddressDiscovery }
-  | { kind: 'needs-code'; found: HostAddressDiscovery };
+  | { kind: 'needs-code'; found: HostAddressDiscovery; chosen?: boolean };
 
 function Labeled({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -109,6 +113,7 @@ export default function TeamSignInScreen() {
   const [link, setLink] = useState('');
   const [address, setAddress] = useState(typeof params.address === 'string' ? params.address : '');
   const pending = useRef<AbortController | undefined>(undefined);
+  const [fingerprintShown, setFingerprintShown] = useState(false);
   const discovered = useRef(false);
   useFocusEffect(
     useCallback(() => {
@@ -199,7 +204,7 @@ export default function TeamSignInScreen() {
     setStep(
       found.value.signIn?.password === false
         ? { kind: 'needs-code', found: found.value }
-        : { kind: 'host', found: found.value },
+        : { kind: 'choose', found: found.value },
     );
   };
 
@@ -393,12 +398,45 @@ export default function TeamSignInScreen() {
         <Text tone="muted" accessibilityLiveRegion="polite">
           {t.teamSignIn.connecting}
         </Text>
+      ) : step.kind === 'choose' ? (
+        <>
+          <Text variant="title" accessibilityRole="header">
+            {t.teamSignIn.connectTo.replace('{host}', step.found.host.name)}
+          </Text>
+          <SettingsSection on={SHEET_GROUP}>
+            <SettingsRow
+              testID="team-choose-password"
+              on={SHEET_GROUP}
+              title={t.teamSignIn.choosePassword}
+              detail={t.teamSignIn.choosePasswordDetail}
+              icon="account"
+              disclosure
+              onPress={() => {
+                setError(undefined);
+                setFingerprintShown(false);
+                setStep({ kind: 'host', found: step.found });
+              }}
+            />
+            <SettingsRow
+              testID="team-choose-approve"
+              on={SHEET_GROUP}
+              title={t.teamSignIn.chooseApprove}
+              detail={t.teamSignIn.chooseApproveDetail}
+              icon="computer"
+              disclosure
+              onPress={() => setStep({ kind: 'needs-code', found: step.found, chosen: true })}
+            />
+          </SettingsSection>
+        </>
       ) : step.kind === 'needs-code' ? (
         <>
           <Text variant="title" accessibilityRole="header">
-            {t.teamSignIn.title.replace('{host}', step.found.host.name)}
+            {t.teamSignIn.connectTo.replace('{host}', step.found.host.name)}
           </Text>
-          <Text tone="muted">{t.teamSignIn.needsCode}</Text>
+          <Text tone="muted">
+            {step.chosen === true ? t.teamSignIn.approveHint : t.teamSignIn.needsCode}
+          </Text>
+          <DesktopPath steps={t.pairChoice.connectPath} />
           <Button
             testID="team-scan-code"
             label={t.teamSignIn.scanCode}
@@ -413,12 +451,7 @@ export default function TeamSignInScreen() {
             <Text variant="title" accessibilityRole="header">
               {t.teamSignIn.title.replace('{host}', step.found.host.name)}
             </Text>
-            <Text tone="muted">{t.teamSignIn.compareHint}</Text>
           </View>
-          <CopyableFingerprint
-            testID="team-fingerprint"
-            fingerprint={step.found.host.fingerprint}
-          />
           <Labeled label={t.teamSignIn.username}>
             <TextField
               testID="team-username"
@@ -457,6 +490,19 @@ export default function TeamSignInScreen() {
               onSubmitEditing={() => void passwordSignIn(step.found)}
             />
           </Labeled>
+          <Button
+            testID="team-fingerprint-toggle"
+            label={fingerprintShown ? t.teamSignIn.hideFingerprint : t.teamSignIn.showFingerprint}
+            variant="text"
+            on="canvas"
+            onPress={() => setFingerprintShown(!fingerprintShown)}
+          />
+          {fingerprintShown ? (
+            <CopyableFingerprint
+              testID="team-fingerprint"
+              fingerprint={step.found.host.fingerprint}
+            />
+          ) : null}
           {errorText}
           <Button
             testID="team-sign-in"
