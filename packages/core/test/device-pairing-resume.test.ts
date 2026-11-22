@@ -72,7 +72,9 @@ async function lanHost() {
       const ws = new WebSocket(`ws://127.0.0.1:${lan.status().port}/botharness-device/channel`);
       sockets.push(ws);
       ws.on('open', events.open);
-      ws.on('message', (data) => events.message(data.toString()));
+      ws.on('message', (data) => {
+        if (!muted.has(ws)) events.message(data.toString());
+      });
       ws.on('close', () => events.closed('closed'));
       ws.on('error', () => events.closed('error'));
       return {
@@ -122,6 +124,7 @@ it('keeps waiting for approval when the channel drops while the phone waits, the
     expect(result).toEqual({ ok: true });
     expect(host.sockets.length).toBeGreaterThan(1);
     expect(saved && host.pairing.admit(`Device ${saved.credential}`).ok).toBe(true);
+    expect(host.pairing.list()).toHaveLength(1);
   } finally {
     await host.close();
   }
