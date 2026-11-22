@@ -170,8 +170,9 @@ export function botToolTrace(
 export function sessions(
   methods: SessionsBridgeMethods,
   slug: string,
-): { sessions: OwnedSessionSummary[] } {
-  return unwrap(methods.sessions({ slug }));
+  includeTitles?: boolean,
+): Promise<{ sessions: OwnedSessionSummary[] }> {
+  return unwrapAsync(methods.sessions({ slug, includeTitles }));
 }
 
 export function sessionArchiveSet(

@@ -862,6 +862,7 @@ it('opens the selected Orchestrator from the Bot Profile Session list', async ()
           },
           {
             sessionId: 'older-root',
+            displayTitle: 'Review the release',
             role: 'orchestrator',
             currentOrchestrator: false,
             createdAt: '2026-11-21T00:00:00Z',
@@ -891,10 +892,12 @@ it('opens the selected Orchestrator from the Bot Profile Session list', async ()
     'profile-session-current-root',
     'profile-session-older-root',
   ]);
+  expect(rows[0]?.textContent).toContain('current-root');
+  expect(rows[1]?.textContent).toContain('Review the release');
   await act(async () => rows[1]!.click());
   expect(state.routes[state.index]).toMatchObject({
     name: 'session/[id]',
-    params: { id: 'older-root', slug: 'ada', hostId: 'host-a', title: 'Orchestrator' },
+    params: { id: 'older-root', slug: 'ada', hostId: 'host-a', title: 'Review the release' },
   });
   navigation.dispatch({ type: 'GO_BACK' });
   expect(state.routes[state.index]?.key).toBe('profile');

@@ -213,6 +213,7 @@ function setup(
   readUsageSessionLog?: DshUsageSessionLogReader,
   describeEngineSession?: BridgeMethodsDeps['describeEngineSession'],
   botModes?: BotModesDeps,
+  readSessionTitles?: BridgeMethodsDeps['readSessionTitles'],
 ) {
   const root = mkdtempSync(join(tmpdir(), 'botharness-bridge-'));
   roots.push(root);
@@ -268,6 +269,7 @@ function setup(
       ...(runtimeFactory === undefined ? {} : { runtime: runtimeFactory(channels) }),
       ...(developerMode === undefined ? {} : { developerMode }),
       ...(botModes === undefined ? {} : { botModes }),
+      ...(readSessionTitles === undefined ? {} : { readSessionTitles }),
       createBotId: () => botIds[botIdIndex++] ?? 'bot-test-' + botIdIndex,
     }),
   };
@@ -3431,7 +3433,50 @@ describe('bridge methods', () => {
     expect(channels.readMessages('dm-ada').map((message) => message.body)).toEqual(['hello']);
   });
 
-  it('lists only root Sessions owned by the bot, preserving role and cwd evidence', () => {
+  it('reads titles only for the requested Bot’s Orchestrator roots and only when requested', async () => {
+    const ownership = createTestOwnership({
+      'ada-orchestrator': { botSlug: 'ada', rootRole: 'orchestrator' },
+      'ada-assignment': { botSlug: 'ada', rootRole: 'assignment' },
+      'bob-orchestrator': { botSlug: 'bob', rootRole: 'orchestrator' },
+    });
+    const readTitles = vi.fn(async () => new Map([['ada-orchestrator', 'Review the release']]));
+    const { methods } = setup(
+      [],
+      ['ada'],
+      undefined,
+      ownership,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      readTitles,
+    );
+    methods.create({ slug: 'ada', displayName: 'Ada' });
+
+    await methods.sessions({ slug: 'ada' });
+    expect(readTitles).not.toHaveBeenCalled();
+    const result = await methods.sessions({ slug: 'ada', includeTitles: true });
+
+    expect(readTitles).toHaveBeenCalledOnce();
+    expect(readTitles).toHaveBeenCalledWith(['ada-orchestrator']);
+    expect(result).toMatchObject({
+      ok: true,
+      value: {
+        sessions: expect.arrayContaining([
+          expect.objectContaining({
+            sessionId: 'ada-orchestrator',
+            displayTitle: 'Review the release',
+          }),
+        ]),
+      },
+    });
+  });
+
+  it('lists only root Sessions owned by the bot, preserving role and cwd evidence', async () => {
     const ownership = createTestOwnership({
       'session-1': { botSlug: 'ada', rootRole: 'orchestrator' },
       'session-2': { botSlug: 'ada', rootRole: 'assignment' },
@@ -3445,7 +3490,7 @@ describe('bridge methods', () => {
     });
 
     ownership.recordAgentPreset('session-2', 'minimal');
-    const result = methods.sessions({ slug: 'ada' });
+    const result = await methods.sessions({ slug: 'ada' });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.sessions).toEqual([
@@ -3460,7 +3505,7 @@ describe('bridge methods', () => {
     expect(result.value.sessions.map((session) => session.sessionId)).not.toContain('session-3');
   });
 
-  it('reports the model each root Session last ran on, else the configured route', () => {
+  it('reports the model each root Session last ran on, else the configured route', async () => {
     const ownership = createTestOwnership({
       orc: { botSlug: 'ada', rootRole: 'orchestrator' },
       work: { botSlug: 'ada', rootRole: 'assignment' },
@@ -3495,7 +3540,7 @@ describe('bridge methods', () => {
         }) as unknown as ReturnType<typeof registry.get>,
     );
 
-    const result = methods.sessions({ slug: 'ada' });
+    const result = await methods.sessions({ slug: 'ada' });
     if (!result.ok) throw new Error('Expected Sessions');
     expect(
       Object.fromEntries(
@@ -3507,7 +3552,7 @@ describe('bridge methods', () => {
     });
   });
 
-  it('names the engine instead of a model for a Session that runs on a subscription engine', () => {
+  it('names the engine instead of a model for a Session that runs on a subscription engine', async () => {
     const ownership = createTestOwnership({
       engine: { botSlug: 'ada', rootRole: 'orchestrator' },
       native: { botSlug: 'ada', rootRole: 'assignment' },
@@ -3533,7 +3578,7 @@ describe('bridge methods', () => {
     );
     methods.create({ slug: 'ada', displayName: 'Ada' });
 
-    const result = methods.sessions({ slug: 'ada' });
+    const result = await methods.sessions({ slug: 'ada' });
     if (!result.ok) throw new Error('Expected Sessions');
     const byId = Object.fromEntries(
       result.value.sessions.map((session) => [session.sessionId, session]),
@@ -3547,7 +3592,7 @@ describe('bridge methods', () => {
     });
   });
 
-  it('marks which Orchestrator Session the runtime resumes', () => {
+  it('marks which Orchestrator Session the runtime resumes', async () => {
     const ownership = createTestOwnership({
       resumed: { botSlug: 'ada', rootRole: 'orchestrator' },
       archived: { botSlug: 'ada', rootRole: 'orchestrator' },
@@ -3560,7 +3605,7 @@ describe('bridge methods', () => {
     const { methods } = setup([], ['ada'], () => runtime, ownership);
     methods.create({ slug: 'ada', displayName: 'Ada' });
 
-    const result = methods.sessions({ slug: 'ada' });
+    const result = await methods.sessions({ slug: 'ada' });
     if (!result.ok) throw new Error('Expected Sessions');
     const flags = Object.fromEntries(
       result.value.sessions.map((session) => [session.sessionId, session.currentOrchestrator]),
@@ -3568,7 +3613,7 @@ describe('bridge methods', () => {
     expect(flags).toEqual({ resumed: true, archived: false, work: undefined });
   });
 
-  it('projects each Assignment access snapshot independently of the Bot default', () => {
+  it('projects each Assignment access snapshot independently of the Bot default', async () => {
     const ownership = createTestOwnership({
       'session-orchestrator': { botSlug: 'ada', rootRole: 'orchestrator' },
       'session-safe': { botSlug: 'ada', rootRole: 'assignment' },
@@ -3614,7 +3659,7 @@ describe('bridge methods', () => {
     );
     methods.create({ slug: 'ada', displayName: 'Ada' });
 
-    const result = methods.sessions({ slug: 'ada' });
+    const result = await methods.sessions({ slug: 'ada' });
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.value.sessions).toHaveLength(3);
@@ -3733,14 +3778,14 @@ describe('bridge methods', () => {
     ]);
   });
 
-  it('rejects malformed or unknown session reads', () => {
+  it('rejects malformed or unknown session reads', async () => {
     const { methods } = setup();
 
-    expect(methods.sessions({})).toEqual({
+    expect(await methods.sessions({})).toEqual({
       ok: false,
       error: { code: 'invalid-input', message: 'slug is required' },
     });
-    expect(methods.sessions({ slug: 'missing' })).toEqual({
+    expect(await methods.sessions({ slug: 'missing' })).toEqual({
       ok: false,
       error: { code: 'not-found', message: 'unknown PersonaBot: missing' },
     });

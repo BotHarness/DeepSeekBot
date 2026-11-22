@@ -745,7 +745,7 @@ export function BotProfilePage({
                       <SettingsRow
                         on="raised"
                         testID={`profile-session-${session.id}`}
-                        title={t.sessionOrchestrator}
+                        title={session.title}
                         detail={[
                           session.current ? t.sessionDetail.current : undefined,
                           new Date(session.createdAt).toLocaleDateString(),
@@ -754,10 +754,10 @@ export function BotProfilePage({
                           .join(' · ')}
                         accessibilityLabel={t.sessionDetail.open(
                           session.current
-                            ? `${t.sessionOrchestrator}, ${t.sessionDetail.current}`
-                            : t.sessionOrchestrator,
+                            ? `${session.title}, ${t.sessionDetail.current}`
+                            : session.title,
                         )}
-                        onPress={() => actions.onOpenSession?.(session.id, t.sessionOrchestrator)}
+                        onPress={() => actions.onOpenSession?.(session.id, session.title)}
                       />
                     )),
                   )

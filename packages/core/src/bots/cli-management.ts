@@ -348,7 +348,10 @@ export async function runOnlineManagement(
       ...(values.state === undefined ? {} : { state: values.state }),
     });
   if (command === 'bot-sessions') {
-    const result = await rpc<{ sessions: Array<{ createdAt: string }> }>('sessions', { slug });
+    const result = await rpc<{ sessions: Array<{ createdAt: string }> }>('sessions', {
+      slug,
+      includeTitles: true,
+    });
     const sorted = [...result.sessions].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return { sessions: sorted.slice(0, limit), total: sorted.length };
   }

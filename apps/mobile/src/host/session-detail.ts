@@ -9,17 +9,26 @@ export function sessionReadHost(client: Pick<HostClient, 'call'>, signal: AbortS
 }
 
 export async function orchestratorSessions(host: HostCall, slug: string) {
-  const sessions = await ownedSessions(host, slug);
+  const sessions = await ownedSessions(host, slug, true);
   return sessions
     .flatMap((row) => {
       const id = row['sessionId'];
       const createdAt = row['createdAt'];
+      const displayTitle = row['displayTitle'];
       return row['role'] === 'orchestrator' &&
         typeof id === 'string' &&
         id !== '' &&
         typeof createdAt === 'string' &&
         Number.isFinite(Date.parse(createdAt))
-        ? [{ id, createdAt, current: row['currentOrchestrator'] === true }]
+        ? [
+            {
+              id,
+              title:
+                typeof displayTitle === 'string' && displayTitle.trim() !== '' ? displayTitle : id,
+              createdAt,
+              current: row['currentOrchestrator'] === true,
+            },
+          ]
         : [];
     })
     .sort(

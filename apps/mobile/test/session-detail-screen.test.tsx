@@ -63,7 +63,22 @@ const at = '2026-11-22T00:00:00Z';
 const from = { kind: 'dsh', provider: 'opencode-go', model: 'deepseek-v4.1-flash' } as const;
 const to = { ...from, model: 'deepseek-v4.1-pro' };
 const items: SessionTranscriptItem[] = [
-  { kind: 'input', source: 'user', at, turn: 1, text: 'Initial request' },
+  {
+    kind: 'input',
+    source: 'user',
+    at,
+    turn: 1,
+    text: 'Initial request',
+    envelope: { kind: 'human-dm' },
+  },
+  {
+    kind: 'input',
+    source: 'system',
+    at,
+    turn: 1,
+    text: '[Open Inbox] 1 item you have seen.\n- Source Event',
+    envelope: { kind: 'inbox' },
+  },
   {
     kind: 'tool',
     id: 'read-1',
@@ -94,11 +109,18 @@ async function open({
   const call = vi.fn(async (method: string, args?: Record<string, unknown>) => {
     if (method === 'sessionTranscript') {
       if (refused) throw new MethodRefused('forbidden', 'Restricted Session');
-      return { role, running, seq: 4, items, currentTarget: to };
+      return {
+        role,
+        running,
+        seq: 4,
+        items,
+        currentTarget: to,
+        displayTitle: 'Review the release',
+      };
     }
     if (method === 'sessionLive') {
       if (args?.['after'] !== undefined) return new Promise(() => {});
-      return { seq: 4, revision: 1, items: [{ kind: 'reply', at, text: 'Live reply' }, items[1]] };
+      return { seq: 4, revision: 1, items: [{ kind: 'reply', at, text: 'Live reply' }, items[2]] };
     }
     if (method === 'sessionModel') return { override: null, default: null };
     return {};
@@ -127,7 +149,13 @@ async function press(view: HTMLElement, label: string) {
 
 it('renders user input, saved and live replies, compact activity and the model switch', async () => {
   const { view } = await open();
-  expect(view.querySelector('h1')?.textContent).toBe('Release review');
+  expect(view.querySelector('h1')?.textContent).toBe('Review the release');
+  expect(view.textContent).toContain('Direct message');
+  expect(view.textContent).toContain('Inbox');
+  expect(view.textContent).not.toContain('Source Event');
+  await press(view, 'Inbox');
+  expect(view.textContent).toContain('Source Event');
+  expect(view.querySelectorAll('[data-author="human"]')).toHaveLength(1);
   expect(view.querySelector('[data-author="human"]')?.textContent).toBe('Initial request');
   expect([...view.querySelectorAll('[data-author="bot"]')].map((row) => row.textContent)).toEqual([
     'Saved reply',

@@ -140,6 +140,20 @@ export type SessionTranscriptItem =
       turnTargets?: TurnTarget[];
     };
 
+export function sessionInputPresentation(item: Extract<SessionTranscriptItem, { kind: 'input' }>) {
+  if (item.source === 'user')
+    return { kind: 'message', text: item.text, envelope: item.envelope?.kind } as const;
+  if (item.envelope?.kind === 'inbox') return { kind: 'inbox', text: item.text } as const;
+  const skill = /^<skill_content name="([^"]+)">/u.exec(item.text)?.[1];
+  if (skill !== undefined) return { kind: 'skill', text: item.text, name: skill } as const;
+  return {
+    kind: 'trigger',
+    text: item.text,
+    trigger: item.trigger ?? 'request',
+    preview: item.text.split('\n', 1)[0],
+  } as const;
+}
+
 export type SessionToolKind =
   | 'read'
   | 'edit'
@@ -225,6 +239,7 @@ export function parseSessionEngineQuota(value: unknown): SessionEngineQuota | un
 
 export interface SessionTranscript {
   role: 'orchestrator' | 'assignment';
+  displayTitle?: string;
   items: SessionTranscriptItem[];
   omitted: number;
   running: boolean;
@@ -392,6 +407,9 @@ export async function sessionTranscript(
   const currentTarget = value['currentTarget'];
   return {
     role: value['role'] === 'orchestrator' ? 'orchestrator' : 'assignment',
+    ...(typeof value['displayTitle'] === 'string' && value['displayTitle'].trim() !== ''
+      ? { displayTitle: value['displayTitle'] }
+      : {}),
     items: parseItems(items),
     omitted: typeof value['omitted'] === 'number' ? value['omitted'] : 0,
     running: value['running'] === true,

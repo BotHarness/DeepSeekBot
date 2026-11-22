@@ -28,7 +28,7 @@ Use the assigned device in `docs/agents/device-qa.md` and a paired isolated Host
 
 ## Observable proof
 
-Back returns to the origin of each entry. The selected Session ID and Bot agree with the Host transcript, follow-up, and saved Model Choice. The model switch appears in the timeline and the DM composer lacks a Model Choice chip. An unauthorized Team member cannot read or send to the Session through its route.
+Back returns to the origin of each entry. The Work list and detail navigation bar show the Session title. A direct message shows the Human’s words, and an Inbox-only wake opens as an Inbox disclosure. The selected Session ID and Bot agree with the Host transcript, follow-up, and saved Model Choice. The model switch appears in the timeline and the DM composer lacks a Model Choice chip. An unauthorized Team member cannot read or send to the Session through its route.
 
 ## Gotchas
 

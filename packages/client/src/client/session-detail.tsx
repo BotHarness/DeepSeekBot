@@ -18,6 +18,7 @@ import type {
   SessionTranscript,
   SessionTranscriptItem,
 } from './bridge.js';
+import { sessionInputPresentation } from '@botharness/host-client/session-detail';
 import { SessionEnvelopeLabel, TRIGGER_ICONS } from './session-input-meta.js';
 import { ChannelComposer } from './channel-composer.js';
 import { MAX_DRAFT_QUOTES, type ComposerQuote } from './composer-draft-store.js';
@@ -499,38 +500,47 @@ function InputBlock({
 }): ReactElement {
   const [open, setOpen] = useState(false);
   const item = block.item;
-  if (item.source === 'user')
+  const input = sessionInputPresentation(item);
+  if (input.kind === 'message')
     return (
       <>
-        {item.envelope === undefined ? null : (
-          <SessionEnvelopeLabel kind={item.envelope.kind} t={t} />
-        )}
+        {input.envelope === undefined ? null : <SessionEnvelopeLabel kind={input.envelope} t={t} />}
         <div
           data-transcript="input"
           data-quote-source={quoteSourceId(sessionId, block.key)}
-          {...stylex.props(styles.input, item.envelope === undefined ? null : styles.afterEnvelope)}
+          {...stylex.props(
+            styles.input,
+            input.envelope === undefined ? null : styles.afterEnvelope,
+          )}
         >
-          <MessageMarkdown text={item.text} t={t} />
+          <MessageMarkdown text={input.text} t={t} />
         </div>
       </>
     );
-  const trigger = item.trigger ?? 'request';
-  const skill = /^<skill_content name="([^"]+)">/u.exec(item.text)?.[1];
+  const trigger = input.kind === 'trigger' ? input.trigger : input.kind;
   return (
-    <div data-transcript="system" data-trigger={skill === undefined ? trigger : 'skill'}>
+    <div data-transcript="system" data-trigger={trigger}>
       <WorkRow
-        icon={skill === undefined ? TRIGGER_ICONS[trigger] : 'slash'}
-        label={
-          skill === undefined
-            ? t(`sessions.detail.trigger.${trigger}`)
-            : t('sessions.detail.trigger.skill', { name: skill })
+        icon={
+          input.kind === 'trigger'
+            ? TRIGGER_ICONS[input.trigger]
+            : input.kind === 'skill'
+              ? 'slash'
+              : 'inbox'
         }
-        detail={open || skill !== undefined ? undefined : item.text.split('\n', 1)[0]}
+        label={
+          input.kind === 'trigger'
+            ? t(`sessions.detail.trigger.${input.trigger}`)
+            : input.kind === 'skill'
+              ? t('sessions.detail.trigger.skill', { name: input.name })
+              : t('sessions.detail.envelope.inbox')
+        }
+        detail={!open && input.kind === 'trigger' ? input.preview : undefined}
         trailing={<span {...stylex.props(styles.meta)}>{clockText(item.at)}</span>}
         expanded={open}
         onToggle={() => setOpen((value) => !value)}
       />
-      {open ? <div {...stylex.props(styles.thought)}>{item.text}</div> : null}
+      {open ? <div {...stylex.props(styles.thought)}>{input.text}</div> : null}
     </div>
   );
 }

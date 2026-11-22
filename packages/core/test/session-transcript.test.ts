@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { TRANSCRIPT_ITEMS, summarizeSessionTranscript } from '../src/runtime/session-transcript.js';
+import {
+  TRANSCRIPT_ITEMS,
+  sessionDisplayTitle,
+  summarizeSessionTranscript,
+} from '../src/runtime/session-transcript.js';
 import {
   sessionDirectPrompt,
   sessionDirectSpeaker,
@@ -424,5 +428,42 @@ describe('Session transcript', () => {
       text: 'What is 17 times 23?',
       envelope: { kind: 'human-dm', channelId: 'dm-bot-1', messageId: 'human-1' },
     });
+  });
+
+  it('projects the Human DM separately from the Inbox context and shows an Inbox-only wake as system input', () => {
+    const inbox =
+      '[Open Inbox] 1 item you have seen but not resolved.\n- [Source Event event-1] Channel "Release QA": Prior request. Status: Assignment "Review" done.';
+    const input = (seq: number, text: string) =>
+      event(seq, 'user/message', { source: { kind: 'user' }, content: [{ type: 'text', text }] });
+    const events = [
+      input(1, `[Host: the Human stopped this Session.]\n\n${inbox}`),
+      input(
+        2,
+        `[Human DM]\nSource Event ID: event-2\nChannel: dm-ada\nMessage ID: message-2\nReview the release checklist.\n\n${inbox}`,
+      ),
+    ];
+    const transcript = summarizeSessionTranscript({ sessionId: 'orc-1', events });
+    expect(transcript.items).toMatchObject([
+      { kind: 'input', source: 'system', envelope: { kind: 'inbox' }, text: inbox },
+      {
+        kind: 'input',
+        source: 'user',
+        envelope: { kind: 'human-dm' },
+        text: 'Review the release checklist.',
+      },
+    ]);
+    expect(sessionDisplayTitle(events.slice(0, 1))).toBeUndefined();
+    expect(
+      sessionDisplayTitle([
+        ...events,
+        event(3, 'session/title', { title: '[Open Inbox] 1 item', source: { kind: 'fallback' } }),
+      ]),
+    ).toBe('Review the release checklist.');
+    expect(
+      sessionDisplayTitle([
+        ...events,
+        event(3, 'session/title', { title: 'Release sign-off', source: { kind: 'user' } }),
+      ]),
+    ).toBe('Release sign-off');
   });
 });

@@ -158,13 +158,11 @@ export function SessionDetailBody({
     }, [client, id, online, role, slug, view.running]),
   );
   const sessionTitle =
-    assignment?.assignment.title ??
-    title ??
-    (role === 'orchestrator'
-      ? t.sessionOrchestrator
-      : role === 'assignment'
-        ? t.sessionAssignment
-        : t.sessionDetail.title);
+    assignment?.assignment.title ||
+    (role === 'assignment' ? title : undefined) ||
+    transcript?.displayTitle ||
+    title ||
+    id;
 
   return (
     <>

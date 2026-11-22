@@ -40,6 +40,7 @@ import {
 import { directToolTrace, summarizeToolTrace, type TurnTrace } from '../../bots/tool-trace.js';
 import type { ChannelTurnStopTarget } from '../../channels/channel.js';
 import {
+  sessionDisplayTitle,
   summarizeSessionTranscript,
   type SessionTranscript,
 } from '../../runtime/session-transcript.js';
@@ -99,7 +100,7 @@ export interface SessionsBridgeMethods {
   botToolTrace(
     payload: unknown,
   ): Promise<BridgeResult<{ slug: string; sessionId: string; turns: TurnTrace[] }>>;
-  sessions(payload: unknown): BridgeResult<{ sessions: OwnedSessionSummary[] }>;
+  sessions(payload: unknown): Promise<BridgeResult<{ sessions: OwnedSessionSummary[] }>>;
   sessionArchiveSet(payload: unknown): Promise<BridgeResult<{ archived: boolean }>>;
   sessionOwner(payload: unknown): BridgeResult<{ owner: OwnedSessionBot | null }>;
   botSessionIds(payload: unknown): BridgeResult<{
@@ -168,6 +169,7 @@ export interface OwnedSessionSummary {
   sessionId: string;
   role: SessionRootRole;
   createdAt: string;
+  displayTitle?: string;
   cwdReference?: string;
   assignmentActivity?: AssignmentActivity;
   assignmentAccessMode?: AssignmentAccessMode;
@@ -213,6 +215,7 @@ export function createSessionsBridgeMethods(
     | 'idleCompaction'
     | 'ownership'
     | 'presentToolResult'
+    | 'readSessionTitles'
     | 'readUsageSessionLog'
     | 'registry'
     | 'runtime'
@@ -707,6 +710,7 @@ export function createSessionsBridgeMethods(
       const read = deps.readUsageSessionLog;
       if (read === undefined) return unavailable();
       const log = await read(sessionId);
+      const displayTitle = sessionDisplayTitle(log?.events ?? []);
       const engine = deps.describeEngineSession?.(sessionId);
       const segments = deps.runtime?.sessionTurnTargets?.(sessionId) ?? [];
       const currentTarget = sessionTarget(segments.at(-1)?.target, engine);
@@ -715,6 +719,7 @@ export function createSessionsBridgeMethods(
         value: {
           sessionId,
           role: owner.rootRole,
+          ...(displayTitle === undefined ? {} : { displayTitle }),
           ...(engine === undefined || currentTarget?.kind === 'dsh' ? {} : { engine }),
           ...(currentTarget === undefined ? {} : { currentTarget }),
           ...summarizeSessionTranscript({
@@ -793,7 +798,7 @@ export function createSessionsBridgeMethods(
         },
       };
     },
-    sessions(payload) {
+    async sessions(payload) {
       const slug = asSlug(payload);
       if (slug === undefined) return invalidInput('slug is required');
       if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
@@ -811,7 +816,15 @@ export function createSessionsBridgeMethods(
       const roots = deps.ownership.rootsFor(slug);
       const subagentCounts = deps.ownership.subagentCounts(roots.map((root) => root.sessionId));
       const plan = deps.registry.get(slug)?.modelPlan;
+      const orchestratorIds = roots
+        .filter((root) => root.rootRole === 'orchestrator')
+        .map((root) => root.sessionId);
+      const titles =
+        asObject(payload)['includeTitles'] === true && orchestratorIds.length > 0
+          ? await deps.readSessionTitles?.(orchestratorIds)
+          : undefined;
       const sessions = roots.map((root) => {
+        const displayTitle = titles?.get(root.sessionId);
         const assignment = assignments.get(root.sessionId);
         const subagentCount = subagentCounts.get(root.sessionId);
         const described = deps.describeEngineSession?.(root.sessionId);
@@ -832,6 +845,7 @@ export function createSessionsBridgeMethods(
           sessionId: root.sessionId,
           role: root.rootRole,
           createdAt: root.createdAt,
+          ...(displayTitle === undefined ? {} : { displayTitle }),
           ...(resumed === undefined || root.rootRole !== 'orchestrator'
             ? {}
             : { currentOrchestrator: root.sessionId === resumed }),

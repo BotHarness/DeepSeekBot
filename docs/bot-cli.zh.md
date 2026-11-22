@@ -653,7 +653,7 @@ printf '{"message_id":"<message-id>","session_ids":["<assignment-session-id>"]}'
 
 `--clear` 恢复会话的默认选择。更改从下一轮生效，Bot 的模型方案不受影响。Host 检查会话归属、模型选择和账号授权。实际使用的模型在两轮之间变化时，`session-transcript` 返回一条 `model-switch`，包含 `from`、`to` 及可用的路由组回退原因 `reason`。
 
-`bot-sessions` 和 `session-transcript` 在能确认运行目标时，返回正在运行或最近运行的 `currentTarget`。订阅引擎目标返回 `engine`、公开的订阅名称 `account` 和能确认的 `model`。原生目标返回 `provider` 和 `model`，混合路由组回退到 DSH 模型时也会如此。
+`bot-sessions` 和 `session-transcript` 会在标题可用时返回 Orchestrator 会话的 `displayTitle`。能确认运行目标时，这两个命令还会返回正在运行或最近运行的 `currentTarget`。订阅引擎目标返回 `engine`、公开的订阅名称 `account` 和能确认的 `model`。原生目标返回 `provider` 和 `model`，混合路由组回退到 DSH 模型时也会如此。
 
 ### 在线 Host 上的定时任务
 

@@ -1,8 +1,13 @@
-import { memo } from 'react';
-import { View } from 'react-native';
-import type { SessionTranscriptItem } from '@botharness/host-client/session-detail';
+import { memo, useState } from 'react';
+import { Pressable, View } from 'react-native';
+import {
+  sessionInputPresentation,
+  type SessionTranscriptItem,
+} from '@botharness/host-client/session-detail';
 import type { TurnTargetCatalog } from '@botharness/host-client/turn-target';
 import { space } from '../design/tokens';
+import { useDesignTheme } from '../design/theme';
+import { ChevronDownIcon, ChevronUpIcon } from '../shell/icons';
 import { Text } from '../primitives/text';
 import { useStrings } from '../strings';
 import { StepMark } from './assignment-marks';
@@ -23,16 +28,15 @@ export const SessionTranscriptRow = memo(function SessionTranscriptRow({
     case 'model-switch':
       return <TurnModelSwitchMarker change={item} catalog={catalog} />;
     case 'input':
+      return <TranscriptInput item={item} id={id} />;
     case 'reply':
-      if (item.kind === 'input' && item.source === 'system')
-        return <TranscriptNote text={item.text} label={t.sessionDetail.prompt} />;
       return (
         <MessageBubble
-          streaming={item.kind === 'reply' && item.live === true}
+          streaming={item.live === true}
           message={{
             id,
             at: item.at,
-            author: item.kind === 'input' ? 'human' : 'bot',
+            author: 'bot',
             body: item.text,
             delivery: 'committed',
             attachments: [],
@@ -72,6 +76,77 @@ export const SessionTranscriptRow = memo(function SessionTranscriptRow({
       );
   }
 });
+
+function TranscriptInput({
+  item,
+  id,
+}: {
+  item: Extract<SessionTranscriptItem, { kind: 'input' }>;
+  id: string;
+}) {
+  const t = useStrings().sessionDetail;
+  const theme = useDesignTheme();
+  const [open, setOpen] = useState(false);
+  const input = sessionInputPresentation(item);
+  if (input.kind === 'message')
+    return (
+      <View>
+        {input.envelope === undefined ? null : (
+          <Text
+            variant="meta"
+            tone="muted"
+            style={{ alignSelf: 'flex-end', paddingHorizontal: space.x5 }}
+          >
+            {t.envelope[input.envelope]}
+          </Text>
+        )}
+        <MessageBubble
+          message={{
+            id,
+            at: item.at,
+            author: 'human',
+            body: input.text,
+            delivery: 'committed',
+            attachments: [],
+          }}
+        />
+      </View>
+    );
+  const label =
+    input.kind === 'trigger'
+      ? t.trigger[input.trigger]
+      : input.kind === 'skill'
+        ? t.skill(input.name)
+        : t.envelope.inbox;
+  const Chevron = open ? ChevronUpIcon : ChevronDownIcon;
+  return (
+    <View style={{ paddingHorizontal: space.x5 }}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityState={{ expanded: open }}
+        onPress={() => setOpen((value) => !value)}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: space.x2,
+          minHeight: theme.touch,
+        }}
+      >
+        <Text variant="meta" tone="muted" numberOfLines={2} style={{ flex: 1 }}>
+          {!open && input.kind === 'trigger' && input.preview
+            ? `${label} · ${input.preview}`
+            : label}
+        </Text>
+        <Chevron color={theme.color.muted} size={theme.type.meta.line} />
+      </Pressable>
+      {open ? (
+        <Text variant="meta" tone="muted" selectable>
+          {input.text}
+        </Text>
+      ) : null}
+    </View>
+  );
+}
 
 function TranscriptNote({ label, text }: { label: string; text: string }) {
   return (

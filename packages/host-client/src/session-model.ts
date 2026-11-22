@@ -5,8 +5,13 @@ import {
 } from '@botharness/host-protocol/session-model';
 import { answerRecord, HostAnswerInvalid, record, some, type HostCall } from './host-answer';
 
-export async function ownedSessions(host: HostCall, slug: string) {
-  const answer = record(await host.call('sessions', { slug }));
+export async function ownedSessions(host: HostCall, slug: string, includeTitles?: boolean) {
+  const answer = record(
+    await host.call('sessions', {
+      slug,
+      ...(includeTitles === undefined ? {} : { includeTitles }),
+    }),
+  );
   return some(answer?.['sessions'], record);
 }
 

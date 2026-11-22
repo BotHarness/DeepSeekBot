@@ -2789,8 +2789,8 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return approvalsRpc.userQuestionAnswer(this.methods, channelId, messageId, answer);
   }
 
-  sessions(slug: string): { sessions: OwnedSessionSummary[] } {
-    return sessionsRpc.sessions(this.methods, slug);
+  sessions(slug: string, includeTitles?: boolean): Promise<{ sessions: OwnedSessionSummary[] }> {
+    return sessionsRpc.sessions(this.methods, slug, includeTitles);
   }
 
   botToolTrace(

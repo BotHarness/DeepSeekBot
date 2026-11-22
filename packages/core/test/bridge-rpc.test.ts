@@ -1071,7 +1071,7 @@ describe('bridge typert service', () => {
       'cursor',
     ]);
     expect(parameterNames(service.assignment)).toEqual(['slug', 'sessionId']);
-    expect(parameterNames(service.sessions)).toEqual(['slug']);
+    expect(parameterNames(service.sessions)).toEqual(['slug', 'includeTitles']);
     expect(parameterNames(service.sessionOwner)).toEqual(['sessionId']);
     expect(parameterNames(service.rosterGet)).toEqual([]);
     expect(parameterNames(service.sectionCreate)).toEqual(['name']);
@@ -1157,7 +1157,7 @@ describe('bridge typert service', () => {
     expect((await service.channels()).channels[0]?.latestMessage?.body).toBe('hello');
     expect(service.channelMessages('dm-ada').messages[0]?.body).toBe('hello');
     expect(service.assignments('ada').assignments).toEqual([]);
-    expect(service.sessions('ada').sessions).toEqual([]);
+    expect((await service.sessions('ada')).sessions).toEqual([]);
     expect(service.sessionOwner('unknown').owner).toBeNull();
   });
 
