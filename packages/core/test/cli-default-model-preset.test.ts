@@ -121,3 +121,95 @@ it('lists and replaces sub choices through the Host without a local fallback', a
   expect((await invoke(argv, live.url, '{"choices":[]}')).json.error.code).toBe('usage');
   expect(live.calls).toHaveLength(2);
 });
+
+it('reads and replaces the Bot plan sub choices at the observed revision', async () => {
+  const slug = 'ada';
+  const sub = { choices: [], default: null };
+  const live = await host((method) =>
+    method === 'modelPlanSubSet'
+      ? { ok: false, error: { code: 'invalid-input', message: 'Bot Model Plan changed' } }
+      : { ok: true, value: { slug, sub, revision: 3, legacyOpen: true } },
+  );
+  expect((await invoke(['model-plan-sub', slug], live.url)).json).toEqual({
+    slug,
+    sub,
+    revision: 3,
+    legacyOpen: true,
+  });
+  expect(
+    (await invoke(['model-plan-sub-set', slug, '--plan-stdin'], live.url, JSON.stringify(sub))).json
+      .error.code,
+  ).toBe('usage');
+  expect(
+    (
+      await invoke(
+        ['model-plan-sub-set', slug, '--expected-revision', '3', '--plan-stdin'],
+        live.url,
+        JSON.stringify(sub),
+      )
+    ).json.error.code,
+  ).toBe('invalid-input');
+  expect(live.calls).toEqual([
+    { method: 'modelPlanSub', args: { slug } },
+    { method: 'modelPlanSubSet', args: { slug, expectedRevision: 3, sub } },
+  ]);
+});
+
+it('forwards sub with a combined preset create, preset update and Bot plan save', async () => {
+  const sub = { choices: [], default: null };
+  const orchestrator = { provider: 'go', model: 'pro' };
+  const preset = { id: 'current', name: 'Current', revision: 2, orchestrator };
+  const live = await host((method) => ({
+    ok: true,
+    value: method === 'modelPresets' ? { presets: [preset] } : {},
+  }));
+  const create = [
+    'model-preset-create',
+    '--name',
+    'New',
+    '--orchestrator-provider',
+    'go',
+    '--orchestrator-model',
+    'pro',
+    '--plan-stdin',
+  ];
+  const update = ['model-preset-update', preset.id, '--name', 'Updated', '--plan-stdin'];
+  const save = ['model-plan-set', 'ada', '--expected-revision', '3', '--plan-stdin'];
+  expect((await invoke(create, live.url, JSON.stringify({ sub }))).code).toBe(0);
+  expect((await invoke(update, live.url, JSON.stringify({ sub }))).code).toBe(0);
+  expect((await invoke(save, live.url, JSON.stringify({ orchestrator, sub }))).code).toBe(0);
+  expect(live.calls).toEqual([
+    { method: 'modelPresetCreate', args: { name: 'New', orchestrator, sub } },
+    { method: 'modelPresets', args: {} },
+    {
+      method: 'modelPresetUpdate',
+      args: {
+        id: preset.id,
+        expectedRevision: preset.revision,
+        name: 'Updated',
+        orchestrator,
+        orchestratorGroupId: null,
+        orchestratorGroupEffort: null,
+        sub,
+      },
+    },
+    { method: 'modelPlanSet', args: { slug: 'ada', expectedRevision: 3, orchestrator, sub } },
+  ]);
+  expect(
+    (await invoke([...create, '--assignment-model', 'flash'], live.url, JSON.stringify({ sub })))
+      .json.error.code,
+  ).toBe('usage');
+  expect(
+    (await invoke(update, live.url, JSON.stringify({ sub, assignmentModels: [] }))).json.error.code,
+  ).toBe('usage');
+  expect(
+    (
+      await invoke(
+        save,
+        live.url,
+        JSON.stringify({ orchestrator, sub, assignmentDefault: orchestrator }),
+      )
+    ).json.error.code,
+  ).toBe('usage');
+  expect(live.calls).toHaveLength(4);
+});

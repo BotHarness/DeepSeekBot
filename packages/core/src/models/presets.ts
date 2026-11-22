@@ -41,6 +41,7 @@ export {
   isPresetSub,
   matchesPresetSubChoice,
   presetSubFromLegacy,
+  resolveBotModelPlan,
   presetSubProjection,
   type AssignmentGroupChoice,
   type AssignmentGroupOption,
@@ -287,31 +288,33 @@ export interface ModelPresetStore {
     preserveSub?: boolean;
   }): ModelPreset;
   setSub(id: string, expectedRevision: number, sub: PresetSub): ModelPreset;
-  create(input: {
-    name: string;
-    orchestrator: ModelRoute;
-    assignmentDefault: ModelRoute;
-    assignmentFollowsMain?: boolean;
-    assignmentModels?: AssignmentModelOption[];
-    openAssignmentModels?: boolean;
-    groups?: ModelPresetGroups;
-    engines?: ModelPresetEngineInput;
-  }): ModelPreset;
+  create(input: ModelPresetWrite): ModelPreset;
   update(
     id: string,
-    input: {
-      expectedRevision: number;
-      name: string;
-      orchestrator: ModelRoute;
+    input: ModelPresetWrite & { expectedRevision: number },
+  ): ModelPreset | undefined;
+  delete(id: string, expectedRevision: number): boolean;
+}
+
+type ModelPresetWrite = {
+  name: string;
+  orchestrator: ModelRoute;
+  groups?: ModelPresetGroups;
+  engines?: ModelPresetEngineInput;
+} & (
+  | {
+      sub?: undefined;
       assignmentDefault: ModelRoute;
       assignmentFollowsMain?: boolean;
       assignmentModels?: AssignmentModelOption[];
       openAssignmentModels?: boolean;
-      groups?: ModelPresetGroups;
-      engines?: ModelPresetEngineInput;
-    },
-  ): ModelPreset | undefined;
-  delete(id: string, expectedRevision: number): boolean;
+    }
+  | { sub: PresetSub }
+);
+
+function presetWithSub(base: Omit<ModelPreset, 'assignmentDefault'>, sub: PresetSub): ModelPreset {
+  if (!isPresetSub(sub)) throw new Error('Invalid Model Preset sub choices or default');
+  return presetRecord({ ...base, ...presetSubProjection(sub, base.orchestrator), sub });
 }
 
 export const DEFAULT_MODEL_PRESET_ID = 'default';
@@ -415,28 +418,6 @@ export function defaultPresetRoute(
   const route = fallback();
   if (route === undefined) throw new Error('Default Model Preset is unavailable');
   return route;
-}
-
-export function resolveBotModelPlan(
-  bot: { modelPlan?: PersonaBotModelPlan; model?: string },
-  inherited: () => PersonaBotModelPlan | undefined,
-): PersonaBotModelPlan | undefined {
-  const plan = bot.modelPlan;
-  if (plan === undefined) return bot.model === undefined ? inherited() : undefined;
-  if (plan.assignmentDefault !== undefined) return plan;
-  const defaults = inherited();
-  if (defaults === undefined) return plan;
-  const {
-    revision: _revision,
-    sourcePresetId: _sourcePresetId,
-    sourcePresetName: _sourcePresetName,
-    orchestrator: _orchestrator,
-    orchestratorGroupId: _group,
-    orchestratorGroupEffort: _effort,
-    appliedAt: _appliedAt,
-    ...assignment
-  } = defaults;
-  return { ...assignment, ...plan };
 }
 
 export function isModelRoute(value: unknown): value is ModelRoute {
@@ -790,7 +771,6 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
       return preset;
     },
     setSub(id, expectedRevision, sub) {
-      if (!isPresetSub(sub)) throw new Error('Invalid Model Preset sub choices or default');
       const current = get(id);
       if (current === undefined || current.revision !== expectedRevision)
         throw new ModelPresetError(
@@ -807,17 +787,12 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
         openAssignmentModels: _open,
         ...kept
       } = current;
-      const preset = presetRecord({
-        ...kept,
-        ...presetSubProjection(sub, current.orchestrator),
-        sub,
-        revision: current.revision + 1,
-      });
+      const preset = presetWithSub({ ...kept, revision: current.revision + 1 }, sub);
       write(preset);
       return preset;
     },
     create(input) {
-      if (input.assignmentModels !== undefined)
+      if (input.sub === undefined && input.assignmentModels !== undefined)
         validateAssignmentModels(input.assignmentDefault, input.assignmentModels);
       const name = input.name.trim();
       if (name.length === 0 || name.length > 100) throw new Error('Model Preset name is required');
@@ -825,26 +800,27 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
       if (presets.some((preset) => preset.name.toLowerCase() === name.toLowerCase())) {
         throw new Error('Model Preset name already exists');
       }
-      const preset = presetRecord({
+      const base = {
         id: randomUUID(),
         name,
         revision: 1,
-        orchestrator: { ...input.orchestrator },
-        assignmentDefault: { ...input.assignmentDefault },
-        ...(input.assignmentFollowsMain === true ? { assignmentFollowsMain: true } : {}),
-        ...(input.assignmentModels === undefined
-          ? {}
-          : {
-              assignmentModels: input.assignmentModels.map((option) => ({
-                ...option,
-                allowedEfforts: [...option.allowedEfforts],
-              })),
-            }),
-        ...(input.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
+        orchestrator: input.orchestrator,
         ...presetGroups(input.groups ?? {}),
         ...presetEngines(input.engines ?? {}),
         createdAt: now().toISOString(),
-      });
+      };
+      const preset =
+        input.sub === undefined
+          ? presetRecord({
+              ...base,
+              assignmentDefault: { ...input.assignmentDefault },
+              ...(input.assignmentFollowsMain === true ? { assignmentFollowsMain: true } : {}),
+              ...(input.assignmentModels === undefined
+                ? {}
+                : { assignmentModels: input.assignmentModels }),
+              ...(input.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
+            })
+          : presetWithSub(base, input.sub);
       if (!isModelPresetGroups(preset as unknown as Record<string, unknown>))
         throw new Error('Model Preset Routing Groups are invalid');
       write(preset);
@@ -859,16 +835,19 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
       const current = presets[index]!;
       if (current.revision !== input.expectedRevision) {
         const message = 'Model Preset changed; select Edit selected preset again before saving';
-        if (id === DEFAULT_MODEL_PRESET_ID) throw new ModelPresetError('stale-setting', message);
+        if (id === DEFAULT_MODEL_PRESET_ID || input.sub !== undefined)
+          throw new ModelPresetError('stale-setting', message);
         throw new Error(message);
       }
-      const followsMain = input.assignmentFollowsMain ?? storedPresetSub(current).default === null;
-      const assignmentDefault = followsMain ? input.orchestrator : input.assignmentDefault;
-      const assignmentModels = followsMain
-        ? undefined
-        : (input.assignmentModels ?? current.assignmentModels);
-      if (assignmentModels !== undefined)
-        validateAssignmentModels(assignmentDefault, assignmentModels);
+      const followsMain =
+        input.sub === undefined &&
+        (input.assignmentFollowsMain ?? storedPresetSub(current).default === null);
+      const assignmentModels =
+        input.sub === undefined && !followsMain
+          ? (input.assignmentModels ?? current.assignmentModels)
+          : undefined;
+      if (input.sub === undefined && assignmentModels !== undefined)
+        validateAssignmentModels(input.assignmentDefault, assignmentModels);
       if (
         presets.some(
           (preset) =>
@@ -879,6 +858,26 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
       ) {
         throw new Error('Model Preset name already exists');
       }
+      const main = { name, revision: current.revision + 1, orchestrator: input.orchestrator };
+      if (input.sub !== undefined) {
+        const { orchestratorEngine } = current;
+        const preset = presetWithSub(
+          {
+            id,
+            ...main,
+            createdAt: current.createdAt,
+            ...presetGroups(input.groups ?? {}),
+            ...presetEngines(
+              input.engines ?? {},
+              orchestratorEngine === undefined ? {} : { orchestratorEngine },
+            ),
+          },
+          input.sub,
+        );
+        write(preset);
+        return preset;
+      }
+      const assignmentDefault = followsMain ? input.orchestrator : input.assignmentDefault;
       const {
         openAssignmentModels: currentOpen,
         orchestratorGroupId: currentOrchestratorGroup,
@@ -923,19 +922,10 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
         isDeepStrictEqual(assignmentDefault, current.assignmentDefault);
       const updated = presetRecord({
         ...rest,
-        name,
-        revision: current.revision + 1,
-        orchestrator: { ...input.orchestrator },
+        ...main,
         assignmentDefault: { ...assignmentDefault },
         ...(followsMain ? { assignmentFollowsMain: true } : {}),
-        ...(assignmentModels === undefined || keepModelFreeSub
-          ? {}
-          : {
-              assignmentModels: assignmentModels.map((option) => ({
-                ...option,
-                allowedEfforts: [...option.allowedEfforts],
-              })),
-            }),
+        ...(assignmentModels === undefined || keepModelFreeSub ? {} : { assignmentModels }),
         ...(open ? { openAssignmentModels: true } : {}),
         ...presetGroups(
           followsMain

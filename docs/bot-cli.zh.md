@@ -1222,6 +1222,8 @@ deepseekbot model-preset-update <preset-id> --name Nightly --orchestrator-effort
 deepseekbot model-presets --include-usage
 deepseekbot model-preset-sub <preset-id>
 deepseekbot model-preset-sub-set <preset-id> --expected-revision <revision> --plan-stdin < sub.json
+deepseekbot model-plan-sub <bot-id>
+deepseekbot model-plan-sub-set <bot-id> --expected-revision <revision> --plan-stdin < sub.json
 deepseekbot model-preset-delete <preset-id> --expected-revision <revision> --confirm
 deepseekbot model-groups
 deepseekbot model-group <group-id>
@@ -1247,7 +1249,11 @@ deepseekbot group-activity <group-channel>
 
 `list_assignment_models` 展示 Bot 获准使用的选项及默认项，订阅引擎选项还会显示账号名称，配额用尽时显示 `restingUntil`。在 `create_assignment` 中省略模型选择会使用默认项。显式选择订阅引擎时，随常规参数传入选项中已有的 `engine`、`account_id` 和 `model`。Host 使用选项保存的推理强度，并拒绝未列出或未授权的选项。单个 API 模型或订阅账号配额用尽时返回 `assignment-choice-resting`，路由组继续按组内顺序切换。
 
-连接在线 Host 时，`model-preset-create` 也支持 `--plan-stdin`，stdin 仅包含 `{"assignmentModels":[...]}`，创建预设时保留可选模型、推理强度和备注。创建与更新都通过移动端编辑器使用的同一 Host bridge 转发完整策略，不会悄悄缩减为默认模型。
+连接在线 Host 时，`model-preset-create` 也支持 `--plan-stdin`。stdin 可以是 `{"assignmentModels":[...]}`，创建预设时保留可选模型、推理强度和备注；也可以是下文的 `{"sub":{...}}` 副模型选项。创建与更新都通过移动端编辑器使用的同一 Host bridge 转发完整策略，不会悄悄缩减为默认模型。
+
+`model-plan-sub` 读取 Bot 自己的模型方案中的副模型选项及版本。 `model-plan-sub-set` 用与 `model-preset-sub-set` 相同的 stdin 格式替换选项及默认项。传入空的 `choices` 和 `default: null` 时，Assignment 跟随 Bot 的 Orchestrator。如果 Bot 继承 Profile 默认方案，需先应用预设或保存 Bot 自己的模型方案。
+
+要同时保存主模型路由与副模型选项，请向 `model-plan-set --plan-stdin` 传入 `{"orchestrator":{...},"sub":{...}}`。也可用 `orchestratorGroupId` 代替 `orchestrator`。对于 `model-preset-create`，用命令行参数指定名称及主模型路由，并通过 `--plan-stdin` 传入 `{"sub":{...}}`。`model-preset-update` 只改副模型选项时，请省略主模型路由参数，这样原有的路由组会保留；只有要设置或替换主模型路由时才加这些参数。传入 `sub` 时请省略旧版 Assignment 字段和参数。
 
 `model-catalog` 列出 Host 能运行的模型和 Profile 默认模型，与模型选择器看到的一致。`model-plan-set` 用 stdin 中的 `{"orchestrator":{...},"assignmentDefault":{...},"assignmentModels":[...]}` 替换 Bot 的整个模型方案；`model-plan-assignments-set` 接受去掉 `orchestrator` 的同一对象，且要求 Bot 已有自己的方案：跟随 Profile 默认模型的 Bot 会返回 `Apply a Model Preset first`，此时先用 `model-plan-set` 或应用一个预设。两者都可以带 `assignmentGroups`、`assignmentDefaultGroupId` 和 `assignmentGroupOptions` 指定路由组，`model-plan-set` 还可以用 `orchestratorGroupId` 代替 `orchestrator`。路由写作 `{"provider","model","reasoningEffort"?}`，Assignment 模型写作 `{"provider","model","allowedEfforts":[...],"defaultEffort","note"?}`。`model-plan-customize` 只修改 Bot 的 Orchestrator；原本继承全局时建立独立覆盖，Assignment 的固定配置或全局继承保持不变。`model-plan-inherit` 去掉 Bot 自己的模型，改为跟随 Profile 默认模型。`model-preset-update` 修改预设的名称或路由；没有给出的参数保持当前值，但只要给出 `--orchestrator-provider`、`--orchestrator-model` 或 `--orchestrator-effort` 中任意一个，Orchestrator 的路由组就会换成这条单独的路由（只改名称时保留路由组），可选的 `--plan-stdin` `{"assignmentModels":[...]}` 替换它的 Assignment 模型。每条路由都由 Host 按模型目录校验。方案和预设的写入会核对版本：`--expected-revision` 显式指定版本；不指定时命令先读取当前版本，与 `memory-save` 的 `--expected-head` 相同。方案在此期间被改过时，返回 Host 的 `invalid-input`。
 

@@ -257,6 +257,8 @@ export const MEMBER_BOT_METHODS = [
   'botAppearanceSet',
   'botPrimaryColorSet',
   'modelPlan',
+  'modelPlanSub',
+  'modelPlanSubSet',
   'modelPlanSet',
   'modelPresetApply',
   'modelPlanCustomize',

@@ -145,6 +145,8 @@ export const bridgeMethodInventory = [
   'modelGroupUpdate',
   'modelGroupDelete',
   'modelPlan',
+  'modelPlanSub',
+  'modelPlanSubSet',
   'modelPlanCustomize',
   'modelPlanAssignmentsSet',
   'modelPlanSet',

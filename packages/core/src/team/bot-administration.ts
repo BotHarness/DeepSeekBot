@@ -6,6 +6,7 @@ import { botOwner } from './bot-access.js';
 export const BOT_ADMIN_READS: ReadonlySet<string> = new Set([
   'get',
   'modelPlan',
+  'modelPlanSub',
   'deletionPreview',
   'deletionMemoryFolder',
 ]);
@@ -21,6 +22,7 @@ export const botAdminActionSchema = z.enum([
   'botBannerSet',
   'botPrimaryColorSet',
   'modelPlanSet',
+  'modelPlanSubSet',
   'modelPresetApply',
   'modelPlanCustomize',
   'modelPlanAssignmentsSet',

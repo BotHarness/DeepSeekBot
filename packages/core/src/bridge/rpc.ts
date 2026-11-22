@@ -1299,6 +1299,14 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return modelsRpc.modelPresetDelete(this.methods, id, expectedRevision, confirmed);
   }
 
+  modelPlanSub(slug: string) {
+    return modelsRpc.modelPlanSub(this.methods, slug);
+  }
+
+  modelPlanSubSet(slug: string, expectedRevision: number, sub: PresetSub) {
+    return modelsRpc.modelPlanSubSet(this.methods, slug, expectedRevision, sub);
+  }
+
   modelPresetSub(id: string) {
     return modelsRpc.modelPresetSub(this.methods, id);
   }
@@ -1320,6 +1328,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestratorGroupEffort?: string | null,
     orchestratorEngine?: ModelPresetEngine | null,
     assignmentEngine?: ModelPresetEngine | null,
+    sub?: PresetSub,
   ): Promise<{ preset: ModelPreset }> {
     return modelsRpc.modelPresetCreate(
       this.methods,
@@ -1335,6 +1344,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
       orchestratorGroupEffort,
       orchestratorEngine,
       assignmentEngine,
+      sub,
     );
   }
 
@@ -1343,7 +1353,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     expectedRevision: number,
     name: string,
     orchestrator: ModelRoute | undefined,
-    assignmentDefault: ModelRoute,
+    assignmentDefault: ModelRoute | undefined,
     assignmentModels?: AssignmentModelOption[],
     openAssignmentModels?: boolean,
     orchestratorGroupId?: string | null,
@@ -1354,6 +1364,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestratorEngine?: ModelPresetEngine | null,
     assignmentEngine?: ModelPresetEngine | null,
     assignmentFollowsMain?: boolean,
+    sub?: PresetSub,
   ): Promise<{ preset: ModelPreset }> {
     return modelsRpc.modelPresetUpdate(
       this.methods,
@@ -1372,6 +1383,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
       orchestratorEngine,
       assignmentEngine,
       assignmentFollowsMain,
+      sub,
     );
   }
 
@@ -1463,14 +1475,15 @@ export class BotharnessBridgeService extends TypertRemoteService {
     slug: string,
     expectedRevision: number,
     orchestrator: ModelRoute | undefined,
-    assignmentDefault: ModelRoute,
-    assignmentModels: AssignmentModelOption[],
+    assignmentDefault: ModelRoute | undefined,
+    assignmentModels: AssignmentModelOption[] | undefined,
     openAssignmentModels?: boolean,
     orchestratorGroupId?: string | null,
     assignmentGroups?: string[],
     assignmentDefaultGroupId?: string | null,
     assignmentGroupOptions?: AssignmentGroupOption[] | null,
     orchestratorGroupEffort?: string | null,
+    sub?: PresetSub,
   ): Promise<AdminResult<{ plan: PersonaBotModelPlan }>> {
     return modelsRpc.modelPlanSet(
       this.methods,
@@ -1485,6 +1498,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
       assignmentDefaultGroupId,
       assignmentGroupOptions,
       orchestratorGroupEffort,
+      sub,
     );
   }
 
@@ -3557,6 +3571,8 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'modelGroupUpdate',
   'modelGroupDelete',
   'modelPlan',
+  'modelPlanSub',
+  'modelPlanSubSet',
   'modelPlanCustomize',
   'modelPlanAssignmentsSet',
   'modelPlanSet',
