@@ -107,10 +107,6 @@
       "width: 16px",
       "width: 6px"
     ],
-    "packages/client/src/client/channel-sidebar-builtins.tsx": [
-      "maxWidth: 160px",
-      "outlineOffset: -2px"
-    ],
     "packages/client/src/client/channel-sidebar-tabs.tsx": [
       "height: 16px",
       "outlineOffset: -2px",
@@ -268,6 +264,10 @@
       "boxShadow: 6px",
       "height: 20px",
       "minWidth: 20px"
+    ],
+    "packages/client/src/client/features/channels/channel-sidebar-builtins.tsx": [
+      "maxWidth: 160px",
+      "outlineOffset: -2px"
     ],
     "packages/client/src/client/genui-document.tsx": ["maxHeight: 1000"],
     "packages/client/src/client/group-channel-header.tsx": [
@@ -1383,10 +1383,10 @@
   "duplicateComponent": {
     "packages/client/src/client/activity-list-controls.tsx": ["ActivityListSourceButton"],
     "packages/client/src/client/call-rail-button.tsx": ["CallRailButton"],
-    "packages/client/src/client/channel-sidebar-builtins.tsx": ["BotInboxItemRow"],
     "packages/client/src/client/channel-sidebar-tabs.tsx": ["ChannelSidebarViewsMenu"],
     "packages/client/src/client/dm-composer-usage.tsx": ["DmComposerUsagePopover"],
     "packages/client/src/client/environment-panel.tsx": ["EnvironmentRow"],
+    "packages/client/src/client/features/channels/bot-inbox-entry.tsx": ["BotInboxItemRow"],
     "packages/client/src/client/header-session-stop.tsx": ["SessionStopPopover"],
     "packages/client/src/client/host-file-menu.tsx": ["HostFileActionButton", "HostFileOpenButton"],
     "packages/client/src/client/market-files.tsx": ["FileRow"],

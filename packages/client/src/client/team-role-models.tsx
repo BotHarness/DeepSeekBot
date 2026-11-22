@@ -2,7 +2,7 @@ import { useId, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { providerBrand } from '@botharness/host-client/shared/model-brand';
 import type { NamedEngineAccount } from '@botharness/host-protocol/subscription-engine';
-import type { ModelProvidersView } from '@botharness/host-client/model-providers';
+import { loadModelProviders } from '@botharness/host-client/model-providers';
 import { bridgeHost, loadModelCatalog, type BridgeCall } from './bridge.js';
 import { Button } from './ds/button.js';
 import { Checkbox } from './ds/checkbox.js';
@@ -125,8 +125,7 @@ export function RoleModelsField({
   const mount = useMountedResource<HTMLFieldSetElement>(() => {
     const request = new AbortController();
     const inventory = canReadProviders
-      ? bridgeHost(call, request.signal)
-          .call<ModelProvidersView>('modelProviders')
+      ? loadModelProviders(bridgeHost(call, request.signal))
           .then((view) => view.providers)
           .catch(() => [])
       : [];

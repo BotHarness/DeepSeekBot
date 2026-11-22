@@ -12,6 +12,7 @@ export const space = {
 } as const;
 
 export const statusChip = { height: 36, dot: 8 } as const;
+export const sessionModelChip = { hideEffortAt: 300, hideNameAt: 220 } as const;
 
 export const groupUnavailable = { icon: 48 } as const;
 

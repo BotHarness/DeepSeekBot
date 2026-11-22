@@ -182,9 +182,6 @@
   "packages/client/src/client/channel-row-status.tsx": {
     "../../../core/src/state/bot-state.js": 1
   },
-  "packages/client/src/client/channel-sidebar-builtins.tsx": {
-    "../../../core/src/messaging/inbound.js": 1
-  },
   "packages/client/src/client/companion-beats.ts": {
     "../../../core/src/channels/message-preview.js": 1
   },
@@ -268,6 +265,9 @@
     "../../../../../core/src/bots/avatar-appearance.js": 1,
     "../../../../../core/src/companions/feed.js": 1,
     "../../../../../core/src/companions/sources.js": 1
+  },
+  "packages/client/src/client/features/channels/bot-inbox-entry.tsx": {
+    "../../../../../core/src/messaging/inbound.js": 1
   },
   "packages/client/src/client/features/channels/channel-composer.tsx": {
     "../../../../../core/src/channels/all-bot-mention.js": 1,

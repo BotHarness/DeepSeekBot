@@ -162,7 +162,11 @@ export interface HostClient {
   stop(): void;
   retryNow(trigger?: 'resume' | 'manual_retry', options?: { preserveConnected?: boolean }): void;
   refresh(): Promise<void>;
-  call<T>(method: string, args?: Record<string, unknown>): Promise<T>;
+  call<T>(
+    method: string,
+    args?: Record<string, unknown>,
+    options?: { signal?: AbortSignal; timeoutMs?: number },
+  ): Promise<T>;
   upload(name: string, data: Blob): Promise<AttachmentRef>;
   api(path: string, init?: HostApiInit): Promise<HostApiAnswer>;
   resource(path: string): RemoteSource;
