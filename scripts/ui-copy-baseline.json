@@ -72,7 +72,6 @@
     "client:zh.call.unreachable",
     "client:zh.channelAccess.adminsEmpty",
     "client:zh.channelActivity.error",
-    "client:zh.channelPeople.loadFailed",
     "client:zh.compactionThreshold.error",
     "client:zh.composer.allBotsChanged",
     "client:zh.composer.draftAttachmentUnavailable",

@@ -722,5 +722,9 @@
   {
     "id": "owner-password-sign-in",
     "sha256": "cd24239ed9e9be52958c4f7a8436c1877dd00c40a4d7809d36df0b9d52e352d1"
+  },
+  {
+    "id": "channel-human-add-receipts",
+    "sha256": "a6fea0bb5e3dd63a854422c0a34d00e7cf0627709419c16ad47906e4c148dd3b"
   }
 ]

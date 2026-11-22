@@ -325,6 +325,8 @@ export function guardHumanBridge(
             'channelRoleDirectory',
             'channelHumanAdd',
             'channelMemberCandidates',
+            'channelGroupMemberPicker',
+            'channelGroupMembersAdd',
           ].includes(property)
         ) {
           const channel = deps.channels.get(channelId);

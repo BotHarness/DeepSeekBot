@@ -1778,6 +1778,8 @@ The Team usage and Role model policy runtime is described in [M10 Host and CLI l
 
 The [M5 approval logic](team-mode-m5-runtime.md) adds caller-scoped masking across Channel projections, Activity and push, Human decision attribution and unattended routing to the Bot owner. Member-owned Sessions refuse full access, suppressed asks and escalation. M12 wraps the Linux Sandbox Service’s `confine` call. Team status and invitations report `enforced` only when both filesystem and network confinement are available. Otherwise they report `trial`.
 
+Desktop uses one member picker for Group creation and subsequent member management. Candidate reads use the selected Host and the caller's creation or Channel permissions. Submitting a batch uses the existing Host bridge and canonical membership and invitation owners. The Host applies explicitly selected Humans first, then evaluates the Bot invitations against the resulting Channel access. The Team membership owner records each Human addition with its receipt in the same transaction and checks access again on replay. Bot invitations use the Channel management receipts. The batch reports an outcome for each target, including an unconfirmed code when it encounters an unexpected error. An unconfirmed target can be retried with its original operation key against the same Channel.
+
 ### Team mode M7 runtime access
 
 The application-defined Bot visibility/principal checks and append-only speaker policy are

@@ -127,12 +127,12 @@ describe('localization coverage', () => {
         t: tEn,
       }),
     );
-    expect(header).toContain('Invite a Bot');
+    expect(header).not.toContain('Add members');
     expect(header).toContain('Invitations and join requests, 2 pending');
     const management = renderEntry('group-management');
     expect(management).toContain('Group avatar');
     expect(management).toContain('Group name');
-    expect(management).not.toContain('Invite a Bot');
+    expect(management).not.toContain('Add members');
     expect(management).not.toContain('Join requests');
     expect(management).not.toContain('Remove from Group');
     expect(management).not.toContain('Disband Group');
