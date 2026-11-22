@@ -52,28 +52,35 @@ export function openRegistry(
       1,
     );
   }
-  const registry = createPersonaBotRegistry({
-    rootDir: join(dshHome, 'botharness', 'bots'),
-    database: owner,
-    cloneMemory: (destination, url) => cloneMemoryRepository({ destination, url }),
-    initializeMemory: (memoryDir) => {
-      const repository = ensureMemoryRepository({ memoryDir });
-      return repository.ok
-        ? { ok: true }
-        : {
-            ok: false,
-            ...(repository.code === 'git-not-found' ? { code: 'git-not-found' as const } : {}),
-            message: `${repository.code}: ${repository.message}`,
-          };
-    },
-    syncDescriptor: (memoryDir, record, sync) => {
-      try {
-        syncBotDescriptor(memoryDir, record, sync);
-      } catch {}
-    },
-  });
-  const human = new TeamRoles(attachOperationalModule(owner, 'team'), () => {}).ownerContext();
-  return { owner, registry: administration ? registry : privateBotRegistry(registry, human) };
+  try {
+    const registry = createPersonaBotRegistry({
+      rootDir: join(dshHome, 'botharness', 'bots'),
+      database: owner,
+      cloneMemory: (destination, url) => cloneMemoryRepository({ destination, url }),
+      initializeMemory: (memoryDir) => {
+        const repository = ensureMemoryRepository({ memoryDir });
+        return repository.ok
+          ? { ok: true }
+          : {
+              ok: false,
+              ...(repository.code === 'git-not-found' ? { code: 'git-not-found' as const } : {}),
+              message: `${repository.code}: ${repository.message}`,
+            };
+      },
+      syncDescriptor: (memoryDir, record, sync) => {
+        try {
+          syncBotDescriptor(memoryDir, record, sync);
+        } catch {}
+      },
+    });
+    const human = new TeamRoles(attachOperationalModule(owner, 'team'), () => {}).ownerContext();
+    return { owner, registry: administration ? registry : privateBotRegistry(registry, human) };
+  } catch (error) {
+    try {
+      owner.close();
+    } catch {}
+    throw error;
+  }
 }
 
 export function openChannels(

@@ -548,7 +548,7 @@ export async function runBotCreateCli(
     }
     if (command === 'secret-unset') {
       if (rest.length !== 1) throw usageError('secret-unset needs exactly one secret name.');
-      out.stdout(JSON.stringify(runSecretUnset(rest[0]!, values, io), null, 2));
+      out.stdout(JSON.stringify(await runSecretUnset(rest[0]!, values, io), null, 2));
       return 0;
     }
     if (command === 'search') {
