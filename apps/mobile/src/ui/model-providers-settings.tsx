@@ -318,6 +318,7 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
   const [copied, setCopied] = useState(false);
   const [starting, setStarting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const polling = useRef(false);
   const [, setTick] = useState(0);
   const signingSince = useRef<number | undefined>(undefined);
 
@@ -359,26 +360,31 @@ export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPor
     const timer = setInterval(() => {
       setTick((tick) => tick + 1);
       const since = signingSince.current;
-      if (since === undefined) return;
+      if (since === undefined || polling.current) return;
       const expired = Date.now() - since > SIGN_IN_LIMIT_MS;
-      const finish = (timedOut: boolean) => {
-        if (signingSince.current !== since) return;
+      const finish = (timedOut: boolean): boolean => {
+        if (signingSince.current !== since) return false;
         signingSince.current = undefined;
         setSignInUrl(undefined);
         setCopied(false);
         if (timedOut) setSignInError('timeout');
+        return true;
       };
-      read().then(
-        (next) => {
-          if (next?.available) {
-            finish(false);
-            if (quotaStale(next.quota, Date.now())) runRefresh();
-          } else if (expired) finish(true);
-        },
-        () => {
-          if (expired) finish(true);
-        },
-      );
+      polling.current = true;
+      read()
+        .then(
+          (next) => {
+            if (next?.available) {
+              if (finish(false) && quotaStale(next.quota, Date.now())) runRefresh();
+            } else if (expired) finish(true);
+          },
+          () => {
+            if (expired) finish(true);
+          },
+        )
+        .finally(() => {
+          polling.current = false;
+        });
     }, 15_000);
     return () => clearInterval(timer);
   }, [read, runRefresh]);

@@ -280,7 +280,7 @@ it('keeps refresh busy until the account read finishes and times out an unfinish
     const signedOut = await render(<ProviderAccountSettings port={port} id="codex-b" />);
     await act(async () => button(signedOut, t.modelProviders.signIn)!.click());
     expect(signedOut.textContent).toContain(t.modelProviders.signInOnComputer);
-    await act(async () => vi.advanceTimersByTime(200_000));
+    for (let tick = 0; tick < 14; tick += 1) await act(async () => vi.advanceTimersByTime(15_000));
     await act(async () => undefined);
     expect(signedOut.textContent).not.toContain(t.modelProviders.signInOnComputer);
     expect(signedOut.textContent).toContain(t.modelProviders.signInTimedOut);
@@ -339,4 +339,37 @@ it('sends one cancel for a sign-in even when Cancel is pressed twice', async () 
   expect(port.cancelSignIn).toHaveBeenCalledTimes(1);
   await act(async () => finishCancel());
   expect(button(view, t.modelProviders.signIn)).toBeDefined();
+});
+
+it('does not start a second account poll while the first is still running', async () => {
+  vi.useFakeTimers();
+  try {
+    const accounts = accountsFixture(Date.now());
+    let slow = false;
+    let finishSlow: () => void = () => undefined;
+    const port: ProviderAccountPort = {
+      accounts: vi.fn(() =>
+        slow
+          ? new Promise<SubscriptionAccountsView>((resolve) => {
+              finishSlow = () => resolve(accounts);
+            })
+          : Promise.resolve(accounts),
+      ),
+      refresh: vi.fn(async () => 'ok' as const),
+      signIn: vi.fn(async () => ({ url: 'https://example.org/sign-in' })),
+      cancelSignIn: vi.fn(async () => undefined),
+    };
+    const view = await render(<ProviderAccountSettings port={port} id="codex-b" />);
+    await act(async () => button(view, t.modelProviders.signIn)!.click());
+    await act(async () => undefined);
+    const before = vi.mocked(port.accounts).mock.calls.length;
+    slow = true;
+    await act(async () => vi.advanceTimersByTime(15_000));
+    await act(async () => vi.advanceTimersByTime(15_000));
+    await act(async () => vi.advanceTimersByTime(15_000));
+    expect(vi.mocked(port.accounts).mock.calls.length).toBe(before + 1);
+    await act(async () => finishSlow());
+  } finally {
+    vi.useRealTimers();
+  }
 });
