@@ -1,6 +1,6 @@
 import * as Clipboard from 'expo-clipboard';
 import { useCallback, useState } from 'react';
-import { Pressable, View, type ViewInstance } from 'react-native';
+import { View, type ViewInstance } from 'react-native';
 
 import type {
   ModelProviderView,
@@ -26,7 +26,6 @@ import { chart } from './design/chart';
 import { radius, space } from './design/tokens';
 import { useDesignTheme } from './design/theme';
 import { useMounted } from './mounted';
-import { Button } from './primitives/button';
 import { SettingsForm, SettingsFormItem } from './primitives/settings-form';
 import { SettingsFooter, SettingsRow, SettingsSection } from './primitives/settings-row';
 import { Text } from './primitives/text';
@@ -35,6 +34,11 @@ import { useStrings } from './strings';
 
 export interface ModelProvidersPort {
   providers(): Promise<ModelProvidersView>;
+  accounts(): Promise<SubscriptionAccountsView>;
+  openAccount(id: string): void;
+}
+
+export interface ProviderAccountPort {
   accounts(): Promise<SubscriptionAccountsView>;
   refresh(id: string): Promise<QuotaRefreshStatus>;
   signIn(id: string): Promise<{ url?: string }>;
@@ -167,115 +171,38 @@ function QuotaWindows({ quota, now }: { quota: AccountQuota | undefined; now: nu
   );
 }
 
-function AccountDetail({
-  account,
-  now,
-  refresh,
-  signInUrl,
-  onRefresh,
-  onSignIn,
-  onCancelSignIn,
-}: {
-  account: SubscriptionAccountView;
-  now: number;
-  refresh: RefreshState;
-  signInUrl: string | undefined;
-  onRefresh(): void;
-  onSignIn(): void;
-  onCancelSignIn(): void;
-}) {
-  const t = useStrings();
-  const theme = useDesignTheme();
-  const [shown, setShown] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const signingIn = signInUrl !== undefined;
-  return (
-    <View style={{ gap: space.x4, paddingHorizontal: space.x5, paddingBottom: space.x4 }}>
-      {account.email === undefined ? null : (
-        <Pressable
-          testID="account-email"
-          accessibilityRole="button"
-          accessibilityLabel={
-            shown ? t.modelProviders.emailShown(account.email) : t.modelProviders.showEmail
-          }
-          onPress={() => setShown((value) => !value)}
-          style={{ minHeight: theme.touch, justifyContent: 'center' }}
-        >
-          <Text variant="meta" tone="muted">
-            {shown ? account.email : maskEmail(account.email)}
-          </Text>
-        </Pressable>
-      )}
-      {account.available ? <QuotaWindows quota={account.quota} now={now} /> : null}
-      {account.available &&
-      quotaLimited(account.quota, now) &&
-      account.quota?.limitedUntil !== undefined ? (
-        <Notice tone="warning">
-          {t.modelProviders.limitedUntil(shortTime(account.quota.limitedUntil))}
-        </Notice>
-      ) : null}
-      {refresh.state === 'failed' ? (
-        <Notice tone="danger">{t.modelProviders.refreshFailed[refresh.reason]}</Notice>
-      ) : null}
-      {signingIn ? (
-        <View style={{ gap: space.x3 }}>
-          <Text variant="meta" tone="muted">
-            {t.modelProviders.signInOnComputer}
-          </Text>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: space.x3 }}>
-            <Button
-              fit
-              variant="text"
-              label={copied ? t.modelProviders.linkCopied : t.modelProviders.copyLink}
-              onPress={() => {
-                void Clipboard.setStringAsync(signInUrl).then(() => setCopied(true));
-              }}
-            />
-            <Button
-              fit
-              variant="text"
-              label={t.modelProviders.cancelSignIn}
-              onPress={onCancelSignIn}
-            />
-          </View>
-        </View>
-      ) : null}
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: space.x3 }}>
-        <Text variant="meta" tone="muted" style={{ flex: 1 }}>
-          {refresh.state === 'refreshing'
-            ? t.modelProviders.refreshing
-            : account.quota === undefined
-              ? ''
-              : updatedText(account.quota.observedAt, now, t)}
-        </Text>
-        {account.available ? (
-          <Button
-            fit
-            variant="text"
-            symbol="refresh"
-            label={t.modelProviders.refresh}
-            busy={refresh.state === 'refreshing'}
-            disabled={refresh.state === 'refreshing'}
-            onPress={onRefresh}
-          />
-        ) : account.installed && !signingIn ? (
-          <Button fit variant="text" label={t.modelProviders.signIn} onPress={onSignIn} />
-        ) : null}
-      </View>
-    </View>
-  );
+function accountStatus(
+  account: SubscriptionAccountView,
+  signingIn: boolean,
+  t: ReturnType<typeof useStrings>,
+  color: ReturnType<typeof useDesignTheme>['color'],
+): { text: string; color: string } {
+  if (signingIn) return { text: t.modelProviders.signingIn, color: color.warning };
+  if (account.available) return { text: t.modelProviders.signedIn, color: color.success };
+  const reason = account.reason ?? 'login-unknown';
+  return {
+    text: t.modelProviders.status[reason],
+    color:
+      reason === 'not-subscription'
+        ? color.danger
+        : reason === 'login-unknown' || reason === 'host-not-local'
+          ? color.warning
+          : color.muted,
+  };
 }
 
-export function ModelProvidersSettings({ port }: { port: ModelProvidersPort }) {
+export function ModelProvidersSettings({
+  port,
+  focusTick = 0,
+}: {
+  port: ModelProvidersPort;
+  focusTick?: number;
+}) {
   const t = useStrings();
   const theme = useDesignTheme();
   const [providers, setProviders] = useState<ModelProvidersView>();
   const [accounts, setAccounts] = useState<SubscriptionAccountsView>();
   const [loadError, setLoadError] = useState<string>();
-  const [expanded, setExpanded] = useState<ReadonlySet<string>>(new Set());
-  const [refreshes, setRefreshes] = useState<Readonly<Record<string, RefreshState>>>({});
-  const [signIns, setSignIns] = useState<Readonly<Record<string, string>>>({});
-  const [signInError, setSignInError] = useState(false);
 
   const load = useCallback(() => {
     setLoadError(undefined);
@@ -287,68 +214,7 @@ export function ModelProvidersSettings({ port }: { port: ModelProvidersPort }) {
       (reason: unknown) => setLoadError(errorText(reason)),
     );
   }, [port]);
-  const mount = useMounted<ViewInstance>(() => load(), [load]);
-
-  const reloadAccounts = () => {
-    port.accounts().then(setAccounts, () => undefined);
-  };
-
-  const refresh = (id: string) => {
-    setRefreshes((current) => ({ ...current, [id]: { state: 'refreshing' } }));
-    port.refresh(id).then(
-      (status) => {
-        setRefreshes((current) => ({
-          ...current,
-          [id]: status === 'ok' ? { state: 'idle' } : { state: 'failed', reason: status },
-        }));
-        reloadAccounts();
-      },
-      () =>
-        setRefreshes((current) => ({
-          ...current,
-          [id]: { state: 'failed', reason: 'unavailable' },
-        })),
-    );
-  };
-
-  const toggle = (account: SubscriptionAccountView, key: string) => {
-    const opening = !expanded.has(key);
-    setExpanded((current) => {
-      const next = new Set(current);
-      if (opening) next.add(key);
-      else next.delete(key);
-      return next;
-    });
-    if (
-      opening &&
-      account.id !== undefined &&
-      account.available &&
-      refreshes[account.id]?.state !== 'refreshing' &&
-      quotaStale(account.quota, Date.now())
-    )
-      refresh(account.id);
-  };
-
-  const signIn = (id: string) => {
-    setSignInError(false);
-    port.signIn(id).then(
-      ({ url }) => {
-        if (url !== undefined) setSignIns((current) => ({ ...current, [id]: url }));
-        reloadAccounts();
-      },
-      () => setSignInError(true),
-    );
-  };
-
-  const cancelSignIn = (id: string) => {
-    port.cancelSignIn(id).then(
-      () => {
-        setSignIns(({ [id]: _removed, ...rest }) => rest);
-        reloadAccounts();
-      },
-      () => setSignInError(true),
-    );
-  };
+  const mount = useMounted<ViewInstance>(() => load(), [load, focusTick]);
 
   const now = Date.now();
   const ready = providers !== undefined && accounts !== undefined;
@@ -396,68 +262,238 @@ export function ModelProvidersSettings({ port }: { port: ModelProvidersPort }) {
           <SettingsSection title={t.modelProviders.subscriptions} on="raised">
             {accounts.accounts.map((account) => {
               const id = account.id;
-              const key = id ?? account.engine;
-              const open = expanded.has(key);
-              const signingIn = id !== undefined && signIns[id] !== undefined;
-              const status = signingIn
-                ? { text: t.modelProviders.signingIn, color: theme.color.warning }
-                : account.available
-                  ? { text: t.modelProviders.signedIn, color: theme.color.success }
-                  : {
-                      text: t.modelProviders.status[account.reason ?? 'login-unknown'],
-                      color:
-                        account.reason === 'not-subscription'
-                          ? theme.color.danger
-                          : account.reason === 'login-unknown' ||
-                              account.reason === 'host-not-local'
-                            ? theme.color.warning
-                            : theme.color.muted,
-                    };
-              const detail =
-                account.email === undefined
-                  ? status.text
-                  : `${status.text} · ${maskEmail(account.email)}`;
+              const status = accountStatus(account, false, t, theme.color);
               return (
-                <View key={key} testID={`subscription-account-${key}`}>
-                  <SettingsRow
-                    on="raised"
-                    title={accountTitle(account)}
-                    detail={detail}
-                    detailDot={status.color}
-                    expanded={open}
-                    leading={
-                      <EngineBrandIcon
-                        brand={account.engine === 'codex' ? 'openai' : 'claude'}
-                        color={theme.color.fg}
-                      />
-                    }
-                    control={
-                      account.available
-                        ? { kind: 'value', text: quotaChip(account.quota, now, t) }
-                        : undefined
-                    }
-                    onPress={() => toggle(account, key)}
-                  />
-                  {open && id !== undefined ? (
-                    <AccountDetail
-                      account={account}
-                      now={now}
-                      refresh={refreshes[id] ?? { state: 'idle' }}
-                      signInUrl={signIns[id]}
-                      onRefresh={() => refresh(id)}
-                      onSignIn={() => signIn(id)}
-                      onCancelSignIn={() => cancelSignIn(id)}
+                <SettingsRow
+                  on="raised"
+                  key={id ?? account.engine}
+                  testID={`subscription-account-${id ?? account.engine}`}
+                  title={accountTitle(account)}
+                  detail={
+                    account.email === undefined
+                      ? status.text
+                      : `${status.text} · ${maskEmail(account.email)}`
+                  }
+                  detailDot={status.color}
+                  leading={
+                    <EngineBrandIcon
+                      brand={account.engine === 'codex' ? 'openai' : 'claude'}
+                      color={theme.color.fg}
                     />
-                  ) : null}
-                </View>
+                  }
+                  control={
+                    account.available
+                      ? { kind: 'value', text: quotaChip(account.quota, now, t), chevron: true }
+                      : { kind: 'chevron' }
+                  }
+                  {...(id === undefined ? {} : { onPress: () => port.openAccount(id) })}
+                />
               );
             })}
           </SettingsSection>
         )}
+      </SettingsForm>
+    </View>
+  );
+}
+
+export function ProviderAccountSettings({ port, id }: { port: ProviderAccountPort; id: string }) {
+  const t = useStrings();
+  const theme = useDesignTheme();
+  const [account, setAccount] = useState<SubscriptionAccountView | null>();
+  const [loadError, setLoadError] = useState<string>();
+  const [refresh, setRefresh] = useState<RefreshState>({ state: 'idle' });
+  const [signInUrl, setSignInUrl] = useState<string>();
+  const [signInError, setSignInError] = useState(false);
+  const [emailShown, setEmailShown] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const read = useCallback(
+    () =>
+      port.accounts().then((view) => {
+        const next = view.accounts.find((entry) => entry.id === id) ?? null;
+        setAccount(next);
+        return next;
+      }),
+    [port, id],
+  );
+
+  const runRefresh = useCallback(() => {
+    setRefresh({ state: 'refreshing' });
+    port.refresh(id).then(
+      (status) => {
+        setRefresh(status === 'ok' ? { state: 'idle' } : { state: 'failed', reason: status });
+        void read().catch(() => undefined);
+      },
+      () => setRefresh({ state: 'failed', reason: 'unavailable' }),
+    );
+  }, [port, id, read]);
+
+  const load = useCallback(() => {
+    setLoadError(undefined);
+    read().then(
+      (next) => {
+        if (next !== null && next.available && quotaStale(next.quota, Date.now())) runRefresh();
+      },
+      (reason: unknown) => setLoadError(errorText(reason)),
+    );
+  }, [read, runRefresh]);
+  const mount = useMounted<ViewInstance>(() => load(), [load]);
+
+  const signIn = () => {
+    setSignInError(false);
+    port.signIn(id).then(
+      ({ url }) => {
+        if (url !== undefined) setSignInUrl(url);
+        void read().catch(() => undefined);
+      },
+      () => setSignInError(true),
+    );
+  };
+
+  const cancelSignIn = () => {
+    port.cancelSignIn(id).then(
+      () => {
+        setSignInUrl(undefined);
+        setCopied(false);
+        void read().catch(() => undefined);
+      },
+      () => setSignInError(true),
+    );
+  };
+
+  const now = Date.now();
+  const signingIn = signInUrl !== undefined;
+  const status = account ? accountStatus(account, signingIn, t, theme.color) : undefined;
+  return (
+    <View ref={mount} style={{ flex: 1 }}>
+      <SettingsForm testID="provider-account-settings">
+        {loadError !== undefined ? (
+          <SettingsFormItem>
+            <LoadFailed error={loadError} onRetry={load} />
+          </SettingsFormItem>
+        ) : null}
+        {account === undefined && loadError === undefined ? (
+          <SettingsFormItem>
+            <Loading />
+          </SettingsFormItem>
+        ) : null}
+        {account === null ? (
+          <SettingsFormItem>
+            <SettingsFooter>{t.modelProviders.noAccounts}</SettingsFooter>
+          </SettingsFormItem>
+        ) : null}
+        {account && status ? (
+          <SettingsSection on="raised">
+            <SettingsRow
+              on="raised"
+              title={accountTitle(account)}
+              detail={status.text}
+              detailDot={status.color}
+              leading={
+                <EngineBrandIcon
+                  brand={account.engine === 'codex' ? 'openai' : 'claude'}
+                  color={theme.color.fg}
+                />
+              }
+            />
+            {account.email === undefined ? null : (
+              <SettingsRow
+                on="raised"
+                testID="account-email"
+                title={emailShown ? account.email : maskEmail(account.email)}
+                accessibilityLabel={
+                  emailShown
+                    ? t.modelProviders.emailShown(account.email)
+                    : t.modelProviders.showEmail
+                }
+                control={{
+                  kind: 'value',
+                  text: emailShown ? t.modelProviders.hideEmail : t.modelProviders.showEmail,
+                }}
+                onPress={() => setEmailShown((value) => !value)}
+              />
+            )}
+          </SettingsSection>
+        ) : null}
+        {account?.available ? (
+          <SettingsFormItem>
+            <View style={{ paddingHorizontal: space.x5 }}>
+              <QuotaWindows quota={account.quota} now={now} />
+            </View>
+          </SettingsFormItem>
+        ) : null}
+        {account?.available &&
+        quotaLimited(account.quota, now) &&
+        account.quota?.limitedUntil !== undefined ? (
+          <SettingsFormItem>
+            <Notice tone="warning">
+              {t.modelProviders.limitedUntil(shortTime(account.quota.limitedUntil))}
+            </Notice>
+          </SettingsFormItem>
+        ) : null}
+        {refresh.state === 'failed' ? (
+          <SettingsFormItem>
+            <Notice tone="danger">{t.modelProviders.refreshFailed[refresh.reason]}</Notice>
+          </SettingsFormItem>
+        ) : null}
         {signInError ? (
           <SettingsFormItem>
             <Notice tone="danger">{t.modelProviders.signInFailed}</Notice>
           </SettingsFormItem>
+        ) : null}
+        {account?.available ? (
+          <SettingsSection
+            on="raised"
+            {...(account.quota === undefined
+              ? {}
+              : { footer: updatedText(account.quota.observedAt, now, t) })}
+          >
+            <SettingsRow
+              on="raised"
+              title={
+                refresh.state === 'refreshing'
+                  ? t.modelProviders.refreshing
+                  : t.modelProviders.refresh
+              }
+              tone="accent"
+              {...(refresh.state === 'refreshing'
+                ? { control: { kind: 'busy' as const } }
+                : { onPress: runRefresh })}
+            />
+          </SettingsSection>
+        ) : null}
+        {account && !account.available && account.installed ? (
+          <SettingsSection
+            on="raised"
+            {...(signingIn ? { footer: t.modelProviders.signInOnComputer } : {})}
+          >
+            {signingIn ? (
+              <SettingsRow
+                on="raised"
+                title={copied ? t.modelProviders.linkCopied : t.modelProviders.copyLink}
+                tone="accent"
+                onPress={() => {
+                  void Clipboard.setStringAsync(signInUrl).then(() => setCopied(true));
+                }}
+              />
+            ) : (
+              <SettingsRow
+                on="raised"
+                title={t.modelProviders.signIn}
+                tone="accent"
+                onPress={signIn}
+              />
+            )}
+            {signingIn ? (
+              <SettingsRow
+                on="raised"
+                title={t.modelProviders.cancelSignIn}
+                tone="danger"
+                onPress={cancelSignIn}
+              />
+            ) : null}
+          </SettingsSection>
         ) : null}
       </SettingsForm>
     </View>

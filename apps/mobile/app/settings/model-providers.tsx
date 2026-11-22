@@ -1,12 +1,8 @@
-import { useMemo } from 'react';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { loadModelProviders } from '@botharness/host-client/model-providers';
-import {
-  cancelAccountSignIn,
-  loadSubscriptionAccounts,
-  refreshAccountQuota,
-  signInAccount,
-} from '@botharness/host-client/subscription-accounts';
+import { loadSubscriptionAccounts } from '@botharness/host-client/subscription-accounts';
 import { useHostSession } from '../../src/host/host-session';
 import { SheetNote } from '../../src/ui/chat/sheet';
 import {
@@ -17,7 +13,16 @@ import { useStrings } from '../../src/ui/strings';
 
 export default function ModelProvidersScreen() {
   const t = useStrings();
+  const router = useRouter();
   const { saved, client } = useHostSession();
+  const [focusTick, setFocusTick] = useState(0);
+  const focused = useRef(false);
+  useFocusEffect(
+    useCallback(() => {
+      if (focused.current) setFocusTick((tick) => tick + 1);
+      focused.current = true;
+    }, []),
+  );
   const port = useMemo<ModelProvidersPort | undefined>(
     () =>
       client === undefined
@@ -25,12 +30,11 @@ export default function ModelProvidersScreen() {
         : {
             providers: () => loadModelProviders(client),
             accounts: () => loadSubscriptionAccounts(client),
-            refresh: (id) => refreshAccountQuota(client, id),
-            signIn: (id) => signInAccount(client, id),
-            cancelSignIn: (id) => cancelAccountSignIn(client, id),
+            openAccount: (id) =>
+              router.push({ pathname: '/settings/model-provider-account', params: { id } }),
           },
-    [client],
+    [client, router],
   );
   if (port === undefined) return <SheetNote>{t.unreachable}</SheetNote>;
-  return <ModelProvidersSettings key={saved?.hostId} port={port} />;
+  return <ModelProvidersSettings key={saved?.hostId} port={port} focusTick={focusTick} />;
 }

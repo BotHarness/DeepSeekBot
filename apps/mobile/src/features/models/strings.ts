@@ -16,6 +16,7 @@ const engineEffortZh = {
 export const en = {
   modelProviders: {
     title: 'Model providers',
+    account: 'Subscription account',
     hint: 'API keys and subscription accounts',
     apiKeys: 'API keys',
     subscriptions: 'Subscriptions',
@@ -189,6 +190,7 @@ export const en = {
 export const zh: typeof en = {
   modelProviders: {
     title: '模型提供商',
+    account: '订阅账号',
     hint: 'API key 和订阅账号',
     apiKeys: 'API key',
     subscriptions: '订阅',

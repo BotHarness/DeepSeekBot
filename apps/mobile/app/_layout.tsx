@@ -91,6 +91,7 @@ function RootNavigator() {
     ['uploaded-bots', t.accountProfile.uploads],
     ['usage', t.usage],
     ['model-providers', t.modelProviders.title],
+    ['model-provider-account', t.modelProviders.account],
     ['models', t.modelSettings.title],
     ['model-picker', undefined],
     ['model-preset', undefined],
