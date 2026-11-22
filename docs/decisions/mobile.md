@@ -45,7 +45,7 @@ The badge counts unresolved actions. Where supported, background resolution push
 
 Why: the short preview lets a Human triage from the lock screen. Activity continues to decide what is pending, and the app reads the full item through the original paired route.
 
-Enforced by: [push-preview.property.test.ts](../../packages/core/test/push-preview.property.test.ts), [push-delivery.test.ts](../../packages/core/test/push-delivery.test.ts), [push-answer.test.ts](../../apps/mobile/test/push-answer.test.ts), and [device-notification-preferences.test.ts](../../apps/mobile/test/device-notification-preferences.test.ts).
+Enforced by: [push-preview.property.test.ts](../../packages/core/test/push-preview.property.test.ts), [Host push notifications](../../packages/core/test/push-delivery-notifications.test.ts), [Human Inbox push source](../../packages/core/test/push-delivery-inbox-source.test.ts), [device push endpoints](../../packages/core/test/push-delivery-device-gateway.test.ts), [Expo sender](../../packages/core/test/push-delivery-expo-sender.test.ts), [push-answer.test.ts](../../apps/mobile/test/push-answer.test.ts), and [device-notification-preferences.test.ts](../../apps/mobile/test/device-notification-preferences.test.ts).
 
 ## 3. Android arbitrates local alerts and FCM on the device
 

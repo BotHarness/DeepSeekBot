@@ -4,6 +4,7 @@
 
 - `packages/client/src/client/{environment-creation,section-management,group-member-controls,group-member-picker,personabot-deletion}.tsx`
 - `packages/core/src/features/channels/group-members.ts`
+- `packages/core/src/channels/runtime-admission.ts`
 - `apps/mobile/src/ui/chat/{invite-selection,invite-sheet,invite-sheet.android}.{ts,tsx}`
 
 ## Terms
@@ -35,7 +36,7 @@ Launch a task-owned Host and run doctor. Seed a Group and two ordinary Bots thro
 
 - In Create channel, fill the name, select two Bot rows and create. Read the resulting Group using `botharness/channelGet` and compare its members and invitations with the rows in the result dialog.
 - Open the seeded Group and its Members panel, then select Add members. Select one Bot, change the search, select another Bot, and submit. Save screenshots in light and dark. Verify protected Tob and current Bot members are absent. Repeat with Bot auto-accept disabled and require a pending result.
-- In both Desktop dialogs, focus Search members and press Enter after selecting a member. Verify the form stays open and the Host state stays unchanged until explicit submission. With a dependent Bot selected, uncheck its Human owner and verify that submission is disabled until the owner is restored or the Bot is removed.
+- In both Desktop dialogs, focus Search members and press Enter after selecting a member. Verify the form stays open and the Host state stays unchanged until explicit submission. With a dependent Bot selected, deselect its Human owner and verify that submission is disabled until the owner is restored or the Bot is removed.
 - With Team mode on, use an authorized Human and a second active Host Member who owns a reachable Bot. Check the prerequisite from the Bot row, select the Human and Bot, confirm the history hint and submit. Verify the Human's Channel access and the Bot outcome through the Host. Repeat with a stale target and compare a confirmed partial result and retry with canonical membership and invitation state.
 - Compare CLI candidate and result projections with the UI for the same Host using `group-member-picker` and `group-members-add`. Exposing the member candidates without the corresponding Channel permission must be refused or omit that participant type. No model reply is needed for accepted invitations.
 

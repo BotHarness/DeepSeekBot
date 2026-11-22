@@ -21,6 +21,7 @@ import { Input } from './ds/input.js';
 import { Note } from './ds/note.js';
 import { ReadFailure } from './ds/read-failure.js';
 import { Select } from './ds/select.js';
+import { ListCard, ListCardItem } from './ds/list-card.js';
 import { SettingsRow, SettingsRows, SettingsSection } from './ds/settings-row.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
@@ -635,7 +636,7 @@ export function ModelProvidersSettings({
         ) : view.providers.length === 0 ? (
           <Note>{t('modelProviders.empty')}</Note>
         ) : (
-          <SidebarCardList label={t('modelProviders.apiKey')}>
+          <ListCard label={t('modelProviders.apiKey')}>
             {view.providers.map((provider) => {
               const names = readRoles
                 ? roles
@@ -643,7 +644,7 @@ export function ModelProvidersSettings({
                     .map((role) => roleLabel(t, role))
                 : [];
               return (
-                <SidebarCardRow
+                <ListCardItem
                   key={provider.id}
                   leading={
                     <ModelBrandIcon brand={providerBrand(provider.id, provider.name)} size={20} />
@@ -676,7 +677,7 @@ export function ModelProvidersSettings({
                 />
               );
             })}
-          </SidebarCardList>
+          </ListCard>
         )}
         {notice === undefined ? null : <Note tone="warning">{notice}</Note>}
       </SettingsSection>

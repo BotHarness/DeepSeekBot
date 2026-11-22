@@ -147,7 +147,11 @@ export function createOutboundGrants(context: {
     )?.id;
   };
 
-  const check = async (value: MessagingGrant, readAccount?: AccountReader) => {
+  const check = async (
+    value: MessagingGrant,
+    readAccount?: AccountReader,
+    recordChanges = true,
+  ) => {
     active(value.botSlug);
     if (value.revokedAt !== undefined) throw new MessagingError('grant-revoked');
     const identity = enabledBinding(value.bindingId);
@@ -169,7 +173,8 @@ export function createOutboundGrants(context: {
             );
     } catch (error) {
       current(value.providerId, entry.token);
-      if (error instanceof MessagingError && error.code === 'rebind-required') suspend(value);
+      if (recordChanges && error instanceof MessagingError && error.code === 'rebind-required')
+        suspend(value);
       throw error;
     }
     current(value.providerId, entry.token);
@@ -183,7 +188,7 @@ export function createOutboundGrants(context: {
       inspected.target.ref !== value.targetRef ||
       inspected.target.digest !== value.targetDigest
     ) {
-      suspend(value);
+      if (recordChanges) suspend(value);
       throw new MessagingError('rebind-required');
     }
     assertConversationAllowed(value, inspected.target.receiveScope);

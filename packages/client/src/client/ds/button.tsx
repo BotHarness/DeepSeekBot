@@ -2,7 +2,7 @@ import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import { joinClass } from './class-name.js';
 import { on } from './surface.stylex.js';
-import { accent, edge, ink, layer, state, style } from './tobs.stylex.js';
+import { accent, edge, ink, layer, state, style, type as typeScale } from './tobs.stylex.js';
 import { border, space } from './tokens.stylex.js';
 
 const styles = stylex.create({
@@ -54,6 +54,30 @@ const styles = stylex.create({
       ':active:enabled': state.pressed,
     },
   },
+  text: {
+    height: 'auto',
+    paddingInline: 0,
+    justifyContent: 'start',
+    color: 'inherit',
+    fontSize: typeScale.captionSize,
+    lineHeight: typeScale.captionLine,
+    fontWeight: typeScale.captionWeight,
+    whiteSpace: 'normal',
+    overflowWrap: 'anywhere',
+    textAlign: 'start',
+    textDecorationLine: { default: 'none', ':hover:enabled': 'underline' },
+    textDecorationStyle: 'dotted',
+  },
+  overlay: {
+    position: 'absolute',
+    inset: 0,
+    zIndex: 0,
+    height: 'auto',
+    padding: 0,
+    borderRadius: 0,
+    outlineOffset: `calc(-1 * ${border.focus})`,
+    backgroundColor: 'transparent',
+  },
   toolbar: {
     backgroundColor: layer.well,
     backgroundImage: {
@@ -90,7 +114,14 @@ const styles = stylex.create({
   },
 });
 
-export type ButtonVariant = 'primary' | 'ghost' | 'outline' | 'toolbar' | 'preview';
+export type ButtonVariant =
+  | 'primary'
+  | 'ghost'
+  | 'outline'
+  | 'text'
+  | 'overlay'
+  | 'toolbar'
+  | 'preview';
 
 export type ButtonProps = {
   readonly variant?: ButtonVariant;

@@ -236,7 +236,7 @@ A tool approval can be sent to one selected management DM of an approved pairing
 
 Why: an IM receipt or button press is not a decision, and a rule created by a reviewer who has since lost authority must not keep standing execution power.
 
-Enforced by: `lark-approval.test.ts`, `tool-approval-rules.test.ts`, `lark-questions.test.ts`.
+Enforced by: `lark-approval-native-cards.test.ts`, `lark-approval-standing-rules.test.ts`, `tool-approval-rules.test.ts`, `lark-questions.test.ts`.
 
 ## 16. Feedback, typing and alerts never risk duplicates
 

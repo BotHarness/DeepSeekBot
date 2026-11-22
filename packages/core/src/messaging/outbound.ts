@@ -391,6 +391,7 @@ export function createOutboundMessaging(options: OutboundMessagingOptions): Outb
   } = createOutboundReplies({
     inbound,
     database,
+    grant,
     check,
     current,
     get service() {
@@ -620,6 +621,7 @@ export function createOutboundMessaging(options: OutboundMessagingOptions): Outb
     prepareAudio: outboundMedia.prepareAudio,
     replyFile: outboundReplies.replyFile,
     reply: outboundReplies.reply,
+    replyCapability: outboundReplies.replyCapability,
     privateInputNotice: outboundReplies.privateInputNotice,
     register(value) {
       if (closed) throw new MessagingError('provider-unavailable');

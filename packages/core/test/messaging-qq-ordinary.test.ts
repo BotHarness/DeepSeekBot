@@ -8,6 +8,10 @@ import { createCore, type BotHarnessCore } from '../src/plugin.js';
 import type { OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
 import { createTempRoot } from './helpers.js';
 import { createBridgeMethods } from '../src/bridge/methods.js';
+import { messagingSource } from '../src/features/messaging/rpc.js';
+import { createBotMessageTool } from '../src/runtime/bot-message-tool.js';
+import { ToolCallId } from '@deepseek-ai/dsh-llm';
+import type { ToolRunContext } from '@deepseek-ai/dsh-tools';
 
 const cores = new Set<BotHarnessCore>();
 async function stop(core: BotHarnessCore) {
@@ -22,7 +26,7 @@ afterEach(async () => {
 });
 
 const policy = { collection: 'all', wake: 'digest', count: 2, intervalSeconds: 60 } as const;
-async function fixture(proactive = true, media = false, allByDefault = false) {
+async function fixture(proactive = true, media = false, allByDefault = false, secondGroup = false) {
   const fingerprint = 'a'.repeat(64);
   const home = createTempRoot('qq-ordinary-');
   type Consumer = Parameters<NonNullable<DshImOutboundService['consumeInbound']>>[1];
@@ -39,6 +43,16 @@ async function fixture(proactive = true, media = false, allByDefault = false) {
     listBots: async () => [{ botId: 'own-app', channel: 'qq' }],
     listTargets: async () => [
       { targetId: 'qa-group', kind: 'group', name: 'QQ QA', route: { groupOpenId: 'own-group' } },
+      ...(secondGroup
+        ? [
+            {
+              targetId: 'other-qa-group',
+              kind: 'group',
+              name: 'Other QA',
+              route: { groupOpenId: 'other-group' },
+            },
+          ]
+        : []),
     ],
     describeBot: async (botId) => ({
       version: 1,
@@ -93,14 +107,14 @@ async function fixture(proactive = true, media = false, allByDefault = false) {
         code: 'capability-unavailable',
       });
     }),
-    sendChecked: vi.fn(async (_account, _target, _text, options) => {
+    sendChecked: vi.fn(async (_account, target, _text, options) => {
       expect(options.beforeSend?.()).toBe(true);
       return {
         sent: true as const,
         receipt: {
           version: 1 as const,
           messageId: 'own-contribution',
-          conversationId: 'own-group',
+          conversationId: target === 'other-qa-group' ? 'other-group' : 'own-group',
         },
       };
     }),
@@ -160,6 +174,21 @@ async function fixture(proactive = true, media = false, allByDefault = false) {
     targetRef: target.ref,
     targetDigest: target.digest,
   });
+  const otherTarget = secondGroup
+    ? (await provider.targets('own-app')).find(
+        (item) => item.receiveScope?.conversationId === 'other-group',
+      )
+    : undefined;
+  const otherGrant =
+    otherTarget &&
+    (await core.externalMessaging.authorize({
+      botSlug: 'ada',
+      providerId: provider.id,
+      accountRef: 'own-app',
+      fingerprint,
+      targetRef: otherTarget.ref,
+      targetDigest: otherTarget.digest,
+    }));
   const enabled = async () => {
     await core.externalMessaging.inbound.setEnabled('ada', grant.id, true);
     for (let i = 0; i < 5; i++) await tick();
@@ -196,6 +225,8 @@ async function fixture(proactive = true, media = false, allByDefault = false) {
       return consumer;
     },
     grant,
+    otherGrant,
+    provider,
     transport,
     runs,
     logs,
@@ -235,6 +266,100 @@ it('QQ inherits all-message defaults before delivery proof and retains collectio
     2,
   );
   expect(fx.runs).toHaveLength(0);
+});
+
+it('explains a non-addressed QQ source and prevents a proactive fallback in the same run', async () => {
+  const fx = await fixture(true, false, true, true);
+  await fx.receive('ordinary-follow-up');
+  await fx.receive('addressed-request', true);
+  const run = fx.runs.at(-1)!;
+  const sourceFor = (messageId: string) => {
+    const sourceId = run
+      .triage!.current()
+      .find((id) => run.externalMessaging?.read(id).event.messageId === messageId);
+    if (sourceId === undefined) throw new Error(`Missing QQ source for ${messageId}`);
+    return sourceId;
+  };
+  const ordinary = sourceFor('ordinary-follow-up');
+  const addressed = sourceFor('addressed-request');
+  const tool = createBotMessageTool(() => run);
+  const send = async (id: string, args: Parameters<typeof tool.execute>[0]) => {
+    const callId = ToolCallId(id);
+    const execution: ToolRunContext = {
+      callId,
+      rootCallId: callId,
+      token: Symbol(id) as ToolRunContext['token'],
+      name: tool.name,
+      arguments: args,
+      signal: AbortSignal.timeout(5000),
+      deferContext: vi.fn(),
+      concludeTurn: vi.fn(),
+    };
+    return JSON.parse(String(await tool.execute(args, execution)));
+  };
+  const body = 'Answer from the original group';
+  const methods = createBridgeMethods(OWNER_HUMAN_CONTEXT, { ...fx.core });
+  const qualify = vi.fn<NonNullable<DshImOutboundService['qualifyReplyChecked']>>(
+    async (_account, route) => route,
+  );
+  fx.transport.qualifyReplyChecked = qualify;
+  expect(await methods.messagingSource({ slug: 'ada', sourceEventId: ordinary })).toMatchObject({
+    ok: true,
+    value: { source: { replyCapability: { state: 'unavailable', reason: 'qq-mention-required' } } },
+  });
+  expect(qualify).not.toHaveBeenCalled();
+  const checked = await messagingSource(methods, 'ada', addressed);
+  expect(checked.source.replyCapability).toEqual({ state: 'provider-checked' });
+  expect(qualify).toHaveBeenCalledWith(
+    'own-app',
+    expect.objectContaining({ conversationId: 'own-group', messageId: 'addressed-request' }),
+    expect.anything(),
+  );
+  const inspect = fx.provider.inspect;
+  vi.spyOn(fx.provider, 'inspect').mockImplementationOnce(async (...args) => {
+    const result = await inspect(...args);
+    const target = { ...result.target };
+    delete target.receiveScope;
+    return { ...result, target };
+  });
+  const checkedWithoutReportedScope = await messagingSource(methods, 'ada', addressed);
+  expect(checkedWithoutReportedScope.source.replyCapability).toEqual({ state: 'provider-checked' });
+  qualify.mockRejectedValueOnce(
+    Object.assign(new Error('expired'), { code: 'reply-window-expired' }),
+  );
+  expect(await methods.messagingSource({ slug: 'ada', sourceEventId: addressed })).toMatchObject({
+    ok: true,
+    value: {
+      source: { replyCapability: { state: 'unavailable', reason: 'reply-window-expired' } },
+    },
+  });
+  const failure = await send('ordinary', { source_event_id: ordinary, body });
+  expect(failure).toMatchObject({ status: 'refused', reason: 'qq-mention-required' });
+  expect(fx.transport.replyChecked).not.toHaveBeenCalled();
+  const fallback = await send('fallback', { grant_id: fx.otherGrant!.id, body });
+  expect(fallback).toMatchObject({ status: 'refused', reason: 'reply-destination-required' });
+  expect(fx.transport.sendChecked).not.toHaveBeenCalled();
+  fx.transport.replyChecked = vi.fn(async () => {
+    throw Object.assign(new Error('provider diagnostic'), { code: 'reply-window-expired' });
+  });
+  const expired = await send('expired', { source_event_id: addressed, body });
+  expect(expired).toMatchObject({
+    status: 'failed',
+    reason: 'reply-window-expired',
+    replyCapability: { state: 'unavailable', reason: 'reply-window-expired' },
+  });
+  expect(expired).not.toHaveProperty('grantId');
+  expect(expired).not.toHaveProperty('conversationId');
+  fx.transport.replyChecked = vi.fn(async (_account, route) => ({
+    sent: true as const,
+    receipt: {
+      version: 1 as const,
+      messageId: 'addressed-answer',
+      conversationId: route.conversationId,
+    },
+  }));
+  const reply = await send('addressed', { source_event_id: addressed, body });
+  expect(reply).toMatchObject({ status: 'committed', messageId: 'addressed-answer' });
 });
 
 it('QQ ordinary permission evidence does not collect or wake until the conversation explicitly opts in', async () => {
@@ -278,6 +403,56 @@ it('QQ ordinary permission evidence does not collect or wake until the conversat
   expect(fx.transport.sendChecked).not.toHaveBeenCalled();
   expect(fx.logs.filter((entry) => entry.includes('ordinary-delivery-verified'))).toHaveLength(1);
 });
+
+it.each(['deadline', 'caller cancellation'] as const)(
+  'stops the QQ reply-capability query on %s during account inspection',
+  async (stop) => {
+    const fx = await fixture();
+    await fx.receive('addressed-request', true);
+    const sourceId = fx.runs.at(-1)?.triage?.current()[0];
+    if (sourceId === undefined) throw new Error('Missing addressed QQ source');
+    const messaging = fx.core.externalMessaging;
+    const source = messaging.inbound.read('ada', sourceId);
+    let markStarted = () => {};
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    let release = () => {};
+    const released = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const describe = fx.transport.describeBot;
+    fx.transport.describeBot = async (botId) => {
+      markStarted();
+      await released;
+      return describe(botId);
+    };
+    const deadline = new AbortController();
+    const caller = new AbortController();
+    const timeout = vi.spyOn(AbortSignal, 'timeout').mockReturnValueOnce(deadline.signal);
+    const cancelled = new Error('Caller cancelled the reply-capability query');
+    try {
+      const result = messaging.replyCapability('ada', source, caller.signal).then(
+        (value) => ({ value }),
+        (error: unknown) => ({ error }),
+      );
+      await started;
+      if (stop === 'deadline') deadline.abort();
+      else caller.abort(cancelled);
+      const completed = await Promise.race([result, tick('inspection pending')]);
+      expect(completed).toEqual(
+        stop === 'deadline'
+          ? { value: { state: 'unavailable', reason: 'provider-timeout' } }
+          : { error: cancelled },
+      );
+      expect(fx.transport.replyChecked).not.toHaveBeenCalled();
+    } finally {
+      timeout.mockRestore();
+      fx.transport.describeBot = describe;
+      release();
+    }
+  },
+);
 
 it.each(['image/png', 'application/octet-stream'])(
   'retains ordinary QQ %s in canonical storage only while the authorized group collects all',
