@@ -63,6 +63,10 @@ import {
 import { ModelPickerFilters } from './model-picker-filters';
 import { ModelGroupPickerRow, ModelPickerRow } from './model-picker-row';
 import { RoutingGroupLink, type RoutingGroupLinkItem } from './routing-group-links';
+import { useEngineOptions } from './sub-choice-engines';
+import { SubChoiceSection } from './sub-choice-section';
+import { subChoiceKey } from './sub-choice-text';
+import type { SubChoice } from '@botharness/host-client/preset-sub';
 import { Button } from '../primitives/button';
 import { renderKeyboardFormScroll } from '../primitives/keyboard-form';
 import { SearchField } from '../primitives/search-field';
@@ -179,6 +183,7 @@ export function ModelsView({
   const t = useStrings();
   const router = useRouter();
   const models = useModels(client, scope);
+  const engines = useEngineOptions(client);
   const theme = useDesignTheme();
   const [query, setQuery] = useState('');
   const [family, setFamily] = useState<string>();
@@ -209,6 +214,13 @@ export function ModelsView({
         pathname: '/settings/model-picker',
         params: { field, ...extra, ...(scope.kind === 'preset' ? { id: scope.id } : {}) },
       });
+  };
+  const openChoice = (choice: SubChoice) => {
+    const key = subChoiceKey(choice);
+    if (scope.kind === 'bot')
+      router.push({ pathname: '/bot/[slug]/model-sub-choice', params: { slug: scope.slug, key } });
+    else if (scope.kind === 'preset')
+      router.push({ pathname: '/settings/model-sub-choice', params: { id: scope.id, key } });
   };
   const title =
     picker === 'allowed'
@@ -784,7 +796,7 @@ export function ModelsView({
       {models.busy ? <LoadingIndicator /> : null}
       <View style={{ paddingHorizontal: space.x5 }}>
         <SettingsSection
-          title={scope.kind === 'global' ? t.modelSettings.global : t.modelSettings.title}
+          {...(scope.kind === 'global' ? { title: t.modelSettings.global } : {})}
           on={SHEET_GROUP}
         >
           {scope.kind === 'bot' && value.currentTarget?.kind === 'engine' ? (
@@ -817,51 +829,6 @@ export function ModelsView({
               onPress={models.busy ? undefined : () => openPicker('orchestrator-effort')}
             />
           )}
-          {scope.kind === 'global' ? null : (
-            <>
-              <PickerLink
-                label={t.modelSettings.assignment}
-                detail={
-                  assignmentGroup !== undefined
-                    ? `${assignmentGroup} · ${routeLabel(value, assignmentShown)}`
-                    : routeEffortLabel(value, routes.assignmentDefault)
-                }
-                leading={
-                  <RouteIcon
-                    value={value}
-                    route={
-                      assignmentGroup !== undefined ? assignmentShown : routes.assignmentDefault
-                    }
-                  />
-                }
-                onPress={models.busy ? undefined : () => openPicker('assignment')}
-              />
-              {assignmentGroup === undefined ? null : (
-                <GroupEffortLink
-                  value={value}
-                  groupId={assignmentCatalogGroup?.id}
-                  effort={groupEffortOf(routes.groups, true)}
-                  onPress={models.busy ? undefined : () => openPicker('assignment-effort')}
-                />
-              )}
-              <PickerLink
-                label={t.modelSettings.allowed}
-                detail={
-                  routes.assignmentDefault === undefined
-                    ? t.modelSettings.inherited
-                    : t.modelSettings.count(
-                        routes.assignmentModels.length +
-                          (routes.groups.assignmentGroups?.length ?? 0),
-                      )
-                }
-                onPress={
-                  models.busy || routes.assignmentDefault === undefined
-                    ? undefined
-                    : () => openPicker('allowed')
-                }
-              />
-            </>
-          )}
           {scope.kind === 'bot' ? (
             <SettingsRow
               on={SHEET_GROUP}
@@ -877,11 +844,16 @@ export function ModelsView({
           ) : null}
         </SettingsSection>
       </View>
-      {scope.kind === 'global' || routes.assignmentDefault === undefined ? null : (
-        <AllowedEffortLinks
-          value={value}
-          onOpen={models.busy ? undefined : (target) => openPicker('allowed-effort', target)}
-        />
+      {scope.kind === 'global' ? null : (
+        <View style={{ paddingHorizontal: space.x5 }}>
+          <SubChoiceSection
+            value={value}
+            engines={engines}
+            busy={models.busy}
+            onOpen={openChoice}
+            onAdd={() => openPicker('sub-add')}
+          />
+        </View>
       )}
       <View style={{ paddingHorizontal: space.x5, gap: space.x3 }}>
         <TextField

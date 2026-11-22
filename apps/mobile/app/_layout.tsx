@@ -94,6 +94,7 @@ function RootNavigator() {
     ['model-provider-account', t.modelProviders.account],
     ['models', t.modelConfig.title],
     ['model-preset-new', undefined],
+    ['model-sub-choice', undefined],
     ['model-picker', undefined],
     ['model-preset', undefined],
     ['routing-group', undefined],

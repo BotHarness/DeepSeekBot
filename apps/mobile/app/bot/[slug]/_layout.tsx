@@ -43,6 +43,7 @@ export default function BotProfileLayout() {
         <Stack.Screen name="routine-edit/[id]" />
         <Stack.Screen name="model" />
         <Stack.Screen name="model-picker" />
+        <Stack.Screen name="model-sub-choice" />
         <Stack.Screen name="workspace" />
         <Stack.Screen name="approval-history" />
         <Stack.Screen name="approval-rules" />
