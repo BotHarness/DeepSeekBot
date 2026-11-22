@@ -15,6 +15,7 @@ import {
 import { createRouteRests } from '../src/models/route-rest.js';
 import { createCore } from '../src/plugin.js';
 import type { AssignmentAgentRun, OrchestratorAgentRun } from '../src/runtime/bot-runtime.js';
+import { TeamError } from '../src/team/error.js';
 import { botModelFilter, requireBotEngineAccount } from '../src/team/models.js';
 import { createTempRoot } from './helpers.js';
 
@@ -116,7 +117,7 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
       },
       modelFilter: () => botModelFilter(core.team, core.registry.get('ada')),
     });
-    const create = createAssignmentTool({
+    const createOptions = {
       run,
       currentRun: () => ({ run }),
       resolveModelPlan,
@@ -124,7 +125,8 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
       openAssignmentRoutes: undefined,
       assignmentGroups: undefined,
       modeChoices: undefined,
-    });
+    };
+    const create = createAssignmentTool(createOptions);
     const execute = async (tool: typeof create, args: Record<string, unknown>) =>
       JSON.parse(String(await tool.execute(args, {} as ToolRunContext)));
     const dispatch = (title: string, args = {}) =>
@@ -255,6 +257,56 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
       });
     }
     expect(readAssignments()).toHaveLength(count);
+
+    const legacyEngine = core.modelPresets.create({
+      name: 'Use the engine default model',
+      orchestrator: careful,
+      assignmentDefault: careful,
+      engines: { assignmentEngine: { engine: 'codex', accountId: account.id, effort: 'high' } },
+    });
+    engineHost.store.clearQuota('codex', account.id);
+    grantRoutes(['go/fast', 'go/careful'], [account.id]);
+    core.registry.applyModelPreset('ada', legacyEngine);
+    const legacyDefault = await dispatch('Default engine model');
+    expect(legacyDefault).toMatchObject({ outcome: 'created' });
+    const defaultTarget = {
+      kind: 'engine',
+      engine: 'codex',
+      accountId: account.id,
+      reasoningEffort: 'high',
+    };
+    await core.runtime.whenIdle();
+    expect(runs.at(-1)?.routingTarget).toEqual(defaultTarget);
+    expect(readAssignments()).toContainEqual({
+      session_id: legacyDefault.sessionId,
+      model_route_json: JSON.stringify(defaultTarget),
+    });
+
+    const { sub: _sub, ...legacyPlan } = resolveModelPlan()!;
+    const deniedRoutingGroup = createAssignmentTool({
+      ...createOptions,
+      resolveModelPlan: () => ({
+        ...legacyPlan,
+        assignmentGroups: ['backup'],
+        assignmentDefaultGroupId: 'backup',
+      }),
+      assignmentGroups: {
+        async pick() {
+          throw new TeamError('model-not-allowed');
+        },
+      },
+    });
+    expect(
+      await execute(deniedRoutingGroup, {
+        title: 'Revoked Routing Group',
+        description: 'Refuse this legacy plan.',
+        grant_id: grant.id,
+      }),
+    ).toEqual({
+      outcome: 'refused',
+      retryable: false,
+      message: 'Routing Group backup has no usable model',
+    });
   } finally {
     await core.runtime.close();
     core.schedules.close();

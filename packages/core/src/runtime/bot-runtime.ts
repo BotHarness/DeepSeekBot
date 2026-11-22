@@ -159,6 +159,7 @@ import {
   type ModelRoute,
 } from '../models/presets.js';
 import {
+  isPresetSubEngineSelection,
   matchesPresetSubChoice,
   presetSubEngineTarget,
   type PresetSubEngineSelection,
@@ -169,7 +170,7 @@ import {
   type ModelSwitch,
   unavailableRoutingEngine,
 } from '../models/group-fallback.js';
-import { isRoutingGroupMember, type RoutingTarget } from '../models/routing-groups.js';
+import type { RoutingTarget } from '../models/routing-groups.js';
 import { EngineLimitError, EngineRefusal } from '../engines/engine-session.js';
 import type { AssignmentAccessStore } from '../workspaces/assignment-access.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
@@ -1210,7 +1211,12 @@ function storedAssignmentTarget(row: AssignmentRow): RoutingTarget | ModelRoute 
     isModelRoute(target.route)
   )
     return { kind: 'route', route: target.route };
-  if (isRoutingGroupMember(target) && target.kind === 'engine') return target;
+  if (isPresetSubEngineSelection(target)) {
+    const effort = 'reasoningEffort' in target ? target.reasoningEffort : undefined;
+    if (effort === undefined) return presetSubEngineTarget(target);
+    if (typeof effort === 'string' && effort.trim() !== '')
+      return presetSubEngineTarget({ ...target, effort });
+  }
   throw new Error(`Invalid Assignment model route: ${row.session_id}`);
 }
 

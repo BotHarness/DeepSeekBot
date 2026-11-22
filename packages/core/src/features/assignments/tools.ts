@@ -348,7 +348,11 @@ export function createAssignmentTool({
         try {
           pick = await assignmentGroups?.pick(run.bot.slug, groupId, groupEffort);
         } catch (error) {
-          return refusal(error);
+          if (
+            plan?.sub !== undefined ||
+            !(error instanceof TeamError && error.code === 'model-not-allowed')
+          )
+            return refusal(error);
         }
         if (pick?.kind !== 'route' && pick?.kind !== 'target')
           return JSON.stringify({

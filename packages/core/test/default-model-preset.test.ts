@@ -184,6 +184,14 @@ it.each(['model-preset-sub-choices', 'model-preset-sub-engine-choices'])(
           default: { kind: 'engine', engine: 'claude' },
         },
       },
+      {
+        id: 'engine-with-effort-on-the-default-model',
+        fields: { assignmentEngine: { engine: 'codex', effort: 'high' } },
+        expected: {
+          choices: [routeChoice, { kind: 'engine', engine: 'codex', effort: 'high' }],
+          default: { kind: 'engine', engine: 'codex' },
+        },
+      },
     ];
     homes.push({ root, close: () => prior.close() });
     attachOperationalModule(prior, 'test').transaction(
