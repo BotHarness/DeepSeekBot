@@ -67,7 +67,7 @@ it('keeps a failed draft for the next visit and clears it after a successful ret
       async () => {
         if (fail) throw new Error('offline');
       },
-      (text) => forgetFailedNote(key, text),
+      () => forgetFailedNote(key),
       (cause, text) => rememberFailedNote(key, { text, error: (cause as Error).message }),
     );
   const first = visit();
@@ -79,4 +79,20 @@ it('keeps a failed draft for the next visit and clears it after a successful ret
   second.commit(failedNote(key)!.text, '');
   await second.settled();
   expect(failedNote(key)).toBeUndefined();
+});
+
+it('clears an older failed draft when a newer note saves', async () => {
+  const key = 'host-a:preset:default:x';
+  const queue = noteQueue(
+    async (text) => {
+      if (text === 'A') throw new Error('stale');
+    },
+    () => forgetFailedNote(key),
+    (cause, text) => rememberFailedNote(key, { text, error: (cause as Error).message }),
+  );
+  queue.commit('A', '');
+  queue.commit('B', '');
+  await queue.settled();
+  expect(failedNote(key)).toBeUndefined();
+  expect(failedNote('host-b:preset:default:x')).toBeUndefined();
 });

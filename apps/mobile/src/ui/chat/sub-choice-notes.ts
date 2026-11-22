@@ -44,6 +44,6 @@ export function rememberFailedNote(key: string, note: FailedNote): void {
   failedNotes.set(key, note);
 }
 
-export function forgetFailedNote(key: string, text?: string): void {
-  if (text === undefined || failedNotes.get(key)?.text === text) failedNotes.delete(key);
+export function forgetFailedNote(key: string): void {
+  failedNotes.delete(key);
 }

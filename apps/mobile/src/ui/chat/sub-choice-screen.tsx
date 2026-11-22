@@ -77,6 +77,7 @@ export function SubChoiceRoute({ kind }: { kind: 'preset' | 'bot' }) {
     <SubChoiceDetail
       key={`${saved?.hostId}:${modelScopeKey(scope)}:${key}`}
       client={client}
+      hostId={saved?.hostId ?? ''}
       scope={scope}
       choiceKey={key}
     />
@@ -85,10 +86,12 @@ export function SubChoiceRoute({ kind }: { kind: 'preset' | 'bot' }) {
 
 function SubChoiceDetail({
   client,
+  hostId,
   scope,
   choiceKey,
 }: {
   client: HostClient;
+  hostId: string;
   scope: ModelScope;
   choiceKey: string;
 }) {
@@ -100,7 +103,7 @@ function SubChoiceDetail({
   const sub = value === undefined ? undefined : modelSub(value);
   const choice = sub?.choices.find((entry) => subChoiceKey(entry) === choiceKey);
   const scopeKey = modelScopeKey(scope);
-  const draftKey = `${scopeKey}:${choiceKey}`;
+  const draftKey = `${hostId}:${scopeKey}:${choiceKey}`;
   const [note, setNote] = useState<string | undefined>(() => failedNote(draftKey)?.text);
   const [noteError, setNoteError] = useState<string | undefined>(() => failedNote(draftKey)?.error);
   const resource = useMemo(() => modelSettingsResource(client, scope), [client, scopeKey]);
@@ -116,7 +119,7 @@ function SubChoiceDetail({
       });
     },
     (text) => {
-      forgetFailedNote(draftKey, text);
+      forgetFailedNote(draftKey);
       setNoteError(undefined);
       setNote((current) => (current === text ? undefined : current));
       models.refresh();
