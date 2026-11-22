@@ -609,8 +609,8 @@
       "description": "Bot Zip export and file-list inspection lack direct CLI; create --from-zip already covers import.",
       "scope": "Host",
       "surfaces": [
-        "route:packages/core/src/plugin.ts:BOT_ZIP_EXPORT_PATH",
-        "route:packages/core/src/plugin.ts:BOT_ZIP_FILES_PATH"
+        "route:packages/core/src/features/marketplace/plugin.ts:BOT_ZIP_EXPORT_PATH",
+        "route:packages/core/src/features/marketplace/plugin.ts:BOT_ZIP_FILES_PATH"
       ],
       "issue": "#2089"
     },
@@ -748,8 +748,8 @@
       "description": "Authenticated live Channel projection and static avatar/banner rendering; content is managed through existing send/profile APIs.",
       "scope": "Client transport / transient state",
       "surfaces": [
-        "route:packages/core/src/plugin.ts:BOT_AVATAR_PATH",
-        "route:packages/core/src/plugin.ts:BOT_BANNER_PATH",
+        "route:packages/core/src/features/avatars/plugin.ts:BOT_AVATAR_PATH",
+        "route:packages/core/src/features/avatars/plugin.ts:BOT_BANNER_PATH",
         "route:packages/core/src/plugin.ts:CHANNEL_STREAM_PATH"
       ],
       "exemption": "Authenticated live Channel projection and static avatar/banner rendering; content is managed through existing send/profile APIs.",
@@ -1028,7 +1028,7 @@
       "description": "Existing authenticated CLI path.",
       "scope": "Host",
       "commands": ["create"],
-      "surfaces": ["route:packages/core/src/plugin.ts:BOT_ZIP_IMPORT_PATH"]
+      "surfaces": ["route:packages/core/src/features/marketplace/plugin.ts:BOT_ZIP_IMPORT_PATH"]
     },
     {
       "id": "attachment-download",

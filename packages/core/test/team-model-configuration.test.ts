@@ -62,6 +62,56 @@ describe('Shared model configuration', () => {
   } satisfies RoutingGroupInput;
   const defaultChoice = { expectedRevision: 0, route: permitted, globalDefault: true };
 
+  it('requires configure and model grants to replace sub; preserves the pinned preset and revision', async () => {
+    const f = fixture();
+    const denied = { provider: 'provider', model: 'denied' };
+    const role = f.team.roles.create(owner, 'Restricted presets', ['models.use']).role;
+    f.team.roles.set(owner, f.member.humanId, [role.roleId]);
+    const group = f.deps.routingGroups.create({
+      name: 'Fallback',
+      members: [{ kind: 'model', ...denied }],
+    });
+    const routing = { kind: 'group', group: group.id };
+    const sub = { choices: [routing], default: routing };
+    const request = { id: f.pinned.id, expectedRevision: f.pinned.revision, sub };
+    expect(f.methods.modelPresetSub({ id: f.pinned.id })).toMatchObject({
+      ok: true,
+      value: { sub: { choices: [], default: null } },
+    });
+    expect(await f.methods.modelPresetSubSet(request)).toMatchObject({
+      ok: false,
+      error: { code: 'permission-required' },
+    });
+    f.team.roles.update(owner, role.roleId, {
+      permissions: ['models.use', 'models.configure'],
+      models: { kind: 'only', routes: ['provider/allowed'] },
+    });
+    expect(await f.methods.modelPresetSubSet(request)).toMatchObject({
+      ok: false,
+      error: { code: 'model-not-allowed' },
+    });
+    const ownerMethods = createBridgeMethods(owner, f.deps);
+    expect(await ownerMethods.modelPresetSubSet(request)).toMatchObject({
+      ok: true,
+      value: { id: 'default', revision: 2, sub },
+    });
+    expect(f.methods.modelPresetSub({ id: f.pinned.id })).toMatchObject({
+      ok: false,
+      error: { code: 'model-not-allowed' },
+    });
+    expect(await ownerMethods.modelPresetSubSet(request)).toMatchObject({
+      ok: false,
+      error: { code: 'stale-setting' },
+    });
+    expect(
+      await ownerMethods.modelPresetSubSet({
+        ...request,
+        expectedRevision: 2,
+        sub: { choices: [], default: null },
+      }),
+    ).toMatchObject({ ok: true, value: { revision: 3, sub: { choices: [], default: null } } });
+  });
+
   it('gates all shared writes and leaves the shared reads and Bot preset application available', async () => {
     const f = fixture();
     const preset = f.deps.modelPresets.create(plan);

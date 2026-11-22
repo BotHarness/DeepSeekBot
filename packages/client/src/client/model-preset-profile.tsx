@@ -1,5 +1,6 @@
 import type { SubscriptionModel } from '@botharness/host-client/model-plans';
 import { Tag } from './ds/tag.js';
+import { CodexDeviceSignIn } from './codex-device-sign-in.js';
 import { Button } from './ds/button.js';
 import { SegmentedControl } from './ds/segmented.js';
 import { useRef, useState, type ReactElement } from 'react';
@@ -115,6 +116,7 @@ export function ModelPresetProfile({
     engines.signingIn,
     t,
     origin,
+    engines.supportsDeviceSignIn,
   );
   const liveEngine = (role: EngineRole) =>
     engines.view !== undefined
@@ -590,6 +592,7 @@ export function ModelPresetProfile({
               {origin && engines.view?.engines.length === 0 ? (
                 <Note>{t('engine.localOnly')}</Note>
               ) : null}
+              <CodexDeviceSignIn engines={engines} t={t} />
               {engines.signInUrl === undefined ? null : (
                 <Note>
                   <a href={engines.signInUrl} target="_blank" rel="noopener noreferrer">

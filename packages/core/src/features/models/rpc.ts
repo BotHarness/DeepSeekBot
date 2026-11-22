@@ -16,6 +16,7 @@ import type {
   ModelPresetEngine,
   ModelRoute,
   PersonaBotModelPlan,
+  PresetSub,
 } from '../../models/presets.js';
 import type { RoutingGroup, RoutingGroupMember } from '../../models/routing-groups.js';
 import type {
@@ -23,6 +24,7 @@ import type {
   ModelProviderBridgeMethods,
   EngineAccountBridgeMethods,
 } from './methods.js';
+import type { ModelPresetSubView } from './preset-sub-methods.js';
 function presetGroupArgs(
   orchestratorGroupId: string | null | undefined,
   assignmentGroups: string[] | undefined,
@@ -133,15 +135,25 @@ export function engineAccountLogin(
   methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
   id: string,
   engine?: string,
+  mode?: 'device-auth',
 ) {
-  return unwrapAsync(methods.engineAccountLogin({ id, engine }));
+  return unwrapAsync(methods.engineAccountLogin({ id, engine, mode }));
+}
+
+export function engineAccountLoginStatus(
+  methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
+  id: string,
+  attemptId: string,
+) {
+  return unwrapAsync(methods.engineAccountLoginStatus({ id, attemptId }));
 }
 
 export function engineAccountLoginCancel(
   methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
   id: string,
+  attemptId?: string,
 ) {
-  return unwrapAsync(methods.engineAccountLoginCancel({ id }));
+  return unwrapAsync(methods.engineAccountLoginCancel({ id, attemptId }));
 }
 
 export function engineAccountSubmitCode(
@@ -191,11 +203,24 @@ export function modelPresetDelete(
   return unwrap(methods.modelPresetDelete({ id, expectedRevision, confirmed }));
 }
 
+export function modelPresetSub(methods: ModelsBridgeMethods, id: string): ModelPresetSubView {
+  return unwrap(methods.modelPresetSub({ id }));
+}
+
+export function modelPresetSubSet(
+  methods: ModelsBridgeMethods,
+  id: string,
+  expectedRevision: number,
+  sub: PresetSub,
+): Promise<ModelPresetSubView> {
+  return unwrapAsync(methods.modelPresetSubSet({ id, expectedRevision, sub }));
+}
+
 export function modelPresetCreate(
   methods: ModelsBridgeMethods & ModelProviderBridgeMethods & EngineAccountBridgeMethods,
   name: string,
   orchestrator: ModelRoute | undefined,
-  assignmentDefault: ModelRoute,
+  assignmentDefault: ModelRoute | undefined,
   assignmentModels?: AssignmentModelOption[],
   openAssignmentModels?: boolean,
   orchestratorGroupId?: string | null,

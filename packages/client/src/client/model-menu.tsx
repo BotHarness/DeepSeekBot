@@ -265,12 +265,16 @@ export const engineMenuKey = (engine: EngineId, model: string, accountId?: strin
 export const engineSignInKey = (engine: EngineId, accountId?: string): string =>
   `engine-signin:${engineModelKey(engine, accountId)}`;
 
+export const engineDeviceSignInKey = (engine: EngineId, accountId?: string): string =>
+  `engine-device-signin:${engineModelKey(engine, accountId)}`;
+
 export function engineMenuItems(
   engines: readonly EngineStatusView[],
   models: EngineModels,
   signingIn: string | undefined,
   t: BotHarnessTranslate,
   canSignIn = true,
+  canDeviceSignIn = false,
 ): ModelMenuItem[] {
   return engines.flatMap((status): ModelMenuItem[] => {
     const { engine, accountId, accountName } = status;
@@ -326,6 +330,17 @@ export function engineMenuItems(
         ...(status.reason === 'login-unknown' ? { hint: t('engine.loginUnknown') } : {}),
         disabled: !canSignIn || signingIn !== undefined,
       },
+      ...(canSignIn && canDeviceSignIn && engine === 'codex'
+        ? [
+            {
+              ...base,
+              value: engineDeviceSignInKey(engine, accountId),
+              name: t('modelProviders.deviceSignIn'),
+              label: t('modelProviders.deviceSignInLabel', { engine: title }),
+              disabled: signingIn !== undefined,
+            },
+          ]
+        : []),
     ];
   });
 }

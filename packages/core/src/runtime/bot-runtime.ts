@@ -4,6 +4,7 @@ export type { GroupContext } from './group-digest.js';
 import { createChannelAdmission } from '../channels/runtime-admission.js';
 import { createCausalSending } from '../channels/causal-sending.js';
 import type { SessionModelChoice } from '@botharness/host-protocol/session-model';
+import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { routingTargetRestKey } from '../models/group-fallback.js';
 import { directSessionTarget, sessionModelChoices } from './session-model-choices.js';
 import { createOrchestratorScheduling } from './orchestrator-scheduling.js';
@@ -155,16 +156,23 @@ import {
   selectAssignmentGroup,
   type PersonaBotModelPlan,
   selectAssignmentRoute,
+  AssignmentChoiceError,
   type ModelRoute,
 } from '../models/presets.js';
+import {
+  isPresetSubEngineSelection,
+  matchesPresetSubChoice,
+  presetSubEngineTarget,
+  type PresetSubEngineSelection,
+} from '../models/preset-sub.js';
 import type { RouteRests } from '../models/route-rest.js';
 import {
   type GroupFallback,
   type ModelSwitch,
   unavailableRoutingEngine,
 } from '../models/group-fallback.js';
-import { isRoutingGroupMember, type RoutingTarget } from '../models/routing-groups.js';
-import { EngineLimitError } from '../engines/engine-session.js';
+import type { RoutingTarget } from '../models/routing-groups.js';
+import { EngineLimitError, EngineRefusal, isEngineId } from '../engines/engine-session.js';
 import type { AssignmentAccessStore } from '../workspaces/assignment-access.js';
 import type { PersonaBotRegistry } from '../bots/registry.js';
 import type {
@@ -373,6 +381,8 @@ export interface OrchestratorAssignmentAccess {
     key?: string;
     grantId: string;
     model?: ModelRoute;
+    engine?: PresetSubEngineSelection;
+    engineEffort?: string;
     modelGroupId?: string;
     routingTarget?: RoutingTarget;
     modelGroupEffort?: string;
@@ -974,6 +984,7 @@ export interface BotRuntime {
   admitGroupJoinDecision?(requesterDmChannelId: string, requestId: string): void;
   listAssignments(botSlug: string): AssignmentSummary[];
   latestAssignmentActivity?(): ReadonlyMap<string, number>;
+  assignmentEngineAccountUses?(accountId: string): string[];
   currentOrchestratorSessionId?(botSlug: string): string | undefined;
   currentTurnTarget?(botSlug: string): TurnTarget | undefined;
   activeSessionModel?(sessionId: string): SessionModelChoice | null | undefined;
@@ -1037,6 +1048,10 @@ export interface BotRuntimeOptions {
   triageContinuation?: boolean;
   messagePerf?: MessagePerfTracker;
   requireModelRoute?: (botSlug: string, route: ModelRoute) => void;
+  requireAssignmentEngine?: (
+    botSlug: string,
+    target: Extract<RoutingTarget, { kind: 'engine' }>,
+  ) => void;
   requireExecution?: (botSlug: string) => void;
   routeRests?: Pick<RouteRests, 'restingUntil'>;
   inheritedModelPlan?: () => PersonaBotModelPlan | undefined;
@@ -1185,13 +1200,31 @@ function permissionFromRow(row: AssignmentRow): AssignmentPermissionSnapshot | u
   };
 }
 
-function assignmentTargetFromRow(row: AssignmentRow): RoutingTarget | undefined {
+function storedAssignmentTarget(row: AssignmentRow): RoutingTarget | ModelRoute | undefined {
   if (row.model_route_json === null) return undefined;
   const target: unknown = JSON.parse(row.model_route_json);
-  if (isModelRoute(target)) return { kind: 'route', route: target };
-  if (isRoutingGroupMember(target) && target.kind === 'engine' && row.model_group_id !== null)
-    return target;
+  if (isModelRoute(target)) return target;
+  if (
+    typeof target === 'object' &&
+    target !== null &&
+    'kind' in target &&
+    target.kind === 'route' &&
+    'route' in target &&
+    isModelRoute(target.route)
+  )
+    return { kind: 'route', route: target.route };
+  if (isPresetSubEngineSelection(target)) {
+    const effort = 'reasoningEffort' in target ? target.reasoningEffort : undefined;
+    if (effort === undefined) return presetSubEngineTarget(target);
+    if (typeof effort === 'string' && effort.trim() !== '')
+      return presetSubEngineTarget({ ...target, effort });
+  }
   throw new Error(`Invalid Assignment model route: ${row.session_id}`);
+}
+
+function assignmentTargetFromRow(row: AssignmentRow): RoutingTarget | undefined {
+  const target = storedAssignmentTarget(row);
+  return target === undefined || 'kind' in target ? target : { kind: 'route', route: target };
 }
 
 function modelRouteFromRow(row: AssignmentRow): ModelRoute | undefined {
@@ -1524,6 +1557,7 @@ const ORCHESTRATOR_STOP_NOTICE =
 
 class BotRuntimeImplementation implements BotRuntime {
   readonly #requireModelRoute: BotRuntimeOptions['requireModelRoute'];
+  readonly #requireAssignmentEngine: BotRuntimeOptions['requireAssignmentEngine'];
   readonly #requireExecution: BotRuntimeOptions['requireExecution'];
   readonly #routeRests: BotRuntimeOptions['routeRests'];
   readonly #inheritedModelPlan: BotRuntimeOptions['inheritedModelPlan'];
@@ -1682,6 +1716,7 @@ class BotRuntimeImplementation implements BotRuntime {
     this.#engineFallback = options.engineFallback;
     this.#team = options.team;
     this.#requireModelRoute = options.requireModelRoute;
+    this.#requireAssignmentEngine = options.requireAssignmentEngine;
     this.#channels = options.channels;
     this.groupSendReview = new GroupSendReview(
       attachOperationalModule(options.database, 'channel-send-review'),
@@ -4052,6 +4087,30 @@ class BotRuntimeImplementation implements BotRuntime {
     });
   }
 
+  assignmentEngineAccountUses(accountId: string): string[] {
+    return this.#database.read((database) => {
+      const rows = database
+        .prepare(
+          `SELECT session_id, json_extract(model_route_json, '$.engine') AS engine,
+                  json_extract(model_route_json, '$.accountId') AS account_id
+             FROM assignments
+            WHERE model_group_id IS NULL
+              AND json_extract(model_route_json, '$.kind') = 'engine'
+              AND (account_id = ? OR account_id IS NULL)
+            ORDER BY session_id`,
+        )
+        .all(accountId);
+      return rows.flatMap(({ session_id, engine, account_id }) =>
+        typeof session_id === 'string' &&
+        isEngineId(engine) &&
+        engineAccountKey(engine, typeof account_id === 'string' ? account_id : undefined) ===
+          accountId
+          ? [session_id]
+          : [],
+      );
+    });
+  }
+
   async refreshBotContacts(): Promise<void> {
     await this.#botNetwork?.refresh?.();
   }
@@ -4378,12 +4437,12 @@ class BotRuntimeImplementation implements BotRuntime {
       (this.#assignmentAvailable(sessionId, 'idle') ||
         this.#assignmentExecutionAvailable(sessionId)) &&
       trusted();
-    const refuse = () => {
+    const refuse = (reason = 'execution-unavailable') => {
       this.#warn?.(
         JSON.stringify({
           event: 'native-assignment-input',
           phase: 'refused',
-          reason: 'execution-unavailable',
+          reason,
           session: sessionId,
           durationMs: Date.now() - startedAt,
         }),
@@ -4429,6 +4488,10 @@ class BotRuntimeImplementation implements BotRuntime {
       const row = this.#assignmentRow(undefined, sessionId)!;
       const bot = this.#registry.get(row.bot_slug)!;
       const permission = permissionFromRow(row)!;
+      const retained = row.model_group_id === null ? storedAssignmentTarget(row) : undefined;
+      const directTarget = retained !== undefined && 'kind' in retained ? retained : undefined;
+      if (directTarget?.kind === 'engine' && this.#sessionModels.get(sessionId) === null)
+        return refuse('native-input-requires-dsh-agent');
       return new Promise<boolean>((resolve) => {
         let settled = false;
         const finish = (accepted: boolean) => {
@@ -4459,6 +4522,7 @@ class BotRuntimeImplementation implements BotRuntime {
               failEngineRecovery: (summary) =>
                 this.#assignmentReporting.recordEngineRecoveryFailure(bot.slug, sessionId, summary),
               ...(modelRoute === undefined ? {} : { modelRoute }),
+              ...(directTarget?.kind === 'route' ? { routingTarget: directTarget } : {}),
               ...(agentPreset === undefined ? {} : { agentPreset }),
               requireContent: () => {
                 this.#requireTurnAccess(bot.slug, row.source_event_id ? [row.source_event_id] : []);
@@ -7975,6 +8039,8 @@ class BotRuntimeImplementation implements BotRuntime {
       key?: string;
       grantId: string;
       model?: ModelRoute;
+      engine?: PresetSubEngineSelection;
+      engineEffort?: string;
       modelGroupId?: string;
       routingTarget?: RoutingTarget;
       modelGroupEffort?: string;
@@ -8015,14 +8081,6 @@ class BotRuntimeImplementation implements BotRuntime {
         (input.model === undefined && input.routingTarget === undefined))
     )
       throw new Error('An Assignment Routing Group needs its chosen member route');
-    const modelRoute =
-      modelGroupId !== undefined
-        ? input.routingTarget?.kind === 'route'
-          ? input.routingTarget.route
-          : input.model
-        : plan === undefined
-          ? undefined
-          : selectAssignmentRoute(plan, input.model);
     if (this.#grants === undefined) throw new Error('Workspace Grants are unavailable');
     const grant = this.#grants.requireActive(bot.slug, grantId);
     const access = this.#assignmentAccessPresetStore?.get(bot.slug) ?? {
@@ -8056,7 +8114,11 @@ class BotRuntimeImplementation implements BotRuntime {
         (holder.activity === 'idle' || holder.activity === 'error') &&
         holder.stop_state === 'running'
       ) {
-        if (input.model !== undefined || input.routingTarget !== undefined)
+        if (
+          input.model !== undefined ||
+          input.routingTarget !== undefined ||
+          input.engine !== undefined
+        )
           throw new Error(
             'An existing keyed Assignment keeps its model; use a new key for a new model choice',
           );
@@ -8087,10 +8149,63 @@ class BotRuntimeImplementation implements BotRuntime {
         };
       }
     }
+    const engineSelection =
+      input.engine ??
+      (modelGroupId === undefined &&
+      input.model === undefined &&
+      plan?.sub?.default?.kind === 'engine'
+        ? plan.sub.default
+        : undefined);
+    let engineTarget: Extract<RoutingTarget, { kind: 'engine' }> | undefined;
+    if (engineSelection !== undefined) {
+      const choice = plan?.sub?.choices.find((entry) =>
+        matchesPresetSubChoice(entry, engineSelection),
+      );
+      if (
+        choice?.kind !== 'engine' ||
+        (input.engineEffort !== undefined && input.engineEffort !== (choice.effort ?? ''))
+      )
+        throw new AssignmentChoiceError(
+          'assignment-choice-not-allowed',
+          'Choose a listed Assignment Subscription Engine account, model and effort',
+        );
+      engineTarget = presetSubEngineTarget(choice);
+      try {
+        this.#requireAssignmentEngine?.(bot.slug, engineTarget);
+      } catch (error) {
+        if (error instanceof EngineLimitError)
+          throw new AssignmentChoiceError('assignment-choice-resting', error.message);
+        if (error instanceof EngineRefusal)
+          throw new AssignmentChoiceError('assignment-choice-unavailable', error.message);
+        throw error;
+      }
+    }
+    const modelRoute =
+      modelGroupId !== undefined
+        ? input.routingTarget?.kind === 'route'
+          ? input.routingTarget.route
+          : input.model
+        : plan === undefined || engineTarget !== undefined
+          ? undefined
+          : selectAssignmentRoute(plan, input.model);
     if (modelRoute) this.#requireModelRoute?.(bot.slug, modelRoute);
+    if (plan?.sub !== undefined && modelGroupId === undefined && modelRoute !== undefined) {
+      const rest = this.#routeRests?.restingUntil(modelRoute);
+      if (rest !== undefined)
+        throw new AssignmentChoiceError(
+          'assignment-choice-resting',
+          `Assignment model ${rest.provider}/${rest.model} is resting until ${rest.until}`,
+        );
+    }
     const target =
+      engineTarget ??
       input.routingTarget ??
       (modelRoute === undefined ? undefined : { kind: 'route' as const, route: modelRoute });
+    const directTarget =
+      modelGroupId === undefined &&
+      (engineTarget !== undefined || plan?.sub?.choices.some((choice) => choice.kind === 'engine'))
+        ? target
+        : undefined;
     const refusal = this.#assignmentCapacityRefusal('created');
     if (refusal !== undefined) return refusal;
     const sessionId = this.#createSessionId();
@@ -8146,7 +8261,11 @@ class BotRuntimeImplementation implements BotRuntime {
             permission.mode,
             permission.approval,
             permission.presetRevision,
-            target === undefined ? null : saveAssignmentTarget(target),
+            directTarget !== undefined
+              ? JSON.stringify(directTarget)
+              : target === undefined
+                ? null
+                : saveAssignmentTarget(target),
             modelGroupId ?? null,
             modelGroupId === undefined ? null : (input.modelGroupEffort ?? null),
             input.mode ?? null,
@@ -8176,6 +8295,9 @@ class BotRuntimeImplementation implements BotRuntime {
         failEngineRecovery: (summary) =>
           this.#assignmentReporting.recordEngineRecoveryFailure(bot.slug, sessionId, summary),
         ...(modelRoute === undefined ? {} : { modelRoute }),
+        ...(directTarget !== undefined || (modelGroupId !== undefined && target !== undefined)
+          ? { routingTarget: directTarget ?? target! }
+          : {}),
         ...this.#assignmentGroupExecution(
           bot.slug,
           sessionId,
@@ -8261,7 +8383,19 @@ class BotRuntimeImplementation implements BotRuntime {
         `Assignment Session ${input.sessionId} has no open ask ${input.answerTo}; inspect it before answering`,
       );
     }
-    let modelRoute = modelRouteFromRow(row);
+    const retained = storedAssignmentTarget(row);
+    const directTarget =
+      row.model_group_id === null && retained !== undefined && 'kind' in retained
+        ? retained
+        : undefined;
+    if (input.model !== undefined && directTarget !== undefined && row.activity === 'working')
+      throw new Error('Wait for the current Assignment turn to finish before changing its model');
+    let modelRoute =
+      retained === undefined || !('kind' in retained)
+        ? retained
+        : retained.kind === 'route'
+          ? retained.route
+          : undefined;
     if (input.model !== undefined) {
       if (!isAssignmentModelChoice(input.model))
         throw new Error('Assignment model choice is invalid');
@@ -8324,6 +8458,12 @@ class BotRuntimeImplementation implements BotRuntime {
       failEngineRecovery: (summary) =>
         this.#assignmentReporting.recordEngineRecoveryFailure(bot.slug, input.sessionId, summary),
       ...(modelRoute === undefined ? {} : { modelRoute }),
+      ...(directTarget === undefined
+        ? {}
+        : {
+            routingTarget:
+              input.model === undefined ? directTarget : { kind: 'route', route: modelRoute! },
+          }),
       ...(input.model === undefined
         ? this.#assignmentGroupExecution(
             bot.slug,

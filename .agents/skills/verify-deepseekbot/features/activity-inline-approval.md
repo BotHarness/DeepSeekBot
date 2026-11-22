@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/activity/plugin.ts`
 - `packages/core/src/features/approvals/plugin.ts`
 - `packages/client/src/client/{activity-*,inbox-*}.{ts,tsx}`
 - `packages/client/src/client/tool-approval-card.tsx`

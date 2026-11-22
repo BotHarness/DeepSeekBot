@@ -40,6 +40,7 @@ Usage:
   tobs engine account-remove <account-id> --expected-revision <r> --confirm --host <url>
   tobs engine login <account-id>|codex|claude [--account <id>] --host <url>
   tobs engine login claude [--account <id>] --code-stdin --host <url> < <code-file>
+  tobs engine login codex [--account <id>] --device-auth --host <url>
   tobs engine login-cancel <account-id>|codex|claude --host <url>
   tobs engine models <account-id>|codex|claude --host <url>
   tobs engine use <id> codex|claude|none --role orchestrator|assignment [--account <id>] [--model <id>] [--effort <level>] [--fallback on|off] --host <url>

@@ -574,6 +574,7 @@ export async function revoke(
         configuredCard(context, channelId, messageId)?.scope.botCreatedAt ===
         card.scope.botCreatedAt,
     );
+    const stopping = stopUses(context, card.scope, 'revocation');
     context.publish(card.scope.botSlug);
     context.inputs.deps.log('account-revoked', {
       botSlug: card.scope.botSlug,
@@ -583,7 +584,7 @@ export async function revoke(
       .credentials()
       ?.deleteRecord(credentialKey('botharness-private', 'grant-' + card.grantId))
       .catch(() => context.inputs.deps.log('cleanup-failed', { requestId: card.grantId }));
-    return { stopping: stopUses(context, card.scope, 'revocation') };
+    return { stopping };
   });
   if (!accepted) return refused;
   const summary = await accepted.stopping;
