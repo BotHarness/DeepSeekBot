@@ -264,6 +264,11 @@
   "packages/client/src/client/failure-alert-settings.tsx": {
     "../../../core/src/messaging/failure-alerts.js": 1
   },
+  "packages/client/src/client/features/appearance/window-companion-view.tsx": {
+    "../../../../../core/src/bots/avatar-appearance.js": 1,
+    "../../../../../core/src/companions/feed.js": 1,
+    "../../../../../core/src/companions/sources.js": 1
+  },
   "packages/client/src/client/features/channels/channel-composer.tsx": {
     "../../../../../core/src/channels/all-bot-mention.js": 1,
     "../../../../../core/src/channels/message-preview.js": 1,
@@ -556,11 +561,6 @@
   },
   "packages/client/src/client/voice-options.ts": {
     "../../../core/src/voice/presets.js": 1
-  },
-  "packages/client/src/client/window-companion-view.tsx": {
-    "../../../core/src/bots/avatar-appearance.js": 1,
-    "../../../core/src/companions/feed.js": 1,
-    "../../../core/src/companions/sources.js": 1
   },
   "packages/client/src/client/window-companion.ts": {
     "../../../core/src/bots/avatar-appearance.js": 1,
