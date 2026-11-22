@@ -35,7 +35,13 @@ import { useStrings } from '../strings';
 import { useModels } from './model-settings-screen';
 import { SHEET_GROUP, SheetFailed, SheetLoading, SheetNote } from './sheet';
 import { useEngineOptions } from './sub-choice-engines';
-import { noteQueue, type NoteQueue } from './sub-choice-notes';
+import {
+  failedNote,
+  forgetFailedNote,
+  noteQueue,
+  rememberFailedNote,
+  type NoteQueue,
+} from './sub-choice-notes';
 import { subChoiceKey, subChoiceTarget, subChoiceView } from './sub-choice-text';
 
 export function subChoiceTargetParams(target: AssignmentEffortTarget): Record<string, string> {
@@ -93,9 +99,10 @@ function SubChoiceDetail({
   const value = models.value;
   const sub = value === undefined ? undefined : modelSub(value);
   const choice = sub?.choices.find((entry) => subChoiceKey(entry) === choiceKey);
-  const [note, setNote] = useState<string>();
-  const [noteError, setNoteError] = useState<string>();
   const scopeKey = modelScopeKey(scope);
+  const draftKey = `${scopeKey}:${choiceKey}`;
+  const [note, setNote] = useState<string | undefined>(() => failedNote(draftKey)?.text);
+  const [noteError, setNoteError] = useState<string | undefined>(() => failedNote(draftKey)?.error);
   const resource = useMemo(() => modelSettingsResource(client, scope), [client, scopeKey]);
   const notes = useRef<NoteQueue | undefined>(undefined);
   notes.current ??= noteQueue(
@@ -109,11 +116,16 @@ function SubChoiceDetail({
       });
     },
     (text) => {
+      forgetFailedNote(draftKey, text);
       setNoteError(undefined);
       setNote((current) => (current === text ? undefined : current));
       models.refresh();
     },
-    (cause) => setNoteError(errorText(cause)),
+    (cause, text) => {
+      const error = errorText(cause);
+      rememberFailedNote(draftKey, { text, error });
+      setNoteError(error);
+    },
   );
   const leave = useRef<() => void>(() => undefined);
   useFocusEffect(useCallback(() => () => leave.current(), []));

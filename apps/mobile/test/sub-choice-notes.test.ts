@@ -1,6 +1,11 @@
 import { expect, it, vi } from 'vitest';
 
-import { noteQueue } from '../src/ui/chat/sub-choice-notes';
+import {
+  failedNote,
+  forgetFailedNote,
+  noteQueue,
+  rememberFailedNote,
+} from '../src/ui/chat/sub-choice-notes';
 
 function deferred() {
   let resolve: () => void = () => undefined;
@@ -52,4 +57,26 @@ it('skips a repeated commit of the queued text and retries after a failed write'
   expect(queue.commit('A', '')).toBe(true);
   await queue.settled();
   expect(written).toEqual(['A', 'A']);
+});
+
+it('keeps a failed draft for the next visit and clears it after a successful retry', async () => {
+  const key = 'preset:default:{"kind":"model","provider":"p","model":"m"}';
+  let fail = true;
+  const visit = () =>
+    noteQueue(
+      async () => {
+        if (fail) throw new Error('offline');
+      },
+      (text) => forgetFailedNote(key, text),
+      (cause, text) => rememberFailedNote(key, { text, error: (cause as Error).message }),
+    );
+  const first = visit();
+  first.commit('Draft', '');
+  await first.settled();
+  expect(failedNote(key)).toEqual({ text: 'Draft', error: 'offline' });
+  fail = false;
+  const second = visit();
+  second.commit(failedNote(key)!.text, '');
+  await second.settled();
+  expect(failedNote(key)).toBeUndefined();
 });

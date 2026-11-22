@@ -6,7 +6,7 @@ export interface NoteQueue {
 export function noteQueue(
   write: (text: string) => Promise<void>,
   onSaved: (text: string) => void,
-  onError: (cause: unknown) => void,
+  onError: (cause: unknown, text: string) => void,
 ): NoteQueue {
   let chain = Promise.resolve();
   let queued: string | undefined;
@@ -19,7 +19,7 @@ export function noteQueue(
           () => onSaved(text),
           (cause: unknown) => {
             if (queued === text) queued = undefined;
-            onError(cause);
+            onError(cause, text);
           },
         ),
       );
@@ -27,4 +27,23 @@ export function noteQueue(
     },
     settled: () => chain,
   };
+}
+
+export interface FailedNote {
+  text: string;
+  error: string;
+}
+
+const failedNotes = new Map<string, FailedNote>();
+
+export function failedNote(key: string): FailedNote | undefined {
+  return failedNotes.get(key);
+}
+
+export function rememberFailedNote(key: string, note: FailedNote): void {
+  failedNotes.set(key, note);
+}
+
+export function forgetFailedNote(key: string, text?: string): void {
+  if (text === undefined || failedNotes.get(key)?.text === text) failedNotes.delete(key);
 }
