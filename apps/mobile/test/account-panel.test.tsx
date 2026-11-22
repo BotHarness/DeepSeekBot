@@ -9,10 +9,11 @@ vi.mock('expo-application', () => ({
   nativeBuildVersion: '18',
 }));
 vi.mock('expo-device', () => ({ osVersion: '27.0' }));
+vi.mock('expo-router', () => ({ Stack: { Screen: () => null } }));
 vi.mock('react-native', () => import('./react-native-shim'));
 vi.mock('react-native-reanimated', () => import('./reanimated-shim'));
 vi.mock('react-native-safe-area-context', () => ({
-  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+  useSafeAreaInsets: () => ({ top: 0, bottom: 24, left: 0, right: 0 }),
 }));
 vi.mock('react-native-svg', () => ({ default: () => null, Path: () => null }));
 vi.mock('expo-symbols', () => ({
@@ -24,6 +25,8 @@ import {
   type AccountComputerRow,
   type AccountPanelProps,
 } from '../src/ui/primitives/account-panel';
+import { DesignThemeProvider, resolveTheme } from '../src/ui/design/theme';
+import { space } from '../src/ui/design/tokens';
 import { t } from '../src/ui/strings';
 
 Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
@@ -46,7 +49,7 @@ const row = (id: string, patch: Partial<AccountComputerRow> = {}): AccountComput
   ...patch,
 });
 
-function render(props: Partial<AccountPanelProps>) {
+function render(props: Partial<AccountPanelProps>, scheme: 'light' | 'dark' = 'light') {
   host ??= document.createElement('div');
   document.body.append(host);
   root ??= createRoot(host);
@@ -66,7 +69,13 @@ function render(props: Partial<AccountPanelProps>) {
     onRevoke: vi.fn(),
     ...props,
   };
-  act(() => root!.render(<AccountPanel {...all} />));
+  act(() =>
+    root!.render(
+      <DesignThemeProvider appearance={{ scheme }}>
+        <AccountPanel {...all} />
+      </DesignThemeProvider>,
+    ),
+  );
   return all;
 }
 const find = (label: string) =>
@@ -126,3 +135,29 @@ it('hides the add action until the account lists Environments', () => {
   render({ rows: [row('studio')] });
   expect(find(t.pairAccount.choose)!.disabled).toBe(true);
 });
+
+it.each(['light', 'dark'] as const)(
+  'shares the %s sheet surface with the pinned action',
+  (scheme) => {
+    render({ rows: [row('studio')] }, scheme);
+    const scroller = host.querySelector('[data-testid="account-hosts"]')!;
+    const panel = scroller.parentElement!;
+    const footer = panel.lastElementChild!;
+    const theme = resolveTheme(scheme);
+    expect(JSON.parse(panel.getAttribute('data-style')!)).toMatchObject({
+      backgroundColor: theme.overlay.fill,
+      paddingBottom: 0,
+    });
+    expect(scroller.contains(find(t.pairAccount.choose)!)).toBe(false);
+    expect(footer.contains(find(t.pairAccount.choose)!)).toBe(true);
+    expect(JSON.parse(footer.getAttribute('data-style')!)).toMatchObject({
+      paddingBottom: 24 + space.x3,
+    });
+
+    render({ rows: undefined }, scheme);
+    expect(JSON.parse(panel.getAttribute('data-style')!)).toMatchObject({
+      backgroundColor: theme.overlay.fill,
+      paddingBottom: 24,
+    });
+  },
+);
