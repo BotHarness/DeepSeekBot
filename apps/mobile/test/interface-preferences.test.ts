@@ -2,6 +2,24 @@ import { describe, expect, it, vi } from 'vitest';
 import { createInterfacePreferences, preferredLanguage } from '../src/ui/interface-preferences';
 
 describe('phone interface preferences', () => {
+  it('remembers Session sort across device preference restores', async () => {
+    let stored: unknown = { sessionsTab: true };
+    const storage = {
+      read: async () => stored,
+      write: (value: unknown) => {
+        stored = value;
+      },
+    };
+    const preferences = createInterfacePreferences();
+    await preferences.restore(storage);
+    expect(preferences.getSnapshot().sessionSort).toBe('last-human-turn');
+    preferences.setSessionSort('created');
+    const restarted = createInterfacePreferences();
+    await restarted.restore(storage);
+    expect(restarted.getSnapshot().sessionSort).toBe('created');
+    expect(restarted.getSnapshot().sessionsTab).toBe(true);
+  });
+
   it('defaults to system and chooses the first supported preferred language', () => {
     const preferences = createInterfacePreferences();
     expect(preferences.getSnapshot()).toMatchObject({ language: 'system', appearance: 'system' });
@@ -82,6 +100,7 @@ describe('phone interface preferences', () => {
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
       sessionsTab: false,
+      sessionSort: 'last-human-turn',
     });
   });
 
@@ -146,6 +165,7 @@ describe('phone interface preferences', () => {
       inAppAlerts: true,
       inAppAlertStyle: 'overlay',
       sessionsTab: false,
+      sessionSort: 'last-human-turn',
     });
   });
 

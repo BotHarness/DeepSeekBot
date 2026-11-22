@@ -104,6 +104,31 @@ describe('Human Inbox, assignment, Session and approval-rule commands', () => {
     expect(result.text).toContain('host-query-unsupported');
   });
 
+  it('passes Session search, sort and source together and checks that the Host applied them', async () => {
+    const live = await host(echo);
+    const argv = [
+      'session-list',
+      '--search',
+      'budget',
+      '--sort',
+      'created',
+      '--source',
+      'bot:alpha',
+    ];
+    expect((await invoke(argv, live.url)).code).toBe(0);
+    expect(live.calls).toEqual([
+      {
+        method: 'sessionList',
+        args: { search: 'budget', sort: 'created', source: 'bot:alpha', queryVersion: 1 },
+      },
+    ]);
+    const older = await host(() => ({ ok: true, value: { sessions: [] } }));
+    const result = await invoke(argv, older.url);
+    expect(result.code).not.toBe(0);
+    expect(result.text).toContain('host-query-unsupported');
+    expect((await invoke(['session-list', '--sort', 'wrong'], live.url)).text).toContain('usage');
+  });
+
   it('lists Host Sessions and uses the existing commands for a native Session', async () => {
     const live = await host(echo);
     for (const argv of [

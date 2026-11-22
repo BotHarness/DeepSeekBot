@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { isHostSessionSort, type HostSessionSort } from '@botharness/host-protocol/host-sessions';
 
 export type LanguagePreference = 'system' | 'en' | 'zh';
 export type AppearancePreference = 'system' | 'light' | 'dark';
@@ -7,6 +8,7 @@ export type InterfacePreferences = {
   language: LanguagePreference;
   appearance: AppearancePreference;
   sessionsTab: boolean;
+  sessionSort: HostSessionSort;
   inAppAlerts: boolean;
   inAppAlertStyle: InAppAlertStyle;
 };
@@ -29,6 +31,7 @@ export function createInterfacePreferences() {
     language: 'system',
     appearance: 'system',
     sessionsTab: false,
+    sessionSort: 'last-human-turn',
     inAppAlerts: true,
     inAppAlertStyle: 'overlay',
   };
@@ -67,6 +70,8 @@ export function createInterfacePreferences() {
         if (!touched && typeof saved === 'object' && saved !== null) {
           if ('sessionsTab' in saved && typeof saved.sessionsTab === 'boolean')
             value.sessionsTab = saved.sessionsTab;
+          if ('sessionSort' in saved && isHostSessionSort(saved.sessionSort))
+            value.sessionSort = saved.sessionSort;
           if ('inAppAlerts' in saved && typeof saved.inAppAlerts === 'boolean')
             value.inAppAlerts = saved.inAppAlerts;
           if (
@@ -112,6 +117,12 @@ export function createInterfacePreferences() {
       if (snapshot.loaded) persist();
       publish();
     },
+    setSessionSort(sessionSort: HostSessionSort) {
+      touched = true;
+      value = { ...value, sessionSort };
+      if (snapshot.loaded) persist();
+      publish();
+    },
     setInAppAlerts(inAppAlerts: boolean) {
       touched = true;
       value = { ...value, inAppAlerts };
@@ -140,6 +151,15 @@ export function createInterfacePreferences() {
 export const interfacePreferences = createInterfacePreferences();
 
 const sessionsTabSnapshot = () => interfacePreferences.getSnapshot().sessionsTab;
+const sessionSortSnapshot = () => interfacePreferences.getSnapshot().sessionSort;
+
+export function useSessionSort() {
+  return useSyncExternalStore(
+    interfacePreferences.subscribe,
+    sessionSortSnapshot,
+    sessionSortSnapshot,
+  );
+}
 
 export function useSessionsTab() {
   return useSyncExternalStore(

@@ -662,14 +662,14 @@ Card-created rules also appear under **Always allow · this Bot** in Bot permiss
 #### Host Sessions
 
 ```bash
-deepseekbot session-list
+deepseekbot session-list [--search <text>] [--sort last-human-turn|created|last-activity] [--source all|native|bot:<slug>]
 deepseekbot session-transcript --session <native-session-id>
 deepseekbot session-live --session <native-session-id> [--after <revision>]
 deepseekbot session-send <native-session-id> [--] <text>
 deepseekbot session-model --session <native-session-id> [--set <Model-Choice-JSON> | --clear]
 ```
 
-These commands use an authenticated live Host. `session-list` returns root Sessions in last Human prompt order. Rows carry the source, title when available, folder name, running state, `lastPromptAt` and `updatedAt`. The Host Owner can see native Sessions. Team members receive the Sessions of their Bots subject to the existing Session privacy checks. Native transcript, live output, prompts and Model Choice require the Host Owner. A native send returns a `requestId` after DSH admits the prompt. For Bot Sessions, keep the Bot ID argument. For native Model Choice, pass a direct API model and use `--clear` to restore the Session’s original model.
+These commands use an authenticated live Host. `session-list` returns root Sessions in descending last Human turn order by default. Use `--sort created` for newest Sessions first or `--sort last-activity` for most recent Session activity first. `--search` matches text in Session titles and Human-authored messages. Combine it with `--source native` or `--source bot:<slug>` to narrow the results. The default source is `all`. Rows carry the source, title when available, folder name, running state, `lastPromptAt` and `updatedAt`. The Host Owner can see native Sessions. Team members receive the Sessions of their Bots subject to the existing Session privacy checks. Native transcript, live output, prompts and Model Choice require the Host Owner. A native send returns a `requestId` after DSH admits the prompt. For Bot Sessions, keep the Bot ID argument. For native Model Choice, pass a direct API model and use `--clear` to restore the Session’s original model.
 
 `session-send <bot-id> <orchestrator-session-id> <text>` sends the Human's text straight into the Bot's current Orchestrator Session, as the input box in that Session's detail does. It is a deliberate steer and is rare. No Channel shows the text: the Session receives it raw under one line saying the Human wrote it in Session detail, and the Bot Inbox keeps it as a Human Source Event on the Human's DM, so it survives a restart or compaction. A running turn takes it at its next step, whatever the `human-dm` delivery setting; while the Bot is preparing or reconciling its Memory it waits for the next turn instead, and an idle Orchestrator wakes for it. The Bot does not have to reply; a `bot_send_message` with that `source_event_id` lands in the Human's DM without a quote. Put `--` before text that starts with `-`; text that looks like a secret flag, such as `--token` or `--api-key=…`, is still refused with `secret-in-argv`, because secrets never travel in arguments. It returns `{ sourceEventId }`. Any other Session of a Bot that can take the message is refused with `invalid-input`; a Bot that cannot take messages now, for example a paused one, is refused with `unavailable`.
 

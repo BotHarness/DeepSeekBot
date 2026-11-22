@@ -98,3 +98,76 @@ it('returns root Sessions in last Human prompt order and scopes every native ope
   });
   expect(send).toHaveBeenCalledTimes(1);
 });
+
+it('combines title and Human-message matches inside the authorized source and sorts the result', async () => {
+  const searchHumanMessages = vi.fn(
+    async (_search: string, rows: readonly { sessionId: string }[]) =>
+      new Set(
+        rows
+          .map((row) => row.sessionId)
+          .filter((id) => ['allowed-a', 'native', 'private'].includes(id)),
+      ),
+  );
+  const f = fixture({
+    nativeSessions: {
+      list: async () => [
+        { sessionId: 'allowed-a', title: 'Alpha', running: false, lastPromptAt: 30, updatedAt: 31 },
+        {
+          sessionId: 'allowed-b',
+          title: 'Budget',
+          running: false,
+          lastPromptAt: 20,
+          updatedAt: 50,
+        },
+        { sessionId: 'native', title: 'Native', running: false, lastPromptAt: 10, updatedAt: 11 },
+        { sessionId: 'private', title: 'Budget', running: false, lastPromptAt: 15, updatedAt: 90 },
+      ],
+      searchHumanMessages,
+      sortTimes: async (sort: string, ids: readonly string[]) =>
+        new Map(ids.map((id) => [id, id === 'allowed-a' ? 1 : sort === 'created' ? 10 : 70])),
+      read: async () => ({ events: [], seq: 0, running: false }),
+      send: async () => ({ requestId: '1' }),
+      isRoot: async () => true,
+    },
+  });
+  for (const [id, botSlug] of [
+    ['allowed-a', 'alice-bot'],
+    ['allowed-b', 'alice-bot'],
+    ['private', 'owner-bot'],
+  ] as const)
+    f.ownership.claim({ sessionId: id, botSlug, rootRole: 'orchestrator', at: '2026-11-22' });
+  const member = f.bridge(alice);
+  const owner = f.bridge(OWNER_HUMAN_CONTEXT);
+
+  expect(
+    await member.sessionList({ search: ' budget ', sort: 'created', source: 'bot:alice-bot' }),
+  ).toMatchObject({
+    ok: true,
+    value: { sessions: [{ sessionId: 'allowed-b' }, { sessionId: 'allowed-a' }] },
+  });
+  expect(searchHumanMessages).toHaveBeenCalledWith(
+    'budget',
+    [expect.objectContaining({ sessionId: 'allowed-a' })],
+    expect.any(Function),
+  );
+  expect(await member.sessionList({ search: 'budget', source: 'native' })).toMatchObject({
+    ok: true,
+    value: { sessions: [] },
+  });
+  expect(await member.sessionList({ search: 'budget', source: 'bot:owner-bot' })).toMatchObject({
+    ok: true,
+    value: { sessions: [] },
+  });
+  expect(searchHumanMessages).toHaveBeenCalledTimes(1);
+  expect(
+    await owner.sessionList({ search: 'budget', source: 'native', sort: 'last-activity' }),
+  ).toMatchObject({ ok: true, value: { sessions: [{ sessionId: 'native' }] } });
+  expect(await member.sessionList({ search: 'budget' })).toMatchObject({
+    ok: true,
+    value: { sessions: [{ sessionId: 'allowed-a' }, { sessionId: 'allowed-b' }] },
+  });
+  expect(await member.sessionList({ sort: 'bogus' })).toMatchObject({
+    ok: false,
+    error: { code: 'invalid-input' },
+  });
+});

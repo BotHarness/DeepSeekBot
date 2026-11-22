@@ -6,6 +6,7 @@ import { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
 import { sessionRouteChoice } from '../../runtime/session-model-choices.js';
 import { SessionId } from '@deepseek-ai/dsh-session';
 import type { DshSessionStore } from '../../sessions/source.js';
+import { hostSessionQueries } from './dsh-host-session-query.js';
 import type { NativeSessions } from './host-sessions.js';
 
 export function dshHostSessions(ctx: Context, sessions: DshSessionStore): NativeSessions {
@@ -16,6 +17,11 @@ export function dshHostSessions(ctx: Context, sessions: DshSessionStore): Native
   }
 
   return {
+    ...hostSessionQueries(() => {
+      const query = ctx.get('sessionQuery');
+      if (query === undefined) throw new Error('DSH Session Query unavailable');
+      return query;
+    }),
     async list() {
       const { items } = await controller().list({}, new AbortController().signal);
       return items
