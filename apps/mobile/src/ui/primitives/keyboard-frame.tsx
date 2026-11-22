@@ -14,7 +14,7 @@ export interface KeyboardChatFrameProps {
   composer: ReactNode;
   background?: ReactNode;
   backgroundColor: ColorValue;
-  onMount(node: unknown): void;
+  onMount?(node: unknown): void;
   onComposerLayout(event: LayoutChangeEvent): void;
 }
 

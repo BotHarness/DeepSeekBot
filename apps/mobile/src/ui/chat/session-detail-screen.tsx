@@ -1,8 +1,6 @@
 import { Stack, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
-import { FlatList, Pressable, View } from 'react-native';
-import { KeyboardAvoidingView } from 'react-native-keyboard-controller';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { FlatList, Platform, Pressable, View } from 'react-native';
 import { stopSession } from '@botharness/host-client/bot-control';
 import { errorText } from '@botharness/host-client/bot-settings';
 import type { HostClient } from '@botharness/host-client/client';
@@ -17,6 +15,7 @@ import { sessionReadHost } from '../../host/session-detail';
 import { loadAssignmentTimeline, type AssignmentTimeline } from '../../host/assignment-timeline';
 import { useDesignTheme } from '../design/theme';
 import { rowGlyph, space } from '../design/tokens';
+import { KeyboardChatFrame } from '../primitives/keyboard-frame';
 import { Text } from '../primitives/text';
 import { ChevronDownIcon, ChevronUpIcon } from '../shell/icons';
 import { useStrings } from '../strings';
@@ -126,7 +125,7 @@ export function SessionDetailBody({
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
-  const bottom = useSafeAreaInsets().bottom;
+  const [composerHeight, setComposerHeight] = useState(0);
   const view = useSessionTranscript(client, slug, id, online);
   const transcript = view.transcript;
   const role = transcript?.role;
@@ -186,98 +185,106 @@ export function SessionDetailBody({
           <SheetNote>{t.sessionDetail.unavailable}</SheetNote>
         )
       ) : (
-        <KeyboardAvoidingView
-          style={{ flex: 1, backgroundColor: theme.color.surface }}
-          behavior="padding"
-          keyboardVerticalOffset={-Math.max(0, bottom - space.x3)}
-        >
-          <FlatList
-            ref={list}
-            testID="session-transcript"
-            data={view.items}
-            keyExtractor={(item, index) =>
-              item.kind === 'tool' ? `tool:${item.id}` : `${item.kind}:${index}`
+        <>
+          <KeyboardChatFrame
+            backgroundColor={theme.color.surface}
+            onComposerLayout={(event) => setComposerHeight(event.nativeEvent.layout.height)}
+            composer={
+              <SessionComposer
+                client={client}
+                slug={slug}
+                id={id}
+                role={transcript.role}
+                running={view.running}
+                online={online}
+                refresh={view.refresh}
+                model={model}
+              />
             }
-            contentInsetAdjustmentBehavior="automatic"
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ rowGap: space.x3, paddingVertical: space.x4 }}
-            scrollEventThrottle={16}
-            onScrollBeginDrag={() => {
-              scrolled.current = true;
-            }}
-            onScroll={({ nativeEvent: { contentSize, layoutMeasurement, contentOffset } }) => {
-              if (!scrolled.current) return;
-              pinned.current =
-                contentSize.height - layoutMeasurement.height - contentOffset.y <=
-                layoutMeasurement.height / 8;
-            }}
-            onContentSizeChange={() => {
-              if (pinned.current && !detailsOpen)
-                requestAnimationFrame(() => {
-                  if (pinned.current) list.current?.scrollToEnd({ animated: false });
-                });
-            }}
-            ListHeaderComponent={
-              <>
-                {role === 'assignment' && assignment !== undefined ? (
-                  <>
-                    <Pressable
-                      testID="session-assignment-details"
-                      accessibilityRole="button"
-                      accessibilityLabel={t.sessionDetail.assignmentDetails}
-                      accessibilityState={{ expanded: detailsOpen }}
-                      onPress={() => {
-                        pinned.current = false;
-                        setDetailsOpen((open) => !open);
-                      }}
-                      style={{
-                        minHeight: theme.touch,
-                        flexDirection: 'row',
-                        alignItems: 'center',
-                        paddingHorizontal: space.x5,
-                        gap: space.x2,
-                      }}
-                    >
-                      <Text variant="meta" tone="muted">
-                        {t.sessionDetail.assignmentDetails}
-                      </Text>
+          >
+            <FlatList
+              ref={list}
+              testID="session-transcript"
+              data={view.items}
+              keyExtractor={(item, index) =>
+                item.kind === 'tool' ? `tool:${item.id}` : `${item.kind}:${index}`
+              }
+              contentInsetAdjustmentBehavior="automatic"
+              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+              keyboardShouldPersistTaps="never"
+              contentContainerStyle={{
+                rowGap: space.x3,
+                paddingTop: space.x4,
+                paddingBottom: composerHeight + space.x4,
+              }}
+              scrollEventThrottle={16}
+              onScrollBeginDrag={() => {
+                scrolled.current = true;
+              }}
+              onScroll={({ nativeEvent: { contentSize, layoutMeasurement, contentOffset } }) => {
+                if (!scrolled.current) return;
+                pinned.current =
+                  contentSize.height - layoutMeasurement.height - contentOffset.y <=
+                  layoutMeasurement.height / 8;
+              }}
+              onContentSizeChange={() => {
+                if (pinned.current && !detailsOpen)
+                  requestAnimationFrame(() => {
+                    if (pinned.current) list.current?.scrollToEnd({ animated: false });
+                  });
+              }}
+              ListHeaderComponent={
+                <>
+                  {role === 'assignment' && assignment !== undefined ? (
+                    <>
+                      <Pressable
+                        testID="session-assignment-details"
+                        accessibilityRole="button"
+                        accessibilityLabel={t.sessionDetail.assignmentDetails}
+                        accessibilityState={{ expanded: detailsOpen }}
+                        onPress={() => {
+                          pinned.current = false;
+                          setDetailsOpen((open) => !open);
+                        }}
+                        style={{
+                          minHeight: theme.touch,
+                          flexDirection: 'row',
+                          alignItems: 'center',
+                          paddingHorizontal: space.x5,
+                          gap: space.x2,
+                        }}
+                      >
+                        <Text variant="meta" tone="muted">
+                          {t.sessionDetail.assignmentDetails}
+                        </Text>
+                        {detailsOpen ? (
+                          <ChevronUpIcon size={rowGlyph.size} color={theme.color.muted} />
+                        ) : (
+                          <ChevronDownIcon size={rowGlyph.size} color={theme.color.muted} />
+                        )}
+                      </Pressable>
                       {detailsOpen ? (
-                        <ChevronUpIcon size={rowGlyph.size} color={theme.color.muted} />
-                      ) : (
-                        <ChevronDownIcon size={rowGlyph.size} color={theme.color.muted} />
-                      )}
-                    </Pressable>
-                    {detailsOpen ? (
-                      <AssignmentDetail
-                        timeline={assignment}
-                        showTitle={false}
-                        showAskInChat={false}
-                      />
-                    ) : null}
-                  </>
-                ) : null}
-                {transcript.omitted === 0 ? null : (
-                  <SheetNote>{t.sessionDetail.omitted(transcript.omitted)}</SheetNote>
-                )}
-              </>
-            }
-            ListEmptyComponent={<SheetNote>{t.sessionDetail.empty}</SheetNote>}
-            renderItem={({ item, index }) => (
-              <SessionTranscriptRow item={item} id={`${id}:${index}`} catalog={model.catalog} />
-            )}
-          />
-          <SessionComposer
-            client={client}
-            slug={slug}
-            id={id}
-            role={transcript.role}
-            running={view.running}
-            online={online}
-            refresh={view.refresh}
-            model={model}
-          />
+                        <AssignmentDetail
+                          timeline={assignment}
+                          showTitle={false}
+                          showAskInChat={false}
+                        />
+                      ) : null}
+                    </>
+                  ) : null}
+                  {transcript.omitted === 0 ? null : (
+                    <SheetNote>{t.sessionDetail.omitted(transcript.omitted)}</SheetNote>
+                  )}
+                </>
+              }
+              ListEmptyComponent={<SheetNote>{t.sessionDetail.empty}</SheetNote>}
+              renderItem={({ item, index }) => (
+                <SessionTranscriptRow item={item} id={`${id}:${index}`} catalog={model.catalog} />
+              )}
+            />
+          </KeyboardChatFrame>
           <SessionModelPicker control={model} />
-        </KeyboardAvoidingView>
+        </>
       )}
     </>
   );
