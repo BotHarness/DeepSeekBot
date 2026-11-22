@@ -150,7 +150,6 @@ export function ModelGroupPickerRow({
   groups,
   usable,
   showCount,
-  note,
   ...actions
 }: RowActions & {
   group: ModelCatalogGroup;
@@ -161,7 +160,6 @@ export function ModelGroupPickerRow({
   groups: readonly ModelCatalogGroup[];
   usable: boolean;
   showCount: boolean;
-  note?: string | undefined;
 }) {
   const t = useStrings();
   const theme = useDesignTheme();
@@ -196,7 +194,6 @@ export function ModelGroupPickerRow({
         executed === undefined ? current : t.modelSettings.groupCurrent(executed.name),
         executed?.external ? t.routingGroup.externalEngine : undefined,
         ...members,
-        note,
       ]
         .filter(Boolean)
         .join(', ')}
@@ -221,7 +218,6 @@ export function ModelGroupPickerRow({
           : restful === undefined
             ? frontLabel
             : restingLabel(restful),
-        ...(note === undefined ? [] : [note]),
       ].join(' · ')}
       tone={usable ? 'fg' : 'muted'}
     />
