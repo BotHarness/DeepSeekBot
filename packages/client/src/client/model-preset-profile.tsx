@@ -35,7 +35,8 @@ import type { BotHarnessTranslate } from './locale.js';
 import { engineMenuItems, groupMenuId } from './model-menu.js';
 import { ModelPlanEditor } from './model-plan-editor.js';
 import { draftOf, mainParts, modelKey, routeLabel, type ModelDraft } from './model-preset-draft.js';
-import { cleanSubChoices, subOf, withEngine, type SubChoices } from './sub-choices.js';
+import { presetSubWithEngine } from '@botharness/host-protocol/preset-sub';
+import { cleanSubChoices, subOf, type SubChoices } from './sub-choices.js';
 import {
   invalidateModelPlan,
   modelPlanOf,
@@ -279,7 +280,7 @@ export function ModelPresetProfile({
   const shownSub =
     subDraft ??
     (plan !== undefined && plan.sub === undefined && !tasksInherit(plan)
-      ? withEngine(sub, liveEngine('assignment'))
+      ? presetSubWithEngine(sub, liveEngine('assignment') ?? undefined)
       : sub);
   const enginesOnly = !planEdited && pendingEngines.length > 0;
   const canApply =

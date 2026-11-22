@@ -192,3 +192,86 @@ export function isAssignmentModelOption(value: unknown): value is AssignmentMode
         option['note'].length <= ASSIGNMENT_MODEL_NOTE_MAX))
   );
 }
+
+export interface LegacyAssignmentRoute {
+  provider: string;
+  model: string;
+  reasoningEffort?: string;
+}
+
+export interface LegacySubSource {
+  sub?: PresetSub;
+  assignmentDefault?: LegacyAssignmentRoute;
+  assignmentFollowsMain?: boolean;
+  assignmentModels?: AssignmentModelOption[];
+  assignmentGroups?: string[];
+  assignmentDefaultGroupId?: string;
+  assignmentGroupOptions?: AssignmentGroupOption[];
+}
+
+export function assignmentModelsOf(
+  plan: Pick<LegacySubSource, 'assignmentDefault' | 'assignmentModels' | 'sub'>,
+): AssignmentModelOption[] {
+  if (plan.sub !== undefined)
+    return plan.sub.choices.flatMap((choice) => {
+      if (choice.kind !== 'model') return [];
+      const { kind: _kind, ...model } = choice;
+      return [model];
+    });
+  if (plan.assignmentDefault === undefined) return [];
+  return (
+    plan.assignmentModels ?? [
+      {
+        provider: plan.assignmentDefault.provider,
+        model: plan.assignmentDefault.model,
+        allowedEfforts: [plan.assignmentDefault.reasoningEffort ?? ''],
+        defaultEffort: plan.assignmentDefault.reasoningEffort ?? '',
+      },
+    ]
+  );
+}
+
+export function presetSubFromLegacy(preset: Omit<LegacySubSource, 'sub'>): PresetSub {
+  const route = preset.assignmentDefault;
+  if (preset.assignmentFollowsMain === true || route === undefined)
+    return { choices: [], default: null };
+  return {
+    choices: [
+      ...assignmentModelsOf({
+        assignmentDefault: route,
+        ...(preset.assignmentModels === undefined
+          ? {}
+          : { assignmentModels: preset.assignmentModels }),
+      }).map((model) => ({ ...model, kind: 'model' as const })),
+      ...(preset.assignmentGroups ?? []).map((group) => ({
+        ...preset.assignmentGroupOptions?.find((option) => option.group === group),
+        kind: 'group' as const,
+        group,
+      })),
+    ],
+    default:
+      preset.assignmentDefaultGroupId === undefined
+        ? { kind: 'model', provider: route.provider, model: route.model }
+        : { kind: 'group', group: preset.assignmentDefaultGroupId },
+  };
+}
+
+export function presetSubWithEngine(
+  sub: PresetSub,
+  engine: { engine: EngineId; accountId?: string; model?: string; effort?: string } | undefined,
+): PresetSub {
+  if (engine === undefined || sub.choices.some((choice) => choice.kind === 'engine')) return sub;
+  const selection: PresetSubEngineSelection = {
+    kind: 'engine',
+    engine: engine.engine,
+    ...(engine.accountId === undefined ? {} : { accountId: engine.accountId }),
+    ...(engine.model === undefined ? {} : { model: engine.model }),
+  };
+  return {
+    choices: [
+      ...sub.choices,
+      { ...selection, ...(engine.effort === undefined ? {} : { effort: engine.effort }) },
+    ],
+    default: selection,
+  };
+}
