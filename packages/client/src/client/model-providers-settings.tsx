@@ -8,11 +8,12 @@ import { SubscriptionAccounts } from './subscription-accounts.js';
 import { useState, type ReactElement } from 'react';
 
 import { providerBrand } from '@botharness/host-client/shared/model-brand';
-import type {
-  ModelProviderRemoval,
-  ModelProviderSave,
-  ModelProviderView,
-  ModelProvidersView,
+import {
+  loadModelProviders,
+  type ModelProviderRemoval,
+  type ModelProviderSave,
+  type ModelProviderView,
+  type ModelProvidersView,
 } from '@botharness/host-client/model-providers';
 import { bridgeHost, BridgeCallError, type BridgeCall } from './bridge.js';
 import { CodexDeviceSignIn } from './codex-device-sign-in.js';
@@ -468,9 +469,7 @@ export function ModelProvidersSettings({
       );
     const load = async () => {
       try {
-        const result = await bridgeHost(call, request.signal).call<ModelProvidersView>(
-          'modelProviders',
-        );
+        const result = await loadModelProviders(bridgeHost(call, request.signal));
         if (request.signal.aborted) return;
         setView(result);
         setLoadFailed(false);

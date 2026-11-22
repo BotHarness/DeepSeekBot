@@ -1222,6 +1222,8 @@ deepseekbot model-preset-update <preset-id> --name Nightly --orchestrator-effort
 deepseekbot model-presets --include-usage
 deepseekbot model-preset-sub <preset-id>
 deepseekbot model-preset-sub-set <preset-id> --expected-revision <revision> --plan-stdin < sub.json
+deepseekbot model-plan-sub <bot-id>
+deepseekbot model-plan-sub-set <bot-id> --expected-revision <revision> --plan-stdin < sub.json
 deepseekbot model-preset-delete <preset-id> --expected-revision <revision> --confirm
 deepseekbot model-groups
 deepseekbot model-group <group-id>
@@ -1247,7 +1249,11 @@ deepseekbot group-activity <group-channel>
 
 `list_assignment_models` 展示 Bot 获准使用的选项及默认项，订阅引擎选项还会显示账号名称，配额用尽时显示 `restingUntil`。在 `create_assignment` 中省略模型选择会使用默认项。显式选择订阅引擎时，随常规参数传入选项中已有的 `engine`、`account_id` 和 `model`。Host 使用选项保存的推理强度，并拒绝未列出或未授权的选项。单个 API 模型或订阅账号配额用尽时返回 `assignment-choice-resting`，路由组继续按组内顺序切换。
 
-连接在线 Host 时，`model-preset-create` 也支持 `--plan-stdin`，stdin 仅包含 `{"assignmentModels":[...]}`，创建预设时保留可选模型、推理强度和备注。创建与更新都通过移动端编辑器使用的同一 Host bridge 转发完整策略，不会悄悄缩减为默认模型。
+连接在线 Host 时，`model-preset-create` 也支持 `--plan-stdin`。stdin 可以是 `{"assignmentModels":[...]}`，创建预设时保留可选模型、推理强度和备注；也可以是下文的 `{"sub":{...}}` 副模型选项。创建与更新都通过移动端编辑器使用的同一 Host bridge 转发完整策略，不会悄悄缩减为默认模型。
+
+`model-plan-sub` 读取 Bot 自己的模型方案中的副模型选项及版本。 `model-plan-sub-set` 用与 `model-preset-sub-set` 相同的 stdin 格式替换选项及默认项。传入空的 `choices` 和 `default: null` 时，Assignment 跟随 Bot 的 Orchestrator。如果 Bot 继承 Profile 默认方案，需先应用预设或保存 Bot 自己的模型方案。
+
+要同时保存主模型路由与副模型选项，请向 `model-plan-set --plan-stdin` 传入 `{"orchestrator":{...},"sub":{...}}`。也可用 `orchestratorGroupId` 代替 `orchestrator`。对于 `model-preset-create`，用命令行参数指定名称及主模型路由，并通过 `--plan-stdin` 传入 `{"sub":{...}}`。`model-preset-update` 只改副模型选项时，请省略主模型路由参数，这样原有的路由组会保留；只有要设置或替换主模型路由时才加这些参数。传入 `sub` 时请省略旧版 Assignment 字段和参数。
 
 `model-catalog` 列出 Host 能运行的模型和 Profile 默认模型，与模型选择器看到的一致。`model-plan-set` 用 stdin 中的 `{"orchestrator":{...},"assignmentDefault":{...},"assignmentModels":[...]}` 替换 Bot 的整个模型方案；`model-plan-assignments-set` 接受去掉 `orchestrator` 的同一对象，且要求 Bot 已有自己的方案：跟随 Profile 默认模型的 Bot 会返回 `Apply a Model Preset first`，此时先用 `model-plan-set` 或应用一个预设。两者都可以带 `assignmentGroups`、`assignmentDefaultGroupId` 和 `assignmentGroupOptions` 指定路由组，`model-plan-set` 还可以用 `orchestratorGroupId` 代替 `orchestrator`。路由写作 `{"provider","model","reasoningEffort"?}`，Assignment 模型写作 `{"provider","model","allowedEfforts":[...],"defaultEffort","note"?}`。`model-plan-customize` 只修改 Bot 的 Orchestrator；原本继承全局时建立独立覆盖，Assignment 的固定配置或全局继承保持不变。`model-plan-inherit` 去掉 Bot 自己的模型，改为跟随 Profile 默认模型。`model-preset-update` 修改预设的名称或路由；没有给出的参数保持当前值，但只要给出 `--orchestrator-provider`、`--orchestrator-model` 或 `--orchestrator-effort` 中任意一个，Orchestrator 的路由组就会换成这条单独的路由（只改名称时保留路由组），可选的 `--plan-stdin` `{"assignmentModels":[...]}` 替换它的 Assignment 模型。每条路由都由 Host 按模型目录校验。方案和预设的写入会核对版本：`--expected-revision` 显式指定版本；不指定时命令先读取当前版本，与 `memory-save` 的 `--expected-head` 相同。方案在此期间被改过时，返回 Host 的 `invalid-input`。
 
@@ -1490,7 +1496,7 @@ Bot 名字只是标签，身份是 id。不带 operation key 时，每次创建�
 
 ## Channel、授权、计划与配对
 
-`channels` 列出 Channel，`channel-messages` 读一页消息（从新到旧，`--limit`、`--before` 分页）。`grants` 列出 Bot 的 workspace 授权，`grant-revoke`/`grant-write-set` 管理它们；新建授权需要 Host 的 workspace 注册表，仍是 Host 侧动作。`schedules` 列出 Bot 的计划；`schedule-create` 要 `--title`、`--prompt` 和唯一一种触发器（`--every` 秒数、`--daily`/`--weekly` 时间加 `--weekdays`、`--once-date` 加 `--once-time`、`--cron`），日历触发器必须传 `--timezone`；`schedule-update`/`schedule-delete`/`schedule-history` 用 `--sid` 指定计划；`schedule-run-now` 记录一次手动触发，Host 启动后执行；`schedule-preview` 不指定 Bot、只渲染触发器的未来时刻。`pairings` 列出 Bot 的 IM 配对请求。不存在的计划报 `unknown-schedule`；删除返回 `removed`。
+`channels` 列出 Channel，`channel-messages` 读一页消息（从新到旧，`--limit`、`--before` 分页）。`grants` 列出 Bot 的 workspace 授权，`grant-revoke`/`grant-write-set` 管理它们；新建授权需要 Host 的 workspace 注册表，仍是 Host 侧动作。使用 `--home` 时，`grant-write-set` 可以修改 BotHarness 空间的有效授权。修改 DSH 原生工作区授权时，请连接正在运行的 Host。`schedules` 列出 Bot 的计划；`schedule-create` 要 `--title`、`--prompt` 和唯一一种触发器（`--every` 秒数、`--daily`/`--weekly` 时间加 `--weekdays`、`--once-date` 加 `--once-time`、`--cron`），日历触发器必须传 `--timezone`；`schedule-update`/`schedule-delete`/`schedule-history` 用 `--sid` 指定计划；`schedule-run-now` 记录一次手动触发，Host 启动后执行；`schedule-preview` 不指定 Bot、只渲染触发器的未来时刻。`pairings` 列出 Bot 的 IM 配对请求。不存在的计划报 `unknown-schedule`；删除返回 `removed`。
 
 ### 在线批准工作区请求
 
@@ -2206,6 +2212,10 @@ QQ 同样支持 `deepseekbot messaging-defaults qq` 和 `messaging-defaults-set 
 手机读取验收：`device-probe --device-file <私有配对文件>` 使用与手机相同的连接实现读取 Bot 和频道列表，并返回 `feedRead`。`acknowledged` 表示设备所有者已记录读取回报；旧 Host 返回 `unsupported`，回报失败返回 `unconfirmed`，均不表示新手引导完成。`devices.devices[].feedReadAt` 可读取首次成功回报时间。配对、批准或最近访问时间都不替代实际内容读取；本流程不发送消息，也不需要模型。
 
 ### 团队模式与 Host 成员
+
+使用 `team-mode owner-sign-in status` 查看目标 Host 的独立 Owner 账密登录设置。首次创建账密时执行 `team-mode owner-sign-in on --username <用户名> --password-stdin --confirm`，通过标准输入提供密码。已有账密时，执行 `team-mode owner-sign-in on --confirm` 即可继续使用。用 `off` 停止新的账密登录，已登记的 Owner 设备可以继续连接。
+
+在另一端执行 `device-owner-sign-in <可信 HTTPS 地址> <用户名> --password-stdin --confirm --out <私有设备文件绝对路径>`。CLI 验证 HTTPS 地址，经已认证的设备加密通道提交密码，将设备密钥和凭据写入新建的私有文件。标准输出只报告 Host ID、设备 ID 和文件路径等连接信息。使用 `device-probe --device-file <私有设备文件绝对路径>` 验证可用该设备授权读取真实 Host Feed。
 
 `dm <username>` 在指定 Host 上打开或创建当前 Human 与该活跃联系人的唯一私聊。双方打开会返回同一频道，其他 Human 无权读取。使用 `channels send <channel-id> --body-stdin` 和 `channel-messages <channel-id>` 收发、读取消息。纯 Human 私聊没有 Bot 参与者；群消息仍可由有权参与的 Bot 阅读。
 

@@ -3,7 +3,7 @@
 ## Sources
 
 - `packages/core/src/features/tob/plugin.ts`
-- `packages/core/src/features/tob/{methods,rpc}.ts`
+- `packages/core/src/features/tob/{cli-runtime,methods,rpc}.ts`
 - `packages/core/src/tob/**`
 - `packages/core/src/bots/cli-tob.ts`
 - `packages/client/src/client/{tob-presentation,tob-requests}.ts`
@@ -155,6 +155,10 @@ Use the Mac/iOS or Windows/Android device queue; Web and model tests do not qual
 
 Retain the first failure with native screenshot/AX/video and exact source/binary identity, then restore preferences, remove only this run's temporary pairing, revoke its Host key and stop owned resources. The full device matrix is tracked in #3090 and #3093.
 
+
+## Approval with a concurrent Bot DM (#4881)
+
+In an isolated Profile, ask Tob to prepare a `settings-set botharness-client` write from its Human DM. Record the starting setting revision and leave the card pending. From another Bot's Human DM, ask it to send Tob an unrelated status message. Check that its Bot DM is accepted as steering into the same active turn, then approve the original card. Record the decision, exact CLI result, and independent setting read-back. The value must match the card and the revision must increment once. A fresh command submitted from that mixed turn must pass its own source admission. The deterministic `tob-cli-inbox-approval.test.ts` also places the Bot DM immediately before card dispatch and after the approval decision commits.
 
 ## Model-free typed CLI parity (#4212)
 

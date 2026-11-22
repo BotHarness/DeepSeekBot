@@ -27,7 +27,7 @@ import type { PeerScope, Principal } from '@deepseek-ai/dsh-typert-protocol';
 import type { OperationalDatabaseModulePort } from '../database/owner.js';
 import { humanContext, type HumanContext } from '../humans/context.js';
 import type { ChannelStore } from '../channels/store.js';
-import { hashPassword, passwordHashSchema, strongPassword, verifyPassword } from './password.js';
+import { hashPassword, passwordHashSchema, verifyPassword } from './password.js';
 import { SignInRateLimit } from './rate-limit.js';
 import { memberUrls } from './member-urls.js';
 
@@ -70,6 +70,7 @@ const credentialPasswordSchema = passwordHashSchema.extend({
 });
 
 const credentialSchema = z.object({
+  username: z.string(),
   password_json: z.string(),
   history_json: z.string(),
   must_change: z.coerce.boolean(),
@@ -476,7 +477,7 @@ export class TeamService {
     const row = this.db.read((db) =>
       db
         .prepare(
-          'SELECT password_json, history_json, must_change FROM member_credentials WHERE human_id = ?',
+          'SELECT username, password_json, history_json, must_change FROM member_credentials WHERE human_id = ?',
         )
         .get(humanId),
     );
@@ -484,6 +485,7 @@ export class TeamService {
     const parsed = credentialSchema.parse(row);
     const password = credentialPasswordSchema.parse(JSON.parse(parsed.password_json));
     return {
+      username: parsed.username,
       hash: passwordHashSchema.parse(password),
       ownerIssuerHumanId: password.ownerIssuerHumanId,
       history: z.array(passwordHashSchema).parse(JSON.parse(parsed.history_json)),
@@ -542,6 +544,17 @@ export class TeamService {
   private owner(human: HumanContext): void {
     if (!this.isOwner(human))
       throw new TeamError('permission-required', undefined, { permission: 'owner' });
+  }
+
+  ownerPasswordSignIn(human: HumanContext) {
+    return memberAuth.ownerPasswordSignIn.call(this.#memberOperations, human);
+  }
+
+  ownerPasswordSignInSet(
+    human: HumanContext,
+    input: Parameters<typeof memberAuth.ownerPasswordSignInSet>[1],
+  ) {
+    return memberAuth.ownerPasswordSignInSet.call(this.#memberOperations, human, input);
   }
 
   async setMode(human: HumanContext, enabled: boolean): Promise<TeamModeView> {
@@ -605,31 +618,10 @@ export class TeamService {
     password: string,
     current?: string,
   ): Promise<TeamModeView> {
-    this.owner(human);
-    const previous = this.credential(human.humanId);
-    if (previous && !(await verifyPassword(current ?? '', previous.hash)))
-      throw new TeamError('credentials-invalid');
-    this.owner(human);
-    if (!strongPassword(password)) throw new TeamError('password-weak');
-    const hash = await hashPassword(password);
-    this.owner(human);
-    if (this.credential(human.humanId)?.hash.hash !== previous?.hash.hash)
-      throw new TeamError('credentials-invalid');
-    this.db.transaction(
-      (db) => {
-        if (previous)
-          db.prepare(
-            'UPDATE member_credentials SET password_json = ?, must_change = 0 WHERE human_id = ?',
-          ).run(credentialPasswordJson(hash, human.humanId), human.humanId);
-        else
-          db.prepare("INSERT INTO member_credentials VALUES (?, 'owner', ?, '[]', 0)").run(
-            human.humanId,
-            credentialPasswordJson(hash, human.humanId),
-          );
-      },
-      ['team'],
-    );
-    this.invalidate();
+    await memberAuth.setOwnerPassword.call(this.#memberOperations, human, password, {
+      kind: 'settings',
+      current,
+    });
     return this.mode(human);
   }
 
@@ -700,6 +692,21 @@ export class TeamService {
     device?: { kind: 'paired-device'; name: string; publicKey?: string },
   ): Promise<{ token: string; member: TeamMember; peer: PeerScope }> {
     return memberAuth.signIn.call(this.#memberOperations, username, password, ip, device);
+  }
+
+  signInOwnerDevice<T>(
+    username: string,
+    password: string,
+    ip: string,
+    issue: (humanId: string) => T,
+  ): Promise<T> {
+    return (memberAuth.signInOwnerDevice<T>).call(
+      this.#memberOperations,
+      username,
+      password,
+      ip,
+      issue,
+    );
   }
 
   private createGrant(

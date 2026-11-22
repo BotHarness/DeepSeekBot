@@ -1550,21 +1550,21 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               const requireOwner = () => {
                 if (!core.team.isOwner(human)) throw new TobError('permission-required');
               };
-              let source: (() => void) & { markSideEffect?: () => void };
-              try {
-                source =
-                  core.runtime.captureTobCliAuthority?.(actor.session.id) ??
-                  (() => {
-                    throw new TobError('tob-authority-required');
-                  });
-              } catch (error) {
-                source = () => {
-                  throw error;
-                };
-              }
-              const authorize = () => {
+              const source = (() => {
+                try {
+                  const authority = core.runtime.captureTobCliAuthority?.(actor.session.id);
+                  if (!authority) throw new TobError('tob-authority-required');
+                  return { authorize: authority, beginWrite: authority.beginWrite };
+                } catch (error) {
+                  const refuse = () => {
+                    throw error;
+                  };
+                  return { authorize: refuse, beginWrite: refuse };
+                }
+              })();
+              const requireAuthority = (requireOrigin: () => void) => {
                 if (execution.signal.aborted) throw new TobError('agent-context-expired');
-                source();
+                requireOrigin();
                 if (
                   memberTob &&
                   (!team.mode(human).enabled || team.member(human.humanId)?.status !== 'active')
@@ -1581,7 +1581,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
               const started = Date.now();
               return {
                 signal: execution.signal,
-                authorize,
+                authorize: () => requireAuthority(source.authorize),
+                beginWrite: () => {
+                  const scope = source.beginWrite();
+                  return { ...scope, authorize: () => requireAuthority(scope.authorize) };
+                },
                 prepareOperation: async (command, args, signal) => {
                   const checkTargets = () =>
                     authorizeTobBotTargets(args, {
@@ -1642,30 +1646,24 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
                       ...TOB_VOICE_CAPABILITIES,
                       TOB_HOST_CLI_CAPABILITY,
                     ],
-                beforeWrite: () => source.markSideEffect?.(),
                 readSetting: () => {
                   requireOwner();
                   return core.tob.readSetting();
                 },
                 writeSetting: (value, revision, guard) => {
                   requireOwner();
-                  return core.tob.writeSetting(value, revision, () => {
-                    guard();
-                    source.markSideEffect?.();
-                  });
+                  return core.tob.writeSetting(value, revision, guard);
                 },
-                approve: async (operation, signal) => {
-                  source();
-                  return approveTobCliOperation({
+                approve: (operation, signal, scope) =>
+                  approveTobCliOperation({
                     execution,
                     operation,
                     signal,
-                    authorize: source,
+                    ...scope,
                     approval: ctx.get('approval') as ApprovalService | undefined,
                     channelApproval: toolApproval,
                     fullAccess: () => sessionHasFullAccess(core, actor.session.id),
-                  });
-                },
+                  }),
                 log: (phase, details) =>
                   ctx.logger.info('tob-cli %j', {
                     phase,

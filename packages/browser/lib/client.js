@@ -71,7 +71,7 @@ window.__ModuleLoader__.load({
 			};
 		}
 		//#endregion
-		//#region packages/client/src/client/channel-sidebar-icon.tsx
+		//#region packages/client/src/client/features/channels/channel-sidebar-icon.tsx
 		/**
 		* Vendored Channel sidebar glyphs from lucide-react@1.46.0 (ISC, ADR-0032).
 		*

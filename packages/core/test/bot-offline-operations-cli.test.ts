@@ -1,5 +1,14 @@
 import { OWNER_HUMAN_CONTEXT } from '../src/humans/context.js';
-import { chmodSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import nativeFs from 'node:fs';
 import { syncBuiltinESMExports } from 'node:module';
 import { join } from 'node:path';
@@ -8,10 +17,30 @@ import { runBotCreateCli } from '../src/bots/bot-create-cli.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { BOT_HARNESS_SCHEMA_PLAN } from '../src/database/schema-plan.js';
 import { attachOperationalModule, mountOperationalDatabase } from '../src/database/owner.js';
+import { createGrants } from '../src/features/workspaces/plugin.js';
+import { TeamRoles } from '../src/team/roles.js';
+import { WorkspaceSpaces } from '../src/workspaces/spaces.js';
 import { createTempRoot } from './helpers.js';
 import { invoke } from './bot-create-cli-fixture.js';
 
 describe('deepseekbot lifecycle', () => {
+  it('releases the database writer lease when Bot registry setup fails', async () => {
+    const home = createTempRoot('botharness-cli-broken-registry-');
+    const root = join(home, 'botharness');
+    const bots = join(root, 'bots');
+    mkdirSync(root);
+    writeFileSync(bots, 'occupied');
+
+    const failed = await invoke(['list'], home);
+    expect(failed.json.error.code).toBe('internal-error');
+    expect(failed.code).toBe(1);
+    expect(existsSync(join(root, 'botharness.writer.json'))).toBe(false);
+
+    rmSync(bots);
+    const retried = await invoke(['list'], home);
+    expect(retried.code).toBe(0);
+  });
+
   it('pauses and resumes a bot', async () => {
     const home = createTempRoot('botharness-lifecycle-pause-');
     const bot = await invoke(['create', '--name', 'Ada'], home);
@@ -323,6 +352,59 @@ describe('deepseekbot channels, grants, schedules, pairings', () => {
     const missing = await invoke(['grants', 'bot-absent'], home);
     expect(missing.code).toBe(1);
     expect(missing.json.error.code).toBe('unknown-bot');
+  });
+
+  async function seedSpaceGrant(home: string, botId: string) {
+    const owner = mountOperationalDatabase({ dshHome: home, schemaPlan: BOT_HARNESS_SCHEMA_PLAN });
+    try {
+      const roles = new TeamRoles(attachOperationalModule(owner, 'team'), () => {});
+      const spaces = new WorkspaceSpaces(
+        attachOperationalModule(owner, 'workspace-spaces'),
+        home,
+        roles,
+      );
+      return await createGrants(owner, spaces, {}).create(
+        botId,
+        'spaces/' + roles.ownerContext().humanId,
+      );
+    } finally {
+      owner.close();
+    }
+  }
+
+  it('updates an active Space grant offline and refuses missing or revoked targets', async () => {
+    const home = createTempRoot('botharness-cli-grant-write-');
+    const bot = await invoke(['create', '--name', 'Ada'], home);
+    expect(bot.code).toBe(0);
+    const botId: string = bot.json.bot.id;
+    const grant = await seedSpaceGrant(home, botId);
+    const args = ['grant-write-set', botId, '--grant', grant.id];
+    const enabled = await invoke([...args, '--enabled'], home);
+    expect(enabled.json).toMatchObject({
+      grant: {
+        id: grant.id,
+        orchestratorWrite: true,
+        writeRevision: (grant.writeRevision ?? 0) + 1,
+      },
+    });
+    expect(enabled.code).toBe(0);
+    const disabled = await invoke([...args, '--disabled'], home);
+    expect(disabled.json).toMatchObject({
+      grant: {
+        id: grant.id,
+        orchestratorWrite: false,
+        writeRevision: (grant.writeRevision ?? 0) + 2,
+      },
+    });
+    expect(disabled.code).toBe(0);
+    rmSync(grant.workspacePath, { recursive: true });
+    const missing = await invoke([...args, '--enabled'], home);
+    expect(missing.code).toBe(1);
+    expect(missing.json.error.code).toBe('unavailable-workspace');
+    expect((await invoke(['grant-revoke', botId, '--grant', grant.id], home)).code).toBe(0);
+    const revoked = await invoke([...args, '--enabled'], home);
+    expect(revoked.code).toBe(1);
+    expect(revoked.json.error.code).toBe('invalid-grant');
   });
 
   it('runs the full schedule lifecycle and previews triggers', async () => {

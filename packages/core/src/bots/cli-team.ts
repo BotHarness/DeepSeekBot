@@ -45,7 +45,7 @@ export const TEAM_COMMANDS = [
   {
     command: 'team-mode',
     description:
-      'status | on | off | owner-password --password-stdin | insecure-http on|off --confirm | transfer-owner <username> --password-stdin --confirm',
+      'status | on | off | owner-password --password-stdin | owner-sign-in status|on|off | insecure-http on|off --confirm | transfer-owner <username> --password-stdin --confirm',
   },
   {
     command: 'members',
@@ -357,6 +357,21 @@ export async function runTeamCommand(
       : rpc('memberDeviceRevoke', { humanId, grantId: values.revoke });
   }
   if (command === 'team-mode') {
+    if (action === 'owner-sign-in' && rest.length === 2) {
+      const username = values.username;
+      const readPassword = values['password-stdin'] === true;
+      if (argument === 'status' && username === undefined && !readPassword && !values.confirm)
+        return rpc('ownerPasswordSignIn', {});
+      if (argument === 'off' && username === undefined && !readPassword)
+        return rpc('ownerPasswordSignInSet', { enabled: false });
+      if (argument !== 'on' || (username !== undefined) !== readPassword) return usage();
+      if (!values.confirm)
+        throw new CliLiveError('confirm-required', 'Enabling Owner sign-in requires --confirm.');
+      return rpc('ownerPasswordSignInSet', {
+        enabled: true,
+        ...(username === undefined ? {} : { username, password: await secret(io) }),
+      });
+    }
     if (
       action === 'transfer-owner' &&
       argument &&

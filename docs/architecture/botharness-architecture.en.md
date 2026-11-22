@@ -66,6 +66,12 @@ Welcome messages kept from earlier versions still offer capability introduction,
 
 Native model and credential Services remain authoritative. Default-on Profile setup saves and verifies the native global selection, leaving the Bot inheriting; opting out writes an individual Model Plan. New Bots without a plan follow the global default. A retained revision counter protects return to inheritance; global edits preserve fixed plans and running Assignment Sessions. Manual retry uses the original Human message and Admission through the existing retryability/side-effect gate, without adding another Human message.
 
+## Accepted target for Remote Host password sign-in
+
+Desktop, iOS, and Android share the Host identity and password sign-in flow when adding a Remote Host. The application-defined Team Service owns the Host's sign-in policy and Member Credentials. The Client uses a saved key, an independently verified fingerprint, a Host sign-in link, or a trusted HTTPS origin to establish trust in the Host key. It submits credentials through the device gateway's Noise channel, which can also run over a tunnel or an HTTP-only LAN.
+
+The Host issues a Paired Device grant for the authenticated Human and binds it to the Client device key. The existing Devices module owns the grant and records its issuance method for selective revocation during Owner password changes. Team mode enables password sign-in. With Team mode off, the standalone Owner setting controls new Owner password sign-ins. The first delivery covers standalone Owner sign-in over HTTPS in desktop and Web Clients. See [connection decisions](../decisions/connections.md#remote-host-password-sign-in-uses-the-same-encrypted-device-channel-on-every-route) and [Team mode decisions](../decisions/team-mode.md#host-password-sign-in-and-team-mode).
+
 ## 1 · System context
 
 ```mermaid
@@ -405,6 +411,8 @@ The full target, implementation observations and #4203/E3 specification differen
 The application-defined Bot runtime owns each PersonaBot’s turn queue and shares it with the Orchestrator scheduling, cancellation and continuation modules. The modules use the existing Session Ownership authority and DSH Agent adapter. See the [shared kernel](feature-map.md#shared-kernel).
 
 DM and Group admission, causal sending, and Group digests use shared Channel and Runtime kernel modules behind the same Bot Runtime Service. They use the Runtime’s live turn state and existing Channel Store and admission transactions.
+
+Channel tools, Human input binding, direct Bot tools, and Tob CLI requests also use ports supplied by the Bot Runtime Service. It owns the live turn state, inbox-ignore writes, and direct-tool Source Event writes. See the [shared kernel](feature-map.md#shared-kernel).
 
 M6 adds application-owned account/shared roots, separate grantable `files/` and protected Bot Memory, current audience checks (including for the Owner's own Bots), and the bound `core.currentRoots(session, kind)` seam for M12. Linux M12 confinement uses those Session roots, and Team mode reports `enforced` when both filesystem and network confinement are available. The persistence, migration, M9 lifecycle and wire contracts are in [M6 runtime boundaries](team-mode-m6-runtime.md). Current member authorization and Host-owned chat avatars are in the [Team mode decisions](../decisions/team-mode.md).
 

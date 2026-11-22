@@ -40,6 +40,8 @@ import {
 } from './paired-device-setup.js';
 import { renderPairedDeviceNetworkStatus } from './paired-device-network-status.js';
 import { json, PATH, usePairedDevices } from './use-paired-devices.js';
+import { OwnerPasswordSignInSettings } from './owner-password-sign-in-settings.js';
+import type { BridgeCall } from './bridge-transport.js';
 
 export type { ConnectedHost };
 
@@ -173,6 +175,7 @@ export type PairedDevicesSettingsProps = PropsLocale<'botharness'> & {
   page?: boolean;
   initialPairing?: boolean;
   initialRemote?: boolean;
+  ownerPasswordSignInCall?: BridgeCall;
   pairedDeviceId?: string | undefined;
   onDevicePaired?: ((deviceId: string) => void) | undefined;
   onFeedRead?: ((deviceId: string) => void) | undefined;
@@ -186,6 +189,7 @@ export function PairedDevicesSettings({
   page = false,
   initialPairing = false,
   initialRemote = false,
+  ownerPasswordSignInCall,
   onDevicePaired,
   onFeedRead,
   pairedDeviceId,
@@ -490,6 +494,9 @@ export function PairedDevicesSettings({
       ) : null}
       {standalone && section === 'devices' && overview ? (
         <SettingsSection title={t('connections.manage.switches')}>
+          {ownerPasswordSignInCall === undefined ? null : (
+            <OwnerPasswordSignInSettings t={t} call={ownerPasswordSignInCall} />
+          )}
           {snapshot?.lan ? (
             <SettingsRow
               title={t('devices.lan.title')}

@@ -12,6 +12,7 @@ import {
   type ModelPresetEngineInput,
   type ModelRoute,
 } from '../models/presets.js';
+import { isPresetSub, type PresetSub } from '../models/preset-sub.js';
 import type { ModelPlanState } from '../models/readiness.js';
 import type { RoutingGroup } from '../models/routing-groups.js';
 import type { BotCreateCliIo } from './bot-create-cli.js';
@@ -61,7 +62,8 @@ export const MODELS_USAGE_COMMANDS = [
   },
   {
     command: 'model-plan-set',
-    description: "replace a Bot's whole model plan with JSON from stdin",
+    description:
+      "replace a Bot's main route and sub choices or legacy Assignment fields from --plan-stdin",
   },
   {
     command: 'model-plan-customize',
@@ -78,6 +80,15 @@ export const MODELS_USAGE_COMMANDS = [
   {
     command: 'model-preset-update',
     description: 'rename or change the routes of a Model Preset',
+  },
+  {
+    command: 'model-plan-sub',
+    description: 'read a Bot Model Plan’s sub choices, default and revision',
+  },
+  {
+    command: 'model-plan-sub-set',
+    description:
+      'replace a Bot Model Plan’s sub choices and default from --plan-stdin at its revision',
   },
   {
     command: 'model-preset-sub',
@@ -265,6 +276,25 @@ async function membersInput(io: BotCreateCliIo, values: ModelsUsageValues): Prom
       'Members stdin must be {"members":[...]} with model, Routing Group or engine member objects.',
     );
   return members;
+}
+
+export function presetSubStdin(
+  plan: Record<string, unknown>,
+  values: ModelsUsageValues,
+): PresetSub | undefined {
+  const sub = plan['sub'];
+  if (sub === undefined) return undefined;
+  if (!isPresetSub(sub)) usage('Plan stdin needs valid sub choices and default.');
+  if (
+    Object.keys(plan).some(
+      (key) => key.startsWith('assignment') || key === 'openAssignmentModels',
+    ) ||
+    Object.entries(values).some(
+      ([key, value]) => value !== undefined && /^(assignment-|open-assignment)/u.test(key),
+    )
+  )
+    usage('Provide sub choices without legacy Assignment fields or flags.');
+  return sub;
 }
 
 async function planInput(
@@ -663,13 +693,18 @@ export async function runModelsUsage(
       values,
       [
         ...required,
-        ...(full ? ['orchestrator', 'orchestratorGroupId', 'orchestratorGroupEffort'] : []),
+        ...(full ? ['orchestrator', 'orchestratorGroupId', 'orchestratorGroupEffort', 'sub'] : []),
         'assignmentGroups',
         'assignmentDefaultGroupId',
         'assignmentGroupOptions',
       ],
-      required,
+      full ? [] : required,
     );
+    if (
+      presetSubStdin(plan, values) === undefined &&
+      required.some((key) => plan[key] === undefined)
+    )
+      usage('Plan stdin requires assignmentDefault and assignmentModels, or sub.');
     if (full && (plan['orchestrator'] == null) === (plan['orchestratorGroupId'] == null))
       usage('Plan stdin needs either orchestrator or orchestratorGroupId.');
     const mode = assignmentModelsMode(values['assignment-models']);
@@ -692,12 +727,16 @@ export async function runModelsUsage(
       expected ?? (await rpc<ModelPlanState>('modelPlan', { slug: target })).revision ?? 0;
     return rpc('modelPlanInherit', { slug: target, expectedRevision });
   }
+  if (command === 'model-plan-sub') return (await connect())('modelPlanSub', { slug: target });
   if (command === 'model-preset-sub') return (await connect())('modelPresetSub', { id: target });
-  if (command === 'model-preset-sub-set') {
+  if (command === 'model-preset-sub-set' || command === 'model-plan-sub-set') {
     if (expected === undefined || expected < 1)
-      usage('Provide --expected-revision from model-preset-sub.');
+      usage(`Provide --expected-revision from ${command.slice(0, -4)}.`);
     const sub = await planInput(io, values, ['choices', 'default'], ['choices', 'default']);
-    return (await connect())('modelPresetSubSet', { id: target, expectedRevision: expected, sub });
+    const rpc = await connect();
+    return command === 'model-plan-sub-set'
+      ? rpc('modelPlanSubSet', { slug: target, expectedRevision: expected, sub })
+      : rpc('modelPresetSubSet', { id: target, expectedRevision: expected, sub });
   }
   if (command === 'model-preset-delete') {
     if (values.confirm !== true) usage('Add --confirm to delete the Model Preset.');
@@ -714,8 +753,9 @@ export async function runModelsUsage(
     const name = values.name?.trim();
     if (values.name !== undefined && !name) usage('--name must not be empty.');
     const plan = values['plan-stdin']
-      ? await planInput(io, values, ['assignmentModels', 'assignmentGroupOptions'], [])
+      ? await planInput(io, values, ['assignmentModels', 'assignmentGroupOptions', 'sub'], [])
       : {};
+    const sub = presetSubStdin(plan, values);
     const mode = assignmentModelsMode(values['assignment-models']);
     const rpc = await connect();
     const { presets } = await rpc<{ presets: ModelPreset[] }>('modelPresets', {});
@@ -763,6 +803,18 @@ export async function runModelsUsage(
         : orchestratorGroupId === current.orchestratorGroupId
           ? (current.orchestratorGroupEffort ?? null)
           : null;
+    const main = {
+      id: target,
+      expectedRevision: expected ?? current.revision,
+      name: name ?? current.name,
+      ...(orchestratorGroupId
+        ? {}
+        : { orchestrator: routeOverride(values, 'orchestrator', current.orchestrator) }),
+      orchestratorGroupId,
+      orchestratorGroupEffort,
+      ...engines,
+    };
+    if (sub !== undefined) return rpc('modelPresetUpdate', { ...main, sub });
     const assignmentGroups = flags.assignmentGroups ?? current.assignmentGroups ?? [];
     const assignmentDefaultGroupId =
       'assignmentDefaultGroupId' in flags
@@ -771,19 +823,11 @@ export async function runModelsUsage(
     if (assignmentDefaultGroupId && !assignmentGroups.includes(assignmentDefaultGroupId))
       usage('--assignment-default-group must be one of the Assignment Routing Groups.');
     return rpc('modelPresetUpdate', {
-      id: target,
-      expectedRevision: expected ?? current.revision,
-      name: name ?? current.name,
-      ...(orchestratorGroupId
-        ? {}
-        : { orchestrator: routeOverride(values, 'orchestrator', current.orchestrator) }),
+      ...main,
       assignmentDefault: routeOverride(values, 'assignment', current.assignmentDefault),
       ...(followsMain === undefined ? {} : { assignmentFollowsMain: followsMain }),
-      orchestratorGroupId,
-      orchestratorGroupEffort,
       assignmentGroups,
       assignmentDefaultGroupId,
-      ...engines,
       ...plan,
       ...mode,
     });

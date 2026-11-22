@@ -660,6 +660,12 @@ The application-defined `ConnectionsDialog` presents pairing and device manageme
 
 托管 Connect 在既有路由列表增加 Cloudflare Tunnel。WorkOS 与中继只负责发现 Host、签发绑定账号和 verifier 的配对请求；它们不能授予设备权限。依照 [ADR-0244](../decisions/connections.md#adr-0244)，手机或可信本机浏览器先独立核对 Host 指纹，再由 Host 批准准确的设备公钥。Connect origin 只开放公开身份元数据及加密通道，不接受明文应用调用。大陆可达性、原生设备和实际云端发布分别验收。
 
+#### Remote Host 账密登录（已接受设计，逐片交付）
+
+桌面、iOS 和 Android 在添加 Remote Host 时共用 Host 身份验证与账密登录流程。应用定义的 Team Service 持有 Host 登录策略和 Member Credential。客户端根据已固定的公钥、独立核对的指纹、Host 登录链接或可信 HTTPS 来源验证 Host，再通过设备网关的 Noise 通道提交账密。Cloudflare Tunnel、Tailscale 和内网 HTTP 都可承载这条通道。
+
+Host 按当前 Human 身份签发与客户端设备公钥绑定的 Paired Device 授权。设备授权由现有设备模块持有，并记录签发方式，供 Owner 改密时选择性撤销。Team mode 自动开启账密登录。Team mode 关闭后，Host 根据独立的 Owner 设置决定是否接收新的 Owner 账密登录。见[连接决策](../decisions/connections.md#remote-host-password-sign-in-uses-the-same-encrypted-device-channel-on-every-route)和 [Team mode 决策](../decisions/team-mode.md#host-password-sign-in-and-team-mode)。
+
 ### 手机推送
 
 [ADR-0202](../decisions/mobile.md#adr-0202)（[#1655](https://github.com/BotHarness/DeepSeekBot/issues/1655)）：应用定义的 Push delivery 模块（`packages/core/src/push/`）是 Activity 的投影，不另设通知权威。Activity 表或 PersonaBot 的审批、提问、私密输入计数变化时（以及每分钟一次的兜底扫描），模块读取 `action` 项与未读的 `replies` 项，对每台已登记的配对设备只发送一次新项，并经 Expo Push Service 投递；推送标题为频道名（`#名称`，私信为 PersonaBot 名称），正文为所需操作加上工具与主要参数、问题或消息的简短预览（折叠空白，预览最多 140 个 UTF-16 代码单元，含截断省略号）；私密输入请求不含内容（[ADR-0213](../decisions/mobile.md#adr-0213)）。数据字段包含路由标识、显示文字及适用的发送者和审批元数据。由 Android 原生模块呈现的通知也从数据字段读取标题、正文和角标。角标表示该 Host 的未处理 Human 操作数。设备经设备网关的 `/botharness-device/push` 登记 Expo push token、切换各类通知、发送测试通知；撤销设备或 Expo 回报 `DeviceNotRegistered` 时删除 token。发送失败有界重试，结果写入不含内容的 `push` 开发者日志。App 保存每台配对的 Host，点按通知先切换到对应 Host，再打开该审批、提问或私信。
@@ -685,6 +691,8 @@ Channel Tool Approval 先处理确定性授权，之后固定当次模板正文�
 应用定义的 Bot Runtime 持有每个 PersonaBot 的轮次队列，Orchestrator 调度、取消与继续模块共用该队列，并沿用 Session Ownership 与 DSH Agent adapter。参见[共享内核](feature-map.md#shared-kernel)。
 
 DM 与 Group 的准入、因果消息发送和 Group 摘要由共享的 Channel 与 Runtime 内核模块处理，入口仍是同一个 Bot Runtime Service。这些模块使用 Runtime 的实时轮次状态，并沿用现有的 Channel Store 和准入事务。
+
+Channel 工具、Human 输入绑定、Bot 工具直接执行和 Tob CLI 请求使用 Bot Runtime Service 提供的端口。Bot Runtime 管理轮次状态，以及忽略 Inbox Admission 和记录直接工具调用 Source Event 的事务。
 
 DSH Agent adapter 管理原生 Agent 生命周期，并注册 `packages/core/src/features/` 中 Schedule、GenUI、Memory、Channel files、Channel、IM Messaging、Activity、Assignment 和 Models 的工具与提示词。原生回合和直调共用同一套工具定义。
 
@@ -1585,7 +1593,7 @@ Managed Tailscale publishing belongs to the same device-access Plugin lifecycle.
 
 The cloudflared-only origin accepts `/botharness-device/channel` and refuses legacy application HTTP, stream tickets and WebView paths. The shared phone/browser Host client carries unary RPCs, logical `remote.mux`, uploads, downloads, avatars, private input and push registration inside ciphertext. The encrypted adapter forwards to the existing Device Gateway on loopback; native DSH Typert/API Gateway remains the sole dispatcher. Loopback/Tailscale retain their contract. Legacy Connect pairings without pins fail closed and must be paired again; no failure clears a pin or retries plaintext through Connect.
 
-Native private input uses masked fields and the existing credential owner; values stay outside chat drafts, messages and telemetry. The phone's full Host WebView remains removed on every route. Browser/Computer viewers are explicitly unavailable on Connect pending their own media/signaling qualification; the Host and Tailscale remain available. The browser requires independently trusted serving code and origin-local key storage; it does not claim hardware protection.
+Native private input uses masked fields and the existing credential owner; values stay outside chat drafts, messages and telemetry. The phone's full Host WebView remains removed on every route. Browser and Computer viewers are available through direct Host access and QR-paired Tailscale. Connect and password-enrolled Tailscale use the encrypted device channel, where viewers require separate media and signaling qualification. The browser requires independently trusted serving code and origin-local key storage; it does not claim hardware protection.
 
 [ADR-0244](../decisions/connections.md#adr-0244) is approved. Its implementation, protocol vectors, runtime evidence, native acceptance, independent security review and deployment are separate gates; a green source test is not proof of a real phone through Cloudflare. The [Track A audit](../research/2026-10-22-connect-secret-safety-audit.md) remains historical evidence for the interim refusal.
 
@@ -1825,6 +1833,8 @@ E3 的 Human 审批卡在允许这次、始终允许或拒绝后保留完整请�
 ### CLI effect declaration ownership
 
 The application-defined CLI declaration table in `bots/cli-effects.ts` supplies effects to direct command dispatch and Channel Tool Approval for typed and exact-argv Tob operations. Each declaration separately retains the broker's existing read admission; effect metadata does not confer caller authority. The broker continues to own Human DM provenance, target authorization, exact operation identity and live revocation fences. Unknown commands and arbitrary Shell text retain the existing protected path. The dispatch inventory check follows real command-family arrays and entry branches rather than help or search text.
+
+The Tob broker admits each new request against the Shell's accepted Human DM sources. Before sending a prepared write to Channel Tool Approval, it captures those sources and the approval DM for that proposal. Additional Inbox sources can steer the turn while the write is pending. The broker continues the same operation only while its original sources, Session owner, turn and execution remain live, and the operation still passes its exact approval, target and revision checks. See [Tob CLI authority](../decisions/tob.md#adr-0224).
 
 CLI flag declarations live in the data-only `bots/cli-option-spec.ts` module. `cli-options.ts` owns strict parsing for both dispatch and effect resolution without importing runtime handlers; the existing command-family modules re-export their option groups. Effect-contract type consumers therefore do not acquire the Host credential and child-process implementation graph.
 

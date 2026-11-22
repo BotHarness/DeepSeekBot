@@ -4150,6 +4150,20 @@ const MODEL_PRESET_SUB_ENGINE_MIGRATION: SchemaMigration = {
   },
 };
 
+const OWNER_PASSWORD_SIGN_IN_MIGRATION: SchemaMigration = {
+  id: 'owner-password-sign-in',
+  module: 'team',
+  description: 'Standalone Owner password sign-in policy and paired-device enrollment provenance',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE team_settings ADD COLUMN owner_password_sign_in INTEGER NOT NULL DEFAULT 0
+        CHECK (owner_password_sign_in IN (0, 1));
+      ALTER TABLE paired_devices ADD COLUMN enrollment TEXT
+        CHECK (enrollment = 'owner-password');
+    `);
+  },
+};
+
 export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_OWNERSHIP_MIGRATION,
   MESSAGING_TRACER_MIGRATION,
@@ -4331,4 +4345,5 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_MODEL_CHOICES_MIGRATION,
   MODEL_PRESET_SUB_MIGRATION,
   MODEL_PRESET_SUB_ENGINE_MIGRATION,
+  OWNER_PASSWORD_SIGN_IN_MIGRATION,
 ]);

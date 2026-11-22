@@ -1,3 +1,5 @@
+import { invalidInput } from '../../bridge/method-utils.js';
+import { isPresetSub, type PresetSub } from '../../models/preset-sub.js';
 import {
   isAssignmentGroupOption,
   isModelPresetEngine,
@@ -30,6 +32,29 @@ const PRESET_GROUP_KEYS = [
   'assignmentDefaultGroupId',
   'assignmentGroupOptions',
 ] as const;
+
+export const invalidSub = () =>
+  invalidInput('Provide valid sub choices without legacy Assignment fields');
+
+export function presetSubInput(source: Record<string, unknown>): PresetSub | 'invalid' | undefined {
+  const sub = source['sub'];
+  if (sub === undefined) return undefined;
+  if (
+    !isPresetSub(sub) ||
+    [
+      'assignmentDefault',
+      'assignmentFollowsMain',
+      'assignmentModels',
+      'openAssignmentModels',
+      'assignmentGroups',
+      'assignmentDefaultGroupId',
+      'assignmentGroupOptions',
+      'assignmentEngine',
+    ].some((key) => source[key] !== undefined)
+  )
+    return 'invalid';
+  return sub;
+}
 
 export function presetGroupsInput(
   source: Record<string, unknown>,
