@@ -3457,7 +3457,7 @@ describe('bridge methods', () => {
     );
     methods.create({ slug: 'ada', displayName: 'Ada' });
 
-    await methods.sessions({ slug: 'ada' });
+    expect(methods.sessions({ slug: 'ada' })).toMatchObject({ ok: true });
     expect(readTitles).not.toHaveBeenCalled();
     const result = await methods.sessions({ slug: 'ada', includeTitles: true });
 

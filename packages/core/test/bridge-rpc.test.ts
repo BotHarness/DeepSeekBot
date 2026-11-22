@@ -1157,7 +1157,7 @@ describe('bridge typert service', () => {
     expect((await service.channels()).channels[0]?.latestMessage?.body).toBe('hello');
     expect(service.channelMessages('dm-ada').messages[0]?.body).toBe('hello');
     expect(service.assignments('ada').assignments).toEqual([]);
-    expect((await service.sessions('ada')).sessions).toEqual([]);
+    expect(service.sessions('ada').sessions).toEqual([]);
     expect(service.sessionOwner('unknown').owner).toBeNull();
   });
 

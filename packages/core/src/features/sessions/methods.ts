@@ -100,7 +100,7 @@ export interface SessionsBridgeMethods {
   botToolTrace(
     payload: unknown,
   ): Promise<BridgeResult<{ slug: string; sessionId: string; turns: TurnTrace[] }>>;
-  sessions(payload: unknown): Promise<BridgeResult<{ sessions: OwnedSessionSummary[] }>>;
+  sessions(payload: unknown): SessionListResult | Promise<SessionListResult>;
   sessionArchiveSet(payload: unknown): Promise<BridgeResult<{ archived: boolean }>>;
   sessionOwner(payload: unknown): BridgeResult<{ owner: OwnedSessionBot | null }>;
   botSessionIds(payload: unknown): BridgeResult<{
@@ -164,7 +164,7 @@ export interface SessionEngineQuota {
   limitedUntil?: string;
   observedAt: string;
 }
-
+type SessionListResult = BridgeResult<{ sessions: OwnedSessionSummary[] }>;
 export interface OwnedSessionSummary {
   sessionId: string;
   role: SessionRootRole;
@@ -187,7 +187,6 @@ export interface OwnedSessionSummary {
   triageOpenCount?: number;
   subagentCount?: number;
 }
-
 export interface OwnedSessionBot {
   botSlug: string;
   displayName: string;
@@ -798,7 +797,7 @@ export function createSessionsBridgeMethods(
         },
       };
     },
-    async sessions(payload) {
+    sessions(payload) {
       const slug = asSlug(payload);
       if (slug === undefined) return invalidInput('slug is required');
       if (deps.registry.getHistorical(slug) === undefined) return unknownBot(slug);
@@ -816,15 +815,7 @@ export function createSessionsBridgeMethods(
       const roots = deps.ownership.rootsFor(slug);
       const subagentCounts = deps.ownership.subagentCounts(roots.map((root) => root.sessionId));
       const plan = deps.registry.get(slug)?.modelPlan;
-      const orchestratorIds = roots
-        .filter((root) => root.rootRole === 'orchestrator')
-        .map((root) => root.sessionId);
-      const titles =
-        asObject(payload)['includeTitles'] === true && orchestratorIds.length > 0
-          ? await deps.readSessionTitles?.(orchestratorIds)
-          : undefined;
-      const sessions = roots.map((root) => {
-        const displayTitle = titles?.get(root.sessionId);
+      const sessions: OwnedSessionSummary[] = roots.map((root) => {
         const assignment = assignments.get(root.sessionId);
         const subagentCount = subagentCounts.get(root.sessionId);
         const described = deps.describeEngineSession?.(root.sessionId);
@@ -845,7 +836,6 @@ export function createSessionsBridgeMethods(
           sessionId: root.sessionId,
           role: root.rootRole,
           createdAt: root.createdAt,
-          ...(displayTitle === undefined ? {} : { displayTitle }),
           ...(resumed === undefined || root.rootRole !== 'orchestrator'
             ? {}
             : { currentOrchestrator: root.sessionId === resumed }),
@@ -888,7 +878,18 @@ export function createSessionsBridgeMethods(
           ...(subagentCount === undefined ? {} : { subagentCount }),
         };
       });
-      return { ok: true, value: { sessions } };
+      const result: SessionListResult = { ok: true, value: { sessions } };
+      const readTitles = deps.readSessionTitles;
+      if (readTitles === undefined || asObject(payload)['includeTitles'] !== true) return result;
+      const orchestrators = sessions.filter((session) => session.role === 'orchestrator');
+      if (orchestrators.length === 0) return result;
+      return readTitles(orchestrators.map((session) => session.sessionId)).then((titles) => {
+        for (const session of orchestrators) {
+          const displayTitle = titles.get(session.sessionId);
+          if (displayTitle !== undefined) session.displayTitle = displayTitle;
+        }
+        return result;
+      });
     },
     async sessionArchiveSet(payload) {
       const input = asObject(payload);
