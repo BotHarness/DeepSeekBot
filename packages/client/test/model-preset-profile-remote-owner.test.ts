@@ -56,7 +56,7 @@ function remoteOwner() {
   const bridge = createBridgeMethods(OWNER_HUMAN_CONTEXT, {
     ...core,
     modelCatalog: { list: async () => catalog, validate: () => validate() },
-    defaultModel: { currentSelection: () => route, saveSelection: async () => {} },
+    defaultModel: { currentSelection: () => route },
   });
   const methods = new Map<string, (payload: unknown) => unknown>([
     ['modelCatalog', bridge.modelCatalog],

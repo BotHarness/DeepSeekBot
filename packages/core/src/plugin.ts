@@ -1,3 +1,5 @@
+import { sessionModelChoices } from './runtime/session-model-choices.js';
+import { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
 import type { ReleaseInstaller } from './release/service.js';
 import * as diagnosticsFeature from './features/diagnostics/plugin.js';
 import * as profileStorage from './features/profile-storage/plugin.js';
@@ -152,6 +154,11 @@ import { createRoutingGroupStore, type RoutingGroupStore } from './models/routin
 import {
   assignmentGroupOptionOf,
   createModelPresetStore,
+  DEFAULT_MODEL_PRESET_ID,
+  defaultPresetRoute,
+  defaultPresetPlan,
+  resolveBotModelPlan,
+  type LegacyDefaultModel,
   type ModelPresetStore,
 } from './models/presets.js';
 import { createModelFavoriteStore, type ModelFavoriteStore } from './models/favorites.js';
@@ -546,6 +553,7 @@ export function createCore(
   options: {
     botNetwork?: import('./runtime/bot-network.js').BotNetworkPort;
     dshHome?: string;
+    legacyDefaultModel?: () => LegacyDefaultModel;
     companionProfileDir?: string | undefined;
     warn?: (message: string) => void;
     startupDiagnostic?: DiagnosticEvents;
@@ -750,6 +758,8 @@ function initializeCore(
           `model-presets-import initiator=host-startup phase=${event.phase} count=${event.count ?? 0} durationMs=${Math.round(event.durationMs)}`,
         ),
     });
+    if (operationalDatabase.mode === 'ready' && options.legacyDefaultModel !== undefined)
+      modelPresets.migrateDefault(options.legacyDefaultModel);
     startup.enter('routing-groups', 'initialize');
     fallbackOverrides = createFallbackOverrideStore({ database: operationalDatabase });
     routingGroups = createRoutingGroupStore({
@@ -1219,6 +1229,10 @@ function initializeCore(
   runtime = createBotRuntime({
     ...(options.routeRests === undefined ? {} : { routeRests: options.routeRests }),
     ...(options.groupFallback === undefined ? {} : { groupFallback: options.groupFallback }),
+    inheritedModelPlan: () => {
+      const preset = modelPresets.get(DEFAULT_MODEL_PRESET_ID);
+      return preset === undefined ? undefined : defaultPresetPlan(preset);
+    },
     ...(options.sessionRoute === undefined ? {} : { sessionRoute: options.sessionRoute }),
     ...(options.engineFallback === undefined ? {} : { engineFallback: options.engineFallback }),
     ...(team.bots.available ? { team } : {}),
@@ -1481,8 +1495,29 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   );
   let publishDraft: (event: ChannelDraftEvent) => void = () => undefined;
   let voiceDrafts: (event: ChannelDraftEvent) => void = () => undefined;
-  const defaultModel = (ctx as unknown as { agentDefaultModel: DshDefaultModelHost })
-    .agentDefaultModel;
+  const defaultPreset = () => core.modelPresets.get(DEFAULT_MODEL_PRESET_ID);
+  const inheritedPlan = () => {
+    const preset = defaultPreset();
+    return preset === undefined ? undefined : defaultPresetPlan(preset);
+  };
+  const effectivePlan = (slug: string) => {
+    const bot = core.registry.get(slug);
+    return bot === undefined ? undefined : resolveBotModelPlan(bot, inheritedPlan);
+  };
+  const defaultModel: DshDefaultModelHost = {
+    currentSelection(role = 'orchestrator') {
+      const route = defaultPresetRoute(defaultPreset, role, () =>
+        ctx.get('agentDefaultModel')?.currentSelection(),
+      );
+      return {
+        provider: route.provider,
+        model: route.model,
+        ...(route.reasoningEffort === undefined
+          ? {}
+          : { reasoningEffort: ReasoningEffortId(route.reasoningEffort) }),
+      };
+    },
+  };
   const { modelCatalog, providerCredentials } = createHostModelCatalog(ctx, {
     defaultRoute: () => defaultModel.currentSelection(),
     signalProviderChange: () => core.live.publishResourceChanged('model-providers'),
@@ -1495,10 +1530,11 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
     modelCatalog,
     (slug, route) => requireBotModel(core.team, core.registry.get(slug), route),
+    () => defaultPreset()?.assignmentDefault,
   );
   const openAssignmentRoutes = createOpenAssignmentRoutes({
     catalog: modelCatalog,
-    plan: (slug) => core.registry.get(slug)?.modelPlan,
+    plan: effectivePlan,
     requireAllowed: (slug, route) => requireBotModel(core.team, core.registry.get(slug), route),
   });
   const privateExecution = new ProtectedExecution(
@@ -1537,13 +1573,21 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
           .map((group) => `Routing Group ${group.name} (${group.id})`),
       ];
     },
-    routingGroupEffort: (slug) => {
-      const plan = core.registry.get(slug)?.modelPlan;
-      return plan === undefined
-        ? core.routingGroups.defaultGroup().effort
-        : plan.orchestratorGroupId === undefined
-          ? undefined
-          : plan.orchestratorGroupEffort;
+    routingGroupEffort: (slug) => effectivePlan(slug)?.orchestratorGroupEffort,
+    inheritedChoice: (slug, role) => {
+      const bot = core.registry.get(slug);
+      if (
+        bot === undefined ||
+        (bot.modelPlan === undefined && bot.model !== undefined) ||
+        (role === 'orchestrator'
+          ? bot.modelPlan !== undefined
+          : bot.modelPlan?.assignmentDefault !== undefined)
+      )
+        return;
+      const preset = defaultPreset();
+      return role === 'assignment' && preset?.assignmentFollowsMain !== true
+        ? preset?.assignmentEngine
+        : preset?.orchestratorEngine;
     },
     observeTurnTarget: (sessionId, turn, target) => {
       const owner = core.ownership.resolve(sessionId);
@@ -1629,7 +1673,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         `direct-tool-cleanup phase=dispose outcome=failed session=${sessionId} durationMs=${durationMs}`,
       ),
     turnRefusal: (sessionId) => turnRefusals.get(sessionId),
-    resolveModelPlan: (slug) => core.registry.get(slug)?.modelPlan,
+    resolveModelPlan: effectivePlan,
     modelFilter: (slug) => botModelFilter(core.team, core.registry.get(slug)),
     assignmentGroups: {
       pick: (botSlug, groupId, effort) =>
@@ -1646,15 +1690,15 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
       },
       engineRestingUntil: (engine, accountId) => engineHost.limit(engine, accountId)?.until,
       restingUntil: (route) => routeRests.restingUntil(route),
-      inherited: () => core.routingGroups.defaultGroup().groupId,
-      inheritedEffort: () => core.routingGroups.defaultGroup().effort,
+      inherited: () => defaultPreset()?.orchestratorGroupId,
+      inheritedEffort: () => defaultPreset()?.orchestratorGroupEffort,
     },
     openAssignmentRoutes,
     orchestratorRoute: (sessionId) => groupFallback.route(sessionId),
     subagentTools: (slug) =>
       createBotSubagentModelTools(
         ctx,
-        () => core.registry.get(slug)?.modelPlan,
+        () => effectivePlan(slug),
         config.subagent,
         async (route) => {
           requireBotModel(core.team, core.registry.get(slug), route);
@@ -1663,7 +1707,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
         () => openAssignmentRoutes.list(slug),
         {
           pick: async (groupId) => {
-            const plan = core.registry.get(slug)?.modelPlan;
+            const plan = effectivePlan(slug);
             if (!(plan?.assignmentGroups ?? []).includes(groupId))
               throw new Error(`Routing Group ${groupId} is not allowed for Subagents`);
             const picked = await groupFallback.pick(
@@ -1679,7 +1723,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
             );
           },
           list: () =>
-            (core.registry.get(slug)?.modelPlan?.assignmentGroups ?? []).flatMap((groupId) => {
+            (effectivePlan(slug)?.assignmentGroups ?? []).flatMap((groupId) => {
               const group = core.routingGroups.get(groupId);
               if (group === undefined || allowedGroupTargets(slug, groupId) === undefined)
                 return [];
@@ -1963,9 +2007,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     }
   }
   const groupFallback = createGroupFallback({
-    plan: (botSlug) => core.registry.get(botSlug)?.modelPlan,
-    inheritedGroup: () => core.routingGroups.defaultGroup().groupId,
-    inheritedEffort: () => core.routingGroups.defaultGroup().effort,
+    plan: effectivePlan,
+    inheritedGroup: () => defaultPreset()?.orchestratorGroupId,
+    inheritedEffort: () => defaultPreset()?.orchestratorGroupEffort,
     routes: (groupId) => core.routingGroups.routes(groupId),
     engines: {
       targets: (groupId) => core.routingGroups.targets(groupId),
@@ -1990,6 +2034,10 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     },
   });
   const core = createCore({
+    legacyDefaultModel: () => {
+      const main = ctx.get('agentDefaultModel')?.currentSelection();
+      return main === undefined ? {} : { main };
+    },
     routeRests,
     groupFallback,
     sessionRoute: (botSlug, sessionId) =>
@@ -2521,7 +2569,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
   const { tobModelOperations, tobMaintenanceOperations } = tobFeature.mountSettingsOperations(
     ctx,
     core,
-    { modelCatalog, defaultModel, developerMode, telemetry, git, releaseService },
+    { modelCatalog, developerMode, telemetry, git, releaseService },
   );
   const folders = workspacesFeature.mountFolders(ctx);
   const { marketplaceClient, marketplaceUploads, shareDrafts } = marketplace.apply(ctx, {
@@ -2667,7 +2715,6 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     contentPurge: core.contentPurge,
     storage,
     dataReset,
-    defaultModelSettings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
     modelPresets: core.modelPresets,
     ...(modelProviders === undefined ? {} : { modelProviders }),
     subscriptionEngines: engineHost,
@@ -2690,9 +2737,7 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     channelManagement: core.channelManagement,
     partLibrary: core.partLibrary,
     onboardingNews: (slug) => onboardingNewsAvailable(ctx, botModeOf(slug)),
-    defaultModel: defaultModel as DshDefaultModelHost & {
-      saveSelection(route: import('./models/presets.js').ModelRoute): Promise<void>;
-    },
+    defaultModel,
     states: core.states,
     runningSessionIds: () =>
       new Set(
@@ -2707,6 +2752,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     memory: core.memory,
     ...(core.usage === undefined ? {} : { usage: core.usage }),
     sessionLive,
+    sessionModels: sessionModelChoices(
+      attachOperationalModule(core.operationalDatabase, 'bot-runtime'),
+    ),
     presentToolResult: (sessionId, name, args, result) => {
       const agent = ctx.agents.list().find((candidate) => candidate.session.id === sessionId);
       const definition = agent === undefined ? ctx.tools.get(name) : ctx.tools.get(name, agent);

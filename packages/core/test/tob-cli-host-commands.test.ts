@@ -82,6 +82,16 @@ describe('Tob runs any Human CLI command on the Host', () => {
       expect(() => prepare('cli', args)).toThrow(TobError);
   });
 
+  it('refuses the retired default model namespace before requesting generic CLI approval', async () => {
+    const run = vi.fn<TobHostCliRunner>(async () => ({ exitCode: 0, stdout: '{}' }));
+    const f = await host(run);
+    expect(
+      await f.invoke({ argv: ['settings-set', '--patch-stdin', 'agent-default-model'] }),
+    ).toMatchObject({ ok: false, error: { code: 'unsupported-setting' } });
+    expect(f.approve).not.toHaveBeenCalled();
+    expect(run).not.toHaveBeenCalled();
+  });
+
   it('runs a read at once without an approval card', async () => {
     const run = vi.fn<TobHostCliRunner>(async () => ({
       exitCode: 0,

@@ -18,7 +18,8 @@ import { Tooltip } from './ds/tooltip.js';
 import { border, color, radius, space, text } from './ds/tokens.stylex.js';
 import type { BotHarnessTranslate } from './locale.js';
 import { useMountedResource } from './mounted-resource.js';
-import { modelRouteText, SUBAGENT_STATE_TONE } from './session-subagents.js';
+import { modelRouteText } from './session-rows.js';
+import { SUBAGENT_STATE_TONE } from './session-subagents.js';
 
 const styles = stylex.create({
   note: { fontSize: text.metaSize, lineHeight: text.metaLine, color: color.muted },

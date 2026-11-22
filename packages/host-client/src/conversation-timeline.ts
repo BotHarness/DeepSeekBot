@@ -1,4 +1,4 @@
-import { isTurnTargetPath } from '@botharness/host-protocol/turn-target';
+import { isSessionTurnModelSwitch, isTurnTargetPath } from '@botharness/host-protocol/turn-target';
 import type { RemoteSource } from './client';
 import { genuiDocumentOf } from './genui/document';
 import { sessionFailure } from './session-failure';
@@ -138,6 +138,9 @@ export function present(
         }),
     attachments,
     ...(voice === undefined ? {} : { voice }),
+    ...(isSessionTurnModelSwitch(message.turnModelSwitch)
+      ? { turnModelSwitch: message.turnModelSwitch }
+      : {}),
     ...(isTurnTargetPath(message.turnTargets) ? { turnTargets: message.turnTargets } : {}),
     ...(genuiDocument === undefined ? {} : { genuiDocument }),
     ...(card === undefined ? {} : { card }),

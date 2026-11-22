@@ -1,3 +1,4 @@
+import type { SessionModelState } from '@botharness/host-protocol/session-model';
 import * as personabotsRpc from '../features/personabots/rpc.js';
 import * as humansRpc from '../features/humans/rpc.js';
 import * as teamRpc from '../features/team/rpc.js';
@@ -1279,7 +1280,11 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return modelsRpc.modelFavoriteSet(this.methods, choice, favorite);
   }
 
-  modelPresets(includeUsage?: boolean): { presets: ModelPreset[]; usage?: ModelPresetUsage[] } {
+  modelPresets(includeUsage?: boolean): {
+    presets: ModelPreset[];
+    defaultPresetId?: string;
+    usage?: ModelPresetUsage[];
+  } {
     return modelsRpc.modelPresets(this.methods, includeUsage);
   }
 
@@ -1333,6 +1338,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
     orchestratorGroupEffort?: string | null,
     orchestratorEngine?: ModelPresetEngine | null,
     assignmentEngine?: ModelPresetEngine | null,
+    assignmentFollowsMain?: boolean,
   ): Promise<{ preset: ModelPreset }> {
     return modelsRpc.modelPresetUpdate(
       this.methods,
@@ -1350,6 +1356,7 @@ export class BotharnessBridgeService extends TypertRemoteService {
       orchestratorGroupEffort,
       orchestratorEngine,
       assignmentEngine,
+      assignmentFollowsMain,
     );
   }
 
@@ -2604,6 +2611,10 @@ export class BotharnessBridgeService extends TypertRemoteService {
     return assignmentsRpc.sessionProgress(this.methods, slug, sessionIds);
   }
 
+  sessionModel(slug: string, sessionId: string, choice?: unknown): Promise<SessionModelState> {
+    return sessionsRpc.sessionModel(this.methods, slug, sessionId, choice);
+  }
+
   sessionTranscript(
     slug: string,
     sessionId: string,
@@ -3620,6 +3631,7 @@ markRemoteMethods(BotharnessBridgeService.prototype, [
   'sessionSubagents',
   'sessionProgress',
   'sessionTranscript',
+  'sessionModel',
   'sessionLive',
   'sessionToolDetail',
   'workspaceOptions',

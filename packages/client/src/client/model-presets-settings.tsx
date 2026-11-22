@@ -1,6 +1,8 @@
 import { useMemo, useState, type ReactElement } from 'react';
 import * as stylex from '@stylexjs/stylex';
 import {
+  DEFAULT_MODEL_PRESET_ID,
+  modelPresetName,
   createModelPreset,
   deleteModelPreset,
   loadModelPresetLibrary,
@@ -68,7 +70,7 @@ function choiceLabel(
   library: Library,
   t: BotHarnessTranslate,
 ): string {
-  const main = role === 'orchestrator';
+  const main = role === 'orchestrator' || preset.assignmentFollowsMain === true;
   const engine = main ? preset.orchestratorEngine : preset.assignmentEngine;
   if (engine !== undefined)
     return [
@@ -192,7 +194,9 @@ function PresetEditor({
       title={
         preset === undefined
           ? t('modelPreset.create')
-          : t('modelPreset.editTitle', { name: preset.name })
+          : t('modelPreset.editTitle', {
+              name: modelPresetName(preset, t('modelPreset.defaultModel')),
+            })
       }
       size="medium"
       scroll
@@ -334,7 +338,7 @@ export function ModelPresetsSettings({
             {library.presets.map((preset) => (
               <SidebarCardRow
                 key={preset.id}
-                title={preset.name}
+                title={modelPresetName(preset, t('modelPreset.defaultModel'))}
                 meta={
                   <span {...stylex.props(styles.stack)}>
                     <span>
@@ -355,20 +359,26 @@ export function ModelPresetsSettings({
                         size="sm"
                         variant="outline"
                         disabled={busy}
-                        aria-label={t('modelPreset.editTitle', { name: preset.name })}
+                        aria-label={t('modelPreset.editTitle', {
+                          name: modelPresetName(preset, t('modelPreset.defaultModel')),
+                        })}
                         onClick={() => setDialog({ kind: 'edit', preset })}
                       >
                         {t('modelPreset.edit')}
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={busy}
-                        aria-label={t('modelPreset.deleteTitle', { name: preset.name })}
-                        onClick={() => void reviewDelete(preset)}
-                      >
-                        {t('modelPreset.delete')}
-                      </Button>
+                      {preset.id !== DEFAULT_MODEL_PRESET_ID ? (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          disabled={busy}
+                          aria-label={t('modelPreset.deleteTitle', {
+                            name: modelPresetName(preset, t('modelPreset.defaultModel')),
+                          })}
+                          onClick={() => void reviewDelete(preset)}
+                        >
+                          {t('modelPreset.delete')}
+                        </Button>
+                      ) : null}
                     </div>
                   ) : undefined
                 }

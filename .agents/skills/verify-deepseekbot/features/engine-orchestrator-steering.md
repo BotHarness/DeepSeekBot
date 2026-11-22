@@ -7,6 +7,7 @@
 - `packages/core/src/engines/engine-host.ts`
 - `packages/core/src/engines/engine-turn-scope.ts`
 - `packages/core/src/runtime/bot-runtime.ts`
+- `packages/core/src/channels/runtime-admission.ts`
 - `packages/core/test/engine-orchestrator-steering.test.ts`
 
 ## Terms

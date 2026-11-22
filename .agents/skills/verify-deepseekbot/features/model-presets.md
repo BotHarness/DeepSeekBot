@@ -18,8 +18,8 @@
 
 ## Sub-features
 
-- Browse all Model Presets with their Model Choices and usage counts.
-- Create, edit and delete presets with `models.configure`. Deletion preserves applied Bot plans.
+- Browse all Model Presets with their Model Choices and usage counts. The pinned Default appears first and includes inheriting Bots.
+- Create and edit presets with `models.configure`. Deleting a user preset preserves applied Bot plans. The Host refuses deletion of Default.
 - Apply a preset from the Bot model dialog under the existing Bot and model permissions.
 
 ## How to get to it (user POV)
@@ -33,7 +33,9 @@ Open the section on an isolated Profile. Create two presets and edit one. Apply 
 Check the same list with `deepseekbot model-presets --include-usage`. The online CLI also supports create, update and deletion at a listed revision with `--confirm`. Open Bot Settings as a Member and verify that Model Presets, the Host default and Routing Groups are readable without write controls. Run M15 C4 for the permission gates.
 
 
+Against an isolated Profile with a legacy route, launch the upgraded Host and run `deepseekbot model-default`. Verify the previous route and effort survived, then create a Bot and read `model-plan` for its inherited preset ID. Open Model Presets and verify Default appears first with no Delete control. Use a model reply and its Turn Target to qualify execution.
+
 ## Gotchas
 
 - The deletion confirmation names Bots whose metadata the Human can read. The usage count includes all Bots with applied copies.
-- The AX default model can be locked by a startup Patch. To verify a successful default write, use a writable Profile with a configured provider.
+- A startup Patch can seed the legacy native setting before the first upgrade. Set a configured route on the Default preset to change the choice after cutover.

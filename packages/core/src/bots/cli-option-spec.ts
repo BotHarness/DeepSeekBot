@@ -129,6 +129,7 @@ export const INBOX_OPTIONS = {
   notifications: { type: 'boolean' },
   category: { type: 'string' },
   'watch-seconds': { type: 'string' },
+  set: { type: 'string' },
   channel: { type: 'string' },
   request: { type: 'string' },
   sort: { type: 'string' },
@@ -167,6 +168,8 @@ export const MESSAGING_OPTIONS = {
 
 export const MODELS_USAGE_OPTIONS = {
   'include-usage': { type: 'boolean' },
+  'migration-dry-run': { type: 'boolean' },
+  'assignment-follows-main': { type: 'boolean' },
   template: { type: 'string' },
   endpoint: { type: 'string' },
   'key-stdin': { type: 'boolean' },

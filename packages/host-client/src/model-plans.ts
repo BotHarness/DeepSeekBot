@@ -75,12 +75,24 @@ function parseSubscriptionModel(value: unknown): SubscriptionModel | undefined {
   };
 }
 
+export const DEFAULT_MODEL_PRESET_ID = 'default';
+
+export function modelPresetName(
+  preset: Pick<ModelPreset, 'id' | 'name'>,
+  defaultName: string,
+): string {
+  return preset.id === DEFAULT_MODEL_PRESET_ID && preset.name === 'Default'
+    ? defaultName
+    : preset.name;
+}
+
 export interface ModelPreset extends ModelPlanGroups, ModelPresetEngines {
   id: string;
   name: string;
   revision: number;
   orchestrator: ModelRoute;
   assignmentDefault: ModelRoute;
+  assignmentFollowsMain?: true;
   assignmentModels?: AssignmentModelOption[];
   openAssignmentModels?: true;
   createdAt?: string;
@@ -90,6 +102,7 @@ export interface ModelPlanState {
   currentTarget?: TurnTarget;
   revision?: number;
   plan?: ModelPlan;
+  inheritedPresetId?: string;
   repair?: {
     code: 'legacy-ambiguous' | 'legacy-missing' | 'route-unavailable';
     message: string;
@@ -209,6 +222,7 @@ export function parseModelPreset(value: unknown): ModelPreset | undefined {
     revision: row['revision'],
     orchestrator,
     assignmentDefault,
+    ...(row['assignmentFollowsMain'] === true ? { assignmentFollowsMain: true } : {}),
     ...assignmentModels(row['assignmentModels']),
     ...planGroups(row),
     ...(text(row['createdAt']) ? { createdAt: row['createdAt'] } : {}),
@@ -302,6 +316,7 @@ export async function loadModelPlanState(host: HostCall, slug: string): Promise<
     ...(typeof value['revision'] === 'number' ? { revision: value['revision'] } : {}),
     ...(isTurnTarget(value['currentTarget']) ? { currentTarget: value['currentTarget'] } : {}),
     ...(plan === undefined ? {} : { plan }),
+    ...(text(value['inheritedPresetId']) ? { inheritedPresetId: value['inheritedPresetId'] } : {}),
     ...(repair !== undefined && REPAIRS.some((known) => known === code)
       ? {
           repair: {
@@ -427,7 +442,7 @@ export async function updateModelPreset(
   host: HostCall,
   id: string,
   expectedRevision: number,
-  input: ModelPresetInput,
+  input: ModelPresetInput & { assignmentFollowsMain?: boolean },
 ): Promise<ModelPreset> {
   return presetAnswer(
     await host.call('modelPresetUpdate', {
@@ -435,6 +450,9 @@ export async function updateModelPreset(
       expectedRevision,
       name: input.name,
       ...routes(input),
+      ...(input.assignmentFollowsMain === undefined
+        ? {}
+        : { assignmentFollowsMain: input.assignmentFollowsMain }),
       ...(input.orchestratorEngine === undefined
         ? {}
         : { orchestratorEngine: input.orchestratorEngine }),

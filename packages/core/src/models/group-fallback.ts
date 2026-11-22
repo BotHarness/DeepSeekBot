@@ -1,3 +1,4 @@
+import type { TurnTargetSwitchReason } from '@botharness/host-protocol/turn-target';
 import { engineAccountKey } from '@botharness/host-protocol/subscription-engine';
 import { EngineRefusal, type EngineId } from '../engines/engine-session.js';
 import { createMemoryFallbackOverrides, type FallbackOverrideStore } from './fallback-overrides.js';
@@ -21,7 +22,7 @@ export interface RoutesExhausted {
 }
 
 export type GroupPick =
-  | { kind: 'route'; route: ModelRoute }
+  | { kind: 'route'; route: ModelRoute; switchReason?: TurnTargetSwitchReason }
   | { kind: 'exhausted'; rests: RestingRoute[] }
   | { kind: 'missing' };
 
@@ -32,7 +33,7 @@ export interface SubscriptionRest {
 }
 
 export type MixedGroupPick =
-  | { kind: 'target'; target: RoutingTarget }
+  | { kind: 'target'; target: RoutingTarget; switchReason?: TurnTargetSwitchReason }
   | { kind: 'exhausted'; rests: RestingRoute[]; subscription?: SubscriptionRest }
   | { kind: 'unavailable' };
 
@@ -81,6 +82,11 @@ export function unavailableRoutingEngine(error: unknown): boolean {
       'unknown-effort',
     ].includes(error.code)
   );
+}
+
+function groupSwitchReason(rests: readonly RestingRoute[]) {
+  const reason = rests.find((rest) => rest.reason === 'quota')?.reason ?? rests[0]?.reason;
+  return reason === undefined ? {} : { switchReason: reason };
 }
 
 export function createGroupFallback(options: {
@@ -167,7 +173,7 @@ export function createGroupFallback(options: {
         const key = routingTargetRestKey(target);
         const limit = engines.limit(target.engine, target.accountId);
         if (limit === undefined) {
-          if (!attempted?.has(key)) return { kind: 'target', target };
+          if (!attempted?.has(key)) return { kind: 'target', target, ...groupSwitchReason(rests) };
           unavailable = true;
           continue;
         }
@@ -197,6 +203,7 @@ export function createGroupFallback(options: {
         return {
           kind: 'target',
           target: { kind: 'route', route: await withEffort(target.route, effort) },
+          ...groupSwitchReason(rests),
         };
       unavailable = true;
     }
@@ -286,7 +293,11 @@ export function createGroupFallback(options: {
           continue;
         }
         if (!(await isUsable(botSlug, route))) continue;
-        return { kind: 'route', route: await withEffort(route, effort) };
+        return {
+          kind: 'route',
+          route: await withEffort(route, effort),
+          ...groupSwitchReason(rests),
+        };
       }
       return { kind: 'exhausted', rests };
     },

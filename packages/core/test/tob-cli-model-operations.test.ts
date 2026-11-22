@@ -25,6 +25,7 @@ function fixture() {
   registry.create({ slug: 'one', displayName: 'One' });
   registry.create({ slug: 'two', displayName: 'Two' });
   const presets = createModelPresetStore({ rootDir: root, database });
+  const pinned = presets.migrateDefault({ main: route }).preset;
   const rows = [
     {
       ns: 'botharness-client',
@@ -59,12 +60,22 @@ function fixture() {
     presets,
     catalog,
     settings: () => native,
-    routingGroups,
     runtimeChanged,
   });
   const run = async (command: string, args: object = {}, guard = () => {}) =>
     (await prepare(command, args))!.run(guard);
-  return { registry, presets, rows, native, catalog, prepare, run, runtimeChanged, routingGroups };
+  return {
+    registry,
+    presets,
+    pinned,
+    rows,
+    native,
+    catalog,
+    prepare,
+    run,
+    runtimeChanged,
+    routingGroups,
+  };
 }
 const fullPlan = {
   orchestrator: alternate,
@@ -85,48 +96,51 @@ describe('Tob scoped model and runtime operations', () => {
     expect(await f.run('model-catalog')).toEqual({
       models: [],
       default: route,
-      defaultRevision: 0,
+      defaultRevision: 1,
     });
     expect(await f.prepare('unhandled', {})).toBeUndefined();
     await expect(f.run('settings', { ns: 'credentials' })).rejects.toMatchObject({
       code: 'unsupported-setting',
     });
   });
-  it('discovers models and configures an unset native default using its real revision', async () => {
+  it('reads the pinned preset independently of the legacy settings', async () => {
     const f = fixture();
     f.rows[1]!.value = {};
-    expect(await f.run('model-catalog')).toEqual({ models: [], defaultRevision: 0 });
-    expect(await f.run('settings', { ns: 'agent-default-model' })).toMatchObject({
-      revision: 0,
-      value: {},
+    expect(await f.run('model-catalog')).toEqual({
+      models: [],
+      default: route,
+      defaultRevision: 1,
     });
-    expect(await f.run('home-model-set', { route, expectedRevision: 0 })).toEqual({
+    await expect(f.run('settings', { ns: 'agent-default-model' })).rejects.toMatchObject({
+      code: 'unsupported-setting',
+    });
+    expect(await f.run('home-model-set', { route, expectedRevision: 1 })).toEqual({
       route,
-      revision: 1,
+      revision: 2,
     });
   });
 
-  it('keeps Bot overrides while changing the native Host default with its revision', async () => {
+  it('keeps Bot overrides while changing the Default preset with its revision', async () => {
     const f = fixture();
     await f.run('model-plan-set', { slug: 'one', expectedRevision: 0, ...fullPlan });
     const original = f.registry.get('one')!.modelPlan;
     const operation = (await f.prepare('home-model-set', {
       route: alternate,
-      expectedRevision: 0,
+      expectedRevision: 1,
     }))!;
     expect(operation.proposal).toMatchObject({
-      target: 'agent-default-model',
-      previousValue: route,
-      patch: alternate,
-      expectedRevision: 0,
+      target: f.pinned.id,
+      previousValue: f.pinned,
+      patch: { orchestrator: alternate },
+      expectedRevision: 1,
     });
     expect(Object.isFrozen(operation.proposal!.patch)).toBe(true);
-    expect(await operation.run(() => {})).toEqual({ route: alternate, revision: 1 });
+    expect(await operation.run(() => {})).toEqual({ route: alternate, revision: 2 });
     expect(f.registry.get('one')!.modelPlan).toEqual(original);
     expect(f.registry.get('two')!.modelPlan).toBeUndefined();
-    await f.run('home-model-set', { route, expectedRevision: 1 });
+    await f.run('home-model-set', { route, expectedRevision: 2 });
     expect(f.rows[1]!.value).toEqual(route);
-    expect(f.native.replace).toHaveBeenCalledTimes(2);
+    expect(f.native.replace).not.toHaveBeenCalled();
   });
   it('stops following the default Routing Group when the Host default model is set', async () => {
     const f = fixture();
@@ -134,9 +148,10 @@ describe('Tob scoped model and runtime operations', () => {
       name: 'Daily',
       members: [{ kind: 'model', ...route }],
     });
-    f.routingGroups.setDefaultGroup(group.id, 0);
-    await f.run('home-model-set', { route: alternate, expectedRevision: 0 });
-    expect(f.routingGroups.defaultGroup()).toEqual({ revision: 2 });
+    f.presets.setDefaultMain({ route, groupId: group.id, expectedRevision: 1 });
+    await f.run('home-model-set', { route: alternate, expectedRevision: 2 });
+    expect(f.presets.get(f.pinned.id)).toMatchObject({ revision: 3, orchestrator: alternate });
+    expect(f.presets.get(f.pinned.id)?.orchestratorGroupId).toBeUndefined();
   });
   it('rejects stale native settings before review and after review without overwriting', async () => {
     const f = fixture();
@@ -192,7 +207,7 @@ describe('Tob scoped model and runtime operations', () => {
   });
   it('preserves owner CAS and reports late cancellation as an uncertain outcome', async () => {
     const f = fixture();
-    const args = { route: alternate, expectedRevision: 0 };
+    const args = { route: alternate, expectedRevision: 1 };
     const op = (await f.prepare('home-model-set', args))!;
     const guard = vi
       .fn()
@@ -201,12 +216,11 @@ describe('Tob scoped model and runtime operations', () => {
         throw new TobError('agent-context-expired');
       });
     await expect(op.run(guard)).rejects.toMatchObject({ code: 'setting-outcome-uncertain' });
-    expect(f.rows[1]!.value).toEqual(alternate);
+    expect(f.presets.get(f.pinned.id)).toMatchObject({ orchestrator: alternate, revision: 2 });
     const conflict = fixture();
-    vi.mocked(conflict.native.replace).mockRejectedValueOnce(
-      Object.assign(new Error('stale'), { code: 'SETTINGS_CONFLICT' }),
-    );
-    await expect(conflict.run('home-model-set', args)).rejects.toMatchObject({
+    const reviewed = (await conflict.prepare('home-model-set', args))!;
+    conflict.presets.setDefaultMain({ route, expectedRevision: 1 });
+    await expect(reviewed.run(() => {})).rejects.toMatchObject({
       code: 'stale-setting',
     });
   });
@@ -299,7 +313,7 @@ describe('Tob scoped model and runtime operations', () => {
       }),
     ).rejects.toMatchObject({ code: 'invalid-input' });
     await expect(
-      f.prepare('home-model-set', { route: { ...route, apiKey: 'secret' }, expectedRevision: 0 }),
+      f.prepare('home-model-set', { route: { ...route, apiKey: 'secret' }, expectedRevision: 1 }),
     ).rejects.toMatchObject({ code: 'invalid-input' });
   });
 });
