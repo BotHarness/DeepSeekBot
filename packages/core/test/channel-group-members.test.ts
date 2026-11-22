@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
 import { cleanup, enabledFixture } from './team-mode-fixtures.js';
 
@@ -175,5 +175,55 @@ describe('Desktop Group member batches', () => {
     expect(team.channelAccess.canRead(human, group.id, true)).toBe(true);
     expect(await methods.channelGroupMembersAdd(request)).toEqual(result);
     expect(channels.get(group.id)?.invitations).toHaveLength(1);
+  });
+
+  it('reports unconfirmed targets and continues after unexpected errors on both target kinds', async () => {
+    const { team, registry, channels, human, methods } = await enabledFixture();
+    const alice = await team.createMember(owner, 'alice', 'Alice');
+    registry.create({ slug: 'first-bot', displayName: 'First Bot' });
+    registry.create({ slug: 'second-bot', displayName: 'Second Bot' });
+    const group = channels.createGroup(owner, { name: 'Interrupted batch', members: [] });
+    const addMember = team.channelAccess.addMember.bind(team.channelAccess);
+    vi.spyOn(team.channelAccess, 'addMember').mockImplementationOnce((...args) => {
+      addMember(...args);
+      throw new Error('Human result interrupted after commit');
+    });
+    vi.spyOn(team.bots, 'recordAdder').mockImplementationOnce(() => {
+      throw new Error('Bot result interrupted after commit');
+    });
+
+    const targets = [
+      { kind: 'human', id: human.humanId, operationKey: 'interrupt-bob-001' },
+      { kind: 'human', id: alice.member.humanId, operationKey: 'interrupt-alice-001' },
+      { kind: 'bot', id: 'first-bot', operationKey: 'interrupt-first-001' },
+      { kind: 'bot', id: 'second-bot', operationKey: 'interrupt-second-001' },
+    ];
+    const request = { channelId: group.id, targets };
+    const manager = methods(owner);
+    expect(manager.channelGroupMembersAdd(request)).toEqual({
+      ok: true,
+      value: {
+        results: [
+          { kind: 'human', id: human.humanId, status: 'failed', code: 'group-member-unconfirmed' },
+          { kind: 'human', id: alice.member.humanId, status: 'joined' },
+          { kind: 'bot', id: 'first-bot', status: 'failed', code: 'group-member-unconfirmed' },
+          { kind: 'bot', id: 'second-bot', status: 'pending' },
+        ],
+      },
+    });
+    expect(team.channelAccess.canRead(human, group.id, true)).toBe(true);
+    expect(channels.get(group.id)?.invitations).toHaveLength(2);
+    expect(manager.channelGroupMembersAdd(request)).toMatchObject({
+      ok: true,
+      value: {
+        results: [
+          { id: human.humanId, status: 'joined' },
+          { id: alice.member.humanId, status: 'joined' },
+          { id: 'first-bot', status: 'pending' },
+          { id: 'second-bot', status: 'pending' },
+        ],
+      },
+    });
+    expect(channels.get(group.id)?.invitations).toHaveLength(2);
   });
 });

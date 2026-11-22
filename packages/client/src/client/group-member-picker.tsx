@@ -1,12 +1,14 @@
 import { useRef, useState, type ReactElement } from 'react';
+import { shallowEqual } from '@deepseek-ai/dsh-client-store';
 import { HUMAN_AVATAR_BATCH, readHumanAvatars } from '@botharness/host-client/human-profile';
 import * as stylex from '@stylexjs/stylex';
-import type {
-  GroupBotCandidate,
-  GroupHumanCandidate,
-  GroupMemberOutcome,
-  GroupMemberPickerResult,
-  GroupMemberTarget,
+import {
+  GROUP_MEMBER_UNCONFIRMED,
+  type GroupBotCandidate,
+  type GroupHumanCandidate,
+  type GroupMemberOutcome,
+  type GroupMemberPickerResult,
+  type GroupMemberTarget,
 } from '@botharness/host-protocol/group-members';
 import { bridgeHost, type BridgeCall } from './bridge.js';
 import { PersonaBotAvatar } from './avatar.js';
@@ -91,18 +93,23 @@ export type PickedGroupMember =
   | (GroupHumanCandidate & { kind: 'human' })
   | (GroupBotCandidate & { kind: 'bot' });
 
-export type GroupBotPortrait = (bot: GroupBotCandidate) => ReactElement;
+const portraitSize = Number.parseInt(size.row, 10);
+
+export type GroupBotPortrait = (bot: GroupBotCandidate, size: number) => ReactElement;
 
 function LocalBotPortrait({ bot }: { bot: GroupBotCandidate }): ReactElement {
-  const face = useClientStore((state) => state.bots.find((item) => item.slug === bot.id));
+  const face = useClientStore((state) => {
+    const entry = state.bots.find((item) => item.slug === bot.id);
+    return { avatar: entry?.avatar, appearance: entry?.appearance, avatarSeed: entry?.avatarSeed };
+  }, shallowEqual);
   return (
     <PersonaBotAvatar
       personaBotId={bot.id}
       name={bot.displayName}
-      size={28}
-      src={face?.avatar}
-      appearance={face?.appearance}
-      avatarSeed={face?.avatarSeed}
+      size={portraitSize}
+      src={face.avatar}
+      appearance={face.appearance}
+      avatarSeed={face.avatarSeed}
       preview
       still
       indicator={false}
@@ -163,17 +170,21 @@ export function GroupMemberPicker({
     value.trim(),
   );
   const [response, setResponse] = useState<
-    { query: string; value: GroupMemberPickerResult } | { query: string; failed: true }
+    { call: BridgeCall; channelId: string | undefined; query: string } & (
+      | { value: GroupMemberPickerResult }
+      | { failed: true }
+    )
   >();
   const [attempt, setAttempt] = useState(0);
   const [photos, setPhotos] = useState<{ call: BridgeCall; images: Map<string, string> }>();
   const mount = useMountedResource<HTMLDivElement>(() => {
     const controller = new AbortController();
+    const request = { call, channelId, query: delayedQuery };
     const search = candidateSearch(delayedQuery, t);
     void loadGroupMemberPicker(call, channelId, search.name, controller.signal).then(
       (value) => {
         if (controller.signal.aborted) return;
-        setResponse({ query: delayedQuery, value });
+        setResponse({ ...request, value });
         if (search.kind === 'bot' || !value.canAddPeople || value.people.length === 0) return;
         const ids = value.people.map((person) => person.id);
         const host = bridgeHost(call, controller.signal);
@@ -193,12 +204,15 @@ export function GroupMemberPicker({
         });
       },
       () => {
-        if (!controller.signal.aborted) setResponse({ query: delayedQuery, failed: true });
+        if (!controller.signal.aborted) setResponse({ ...request, failed: true });
       },
     );
     return () => controller.abort();
   }, [call, channelId, delayedQuery, attempt, t]);
-  const current = response?.query === query.trim() ? response : undefined;
+  const current =
+    response?.call === call && response.channelId === channelId && response.query === query.trim()
+      ? response
+      : undefined;
   const candidates = current && 'value' in current ? current.value : undefined;
   const keys = new Set(selected.map(groupMemberKey));
   const { kind } = candidateSearch(query.trim(), t);
@@ -243,7 +257,7 @@ export function GroupMemberPicker({
           {...stylex.props(styles.portrait, row.kind === 'human' && styles.humanPortrait)}
         >
           {row.kind === 'bot' ? (
-            (botPortrait?.(row) ?? <LocalBotPortrait bot={row} />)
+            (botPortrait?.(row, portraitSize) ?? <LocalBotPortrait bot={row} />)
           ) : photo ? (
             <img src={photo} alt="" draggable={false} {...stylex.props(styles.photo)} />
           ) : (
@@ -254,7 +268,7 @@ export function GroupMemberPicker({
           <span {...stylex.props(styles.name)}>
             <span>{row.displayName}</span>
             <span title={kindLabel} aria-hidden="true" {...stylex.props(styles.kind)}>
-              <Icon name={row.kind === 'human' ? 'user' : 'bot'} size={14} />
+              <Icon name={row.kind === 'human' ? 'user' : 'bot'} />
             </span>
           </span>
           {handle ? <span {...stylex.props(styles.detail)}>@{handle}</span> : null}
@@ -263,7 +277,7 @@ export function GroupMemberPicker({
           ) : null}
         </span>
         <span aria-hidden="true" {...stylex.props(styles.mark)}>
-          {pressed ? <Icon name="check" size={16} /> : null}
+          {pressed ? <Icon name="check" /> : null}
         </span>
       </Button>
     );
@@ -333,7 +347,13 @@ export function useGroupMemberBatch() {
       selected.map((member): BatchItem => ({ member, target: memberTarget(member) }))
     ).map((item) =>
       item.outcome?.status === 'failed'
-        ? { member: item.member, target: memberTarget(item.member) }
+        ? {
+            member: item.member,
+            target:
+              item.outcome.code === GROUP_MEMBER_UNCONFIRMED
+                ? item.target
+                : memberTarget(item.member),
+          }
         : item,
     );
     attempt.current = batch;
@@ -372,6 +392,8 @@ function failureReason(t: BotHarnessTranslate, code: string): string {
       return t('groupMembers.denied');
     case 'team-mode-off':
       return t('team.error.teamModeOff');
+    case GROUP_MEMBER_UNCONFIRMED:
+      return t('groupMembers.unconfirmed');
     default:
       return t('groupMembers.failed');
   }

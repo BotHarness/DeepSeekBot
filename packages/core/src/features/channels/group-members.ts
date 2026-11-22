@@ -1,9 +1,10 @@
 import { z } from 'zod';
-import type {
-  GroupBotCandidate,
-  GroupMemberOutcome,
-  GroupMemberPickerResult,
-  GroupMembersAddResult,
+import {
+  GROUP_MEMBER_UNCONFIRMED,
+  type GroupBotCandidate,
+  type GroupMemberOutcome,
+  type GroupMemberPickerResult,
+  type GroupMembersAddResult,
 } from '@botharness/host-protocol/group-members';
 import { invalidInput, type BridgeResult } from '../../bridge/method-utils.js';
 import type { BridgeMethodsDeps } from '../../bridge/methods.js';
@@ -35,7 +36,7 @@ export interface GroupMemberMethods {
 
 export function createGroupMemberMethods(
   human: HumanContext,
-  { channels, registry, team, tob }: BridgeMethodsDeps,
+  { channels, registry, team, tob, warn }: BridgeMethodsDeps,
   invite: ChannelsManagementAdapterMethods['channelGroupInvite'],
 ): GroupMemberMethods {
   const can = (channelId: string, policy: 'addBots' | 'addMembers') => {
@@ -58,6 +59,15 @@ export function createGroupMemberMethods(
     )
       return undefined;
     return channel;
+  };
+
+  const failure = (
+    identity: Pick<GroupMemberOutcome, 'kind' | 'id'>,
+    error: unknown,
+  ): GroupMemberOutcome => {
+    if (error instanceof TeamError) return { ...identity, status: 'failed', code: error.code };
+    warn?.(`botharness.group_members_add.unconfirmed kind=${identity.kind}`);
+    return { ...identity, status: 'failed', code: GROUP_MEMBER_UNCONFIRMED };
   };
 
   return {
@@ -136,8 +146,7 @@ export function createGroupMemberMethods(
           });
           results.push({ ...identity, status: 'joined' });
         } catch (error) {
-          if (!(error instanceof TeamError)) throw error;
-          results.push({ ...identity, status: 'failed', code: error.code });
+          results.push(failure(identity, error));
         }
       }
       for (const target of targets) {
@@ -163,8 +172,7 @@ export function createGroupMemberMethods(
             results.push({ ...identity, status: 'pending' });
           else results.push({ ...identity, status: 'failed', code: 'group-invite-unavailable' });
         } catch (error) {
-          if (!(error instanceof TeamError)) throw error;
-          results.push({ ...identity, status: 'failed', code: error.code });
+          results.push(failure(identity, error));
         }
       }
       return { ok: true, value: { results } };

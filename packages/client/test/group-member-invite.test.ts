@@ -12,6 +12,7 @@ import type { GroupMemberPickerResult } from '@botharness/host-protocol/group-me
 import type { BridgeActions } from '../src/client/actions.js';
 import type { BridgeCall } from '../src/client/bridge.js';
 import { MembersHeaderAction } from '../src/client/group-member-controls.js';
+import { GroupMemberPicker } from '../src/client/group-member-picker.js';
 import { zhTranslate as t } from '../src/client/locale.js';
 import { CreateChannelModal } from '../src/client/section-management.js';
 import { store, type ChannelSummary } from '../src/client/store.js';
@@ -175,6 +176,79 @@ it('mixes avatar rows and filters by type, name, or handle while keeping selecte
   await typeInto(search, '@bob');
   await act(async () => void vi.advanceTimersByTime(250));
   expect(rows()).toEqual([memberRow('Bob'), memberRow('Bob Bot')]);
+});
+
+it.each(['connection', 'channel'] as const)(
+  'hides the old candidates while the new %s is loading',
+  async (source) => {
+    let resolveNext: ((value: Awaited<ReturnType<BridgeCall>>) => void) | undefined;
+    const next = new Promise<Awaited<ReturnType<BridgeCall>>>((resolve) => {
+      resolveNext = resolve;
+    });
+    const replacement: BridgeCall = () => next;
+    const original: BridgeCall = async (_method, args) =>
+      args.channelId === 'other-group' ? next : ok(choices);
+    const onChange = vi.fn();
+    const render = (call: BridgeCall, channelId: string) =>
+      act(async () =>
+        root.render(
+          createElement(GroupMemberPicker, {
+            call,
+            channelId,
+            selected: [],
+            onChange,
+            disabled: false,
+            t,
+          }),
+        ),
+      );
+
+    await render(original, GROUP.id);
+    expect(document.body.textContent).toContain('Eve');
+    await render(
+      source === 'connection' ? replacement : original,
+      source === 'channel' ? 'other-group' : GROUP.id,
+    );
+    expect(document.body.textContent).not.toContain('Eve');
+    expect(document.querySelector('[aria-busy="true"]')).not.toBeNull();
+    await act(async () =>
+      resolveNext?.(
+        ok({ ...choices, people: [], bots: [{ id: 'new-bot', displayName: 'New Bot' }] }),
+      ),
+    );
+    const row = document.querySelector<HTMLButtonElement>('button[aria-pressed]');
+    expect(row?.textContent).toContain('New Bot');
+    await act(async () => row?.click());
+    expect(onChange).toHaveBeenCalledWith([{ kind: 'bot', id: 'new-bot', displayName: 'New Bot' }]);
+  },
+);
+
+it('keeps the original key for a target the Host could not confirm', async () => {
+  const add = vi
+    .fn()
+    .mockResolvedValueOnce(
+      ok({
+        results: [
+          { kind: 'human', id: 'bob', status: 'joined' },
+          { kind: 'bot', id: 'eve', status: 'failed', code: 'group-member-unconfirmed' },
+        ],
+      }),
+    )
+    .mockResolvedValueOnce(ok({ results: [{ kind: 'bot', id: 'eve', status: 'joined' }] }));
+  await openExisting(async (method, args) =>
+    method === 'channelGroupMembersAdd' ? add(args) : ok(choices),
+  );
+  await act(async () => memberRow('Bob').click());
+  await act(async () => memberRow('Eve').click());
+  await submit();
+  expect(dialog().textContent).toContain('Bob · ' + t('groupMembers.joined'));
+  expect(dialog().textContent).toContain('Eve · ' + t('groupMembers.unconfirmed'));
+  await submit();
+  expect(add).toHaveBeenNthCalledWith(2, {
+    channelId: GROUP.id,
+    targets: [add.mock.calls[0]?.[0].targets[1]],
+  });
+  expect(dialog().textContent).toContain('Eve · ' + t('groupMembers.joined'));
 });
 
 it('keeps the same creation and invitation keys after ambiguous responses', async () => {

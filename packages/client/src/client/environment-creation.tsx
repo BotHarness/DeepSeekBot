@@ -313,12 +313,12 @@ function OwnerEnvironmentCreation({
             call: pickerCall,
             botPortrait:
               remote &&
-              ((bot) => (
+              ((bot, size) => (
                 <RemoteAvatar
                   roster={remote.snapshot.roster}
                   avatars={state.avatars}
                   target={{ botSlug: bot.id, title: bot.displayName }}
-                  size={28}
+                  size={size}
                   t={t}
                 />
               )),

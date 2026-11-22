@@ -1,3 +1,5 @@
+export const GROUP_MEMBER_UNCONFIRMED = 'group-member-unconfirmed';
+
 export interface GroupMemberTarget {
   kind: 'human' | 'bot';
   id: string;
