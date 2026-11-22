@@ -129,6 +129,7 @@ export const INBOX_OPTIONS = {
   notifications: { type: 'boolean' },
   category: { type: 'string' },
   'watch-seconds': { type: 'string' },
+  set: { type: 'string' },
   channel: { type: 'string' },
   request: { type: 'string' },
   sort: { type: 'string' },

@@ -4091,6 +4091,22 @@ const DEFAULT_MODEL_PRESET_MIGRATION: SchemaMigration = {
   },
 };
 
+const SESSION_MODEL_CHOICES_MIGRATION: SchemaMigration = {
+  id: 'session-model-choices',
+  module: 'bot-runtime',
+  description: 'Persist Session Model Choice overrides and Routing Group switch reasons',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE session_model_choices (
+        session_id TEXT PRIMARY KEY REFERENCES session_ownership(session_id) ON DELETE CASCADE,
+        choice_json TEXT NOT NULL CHECK (json_valid(choice_json))
+      ) WITHOUT ROWID;
+      ALTER TABLE session_turn_targets ADD COLUMN switch_reason TEXT
+        CHECK (switch_reason IN ('quota', 'rate-limit', 'credential'));
+    `);
+  },
+};
+
 const MODEL_PRESET_SUB_MIGRATION: SchemaMigration = {
   id: 'model-preset-sub-choices',
   module: 'model-presets',
@@ -4289,5 +4305,6 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   SESSION_TURN_TARGET_MIGRATION,
   ROLE_ENGINE_ACCOUNTS_MIGRATION,
   DEFAULT_MODEL_PRESET_MIGRATION,
+  SESSION_MODEL_CHOICES_MIGRATION,
   MODEL_PRESET_SUB_MIGRATION,
 ]);

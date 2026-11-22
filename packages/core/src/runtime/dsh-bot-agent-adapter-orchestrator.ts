@@ -554,12 +554,13 @@ export function acceptAssistantStream(
   if (frame.type === 'start') {
     const active = adapter.runs.get(sessionId);
     const config = agent?.session.requestHeader()?.config;
-    if (active?.role === 'orchestrator' && config !== undefined)
-      active.run.observeTurnTarget?.(frame.turn, frame.step, {
-        kind: 'dsh',
-        provider: config.provider,
-        model: config.model,
-      });
+    if (active !== undefined && config !== undefined)
+      active.run.observeTurnTarget?.(
+        frame.turn,
+        frame.step,
+        { kind: 'dsh', provider: config.provider, model: config.model },
+        active.run.switchReason,
+      );
   }
   adapter.drafts.accept(sessionId, frame);
 }

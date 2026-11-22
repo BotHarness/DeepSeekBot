@@ -37,7 +37,14 @@ import {
   type EngineSessionDescription,
 } from './engine-host-types.js';
 import { EngineTurnLog } from './engine-log.js';
-import { choiceKey, sessionAccount, sessionKey, workspaceModeFor } from './engine-session-keys.js';
+import {
+  choiceKey,
+  RELEASE_GRACE_MS,
+  sessionAccount,
+  sessionKey,
+  settlesWithin,
+  workspaceModeFor,
+} from './engine-session-keys.js';
 import { executeEngineTurnTool, type TurnScope } from './engine-turn-scope.js';
 import {
   ENGINE_DEFINITIONS,
@@ -205,8 +212,8 @@ export class EngineHost {
   async #routingGroupSelection(request: EngineTurnRequest, target: RoutingGroupEngineMember) {
     this.#requireAccountGrant(request.botSlug, target.engine, target.accountId);
     const groupEffort =
-      request.role === 'assignment'
-        ? request.groupEffort
+      request.groupEffort !== undefined || request.role === 'assignment'
+        ? (request.groupEffort ?? undefined)
         : this.#options.routingGroupEffort?.(request.botSlug);
     const shared = target.reasoningEffort === undefined ? groupEffort : undefined;
     const models =
@@ -470,6 +477,7 @@ export class EngineHost {
           const target: TurnTarget = {
             kind: 'engine',
             engine,
+            account: live.account,
             ...(model === undefined ? {} : { model }),
             ...(effort === undefined ? {} : { reasoningEffort: effort }),
           };
@@ -980,21 +988,4 @@ export class EngineHost {
       throw error;
     }
   }
-}
-
-const RELEASE_GRACE_MS = 10_000;
-
-async function settlesWithin(promise: Promise<unknown>, ms: number): Promise<boolean> {
-  let timer: NodeJS.Timeout | undefined;
-  const settled = await Promise.race([
-    promise.then(
-      () => true,
-      () => true,
-    ),
-    new Promise<false>((resolve) => {
-      timer = setTimeout(() => resolve(false), ms);
-    }),
-  ]);
-  clearTimeout(timer);
-  return settled;
 }

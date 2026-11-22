@@ -32,7 +32,7 @@ import {
   modelShortName,
   type ModelBrand,
 } from './model-brand.js';
-import { routingGroupEngineCopy } from './model-menu.js';
+import { routingGroupEngineCopy } from './session-engine.js';
 import { routingGroupEngineReason } from './session-engine.js';
 import { useMountedResource } from './mounted-resource.js';
 import { RoutingGroupMemberPicker, routingGroupMemberKey } from './routing-group-member-picker.js';

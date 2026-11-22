@@ -2,7 +2,7 @@ import { MessageSelectionRow } from './message-selection-ui';
 import { SessionFailureCard } from './session-failure-card';
 import type { useRouter, useNavigationContainerRef } from 'expo-router';
 import { useCallback, useMemo, useRef, useState } from 'react';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import type { RosterBot } from '@botharness/host-client/client';
 import { readingBots } from '../../host/delivery-receipt';
 import { type ConversationMessage } from '@botharness/host-client/conversation';
@@ -33,6 +33,7 @@ import type {
 import type { useConversationTimeline, useConversationTimelineRows } from './conversation-timeline';
 import type { useConversationComposer } from './conversation-composition';
 import type { Row } from './conversation-focus';
+import { TurnModelSwitchMarker } from './turn-model-switch';
 import { REQUEST_CARDS, RequestCard } from './conversation-request-card';
 
 export function useIdentityBots(bots: readonly RosterBot[] | undefined): RosterBot[] | undefined {
@@ -83,7 +84,7 @@ export function useConversationRowRendering({
   source: ReturnType<typeof useConversationSource>;
   messageState: Pick<
     ReturnType<typeof useConversationMessageState>,
-    'setViewing' | 'actionsFor' | 'setActionsFor' | 'selected' | 'togglePicked'
+    'setViewing' | 'actionsFor' | 'setActionsFor' | 'selected' | 'togglePicked' | 'menuCatalog'
   >;
   timeline: Pick<
     ReturnType<typeof useConversationTimeline>,
@@ -112,7 +113,8 @@ export function useConversationRowRendering({
     playback,
     snapshot,
   } = source;
-  const { setViewing, actionsFor, setActionsFor, selected, togglePicked } = messageState;
+  const { setViewing, actionsFor, setActionsFor, selected, togglePicked, menuCatalog } =
+    messageState;
   const { answered, resolutions, latestMessageId, groupOf, latest } = timeline;
   const { online, composable, startReply } = composer;
   const { rows, arrivals } = timelineRows;
@@ -161,10 +163,22 @@ export function useConversationRowRendering({
     [people, personFallback, groupOf, t],
   );
 
+  const switchMessages = useMemo(() => {
+    const seen = new Set<string>();
+    const result = new Set<string>();
+    for (const { id, turnModelSwitch } of snapshot.messages) {
+      if (turnModelSwitch === undefined) continue;
+      const turn = JSON.stringify([turnModelSwitch.sessionId, turnModelSwitch.turn]);
+      if (seen.has(turn)) continue;
+      seen.add(turn);
+      result.add(id);
+    }
+    return result;
+  }, [snapshot.messages]);
   const nativeRows = nativeChatRecycler;
   const nativeRow = useCallback(
     (row: Row) =>
-      row.kind === 'draft'
+      row.kind === 'draft' || (row.kind === 'message' && switchMessages.has(row.message.id))
         ? undefined
         : nativeTextRow(row, {
             dm,
@@ -180,7 +194,7 @@ export function useConversationRowRendering({
                     ? { name: personSpeaker(row.message, row)?.name ?? '' }
                     : undefined,
           }),
-    [dm, selected, newestMessageId, reading, botName, personSpeaker],
+    [dm, selected, newestMessageId, reading, botName, personSpeaker, switchMessages],
   );
   const speakerRow = useCallback(
     (row: Row): SpeakerRowSlot | undefined => {
@@ -317,16 +331,27 @@ export function useConversationRowRendering({
           />
         );
       if (item.kind === 'separator') return <TimeSeparator at={item.at} />;
-      const wrap = (children: React.ReactNode) => (
-        <MessageSelectionRow
-          message={item.message}
-          selected={selected === undefined ? undefined : selected.includes(item.message.id)}
-          onToggle={() => togglePicked(item.message)}
-          onOpen={item.message.card === undefined ? undefined : openActions}
-        >
-          {children}
-        </MessageSelectionRow>
-      );
+      const wrap = (children: React.ReactNode) => {
+        const row = (
+          <MessageSelectionRow
+            message={item.message}
+            selected={selected === undefined ? undefined : selected.includes(item.message.id)}
+            onToggle={() => togglePicked(item.message)}
+            onOpen={item.message.card === undefined ? undefined : openActions}
+          >
+            {children}
+          </MessageSelectionRow>
+        );
+        const change = item.message.turnModelSwitch;
+        return change === undefined || !switchMessages.has(item.message.id) ? (
+          row
+        ) : (
+          <View>
+            <TurnModelSwitchMarker change={change} catalog={menuCatalog} />
+            {row}
+          </View>
+        );
+      };
 
       if (item.message.activity?.kind === 'voice-call')
         return wrap(<CallRecordBubble record={item.message.activity.record} />);
@@ -474,6 +499,8 @@ export function useConversationRowRendering({
     },
     [
       t,
+      menuCatalog,
+      switchMessages,
       dm,
       playback,
       focused,

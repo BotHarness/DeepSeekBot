@@ -15,6 +15,7 @@ import {
   unknownBot,
   type BridgeResult,
 } from '../../bridge/method-utils.js';
+import { sessionTarget } from '../../bridge/session-target.js';
 import { EngineRefusal } from '../../engines/engine-session.js';
 import { modelFailure } from '../../models/provider-bridge.js';
 import { type RoutingGroupEngineOptions } from '@botharness/host-protocol/subscription-engine';
@@ -97,7 +98,8 @@ const presetClientOutdated: BridgeResult<never> = {
 
 export function createModelsBridgeMethods(
   human: HumanContext,
-  deps: ModelsBridgeDeps & Pick<BridgeMethodsDeps, 'registry' | 'runtime' | 'team'>,
+  deps: ModelsBridgeDeps &
+    Pick<BridgeMethodsDeps, 'registry' | 'runtime' | 'team' | 'describeEngineSession'>,
   globalRegistry: PersonaBotRegistry,
   isHostOwner: () => boolean,
   requireOwnedBot: (slug: string) => void,
@@ -627,7 +629,11 @@ export function createModelsBridgeMethods(
             ? modelFailure(error)
             : invalidInput('model-unavailable');
         }
-        const currentTarget = deps.runtime?.currentTurnTarget?.(slug);
+        const sessionId = deps.runtime?.currentOrchestratorSessionId?.(slug);
+        const currentTarget = sessionTarget(
+          deps.runtime?.currentTurnTarget?.(slug),
+          sessionId === undefined ? undefined : deps.describeEngineSession?.(sessionId),
+        );
         const executed = currentTarget === undefined ? {} : { currentTarget };
         const inheritance = (record: typeof bot | undefined) =>
           record !== undefined &&

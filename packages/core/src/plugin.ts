@@ -1,3 +1,4 @@
+import { sessionModelChoices } from './runtime/session-model-choices.js';
 import { ReasoningEffortId } from '@deepseek-ai/dsh-llm';
 import type { ReleaseInstaller } from './release/service.js';
 import * as diagnosticsFeature from './features/diagnostics/plugin.js';
@@ -2753,6 +2754,9 @@ export function apply(ctx: Context, config: BotHarnessConfig): void {
     memory: core.memory,
     ...(core.usage === undefined ? {} : { usage: core.usage }),
     sessionLive,
+    sessionModels: sessionModelChoices(
+      attachOperationalModule(core.operationalDatabase, 'bot-runtime'),
+    ),
     presentToolResult: (sessionId, name, args, result) => {
       const agent = ctx.agents.list().find((candidate) => candidate.session.id === sessionId);
       const definition = agent === undefined ? ctx.tools.get(name) : ctx.tools.get(name, agent);

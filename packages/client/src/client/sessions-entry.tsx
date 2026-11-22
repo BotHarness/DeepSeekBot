@@ -37,8 +37,7 @@ import { useFlipList } from './flip-list.js';
 import { GroupHeading } from './ds/group-heading.js';
 import { IconButton } from './ds/icon-button.js';
 import { PanelEmptyState } from './ds/empty-state.js';
-import { modelRouteText, SessionSubagentList, SessionSubagentToggle } from './session-subagents.js';
-import { ModelBrandIcon, modelBrand, modelShortName } from './model-brand.js';
+import { SessionSubagentList, SessionSubagentToggle } from './session-subagents.js';
 import { AssignmentWorkDialog } from './assignment-work.js';
 import { Menu } from './appearance-primitives.js';
 import { prefetchSessionDetail } from './session-detail-cache.js';
@@ -50,7 +49,8 @@ import {
   SessionMetaChip,
   TodoProgressChip,
 } from './session-progress-view.js';
-import { ENGINE_MARKER_ICON, engineChipLabel, sessionEngineText } from './session-engine.js';
+import { SessionTargetChip } from './session-target-chip.js';
+import { useTurnTargetEngines } from './turn-target-label.js';
 
 const PROGRESS_SESSIONS = 30;
 const PROGRESS_REFRESH_MS = 60_000;
@@ -203,6 +203,12 @@ function SessionsPanel({
     };
   }, [actions, botSlug, progressIds, anyRunning, signature, conversationRevision, reload]);
   const [models, setModels] = useState<readonly ModelCatalogEntryView[]>([]);
+  const { engines, mount: engineMount } = useTurnTargetEngines<HTMLSpanElement>(
+    actions,
+    statusRows.some(
+      (row) => row.currentTarget?.kind === 'engine' && row.currentTarget.model !== undefined,
+    ),
+  );
   const catalogMount = useMountedResource<HTMLDivElement>(() => {
     let live = true;
     void Promise.resolve(actions.modelCatalog?.()).then(
@@ -460,6 +466,7 @@ function SessionsPanel({
         {...(showWorkspace ||
         row.modelRoute !== undefined ||
         row.engine !== undefined ||
+        row.currentTarget !== undefined ||
         row.mode !== undefined ||
         row.assignmentAccessMode === 'danger-full-access' ||
         rowProgress?.todos !== undefined ||
@@ -475,17 +482,13 @@ function SessionsPanel({
                       title={row.cwd}
                     />
                   ) : null}
-                  {row.modelRoute === undefined ? null : (
-                    <SessionModelChip route={row.modelRoute} models={models} />
-                  )}
-                  {row.engine === undefined ? null : (
-                    <SessionMetaChip
-                      kind="engine"
-                      icon={<Icon name={ENGINE_MARKER_ICON} size={12} />}
-                      label={engineChipLabel(row.engine, t)}
-                      title={sessionEngineText({ ...row.engine, state: 'idle' }, t)}
-                    />
-                  )}
+                  <SessionTargetChip
+                    target={row.currentTarget}
+                    engine={row.engine}
+                    route={row.modelRoute}
+                    catalog={{ models, engines }}
+                    t={t}
+                  />
                   {row.mode === undefined ? null : (
                     <SessionMetaChip
                       kind="mode"
@@ -556,6 +559,7 @@ function SessionsPanel({
 
   return (
     <div data-sessions="" ref={rootRef}>
+      <span ref={engineMount} hidden />
       {owned.status === 'loading' && rows.length === 0 ? (
         <LoadingSkeleton kind="sidebar" label={t('sessions.loading')} />
       ) : null}
@@ -773,38 +777,6 @@ function SessionRowMenu({
         onSelect(id);
       }}
       onClose={() => setOpen(false)}
-    />
-  );
-}
-
-function SessionModelChip({
-  route,
-  models,
-}: {
-  route: { provider: string; model: string; reasoningEffort?: string };
-  models: readonly ModelCatalogEntryView[];
-}): ReactElement {
-  const entry = models.find(
-    (item) => item.provider === route.provider && item.model === route.model,
-  );
-  const name = entry?.modelName ?? route.model;
-  const brand = modelBrand({
-    provider: route.provider,
-    model: route.model,
-    name: entry?.modelName,
-  });
-  const effort =
-    route.reasoningEffort === undefined
-      ? undefined
-      : (entry?.efforts.find((item) => item.id === route.reasoningEffort)?.name ??
-        route.reasoningEffort);
-  const short = modelShortName(name, brand);
-  return (
-    <SessionMetaChip
-      kind="model"
-      icon={<ModelBrandIcon brand={brand} size={12} />}
-      label={effort === undefined ? short : `${short} · ${effort}`}
-      title={modelRouteText(route)}
     />
   );
 }

@@ -70,7 +70,7 @@ export interface EngineTurnRequest {
   botSlug: string;
   role?: EngineRole;
   target?: RoutingGroupEngineMember;
-  groupEffort?: string;
+  groupEffort?: string | null;
   observeTurnTarget?(turn: number, step: number, target: TurnTarget): void;
   continuingFromNativeRoute?: true;
   cwd?: string;
