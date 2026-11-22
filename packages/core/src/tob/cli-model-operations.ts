@@ -421,17 +421,17 @@ export function createTobModelOperations(deps: TobModelOperationDependencies) {
       if (!preset) throw new TobError('unknown-preset');
       if (hasPresetEngines(preset)) throw new TobError('engine-unavailable');
       same(preset.revision, revision(args.expectedPresetRevision));
+      const effectivePreset = preset.assignmentFollowsMain
+        ? { ...preset, ...defaultPresetPlan(preset) }
+        : preset;
+      const models = assignmentModelsOf(effectivePreset);
       patch = { presetId: id, presetRevision: preset.revision, plan: preset };
       routes = [
         preset.orchestrator,
-        ...assignmentRoutes(preset.assignmentDefault, assignmentModelsOf(preset)),
+        ...(models.length === 0 ? [] : assignmentRoutes(effectivePreset.assignmentDefault, models)),
       ];
       checkExtra = () => same(deps.presets.get(id), preset);
-      apply = () =>
-        deps.registry.applyModelPreset(
-          slug,
-          preset.assignmentFollowsMain ? { ...preset, ...defaultPresetPlan(preset) } : preset,
-        );
+      apply = () => deps.registry.applyModelPreset(slug, effectivePreset);
     } else if (command === 'model-plan-inherit') {
       keys(args, ['slug', 'expectedRevision']);
       patch = { inherit: true };
