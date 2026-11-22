@@ -564,7 +564,7 @@ export const en = {
   'connections.ownerSignIn.setupTitle': 'Turn on password sign-in',
   'connections.ownerSignIn.username': 'Username: {username}',
   'connections.ownerSignIn.usernameRule':
-    'Use 2–32 characters. Start with a lowercase letter or number, then use letters, numbers, dots, dashes, or underscores.',
+    'Use 2–32 lowercase letters, numbers, dots, dashes, or underscores. Start with a letter or number.',
   'connections.ownerSignIn.passwordTooLong': 'Use a shorter password.',
   'connections.ownerSignIn.disableHint': 'Connected devices keep access when turned off.',
   'connections.ownerSignIn.loadFailed': 'Could not load. Try again.',

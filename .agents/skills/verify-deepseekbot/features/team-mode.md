@@ -5,7 +5,9 @@
 - `packages/core/src/features/team/plugin.ts`
 - `packages/core/src/team/**`
 - `packages/client/src/client/team-*`
+- `packages/client/src/client/owner-password-dialog.tsx`
 - `packages/host-client/src/team-*.ts`
+- `packages/host-client/src/sign-in-discovery.ts`
 - `packages/host-client/src/shared/team-sign-in-page.ts`
 - `apps/mobile/src/team/**`
 - `packages/core/src/features/team/{methods,rpc}.ts`
@@ -84,6 +86,8 @@ Managed Tailscale qualification: launch a named isolated Host, save private Serv
 #4222 Human DMs: run `node scripts/e2e-team-human-dm.mjs --name <instance>` on a fresh named instance. Opening a person with `--as <user> dm <username>` returns the DM but lists it for neither side; the first `channels send` lists it for both, and the recipient's member Web Client shows it without a reload. Light and dark captures land under `.humanlayer/verify/<instance>/team-human-dm/`. Native mobile and Human acceptance are separate.
 
 M15 security suite: `node scripts/e2e-team-security.mjs --launch` (or `--name <instance>` on a running Host) drives real model turns against Role Policy (A), file, Shell and grant boundaries (B) and the shipped hard boundaries (C), asserting on Host state and tool results. Shell boundaries count only when `team-mode status` reports `isolation: enforced`. Publish `.humanlayer/team-security/<time>/` with `pnpm evidence:publish`; AGENTS.md requires it for permission-affecting PRs.
+
+For a Bot owned by an ordinary Team member, send a real DM with `send --as` and take its root Session ID from `bot-sessions --as`. Read `session-transcript --as` and `session-model --as`, save a granted API Model Choice, then verify that saving an ungranted Subscription Engine account returns `model-not-allowed`. Read the Session Model Choice again and confirm it still matches the granted choice. The refusal can be checked on a fresh Host without signing in to a Subscription Engine.
 
 C5 checks subscription selection with an explicit account grant and after revocation. It also checks that a second account stays unavailable and a member cannot change another member's Bot. Run it with `--scenario C5 --no-subscriptions`. In the Web Client, open Bot Settings, Team, then edit a role. Select a named account in Available models, save, and confirm the role name appears on the account row in Model providers.
 

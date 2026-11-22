@@ -15,7 +15,6 @@ import type {
 } from '../../messaging/conversation-ingest.js';
 import type { ThreadReceptionInput } from '../../messaging/thread-policy.js';
 import type { GroupReceptionInput } from '../../messaging/group-policy.js';
-import type { ExternalSource } from '../../messaging/inbound.js';
 import type {
   MessagingSnapshot,
   MessagingGrant,
@@ -112,7 +111,7 @@ export function messagingSource(
   methods: MessagingBridgeMethods,
   slug: string,
   sourceEventId: string,
-): Promise<{ source: ExternalSource }> {
+) {
   return unwrapAsync(methods.messagingSource({ slug, sourceEventId }));
 }
 

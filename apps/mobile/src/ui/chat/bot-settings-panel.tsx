@@ -19,7 +19,15 @@ import { modelLabel } from './composer-labels';
 import { DmActivitySettings } from './dm-activity-settings';
 import { BotNameSetting } from './bot-name-setting';
 
-export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: RosterBot }) {
+export function BotSettingsPanel({
+  client,
+  bot,
+  onRename,
+}: {
+  client: HostClient;
+  bot: RosterBot;
+  onRename?: (() => void) | undefined;
+}) {
   const t = useStrings();
   const theme = useDesignTheme();
   const { saved } = useHostSession();
@@ -74,6 +82,7 @@ export function BotSettingsPanel({ client, bot }: { client: HostClient; bot: Ros
             on="raised"
             icon="account"
             name={bot.displayName}
+            onOpen={onRename}
             onSave={(name) => renameBot(client, bot.slug, name)}
           />,
           true,

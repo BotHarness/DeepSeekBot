@@ -2,7 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { attachOperationalModule, type OperationalDatabaseOwner } from '../database/owner.js';
+import {
+  attachOperationalModule,
+  OperationalDatabaseError,
+  type OperationalDatabaseOwner,
+} from '../database/owner.js';
 import { isEngineId, type EngineChoice, type EngineId } from '../engines/engine-session.js';
 
 export interface ModelRoute {
@@ -87,6 +91,7 @@ export interface ModelPreset extends ModelPresetEngines {
   revision: number;
   orchestrator: ModelRoute;
   assignmentDefault: ModelRoute;
+  assignmentFollowsMain?: true;
   assignmentModels?: AssignmentModelOption[];
   openAssignmentModels?: true;
   orchestratorGroupId?: string;
@@ -273,6 +278,17 @@ export interface ModelPresetUsage {
 export interface ModelPresetStore {
   list(): ModelPreset[];
   get(id: string): ModelPreset | undefined;
+  migrateDefault(
+    source: LegacyDefaultModel | (() => LegacyDefaultModel),
+    options?: { dryRun: true },
+  ): DefaultPresetMigration;
+  setDefaultMain(input: {
+    expectedRevision: number;
+    route: ModelRoute;
+    groupId?: string;
+    effort?: string;
+    preserveSub?: boolean;
+  }): ModelPreset;
   create(input: {
     name: string;
     orchestrator: ModelRoute;
@@ -289,6 +305,7 @@ export interface ModelPresetStore {
       name: string;
       orchestrator: ModelRoute;
       assignmentDefault: ModelRoute;
+      assignmentFollowsMain?: boolean;
       assignmentModels?: AssignmentModelOption[];
       openAssignmentModels?: boolean;
       groups?: ModelPresetGroups;
@@ -296,6 +313,122 @@ export interface ModelPresetStore {
     },
   ): ModelPreset | undefined;
   delete(id: string, expectedRevision: number): boolean;
+}
+
+export const DEFAULT_MODEL_PRESET_ID = 'default';
+
+export class ModelPresetError extends Error {
+  constructor(
+    readonly code: 'default-preset-pinned' | 'stale-setting',
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+export interface LegacyDefaultModel {
+  main?: ModelRoute;
+  sub?: ModelRoute;
+  groupId?: string;
+  groupEffort?: string;
+}
+
+export interface DefaultPresetMigration {
+  status: 'would-migrate' | 'migrated' | 'already-migrated';
+  preset: ModelPreset;
+}
+
+export function planDefaultPreset(source: LegacyDefaultModel, createdAt: string): ModelPreset {
+  const main = source.main ?? { provider: 'deepseek-official', model: 'deepseek-flash' };
+  if (!isModelRoute(main) || (source.sub !== undefined && !isModelRoute(source.sub)))
+    throw new Error('Invalid legacy default model route');
+  return presetRecord({
+    id: DEFAULT_MODEL_PRESET_ID,
+    name: 'Default',
+    revision: 1,
+    createdAt,
+    orchestrator: main,
+    assignmentDefault: source.sub ?? main,
+    ...(source.sub === undefined ? { assignmentFollowsMain: true } : {}),
+    ...(source.groupId === undefined ? {} : { orchestratorGroupId: source.groupId }),
+    ...(source.groupEffort === undefined ? {} : { orchestratorGroupEffort: source.groupEffort }),
+  });
+}
+
+export function defaultPresetPlan(preset: ModelPreset): PersonaBotModelPlan {
+  const groups =
+    preset.assignmentFollowsMain && preset.orchestratorGroupId
+      ? {
+          ...preset,
+          assignmentGroups: [preset.orchestratorGroupId],
+          assignmentDefaultGroupId: preset.orchestratorGroupId,
+          ...(preset.orchestratorGroupEffort === undefined
+            ? {}
+            : {
+                assignmentGroupOptions: [
+                  {
+                    group: preset.orchestratorGroupId,
+                    allowedEfforts: [preset.orchestratorGroupEffort],
+                    defaultEffort: preset.orchestratorGroupEffort,
+                  },
+                ],
+              }),
+        }
+      : preset;
+  return {
+    revision: preset.revision,
+    sourcePresetId: preset.id,
+    sourcePresetName: preset.name,
+    orchestrator: preset.orchestrator,
+    assignmentDefault: preset.assignmentDefault,
+    ...(preset.assignmentModels === undefined ? {} : { assignmentModels: preset.assignmentModels }),
+    ...(preset.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
+    ...presetGroups(groups),
+    appliedAt: preset.createdAt,
+  };
+}
+
+export function defaultPresetRoute(
+  readPreset: () => ModelPreset | undefined,
+  role: 'orchestrator' | 'assignment',
+  fallback: () => ModelRoute | undefined,
+): ModelRoute {
+  try {
+    const preset = readPreset();
+    if (preset !== undefined)
+      return role === 'assignment' ? preset.assignmentDefault : preset.orchestrator;
+  } catch (error) {
+    if (
+      !(error instanceof OperationalDatabaseError) ||
+      (error.code !== 'recovery-mode' && error.code !== 'closed')
+    )
+      throw error;
+  }
+  const route = fallback();
+  if (route === undefined) throw new Error('Default Model Preset is unavailable');
+  return route;
+}
+
+export function resolveBotModelPlan(
+  bot: { modelPlan?: PersonaBotModelPlan; model?: string },
+  inherited: () => PersonaBotModelPlan | undefined,
+): PersonaBotModelPlan | undefined {
+  const plan = bot.modelPlan;
+  if (plan === undefined) return bot.model === undefined ? inherited() : undefined;
+  if (plan.assignmentDefault !== undefined) return plan;
+  const defaults = inherited();
+  if (defaults === undefined) return plan;
+  const {
+    revision: _revision,
+    sourcePresetId: _sourcePresetId,
+    sourcePresetName: _sourcePresetName,
+    orchestrator: _orchestrator,
+    orchestratorGroupId: _group,
+    orchestratorGroupEffort: _effort,
+    appliedAt: _appliedAt,
+    ...assignment
+  } = defaults;
+  return { ...assignment, ...plan };
 }
 
 export function isModelRoute(value: unknown): value is ModelRoute {
@@ -477,6 +610,8 @@ function isModelPreset(value: unknown): value is ModelPreset {
     typeof preset['createdAt'] === 'string' &&
     isModelRoute(preset['orchestrator']) &&
     isModelRoute(preset['assignmentDefault']) &&
+    (preset['assignmentFollowsMain'] === undefined ||
+      (preset['id'] === DEFAULT_MODEL_PRESET_ID && preset['assignmentFollowsMain'] === true)) &&
     (preset['openAssignmentModels'] === undefined || preset['openAssignmentModels'] === true) &&
     isModelPresetGroups(preset) &&
     (preset['orchestratorEngine'] === undefined ||
@@ -507,6 +642,7 @@ function presetRecord(preset: ModelPreset): ModelPreset {
     createdAt: preset.createdAt,
     orchestrator: route(preset.orchestrator),
     assignmentDefault: route(preset.assignmentDefault),
+    ...(preset.assignmentFollowsMain === true ? { assignmentFollowsMain: true } : {}),
     ...(preset.assignmentModels === undefined
       ? {}
       : {
@@ -534,14 +670,22 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
     } catch {}
   };
   const port = attachOperationalModule(options.database, 'model-presets');
+  function parse(body: unknown): ModelPreset {
+    const parsed: unknown = JSON.parse(String(body));
+    if (!isModelPreset(parsed)) throw new Error('Invalid Model Preset record');
+    return parsed;
+  }
+  const get = (id: string): ModelPreset | undefined =>
+    port.read((database) => {
+      const row = database.prepare('SELECT body FROM model_presets WHERE id = ?').get(id);
+      return row === undefined ? undefined : parse(row['body']);
+    });
   const read = (): ModelPreset[] =>
     port.read((database) => {
-      const rows = database.prepare('SELECT body FROM model_presets ORDER BY rowid').all();
-      return rows.map((row) => {
-        const parsed: unknown = JSON.parse(String(row['body']));
-        if (!isModelPreset(parsed)) throw new Error('Invalid Model Preset record');
-        return parsed;
-      });
+      const rows = database
+        .prepare('SELECT body FROM model_presets ORDER BY id = ? DESC, rowid')
+        .all(DEFAULT_MODEL_PRESET_ID);
+      return rows.map((row) => parse(row['body']));
     });
   const write = (preset: ModelPreset): void => {
     port.transaction(
@@ -603,7 +747,68 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
   }
   return {
     list: read,
-    get: (id) => read().find((preset) => preset.id === id),
+    get,
+    migrateDefault(source, migrationOptions) {
+      const current = get(DEFAULT_MODEL_PRESET_ID);
+      if (current !== undefined) return { status: 'already-migrated', preset: current };
+      const legacy = typeof source === 'function' ? source() : source;
+      const row = port.read((database) =>
+        database
+          .prepare('SELECT group_id, effort FROM legacy_routing_group_default WHERE singleton = 1')
+          .get(),
+      );
+      const preset = planDefaultPreset(
+        {
+          ...legacy,
+          ...(typeof row?.['group_id'] === 'string' ? { groupId: row['group_id'] } : {}),
+          ...(typeof row?.['effort'] === 'string' ? { groupEffort: row['effort'] } : {}),
+        },
+        now().toISOString(),
+      );
+      if (migrationOptions?.dryRun) return { status: 'would-migrate', preset };
+      port.transaction(
+        (database) => {
+          database
+            .prepare('INSERT INTO model_presets (id, body) VALUES (?, ?)')
+            .run(preset.id, JSON.stringify(preset));
+          database.prepare('DELETE FROM legacy_routing_group_default').run();
+        },
+        ['model-presets'],
+      );
+      return { status: 'migrated', preset };
+    },
+    setDefaultMain(input) {
+      const current = get(DEFAULT_MODEL_PRESET_ID);
+      if (current === undefined || current.revision !== input.expectedRevision)
+        throw new ModelPresetError(
+          'stale-setting',
+          'Default preset changed; read it again before saving',
+        );
+      const {
+        orchestratorGroupId: _group,
+        orchestratorGroupEffort: _effort,
+        orchestratorEngine: _engine,
+        ...existing
+      } = current;
+      const followsMain = input.preserveSub !== true || current.assignmentFollowsMain === true;
+      const preset = presetRecord({
+        ...(followsMain
+          ? {
+              id: current.id,
+              name: current.name,
+              createdAt: current.createdAt,
+              assignmentFollowsMain: true,
+            }
+          : existing),
+        revision: current.revision + 1,
+        orchestrator: input.route,
+        assignmentDefault: followsMain ? input.route : current.assignmentDefault,
+        ...(input.groupId === undefined ? {} : { orchestratorGroupId: input.groupId }),
+        ...(input.effort === undefined ? {} : { orchestratorGroupEffort: input.effort }),
+      });
+      write(preset);
+      return preset;
+    },
     create(input) {
       if (input.assignmentModels !== undefined)
         validateAssignmentModels(input.assignmentDefault, input.assignmentModels);
@@ -645,14 +850,25 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
       if (index < 0) return undefined;
       const current = presets[index]!;
       if (current.revision !== input.expectedRevision) {
-        throw new Error('Model Preset changed; select Edit selected preset again before saving');
+        const message = 'Model Preset changed; select Edit selected preset again before saving';
+        if (id === DEFAULT_MODEL_PRESET_ID) throw new ModelPresetError('stale-setting', message);
+        throw new Error(message);
       }
-      const assignmentModels = input.assignmentModels ?? current.assignmentModels;
+      const followsMain =
+        id === DEFAULT_MODEL_PRESET_ID &&
+        (input.assignmentFollowsMain ?? current.assignmentFollowsMain) === true;
+      const assignmentDefault = followsMain ? input.orchestrator : input.assignmentDefault;
+      const assignmentModels = followsMain
+        ? undefined
+        : (input.assignmentModels ?? current.assignmentModels);
       if (assignmentModels !== undefined)
-        validateAssignmentModels(input.assignmentDefault, assignmentModels);
+        validateAssignmentModels(assignmentDefault, assignmentModels);
       if (
         presets.some(
-          (preset) => preset.id !== id && preset.name.toLowerCase() === name.toLowerCase(),
+          (preset) =>
+            preset.id !== id &&
+            name.toLowerCase() !== current.name.toLowerCase() &&
+            preset.name.toLowerCase() === name.toLowerCase(),
         )
       ) {
         throw new Error('Model Preset name already exists');
@@ -664,6 +880,8 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
         assignmentGroups: currentGroups,
         assignmentDefaultGroupId: currentDefaultGroup,
         assignmentGroupOptions: currentGroupOptions,
+        assignmentFollowsMain: _assignmentFollowsMain,
+        assignmentModels: _assignmentModels,
         orchestratorEngine: _orchestratorEngine,
         assignmentEngine: _assignmentEngine,
         ...rest
@@ -693,7 +911,8 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
         name,
         revision: current.revision + 1,
         orchestrator: { ...input.orchestrator },
-        assignmentDefault: { ...input.assignmentDefault },
+        assignmentDefault: { ...assignmentDefault },
+        ...(followsMain ? { assignmentFollowsMain: true } : {}),
         ...(assignmentModels === undefined
           ? {}
           : {
@@ -703,13 +922,32 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
               })),
             }),
         ...(open ? { openAssignmentModels: true } : {}),
-        ...groups,
-        ...presetEngines(input.engines ?? {}, current),
+        ...presetGroups(
+          followsMain
+            ? {
+                ...(groups.orchestratorGroupId === undefined
+                  ? {}
+                  : { orchestratorGroupId: groups.orchestratorGroupId }),
+                ...(groups.orchestratorGroupEffort === undefined
+                  ? {}
+                  : { orchestratorGroupEffort: groups.orchestratorGroupEffort }),
+              }
+            : groups,
+        ),
+        ...presetEngines(
+          followsMain ? { ...input.engines, assignmentEngine: null } : (input.engines ?? {}),
+          current,
+        ),
       };
       write(updated);
       return updated;
     },
     delete(id, expectedRevision) {
+      if (id === DEFAULT_MODEL_PRESET_ID)
+        throw new ModelPresetError(
+          'default-preset-pinned',
+          'The Default Model Preset cannot be deleted',
+        );
       return port.transaction(
         (database) =>
           database

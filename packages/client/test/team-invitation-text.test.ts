@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { zhTranslate } from '../src/client/locale.js';
+import { en, zhTranslate } from '../src/client/locale.js';
 import { invitationText, loadMemberInvitation } from '../src/client/team-invitation-text.js';
 
 const fingerprint = 'ab'.repeat(32);
@@ -14,7 +14,7 @@ const link = `deepseekbot://team?i=${Buffer.from(
 ).toString('base64url')}`;
 
 describe('invitationText', () => {
-  it('gives the phone link, the computer address, username, one-time password and fingerprint', () => {
+  it('gives the phone link, the desktop address, username, one-time password and fingerprint', () => {
     const text = invitationText(zhTranslate, {
       link,
       username: 'erin',
@@ -23,7 +23,12 @@ describe('invitationText', () => {
     });
     expect(text).toContain('Studio');
     expect(text).toContain(link);
-    expect(text).toContain('https://studio.tail.ts.net/');
+    expect(text).toContain(
+      '桌面端：在 Tobs「环境」里点「添加远程」→「以团队成员身份登录」，地址填 https://studio.tail.ts.net/',
+    );
+    expect(en['team.invite.text.desktop']).toBe(
+      'Desktop: in Tobs Environments, choose Add remote → Sign in as a team member, and enter {address}',
+    );
     expect(text).toContain('erin');
     expect(text).toContain('one-time-secret');
     expect(text).toContain(fingerprint);

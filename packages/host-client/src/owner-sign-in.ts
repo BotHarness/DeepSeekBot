@@ -1,15 +1,14 @@
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
-import { CONNECT_CHANNEL_PATH } from '@botharness/host-protocol/noise/channel';
-import { noiseFingerprint } from '@botharness/host-protocol/noise/xk';
 import { isHttpsOrigin } from '@botharness/host-protocol/route';
 import {
   teamHostIdentity,
   teamRecord,
   type TeamResult,
 } from '@botharness/host-protocol/team-invitation';
-import { keyBytes, keyHex, secureRandom } from './encrypted-carrier';
+import { keyHex, secureRandom } from './encrypted-carrier';
 import { encryptedSignIn, signInTransportFailure } from './encrypted-sign-in';
 import type { HostEncryption, SavedHost } from './hosts';
+import { discoverSignInHost, matchesSavedSignInHost } from './sign-in-discovery';
 
 const refusals = [
   'credentials-invalid',
@@ -61,31 +60,17 @@ export async function signInOwnerDevice(
   ]);
   if (signal.aborted) return { ok: false, code: 'request-cancelled' };
   try {
-    const response = await carrier.request(route + CONNECT_CHANNEL_PATH, {
-      method: 'GET',
+    const discovered = await discoverSignInHost({
+      carrier,
+      route,
       redirect: 'error',
       signal,
     });
-    if (response.status !== 200) return { ok: false, code: 'unreachable' };
-    const discovery = teamRecord(JSON.parse(await response.text()));
-    const advertised = teamRecord(discovery['encryption']);
-    const host = teamHostIdentity({
-      ...teamRecord(discovery['host']),
-      fingerprint: advertised['fingerprint'],
-    });
-    const publicKey = advertised['publicKey'];
-    if (!host || typeof publicKey !== 'string' || !/^[a-f0-9]{64}$/u.test(publicKey))
-      return { ok: false, code: 'response-invalid' };
+    if (!discovered.ok) return discovered;
+    const { host, publicKey } = discovered.value;
     if (host.id === options.localHostId) return { ok: false, code: 'this-host' };
-    if (noiseFingerprint(keyBytes(publicKey)) !== host.fingerprint)
-      return { ok: false, code: 'fingerprint-mismatch' };
     const previous = options.previous?.(host.id, route);
-    if (
-      previous &&
-      (previous.hostId !== host.id ||
-        (previous.encryption && previous.encryption.hostKey !== publicKey) ||
-        (previous.member && previous.member.fingerprint !== host.fingerprint))
-    )
+    if (!matchesSavedSignInHost(previous, host, publicKey))
       return { ok: false, code: 'fingerprint-mismatch' };
     if (previous && options.allowExisting?.(previous) === false)
       return { ok: false, code: 'already-paired' };

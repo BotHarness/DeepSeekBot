@@ -1,4 +1,4 @@
-import type { TurnTarget } from './turn-target';
+import type { TurnTarget, SessionTurnModelSwitch } from './turn-target';
 import type { ToolEffects } from '../../core/src/workspaces/tool-effects';
 import type { BotPrimaryColor } from '../../core/src/bots/primary-color';
 import type { ChannelReplyPreviewMedia } from '../../core/src/channels/reply-preview';
@@ -75,6 +75,7 @@ export interface WireSkillInvocation {
 
 export interface ChannelWireMessage extends WireMessage {
   turnTargets?: TurnTarget[];
+  turnModelSwitch?: SessionTurnModelSwitch;
   contentPurge?: unknown;
   author: WireAuthor;
   mentions?: WireMention[];

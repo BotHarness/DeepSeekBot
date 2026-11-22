@@ -10,6 +10,7 @@ import type { PersonaBotRecord } from '../bots/persona-bot.js';
 import type { RestingRoute } from '../models/route-rest.js';
 import {
   type ModelSwitch,
+  type MixedGroupPick,
   type SubscriptionRest,
   routingTargetRestKey,
   unavailableRoutingEngine,
@@ -470,6 +471,7 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
     run: OrchestratorAgentRun,
     target: RoutingTarget,
     sourceEventId: string | undefined,
+    select: (attempted: ReadonlySet<string>) => Promise<MixedGroupPick | undefined>,
   ): Promise<void> {
     const { acceptNativeInput, ...initial } = run;
     const { bot, sessionId, inboundChannelId: channelId } = initial;
@@ -499,7 +501,7 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
           if (rest === undefined && !(target.kind === 'engine' && unavailableRoutingEngine(error)))
             throw error;
           ports.switchingRoutingGroups.add(bot.slug);
-          const next = await ports.groupFallback?.pickMixedOrchestrator?.(bot.slug, attempted);
+          const next = await select(attempted);
           if (ports.closed() || ports.stoppedTurns.has(bot.slug)) return;
           if (next?.kind === 'exhausted')
             throw new RouteRestingError(next.rests, next.subscription);
@@ -517,6 +519,7 @@ export function createOrchestratorContinuation(ports: OrchestratorContinuationPo
             ...(rest === undefined
               ? current
               : mixedGroupContinuation(initial, sourceEventId, rest, inputRecorded)),
+            switchReason: next.switchReason ?? rest?.reason ?? 'credential',
             ...(target.kind === 'route' && inputAccepted
               ? { continuingFromNativeRoute: true }
               : {}),

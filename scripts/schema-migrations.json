@@ -704,6 +704,14 @@
     "sha256": "d818f03571a8220333a79b53b7b7db4243bf7ba60a8678a9647019773742987e"
   },
   {
+    "id": "default-model-preset",
+    "sha256": "18127e2b8786c4b772fd645322d4def2eaef5ad94f301f7f1ef82c60d3bbf875"
+  },
+  {
+    "id": "session-model-choices",
+    "sha256": "2c4320195b84e9045a4129a7866a2abac5ffa7cd2f3d94efad5abdf41a32aad2"
+  },
+  {
     "id": "owner-password-sign-in",
     "sha256": "cd24239ed9e9be52958c4f7a8436c1877dd00c40a4d7809d36df0b9d52e352d1"
   }

@@ -56,7 +56,6 @@ export type MemberAuthHost = {
   deviceGrantResult: TeamService['deviceGrantResult'];
   ensureTob: TeamService['ensureTob'];
   invalidate: TeamService['invalidate'];
-  hasCredential: TeamService['hasCredential'];
   isOwner: TeamService['isOwner'];
   limiter: TeamService['limiter'];
   log: TeamService['log'];
@@ -133,25 +132,41 @@ function ownerPasswordEnabled(db: MemberAuthHost['db']): boolean {
   );
 }
 
+export type OwnerPasswordRotation = { signOutOthers?: boolean; currentDeviceId?: string };
+
 export async function setOwnerPassword(
   this: MemberAuthHost,
   human: HumanContext,
   password: string,
-  current?: string,
-  options?: { signOutOthers?: boolean; currentDeviceId?: string },
+  options:
+    | ({ kind: 'settings'; current: string | undefined } & OwnerPasswordRotation)
+    | { kind: 'enable-sign-in'; username: string },
 ): Promise<void> {
   this.owner(human);
   const previous = this.credential(human.humanId);
-  if (previous && !(await verifyPassword(current ?? '', previous.hash)))
-    throw new TeamError('credentials-invalid');
-  this.owner(human);
+  const username = options.kind === 'enable-sign-in' ? options.username : 'owner';
+  if (options.kind === 'enable-sign-in') {
+    if (previous) throw new TeamError('invalid-input');
+    if (!/^[a-z0-9][a-z0-9._-]{1,31}$/u.test(username)) throw new TeamError('username-invalid');
+  } else if (previous) {
+    if (!(await verifyPassword(options.current ?? '', previous.hash)))
+      throw new TeamError('credentials-invalid');
+    this.owner(human);
+  }
   if (!strongPassword(password)) throw new TeamError('password-weak');
+  if (options.kind === 'enable-sign-in' && this.byUsername(username))
+    throw new TeamError('username-taken');
+
   const hash = await hashPassword(password);
   this.owner(human);
   if (this.credential(human.humanId)?.hash.hash !== previous?.hash.hash)
-    throw new TeamError('credentials-invalid');
+    throw new TeamError(
+      options.kind === 'enable-sign-in' ? 'invalid-input' : 'credentials-invalid',
+    );
+  if (options.kind === 'enable-sign-in' && this.byUsername(username))
+    throw new TeamError('username-taken');
 
-  const currentDeviceId = options?.currentDeviceId;
+  const currentDeviceId = options.kind === 'settings' ? options.currentDeviceId : undefined;
   if (
     currentDeviceId !== undefined &&
     !this.db.read((db) =>
@@ -164,7 +179,7 @@ export async function setOwnerPassword(
     throw new TeamError('device-revoked');
 
   const others =
-    previous && options?.signOutOthers
+    previous && options.kind === 'settings' && options.signOutOthers
       ? this.db.read((db) =>
           z.array(z.object({ device_id: z.string() })).parse(
             db
@@ -177,17 +192,21 @@ export async function setOwnerPassword(
   const pairing = this.pairing;
   if (others.length > 0 && !pairing) throw new TeamError('unavailable');
 
+  const credential = credentialPasswordJson(hash, human.humanId);
   this.db.transaction(
     (db) => {
       if (previous)
         db.prepare(
           'UPDATE member_credentials SET password_json = ?, must_change = 0 WHERE human_id = ?',
-        ).run(credentialPasswordJson(hash, human.humanId), human.humanId);
+        ).run(credential, human.humanId);
       else
-        db.prepare("INSERT INTO member_credentials VALUES (?, 'owner', ?, '[]', 0)").run(
+        db.prepare("INSERT INTO member_credentials VALUES (?, ?, ?, '[]', 0)").run(
           human.humanId,
-          credentialPasswordJson(hash, human.humanId),
+          username,
+          credential,
         );
+      if (options.kind === 'enable-sign-in')
+        db.prepare('UPDATE team_settings SET owner_password_sign_in = 1 WHERE singleton = 1').run();
       if (others.length > 0) {
         const revoke = db.prepare('UPDATE paired_devices SET revoked_at = ? WHERE device_id = ?');
         const revokedAt = new Date(this.now()).toISOString();
@@ -198,7 +217,8 @@ export async function setOwnerPassword(
   );
   for (const { device_id } of others) pairing?.revoke(device_id);
   this.invalidate();
-  this.log('owner-password-updated', { initiator: 'owner', revokedDevices: others.length });
+  if (options.kind === 'settings')
+    this.log('owner-password-updated', { initiator: 'owner', revokedDevices: others.length });
 }
 
 export function ownerPasswordSignIn(
@@ -223,25 +243,7 @@ export async function ownerPasswordSignInSet(
   if (enabled && previous.username === undefined) {
     if (username === undefined || password === undefined)
       throw new TeamError('owner-password-required');
-    if (!/^[a-z0-9][a-z0-9._-]{1,31}$/u.test(username)) throw new TeamError('username-invalid');
-    if (!strongPassword(password)) throw new TeamError('password-weak');
-    if (this.byUsername(username)) throw new TeamError('username-taken');
-    const hash = await hashPassword(password);
-    this.owner(human);
-    if (this.hasCredential(human.humanId)) throw new TeamError('invalid-input');
-    if (this.byUsername(username)) throw new TeamError('username-taken');
-    this.db.transaction(
-      (db) => {
-        db.prepare('INSERT INTO member_credentials VALUES (?, ?, ?, ?, 0)').run(
-          human.humanId,
-          username,
-          credentialPasswordJson(hash, human.humanId),
-          '[]',
-        );
-        db.prepare('UPDATE team_settings SET owner_password_sign_in = 1 WHERE singleton = 1').run();
-      },
-      ['team'],
-    );
+    await setOwnerPassword.call(this, human, password, { kind: 'enable-sign-in', username });
   } else {
     if (username !== undefined || password !== undefined) throw new TeamError('invalid-input');
     if (previous.enabled === enabled) return previous;
@@ -252,8 +254,8 @@ export async function ownerPasswordSignInSet(
           .run(Number(enabled)),
       ['team'],
     );
+    this.invalidate();
   }
-  this.invalidate();
   this.log('owner-password-sign-in-changed', { initiator: 'owner', enabled });
   return ownerPasswordSignIn.call(this, human);
 }

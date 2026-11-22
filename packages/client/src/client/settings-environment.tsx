@@ -24,7 +24,7 @@ import { StorageSettings } from './storage-settings.js';
 import type { RemoteHosts } from './remote-hosts.js';
 import { TargetName } from './target-name.js';
 import { loadTeamMode, setOwnerPassword } from './team-bridge.js';
-import { OwnerPasswordDialog } from './team-settings.js';
+import { TeamOwnerPasswordDialog } from './team-settings.js';
 
 export type SettingsEnvironments = Pick<
   RemoteHosts,
@@ -175,7 +175,7 @@ function RemoteOwnerPassword({ client, t }: { client: HostClient; t: BotHarnessT
         />
       ) : null}
       {available && open ? (
-        <OwnerPasswordDialog
+        <TeamOwnerPasswordDialog
           t={t}
           hasPassword
           thenEnable={false}

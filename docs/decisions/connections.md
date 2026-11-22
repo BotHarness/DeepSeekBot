@@ -77,6 +77,8 @@ The Client and Host complete their authenticated Noise channel before exchanging
 
 After authentication, the Host enrolls the exact Client device key with a revocable grant for that Human. The current Host Owner receives the same authority as an Owner-paired device. A Team member receives a member grant and completes any required first-password change before normal access. The Host records how it issued the device grant so the Host Owner can revoke password-enrolled Owner devices together when changing the password. See [Host password policy](team-mode.md#host-password-sign-in-and-team-mode).
 
+Password-enrolled Owner devices keep the Noise requirement on HTTPS, including Tailscale. Browser and Computer viewers need their own media and signaling support on the encrypted device channel. They remain available through direct Host access and the existing QR-paired Tailscale path.
+
 Why. The URL controls how a Client reaches the Host. The authenticated Host key controls which Host receives the password. This supports HTTP-only LANs and TLS-terminating relays with the same credential protection.
 
 Enforced by the [Remote Hosts verification journey](../../.agents/skills/verify-deepseekbot/features/remote-hosts.md#standalone-owner-password-sign-in-4898) and the remaining acceptance cases in [#4896](https://github.com/BotHarness/DeepSeekBot/issues/4896).

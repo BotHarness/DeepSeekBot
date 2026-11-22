@@ -250,3 +250,23 @@ it('rejects malformed status and preserves the role, model, effort and fallback'
     selections: [choice],
   });
 });
+
+it('prefers the account quota snapshot but keeps the status remaining value when the snapshot has none', () => {
+  const status = { usedPercent: 40, observedAt: '2026-11-22T00:00:00.000Z' };
+  const fresh = {
+    observedAt: '2026-11-22T01:00:00.000Z',
+    source: 'live',
+    windows: { weekly: { remainingPercent: 70 } },
+  };
+  const empty = { observedAt: '2026-11-22T01:00:00.000Z', source: 'turn', windows: {} };
+  const read = (snapshot: unknown) =>
+    parseEngines({
+      accounts: [{ id: 'codex-a', engine: 'codex', name: 'A', quota: snapshot }],
+      engines: [
+        { engine: 'codex', accountId: 'codex-a', available: true, installed: true, quota: status },
+      ],
+      selections: [],
+    }).engines[0]?.quota;
+  expect(read(fresh)).toEqual({ ...fresh, windows: { weekly: { remainingPercent: 70 } } });
+  expect(read(empty)).toEqual(status);
+});

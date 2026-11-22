@@ -33,6 +33,7 @@ export type EngineStatusView = {
   installed: boolean;
   version?: string;
   quota?: SessionEngineQuota;
+  email?: string;
 } & EngineAccountIdentity &
   ({ available: true } | { available: false; reason: EngineUnavailableReason });
 
@@ -77,15 +78,47 @@ const record = (value: unknown): Record<string, unknown> | undefined =>
     ? (value as Record<string, unknown>)
     : undefined;
 
-function parseStatus(value: unknown): EngineStatusView | undefined {
+interface AccountDetail {
+  email?: string;
+  quota?: SessionEngineQuota;
+}
+
+function accountDetails(value: unknown): Map<string, AccountDetail> {
+  const details = new Map<string, AccountDetail>();
+  if (!Array.isArray(value)) return details;
+  for (const raw of value) {
+    const account = record(raw);
+    if (typeof account?.['id'] !== 'string') continue;
+    const quota = parseSessionEngineQuota(account['quota']);
+    details.set(account['id'], {
+      ...(typeof account['email'] === 'string' ? { email: account['email'] } : {}),
+      ...(quota === undefined ? {} : { quota }),
+    });
+  }
+  return details;
+}
+
+function parseStatus(
+  value: unknown,
+  details: ReadonlyMap<string, AccountDetail>,
+): EngineStatusView | undefined {
   const entry = record(value);
   const engine = entry?.['engine'];
   if (entry === undefined || !isEngineId(engine)) return undefined;
-  const quota = parseSessionEngineQuota(entry['quota']);
+  const detail =
+    typeof entry['accountId'] === 'string' ? details.get(entry['accountId']) : undefined;
+  const snapshot = detail?.quota;
+  const quota =
+    snapshot !== undefined &&
+    (Object.keys(snapshot.windows ?? {}).length > 0 || snapshot.usedPercent !== undefined)
+      ? snapshot
+      : (parseSessionEngineQuota(entry['quota']) ?? snapshot);
+  const email = detail?.email;
   const base = {
     engine,
     installed: entry['installed'] === true,
     ...(quota === undefined ? {} : { quota }),
+    ...(email === undefined ? {} : { email }),
     ...(typeof entry['accountId'] === 'string' ? { accountId: entry['accountId'] } : {}),
     ...(typeof entry['accountName'] === 'string' ? { accountName: entry['accountName'] } : {}),
     ...(typeof entry['version'] === 'string' ? { version: entry['version'] } : {}),
@@ -108,9 +141,10 @@ export function parseEngines(value: unknown): EnginesView {
   const selections = body?.['selections'];
   if (!Array.isArray(engines) || !Array.isArray(selections))
     throw new Error('Invalid Subscription Engine status');
+  const details = accountDetails(body?.['accounts']);
   return {
     ...(typeof body?.['revision'] === 'number' ? { revision: body['revision'] } : {}),
-    engines: engines.flatMap((entry) => parseStatus(entry) ?? []),
+    engines: engines.flatMap((entry) => parseStatus(entry, details) ?? []),
     selections: selections.flatMap((value): EngineSelectionView[] => {
       const entry = record(value);
       const engine = entry?.['engine'];
@@ -159,6 +193,9 @@ function parseEngineModels(value: unknown): EngineModelView[] {
       {
         id: row['id'],
         name: row['name'],
+        ...(typeof row['resolvedModel'] === 'string'
+          ? { resolvedModel: row['resolvedModel'] }
+          : {}),
         efforts: Array.isArray(row['efforts'])
           ? row['efforts'].flatMap((value) => {
               const effort = record(value);

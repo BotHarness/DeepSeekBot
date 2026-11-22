@@ -105,6 +105,10 @@ New Orchestrator turns and Assignment requests resolve their choices under the c
 
 A Model Preset may also store a local Subscription Engine, model and effort for either role. Applying it validates the subscription choices before updating the Bot's DSH Model Plan and writes the engine selections through the Subscription Engine owner. A preset that omits an engine for a role preserves the Bot's existing engine setting for that role.
 
+The pinned Default preset is the shared plan for new Bots and Bots that inherit. Its permanent ID is `default`. A Human can rename it through the normal preset API. The Host refuses deletion. When its Assignment choice is unset, it follows the Orchestrator choice, including a Routing Group or Subscription Engine. Applying a preset explicitly still creates an independent snapshot.
+
+On upgrade, the Host reads the effective DSH default selection once and moves the old Routing Group pointer and effort into the Default row. The row and removal of the old pointer commit together. A pre-existing user preset named Default keeps its ID and name. To preview, run `deepseekbot model-default --migration-dry-run` against the old Host before upgrading. To roll back, restore the Profile backup from before the upgrade.
+
 Why: each Host has its own available providers, budget and credentials. Copying the template protects existing Bots from unrelated preset edits while preserving the Human's ability to manage a deliberately shared Routing Group.
 
 Enforced by: [preset persistence tests](../../packages/core/test/model-preset-database.test.ts), [Routing Group preset tests](../../packages/core/test/model-preset-groups.test.ts), [open Assignment tests](../../packages/core/test/open-assignment-models.test.ts), and [backup round trips](../../packages/core/test/profile-backup.test.ts).

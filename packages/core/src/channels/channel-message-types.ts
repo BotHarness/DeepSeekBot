@@ -1,4 +1,4 @@
-import type { TurnTarget } from '@botharness/host-protocol/turn-target';
+import type { SessionTurnModelSwitch, TurnTarget } from '@botharness/host-protocol/turn-target';
 import type { ApprovalCard } from '../team/approval-contract.js';
 import { isSkillWorkspaceId, type SkillOwner } from '../skills/entries.js';
 import type { ChannelMessageAuthor } from './message-author.js';
@@ -327,6 +327,7 @@ export interface ChannelMessage {
   turnStop?: ChannelTurnStop;
   modelSwitch?: ChannelModelSwitch;
   turnTargets?: TurnTarget[];
+  turnModelSwitch?: SessionTurnModelSwitch;
   toolAutoApproval?: ChannelToolAutoApproval;
   toolAutoApprovalPause?: ChannelToolAutoApprovalPause;
   toolAutoApprovalOverride?: ChannelToolAutoApprovalOverride;

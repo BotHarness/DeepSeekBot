@@ -3,10 +3,11 @@ import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Simulate } from 'react-dom/test-utils';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { fakeTeamMode } from '../../host-client/test/reader-fixtures.js';
 import type { BridgeCall } from '../src/client/bridge.js';
 import { ConnectionsPage } from '../src/client/connections-dialog.js';
 import { zhTranslate } from '../src/client/locale.js';
-import { OwnerPasswordDialog } from '../src/client/team-settings.js';
+import { TeamSection } from '../src/client/team-settings.js';
 
 vi.mock('@deepseek-ai/dsh-client-ui-primitives', async () => ({
   ...(await import('./primitive-mocks.js')).shellPrimitives(),
@@ -68,31 +69,6 @@ function signInSwitch(): HTMLButtonElement {
   return toggle;
 }
 
-it.each([true, false])('submits the selected Owner device sign-out choice %s', async (signOut) => {
-  const submit = vi.fn(async () => {});
-  await act(async () =>
-    root.render(
-      <OwnerPasswordDialog
-        t={zhTranslate}
-        hasPassword
-        thenEnable={false}
-        onCancel={() => {}}
-        onSubmit={submit}
-      />,
-    ),
-  );
-  const checkbox = field(zhTranslate('team.ownerPassword.signOutOthers'));
-  expect(checkbox.checked).toBe(true);
-  if (!signOut) await act(async () => checkbox.click());
-  await fill(zhTranslate('team.password.current'), 'current-owner-password');
-  await fill(zhTranslate('team.password.new'), 'next-owner-password');
-  await fill(zhTranslate('team.password.confirm'), 'next-owner-password');
-  const dialog = document.querySelector('[role="dialog"]');
-  if (!dialog) throw new Error('Missing Owner password dialog');
-  await act(async () => button(zhTranslate('team.save'), dialog).click());
-  expect(submit).toHaveBeenCalledWith('next-owner-password', 'current-owner-password', signOut);
-});
-
 it('sets up sign-in, then toggles it without re-entering credentials', async () => {
   let configured = false;
   let enabled = false;
@@ -153,6 +129,54 @@ it('preserves the last settings value if a toggle is refused', async () => {
   await act(async () => signInSwitch().click());
   expect(signInSwitch().getAttribute('aria-checked')).toBe('true');
   expect(host.textContent).not.toContain('保存失败，再试一次。');
+});
+
+it.each([true, false])('rotates a password with sign-out %s', async (signOutOthers) => {
+  const mode = { ...fakeTeamMode(), ownerPasswordSet: true };
+  let refuse = true;
+  const call = vi.fn<BridgeCall>(async (method) => {
+    if (method === 'teamOwnerPasswordSet' && refuse) {
+      return {
+        ok: false,
+        error: { code: 'credentials-invalid', message: 'credentials-invalid', details: {} },
+      };
+    }
+    return {
+      ok: true,
+      value: method === 'teamMode' || method === 'teamOwnerPasswordSet' ? mode : [],
+    };
+  });
+  await act(async () => root.render(<TeamSection t={zhTranslate} call={call} />));
+  await act(async () => button(zhTranslate('team.ownerPassword.change')).click());
+  const dialog = document.querySelector('[role="dialog"]');
+  if (!dialog) throw new Error('Missing change-password dialog');
+  const submit = button(zhTranslate('team.save'), dialog);
+  const checkbox = field(zhTranslate('team.ownerPassword.signOutOthers'));
+  expect(checkbox.checked).toBe(true);
+  if (!signOutOthers) await act(async () => checkbox.click());
+  await fill(zhTranslate('team.password.new'), 'new-test-password');
+  await fill(zhTranslate('team.password.confirm'), 'new-test-password');
+  expect(submit.disabled).toBe(true);
+  await fill(zhTranslate('team.password.current'), 'old-test-password');
+  await act(async () => submit.click());
+  expect([...dialog.querySelectorAll('[role="alert"]')].map((node) => node.textContent)).toEqual([
+    zhTranslate('team.error.credentialsInvalid'),
+  ]);
+  refuse = false;
+  await act(async () => submit.click());
+  expect(document.querySelector('[role="dialog"]')).toBeNull();
+  expect(call.mock.calls.filter(([method]) => method === 'teamOwnerPasswordSet')).toEqual([
+    [
+      'teamOwnerPasswordSet',
+      { password: 'new-test-password', current: 'old-test-password', signOutOthers },
+      undefined,
+    ],
+    [
+      'teamOwnerPasswordSet',
+      { password: 'new-test-password', current: 'old-test-password', signOutOthers },
+      undefined,
+    ],
+  ]);
 });
 
 it('keeps the Owner controls unavailable in a member shell', async () => {

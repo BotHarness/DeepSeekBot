@@ -4075,6 +4075,36 @@ const ROLE_ENGINE_ACCOUNTS_MIGRATION: SchemaMigration = {
   },
 };
 
+const DEFAULT_MODEL_PRESET_MIGRATION: SchemaMigration = {
+  id: 'default-model-preset',
+  module: 'model-presets',
+  description: 'Reserve the pinned Model Preset and stage the legacy Routing Group selection',
+  migrate(database) {
+    database.exec(`
+      ALTER TABLE routing_group_default RENAME TO legacy_routing_group_default;
+      CREATE TRIGGER model_presets_keep_default
+        BEFORE DELETE ON model_presets WHEN OLD.id = 'default'
+        BEGIN SELECT RAISE(ABORT, 'default-preset-pinned'); END;
+    `);
+  },
+};
+
+const SESSION_MODEL_CHOICES_MIGRATION: SchemaMigration = {
+  id: 'session-model-choices',
+  module: 'bot-runtime',
+  description: 'Persist Session Model Choice overrides and Routing Group switch reasons',
+  migrate(database) {
+    database.exec(`
+      CREATE TABLE session_model_choices (
+        session_id TEXT PRIMARY KEY REFERENCES session_ownership(session_id) ON DELETE CASCADE,
+        choice_json TEXT NOT NULL CHECK (json_valid(choice_json))
+      ) WITHOUT ROWID;
+      ALTER TABLE session_turn_targets ADD COLUMN switch_reason TEXT
+        CHECK (switch_reason IN ('quota', 'rate-limit', 'credential'));
+    `);
+  },
+};
+
 const OWNER_PASSWORD_SIGN_IN_MIGRATION: SchemaMigration = {
   id: 'owner-password-sign-in',
   module: 'team',
@@ -4266,5 +4296,7 @@ export const BOT_HARNESS_SCHEMA_PLAN = defineSchemaPlan([
   ROLE_MODEL_PROVIDERS_MIGRATION,
   SESSION_TURN_TARGET_MIGRATION,
   ROLE_ENGINE_ACCOUNTS_MIGRATION,
+  DEFAULT_MODEL_PRESET_MIGRATION,
+  SESSION_MODEL_CHOICES_MIGRATION,
   OWNER_PASSWORD_SIGN_IN_MIGRATION,
 ]);

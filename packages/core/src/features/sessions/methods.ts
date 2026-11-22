@@ -1,4 +1,12 @@
 import {
+  sessionModelChoice,
+  type SessionModelChoice,
+  type SessionModelState,
+} from '@botharness/host-protocol/session-model';
+import { sessionRouteChoice } from '../../runtime/session-model-choices.js';
+import { routingGroupFailure, type createModelRoutingHelpers } from '../models/routing.js';
+import { EngineRefusal } from '../../engines/engine-session.js';
+import {
   asNonBlank,
   asObject,
   asSlug,
@@ -8,6 +16,8 @@ import {
   unknownChannel,
   type BridgeResult,
 } from '../../bridge/method-utils.js';
+import type { TurnTarget } from '@botharness/host-protocol/turn-target';
+import { sessionTarget } from '../../bridge/session-target.js';
 import { type HumanContext } from '../../humans/context.js';
 import { SessionRecoveryError } from '../../runtime/session-recovery.js';
 import type { BotContextWindow } from '../../runtime/context-window.js';
@@ -42,7 +52,7 @@ import { type ChannelRecord } from '../../channels/channel.js';
 import { botAvatarUrl } from '../../bots/avatar-http.js';
 import type { AvatarAppearance, RetainedAvatarAppearance } from '../../bots/avatar-appearance.js';
 import type { SessionRootRole } from '../../sessions/ownership.js';
-import { type ModelRoute } from '../../models/presets.js';
+import { DEFAULT_MODEL_PRESET_ID, type ModelRoute } from '../../models/presets.js';
 import type { AssignmentAccessMode } from '../../workspaces/assignment-access.js';
 import type { AssignmentActivity, AssignmentReportState } from '../../runtime/bot-runtime.js';
 import type { AssignmentExecutionWait } from '../../runtime/assignment-approval-capacity.js';
@@ -75,9 +85,14 @@ export interface SessionsBridgeMethods {
   idleCompactionSet(payload: unknown): BridgeResult<IdleCompactionView>;
   idleCompactionCacheLifetimeSet(payload: unknown): BridgeResult<IdleCompactionView>;
   compactionThresholdSet(payload: unknown): BridgeResult<IdleCompactionView>;
+  sessionModel(payload: unknown): Promise<BridgeResult<SessionModelState>>;
   sessionTranscript(
     payload: unknown,
-  ): Promise<BridgeResult<{ sessionId: string; role: SessionRootRole } & SessionTranscript>>;
+  ): Promise<
+    BridgeResult<
+      { sessionId: string; role: SessionRootRole; currentTarget?: TurnTarget } & SessionTranscript
+    >
+  >;
   sessionToolDetail(
     payload: unknown,
   ): Promise<BridgeResult<{ sessionId: string; callId: string; detail: SessionToolDetail }>>;
@@ -164,6 +179,7 @@ export interface OwnedSessionSummary {
   assignmentModelRoute?: ModelRoute;
   modelRoute?: ModelRoute;
   engine?: { engine: string; account?: string; quota?: SessionEngineQuota };
+  currentTarget?: TurnTarget;
   agentPreset?: string;
   currentOrchestrator?: boolean;
   triageOpenCount?: number;
@@ -184,8 +200,14 @@ export function createSessionsBridgeMethods(
   deps: Pick<
     BridgeMethodsDeps,
     | 'botContext'
+    | 'sessionModels'
+    | 'engineSelection'
+    | 'routingGroups'
+    | 'modelCatalog'
+    | 'subscriptionEngines'
     | 'channels'
     | 'defaultModel'
+    | 'modelPresets'
     | 'describeEngineSession'
     | 'describeToolCall'
     | 'idleCompaction'
@@ -199,6 +221,7 @@ export function createSessionsBridgeMethods(
     | 'usage'
   >,
   botInChannel: (channel: ChannelRecord, botSlug: string) => boolean,
+  routing: ReturnType<typeof createModelRoutingHelpers>,
 ): SessionsBridgeMethods {
   async function appendStopNotice(
     channelId: string,
@@ -537,6 +560,137 @@ export function createSessionsBridgeMethods(
       deps.idleCompaction.rescan();
       return { ok: true, value: idleCompactionView(deps.idleCompaction) };
     },
+    async sessionModel(payload) {
+      const input = asObject(payload);
+      const slug = asSlug(payload);
+      const sessionId = asNonBlank(input, 'sessionId');
+      if (slug === undefined || sessionId === undefined)
+        return invalidInput('slug and sessionId are required');
+      const bot = deps.registry.get(slug);
+      if (bot === undefined) return unknownBot(slug);
+      const owner = deps.ownership.resolve(sessionId);
+      if (owner?.botSlug !== slug || owner.parentSessionId !== undefined)
+        return { ok: false, error: { code: 'not-found', message: 'Unknown root Session' } };
+      const store = deps.sessionModels;
+      if (store === undefined) return unavailable();
+      const proposed = input['choice'];
+      if (proposed !== undefined) {
+        const choice = proposed === null ? null : sessionModelChoice(proposed);
+        if (choice === undefined) return invalidInput('Invalid Session Model Choice');
+        try {
+          const requireChoice = () => {
+            deps.team?.roles.require(human, 'models.use');
+            if (choice?.kind === 'group') {
+              routing.requireRoutes(slug, routing.groupRoutes(choice.id));
+              routing.requireGroupEngines(choice.id, slug);
+            } else if (choice?.kind === 'engine') {
+              routing.requireEngineChoices([choice], slug);
+              routing.assertEngineAccounts([choice]);
+            } else if (choice?.kind === 'model') {
+              const { provider, model, effort } = choice;
+              routing.requireRoutes(slug, [
+                { provider, model, ...(effort === undefined ? {} : { reasoningEffort: effort }) },
+              ]);
+            }
+          };
+          requireChoice();
+          if (choice?.kind === 'engine') {
+            if (deps.subscriptionEngines === undefined)
+              throw new EngineRefusal('engine-unavailable', 'Subscription Engines are unavailable');
+            await deps.subscriptionEngines.validateChoice(choice.engine, choice);
+          } else if (choice?.kind === 'model') {
+            if (deps.modelCatalog === undefined) return unavailable();
+            const { provider, model, effort } = choice;
+            await deps.modelCatalog.validate({
+              provider,
+              model,
+              ...(effort === undefined ? {} : { reasoningEffort: effort }),
+            });
+          } else if (choice?.kind === 'group') {
+            await routing.requireGroupEfforts(
+              choice.id,
+              choice.effort === undefined ? [] : [choice.effort],
+            );
+          }
+          requireChoice();
+          if (
+            deps.ownership.resolve(sessionId)?.botSlug !== slug ||
+            deps.registry.get(slug) === undefined
+          )
+            return unknownBot(slug);
+          store.set(sessionId, choice);
+        } catch (error) {
+          return routingGroupFailure(error);
+        }
+      }
+      const role = owner.rootRole;
+      const plan = bot.modelPlan;
+      const defaultPreset = deps.modelPresets?.get(DEFAULT_MODEL_PRESET_ID);
+      const assignmentOwnDefault =
+        role === 'assignment' && defaultPreset?.assignmentFollowsMain !== true;
+      const inheritsPreset =
+        !(plan === undefined && bot.model !== undefined) &&
+        (role === 'orchestrator' ? plan === undefined : plan?.assignmentDefault === undefined);
+      const engine =
+        deps.engineSelection?.store
+          .selections()
+          .find((entry) => entry.botSlug === slug && entry.role === role) ??
+        (inheritsPreset
+          ? assignmentOwnDefault
+            ? defaultPreset?.assignmentEngine
+            : defaultPreset?.orchestratorEngine
+          : undefined);
+      const inherited =
+        defaultPreset === undefined
+          ? undefined
+          : {
+              groupId: defaultPreset.orchestratorGroupId,
+              effort: defaultPreset.orchestratorGroupEffort,
+            };
+      const assignment =
+        role === 'assignment' ? deps.runtime?.getAssignment(slug, sessionId) : undefined;
+      const group =
+        role === 'assignment'
+          ? (assignment?.modelGroupId ?? plan?.assignmentDefaultGroupId)
+          : plan === undefined
+            ? inherited?.groupId
+            : plan.orchestratorGroupId;
+      const groupEffort =
+        role === 'orchestrator'
+          ? plan === undefined
+            ? inherited?.effort
+            : plan.orchestratorGroupEffort
+          : assignment?.modelGroupEffort;
+      const route =
+        (role === 'assignment'
+          ? (assignment?.modelRoute ?? plan?.assignmentDefault)
+          : plan?.orchestrator) ??
+        (assignmentOwnDefault ? defaultPreset?.assignmentDefault : defaultPreset?.orchestrator) ??
+        deps.defaultModel?.currentSelection() ??
+        deps.modelCatalog?.defaultRoute?.();
+      const defaultChoice: SessionModelChoice | null =
+        engine !== undefined
+          ? (sessionModelChoice({ ...engine, kind: 'engine', model: engine.model ?? 'default' }) ??
+            null)
+          : group !== undefined
+            ? {
+                kind: 'group',
+                id: group,
+                ...(groupEffort === undefined ? {} : { effort: groupEffort }),
+              }
+            : route === undefined
+              ? null
+              : sessionRouteChoice(route);
+      const active = deps.runtime?.activeSessionModel?.(sessionId);
+      return {
+        ok: true,
+        value: {
+          override: store.get(sessionId),
+          default: defaultChoice,
+          ...(active === undefined ? {} : { active }),
+        },
+      };
+    },
     async sessionTranscript(payload) {
       const source = asObject(payload);
       const slug = asNonBlank(source, 'slug');
@@ -554,16 +708,19 @@ export function createSessionsBridgeMethods(
       if (read === undefined) return unavailable();
       const log = await read(sessionId);
       const engine = deps.describeEngineSession?.(sessionId);
+      const segments = deps.runtime?.sessionTurnTargets?.(sessionId) ?? [];
+      const currentTarget = sessionTarget(segments.at(-1)?.target, engine);
       return {
         ok: true,
         value: {
           sessionId,
           role: owner.rootRole,
-          ...(engine === undefined ? {} : { engine }),
+          ...(engine === undefined || currentTarget?.kind === 'dsh' ? {} : { engine }),
+          ...(currentTarget === undefined ? {} : { currentTarget }),
           ...summarizeSessionTranscript({
             sessionId,
             events: log?.events ?? [],
-            segments: deps.runtime?.sessionTurnTargets?.(sessionId) ?? [],
+            segments,
             describe: (id, name, args) => deps.describeToolCall?.(id, name, args),
           }),
         },
@@ -654,19 +811,23 @@ export function createSessionsBridgeMethods(
       const roots = deps.ownership.rootsFor(slug);
       const subagentCounts = deps.ownership.subagentCounts(roots.map((root) => root.sessionId));
       const plan = deps.registry.get(slug)?.modelPlan;
-      const fallbackRoute = deps.defaultModel?.currentSelection();
       const sessions = roots.map((root) => {
         const assignment = assignments.get(root.sessionId);
         const subagentCount = subagentCounts.get(root.sessionId);
-        const engine = deps.describeEngineSession?.(root.sessionId);
+        const described = deps.describeEngineSession?.(root.sessionId);
+        const currentTarget = sessionTarget(
+          deps.runtime?.sessionTurnTarget?.(root.sessionId),
+          described,
+        );
+        const engine = currentTarget?.kind === 'dsh' ? undefined : described;
         const modelRoute =
-          engine !== undefined
+          engine !== undefined || currentTarget?.kind === 'engine'
             ? undefined
             : (deps.usage?.latestRoute(root.sessionId) ??
               (root.rootRole === 'assignment'
                 ? (assignment?.modelRoute ?? plan?.assignmentDefault)
                 : plan?.orchestrator) ??
-              fallbackRoute);
+              deps.defaultModel?.currentSelection(root.rootRole));
         return {
           sessionId: root.sessionId,
           role: root.rootRole,
@@ -699,6 +860,7 @@ export function createSessionsBridgeMethods(
             ? {}
             : { assignmentModelRoute: assignment.modelRoute }),
           ...(modelRoute === undefined ? {} : { modelRoute }),
+          ...(currentTarget === undefined ? {} : { currentTarget }),
           ...(engine === undefined
             ? {}
             : {

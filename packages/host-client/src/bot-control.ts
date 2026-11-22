@@ -137,6 +137,20 @@ export async function setBotAvatar(
   return readChangedBot(reply, 'botAvatarSet');
 }
 
+export async function setBotBanner(
+  host: HostCall,
+  args: { channelId: string; banner: unknown },
+): Promise<ChangedBotAnswer> {
+  return readChangedBot(await host.call('botBannerSet', args), 'botBannerSet');
+}
+
+export async function setBotAppearance(
+  host: HostCall,
+  args: { channelId: string; recipe: unknown },
+): Promise<ChangedBotAnswer> {
+  return readChangedBot(await host.call('botAppearanceSet', args), 'botAppearanceSet');
+}
+
 function isCompaction(value: unknown): value is WireBotCompactResult {
   const row = record(value);
   const outcome = row?.['outcome'];

@@ -218,7 +218,6 @@ export class TeamService {
       get ensureTob() {
         return service.ensureTob?.bind(service);
       },
-      hasCredential: (...args) => service.hasCredential(...args),
       invalidate: (...args) => service.invalidate(...args),
       isOwner: (...args) => service.isOwner(...args),
       get limiter() {
@@ -618,15 +617,13 @@ export class TeamService {
     human: HumanContext,
     password: string,
     current?: string,
-    options?: Parameters<typeof memberAuth.setOwnerPassword>[3],
+    options?: memberAuth.OwnerPasswordRotation,
   ): Promise<TeamModeView> {
-    await memberAuth.setOwnerPassword.call(
-      this.#memberOperations,
-      human,
-      password,
+    await memberAuth.setOwnerPassword.call(this.#memberOperations, human, password, {
+      kind: 'settings',
       current,
-      options,
-    );
+      ...options,
+    });
     return this.mode(human);
   }
 

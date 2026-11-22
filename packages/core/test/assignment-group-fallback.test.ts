@@ -535,6 +535,20 @@ describe('An Assignment on a Routing Group keeps its chosen effort after a fallb
       legacy: true,
     },
     {
+      name: 'keeps the effort inherited from the Default preset',
+      member: { ...DEEPSEEK, reasoningEffort: 'max' },
+      expected: [{ ...DEEPSEEK, reasoningEffort: 'high' }],
+      legacy: true,
+      planSource: 'default',
+    },
+    {
+      name: 'keeps the inherited Assignment effort with a local Orchestrator model',
+      member: { ...DEEPSEEK, reasoningEffort: 'max' },
+      expected: [{ ...DEEPSEEK, reasoningEffort: 'high' }],
+      legacy: true,
+      planSource: 'orchestrator-only',
+    },
+    {
       name: 'stays on a healthy member when an earlier rest ends',
       member: DEEPSEEK,
       expected: [DEEPSEEK],
@@ -579,7 +593,7 @@ describe('An Assignment on a Routing Group keeps its chosen effort after a fallb
     },
   ])(
     '$name when an Assignment Routing Group member is resting',
-    async ({ member, expected, legacy, followup, startOnPlain }) => {
+    async ({ member, expected, legacy, followup, startOnPlain, planSource }) => {
       let clock = Date.parse('2026-11-18T00:00:00.000Z');
       const rests = createRouteRests({ now: () => clock });
       const fallback = createGroupFallback({
@@ -635,6 +649,9 @@ describe('An Assignment on a Routing Group keeps its chosen effort after a fallb
         agents,
         routeRests: rests,
         groupFallback: fallback,
+        ...(planSource === undefined
+          ? {}
+          : { legacyDefaultModel: () => ({ main: SPENT, groupId: 'g', groupEffort: 'high' }) }),
         workspaces: () => ({
           get: (id: string) => (id === workspace.id ? workspace : undefined),
           list: () => [workspace],
@@ -648,25 +665,28 @@ describe('An Assignment on a Routing Group keeps its chosen effort after a fallb
       };
       try {
         core.registry.create({ slug: 'ada', displayName: 'Ada' });
-        const applied = core.registry.setModelPlan(
-          'ada',
-          { orchestrator: DEEPSEEK, assignmentDefault: DEEPSEEK, assignmentModels: options },
-          0,
-        );
-        if (!applied.ok) throw new Error('plan');
-        const grouped = core.registry.setAssignmentModels(
-          'ada',
-          DEEPSEEK,
-          options,
-          applied.record.modelPlan!.revision,
-          undefined,
-          {
-            ids: ['g'],
-            defaultId: 'g',
-            options: [{ group: 'g', allowedEfforts: ['high'], defaultEffort: 'high' }],
-          },
-        );
-        if (!grouped.ok) throw new Error('groups');
+        if (planSource === 'orchestrator-only') {
+          const customized = core.registry.customizeModelPlan('ada', DEEPSEEK, 0);
+          expect(customized.ok).toBe(true);
+        } else if (planSource === undefined) {
+          const applied = core.registry.setModelPlan(
+            'ada',
+            {
+              orchestrator: DEEPSEEK,
+              assignmentDefault: DEEPSEEK,
+              assignmentModels: options,
+              groups: {
+                assignmentGroups: ['g'],
+                assignmentDefaultGroupId: 'g',
+                assignmentGroupOptions: [
+                  { group: 'g', allowedEfforts: ['high'], defaultEffort: 'high' },
+                ],
+              },
+            },
+            0,
+          );
+          expect(applied.ok).toBe(true);
+        }
         const dm = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, 'ada', 'Ada')!;
         await core.channels.appendMessage(OWNER_HUMAN_CONTEXT, dm.id, {
           id: 'start',

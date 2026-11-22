@@ -59,12 +59,15 @@ const bot: ConversationMessage = {
   reactions: [{ emoji: '🔥', actors: [{ kind: 'human', id: 'local-human' }] }],
 };
 
-function mount(target: Parameters<typeof MessageActions>[0]['target']) {
+function mount(
+  target: Parameters<typeof MessageActions>[0]['target'],
+  catalog?: Parameters<typeof MessageActions>[0]['catalog'],
+) {
   const handlers = { onClose: vi.fn(), onReact: vi.fn(), onCopy: vi.fn(), onShareText: vi.fn() };
   host = document.createElement('div');
   document.body.append(host);
   root = createRoot(host);
-  act(() => root?.render(createElement(MessageActions, { ...handlers, target })));
+  act(() => root?.render(createElement(MessageActions, { ...handlers, target, catalog })));
   return handlers;
 }
 const byLabel = (label: string) => host?.querySelector<HTMLElement>(`[aria-label="${label}"]`);
@@ -113,15 +116,26 @@ describe('Android message menu', () => {
     const { interfacePreferences } = await import('../src/ui/interface-preferences');
     interfacePreferences.setLanguage('zh');
     try {
-      mount({
-        ...target,
-        message: {
-          ...bot,
-          turnTargets: [
-            { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol', reasoningEffort: 'low' },
+      mount(
+        {
+          ...target,
+          message: {
+            ...bot,
+            turnTargets: [
+              { kind: 'engine', engine: 'codex', model: 'gpt-6.2-sol', reasoningEffort: 'low' },
+            ],
+          },
+        },
+        {
+          engines: [
+            {
+              engine: 'codex',
+              available: true,
+              models: [{ id: 'gpt-6.2-sol', name: 'GPT-6.2-Sol', efforts: [] }],
+            },
           ],
         },
-      });
+      );
       const time = host?.querySelector('[data-testid="message-menu-time"]');
       const path = host?.querySelector('[data-testid="message-menu-turn-targets"]');
       expect(time?.textContent).toBeTruthy();

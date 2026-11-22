@@ -24,7 +24,6 @@ import { createGitService } from '../../memory/managed-git.js';
 import { createTelemetryService } from '../../telemetry/service.js';
 import { createHostModelCatalog } from '../../models/host-models.js';
 import { attachOperationalModule } from '../../database/owner.js';
-import { type DshDefaultModelHost } from '../../runtime/dsh-bot-agent-adapter.js';
 import * as skillsFeature from '../skills/plugin.js';
 import type { BotHarnessCore, createCore } from '../../plugin.js';
 import type * as diagnosticsFeature from '../diagnostics/plugin.js';
@@ -62,17 +61,15 @@ export function apply({
 
 export function mountSettingsOperations(
   ctx: Context,
-  core: Pick<BotHarnessCore, 'registry' | 'team' | 'modelPresets' | 'routingGroups'>,
+  core: Pick<BotHarnessCore, 'registry' | 'team' | 'modelPresets'>,
   {
     modelCatalog,
-    defaultModel,
     developerMode,
     telemetry,
     git,
     releaseService,
   }: {
     modelCatalog: ReturnType<typeof createHostModelCatalog>['modelCatalog'];
-    defaultModel: DshDefaultModelHost;
     developerMode: ReturnType<typeof skillsFeature.createDeveloperMode>;
     telemetry: ReturnType<typeof createTelemetryService>;
     git: ReturnType<typeof createGitService>;
@@ -85,8 +82,6 @@ export function mountSettingsOperations(
     presets: core.modelPresets,
     catalog: modelCatalog,
     settings: () => ctx.get('settings') as unknown as TobNativeSettings | undefined,
-    defaultModel,
-    routingGroups: core.routingGroups,
     runtimeChanged: (patch) => {
       if (typeof patch.developerMode === 'boolean') developerMode.set(patch.developerMode);
     },
