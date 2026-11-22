@@ -146,7 +146,7 @@ function Models({
   const [error, setError] = useState<ReturnType<typeof settingsFailure>>();
   const [busy, setBusy] = useState(false);
   const [name, setName] = useState<string>();
-  const [subDraft, setSubDraft] = useState<SubChoices>();
+  const [subDraft, setSubDraft] = useState<{ sub: SubChoices; base: ModelSettingsState }>();
   const [creation, setCreation] = useState<PresetCreation>({ kind: 'idle' });
   const creationOwner = useRef<PresetCreation>(creation);
   const generation = useRef(0);
@@ -193,8 +193,8 @@ function Models({
       if (generation.current === request) setBusy(false);
     }
   };
-  const savePresetDraft = async () => {
-    if (name === undefined || value === undefined || pending.current || !available) return false;
+  const savePresetDraft = async (state: ModelSettingsState | undefined = value) => {
+    if (name === undefined || state === undefined || pending.current || !available) return false;
     if (scope.kind === 'global' && creationOwner.current.kind === 'unknown') return false;
     const request = generation.current + 1;
     const record = (outcome: PresetCreation) => {
@@ -204,11 +204,11 @@ function Models({
     return run(
       async () => {
         if (scope.kind === 'preset') {
-          await saveModelPreset(client, value, name, true);
+          await saveModelPreset(client, state, name, true);
         } else if (creationOwner.current.kind === 'idle') {
           record({ kind: 'pending' });
           try {
-            const id = await saveModelPreset(client, value, name, false);
+            const id = await saveModelPreset(client, state, name, false);
             record({ kind: 'receipt', id });
           } catch (cause) {
             if (
@@ -258,30 +258,44 @@ function Models({
       return;
     void savePresetDraft();
   };
-  const draft = useRef({ name, value, scope, available, savePresetDraft });
-  draft.current = { name, value, scope, available, savePresetDraft };
+  const saveSubDraft = async () => {
+    const pendingDraft = draft.current.subDraft;
+    if (pendingDraft === undefined) return true;
+    return run(
+      () => setModelSub(client, scope, pendingDraft.base, pendingDraft.sub),
+      () => {
+        if (draft.current.subDraft === pendingDraft) draft.current.subDraft = undefined;
+        setSubDraft((current) => (current === pendingDraft ? undefined : current));
+      },
+    );
+  };
+  const draft = useRef({ name, value, scope, available, savePresetDraft, subDraft, saveSubDraft });
+  draft.current = { name, value, scope, available, savePresetDraft, subDraft, saveSubDraft };
   const draftMount = useMountedResource<HTMLSpanElement>(
     () =>
       hostSettingsDrafts.register(hostId, {
         dirty: () =>
-          draft.current.name !== undefined &&
-          (draft.current.scope.kind === 'global'
-            ? draft.current.name !== ''
-            : draft.current.name.trim() !== draft.current.value?.preset?.name),
+          draft.current.subDraft !== undefined ||
+          (draft.current.name !== undefined &&
+            (draft.current.scope.kind === 'global'
+              ? draft.current.name !== ''
+              : draft.current.name.trim() !== draft.current.value?.preset?.name)),
         async save() {
-          const { name, value, savePresetDraft } = draft.current;
-          if (
-            name === undefined ||
-            value === undefined ||
-            pending.current ||
-            !draft.current.available
-          )
-            return false;
+          const { name, value, savePresetDraft, subDraft: tasks, saveSubDraft } = draft.current;
+          if (value === undefined || pending.current || !draft.current.available) return false;
+          if (tasks !== undefined) {
+            if (!(await saveSubDraft())) return false;
+            if (name === undefined || name.trim() === value.preset?.name) return true;
+            return savePresetDraft(await resource.refresh());
+          }
+          if (name === undefined) return false;
           return savePresetDraft();
         },
         discard: () => {
           draft.current.name = undefined;
+          draft.current.subDraft = undefined;
           setName(undefined);
+          setSubDraft(undefined);
         },
       }),
     [hostId, client, resource],
@@ -423,12 +437,14 @@ function Models({
           {scope.kind !== 'preset' ? null : (
             <div {...stylex.props(styles.choices)}>
               <SubChoiceList
-                sub={subDraft ?? modelSub(value)}
+                sub={subDraft?.sub ?? modelSub(value)}
                 catalog={catalog}
                 catalogGroups={catalogGroups}
                 modelOptions={modelOptionsOf(catalog, t)}
                 busy={busy || !available}
-                onChange={setSubDraft}
+                onChange={(sub) =>
+                  setSubDraft((current) => ({ sub, base: current?.base ?? value }))
+                }
                 t={t}
               />
               {subDraft === undefined ? null : (
@@ -436,11 +452,7 @@ function Models({
                   <PillButton
                     disabled={busy || !available}
                     onClick={() => {
-                      const next = subDraft;
-                      void run(
-                        () => setModelSub(client, scope, value, next),
-                        () => setSubDraft((current) => (current === next ? undefined : current)),
-                      );
+                      void saveSubDraft();
                     }}
                   >
                     {t('relationships.save')}
