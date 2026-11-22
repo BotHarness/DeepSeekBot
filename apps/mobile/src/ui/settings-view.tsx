@@ -13,6 +13,7 @@ export interface SettingsActions {
   onAppIcon(): void;
   onNotifications(): void;
   onStorage(): void;
+  onModelProviders(): void;
   onModels(): void;
   onPrompts(): void;
   onCopyVersion(text: string): void;
@@ -54,6 +55,15 @@ export function SettingsView({
         <UsageCard load={loadUsage} on={SHEET_GROUP} onOpen={actions.onUsage} />
       </SettingsFormItem>
       <SettingsSection title={t.modelSettings.title} on={SHEET_GROUP}>
+        <SettingsRow
+          on={SHEET_GROUP}
+          title={t.modelProviders.title}
+          icon="encrypted"
+          detail={t.modelProviders.hint}
+          disclosure
+          testID="settings-model-providers"
+          onPress={actions.onModelProviders}
+        />
         <SettingsRow
           on={SHEET_GROUP}
           title={t.modelSettings.title}
