@@ -4,7 +4,12 @@ import { createBridgeMethods } from '../src/bridge/methods.js';
 import { createSqliteChannelStore } from '../src/channels/sqlite-store.js';
 import { attachOperationalModule } from '../src/database/owner.js';
 import { humanContext, OWNER_HUMAN_CONTEXT as owner } from '../src/humans/context.js';
-import { createModelPresetStore } from '../src/models/presets.js';
+import {
+  createModelPresetStore,
+  resolveBotModelPlan,
+  selectAssignmentGroup,
+  selectAssignmentRoute,
+} from '../src/models/presets.js';
 import { createRoutingGroupStore, type RoutingGroupInput } from '../src/models/routing-groups.js';
 import { createBotStateTracker } from '../src/state/bot-state.js';
 import { TeamService } from '../src/team/service.js';
@@ -258,5 +263,295 @@ describe('Shared model configuration', () => {
       sourcePresetId: preset.id,
       sourcePresetName: 'Daily',
     });
+  });
+});
+
+const alternate = { provider: 'provider', model: 'alternate', reasoningEffort: 'high' };
+const alternateSelection = {
+  kind: 'model',
+  provider: alternate.provider,
+  model: alternate.model,
+} as const;
+const customSub = {
+  choices: [
+    { ...alternateSelection, allowedEfforts: ['high'], defaultEffort: 'high', note: 'Long tasks' },
+  ],
+  default: alternateSelection,
+};
+const followMain = { choices: [], default: null };
+
+describe('Bot Model Plan sub choices', () => {
+  it('derives legacy choices and replaces them with one revision and a runtime-readable projection', async () => {
+    const f = fixture();
+    const methods = createBridgeMethods(owner, f.deps);
+    const legacy = f.registry.setModelPlan(
+      'bob',
+      {
+        orchestrator: permitted,
+        assignmentDefault: permitted,
+        assignmentModels: [{ ...permitted, allowedEfforts: [''], defaultEffort: '' }],
+        openAssignmentModels: true,
+      },
+      0,
+    );
+    expect(legacy.ok).toBe(true);
+    expect(methods.modelPlanSub({ slug: 'bob' })).toMatchObject({
+      ok: true,
+      value: {
+        slug: 'bob',
+        revision: 1,
+        legacyOpen: true,
+        sub: { default: { kind: 'model', ...permitted } },
+      },
+    });
+    const request = { slug: 'bob', expectedRevision: 1, sub: customSub };
+    expect(await methods.modelPlanSubSet(request)).toEqual({
+      ok: true,
+      value: { slug: 'bob', revision: 2, sub: customSub },
+    });
+    const saved = f.registry.get('bob')?.modelPlan;
+    expect(saved).toMatchObject({
+      orchestrator: permitted,
+      assignmentDefault: alternate,
+      assignmentModels: [
+        {
+          provider: alternate.provider,
+          model: alternate.model,
+          allowedEfforts: ['high'],
+          defaultEffort: 'high',
+          note: 'Long tasks',
+        },
+      ],
+      sub: customSub,
+      revision: 2,
+    });
+    if (saved === undefined) throw new Error('Expected a saved Model Plan');
+    expect(selectAssignmentRoute(saved)).toEqual(alternate);
+    expect(saved.openAssignmentModels).toBeUndefined();
+    await expect(methods.modelPlanSubSet(request)).resolves.toMatchObject({
+      ok: false,
+      error: { code: 'invalid-input', message: expect.stringContaining('changed') },
+    });
+    await expect(
+      methods.modelPlanSubSet({
+        ...request,
+        expectedRevision: 2,
+        sub: { choices: customSub.choices, default: null },
+      }),
+    ).resolves.toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    await expect(
+      createBridgeMethods({ ...owner, caller: 'bot' }, f.deps).modelPlanSubSet({
+        ...request,
+        expectedRevision: 2,
+      }),
+    ).resolves.toMatchObject({ ok: false, error: { code: 'permission-required' } });
+    expect(f.registry.get('bob')?.modelPlan).toEqual(saved);
+  });
+
+  it('projects a selected group, then follows the current main route or group', async () => {
+    const f = fixture();
+    const methods = createBridgeMethods(owner, f.deps);
+    const mainGroup = f.deps.routingGroups.create({
+      name: 'Main',
+      members: [{ kind: 'model', ...permitted }],
+    });
+    const subGroup = f.deps.routingGroups.create({
+      name: 'Sub',
+      members: [{ kind: 'model', ...alternate }],
+    });
+    const selection = { kind: 'group', group: subGroup.id } as const;
+    const sub = { choices: [{ ...selection, note: 'Fallback' }], default: selection };
+    expect(
+      await methods.modelPlanSet({
+        slug: 'bob',
+        expectedRevision: 0,
+        orchestratorGroupId: mainGroup.id,
+        sub,
+      }),
+    ).toMatchObject({
+      ok: true,
+      value: {
+        plan: {
+          revision: 1,
+          sub,
+          orchestratorGroupId: mainGroup.id,
+          assignmentDefaultGroupId: subGroup.id,
+          assignmentGroupOptions: [{ group: subGroup.id, note: 'Fallback' }],
+        },
+      },
+    });
+    const grouped = f.registry.get('bob')?.modelPlan;
+    if (grouped === undefined) throw new Error('Expected a grouped Model Plan');
+    expect(selectAssignmentGroup(grouped)).toBe(subGroup.id);
+    expect(
+      await methods.modelPlanSubSet({
+        slug: 'bob',
+        expectedRevision: 1,
+        sub: followMain,
+      }),
+    ).toMatchObject({ ok: true, value: { revision: 2, sub: followMain } });
+    const inherited = f.registry.get('bob')?.modelPlan;
+    expect(inherited?.assignmentGroups).toEqual([mainGroup.id]);
+    expect(inherited?.assignmentDefaultGroupId).toBe(mainGroup.id);
+    expect(
+      await methods.modelPlanCustomize({
+        slug: 'bob',
+        expectedRevision: 2,
+        orchestrator: alternate,
+      }),
+    ).toMatchObject({ ok: true });
+    const direct = f.registry.get('bob')?.modelPlan;
+    if (direct === undefined) throw new Error('Expected a direct Model Plan');
+    expect(selectAssignmentGroup(direct)).toBeUndefined();
+    expect(selectAssignmentRoute(direct)).toEqual(alternate);
+    const effective = resolveBotModelPlan({ modelPlan: direct }, () => undefined);
+    if (effective === undefined) throw new Error('Expected an effective Model Plan');
+    expect(selectAssignmentRoute(effective, alternate)).toEqual(alternate);
+    expect(methods.modelPlanSub({ slug: 'bob' })).toMatchObject({ value: { sub: followMain } });
+  });
+
+  it('checks Bot ownership, model grants and engine grants for direct and grouped choices', async () => {
+    const f = fixture();
+    const role = f.team.roles.create(owner, 'Restricted Plan', [
+      'models.use',
+      'models.configure',
+    ]).role;
+    f.team.roles.set(owner, f.member.humanId, [role.roleId]);
+    f.team.roles.update(owner, role.roleId, {
+      models: { kind: 'only', routes: ['provider/allowed'] },
+    });
+    expect(
+      await f.methods.modelPlanSet({
+        slug: 'ada',
+        orchestrator: permitted,
+        sub: followMain,
+        expectedRevision: 0,
+      }),
+    ).toMatchObject({ ok: true });
+    expect(f.methods.modelPlanSub({ slug: 'bob' })).toMatchObject({
+      ok: false,
+      error: { code: 'bot-not-found' },
+    });
+    expect(f.methods.modelPlanSub({ slug: 'ada' })).toMatchObject({
+      ok: true,
+      value: { slug: 'ada', sub: followMain },
+    });
+    const routingGroup = f.deps.routingGroups.create({
+      name: 'Denied',
+      members: [{ kind: 'model', ...alternate }],
+    });
+    const group = { kind: 'group', group: routingGroup.id };
+    const engine = { kind: 'engine', engine: 'codex', accountId: 'denied-account' };
+    for (const sub of [
+      customSub,
+      { choices: [group], default: group },
+      { choices: [engine], default: engine },
+    ]) {
+      await expect(
+        f.methods.modelPlanSubSet({ slug: 'ada', expectedRevision: 1, sub }),
+      ).resolves.toMatchObject({ ok: false, error: { code: 'model-not-allowed' } });
+    }
+    expect(f.registry.get('ada')?.modelPlan?.revision).toBe(1);
+  });
+
+  it('validates offered efforts before committing and serializes competing writes by revision', async () => {
+    const f = fixture();
+    const validate = vi.spyOn(f.deps.modelCatalog, 'validate');
+    const methods = createBridgeMethods(owner, f.deps);
+    expect(
+      await methods.modelPlanSet({
+        slug: 'bob',
+        expectedRevision: 0,
+        orchestrator: permitted,
+        sub: followMain,
+      }),
+    ).toMatchObject({ ok: true });
+    validate.mockRejectedValueOnce(new Error('Unknown effort'));
+    const request = { slug: 'bob', expectedRevision: 1, sub: customSub };
+    expect(await methods.modelPlanSubSet(request)).toMatchObject({ ok: false });
+    expect(f.registry.get('bob')?.modelPlan?.revision).toBe(1);
+    validate.mockClear();
+    const outcomes = await Promise.all([
+      methods.modelPlanSubSet(request),
+      methods.modelPlanSubSet(request),
+    ]);
+    expect(outcomes.map(({ ok }) => ok).sort()).toEqual([false, true]);
+    expect(validate).toHaveBeenCalledTimes(2);
+    expect(f.registry.get('bob')?.modelPlan?.revision).toBe(2);
+  });
+});
+
+describe('Atomic main and sub choices', () => {
+  it('creates and updates presets with the new main and sub in one revision each', async () => {
+    const f = fixture();
+    const methods = createBridgeMethods(owner, f.deps);
+    const fields = { name: 'Combined', orchestrator: permitted, sub: customSub };
+    const created = await methods.modelPresetCreate(fields);
+    expect(created).toMatchObject({
+      ok: true,
+      value: { preset: { ...fields, revision: 1, assignmentDefault: alternate } },
+    });
+    if (!created.ok) throw new Error('Expected a saved preset');
+    const { id } = created.value.preset;
+    const update = {
+      id,
+      name: 'Renamed',
+      expectedRevision: 1,
+      orchestrator: alternate,
+      sub: followMain,
+    };
+    expect(await methods.modelPresetUpdate(update)).toMatchObject({
+      ok: true,
+      value: {
+        preset: {
+          name: 'Renamed',
+          revision: 2,
+          orchestrator: alternate,
+          sub: followMain,
+          assignmentDefault: alternate,
+          assignmentFollowsMain: true,
+        },
+      },
+    });
+    expect(f.deps.modelPresets.get(id)?.assignmentModels).toBeUndefined();
+    expect(await methods.modelPresetUpdate(update)).toMatchObject({
+      ok: false,
+      error: { code: 'stale-setting' },
+    });
+  });
+
+  it('rejects mixed payloads on all combined writes and enforces team grants before any write', async () => {
+    const f = fixture();
+    const role = f.team.roles.create(owner, 'Restricted combination', [
+      'models.use',
+      'models.configure',
+    ]).role;
+    f.team.roles.set(owner, f.member.humanId, [role.roleId]);
+    f.team.roles.update(owner, role.roleId, {
+      models: { kind: 'only', routes: ['provider/allowed'] },
+    });
+    const preset = { name: 'Restricted', orchestrator: permitted, sub: customSub };
+    const update = { ...preset, id: f.pinned.id, expectedRevision: f.pinned.revision };
+    const plan = { slug: 'ada', orchestrator: permitted, sub: customSub, expectedRevision: 0 };
+    const requests = [
+      () => f.methods.modelPresetCreate(preset),
+      () => f.methods.modelPresetUpdate(update),
+      () => f.methods.modelPlanSet(plan),
+    ];
+    const legacy = { assignmentDefault: permitted };
+    for (const result of await Promise.all([
+      f.methods.modelPresetCreate({ ...preset, ...legacy }),
+      f.methods.modelPresetUpdate({ ...update, ...legacy }),
+      f.methods.modelPlanSet({ ...plan, ...legacy }),
+    ]))
+      expect(result).toMatchObject({ ok: false, error: { code: 'invalid-input' } });
+    for (const request of requests)
+      await expect(request()).resolves.toMatchObject({
+        ok: false,
+        error: { code: 'model-not-allowed' },
+      });
+    expect(f.deps.modelPresets.list()).toHaveLength(1);
+    expect(f.deps.modelPresets.get(f.pinned.id)).toEqual(f.pinned);
+    expect(f.registry.get('ada')?.modelPlan).toBeUndefined();
   });
 });

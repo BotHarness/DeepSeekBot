@@ -1,3 +1,4 @@
+import { cleanPresetSub, planSubProjection, type PresetSub } from '../models/preset-sub.js';
 import { isTob, TobError } from '../tob/service.js';
 import type { DatabaseSync } from 'node:sqlite';
 import { mkdirSync, readFileSync, readdirSync, realpathSync, type Dirent } from 'node:fs';
@@ -161,17 +162,37 @@ export interface PersonaBotRegistry {
     openAssignmentModels?: boolean,
     groups?: { ids: string[]; defaultId?: string; options?: AssignmentGroupOption[] },
   ): UpdatePersonaBotResult;
+  setModelPlanSub(slug: string, sub: PresetSub, expectedRevision: number): UpdatePersonaBotResult;
   setModelPlan(
     slug: string,
     routes: {
       orchestrator: ModelRoute;
-      assignmentDefault: ModelRoute;
-      assignmentModels: AssignmentModelOption[];
-      openAssignmentModels?: boolean;
       groups?: ModelPresetGroups;
-    },
+    } & (
+      | { sub: PresetSub }
+      | {
+          sub?: undefined;
+          assignmentDefault: ModelRoute;
+          assignmentModels: AssignmentModelOption[];
+          openAssignmentModels?: boolean;
+        }
+    ),
     expectedRevision: number,
   ): UpdatePersonaBotResult;
+}
+
+function withModelPlanSub(plan: PersonaBotModelPlan, input: PresetSub): PersonaBotModelPlan {
+  const {
+    assignmentDefault: _default,
+    assignmentModels: _models,
+    assignmentGroups: _groups,
+    assignmentDefaultGroupId: _group,
+    assignmentGroupOptions: _options,
+    openAssignmentModels: _open,
+    ...kept
+  } = plan;
+  const sub = cleanPresetSub(input);
+  return { ...kept, ...planSubProjection(sub, kept), sub };
 }
 
 function isMissing(error: unknown): boolean {
@@ -860,6 +881,8 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
           : { orchestratorGroupEffort: orchestratorGroupEffort.trim() }),
         appliedAt: now().toISOString(),
       };
+      if (record.modelPlan.sub?.default === null)
+        record.modelPlan = withModelPlanSub(record.modelPlan, record.modelPlan.sub);
       write(record);
       return { ok: true, record };
     },
@@ -912,25 +935,50 @@ export function createPersonaBotRegistry(options: PersonaBotRegistryOptions): Pe
       write(record);
       return { ok: true, record };
     },
+    setModelPlanSub(slug, sub, expectedRevision) {
+      const record = active(slug);
+      if (record === undefined) return { ok: false, reason: 'not-found' };
+      const plan = record.modelPlan;
+      if (plan === undefined || plan.revision !== expectedRevision)
+        return { ok: false, reason: 'invalid-input' };
+      record.modelPlan = withModelPlanSub(
+        {
+          ...plan,
+          revision: plan.revision + 1,
+          sourcePresetId: '',
+          sourcePresetName: '',
+          appliedAt: now().toISOString(),
+        },
+        sub,
+      );
+      write(record);
+      return { ok: true, record };
+    },
     setModelPlan(slug, routes, expectedRevision) {
       const record = active(slug);
       if (record === undefined) return { ok: false, reason: 'not-found' };
       const revision = record.modelPlan?.revision ?? record.modelPlanRevision ?? 0;
       if (revision !== expectedRevision) return { ok: false, reason: 'invalid-input' };
-      record.modelPlan = {
+      const plan = {
         revision: revision + 1,
         sourcePresetId: '',
         sourcePresetName: '',
         orchestrator: { ...routes.orchestrator },
-        assignmentDefault: { ...routes.assignmentDefault },
-        assignmentModels: routes.assignmentModels.map((option) => ({
-          ...option,
-          allowedEfforts: [...option.allowedEfforts],
-        })),
-        ...(routes.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
         ...(routes.groups === undefined ? {} : presetGroups(routes.groups)),
         appliedAt: now().toISOString(),
       };
+      record.modelPlan =
+        routes.sub === undefined
+          ? {
+              ...plan,
+              assignmentDefault: { ...routes.assignmentDefault },
+              assignmentModels: routes.assignmentModels.map((option) => ({
+                ...option,
+                allowedEfforts: [...option.allowedEfforts],
+              })),
+              ...(routes.openAssignmentModels === true ? { openAssignmentModels: true } : {}),
+            }
+          : withModelPlanSub(plan, routes.sub);
       delete record.model;
       write(record);
       return { ok: true, record };

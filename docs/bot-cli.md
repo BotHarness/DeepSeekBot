@@ -1254,6 +1254,8 @@ deepseekbot model-preset-update <preset-id> --name Nightly --orchestrator-effort
 deepseekbot model-presets --include-usage
 deepseekbot model-preset-sub <preset-id>
 deepseekbot model-preset-sub-set <preset-id> --expected-revision <revision> --plan-stdin < sub.json
+deepseekbot model-plan-sub <bot-id>
+deepseekbot model-plan-sub-set <bot-id> --expected-revision <revision> --plan-stdin < sub.json
 deepseekbot model-preset-delete <preset-id> --expected-revision <revision> --confirm
 deepseekbot model-groups
 deepseekbot model-group <group-id>
@@ -1305,6 +1307,10 @@ deepseekbot group-activity <group-channel>
 ```
 
 Use IDs from `model-catalog`, `model-groups`, `engine accounts`, and `engine models <account-id>`. The default references one choice by kind and identity. API model choices use `defaultEffort`, with `""` for the provider default. Routing Groups can omit effort or use `allowedEfforts` and `defaultEffort` shared by their reasoning members. A Subscription Engine choice saves one `effort` and can include a `note`. Omitted account, model, or effort fields use the corresponding engine defaults.
+
+`model-plan-sub` reads a Bot's own Model Plan and its revision. `model-plan-sub-set` replaces the choices and default using the same stdin format as `model-preset-sub-set`. Use an empty `choices` array and `default: null` to follow the Bot's Orchestrator. Apply a preset or save a Bot Model Plan first if the Bot follows the Profile default.
+
+For one save of the main route and sub choices, pass `{"orchestrator":{...},"sub":{...}}` to `model-plan-set --plan-stdin`. You can use `orchestratorGroupId` in place of `orchestrator`. For `model-preset-create` and `model-preset-update`, supply the name and main route with their flags and pass `{"sub":{...}}` to `--plan-stdin`. Omit legacy Assignment fields and flags when supplying `sub`.
 
 Send `{"choices":[],"default":null}` to follow main. Writes require `models.configure` and the applicable model and Subscription Engine account grants. An existing Assignment Subscription Engine appears as the default engine choice after migration. Keep that choice in the replacement list to retain it. Omitting it removes it from the preset. A sub write also closes legacy Open Assignment mode. Already-applied Bot plans and existing Assignments keep their saved choices.
 

@@ -362,6 +362,8 @@ export const CLI_EFFECTS = {
   'model-favorite-add': { effects: write, brokerRead: false },
   'model-favorite-remove': { effects: write, brokerRead: false },
   'model-plan': { effects: read, brokerRead: true },
+  'model-plan-sub': { effects: read, brokerRead: true },
+  'model-plan-sub-set': { effects: write, brokerRead: false },
   'model-plan-assignments-set': { effects: write, brokerRead: false },
   'model-plan-customize': { effects: write, brokerRead: false },
   'model-plan-inherit': { effects: write, brokerRead: false },

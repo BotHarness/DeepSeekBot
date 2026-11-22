@@ -1,6 +1,7 @@
 import { isTurnTarget, type TurnTarget } from '@botharness/host-protocol/turn-target';
 import { HostAnswerInvalid, record, some, text, type HostCall } from './host-answer';
 import { parseModelCatalog, type ModelCatalogAnswer } from './model-catalog';
+import { parseSubChoices, type SubChoices } from './preset-sub';
 
 export interface ModelRoute {
   provider: string;
@@ -34,6 +35,7 @@ export interface ModelPlanGroups {
 
 export interface ModelPlan extends ModelPlanGroups {
   revision: number;
+  sub?: SubChoices;
   sourcePresetId: string;
   sourcePresetName: string;
   orchestrator: ModelRoute;
@@ -92,6 +94,7 @@ export interface ModelPreset extends ModelPlanGroups, ModelPresetEngines {
   revision: number;
   orchestrator: ModelRoute;
   assignmentDefault: ModelRoute;
+  sub?: SubChoices;
   assignmentFollowsMain?: true;
   assignmentModels?: AssignmentModelOption[];
   openAssignmentModels?: true;
@@ -181,6 +184,8 @@ export function parseModelPlan(value: unknown): ModelPlan | undefined {
   const row = record(value);
   const orchestrator = parseModelRoute(row?.['orchestrator']);
   const assignmentDefault = parseModelRoute(row?.['assignmentDefault']);
+  const sub = parseSubChoices(row?.['sub']);
+  if (row?.['sub'] !== undefined && sub === undefined) return undefined;
   if (
     row === undefined ||
     orchestrator === undefined ||
@@ -190,6 +195,7 @@ export function parseModelPlan(value: unknown): ModelPlan | undefined {
     return undefined;
   return {
     revision: row['revision'],
+    ...(sub === undefined ? {} : { sub }),
     sourcePresetId: text(row['sourcePresetId']) ? row['sourcePresetId'] : '',
     sourcePresetName: text(row['sourcePresetName']) ? row['sourcePresetName'] : '',
     orchestrator,
@@ -204,6 +210,8 @@ export function parseModelPreset(value: unknown): ModelPreset | undefined {
   const row = record(value);
   const orchestrator = parseModelRoute(row?.['orchestrator']);
   const assignmentDefault = parseModelRoute(row?.['assignmentDefault']);
+  const sub = parseSubChoices(row?.['sub']);
+  if (row?.['sub'] !== undefined && sub === undefined) return undefined;
   if (
     !text(row?.['id']) ||
     !text(row['name']) ||
@@ -220,6 +228,7 @@ export function parseModelPreset(value: unknown): ModelPreset | undefined {
     ...(orchestratorEngine === undefined ? {} : { orchestratorEngine }),
     ...(assignmentEngine === undefined ? {} : { assignmentEngine }),
     revision: row['revision'],
+    ...(sub === undefined ? {} : { sub }),
     orchestrator,
     assignmentDefault,
     ...(row['assignmentFollowsMain'] === true ? { assignmentFollowsMain: true } : {}),
@@ -370,12 +379,25 @@ export interface ModelPlanGroupsInput {
   assignmentGroupOptions?: AssignmentGroupOption[];
 }
 
-export type ModelPlanInput = Omit<ModelRoutes, 'orchestrator'> & {
-  orchestrator?: ModelRoute;
-} & ModelPlanGroupsInput;
+type MainRouteInput = { orchestrator?: ModelRoute } & Pick<
+  ModelPlanGroupsInput,
+  'orchestratorGroupId' | 'orchestratorGroupEffort'
+>;
 
-function routes(input: Partial<ModelRoutes> & ModelPlanGroupsInput): Record<string, unknown> {
-  return {
+type LegacyAssignmentInput = Omit<ModelRoutes, 'orchestrator'> &
+  Omit<ModelPlanGroupsInput, 'orchestratorGroupId' | 'orchestratorGroupEffort'>;
+
+type SubAssignmentInput = { sub: SubChoices } & {
+  [Key in keyof LegacyAssignmentInput | 'assignmentEngine' | 'assignmentFollowsMain']?: never;
+};
+
+export type ModelPlanInput = MainRouteInput &
+  ((LegacyAssignmentInput & { sub?: undefined }) | SubAssignmentInput);
+
+function routes(
+  input: MainRouteInput & Partial<LegacyAssignmentInput> & { sub?: SubChoices | undefined },
+): Record<string, unknown> {
+  const main = {
     ...(input.orchestrator === undefined ? {} : { orchestrator: input.orchestrator }),
     ...(input.orchestratorGroupId === undefined
       ? {}
@@ -383,6 +405,10 @@ function routes(input: Partial<ModelRoutes> & ModelPlanGroupsInput): Record<stri
     ...(input.orchestratorGroupEffort === undefined
       ? {}
       : { orchestratorGroupEffort: input.orchestratorGroupEffort }),
+  };
+  if (input.sub !== undefined) return { ...main, sub: input.sub };
+  return {
+    ...main,
     ...(input.assignmentGroups === undefined ? {} : { assignmentGroups: input.assignmentGroups }),
     ...(input.assignmentDefaultGroupId === undefined
       ? {}
@@ -414,12 +440,16 @@ export async function setModelPlan(
   );
 }
 
-export type ModelPresetInput = Pick<ModelRoutes, 'assignmentDefault'> &
-  Partial<Pick<ModelRoutes, 'orchestrator' | 'assignmentModels' | 'openAssignmentModels'>> &
-  ModelPlanGroupsInput &
-  ModelPresetEngineInput & {
-    name: string;
-  };
+export type ModelPresetInput = MainRouteInput &
+  Pick<ModelPresetEngineInput, 'orchestratorEngine'> & { name: string } & (
+    | (Pick<LegacyAssignmentInput, 'assignmentDefault'> &
+        Partial<LegacyAssignmentInput> &
+        Pick<ModelPresetEngineInput, 'assignmentEngine'> & {
+          sub?: undefined;
+          assignmentFollowsMain?: boolean;
+        })
+    | SubAssignmentInput
+  );
 
 export async function createModelPreset(
   host: HostCall,
@@ -442,7 +472,7 @@ export async function updateModelPreset(
   host: HostCall,
   id: string,
   expectedRevision: number,
-  input: ModelPresetInput & { assignmentFollowsMain?: boolean },
+  input: ModelPresetInput,
 ): Promise<ModelPreset> {
   return presetAnswer(
     await host.call('modelPresetUpdate', {
