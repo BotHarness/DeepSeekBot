@@ -5,6 +5,7 @@ import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { compareBaselineCounts } from './baseline-counts.mjs';
 import { catalogueExports, desktopComposition, renderCatalogue } from './ui-rule-composition.mjs';
 import { desktopControls, fixDesktopIcons } from './ui-rule-controls.mjs';
 import { desktopStyles, fixDesktopStyles } from './ui-rule-styles.mjs';
@@ -286,52 +287,40 @@ export function findings(found) {
   );
 }
 
-function counts(list) {
-  const map = new Map();
-  for (const text of list) map.set(text, (map.get(text) ?? 0) + 1);
-  return map;
+function countsByRule(inventory) {
+  return new Map(
+    Object.entries(inventory).map(([rule, files]) => [
+      rule,
+      new Map(Object.entries(files).map(([file, findings]) => [file, findings.length])),
+    ]),
+  );
+}
+
+function describeFinding({ rule, file, line, text }) {
+  return `${file}:${line} "${text}": ${RULES[rule].help} (${RULES[rule].section})`;
 }
 
 export function compare(found, baseline) {
-  const allowed = new Map();
-  for (const [rule, byFile] of Object.entries(baseline))
-    for (const [file, list] of Object.entries(byFile))
-      for (const [text, count] of counts(list))
-        allowed.set(`${rule}\u0000${file}\u0000${text}`, count);
-  const problems = [];
-  const seen = new Map();
-  for (const { rule, file, line, text } of found) {
-    const key = `${rule}\u0000${file}\u0000${text}`;
-    const used = seen.get(key) ?? 0;
-    seen.set(key, used + 1);
-    if (used >= (allowed.get(key) ?? 0))
-      problems.push(`${file}:${line} "${text}": ${RULES[rule].help} (${RULES[rule].section})`);
-  }
-  const stale = [];
-  for (const [key, count] of allowed)
-    if ((seen.get(key) ?? 0) < count) {
-      const [rule, file, text] = key.split('\u0000');
-      stale.push(`${rule} ${file} "${text}"`);
-    }
-  return { problems, stale };
+  const { grown, shrunk } = compareBaselineCounts(
+    countsByRule(findings(found)),
+    countsByRule(baseline),
+  );
+  return {
+    problems: grown.map(
+      ({ rule, message }) => `${message}; ${RULES[rule].help} (${RULES[rule].section})`,
+    ),
+    stale: shrunk,
+  };
 }
 
 export function baselineGrowth(current, previous) {
-  const found = [];
-  for (const [rule, files] of Object.entries(previous)) {
-    if (!Object.hasOwn(current, rule)) {
-      found.push(
-        `missing baseline key ${rule}; keep an empty object when the last finding is fixed`,
-      );
-      continue;
-    }
-    for (const [file, list] of Object.entries(current[rule])) {
-      const allowed = counts(files[file] ?? []);
-      for (const [text, count] of counts(list))
-        if (count > (allowed.get(text) ?? 0)) found.push(`${rule} ${file} "${text}"`);
-    }
-  }
-  return found;
+  const { grown } = compareBaselineCounts(countsByRule(current), countsByRule(previous));
+  const missing = Object.keys(previous)
+    .filter((rule) => !Object.hasOwn(current, rule))
+    .map(
+      (rule) => `missing baseline key ${rule}; keep an empty object when the last finding is fixed`,
+    );
+  return [...grown.map(({ message }) => message), ...missing];
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
@@ -349,21 +338,18 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
     const grown = baselineGrowth(baseline, previous);
     for (const finding of grown) console.error(`ui rules: baseline grew: ${finding}`);
     if (grown.length) process.exit(1);
-    console.log('UI rules baseline only shrank.');
+    console.log('UI rules baseline totals did not grow.');
     process.exit(0);
   }
   if (process.argv.includes('--write-catalogue')) {
     const found = checkCatalogue(readCatalogueExports(), true);
-    for (const line of compare(found, {}).problems) console.error(`ui rules: ${line}`);
+    for (const line of found.map(describeFinding)) console.error(`ui rules: ${line}`);
     process.exit(found.length ? 1 : 0);
   }
   const fix = process.argv.includes('--fix');
   const found = scan(fix);
   if (fix && !process.argv.includes('--write')) {
-    const problems = compare(
-      found.filter(({ rule }) => rule === 'catalogue'),
-      {},
-    ).problems;
+    const problems = found.filter(({ rule }) => rule === 'catalogue').map(describeFinding);
     for (const line of problems) console.error(`ui rules: ${line}`);
     if (problems.length) process.exit(1);
     console.log(
@@ -385,9 +371,10 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   } else {
     for (const line of problems) console.error(`ui rules: ${line}`);
     if (stale.length)
-      console.error(
-        `ui rules: ${stale.length} baselined finding(s) are fixed; shrink the baseline with node scripts/check-ui-rules.mjs --write`,
-      );
+      for (const line of stale)
+        console.error(
+          `ui rules: ${line}; shrink the baseline with node scripts/check-ui-rules.mjs --write`,
+        );
     if (problems.length || stale.length) process.exit(1);
   }
   console.log(`UI rules pass (${found.length} baselined findings left).`);

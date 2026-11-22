@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { compare, findings, isCopy, jsxCopy, pressables } from '../check-ui-rules.mjs';
+import {
+  baselineGrowth,
+  compare,
+  findings,
+  isCopy,
+  jsxCopy,
+  pressables,
+} from '../check-ui-rules.mjs';
 
 const source = `
 export function Panel({ name }) {
@@ -48,16 +55,32 @@ describe('check-ui-rules jsxCopy', () => {
     expect(isCopy('设置')).toBe(true);
   });
 
-  it('blocks a new string and asks to shrink a fixed one', () => {
-    const baseline = {
-      jsxCopy: { 'a.tsx': ['Nothing here yet', 'Recent activity', 'Gone text'] },
-    };
-    const { problems, stale } = compare(found, baseline);
-    expect(problems).toHaveLength(8);
-    expect(problems[0]).toBe(
-      'a.tsx:5 "最近活动": move visible text into locale.ts (Web) or strings.ts (mobile) (docs/agents/ui-copy.md § Where copy lives)',
-    );
-    expect(stale).toEqual(['jsxCopy a.tsx "Gone text"']);
+  it('allows the same findings to move to a new file', () => {
+    const baseline = findings(found);
+    const moved = jsxCopy(source, 'b.tsx');
+    expect(compare(moved, baseline)).toEqual({ problems: [], stale: [] });
+    expect(baselineGrowth(findings(moved), baseline)).toEqual([]);
+    expect(findings(moved).jsxCopy['a.tsx']).toBeUndefined();
+  });
+
+  it('reports the growing rule and every file whose count rose', () => {
+    const baseline = findings(found);
+    const extra = jsxCopy('<p>More text</p>', 'b.tsx');
+    const { problems, stale } = compare([...found, ...extra], baseline);
+    expect(problems).toEqual([
+      expect.stringContaining('jsxCopy total grew from 10 to 11; counts rose in b.tsx (0 → 1)'),
+    ]);
+    expect(stale).toEqual([]);
+  });
+
+  it('requires a smaller baseline once a finding is fixed', () => {
+    const remaining = found.slice(1);
+    const baseline = findings(found);
+    expect(compare(remaining, baseline)).toEqual({
+      problems: [],
+      stale: ['jsxCopy total dropped from 10 to 9'],
+    });
+    expect(compare(remaining, findings(remaining))).toEqual({ problems: [], stale: [] });
   });
 
   it('counts repeated strings per file', () => {
@@ -67,7 +90,7 @@ describe('check-ui-rules jsxCopy', () => {
     ];
     expect(findings(twice)).toEqual({ jsxCopy: { 'b.tsx': ['Tobs Connect', 'Tobs Connect'] } });
     expect(compare(twice, { jsxCopy: { 'b.tsx': ['Tobs Connect'] } }).problems).toEqual([
-      'b.tsx:9 "Tobs Connect": move visible text into locale.ts (Web) or strings.ts (mobile) (docs/agents/ui-copy.md § Where copy lives)',
+      expect.stringContaining('jsxCopy total grew from 1 to 2; counts rose in b.tsx (1 → 2)'),
     ]);
   });
 });
@@ -101,8 +124,6 @@ export function Row({ onPress, ...rest }) {
 
   it('names the design rule in the error', () => {
     const { problems } = compare(pressables(screen, 'm.tsx'), {});
-    expect(problems[0]).toBe(
-      'm.tsx:5 "Pressable": give the pressable an accessibilityLabel from strings.ts (apps/mobile/DESIGN.md § Code rules 4)',
-    );
+    expect(problems[0]).toContain('give the pressable an accessibilityLabel from strings.ts');
   });
 });
