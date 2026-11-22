@@ -37,12 +37,24 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
         ]}
       >
         {items.map((item) => {
-          const label = item.settings ? t.settings : item.activity ? t.activity : t.chats;
+          const label = item.settings
+            ? t.settings
+            : item.activity
+              ? t.activity
+              : item.sessions
+                ? t.hostSessions.title
+                : t.chats;
           const accessibility = item.count > 0 ? `${label}, ${badgeCount(item.count)}` : label;
           return (
             <Button
               key={item.key}
-              testID={item.settings ? 'settings-button' : `tab-${item.key}`}
+              testID={
+                item.settings
+                  ? 'settings-button'
+                  : item.sessions
+                    ? 'sessions-tab'
+                    : `tab-${item.key}`
+              }
               onPress={item.onPress}
               modifiers={[
                 buttonStyle('plain'),
@@ -91,9 +103,11 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                           ? item.focused
                             ? 'bell.fill'
                             : 'bell'
-                          : item.focused
-                            ? 'bubble.left.and.bubble.right.fill'
-                            : 'bubble.left.and.bubble.right'
+                          : item.sessions
+                            ? 'text.quote'
+                            : item.focused
+                              ? 'bubble.left.and.bubble.right.fill'
+                              : 'bubble.left.and.bubble.right'
                     }
                     modifiers={[font({ textStyle: 'title2' })]}
                   />
