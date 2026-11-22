@@ -377,10 +377,12 @@ export function RoutingGroupSettings({
   actions,
   canConfigure,
   t,
+  onChanged,
 }: {
   actions: RoutingGroupActions;
   canConfigure: boolean;
   t: BotHarnessTranslate;
+  onChanged?: (() => void) | undefined;
 }): ReactElement {
   const [library, setLibrary] = useState<Library>();
   const [loadError, setLoadError] = useState<string>();
@@ -415,6 +417,7 @@ export function RoutingGroupSettings({
       .then(async () => {
         close();
         setLibrary(await loadLibrary(actions));
+        onChanged?.();
       })
       .catch((cause: unknown) => setError(errorMessage(cause)))
       .finally(() => setBusy(false));

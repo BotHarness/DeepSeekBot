@@ -484,7 +484,12 @@ export function ModelPresetsSettings({
           ) : null}
         </SettingsSection>
       )}
-      <RoutingGroupSettings actions={actions} canConfigure={editable} t={t} />
+      <RoutingGroupSettings
+        actions={actions}
+        canConfigure={editable}
+        t={t}
+        onChanged={() => setLoadAttempt((attempt) => attempt + 1)}
+      />
     </SettingsRows>
   );
 }
