@@ -80,6 +80,16 @@ it('round-trips the legacy Assignment Engine through sub and verifies grants on 
     ok: true,
     value: { plan: { sub: payload.sub } },
   });
+  f.grant();
+  await expect(
+    f.methods.modelPresetUpdate({
+      id: preset.id,
+      name: preset.name,
+      expectedRevision: preset.revision + 1,
+      orchestrator: permitted,
+      assignmentDefault: permitted,
+    }),
+  ).resolves.toMatchObject(refusal(f.work.id));
 });
 
 function fixture(local = true) {

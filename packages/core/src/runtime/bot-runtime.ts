@@ -8357,6 +8357,8 @@ class BotRuntimeImplementation implements BotRuntime {
       row.model_group_id === null && retained !== undefined && 'kind' in retained
         ? retained
         : undefined;
+    if (input.model !== undefined && directTarget !== undefined && row.activity === 'working')
+      throw new Error('Wait for the current Assignment turn to finish before changing its model');
     let modelRoute =
       retained === undefined || !('kind' in retained)
         ? retained

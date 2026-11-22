@@ -67,6 +67,8 @@ export function createListAssignmentModelsTool({
           assignmentModesError: `DSH modes could not be read, so new Assignments use this Bot's mode: ${error instanceof Error ? error.message : String(error)}`,
         }),
       );
+      const open = plan?.assignmentDefault !== undefined && plan.openAssignmentModels === true;
+      const openChoices = open ? ((await openAssignmentRoutes?.list(run.bot.slug)) ?? []) : [];
       const allowed = modelFilter() ?? (() => true);
       const resting = <T extends { provider: string; model: string }>(route: T) => {
         const rest = groups?.restingUntil(route);
@@ -130,14 +132,11 @@ export function createListAssignmentModelsTool({
               },
         );
       }
-      const open = plan.openAssignmentModels === true;
       const assignmentGroups = (plan.assignmentGroups ?? []).flatMap((id) =>
         describeGroup(id, id === plan.assignmentDefaultGroupId),
       );
       const assignmentModels = assignmentModelsOf(plan).filter(allowed).map(resting);
-      const openModels = open
-        ? ((await openAssignmentRoutes?.list(run.bot.slug)) ?? []).map(resting)
-        : [];
+      const openModels = openChoices.filter(allowed).map(resting);
       const choices = plan.sub?.choices
         .map((choice) => {
           if (choice.kind === 'engine') {

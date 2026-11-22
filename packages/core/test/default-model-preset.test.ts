@@ -137,7 +137,7 @@ it.each(['model-preset-sub-choices', 'model-preset-sub-engine-choices'])(
       },
       {
         id: 'already-shaped',
-        fields: { sub: { choices: [], default: null } },
+        fields: { sub: { choices: [], default: null }, orchestratorGroupId: 'backup' },
         expected: { choices: [], default: null },
       },
       {
@@ -239,6 +239,10 @@ it.each(['model-preset-sub-choices', 'model-preset-sub-engine-choices'])(
         choices: [{ ...groupDefault, allowedEfforts: ['high'], defaultEffort: 'high' }],
         default: groupDefault,
       });
+      expect(defaultPresetPlan(store.get('already-shaped')!)).toMatchObject({
+        assignmentDefaultGroupId: 'backup',
+        sub: { choices: [groupDefault], default: groupDefault },
+      });
       database.close();
     }
   },
@@ -259,6 +263,56 @@ function fixture() {
       }),
   };
 }
+
+it('keeps an alternate Subscription Engine when a legacy edit replaces the API choice efforts', () => {
+  const store = fixture().open();
+  const preset = store.create({ name: 'Mixed', orchestrator: main, assignmentDefault: main });
+  const identity = { kind: 'model' as const, provider: main.provider, model: main.model };
+  const engine = { kind: 'engine' as const, engine: 'codex' as const, accountId: 'codex-work' };
+  const configured = store.setSub(preset.id, preset.revision, {
+    choices: [{ ...identity, allowedEfforts: ['high'], defaultEffort: 'high' }, engine],
+    default: identity,
+  });
+  const option = {
+    provider: main.provider,
+    model: main.model,
+    allowedEfforts: ['low'],
+    defaultEffort: 'low',
+  };
+  const edited = store.update(preset.id, {
+    name: preset.name,
+    expectedRevision: configured.revision,
+    orchestrator: main,
+    assignmentDefault: { ...main, reasoningEffort: 'low' },
+    assignmentModels: [option],
+  });
+  expect(edited?.sub).toEqual({
+    choices: [{ kind: 'model', ...option }, engine],
+    default: identity,
+  });
+});
+
+it('adds a legacy Assignment Engine default alongside a Routing Group-only sub', () => {
+  const store = fixture().open();
+  const preset = store.create({
+    name: 'Routing Group',
+    orchestrator: main,
+    assignmentDefault: main,
+  });
+  const group = { kind: 'group' as const, group: 'backup' };
+  const configured = store.setSub(preset.id, preset.revision, { choices: [group], default: group });
+  const assignmentEngine = { engine: 'claude' as const, accountId: 'claude-work' };
+  const edited = store.update(preset.id, {
+    name: preset.name,
+    expectedRevision: configured.revision,
+    orchestrator: main,
+    assignmentDefault: configured.assignmentDefault,
+    engines: { assignmentEngine },
+  });
+  const engine = { kind: 'engine', ...assignmentEngine };
+  expect(edited?.sub).toEqual({ choices: [group, engine], default: engine });
+  expect(store.get(preset.id)).toEqual(edited);
+});
 
 afterEach(() => {
   for (const home of homes) home.close();

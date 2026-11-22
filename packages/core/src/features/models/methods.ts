@@ -356,7 +356,7 @@ export function createModelsBridgeMethods(
         const followsMain =
           assignmentFollowsMain === true ||
           (assignmentFollowsMain === undefined &&
-            current.assignmentFollowsMain === true &&
+            storedPresetSub(current).default === null &&
             assignmentDefault.provider === current.assignmentDefault.provider &&
             assignmentDefault.model === current.assignmentDefault.model &&
             assignmentDefault.reasoningEffort === current.assignmentDefault.reasoningEffort &&
@@ -366,6 +366,7 @@ export function createModelsBridgeMethods(
             (assignmentModels === undefined ||
               isDeepStrictEqual(assignmentModels, assignmentModelsOf({ assignmentDefault }))));
         try {
+          requireEngineChoices(presetEngineChoices(current));
           const engines = presetEnginesInput(source);
           await checkPresetEngines(engines);
           if (groups !== undefined) presetGroupRoutes(groups);
@@ -387,6 +388,7 @@ export function createModelsBridgeMethods(
                 ],
             );
           if (groups !== undefined) presetGroupRoutes(groups);
+          requireEngineChoices(presetEngineChoices(current));
           requireEngineChoices(presetEngineChoices(engines));
           assertEngineAccounts(presetEngineChoices(engines));
           const preset = deps.modelPresets.update(id, {
@@ -434,7 +436,7 @@ export function createModelsBridgeMethods(
         const saved = deps.modelPresets.get(presetId);
         if (saved === undefined) return invalidInput('Model Preset was not found');
         const preset =
-          saved.assignmentFollowsMain === true && storedPresetSub(saved).default === null
+          storedPresetSub(saved).default === null
             ? {
                 ...saved,
                 ...defaultPresetPlan(saved),

@@ -48,6 +48,7 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
   const account = engineHost.addAccount('codex', 'Work', 0);
   const runs: AssignmentAgentRun[] = [];
   let orchestrator: OrchestratorAgentRun | undefined;
+  let holdEngineRun: Promise<void> | undefined;
   const core = createCore({
     dshHome: root,
     routeRests: rests,
@@ -58,6 +59,7 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
       },
       async runAssignment(run) {
         runs.push(run);
+        if (run.routingTarget?.kind === 'engine') await holdEngineRun;
       },
       requestAssignment() {
         throw new Error('Unexpected Assignment request');
@@ -203,9 +205,28 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
       outcome: 'refused',
       code: 'assignment-choice-not-allowed',
     });
-    const implicit = await dispatch('Engine default');
+    let finishEngineRun = () => {};
+    holdEngineRun = new Promise<void>((resolve) => {
+      finishEngineRun = resolve;
+    });
+    let implicitSessionId: string;
+    try {
+      const implicit = await dispatch('Engine default');
+      expect(implicit).toMatchObject({ outcome: 'created' });
+      implicitSessionId = implicit.sessionId;
+      expect(() =>
+        run.assignments.request({
+          sessionId: implicitSessionId,
+          mode: 'next-turn',
+          text: 'Switch to the allowed API model',
+          model: careful,
+        }),
+      ).toThrow('Wait for the current Assignment turn to finish before changing its model');
+    } finally {
+      holdEngineRun = undefined;
+      finishEngineRun();
+    }
     const named = await dispatch('Explicit engine', { ...explicit, reasoning_effort: 'high' });
-    expect(implicit).toMatchObject({ outcome: 'created' });
     expect(named).toMatchObject({ outcome: 'created' });
     expect(await dispatch('Explicit API model', careful)).toMatchObject({
       outcome: 'created',
@@ -223,7 +244,7 @@ it('discovers and enforces the preset choices through the Orchestrator tools and
         db.prepare('SELECT session_id, model_route_json FROM assignments').all(),
       );
     expect(readAssignments()).toContainEqual({
-      session_id: implicit.sessionId,
+      session_id: implicitSessionId,
       model_route_json: JSON.stringify(target),
     });
     const count = readAssignments().length;

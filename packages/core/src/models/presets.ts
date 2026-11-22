@@ -19,6 +19,7 @@ import {
   isAssignmentGroupOption,
   isAssignmentModelOption,
   isPresetSub,
+  matchesPresetSubChoice,
   presetSubProjection,
   presetSubWithEngine,
   presetSubFromLegacy,
@@ -53,9 +54,7 @@ export interface ModelRoute {
   reasoningEffort?: string;
 }
 
-export interface ModelPresetEngine extends EngineChoice {
-  engine: EngineId;
-}
+export type ModelPresetEngine = EngineChoice & { engine: EngineId };
 
 export interface ModelPresetEngines {
   orchestratorEngine?: ModelPresetEngine;
@@ -359,8 +358,7 @@ export function defaultPresetPlan(preset: ModelPreset): PersonaBotModelPlan {
     preset.sub === undefined && preset.assignmentEngine === undefined
       ? undefined
       : effectivePresetSub(preset);
-  const followsMain =
-    preset.assignmentFollowsMain === true && storedPresetSub(preset).default === null;
+  const followsMain = storedPresetSub(preset).default === null;
   const { assignmentDefaultGroupId: _legacyGroup, ...withoutGroupDefault } = preset;
   const groups =
     sub?.default?.kind === 'engine'
@@ -955,16 +953,29 @@ export function createModelPresetStore(options: ModelPresetStoreOptions): ModelP
           current,
         ),
       });
-      if (groupOnly)
-        updated.sub!.choices = updated.sub!.choices.filter((choice) => choice.kind === 'group');
+      const nextSub = storedPresetSub(updated);
       if (
         currentSub !== undefined &&
         isDeepStrictEqual(
           presetSubWithEngine(presetSubFromLegacy(current), current.assignmentEngine),
-          storedPresetSub(updated),
+          nextSub,
         )
-      )
+      ) {
         updated.sub = currentSub;
+      } else if (!followsMain) {
+        const priorDefault = currentSub?.default;
+        const choices = groupOnly
+          ? nextSub.choices.filter((choice) => choice.kind !== 'model')
+          : nextSub.choices;
+        const engineAlternatives =
+          currentSub?.choices.filter(
+            (choice) =>
+              choice.kind === 'engine' &&
+              (priorDefault == null || !matchesPresetSubChoice(choice, priorDefault)) &&
+              !choices.some((next) => matchesPresetSubChoice(next, choice)),
+          ) ?? [];
+        updated.sub = { ...nextSub, choices: [...choices, ...engineAlternatives] };
+      }
       write(updated);
       return updated;
     },
