@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/messaging/plugin.ts`
 - `packages/core/src/messaging/im-commands.ts`
 
 ## Terms

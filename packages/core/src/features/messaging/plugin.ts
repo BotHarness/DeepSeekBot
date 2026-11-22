@@ -1,4 +1,8 @@
 import type { Context } from '@deepseek-ai/cordis';
+import type { BridgeMethods } from '../../bridge/methods.js';
+import type { ModelCatalog } from '../../models/catalog.js';
+import type { ImCommandServices } from '../../messaging/im-commands.js';
+import { OWNER_HUMAN_CONTEXT } from '../../humans/context.js';
 
 import type { BotHarnessCore } from '../../plugin.js';
 import type { createCoreStartup } from '../../diagnostics/core-startup.js';
@@ -69,4 +73,52 @@ export function apply(
       return operationalDatabase.mode === 'ready' && bot !== undefined && bot.paused !== true;
     },
   });
+}
+
+export function createCommandServices(
+  core: Pick<BotHarnessCore, 'registry' | 'channels' | 'runtime'>,
+  bridgeMethods: Pick<BridgeMethods, 'modelPlan' | 'modelPlanCustomize' | 'channelBotStop'>,
+  modelCatalog: ModelCatalog,
+  compactBot: ImCommandServices['compact'],
+): ImCommandServices {
+  return {
+    botDisplayName: (slug) =>
+      core.registry.get(slug)?.displayName ?? core.registry.getHistorical(slug)?.displayName,
+    plan: async (slug) => {
+      const state = await bridgeMethods.modelPlan({ slug });
+      if (!state.ok) throw new Error(state.error.message);
+      return state.value.plan;
+    },
+    catalog: () => modelCatalog.list(),
+    defaultRoute: () => modelCatalog.defaultRoute?.(),
+    applyModel: async (slug, route, assertCurrent) => {
+      const state = await bridgeMethods.modelPlan({ slug });
+      if (!state.ok) throw new Error(state.error.message);
+      assertCurrent?.();
+      const result = await bridgeMethods.modelPlanCustomize(
+        {
+          slug,
+          expectedRevision: state.value.revision ?? 0,
+          orchestrator: route,
+        },
+        assertCurrent,
+      );
+      if (!result.ok) throw new Error(result.error.message);
+    },
+    stopTurn: async (slug) => {
+      const channel = core.channels.getOrCreateDm(OWNER_HUMAN_CONTEXT, slug);
+      if (channel === undefined) throw new Error('Bot DM is unavailable');
+      const stopped = await bridgeMethods.channelBotStop({
+        channelId: channel.id,
+        botSlug: slug,
+      });
+      if (stopped.ok) return { sessionId: stopped.value.stopped.sessionId };
+      if (stopped.error.code === 'not-working') return undefined;
+      throw new Error(stopped.error.message);
+    },
+    startFreshOrchestrator: (slug, assertCurrent) =>
+      core.runtime.startFreshOrchestrator!(slug, assertCurrent),
+    turnRunning: (slug) => core.runtime.turnRunning!(slug),
+    compact: compactBot,
+  };
 }

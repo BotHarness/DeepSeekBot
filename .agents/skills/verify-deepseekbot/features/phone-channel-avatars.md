@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/avatars/plugin.ts`
 - `packages/core/src/features/channels/{management-methods,rpc}.ts`
 - `packages/client/src/client/features/appearance/bridge.ts`
 - `apps/mobile/src/host/{bot-avatar,group-channel}.ts`

@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/models/plugin.ts`
 - `packages/client/src/client/{model-plan-store,model-preset-profile}.{ts,tsx}`
 - `packages/client/src/client/{assignment-model-policy,engine-choice,model-menu,model-picker}.tsx`
 - `packages/client/src/client/{bot-sidebar-channel-actions,dm-composer-context,onboarding-view}.tsx`

@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/models/plugin.ts`
 - `packages/client/src/client/model-providers-settings.tsx`
 - `packages/client/src/client/bot-intro.tsx`
 - `packages/core/src/models/providers.ts`

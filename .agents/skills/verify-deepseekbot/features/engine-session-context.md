@@ -2,6 +2,7 @@
 
 ## Sources
 
+- `packages/core/src/features/models/plugin.ts`
 - `packages/core/src/engines/{engine-context,engine-host,engine-store}.ts`
 - `packages/core/src/runtime/{session-model-choices,session-transcript,turn-targets}.ts`
 - `packages/client/src/client/session-model-*.tsx`
