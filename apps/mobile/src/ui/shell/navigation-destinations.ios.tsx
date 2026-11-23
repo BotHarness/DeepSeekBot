@@ -5,10 +5,13 @@ import {
   accessibilityLabel,
   background,
   buttonStyle,
+  fixedSize,
   font,
   foregroundStyle,
   frame,
   glassEffect,
+  lineLimit,
+  multilineTextAlignment,
   monospacedDigit,
   onLongPressGesture,
   padding,
@@ -107,10 +110,21 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                               ? 'bubble.left.and.bubble.right.fill'
                               : 'bubble.left.and.bubble.right'
                     }
-                    modifiers={[font({ textStyle: 'title2' })]}
+                    {...(theme.largeText
+                      ? { size: theme.type.title.line }
+                      : { modifiers: [font({ textStyle: 'title2' })] })}
                   />
                 )}
-                <Text modifiers={[font({ textStyle: 'caption2' })]}>{label}</Text>
+                <Text
+                  modifiers={[
+                    font({ textStyle: 'caption2' }),
+                    lineLimit(),
+                    fixedSize({ horizontal: false, vertical: true }),
+                    multilineTextAlignment('center'),
+                  ]}
+                >
+                  {label}
+                </Text>
               </VStack>
             </Button>
           );

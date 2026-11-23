@@ -259,6 +259,7 @@ function HostSessionsList({
       />
       <FlatList
         testID="host-sessions-list"
+        automaticallyAdjustContentInsets={false}
         contentInsetAdjustmentBehavior="never"
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{
