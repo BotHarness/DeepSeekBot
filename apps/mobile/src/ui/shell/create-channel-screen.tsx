@@ -13,13 +13,12 @@ import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { useMounted } from '../mounted';
 import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { EnvironmentList } from '../primitives/environment-list';
-import { TextField } from '../primitives/text-field';
-import { labelInField } from '../primitives/field-label';
+import { CardField } from '../primitives/card-field';
 import { Text } from '../primitives/text';
 import { Chip } from '../primitives/chip';
 import { SheetSaveButton } from '../primitives/sheet-save-button';
 import { SheetStack } from '../primitives/sheet-stack';
-import { SettingsHeading, SettingsRow, SettingsSection } from '../primitives/settings-row';
+import { SettingsRow, SettingsSection } from '../primitives/settings-row';
 import { SHEET_GROUP } from '../chat/sheet';
 import { space } from '../design/tokens';
 import { useDesignTheme } from '../design/theme';
@@ -216,19 +215,16 @@ export function CreateChannelScreen() {
                 onChange={(id) => void channelCreation.selectHost(id)}
               />
             )}
-            <View style={{ gap: space.x2 }}>
-              {labelInField ? null : <SettingsHeading>{t.channelCreation.name}</SettingsHeading>}
-              <TextField
-                testID="create-channel-name"
-                accessibilityLabel={t.channelCreation.name}
-                placeholder={t.channelCreation.namePlaceholder}
-                value={record.name}
-                maxLength={120}
-                editable={!state.busy}
-                returnKeyType="done"
-                onChangeText={channelCreation.rename}
-              />
-            </View>
+            <CardField
+              testID="create-channel-name"
+              accessibilityLabel={t.channelCreation.name}
+              placeholder={t.channelCreation.namePlaceholder}
+              value={record.name}
+              maxLength={120}
+              editable={!state.busy}
+              returnKeyType="done"
+              onChangeText={channelCreation.rename}
+            />
             <SettingsSection
               title={t.channelCreation.members}
               footer={t.channelCreation.membersFooter}

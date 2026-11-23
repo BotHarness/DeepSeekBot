@@ -99,6 +99,9 @@ vi.mock('../src/ui/primitives/creation-field', () => ({
   CreationField: ({ value, accessibilityLabel }: { value: string; accessibilityLabel: string }) =>
     createElement('input', { value, 'aria-label': accessibilityLabel, readOnly: true }),
 }));
+vi.mock('../src/ui/primitives/card-field', async () => ({
+  CardField: (await import('../src/ui/primitives/creation-field')).CreationField,
+}));
 vi.mock('../src/ui/primitives/creation-button', () => ({
   Button: ({ label, onPress, disabled }: { label: string; onPress(): void; disabled?: boolean }) =>
     createElement('button', { onClick: onPress, disabled }, label),

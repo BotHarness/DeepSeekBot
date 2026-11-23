@@ -10,6 +10,7 @@ export type TextFieldProps = ComponentPropsWithRef<typeof TextInput> & {
   invalid?: boolean;
   label?: string;
   supportingText?: string;
+  inCard?: boolean;
 };
 
 export function fieldStyle(theme: DesignTheme, { multiline = false, invalid = false } = {}) {
@@ -41,6 +42,7 @@ export function TextField({
   editable,
   label: _label,
   supportingText,
+  inCard = false,
   ...props
 }: TextFieldProps) {
   const theme = useDesignTheme();
@@ -51,7 +53,18 @@ export function TextField({
       {...props}
       multiline={multiline}
       editable={editable}
-      style={[fieldStyle(theme, { multiline: multiline === true, invalid }), style]}
+      style={[
+        fieldStyle(theme, { multiline: multiline === true, invalid }),
+        inCard
+          ? {
+              borderWidth: 0,
+              borderRadius: 0,
+              paddingHorizontal: space.x5,
+              backgroundColor: 'transparent',
+            }
+          : null,
+        style,
+      ]}
     />
   );
   if (!supportingText) return input;

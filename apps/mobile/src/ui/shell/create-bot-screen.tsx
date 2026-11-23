@@ -31,7 +31,7 @@ import { KeyboardFormScroll } from '../primitives/keyboard-form';
 import { KeyboardFormFooter } from '../primitives/keyboard-form-footer';
 import { Button } from '../primitives/creation-button';
 import { Text } from '../primitives/text';
-import { CreationField as TextField } from '../primitives/creation-field';
+import { CardField } from '../primitives/card-field';
 import { CreationTagsField } from '../primitives/creation-tags-field';
 import { editCreationTags } from '@botharness/host-client/bot-creation-tags';
 import { EnvironmentList } from '../primitives/environment-list';
@@ -575,7 +575,7 @@ function CreationStepContent({ index }: { index: number }) {
             )
           ) : null}
           {step === 'git' && gitSource ? (
-            <TextField
+            <CardField
               testID="import-bot-git-url"
               accessibilityLabel={copy.gitUrl}
               value={gitSource.gitUrl}
@@ -619,7 +619,7 @@ function CreationStepContent({ index }: { index: number }) {
             />
           ) : null}
           {step === 'identity' ? (
-            <TextField
+            <CardField
               testID="create-bot-name"
               accessibilityLabel={copy.name}
               value={draft.displayName}
@@ -658,7 +658,7 @@ function CreationStepContent({ index }: { index: number }) {
             <>
               <Text strong>{copy.personaSystemLabel}</Text>
               <Text tone="muted">{copy.personaSystemHint}</Text>
-              <TextField
+              <CardField
                 testID="create-bot-persona"
                 accessibilityLabel={copy.persona}
                 placeholder={copy.personaHint}
@@ -673,7 +673,7 @@ function CreationStepContent({ index }: { index: number }) {
             <>
               <Text tone="muted">{copy.profileHint}</Text>
               {importing ? <Text tone="muted">{copy.prompt.importDetails}</Text> : null}
-              <TextField
+              <CardField
                 testID="create-bot-bio"
                 accessibilityLabel={copy.bio}
                 value={draft.description}

@@ -169,6 +169,9 @@ vi.mock('../src/ui/primitives/creation-field', () => ({
       readOnly: true,
     }),
 }));
+vi.mock('../src/ui/primitives/card-field', async () => ({
+  CardField: (await import('../src/ui/primitives/creation-field')).CreationField,
+}));
 function Button({
   label,
   onPress,
@@ -951,6 +954,15 @@ it('keeps the sheet header and footer mounted while only step content changes', 
   expect(fixture.close).toHaveBeenCalledTimes(1);
 });
 
+async function answer(text: string) {
+  await act(async () =>
+    fixture.dialogs
+      .at(-1)
+      ?.actions.find((action) => action.text === text)
+      ?.onPress?.(),
+  );
+}
+
 it('asks before a started Bot draft leaves the sheet and discards or keeps it', async () => {
   fixture.body = <CreateBotScreen />;
   await act(async () => root.render(<CreationFlowLayout />));
@@ -969,12 +981,7 @@ it('asks before a started Bot draft leaves the sheet and discards or keeps it', 
     t.creationDraft.keep,
     t.creationDraft.edit,
   ]);
-  await act(async () =>
-    fixture.dialogs
-      .at(-1)
-      ?.actions.find((action) => action.text === t.creationDraft.keep)
-      ?.onPress?.(),
-  );
+  await answer(t.creationDraft.keep);
   expect(repeat).toHaveBeenCalledTimes(1);
   expect(fixture.prevented.at(-1)).toBe(false);
   expect(controller.getSnapshot().record).toMatchObject({ draft: { displayName: 'Mira' } });
@@ -984,12 +991,7 @@ it('asks before a started Bot draft leaves the sheet and discards or keeps it', 
   expect(fixture.prevented.at(-1)).toBe(true);
   const discarded = vi.fn();
   await act(async () => fixture.onPrevented?.({ repeat: discarded }));
-  await act(async () =>
-    fixture.dialogs
-      .at(-1)
-      ?.actions.find((action) => action.text === t.creationDraft.discard)
-      ?.onPress?.(),
-  );
+  await answer(t.creationDraft.discard);
   expect(discarded).toHaveBeenCalledTimes(1);
   expect(controller.getSnapshot().record).toMatchObject({
     kind: 'draft',
