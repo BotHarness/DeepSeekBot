@@ -1,4 +1,12 @@
-import { mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it } from 'vitest';
@@ -208,4 +216,15 @@ it('refuses an export confirmation that is missing or not a saved preview', asyn
       join(dir, 'missing.json'),
     ]),
   ).toMatchObject({ ok: false, error: { code: 'backup-io-failed' } });
+});
+
+it('refuses a preview the Host returned without an export confirmation and saves nothing', async () => {
+  const f = await tob(await serveHost(async () => Response.json({ bots: 0 })));
+  const out = join(root(), 'confirmation.json');
+  for (const argv of [['profile-backup-preview'], ['profile-backup-preview', '--out', out]])
+    expect(await f.invoke(argv)).toMatchObject({
+      ok: false,
+      error: { code: 'host-protocol-error' },
+    });
+  expect(existsSync(out)).toBe(false);
 });

@@ -63,7 +63,7 @@ export async function tobCli(origin: string) {
       stderr: () => {},
       readStdin: async () => stdin,
     });
-    return { exitCode, stdout: stdout.join('\n').replaceAll(LAUNCH_TOKEN, '[redacted]') };
+    return { exitCode, stdout: stdout.join('\n') };
   };
   const approve = vi.fn(async (_proposal: unknown) => {});
   const broker = await startTobCliBroker({
