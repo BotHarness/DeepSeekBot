@@ -6,8 +6,10 @@ import {
   buttonStyle,
   controlSize,
   disabled,
+  dynamicTypeSize,
   font,
   frame,
+  imageScale,
   tint,
 } from '@expo/ui/swift-ui/modifiers';
 import { View } from 'react-native';
@@ -68,7 +70,9 @@ export function StepBar({ primary, back, step, note, error }: StepBarProps) {
               <Image
                 systemName="chevron.left"
                 modifiers={[
-                  font({ textStyle: 'body', weight: 'semibold' }),
+                  font({ textStyle: 'largeTitle', weight: 'semibold' }),
+                  dynamicTypeSize({ max: 'xxxLarge' }),
+                  imageScale('medium'),
                   frame({ width: label, height: label }),
                 ]}
               />

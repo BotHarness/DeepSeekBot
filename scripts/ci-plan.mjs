@@ -254,6 +254,7 @@ export const RULES = [
   related('scripts/fixtures/**', 'Script test fixtures'),
   related('scripts/ui-rule-composition.mjs', 'Desktop UI component and settings composition lint'),
   related('scripts/ui-rule-controls.mjs', 'Desktop UI icon and accessibility lint'),
+  related('scripts/ui-rule-mobile-icon-scale.mjs', 'Mobile fixed-slot icon sizing lint'),
   related('scripts/ui-rule-styles.mjs', 'Desktop UI lint and autofix'),
   related('scripts/lint-rules/**', 'Repository oxlint rules'),
   related('scripts/product-provider/**', 'Product provider scripts'),

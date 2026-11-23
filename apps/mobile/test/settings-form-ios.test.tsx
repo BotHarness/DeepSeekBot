@@ -39,6 +39,7 @@ vi.mock('@expo/ui/swift-ui/modifiers', () =>
       'bold',
       'buttonStyle',
       'disabled',
+      'dynamicTypeSize',
       'font',
       'foregroundStyle',
       'frame',
@@ -99,7 +100,13 @@ vi.mock('@expo/ui/swift-ui', () => {
         <option value={value}>{props.children}</option>
       );
     },
-    Image: (props: NativeProps) => <i data-symbol={props.systemName} />,
+    Image: (props: NativeProps) => (
+      <i
+        data-symbol={props.systemName}
+        data-dynamic-type={JSON.stringify(find(props, 'dynamicTypeSize'))}
+        data-frame={JSON.stringify(find(props, 'frame'))}
+      />
+    ),
     Label: (props: NativeProps) => (
       <span data-native="label" data-system-image={props.systemImage}>
         {props.icon}
@@ -250,6 +257,8 @@ it('keeps a wrapped detail in the text column beside the symbol at accessibility
   const button = host.querySelector('[data-testid="settings-storage"]')!;
   expect(button.querySelector('[data-native="label"]')).toBeNull();
   const symbol = button.querySelector('[data-symbol="bell"]')!;
+  expect(symbol.hasAttribute('data-dynamic-type')).toBe(false);
+  expect(symbol.getAttribute('data-frame')).toBe('{"minWidth":50}');
   const column = symbol.nextElementSibling!;
   expect(symbol.parentElement!.getAttribute('data-native')).toBe('hstack');
   expect(column.getAttribute('data-native')).toBe('vstack');

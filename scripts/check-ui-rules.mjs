@@ -8,6 +8,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { compareBaselineCounts } from './baseline-counts.mjs';
 import { catalogueExports, desktopComposition, renderCatalogue } from './ui-rule-composition.mjs';
 import { desktopControls, fixDesktopIcons } from './ui-rule-controls.mjs';
+import { mobileIconScale } from './ui-rule-mobile-icon-scale.mjs';
 import { desktopStyles, fixDesktopStyles } from './ui-rule-styles.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -18,8 +19,9 @@ export const BASELINE = join(root, 'scripts/ui-rules-baseline.json');
 const DS = 'packages/client/src/client/ds';
 const CATALOGUE = `${DS}/README.md`;
 const CATALOGUE_DATA = `${DS}/catalogue.json`;
-const SCAN = ['packages/client/src', 'apps/mobile/app', 'apps/mobile/src/ui'];
+const SCAN = ['packages/client/src', 'apps/mobile/app', 'apps/mobile/src'];
 const MOBILE = /^apps\/mobile\//u;
+const MOBILE_UI = /^apps\/mobile\/(?:app|src\/ui)\//u;
 const PRESSABLE = /^(?:Pressable|Touchable\w*)$/u;
 const TOUCH_TOKEN = /\btheme\.touch\b|\btouch\[/u;
 const SKIP = /(?:\.test|\.spec|\.stories)\.tsx$|\/test\/|\/__tests__\//u;
@@ -100,6 +102,10 @@ export const RULES = {
   touchTarget: {
     help: 'size the pressable to theme.touch (44pt iOS, 48dp Android) or add hitSlop',
     section: 'apps/mobile/DESIGN.md § Code rules 4',
+  },
+  fixedIconScale: {
+    help: 'let the box grow with the glyph (min width/height), or, if the box is truly fixed, fit the glyph with clampScaledIconSize or a SwiftUI dynamicTypeSize ceiling',
+    section: 'apps/mobile/DESIGN.md § Code rules 2',
   },
 };
 
@@ -244,7 +250,12 @@ export function scan(fix = false) {
       let source = readFileSync(path, 'utf8');
       let ast = parseSource(source, file);
       if (MOBILE.test(file))
-        return [...jsxCopy(source, file, ast), ...pressables(source, file, ast)];
+        return [
+          ...(MOBILE_UI.test(file)
+            ? [...jsxCopy(source, file, ast), ...pressables(source, file, ast)]
+            : []),
+          ...(/fontScale|getFontScale|systemName/u.test(source) ? mobileIconScale(file, ast) : []),
+        ];
       let styles = desktopStyles(source, file, ast, walk);
       if (fix) {
         let next = styles.some(({ edit }) => edit)
@@ -348,6 +359,11 @@ if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   }
   const fix = process.argv.includes('--fix');
   const found = scan(fix);
+  const fixedIconProblems = found.filter(({ rule }) => rule === 'fixedIconScale');
+  if (fixedIconProblems.length) {
+    for (const line of fixedIconProblems.map(describeFinding)) console.error(`ui rules: ${line}`);
+    process.exit(1);
+  }
   if (fix && !process.argv.includes('--write')) {
     const problems = found.filter(({ rule }) => rule === 'catalogue').map(describeFinding);
     for (const line of problems) console.error(`ui rules: ${line}`);
