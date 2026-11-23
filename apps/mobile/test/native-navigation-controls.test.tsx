@@ -19,7 +19,8 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   shapes: { capsule: () => ({}) },
   font: () => ({}),
   lineLimit: () => ({}),
-  minimumScaleFactor: () => ({}),
+  dynamicTypeSize: () => ({}),
+  accessibilityHidden: () => ({}),
   foregroundStyle: () => ({}),
   frame: () => ({}),
   monospacedDigit: () => ({}),
@@ -30,7 +31,13 @@ vi.mock('@expo/ui/swift-ui', () => {
     Host: container,
     HStack: container,
     VStack: container,
-    Text: container,
+    Text: ({ children, testID }: { children: ReactNode; testID?: string }) =>
+      createElement('span', { 'data-testid': testID }, children),
+    Popover: Object.assign(
+      ({ children, isPresented }: { children: ReactNode; isPresented: boolean }) =>
+        createElement('div', { 'data-presented': String(isPresented) }, children),
+      { Trigger: container, Content: container },
+    ),
     Image: ({ systemName }: { systemName: string }) => createElement('i', { title: systemName }),
     Button: ({
       onPress,
@@ -177,9 +184,65 @@ it('opens the optional Sessions tab from its own native icon and label', async (
       ),
     );
     const tab = host.querySelector<HTMLButtonElement>('button[aria-label="Sessions"]');
-    expect(tab?.querySelector('i')?.title).toBe('text.quote');
+    expect(tab?.querySelector('i')?.title).toBe('list.bullet.rectangle');
     await act(async () => tab?.click());
     expect(open).toHaveBeenCalledOnce();
+  } finally {
+    act(() => root.unmount());
+  }
+});
+
+it('hides every label together, keeps the spoken name and peeks the label on long press', async () => {
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const longPress = vi.fn();
+  const item = (key: string, kind: { sessions?: boolean; settings?: boolean }) => ({
+    key,
+    focused: key === 'chats',
+    activity: false,
+    ...kind,
+    count: 0,
+    onPress: () => {},
+    onLongPress: longPress,
+  });
+  try {
+    await act(async () =>
+      root.render(
+        <NavigationDestinations
+          labels={false}
+          items={[
+            item('chats', {}),
+            item('sessions', { sessions: true }),
+            item('settings', { settings: true }),
+          ]}
+        />,
+      ),
+    );
+    expect(host.querySelectorAll('[data-testid="tab-label"]')).toHaveLength(0);
+    const names = [...host.querySelectorAll('button')].map((b) => b.getAttribute('aria-label'));
+    expect(names).toEqual(['Chats', 'Sessions', 'Settings']);
+    const sessions = host.querySelector<HTMLButtonElement>('button[aria-label="Sessions"]')!;
+    const peek = () => sessions.closest('[data-presented]')!.getAttribute('data-presented');
+    expect(peek()).toBe('false');
+    await act(async () => sessions.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true })));
+    expect(longPress).toHaveBeenCalledOnce();
+    expect(peek()).toBe('true');
+    expect(sessions.closest('[data-presented]')!.textContent).toContain('Sessions');
+    await act(async () =>
+      root.render(
+        <NavigationDestinations
+          items={[
+            item('chats', {}),
+            item('sessions', { sessions: true }),
+            item('settings', { settings: true }),
+          ]}
+        />,
+      ),
+    );
+    expect(
+      [...host.querySelectorAll('[data-testid="tab-label"]')].map((label) => label.textContent),
+    ).toEqual(['Chats', 'Sessions', 'Settings']);
+    expect(host.querySelector('[data-presented]')).toBeNull();
   } finally {
     act(() => root.unmount());
   }

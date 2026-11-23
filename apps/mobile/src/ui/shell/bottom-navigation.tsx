@@ -32,6 +32,7 @@ import { creationMenuItems } from './creation-menu-items';
 import { CreationMenuButton } from './creation-menu-button';
 import { showAppDialog } from '../primitives/app-dialog';
 import { FloatingTabInset } from './floating-tab-inset';
+import { iosTabIslandHeight, tabIslandLayout } from './tab-island-layout';
 import { useSessionsTab } from '../interface-preferences';
 import { useStrings } from '../strings';
 import { useSelectionFeedback } from '../selection-feedback';
@@ -54,9 +55,15 @@ function NavigationLayout() {
   const sessionsTab = useSessionsTab();
   const theme = useDesignTheme();
   const insets = useSafeAreaInsets();
-  const { fontScale } = useWindowDimensions();
+  const { fontScale, width } = useWindowDimensions();
   const [nativeHeight, setNativeHeight] = useState<number>();
   const android = Platform.OS === 'android';
+  const island = tabIslandLayout({
+    os: android ? 'android' : 'ios',
+    labels: [t.chats, t.activity, ...(sessionsTab ? [t.hostSessions.title] : []), t.settings],
+    width: android ? width : width - insets.left - insets.right,
+    fontScale,
+  });
   const size = android
     ? (nativeHeight ??
       Math.max(
@@ -66,14 +73,9 @@ function NavigationLayout() {
           theme.type.meta.line * fontScale +
           space.x4,
       ))
-    : Math.max(
-        navigationBar.height,
-        theme.type.title.line +
-          theme.type.meta.line * fontScale * (fontScale > 1.3 ? 2 : 1) +
-          space.x5,
-      );
+    : iosTabIslandHeight(island);
   const bottom = android ? 0 : Math.max(insets.bottom, space.x4);
-  const separateCreation = Platform.OS === 'ios' && sessionsTab && theme.largeText;
+  const separateCreation = island.separateCreation;
   const reserved =
     size + bottom + space.x5 + (separateCreation ? navigationBar.height + space.x3 : 0);
   const quickActions = useQuickActionRouting();
@@ -94,6 +96,7 @@ function NavigationLayout() {
                 onNativeHeight={setNativeHeight}
                 sessionsTab={sessionsTab}
                 separateCreation={separateCreation}
+                labels={island.labels}
               />
             )}
             screenOptions={{
@@ -118,6 +121,7 @@ function NavigationLayout() {
 type NavigationBarLayout = TabBarProps & {
   sessionsTab: boolean;
   separateCreation: boolean;
+  labels: boolean;
   size: number;
   bottom: number;
   onNativeHeight(height: number): void;
@@ -137,6 +141,7 @@ function ScopedNavigationBar({
   onNativeHeight,
   sessionsTab,
   separateCreation,
+  labels,
   scope,
 }: NavigationBarLayout & { scope: string }) {
   const t = useStrings();
@@ -272,7 +277,7 @@ function ScopedNavigationBar({
             },
           ]}
         >
-          <NavigationDestinations items={items} />
+          <NavigationDestinations items={items} labels={labels} />
         </View>
         {state.routes[state.index]?.name === '(home)' ? (
           <View
@@ -320,7 +325,7 @@ function ScopedNavigationBar({
           }}
         >
           <NavigationMaterial />
-          <NavigationDestinations items={items} />
+          <NavigationDestinations items={items} labels={labels} />
         </View>
         {separateCreation ? null : create(navigationBar.height)}
       </View>
