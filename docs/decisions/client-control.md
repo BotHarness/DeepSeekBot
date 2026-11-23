@@ -17,13 +17,13 @@ Why: the relay already gives one exact, authenticated, short-lived delivery per 
 
 Enforced by: `client-settings-relay.test.ts` (targeting, revision and deadline refusals, message passthrough, CLI shape, broker read list), `preference-settings-control.test.ts` (registry and end-to-end relay).
 
-## 2. Preferences: theme and notifications are per Client; locale is per Host
+## 2. Preferences: notifications are per Client; locale is per Host; theme stays with appearance-set
 
 _Issue [#4831](https://github.com/BotHarness/DeepSeekBot/issues/4831)._
 
-The `preferences` domain reads and writes three values through their existing owners:
+The `preferences` domain reads three values through their existing owners and writes two of them:
 
-- `theme` (`system`, `light`, `dark`) through `Appearance`, stored in that Client's `botharness:appearance:v1`. Another Client keeps its own theme.
+- `theme` (`system`, `light`, `dark`) is read from `Appearance`, stored in that Client's `botharness:appearance:v1`, so a caller sees every preference in one read. It is not written here: `appearance-set` with `{"preference"}` already writes it through the same owner and revision, and two commands for one value would split the approval and refusal paths. The read says `writeWith: "appearance-set"`, and a `theme` key in the patch refuses `client-settings-invalid-input` with a message naming `appearance-set`.
 - `notifications.enabled` through `DesktopNotificationPrefs`, stored in that Client's `botharness.desktopNotifications`. The command never opens the browser or OS permission prompt: consent belongs to the Human at that device. Turning alerts on with permission `default` refuses `notification-permission-pending`; with `denied` it refuses `notification-permission-denied`; without the API it refuses `notification-unsupported`. Nothing is stored in those cases, and the read shows `permission` and whether alerts are `active`.
 - `locale` through the DSH `LocaleRuntime` of the selected Client. DSH stores an explicit language choice in the Host's settings so it follows the Human to every browser on that Host. The read therefore marks it `scope: "host"`: changing it from one Client changes every Client of that Host. It is offered here because the Client's runtime is the only owner that validates the language list and applies it at once.
 

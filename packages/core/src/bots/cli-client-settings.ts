@@ -1,7 +1,7 @@
 import { CliLiveError } from './cli-live-error.js';
 
 const DOMAINS = {
-  preferences: 'theme, locale and this-Host notification preferences',
+  preferences: 'theme, locale and the Device Notification Preference',
   layout: 'global layout and one Channel workspace layout',
   shortcuts: 'navigation shortcut bindings',
 } as const;
@@ -9,7 +9,7 @@ type Domain = keyof typeof DOMAINS;
 
 const PATCHES: Record<Domain, string> = {
   preferences:
-    'any of {"theme":"system|light|dark","locale":"<locale.available id>","notifications":{"enabled":true|false}}',
+    'any of {"locale":"<locale.available id>","notifications":{"enabled":true|false}}; theme is written by appearance-set {"preference":"system|light|dark"}',
   layout:
     'any of {"global":{...},"rail":{...}} with keys from client-layout-get, plus {"channel":{"id":"<channel id>","open":true|false,"direction":"left|right|above|below","ratio":0.2-0.8}}',
   shortcuts:
@@ -23,7 +23,7 @@ export const CLIENT_SETTINGS_COMMANDS = (Object.keys(DOMAINS) as Domain[]).flatM
   },
   {
     command: `client-${domain}-set` as const,
-    description: `write ${DOMAINS[domain]} to an explicit --client-id with --expected-revision; --patch-stdin takes ${PATCHES[domain]}`,
+    description: `write ${domain === 'preferences' ? 'locale and the Device Notification Preference' : DOMAINS[domain]} to an explicit --client-id with --expected-revision; --patch-stdin takes ${PATCHES[domain]}`,
   },
 ]);
 
@@ -46,7 +46,11 @@ const UNKNOWN_AFTER = [
 export async function runClientSettings(
   command: string,
   rest: string[],
-  values: { 'client-id'?: string; 'patch-stdin'?: boolean; 'expected-revision'?: string },
+  values: {
+    'client-id'?: string;
+    'patch-stdin'?: boolean;
+    'expected-revision'?: string;
+  },
   io: { readStdin?: () => Promise<string> },
   connect: () => Promise<{
     http(path: string, body?: Record<string, unknown>): Promise<{ bytes: Uint8Array }>;

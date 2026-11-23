@@ -17,7 +17,10 @@ it('delivers a revision-bound settings write only to the selected Client and kee
   const ap = host.fetch(request({ action: 'poll', ...a }));
   const bp = host.fetch(request({ action: 'poll', ...b }));
   await Promise.resolve();
-  const settings = { domain: 'shortcuts', patch: { action: 'help', reset: true } };
+  const settings = {
+    domain: 'shortcuts',
+    patch: { action: 'help', reset: true },
+  };
   const response = host.fetch(
     request({
       action: 'request',
@@ -34,13 +37,21 @@ it('delivers a revision-bound settings write only to the selected Client and kee
       action: 'reply',
       ...a,
       requestId: command.id,
-      result: { error: { code: 'shortcut-conflict', message: 'shortcut-conflict: settings' } },
+      result: {
+        error: {
+          code: 'shortcut-conflict',
+          message: 'shortcut-conflict: settings',
+        },
+      },
     }),
   );
   const refused = await response;
   expect(refused.status).toBe(409);
   expect(await refused.json()).toEqual({
-    error: { code: 'shortcut-conflict', message: 'shortcut-conflict: settings' },
+    error: {
+      code: 'shortcut-conflict',
+      message: 'shortcut-conflict: settings',
+    },
   });
   host.dispose();
   expect(await (await bp).json()).toEqual({ command: null });
@@ -84,7 +95,9 @@ it('refuses settings writes without a revision and settings requests without a l
 });
 
 it('sends reads without a revision and writes with the exact patch, revision and deadline', async () => {
-  const http = vi.fn(async () => ({ bytes: new TextEncoder().encode('{"revision":"r2"}') }));
+  const http = vi.fn(async () => ({
+    bytes: new TextEncoder().encode('{"revision":"r2"}'),
+  }));
   const connect = async () => ({ http });
   const expiresAt = Date.now() + 5000;
   await expect(
@@ -96,7 +109,7 @@ it('sends reads without a revision and writes with the exact patch, revision and
     expiresAt,
     settings: { domain: 'layout' },
   });
-  const patch = { theme: 'dark' };
+  const patch = { locale: 'zh' };
   await runClientSettings(
     'client-preferences-set',
     [],
@@ -132,7 +145,10 @@ it('refuses ambiguous targets and flags with the patch shape, and reports a lost
     ).rejects.toMatchObject({ code: 'usage' });
   await expect(
     runClientSettings('client-shortcuts-set', [], { 'client-id': 'c1' }, {}, connect, expiresAt),
-  ).rejects.toMatchObject({ code: 'usage', message: expect.stringContaining('"reset":true') });
+  ).rejects.toMatchObject({
+    code: 'usage',
+    message: expect.stringContaining('"reset":true'),
+  });
   await expect(
     runClientSettings(
       'client-shortcuts-set',
@@ -189,6 +205,9 @@ it('tells a caller the patch shape before any write is attempted', () => {
     CLIENT_SETTINGS_COMMANDS.map(({ command, description }) => [command, description]),
   );
   expect(described['client-shortcuts-set']).toContain('{"action":"<id>","reset":true}');
-  expect(described['client-preferences-set']).toContain('"theme":"system|light|dark"');
+  expect(described['client-preferences-set']).toContain('"locale":"<locale.available id>"');
+  expect(described['client-preferences-set']).toContain(
+    'appearance-set {"preference":"system|light|dark"}',
+  );
   expect(described['client-layout-set']).toContain('"direction":"left|right|above|below"');
 });

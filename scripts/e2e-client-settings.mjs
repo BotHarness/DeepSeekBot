@@ -31,7 +31,10 @@ const cli = async (command, args = [], patch) => {
     process.execPath,
     ['packages/deepseekbot/dist/deepseekbot.mjs', command, '--host', url.origin, ...args],
     {
-      env: { ...process.env, DEEPSEEKBOT_HOST_TOKEN: url.searchParams.get('token') },
+      env: {
+        ...process.env,
+        DEEPSEEKBOT_HOST_TOKEN: url.searchParams.get('token'),
+      },
       maxBuffer: 1024 * 1024,
       windowsHide: true,
     },
@@ -122,11 +125,11 @@ const shot = async (page, name) => {
   await page.screenshot({ path: resolve(out, `${name}.png`) });
 };
 const theme = async (client, preference) => {
-  const { revision } = await ok('client-preferences-get', ['--client-id', client]);
+  const { snapshot } = await ok('appearance-get', ['--client-id', client]);
   return ok(
-    'client-preferences-set',
-    ['--client-id', client, '--patch-stdin', '--expected-revision', revision],
-    { theme: preference },
+    'appearance-set',
+    ['--client-id', client, '--patch-stdin', '--expected-revision', snapshot.config.revision],
+    { preference },
   );
 };
 const both = async (page, client, name) => {
@@ -149,11 +152,16 @@ try {
   const prefsA = await ok('client-preferences-get', ['--client-id', a]);
   assert.equal(prefsA.theme.scope, 'client');
   assert.equal(prefsA.locale.scope, 'host');
-  const dark = await ok(
+  assert.equal(prefsA.theme.writeWith, 'appearance-set');
+  const themeRefusal = await refusal(
     'client-preferences-set',
     ['--client-id', a, '--patch-stdin', '--expected-revision', prefsA.revision],
     { theme: 'dark' },
   );
+  assert.equal(themeRefusal.code, 'client-settings-invalid-input');
+  assert.match(themeRefusal.message, /appearance-set/);
+  await theme(a, 'dark');
+  const dark = await ok('client-preferences-get', ['--client-id', a]);
   assert.equal(dark.theme.preference, 'dark');
   await pageA.waitForFunction(
     () => document.querySelector('style[data-bh-appearance]')?.dataset.bhAppearance === 'dark',
@@ -163,7 +171,7 @@ try {
       await refusal(
         'client-preferences-set',
         ['--client-id', a, '--patch-stdin', '--expected-revision', prefsA.revision],
-        { theme: 'light' },
+        { notifications: { enabled: false } },
       )
     ).code,
     'client-settings-revision-conflict',
@@ -205,7 +213,10 @@ try {
   const reserved = await refusal(
     'client-shortcuts-set',
     ['--client-id', a, '--patch-stdin', '--expected-revision', moved.revision],
-    { action: 'help', binding: { code: 'KeyC', mod: true, alt: false, shift: false } },
+    {
+      action: 'help',
+      binding: { code: 'KeyC', mod: true, alt: false, shift: false },
+    },
   );
   assert.equal(reserved.code, 'shortcut-reserved');
   await pageA.keyboard.down('Alt');
@@ -251,7 +262,10 @@ try {
   );
   assert.equal(layout.activeChannelId, active);
   assert.deepEqual(
-    { direction: layout.channels[active].direction, ratio: layout.channels[active].ratio },
+    {
+      direction: layout.channels[active].direction,
+      ratio: layout.channels[active].ratio,
+    },
     { direction: 'below', ratio: 0.4 },
   );
   await both(pageA, a, '04-layout-channel-moved-below');

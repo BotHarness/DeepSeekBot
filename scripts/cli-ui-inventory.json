@@ -24,7 +24,7 @@
     },
     {
       "id": "client-preferences-selected",
-      "description": "Selected-Client theme, locale (Host-scoped in DSH) and this-Host notification choice through the Client's owners; never opens the permission prompt.",
+      "description": "Selected-Client locale (Host-scoped in DSH) and Device Notification Preference through the Client's owners, with theme read-only (appearance-set writes it); never opens the permission prompt.",
       "scope": "Client",
       "surfaces": [
         "setting:packages/client/src/client/bot-settings-sections.tsx:{t('settings.language')}",

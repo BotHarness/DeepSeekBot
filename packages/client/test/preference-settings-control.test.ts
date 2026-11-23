@@ -1,6 +1,6 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { createAppearanceControl } from '../../core/src/appearance/control.js';
-import { Appearance, APPEARANCE_KEY } from '../src/client/appearance.js';
+import { Appearance } from '../src/client/appearance.js';
 import { mountAppearanceControl } from '../src/client/appearance-control.js';
 import { ClientSettings, clientSettings } from '../src/client/client-settings-control.js';
 import {
@@ -55,29 +55,40 @@ function client(permission: 'default' | 'granted' | 'denied' = 'granted', data =
   const language = locale();
   const settings = new ClientSettings();
   settings.register('preferences', preferenceSettingsDomain(appearance, language, alerts));
-  const live = { expiresAt: Date.now() + 5000, signal: new AbortController().signal };
+  const live = {
+    expiresAt: Date.now() + 5000,
+    signal: new AbortController().signal,
+  };
   return { appearance, alerts, language, settings, data, live };
 }
 
-it('changes theme and notifications on the selected Client only and reads them back after reload', async () => {
+it('changes notifications on the selected Client only and reads them back after reload', async () => {
   const a = client();
   const b = client();
   const before = (await a.settings.execute({ domain: 'preferences' }, undefined, a.live)) as {
     revision: string;
   };
   const after = await a.settings.execute(
-    { domain: 'preferences', patch: { theme: 'dark', notifications: { enabled: true } } },
+    { domain: 'preferences', patch: { notifications: { enabled: true } } },
     before.revision,
     a.live,
   );
   expect(after).toMatchObject({
-    theme: { preference: 'dark', mode: 'dark', scope: 'client' },
-    notifications: { enabled: true, permission: 'granted', active: true, scope: 'client' },
+    theme: {
+      preference: 'system',
+      scope: 'client',
+      writeWith: 'appearance-set',
+    },
+    notifications: {
+      enabled: true,
+      permission: 'granted',
+      active: true,
+      scope: 'client',
+    },
   });
   expect(a.data.values.get(DESKTOP_NOTIFICATIONS_KEY)).toBe('on');
-  expect(b.data.values.has(APPEARANCE_KEY)).toBe(false);
+  expect(b.data.values.has(DESKTOP_NOTIFICATIONS_KEY)).toBe(false);
   expect(await b.settings.execute({ domain: 'preferences' }, undefined, b.live)).toMatchObject({
-    theme: { preference: 'system' },
     notifications: { enabled: false },
   });
   const reloaded = client('granted', a.data);
@@ -141,20 +152,25 @@ it('refuses stale revisions, invalid patches, expired deadlines and an unregiste
   const a = client();
   const write = (patch: unknown, revision = 'old', live = a.live) =>
     a.settings.execute({ domain: 'preferences', patch }, revision, live);
-  await expect(write({ theme: 'dark' })).rejects.toMatchObject({
+  await expect(write({ locale: 'zh' })).rejects.toMatchObject({
     code: 'client-settings-revision-conflict',
   });
   const { revision } = (await a.settings.execute({ domain: 'preferences' }, undefined, a.live)) as {
     revision: string;
   };
-  for (const patch of [{}, { theme: 'blue' }, { motion: 'reduced' }, { notifications: true }])
+  for (const patch of [{}, { motion: 'reduced' }, { notifications: true }])
     await expect(write(patch, revision)).rejects.toMatchObject({
       code: 'client-settings-invalid-input',
     });
-  await expect(
-    write({ theme: 'dark' }, revision, { ...a.live, expiresAt: Date.now() - 1 }),
-  ).rejects.toMatchObject({ code: 'appearance-request-stale' });
+  await expect(write({ theme: 'dark' }, revision)).rejects.toMatchObject({
+    code: 'client-settings-invalid-input',
+    message: expect.stringContaining('appearance-set {"preference":"system|light|dark"}'),
+  });
   expect(a.appearance.getSnapshot().config.preference).toBe('system');
+  await expect(
+    write({ locale: 'zh' }, revision, { ...a.live, expiresAt: Date.now() - 1 }),
+  ).rejects.toMatchObject({ code: 'appearance-request-stale' });
+  expect(a.language.setLocale).not.toHaveBeenCalled();
   await expect(a.settings.execute({ domain: 'layout' }, undefined, a.live)).rejects.toMatchObject({
     code: 'client-settings-unavailable',
   });
@@ -167,11 +183,12 @@ it('runs a selected-Client preference write end to end through the Host relay', 
   const host = createAppearanceControl();
   const data = storage();
   const appearance = new Appearance(data, () => 'light');
+  const language = locale();
   const off = clientSettings.register(
     'preferences',
     preferenceSettingsDomain(
       appearance,
-      locale(),
+      language,
       new DesktopNotificationPrefs(data, api('granted')),
     ),
   );
@@ -185,7 +202,11 @@ it('runs a selected-Client preference write end to end through the Host relay', 
       await host.fetch(
         new Request('http://localhost/api/botharness/appearance-control', {
           method: 'POST',
-          body: JSON.stringify({ action: 'request', expiresAt: Date.now() + 5000, ...body }),
+          body: JSON.stringify({
+            action: 'request',
+            expiresAt: Date.now() + 5000,
+            ...body,
+          }),
         }),
       )
     ).json();
@@ -201,18 +222,21 @@ it('runs a selected-Client preference write end to end through the Host relay', 
         'revision',
       ),
     );
-    const { revision } = await call({ clientId: id, settings: { domain: 'preferences' } });
+    const { revision } = await call({
+      clientId: id,
+      settings: { domain: 'preferences' },
+    });
     expect(
       await call({
         clientId: id,
-        settings: { domain: 'preferences', patch: { theme: 'dark' } },
+        settings: { domain: 'preferences', patch: { locale: 'zh' } },
         expectedRevision: revision,
       }),
-    ).toMatchObject({ theme: { preference: 'dark' } });
+    ).toMatchObject({ locale: { active: 'zh' } });
     expect(
       await call({
         clientId: id,
-        settings: { domain: 'preferences', patch: { theme: 'light' } },
+        settings: { domain: 'preferences', patch: { locale: 'en' } },
         expectedRevision: revision,
       }),
     ).toEqual({
@@ -221,7 +245,7 @@ it('runs a selected-Client preference write end to end through the Host relay', 
         message: 'client-settings-revision-conflict',
       },
     });
-    expect(appearance.getSnapshot().config.preference).toBe('dark');
+    expect(language.getSnapshot().active).toBe('zh');
   } finally {
     release();
     off();

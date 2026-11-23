@@ -2060,14 +2060,14 @@ Connect 使用 Noise XK 加密通道。`deepseekbot connect-status` 的 `connect
 ```sh
 deepseekbot appearance-clients
 deepseekbot client-preferences-get --client-id <id>
-echo '{"theme":"dark"}' | deepseekbot client-preferences-set --client-id <id> --expected-revision <rev> --patch-stdin
+echo '{"notifications":{"enabled":false}}' | deepseekbot client-preferences-set --client-id <id> --expected-revision <rev> --patch-stdin
 deepseekbot client-shortcuts-get --client-id <id>
 echo '{"action":"quick-switcher","binding":{"code":"KeyJ","mod":false,"alt":true,"shift":false}}' | deepseekbot client-shortcuts-set --client-id <id> --expected-revision <rev> --patch-stdin
 deepseekbot client-layout-get --client-id <id>
 echo '{"channel":{"id":"<channel-id>","direction":"below","ratio":0.4}}' | deepseekbot client-layout-set --client-id <id> --expected-revision <rev> --patch-stdin
 ```
 
-- **偏好。** 补丁可包含 `theme`（`system`、`light`、`dark`）、`locale`（`locale.available` 中的 id）和 `notifications: {"enabled": true|false}`。主题和通知只保存在这个 Client。语言是 DSH 的语言选择，DSH 对整个 Host 保存它，所以读取结果标为 `scope: "host"`，这个 Host 的所有 Client 都会跟着变。命令不会弹出浏览器或系统的权限请求：开启通知时，若 Human 尚未在该 Client 允许，返回 `notification-permission-pending`；若 Client 已屏蔽，返回 `notification-permission-denied`；没有通知 API 时返回 `notification-unsupported`。这些情况下不会保存任何内容。
+- **偏好。** 读取结果包含该 Client 的 `theme`，但主题只有一个写入入口：`appearance-set`，补丁为 `{"preference":"system|light|dark"}`（读取结果标为 `writeWith: "appearance-set"`）。补丁可包含 `locale`（`locale.available` 中的 id）和 `notifications: {"enabled": true|false}`；带 `theme` 时返回 `client-settings-invalid-input`，并在消息中指向 `appearance-set`。通知只保存在这个 Client。语言是 DSH 的语言选择，DSH 对整个 Host 保存它，所以读取结果标为 `scope: "host"`，这个 Host 的所有 Client 都会跟着变。命令不会弹出浏览器或系统的权限请求：开启通知时，若 Human 尚未在该 Client 允许，返回 `notification-permission-pending`；若 Client 已屏蔽，返回 `notification-permission-denied`；没有通知 API 时返回 `notification-unsupported`。这些情况下不会保存任何内容。
 - **快捷键。** 读取结果列出每个稳定的操作 id，以及它当前的 `binding`（已停用时为 `null`）、`default`、是否 `custom`、显示用的 `text`、Client 的 `platform` 和 `reserved` 按键。补丁只改一个操作：`{"action","binding":{code,mod,alt,shift}}` 设置，`{"action","binding":null}` 停用，`{"action","reset":true}` 恢复默认。按键已被其他操作占用时返回 `shortcut-conflict`，并在消息中写出占用者，绝不会从对方那里抢走。其他情况分别返回 `shortcut-reserved`、`shortcut-needs-modifier` 和 `shortcut-action-unknown`。停用快速切换后不会退回旧的 Cmd/Ctrl+K。
 - **布局。** Client 处于 Bot 模式时可用。读取结果包含 `activeChannelId`、`global`（`mode`、`sideColumn`、`channelsWidth`、`column`）、`rail`（`order`、`hidden`）和已保存的各 Channel 工作区布局 `channels`。补丁可包含 `global`、`rail` 和一个 `channel`（`id`，以及 `open`、`direction`（`left`/`right`/`above`/`below`）、`ratio`（0.2–0.8）中的任意项）。修改非当前 Channel 不会切换过去，也不会改动其他 Channel 和已收起的面板。未知 Channel 返回 `layout-channel-unknown`。Channel 分屏树、成员面板、间距和各面板高度暂未覆盖。
 

@@ -1,4 +1,4 @@
-import type { Appearance, AppearancePreference } from './appearance.js';
+import type { Appearance } from './appearance.js';
 import {
   ClientSettingsError,
   settingsRevision,
@@ -7,12 +7,14 @@ import {
 import type { DesktopNotificationPrefs } from './desktop-notifications.js';
 
 export interface PreferenceLocale {
-  getSnapshot(): { active: string; locales: readonly { id: string; label: string }[] };
+  getSnapshot(): {
+    active: string;
+    locales: readonly { id: string; label: string }[];
+  };
   setLocale(id: string): void;
 }
 
-const THEMES: readonly AppearancePreference[] = ['system', 'light', 'dark'];
-const PATCH_KEYS = new Set(['theme', 'locale', 'notifications']);
+const PATCH_KEYS = new Set(['locale', 'notifications']);
 
 function object(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -33,10 +35,18 @@ export function preferenceSettingsDomain(
     const language = locale.getSnapshot();
     const alerts = notifications.getSnapshot();
     const state = {
-      theme: { preference: view.config.preference, mode: view.mode, scope: 'client' },
+      theme: {
+        preference: view.config.preference,
+        mode: view.mode,
+        scope: 'client',
+        writeWith: 'appearance-set',
+      },
       locale: {
         active: language.active,
-        available: language.locales.map((entry) => ({ id: entry.id, label: entry.label })),
+        available: language.locales.map((entry) => ({
+          id: entry.id,
+          label: entry.label,
+        })),
         scope: 'host',
       },
       notifications: {
@@ -65,10 +75,12 @@ export function preferenceSettingsDomain(
         !Object.keys(patch).length ||
         Object.keys(patch).some((key) => !PATCH_KEYS.has(key))
       )
-        throw new ClientSettingsError('client-settings-invalid-input');
-      const theme = patch.theme;
-      if (theme !== undefined && !THEMES.includes(theme as AppearancePreference))
-        throw new ClientSettingsError('client-settings-invalid-input');
+        throw new ClientSettingsError(
+          'client-settings-invalid-input',
+          patch && 'theme' in patch
+            ? 'client-settings-invalid-input: theme is written by appearance-set {"preference":"system|light|dark"}; this command takes {"locale":"<id>","notifications":{"enabled":true|false}}'
+            : undefined,
+        );
       const language = patch.locale;
       if (
         language !== undefined &&
@@ -100,8 +112,6 @@ export function preferenceSettingsDomain(
           );
       }
       request.assertLive();
-      if (theme !== undefined && theme !== current.theme.preference)
-        appearance.update({ preference: theme }, appearance.getSnapshot().config.revision);
       if (language !== undefined) locale.setLocale(language as string);
       if (alerts !== undefined && alerts.enabled !== current.notifications.enabled)
         await notifications.setEnabled(alerts.enabled as boolean);

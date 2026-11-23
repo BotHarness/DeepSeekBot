@@ -15,7 +15,7 @@
 
 ## Sub-features
 
-- `client-preferences-get/set`: theme and this-Host notifications per Client; locale is Host-scoped. Enabling notifications never opens the permission prompt and reports pending or denied consent.
+- `client-preferences-get/set`: reads theme (written only by `appearance-set`), writes the Device Notification Preference per Client and the Host-scoped locale. Enabling notifications never opens the permission prompt and reports pending or denied consent.
 - `client-shortcuts-get/set`: stable action ids, effective bindings, set/disable/reset one action, conflict owner, reserved keys.
 - `client-layout-get/set`: global Simple/Advanced layout, rail, and one Channel workspace (move, resize, hide/show) through the mounted Bot mode layout.
 - Tob reads without a card; every `-set` waits for the Human's approval card in the Tob DM.
@@ -26,7 +26,7 @@ Open Tobs in two browsers and enter Bot mode in both. Run `deepseekbot appearanc
 
 ## Driving it with verify-app
 
-Launch and doctor one task-owned instance as in the parent skill, then:
+Launch and doctor one task-owned Host as in the parent skill, then:
 
 ```bash
 BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json node scripts/e2e-client-settings.mjs
@@ -34,7 +34,7 @@ BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json node scripts/e2e-client-
 BH_E2E_INSTANCE=.humanlayer/verify/<name>/instance.json node scripts/e2e-client-settings-tob.mjs --natural
 ```
 
-The first journey opens two isolated browser Clients, changes theme, a shortcut (then presses it) and layout on one, checks refusals (revision, conflict owner, reserved key, unknown Channel, notification consent), reloads and reads every domain back under the new Client id, checks the old and a missing id refuse, and confirms the second Client is unchanged. It saves light and dark screenshots of each state. The Tob journey starts a typed `tob-cli` request (or, with `--natural`, a real model request) for a shortcut change, clicks **Allow once** on the real card, reads back and presses the new key. `--natural` needs a model credential.
+The first journey opens two isolated browser Clients, refuses a theme patch (pointing to `appearance-set`), changes theme through `appearance-set`, a shortcut (then presses it) and layout on one, checks refusals (revision, conflict owner, reserved key, unknown Channel, notification consent), reloads and reads every domain back under the new Client id, checks the old and a missing id refuse, and confirms the second Client is unchanged. It saves light and dark screenshots of each state. The Tob journey starts a typed `tob-cli` request (or, with `--natural`, a real model request) for a shortcut change, clicks **Allow once** on the real card, reads back and presses the new key. `--natural` needs a model credential.
 
 ## Gotchas
 

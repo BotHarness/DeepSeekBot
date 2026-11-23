@@ -4,7 +4,7 @@ section: Added
 
 ## en
 
-- `client-preferences-get/set`, `client-layout-get/set` and `client-shortcuts-get/set` read and change one selected Web or Desktop Client's theme, locale and alerts, its global and per-Channel layout, and its navigation shortcuts through the Client's own settings owners. Writes need the revision from a read, refuse a shortcut that another action already uses (naming that action), never ask the browser for notification permission, and wait for the Human's approval card when Tob runs them ([#4831](https://github.com/BotHarness/DeepSeekBot/issues/4831), [#4832](https://github.com/BotHarness/DeepSeekBot/issues/4832), [#4833](https://github.com/BotHarness/DeepSeekBot/issues/4833)).
+- `client-preferences-get/set`, `client-layout-get/set` and `client-shortcuts-get/set` read one selected Web or Desktop Client's theme and change its locale and alerts (theme stays with `appearance-set`), its global and per-Channel layout, and its navigation shortcuts through the Client's own settings owners. Writes need the revision from a read, refuse a shortcut that another action already uses (naming that action), never ask the browser for notification permission, and wait for the Human's approval card when Tob runs them ([#4831](https://github.com/BotHarness/DeepSeekBot/issues/4831), [#4832](https://github.com/BotHarness/DeepSeekBot/issues/4832), [#4833](https://github.com/BotHarness/DeepSeekBot/issues/4833)).
 
 ## zh
 
