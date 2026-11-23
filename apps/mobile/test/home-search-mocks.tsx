@@ -172,13 +172,18 @@ export async function mockReactNative() {
 }
 
 export function mockHostSession() {
+  const savedHost = () => ({
+    hostId: hostState.hostId,
+    hostName: 'studio',
+    member: hostState.member,
+  });
   return {
     useHostSessions: () =>
       hostState.removed
         ? []
         : [
             {
-              saved: { hostId: hostState.hostId, hostName: 'studio', member: hostState.member },
+              saved: savedHost(),
               client: hostState.live ?? activityClient,
               inbox: { refresh: async () => {} },
               snapshot: hostState.live
@@ -197,9 +202,8 @@ export function mockHostSession() {
           ],
     quietChannels: { get: () => [] },
     useHostSession: () => ({
-      saved: hostState.removed
-        ? null
-        : { hostId: hostState.hostId, hostName: 'studio', member: hostState.member },
+      hosts: hostState.removed ? [] : [savedHost()],
+      saved: hostState.removed ? null : savedHost(),
       client: hostState.live ?? (hostState.actions ? { call, refresh } : undefined),
       inbox: undefined,
     }),

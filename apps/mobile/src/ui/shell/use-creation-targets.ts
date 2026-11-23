@@ -1,12 +1,15 @@
 import { shownHostName } from '@botharness/host-client/ui/design/host-look';
 import { useCloudConversations } from '../../cloud/native-conversations';
+import { computerEnvironmentKey } from '../../host/conversation-environments';
 import { creationTargets } from '../../host/creation-targets';
 import { useHostSession } from '../../host/host-session';
 import { useMemberCreationPermissions } from '../../host/member-permissions';
 import { useHostLook } from '../../host/native-host-look';
 
-export function useCreationTargets() {
-  const { saved, client } = useHostSession();
+export function useCreationTargets(scope = 'all') {
+  const { hosts } = useHostSession();
+  const scopedHost = hosts.find(({ hostId }) => computerEnvironmentKey(hostId) === scope);
+  const { saved, client } = useHostSession(scopedHost?.hostId);
   const look = useHostLook(saved?.hostId);
   const directory = useCloudConversations();
   const permissions = useMemberCreationPermissions(client);

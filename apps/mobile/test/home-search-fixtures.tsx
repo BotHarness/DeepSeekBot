@@ -1,6 +1,8 @@
 import { act } from 'react';
 import { Platform } from 'react-native';
-import { vi } from 'vitest';
+import { expect, vi } from 'vitest';
+import { createHostClient } from '@botharness/host-client/client';
+import { FakeHost } from '../../../packages/host-client/test/fake-host.js';
 import { conversationFilter } from '../src/host/native-conversation-filter';
 import { sectionCollapse } from '../src/host/native-section-collapse';
 import { t } from '../src/ui/strings';
@@ -18,6 +20,56 @@ import {
 } from './home-search-mocks';
 
 export const rowCalls = () => call.mock.calls.filter(([method]) => method !== 'messageSearch');
+
+export async function emptyTeamHost(viewer: 'owner' | 'member', permissions: string[]) {
+  const transport = new FakeHost();
+  transport.methods.set('list', () => ({ bots: [] }));
+  transport.methods.set('channels', () => ({ channels: [] }));
+  transport.methods.set('rosterGet', () => ({
+    pins: [],
+    hidden: [],
+    muted: [],
+    sectionOrder: [],
+    sections: [],
+    topOrder: [],
+  }));
+  if (viewer === 'member') {
+    hostState.member = {
+      humanId: 'member-id',
+      displayName: 'Member',
+      username: 'member',
+      fingerprint: 'a'.repeat(64),
+      mustChangePassword: false,
+    };
+    transport.methods.set('teamMode', () => ({
+      enabled: true,
+      ownerPasswordSet: true,
+      insecureHttpAllowed: false,
+      isolation: 'trial',
+      activeMembers: 1,
+      memberUrls: [],
+      viewer: {
+        kind: 'member',
+        humanId: 'member-id',
+        displayName: 'Member',
+        mustChangePassword: false,
+        owner: false,
+        permissions,
+        roleIds: ['member'],
+        models: { all: true },
+      },
+    }));
+  }
+  const client = createHostClient({
+    routes: ['https://studio.tailnet-example.ts.net'],
+    credential: transport.credential,
+    carrier: transport.carrier,
+  });
+  hostState.live = client;
+  client.start();
+  await vi.waitFor(() => expect(client.getSnapshot().roster?.channels).toEqual([]));
+  return client;
+}
 
 export async function rowMenuAction(view: HTMLElement, key: keyof typeof t.rowActions) {
   if (Platform.OS === 'ios') {
