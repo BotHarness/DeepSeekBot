@@ -75,3 +75,33 @@ it('reports synthetic reads, discovery, writes, environment presence and loopbac
     await rm(home, { recursive: true, force: true });
   }
 });
+
+it.skipIf(process.platform === 'win32')(
+  'reports an immediate loopback refusal without waiting for the deadline',
+  async () => {
+    const home = await mkdtemp(join(tmpdir(), 'm15 B2 refused-'));
+    const server = createServer();
+    try {
+      await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+      const { port } = server.address();
+      await new Promise((resolve) => server.close(resolve));
+      const probe = join(home, probeName);
+      await writeFile(
+        probe,
+        buildShellIsolationProbe({
+          foreignFiles: [],
+          account: join(home, 'bob-account.md'),
+          own: join(home, 'own.txt'),
+          outside: join(home, 'outside.txt'),
+          port,
+        }),
+      );
+      const started = Date.now();
+      const { stdout } = await run('bash', [probe], { env: { PATH: process.env.PATH } });
+      expect(stdout).toContain('"hostApi":"ECONNREFUSED"');
+      expect(Date.now() - started).toBeLessThan(900);
+    } finally {
+      await rm(home, { recursive: true, force: true });
+    }
+  },
+);
