@@ -1,7 +1,7 @@
 import { asrTemplate } from './builtin-templates.js';
 import { templateRequest } from './template-request.js';
 import type { AsrWire } from './presets.js';
-import { MIMO_ASR_MAX_BASE64_BYTES } from './mimo.js';
+import { MIMO_ASR_MAX_BASE64_BYTES, MIMO_ASR_MODEL } from './mimo.js';
 import { audioExtension } from './provider-audio.js';
 import { VoiceError, type StoredProvider } from './provider-types.js';
 
@@ -30,7 +30,13 @@ export function asrHttpRequest(
       audio,
       mime,
       language,
-      model: stored.model,
+      model:
+        stored.model ??
+        (stored.template === undefined
+          ? wire === 'mimo'
+            ? MIMO_ASR_MODEL
+            : 'whisper-1'
+          : undefined),
       format: audioExtension(mime),
     },
     key,

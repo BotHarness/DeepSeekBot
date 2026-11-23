@@ -1,4 +1,5 @@
 import type { VoiceRequestTemplate } from './request-template.js';
+import { withPublicAudioDownload } from './template-download.js';
 import { readBounded, statusError } from './provider-http.js';
 import { MAX_TTS_AUDIO_BYTES, VoiceError } from './provider-types.js';
 
@@ -38,7 +39,7 @@ export async function templateAudio(options: {
   signal: AbortSignal;
 }): Promise<{ audio: Uint8Array; contentType: string | null }> {
   const { result } = options;
-  let response = options.response;
+  const response = options.response;
   if (result.kind === 'audio') return responseAudio(response);
   if (result.kind === 'text')
     throw new VoiceError('provider-bad-response', 'TTS requires an audio result.');
@@ -48,9 +49,10 @@ export async function templateAudio(options: {
       : result.kind === 'url'
         ? 256 * 1024
         : Math.ceil(MAX_TTS_AUDIO_BYTES / 3) * 4;
+  const bytes = await readBounded(response, limit + 16_384);
   let body: unknown;
   try {
-    body = JSON.parse(new TextDecoder().decode(await readBounded(response, limit + 16_384)));
+    body = JSON.parse(new TextDecoder().decode(bytes));
   } catch (error) {
     if (error instanceof VoiceError) throw error;
     throw new VoiceError(
@@ -71,12 +73,13 @@ export async function templateAudio(options: {
         'The provider returned an invalid audio download URL.',
       );
     }
-    response = await options.fetch(url.href, { signal: options.signal, redirect: 'error' });
-    if (!response.ok) {
-      await response.body?.cancel().catch(() => undefined);
-      throw statusError(response.status, `HTTP ${response.status}`);
-    }
-    return responseAudio(response);
+    return withPublicAudioDownload(url, options.signal, options.fetch, async (download) => {
+      if (!download.ok) {
+        await download.body?.cancel().catch(() => undefined);
+        throw statusError(download.status, `HTTP ${download.status}`);
+      }
+      return responseAudio(download);
+    });
   }
   if (value.length > limit)
     throw new VoiceError('audio-too-large', 'The provider returned too much audio.');

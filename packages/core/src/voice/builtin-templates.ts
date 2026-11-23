@@ -1,21 +1,21 @@
 import type { AsrWire, TtsWire } from './presets.js';
 import type { VoiceRequestTemplate } from './request-template.js';
 import type { StoredProvider } from './provider-types.js';
-import { MIMO_ASR_MODEL, MIMO_TTS_MODEL } from './mimo.js';
 import { chineseScript } from './provider-audio.js';
 
 export function ttsTemplate(wire: TtsWire, stored: StoredProvider): VoiceRequestTemplate {
   if (stored.template !== undefined) return stored.template;
+  const baseUrl = stored.baseUrl.replaceAll('{', '%7B').replaceAll('}', '%7D');
   const base: VoiceRequestTemplate = {
     version: 1,
-    url: `${stored.baseUrl}/audio/speech`,
+    url: `${baseUrl}/audio/speech`,
     method: 'POST',
     auth: { kind: 'bearer' },
     headers: {},
     body: {
       kind: 'json',
       value: {
-        model: stored.model ?? 'tts-1',
+        model: '{model}',
         input: '{text}',
         voice: '{voice}',
         response_format: 'mp3',
@@ -26,33 +26,33 @@ export function ttsTemplate(wire: TtsWire, stored: StoredProvider): VoiceRequest
   if (wire === 'fish')
     return {
       ...base,
-      url: `${stored.baseUrl}/v1/tts`,
-      headers: stored.model === undefined ? {} : { model: stored.model },
+      url: `${baseUrl}/v1/tts`,
+      headers: stored.model === undefined ? {} : { model: '{model}' },
       body: { kind: 'json', value: { text: '{text}', format: 'mp3', reference_id: '{voice}' } },
     };
   if (wire === 'elevenlabs')
     return {
       ...base,
-      url: `${stored.baseUrl}/v1/text-to-speech/{voice}?output_format=mp3_44100_128`,
+      url: `${baseUrl}/v1/text-to-speech/{voice}?output_format=mp3_44100_128`,
       auth: { kind: 'header', name: 'xi-api-key', prefix: '' },
       headers: { Accept: 'audio/mpeg' },
       body: {
         kind: 'json',
         value: {
           text: '{text}',
-          ...(stored.model === undefined ? {} : { model_id: stored.model }),
+          ...(stored.model === undefined ? {} : { model_id: '{model}' }),
         },
       },
     };
   if (wire === 'mimo')
     return {
       ...base,
-      url: `${stored.baseUrl}/chat/completions`,
+      url: `${baseUrl}/chat/completions`,
       auth: { kind: 'header', name: 'api-key', prefix: '' },
       body: {
         kind: 'json',
         value: {
-          model: stored.model ?? MIMO_TTS_MODEL,
+          model: '{model}',
           messages: [{ role: 'assistant', content: '{text}' }],
           audio: { format: 'mp3', voice: '{voice}' },
         },
@@ -68,17 +68,18 @@ export function asrTemplate(
   language: string | undefined,
 ): VoiceRequestTemplate {
   if (stored.template !== undefined) return stored.template;
+  const baseUrl = stored.baseUrl.replaceAll('{', '%7B').replaceAll('}', '%7D');
   if (wire === 'mimo')
     return {
       version: 1,
-      url: `${stored.baseUrl}/chat/completions`,
+      url: `${baseUrl}/chat/completions`,
       method: 'POST',
       auth: { kind: 'header', name: 'api-key', prefix: '' },
       headers: {},
       body: {
         kind: 'json',
         value: {
-          model: stored.model ?? MIMO_ASR_MODEL,
+          model: '{model}',
           messages: [
             {
               role: 'user',
@@ -98,7 +99,7 @@ export function asrTemplate(
   const script = chineseScript(language);
   return {
     version: 1,
-    url: `${stored.baseUrl}/audio/transcriptions`,
+    url: `${baseUrl}/audio/transcriptions`,
     method: 'POST',
     auth: { kind: 'bearer' },
     headers: {},
@@ -106,7 +107,7 @@ export function asrTemplate(
       kind: 'multipart',
       fields: {
         file: '{audio}',
-        model: stored.model ?? 'whisper-1',
+        model: '{model}',
         response_format: 'json',
         ...(language === undefined ? {} : { language: language.split('-')[0]! }),
         ...(script === undefined ? {} : { prompt: script }),

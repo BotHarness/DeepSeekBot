@@ -265,6 +265,49 @@ describe('custom request form', () => {
   });
 });
 
+describe('template presence in provider lists', () => {
+  it('offers editing from the presence flag and reads contents through the Owner-only method', async () => {
+    const readTemplate = vi.fn(async () => TEMPLATE);
+    await render(
+      createElement(VoiceProviderSettings, {
+        actions: {
+          addVoiceProvider: vi.fn(),
+          voiceProviders: vi.fn(async () => ({
+            ...VIEW,
+            providers: [
+              {
+                id: 'p1',
+                kind: 'tts',
+                name: 'Speaker',
+                preset: 'custom',
+                wire: 'openai',
+                baseUrl: 'https://tts.example',
+                keySet: true,
+                createdAt: '2026-11-24',
+                hasTemplate: true,
+              },
+            ],
+          })),
+          validateVoiceTemplate: vi.fn(),
+          voiceProviderTemplate: readTemplate,
+          setVoiceProviderTemplate: vi.fn(),
+        } as never,
+        t: zhTranslate,
+      }),
+    );
+    await vi.waitFor(() =>
+      expect(document.querySelector('[data-voice-provider="p1"]')).not.toBeNull(),
+    );
+    expect(document.querySelector('[data-voice-provider="p1"]')?.textContent).toContain(
+      zhTranslate('voice.template.service'),
+    );
+    await click(document.querySelector('[data-voice-provider="p1"] [aria-expanded]'));
+    await click(document.querySelector('[data-voice-template-edit-open="p1"]'));
+    await vi.waitFor(() => expect(readTemplate).toHaveBeenCalledWith('p1'));
+    expect(document.querySelector('[data-voice-template-url]')).not.toBeNull();
+  });
+});
+
 describe('editing a custom request', () => {
   it('loads the stored template, shows header auth fields and saves through the template setter', async () => {
     const setVoiceProviderTemplate = vi.fn(async () => ({}));

@@ -12,6 +12,19 @@ import { z } from 'zod';
 import { VoiceError } from './provider-types.js';
 
 const field = z.string().max(16_384);
+const headerValue = z
+  .string()
+  .max(16_384)
+  .regex(/^[\t\x20-\x7e\x80-\xff]*$/u, 'Header values must contain valid HTTP bytes.');
+
+export function templateUrl(value: string): URL {
+  if (!/^https?:\/\/[^/?#\\\s{}]+(?:[/?]|$)/iu.test(value) || /[\\\s]/u.test(value))
+    throw new VoiceError('invalid-input', 'Use an HTTP(S) URL without credentials or fragment.');
+  const url = new URL(value);
+  if (url.username || url.password || url.hash || /[{}]/u.test(url.origin))
+    throw new VoiceError('invalid-input', 'Use an HTTP(S) URL without credentials or fragment.');
+  return url;
+}
 const name = z
   .string()
   .regex(/^[A-Za-z_][A-Za-z0-9_.:-]*$/u)
@@ -47,21 +60,12 @@ export const voiceRequestTemplateSchema = z
         .object({
           kind: z.literal('header'),
           name: headerName,
-          prefix: z
-            .string()
-            .max(100)
-            .regex(/^[^\r\n]*$/u)
-            .default(''),
+          prefix: headerValue.max(100).default(''),
         })
         .strict(),
       z.object({ kind: z.literal('query'), name }).strict(),
     ]),
-    headers: z
-      .record(
-        headerName,
-        field.refine((value) => !/[\r\n]/u.test(value), 'Header values cannot contain newlines.'),
-      )
-      .default({}),
+    headers: z.record(headerName, headerValue).default({}),
     body: z.discriminatedUnion('kind', [
       z.object({ kind: z.literal('none') }).strict(),
       z.object({ kind: z.literal('json'), value: json }).strict(),
@@ -81,16 +85,7 @@ export const voiceRequestTemplateSchema = z
     if (template.method === 'GET' && template.body.kind !== 'none')
       ctx.addIssue({ code: 'custom', path: ['body'], message: 'GET requests cannot have a body.' });
     try {
-      const url = new URL(template.url.replace(/\{[A-Za-z]+\}/gu, 'value'));
-      const authority = template.url.split('/').slice(0, 3).join('/');
-      if (
-        !['http:', 'https:'].includes(url.protocol) ||
-        url.username ||
-        url.password ||
-        url.hash ||
-        /[{}]/u.test(authority)
-      )
-        throw new Error();
+      templateUrl(template.url);
     } catch {
       ctx.addIssue({
         code: 'custom',
@@ -100,23 +95,19 @@ export const voiceRequestTemplateSchema = z
     }
     if (
       template.auth.kind === 'header' &&
-      /^(host|content-length|cookie|proxy-authorization)$/iu.test(template.auth.name)
+      (/^(host|content-length|cookie|proxy-authorization)$/iu.test(template.auth.name) ||
+        (template.body.kind !== 'none' && /^content-type$/iu.test(template.auth.name)))
     )
       ctx.addIssue({
         code: 'custom',
         path: ['auth', 'name'],
         message: 'This transport header cannot be used for authentication.',
       });
-    const allowed = new Set([
-      'text',
-      'voice',
-      'model',
-      'format',
-      'language',
-      'audio',
-      'audioBase64',
-      'audioDataUrl',
-    ]);
+    const allowed = new Set(
+      template.result.kind === 'text'
+        ? ['model', 'format', 'language', 'audio', 'audioBase64', 'audioDataUrl']
+        : ['text', 'voice', 'model', 'format', 'language'],
+    );
     const scan = (value: unknown, parts: (string | number)[], depth = 0) => {
       if (depth > 16) {
         ctx.addIssue({
@@ -129,7 +120,11 @@ export const voiceRequestTemplateSchema = z
       if (typeof value === 'string') {
         for (const match of value.matchAll(/\{([A-Za-z][A-Za-z0-9_]*)\}/gu))
           if (!allowed.has(match[1]!))
-            ctx.addIssue({ code: 'custom', path: parts, message: 'Unknown placeholder.' });
+            ctx.addIssue({
+              code: 'custom',
+              path: parts,
+              message: 'Unknown or unavailable placeholder for this provider kind.',
+            });
       } else if (Array.isArray(value))
         value.forEach((item, index) => scan(item, [...parts, index], depth + 1));
       else if (value !== null && typeof value === 'object')
@@ -150,7 +145,7 @@ export const voiceRequestTemplateSchema = z
           path: ['headers', key],
           message: 'Set the key under Authentication instead; the Host manages this header.',
         });
-    if (JSON.stringify(template).length > 65_536)
+    if (Buffer.byteLength(JSON.stringify(template), 'utf8') > 65_536)
       ctx.addIssue({ code: 'custom', message: 'Template exceeds 64 KB.' });
   }) satisfies z.ZodType<VoiceRequestTemplate>;
 
@@ -160,7 +155,7 @@ export function validateVoiceTemplate(
 ): VoiceTemplateValidation {
   try {
     const serialized = JSON.stringify(input);
-    if (serialized === undefined || new TextEncoder().encode(serialized).length > 65_536)
+    if (serialized === undefined || Buffer.byteLength(serialized, 'utf8') > 65_536)
       return {
         valid: false,
         errors: [{ path: '', message: 'Template must be JSON up to 64 KB.' }],

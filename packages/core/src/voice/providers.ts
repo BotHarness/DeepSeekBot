@@ -11,7 +11,7 @@ import type {
 } from './catalog.js';
 import { asrHttpRequest } from './provider-asr-request.js';
 import { fetchVoiceCatalog, importCatalogVoice } from './provider-catalog.js';
-import { MIMO_TTS_VOICE } from './mimo.js';
+import { MIMO_TTS_VOICE, MIMO_TTS_MODEL } from './mimo.js';
 import { ttsTemplate, asrTemplate } from './builtin-templates.js';
 import { parseVoiceTemplate, type VoiceRequestTemplate } from './request-template.js';
 import { templateRequest } from './template-request.js';
@@ -584,7 +584,13 @@ export class VoiceProviders {
       {
         text,
         voice: voice ?? (wire === 'mimo' ? MIMO_TTS_VOICE : undefined),
-        model: stored.model,
+        model:
+          stored.model ??
+          (stored.template === undefined
+            ? wire === 'mimo'
+              ? MIMO_TTS_MODEL
+              : 'tts-1'
+            : undefined),
         format: 'mp3',
         language: stored.language,
       },

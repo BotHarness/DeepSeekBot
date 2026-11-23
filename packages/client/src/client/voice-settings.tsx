@@ -95,7 +95,7 @@ interface ProviderRow {
   readonly baseUrl: string;
   readonly keySet: boolean;
   readonly defaultVoice?: string;
-  readonly template?: unknown;
+  readonly hasTemplate?: boolean;
 }
 
 interface PresetRow {
@@ -496,7 +496,7 @@ export function VoiceProviderSettings({
     const state = health[provider.id];
     const presetRow = presetsOf(current, kind).find((entry) => entry.id === provider.preset);
     const presetName =
-      provider.template === undefined
+      provider.hasTemplate !== true
         ? (presetRow?.name ?? provider.preset)
         : t('voice.template.service');
     const missingKey = presetRow?.keyRequired === true && !provider.keySet;
@@ -548,7 +548,7 @@ export function VoiceProviderSettings({
           data={{ 'data-voice-provider-manage': provider.id }}
           control={
             <>
-              {provider.template === undefined || templates === undefined ? null : (
+              {provider.hasTemplate !== true || templates === undefined ? null : (
                 <Button
                   variant="ghost"
                   size="sm"

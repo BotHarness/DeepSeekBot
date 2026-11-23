@@ -360,8 +360,11 @@ describe('deepseekbot voice commands', () => {
     expect(await run('voice-provider-template', [id])).toEqual({ template });
     writeFileSync(file, JSON.stringify({ ...template, method: 'GET', body: { kind: 'none' } }));
     expect(await run('voice-provider-template-set', [id], { 'template-file': file })).toMatchObject(
-      { provider: { template: { method: 'GET' } } },
+      { provider: { hasTemplate: true } },
     );
+    expect(await run('voice-provider-template', [id])).toMatchObject({
+      template: { method: 'GET' },
+    });
     writeFileSync(file, JSON.stringify({ ...template, url: 'file:///private' }));
     expect(await run('voice-template-validate', [], { 'template-file': file })).toMatchObject({
       valid: false,
