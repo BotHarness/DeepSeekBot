@@ -139,4 +139,37 @@ describe('Bot turn telemetry', () => {
     observe('orch', at(2, 'turn/end', { reason: { kind: 'completed' } }));
     expect(captured).toEqual([]);
   });
+
+  it('names the model of the last step and flags a model switch within the turn', () => {
+    const { captured, observe } = harness();
+    const reply = (seq: number, provider: string, model: string) =>
+      at(seq, 'assistant/message', {
+        message: { content: [], source: { provider, model } },
+        usage: { inputTokens: 1, outputTokens: 1, cacheReadTokens: 0 },
+      });
+    observe('orch', at(1, 'turn/start', {}));
+    observe('orch', reply(2, 'opencode-go', 'deepseek-v4.1-flash'));
+    observe('orch', reply(3, 'opencode-go-2', 'deepseek-v4.1-flash'));
+    observe('orch', at(4, 'turn/end', { reason: { kind: 'completed' } }));
+    observe('orch', at(5, 'turn/start', {}));
+    observe('orch', reply(6, 'opencode-go', 'deepseek-v4.1-flash'));
+    observe('orch', reply(7, 'custom-2', 'private-model'));
+    observe('orch', at(8, 'turn/end', { reason: { kind: 'completed' } }));
+    observe('orch', at(9, 'turn/start', {}));
+    observe('orch', at(10, 'turn/end', { reason: { kind: 'completed' } }));
+    expect(
+      captured.map(({ properties }) => [
+        properties['provider_kind'],
+        properties['model_id'],
+        properties['has_model_switch'],
+      ]),
+    ).toEqual([
+      ['opencode_go', 'deepseek-v4.1-flash', false],
+      ['custom', 'custom', true],
+      ['unknown', 'unknown', false],
+    ]);
+    expect(JSON.stringify(captured)).not.toContain('private-model');
+    for (const { properties } of captured)
+      expect(telemetryEventProperties('chat:bot_turn_complete', properties)).toEqual(properties);
+  });
 });

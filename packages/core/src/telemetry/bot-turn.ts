@@ -11,7 +11,8 @@ import {
   contextSourceProperty,
 } from './bot-turn-spec.js';
 import type { DshSessionEvent } from '../sessions/source.js';
-import { reportedBuckets } from '../usage/usage.js';
+import { assistantMessageRoute, reportedBuckets } from '../usage/usage.js';
+import { telemetryModelRoute, type TelemetryModelRoute } from './model-route.js';
 import type { TelemetryService, TelemetryValue } from './service.js';
 
 const MAX_OPEN_TURNS = 200;
@@ -26,6 +27,8 @@ interface OpenTurn {
   cacheRead: number;
   cacheWrite: number;
   unknownUsage: boolean;
+  route: TelemetryModelRoute | undefined;
+  switched: boolean;
 }
 
 export interface BotTurnTelemetry {
@@ -89,6 +92,8 @@ export function createBotTurnTelemetry(options: {
       cache_read_token_count: state.cacheRead,
       cache_write_token_count: state.cacheWrite,
       is_partial: state.unknownUsage,
+      ...(state.route ?? { provider_kind: 'unknown', model_id: 'unknown' }),
+      has_model_switch: state.switched,
     };
     const measured = options.measure(sessionId);
     if (measured !== undefined) {
@@ -133,6 +138,8 @@ export function createBotTurnTelemetry(options: {
             cacheRead: 0,
             cacheWrite: 0,
             unknownUsage: false,
+            route: undefined,
+            switched: false,
           });
           return;
         }
@@ -149,6 +156,17 @@ export function createBotTurnTelemetry(options: {
             state.tools += 1;
             return;
           case 'assistant/message': {
+            const source = assistantMessageRoute(event);
+            if (source !== undefined) {
+              const route = telemetryModelRoute(source.provider, source.model);
+              if (
+                state.route !== undefined &&
+                (state.route.provider_kind !== route.provider_kind ||
+                  state.route.model_id !== route.model_id)
+              )
+                state.switched = true;
+              state.route = route;
+            }
             const usage = reportedBuckets(event);
             if (
               usage.uncachedInputTokens === undefined ||

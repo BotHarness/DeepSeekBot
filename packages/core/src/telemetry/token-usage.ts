@@ -1,4 +1,8 @@
-import type { UsageTelemetryDay, UsageTelemetrySnapshot } from '../usage/telemetry.js';
+import type {
+  UsageTelemetryDay,
+  UsageTelemetryModelDay,
+  UsageTelemetrySnapshot,
+} from '../usage/telemetry.js';
 import type { TelemetryService, TelemetryValue } from './service.js';
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
@@ -23,13 +27,43 @@ export function tokenUsageProperties(day: UsageTelemetryDay): Record<string, Tel
   return properties;
 }
 
-export function startTokenUsage(options: {
-  telemetry: Pick<TelemetryService, 'enabled' | 'capture'>;
-  snapshot: () => UsageTelemetrySnapshot | undefined;
-  intervalMs?: number;
-  log?: (message: string) => void;
-}): () => void {
-  const sent = new Map<string, string>();
+export function modelUsageProperties(row: UsageTelemetryModelDay): Record<string, TelemetryValue> {
+  return {
+    ...tokenUsageProperties(row),
+    provider_kind: row.providerKind,
+    model_id: row.modelId,
+  };
+}
+
+interface ReportRow {
+  day: string;
+  key: string;
+  properties: Record<string, TelemetryValue>;
+}
+
+const ZERO_DAY = {
+  inputTokens: 0,
+  outputTokens: 0,
+  cacheReadTokens: 0,
+  cacheWriteTokens: 0,
+  totalTokens: 0,
+  reportedTotalTokens: 0,
+  unknownTotalCount: 0,
+};
+
+function startSnapshotReport(
+  options: {
+    telemetry: Pick<TelemetryService, 'enabled' | 'capture'>;
+    snapshot: () => UsageTelemetrySnapshot | undefined;
+    intervalMs?: number;
+    log?: (message: string) => void;
+  },
+  event: 'app:token_usage_report' | 'app:model_usage_report',
+  phase: string,
+  rows: (snapshot: UsageTelemetrySnapshot) => ReportRow[],
+  vanished: (key: string) => Record<string, TelemetryValue> | undefined,
+): () => void {
+  const sent = new Map<string, { day: string; signature: string }>();
   const tick = (): boolean => {
     if (!options.telemetry.enabled) {
       sent.clear();
@@ -38,18 +72,26 @@ export function startTokenUsage(options: {
     try {
       const snapshot = options.snapshot();
       if (snapshot === undefined) return false;
-      const { days } = snapshot;
-      const retained = new Set(days.map((day) => day.day));
-      for (const day of sent.keys()) if (!retained.has(day)) sent.delete(day);
-      for (const day of days) {
-        const properties = { ...tokenUsageProperties(day), is_reconciled: snapshot.isReconciled };
+      const retained = new Set(snapshot.days.map((day) => day.day));
+      const current = rows(snapshot);
+      const present = new Set(current.map((row) => row.key));
+      for (const [key, previous] of sent) {
+        if (!retained.has(previous.day)) sent.delete(key);
+        else if (!present.has(key)) {
+          const properties = vanished(key);
+          if (properties === undefined) continue;
+          current.push({ day: previous.day, key, properties });
+        }
+      }
+      for (const row of current) {
+        const properties = { ...row.properties, is_reconciled: snapshot.isReconciled };
         const signature = JSON.stringify(properties);
-        if (sent.get(day.day) === signature) continue;
-        options.telemetry.capture('app:token_usage_report', properties);
-        sent.set(day.day, signature);
+        if (sent.get(row.key)?.signature === signature) continue;
+        options.telemetry.capture(event, properties);
+        sent.set(row.key, { day: row.day, signature });
       }
     } catch {
-      options.log?.('telemetry phase=token-usage-skipped');
+      options.log?.(`telemetry phase=${phase}-skipped`);
     }
     return true;
   };
@@ -62,4 +104,39 @@ export function startTokenUsage(options: {
   };
   run();
   return () => clearTimeout(timer);
+}
+
+type ReportOptions = Parameters<typeof startSnapshotReport>[0];
+
+export function startTokenUsage(options: ReportOptions): () => void {
+  return startSnapshotReport(
+    options,
+    'app:token_usage_report',
+    'token-usage',
+    ({ days }) =>
+      days.map((day) => ({ day: day.day, key: day.day, properties: tokenUsageProperties(day) })),
+    () => undefined,
+  );
+}
+
+export function startModelUsage(options: ReportOptions): () => void {
+  return startSnapshotReport(
+    options,
+    'app:model_usage_report',
+    'model-usage',
+    ({ models }) =>
+      models.map((row) => ({
+        day: row.day,
+        key: JSON.stringify([row.day, row.providerKind, row.modelId]),
+        properties: modelUsageProperties(row),
+      })),
+    (key) => {
+      const [day, providerKind, modelId] = JSON.parse(key) as [
+        string,
+        UsageTelemetryModelDay['providerKind'],
+        string,
+      ];
+      return modelUsageProperties({ ...ZERO_DAY, day, providerKind, modelId });
+    },
+  );
 }
