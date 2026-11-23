@@ -3,7 +3,7 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useRef, useState } from 'react';
 import { Pressable, View, useWindowDimensions } from 'react-native';
 
-import { connectInput } from '../../host/connect-input';
+import { connectInput } from '@botharness/host-client/connect-input';
 import { readPairingImage, type PairingImageResult } from '../../host/pairing-image';
 import type { PairingMethod } from '@botharness/host-client/telemetry/schema';
 import { HOST_NAME_MAX } from '@botharness/host-client/ui/design/host-look';

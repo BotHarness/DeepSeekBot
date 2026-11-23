@@ -93,6 +93,8 @@ export function usePairedDevices({
   const [lanDetails, setLanDetails] = useState(false);
   const [accountHosts, setAccountHosts] = useState<ConnectedHost[]>([]);
   type Setup =
+    | 'phoneWays'
+    | 'phoneAddress'
     | 'app'
     | 'private'
     | 'privateRelay'
@@ -259,7 +261,7 @@ export function usePairedDevices({
     }
   };
 
-  const createOffer = async (): Promise<void> => {
+  const open = (): void => {
     if (preparingRelationshipRoute.current) {
       preparingRelationshipRoute.current = false;
       setSetup('closed');
@@ -269,6 +271,11 @@ export function usePairedDevices({
       setSetup('app');
       return;
     }
+    setSetup('phoneWays');
+  };
+
+  const createOffer = async (): Promise<void> => {
+    setSetup('closed');
     const request = ++offerRequest.current;
     offerAbort.current?.abort();
     const controller = new AbortController();
@@ -303,10 +310,6 @@ export function usePairedDevices({
     }
   };
 
-  const open = (): void => {
-    void createOffer();
-  };
-
   const setLan = async (action: 'enable' | 'disable', proceed = false): Promise<void> => {
     const version = setupVersion.current;
     setBusy('lan');
@@ -327,8 +330,7 @@ export function usePairedDevices({
         setupVersion.current === version &&
         current?.routes.routes.some((route) => route.kind === 'lan' && route.ready)
       ) {
-        setSetup('closed');
-        await createOffer();
+        open();
       }
     } catch {
       if (mounted.current) setError(true);

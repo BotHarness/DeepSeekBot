@@ -411,6 +411,7 @@ export function BotIntro({
   if (phoneOpen)
     return (
       <ConnectionsDialog
+        call={call}
         t={t}
         pairPhone={!phoneRead}
         pairedDeviceId={phoneDevice}

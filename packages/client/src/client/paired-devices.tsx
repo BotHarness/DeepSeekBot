@@ -175,7 +175,7 @@ export type PairedDevicesSettingsProps = PropsLocale<'botharness'> & {
   page?: boolean;
   initialPairing?: boolean;
   initialRemote?: boolean;
-  ownerPasswordSignInCall?: BridgeCall;
+  ownerPasswordSignInCall?: BridgeCall | undefined;
   pairedDeviceId?: string | undefined;
   onDevicePaired?: ((deviceId: string) => void) | undefined;
   onFeedRead?: ((deviceId: string) => void) | undefined;
@@ -327,9 +327,11 @@ export function PairedDevicesSettings({
           setup === 'private' && tunnelStep !== 'choose'
             ? setTunnelStep('choose')
             : setSetup(
-                setup === 'method' || setup === 'app' || setup === 'remote'
-                  ? 'direction'
-                  : 'method',
+                setup === 'phoneAddress'
+                  ? 'phoneWays'
+                  : setup === 'method' || setup === 'app' || setup === 'remote'
+                    ? 'direction'
+                    : 'method',
               )
         }
       >
@@ -340,7 +342,10 @@ export function PairedDevicesSettings({
     <Button
       variant="outline"
       icon={<ChannelSidebarIcon name="arrow-left" size={16} />}
-      onClick={close}
+      onClick={() => {
+        close();
+        if (ready && pairView.state !== 'paired') setSetup('phoneWays');
+      }}
     >
       {t('connections.back')}
     </Button>
@@ -582,6 +587,7 @@ export function PairedDevicesSettings({
             t,
             standalone,
             pairedDeviceId,
+            ownerPasswordSignInCall,
             state,
             setupBack,
             connectControls,

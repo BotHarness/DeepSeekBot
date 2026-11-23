@@ -4,6 +4,7 @@ import type { BotHarnessTranslate } from './locale.js';
 import { PairedDevicesSettings } from './paired-devices.js';
 
 export function ConnectionsDialog({
+  call,
   t,
   onClose,
   pairPhone = false,
@@ -12,6 +13,7 @@ export function ConnectionsDialog({
   onDevicePaired,
   onFeedRead,
 }: {
+  call?: BridgeCall | undefined;
   t: BotHarnessTranslate;
   onClose(): void;
   pairPhone?: boolean | undefined;
@@ -22,6 +24,7 @@ export function ConnectionsDialog({
 }): ReactElement {
   return (
     <PairedDevicesSettings
+      ownerPasswordSignInCall={call}
       pairedDeviceId={pairedDeviceId}
       onDevicePaired={onDevicePaired}
       onFeedRead={onFeedRead}

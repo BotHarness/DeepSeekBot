@@ -10,7 +10,11 @@ type OwnerPasswordDialogProps = {
   error: string | undefined;
   onCancel(): void;
 } & (
-  | { kind: 'standalone'; onSubmit(username: string, password: string): void }
+  | {
+      kind: 'standalone';
+      initialUsername?: string;
+      onSubmit(username: string, password: string): void;
+    }
   | {
       kind: 'team';
       hasPassword: boolean;
@@ -24,7 +28,7 @@ export function OwnerPasswordDialog(props: OwnerPasswordDialogProps): ReactEleme
   const standalone = props.kind === 'standalone';
   const hasPassword = !standalone && props.hasPassword;
   const thenEnable = standalone || props.thenEnable;
-  const [username, setUsername] = useState('');
+  const [username, setUsername] = useState(standalone ? (props.initialUsername ?? '') : '');
   const [current, setCurrent] = useState('');
   const [password, setPassword] = useState('');
   const [confirmation, setConfirmation] = useState('');

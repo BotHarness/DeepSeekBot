@@ -212,9 +212,24 @@ export const zh = {
   'remoteHosts.notifications.unsupported': '此浏览器无法显示通知。',
   'remoteHosts.add.description':
     '粘贴远端 Host「设备」设置或 SSH 命令行生成的配对链接。保持连接运行，并按提示核对指纹。',
-  'remoteHosts.add.link': '配对链接',
+  'remoteHosts.add.link': '配对链接、邀请链接或电脑地址',
+  'remoteHosts.address.password': '使用用户名和密码登录',
+  'remoteHosts.address.approve': '在另一台电脑上批准',
+  'remoteHosts.address.changeAddress': '更改地址',
+  'remoteHosts.address.copyFingerprint': '复制指纹',
+  'remoteHosts.address.backToChoice': '返回登录方式',
+  'remoteHosts.address.pairingLink': '配对链接',
+  'remoteHosts.address.pairingHint':
+    '在另一台电脑上打开「连接手机」并选择「扫描配对码」，然后在这里粘贴链接或读取二维码图片。',
+  'remoteHosts.address.error.ownerDisabled': '对方电脑的 Owner 账密登录已关闭，可改用配对码。',
+  'remoteHosts.address.error.unavailable': '对方电脑未开启账密登录，可改用配对码。',
+  'remoteHosts.address.error.update': '更新对方电脑上的 DeepSeekBot，或改用配对码。',
+  'remoteHosts.address.error.teamOff': '对方电脑已关闭成员登录，联系电脑所有者。',
+  'remoteHosts.address.error.credentials': '用户名或密码错误，检查后再试。',
+  'remoteHosts.address.error.alreadyPaired': '这台电脑已添加，可从电脑列表打开。',
+  'remoteHosts.address.error.fingerprint': '电脑指纹不符，向对方确认地址后再试。',
   'remoteHosts.add.hint': '链接 10 分钟内有效，只能用一次。',
-  'remoteHosts.add.submit': '添加',
+  'remoteHosts.add.submit': '继续',
   'remoteHosts.deviceName': '{name} 的浏览器',
   'remoteHosts.offline': '{name} 现在连不上',
   'remoteHosts.refused': '{name} 已移除这个浏览器，请重新添加',
@@ -469,9 +484,29 @@ export const en = {
   'remoteHosts.notifications.unsupported': 'This browser cannot show notifications.',
   'remoteHosts.add.description':
     'Paste the link from the remote Host’s Devices settings or the SSH CLI. Keep the connection running and compare fingerprints when asked.',
-  'remoteHosts.add.link': 'Pairing link',
+  'remoteHosts.add.link': 'Pairing link, invitation link or computer address',
+  'remoteHosts.address.password': 'Sign in with username and password',
+  'remoteHosts.address.approve': 'Approve on that computer',
+  'remoteHosts.address.changeAddress': 'Change address',
+  'remoteHosts.address.copyFingerprint': 'Copy fingerprint',
+  'remoteHosts.address.backToChoice': 'Back to sign-in options',
+  'remoteHosts.address.pairingLink': 'Pairing link',
+  'remoteHosts.address.pairingHint':
+    'On the other computer, open Connect phone and choose Scan the pairing code. Paste its link here or read the QR image.',
+  'remoteHosts.address.error.ownerDisabled':
+    'Owner password sign-in is off on that computer. Use a pairing code.',
+  'remoteHosts.address.error.unavailable':
+    'Password sign-in is off on that computer. Use a pairing code.',
+  'remoteHosts.address.error.update': 'Update DeepSeekBot on that computer or use a pairing code.',
+  'remoteHosts.address.error.teamOff':
+    'That computer has turned off member sign-in. Ask its owner for access.',
+  'remoteHosts.address.error.credentials': 'Wrong username or password. Check both and try again.',
+  'remoteHosts.address.error.alreadyPaired':
+    'This computer is already connected. Open it from the computer list.',
+  'remoteHosts.address.error.fingerprint':
+    'The computer’s fingerprint does not match. Confirm its address before trying again.',
   'remoteHosts.add.hint': 'The link works once, for 10 minutes.',
-  'remoteHosts.add.submit': 'Add',
+  'remoteHosts.add.submit': 'Continue',
   'remoteHosts.deviceName': 'Browser on {name}',
   'remoteHosts.offline': "Can't reach {name} right now",
   'remoteHosts.refused': '{name} removed this browser. Add it again.',

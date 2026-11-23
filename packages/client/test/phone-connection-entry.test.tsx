@@ -4,6 +4,8 @@ import { type ClientRelationship } from '../../core/src/devices/relationship-con
 import { act } from 'react';
 import { createRoot } from 'react-dom/client';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { fakeTeamMode } from '../../host-client/test/reader-fixtures.js';
+import type { BridgeCall } from '../src/client/bridge-transport.js';
 import { ConnectionsDialog } from '../src/client/connections-dialog.js';
 import { PairedDevicesSettings } from '../src/client/paired-devices.js';
 import { zhTranslate as t } from '../src/client/locale.js';
@@ -137,6 +139,7 @@ it('prepares LAN only after choosing it in Add connection, then shows the invita
   await click('局域网');
   expect(posts).toEqual([]);
   await click('开启并继续');
+  await click(t('connections.phone.scan'));
   expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
   expect(posts.map((item) => item.url)).toEqual([
     './api/botharness/devices/lan',
@@ -171,6 +174,7 @@ it('prepares an approved relationship return route without phone onboarding or a
   await click(t('connections.add'));
   await click(t('connections.invite'));
   await click(t('connections.phoneApp.ready'));
+  await click(t('connections.phone.scan'));
   expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
   expect(posts.map((item) => item.url)).toEqual([
     './api/botharness/devices/lan',
@@ -207,6 +211,7 @@ it('enables LAN explicitly, pairs without Tailscale and disables it through the 
   expect(host.querySelector('[data-pair-route-steps]')).toBeNull();
   await click(t('devices.pair.open'));
   await click(t('connections.phoneApp.ready'));
+  await click(t('connections.phone.scan'));
   expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
   expect(host.querySelector('[role="dialog"]')?.textContent).toContain(t('devices.lan.title'));
   expect(host.querySelector('[role="dialog"]')?.textContent).not.toContain(
@@ -227,6 +232,7 @@ it.each([{ available: [tail] }, { available: [lan, tail] }])(
     await render();
     await click(t('devices.pair.open'));
     await click(t('connections.phoneApp.ready'));
+    await click(t('connections.phone.scan'));
     const dialog = host.querySelector('[role="dialog"]')!;
     expect(dialog.textContent).toContain(t('devices.tailscale.title'));
     expect(dialog.textContent?.includes(t('devices.lan.title'))).toBe(available.includes(lan));
@@ -276,6 +282,7 @@ it('replaces an expired code with a fresh offer', async () => {
   await render();
   await click(t('devices.pair.open'));
   await click(t('connections.phoneApp.ready'));
+  await click(t('connections.phone.scan'));
   expect(host.querySelector('[data-pair-qr]')).toBeNull();
   expect(host.textContent).toContain(t('devices.pair.expired'));
   expiresAt = new Date(Date.now() + 600_000).toISOString();
@@ -292,6 +299,7 @@ it.each(['refused', 'unknown', 'superseded'])(
     await render();
     await click(t('devices.pair.open'));
     await click(t('connections.phoneApp.ready'));
+    await click(t('connections.phone.scan'));
     expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
     offerState = state;
     await act(async () => vi.advanceTimersByTimeAsync(3100));
@@ -310,14 +318,45 @@ it('opens one standalone dialog and reuses an existing route without publishing 
   expect(host.querySelector('[data-phone-app-guide]')).not.toBeNull();
   expect(posts).toEqual([]);
   await click(t('connections.phoneApp.ready'));
+  await click(t('connections.phone.scan'));
   expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
   expect(posts.map((post) => post.url)).toEqual(['./api/botharness/devices/offer']);
   await click(t('connections.back'));
   expect(host.querySelector('[data-pair-qr]')).toBeNull();
-  expect(button(t('connections.add'))).toBeDefined();
+  expect(button(t('connections.phone.address'))).toBeDefined();
   await click(t('common.close'));
   expect(onClose).toHaveBeenCalledOnce();
   expect(posts.some((post) => post.url.endsWith('/lan'))).toBe(false);
+});
+
+it('shows the two phone paths during onboarding and opens Owner password setup from the HTTPS addresses', async () => {
+  routes = [tail, loopback];
+  const call = vi.fn<BridgeCall>(async (method) => ({
+    ok: true,
+    value:
+      method === 'teamMode'
+        ? {
+            ...fakeTeamMode(),
+            enabled: false,
+            ownerPasswordSet: false,
+            memberUrls: [tail.url + '/botharness-device/team/', 'https://127.0.0.1', lan.url],
+          }
+        : { enabled: false },
+  }));
+  await act(async () =>
+    root.render(<ConnectionsDialog t={t} pairPhone call={call} onClose={() => {}} />),
+  );
+  await click(t('connections.phoneApp.ready'));
+  expect(button(t('connections.phone.scan'))).toBeDefined();
+  expect(button(t('connections.phone.address'))).toBeDefined();
+  expect(button(t('connections.join'))).toBeUndefined();
+  await click(t('connections.phone.address'));
+  expect(host.querySelector('[data-phone-address]')?.textContent).toContain(tail.url);
+  expect(host.querySelectorAll('[data-copy-chip]')).toHaveLength(1);
+  expect(host.textContent).toContain(t('connections.phone.ownerOff'));
+  expect(posts).toEqual([]);
+  await click(t('connections.phone.enableOwner'));
+  expect(document.body.textContent).toContain(t('connections.ownerSignIn.setupTitle'));
 });
 
 it('shows preparation without publishing or creating an offer when no phone route exists', async () => {
@@ -329,6 +368,7 @@ it('shows preparation without publishing or creating an offer when no phone rout
   await click(t('connections.advancedMethods'));
   await click('局域网');
   await click('开启并继续');
+  await click(t('connections.phone.scan'));
   expect(host.querySelectorAll('[role="dialog"]')).toHaveLength(1);
   expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
 });
@@ -362,6 +402,8 @@ it('finishes onboarding only after the intended paired device reads Feed, not af
   );
   expect(onFeedRead).not.toHaveBeenCalled();
   await click(t('connections.phoneApp.ready'));
+  expect(button(t('connections.phone.address'))).toBeDefined();
+  await click(t('connections.phone.scan'));
   pairedDevices = [{ id: 'other', name: 'Other', pairedAt: expiresAt, feedReadAt: expiresAt }];
   await act(async () => vi.advanceTimersByTimeAsync(3000));
   expect(onFeedRead).not.toHaveBeenCalled();
@@ -425,9 +467,11 @@ it.each(['phone-entry', 'settings', 'existing-route'] as const)(
     expect(posts).toEqual([]);
     await click(t('connections.phoneApp.ready'));
     expect(host.querySelector('[data-phone-app-guide]')).toBeNull();
-    if (entry === 'existing-route')
-      expect(posts.filter((post) => post.url.endsWith('/offer'))).toHaveLength(1);
-    else {
+    if (entry === 'existing-route') {
+      expect(button(t('connections.phone.scan'))).toBeDefined();
+      expect(button(t('connections.phone.address'))).toBeDefined();
+      expect(posts).toEqual([]);
+    } else {
       expect(posts).toEqual([]);
       expect(button('Tobs Connect')).toBeDefined();
       expect(button('局域网')).toBeUndefined();
@@ -561,6 +605,7 @@ it('lets an existing ready route return to advanced methods without replacing it
     root.render(<ConnectionsDialog t={t} pairPhone onClose={() => undefined} />),
   );
   await click(t('connections.phoneApp.ready'));
+  await click(t('connections.phone.scan'));
   expect(host.querySelector('[data-pair-qr]')).not.toBeNull();
   await click(t('connections.methods'));
   expect(host.querySelector('[data-pair-qr]')).toBeNull();

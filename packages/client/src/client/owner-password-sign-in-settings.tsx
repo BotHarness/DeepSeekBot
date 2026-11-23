@@ -53,8 +53,10 @@ type ConfigureInput =
 export function OwnerPasswordSignInSettings({
   call,
   t,
+  showStatus = false,
 }: {
   call: BridgeCall;
+  showStatus?: boolean;
   t: BotHarnessTranslate;
 }): ReactElement | null {
   const [read, setRead] = useState<SignInRead>({ kind: 'loading' });
@@ -107,7 +109,7 @@ export function OwnerPasswordSignInSettings({
 
   const view = read.kind === 'ready' ? read.value : undefined;
   const username = view && 'username' in view ? view.username : undefined;
-  const title = t('connections.ownerSignIn.title');
+  const title = t(showStatus ? 'connections.phone.ownerSignIn' : 'connections.ownerSignIn.title');
   return (
     <>
       <SettingsRow
@@ -115,11 +117,13 @@ export function OwnerPasswordSignInSettings({
         title={title}
         data={{ 'data-owner-password-sign-in': '' }}
         description={
-          username !== undefined
-            ? t('connections.ownerSignIn.username', { username })
-            : read.kind === 'failed'
-              ? t('connections.ownerSignIn.loadFailed')
-              : undefined
+          showStatus && view !== undefined
+            ? t(view.enabled ? 'connections.phone.ownerOn' : 'connections.phone.ownerOff')
+            : username !== undefined
+              ? t('connections.ownerSignIn.username', { username })
+              : read.kind === 'failed'
+                ? t('connections.ownerSignIn.loadFailed')
+                : undefined
         }
         info={
           username === undefined
@@ -128,7 +132,7 @@ export function OwnerPasswordSignInSettings({
         }
         control={
           view !== undefined ? (
-            username === undefined ? (
+            username === undefined || (showStatus && !view.enabled) ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -137,7 +141,7 @@ export function OwnerPasswordSignInSettings({
                   setSetup(true);
                 }}
               >
-                {t('connections.ownerSignIn.setup')}
+                {t(showStatus ? 'connections.phone.enableOwner' : 'connections.ownerSignIn.setup')}
               </Button>
             ) : (
               <Switch
@@ -167,6 +171,7 @@ export function OwnerPasswordSignInSettings({
         <OwnerPasswordDialog
           kind="standalone"
           t={t}
+          {...(showStatus && username ? { initialUsername: username } : {})}
           busy={busy}
           error={error}
           onCancel={() => {

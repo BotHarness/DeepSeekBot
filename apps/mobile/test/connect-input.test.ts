@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 
-import { connectInput } from '../src/host/connect-input';
+import { connectInput } from '@botharness/host-client/connect-input';
 
 it('routes an invitation link to member sign-in', () => {
   expect(connectInput(' deepseekbot://team?i=abc_123 ')).toEqual({

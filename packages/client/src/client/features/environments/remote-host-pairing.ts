@@ -1,6 +1,10 @@
-import { prepareTeamSignIn, type TeamSignInError } from '@botharness/host-client/team-sign-in';
-import { signInOwnerDevice } from '@botharness/host-client/owner-sign-in';
-import { parseTeamInvitation } from '@botharness/host-protocol/team-invitation';
+import {
+  continueTeamSignIn,
+  prepareTeamSignIn,
+  type TeamSignInError,
+} from '@botharness/host-client/team-sign-in';
+import { discoverHostAddress, signInWithPassword } from '@botharness/host-client/password-sign-in';
+import { parseTeamInvitation, type TeamResult } from '@botharness/host-protocol/team-invitation';
 import { prepareMemberIdentity } from '@botharness/host-client/member-identity';
 import type { HostCarrier } from '@botharness/host-protocol/carrier';
 import type { SavedHost } from '@botharness/host-client/hosts';
@@ -39,7 +43,7 @@ export function createRemoteHostPairing<AutomaticChoice extends { hostId: string
   retireEntry: (entry: HostEntry) => void;
   selectHost: (hostId: string) => void;
   publish: () => void;
-}): Pick<RemoteHosts, 'ownerSignIn' | 'teamSignIn' | 'pair'> {
+}): Pick<RemoteHosts, 'discoverAddress' | 'passwordSignIn' | 'teamSignIn' | 'pair'> {
   const {
     enabled,
     carrier,
@@ -58,23 +62,80 @@ export function createRemoteHostPairing<AutomaticChoice extends { hostId: string
     selectHost,
     publish,
   } = options;
+  const teamOptions = (localHostId?: string, signal?: AbortSignal) => ({
+    carrier,
+    ...(signal ? { signal } : {}),
+    previous: (hostId: string) => readHosts(storage).find((host) => host.hostId === hostId),
+    async commit(
+      host: SavedHost,
+      confirmed: boolean,
+      flowSignal: AbortSignal,
+    ): Promise<TeamResult<SavedHost, TeamSignInError>> {
+      if (host.hostId === localHostId) return { ok: false, code: 'this-host' };
+      if (flowSignal.aborted) return { ok: false, code: 'request-cancelled' };
+      if (
+        hostSettingsDrafts.hasDirty(host.hostId) &&
+        !(await hostSettingsDrafts.prepare(host.hostId))
+      )
+        return { ok: false, code: 'request-cancelled' };
+      const previous = readHosts(storage).find((item) => item.hostId === host.hostId);
+      let refusal: TeamSignInError | undefined;
+      let saved: SavedHost | undefined;
+      try {
+        saved = await persistCredential(host.hostId, previous, (current) => {
+          if (flowSignal.aborted) throw new Error('request-cancelled');
+          const prepared = prepareMemberIdentity(
+            { hosts: current ? [current] : [] },
+            host,
+            confirmed,
+          );
+          if (!prepared.ok) {
+            refusal = prepared.code;
+            throw new Error(prepared.code);
+          }
+          return host;
+        });
+      } catch {
+        return {
+          ok: false,
+          code: refusal ?? (flowSignal.aborted ? 'request-cancelled' : 'storage-failed'),
+        };
+      }
+      const existing = clients.get(host.hostId);
+      if (existing) {
+        const releasing = releaseRemoteHostViewers(existing.client);
+        retireEntry(existing);
+        await releasing.catch(() => undefined);
+      }
+      attach(saved ?? host);
+      selectHost(host.hostId);
+      publish();
+      if (previous && previous.credential !== host.credential) {
+        try {
+          await revoke(previous);
+        } catch {}
+      }
+      return { ok: true, value: saved ?? host };
+    },
+  });
   return {
-    async ownerSignIn(input) {
+    async discoverAddress(input, localHostId, signal) {
+      if (!enabled) return { ok: false, code: 'owner-required' };
+      const result = await discoverHostAddress({ carrier, input, signal });
+      return result.ok && result.value.host.id === localHostId
+        ? { ok: false, code: 'this-host' }
+        : result;
+    },
+    async passwordSignIn(input) {
       if (!enabled) return { ok: false, code: 'owner-required' };
       if (!storage) return { ok: false, code: 'storage-failed' };
       let previous: SavedHost | undefined;
-      const signed = await signInOwnerDevice({
-        ...input,
+      const { discovery, ...credentials } = input;
+      const signed = await signInWithPassword({
+        ...credentials,
+        route: discovery.route,
+        expectedHost: discovery,
         carrier,
-        allowExisting(host) {
-          const client = clients.get(host.hostId)?.client;
-          const connection = client?.getSnapshot().connection;
-          return (
-            !host.member &&
-            connection?.status === 'refused' &&
-            (connection.code === 'device-revoked' || connection.code === 'device-unknown')
-          );
-        },
         previous(hostId, route) {
           const hosts = readHosts(storage);
           previous =
@@ -85,7 +146,38 @@ export function createRemoteHostPairing<AutomaticChoice extends { hostId: string
       });
       if (!signed.ok) return signed;
 
-      const host = signed.value;
+      const { role, ...host } = signed.value;
+      if (input.signal?.aborted) {
+        await revoke(host).catch(() => undefined);
+        return { ok: false, code: 'request-cancelled' };
+      }
+      if (role === 'member') {
+        if (!host.member) {
+          await revoke(host).catch(() => undefined);
+          return { ok: false, code: 'response-invalid' };
+        }
+        return {
+          ok: true,
+          value: {
+            role,
+            flow: continueTeamSignIn(teamOptions(input.localHostId), {
+              ...host,
+              member: host.member,
+            }),
+          },
+        };
+      }
+      if (previous) {
+        const connection = clients.get(previous.hostId)?.client.getSnapshot().connection;
+        if (
+          previous.member ||
+          connection?.status !== 'refused' ||
+          (connection.code !== 'device-revoked' && connection.code !== 'device-unknown')
+        ) {
+          await revoke(host).catch(() => undefined);
+          return { ok: false, code: 'already-paired' };
+        }
+      }
       let saved: SavedHost | undefined;
       let cancelled = false;
       try {
@@ -99,7 +191,7 @@ export function createRemoteHostPairing<AutomaticChoice extends { hostId: string
         saved = await persistCredential(host.hostId, previous, () => {
           if (input.signal?.aborted) throw new Error('request-cancelled');
           const priorRoute = readHosts(storage).find(
-            (item) => item.hostId !== host.hostId && item.routes.includes(input.route),
+            (item) => item.hostId !== host.hostId && item.routes.includes(discovery.route),
           );
           if (priorRoute) throw new Error('connection-host-changed');
           return host;
@@ -125,63 +217,11 @@ export function createRemoteHostPairing<AutomaticChoice extends { hostId: string
       selectHost(saved.hostId);
       publish();
       if (previous) await revoke(previous).catch(() => undefined);
-      return { ok: true, value: saved };
+      return { ok: true, value: { role, host: saved } };
     },
     async teamSignIn(target, localHostId, signal) {
       if (!enabled) return { ok: false, code: 'owner-required' };
-      const preparedFlow = await prepareTeamSignIn({
-        target,
-        carrier,
-        ...(signal ? { signal } : {}),
-        previous: (hostId) => readHosts(storage).find((host) => host.hostId === hostId),
-        async commit(host, confirmed, flowSignal) {
-          if (host.hostId === localHostId) return { ok: false, code: 'this-host' };
-          if (flowSignal.aborted) return { ok: false, code: 'request-cancelled' };
-          if (
-            hostSettingsDrafts.hasDirty(host.hostId) &&
-            !(await hostSettingsDrafts.prepare(host.hostId))
-          )
-            return { ok: false, code: 'request-cancelled' };
-          const previous = readHosts(storage).find((item) => item.hostId === host.hostId);
-          let refusal: TeamSignInError | undefined;
-          let saved: SavedHost | undefined;
-          try {
-            saved = await persistCredential(host.hostId, previous, (current) => {
-              if (flowSignal.aborted) throw new Error('request-cancelled');
-              const prepared = prepareMemberIdentity(
-                { hosts: current ? [current] : [] },
-                host,
-                confirmed,
-              );
-              if (!prepared.ok) {
-                refusal = prepared.code;
-                throw new Error(prepared.code);
-              }
-              return host;
-            });
-          } catch {
-            return {
-              ok: false,
-              code: refusal ?? (flowSignal.aborted ? 'request-cancelled' : 'storage-failed'),
-            };
-          }
-          const existing = clients.get(host.hostId);
-          if (existing) {
-            const releasing = releaseRemoteHostViewers(existing.client);
-            retireEntry(existing);
-            await releasing.catch(() => undefined);
-          }
-          attach(saved ?? host);
-          selectHost(host.hostId);
-          publish();
-          if (previous && previous.credential !== host.credential) {
-            try {
-              await revoke(previous);
-            } catch {}
-          }
-          return { ok: true, value: saved ?? host };
-        },
-      });
+      const preparedFlow = await prepareTeamSignIn({ ...teamOptions(localHostId, signal), target });
       if (preparedFlow.ok) {
         const step = preparedFlow.value.getSnapshot();
         if (step.kind === 'fingerprint' && step.host.id === localHostId) {

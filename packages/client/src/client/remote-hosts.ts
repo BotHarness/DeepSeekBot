@@ -3,7 +3,11 @@ import type {
   TeamSignInFlow,
   TeamSignInError,
 } from '@botharness/host-client/team-sign-in';
-import type { OwnerSignInError, OwnerSignInOptions } from '@botharness/host-client/owner-sign-in';
+import type { OwnerSignInOptions } from '@botharness/host-client/owner-sign-in';
+import type {
+  HostAddressDiscovery,
+  PasswordSignInError,
+} from '@botharness/host-client/password-sign-in';
 import type { TeamResult } from '@botharness/host-protocol/team-invitation';
 import {
   connectionOperationIndexSchema,
@@ -100,16 +104,24 @@ export type {
   RemotePairTrust,
 } from './features/environments/remote-host-types.js';
 
-export type RemoteOwnerSignInError = OwnerSignInError | 'owner-required' | 'storage-failed';
-export type RemoteOwnerSignInInput = Pick<
+export type RemotePasswordSignInError = PasswordSignInError | 'owner-required' | 'storage-failed';
+export type RemotePasswordSignInInput = Pick<
   OwnerSignInOptions,
-  'route' | 'username' | 'password' | 'deviceName' | 'localHostId' | 'signal'
->;
+  'username' | 'password' | 'deviceName' | 'localHostId' | 'signal'
+> & { discovery: HostAddressDiscovery };
+export type RemotePasswordSignIn =
+  | { role: 'owner'; host: SavedHost }
+  | { role: 'member'; flow: TeamSignInFlow };
 
 export interface RemoteHosts {
-  ownerSignIn(
-    input: RemoteOwnerSignInInput,
-  ): Promise<TeamResult<SavedHost, RemoteOwnerSignInError>>;
+  discoverAddress(
+    input: string,
+    localHostId: string | undefined,
+    signal: AbortSignal,
+  ): Promise<TeamResult<HostAddressDiscovery, RemotePasswordSignInError>>;
+  passwordSignIn(
+    input: RemotePasswordSignInInput,
+  ): Promise<TeamResult<RemotePasswordSignIn, RemotePasswordSignInError>>;
   teamSignIn(
     target: TeamSignInTarget,
     localHostId?: string,
@@ -567,7 +579,7 @@ export function createRemoteHosts(options: {
     refreshCredentials();
   };
 
-  const { ownerSignIn, teamSignIn, pair } = createRemoteHostPairing({
+  const { discoverAddress, passwordSignIn, teamSignIn, pair } = createRemoteHostPairing({
     enabled,
     carrier,
     storage,
@@ -835,7 +847,8 @@ export function createRemoteHosts(options: {
         notifications.stop();
       };
     },
-    ownerSignIn,
+    discoverAddress,
+    passwordSignIn,
     teamSignIn,
     pair,
     async forgetLocal(hostId) {

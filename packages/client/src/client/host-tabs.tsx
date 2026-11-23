@@ -26,7 +26,15 @@ import { useMountedResource } from './mounted-resource.js';
 import { createConnectionControl, type ConnectionAttempt } from './connection-control.js';
 import { ConnectionProgress } from './connection-progress.js';
 import { TeamSignInDialog, teamSignInErrorText } from './team-sign-in-dialog.js';
-import { OwnerSignInDialog } from './owner-sign-in-dialog.js';
+import {
+  AddressFingerprint,
+  AddressPasswordSignInDialog,
+  passwordSignInError,
+} from './owner-sign-in-dialog.js';
+import { ChoiceButton } from './ds/choice-button.js';
+import { Note } from './ds/note.js';
+import { connectInput } from '@botharness/host-client/connect-input';
+import type { HostAddressDiscovery } from '@botharness/host-client/password-sign-in';
 import { parseTeamInvitation } from '@botharness/host-protocol/team-invitation';
 import type { TeamSignInTarget } from '@botharness/host-client/team-sign-in';
 export { useThisHost } from './this-host.js';
@@ -366,8 +374,16 @@ export function AddRemoteHostDialog({
   const control = useRef<ReturnType<typeof createConnectionControl>>();
   const attemptId = useRef<string>();
   const [team, setTeam] = useState<TeamSignInTarget>();
-  const [ownerSignIn, setOwnerSignIn] = useState(false);
-  const [manual, setManual] = useState<{ route: string; username: string }>();
+  const [address, setAddress] = useState<
+    { kind: 'choice' | 'password'; discovery: HostAddressDiscovery } | { kind: 'pairing-code' }
+  >();
+  const [discovering, setDiscovering] = useState(false);
+  const discoveryRequest = useRef<AbortController>();
+  const showPairingCode = () => {
+    setAddress({ kind: 'pairing-code' });
+    setAttempt(undefined);
+    setLink('');
+  };
   const mount = useMountedResource<HTMLDivElement>(() => {
     const sources = remoteHosts();
     const owner = createConnectionControl(sources, getThisHost);
@@ -393,6 +409,7 @@ export function AddRemoteHostDialog({
       }
     });
     return () => {
+      discoveryRequest.current?.abort();
       imageRead.current += 1;
       off();
       owner.dispose();
@@ -400,14 +417,17 @@ export function AddRemoteHostDialog({
     };
   }, []);
   const busy =
-    readingImage || attempt?.state === 'connecting' || attempt?.state === 'approve-device';
+    discovering ||
+    readingImage ||
+    attempt?.state === 'connecting' ||
+    attempt?.state === 'approve-device';
   const submit = () => {
     if (attempt?.state === 'connected' || attempt?.saved) {
       onClose();
       return;
     }
     const owner = control.current;
-    if (!owner) return;
+    if (!owner || discoveryRequest.current) return;
     setError(undefined);
     try {
       const request = {
@@ -425,10 +445,40 @@ export function AddRemoteHostDialog({
           request,
         );
       } else {
-        const invitation = teamInvitationLink(link);
+        const input = connectInput(link);
+        const invitationUrl =
+          input.kind === 'invitation'
+            ? link
+                .trim()
+                .replace(/^deepseekbot-dev:/u, 'deepseekbot:')
+                .replace(/^(?:deepseekbot:\/\/\/|\/)team/u, 'deepseekbot://team')
+            : link.trim();
+        const invitation = teamInvitationLink(invitationUrl);
         if (invitation !== undefined) {
-          if (invitation.ok) setTeam({ kind: 'invitation', link: link.trim() });
+          if (invitation.ok) setTeam({ kind: 'invitation', link: invitationUrl });
           else setError(teamSignInErrorText(t, invitation.code));
+          return;
+        }
+        if (input.kind === 'address') {
+          const controller = new AbortController();
+          discoveryRequest.current = controller;
+          setDiscovering(true);
+          void remoteHosts()
+            .discoverAddress(input.address, getThisHost().id, controller.signal)
+            .then((result) => {
+              if (controller.signal.aborted) return;
+              if (!result.ok) setError(passwordSignInError(t, result.code));
+              else if (result.value.signIn?.password === true)
+                setAddress({ kind: 'choice', discovery: result.value });
+              else showPairingCode();
+            })
+            .catch(() => {
+              if (!controller.signal.aborted) setError(t('remoteHosts.error.unreachable'));
+            })
+            .finally(() => {
+              if (discoveryRequest.current === controller) discoveryRequest.current = undefined;
+              setDiscovering(false);
+            });
           return;
         }
         attemptId.current = crypto.randomUUID();
@@ -439,12 +489,14 @@ export function AddRemoteHostDialog({
     }
   };
   const failed = attempt?.state === 'failed' || attempt?.state === 'cancelled';
-  if (ownerSignIn)
+  if (address?.kind === 'password')
     return (
-      <OwnerSignInDialog
+      <AddressPasswordSignInDialog
+        discovery={address.discovery}
         inline={inline}
         footerContainer={footerContainer}
-        onBack={() => setOwnerSignIn(false)}
+        onBack={() => setAddress({ kind: 'choice', discovery: address.discovery })}
+        onPairingCode={showPairingCode}
         onClose={onClose}
         t={t}
       />
@@ -462,43 +514,35 @@ export function AddRemoteHostDialog({
         />
       </div>
     );
-  if (manual !== undefined) {
-    const route = manual.route.trim();
-    const username = manual.username.trim();
+  if (address?.kind === 'choice') {
+    const { discovery } = address;
     return (
-      <div ref={mount}>
-        <FormDialog
-          title={t('teamSignIn.titleGeneric')}
-          description={t('teamSignIn.manualHint')}
-          inline={inline}
-          showCancel={!inline}
-          footerContainer={footerContainer}
-          labels={{ close: t('common.close'), cancel: t('connections.back') }}
-          submitLabel={t('teamSignIn.continue')}
-          submitDisabled={route.length === 0 || username.length === 0}
-          onCancel={() => setManual(undefined)}
-          onClose={onClose}
-          onSubmit={() => setTeam({ kind: 'address', route, username })}
-          submitData={{ 'data-team-manual-submit': '' }}
-        >
-          <TextField
-            label={t('teamSignIn.address')}
-            hint={t('teamSignIn.addressHint')}
-            placeholder="https://"
-            inputMode="url"
-            autoComplete="url"
-            value={manual.route}
-            onChange={(value) => setManual({ ...manual, route: value })}
-            initialFocus
-          />
-          <TextField
-            label={t('teamSignIn.username')}
-            autoComplete="username"
-            value={manual.username}
-            onChange={(value) => setManual({ ...manual, username: value })}
-          />
-        </FormDialog>
-      </div>
+      <FormDialog
+        title={t('connections.join')}
+        inline={inline}
+        footerContainer={footerContainer}
+        labels={{ close: t('common.close'), cancel: t('remoteHosts.address.changeAddress') }}
+        submitLabel={t('remoteHosts.add.submit')}
+        onCancel={() => setAddress(undefined)}
+        onClose={onClose}
+      >
+        <div role="status">
+          <strong>{discovery.host.name}</strong>
+          <Note>{discovery.route}</Note>
+        </div>
+        <ChoiceButton
+          title={t('remoteHosts.address.password')}
+          leading={<ChannelSidebarIcon name="key-round" />}
+          onClick={() => setAddress({ kind: 'password', discovery })}
+          data={{ 'data-modal-autofocus': '' }}
+        />
+        <ChoiceButton
+          title={t('remoteHosts.address.approve')}
+          leading={<ChannelSidebarIcon name="scan-line" />}
+          onClick={showPairingCode}
+        />
+        <AddressFingerprint discovery={discovery} t={t} />
+      </FormDialog>
     );
   }
   return (
@@ -507,7 +551,15 @@ export function AddRemoteHostDialog({
       inline={inline}
       footerContainer={footerContainer}
       showCancel={!inline}
-      description={!attempt ? t('connections.joinHint') : undefined}
+      description={
+        !attempt
+          ? t(
+              address?.kind === 'pairing-code'
+                ? 'remoteHosts.address.pairingHint'
+                : 'connections.joinHint',
+            )
+          : undefined
+      }
       labels={{
         close: t('common.close'),
         cancel: t(onBack ? 'connections.back' : 'common.cancel'),
@@ -520,6 +572,7 @@ export function AddRemoteHostDialog({
             : 'remoteHosts.add.submit',
       )}
       submitDisabled={link.trim().length === 0 || busy}
+      busy={discovering}
       error={
         error ??
         (failed && !attempt.saved
@@ -533,6 +586,7 @@ export function AddRemoteHostDialog({
     >
       <div ref={mount}>
         <ConnectionProgress t={t} joining step={!attempt || failed ? 0 : attempt.saved ? 2 : 1} />
+        {discovering ? <Note>{t('connections.reading')}</Note> : null}
         {attempt?.state === 'verify-host' ? (
           <div role="status">
             <p>{attempt.hostName}</p>
@@ -556,10 +610,18 @@ export function AddRemoteHostDialog({
         ) : !attempt || failed ? (
           <>
             <TextField
-              label={t('remoteHosts.add.link')}
-              hint={t('remoteHosts.add.hint')}
+              label={t(
+                address?.kind === 'pairing-code'
+                  ? 'remoteHosts.address.pairingLink'
+                  : 'remoteHosts.add.link',
+              )}
               value={link}
-              onChange={setLink}
+              onChange={(value) => {
+                setLink(value);
+                setAttempt(undefined);
+                setError(undefined);
+              }}
+              disabled={discovering}
               initialFocus={true}
             />
             <input
@@ -593,26 +655,11 @@ export function AddRemoteHostDialog({
             />
             <Button
               variant="outline"
-              disabled={readingImage}
+              disabled={busy}
               icon={<ChannelSidebarIcon name="image" size={16} />}
               onClick={() => imageInput.current?.click()}
             >
               {t(readingImage ? 'remoteHosts.add.readingImage' : 'remoteHosts.add.image')}
-            </Button>
-            <Button
-              variant="ghost"
-              icon={<ChannelSidebarIcon name="user" size={16} />}
-              onClick={() => setOwnerSignIn(true)}
-            >
-              {t('ownerSignIn.title')}
-            </Button>
-            <Button
-              variant="ghost"
-              data-team-manual=""
-              icon={<ChannelSidebarIcon name="user" size={16} />}
-              onClick={() => setManual({ route: '', username: '' })}
-            >
-              {t('teamSignIn.useUsername')}
             </Button>
           </>
         ) : (

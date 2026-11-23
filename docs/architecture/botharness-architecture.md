@@ -656,7 +656,7 @@ Under [ADR-0302](../decisions/genui.md#adr-0302), the diagram-authoring slice se
 
 [ADR-0199](../decisions/connections.md#adr-0199) 已由 [#1652](https://github.com/BotHarness/DeepSeekBot/issues/1652) 实现：配对的手机不持有任何 DSH 凭据。应用定义的 Device Pairing 模块（`packages/core/src/devices/`）经 DSH 公开的 `webServer.register`／`registerUpgrade` 在同一 `dsh web` 监听器上提供设备网关：设备在 BotHarness 前缀下以 `Authorization: Device <id>.<secret>` 调用与 Web Client 相同的 unary 信封和 Remote stream mux 帧；模块每次按运维数据库中的设备记录（只存哈希）校验并更新最近使用时间，再用 Host 内存中经 `connection.authenticatedUrl()` 自行换取的 loopback cookie 转发至原生 `/api` 与 `/api/remote.mux`。DSH 签名 cookie 的密钥本就跨 Host 重启保留，但 cookie 不标识设备，且 stream 升级不经过 `connection/request`，故不能把 cookie 交给设备。撤销立即拒绝后续请求（编码 401：`device-revoked`／`device-unknown`／`device-credential-missing`），并关闭该设备已打开的 stream socket。配对邀请、列表与撤销只在已认证的 `/api` carrier 上提供给 Human：Web Client「设置 → 设备」显示一次性、10 分钟有效的二维码（即 `deepseekbot://pair?p=…` 深链接，携带 Host 标识与按序路由），列出设备的配对与最近使用时间，并可撤销。见 [#1644](https://github.com/BotHarness/DeepSeekBot/issues/1644)。
 
-The application-defined `ConnectionsDialog` presents pairing and device management independently of the Bot Settings sidebar. The Control Rail mobile-download popover opens it with a primary Start pairing action; Bot Settings opens the same surface. An already usable route opens an offer through the existing Devices owner; without one, the Human explicitly prepares a route first. Closing the dialog releases its Client polling without stopping the route or revoking a paired device. No new persistence or authorization owner is introduced.
+The application-defined `ConnectionsDialog` presents pairing and device management independently of the Bot Settings sidebar. The Control Rail mobile-download popover opens it with a primary Start pairing action; Bot Settings opens the same surface. After a route is ready, the Connections dialog and onboarding Phone step offer QR pairing or address entry. Choosing QR creates an offer through the Devices owner. Address entry reads the eligible HTTPS origins and Owner password status through the existing Team and Owner settings reads. Closing the dialog releases its Client polling without stopping the route or revoking a paired device.
 
 托管 Connect 在既有路由列表增加 Cloudflare Tunnel。WorkOS 与中继只负责发现 Host、签发绑定账号和 verifier 的配对请求；它们不能授予设备权限。依照 [ADR-0244](../decisions/connections.md#adr-0244)，手机或可信本机浏览器先独立核对 Host 指纹，再由 Host 批准准确的设备公钥。Connect origin 只开放公开身份元数据及加密通道，不接受明文应用调用。大陆可达性、原生设备和实际云端发布分别验收。
 
@@ -665,6 +665,8 @@ The application-defined `ConnectionsDialog` presents pairing and device manageme
 桌面、iOS 和 Android 在添加 Remote Host 时共用 Host 身份验证与账密登录流程。应用定义的 Team Service 持有 Host 登录策略和 Member Credential。客户端根据已固定的公钥、独立核对的指纹、Host 登录链接或可信 HTTPS 来源验证 Host，再通过设备网关的 Noise 通道提交账密。Cloudflare Tunnel、Tailscale 和内网 HTTP 都可承载这条通道。
 
 Host 按当前 Human 身份签发与客户端设备公钥绑定的 Paired Device 授权。设备授权由现有设备模块持有，并记录签发方式，供 Owner 改密时选择性撤销。Team mode 自动开启账密登录。Team mode 关闭后，Host 根据独立的 Owner 设置决定是否接收新的 Owner 账密登录。见[连接决策](../decisions/connections.md#remote-host-password-sign-in-uses-the-same-encrypted-device-channel-on-every-route)和 [Team mode 决策](../decisions/team-mode.md#host-password-sign-in-and-team-mode)。
+
+[#4982](https://github.com/BotHarness/DeepSeekBot/issues/4982) 让桌面与手机共用连接输入分类。桌面按输入进入关系配对、Team 邀请或 HTTPS 发现。账密提交前再次比对发现时的 Host 标识和公钥。Host 返回的 Owner 授权由 Remote Host 凭据存储接管；成员授权先进入既有 Team 登录状态机，完成首次改密和身份切换确认后再保存。
 
 ### 手机推送
 

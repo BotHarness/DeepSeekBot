@@ -68,28 +68,34 @@ const CANCELLED: TeamSignInState = { kind: 'cancelled' };
 
 export function TeamSignInDialog({
   target,
+  continuation,
+  onPasswordChanged,
   onDone,
   onClose,
   inline = false,
   footerContainer,
   t,
 }: {
-  readonly target: TeamSignInTarget;
+  readonly onPasswordChanged?: () => void;
   readonly onDone: (hostId: string, hostName: string) => void;
   readonly onClose: () => void;
   readonly inline?: boolean;
   readonly footerContainer?: HTMLElement | null | undefined;
   readonly t: BotHarnessTranslate;
-}): ReactElement {
-  const [flow, setFlow] = useState<TeamSignInFlow>();
+} & (
+  | { target: TeamSignInTarget; continuation?: never }
+  | { target?: never; continuation: { flow: TeamSignInFlow; password: string } }
+)): ReactElement {
+  const [flow, setFlow] = useState<TeamSignInFlow | undefined>(continuation?.flow);
   const [startError, setStartError] = useState<string>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState(continuation?.password ?? '');
   const [next, setNext] = useState('');
   const [confirm, setConfirm] = useState('');
   const [switching, setSwitching] = useState(false);
   const mount = useMountedResource<HTMLSpanElement>(() => {
+    if (target === undefined) return;
     const controller = new AbortController();
     let started: TeamSignInFlow | undefined;
     void remoteHosts()
@@ -174,6 +180,7 @@ export function TeamSignInDialog({
       void run(() => flow.changePassword({ current: password, next })).then((ok) => {
         if (!ok) return;
         setPassword('');
+        onPasswordChanged?.();
         setNext('');
         setConfirm('');
       });

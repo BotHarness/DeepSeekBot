@@ -36,6 +36,7 @@ export interface OwnerSignInOptions {
   password: string;
   deviceName: string;
   localHostId?: string;
+  expectedHost?: { host: TeamHostIdentity; publicKey: string };
   previous?: (hostId: string, route: string) => SavedHost | undefined;
   allowExisting?: (host: SavedHost) => boolean;
   signal?: AbortSignal;
@@ -113,6 +114,14 @@ export async function withPasswordSignInChannel<T, E extends string>(
     if (!discovered.ok) return discovered;
     const { host, publicKey, signIn } = discovered.value;
     if (host.id === options.localHostId) return { ok: false, code: 'this-host' };
+    const expected = options.expectedHost;
+    if (
+      expected &&
+      (expected.host.id !== host.id ||
+        expected.host.fingerprint !== host.fingerprint ||
+        expected.publicKey !== publicKey)
+    )
+      return { ok: false, code: 'fingerprint-mismatch' };
     const previous = options.previous?.(host.id, route);
     if (!matchesSavedSignInHost(previous, host, publicKey))
       return { ok: false, code: 'fingerprint-mismatch' };

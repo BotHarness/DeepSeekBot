@@ -8,7 +8,7 @@ export const zh = {
   'intro.step.model': '模型',
   'intro.step.phone': '手机',
   'intro.phone.title': '用手机连接这台电脑',
-  'intro.phone.body': '可选。连接后，在手机上打开 Bot 列表即可继续。',
+  'intro.phone.body': '用配对码或电脑地址连接，再在手机上打开 Bot 列表。',
   'intro.phone.connected': '手机已读到这台电脑的内容。',
   'intro.phone.connect': '连接手机',
   'intro.phone.skip': '暂时跳过',
@@ -412,7 +412,8 @@ export const en = {
   'intro.step.model': 'Model',
   'intro.step.phone': 'Phone',
   'intro.phone.title': 'Connect your phone',
-  'intro.phone.body': 'Optional. Connect, then open your Bot list on your phone.',
+  'intro.phone.body':
+    'Connect with a pairing code or this computer’s address, then open your Bot list on your phone.',
   'intro.phone.connected': 'Your phone has loaded this computer’s content.',
   'intro.phone.connect': 'Connect phone',
   'intro.phone.skip': 'Skip for now',

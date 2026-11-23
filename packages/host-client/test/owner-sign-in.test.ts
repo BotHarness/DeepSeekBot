@@ -311,6 +311,19 @@ describe('HTTPS address discovery and unified sign-in', () => {
     expect(test.openSocket).not.toHaveBeenCalled();
   });
 
+  it('refuses a different Host after the address was discovered', async () => {
+    const test = host({ passwordAvailable: true });
+    const result = await signInWithPassword({
+      ...test.input,
+      expectedHost: {
+        host: { ...test.identity, id: 'different-host' },
+        publicKey: test.encryption.publicKey,
+      },
+    });
+    expect(result).toEqual({ ok: false, code: 'fingerprint-mismatch' });
+    expect(test.openSocket).not.toHaveBeenCalled();
+  });
+
   it('uses the unified frame and saves the Owner grant', async () => {
     const test = host({ passwordAvailable: true });
     expect(await signInWithPassword(test.input)).toMatchObject({
