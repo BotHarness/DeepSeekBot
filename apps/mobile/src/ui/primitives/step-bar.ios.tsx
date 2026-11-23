@@ -86,7 +86,9 @@ export function StepBar({ primary, back, step, note, error }: StepBarProps) {
             onPress={primary.onPress}
             modifiers={[
               buttonStyle(glass ? 'glassProminent' : 'borderedProminent'),
-              buttonBorderShape(border.shape, border.cornerRadius),
+              border.shape === 'capsule'
+                ? buttonBorderShape(border.shape)
+                : buttonBorderShape(border.shape, border.cornerRadius),
               controlSize('large'),
               tint(theme.color.accent),
               disabled(Boolean(primary.disabled || primary.busy)),

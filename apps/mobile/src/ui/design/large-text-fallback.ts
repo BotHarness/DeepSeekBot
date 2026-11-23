@@ -8,10 +8,11 @@ export function capsuleRadius(fontScale: number): number {
   return accessibilityTextSize(fontScale) ? largeTextFallback.radius : radius.round;
 }
 
-export function capsuleBorderShape(fontScale: number): {
-  shape: 'capsule' | 'roundedRectangle';
-  cornerRadius?: number;
-} {
+export type CapsuleBorderShape =
+  | { shape: 'capsule' }
+  | { shape: 'roundedRectangle'; cornerRadius: number };
+
+export function capsuleBorderShape(fontScale: number): CapsuleBorderShape {
   return accessibilityTextSize(fontScale)
     ? { shape: 'roundedRectangle', cornerRadius: largeTextFallback.radius }
     : { shape: 'capsule' };

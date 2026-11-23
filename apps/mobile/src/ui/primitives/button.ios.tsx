@@ -105,7 +105,13 @@ function SwiftUIButton({
         onPress={onPress}
         modifiers={[
           buttonStyle(style),
-          ...(bezel ? [buttonBorderShape(border.shape, border.cornerRadius)] : []),
+          ...(bezel
+            ? [
+                border.shape === 'capsule'
+                  ? buttonBorderShape(border.shape)
+                  : buttonBorderShape(border.shape, border.cornerRadius),
+              ]
+            : []),
           controlSize('large'),
           tint(tone === 'danger' ? theme.color.danger : theme.color.accent),
           controlDisabled(disabled || busy),
