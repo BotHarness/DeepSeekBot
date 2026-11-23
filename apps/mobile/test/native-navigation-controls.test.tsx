@@ -20,7 +20,7 @@ vi.mock('@expo/ui/swift-ui/modifiers', () => ({
   shapes: { capsule: () => ({}) },
   font: () => ({}),
   lineLimit: () => ({}),
-  minimumScaleFactor: () => ({}),
+  dynamicTypeSize: () => ({}),
   foregroundStyle: () => ({}),
   frame: () => ({}),
   monospacedDigit: () => ({}),
@@ -31,16 +31,27 @@ vi.mock('@expo/ui/swift-ui', () => {
     Host: container,
     HStack: container,
     VStack: container,
-    Text: container,
+    Text: ({ children, testID }: { children: ReactNode; testID?: string }) =>
+      createElement('span', { 'data-testid': testID }, children),
+    ContextMenu: Object.assign(
+      ({ children }: { children: ReactNode }) =>
+        createElement('div', { 'data-context-menu': true }, children),
+      {
+        Trigger: container,
+        Items: ({ children }: { children: ReactNode }) => createElement('menu', null, children),
+      },
+    ),
     Image: ({ systemName }: { systemName: string }) => createElement('i', { title: systemName }),
     Button: ({
       onPress,
       children,
-      modifiers,
+      label,
+      modifiers = [],
     }: {
       onPress(): void;
-      children: ReactNode;
-      modifiers: { $type: string; label?: string; traits?: string[]; onLongPress?: () => void }[];
+      children?: ReactNode;
+      label?: string;
+      modifiers?: { $type: string; label?: string; traits?: string[]; onLongPress?: () => void }[];
     }) =>
       createElement(
         'button',
@@ -52,7 +63,7 @@ vi.mock('@expo/ui/swift-ui', () => {
             (m) => m.$type === 'accessibilityAddTraits' && m.traits?.includes('isSelected'),
           ),
         },
-        children,
+        children ?? label,
       ),
   };
 });
@@ -178,9 +189,51 @@ it('opens the optional Sessions tab from its own native icon and label', async (
       ),
     );
     const tab = host.querySelector<HTMLButtonElement>('button[aria-label="Sessions"]');
-    expect(tab?.querySelector('i')?.title).toBe('text.quote');
+    expect(tab?.querySelector('i')?.title).toBe('list.bullet.rectangle');
     await act(async () => tab?.click());
     expect(open).toHaveBeenCalledOnce();
+  } finally {
+    act(() => root.unmount());
+  }
+});
+
+it('hides every label together, keeps the spoken name and offers each name in a context menu', async () => {
+  const host = document.createElement('div');
+  const root = createRoot(host);
+  const selected: string[] = [];
+  const item = (key: string, kind: { sessions?: boolean; settings?: boolean }) => ({
+    key,
+    focused: key === 'chats',
+    activity: false,
+    ...kind,
+    count: 0,
+    onPress: () => selected.push(key),
+    onLongPress: () => {},
+  });
+  const items = [
+    item('chats', {}),
+    item('sessions', { sessions: true }),
+    item('settings', { settings: true }),
+  ];
+  try {
+    await act(async () => root.render(<NavigationDestinations labels={false} items={items} />));
+    expect(host.querySelectorAll('[data-testid="tab-label"]')).toHaveLength(0);
+    const tabs = [...host.querySelectorAll('[data-context-menu] button[aria-label]')];
+    expect(tabs.map((b) => b.getAttribute('aria-label'))).toEqual([
+      'Chats',
+      'Sessions',
+      'Settings',
+    ]);
+    const menu = host.querySelectorAll('menu')[1]!;
+    const entry = menu.querySelector('button')!;
+    expect(entry.textContent).toBe('Sessions');
+    await act(async () => entry.click());
+    expect(selected).toEqual(['sessions']);
+    await act(async () => root.render(<NavigationDestinations items={items} />));
+    expect(
+      [...host.querySelectorAll('[data-testid="tab-label"]')].map((label) => label.textContent),
+    ).toEqual(['Chats', 'Sessions', 'Settings']);
+    expect(host.querySelector('[data-context-menu]')).toBeNull();
   } finally {
     act(() => root.unmount());
   }

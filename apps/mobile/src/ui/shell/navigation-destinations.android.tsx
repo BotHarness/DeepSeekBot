@@ -13,8 +13,15 @@ import { badgeCount } from '../primitives/badge-count';
 import { MaterialDotBadge } from '../primitives/count-badge.android';
 import { useStrings } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
+import { navigationLabel } from './navigation-label';
 
-export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
+export function NavigationDestinations({
+  items,
+  labels = true,
+}: {
+  items: NavigationDestination[];
+  labels?: boolean;
+}) {
   const t = useStrings();
   const theme = useDesignTheme();
   const colors = {
@@ -40,13 +47,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
       >
         {items.map((item) => {
           const showCount = item.activity && item.count > 0;
-          const normal = item.settings
-            ? t.settings
-            : item.activity
-              ? t.activity
-              : item.sessions
-                ? t.hostSessions.title
-                : t.chats;
+          const normal = navigationLabel(t, item);
           const pending = t.activityPendingLabel(badgeCount(item.count));
           const icon = (
             <Icon
@@ -66,7 +67,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
             <NavigationBarItem
               key={item.key}
               selected={item.focused}
-              alwaysShowLabel
+              alwaysShowLabel={labels}
               onClick={item.onPress}
               colors={colors}
               modifiers={[
@@ -98,9 +99,11 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                   icon
                 )}
               </NavigationBarItem.Icon>
-              <NavigationBarItem.Label>
-                <Text style={{ typography: 'labelMedium', textAlign: 'center' }}>{normal}</Text>
-              </NavigationBarItem.Label>
+              {labels ? (
+                <NavigationBarItem.Label>
+                  <Text style={{ typography: 'labelMedium', textAlign: 'center' }}>{normal}</Text>
+                </NavigationBarItem.Label>
+              ) : null}
             </NavigationBarItem>
           );
         })}

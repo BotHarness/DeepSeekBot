@@ -7,7 +7,14 @@ import { badgeCount } from '../primitives/badge-count';
 import { ChatsIcon, ActivityIcon, SettingsIcon, AssignmentSessionIcon } from './icons';
 import { useStrings } from '../strings';
 import type { NavigationDestination } from './navigation-destination';
-export function NavigationDestinations({ items }: { items: NavigationDestination[] }) {
+import { navigationLabel } from './navigation-label';
+export function NavigationDestinations({
+  items,
+  labels = true,
+}: {
+  items: NavigationDestination[];
+  labels?: boolean;
+}) {
   const t = useStrings();
   const theme = useDesignTheme();
   const android = Platform.OS === 'android';
@@ -22,13 +29,7 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
             : sessions
               ? AssignmentSessionIcon
               : ChatsIcon;
-        const label = settings
-          ? t.settings
-          : activity
-            ? t.activity
-            : sessions
-              ? t.hostSessions.title
-              : t.chats;
+        const label = navigationLabel(t, item);
         return (
           <Pressable
             key={item.key}
@@ -76,9 +77,11 @@ export function NavigationDestinations({ items }: { items: NavigationDestination
                 />
               </NavigationIcon>
             </View>
-            <Text variant="meta" strong={android && focused} tone={focused ? 'fg' : 'muted'}>
-              {label}
-            </Text>
+            {labels ? (
+              <Text variant="meta" strong={android && focused} tone={focused ? 'fg' : 'muted'}>
+                {label}
+              </Text>
+            ) : null}
           </Pressable>
         );
       })}
